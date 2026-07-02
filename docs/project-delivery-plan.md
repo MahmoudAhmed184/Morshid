@@ -1,7 +1,7 @@
 # Morshid Project Delivery Plan
 
 Date: July 2, 2026  
-Delivery window: 8 weeks  
+Delivery window: 4 sprints, 10 days each, targeting P0 readiness in early August
 Team: ThinkFirst, 5 full-stack developers  
 Protected P0 course: Python Programming
 
@@ -16,7 +16,7 @@ This plan is based on:
 
 ## Delivery Frame
 
-Morshid is an 8-week ITI graduation project. The plan protects one complete P0 loop:
+Morshid is planned as an early-August P0 delivery. The baseline plan is four 10-day sprints focused on one complete protected P0 loop:
 
 1. Admin creates users and course assignments.
 2. Instructor uploads clean text-based Python PDFs.
@@ -40,7 +40,9 @@ The implementation defaults are:
 - Infra: Docker Compose, Caddy, lightweight CI, manual deploy.
 - Conditional Django: only if ITI requires Python; it stays internal behind NestJS.
 
-Cut-first or later scope:
+Conditional extension scope:
+
+If ITI grants the team the full two-month delivery window, the team can add P1/P2 work after Sprint 4. These items are not part of the early-August P0 commitment:
 
 - CSV import.
 - DOCX.
@@ -69,16 +71,16 @@ Every story has one directly responsible owner and one reviewer from a different
 
 ### Sprint Cadence
 
-Each sprint is one week.
+Each sprint is 10 calendar days. Sprint reviews happen at the end of each 10-day block, with a lightweight midpoint checkpoint around Day 5.
 
 | Ceremony | Timebox | Participants | Output |
 |---|---:|---|---|
-| Sprint planning | 60-90 min, start of week | All | Sprint goal, committed stories, owners, risks |
+| Sprint planning | 60-90 min, start of sprint | All | Sprint goal, committed stories, owners, risks |
 | Daily scrum | 15 min daily | All | Progress, blockers, ownership changes |
-| Backlog refinement | 45 min mid-week | Product/UX, NestJS, AI, QA owners; others as needed | Ready stories for next sprint |
-| Technical design checkpoint | 30 min mid-week | Relevant owners | Decisions recorded before implementation spreads |
-| Sprint review/demo | 45-60 min end of week | All, optional supervisor | Working demo against acceptance criteria |
-| Sprint retrospective | 30 min end of week | All | Process changes, action items |
+| Mid-sprint backlog refinement | 45 min around Day 5 | Product/UX, NestJS, AI, QA owners; others as needed | Ready stories for next sprint |
+| Technical design checkpoint | 30 min around Day 5 or before risky work | Relevant owners | Decisions recorded before implementation spreads |
+| Sprint review/demo | 45-60 min end of sprint | All, optional supervisor | Working demo against acceptance criteria |
+| Sprint retrospective | 30 min end of sprint | All | Process changes, action items |
 
 ### Board Workflow
 
@@ -134,15 +136,15 @@ A story is done when:
 - A blocker older than half a day gets a named unblock owner.
 - A blocker older than one day is escalated to the whole team and the sprint scope is rebalanced.
 - AI provider or API-budget blockers must have a local fixture/mock path within the same sprint.
-- If a gate is at risk, cut from P2 first, then P1. Do not cut the P0 Socratic + RAG + review loop unless replacing implementation depth with a controlled demo path.
+- If a gate is at risk, cut all extension scope first. Do not cut the P0 Socratic + RAG + review loop unless replacing implementation depth with a controlled demo path.
 
 ### Review Cadence
 
 - Every PR gets one code reviewer.
 - Auth, RBAC, course isolation, file upload, AI prompt/policy, and review workflow changes require two reviewers.
-- End-of-week demo must use seeded accounts and a fresh database reset where possible.
+- End-of-sprint demo must use seeded accounts and a fresh database reset where possible.
 - Security acceptance tests are reviewed every sprint from Sprint 1 onward.
-- The golden demo dataset is reviewed at the end of Weeks 2, 4, 6, 7, and 8.
+- The golden demo dataset is locked in Sprint 1 and reviewed at the end of Sprints 2, 3, and 4.
 
 ## Epic List
 
@@ -242,49 +244,27 @@ Primary outcomes:
 - Evaluation report.
 - Demo script, seeded data, backup plan, and final polish.
 
-## Eight-Week Sprint Plan
+## Four-Sprint P0 Plan
 
-### Sprint 1: Foundations and P0 Course Shell
+### Sprint 1: Foundations, Access, and P0 Course Shell
 
-Sprint goal: A fresh developer can run Morshid locally, sign in as each seeded role, and see role-appropriate shells for the seeded Python Programming course with server-side auth, RBAC, course assignment checks, audit foundation, Swagger, CI, and initial security tests.
+Duration: 10 days.
 
-Main epics: Epic 1, start Epic 2.
+Sprint goal: A fresh developer can run Morshid locally, sign in as each seeded role, and see role-appropriate shells for the seeded Python Programming course with server-side auth, RBAC, course assignment checks, audit foundation, Swagger, CI, initial security tests, and a locked P0 demo dataset/source plan.
 
-Gate: Users, roles, one course, login, and seeded chat shell work end to end.
+Main epics: Epic 1, Epic 2, start Epic 8.
+
+Gate 1: Users, roles, one course, login, seeded chat shell, Admin CRUD shell, and golden dataset v1 work end to end.
 
 Detailed Sprint 1 plan appears later in this document.
 
-### Sprint 2: Admin Operations and Golden Demo Data
+### Sprint 2: Material Ingestion, Retrieval, Citations, and Basic Chat
 
-Sprint goal: Admin can manage the P0 users/course/assignments enough to support the demo, and the team has a locked Python golden dataset by the end of the week.
+Duration: 10 days.
 
-Main epics: Epic 2, Epic 8.
+Sprint goal: Instructor can upload clean Python PDFs, Morshid can ingest and retrieve only from the Python course, and a Student can ask a conceptual question and receive cited course-grounded guidance through the chat path.
 
-Tasks and subtasks:
-
-| Task | Subtasks | Owner |
-|---|---|---|
-| Complete Admin user operations | Create user form; edit role/name; disable/reactivate; manual password reset; disabled-session invalidation test | NestJS owner |
-| Complete course assignment operations | Course detail page; assign/unassign Instructor; assign/unassign Students; assignment boundary guard tests | NestJS owner |
-| Material metadata shell | Create/edit material record; status field; course filter; delete/mark unavailable placeholder | Product/UX owner |
-| Audit log view | Recent audit events API; Admin table; filters by actor/action/course if simple | QA/DevOps owner |
-| Golden dataset v1 | 3 conceptual, 3 problem-like, 3 attempts, 3 code bugs, 2 unsupported, 3 injection, 2 auth tests | Ingestion/evaluation owner |
-| P0 sample PDFs | Draft or collect 3-5 clean Python PDFs with permission-safe content; titles and version labels | Ingestion/evaluation owner |
-| Security tests expansion | Student cannot access Admin endpoints; Student cannot access Instructor queue; disabled user blocked | QA/DevOps owner |
-| UI consistency pass | Landing/sign-in polish; dashboard empty states; responsive smoke check | Product/UX owner |
-
-Deliverables:
-
-- Admin CRUD for users, course, assignments, and material metadata.
-- Golden demo dataset v1 committed under docs or test fixtures.
-- Security tests for role and disabled-account boundaries.
-- P0 sample PDF plan finalized.
-
-### Sprint 3: PDF Upload and Ingestion Pipeline
-
-Sprint goal: Instructor can upload one clean text-based Python PDF and see a usable processing status with extracted text and chunks stored for the course.
-
-Main epics: Epic 3.
+Main epics: Epic 3, Epic 4, Epic 5.
 
 Tasks and subtasks:
 
@@ -292,48 +272,31 @@ Tasks and subtasks:
 |---|---|---|
 | PDF upload API | Multipart endpoint; file type/size validation; local Docker volume storage; ownership guard | NestJS owner |
 | Material processing model | Status transitions; error/warning fields; extracted length; chunk count; metadata storage | Ingestion/evaluation owner |
-| Text extraction | Clean text PDF parser; unreadable/empty text warnings; duplicate filename/content hash warning if simple | Ingestion/evaluation owner |
-| Chunking baseline | Recursive/fixed chunking; course/material/chunk metadata; chunk versioning basics | AI service owner |
-| Instructor materials UI | Upload form; status list; failure/warning states; refresh/polling | Product/UX owner |
-| Upload security tests | Reject unsupported file type; reject oversize; Instructor only own course; Admin any course | QA/DevOps owner |
-| Audit events | material uploaded, failed, ready, deleted/unavailable | QA/DevOps owner |
-
-Deliverables:
-
-- One clean PDF can be uploaded and processed into chunks.
-- Instructor sees Processing, Ready, Ready with warning, or Failed.
-- Invalid file attempts fail safely and are tested.
-
-### Sprint 4: Retrieval, Embeddings, Citations, and Chat Response Path
-
-Sprint goal: A Student can ask a conceptual Python question and receive a course-grounded cited response using only chunks from the Python course, streamed via SSE or returned via the approved fallback.
-
-Main epics: Epic 4, Epic 5.
-
-Tasks and subtasks:
-
-| Task | Subtasks | Owner |
-|---|---|---|
+| Text extraction and chunking | Clean text PDF parser; unreadable/empty warnings; recursive/fixed chunking; course/material/chunk metadata | Ingestion/evaluation owner |
 | Embedding provider abstraction | Embedding interface; env-selected provider; deterministic test/mock provider | AI service owner |
 | pgvector retrieval | Store embeddings; course-filtered top-k query; similarity threshold; cross-course fixture | Ingestion/evaluation owner |
 | Basic AI provider abstraction | Completion/streaming interface; provider env config; mock provider for tests | AI service owner |
-| Student session API | Create/list/rename/delete session; persist messages; assignment guard | NestJS owner |
-| SSE chat endpoint | Authorized endpoint; save Student message; stream AI response; save final response and citations | NestJS owner |
-| Frontend chat shell completion | Course/session sidebar; message list; input; typing/stream state; retry placeholder | Product/UX owner |
+| Student session and message API | Create/list/rename/delete session; persist messages; assignment guard; failed request preservation | NestJS owner |
+| Chat response path | Authorized SSE endpoint if stable; full-response fallback; save Student message; save final response and citations | NestJS owner |
+| Instructor materials UI | Upload form; status list; failure/warning states; refresh/polling | Product/UX owner |
+| Student chat UI v1 | Course/session sidebar; message list; input; typing/stream state; retry placeholder | Product/UX owner |
 | Citation panel v1 | Inline citation tags; right panel with document title, version, chunk, excerpt, status | Product/UX owner |
-| Retrieval tests | Same-course retrieval succeeds; other-course chunks never returned; unsupported query labels not found | QA/DevOps owner |
+| Upload and retrieval tests | Reject unsupported file type; reject oversize; same-course retrieval succeeds; other-course chunks never returned | QA/DevOps owner |
 
 Deliverables:
 
-- End-to-end conceptual question with retrieved citations.
-- SSE path preferred; full-response fallback documented if SSE is unstable.
-- Gate 2 proof: one PDF can be ingested, retrieved, cited, and used in a Student response.
+- One or more clean Python PDFs can be uploaded and processed into chunks.
+- Instructor sees Processing, Ready, Ready with warning, or Failed.
+- A Student can ask a conceptual Python question and receive cited course-grounded guidance.
+- Gate 2 proof: one PDF can be ingested, retrieved, cited, and used in a Student response without cross-course leakage.
 
-### Sprint 5: Socratic Policy, Classification, and Code Diagnosis
+### Sprint 3: Socratic Tutor, Code Diagnosis, Flags, and Review Loop
 
-Sprint goal: Morshid applies the P0 tutoring policy across conceptual, problem-like, attempted-solution, unsupported, and Python code-diagnosis requests.
+Duration: 10 days.
 
-Main epics: Epic 6.
+Sprint goal: Morshid applies the P0 tutoring policy, diagnoses Python code without fixing it, flags risky guidance, and lets the Instructor resolve flagged exchanges with the Student seeing the outcome.
+
+Main epics: Epic 6, Epic 7.
 
 Tasks and subtasks:
 
@@ -344,46 +307,29 @@ Tasks and subtasks:
 | Hint ladder implementation | 4-level hint behavior; attempt-required logic; analogous example rule; no final answer rule | AI service owner |
 | Python code diagnosis | Detect Python snippets; line/block references; max length handling; no server-side execution | AI service owner |
 | Output policy check v1 | Final-answer leakage check; missing citation/label check; unsupported correctness-sensitive check | Ingestion/evaluation owner |
-| Frontend labels | Course-grounded, general not found, uncertain awaiting review, instructor-reviewed placeholder | Product/UX owner |
-| Golden dataset run v1 | Run dataset manually or scripted; record pass/fail notes; tune prompts | Ingestion/evaluation owner |
-| Policy/security tests | Prompt injection cannot reveal system prompt or force final answer; document injection ignored | QA/DevOps owner |
-
-Deliverables:
-
-- Socratic behavior works for the core demo examples.
-- Code diagnosis identifies bugs without corrected full code.
-- Direct-answer leakage tests exist and are tracked.
-
-### Sprint 6: Flags, Instructor Review, and Student Outcome
-
-Sprint goal: Risky or disputed guidance enters Instructor review, and the Student sees the resolved result in the original chat.
-
-Main epics: Epic 7.
-
-Tasks and subtasks:
-
-| Task | Subtasks | Owner |
-|---|---|---|
+| Guidance labels | Course-grounded, general not found, uncertain awaiting review, instructor-reviewed placeholder | Product/UX owner |
 | Flag model and API | Automatic/manual flag creation; flag reason/type; 3-per-day manual limit; 200-character reason | NestJS owner |
-| Review queue | Instructor sees only owned course flags; count badge; list by status/type/date | Product/UX owner |
-| Review detail | Student identity; course; flag reason; Student message; AI response; citations; at most 1 previous/next message | Product/UX owner |
+| Review queue and detail | Owned-course flags only; count badge; limited context; citations; status/type/date filters | Product/UX owner |
 | Review actions | Approve; edit; replace; reject with reason; mark resolved; retain original response | NestJS owner |
 | Student outcome UI | Awaiting review status; resolved status; reviewed answer attached to response; notification/bell | Product/UX owner |
-| Notification foundation | Polling endpoint; unread count; review completed/rejected/limit reached events | NestJS owner |
-| Audit events | flag created; Instructor review action; review status update | QA/DevOps owner |
-| Privacy tests | Instructor cannot browse unflagged chats; review context is limited; Student cannot view others' flags | QA/DevOps owner |
+| Golden dataset run v1 | Run dataset manually or scripted; record pass/fail notes; tune prompts | Ingestion/evaluation owner |
+| Policy, privacy, and prompt-injection tests | Final-answer bypass; system prompt protection; document injection ignored; Instructor cannot browse unflagged chats | QA/DevOps owner |
 
 Deliverables:
 
-- Gate 3 proof: Socratic policy, code diagnosis, and Instructor review work on the golden demo dataset.
+- Socratic behavior works for conceptual, problem-like, attempted-solution, unsupported, and code-diagnosis examples.
+- Code diagnosis identifies bugs without corrected full code.
+- Instructor review works on the golden demo dataset.
 - Student sees review completion or rejection result.
-- Instructor cannot access unflagged private chats.
+- Gate 3 proof: Socratic policy, code diagnosis, and Instructor review work on the P0 path.
 
-### Sprint 7: Limits, Security, Deployment, and UI Polish
+### Sprint 4: Limits, Security, Deployment, Evaluation, and Demo Hardening
 
-Sprint goal: The P0 loop is stable, rate-limited, auditable, responsive, and deployable with a reviewer-ready interface.
+Duration: 10 days.
 
-Main epics: Epic 8, polish across Epics 2-7.
+Sprint goal: The early-August P0 demo is stable, rate-limited, auditable, deployable or locally reproducible, evaluated against the golden dataset, and backed by a safe fallback plan.
+
+Main epics: Epic 8, polish across Epics 1-7.
 
 Tasks and subtasks:
 
@@ -393,51 +339,44 @@ Tasks and subtasks:
 | Provider failure handling | Preserve Student message; temporary unavailable response; retry; no ungrounded fallback | AI service owner |
 | Security suite | Course isolation; role escalation; disabled session; private chat access; prompt injection; upload validation | QA/DevOps owner |
 | Caddy and deploy docs | Caddy config; Docker Compose production profile; manual deploy checklist; env/secrets checklist | QA/DevOps owner |
-| Dashboard polish | Empty/loading/error states; responsive tables; consistent role navigation; dark/light toggle if time allows | Product/UX owner |
+| Dashboard and chat polish | Empty/loading/error states; responsive tables; consistent role navigation; dark/light toggle only if it does not threaten P0 | Product/UX owner |
 | API hardening | Consistent error codes; Swagger completeness; request validation; global exception filter | NestJS owner |
-| Evaluation run v2 | Run golden dataset; record metrics; identify blocker fixes for Sprint 8 | Ingestion/evaluation owner |
-
-Deliverables:
-
-- Gate 4 proof: security tests, cross-course isolation, usage-limit handling, and demo data are stable.
-- Manual deployment path is documented and tested at least once.
-- UI is coherent enough for graduation reviewers.
-
-### Sprint 8: Evaluation, Demo Prep, and Final Hardening
-
-Sprint goal: The team can repeatedly demonstrate the protected P0 loop with seeded data, documented evidence, and a tested backup path.
-
-Main epics: Epic 8.
-
-Tasks and subtasks:
-
-| Task | Subtasks | Owner |
-|---|---|---|
-| Final bug fixing | Triage by P0 impact; freeze cut-first scope; fix demo blockers only after mid-week | All owners |
-| Evaluation report | Citation accuracy; retrieval relevance; Socratic compliance; code diagnosis; security results | Ingestion/evaluation owner |
+| Evaluation run and report | Citation accuracy; retrieval relevance; Socratic compliance; code diagnosis; security results | Ingestion/evaluation owner |
 | Demo script | Admin path; Instructor upload; Student conceptual; problem hint; code diagnosis; unsupported flag; review resolution; security denial | Product/UX owner |
 | Backup demo path | Seeded DB snapshot; sample PDFs preloaded; mock provider option; fallback model env; recorded evidence if provider outage occurs | QA/DevOps owner |
-| Final deployment | Deploy to VPS/university server; smoke test; document rollback/restart steps | QA/DevOps owner |
-| Presentation assets | Architecture diagram; scope guardrails; test results; screenshots; known limitations | Product/UX owner |
-| Final security pass | Re-run acceptance suite; verify no public signup/SSO/CSV/DOCX accidental scope leaks | QA/DevOps owner |
+| Final bug fixing | Triage by P0 impact; freeze extension scope; fix demo blockers only after midpoint | All owners |
 
 Deliverables:
 
-- Gate 5 proof: evaluation report, bug fixes, backup path, and final presentation assets are ready.
-- Final deployed or locally reproducible demo.
-- Known limitations documented honestly.
+- Gate 4 proof: the protected P0 loop can be demonstrated repeatedly from seeded data.
+- Security tests, cross-course isolation, usage-limit handling, and demo data are stable.
+- Evaluation report, demo script, backup path, and known limitations are ready.
+- Final deployed or locally reproducible early-August demo is ready.
+
+## Conditional Extension Plan
+
+If ITI extends the project to the full two-month window after the P0 demo is stable, continue with P1/P2 scope in this order:
+
+1. DOCX ingestion and stronger ingestion warnings.
+2. Reviewed-answer library editor and optional second-tier reviewed-answer retrieval.
+3. More complete notifications and usage-limit configuration UI.
+4. Retention cleanup workflow and stronger audit views.
+5. Multiple courses and richer Admin/Instructor dashboards.
+6. Accessibility and responsive polish beyond the P0 critical path.
+7. Advanced retrieval, hybrid search, reranking, and broader evaluation automation only if simple top-k retrieval fails measured tests.
+8. CSV import, Arabic/RTL, SSO/OAuth, and full CI/CD only after the learning loop is reliable.
 
 ## Sprint 1 Detailed Plan
 
 ### Sprint Goal
 
-By the end of Sprint 1, the team can run the project locally with Docker Compose, sign in with seeded P0 demo accounts, enforce basic role and course boundaries server-side, and navigate role-specific shells for Admin, Instructor, and Student. The project also has CI, Swagger/OpenAPI, audit-log foundation, and first acceptance/security tests.
+By the end of Sprint 1, the team can run the project locally with Docker Compose, sign in with seeded P0 demo accounts, enforce basic role and course boundaries server-side, and navigate role-specific shells for Admin, Instructor, and Student. The project also has CI, Swagger/OpenAPI, audit-log foundation, first acceptance/security tests, a locked P0 golden dataset v1, and a permission-safe Python PDF source plan.
 
 ### Assumptions
 
 - The team uses a simple monorepo, not Turborepo unless setup is trivial.
 - Prisma is used for the NestJS database layer.
-- Auth uses NestJS-owned JWT access tokens plus refresh-token rotation unless BetterAuth proves clean by the end of Sprint 1. If BetterAuth is not integrated by mid-week, fall back to NestJS-owned auth immediately.
+- Auth uses NestJS-owned JWT access tokens plus refresh-token rotation unless BetterAuth proves clean by Day 4. If BetterAuth is not clearly integrated by then, fall back to NestJS-owned auth immediately.
 - Passwords are seeded for local/demo only through documented seed conventions. Production secrets are not committed.
 - The Python Programming course is the only P0 course, but one hidden test course may be seeded for boundary tests.
 - PDF upload/ingestion is not required to work in Sprint 1; material CRUD is a shell/metadata surface only.
@@ -460,8 +399,13 @@ By the end of Sprint 1, the team can run the project locally with Docker Compose
 | Day 1 | Align repo and architecture defaults | Monorepo folders, package scripts, Docker Compose for PostgreSQL/pgvector/Redis, NestJS scaffold, TanStack Start scaffold | `docker compose up` starts infrastructure; frontend/backend dev commands boot |
 | Day 2 | Persist core identity/course model | Prisma schema, first migration, seed script for users/course/assignments, `.env.example`, config validation | Fresh DB migration and seed creates all P0 accounts and Python course |
 | Day 3 | Authenticate and authorize | Auth endpoints, password hashing, JWT/refresh handling, disabled-account blocking, role guard | Seeded users can sign in; disabled seeded/test user is blocked |
-| Day 4 | Role shells and Admin skeleton | Landing/sign-in route, route guards, Admin user/course/material CRUD shell, Instructor dashboard shell, Student course/chat shell | Each role lands in the correct shell and cannot open another role shell |
-| Day 5 | Audit, Swagger, CI, and tests | Audit service/table, Swagger setup, CI workflow, auth/RBAC/course-boundary tests, sprint review cleanup | CI passes; security acceptance tests pass; Sprint 1 demo script works |
+| Day 4 | Course boundaries and route shells | Course access guard/helper, role routing, landing/sign-in route, Admin/Instructor/Student shells | Each role lands in the correct shell and cannot open another role shell |
+| Day 5 | Mid-sprint integration checkpoint | Admin user/course/material CRUD shell, Instructor dashboard shell, Student chat/session placeholder, first Swagger setup | Seeded demo walkthrough works manually from a fresh database |
+| Day 6 | Admin operations hardening | Create/edit users; disable/reactivate; password reset placeholder/action; assignment controls | Admin changes affect API behavior and Student course visibility |
+| Day 7 | Audit and boundary test expansion | Audit service/table coverage; unauthorized access events; disabled-session checks; course-boundary tests | Auth, disabled-account, RBAC, and course-boundary tests pass locally |
+| Day 8 | Golden dataset and P0 source plan | Golden dataset v1; 3-5 clean Python PDF titles/content plan; permission notes; demo scenario mapping | Dataset and source plan are committed under docs or fixtures |
+| Day 9 | UI consistency and CI | Landing/sign-in polish; dashboard empty states; responsive smoke check; CI workflow | CI runs lint/type-check/tests/build as available |
+| Day 10 | Sprint review hardening | Swagger completeness; demo script; fresh-seed rehearsal; bug fixes only | Sprint 1 review script passes from clean setup |
 
 ### Sprint 1 Stories
 
@@ -705,6 +649,34 @@ Test requirements:
   - Student sees only assigned course
   - unassigned course access denied
 
+#### Story 1.9: Golden Dataset and P0 Source Readiness
+
+As the team,
+I want a locked Python demo dataset and permission-safe source plan,
+So that Sprint 2-4 AI, RAG, policy, and demo work can be tested against stable P0 examples.
+
+Acceptance criteria:
+
+- Given the Sprint 1 plan, when the dataset is reviewed, then it contains conceptual, problem-like, attempted-solution, code-diagnosis, unsupported, prompt-injection, and authorization examples.
+- Given the P0 course is Python Programming, when source material is selected, then 3-5 clean text-based PDF topics are identified with titles, version labels, and permission notes.
+- Given future prompt/RAG work starts, when the team needs expected behavior, then each dataset item includes expected classification, citation behavior, allowed/forbidden response behavior, and pass/fail notes.
+- Given the dataset is used for demos, when Sprint 2-4 work changes behavior, then pass/fail notes are updated rather than silently changing expectations.
+
+Tasks:
+
+| Task | Subtasks | Owner |
+|---|---|---|
+| Golden dataset v1 | 3 conceptual; 3 problem-like; 3 attempts; 3 code bugs; 2 unsupported; 3 injection; 2 auth/course tests | Ingestion/evaluation owner |
+| P0 sample PDF plan | Draft or collect 3-5 clean Python PDFs; titles; version labels; permission notes; source-topic mapping | Ingestion/evaluation owner |
+| Demo scenario mapping | Map dataset examples to the protected P0 loop; mark which examples are used for graduation demo rehearsal | Product/UX owner |
+| Evaluation fixture conventions | Decide file location, schema/format, pass/fail note style, and update process | QA/DevOps owner |
+
+Test requirements:
+
+- Dataset review checklist confirms every protected P0 behavior has at least one example.
+- Authorization/course-isolation examples are ready to become automated tests.
+- Prompt-injection and final-answer-bypass examples are ready for Sprint 3 policy evaluation.
+
 ### Sprint 1 Completion Checklist
 
 - Repository uses the agreed simple monorepo structure.
@@ -734,6 +706,8 @@ Test requirements:
 - Swagger/OpenAPI is available for Sprint 1 endpoints.
 - Lightweight CI runs lint/type-check/tests/build as available.
 - Initial acceptance/security tests pass for auth, disabled accounts, role boundaries, and course assignment boundaries.
+- Golden demo dataset v1 is committed under docs or test fixtures.
+- P0 sample Python PDF plan is finalized with titles, version labels, and permission notes.
 
 ### Sprint 1 Risks and Mitigations
 
@@ -741,7 +715,7 @@ Test requirements:
 |---|---|---|
 | Auth library integration takes too long | Delays all role/course work | Timebox BetterAuth to early week; use NestJS-owned JWT fallback immediately if integration is unclear |
 | Frontend scaffold conflicts with Tailwind v4/Shadcn setup | UI shell slips | Keep minimal component set; avoid design-system overbuild; prioritize sign-in and role shells |
-| Prisma/pgvector setup friction | Later RAG work blocked | Install pgvector in Compose during Sprint 1; vectors can be added in Sprint 3/4 migrations if needed |
+| Prisma/pgvector setup friction | Later RAG work blocked | Install pgvector in Compose during Sprint 1; vector tables can be added in Sprint 2 migrations if needed |
 | Too much Admin CRUD depth | P0 foundation slips | Build simple tables/forms only; CSV, bulk actions, analytics, and rich dashboards are cut-first |
 | Tests are postponed | Security regressions become invisible | Add boundary tests in the same story as guards/endpoints |
 | Seed credentials mishandled | Demo or security confusion | Document local-only demo password convention; never commit production secrets |
@@ -766,12 +740,13 @@ At Sprint 1 review, the team should demonstrate:
 14. Audit log contains login, logout, user/assignment change, disabled access, and unauthorized access events.
 15. Swagger/OpenAPI is available.
 16. CI passes.
+17. Golden dataset v1 and P0 source plan are ready for Sprint 2.
 
 ## Cross-Sprint Quality Requirements
 
 ### Security Acceptance Coverage
 
-These scenarios must exist by Sprint 7, with Sprint 1 starting the foundation:
+These scenarios must exist by Sprint 4, with Sprint 1 starting the foundation:
 
 - Student cannot access Admin endpoints.
 - Student cannot access Instructor review queue.
@@ -785,7 +760,7 @@ These scenarios must exist by Sprint 7, with Sprint 1 starting the foundation:
 
 ### Evaluation Coverage
 
-The golden dataset must be locked by the end of Sprint 2 and run at each major gate:
+The golden dataset must be locked by the end of Sprint 1 and run at each major gate:
 
 - 3-5 conceptual Python questions with expected citations.
 - 3-5 problem-like questions where final answers must not be given.
@@ -798,7 +773,7 @@ The golden dataset must be locked by the end of Sprint 2 and run at each major g
 
 ### Scope Guardrails
 
-Protected through Week 8:
+Protected through Sprint 4:
 
 - One seeded Python Programming course.
 - Clean text-based PDFs only.
@@ -820,4 +795,3 @@ Cut before P0 is threatened:
 - Full CI/CD.
 - Advanced retrieval beyond simple top-k vector search.
 - Complex notification delivery beyond polling/status updates.
-
