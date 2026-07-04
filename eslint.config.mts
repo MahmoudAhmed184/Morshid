@@ -2,17 +2,12 @@ import js from '@eslint/js'
 import eslintConfigPrettier from 'eslint-config-prettier/flat'
 import { defineConfig, globalIgnores } from 'eslint/config'
 import globals from 'globals'
-import { dirname } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import tseslint from 'typescript-eslint'
 
-const tsconfigRootDir = dirname(fileURLToPath(import.meta.url))
+const tsconfigRootDir = new URL('.', import.meta.url).pathname
 
 export default defineConfig([
-  globalIgnores(
-    ['node_modules/**', 'dist/**', 'coverage/**', 'client/**', 'server/**'],
-    'root/ignores',
-  ),
+  globalIgnores(['node_modules/**', 'dist/**', 'coverage/**'], 'root/ignores'),
   {
     name: 'root/linter-options',
     linterOptions: {
