@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 
 import type { AppEnvironment } from './modules/config/env.schema';
+import { configureApp } from './app.setup';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -13,6 +14,7 @@ async function bootstrap() {
   app.enableCors({
     origin: clientOrigin,
   });
+  configureApp(app);
 
   await app.listen(port);
 }

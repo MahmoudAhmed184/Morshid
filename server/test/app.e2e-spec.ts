@@ -2,10 +2,25 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
+import { configureApp } from '../src/app.setup';
 import { AppModule } from './../src/app.module';
+import { PrismaService } from '../src/modules/prisma/prisma.service';
+import { RedisService } from '../src/modules/redis/redis.service';
 
-describe('AppController (e2e)', () => {
+type HealthResponse = {
+  status: string;
+  details: Record<string, { status: string }>;
+};
+
+describe('HealthController (e2e)', () => {
   let app: INestApplication<App>;
+  const prismaService = {
+    ping: jest.fn(),
+    hasPgVectorExtension: jest.fn(),
+  };
+  const redisService = {
+    ping: jest.fn(),
+  };
 
   beforeAll(() => {
     process.env.DATABASE_URL =
@@ -14,19 +29,64 @@ describe('AppController (e2e)', () => {
   });
 
   beforeEach(async () => {
+    prismaService.ping.mockResolvedValue(undefined);
+    prismaService.hasPgVectorExtension.mockResolvedValue(true);
+    redisService.ping.mockResolvedValue('PONG');
+
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(PrismaService)
+      .useValue(prismaService)
+      .overrideProvider(RedisService)
+      .useValue(redisService)
+      .compile();
 
     app = moduleFixture.createNestApplication();
+    configureApp(app);
     await app.init();
   });
 
-  it('/ (GET)', () => {
+  it('/health/live (GET)', () => {
     return request(app.getHttpServer())
-      .get('/')
+      .get('/health/live')
       .expect(200)
-      .expect('Hello World!');
+      .expect({
+        status: 'ok',
+        info: {
+          process: {
+            status: 'up',
+          },
+        },
+        error: {},
+        details: {
+          process: {
+            status: 'up',
+          },
+        },
+      });
+  });
+
+  it('/health/ready (GET)', () => {
+    return request(app.getHttpServer())
+      .get('/health/ready')
+      .expect(200)
+      .expect(({ body }) => {
+        const responseBody = body as HealthResponse;
+
+        expect(responseBody.status).toBe('ok');
+        expect(responseBody.details).toMatchObject({
+          database: {
+            status: 'up',
+          },
+          redis: {
+            status: 'up',
+          },
+          pgvector: {
+            status: 'up',
+          },
+        });
+      });
   });
 
   afterEach(async () => {
