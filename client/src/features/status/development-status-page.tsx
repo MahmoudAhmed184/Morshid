@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { queryOptions, useQuery } from '@tanstack/react-query'
 import {
   Activity,
   CheckCircle2,
@@ -21,6 +21,11 @@ import { fetchReadinessStatus } from '@/lib/api/health'
 import { clientEnv } from '@/lib/env'
 
 const runtimeDependencies = ['database', 'redis', 'pgvector'] as const
+
+const readinessQueryOptions = queryOptions({
+  queryKey: ['server-readiness'],
+  queryFn: () => fetchReadinessStatus(),
+})
 
 function getReadinessLabel(
   isPending: boolean,
@@ -73,10 +78,7 @@ function getRuntimeReadinessLabel(
 }
 
 export function DevelopmentStatusPage() {
-  const readiness = useQuery({
-    queryKey: ['server-readiness'],
-    queryFn: () => fetchReadinessStatus(),
-  })
+  const readiness = useQuery(readinessQueryOptions)
 
   const readinessLabel = getReadinessLabel(
     readiness.isPending,

@@ -1,7 +1,7 @@
 name: Story
 description: User-facing vertical slice.
-title: "story: "
-labels: ["type:story"]
+title: 'story: '
+labels: ['type:story']
 body:
   - type: textarea
     id: story

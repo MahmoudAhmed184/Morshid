@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=24 <25",
+    "node": ">=24.3 <25",
     "npm": ">=11"
   },
   "imports": {
@@ -15,9 +15,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run --passWithNoTests",
-    "lint": "eslint . --cache --cache-location node_modules/.cache/eslint/",
-    "lint:ci": "eslint . --max-warnings=0 --no-warn-ignored",
-    "lint:fix": "eslint . --fix",
+    "lint": "eslint \"eslint.config.mts\" . --cache --cache-location node_modules/.cache/eslint/",
+    "lint:ci": "eslint \"eslint.config.mts\" . --max-warnings=0 --no-warn-ignored",
+    "lint:fix": "eslint \"eslint.config.mts\" . --fix",
     "typecheck": "tsc --noEmit",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
@@ -50,6 +50,7 @@
     "@tanstack/devtools-vite": "^0.8.1",
     "@tanstack/eslint-config": "^0.4.0",
     "@tanstack/eslint-plugin-query": "^5.101.2",
+    "@tanstack/eslint-plugin-router": "^1.162.0",
     "@tanstack/router-cli": "^1.167.18",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",

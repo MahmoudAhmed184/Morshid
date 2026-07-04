@@ -1,21 +1,21 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common'
 import {
   HealthIndicatorService,
   type HealthIndicatorResult,
-} from '@nestjs/terminus';
+} from '@nestjs/terminus'
 
-import { PrismaService } from '../prisma/prisma.service';
-import { RedisService } from '../redis/redis.service';
+import { PrismaService } from '../prisma/prisma.service'
+import { RedisService } from '../redis/redis.service'
 
 class ReadinessHealthCheckError extends Error {
   // Terminus checks this structural flag instead of requiring HealthCheckError.
-  readonly isHealthCheckError = true;
+  readonly isHealthCheckError = true
 
   constructor(
     message: string,
     readonly causes: HealthIndicatorResult,
   ) {
-    super(message);
+    super(message)
   }
 }
 
@@ -32,35 +32,35 @@ export class HealthService {
       'database',
       () => this.prismaService.ping(),
       'Database readiness check failed',
-    );
+    )
   }
 
   async checkRedis(): Promise<HealthIndicatorResult<'redis'>> {
     return this.checkIndicator(
       'redis',
       async () => {
-        const response = await this.redisService.ping();
+        const response = await this.redisService.ping()
 
         if (response !== 'PONG') {
-          throw new Error('Redis ping did not return PONG');
+          throw new Error('Redis ping did not return PONG')
         }
       },
       'Redis readiness check failed',
-    );
+    )
   }
 
   async checkPgVector(): Promise<HealthIndicatorResult<'pgvector'>> {
     return this.checkIndicator(
       'pgvector',
       async () => {
-        const exists = await this.prismaService.hasPgVectorExtension();
+        const exists = await this.prismaService.hasPgVectorExtension()
 
         if (!exists) {
-          throw new Error('pgvector extension is not installed');
+          throw new Error('pgvector extension is not installed')
         }
       },
       'pgvector readiness check failed',
-    );
+    )
   }
 
   private async checkIndicator<const Key extends string>(
@@ -69,14 +69,14 @@ export class HealthService {
     failureMessage: string,
   ): Promise<HealthIndicatorResult<Key>> {
     try {
-      await probe();
+      await probe()
 
-      return this.healthIndicatorService.check(key).up();
+      return this.healthIndicatorService.check(key).up()
     } catch {
       throw new ReadinessHealthCheckError(
         failureMessage,
         this.healthIndicatorService.check(key).down(),
-      );
+      )
     }
   }
 }

@@ -1,19 +1,18 @@
-// @ts-check
-import js from '@eslint/js';
-import eslintConfigPrettier from 'eslint-config-prettier/flat';
-import globals from 'globals';
-import tseslint from 'typescript-eslint';
+import js from '@eslint/js'
+import eslintConfigPrettier from 'eslint-config-prettier/flat'
+import { defineConfig, globalIgnores } from 'eslint/config'
+import globals from 'globals'
+import { dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import tseslint from 'typescript-eslint'
 
-export default tseslint.config(
-  {
-    name: 'server/ignores',
-    ignores: [
-      'dist/**',
-      'coverage/**',
-      'eslint.config.mjs',
-      'src/generated/**',
-    ],
-  },
+const tsconfigRootDir = dirname(fileURLToPath(import.meta.url))
+
+export default defineConfig([
+  globalIgnores(
+    ['dist/**', 'coverage/**', 'src/generated/**'],
+    'server/ignores',
+  ),
   {
     name: 'server/linter-options',
     linterOptions: {
@@ -22,18 +21,25 @@ export default tseslint.config(
     },
   },
   js.configs.recommended,
-  ...tseslint.configs.recommendedTypeChecked,
+  ...tseslint.configs.strictTypeChecked,
+  ...tseslint.configs.stylisticTypeChecked,
   {
     name: 'server/typescript',
+    files: [
+      '*.ts',
+      '*.mts',
+      'scripts/**/*.mts',
+      '{src,apps,libs,test}/**/*.ts',
+    ],
     languageOptions: {
       globals: {
         ...globals.node,
         ...globals.jest,
       },
-      sourceType: 'commonjs',
+      sourceType: 'module',
       parserOptions: {
         project: ['./tsconfig.eslint.json'],
-        tsconfigRootDir: import.meta.dirname,
+        tsconfigRootDir,
       },
     },
     rules: {
@@ -44,6 +50,10 @@ export default tseslint.config(
       ],
       '@typescript-eslint/no-deprecated': 'warn',
       '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-extraneous-class': [
+        'error',
+        { allowWithDecorator: true },
+      ],
       '@typescript-eslint/no-floating-promises': [
         'error',
         { ignoreVoid: true },
@@ -67,4 +77,4 @@ export default tseslint.config(
     },
   },
   eslintConfigPrettier,
-);
+])

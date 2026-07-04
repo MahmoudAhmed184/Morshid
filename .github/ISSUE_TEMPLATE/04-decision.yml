@@ -1,7 +1,7 @@
 name: Decision
 description: Architecture or product decision record.
-title: "decision: "
-labels: ["type:decision"]
+title: 'decision: '
+labels: ['type:decision']
 body:
   - type: textarea
     id: context

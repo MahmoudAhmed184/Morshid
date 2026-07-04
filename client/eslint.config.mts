@@ -1,15 +1,14 @@
-//  @ts-check
-
 import { tanstackConfig } from '@tanstack/eslint-config'
 import pluginQuery from '@tanstack/eslint-plugin-query'
+import pluginRouter from '@tanstack/eslint-plugin-router'
 import eslintConfigPrettier from 'eslint-config-prettier/flat'
+import { defineConfig, globalIgnores } from 'eslint/config'
 import reactHooks from 'eslint-plugin-react-hooks'
 
-export default [
-  {
-    name: 'client/ignores',
-    ignores: ['eslint.config.js', 'prettier.config.js', 'src/routeTree.gen.ts'],
-  },
+const tsconfigRootDir = new URL('.', import.meta.url).pathname
+
+export default defineConfig([
+  globalIgnores(['src/routeTree.gen.ts'], 'client/ignores'),
   {
     name: 'client/linter-options',
     linterOptions: {
@@ -18,8 +17,18 @@ export default [
     },
   },
   ...tanstackConfig,
-  reactHooks.configs.flat.recommended,
-  ...pluginQuery.configs['flat/recommended'],
+  {
+    name: 'client/typescript-parser-options',
+    files: ['**/*.{ts,tsx,mts}'],
+    languageOptions: {
+      parserOptions: {
+        tsconfigRootDir,
+      },
+    },
+  },
+  reactHooks.configs.flat['recommended-latest'],
+  ...pluginQuery.configs['flat/recommended-strict'],
+  ...pluginRouter.configs['flat/recommended'],
   {
     name: 'client/local-overrides',
     rules: {
@@ -32,4 +41,4 @@ export default [
     },
   },
   eslintConfigPrettier,
-]
+])

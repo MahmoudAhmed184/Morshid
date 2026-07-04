@@ -1,7 +1,7 @@
 name: Task
 description: Technical task or implementation chore.
-title: "task: "
-labels: ["type:task"]
+title: 'task: '
+labels: ['type:task']
 body:
   - type: textarea
     id: outcome

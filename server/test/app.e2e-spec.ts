@@ -1,37 +1,37 @@
-import type { INestApplication } from '@nestjs/common';
-import { Test, type TestingModule } from '@nestjs/testing';
-import request from 'supertest';
-import type { App } from 'supertest/types';
-import { configureApp } from '../src/app.setup';
-import { AppModule } from './../src/app.module';
-import { PrismaService } from '../src/modules/prisma/prisma.service';
-import { RedisService } from '../src/modules/redis/redis.service';
+import type { INestApplication } from '@nestjs/common'
+import { Test, type TestingModule } from '@nestjs/testing'
+import request from 'supertest'
+import type { App } from 'supertest/types'
+import { configureApp } from '../src/app.setup'
+import { AppModule } from './../src/app.module'
+import { PrismaService } from '../src/modules/prisma/prisma.service'
+import { RedisService } from '../src/modules/redis/redis.service'
 
-type HealthResponse = {
-  status: string;
-  details: Record<string, { status: string }>;
-};
+interface HealthResponse {
+  status: string
+  details: Record<string, { status: string }>
+}
 
 describe('HealthController (e2e)', () => {
-  let app: INestApplication<App>;
+  let app: INestApplication<App>
   const prismaService = {
     ping: jest.fn(),
     hasPgVectorExtension: jest.fn(),
-  };
+  }
   const redisService = {
     ping: jest.fn(),
-  };
+  }
 
   beforeAll(() => {
     process.env.DATABASE_URL =
-      'postgresql://morshid:morshid_local_password@localhost:5432/morshid';
-    process.env.REDIS_URL = 'redis://localhost:6379';
-  });
+      'postgresql://morshid:morshid_local_password@localhost:5432/morshid'
+    process.env.REDIS_URL = 'redis://localhost:6379'
+  })
 
   beforeEach(async () => {
-    prismaService.ping.mockResolvedValue(undefined);
-    prismaService.hasPgVectorExtension.mockResolvedValue(true);
-    redisService.ping.mockResolvedValue('PONG');
+    prismaService.ping.mockResolvedValue(undefined)
+    prismaService.hasPgVectorExtension.mockResolvedValue(true)
+    redisService.ping.mockResolvedValue('PONG')
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -40,12 +40,12 @@ describe('HealthController (e2e)', () => {
       .useValue(prismaService)
       .overrideProvider(RedisService)
       .useValue(redisService)
-      .compile();
+      .compile()
 
-    app = moduleFixture.createNestApplication();
-    configureApp(app);
-    await app.init();
-  });
+    app = moduleFixture.createNestApplication()
+    configureApp(app)
+    await app.init()
+  })
 
   it('/health/live (GET)', () => {
     return request(app.getHttpServer())
@@ -64,17 +64,17 @@ describe('HealthController (e2e)', () => {
             status: 'up',
           },
         },
-      });
-  });
+      })
+  })
 
   it('/health/ready (GET)', () => {
     return request(app.getHttpServer())
       .get('/health/ready')
       .expect(200)
       .expect(({ body }) => {
-        const responseBody = body as HealthResponse;
+        const responseBody = body as HealthResponse
 
-        expect(responseBody.status).toBe('ok');
+        expect(responseBody.status).toBe('ok')
         expect(responseBody.details).toMatchObject({
           database: {
             status: 'up',
@@ -85,11 +85,11 @@ describe('HealthController (e2e)', () => {
           pgvector: {
             status: 'up',
           },
-        });
-      });
-  });
+        })
+      })
+  })
 
   afterEach(async () => {
-    await app.close();
-  });
-});
+    await app.close()
+  })
+})

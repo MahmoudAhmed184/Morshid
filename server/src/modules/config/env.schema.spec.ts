@@ -1,4 +1,4 @@
-import { validateEnv } from './env.schema';
+import { validateEnv } from './env.schema'
 
 describe('validateEnv', () => {
   const validEnv = {
@@ -8,7 +8,7 @@ describe('validateEnv', () => {
     DATABASE_URL:
       'postgresql://morshid:morshid_local_password@localhost:5432/morshid',
     REDIS_URL: 'redis://localhost:6379',
-  };
+  }
 
   it('coerces and validates supported environment values', () => {
     expect(validateEnv(validEnv)).toMatchObject({
@@ -19,12 +19,12 @@ describe('validateEnv', () => {
         'postgresql://morshid:morshid_local_password@localhost:5432/morshid',
       REDIS_URL: 'redis://localhost:6379',
       PDF_STORAGE_PATH: '/workspace/storage/pdfs',
-    });
-  });
+    })
+  })
 
   it('fails clearly when required service URLs are missing', () => {
     expect(() => validateEnv({ NODE_ENV: 'test' })).toThrow(
       /DATABASE_URL: Invalid input/,
-    );
-  });
-});
+    )
+  })
+})

@@ -1,8 +1,8 @@
-import { Controller, Get } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { HealthCheck, HealthCheckService } from '@nestjs/terminus';
+import { Controller, Get } from '@nestjs/common'
+import { ApiOperation, ApiTags } from '@nestjs/swagger'
+import { HealthCheck, HealthCheckService } from '@nestjs/terminus'
 
-import { HealthService } from './health.service';
+import { HealthService } from './health.service'
 
 @ApiTags('health')
 @Controller('health')
@@ -22,7 +22,7 @@ export class HealthController {
           status: 'up',
         },
       }),
-    ]);
+    ])
   }
 
   @Get('ready')
@@ -33,6 +33,6 @@ export class HealthController {
       () => this.healthService.checkDatabase(),
       () => this.healthService.checkRedis(),
       () => this.healthService.checkPgVector(),
-    ]);
+    ])
   }
 }

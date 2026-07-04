@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod'
 
 export const envSchema = z.object({
   NODE_ENV: z
@@ -9,27 +9,27 @@ export const envSchema = z.object({
   DATABASE_URL: z.url().startsWith('postgresql://'),
   REDIS_URL: z.url().startsWith('redis://'),
   PDF_STORAGE_PATH: z.string().min(1).default('/workspace/storage/pdfs'),
-});
+})
 
-export type AppEnvironment = z.infer<typeof envSchema>;
+export type AppEnvironment = z.infer<typeof envSchema>
 
 export function formatEnvIssues(error: z.ZodError) {
   return error.issues
     .map((issue) => {
-      const path = issue.path.join('.') || 'environment';
-      return `${path}: ${issue.message}`;
+      const path = issue.path.join('.') || 'environment'
+      return `${path}: ${issue.message}`
     })
-    .join('\n');
+    .join('\n')
 }
 
 export function validateEnv(config: Record<string, unknown>) {
-  const result = envSchema.safeParse(config);
+  const result = envSchema.safeParse(config)
 
   if (!result.success) {
     throw new Error(
       `Invalid environment configuration:\n${formatEnvIssues(result.error)}`,
-    );
+    )
   }
 
-  return result.data;
+  return result.data
 }

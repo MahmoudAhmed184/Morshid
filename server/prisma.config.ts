@@ -1,11 +1,11 @@
-import { config as loadEnv } from 'dotenv';
-import { defineConfig } from 'prisma/config';
+import { config as loadEnv } from 'dotenv'
+import { defineConfig } from 'prisma/config'
 
 const localDatabaseUrl =
-  'postgresql://morshid:morshid_local_password@localhost:5432/morshid';
+  'postgresql://morshid:morshid_local_password@localhost:5432/morshid'
 
 for (const path of ['server/.env', '.env', '../.env']) {
-  loadEnv({ path });
+  loadEnv({ path })
 }
 
 export default defineConfig({
@@ -16,4 +16,4 @@ export default defineConfig({
   datasource: {
     url: process.env.DATABASE_URL ?? localDatabaseUrl,
   },
-});
+})

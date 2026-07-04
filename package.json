@@ -3,7 +3,7 @@
   "private": true,
   "packageManager": "npm@11.18.0",
   "engines": {
-    "node": ">=24 <25",
+    "node": ">=24.3 <25",
     "npm": ">=11"
   },
   "workspaces": [
@@ -26,18 +26,30 @@
     "infra:down": "docker compose down",
     "db:migrate": "npm run db:migrate --workspace server",
     "db:seed": "npm run db:seed --workspace server",
-    "db:reset": "node scripts/reset-local-db.mjs",
-    "lint": "npm run lint --workspaces --if-present",
-    "lint:ci": "npm run lint:ci --workspaces --if-present",
+    "db:reset": "node scripts/reset-local-db.mts",
+    "lint": "npm run lint:root && npm run lint --workspaces --if-present",
+    "lint:root": "eslint \"eslint.config.mts\" \"prettier.config.mts\" \"scripts/**/*.mts\" --cache --cache-location node_modules/.cache/eslint/",
+    "lint:ci": "npm run lint:root:ci && npm run lint:ci --workspaces --if-present",
+    "lint:root:ci": "eslint \"eslint.config.mts\" \"prettier.config.mts\" \"scripts/**/*.mts\" --max-warnings=0 --no-warn-ignored",
+    "lint:root:fix": "eslint \"eslint.config.mts\" \"prettier.config.mts\" \"scripts/**/*.mts\" --fix",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck": "npm run typecheck:root && npm run typecheck --workspaces --if-present",
+    "typecheck:root": "tsc --noEmit -p tsconfig.json",
     "test": "npm run test --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
     "check": "npm run format:check && npm run lint:ci && npm run typecheck && npm test && npm run build"
   },
   "devDependencies": {
-    "concurrently": "^9.2.3",
-    "prettier": "^3.9.4"
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.13.2",
+    "concurrently": "^10.0.3",
+    "eslint": "^10.6.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.7.0",
+    "jiti": "^2.7.0",
+    "prettier": "^3.9.4",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.62.1"
   }
 }
