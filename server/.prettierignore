@@ -1,10 +1,8 @@
 node_modules/
 dist/
 coverage/
-.tanstack/
-.vinxi/
-.output/
-src/routeTree.gen.ts
+src/generated/
+tsconfig*.tsbuildinfo
 package-lock.json
 pnpm-lock.yaml
 yarn.lock

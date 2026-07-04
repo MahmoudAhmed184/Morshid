@@ -1,4 +1,4 @@
-import { INestApplication, RequestMethod } from '@nestjs/common';
+import { RequestMethod, type INestApplication } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 export function configureApp(app: INestApplication) {

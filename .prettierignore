@@ -1,6 +1,9 @@
 node_modules/
 dist/
 coverage/
+server/dist/
+server/coverage/
+server/tsconfig*.tsbuildinfo
 *.md
 docs/**/*.md
 .tanstack/

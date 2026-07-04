@@ -1,7 +1,7 @@
 {
   "name": "morshid",
   "private": true,
-  "packageManager": "npm@11.16.0",
+  "packageManager": "npm@11.18.0",
   "engines": {
     "node": ">=24 <25",
     "npm": ">=11"
@@ -28,14 +28,16 @@
     "db:seed": "npm run db:seed --workspace server",
     "db:reset": "node scripts/reset-local-db.mjs",
     "lint": "npm run lint --workspaces --if-present",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
+    "lint:ci": "npm run lint:ci --workspaces --if-present",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
-    "build": "npm run build --workspaces --if-present"
+    "build": "npm run build --workspaces --if-present",
+    "check": "npm run format:check && npm run lint:ci && npm run typecheck && npm test && npm run build"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1",
-    "prettier": "^3.8.1"
+    "concurrently": "^9.2.3",
+    "prettier": "^3.9.4"
   }
 }
