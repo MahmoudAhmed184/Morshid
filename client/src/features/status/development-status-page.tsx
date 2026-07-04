@@ -20,6 +20,8 @@ import {
 import { fetchReadinessStatus } from '@/lib/api/health'
 import { clientEnv } from '@/lib/env'
 
+const runtimeDependencies = ['database', 'redis', 'pgvector'] as const
+
 function getReadinessLabel(
   isPending: boolean,
   isError: boolean,
@@ -36,6 +38,40 @@ function getReadinessLabel(
   return status === 'ok' ? 'ready' : 'degraded'
 }
 
+function dependencyIsUp(
+  details: Record<string, unknown> | undefined,
+  key: string,
+) {
+  const value = details?.[key]
+
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'status' in value &&
+    value.status === 'up'
+  )
+}
+
+function getRuntimeReadinessLabel(
+  isPending: boolean,
+  isError: boolean,
+  details?: Record<string, unknown>,
+) {
+  if (isPending) {
+    return 'checking'
+  }
+
+  if (isError) {
+    return 'offline'
+  }
+
+  return runtimeDependencies.every((dependency) =>
+    dependencyIsUp(details, dependency),
+  )
+    ? 'ready'
+    : 'degraded'
+}
+
 export function DevelopmentStatusPage() {
   const readiness = useQuery({
     queryKey: ['server-readiness'],
@@ -48,6 +84,12 @@ export function DevelopmentStatusPage() {
     readiness.data?.status,
   )
   const readinessIsReady = readinessLabel === 'ready'
+  const runtimeReadinessLabel = getRuntimeReadinessLabel(
+    readiness.isPending,
+    readiness.isError,
+    readiness.data?.details,
+  )
+  const runtimeIsReady = runtimeReadinessLabel === 'ready'
 
   return (
     <main className="min-h-svh bg-background">
@@ -114,7 +156,9 @@ export function DevelopmentStatusPage() {
               <CardDescription>PostgreSQL/pgvector and Redis</CardDescription>
             </CardHeader>
             <CardContent>
-              <Badge variant="outline">pending compose</Badge>
+              <Badge variant={runtimeIsReady ? 'default' : 'secondary'}>
+                {runtimeReadinessLabel}
+              </Badge>
             </CardContent>
           </Card>
         </div>
