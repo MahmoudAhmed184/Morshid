@@ -110,8 +110,14 @@ export function DevelopmentStatusPage() {
           </div>
           <Button
             variant="outline"
-            onClick={() => void readiness.refetch()}
-            disabled={readiness.isFetching}
+            onClick={() => {
+              if (readiness.isFetching) {
+                return
+              }
+
+              void readiness.refetch()
+            }}
+            disabled={readiness.isRefetching}
           >
             <RefreshCw />
             Refresh
