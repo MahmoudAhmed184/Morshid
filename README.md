@@ -45,3 +45,86 @@ If ITI requires a Python component, a Django service handles AI/RAG internally. 
 ---
 
 Graduation project, July–August 2026. Team ThinkFirst, 5 developers. More detail in [`docs/`](./docs/).
+
+---
+
+## Local Setup
+
+Prerequisites:
+
+- Node.js 24 LTS with npm 11 or newer.
+- Docker with Docker Compose.
+
+Happy path:
+
+```bash
+npm install
+cp .env.example .env
+cp server/.env.example server/.env
+cp client/.env.example client/.env
+npm run infra:up
+npm run db:migrate
+npm run dev
+```
+
+Local URLs:
+
+- Client: http://localhost:3000
+- Server health: http://localhost:4000/health/live
+- Server readiness: http://localhost:4000/health/ready
+- Swagger: http://localhost:4000/docs
+
+Useful checks:
+
+```bash
+npm run format:check
+npm run lint
+npm run typecheck
+npm run test
+npm run build
+```
+
+## Troubleshooting
+
+Port conflicts:
+
+```bash
+lsof -i :3000
+lsof -i :4000
+lsof -i :5432
+lsof -i :6379
+```
+
+Docker not running:
+
+```bash
+docker info
+docker compose ps
+```
+
+PostgreSQL or Redis not healthy:
+
+```bash
+docker compose ps
+docker compose logs postgres
+docker compose logs redis
+```
+
+Prisma migration issues:
+
+```bash
+npm run db:migrate
+npm run db:reset
+```
+
+`npm run db:reset` is guarded. To reset local data intentionally:
+
+```bash
+MORSHID_RESET_CONFIRM=reset-local npm run db:reset
+```
+
+Environment precedence:
+
+- Docker Compose reads root `.env` for infrastructure variables.
+- NestJS reads `server/.env` when run from the server workspace and can also fall back to root `.env`.
+- TanStack Start reads `client/.env` for `VITE_API_BASE_URL`.
