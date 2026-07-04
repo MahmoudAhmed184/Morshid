@@ -1,0 +1,56 @@
+name: Scaffold CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://morshid:morshid_local_password@localhost:5432/morshid
+      REDIS_URL: redis://localhost:6379
+      CLIENT_ORIGIN: http://localhost:3000
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Start infrastructure
+        run: docker compose up -d --wait postgres redis
+
+      - name: Run migrations
+        run: npm run db:migrate
+
+      - name: Test
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+
+      - name: Stop infrastructure
+        if: always()
+        run: docker compose down

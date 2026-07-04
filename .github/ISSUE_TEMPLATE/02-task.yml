@@ -1,0 +1,26 @@
+name: Task
+description: Technical task or implementation chore.
+title: "task: "
+labels: ["type:task"]
+body:
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome
+      description: What should be true when this is done?
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: Include boundaries and deferred work.
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation
+      description: Commands or review checks required.
+    validations:
+      required: true

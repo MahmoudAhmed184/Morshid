@@ -1,0 +1,26 @@
+name: Story
+description: User-facing vertical slice.
+title: "story: "
+labels: ["type:story"]
+body:
+  - type: textarea
+    id: story
+    attributes:
+      label: Story
+      description: Use "As a / I want / so that" language.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: List concrete pass/fail behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: tests
+    attributes:
+      label: Test Notes
+      description: Unit, integration, security, or manual checks expected.
+    validations:
+      required: true
