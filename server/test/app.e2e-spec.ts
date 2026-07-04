@@ -7,6 +7,12 @@ import { AppModule } from './../src/app.module';
 describe('AppController (e2e)', () => {
   let app: INestApplication<App>;
 
+  beforeAll(() => {
+    process.env.DATABASE_URL =
+      'postgresql://morshid:morshid_local_password@localhost:5432/morshid';
+    process.env.REDIS_URL = 'redis://localhost:6379';
+  });
+
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
