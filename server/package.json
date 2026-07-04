@@ -11,7 +11,7 @@
   },
   "scripts": {
     "build": "nest build",
-    "prebuild": "npm run db:generate",
+    "prebuild": "node scripts/clean-build-cache.mjs && npm run db:generate",
     "db:generate": "prisma generate --config prisma.config.ts",
     "db:migrate": "prisma migrate dev --config prisma.config.ts",
     "db:reset": "prisma migrate reset --config prisma.config.ts --force --skip-seed",
