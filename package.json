@@ -1,0 +1,33 @@
+{
+  "name": "morshid",
+  "private": true,
+  "packageManager": "npm@11.16.0",
+  "engines": {
+    "node": ">=24 <25",
+    "npm": ">=11"
+  },
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "overrides": {
+    "@nestjs/platform-express": {
+      "multer": "2.2.0"
+    }
+  },
+  "scripts": {
+    "dev": "concurrently --names client,server --prefix-colors cyan,magenta \"npm run dev:client\" \"npm run dev:server\"",
+    "dev:client": "npm run dev --workspace client",
+    "dev:server": "npm run start:dev --workspace server",
+    "lint": "npm run lint --workspaces --if-present",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "prettier": "^3.8.1"
+  }
+}

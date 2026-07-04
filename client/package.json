@@ -2,6 +2,10 @@
   "name": "client",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=24 <25",
+    "npm": ">=11"
+  },
   "imports": {
     "#/*": "./src/*"
   },
@@ -10,8 +14,9 @@
     "generate-routes": "tsr generate",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
     "format": "prettier --write . && eslint --fix",
     "check": "prettier --check ."
   },

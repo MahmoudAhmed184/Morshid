@@ -1,2 +1,33 @@
 .agents/
 skills-lock.json
+
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.*
+!.env.example
+!client/.env.example
+!server/.env.example
+
+# Build output
+dist/
+coverage/
+*.tsbuildinfo
+.turbo/
+.cache/
+
+# Client
+client/.vinxi/
+client/.output/
+client/dist/
+
+# Server
+server/dist/
+server/coverage/
+server/src/generated/prisma/
+
+# Local storage
+storage/pdfs/*
+!storage/pdfs/.gitkeep

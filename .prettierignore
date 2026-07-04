@@ -1,0 +1,12 @@
+node_modules/
+dist/
+coverage/
+*.md
+docs/**/*.md
+.tanstack/
+client/.vinxi/
+client/.output/
+client/src/routeTree.gen.ts
+server/src/generated/prisma/
+storage/pdfs/
+package-lock.json
