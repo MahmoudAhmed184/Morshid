@@ -13,12 +13,20 @@
   "overrides": {
     "@nestjs/platform-express": {
       "multer": "2.2.0"
+    },
+    "@prisma/dev": {
+      "@hono/node-server": "1.19.14"
     }
   },
   "scripts": {
     "dev": "concurrently --names client,server --prefix-colors cyan,magenta \"npm run dev:client\" \"npm run dev:server\"",
     "dev:client": "npm run dev --workspace client",
     "dev:server": "npm run start:dev --workspace server",
+    "infra:up": "docker compose up -d postgres redis",
+    "infra:down": "docker compose down",
+    "db:migrate": "npm run db:migrate --workspace server",
+    "db:seed": "npm run db:seed --workspace server",
+    "db:reset": "node scripts/reset-local-db.mjs",
     "lint": "npm run lint --workspaces --if-present",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
