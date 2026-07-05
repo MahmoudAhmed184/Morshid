@@ -17,6 +17,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { ModeToggle } from '@/components/ui/mode-toggle'
 import { fetchReadinessStatus } from '@/lib/api/health'
 import { clientEnv } from '@/lib/env'
 
@@ -110,20 +111,23 @@ export function DevelopmentStatusPage() {
               </p>
             </div>
           </div>
-          <Button
-            variant="outline"
-            onClick={() => {
-              if (readiness.isFetching) {
-                return
-              }
+          <div className="flex items-center gap-2">
+            <ModeToggle />
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (readiness.isFetching) {
+                  return
+                }
 
-              void readiness.refetch()
-            }}
-            disabled={readiness.isRefetching}
-          >
-            <RefreshCw />
-            Refresh
-          </Button>
+                void readiness.refetch()
+              }}
+              disabled={readiness.isRefetching}
+            >
+              <RefreshCw />
+              Refresh
+            </Button>
+          </div>
         </div>
 
         <div className="grid gap-4 md:grid-cols-3">
