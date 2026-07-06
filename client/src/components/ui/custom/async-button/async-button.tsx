@@ -3,10 +3,7 @@ import { Loader2Icon } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 
-type AsyncButtonProps = Omit<
-  React.ComponentProps<typeof Button>,
-  'onClick'
-> & {
+type AsyncButtonProps = Omit<React.ComponentProps<typeof Button>, 'onClick'> & {
   onClick: () => void | Promise<void>
   loadingText?: React.ReactNode
   isLoading?: boolean

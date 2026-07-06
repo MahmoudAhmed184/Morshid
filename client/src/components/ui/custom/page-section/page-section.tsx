@@ -33,9 +33,7 @@ export function PageSection({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             {title ? (
-              <h2 className="text-lg font-semibold text-foreground">
-                {title}
-              </h2>
+              <h2 className="text-lg font-semibold text-foreground">{title}</h2>
             ) : null}
             {description ? (
               <p className="mt-1 text-sm leading-6 text-muted-foreground">

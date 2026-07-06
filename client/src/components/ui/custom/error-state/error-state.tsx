@@ -50,11 +50,7 @@ export function ErrorState({
         <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row">
           {action}
           {onRetry ? (
-            <Button
-              variant="outline"
-              onClick={onRetry}
-              disabled={isRetrying}
-            >
+            <Button variant="outline" onClick={onRetry} disabled={isRetrying}>
               <RefreshCwIcon
                 className={isRetrying ? 'animate-spin' : undefined}
               />
