@@ -2,8 +2,12 @@ name: Scaffold CI
 
 on:
   pull_request:
+    branches:
+      - dev
+      - main
   push:
     branches:
+      - dev
       - main
 
 permissions:

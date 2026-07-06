@@ -2,16 +2,26 @@
 
 ## Workflow
 
-Use GitHub Flow: branch from `main`, open a pull request, keep changes small, and merge only after review and CI pass.
+Use Practical GitFlow:
+
+- `dev` is the default integration branch.
+- Create feature branches from `dev`.
+- Open routine pull requests back into `dev`.
+- Keep `main` release-only. `main` receives release pull requests from `dev` after review and CI pass.
+- Create hotfix branches from `main`, merge the hotfix to `main`, then merge the fix back into `dev`.
 
 Recommended repository protections for `main`:
 
 - Require a pull request before merge.
-- Require CI to pass.
+- Require the `validate` CI check to pass.
+- Require branches to be up to date before merge.
 - Require at least one approval.
 - Dismiss stale approvals after new commits.
+- Require conversation resolution.
+- Require linear history.
+- Enforce these rules for admins.
 - Block force pushes and branch deletion.
-- Prefer linear history or squash merge.
+- Do not enable GitHub's absolute branch lock; `main` should remain releasable through reviewed release and hotfix pull requests.
 
 CODEOWNERS is deferred until GitHub users or teams are known.
 

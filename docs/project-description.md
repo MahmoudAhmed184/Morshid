@@ -510,6 +510,7 @@ The following decisions have identified options but require further team discuss
 
 | Option | Description |
 |---|---|
+| **Practical GitFlow** | `dev` as the default integration branch, `main` as release-only, feature pull requests into `dev`, release pull requests from `dev` to `main`, and hotfixes from `main` back into `dev`. |
 | **GitFlow** | main + develop + feature + release + hotfix branches. More structured but heavier for a small graduation team. |
 | **GitHub Flow** | Single main branch + feature branches + Pull Requests. Simpler for small teams. |
 
@@ -619,7 +620,7 @@ To prevent architecture work from stalling, the recommended defaults for the 8-w
 | File storage | Local Docker volume first; MinIO only if time allows | Minimizes infrastructure while preserving a migration path |
 | ORM | Prisma for NestJS | Fast schema iteration and strong TypeScript types |
 | Repository | Simple monorepo with `frontend/`, `backend/`, `ai-service/`, and `infra/` | Easier for a 5-person team to navigate |
-| Branching | GitHub Flow | Simpler than GitFlow for an 8-week project |
+| Branching | Practical GitFlow | Keeps `main` release-only while preserving a simple integration branch for a small team |
 | CI/CD | Lightweight CI + manual deploy | Gives reviewer confidence without over-investing in deployment automation |
 | Notifications | Polling + notification center | Enough for review completion and limits; avoids WebSocket complexity |
 | Logging and audit | Structured logs + focused DB audit table for security and policy events | Keeps traceability without a full observability stack |
@@ -1067,7 +1068,7 @@ The following decisions remain intentionally open for the SRS or related policy 
 9. Which file storage approach will be used? (See Section 10.2.2)
 10. Which ORM will be used — Prisma or Drizzle? (See Section 10.2.3)
 11. Which repository structure — Turborepo or simple monorepo? (See Section 10.2.4)
-12. Which Git branching strategy — GitFlow or GitHub Flow? (See Section 10.2.5)
+12. Which Git branching strategy — Practical GitFlow, GitFlow, or GitHub Flow? (See Section 10.2.5)
 13. What CI/CD pipeline scope? (See Section 10.2.6)
 14. How will notifications be delivered? (See Section 10.2.7)
 15. What logging and audit implementation? (See Section 10.2.8)
@@ -1123,7 +1124,7 @@ That thesis is specific, demoable, and defensible. Everything that does not help
 - Narrow the first pilot to one or two computing courses rather than "higher education" broadly.
 - Treat project agents as implementation detail, not product promise. Reviewers care about behavior: ingestion, retrieval, tutoring, review, and evaluation.
 - Make P0 small enough to finish: one course, one Instructor, one source set, one Student journey, one review workflow.
-- Prefer simple defaults: GitHub Flow, simple monorepo, local file storage, polling notifications, top-k retrieval, prompt templates in Git, focused audit table.
+- Prefer simple defaults: Practical GitFlow, simple monorepo, local file storage, polling notifications, top-k retrieval, prompt templates in Git, focused audit table.
 - Make "Socratic" testable through the hint ladder and direct-answer violation definition.
 - Keep Instructor privacy boundaries precise: only flagged exchanges plus limited surrounding context.
 - Shift from "AI correctness" claims to "transparent, evaluated, reviewable guidance" claims.

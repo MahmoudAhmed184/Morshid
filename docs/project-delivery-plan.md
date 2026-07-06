@@ -84,7 +84,11 @@ Each sprint is 10 calendar days. Sprint reviews happen at the end of each 10-day
 
 ### Board Workflow
 
-Use GitHub Flow with short-lived feature branches and pull requests.
+Use Practical GitFlow with short-lived feature branches and pull requests.
+`dev` is the default integration branch. Feature branches start from `dev`
+and normally open pull requests back into `dev`. `main` is release-only:
+release pull requests merge `dev` into `main` after review and CI pass.
+Hotfixes branch from `main`, merge to `main`, then merge back into `dev`.
 
 Story states:
 
@@ -388,7 +392,7 @@ By the end of Sprint 1, the team can run the project locally with Docker Compose
 - Docker and Docker Compose available on developer machines.
 - PostgreSQL image with pgvector support.
 - Redis Docker image.
-- Team agreement on GitHub Flow and PR review rules.
+- Team agreement on Practical GitFlow and PR review rules.
 - Seed credentials policy for demo accounts.
 - AI provider keys are not required for Sprint 1.
 
@@ -429,7 +433,7 @@ Tasks:
 | Create monorepo structure | `backend/`, `frontend/`, `infra/`, shared scripts; root package scripts; README setup section | QA/DevOps owner |
 | Scaffold backend | NestJS app; health endpoint; config module; validation library; test command | NestJS owner |
 | Scaffold frontend | TanStack Start app; TailwindCSS v4; Shadcn/ui baseline; TanStack Query client; Zustand store folder | Product/UX owner |
-| Establish code quality | Lint, format, type-check scripts; GitHub Flow branch naming note | QA/DevOps owner |
+| Establish code quality | Lint, format, type-check scripts; Practical GitFlow branch naming note | QA/DevOps owner |
 
 Test requirements:
 
