@@ -31,6 +31,25 @@
 $ npm install
 ```
 
+## Database seed
+
+From the repo root, prefer:
+
+```bash
+$ npm run db:seed
+```
+
+From this workspace, use the server-local entrypoint:
+
+```bash
+$ npm run db:seed
+```
+
+The seed expects the local PostgreSQL service to be running and migrations to
+be applied. It loads the P0 demo accounts, the `PYTHON-PROG-P0` Python
+Programming course, and an unassigned `HIDDEN-ISOLATION` course. All seeded
+accounts use the local-only password `MorshidDemoP0!`.
+
 ## Compile and run the project
 
 ```bash
