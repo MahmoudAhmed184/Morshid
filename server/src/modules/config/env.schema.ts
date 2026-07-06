@@ -9,6 +9,10 @@ export const envSchema = z.object({
   DATABASE_URL: z.url().startsWith('postgresql://'),
   REDIS_URL: z.url().startsWith('redis://'),
   PDF_STORAGE_PATH: z.string().min(1).default('/workspace/storage/pdfs'),
+  JWT_ACCESS_SECRET: z.string().min(32),
+  JWT_REFRESH_SECRET: z.string().min(32),
+  JWT_ACCESS_EXPIRATION: z.string().default('3d'),
+  JWT_REFRESH_EXPIRATION_DAYS: z.coerce.number().int().min(1).default(14),
 })
 
 export type AppEnvironment = z.infer<typeof envSchema>
