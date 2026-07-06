@@ -50,6 +50,13 @@ be applied. It loads the P0 demo accounts, the `PYTHON-PROG-P0` Python
 Programming course, and an unassigned `HIDDEN-ISOLATION` course. All seeded
 accounts use the local-only password `MorshidDemoP0!`.
 
+## P0 auth sessions
+
+The P0 auth API returns both the access token and refresh token in JSON. Clients
+send the access token as a `Bearer` token and submit the JSON refresh token to
+the refresh/logout endpoints. A later hardening pass should migrate refresh
+token transport to HttpOnly cookies.
+
 ## Compile and run the project
 
 ```bash
