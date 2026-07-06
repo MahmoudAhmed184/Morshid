@@ -81,7 +81,9 @@ export class AuthService {
       },
     })
 
-    if (!user || !verifyPassword(input.password, user.passwordHash)) {
+    const passwordHash = user?.passwordHash ?? DUMMY_PASSWORD_HASH
+
+    if (!verifyPassword(input.password, passwordHash) || !user) {
       await this.auditService.recordEvent({
         action: AUDIT_EVENT_ACTIONS.AUTH_LOGIN_FAILED,
         target: {
@@ -298,6 +300,24 @@ export class AuthService {
           throw new DisabledAccountAuthError(storedToken.user.id)
         }
 
+        const revokeResult = await tx.refreshToken.updateMany({
+          where: {
+            id: storedToken.id,
+            tokenHash: refreshTokenHash,
+            revokedAt: null,
+            expiresAt: {
+              gt: now,
+            },
+          },
+          data: {
+            revokedAt: now,
+          },
+        })
+
+        if (revokeResult.count !== 1) {
+          throw invalidRefreshTokenException()
+        }
+
         const nextRefreshToken = await this.createRefreshTokenRecord(
           tx,
           storedToken.user,
@@ -310,7 +330,6 @@ export class AuthService {
             id: storedToken.id,
           },
           data: {
-            revokedAt: now,
             replacedByTokenId: nextRefreshToken.record.id,
           },
         })
@@ -503,8 +522,41 @@ class DisabledAccountAuthError extends Error {
 
 type RefreshTokenWriteClient = Pick<PrismaService, 'refreshToken'>
 
+const SCRYPT_OPTIONS = {
+  N: 16_384,
+  r: 8,
+  p: 1,
+  keyLength: 64,
+} as const
+
+const DUMMY_PASSWORD_HASH = createScryptPasswordHash(
+  '__morshid_dummy_password__',
+  'morshid-auth-dummy-password',
+)
+
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase()
+}
+
+function createScryptPasswordHash(password: string, passwordSalt: string) {
+  const derivedKey = scryptSync(
+    password,
+    passwordSalt,
+    SCRYPT_OPTIONS.keyLength,
+    {
+      N: SCRYPT_OPTIONS.N,
+      r: SCRYPT_OPTIONS.r,
+      p: SCRYPT_OPTIONS.p,
+    },
+  )
+
+  return [
+    'scrypt',
+    'v1',
+    `N=${SCRYPT_OPTIONS.N.toString()},r=${SCRYPT_OPTIONS.r.toString()},p=${SCRYPT_OPTIONS.p.toString()},keylen=${SCRYPT_OPTIONS.keyLength.toString()}`,
+    Buffer.from(passwordSalt).toString('base64url'),
+    derivedKey.toString('base64url'),
+  ].join(':')
 }
 
 function verifyPassword(password: string, passwordHash: string): boolean {

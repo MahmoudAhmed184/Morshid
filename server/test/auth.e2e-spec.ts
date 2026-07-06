@@ -5,6 +5,7 @@ import type { App } from 'supertest/types'
 
 import { configureApp } from '../src/app.setup'
 import { AppModule } from '../src/app.module'
+import { AUDIT_EVENT_ACTIONS } from '../src/modules/audit/audit.constants'
 import { AuditService } from '../src/modules/audit/audit.service'
 import { AUTH_ERROR_CODES } from '../src/modules/auth/auth.dto'
 import type {
@@ -130,6 +131,19 @@ describe('AuthController (e2e)', () => {
       message: 'Invalid email or password',
     })
     expect(wrongPassword.body).toEqual(unknownEmail.body)
+    expect(auditService.recordEvent).toHaveBeenCalledTimes(2)
+    expect(auditService.recordEvent).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        action: AUDIT_EVENT_ACTIONS.AUTH_LOGIN_FAILED,
+      }),
+    )
+    expect(auditService.recordEvent).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        action: AUDIT_EVENT_ACTIONS.AUTH_LOGIN_FAILED,
+      }),
+    )
   })
 
   it('blocks sign-in for a disabled account', async () => {
@@ -146,6 +160,11 @@ describe('AuthController (e2e)', () => {
         code: AUTH_ERROR_CODES.ACCOUNT_DISABLED,
         message: 'Account is disabled',
       })
+    expect(auditService.recordEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: AUDIT_EVENT_ACTIONS.AUTH_LOGIN_BLOCKED_DISABLED_ACCOUNT,
+      }),
+    )
   })
 
   it('blocks /me when an old access token belongs to a now-disabled account', async () => {
@@ -168,6 +187,40 @@ describe('AuthController (e2e)', () => {
         code: AUTH_ERROR_CODES.ACCOUNT_DISABLED,
         message: 'Account is disabled',
       })
+    expect(auditService.recordEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: AUDIT_EVENT_ACTIONS.AUTH_LOGIN_BLOCKED_DISABLED_ACCOUNT,
+      }),
+    )
+  })
+
+  it('blocks refresh when the account has been disabled', async () => {
+    const signIn = await request(app.getHttpServer())
+      .post('/api/v1/auth/sign-in')
+      .send({
+        email: 'student1@morshid.demo',
+        password: P0_DEMO_PASSWORD,
+      })
+      .expect(200)
+    const refreshToken = readSessionBody(signIn).refreshToken
+
+    store.disableUser('student1@morshid.demo')
+
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/refresh')
+      .send({
+        refreshToken,
+      })
+      .expect(403)
+      .expect({
+        code: AUTH_ERROR_CODES.ACCOUNT_DISABLED,
+        message: 'Account is disabled',
+      })
+    expect(auditService.recordEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: AUDIT_EVENT_ACTIONS.AUTH_LOGIN_BLOCKED_DISABLED_ACCOUNT,
+      }),
+    )
   })
 
   it('rotates refresh tokens and rejects reuse of the old refresh token', async () => {

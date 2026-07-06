@@ -73,6 +73,29 @@ describe('AuthService token lifecycle', () => {
     ).rejects.toBeInstanceOf(UnauthorizedException)
   })
 
+  it('does not issue a replacement when the active refresh token revoke loses a race', async () => {
+    const { service, store } = buildAuthService()
+    const session = await service.signIn(
+      {
+        email: 'student1@morshid.demo',
+        password: P0_DEMO_PASSWORD,
+      },
+      requestContext,
+    )
+
+    store.simulateNextActiveRefreshTokenRevokeRace()
+
+    await expect(
+      service.refresh(
+        {
+          refreshToken: session.refreshToken,
+        },
+        requestContext,
+      ),
+    ).rejects.toBeInstanceOf(UnauthorizedException)
+    expect(store.refreshTokens.size).toBe(1)
+  })
+
   it('makes logout idempotent and invalidates the submitted refresh token', async () => {
     const { service } = buildAuthService()
     const session = await service.signIn(

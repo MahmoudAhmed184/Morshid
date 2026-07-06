@@ -50,6 +50,7 @@ interface UpdateRefreshTokenArgs {
 
 interface UpdateManyRefreshTokenArgs {
   where: {
+    id?: string
     tokenHash: string
     revokedAt: null
     expiresAt: {
@@ -85,6 +86,7 @@ export class AuthTestStore {
   readonly refreshTokens = new Map<string, RefreshToken>()
 
   private nextRefreshTokenSequence = 1
+  private failNextActiveRefreshTokenRevoke = false
 
   readonly prisma = {
     user: {
@@ -149,6 +151,10 @@ export class AuthTestStore {
       status: 'DISABLED',
       disabledAt: new Date('2026-07-06T10:00:00.000Z'),
     })
+  }
+
+  simulateNextActiveRefreshTokenRevokeRace() {
+    this.failNextActiveRefreshTokenRevoke = true
   }
 
   private seedP0DemoData() {
@@ -308,8 +314,14 @@ export class AuthTestStore {
   private updateManyRefreshTokens(args: UpdateManyRefreshTokenArgs) {
     let count = 0
 
+    if (args.where.id !== undefined && this.failNextActiveRefreshTokenRevoke) {
+      this.failNextActiveRefreshTokenRevoke = false
+      return { count }
+    }
+
     for (const refreshToken of this.refreshTokens.values()) {
       const isMatch =
+        (args.where.id === undefined || refreshToken.id === args.where.id) &&
         refreshToken.tokenHash === args.where.tokenHash &&
         refreshToken.revokedAt === args.where.revokedAt &&
         refreshToken.expiresAt > args.where.expiresAt.gt
