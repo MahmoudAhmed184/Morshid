@@ -1,4 +1,5 @@
 import { Eye, EyeOff, Lock } from 'lucide-react'
+import * as React from 'react'
 import { useState } from 'react'
 
 import { InputGroupAddon, InputGroupButton } from '@/components/ui/input-group'
@@ -6,33 +7,42 @@ import { cn } from '@/lib/utils'
 
 import { AuthField } from './auth-field'
 
-type PasswordFieldProps = {
+type PasswordFieldProps = Omit<
+  React.ComponentProps<'input'>,
+  'id' | 'type' | 'placeholder'
+> & {
   id?: string
   label?: string
   placeholder?: string
-  autoComplete?: string
   forgotPasswordHref?: string
   className?: string
 }
 
-export function PasswordField({
-  id = 'password',
-  label = 'Security Key',
-  placeholder = '••••••••',
-  autoComplete = 'current-password',
-  forgotPasswordHref = '#',
-  className,
-}: PasswordFieldProps) {
+export const PasswordField = React.forwardRef<
+  HTMLInputElement,
+  PasswordFieldProps
+>(function PasswordFieldInput(
+  {
+    id = 'password',
+    label = 'Security Key',
+    placeholder = '••••••••',
+    forgotPasswordHref = '#',
+    className,
+    ...inputProps
+  },
+  ref,
+) {
   const [visible, setVisible] = useState(false)
 
   return (
     <AuthField
+      ref={ref}
       id={id}
       label={label}
       icon={Lock}
       type={visible ? 'text' : 'password'}
       placeholder={placeholder}
-      autoComplete={autoComplete}
+      autoComplete="current-password"
       className={className}
       labelAction={
         <a
@@ -57,6 +67,7 @@ export function PasswordField({
           </InputGroupButton>
         </InputGroupAddon>
       }
+      {...inputProps}
     />
   )
-}
+})

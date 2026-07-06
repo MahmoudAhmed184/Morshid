@@ -1,4 +1,8 @@
+import { zodResolver } from '@hookform/resolvers/zod'
 import { ChevronRight, Mail } from 'lucide-react'
+import { useState } from 'react'
+import type { ControllerRenderProps } from 'react-hook-form'
+import { useForm } from 'react-hook-form'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -9,8 +13,19 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormMessage,
+  useFormField,
+} from '@/components/ui/form'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
+
+import { signInSchema } from '@/features/auth/schemas/sign-in.schema'
+import type { SignInFormValues } from '@/features/auth/schemas/sign-in.schema'
 
 import { AuthField } from './auth-field'
 import { AuthLogo } from './auth-logo'
@@ -18,9 +33,75 @@ import { PasswordField } from './password-field'
 
 type SignInFormProps = {
   className?: string
+  onSubmitDelay?: number
 }
 
-export function SignInForm({ className }: SignInFormProps) {
+function SignInEmailField({
+  field,
+}: {
+  field: ControllerRenderProps<SignInFormValues, 'email'>
+}) {
+  const { error, formMessageId, formItemId } = useFormField()
+
+  return (
+    <AuthField
+      {...field}
+      id={formItemId}
+      label="Institutional Email"
+      icon={Mail}
+      type="email"
+      placeholder="instructor@institution.edu"
+      autoComplete="email"
+      aria-invalid={error ? true : undefined}
+      aria-describedby={error ? formMessageId : undefined}
+    />
+  )
+}
+
+function SignInPasswordField({
+  field,
+}: {
+  field: ControllerRenderProps<SignInFormValues, 'password'>
+}) {
+  const { error, formMessageId, formItemId } = useFormField()
+
+  return (
+    <PasswordField
+      {...field}
+      id={formItemId}
+      aria-invalid={error ? true : undefined}
+      aria-describedby={error ? formMessageId : undefined}
+    />
+  )
+}
+
+export function SignInForm({ className, onSubmitDelay }: SignInFormProps) {
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+
+  const form = useForm<SignInFormValues>({
+    resolver: zodResolver(signInSchema),
+    mode: 'onSubmit',
+    reValidateMode: 'onChange',
+    defaultValues: {
+      email: '',
+      password: '',
+      rememberMe: true,
+    },
+  })
+
+  const onSubmit = async (values: SignInFormValues) => {
+    if (onSubmitDelay) {
+      await new Promise((resolve) => {
+        window.setTimeout(resolve, onSubmitDelay)
+      })
+    }
+
+    setSuccessMessage(null)
+    console.log('Sign-in form values:', values)
+    setSuccessMessage('Credentials validated successfully.')
+    window.setTimeout(() => setSuccessMessage(null), 4000)
+  }
+
   return (
     <div className={cn('mx-auto w-full max-w-md', className)}>
       <div className="mb-8 lg:hidden">
@@ -45,41 +126,80 @@ export function SignInForm({ className }: SignInFormProps) {
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-(--card-spacing)">
-          <form
-            className="space-y-6"
-            onSubmit={(event) => event.preventDefault()}
-          >
-            <AuthField
-              id="email"
-              label="Institutional Email"
-              icon={Mail}
-              type="email"
-              placeholder="instructor@institution.edu"
-              autoComplete="email"
-            />
-
-            <PasswordField />
-
-            <div className="flex items-center gap-2.5">
-              <Checkbox id="remember-me" defaultChecked />
-              <Label
-                htmlFor="remember-me"
-                className="text-base font-normal text-foreground"
-              >
-                Keep me signed in for 30 days
-              </Label>
-            </div>
-
-            <Button
-              type="submit"
-              variant="default"
-              size="lg"
-              className="h-12 w-full rounded-full text-lg font-medium"
+          <Form {...form}>
+            <form
+              className="space-y-6"
+              noValidate
+              onSubmit={form.handleSubmit(onSubmit)}
             >
-              Sign In to Portal
-              <ChevronRight className="size-4" aria-hidden />
-            </Button>
-          </form>
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem className="space-y-0">
+                    <SignInEmailField field={field} />
+                    <FormMessage className="mt-2" />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem className="space-y-0">
+                    <SignInPasswordField field={field} />
+                    <FormMessage className="mt-2" />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="rememberMe"
+                render={({ field }) => (
+                  <FormItem className="space-y-0">
+                    <div className="flex items-center gap-2.5">
+                      <FormControl>
+                        <Checkbox
+                          id="remember-me"
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <Label
+                        htmlFor="remember-me"
+                        className="text-base font-normal text-foreground"
+                      >
+                        Keep me signed in for 30 days
+                      </Label>
+                    </div>
+                    <FormMessage className="mt-2" />
+                  </FormItem>
+                )}
+              />
+
+              {successMessage ? (
+                <p
+                  role="status"
+                  className="rounded-lg bg-primary/10 px-3 py-2 text-sm text-primary"
+                >
+                  {successMessage}
+                </p>
+              ) : null}
+
+              <Button
+                type="submit"
+                variant="default"
+                size="lg"
+                disabled={form.formState.isSubmitting}
+                className="h-12 w-full rounded-full text-lg font-medium"
+              >
+                Sign In to Portal
+                <ChevronRight className="size-4" aria-hidden />
+              </Button>
+            </form>
+          </Form>
         </CardContent>
       </Card>
     </div>
