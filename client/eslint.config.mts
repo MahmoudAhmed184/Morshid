@@ -1,3 +1,5 @@
+import { dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { tanstackConfig } from '@tanstack/eslint-config'
 import pluginQuery from '@tanstack/eslint-plugin-query'
 import pluginRouter from '@tanstack/eslint-plugin-router'
@@ -5,8 +7,7 @@ import eslintConfigPrettier from 'eslint-config-prettier/flat'
 import { defineConfig, globalIgnores } from 'eslint/config'
 import reactHooks from 'eslint-plugin-react-hooks'
 
-const tsconfigRootDir = new URL('.', import.meta.url).pathname
-
+const tsconfigRootDir = dirname(fileURLToPath(import.meta.url))
 export default defineConfig([
   globalIgnores(['src/routeTree.gen.ts'], 'client/ignores'),
   {

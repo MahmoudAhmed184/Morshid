@@ -1,16 +1,10 @@
-import type { ReactNode } from 'react'
-import { QueryClientProvider } from '@tanstack/react-query'
-import {
-  HeadContent,
-  Outlet,
-  Scripts,
-  createRootRoute,
-} from '@tanstack/react-router'
+import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 
 import appCss from '../styles.css?url'
-import { getAppQueryClient } from '@/lib/query/query-client'
+
+import { AppProviders } from '#/providers/app-provider'
 
 export const Route = createRootRoute({
   head: () => ({
@@ -37,17 +31,9 @@ export const Route = createRootRoute({
   shellComponent: RootDocument,
 })
 
-function AppProviders() {
+function RootDocument({ children }: { children: React.ReactNode }) {
   return (
-    <QueryClientProvider client={getAppQueryClient()}>
-      <Outlet />
-    </QueryClientProvider>
-  )
-}
-
-function RootDocument({ children }: { children: ReactNode }) {
-  return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>
