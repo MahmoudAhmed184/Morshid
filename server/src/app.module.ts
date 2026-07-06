@@ -18,4 +18,4 @@ import { HealthModule } from './modules/health/health.module'
     HealthModule,
   ],
 })
-export class AppModule {}
+export class AppModule { }
