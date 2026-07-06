@@ -1,9 +1,4 @@
-import {
-  BookOpen,
-  Clock,
-  MessageCircleQuestion,
-  Quote,
-} from 'lucide-react'
+import { BookOpen, Clock, MessageCircleQuestion, Quote } from 'lucide-react'
 
 import { FeatureCard } from '@/features/landing/components/feature-card'
 
@@ -50,8 +45,8 @@ export function FeaturesSection() {
             Designed for Deep Understanding
           </h2>
           <p className="mt-4 text-base leading-7 text-muted-foreground sm:text-lg">
-            We don&apos;t just give you the answers. We help you build the mental
-            models required to ace your exams.
+            We don&apos;t just give you the answers. We help you build the
+            mental models required to ace your exams.
           </p>
         </div>
 

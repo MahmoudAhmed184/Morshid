@@ -3,19 +3,9 @@ import { GraduationCap } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 
-const productLinks = [
-  'Features',
-  'Pricing',
-  'Use Cases',
-  'Changelog',
-] as const
+const productLinks = ['Features', 'Pricing', 'Use Cases', 'Changelog'] as const
 
-const companyLinks = [
-  'About Us',
-  'Careers',
-  'Blog',
-  'Contact',
-] as const
+const companyLinks = ['About Us', 'Careers', 'Blog', 'Contact'] as const
 
 const legalLinks = [
   'Privacy Policy',
