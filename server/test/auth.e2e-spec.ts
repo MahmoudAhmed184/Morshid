@@ -221,6 +221,10 @@ describe('AuthController (e2e)', () => {
         action: AUDIT_EVENT_ACTIONS.AUTH_LOGIN_BLOCKED_DISABLED_ACCOUNT,
       }),
     )
+    const storedTokens = [...store.refreshTokens.values()]
+
+    expect(storedTokens).toHaveLength(1)
+    expect(storedTokens[0].revokedAt).toBeInstanceOf(Date)
   })
 
   it('rotates refresh tokens and rejects reuse of the old refresh token', async () => {

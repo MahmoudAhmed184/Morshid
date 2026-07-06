@@ -281,78 +281,80 @@ export class AuthService {
     now: Date,
     requestContext: AuthRequestContext,
   ) {
-    try {
-      return await this.prismaService.$transaction(async (tx) => {
-        const storedToken = await tx.refreshToken.findUnique({
-          where: {
-            tokenHash: refreshTokenHash,
-          },
-          include: {
-            user: true,
-          },
-        })
-
-        if (!storedToken || !isActiveRefreshToken(storedToken, now)) {
-          throw invalidRefreshTokenException()
-        }
-
-        if (storedToken.user.status === 'DISABLED') {
-          throw new DisabledAccountAuthError(storedToken.user.id)
-        }
-
-        const revokeResult = await tx.refreshToken.updateMany({
-          where: {
-            id: storedToken.id,
-            tokenHash: refreshTokenHash,
-            revokedAt: null,
-            expiresAt: {
-              gt: now,
-            },
-          },
-          data: {
-            revokedAt: now,
-          },
-        })
-
-        if (revokeResult.count !== 1) {
-          throw invalidRefreshTokenException()
-        }
-
-        const nextRefreshToken = await this.createRefreshTokenRecord(
-          tx,
-          storedToken.user,
-          now,
-          requestContext,
-        )
-
-        await tx.refreshToken.update({
-          where: {
-            id: storedToken.id,
-          },
-          data: {
-            replacedByTokenId: nextRefreshToken.record.id,
-          },
-        })
-
-        return {
-          nextRefreshToken,
-          previousToken: storedToken,
-          user: storedToken.user,
-        }
+    const result = await this.prismaService.$transaction(async (tx) => {
+      const storedToken = await tx.refreshToken.findUnique({
+        where: {
+          tokenHash: refreshTokenHash,
+        },
+        include: {
+          user: true,
+        },
       })
-    } catch (error) {
-      if (error instanceof DisabledAccountAuthError) {
-        await this.recordDisabledAccountBlock(
-          {
-            id: error.userId,
-          },
-          requestContext,
-        )
-        throw accountDisabledException()
+
+      if (!storedToken || !isActiveRefreshToken(storedToken, now)) {
+        throw invalidRefreshTokenException()
       }
 
-      throw error
+      const revokeResult = await tx.refreshToken.updateMany({
+        where: {
+          id: storedToken.id,
+          tokenHash: refreshTokenHash,
+          revokedAt: null,
+          expiresAt: {
+            gt: now,
+          },
+        },
+        data: {
+          revokedAt: now,
+        },
+      })
+
+      if (revokeResult.count !== 1) {
+        throw invalidRefreshTokenException()
+      }
+
+      if (storedToken.user.status === 'DISABLED') {
+        return {
+          kind: 'disabled' as const,
+          userId: storedToken.user.id,
+        }
+      }
+
+      const nextRefreshToken = await this.createRefreshTokenRecord(
+        tx,
+        storedToken.user,
+        now,
+        requestContext,
+      )
+
+      await tx.refreshToken.update({
+        where: {
+          id: storedToken.id,
+        },
+        data: {
+          replacedByTokenId: nextRefreshToken.record.id,
+        },
+      })
+
+      return {
+        kind: 'rotated' as const,
+        nextRefreshToken,
+        previousToken: storedToken,
+        user: storedToken.user,
+      }
+    })
+
+    if (result.kind === 'disabled') {
+      await this.recordDisabledAccountBlock(
+        {
+          id: result.userId,
+        },
+        requestContext,
+      )
+      throw accountDisabledException()
     }
+
+    return result
   }
 
   private async createAccessToken(user: Pick<User, 'id'>, now: Date) {
@@ -512,12 +514,6 @@ interface VerifiedAccessTokenPayload {
 interface UntrustedAccessTokenPayload {
   sub?: unknown
   typ?: unknown
-}
-
-class DisabledAccountAuthError extends Error {
-  constructor(readonly userId: string) {
-    super('Account is disabled')
-  }
 }
 
 type RefreshTokenWriteClient = Pick<PrismaService, 'refreshToken'>
