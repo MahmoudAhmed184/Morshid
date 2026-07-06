@@ -1,11 +1,33 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ThemeProvider } from '@/providers/theme-provider'
 import { DevelopmentStatusPage } from './development-status-page'
 
+vi.mock('@tanstack/react-router', () => ({
+  ScriptOnce: () => null,
+}))
+
 describe('DevelopmentStatusPage', () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn((query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    )
+  })
+
   afterEach(() => {
+    localStorage.clear()
     vi.unstubAllGlobals()
   })
 
@@ -20,7 +42,13 @@ describe('DevelopmentStatusPage', () => {
 
     render(
       <QueryClientProvider client={queryClient}>
-        <DevelopmentStatusPage />
+        <ThemeProvider
+          defaultTheme="system"
+          storageKey="test-theme"
+          presetStorageKey="test-theme-preset"
+        >
+          <DevelopmentStatusPage />
+        </ThemeProvider>
       </QueryClientProvider>,
     )
   }
