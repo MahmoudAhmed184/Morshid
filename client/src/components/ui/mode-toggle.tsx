@@ -58,19 +58,21 @@ export function ModeToggle() {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger>
-        <Button
-          ref={triggerRef}
-          variant="outline"
-          className="h-8 gap-1.5 px-2.5"
-          aria-label="Toggle theme"
-        >
-          <span className="relative size-4">
-            <Sun className="absolute inset-0 size-4 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
-            <Moon className="absolute inset-0 size-4 scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
-          </span>
-          <span className="sr-only">Toggle theme</span>
-        </Button>
+      <DropdownMenuTrigger
+        ref={triggerRef}
+        render={
+          <Button
+            variant="outline"
+            className="h-8 gap-1.5 px-2.5"
+            aria-label="Toggle theme"
+          />
+        }
+      >
+        <span className="relative size-4">
+          <Sun className="absolute inset-0 size-4 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
+          <Moon className="absolute inset-0 size-4 scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
+        </span>
+        <span className="sr-only">Toggle theme</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuGroup>

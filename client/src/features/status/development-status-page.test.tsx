@@ -1,7 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ModeToggle } from '@/components/ui/mode-toggle'
 import { ThemeProvider } from '@/providers/theme-provider'
 import { DevelopmentStatusPage } from './development-status-page'
 
@@ -73,6 +75,22 @@ describe('DevelopmentStatusPage', () => {
     ).toBeDefined()
     expect(screen.getByText('TanStack Start React')).toBeDefined()
     expect(screen.getByText('http://localhost:4000')).toBeDefined()
+  })
+
+  it('renders the theme menu trigger without nesting buttons', () => {
+    const markup = renderToStaticMarkup(
+      <ThemeProvider
+        defaultTheme="system"
+        storageKey="test-theme"
+        presetStorageKey="test-theme-preset"
+      >
+        <ModeToggle />
+      </ThemeProvider>,
+    )
+
+    expect(markup).not.toMatch(
+      /<button\b(?=[^>]*data-slot="dropdown-menu-trigger")[^>]*>\s*<button\b/,
+    )
   })
 
   it('marks runtime ready when all infrastructure dependencies are healthy', async () => {
