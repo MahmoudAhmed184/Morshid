@@ -64,6 +64,7 @@ cp server/.env.example server/.env
 cp client/.env.example client/.env
 npm run infra:up
 npm run db:migrate
+npm run db:seed
 npm run dev
 ```
 
@@ -73,6 +74,31 @@ Local URLs:
 - Server health: http://localhost:4000/health/live
 - Server readiness: http://localhost:4000/health/ready
 - Swagger: http://localhost:4000/docs
+
+### P0 demo seed
+
+After migrations, run `npm run db:seed` to load deterministic local demo data.
+The command is safe to rerun: it resets the demo users, keeps their known
+roles and password hashes, restores the P0 course titles, removes demo
+instructor/student memberships outside the Python course, and clears all
+memberships from the isolation course.
+
+Shared local-only password for every seeded account: `MorshidDemoP0!`
+
+| Email | Role |
+|---|---|
+| `admin@morshid.demo` | Admin |
+| `instructor@morshid.demo` | Instructor |
+| `student1@morshid.demo` | Student |
+| `student2@morshid.demo` | Student |
+| `student3@morshid.demo` | Student |
+
+Seeded courses:
+
+| Code | Title | Memberships |
+|---|---|---|
+| `PYTHON-PROG-P0` | Python Programming | Instructor plus all three students |
+| `HIDDEN-ISOLATION` | Hidden Isolation Test Course | None |
 
 Useful checks:
 
