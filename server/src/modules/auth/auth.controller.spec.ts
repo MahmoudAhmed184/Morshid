@@ -81,4 +81,67 @@ describe('AuthController', () => {
       },
     )
   })
+
+  it('refreshes tokens from the refresh cookie', async () => {
+    const authService = {
+      refreshSession: jest.fn().mockResolvedValue({
+        accessToken: 'new-access-token',
+        refreshToken: 'new-refresh-token',
+        refreshTokenExpiresAt: new Date('2026-07-21T00:00:00.000Z'),
+        user: {
+          id: '00000000-0000-0000-0000-000000000001',
+          email: 'admin@morshid.demo',
+          displayName: 'P0 Demo Admin',
+          role: 'ADMIN',
+        },
+      }),
+    }
+    const moduleRef = await Test.createTestingModule({
+      controllers: [AuthController],
+      providers: [
+        {
+          provide: AuthService,
+          useValue: authService,
+        },
+      ],
+    }).compile()
+    const controller = moduleRef.get(AuthController)
+    const request = {
+      cookies: {
+        [AUTH_REFRESH_COOKIE_NAME]: 'old-refresh-token',
+      },
+      ip: '203.0.113.10',
+      get: jest.fn().mockReturnValue('Mozilla/5.0'),
+    } as unknown as Request
+    const response = {
+      cookie: jest.fn(),
+    } as unknown as Response
+
+    await expect(controller.refresh(request, response)).resolves.toEqual({
+      accessToken: 'new-access-token',
+      user: {
+        id: '00000000-0000-0000-0000-000000000001',
+        email: 'admin@morshid.demo',
+        displayName: 'P0 Demo Admin',
+        role: 'ADMIN',
+      },
+    })
+    expect(authService.refreshSession).toHaveBeenCalledWith(
+      'old-refresh-token',
+      {
+        ip: '203.0.113.10',
+        userAgent: 'Mozilla/5.0',
+      },
+    )
+    expect(response.cookie).toHaveBeenCalledWith(
+      AUTH_REFRESH_COOKIE_NAME,
+      'new-refresh-token',
+      {
+        httpOnly: true,
+        secure: false,
+        sameSite: 'lax',
+        expires: new Date('2026-07-21T00:00:00.000Z'),
+      },
+    )
+  })
 })

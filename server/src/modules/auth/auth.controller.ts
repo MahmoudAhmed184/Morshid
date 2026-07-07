@@ -39,6 +39,36 @@ export class AuthController {
       user: result.user,
     }
   }
+
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  async refresh(
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<AuthResponseDto> {
+    const result = await this.authService.refreshSession(
+      getRefreshTokenCookie(request),
+      {
+        ip: request.ip ?? null,
+        userAgent: request.get('user-agent') ?? null,
+      },
+    )
+
+    setRefreshTokenCookie(response, result)
+
+    return {
+      accessToken: result.accessToken,
+      user: result.user,
+    }
+  }
+}
+
+type RequestWithCookies = Request & {
+  cookies?: Partial<Record<string, string>>
+}
+
+function getRefreshTokenCookie(request: Request): string | undefined {
+  return (request as RequestWithCookies).cookies?.[AUTH_REFRESH_COOKIE_NAME]
 }
 
 function setRefreshTokenCookie(response: Response, result: LoginResult): void {
