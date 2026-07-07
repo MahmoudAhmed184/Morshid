@@ -240,10 +240,6 @@ export class AuthService {
     const refreshToken = await this.signRefreshToken(user, newRefreshTokenId)
 
     await this.prismaService.$transaction(async (tx) => {
-      await tx.refreshToken.update({
-        where: { id: currentRefreshToken.id },
-        data: { revokedAt: now, replacedByTokenId: newRefreshTokenId },
-      })
       await tx.refreshToken.create({
         data: {
           id: newRefreshTokenId,
@@ -253,6 +249,10 @@ export class AuthService {
           ip: requestContext.ip ?? null,
           userAgent: requestContext.userAgent ?? null,
         },
+      })
+      await tx.refreshToken.update({
+        where: { id: currentRefreshToken.id },
+        data: { revokedAt: now, replacedByTokenId: newRefreshTokenId },
       })
     })
 

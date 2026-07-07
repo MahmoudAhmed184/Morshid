@@ -1,4 +1,5 @@
 import {
+  Inject,
   Injectable,
   Logger,
   OnModuleDestroy,
@@ -16,7 +17,10 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RedisService.name)
   private readonly client: RedisClient
 
-  constructor(configService: ConfigService<AppEnvironment, true>) {
+  constructor(
+    @Inject(ConfigService)
+    configService: ConfigService<AppEnvironment, true>,
+  ) {
     this.client = createClient({
       url: configService.get('REDIS_URL', { infer: true }),
     })
