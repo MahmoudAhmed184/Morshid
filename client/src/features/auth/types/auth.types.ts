@@ -10,7 +10,10 @@ export type AuthUser = {
 export type LoginApiResponse = {
   user: AuthUser
   accessToken: string
+  refreshToken: string
 }
+
+export type AuthSession = LoginApiResponse
 
 export type AuthApiErrorCode = 'account_disabled' | 'invalid_credentials'
 

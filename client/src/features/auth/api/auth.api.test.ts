@@ -28,6 +28,7 @@ describe('loginApi', () => {
     const request = loginApi(email, 'password')
     const assertion = expect(request).resolves.toMatchObject({
       accessToken: expect.stringContaining('mock-access-token:'),
+      refreshToken: expect.stringContaining('mock-refresh-token:'),
       user: {
         email,
         role,

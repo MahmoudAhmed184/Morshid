@@ -31,6 +31,7 @@ import {
 } from '@/features/auth/api/auth.api'
 import { signInSchema } from '@/features/auth/schemas/sign-in.schema'
 import type { SignInFormValues } from '@/features/auth/schemas/sign-in.schema'
+import { useAuthStore } from '@/features/auth/stores/auth.store'
 
 import { AuthField } from './auth-field'
 import { AuthLogo } from './auth-logo'
@@ -85,6 +86,7 @@ function SignInPasswordField({
 export function SignInForm({ className, onSubmitDelay }: SignInFormProps) {
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [authErrorMessage, setAuthErrorMessage] = useState<string | null>(null)
+  const setSession = useAuthStore((state) => state.setSession)
 
   const form = useForm<SignInFormValues>({
     resolver: zodResolver(signInSchema),
@@ -120,7 +122,8 @@ export function SignInForm({ className, onSubmitDelay }: SignInFormProps) {
     }
 
     try {
-      await loginApi(values.email, values.password)
+      const session = await loginApi(values.email, values.password)
+      setSession(session)
       setSuccessMessage(SUCCESS_MESSAGE)
     } catch (error) {
       setAuthErrorMessage(

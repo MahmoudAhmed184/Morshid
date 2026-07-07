@@ -80,5 +80,6 @@ export async function loginApi(
   return {
     user,
     accessToken: `mock-access-token:${user.id}`,
+    refreshToken: `mock-refresh-token:${user.id}`,
   }
 }

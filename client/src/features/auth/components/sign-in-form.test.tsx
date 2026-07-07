@@ -13,6 +13,7 @@ import {
   DISABLED_ACCOUNT_MESSAGE,
   INVALID_CREDENTIALS_MESSAGE,
 } from '@/features/auth/api/auth.api'
+import { useAuthStore } from '@/features/auth/stores/auth.store'
 
 import { SignInForm } from './sign-in-form'
 
@@ -59,6 +60,8 @@ function submitSignInForm() {
 
 describe('SignInForm', () => {
   beforeEach(() => {
+    window.localStorage.clear()
+    useAuthStore.getState().clearSession()
     vi.stubGlobal(
       'matchMedia',
       vi.fn((query: string) => ({
@@ -76,6 +79,8 @@ describe('SignInForm', () => {
 
   afterEach(() => {
     cleanup()
+    useAuthStore.getState().clearSession()
+    window.localStorage.clear()
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })
@@ -317,6 +322,15 @@ describe('SignInForm', () => {
       await waitFor(() => {
         expect(screen.getByText(successMessage)).toBeDefined()
       })
+      expect(useAuthStore.getState()).toMatchObject({
+        user: {
+          email: validEmail,
+          role: 'instructor',
+        },
+        accessToken: 'mock-access-token:mock-instructor',
+        refreshToken: 'mock-refresh-token:mock-instructor',
+        isAuthenticated: true,
+      })
     })
 
     it('shows a generic error for wrong mock credentials', async () => {
@@ -326,6 +340,7 @@ describe('SignInForm', () => {
 
       expect(await screen.findByText(INVALID_CREDENTIALS_MESSAGE)).toBeDefined()
       expect(screen.queryByText(successMessage)).toBeNull()
+      expect(useAuthStore.getState().isAuthenticated).toBe(false)
     })
 
     it('shows the disabled account message for disabled mock credentials', async () => {
