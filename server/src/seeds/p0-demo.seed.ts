@@ -1,18 +1,10 @@
-import { scryptSync } from 'node:crypto'
-
 import type {
   CourseMembershipRole,
   Prisma,
   UserRole,
   UserStatus,
 } from '../generated/prisma/client'
-
-const SCRYPT_OPTIONS = {
-  N: 16_384,
-  r: 8,
-  p: 1,
-  keyLength: 64,
-} as const
+import { hashPassword } from '../modules/auth/utils/password.util'
 
 export const P0_DEMO_PASSWORD = 'MorshidDemoP0!'
 
@@ -49,7 +41,6 @@ interface P0DemoUserDefinition {
   email: string
   displayName: string
   role: UserRole
-  passwordSalt: string
   pythonMembershipRole: CourseMembershipRole | null
 }
 
@@ -59,7 +50,6 @@ export const P0_DEMO_USERS = [
     email: 'admin@morshid.demo',
     displayName: 'P0 Demo Admin',
     role: 'ADMIN' satisfies UserRole,
-    passwordSalt: 'morshid-p0-demo-admin',
     pythonMembershipRole: null,
   },
   {
@@ -67,7 +57,6 @@ export const P0_DEMO_USERS = [
     email: 'instructor@morshid.demo',
     displayName: 'P0 Demo Instructor',
     role: 'INSTRUCTOR' satisfies UserRole,
-    passwordSalt: 'morshid-p0-demo-instructor',
     pythonMembershipRole: P0_INSTRUCTOR_MEMBERSHIP_ROLE,
   },
   {
@@ -75,7 +64,6 @@ export const P0_DEMO_USERS = [
     email: 'student1@morshid.demo',
     displayName: 'P0 Demo Student 1',
     role: 'STUDENT' satisfies UserRole,
-    passwordSalt: 'morshid-p0-demo-student-1',
     pythonMembershipRole: P0_STUDENT_MEMBERSHIP_ROLE,
   },
   {
@@ -83,7 +71,6 @@ export const P0_DEMO_USERS = [
     email: 'student2@morshid.demo',
     displayName: 'P0 Demo Student 2',
     role: 'STUDENT' satisfies UserRole,
-    passwordSalt: 'morshid-p0-demo-student-2',
     pythonMembershipRole: P0_STUDENT_MEMBERSHIP_ROLE,
   },
   {
@@ -91,7 +78,6 @@ export const P0_DEMO_USERS = [
     email: 'student3@morshid.demo',
     displayName: 'P0 Demo Student 3',
     role: 'STUDENT' satisfies UserRole,
-    passwordSalt: 'morshid-p0-demo-student-3',
     pythonMembershipRole: P0_STUDENT_MEMBERSHIP_ROLE,
   },
 ] as const satisfies readonly P0DemoUserDefinition[]
@@ -126,25 +112,8 @@ export interface P0DemoSeedResult {
   }
 }
 
-export function createP0DemoPasswordHash(passwordSalt: string) {
-  const derivedKey = scryptSync(
-    P0_DEMO_PASSWORD,
-    passwordSalt,
-    SCRYPT_OPTIONS.keyLength,
-    {
-      N: SCRYPT_OPTIONS.N,
-      r: SCRYPT_OPTIONS.r,
-      p: SCRYPT_OPTIONS.p,
-    },
-  )
-
-  return [
-    'scrypt',
-    'v1',
-    `N=${SCRYPT_OPTIONS.N.toString()},r=${SCRYPT_OPTIONS.r.toString()},p=${SCRYPT_OPTIONS.p.toString()},keylen=${SCRYPT_OPTIONS.keyLength.toString()}`,
-    Buffer.from(passwordSalt).toString('base64url'),
-    derivedKey.toString('base64url'),
-  ].join(':')
+export async function createP0DemoPasswordHash() {
+  return hashPassword(P0_DEMO_PASSWORD)
 }
 
 export async function seedP0DemoData(
@@ -166,7 +135,7 @@ async function seedP0DemoDataInTransaction(
   }[] = []
 
   for (const seedUser of P0_DEMO_USERS) {
-    const passwordHash = createP0DemoPasswordHash(seedUser.passwordSalt)
+    const passwordHash = await createP0DemoPasswordHash()
     const user = await tx.user.upsert({
       where: {
         email: seedUser.email,

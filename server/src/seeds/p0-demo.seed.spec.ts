@@ -11,6 +11,14 @@ import {
   type P0DemoSeedTransaction,
   seedP0DemoData,
 } from './p0-demo.seed'
+import {
+  BCRYPT_PASSWORD_COST,
+  verifyPassword,
+} from '../modules/auth/utils/password.util'
+
+const BCRYPT_HASH_PATTERN = new RegExp(
+  `^\\$2[abxy]\\$${BCRYPT_PASSWORD_COST.toString()}\\$[./A-Za-z0-9]{53}$`,
+)
 
 type UserRole = (typeof P0_DEMO_USERS)[number]['role']
 type UserStatus = 'ACTIVE' | 'DISABLED'
@@ -313,9 +321,11 @@ describe('seedP0DemoData', () => {
         disabledById: null,
         lastLoginAt: null,
       })
-      expect(user.passwordHash).toBe(
-        createP0DemoPasswordHash(expectedUser.passwordSalt),
-      )
+      expect(user.passwordHash).not.toBe(P0_DEMO_PASSWORD)
+      expect(user.passwordHash).toMatch(BCRYPT_HASH_PATTERN)
+      await expect(
+        verifyPassword(P0_DEMO_PASSWORD, user.passwordHash),
+      ).resolves.toBe(true)
     }
   })
 
@@ -449,9 +459,12 @@ describe('seedP0DemoData', () => {
       disabledById: null,
       lastLoginAt: null,
     })
-    expect(prisma.getUser('instructor@morshid.demo').passwordHash).toBe(
-      createP0DemoPasswordHash('morshid-p0-demo-instructor'),
-    )
+    await expect(
+      verifyPassword(
+        P0_DEMO_PASSWORD,
+        prisma.getUser('instructor@morshid.demo').passwordHash,
+      ),
+    ).resolves.toBe(true)
     expect(prisma.getCourse(P0_DEMO_COURSE.code).title).toBe(
       P0_DEMO_COURSE.title,
     )
@@ -467,16 +480,15 @@ describe('seedP0DemoData', () => {
     expect(prisma.getCourse('EXTRA-INSTRUCTOR-OWNED').createdById).toBeNull()
   })
 
-  it('uses parseable non-plaintext per-account scrypt hashes', () => {
-    const hashes = P0_DEMO_USERS.map((user) =>
-      createP0DemoPasswordHash(user.passwordSalt),
+  it('uses parseable non-plaintext per-account bcrypt hashes', async () => {
+    const hashes = await Promise.all(
+      P0_DEMO_USERS.map(() => createP0DemoPasswordHash()),
     )
 
     for (const hash of hashes) {
       expect(hash).not.toBe(P0_DEMO_PASSWORD)
-      expect(hash).toMatch(
-        /^scrypt:v1:N=16384,r=8,p=1,keylen=64:[A-Za-z0-9_-]+:[A-Za-z0-9_-]+$/,
-      )
+      expect(hash).toMatch(BCRYPT_HASH_PATTERN)
+      await expect(verifyPassword(P0_DEMO_PASSWORD, hash)).resolves.toBe(true)
     }
     expect(new Set(hashes).size).toBe(P0_DEMO_USERS.length)
   })
