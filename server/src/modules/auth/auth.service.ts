@@ -1,18 +1,30 @@
 import { createHash, randomUUID } from 'node:crypto'
-
-import {ForbiddenException,Injectable,UnauthorizedException,} from '@nestjs/common'
+import {ForbiddenException, Injectable, UnauthorizedException,} from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { JwtService } from '@nestjs/jwt'
 import type { JwtSignOptions } from '@nestjs/jwt'
 
-import type { User, UserRole } from '../../generated/prisma/client'
-import { AUDIT_EVENT_ACTIONS,AUDIT_TARGET_TYPES, } from '../audit/audit.constants'
+import type {
+  Prisma,
+  RefreshToken,
+  User,
+  UserRole,
+  UserStatus,
+} from '../../generated/prisma/client'
+import {
+  AUDIT_EVENT_ACTIONS,
+  AUDIT_TARGET_TYPES,
+} from '../audit/audit.constants'
 import type { AuditRequestContext } from '../audit/audit.service'
 import { AuditService } from '../audit/audit.service'
 import type { AppEnvironment } from '../config/env.schema'
 import { PrismaService } from '../prisma/prisma.service'
 import { AUTH_TOKEN_TYPES } from './auth.constants'
-import type { AuthResponseDto, AuthUserDto } from './dto/auth-response.dto'
+import type {
+  AuthProfileDto,
+  AuthResponseDto,
+  AuthUserDto,
+} from './dto/auth-response.dto'
 import type { LoginDto } from './dto/login.dto'
 import { verifyPassword } from './utils/password.util'
 
@@ -23,18 +35,47 @@ export interface LoginResult extends AuthResponseDto {
   refreshTokenExpiresAt: Date
 }
 
-interface AccessTokenPayload {
+export interface AuthenticatedUser extends AuthUserDto {
+  status: UserStatus
+}
+
+export interface AuthenticatedRefreshUser extends AuthenticatedUser {
+  refreshTokenId: string
+}
+
+export interface AccessTokenPayload {
   sub: string
   email: string
   role: UserRole
   tokenType: typeof AUTH_TOKEN_TYPES.ACCESS
+  iat?: number
 }
 
-interface RefreshTokenPayload {
+export interface RefreshTokenPayload {
   sub: string
   tokenId: string
   tokenType: typeof AUTH_TOKEN_TYPES.REFRESH
+  iat?: number
 }
+
+type UserWithMemberships = Prisma.UserGetPayload<{
+  include: {
+    memberships: {
+      include: {
+        course: {
+          select: {
+            id: true
+            code: true
+            title: true
+          }
+        }
+      }
+      orderBy: {
+        createdAt: 'asc'
+      }
+    }
+  }
+}>
 
 @Injectable()
 export class AuthService {
@@ -45,23 +86,30 @@ export class AuthService {
     private readonly prismaService: PrismaService,
   ) {}
 
-  async login( dto: LoginDto, requestContext: AuthRequestContext = {},): Promise<LoginResult> {
-    const user = await this.prismaService.user.findUnique({where: { email: dto.email},})
+  async login(
+    dto: LoginDto,
+    requestContext: AuthRequestContext = {},
+  ): Promise<LoginResult> {
+    const user = await this.prismaService.user.findUnique({
+      where: { email: dto.email },
+    })
 
-    if (user === null) {
-      await this.recordFailedLogin(dto.email,'invalid_credentials',requestContext,)
-      throw new UnauthorizedException('Account with this email does not exist')
-    }
+    const passwordMatches = user
+      ? await verifyPassword(dto.password, user.passwordHash)
+      : false
 
-    const passwordMatches = await verifyPassword(dto.password,user.passwordHash,)
-
-    if (!passwordMatches) {
-      await this.recordFailedLogin(dto.email,'invalid_credentials',requestContext,)
+    if (!user || !passwordMatches) {
+      await this.recordFailedLogin(
+        dto.email,
+        'invalid_credentials',
+        requestContext,
+      )
       throw new UnauthorizedException('Invalid email or password')
     }
 
     if (user.status !== 'ACTIVE') {
-      await this.auditService.recordEvent({ actorUserId: user.id,
+      await this.auditService.recordEvent({
+        actorUserId: user.id,
         action: AUDIT_EVENT_ACTIONS.AUTH_LOGIN_BLOCKED_DISABLED_ACCOUNT,
         target: {
           type: AUDIT_TARGET_TYPES.USER,
@@ -69,6 +117,7 @@ export class AuthService {
         },
         metadata: {
           email: user.email,
+          reason: 'login',
           status: user.status,
         },
         requestContext,
@@ -121,6 +170,249 @@ export class AuthService {
       refreshToken,
       refreshTokenExpiresAt,
       user: toAuthUserDto(user),
+    }
+  }
+
+  async refresh(
+    userId: string,
+    refreshTokenId: string,
+    requestContext: AuthRequestContext = {},
+  ): Promise<LoginResult> {
+    const now = new Date()
+    const currentRefreshToken =
+      await this.prismaService.refreshToken.findUnique({
+        where: { id: refreshTokenId },
+      })
+
+    if (
+      currentRefreshToken === null ||
+      currentRefreshToken.userId !== userId ||
+      currentRefreshToken.revokedAt !== null ||
+      currentRefreshToken.expiresAt.getTime() <= now.getTime()
+    ) {
+      throw new UnauthorizedException('Invalid refresh token')
+    }
+
+    const user = await this.prismaService.user.findUnique({
+      where: { id: userId },
+    })
+
+    if (user === null) {
+      throw new UnauthorizedException('Invalid refresh token')
+    }
+
+    await this.assertUserIsActive(user, 'refresh_token', requestContext)
+
+    const newRefreshTokenId = randomUUID()
+    const refreshTokenExpiresAt = this.createRefreshTokenExpiration(now)
+    const accessToken = await this.signAccessToken(user)
+    const refreshToken = await this.signRefreshToken(user, newRefreshTokenId)
+
+    await this.prismaService.$transaction(async (tx) => {
+      await tx.refreshToken.update({
+        where: { id: currentRefreshToken.id },
+        data: { revokedAt: now, replacedByTokenId: newRefreshTokenId },
+      })
+      await tx.refreshToken.create({
+        data: {
+          id: newRefreshTokenId,
+          userId: user.id,
+          tokenHash: hashRefreshToken(refreshToken),
+          expiresAt: refreshTokenExpiresAt,
+          ip: requestContext.ip ?? null,
+          userAgent: requestContext.userAgent ?? null,
+        },
+      })
+    })
+
+    await this.auditService.recordEvent({
+      actorUserId: user.id,
+      action: AUDIT_EVENT_ACTIONS.AUTH_REFRESH_TOKEN_ROTATED,
+      target: {
+        type: AUDIT_TARGET_TYPES.AUTH_SESSION,
+        id: newRefreshTokenId,
+      },
+      metadata: {
+        email: user.email,
+        previousRefreshTokenId: currentRefreshToken.id,
+      },
+      requestContext,
+    })
+
+    return {
+      accessToken,
+      refreshToken,
+      refreshTokenExpiresAt,
+      user: toAuthUserDto(user),
+    }
+  }
+
+  async logout( userId: string, refreshToken: string | null | undefined,requestContext: AuthRequestContext = {},): Promise<void> {
+    let revokedRefreshTokenId: string | undefined
+
+    if (typeof refreshToken === 'string' && refreshToken.trim().length > 0) {
+      const storedRefreshToken =
+        await this.prismaService.refreshToken.findUnique({
+          where: {
+            tokenHash: hashRefreshToken(refreshToken),
+          },
+        })
+
+      if (
+        storedRefreshToken !== null &&
+        storedRefreshToken.userId === userId &&
+        storedRefreshToken.revokedAt === null
+      ) {
+        revokedRefreshTokenId = storedRefreshToken.id
+        await this.prismaService.refreshToken.update({
+          where: {
+            id: storedRefreshToken.id,
+          },
+          data: {
+            revokedAt: new Date(),
+          },
+        })
+      }
+    }
+
+    await this.auditService.recordEvent({
+      actorUserId: userId,
+      action: AUDIT_EVENT_ACTIONS.AUTH_LOGOUT,
+      target: {
+        type: AUDIT_TARGET_TYPES.AUTH_SESSION,
+        id: revokedRefreshTokenId,
+      },
+      requestContext,
+    })
+  }
+
+  async getMe(
+    userId: string,
+    requestContext: AuthRequestContext = {},
+  ): Promise<AuthProfileDto> {
+    const user = await this.prismaService.user.findUnique({
+      where: {
+        id: userId,
+      },
+      include: {
+         email: true,
+         displayName : true,
+         role: true,
+         status: true,
+         memberships: {
+          include: {
+            course: {
+              select: {
+                id: true,
+                code: true,
+                title: true,
+              },
+            },
+          },
+          orderBy: {
+            createdAt: 'asc',
+          },
+        },
+      },
+    })
+
+    if (user === null) {
+      throw new UnauthorizedException('Invalid access token')
+    }
+
+    await this.assertUserIsActive(user, 'get_me', requestContext)
+
+    return toAuthProfileDto(user)
+  }
+
+  async validateAccessTokenPayload(
+    payload: AccessTokenPayload,
+    requestContext: AuthRequestContext = {},
+  ): Promise<AuthenticatedUser> {
+    if (
+      payload.tokenType !== AUTH_TOKEN_TYPES.ACCESS ||
+      payload.sub.length === 0 ||
+      payload.iat === undefined
+    ) {
+      throw new UnauthorizedException('Invalid access token')
+    }
+
+    const user = await this.prismaService.user.findUnique({
+      where: {
+        id: payload.sub,
+      },
+    })
+
+    if (user === null) {
+      throw new UnauthorizedException('Invalid access token')
+    }
+
+    await this.assertUserIsActive(user, 'access_token', requestContext)
+    this.assertTokenIssuedAfterPasswordChange(
+      user.passwordChangedAt,
+      payload.iat,
+      'access token',
+    )
+
+    return toAuthenticatedUser(user)
+  }
+
+  async validateRefreshTokenPayload(
+    payload: RefreshTokenPayload,
+    refreshToken: string,
+    requestContext: AuthRequestContext = {},
+  ): Promise<AuthenticatedRefreshUser> {
+    if (
+      payload.tokenType !== AUTH_TOKEN_TYPES.REFRESH ||
+      payload.sub.length === 0 ||
+      payload.tokenId.length === 0 ||
+      payload.iat === undefined
+    ) {
+      throw new UnauthorizedException('Invalid refresh token')
+    }
+
+    const storedRefreshToken = await this.prismaService.refreshToken.findUnique(
+      {
+        where: {
+          id: payload.tokenId,
+        },
+        include: {
+          user: true,
+        },
+      },
+    )
+
+    if (
+      storedRefreshToken === null ||
+      storedRefreshToken.userId !== payload.sub ||
+      storedRefreshToken.tokenHash !== hashRefreshToken(refreshToken)
+    ) {
+      throw new UnauthorizedException('Invalid refresh token')
+    }
+
+    if (storedRefreshToken.revokedAt !== null) {
+      await this.revokeRefreshTokenChain(storedRefreshToken.id, new Date())
+      throw new UnauthorizedException('Invalid refresh token')
+    }
+
+    if (storedRefreshToken.expiresAt.getTime() <= Date.now()) {
+      throw new UnauthorizedException('Invalid refresh token')
+    }
+
+    await this.assertUserIsActive(
+      storedRefreshToken.user,
+      'refresh_token',
+      requestContext,
+    )
+    this.assertTokenIssuedAfterPasswordChange(
+      storedRefreshToken.user.passwordChangedAt,
+      payload.iat,
+      'refresh token',
+    )
+
+    return {
+      ...toAuthenticatedUser(storedRefreshToken.user),
+      refreshTokenId: storedRefreshToken.id,
     }
   }
 
@@ -187,10 +479,89 @@ export class AuthService {
       requestContext,
     })
   }
+
+  private assertTokenIssuedAfterPasswordChange(
+    passwordChangedAt: Date,
+    issuedAt: number,
+    tokenLabel: string,
+  ): void {
+    if (passwordChangedAt.getTime() > issuedAt * 1000) {
+      throw new UnauthorizedException(`The ${tokenLabel} is no longer valid`)
+    }
+  }
+
+  private async assertUserIsActive(
+    user: Pick<User, 'id' | 'email' | 'status'>,
+    reason: string,
+    requestContext: AuthRequestContext,
+  ): Promise<void> {
+    if (user.status === 'ACTIVE') {
+      return
+    }
+
+    await this.auditService.recordEvent({
+      actorUserId: user.id,
+      action:
+        reason === 'login'
+          ? AUDIT_EVENT_ACTIONS.AUTH_LOGIN_BLOCKED_DISABLED_ACCOUNT
+          : AUDIT_EVENT_ACTIONS.AUTH_DISABLED_ACCESS_ATTEMPT,
+      target: {
+        type: AUDIT_TARGET_TYPES.USER,
+        id: user.id,
+      },
+      metadata: {
+        email: user.email,
+        reason,
+        status: user.status,
+      },
+      requestContext,
+    })
+    throw new ForbiddenException('Account is disabled')
+  }
+
+  private async revokeRefreshTokenChain(
+    refreshTokenId: string,
+    revokedAt: Date,
+  ): Promise<void> {
+    let currentRefreshTokenId: string | null = refreshTokenId
+
+    while (currentRefreshTokenId !== null) {
+      const currentRefreshToken: RefreshToken | null =
+        await this.prismaService.refreshToken.findUnique({
+          where: {
+            id: currentRefreshTokenId,
+          },
+        })
+
+      if (currentRefreshToken === null) {
+        return
+      }
+
+      if (currentRefreshToken.revokedAt === null) {
+        await this.prismaService.refreshToken.update({
+          where: {
+            id: currentRefreshToken.id,
+          },
+          data: {
+            revokedAt,
+          },
+        })
+      }
+
+      currentRefreshTokenId = currentRefreshToken.replacedByTokenId
+    }
+  }
 }
 
 export function hashRefreshToken(refreshToken: string): string {
   return createHash('sha256').update(refreshToken).digest('hex')
+}
+
+function toAuthenticatedUser(user: User): AuthenticatedUser {
+  return {
+    ...toAuthUserDto(user),
+    status: user.status,
+  }
 }
 
 function toAuthUserDto(user: User): AuthUserDto {
@@ -199,5 +570,17 @@ function toAuthUserDto(user: User): AuthUserDto {
     email: user.email,
     displayName: user.displayName,
     role: user.role,
+  }
+}
+
+function toAuthProfileDto(user: UserWithMemberships): AuthProfileDto {
+  return {
+    ...toAuthenticatedUser(user),
+    assignedCourses: user.memberships.map((membership) => ({
+      id: membership.course.id,
+      code: membership.course.code,
+      title: membership.course.title,
+      membershipRole: membership.role,
+    })),
   }
 }

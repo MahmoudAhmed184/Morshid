@@ -2,6 +2,7 @@ export const AUDIT_EVENT_ACTIONS = {
   AUTH_LOGIN_SUCCEEDED: 'auth.login_succeeded',
   AUTH_LOGIN_FAILED: 'auth.login_failed',
   AUTH_LOGIN_BLOCKED_DISABLED_ACCOUNT: 'auth.login_blocked_disabled_account',
+  AUTH_DISABLED_ACCESS_ATTEMPT: 'auth.disabled_access_attempt',
   AUTH_LOGOUT: 'auth.logout',
   AUTH_REFRESH_TOKEN_ROTATED: 'auth.refresh_token_rotated',
   AUTH_PASSWORD_CHANGED: 'auth.password_changed',
