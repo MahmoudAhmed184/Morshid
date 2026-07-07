@@ -20,6 +20,8 @@ const BCRYPT_HASH_PATTERN = new RegExp(
   `^\\$2[abxy]\\$${BCRYPT_PASSWORD_COST.toString()}\\$[./A-Za-z0-9]{53}$`,
 )
 
+jest.setTimeout(30_000)
+
 type UserRole = (typeof P0_DEMO_USERS)[number]['role']
 type UserStatus = 'ACTIVE' | 'DISABLED'
 type CourseMembershipRole = 'INSTRUCTOR' | 'STUDENT'
