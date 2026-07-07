@@ -9,7 +9,7 @@ import { JwtService } from '@nestjs/jwt'
 import type { JwtSignOptions } from '@nestjs/jwt'
 
 import type {
-  Prisma,
+  CourseMembershipRole,
   RefreshToken,
   User,
   UserRole,
@@ -62,24 +62,19 @@ export interface RefreshTokenPayload {
   iat?: number
 }
 
-type UserWithMemberships = Prisma.UserGetPayload<{
-  include: {
-    memberships: {
-      include: {
-        course: {
-          select: {
-            id: true
-            code: true
-            title: true
-          }
-        }
-      }
-      orderBy: {
-        createdAt: 'asc'
-      }
+type UserWithMemberships = Pick<
+  User,
+  'id' | 'email' | 'displayName' | 'role' | 'status'
+> & {
+  memberships: {
+    role: CourseMembershipRole
+    course: {
+      id: string
+      code: string
+      title: string
     }
-  }
-}>
+  }[]
+}
 
 @Injectable()
 export class AuthService {
@@ -358,13 +353,15 @@ export class AuthService {
       where: {
         id: userId,
       },
-      include: {
+      select: {
+        id: true,
         email: true,
         displayName: true,
         role: true,
         status: true,
         memberships: {
-          include: {
+          select: {
+            role: true,
             course: {
               select: {
                 id: true,
@@ -655,7 +652,11 @@ function toAuthUserDto(user: User): AuthUserDto {
 
 function toAuthProfileDto(user: UserWithMemberships): AuthProfileDto {
   return {
-    ...toAuthenticatedUser(user),
+    id: user.id,
+    email: user.email,
+    displayName: user.displayName,
+    role: user.role,
+    status: user.status,
     assignedCourses: user.memberships.map((membership) => ({
       id: membership.course.id,
       code: membership.course.code,

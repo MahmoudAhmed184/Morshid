@@ -1,20 +1,24 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Post,
   Req,
   Res,
+  UseGuards,
 } from '@nestjs/common'
 import type { Request, Response } from 'express'
 
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe'
 import { AUTH_REFRESH_COOKIE_NAME } from './auth.constants'
+import { CurrentUser } from './decorators/current-user.decorator'
 import { AuthService } from './auth.service'
-import type { LoginResult } from './auth.service'
-import type { AuthResponseDto } from './dto/auth-response.dto'
+import type { AuthenticatedUser, LoginResult } from './auth.service'
+import type { AuthProfileDto, AuthResponseDto } from './dto/auth-response.dto'
 import { loginSchema, type LoginDto } from './dto/login.dto'
+import { JwtAccessGuard } from './guards/jwt-access.guard'
 
 @Controller('auth')
 export class AuthController {
@@ -82,6 +86,18 @@ export class AuthController {
     return {
       message: 'Logged out successfully',
     }
+  }
+
+  @Get('me')
+  @UseGuards(JwtAccessGuard)
+  async me(
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() request: Request,
+  ): Promise<AuthProfileDto> {
+    return this.authService.getMe(user.id, {
+      ip: request.ip ?? null,
+      userAgent: request.get('user-agent') ?? null,
+    })
   }
 }
 

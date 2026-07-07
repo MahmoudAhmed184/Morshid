@@ -1,4 +1,6 @@
 import { Test } from '@nestjs/testing'
+import { ConfigService } from '@nestjs/config'
+import { JwtService } from '@nestjs/jwt'
 import type { Request, Response } from 'express'
 
 import { AUTH_REFRESH_COOKIE_NAME } from './auth.constants'
@@ -30,6 +32,18 @@ describe('AuthController', () => {
         {
           provide: AuthService,
           useValue: authService,
+        },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn(),
+          },
+        },
+        {
+          provide: JwtService,
+          useValue: {
+            verifyAsync: jest.fn(),
+          },
         },
       ],
     }).compile()
@@ -103,6 +117,18 @@ describe('AuthController', () => {
           provide: AuthService,
           useValue: authService,
         },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn(),
+          },
+        },
+        {
+          provide: JwtService,
+          useValue: {
+            verifyAsync: jest.fn(),
+          },
+        },
       ],
     }).compile()
     const controller = moduleRef.get(AuthController)
@@ -156,6 +182,18 @@ describe('AuthController', () => {
           provide: AuthService,
           useValue: authService,
         },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn(),
+          },
+        },
+        {
+          provide: JwtService,
+          useValue: {
+            verifyAsync: jest.fn(),
+          },
+        },
       ],
     }).compile()
     const controller = moduleRef.get(AuthController)
@@ -183,6 +221,86 @@ describe('AuthController', () => {
         httpOnly: true,
         secure: false,
         sameSite: 'lax',
+      },
+    )
+  })
+
+  it('returns the current user profile', async () => {
+    const authService = {
+      getMe: jest.fn().mockResolvedValue({
+        id: '00000000-0000-0000-0000-000000000001',
+        email: 'admin@morshid.demo',
+        displayName: 'P0 Demo Admin',
+        role: 'ADMIN',
+        status: 'ACTIVE',
+        assignedCourses: [
+          {
+            id: 'course-1',
+            code: 'PY101',
+            title: 'Python Programming',
+            membershipRole: 'INSTRUCTOR',
+          },
+        ],
+      }),
+    }
+    const moduleRef = await Test.createTestingModule({
+      controllers: [AuthController],
+      providers: [
+        {
+          provide: AuthService,
+          useValue: authService,
+        },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn(),
+          },
+        },
+        {
+          provide: JwtService,
+          useValue: {
+            verifyAsync: jest.fn(),
+          },
+        },
+      ],
+    }).compile()
+    const controller = moduleRef.get(AuthController)
+    const request = {
+      ip: '203.0.113.10',
+      get: jest.fn().mockReturnValue('Mozilla/5.0'),
+    } as unknown as Request
+
+    await expect(
+      controller.me(
+        {
+          id: '00000000-0000-0000-0000-000000000001',
+          email: 'admin@morshid.demo',
+          displayName: 'P0 Demo Admin',
+          role: 'ADMIN',
+          status: 'ACTIVE',
+        },
+        request,
+      ),
+    ).resolves.toEqual({
+      id: '00000000-0000-0000-0000-000000000001',
+      email: 'admin@morshid.demo',
+      displayName: 'P0 Demo Admin',
+      role: 'ADMIN',
+      status: 'ACTIVE',
+      assignedCourses: [
+        {
+          id: 'course-1',
+          code: 'PY101',
+          title: 'Python Programming',
+          membershipRole: 'INSTRUCTOR',
+        },
+      ],
+    })
+    expect(authService.getMe).toHaveBeenCalledWith(
+      '00000000-0000-0000-0000-000000000001',
+      {
+        ip: '203.0.113.10',
+        userAgent: 'Mozilla/5.0',
       },
     )
   })
