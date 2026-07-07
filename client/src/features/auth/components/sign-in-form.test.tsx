@@ -20,6 +20,11 @@ import { SignInForm } from './sign-in-form'
 const successMessage = 'Signed in successfully.'
 const validEmail = 'instructor@morshid.demo'
 const validPassword = 'password'
+const navigateMock = vi.fn()
+
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => navigateMock,
+}))
 
 function renderSignInForm(props?: { onSubmitDelay?: number }) {
   render(<SignInForm {...props} />)
@@ -62,6 +67,7 @@ describe('SignInForm', () => {
   beforeEach(() => {
     window.localStorage.clear()
     useAuthStore.getState().clearSession()
+    navigateMock.mockResolvedValue(undefined)
     vi.stubGlobal(
       'matchMedia',
       vi.fn((query: string) => ({
@@ -81,6 +87,7 @@ describe('SignInForm', () => {
     cleanup()
     useAuthStore.getState().clearSession()
     window.localStorage.clear()
+    navigateMock.mockReset()
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })
@@ -331,6 +338,7 @@ describe('SignInForm', () => {
         refreshToken: 'mock-refresh-token:mock-instructor',
         isAuthenticated: true,
       })
+      expect(navigateMock).toHaveBeenCalledWith({ to: '/instructor' })
     })
 
     it('shows a generic error for wrong mock credentials', async () => {
@@ -341,6 +349,7 @@ describe('SignInForm', () => {
       expect(await screen.findByText(INVALID_CREDENTIALS_MESSAGE)).toBeDefined()
       expect(screen.queryByText(successMessage)).toBeNull()
       expect(useAuthStore.getState().isAuthenticated).toBe(false)
+      expect(navigateMock).not.toHaveBeenCalled()
     })
 
     it('shows the disabled account message for disabled mock credentials', async () => {

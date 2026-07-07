@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useNavigate } from '@tanstack/react-router'
 import { ChevronRight, Mail } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { ControllerRenderProps } from 'react-hook-form'
@@ -32,6 +33,7 @@ import {
 import { signInSchema } from '@/features/auth/schemas/sign-in.schema'
 import type { SignInFormValues } from '@/features/auth/schemas/sign-in.schema'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
+import { getAuthRedirectPath } from '@/features/auth/utils/auth-redirect'
 
 import { AuthField } from './auth-field'
 import { AuthLogo } from './auth-logo'
@@ -86,6 +88,7 @@ function SignInPasswordField({
 export function SignInForm({ className, onSubmitDelay }: SignInFormProps) {
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [authErrorMessage, setAuthErrorMessage] = useState<string | null>(null)
+  const navigate = useNavigate()
   const setSession = useAuthStore((state) => state.setSession)
 
   const form = useForm<SignInFormValues>({
@@ -121,15 +124,22 @@ export function SignInForm({ className, onSubmitDelay }: SignInFormProps) {
       })
     }
 
-    try {
-      const session = await loginApi(values.email, values.password)
-      setSession(session)
-      setSuccessMessage(SUCCESS_MESSAGE)
-    } catch (error) {
-      setAuthErrorMessage(
-        isAuthApiError(error) ? error.message : INVALID_CREDENTIALS_MESSAGE,
-      )
+    const session = await loginApi(values.email, values.password).catch(
+      (error: unknown) => {
+        setAuthErrorMessage(
+          isAuthApiError(error) ? error.message : INVALID_CREDENTIALS_MESSAGE,
+        )
+        return null
+      },
+    )
+
+    if (!session) {
+      return
     }
+
+    setSession(session)
+    setSuccessMessage(SUCCESS_MESSAGE)
+    await navigate({ to: getAuthRedirectPath(session.user.role) })
   }
 
   return (
