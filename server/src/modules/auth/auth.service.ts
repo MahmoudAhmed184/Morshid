@@ -85,7 +85,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly prismaService: PrismaService,
   ) {}
-
+ // `=================== de el login function ===================`
   async login(
     dto: LoginDto,
     requestContext: AuthRequestContext = {},
@@ -173,6 +173,38 @@ export class AuthService {
     }
   }
 
+  // `=================== de el refreshSession function ===================`
+  async refreshSession(
+    refreshToken: string | null | undefined,
+    requestContext: AuthRequestContext = {},
+  ): Promise<LoginResult> {
+    if (typeof refreshToken !== 'string' || refreshToken.trim().length === 0) {
+      throw new UnauthorizedException('No refresh token provided')
+    }
+
+    let payload: RefreshTokenPayload
+
+    try {
+      payload = await this.jwtService.verifyAsync<RefreshTokenPayload>(
+        refreshToken,
+        {
+          secret: this.configService.get('JWT_REFRESH_SECRET', { infer: true }),
+        },
+      )
+    } catch {
+      throw new UnauthorizedException('Invalid refresh token')
+    }
+
+    const user = await this.validateRefreshTokenPayload(
+      payload,
+      refreshToken,
+      requestContext,
+    )
+
+    return this.refresh(user.id, user.refreshTokenId, requestContext)
+  }
+
+  // `=================== de el refresh function ===================`
   async refresh(
     userId: string,
     refreshTokenId: string,
@@ -247,6 +279,7 @@ export class AuthService {
     }
   }
 
+  // `=================== de el logout function ===================`
   async logout( userId: string, refreshToken: string | null | undefined,requestContext: AuthRequestContext = {},): Promise<void> {
     let revokedRefreshTokenId: string | undefined
 
@@ -286,6 +319,7 @@ export class AuthService {
     })
   }
 
+  // `=================== de el getMe function ===================`
   async getMe(
     userId: string,
     requestContext: AuthRequestContext = {},
@@ -325,6 +359,9 @@ export class AuthService {
     return toAuthProfileDto(user)
   }
 
+
+  // `=================== de el validateAccessTokenPayload function ===================`
+
   async validateAccessTokenPayload(
     payload: AccessTokenPayload,
     requestContext: AuthRequestContext = {},
@@ -356,6 +393,8 @@ export class AuthService {
 
     return toAuthenticatedUser(user)
   }
+
+  // `=================== de el validateRefreshTokenPayload function ===================`
 
   async validateRefreshTokenPayload(
     payload: RefreshTokenPayload,
@@ -416,6 +455,8 @@ export class AuthService {
     }
   }
 
+  // `=================== de el signAccessToken function ===================`
+
   private async signAccessToken(user: User): Promise<string> {
     const payload: AccessTokenPayload = {
       sub: user.id,
@@ -432,6 +473,8 @@ export class AuthService {
     })
   }
 
+  // `=================== de el signRefreshToken function ===================`
+
   private async signRefreshToken(user: User, tokenId: string): Promise<string> {
     const payload: RefreshTokenPayload = {
       sub: user.id,
@@ -445,6 +488,8 @@ export class AuthService {
     })
   }
 
+  // `=================== de el createRefreshTokenExpiration function ===================`
+
   private createRefreshTokenExpiration(now: Date): Date {
     const refreshExpirationDays = this.configService.get(
       'JWT_REFRESH_EXPIRATION_DAYS',
@@ -454,6 +499,7 @@ export class AuthService {
     return new Date(now.getTime() + refreshExpirationDays * 24 * 60 * 60 * 1000)
   }
 
+  // `=================== de el getRefreshTokenExpiresIn function ===================`
   private getRefreshTokenExpiresIn(): JwtSignOptions['expiresIn'] {
     return `${this.configService
       .get('JWT_REFRESH_EXPIRATION_DAYS', {
@@ -480,6 +526,7 @@ export class AuthService {
     })
   }
 
+  // `=================== de el assertTokenIssuedAfterPasswordChange function ===================`
   private assertTokenIssuedAfterPasswordChange(
     passwordChangedAt: Date,
     issuedAt: number,
@@ -490,6 +537,7 @@ export class AuthService {
     }
   }
 
+  // `=================== de el assertUserIsActive function ===================`
   private async assertUserIsActive(
     user: Pick<User, 'id' | 'email' | 'status'>,
     reason: string,
@@ -519,6 +567,7 @@ export class AuthService {
     throw new ForbiddenException('Account is disabled')
   }
 
+  // `=================== de el revokeRefreshTokenChain function ===================`
   private async revokeRefreshTokenChain(
     refreshTokenId: string,
     revokedAt: Date,
@@ -552,6 +601,8 @@ export class AuthService {
     }
   }
 }
+
+// `=================== de el hashRefreshToken function ===================`
 
 export function hashRefreshToken(refreshToken: string): string {
   return createHash('sha256').update(refreshToken).digest('hex')
