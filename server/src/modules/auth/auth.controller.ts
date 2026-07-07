@@ -101,12 +101,10 @@ export class AuthController {
   }
 }
 
-type RequestWithCookies = Request & {
-  cookies?: Partial<Record<string, string>>
-}
-
 function getRefreshTokenCookie(request: Request): string | undefined {
-  return (request as RequestWithCookies).cookies?.[AUTH_REFRESH_COOKIE_NAME]
+  const cookies = request.cookies as Record<string, unknown> | undefined
+  const token = cookies?.[AUTH_REFRESH_COOKIE_NAME]
+  return typeof token === 'string' ? token : undefined
 }
 
 function setRefreshTokenCookie(response: Response, result: LoginResult): void {

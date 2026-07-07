@@ -215,8 +215,11 @@ export class AuthService {
         where: { id: refreshTokenId },
       })
 
+    if (!currentRefreshToken) {
+      throw new UnauthorizedException('Invalid refresh token')
+    }
+
     if (
-      currentRefreshToken === null ||
       currentRefreshToken.userId !== userId ||
       currentRefreshToken.revokedAt !== null ||
       currentRefreshToken.expiresAt.getTime() <= now.getTime()
@@ -393,7 +396,6 @@ export class AuthService {
     requestContext: AuthRequestContext = {},
   ): Promise<AuthenticatedUser> {
     if (
-      payload.tokenType !== AUTH_TOKEN_TYPES.ACCESS ||
       payload.sub.length === 0 ||
       payload.iat === undefined
     ) {
@@ -428,7 +430,6 @@ export class AuthService {
     requestContext: AuthRequestContext = {},
   ): Promise<AuthenticatedRefreshUser> {
     if (
-      payload.tokenType !== AUTH_TOKEN_TYPES.REFRESH ||
       payload.sub.length === 0 ||
       payload.tokenId.length === 0 ||
       payload.iat === undefined
@@ -447,8 +448,11 @@ export class AuthService {
       },
     )
 
+    if (!storedRefreshToken) {
+      throw new UnauthorizedException('Invalid refresh token')
+    }
+
     if (
-      storedRefreshToken === null ||
       storedRefreshToken.userId !== payload.sub ||
       storedRefreshToken.tokenHash !== hashRefreshToken(refreshToken)
     ) {

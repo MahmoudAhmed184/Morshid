@@ -52,8 +52,9 @@ describe('AuthController', () => {
       ip: '203.0.113.10',
       get: jest.fn().mockReturnValue('Mozilla/5.0'),
     } as unknown as Request
+    const responseCookieMock = jest.fn()
     const response = {
-      cookie: jest.fn(),
+      cookie: responseCookieMock,
     } as unknown as Response
 
     await expect(
@@ -84,7 +85,7 @@ describe('AuthController', () => {
         userAgent: 'Mozilla/5.0',
       },
     )
-    expect(response.cookie).toHaveBeenCalledWith(
+    expect(responseCookieMock).toHaveBeenCalledWith(
       AUTH_REFRESH_COOKIE_NAME,
       'refresh-token',
       {
@@ -139,8 +140,9 @@ describe('AuthController', () => {
       ip: '203.0.113.10',
       get: jest.fn().mockReturnValue('Mozilla/5.0'),
     } as unknown as Request
+    const responseCookieMock = jest.fn()
     const response = {
-      cookie: jest.fn(),
+      cookie: responseCookieMock,
     } as unknown as Response
 
     await expect(controller.refresh(request, response)).resolves.toEqual({
@@ -159,7 +161,7 @@ describe('AuthController', () => {
         userAgent: 'Mozilla/5.0',
       },
     )
-    expect(response.cookie).toHaveBeenCalledWith(
+    expect(responseCookieMock).toHaveBeenCalledWith(
       AUTH_REFRESH_COOKIE_NAME,
       'new-refresh-token',
       {
@@ -204,8 +206,9 @@ describe('AuthController', () => {
       ip: '203.0.113.10',
       get: jest.fn().mockReturnValue('Mozilla/5.0'),
     } as unknown as Request
+    const responseClearCookieMock = jest.fn()
     const response = {
-      clearCookie: jest.fn(),
+      clearCookie: responseClearCookieMock,
     } as unknown as Response
 
     await expect(controller.logout(request, response)).resolves.toEqual({
@@ -215,7 +218,7 @@ describe('AuthController', () => {
       ip: '203.0.113.10',
       userAgent: 'Mozilla/5.0',
     })
-    expect(response.clearCookie).toHaveBeenCalledWith(
+    expect(responseClearCookieMock).toHaveBeenCalledWith(
       AUTH_REFRESH_COOKIE_NAME,
       {
         httpOnly: true,
