@@ -14,6 +14,7 @@ type AuthStoreState = {
 type AuthStoreActions = {
   setSession: (session: AuthSession) => void
   clearSession: () => void
+  logout: () => void
 }
 
 export type AuthStore = AuthStoreState & AuthStoreActions
@@ -118,6 +119,10 @@ export const useAuthStore = create<AuthStore>()((set) => ({
     })
   },
   clearSession: () => {
+    removeStoredSession()
+    set(emptyAuthState)
+  },
+  logout: () => {
     removeStoredSession()
     set(emptyAuthState)
   },

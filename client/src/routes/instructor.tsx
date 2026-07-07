@@ -1,11 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-function InstructorPlaceholderPage() {
-  return <main>Instructor</main>
-}
+import { RolePlaceholderPage } from '@/features/auth/components/role-placeholder-page'
 
 export const Route = createFileRoute('/instructor')({
-  component: InstructorPlaceholderPage,
+  component: () => <RolePlaceholderPage roleName="Instructor" />,
   head: () => ({
     meta: [{ title: 'Instructor — Morshid' }],
   }),

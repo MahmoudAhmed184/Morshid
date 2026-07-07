@@ -66,4 +66,18 @@ describe('useAuthStore', () => {
     })
     expect(window.localStorage.getItem(authSessionStorageKey)).toBeNull()
   })
+
+  it('logs out by clearing the current auth session and persisted storage', () => {
+    useAuthStore.getState().setSession(mockSession)
+
+    useAuthStore.getState().logout()
+
+    expect(useAuthStore.getState()).toMatchObject({
+      user: null,
+      accessToken: null,
+      refreshToken: null,
+      isAuthenticated: false,
+    })
+    expect(window.localStorage.getItem(authSessionStorageKey)).toBeNull()
+  })
 })
