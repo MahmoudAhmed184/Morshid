@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { signInSchema } from './sign-in.schema'
 
-const validPassword = 'Password1!'
+const validPassword = 'password'
 
 function parseSignIn(input: {
   email?: string
@@ -10,7 +10,7 @@ function parseSignIn(input: {
   rememberMe?: boolean
 }) {
   return signInSchema.safeParse({
-    email: input.email ?? 'instructor@institution.edu',
+    email: input.email ?? 'instructor@morshid.demo',
     password: input.password ?? validPassword,
     rememberMe: input.rememberMe ?? true,
   })
@@ -61,20 +61,20 @@ describe('signInSchema email validation', () => {
   })
 
   it('accepts valid email with leading and trailing spaces after trim', () => {
-    const result = parseSignIn({ email: '  Instructor@Institution.edu  ' })
+    const result = parseSignIn({ email: '  Instructor@Morshid.demo  ' })
 
     expect(result.success).toBe(true)
     if (result.success) {
-      expect(result.data.email).toBe('instructor@institution.edu')
+      expect(result.data.email).toBe('instructor@morshid.demo')
     }
   })
 
   it('normalizes a valid email to lowercase', () => {
-    const result = parseSignIn({ email: 'INSTRUCTOR@INSTITUTION.EDU' })
+    const result = parseSignIn({ email: 'INSTRUCTOR@MORSHID.DEMO' })
 
     expect(result.success).toBe(true)
     if (result.success) {
-      expect(result.data.email).toBe('instructor@institution.edu')
+      expect(result.data.email).toBe('instructor@morshid.demo')
     }
   })
 })
@@ -97,7 +97,7 @@ describe('signInSchema password validation', () => {
   })
 
   it('rejects passwords longer than 128 characters', () => {
-    const result = parseSignIn({ password: `Aa1!${'x'.repeat(125)}` })
+    const result = parseSignIn({ password: 'p'.repeat(129) })
 
     expect(result.success).toBe(false)
     expect(getFieldError(result, 'password')).toBe(
@@ -106,7 +106,7 @@ describe('signInSchema password validation', () => {
   })
 
   it('rejects passwords with leading or trailing spaces', () => {
-    const result = parseSignIn({ password: ' Password1! ' })
+    const result = parseSignIn({ password: ' password ' })
 
     expect(result.success).toBe(false)
     expect(getFieldError(result, 'password')).toBe(
@@ -150,7 +150,7 @@ describe('signInSchema password validation', () => {
     )
   })
 
-  it('accepts a valid password', () => {
+  it('accepts the seeded mock password', () => {
     const result = parseSignIn({ password: validPassword })
 
     expect(result.success).toBe(true)

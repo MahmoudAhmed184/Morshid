@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ChevronRight, Mail } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ControllerRenderProps } from 'react-hook-form'
 import { useForm } from 'react-hook-form'
 
@@ -24,6 +24,11 @@ import {
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 
+import {
+  INVALID_CREDENTIALS_MESSAGE,
+  isAuthApiError,
+  loginApi,
+} from '@/features/auth/api/auth.api'
 import { signInSchema } from '@/features/auth/schemas/sign-in.schema'
 import type { SignInFormValues } from '@/features/auth/schemas/sign-in.schema'
 
@@ -35,6 +40,8 @@ type SignInFormProps = {
   className?: string
   onSubmitDelay?: number
 }
+
+const SUCCESS_MESSAGE = 'Signed in successfully.'
 
 function SignInEmailField({
   field,
@@ -50,7 +57,7 @@ function SignInEmailField({
       label="Institutional Email"
       icon={Mail}
       type="email"
-      placeholder="instructor@institution.edu"
+      placeholder="instructor@morshid.demo"
       autoComplete="email"
       aria-invalid={error ? true : undefined}
       aria-describedby={error ? formMessageId : undefined}
@@ -77,6 +84,7 @@ function SignInPasswordField({
 
 export function SignInForm({ className, onSubmitDelay }: SignInFormProps) {
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [authErrorMessage, setAuthErrorMessage] = useState<string | null>(null)
 
   const form = useForm<SignInFormValues>({
     resolver: zodResolver(signInSchema),
@@ -89,17 +97,36 @@ export function SignInForm({ className, onSubmitDelay }: SignInFormProps) {
     },
   })
 
+  useEffect(() => {
+    if (!successMessage) {
+      return undefined
+    }
+
+    const timeoutId = window.setTimeout(() => setSuccessMessage(null), 4000)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [successMessage])
+
   const onSubmit = async (values: SignInFormValues) => {
+    setSuccessMessage(null)
+    setAuthErrorMessage(null)
+
     if (onSubmitDelay) {
       await new Promise((resolve) => {
         window.setTimeout(resolve, onSubmitDelay)
       })
     }
 
-    setSuccessMessage(null)
-    console.log('Sign-in form values:', values)
-    setSuccessMessage('Credentials validated successfully.')
-    window.setTimeout(() => setSuccessMessage(null), 4000)
+    try {
+      await loginApi(values.email, values.password)
+      setSuccessMessage(SUCCESS_MESSAGE)
+    } catch (error) {
+      setAuthErrorMessage(
+        isAuthApiError(error) ? error.message : INVALID_CREDENTIALS_MESSAGE,
+      )
+    }
   }
 
   return (
@@ -178,6 +205,15 @@ export function SignInForm({ className, onSubmitDelay }: SignInFormProps) {
                   </FormItem>
                 )}
               />
+
+              {authErrorMessage ? (
+                <p
+                  role="alert"
+                  className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"
+                >
+                  {authErrorMessage}
+                </p>
+              ) : null}
 
               {successMessage ? (
                 <p

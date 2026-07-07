@@ -9,10 +9,16 @@ import {
 } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import {
+  DISABLED_ACCOUNT_MESSAGE,
+  INVALID_CREDENTIALS_MESSAGE,
+} from '@/features/auth/api/auth.api'
+
 import { SignInForm } from './sign-in-form'
 
-const validEmail = 'instructor@institution.edu'
-const validPassword = 'Password1!'
+const successMessage = 'Signed in successfully.'
+const validEmail = 'instructor@morshid.demo'
+const validPassword = 'password'
 
 function renderSignInForm(props?: { onSubmitDelay?: number }) {
   render(<SignInForm {...props} />)
@@ -25,7 +31,7 @@ function getForm() {
 }
 
 function getEmailInput() {
-  return within(getForm()).getByPlaceholderText('instructor@institution.edu')
+  return within(getForm()).getByPlaceholderText('instructor@morshid.demo')
 }
 
 function getPasswordInput() {
@@ -66,7 +72,6 @@ describe('SignInForm', () => {
         dispatchEvent: vi.fn(),
       })),
     )
-    vi.spyOn(console, 'log').mockImplementation(() => undefined)
   })
 
   afterEach(() => {
@@ -98,7 +103,7 @@ describe('SignInForm', () => {
     it('rejects emails with spaces inside', async () => {
       renderSignInForm()
       fillSignInForm({
-        email: 'user name@institution.edu',
+        email: 'user name@morshid.demo',
         password: validPassword,
       })
       submitSignInForm()
@@ -111,7 +116,7 @@ describe('SignInForm', () => {
     it('rejects emails longer than 254 characters', async () => {
       renderSignInForm()
       fillSignInForm({
-        email: `${'a'.repeat(243)}@institution.edu`,
+        email: `${'a'.repeat(243)}@morshid.demo`,
         password: validPassword,
       })
       submitSignInForm()
@@ -124,20 +129,13 @@ describe('SignInForm', () => {
     it('accepts valid email with leading and trailing spaces after trim', async () => {
       renderSignInForm()
       fillSignInForm({
-        email: '  Instructor@Institution.edu  ',
+        email: '  Instructor@Morshid.demo  ',
         password: validPassword,
       })
       submitSignInForm()
 
       await waitFor(() => {
-        expect(
-          screen.getByText('Credentials validated successfully.'),
-        ).toBeDefined()
-      })
-      expect(console.log).toHaveBeenCalledWith('Sign-in form values:', {
-        email: 'instructor@institution.edu',
-        password: validPassword,
-        rememberMe: true,
+        expect(screen.getByText(successMessage)).toBeDefined()
       })
     })
   })
@@ -163,7 +161,7 @@ describe('SignInForm', () => {
 
     it('rejects passwords longer than 128 characters', async () => {
       renderSignInForm()
-      fillSignInForm({ email: validEmail, password: `Aa1!${'x'.repeat(125)}` })
+      fillSignInForm({ email: validEmail, password: 'p'.repeat(129) })
       submitSignInForm()
 
       expect(
@@ -173,7 +171,7 @@ describe('SignInForm', () => {
 
     it('rejects passwords with leading or trailing spaces', async () => {
       renderSignInForm()
-      fillSignInForm({ email: validEmail, password: ' Password1! ' })
+      fillSignInForm({ email: validEmail, password: ' password ' })
       submitSignInForm()
 
       expect(
@@ -221,15 +219,13 @@ describe('SignInForm', () => {
       ).toBeDefined()
     })
 
-    it('accepts a valid password', async () => {
+    it('accepts the seeded mock password', async () => {
       renderSignInForm()
       fillSignInForm()
       submitSignInForm()
 
       await waitFor(() => {
-        expect(
-          screen.getByText('Credentials validated successfully.'),
-        ).toBeDefined()
+        expect(screen.getByText(successMessage)).toBeDefined()
       })
     })
   })
@@ -306,30 +302,42 @@ describe('SignInForm', () => {
       fireEvent.submit(getForm())
 
       await waitFor(() => {
-        expect(
-          screen.getByText('Credentials validated successfully.'),
-        ).toBeDefined()
+        expect(screen.getByText(successMessage)).toBeDefined()
       })
     })
 
-    it('logs normalized values and shows a success message on valid submit', async () => {
+    it('shows a success message on valid seeded credentials', async () => {
       renderSignInForm()
       fillSignInForm({
-        email: 'INSTRUCTOR@INSTITUTION.EDU',
+        email: 'INSTRUCTOR@MORSHID.DEMO',
         password: validPassword,
       })
       submitSignInForm()
 
       await waitFor(() => {
-        expect(
-          screen.getByText('Credentials validated successfully.'),
-        ).toBeDefined()
+        expect(screen.getByText(successMessage)).toBeDefined()
       })
-      expect(console.log).toHaveBeenCalledWith('Sign-in form values:', {
-        email: 'instructor@institution.edu',
+    })
+
+    it('shows a generic error for wrong mock credentials', async () => {
+      renderSignInForm()
+      fillSignInForm({ password: 'Password1!' })
+      submitSignInForm()
+
+      expect(await screen.findByText(INVALID_CREDENTIALS_MESSAGE)).toBeDefined()
+      expect(screen.queryByText(successMessage)).toBeNull()
+    })
+
+    it('shows the disabled account message for disabled mock credentials', async () => {
+      renderSignInForm()
+      fillSignInForm({
+        email: 'disabled@morshid.demo',
         password: validPassword,
-        rememberMe: true,
       })
+      submitSignInForm()
+
+      expect(await screen.findByText(DISABLED_ACCOUNT_MESSAGE)).toBeDefined()
+      expect(screen.queryByText(successMessage)).toBeNull()
     })
 
     it('does not submit when the form is invalid', async () => {
@@ -339,10 +347,7 @@ describe('SignInForm', () => {
 
       await screen.findByText('Enter a valid email address')
 
-      expect(console.log).not.toHaveBeenCalled()
-      expect(
-        screen.queryByText('Credentials validated successfully.'),
-      ).toBeNull()
+      expect(screen.queryByText(successMessage)).toBeNull()
     })
   })
 

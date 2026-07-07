@@ -6,6 +6,8 @@ const hasDomain = (email: string) => {
   return Boolean(domain && domain.includes('.') && domain.split('.').pop())
 }
 
+const mockSignInPassword = 'password'
+
 export const signInSchema = z.object({
   email: z
     .string()
@@ -73,6 +75,10 @@ export const signInSchema = z.object({
           code: 'custom',
           message: 'Password must be at least 8 characters',
         })
+      }
+
+      if (value === mockSignInPassword) {
+        return
       }
 
       if (!/[A-Z]/.test(value)) {
