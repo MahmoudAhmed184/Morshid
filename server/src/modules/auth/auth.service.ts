@@ -1,5 +1,9 @@
 import { createHash, randomUUID } from 'node:crypto'
-import {ForbiddenException, Injectable, UnauthorizedException,} from '@nestjs/common'
+import {
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { JwtService } from '@nestjs/jwt'
 import type { JwtSignOptions } from '@nestjs/jwt'
@@ -85,7 +89,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly prismaService: PrismaService,
   ) {}
- // `=================== de el login function ===================`
+  // `=================== de el login function ===================`
   async login(
     dto: LoginDto,
     requestContext: AuthRequestContext = {},
@@ -279,8 +283,34 @@ export class AuthService {
     }
   }
 
+  async logoutSession(
+    refreshToken: string | null | undefined,
+    requestContext: AuthRequestContext = {},
+  ): Promise<void> {
+    if (typeof refreshToken !== 'string' || refreshToken.trim().length === 0) {
+      return
+    }
+
+    try {
+      const payload = await this.jwtService.verifyAsync<RefreshTokenPayload>(
+        refreshToken,
+        {
+          secret: this.configService.get('JWT_REFRESH_SECRET', { infer: true }),
+        },
+      )
+
+      await this.logout(payload.sub, refreshToken, requestContext)
+    } catch {
+      return
+    }
+  }
+
   // `=================== de el logout function ===================`
-  async logout( userId: string, refreshToken: string | null | undefined,requestContext: AuthRequestContext = {},): Promise<void> {
+  async logout(
+    userId: string,
+    refreshToken: string | null | undefined,
+    requestContext: AuthRequestContext = {},
+  ): Promise<void> {
     let revokedRefreshTokenId: string | undefined
 
     if (typeof refreshToken === 'string' && refreshToken.trim().length > 0) {
@@ -329,11 +359,11 @@ export class AuthService {
         id: userId,
       },
       include: {
-         email: true,
-         displayName : true,
-         role: true,
-         status: true,
-         memberships: {
+        email: true,
+        displayName: true,
+        role: true,
+        status: true,
+        memberships: {
           include: {
             course: {
               select: {
@@ -358,7 +388,6 @@ export class AuthService {
 
     return toAuthProfileDto(user)
   }
-
 
   // `=================== de el validateAccessTokenPayload function ===================`
 

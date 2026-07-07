@@ -65,6 +65,7 @@ interface AuthServiceTestContext {
   }
   jwtService: {
     signAsync: jest.Mock
+    verifyAsync: jest.Mock
   }
   prismaService: PrismaMock
   service: AuthService
@@ -116,6 +117,7 @@ async function buildTestContext(): Promise<AuthServiceTestContext> {
 
       return Promise.resolve('refresh-token')
     }),
+    verifyAsync: jest.fn(),
   }
   const moduleRef = await Test.createTestingModule({
     providers: [
@@ -368,6 +370,45 @@ describe('AuthService', () => {
       metadata: {
         email: user.email,
         previousRefreshTokenId: refreshTokenRecord.id,
+      },
+      requestContext,
+    })
+  })
+
+  it('logs out a session from a refresh token string', async () => {
+    const { auditService, jwtService, prismaService, service } =
+      await buildTestContext()
+    const user = await buildUser()
+    const refreshTokenRecord = buildRefreshToken({
+      userId: user.id,
+      tokenHash: hashRefreshToken('refresh-token'),
+    })
+    jwtService.verifyAsync.mockResolvedValue({
+      sub: user.id,
+      tokenId: refreshTokenRecord.id,
+      tokenType: AUTH_TOKEN_TYPES.REFRESH,
+    })
+    prismaService.refreshToken.findUnique.mockResolvedValue(refreshTokenRecord)
+
+    await service.logoutSession('refresh-token', requestContext)
+
+    expect(jwtService.verifyAsync).toHaveBeenCalledWith('refresh-token', {
+      secret: 'refresh-secret-at-least-32-characters',
+    })
+    expect(prismaService.refreshToken.update).toHaveBeenCalledWith({
+      where: {
+        id: refreshTokenRecord.id,
+      },
+      data: {
+        revokedAt: expect.any(Date) as Date,
+      },
+    })
+    expect(auditService.recordEvent).toHaveBeenCalledWith({
+      actorUserId: user.id,
+      action: AUDIT_EVENT_ACTIONS.AUTH_LOGOUT,
+      target: {
+        type: AUDIT_TARGET_TYPES.AUTH_SESSION,
+        id: refreshTokenRecord.id,
       },
       requestContext,
     })

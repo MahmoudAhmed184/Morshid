@@ -61,6 +61,28 @@ export class AuthController {
       user: result.user,
     }
   }
+
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  async logout(
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<{ message: string }> {
+    await this.authService.logoutSession(getRefreshTokenCookie(request), {
+      ip: request.ip ?? null,
+      userAgent: request.get('user-agent') ?? null,
+    })
+
+    response.clearCookie(AUTH_REFRESH_COOKIE_NAME, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+    })
+
+    return {
+      message: 'Logged out successfully',
+    }
+  }
 }
 
 type RequestWithCookies = Request & {

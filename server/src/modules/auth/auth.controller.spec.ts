@@ -144,4 +144,46 @@ describe('AuthController', () => {
       },
     )
   })
+
+  it('logs out from the refresh cookie and clears it', async () => {
+    const authService = {
+      logoutSession: jest.fn().mockResolvedValue(undefined),
+    }
+    const moduleRef = await Test.createTestingModule({
+      controllers: [AuthController],
+      providers: [
+        {
+          provide: AuthService,
+          useValue: authService,
+        },
+      ],
+    }).compile()
+    const controller = moduleRef.get(AuthController)
+    const request = {
+      cookies: {
+        [AUTH_REFRESH_COOKIE_NAME]: 'refresh-token',
+      },
+      ip: '203.0.113.10',
+      get: jest.fn().mockReturnValue('Mozilla/5.0'),
+    } as unknown as Request
+    const response = {
+      clearCookie: jest.fn(),
+    } as unknown as Response
+
+    await expect(controller.logout(request, response)).resolves.toEqual({
+      message: 'Logged out successfully',
+    })
+    expect(authService.logoutSession).toHaveBeenCalledWith('refresh-token', {
+      ip: '203.0.113.10',
+      userAgent: 'Mozilla/5.0',
+    })
+    expect(response.clearCookie).toHaveBeenCalledWith(
+      AUTH_REFRESH_COOKIE_NAME,
+      {
+        httpOnly: true,
+        secure: false,
+        sameSite: 'lax',
+      },
+    )
+  })
 })
