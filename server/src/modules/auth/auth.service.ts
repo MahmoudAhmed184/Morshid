@@ -395,10 +395,7 @@ export class AuthService {
     payload: AccessTokenPayload,
     requestContext: AuthRequestContext = {},
   ): Promise<AuthenticatedUser> {
-    if (
-      payload.sub.length === 0 ||
-      payload.iat === undefined
-    ) {
+    if (payload.sub.length === 0 || payload.iat === undefined) {
       throw new UnauthorizedException('Invalid access token')
     }
 
