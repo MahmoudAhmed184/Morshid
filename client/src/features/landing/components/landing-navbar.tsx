@@ -116,6 +116,7 @@ export function LandingNavbar() {
                 {navLinks.map((link) => (
                   <SheetClose
                     key={link.href}
+                    nativeButton={false}
                     render={
                       <a
                         href={link.href}
@@ -129,6 +130,7 @@ export function LandingNavbar() {
                 ))}
                 <Separator className="my-3" />
                 <SheetClose
+                  nativeButton={false}
                   render={
                     <Button
                       nativeButton={false}
@@ -141,6 +143,7 @@ export function LandingNavbar() {
                   Log in
                 </SheetClose>
                 <SheetClose
+                  nativeButton={false}
                   render={
                     <Button
                       nativeButton={false}
