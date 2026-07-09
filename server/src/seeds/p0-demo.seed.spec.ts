@@ -467,7 +467,7 @@ describe('seedP0DemoData', () => {
     expect(prisma.getCourse('EXTRA-INSTRUCTOR-OWNED').createdById).toBeNull()
   })
 
-  it('uses parseable non-plaintext per-account scrypt hashes', () => {
+  it('uses parseable non-plaintext per-account Argon2id hashes', () => {
     const hashes = P0_DEMO_USERS.map((user) =>
       createP0DemoPasswordHash(user.passwordSalt),
     )
@@ -475,7 +475,7 @@ describe('seedP0DemoData', () => {
     for (const hash of hashes) {
       expect(hash).not.toBe(P0_DEMO_PASSWORD)
       expect(hash).toMatch(
-        /^scrypt:v1:N=16384,r=8,p=1,keylen=64:[A-Za-z0-9_-]+:[A-Za-z0-9_-]+$/,
+        /^argon2id:v1:m=19456,t=2,p=1,keylen=32:[A-Za-z0-9_-]+:[A-Za-z0-9_-]+$/,
       )
     }
     expect(new Set(hashes).size).toBe(P0_DEMO_USERS.length)
