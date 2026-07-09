@@ -5,8 +5,10 @@ import type { App } from 'supertest/types'
 
 import { configureApp } from '../src/app.setup'
 import { AppModule } from '../src/app.module'
-import { AUDIT_EVENT_ACTIONS } from '../src/modules/audit/audit.constants'
-import { AuditService } from '../src/modules/audit/audit.service'
+import {
+  AUDIT_EVENT_ACTIONS,
+  AUDIT_TARGET_TYPES,
+} from '../src/modules/audit/audit.constants'
 import { AUTH_ERROR_CODES } from '../src/modules/auth/auth.dto'
 import type {
   AuthSessionResponse,
@@ -25,13 +27,16 @@ function readSessionBody(response: { body: unknown }): AuthSessionResponse {
   return response.body as AuthSessionResponse
 }
 
+function readAuditEvents(store: AuthTestStore) {
+  return [...store.auditLogs.values()]
+}
+
+const auditUserAgent = 'Morshid e2e'
+
 describe('AuthController (e2e)', () => {
   let app: INestApplication<App>
   let store: AuthTestStore
 
-  const auditService = {
-    recordEvent: jest.fn().mockResolvedValue(undefined),
-  }
   const redisService = {
     ping: jest.fn().mockResolvedValue('PONG'),
   }
@@ -59,8 +64,6 @@ describe('AuthController (e2e)', () => {
       .useValue(store.prisma)
       .overrideProvider(RedisService)
       .useValue(redisService)
-      .overrideProvider(AuditService)
-      .useValue(auditService)
       .compile()
 
     app = moduleFixture.createNestApplication()
@@ -75,6 +78,7 @@ describe('AuthController (e2e)', () => {
   it('signs in a valid seeded admin and returns a session summary', async () => {
     const response = await request(app.getHttpServer())
       .post('/api/v1/auth/sign-in')
+      .set('User-Agent', auditUserAgent)
       .send({
         email: 'admin@morshid.demo',
         password: P0_DEMO_PASSWORD,
@@ -108,11 +112,31 @@ describe('AuthController (e2e)', () => {
         }),
       ]),
     )
+
+    const admin = store.findUserByEmail('admin@morshid.demo')
+    const refreshToken = [...store.refreshTokens.values()][0]
+
+    expect(admin).not.toBeNull()
+    expect(refreshToken).toEqual(expect.objectContaining({ userId: admin?.id }))
+    expect(readAuditEvents(store)).toEqual([
+      expect.objectContaining({
+        actorUserId: admin?.id,
+        action: AUDIT_EVENT_ACTIONS.AUTH_LOGIN_SUCCEEDED,
+        targetType: AUDIT_TARGET_TYPES.AUTH_SESSION,
+        targetId: refreshToken.id,
+        courseId: null,
+        ip: expect.any(String),
+        userAgent: expect.any(String),
+        metadata: {},
+        createdAt: expect.any(Date),
+      }),
+    ])
   })
 
   it('returns the same invalid-credentials response for unknown and wrong-password logins', async () => {
     const unknownEmail = await request(app.getHttpServer())
       .post('/api/v1/auth/sign-in')
+      .set('User-Agent', auditUserAgent)
       .send({
         email: 'unknown@morshid.demo',
         password: 'wrong-password',
@@ -120,6 +144,7 @@ describe('AuthController (e2e)', () => {
       .expect(401)
     const wrongPassword = await request(app.getHttpServer())
       .post('/api/v1/auth/sign-in')
+      .set('User-Agent', auditUserAgent)
       .send({
         email: 'admin@morshid.demo',
         password: 'wrong-password',
@@ -131,19 +156,32 @@ describe('AuthController (e2e)', () => {
       message: 'Invalid email or password',
     })
     expect(wrongPassword.body).toEqual(unknownEmail.body)
-    expect(auditService.recordEvent).toHaveBeenCalledTimes(2)
-    expect(auditService.recordEvent).toHaveBeenNthCalledWith(
-      1,
+    expect(readAuditEvents(store)).toEqual([
       expect.objectContaining({
+        actorUserId: null,
         action: AUDIT_EVENT_ACTIONS.AUTH_LOGIN_FAILED,
+        targetType: AUDIT_TARGET_TYPES.AUTH_SESSION,
+        targetId: null,
+        ip: expect.any(String),
+        userAgent: expect.any(String),
+        metadata: {
+          email: 'unknown@morshid.demo',
+        },
+        createdAt: expect.any(Date),
       }),
-    )
-    expect(auditService.recordEvent).toHaveBeenNthCalledWith(
-      2,
       expect.objectContaining({
+        actorUserId: null,
         action: AUDIT_EVENT_ACTIONS.AUTH_LOGIN_FAILED,
+        targetType: AUDIT_TARGET_TYPES.AUTH_SESSION,
+        targetId: null,
+        ip: expect.any(String),
+        userAgent: expect.any(String),
+        metadata: {
+          email: 'admin@morshid.demo',
+        },
+        createdAt: expect.any(Date),
       }),
-    )
+    ])
   })
 
   it('rejects invalid and extra auth request fields', async () => {
@@ -154,6 +192,7 @@ describe('AuthController (e2e)', () => {
 
     await request(app.getHttpServer())
       .post('/api/v1/auth/sign-in')
+      .set('User-Agent', auditUserAgent)
       .send({
         email: 'not-an-email',
         password: P0_DEMO_PASSWORD,
@@ -185,6 +224,7 @@ describe('AuthController (e2e)', () => {
 
     await request(app.getHttpServer())
       .post('/api/v1/auth/sign-in')
+      .set('User-Agent', auditUserAgent)
       .send({
         email: 'student1@morshid.demo',
         password: P0_DEMO_PASSWORD,
@@ -194,16 +234,27 @@ describe('AuthController (e2e)', () => {
         code: AUTH_ERROR_CODES.ACCOUNT_DISABLED,
         message: 'Account is disabled',
       })
-    expect(auditService.recordEvent).toHaveBeenCalledWith(
+    const disabledUser = store.findUserByEmail('student1@morshid.demo')
+
+    expect(disabledUser).not.toBeNull()
+    expect(readAuditEvents(store)).toEqual([
       expect.objectContaining({
+        actorUserId: disabledUser?.id,
         action: AUDIT_EVENT_ACTIONS.AUTH_LOGIN_BLOCKED_DISABLED_ACCOUNT,
+        targetType: AUDIT_TARGET_TYPES.USER,
+        targetId: disabledUser?.id,
+        ip: expect.any(String),
+        userAgent: expect.any(String),
+        metadata: {},
+        createdAt: expect.any(Date),
       }),
-    )
+    ])
   })
 
   it('blocks /me when an old access token belongs to a now-disabled account', async () => {
     const signIn = await request(app.getHttpServer())
       .post('/api/v1/auth/sign-in')
+      .set('User-Agent', auditUserAgent)
       .send({
         email: 'student1@morshid.demo',
         password: P0_DEMO_PASSWORD,
@@ -215,22 +266,42 @@ describe('AuthController (e2e)', () => {
 
     await request(app.getHttpServer())
       .get('/api/v1/me')
+      .set('User-Agent', auditUserAgent)
       .set('Authorization', `Bearer ${signInBody.accessToken}`)
       .expect(403)
       .expect({
         code: AUTH_ERROR_CODES.ACCOUNT_DISABLED,
         message: 'Account is disabled',
       })
-    expect(auditService.recordEvent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: AUDIT_EVENT_ACTIONS.AUTH_LOGIN_BLOCKED_DISABLED_ACCOUNT,
-      }),
+    const disabledUser = store.findUserByEmail('student1@morshid.demo')
+
+    expect(disabledUser).not.toBeNull()
+    expect(readAuditEvents(store)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          actorUserId: disabledUser?.id,
+          action: AUDIT_EVENT_ACTIONS.AUTH_LOGIN_SUCCEEDED,
+          targetType: AUDIT_TARGET_TYPES.AUTH_SESSION,
+          targetId: expect.any(String),
+        }),
+        expect.objectContaining({
+          actorUserId: disabledUser?.id,
+          action: AUDIT_EVENT_ACTIONS.AUTH_LOGIN_BLOCKED_DISABLED_ACCOUNT,
+          targetType: AUDIT_TARGET_TYPES.USER,
+          targetId: disabledUser?.id,
+          ip: expect.any(String),
+          userAgent: expect.any(String),
+          metadata: {},
+          createdAt: expect.any(Date),
+        }),
+      ]),
     )
   })
 
   it('blocks refresh when the account has been disabled', async () => {
     const signIn = await request(app.getHttpServer())
       .post('/api/v1/auth/sign-in')
+      .set('User-Agent', auditUserAgent)
       .send({
         email: 'student1@morshid.demo',
         password: P0_DEMO_PASSWORD,
@@ -242,6 +313,7 @@ describe('AuthController (e2e)', () => {
 
     await request(app.getHttpServer())
       .post('/api/v1/auth/refresh')
+      .set('User-Agent', auditUserAgent)
       .send({
         refreshToken,
       })
@@ -250,13 +322,30 @@ describe('AuthController (e2e)', () => {
         code: AUTH_ERROR_CODES.ACCOUNT_DISABLED,
         message: 'Account is disabled',
       })
-    expect(auditService.recordEvent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: AUDIT_EVENT_ACTIONS.AUTH_LOGIN_BLOCKED_DISABLED_ACCOUNT,
-      }),
-    )
+    const disabledUser = store.findUserByEmail('student1@morshid.demo')
     const storedTokens = [...store.refreshTokens.values()]
 
+    expect(disabledUser).not.toBeNull()
+    expect(readAuditEvents(store)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          actorUserId: disabledUser?.id,
+          action: AUDIT_EVENT_ACTIONS.AUTH_LOGIN_SUCCEEDED,
+          targetType: AUDIT_TARGET_TYPES.AUTH_SESSION,
+          targetId: storedTokens[0].id,
+        }),
+        expect.objectContaining({
+          actorUserId: disabledUser?.id,
+          action: AUDIT_EVENT_ACTIONS.AUTH_LOGIN_BLOCKED_DISABLED_ACCOUNT,
+          targetType: AUDIT_TARGET_TYPES.USER,
+          targetId: disabledUser?.id,
+          ip: expect.any(String),
+          userAgent: expect.any(String),
+          metadata: {},
+          createdAt: expect.any(Date),
+        }),
+      ]),
+    )
     expect(storedTokens).toHaveLength(1)
     expect(storedTokens[0].revokedAt).toBeInstanceOf(Date)
   })
@@ -264,6 +353,7 @@ describe('AuthController (e2e)', () => {
   it('rotates refresh tokens and rejects reuse of the old refresh token', async () => {
     const signIn = await request(app.getHttpServer())
       .post('/api/v1/auth/sign-in')
+      .set('User-Agent', auditUserAgent)
       .send({
         email: 'student1@morshid.demo',
         password: P0_DEMO_PASSWORD,
@@ -274,6 +364,7 @@ describe('AuthController (e2e)', () => {
     const refreshToken = signInBody.refreshToken
     const refreshed = await request(app.getHttpServer())
       .post('/api/v1/auth/refresh')
+      .set('User-Agent', auditUserAgent)
       .send({
         refreshToken,
       })
@@ -290,11 +381,47 @@ describe('AuthController (e2e)', () => {
         code: AUTH_ERROR_CODES.INVALID_REFRESH_TOKEN,
         message: 'Invalid refresh token',
       })
+
+    const student = store.findUserByEmail('student1@morshid.demo')
+    const storedTokens = [...store.refreshTokens.values()]
+    const previousRefreshToken = storedTokens[0]
+    const nextRefreshToken = storedTokens[1]
+
+    expect(student).not.toBeNull()
+    expect(previousRefreshToken).toEqual(
+      expect.objectContaining({
+        revokedAt: expect.any(Date),
+        replacedByTokenId: nextRefreshToken.id,
+      }),
+    )
+    expect(readAuditEvents(store)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          actorUserId: student?.id,
+          action: AUDIT_EVENT_ACTIONS.AUTH_LOGIN_SUCCEEDED,
+          targetType: AUDIT_TARGET_TYPES.AUTH_SESSION,
+          targetId: previousRefreshToken.id,
+        }),
+        expect.objectContaining({
+          actorUserId: student?.id,
+          action: AUDIT_EVENT_ACTIONS.AUTH_REFRESH_TOKEN_ROTATED,
+          targetType: AUDIT_TARGET_TYPES.AUTH_SESSION,
+          targetId: nextRefreshToken.id,
+          ip: expect.any(String),
+          userAgent: expect.any(String),
+          metadata: {
+            previousRefreshTokenId: previousRefreshToken.id,
+          },
+          createdAt: expect.any(Date),
+        }),
+      ]),
+    )
   })
 
   it('makes logout idempotent and prevents refresh with the logged-out token', async () => {
     const signIn = await request(app.getHttpServer())
       .post('/api/v1/auth/sign-in')
+      .set('User-Agent', auditUserAgent)
       .send({
         email: 'student1@morshid.demo',
         password: P0_DEMO_PASSWORD,
@@ -305,18 +432,21 @@ describe('AuthController (e2e)', () => {
 
     await request(app.getHttpServer())
       .post('/api/v1/auth/logout')
+      .set('User-Agent', auditUserAgent)
       .send({
         refreshToken,
       })
       .expect(204)
     await request(app.getHttpServer())
       .post('/api/v1/auth/logout')
+      .set('User-Agent', auditUserAgent)
       .send({
         refreshToken,
       })
       .expect(204)
     await request(app.getHttpServer())
       .post('/api/v1/auth/refresh')
+      .set('User-Agent', auditUserAgent)
       .send({
         refreshToken,
       })
@@ -326,6 +456,7 @@ describe('AuthController (e2e)', () => {
   it('returns the current student identity and only role-visible courses from /me', async () => {
     const signIn = await request(app.getHttpServer())
       .post('/api/v1/auth/sign-in')
+      .set('User-Agent', auditUserAgent)
       .send({
         email: 'student1@morshid.demo',
         password: P0_DEMO_PASSWORD,
@@ -335,6 +466,7 @@ describe('AuthController (e2e)', () => {
 
     await request(app.getHttpServer())
       .get('/api/v1/me')
+      .set('User-Agent', auditUserAgent)
       .set('Authorization', `Bearer ${signInBody.accessToken}`)
       .expect(200)
       .expect(({ body }) => {
