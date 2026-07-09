@@ -1,13 +1,83 @@
-import { UnauthorizedException } from '@nestjs/common'
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common'
 
 import { buildAuthServiceTestHarness } from '../../../test/support/auth-service-test-harness'
 import { P0_DEMO_PASSWORD } from '../../seeds/p0-demo.seed'
+import { AUTH_ERROR_CODES } from './auth.dto'
 
 describe('AuthService token lifecycle', () => {
   const requestContext = {
     ip: '203.0.113.10',
     userAgent: 'Jest',
   }
+
+  it('blocks sign-in for a disabled account after validating credentials', async () => {
+    const { service, store } = buildAuthServiceTestHarness()
+
+    store.disableUser('student1@morshid.demo')
+
+    await expect(
+      service.signIn(
+        {
+          email: 'student1@morshid.demo',
+          password: P0_DEMO_PASSWORD,
+        },
+        requestContext,
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException)
+    expect(store.refreshTokens.size).toBe(0)
+  })
+
+  it('returns invalid credentials for a disabled account with the wrong password', async () => {
+    const { service, store } = buildAuthServiceTestHarness()
+
+    store.disableUser('student1@morshid.demo')
+
+    const signIn = service.signIn(
+      {
+        email: 'student1@morshid.demo',
+        password: 'wrong-password',
+      },
+      requestContext,
+    )
+
+    await expect(signIn).rejects.toBeInstanceOf(UnauthorizedException)
+    await expect(
+      signIn,
+    ).rejects.toMatchObject({
+      response: {
+        code: AUTH_ERROR_CODES.INVALID_CREDENTIALS,
+        message: 'Invalid email or password',
+      },
+    })
+  })
+
+  it('revokes the submitted refresh token without replacing it after account disablement', async () => {
+    const { service, store } = buildAuthServiceTestHarness()
+    const session = await service.signIn(
+      {
+        email: 'student1@morshid.demo',
+        password: P0_DEMO_PASSWORD,
+      },
+      requestContext,
+    )
+
+    store.disableUser('student1@morshid.demo')
+
+    await expect(
+      service.refresh(
+        {
+          refreshToken: session.refreshToken,
+        },
+        requestContext,
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException)
+
+    const storedTokens = [...store.refreshTokens.values()]
+
+    expect(storedTokens).toHaveLength(1)
+    expect(storedTokens[0].revokedAt).toBeInstanceOf(Date)
+    expect(storedTokens[0].replacedByTokenId).toBeNull()
+  })
 
   it('rotates refresh tokens and rejects the replaced token', async () => {
     const { service } = buildAuthServiceTestHarness()
