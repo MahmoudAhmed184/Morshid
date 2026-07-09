@@ -1,12 +1,8 @@
-import {
-  CanActivate,
-  ExecutionContext,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common'
+import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common'
 import type { Request } from 'express'
 
-import { AUTH_ERROR_CODES, type AuthenticatedRequestUser } from './auth.dto'
+import type { AuthenticatedRequestUser } from './auth.dto'
+import { invalidAccessTokenException } from './auth.errors'
 import { AuthService } from './auth.service'
 
 export interface AuthenticatedHttpRequest extends Request {
@@ -54,11 +50,4 @@ function extractBearerToken(authorization: string | string[] | undefined) {
   }
 
   return token
-}
-
-function invalidAccessTokenException() {
-  return new UnauthorizedException({
-    code: AUTH_ERROR_CODES.INVALID_ACCESS_TOKEN,
-    message: 'Invalid access token',
-  })
 }
