@@ -4,7 +4,7 @@ import type {
   UserRole,
   UserStatus,
 } from '../generated/prisma/client'
-import { hashPassword } from '../modules/auth/utils/password.util'
+import { createDeterministicArgon2idPasswordHash } from '../modules/auth/services/password-hasher.service'
 
 export const P0_DEMO_PASSWORD = 'MorshidDemoP0!'
 
@@ -119,9 +119,7 @@ export interface P0DemoSeedResult {
 }
 
 export function createP0DemoPasswordHash(passwordSalt: string) {
-  return hashPassword(P0_DEMO_PASSWORD, {
-    salt: passwordSalt,
-  })
+  return createDeterministicArgon2idPasswordHash(P0_DEMO_PASSWORD, passwordSalt)
 }
 
 export async function seedP0DemoData(

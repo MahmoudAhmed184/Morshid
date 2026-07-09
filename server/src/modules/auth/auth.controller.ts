@@ -11,12 +11,16 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
 import type { Request } from 'express'
 
 import {
-  parseLogoutRequest,
-  parseRefreshRequest,
-  parseSignInRequest,
+  logoutRequestSchema,
+  refreshRequestSchema,
+  signInRequestSchema,
+  type LogoutRequest,
+  type RefreshRequest,
+  type SignInRequest,
 } from './auth.dto'
 import { AuthGuard, type AuthenticatedHttpRequest } from './auth.guard'
 import { AuthService } from './auth.service'
+import { ZodValidationPipe } from './pipes/zod-validation.pipe'
 
 @ApiTags('auth')
 @Controller()
@@ -25,29 +29,29 @@ export class AuthController {
 
   @Post('auth/sign-in')
   @HttpCode(200)
-  signIn(@Body() body: unknown, @Req() request: Request) {
-    return this.authService.signIn(
-      parseSignInRequest(body),
-      getRequestContext(request),
-    )
+  signIn(
+    @Body(new ZodValidationPipe(signInRequestSchema)) body: SignInRequest,
+    @Req() request: Request,
+  ) {
+    return this.authService.signIn(body, getRequestContext(request))
   }
 
   @Post('auth/refresh')
   @HttpCode(200)
-  refresh(@Body() body: unknown, @Req() request: Request) {
-    return this.authService.refresh(
-      parseRefreshRequest(body),
-      getRequestContext(request),
-    )
+  refresh(
+    @Body(new ZodValidationPipe(refreshRequestSchema)) body: RefreshRequest,
+    @Req() request: Request,
+  ) {
+    return this.authService.refresh(body, getRequestContext(request))
   }
 
   @Post('auth/logout')
   @HttpCode(204)
-  async logout(@Body() body: unknown, @Req() request: Request) {
-    await this.authService.logout(
-      parseLogoutRequest(body),
-      getRequestContext(request),
-    )
+  async logout(
+    @Body(new ZodValidationPipe(logoutRequestSchema)) body: LogoutRequest,
+    @Req() request: Request,
+  ) {
+    await this.authService.logout(body, getRequestContext(request))
   }
 
   @Get('me')

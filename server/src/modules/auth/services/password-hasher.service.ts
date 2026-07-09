@@ -1,5 +1,21 @@
 import { argon2Sync, randomBytes, timingSafeEqual } from 'node:crypto'
 
+import { Injectable } from '@nestjs/common'
+
+@Injectable()
+export class PasswordHasherService {
+  createHash(password: string) {
+    return createArgon2idPasswordHash(password)
+  }
+
+  verifyPassword(
+    password: string,
+    passwordHash: string | null | undefined,
+  ): boolean {
+    return verifyArgon2idPassword(password, passwordHash ?? DUMMY_PASSWORD_HASH)
+  }
+}
+
 const ARGON2ID_OPTIONS = {
   memory: 19_456,
   parallelism: 1,
@@ -8,15 +24,20 @@ const ARGON2ID_OPTIONS = {
   tagLength: 32,
 } as const
 
-interface HashPasswordOptions {
-  salt?: Buffer | string
+const DUMMY_PASSWORD_HASH = createDeterministicArgon2idPasswordHash(
+  '__morshid_dummy_password__',
+  'morshid-auth-dummy-password',
+)
+
+export function createDeterministicArgon2idPasswordHash(
+  password: string,
+  passwordSalt: string,
+) {
+  return createArgon2idPasswordHash(password, Buffer.from(passwordSalt))
 }
 
-export function hashPassword(
-  password: string,
-  options: HashPasswordOptions = {},
-): string {
-  const salt = normalizeSalt(options.salt)
+function createArgon2idPasswordHash(password: string, passwordSalt?: Buffer) {
+  const salt = normalizeSalt(passwordSalt)
   const hash = argon2Sync('argon2id', {
     memory: ARGON2ID_OPTIONS.memory,
     message: password,
@@ -35,7 +56,7 @@ export function hashPassword(
   ].join(':')
 }
 
-export function verifyPassword(
+function verifyArgon2idPassword(
   password: string,
   passwordHash: string,
 ): boolean {
@@ -53,7 +74,7 @@ export function verifyPassword(
     return false
   }
 
-  const argon2Options = parseArgon2Options(options)
+  const argon2Options = parseArgon2idOptions(options)
 
   if (!argon2Options) {
     return false
@@ -78,15 +99,15 @@ export function verifyPassword(
   }
 }
 
-function normalizeSalt(salt: Buffer | string | undefined) {
-  if (salt === undefined) {
+function normalizeSalt(passwordSalt: Buffer | undefined) {
+  if (passwordSalt === undefined) {
     return randomBytes(ARGON2ID_OPTIONS.saltLength)
   }
 
-  return Buffer.isBuffer(salt) ? Buffer.from(salt) : Buffer.from(salt)
+  return Buffer.from(passwordSalt)
 }
 
-function parseArgon2Options(options: string) {
+function parseArgon2idOptions(options: string) {
   const parsed = new Map(
     options.split(',').map((option) => {
       const [key, value] = option.split('=')

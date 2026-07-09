@@ -8,6 +8,12 @@ import { PrismaModule } from '../prisma/prisma.module'
 import { AuthController } from './auth.controller'
 import { AuthGuard } from './auth.guard'
 import { AuthService } from './auth.service'
+import { RefreshTokenRepository } from './repositories/refresh-token.repository'
+import { AccessTokenService } from './services/access-token.service'
+import { AuthAuditService } from './services/auth-audit.service'
+import { AuthUserService } from './services/auth-user.service'
+import { PasswordHasherService } from './services/password-hasher.service'
+import { RefreshTokenService } from './services/refresh-token.service'
 
 @Module({
   imports: [
@@ -28,7 +34,16 @@ import { AuthService } from './auth.service'
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, AuthGuard],
+  providers: [
+    AuthService,
+    AuthGuard,
+    PasswordHasherService,
+    AccessTokenService,
+    RefreshTokenService,
+    RefreshTokenRepository,
+    AuthUserService,
+    AuthAuditService,
+  ],
   exports: [AuthService, AuthGuard],
 })
 export class AuthModule {}
