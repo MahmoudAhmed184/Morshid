@@ -143,6 +143,40 @@ describe('AuthController (e2e)', () => {
     )
   })
 
+  it('rejects invalid and extra auth request fields', async () => {
+    const invalidRequest = {
+      code: AUTH_ERROR_CODES.INVALID_REQUEST,
+      message: 'Invalid auth request',
+    }
+
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/sign-in')
+      .send({
+        email: 'not-an-email',
+        password: P0_DEMO_PASSWORD,
+      })
+      .expect(400)
+      .expect(invalidRequest)
+
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/refresh')
+      .send({
+        refreshToken: 'refresh-token',
+        unexpected: true,
+      })
+      .expect(400)
+      .expect(invalidRequest)
+
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/logout')
+      .send({
+        refreshToken: 'refresh-token',
+        unexpected: true,
+      })
+      .expect(400)
+      .expect(invalidRequest)
+  })
+
   it('blocks sign-in for a disabled account', async () => {
     store.disableUser('student1@morshid.demo')
 

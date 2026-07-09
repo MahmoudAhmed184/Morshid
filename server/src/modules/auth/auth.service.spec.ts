@@ -1,43 +1,7 @@
 import { UnauthorizedException } from '@nestjs/common'
-import type { ConfigService } from '@nestjs/config'
-import { JwtService } from '@nestjs/jwt'
 
-import { AuthTestStore } from '../../../test/support/auth-test-store'
-import type { AppEnvironment } from '../config/env.schema'
-import type { AuditService } from '../audit/audit.service'
+import { buildAuthServiceTestHarness } from '../../../test/support/auth-service-test-harness'
 import { P0_DEMO_PASSWORD } from '../../seeds/p0-demo.seed'
-import { AuthService } from './auth.service'
-
-const authConfig = {
-  AUTH_ACCESS_TOKEN_SECRET:
-    'test-access-token-secret-with-at-least-32-characters',
-  AUTH_REFRESH_TOKEN_HASH_SECRET:
-    'test-refresh-token-hash-secret-with-at-least-32-characters',
-  AUTH_ACCESS_TOKEN_TTL_SECONDS: 900,
-  AUTH_REFRESH_TOKEN_TTL_DAYS: 7,
-} satisfies Partial<AppEnvironment>
-
-function buildAuthService() {
-  const store = new AuthTestStore()
-  const auditService = {
-    recordEvent: jest.fn().mockResolvedValue(undefined),
-  } as unknown as AuditService
-  const configService = {
-    get: jest.fn((key: keyof typeof authConfig) => authConfig[key]),
-  } as unknown as ConfigService<AppEnvironment, true>
-
-  return {
-    auditService,
-    service: new AuthService(
-      store.prisma,
-      new JwtService(),
-      configService,
-      auditService,
-      store.redis,
-    ),
-    store,
-  }
-}
 
 describe('AuthService token lifecycle', () => {
   const requestContext = {
@@ -46,7 +10,7 @@ describe('AuthService token lifecycle', () => {
   }
 
   it('rotates refresh tokens and rejects the replaced token', async () => {
-    const { service } = buildAuthService()
+    const { service } = buildAuthServiceTestHarness()
     const session = await service.signIn(
       {
         email: 'student1@morshid.demo',
@@ -75,7 +39,7 @@ describe('AuthService token lifecycle', () => {
   })
 
   it('does not issue a replacement when the active refresh token revoke loses a race', async () => {
-    const { service, store } = buildAuthService()
+    const { service, store } = buildAuthServiceTestHarness()
     const session = await service.signIn(
       {
         email: 'student1@morshid.demo',
@@ -98,7 +62,7 @@ describe('AuthService token lifecycle', () => {
   })
 
   it('makes logout idempotent and invalidates the submitted refresh token', async () => {
-    const { service } = buildAuthService()
+    const { service } = buildAuthServiceTestHarness()
     const session = await service.signIn(
       {
         email: 'student1@morshid.demo',

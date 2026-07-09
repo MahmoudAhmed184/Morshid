@@ -1,45 +1,16 @@
 import { ForbiddenException } from '@nestjs/common'
 import type { ExecutionContext } from '@nestjs/common'
-import type { ConfigService } from '@nestjs/config'
-import { JwtService } from '@nestjs/jwt'
 
-import { AuthTestStore } from '../../../test/support/auth-test-store'
-import type { AuditService } from '../audit/audit.service'
-import type { AppEnvironment } from '../config/env.schema'
+import { buildAuthServiceTestHarness } from '../../../test/support/auth-service-test-harness'
 import { P0_DEMO_PASSWORD } from '../../seeds/p0-demo.seed'
 import { AuthGuard } from './auth.guard'
-import { AuthService } from './auth.service'
-
-const authConfig = {
-  AUTH_ACCESS_TOKEN_SECRET:
-    'test-access-token-secret-with-at-least-32-characters',
-  AUTH_REFRESH_TOKEN_HASH_SECRET:
-    'test-refresh-token-hash-secret-with-at-least-32-characters',
-  AUTH_ACCESS_TOKEN_TTL_SECONDS: 900,
-  AUTH_REFRESH_TOKEN_TTL_DAYS: 7,
-} satisfies Partial<AppEnvironment>
 
 function buildGuard() {
-  const store = new AuthTestStore()
-  const auditService = {
-    recordEvent: jest.fn().mockResolvedValue(undefined),
-  } as unknown as AuditService
-  const configService = {
-    get: jest.fn((key: keyof typeof authConfig) => authConfig[key]),
-  } as unknown as ConfigService<AppEnvironment, true>
-  const service = new AuthService(
-    store.prisma,
-    new JwtService(),
-    configService,
-    auditService,
-    store.redis,
-  )
+  const harness = buildAuthServiceTestHarness()
 
   return {
-    auditService,
-    guard: new AuthGuard(service),
-    service,
-    store,
+    ...harness,
+    guard: new AuthGuard(harness.service),
   }
 }
 

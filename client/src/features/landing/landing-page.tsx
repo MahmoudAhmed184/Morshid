@@ -1,17 +1,18 @@
+import { Footer } from '@/components/layout/footer'
+import { Navbar } from '@/components/layout/navbar'
+
 import { FeaturesSection } from './components/features-section'
 import { HeroSection } from './components/hero-section'
-import { LandingFooter } from './components/landing-footer'
-import { LandingNavbar } from './components/landing-navbar'
 
 export function LandingPage() {
   return (
     <div className="flex min-h-svh flex-col bg-background text-foreground">
-      <LandingNavbar />
+      <Navbar />
       <main className="flex-1">
         <HeroSection />
         <FeaturesSection />
       </main>
-      <LandingFooter />
+      <Footer />
     </div>
   )
 }

@@ -9,7 +9,13 @@ import { RedisModule } from '../redis/redis.module'
 import { AuthController } from './auth.controller'
 import { AuthGuard } from './auth.guard'
 import { AuthService } from './auth.service'
-import { ActiveUserGuard } from './guards/active-user.guard'
+import { ActiveUserGuard } from './guards/active-user.guard'import { ActiveUserGuard } from './guards/active-user.guard'
+import { RefreshTokenRepository } from './repositories/refresh-token.repository'
+import { AccessTokenService } from './services/access-token.service'
+import { AuthAuditService } from './services/auth-audit.service'
+import { AuthUserService } from './services/auth-user.service'
+import { PasswordHasherService } from './services/password-hasher.service'
+import { RefreshTokenService } from './services/refresh-token.service'
 
 @Module({
   imports: [
@@ -31,7 +37,21 @@ import { ActiveUserGuard } from './guards/active-user.guard'
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, AuthGuard, ActiveUserGuard],
-  exports: [AuthService, AuthGuard, ActiveUserGuard],
+providers: [
+  AuthService,
+  AuthGuard,
+  ActiveUserGuard,
+  PasswordHasherService,
+  AccessTokenService,
+  RefreshTokenService,
+  RefreshTokenRepository,
+  AuthUserService,
+  AuthAuditService,
+],
+exports: [
+  AuthService,
+  AuthGuard,
+  ActiveUserGuard,
+],
 })
 export class AuthModule {}
