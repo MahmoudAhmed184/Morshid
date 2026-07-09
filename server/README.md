@@ -57,6 +57,12 @@ send the access token as a `Bearer` token and submit the JSON refresh token to
 the refresh/logout endpoints. A later hardening pass should migrate refresh
 token transport to HttpOnly cookies.
 
+Passwords are stored as Argon2id hashes with per-password salt material encoded
+in the stored hash string. The current hash format records the algorithm,
+version, memory cost, pass count, parallelism, output length, salt, and hash
+value. Password verification recomputes Argon2id from the stored parameters and
+uses a timing-safe comparison.
+
 ### Auth environment configuration
 
 Configure these values in `server/.env`. NestJS validates them at startup and
