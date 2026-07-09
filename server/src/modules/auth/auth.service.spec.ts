@@ -41,9 +41,7 @@ describe('AuthService token lifecycle', () => {
     )
 
     await expect(signIn).rejects.toBeInstanceOf(UnauthorizedException)
-    await expect(
-      signIn,
-    ).rejects.toMatchObject({
+    await expect(signIn).rejects.toMatchObject({
       response: {
         code: AUTH_ERROR_CODES.INVALID_CREDENTIALS,
         message: 'Invalid email or password',
