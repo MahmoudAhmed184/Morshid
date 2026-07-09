@@ -32,6 +32,7 @@ function buildGuard() {
     new JwtService(),
     configService,
     auditService,
+    store.redis,
   )
 
   return {

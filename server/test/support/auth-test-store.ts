@@ -84,9 +84,26 @@ export class AuthTestStore {
   readonly courses = new Map<string, Course>()
   readonly memberships: CourseMembership[] = []
   readonly refreshTokens = new Map<string, RefreshToken>()
+  readonly redisState = new Map<string, string>()
 
   private nextRefreshTokenSequence = 1
   private failNextActiveRefreshTokenRevoke = false
+
+  readonly redis = {
+    ping: jest.fn().mockResolvedValue('PONG' as const),
+    isUserDisabled: jest.fn((userId: string) =>
+      Promise.resolve(this.redisState.has(`user:${userId}:disabled`)),
+    ),
+    setUserDisabled: jest.fn((userId: string) => {
+      this.redisState.set(`user:${userId}:disabled`, 'true')
+      return Promise.resolve()
+    }),
+    removeUserDisabled: jest.fn((userId: string) => {
+      this.redisState.delete(`user:${userId}:disabled`)
+      return Promise.resolve()
+    }),
+    getClient: jest.fn().mockReturnValue(null),
+  }
 
   readonly prisma = {
     user: {
@@ -151,6 +168,8 @@ export class AuthTestStore {
       status: 'DISABLED',
       disabledAt: new Date('2026-07-06T10:00:00.000Z'),
     })
+
+    this.redisState.set(`user:${user.id}:disabled`, 'true')
   }
 
   simulateNextActiveRefreshTokenRevokeRace() {

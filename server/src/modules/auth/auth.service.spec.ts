@@ -33,6 +33,7 @@ function buildAuthService() {
       new JwtService(),
       configService,
       auditService,
+      store.redis,
     ),
     store,
   }

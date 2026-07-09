@@ -32,9 +32,6 @@ describe('AuthController (e2e)', () => {
   const auditService = {
     recordEvent: jest.fn().mockResolvedValue(undefined),
   }
-  const redisService = {
-    ping: jest.fn().mockResolvedValue('PONG'),
-  }
 
   beforeAll(() => {
     process.env.DATABASE_URL =
@@ -58,7 +55,7 @@ describe('AuthController (e2e)', () => {
       .overrideProvider(PrismaService)
       .useValue(store.prisma)
       .overrideProvider(RedisService)
-      .useValue(redisService)
+      .useValue(store.redis)
       .overrideProvider(AuditService)
       .useValue(auditService)
       .compile()
