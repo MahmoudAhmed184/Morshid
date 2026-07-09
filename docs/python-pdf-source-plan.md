@@ -6,32 +6,50 @@ Owner role: Ingestion/evaluation
 Workstream: Dataset/Source Readiness  
 Course: `PYTHON-PROG-P0` / Python Programming  
 Target storage: `storage/pdfs/`  
-Version: v1, July 9, 2026
+Version: v2, July 9, 2026
 
 ## Purpose
 
 This plan defines the clean text-based Python source set for the P0 demo. The
-selected PDF materials are stored in `storage/pdfs/` so ingestion and
-evaluation work can use the same local files.
+source set now uses smaller chapter-level PDFs instead of full books so
+ingestion, retrieval sanity checks, citations, and golden fixtures can target
+stable units of Python coverage.
 
-## Selected PDF Materials
+## Selected Chapter PDFs
 
-These four external PDFs were added as the initial P0 source materials. All
-are text-extractable with `pdftotext` and do not require OCR.
+The selected materials are 14 chapter PDFs from Non-Programmer's Tutorial for
+Python 3. They are stored in `storage/pdfs/`, are text-extractable with
+`pdftotext`, and do not require OCR.
 
-| ID | Title | Source page | Topic / week metadata | Version label | Local filename | Permission notes | Text quality check | P0 status | Approval needed |
-|---|---|---|---|---|---|---|---|---|---|
-| `p0-byte-of-python` | A Byte of Python | <https://python.swaroopch.com/> | Weeks 1-4: Python basics, operators, control flow, functions, modules, data structures, problem solving, exceptions | `external-pdf-2026-07-09` | `storage/pdfs/byte-of-python.pdf` | Licensed under Creative Commons Attribution-ShareAlike 4.0 International. Attribution and share-alike requirements apply. Source page links to downloadable PDF releases. | PDF, 130 pages. `pdftotext` extracted about 229k characters locally. No OCR dependency found. | Selected | Human approval should confirm attribution text and share-alike handling before demo distribution. |
-| `p0-non-programmers-python3` | Non-Programmer's Tutorial for Python 3 | <https://en.wikibooks.org/wiki/Non-Programmer%27s_Tutorial_for_Python_3> | Weeks 1-4: variables, strings, `while`, `if`, debugging, functions, lists, `for`, booleans, dictionaries, file I/O, errors | `external-pdf-2026-07-09` | `storage/pdfs/non-programmers-tutorial-for-python-3.pdf` | Wikibooks text is available under Creative Commons Attribution-ShareAlike terms. Attribution, Wikibooks terms, and share-alike requirements apply. | PDF, 10 pages. `pdftotext` extracted about 231k characters locally. No OCR dependency found. | Selected | Human approval should confirm attribution text and share-alike handling before demo distribution. |
-| `p0-think-python-2e` | Think Python: How to Think Like a Computer Scientist, 2nd Edition | <https://greenteapress.com/wp/think-python-2e/> | Weeks 1-4: variables, expressions, functions, conditionals, recursion, strings, lists, dictionaries, tuples, debugging, program design | `2nd-edition-v2.4.0-2015` | `storage/pdfs/think-python-2e.pdf` | Licensed under Creative Commons Attribution-NonCommercial 3.0 Unported. Attribution is required and non-commercial restrictions apply. | PDF, version 1.5. `pdftotext` extracted about 450k characters locally. No OCR dependency found. | Selected | Human approval required because the license is NonCommercial. |
-| `p0-python-programming-halvorsen` | Python Programming | <https://www.halvorsen.blog/documents/programming/python/> | Weeks 1-4: Python setup, variables, arrays, control structures, functions, classes, files, exceptions, debugging, packages, math examples | `2026-06-12-isbn-978-82-691106-4-7` | `storage/pdfs/python-programming-halvorsen.pdf` | Copyright Hans-Petter Halvorsen. The PDF front matter links to the author's Python resource page, but no explicit redistribution license was found in local text extraction. | PDF, 143 pages. `pdftotext` extracted about 124k characters locally. No OCR dependency found. | Selected with warning | Human approval required before demo distribution or committing if redistribution rights are not confirmed. |
+Source page: <https://en.wikibooks.org/wiki/Non-Programmer%27s_Tutorial_for_Python_3>  
+Permission basis: Wikibooks content is available under Creative Commons
+Attribution-ShareAlike terms. Attribution and share-alike handling must be
+confirmed before demo distribution outside the team.
+
+| ID | Title | Topic / week metadata | Version label | Local filename | Text quality check | P0 status | Approval needed |
+|---|---|---|---|---|---|---|---|
+| `p0-npt-ch01-hello-world` | Hello, World | Week 1: running Python, printing output, saving and executing a program | `chapter-pdf-2026-07-09` | `storage/pdfs/01-hello-world.pdf` | 6 pages; `pdftotext` extracted about 8k characters. | Selected | Confirm CC BY-SA attribution. |
+| `p0-npt-ch02-input-variables` | Input and Variables | Week 1: `input()`, variables, assignment, simple output | `chapter-pdf-2026-07-09` | `storage/pdfs/02-input-and-variables.pdf` | 5 pages; `pdftotext` extracted about 8k characters. | Selected | Confirm CC BY-SA attribution. |
+| `p0-npt-ch03-count-to-10` | Count to 10 | Week 1-2: `while` loops, counters, loop updates | `chapter-pdf-2026-07-09` | `storage/pdfs/03-count-to-10.pdf` | 5 pages; `pdftotext` extracted about 6k characters. | Selected | Confirm CC BY-SA attribution. |
+| `p0-npt-ch04-decisions` | Decisions | Week 2: conditionals, passwords, branching, indentation | `chapter-pdf-2026-07-09` | `storage/pdfs/04-decisions.pdf` | 6 pages; `pdftotext` extracted about 6k characters. | Selected | Confirm CC BY-SA attribution. |
+| `p0-npt-ch05-debugging` | Debugging | Week 2: reading failures, tracing state, debugging small programs | `chapter-pdf-2026-07-09` | `storage/pdfs/05-debugging.pdf` | 6 pages; `pdftotext` extracted about 8k characters. | Selected | Confirm CC BY-SA attribution. |
+| `p0-npt-ch06-defining-functions` | Defining Functions | Week 2: function definitions, calls, parameters, return behavior | `chapter-pdf-2026-07-09` | `storage/pdfs/06-defining-functions.pdf` | 6 pages; `pdftotext` extracted about 9k characters. | Selected | Confirm CC BY-SA attribution. |
+| `p0-npt-ch07-lists` | Lists | Week 3: list values, indexing, list operations, containers | `chapter-pdf-2026-07-09` | `storage/pdfs/07-lists.pdf` | 8 pages; `pdftotext` extracted about 12k characters. | Selected | Confirm CC BY-SA attribution. |
+| `p0-npt-ch08-for-loops` | For Loops | Week 3: `for` loops, iteration over collections, loop exercises | `chapter-pdf-2026-07-09` | `storage/pdfs/08-for-loops.pdf` | 4 pages; `pdftotext` extracted about 5k characters. | Selected | Confirm CC BY-SA attribution. |
+| `p0-npt-ch09-boolean-expressions` | Boolean Expressions | Week 3: booleans, comparisons, compound conditions, duplicate checks | `chapter-pdf-2026-07-09` | `storage/pdfs/09-boolean-expressions.pdf` | 8 pages; `pdftotext` extracted about 13k characters. | Selected | Confirm CC BY-SA attribution. |
+| `p0-npt-ch10-dictionaries` | Dictionaries | Week 3: dictionaries, keys, values, lookup/update patterns | `chapter-pdf-2026-07-09` | `storage/pdfs/10-dictionaries.pdf` | 6 pages; `pdftotext` extracted about 7k characters. | Selected | Confirm CC BY-SA attribution. |
+| `p0-npt-ch11-using-modules` | Using Modules | Week 4: imports, modules, organizing reusable code | `chapter-pdf-2026-07-09` | `storage/pdfs/11-using-modules.pdf` | 4 pages; `pdftotext` extracted about 5k characters. | Selected | Confirm CC BY-SA attribution. |
+| `p0-npt-ch12-more-on-lists` | More on Lists | Week 4: list methods, list mutation, additional list patterns | `chapter-pdf-2026-07-09` | `storage/pdfs/12-more-on-lists.pdf` | 4 pages; `pdftotext` extracted about 6k characters. | Selected | Confirm CC BY-SA attribution. |
+| `p0-npt-ch13-strings` | Strings | Week 4: strings, indexing, slicing, text processing | `chapter-pdf-2026-07-09` | `storage/pdfs/13-strings.pdf` | 6 pages; `pdftotext` extracted about 11k characters. | Selected | Confirm CC BY-SA attribution. |
+| `p0-npt-ch14-file-io` | File I/O | Week 4: reading files, writing files, simple file-processing patterns | `chapter-pdf-2026-07-09` | `storage/pdfs/14-file-io.pdf` | 8 pages; `pdftotext` extracted about 11k characters. | Selected | Confirm CC BY-SA attribution. |
 
 ## Storage And Naming Conventions
 
 - Store final PDF files in `storage/pdfs/`.
-- Use lowercase kebab-case filenames.
-- Keep PDFs text-based. Scanned pages and OCR-dependent documents are excluded
-  from P0.
+- Use two-digit chapter prefixes and lowercase kebab-case filenames:
+  `NN-topic-slug.pdf`.
+- Keep chapter PDFs text-based. Scanned pages and OCR-dependent documents are
+  excluded from P0.
 - PDF materials in `storage/pdfs/` are tracked for P0 source readiness.
 - The source IDs in this plan should be used later in fixture metadata,
   ingestion notes, and retrieval sanity results.
@@ -40,6 +58,7 @@ are text-extractable with `pdftotext` and do not require OCR.
 
 The P0 source set excludes:
 
+- full book PDFs when chapter PDFs are available;
 - scanned PDFs;
 - image-only lecture slides;
 - OCR-dependent materials;
@@ -50,14 +69,13 @@ The P0 source set excludes:
 
 ## Licensing And Access Notes
 
-Most selected PDFs use Creative Commons terms. `p0-byte-of-python` and
-`p0-non-programmers-python3` use Attribution-ShareAlike terms, so attribution
-and share-alike handling must be confirmed before demo distribution outside the
-team. `p0-think-python-2e` uses Attribution-NonCommercial terms, so human
-approval is required before using it in any setting that could be interpreted as
-commercial. `p0-python-programming-halvorsen` is copyrighted and does not expose
-an explicit redistribution license in the extracted text, so it requires human
-approval before demo distribution or repository commit.
+The selected chapter PDFs come from Wikibooks and require Creative Commons
+Attribution-ShareAlike handling. Human approval should confirm:
+
+- required attribution text;
+- whether committing the chapter PDFs to the repository is acceptable;
+- whether demo distribution to reviewers, instructors, or students is allowed;
+- whether any generated derivative material needs share-alike handling.
 
 If the team adds another external PDF later, that source must record:
 
@@ -69,23 +87,22 @@ If the team adds another external PDF later, that source must record:
 
 ## Fixture And Scenario Coverage Notes
 
-The selected PDFs support the P0 golden dataset and demo scenarios:
+The selected chapter PDFs support the P0 golden dataset and demo scenarios:
 
-- variables/types: `p0-byte-of-python`, `p0-non-programmers-python3`,
-  `p0-think-python-2e`, `p0-python-programming-halvorsen`;
-- control flow: `p0-byte-of-python`, `p0-non-programmers-python3`,
-  `p0-think-python-2e`, `p0-python-programming-halvorsen`;
-- functions/scope: `p0-byte-of-python`, `p0-non-programmers-python3`,
-  `p0-think-python-2e`, `p0-python-programming-halvorsen`;
-- collections/common errors: `p0-byte-of-python`,
-  `p0-non-programmers-python3`, `p0-think-python-2e`,
-  `p0-python-programming-halvorsen`;
-- debugging Python code: `p0-byte-of-python`,
-  `p0-non-programmers-python3`, `p0-think-python-2e`,
-  `p0-python-programming-halvorsen`.
+- variables/types: `p0-npt-ch01-hello-world`,
+  `p0-npt-ch02-input-variables`;
+- control flow: `p0-npt-ch03-count-to-10`, `p0-npt-ch04-decisions`,
+  `p0-npt-ch08-for-loops`, `p0-npt-ch09-boolean-expressions`;
+- functions/scope: `p0-npt-ch06-defining-functions`;
+- collections/common errors: `p0-npt-ch07-lists`,
+  `p0-npt-ch10-dictionaries`, `p0-npt-ch12-more-on-lists`,
+  `p0-npt-ch13-strings`;
+- debugging Python code: `p0-npt-ch05-debugging`;
+- modules and file handling extension coverage: `p0-npt-ch11-using-modules`,
+  `p0-npt-ch14-file-io`.
 
 Unsupported questions should intentionally have no matching source coverage.
-Conflicting-source cases are not included in this v1 source plan unless the
+Conflicting-source cases are not included in this v2 source plan unless the
 team intentionally authors a small approved conflict fixture later.
 
 Final scenario IDs and fixture names should be aligned with issue #32 once that
@@ -93,7 +110,7 @@ mapping is finalized.
 
 ## Readiness Checklist
 
-- [x] Lists 3-5 candidate PDFs or internally authored source documents.
+- [x] Lists the selected chapter-level Python PDF materials.
 - [x] Each source has title, topic/week metadata, version label, and permission
       notes.
 - [x] The plan excludes scanned and OCR-dependent documents from P0.
