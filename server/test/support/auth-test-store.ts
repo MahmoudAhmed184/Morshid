@@ -11,6 +11,7 @@ import {
   P0_HIDDEN_ISOLATION_COURSE,
 } from '../../src/seeds/p0-demo.seed'
 import type { PrismaService } from '../../src/modules/prisma/prisma.service'
+import type { RedisService } from '../../src/modules/redis/redis.service'
 
 type StoredCourseMembership = CourseMembership & { course?: Course }
 type StoredCourse = Course & { memberships?: CourseMembership[] }
@@ -103,7 +104,9 @@ export class AuthTestStore {
       return Promise.resolve()
     }),
     getClient: jest.fn().mockReturnValue(null),
-  }
+    onModuleInit: jest.fn().mockResolvedValue(undefined),
+    onModuleDestroy: jest.fn().mockResolvedValue(undefined),
+  } as unknown as RedisService
 
   readonly prisma = {
     user: {
