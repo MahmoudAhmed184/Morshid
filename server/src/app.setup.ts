@@ -13,6 +13,7 @@ export function configureApp(app: INestApplication) {
     .setTitle('Morshid API')
     .setDescription('Foundation scaffold API for Morshid.')
     .setVersion('0.1.0')
+    .addBearerAuth()
     .build()
   const document = SwaggerModule.createDocument(app, openApiConfig)
 

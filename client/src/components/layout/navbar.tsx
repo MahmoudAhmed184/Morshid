@@ -43,7 +43,7 @@ function NavLink({ href, children, className, onClick }: NavLinkProps) {
   )
 }
 
-export function LandingNavbar() {
+export function Navbar() {
   const [open, setOpen] = useState(false)
 
   return (
