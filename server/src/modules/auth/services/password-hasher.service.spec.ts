@@ -2,7 +2,6 @@ import {
   createDeterministicArgon2idPasswordHash,
   PasswordHasherService,
 } from './password-hasher.service'
-import { createLegacyScryptPasswordHash } from '../../../../test/support/legacy-password-hash'
 
 describe('PasswordHasherService', () => {
   it('hashes passwords with Argon2id and verifies matching passwords', () => {
@@ -29,22 +28,19 @@ describe('PasswordHasherService', () => {
     )
   })
 
-  it('verifies legacy scrypt hashes and marks them for rehash', () => {
-    const service = new PasswordHasherService()
-    const legacyPasswordHash = createLegacyScryptPasswordHash(
-      'password',
-      'stable-test-salt',
-    )
-
-    expect(service.verifyPassword('password', legacyPasswordHash)).toBe(true)
-    expect(service.needsRehash(legacyPasswordHash)).toBe(true)
-  })
-
   it('rejects malformed hashes', () => {
     const service = new PasswordHasherService()
 
     expect(service.verifyPassword('password', 'not-a-password-hash')).toBe(
       false,
     )
+  })
+
+  it('rejects unsupported hash algorithms', () => {
+    const service = new PasswordHasherService()
+    const unsupportedHash =
+      'unsupported:v1:m=19456,t=2,p=1,keylen=32:c3RhYmxlLXRlc3Qtc2FsdA:Lb-P2oPdhjuxvynG1OMDQBSGkxiQwjaG7GkL9nb5hODh0EjiZ3jw7zbxrFmdw4MBXO9_r9KPmB6ysPQV8p-u6w'
+
+    expect(service.verifyPassword('password', unsupportedHash)).toBe(false)
   })
 })

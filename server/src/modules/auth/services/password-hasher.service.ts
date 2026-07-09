@@ -1,9 +1,4 @@
-import {
-  argon2Sync,
-  randomBytes,
-  scryptSync,
-  timingSafeEqual,
-} from 'node:crypto'
+import { argon2Sync, randomBytes, timingSafeEqual } from 'node:crypto'
 
 import { Injectable } from '@nestjs/common'
 
@@ -17,17 +12,7 @@ export class PasswordHasherService {
     password: string,
     passwordHash: string | null | undefined,
   ): boolean {
-    const normalizedHash = passwordHash ?? DUMMY_PASSWORD_HASH
-
-    if (isLegacyScryptPasswordHash(normalizedHash)) {
-      return verifyLegacyScryptPassword(password, normalizedHash)
-    }
-
-    return verifyArgon2idPassword(password, normalizedHash)
-  }
-
-  needsRehash(passwordHash: string) {
-    return !isArgon2idPasswordHash(passwordHash)
+    return verifyArgon2idPassword(password, passwordHash ?? DUMMY_PASSWORD_HASH)
   }
 }
 
@@ -69,14 +54,6 @@ function createArgon2idPasswordHash(password: string, passwordSalt?: Buffer) {
     salt.toString('base64url'),
     hash.toString('base64url'),
   ].join(':')
-}
-
-function isArgon2idPasswordHash(passwordHash: string) {
-  return passwordHash.startsWith('argon2id:v1:')
-}
-
-function isLegacyScryptPasswordHash(passwordHash: string) {
-  return passwordHash.startsWith('scrypt:v1:')
 }
 
 function verifyArgon2idPassword(
@@ -122,51 +99,6 @@ function verifyArgon2idPassword(
   }
 }
 
-function verifyLegacyScryptPassword(
-  password: string,
-  passwordHash: string,
-): boolean {
-  const parts = passwordHash.split(':')
-  const [algorithm, version, options, salt, hash] = parts
-
-  if (
-    parts.length !== 5 ||
-    algorithm !== 'scrypt' ||
-    version !== 'v1' ||
-    !options ||
-    !salt ||
-    !hash
-  ) {
-    return false
-  }
-
-  const scryptOptions = parseLegacyScryptOptions(options)
-
-  if (!scryptOptions) {
-    return false
-  }
-
-  try {
-    const expected = Buffer.from(hash, 'base64url')
-    const actual = scryptSync(
-      password,
-      Buffer.from(salt, 'base64url').toString('utf8'),
-      scryptOptions.keyLength,
-      {
-        N: scryptOptions.N,
-        p: scryptOptions.p,
-        r: scryptOptions.r,
-      },
-    )
-
-    return (
-      expected.length === actual.length && timingSafeEqual(actual, expected)
-    )
-  } catch {
-    return false
-  }
-}
-
 function normalizeSalt(passwordSalt: Buffer | undefined) {
   if (passwordSalt === undefined) {
     return randomBytes(ARGON2ID_OPTIONS.saltLength)
@@ -201,35 +133,6 @@ function parseArgon2idOptions(options: string) {
     parallelism,
     passes,
     tagLength,
-  }
-}
-
-function parseLegacyScryptOptions(options: string) {
-  const parsed = new Map(
-    options.split(',').map((option) => {
-      const [key, value] = option.split('=')
-      return [key, Number(value)] as const
-    }),
-  )
-  const N = parsed.get('N')
-  const r = parsed.get('r')
-  const p = parsed.get('p')
-  const keyLength = parsed.get('keylen')
-
-  if (
-    !isPositiveInteger(N) ||
-    !isPositiveInteger(r) ||
-    !isPositiveInteger(p) ||
-    !isPositiveInteger(keyLength)
-  ) {
-    return null
-  }
-
-  return {
-    N,
-    keyLength,
-    p,
-    r,
   }
 }
 

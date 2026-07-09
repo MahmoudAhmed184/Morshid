@@ -62,8 +62,6 @@ in the stored hash string. The current hash format records the algorithm,
 version, memory cost, pass count, parallelism, output length, salt, and hash
 value. Password verification recomputes Argon2id from the stored parameters and
 uses a timing-safe comparison.
-Legacy `scrypt:v1` hashes remain verifiable and are rehashed to Argon2id after
-a successful sign-in.
 
 ### Auth environment configuration
 

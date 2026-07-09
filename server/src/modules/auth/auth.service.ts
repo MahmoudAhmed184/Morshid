@@ -56,13 +56,8 @@ export class AuthService {
     }
 
     const now = new Date()
-    const passwordHash = this.passwordHasherService.needsRehash(
-      user.passwordHash,
-    )
-      ? this.passwordHasherService.createHash(input.password)
-      : undefined
 
-    await this.authUserService.recordSuccessfulLogin(user, now, passwordHash)
+    await this.authUserService.recordLastLogin(user, now)
 
     const session = await this.createSession(user, now, requestContext)
 

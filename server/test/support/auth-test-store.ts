@@ -31,9 +31,7 @@ interface UpdateUserArgs {
   where: {
     id: string
   }
-  data: Partial<
-    Pick<User, 'disabledAt' | 'lastLoginAt' | 'passwordHash' | 'status'>
-  >
+  data: Partial<Pick<User, 'lastLoginAt' | 'status' | 'disabledAt'>>
 }
 
 interface CreateRefreshTokenArgs {
