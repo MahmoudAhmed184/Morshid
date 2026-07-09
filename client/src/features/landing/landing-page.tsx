@@ -7,12 +7,10 @@ import { HeroSection } from './components/hero-section'
 export function LandingPage() {
   return (
     <div className="flex min-h-svh flex-col bg-background text-foreground">
-      <Navbar />
       <main className="flex-1">
         <HeroSection />
         <FeaturesSection />
       </main>
-      <Footer />
     </div>
   )
 }
