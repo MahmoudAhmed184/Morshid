@@ -6,7 +6,10 @@ import type { App } from 'supertest/types'
 import { configureApp } from '../src/app.setup'
 import { AppModule } from '../src/app.module'
 import { AUTH_ERROR_CODES } from '../src/modules/auth/auth.dto'
-import type { AuthSessionResponse, MeResponse } from '../src/modules/auth/auth.dto'
+import type {
+  AuthSessionResponse,
+  MeResponse,
+} from '../src/modules/auth/auth.dto'
 import { AuditService } from '../src/modules/audit/audit.service'
 import { PrismaService } from '../src/modules/prisma/prisma.service'
 import { RedisService } from '../src/modules/redis/redis.service'
@@ -182,9 +185,7 @@ describe('RBAC Boundary Tests (e2e)', () => {
     })
 
     // Future API specs
-    it.todo(
-      'student3 cannot create a chat session in HIDDEN-ISOLATION course',
-    )
+    it.todo('student3 cannot create a chat session in HIDDEN-ISOLATION course')
     it.todo('student3 cannot query materials from HIDDEN-ISOLATION course')
     it.todo('student3 cannot send messages targeting HIDDEN-ISOLATION course')
     it.todo(
@@ -237,13 +238,11 @@ describe('RBAC Boundary Tests (e2e)', () => {
     it.todo(
       'instructor cannot upload materials to a course they are not assigned to',
     )
+    it.todo('instructor cannot view review queue for courses they do not own')
+    it.todo('instructor cannot access student chat sessions from other courses')
     it.todo(
-      'instructor cannot view review queue for courses they do not own',
+      'instructor cannot perform admin-only operations like disabling users',
     )
-    it.todo(
-      'instructor cannot access student chat sessions from other courses',
-    )
-    it.todo('instructor cannot perform admin-only operations like disabling users')
   })
 
   // =========================================================================
