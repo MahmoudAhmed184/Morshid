@@ -1,18 +1,10 @@
-import { scryptSync } from 'node:crypto'
-
 import type {
   CourseMembershipRole,
   Prisma,
   UserRole,
   UserStatus,
 } from '../generated/prisma/client'
-
-const SCRYPT_OPTIONS = {
-  N: 16_384,
-  r: 8,
-  p: 1,
-  keyLength: 64,
-} as const
+import { hashPassword } from '../modules/auth/utils/password.util'
 
 export const P0_DEMO_PASSWORD = 'MorshidDemoP0!'
 
@@ -127,24 +119,9 @@ export interface P0DemoSeedResult {
 }
 
 export function createP0DemoPasswordHash(passwordSalt: string) {
-  const derivedKey = scryptSync(
-    P0_DEMO_PASSWORD,
-    passwordSalt,
-    SCRYPT_OPTIONS.keyLength,
-    {
-      N: SCRYPT_OPTIONS.N,
-      r: SCRYPT_OPTIONS.r,
-      p: SCRYPT_OPTIONS.p,
-    },
-  )
-
-  return [
-    'scrypt',
-    'v1',
-    `N=${SCRYPT_OPTIONS.N.toString()},r=${SCRYPT_OPTIONS.r.toString()},p=${SCRYPT_OPTIONS.p.toString()},keylen=${SCRYPT_OPTIONS.keyLength.toString()}`,
-    Buffer.from(passwordSalt).toString('base64url'),
-    derivedKey.toString('base64url'),
-  ].join(':')
+  return hashPassword(P0_DEMO_PASSWORD, {
+    salt: passwordSalt,
+  })
 }
 
 export async function seedP0DemoData(
