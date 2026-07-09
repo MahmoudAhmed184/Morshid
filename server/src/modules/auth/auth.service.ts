@@ -128,7 +128,7 @@ export class AuthService {
       return
     }
 
-    await this.authAuditService.recordLogout(requestContext)
+    await this.authAuditService.recordLogout(revoked, requestContext)
   }
 
   async getMe(userId: string): Promise<MeResponse> {

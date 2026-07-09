@@ -1,6 +1,8 @@
 import type {
+  AuditLog,
   Course,
   CourseMembership,
+  Prisma,
   RefreshToken,
   User,
 } from '../../src/generated/prisma/client'
@@ -79,13 +81,34 @@ interface FindManyCourseArgs {
   }
 }
 
+interface CreateAuditLogArgs {
+  data: {
+    actorUserId?: string | null
+    action: string
+    targetType: string
+    targetId?: string | null
+    courseId?: string | null
+    ip?: string | null
+    userAgent?: string | null
+    metadata?: Prisma.InputJsonObject
+  }
+}
+
+interface FindUniqueAuditLogArgs {
+  where: {
+    id: string
+  }
+}
+
 export class AuthTestStore {
   readonly users = new Map<string, User>()
   readonly courses = new Map<string, Course>()
   readonly memberships: CourseMembership[] = []
   readonly refreshTokens = new Map<string, RefreshToken>()
+  readonly auditLogs = new Map<string, AuditLog>()
 
   private nextRefreshTokenSequence = 1
+  private nextAuditLogSequence = 1
   private failNextActiveRefreshTokenRevoke = false
 
   readonly prisma = {
@@ -119,6 +142,14 @@ export class AuthTestStore {
     course: {
       findMany: jest.fn((args?: FindManyCourseArgs) =>
         Promise.resolve(this.findCourses(args)),
+      ),
+    },
+    auditLog: {
+      create: jest.fn((args: CreateAuditLogArgs) =>
+        Promise.resolve(this.createAuditLog(args)),
+      ),
+      findUnique: jest.fn((args: FindUniqueAuditLogArgs) =>
+        Promise.resolve(this.findAuditLog(args)),
       ),
     },
     $transaction: jest.fn(
@@ -384,5 +415,31 @@ export class AuthTestStore {
         ),
       }
     })
+  }
+
+  private createAuditLog(args: CreateAuditLogArgs): AuditLog {
+    const sequence = this.nextAuditLogSequence
+    this.nextAuditLogSequence += 1
+
+    const auditLog: AuditLog = {
+      id: `00000000-0000-4000-8000-00000000040${sequence.toString()}`,
+      actorUserId: args.data.actorUserId ?? null,
+      action: args.data.action,
+      targetType: args.data.targetType,
+      targetId: args.data.targetId ?? null,
+      courseId: args.data.courseId ?? null,
+      ip: args.data.ip ?? null,
+      userAgent: args.data.userAgent ?? null,
+      metadata: (args.data.metadata ?? {}) as Prisma.JsonValue,
+      createdAt: new Date('2026-07-06T12:00:00.000Z'),
+    }
+
+    this.auditLogs.set(auditLog.id, auditLog)
+
+    return auditLog
+  }
+
+  private findAuditLog(args: FindUniqueAuditLogArgs): AuditLog | null {
+    return this.auditLogs.get(args.where.id) ?? null
   }
 }

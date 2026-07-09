@@ -2,7 +2,7 @@ import type { ConfigService } from '@nestjs/config'
 import { JwtService } from '@nestjs/jwt'
 
 import { AuthTestStore } from './auth-test-store'
-import type { AuditService } from '../../src/modules/audit/audit.service'
+import { AuditService } from '../../src/modules/audit/audit.service'
 import type { AppEnvironment } from '../../src/modules/config/env.schema'
 import { AuthService } from '../../src/modules/auth/auth.service'
 import { RefreshTokenRepository } from '../../src/modules/auth/repositories/refresh-token.repository'
@@ -23,9 +23,7 @@ const authConfig = {
 
 export function buildAuthServiceTestHarness() {
   const store = new AuthTestStore()
-  const auditService = {
-    recordEvent: jest.fn().mockResolvedValue(undefined),
-  } as unknown as AuditService
+  const auditService = new AuditService(store.prisma)
   const configService = {
     get: jest.fn((key: keyof typeof authConfig) => authConfig[key]),
   } as unknown as ConfigService<AppEnvironment, true>
