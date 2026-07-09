@@ -1,9 +1,14 @@
 import { UnauthorizedException } from '@nestjs/common'
 
 import { buildAuthServiceTestHarness } from '../../../test/support/auth-service-test-harness'
+import {
+  AUDIT_EVENT_ACTIONS,
+  AUDIT_TARGET_TYPES,
+} from '../audit/audit.constants'
 import { P0_DEMO_PASSWORD } from '../../seeds/p0-demo.seed'
 
 describe('AuthService token lifecycle', () => {
+  const anyDate = expect.any(Date) as unknown as Date
   const requestContext = {
     ip: '203.0.113.10',
     userAgent: 'Jest',
@@ -62,7 +67,7 @@ describe('AuthService token lifecycle', () => {
   })
 
   it('makes logout idempotent and invalidates the submitted refresh token', async () => {
-    const { service } = buildAuthServiceTestHarness()
+    const { service, store } = buildAuthServiceTestHarness()
     const session = await service.signIn(
       {
         email: 'student1@morshid.demo',
@@ -95,5 +100,33 @@ describe('AuthService token lifecycle', () => {
         requestContext,
       ),
     ).rejects.toBeInstanceOf(UnauthorizedException)
+
+    const student = store.findUserByEmail('student1@morshid.demo')
+    const refreshTokenRecord = [...store.refreshTokens.values()][0]
+    const logoutEvents = [...store.auditLogs.values()].filter(
+      (auditLog) => auditLog.action === AUDIT_EVENT_ACTIONS.AUTH_LOGOUT,
+    )
+
+    expect(student).not.toBeNull()
+    expect(refreshTokenRecord.revokedAt).toBeInstanceOf(Date)
+    expect(logoutEvents).toHaveLength(1)
+    expect(logoutEvents[0]).toEqual(
+      expect.objectContaining({
+        actorUserId: student?.id,
+        action: AUDIT_EVENT_ACTIONS.AUTH_LOGOUT,
+        targetType: AUDIT_TARGET_TYPES.AUTH_SESSION,
+        targetId: refreshTokenRecord.id,
+        ip: requestContext.ip,
+        userAgent: requestContext.userAgent,
+        metadata: {
+          refreshTokenCreatedAt: refreshTokenRecord.createdAt.toISOString(),
+          refreshTokenExpiresAt: refreshTokenRecord.expiresAt.toISOString(),
+          refreshTokenIp: refreshTokenRecord.ip,
+          refreshTokenRevokedAt: refreshTokenRecord.revokedAt?.toISOString(),
+          refreshTokenUserAgent: refreshTokenRecord.userAgent,
+        },
+        createdAt: anyDate,
+      }),
+    )
   })
 })

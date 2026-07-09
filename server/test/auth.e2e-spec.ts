@@ -32,6 +32,8 @@ function readAuditEvents(store: AuthTestStore) {
 }
 
 const auditUserAgent = 'Morshid e2e'
+const anyString = expect.any(String) as unknown as string
+const anyDate = expect.any(Date) as unknown as Date
 
 describe('AuthController (e2e)', () => {
   let app: INestApplication<App>
@@ -125,10 +127,10 @@ describe('AuthController (e2e)', () => {
         targetType: AUDIT_TARGET_TYPES.AUTH_SESSION,
         targetId: refreshToken.id,
         courseId: null,
-        ip: expect.any(String),
-        userAgent: expect.any(String),
+        ip: anyString,
+        userAgent: anyString,
         metadata: {},
-        createdAt: expect.any(Date),
+        createdAt: anyDate,
       }),
     ])
   })
@@ -162,24 +164,24 @@ describe('AuthController (e2e)', () => {
         action: AUDIT_EVENT_ACTIONS.AUTH_LOGIN_FAILED,
         targetType: AUDIT_TARGET_TYPES.AUTH_SESSION,
         targetId: null,
-        ip: expect.any(String),
-        userAgent: expect.any(String),
+        ip: anyString,
+        userAgent: anyString,
         metadata: {
           email: 'unknown@morshid.demo',
         },
-        createdAt: expect.any(Date),
+        createdAt: anyDate,
       }),
       expect.objectContaining({
         actorUserId: null,
         action: AUDIT_EVENT_ACTIONS.AUTH_LOGIN_FAILED,
         targetType: AUDIT_TARGET_TYPES.AUTH_SESSION,
         targetId: null,
-        ip: expect.any(String),
-        userAgent: expect.any(String),
+        ip: anyString,
+        userAgent: anyString,
         metadata: {
           email: 'admin@morshid.demo',
         },
-        createdAt: expect.any(Date),
+        createdAt: anyDate,
       }),
     ])
   })
@@ -243,10 +245,10 @@ describe('AuthController (e2e)', () => {
         action: AUDIT_EVENT_ACTIONS.AUTH_LOGIN_BLOCKED_DISABLED_ACCOUNT,
         targetType: AUDIT_TARGET_TYPES.USER,
         targetId: disabledUser?.id,
-        ip: expect.any(String),
-        userAgent: expect.any(String),
+        ip: anyString,
+        userAgent: anyString,
         metadata: {},
-        createdAt: expect.any(Date),
+        createdAt: anyDate,
       }),
     ])
   })
@@ -282,17 +284,17 @@ describe('AuthController (e2e)', () => {
           actorUserId: disabledUser?.id,
           action: AUDIT_EVENT_ACTIONS.AUTH_LOGIN_SUCCEEDED,
           targetType: AUDIT_TARGET_TYPES.AUTH_SESSION,
-          targetId: expect.any(String),
+          targetId: anyString,
         }),
         expect.objectContaining({
           actorUserId: disabledUser?.id,
           action: AUDIT_EVENT_ACTIONS.AUTH_LOGIN_BLOCKED_DISABLED_ACCOUNT,
           targetType: AUDIT_TARGET_TYPES.USER,
           targetId: disabledUser?.id,
-          ip: expect.any(String),
-          userAgent: expect.any(String),
+          ip: anyString,
+          userAgent: anyString,
           metadata: {},
-          createdAt: expect.any(Date),
+          createdAt: anyDate,
         }),
       ]),
     )
@@ -339,10 +341,10 @@ describe('AuthController (e2e)', () => {
           action: AUDIT_EVENT_ACTIONS.AUTH_LOGIN_BLOCKED_DISABLED_ACCOUNT,
           targetType: AUDIT_TARGET_TYPES.USER,
           targetId: disabledUser?.id,
-          ip: expect.any(String),
-          userAgent: expect.any(String),
+          ip: anyString,
+          userAgent: anyString,
           metadata: {},
-          createdAt: expect.any(Date),
+          createdAt: anyDate,
         }),
       ]),
     )
@@ -390,7 +392,7 @@ describe('AuthController (e2e)', () => {
     expect(student).not.toBeNull()
     expect(previousRefreshToken).toEqual(
       expect.objectContaining({
-        revokedAt: expect.any(Date),
+        revokedAt: anyDate,
         replacedByTokenId: nextRefreshToken.id,
       }),
     )
@@ -407,12 +409,12 @@ describe('AuthController (e2e)', () => {
           action: AUDIT_EVENT_ACTIONS.AUTH_REFRESH_TOKEN_ROTATED,
           targetType: AUDIT_TARGET_TYPES.AUTH_SESSION,
           targetId: nextRefreshToken.id,
-          ip: expect.any(String),
-          userAgent: expect.any(String),
+          ip: anyString,
+          userAgent: anyString,
           metadata: {
             previousRefreshTokenId: previousRefreshToken.id,
           },
-          createdAt: expect.any(Date),
+          createdAt: anyDate,
         }),
       ]),
     )
@@ -451,6 +453,42 @@ describe('AuthController (e2e)', () => {
         refreshToken,
       })
       .expect(401)
+
+    const student = store.findUserByEmail('student1@morshid.demo')
+    const refreshTokenRecord = [...store.refreshTokens.values()][0]
+    const logoutEvents = readAuditEvents(store).filter(
+      (auditLog) => auditLog.action === AUDIT_EVENT_ACTIONS.AUTH_LOGOUT,
+    )
+
+    expect(student).not.toBeNull()
+    expect(refreshTokenRecord.revokedAt).toBeInstanceOf(Date)
+    expect(logoutEvents).toHaveLength(1)
+    expect(readAuditEvents(store)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          actorUserId: student?.id,
+          action: AUDIT_EVENT_ACTIONS.AUTH_LOGIN_SUCCEEDED,
+          targetType: AUDIT_TARGET_TYPES.AUTH_SESSION,
+          targetId: refreshTokenRecord.id,
+        }),
+        expect.objectContaining({
+          actorUserId: student?.id,
+          action: AUDIT_EVENT_ACTIONS.AUTH_LOGOUT,
+          targetType: AUDIT_TARGET_TYPES.AUTH_SESSION,
+          targetId: refreshTokenRecord.id,
+          ip: anyString,
+          userAgent: anyString,
+          metadata: {
+            refreshTokenCreatedAt: refreshTokenRecord.createdAt.toISOString(),
+            refreshTokenExpiresAt: refreshTokenRecord.expiresAt.toISOString(),
+            refreshTokenIp: refreshTokenRecord.ip,
+            refreshTokenRevokedAt: refreshTokenRecord.revokedAt?.toISOString(),
+            refreshTokenUserAgent: refreshTokenRecord.userAgent,
+          },
+          createdAt: anyDate,
+        }),
+      ]),
+    )
   })
 
   it('returns the current student identity and only role-visible courses from /me', async () => {

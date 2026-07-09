@@ -10,6 +10,7 @@ import { invalidRefreshTokenException } from '../auth.errors'
 import {
   RefreshTokenRepository,
   type RefreshTokenRecordStore,
+  type RefreshTokenWithUser,
 } from '../repositories/refresh-token.repository'
 import { AuthUserService } from './auth-user.service'
 
@@ -106,13 +107,35 @@ export class RefreshTokenService {
     return result
   }
 
-  async revokeActive(refreshToken: string, now: Date): Promise<boolean> {
-    const result = await this.refreshTokenRepository.revokeActiveByHash(
-      this.hash(refreshToken),
-      now,
-    )
+  async revokeActive(
+    refreshToken: string,
+    now: Date,
+  ): Promise<RefreshTokenWithUser | null> {
+    const refreshTokenHash = this.hash(refreshToken)
 
-    return result.count > 0
+    return this.refreshTokenRepository.transaction(async (repository) => {
+      const storedToken =
+        await repository.findByTokenHashWithUser(refreshTokenHash)
+
+      if (!storedToken || !isActiveRefreshToken(storedToken, now)) {
+        return null
+      }
+
+      const revokeResult = await repository.revokeActiveByIdAndHash(
+        storedToken.id,
+        refreshTokenHash,
+        now,
+      )
+
+      if (revokeResult.count !== 1) {
+        return null
+      }
+
+      return {
+        ...storedToken,
+        revokedAt: now,
+      }
+    })
   }
 
   private async createWithRepository(

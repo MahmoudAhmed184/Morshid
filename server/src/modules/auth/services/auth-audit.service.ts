@@ -78,11 +78,23 @@ export class AuthAuditService {
     })
   }
 
-  async recordLogout(requestContext: AuthRequestContext): Promise<void> {
+  async recordLogout(
+    refreshToken: AuthAuditRefreshToken,
+    requestContext: AuthRequestContext,
+  ): Promise<void> {
     await this.auditService.recordEvent({
+      actorUserId: refreshToken.user.id,
       action: AUDIT_EVENT_ACTIONS.AUTH_LOGOUT,
       target: {
         type: AUDIT_TARGET_TYPES.AUTH_SESSION,
+        id: refreshToken.id,
+      },
+      metadata: {
+        refreshTokenCreatedAt: refreshToken.createdAt.toISOString(),
+        refreshTokenExpiresAt: refreshToken.expiresAt.toISOString(),
+        refreshTokenIp: refreshToken.ip,
+        refreshTokenRevokedAt: refreshToken.revokedAt?.toISOString() ?? null,
+        refreshTokenUserAgent: refreshToken.userAgent,
       },
       requestContext,
     })
@@ -91,4 +103,14 @@ export class AuthAuditService {
 
 interface AuthAuditUser {
   id: string
+}
+
+interface AuthAuditRefreshToken {
+  id: string
+  createdAt: Date
+  expiresAt: Date
+  ip: string | null
+  revokedAt: Date | null
+  user: AuthAuditUser
+  userAgent: string | null
 }
