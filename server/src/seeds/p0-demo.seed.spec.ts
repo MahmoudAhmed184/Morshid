@@ -476,6 +476,9 @@ describe('seedP0DemoData', () => {
 
     for (const hash of hashes) {
       expect(hash).not.toBe(P0_DEMO_PASSWORD)
+      expect(hash).toMatch(
+        /^argon2id:v1:m=19456,t=2,p=1,keylen=32:[A-Za-z0-9_-]+:[A-Za-z0-9_-]+$/,
+      )
       expect(passwordHasherService.verifyPassword(P0_DEMO_PASSWORD, hash)).toBe(
         true,
       )
