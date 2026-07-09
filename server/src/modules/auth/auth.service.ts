@@ -21,6 +21,7 @@ import {
 import { AuditService } from '../audit/audit.service'
 import type { AppEnvironment } from '../config/env.schema'
 import { PrismaService } from '../prisma/prisma.service'
+import { RedisService } from '../redis/redis.service'
 import {
   AUTH_ERROR_CODES,
   type AuthCourseSummary,
@@ -46,6 +47,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     configService: ConfigService<AppEnvironment, true>,
     private readonly auditService: AuditService,
+    private readonly redisService: RedisService,
   ) {
     this.accessTokenSecret = configService.get('AUTH_ACCESS_TOKEN_SECRET', {
       infer: true,
@@ -215,6 +217,16 @@ export class AuthService {
     requestContext: AuthRequestContext,
   ): Promise<AuthenticatedRequestUser> {
     const payload = await this.verifyAccessToken(accessToken)
+
+    const isDisabled = await this.redisService.isUserDisabled(payload.sub)
+    if (isDisabled) {
+      await this.recordDisabledAccountBlock(
+        { id: payload.sub },
+        requestContext,
+      )
+      throw accountDisabledException()
+    }
+
     const user = await this.prismaService.user.findUnique({
       where: {
         id: payload.sub,

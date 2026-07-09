@@ -5,14 +5,17 @@ import { JwtModule } from '@nestjs/jwt'
 import { AuditModule } from '../audit/audit.module'
 import type { AppEnvironment } from '../config/env.schema'
 import { PrismaModule } from '../prisma/prisma.module'
+import { RedisModule } from '../redis/redis.module'
 import { AuthController } from './auth.controller'
 import { AuthGuard } from './auth.guard'
 import { AuthService } from './auth.service'
+import { ActiveUserGuard } from './guards/active-user.guard'
 
 @Module({
   imports: [
     PrismaModule,
     AuditModule,
+    RedisModule,
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService<AppEnvironment, true>) => ({
@@ -28,7 +31,7 @@ import { AuthService } from './auth.service'
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, AuthGuard],
-  exports: [AuthService, AuthGuard],
+  providers: [AuthService, AuthGuard, ActiveUserGuard],
+  exports: [AuthService, AuthGuard, ActiveUserGuard],
 })
 export class AuthModule {}
