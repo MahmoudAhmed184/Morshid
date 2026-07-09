@@ -1,6 +1,3 @@
-import { Footer } from '@/components/layout/footer'
-import { Navbar } from '@/components/layout/navbar'
-
 import { FeaturesSection } from './components/features-section'
 import { HeroSection } from './components/hero-section'
 

@@ -47,7 +47,10 @@ export function Navbar() {
   const [open, setOpen] = useState(false)
 
   return (
-    <header className="sticky top-0 z-50 border-b border-border/60 bg-background/80 backdrop-blur-md">
+    <header
+      className="sticky top-0 z-50 border-b border-border/60 bg-background/80 backdrop-blur-md"
+      onWheel={(event) => event.preventDefault()}
+    >
       <nav
         className="relative mx-auto flex h-16 w-full max-w-7xl items-center px-4 sm:px-6 lg:px-8"
         aria-label="Main navigation"

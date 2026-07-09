@@ -69,7 +69,10 @@ function FooterLinkGroup({ title, links, id }: FooterLinkGroupProps) {
 
 export function Footer() {
   return (
-    <footer className="border-t border-border bg-card">
+    <footer
+      className="border-t border-border bg-card"
+      onWheel={(event) => event.preventDefault()}
+    >
       <div className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-5">
           <div className="space-y-5 sm:col-span-2 lg:col-span-2">
