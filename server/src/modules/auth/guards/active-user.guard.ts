@@ -1,3 +1,4 @@
+import type { Request } from 'express'
 import {
   CanActivate,
   ExecutionContext,
@@ -21,7 +22,7 @@ export class ActiveUserGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest()
+    const request = context.switchToHttp().getRequest<Request>()
     const accessToken = extractBearerToken(request.headers.authorization)
 
     if (accessToken === null) {
@@ -42,14 +43,12 @@ export class ActiveUserGuard implements CanActivate {
     token: string,
   ): Promise<VerifiedAccessTokenPayload> {
     try {
-      const payload = await this.jwtService.verifyAsync<UntrustedAccessTokenPayload>(
-        token,
-        {
+      const payload =
+        await this.jwtService.verifyAsync<UntrustedAccessTokenPayload>(token, {
           secret: this.configService.get('AUTH_ACCESS_TOKEN_SECRET', {
             infer: true,
           }),
-        },
-      )
+        })
 
       if (payload.typ !== 'access' || typeof payload.sub !== 'string') {
         throw invalidAccessTokenException()

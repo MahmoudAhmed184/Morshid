@@ -220,10 +220,7 @@ export class AuthService {
 
     const isDisabled = await this.redisService.isUserDisabled(payload.sub)
     if (isDisabled) {
-      await this.recordDisabledAccountBlock(
-        { id: payload.sub },
-        requestContext,
-      )
+      await this.recordDisabledAccountBlock({ id: payload.sub }, requestContext)
       throw accountDisabledException()
     }
 
