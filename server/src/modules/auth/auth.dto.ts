@@ -1,4 +1,3 @@
-import { BadRequestException } from '@nestjs/common'
 import { z } from 'zod'
 
 import type {
@@ -71,7 +70,7 @@ export interface AuthenticatedRequestUser {
   status: UserStatus
 }
 
-const signInRequestSchema = z
+export const signInRequestSchema = z
   .object({
     email: z.preprocess(
       (value) =>
@@ -82,31 +81,10 @@ const signInRequestSchema = z
   })
   .strict()
 
-const refreshRequestSchema = z
+export const refreshRequestSchema = z
   .object({
     refreshToken: z.string().min(1),
   })
   .strict()
 
-export function parseSignInRequest(value: unknown): SignInRequest {
-  return parseAuthRequest(signInRequestSchema, value)
-}
-
-export function parseRefreshRequest(value: unknown): RefreshRequest {
-  return parseAuthRequest(refreshRequestSchema, value)
-}
-
-export const parseLogoutRequest = parseRefreshRequest
-
-function parseAuthRequest<T>(schema: z.ZodType<T>, value: unknown): T {
-  const result = schema.safeParse(value)
-
-  if (!result.success) {
-    throw new BadRequestException({
-      code: AUTH_ERROR_CODES.INVALID_REQUEST,
-      message: 'Invalid auth request',
-    })
-  }
-
-  return result.data
-}
+export const logoutRequestSchema = refreshRequestSchema
