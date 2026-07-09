@@ -11,6 +11,7 @@ import {
   type P0DemoSeedTransaction,
   seedP0DemoData,
 } from './p0-demo.seed'
+import { PasswordHasherService } from '../modules/auth/services/password-hasher.service'
 
 type UserRole = (typeof P0_DEMO_USERS)[number]['role']
 type UserStatus = 'ACTIVE' | 'DISABLED'
@@ -467,15 +468,16 @@ describe('seedP0DemoData', () => {
     expect(prisma.getCourse('EXTRA-INSTRUCTOR-OWNED').createdById).toBeNull()
   })
 
-  it('uses parseable non-plaintext per-account scrypt hashes', () => {
+  it('uses verifiable non-plaintext per-account Argon2id hashes', () => {
+    const passwordHasherService = new PasswordHasherService()
     const hashes = P0_DEMO_USERS.map((user) =>
       createP0DemoPasswordHash(user.passwordSalt),
     )
 
     for (const hash of hashes) {
       expect(hash).not.toBe(P0_DEMO_PASSWORD)
-      expect(hash).toMatch(
-        /^scrypt:v1:N=16384,r=8,p=1,keylen=64:[A-Za-z0-9_-]+:[A-Za-z0-9_-]+$/,
+      expect(passwordHasherService.verifyPassword(P0_DEMO_PASSWORD, hash)).toBe(
+        true,
       )
     }
     expect(new Set(hashes).size).toBe(P0_DEMO_USERS.length)

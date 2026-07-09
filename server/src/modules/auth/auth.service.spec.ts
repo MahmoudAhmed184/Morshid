@@ -1,6 +1,7 @@
 import { UnauthorizedException } from '@nestjs/common'
 
 import { buildAuthServiceTestHarness } from '../../../test/support/auth-service-test-harness'
+import { createLegacyScryptPasswordHash } from '../../../test/support/legacy-password-hash'
 import { P0_DEMO_PASSWORD } from '../../seeds/p0-demo.seed'
 
 describe('AuthService token lifecycle', () => {
@@ -95,5 +96,42 @@ describe('AuthService token lifecycle', () => {
         requestContext,
       ),
     ).rejects.toBeInstanceOf(UnauthorizedException)
+  })
+
+  it('rehashes a valid legacy scrypt password after sign-in', async () => {
+    const { service, store } = buildAuthServiceTestHarness()
+    const user = store.findUserByEmail('student1@morshid.demo')
+
+    if (!user) {
+      throw new Error('Missing seeded test user')
+    }
+
+    const legacyPasswordHash = createLegacyScryptPasswordHash(
+      P0_DEMO_PASSWORD,
+      'legacy-student-salt',
+    )
+    store.users.set(user.id, {
+      ...user,
+      passwordHash: legacyPasswordHash,
+    })
+
+    await service.signIn(
+      {
+        email: 'student1@morshid.demo',
+        password: P0_DEMO_PASSWORD,
+      },
+      requestContext,
+    )
+
+    expect(
+      store.findUserByEmail('student1@morshid.demo')?.passwordHash,
+    ).toEqual(
+      expect.stringMatching(
+        /^argon2id:v1:m=19456,t=2,p=1,keylen=32:[A-Za-z0-9_-]+:[A-Za-z0-9_-]+$/,
+      ),
+    )
+    expect(
+      store.findUserByEmail('student1@morshid.demo')?.passwordHash,
+    ).not.toBe(legacyPasswordHash)
   })
 })

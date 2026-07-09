@@ -48,13 +48,18 @@ export class AuthUserService {
     return user.status === 'DISABLED'
   }
 
-  async recordLastLogin(user: Pick<User, 'id'>, now: Date): Promise<void> {
+  async recordSuccessfulLogin(
+    user: Pick<User, 'id'>,
+    now: Date,
+    passwordHash?: string,
+  ): Promise<void> {
     await this.prismaService.user.update({
       where: {
         id: user.id,
       },
       data: {
         lastLoginAt: now,
+        ...(passwordHash === undefined ? {} : { passwordHash }),
       },
     })
   }
