@@ -1,8 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate } from '@tanstack/react-router'
 import { ChevronRight, Mail } from 'lucide-react'
-import { useState } from 'react'
-import type { ControllerRenderProps } from 'react-hook-form'
+import { useId, useState } from 'react'
 import { useForm } from 'react-hook-form'
 
 import { Button } from '@/components/ui/button'
@@ -13,8 +12,12 @@ import {
   FormField,
   FormItem,
   FormMessage,
-  useFormField,
 } from '@/components/ui/form'
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from '@/components/ui/input-group'
 import { Label } from '@/components/ui/label'
 
 import {
@@ -27,54 +30,18 @@ import type { SignInFormValues } from '@/features/auth/schemas/sign-in.schema'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 import { getAuthRedirectPath } from '@/features/auth/utils/auth-redirect'
 
-import { AuthField } from './auth-field'
 import { PasswordField } from './password-field'
 
 type SignInFormProps = {
   onSubmitDelay?: number
 }
 
-function SignInEmailField({
-  field,
-}: {
-  field: ControllerRenderProps<SignInFormValues, 'email'>
-}) {
-  const { error, formMessageId, formItemId } = useFormField()
-
-  return (
-    <AuthField
-      {...field}
-      id={formItemId}
-      label="Institutional Email"
-      icon={Mail}
-      type="email"
-      placeholder="instructor@morshid.demo"
-      autoComplete="email"
-      aria-invalid={error ? true : undefined}
-      aria-describedby={error ? formMessageId : undefined}
-    />
-  )
-}
-
-function SignInPasswordField({
-  field,
-}: {
-  field: ControllerRenderProps<SignInFormValues, 'password'>
-}) {
-  const { error, formMessageId, formItemId } = useFormField()
-
-  return (
-    <PasswordField
-      {...field}
-      id={formItemId}
-      aria-invalid={error ? true : undefined}
-      aria-describedby={error ? formMessageId : undefined}
-    />
-  )
-}
-
 export function SignInForm({ onSubmitDelay }: SignInFormProps) {
   const [authErrorMessage, setAuthErrorMessage] = useState<string | null>(null)
+  const emailInputId = useId()
+  const passwordInputId = useId()
+  const emailErrorId = `${emailInputId}-error`
+  const passwordErrorId = `${passwordInputId}-error`
   const navigate = useNavigate()
   const setSession = useAuthStore((state) => state.setSession)
 
@@ -125,22 +92,76 @@ export function SignInForm({ onSubmitDelay }: SignInFormProps) {
         <FormField
           control={form.control}
           name="email"
-          render={({ field }) => (
-            <FormItem className="space-y-0">
-              <SignInEmailField field={field} />
-              <FormMessage className="mt-2" />
-            </FormItem>
+          render={({ field, fieldState }) => (
+            <div className="space-y-0">
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between gap-3">
+                  <Label
+                    htmlFor={emailInputId}
+                    className="text-xs font-medium tracking-[0.12em] text-foreground uppercase sm:text-sm"
+                  >
+                    Institutional Email
+                  </Label>
+                </div>
+                <InputGroup className="h-12 rounded-full px-1">
+                  <InputGroupAddon align="inline-start" className="pl-3">
+                    <Mail
+                      className="size-[1.125rem] text-foreground"
+                      aria-hidden
+                    />
+                  </InputGroupAddon>
+                  <InputGroupInput
+                    {...field}
+                    id={emailInputId}
+                    type="email"
+                    placeholder="instructor@morshid.demo"
+                    autoComplete="email"
+                    aria-invalid={fieldState.error ? true : undefined}
+                    aria-describedby={
+                      fieldState.error ? emailErrorId : undefined
+                    }
+                    className="text-base"
+                  />
+                </InputGroup>
+              </div>
+
+              {fieldState.error ? (
+                <p
+                  id={emailErrorId}
+                  role="alert"
+                  className="mt-2 text-sm text-destructive"
+                >
+                  {fieldState.error.message}
+                </p>
+              ) : null}
+            </div>
           )}
         />
 
         <FormField
           control={form.control}
           name="password"
-          render={({ field }) => (
-            <FormItem className="space-y-0">
-              <SignInPasswordField field={field} />
-              <FormMessage className="mt-2" />
-            </FormItem>
+          render={({ field, fieldState }) => (
+            <div className="space-y-0">
+              <PasswordField
+                {...field}
+                id={passwordInputId}
+                aria-invalid={fieldState.error ? true : undefined}
+                aria-describedby={
+                  fieldState.error ? passwordErrorId : undefined
+                }
+              />
+
+              {fieldState.error ? (
+                <p
+                  id={passwordErrorId}
+                  role="alert"
+                  className="mt-2 text-sm text-destructive"
+                >
+                  {fieldState.error.message}
+                </p>
+              ) : null}
+            </div>
           )}
         />
 

@@ -2,10 +2,14 @@ import { Eye, EyeOff, Lock } from 'lucide-react'
 import * as React from 'react'
 import { useState } from 'react'
 
-import { InputGroupAddon, InputGroupButton } from '@/components/ui/input-group'
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from '@/components/ui/input-group'
+import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
-
-import { AuthField } from './auth-field'
 
 type PasswordFieldProps = Omit<
   React.ComponentProps<'input'>,
@@ -35,16 +39,14 @@ export const PasswordField = React.forwardRef<
   const [visible, setVisible] = useState(false)
 
   return (
-    <AuthField
-      ref={ref}
-      id={id}
-      label={label}
-      icon={Lock}
-      type={visible ? 'text' : 'password'}
-      placeholder={placeholder}
-      autoComplete="current-password"
-      className={className}
-      labelAction={
+    <div className={cn('space-y-2.5', className)}>
+      <div className="flex items-center justify-between gap-3">
+        <Label
+          htmlFor={id}
+          className="text-xs font-medium tracking-[0.12em] text-foreground uppercase sm:text-sm"
+        >
+          {label}
+        </Label>
         <a
           href={forgotPasswordHref}
           className={cn(
@@ -53,8 +55,20 @@ export const PasswordField = React.forwardRef<
         >
           Forgot Password?
         </a>
-      }
-      trailing={
+      </div>
+      <InputGroup className="h-12 rounded-full px-1">
+        <InputGroupAddon align="inline-start" className="pl-3">
+          <Lock className="size-[1.125rem] text-foreground" aria-hidden />
+        </InputGroupAddon>
+        <InputGroupInput
+          ref={ref}
+          id={id}
+          type={visible ? 'text' : 'password'}
+          placeholder={placeholder}
+          autoComplete="current-password"
+          className="text-base"
+          {...inputProps}
+        />
         <InputGroupAddon align="inline-end" className="pr-1">
           <InputGroupButton
             type="button"
@@ -66,8 +80,7 @@ export const PasswordField = React.forwardRef<
             {visible ? <EyeOff aria-hidden /> : <Eye aria-hidden />}
           </InputGroupButton>
         </InputGroupAddon>
-      }
-      {...inputProps}
-    />
+      </InputGroup>
+    </div>
   )
 })
