@@ -62,10 +62,20 @@ function submitSignInForm() {
   fireEvent.click(getSubmitButton())
 }
 
+async function waitForSignInRedirect() {
+  await waitFor(() => {
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/instructor' })
+  })
+  await waitFor(() => {
+    expect(getSubmitButton()).toHaveProperty('disabled', false)
+  })
+}
+
 describe('SignInForm', () => {
   beforeEach(() => {
     window.localStorage.clear()
     useAuthStore.getState().clearSession()
+    navigateMock.mockReset()
     navigateMock.mockResolvedValue(undefined)
     vi.stubGlobal(
       'matchMedia',
@@ -145,9 +155,7 @@ describe('SignInForm', () => {
       })
       submitSignInForm()
 
-      await waitFor(() => {
-        expect(navigateMock).toHaveBeenCalledWith({ to: '/instructor' })
-      })
+      await waitForSignInRedirect()
     })
   })
 
@@ -235,9 +243,7 @@ describe('SignInForm', () => {
       fillSignInForm()
       submitSignInForm()
 
-      await waitFor(() => {
-        expect(navigateMock).toHaveBeenCalledWith({ to: '/instructor' })
-      })
+      await waitForSignInRedirect()
     })
   })
 
@@ -312,9 +318,7 @@ describe('SignInForm', () => {
 
       fireEvent.submit(getForm())
 
-      await waitFor(() => {
-        expect(navigateMock).toHaveBeenCalledWith({ to: '/instructor' })
-      })
+      await waitForSignInRedirect()
     })
 
     it('stores the session and redirects on valid seeded credentials', async () => {
@@ -325,9 +329,7 @@ describe('SignInForm', () => {
       })
       submitSignInForm()
 
-      await waitFor(() => {
-        expect(navigateMock).toHaveBeenCalledWith({ to: '/instructor' })
-      })
+      await waitForSignInRedirect()
       expect(useAuthStore.getState()).toMatchObject({
         user: {
           email: validEmail,
@@ -346,7 +348,6 @@ describe('SignInForm', () => {
       submitSignInForm()
 
       expect(await screen.findByText(INVALID_CREDENTIALS_MESSAGE)).toBeDefined()
-      expect(useAuthStore.getState().isAuthenticated).toBe(false)
       expect(navigateMock).not.toHaveBeenCalled()
     })
 

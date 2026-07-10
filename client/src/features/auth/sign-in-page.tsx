@@ -32,7 +32,7 @@ export function SignInPage() {
             <CardHeader className="sr-only">
               <CardTitle>Sign in</CardTitle>
               <CardDescription>
-                Enter your institutional email and security key to access the
+                Enter your institutional email and password to access the
                 portal.
               </CardDescription>
             </CardHeader>

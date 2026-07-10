@@ -28,7 +28,7 @@ export const PasswordField = React.forwardRef<
 >(function PasswordFieldInput(
   {
     id = 'password',
-    label = 'Security Key',
+    label = 'Password',
     placeholder = '••••••••',
     forgotPasswordHref = '#',
     className,
