@@ -158,7 +158,7 @@ describe('SignInForm', () => {
       fillSignInForm({ email: validEmail, password: '' })
       submitSignInForm()
 
-      expect(await screen.findByText('Security key is required')).toBeDefined()
+      expect(await screen.findByText('Password is required')).toBeDefined()
     })
 
     it('rejects passwords shorter than 8 characters', async () => {
@@ -250,7 +250,7 @@ describe('SignInForm', () => {
       const emailError = await screen.findByText(
         'Institutional email is required',
       )
-      const passwordError = await screen.findByText('Security key is required')
+      const passwordError = await screen.findByText('Password is required')
 
       expect(emailError.compareDocumentPosition(getEmailInput())).toBe(
         Node.DOCUMENT_POSITION_PRECEDING,

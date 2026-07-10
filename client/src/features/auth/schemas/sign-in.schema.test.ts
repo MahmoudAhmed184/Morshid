@@ -84,7 +84,7 @@ describe('signInSchema password validation', () => {
     const result = parseSignIn({ password: '' })
 
     expect(result.success).toBe(false)
-    expect(getFieldError(result, 'password')).toBe('Security key is required')
+    expect(getFieldError(result, 'password')).toBe('Password is required')
   })
 
   it('rejects passwords shorter than 8 characters', () => {

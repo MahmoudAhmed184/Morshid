@@ -1,82 +1,31 @@
 import { z } from 'zod'
 
-const hasDomain = (email: string) => {
-  const [, domain] = email.split('@')
-
-  return Boolean(domain && domain.includes('.') && domain.split('.').pop())
-}
-
+const emailFormatPattern = /^$|^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const emailDomainPattern = /^$|^[^@]*@[^@]*\.[^@.]+(?:@.*)?$/
+const noWhitespacePattern = /^$|^\S+$/
+const passwordBoundaryPattern = /^(?:$|\S(?:[\s\S]*\S)?)$/
 const mockSignInPassword = 'password'
 
 export const signInSchema = z.object({
   email: z
     .string()
+    .trim()
     .min(1, 'Institutional email is required')
-    .superRefine((value, context) => {
-      const trimmed = value.trim()
-
-      if (!trimmed) {
-        context.addIssue({
-          code: 'custom',
-          message: 'Institutional email is required',
-        })
-        return
-      }
-
-      if (trimmed.length > 254) {
-        context.addIssue({
-          code: 'custom',
-          message: 'Email must be at most 254 characters',
-        })
-      }
-
-      if (/\s/.test(trimmed)) {
-        context.addIssue({
-          code: 'custom',
-          message: 'Email cannot contain spaces',
-        })
-      }
-
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
-        context.addIssue({
-          code: 'custom',
-          message: 'Enter a valid email address',
-        })
-      }
-
-      if (!hasDomain(trimmed)) {
-        context.addIssue({
-          code: 'custom',
-          message: 'Email must include a valid domain',
-        })
-      }
+    .max(254, 'Email must be at most 254 characters')
+    .regex(noWhitespacePattern, 'Email cannot contain spaces')
+    .email({
+      pattern: emailFormatPattern,
+      message: 'Enter a valid email address',
     })
-    .transform((value) => value.trim().toLowerCase()),
+    .regex(emailDomainPattern, 'Email must include a valid domain')
+    .transform((value) => value.toLowerCase()),
   password: z
     .string()
-    .min(1, 'Security key is required')
+    .min(1, 'Password is required')
+    .regex(passwordBoundaryPattern, 'Password cannot start or end with spaces')
+    .max(128, 'Password must be at most 128 characters')
+    .min(8, 'Password must be at least 8 characters')
     .superRefine((value, context) => {
-      if (value !== value.trim()) {
-        context.addIssue({
-          code: 'custom',
-          message: 'Password cannot start or end with spaces',
-        })
-      }
-
-      if (value.length > 128) {
-        context.addIssue({
-          code: 'custom',
-          message: 'Password must be at most 128 characters',
-        })
-      }
-
-      if (value.length < 8) {
-        context.addIssue({
-          code: 'custom',
-          message: 'Password must be at least 8 characters',
-        })
-      }
-
       if (value === mockSignInPassword) {
         return
       }
