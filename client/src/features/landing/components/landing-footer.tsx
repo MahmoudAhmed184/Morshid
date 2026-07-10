@@ -1,5 +1,4 @@
-import { GraduationCap } from 'lucide-react'
-
+import { Logo } from '@/components/logo'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 
@@ -76,9 +75,10 @@ export function LandingFooter() {
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-5">
           <div className="space-y-5 sm:col-span-2 lg:col-span-2">
             <div className="flex items-center gap-2.5">
-              <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <GraduationCap className="size-4" aria-hidden />
-              </div>
+              <Logo
+                className="size-8 shrink rounded-lg bg-primary text-primary-foreground"
+                iconClassName="size-4"
+              />
               <span className="text-base font-semibold text-foreground">
                 Morshid
               </span>

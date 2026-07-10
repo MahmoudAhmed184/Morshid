@@ -1,7 +1,6 @@
 import { Avatar, AvatarFallback, AvatarGroup } from '@/components/ui/avatar'
+import { Logo } from '@/components/logo'
 import { cn } from '@/lib/utils'
-
-import { AuthLogo } from './auth-logo'
 
 const educatorAvatars = ['JD', 'AS', 'ML'] as const
 
@@ -22,7 +21,7 @@ export function AuthBrandingPanel({ className }: AuthBrandingPanelProps) {
         aria-hidden
       />
 
-      <AuthLogo className="relative" />
+      <Logo className="relative" />
 
       <div className="relative max-w-md space-y-5">
         <h1 className="text-5xl leading-tight font-semibold tracking-tight text-foreground xl:text-6xl">

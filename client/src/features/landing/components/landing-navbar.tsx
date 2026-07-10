@@ -1,7 +1,8 @@
 import { Link } from '@tanstack/react-router'
-import { GraduationCap, Menu } from 'lucide-react'
+import { Menu } from 'lucide-react'
 import { useState } from 'react'
 
+import { Logo } from '@/components/logo'
 import { Button } from '@/components/ui/button'
 import { ModeToggle } from '@/components/ui/mode-toggle'
 import { Separator } from '@/components/ui/separator'
@@ -57,9 +58,10 @@ export function LandingNavbar() {
             to="/"
             className="flex items-center gap-2.5 text-foreground transition-opacity hover:opacity-80"
           >
-            <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <GraduationCap className="size-4" aria-hidden />
-            </div>
+            <Logo
+              className="size-8 shrink rounded-lg bg-primary text-primary-foreground"
+              iconClassName="size-4"
+            />
             <span className="text-base font-semibold tracking-tight">
               Morshid
             </span>
@@ -108,7 +110,10 @@ export function LandingNavbar() {
             <SheetContent side="right" className="w-full max-w-xs">
               <SheetHeader>
                 <SheetTitle className="flex items-center gap-2">
-                  <GraduationCap className="size-5 text-primary" aria-hidden />
+                  <Logo
+                    className="size-5 shrink rounded-none bg-transparent text-primary"
+                    iconClassName="size-5"
+                  />
                   Morshid
                 </SheetTitle>
               </SheetHeader>

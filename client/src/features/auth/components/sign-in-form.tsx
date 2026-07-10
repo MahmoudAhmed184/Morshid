@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import type { ControllerRenderProps } from 'react-hook-form'
 import { useForm } from 'react-hook-form'
 
+import { Logo } from '@/components/logo'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -36,7 +37,6 @@ import { useAuthStore } from '@/features/auth/stores/auth.store'
 import { getAuthRedirectPath } from '@/features/auth/utils/auth-redirect'
 
 import { AuthField } from './auth-field'
-import { AuthLogo } from './auth-logo'
 import { PasswordField } from './password-field'
 
 type SignInFormProps = {
@@ -145,7 +145,7 @@ export function SignInForm({ className, onSubmitDelay }: SignInFormProps) {
   return (
     <div className={cn('mx-auto w-full max-w-md', className)}>
       <div className="mb-8 lg:hidden">
-        <AuthLogo />
+        <Logo />
       </div>
 
       <div className="mb-8 space-y-2">

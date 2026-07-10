@@ -2,12 +2,12 @@ import { GraduationCap } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
-type AuthLogoProps = {
+type LogoProps = {
   className?: string
   iconClassName?: string
 }
 
-export function AuthLogo({ className, iconClassName }: AuthLogoProps) {
+export function Logo({ className, iconClassName }: LogoProps) {
   return (
     <div
       className={cn(
