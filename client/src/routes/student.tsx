@@ -4,6 +4,7 @@ import { RolePlaceholderPage } from '@/features/auth/components/role-placeholder
 import { getProtectedRoleRedirectPath } from '@/features/auth/utils/auth-redirect'
 
 export const Route = createFileRoute('/student')({
+  ssr: false,
   beforeLoad: () => {
     const redirectPath = getProtectedRoleRedirectPath('student')
 

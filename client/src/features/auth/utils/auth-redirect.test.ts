@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 import type { AuthRole, AuthSession } from '@/features/auth/types/auth.types'
@@ -44,6 +44,18 @@ describe('getProtectedRoleRedirectPath', () => {
 
   it('redirects unauthenticated users to login', () => {
     expect(getProtectedRoleRedirectPath('admin')).toBe('/login')
+  })
+
+  it('defers protected route redirects until the browser can read the mock session', () => {
+    const browserWindow = window
+
+    vi.stubGlobal('window', undefined)
+
+    try {
+      expect(getProtectedRoleRedirectPath('admin')).toBeNull()
+    } finally {
+      vi.stubGlobal('window', browserWindow)
+    }
   })
 
   it('allows users with the expected role', () => {

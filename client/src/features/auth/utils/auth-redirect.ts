@@ -17,6 +17,10 @@ export function getAuthRedirectPath(role: AuthRole): AuthRedirectPath {
 export function getProtectedRoleRedirectPath(
   expectedRole: AuthRole,
 ): AuthRouteRedirectPath | null {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
   const { isAuthenticated, user } = useAuthStore.getState()
 
   if (!isAuthenticated || !user) {
