@@ -9,6 +9,7 @@ import { AuthController } from './auth.controller'
 import { AuthGuard } from './auth.guard'
 import { AuthService } from './auth.service'
 import { RefreshTokenRepository } from './repositories/refresh-token.repository'
+import { RolesGuard } from './roles.guard'
 import { AccessTokenService } from './services/access-token.service'
 import { AuthAuditService } from './services/auth-audit.service'
 import { AuthUserService } from './services/auth-user.service'
@@ -37,6 +38,7 @@ import { RefreshTokenService } from './services/refresh-token.service'
   providers: [
     AuthService,
     AuthGuard,
+    RolesGuard,
     PasswordHasherService,
     AccessTokenService,
     RefreshTokenService,
@@ -44,6 +46,6 @@ import { RefreshTokenService } from './services/refresh-token.service'
     AuthUserService,
     AuthAuditService,
   ],
-  exports: [AuthService, AuthGuard],
+  exports: [AuthService, AuthGuard, RolesGuard],
 })
 export class AuthModule {}
