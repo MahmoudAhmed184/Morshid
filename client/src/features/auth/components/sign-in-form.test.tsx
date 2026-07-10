@@ -17,7 +17,6 @@ import { useAuthStore } from '@/features/auth/stores/auth.store'
 
 import { SignInForm } from './sign-in-form'
 
-const successMessage = 'Signed in successfully.'
 const validEmail = 'instructor@morshid.demo'
 const validPassword = 'password'
 const navigateMock = vi.fn()
@@ -147,7 +146,7 @@ describe('SignInForm', () => {
       submitSignInForm()
 
       await waitFor(() => {
-        expect(screen.getByText(successMessage)).toBeDefined()
+        expect(navigateMock).toHaveBeenCalledWith({ to: '/instructor' })
       })
     })
   })
@@ -237,7 +236,7 @@ describe('SignInForm', () => {
       submitSignInForm()
 
       await waitFor(() => {
-        expect(screen.getByText(successMessage)).toBeDefined()
+        expect(navigateMock).toHaveBeenCalledWith({ to: '/instructor' })
       })
     })
   })
@@ -314,11 +313,11 @@ describe('SignInForm', () => {
       fireEvent.submit(getForm())
 
       await waitFor(() => {
-        expect(screen.getByText(successMessage)).toBeDefined()
+        expect(navigateMock).toHaveBeenCalledWith({ to: '/instructor' })
       })
     })
 
-    it('shows a success message on valid seeded credentials', async () => {
+    it('stores the session and redirects on valid seeded credentials', async () => {
       renderSignInForm()
       fillSignInForm({
         email: 'INSTRUCTOR@MORSHID.DEMO',
@@ -327,7 +326,7 @@ describe('SignInForm', () => {
       submitSignInForm()
 
       await waitFor(() => {
-        expect(screen.getByText(successMessage)).toBeDefined()
+        expect(navigateMock).toHaveBeenCalledWith({ to: '/instructor' })
       })
       expect(useAuthStore.getState()).toMatchObject({
         user: {
@@ -347,7 +346,6 @@ describe('SignInForm', () => {
       submitSignInForm()
 
       expect(await screen.findByText(INVALID_CREDENTIALS_MESSAGE)).toBeDefined()
-      expect(screen.queryByText(successMessage)).toBeNull()
       expect(useAuthStore.getState().isAuthenticated).toBe(false)
       expect(navigateMock).not.toHaveBeenCalled()
     })
@@ -361,7 +359,6 @@ describe('SignInForm', () => {
       submitSignInForm()
 
       expect(await screen.findByText(DISABLED_ACCOUNT_MESSAGE)).toBeDefined()
-      expect(screen.queryByText(successMessage)).toBeNull()
     })
 
     it('does not submit when the form is invalid', async () => {
@@ -371,7 +368,7 @@ describe('SignInForm', () => {
 
       await screen.findByText('Enter a valid email address')
 
-      expect(screen.queryByText(successMessage)).toBeNull()
+      expect(navigateMock).not.toHaveBeenCalled()
     })
   })
 

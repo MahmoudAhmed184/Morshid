@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate } from '@tanstack/react-router'
 import { ChevronRight, Mail } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { ControllerRenderProps } from 'react-hook-form'
 import { useForm } from 'react-hook-form'
 
@@ -33,8 +33,6 @@ import { PasswordField } from './password-field'
 type SignInFormProps = {
   onSubmitDelay?: number
 }
-
-const SUCCESS_MESSAGE = 'Signed in successfully.'
 
 function SignInEmailField({
   field,
@@ -76,7 +74,6 @@ function SignInPasswordField({
 }
 
 export function SignInForm({ onSubmitDelay }: SignInFormProps) {
-  const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [authErrorMessage, setAuthErrorMessage] = useState<string | null>(null)
   const navigate = useNavigate()
   const setSession = useAuthStore((state) => state.setSession)
@@ -92,20 +89,7 @@ export function SignInForm({ onSubmitDelay }: SignInFormProps) {
     },
   })
 
-  useEffect(() => {
-    if (!successMessage) {
-      return undefined
-    }
-
-    const timeoutId = window.setTimeout(() => setSuccessMessage(null), 4000)
-
-    return () => {
-      window.clearTimeout(timeoutId)
-    }
-  }, [successMessage])
-
   const onSubmit = async (values: SignInFormValues) => {
-    setSuccessMessage(null)
     setAuthErrorMessage(null)
 
     if (onSubmitDelay) {
@@ -128,7 +112,6 @@ export function SignInForm({ onSubmitDelay }: SignInFormProps) {
     }
 
     setSession(session)
-    setSuccessMessage(SUCCESS_MESSAGE)
     await navigate({ to: getAuthRedirectPath(session.user.role) })
   }
 
@@ -192,15 +175,6 @@ export function SignInForm({ onSubmitDelay }: SignInFormProps) {
             className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"
           >
             {authErrorMessage}
-          </p>
-        ) : null}
-
-        {successMessage ? (
-          <p
-            role="status"
-            className="rounded-lg bg-primary/10 px-3 py-2 text-sm text-primary"
-          >
-            {successMessage}
           </p>
         ) : null}
 
