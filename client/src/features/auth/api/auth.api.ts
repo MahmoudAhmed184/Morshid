@@ -5,13 +5,13 @@ import type {
   LoginApiResponse,
 } from '@/features/auth/types/auth.types'
 
-export const MOCK_LOGIN_DELAY_MS = 350
 export const INVALID_CREDENTIALS_MESSAGE = 'Invalid email or password.'
 export const DISABLED_ACCOUNT_MESSAGE =
   'Your account is disabled. Please contact the administrator.'
 
 const ACCEPTED_PASSWORD = 'password'
 
+// TODO: Replace this temporary mock with the real auth service implementation.
 const seededUsers: Partial<Record<string, AuthUser>> = {
   'admin@morshid.demo': {
     id: 'mock-admin',
@@ -35,12 +35,6 @@ const seededUsers: Partial<Record<string, AuthUser>> = {
 
 const disabledEmails = new Set(['disabled@morshid.demo'])
 
-function delay(ms: number) {
-  return new Promise<void>((resolve) => {
-    setTimeout(resolve, ms)
-  })
-}
-
 function createAuthApiError(
   code: AuthApiErrorCode,
   message: string,
@@ -59,8 +53,6 @@ export async function loginApi(
   email: string,
   password: string,
 ): Promise<LoginApiResponse> {
-  await delay(MOCK_LOGIN_DELAY_MS)
-
   const normalizedEmail = email.trim().toLowerCase()
 
   if (password !== ACCEPTED_PASSWORD) {

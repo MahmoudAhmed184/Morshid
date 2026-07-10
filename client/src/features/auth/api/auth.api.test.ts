@@ -1,25 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import {
   DISABLED_ACCOUNT_MESSAGE,
   INVALID_CREDENTIALS_MESSAGE,
-  MOCK_LOGIN_DELAY_MS,
   loginApi,
 } from './auth.api'
 
-async function advanceMockLogin() {
-  await vi.advanceTimersByTimeAsync(MOCK_LOGIN_DELAY_MS)
-}
-
 describe('loginApi', () => {
-  beforeEach(() => {
-    vi.useFakeTimers()
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
-  })
-
   it.each([
     ['admin@morshid.demo', 'admin'],
     ['instructor@morshid.demo', 'instructor'],
@@ -35,24 +22,7 @@ describe('loginApi', () => {
       },
     })
 
-    await advanceMockLogin()
-
     await assertion
-  })
-
-  it('waits for the artificial login delay before resolving', async () => {
-    const request = loginApi('admin@morshid.demo', 'password')
-    let hasSettled = false
-    void request.finally(() => {
-      hasSettled = true
-    })
-
-    await vi.advanceTimersByTimeAsync(MOCK_LOGIN_DELAY_MS - 1)
-
-    expect(hasSettled).toBe(false)
-
-    await vi.advanceTimersByTimeAsync(1)
-    await expect(request).resolves.toBeDefined()
   })
 
   it('rejects wrong passwords with a generic error', async () => {
@@ -61,8 +31,6 @@ describe('loginApi', () => {
       code: 'invalid_credentials',
       message: INVALID_CREDENTIALS_MESSAGE,
     })
-
-    await advanceMockLogin()
 
     await assertion
   })
@@ -74,8 +42,6 @@ describe('loginApi', () => {
       message: INVALID_CREDENTIALS_MESSAGE,
     })
 
-    await advanceMockLogin()
-
     await assertion
   })
 
@@ -86,8 +52,6 @@ describe('loginApi', () => {
       message: DISABLED_ACCOUNT_MESSAGE,
     })
 
-    await advanceMockLogin()
-
     await assertion
   })
 
@@ -97,8 +61,6 @@ describe('loginApi', () => {
       code: 'invalid_credentials',
       message: INVALID_CREDENTIALS_MESSAGE,
     })
-
-    await advanceMockLogin()
 
     await assertion
   })
