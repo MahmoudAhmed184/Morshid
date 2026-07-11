@@ -31,6 +31,10 @@ export type LoginApiResponse = {
 
 export type AuthSession = LoginApiResponse
 
+export type MeResponse = {
+  user: AuthUser
+}
+
 export type AuthApiErrorCode =
   | 'ACCOUNT_DISABLED'
   | 'INSUFFICIENT_ROLE'

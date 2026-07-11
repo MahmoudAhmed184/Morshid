@@ -1,4 +1,5 @@
 import type { AuthRole } from '@/features/auth/types/auth.types'
+import { getCurrentUser } from '@/features/auth/api/auth.api'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 
 const authRedirectByRole = {
@@ -14,21 +15,30 @@ export function getAuthRedirectPath(role: AuthRole): AuthRedirectPath {
   return authRedirectByRole[role]
 }
 
-export function getProtectedRoleRedirectPath(
+export async function getProtectedRoleRedirectPath(
   expectedRole: AuthRole,
-): AuthRouteRedirectPath | null {
+): Promise<AuthRouteRedirectPath | null> {
   if (typeof window === 'undefined') {
     return null
   }
 
-  const { isAuthenticated, user } = useAuthStore.getState()
+  const { clearSession, isAuthenticated, setUser, user } =
+    useAuthStore.getState()
 
   if (!isAuthenticated || !user) {
     return '/login'
   }
 
-  if (user.role !== expectedRole) {
-    return getAuthRedirectPath(user.role)
+  try {
+    const response = await getCurrentUser()
+    setUser(response.user)
+
+    if (response.user.role !== expectedRole) {
+      return getAuthRedirectPath(response.user.role)
+    }
+  } catch {
+    clearSession()
+    return '/login'
   }
 
   return null

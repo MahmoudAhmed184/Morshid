@@ -2,7 +2,9 @@ import type {
   AuthApiError,
   AuthApiErrorCode,
   LoginApiResponse,
+  MeResponse,
 } from '@/features/auth/types/auth.types'
+import { apiJson, type ApiFetchOptions } from '@/lib/api/api-client'
 import { clientEnv } from '@/lib/env'
 
 export const INVALID_CREDENTIALS_MESSAGE = 'Invalid email or password.'
@@ -113,4 +115,10 @@ export async function loginApi(
   }
 
   return body as LoginApiResponse
+}
+
+export async function getCurrentUser(
+  options: ApiFetchOptions = {},
+): Promise<MeResponse> {
+  return apiJson<MeResponse>('/api/v1/me', options)
 }

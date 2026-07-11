@@ -58,6 +58,37 @@ describe('useAuthStore', () => {
     )
   })
 
+  it('updates and persists the current user without changing tokens', () => {
+    const updatedUser = {
+      ...mockSession.user,
+      displayName: 'Updated Instructor',
+      courses: [
+        {
+          id: 'course-1',
+          code: 'PYTHON-PROG-P0',
+          title: 'Python Programming',
+          membershipRole: 'INSTRUCTOR' as const,
+        },
+      ],
+    }
+
+    useAuthStore.getState().setSession(mockSession)
+    useAuthStore.getState().setUser(updatedUser)
+
+    expect(useAuthStore.getState()).toMatchObject({
+      user: updatedUser,
+      accessToken: mockSession.accessToken,
+      refreshToken: mockSession.refreshToken,
+      isAuthenticated: true,
+    })
+    expect(window.localStorage.getItem(authSessionStorageKey)).toBe(
+      JSON.stringify({
+        ...mockSession,
+        user: updatedUser,
+      }),
+    )
+  })
+
   it('clears the current auth session and persisted storage', () => {
     useAuthStore.getState().setSession(mockSession)
 

@@ -16,6 +16,7 @@ type AuthStoreState = {
 
 type AuthStoreActions = {
   setSession: (session: AuthSession) => void
+  setUser: (user: AuthUser) => void
   clearSession: () => void
   logout: () => void
 }
@@ -149,6 +150,34 @@ export const useAuthStore = create<AuthStore>()((set) => ({
       refreshToken: session.refreshToken,
       refreshTokenExpiresAt: session.refreshTokenExpiresAt,
       isAuthenticated: true,
+    })
+  },
+  setUser: (user) => {
+    set((state) => {
+      if (
+        state.tokenType === null ||
+        state.accessToken === null ||
+        state.accessTokenExpiresAt === null ||
+        state.refreshToken === null ||
+        state.refreshTokenExpiresAt === null
+      ) {
+        removeStoredSession()
+        return emptyAuthState
+      }
+
+      persistSession({
+        user,
+        tokenType: state.tokenType,
+        accessToken: state.accessToken,
+        accessTokenExpiresAt: state.accessTokenExpiresAt,
+        refreshToken: state.refreshToken,
+        refreshTokenExpiresAt: state.refreshTokenExpiresAt,
+      })
+
+      return {
+        user,
+        isAuthenticated: true,
+      }
     })
   },
   clearSession: () => {

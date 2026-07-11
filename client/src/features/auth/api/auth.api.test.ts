@@ -4,6 +4,7 @@ import {
   DISABLED_ACCOUNT_MESSAGE,
   INVALID_CREDENTIALS_MESSAGE,
   SIGN_IN_UNAVAILABLE_MESSAGE,
+  getCurrentUser,
   loginApi,
 } from './auth.api'
 
@@ -138,5 +139,25 @@ describe('loginApi', () => {
     })
 
     await assertion
+  })
+})
+
+describe('getCurrentUser', () => {
+  it('requests the current user from /me with the authenticated API client', async () => {
+    const fetchMock = async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe('http://localhost:4000/api/v1/me')
+
+      const headers = new Headers(init?.headers)
+
+      expect(headers.get('Accept')).toBe('application/json')
+
+      return Response.json({
+        user: mockSession.user,
+      })
+    }
+
+    await expect(getCurrentUser({ fetchImpl: fetchMock })).resolves.toEqual({
+      user: mockSession.user,
+    })
   })
 })
