@@ -8,7 +8,6 @@ import {
   Bell,
   BookOpen,
   Bot,
-  History,
   Home,
   LogOut,
   Menu,
@@ -21,6 +20,7 @@ import { Logo } from '@/components/logo'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/custom/empty-state'
 import { Input } from '@/components/ui/input'
 import {
   Sheet,
@@ -38,7 +38,6 @@ const primaryNavItems = [
   { label: 'Dashboard', icon: Home, to: '/student/dashboard' },
   { label: 'Courses', icon: BookOpen, to: '/student/courses' },
   { label: 'AI Tutor', icon: Bot, to: '/student/ai-tutor' },
-  { label: 'History', icon: History, active: false },
 ] as const
 
 const secondaryNavItems = [
@@ -74,60 +73,48 @@ function StudentSidebarContent({
     <div className="flex h-full min-h-0 w-full flex-col overflow-y-auto px-4 py-5">
       <div className="mb-8 flex items-center gap-3">
         <Logo
-          className="size-9 rounded-md bg-blue-500 text-white"
+          className="size-9 rounded-md bg-sidebar-primary text-sidebar-primary-foreground"
           iconClassName="size-4"
         />
         <div>
-          <p className="text-sm font-semibold text-white">Morshid</p>
-          <p className="text-xs text-zinc-400">Student Portal</p>
+          <p className="text-sm font-semibold text-sidebar-foreground">
+            Morshid
+          </p>
+          <p className="text-xs text-muted-foreground">Student Portal</p>
         </div>
       </div>
 
       <nav className="space-y-1" aria-label="Student navigation">
         {primaryNavItems.map((item) => {
-          const isActive = 'to' in item ? pathname === item.to : item.active
+          const isActive = pathname === item.to
           const navClassName = cn(
             buttonVariants({
               variant: 'ghost',
               className:
-                'h-9 w-full justify-start gap-2 text-zinc-300 hover:bg-white/10 hover:text-white',
+                'h-9 w-full justify-start gap-2 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
             }),
-            isActive && 'bg-teal-500 text-white hover:bg-teal-500',
+            isActive &&
+              'bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground',
           )
 
-          if ('to' in item) {
-            return (
-              <Link
-                key={item.label}
-                to={item.to}
-                className={navClassName}
-                aria-current={isActive ? 'page' : undefined}
-                onClick={onNavigate}
-              >
-                <item.icon className="size-4" aria-hidden />
-                {item.label}
-              </Link>
-            )
-          }
-
           return (
-            <Button
+            <Link
               key={item.label}
-              type="button"
-              variant="ghost"
+              to={item.to}
               className={navClassName}
               aria-current={isActive ? 'page' : undefined}
+              onClick={onNavigate}
             >
               <item.icon className="size-4" aria-hidden />
               {item.label}
-            </Button>
+            </Link>
           )
         })}
       </nav>
 
-      <section className="mt-7 border-t border-white/10 pt-5">
+      <section className="mt-7 border-t border-sidebar-border pt-5">
         <div className="mb-3">
-          <h2 className="text-xs font-medium tracking-[0.12em] text-zinc-500 uppercase">
+          <h2 className="text-xs font-medium tracking-[0.12em] text-muted-foreground uppercase">
             Assigned Courses
           </h2>
         </div>
@@ -136,21 +123,18 @@ function StudentSidebarContent({
             {assignedCourses.map((course) => (
               <li
                 key={course.id}
-                className="rounded-md border border-white/10 bg-white/[0.04] p-3"
+                className="rounded-md border border-sidebar-border bg-sidebar-accent/40 p-3"
               >
                 <div className="flex min-w-0 items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-zinc-100">
+                    <p className="truncate text-sm font-medium text-sidebar-foreground">
                       {course.title}
                     </p>
-                    <p className="mt-1 truncate text-xs text-zinc-500">
+                    <p className="mt-1 truncate text-xs text-muted-foreground">
                       {course.code}
                     </p>
                   </div>
-                  <Badge
-                    variant="outline"
-                    className="border-teal-400/30 text-teal-200"
-                  >
+                  <Badge variant="outline" className="border-primary/30">
                     Assigned
                   </Badge>
                 </div>
@@ -158,9 +142,10 @@ function StudentSidebarContent({
             ))}
           </ul>
         ) : (
-          <div className="rounded-md border border-dashed border-white/10 bg-white/[0.03] p-3 text-sm text-zinc-400">
-            No courses assigned yet.
-          </div>
+          <EmptyState
+            title="No courses assigned yet."
+            className="min-h-0 rounded-md px-3 py-4"
+          />
         )}
       </section>
 
@@ -170,7 +155,7 @@ function StudentSidebarContent({
             key={item.label}
             type="button"
             variant="ghost"
-            className="h-9 w-full justify-start gap-2 text-zinc-400 hover:bg-white/10 hover:text-white"
+            className="h-9 w-full justify-start gap-2 text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           >
             <item.icon className="size-4" aria-hidden />
             {item.label}
@@ -210,24 +195,24 @@ export function StudentShellPage() {
   }
 
   return (
-    <main className="min-h-svh bg-zinc-950 text-zinc-100">
+    <main className="min-h-svh bg-background text-foreground">
       <div className="flex min-h-svh w-full overflow-hidden">
-        <aside className="hidden w-64 shrink-0 flex-col border-r border-white/10 bg-zinc-900 md:flex">
+        <aside className="hidden w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex">
           <StudentSidebarContent
             assignedCourses={assignedCourses}
             pathname={pathname}
           />
         </aside>
 
-        <section className="flex min-w-0 flex-1 flex-col bg-[#06131f]">
-          <header className="flex min-h-16 items-center gap-3 border-b border-white/10 px-4 sm:px-6">
+        <section className="flex min-w-0 flex-1 flex-col bg-background">
+          <header className="flex min-h-16 items-center gap-3 border-b border-border px-4 sm:px-6">
             <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
               <SheetTrigger
                 render={
                   <Button
                     variant="outline"
                     size="icon"
-                    className="border-white/10 bg-transparent text-zinc-100 hover:bg-white/10 hover:text-white md:hidden"
+                    className="bg-transparent md:hidden"
                     aria-label="Open student navigation"
                   />
                 }
@@ -236,7 +221,7 @@ export function StudentShellPage() {
               </SheetTrigger>
               <SheetContent
                 side="left"
-                className="w-72 max-w-[85vw] gap-0 border-white/10 bg-zinc-900 p-0 text-zinc-100 sm:max-w-xs"
+                className="w-72 max-w-[85vw] gap-0 border-sidebar-border bg-sidebar p-0 text-sidebar-foreground sm:max-w-xs"
               >
                 <SheetHeader className="sr-only">
                   <SheetTitle>Student navigation</SheetTitle>
@@ -251,33 +236,33 @@ export function StudentShellPage() {
 
             <div className="md:hidden">
               <Logo
-                className="size-8 rounded-md bg-blue-500 text-white"
+                className="size-8 rounded-md bg-primary text-primary-foreground"
                 iconClassName="size-4"
               />
             </div>
 
             <div className="relative hidden min-w-0 flex-1 sm:block">
               <Search
-                className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-500"
+                className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
                 aria-hidden
               />
               <Input
                 type="search"
                 aria-label="Search"
                 placeholder="Search"
-                className="h-9 border-white/10 bg-zinc-950/60 pl-9 text-zinc-100 placeholder:text-zinc-500 focus-visible:border-teal-400 focus-visible:ring-teal-400/20"
+                className="h-9 bg-background pl-9"
               />
             </div>
 
-            <Badge className="hidden bg-teal-500/15 text-teal-200 sm:inline-flex">
+            <Badge variant="secondary" className="hidden sm:inline-flex">
               Student
             </Badge>
 
             <Avatar
-              className="bg-zinc-800 text-zinc-100"
+              className="bg-muted text-foreground"
               aria-label={displayName}
             >
-              <AvatarFallback className="bg-zinc-800 text-xs font-semibold text-zinc-100">
+              <AvatarFallback className="bg-muted text-xs font-semibold text-foreground">
                 {initials}
               </AvatarFallback>
             </Avatar>
@@ -286,7 +271,7 @@ export function StudentShellPage() {
               type="button"
               variant="outline"
               onClick={handleLogout}
-              className="border-white/10 bg-transparent text-zinc-100 hover:bg-white/10 hover:text-white"
+              className="bg-transparent"
             >
               <LogOut className="size-4" aria-hidden />
               Log out

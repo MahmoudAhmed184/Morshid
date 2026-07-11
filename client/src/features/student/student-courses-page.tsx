@@ -1,4 +1,5 @@
 import { Badge } from '@/components/ui/badge'
+import { EmptyState } from '@/components/ui/custom/empty-state'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 
 export function StudentCoursesPage() {
@@ -9,8 +10,8 @@ export function StudentCoursesPage() {
   return (
     <div className="flex flex-1 flex-col px-4 py-5 sm:px-6">
       <div className="mb-5">
-        <p className="text-sm text-zinc-400">Student Workspace</p>
-        <h1 className="text-2xl font-semibold text-white sm:text-3xl">
+        <p className="text-sm text-muted-foreground">Student Workspace</p>
+        <h1 className="text-2xl font-semibold text-foreground sm:text-3xl">
           Courses
         </h1>
       </div>
@@ -23,25 +24,22 @@ export function StudentCoursesPage() {
           {assignedCourses.map((course) => (
             <article
               key={course.id}
-              className="rounded-md border border-white/10 bg-zinc-950/40 p-4"
+              className="rounded-md border border-border bg-card p-4 text-card-foreground"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h2 className="truncate text-base font-semibold text-white">
+                  <h2 className="truncate text-base font-semibold text-card-foreground">
                     {course.title}
                   </h2>
-                  <p className="mt-1 truncate text-sm text-zinc-500">
+                  <p className="mt-1 truncate text-sm text-muted-foreground">
                     {course.code}
                   </p>
                 </div>
-                <Badge
-                  variant="outline"
-                  className="border-teal-400/30 text-teal-200"
-                >
+                <Badge variant="outline" className="border-primary/30">
                   Assigned
                 </Badge>
               </div>
-              <p className="mt-4 text-sm leading-6 text-zinc-400">
+              <p className="mt-4 text-sm leading-6 text-muted-foreground">
                 Course workspace placeholder. Materials and sessions will be
                 connected in later sprint work.
               </p>
@@ -49,9 +47,7 @@ export function StudentCoursesPage() {
           ))}
         </section>
       ) : (
-        <section className="rounded-md border border-dashed border-white/10 bg-zinc-950/40 p-6 text-sm text-zinc-400">
-          No courses assigned yet.
-        </section>
+        <EmptyState title="No courses assigned yet." />
       )}
     </div>
   )
