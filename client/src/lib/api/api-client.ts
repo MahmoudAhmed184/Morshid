@@ -1,4 +1,5 @@
 import { useAuthStore } from '@/features/auth/stores/auth.store'
+import type { AuthSession } from '@/features/auth/types/auth.types'
 import { clientEnv } from '@/lib/env'
 
 export type ApiErrorCode =
@@ -29,6 +30,8 @@ export type ApiFetchOptions = RequestInit & {
   apiBaseUrl?: string
   fetchImpl?: typeof fetch
 }
+
+let refreshSessionPromise: Promise<AuthSession> | null = null
 
 function buildApiUrl(path: string, apiBaseUrl = clientEnv.VITE_API_BASE_URL) {
   const baseUrl = `${apiBaseUrl.replace(/\/+$/, '')}/`
@@ -84,7 +87,45 @@ function buildApiError(response: Response, body: unknown) {
   return new ApiError(message, response.status, code)
 }
 
-export async function apiFetch(path: string, options: ApiFetchOptions = {}) {
+async function refreshSession(
+  refreshToken: string,
+  fetchImpl: typeof fetch,
+  apiBaseUrl: string,
+) {
+  refreshSessionPromise ??= fetchImpl(
+    buildApiUrl('/api/v1/auth/refresh', apiBaseUrl),
+    {
+      body: JSON.stringify({
+        refreshToken,
+      }),
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      method: 'POST',
+    },
+  )
+    .then(async (response) => {
+      const body = await readJsonBody(response)
+
+      if (!response.ok) {
+        throw buildApiError(response, body)
+      }
+
+      return body as AuthSession
+    })
+    .finally(() => {
+      refreshSessionPromise = null
+    })
+
+  return refreshSessionPromise
+}
+
+async function apiFetchWithAuthRetry(
+  path: string,
+  options: ApiFetchOptions,
+  hasRetried: boolean,
+): Promise<Response> {
   const {
     apiBaseUrl = clientEnv.VITE_API_BASE_URL,
     fetchImpl = fetch,
@@ -105,10 +146,34 @@ export async function apiFetch(path: string, options: ApiFetchOptions = {}) {
   const error = buildApiError(response, body)
 
   if (error.code === 'INVALID_ACCESS_TOKEN') {
-    clearSession()
+    const refreshToken = useAuthStore.getState().refreshToken
+
+    if (hasRetried || !refreshToken) {
+      clearSession()
+      throw error
+    }
+
+    try {
+      const refreshedSession = await refreshSession(
+        refreshToken,
+        fetchImpl,
+        apiBaseUrl,
+      )
+
+      useAuthStore.getState().setSession(refreshedSession)
+
+      return apiFetchWithAuthRetry(path, options, true)
+    } catch {
+      clearSession()
+      throw error
+    }
   }
 
   throw error
+}
+
+export async function apiFetch(path: string, options: ApiFetchOptions = {}) {
+  return apiFetchWithAuthRetry(path, options, false)
 }
 
 export async function apiJson<T>(

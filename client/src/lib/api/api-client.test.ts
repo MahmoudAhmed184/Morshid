@@ -21,6 +21,14 @@ const mockSession: AuthSession = {
   refreshTokenExpiresAt: '2026-07-18T12:00:00.000Z',
 }
 
+const refreshedSession: AuthSession = {
+  ...mockSession,
+  accessToken: 'rotated-access-token',
+  accessTokenExpiresAt: '2026-07-11T12:30:00.000Z',
+  refreshToken: 'rotated-refresh-token',
+  refreshTokenExpiresAt: '2026-07-18T12:15:00.000Z',
+}
+
 describe('api client', () => {
   beforeEach(() => {
     window.localStorage.clear()
@@ -99,11 +107,123 @@ describe('api client', () => {
     expect(useAuthStore.getState().isAuthenticated).toBe(true)
   })
 
-  it('clears auth when the server rejects an invalid access token', async () => {
+  it('refreshes an expired access token and retries the request once', async () => {
     useAuthStore.getState().setSession(mockSession)
 
-    const fetchMock = async () =>
-      Response.json(
+    let protectedRequestCount = 0
+
+    const fetchMock = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+
+      if (url === 'http://localhost:4000/api/v1/auth/refresh') {
+        expect(JSON.parse(String(init?.body))).toEqual({
+          refreshToken: 'current-refresh-token',
+        })
+
+        return Response.json(refreshedSession)
+      }
+
+      protectedRequestCount += 1
+
+      if (protectedRequestCount === 1) {
+        expect(new Headers(init?.headers).get('Authorization')).toBe(
+          'Bearer current-access-token',
+        )
+
+        return Response.json(
+          {
+            code: 'INVALID_ACCESS_TOKEN',
+            message: 'Invalid access token',
+          },
+          {
+            status: 401,
+          },
+        )
+      }
+
+      expect(new Headers(init?.headers).get('Authorization')).toBe(
+        'Bearer rotated-access-token',
+      )
+
+      return Response.json({ user: refreshedSession.user })
+    }
+
+    await expect(
+      apiJson('/api/v1/me', {
+        fetchImpl: fetchMock,
+      }),
+    ).resolves.toEqual({ user: refreshedSession.user })
+    expect(useAuthStore.getState()).toMatchObject({
+      accessToken: 'rotated-access-token',
+      refreshToken: 'rotated-refresh-token',
+      user: refreshedSession.user,
+    })
+    expect(protectedRequestCount).toBe(2)
+  })
+
+  it('shares one refresh request across concurrent expired access token failures', async () => {
+    useAuthStore.getState().setSession(mockSession)
+
+    let protectedRequestCount = 0
+    let refreshRequestCount = 0
+
+    const fetchMock = async (input: RequestInfo | URL) => {
+      const url = String(input)
+
+      if (url === 'http://localhost:4000/api/v1/auth/refresh') {
+        refreshRequestCount += 1
+
+        await new Promise((resolve) => {
+          window.setTimeout(resolve, 10)
+        })
+
+        return Response.json(refreshedSession)
+      }
+
+      protectedRequestCount += 1
+
+      if (protectedRequestCount <= 2) {
+        return Response.json(
+          {
+            code: 'INVALID_ACCESS_TOKEN',
+            message: 'Invalid access token',
+          },
+          {
+            status: 401,
+          },
+        )
+      }
+
+      return Response.json({ ok: true })
+    }
+
+    await expect(
+      Promise.all([
+        apiJson('/api/v1/me', { fetchImpl: fetchMock }),
+        apiJson('/api/v1/courses', { fetchImpl: fetchMock }),
+      ]),
+    ).resolves.toEqual([{ ok: true }, { ok: true }])
+    expect(refreshRequestCount).toBe(1)
+    expect(protectedRequestCount).toBe(4)
+  })
+
+  it('clears auth when access token refresh fails', async () => {
+    useAuthStore.getState().setSession(mockSession)
+
+    const fetchMock = async (input: RequestInfo | URL) => {
+      if (String(input) === 'http://localhost:4000/api/v1/auth/refresh') {
+        return Response.json(
+          {
+            code: 'INVALID_REFRESH_TOKEN',
+            message: 'Invalid refresh token',
+          },
+          {
+            status: 401,
+          },
+        )
+      }
+
+      return Response.json(
         {
           code: 'INVALID_ACCESS_TOKEN',
           message: 'Invalid access token',
@@ -112,6 +232,7 @@ describe('api client', () => {
           status: 401,
         },
       )
+    }
 
     await expect(
       apiFetch('/api/v1/me', {
