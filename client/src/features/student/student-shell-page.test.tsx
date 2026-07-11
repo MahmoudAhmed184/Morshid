@@ -5,12 +5,41 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 import type { AuthSession } from '@/features/auth/types/auth.types'
 
+import { StudentAiTutorPage } from './student-ai-tutor-page'
+import { StudentCoursesPage } from './student-courses-page'
+import { StudentDashboardPage } from './student-dashboard-page'
 import { StudentShellPage } from './student-shell-page'
 
 const navigateMock = vi.fn()
+const routerMockState = vi.hoisted(() => ({
+  pathname: '/student/dashboard',
+}))
 
 vi.mock('@tanstack/react-router', () => ({
+  Link: ({
+    children,
+    to,
+    ...props
+  }: {
+    children?: React.ReactNode
+    to: string
+  }) => (
+    <a href={to} {...props}>
+      {children}
+    </a>
+  ),
+  Outlet: () => <div data-testid="student-route-outlet" />,
   useNavigate: () => navigateMock,
+  useRouterState: <T,>({
+    select,
+  }: {
+    select: (state: { location: { pathname: string } }) => T
+  }) =>
+    select({
+      location: {
+        pathname: routerMockState.pathname,
+      },
+    }),
 }))
 
 function createStudentSession(
@@ -38,6 +67,7 @@ describe('StudentShellPage', () => {
     window.localStorage.clear()
     useAuthStore.getState().clearSession()
     navigateMock.mockResolvedValue(undefined)
+    routerMockState.pathname = '/student/dashboard'
   })
 
   afterEach(() => {
@@ -93,6 +123,54 @@ describe('StudentShellPage', () => {
     expect(screen.getByText('No courses assigned yet.')).toBeInTheDocument()
   })
 
+  it('links sidebar navigation to the nested student routes', () => {
+    useAuthStore.getState().setSession(createStudentSession([]))
+
+    render(<StudentShellPage />)
+
+    expect(screen.getByRole('link', { name: /dashboard/i })).toHaveAttribute(
+      'href',
+      '/student/dashboard',
+    )
+    expect(screen.getByRole('link', { name: /courses/i })).toHaveAttribute(
+      'href',
+      '/student/courses',
+    )
+    expect(screen.getByRole('link', { name: /ai tutor/i })).toHaveAttribute(
+      'href',
+      '/student/ai-tutor',
+    )
+    expect(screen.getByTestId('student-route-outlet')).toBeInTheDocument()
+  })
+
+  it('reflects the active nested student route', () => {
+    routerMockState.pathname = '/student/courses'
+    useAuthStore.getState().setSession(createStudentSession([]))
+
+    render(<StudentShellPage />)
+
+    expect(screen.getByRole('link', { name: /courses/i })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+    expect(
+      screen.getByRole('link', { name: /dashboard/i }),
+    ).not.toHaveAttribute('aria-current')
+  })
+})
+
+describe('StudentAiTutorPage', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    useAuthStore.getState().clearSession()
+  })
+
+  afterEach(() => {
+    cleanup()
+    useAuthStore.getState().clearSession()
+    window.localStorage.clear()
+  })
+
   it('renders the disconnected chat placeholder for the selected course context', () => {
     useAuthStore.getState().setSession(
       createStudentSession([
@@ -105,12 +183,12 @@ describe('StudentShellPage', () => {
       ]),
     )
 
-    render(<StudentShellPage />)
+    render(<StudentAiTutorPage />)
 
     expect(
       screen.getByRole('heading', { name: 'Python Programming' }),
     ).toBeInTheDocument()
-    expect(screen.getAllByText('PYTHON-PROG-P0')).toHaveLength(2)
+    expect(screen.getByText('PYTHON-PROG-P0')).toBeInTheDocument()
     expect(screen.getByText('Chat not connected')).toBeInTheDocument()
     expect(
       screen.getByRole('heading', { name: 'No conversation yet' }),
@@ -120,5 +198,89 @@ describe('StudentShellPage', () => {
     ).toBeInTheDocument()
     expect(screen.getByLabelText('Message')).toBeDisabled()
     expect(screen.getByRole('button', { name: /send message/i })).toBeDisabled()
+  })
+})
+
+describe('StudentDashboardPage', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    useAuthStore.getState().clearSession()
+  })
+
+  afterEach(() => {
+    cleanup()
+    useAuthStore.getState().clearSession()
+    window.localStorage.clear()
+  })
+
+  it('renders the student dashboard summary', () => {
+    useAuthStore.getState().setSession(
+      createStudentSession([
+        {
+          id: 'python-course',
+          code: 'PYTHON-PROG-P0',
+          title: 'Python Programming',
+          membershipRole: 'STUDENT',
+        },
+        {
+          id: 'instructor-course',
+          code: 'INSTRUCTOR-ONLY',
+          title: 'Instructor Only',
+          membershipRole: 'INSTRUCTOR',
+        },
+      ]),
+    )
+
+    render(<StudentDashboardPage />)
+
+    expect(
+      screen.getByRole('heading', { name: 'Dashboard' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Assigned courses')).toBeInTheDocument()
+    expect(screen.getByText('1')).toBeInTheDocument()
+    expect(screen.getByText('Chat not connected')).toBeInTheDocument()
+  })
+})
+
+describe('StudentCoursesPage', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    useAuthStore.getState().clearSession()
+  })
+
+  afterEach(() => {
+    cleanup()
+    useAuthStore.getState().clearSession()
+    window.localStorage.clear()
+  })
+
+  it('renders assigned courses without an unstable store selector', () => {
+    useAuthStore.getState().setSession(
+      createStudentSession([
+        {
+          id: 'python-course',
+          code: 'PYTHON-PROG-P0',
+          title: 'Python Programming',
+          membershipRole: 'STUDENT',
+        },
+      ]),
+    )
+
+    render(<StudentCoursesPage />)
+
+    expect(screen.getByRole('heading', { name: 'Courses' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Python Programming' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('PYTHON-PROG-P0')).toBeInTheDocument()
+  })
+
+  it('renders the empty assigned courses state', () => {
+    useAuthStore.getState().setSession(createStudentSession([]))
+
+    render(<StudentCoursesPage />)
+
+    expect(screen.getByRole('heading', { name: 'Courses' })).toBeInTheDocument()
+    expect(screen.getByText('No courses assigned yet.')).toBeInTheDocument()
   })
 })

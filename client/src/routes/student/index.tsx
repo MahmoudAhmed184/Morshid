@@ -1,7 +1,7 @@
-import { createFileRoute } from '@tanstack/react-router'
-
-import { StudentShellPage } from '@/features/student/student-shell-page'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/student/')({
-  component: StudentShellPage,
+  beforeLoad: () => {
+    throw redirect({ to: '/student/dashboard' })
+  },
 })

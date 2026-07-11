@@ -183,6 +183,20 @@ describe('client auth guards', () => {
     await expect(requireRole('ADMIN')).resolves.toBe('/student')
   })
 
+  it('redirects wrong-role users away from student-only routes', async () => {
+    useAuthStore.getState().setSession(createMockSession('ADMIN'))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        Response.json({
+          user: createMockSession('ADMIN').user,
+        }),
+      ),
+    )
+
+    await expect(requireRole('STUDENT')).resolves.toBe('/admin')
+  })
+
   it('redirects authenticated users to their dashboard when requested', async () => {
     useAuthStore.getState().setSession(createMockSession('STUDENT'))
     vi.stubGlobal(

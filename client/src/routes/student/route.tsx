@@ -1,6 +1,7 @@
-import { Outlet, createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 import { AuthLoader } from '@/features/auth/components/auth-loader'
+import { StudentShellPage } from '@/features/student/student-shell-page'
 import { requireRole } from '@/features/auth/utils/auth-redirect'
 
 export const Route = createFileRoute('/student')({
@@ -12,7 +13,7 @@ export const Route = createFileRoute('/student')({
       throw redirect({ to: redirectPath })
     }
   },
-  component: Outlet,
+  component: StudentShellPage,
   pendingComponent: AuthLoader,
   pendingMs: 200,
   pendingMinMs: 400,
