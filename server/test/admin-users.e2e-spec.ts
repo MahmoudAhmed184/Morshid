@@ -277,13 +277,13 @@ describe('Admin users (e2e)', () => {
       status: UserStatus.ACTIVE,
     })
     expect(body.users[0]).toEqual({
-      id: expect.any(String) as unknown as string,
+      id: anyString,
       email: 'new.student@morshid.demo',
       displayName: 'New STUDENT',
       role: UserRole.STUDENT,
       status: UserStatus.ACTIVE,
-      createdAt: expect.any(String) as unknown as string,
-      updatedAt: expect.any(String) as unknown as string,
+      createdAt: anyString,
+      updatedAt: anyString,
     })
     expect(body.users[0]).not.toHaveProperty('passwordHash')
     expect(body.users[0]).not.toHaveProperty('refreshTokens')
