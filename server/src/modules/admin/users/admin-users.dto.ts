@@ -88,6 +88,13 @@ export class AdminCreateUserResponseDto {
   user!: AdminUserDto
 }
 
+export class AdminDisableUserResponseDto {
+  @Expose()
+  @Type(() => AdminUserDto)
+  @ApiProperty({ type: AdminUserDto })
+  user!: AdminUserDto
+}
+
 export class AdminUserCourseAssignmentDto {
   @Expose()
   @ApiProperty({ format: 'uuid' })
