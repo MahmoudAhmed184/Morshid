@@ -36,6 +36,10 @@ interface UpdateUserArgs {
   data: Partial<Pick<User, 'lastLoginAt' | 'status' | 'disabledAt'>>
 }
 
+interface CreateUserArgs {
+  data: Pick<User, 'email' | 'displayName' | 'role' | 'status' | 'passwordHash'>
+}
+
 interface CreateRefreshTokenArgs {
   data: Pick<
     RefreshToken,
@@ -107,6 +111,7 @@ export class AuthTestStore {
   readonly refreshTokens = new Map<string, RefreshToken>()
   readonly auditLogs = new Map<string, AuditLog>()
 
+  private nextUserSequence = 1
   private nextRefreshTokenSequence = 1
   private nextAuditLogSequence = 1
   private failNextActiveRefreshTokenRevoke = false
@@ -115,6 +120,9 @@ export class AuthTestStore {
     user: {
       findUnique: jest.fn((args: FindUniqueArgs) =>
         Promise.resolve(this.findUser(args)),
+      ),
+      create: jest.fn((args: CreateUserArgs) =>
+        Promise.resolve(this.createUser(args)),
       ),
       update: jest.fn((args: UpdateUserArgs) =>
         Promise.resolve(this.updateUser(args)),
@@ -278,6 +286,30 @@ export class AuthTestStore {
     this.users.set(user.id, updated)
 
     return updated
+  }
+
+  private createUser(args: CreateUserArgs): User {
+    const sequence = this.nextUserSequence
+    this.nextUserSequence += 1
+    const now = new Date('2026-07-06T12:00:00.000Z')
+    const user: User = {
+      id: `00000000-0000-4000-8000-00000000050${sequence.toString()}`,
+      email: args.data.email,
+      displayName: args.data.displayName,
+      role: args.data.role,
+      status: args.data.status,
+      passwordHash: args.data.passwordHash,
+      disabledAt: null,
+      disabledById: null,
+      lastLoginAt: null,
+      passwordChangedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    }
+
+    this.users.set(user.id, user)
+
+    return user
   }
 
   private createRefreshToken(args: CreateRefreshTokenArgs): RefreshToken {

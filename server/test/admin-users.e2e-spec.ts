@@ -1,0 +1,216 @@
+import type { INestApplication } from '@nestjs/common'
+import { Test, type TestingModule } from '@nestjs/testing'
+import request from 'supertest'
+import type { App } from 'supertest/types'
+
+import { configureApp } from '../src/app.setup'
+import { AppModule } from '../src/app.module'
+import {
+  AUDIT_EVENT_ACTIONS,
+  AUDIT_TARGET_TYPES,
+} from '../src/modules/audit/audit.constants'
+import type { AuthSessionResponse } from '../src/modules/auth/auth.dto'
+import { AUTH_ERROR_CODES } from '../src/modules/auth/auth.dto'
+import type {
+  AdminCreatableUserRole,
+  AdminCreateUserResponseDto,
+} from '../src/modules/admin/users/admin-users.dto'
+import { ADMIN_USERS_ERROR_CODES } from '../src/modules/admin/users/admin-users.errors'
+import { PrismaService } from '../src/modules/prisma/prisma.service'
+import { RedisService } from '../src/modules/redis/redis.service'
+import { P0_DEMO_PASSWORD } from '../src/seeds/p0-demo.seed'
+import { UserRole, UserStatus } from '../src/generated/prisma/client'
+import { AuthTestStore } from './support/auth-test-store'
+
+const auditUserAgent = 'Morshid admin users e2e'
+const anyString = expect.any(String) as unknown as string
+const anyDate = expect.any(Date) as unknown as Date
+
+describe('Admin users (e2e)', () => {
+  let app: INestApplication<App>
+  let store: AuthTestStore
+
+  const redisService = {
+    ping: jest.fn().mockResolvedValue('PONG'),
+  }
+
+  beforeAll(() => {
+    process.env.DATABASE_URL =
+      'postgresql://morshid:morshid_local_password@localhost:5432/morshid'
+    process.env.REDIS_URL = 'redis://localhost:6379'
+    process.env.AUTH_ACCESS_TOKEN_SECRET =
+      'test-access-token-secret-with-at-least-32-characters'
+    process.env.AUTH_REFRESH_TOKEN_HASH_SECRET =
+      'test-refresh-token-hash-secret-with-at-least-32-characters'
+    process.env.AUTH_ACCESS_TOKEN_TTL_SECONDS = '900'
+    process.env.AUTH_REFRESH_TOKEN_TTL_DAYS = '7'
+  })
+
+  beforeEach(async () => {
+    store = new AuthTestStore()
+    jest.clearAllMocks()
+
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    })
+      .overrideProvider(PrismaService)
+      .useValue(store.prisma)
+      .overrideProvider(RedisService)
+      .useValue(redisService)
+      .compile()
+
+    app = moduleFixture.createNestApplication()
+    configureApp(app)
+    await app.init()
+  })
+
+  afterEach(async () => {
+    await app.close()
+  })
+
+  async function signInAs(email: string): Promise<string> {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/auth/sign-in')
+      .set('User-Agent', auditUserAgent)
+      .send({ email, password: P0_DEMO_PASSWORD })
+      .expect(200)
+
+    return (response.body as AuthSessionResponse).accessToken
+  }
+
+  async function createUserAsAdmin(role: AdminCreatableUserRole) {
+    const token = await signInAs('admin@morshid.demo')
+
+    return request(app.getHttpServer())
+      .post('/api/v1/admin/users')
+      .set('Authorization', `Bearer ${token}`)
+      .set('User-Agent', auditUserAgent)
+      .send({
+        email: `New.${role}@Morshid.Demo`,
+        displayName: `New ${role}`,
+        role,
+        password: 'temporary-password',
+      })
+      .expect(201)
+  }
+
+  it.each([UserRole.STUDENT, UserRole.INSTRUCTOR])(
+    'allows an admin to create a %s user',
+    async (role) => {
+      const response = await createUserAsAdmin(role)
+      const body = response.body as AdminCreateUserResponseDto
+      const email = `new.${role.toLowerCase()}@morshid.demo`
+      const createdUser = store.findUserByEmail(email)
+      const admin = store.findUserByEmail('admin@morshid.demo')
+
+      expect(createdUser).not.toBeNull()
+      expect(createdUser).toEqual(
+        expect.objectContaining({
+          email,
+          displayName: `New ${role}`,
+          role,
+          status: UserStatus.ACTIVE,
+        }),
+      )
+      expect(createdUser?.passwordHash).toEqual(expect.any(String))
+      expect(createdUser?.passwordHash).not.toBe('temporary-password')
+      expect(body).toEqual({
+        user: {
+          id: createdUser?.id,
+          email,
+          displayName: `New ${role}`,
+          role,
+          status: UserStatus.ACTIVE,
+          createdAt: createdUser?.createdAt.toISOString(),
+          updatedAt: createdUser?.updatedAt.toISOString(),
+        },
+      })
+      expect(body.user).not.toHaveProperty('passwordHash')
+      expect(body.user).not.toHaveProperty('password')
+      expect(body.user).not.toHaveProperty('refreshTokens')
+
+      const adminUserCreateAudit = [...store.auditLogs.values()].filter(
+        (auditLog) =>
+          auditLog.action === AUDIT_EVENT_ACTIONS.ADMIN_ACCOUNT_CREATED,
+      )
+
+      expect(adminUserCreateAudit).toEqual([
+        expect.objectContaining({
+          actorUserId: admin?.id,
+          action: AUDIT_EVENT_ACTIONS.ADMIN_ACCOUNT_CREATED,
+          targetType: AUDIT_TARGET_TYPES.USER,
+          targetId: createdUser?.id,
+          courseId: null,
+          ip: anyString,
+          userAgent: auditUserAgent,
+          metadata: {
+            email,
+            displayName: `New ${role}`,
+            role,
+          },
+          createdAt: anyDate,
+        }),
+      ])
+    },
+  )
+
+  it('rejects creating an admin user through this endpoint', async () => {
+    const token = await signInAs('admin@morshid.demo')
+
+    await request(app.getHttpServer())
+      .post('/api/v1/admin/users')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        email: 'new-admin@morshid.demo',
+        displayName: 'New Admin',
+        role: UserRole.ADMIN,
+        password: 'temporary-password',
+      })
+      .expect(400)
+      .expect({
+        code: ADMIN_USERS_ERROR_CODES.UNSUPPORTED_ROLE,
+        message: 'Admin users can only create STUDENT or INSTRUCTOR accounts',
+      })
+
+    expect(store.findUserByEmail('new-admin@morshid.demo')).toBeNull()
+  })
+
+  it('rejects duplicate email creation', async () => {
+    const token = await signInAs('admin@morshid.demo')
+
+    await request(app.getHttpServer())
+      .post('/api/v1/admin/users')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        email: 'student1@morshid.demo',
+        displayName: 'Duplicate Student',
+        role: UserRole.STUDENT,
+        password: 'temporary-password',
+      })
+      .expect(409)
+      .expect({
+        code: ADMIN_USERS_ERROR_CODES.DUPLICATE_EMAIL,
+        message: 'A user with this email already exists',
+        email: 'student1@morshid.demo',
+      })
+  })
+
+  it('rejects non-admin users', async () => {
+    const token = await signInAs('student1@morshid.demo')
+
+    await request(app.getHttpServer())
+      .post('/api/v1/admin/users')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        email: 'student-created@morshid.demo',
+        displayName: 'Student Created',
+        role: UserRole.STUDENT,
+        password: 'temporary-password',
+      })
+      .expect(403)
+      .expect({
+        code: AUTH_ERROR_CODES.INSUFFICIENT_ROLE,
+        message: 'Insufficient role',
+      })
+  })
+})
