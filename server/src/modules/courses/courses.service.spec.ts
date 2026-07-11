@@ -8,7 +8,10 @@ import {
   type User,
 } from '../../generated/prisma/client'
 import type { AuthenticatedRequestUser } from '../auth/auth.dto'
-import type { PrismaService } from '../prisma/prisma.service'
+import {
+  CoursesRepository,
+  type MemberCourseRecord as RepositoryMemberCourseRecord,
+} from './courses.repository'
 import { CoursesService, type CourseListResponse } from './courses.service'
 
 type CourseRecord = Pick<
@@ -32,56 +35,32 @@ interface AdminCourseRecord extends CourseRecord {
   materials: Pick<MaterialRecord, 'deletedAt'>[]
 }
 
-interface MemberCourseRecord extends MembershipRecord {
-  course: CourseRecord
-}
-
-interface FindManyCourseArgs {
-  include?: {
-    createdBy?: unknown
-    memberships?: unknown
-    materials?: unknown
-  }
-  orderBy?: {
-    code?: 'asc' | 'desc'
-  }
-}
-
-interface FindManyMembershipArgs {
-  where?: {
-    userId?: string
-    role?: CourseMembershipRole
-  }
-  include?: {
-    course?: boolean
-  }
-}
-
-class CoursesServiceTestStore {
+class CoursesServiceTestRepository extends CoursesRepository {
   private readonly users = new Map<string, UserRecord>()
   private readonly courses = new Map<string, CourseRecord>()
   private readonly memberships: MembershipRecord[] = []
   private readonly materials: MaterialRecord[] = []
 
-  readonly findManyCourses = jest.fn((_args?: FindManyCourseArgs) =>
+  readonly listAdminCourses = jest.fn(() =>
     Promise.resolve(this.findAdminCourses()),
   )
 
-  readonly findManyCourseMemberships = jest.fn(
-    (args?: FindManyMembershipArgs) =>
-      Promise.resolve(this.findMemberCourses(args)),
+  readonly listMemberCourses = jest.fn(
+    (userId: string, role: CourseMembershipRole) =>
+      Promise.resolve(this.findMemberCourses(userId, role)),
   )
 
-  readonly prisma = {
-    course: {
-      findMany: this.findManyCourses,
-    },
-    courseMembership: {
-      findMany: this.findManyCourseMemberships,
-    },
-  } as unknown as PrismaService
+  readonly findMembershipRole = jest.fn((userId: string, courseId: string) =>
+    Promise.resolve(
+      this.memberships.find(
+        (membership) =>
+          membership.userId === userId && membership.courseId === courseId,
+      )?.role ?? null,
+    ),
+  )
 
   constructor() {
+    super()
     this.seed()
   }
 
@@ -231,21 +210,25 @@ class CoursesServiceTestStore {
   }
 
   private findMemberCourses(
-    args: FindManyMembershipArgs | undefined,
-  ): MemberCourseRecord[] {
-    const userId = args?.where?.userId
-    const role = args?.where?.role
-
+    userId: string,
+    role: CourseMembershipRole,
+  ): RepositoryMemberCourseRecord[] {
     return this.memberships
       .filter(
         (membership) =>
           membership.userId === userId && membership.role === role,
       )
-      .map((membership) => ({
-        ...membership,
-        course: this.requireCourse(membership.courseId),
-      }))
-      .sort((a, b) => compareCourseRecords(a.course, b.course))
+      .map((membership) => {
+        const course = this.requireCourse(membership.courseId)
+
+        return {
+          id: course.id,
+          code: course.code,
+          title: course.title,
+          membershipRole: membership.role,
+        }
+      })
+      .sort(compareCourseRecords)
   }
 
   private requireCourse(courseId: string) {
@@ -280,11 +263,11 @@ function buildUser(id: string, role: UserRole): AuthenticatedRequestUser {
 }
 
 function buildService() {
-  const store = new CoursesServiceTestStore()
+  const repository = new CoursesServiceTestRepository()
 
   return {
-    service: new CoursesService(store.prisma),
-    store,
+    service: new CoursesService(repository),
+    repository,
   }
 }
 
@@ -307,7 +290,7 @@ function compareCourseRecords(
 
 describe('CoursesService', () => {
   it('returns all courses with admin metadata for admins', async () => {
-    const { service, store } = buildService()
+    const { service, repository } = buildService()
     const admin = buildUser('admin-user', UserRole.ADMIN)
 
     const response = await service.listCoursesForUser(admin)
@@ -354,44 +337,11 @@ describe('CoursesService', () => {
       materialCount: 0,
       activeMaterialCount: 0,
     })
-    expect(store.findManyCourses).toHaveBeenCalledWith({
-      include: {
-        createdBy: {
-          select: {
-            id: true,
-            email: true,
-            displayName: true,
-            role: true,
-            status: true,
-          },
-        },
-        memberships: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                email: true,
-                displayName: true,
-                role: true,
-                status: true,
-              },
-            },
-          },
-        },
-        materials: {
-          select: {
-            deletedAt: true,
-          },
-        },
-      },
-      orderBy: {
-        code: 'asc',
-      },
-    })
+    expect(repository.listAdminCourses).toHaveBeenCalledWith()
   })
 
   it('returns only instructor membership courses for instructors', async () => {
-    const { service, store } = buildService()
+    const { service, repository } = buildService()
     const instructor = buildUser('instructor-user', UserRole.INSTRUCTOR)
 
     const response = await service.listCoursesForUser(instructor)
@@ -405,19 +355,14 @@ describe('CoursesService', () => {
       },
     ])
     expect(response.courses[0].adminMetadata).toBeUndefined()
-    expect(store.findManyCourseMemberships).toHaveBeenCalledWith({
-      where: {
-        userId: 'instructor-user',
-        role: CourseMembershipRole.INSTRUCTOR,
-      },
-      include: {
-        course: true,
-      },
-    })
+    expect(repository.listMemberCourses).toHaveBeenCalledWith(
+      'instructor-user',
+      CourseMembershipRole.INSTRUCTOR,
+    )
   })
 
   it('returns only student membership courses for students', async () => {
-    const { service, store } = buildService()
+    const { service, repository } = buildService()
     const student = buildUser('student-user', UserRole.STUDENT)
 
     const response = await service.listCoursesForUser(student)
@@ -431,14 +376,9 @@ describe('CoursesService', () => {
       },
     ])
     expect(response.courses[0].adminMetadata).toBeUndefined()
-    expect(store.findManyCourseMemberships).toHaveBeenCalledWith({
-      where: {
-        userId: 'student-user',
-        role: CourseMembershipRole.STUDENT,
-      },
-      include: {
-        course: true,
-      },
-    })
+    expect(repository.listMemberCourses).toHaveBeenCalledWith(
+      'student-user',
+      CourseMembershipRole.STUDENT,
+    )
   })
 })

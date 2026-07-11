@@ -4,56 +4,28 @@ import {
   UserStatus,
 } from '../../generated/prisma/client'
 import type { AuthenticatedRequestUser } from '../auth/auth.dto'
-import type { PrismaService } from '../prisma/prisma.service'
 import { CourseAccessService } from './course-access.service'
+import { CoursesRepository } from './courses.repository'
 
-interface FindUniqueMembershipArgs {
-  where: {
-    courseId_userId: {
-      courseId: string
-      userId: string
-    }
-  }
-  select?: {
-    role?: boolean
-  }
-}
+class CourseAccessTestRepository extends CoursesRepository {
+  private readonly memberships = new Map<string, CourseMembershipRole>()
 
-interface StoredMembership {
-  role: CourseMembershipRole
-}
-
-class CourseAccessTestStore {
-  private readonly memberships = new Map<string, StoredMembership>()
-
-  readonly findUniqueCourseMembership = jest.fn(
-    (args: FindUniqueMembershipArgs) =>
-      Promise.resolve(this.findMembership(args)),
+  readonly findMembershipRole = jest.fn((userId: string, courseId: string) =>
+    Promise.resolve(
+      this.memberships.get(this.membershipKey(userId, courseId)) ?? null,
+    ),
   )
 
-  readonly prisma = {
-    courseMembership: {
-      findUnique: this.findUniqueCourseMembership,
-    },
-  } as unknown as PrismaService
-
-  addMembership(userId: string, courseId: string, role: CourseMembershipRole) {
-    this.memberships.set(this.membershipKey(userId, courseId), {
-      role,
-    })
+  listAdminCourses() {
+    return Promise.resolve([])
   }
 
-  private findMembership(
-    args: FindUniqueMembershipArgs,
-  ): StoredMembership | null {
-    return (
-      this.memberships.get(
-        this.membershipKey(
-          args.where.courseId_userId.userId,
-          args.where.courseId_userId.courseId,
-        ),
-      ) ?? null
-    )
+  listMemberCourses() {
+    return Promise.resolve([])
+  }
+
+  addMembership(userId: string, courseId: string, role: CourseMembershipRole) {
+    this.memberships.set(this.membershipKey(userId, courseId), role)
   }
 
   private membershipKey(userId: string, courseId: string) {
@@ -72,31 +44,31 @@ function buildUser(id: string, role: UserRole): AuthenticatedRequestUser {
 }
 
 function buildService() {
-  const store = new CourseAccessTestStore()
+  const repository = new CourseAccessTestRepository()
 
   return {
-    service: new CourseAccessService(store.prisma),
-    store,
+    service: new CourseAccessService(repository),
+    repository,
   }
 }
 
 describe('CourseAccessService', () => {
   it('allows an admin to view and manage any course', async () => {
-    const { service, store } = buildService()
+    const { service, repository } = buildService()
     const admin = buildUser('admin-user', UserRole.ADMIN)
 
     await expect(service.canViewCourse(admin, 'any-course')).resolves.toBe(true)
     await expect(service.canManageCourse(admin, 'any-course')).resolves.toBe(
       true,
     )
-    expect(store.findUniqueCourseMembership).not.toHaveBeenCalled()
+    expect(repository.findMembershipRole).not.toHaveBeenCalled()
   })
 
   it('allows an instructor to view and manage courses where they have an instructor membership', async () => {
-    const { service, store } = buildService()
+    const { service, repository } = buildService()
     const instructor = buildUser('instructor-user', UserRole.INSTRUCTOR)
 
-    store.addMembership(
+    repository.addMembership(
       instructor.id,
       'owned-course',
       CourseMembershipRole.INSTRUCTOR,
@@ -111,10 +83,10 @@ describe('CourseAccessService', () => {
   })
 
   it('rejects an instructor for courses owned by another instructor', async () => {
-    const { service, store } = buildService()
+    const { service, repository } = buildService()
     const instructor = buildUser('instructor-user', UserRole.INSTRUCTOR)
 
-    store.addMembership(
+    repository.addMembership(
       'other-instructor',
       'other-course',
       CourseMembershipRole.INSTRUCTOR,
@@ -129,10 +101,10 @@ describe('CourseAccessService', () => {
   })
 
   it('allows a student to view assigned courses only', async () => {
-    const { service, store } = buildService()
+    const { service, repository } = buildService()
     const student = buildUser('student-user', UserRole.STUDENT)
 
-    store.addMembership(
+    repository.addMembership(
       student.id,
       'assigned-course',
       CourseMembershipRole.STUDENT,
@@ -147,10 +119,10 @@ describe('CourseAccessService', () => {
   })
 
   it('never allows a student to manage courses', async () => {
-    const { service, store } = buildService()
+    const { service, repository } = buildService()
     const student = buildUser('student-user', UserRole.STUDENT)
 
-    store.addMembership(
+    repository.addMembership(
       student.id,
       'assigned-course',
       CourseMembershipRole.STUDENT,

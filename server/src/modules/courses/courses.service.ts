@@ -2,11 +2,12 @@ import { Injectable } from '@nestjs/common'
 
 import {
   CourseMembershipRole,
-  UserRole,
+  type UserRole,
   type UserStatus,
 } from '../../generated/prisma/client'
 import type { AuthenticatedRequestUser } from '../auth/auth.dto'
-import { PrismaService } from '../prisma/prisma.service'
+import { getCourseRolePolicy } from './course-access.policy'
+import { CoursesRepository } from './courses.repository'
 
 export interface CourseListResponse {
   courses: CourseListItem[]
@@ -51,72 +52,26 @@ export interface CourseUserSummary {
 
 @Injectable()
 export class CoursesService {
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(private readonly coursesRepository: CoursesRepository) {}
 
   async listCoursesForUser(
     user: AuthenticatedRequestUser,
   ): Promise<CourseListResponse> {
-    switch (user.role) {
-      case UserRole.ADMIN:
-        return {
-          courses: await this.listAdminCourses(),
-        }
-      case UserRole.INSTRUCTOR:
-        return {
-          courses: await this.listMemberCourses(
-            user.id,
-            CourseMembershipRole.INSTRUCTOR,
-          ),
-        }
-      case UserRole.STUDENT:
-        return {
-          courses: await this.listMemberCourses(
-            user.id,
-            CourseMembershipRole.STUDENT,
-          ),
-        }
-      default:
-        return {
-          courses: [],
-        }
+    const policy = getCourseRolePolicy(user.role)
+
+    if (policy.scope === 'all') {
+      return {
+        courses: await this.listAdminCourses(),
+      }
+    }
+
+    return {
+      courses: await this.listMemberCourses(user.id, policy.membershipRole),
     }
   }
 
   private async listAdminCourses(): Promise<CourseListItem[]> {
-    const courses = await this.prismaService.course.findMany({
-      include: {
-        createdBy: {
-          select: {
-            id: true,
-            email: true,
-            displayName: true,
-            role: true,
-            status: true,
-          },
-        },
-        memberships: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                email: true,
-                displayName: true,
-                role: true,
-                status: true,
-              },
-            },
-          },
-        },
-        materials: {
-          select: {
-            deletedAt: true,
-          },
-        },
-      },
-      orderBy: {
-        code: 'asc',
-      },
-    })
+    const courses = await this.coursesRepository.listAdminCourses()
 
     return courses
       .map((course) => {
@@ -165,24 +120,9 @@ export class CoursesService {
     userId: string,
     role: CourseMembershipRole,
   ): Promise<CourseListItem[]> {
-    const memberships = await this.prismaService.courseMembership.findMany({
-      where: {
-        userId,
-        role,
-      },
-      include: {
-        course: true,
-      },
-    })
+    const courses = await this.coursesRepository.listMemberCourses(userId, role)
 
-    return memberships
-      .map((membership) => ({
-        id: membership.course.id,
-        code: membership.course.code,
-        title: membership.course.title,
-        membershipRole: membership.role,
-      }))
-      .sort(compareCourseListItems)
+    return courses.sort(compareCourseListItems)
   }
 }
 

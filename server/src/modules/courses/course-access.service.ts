@@ -1,73 +1,54 @@
 import { Injectable } from '@nestjs/common'
 
-import { CourseMembershipRole, UserRole } from '../../generated/prisma/client'
+import type { CourseMembershipRole } from '../../generated/prisma/client'
 import type { AuthenticatedRequestUser } from '../auth/auth.dto'
-import { PrismaService } from '../prisma/prisma.service'
+import { getCourseRolePolicy } from './course-access.policy'
+import { CoursesRepository } from './courses.repository'
 
 @Injectable()
 export class CourseAccessService {
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(private readonly coursesRepository: CoursesRepository) {}
 
   async canViewCourse(
     user: AuthenticatedRequestUser,
     courseId: string,
   ): Promise<boolean> {
-    switch (user.role) {
-      case UserRole.ADMIN:
-        return true
-      case UserRole.INSTRUCTOR:
-        return this.hasCourseMembership(
-          user.id,
-          courseId,
-          CourseMembershipRole.INSTRUCTOR,
-        )
-      case UserRole.STUDENT:
-        return this.hasCourseMembership(
-          user.id,
-          courseId,
-          CourseMembershipRole.STUDENT,
-        )
-      default:
-        return false
+    const policy = getCourseRolePolicy(user.role)
+
+    if (policy.scope === 'all') {
+      return true
     }
+
+    return this.hasCourseMembership(user.id, courseId, policy.membershipRole)
   }
 
   async canManageCourse(
     user: AuthenticatedRequestUser,
     courseId: string,
   ): Promise<boolean> {
-    if (user.role === UserRole.ADMIN) {
+    const policy = getCourseRolePolicy(user.role)
+
+    if (!policy.canManage) {
+      return false
+    }
+
+    if (policy.scope === 'all') {
       return true
     }
 
-    if (user.role === UserRole.INSTRUCTOR) {
-      return this.hasCourseMembership(
-        user.id,
-        courseId,
-        CourseMembershipRole.INSTRUCTOR,
-      )
-    }
-
-    return false
+    return this.hasCourseMembership(user.id, courseId, policy.membershipRole)
   }
 
   private async hasCourseMembership(
     userId: string,
     courseId: string,
-    role: CourseMembershipRole,
+    expectedRole: CourseMembershipRole,
   ) {
-    const membership = await this.prismaService.courseMembership.findUnique({
-      where: {
-        courseId_userId: {
-          courseId,
-          userId,
-        },
-      },
-      select: {
-        role: true,
-      },
-    })
+    const membershipRole = await this.coursesRepository.findMembershipRole(
+      userId,
+      courseId,
+    )
 
-    return membership?.role === role
+    return membershipRole === expectedRole
   }
 }
