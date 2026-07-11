@@ -1,6 +1,6 @@
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { Outlet, createFileRoute, redirect } from '@tanstack/react-router'
 
-import { RolePlaceholderPage } from '@/features/auth/components/role-placeholder-page'
+import { AuthLoader } from '@/features/auth/components/auth-loader'
 import { requireRole } from '@/features/auth/utils/auth-redirect'
 
 export const Route = createFileRoute('/student')({
@@ -12,7 +12,10 @@ export const Route = createFileRoute('/student')({
       throw redirect({ to: redirectPath })
     }
   },
-  component: () => <RolePlaceholderPage roleName="Student" />,
+  component: Outlet,
+  pendingComponent: AuthLoader,
+  pendingMs: 250,
+  pendingMinMs: 900,
   head: () => ({
     meta: [{ title: 'Student — Morshid' }],
   }),

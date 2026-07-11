@@ -134,6 +134,7 @@ async function apiFetchWithAuthRetry(
   } = options
   const { accessToken, clearSession } = useAuthStore.getState()
   const response = await fetchImpl(buildApiUrl(path, apiBaseUrl), {
+    cache: requestInit.cache ?? 'no-store',
     ...requestInit,
     headers: buildHeaders(headers, accessToken),
   })

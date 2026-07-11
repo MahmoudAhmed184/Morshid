@@ -108,6 +108,31 @@ describe('client auth guards', () => {
     expect(useAuthStore.getState().user).toEqual(serverUser)
   })
 
+  it('dedupes concurrent authenticated route validation requests', async () => {
+    const session = createMockSession('ADMIN')
+    const serverUser = {
+      ...session.user,
+      displayName: 'Server Admin',
+    }
+    const fetchMock = vi.fn(async () =>
+      Response.json({
+        user: serverUser,
+      }),
+    )
+
+    useAuthStore.getState().setSession(session)
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      Promise.all([
+        requireAuth(),
+        requireRole('ADMIN'),
+        redirectAuthenticatedToDashboard(),
+      ]),
+    ).resolves.toEqual([null, null, '/admin'])
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   it('redirects authenticated users based on the server-confirmed role', async () => {
     useAuthStore.getState().setSession(createMockSession('STUDENT'))
     vi.stubGlobal(

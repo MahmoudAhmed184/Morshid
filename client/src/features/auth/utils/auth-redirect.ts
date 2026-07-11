@@ -1,6 +1,5 @@
 import type { AuthRole } from '@/features/auth/types/auth.types'
-import { getCurrentUser } from '@/features/auth/api/auth.api'
-import { useAuthStore } from '@/features/auth/stores/auth.store'
+import { loadAuthenticatedUser } from '@/features/auth/utils/auth-loader'
 
 const authRedirectByRole = {
   ADMIN: '/admin',
@@ -17,36 +16,13 @@ export function getDashboardPath(role: AuthRole): AuthRedirectPath {
 
 export const getAuthRedirectPath = getDashboardPath
 
-async function validateCurrentUser() {
-  if (typeof window === 'undefined') {
-    return null
-  }
-
-  const { clearSession, isAuthenticated, setUser, user } =
-    useAuthStore.getState()
-
-  if (!isAuthenticated || !user) {
-    return null
-  }
-
-  try {
-    const response = await getCurrentUser()
-    setUser(response.user)
-
-    return response.user
-  } catch {
-    clearSession()
-    return null
-  }
-}
-
 // Client RBAC is UX gating only. Server APIs must still enforce authorization.
 export async function requireAuth(): Promise<AuthRouteRedirectPath | null> {
   if (typeof window === 'undefined') {
     return null
   }
 
-  const user = await validateCurrentUser()
+  const user = await loadAuthenticatedUser()
 
   return user ? null : '/login'
 }
@@ -59,7 +35,7 @@ export async function requireRole(
     return null
   }
 
-  const user = await validateCurrentUser()
+  const user = await loadAuthenticatedUser()
 
   if (!user) {
     return '/login'
@@ -77,7 +53,7 @@ export async function redirectAuthenticatedToDashboard(): Promise<AuthRedirectPa
     return null
   }
 
-  const user = await validateCurrentUser()
+  const user = await loadAuthenticatedUser()
 
   return user ? getDashboardPath(user.role) : null
 }
