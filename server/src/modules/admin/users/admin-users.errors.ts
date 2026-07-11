@@ -13,6 +13,11 @@ export const ADMIN_USERS_ERROR_CODES = {
 export type AdminUsersErrorCode =
   (typeof ADMIN_USERS_ERROR_CODES)[keyof typeof ADMIN_USERS_ERROR_CODES]
 
+export interface AdminUsersValidationIssue {
+  field: string
+  message: string
+}
+
 export class AdminUserEmailAlreadyExistsError extends Error {
   constructor(readonly email: string) {
     super(`User email already exists: ${email}`)
@@ -27,10 +32,13 @@ export function duplicateAdminUserEmailException(email: string): HttpException {
   })
 }
 
-export function invalidAdminCreateUserRequestException(): HttpException {
+export function invalidAdminCreateUserRequestException(
+  errors: AdminUsersValidationIssue[] = [],
+): HttpException {
   return new BadRequestException({
     code: ADMIN_USERS_ERROR_CODES.INVALID_CREATE_REQUEST,
     message: 'Invalid admin user create request',
+    errors,
   })
 }
 

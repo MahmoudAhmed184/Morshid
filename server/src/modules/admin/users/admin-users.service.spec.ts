@@ -96,20 +96,20 @@ describe('AdminUsersService', () => {
           email: '  New.User@Morshid.Demo  ',
           displayName: '  New User  ',
           role,
-          password: 'temporary-password',
+          password: '123',
         },
         actor,
         requestContext,
       )
 
-      expect(createHash).toHaveBeenCalledWith('temporary-password')
+      expect(createHash).toHaveBeenCalledWith('123')
       expect(repository.createUser.mock.calls).toEqual([
         [
           {
             email: 'new.user@morshid.demo',
             displayName: 'New User',
             role,
-            passwordHash: 'hashed:temporary-password',
+            passwordHash: 'hashed:123',
             actorUserId: actor.id,
             requestContext,
           },

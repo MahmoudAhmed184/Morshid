@@ -89,7 +89,7 @@ describe('Admin users (e2e)', () => {
         email: `New.${role}@Morshid.Demo`,
         displayName: `New ${role}`,
         role,
-        password: 'temporary-password',
+        password: '123',
       })
       .expect(201)
   }
@@ -113,7 +113,7 @@ describe('Admin users (e2e)', () => {
         }),
       )
       expect(createdUser?.passwordHash).toEqual(expect.any(String))
-      expect(createdUser?.passwordHash).not.toBe('temporary-password')
+      expect(createdUser?.passwordHash).not.toBe('123')
       expect(body).toEqual({
         user: {
           id: createdUser?.id,
@@ -173,6 +173,33 @@ describe('Admin users (e2e)', () => {
       })
 
     expect(store.findUserByEmail('new-admin@morshid.demo')).toBeNull()
+  })
+
+  it('returns field-level validation errors for empty passwords', async () => {
+    const token = await signInAs('admin@morshid.demo')
+
+    await request(app.getHttpServer())
+      .post('/api/v1/admin/users')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        email: 'empty-password@morshid.demo',
+        displayName: 'Empty Password',
+        role: UserRole.STUDENT,
+        password: '',
+      })
+      .expect(400)
+      .expect({
+        code: ADMIN_USERS_ERROR_CODES.INVALID_CREATE_REQUEST,
+        message: 'Invalid admin user create request',
+        errors: [
+          {
+            field: 'password',
+            message: 'Too small: expected string to have >=1 characters',
+          },
+        ],
+      })
+
+    expect(store.findUserByEmail('empty-password@morshid.demo')).toBeNull()
   })
 
   it('rejects duplicate email creation', async () => {

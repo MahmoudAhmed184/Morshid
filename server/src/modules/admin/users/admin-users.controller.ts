@@ -27,7 +27,10 @@ import {
   adminCreateUserRequestSchema,
   type AdminCreateUserRequest,
 } from './admin-users.dto'
-import { invalidAdminCreateUserRequestException } from './admin-users.errors'
+import {
+  invalidAdminCreateUserRequestException,
+  type AdminUsersValidationIssue,
+} from './admin-users.errors'
 import { AdminUsersService } from './admin-users.service'
 
 class AdminUsersValidationPipe<T> implements PipeTransform<unknown, T> {
@@ -37,10 +40,19 @@ class AdminUsersValidationPipe<T> implements PipeTransform<unknown, T> {
     const result = this.schema.safeParse(value)
 
     if (!result.success) {
-      throw invalidAdminCreateUserRequestException()
+      throw invalidAdminCreateUserRequestException(
+        result.error.issues.map(mapZodIssue),
+      )
     }
 
     return result.data
+  }
+}
+
+function mapZodIssue(issue: z.core.$ZodIssue): AdminUsersValidationIssue {
+  return {
+    field: issue.path.join('.') || 'body',
+    message: issue.message,
   }
 }
 

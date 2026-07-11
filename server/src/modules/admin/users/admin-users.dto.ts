@@ -13,7 +13,12 @@ export const adminCreateUserRequestSchema = z
     ),
     displayName: z.string().trim().min(1).max(120),
     role: z.enum(UserRole),
-    password: z.string().min(1),
+    password: z.string()
+  .min(8, 'Password must be at least 8 characters')
+  .max(50, 'Password must be at most 50 characters')
+  .regex(/[A-Za-z]/, 'Password must contain at least one letter')
+  .regex(/[0-9]/, 'Password must contain at least one number')
+  .regex(/[^A-Za-z0-9]/, 'Password must contain at least one symbol'),
   })
   .strict()
 
