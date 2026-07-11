@@ -112,12 +112,16 @@ export function AdminUserForm({
                     type="password"
                     placeholder={
                       mode === 'create'
-                        ? 'Temporary password'
+                        ? 'e.g., Password1!'
                         : 'Leave blank to keep current'
                     }
                     autoComplete="new-password"
                   />
                 </FormControl>
+                <p className="text-xs text-muted-foreground">
+                  Minimum 9 characters with uppercase, lowercase, number, and
+                  special character.
+                </p>
                 <FormMessage />
               </FormItem>
             )}

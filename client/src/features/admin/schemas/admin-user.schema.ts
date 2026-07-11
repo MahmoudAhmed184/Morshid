@@ -2,6 +2,18 @@ import { z } from 'zod'
 
 const acceptedImageTypes = ['image/jpeg', 'image/png', 'image/webp'] as const
 const maxImageSizeBytes = 2 * 1024 * 1024
+const passwordPolicyMessage =
+  'Password must be at least 9 characters and include uppercase, lowercase, number, and special character.'
+
+function passwordMeetsPolicy(password: string) {
+  return (
+    password.length >= 9 &&
+    /[a-z]/.test(password) &&
+    /[A-Z]/.test(password) &&
+    /\d/.test(password) &&
+    /[^A-Za-z0-9]/.test(password)
+  )
+}
 
 const optionalImageSchema = z
   .custom<File | null>(
@@ -58,11 +70,11 @@ export function createAdminUserFormSchema(mode: 'create' | 'update') {
       return
     }
 
-    if (password.length > 0 && password.length < 8) {
+    if (password.length > 0 && !passwordMeetsPolicy(password)) {
       context.addIssue({
         code: 'custom',
         path: ['password'],
-        message: 'Password must be at least 8 characters.',
+        message: passwordPolicyMessage,
       })
     }
   })

@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest'
 
 import { createAdminUserFormSchema } from './admin-user.schema'
 
+const validPassword = 'Password1!'
+const passwordPolicyMessage =
+  'Password must be at least 9 characters and include uppercase, lowercase, number, and special character.'
+
 function parseAdminUserForm(
   mode: 'create' | 'update',
   input: Partial<{
@@ -15,7 +19,7 @@ function parseAdminUserForm(
   return createAdminUserFormSchema(mode).safeParse({
     name: input.name ?? 'Sarah Al-Farsi',
     email: input.email ?? 'sarah@morshid.demo',
-    password: input.password ?? 'password123',
+    password: input.password ?? validPassword,
     role: input.role ?? 'Student',
     image: input.image ?? null,
   })
@@ -67,13 +71,24 @@ describe('admin user form schema', () => {
     expect(result.success).toBe(true)
   })
 
-  it('requires long enough password when updating with a new password', () => {
+  it('requires policy-compliant password when updating with a new password', () => {
     const result = parseAdminUserForm('update', { password: 'short' })
 
     expect(result.success).toBe(false)
-    expect(getFieldError(result, 'password')).toBe(
-      'Password must be at least 8 characters.',
-    )
+    expect(getFieldError(result, 'password')).toBe(passwordPolicyMessage)
+  })
+
+  it.each([
+    ['missing uppercase', 'password1!'],
+    ['missing lowercase', 'PASSWORD1!'],
+    ['missing number', 'Password!'],
+    ['missing special character', 'Password1'],
+    ['too short', 'Pass1!'],
+  ])('rejects password with %s', (_case, password) => {
+    const result = parseAdminUserForm('create', { password })
+
+    expect(result.success).toBe(false)
+    expect(getFieldError(result, 'password')).toBe(passwordPolicyMessage)
   })
 
   it('accepts a supported optional image', () => {
