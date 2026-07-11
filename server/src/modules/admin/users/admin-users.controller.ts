@@ -2,6 +2,7 @@ import {
   Body,
   ClassSerializerInterceptor,
   Controller,
+  Get,
   Post,
   Req,
   SerializeOptions,
@@ -13,6 +14,7 @@ import {
   ApiBearerAuth,
   ApiBody,
   ApiCreatedResponse,
+  ApiOkResponse,
   ApiTags,
 } from '@nestjs/swagger'
 import type { z } from 'zod'
@@ -24,6 +26,7 @@ import { Roles } from '../../auth/roles.decorator'
 import {
   AdminCreateUserRequestDto,
   AdminCreateUserResponseDto,
+  AdminUserListResponseDto,
   adminCreateUserRequestSchema,
   type AdminCreateUserRequest,
 } from './admin-users.dto'
@@ -64,6 +67,13 @@ function mapZodIssue(issue: z.core.$ZodIssue): AdminUsersValidationIssue {
 @SerializeOptions({ type: AdminCreateUserResponseDto, strategy: 'excludeAll' })
 export class AdminUsersController {
   constructor(private readonly adminUsersService: AdminUsersService) {}
+
+  @Get()
+  @SerializeOptions({ type: AdminUserListResponseDto, strategy: 'excludeAll' })
+  @ApiOkResponse({ type: AdminUserListResponseDto })
+  listUsers(): Promise<AdminUserListResponseDto> {
+    return this.adminUsersService.listUsers()
+  }
 
   @Post()
   @ApiBody({ type: AdminCreateUserRequestDto })
