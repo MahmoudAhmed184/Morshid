@@ -2,6 +2,7 @@ import { Body, Controller, Get, HttpCode, Post, Req } from '@nestjs/common'
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
 import type { Request } from 'express'
 
+import { getRequestContext } from '../../common/http/request-context'
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe'
 import {
   logoutRequestSchema,
@@ -64,12 +65,5 @@ export class AuthController {
   @ApiBearerAuth()
   me(@Req() request: AuthenticatedHttpRequest) {
     return this.authService.getMe(request.user.id)
-  }
-}
-
-export function getRequestContext(request: Request) {
-  return {
-    ip: request.ip ?? null,
-    userAgent: request.get('user-agent') ?? null,
   }
 }

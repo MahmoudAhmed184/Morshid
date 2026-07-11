@@ -20,9 +20,9 @@ import {
 } from '@nestjs/swagger'
 import type { z } from 'zod'
 
+import { getRequestContext } from '../../../common/http/request-context'
 import { ZodValidationPipe } from '../../../common/pipes/zod-validation.pipe'
 import { UserRole } from '../../../generated/prisma/client'
-import { getRequestContext } from '../../auth/auth.controller'
 import type { AuthenticatedHttpRequest } from '../../auth/auth.guard'
 import { Roles } from '../../auth/roles.decorator'
 import {
