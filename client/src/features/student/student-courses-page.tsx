@@ -1,8 +1,11 @@
 import { useSuspenseQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 
 import { Badge } from '@/components/ui/badge'
+import { buttonVariants } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/custom/empty-state'
 import { studentCoursesQueryOptions } from '@/features/student/queries/student-courses.query'
+import { cn } from '@/lib/utils'
 
 export function StudentCoursesPage() {
   const { data: assignedCourses } = useSuspenseQuery(studentCoursesQueryOptions)
@@ -43,6 +46,16 @@ export function StudentCoursesPage() {
                 Course workspace placeholder. Materials and sessions will be
                 connected in later sprint work.
               </p>
+              <Link
+                to="/student/ai-tutor"
+                search={{ courseId: course.id }}
+                className={cn(
+                  buttonVariants({ size: 'sm', variant: 'outline' }),
+                  'mt-4 bg-transparent',
+                )}
+              >
+                Open AI Tutor
+              </Link>
             </article>
           ))}
         </section>

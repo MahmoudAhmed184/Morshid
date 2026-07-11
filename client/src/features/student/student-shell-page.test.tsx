@@ -27,13 +27,18 @@ const routerMockState = vi.hoisted(() => ({
 vi.mock('@tanstack/react-router', () => ({
   Link: ({
     children,
+    search,
     to,
     ...props
   }: {
     children?: React.ReactNode
+    search?: Record<string, string>
     to: string
   }) => (
-    <a href={to} {...props}>
+    <a
+      href={search ? `${to}?${new URLSearchParams(search).toString()}` : to}
+      {...props}
+    >
       {children}
     </a>
   ),
@@ -236,6 +241,36 @@ describe('StudentAiTutorPage', () => {
     ).toBeInTheDocument()
     expect(screen.getByLabelText('Message')).toBeDisabled()
     expect(screen.getByRole('button', { name: /send message/i })).toBeDisabled()
+  })
+
+  it('uses an explicit course id when multiple courses are assigned', () => {
+    useAuthStore.getState().setSession(createStudentSession([]))
+
+    renderWithStudentCourses(
+      <StudentAiTutorPage courseId="javascript-course" />,
+      [
+        {
+          id: 'python-course',
+          code: 'PYTHON-PROG-P0',
+          title: 'Python Programming',
+          membershipRole: 'STUDENT',
+        },
+        {
+          id: 'javascript-course',
+          code: 'JAVASCRIPT-P0',
+          title: 'JavaScript Programming',
+          membershipRole: 'STUDENT',
+        },
+      ],
+    )
+
+    expect(
+      screen.getByRole('heading', { name: 'JavaScript Programming' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('JAVASCRIPT-P0')).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: /python programming/i }),
+    ).toHaveAttribute('href', '/student/ai-tutor?courseId=python-course')
   })
 })
 

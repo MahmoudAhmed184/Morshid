@@ -1,15 +1,26 @@
 import { useSuspenseQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { MessageSquareText, SendHorizontal } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/custom/empty-state'
 import { Textarea } from '@/components/ui/textarea'
 import { studentCoursesQueryOptions } from '@/features/student/queries/student-courses.query'
+import { cn } from '@/lib/utils'
 
-export function StudentAiTutorPage() {
+type StudentAiTutorPageProps = {
+  courseId?: string
+}
+
+export function StudentAiTutorPage({ courseId }: StudentAiTutorPageProps) {
   const { data: assignedCourses } = useSuspenseQuery(studentCoursesQueryOptions)
-  const selectedCourse = assignedCourses.at(0) ?? null
+  const selectedCourse =
+    (courseId
+      ? assignedCourses.find((course) => course.id === courseId)
+      : assignedCourses.length === 1
+        ? assignedCourses.at(0)
+        : undefined) ?? null
 
   return (
     <div className="flex flex-1 flex-col px-4 py-5 sm:px-6">
@@ -46,6 +57,28 @@ export function StudentAiTutorPage() {
             Chat not connected
           </Badge>
         </header>
+
+        {assignedCourses.length > 1 ? (
+          <nav
+            aria-label="Choose course context"
+            className="flex flex-wrap gap-2 border-b border-border px-4 py-3"
+          >
+            {assignedCourses.map((course) => (
+              <Link
+                key={course.id}
+                to="/student/ai-tutor"
+                search={{ courseId: course.id }}
+                className={cn(
+                  buttonVariants({ size: 'sm', variant: 'outline' }),
+                  selectedCourse?.id === course.id &&
+                    'border-primary bg-primary/15 text-foreground',
+                )}
+              >
+                {course.title}
+              </Link>
+            ))}
+          </nav>
+        ) : null}
 
         <div className="flex flex-1 items-center justify-center px-4 py-12">
           <EmptyState
