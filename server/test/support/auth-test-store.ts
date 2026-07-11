@@ -33,7 +33,9 @@ interface UpdateUserArgs {
   where: {
     id: string
   }
-  data: Partial<Pick<User, 'lastLoginAt' | 'status' | 'disabledAt'>>
+  data: Partial<
+    Pick<User, 'lastLoginAt' | 'status' | 'disabledAt' | 'disabledById'>
+  >
 }
 
 interface CreateUserArgs {
@@ -43,6 +45,13 @@ interface CreateUserArgs {
 interface FindManyUserArgs {
   orderBy?: {
     createdAt?: 'asc' | 'desc'
+  }
+}
+
+interface CountUserArgs {
+  where?: {
+    role?: User['role']
+    status?: User['status']
   }
 }
 
@@ -63,7 +72,8 @@ interface UpdateRefreshTokenArgs {
 interface UpdateManyRefreshTokenArgs {
   where: {
     id?: string
-    tokenHash: string
+    tokenHash?: string
+    userId?: string
     revokedAt: null
     expiresAt: {
       gt: Date
@@ -129,6 +139,9 @@ export class AuthTestStore {
       ),
       findMany: jest.fn((args?: FindManyUserArgs) =>
         Promise.resolve(this.findUsers(args)),
+      ),
+      count: jest.fn((args?: CountUserArgs) =>
+        Promise.resolve(this.countUsers(args)),
       ),
       create: jest.fn((args: CreateUserArgs) =>
         Promise.resolve(this.createUser(args)),
@@ -198,6 +211,7 @@ export class AuthTestStore {
       ...user,
       status: 'DISABLED',
       disabledAt: new Date('2026-07-06T10:00:00.000Z'),
+      disabledById: null,
     })
   }
 
@@ -321,6 +335,27 @@ export class AuthTestStore {
     }))
   }
 
+  private countUsers(args: CountUserArgs | undefined): number {
+    return this.findStoredUsers(args).length
+  }
+
+  private findStoredUsers(args: CountUserArgs | undefined): User[] {
+    return [...this.users.values()].filter((user) => {
+      if (args?.where?.role !== undefined && user.role !== args.where.role) {
+        return false
+      }
+
+      if (
+        args?.where?.status !== undefined &&
+        user.status !== args.where.status
+      ) {
+        return false
+      }
+
+      return true
+    })
+  }
+
   private updateUser(args: UpdateUserArgs): User {
     const user = this.users.get(args.where.id)
 
@@ -435,7 +470,10 @@ export class AuthTestStore {
     for (const refreshToken of this.refreshTokens.values()) {
       const isMatch =
         (args.where.id === undefined || refreshToken.id === args.where.id) &&
-        refreshToken.tokenHash === args.where.tokenHash &&
+        (args.where.tokenHash === undefined ||
+          refreshToken.tokenHash === args.where.tokenHash) &&
+        (args.where.userId === undefined ||
+          refreshToken.userId === args.where.userId) &&
         refreshToken.revokedAt === args.where.revokedAt &&
         refreshToken.expiresAt > args.where.expiresAt.gt
 

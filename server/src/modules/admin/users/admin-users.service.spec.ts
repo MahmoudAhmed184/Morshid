@@ -1,4 +1,9 @@
-import { BadRequestException, ConflictException } from '@nestjs/common'
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common'
 
 import {
   CourseMembershipRole,
@@ -365,5 +370,143 @@ describe('AdminUsersService', () => {
     })
     expect(response.users[0]).not.toHaveProperty('passwordHash')
     expect(response.users[0]).not.toHaveProperty('refreshTokens')
+  })
+
+  it('disables an active user through the repository and returns a safe response', async () => {
+    const { repository, service } = buildService()
+
+    repository.addUser({
+      id: 'target-user',
+      email: 'target@morshid.demo',
+      displayName: 'Target User',
+      role: UserRole.STUDENT,
+      status: UserStatus.ACTIVE,
+      createdAt,
+      updatedAt,
+    })
+
+    const response = await service.disableUser(
+      'target-user',
+      actor,
+      requestContext,
+    )
+
+    expect(repository.disableUser.mock.calls).toHaveLength(1)
+    const disableInput = repository.disableUser.mock.calls[0][0]
+
+    expect(disableInput).toMatchObject({
+      userId: 'target-user',
+      actorUserId: actor.id,
+      requestContext,
+    })
+    expect(disableInput.disabledAt).toBeInstanceOf(Date)
+    expect(response).toEqual({
+      user: {
+        id: 'target-user',
+        email: 'target@morshid.demo',
+        displayName: 'Target User',
+        role: UserRole.STUDENT,
+        status: UserStatus.DISABLED,
+        createdAt: createdAt.toISOString(),
+        updatedAt: updatedAt.toISOString(),
+      },
+    })
+    expect(response.user).not.toHaveProperty('passwordHash')
+    expect(response.user).not.toHaveProperty('refreshTokens')
+    expect(response.user).not.toHaveProperty('disabledById')
+  })
+
+  it('returns an already disabled user idempotently without another repository disable', async () => {
+    const { repository, service } = buildService()
+
+    repository.addUser({
+      id: 'disabled-user',
+      email: 'disabled@morshid.demo',
+      displayName: 'Disabled User',
+      role: UserRole.STUDENT,
+      status: UserStatus.DISABLED,
+      createdAt,
+      updatedAt,
+    })
+
+    const response = await service.disableUser(
+      'disabled-user',
+      actor,
+      requestContext,
+    )
+
+    expect(repository.disableUser.mock.calls).toHaveLength(0)
+    expect(response.user).toEqual({
+      id: 'disabled-user',
+      email: 'disabled@morshid.demo',
+      displayName: 'Disabled User',
+      role: UserRole.STUDENT,
+      status: UserStatus.DISABLED,
+      createdAt: createdAt.toISOString(),
+      updatedAt: updatedAt.toISOString(),
+    })
+  })
+
+  it('rejects disabling a missing user', async () => {
+    const { service } = buildService()
+
+    const disableUser = service.disableUser(
+      'missing-user',
+      actor,
+      requestContext,
+    )
+
+    await expect(disableUser).rejects.toBeInstanceOf(NotFoundException)
+    await expect(disableUser).rejects.toMatchObject({
+      response: {
+        code: ADMIN_USERS_ERROR_CODES.USER_NOT_FOUND,
+        message: 'Admin user target was not found',
+        userId: 'missing-user',
+      },
+    })
+  })
+
+  it('rejects self-disable attempts', async () => {
+    const { repository, service } = buildService()
+
+    const disableUser = service.disableUser(actor.id, actor, requestContext)
+
+    await expect(disableUser).rejects.toBeInstanceOf(ForbiddenException)
+    await expect(disableUser).rejects.toMatchObject({
+      response: {
+        code: ADMIN_USERS_ERROR_CODES.CANNOT_DISABLE_SELF,
+        message: 'Administrators cannot disable their own account',
+      },
+    })
+    expect(repository.disableUser.mock.calls).toHaveLength(0)
+  })
+
+  it('rejects disabling the last active admin account', async () => {
+    const { repository, service } = buildService()
+
+    repository.addUser({
+      id: 'last-admin',
+      email: 'last-admin@morshid.demo',
+      displayName: 'Last Admin',
+      role: UserRole.ADMIN,
+      status: UserStatus.ACTIVE,
+      createdAt,
+      updatedAt,
+    })
+
+    const disableUser = service.disableUser(
+      'last-admin',
+      actor,
+      requestContext,
+    )
+
+    await expect(disableUser).rejects.toBeInstanceOf(ConflictException)
+    await expect(disableUser).rejects.toMatchObject({
+      response: {
+        code: ADMIN_USERS_ERROR_CODES.CANNOT_DISABLE_LAST_ACTIVE_ADMIN,
+        message: 'Cannot disable the last active admin account',
+      },
+    })
+    expect(repository.disableUser.mock.calls).toHaveLength(0)
   })
 })

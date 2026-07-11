@@ -14,6 +14,7 @@ import { AUTH_ERROR_CODES } from '../src/modules/auth/auth.dto'
 import type {
   AdminCreatableUserRole,
   AdminCreateUserResponseDto,
+  AdminDisableUserResponseDto,
   AdminUserListResponseDto,
 } from '../src/modules/admin/users/admin-users.dto'
 import { ADMIN_USERS_ERROR_CODES } from '../src/modules/admin/users/admin-users.errors'
@@ -76,14 +77,18 @@ describe('Admin users (e2e)', () => {
     await app.close()
   })
 
-  async function signInAs(email: string): Promise<string> {
+  async function signIn(email: string): Promise<AuthSessionResponse> {
     const response = await request(app.getHttpServer())
       .post('/api/v1/auth/sign-in')
       .set('User-Agent', auditUserAgent)
       .send({ email, password: P0_DEMO_PASSWORD })
       .expect(200)
 
-    return (response.body as AuthSessionResponse).accessToken
+    return response.body as AuthSessionResponse
+  }
+
+  async function signInAs(email: string): Promise<string> {
+    return (await signIn(email)).accessToken
   }
 
   async function createUserAsAdmin(role: AdminCreatableUserRole) {
@@ -110,6 +115,16 @@ describe('Admin users (e2e)', () => {
       .set('Authorization', `Bearer ${token}`)
       .set('User-Agent', auditUserAgent)
       .expect(expectedStatus)
+  }
+
+  function requireUserByEmail(email: string) {
+    const user = store.findUserByEmail(email)
+
+    if (user === null) {
+      throw new Error(`Missing test user ${email}`)
+    }
+
+    return user
   }
 
   it.each([UserRole.STUDENT, UserRole.INSTRUCTOR])(
@@ -269,6 +284,142 @@ describe('Admin users (e2e)', () => {
         code: AUTH_ERROR_CODES.INSUFFICIENT_ROLE,
         message: 'Insufficient role',
       })
+  })
+
+  it('allows an admin to disable an active user', async () => {
+    const adminSession = await signIn('admin@morshid.demo')
+    await signIn('student1@morshid.demo')
+    const admin = requireUserByEmail('admin@morshid.demo')
+    const target = requireUserByEmail('student1@morshid.demo')
+    const targetRefreshTokens = [...store.refreshTokens.values()].filter(
+      (refreshToken) => refreshToken.userId === target.id,
+    )
+
+    expect(targetRefreshTokens).toHaveLength(1)
+    expect(targetRefreshTokens[0]?.revokedAt).toBeNull()
+
+    const response = await request(app.getHttpServer())
+      .patch(`/api/v1/admin/users/${target.id}/disable`)
+      .set('Authorization', `Bearer ${adminSession.accessToken}`)
+      .set('User-Agent', auditUserAgent)
+      .expect(200)
+    const body = response.body as AdminDisableUserResponseDto
+    const disabledUser = store.users.get(target.id)
+    const revokedTargetRefreshTokens = [
+      ...store.refreshTokens.values(),
+    ].filter((refreshToken) => refreshToken.userId === target.id)
+
+    expect(disabledUser).toEqual(
+      expect.objectContaining({
+        status: UserStatus.DISABLED,
+        disabledAt: anyDate,
+        disabledById: admin.id,
+      }),
+    )
+    expect(body).toEqual({
+      user: {
+        id: target.id,
+        email: target.email,
+        displayName: target.displayName,
+        role: target.role,
+        status: UserStatus.DISABLED,
+        createdAt: target.createdAt.toISOString(),
+        updatedAt: disabledUser?.updatedAt.toISOString(),
+      },
+    })
+    expect(body.user).not.toHaveProperty('passwordHash')
+    expect(body.user).not.toHaveProperty('refreshTokens')
+    expect(body.user).not.toHaveProperty('disabledAt')
+    expect(body.user).not.toHaveProperty('disabledById')
+    expect(revokedTargetRefreshTokens).toEqual([
+      expect.objectContaining({
+        id: targetRefreshTokens[0]?.id,
+        revokedAt: disabledUser?.disabledAt,
+      }),
+    ])
+
+    const adminUserDisableAudit = [...store.auditLogs.values()].filter(
+      (auditLog) =>
+        auditLog.action === AUDIT_EVENT_ACTIONS.ADMIN_ACCOUNT_DISABLED,
+    )
+
+    expect(adminUserDisableAudit).toEqual([
+      expect.objectContaining({
+        actorUserId: admin.id,
+        action: AUDIT_EVENT_ACTIONS.ADMIN_ACCOUNT_DISABLED,
+        targetType: AUDIT_TARGET_TYPES.USER,
+        targetId: target.id,
+        courseId: null,
+        ip: anyString,
+        userAgent: auditUserAgent,
+        metadata: {
+          email: target.email,
+          displayName: target.displayName,
+          role: target.role,
+          revokedRefreshTokenCount: 1,
+        },
+        createdAt: anyDate,
+      }),
+    ])
+  })
+
+  it('returns not found when disabling a missing user', async () => {
+    const token = await signInAs('admin@morshid.demo')
+    const missingUserId = '00000000-0000-4000-8000-000000009999'
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/admin/users/${missingUserId}/disable`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(404)
+      .expect({
+        code: ADMIN_USERS_ERROR_CODES.USER_NOT_FOUND,
+        message: 'Admin user target was not found',
+        userId: missingUserId,
+      })
+  })
+
+  it('rejects admin self-disable requests', async () => {
+    const token = await signInAs('admin@morshid.demo')
+    const admin = requireUserByEmail('admin@morshid.demo')
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/admin/users/${admin.id}/disable`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(403)
+      .expect({
+        code: ADMIN_USERS_ERROR_CODES.CANNOT_DISABLE_SELF,
+        message: 'Administrators cannot disable their own account',
+      })
+
+    expect(store.findUserByEmail('admin@morshid.demo')?.status).toBe(
+      UserStatus.ACTIVE,
+    )
+  })
+
+  it('rejects non-admin user disable requests', async () => {
+    const token = await signInAs('student1@morshid.demo')
+    const target = requireUserByEmail('instructor@morshid.demo')
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/admin/users/${target.id}/disable`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(403)
+      .expect({
+        code: AUTH_ERROR_CODES.INSUFFICIENT_ROLE,
+        message: 'Insufficient role',
+      })
+
+    expect(store.findUserByEmail('instructor@morshid.demo')?.status).toBe(
+      UserStatus.ACTIVE,
+    )
+  })
+
+  it('rejects unauthenticated user disable requests', async () => {
+    const target = requireUserByEmail('student1@morshid.demo')
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/admin/users/${target.id}/disable`)
+      .expect(401)
   })
 
   it('allows an admin to list users as safe public records ordered by newest first', async () => {
