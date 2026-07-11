@@ -134,6 +134,33 @@ describe('RolesGuard', () => {
     throw new Error('Expected RolesGuard to reject the request')
   })
 
+  it('rejects a request when the user exists but role is missing', () => {
+    const userWithoutRole = {
+      id: 'user-1',
+      email: 'user@morshid.demo',
+      displayName: 'Test User',
+      status: 'ACTIVE',
+    } as unknown as AuthenticatedRequestUser
+
+    try {
+      guard.canActivate(
+        createExecutionContext({
+          handler: adminOnlyHandler,
+          user: userWithoutRole,
+        }),
+      )
+    } catch (error) {
+      expect(error).toBeInstanceOf(ForbiddenException)
+      expect((error as ForbiddenException).getResponse()).toEqual({
+        code: AUTH_ERROR_CODES.INSUFFICIENT_ROLE,
+        message: 'Insufficient role',
+      })
+      return
+    }
+
+    throw new Error('Expected RolesGuard to reject the request')
+  })
+
   it('allows public routes when no role metadata is present', () => {
     expect(
       guard.canActivate(

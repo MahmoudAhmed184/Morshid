@@ -5,7 +5,6 @@ import {
   HttpCode,
   Post,
   Req,
-  UseGuards,
 } from '@nestjs/common'
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
 import type { Request } from 'express'
@@ -18,15 +17,17 @@ import {
   type RefreshRequest,
   type SignInRequest,
 } from './auth.dto'
-import { AuthGuard, type AuthenticatedHttpRequest } from './auth.guard'
+import type { AuthenticatedHttpRequest } from './auth.guard'
 import { AuthService } from './auth.service'
 import { ZodValidationPipe } from './pipes/zod-validation.pipe'
+import { Public } from './public.decorator'
 
 @ApiTags('auth')
 @Controller()
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  @Public()
   @Post('auth/sign-in')
   @HttpCode(200)
   signIn(
@@ -36,6 +37,7 @@ export class AuthController {
     return this.authService.signIn(body, getRequestContext(request))
   }
 
+  @Public()
   @Post('auth/refresh')
   @HttpCode(200)
   refresh(
@@ -45,6 +47,7 @@ export class AuthController {
     return this.authService.refresh(body, getRequestContext(request))
   }
 
+  @Public()
   @Post('auth/logout')
   @HttpCode(204)
   async logout(
@@ -56,7 +59,6 @@ export class AuthController {
 
   @Get('me')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard)
   me(@Req() request: AuthenticatedHttpRequest) {
     return this.authService.getMe(request.user.id)
   }

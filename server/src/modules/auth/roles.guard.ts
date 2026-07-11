@@ -21,7 +21,7 @@ export class RolesGuard implements CanActivate {
       UserRole[] | undefined
     >(ROLES_KEY, [context.getHandler(), context.getClass()])
 
-    if (allowedRoles === undefined || allowedRoles.length === 0) {
+    if (allowedRoles === undefined) {
       return true
     }
 
