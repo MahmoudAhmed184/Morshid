@@ -13,6 +13,7 @@ import type {
   AdminCreateUserRequest,
   AdminCreateUserResponseDto,
   AdminDisableUserResponseDto,
+  AdminReactivateUserResponseDto,
   AdminUserListResponseDto,
 } from './admin-users.dto'
 import {
@@ -124,6 +125,34 @@ export class AdminUsersService {
 
     return {
       user: mapAdminUserRecord(disabledUser),
+    }
+  }
+
+  async reactivateUser(
+    userId: string,
+    actor: AuthenticatedRequestUser,
+    requestContext?: AuditRequestContext,
+  ): Promise<AdminReactivateUserResponseDto> {
+    const user = await this.adminUsersRepository.findById(userId)
+
+    if (user === null) {
+      throw adminUserNotFoundException(userId)
+    }
+
+    if (user.status === UserStatus.ACTIVE) {
+      return {
+        user: mapAdminUserRecord(user),
+      }
+    }
+
+    const reactivatedUser = await this.adminUsersRepository.reactivateUser({
+      userId,
+      actorUserId: actor.id,
+      requestContext,
+    })
+
+    return {
+      user: mapAdminUserRecord(reactivatedUser),
     }
   }
 }
