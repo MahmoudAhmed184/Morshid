@@ -1,31 +1,10 @@
-import { BookOpen, Sparkles } from 'lucide-react'
+import { BookOpen } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/custom/empty-state'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 import type { AuthCourseSummary } from '@/features/auth/types/auth.types'
-
-function getPrimaryInstructorCourse(courses: AuthCourseSummary[]) {
-  return courses.length > 0 ? courses[0] : null
-}
-
-function MetricTile({
-  label,
-  value,
-}: {
-  label: string
-  value: React.ReactNode
-}) {
-  return (
-    <div className="rounded-[8px] border border-[#26374a] bg-[#0b1624]/80 px-4 py-3">
-      <p className="text-[0.68rem] font-medium text-[#7f8da3] uppercase">
-        {label}
-      </p>
-      <div className="mt-1 text-sm font-semibold text-white">{value}</div>
-    </div>
-  )
-}
 
 function CourseHero({ course }: { course: AuthCourseSummary }) {
   return (
@@ -78,6 +57,23 @@ function CourseHero({ course }: { course: AuthCourseSummary }) {
   )
 }
 
+function MetricTile({
+  label,
+  value,
+}: {
+  label: string
+  value: React.ReactNode
+}) {
+  return (
+    <div className="rounded-[8px] border border-[#26374a] bg-[#0b1624]/80 px-4 py-3">
+      <p className="text-[0.68rem] font-medium text-[#7f8da3] uppercase">
+        {label}
+      </p>
+      <div className="mt-1 text-sm font-semibold text-white">{value}</div>
+    </div>
+  )
+}
+
 function NoCourseState() {
   return (
     <EmptyState
@@ -89,23 +85,29 @@ function NoCourseState() {
   )
 }
 
-export function InstructorDashboardPage() {
+export function MyCoursesPage() {
   const user = useAuthStore((state) => state.user)
-  const course = user ? getPrimaryInstructorCourse(user.courses) : null
+  const courses = user?.courses ?? []
 
   return (
     <div className="flex flex-col gap-5">
       <div>
         <p className="flex items-center gap-2 text-xs font-medium text-[#7f8da3]">
-          <Sparkles className="size-4 text-[#a9c7ff]" aria-hidden />
+          <BookOpen className="size-4 text-[#a9c7ff]" aria-hidden />
           Instructor Workspace
         </p>
-        <h1 className="mt-2 text-2xl font-semibold text-white">
-          Instructor Dashboard
-        </h1>
+        <h1 className="mt-2 text-2xl font-semibold text-white">My Courses</h1>
       </div>
 
-      {course ? <CourseHero course={course} /> : <NoCourseState />}
+      {courses.length === 0 ? (
+        <NoCourseState />
+      ) : (
+        <div className="flex flex-col gap-5">
+          {courses.map((course) => (
+            <CourseHero key={course.id} course={course} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }

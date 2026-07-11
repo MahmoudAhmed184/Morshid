@@ -1,6 +1,7 @@
-import { Outlet, createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 import { AuthLoader } from '@/features/auth/components/auth-loader'
+import { InstructorLayout } from '@/features/instructor/components/instructor-layout'
 import { requireRole } from '@/features/auth/utils/auth-redirect'
 
 export const Route = createFileRoute('/instructor')({
@@ -12,7 +13,7 @@ export const Route = createFileRoute('/instructor')({
       throw redirect({ to: redirectPath })
     }
   },
-  component: Outlet,
+  component: InstructorLayout,
   pendingComponent: AuthLoader,
   pendingMs: 200,
   pendingMinMs: 400,
