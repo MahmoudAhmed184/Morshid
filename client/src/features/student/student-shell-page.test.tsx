@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAuthStore } from '@/features/auth/stores/auth.store'
@@ -72,11 +72,15 @@ describe('StudentShellPage', () => {
 
     render(<StudentShellPage />)
 
+    const coursesList = screen.getByRole('list', {
+      name: /assigned courses/i,
+    })
+
+    expect(coursesList).toBeInTheDocument()
     expect(
-      screen.getByRole('list', { name: /assigned courses/i }),
+      within(coursesList).getByText('Python Programming'),
     ).toBeInTheDocument()
-    expect(screen.getByText('Python Programming')).toBeInTheDocument()
-    expect(screen.getByText('PYTHON-PROG-P0')).toBeInTheDocument()
+    expect(within(coursesList).getByText('PYTHON-PROG-P0')).toBeInTheDocument()
     expect(screen.queryByText('Instructor Only')).toBeNull()
     expect(fetchMock).not.toHaveBeenCalled()
   })
@@ -87,5 +91,34 @@ describe('StudentShellPage', () => {
     render(<StudentShellPage />)
 
     expect(screen.getByText('No courses assigned yet.')).toBeInTheDocument()
+  })
+
+  it('renders the disconnected chat placeholder for the selected course context', () => {
+    useAuthStore.getState().setSession(
+      createStudentSession([
+        {
+          id: 'python-course',
+          code: 'PYTHON-PROG-P0',
+          title: 'Python Programming',
+          membershipRole: 'STUDENT',
+        },
+      ]),
+    )
+
+    render(<StudentShellPage />)
+
+    expect(
+      screen.getByRole('heading', { name: 'Python Programming' }),
+    ).toBeInTheDocument()
+    expect(screen.getAllByText('PYTHON-PROG-P0')).toHaveLength(2)
+    expect(screen.getByText('Chat not connected')).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'No conversation yet' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/course-grounded chat is not available yet/i),
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText('Message')).toBeDisabled()
+    expect(screen.getByRole('button', { name: /send message/i })).toBeDisabled()
   })
 })
