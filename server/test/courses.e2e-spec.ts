@@ -6,6 +6,7 @@ import type { App } from 'supertest/types'
 import { configureApp } from '../src/app.setup'
 import { AppModule } from '../src/app.module'
 import type { AuthSessionResponse } from '../src/modules/auth/auth.dto'
+import type { CourseListResponseDto } from '../src/modules/courses/courses.dto'
 import {
   CoursesRepository,
   type AdminCourseRecord,
@@ -64,7 +65,7 @@ const adminCourses = [
     materials: [],
     internalOnly: 'must not be serialized',
   },
-] satisfies Array<AdminCourseRecord & { internalOnly: string }>
+] satisfies (AdminCourseRecord & { internalOnly: string })[]
 
 class CoursesTestRepository extends CoursesRepository {
   findMembershipRole() {
@@ -165,12 +166,14 @@ describe('Courses (e2e)', () => {
 
   it('returns all courses and sanitized metadata to admins', async () => {
     const response = await listCoursesAs('admin@morshid.demo')
+    const body = response.body as CourseListResponseDto
 
-    expect(
-      response.body.courses.map(({ code }: { code: string }) => code),
-    ).toEqual(['HIDDEN-ISOLATION', 'PYTHON-PROG-P0'])
-    expect(response.body.courses[0]).not.toHaveProperty('internalOnly')
-    expect(response.body.courses[1].adminMetadata).toMatchObject({
+    expect(body.courses.map(({ code }) => code)).toEqual([
+      'HIDDEN-ISOLATION',
+      'PYTHON-PROG-P0',
+    ])
+    expect(body.courses[0]).not.toHaveProperty('internalOnly')
+    expect(body.courses[1].adminMetadata).toMatchObject({
       memberCount: 1,
       instructorCount: 1,
       studentCount: 0,

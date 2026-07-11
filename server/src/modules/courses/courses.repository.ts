@@ -32,7 +32,7 @@ export interface AdminCourseRecord {
   createdAt: Date
   updatedAt: Date
   memberships: CourseMembershipRecord[]
-  materials: Array<{ deletedAt: Date | null }>
+  materials: { deletedAt: Date | null }[]
 }
 
 export interface MemberCourseRecord {
