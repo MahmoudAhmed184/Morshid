@@ -57,7 +57,6 @@ function mapZodIssue(issue: z.core.$ZodIssue): AdminUsersValidationIssue {
 @Roles(UserRole.ADMIN)
 @ApiBearerAuth()
 @UseInterceptors(ClassSerializerInterceptor)
-@SerializeOptions({ type: AdminCreateUserResponseDto, strategy: 'excludeAll' })
 export class AdminUsersController {
   constructor(private readonly adminUsersService: AdminUsersService) {}
 
@@ -69,6 +68,7 @@ export class AdminUsersController {
   }
 
   @Post()
+  @SerializeOptions({ type: AdminCreateUserResponseDto, strategy: 'excludeAll' })
   @ApiBody({ type: AdminCreateUserRequestDto })
   @ApiCreatedResponse({ type: AdminCreateUserResponseDto })
   createUser(
