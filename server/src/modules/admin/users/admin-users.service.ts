@@ -14,6 +14,8 @@ import type {
   AdminCreateUserResponseDto,
   AdminDisableUserResponseDto,
   AdminReactivateUserResponseDto,
+  AdminResetUserPasswordRequest,
+  AdminResetUserPasswordResponseDto,
   AdminUserListResponseDto,
 } from './admin-users.dto'
 import {
@@ -153,6 +155,34 @@ export class AdminUsersService {
 
     return {
       user: mapAdminUserRecord(reactivatedUser),
+    }
+  }
+
+  async resetUserPassword(
+    userId: string,
+    input: AdminResetUserPasswordRequest,
+    actor: AuthenticatedRequestUser,
+    requestContext?: AuditRequestContext,
+  ): Promise<AdminResetUserPasswordResponseDto> {
+    const user = await this.adminUsersRepository.findById(userId)
+
+    if (user === null) {
+      throw adminUserNotFoundException(userId)
+    }
+
+    const passwordHash = this.passwordHasherService.createHash(
+      input.newPassword,
+    )
+    const resetUser = await this.adminUsersRepository.resetUserPassword({
+      userId,
+      passwordHash,
+      passwordChangedAt: new Date(),
+      actorUserId: actor.id,
+      requestContext,
+    })
+
+    return {
+      user: mapAdminUserRecord(resetUser),
     }
   }
 }
