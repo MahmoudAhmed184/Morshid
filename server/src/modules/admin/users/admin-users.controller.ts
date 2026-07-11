@@ -10,9 +10,6 @@ import {
   Req,
   SerializeOptions,
   UseInterceptors,
-  type ArgumentMetadata,
-  type HttpException,
-  type PipeTransform,
 } from '@nestjs/common'
 import {
   ApiBearerAuth,
@@ -23,6 +20,7 @@ import {
 } from '@nestjs/swagger'
 import type { z } from 'zod'
 
+import { ZodValidationPipe } from '../../../common/pipes/zod-validation.pipe'
 import { UserRole } from '../../../generated/prisma/client'
 import { getRequestContext } from '../../auth/auth.controller'
 import type { AuthenticatedHttpRequest } from '../../auth/auth.guard'
@@ -46,25 +44,6 @@ import {
   type AdminUsersValidationIssue,
 } from './admin-users.errors'
 import { AdminUsersService } from './admin-users.service'
-
-class AdminUsersValidationPipe<T> implements PipeTransform<unknown, T> {
-  constructor(
-    private readonly schema: z.ZodType<T>,
-    private readonly exceptionFactory: (
-      errors: AdminUsersValidationIssue[],
-    ) => HttpException = invalidAdminCreateUserRequestException,
-  ) {}
-
-  transform(value: unknown, _metadata: ArgumentMetadata): T {
-    const result = this.schema.safeParse(value)
-
-    if (!result.success) {
-      throw this.exceptionFactory(result.error.issues.map(mapZodIssue))
-    }
-
-    return result.data
-  }
-}
 
 function mapZodIssue(issue: z.core.$ZodIssue): AdminUsersValidationIssue {
   return {
@@ -93,7 +72,11 @@ export class AdminUsersController {
   @ApiBody({ type: AdminCreateUserRequestDto })
   @ApiCreatedResponse({ type: AdminCreateUserResponseDto })
   createUser(
-    @Body(new AdminUsersValidationPipe(adminCreateUserRequestSchema))
+    @Body(
+      new ZodValidationPipe(adminCreateUserRequestSchema, (issues) =>
+        invalidAdminCreateUserRequestException(issues.map(mapZodIssue)),
+      ),
+    )
     body: AdminCreateUserRequest,
     @Req() request: AuthenticatedHttpRequest,
   ): Promise<AdminCreateUserResponseDto> {
@@ -148,9 +131,12 @@ export class AdminUsersController {
   resetUserPassword(
     @Param('userId', new ParseUUIDPipe({ version: '4' })) userId: string,
     @Body(
-      new AdminUsersValidationPipe(
+      new ZodValidationPipe(
         adminResetUserPasswordRequestSchema,
-        invalidAdminResetUserPasswordRequestException,
+        (issues) =>
+          invalidAdminResetUserPasswordRequestException(
+            issues.map(mapZodIssue),
+          ),
       ),
     )
     body: AdminResetUserPasswordRequest,

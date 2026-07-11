@@ -2,6 +2,7 @@ import { Body, Controller, Get, HttpCode, Post, Req } from '@nestjs/common'
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
 import type { Request } from 'express'
 
+import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe'
 import {
   logoutRequestSchema,
   refreshRequestSchema,
@@ -12,7 +13,7 @@ import {
 } from './auth.dto'
 import type { AuthenticatedHttpRequest } from './auth.guard'
 import { AuthService } from './auth.service'
-import { ZodValidationPipe } from './pipes/zod-validation.pipe'
+import { invalidAuthRequestException } from './auth.errors'
 import { Public } from './public.decorator'
 
 @ApiTags('auth')
@@ -24,7 +25,10 @@ export class AuthController {
   @Post('auth/sign-in')
   @HttpCode(200)
   signIn(
-    @Body(new ZodValidationPipe(signInRequestSchema)) body: SignInRequest,
+    @Body(
+      new ZodValidationPipe(signInRequestSchema, invalidAuthRequestException),
+    )
+    body: SignInRequest,
     @Req() request: Request,
   ) {
     return this.authService.signIn(body, getRequestContext(request))
@@ -34,7 +38,10 @@ export class AuthController {
   @Post('auth/refresh')
   @HttpCode(200)
   refresh(
-    @Body(new ZodValidationPipe(refreshRequestSchema)) body: RefreshRequest,
+    @Body(
+      new ZodValidationPipe(refreshRequestSchema, invalidAuthRequestException),
+    )
+    body: RefreshRequest,
     @Req() request: Request,
   ) {
     return this.authService.refresh(body, getRequestContext(request))
@@ -44,7 +51,10 @@ export class AuthController {
   @Post('auth/logout')
   @HttpCode(204)
   async logout(
-    @Body(new ZodValidationPipe(logoutRequestSchema)) body: LogoutRequest,
+    @Body(
+      new ZodValidationPipe(logoutRequestSchema, invalidAuthRequestException),
+    )
+    body: LogoutRequest,
     @Req() request: Request,
   ) {
     await this.authService.logout(body, getRequestContext(request))
