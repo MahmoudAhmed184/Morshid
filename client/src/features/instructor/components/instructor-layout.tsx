@@ -71,10 +71,10 @@ function SidebarNavItem({
       aria-current={isActive ? 'page' : undefined}
       onClick={onClick}
       className={cn(
-        'flex h-9 w-full items-center gap-2 rounded-[6px] px-3 text-left text-xs font-medium transition-colors',
+        'flex h-9 w-full items-center gap-2 rounded-[6px] border-l-2 border-transparent px-3 text-left text-xs font-medium transition-colors',
         isActive
-          ? 'bg-[#182238] text-[#dbe8ff] shadow-[inset_2px_0_0_#a9c7ff]'
-          : 'text-[#8f9aaa] hover:bg-[#151d2a] hover:text-[#dbe8ff]',
+          ? 'border-primary bg-primary text-primary-foreground'
+          : 'text-muted-foreground hover:bg-muted hover:text-foreground',
       )}
     >
       <Icon className="size-4 shrink-0" aria-hidden />
@@ -87,15 +87,15 @@ function InstructorSidebar({ onNavigate }: { onNavigate?: () => void }) {
   const location = useLocation()
 
   return (
-    <aside className="flex flex-col bg-[#111821] text-[#d7dfec] md:min-h-svh md:w-52 md:border-r md:border-[#273241]">
-      <div className="flex min-h-16 items-center gap-3 border-b border-[#273241] px-4 md:min-h-20">
+    <aside className="flex flex-col bg-card text-card-foreground md:min-h-svh md:w-52 md:border-r md:border-border">
+      <div className="flex min-h-16 items-center gap-3 border-b border-border px-4 md:min-h-20">
         <Logo
-          className="size-8 rounded-[6px] bg-[#dbe8ff] text-[#0c1420]"
+          className="size-8 rounded-[6px] bg-primary text-primary-foreground"
           iconClassName="size-4"
         />
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-white">Morshid</p>
-          <p className="truncate text-[0.68rem] text-[#7f8da3]">
+          <p className="text-sm font-semibold text-foreground">Morshid</p>
+          <p className="truncate text-[0.68rem] text-muted-foreground">
             Instructor Portal
           </p>
         </div>
@@ -119,7 +119,7 @@ function InstructorSidebar({ onNavigate }: { onNavigate?: () => void }) {
         ))}
       </nav>
 
-      <div className="border-t border-[#273241] px-3 py-4">
+      <div className="border-t border-border px-3 py-4">
         <SidebarNavItem
           icon={Settings}
           isActive={location.pathname === '/instructor/settings'}
@@ -142,8 +142,8 @@ function InstructorTopBar({
   const initials = displayName ? getInitials(displayName) : 'IN'
 
   return (
-    <header className="flex min-h-16 items-center gap-4 border-b border-[#1d2b3b] bg-[#0b121b] px-4 md:px-6">
-      <div className="hidden min-w-0 flex-1 items-center rounded-[6px] border border-[#26374a] bg-[#08111c] px-3 text-[#74849a] md:flex">
+    <header className="flex min-h-16 items-center gap-4 border-b border-border bg-card px-4 md:px-6">
+      <div className="hidden min-w-0 flex-1 items-center rounded-[6px] border border-border bg-background px-3 text-muted-foreground md:flex">
         <span className="mr-2 size-4" aria-hidden>
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -166,37 +166,37 @@ function InstructorTopBar({
           readOnly
           value=""
           placeholder="Search course, materials, or reviews..."
-          className="h-8 w-full bg-transparent text-xs outline-none placeholder:text-[#74849a]"
+          className="h-8 w-full bg-transparent text-xs outline-none placeholder:text-muted-foreground"
         />
       </div>
 
       <div className="ml-auto flex items-center gap-2">
         <button
           type="button"
-          className="flex size-8 items-center justify-center rounded-[6px] text-[#9ba9bc] transition-colors hover:bg-[#142033] hover:text-white"
+          className="flex size-8 items-center justify-center rounded-[6px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           aria-label="Notifications"
         >
           <Bell className="size-4" aria-hidden />
         </button>
         <button
           type="button"
-          className="flex size-8 items-center justify-center rounded-[6px] text-[#9ba9bc] transition-colors hover:bg-[#142033] hover:text-white"
+          className="flex size-8 items-center justify-center rounded-[6px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           aria-label="Help"
         >
           <HelpCircle className="size-4" aria-hidden />
         </button>
         <div className="hidden text-right sm:block">
-          <p className="max-w-40 truncate text-xs font-medium text-white">
+          <p className="max-w-40 truncate text-xs font-medium text-foreground">
             {displayName ?? 'Instructor'}
           </p>
           {email ? (
-            <p className="max-w-40 truncate text-[0.68rem] text-[#7f8da3]">
+            <p className="max-w-40 truncate text-[0.68rem] text-muted-foreground">
               {email}
             </p>
           ) : null}
         </div>
         <span
-          className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#a9c7ff] text-xs font-semibold text-[#07111f]"
+          className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground"
           aria-hidden
         >
           {initials}
@@ -211,7 +211,7 @@ export function InstructorLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   return (
-    <main className="min-h-svh bg-[#050b12] text-[#d7dfec]">
+    <main className="min-h-svh bg-background text-foreground">
       <div className="md:grid md:min-h-svh md:grid-cols-[13rem_minmax(0,1fr)]">
         {/* Mobile sidebar */}
         <div className="md:hidden">
@@ -226,8 +226,8 @@ export function InstructorLayout() {
           </Button>
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetContent side="left" className="w-64 p-0">
-              <SheetHeader className="border-b border-[#273241] px-4 py-3">
-                <SheetTitle className="text-sm font-semibold text-white">
+              <SheetHeader className="border-b border-border px-4 py-3">
+                <SheetTitle className="text-sm font-semibold text-foreground">
                   Menu
                 </SheetTitle>
               </SheetHeader>
@@ -241,7 +241,7 @@ export function InstructorLayout() {
           <InstructorSidebar />
         </div>
 
-        <div className="min-w-0 bg-[#07111b]">
+        <div className="min-w-0 bg-background">
           <InstructorTopBar
             displayName={user?.displayName}
             email={user?.email}
