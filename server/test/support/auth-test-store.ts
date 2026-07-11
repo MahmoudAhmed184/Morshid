@@ -40,6 +40,12 @@ interface CreateUserArgs {
   data: Pick<User, 'email' | 'displayName' | 'role' | 'status' | 'passwordHash'>
 }
 
+interface FindManyUserArgs {
+  orderBy?: {
+    createdAt?: 'asc' | 'desc'
+  }
+}
+
 interface CreateRefreshTokenArgs {
   data: Pick<
     RefreshToken,
@@ -120,6 +126,9 @@ export class AuthTestStore {
     user: {
       findUnique: jest.fn((args: FindUniqueArgs) =>
         Promise.resolve(this.findUser(args)),
+      ),
+      findMany: jest.fn((args?: FindManyUserArgs) =>
+        Promise.resolve(this.findUsers(args)),
       ),
       create: jest.fn((args: CreateUserArgs) =>
         Promise.resolve(this.createUser(args)),
@@ -269,6 +278,28 @@ export class AuthTestStore {
     }
 
     return null
+  }
+
+  private findUsers(args: FindManyUserArgs | undefined) {
+    const users = [...this.users.values()]
+
+    if (args?.orderBy?.createdAt === 'desc') {
+      users.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    }
+
+    if (args?.orderBy?.createdAt === 'asc') {
+      users.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+    }
+
+    return users.map((user) => ({
+      id: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      role: user.role,
+      status: user.status,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    }))
   }
 
   private updateUser(args: UpdateUserArgs): User {

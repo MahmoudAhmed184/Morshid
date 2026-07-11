@@ -198,4 +198,55 @@ describe('AdminUsersService', () => {
     expect(createHash).not.toHaveBeenCalled()
     expect(repository.createUser.mock.calls).toHaveLength(0)
   })
+
+  it('lists users as safe public records in repository order', async () => {
+    const { repository, service } = buildService()
+    const newerCreatedAt = new Date('2026-07-11T11:00:00.000Z')
+
+    repository.addUser({
+      id: 'older-user',
+      email: 'older@morshid.demo',
+      displayName: 'Older User',
+      role: UserRole.STUDENT,
+      status: UserStatus.ACTIVE,
+      createdAt,
+      updatedAt,
+    })
+    repository.addUser({
+      id: 'newer-user',
+      email: 'newer@morshid.demo',
+      displayName: 'Newer User',
+      role: UserRole.INSTRUCTOR,
+      status: UserStatus.ACTIVE,
+      createdAt: newerCreatedAt,
+      updatedAt: newerCreatedAt,
+    })
+
+    const response = await service.listUsers()
+
+    expect(response).toEqual({
+      users: [
+        {
+          id: 'newer-user',
+          email: 'newer@morshid.demo',
+          displayName: 'Newer User',
+          role: UserRole.INSTRUCTOR,
+          status: UserStatus.ACTIVE,
+          createdAt: newerCreatedAt.toISOString(),
+          updatedAt: newerCreatedAt.toISOString(),
+        },
+        {
+          id: 'older-user',
+          email: 'older@morshid.demo',
+          displayName: 'Older User',
+          role: UserRole.STUDENT,
+          status: UserStatus.ACTIVE,
+          createdAt: createdAt.toISOString(),
+          updatedAt: updatedAt.toISOString(),
+        },
+      ],
+    })
+    expect(response.users[0]).not.toHaveProperty('passwordHash')
+    expect(response.users[0]).not.toHaveProperty('refreshTokens')
+  })
 })

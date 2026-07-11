@@ -14,6 +14,7 @@ import { AUTH_ERROR_CODES } from '../src/modules/auth/auth.dto'
 import type {
   AdminCreatableUserRole,
   AdminCreateUserResponseDto,
+  AdminUserListResponseDto,
 } from '../src/modules/admin/users/admin-users.dto'
 import { ADMIN_USERS_ERROR_CODES } from '../src/modules/admin/users/admin-users.errors'
 import { PrismaService } from '../src/modules/prisma/prisma.service'
@@ -89,9 +90,19 @@ describe('Admin users (e2e)', () => {
         email: `New.${role}@Morshid.Demo`,
         displayName: `New ${role}`,
         role,
-        password: '123',
+        password: 'TempPassword123!',
       })
       .expect(201)
+  }
+
+  async function listUsersAs(email: string, expectedStatus = 200) {
+    const token = await signInAs(email)
+
+    return request(app.getHttpServer())
+      .get('/api/v1/admin/users')
+      .set('Authorization', `Bearer ${token}`)
+      .set('User-Agent', auditUserAgent)
+      .expect(expectedStatus)
   }
 
   it.each([UserRole.STUDENT, UserRole.INSTRUCTOR])(
@@ -113,7 +124,7 @@ describe('Admin users (e2e)', () => {
         }),
       )
       expect(createdUser?.passwordHash).toEqual(expect.any(String))
-      expect(createdUser?.passwordHash).not.toBe('123')
+      expect(createdUser?.passwordHash).not.toBe('TempPassword123!')
       expect(body).toEqual({
         user: {
           id: createdUser?.id,
@@ -164,7 +175,7 @@ describe('Admin users (e2e)', () => {
         email: 'new-admin@morshid.demo',
         displayName: 'New Admin',
         role: UserRole.ADMIN,
-        password: 'temporary-password',
+        password: 'TempPassword123!',
       })
       .expect(400)
       .expect({
@@ -194,7 +205,19 @@ describe('Admin users (e2e)', () => {
         errors: [
           {
             field: 'password',
-            message: 'Too small: expected string to have >=1 characters',
+            message: 'Password must be at least 8 characters',
+          },
+          {
+            field: 'password',
+            message: 'Password must contain at least one letter',
+          },
+          {
+            field: 'password',
+            message: 'Password must contain at least one number',
+          },
+          {
+            field: 'password',
+            message: 'Password must contain at least one symbol',
           },
         ],
       })
@@ -212,7 +235,7 @@ describe('Admin users (e2e)', () => {
         email: 'student1@morshid.demo',
         displayName: 'Duplicate Student',
         role: UserRole.STUDENT,
-        password: 'temporary-password',
+        password: 'TempPassword123!',
       })
       .expect(409)
       .expect({
@@ -239,5 +262,51 @@ describe('Admin users (e2e)', () => {
         code: AUTH_ERROR_CODES.INSUFFICIENT_ROLE,
         message: 'Insufficient role',
       })
+  })
+
+  it('allows an admin to list users as safe public records ordered by newest first', async () => {
+    await createUserAsAdmin(UserRole.STUDENT)
+
+    const response = await listUsersAs('admin@morshid.demo')
+    const body = response.body as AdminUserListResponseDto
+
+    expect(body.users[0]).toMatchObject({
+      email: 'new.student@morshid.demo',
+      displayName: 'New STUDENT',
+      role: UserRole.STUDENT,
+      status: UserStatus.ACTIVE,
+    })
+    expect(body.users[0]).toEqual({
+      id: expect.any(String) as unknown as string,
+      email: 'new.student@morshid.demo',
+      displayName: 'New STUDENT',
+      role: UserRole.STUDENT,
+      status: UserStatus.ACTIVE,
+      createdAt: expect.any(String) as unknown as string,
+      updatedAt: expect.any(String) as unknown as string,
+    })
+    expect(body.users[0]).not.toHaveProperty('passwordHash')
+    expect(body.users[0]).not.toHaveProperty('refreshTokens')
+    expect(body.users.map((user) => user.email)).toEqual(
+      expect.arrayContaining([
+        'admin@morshid.demo',
+        'instructor@morshid.demo',
+        'student1@morshid.demo',
+        'new.student@morshid.demo',
+      ]),
+    )
+  })
+
+  it('rejects unauthenticated user list requests', async () => {
+    await request(app.getHttpServer()).get('/api/v1/admin/users').expect(401)
+  })
+
+  it('rejects non-admin user list requests', async () => {
+    const response = await listUsersAs('student1@morshid.demo', 403)
+
+    expect(response.body).toEqual({
+      code: AUTH_ERROR_CODES.INSUFFICIENT_ROLE,
+      message: 'Insufficient role',
+    })
   })
 })
