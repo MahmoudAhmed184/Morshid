@@ -8,6 +8,9 @@ import {
   UserStatus,
 } from '../../../generated/prisma/client'
 
+const ADMIN_USER_PASSWORD_PATTERN =
+  '^(?=.*[A-Za-z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,50}$'
+
 export const adminUserPasswordSchema = z
   .string()
   .min(8, 'Password must be at least 8 characters')
@@ -24,7 +27,7 @@ export const adminCreateUserRequestSchema = z
       z.email(),
     ),
     displayName: z.string().trim().min(1).max(120),
-    role: z.enum(UserRole),
+    role: z.enum([UserRole.STUDENT, UserRole.INSTRUCTOR]),
     password: adminUserPasswordSchema,
   })
   .strict()
@@ -56,12 +59,20 @@ export class AdminCreateUserRequestDto {
   })
   role!: AdminCreatableUserRole
 
-  @ApiProperty({ minLength: 1 })
+  @ApiProperty({
+    minLength: 8,
+    maxLength: 50,
+    pattern: ADMIN_USER_PASSWORD_PATTERN,
+  })
   password!: string
 }
 
 export class AdminResetUserPasswordRequestDto {
-  @ApiProperty({ minLength: 8, maxLength: 50 })
+  @ApiProperty({
+    minLength: 8,
+    maxLength: 50,
+    pattern: ADMIN_USER_PASSWORD_PATTERN,
+  })
   newPassword!: string
 }
 

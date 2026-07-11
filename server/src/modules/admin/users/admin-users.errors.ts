@@ -13,7 +13,6 @@ export const ADMIN_USERS_ERROR_CODES = {
   CANNOT_DISABLE_SELF: 'ADMIN_USERS_CANNOT_DISABLE_SELF',
   INVALID_CREATE_REQUEST: 'ADMIN_USERS_INVALID_CREATE_REQUEST',
   INVALID_RESET_PASSWORD_REQUEST: 'ADMIN_USERS_INVALID_RESET_PASSWORD_REQUEST',
-  UNSUPPORTED_ROLE: 'ADMIN_USERS_UNSUPPORTED_ROLE',
   USER_NOT_FOUND: 'ADMIN_USERS_USER_NOT_FOUND',
 } as const
 
@@ -78,12 +77,5 @@ export function invalidAdminResetUserPasswordRequestException(
     code: ADMIN_USERS_ERROR_CODES.INVALID_RESET_PASSWORD_REQUEST,
     message: 'Invalid admin user password reset request',
     errors,
-  })
-}
-
-export function unsupportedAdminCreateUserRoleException(): HttpException {
-  return new BadRequestException({
-    code: ADMIN_USERS_ERROR_CODES.UNSUPPORTED_ROLE,
-    message: 'Admin users can only create STUDENT or INSTRUCTOR accounts',
   })
 }

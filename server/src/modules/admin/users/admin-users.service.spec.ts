@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   ConflictException,
   ForbiddenException,
   NotFoundException,
@@ -251,29 +250,6 @@ describe('AdminUsersService', () => {
       expect(response.user).not.toHaveProperty('refreshTokens')
     },
   )
-
-  it('rejects attempts to create an admin user', async () => {
-    const { repository, service } = buildService()
-    const createUser = service.createUser(
-      {
-        email: 'new-admin@morshid.demo',
-        displayName: 'New Admin',
-        role: UserRole.ADMIN,
-        password: 'temporary-password',
-      },
-      actor,
-      requestContext,
-    )
-
-    await expect(createUser).rejects.toBeInstanceOf(BadRequestException)
-    await expect(createUser).rejects.toMatchObject({
-      response: {
-        code: ADMIN_USERS_ERROR_CODES.UNSUPPORTED_ROLE,
-        message: 'Admin users can only create STUDENT or INSTRUCTOR accounts',
-      },
-    })
-    expect(repository.createUser.mock.calls).toHaveLength(0)
-  })
 
   it('rejects duplicate emails before hashing', async () => {
     const { createHash, repository, service } = buildService()

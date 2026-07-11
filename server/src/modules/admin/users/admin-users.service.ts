@@ -24,7 +24,6 @@ import {
   cannotDisableLastActiveAdminException,
   cannotDisableSelfException,
   duplicateAdminUserEmailException,
-  unsupportedAdminCreateUserRoleException,
 } from './admin-users.errors'
 import {
   AdminUsersRepository,
@@ -45,10 +44,6 @@ export class AdminUsersService {
     actor: AuthenticatedRequestUser,
     requestContext?: AuditRequestContext,
   ): Promise<AdminCreateUserResponseDto> {
-    if (input.role === UserRole.ADMIN) {
-      throw unsupportedAdminCreateUserRoleException()
-    }
-
     const email = this.authUserService.normalizeEmail(input.email)
     const existingUser = await this.adminUsersRepository.findByEmail(email)
 

@@ -189,7 +189,7 @@ describe('Admin users (e2e)', () => {
     },
   )
 
-  it('rejects creating an admin user through this endpoint', async () => {
+  it('rejects unsupported create-user roles at the request boundary', async () => {
     const token = await signInAs('admin@morshid.demo')
 
     await request(app.getHttpServer())
@@ -202,12 +202,39 @@ describe('Admin users (e2e)', () => {
         password: 'TempPassword123!',
       })
       .expect(400)
-      .expect({
-        code: ADMIN_USERS_ERROR_CODES.UNSUPPORTED_ROLE,
-        message: 'Admin users can only create STUDENT or INSTRUCTOR accounts',
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          code: ADMIN_USERS_ERROR_CODES.INVALID_CREATE_REQUEST,
+          message: 'Invalid admin user create request',
+          errors: [
+            expect.objectContaining({
+              field: 'role',
+            }),
+          ],
+        })
       })
 
     expect(store.findUserByEmail('new-admin@morshid.demo')).toBeNull()
+  })
+
+  it('publishes the runtime password policy in OpenAPI', async () => {
+    const response = await request(app.getHttpServer()).get('/docs-json').expect(200)
+    const schemas = response.body.components.schemas as Record<
+      string,
+      { properties: Record<string, unknown> }
+    >
+    const passwordPolicy = {
+      minLength: 8,
+      maxLength: 50,
+      pattern: '^(?=.*[A-Za-z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,50}$',
+    }
+
+    expect(schemas.AdminCreateUserRequestDto?.properties.password).toMatchObject(
+      passwordPolicy,
+    )
+    expect(
+      schemas.AdminResetUserPasswordRequestDto?.properties.newPassword,
+    ).toMatchObject(passwordPolicy)
   })
 
   it('returns field-level validation errors for empty passwords', async () => {
