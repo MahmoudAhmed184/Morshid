@@ -25,6 +25,12 @@ export class CoursesService {
       }
     }
 
+    if (policy.scope === 'ownership') {
+      return {
+        courses: await this.listOwnedCourses(user.id),
+      }
+    }
+
     return {
       courses: await this.listMemberCourses(user.id, policy.membershipRole),
     }
@@ -81,6 +87,12 @@ export class CoursesService {
     role: CourseMembershipRole,
   ): Promise<CourseListItemDto[]> {
     const courses = await this.coursesRepository.listMemberCourses(userId, role)
+
+    return courses.sort(compareCourseListItems)
+  }
+
+  private async listOwnedCourses(userId: string): Promise<CourseListItemDto[]> {
+    const courses = await this.coursesRepository.listOwnedCourses(userId)
 
     return courses.sort(compareCourseListItems)
   }

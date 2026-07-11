@@ -9,11 +9,16 @@ import { CoursesRepository } from './courses.repository'
 
 class CourseAccessTestRepository extends CoursesRepository {
   private readonly memberships = new Map<string, CourseMembershipRole>()
+  private readonly owners = new Map<string, string>()
 
   readonly findMembershipRole = jest.fn((userId: string, courseId: string) =>
     Promise.resolve(
       this.memberships.get(this.membershipKey(userId, courseId)) ?? null,
     ),
+  )
+
+  readonly isCourseOwner = jest.fn((userId: string, courseId: string) =>
+    Promise.resolve(this.owners.get(courseId) === userId),
   )
 
   listAdminCourses() {
@@ -24,8 +29,16 @@ class CourseAccessTestRepository extends CoursesRepository {
     return Promise.resolve([])
   }
 
+  listOwnedCourses() {
+    return Promise.resolve([])
+  }
+
   addMembership(userId: string, courseId: string, role: CourseMembershipRole) {
     this.memberships.set(this.membershipKey(userId, courseId), role)
+  }
+
+  addOwner(userId: string, courseId: string) {
+    this.owners.set(courseId, userId)
   }
 
   private membershipKey(userId: string, courseId: string) {
@@ -64,15 +77,11 @@ describe('CourseAccessService', () => {
     expect(repository.findMembershipRole).not.toHaveBeenCalled()
   })
 
-  it('allows an instructor to view and manage courses where they have an instructor membership', async () => {
+  it('allows an instructor to view and manage an owned course without a membership', async () => {
     const { service, repository } = buildService()
     const instructor = buildUser('instructor-user', UserRole.INSTRUCTOR)
 
-    repository.addMembership(
-      instructor.id,
-      'owned-course',
-      CourseMembershipRole.INSTRUCTOR,
-    )
+    repository.addOwner(instructor.id, 'owned-course')
 
     await expect(
       service.canViewCourse(instructor, 'owned-course'),
@@ -86,8 +95,9 @@ describe('CourseAccessService', () => {
     const { service, repository } = buildService()
     const instructor = buildUser('instructor-user', UserRole.INSTRUCTOR)
 
+    repository.addOwner('other-instructor', 'other-course')
     repository.addMembership(
-      'other-instructor',
+      instructor.id,
       'other-course',
       CourseMembershipRole.INSTRUCTOR,
     )

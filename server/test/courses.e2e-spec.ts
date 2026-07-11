@@ -72,28 +72,32 @@ class CoursesTestRepository extends CoursesRepository {
     return Promise.resolve(null)
   }
 
+  isCourseOwner() {
+    return Promise.resolve(false)
+  }
+
   listAdminCourses(): Promise<AdminCourseRecord[]> {
     return Promise.resolve(adminCourses)
   }
 
-  listMemberCourses(_userId: string, role: CourseMembershipRole) {
-    if (role === CourseMembershipRole.INSTRUCTOR) {
-      return Promise.resolve([
-        {
-          id: 'python-course',
-          code: 'PYTHON-PROG-P0',
-          title: 'Python Programming',
-          membershipRole: CourseMembershipRole.INSTRUCTOR,
-        },
-      ])
-    }
-
+  listMemberCourses(_userId: string, _role: CourseMembershipRole) {
     return Promise.resolve([
       {
         id: 'python-course',
         code: 'PYTHON-PROG-P0',
         title: 'Python Programming',
         membershipRole: CourseMembershipRole.STUDENT,
+      },
+    ])
+  }
+
+  listOwnedCourses() {
+    return Promise.resolve([
+      {
+        id: 'python-course',
+        code: 'PYTHON-PROG-P0',
+        title: 'Python Programming',
+        membershipRole: CourseMembershipRole.INSTRUCTOR,
       },
     ])
   }

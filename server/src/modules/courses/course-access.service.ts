@@ -19,6 +19,10 @@ export class CourseAccessService {
       return true
     }
 
+    if (policy.scope === 'ownership') {
+      return this.coursesRepository.isCourseOwner(user.id, courseId)
+    }
+
     return this.hasCourseMembership(user.id, courseId, policy.membershipRole)
   }
 
@@ -34,6 +38,10 @@ export class CourseAccessService {
 
     if (policy.scope === 'all') {
       return true
+    }
+
+    if (policy.scope === 'ownership') {
+      return this.coursesRepository.isCourseOwner(user.id, courseId)
     }
 
     return this.hasCourseMembership(user.id, courseId, policy.membershipRole)

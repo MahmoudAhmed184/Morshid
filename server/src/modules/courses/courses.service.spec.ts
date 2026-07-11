@@ -60,6 +60,14 @@ class CoursesServiceTestRepository extends CoursesRepository {
     ),
   )
 
+  readonly isCourseOwner = jest.fn((userId: string, courseId: string) =>
+    Promise.resolve(this.courses.get(courseId)?.createdById === userId),
+  )
+
+  readonly listOwnedCourses = jest.fn((userId: string) =>
+    Promise.resolve(this.findOwnedCourses(userId)),
+  )
+
   constructor() {
     super()
     this.seed()
@@ -109,7 +117,7 @@ class CoursesServiceTestRepository extends CoursesRepository {
       id: 'python-course',
       code: 'PYTHON-PROG-P0',
       title: 'Python Programming',
-      createdById: 'admin-user',
+      createdById: 'instructor-user',
       createdAt,
       updatedAt,
     })
@@ -117,7 +125,7 @@ class CoursesServiceTestRepository extends CoursesRepository {
       id: 'database-course',
       code: 'DB-P0',
       title: 'Database Systems',
-      createdById: 'admin-user',
+      createdById: 'other-instructor',
       createdAt,
       updatedAt,
     })
@@ -147,7 +155,7 @@ class CoursesServiceTestRepository extends CoursesRepository {
     this.addMembership({
       id: 'database-instructor-membership',
       courseId: 'database-course',
-      userId: 'other-instructor',
+      userId: 'instructor-user',
       role: CourseMembershipRole.INSTRUCTOR,
       createdAt,
     })
@@ -232,6 +240,22 @@ class CoursesServiceTestRepository extends CoursesRepository {
       .sort(compareCourseRecords)
   }
 
+  private findOwnedCourses(userId: string): RepositoryMemberCourseRecord[] {
+    return [...this.courses.values()]
+      .filter((course) => course.createdById === userId)
+      .map((course) => ({
+        id: course.id,
+        code: course.code,
+        title: course.title,
+        membershipRole:
+          this.memberships.find(
+            (membership) =>
+              membership.courseId === course.id && membership.userId === userId,
+          )?.role ?? null,
+      }))
+      .sort(compareCourseRecords)
+  }
+
   private requireCourse(courseId: string) {
     const course = this.courses.get(courseId)
 
@@ -305,10 +329,10 @@ describe('CoursesService', () => {
     ])
     expect(pythonCourse.membershipRole).toBeNull()
     expect(pythonCourse.adminMetadata).toMatchObject({
-      createdById: 'admin-user',
+      createdById: 'instructor-user',
       createdBy: {
-        email: 'admin@morshid.demo',
-        role: UserRole.ADMIN,
+        email: 'instructor@morshid.demo',
+        role: UserRole.INSTRUCTOR,
       },
       memberCount: 2,
       instructorCount: 1,
@@ -341,7 +365,7 @@ describe('CoursesService', () => {
     expect(repository.listAdminCourses).toHaveBeenCalledWith()
   })
 
-  it('returns only instructor membership courses for instructors', async () => {
+  it('returns only courses owned by the instructor', async () => {
     const { service, repository } = buildService()
     const instructor = buildUser('instructor-user', UserRole.INSTRUCTOR)
 
@@ -356,10 +380,7 @@ describe('CoursesService', () => {
       },
     ])
     expect(response.courses[0].adminMetadata).toBeUndefined()
-    expect(repository.listMemberCourses).toHaveBeenCalledWith(
-      'instructor-user',
-      CourseMembershipRole.INSTRUCTOR,
-    )
+    expect(repository.listOwnedCourses).toHaveBeenCalledWith('instructor-user')
   })
 
   it('returns only student membership courses for students', async () => {

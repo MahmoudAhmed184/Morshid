@@ -39,7 +39,7 @@ export interface MemberCourseRecord {
   id: string
   code: string
   title: string
-  membershipRole: CourseMembershipRole
+  membershipRole: CourseMembershipRole | null
 }
 
 export abstract class CoursesRepository {
@@ -48,12 +48,16 @@ export abstract class CoursesRepository {
     courseId: string,
   ): Promise<CourseMembershipRole | null>
 
+  abstract isCourseOwner(userId: string, courseId: string): Promise<boolean>
+
   abstract listAdminCourses(): Promise<AdminCourseRecord[]>
 
   abstract listMemberCourses(
     userId: string,
     role: CourseMembershipRole,
   ): Promise<MemberCourseRecord[]>
+
+  abstract listOwnedCourses(userId: string): Promise<MemberCourseRecord[]>
 }
 
 @Injectable()
@@ -76,6 +80,20 @@ export class PrismaCoursesRepository extends CoursesRepository {
     })
 
     return membership?.role ?? null
+  }
+
+  async isCourseOwner(userId: string, courseId: string) {
+    const course = await this.prismaService.course.findFirst({
+      where: {
+        id: courseId,
+        createdById: userId,
+      },
+      select: {
+        id: true,
+      },
+    })
+
+    return course !== null
   }
 
   listAdminCourses(): Promise<AdminCourseRecord[]> {
@@ -149,6 +167,35 @@ export class PrismaCoursesRepository extends CoursesRepository {
     return memberships.map((membership) => ({
       ...membership.course,
       membershipRole: membership.role,
+    }))
+  }
+
+  async listOwnedCourses(userId: string): Promise<MemberCourseRecord[]> {
+    const courses = await this.prismaService.course.findMany({
+      where: {
+        createdById: userId,
+      },
+      select: {
+        id: true,
+        code: true,
+        title: true,
+        memberships: {
+          where: {
+            userId,
+          },
+          select: {
+            role: true,
+          },
+          take: 1,
+        },
+      },
+    })
+
+    return courses.map((course) => ({
+      id: course.id,
+      code: course.code,
+      title: course.title,
+      membershipRole: course.memberships[0]?.role ?? null,
     }))
   }
 }
