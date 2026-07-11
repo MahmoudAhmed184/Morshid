@@ -34,6 +34,17 @@ interface RecordAdminUserDisabledInput {
   requestContext?: AuditRequestContext
 }
 
+interface RecordAdminUserReactivatedInput {
+  actorUserId: string
+  targetUser: {
+    id: string
+    email: string
+    displayName: string
+    role: UserRole
+  }
+  requestContext?: AuditRequestContext
+}
+
 @Injectable()
 export class AdminUsersAuditService {
   constructor(private readonly auditService: AuditService) {}
@@ -78,6 +89,29 @@ export class AdminUsersAuditService {
           displayName: input.targetUser.displayName,
           role: input.targetUser.role,
           revokedRefreshTokenCount: input.revokedRefreshTokenCount,
+        },
+        requestContext: input.requestContext,
+      },
+      database,
+    )
+  }
+
+  async recordUserReactivated(
+    input: RecordAdminUserReactivatedInput,
+    database?: AuditDatabase,
+  ): Promise<void> {
+    await this.auditService.recordEvent(
+      {
+        actorUserId: input.actorUserId,
+        action: AUDIT_EVENT_ACTIONS.ADMIN_ACCOUNT_ENABLED,
+        target: {
+          type: AUDIT_TARGET_TYPES.USER,
+          id: input.targetUser.id,
+        },
+        metadata: {
+          email: input.targetUser.email,
+          displayName: input.targetUser.displayName,
+          role: input.targetUser.role,
         },
         requestContext: input.requestContext,
       },

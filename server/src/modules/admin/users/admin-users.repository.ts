@@ -52,6 +52,12 @@ export interface DisableAdminUserRepositoryInput {
   requestContext?: AuditRequestContext
 }
 
+export interface ReactivateAdminUserRepositoryInput {
+  userId: string
+  actorUserId: string
+  requestContext?: AuditRequestContext
+}
+
 const adminUserRecordSelect = {
   id: true,
   email: true,
@@ -94,6 +100,10 @@ export abstract class AdminUsersRepository {
 
   abstract disableUser(
     input: DisableAdminUserRepositoryInput,
+  ): Promise<AdminUserRecord>
+
+  abstract reactivateUser(
+    input: ReactivateAdminUserRepositoryInput,
   ): Promise<AdminUserRecord>
 }
 
@@ -212,6 +222,35 @@ export class PrismaAdminUsersRepository extends AdminUsersRepository {
           actorUserId: input.actorUserId,
           targetUser: user,
           revokedRefreshTokenCount: revokedRefreshTokens.count,
+          requestContext: input.requestContext,
+        },
+        tx,
+      )
+
+      return user
+    })
+  }
+
+  reactivateUser(
+    input: ReactivateAdminUserRepositoryInput,
+  ): Promise<AdminUserRecord> {
+    return this.prismaService.$transaction(async (tx) => {
+      const user = await tx.user.update({
+        where: {
+          id: input.userId,
+        },
+        data: {
+          status: UserStatus.ACTIVE,
+          disabledAt: null,
+          disabledById: null,
+        },
+        select: adminUserRecordSelect,
+      })
+
+      await this.adminUsersAuditService.recordUserReactivated(
+        {
+          actorUserId: input.actorUserId,
+          targetUser: user,
           requestContext: input.requestContext,
         },
         tx,
