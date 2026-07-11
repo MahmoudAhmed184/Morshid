@@ -4,6 +4,7 @@ import {
   Controller,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Req,
@@ -110,7 +111,7 @@ export class AdminUsersController {
   })
   @ApiOkResponse({ type: AdminDisableUserResponseDto })
   disableUser(
-    @Param('userId') userId: string,
+    @Param('userId', new ParseUUIDPipe({ version: '4' })) userId: string,
     @Req() request: AuthenticatedHttpRequest,
   ): Promise<AdminDisableUserResponseDto> {
     return this.adminUsersService.disableUser(
@@ -127,7 +128,7 @@ export class AdminUsersController {
   })
   @ApiOkResponse({ type: AdminReactivateUserResponseDto })
   reactivateUser(
-    @Param('userId') userId: string,
+    @Param('userId', new ParseUUIDPipe({ version: '4' })) userId: string,
     @Req() request: AuthenticatedHttpRequest,
   ): Promise<AdminReactivateUserResponseDto> {
     return this.adminUsersService.reactivateUser(
@@ -145,7 +146,7 @@ export class AdminUsersController {
   @ApiBody({ type: AdminResetUserPasswordRequestDto })
   @ApiOkResponse({ type: AdminResetUserPasswordResponseDto })
   resetUserPassword(
-    @Param('userId') userId: string,
+    @Param('userId', new ParseUUIDPipe({ version: '4' })) userId: string,
     @Body(
       new AdminUsersValidationPipe(
         adminResetUserPasswordRequestSchema,

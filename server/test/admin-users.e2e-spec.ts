@@ -545,6 +545,23 @@ describe('Admin users (e2e)', () => {
       })
   })
 
+  it.each([
+    ['disable', undefined],
+    ['reactivate', undefined],
+    ['reset-password', { newPassword: 'StrongPassword123!' }],
+  ])('rejects malformed user ids for %s', async (action, body) => {
+    const token = await signInAs('admin@morshid.demo')
+    const requestBuilder = request(app.getHttpServer())
+      .patch(`/api/v1/admin/users/not-a-uuid/${action}`)
+      .set('Authorization', `Bearer ${token}`)
+
+    if (body !== undefined) {
+      requestBuilder.send(body)
+    }
+
+    await requestBuilder.expect(400)
+  })
+
   it('rejects non-admin user reset-password requests', async () => {
     const token = await signInAs('student1@morshid.demo')
     const target = requireUserByEmail('instructor@morshid.demo')
