@@ -2,10 +2,19 @@ import { Injectable } from '@nestjs/common'
 
 import {
   CourseMembershipRole,
+  type Prisma,
   type UserRole,
   type UserStatus,
 } from '../../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+
+const courseUserSummarySelect = {
+  id: true,
+  email: true,
+  displayName: true,
+  role: true,
+  status: true,
+} satisfies Prisma.UserSelect
 
 export interface CourseUserRecord {
   id: string
@@ -106,13 +115,7 @@ export class PrismaCoursesRepository extends CoursesRepository {
         createdAt: true,
         updatedAt: true,
         createdBy: {
-          select: {
-            id: true,
-            email: true,
-            displayName: true,
-            role: true,
-            status: true,
-          },
+          select: courseUserSummarySelect,
         },
         memberships: {
           select: {
@@ -121,13 +124,7 @@ export class PrismaCoursesRepository extends CoursesRepository {
             role: true,
             createdAt: true,
             user: {
-              select: {
-                id: true,
-                email: true,
-                displayName: true,
-                role: true,
-                status: true,
-              },
+              select: courseUserSummarySelect,
             },
           },
         },
