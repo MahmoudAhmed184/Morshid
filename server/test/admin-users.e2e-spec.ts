@@ -402,6 +402,14 @@ describe('Admin users (e2e)', () => {
         message: 'Invalid refresh token',
       })
     await request(app.getHttpServer())
+      .get('/api/v1/me')
+      .set('Authorization', `Bearer ${targetSession.accessToken}`)
+      .expect(401)
+      .expect({
+        code: AUTH_ERROR_CODES.INVALID_ACCESS_TOKEN,
+        message: 'Invalid access token',
+      })
+    await request(app.getHttpServer())
       .post('/api/v1/auth/sign-in')
       .set('User-Agent', auditUserAgent)
       .send({ email: target.email, password: P0_DEMO_PASSWORD })
