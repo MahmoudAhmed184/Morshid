@@ -20,10 +20,32 @@ import { SignInForm } from './sign-in-form'
 const validEmail = 'instructor@morshid.demo'
 const validPassword = 'password'
 const navigateMock = vi.fn()
+const mockSession = {
+  tokenType: 'Bearer',
+  user: {
+    id: 'user-1',
+    email: validEmail,
+    displayName: 'P0 Demo Instructor',
+    role: 'INSTRUCTOR',
+    status: 'ACTIVE',
+    courses: [],
+  },
+  accessToken: 'server-access-token',
+  accessTokenExpiresAt: '2026-07-11T12:15:00.000Z',
+  refreshToken: 'server-refresh-token',
+  refreshTokenExpiresAt: '2026-07-18T12:00:00.000Z',
+} as const
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigateMock,
 }))
+
+function mockSignInResponse(response: Response) {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => response),
+  )
+}
 
 function renderSignInForm(props?: { onSubmitDelay?: number }) {
   render(<SignInForm {...props} />)
@@ -77,6 +99,7 @@ describe('SignInForm', () => {
     useAuthStore.getState().clearSession()
     navigateMock.mockReset()
     navigateMock.mockResolvedValue(undefined)
+    mockSignInResponse(Response.json(mockSession))
     vi.stubGlobal(
       'matchMedia',
       vi.fn((query: string) => ({
@@ -238,7 +261,7 @@ describe('SignInForm', () => {
       ).toBeDefined()
     })
 
-    it('accepts the seeded mock password', async () => {
+    it('accepts valid server credentials', async () => {
       renderSignInForm()
       fillSignInForm()
       submitSignInForm()
@@ -334,22 +357,33 @@ describe('SignInForm', () => {
       expect(useAuthStore.getState()).toMatchObject({
         user: {
           email: validEmail,
-          displayName: 'Demo Instructor',
+          displayName: 'P0 Demo Instructor',
           role: 'INSTRUCTOR',
           status: 'ACTIVE',
           courses: [],
         },
         tokenType: 'Bearer',
-        accessToken: 'mock-access-token:mock-instructor',
+        accessToken: 'server-access-token',
         accessTokenExpiresAt: '2026-07-11T12:15:00.000Z',
-        refreshToken: 'mock-refresh-token:mock-instructor',
+        refreshToken: 'server-refresh-token',
         refreshTokenExpiresAt: '2026-07-18T12:00:00.000Z',
         isAuthenticated: true,
       })
       expect(navigateMock).toHaveBeenCalledWith({ to: '/instructor' })
     })
 
-    it('shows a generic error for wrong mock credentials', async () => {
+    it('shows a generic error for wrong credentials', async () => {
+      mockSignInResponse(
+        Response.json(
+          {
+            code: 'INVALID_CREDENTIALS',
+            message: 'Invalid email or password',
+          },
+          {
+            status: 401,
+          },
+        ),
+      )
       renderSignInForm()
       fillSignInForm({ password: 'Password1!' })
       submitSignInForm()
@@ -358,7 +392,18 @@ describe('SignInForm', () => {
       expect(navigateMock).not.toHaveBeenCalled()
     })
 
-    it('shows the disabled account message for disabled mock credentials', async () => {
+    it('shows the disabled account message for disabled credentials', async () => {
+      mockSignInResponse(
+        Response.json(
+          {
+            code: 'ACCOUNT_DISABLED',
+            message: 'Account is disabled',
+          },
+          {
+            status: 403,
+          },
+        ),
+      )
       renderSignInForm()
       fillSignInForm({
         email: 'disabled@morshid.demo',

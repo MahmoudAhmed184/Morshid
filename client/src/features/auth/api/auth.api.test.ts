@@ -3,35 +3,62 @@ import { describe, expect, it } from 'vitest'
 import {
   DISABLED_ACCOUNT_MESSAGE,
   INVALID_CREDENTIALS_MESSAGE,
+  SIGN_IN_UNAVAILABLE_MESSAGE,
   loginApi,
 } from './auth.api'
 
+const mockSession = {
+  tokenType: 'Bearer',
+  accessToken: 'server-access-token',
+  accessTokenExpiresAt: '2026-07-11T12:15:00.000Z',
+  refreshToken: 'server-refresh-token',
+  refreshTokenExpiresAt: '2026-07-18T12:00:00.000Z',
+  user: {
+    id: 'user-1',
+    email: 'instructor@morshid.demo',
+    displayName: 'P0 Demo Instructor',
+    role: 'INSTRUCTOR',
+    status: 'ACTIVE',
+    courses: [],
+  },
+}
+
 describe('loginApi', () => {
-  it.each([
-    ['admin@morshid.demo', 'ADMIN'],
-    ['instructor@morshid.demo', 'INSTRUCTOR'],
-    ['student1@morshid.demo', 'STUDENT'],
-  ] as const)('authenticates seeded account %s', async (email, role) => {
-    const request = loginApi(email, 'password')
-    const assertion = expect(request).resolves.toMatchObject({
-      tokenType: 'Bearer',
-      accessToken: expect.stringContaining('mock-access-token:'),
-      accessTokenExpiresAt: expect.any(String),
-      refreshToken: expect.stringContaining('mock-refresh-token:'),
-      refreshTokenExpiresAt: expect.any(String),
-      user: {
-        email,
-        role,
-        status: 'ACTIVE',
-        courses: [],
-      },
-    })
+  it('posts credentials to the server sign-in endpoint', async () => {
+    const fetchMock = async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe('http://localhost:4000/api/v1/auth/sign-in')
+      expect(init).toMatchObject({
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        method: 'POST',
+      })
+      expect(JSON.parse(String(init?.body))).toEqual({
+        email: 'instructor@morshid.demo',
+        password: 'password',
+      })
 
-    await assertion
+      return Response.json(mockSession)
+    }
+
+    await expect(
+      loginApi('instructor@morshid.demo', 'password', fetchMock),
+    ).resolves.toEqual(mockSession)
   })
 
-  it('rejects wrong passwords with a generic error', async () => {
-    const request = loginApi('admin@morshid.demo', 'notright')
+  it('rejects invalid credentials with the client-safe generic error', async () => {
+    const fetchMock = async () =>
+      Response.json(
+        {
+          code: 'INVALID_CREDENTIALS',
+          message: 'Invalid email or password',
+        },
+        {
+          status: 401,
+        },
+      )
+    const request = loginApi('admin@morshid.demo', 'notright', fetchMock)
     const assertion = expect(request).rejects.toMatchObject({
       code: 'INVALID_CREDENTIALS',
       message: INVALID_CREDENTIALS_MESSAGE,
@@ -40,8 +67,18 @@ describe('loginApi', () => {
     await assertion
   })
 
-  it('rejects unknown emails with a generic error', async () => {
-    const request = loginApi('unknown@morshid.demo', 'password')
+  it('normalizes invalid auth requests to the generic credentials error', async () => {
+    const fetchMock = async () =>
+      Response.json(
+        {
+          code: 'INVALID_REQUEST',
+          message: 'Invalid auth request',
+        },
+        {
+          status: 400,
+        },
+      )
+    const request = loginApi('not-an-email', 'password', fetchMock)
     const assertion = expect(request).rejects.toMatchObject({
       code: 'INVALID_CREDENTIALS',
       message: INVALID_CREDENTIALS_MESSAGE,
@@ -50,8 +87,18 @@ describe('loginApi', () => {
     await assertion
   })
 
-  it('rejects disabled accounts with the disabled account error', async () => {
-    const request = loginApi('disabled@morshid.demo', 'password')
+  it('normalizes disabled account responses to the client-safe disabled message', async () => {
+    const fetchMock = async () =>
+      Response.json(
+        {
+          code: 'ACCOUNT_DISABLED',
+          message: 'Account is disabled',
+        },
+        {
+          status: 403,
+        },
+      )
+    const request = loginApi('disabled@morshid.demo', 'password', fetchMock)
     const assertion = expect(request).rejects.toMatchObject({
       code: 'ACCOUNT_DISABLED',
       message: DISABLED_ACCOUNT_MESSAGE,
@@ -60,11 +107,34 @@ describe('loginApi', () => {
     await assertion
   })
 
-  it('does not reveal disabled accounts when the password is wrong', async () => {
-    const request = loginApi('disabled@morshid.demo', 'notright')
+  it('uses a safe fallback for unexpected auth errors', async () => {
+    const fetchMock = async () =>
+      Response.json(
+        {
+          code: 'INVALID_ACCESS_TOKEN',
+          message: 'Internal implementation detail',
+        },
+        {
+          status: 401,
+        },
+      )
+    const request = loginApi('admin@morshid.demo', 'password', fetchMock)
     const assertion = expect(request).rejects.toMatchObject({
-      code: 'INVALID_CREDENTIALS',
-      message: INVALID_CREDENTIALS_MESSAGE,
+      code: 'INVALID_ACCESS_TOKEN',
+      message: SIGN_IN_UNAVAILABLE_MESSAGE,
+    })
+
+    await assertion
+  })
+
+  it('uses a safe fallback when the sign-in request cannot reach the server', async () => {
+    const fetchMock = async () => {
+      throw new TypeError('failed to fetch')
+    }
+    const request = loginApi('admin@morshid.demo', 'password', fetchMock)
+    const assertion = expect(request).rejects.toMatchObject({
+      code: 'INVALID_REQUEST',
+      message: SIGN_IN_UNAVAILABLE_MESSAGE,
     })
 
     await assertion

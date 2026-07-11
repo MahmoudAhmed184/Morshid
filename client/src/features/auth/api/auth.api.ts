@@ -1,47 +1,20 @@
 import type {
   AuthApiError,
   AuthApiErrorCode,
-  AuthUser,
   LoginApiResponse,
 } from '@/features/auth/types/auth.types'
+import { clientEnv } from '@/lib/env'
 
 export const INVALID_CREDENTIALS_MESSAGE = 'Invalid email or password.'
 export const DISABLED_ACCOUNT_MESSAGE =
   'Your account is disabled. Please contact the administrator.'
+export const SIGN_IN_UNAVAILABLE_MESSAGE =
+  'Unable to sign in. Please try again.'
 
-const ACCEPTED_PASSWORD = 'password'
-const mockAccessTokenExpiresAt = '2026-07-11T12:15:00.000Z'
-const mockRefreshTokenExpiresAt = '2026-07-18T12:00:00.000Z'
-
-// TODO: Replace this temporary mock with the real auth service implementation.
-const seededUsers: Partial<Record<string, AuthUser>> = {
-  'admin@morshid.demo': {
-    id: 'mock-admin',
-    email: 'admin@morshid.demo',
-    displayName: 'Demo Admin',
-    role: 'ADMIN',
-    status: 'ACTIVE',
-    courses: [],
-  },
-  'instructor@morshid.demo': {
-    id: 'mock-instructor',
-    email: 'instructor@morshid.demo',
-    displayName: 'Demo Instructor',
-    role: 'INSTRUCTOR',
-    status: 'ACTIVE',
-    courses: [],
-  },
-  'student1@morshid.demo': {
-    id: 'mock-student-1',
-    email: 'student1@morshid.demo',
-    displayName: 'Demo Student',
-    role: 'STUDENT',
-    status: 'ACTIVE',
-    courses: [],
-  },
+type SignInApiErrorResponse = {
+  code?: unknown
+  message?: unknown
 }
-
-const disabledEmails = new Set(['disabled@morshid.demo'])
 
 function createAuthApiError(
   code: AuthApiErrorCode,
@@ -57,32 +30,87 @@ export function isAuthApiError(error: unknown): error is AuthApiError {
   return error instanceof Error && error.name === 'AuthApiError'
 }
 
+function buildApiUrl(path: string, apiBaseUrl = clientEnv.VITE_API_BASE_URL) {
+  const baseUrl = `${apiBaseUrl.replace(/\/+$/, '')}/`
+  return new URL(path.replace(/^\/+/, ''), baseUrl)
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function isAuthApiErrorCode(value: unknown): value is AuthApiErrorCode {
+  return (
+    value === 'ACCOUNT_DISABLED' ||
+    value === 'INSUFFICIENT_ROLE' ||
+    value === 'INVALID_ACCESS_TOKEN' ||
+    value === 'INVALID_CREDENTIALS' ||
+    value === 'INVALID_REFRESH_TOKEN' ||
+    value === 'INVALID_REQUEST'
+  )
+}
+
+function normalizeSignInError(
+  errorResponse: SignInApiErrorResponse | null,
+): AuthApiError {
+  const code = isAuthApiErrorCode(errorResponse?.code)
+    ? errorResponse.code
+    : 'INVALID_CREDENTIALS'
+
+  if (code === 'ACCOUNT_DISABLED') {
+    return createAuthApiError(code, DISABLED_ACCOUNT_MESSAGE)
+  }
+
+  if (code === 'INVALID_CREDENTIALS' || code === 'INVALID_REQUEST') {
+    return createAuthApiError(
+      'INVALID_CREDENTIALS',
+      INVALID_CREDENTIALS_MESSAGE,
+    )
+  }
+
+  return createAuthApiError(code, SIGN_IN_UNAVAILABLE_MESSAGE)
+}
+
+async function readJsonBody(response: Response): Promise<unknown> {
+  try {
+    return await response.json()
+  } catch {
+    return null
+  }
+}
+
 export async function loginApi(
   email: string,
   password: string,
+  fetchImpl: typeof fetch = fetch,
+  apiBaseUrl = clientEnv.VITE_API_BASE_URL,
 ): Promise<LoginApiResponse> {
-  const normalizedEmail = email.trim().toLowerCase()
+  let response: Response
 
-  if (password !== ACCEPTED_PASSWORD) {
-    throw createAuthApiError('INVALID_CREDENTIALS', INVALID_CREDENTIALS_MESSAGE)
+  try {
+    response = await fetchImpl(
+      buildApiUrl('/api/v1/auth/sign-in', apiBaseUrl),
+      {
+        body: JSON.stringify({
+          email,
+          password,
+        }),
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        method: 'POST',
+      },
+    )
+  } catch {
+    throw createAuthApiError('INVALID_REQUEST', SIGN_IN_UNAVAILABLE_MESSAGE)
   }
 
-  if (disabledEmails.has(normalizedEmail)) {
-    throw createAuthApiError('ACCOUNT_DISABLED', DISABLED_ACCOUNT_MESSAGE)
+  const body = await readJsonBody(response)
+
+  if (!response.ok) {
+    throw normalizeSignInError(isRecord(body) ? body : null)
   }
 
-  const user = seededUsers[normalizedEmail]
-
-  if (!user) {
-    throw createAuthApiError('INVALID_CREDENTIALS', INVALID_CREDENTIALS_MESSAGE)
-  }
-
-  return {
-    tokenType: 'Bearer',
-    user,
-    accessToken: `mock-access-token:${user.id}`,
-    accessTokenExpiresAt: mockAccessTokenExpiresAt,
-    refreshToken: `mock-refresh-token:${user.id}`,
-    refreshTokenExpiresAt: mockRefreshTokenExpiresAt,
-  }
+  return body as LoginApiResponse
 }
