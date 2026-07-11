@@ -6,7 +6,7 @@ import { getProtectedRoleRedirectPath } from '@/features/auth/utils/auth-redirec
 export const Route = createFileRoute('/admin')({
   ssr: false,
   beforeLoad: () => {
-    const redirectPath = getProtectedRoleRedirectPath('admin')
+    const redirectPath = getProtectedRoleRedirectPath('ADMIN')
 
     if (redirectPath) {
       throw redirect({ to: redirectPath })

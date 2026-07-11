@@ -8,17 +8,22 @@ import {
 
 describe('loginApi', () => {
   it.each([
-    ['admin@morshid.demo', 'admin'],
-    ['instructor@morshid.demo', 'instructor'],
-    ['student1@morshid.demo', 'student'],
+    ['admin@morshid.demo', 'ADMIN'],
+    ['instructor@morshid.demo', 'INSTRUCTOR'],
+    ['student1@morshid.demo', 'STUDENT'],
   ] as const)('authenticates seeded account %s', async (email, role) => {
     const request = loginApi(email, 'password')
     const assertion = expect(request).resolves.toMatchObject({
+      tokenType: 'Bearer',
       accessToken: expect.stringContaining('mock-access-token:'),
+      accessTokenExpiresAt: expect.any(String),
       refreshToken: expect.stringContaining('mock-refresh-token:'),
+      refreshTokenExpiresAt: expect.any(String),
       user: {
         email,
         role,
+        status: 'ACTIVE',
+        courses: [],
       },
     })
 
@@ -28,7 +33,7 @@ describe('loginApi', () => {
   it('rejects wrong passwords with a generic error', async () => {
     const request = loginApi('admin@morshid.demo', 'notright')
     const assertion = expect(request).rejects.toMatchObject({
-      code: 'invalid_credentials',
+      code: 'INVALID_CREDENTIALS',
       message: INVALID_CREDENTIALS_MESSAGE,
     })
 
@@ -38,7 +43,7 @@ describe('loginApi', () => {
   it('rejects unknown emails with a generic error', async () => {
     const request = loginApi('unknown@morshid.demo', 'password')
     const assertion = expect(request).rejects.toMatchObject({
-      code: 'invalid_credentials',
+      code: 'INVALID_CREDENTIALS',
       message: INVALID_CREDENTIALS_MESSAGE,
     })
 
@@ -48,7 +53,7 @@ describe('loginApi', () => {
   it('rejects disabled accounts with the disabled account error', async () => {
     const request = loginApi('disabled@morshid.demo', 'password')
     const assertion = expect(request).rejects.toMatchObject({
-      code: 'account_disabled',
+      code: 'ACCOUNT_DISABLED',
       message: DISABLED_ACCOUNT_MESSAGE,
     })
 
@@ -58,7 +63,7 @@ describe('loginApi', () => {
   it('does not reveal disabled accounts when the password is wrong', async () => {
     const request = loginApi('disabled@morshid.demo', 'notright')
     const assertion = expect(request).rejects.toMatchObject({
-      code: 'invalid_credentials',
+      code: 'INVALID_CREDENTIALS',
       message: INVALID_CREDENTIALS_MESSAGE,
     })
 

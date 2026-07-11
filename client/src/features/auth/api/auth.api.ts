@@ -10,26 +10,34 @@ export const DISABLED_ACCOUNT_MESSAGE =
   'Your account is disabled. Please contact the administrator.'
 
 const ACCEPTED_PASSWORD = 'password'
+const mockAccessTokenExpiresAt = '2026-07-11T12:15:00.000Z'
+const mockRefreshTokenExpiresAt = '2026-07-18T12:00:00.000Z'
 
 // TODO: Replace this temporary mock with the real auth service implementation.
 const seededUsers: Partial<Record<string, AuthUser>> = {
   'admin@morshid.demo': {
     id: 'mock-admin',
     email: 'admin@morshid.demo',
-    name: 'Demo Admin',
-    role: 'admin',
+    displayName: 'Demo Admin',
+    role: 'ADMIN',
+    status: 'ACTIVE',
+    courses: [],
   },
   'instructor@morshid.demo': {
     id: 'mock-instructor',
     email: 'instructor@morshid.demo',
-    name: 'Demo Instructor',
-    role: 'instructor',
+    displayName: 'Demo Instructor',
+    role: 'INSTRUCTOR',
+    status: 'ACTIVE',
+    courses: [],
   },
   'student1@morshid.demo': {
     id: 'mock-student-1',
     email: 'student1@morshid.demo',
-    name: 'Demo Student',
-    role: 'student',
+    displayName: 'Demo Student',
+    role: 'STUDENT',
+    status: 'ACTIVE',
+    courses: [],
   },
 }
 
@@ -56,22 +64,25 @@ export async function loginApi(
   const normalizedEmail = email.trim().toLowerCase()
 
   if (password !== ACCEPTED_PASSWORD) {
-    throw createAuthApiError('invalid_credentials', INVALID_CREDENTIALS_MESSAGE)
+    throw createAuthApiError('INVALID_CREDENTIALS', INVALID_CREDENTIALS_MESSAGE)
   }
 
   if (disabledEmails.has(normalizedEmail)) {
-    throw createAuthApiError('account_disabled', DISABLED_ACCOUNT_MESSAGE)
+    throw createAuthApiError('ACCOUNT_DISABLED', DISABLED_ACCOUNT_MESSAGE)
   }
 
   const user = seededUsers[normalizedEmail]
 
   if (!user) {
-    throw createAuthApiError('invalid_credentials', INVALID_CREDENTIALS_MESSAGE)
+    throw createAuthApiError('INVALID_CREDENTIALS', INVALID_CREDENTIALS_MESSAGE)
   }
 
   return {
+    tokenType: 'Bearer',
     user,
     accessToken: `mock-access-token:${user.id}`,
+    accessTokenExpiresAt: mockAccessTokenExpiresAt,
     refreshToken: `mock-refresh-token:${user.id}`,
+    refreshTokenExpiresAt: mockRefreshTokenExpiresAt,
   }
 }

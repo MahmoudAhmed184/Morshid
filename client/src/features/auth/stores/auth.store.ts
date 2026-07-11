@@ -6,8 +6,11 @@ export const authSessionStorageKey = 'morshid.auth.session'
 
 type AuthStoreState = {
   user: AuthUser | null
+  tokenType: AuthSession['tokenType'] | null
   accessToken: string | null
+  accessTokenExpiresAt: string | null
   refreshToken: string | null
+  refreshTokenExpiresAt: string | null
   isAuthenticated: boolean
 }
 
@@ -21,13 +24,31 @@ export type AuthStore = AuthStoreState & AuthStoreActions
 
 const emptyAuthState: AuthStoreState = {
   user: null,
+  tokenType: null,
   accessToken: null,
+  accessTokenExpiresAt: null,
   refreshToken: null,
+  refreshTokenExpiresAt: null,
   isAuthenticated: false,
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
+}
+
+function isAuthCourse(value: unknown) {
+  if (!isRecord(value)) {
+    return false
+  }
+
+  return (
+    typeof value.id === 'string' &&
+    typeof value.code === 'string' &&
+    typeof value.title === 'string' &&
+    (value.membershipRole === null ||
+      value.membershipRole === 'INSTRUCTOR' ||
+      value.membershipRole === 'STUDENT')
+  )
 }
 
 function isAuthUser(value: unknown): value is AuthUser {
@@ -38,10 +59,13 @@ function isAuthUser(value: unknown): value is AuthUser {
   return (
     typeof value.id === 'string' &&
     typeof value.email === 'string' &&
-    typeof value.name === 'string' &&
-    (value.role === 'admin' ||
-      value.role === 'instructor' ||
-      value.role === 'student')
+    typeof value.displayName === 'string' &&
+    (value.role === 'ADMIN' ||
+      value.role === 'INSTRUCTOR' ||
+      value.role === 'STUDENT') &&
+    (value.status === 'ACTIVE' || value.status === 'DISABLED') &&
+    Array.isArray(value.courses) &&
+    value.courses.every(isAuthCourse)
   )
 }
 
@@ -52,8 +76,11 @@ function isAuthSession(value: unknown): value is AuthSession {
 
   return (
     isAuthUser(value.user) &&
+    value.tokenType === 'Bearer' &&
     typeof value.accessToken === 'string' &&
-    typeof value.refreshToken === 'string'
+    typeof value.accessTokenExpiresAt === 'string' &&
+    typeof value.refreshToken === 'string' &&
+    typeof value.refreshTokenExpiresAt === 'string'
   )
 }
 
@@ -101,8 +128,11 @@ const storedSession = readStoredSession()
 const initialAuthState: AuthStoreState = storedSession
   ? {
       user: storedSession.user,
+      tokenType: storedSession.tokenType,
       accessToken: storedSession.accessToken,
+      accessTokenExpiresAt: storedSession.accessTokenExpiresAt,
       refreshToken: storedSession.refreshToken,
+      refreshTokenExpiresAt: storedSession.refreshTokenExpiresAt,
       isAuthenticated: true,
     }
   : emptyAuthState
@@ -113,8 +143,11 @@ export const useAuthStore = create<AuthStore>()((set) => ({
     persistSession(session)
     set({
       user: session.user,
+      tokenType: session.tokenType,
       accessToken: session.accessToken,
+      accessTokenExpiresAt: session.accessTokenExpiresAt,
       refreshToken: session.refreshToken,
+      refreshTokenExpiresAt: session.refreshTokenExpiresAt,
       isAuthenticated: true,
     })
   },

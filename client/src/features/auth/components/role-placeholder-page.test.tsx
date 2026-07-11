@@ -26,11 +26,16 @@ const mockSession: AuthSession = {
   user: {
     id: 'mock-admin',
     email: 'admin@morshid.demo',
-    name: 'Demo Admin',
-    role: 'admin',
+    displayName: 'Demo Admin',
+    role: 'ADMIN',
+    status: 'ACTIVE',
+    courses: [],
   },
+  tokenType: 'Bearer',
   accessToken: 'mock-access-token:mock-admin',
+  accessTokenExpiresAt: '2026-07-11T12:15:00.000Z',
   refreshToken: 'mock-refresh-token:mock-admin',
+  refreshTokenExpiresAt: '2026-07-18T12:00:00.000Z',
 }
 
 describe('RolePlaceholderPage', () => {

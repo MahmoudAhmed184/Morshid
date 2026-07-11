@@ -8,11 +8,16 @@ const mockSession: AuthSession = {
   user: {
     id: 'mock-instructor',
     email: 'instructor@morshid.demo',
-    name: 'Demo Instructor',
-    role: 'instructor',
+    displayName: 'Demo Instructor',
+    role: 'INSTRUCTOR',
+    status: 'ACTIVE',
+    courses: [],
   },
+  tokenType: 'Bearer',
   accessToken: 'mock-access-token:mock-instructor',
+  accessTokenExpiresAt: '2026-07-11T12:15:00.000Z',
   refreshToken: 'mock-refresh-token:mock-instructor',
+  refreshTokenExpiresAt: '2026-07-18T12:00:00.000Z',
 }
 
 function resetAuthStore() {

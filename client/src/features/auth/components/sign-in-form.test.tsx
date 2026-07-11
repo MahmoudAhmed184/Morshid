@@ -310,6 +310,7 @@ describe('SignInForm', () => {
       await waitFor(() => {
         expect(getSubmitButton()).toHaveProperty('disabled', true)
       })
+      await waitForSignInRedirect()
     })
 
     it('submits when Enter is pressed', async () => {
@@ -333,10 +334,16 @@ describe('SignInForm', () => {
       expect(useAuthStore.getState()).toMatchObject({
         user: {
           email: validEmail,
-          role: 'instructor',
+          displayName: 'Demo Instructor',
+          role: 'INSTRUCTOR',
+          status: 'ACTIVE',
+          courses: [],
         },
+        tokenType: 'Bearer',
         accessToken: 'mock-access-token:mock-instructor',
+        accessTokenExpiresAt: '2026-07-11T12:15:00.000Z',
         refreshToken: 'mock-refresh-token:mock-instructor',
+        refreshTokenExpiresAt: '2026-07-18T12:00:00.000Z',
         isAuthenticated: true,
       })
       expect(navigateMock).toHaveBeenCalledWith({ to: '/instructor' })

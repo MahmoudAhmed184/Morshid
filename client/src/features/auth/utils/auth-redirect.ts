@@ -2,9 +2,9 @@ import type { AuthRole } from '@/features/auth/types/auth.types'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 
 const authRedirectByRole = {
-  admin: '/admin',
-  instructor: '/instructor',
-  student: '/student',
+  ADMIN: '/admin',
+  INSTRUCTOR: '/instructor',
+  STUDENT: '/student',
 } as const satisfies Record<AuthRole, string>
 
 export type AuthRedirectPath = (typeof authRedirectByRole)[AuthRole]
