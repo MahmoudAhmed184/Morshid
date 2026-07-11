@@ -14,6 +14,7 @@ import {
   type AdminListedUserRecord,
   type AdminUserRecord,
   type CreateAdminUserRepositoryInput,
+  type DisableAdminUserRepositoryInput,
 } from './admin-users.repository'
 import { AdminUsersService } from './admin-users.service'
 
@@ -25,9 +26,18 @@ class AdminUsersServiceTestRepository extends AdminUsersRepository {
   readonly createUser = jest.fn((input: CreateAdminUserRepositoryInput) =>
     Promise.resolve(this.insertUser(input)),
   )
+  readonly disableUser = jest.fn((input: DisableAdminUserRepositoryInput) =>
+    Promise.resolve(this.disableExistingUser(input)),
+  )
 
   findByEmail(email: string): Promise<AdminUserRecord | null> {
     return Promise.resolve(this.users.get(email) ?? null)
+  }
+
+  findById(userId: string): Promise<AdminUserRecord | null> {
+    return Promise.resolve(
+      [...this.users.values()].find((user) => user.id === userId) ?? null,
+    )
   }
 
   listUsers(): Promise<AdminListedUserRecord[]> {
@@ -35,6 +45,15 @@ class AdminUsersServiceTestRepository extends AdminUsersRepository {
       [...this.users.values()].sort(
         (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
       ),
+    )
+  }
+
+  countActiveAdmins(): Promise<number> {
+    return Promise.resolve(
+      [...this.users.values()].filter(
+        (user) =>
+          user.role === UserRole.ADMIN && user.status === UserStatus.ACTIVE,
+      ).length,
     )
   }
 
@@ -64,6 +83,28 @@ class AdminUsersServiceTestRepository extends AdminUsersRepository {
     this.addUser(user)
 
     return user
+  }
+
+  private disableExistingUser(
+    input: DisableAdminUserRepositoryInput,
+  ): AdminListedUserRecord {
+    const user = [...this.users.values()].find(
+      (storedUser) => storedUser.id === input.userId,
+    )
+
+    if (!user) {
+      throw new Error(`Missing user ${input.userId}`)
+    }
+
+    const disabledUser = {
+      ...user,
+      status: UserStatus.DISABLED,
+      updatedAt,
+    }
+
+    this.users.set(disabledUser.email, disabledUser)
+
+    return disabledUser
   }
 }
 

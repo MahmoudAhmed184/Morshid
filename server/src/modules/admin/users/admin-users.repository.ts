@@ -45,6 +45,13 @@ export interface CreateAdminUserRepositoryInput {
   requestContext?: AuditRequestContext
 }
 
+export interface DisableAdminUserRepositoryInput {
+  userId: string
+  actorUserId: string
+  disabledAt: Date
+  requestContext?: AuditRequestContext
+}
+
 const adminUserRecordSelect = {
   id: true,
   email: true,
@@ -75,10 +82,18 @@ const adminListedUserRecordSelect = {
 export abstract class AdminUsersRepository {
   abstract findByEmail(email: string): Promise<AdminUserRecord | null>
 
+  abstract findById(userId: string): Promise<AdminUserRecord | null>
+
   abstract listUsers(): Promise<AdminListedUserRecord[]>
+
+  abstract countActiveAdmins(): Promise<number>
 
   abstract createUser(
     input: CreateAdminUserRepositoryInput,
+  ): Promise<AdminUserRecord>
+
+  abstract disableUser(
+    input: DisableAdminUserRepositoryInput,
   ): Promise<AdminUserRecord>
 }
 
@@ -100,11 +115,29 @@ export class PrismaAdminUsersRepository extends AdminUsersRepository {
     })
   }
 
+  findById(userId: string): Promise<AdminUserRecord | null> {
+    return this.prismaService.user.findUnique({
+      where: {
+        id: userId,
+      },
+      select: adminUserRecordSelect,
+    })
+  }
+
   listUsers(): Promise<AdminListedUserRecord[]> {
     return this.prismaService.user.findMany({
       select: adminListedUserRecordSelect,
       orderBy: {
         createdAt: 'desc',
+      },
+    })
+  }
+
+  countActiveAdmins(): Promise<number> {
+    return this.prismaService.user.count({
+      where: {
+        role: UserRole.ADMIN,
+        status: UserStatus.ACTIVE,
       },
     })
   }
@@ -143,6 +176,49 @@ export class PrismaAdminUsersRepository extends AdminUsersRepository {
 
       throw error
     }
+  }
+
+  disableUser(
+    input: DisableAdminUserRepositoryInput,
+  ): Promise<AdminUserRecord> {
+    return this.prismaService.$transaction(async (tx) => {
+      const user = await tx.user.update({
+        where: {
+          id: input.userId,
+        },
+        data: {
+          status: UserStatus.DISABLED,
+          disabledAt: input.disabledAt,
+          disabledById: input.actorUserId,
+        },
+        select: adminUserRecordSelect,
+      })
+
+      const revokedRefreshTokens = await tx.refreshToken.updateMany({
+        where: {
+          userId: input.userId,
+          revokedAt: null,
+          expiresAt: {
+            gt: input.disabledAt,
+          },
+        },
+        data: {
+          revokedAt: input.disabledAt,
+        },
+      })
+
+      await this.adminUsersAuditService.recordUserDisabled(
+        {
+          actorUserId: input.actorUserId,
+          targetUser: user,
+          revokedRefreshTokenCount: revokedRefreshTokens.count,
+          requestContext: input.requestContext,
+        },
+        tx,
+      )
+
+      return user
+    })
   }
 }
 
