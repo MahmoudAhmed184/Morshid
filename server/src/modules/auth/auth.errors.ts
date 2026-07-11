@@ -40,3 +40,10 @@ export function invalidAuthRequestException() {
     message: 'Invalid auth request',
   })
 }
+
+export function insufficientRoleException() {
+  return new ForbiddenException({
+    code: AUTH_ERROR_CODES.INSUFFICIENT_ROLE,
+    message: 'Insufficient role',
+  })
+}

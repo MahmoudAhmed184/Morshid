@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
+import { APP_GUARD } from '@nestjs/core'
 import { JwtModule } from '@nestjs/jwt'
 
 import { AuditModule } from '../audit/audit.module'
@@ -9,6 +10,7 @@ import { AuthController } from './auth.controller'
 import { AuthGuard } from './auth.guard'
 import { AuthService } from './auth.service'
 import { RefreshTokenRepository } from './repositories/refresh-token.repository'
+import { RolesGuard } from './roles.guard'
 import { AccessTokenService } from './services/access-token.service'
 import { AuthAuditService } from './services/auth-audit.service'
 import { AuthUserService } from './services/auth-user.service'
@@ -37,6 +39,9 @@ import { RefreshTokenService } from './services/refresh-token.service'
   providers: [
     AuthService,
     AuthGuard,
+    RolesGuard,
+    { provide: APP_GUARD, useExisting: AuthGuard },
+    { provide: APP_GUARD, useExisting: RolesGuard },
     PasswordHasherService,
     AccessTokenService,
     RefreshTokenService,
@@ -44,6 +49,6 @@ import { RefreshTokenService } from './services/refresh-token.service'
     AuthUserService,
     AuthAuditService,
   ],
-  exports: [AuthService, AuthGuard],
+  exports: [AuthService],
 })
 export class AuthModule {}
