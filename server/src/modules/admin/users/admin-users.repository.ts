@@ -58,6 +58,14 @@ export interface ReactivateAdminUserRepositoryInput {
   requestContext?: AuditRequestContext
 }
 
+export interface ResetAdminUserPasswordRepositoryInput {
+  userId: string
+  passwordHash: string
+  passwordChangedAt: Date
+  actorUserId: string
+  requestContext?: AuditRequestContext
+}
+
 const adminUserRecordSelect = {
   id: true,
   email: true,
@@ -104,6 +112,10 @@ export abstract class AdminUsersRepository {
 
   abstract reactivateUser(
     input: ReactivateAdminUserRepositoryInput,
+  ): Promise<AdminUserRecord>
+
+  abstract resetUserPassword(
+    input: ResetAdminUserPasswordRepositoryInput,
   ): Promise<AdminUserRecord>
 }
 
@@ -251,6 +263,48 @@ export class PrismaAdminUsersRepository extends AdminUsersRepository {
         {
           actorUserId: input.actorUserId,
           targetUser: user,
+          requestContext: input.requestContext,
+        },
+        tx,
+      )
+
+      return user
+    })
+  }
+
+  resetUserPassword(
+    input: ResetAdminUserPasswordRepositoryInput,
+  ): Promise<AdminUserRecord> {
+    return this.prismaService.$transaction(async (tx) => {
+      const user = await tx.user.update({
+        where: {
+          id: input.userId,
+        },
+        data: {
+          passwordHash: input.passwordHash,
+          passwordChangedAt: input.passwordChangedAt,
+        },
+        select: adminUserRecordSelect,
+      })
+
+      const revokedRefreshTokens = await tx.refreshToken.updateMany({
+        where: {
+          userId: input.userId,
+          revokedAt: null,
+          expiresAt: {
+            gt: input.passwordChangedAt,
+          },
+        },
+        data: {
+          revokedAt: input.passwordChangedAt,
+        },
+      })
+
+      await this.adminUsersAuditService.recordUserPasswordReset(
+        {
+          actorUserId: input.actorUserId,
+          targetUser: user,
+          revokedRefreshTokenCount: revokedRefreshTokens.count,
           requestContext: input.requestContext,
         },
         tx,

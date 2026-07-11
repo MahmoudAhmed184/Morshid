@@ -45,6 +45,18 @@ interface RecordAdminUserReactivatedInput {
   requestContext?: AuditRequestContext
 }
 
+interface RecordAdminUserPasswordResetInput {
+  actorUserId: string
+  targetUser: {
+    id: string
+    email: string
+    displayName: string
+    role: UserRole
+  }
+  revokedRefreshTokenCount: number
+  requestContext?: AuditRequestContext
+}
+
 @Injectable()
 export class AdminUsersAuditService {
   constructor(private readonly auditService: AuditService) {}
@@ -112,6 +124,31 @@ export class AdminUsersAuditService {
           email: input.targetUser.email,
           displayName: input.targetUser.displayName,
           role: input.targetUser.role,
+        },
+        requestContext: input.requestContext,
+      },
+      database,
+    )
+  }
+
+  async recordUserPasswordReset(
+    input: RecordAdminUserPasswordResetInput,
+    database?: AuditDatabase,
+  ): Promise<void> {
+    await this.auditService.recordEvent(
+      {
+        actorUserId: input.actorUserId,
+        action: AUDIT_EVENT_ACTIONS.ADMIN_USER_PASSWORD_RESET,
+        target: {
+          type: AUDIT_TARGET_TYPES.USER,
+          id: input.targetUser.id,
+        },
+        metadata: {
+          email: input.targetUser.email,
+          displayName: input.targetUser.displayName,
+          role: input.targetUser.role,
+          refreshTokensRevoked: input.revokedRefreshTokenCount > 0,
+          revokedRefreshTokenCount: input.revokedRefreshTokenCount,
         },
         requestContext: input.requestContext,
       },

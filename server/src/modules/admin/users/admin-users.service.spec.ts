@@ -21,6 +21,7 @@ import {
   type CreateAdminUserRepositoryInput,
   type DisableAdminUserRepositoryInput,
   type ReactivateAdminUserRepositoryInput,
+  type ResetAdminUserPasswordRepositoryInput,
 } from './admin-users.repository'
 import { AdminUsersService } from './admin-users.service'
 
@@ -38,6 +39,10 @@ class AdminUsersServiceTestRepository extends AdminUsersRepository {
   readonly reactivateUser = jest.fn(
     (input: ReactivateAdminUserRepositoryInput) =>
       Promise.resolve(this.reactivateExistingUser(input)),
+  )
+  readonly resetUserPassword = jest.fn(
+    (input: ResetAdminUserPasswordRepositoryInput) =>
+      Promise.resolve(this.resetExistingUserPassword(input)),
   )
 
   findByEmail(email: string): Promise<AdminUserRecord | null> {
@@ -137,6 +142,27 @@ class AdminUsersServiceTestRepository extends AdminUsersRepository {
     this.users.set(reactivatedUser.email, reactivatedUser)
 
     return reactivatedUser
+  }
+
+  private resetExistingUserPassword(
+    input: ResetAdminUserPasswordRepositoryInput,
+  ): AdminListedUserRecord {
+    const user = [...this.users.values()].find(
+      (storedUser) => storedUser.id === input.userId,
+    )
+
+    if (!user) {
+      throw new Error(`Missing user ${input.userId}`)
+    }
+
+    const resetUser = {
+      ...user,
+      updatedAt,
+    }
+
+    this.users.set(resetUser.email, resetUser)
+
+    return resetUser
   }
 }
 
