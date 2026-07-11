@@ -21,7 +21,7 @@ describe('Course boundary audit (e2e)', () => {
    * - ACCESS_COURSE_BOUNDARY_DENIED is persisted with actor, courseId, and
    *   attempted operation metadata
    */
-  it.skip('persists ACCESS_COURSE_BOUNDARY_DENIED when a student is denied access to an unassigned course', async () => {
+  it.skip('persists ACCESS_COURSE_BOUNDARY_DENIED when a student is denied access to an unassigned course', () => {
     const studentId = '00000000-0000-4000-8000-000000000003'
 
     expect(AUDIT_EVENT_ACTIONS.ACCESS_COURSE_BOUNDARY_DENIED).toBe(
@@ -51,7 +51,7 @@ describe('Course boundary audit (e2e)', () => {
    * TODO(Task #15): Same blocker as above — no production course-boundary HTTP
    * denial endpoint exists yet for manage operations.
    */
-  it.skip('persists ACCESS_COURSE_BOUNDARY_DENIED when manage access to another instructors course is denied', async () => {
+  it.skip('persists ACCESS_COURSE_BOUNDARY_DENIED when manage access to another instructors course is denied', () => {
     expect(AUDIT_EVENT_ACTIONS.ACCESS_COURSE_BOUNDARY_DENIED).toBe(
       'access.course_boundary_denied',
     )

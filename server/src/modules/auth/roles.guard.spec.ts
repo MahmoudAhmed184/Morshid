@@ -87,9 +87,11 @@ function createExecutionContext({
   } as unknown as ExecutionContext
 }
 
+const recordRbacDenied = jest.fn().mockResolvedValue(undefined)
+
 function buildAccessAuditServiceMock(): AccessAuditService {
   return {
-    recordRbacDenied: jest.fn().mockResolvedValue(undefined),
+    recordRbacDenied,
   } as unknown as AccessAuditService
 }
 
@@ -137,7 +139,7 @@ describe('RolesGuard', () => {
         }),
       ),
     ).rejects.toBeInstanceOf(ForbiddenException)
-    expect(accessAuditService.recordRbacDenied).toHaveBeenCalledWith({
+    expect(recordRbacDenied).toHaveBeenCalledWith({
       actor: {
         id: 'user-1',
         role: 'STUDENT',
