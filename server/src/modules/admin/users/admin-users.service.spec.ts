@@ -25,6 +25,14 @@ class AdminUsersServiceTestRepository extends AdminUsersRepository {
     return Promise.resolve(this.users.get(email) ?? null)
   }
 
+  listUsers(): Promise<AdminUserRecord[]> {
+    return Promise.resolve(
+      [...this.users.values()].sort(
+        (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
+      ),
+    )
+  }
+
   addUser(user: AdminUserRecord) {
     this.users.set(user.email, user)
   }

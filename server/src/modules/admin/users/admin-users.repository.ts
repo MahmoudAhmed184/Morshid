@@ -43,6 +43,8 @@ const adminUserRecordSelect = {
 export abstract class AdminUsersRepository {
   abstract findByEmail(email: string): Promise<AdminUserRecord | null>
 
+  abstract listUsers(): Promise<AdminUserRecord[]>
+
   abstract createUser(
     input: CreateAdminUserRepositoryInput,
   ): Promise<AdminUserRecord>
@@ -63,6 +65,15 @@ export class PrismaAdminUsersRepository extends AdminUsersRepository {
         email,
       },
       select: adminUserRecordSelect,
+    })
+  }
+
+  listUsers(): Promise<AdminUserRecord[]> {
+    return this.prismaService.user.findMany({
+      select: adminUserRecordSelect,
+      orderBy: {
+        createdAt: 'desc',
+      },
     })
   }
 
