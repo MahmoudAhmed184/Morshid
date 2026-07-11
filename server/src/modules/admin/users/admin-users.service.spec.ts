@@ -1,12 +1,17 @@
 import { BadRequestException, ConflictException } from '@nestjs/common'
 
-import { UserRole, UserStatus } from '../../../generated/prisma/client'
+import {
+  CourseMembershipRole,
+  UserRole,
+  UserStatus,
+} from '../../../generated/prisma/client'
 import type { AuthenticatedRequestUser } from '../../auth/auth.dto'
 import type { AuthUserService } from '../../auth/services/auth-user.service'
 import type { PasswordHasherService } from '../../auth/services/password-hasher.service'
 import { ADMIN_USERS_ERROR_CODES } from './admin-users.errors'
 import {
   AdminUsersRepository,
+  type AdminListedUserRecord,
   type AdminUserRecord,
   type CreateAdminUserRepositoryInput,
 } from './admin-users.repository'
@@ -16,7 +21,7 @@ const createdAt = new Date('2026-07-11T10:00:00.000Z')
 const updatedAt = new Date('2026-07-11T10:01:00.000Z')
 
 class AdminUsersServiceTestRepository extends AdminUsersRepository {
-  readonly users = new Map<string, AdminUserRecord>()
+  readonly users = new Map<string, AdminListedUserRecord>()
   readonly createUser = jest.fn((input: CreateAdminUserRepositoryInput) =>
     Promise.resolve(this.insertUser(input)),
   )
@@ -25,7 +30,7 @@ class AdminUsersServiceTestRepository extends AdminUsersRepository {
     return Promise.resolve(this.users.get(email) ?? null)
   }
 
-  listUsers(): Promise<AdminUserRecord[]> {
+  listUsers(): Promise<AdminListedUserRecord[]> {
     return Promise.resolve(
       [...this.users.values()].sort(
         (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
@@ -33,12 +38,19 @@ class AdminUsersServiceTestRepository extends AdminUsersRepository {
     )
   }
 
-  addUser(user: AdminUserRecord) {
-    this.users.set(user.email, user)
+  addUser(
+    user: AdminUserRecord & Pick<Partial<AdminListedUserRecord>, 'memberships'>,
+  ) {
+    this.users.set(user.email, {
+      ...user,
+      memberships: user.memberships ?? [],
+    })
   }
 
-  private insertUser(input: CreateAdminUserRepositoryInput): AdminUserRecord {
-    const user: AdminUserRecord = {
+  private insertUser(
+    input: CreateAdminUserRepositoryInput,
+  ): AdminListedUserRecord {
+    const user: AdminListedUserRecord = {
       id: `created-${this.users.size.toString()}`,
       email: input.email,
       displayName: input.displayName,
@@ -46,6 +58,7 @@ class AdminUsersServiceTestRepository extends AdminUsersRepository {
       status: UserStatus.ACTIVE,
       createdAt,
       updatedAt,
+      memberships: [],
     }
 
     this.addUser(user)
@@ -211,6 +224,17 @@ describe('AdminUsersService', () => {
       status: UserStatus.ACTIVE,
       createdAt,
       updatedAt,
+      memberships: [
+        {
+          courseId: 'database-course',
+          role: CourseMembershipRole.STUDENT,
+          course: {
+            id: 'database-course',
+            code: 'DB-P0',
+            title: 'Database Systems',
+          },
+        },
+      ],
     })
     repository.addUser({
       id: 'newer-user',
@@ -220,6 +244,26 @@ describe('AdminUsersService', () => {
       status: UserStatus.ACTIVE,
       createdAt: newerCreatedAt,
       updatedAt: newerCreatedAt,
+      memberships: [
+        {
+          courseId: 'python-course',
+          role: CourseMembershipRole.INSTRUCTOR,
+          course: {
+            id: 'python-course',
+            code: 'PYTHON-PROG-P0',
+            title: 'Python Programming',
+          },
+        },
+        {
+          courseId: 'database-course',
+          role: CourseMembershipRole.INSTRUCTOR,
+          course: {
+            id: 'database-course',
+            code: 'DB-P0',
+            title: 'Database Systems',
+          },
+        },
+      ],
     })
 
     const response = await service.listUsers()
@@ -234,6 +278,25 @@ describe('AdminUsersService', () => {
           status: UserStatus.ACTIVE,
           createdAt: newerCreatedAt.toISOString(),
           updatedAt: newerCreatedAt.toISOString(),
+          courseAssignments: {
+            courseCount: 2,
+            instructorCourseCount: 2,
+            studentCourseCount: 0,
+            courses: [
+              {
+                courseId: 'database-course',
+                code: 'DB-P0',
+                title: 'Database Systems',
+                role: CourseMembershipRole.INSTRUCTOR,
+              },
+              {
+                courseId: 'python-course',
+                code: 'PYTHON-PROG-P0',
+                title: 'Python Programming',
+                role: CourseMembershipRole.INSTRUCTOR,
+              },
+            ],
+          },
         },
         {
           id: 'older-user',
@@ -243,6 +306,19 @@ describe('AdminUsersService', () => {
           status: UserStatus.ACTIVE,
           createdAt: createdAt.toISOString(),
           updatedAt: updatedAt.toISOString(),
+          courseAssignments: {
+            courseCount: 1,
+            instructorCourseCount: 0,
+            studentCourseCount: 1,
+            courses: [
+              {
+                courseId: 'database-course',
+                code: 'DB-P0',
+                title: 'Database Systems',
+                role: CourseMembershipRole.STUDENT,
+              },
+            ],
+          },
         },
       ],
     })

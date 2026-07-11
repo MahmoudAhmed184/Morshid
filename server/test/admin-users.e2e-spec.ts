@@ -19,8 +19,15 @@ import type {
 import { ADMIN_USERS_ERROR_CODES } from '../src/modules/admin/users/admin-users.errors'
 import { PrismaService } from '../src/modules/prisma/prisma.service'
 import { RedisService } from '../src/modules/redis/redis.service'
-import { P0_DEMO_PASSWORD } from '../src/seeds/p0-demo.seed'
-import { UserRole, UserStatus } from '../src/generated/prisma/client'
+import {
+  P0_DEMO_COURSE,
+  P0_DEMO_PASSWORD,
+} from '../src/seeds/p0-demo.seed'
+import {
+  CourseMembershipRole,
+  UserRole,
+  UserStatus,
+} from '../src/generated/prisma/client'
 import { AuthTestStore } from './support/auth-test-store'
 
 const auditUserAgent = 'Morshid admin users e2e'
@@ -284,9 +291,32 @@ describe('Admin users (e2e)', () => {
       status: UserStatus.ACTIVE,
       createdAt: anyString,
       updatedAt: anyString,
+      courseAssignments: {
+        courseCount: 0,
+        instructorCourseCount: 0,
+        studentCourseCount: 0,
+        courses: [],
+      },
     })
     expect(body.users[0]).not.toHaveProperty('passwordHash')
     expect(body.users[0]).not.toHaveProperty('refreshTokens')
+    const student = body.users.find(
+      (user) => user.email === 'student1@morshid.demo',
+    )
+
+    expect(student?.courseAssignments).toEqual({
+      courseCount: 1,
+      instructorCourseCount: 0,
+      studentCourseCount: 1,
+      courses: [
+        {
+          courseId: anyString,
+          code: P0_DEMO_COURSE.code,
+          title: P0_DEMO_COURSE.title,
+          role: CourseMembershipRole.STUDENT,
+        },
+      ],
+    })
     expect(body.users.map((user) => user.email)).toEqual(
       expect.arrayContaining([
         'admin@morshid.demo',

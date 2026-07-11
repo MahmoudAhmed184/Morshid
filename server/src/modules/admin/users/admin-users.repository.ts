@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
 import {
+  CourseMembershipRole,
   Prisma,
   UserRole,
   UserStatus,
@@ -19,6 +20,20 @@ export interface AdminUserRecord {
   status: UserStatus
   createdAt: Date
   updatedAt: Date
+}
+
+export interface AdminUserCourseAssignmentRecord {
+  courseId: string
+  role: CourseMembershipRole
+  course: {
+    id: string
+    code: string
+    title: string
+  }
+}
+
+export interface AdminListedUserRecord extends AdminUserRecord {
+  memberships: AdminUserCourseAssignmentRecord[]
 }
 
 export interface CreateAdminUserRepositoryInput {
@@ -40,10 +55,27 @@ const adminUserRecordSelect = {
   updatedAt: true,
 } satisfies Prisma.UserSelect
 
+const adminListedUserRecordSelect = {
+  ...adminUserRecordSelect,
+  memberships: {
+    select: {
+      courseId: true,
+      role: true,
+      course: {
+        select: {
+          id: true,
+          code: true,
+          title: true,
+        },
+      },
+    },
+  },
+} satisfies Prisma.UserSelect
+
 export abstract class AdminUsersRepository {
   abstract findByEmail(email: string): Promise<AdminUserRecord | null>
 
-  abstract listUsers(): Promise<AdminUserRecord[]>
+  abstract listUsers(): Promise<AdminListedUserRecord[]>
 
   abstract createUser(
     input: CreateAdminUserRepositoryInput,
@@ -68,9 +100,9 @@ export class PrismaAdminUsersRepository extends AdminUsersRepository {
     })
   }
 
-  listUsers(): Promise<AdminUserRecord[]> {
+  listUsers(): Promise<AdminListedUserRecord[]> {
     return this.prismaService.user.findMany({
-      select: adminUserRecordSelect,
+      select: adminListedUserRecordSelect,
       orderBy: {
         createdAt: 'desc',
       },

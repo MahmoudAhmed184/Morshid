@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common'
 
-import { UserRole } from '../../../generated/prisma/client'
+import {
+  CourseMembershipRole,
+  UserRole,
+} from '../../../generated/prisma/client'
 import type { AuthenticatedRequestUser } from '../../auth/auth.dto'
 import { AuthUserService } from '../../auth/services/auth-user.service'
 import { PasswordHasherService } from '../../auth/services/password-hasher.service'
@@ -17,6 +20,7 @@ import {
 } from './admin-users.errors'
 import {
   AdminUsersRepository,
+  type AdminListedUserRecord,
   type AdminUserRecord,
 } from './admin-users.repository'
 
@@ -72,8 +76,33 @@ export class AdminUsersService {
     const users = await this.adminUsersRepository.listUsers()
 
     return {
-      users: users.map(mapAdminUserRecord),
+      users: users.map(mapAdminListedUserRecord),
     }
+  }
+}
+
+function mapAdminListedUserRecord(user: AdminListedUserRecord) {
+  const courses = user.memberships
+    .map((membership) => ({
+      courseId: membership.courseId,
+      code: membership.course.code,
+      title: membership.course.title,
+      role: membership.role,
+    }))
+    .sort(compareCourseAssignments)
+
+  return {
+    ...mapAdminUserRecord(user),
+    courseAssignments: {
+      courseCount: courses.length,
+      instructorCourseCount: courses.filter(
+        (course) => course.role === CourseMembershipRole.INSTRUCTOR,
+      ).length,
+      studentCourseCount: courses.filter(
+        (course) => course.role === CourseMembershipRole.STUDENT,
+      ).length,
+      courses,
+    },
   }
 }
 
@@ -87,4 +116,17 @@ function mapAdminUserRecord(user: AdminUserRecord) {
     createdAt: user.createdAt.toISOString(),
     updatedAt: user.updatedAt.toISOString(),
   }
+}
+
+function compareCourseAssignments(
+  a: { code: string; role: CourseMembershipRole },
+  b: { code: string; role: CourseMembershipRole },
+) {
+  const codeCompare = a.code.localeCompare(b.code)
+
+  if (codeCompare !== 0) {
+    return codeCompare
+  }
+
+  return a.role.localeCompare(b.role)
 }

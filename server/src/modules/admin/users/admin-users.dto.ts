@@ -2,7 +2,11 @@ import { ApiProperty } from '@nestjs/swagger'
 import { Expose, Type } from 'class-transformer'
 import { z } from 'zod'
 
-import { UserRole, UserStatus } from '../../../generated/prisma/client'
+import {
+  CourseMembershipRole,
+  UserRole,
+  UserStatus,
+} from '../../../generated/prisma/client'
 
 export const adminCreateUserRequestSchema = z
   .object({
@@ -84,6 +88,46 @@ export class AdminCreateUserResponseDto {
   user!: AdminUserDto
 }
 
+export class AdminUserCourseAssignmentDto {
+  @Expose()
+  @ApiProperty({ format: 'uuid' })
+  courseId!: string
+
+  @Expose()
+  @ApiProperty()
+  code!: string
+
+  @Expose()
+  @ApiProperty()
+  title!: string
+
+  @Expose()
+  @ApiProperty({
+    enum: CourseMembershipRole,
+    enumName: 'CourseMembershipRole',
+  })
+  role!: CourseMembershipRole
+}
+
+export class AdminUserCourseAssignmentSummaryDto {
+  @Expose()
+  @ApiProperty({ minimum: 0 })
+  courseCount!: number
+
+  @Expose()
+  @ApiProperty({ minimum: 0 })
+  instructorCourseCount!: number
+
+  @Expose()
+  @ApiProperty({ minimum: 0 })
+  studentCourseCount!: number
+
+  @Expose()
+  @Type(() => AdminUserCourseAssignmentDto)
+  @ApiProperty({ type: [AdminUserCourseAssignmentDto] })
+  courses!: AdminUserCourseAssignmentDto[]
+}
+
 export class AdminUserListItemDto {
   @Expose()
   @ApiProperty({ format: 'uuid' })
@@ -112,6 +156,11 @@ export class AdminUserListItemDto {
   @Expose()
   @ApiProperty({ format: 'date-time' })
   updatedAt!: string
+
+  @Expose()
+  @Type(() => AdminUserCourseAssignmentSummaryDto)
+  @ApiProperty({ type: () => AdminUserCourseAssignmentSummaryDto })
+  courseAssignments!: AdminUserCourseAssignmentSummaryDto
 }
 
 export class AdminUserListResponseDto {

@@ -299,6 +299,25 @@ export class AuthTestStore {
       status: user.status,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
+      memberships: this.memberships
+        .filter((membership) => membership.userId === user.id)
+        .map((membership) => {
+          const course = this.courses.get(membership.courseId)
+
+          if (!course) {
+            throw new Error(`Missing course ${membership.courseId}`)
+          }
+
+          return {
+            courseId: membership.courseId,
+            role: membership.role,
+            course: {
+              id: course.id,
+              code: course.code,
+              title: course.title,
+            },
+          }
+        }),
     }))
   }
 
