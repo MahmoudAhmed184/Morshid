@@ -10,6 +10,7 @@ import {
   SerializeOptions,
   UseInterceptors,
   type ArgumentMetadata,
+  type HttpException,
   type PipeTransform,
 } from '@nestjs/common'
 import {
@@ -30,24 +31,34 @@ import {
   AdminCreateUserResponseDto,
   AdminDisableUserResponseDto,
   AdminReactivateUserResponseDto,
+  AdminResetUserPasswordRequestDto,
+  AdminResetUserPasswordResponseDto,
   AdminUserListResponseDto,
   adminCreateUserRequestSchema,
+  adminResetUserPasswordRequestSchema,
   type AdminCreateUserRequest,
+  type AdminResetUserPasswordRequest,
 } from './admin-users.dto'
 import {
   invalidAdminCreateUserRequestException,
+  invalidAdminResetUserPasswordRequestException,
   type AdminUsersValidationIssue,
 } from './admin-users.errors'
 import { AdminUsersService } from './admin-users.service'
 
 class AdminUsersValidationPipe<T> implements PipeTransform<unknown, T> {
-  constructor(private readonly schema: z.ZodType<T>) {}
+  constructor(
+    private readonly schema: z.ZodType<T>,
+    private readonly exceptionFactory: (
+      errors: AdminUsersValidationIssue[],
+    ) => HttpException = invalidAdminCreateUserRequestException,
+  ) {}
 
   transform(value: unknown, _metadata: ArgumentMetadata): T {
     const result = this.schema.safeParse(value)
 
     if (!result.success) {
-      throw invalidAdminCreateUserRequestException(
+      throw this.exceptionFactory(
         result.error.issues.map(mapZodIssue),
       )
     }
@@ -120,6 +131,32 @@ export class AdminUsersController {
   ): Promise<AdminReactivateUserResponseDto> {
     return this.adminUsersService.reactivateUser(
       userId,
+      request.user,
+      getRequestContext(request),
+    )
+  }
+
+  @Patch(':userId/reset-password')
+  @SerializeOptions({
+    type: AdminResetUserPasswordResponseDto,
+    strategy: 'excludeAll',
+  })
+  @ApiBody({ type: AdminResetUserPasswordRequestDto })
+  @ApiOkResponse({ type: AdminResetUserPasswordResponseDto })
+  resetUserPassword(
+    @Param('userId') userId: string,
+    @Body(
+      new AdminUsersValidationPipe(
+        adminResetUserPasswordRequestSchema,
+        invalidAdminResetUserPasswordRequestException,
+      ),
+    )
+    body: AdminResetUserPasswordRequest,
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<AdminResetUserPasswordResponseDto> {
+    return this.adminUsersService.resetUserPassword(
+      userId,
+      body,
       request.user,
       getRequestContext(request),
     )
