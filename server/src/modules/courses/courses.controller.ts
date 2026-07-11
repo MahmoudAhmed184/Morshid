@@ -1,22 +1,30 @@
-import { Controller, Get, Req, UseGuards } from '@nestjs/common'
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
+import {
+  ClassSerializerInterceptor,
+  Controller,
+  Get,
+  Req,
+  SerializeOptions,
+  UseInterceptors,
+} from '@nestjs/common'
+import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger'
 
-import { UserRole } from '../../generated/prisma/client'
-import { AuthGuard, type AuthenticatedHttpRequest } from '../auth/auth.guard'
-import { Roles } from '../auth/roles.decorator'
-import { RolesGuard } from '../auth/roles.guard'
+import type { AuthenticatedHttpRequest } from '../auth/auth.guard'
+import { CourseListResponseDto } from './courses.dto'
 import { CoursesService } from './courses.service'
 
 @ApiTags('courses')
 @Controller('courses')
 @ApiBearerAuth()
-@UseGuards(AuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN, UserRole.INSTRUCTOR, UserRole.STUDENT)
+@UseInterceptors(ClassSerializerInterceptor)
+@SerializeOptions({ type: CourseListResponseDto, strategy: 'excludeAll' })
 export class CoursesController {
   constructor(private readonly coursesService: CoursesService) {}
 
   @Get()
-  listCourses(@Req() request: AuthenticatedHttpRequest) {
+  @ApiOkResponse({ type: CourseListResponseDto })
+  listCourses(
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<CourseListResponseDto> {
     return this.coursesService.listCoursesForUser(request.user)
   }
 }

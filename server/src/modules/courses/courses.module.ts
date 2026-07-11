@@ -21,6 +21,6 @@ import { CoursesService } from './courses.service'
       useClass: PrismaCoursesRepository,
     },
   ],
-  exports: [CoursesService, CourseAccessService],
+  exports: [CourseAccessService],
 })
 export class CoursesModule {}

@@ -12,7 +12,8 @@ import {
   CoursesRepository,
   type MemberCourseRecord as RepositoryMemberCourseRecord,
 } from './courses.repository'
-import { CoursesService, type CourseListResponse } from './courses.service'
+import type { CourseListResponseDto } from './courses.dto'
+import { CoursesService } from './courses.service'
 
 type CourseRecord = Pick<
   Course,
@@ -271,7 +272,7 @@ function buildService() {
   }
 }
 
-function findCourse(response: CourseListResponse, code: string) {
+function findCourse(response: CourseListResponseDto, code: string) {
   const course = response.courses.find((item) => item.code === code)
 
   if (!course) {

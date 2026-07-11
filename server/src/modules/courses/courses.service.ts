@@ -1,54 +1,14 @@
 import { Injectable } from '@nestjs/common'
 
-import {
-  CourseMembershipRole,
-  type UserRole,
-  type UserStatus,
-} from '../../generated/prisma/client'
+import { CourseMembershipRole } from '../../generated/prisma/client'
 import type { AuthenticatedRequestUser } from '../auth/auth.dto'
 import { getCourseRolePolicy } from './course-access.policy'
+import type {
+  CourseListItemDto,
+  CourseListResponseDto,
+  CourseMembershipSummaryDto,
+} from './courses.dto'
 import { CoursesRepository } from './courses.repository'
-
-export interface CourseListResponse {
-  courses: CourseListItem[]
-}
-
-export interface CourseListItem {
-  id: string
-  code: string
-  title: string
-  membershipRole: CourseMembershipRole | null
-  adminMetadata?: CourseAdminMetadata
-}
-
-export interface CourseAdminMetadata {
-  createdById: string | null
-  createdBy: CourseUserSummary | null
-  createdAt: string
-  updatedAt: string
-  memberships: CourseMembershipSummary[]
-  memberCount: number
-  instructorCount: number
-  studentCount: number
-  materialCount: number
-  activeMaterialCount: number
-}
-
-export interface CourseMembershipSummary {
-  id: string
-  userId: string
-  role: CourseMembershipRole
-  createdAt: string
-  user: CourseUserSummary
-}
-
-export interface CourseUserSummary {
-  id: string
-  email: string
-  displayName: string
-  role: UserRole
-  status: UserStatus
-}
 
 @Injectable()
 export class CoursesService {
@@ -56,7 +16,7 @@ export class CoursesService {
 
   async listCoursesForUser(
     user: AuthenticatedRequestUser,
-  ): Promise<CourseListResponse> {
+  ): Promise<CourseListResponseDto> {
     const policy = getCourseRolePolicy(user.role)
 
     if (policy.scope === 'all') {
@@ -70,7 +30,7 @@ export class CoursesService {
     }
   }
 
-  private async listAdminCourses(): Promise<CourseListItem[]> {
+  private async listAdminCourses(): Promise<CourseListItemDto[]> {
     const courses = await this.coursesRepository.listAdminCourses()
 
     return courses
@@ -119,20 +79,20 @@ export class CoursesService {
   private async listMemberCourses(
     userId: string,
     role: CourseMembershipRole,
-  ): Promise<CourseListItem[]> {
+  ): Promise<CourseListItemDto[]> {
     const courses = await this.coursesRepository.listMemberCourses(userId, role)
 
     return courses.sort(compareCourseListItems)
   }
 }
 
-function compareCourseListItems(a: CourseListItem, b: CourseListItem) {
+function compareCourseListItems(a: CourseListItemDto, b: CourseListItemDto) {
   return a.code.localeCompare(b.code)
 }
 
 function compareCourseMembershipSummaries(
-  a: CourseMembershipSummary,
-  b: CourseMembershipSummary,
+  a: CourseMembershipSummaryDto,
+  b: CourseMembershipSummaryDto,
 ) {
   const roleCompare = a.role.localeCompare(b.role)
 
