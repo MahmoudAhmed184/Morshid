@@ -14,6 +14,8 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
+import { useAuthStore } from '@/features/auth/stores/auth.store'
+import { getDashboardPath } from '@/features/auth/utils/auth-redirect'
 import { cn } from '@/lib/utils'
 
 const navLinks = [
@@ -46,6 +48,8 @@ function NavLink({ href, children, className, onClick }: NavLinkProps) {
 
 export function Navbar() {
   const [open, setOpen] = useState(false)
+  const user = useAuthStore((state) => state.user)
+  const dashboardPath = user ? getDashboardPath(user.role) : null
 
   return (
     <header
@@ -81,21 +85,33 @@ export function Navbar() {
 
         <div className="flex flex-1 items-center justify-end gap-2 sm:gap-3">
           <ModeToggle />
-          <Button
-            nativeButton={false}
-            render={<Link to="/login" />}
-            variant="ghost"
-            className="hidden sm:inline-flex"
-          >
-            Log in
-          </Button>
-          <Button
-            nativeButton={false}
-            render={<Link to="/login" />}
-            className="hidden sm:inline-flex"
-          >
-            Get Started
-          </Button>
+          {dashboardPath ? (
+            <Button
+              nativeButton={false}
+              render={<Link to={dashboardPath} />}
+              className="hidden sm:inline-flex"
+            >
+              Dashboard
+            </Button>
+          ) : (
+            <>
+              <Button
+                nativeButton={false}
+                render={<Link to="/login" />}
+                variant="ghost"
+                className="hidden sm:inline-flex"
+              >
+                Log in
+              </Button>
+              <Button
+                nativeButton={false}
+                render={<Link to="/login" />}
+                className="hidden sm:inline-flex"
+              >
+                Get Started
+              </Button>
+            </>
+          )}
 
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger
@@ -137,31 +153,48 @@ export function Navbar() {
                   </SheetClose>
                 ))}
                 <Separator className="my-3" />
-                <SheetClose
-                  nativeButton={false}
-                  render={
-                    <Button
+                {dashboardPath ? (
+                  <SheetClose
+                    nativeButton={false}
+                    render={
+                      <Button
+                        nativeButton={false}
+                        render={<Link to={dashboardPath} />}
+                        className="w-full"
+                      />
+                    }
+                  >
+                    Dashboard
+                  </SheetClose>
+                ) : (
+                  <>
+                    <SheetClose
                       nativeButton={false}
-                      render={<Link to="/login" />}
-                      variant="outline"
-                      className="w-full"
-                    />
-                  }
-                >
-                  Log in
-                </SheetClose>
-                <SheetClose
-                  nativeButton={false}
-                  render={
-                    <Button
+                      render={
+                        <Button
+                          nativeButton={false}
+                          render={<Link to="/login" />}
+                          variant="outline"
+                          className="w-full"
+                        />
+                      }
+                    >
+                      Log in
+                    </SheetClose>
+                    <SheetClose
                       nativeButton={false}
-                      render={<Link to="/login" />}
-                      className="w-full"
-                    />
-                  }
-                >
-                  Get Started
-                </SheetClose>
+                      render={
+                        <Button
+                          nativeButton={false}
+                          render={<Link to="/login" />}
+                          className="w-full"
+                        />
+                      }
+                    >
+                      Get Started
+                    </SheetClose>
+                  </>
+                )}
               </div>
             </SheetContent>
           </Sheet>

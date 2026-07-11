@@ -28,7 +28,7 @@ import {
 import { signInSchema } from '@/features/auth/schemas/sign-in.schema'
 import type { SignInFormValues } from '@/features/auth/schemas/sign-in.schema'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
-import { getAuthRedirectPath } from '@/features/auth/utils/auth-redirect'
+import { getDashboardPath } from '@/features/auth/utils/auth-redirect'
 
 import { PasswordField } from './password-field'
 
@@ -79,7 +79,7 @@ export function SignInForm({ onSubmitDelay }: SignInFormProps) {
     }
 
     setSession(session)
-    await navigate({ to: getAuthRedirectPath(session.user.role) })
+    await navigate({ to: getDashboardPath(session.user.role) })
   }
 
   return (
