@@ -79,7 +79,10 @@ export class AdminUsersController {
   }
 
   @Post()
-  @SerializeOptions({ type: AdminCreateUserResponseDto, strategy: 'excludeAll' })
+  @SerializeOptions({
+    type: AdminCreateUserResponseDto,
+    strategy: 'excludeAll',
+  })
   @ApiBody({ type: AdminCreateUserRequestDto })
   @ApiCreatedResponse({ type: AdminCreateUserResponseDto })
   createUser(
@@ -142,12 +145,8 @@ export class AdminUsersController {
   resetUserPassword(
     @Param('userId', new ParseUUIDPipe({ version: '4' })) userId: string,
     @Body(
-      new ZodValidationPipe(
-        adminResetUserPasswordRequestSchema,
-        (issues) =>
-          invalidAdminResetUserPasswordRequestException(
-            issues.map(mapZodIssue),
-          ),
+      new ZodValidationPipe(adminResetUserPasswordRequestSchema, (issues) =>
+        invalidAdminResetUserPasswordRequestException(issues.map(mapZodIssue)),
       ),
     )
     body: AdminResetUserPasswordRequest,

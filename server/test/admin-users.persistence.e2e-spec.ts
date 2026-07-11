@@ -24,7 +24,9 @@ describe('Admin users persistence (e2e)', () => {
   const disabledFixtureAdminIds = new Set<string>()
 
   beforeAll(async () => {
-    moduleFixture = await Test.createTestingModule({ imports: [AppModule] }).compile()
+    moduleFixture = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile()
     await moduleFixture.init()
     prisma = moduleFixture.get(PrismaService)
     repository = moduleFixture.get(AdminUsersRepository)
@@ -46,7 +48,11 @@ describe('Admin users persistence (e2e)', () => {
     if (disabledFixtureAdminIds.size > 0) {
       await prisma.user.updateMany({
         where: { id: { in: [...disabledFixtureAdminIds] } },
-        data: { status: UserStatus.ACTIVE, disabledAt: null, disabledById: null },
+        data: {
+          status: UserStatus.ACTIVE,
+          disabledAt: null,
+          disabledById: null,
+        },
       })
       disabledFixtureAdminIds.clear()
     }
@@ -86,9 +92,9 @@ describe('Admin users persistence (e2e)', () => {
       select: { status: true },
     })
 
-    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(
-      1,
-    )
+    expect(
+      results.filter((result) => result.status === 'fulfilled'),
+    ).toHaveLength(1)
     const rejection = results.find((result) => result.status === 'rejected')
     expect(rejection?.reason).toBeInstanceOf(CannotDisableLastActiveAdminError)
     expect(
@@ -101,7 +107,9 @@ describe('Admin users persistence (e2e)', () => {
     const target = await createUser(UserRole.STUDENT)
     const failingAuditService = {
       recordUserCreated: jest.fn(),
-      recordUserDisabled: jest.fn().mockRejectedValue(new Error('audit failed')),
+      recordUserDisabled: jest
+        .fn()
+        .mockRejectedValue(new Error('audit failed')),
       recordUserReactivated: jest.fn(),
       recordUserPasswordReset: jest.fn(),
     } as unknown as AdminUsersAuditService

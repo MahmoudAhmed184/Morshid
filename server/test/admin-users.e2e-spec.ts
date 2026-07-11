@@ -218,7 +218,9 @@ describe('Admin users (e2e)', () => {
   })
 
   it('publishes the runtime password policy in OpenAPI', async () => {
-    const response = await request(app.getHttpServer()).get('/docs-json').expect(200)
+    const response = await request(app.getHttpServer())
+      .get('/docs-json')
+      .expect(200)
     const document = response.body as {
       components: {
         schemas: Record<string, { properties: Record<string, unknown> }>

@@ -76,14 +76,14 @@ export class AdminUsersService {
     }
   }
 
-  async listUsers(input: AdminListUsersQuery): Promise<AdminUserListResponseDto> {
+  async listUsers(
+    input: AdminListUsersQuery,
+  ): Promise<AdminUserListResponseDto> {
     const page = await this.adminUsersRepository.listUsers(input)
 
     return {
       users: page.users.map(mapAdminListedUserRecord),
-      ...(page.nextCursor === undefined
-        ? {}
-        : { nextCursor: page.nextCursor }),
+      ...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
     }
   }
 
