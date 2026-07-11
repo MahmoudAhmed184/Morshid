@@ -633,7 +633,7 @@ describe('Admin users (e2e)', () => {
 
   it('allows an admin to disable an active user', async () => {
     const adminSession = await signIn('admin@morshid.demo')
-    await signIn('student1@morshid.demo')
+    const targetSession = await signIn('student1@morshid.demo')
     const admin = requireUserByEmail('admin@morshid.demo')
     const target = requireUserByEmail('student1@morshid.demo')
     const targetRefreshTokens = [...store.refreshTokens.values()].filter(
@@ -682,6 +682,31 @@ describe('Admin users (e2e)', () => {
         revokedAt: disabledUser?.disabledAt,
       }),
     ])
+
+    await request(app.getHttpServer())
+      .get('/api/v1/me')
+      .set('Authorization', `Bearer ${targetSession.accessToken}`)
+      .expect(403)
+      .expect({
+        code: AUTH_ERROR_CODES.ACCOUNT_DISABLED,
+        message: 'Account is disabled',
+      })
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/refresh')
+      .send({ refreshToken: targetSession.refreshToken })
+      .expect(401)
+      .expect({
+        code: AUTH_ERROR_CODES.INVALID_REFRESH_TOKEN,
+        message: 'Invalid refresh token',
+      })
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/sign-in')
+      .send({ email: target.email, password: P0_DEMO_PASSWORD })
+      .expect(403)
+      .expect({
+        code: AUTH_ERROR_CODES.ACCOUNT_DISABLED,
+        message: 'Account is disabled',
+      })
 
     const adminUserDisableAudit = [...store.auditLogs.values()].filter(
       (auditLog) =>
