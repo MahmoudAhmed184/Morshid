@@ -4,6 +4,8 @@ import type { AuditLog, Prisma } from '../../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import type { AuditEventAction, AuditTargetType } from './audit.constants'
 
+export type AuditDatabase = Pick<Prisma.TransactionClient, 'auditLog'>
+
 export type AuditMetadata = Prisma.InputJsonObject
 
 export interface AuditTargetInput {
@@ -29,8 +31,11 @@ export interface RecordAuditEventInput {
 export class AuditService {
   constructor(private readonly prismaService: PrismaService) {}
 
-  async recordEvent(input: RecordAuditEventInput): Promise<AuditLog> {
-    return this.prismaService.auditLog.create({
+  async recordEvent(
+    input: RecordAuditEventInput,
+    database: AuditDatabase = this.prismaService,
+  ): Promise<AuditLog> {
+    return database.auditLog.create({
       data: {
         actorUserId: input.actorUserId ?? null,
         action: input.action,
