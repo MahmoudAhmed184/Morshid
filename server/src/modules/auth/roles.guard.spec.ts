@@ -3,6 +3,7 @@ import type { ExecutionContext, Type } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
 
 import type { UserRole } from '../../generated/prisma/client'
+import type { AccessAuditService } from '../audit/access-audit.service'
 import { AUTH_ERROR_CODES, type AuthenticatedRequestUser } from './auth.dto'
 import { Roles, ROLES_KEY } from './roles.decorator'
 import { RolesGuard } from './roles.guard'
@@ -58,10 +59,14 @@ function createExecutionContext({
   handler,
   controller = TestController,
   user,
+  method = 'GET',
+  path = '/test',
 }: {
   handler: () => unknown
   controller?: Type<unknown>
   user?: AuthenticatedRequestUser
+  method?: string
+  path?: string
 }): ExecutionContext {
   return {
     getHandler: () => handler,
@@ -69,14 +74,33 @@ function createExecutionContext({
     switchToHttp: () => ({
       getRequest: () => ({
         user,
+        method,
+        path,
+        route: {
+          path,
+        },
+        ip: '203.0.113.10',
+        get: (headerName: string) =>
+          headerName.toLowerCase() === 'user-agent' ? 'Jest' : undefined,
       }),
     }),
   } as unknown as ExecutionContext
 }
 
+function buildAccessAuditServiceMock(): AccessAuditService {
+  return {
+    recordRbacDenied: jest.fn().mockResolvedValue(undefined),
+  } as unknown as AccessAuditService
+}
+
 describe('RolesGuard', () => {
   const reflector = new Reflector()
-  const guard = new RolesGuard(reflector)
+  const accessAuditService = buildAccessAuditServiceMock()
+  const guard = new RolesGuard(reflector, accessAuditService)
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
   const openHandler = getControllerHandler(TestController.prototype, 'open')
   const adminOnlyHandler = getControllerHandler(
     TestController.prototype,
@@ -93,31 +117,46 @@ describe('RolesGuard', () => {
     ])
   })
 
-  it('allows a request when the user has an allowed role', () => {
-    expect(
+  it('allows a request when the user has an allowed role', async () => {
+    await expect(
       guard.canActivate(
         createExecutionContext({
           handler: adminOnlyHandler,
           user: buildUser('ADMIN'),
         }),
       ),
-    ).toBe(true)
+    ).resolves.toBe(true)
   })
 
-  it('rejects a request when the user does not have a required role', () => {
-    expect(() =>
+  it('rejects a request when the user does not have a required role', async () => {
+    await expect(
       guard.canActivate(
         createExecutionContext({
           handler: adminOnlyHandler,
           user: buildUser('STUDENT'),
         }),
       ),
-    ).toThrow(ForbiddenException)
+    ).rejects.toBeInstanceOf(ForbiddenException)
+    expect(accessAuditService.recordRbacDenied).toHaveBeenCalledWith({
+      actor: {
+        id: 'user-1',
+        role: 'STUDENT',
+      },
+      allowedRoles: ['ADMIN'],
+      route: {
+        method: 'GET',
+        path: '/test',
+      },
+      requestContext: {
+        ip: '203.0.113.10',
+        userAgent: 'Jest',
+      },
+    })
   })
 
-  it('rejects a request when role metadata exists but the user is missing', () => {
+  it('rejects a request when role metadata exists but the user is missing', async () => {
     try {
-      guard.canActivate(
+      await guard.canActivate(
         createExecutionContext({
           handler: adminOnlyHandler,
         }),
@@ -134,7 +173,7 @@ describe('RolesGuard', () => {
     throw new Error('Expected RolesGuard to reject the request')
   })
 
-  it('rejects a request when the user exists but role is missing', () => {
+  it('rejects a request when the user exists but role is missing', async () => {
     const userWithoutRole = {
       id: 'user-1',
       email: 'user@morshid.demo',
@@ -143,7 +182,7 @@ describe('RolesGuard', () => {
     } as unknown as AuthenticatedRequestUser
 
     try {
-      guard.canActivate(
+      await guard.canActivate(
         createExecutionContext({
           handler: adminOnlyHandler,
           user: userWithoutRole,
@@ -161,18 +200,18 @@ describe('RolesGuard', () => {
     throw new Error('Expected RolesGuard to reject the request')
   })
 
-  it('allows public routes when no role metadata is present', () => {
-    expect(
+  it('allows public routes when no role metadata is present', async () => {
+    await expect(
       guard.canActivate(
         createExecutionContext({
           handler: openHandler,
         }),
       ),
-    ).toBe(true)
+    ).resolves.toBe(true)
   })
 
-  it('supports role metadata declared on a controller class', () => {
-    expect(
+  it('supports role metadata declared on a controller class', async () => {
+    await expect(
       guard.canActivate(
         createExecutionContext({
           controller: InstructorController,
@@ -180,6 +219,6 @@ describe('RolesGuard', () => {
           user: buildUser('INSTRUCTOR'),
         }),
       ),
-    ).toBe(true)
+    ).resolves.toBe(true)
   })
 })

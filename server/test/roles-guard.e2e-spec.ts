@@ -6,6 +6,10 @@ import type { App } from 'supertest/types'
 
 import { configureApp } from '../src/app.setup'
 import { AppModule } from '../src/app.module'
+import {
+  AUDIT_EVENT_ACTIONS,
+  AUDIT_TARGET_TYPES,
+} from '../src/modules/audit/audit.constants'
 import { AUTH_ERROR_CODES } from '../src/modules/auth/auth.dto'
 import type { AuthSessionResponse } from '../src/modules/auth/auth.dto'
 import { Public } from '../src/modules/auth/public.decorator'
@@ -14,6 +18,14 @@ import { PrismaService } from '../src/modules/prisma/prisma.service'
 import { RedisService } from '../src/modules/redis/redis.service'
 import { P0_DEMO_PASSWORD } from '../src/seeds/p0-demo.seed'
 import { AuthTestStore } from './support/auth-test-store'
+
+function readAuditEvents(store: AuthTestStore) {
+  return [...store.auditLogs.values()]
+}
+
+const auditUserAgent = 'Morshid e2e'
+const anyString = expect.any(String) as unknown as string
+const anyDate = expect.any(Date) as unknown as Date
 
 @Controller('test-roles')
 class RolesTestController {
@@ -112,15 +124,39 @@ describe('RolesGuard (e2e)', () => {
 
   it('rejects a student from an @Roles(ADMIN) route with 403', async () => {
     const token = await signInAs('student1@morshid.demo')
+    const student = store.findUserByEmail('student1@morshid.demo')
 
     await request(app.getHttpServer())
       .get('/api/v1/test-roles/admin-only')
       .set('Authorization', `Bearer ${token}`)
+      .set('User-Agent', auditUserAgent)
       .expect(403)
       .expect({
         code: AUTH_ERROR_CODES.INSUFFICIENT_ROLE,
         message: 'Insufficient role',
       })
+
+    expect(
+      readAuditEvents(store).filter(
+        (event) => event.action === AUDIT_EVENT_ACTIONS.ACCESS_RBAC_DENIED,
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        actorUserId: student?.id,
+        action: AUDIT_EVENT_ACTIONS.ACCESS_RBAC_DENIED,
+        targetType: AUDIT_TARGET_TYPES.SYSTEM,
+        targetId: null,
+        courseId: null,
+        ip: anyString,
+        userAgent: auditUserAgent,
+        metadata: expect.objectContaining({
+          requiredRoles: ['ADMIN'],
+          actorRole: 'STUDENT',
+          method: 'GET',
+        }) as unknown,
+        createdAt: anyDate,
+      }),
+    ])
   })
 
   it('blocks an @Roles(ADMIN) route with 401 when no token is provided', async () => {
