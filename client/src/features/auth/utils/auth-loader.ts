@@ -1,26 +1,25 @@
 import { getCurrentUser } from '@/features/auth/api/auth.api'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 import type { AuthUser } from '@/features/auth/types/auth.types'
+import { isTerminalAuthError, restoreAuthSession } from '@/lib/api/api-client'
 
 const authValidationCacheMs = 5_000
 
-let authValidationPromise: Promise<AuthUser | null> | null = null
-let lastAuthValidation:
-  | {
-      accessToken: string
-      user: AuthUser
-      validatedAt: number
-    }
-  | null = null
+const authValidationPromises = new Map<number, Promise<AuthUser | null>>()
+let lastAuthValidation: {
+  sessionVersion: number
+  user: AuthUser
+  validatedAt: number
+} | null = null
 
 function clearAuthValidationCache() {
   lastAuthValidation = null
 }
 
-function getCachedUser(accessToken: string) {
+function getCachedUser(sessionVersion: number) {
   if (
     lastAuthValidation &&
-    lastAuthValidation.accessToken === accessToken &&
+    lastAuthValidation.sessionVersion === sessionVersion &&
     Date.now() - lastAuthValidation.validatedAt < authValidationCacheMs
   ) {
     return lastAuthValidation.user
@@ -34,45 +33,90 @@ export async function loadAuthenticatedUser(): Promise<AuthUser | null> {
     return null
   }
 
-  const { accessToken, clearSession, isAuthenticated, setUser, user } =
-    useAuthStore.getState()
+  let authState = useAuthStore.getState()
+
+  if (
+    (!authState.isAuthenticated || !authState.user || !authState.accessToken) &&
+    authState.refreshToken
+  ) {
+    const restoredSession = await restoreAuthSession()
+
+    if (!restoredSession) {
+      return useAuthStore.getState().user
+    }
+
+    authState = useAuthStore.getState()
+    lastAuthValidation = {
+      sessionVersion: authState.sessionVersion,
+      user: restoredSession.user,
+      validatedAt: Date.now(),
+    }
+
+    return restoredSession.user
+  }
+
+  const { accessToken, isAuthenticated, sessionVersion, user } = authState
 
   if (!isAuthenticated || !user || !accessToken) {
     clearAuthValidationCache()
     return null
   }
 
-  const cachedUser = getCachedUser(accessToken)
+  const cachedUser = getCachedUser(sessionVersion)
 
   if (cachedUser) {
     return cachedUser
   }
 
-  authValidationPromise ??= getCurrentUser()
-    .then((response) => {
-      const latestAccessToken = useAuthStore.getState().accessToken
+  const existingPromise = authValidationPromises.get(sessionVersion)
 
-      if (latestAccessToken) {
-        lastAuthValidation = {
-          accessToken: latestAccessToken,
-          user: response.user,
-          validatedAt: Date.now(),
-        }
+  if (existingPromise) {
+    return existingPromise
+  }
+
+  const authValidationPromise = getCurrentUser()
+    .then((response) => {
+      const latestAuthState = useAuthStore.getState()
+
+      if (latestAuthState.sessionVersion !== sessionVersion) {
+        return latestAuthState.user
       }
 
-      setUser(response.user)
+      const wasUpdated = latestAuthState.setUser(response.user, sessionVersion)
+
+      if (!wasUpdated) {
+        return null
+      }
+
+      lastAuthValidation = {
+        sessionVersion,
+        user: response.user,
+        validatedAt: Date.now(),
+      }
 
       return response.user
     })
-    .catch(() => {
+    .catch((error: unknown) => {
       clearAuthValidationCache()
-      clearSession()
 
-      return null
+      const latestAuthState = useAuthStore.getState()
+
+      if (latestAuthState.sessionVersion !== sessionVersion) {
+        return latestAuthState.user
+      }
+
+      if (isTerminalAuthError(error)) {
+        latestAuthState.clearSession(sessionVersion)
+        return null
+      }
+
+      throw error
     })
     .finally(() => {
-      authValidationPromise = null
+      authValidationPromises.delete(sessionVersion)
     })
+
+  authValidationPromises.set(sessionVersion, authValidationPromise)
 
   return authValidationPromise
 }

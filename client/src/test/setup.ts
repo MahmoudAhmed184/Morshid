@@ -19,7 +19,9 @@ function createStorage(): Storage {
   }
 }
 
-if (typeof window !== 'undefined' && window.localStorage === undefined) {
+const browserWindow = window as unknown as { localStorage?: Storage }
+
+if (browserWindow.localStorage === undefined) {
   Object.defineProperty(window, 'localStorage', {
     configurable: true,
     value: createStorage(),

@@ -5,14 +5,7 @@ import { useId, useState } from 'react'
 import { useForm } from 'react-hook-form'
 
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormMessage,
-} from '@/components/ui/form'
+import { Form, FormField } from '@/components/ui/form'
 import {
   InputGroup,
   InputGroupAddon,
@@ -21,22 +14,18 @@ import {
 import { Label } from '@/components/ui/label'
 
 import {
-  INVALID_CREDENTIALS_MESSAGE,
-  isAuthApiError,
+  SIGN_IN_UNAVAILABLE_MESSAGE,
   loginApi,
 } from '@/features/auth/api/auth.api'
 import { signInSchema } from '@/features/auth/schemas/sign-in.schema'
 import type { SignInFormValues } from '@/features/auth/schemas/sign-in.schema'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 import { getDashboardPath } from '@/features/auth/utils/auth-redirect'
+import { isApiError } from '@/lib/api/api-client'
 
 import { PasswordField } from './password-field'
 
-type SignInFormProps = {
-  onSubmitDelay?: number
-}
-
-export function SignInForm({ onSubmitDelay }: SignInFormProps) {
+export function SignInForm() {
   const [authErrorMessage, setAuthErrorMessage] = useState<string | null>(null)
   const emailInputId = useId()
   const passwordInputId = useId()
@@ -52,23 +41,16 @@ export function SignInForm({ onSubmitDelay }: SignInFormProps) {
     defaultValues: {
       email: '',
       password: '',
-      rememberMe: true,
     },
   })
 
   const onSubmit = async (values: SignInFormValues) => {
     setAuthErrorMessage(null)
 
-    if (onSubmitDelay) {
-      await new Promise((resolve) => {
-        window.setTimeout(resolve, onSubmitDelay)
-      })
-    }
-
     const session = await loginApi(values.email, values.password).catch(
       (error: unknown) => {
         setAuthErrorMessage(
-          isAuthApiError(error) ? error.message : INVALID_CREDENTIALS_MESSAGE,
+          isApiError(error) ? error.message : SIGN_IN_UNAVAILABLE_MESSAGE,
         )
         return null
       },
@@ -162,31 +144,6 @@ export function SignInForm({ onSubmitDelay }: SignInFormProps) {
                 </p>
               ) : null}
             </div>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="rememberMe"
-          render={({ field }) => (
-            <FormItem className="space-y-0">
-              <div className="flex items-center gap-2.5">
-                <FormControl>
-                  <Checkbox
-                    id="remember-me"
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                </FormControl>
-                <Label
-                  htmlFor="remember-me"
-                  className="text-base font-normal text-foreground"
-                >
-                  Keep me signed in for 30 days
-                </Label>
-              </div>
-              <FormMessage className="mt-2" />
-            </FormItem>
           )}
         />
 

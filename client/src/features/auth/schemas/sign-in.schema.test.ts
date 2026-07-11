@@ -4,15 +4,10 @@ import { signInSchema } from './sign-in.schema'
 
 const validPassword = 'password'
 
-function parseSignIn(input: {
-  email?: string
-  password?: string
-  rememberMe?: boolean
-}) {
+function parseSignIn(input: { email?: string; password?: string }) {
   return signInSchema.safeParse({
     email: input.email ?? 'instructor@morshid.demo',
     password: input.password ?? validPassword,
-    rememberMe: input.rememberMe ?? true,
   })
 }
 
@@ -48,7 +43,7 @@ describe('signInSchema email validation', () => {
     const result = parseSignIn({ email: 'user name@institution.edu' })
 
     expect(result.success).toBe(false)
-    expect(getFieldError(result, 'email')).toBe('Email cannot contain spaces')
+    expect(getFieldError(result, 'email')).toBe('Enter a valid email address')
   })
 
   it('rejects emails longer than 254 characters', () => {
@@ -87,75 +82,15 @@ describe('signInSchema password validation', () => {
     expect(getFieldError(result, 'password')).toBe('Password is required')
   })
 
-  it('rejects passwords shorter than 8 characters', () => {
-    const result = parseSignIn({ password: 'Pass1!' })
+  it.each(['short', ' password ', 'lowercase', 'UPPERCASE', '123456'])(
+    'accepts an existing account password without creation-policy checks: %s',
+    (password) => {
+      const result = parseSignIn({ password })
 
-    expect(result.success).toBe(false)
-    expect(getFieldError(result, 'password')).toBe(
-      'Password must be at least 8 characters',
-    )
-  })
-
-  it('rejects passwords longer than 128 characters', () => {
-    const result = parseSignIn({ password: 'p'.repeat(129) })
-
-    expect(result.success).toBe(false)
-    expect(getFieldError(result, 'password')).toBe(
-      'Password must be at most 128 characters',
-    )
-  })
-
-  it('rejects passwords with leading or trailing spaces', () => {
-    const result = parseSignIn({ password: ' password ' })
-
-    expect(result.success).toBe(false)
-    expect(getFieldError(result, 'password')).toBe(
-      'Password cannot start or end with spaces',
-    )
-  })
-
-  it('rejects passwords without an uppercase letter', () => {
-    const result = parseSignIn({ password: 'password1!' })
-
-    expect(result.success).toBe(false)
-    expect(getFieldError(result, 'password')).toBe(
-      'Password must include an uppercase letter',
-    )
-  })
-
-  it('rejects passwords without a lowercase letter', () => {
-    const result = parseSignIn({ password: 'PASSWORD1!' })
-
-    expect(result.success).toBe(false)
-    expect(getFieldError(result, 'password')).toBe(
-      'Password must include a lowercase letter',
-    )
-  })
-
-  it('rejects passwords without a number', () => {
-    const result = parseSignIn({ password: 'Password!!' })
-
-    expect(result.success).toBe(false)
-    expect(getFieldError(result, 'password')).toBe(
-      'Password must include a number',
-    )
-  })
-
-  it('rejects passwords without a special character', () => {
-    const result = parseSignIn({ password: 'Password12' })
-
-    expect(result.success).toBe(false)
-    expect(getFieldError(result, 'password')).toBe(
-      'Password must include a special character',
-    )
-  })
-
-  it('accepts the seeded mock password', () => {
-    const result = parseSignIn({ password: validPassword })
-
-    expect(result.success).toBe(true)
-    if (result.success) {
-      expect(result.data.password).toBe(validPassword)
-    }
-  })
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.password).toBe(password)
+      }
+    },
+  )
 })

@@ -14,8 +14,8 @@ export const Route = createFileRoute('/student')({
   },
   component: Outlet,
   pendingComponent: AuthLoader,
-  pendingMs: 250,
-  pendingMinMs: 900,
+  pendingMs: 200,
+  pendingMinMs: 400,
   head: () => ({
     meta: [{ title: 'Student — Morshid' }],
   }),

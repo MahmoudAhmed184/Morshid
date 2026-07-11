@@ -29,13 +29,12 @@ describe('loginApi', () => {
   it('posts credentials to the server sign-in endpoint', async () => {
     const fetchMock = async (input: RequestInfo | URL, init?: RequestInit) => {
       expect(String(input)).toBe('http://localhost:4000/api/v1/auth/sign-in')
-      expect(init).toMatchObject({
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
-        method: 'POST',
-      })
+      expect(init?.method).toBe('POST')
+      const headers = new Headers(init?.headers)
+
+      expect(headers.get('Accept')).toBe('application/json')
+      expect(headers.get('Content-Type')).toBe('application/json')
+      expect(headers.get('Authorization')).toBeNull()
       expect(JSON.parse(String(init?.body))).toEqual({
         email: 'instructor@morshid.demo',
         password: 'password',
@@ -141,6 +140,34 @@ describe('loginApi', () => {
 
     await assertion
   })
+
+  it('does not report an unexpected server failure as invalid credentials', async () => {
+    const fetchMock = async () =>
+      Response.json(
+        { message: 'Internal server error' },
+        {
+          status: 500,
+        },
+      )
+
+    await expect(
+      loginApi('admin@morshid.demo', 'password', fetchMock),
+    ).rejects.toMatchObject({
+      message: SIGN_IN_UNAVAILABLE_MESSAGE,
+      status: 500,
+    })
+  })
+
+  it('rejects malformed successful sign-in responses', async () => {
+    const fetchMock = async () => Response.json({ user: mockSession.user })
+
+    await expect(
+      loginApi('admin@morshid.demo', 'password', fetchMock),
+    ).rejects.toMatchObject({
+      code: 'INVALID_REQUEST',
+      message: SIGN_IN_UNAVAILABLE_MESSAGE,
+    })
+  })
 })
 
 describe('getCurrentUser', () => {
@@ -167,13 +194,12 @@ describe('logoutApi', () => {
   it('posts the refresh token to the server logout endpoint', async () => {
     const fetchMock = async (input: RequestInfo | URL, init?: RequestInit) => {
       expect(String(input)).toBe('http://localhost:4000/api/v1/auth/logout')
-      expect(init).toMatchObject({
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
-        method: 'POST',
-      })
+      expect(init?.method).toBe('POST')
+      const headers = new Headers(init?.headers)
+
+      expect(headers.get('Accept')).toBe('application/json')
+      expect(headers.get('Content-Type')).toBe('application/json')
+      expect(headers.get('Authorization')).toBeNull()
       expect(JSON.parse(String(init?.body))).toEqual({
         refreshToken: 'server-refresh-token',
       })
@@ -186,5 +212,21 @@ describe('logoutApi', () => {
     await expect(logoutApi('server-refresh-token', fetchMock)).resolves.toBe(
       undefined,
     )
+  })
+
+  it('rejects when refresh-token revocation fails', async () => {
+    const fetchMock = async () =>
+      Response.json(
+        { message: 'Internal server error' },
+        {
+          status: 500,
+        },
+      )
+
+    await expect(
+      logoutApi('server-refresh-token', fetchMock),
+    ).rejects.toMatchObject({
+      status: 500,
+    })
   })
 })

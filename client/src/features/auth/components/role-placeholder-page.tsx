@@ -11,7 +11,7 @@ type RolePlaceholderPageProps = {
 
 export function RolePlaceholderPage({ roleName }: RolePlaceholderPageProps) {
   const navigate = useNavigate()
-  const logout = useAuthStore((state) => state.logout)
+  const clearSession = useAuthStore((state) => state.clearSession)
 
   const handleLogout = async () => {
     const refreshToken = useAuthStore.getState().refreshToken
@@ -23,7 +23,7 @@ export function RolePlaceholderPage({ roleName }: RolePlaceholderPageProps) {
     } catch {
       // Local logout must still complete if the revoke request is unavailable.
     } finally {
-      logout()
+      clearSession()
       await navigate({ to: '/login' })
     }
   }

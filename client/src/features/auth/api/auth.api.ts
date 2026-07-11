@@ -1,10 +1,13 @@
+import {
+  authSessionSchema,
+  meResponseSchema,
+} from '@/features/auth/schemas/auth.schema'
 import type {
-  AuthApiError,
-  AuthApiErrorCode,
   LoginApiResponse,
   MeResponse,
 } from '@/features/auth/types/auth.types'
-import { apiJson, type ApiFetchOptions } from '@/lib/api/api-client'
+import { ApiError, apiFetch, apiJson, isApiError } from '@/lib/api/api-client'
+import type { ApiFetchOptions } from '@/lib/api/api-client'
 import { clientEnv } from '@/lib/env'
 
 export const INVALID_CREDENTIALS_MESSAGE = 'Invalid email or password.'
@@ -13,72 +16,31 @@ export const DISABLED_ACCOUNT_MESSAGE =
 export const SIGN_IN_UNAVAILABLE_MESSAGE =
   'Unable to sign in. Please try again.'
 
-type SignInApiErrorResponse = {
-  code?: unknown
-  message?: unknown
-}
-
-function createAuthApiError(
-  code: AuthApiErrorCode,
-  message: string,
-): AuthApiError {
-  return Object.assign(new Error(message), {
-    code,
-    name: 'AuthApiError',
-  })
-}
-
-export function isAuthApiError(error: unknown): error is AuthApiError {
-  return error instanceof Error && error.name === 'AuthApiError'
-}
-
-function buildApiUrl(path: string, apiBaseUrl = clientEnv.VITE_API_BASE_URL) {
-  const baseUrl = `${apiBaseUrl.replace(/\/+$/, '')}/`
-  return new URL(path.replace(/^\/+/, ''), baseUrl)
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
-
-function isAuthApiErrorCode(value: unknown): value is AuthApiErrorCode {
-  return (
-    value === 'ACCOUNT_DISABLED' ||
-    value === 'INSUFFICIENT_ROLE' ||
-    value === 'INVALID_ACCESS_TOKEN' ||
-    value === 'INVALID_CREDENTIALS' ||
-    value === 'INVALID_REFRESH_TOKEN' ||
-    value === 'INVALID_REQUEST'
-  )
-}
-
-function normalizeSignInError(
-  errorResponse: SignInApiErrorResponse | null,
-): AuthApiError {
-  const code = isAuthApiErrorCode(errorResponse?.code)
-    ? errorResponse.code
-    : 'INVALID_CREDENTIALS'
-
-  if (code === 'ACCOUNT_DISABLED') {
-    return createAuthApiError(code, DISABLED_ACCOUNT_MESSAGE)
+function normalizeSignInError(error: unknown): ApiError {
+  if (!isApiError(error)) {
+    return new ApiError(SIGN_IN_UNAVAILABLE_MESSAGE, 0, 'INVALID_REQUEST')
   }
 
-  if (code === 'INVALID_CREDENTIALS' || code === 'INVALID_REQUEST') {
-    return createAuthApiError(
-      'INVALID_CREDENTIALS',
+  if (error.code === 'ACCOUNT_DISABLED') {
+    return new ApiError(DISABLED_ACCOUNT_MESSAGE, error.status, error.code)
+  }
+
+  if (
+    error.code === 'INVALID_CREDENTIALS' ||
+    error.code === 'INVALID_REQUEST'
+  ) {
+    return new ApiError(
       INVALID_CREDENTIALS_MESSAGE,
+      error.status,
+      'INVALID_CREDENTIALS',
     )
   }
 
-  return createAuthApiError(code, SIGN_IN_UNAVAILABLE_MESSAGE)
-}
-
-async function readJsonBody(response: Response): Promise<unknown> {
-  try {
-    return await response.json()
-  } catch {
-    return null
-  }
+  return new ApiError(
+    SIGN_IN_UNAVAILABLE_MESSAGE,
+    error.status,
+    error.code ?? 'INVALID_REQUEST',
+  )
 }
 
 export async function loginApi(
@@ -87,40 +49,31 @@ export async function loginApi(
   fetchImpl: typeof fetch = fetch,
   apiBaseUrl = clientEnv.VITE_API_BASE_URL,
 ): Promise<LoginApiResponse> {
-  let response: Response
-
   try {
-    response = await fetchImpl(
-      buildApiUrl('/api/v1/auth/sign-in', apiBaseUrl),
-      {
-        body: JSON.stringify({
-          email,
-          password,
-        }),
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
-        method: 'POST',
+    const body = await apiJson<unknown>('/api/v1/auth/sign-in', {
+      apiBaseUrl,
+      authenticated: false,
+      body: JSON.stringify({ email, password }),
+      fetchImpl,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
       },
-    )
-  } catch {
-    throw createAuthApiError('INVALID_REQUEST', SIGN_IN_UNAVAILABLE_MESSAGE)
+      method: 'POST',
+    })
+
+    return authSessionSchema.parse(body)
+  } catch (error) {
+    throw normalizeSignInError(error)
   }
-
-  const body = await readJsonBody(response)
-
-  if (!response.ok) {
-    throw normalizeSignInError(isRecord(body) ? body : null)
-  }
-
-  return body as LoginApiResponse
 }
 
 export async function getCurrentUser(
   options: ApiFetchOptions = {},
 ): Promise<MeResponse> {
-  return apiJson<MeResponse>('/api/v1/me', options)
+  const body = await apiJson<unknown>('/api/v1/me', options)
+
+  return meResponseSchema.parse(body)
 }
 
 export async function logoutApi(
@@ -128,10 +81,11 @@ export async function logoutApi(
   fetchImpl: typeof fetch = fetch,
   apiBaseUrl = clientEnv.VITE_API_BASE_URL,
 ): Promise<void> {
-  await fetchImpl(buildApiUrl('/api/v1/auth/logout', apiBaseUrl), {
-    body: JSON.stringify({
-      refreshToken,
-    }),
+  await apiFetch('/api/v1/auth/logout', {
+    apiBaseUrl,
+    authenticated: false,
+    body: JSON.stringify({ refreshToken }),
+    fetchImpl,
     headers: {
       Accept: 'application/json',
       'Content-Type': 'application/json',

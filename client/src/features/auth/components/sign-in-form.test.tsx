@@ -47,8 +47,8 @@ function mockSignInResponse(response: Response) {
   )
 }
 
-function renderSignInForm(props?: { onSubmitDelay?: number }) {
-  render(<SignInForm {...props} />)
+function renderSignInForm() {
+  render(<SignInForm />)
 }
 
 function getForm() {
@@ -153,7 +153,7 @@ describe('SignInForm', () => {
       submitSignInForm()
 
       expect(
-        await screen.findByText('Email cannot contain spaces'),
+        await screen.findByText('Enter a valid email address'),
       ).toBeDefined()
     })
 
@@ -191,74 +191,12 @@ describe('SignInForm', () => {
       expect(await screen.findByText('Password is required')).toBeDefined()
     })
 
-    it('rejects passwords shorter than 8 characters', async () => {
+    it('does not apply account-creation rules during sign in', async () => {
       renderSignInForm()
-      fillSignInForm({ email: validEmail, password: 'Pass1!' })
+      fillSignInForm({ email: validEmail, password: 'short' })
       submitSignInForm()
 
-      expect(
-        await screen.findByText('Password must be at least 8 characters'),
-      ).toBeDefined()
-    })
-
-    it('rejects passwords longer than 128 characters', async () => {
-      renderSignInForm()
-      fillSignInForm({ email: validEmail, password: 'p'.repeat(129) })
-      submitSignInForm()
-
-      expect(
-        await screen.findByText('Password must be at most 128 characters'),
-      ).toBeDefined()
-    })
-
-    it('rejects passwords with leading or trailing spaces', async () => {
-      renderSignInForm()
-      fillSignInForm({ email: validEmail, password: ' password ' })
-      submitSignInForm()
-
-      expect(
-        await screen.findByText('Password cannot start or end with spaces'),
-      ).toBeDefined()
-    })
-
-    it('rejects passwords without an uppercase letter', async () => {
-      renderSignInForm()
-      fillSignInForm({ email: validEmail, password: 'password1!' })
-      submitSignInForm()
-
-      expect(
-        await screen.findByText('Password must include an uppercase letter'),
-      ).toBeDefined()
-    })
-
-    it('rejects passwords without a lowercase letter', async () => {
-      renderSignInForm()
-      fillSignInForm({ email: validEmail, password: 'PASSWORD1!' })
-      submitSignInForm()
-
-      expect(
-        await screen.findByText('Password must include a lowercase letter'),
-      ).toBeDefined()
-    })
-
-    it('rejects passwords without a number', async () => {
-      renderSignInForm()
-      fillSignInForm({ email: validEmail, password: 'Password!!' })
-      submitSignInForm()
-
-      expect(
-        await screen.findByText('Password must include a number'),
-      ).toBeDefined()
-    })
-
-    it('rejects passwords without a special character', async () => {
-      renderSignInForm()
-      fillSignInForm({ email: validEmail, password: 'Password12' })
-      submitSignInForm()
-
-      expect(
-        await screen.findByText('Password must include a special character'),
-      ).toBeDefined()
+      await waitForSignInRedirect()
     })
 
     it('accepts valid server credentials', async () => {
@@ -326,13 +264,25 @@ describe('SignInForm', () => {
     })
 
     it('disables the submit button while submitting', async () => {
-      renderSignInForm({ onSubmitDelay: 100 })
+      let resolveRequest: ((response: Response) => void) | undefined
+
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(
+          () =>
+            new Promise<Response>((resolve) => {
+              resolveRequest = resolve
+            }),
+        ),
+      )
+      renderSignInForm()
       fillSignInForm()
       submitSignInForm()
 
       await waitFor(() => {
         expect(getSubmitButton()).toHaveProperty('disabled', true)
       })
+      resolveRequest?.(Response.json(mockSession))
       await waitForSignInRedirect()
     })
 
@@ -370,6 +320,15 @@ describe('SignInForm', () => {
         isAuthenticated: true,
       })
       expect(navigateMock).toHaveBeenCalledWith({ to: '/instructor' })
+      expect(window.sessionStorage.getItem('morshid.auth.session')).toBeNull()
+      expect(
+        JSON.parse(window.localStorage.getItem('morshid.auth.session')!),
+      ).toEqual({
+        v: 2,
+        userId: mockSession.user.id,
+        refreshToken: mockSession.refreshToken,
+        refreshTokenExpiresAt: mockSession.refreshTokenExpiresAt,
+      })
     })
 
     it('shows a generic error for wrong credentials', async () => {

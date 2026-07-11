@@ -2,7 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AuthSession } from '@/features/auth/types/auth.types'
 
-import { authSessionStorageKey, useAuthStore } from './auth.store'
+import {
+  authSessionStorageKey,
+  syncAuthRefreshFromStorage,
+  useAuthStore,
+} from './auth.store'
 
 const mockSession: AuthSession = {
   user: {
@@ -29,6 +33,13 @@ const storedMockSession = {
   refreshTokenExpiresAt: mockSession.refreshTokenExpiresAt,
 }
 
+const persistedMockRefresh = {
+  v: 2,
+  userId: mockSession.user.id,
+  refreshToken: mockSession.refreshToken,
+  refreshTokenExpiresAt: mockSession.refreshTokenExpiresAt,
+}
+
 function resetAuthStore() {
   useAuthStore.getState().clearSession()
 }
@@ -42,12 +53,14 @@ async function importFreshAuthStore() {
 describe('useAuthStore', () => {
   beforeEach(() => {
     window.localStorage.clear()
+    window.sessionStorage.clear()
     resetAuthStore()
   })
 
   afterEach(() => {
     resetAuthStore()
     window.localStorage.clear()
+    window.sessionStorage.clear()
   })
 
   it('starts without an authenticated session', () => {
@@ -59,7 +72,7 @@ describe('useAuthStore', () => {
     })
   })
 
-  it('sets and persists the current auth session', () => {
+  it('keeps the access token in memory and persists only refresh metadata', () => {
     useAuthStore.getState().setSession(mockSession)
 
     expect(useAuthStore.getState()).toMatchObject({
@@ -69,8 +82,9 @@ describe('useAuthStore', () => {
       isAuthenticated: true,
     })
     expect(window.localStorage.getItem(authSessionStorageKey)).toBe(
-      JSON.stringify(storedMockSession),
+      JSON.stringify(persistedMockRefresh),
     )
+    expect(window.sessionStorage.getItem(authSessionStorageKey)).toBeNull()
   })
 
   it('updates and persists the current user without changing tokens', () => {
@@ -97,14 +111,28 @@ describe('useAuthStore', () => {
       isAuthenticated: true,
     })
     expect(window.localStorage.getItem(authSessionStorageKey)).toBe(
-      JSON.stringify({
-        ...storedMockSession,
-        user: updatedUser,
-      }),
+      JSON.stringify(persistedMockRefresh),
     )
   })
 
-  it('hydrates a valid versioned stored session', async () => {
+  it('hydrates refresh metadata without restoring access or user data', async () => {
+    window.localStorage.setItem(
+      authSessionStorageKey,
+      JSON.stringify(persistedMockRefresh),
+    )
+
+    const { useAuthStore: useFreshAuthStore } = await importFreshAuthStore()
+
+    expect(useFreshAuthStore.getState()).toMatchObject({
+      user: null,
+      accessToken: null,
+      refreshToken: mockSession.refreshToken,
+      refreshTokenUserId: mockSession.user.id,
+      isAuthenticated: false,
+    })
+  })
+
+  it('migrates a valid legacy full session to refresh-only storage', async () => {
     window.localStorage.setItem(
       authSessionStorageKey,
       JSON.stringify(storedMockSession),
@@ -113,12 +141,15 @@ describe('useAuthStore', () => {
     const { useAuthStore: useFreshAuthStore } = await importFreshAuthStore()
 
     expect(useFreshAuthStore.getState()).toMatchObject({
-      user: mockSession.user,
-      tokenType: 'Bearer',
-      accessToken: mockSession.accessToken,
+      user: null,
+      accessToken: null,
       refreshToken: mockSession.refreshToken,
-      isAuthenticated: true,
+      isAuthenticated: false,
     })
+    expect(window.localStorage.getItem(authSessionStorageKey)).toBe(
+      JSON.stringify(persistedMockRefresh),
+    )
+    expect(window.sessionStorage.getItem(authSessionStorageKey)).toBeNull()
   })
 
   it('clears legacy unversioned stored sessions', async () => {
@@ -159,20 +190,40 @@ describe('useAuthStore', () => {
       refreshToken: null,
       isAuthenticated: false,
     })
+    expect(window.sessionStorage.getItem(authSessionStorageKey)).toBeNull()
     expect(window.localStorage.getItem(authSessionStorageKey)).toBeNull()
   })
 
-  it('logs out by clearing the current auth session and persisted storage', () => {
+  it('does not let stale work clear a newer session version', () => {
+    useAuthStore.getState().setSession(mockSession)
+    const staleVersion = useAuthStore.getState().sessionVersion
+    const newerSession = {
+      ...mockSession,
+      accessToken: 'new-access-token',
+      refreshToken: 'new-refresh-token',
+    }
+
+    useAuthStore.getState().setSession(newerSession)
+
+    expect(useAuthStore.getState().clearSession(staleVersion)).toBe(false)
+    expect(useAuthStore.getState().accessToken).toBe('new-access-token')
+  })
+
+  it('synchronizes rotated refresh metadata from another tab', () => {
     useAuthStore.getState().setSession(mockSession)
 
-    useAuthStore.getState().logout()
+    syncAuthRefreshFromStorage(
+      JSON.stringify({
+        ...persistedMockRefresh,
+        refreshToken: 'rotated-in-another-tab',
+      }),
+    )
 
     expect(useAuthStore.getState()).toMatchObject({
-      user: null,
-      accessToken: null,
-      refreshToken: null,
-      isAuthenticated: false,
+      accessToken: mockSession.accessToken,
+      isAuthenticated: true,
+      refreshToken: 'rotated-in-another-tab',
+      user: mockSession.user,
     })
-    expect(window.localStorage.getItem(authSessionStorageKey)).toBeNull()
   })
 })

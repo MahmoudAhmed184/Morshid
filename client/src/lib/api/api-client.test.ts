@@ -29,15 +29,28 @@ const refreshedSession: AuthSession = {
   refreshTokenExpiresAt: '2026-07-18T12:15:00.000Z',
 }
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+
+  return { promise, reject, resolve }
+}
+
 describe('api client', () => {
   beforeEach(() => {
     window.localStorage.clear()
+    window.sessionStorage.clear()
     useAuthStore.getState().clearSession()
   })
 
   afterEach(() => {
     useAuthStore.getState().clearSession()
     window.localStorage.clear()
+    window.sessionStorage.clear()
     vi.restoreAllMocks()
   })
 
@@ -105,6 +118,24 @@ describe('api client', () => {
       status: 403,
     })
     expect(useAuthStore.getState().isAuthenticated).toBe(true)
+  })
+
+  it('clears the matching session when the account is disabled', async () => {
+    useAuthStore.getState().setSession(mockSession)
+
+    const fetchMock = async () =>
+      Response.json(
+        {
+          code: 'ACCOUNT_DISABLED',
+          message: 'Account is disabled',
+        },
+        { status: 403 },
+      )
+
+    await expect(
+      apiFetch('/api/v1/me', { fetchImpl: fetchMock }),
+    ).rejects.toMatchObject({ code: 'ACCOUNT_DISABLED' })
+    expect(useAuthStore.getState().isAuthenticated).toBe(false)
   })
 
   it('refreshes an expired access token and retries the request once', async () => {
@@ -245,6 +276,171 @@ describe('api client', () => {
       refreshToken: null,
       user: null,
     })
+  })
+
+  it('preserves the session when refresh fails because the network is unavailable', async () => {
+    useAuthStore.getState().setSession(mockSession)
+
+    const fetchMock = async (input: RequestInfo | URL) => {
+      if (String(input).endsWith('/auth/refresh')) {
+        throw new TypeError('Failed to fetch')
+      }
+
+      return Response.json(
+        {
+          code: 'INVALID_ACCESS_TOKEN',
+          message: 'Invalid access token',
+        },
+        { status: 401 },
+      )
+    }
+
+    await expect(
+      apiFetch('/api/v1/me', { fetchImpl: fetchMock }),
+    ).rejects.toThrow('Failed to fetch')
+    expect(useAuthStore.getState()).toMatchObject({
+      accessToken: mockSession.accessToken,
+      isAuthenticated: true,
+      refreshToken: mockSession.refreshToken,
+    })
+  })
+
+  it('does not restore a session when refresh completes after logout', async () => {
+    useAuthStore.getState().setSession(mockSession)
+    const refreshResponse = createDeferred<Response>()
+    const refreshStarted = createDeferred<void>()
+
+    const fetchMock = async (input: RequestInfo | URL) => {
+      if (String(input).endsWith('/auth/refresh')) {
+        refreshStarted.resolve()
+        return refreshResponse.promise
+      }
+
+      return Response.json(
+        {
+          code: 'INVALID_ACCESS_TOKEN',
+          message: 'Invalid access token',
+        },
+        { status: 401 },
+      )
+    }
+    const request = apiFetch('/api/v1/me', { fetchImpl: fetchMock })
+    const requestAssertion = expect(request).rejects.toBeInstanceOf(ApiError)
+
+    await refreshStarted.promise
+    useAuthStore.getState().clearSession()
+    refreshResponse.resolve(Response.json(refreshedSession))
+
+    await requestAssertion
+    expect(useAuthStore.getState().isAuthenticated).toBe(false)
+  })
+
+  it('does not retry an old request under a newly signed-in account', async () => {
+    useAuthStore.getState().setSession(mockSession)
+    const oldResponse = createDeferred<Response>()
+    const requestStarted = createDeferred<void>()
+    let refreshRequestCount = 0
+
+    const fetchMock = async (input: RequestInfo | URL) => {
+      if (String(input).endsWith('/auth/refresh')) {
+        refreshRequestCount += 1
+        return Response.json(refreshedSession)
+      }
+
+      requestStarted.resolve()
+      return oldResponse.promise
+    }
+    const request = apiFetch('/api/v1/courses', { fetchImpl: fetchMock })
+    const requestAssertion = expect(request).rejects.toBeInstanceOf(ApiError)
+    const nextSession: AuthSession = {
+      ...mockSession,
+      user: {
+        ...mockSession.user,
+        id: 'admin-2',
+        email: 'admin@morshid.demo',
+        role: 'ADMIN',
+      },
+      accessToken: 'admin-access-token',
+      refreshToken: 'admin-refresh-token',
+    }
+
+    await requestStarted.promise
+    useAuthStore.getState().setSession(nextSession)
+    oldResponse.resolve(
+      Response.json(
+        {
+          code: 'INVALID_ACCESS_TOKEN',
+          message: 'Invalid access token',
+        },
+        { status: 401 },
+      ),
+    )
+
+    await requestAssertion
+    expect(refreshRequestCount).toBe(0)
+    expect(useAuthStore.getState()).toMatchObject({
+      accessToken: 'admin-access-token',
+      user: nextSession.user,
+    })
+  })
+
+  it('retries a delayed 401 with an already-refreshed access token', async () => {
+    useAuthStore.getState().setSession(mockSession)
+    const delayedResponse = createDeferred<Response>()
+    let refreshRequestCount = 0
+    let firstRequestCount = 0
+    let delayedRequestCount = 0
+
+    const fetchMock = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+
+      if (url.endsWith('/auth/refresh')) {
+        refreshRequestCount += 1
+        return Response.json(refreshedSession)
+      }
+
+      if (url.endsWith('/first')) {
+        firstRequestCount += 1
+        return firstRequestCount === 1
+          ? Response.json(
+              {
+                code: 'INVALID_ACCESS_TOKEN',
+                message: 'Invalid access token',
+              },
+              { status: 401 },
+            )
+          : Response.json({ ok: true })
+      }
+
+      delayedRequestCount += 1
+
+      if (delayedRequestCount === 1) {
+        return delayedResponse.promise
+      }
+
+      expect(new Headers(init?.headers).get('Authorization')).toBe(
+        'Bearer rotated-access-token',
+      )
+      return Response.json({ ok: true })
+    }
+
+    const delayedRequest = apiJson('/api/v1/delayed', { fetchImpl: fetchMock })
+
+    await expect(
+      apiJson('/api/v1/first', { fetchImpl: fetchMock }),
+    ).resolves.toEqual({ ok: true })
+    delayedResponse.resolve(
+      Response.json(
+        {
+          code: 'INVALID_ACCESS_TOKEN',
+          message: 'Invalid access token',
+        },
+        { status: 401 },
+      ),
+    )
+
+    await expect(delayedRequest).resolves.toEqual({ ok: true })
+    expect(refreshRequestCount).toBe(1)
   })
 
   it('keeps caller headers while applying auth defaults', async () => {

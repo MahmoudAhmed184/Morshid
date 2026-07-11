@@ -1,3 +1,4 @@
+import { authSessionSchema } from '@/features/auth/schemas/auth.schema'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 import type { AuthSession } from '@/features/auth/types/auth.types'
 import { clientEnv } from '@/lib/env'
@@ -26,12 +27,33 @@ export class ApiError extends Error {
   }
 }
 
+export function isApiError(error: unknown): error is ApiError {
+  return error instanceof ApiError
+}
+
+export function isTerminalAuthError(error: unknown) {
+  return (
+    isApiError(error) &&
+    (error.status === 401 ||
+      error.code === 'ACCOUNT_DISABLED' ||
+      error.code === 'INVALID_REFRESH_TOKEN')
+  )
+}
+
 export type ApiFetchOptions = RequestInit & {
   apiBaseUrl?: string
+  authenticated?: boolean
   fetchImpl?: typeof fetch
 }
 
-let refreshSessionPromise: Promise<AuthSession> | null = null
+const refreshSessionPromises = new Map<string, Promise<AuthSession>>()
+
+class AuthSessionChangedError extends Error {
+  constructor() {
+    super('Authentication session changed while the request was in progress')
+    this.name = 'AuthSessionChangedError'
+  }
+}
 
 function buildApiUrl(path: string, apiBaseUrl = clientEnv.VITE_API_BASE_URL) {
   const baseUrl = `${apiBaseUrl.replace(/\/+$/, '')}/`
@@ -67,7 +89,9 @@ function buildHeaders(
 ) {
   const nextHeaders = new Headers(headers)
 
-  nextHeaders.set('Accept', nextHeaders.get('Accept') ?? 'application/json')
+  if (!nextHeaders.has('Accept')) {
+    nextHeaders.set('Accept', 'application/json')
+  }
 
   if (accessToken) {
     nextHeaders.set('Authorization', `Bearer ${accessToken}`)
@@ -87,17 +111,24 @@ function buildApiError(response: Response, body: unknown) {
   return new ApiError(message, response.status, code)
 }
 
-async function refreshSession(
+function refreshSession(
   refreshToken: string,
+  sessionVersion: number,
   fetchImpl: typeof fetch,
   apiBaseUrl: string,
 ) {
-  refreshSessionPromise ??= fetchImpl(
+  const refreshKey = `${sessionVersion}:${refreshToken}`
+  const existingPromise = refreshSessionPromises.get(refreshKey)
+
+  if (existingPromise) {
+    return existingPromise
+  }
+
+  const refreshPromise = fetchImpl(
     buildApiUrl('/api/v1/auth/refresh', apiBaseUrl),
     {
-      body: JSON.stringify({
-        refreshToken,
-      }),
+      body: JSON.stringify({ refreshToken }),
+      cache: 'no-store',
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
@@ -112,30 +143,103 @@ async function refreshSession(
         throw buildApiError(response, body)
       }
 
-      return body as AuthSession
+      const session = authSessionSchema.parse(body)
+      const wasApplied = useAuthStore
+        .getState()
+        .setRefreshedSession(session, sessionVersion, refreshToken)
+
+      if (!wasApplied) {
+        throw new AuthSessionChangedError()
+      }
+
+      return session
     })
     .finally(() => {
-      refreshSessionPromise = null
+      refreshSessionPromises.delete(refreshKey)
     })
 
-  return refreshSessionPromise
+  refreshSessionPromises.set(refreshKey, refreshPromise)
+
+  return refreshPromise
+}
+
+export async function restoreAuthSession(
+  options: Pick<ApiFetchOptions, 'apiBaseUrl' | 'fetchImpl'> = {},
+): Promise<AuthSession | null> {
+  const { apiBaseUrl = clientEnv.VITE_API_BASE_URL, fetchImpl = fetch } =
+    options
+  let previousRefreshToken: string | null = null
+
+  const initialAuthState = useAuthStore.getState()
+
+  if (
+    initialAuthState.isAuthenticated &&
+    initialAuthState.user &&
+    initialAuthState.accessToken
+  ) {
+    return null
+  }
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const authState = useAuthStore.getState()
+    const { refreshToken, sessionVersion } = authState
+
+    if (!refreshToken || refreshToken === previousRefreshToken) {
+      return null
+    }
+
+    try {
+      return await refreshSession(
+        refreshToken,
+        sessionVersion,
+        fetchImpl,
+        apiBaseUrl,
+      )
+    } catch (error) {
+      if (error instanceof AuthSessionChangedError) {
+        previousRefreshToken = refreshToken
+        continue
+      }
+
+      if (isTerminalAuthError(error)) {
+        useAuthStore.getState().clearSession(sessionVersion)
+        return null
+      }
+
+      throw error
+    }
+  }
+
+  return null
 }
 
 async function apiFetchWithAuthRetry(
   path: string,
   options: ApiFetchOptions,
   hasRetried: boolean,
+  expectedSessionVersion?: number,
 ): Promise<Response> {
   const {
     apiBaseUrl = clientEnv.VITE_API_BASE_URL,
+    authenticated = true,
     fetchImpl = fetch,
     headers,
     ...requestInit
   } = options
-  const { accessToken, clearSession } = useAuthStore.getState()
+  const authState = useAuthStore.getState()
+  const sessionVersion = expectedSessionVersion ?? authState.sessionVersion
+
+  if (
+    expectedSessionVersion !== undefined &&
+    authState.sessionVersion !== expectedSessionVersion
+  ) {
+    throw new AuthSessionChangedError()
+  }
+
+  const accessToken = authenticated ? authState.accessToken : null
   const response = await fetchImpl(buildApiUrl(path, apiBaseUrl), {
-    cache: requestInit.cache ?? 'no-store',
     ...requestInit,
+    cache: requestInit.cache ?? 'no-store',
     headers: buildHeaders(headers, accessToken),
   })
 
@@ -146,31 +250,49 @@ async function apiFetchWithAuthRetry(
   const body = await readJsonBody(response)
   const error = buildApiError(response, body)
 
-  if (error.code === 'INVALID_ACCESS_TOKEN') {
-    const refreshToken = useAuthStore.getState().refreshToken
-
-    if (hasRetried || !refreshToken) {
-      clearSession()
-      throw error
-    }
-
-    try {
-      const refreshedSession = await refreshSession(
-        refreshToken,
-        fetchImpl,
-        apiBaseUrl,
-      )
-
-      useAuthStore.getState().setSession(refreshedSession)
-
-      return apiFetchWithAuthRetry(path, options, true)
-    } catch {
-      clearSession()
-      throw error
-    }
+  if (authenticated && error.code === 'ACCOUNT_DISABLED') {
+    useAuthStore.getState().clearSession(sessionVersion)
   }
 
-  throw error
+  if (!authenticated || error.code !== 'INVALID_ACCESS_TOKEN') {
+    throw error
+  }
+
+  const currentAuthState = useAuthStore.getState()
+
+  if (currentAuthState.sessionVersion !== sessionVersion) {
+    throw error
+  }
+
+  if (hasRetried || !currentAuthState.refreshToken) {
+    currentAuthState.clearSession(sessionVersion)
+    throw error
+  }
+
+  if (currentAuthState.accessToken !== accessToken) {
+    return apiFetchWithAuthRetry(path, options, true, sessionVersion)
+  }
+
+  try {
+    await refreshSession(
+      currentAuthState.refreshToken,
+      sessionVersion,
+      fetchImpl,
+      apiBaseUrl,
+    )
+  } catch (refreshError) {
+    if (refreshError instanceof AuthSessionChangedError) {
+      throw error
+    }
+
+    if (isTerminalAuthError(refreshError)) {
+      useAuthStore.getState().clearSession(sessionVersion)
+    }
+
+    throw refreshError
+  }
+
+  return apiFetchWithAuthRetry(path, options, true, sessionVersion)
 }
 
 export async function apiFetch(path: string, options: ApiFetchOptions = {}) {

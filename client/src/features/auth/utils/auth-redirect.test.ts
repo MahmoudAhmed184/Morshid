@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useAuthStore } from '@/features/auth/stores/auth.store'
+import {
+  authSessionStorageKey,
+  syncAuthRefreshFromStorage,
+  useAuthStore,
+} from '@/features/auth/stores/auth.store'
 import type { AuthRole, AuthSession } from '@/features/auth/types/auth.types'
 
 import {
@@ -41,12 +45,14 @@ describe('getDashboardPath', () => {
 describe('client auth guards', () => {
   beforeEach(() => {
     window.localStorage.clear()
+    window.sessionStorage.clear()
     useAuthStore.getState().clearSession()
   })
 
   afterEach(() => {
     useAuthStore.getState().clearSession()
     window.localStorage.clear()
+    window.sessionStorage.clear()
     vi.unstubAllGlobals()
   })
 
@@ -85,6 +91,49 @@ describe('client auth guards', () => {
     )
 
     await expect(requireAuth()).resolves.toBeNull()
+  })
+
+  it('restores an in-memory access token from persisted refresh metadata', async () => {
+    const session = createMockSession('ADMIN')
+    const restoredSession = {
+      ...session,
+      accessToken: 'restored-access-token',
+      refreshToken: 'rotated-refresh-token',
+    }
+
+    syncAuthRefreshFromStorage(
+      JSON.stringify({
+        v: 2,
+        userId: session.user.id,
+        refreshToken: session.refreshToken,
+        refreshTokenExpiresAt: session.refreshTokenExpiresAt,
+      }),
+    )
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        expect(String(input)).toBe('http://localhost:4000/api/v1/auth/refresh')
+        expect(JSON.parse(String(init?.body))).toEqual({
+          refreshToken: session.refreshToken,
+        })
+
+        return Response.json(restoredSession)
+      }),
+    )
+
+    await expect(requireRole('ADMIN')).resolves.toBeNull()
+    expect(useAuthStore.getState()).toMatchObject({
+      accessToken: 'restored-access-token',
+      isAuthenticated: true,
+      refreshToken: 'rotated-refresh-token',
+      user: session.user,
+    })
+    expect(
+      JSON.parse(window.localStorage.getItem(authSessionStorageKey)!),
+    ).toMatchObject({
+      v: 2,
+      refreshToken: 'rotated-refresh-token',
+    })
   })
 
   it('allows users when /me confirms the expected role', async () => {
@@ -214,6 +263,49 @@ describe('client auth guards', () => {
     expect(useAuthStore.getState()).toMatchObject({
       isAuthenticated: false,
       user: null,
+    })
+  })
+
+  it('preserves the session when /me fails because the network is unavailable', async () => {
+    const session = createMockSession('ADMIN')
+    useAuthStore.getState().setSession(session)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new TypeError('Failed to fetch')
+      }),
+    )
+
+    await expect(requireRole('ADMIN')).rejects.toThrow('Failed to fetch')
+    expect(useAuthStore.getState()).toMatchObject({
+      accessToken: session.accessToken,
+      isAuthenticated: true,
+      user: session.user,
+    })
+  })
+
+  it('does not let a stale /me response overwrite a newer login', async () => {
+    const oldSession = createMockSession('ADMIN')
+    const nextSession = createMockSession('STUDENT')
+    let resolveMe!: (response: Response) => void
+    const meResponse = new Promise<Response>((resolve) => {
+      resolveMe = resolve
+    })
+
+    useAuthStore.getState().setSession(oldSession)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => meResponse),
+    )
+
+    const guardResult = requireRole('ADMIN')
+    useAuthStore.getState().setSession(nextSession)
+    resolveMe(Response.json({ user: oldSession.user }))
+
+    await expect(guardResult).resolves.toBe('/student')
+    expect(useAuthStore.getState()).toMatchObject({
+      accessToken: nextSession.accessToken,
+      user: nextSession.user,
     })
   })
 })

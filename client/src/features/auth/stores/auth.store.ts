@@ -1,9 +1,12 @@
 import { create } from 'zustand'
+import { z } from 'zod'
 
+import { authSessionSchema } from '@/features/auth/schemas/auth.schema'
 import type { AuthSession, AuthUser } from '@/features/auth/types/auth.types'
 
 export const authSessionStorageKey = 'morshid.auth.session'
-const authSessionStorageVersion = 1
+const persistedRefreshVersion = 2
+const legacySessionVersion = 1
 
 type AuthStoreState = {
   user: AuthUser | null
@@ -12,83 +15,47 @@ type AuthStoreState = {
   accessTokenExpiresAt: string | null
   refreshToken: string | null
   refreshTokenExpiresAt: string | null
+  refreshTokenUserId: string | null
   isAuthenticated: boolean
+  sessionVersion: number
 }
 
 type AuthStoreActions = {
   setSession: (session: AuthSession) => void
-  setUser: (user: AuthUser) => void
-  clearSession: () => void
-  logout: () => void
+  setRefreshedSession: (
+    session: AuthSession,
+    expectedSessionVersion: number,
+    expectedRefreshToken: string,
+  ) => boolean
+  setUser: (user: AuthUser, expectedSessionVersion?: number) => boolean
+  clearSession: (expectedSessionVersion?: number) => boolean
 }
 
 export type AuthStore = AuthStoreState & AuthStoreActions
 
-type StoredAuthSession = Omit<AuthSession, 'tokenType'> & {
-  v: typeof authSessionStorageVersion
-}
+const persistedRefreshSchema = z.object({
+  v: z.literal(persistedRefreshVersion),
+  userId: z.string().min(1),
+  refreshToken: z.string().min(1),
+  refreshTokenExpiresAt: z.iso.datetime(),
+})
 
-const emptyAuthState: AuthStoreState = {
+const legacyStoredSessionSchema = authSessionSchema
+  .omit({ tokenType: true })
+  .extend({ v: z.literal(legacySessionVersion) })
+
+type PersistedRefresh = z.infer<typeof persistedRefreshSchema>
+
+const emptySessionState = {
   user: null,
   tokenType: null,
   accessToken: null,
   accessTokenExpiresAt: null,
   refreshToken: null,
   refreshTokenExpiresAt: null,
+  refreshTokenUserId: null,
   isAuthenticated: false,
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
-
-function isAuthCourse(value: unknown) {
-  if (!isRecord(value)) {
-    return false
-  }
-
-  return (
-    typeof value.id === 'string' &&
-    typeof value.code === 'string' &&
-    typeof value.title === 'string' &&
-    (value.membershipRole === null ||
-      value.membershipRole === 'INSTRUCTOR' ||
-      value.membershipRole === 'STUDENT')
-  )
-}
-
-function isAuthUser(value: unknown): value is AuthUser {
-  if (!isRecord(value)) {
-    return false
-  }
-
-  return (
-    typeof value.id === 'string' &&
-    typeof value.email === 'string' &&
-    typeof value.displayName === 'string' &&
-    (value.role === 'ADMIN' ||
-      value.role === 'INSTRUCTOR' ||
-      value.role === 'STUDENT') &&
-    (value.status === 'ACTIVE' || value.status === 'DISABLED') &&
-    Array.isArray(value.courses) &&
-    value.courses.every(isAuthCourse)
-  )
-}
-
-function isStoredAuthSession(value: unknown): value is StoredAuthSession {
-  if (!isRecord(value)) {
-    return false
-  }
-
-  return (
-    value.v === authSessionStorageVersion &&
-    isAuthUser(value.user) &&
-    typeof value.accessToken === 'string' &&
-    typeof value.accessTokenExpiresAt === 'string' &&
-    typeof value.refreshToken === 'string' &&
-    typeof value.refreshTokenExpiresAt === 'string'
-  )
-}
+} satisfies Omit<AuthStoreState, 'sessionVersion'>
 
 function isFutureIsoDate(value: string) {
   const timestamp = Date.parse(value)
@@ -96,140 +63,253 @@ function isFutureIsoDate(value: string) {
   return Number.isFinite(timestamp) && timestamp > Date.now()
 }
 
-function toStoredSession(session: AuthSession): StoredAuthSession {
-  return {
-    v: authSessionStorageVersion,
-    user: session.user,
-    accessToken: session.accessToken,
-    accessTokenExpiresAt: session.accessTokenExpiresAt,
-    refreshToken: session.refreshToken,
-    refreshTokenExpiresAt: session.refreshTokenExpiresAt,
-  }
-}
-
-function toAuthSession(storedSession: StoredAuthSession): AuthSession {
-  return {
-    tokenType: 'Bearer',
-    user: storedSession.user,
-    accessToken: storedSession.accessToken,
-    accessTokenExpiresAt: storedSession.accessTokenExpiresAt,
-    refreshToken: storedSession.refreshToken,
-    refreshTokenExpiresAt: storedSession.refreshTokenExpiresAt,
-  }
-}
-
-function getLocalStorage() {
+function getBrowserStorage(kind: 'local' | 'session'): Storage | null {
   if (typeof window === 'undefined') {
     return null
   }
 
-  return window.localStorage
-}
-
-function readStoredSession(): AuthSession | null {
-  const storage = getLocalStorage()
-
-  if (!storage) {
+  try {
+    return kind === 'local' ? window.localStorage : window.sessionStorage
+  } catch {
     return null
   }
+}
 
-  const storedSession = storage.getItem(authSessionStorageKey)
-
-  if (!storedSession) {
+function parsePersistedRefresh(value: string | null): PersistedRefresh | null {
+  if (!value) {
     return null
   }
 
   try {
-    const parsedSession: unknown = JSON.parse(storedSession)
+    const parsedValue: unknown = JSON.parse(value)
+    const currentResult = persistedRefreshSchema.safeParse(parsedValue)
 
     if (
-      !isStoredAuthSession(parsedSession) ||
-      !isFutureIsoDate(parsedSession.refreshTokenExpiresAt)
+      currentResult.success &&
+      isFutureIsoDate(currentResult.data.refreshTokenExpiresAt)
     ) {
-      storage.removeItem(authSessionStorageKey)
+      return currentResult.data
+    }
+
+    const legacyResult = legacyStoredSessionSchema.safeParse(parsedValue)
+
+    if (
+      !legacyResult.success ||
+      !isFutureIsoDate(legacyResult.data.refreshTokenExpiresAt)
+    ) {
       return null
     }
 
-    return toAuthSession(parsedSession)
+    return {
+      v: persistedRefreshVersion,
+      userId: legacyResult.data.user.id,
+      refreshToken: legacyResult.data.refreshToken,
+      refreshTokenExpiresAt: legacyResult.data.refreshTokenExpiresAt,
+    }
   } catch {
-    storage.removeItem(authSessionStorageKey)
     return null
   }
 }
 
-function persistSession(session: AuthSession) {
-  getLocalStorage()?.setItem(
-    authSessionStorageKey,
-    JSON.stringify(toStoredSession(session)),
-  )
+function writePersistedRefresh(refresh: PersistedRefresh) {
+  try {
+    getBrowserStorage('local')?.setItem(
+      authSessionStorageKey,
+      JSON.stringify(refresh),
+    )
+    getBrowserStorage('session')?.removeItem(authSessionStorageKey)
+  } catch {
+    // The in-memory session remains usable when browser storage is unavailable.
+  }
+}
+
+function readPersistedRefresh(): PersistedRefresh | null {
+  const localStorage = getBrowserStorage('local')
+  const sessionStorage = getBrowserStorage('session')
+
+  try {
+    const localValue = localStorage?.getItem(authSessionStorageKey) ?? null
+    const localRefresh = parsePersistedRefresh(localValue)
+
+    if (localRefresh) {
+      writePersistedRefresh(localRefresh)
+      return localRefresh
+    }
+
+    if (localValue) {
+      localStorage?.removeItem(authSessionStorageKey)
+    }
+
+    const legacySessionValue =
+      sessionStorage?.getItem(authSessionStorageKey) ?? null
+    const migratedRefresh = parsePersistedRefresh(legacySessionValue)
+
+    sessionStorage?.removeItem(authSessionStorageKey)
+
+    if (migratedRefresh) {
+      writePersistedRefresh(migratedRefresh)
+    }
+
+    return migratedRefresh
+  } catch {
+    return null
+  }
+}
+
+function persistSessionRefresh(session: AuthSession) {
+  writePersistedRefresh({
+    v: persistedRefreshVersion,
+    userId: session.user.id,
+    refreshToken: session.refreshToken,
+    refreshTokenExpiresAt: session.refreshTokenExpiresAt,
+  })
 }
 
 function removeStoredSession() {
-  getLocalStorage()?.removeItem(authSessionStorageKey)
+  for (const kind of ['local', 'session'] as const) {
+    try {
+      getBrowserStorage(kind)?.removeItem(authSessionStorageKey)
+    } catch {
+      // Clearing in-memory state must not depend on browser storage availability.
+    }
+  }
 }
 
-const storedSession = readStoredSession()
+function toAuthState(
+  session: AuthSession,
+): Omit<AuthStoreState, 'sessionVersion'> {
+  return {
+    user: session.user,
+    tokenType: session.tokenType,
+    accessToken: session.accessToken,
+    accessTokenExpiresAt: session.accessTokenExpiresAt,
+    refreshToken: session.refreshToken,
+    refreshTokenExpiresAt: session.refreshTokenExpiresAt,
+    refreshTokenUserId: session.user.id,
+    isAuthenticated: true,
+  }
+}
 
-const initialAuthState: AuthStoreState = storedSession
+const persistedRefresh = readPersistedRefresh()
+
+const initialAuthState: AuthStoreState = persistedRefresh
   ? {
-      user: storedSession.user,
-      tokenType: storedSession.tokenType,
-      accessToken: storedSession.accessToken,
-      accessTokenExpiresAt: storedSession.accessTokenExpiresAt,
-      refreshToken: storedSession.refreshToken,
-      refreshTokenExpiresAt: storedSession.refreshTokenExpiresAt,
-      isAuthenticated: true,
+      ...emptySessionState,
+      refreshToken: persistedRefresh.refreshToken,
+      refreshTokenExpiresAt: persistedRefresh.refreshTokenExpiresAt,
+      refreshTokenUserId: persistedRefresh.userId,
+      sessionVersion: 0,
     }
-  : emptyAuthState
+  : {
+      ...emptySessionState,
+      sessionVersion: 0,
+    }
 
 export const useAuthStore = create<AuthStore>()((set) => ({
   ...initialAuthState,
   setSession: (session) => {
-    persistSession(session)
-    set({
-      user: session.user,
-      tokenType: session.tokenType,
-      accessToken: session.accessToken,
-      accessTokenExpiresAt: session.accessTokenExpiresAt,
-      refreshToken: session.refreshToken,
-      refreshTokenExpiresAt: session.refreshTokenExpiresAt,
-      isAuthenticated: true,
-    })
+    persistSessionRefresh(session)
+    set((state) => ({
+      ...toAuthState(session),
+      sessionVersion: state.sessionVersion + 1,
+    }))
   },
-  setUser: (user) => {
+  setRefreshedSession: (
+    session,
+    expectedSessionVersion,
+    expectedRefreshToken,
+  ) => {
+    let wasUpdated = false
+
     set((state) => {
       if (
+        state.sessionVersion !== expectedSessionVersion ||
+        state.refreshToken !== expectedRefreshToken
+      ) {
+        return state
+      }
+
+      persistSessionRefresh(session)
+      wasUpdated = true
+
+      return {
+        ...toAuthState(session),
+        sessionVersion: state.sessionVersion,
+      }
+    })
+
+    return wasUpdated
+  },
+  setUser: (user, expectedSessionVersion) => {
+    let wasUpdated = false
+
+    set((state) => {
+      if (
+        (expectedSessionVersion !== undefined &&
+          state.sessionVersion !== expectedSessionVersion) ||
         state.tokenType === null ||
         state.accessToken === null ||
         state.accessTokenExpiresAt === null ||
         state.refreshToken === null ||
         state.refreshTokenExpiresAt === null
       ) {
-        removeStoredSession()
-        return emptyAuthState
+        return state
       }
 
-      persistSession({
-        user,
-        tokenType: state.tokenType,
-        accessToken: state.accessToken,
-        accessTokenExpiresAt: state.accessTokenExpiresAt,
-        refreshToken: state.refreshToken,
-        refreshTokenExpiresAt: state.refreshTokenExpiresAt,
-      })
+      wasUpdated = true
+      return { user }
+    })
+
+    return wasUpdated
+  },
+  clearSession: (expectedSessionVersion) => {
+    let wasCleared = false
+
+    set((state) => {
+      if (
+        expectedSessionVersion !== undefined &&
+        state.sessionVersion !== expectedSessionVersion
+      ) {
+        return state
+      }
+
+      removeStoredSession()
+      wasCleared = true
 
       return {
-        user,
-        isAuthenticated: true,
+        ...emptySessionState,
+        sessionVersion: state.sessionVersion + 1,
       }
     })
-  },
-  clearSession: () => {
-    removeStoredSession()
-    set(emptyAuthState)
-  },
-  logout: () => {
-    removeStoredSession()
-    set(emptyAuthState)
+
+    return wasCleared
   },
 }))
+
+export function syncAuthRefreshFromStorage(storedValue: string | null) {
+  const refresh = parsePersistedRefresh(storedValue)
+
+  useAuthStore.setState((state) => {
+    if (!refresh) {
+      return {
+        ...emptySessionState,
+        sessionVersion: state.sessionVersion + 1,
+      }
+    }
+
+    if (state.refreshTokenUserId === refresh.userId) {
+      return {
+        refreshToken: refresh.refreshToken,
+        refreshTokenExpiresAt: refresh.refreshTokenExpiresAt,
+      }
+    }
+
+    return {
+      ...emptySessionState,
+      refreshToken: refresh.refreshToken,
+      refreshTokenExpiresAt: refresh.refreshTokenExpiresAt,
+      refreshTokenUserId: refresh.userId,
+      sessionVersion: state.sessionVersion + 1,
+    }
+  })
+}

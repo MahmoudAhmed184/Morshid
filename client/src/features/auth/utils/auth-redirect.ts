@@ -14,8 +14,6 @@ export function getDashboardPath(role: AuthRole): AuthRedirectPath {
   return authRedirectByRole[role]
 }
 
-export const getAuthRedirectPath = getDashboardPath
-
 // Client RBAC is UX gating only. Server APIs must still enforce authorization.
 export async function requireAuth(): Promise<AuthRouteRedirectPath | null> {
   if (typeof window === 'undefined') {
@@ -57,5 +55,3 @@ export async function redirectAuthenticatedToDashboard(): Promise<AuthRedirectPa
 
   return user ? getDashboardPath(user.role) : null
 }
-
-export const getProtectedRoleRedirectPath = requireRole

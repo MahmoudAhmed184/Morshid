@@ -39,10 +39,8 @@ const mockSession: AuthSession = {
 }
 
 const storedMockSession = {
-  v: 1,
-  user: mockSession.user,
-  accessToken: mockSession.accessToken,
-  accessTokenExpiresAt: mockSession.accessTokenExpiresAt,
+  v: 2,
+  userId: mockSession.user.id,
   refreshToken: mockSession.refreshToken,
   refreshTokenExpiresAt: mockSession.refreshTokenExpiresAt,
 }
@@ -82,19 +80,19 @@ describe('RolePlaceholderPage', () => {
     await waitFor(() => {
       expect(navigateMock).toHaveBeenCalledWith({ to: '/login' })
     })
-    expect(fetch).toHaveBeenCalledWith(
+    expect(fetch).toHaveBeenCalledOnce()
+    const [requestUrl, requestInit] = vi.mocked(fetch).mock.calls[0]
+    const requestHeaders = new Headers(requestInit?.headers)
+
+    expect(requestUrl).toEqual(
       new URL('http://localhost:4000/api/v1/auth/logout'),
-      {
-        body: JSON.stringify({
-          refreshToken: mockSession.refreshToken,
-        }),
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
-        method: 'POST',
-      },
     )
+    expect(requestInit?.body).toBe(
+      JSON.stringify({ refreshToken: mockSession.refreshToken }),
+    )
+    expect(requestInit?.method).toBe('POST')
+    expect(requestHeaders.get('Accept')).toBe('application/json')
+    expect(requestHeaders.get('Content-Type')).toBe('application/json')
     expect(useAuthStore.getState().isAuthenticated).toBe(false)
     expect(window.localStorage.getItem(authSessionStorageKey)).toBeNull()
   })
