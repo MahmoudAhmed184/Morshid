@@ -12,6 +12,7 @@ export function getAuditRequestContext(request: Request): AuditRequestContext {
 export function getRouteContext(request: Request) {
   return {
     method: request.method,
-    path: (request.route as { path?: string } | undefined)?.path ?? request.path,
+    path:
+      (request.route as { path?: string } | undefined)?.path ?? request.path,
   }
 }
