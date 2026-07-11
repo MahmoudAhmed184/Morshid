@@ -11,17 +11,27 @@ import {
   History,
   Home,
   LogOut,
+  Menu,
   Search,
   Settings,
 } from 'lucide-react'
+import { useState } from 'react'
 
 import { Logo } from '@/components/logo'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet'
 import { logoutApi } from '@/features/auth/api/auth.api'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
+import type { AuthCourseSummary } from '@/features/auth/types/auth.types'
 import { cn } from '@/lib/utils'
 
 const primaryNavItems = [
@@ -49,7 +59,130 @@ function getInitials(name: string | undefined) {
     .join('')
 }
 
+type StudentSidebarContentProps = {
+  assignedCourses: AuthCourseSummary[]
+  pathname: string
+  onNavigate?: () => void
+}
+
+function StudentSidebarContent({
+  assignedCourses,
+  pathname,
+  onNavigate,
+}: StudentSidebarContentProps) {
+  return (
+    <div className="flex h-full min-h-0 w-full flex-col overflow-y-auto px-4 py-5">
+      <div className="mb-8 flex items-center gap-3">
+        <Logo
+          className="size-9 rounded-md bg-blue-500 text-white"
+          iconClassName="size-4"
+        />
+        <div>
+          <p className="text-sm font-semibold text-white">Morshid</p>
+          <p className="text-xs text-zinc-400">Student Portal</p>
+        </div>
+      </div>
+
+      <nav className="space-y-1" aria-label="Student navigation">
+        {primaryNavItems.map((item) => {
+          const isActive = 'to' in item ? pathname === item.to : item.active
+          const navClassName = cn(
+            buttonVariants({
+              variant: 'ghost',
+              className:
+                'h-9 w-full justify-start gap-2 text-zinc-300 hover:bg-white/10 hover:text-white',
+            }),
+            isActive && 'bg-teal-500 text-white hover:bg-teal-500',
+          )
+
+          if ('to' in item) {
+            return (
+              <Link
+                key={item.label}
+                to={item.to}
+                className={navClassName}
+                aria-current={isActive ? 'page' : undefined}
+                onClick={onNavigate}
+              >
+                <item.icon className="size-4" aria-hidden />
+                {item.label}
+              </Link>
+            )
+          }
+
+          return (
+            <Button
+              key={item.label}
+              type="button"
+              variant="ghost"
+              className={navClassName}
+              aria-current={isActive ? 'page' : undefined}
+            >
+              <item.icon className="size-4" aria-hidden />
+              {item.label}
+            </Button>
+          )
+        })}
+      </nav>
+
+      <section className="mt-7 border-t border-white/10 pt-5">
+        <div className="mb-3">
+          <h2 className="text-xs font-medium tracking-[0.12em] text-zinc-500 uppercase">
+            Assigned Courses
+          </h2>
+        </div>
+        {assignedCourses.length > 0 ? (
+          <ul className="space-y-2" aria-label="Assigned courses">
+            {assignedCourses.map((course) => (
+              <li
+                key={course.id}
+                className="rounded-md border border-white/10 bg-white/[0.04] p-3"
+              >
+                <div className="flex min-w-0 items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-zinc-100">
+                      {course.title}
+                    </p>
+                    <p className="mt-1 truncate text-xs text-zinc-500">
+                      {course.code}
+                    </p>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className="border-teal-400/30 text-teal-200"
+                  >
+                    Assigned
+                  </Badge>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="rounded-md border border-dashed border-white/10 bg-white/[0.03] p-3 text-sm text-zinc-400">
+            No courses assigned yet.
+          </div>
+        )}
+      </section>
+
+      <div className="mt-auto space-y-1 pt-6">
+        {secondaryNavItems.map((item) => (
+          <Button
+            key={item.label}
+            type="button"
+            variant="ghost"
+            className="h-9 w-full justify-start gap-2 text-zinc-400 hover:bg-white/10 hover:text-white"
+          >
+            <item.icon className="size-4" aria-hidden />
+            {item.label}
+          </Button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function StudentShellPage() {
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
   const clearSession = useAuthStore((state) => state.clearSession)
@@ -79,115 +212,43 @@ export function StudentShellPage() {
   return (
     <main className="min-h-svh bg-zinc-950 text-zinc-100">
       <div className="flex min-h-svh w-full overflow-hidden">
-        <aside className="hidden w-64 shrink-0 flex-col border-r border-white/10 bg-zinc-900 px-4 py-5 md:flex">
-          <div className="mb-8 flex items-center gap-3">
-            <Logo
-              className="size-9 rounded-md bg-blue-500 text-white"
-              iconClassName="size-4"
-            />
-            <div>
-              <p className="text-sm font-semibold text-white">Morshid</p>
-              <p className="text-xs text-zinc-400">Student Portal</p>
-            </div>
-          </div>
-
-          <nav className="space-y-1" aria-label="Student navigation">
-            {primaryNavItems.map((item) => {
-              const isActive = 'to' in item ? pathname === item.to : item.active
-              const navClassName = cn(
-                buttonVariants({
-                  variant: 'ghost',
-                  className:
-                    'h-9 w-full justify-start gap-2 text-zinc-300 hover:bg-white/10 hover:text-white',
-                }),
-                isActive && 'bg-teal-500 text-white hover:bg-teal-500',
-              )
-
-              if ('to' in item) {
-                return (
-                  <Link
-                    key={item.label}
-                    to={item.to}
-                    className={navClassName}
-                    aria-current={isActive ? 'page' : undefined}
-                  >
-                    <item.icon className="size-4" aria-hidden />
-                    {item.label}
-                  </Link>
-                )
-              }
-
-              return (
-                <Button
-                  key={item.label}
-                  type="button"
-                  variant="ghost"
-                  className={navClassName}
-                  aria-current={isActive ? 'page' : undefined}
-                >
-                  <item.icon className="size-4" aria-hidden />
-                  {item.label}
-                </Button>
-              )
-            })}
-          </nav>
-
-          <section className="mt-7 border-t border-white/10 pt-5">
-            <div className="mb-3">
-              <h2 className="text-xs font-medium tracking-[0.12em] text-zinc-500 uppercase">
-                Assigned Courses
-              </h2>
-            </div>
-            {assignedCourses.length > 0 ? (
-              <ul className="space-y-2" aria-label="Assigned courses">
-                {assignedCourses.map((course) => (
-                  <li
-                    key={course.id}
-                    className="rounded-md border border-white/10 bg-white/[0.04] p-3"
-                  >
-                    <div className="flex min-w-0 items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-zinc-100">
-                          {course.title}
-                        </p>
-                        <p className="mt-1 truncate text-xs text-zinc-500">
-                          {course.code}
-                        </p>
-                      </div>
-                      <Badge
-                        variant="outline"
-                        className="border-teal-400/30 text-teal-200"
-                      >
-                        Assigned
-                      </Badge>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="rounded-md border border-dashed border-white/10 bg-white/[0.03] p-3 text-sm text-zinc-400">
-                No courses assigned yet.
-              </div>
-            )}
-          </section>
-
-          <div className="mt-auto space-y-1 pt-6">
-            {secondaryNavItems.map((item) => (
-              <Button
-                key={item.label}
-                type="button"
-                variant="ghost"
-                className="h-9 w-full justify-start gap-2 text-zinc-400 hover:bg-white/10 hover:text-white"
-              >
-                <item.icon className="size-4" aria-hidden />
-                {item.label}
-              </Button>
-            ))}
-          </div>
+        <aside className="hidden w-64 shrink-0 flex-col border-r border-white/10 bg-zinc-900 md:flex">
+          <StudentSidebarContent
+            assignedCourses={assignedCourses}
+            pathname={pathname}
+          />
         </aside>
 
         <section className="flex min-w-0 flex-1 flex-col bg-[#06131f]">
           <header className="flex min-h-16 items-center gap-3 border-b border-white/10 px-4 sm:px-6">
+            <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+              <SheetTrigger
+                render={
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="border-white/10 bg-transparent text-zinc-100 hover:bg-white/10 hover:text-white md:hidden"
+                    aria-label="Open student navigation"
+                  />
+                }
+              >
+                <Menu className="size-5" aria-hidden />
+              </SheetTrigger>
+              <SheetContent
+                side="left"
+                className="w-72 max-w-[85vw] gap-0 border-white/10 bg-zinc-900 p-0 text-zinc-100 sm:max-w-xs"
+              >
+                <SheetHeader className="sr-only">
+                  <SheetTitle>Student navigation</SheetTitle>
+                </SheetHeader>
+                <StudentSidebarContent
+                  assignedCourses={assignedCourses}
+                  pathname={pathname}
+                  onNavigate={() => setMobileNavOpen(false)}
+                />
+              </SheetContent>
+            </Sheet>
+
             <div className="md:hidden">
               <Logo
                 className="size-8 rounded-md bg-blue-500 text-white"

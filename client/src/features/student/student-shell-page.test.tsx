@@ -1,5 +1,11 @@
 import '@testing-library/jest-dom/vitest'
-import { cleanup, render, screen, within } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAuthStore } from '@/features/auth/stores/auth.store'
@@ -156,6 +162,30 @@ describe('StudentShellPage', () => {
     expect(
       screen.getByRole('link', { name: /dashboard/i }),
     ).not.toHaveAttribute('aria-current')
+  })
+
+  it('opens student navigation in the mobile drawer', () => {
+    useAuthStore.getState().setSession(createStudentSession([]))
+
+    render(<StudentShellPage />)
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /open student navigation/i }),
+    )
+
+    const drawer = screen.getByRole('dialog', {
+      name: /student navigation/i,
+    })
+
+    expect(
+      within(drawer).getByRole('link', { name: /dashboard/i }),
+    ).toHaveAttribute('href', '/student/dashboard')
+    expect(
+      within(drawer).getByRole('link', { name: /courses/i }),
+    ).toHaveAttribute('href', '/student/courses')
+    expect(
+      within(drawer).getByRole('link', { name: /ai tutor/i }),
+    ).toHaveAttribute('href', '/student/ai-tutor')
   })
 })
 
