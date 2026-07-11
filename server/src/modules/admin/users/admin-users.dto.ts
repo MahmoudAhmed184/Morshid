@@ -83,3 +83,40 @@ export class AdminCreateUserResponseDto {
   @ApiProperty({ type: AdminUserDto })
   user!: AdminUserDto
 }
+
+export class AdminUserListItemDto {
+  @Expose()
+  @ApiProperty({ format: 'uuid' })
+  id!: string
+
+  @Expose()
+  @ApiProperty({ format: 'email' })
+  email!: string
+
+  @Expose()
+  @ApiProperty()
+  displayName!: string
+
+  @Expose()
+  @ApiProperty({ enum: UserRole, enumName: 'UserRole' })
+  role!: UserRole
+
+  @Expose()
+  @ApiProperty({ enum: UserStatus, enumName: 'UserStatus' })
+  status!: UserStatus
+
+  @Expose()
+  @ApiProperty({ format: 'date-time' })
+  createdAt!: string
+
+  @Expose()
+  @ApiProperty({ format: 'date-time' })
+  updatedAt!: string
+}
+
+export class AdminUserListResponseDto {
+  @Expose()
+  @Type(() => AdminUserListItemDto)
+  @ApiProperty({ type: [AdminUserListItemDto] })
+  users!: AdminUserListItemDto[]
+}
