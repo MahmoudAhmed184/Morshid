@@ -1,12 +1,12 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
 
 import { RolePlaceholderPage } from '@/features/auth/components/role-placeholder-page'
-import { getProtectedRoleRedirectPath } from '@/features/auth/utils/auth-redirect'
+import { requireRole } from '@/features/auth/utils/auth-redirect'
 
 export const Route = createFileRoute('/student')({
   ssr: false,
   beforeLoad: async () => {
-    const redirectPath = await getProtectedRoleRedirectPath('STUDENT')
+    const redirectPath = await requireRole('STUDENT')
 
     if (redirectPath) {
       throw redirect({ to: redirectPath })

@@ -11,13 +11,13 @@ const authRedirectByRole = {
 export type AuthRedirectPath = (typeof authRedirectByRole)[AuthRole]
 export type AuthRouteRedirectPath = AuthRedirectPath | '/login'
 
-export function getAuthRedirectPath(role: AuthRole): AuthRedirectPath {
+export function getDashboardPath(role: AuthRole): AuthRedirectPath {
   return authRedirectByRole[role]
 }
 
-export async function getProtectedRoleRedirectPath(
-  expectedRole: AuthRole,
-): Promise<AuthRouteRedirectPath | null> {
+export const getAuthRedirectPath = getDashboardPath
+
+async function validateCurrentUser() {
   if (typeof window === 'undefined') {
     return null
   }
@@ -26,20 +26,60 @@ export async function getProtectedRoleRedirectPath(
     useAuthStore.getState()
 
   if (!isAuthenticated || !user) {
-    return '/login'
+    return null
   }
 
   try {
     const response = await getCurrentUser()
     setUser(response.user)
 
-    if (response.user.role !== expectedRole) {
-      return getAuthRedirectPath(response.user.role)
-    }
+    return response.user
   } catch {
     clearSession()
+    return null
+  }
+}
+
+// Client RBAC is UX gating only. Server APIs must still enforce authorization.
+export async function requireAuth(): Promise<AuthRouteRedirectPath | null> {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  const user = await validateCurrentUser()
+
+  return user ? null : '/login'
+}
+
+// Client RBAC is UX gating only. Server APIs must still enforce authorization.
+export async function requireRole(
+  expectedRole: AuthRole,
+): Promise<AuthRouteRedirectPath | null> {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  const user = await validateCurrentUser()
+
+  if (!user) {
     return '/login'
+  }
+
+  if (user.role !== expectedRole) {
+    return getDashboardPath(user.role)
   }
 
   return null
 }
+
+export async function redirectAuthenticatedToDashboard(): Promise<AuthRedirectPath | null> {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  const user = await validateCurrentUser()
+
+  return user ? getDashboardPath(user.role) : null
+}
+
+export const getProtectedRoleRedirectPath = requireRole

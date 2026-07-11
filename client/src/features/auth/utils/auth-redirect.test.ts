@@ -4,8 +4,10 @@ import { useAuthStore } from '@/features/auth/stores/auth.store'
 import type { AuthRole, AuthSession } from '@/features/auth/types/auth.types'
 
 import {
-  getAuthRedirectPath,
-  getProtectedRoleRedirectPath,
+  getDashboardPath,
+  redirectAuthenticatedToDashboard,
+  requireAuth,
+  requireRole,
 } from './auth-redirect'
 
 function createMockSession(role: AuthRole): AuthSession {
@@ -26,17 +28,17 @@ function createMockSession(role: AuthRole): AuthSession {
   }
 }
 
-describe('getAuthRedirectPath', () => {
+describe('getDashboardPath', () => {
   it.each([
     ['ADMIN', '/admin'],
     ['INSTRUCTOR', '/instructor'],
     ['STUDENT', '/student'],
   ] as const)('redirects %s users to %s', (role, path) => {
-    expect(getAuthRedirectPath(role)).toBe(path)
+    expect(getDashboardPath(role)).toBe(path)
   })
 })
 
-describe('getProtectedRoleRedirectPath', () => {
+describe('client auth guards', () => {
   beforeEach(() => {
     window.localStorage.clear()
     useAuthStore.getState().clearSession()
@@ -52,20 +54,37 @@ describe('getProtectedRoleRedirectPath', () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(getProtectedRoleRedirectPath('ADMIN')).resolves.toBe('/login')
+    await expect(requireAuth()).resolves.toBe('/login')
+    await expect(requireRole('ADMIN')).resolves.toBe('/login')
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('defers protected route redirects until the browser can read the stored session', async () => {
+  it('defers guards until the browser can read the stored session', async () => {
     const browserWindow = window
 
     vi.stubGlobal('window', undefined)
 
     try {
-      await expect(getProtectedRoleRedirectPath('ADMIN')).resolves.toBeNull()
+      await expect(requireAuth()).resolves.toBeNull()
+      await expect(requireRole('ADMIN')).resolves.toBeNull()
+      await expect(redirectAuthenticatedToDashboard()).resolves.toBeNull()
     } finally {
       vi.stubGlobal('window', browserWindow)
     }
+  })
+
+  it('allows authenticated users when /me succeeds', async () => {
+    useAuthStore.getState().setSession(createMockSession('ADMIN'))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        Response.json({
+          user: createMockSession('ADMIN').user,
+        }),
+      ),
+    )
+
+    await expect(requireAuth()).resolves.toBeNull()
   })
 
   it('allows users when /me confirms the expected role', async () => {
@@ -85,7 +104,7 @@ describe('getProtectedRoleRedirectPath', () => {
       ),
     )
 
-    await expect(getProtectedRoleRedirectPath('INSTRUCTOR')).resolves.toBeNull()
+    await expect(requireRole('INSTRUCTOR')).resolves.toBeNull()
     expect(useAuthStore.getState().user).toEqual(serverUser)
   })
 
@@ -100,12 +119,32 @@ describe('getProtectedRoleRedirectPath', () => {
       ),
     )
 
-    await expect(getProtectedRoleRedirectPath('ADMIN')).resolves.toBe(
-      '/student',
-    )
+    await expect(requireRole('ADMIN')).resolves.toBe('/student')
   })
 
-  it('clears the stored session and redirects to login when /me fails', async () => {
+  it('redirects authenticated users to their dashboard when requested', async () => {
+    useAuthStore.getState().setSession(createMockSession('STUDENT'))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        Response.json({
+          user: createMockSession('STUDENT').user,
+        }),
+      ),
+    )
+
+    await expect(redirectAuthenticatedToDashboard()).resolves.toBe('/student')
+  })
+
+  it('does not redirect unauthenticated users to a dashboard', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(redirectAuthenticatedToDashboard()).resolves.toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('clears the stored session and redirects to login when /me fails for a required route', async () => {
     useAuthStore.getState().setSession(createMockSession('ADMIN'))
     vi.stubGlobal(
       'fetch',
@@ -122,7 +161,7 @@ describe('getProtectedRoleRedirectPath', () => {
       ),
     )
 
-    await expect(getProtectedRoleRedirectPath('ADMIN')).resolves.toBe('/login')
+    await expect(requireRole('ADMIN')).resolves.toBe('/login')
     expect(useAuthStore.getState()).toMatchObject({
       isAuthenticated: false,
       user: null,
