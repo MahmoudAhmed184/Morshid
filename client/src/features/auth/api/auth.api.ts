@@ -122,3 +122,20 @@ export async function getCurrentUser(
 ): Promise<MeResponse> {
   return apiJson<MeResponse>('/api/v1/me', options)
 }
+
+export async function logoutApi(
+  refreshToken: string,
+  fetchImpl: typeof fetch = fetch,
+  apiBaseUrl = clientEnv.VITE_API_BASE_URL,
+): Promise<void> {
+  await fetchImpl(buildApiUrl('/api/v1/auth/logout', apiBaseUrl), {
+    body: JSON.stringify({
+      refreshToken,
+    }),
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    method: 'POST',
+  })
+}

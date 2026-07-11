@@ -6,6 +6,7 @@ import {
   SIGN_IN_UNAVAILABLE_MESSAGE,
   getCurrentUser,
   loginApi,
+  logoutApi,
 } from './auth.api'
 
 const mockSession = {
@@ -159,5 +160,31 @@ describe('getCurrentUser', () => {
     await expect(getCurrentUser({ fetchImpl: fetchMock })).resolves.toEqual({
       user: mockSession.user,
     })
+  })
+})
+
+describe('logoutApi', () => {
+  it('posts the refresh token to the server logout endpoint', async () => {
+    const fetchMock = async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe('http://localhost:4000/api/v1/auth/logout')
+      expect(init).toMatchObject({
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        method: 'POST',
+      })
+      expect(JSON.parse(String(init?.body))).toEqual({
+        refreshToken: 'server-refresh-token',
+      })
+
+      return new Response(null, {
+        status: 204,
+      })
+    }
+
+    await expect(logoutApi('server-refresh-token', fetchMock)).resolves.toBe(
+      undefined,
+    )
   })
 })

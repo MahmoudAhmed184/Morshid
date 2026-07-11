@@ -2,6 +2,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { LogOut } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { logoutApi } from '@/features/auth/api/auth.api'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 
 type RolePlaceholderPageProps = {
@@ -13,8 +14,18 @@ export function RolePlaceholderPage({ roleName }: RolePlaceholderPageProps) {
   const logout = useAuthStore((state) => state.logout)
 
   const handleLogout = async () => {
-    logout()
-    await navigate({ to: '/login' })
+    const refreshToken = useAuthStore.getState().refreshToken
+
+    try {
+      if (refreshToken) {
+        await logoutApi(refreshToken)
+      }
+    } catch {
+      // Local logout must still complete if the revoke request is unavailable.
+    } finally {
+      logout()
+      await navigate({ to: '/login' })
+    }
   }
 
   return (

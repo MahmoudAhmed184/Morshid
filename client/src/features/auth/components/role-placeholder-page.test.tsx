@@ -44,6 +44,10 @@ describe('RolePlaceholderPage', () => {
     useAuthStore.getState().clearSession()
     useAuthStore.getState().setSession(mockSession)
     navigateMock.mockResolvedValue(undefined)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(null, { status: 204 })),
+    )
   })
 
   afterEach(() => {
@@ -51,6 +55,7 @@ describe('RolePlaceholderPage', () => {
     useAuthStore.getState().clearSession()
     window.localStorage.clear()
     navigateMock.mockReset()
+    vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })
 
@@ -62,6 +67,38 @@ describe('RolePlaceholderPage', () => {
     expect(window.localStorage.getItem(authSessionStorageKey)).toBe(
       JSON.stringify(mockSession),
     )
+
+    fireEvent.click(screen.getByRole('button', { name: /logout/i }))
+
+    await waitFor(() => {
+      expect(navigateMock).toHaveBeenCalledWith({ to: '/login' })
+    })
+    expect(fetch).toHaveBeenCalledWith(
+      new URL('http://localhost:4000/api/v1/auth/logout'),
+      {
+        body: JSON.stringify({
+          refreshToken: mockSession.refreshToken,
+        }),
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        method: 'POST',
+      },
+    )
+    expect(useAuthStore.getState().isAuthenticated).toBe(false)
+    expect(window.localStorage.getItem(authSessionStorageKey)).toBeNull()
+  })
+
+  it('clears local auth state even when logout revocation fails', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new TypeError('failed to fetch')
+      }),
+    )
+
+    render(<RolePlaceholderPage roleName="Admin" />)
 
     fireEvent.click(screen.getByRole('button', { name: /logout/i }))
 
