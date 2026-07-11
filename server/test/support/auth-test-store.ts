@@ -51,10 +51,10 @@ interface CreateUserArgs {
 }
 
 interface FindManyUserArgs {
-  orderBy?: Array<{
+  orderBy?: {
     createdAt?: 'asc' | 'desc'
     id?: 'asc' | 'desc'
-  }>
+  }[]
   cursor?: { id: string }
   skip?: number
   take?: number

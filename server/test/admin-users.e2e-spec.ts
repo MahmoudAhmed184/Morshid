@@ -219,21 +219,23 @@ describe('Admin users (e2e)', () => {
 
   it('publishes the runtime password policy in OpenAPI', async () => {
     const response = await request(app.getHttpServer()).get('/docs-json').expect(200)
-    const schemas = response.body.components.schemas as Record<
-      string,
-      { properties: Record<string, unknown> }
-    >
+    const document = response.body as {
+      components: {
+        schemas: Record<string, { properties: Record<string, unknown> }>
+      }
+    }
+    const schemas = document.components.schemas
     const passwordPolicy = {
       minLength: 8,
       maxLength: 50,
       pattern: '^(?=.*[A-Za-z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,50}$',
     }
 
-    expect(schemas.AdminCreateUserRequestDto?.properties.password).toMatchObject(
+    expect(schemas.AdminCreateUserRequestDto.properties.password).toMatchObject(
       passwordPolicy,
     )
     expect(
-      schemas.AdminResetUserPasswordRequestDto?.properties.newPassword,
+      schemas.AdminResetUserPasswordRequestDto.properties.newPassword,
     ).toMatchObject(passwordPolicy)
   })
 

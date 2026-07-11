@@ -230,7 +230,11 @@ export class PrismaAdminUsersRepository extends AdminUsersRepository {
     input: DisableAdminUserRepositoryInput,
   ): Promise<AdminUserRecord> {
     return this.prismaService.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('morshid:disable-admin-user'))`
+      await tx.$queryRaw`
+        SELECT pg_advisory_xact_lock(
+          hashtext('morshid:disable-admin-user')
+        ) IS NULL AS locked
+      `
 
       const currentUser = await tx.user.findUnique({
         where: {

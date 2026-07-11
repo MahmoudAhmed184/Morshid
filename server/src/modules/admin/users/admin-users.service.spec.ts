@@ -38,7 +38,7 @@ class AdminUsersServiceTestRepository extends AdminUsersRepository {
     Promise.resolve(this.insertUser(input)),
   )
   readonly disableUser = jest.fn((input: DisableAdminUserRepositoryInput) =>
-    this.disableExistingUser(input),
+    Promise.resolve(this.disableExistingUser(input)),
   )
   readonly reactivateUser = jest.fn(
     (input: ReactivateAdminUserRepositoryInput) =>
@@ -113,9 +113,9 @@ class AdminUsersServiceTestRepository extends AdminUsersRepository {
     return user
   }
 
-  private async disableExistingUser(
+  private disableExistingUser(
     input: DisableAdminUserRepositoryInput,
-  ): Promise<AdminListedUserRecord> {
+  ): AdminListedUserRecord {
     const user = [...this.users.values()].find(
       (storedUser) => storedUser.id === input.userId,
     )
