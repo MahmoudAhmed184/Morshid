@@ -3,6 +3,8 @@ import {
   ClassSerializerInterceptor,
   Controller,
   Get,
+  Param,
+  Patch,
   Post,
   Req,
   SerializeOptions,
@@ -26,6 +28,7 @@ import { Roles } from '../../auth/roles.decorator'
 import {
   AdminCreateUserRequestDto,
   AdminCreateUserResponseDto,
+  AdminDisableUserResponseDto,
   AdminUserListResponseDto,
   adminCreateUserRequestSchema,
   type AdminCreateUserRequest,
@@ -85,6 +88,20 @@ export class AdminUsersController {
   ): Promise<AdminCreateUserResponseDto> {
     return this.adminUsersService.createUser(
       body,
+      request.user,
+      getRequestContext(request),
+    )
+  }
+
+  @Patch(':userId/disable')
+  @SerializeOptions({ type: AdminDisableUserResponseDto, strategy: 'excludeAll' })
+  @ApiOkResponse({ type: AdminDisableUserResponseDto })
+  disableUser(
+    @Param('userId') userId: string,
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<AdminDisableUserResponseDto> {
+    return this.adminUsersService.disableUser(
+      userId,
       request.user,
       getRequestContext(request),
     )
