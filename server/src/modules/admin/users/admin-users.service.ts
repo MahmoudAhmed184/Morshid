@@ -8,6 +8,7 @@ import type { AuditRequestContext } from '../../audit/audit.service'
 import type {
   AdminCreateUserRequest,
   AdminCreateUserResponseDto,
+  AdminUserListResponseDto,
 } from './admin-users.dto'
 import {
   AdminUserEmailAlreadyExistsError,
@@ -64,6 +65,14 @@ export class AdminUsersService {
       }
 
       throw error
+    }
+  }
+
+  async listUsers(): Promise<AdminUserListResponseDto> {
+    const users = await this.adminUsersRepository.listUsers()
+
+    return {
+      users: users.map(mapAdminUserRecord),
     }
   }
 }
