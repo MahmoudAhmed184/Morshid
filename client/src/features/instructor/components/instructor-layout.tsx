@@ -7,11 +7,20 @@ import {
   FileText,
   HelpCircle,
   LayoutDashboard,
+  Menu,
   Settings,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import { useState } from 'react'
 
+import { Button } from '@/components/ui/button'
 import { Logo } from '@/components/logo'
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 import { cn } from '@/lib/utils'
 
@@ -47,17 +56,20 @@ function SidebarNavItem({
   icon: Icon,
   isActive,
   label,
+  onClick,
   to,
 }: {
   icon: LucideIcon
   isActive: boolean
   label: string
+  onClick?: () => void
   to: string
 }) {
   return (
     <Link
       to={to}
       aria-current={isActive ? 'page' : undefined}
+      onClick={onClick}
       className={cn(
         'flex h-9 w-full items-center gap-2 rounded-[6px] px-3 text-left text-xs font-medium transition-colors',
         isActive
@@ -65,17 +77,17 @@ function SidebarNavItem({
           : 'text-[#8f9aaa] hover:bg-[#151d2a] hover:text-[#dbe8ff]',
       )}
     >
-      <Icon className="size-4" aria-hidden />
-      <span>{label}</span>
+      <Icon className="size-4 shrink-0" aria-hidden />
+      <span className="truncate">{label}</span>
     </Link>
   )
 }
 
-function InstructorSidebar() {
+function InstructorSidebar({ onNavigate }: { onNavigate?: () => void }) {
   const location = useLocation()
 
   return (
-    <aside className="flex bg-[#111821] text-[#d7dfec] md:min-h-svh md:w-52 md:flex-col md:border-r md:border-[#273241]">
+    <aside className="flex flex-col bg-[#111821] text-[#d7dfec] md:min-h-svh md:w-52 md:border-r md:border-[#273241]">
       <div className="flex min-h-16 items-center gap-3 border-b border-[#273241] px-4 md:min-h-20">
         <Logo
           className="size-8 rounded-[6px] bg-[#dbe8ff] text-[#0c1420]"
@@ -89,7 +101,7 @@ function InstructorSidebar() {
         </div>
       </div>
 
-      <nav className="flex gap-1 overflow-x-auto px-3 py-3 md:flex-1 md:flex-col md:gap-1 md:overflow-visible">
+      <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-3">
         {navItems.map((item) => (
           <SidebarNavItem
             key={item.to}
@@ -102,16 +114,18 @@ function InstructorSidebar() {
             }
             label={item.label}
             to={item.to}
+            onClick={onNavigate}
           />
         ))}
       </nav>
 
-      <div className="hidden border-t border-[#273241] px-3 py-4 md:block">
+      <div className="border-t border-[#273241] px-3 py-4">
         <SidebarNavItem
           icon={Settings}
           isActive={location.pathname === '/instructor/settings'}
           label="Settings"
           to="/instructor/settings"
+          onClick={onNavigate}
         />
       </div>
     </aside>
@@ -194,11 +208,38 @@ function InstructorTopBar({
 
 export function InstructorLayout() {
   const user = useAuthStore((state) => state.user)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   return (
     <main className="min-h-svh bg-[#050b12] text-[#d7dfec]">
       <div className="md:grid md:min-h-svh md:grid-cols-[13rem_minmax(0,1fr)]">
-        <InstructorSidebar />
+        {/* Mobile sidebar */}
+        <div className="md:hidden">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="fixed left-4 top-4 z-40 md:hidden"
+            aria-label="Open menu"
+            onClick={() => setMobileMenuOpen(true)}
+          >
+            <Menu className="size-5" aria-hidden />
+          </Button>
+          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+            <SheetContent side="left" className="w-64 p-0">
+              <SheetHeader className="border-b border-[#273241] px-4 py-3">
+                <SheetTitle className="text-sm font-semibold text-white">
+                  Menu
+                </SheetTitle>
+              </SheetHeader>
+              <InstructorSidebar onNavigate={() => setMobileMenuOpen(false)} />
+            </SheetContent>
+          </Sheet>
+        </div>
+
+        {/* Desktop sidebar */}
+        <div className="hidden md:block">
+          <InstructorSidebar />
+        </div>
 
         <div className="min-w-0 bg-[#07111b]">
           <InstructorTopBar
