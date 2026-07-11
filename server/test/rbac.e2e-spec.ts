@@ -35,6 +35,21 @@ function authHeader(token: string): [string, string] {
   return ['Authorization', `Bearer ${token}`]
 }
 
+function loginAsStudent(
+  app: INestApplication,
+  email = 'student1@morshid.demo',
+): Promise<string> {
+  return signInAndGetToken(app, email)
+}
+
+function loginAsInstructor(app: INestApplication): Promise<string> {
+  return signInAndGetToken(app, 'instructor@morshid.demo')
+}
+
+function loginAsAdmin(app: INestApplication): Promise<string> {
+  return signInAndGetToken(app, 'admin@morshid.demo')
+}
+
 describe('RBAC (e2e)', () => {
   let app: INestApplication<App>
   let store: AuthTestStore
@@ -83,9 +98,16 @@ describe('RBAC (e2e)', () => {
     await app.close()
   })
 
+  it('rejects unauthenticated access to /me with 401', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/me')
+      .set('User-Agent', auditUserAgent)
+      .expect(401)
+  })
+
   describe('Student boundaries', () => {
     it('returns the correct role and identity for a signed-in student', async () => {
-      const token = await signInAndGetToken(app, 'student1@morshid.demo')
+      const token = await loginAsStudent(app)
 
       const response = await request(app.getHttpServer())
         .get('/api/v1/me')
@@ -101,7 +123,7 @@ describe('RBAC (e2e)', () => {
     })
 
     it('shows only the assigned Python course and not the hidden isolation course', async () => {
-      const token = await signInAndGetToken(app, 'student1@morshid.demo')
+      const token = await loginAsStudent(app)
 
       const response = await request(app.getHttpServer())
         .get('/api/v1/me')
@@ -118,7 +140,7 @@ describe('RBAC (e2e)', () => {
     })
 
     it('returns a different identity for student2', async () => {
-      const token = await signInAndGetToken(app, 'student2@morshid.demo')
+      const token = await loginAsStudent(app, 'student2@morshid.demo')
 
       const response = await request(app.getHttpServer())
         .get('/api/v1/me')
@@ -133,7 +155,7 @@ describe('RBAC (e2e)', () => {
     })
 
     it('returns a different identity for student3', async () => {
-      const token = await signInAndGetToken(app, 'student3@morshid.demo')
+      const token = await loginAsStudent(app, 'student3@morshid.demo')
 
       const response = await request(app.getHttpServer())
         .get('/api/v1/me')
@@ -146,12 +168,11 @@ describe('RBAC (e2e)', () => {
       expect(meResponse.user.email).toBe('student3@morshid.demo')
       expect(meResponse.user.displayName).toBe('P0 Demo Student 3')
     })
-
   })
 
   describe('Instructor boundaries', () => {
     it('returns the correct role and identity for a signed-in instructor', async () => {
-      const token = await signInAndGetToken(app, 'instructor@morshid.demo')
+      const token = await loginAsInstructor(app)
 
       const response = await request(app.getHttpServer())
         .get('/api/v1/me')
@@ -166,7 +187,7 @@ describe('RBAC (e2e)', () => {
     })
 
     it('shows the Python course with INSTRUCTOR membership role in /me', async () => {
-      const token = await signInAndGetToken(app, 'instructor@morshid.demo')
+      const token = await loginAsInstructor(app)
 
       const response = await request(app.getHttpServer())
         .get('/api/v1/me')
@@ -184,7 +205,7 @@ describe('RBAC (e2e)', () => {
 
   describe('Admin boundaries', () => {
     it('returns the correct role and identity for a signed-in admin', async () => {
-      const token = await signInAndGetToken(app, 'admin@morshid.demo')
+      const token = await loginAsAdmin(app)
 
       const response = await request(app.getHttpServer())
         .get('/api/v1/me')
@@ -201,7 +222,7 @@ describe('RBAC (e2e)', () => {
 
   describe('Course boundaries', () => {
     it('student1 sees only the Python course with STUDENT membership role', async () => {
-      const token = await signInAndGetToken(app, 'student1@morshid.demo')
+      const token = await loginAsStudent(app)
 
       const response = await request(app.getHttpServer())
         .get('/api/v1/me')
@@ -221,7 +242,7 @@ describe('RBAC (e2e)', () => {
     })
 
     it('instructor sees the Python course with INSTRUCTOR membership role', async () => {
-      const token = await signInAndGetToken(app, 'instructor@morshid.demo')
+      const token = await loginAsInstructor(app)
 
       const response = await request(app.getHttpServer())
         .get('/api/v1/me')
@@ -243,7 +264,7 @@ describe('RBAC (e2e)', () => {
     })
 
     it('admin sees both courses with null membership roles', async () => {
-      const token = await signInAndGetToken(app, 'admin@morshid.demo')
+      const token = await loginAsAdmin(app)
 
       const response = await request(app.getHttpServer())
         .get('/api/v1/me')
