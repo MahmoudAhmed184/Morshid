@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common'
 import {
   CourseMembershipRole,
   UserRole,
+  UserStatus,
 } from '../../../generated/prisma/client'
 import type { AuthenticatedRequestUser } from '../../auth/auth.dto'
 import { AuthUserService } from '../../auth/services/auth-user.service'
@@ -11,10 +12,14 @@ import type { AuditRequestContext } from '../../audit/audit.service'
 import type {
   AdminCreateUserRequest,
   AdminCreateUserResponseDto,
+  AdminDisableUserResponseDto,
   AdminUserListResponseDto,
 } from './admin-users.dto'
 import {
   AdminUserEmailAlreadyExistsError,
+  adminUserNotFoundException,
+  cannotDisableLastActiveAdminException,
+  cannotDisableSelfException,
   duplicateAdminUserEmailException,
   unsupportedAdminCreateUserRoleException,
 } from './admin-users.errors'
@@ -77,6 +82,48 @@ export class AdminUsersService {
 
     return {
       users: users.map(mapAdminListedUserRecord),
+    }
+  }
+
+  async disableUser(
+    userId: string,
+    actor: AuthenticatedRequestUser,
+    requestContext?: AuditRequestContext,
+  ): Promise<AdminDisableUserResponseDto> {
+    if (userId === actor.id) {
+      throw cannotDisableSelfException()
+    }
+
+    const user = await this.adminUsersRepository.findById(userId)
+
+    if (user === null) {
+      throw adminUserNotFoundException(userId)
+    }
+
+    if (user.status === UserStatus.DISABLED) {
+      return {
+        user: mapAdminUserRecord(user),
+      }
+    }
+
+    if (user.role === UserRole.ADMIN) {
+      const activeAdminCount =
+        await this.adminUsersRepository.countActiveAdmins()
+
+      if (activeAdminCount <= 1) {
+        throw cannotDisableLastActiveAdminException()
+      }
+    }
+
+    const disabledUser = await this.adminUsersRepository.disableUser({
+      userId,
+      actorUserId: actor.id,
+      disabledAt: new Date(),
+      requestContext,
+    })
+
+    return {
+      user: mapAdminUserRecord(disabledUser),
     }
   }
 }
