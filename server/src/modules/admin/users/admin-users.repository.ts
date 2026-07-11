@@ -10,8 +10,10 @@ import { PrismaService } from '../../prisma/prisma.service'
 import type { AuditRequestContext } from '../../audit/audit.service'
 import type { AdminCreatableUserRole } from './admin-users.dto'
 import { AdminUsersAuditService } from './admin-users.audit.service'
-import { AdminUserEmailAlreadyExistsError } from './admin-users.errors'
-import { CannotDisableLastActiveAdminError } from './admin-users.errors'
+import {
+  AdminUserEmailAlreadyExistsError,
+  CannotDisableLastActiveAdminError,
+} from './admin-users.errors'
 
 export interface AdminUserRecord {
   id: string
@@ -35,6 +37,16 @@ export interface AdminUserCourseAssignmentRecord {
 
 export interface AdminListedUserRecord extends AdminUserRecord {
   memberships: AdminUserCourseAssignmentRecord[]
+}
+
+export interface ListAdminUsersRepositoryInput {
+  limit: number
+  cursor?: string
+}
+
+export interface AdminListedUsersPage {
+  users: AdminListedUserRecord[]
+  nextCursor?: string
 }
 
 export interface CreateAdminUserRepositoryInput {
@@ -99,7 +111,9 @@ export abstract class AdminUsersRepository {
 
   abstract findById(userId: string): Promise<AdminUserRecord | null>
 
-  abstract listUsers(): Promise<AdminListedUserRecord[]>
+  abstract listUsers(
+    input: ListAdminUsersRepositoryInput,
+  ): Promise<AdminListedUsersPage>
 
   abstract createUser(
     input: CreateAdminUserRepositoryInput,
@@ -145,13 +159,26 @@ export class PrismaAdminUsersRepository extends AdminUsersRepository {
     })
   }
 
-  listUsers(): Promise<AdminListedUserRecord[]> {
-    return this.prismaService.user.findMany({
+  async listUsers(
+    input: ListAdminUsersRepositoryInput,
+  ): Promise<AdminListedUsersPage> {
+    const users = await this.prismaService.user.findMany({
       select: adminListedUserRecordSelect,
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: input.limit + 1,
+      ...(input.cursor === undefined
+        ? {}
+        : { cursor: { id: input.cursor }, skip: 1 }),
     })
+
+    const hasNextPage = users.length > input.limit
+    const pageUsers = hasNextPage ? users.slice(0, input.limit) : users
+    const nextCursor = hasNextPage ? pageUsers.at(-1)?.id : undefined
+
+    return {
+      users: pageUsers,
+      ...(nextCursor === undefined ? {} : { nextCursor }),
+    }
   }
 
   countActiveAdmins(): Promise<number> {

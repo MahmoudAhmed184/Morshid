@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger'
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
 import { Expose, Type } from 'class-transformer'
 import { z } from 'zod'
 
@@ -38,12 +38,20 @@ export const adminResetUserPasswordRequestSchema = z
   })
   .strict()
 
+export const adminListUsersQuerySchema = z
+  .object({
+    limit: z.coerce.number().int().min(1).max(100).default(50),
+    cursor: z.uuid().optional(),
+  })
+  .strict()
+
 export type AdminCreateUserRequest = z.infer<
   typeof adminCreateUserRequestSchema
 >
 export type AdminResetUserPasswordRequest = z.infer<
   typeof adminResetUserPasswordRequestSchema
 >
+export type AdminListUsersQuery = z.infer<typeof adminListUsersQuerySchema>
 export type AdminCreatableUserRole = Extract<UserRole, 'STUDENT' | 'INSTRUCTOR'>
 
 export class AdminCreateUserRequestDto {
@@ -74,6 +82,14 @@ export class AdminResetUserPasswordRequestDto {
     pattern: ADMIN_USER_PASSWORD_PATTERN,
   })
   newPassword!: string
+}
+
+export class AdminListUsersQueryDto {
+  @ApiPropertyOptional({ minimum: 1, maximum: 100, default: 50 })
+  limit?: number
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  cursor?: string
 }
 
 export class AdminUserDto {
@@ -214,4 +230,8 @@ export class AdminUserListResponseDto {
   @Type(() => AdminUserListItemDto)
   @ApiProperty({ type: [AdminUserListItemDto] })
   users!: AdminUserListItemDto[]
+
+  @Expose()
+  @ApiPropertyOptional({ format: 'uuid' })
+  nextCursor?: string
 }

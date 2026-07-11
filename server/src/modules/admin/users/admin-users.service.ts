@@ -17,6 +17,7 @@ import type {
   AdminResetUserPasswordRequest,
   AdminResetUserPasswordResponseDto,
   AdminUserListResponseDto,
+  AdminListUsersQuery,
 } from './admin-users.dto'
 import {
   AdminUserEmailAlreadyExistsError,
@@ -76,11 +77,14 @@ export class AdminUsersService {
     }
   }
 
-  async listUsers(): Promise<AdminUserListResponseDto> {
-    const users = await this.adminUsersRepository.listUsers()
+  async listUsers(input: AdminListUsersQuery): Promise<AdminUserListResponseDto> {
+    const page = await this.adminUsersRepository.listUsers(input)
 
     return {
-      users: users.map(mapAdminListedUserRecord),
+      users: page.users.map(mapAdminListedUserRecord),
+      ...(page.nextCursor === undefined
+        ? {}
+        : { nextCursor: page.nextCursor }),
     }
   }
 

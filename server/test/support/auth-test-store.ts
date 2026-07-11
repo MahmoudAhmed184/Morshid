@@ -51,9 +51,13 @@ interface CreateUserArgs {
 }
 
 interface FindManyUserArgs {
-  orderBy?: {
+  orderBy?: Array<{
     createdAt?: 'asc' | 'desc'
-  }
+    id?: 'asc' | 'desc'
+  }>
+  cursor?: { id: string }
+  skip?: number
+  take?: number
 }
 
 interface CountUserArgs {
@@ -304,14 +308,31 @@ export class AuthTestStore {
   }
 
   private findUsers(args: FindManyUserArgs | undefined) {
-    const users = [...this.users.values()]
+    let users = [...this.users.values()]
+    const createdAtOrder = args?.orderBy?.find(
+      (order) => order.createdAt !== undefined,
+    )?.createdAt
+    const idOrder = args?.orderBy?.find((order) => order.id !== undefined)?.id
 
-    if (args?.orderBy?.createdAt === 'desc') {
-      users.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    if (createdAtOrder === 'desc') {
+      users.sort(
+        (a, b) =>
+          b.createdAt.getTime() - a.createdAt.getTime() ||
+          (idOrder === 'desc' ? b.id.localeCompare(a.id) : 0),
+      )
     }
 
-    if (args?.orderBy?.createdAt === 'asc') {
+    if (createdAtOrder === 'asc') {
       users.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+    }
+
+    if (args?.cursor !== undefined) {
+      const cursorIndex = users.findIndex((user) => user.id === args.cursor?.id)
+      users = cursorIndex < 0 ? [] : users.slice(cursorIndex + (args.skip ?? 0))
+    }
+
+    if (args?.take !== undefined) {
+      users = users.slice(0, args.take)
     }
 
     return users.map((user) => ({

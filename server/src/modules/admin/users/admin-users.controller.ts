@@ -7,6 +7,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Req,
   SerializeOptions,
   UseInterceptors,
@@ -33,13 +34,16 @@ import {
   AdminResetUserPasswordRequestDto,
   AdminResetUserPasswordResponseDto,
   AdminUserListResponseDto,
+  adminListUsersQuerySchema,
   adminCreateUserRequestSchema,
   adminResetUserPasswordRequestSchema,
   type AdminCreateUserRequest,
+  type AdminListUsersQuery,
   type AdminResetUserPasswordRequest,
 } from './admin-users.dto'
 import {
   invalidAdminCreateUserRequestException,
+  invalidAdminListUsersRequestException,
   invalidAdminResetUserPasswordRequestException,
   type AdminUsersValidationIssue,
 } from './admin-users.errors'
@@ -63,8 +67,15 @@ export class AdminUsersController {
   @Get()
   @SerializeOptions({ type: AdminUserListResponseDto, strategy: 'excludeAll' })
   @ApiOkResponse({ type: AdminUserListResponseDto })
-  listUsers(): Promise<AdminUserListResponseDto> {
-    return this.adminUsersService.listUsers()
+  listUsers(
+    @Query(
+      new ZodValidationPipe(adminListUsersQuerySchema, (issues) =>
+        invalidAdminListUsersRequestException(issues.map(mapZodIssue)),
+      ),
+    )
+    query: AdminListUsersQuery,
+  ): Promise<AdminUserListResponseDto> {
+    return this.adminUsersService.listUsers(query)
   }
 
   @Post()

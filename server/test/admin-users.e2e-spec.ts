@@ -998,6 +998,38 @@ describe('Admin users (e2e)', () => {
     )
   })
 
+  it('paginates users with an opaque cursor', async () => {
+    const token = await signInAs('admin@morshid.demo')
+    const firstPageResponse = await request(app.getHttpServer())
+      .get('/api/v1/admin/users?limit=1')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200)
+    const firstPage = firstPageResponse.body as AdminUserListResponseDto
+
+    expect(firstPage.users).toHaveLength(1)
+    expect(firstPage.nextCursor).toEqual(expect.any(String))
+
+    const secondPageResponse = await request(app.getHttpServer())
+      .get(
+        `/api/v1/admin/users?limit=1&cursor=${encodeURIComponent(firstPage.nextCursor ?? '')}`,
+      )
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200)
+    const secondPage = secondPageResponse.body as AdminUserListResponseDto
+
+    expect(secondPage.users).toHaveLength(1)
+    expect(secondPage.users[0]?.id).not.toBe(firstPage.users[0]?.id)
+  })
+
+  it('rejects invalid user-list limits', async () => {
+    const token = await signInAs('admin@morshid.demo')
+
+    await request(app.getHttpServer())
+      .get('/api/v1/admin/users?limit=101')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(400)
+  })
+
   it('rejects unauthenticated user list requests', async () => {
     await request(app.getHttpServer()).get('/api/v1/admin/users').expect(401)
   })

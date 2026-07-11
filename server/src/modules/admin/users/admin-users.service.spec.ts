@@ -12,14 +12,18 @@ import {
 import type { AuthenticatedRequestUser } from '../../auth/auth.dto'
 import type { AuthUserService } from '../../auth/services/auth-user.service'
 import type { PasswordHasherService } from '../../auth/services/password-hasher.service'
-import { ADMIN_USERS_ERROR_CODES } from './admin-users.errors'
-import { CannotDisableLastActiveAdminError } from './admin-users.errors'
+import {
+  ADMIN_USERS_ERROR_CODES,
+  CannotDisableLastActiveAdminError,
+} from './admin-users.errors'
 import {
   AdminUsersRepository,
+  type AdminListedUsersPage,
   type AdminListedUserRecord,
   type AdminUserRecord,
   type CreateAdminUserRepositoryInput,
   type DisableAdminUserRepositoryInput,
+  type ListAdminUsersRepositoryInput,
   type ReactivateAdminUserRepositoryInput,
   type ResetAdminUserPasswordRepositoryInput,
 } from './admin-users.repository'
@@ -55,12 +59,30 @@ class AdminUsersServiceTestRepository extends AdminUsersRepository {
     )
   }
 
-  listUsers(): Promise<AdminListedUserRecord[]> {
-    return Promise.resolve(
-      [...this.users.values()].sort(
-        (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
-      ),
+  listUsers(
+    input: ListAdminUsersRepositoryInput,
+  ): Promise<AdminListedUsersPage> {
+    const users = [...this.users.values()].sort(
+      (a, b) =>
+        b.createdAt.getTime() - a.createdAt.getTime() ||
+        b.id.localeCompare(a.id),
     )
+    const cursorIndex =
+      input.cursor === undefined
+        ? -1
+        : users.findIndex((user) => user.id === input.cursor)
+    const pageStart = cursorIndex + 1
+    const candidates = users.slice(pageStart, pageStart + input.limit + 1)
+    const hasNextPage = candidates.length > input.limit
+    const pageUsers = hasNextPage
+      ? candidates.slice(0, input.limit)
+      : candidates
+    const nextCursor = hasNextPage ? pageUsers.at(-1)?.id : undefined
+
+    return Promise.resolve({
+      users: pageUsers,
+      ...(nextCursor === undefined ? {} : { nextCursor }),
+    })
   }
 
   addUser(
@@ -345,7 +367,7 @@ describe('AdminUsersService', () => {
       ],
     })
 
-    const response = await service.listUsers()
+    const response = await service.listUsers({ limit: 50 })
 
     expect(response).toEqual({
       users: [
