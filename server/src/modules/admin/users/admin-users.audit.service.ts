@@ -7,55 +7,33 @@ import {
 import {
   AuditService,
   type AuditDatabase,
+  type AuditMetadata,
   type AuditRequestContext,
 } from '../../audit/audit.service'
+import type { AuditEventAction } from '../../audit/audit.constants'
 import type { UserRole } from '../../../generated/prisma/client'
 
-interface RecordAdminUserCreatedInput {
+interface AdminUserAuditInput {
   actorUserId: string
-  targetUser: {
-    id: string
-    email: string
-    displayName: string
-    role: UserRole
-  }
+  targetUser: AdminAuditTargetUser
   requestContext?: AuditRequestContext
 }
 
-interface RecordAdminUserDisabledInput {
-  actorUserId: string
-  targetUser: {
-    id: string
-    email: string
-    displayName: string
-    role: UserRole
-  }
+interface AdminAuditTargetUser {
+  id: string
+  email: string
+  displayName: string
+  role: UserRole
+}
+
+interface AdminUserAuditWithRevocationInput extends AdminUserAuditInput {
   revokedRefreshTokenCount: number
-  requestContext?: AuditRequestContext
 }
 
-interface RecordAdminUserReactivatedInput {
-  actorUserId: string
-  targetUser: {
-    id: string
-    email: string
-    displayName: string
-    role: UserRole
-  }
-  requestContext?: AuditRequestContext
-}
-
-interface RecordAdminUserPasswordResetInput {
-  actorUserId: string
-  targetUser: {
-    id: string
-    email: string
-    displayName: string
-    role: UserRole
-  }
-  revokedRefreshTokenCount: number
-  requestContext?: AuditRequestContext
-}
+type RecordAdminUserCreatedInput = AdminUserAuditInput
+type RecordAdminUserDisabledInput = AdminUserAuditWithRevocationInput
+type RecordAdminUserReactivatedInput = AdminUserAuditInput
+type RecordAdminUserPasswordResetInput = AdminUserAuditWithRevocationInput
 
 @Injectable()
 export class AdminUsersAuditService {
@@ -65,21 +43,10 @@ export class AdminUsersAuditService {
     input: RecordAdminUserCreatedInput,
     database?: AuditDatabase,
   ): Promise<void> {
-    await this.auditService.recordEvent(
-      {
-        actorUserId: input.actorUserId,
-        action: AUDIT_EVENT_ACTIONS.ADMIN_ACCOUNT_CREATED,
-        target: {
-          type: AUDIT_TARGET_TYPES.USER,
-          id: input.targetUser.id,
-        },
-        metadata: {
-          email: input.targetUser.email,
-          displayName: input.targetUser.displayName,
-          role: input.targetUser.role,
-        },
-        requestContext: input.requestContext,
-      },
+    await this.recordUserEvent(
+      AUDIT_EVENT_ACTIONS.ADMIN_ACCOUNT_CREATED,
+      input,
+      {},
       database,
     )
   }
@@ -88,22 +55,10 @@ export class AdminUsersAuditService {
     input: RecordAdminUserDisabledInput,
     database?: AuditDatabase,
   ): Promise<void> {
-    await this.auditService.recordEvent(
-      {
-        actorUserId: input.actorUserId,
-        action: AUDIT_EVENT_ACTIONS.ADMIN_ACCOUNT_DISABLED,
-        target: {
-          type: AUDIT_TARGET_TYPES.USER,
-          id: input.targetUser.id,
-        },
-        metadata: {
-          email: input.targetUser.email,
-          displayName: input.targetUser.displayName,
-          role: input.targetUser.role,
-          revokedRefreshTokenCount: input.revokedRefreshTokenCount,
-        },
-        requestContext: input.requestContext,
-      },
+    await this.recordUserEvent(
+      AUDIT_EVENT_ACTIONS.ADMIN_ACCOUNT_DISABLED,
+      input,
+      { revokedRefreshTokenCount: input.revokedRefreshTokenCount },
       database,
     )
   }
@@ -112,21 +67,10 @@ export class AdminUsersAuditService {
     input: RecordAdminUserReactivatedInput,
     database?: AuditDatabase,
   ): Promise<void> {
-    await this.auditService.recordEvent(
-      {
-        actorUserId: input.actorUserId,
-        action: AUDIT_EVENT_ACTIONS.ADMIN_ACCOUNT_ENABLED,
-        target: {
-          type: AUDIT_TARGET_TYPES.USER,
-          id: input.targetUser.id,
-        },
-        metadata: {
-          email: input.targetUser.email,
-          displayName: input.targetUser.displayName,
-          role: input.targetUser.role,
-        },
-        requestContext: input.requestContext,
-      },
+    await this.recordUserEvent(
+      AUDIT_EVENT_ACTIONS.ADMIN_ACCOUNT_ENABLED,
+      input,
+      {},
       database,
     )
   }
@@ -135,10 +79,27 @@ export class AdminUsersAuditService {
     input: RecordAdminUserPasswordResetInput,
     database?: AuditDatabase,
   ): Promise<void> {
+    await this.recordUserEvent(
+      AUDIT_EVENT_ACTIONS.ADMIN_USER_PASSWORD_RESET,
+      input,
+      {
+        refreshTokensRevoked: input.revokedRefreshTokenCount > 0,
+        revokedRefreshTokenCount: input.revokedRefreshTokenCount,
+      },
+      database,
+    )
+  }
+
+  private async recordUserEvent(
+    action: AuditEventAction,
+    input: AdminUserAuditInput,
+    metadata: AuditMetadata,
+    database?: AuditDatabase,
+  ): Promise<void> {
     await this.auditService.recordEvent(
       {
         actorUserId: input.actorUserId,
-        action: AUDIT_EVENT_ACTIONS.ADMIN_USER_PASSWORD_RESET,
+        action,
         target: {
           type: AUDIT_TARGET_TYPES.USER,
           id: input.targetUser.id,
@@ -147,8 +108,7 @@ export class AdminUsersAuditService {
           email: input.targetUser.email,
           displayName: input.targetUser.displayName,
           role: input.targetUser.role,
-          refreshTokensRevoked: input.revokedRefreshTokenCount > 0,
-          revokedRefreshTokenCount: input.revokedRefreshTokenCount,
+          ...metadata,
         },
         requestContext: input.requestContext,
       },
