@@ -28,6 +28,10 @@ function getCachedUser(sessionVersion: number) {
   return null
 }
 
+function isTransientNetworkError(error: unknown) {
+  return error instanceof TypeError
+}
+
 export async function loadAuthenticatedUser(): Promise<AuthUser | null> {
   if (typeof window === 'undefined') {
     return null
@@ -39,7 +43,19 @@ export async function loadAuthenticatedUser(): Promise<AuthUser | null> {
     (!authState.isAuthenticated || !authState.user || !authState.accessToken) &&
     authState.refreshToken
   ) {
-    const restoredSession = await restoreAuthSession()
+    const restoredSession = await restoreAuthSession().catch(
+      (error: unknown) => {
+        if (isTerminalAuthError(error)) {
+          return null
+        }
+
+        if (isTransientNetworkError(error)) {
+          return null
+        }
+
+        throw error
+      },
+    )
 
     if (!restoredSession) {
       return useAuthStore.getState().user
@@ -108,6 +124,10 @@ export async function loadAuthenticatedUser(): Promise<AuthUser | null> {
       if (isTerminalAuthError(error)) {
         latestAuthState.clearSession(sessionVersion)
         return null
+      }
+
+      if (isTransientNetworkError(error)) {
+        return latestAuthState.user
       }
 
       throw error
