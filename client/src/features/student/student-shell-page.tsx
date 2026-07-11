@@ -51,6 +51,8 @@ export function StudentShellPage() {
   const clearSession = useAuthStore((state) => state.clearSession)
   const displayName = user?.displayName ?? 'Student'
   const initials = getInitials(displayName)
+  const assignedCourses =
+    user?.courses.filter((course) => course.membershipRole === 'STUDENT') ?? []
 
   const handleLogout = async () => {
     const refreshToken = useAuthStore.getState().refreshToken
@@ -106,9 +108,37 @@ export function StudentShellPage() {
                 Assigned Courses
               </h2>
             </div>
-            <div className="rounded-md border border-dashed border-white/10 bg-white/[0.03] p-3 text-sm text-zinc-400">
-              Course list placeholder
-            </div>
+            {assignedCourses.length > 0 ? (
+              <ul className="space-y-2" aria-label="Assigned courses">
+                {assignedCourses.map((course) => (
+                  <li
+                    key={course.id}
+                    className="rounded-md border border-white/10 bg-white/[0.04] p-3"
+                  >
+                    <div className="flex min-w-0 items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-zinc-100">
+                          {course.title}
+                        </p>
+                        <p className="mt-1 truncate text-xs text-zinc-500">
+                          {course.code}
+                        </p>
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className="border-teal-400/30 text-teal-200"
+                      >
+                        Assigned
+                      </Badge>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="rounded-md border border-dashed border-white/10 bg-white/[0.03] p-3 text-sm text-zinc-400">
+                No courses assigned yet.
+              </div>
+            )}
           </section>
 
           <div className="mt-auto space-y-1 pt-6">
