@@ -58,9 +58,7 @@ class AdminUsersValidationPipe<T> implements PipeTransform<unknown, T> {
     const result = this.schema.safeParse(value)
 
     if (!result.success) {
-      throw this.exceptionFactory(
-        result.error.issues.map(mapZodIssue),
-      )
+      throw this.exceptionFactory(result.error.issues.map(mapZodIssue))
     }
 
     return result.data
@@ -106,7 +104,10 @@ export class AdminUsersController {
   }
 
   @Patch(':userId/disable')
-  @SerializeOptions({ type: AdminDisableUserResponseDto, strategy: 'excludeAll' })
+  @SerializeOptions({
+    type: AdminDisableUserResponseDto,
+    strategy: 'excludeAll',
+  })
   @ApiOkResponse({ type: AdminDisableUserResponseDto })
   disableUser(
     @Param('userId') userId: string,

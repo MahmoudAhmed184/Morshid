@@ -745,11 +745,7 @@ describe('AdminUsersService', () => {
       updatedAt,
     })
 
-    const disableUser = service.disableUser(
-      'last-admin',
-      actor,
-      requestContext,
-    )
+    const disableUser = service.disableUser('last-admin', actor, requestContext)
 
     await expect(disableUser).rejects.toBeInstanceOf(ConflictException)
     await expect(disableUser).rejects.toMatchObject({

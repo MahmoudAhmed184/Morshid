@@ -41,10 +41,7 @@ export type AdminCreateUserRequest = z.infer<
 export type AdminResetUserPasswordRequest = z.infer<
   typeof adminResetUserPasswordRequestSchema
 >
-export type AdminCreatableUserRole = Extract<
-  UserRole,
-  'STUDENT' | 'INSTRUCTOR'
->
+export type AdminCreatableUserRole = Extract<UserRole, 'STUDENT' | 'INSTRUCTOR'>
 
 export class AdminCreateUserRequestDto {
   @ApiProperty({ format: 'email' })

@@ -22,10 +22,7 @@ import type {
 import { ADMIN_USERS_ERROR_CODES } from '../src/modules/admin/users/admin-users.errors'
 import { PrismaService } from '../src/modules/prisma/prisma.service'
 import { RedisService } from '../src/modules/redis/redis.service'
-import {
-  P0_DEMO_COURSE,
-  P0_DEMO_PASSWORD,
-} from '../src/seeds/p0-demo.seed'
+import { P0_DEMO_COURSE, P0_DEMO_PASSWORD } from '../src/seeds/p0-demo.seed'
 import {
   CourseMembershipRole,
   UserRole,
@@ -601,9 +598,9 @@ describe('Admin users (e2e)', () => {
       .expect(200)
     const body = response.body as AdminDisableUserResponseDto
     const disabledUser = store.users.get(target.id)
-    const revokedTargetRefreshTokens = [
-      ...store.refreshTokens.values(),
-    ].filter((refreshToken) => refreshToken.userId === target.id)
+    const revokedTargetRefreshTokens = [...store.refreshTokens.values()].filter(
+      (refreshToken) => refreshToken.userId === target.id,
+    )
 
     expect(disabledUser).toEqual(
       expect.objectContaining({
