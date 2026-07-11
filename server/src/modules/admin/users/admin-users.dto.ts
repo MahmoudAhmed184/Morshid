@@ -95,6 +95,13 @@ export class AdminDisableUserResponseDto {
   user!: AdminUserDto
 }
 
+export class AdminReactivateUserResponseDto {
+  @Expose()
+  @Type(() => AdminUserDto)
+  @ApiProperty({ type: AdminUserDto })
+  user!: AdminUserDto
+}
+
 export class AdminUserCourseAssignmentDto {
   @Expose()
   @ApiProperty({ format: 'uuid' })
