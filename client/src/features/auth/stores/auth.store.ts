@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import type { AuthSession, AuthUser } from '@/features/auth/types/auth.types'
 
 export const authSessionStorageKey = 'morshid.auth.session'
+const authSessionStorageVersion = 1
 
 type AuthStoreState = {
   user: AuthUser | null
@@ -22,6 +23,10 @@ type AuthStoreActions = {
 }
 
 export type AuthStore = AuthStoreState & AuthStoreActions
+
+type StoredAuthSession = Omit<AuthSession, 'tokenType'> & {
+  v: typeof authSessionStorageVersion
+}
 
 const emptyAuthState: AuthStoreState = {
   user: null,
@@ -70,19 +75,47 @@ function isAuthUser(value: unknown): value is AuthUser {
   )
 }
 
-function isAuthSession(value: unknown): value is AuthSession {
+function isStoredAuthSession(value: unknown): value is StoredAuthSession {
   if (!isRecord(value)) {
     return false
   }
 
   return (
+    value.v === authSessionStorageVersion &&
     isAuthUser(value.user) &&
-    value.tokenType === 'Bearer' &&
     typeof value.accessToken === 'string' &&
     typeof value.accessTokenExpiresAt === 'string' &&
     typeof value.refreshToken === 'string' &&
     typeof value.refreshTokenExpiresAt === 'string'
   )
+}
+
+function isFutureIsoDate(value: string) {
+  const timestamp = Date.parse(value)
+
+  return Number.isFinite(timestamp) && timestamp > Date.now()
+}
+
+function toStoredSession(session: AuthSession): StoredAuthSession {
+  return {
+    v: authSessionStorageVersion,
+    user: session.user,
+    accessToken: session.accessToken,
+    accessTokenExpiresAt: session.accessTokenExpiresAt,
+    refreshToken: session.refreshToken,
+    refreshTokenExpiresAt: session.refreshTokenExpiresAt,
+  }
+}
+
+function toAuthSession(storedSession: StoredAuthSession): AuthSession {
+  return {
+    tokenType: 'Bearer',
+    user: storedSession.user,
+    accessToken: storedSession.accessToken,
+    accessTokenExpiresAt: storedSession.accessTokenExpiresAt,
+    refreshToken: storedSession.refreshToken,
+    refreshTokenExpiresAt: storedSession.refreshTokenExpiresAt,
+  }
 }
 
 function getLocalStorage() {
@@ -109,7 +142,15 @@ function readStoredSession(): AuthSession | null {
   try {
     const parsedSession: unknown = JSON.parse(storedSession)
 
-    return isAuthSession(parsedSession) ? parsedSession : null
+    if (
+      !isStoredAuthSession(parsedSession) ||
+      !isFutureIsoDate(parsedSession.refreshTokenExpiresAt)
+    ) {
+      storage.removeItem(authSessionStorageKey)
+      return null
+    }
+
+    return toAuthSession(parsedSession)
   } catch {
     storage.removeItem(authSessionStorageKey)
     return null
@@ -117,7 +158,10 @@ function readStoredSession(): AuthSession | null {
 }
 
 function persistSession(session: AuthSession) {
-  getLocalStorage()?.setItem(authSessionStorageKey, JSON.stringify(session))
+  getLocalStorage()?.setItem(
+    authSessionStorageKey,
+    JSON.stringify(toStoredSession(session)),
+  )
 }
 
 function removeStoredSession() {

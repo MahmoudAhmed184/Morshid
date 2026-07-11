@@ -38,6 +38,15 @@ const mockSession: AuthSession = {
   refreshTokenExpiresAt: '2026-07-18T12:00:00.000Z',
 }
 
+const storedMockSession = {
+  v: 1,
+  user: mockSession.user,
+  accessToken: mockSession.accessToken,
+  accessTokenExpiresAt: mockSession.accessTokenExpiresAt,
+  refreshToken: mockSession.refreshToken,
+  refreshTokenExpiresAt: mockSession.refreshTokenExpiresAt,
+}
+
 describe('RolePlaceholderPage', () => {
   beforeEach(() => {
     window.localStorage.clear()
@@ -65,7 +74,7 @@ describe('RolePlaceholderPage', () => {
     expect(screen.getByRole('heading', { name: 'Admin' })).toBeDefined()
     expect(useAuthStore.getState().isAuthenticated).toBe(true)
     expect(window.localStorage.getItem(authSessionStorageKey)).toBe(
-      JSON.stringify(mockSession),
+      JSON.stringify(storedMockSession),
     )
 
     fireEvent.click(screen.getByRole('button', { name: /logout/i }))
