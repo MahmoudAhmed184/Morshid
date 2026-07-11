@@ -1,6 +1,7 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
 
 import { AuthLoader } from '@/features/auth/components/auth-loader'
+import { AuthRouteError } from '@/features/auth/components/auth-route-error'
 import { SignInPage } from '@/features/auth/sign-in-page'
 import { redirectAuthenticatedToDashboard } from '@/features/auth/utils/auth-redirect'
 
@@ -14,6 +15,7 @@ export const Route = createFileRoute('/login')({
     }
   },
   component: SignInPage,
+  errorComponent: AuthRouteError,
   pendingComponent: AuthLoader,
   pendingMs: 0,
   pendingMinMs: 400,
