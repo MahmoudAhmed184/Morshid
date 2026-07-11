@@ -15,6 +15,7 @@ import type {
   AdminCreatableUserRole,
   AdminCreateUserResponseDto,
   AdminDisableUserResponseDto,
+  AdminReactivateUserResponseDto,
   AdminUserListResponseDto,
 } from '../src/modules/admin/users/admin-users.dto'
 import { ADMIN_USERS_ERROR_CODES } from '../src/modules/admin/users/admin-users.errors'
@@ -411,6 +412,181 @@ describe('Admin users (e2e)', () => {
 
     expect(store.findUserByEmail('instructor@morshid.demo')?.status).toBe(
       UserStatus.ACTIVE,
+    )
+  })
+
+  it('allows an admin to reactivate a disabled user without changing security or course state', async () => {
+    await signIn('student1@morshid.demo')
+    const adminSession = await signIn('admin@morshid.demo')
+    const admin = requireUserByEmail('admin@morshid.demo')
+    const target = requireUserByEmail('student1@morshid.demo')
+    const originalRefreshTokens = [...store.refreshTokens.values()].filter(
+      (refreshToken) => refreshToken.userId === target.id,
+    )
+    const originalMemberships = store.memberships.filter(
+      (membership) => membership.userId === target.id,
+    )
+
+    store.disableUser(target.email, admin.id)
+
+    const disabledUser = requireUserByEmail(target.email)
+    const originalPasswordHash = disabledUser.passwordHash
+    const originalPasswordChangedAt = disabledUser.passwordChangedAt
+
+    expect(originalRefreshTokens).toEqual([
+      expect.objectContaining({
+        revokedAt: null,
+      }),
+    ])
+    expect(disabledUser).toEqual(
+      expect.objectContaining({
+        status: UserStatus.DISABLED,
+        disabledAt: anyDate,
+        disabledById: admin.id,
+      }),
+    )
+
+    const response = await request(app.getHttpServer())
+      .patch(`/api/v1/admin/users/${target.id}/reactivate`)
+      .set('Authorization', `Bearer ${adminSession.accessToken}`)
+      .set('User-Agent', auditUserAgent)
+      .expect(200)
+    const body = response.body as AdminReactivateUserResponseDto
+    const reactivatedUser = store.users.get(target.id)
+    const currentRefreshTokens = [...store.refreshTokens.values()].filter(
+      (refreshToken) => refreshToken.userId === target.id,
+    )
+    const currentMemberships = store.memberships.filter(
+      (membership) => membership.userId === target.id,
+    )
+
+    expect(reactivatedUser).toEqual(
+      expect.objectContaining({
+        status: UserStatus.ACTIVE,
+        disabledAt: null,
+        disabledById: null,
+        passwordHash: originalPasswordHash,
+        passwordChangedAt: originalPasswordChangedAt,
+      }),
+    )
+    expect(body).toEqual({
+      user: {
+        id: target.id,
+        email: target.email,
+        displayName: target.displayName,
+        role: target.role,
+        status: UserStatus.ACTIVE,
+        createdAt: target.createdAt.toISOString(),
+        updatedAt: reactivatedUser?.updatedAt.toISOString(),
+      },
+    })
+    expect(body.user).not.toHaveProperty('passwordHash')
+    expect(body.user).not.toHaveProperty('refreshTokens')
+    expect(body.user).not.toHaveProperty('disabledAt')
+    expect(body.user).not.toHaveProperty('disabledById')
+    expect(currentRefreshTokens).toEqual(originalRefreshTokens)
+    expect(currentMemberships).toEqual(originalMemberships)
+
+    const adminUserReactivateAudit = [...store.auditLogs.values()].filter(
+      (auditLog) =>
+        auditLog.action === AUDIT_EVENT_ACTIONS.ADMIN_ACCOUNT_ENABLED,
+    )
+
+    expect(adminUserReactivateAudit).toEqual([
+      expect.objectContaining({
+        actorUserId: admin.id,
+        action: AUDIT_EVENT_ACTIONS.ADMIN_ACCOUNT_ENABLED,
+        targetType: AUDIT_TARGET_TYPES.USER,
+        targetId: target.id,
+        courseId: null,
+        ip: anyString,
+        userAgent: auditUserAgent,
+        metadata: {
+          email: target.email,
+          displayName: target.displayName,
+          role: target.role,
+        },
+        createdAt: anyDate,
+      }),
+    ])
+  })
+
+  it('returns an already active user idempotently when reactivating', async () => {
+    const adminSession = await signIn('admin@morshid.demo')
+    const target = requireUserByEmail('student1@morshid.demo')
+
+    const response = await request(app.getHttpServer())
+      .patch(`/api/v1/admin/users/${target.id}/reactivate`)
+      .set('Authorization', `Bearer ${adminSession.accessToken}`)
+      .set('User-Agent', auditUserAgent)
+      .expect(200)
+    const body = response.body as AdminReactivateUserResponseDto
+
+    expect(body).toEqual({
+      user: {
+        id: target.id,
+        email: target.email,
+        displayName: target.displayName,
+        role: target.role,
+        status: UserStatus.ACTIVE,
+        createdAt: target.createdAt.toISOString(),
+        updatedAt: target.updatedAt.toISOString(),
+      },
+    })
+    expect(
+      [...store.auditLogs.values()].filter(
+        (auditLog) =>
+          auditLog.action === AUDIT_EVENT_ACTIONS.ADMIN_ACCOUNT_ENABLED,
+      ),
+    ).toEqual([])
+  })
+
+  it('returns not found when reactivating a missing user', async () => {
+    const token = await signInAs('admin@morshid.demo')
+    const missingUserId = '00000000-0000-4000-8000-000000009999'
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/admin/users/${missingUserId}/reactivate`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(404)
+      .expect({
+        code: ADMIN_USERS_ERROR_CODES.USER_NOT_FOUND,
+        message: 'Admin user target was not found',
+        userId: missingUserId,
+      })
+  })
+
+  it('rejects non-admin user reactivate requests', async () => {
+    const token = await signInAs('student1@morshid.demo')
+    const target = requireUserByEmail('instructor@morshid.demo')
+
+    store.disableUser(target.email)
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/admin/users/${target.id}/reactivate`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(403)
+      .expect({
+        code: AUTH_ERROR_CODES.INSUFFICIENT_ROLE,
+        message: 'Insufficient role',
+      })
+
+    expect(store.findUserByEmail('instructor@morshid.demo')?.status).toBe(
+      UserStatus.DISABLED,
+    )
+  })
+
+  it('rejects unauthenticated user reactivate requests', async () => {
+    const target = requireUserByEmail('student1@morshid.demo')
+
+    store.disableUser(target.email)
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/admin/users/${target.id}/reactivate`)
+      .expect(401)
+
+    expect(store.findUserByEmail('student1@morshid.demo')?.status).toBe(
+      UserStatus.DISABLED,
     )
   })
 

@@ -474,6 +474,102 @@ describe('AdminUsersService', () => {
     })
   })
 
+  it('reactivates a disabled user through the repository and returns a safe response', async () => {
+    const { repository, service } = buildService()
+
+    repository.addUser({
+      id: 'disabled-user',
+      email: 'disabled@morshid.demo',
+      displayName: 'Disabled User',
+      role: UserRole.STUDENT,
+      status: UserStatus.DISABLED,
+      createdAt,
+      updatedAt,
+    })
+
+    const response = await service.reactivateUser(
+      'disabled-user',
+      actor,
+      requestContext,
+    )
+
+    expect(repository.reactivateUser.mock.calls).toEqual([
+      [
+        {
+          userId: 'disabled-user',
+          actorUserId: actor.id,
+          requestContext,
+        },
+      ],
+    ])
+    expect(response).toEqual({
+      user: {
+        id: 'disabled-user',
+        email: 'disabled@morshid.demo',
+        displayName: 'Disabled User',
+        role: UserRole.STUDENT,
+        status: UserStatus.ACTIVE,
+        createdAt: createdAt.toISOString(),
+        updatedAt: updatedAt.toISOString(),
+      },
+    })
+    expect(response.user).not.toHaveProperty('passwordHash')
+    expect(response.user).not.toHaveProperty('refreshTokens')
+    expect(response.user).not.toHaveProperty('disabledAt')
+    expect(response.user).not.toHaveProperty('disabledById')
+  })
+
+  it('returns an already active user idempotently without another repository reactivate', async () => {
+    const { repository, service } = buildService()
+
+    repository.addUser({
+      id: 'active-user',
+      email: 'active@morshid.demo',
+      displayName: 'Active User',
+      role: UserRole.STUDENT,
+      status: UserStatus.ACTIVE,
+      createdAt,
+      updatedAt,
+    })
+
+    const response = await service.reactivateUser(
+      'active-user',
+      actor,
+      requestContext,
+    )
+
+    expect(repository.reactivateUser.mock.calls).toHaveLength(0)
+    expect(response.user).toEqual({
+      id: 'active-user',
+      email: 'active@morshid.demo',
+      displayName: 'Active User',
+      role: UserRole.STUDENT,
+      status: UserStatus.ACTIVE,
+      createdAt: createdAt.toISOString(),
+      updatedAt: updatedAt.toISOString(),
+    })
+  })
+
+  it('rejects reactivating a missing user', async () => {
+    const { repository, service } = buildService()
+
+    const reactivateUser = service.reactivateUser(
+      'missing-user',
+      actor,
+      requestContext,
+    )
+
+    await expect(reactivateUser).rejects.toBeInstanceOf(NotFoundException)
+    await expect(reactivateUser).rejects.toMatchObject({
+      response: {
+        code: ADMIN_USERS_ERROR_CODES.USER_NOT_FOUND,
+        message: 'Admin user target was not found',
+        userId: 'missing-user',
+      },
+    })
+    expect(repository.reactivateUser.mock.calls).toHaveLength(0)
+  })
+
   it('rejects disabling a missing user', async () => {
     const { service } = buildService()
 

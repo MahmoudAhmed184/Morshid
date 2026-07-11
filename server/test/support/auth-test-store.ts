@@ -200,7 +200,7 @@ export class AuthTestStore {
     )
   }
 
-  disableUser(email: string) {
+  disableUser(email: string, disabledById: string | null = null) {
     const user = this.findUserByEmail(email)
 
     if (!user) {
@@ -211,7 +211,7 @@ export class AuthTestStore {
       ...user,
       status: 'DISABLED',
       disabledAt: new Date('2026-07-06T10:00:00.000Z'),
-      disabledById: null,
+      disabledById,
     })
   }
 
