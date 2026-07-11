@@ -2,6 +2,7 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 
 import { AuthLoader } from '@/features/auth/components/auth-loader'
 import { AuthRouteError } from '@/features/auth/components/auth-route-error'
+import { useAuthStore } from '@/features/auth/stores/auth.store'
 import { StudentShellPage } from '@/features/student/student-shell-page'
 import { studentCoursesQueryOptions } from '@/features/student/queries/student-courses.query'
 import { requireRole } from '@/features/auth/utils/auth-redirect'
@@ -16,7 +17,17 @@ export const Route = createFileRoute('/student')({
       throw redirect({ to: redirectPath })
     }
   },
-  loader: () => getAppQueryClient().ensureQueryData(studentCoursesQueryOptions),
+  loader: () => {
+    const studentId = useAuthStore.getState().user?.id
+
+    if (!studentId) {
+      throw new Error('Student course loading requires an authenticated user')
+    }
+
+    return getAppQueryClient().ensureQueryData(
+      studentCoursesQueryOptions(studentId),
+    )
+  },
   component: StudentShellPage,
   errorComponent: AuthRouteError,
   pendingComponent: AuthLoader,

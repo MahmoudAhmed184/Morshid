@@ -84,7 +84,10 @@ function renderWithStudentCourses(
     defaultOptions: { queries: { retry: false } },
   })
 
-  queryClient.setQueryData(studentCoursesQueryOptions.queryKey, courses)
+  queryClient.setQueryData(
+    studentCoursesQueryOptions('student-user').queryKey,
+    courses,
+  )
 
   return render(
     <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,

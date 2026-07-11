@@ -1,11 +1,10 @@
-import { useSuspenseQuery } from '@tanstack/react-query'
 import { BookOpen, MessageSquareText } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
-import { studentCoursesQueryOptions } from '@/features/student/queries/student-courses.query'
+import { useStudentCourses } from '@/features/student/hooks/use-student-courses'
 
 export function StudentDashboardPage() {
-  const { data: assignedCourses } = useSuspenseQuery(studentCoursesQueryOptions)
+  const { data: assignedCourses } = useStudentCourses()
   const assignedCourseCount = assignedCourses.length
 
   return (

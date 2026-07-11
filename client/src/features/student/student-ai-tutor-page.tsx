@@ -1,4 +1,3 @@
-import { useSuspenseQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { MessageSquareText, SendHorizontal } from 'lucide-react'
 
@@ -6,7 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/custom/empty-state'
 import { Textarea } from '@/components/ui/textarea'
-import { studentCoursesQueryOptions } from '@/features/student/queries/student-courses.query'
+import { useStudentCourses } from '@/features/student/hooks/use-student-courses'
 import { cn } from '@/lib/utils'
 
 type StudentAiTutorPageProps = {
@@ -14,7 +13,7 @@ type StudentAiTutorPageProps = {
 }
 
 export function StudentAiTutorPage({ courseId }: StudentAiTutorPageProps) {
-  const { data: assignedCourses } = useSuspenseQuery(studentCoursesQueryOptions)
+  const { data: assignedCourses } = useStudentCourses()
   const selectedCourse =
     (courseId
       ? assignedCourses.find((course) => course.id === courseId)

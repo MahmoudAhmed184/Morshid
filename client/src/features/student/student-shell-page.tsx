@@ -1,12 +1,11 @@
-import { useSuspenseQuery } from '@tanstack/react-query'
 import { Outlet, useRouterState } from '@tanstack/react-router'
 
 import { StudentHeader } from '@/features/student/components/student-header'
 import { StudentSidebar } from '@/features/student/components/student-sidebar'
-import { studentCoursesQueryOptions } from '@/features/student/queries/student-courses.query'
+import { useStudentCourses } from '@/features/student/hooks/use-student-courses'
 
 export function StudentShellPage() {
-  const { data: assignedCourses } = useSuspenseQuery(studentCoursesQueryOptions)
+  const { data: assignedCourses } = useStudentCourses()
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   })
