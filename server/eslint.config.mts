@@ -1,11 +1,10 @@
-import { fileURLToPath } from 'node:url'
 import js from '@eslint/js'
 import eslintConfigPrettier from 'eslint-config-prettier/flat'
 import { defineConfig, globalIgnores } from 'eslint/config'
 import globals from 'globals'
 import tseslint from 'typescript-eslint'
 
-const tsconfigRootDir = fileURLToPath(new URL('.', import.meta.url))
+const tsconfigRootDir = new URL('.', import.meta.url).pathname
 
 export default defineConfig([
   globalIgnores(
