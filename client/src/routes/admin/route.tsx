@@ -1,7 +1,7 @@
 import { Outlet, createFileRoute, redirect } from '@tanstack/react-router'
 
 import { AuthLoader } from '@/features/auth/components/auth-loader'
-import { AuthRouteError } from '@/features/auth/components/auth-route-error'
+import { RouteLoadError } from '@/components/route-load-error'
 import { requireRole } from '@/features/auth/utils/auth-redirect'
 
 export const Route = createFileRoute('/admin')({
@@ -14,7 +14,7 @@ export const Route = createFileRoute('/admin')({
     }
   },
   component: Outlet,
-  errorComponent: AuthRouteError,
+  errorComponent: RouteLoadError,
   pendingComponent: AuthLoader,
   pendingMs: 200,
   pendingMinMs: 400,

@@ -115,6 +115,8 @@ export function StudentSidebar({
             type="button"
             variant="ghost"
             className="h-9 w-full justify-start gap-2 text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            disabled
+            title="Coming soon"
           >
             <item.icon className="size-4" aria-hidden />
             {item.label}

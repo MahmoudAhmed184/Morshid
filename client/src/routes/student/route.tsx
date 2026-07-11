@@ -1,7 +1,7 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
 
 import { AuthLoader } from '@/features/auth/components/auth-loader'
-import { AuthRouteError } from '@/features/auth/components/auth-route-error'
+import { RouteLoadError } from '@/components/route-load-error'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 import { StudentShellPage } from '@/features/student/student-shell-page'
 import { studentCoursesQueryOptions } from '@/features/student/queries/student-courses.query'
@@ -29,7 +29,7 @@ export const Route = createFileRoute('/student')({
     )
   },
   component: StudentShellPage,
-  errorComponent: AuthRouteError,
+  errorComponent: RouteLoadError,
   pendingComponent: AuthLoader,
   pendingMs: 200,
   pendingMinMs: 400,
