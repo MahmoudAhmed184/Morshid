@@ -11,6 +11,7 @@ import type { AuditRequestContext } from '../../audit/audit.service'
 import type { AdminCreatableUserRole } from './admin-users.dto'
 import { AdminUsersAuditService } from './admin-users.audit.service'
 import { AdminUserEmailAlreadyExistsError } from './admin-users.errors'
+import { CannotDisableLastActiveAdminError } from './admin-users.errors'
 
 export interface AdminUserRecord {
   id: string
@@ -99,8 +100,6 @@ export abstract class AdminUsersRepository {
   abstract findById(userId: string): Promise<AdminUserRecord | null>
 
   abstract listUsers(): Promise<AdminListedUserRecord[]>
-
-  abstract countActiveAdmins(): Promise<number>
 
   abstract createUser(
     input: CreateAdminUserRepositoryInput,
@@ -204,6 +203,42 @@ export class PrismaAdminUsersRepository extends AdminUsersRepository {
     input: DisableAdminUserRepositoryInput,
   ): Promise<AdminUserRecord> {
     return this.prismaService.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('morshid:disable-admin-user'))`
+
+      const currentUser = await tx.user.findUnique({
+        where: {
+          id: input.userId,
+        },
+        select: adminUserRecordSelect,
+      })
+
+      if (currentUser === null) {
+        return tx.user.update({
+          where: {
+            id: input.userId,
+          },
+          data: {},
+          select: adminUserRecordSelect,
+        })
+      }
+
+      if (currentUser.status === UserStatus.DISABLED) {
+        return currentUser
+      }
+
+      if (currentUser.role === UserRole.ADMIN) {
+        const activeAdminCount = await tx.user.count({
+          where: {
+            role: UserRole.ADMIN,
+            status: UserStatus.ACTIVE,
+          },
+        })
+
+        if (activeAdminCount <= 1) {
+          throw new CannotDisableLastActiveAdminError()
+        }
+      }
+
       const user = await tx.user.update({
         where: {
           id: input.userId,

@@ -13,6 +13,7 @@ import type { AuthenticatedRequestUser } from '../../auth/auth.dto'
 import type { AuthUserService } from '../../auth/services/auth-user.service'
 import type { PasswordHasherService } from '../../auth/services/password-hasher.service'
 import { ADMIN_USERS_ERROR_CODES } from './admin-users.errors'
+import { CannotDisableLastActiveAdminError } from './admin-users.errors'
 import {
   AdminUsersRepository,
   type AdminListedUserRecord,
@@ -33,7 +34,7 @@ class AdminUsersServiceTestRepository extends AdminUsersRepository {
     Promise.resolve(this.insertUser(input)),
   )
   readonly disableUser = jest.fn((input: DisableAdminUserRepositoryInput) =>
-    Promise.resolve(this.disableExistingUser(input)),
+    this.disableExistingUser(input),
   )
   readonly reactivateUser = jest.fn(
     (input: ReactivateAdminUserRepositoryInput) =>
@@ -59,15 +60,6 @@ class AdminUsersServiceTestRepository extends AdminUsersRepository {
       [...this.users.values()].sort(
         (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
       ),
-    )
-  }
-
-  countActiveAdmins(): Promise<number> {
-    return Promise.resolve(
-      [...this.users.values()].filter(
-        (user) =>
-          user.role === UserRole.ADMIN && user.status === UserStatus.ACTIVE,
-      ).length,
     )
   }
 
@@ -99,15 +91,27 @@ class AdminUsersServiceTestRepository extends AdminUsersRepository {
     return user
   }
 
-  private disableExistingUser(
+  private async disableExistingUser(
     input: DisableAdminUserRepositoryInput,
-  ): AdminListedUserRecord {
+  ): Promise<AdminListedUserRecord> {
     const user = [...this.users.values()].find(
       (storedUser) => storedUser.id === input.userId,
     )
 
     if (!user) {
       throw new Error(`Missing user ${input.userId}`)
+    }
+
+    if (user.role === UserRole.ADMIN) {
+      const activeAdminCount = [...this.users.values()].filter(
+        (storedUser) =>
+          storedUser.role === UserRole.ADMIN &&
+          storedUser.status === UserStatus.ACTIVE,
+      ).length
+
+      if (activeAdminCount <= 1) {
+        throw new CannotDisableLastActiveAdminError()
+      }
     }
 
     const disabledUser = {
@@ -730,6 +734,5 @@ describe('AdminUsersService', () => {
         message: 'Cannot disable the last active admin account',
       },
     })
-    expect(repository.disableUser.mock.calls).toHaveLength(0)
   })
 })

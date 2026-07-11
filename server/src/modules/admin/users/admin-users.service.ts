@@ -20,6 +20,7 @@ import type {
 } from './admin-users.dto'
 import {
   AdminUserEmailAlreadyExistsError,
+  CannotDisableLastActiveAdminError,
   adminUserNotFoundException,
   cannotDisableLastActiveAdminException,
   cannotDisableSelfException,
@@ -104,21 +105,22 @@ export class AdminUsersService {
       }
     }
 
-    if (user.role === UserRole.ADMIN) {
-      const activeAdminCount =
-        await this.adminUsersRepository.countActiveAdmins()
+    let disabledUser: AdminUserRecord
 
-      if (activeAdminCount <= 1) {
+    try {
+      disabledUser = await this.adminUsersRepository.disableUser({
+        userId,
+        actorUserId: actor.id,
+        disabledAt: new Date(),
+        requestContext,
+      })
+    } catch (error) {
+      if (error instanceof CannotDisableLastActiveAdminError) {
         throw cannotDisableLastActiveAdminException()
       }
-    }
 
-    const disabledUser = await this.adminUsersRepository.disableUser({
-      userId,
-      actorUserId: actor.id,
-      disabledAt: new Date(),
-      requestContext,
-    })
+      throw error
+    }
 
     return {
       user: mapAdminUserRecord(disabledUser),
