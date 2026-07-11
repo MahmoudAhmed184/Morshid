@@ -167,4 +167,28 @@ describe('client auth guards', () => {
       user: null,
     })
   })
+
+  it('clears the stored session and redirects to login when /me fails for requireAuth', async () => {
+    useAuthStore.getState().setSession(createMockSession('INSTRUCTOR'))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        Response.json(
+          {
+            code: 'INVALID_ACCESS_TOKEN',
+            message: 'Invalid access token',
+          },
+          {
+            status: 401,
+          },
+        ),
+      ),
+    )
+
+    await expect(requireAuth()).resolves.toBe('/login')
+    expect(useAuthStore.getState()).toMatchObject({
+      isAuthenticated: false,
+      user: null,
+    })
+  })
 })
