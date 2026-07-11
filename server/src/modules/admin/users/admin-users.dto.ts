@@ -8,6 +8,14 @@ import {
   UserStatus,
 } from '../../../generated/prisma/client'
 
+export const adminUserPasswordSchema = z
+  .string()
+  .min(8, 'Password must be at least 8 characters')
+  .max(50, 'Password must be at most 50 characters')
+  .regex(/[A-Za-z]/, 'Password must contain at least one letter')
+  .regex(/[0-9]/, 'Password must contain at least one number')
+  .regex(/[^A-Za-z0-9]/, 'Password must contain at least one symbol')
+
 export const adminCreateUserRequestSchema = z
   .object({
     email: z.preprocess(
@@ -17,17 +25,21 @@ export const adminCreateUserRequestSchema = z
     ),
     displayName: z.string().trim().min(1).max(120),
     role: z.enum(UserRole),
-    password: z.string()
-  .min(8, 'Password must be at least 8 characters')
-  .max(50, 'Password must be at most 50 characters')
-  .regex(/[A-Za-z]/, 'Password must contain at least one letter')
-  .regex(/[0-9]/, 'Password must contain at least one number')
-  .regex(/[^A-Za-z0-9]/, 'Password must contain at least one symbol'),
+    password: adminUserPasswordSchema,
+  })
+  .strict()
+
+export const adminResetUserPasswordRequestSchema = z
+  .object({
+    newPassword: adminUserPasswordSchema,
   })
   .strict()
 
 export type AdminCreateUserRequest = z.infer<
   typeof adminCreateUserRequestSchema
+>
+export type AdminResetUserPasswordRequest = z.infer<
+  typeof adminResetUserPasswordRequestSchema
 >
 export type AdminCreatableUserRole = Extract<
   UserRole,
@@ -49,6 +61,11 @@ export class AdminCreateUserRequestDto {
 
   @ApiProperty({ minLength: 1 })
   password!: string
+}
+
+export class AdminResetUserPasswordRequestDto {
+  @ApiProperty({ minLength: 8, maxLength: 50 })
+  newPassword!: string
 }
 
 export class AdminUserDto {
@@ -96,6 +113,13 @@ export class AdminDisableUserResponseDto {
 }
 
 export class AdminReactivateUserResponseDto {
+  @Expose()
+  @Type(() => AdminUserDto)
+  @ApiProperty({ type: AdminUserDto })
+  user!: AdminUserDto
+}
+
+export class AdminResetUserPasswordResponseDto {
   @Expose()
   @Type(() => AdminUserDto)
   @ApiProperty({ type: AdminUserDto })
