@@ -29,6 +29,7 @@ import {
   AdminCreateUserRequestDto,
   AdminCreateUserResponseDto,
   AdminDisableUserResponseDto,
+  AdminReactivateUserResponseDto,
   AdminUserListResponseDto,
   adminCreateUserRequestSchema,
   type AdminCreateUserRequest,
@@ -101,6 +102,23 @@ export class AdminUsersController {
     @Req() request: AuthenticatedHttpRequest,
   ): Promise<AdminDisableUserResponseDto> {
     return this.adminUsersService.disableUser(
+      userId,
+      request.user,
+      getRequestContext(request),
+    )
+  }
+
+  @Patch(':userId/reactivate')
+  @SerializeOptions({
+    type: AdminReactivateUserResponseDto,
+    strategy: 'excludeAll',
+  })
+  @ApiOkResponse({ type: AdminReactivateUserResponseDto })
+  reactivateUser(
+    @Param('userId') userId: string,
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<AdminReactivateUserResponseDto> {
+    return this.adminUsersService.reactivateUser(
       userId,
       request.user,
       getRequestContext(request),
