@@ -2,10 +2,11 @@ import { useQuery } from '@tanstack/react-query'
 import {
   BanIcon,
   KeyRoundIcon,
-  PlusIcon,
+  PencilIcon,
   RotateCcwIcon,
   UserPlusIcon,
 } from 'lucide-react'
+import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/custom/confirm-dialog'
@@ -14,13 +15,10 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import {
   Table,
   TableBody,
@@ -32,8 +30,10 @@ import {
 import { AdminPanel } from '../components/admin-panel'
 import { PageHeader } from '@/components/ui/custom/page-header'
 import { AdminStatusBadge } from '../components/admin-status-badge'
+import { AdminUserForm } from '../components/admin-user-form'
 import { adminUsersQueryOptions } from '../data/admin-ops.queries'
 import type { AdminUser } from '../data/admin-ops.types'
+import type { AdminUserFormValues } from '../schemas/admin-user.schema'
 
 export function AdminUsersPage() {
   const usersQuery = useQuery(adminUsersQueryOptions())
@@ -53,6 +53,8 @@ export function AdminUsersPage() {
           isLoading={usersQuery.isPending}
           isError={usersQuery.isError}
           isEmpty={usersQuery.data?.length === 0}
+          onRetry={() => void usersQuery.refetch()}
+          isRetrying={usersQuery.isFetching}
           emptyTitle="No users found"
           emptyDescription="Users returned by the API will appear in this table."
         >
@@ -113,10 +115,17 @@ export function AdminUsersPage() {
 }
 
 function CreateUserDialog() {
+  const [open, setOpen] = useState(false)
+
+  const handleSubmit = async (values: AdminUserFormValues) => {
+    await submitAdminUserForm(values)
+    setOpen(false)
+  }
+
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={<Button />}>
-        <PlusIcon />
+        <UserPlusIcon />
         Create User
       </DialogTrigger>
       <DialogContent className="sm:max-w-xl">
@@ -126,19 +135,10 @@ function CreateUserDialog() {
             Shell form for the P0 user creation API contract.
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Full name" placeholder="e.g., Sarah Al-Farsi" />
-          <Field label="Email" placeholder="sarah@morshid.demo" />
-          <Field label="Role" placeholder="Student, Instructor, Admin" />
-          <Field label="Faculty" placeholder="Computer Science" />
-        </div>
-        <DialogFooter>
-          <Button variant="outline">Save Draft</Button>
-          <Button>
-            <UserPlusIcon />
-            Create User
-          </Button>
-        </DialogFooter>
+        <AdminUserForm
+          onSubmit={handleSubmit}
+          onCancel={() => setOpen(false)}
+        />
       </DialogContent>
     </Dialog>
   )
@@ -149,6 +149,7 @@ function UserActions({ user }: { user: AdminUser }) {
 
   return (
     <div className="flex items-center gap-2">
+      {isEditableUser(user) ? <UpdateUserDialog user={user} /> : null}
       <ResetPasswordDialog user={user} />
       <ConfirmDialog
         trigger={
@@ -173,6 +174,41 @@ function UserActions({ user }: { user: AdminUser }) {
   )
 }
 
+function UpdateUserDialog({
+  user,
+}: {
+  user: AdminUser & { role: 'Student' | 'Instructor' }
+}) {
+  const [open, setOpen] = useState(false)
+
+  const handleSubmit = async (values: AdminUserFormValues) => {
+    await submitAdminUserForm(values)
+    setOpen(false)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={<Button variant="ghost" size="icon-sm" />}>
+        <PencilIcon />
+        <span className="sr-only">Update user</span>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Update User</DialogTitle>
+          <DialogDescription>
+            Update profile and role fields before wiring the user API.
+          </DialogDescription>
+        </DialogHeader>
+        <AdminUserForm
+          user={user}
+          onSubmit={handleSubmit}
+          onCancel={() => setOpen(false)}
+        />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 function ResetPasswordDialog({ user }: { user: AdminUser }) {
   return (
     <ConfirmDialog
@@ -191,11 +227,12 @@ function ResetPasswordDialog({ user }: { user: AdminUser }) {
   )
 }
 
-function Field({ label, placeholder }: { label: string; placeholder: string }) {
-  return (
-    <div className="space-y-2">
-      <Label>{label}</Label>
-      <Input placeholder={placeholder} />
-    </div>
-  )
+function isEditableUser(
+  user: AdminUser,
+): user is AdminUser & { role: 'Student' | 'Instructor' } {
+  return user.role === 'Student' || user.role === 'Instructor'
+}
+
+async function submitAdminUserForm(_values: AdminUserFormValues) {
+  await new Promise((resolve) => window.setTimeout(resolve, 600))
 }

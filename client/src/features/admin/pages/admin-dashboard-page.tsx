@@ -106,6 +106,8 @@ export function AdminDashboardPage() {
             isLoading={auditQuery.isPending}
             isError={auditQuery.isError}
             isEmpty={auditQuery.data?.length === 0}
+            onRetry={() => void auditQuery.refetch()}
+            isRetrying={auditQuery.isFetching}
             empty={
               <EmptyState
                 title="No audit activity"

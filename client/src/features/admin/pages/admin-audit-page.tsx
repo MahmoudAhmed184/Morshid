@@ -38,6 +38,8 @@ export function AdminAuditPage() {
           isLoading={auditQuery.isPending}
           isError={auditQuery.isError}
           isEmpty={auditQuery.data?.length === 0}
+          onRetry={() => void auditQuery.refetch()}
+          isRetrying={auditQuery.isFetching}
           emptyTitle="No audit events found"
           emptyDescription="Recent audit events returned by the API will appear here."
         >

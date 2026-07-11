@@ -39,6 +39,8 @@ export function AdminMaterialsPage() {
           isLoading={materialsQuery.isPending}
           isError={materialsQuery.isError}
           isEmpty={materialsQuery.data?.length === 0}
+          onRetry={() => void materialsQuery.refetch()}
+          isRetrying={materialsQuery.isFetching}
           emptyTitle="No materials found"
           emptyDescription="Material metadata returned by the API will appear here."
         >

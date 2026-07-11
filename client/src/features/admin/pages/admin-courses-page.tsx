@@ -45,6 +45,8 @@ export function AdminCoursesPage() {
           isLoading={coursesQuery.isPending}
           isError={coursesQuery.isError}
           isEmpty={coursesQuery.data?.length === 0}
+          onRetry={() => void coursesQuery.refetch()}
+          isRetrying={coursesQuery.isFetching}
           emptyTitle="No courses found"
           emptyDescription="Course records returned by the API will appear here."
         >
