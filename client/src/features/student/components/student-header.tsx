@@ -1,4 +1,3 @@
-import { useNavigate } from '@tanstack/react-router'
 import { LogOut, Menu, Search } from 'lucide-react'
 import { useState } from 'react'
 
@@ -14,7 +13,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
-import { logoutApi } from '@/features/auth/api/auth.api'
+import { useLogout } from '@/features/auth/hooks/use-logout'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 import type { StudentCourse } from '@/features/student/api/student-courses.api'
 import { StudentSidebar } from '@/features/student/components/student-sidebar'
@@ -42,26 +41,10 @@ export function StudentHeader({
   pathname,
 }: StudentHeaderProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
-  const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
-  const clearSession = useAuthStore((state) => state.clearSession)
+  const logout = useLogout()
   const displayName = user?.displayName ?? 'Student'
   const initials = getInitials(displayName)
-
-  const handleLogout = async () => {
-    const refreshToken = useAuthStore.getState().refreshToken
-
-    try {
-      if (refreshToken) {
-        await logoutApi(refreshToken)
-      }
-    } catch {
-      // Local logout must still complete if the revoke request is unavailable.
-    } finally {
-      clearSession()
-      await navigate({ to: '/login' })
-    }
-  }
 
   return (
     <header className="flex min-h-16 items-center gap-3 border-b border-border px-4 sm:px-6">
@@ -126,7 +109,7 @@ export function StudentHeader({
       <Button
         type="button"
         variant="outline"
-        onClick={handleLogout}
+        onClick={logout}
         className="bg-transparent"
       >
         <LogOut className="size-4" aria-hidden />
