@@ -44,11 +44,14 @@ function NavLink({ href, children, className, onClick }: NavLinkProps) {
   )
 }
 
-export function LandingNavbar() {
+export function Navbar() {
   const [open, setOpen] = useState(false)
 
   return (
-    <header className="sticky top-0 z-50 border-b border-border/60 bg-background/80 backdrop-blur-md">
+    <header
+      className="sticky top-0 z-50 border-b border-border/60 bg-background/80 backdrop-blur-md"
+      onWheel={(event) => event.preventDefault()}
+    >
       <nav
         className="relative mx-auto flex h-16 w-full max-w-7xl items-center px-4 sm:px-6 lg:px-8"
         aria-label="Main navigation"
@@ -121,6 +124,7 @@ export function LandingNavbar() {
                 {navLinks.map((link) => (
                   <SheetClose
                     key={link.href}
+                    nativeButton={false}
                     render={
                       <a
                         href={link.href}
@@ -134,6 +138,7 @@ export function LandingNavbar() {
                 ))}
                 <Separator className="my-3" />
                 <SheetClose
+                  nativeButton={false}
                   render={
                     <Button
                       nativeButton={false}
@@ -146,6 +151,7 @@ export function LandingNavbar() {
                   Log in
                 </SheetClose>
                 <SheetClose
+                  nativeButton={false}
                   render={
                     <Button
                       nativeButton={false}

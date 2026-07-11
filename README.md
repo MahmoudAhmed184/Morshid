@@ -84,6 +84,10 @@ instructor/student memberships outside the Python course, and clears all
 memberships from the isolation course.
 
 Shared local-only password for every seeded account: `MorshidDemoP0!`
+Set `AUTH_ACCESS_TOKEN_SECRET` and `AUTH_REFRESH_TOKEN_HASH_SECRET` in
+`server/.env` to local random strings with at least 32 characters before
+starting the server. Token lifetimes and signing/hash configuration are
+documented in [`server/README.md`](./server/README.md#auth-environment-configuration).
 
 | Email | Role |
 |---|---|

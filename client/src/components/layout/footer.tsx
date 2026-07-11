@@ -1,3 +1,5 @@
+import { XIcon } from 'lucide-react'
+
 import { Logo } from '@/components/logo'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
@@ -16,11 +18,7 @@ const socialLinks = [
   {
     label: 'X (Twitter)',
     href: '#',
-    icon: (
-      <svg viewBox="0 0 24 24" className="size-4 fill-current" aria-hidden>
-        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-      </svg>
-    ),
+    icon: <XIcon />,
   },
   {
     label: 'GitHub',
@@ -48,6 +46,8 @@ type FooterLinkGroupProps = {
   id?: string
 }
 
+const currentYear = new Date().getFullYear()
+
 function FooterLinkGroup({ title, links, id }: FooterLinkGroupProps) {
   return (
     <div id={id}>
@@ -68,9 +68,12 @@ function FooterLinkGroup({ title, links, id }: FooterLinkGroupProps) {
   )
 }
 
-export function LandingFooter() {
+export function Footer() {
   return (
-    <footer className="border-t border-border bg-card">
+    <footer
+      className="border-t border-border bg-card"
+      onWheel={(event) => event.preventDefault()}
+    >
       <div className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-5">
           <div className="space-y-5 sm:col-span-2 lg:col-span-2">
@@ -110,7 +113,7 @@ export function LandingFooter() {
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">
-            &copy; 2026 Morshid AI. All rights reserved.
+            &copy; {currentYear} Morshid AI. All rights reserved.
           </p>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <span
