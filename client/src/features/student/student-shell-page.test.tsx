@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
   cleanup,
   fireEvent,
@@ -10,6 +11,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 import type { AuthSession } from '@/features/auth/types/auth.types'
+import type { StudentCourse } from '@/features/student/api/student-courses.api'
+import { studentCoursesQueryOptions } from '@/features/student/queries/student-courses.query'
 
 import { StudentAiTutorPage } from './student-ai-tutor-page'
 import { StudentCoursesPage } from './student-courses-page'
@@ -68,6 +71,21 @@ function createStudentSession(
   }
 }
 
+function renderWithStudentCourses(
+  ui: React.ReactNode,
+  courses: StudentCourse[] = [],
+) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+
+  queryClient.setQueryData(studentCoursesQueryOptions.queryKey, courses)
+
+  return render(
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+  )
+}
+
 describe('StudentShellPage', () => {
   beforeEach(() => {
     window.localStorage.clear()
@@ -85,28 +103,20 @@ describe('StudentShellPage', () => {
     vi.restoreAllMocks()
   })
 
-  it('renders assigned student courses from the authenticated user without fetching', () => {
+  it('renders assigned courses from the scoped course query', () => {
     const fetchMock = vi.fn()
 
     vi.stubGlobal('fetch', fetchMock)
-    useAuthStore.getState().setSession(
-      createStudentSession([
-        {
-          id: 'python-course',
-          code: 'PYTHON-PROG-P0',
-          title: 'Python Programming',
-          membershipRole: 'STUDENT',
-        },
-        {
-          id: 'instructor-course',
-          code: 'INSTRUCTOR-ONLY',
-          title: 'Instructor Only',
-          membershipRole: 'INSTRUCTOR',
-        },
-      ]),
-    )
+    useAuthStore.getState().setSession(createStudentSession([]))
 
-    render(<StudentShellPage />)
+    renderWithStudentCourses(<StudentShellPage />, [
+      {
+        id: 'python-course',
+        code: 'PYTHON-PROG-P0',
+        title: 'Python Programming',
+        membershipRole: 'STUDENT',
+      },
+    ])
 
     const coursesList = screen.getByRole('list', {
       name: /assigned courses/i,
@@ -124,7 +134,7 @@ describe('StudentShellPage', () => {
   it('shows an empty state when no courses are assigned', () => {
     useAuthStore.getState().setSession(createStudentSession([]))
 
-    render(<StudentShellPage />)
+    renderWithStudentCourses(<StudentShellPage />)
 
     expect(screen.getByText('No courses assigned yet.')).toBeInTheDocument()
   })
@@ -132,7 +142,7 @@ describe('StudentShellPage', () => {
   it('links sidebar navigation to the nested student routes', () => {
     useAuthStore.getState().setSession(createStudentSession([]))
 
-    render(<StudentShellPage />)
+    renderWithStudentCourses(<StudentShellPage />)
 
     expect(screen.getByRole('link', { name: /dashboard/i })).toHaveAttribute(
       'href',
@@ -153,7 +163,7 @@ describe('StudentShellPage', () => {
     routerMockState.pathname = '/student/courses'
     useAuthStore.getState().setSession(createStudentSession([]))
 
-    render(<StudentShellPage />)
+    renderWithStudentCourses(<StudentShellPage />)
 
     expect(screen.getByRole('link', { name: /courses/i })).toHaveAttribute(
       'aria-current',
@@ -167,7 +177,7 @@ describe('StudentShellPage', () => {
   it('opens student navigation in the mobile drawer', () => {
     useAuthStore.getState().setSession(createStudentSession([]))
 
-    render(<StudentShellPage />)
+    renderWithStudentCourses(<StudentShellPage />)
 
     fireEvent.click(
       screen.getByRole('button', { name: /open student navigation/i }),
@@ -202,18 +212,16 @@ describe('StudentAiTutorPage', () => {
   })
 
   it('renders the disconnected chat placeholder for the selected course context', () => {
-    useAuthStore.getState().setSession(
-      createStudentSession([
-        {
-          id: 'python-course',
-          code: 'PYTHON-PROG-P0',
-          title: 'Python Programming',
-          membershipRole: 'STUDENT',
-        },
-      ]),
-    )
+    useAuthStore.getState().setSession(createStudentSession([]))
 
-    render(<StudentAiTutorPage />)
+    renderWithStudentCourses(<StudentAiTutorPage />, [
+      {
+        id: 'python-course',
+        code: 'PYTHON-PROG-P0',
+        title: 'Python Programming',
+        membershipRole: 'STUDENT',
+      },
+    ])
 
     expect(
       screen.getByRole('heading', { name: 'Python Programming' }),
@@ -244,24 +252,16 @@ describe('StudentDashboardPage', () => {
   })
 
   it('renders the student dashboard summary', () => {
-    useAuthStore.getState().setSession(
-      createStudentSession([
-        {
-          id: 'python-course',
-          code: 'PYTHON-PROG-P0',
-          title: 'Python Programming',
-          membershipRole: 'STUDENT',
-        },
-        {
-          id: 'instructor-course',
-          code: 'INSTRUCTOR-ONLY',
-          title: 'Instructor Only',
-          membershipRole: 'INSTRUCTOR',
-        },
-      ]),
-    )
+    useAuthStore.getState().setSession(createStudentSession([]))
 
-    render(<StudentDashboardPage />)
+    renderWithStudentCourses(<StudentDashboardPage />, [
+      {
+        id: 'python-course',
+        code: 'PYTHON-PROG-P0',
+        title: 'Python Programming',
+        membershipRole: 'STUDENT',
+      },
+    ])
 
     expect(
       screen.getByRole('heading', { name: 'Dashboard' }),
@@ -285,18 +285,16 @@ describe('StudentCoursesPage', () => {
   })
 
   it('renders assigned courses without an unstable store selector', () => {
-    useAuthStore.getState().setSession(
-      createStudentSession([
-        {
-          id: 'python-course',
-          code: 'PYTHON-PROG-P0',
-          title: 'Python Programming',
-          membershipRole: 'STUDENT',
-        },
-      ]),
-    )
+    useAuthStore.getState().setSession(createStudentSession([]))
 
-    render(<StudentCoursesPage />)
+    renderWithStudentCourses(<StudentCoursesPage />, [
+      {
+        id: 'python-course',
+        code: 'PYTHON-PROG-P0',
+        title: 'Python Programming',
+        membershipRole: 'STUDENT',
+      },
+    ])
 
     expect(screen.getByRole('heading', { name: 'Courses' })).toBeInTheDocument()
     expect(
@@ -308,7 +306,7 @@ describe('StudentCoursesPage', () => {
   it('renders the empty assigned courses state', () => {
     useAuthStore.getState().setSession(createStudentSession([]))
 
-    render(<StudentCoursesPage />)
+    renderWithStudentCourses(<StudentCoursesPage />)
 
     expect(screen.getByRole('heading', { name: 'Courses' })).toBeInTheDocument()
     expect(screen.getByText('No courses assigned yet.')).toBeInTheDocument()

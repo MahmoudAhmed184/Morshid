@@ -1,11 +1,11 @@
+import { useSuspenseQuery } from '@tanstack/react-query'
+
 import { Badge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/ui/custom/empty-state'
-import { useAuthStore } from '@/features/auth/stores/auth.store'
+import { studentCoursesQueryOptions } from '@/features/student/queries/student-courses.query'
 
 export function StudentCoursesPage() {
-  const user = useAuthStore((state) => state.user)
-  const assignedCourses =
-    user?.courses.filter((course) => course.membershipRole === 'STUDENT') ?? []
+  const { data: assignedCourses } = useSuspenseQuery(studentCoursesQueryOptions)
 
   return (
     <div className="flex flex-1 flex-col px-4 py-5 sm:px-6">

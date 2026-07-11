@@ -1,16 +1,15 @@
+import { useSuspenseQuery } from '@tanstack/react-query'
 import { MessageSquareText, SendHorizontal } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/custom/empty-state'
 import { Textarea } from '@/components/ui/textarea'
-import { useAuthStore } from '@/features/auth/stores/auth.store'
+import { studentCoursesQueryOptions } from '@/features/student/queries/student-courses.query'
 
 export function StudentAiTutorPage() {
-  const selectedCourse =
-    useAuthStore((state) =>
-      state.user?.courses.find((course) => course.membershipRole === 'STUDENT'),
-    ) ?? null
+  const { data: assignedCourses } = useSuspenseQuery(studentCoursesQueryOptions)
+  const selectedCourse = assignedCourses.at(0) ?? null
 
   return (
     <div className="flex flex-1 flex-col px-4 py-5 sm:px-6">

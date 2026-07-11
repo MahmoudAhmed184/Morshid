@@ -1,16 +1,12 @@
+import { useSuspenseQuery } from '@tanstack/react-query'
 import { BookOpen, MessageSquareText } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
-import { useAuthStore } from '@/features/auth/stores/auth.store'
+import { studentCoursesQueryOptions } from '@/features/student/queries/student-courses.query'
 
 export function StudentDashboardPage() {
-  const assignedCourseCount =
-    useAuthStore(
-      (state) =>
-        state.user?.courses.filter(
-          (course) => course.membershipRole === 'STUDENT',
-        ).length,
-    ) ?? 0
+  const { data: assignedCourses } = useSuspenseQuery(studentCoursesQueryOptions)
+  const assignedCourseCount = assignedCourses.length
 
   return (
     <div className="flex flex-1 flex-col px-4 py-5 sm:px-6">

@@ -4,6 +4,7 @@ import {
   useNavigate,
   useRouterState,
 } from '@tanstack/react-router'
+import { useSuspenseQuery } from '@tanstack/react-query'
 import {
   Bell,
   BookOpen,
@@ -31,7 +32,8 @@ import {
 } from '@/components/ui/sheet'
 import { logoutApi } from '@/features/auth/api/auth.api'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
-import type { AuthCourseSummary } from '@/features/auth/types/auth.types'
+import type { StudentCourse } from '@/features/student/api/student-courses.api'
+import { studentCoursesQueryOptions } from '@/features/student/queries/student-courses.query'
 import { cn } from '@/lib/utils'
 
 const primaryNavItems = [
@@ -59,7 +61,7 @@ function getInitials(name: string | undefined) {
 }
 
 type StudentSidebarContentProps = {
-  assignedCourses: AuthCourseSummary[]
+  assignedCourses: StudentCourse[]
   pathname: string
   onNavigate?: () => void
 }
@@ -171,10 +173,9 @@ export function StudentShellPage() {
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
   const clearSession = useAuthStore((state) => state.clearSession)
+  const { data: assignedCourses } = useSuspenseQuery(studentCoursesQueryOptions)
   const displayName = user?.displayName ?? 'Student'
   const initials = getInitials(displayName)
-  const assignedCourses =
-    user?.courses.filter((course) => course.membershipRole === 'STUDENT') ?? []
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   })
