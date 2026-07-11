@@ -576,6 +576,86 @@ describe('AdminUsersService', () => {
     })
   })
 
+  it('resets a user password through the repository and returns a safe response', async () => {
+    const { createHash, repository, service } = buildService()
+
+    repository.addUser({
+      id: 'target-user',
+      email: 'target@morshid.demo',
+      displayName: 'Target User',
+      role: UserRole.STUDENT,
+      status: UserStatus.ACTIVE,
+      createdAt,
+      updatedAt,
+    })
+
+    const response = await service.resetUserPassword(
+      'target-user',
+      { newPassword: 'StrongPassword123!' },
+      actor,
+      requestContext,
+    )
+
+    expect(createHash).toHaveBeenCalledWith('StrongPassword123!')
+    expect(repository.resetUserPassword.mock.calls).toHaveLength(1)
+    const resetInput = repository.resetUserPassword.mock.calls[0][0]
+
+    expect(resetInput).toMatchObject({
+      userId: 'target-user',
+      passwordHash: 'hashed:StrongPassword123!',
+      actorUserId: actor.id,
+      requestContext,
+    })
+    expect(resetInput.passwordChangedAt).toBeInstanceOf(Date)
+    expect(response).toEqual({
+      user: {
+        id: 'target-user',
+        email: 'target@morshid.demo',
+        displayName: 'Target User',
+        role: UserRole.STUDENT,
+        status: UserStatus.ACTIVE,
+        createdAt: createdAt.toISOString(),
+        updatedAt: updatedAt.toISOString(),
+      },
+    })
+    expect(response.user).not.toHaveProperty('password')
+    expect(response.user).not.toHaveProperty('passwordHash')
+    expect(response.user).not.toHaveProperty('refreshTokens')
+    expect(response.user).not.toHaveProperty('disabledAt')
+    expect(response.user).not.toHaveProperty('disabledById')
+  })
+
+  it('resets a disabled user password without reactivating the user', async () => {
+    const { repository, service } = buildService()
+
+    repository.addUser({
+      id: 'disabled-user',
+      email: 'disabled@morshid.demo',
+      displayName: 'Disabled User',
+      role: UserRole.STUDENT,
+      status: UserStatus.DISABLED,
+      createdAt,
+      updatedAt,
+    })
+
+    const response = await service.resetUserPassword(
+      'disabled-user',
+      { newPassword: 'StrongPassword123!' },
+      actor,
+      requestContext,
+    )
+
+    expect(response.user).toEqual({
+      id: 'disabled-user',
+      email: 'disabled@morshid.demo',
+      displayName: 'Disabled User',
+      role: UserRole.STUDENT,
+      status: UserStatus.DISABLED,
+      createdAt: createdAt.toISOString(),
+      updatedAt: updatedAt.toISOString(),
+    })
+  })
+
   it('rejects reactivating a missing user', async () => {
     const { repository, service } = buildService()
 
@@ -628,6 +708,28 @@ describe('AdminUsersService', () => {
       },
     })
     expect(repository.disableUser.mock.calls).toHaveLength(0)
+  })
+
+  it('rejects resetting a missing user before hashing', async () => {
+    const { createHash, repository, service } = buildService()
+
+    const resetUserPassword = service.resetUserPassword(
+      'missing-user',
+      { newPassword: 'StrongPassword123!' },
+      actor,
+      requestContext,
+    )
+
+    await expect(resetUserPassword).rejects.toBeInstanceOf(NotFoundException)
+    await expect(resetUserPassword).rejects.toMatchObject({
+      response: {
+        code: ADMIN_USERS_ERROR_CODES.USER_NOT_FOUND,
+        message: 'Admin user target was not found',
+        userId: 'missing-user',
+      },
+    })
+    expect(createHash).not.toHaveBeenCalled()
+    expect(repository.resetUserPassword.mock.calls).toHaveLength(0)
   })
 
   it('rejects disabling the last active admin account', async () => {

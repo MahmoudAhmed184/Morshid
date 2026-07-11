@@ -34,7 +34,15 @@ interface UpdateUserArgs {
     id: string
   }
   data: Partial<
-    Pick<User, 'lastLoginAt' | 'status' | 'disabledAt' | 'disabledById'>
+    Pick<
+      User,
+      | 'lastLoginAt'
+      | 'status'
+      | 'disabledAt'
+      | 'disabledById'
+      | 'passwordHash'
+      | 'passwordChangedAt'
+    >
   >
 }
 

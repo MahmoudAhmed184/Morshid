@@ -16,6 +16,7 @@ import type {
   AdminCreateUserResponseDto,
   AdminDisableUserResponseDto,
   AdminReactivateUserResponseDto,
+  AdminResetUserPasswordResponseDto,
   AdminUserListResponseDto,
 } from '../src/modules/admin/users/admin-users.dto'
 import { ADMIN_USERS_ERROR_CODES } from '../src/modules/admin/users/admin-users.errors'
@@ -78,11 +79,14 @@ describe('Admin users (e2e)', () => {
     await app.close()
   })
 
-  async function signIn(email: string): Promise<AuthSessionResponse> {
+  async function signIn(
+    email: string,
+    password = P0_DEMO_PASSWORD,
+  ): Promise<AuthSessionResponse> {
     const response = await request(app.getHttpServer())
       .post('/api/v1/auth/sign-in')
       .set('User-Agent', auditUserAgent)
-      .send({ email, password: P0_DEMO_PASSWORD })
+      .send({ email, password })
       .expect(200)
 
     return response.body as AuthSessionResponse
@@ -285,6 +289,297 @@ describe('Admin users (e2e)', () => {
         code: AUTH_ERROR_CODES.INSUFFICIENT_ROLE,
         message: 'Insufficient role',
       })
+  })
+
+  it('allows an admin to reset a user password and revoke existing refresh tokens', async () => {
+    const targetSession = await signIn('student1@morshid.demo')
+    const adminSession = await signIn('admin@morshid.demo')
+    const admin = requireUserByEmail('admin@morshid.demo')
+    const target = requireUserByEmail('student1@morshid.demo')
+    const originalPasswordHash = target.passwordHash
+    const originalPasswordChangedAt = target.passwordChangedAt
+    const originalMemberships = store.memberships.filter(
+      (membership) => membership.userId === target.id,
+    )
+    const originalRefreshTokens = [...store.refreshTokens.values()].filter(
+      (refreshToken) => refreshToken.userId === target.id,
+    )
+    const newPassword = 'StrongPassword123!'
+
+    expect(originalRefreshTokens).toEqual([
+      expect.objectContaining({
+        revokedAt: null,
+      }),
+    ])
+
+    const response = await request(app.getHttpServer())
+      .patch(`/api/v1/admin/users/${target.id}/reset-password`)
+      .set('Authorization', `Bearer ${adminSession.accessToken}`)
+      .set('User-Agent', auditUserAgent)
+      .send({ newPassword })
+      .expect(200)
+    const body = response.body as AdminResetUserPasswordResponseDto
+    const resetUser = requireUserByEmail('student1@morshid.demo')
+    const currentRefreshTokens = [...store.refreshTokens.values()].filter(
+      (refreshToken) => refreshToken.userId === target.id,
+    )
+    const currentMemberships = store.memberships.filter(
+      (membership) => membership.userId === target.id,
+    )
+
+    expect(body).toEqual({
+      user: {
+        id: target.id,
+        email: target.email,
+        displayName: target.displayName,
+        role: target.role,
+        status: target.status,
+        createdAt: target.createdAt.toISOString(),
+        updatedAt: resetUser.updatedAt.toISOString(),
+      },
+    })
+    expect(body.user).not.toHaveProperty('password')
+    expect(body.user).not.toHaveProperty('passwordHash')
+    expect(body.user).not.toHaveProperty('refreshTokens')
+    expect(body.user).not.toHaveProperty('disabledAt')
+    expect(body.user).not.toHaveProperty('disabledById')
+    expect(resetUser).toEqual(
+      expect.objectContaining({
+        id: target.id,
+        email: target.email,
+        displayName: target.displayName,
+        role: target.role,
+        status: target.status,
+        disabledAt: target.disabledAt,
+        disabledById: target.disabledById,
+      }),
+    )
+    expect(resetUser.passwordHash).toEqual(expect.any(String))
+    expect(resetUser.passwordHash).not.toBe(originalPasswordHash)
+    expect(resetUser.passwordHash).not.toBe(newPassword)
+    expect(resetUser.passwordChangedAt.getTime()).toBeGreaterThan(
+      originalPasswordChangedAt.getTime(),
+    )
+    expect(currentRefreshTokens).toEqual([
+      expect.objectContaining({
+        id: originalRefreshTokens[0]?.id,
+        revokedAt: resetUser.passwordChangedAt,
+      }),
+    ])
+    expect(currentMemberships).toEqual(originalMemberships)
+
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/refresh')
+      .set('User-Agent', auditUserAgent)
+      .send({ refreshToken: targetSession.refreshToken })
+      .expect(401)
+      .expect({
+        code: AUTH_ERROR_CODES.INVALID_REFRESH_TOKEN,
+        message: 'Invalid refresh token',
+      })
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/sign-in')
+      .set('User-Agent', auditUserAgent)
+      .send({ email: target.email, password: P0_DEMO_PASSWORD })
+      .expect(401)
+      .expect({
+        code: AUTH_ERROR_CODES.INVALID_CREDENTIALS,
+        message: 'Invalid email or password',
+      })
+    await signIn(target.email, newPassword)
+
+    const adminUserPasswordResetAudit = [...store.auditLogs.values()].filter(
+      (auditLog) =>
+        auditLog.action === AUDIT_EVENT_ACTIONS.ADMIN_USER_PASSWORD_RESET,
+    )
+
+    expect(adminUserPasswordResetAudit).toEqual([
+      expect.objectContaining({
+        actorUserId: admin.id,
+        action: AUDIT_EVENT_ACTIONS.ADMIN_USER_PASSWORD_RESET,
+        targetType: AUDIT_TARGET_TYPES.USER,
+        targetId: target.id,
+        courseId: null,
+        ip: anyString,
+        userAgent: auditUserAgent,
+        metadata: {
+          email: target.email,
+          displayName: target.displayName,
+          role: target.role,
+          refreshTokensRevoked: true,
+          revokedRefreshTokenCount: 1,
+        },
+        createdAt: anyDate,
+      }),
+    ])
+    expect(adminUserPasswordResetAudit[0]?.metadata).not.toHaveProperty(
+      'password',
+    )
+    expect(adminUserPasswordResetAudit[0]?.metadata).not.toHaveProperty(
+      'newPassword',
+    )
+    expect(adminUserPasswordResetAudit[0]?.metadata).not.toHaveProperty(
+      'passwordHash',
+    )
+    expect(adminUserPasswordResetAudit[0]?.metadata).not.toHaveProperty(
+      'tokenHash',
+    )
+  })
+
+  it('resets a disabled user password without reactivating the user', async () => {
+    const adminSession = await signIn('admin@morshid.demo')
+    const admin = requireUserByEmail('admin@morshid.demo')
+    const target = requireUserByEmail('student1@morshid.demo')
+    const originalRole = target.role
+    const originalEmail = target.email
+    const originalDisplayName = target.displayName
+
+    store.disableUser(target.email, admin.id)
+    const disabledUser = requireUserByEmail(target.email)
+    const originalDisabledAt = disabledUser.disabledAt
+    const originalDisabledById = disabledUser.disabledById
+
+    const response = await request(app.getHttpServer())
+      .patch(`/api/v1/admin/users/${target.id}/reset-password`)
+      .set('Authorization', `Bearer ${adminSession.accessToken}`)
+      .set('User-Agent', auditUserAgent)
+      .send({ newPassword: 'StrongPassword123!' })
+      .expect(200)
+    const body = response.body as AdminResetUserPasswordResponseDto
+    const resetUser = requireUserByEmail(target.email)
+
+    expect(resetUser).toEqual(
+      expect.objectContaining({
+        email: originalEmail,
+        displayName: originalDisplayName,
+        role: originalRole,
+        status: UserStatus.DISABLED,
+        disabledAt: originalDisabledAt,
+        disabledById: originalDisabledById,
+      }),
+    )
+    expect(body.user).toEqual({
+      id: target.id,
+      email: originalEmail,
+      displayName: originalDisplayName,
+      role: originalRole,
+      status: UserStatus.DISABLED,
+      createdAt: target.createdAt.toISOString(),
+      updatedAt: resetUser.updatedAt.toISOString(),
+    })
+  })
+
+  it('returns reset-password validation errors for empty passwords', async () => {
+    const token = await signInAs('admin@morshid.demo')
+    const target = requireUserByEmail('student1@morshid.demo')
+    const originalPasswordHash = target.passwordHash
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/admin/users/${target.id}/reset-password`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ newPassword: '' })
+      .expect(400)
+      .expect({
+        code: ADMIN_USERS_ERROR_CODES.INVALID_RESET_PASSWORD_REQUEST,
+        message: 'Invalid admin user password reset request',
+        errors: [
+          {
+            field: 'newPassword',
+            message: 'Password must be at least 8 characters',
+          },
+          {
+            field: 'newPassword',
+            message: 'Password must contain at least one letter',
+          },
+          {
+            field: 'newPassword',
+            message: 'Password must contain at least one number',
+          },
+          {
+            field: 'newPassword',
+            message: 'Password must contain at least one symbol',
+          },
+        ],
+      })
+
+    expect(requireUserByEmail(target.email).passwordHash).toBe(
+      originalPasswordHash,
+    )
+  })
+
+  it('rejects weak reset-password values with the create-user password policy', async () => {
+    const token = await signInAs('admin@morshid.demo')
+    const target = requireUserByEmail('student1@morshid.demo')
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/admin/users/${target.id}/reset-password`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ newPassword: 'weakpass' })
+      .expect(400)
+      .expect({
+        code: ADMIN_USERS_ERROR_CODES.INVALID_RESET_PASSWORD_REQUEST,
+        message: 'Invalid admin user password reset request',
+        errors: [
+          {
+            field: 'newPassword',
+            message: 'Password must contain at least one number',
+          },
+          {
+            field: 'newPassword',
+            message: 'Password must contain at least one symbol',
+          },
+        ],
+      })
+  })
+
+  it('returns not found when resetting a missing user password', async () => {
+    const token = await signInAs('admin@morshid.demo')
+    const missingUserId = '00000000-0000-4000-8000-000000009999'
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/admin/users/${missingUserId}/reset-password`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ newPassword: 'StrongPassword123!' })
+      .expect(404)
+      .expect({
+        code: ADMIN_USERS_ERROR_CODES.USER_NOT_FOUND,
+        message: 'Admin user target was not found',
+        userId: missingUserId,
+      })
+  })
+
+  it('rejects non-admin user reset-password requests', async () => {
+    const token = await signInAs('student1@morshid.demo')
+    const target = requireUserByEmail('instructor@morshid.demo')
+    const originalPasswordHash = target.passwordHash
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/admin/users/${target.id}/reset-password`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ newPassword: 'StrongPassword123!' })
+      .expect(403)
+      .expect({
+        code: AUTH_ERROR_CODES.INSUFFICIENT_ROLE,
+        message: 'Insufficient role',
+      })
+
+    expect(requireUserByEmail(target.email).passwordHash).toBe(
+      originalPasswordHash,
+    )
+  })
+
+  it('rejects unauthenticated user reset-password requests', async () => {
+    const target = requireUserByEmail('student1@morshid.demo')
+    const originalPasswordHash = target.passwordHash
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/admin/users/${target.id}/reset-password`)
+      .send({ newPassword: 'StrongPassword123!' })
+      .expect(401)
+
+    expect(requireUserByEmail(target.email).passwordHash).toBe(
+      originalPasswordHash,
+    )
   })
 
   it('allows an admin to disable an active user', async () => {
