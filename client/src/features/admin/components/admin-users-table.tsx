@@ -6,24 +6,39 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { cn } from '@/lib/utils'
 import { AdminStatusBadge } from './admin-status-badge'
 import { AdminUserActions } from './admin-user-actions'
-import type { AdminUser } from '../data/admin-ops.types'
+import type { AdminManagedUser } from '@/features/admin/schemas/admin-managed-user.schema'
 
 type AdminUsersTableProps = {
-  users: AdminUser[]
+  users: AdminManagedUser[]
+  isResettingPassword: boolean
+  isUpdatingStatus: boolean
+  onResetPassword: (userId: string, newPassword: string) => Promise<unknown>
+  onStatusChange: (user: AdminManagedUser) => Promise<unknown>
 }
 
 const tableHeaders = [
   'User',
   'Role',
-  'Faculty',
+  'Course assignments',
   'Status',
-  'Last Activity',
+  'Updated',
   'Actions',
 ] as const
 
-export function AdminUsersTable({ users }: AdminUsersTableProps) {
+const dateFormatter = new Intl.DateTimeFormat(undefined, {
+  dateStyle: 'medium',
+})
+
+export function AdminUsersTable({
+  users,
+  isResettingPassword,
+  isUpdatingStatus,
+  onResetPassword,
+  onStatusChange,
+}: AdminUsersTableProps) {
   return (
     <Table className="min-w-[760px]">
       <TableHeader>
@@ -40,23 +55,48 @@ export function AdminUsersTable({ users }: AdminUsersTableProps) {
       </TableHeader>
       <TableBody>
         {users.map((user) => (
-          <TableRow key={user.id} className="border-border hover:bg-muted/40">
+          <TableRow
+            key={user.id}
+            className={cn(
+              'border-border hover:bg-muted/40',
+              user.status === 'DISABLED' &&
+                'bg-destructive/5 text-muted-foreground hover:bg-destructive/10',
+            )}
+          >
             <TableCell className="px-6 py-5">
-              <p className="font-medium text-foreground">{user.name}</p>
+              <p className="font-medium text-foreground">{user.displayName}</p>
               <p className="text-xs text-muted-foreground">{user.email}</p>
             </TableCell>
-            <TableCell className="px-6 py-5">{user.role}</TableCell>
-            <TableCell className="px-6 py-5">{user.faculty}</TableCell>
+            <TableCell className="px-6 py-5">
+              {toRoleLabel(user.role)}
+            </TableCell>
+            <TableCell className="px-6 py-5">
+              {user.courseAssignments.courseCount}
+            </TableCell>
             <TableCell className="px-6 py-5">
               <AdminStatusBadge status={user.status} />
             </TableCell>
-            <TableCell className="px-6 py-5">{user.lastActivity}</TableCell>
             <TableCell className="px-6 py-5">
-              <AdminUserActions user={user} />
+              {dateFormatter.format(new Date(user.updatedAt))}
+            </TableCell>
+            <TableCell className="px-6 py-5">
+              <AdminUserActions
+                user={user}
+                isResettingPassword={isResettingPassword}
+                isUpdatingStatus={isUpdatingStatus}
+                onResetPassword={(newPassword) =>
+                  onResetPassword(user.id, newPassword)
+                }
+                onStatusChange={() => onStatusChange(user)}
+              />
             </TableCell>
           </TableRow>
         ))}
       </TableBody>
     </Table>
   )
+}
+
+function toRoleLabel(role: AdminManagedUser['role']) {
+  return `${role.slice(0, 1)}${role.slice(1).toLowerCase()}`
 }

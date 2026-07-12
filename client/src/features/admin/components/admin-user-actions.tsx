@@ -1,21 +1,37 @@
-import { BanIcon, KeyRoundIcon, RotateCcwIcon } from 'lucide-react'
+import { BanIcon, RotateCcwIcon } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/custom/confirm-dialog'
-import { UpdateAdminUserDialog } from './update-admin-user-dialog'
-import type { AdminUser } from '../data/admin-ops.types'
-import type { EditableAdminUser } from './update-admin-user-dialog'
+import type { AdminManagedUser } from '@/features/admin/schemas/admin-managed-user.schema'
+import { ResetAdminUserPasswordDialog } from './reset-admin-user-password-dialog'
 
-export function AdminUserActions({ user }: { user: AdminUser }) {
-  const isDisabled = user.status === 'disabled'
+type AdminUserActionsProps = {
+  user: AdminManagedUser
+  isResettingPassword: boolean
+  isUpdatingStatus: boolean
+  onResetPassword: (newPassword: string) => Promise<unknown>
+  onStatusChange: () => Promise<unknown>
+}
+
+export function AdminUserActions({
+  user,
+  isResettingPassword,
+  isUpdatingStatus,
+  onResetPassword,
+  onStatusChange,
+}: AdminUserActionsProps) {
+  const isDisabled = user.status === 'DISABLED'
 
   return (
     <div className="flex items-center gap-2">
-      {isEditableUser(user) ? <UpdateAdminUserDialog user={user} /> : null}
-      <ResetPasswordDialog user={user} />
+      <ResetAdminUserPasswordDialog
+        user={user}
+        isPending={isResettingPassword}
+        onResetPassword={onResetPassword}
+      />
       <ConfirmDialog
         trigger={
-          <Button variant="ghost" size="icon-sm">
+          <Button variant="ghost" size="icon-sm" disabled={isUpdatingStatus}>
             {isDisabled ? <RotateCcwIcon /> : <BanIcon />}
             <span className="sr-only">
               {isDisabled ? 'Reactivate user' : 'Disable user'}
@@ -25,35 +41,16 @@ export function AdminUserActions({ user }: { user: AdminUser }) {
         title={isDisabled ? 'Reactivate user' : 'Disable user'}
         description={
           isDisabled
-            ? `${user.name} will regain access after the API confirms this action.`
-            : `${user.name} will lose access after the API confirms this action.`
+            ? `${user.displayName} will regain access after the API confirms this action.`
+            : `${user.displayName} will lose access after the API confirms this action.`
         }
         confirmLabel={isDisabled ? 'Reactivate' : 'Disable'}
         destructive={!isDisabled}
-        onConfirm={() => undefined}
+        disabled={isUpdatingStatus}
+        onConfirm={async () => {
+          await onStatusChange()
+        }}
       />
     </div>
   )
-}
-
-function ResetPasswordDialog({ user }: { user: AdminUser }) {
-  return (
-    <ConfirmDialog
-      trigger={
-        <Button variant="ghost" size="icon-sm">
-          <KeyRoundIcon />
-          <span className="sr-only">Reset password</span>
-        </Button>
-      }
-      title="Reset password"
-      description={`Generate a temporary password reset for ${user.email}.`}
-      confirmLabel="Reset Password"
-      destructive={false}
-      onConfirm={() => undefined}
-    />
-  )
-}
-
-function isEditableUser(user: AdminUser): user is EditableAdminUser {
-  return user.role === 'Student' || user.role === 'Instructor'
 }

@@ -1,14 +1,54 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMemo, useState } from 'react'
 
+import { Button } from '@/components/ui/button'
 import { DataTableState } from '@/components/ui/custom/data-table-state'
 import { PageHeader } from '@/components/ui/custom/page-header'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  useAdminUserMutations,
+  useAdminUsers,
+} from '@/features/admin/hooks/use-admin-users'
+import { useAuthStore } from '@/features/auth/stores/auth.store'
 import { AdminPanel } from '../components/admin-panel'
 import { AdminUsersTable } from '../components/admin-users-table'
 import { CreateAdminUserDialog } from '../components/create-admin-user-dialog'
-import { adminUsersQueryOptions } from '../data/admin-ops.queries'
+
+type RoleFilter = 'ALL' | 'STUDENT' | 'INSTRUCTOR'
+type StatusFilter = 'ALL' | 'ACTIVE' | 'DISABLED'
 
 export function AdminUsersPage() {
-  const usersQuery = useQuery(adminUsersQueryOptions())
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>('ALL')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL')
+  const currentUserId = useAuthStore((state) => state.user?.id)
+  const usersQuery = useAdminUsers()
+  const userMutations = useAdminUserMutations()
+  const users = useMemo(
+    () =>
+      (usersQuery.data?.pages.flatMap((page) => page.users) ?? []).filter(
+        (user) => {
+          if (user.id === currentUserId || user.role === 'ADMIN') {
+            return false
+          }
+
+          if (roleFilter !== 'ALL' && user.role !== roleFilter) {
+            return false
+          }
+
+          return statusFilter === 'ALL' || user.status === statusFilter
+        },
+      ),
+    [currentUserId, roleFilter, statusFilter, usersQuery.data],
+  )
+
+  const isUpdatingStatus =
+    userMutations.disableUser.isPending ||
+    userMutations.reactivateUser.isPending
 
   return (
     <div>
@@ -21,16 +61,72 @@ export function AdminUsersPage() {
       />
 
       <AdminPanel>
+        <div className="flex flex-wrap items-center gap-2 border-b p-4">
+          <Select
+            value={roleFilter}
+            onValueChange={(value) => setRoleFilter(value as RoleFilter)}
+          >
+            <SelectTrigger aria-label="Filter users by role">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All roles</SelectItem>
+              <SelectItem value="STUDENT">Students</SelectItem>
+              <SelectItem value="INSTRUCTOR">Instructors</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select
+            value={statusFilter}
+            onValueChange={(value) => setStatusFilter(value as StatusFilter)}
+          >
+            <SelectTrigger aria-label="Filter users by status">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All statuses</SelectItem>
+              <SelectItem value="ACTIVE">Active</SelectItem>
+              <SelectItem value="DISABLED">Disabled</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <DataTableState
           isLoading={usersQuery.isPending}
           isError={usersQuery.isError}
-          isEmpty={usersQuery.data?.length === 0}
+          isEmpty={users.length === 0}
           onRetry={() => void usersQuery.refetch()}
           isRetrying={usersQuery.isFetching}
           emptyTitle="No users found"
-          emptyDescription="Users returned by the API will appear in this table."
+          emptyDescription="No users match the selected filters."
         >
-          <AdminUsersTable users={usersQuery.data ?? []} />
+          <>
+            <AdminUsersTable
+              users={users}
+              isResettingPassword={userMutations.resetPassword.isPending}
+              isUpdatingStatus={isUpdatingStatus}
+              onResetPassword={(userId, newPassword) =>
+                userMutations.resetPassword.mutateAsync({
+                  userId,
+                  newPassword,
+                })
+              }
+              onStatusChange={(user) =>
+                user.status === 'DISABLED'
+                  ? userMutations.reactivateUser.mutateAsync(user.id)
+                  : userMutations.disableUser.mutateAsync(user.id)
+              }
+            />
+            {usersQuery.hasNextPage ? (
+              <div className="border-t p-4 text-center">
+                <Button
+                  variant="outline"
+                  disabled={usersQuery.isFetchingNextPage}
+                  onClick={() => void usersQuery.fetchNextPage()}
+                >
+                  {usersQuery.isFetchingNextPage ? 'Loading...' : 'Load more'}
+                </Button>
+              </div>
+            ) : null}
+          </>
         </DataTableState>
       </AdminPanel>
     </div>

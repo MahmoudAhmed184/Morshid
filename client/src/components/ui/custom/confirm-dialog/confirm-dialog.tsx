@@ -64,6 +64,7 @@ export function ConfirmDialog({
   const [internalOpen, setInternalOpen] = useState(false)
   const [inputValue, setInputValue] = useState('')
   const [isConfirming, setIsConfirming] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const isOpen = open ?? internalOpen
   const inputMatches = confirmInput
     ? inputValue.trim() === confirmInput.value
@@ -74,6 +75,8 @@ export function ConfirmDialog({
     if (!nextOpen) {
       setInputValue('')
     }
+
+    setErrorMessage(null)
 
     onOpenChange?.(nextOpen)
     setInternalOpen(nextOpen)
@@ -88,6 +91,12 @@ export function ConfirmDialog({
       setIsConfirming(true)
       await onConfirm()
       setOpen(false)
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : 'Unable to complete this action. Please try again.',
+      )
     } finally {
       setIsConfirming(false)
     }
@@ -126,6 +135,12 @@ export function ConfirmDialog({
               onChange={(event) => setInputValue(event.target.value)}
             />
           </div>
+        ) : null}
+
+        {errorMessage ? (
+          <p role="alert" className="text-sm text-destructive">
+            {errorMessage}
+          </p>
         ) : null}
 
         <AlertDialogFooter>
