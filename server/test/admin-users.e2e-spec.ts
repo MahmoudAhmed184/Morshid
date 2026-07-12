@@ -225,6 +225,10 @@ describe('Admin users (e2e)', () => {
       components: {
         schemas: Record<string, { properties: Record<string, unknown> }>
       }
+      paths: Record<
+        string,
+        { get?: { parameters?: { name: string; required: boolean }[] } }
+      >
     }
     const schemas = document.components.schemas
     const passwordPolicy = {
@@ -239,6 +243,12 @@ describe('Admin users (e2e)', () => {
     expect(
       schemas.AdminResetUserPasswordRequestDto.properties.newPassword,
     ).toMatchObject(passwordPolicy)
+    expect(document.paths['/api/v1/admin/users'].get?.parameters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'limit', required: false }),
+        expect.objectContaining({ name: 'cursor', required: false }),
+      ]),
+    )
   })
 
   it('returns field-level validation errors for empty passwords', async () => {

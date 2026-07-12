@@ -33,6 +33,12 @@ export class AdminUserEmailAlreadyExistsError extends Error {
 
 export class CannotDisableLastActiveAdminError extends Error {}
 
+export class AdminUserNotFoundError extends Error {
+  constructor(readonly userId: string) {
+    super(`Admin user not found: ${userId}`)
+  }
+}
+
 export function duplicateAdminUserEmailException(email: string): HttpException {
   return new ConflictException({
     code: ADMIN_USERS_ERROR_CODES.DUPLICATE_EMAIL,

@@ -17,6 +17,7 @@ import {
   ApiBody,
   ApiCreatedResponse,
   ApiOkResponse,
+  ApiQuery,
   ApiTags,
 } from '@nestjs/swagger'
 import type { z } from 'zod'
@@ -67,6 +68,15 @@ export class AdminUsersController {
   @Get()
   @SerializeOptions({ type: AdminUserListResponseDto, strategy: 'excludeAll' })
   @ApiOkResponse({ type: AdminUserListResponseDto })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    minimum: 1,
+    maximum: 100,
+    example: 50,
+  })
+  @ApiQuery({ name: 'cursor', required: false, type: String, format: 'uuid' })
   listUsers(
     @Query(
       new ZodValidationPipe(adminListUsersQuerySchema, (issues) =>

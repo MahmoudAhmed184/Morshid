@@ -20,6 +20,7 @@ import type {
 } from './admin-users.dto'
 import {
   AdminUserEmailAlreadyExistsError,
+  AdminUserNotFoundError,
   CannotDisableLastActiveAdminError,
   adminUserNotFoundException,
   cannotDisableLastActiveAdminException,
@@ -120,6 +121,10 @@ export class AdminUsersService {
     } catch (error) {
       if (error instanceof CannotDisableLastActiveAdminError) {
         throw cannotDisableLastActiveAdminException()
+      }
+
+      if (error instanceof AdminUserNotFoundError) {
+        throw adminUserNotFoundException(error.userId)
       }
 
       throw error

@@ -194,7 +194,6 @@ export class AuthTestStore {
         Promise.resolve(this.findAuditLog(args)),
       ),
     },
-    $queryRaw: jest.fn().mockResolvedValue([{ pg_advisory_xact_lock: null }]),
     $transaction: jest.fn(
       async <T>(fn: (tx: AuthTestStore['prisma']) => Promise<T>) =>
         fn(this.prisma),

@@ -12,6 +12,7 @@ import type { AdminCreatableUserRole } from './admin-users.dto'
 import { AdminUsersAuditService } from './admin-users.audit.service'
 import {
   AdminUserEmailAlreadyExistsError,
+  AdminUserNotFoundError,
   CannotDisableLastActiveAdminError,
 } from './admin-users.errors'
 
@@ -181,15 +182,6 @@ export class PrismaAdminUsersRepository extends AdminUsersRepository {
     }
   }
 
-  countActiveAdmins(): Promise<number> {
-    return this.prismaService.user.count({
-      where: {
-        role: UserRole.ADMIN,
-        status: UserStatus.ACTIVE,
-      },
-    })
-  }
-
   async createUser(
     input: CreateAdminUserRepositoryInput,
   ): Promise<AdminUserRecord> {
@@ -226,87 +218,84 @@ export class PrismaAdminUsersRepository extends AdminUsersRepository {
     }
   }
 
-  disableUser(
+  async disableUser(
     input: DisableAdminUserRepositoryInput,
   ): Promise<AdminUserRecord> {
-    return this.prismaService.$transaction(async (tx) => {
-      await tx.$queryRaw`
-        SELECT pg_advisory_xact_lock(
-          hashtext('morshid:disable-admin-user')
-        ) IS NULL AS locked
-      `
+    const target = await this.prismaService.user.findUnique({
+      where: { id: input.userId },
+      select: { role: true },
+    })
+    const protectsActiveAdmins = target?.role === UserRole.ADMIN
 
-      const currentUser = await tx.user.findUnique({
-        where: {
-          id: input.userId,
-        },
-        select: adminUserRecordSelect,
-      })
+    return this.prismaService.$transaction(
+      async (tx) => {
+        const lockedActiveAdmins = protectsActiveAdmins
+          ? await lockActiveAdmins(tx)
+          : null
+        const findCurrentUser = () =>
+          tx.user.findUnique({
+            where: {
+              id: input.userId,
+            },
+            select: adminUserRecordSelect,
+          })
+        const currentUser = await findCurrentUser()
 
-      if (currentUser === null) {
-        return tx.user.update({
+        if (currentUser === null) {
+          throw new AdminUserNotFoundError(input.userId)
+        }
+
+        if (currentUser.status === UserStatus.DISABLED) {
+          return currentUser
+        }
+
+        if (currentUser.role === UserRole.ADMIN) {
+          const activeAdminCount = lockedActiveAdmins?.length ?? 0
+
+          if (activeAdminCount <= 1) {
+            throw new CannotDisableLastActiveAdminError()
+          }
+        }
+
+        const user = await tx.user.update({
           where: {
             id: input.userId,
           },
-          data: {},
+          data: {
+            status: UserStatus.DISABLED,
+            disabledAt: input.disabledAt,
+            disabledById: input.actorUserId,
+          },
           select: adminUserRecordSelect,
         })
-      }
 
-      if (currentUser.status === UserStatus.DISABLED) {
-        return currentUser
-      }
-
-      if (currentUser.role === UserRole.ADMIN) {
-        const activeAdminCount = await tx.user.count({
+        const revokedRefreshTokens = await tx.refreshToken.updateMany({
           where: {
-            role: UserRole.ADMIN,
-            status: UserStatus.ACTIVE,
+            userId: input.userId,
+            revokedAt: null,
+            expiresAt: {
+              gt: input.disabledAt,
+            },
+          },
+          data: {
+            revokedAt: input.disabledAt,
           },
         })
 
-        if (activeAdminCount <= 1) {
-          throw new CannotDisableLastActiveAdminError()
-        }
-      }
-
-      const user = await tx.user.update({
-        where: {
-          id: input.userId,
-        },
-        data: {
-          status: UserStatus.DISABLED,
-          disabledAt: input.disabledAt,
-          disabledById: input.actorUserId,
-        },
-        select: adminUserRecordSelect,
-      })
-
-      const revokedRefreshTokens = await tx.refreshToken.updateMany({
-        where: {
-          userId: input.userId,
-          revokedAt: null,
-          expiresAt: {
-            gt: input.disabledAt,
+        await this.adminUsersAuditService.recordUserDisabled(
+          {
+            actorUserId: input.actorUserId,
+            targetUser: user,
+            revokedRefreshTokenCount: revokedRefreshTokens.count,
+            requestContext: input.requestContext,
           },
-        },
-        data: {
-          revokedAt: input.disabledAt,
-        },
-      })
+          tx,
+        )
 
-      await this.adminUsersAuditService.recordUserDisabled(
-        {
-          actorUserId: input.actorUserId,
-          targetUser: user,
-          revokedRefreshTokenCount: revokedRefreshTokens.count,
-          requestContext: input.requestContext,
-        },
-        tx,
-      )
-
-      return user
-    })
+        return user
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
+    )
   }
 
   reactivateUser(
@@ -386,4 +375,17 @@ function isUniqueConstraintViolation(error: unknown): boolean {
     error instanceof Prisma.PrismaClientKnownRequestError &&
     error.code === 'P2002'
   )
+}
+
+async function lockActiveAdmins(
+  transaction: Prisma.TransactionClient,
+): Promise<{ id: string }[]> {
+  return transaction.$queryRaw<{ id: string }[]>`
+    SELECT id
+    FROM users
+    WHERE role = 'ADMIN'::user_role
+      AND status = 'ACTIVE'::user_status
+    ORDER BY id
+    FOR UPDATE
+  `
 }
