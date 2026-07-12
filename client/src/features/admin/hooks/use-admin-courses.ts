@@ -12,6 +12,7 @@ import {
   adminCourseMembersQueryOptions,
   adminCoursesQueryOptions,
 } from '@/features/admin/data/admin-courses.queries'
+import { adminAuditKeys } from '@/features/admin/data/admin-audit.queries'
 import type { CourseMembershipRole } from '@/features/admin/schemas/admin-course.schema'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 
@@ -59,6 +60,9 @@ export function useAdminCourseMutations(courseId: string | undefined) {
       queryClient.invalidateQueries({
         queryKey: adminCourseKeys.members(adminId, courseId),
       }),
+      queryClient.invalidateQueries({
+        queryKey: adminAuditKeys.all(adminId),
+      }),
     ])
   }
 
@@ -96,6 +100,9 @@ export function useAdminCourseMutations(courseId: string | undefined) {
         }),
         queryClient.invalidateQueries({
           queryKey: adminCourseKeys.all(adminId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: adminAuditKeys.all(adminId),
         }),
       ])
     },
