@@ -15,9 +15,7 @@ export function AppProviders() {
     <QueryClientProvider client={getAppQueryClient()}>
       <ThemeProvider defaultTheme="system" storageKey="theme">
         <AuthRefreshSync />
-        {isInstructorRoute ? null : <Navbar />}
         <Outlet />
-        {isInstructorRoute ? null : <Footer />}
       </ThemeProvider>
     </QueryClientProvider>
   )
