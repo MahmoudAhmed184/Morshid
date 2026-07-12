@@ -1,7 +1,10 @@
 import { getCurrentUser } from '@/features/auth/api/auth.api'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
-import type { AuthUser } from '@/features/auth/types/auth.types'
-import { isTerminalAuthError, restoreAuthSession } from '@/lib/api/api-client'
+import type { AuthUser } from '@/features/auth/schemas/auth.schema'
+import {
+  isTerminalAuthError,
+  restoreAuthSession,
+} from '@/features/auth/api/authenticated-api-client'
 
 const authValidationCacheMs = 5_000
 
@@ -39,10 +42,7 @@ export async function loadAuthenticatedUser(): Promise<AuthUser | null> {
 
   let authState = useAuthStore.getState()
 
-  if (
-    (!authState.isAuthenticated || !authState.user || !authState.accessToken) &&
-    authState.refreshToken
-  ) {
+  if (!authState.isAuthenticated || !authState.user || !authState.accessToken) {
     const restoredSession = await restoreAuthSession().catch(
       (error: unknown) => {
         if (isTerminalAuthError(error)) {
@@ -71,12 +71,7 @@ export async function loadAuthenticatedUser(): Promise<AuthUser | null> {
     return restoredSession.user
   }
 
-  const { accessToken, isAuthenticated, sessionVersion, user } = authState
-
-  if (!isAuthenticated || !user || !accessToken) {
-    clearAuthValidationCache()
-    return null
-  }
+  const { sessionVersion } = authState
 
   const cachedUser = getCachedUser(sessionVersion)
 

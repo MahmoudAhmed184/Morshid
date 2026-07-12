@@ -8,10 +8,7 @@ import {
 } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import {
-  authSessionStorageKey,
-  useAuthStore,
-} from '@/features/auth/stores/auth.store'
+import { useAuthStore } from '@/features/auth/stores/auth.store'
 import type { AuthSession } from '@/features/auth/types/auth.types'
 
 import { RolePlaceholderPage } from './role-placeholder-page'
@@ -36,13 +33,6 @@ const mockSession: AuthSession = {
   accessTokenExpiresAt: '2026-07-11T12:15:00.000Z',
   refreshToken: 'mock-refresh-token:mock-admin',
   refreshTokenExpiresAt: '2026-07-18T12:00:00.000Z',
-}
-
-const storedMockSession = {
-  v: 2,
-  userId: mockSession.user.id,
-  refreshToken: mockSession.refreshToken,
-  refreshTokenExpiresAt: mockSession.refreshTokenExpiresAt,
 }
 
 describe('RolePlaceholderPage', () => {
@@ -71,9 +61,7 @@ describe('RolePlaceholderPage', () => {
 
     expect(screen.getByRole('heading', { name: 'Admin' })).toBeDefined()
     expect(useAuthStore.getState().isAuthenticated).toBe(true)
-    expect(window.localStorage.getItem(authSessionStorageKey)).toBe(
-      JSON.stringify(storedMockSession),
-    )
+    expect(window.localStorage).toHaveLength(0)
 
     fireEvent.click(screen.getByRole('button', { name: /logout/i }))
 
@@ -94,7 +82,7 @@ describe('RolePlaceholderPage', () => {
     expect(requestHeaders.get('Accept')).toBe('application/json')
     expect(requestHeaders.get('Content-Type')).toBe('application/json')
     expect(useAuthStore.getState().isAuthenticated).toBe(false)
-    expect(window.localStorage.getItem(authSessionStorageKey)).toBeNull()
+    expect(window.localStorage).toHaveLength(0)
   })
 
   it('clears local auth state even when logout revocation fails', async () => {
@@ -113,6 +101,6 @@ describe('RolePlaceholderPage', () => {
       expect(navigateMock).toHaveBeenCalledWith({ to: '/login' })
     })
     expect(useAuthStore.getState().isAuthenticated).toBe(false)
-    expect(window.localStorage.getItem(authSessionStorageKey)).toBeNull()
+    expect(window.localStorage).toHaveLength(0)
   })
 })

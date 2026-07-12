@@ -295,7 +295,7 @@ describe('SignInForm', () => {
       await waitForSignInRedirect()
     })
 
-    it('stores the session and redirects on valid seeded credentials', async () => {
+    it('keeps the session in memory and redirects on valid seeded credentials', async () => {
       renderSignInForm()
       fillSignInForm({
         email: 'INSTRUCTOR@MORSHID.DEMO',
@@ -321,14 +321,7 @@ describe('SignInForm', () => {
       })
       expect(navigateMock).toHaveBeenCalledWith({ to: '/instructor' })
       expect(window.sessionStorage.getItem('morshid.auth.session')).toBeNull()
-      expect(
-        JSON.parse(window.localStorage.getItem('morshid.auth.session')!),
-      ).toEqual({
-        v: 2,
-        userId: mockSession.user.id,
-        refreshToken: mockSession.refreshToken,
-        refreshTokenExpiresAt: mockSession.refreshTokenExpiresAt,
-      })
+      expect(window.localStorage.getItem('morshid.auth.session')).toBeNull()
     })
 
     it('shows a generic error for wrong credentials', async () => {
