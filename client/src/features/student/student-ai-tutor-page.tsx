@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/custom/empty-state'
 import { Textarea } from '@/components/ui/textarea'
+import { StudentPageHeader } from '@/features/student/components/student-page-header'
 import { useStudentCourses } from '@/features/student/hooks/use-student-courses'
 import { cn } from '@/lib/utils'
 
@@ -23,14 +24,7 @@ export function StudentAiTutorPage({ courseId }: StudentAiTutorPageProps) {
 
   return (
     <div className="flex flex-1 flex-col px-4 py-5 sm:px-6">
-      <div className="mb-5 flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm text-muted-foreground">Student Workspace</p>
-          <h1 className="text-2xl font-semibold text-foreground sm:text-3xl">
-            AI Tutor
-          </h1>
-        </div>
-      </div>
+      <StudentPageHeader title="AI Tutor" />
 
       <section
         className="flex min-h-96 flex-1 flex-col rounded-md border border-border bg-card text-card-foreground"

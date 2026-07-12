@@ -1,6 +1,7 @@
 import { BookOpen, MessageSquareText } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
+import { StudentPageHeader } from '@/features/student/components/student-page-header'
 import { useStudentCourses } from '@/features/student/hooks/use-student-courses'
 
 export function StudentDashboardPage() {
@@ -9,12 +10,7 @@ export function StudentDashboardPage() {
 
   return (
     <div className="flex flex-1 flex-col px-4 py-5 sm:px-6">
-      <div className="mb-5">
-        <p className="text-sm text-muted-foreground">Student Workspace</p>
-        <h1 className="text-2xl font-semibold text-foreground sm:text-3xl">
-          Dashboard
-        </h1>
-      </div>
+      <StudentPageHeader title="Dashboard" />
 
       <section className="grid gap-4 md:grid-cols-2">
         <article className="rounded-md border border-border bg-card p-4 text-card-foreground">

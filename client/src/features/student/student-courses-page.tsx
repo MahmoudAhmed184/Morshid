@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router'
 import { Badge } from '@/components/ui/badge'
 import { buttonVariants } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/custom/empty-state'
+import { StudentPageHeader } from '@/features/student/components/student-page-header'
 import { useStudentCourses } from '@/features/student/hooks/use-student-courses'
 import { cn } from '@/lib/utils'
 
@@ -11,12 +12,7 @@ export function StudentCoursesPage() {
 
   return (
     <div className="flex flex-1 flex-col px-4 py-5 sm:px-6">
-      <div className="mb-5">
-        <p className="text-sm text-muted-foreground">Student Workspace</p>
-        <h1 className="text-2xl font-semibold text-foreground sm:text-3xl">
-          Courses
-        </h1>
-      </div>
+      <StudentPageHeader title="Courses" />
 
       {assignedCourses.length > 0 ? (
         <section
