@@ -83,7 +83,7 @@ describe('AuthService token lifecycle', () => {
   })
 
   it('rotates refresh tokens and rejects the replaced token', async () => {
-    const { service } = buildAuthServiceTestHarness()
+    const { service, store } = buildAuthServiceTestHarness()
     const session = await service.signIn(
       {
         email: 'student1@morshid.demo',
@@ -91,6 +91,7 @@ describe('AuthService token lifecycle', () => {
       },
       requestContext,
     )
+    const transactionSpy = jest.spyOn(store.prisma, '$transaction')
 
     const rotatedSession = await service.refresh(
       {
@@ -101,6 +102,10 @@ describe('AuthService token lifecycle', () => {
 
     expect(rotatedSession.refreshToken).not.toBe(session.refreshToken)
     expect(rotatedSession.accessToken).toEqual(expect.any(String))
+    expect(transactionSpy).toHaveBeenCalledWith(expect.any(Function), {
+      maxWait: 10_000,
+      timeout: 5_000,
+    })
     await expect(
       service.refresh(
         {
