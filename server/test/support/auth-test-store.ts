@@ -2,6 +2,7 @@ import type {
   AuditLog,
   Course,
   CourseMembership,
+  Material,
   Prisma,
   RefreshToken,
   User,
@@ -15,8 +16,12 @@ import {
 import type { PrismaService } from '../../src/modules/prisma/prisma.service'
 
 type StoredCourseMembership = CourseMembership & { course?: Course }
-type StoredCourse = Course & { memberships?: CourseMembership[] }
+type StoredCourse = Course & {
+  memberships?: CourseMembership[]
+  materials?: Material[]
+}
 type StoredRefreshToken = RefreshToken & { user?: User }
+type StoredMaterial = Material
 
 interface FindUniqueArgs {
   where: {
@@ -97,10 +102,15 @@ interface UpdateManyRefreshTokenArgs {
 interface FindManyMembershipArgs {
   where?: {
     userId?: string
+    courseId?: string
   }
   include?: {
     course?: boolean
   }
+  orderBy?: {
+    role?: 'asc' | 'desc'
+    user?: { email?: 'asc' | 'desc' }
+  }[]
 }
 
 interface FindManyCourseArgs {
@@ -132,9 +142,73 @@ interface FindUniqueAuditLogArgs {
   }
 }
 
+interface CreateCourseMembershipArgs {
+  data: Pick<CourseMembership, 'courseId' | 'userId' | 'role' | 'createdById'>
+}
+
+interface DeleteCourseMembershipArgs {
+  where: {
+    courseId_userId: {
+      courseId: string
+      userId: string
+    }
+  }
+}
+
+interface UpdateCourseMembershipArgs {
+  where: {
+    courseId_userId: {
+      courseId: string
+      userId: string
+    }
+  }
+  data: Partial<Pick<CourseMembership, 'role'>>
+}
+
+interface FindUniqueMembershipArgs {
+  where: {
+    courseId_userId: {
+      courseId: string
+      userId: string
+    }
+  }
+}
+
+interface FindUniqueCourseArgs {
+  where: {
+    id: string
+  }
+}
+
+interface FindManyMaterialArgs {
+  where?: {
+    courseId?: string
+    deletedAt?: null | Date
+  }
+  orderBy?: {
+    createdAt?: 'asc' | 'desc'
+  }
+}
+
+interface FindFirstMaterialArgs {
+  where?: {
+    id?: string
+    courseId?: string
+    deletedAt?: null | Date
+  }
+}
+
+interface UpdateMaterialArgs {
+  where: {
+    id: string
+  }
+  data: Partial<Pick<Material, 'title'>>
+}
+
 export class AuthTestStore {
   readonly users = new Map<string, User>()
   readonly courses = new Map<string, Course>()
+  readonly materials = new Map<string, Material>()
   readonly memberships: CourseMembership[] = []
   readonly refreshTokens = new Map<string, RefreshToken>()
   readonly auditLogs = new Map<string, AuditLog>()
@@ -142,6 +216,8 @@ export class AuthTestStore {
   private nextUserSequence = 1
   private nextRefreshTokenSequence = 1
   private nextAuditLogSequence = 1
+  private nextMembershipSequence = 1
+  private nextMaterialSequence = 1
   private failNextActiveRefreshTokenRevoke = false
 
   readonly prisma = {
@@ -177,13 +253,39 @@ export class AuthTestStore {
       ),
     },
     courseMembership: {
+      findUnique: jest.fn((args: FindUniqueMembershipArgs) =>
+        Promise.resolve(this.findUniqueMembership(args)),
+      ),
       findMany: jest.fn((args?: FindManyMembershipArgs) =>
         Promise.resolve(this.findMemberships(args)),
       ),
+      create: jest.fn((args: CreateCourseMembershipArgs) =>
+        Promise.resolve(this.createMembership(args)),
+      ),
+      delete: jest.fn((args: DeleteCourseMembershipArgs) =>
+        Promise.resolve(this.deleteMembership(args)),
+      ),
+      update: jest.fn((args: UpdateCourseMembershipArgs) =>
+        Promise.resolve(this.updateMembership(args)),
+      ),
     },
     course: {
+      findUnique: jest.fn((args: FindUniqueCourseArgs) =>
+        Promise.resolve(this.findCourse(args)),
+      ),
       findMany: jest.fn((args?: FindManyCourseArgs) =>
         Promise.resolve(this.findCourses(args)),
+      ),
+    },
+    material: {
+      findMany: jest.fn((args?: FindManyMaterialArgs) =>
+        Promise.resolve(this.findMaterials(args)),
+      ),
+      findFirst: jest.fn((args?: FindFirstMaterialArgs) =>
+        Promise.resolve(this.findFirstMaterial(args)),
+      ),
+      update: jest.fn((args: UpdateMaterialArgs) =>
+        Promise.resolve(this.updateMaterial(args)),
       ),
     },
     auditLog: {
@@ -236,6 +338,7 @@ export class AuthTestStore {
     const adminId = '00000000-0000-4000-8000-000000000001'
     const instructorId = '00000000-0000-4000-8000-000000000002'
     const pythonCourseId = '00000000-0000-4000-8000-000000000101'
+    const hiddenCourseId = '00000000-0000-4000-8000-000000000102'
 
     for (const [index, seedUser] of P0_DEMO_USERS.entries()) {
       const id = `00000000-0000-4000-8000-00000000000${(index + 1).toString()}`
@@ -263,11 +366,28 @@ export class AuthTestStore {
       createdAt: now,
       updatedAt: now,
     })
-    this.courses.set('00000000-0000-4000-8000-000000000102', {
-      id: '00000000-0000-4000-8000-000000000102',
+    this.courses.set(hiddenCourseId, {
+      id: hiddenCourseId,
       code: P0_HIDDEN_ISOLATION_COURSE.code,
       title: P0_HIDDEN_ISOLATION_COURSE.title,
       createdById: null,
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    this.materials.set('00000000-0000-4000-8000-000000000401', {
+      id: '00000000-0000-4000-8000-000000000401',
+      courseId: pythonCourseId,
+      uploadedById: instructorId,
+      title: 'Python Basics',
+      originalFilename: 'python_basics.pdf',
+      storagePath: '/storage/python_basics.pdf',
+      sha256Hash: 'dummyhash',
+      status: 'READY',
+      extractedTextLength: 1000,
+      chunkCount: 10,
+      errorMessage: null,
+      deletedAt: null,
       createdAt: now,
       updatedAt: now,
     })
@@ -523,15 +643,24 @@ export class AuthTestStore {
   private findMemberships(
     args: FindManyMembershipArgs | undefined,
   ): StoredCourseMembership[] {
+    let memberships = this.memberships
+
     const userId = args?.where?.userId
-    const memberships =
-      userId !== undefined
-        ? this.memberships.filter((membership) => membership.userId === userId)
-        : this.memberships
+    if (userId !== undefined) {
+      memberships = memberships.filter((m) => m.userId === userId)
+    }
+
+    const courseId = args?.where?.courseId
+    if (courseId !== undefined) {
+      memberships = memberships.filter((m) => m.courseId === courseId)
+    }
 
     return memberships.map((membership) => {
       if (args?.include?.course !== true) {
-        return membership
+        return {
+          ...membership,
+          user: this.users.get(membership.userId),
+        }
       }
 
       const course = this.courses.get(membership.courseId)
@@ -542,28 +671,202 @@ export class AuthTestStore {
 
       return {
         ...membership,
+        user: this.users.get(membership.userId),
         course,
       }
     })
   }
 
   private findCourses(args: FindManyCourseArgs | undefined): StoredCourse[] {
-    return [...this.courses.values()].map((course) => {
+    const courses = [...this.courses.values()]
+    courses.sort((a, b) => a.code.localeCompare(b.code))
+    return courses.map((course) => {
       const membershipUserId = args?.include?.memberships?.where?.userId
 
-      if (membershipUserId === undefined) {
-        return course
+      let courseMemberships = this.memberships.filter(
+        (membership) => membership.courseId === course.id,
+      )
+
+      if (membershipUserId !== undefined) {
+        courseMemberships = courseMemberships.filter(
+          (membership) => membership.userId === membershipUserId,
+        )
       }
 
       return {
         ...course,
-        memberships: this.memberships.filter(
-          (membership) =>
-            membership.courseId === course.id &&
-            membership.userId === membershipUserId,
+        memberships: courseMemberships.map((m) => ({
+          ...m,
+          user: this.users.get(m.userId),
+        })),
+        materials: [...this.materials.values()].filter(
+          (m) => m.courseId === course.id,
         ),
       }
     })
+  }
+
+  private findCourse(args: FindUniqueCourseArgs): StoredCourse | null {
+    const courseId = args.where.id
+    const course = this.courses.get(courseId)
+
+    if (!course) {
+      return null
+    }
+
+    const memberships = this.memberships
+      .filter((m) => m.courseId === courseId)
+      .map((m) => ({
+        ...m,
+        user: this.users.get(m.userId),
+      }))
+
+    return {
+      ...course,
+      memberships,
+      materials: [...this.materials.values()].filter(
+        (m) => m.courseId === course.id,
+      ),
+    }
+  }
+
+  private findUniqueMembership(args: FindUniqueMembershipArgs) {
+    const { courseId, userId } = args.where.courseId_userId
+    const membership = this.memberships.find(
+      (m) => m.courseId === courseId && m.userId === userId,
+    )
+    if (!membership) return null
+
+    return {
+      ...membership,
+      user: this.users.get(membership.userId),
+    }
+  }
+
+  private createMembership(args: CreateCourseMembershipArgs) {
+    const sequence = this.nextMembershipSequence
+    this.nextMembershipSequence += 1
+    const membership: CourseMembership = {
+      id: `00000000-0000-4000-8000-0000000002${sequence.toString().padStart(2, '0')}`,
+      courseId: args.data.courseId,
+      userId: args.data.userId,
+      role: args.data.role,
+      createdById: args.data.createdById,
+      createdAt: new Date('2026-07-06T12:00:00.000Z'),
+    }
+
+    const existing = this.memberships.findIndex(
+      (m) =>
+        m.courseId === membership.courseId && m.userId === membership.userId,
+    )
+    if (existing >= 0) {
+      const error = new Error('Unique constraint failed') as Error & {
+        code?: string
+      }
+      error.code = 'P2002'
+      throw error
+    }
+
+    this.memberships.push(membership)
+    return {
+      ...membership,
+      user: this.users.get(membership.userId),
+    }
+  }
+
+  private deleteMembership(args: DeleteCourseMembershipArgs) {
+    const { courseId, userId } = args.where.courseId_userId
+    const index = this.memberships.findIndex(
+      (m) => m.courseId === courseId && m.userId === userId,
+    )
+    if (index === -1) {
+      throw new Error('Membership not found')
+    }
+
+    const [deleted] = this.memberships.splice(index, 1)
+    return {
+      ...deleted,
+      user: this.users.get(deleted.userId),
+    }
+  }
+
+  private updateMembership(args: UpdateCourseMembershipArgs) {
+    const { courseId, userId } = args.where.courseId_userId
+    const index = this.memberships.findIndex(
+      (m) => m.courseId === courseId && m.userId === userId,
+    )
+    if (index === -1) {
+      throw new Error('Membership not found')
+    }
+
+    const role = args.data.role
+    const updated: CourseMembership = {
+      ...this.memberships[index],
+      role: role ?? this.memberships[index].role,
+    }
+    this.memberships[index] = updated
+    return {
+      ...updated,
+      user: this.users.get(updated.userId),
+    }
+  }
+
+  private findMaterials(
+    args: FindManyMaterialArgs | undefined,
+  ): StoredMaterial[] {
+    let materials = [...this.materials.values()]
+
+    const courseId = args?.where?.courseId
+    if (courseId !== undefined) {
+      materials = materials.filter((m) => m.courseId === courseId)
+    }
+
+    if (args?.where?.deletedAt === null) {
+      materials = materials.filter((m) => m.deletedAt === null)
+    }
+
+    if (args?.orderBy?.createdAt === 'desc') {
+      materials.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    }
+
+    return materials
+  }
+
+  private findFirstMaterial(
+    args: FindFirstMaterialArgs | undefined,
+  ): StoredMaterial | null {
+    let materials = [...this.materials.values()]
+
+    const id = args?.where?.id
+    if (id !== undefined) {
+      materials = materials.filter((m) => m.id === id)
+    }
+
+    const courseId = args?.where?.courseId
+    if (courseId !== undefined) {
+      materials = materials.filter((m) => m.courseId === courseId)
+    }
+
+    if (args?.where?.deletedAt === null) {
+      materials = materials.filter((m) => m.deletedAt === null)
+    }
+
+    return materials[0] ?? null
+  }
+
+  private updateMaterial(args: UpdateMaterialArgs): StoredMaterial {
+    const material = this.materials.get(args.where.id)
+    if (!material) {
+      throw new Error('Material not found')
+    }
+
+    const updated = {
+      ...material,
+      ...args.data,
+      updatedAt: new Date('2026-07-06T12:00:00.000Z'),
+    }
+    this.materials.set(args.where.id, updated)
+    return updated
   }
 
   private createAuditLog(args: CreateAuditLogArgs): AuditLog {

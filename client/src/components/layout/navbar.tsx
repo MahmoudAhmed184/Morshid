@@ -1,7 +1,8 @@
 import { Link } from '@tanstack/react-router'
-import { GraduationCap, Menu } from 'lucide-react'
+import { Menu } from 'lucide-react'
 import { useState } from 'react'
 
+import { Logo } from '@/components/logo'
 import { Button } from '@/components/ui/button'
 import { ModeToggle } from '@/components/ui/mode-toggle'
 import { Separator } from '@/components/ui/separator'
@@ -13,6 +14,8 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
+import { useAuthStore } from '@/features/auth/stores/auth.store'
+import { getDashboardPath } from '@/features/auth/utils/auth-redirect'
 import { cn } from '@/lib/utils'
 
 const navLinks = [
@@ -45,6 +48,8 @@ function NavLink({ href, children, className, onClick }: NavLinkProps) {
 
 export function Navbar() {
   const [open, setOpen] = useState(false)
+  const user = useAuthStore((state) => state.user)
+  const dashboardPath = user ? getDashboardPath(user.role) : null
 
   return (
     <header
@@ -60,9 +65,10 @@ export function Navbar() {
             to="/"
             className="flex items-center gap-2.5 text-foreground transition-opacity hover:opacity-80"
           >
-            <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <GraduationCap className="size-4" aria-hidden />
-            </div>
+            <Logo
+              className="size-8 shrink rounded-lg bg-primary text-primary-foreground"
+              iconClassName="size-4"
+            />
             <span className="text-base font-semibold tracking-tight">
               Morshid
             </span>
@@ -79,21 +85,33 @@ export function Navbar() {
 
         <div className="flex flex-1 items-center justify-end gap-2 sm:gap-3">
           <ModeToggle />
-          <Button
-            nativeButton={false}
-            render={<Link to="/login" />}
-            variant="ghost"
-            className="hidden sm:inline-flex"
-          >
-            Log in
-          </Button>
-          <Button
-            nativeButton={false}
-            render={<Link to="/login" />}
-            className="hidden sm:inline-flex"
-          >
-            Get Started
-          </Button>
+          {dashboardPath ? (
+            <Button
+              nativeButton={false}
+              render={<Link to={dashboardPath} />}
+              className="hidden sm:inline-flex"
+            >
+              Dashboard
+            </Button>
+          ) : (
+            <>
+              <Button
+                nativeButton={false}
+                render={<Link to="/login" />}
+                variant="ghost"
+                className="hidden sm:inline-flex"
+              >
+                Log in
+              </Button>
+              <Button
+                nativeButton={false}
+                render={<Link to="/login" />}
+                className="hidden sm:inline-flex"
+              >
+                Get Started
+              </Button>
+            </>
+          )}
 
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger
@@ -111,7 +129,10 @@ export function Navbar() {
             <SheetContent side="right" className="w-full max-w-xs">
               <SheetHeader>
                 <SheetTitle className="flex items-center gap-2">
-                  <GraduationCap className="size-5 text-primary" aria-hidden />
+                  <Logo
+                    className="size-5 shrink rounded-none bg-transparent text-primary"
+                    iconClassName="size-5"
+                  />
                   Morshid
                 </SheetTitle>
               </SheetHeader>
@@ -132,31 +153,48 @@ export function Navbar() {
                   </SheetClose>
                 ))}
                 <Separator className="my-3" />
-                <SheetClose
-                  nativeButton={false}
-                  render={
-                    <Button
+                {dashboardPath ? (
+                  <SheetClose
+                    nativeButton={false}
+                    render={
+                      <Button
+                        nativeButton={false}
+                        render={<Link to={dashboardPath} />}
+                        className="w-full"
+                      />
+                    }
+                  >
+                    Dashboard
+                  </SheetClose>
+                ) : (
+                  <>
+                    <SheetClose
                       nativeButton={false}
-                      render={<Link to="/login" />}
-                      variant="outline"
-                      className="w-full"
-                    />
-                  }
-                >
-                  Log in
-                </SheetClose>
-                <SheetClose
-                  nativeButton={false}
-                  render={
-                    <Button
+                      render={
+                        <Button
+                          nativeButton={false}
+                          render={<Link to="/login" />}
+                          variant="outline"
+                          className="w-full"
+                        />
+                      }
+                    >
+                      Log in
+                    </SheetClose>
+                    <SheetClose
                       nativeButton={false}
-                      render={<Link to="/login" />}
-                      className="w-full"
-                    />
-                  }
-                >
-                  Get Started
-                </SheetClose>
+                      render={
+                        <Button
+                          nativeButton={false}
+                          render={<Link to="/login" />}
+                          className="w-full"
+                        />
+                      }
+                    >
+                      Get Started
+                    </SheetClose>
+                  </>
+                )}
               </div>
             </SheetContent>
           </Sheet>
