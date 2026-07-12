@@ -32,6 +32,14 @@ export function AdminAssignmentsPage() {
     () => usersQuery.data?.pages.flatMap((page) => page.users) ?? [],
     [usersQuery.data],
   )
+  const courseSelectItems = useMemo(
+    () =>
+      coursesQuery.data?.map((course) => ({
+        value: course.id,
+        label: `${course.code} — ${course.title}`,
+      })) ?? [],
+    [coursesQuery.data],
+  )
   const assignedUserIds = useMemo(
     () => new Set(membersQuery.data?.map((member) => member.userId) ?? []),
     [membersQuery.data],
@@ -69,16 +77,17 @@ export function AdminAssignmentsPage() {
           className="border-b p-4"
           filters={
             <Select
-              value={courseId ?? ''}
+              value={courseId ?? null}
               onValueChange={(value) => setSelectedCourseId(value ?? '')}
+              items={courseSelectItems}
             >
               <SelectTrigger className="w-full sm:w-96" aria-label="Course">
                 <SelectValue placeholder="Choose a course" />
               </SelectTrigger>
               <SelectContent>
-                {coursesQuery.data?.map((course) => (
-                  <SelectItem key={course.id} value={course.id}>
-                    {course.code} — {course.title}
+                {courseSelectItems.map((course) => (
+                  <SelectItem key={course.value} value={course.value}>
+                    {course.label}
                   </SelectItem>
                 ))}
               </SelectContent>

@@ -49,6 +49,18 @@ export function AddCourseMemberDialog({
       ),
     [assignedUserIds, users],
   )
+  const userSelectItems = useMemo(
+    () =>
+      eligibleUsers.map((user) => ({
+        value: user.id,
+        label: `${user.displayName} (${user.email})`,
+      })),
+    [eligibleUsers],
+  )
+  const roleSelectItems = [
+    { value: 'STUDENT' as const, label: 'Student' },
+    { value: 'INSTRUCTOR' as const, label: 'Instructor' },
+  ]
 
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen)
@@ -92,16 +104,17 @@ export function AddCourseMemberDialog({
           <div className="space-y-2">
             <Label>User</Label>
             <Select
-              value={userId}
+              value={userId || null}
               onValueChange={(value) => setUserId(value ?? '')}
+              items={userSelectItems}
             >
               <SelectTrigger className="w-full" aria-label="User">
                 <SelectValue placeholder="Choose a user" />
               </SelectTrigger>
               <SelectContent>
-                {eligibleUsers.map((user) => (
-                  <SelectItem key={user.id} value={user.id}>
-                    {user.displayName} ({user.email})
+                {userSelectItems.map((user) => (
+                  <SelectItem key={user.value} value={user.value}>
+                    {user.label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -114,13 +127,17 @@ export function AddCourseMemberDialog({
               onValueChange={(value) => {
                 if (value) setRole(value)
               }}
+              items={roleSelectItems}
             >
               <SelectTrigger className="w-full" aria-label="Course role">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="STUDENT">Student</SelectItem>
-                <SelectItem value="INSTRUCTOR">Instructor</SelectItem>
+                {roleSelectItems.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

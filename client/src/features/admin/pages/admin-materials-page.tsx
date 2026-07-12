@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import { DataTableState } from '@/components/ui/custom/data-table-state'
 import { DataToolbar } from '@/components/ui/custom/data-toolbar'
@@ -40,6 +40,14 @@ export function AdminMaterialsPage() {
   const selectedCourse = coursesQuery.data?.find(
     (course) => course.id === courseId,
   )
+  const courseSelectItems = useMemo(
+    () =>
+      coursesQuery.data?.map((course) => ({
+        value: course.id,
+        label: `${course.code} — ${course.title}`,
+      })) ?? [],
+    [coursesQuery.data],
+  )
   const isLoading =
     coursesQuery.isPending ||
     (courseId !== undefined && materialsQuery.isPending)
@@ -59,16 +67,17 @@ export function AdminMaterialsPage() {
           className="border-b p-4"
           filters={
             <Select
-              value={courseId ?? ''}
+              value={courseId ?? null}
               onValueChange={(value) => setSelectedCourseId(value ?? '')}
+              items={courseSelectItems}
             >
               <SelectTrigger className="w-full sm:w-96" aria-label="Course">
                 <SelectValue placeholder="Choose a course" />
               </SelectTrigger>
               <SelectContent>
-                {coursesQuery.data?.map((course) => (
-                  <SelectItem key={course.id} value={course.id}>
-                    {course.code} — {course.title}
+                {courseSelectItems.map((course) => (
+                  <SelectItem key={course.value} value={course.value}>
+                    {course.label}
                   </SelectItem>
                 ))}
               </SelectContent>

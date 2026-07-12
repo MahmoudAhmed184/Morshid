@@ -180,6 +180,86 @@ describe('Admin routes', () => {
     }
   })
 
+  it('shows course labels instead of ids in the assignments course select', async () => {
+    const courseId = '2d29f6ab-c759-4a44-a1c6-5975ce1f7e5a'
+    const courseLabel = 'HIDDEN-ISOLATION — Hidden Isolation Test Course'
+    const memberUserId = 'acace6a5-7430-4dbf-b327-d76f3d51542a'
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+
+        if (url.endsWith('/api/v1/me')) {
+          return Response.json({ user: adminSession.user })
+        }
+
+        if (url.includes('/api/v1/admin/users?')) {
+          return Response.json({
+            users: [],
+            pagination: { nextCursor: null },
+          })
+        }
+
+        if (url.endsWith('/api/v1/admin/courses')) {
+          return Response.json({
+            courses: [
+              {
+                id: courseId,
+                code: 'HIDDEN-ISOLATION',
+                title: 'Hidden Isolation Test Course',
+                adminMetadata: {
+                  createdById: null,
+                  createdBy: null,
+                  createdAt: '2026-07-01T10:00:00.000Z',
+                  updatedAt: '2026-07-11T10:00:00.000Z',
+                  memberships: [],
+                  memberCount: 0,
+                  instructorCount: 0,
+                  studentCount: 0,
+                  materialCount: 0,
+                  activeMaterialCount: 0,
+                },
+              },
+            ],
+          })
+        }
+
+        if (url.endsWith(`/api/v1/admin/courses/${courseId}/members`)) {
+          return Response.json({
+            members: [
+              {
+                id: '4c530c42-67bf-4cbe-a6f3-2c662564ddd1',
+                userId: memberUserId,
+                role: 'STUDENT',
+                createdAt: '2026-07-01T10:00:00.000Z',
+                user: {
+                  id: memberUserId,
+                  email: 'student@morshid.demo',
+                  displayName: 'Demo Student',
+                  role: 'STUDENT',
+                  status: 'ACTIVE',
+                },
+              },
+            ],
+          })
+        }
+
+        throw new Error(`Unexpected request: ${url}`)
+      }),
+    )
+
+    renderAdminRoute('/admin/assignments')
+
+    expect(
+      await screen.findByRole('heading', { name: 'Course Assignments' }),
+    ).toBeVisible()
+
+    const courseSelect = await screen.findByRole('combobox', { name: 'Course' })
+    expect(courseSelect).toHaveTextContent(courseLabel)
+    expect(courseSelect).not.toHaveTextContent(courseId)
+  })
+
   it('shows a retryable route error when critical data fails', async () => {
     const user = userEvent.setup()
     let usersRequestCount = 0

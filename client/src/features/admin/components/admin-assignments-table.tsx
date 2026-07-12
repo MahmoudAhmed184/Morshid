@@ -29,6 +29,11 @@ type AdminAssignmentsTableProps = {
   onRemove: (userId: string) => Promise<unknown>
 }
 
+const roleSelectItems = [
+  { value: 'STUDENT' as const, label: 'Student' },
+  { value: 'INSTRUCTOR' as const, label: 'Instructor' },
+]
+
 export function AdminAssignmentsTable({
   members,
   isPending,
@@ -61,6 +66,7 @@ export function AdminAssignmentsTable({
               <Select
                 value={member.role}
                 disabled={isPending}
+                items={roleSelectItems}
                 onValueChange={(value) => {
                   if (value) {
                     onRoleChange(member.userId, value)
@@ -73,8 +79,11 @@ export function AdminAssignmentsTable({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="STUDENT">Student</SelectItem>
-                  <SelectItem value="INSTRUCTOR">Instructor</SelectItem>
+                  {roleSelectItems.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </TableCell>
