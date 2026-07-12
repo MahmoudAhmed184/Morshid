@@ -68,12 +68,12 @@ uses a timing-safe comparison.
 Configure these values in `server/.env`. NestJS validates them at startup and
 also reads `.env` / `../.env` as fallbacks for local development.
 
-| Variable | Required | Default | Purpose |
-|---|---:|---:|---|
-| `AUTH_ACCESS_TOKEN_SECRET` | Yes | None | Secret used to sign and verify access JWTs. Use a unique random value with at least 32 characters per environment. |
-| `AUTH_REFRESH_TOKEN_HASH_SECRET` | Yes | None | Secret used to HMAC refresh tokens before database storage. Use a different unique random value from the access-token secret. |
-| `AUTH_ACCESS_TOKEN_TTL_SECONDS` | No | `900` | Access-token lifetime in seconds. The default is 15 minutes. |
-| `AUTH_REFRESH_TOKEN_TTL_DAYS` | No | `7` | Refresh-token lifetime in days. |
+| Variable                         | Required | Default | Purpose                                                                                                                       |
+| -------------------------------- | -------: | ------: | ----------------------------------------------------------------------------------------------------------------------------- |
+| `AUTH_ACCESS_TOKEN_SECRET`       |      Yes |    None | Secret used to sign and verify access JWTs. Use a unique random value with at least 32 characters per environment.            |
+| `AUTH_REFRESH_TOKEN_HASH_SECRET` |      Yes |    None | Secret used to HMAC refresh tokens before database storage. Use a different unique random value from the access-token secret. |
+| `AUTH_ACCESS_TOKEN_TTL_SECONDS`  |       No |   `900` | Access-token lifetime in seconds. The default is 15 minutes.                                                                  |
+| `AUTH_REFRESH_TOKEN_TTL_DAYS`    |       No |     `7` | Refresh-token lifetime in days.                                                                                               |
 
 Access tokens are JWTs signed by `@nestjs/jwt` / `jsonwebtoken` with the current
 HMAC SHA-256 default (`HS256`) and `AUTH_ACCESS_TOKEN_SECRET`. The token payload
