@@ -64,7 +64,9 @@ export function AdminUsersPage() {
         <div className="flex flex-wrap items-center gap-2 border-b p-4">
           <Select
             value={roleFilter}
-            onValueChange={(value) => setRoleFilter(value as RoleFilter)}
+            onValueChange={(value) => {
+              if (value) setRoleFilter(value)
+            }}
           >
             <SelectTrigger aria-label="Filter users by role">
               <SelectValue />
@@ -77,7 +79,9 @@ export function AdminUsersPage() {
           </Select>
           <Select
             value={statusFilter}
-            onValueChange={(value) => setStatusFilter(value as StatusFilter)}
+            onValueChange={(value) => {
+              if (value) setStatusFilter(value)
+            }}
           >
             <SelectTrigger aria-label="Filter users by status">
               <SelectValue />

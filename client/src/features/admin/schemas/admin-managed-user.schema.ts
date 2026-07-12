@@ -38,13 +38,24 @@ export const adminManagedUserResponseSchema = z.object({
   user: adminUserSchema,
 })
 
-const adminPasswordSchema = z
+export const adminPasswordSchema = z
   .string()
   .min(8, 'Password must be at least 8 characters.')
   .max(50, 'Password must be at most 50 characters.')
   .regex(/[A-Za-z]/, 'Password must contain at least one letter.')
   .regex(/[0-9]/, 'Password must contain at least one number.')
   .regex(/[^A-Za-z0-9]/, 'Password must contain at least one symbol.')
+
+export const adminCreateUserFormSchema = z.object({
+  name: z.string().trim().min(1, 'Name is required.').max(120),
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .pipe(z.email('Enter a valid email address.')),
+  password: adminPasswordSchema,
+  role: z.enum(['STUDENT', 'INSTRUCTOR']),
+})
 
 export const adminResetPasswordFormSchema = z
   .object({
@@ -67,4 +78,7 @@ export type AdminManagedUserRole = z.infer<typeof adminUserRoleSchema>
 export type AdminManagedUserStatus = z.infer<typeof adminUserStatusSchema>
 export type AdminResetPasswordFormValues = z.infer<
   typeof adminResetPasswordFormSchema
+>
+export type AdminCreateUserFormValues = z.infer<
+  typeof adminCreateUserFormSchema
 >

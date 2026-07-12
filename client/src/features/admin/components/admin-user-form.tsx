@@ -1,6 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Loader2Icon, SaveIcon, UserPlusIcon } from 'lucide-react'
-import { useMemo } from 'react'
+import { Loader2Icon, UserPlusIcon } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 
 import { Button } from '@/components/ui/button'
@@ -12,7 +11,6 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
 import { PasswordField } from '@/features/auth/components/password-field'
 import {
   Select,
@@ -21,39 +19,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { createAdminUserFormSchema } from '../schemas/admin-user.schema'
-import type { AdminUserFormValues } from '../schemas/admin-user.schema'
-import type { AdminUser } from '../data/admin-ops.types'
-
-type EditableAdminUser = AdminUser & {
-  role: 'Student' | 'Instructor'
-}
+import {
+  adminCreateUserFormSchema,
+} from '../schemas/admin-managed-user.schema'
+import type { AdminCreateUserFormValues } from '../schemas/admin-managed-user.schema'
+import { Input } from '@/components/ui/input'
 
 type AdminUserFormProps = {
-  user?: EditableAdminUser
-  showImage?: boolean
-  onSubmit: (values: AdminUserFormValues) => void | Promise<void>
+  onSubmit: (values: AdminCreateUserFormValues) => void | Promise<void>
   onCancel?: () => void
 }
 
-export function AdminUserForm({
-  user,
-  showImage = true,
-  onSubmit,
-  onCancel,
-}: AdminUserFormProps) {
-  const mode = user ? 'update' : 'create'
-  const schema = useMemo(() => createAdminUserFormSchema(mode), [mode])
-  const form = useForm<AdminUserFormValues>({
-    resolver: zodResolver(schema),
+export function AdminUserForm({ onSubmit, onCancel }: AdminUserFormProps) {
+  const form = useForm<AdminCreateUserFormValues>({
+    resolver: zodResolver(adminCreateUserFormSchema),
     mode: 'onSubmit',
     reValidateMode: 'onChange',
     defaultValues: {
-      name: user?.name ?? '',
-      email: user?.email ?? '',
+      name: '',
+      email: '',
       password: '',
-      role: user?.role ?? 'Student',
-      image: null,
+      role: 'STUDENT',
     },
   })
   const isSubmitting = form.formState.isSubmitting
@@ -108,31 +94,16 @@ export function AdminUserForm({
             name="password"
             render={({ field }) => (
               <FormItem>
-                {mode === 'create' ? (
-                  <PasswordField
-                    {...field}
-                    id="create-user-password"
-                    label="Password"
-                    placeholder="e.g., Password1!"
-                    autoComplete="new-password"
-                    showForgotPassword={false}
-                  />
-                ) : (
-                  <>
-                    <FormLabel>Password</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        type="password"
-                        placeholder="Leave blank to keep current"
-                        autoComplete="new-password"
-                      />
-                    </FormControl>
-                  </>
-                )}
+                <PasswordField
+                  {...field}
+                  id="create-user-password"
+                  label="Password"
+                  placeholder="e.g., Password1!"
+                  autoComplete="new-password"
+                  showForgotPassword={false}
+                />
                 <p className="text-xs text-muted-foreground">
-                  Minimum 9 characters with uppercase, lowercase, number, and
-                  special character.
+                  8–50 characters with at least one letter, number, and symbol.
                 </p>
                 <FormMessage />
               </FormItem>
@@ -152,41 +123,14 @@ export function AdminUserForm({
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="Student">Student</SelectItem>
-                    <SelectItem value="Instructor">Instructor</SelectItem>
+                    <SelectItem value="STUDENT">Student</SelectItem>
+                    <SelectItem value="INSTRUCTOR">Instructor</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />
               </FormItem>
             )}
           />
-
-          {showImage ? (
-            <FormField
-              control={form.control}
-              name="image"
-              render={({ field: { onChange, ref, name } }) => (
-                <FormItem className="sm:col-span-2">
-                  <FormLabel>Image</FormLabel>
-                  <FormControl>
-                    <Input
-                      ref={ref}
-                      name={name}
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp"
-                      onChange={(event) =>
-                        onChange(event.target.files?.[0] ?? null)
-                      }
-                    />
-                  </FormControl>
-                  <p className="text-xs text-muted-foreground">
-                    Optional. JPG, PNG, or WebP up to 2MB.
-                  </p>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          ) : null}
         </div>
 
         <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end">
@@ -203,18 +147,10 @@ export function AdminUserForm({
           <Button type="submit" disabled={isSubmitting}>
             {isSubmitting ? (
               <Loader2Icon className="animate-spin" />
-            ) : user ? (
-              <SaveIcon />
             ) : (
               <UserPlusIcon />
             )}
-            {isSubmitting
-              ? user
-                ? 'Saving...'
-                : 'Creating...'
-              : user
-                ? 'Save User'
-                : 'Create User'}
+            {isSubmitting ? 'Creating...' : 'Create User'}
           </Button>
         </div>
       </form>

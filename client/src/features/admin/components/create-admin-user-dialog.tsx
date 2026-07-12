@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dialog'
 import { useAdminUserMutations } from '@/features/admin/hooks/use-admin-users'
 import { AdminUserForm } from './admin-user-form'
-import type { AdminUserFormValues } from '../schemas/admin-user.schema'
+import type { AdminCreateUserFormValues } from '../schemas/admin-managed-user.schema'
 
 export function CreateAdminUserDialog() {
   const [open, setOpen] = useState(false)
@@ -24,13 +24,13 @@ export function CreateAdminUserDialog() {
     setErrorMessage(null)
   }
 
-  const handleSubmit = async (values: AdminUserFormValues) => {
+  const handleSubmit = async (values: AdminCreateUserFormValues) => {
     try {
       await createUser.mutateAsync({
         email: values.email,
         displayName: values.name,
         password: values.password,
-        role: values.role === 'Student' ? 'STUDENT' : 'INSTRUCTOR',
+        role: values.role,
       })
       handleOpenChange(false)
     } catch (error) {
@@ -61,7 +61,6 @@ export function CreateAdminUserDialog() {
           </p>
         ) : null}
         <AdminUserForm
-          showImage={false}
           onSubmit={handleSubmit}
           onCancel={() => handleOpenChange(false)}
         />

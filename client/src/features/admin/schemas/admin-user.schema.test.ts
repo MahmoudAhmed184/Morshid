@@ -1,110 +1,53 @@
 import { describe, expect, it } from 'vitest'
 
-import { createAdminUserFormSchema } from './admin-user.schema'
+import { adminCreateUserFormSchema } from './admin-managed-user.schema'
 
-const validPassword = 'Password1!'
-const passwordPolicyMessage =
-  'Password must be at least 9 characters and include uppercase, lowercase, number, and special character.'
-
-function parseAdminUserForm(
-  mode: 'create' | 'update',
-  input: Partial<{
-    name: string
-    email: string
-    password: string
-    role: string
-    image: File | null
-  }> = {},
-) {
-  return createAdminUserFormSchema(mode).safeParse({
-    name: input.name ?? 'Sarah Al-Farsi',
-    email: input.email ?? 'sarah@morshid.demo',
-    password: input.password ?? validPassword,
-    role: input.role ?? 'Student',
-    image: input.image ?? null,
+function parseCreateUser(input: Record<string, unknown> = {}) {
+  return adminCreateUserFormSchema.safeParse({
+    name: 'Sarah Al-Farsi',
+    email: 'sarah@morshid.demo',
+    password: 'Password1!',
+    role: 'STUDENT',
+    ...input,
   })
 }
 
-function getFieldError(
-  result: ReturnType<typeof parseAdminUserForm>,
-  field: 'name' | 'email' | 'password' | 'role' | 'image',
-) {
-  if (result.success) {
-    return undefined
-  }
+describe('admin create-user form schema', () => {
+  it.each(['STUDENT', 'INSTRUCTOR'])(
+    'accepts the API-supported %s role',
+    (role) => {
+      expect(parseCreateUser({ role }).success).toBe(true)
+    },
+  )
 
-  return result.error.issues.find((issue) => issue.path[0] === field)?.message
-}
-
-describe('admin user form schema', () => {
-  it('accepts a valid student user', () => {
-    const result = parseAdminUserForm('create')
-
-    expect(result.success).toBe(true)
+  it('rejects the admin role', () => {
+    expect(parseCreateUser({ role: 'ADMIN' }).success).toBe(false)
   })
 
-  it('accepts a valid instructor user', () => {
-    const result = parseAdminUserForm('create', { role: 'Instructor' })
-
-    expect(result.success).toBe(true)
-  })
-
-  it('rejects admin role from this form', () => {
-    const result = parseAdminUserForm('create', { role: 'Admin' })
-
-    expect(result.success).toBe(false)
-    expect(getFieldError(result, 'role')).toBeDefined()
-  })
-
-  it('requires password when creating a user', () => {
-    const result = parseAdminUserForm('create', { password: '' })
-
-    expect(result.success).toBe(false)
-    expect(getFieldError(result, 'password')).toBe(
-      'Password is required when creating a user.',
-    )
-  })
-
-  it('allows an empty password when updating a user', () => {
-    const result = parseAdminUserForm('update', { password: '' })
-
-    expect(result.success).toBe(true)
-  })
-
-  it('requires policy-compliant password when updating with a new password', () => {
-    const result = parseAdminUserForm('update', { password: 'short' })
-
-    expect(result.success).toBe(false)
-    expect(getFieldError(result, 'password')).toBe(passwordPolicyMessage)
+  it('matches the API password boundary of 8 to 50 characters', () => {
+    expect(parseCreateUser({ password: 'Pass123!' }).success).toBe(true)
+    expect(
+      parseCreateUser({ password: `Pass123!${'a'.repeat(43)}` }).success,
+    ).toBe(false)
   })
 
   it.each([
-    ['missing uppercase', 'password1!'],
-    ['missing lowercase', 'PASSWORD1!'],
-    ['missing number', 'Password!'],
-    ['missing special character', 'Password1'],
-    ['too short', 'Pass1!'],
-  ])('rejects password with %s', (_case, password) => {
-    const result = parseAdminUserForm('create', { password })
-
-    expect(result.success).toBe(false)
-    expect(getFieldError(result, 'password')).toBe(passwordPolicyMessage)
+    ['missing a letter', '1234567!'],
+    ['missing a number', 'Password!'],
+    ['missing a symbol', 'Password1'],
+  ])('rejects a password %s', (_case, password) => {
+    expect(parseCreateUser({ password }).success).toBe(false)
   })
 
-  it('accepts a supported optional image', () => {
-    const image = new File(['avatar'], 'avatar.png', { type: 'image/png' })
-    const result = parseAdminUserForm('create', { image })
+  it('normalizes the email and display name for the API', () => {
+    const result = parseCreateUser({
+      name: '  Sarah Al-Farsi  ',
+      email: '  SARAH@MORSHID.DEMO ',
+    })
 
-    expect(result.success).toBe(true)
-  })
-
-  it('rejects unsupported image types', () => {
-    const image = new File(['avatar'], 'avatar.gif', { type: 'image/gif' })
-    const result = parseAdminUserForm('create', { image })
-
-    expect(result.success).toBe(false)
-    expect(getFieldError(result, 'image')).toBe(
-      'Image must be JPG, PNG, or WebP.',
-    )
+    expect(result.success && result.data).toMatchObject({
+      name: 'Sarah Al-Farsi',
+      email: 'sarah@morshid.demo',
+    })
   })
 })
