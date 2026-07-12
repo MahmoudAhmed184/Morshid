@@ -193,7 +193,7 @@ describe('/instructor', () => {
     const { history } = renderAtInstructorRoute(createSession('ADMIN'))
 
     await waitFor(() => expect(history.location.pathname).toBe('/admin'))
-    expect(await screen.findByRole('heading', { name: 'Admin' })).toBeVisible()
+    expect(await screen.findByText('Morshid Admin')).toBeVisible()
   })
 
   it('redirects an unauthenticated browser session to sign in', async () => {
