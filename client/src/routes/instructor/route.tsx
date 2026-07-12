@@ -1,24 +1,7 @@
-import { Outlet, createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 
-import { AuthLoader } from '@/features/auth/components/auth-loader'
-import { RouteLoadError } from '@/components/route-load-error'
-import { requireRole } from '@/features/auth/utils/auth-redirect'
+import { createProtectedRoleRouteOptions } from '@/features/auth/utils/protected-role-route'
 
-export const Route = createFileRoute('/instructor')({
-  ssr: false,
-  beforeLoad: async () => {
-    const redirectPath = await requireRole('INSTRUCTOR')
-
-    if (redirectPath) {
-      throw redirect({ to: redirectPath })
-    }
-  },
-  component: Outlet,
-  errorComponent: RouteLoadError,
-  pendingComponent: AuthLoader,
-  pendingMs: 200,
-  pendingMinMs: 400,
-  head: () => ({
-    meta: [{ title: 'Instructor — Morshid' }],
-  }),
-})
+export const Route = createFileRoute('/instructor')(
+  createProtectedRoleRouteOptions('INSTRUCTOR', 'Instructor'),
+)

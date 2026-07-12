@@ -18,29 +18,46 @@ import { useAuthStore } from '@/features/auth/stores/auth.store'
 import { getDashboardPath } from '@/features/auth/utils/auth-redirect'
 import { cn } from '@/lib/utils'
 
-const navLinks = [
+const marketingNavLinks = [
   { label: 'Features', href: '#features' },
   { label: 'Pricing', href: '#pricing' },
   { label: 'About', href: '#about' },
 ] as const
 
+const instructorNavLinks = [
+  { label: 'Overview', to: '/instructor' },
+  { label: 'Materials', to: '/instructor', hash: 'materials' },
+  { label: 'Review queue', to: '/instructor', hash: 'reviews' },
+] as const
+
 type NavLinkProps = {
-  href: string
-  children: React.ReactNode
+  item: (typeof marketingNavLinks)[number] | (typeof instructorNavLinks)[number]
+  children?: React.ReactNode
   className?: string
   onClick?: () => void
 }
 
-function NavLink({ href, children, className, onClick }: NavLinkProps) {
+function NavLink({ item, children, className, onClick }: NavLinkProps) {
+  const linkClassName = cn(
+    'text-sm font-medium text-muted-foreground transition-colors hover:text-foreground',
+    className,
+  )
+
+  if ('to' in item) {
+    return (
+      <Link
+        to={item.to}
+        hash={'hash' in item ? item.hash : undefined}
+        onClick={onClick}
+        className={linkClassName}
+      >
+        {children}
+      </Link>
+    )
+  }
+
   return (
-    <a
-      href={href}
-      onClick={onClick}
-      className={cn(
-        'text-sm font-medium text-muted-foreground transition-colors hover:text-foreground',
-        className,
-      )}
-    >
+    <a href={item.href} onClick={onClick} className={linkClassName}>
       {children}
     </a>
   )
@@ -50,6 +67,8 @@ export function Navbar() {
   const [open, setOpen] = useState(false)
   const user = useAuthStore((state) => state.user)
   const dashboardPath = user ? getDashboardPath(user.role) : null
+  const navLinks =
+    user?.role === 'INSTRUCTOR' ? instructorNavLinks : marketingNavLinks
 
   return (
     <header
@@ -77,7 +96,7 @@ export function Navbar() {
 
         <div className="absolute top-1/2 left-1/2 hidden -translate-x-1/2 -translate-y-1/2 items-center gap-8 md:flex">
           {navLinks.map((link) => (
-            <NavLink key={link.href} href={link.href}>
+            <NavLink key={link.label} item={link}>
               {link.label}
             </NavLink>
           ))}
@@ -139,11 +158,11 @@ export function Navbar() {
               <div className="flex flex-col gap-1 px-4">
                 {navLinks.map((link) => (
                   <SheetClose
-                    key={link.href}
+                    key={link.label}
                     nativeButton={false}
                     render={
-                      <a
-                        href={link.href}
+                      <NavLink
+                        item={link}
                         className="rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                         onClick={() => setOpen(false)}
                       />
