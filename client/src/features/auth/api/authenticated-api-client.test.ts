@@ -198,6 +198,7 @@ describe('api client', () => {
 
     let protectedRequestCount = 0
     let refreshRequestCount = 0
+    const refreshDeferred = createDeferred<Response>()
 
     const fetchMock = async (input: RequestInfo | URL) => {
       const url = String(input)
@@ -205,11 +206,7 @@ describe('api client', () => {
       if (url === 'http://localhost:4000/api/v1/auth/refresh') {
         refreshRequestCount += 1
 
-        await new Promise((resolve) => {
-          window.setTimeout(resolve, 10)
-        })
-
-        return Response.json(refreshedSession)
+        return refreshDeferred.promise
       }
 
       protectedRequestCount += 1
@@ -228,6 +225,10 @@ describe('api client', () => {
 
       return Response.json({ ok: true })
     }
+
+    setTimeout(() => {
+      refreshDeferred.resolve(Response.json(refreshedSession))
+    }, 0)
 
     await expect(
       Promise.all([

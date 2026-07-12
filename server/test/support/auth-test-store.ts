@@ -103,9 +103,14 @@ interface FindManyMembershipArgs {
   where?: {
     userId?: string
     courseId?: string
+    role?: string
   }
   include?: {
     course?: boolean
+  }
+  select?: {
+    course?: Record<string, unknown>
+    role?: boolean
   }
   orderBy?: {
     role?: 'asc' | 'desc'
@@ -114,6 +119,9 @@ interface FindManyMembershipArgs {
 }
 
 interface FindManyCourseArgs {
+  where?: {
+    createdById?: string
+  }
   include?: {
     memberships?: {
       where?: {
@@ -655,8 +663,16 @@ export class AuthTestStore {
       memberships = memberships.filter((m) => m.courseId === courseId)
     }
 
+    const role = args?.where?.role
+    if (role !== undefined) {
+      memberships = memberships.filter((m) => m.role === role)
+    }
+
     return memberships.map((membership) => {
-      if (args?.include?.course !== true) {
+      if (
+        args?.include?.course !== true &&
+        args?.select?.course === undefined
+      ) {
         return {
           ...membership,
           user: this.users.get(membership.userId),
@@ -678,7 +694,13 @@ export class AuthTestStore {
   }
 
   private findCourses(args: FindManyCourseArgs | undefined): StoredCourse[] {
-    const courses = [...this.courses.values()]
+    let courses = [...this.courses.values()]
+
+    const createdById = args?.where?.createdById
+    if (createdById !== undefined) {
+      courses = courses.filter((c) => c.createdById === createdById)
+    }
+
     courses.sort((a, b) => a.code.localeCompare(b.code))
     return courses.map((course) => {
       const membershipUserId = args?.include?.memberships?.where?.userId
