@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query'
 import { ShieldCheckIcon } from 'lucide-react'
 
 import { DataTableState } from '@/components/ui/custom/data-table-state'
@@ -12,11 +11,15 @@ import {
 } from '@/components/ui/table'
 import { AdminPanel } from '../components/admin-panel'
 import { PageHeader } from '@/components/ui/custom/page-header'
-import { AdminStatusBadge } from '../components/admin-status-badge'
-import { adminAuditQueryOptions } from '../data/admin-ops.queries'
+import { useAdminAudit } from '../hooks/use-admin-audit'
+
+const dateFormatter = new Intl.DateTimeFormat(undefined, {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+})
 
 export function AdminAuditPage() {
-  const auditQuery = useQuery(adminAuditQueryOptions())
+  const auditQuery = useAdminAudit()
 
   return (
     <div>
@@ -24,7 +27,7 @@ export function AdminAuditPage() {
         className="mb-8"
         eyebrow="Governance"
         title="Recent Audit Activity"
-        description="Track high-signal administrative events until the full audit API is available."
+        description="Track recent authentication, authorization, account, assignment, and material events."
         actions={
           <div className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground">
             <ShieldCheckIcon className="size-4 text-emerald-500" />
@@ -46,7 +49,7 @@ export function AdminAuditPage() {
           <Table className="min-w-[760px]">
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
-                {['Event', 'Actor', 'Target', 'Severity', 'Created'].map(
+                {['Event', 'Actor', 'Target type', 'Course', 'Created'].map(
                   (header) => (
                     <TableHead
                       key={header}
@@ -70,12 +73,23 @@ export function AdminAuditPage() {
                     </p>
                     <p className="text-xs text-muted-foreground">{event.id}</p>
                   </TableCell>
-                  <TableCell className="px-6 py-5">{event.actor}</TableCell>
-                  <TableCell className="px-6 py-5">{event.target}</TableCell>
                   <TableCell className="px-6 py-5">
-                    <AdminStatusBadge status={event.severity} />
+                    {event.actor?.displayName ?? 'System'}
                   </TableCell>
-                  <TableCell className="px-6 py-5">{event.createdAt}</TableCell>
+                  <TableCell className="px-6 py-5">
+                    {event.targetType}
+                    {event.targetId ? (
+                      <p className="text-xs text-muted-foreground">
+                        {event.targetId}
+                      </p>
+                    ) : null}
+                  </TableCell>
+                  <TableCell className="px-6 py-5">
+                    {event.courseId ?? '—'}
+                  </TableCell>
+                  <TableCell className="px-6 py-5">
+                    {dateFormatter.format(new Date(event.createdAt))}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

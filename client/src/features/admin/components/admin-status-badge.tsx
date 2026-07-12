@@ -1,37 +1,23 @@
 import { Badge } from '@/components/ui/badge'
-import { cn } from '@/lib/utils'
 
 type AdminStatusBadgeProps = {
-  status: string
+  status: 'ACTIVE' | 'DISABLED' | 'PROCESSING' | 'READY' | 'WARNING' | 'FAILED'
+  label?: string
 }
 
-export function AdminStatusBadge({ status }: AdminStatusBadgeProps) {
-  const normalizedStatus = status.toLowerCase()
+const statusClasses: Record<AdminStatusBadgeProps['status'], string> = {
+  ACTIVE: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-500',
+  READY: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-500',
+  DISABLED: 'border-destructive/30 bg-destructive/10 text-destructive',
+  FAILED: 'border-destructive/30 bg-destructive/10 text-destructive',
+  WARNING: 'border-amber-500/30 bg-amber-500/10 text-amber-500',
+  PROCESSING: 'border-sky-500/30 bg-sky-500/10 text-sky-500',
+}
 
+export function AdminStatusBadge({ status, label }: AdminStatusBadgeProps) {
   return (
-    <Badge
-      variant="outline"
-      className={cn(
-        'capitalize',
-        normalizedStatus === 'active' &&
-          'border-emerald-500/30 bg-emerald-500/10 text-emerald-500',
-        normalizedStatus === 'published' &&
-          'border-emerald-500/30 bg-emerald-500/10 text-emerald-500',
-        normalizedStatus === 'disabled' &&
-          'border-destructive/30 bg-destructive/10 text-destructive',
-        normalizedStatus === 'critical' &&
-          'border-destructive/30 bg-destructive/10 text-destructive',
-        normalizedStatus === 'warning' &&
-          'border-amber-500/30 bg-amber-500/10 text-amber-500',
-        normalizedStatus === 'draft' &&
-          'border-sky-500/30 bg-sky-500/10 text-sky-500',
-        normalizedStatus === 'closed' &&
-          'border-muted-foreground/30 bg-muted/60 text-muted-foreground',
-        normalizedStatus === 'archived' &&
-          'border-muted-foreground/30 bg-muted/60 text-muted-foreground',
-      )}
-    >
-      {status}
+    <Badge variant="outline" className={`capitalize ${statusClasses[status]}`}>
+      {label ?? status.toLowerCase()}
     </Badge>
   )
 }

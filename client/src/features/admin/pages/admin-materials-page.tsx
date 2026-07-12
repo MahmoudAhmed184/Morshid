@@ -1,8 +1,14 @@
-import { useQuery } from '@tanstack/react-query'
-import { UploadCloudIcon } from 'lucide-react'
+import { useState } from 'react'
 
-import { Button } from '@/components/ui/button'
 import { DataTableState } from '@/components/ui/custom/data-table-state'
+import { PageHeader } from '@/components/ui/custom/page-header'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   Table,
   TableBody,
@@ -12,12 +18,28 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { AdminPanel } from '../components/admin-panel'
-import { PageHeader } from '@/components/ui/custom/page-header'
 import { AdminStatusBadge } from '../components/admin-status-badge'
-import { adminMaterialsQueryOptions } from '../data/admin-ops.queries'
+import { EditAdminMaterialDialog } from '../components/edit-admin-material-dialog'
+import {
+  useAdminCourseMaterials,
+  useAdminCourseMutations,
+  useAdminCourses,
+} from '../hooks/use-admin-courses'
+
+const materialDateFormatter = new Intl.DateTimeFormat(undefined, {
+  dateStyle: 'medium',
+})
 
 export function AdminMaterialsPage() {
-  const materialsQuery = useQuery(adminMaterialsQueryOptions())
+  const [selectedCourseId, setSelectedCourseId] = useState('')
+  const coursesQuery = useAdminCourses()
+  const courseId = selectedCourseId || coursesQuery.data?.[0]?.id
+  const materialsQuery = useAdminCourseMaterials(courseId)
+  const { editMaterial } = useAdminCourseMutations(courseId)
+  const isLoading =
+    coursesQuery.isPending ||
+    (courseId !== undefined && materialsQuery.isPending)
+  const isError = coursesQuery.isError || materialsQuery.isError
 
   return (
     <div>
@@ -26,34 +48,49 @@ export function AdminMaterialsPage() {
         eyebrow="Content Operations"
         title="Material Metadata"
         description="Review material titles, owners, asset type, course association, and publication state."
-        actions={
-          <Button>
-            <UploadCloudIcon />
-            Add Material
-          </Button>
-        }
       />
 
       <AdminPanel>
+        <div className="border-b p-4">
+          <Select
+            value={courseId ?? ''}
+            onValueChange={(value) => setSelectedCourseId(value ?? '')}
+          >
+            <SelectTrigger className="w-full sm:w-96" aria-label="Course">
+              <SelectValue placeholder="Choose a course" />
+            </SelectTrigger>
+            <SelectContent>
+              {coursesQuery.data?.map((course) => (
+                <SelectItem key={course.id} value={course.id}>
+                  {course.code} — {course.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <DataTableState
-          isLoading={materialsQuery.isPending}
-          isError={materialsQuery.isError}
-          isEmpty={materialsQuery.data?.length === 0}
-          onRetry={() => void materialsQuery.refetch()}
-          isRetrying={materialsQuery.isFetching}
+          isLoading={isLoading}
+          isError={isError}
+          isEmpty={
+            coursesQuery.data?.length === 0 || materialsQuery.data?.length === 0
+          }
+          onRetry={() =>
+            void Promise.all([coursesQuery.refetch(), materialsQuery.refetch()])
+          }
+          isRetrying={coursesQuery.isFetching || materialsQuery.isFetching}
           emptyTitle="No materials found"
-          emptyDescription="Material metadata returned by the API will appear here."
+          emptyDescription="No material metadata is available for this course."
         >
           <Table className="min-w-[820px]">
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
                 {[
                   'Material',
-                  'Course',
-                  'Type',
+                  'Filename',
                   'Status',
-                  'Owner',
+                  'Chunks',
                   'Updated',
+                  'Actions',
                 ].map((header) => (
                   <TableHead
                     key={header}
@@ -78,14 +115,29 @@ export function AdminMaterialsPage() {
                       {material.id}
                     </p>
                   </TableCell>
-                  <TableCell className="px-6 py-5">{material.course}</TableCell>
-                  <TableCell className="px-6 py-5">{material.type}</TableCell>
+                  <TableCell className="px-6 py-5">
+                    {material.originalFilename}
+                  </TableCell>
                   <TableCell className="px-6 py-5">
                     <AdminStatusBadge status={material.status} />
                   </TableCell>
-                  <TableCell className="px-6 py-5">{material.owner}</TableCell>
                   <TableCell className="px-6 py-5">
-                    {material.updatedAt}
+                    {material.chunkCount ?? '—'}
+                  </TableCell>
+                  <TableCell className="px-6 py-5">
+                    {materialDateFormatter.format(new Date(material.updatedAt))}
+                  </TableCell>
+                  <TableCell className="px-6 py-5">
+                    <EditAdminMaterialDialog
+                      material={material}
+                      isPending={editMaterial.isPending}
+                      onSave={(title) =>
+                        editMaterial.mutateAsync({
+                          materialId: material.id,
+                          title,
+                        })
+                      }
+                    />
                   </TableCell>
                 </TableRow>
               ))}
