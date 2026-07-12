@@ -114,5 +114,15 @@ describe('Admin routes', () => {
     expect(
       await screen.findByRole('heading', { name: 'User Management' }),
     ).toBeVisible()
+    for (const section of [
+      'Dashboard',
+      'Assignments',
+      'Users',
+      'Courses',
+      'Materials',
+      'Audit Logs',
+    ]) {
+      expect(screen.getAllByRole('link', { name: section })).toHaveLength(2)
+    }
   })
 })
