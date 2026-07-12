@@ -61,11 +61,25 @@ function renderAtInstructorRoute(
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: RequestInfo | URL) => {
-      if (String(input).endsWith('/api/v1/me')) {
+      const url = String(input)
+
+      if (url.endsWith('/api/v1/me')) {
         return Response.json({ user: session.user }, { status: 200 })
       }
 
-      if (String(input).endsWith('/api/v1/courses')) {
+      if (url.includes('/api/v1/admin/users?')) {
+        return Response.json({ users: [] })
+      }
+
+      if (url.endsWith('/api/v1/admin/courses')) {
+        return Response.json({ courses: [] })
+      }
+
+      if (url.includes('/api/v1/admin/audit?')) {
+        return Response.json({ events: [] })
+      }
+
+      if (url.endsWith('/api/v1/courses')) {
         return (
           coursesResponse ??
           Response.json({
@@ -77,7 +91,7 @@ function renderAtInstructorRoute(
         )
       }
 
-      throw new Error(`Unexpected request: ${String(input)}`)
+      throw new Error(`Unexpected request: ${url}`)
     }),
   )
 
