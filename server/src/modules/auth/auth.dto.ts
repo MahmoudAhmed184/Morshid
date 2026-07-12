@@ -32,6 +32,10 @@ export interface RefreshRequest {
   refreshToken: string
 }
 
+export interface RefreshHttpRequest {
+  refreshToken?: string
+}
+
 export type LogoutRequest = RefreshRequest
 
 export interface AuthCourseSummary {
@@ -84,7 +88,7 @@ export const signInRequestSchema = z
 
 export const refreshRequestSchema = z
   .object({
-    refreshToken: z.string().min(1),
+    refreshToken: z.string().min(1).optional(),
   })
   .strict()
 

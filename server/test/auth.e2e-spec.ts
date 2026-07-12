@@ -88,6 +88,7 @@ describe('AuthController (e2e)', () => {
       .expect(200)
 
     const body = readSessionBody(response)
+    const refreshCookies = response.headers['set-cookie'] as unknown as string[]
 
     expect(body.tokenType).toBe('Bearer')
     expect(body.accessToken).toEqual(expect.any(String))
@@ -114,6 +115,10 @@ describe('AuthController (e2e)', () => {
         }),
       ]),
     )
+    expect(refreshCookies[0]).toContain('morshid_refresh=')
+    expect(refreshCookies[0]).toContain('HttpOnly')
+    expect(refreshCookies[0]).toContain('Path=/api/v1/auth')
+    expect(refreshCookies[0]).toContain('SameSite=Lax')
 
     const admin = store.findUserByEmail('admin@morshid.demo')
     const refreshToken = [...store.refreshTokens.values()][0]
@@ -133,6 +138,44 @@ describe('AuthController (e2e)', () => {
         createdAt: anyDate,
       }),
     ])
+  })
+
+  it('refreshes a browser session from the HttpOnly cookie', async () => {
+    const signIn = await request(app.getHttpServer())
+      .post('/api/v1/auth/sign-in')
+      .send({
+        email: 'student1@morshid.demo',
+        password: P0_DEMO_PASSWORD,
+      })
+      .expect(200)
+    const previousRefreshToken = readSessionBody(signIn).refreshToken
+    const refreshCookies = signIn.headers['set-cookie'] as unknown as string[]
+    const refreshCookie = refreshCookies[0].split(';')[0]
+
+    const refreshed = await request(app.getHttpServer())
+      .post('/api/v1/auth/refresh')
+      .set('Cookie', refreshCookie)
+      .send({})
+      .expect(200)
+
+    expect(readSessionBody(refreshed).refreshToken).not.toBe(
+      previousRefreshToken,
+    )
+    expect(refreshed.headers['set-cookie']).toEqual(
+      expect.arrayContaining([expect.stringContaining('HttpOnly')]),
+    )
+  })
+
+  it('rejects a malformed refresh cookie as an invalid token', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/refresh')
+      .set('Cookie', 'morshid_refresh=%')
+      .send({})
+      .expect(401)
+      .expect({
+        code: AUTH_ERROR_CODES.INVALID_REFRESH_TOKEN,
+        message: 'Invalid refresh token',
+      })
   })
 
   it('returns the same invalid-credentials response for unknown and wrong-password logins', async () => {
