@@ -266,7 +266,7 @@ describe('client auth guards', () => {
     })
   })
 
-  it('preserves the session when /me fails because the network is unavailable', async () => {
+  it('preserves the session and allows navigation when /me fails because the network is unavailable', async () => {
     const session = createMockSession('ADMIN')
     useAuthStore.getState().setSession(session)
     vi.stubGlobal(
@@ -276,7 +276,7 @@ describe('client auth guards', () => {
       }),
     )
 
-    await expect(requireRole('ADMIN')).rejects.toThrow('Failed to fetch')
+    await expect(requireRole('ADMIN')).resolves.toBeNull()
     expect(useAuthStore.getState()).toMatchObject({
       accessToken: session.accessToken,
       isAuthenticated: true,
