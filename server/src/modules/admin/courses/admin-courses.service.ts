@@ -308,6 +308,7 @@ function mapMaterialRecord(material: AdminMaterialRecord) {
     id: material.id,
     courseId: material.courseId,
     uploadedById: material.uploadedById,
+    uploadedBy: material.uploadedBy,
     title: material.title,
     originalFilename: material.originalFilename,
     storagePath: material.storagePath,

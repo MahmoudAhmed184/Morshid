@@ -56,4 +56,20 @@ export class AuditService {
       },
     })
   }
+
+  listRecentEvents(limit: number) {
+    return this.prismaService.auditLog.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      include: {
+        actor: {
+          select: {
+            id: true,
+            email: true,
+            displayName: true,
+          },
+        },
+      },
+    })
+  }
 }

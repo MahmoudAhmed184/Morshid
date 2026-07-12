@@ -10,6 +10,7 @@ import {
   PrismaAdminCoursesRepository,
 } from './courses/admin-courses.repository'
 import { AdminCoursesService } from './courses/admin-courses.service'
+import { AdminAuditController } from './audit/admin-audit.controller'
 import { AdminUsersAuditService } from './users/admin-users.audit.service'
 import { AdminUsersController } from './users/admin-users.controller'
 import {
@@ -20,7 +21,11 @@ import { AdminUsersService } from './users/admin-users.service'
 
 @Module({
   imports: [PrismaModule, AuditModule, AuthModule],
-  controllers: [AdminUsersController, AdminCoursesController],
+  controllers: [
+    AdminUsersController,
+    AdminCoursesController,
+    AdminAuditController,
+  ],
   providers: [
     AdminUsersService,
     AdminUsersAuditService,
