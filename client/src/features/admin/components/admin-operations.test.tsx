@@ -1,13 +1,11 @@
 import '@testing-library/jest-dom/vitest'
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type { AdminManagedUser } from '@/features/admin/schemas/admin-managed-user.schema'
+
+import { AddCourseMemberDialog } from './add-course-member-dialog'
 import { AdminAssignmentsTable } from './admin-assignments-table'
 import { EditAdminMaterialDialog } from './edit-admin-material-dialog'
 
@@ -48,10 +46,23 @@ const material = {
   updatedAt: '2026-07-11T10:00:00.000Z',
 } as const
 
+const managedUser: AdminManagedUser = {
+  ...member.user,
+  createdAt: '2026-07-01T10:00:00.000Z',
+  updatedAt: '2026-07-11T10:00:00.000Z',
+  courseAssignments: {
+    courseCount: 0,
+    instructorCourseCount: 0,
+    studentCourseCount: 0,
+    courses: [],
+  },
+}
+
 describe('Admin operation controls', () => {
   afterEach(cleanup)
 
   it('confirms removal of a course assignment', async () => {
+    const user = userEvent.setup()
     const onRemove = vi.fn().mockResolvedValue(undefined)
 
     render(
@@ -63,18 +74,19 @@ describe('Admin operation controls', () => {
       />,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Remove assignment' }))
+    await user.click(screen.getByRole('button', { name: 'Remove assignment' }))
     expect(
       await screen.findByRole('heading', {
         name: 'Remove course assignment?',
       }),
     ).toBeVisible()
-    fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
+    await user.click(screen.getByRole('button', { name: 'Remove' }))
 
     await waitFor(() => expect(onRemove).toHaveBeenCalledWith(member.userId))
   })
 
   it('submits edited material metadata through the visible form', async () => {
+    const user = userEvent.setup()
     const onSave = vi.fn().mockResolvedValue(undefined)
 
     render(
@@ -85,10 +97,11 @@ describe('Admin operation controls', () => {
       />,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Edit material' }))
+    await user.click(screen.getByRole('button', { name: 'Edit material' }))
     const titleInput = await screen.findByRole('textbox', { name: 'Title' })
-    fireEvent.change(titleInput, { target: { value: '  Python Functions  ' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save title' }))
+    await user.clear(titleInput)
+    await user.type(titleInput, '  Python Functions  ')
+    await user.click(screen.getByRole('button', { name: 'Save title' }))
 
     await waitFor(() => expect(onSave).toHaveBeenCalledWith('Python Functions'))
     await waitFor(() =>
@@ -96,5 +109,54 @@ describe('Admin operation controls', () => {
         screen.queryByRole('heading', { name: 'Edit material metadata' }),
       ).not.toBeInTheDocument(),
     )
+  })
+
+  it('adds an eligible user to the selected course', async () => {
+    const user = userEvent.setup()
+    const onAdd = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <AddCourseMemberDialog
+        users={[managedUser]}
+        assignedUserIds={new Set()}
+        isPending={false}
+        onAdd={onAdd}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Add assignment' }))
+    const userSelect = await screen.findByRole('combobox', { name: 'User' })
+    userSelect.focus()
+    await user.keyboard('{ArrowDown}{Enter}')
+    await user.click(screen.getByRole('button', { name: 'Add assignment' }))
+
+    await waitFor(() =>
+      expect(onAdd).toHaveBeenCalledWith({
+        userId: managedUser.id,
+        role: 'STUDENT',
+      }),
+    )
+  })
+
+  it('changes the course role through the assignment table', async () => {
+    const user = userEvent.setup()
+    const onRoleChange = vi.fn()
+
+    render(
+      <AdminAssignmentsTable
+        members={[member]}
+        isPending={false}
+        onRoleChange={onRoleChange}
+        onRemove={vi.fn()}
+      />,
+    )
+
+    const roleSelect = screen.getByRole('combobox', {
+      name: 'Course role for Demo Student',
+    })
+    roleSelect.focus()
+    await user.keyboard('{ArrowDown}{ArrowDown}{Enter}')
+
+    expect(onRoleChange).toHaveBeenCalledWith(member.userId, 'INSTRUCTOR')
   })
 })
