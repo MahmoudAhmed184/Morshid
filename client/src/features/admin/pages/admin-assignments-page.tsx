@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 
+import { Button } from '@/components/ui/button'
 import { DataTableState } from '@/components/ui/custom/data-table-state'
 import { PageHeader } from '@/components/ui/custom/page-header'
 import {
@@ -62,12 +63,25 @@ export function AdminAssignmentsPage() {
         description="Add, remove, and change student or instructor course assignments."
         actions={
           courseId ? (
-            <AddCourseMemberDialog
-              users={users}
-              assignedUserIds={assignedUserIds}
-              isPending={mutations.addMember.isPending}
-              onAdd={(input) => mutations.addMember.mutateAsync(input)}
-            />
+            <div className="flex flex-wrap gap-2">
+              {usersQuery.hasNextPage ? (
+                <Button
+                  variant="outline"
+                  disabled={usersQuery.isFetchingNextPage}
+                  onClick={() => void usersQuery.fetchNextPage()}
+                >
+                  {usersQuery.isFetchingNextPage
+                    ? 'Loading users...'
+                    : 'Load more users'}
+                </Button>
+              ) : null}
+              <AddCourseMemberDialog
+                users={users}
+                assignedUserIds={assignedUserIds}
+                isPending={mutations.addMember.isPending}
+                onAdd={(input) => mutations.addMember.mutateAsync(input)}
+              />
+            </div>
           ) : null
         }
       />

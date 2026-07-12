@@ -58,13 +58,11 @@ export function AdminDashboardPage() {
     (total, course) => total + course.adminMetadata.materialCount,
     0,
   )
-  const isLoading =
-    usersQuery.isPending || coursesQuery.isPending || auditQuery.isPending
-  const isError =
-    usersQuery.isError || coursesQuery.isError || auditQuery.isError
+  const isLoading = usersQuery.isPending || coursesQuery.isPending
+  const isError = usersQuery.isError || coursesQuery.isError
 
   const metrics = [
-    ['Users', users.length],
+    ['Users loaded', users.length],
     ['Courses', courses.length],
     ['Materials', materialCount],
   ] as const
@@ -75,17 +73,9 @@ export function AdminDashboardPage() {
       isError={isError}
       isEmpty={users.length === 0 && courses.length === 0}
       onRetry={() =>
-        void Promise.all([
-          usersQuery.refetch(),
-          coursesQuery.refetch(),
-          auditQuery.refetch(),
-        ])
+        void Promise.all([usersQuery.refetch(), coursesQuery.refetch()])
       }
-      isRetrying={
-        usersQuery.isFetching ||
-        coursesQuery.isFetching ||
-        auditQuery.isFetching
-      }
+      isRetrying={usersQuery.isFetching || coursesQuery.isFetching}
       emptyTitle="No admin data found"
       emptyDescription="Users and courses will appear after the P0 seed or API setup is complete."
     >
@@ -97,7 +87,7 @@ export function AdminDashboardPage() {
                 {label}
               </p>
               <p className="mt-3 text-3xl font-semibold text-foreground">
-              {value}
+                {value}
               </p>
             </AdminPanel>
           ))}

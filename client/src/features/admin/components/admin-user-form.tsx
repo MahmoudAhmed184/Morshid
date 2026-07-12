@@ -19,9 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  adminCreateUserFormSchema,
-} from '../schemas/admin-managed-user.schema'
+import { adminCreateUserFormSchema } from '../schemas/admin-managed-user.schema'
 import type { AdminCreateUserFormValues } from '../schemas/admin-managed-user.schema'
 import { Input } from '@/components/ui/input'
 

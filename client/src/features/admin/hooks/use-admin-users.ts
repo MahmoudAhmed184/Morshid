@@ -1,5 +1,4 @@
 import {
-  infiniteQueryOptions,
   useInfiniteQuery,
   useMutation,
   useQueryClient,
@@ -8,28 +7,15 @@ import {
 import {
   createAdminUser,
   disableAdminUser,
-  getAdminUsers,
   reactivateAdminUser,
   resetAdminUserPassword,
 } from '@/features/admin/data/admin-users.api'
 import type { CreateAdminUserInput } from '@/features/admin/data/admin-users.api'
+import {
+  adminUsersInfiniteQueryOptions,
+  adminUsersQueryKey,
+} from '@/features/admin/data/admin-users.queries'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
-
-const adminUsersPageSize = 50
-
-function adminUsersQueryKey(adminId: string) {
-  return ['admin', adminId, 'managed-users'] as const
-}
-
-export function adminUsersInfiniteQueryOptions(adminId: string) {
-  return infiniteQueryOptions({
-    queryKey: adminUsersQueryKey(adminId),
-    queryFn: ({ pageParam }) =>
-      getAdminUsers({ cursor: pageParam, limit: adminUsersPageSize }),
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: (lastPage) => lastPage.nextCursor,
-  })
-}
 
 export function useAdminUsers() {
   const adminId = useAuthStore((state) => state.user?.id)

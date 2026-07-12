@@ -42,10 +42,7 @@ export function AdminCoursesTable({ courses }: { courses: AdminCourse[] }) {
                   : 'Not assigned'}
               </TableCell>
               <TableCell>{course.adminMetadata.studentCount}</TableCell>
-              <TableCell>
-                {course.adminMetadata.activeMaterialCount} ready /{' '}
-                {course.adminMetadata.materialCount} total
-              </TableCell>
+              <TableCell>{course.adminMetadata.materialCount} total</TableCell>
               <TableCell>
                 {dateFormatter.format(new Date(course.adminMetadata.updatedAt))}
               </TableCell>

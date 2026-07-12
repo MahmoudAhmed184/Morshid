@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 
 import { ModeToggle } from '@/components/ui/mode-toggle'
+import { useAuthStore } from '@/features/auth/stores/auth.store'
 
 const navItems = linkOptions([
   {
@@ -51,6 +52,8 @@ const navItems = linkOptions([
 ] as const)
 
 export function AdminPageShell() {
+  const currentUser = useAuthStore((state) => state.user)
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 border-r border-sidebar-border bg-sidebar lg:flex lg:flex-col">
@@ -92,19 +95,23 @@ export function AdminPageShell() {
           })}
         </nav>
 
-        <div className="border-t border-sidebar-border p-6">
-          <div className="flex items-center gap-3 rounded-lg border border-sidebar-border bg-sidebar-accent/40 p-4">
-            <div className="flex size-10 items-center justify-center rounded-full bg-sidebar-primary text-sidebar-primary-foreground">
-              <UsersIcon className="size-5" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-sidebar-foreground">
-                Admin User
-              </p>
-              <p className="text-xs text-muted-foreground">Global Registrar</p>
+        {currentUser ? (
+          <div className="border-t border-sidebar-border p-6">
+            <div className="flex items-center gap-3 rounded-lg border border-sidebar-border bg-sidebar-accent/40 p-4">
+              <div className="flex size-10 items-center justify-center rounded-full bg-sidebar-primary text-sidebar-primary-foreground">
+                <UsersIcon className="size-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-sidebar-foreground">
+                  {currentUser.displayName}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {currentUser.email}
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+        ) : null}
       </aside>
 
       <div className="lg:pl-72">
