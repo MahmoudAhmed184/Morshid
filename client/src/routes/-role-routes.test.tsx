@@ -46,11 +46,21 @@ describe('role route boundaries', () => {
   })
 
   it('redirects an anonymous student-route visit to login', async () => {
-    const fetchMock = vi.fn()
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL) =>
+      Response.json(
+        { code: 'INVALID_REFRESH_TOKEN', message: 'Invalid refresh token' },
+        { status: 401 },
+      ),
+    )
     vi.stubGlobal('fetch', fetchMock)
 
     await expect(loadRoute('/student/courses')).resolves.toBe('/login')
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(fetchMock).toHaveBeenCalled()
+    expect(
+      fetchMock.mock.calls.every(([input]) =>
+        String(input).endsWith('/api/v1/auth/refresh'),
+      ),
+    ).toBe(true)
   })
 
   it('redirects an admin away from the student route tree', async () => {
