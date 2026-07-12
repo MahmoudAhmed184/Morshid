@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import { DataTableState } from '@/components/ui/custom/data-table-state'
+import { DataToolbar } from '@/components/ui/custom/data-toolbar'
 import { PageHeader } from '@/components/ui/custom/page-header'
 import {
   Select,
@@ -54,23 +55,26 @@ export function AdminMaterialsPage() {
       />
 
       <AdminPanel>
-        <div className="border-b p-4">
-          <Select
-            value={courseId ?? ''}
-            onValueChange={(value) => setSelectedCourseId(value ?? '')}
-          >
-            <SelectTrigger className="w-full sm:w-96" aria-label="Course">
-              <SelectValue placeholder="Choose a course" />
-            </SelectTrigger>
-            <SelectContent>
-              {coursesQuery.data?.map((course) => (
-                <SelectItem key={course.id} value={course.id}>
-                  {course.code} — {course.title}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <DataToolbar
+          className="border-b p-4"
+          filters={
+            <Select
+              value={courseId ?? ''}
+              onValueChange={(value) => setSelectedCourseId(value ?? '')}
+            >
+              <SelectTrigger className="w-full sm:w-96" aria-label="Course">
+                <SelectValue placeholder="Choose a course" />
+              </SelectTrigger>
+              <SelectContent>
+                {coursesQuery.data?.map((course) => (
+                  <SelectItem key={course.id} value={course.id}>
+                    {course.code} — {course.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          }
+        />
         <DataTableState
           isLoading={isLoading}
           isError={isError}

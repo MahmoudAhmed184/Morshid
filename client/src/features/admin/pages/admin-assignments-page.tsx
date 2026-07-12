@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { DataTableState } from '@/components/ui/custom/data-table-state'
+import { DataToolbar } from '@/components/ui/custom/data-toolbar'
 import { PageHeader } from '@/components/ui/custom/page-header'
 import {
   Select,
@@ -61,48 +62,53 @@ export function AdminAssignmentsPage() {
         eyebrow="Enrollment Operations"
         title="Course Assignments"
         description="Add, remove, and change student or instructor course assignments."
-        actions={
-          courseId ? (
-            <div className="flex flex-wrap gap-2">
-              {usersQuery.hasNextPage ? (
-                <Button
-                  variant="outline"
-                  disabled={usersQuery.isFetchingNextPage}
-                  onClick={() => void usersQuery.fetchNextPage()}
-                >
-                  {usersQuery.isFetchingNextPage
-                    ? 'Loading users...'
-                    : 'Load more users'}
-                </Button>
-              ) : null}
-              <AddCourseMemberDialog
-                users={users}
-                assignedUserIds={assignedUserIds}
-                isPending={mutations.addMember.isPending}
-                onAdd={(input) => mutations.addMember.mutateAsync(input)}
-              />
-            </div>
-          ) : null
-        }
       />
 
       <AdminPanel>
-        <div className="border-b p-4">
-          <Select
-            value={courseId ?? ''}
-            onValueChange={(value) => setSelectedCourseId(value ?? '')}
-          >
-            <SelectTrigger className="w-full sm:w-96" aria-label="Course">
-              <SelectValue placeholder="Choose a course" />
-            </SelectTrigger>
-            <SelectContent>
-              {coursesQuery.data?.map((course) => (
-                <SelectItem key={course.id} value={course.id}>
-                  {course.code} — {course.title}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <DataToolbar
+          className="border-b p-4"
+          filters={
+            <Select
+              value={courseId ?? ''}
+              onValueChange={(value) => setSelectedCourseId(value ?? '')}
+            >
+              <SelectTrigger className="w-full sm:w-96" aria-label="Course">
+                <SelectValue placeholder="Choose a course" />
+              </SelectTrigger>
+              <SelectContent>
+                {coursesQuery.data?.map((course) => (
+                  <SelectItem key={course.id} value={course.id}>
+                    {course.code} — {course.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          }
+          actions={
+            courseId ? (
+              <>
+                {usersQuery.hasNextPage ? (
+                  <Button
+                    variant="outline"
+                    disabled={usersQuery.isFetchingNextPage}
+                    onClick={() => void usersQuery.fetchNextPage()}
+                  >
+                    {usersQuery.isFetchingNextPage
+                      ? 'Loading users...'
+                      : 'Load more users'}
+                  </Button>
+                ) : null}
+                <AddCourseMemberDialog
+                  users={users}
+                  assignedUserIds={assignedUserIds}
+                  isPending={mutations.addMember.isPending}
+                  onAdd={(input) => mutations.addMember.mutateAsync(input)}
+                />
+              </>
+            ) : null
+          }
+        />
+        <div className="px-4">
           {mutations.updateMemberRole.error ? (
             <p role="alert" className="mt-3 text-sm text-destructive">
               {mutations.updateMemberRole.error.message}

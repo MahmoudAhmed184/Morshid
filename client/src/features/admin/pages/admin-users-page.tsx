@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { DataTableState } from '@/components/ui/custom/data-table-state'
+import { DataToolbar } from '@/components/ui/custom/data-toolbar'
 import { PageHeader } from '@/components/ui/custom/page-header'
 import {
   Select,
@@ -57,42 +58,47 @@ export function AdminUsersPage() {
         eyebrow="Identity Operations"
         title="User Management"
         description="Create users, review core identity fields, disable or reactivate accounts, and reset passwords."
-        actions={<CreateAdminUserDialog />}
       />
 
       <AdminPanel>
-        <div className="flex flex-wrap items-center gap-2 border-b p-4">
-          <Select
-            value={roleFilter}
-            onValueChange={(value) => {
-              if (value) setRoleFilter(value)
-            }}
-          >
-            <SelectTrigger aria-label="Filter users by role">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">All roles</SelectItem>
-              <SelectItem value="STUDENT">Students</SelectItem>
-              <SelectItem value="INSTRUCTOR">Instructors</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select
-            value={statusFilter}
-            onValueChange={(value) => {
-              if (value) setStatusFilter(value)
-            }}
-          >
-            <SelectTrigger aria-label="Filter users by status">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">All statuses</SelectItem>
-              <SelectItem value="ACTIVE">Active</SelectItem>
-              <SelectItem value="DISABLED">Disabled</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <DataToolbar
+          className="border-b p-4"
+          filters={
+            <>
+              <Select
+                value={roleFilter}
+                onValueChange={(value) => {
+                  if (value) setRoleFilter(value)
+                }}
+              >
+                <SelectTrigger aria-label="Filter users by role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All roles</SelectItem>
+                  <SelectItem value="STUDENT">Students</SelectItem>
+                  <SelectItem value="INSTRUCTOR">Instructors</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select
+                value={statusFilter}
+                onValueChange={(value) => {
+                  if (value) setStatusFilter(value)
+                }}
+              >
+                <SelectTrigger aria-label="Filter users by status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All statuses</SelectItem>
+                  <SelectItem value="ACTIVE">Active</SelectItem>
+                  <SelectItem value="DISABLED">Disabled</SelectItem>
+                </SelectContent>
+              </Select>
+            </>
+          }
+          actions={<CreateAdminUserDialog />}
+        />
         <DataTableState
           isLoading={usersQuery.isPending}
           isError={usersQuery.isError}
