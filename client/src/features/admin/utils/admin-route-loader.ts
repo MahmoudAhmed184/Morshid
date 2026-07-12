@@ -8,31 +8,30 @@ import { adminUsersInfiniteQueryOptions } from '@/features/admin/data/admin-user
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 import { getAppQueryClient } from '@/lib/query/query-client'
 
-function getAdminId() {
+function getAdminLoaderContext() {
   const user = useAuthStore.getState().user
 
   if (!user || user.role !== 'ADMIN') {
     throw new Error('Admin data loading requires an authenticated Admin')
   }
 
-  return user.id
+  return { adminId: user.id, queryClient: getAppQueryClient() }
 }
 
 export async function loadAdminUsersRoute() {
-  const adminId = getAdminId()
-  await getAppQueryClient().ensureInfiniteQueryData(
+  const { adminId, queryClient } = getAdminLoaderContext()
+  await queryClient.ensureInfiniteQueryData(
     adminUsersInfiniteQueryOptions(adminId),
   )
 }
 
 export async function loadAdminCoursesRoute() {
-  const adminId = getAdminId()
-  await getAppQueryClient().ensureQueryData(adminCoursesQueryOptions(adminId))
+  const { adminId, queryClient } = getAdminLoaderContext()
+  await queryClient.ensureQueryData(adminCoursesQueryOptions(adminId))
 }
 
 export async function loadAdminAssignmentsRoute() {
-  const adminId = getAdminId()
-  const queryClient = getAppQueryClient()
+  const { adminId, queryClient } = getAdminLoaderContext()
   const [courses] = await Promise.all([
     queryClient.ensureQueryData(adminCoursesQueryOptions(adminId)),
     queryClient.ensureInfiniteQueryData(
@@ -49,8 +48,7 @@ export async function loadAdminAssignmentsRoute() {
 }
 
 export async function loadAdminMaterialsRoute() {
-  const adminId = getAdminId()
-  const queryClient = getAppQueryClient()
+  const { adminId, queryClient } = getAdminLoaderContext()
   const courses = await queryClient.ensureQueryData(
     adminCoursesQueryOptions(adminId),
   )
@@ -64,13 +62,12 @@ export async function loadAdminMaterialsRoute() {
 }
 
 export async function loadAdminAuditRoute() {
-  const adminId = getAdminId()
-  await getAppQueryClient().ensureQueryData(adminAuditQueryOptions(adminId, 20))
+  const { adminId, queryClient } = getAdminLoaderContext()
+  await queryClient.ensureQueryData(adminAuditQueryOptions(adminId, 20))
 }
 
 export async function loadAdminDashboardRoute() {
-  const adminId = getAdminId()
-  const queryClient = getAppQueryClient()
+  const { adminId, queryClient } = getAdminLoaderContext()
 
   await Promise.all([
     queryClient.ensureInfiniteQueryData(
