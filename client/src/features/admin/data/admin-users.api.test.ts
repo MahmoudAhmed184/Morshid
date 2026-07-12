@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  createAdminUser,
   disableAdminUser,
   getAdminUsers,
   reactivateAdminUser,
@@ -44,6 +45,33 @@ const userResponse = {
 }
 
 describe('admin users API', () => {
+  it('creates a student or instructor through the POST endpoint', async () => {
+    const fetchMock = async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe('http://localhost:4000/api/v1/admin/users')
+      expect(init?.method).toBe('POST')
+      expect(JSON.parse(String(init?.body))).toEqual({
+        email: userResponse.email,
+        displayName: userResponse.displayName,
+        password: 'StrongPassword123!',
+        role: 'STUDENT',
+      })
+
+      return Response.json({ user: userResponse })
+    }
+
+    await expect(
+      createAdminUser(
+        {
+          email: userResponse.email,
+          displayName: userResponse.displayName,
+          password: 'StrongPassword123!',
+          role: 'STUDENT',
+        },
+        { fetchImpl: fetchMock },
+      ),
+    ).resolves.toEqual(userResponse)
+  })
+
   it('loads a cursor page of users from the server', async () => {
     const fetchMock = async (input: RequestInfo | URL, init?: RequestInit) => {
       expect(String(input)).toBe(

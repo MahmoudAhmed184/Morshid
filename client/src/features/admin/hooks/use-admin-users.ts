@@ -6,11 +6,13 @@ import {
 } from '@tanstack/react-query'
 
 import {
+  createAdminUser,
   disableAdminUser,
   getAdminUsers,
   reactivateAdminUser,
   resetAdminUserPassword,
 } from '@/features/admin/data/admin-users.api'
+import type { CreateAdminUserInput } from '@/features/admin/data/admin-users.api'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 
 const adminUsersPageSize = 50
@@ -56,6 +58,10 @@ export function useAdminUserMutations() {
     }) => resetAdminUserPassword(userId, newPassword),
     onSuccess: invalidateUsers,
   })
+  const createUser = useMutation({
+    mutationFn: (input: CreateAdminUserInput) => createAdminUser(input),
+    onSuccess: invalidateUsers,
+  })
   const disableUser = useMutation({
     mutationFn: (userId: string) => disableAdminUser(userId),
     onSuccess: invalidateUsers,
@@ -66,6 +72,7 @@ export function useAdminUserMutations() {
   })
 
   return {
+    createUser,
     resetPassword,
     disableUser,
     reactivateUser,

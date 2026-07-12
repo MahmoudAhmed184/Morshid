@@ -13,6 +13,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { PasswordField } from '@/features/auth/components/password-field'
 import {
   Select,
   SelectContent,
@@ -30,12 +31,14 @@ type EditableAdminUser = AdminUser & {
 
 type AdminUserFormProps = {
   user?: EditableAdminUser
+  showImage?: boolean
   onSubmit: (values: AdminUserFormValues) => void | Promise<void>
   onCancel?: () => void
 }
 
 export function AdminUserForm({
   user,
+  showImage = true,
   onSubmit,
   onCancel,
 }: AdminUserFormProps) {
@@ -105,19 +108,28 @@ export function AdminUserForm({
             name="password"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Password</FormLabel>
-                <FormControl>
-                  <Input
+                {mode === 'create' ? (
+                  <PasswordField
                     {...field}
-                    type="password"
-                    placeholder={
-                      mode === 'create'
-                        ? 'e.g., Password1!'
-                        : 'Leave blank to keep current'
-                    }
+                    id="create-user-password"
+                    label="Password"
+                    placeholder="e.g., Password1!"
                     autoComplete="new-password"
+                    showForgotPassword={false}
                   />
-                </FormControl>
+                ) : (
+                  <>
+                    <FormLabel>Password</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        type="password"
+                        placeholder="Leave blank to keep current"
+                        autoComplete="new-password"
+                      />
+                    </FormControl>
+                  </>
+                )}
                 <p className="text-xs text-muted-foreground">
                   Minimum 9 characters with uppercase, lowercase, number, and
                   special character.
@@ -149,30 +161,32 @@ export function AdminUserForm({
             )}
           />
 
-          <FormField
-            control={form.control}
-            name="image"
-            render={({ field: { onChange, ref, name } }) => (
-              <FormItem className="sm:col-span-2">
-                <FormLabel>Image</FormLabel>
-                <FormControl>
-                  <Input
-                    ref={ref}
-                    name={name}
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp"
-                    onChange={(event) =>
-                      onChange(event.target.files?.[0] ?? null)
-                    }
-                  />
-                </FormControl>
-                <p className="text-xs text-muted-foreground">
-                  Optional. JPG, PNG, or WebP up to 2MB.
-                </p>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          {showImage ? (
+            <FormField
+              control={form.control}
+              name="image"
+              render={({ field: { onChange, ref, name } }) => (
+                <FormItem className="sm:col-span-2">
+                  <FormLabel>Image</FormLabel>
+                  <FormControl>
+                    <Input
+                      ref={ref}
+                      name={name}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      onChange={(event) =>
+                        onChange(event.target.files?.[0] ?? null)
+                      }
+                    />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    Optional. JPG, PNG, or WebP up to 2MB.
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          ) : null}
         </div>
 
         <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end">

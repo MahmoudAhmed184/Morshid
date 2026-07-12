@@ -14,6 +14,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import { Form, FormField, FormItem, FormMessage } from '@/components/ui/form'
 import { adminResetPasswordFormSchema } from '@/features/admin/schemas/admin-managed-user.schema'
 import type {
   AdminManagedUser,
@@ -64,8 +65,6 @@ export function ResetAdminUserPasswordDialog({
     }
   }
 
-  const newPasswordError = form.formState.errors.newPassword?.message
-  const confirmPasswordError = form.formState.errors.confirmPassword?.message
   const rootError = form.formState.errors.root?.message
 
   return (
@@ -85,59 +84,65 @@ export function ResetAdminUserPasswordDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form
-          className="space-y-4"
-          noValidate
-          onSubmit={form.handleSubmit(handleSubmit)}
-        >
-          <div>
-            <PasswordField
-              id={`new-password-${user.id}`}
-              label="New password"
-              autoComplete="new-password"
-              showForgotPassword={false}
-              {...form.register('newPassword')}
+        <Form {...form}>
+          <form
+            className="space-y-4"
+            noValidate
+            onSubmit={form.handleSubmit(handleSubmit)}
+          >
+            <FormField
+              control={form.control}
+              name="newPassword"
+              render={({ field }) => (
+                <FormItem>
+                  <PasswordField
+                    {...field}
+                    id={`new-password-${user.id}`}
+                    label="New password"
+                    autoComplete="new-password"
+                    showForgotPassword={false}
+                  />
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-            {newPasswordError ? (
-              <p role="alert" className="mt-2 text-sm text-destructive">
-                {newPasswordError}
+            <FormField
+              control={form.control}
+              name="confirmPassword"
+              render={({ field }) => (
+                <FormItem>
+                  <PasswordField
+                    {...field}
+                    id={`confirm-password-${user.id}`}
+                    label="Confirm new password"
+                    autoComplete="new-password"
+                    showForgotPassword={false}
+                  />
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            {rootError ? (
+              <p role="alert" className="text-sm text-destructive">
+                {rootError}
               </p>
             ) : null}
-          </div>
-          <div>
-            <PasswordField
-              id={`confirm-password-${user.id}`}
-              label="Confirm new password"
-              autoComplete="new-password"
-              showForgotPassword={false}
-              {...form.register('confirmPassword')}
-            />
-            {confirmPasswordError ? (
-              <p role="alert" className="mt-2 text-sm text-destructive">
-                {confirmPasswordError}
-              </p>
-            ) : null}
-          </div>
-          {rootError ? (
-            <p role="alert" className="text-sm text-destructive">
-              {rootError}
-            </p>
-          ) : null}
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={isPending}
-              onClick={() => handleOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isPending}>
-              {isPending ? <Loader2Icon className="animate-spin" /> : null}
-              Reset password
-            </Button>
-          </DialogFooter>
-        </form>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isPending}
+                onClick={() => handleOpenChange(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isPending}>
+                {isPending ? <Loader2Icon className="animate-spin" /> : null}
+                Reset password
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   )

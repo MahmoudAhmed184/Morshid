@@ -10,6 +10,13 @@ export type ListAdminUsersInput = {
   limit?: number
 }
 
+export type CreateAdminUserInput = {
+  email: string
+  displayName: string
+  role: 'STUDENT' | 'INSTRUCTOR'
+  password: string
+}
+
 function createAdminUsersPath({ cursor, limit = 50 }: ListAdminUsersInput) {
   const searchParams = new URLSearchParams({ limit: String(limit) })
 
@@ -30,6 +37,23 @@ export async function getAdminUsers(
   })
 
   return adminManagedUsersPageSchema.parse(response)
+}
+
+export async function createAdminUser(
+  input: CreateAdminUserInput,
+  options: ApiFetchOptions = {},
+) {
+  const response = await apiJson<unknown>('/api/v1/admin/users', {
+    ...options,
+    body: JSON.stringify(input),
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+    method: 'POST',
+  })
+
+  return adminManagedUserResponseSchema.parse(response).user
 }
 
 export async function resetAdminUserPassword(

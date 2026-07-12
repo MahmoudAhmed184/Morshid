@@ -10,20 +10,40 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import { useAdminUserMutations } from '@/features/admin/hooks/use-admin-users'
 import { AdminUserForm } from './admin-user-form'
-import { submitAdminUserForm } from '../data/admin-user-form.api'
 import type { AdminUserFormValues } from '../schemas/admin-user.schema'
 
 export function CreateAdminUserDialog() {
   const [open, setOpen] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const { createUser } = useAdminUserMutations()
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    setOpen(nextOpen)
+    setErrorMessage(null)
+  }
 
   const handleSubmit = async (values: AdminUserFormValues) => {
-    await submitAdminUserForm(values)
-    setOpen(false)
+    try {
+      await createUser.mutateAsync({
+        email: values.email,
+        displayName: values.name,
+        password: values.password,
+        role: values.role === 'Student' ? 'STUDENT' : 'INSTRUCTOR',
+      })
+      handleOpenChange(false)
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : 'Unable to create this user. Please try again.',
+      )
+    }
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger render={<Button />}>
         <UserPlusIcon />
         Create User
@@ -32,12 +52,18 @@ export function CreateAdminUserDialog() {
         <DialogHeader>
           <DialogTitle>Create User</DialogTitle>
           <DialogDescription>
-            Shell form for the P0 user creation API contract.
+            Create a student or instructor account.
           </DialogDescription>
         </DialogHeader>
+        {errorMessage ? (
+          <p role="alert" className="text-sm text-destructive">
+            {errorMessage}
+          </p>
+        ) : null}
         <AdminUserForm
+          showImage={false}
           onSubmit={handleSubmit}
-          onCancel={() => setOpen(false)}
+          onCancel={() => handleOpenChange(false)}
         />
       </DialogContent>
     </Dialog>
