@@ -1,19 +1,25 @@
-import { Body, Controller, Get, HttpCode, Post, Req } from '@nestjs/common'
+import { Body, Controller, Get, HttpCode, Post, Req, Res } from '@nestjs/common'
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
-import type { Request } from 'express'
+import type { Request, Response } from 'express'
 
+import { getRequestContext } from '../../common/http/request-context'
+import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe'
 import {
   logoutRequestSchema,
   refreshRequestSchema,
   signInRequestSchema,
-  type LogoutRequest,
-  type RefreshRequest,
+  type RefreshHttpRequest,
   type SignInRequest,
 } from './auth.dto'
 import type { AuthenticatedHttpRequest } from './auth.guard'
 import { AuthService } from './auth.service'
-import { ZodValidationPipe } from './pipes/zod-validation.pipe'
+import { invalidAuthRequestException } from './auth.errors'
 import { Public } from './public.decorator'
+import {
+  clearRefreshTokenCookie,
+  getRefreshToken,
+  setRefreshTokenCookie,
+} from './refresh-token-cookie'
 
 @ApiTags('auth')
 @Controller()
@@ -23,43 +29,85 @@ export class AuthController {
   @Public()
   @Post('auth/sign-in')
   @HttpCode(200)
-  signIn(
-    @Body(new ZodValidationPipe(signInRequestSchema)) body: SignInRequest,
+  async signIn(
+    @Body(
+      new ZodValidationPipe(signInRequestSchema, invalidAuthRequestException),
+    )
+    body: SignInRequest,
     @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
   ) {
-    return this.authService.signIn(body, getRequestContext(request))
+    const session = await this.authService.signIn(
+      body,
+      getRequestContext(request),
+    )
+
+    setRefreshTokenCookie(
+      response,
+      session.refreshToken,
+      session.refreshTokenExpiresAt,
+    )
+
+    return session
   }
 
   @Public()
   @Post('auth/refresh')
   @HttpCode(200)
-  refresh(
-    @Body(new ZodValidationPipe(refreshRequestSchema)) body: RefreshRequest,
+  async refresh(
+    @Body(
+      new ZodValidationPipe(refreshRequestSchema, invalidAuthRequestException),
+    )
+    body: RefreshHttpRequest,
     @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
   ) {
-    return this.authService.refresh(body, getRequestContext(request))
+    const session = await this.authService.refresh(
+      { refreshToken: getRefreshToken(request, body.refreshToken) },
+      getRequestContext(request),
+    )
+
+    setRefreshTokenCookie(
+      response,
+      session.refreshToken,
+      session.refreshTokenExpiresAt,
+    )
+
+    return session
   }
 
   @Public()
   @Post('auth/logout')
   @HttpCode(204)
   async logout(
-    @Body(new ZodValidationPipe(logoutRequestSchema)) body: LogoutRequest,
+    @Body(
+      new ZodValidationPipe(logoutRequestSchema, invalidAuthRequestException),
+    )
+    body: RefreshHttpRequest,
     @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
   ) {
-    await this.authService.logout(body, getRequestContext(request))
+    let refreshToken: string | null = null
+
+    try {
+      refreshToken = getRefreshToken(request, body.refreshToken)
+    } catch {
+      // Logout remains idempotent when the browser has no refresh session.
+    }
+
+    if (refreshToken !== null) {
+      await this.authService.logout(
+        { refreshToken },
+        getRequestContext(request),
+      )
+    }
+
+    clearRefreshTokenCookie(response)
   }
 
   @Get('me')
   @ApiBearerAuth()
   me(@Req() request: AuthenticatedHttpRequest) {
     return this.authService.getMe(request.user.id)
-  }
-}
-
-export function getRequestContext(request: Request) {
-  return {
-    ip: request.ip ?? null,
-    userAgent: request.get('user-agent') ?? null,
   }
 }

@@ -3,6 +3,11 @@ import { Injectable } from '@nestjs/common'
 import type { RefreshToken, User } from '../../../generated/prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 
+const refreshTokenTransactionOptions = {
+  maxWait: 10_000,
+  timeout: 5_000,
+} as const
+
 export interface CreateRefreshTokenRecordInput {
   userId: string
   tokenHash: string
@@ -83,8 +88,10 @@ export class RefreshTokenRepository extends PrismaRefreshTokenRecordStore {
   async transaction<T>(
     callback: (repository: RefreshTokenRecordStore) => Promise<T>,
   ): Promise<T> {
-    return this.prismaService.$transaction(async (tx) =>
-      callback(new PrismaRefreshTokenRecordStore(tx as RefreshTokenClient)),
+    return this.prismaService.$transaction(
+      async (tx) =>
+        callback(new PrismaRefreshTokenRecordStore(tx as RefreshTokenClient)),
+      refreshTokenTransactionOptions,
     )
   }
 }

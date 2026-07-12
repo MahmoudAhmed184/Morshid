@@ -66,7 +66,10 @@ describe('RolePlaceholderPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /sign out/i }))
 
     await waitFor(() => {
-      expect(navigateMock).toHaveBeenCalledWith({ to: '/login' })
+      expect(navigateMock).toHaveBeenCalledWith({
+        to: '/login',
+        replace: true,
+      })
     })
     expect(fetch).toHaveBeenCalledOnce()
     const [requestUrl, requestInit] = vi.mocked(fetch).mock.calls[0]
@@ -98,7 +101,10 @@ describe('RolePlaceholderPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /sign out/i }))
 
     await waitFor(() => {
-      expect(navigateMock).toHaveBeenCalledWith({ to: '/login' })
+      expect(navigateMock).toHaveBeenCalledWith({
+        to: '/login',
+        replace: true,
+      })
     })
     expect(useAuthStore.getState().isAuthenticated).toBe(false)
     expect(window.localStorage).toHaveLength(0)

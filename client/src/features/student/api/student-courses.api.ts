@@ -1,9 +1,7 @@
 import { z } from 'zod'
 
-import {
-  apiJson,
-  type ApiFetchOptions,
-} from '@/features/auth/api/authenticated-api-client'
+import { apiJson } from '@/features/auth/api/authenticated-api-client'
+import type { ApiFetchOptions } from '@/features/auth/api/authenticated-api-client'
 
 const studentCourseSchema = z.object({
   id: z.string(),

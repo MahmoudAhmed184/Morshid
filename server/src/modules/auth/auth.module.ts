@@ -49,6 +49,6 @@ import { RefreshTokenService } from './services/refresh-token.service'
     AuthUserService,
     AuthAuditService,
   ],
-  exports: [AuthService],
+  exports: [AuthService, AuthUserService, PasswordHasherService],
 })
 export class AuthModule {}
