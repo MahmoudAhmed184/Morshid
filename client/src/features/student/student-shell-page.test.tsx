@@ -5,6 +5,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -204,6 +205,35 @@ describe('StudentShellPage', () => {
     expect(
       within(drawer).getByRole('link', { name: /ai tutor/i }),
     ).toHaveAttribute('href', '/student/ai-tutor')
+  })
+
+  it('stays mounted when logout clears the session before navigation', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(null, { status: 204 })),
+    )
+    useAuthStore.getState().setSession(createStudentSession([]))
+
+    renderWithStudentCourses(<StudentShellPage />, [
+      {
+        id: 'python-course',
+        code: 'PYTHON-PROG-P0',
+        title: 'Python Programming',
+        membershipRole: 'STUDENT',
+      },
+    ])
+
+    fireEvent.click(screen.getByRole('button', { name: /log out/i }))
+
+    await waitFor(() => {
+      expect(navigateMock).toHaveBeenCalledWith({
+        to: '/login',
+        replace: true,
+      })
+    })
+    expect(useAuthStore.getState().isAuthenticated).toBe(false)
+    expect(screen.getByTestId('student-route-outlet')).toBeInTheDocument()
+    expect(screen.queryByText(/student courses require/i)).toBeNull()
   })
 })
 
