@@ -48,6 +48,7 @@ export const adminMaterialSchema = z.object({
   id: z.uuid(),
   courseId: z.uuid(),
   uploadedById: z.uuid(),
+  uploadedBy: courseUserSchema,
   title: z.string(),
   originalFilename: z.string(),
   storagePath: z.string(),

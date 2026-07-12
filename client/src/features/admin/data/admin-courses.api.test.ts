@@ -106,6 +106,7 @@ describe('admin course API', () => {
           id: materialId,
           courseId,
           uploadedById: userId,
+          uploadedBy: user,
           title: 'Week 1',
           originalFilename: 'week-1.pdf',
           storagePath: 'courses/week-1.pdf',

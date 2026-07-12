@@ -36,6 +36,9 @@ export function AdminMaterialsPage() {
   const courseId = selectedCourseId || coursesQuery.data?.[0]?.id
   const materialsQuery = useAdminCourseMaterials(courseId)
   const { editMaterial } = useAdminCourseMutations(courseId)
+  const selectedCourse = coursesQuery.data?.find(
+    (course) => course.id === courseId,
+  )
   const isLoading =
     coursesQuery.isPending ||
     (courseId !== undefined && materialsQuery.isPending)
@@ -86,9 +89,10 @@ export function AdminMaterialsPage() {
               <TableRow className="border-border hover:bg-transparent">
                 {[
                   'Material',
-                  'Filename',
+                  'Course',
+                  'Type',
                   'Status',
-                  'Chunks',
+                  'Owner',
                   'Updated',
                   'Actions',
                 ].map((header) => (
@@ -116,13 +120,22 @@ export function AdminMaterialsPage() {
                     </p>
                   </TableCell>
                   <TableCell className="px-6 py-5">
-                    {material.originalFilename}
+                    {selectedCourse?.code ?? material.courseId}
+                  </TableCell>
+                  <TableCell className="px-6 py-5">
+                    <p>PDF</p>
+                    <p className="text-xs text-muted-foreground">
+                      {material.originalFilename}
+                    </p>
                   </TableCell>
                   <TableCell className="px-6 py-5">
                     <AdminStatusBadge status={material.status} />
                   </TableCell>
                   <TableCell className="px-6 py-5">
-                    {material.chunkCount ?? '—'}
+                    <p>{material.uploadedBy.displayName}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {material.uploadedBy.email}
+                    </p>
                   </TableCell>
                   <TableCell className="px-6 py-5">
                     {materialDateFormatter.format(new Date(material.updatedAt))}
