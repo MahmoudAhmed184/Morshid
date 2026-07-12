@@ -239,6 +239,11 @@ export class AdminMaterialDto {
   uploadedById!: string
 
   @Expose()
+  @Type(() => AdminCourseUserSummaryDto)
+  @ApiProperty({ type: AdminCourseUserSummaryDto })
+  uploadedBy!: AdminCourseUserSummaryDto
+
+  @Expose()
   @ApiProperty()
   title!: string
 

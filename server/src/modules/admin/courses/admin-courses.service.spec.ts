@@ -521,6 +521,13 @@ describe('AdminCoursesService', () => {
       id: 'mat-1',
       courseId: dummyCourse.id,
       uploadedById: 'user-1',
+      uploadedBy: {
+        id: 'user-1',
+        email: 'instructor@morshid.demo',
+        displayName: 'Demo Instructor',
+        role: UserRole.INSTRUCTOR,
+        status: UserStatus.ACTIVE,
+      },
       title: 'Old Title',
       originalFilename: 'file.pdf',
       storagePath: '/path/file.pdf',

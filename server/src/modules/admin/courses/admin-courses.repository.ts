@@ -48,6 +48,7 @@ export interface AdminMaterialRecord {
   id: string
   courseId: string
   uploadedById: string
+  uploadedBy: AdminCourseUserRecord
   title: string
   originalFilename: string
   storagePath: string
@@ -139,6 +140,9 @@ const adminMaterialSelect = {
   id: true,
   courseId: true,
   uploadedById: true,
+  uploadedBy: {
+    select: courseUserSelect,
+  },
   title: true,
   originalFilename: true,
   storagePath: true,
