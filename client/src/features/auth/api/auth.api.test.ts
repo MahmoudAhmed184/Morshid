@@ -30,6 +30,7 @@ describe('loginApi', () => {
     const fetchMock = async (input: RequestInfo | URL, init?: RequestInit) => {
       expect(String(input)).toBe('http://localhost:4000/api/v1/auth/sign-in')
       expect(init?.method).toBe('POST')
+      expect(init?.credentials).toBe('include')
       const headers = new Headers(init?.headers)
 
       expect(headers.get('Accept')).toBe('application/json')
@@ -195,6 +196,7 @@ describe('logoutApi', () => {
     const fetchMock = async (input: RequestInfo | URL, init?: RequestInit) => {
       expect(String(input)).toBe('http://localhost:4000/api/v1/auth/logout')
       expect(init?.method).toBe('POST')
+      expect(init?.credentials).toBe('include')
       const headers = new Headers(init?.headers)
 
       expect(headers.get('Accept')).toBe('application/json')

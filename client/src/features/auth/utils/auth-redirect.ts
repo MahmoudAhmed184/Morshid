@@ -1,4 +1,4 @@
-import type { AuthRole } from '@/features/auth/types/auth.types'
+import type { AuthRole } from '@/features/auth/schemas/auth.schema'
 import { loadAuthenticatedUser } from '@/features/auth/utils/auth-loader'
 
 const authRedirectByRole = {

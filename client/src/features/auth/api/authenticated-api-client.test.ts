@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAuthStore } from '@/features/auth/stores/auth.store'
-import type { AuthSession } from '@/features/auth/types/auth.types'
+import type { AuthSession } from '@/features/auth/schemas/auth.schema'
 
-import { ApiError, apiFetch, apiJson } from './api-client'
+import { ApiError, apiFetch, apiJson } from './authenticated-api-client'
 
 const mockSession: AuthSession = {
   tokenType: 'Bearer',
@@ -60,6 +60,7 @@ describe('api client', () => {
     const fetchMock = async (input: RequestInfo | URL, init?: RequestInit) => {
       expect(String(input)).toBe('http://localhost:4000/api/v1/courses')
       expect(init?.method).toBe('GET')
+      expect(init?.credentials).toBe('include')
 
       const headers = new Headers(init?.headers)
 
