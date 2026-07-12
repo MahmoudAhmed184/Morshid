@@ -33,7 +33,38 @@ interface UpdateUserArgs {
   where: {
     id: string
   }
-  data: Partial<Pick<User, 'lastLoginAt' | 'status' | 'disabledAt'>>
+  data: Partial<
+    Pick<
+      User,
+      | 'lastLoginAt'
+      | 'status'
+      | 'disabledAt'
+      | 'disabledById'
+      | 'passwordHash'
+      | 'passwordChangedAt'
+    >
+  >
+}
+
+interface CreateUserArgs {
+  data: Pick<User, 'email' | 'displayName' | 'role' | 'status' | 'passwordHash'>
+}
+
+interface FindManyUserArgs {
+  orderBy?: {
+    createdAt?: 'asc' | 'desc'
+    id?: 'asc' | 'desc'
+  }[]
+  cursor?: { id: string }
+  skip?: number
+  take?: number
+}
+
+interface CountUserArgs {
+  where?: {
+    role?: User['role']
+    status?: User['status']
+  }
 }
 
 interface CreateRefreshTokenArgs {
@@ -53,7 +84,8 @@ interface UpdateRefreshTokenArgs {
 interface UpdateManyRefreshTokenArgs {
   where: {
     id?: string
-    tokenHash: string
+    tokenHash?: string
+    userId?: string
     revokedAt: null
     expiresAt: {
       gt: Date
@@ -107,6 +139,7 @@ export class AuthTestStore {
   readonly refreshTokens = new Map<string, RefreshToken>()
   readonly auditLogs = new Map<string, AuditLog>()
 
+  private nextUserSequence = 1
   private nextRefreshTokenSequence = 1
   private nextAuditLogSequence = 1
   private failNextActiveRefreshTokenRevoke = false
@@ -115,6 +148,15 @@ export class AuthTestStore {
     user: {
       findUnique: jest.fn((args: FindUniqueArgs) =>
         Promise.resolve(this.findUser(args)),
+      ),
+      findMany: jest.fn((args?: FindManyUserArgs) =>
+        Promise.resolve(this.findUsers(args)),
+      ),
+      count: jest.fn((args?: CountUserArgs) =>
+        Promise.resolve(this.countUsers(args)),
+      ),
+      create: jest.fn((args: CreateUserArgs) =>
+        Promise.resolve(this.createUser(args)),
       ),
       update: jest.fn((args: UpdateUserArgs) =>
         Promise.resolve(this.updateUser(args)),
@@ -170,7 +212,7 @@ export class AuthTestStore {
     )
   }
 
-  disableUser(email: string) {
+  disableUser(email: string, disabledById: string | null = null) {
     const user = this.findUserByEmail(email)
 
     if (!user) {
@@ -181,6 +223,7 @@ export class AuthTestStore {
       ...user,
       status: 'DISABLED',
       disabledAt: new Date('2026-07-06T10:00:00.000Z'),
+      disabledById,
     })
   }
 
@@ -263,6 +306,85 @@ export class AuthTestStore {
     return null
   }
 
+  private findUsers(args: FindManyUserArgs | undefined) {
+    let users = [...this.users.values()]
+    const createdAtOrder = args?.orderBy?.find(
+      (order) => order.createdAt !== undefined,
+    )?.createdAt
+    const idOrder = args?.orderBy?.find((order) => order.id !== undefined)?.id
+
+    if (createdAtOrder === 'desc') {
+      users.sort(
+        (a, b) =>
+          b.createdAt.getTime() - a.createdAt.getTime() ||
+          (idOrder === 'desc' ? b.id.localeCompare(a.id) : 0),
+      )
+    }
+
+    if (createdAtOrder === 'asc') {
+      users.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+    }
+
+    if (args?.cursor !== undefined) {
+      const cursorIndex = users.findIndex((user) => user.id === args.cursor?.id)
+      users = cursorIndex < 0 ? [] : users.slice(cursorIndex + (args.skip ?? 0))
+    }
+
+    if (args?.take !== undefined) {
+      users = users.slice(0, args.take)
+    }
+
+    return users.map((user) => ({
+      id: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      role: user.role,
+      status: user.status,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      memberships: this.memberships
+        .filter((membership) => membership.userId === user.id)
+        .map((membership) => {
+          const course = this.courses.get(membership.courseId)
+
+          if (!course) {
+            throw new Error(`Missing course ${membership.courseId}`)
+          }
+
+          return {
+            courseId: membership.courseId,
+            role: membership.role,
+            course: {
+              id: course.id,
+              code: course.code,
+              title: course.title,
+            },
+          }
+        }),
+    }))
+  }
+
+  private countUsers(args: CountUserArgs | undefined): number {
+    return this.findStoredUsers(args).length
+  }
+
+  private findStoredUsers(args: CountUserArgs | undefined): User[] {
+    return [...this.users.values()].filter((user) => {
+      if (args?.where?.role !== undefined && user.role !== args.where.role) {
+        return false
+      }
+
+      if (
+        args?.where?.status !== undefined &&
+        user.status !== args.where.status
+      ) {
+        return false
+      }
+
+      return true
+    })
+  }
+
   private updateUser(args: UpdateUserArgs): User {
     const user = this.users.get(args.where.id)
 
@@ -278,6 +400,30 @@ export class AuthTestStore {
     this.users.set(user.id, updated)
 
     return updated
+  }
+
+  private createUser(args: CreateUserArgs): User {
+    const sequence = this.nextUserSequence
+    this.nextUserSequence += 1
+    const now = new Date('2026-07-06T12:00:00.000Z')
+    const user: User = {
+      id: `00000000-0000-4000-8000-00000000050${sequence.toString()}`,
+      email: args.data.email,
+      displayName: args.data.displayName,
+      role: args.data.role,
+      status: args.data.status,
+      passwordHash: args.data.passwordHash,
+      disabledAt: null,
+      disabledById: null,
+      lastLoginAt: null,
+      passwordChangedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    }
+
+    this.users.set(user.id, user)
+
+    return user
   }
 
   private createRefreshToken(args: CreateRefreshTokenArgs): RefreshToken {
@@ -353,7 +499,10 @@ export class AuthTestStore {
     for (const refreshToken of this.refreshTokens.values()) {
       const isMatch =
         (args.where.id === undefined || refreshToken.id === args.where.id) &&
-        refreshToken.tokenHash === args.where.tokenHash &&
+        (args.where.tokenHash === undefined ||
+          refreshToken.tokenHash === args.where.tokenHash) &&
+        (args.where.userId === undefined ||
+          refreshToken.userId === args.where.userId) &&
         refreshToken.revokedAt === args.where.revokedAt &&
         refreshToken.expiresAt > args.where.expiresAt.gt
 
