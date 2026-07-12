@@ -9,7 +9,7 @@ import { studentCoursesQueryOptions } from '@/features/student/queries/student-c
 // clears the session before this tree unmounts we must still return a defined
 // query result instead of throwing into the error boundary.
 const unauthenticatedStudentCoursesQueryOptions = queryOptions({
-  queryKey: ['student', 'anonymous', 'courses'] as const,
+  queryKey: ['student', 'anonymous', 'courses'],
   queryFn: async (): Promise<StudentCourse[]> => [],
   initialData: [],
 })
