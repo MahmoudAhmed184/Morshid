@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-import { RolePlaceholderPage } from '@/features/auth/components/role-placeholder-page'
+import { InstructorDashboardShell } from '@/features/instructor-dashboard/instructor-dashboard-shell'
 
 export const Route = createFileRoute('/instructor/')({
-  component: () => <RolePlaceholderPage roleName="Instructor" />,
+  component: InstructorDashboardShell,
 })

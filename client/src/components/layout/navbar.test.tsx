@@ -3,7 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAuthStore } from '@/features/auth/stores/auth.store'
-import type { AuthSession } from '@/features/auth/types/auth.types'
+import type { AuthSession } from '@/features/auth/schemas/auth.schema'
 
 import { Navbar } from './navbar'
 
@@ -26,13 +26,15 @@ const mockSession: AuthSession = {
 vi.mock('@tanstack/react-router', () => ({
   Link: ({
     children,
+    hash,
     to,
     ...props
   }: {
     children?: React.ReactNode
+    hash?: string
     to: string
   }) => (
-    <a href={to} {...props}>
+    <a href={`${to}${hash ? `#${hash}` : ''}`} {...props}>
       {children}
     </a>
   ),
@@ -78,5 +80,25 @@ describe('Navbar', () => {
     )
     expect(screen.queryByRole('button', { name: /log in/i })).toBeNull()
     expect(screen.queryByRole('button', { name: /get started/i })).toBeNull()
+  })
+
+  it('shows stable Instructor workspace navigation for Instructor users', () => {
+    useAuthStore.getState().setSession({
+      ...mockSession,
+      user: { ...mockSession.user, role: 'INSTRUCTOR' },
+    })
+
+    render(<Navbar />)
+
+    expect(
+      screen.getAllByRole('link', { name: 'Overview' })[0],
+    ).toHaveAttribute('href', '/instructor')
+    expect(
+      screen.getAllByRole('link', { name: 'Materials' })[0],
+    ).toHaveAttribute('href', '/instructor#materials')
+    expect(
+      screen.getAllByRole('link', { name: 'Review queue' })[0],
+    ).toHaveAttribute('href', '/instructor#reviews')
+    expect(screen.queryByRole('link', { name: 'Pricing' })).toBeNull()
   })
 })

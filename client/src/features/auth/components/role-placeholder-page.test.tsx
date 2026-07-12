@@ -9,7 +9,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAuthStore } from '@/features/auth/stores/auth.store'
-import type { AuthSession } from '@/features/auth/types/auth.types'
+import type { AuthSession } from '@/features/auth/schemas/auth.schema'
 
 import { RolePlaceholderPage } from './role-placeholder-page'
 
@@ -63,7 +63,7 @@ describe('RolePlaceholderPage', () => {
     expect(useAuthStore.getState().isAuthenticated).toBe(true)
     expect(window.localStorage).toHaveLength(0)
 
-    fireEvent.click(screen.getByRole('button', { name: /logout/i }))
+    fireEvent.click(screen.getByRole('button', { name: /sign out/i }))
 
     await waitFor(() => {
       expect(navigateMock).toHaveBeenCalledWith({ to: '/login' })
@@ -95,7 +95,7 @@ describe('RolePlaceholderPage', () => {
 
     render(<RolePlaceholderPage roleName="Admin" />)
 
-    fireEvent.click(screen.getByRole('button', { name: /logout/i }))
+    fireEvent.click(screen.getByRole('button', { name: /sign out/i }))
 
     await waitFor(() => {
       expect(navigateMock).toHaveBeenCalledWith({ to: '/login' })
