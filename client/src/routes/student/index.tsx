@@ -1,7 +1,7 @@
-import { createFileRoute } from '@tanstack/react-router'
-
-import { RolePlaceholderPage } from '@/features/auth/components/role-placeholder-page'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/student/')({
-  component: () => <RolePlaceholderPage roleName="Student" />,
+  beforeLoad: () => {
+    throw redirect({ to: '/student/dashboard' })
+  },
 })
