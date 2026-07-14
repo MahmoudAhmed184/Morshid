@@ -185,7 +185,7 @@ class StudentChatTestRepository extends StudentChatRepository {
   }
 
   addSession(courseId: string, studentId: string, title: string) {
-    const id = `session-${this.sessionSequence}`
+    const id = `session-${String(this.sessionSequence)}`
     this.sessionSequence += 1
     const session: ChatSessionRecord & {
       studentId: string
@@ -295,11 +295,10 @@ class StudentChatTestRepository extends StudentChatRepository {
     sessionId: string,
     studentId: string,
   ) {
-    const session = this.sessions.get(sessionId) ?? null
+    const session = this.sessions.get(sessionId)
 
     if (
-      session === null ||
-      session.courseId !== courseId ||
+      session?.courseId !== courseId ||
       session.studentId !== studentId ||
       session.deletedAt !== null
     ) {
@@ -310,7 +309,7 @@ class StudentChatTestRepository extends StudentChatRepository {
   }
 
   private nextMessageId() {
-    const id = `message-${this.messageSequence}`
+    const id = `message-${String(this.messageSequence)}`
     this.messageSequence += 1
 
     return id
@@ -521,7 +520,7 @@ describe('StudentChatService', () => {
           courseId: 'course-1',
           sessionId: session.id,
           studentId: student.id,
-          content: `Message ${index}`,
+          content: `Message ${String(index)}`,
         }),
       ),
     )

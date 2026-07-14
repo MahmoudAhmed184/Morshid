@@ -381,7 +381,7 @@ export type TrustedAssistantStatus =
   | typeof MessageStatus.FAILED
   | typeof MessageStatus.BLOCKED
 
-export type TrustedMessageClassification = {
+export interface TrustedMessageClassification {
   requestKind?: MessageRequestKind | null
   guidanceLabel?: MessageGuidanceLabel | null
   hintLevel?: number | null

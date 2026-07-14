@@ -436,7 +436,7 @@ export class PrismaStudentChatRepository extends StudentChatRepository {
         },
         limit: 1,
       })
-      const session = sessions[0]
+      const session = sessions.at(0)
 
       if (session === undefined) {
         return { kind: 'session_not_found' }
@@ -498,7 +498,7 @@ export class PrismaStudentChatRepository extends StudentChatRepository {
         select: chatMessageSelect,
         limit: 1,
       })
-      const message = messages[0]
+      const message = messages.at(0)
 
       if (message === undefined) {
         return { kind: 'message_not_found' }
