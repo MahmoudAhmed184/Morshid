@@ -2,6 +2,7 @@ import {
   Body,
   ClassSerializerInterceptor,
   Controller,
+  Get,
   Param,
   Post,
   Req,
@@ -14,6 +15,7 @@ import {
   ApiBody,
   ApiCreatedResponse,
   ApiForbiddenResponse,
+  ApiOkResponse,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger'
@@ -24,6 +26,7 @@ import { UserRole } from '../../generated/prisma/client'
 import type { AuthenticatedHttpRequest } from '../auth/auth.guard'
 import { Roles } from '../auth/roles.decorator'
 import {
+  ChatSessionListResponseDto,
   ChatSessionResponseDto,
   CreateChatSessionRequestDto,
   createChatSessionRequestSchema,
@@ -68,6 +71,23 @@ export class StudentChatController {
     return this.studentChatService.createSession(
       courseId,
       body,
+      request.user,
+      getRequestContext(request),
+    )
+  }
+
+  @Get()
+  @SerializeOptions({
+    type: ChatSessionListResponseDto,
+    strategy: 'excludeAll',
+  })
+  @ApiOkResponse({ type: ChatSessionListResponseDto })
+  listSessions(
+    @Param('courseId') courseId: string,
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<ChatSessionListResponseDto> {
+    return this.studentChatService.listSessions(
+      courseId,
       request.user,
       getRequestContext(request),
     )

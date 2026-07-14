@@ -5,6 +5,7 @@ import type { AuditRequestContext } from '../audit/audit.service'
 import { StudentChatAuditService } from './student-chat.audit.service'
 import type {
   ChatSessionDto,
+  ChatSessionListResponseDto,
   ChatSessionResponseDto,
   CreateChatSessionRequest,
 } from './student-chat.dto'
@@ -38,6 +39,21 @@ export class StudentChatService {
     )
 
     return { session: mapSession(session) }
+  }
+
+  async listSessions(
+    courseId: string,
+    user: AuthenticatedRequestUser,
+    requestContext?: AuditRequestContext,
+  ): Promise<ChatSessionListResponseDto> {
+    await this.requireActiveStudentMembership(courseId, user.id, requestContext)
+
+    const sessions = await this.studentChatRepository.listSessions(
+      courseId,
+      user.id,
+    )
+
+    return { sessions: sessions.map(mapSession) }
   }
 
   private async requireActiveStudentMembership(

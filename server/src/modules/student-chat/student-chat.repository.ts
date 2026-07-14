@@ -37,6 +37,11 @@ export abstract class StudentChatRepository {
     studentId: string,
     title: string,
   ): Promise<ChatSessionRecord>
+
+  abstract listSessions(
+    courseId: string,
+    studentId: string,
+  ): Promise<ChatSessionRecord[]>
 }
 
 @Injectable()
@@ -75,6 +80,28 @@ export class PrismaStudentChatRepository extends StudentChatRepository {
         deletedAt: null,
       },
       select: chatSessionSelect,
+    })
+  }
+
+  listSessions(courseId: string, studentId: string) {
+    return this.prismaService.chatSession.findMany({
+      where: {
+        courseId,
+        studentId,
+        deletedAt: null,
+      },
+      select: chatSessionSelect,
+      orderBy: [
+        {
+          lastMessageAt: {
+            sort: 'desc',
+            nulls: 'last',
+          },
+        },
+        {
+          createdAt: 'desc',
+        },
+      ],
     })
   }
 }
