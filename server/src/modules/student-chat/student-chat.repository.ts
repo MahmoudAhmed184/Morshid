@@ -2,10 +2,10 @@ import { Injectable } from '@nestjs/common'
 
 import {
   CourseMembershipRole,
+  MessageRole,
+  MessageStatus,
   type MessageGuidanceLabel,
   type MessageRequestKind,
-  type MessageRole,
-  type MessageStatus,
   Prisma,
 } from '../../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
@@ -44,6 +44,64 @@ export interface ChatMessageRecord {
   createdAt: Date
   completedAt: Date | null
 }
+
+export interface AppendStudentMessageInput {
+  courseId: string
+  sessionId: string
+  studentId: string
+  content: string
+  requestKind?: MessageRequestKind | null
+  guidanceLabel?: MessageGuidanceLabel | null
+  hintLevel?: number | null
+}
+
+export interface AppendPendingAssistantMessageInput {
+  courseId: string
+  sessionId: string
+  studentId: string
+  responseToMessageId?: string | null
+  content?: string
+  requestKind?: MessageRequestKind | null
+  guidanceLabel?: MessageGuidanceLabel | null
+  hintLevel?: number | null
+}
+
+export interface CompleteAssistantMessageInput {
+  courseId: string
+  sessionId: string
+  studentId: string
+  messageId: string
+  content: string
+  provider?: string | null
+  model?: string | null
+  promptVersion?: string | null
+  inputTokens?: number | null
+  outputTokens?: number | null
+  guidanceLabel?: MessageGuidanceLabel | null
+}
+
+export interface FailAssistantMessageInput {
+  courseId: string
+  sessionId: string
+  studentId: string
+  messageId: string
+  errorCode: string
+  safeErrorMessage?: string | null
+}
+
+export interface BlockAssistantMessageInput {
+  courseId: string
+  sessionId: string
+  studentId: string
+  messageId: string
+  errorCode: string
+}
+
+export type MessagePersistenceResult =
+  | { kind: 'ok'; message: ChatMessageRecord }
+  | { kind: 'membership_missing' }
+  | { kind: 'session_not_found' }
+  | { kind: 'message_not_found' }
 
 const chatSessionSelect = {
   id: true,
@@ -110,6 +168,26 @@ export abstract class StudentChatRepository {
     sessionId: string,
     studentId: string,
   ): Promise<ChatMessageRecord[] | null>
+
+  abstract appendStudentMessage(
+    input: AppendStudentMessageInput,
+  ): Promise<MessagePersistenceResult>
+
+  abstract appendPendingAssistantMessage(
+    input: AppendPendingAssistantMessageInput,
+  ): Promise<MessagePersistenceResult>
+
+  abstract completeAssistantMessage(
+    input: CompleteAssistantMessageInput,
+  ): Promise<MessagePersistenceResult>
+
+  abstract failAssistantMessage(
+    input: FailAssistantMessageInput,
+  ): Promise<MessagePersistenceResult>
+
+  abstract blockAssistantMessage(
+    input: BlockAssistantMessageInput,
+  ): Promise<MessagePersistenceResult>
 }
 
 @Injectable()
@@ -256,6 +334,179 @@ export class PrismaStudentChatRepository extends StudentChatRepository {
 
     return session?.messages ?? null
   }
+
+  appendStudentMessage(input: AppendStudentMessageInput) {
+    const now = new Date()
+
+    return this.appendMessage(input, now, {
+      role: MessageRole.STUDENT,
+      authorUserId: input.studentId,
+      content: input.content,
+      status: MessageStatus.COMPLETED,
+      requestKind: input.requestKind ?? null,
+      guidanceLabel: input.guidanceLabel ?? null,
+      hintLevel: input.hintLevel ?? null,
+      completedAt: now,
+    })
+  }
+
+  appendPendingAssistantMessage(input: AppendPendingAssistantMessageInput) {
+    const now = new Date()
+
+    return this.appendMessage(input, now, {
+      role: MessageRole.ASSISTANT,
+      authorUserId: null,
+      responseToMessageId: input.responseToMessageId ?? null,
+      content: input.content ?? '',
+      status: MessageStatus.PENDING,
+      requestKind: input.requestKind ?? null,
+      guidanceLabel: input.guidanceLabel ?? null,
+      hintLevel: input.hintLevel ?? null,
+    })
+  }
+
+  completeAssistantMessage(input: CompleteAssistantMessageInput) {
+    return this.updateAssistantMessage(input, {
+      status: MessageStatus.COMPLETED,
+      content: input.content,
+      completedAt: new Date(),
+      provider: input.provider ?? null,
+      model: input.model ?? null,
+      promptVersion: input.promptVersion ?? null,
+      inputTokens: input.inputTokens ?? null,
+      outputTokens: input.outputTokens ?? null,
+      guidanceLabel: input.guidanceLabel ?? undefined,
+      errorCode: null,
+      errorMessage: null,
+    })
+  }
+
+  failAssistantMessage(input: FailAssistantMessageInput) {
+    return this.updateAssistantMessage(input, {
+      status: MessageStatus.FAILED,
+      errorCode: input.errorCode,
+      errorMessage: input.safeErrorMessage ?? null,
+      completedAt: new Date(),
+    })
+  }
+
+  blockAssistantMessage(input: BlockAssistantMessageInput) {
+    return this.updateAssistantMessage(input, {
+      status: MessageStatus.BLOCKED,
+      errorCode: input.errorCode,
+      errorMessage: null,
+      completedAt: new Date(),
+    })
+  }
+
+  private appendMessage(
+    input: AppendStudentMessageInput | AppendPendingAssistantMessageInput,
+    now: Date,
+    data: Omit<
+      Prisma.MessageUncheckedCreateInput,
+      'id' | 'sessionId' | 'sequence' | 'createdAt'
+    >,
+  ): Promise<MessagePersistenceResult> {
+    return this.prismaService.$transaction(async (tx) => {
+      const hasMembership = await hasActiveStudentMembershipInTransaction(
+        tx,
+        input.courseId,
+        input.studentId,
+      )
+
+      if (!hasMembership) {
+        return { kind: 'membership_missing' }
+      }
+
+      const sessions = await tx.chatSession.updateManyAndReturn({
+        where: ownedActiveSessionWhere(
+          input.courseId,
+          input.sessionId,
+          input.studentId,
+        ),
+        data: {
+          lastSequence: {
+            increment: 1,
+          },
+          lastMessageAt: now,
+        },
+        select: {
+          id: true,
+          lastSequence: true,
+        },
+        limit: 1,
+      })
+      const session = sessions[0]
+
+      if (session === undefined) {
+        return { kind: 'session_not_found' }
+      }
+
+      const message = await tx.message.create({
+        data: {
+          ...data,
+          sessionId: session.id,
+          sequence: session.lastSequence,
+        },
+        select: chatMessageSelect,
+      })
+
+      return { kind: 'ok', message }
+    })
+  }
+
+  private updateAssistantMessage(
+    input:
+      | CompleteAssistantMessageInput
+      | FailAssistantMessageInput
+      | BlockAssistantMessageInput,
+    data: Prisma.MessageUpdateManyMutationInput,
+  ): Promise<MessagePersistenceResult> {
+    return this.prismaService.$transaction(async (tx) => {
+      const hasMembership = await hasActiveStudentMembershipInTransaction(
+        tx,
+        input.courseId,
+        input.studentId,
+      )
+
+      if (!hasMembership) {
+        return { kind: 'membership_missing' }
+      }
+
+      const session = await tx.chatSession.findFirst({
+        where: ownedActiveSessionWhere(
+          input.courseId,
+          input.sessionId,
+          input.studentId,
+        ),
+        select: {
+          id: true,
+        },
+      })
+
+      if (session === null) {
+        return { kind: 'session_not_found' }
+      }
+
+      const messages = await tx.message.updateManyAndReturn({
+        where: {
+          id: input.messageId,
+          sessionId: session.id,
+          role: MessageRole.ASSISTANT,
+        },
+        data,
+        select: chatMessageSelect,
+        limit: 1,
+      })
+      const message = messages[0]
+
+      if (message === undefined) {
+        return { kind: 'message_not_found' }
+      }
+
+      return { kind: 'ok', message }
+    })
+  }
 }
 
 function ownedActiveSessionWhere(
@@ -269,4 +520,24 @@ function ownedActiveSessionWhere(
     studentId,
     deletedAt: null,
   }
+}
+
+function hasActiveStudentMembershipInTransaction(
+  database: Pick<Prisma.TransactionClient, 'courseMembership'>,
+  courseId: string,
+  studentId: string,
+): Promise<boolean> {
+  return database.courseMembership
+    .findFirst({
+      where: {
+        courseId,
+        userId: studentId,
+        role: CourseMembershipRole.STUDENT,
+        removedAt: null,
+      },
+      select: {
+        id: true,
+      },
+    })
+    .then((membership) => membership !== null)
 }

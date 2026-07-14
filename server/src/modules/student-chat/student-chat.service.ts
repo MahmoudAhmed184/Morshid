@@ -17,7 +17,18 @@ import {
   chatSessionNotFoundException,
 } from './student-chat.errors'
 import {
+  MessageStatus,
+  type MessageGuidanceLabel,
+  type MessageRequestKind,
+} from '../../generated/prisma/client'
+import {
   type ChatMessageRecord,
+  type AppendPendingAssistantMessageInput,
+  type AppendStudentMessageInput,
+  type BlockAssistantMessageInput,
+  type CompleteAssistantMessageInput,
+  type FailAssistantMessageInput,
+  type MessagePersistenceResult,
   type ChatSessionRecord,
   StudentChatRepository,
 } from './student-chat.repository'
@@ -161,6 +172,71 @@ export class StudentChatService {
     return { messages: messages.map(mapMessage) }
   }
 
+  appendStudentMessage(
+    input: AppendStudentChatMessageInput,
+    requestContext?: AuditRequestContext,
+  ): Promise<ChatMessageDto> {
+    return this.mapPersistenceResult(
+      input.courseId,
+      input.sessionId,
+      input.studentId,
+      requestContext,
+      this.studentChatRepository.appendStudentMessage(input),
+    )
+  }
+
+  appendPendingAssistantMessage(
+    input: AppendPendingAssistantChatMessageInput,
+    requestContext?: AuditRequestContext,
+  ): Promise<ChatMessageDto> {
+    return this.mapPersistenceResult(
+      input.courseId,
+      input.sessionId,
+      input.studentId,
+      requestContext,
+      this.studentChatRepository.appendPendingAssistantMessage(input),
+    )
+  }
+
+  completeAssistantMessage(
+    input: CompleteAssistantChatMessageInput,
+    requestContext?: AuditRequestContext,
+  ): Promise<ChatMessageDto> {
+    return this.mapPersistenceResult(
+      input.courseId,
+      input.sessionId,
+      input.studentId,
+      requestContext,
+      this.studentChatRepository.completeAssistantMessage(input),
+    )
+  }
+
+  failAssistantMessage(
+    input: FailAssistantChatMessageInput,
+    requestContext?: AuditRequestContext,
+  ): Promise<ChatMessageDto> {
+    return this.mapPersistenceResult(
+      input.courseId,
+      input.sessionId,
+      input.studentId,
+      requestContext,
+      this.studentChatRepository.failAssistantMessage(input),
+    )
+  }
+
+  blockAssistantMessage(
+    input: BlockAssistantChatMessageInput,
+    requestContext?: AuditRequestContext,
+  ): Promise<ChatMessageDto> {
+    return this.mapPersistenceResult(
+      input.courseId,
+      input.sessionId,
+      input.studentId,
+      requestContext,
+      this.studentChatRepository.blockAssistantMessage(input),
+    )
+  }
+
   private async requireActiveStudentMembership(
     courseId: string,
     studentId: string,
@@ -224,6 +300,92 @@ export class StudentChatService {
       requestContext,
     })
   }
+
+  private async mapPersistenceResult(
+    courseId: string,
+    sessionId: string,
+    studentId: string,
+    requestContext: AuditRequestContext | undefined,
+    resultPromise: Promise<MessagePersistenceResult>,
+  ): Promise<ChatMessageDto> {
+    const result = await resultPromise
+
+    if (result.kind === 'ok') {
+      return mapMessage(result.message)
+    }
+
+    if (result.kind === 'membership_missing') {
+      await this.studentChatAuditService.recordAccessDenied({
+        actorUserId: studentId,
+        courseId,
+        reason: 'ACTIVE_STUDENT_MEMBERSHIP_REQUIRED',
+        requestContext,
+      })
+      throw activeStudentMembershipRequiredException()
+    }
+
+    await this.recordSessionAccessDenied(
+      courseId,
+      studentId,
+      sessionId,
+      requestContext,
+    )
+    throw chatSessionNotFoundException()
+  }
+}
+
+export interface AppendStudentChatMessageInput
+  extends AppendStudentMessageInput {
+  status?: never
+  role?: never
+  provider?: never
+  model?: never
+  citations?: never
+}
+
+export interface AppendPendingAssistantChatMessageInput
+  extends AppendPendingAssistantMessageInput {
+  status?: never
+  role?: never
+  provider?: never
+  model?: never
+  citations?: never
+}
+
+export interface CompleteAssistantChatMessageInput
+  extends CompleteAssistantMessageInput {
+  status?: never
+  role?: never
+  citations?: never
+}
+
+export interface FailAssistantChatMessageInput
+  extends FailAssistantMessageInput {
+  status?: never
+  role?: never
+  provider?: never
+  model?: never
+  citations?: never
+}
+
+export interface BlockAssistantChatMessageInput
+  extends BlockAssistantMessageInput {
+  status?: never
+  role?: never
+  provider?: never
+  model?: never
+  citations?: never
+}
+
+export type TrustedAssistantStatus =
+  | typeof MessageStatus.COMPLETED
+  | typeof MessageStatus.FAILED
+  | typeof MessageStatus.BLOCKED
+
+export type TrustedMessageClassification = {
+  requestKind?: MessageRequestKind | null
+  guidanceLabel?: MessageGuidanceLabel | null
+  hintLevel?: number | null
 }
 
 function mapSession(record: ChatSessionRecord): ChatSessionDto {
