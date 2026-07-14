@@ -217,10 +217,10 @@ Acceptance criteria:
 | ID | Executable task | Owner | Peer reviewer | Due | Dependency / parallel-start rule | Initial workflow |
 |---|---|---|---|---|---|---|
 | S2-1.1 | Add Sprint 2 RAG persistence migration and configurable PDF-volume storage adapter | Mahmoud | Nourhan | Jul 15 | None; starts immediately from implemented material/course schema | Ready |
-| S2-1.2 | Implement authorized, validated PDF upload and material-status API | Nourhan | Mahmoud | Jul 16 | Storage contract from S2-1.1; authorization/validation tests start immediately | Ready |
-| S2-1.3 | Extract, normalize, deterministically chunk, and transition material status | Nourhan | Ahmed | Jul 17 | Integrates after S2-1.1/1.2; parser/chunker tests start immediately | Ready |
-| S2-1.4 | Connect Instructor upload and processing-status UI | Shaza | Ebram | Jul 18 | UI states and mocked contract start immediately; final integration uses S2-1.2/1.3 | Ready |
-| S2-1.5 | Prove upload validation, processing states, and unavailable-source exclusion | Ebram | Nourhan | Jul 18 | Fixtures/test matrix start immediately; executable integration follows S2-1.2/1.3 | Ready |
+| S2-1.2 | Implement authorized, validated PDF upload and material-status API | Nourhan | Mahmoud | Jul 16 | Hard completion prerequisite: S2-1.1; authorization/validation tests start immediately | Ready |
+| S2-1.3 | Extract, normalize, deterministically chunk, and transition material status | Nourhan | Ahmed | Jul 17 | Hard completion prerequisites: S2-1.1 and S2-2.1; parser/chunker tests and the processing contract start immediately, while upload-path integration uses S2-1.2 | Ready |
+| S2-1.4 | Connect Instructor upload and processing-status UI | Shaza | Ebram | Jul 18 | Hard completion prerequisites: S2-1.2 and S2-1.3; UI states and mocked contract start immediately | Ready |
+| S2-1.5 | Prove upload validation, processing states, and unavailable-source exclusion | Ebram | Nourhan | Jul 18 | Hard completion prerequisites: S2-1.2 and S2-1.3; fixtures/test matrix start immediately | Ready |
 
 Validation:
 
@@ -256,8 +256,8 @@ Acceptance criteria:
 | ID | Executable task | Owner | Peer reviewer | Due | Dependency / parallel-start rule | Initial workflow |
 |---|---|---|---|---|---|---|
 | S2-2.1 | Add the 1,536-dimension embedding provider contract and deterministic provider | Mahmoud | Nourhan | Jul 15 | None; starts immediately | Ready |
-| S2-2.2 | Persist embeddings and implement mandatory course/status-filtered top-k retrieval | Mahmoud | Nourhan | Jul 18 | RAG persistence S2-1.1 and provider contract S2-2.1; repository/query work starts now with seeded chunks | Ready |
-| S2-2.3 | Add retrieval threshold, readiness, and cross-course isolation acceptance tests | Ebram | Mahmoud | Jul 18 | Fixture design starts now; final assertions use S2-2.2 | Ready |
+| S2-2.2 | Persist embeddings and implement mandatory course/status-filtered top-k retrieval | Mahmoud | Nourhan | Jul 18 | Hard completion prerequisites: S2-1.1 and S2-2.1; repository/query work starts now with seeded chunks | Ready |
+| S2-2.3 | Add retrieval threshold, readiness, and cross-course isolation acceptance tests | Ebram | Mahmoud | Jul 18 | Hard completion prerequisite: S2-2.2; fixture design starts now | Ready |
 
 Validation:
 
@@ -294,8 +294,8 @@ Acceptance criteria:
 | ID | Executable task | Owner | Peer reviewer | Due | Dependency / parallel-start rule | Initial workflow |
 |---|---|---|---|---|---|---|
 | S2-3.1 | Implement private Student session/message persistence APIs | Nourhan | Ahmed | Jul 16 | None; starts immediately from implemented membership/session/message schema | Ready |
-| S2-3.2 | Connect Student session list and persisted chat history UI | Ahmed | Mahmoud | Jul 18 | UI against contract/mocks starts immediately; integration uses S2-3.1 | Ready |
-| S2-3.3 | Prove Student-session ownership and Instructor privacy boundaries | Ebram | Ahmed | Jul 18 | Test fixtures start immediately; endpoint assertions use S2-3.1 | Ready |
+| S2-3.2 | Connect Student session list and persisted chat history UI | Ahmed | Mahmoud | Jul 18 | Hard completion prerequisite: S2-3.1; UI against contract/mocks starts immediately | Ready |
+| S2-3.3 | Prove Student-session ownership and Instructor privacy boundaries | Ebram | Ahmed | Jul 18 | Hard completion prerequisite: S2-3.1; test fixtures start immediately | Ready |
 
 Validation:
 
@@ -336,8 +336,8 @@ Acceptance criteria:
 | ID | Executable task | Owner | Peer reviewer | Due | Dependency / parallel-start rule | Initial workflow |
 |---|---|---|---|---|---|---|
 | S2-4.1 | Add completion provider contract, deterministic provider, and untrusted-context envelope | Nourhan | Mahmoud | Jul 16 | None; starts immediately | Ready |
-| S2-4.2 | Orchestrate authorized retrieve-complete-persist-cite chat flow | Mahmoud | Nourhan | Jul 20 | Integrates S2-2.2, S2-3.1, and S2-4.1; orchestration contract/tests start now | Backlog |
-| S2-4.3 | Deliver grounded chat, citation, loading, failure, and retry UI | Ahmed | Ebram | Jul 21 | UI with deterministic fixtures starts now; final integration uses S2-4.2 | Ready |
+| S2-4.2 | Orchestrate authorized retrieve-complete-persist-cite chat flow | Mahmoud | Nourhan | Jul 20 | Hard completion prerequisites: S2-2.2, S2-3.1, and S2-4.1; orchestration contract/tests start now | Backlog |
+| S2-4.3 | Deliver grounded chat, citation, loading, failure, and retry UI | Ahmed | Ebram | Jul 21 | Hard completion prerequisites: S2-3.2 and S2-4.2; UI with deterministic fixtures starts now | Ready |
 
 Validation:
 
@@ -374,8 +374,8 @@ Acceptance criteria:
 
 | ID | Executable task | Owner | Peer reviewer | Due | Dependency / parallel-start rule | Initial workflow |
 |---|---|---|---|---|---|---|
-| S2-5.1 | Automate the Gate 2 end-to-end and adversarial isolation path | Ebram | Mahmoud | Jul 22 | Test harness/fixtures start now; complete run integrates S2-1 through S2-4 | Backlog |
-| S2-5.2 | Rehearse and record the clean Gate 2 demo and fallback | Shaza | Ebram | Jul 23 | Draft runbook now; final evidence uses S2-5.1 and approved source carryover | Backlog |
+| S2-5.1 | Automate the Gate 2 end-to-end and adversarial isolation path | Ebram | Mahmoud | Jul 22 | Hard completion prerequisites: S2-1.2, S2-1.3, and S2-4.2; test harness/fixtures start now | Backlog |
+| S2-5.2 | Rehearse and record the clean Gate 2 demo and fallback | Shaza | Ebram | Jul 23 | Hard completion prerequisites: S2-1.4, S2-4.3, and S2-5.1; draft runbook starts now and approved source carryover remains optional | Backlog |
 
 Validation:
 
@@ -386,11 +386,17 @@ Validation:
 
 ## 6. Dependency graph and immediate parallel work
 
-The only critical integration chain is:
+The minimal hard-completion dependency graph is:
 
-`S2-1.1 -> S2-1.2 -> S2-1.3`, in parallel with
-`S2-1.1 + S2-2.1 -> S2-2.2`; both paths join
-`S2-3.1 + S2-4.1 -> S2-4.2 -> S2-4.3 -> S2-5.1 -> S2-5.2`.
+- `S2-1.1 -> S2-1.2`
+- `S2-1.1 + S2-2.1 -> S2-1.3`
+- `S2-1.2 + S2-1.3 -> S2-1.4` and `S2-1.5`
+- `S2-1.1 + S2-2.1 -> S2-2.2 -> S2-2.3`
+- `S2-3.1 -> S2-3.2` and `S2-3.3`
+- `S2-2.2 + S2-3.1 + S2-4.1 -> S2-4.2`
+- `S2-3.2 + S2-4.2 -> S2-4.3`
+- `S2-1.2 + S2-1.3 + S2-4.2 -> S2-5.1`
+- `S2-1.4 + S2-4.3 + S2-5.1 -> S2-5.2`
 
 Private chat `S2-3.1` joins the chain at `S2-4.2`. It does not depend on upload
 or retrieval. UI work uses mocked contracts before backend integration. Test
@@ -407,9 +413,13 @@ Immediate Day 1 starts:
 - Ebram: PDF validation, privacy, retrieval isolation, and Gate 2 fixture matrix,
   paired with the named senior reviewers.
 
-Dependencies are integration ordering, not reasons to leave people idle. An
-item is marked `Blocked` only if an unresolved external or technical condition
-prevents useful contract, fixture, unit, or UI work.
+GitHub native `blocked by` relationships record these hard completion
+prerequisites. They intentionally omit transitive duplicates, logging/audit
+work, focused test tasks that are not production prerequisites, Sprint 1
+carryover with documented fallbacks, and optional provider/SSE work. A native
+dependency does not by itself move an item to Workflow `Blocked`: parallel
+contract, fixture, unit, or mocked-UI work can remain Ready or Backlog. Workflow
+`Blocked` is reserved for an unresolved condition that prevents useful progress.
 
 ## 7. Ownership and review load
 
@@ -642,6 +652,10 @@ passed the delivery-lead audit:
   stories, 16 Sprint 2 tasks, and 4 carryover items represented once.
 - Native story children are complete: #71 has #76-#80, #72 has #81-#83, #73
   has #84-#86, #74 has #87-#89, and #75 has #90-#91.
+- Native hard-completion dependencies contain 23 direct relationships across 12
+  tasks. The four independent foundation tasks (#76, #81, #84, and #87) have no
+  blockers. The graph contains no transitive duplicate, Sprint 1 carryover,
+  logging/audit-only, optional-provider, or focused-test task used as a blocker.
 - All 25 items have Status, Workflow, Workstream, Start Date, Due Date, Owner
   Role, P0 Priority, one valid assignee, one Peer Reviewer, and the intended
   milestone. The four carryovers retain the Sprint 1 milestone.
