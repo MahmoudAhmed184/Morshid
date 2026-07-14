@@ -631,3 +631,33 @@ The user-owned Project is public, repository-linked, and uses:
 
 Project description and README state the Gate 2 goal, link this source plan, and
 reserve Blocked for a real unresolved condition.
+
+## 15. Publication validation — July 14, 2026
+
+The completed repository/GitHub structure was queried after publication and
+passed the delivery-lead audit:
+
+- Remote `dev` contains this plan and matches the local planning commit.
+- The public, repository-linked Project contains 25 unique items: 5 Sprint 2
+  stories, 16 Sprint 2 tasks, and 4 carryover items represented once.
+- Native story children are complete: #71 has #76-#80, #72 has #81-#83, #73
+  has #84-#86, #74 has #87-#89, and #75 has #90-#91.
+- All 25 items have Status, Workflow, Workstream, Start Date, Due Date, Owner
+  Role, P0 Priority, one valid assignee, one Peer Reviewer, and the intended
+  milestone. The four carryovers retain the Sprint 1 milestone.
+- Workflow distribution is 17 Ready, 5 Backlog, 3 Review, and 0 Blocked. The
+  Backlog items are planned integration work; independent work remains Ready.
+- New implementation-task ownership is Mahmoud 4, Nourhan 4, Ahmed 2, Shaza 2,
+  and Ebram 4. Formal task-review load is Mahmoud 5, Nourhan 5, Ahmed 3, and
+  Ebram 3 bounded UI/reproducibility reviews, with secondary senior reviews
+  required by the risk rules above.
+- Every Sprint 2 issue follows the repository Story/Task headings, has P0 and
+  Sprint 2 labels, belongs to the July 23 milestone, and has no duplicate title.
+- Repository validation passes: `npm run check` (142 client tests and 70 server
+  unit tests plus formatting, lint, type checking, and builds) and the documented
+  infrastructure/migration-backed server E2E run (7 suites, 76 tests).
+- Final acceptance explicitly checks both successful Python-course retrieval and
+  zero hidden-course content in retrieval, provider input, persistence,
+  citations, and response.
+
+No permission or GitHub API limitation remains for Sprint 2 planning artifacts.
