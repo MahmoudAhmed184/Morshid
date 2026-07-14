@@ -470,7 +470,7 @@ describe('StudentChatService', () => {
     )
   })
 
-  it('returns message history ordered by sequence without provider internals', async () => {
+  it('returns message history ordered by sequence without internal metadata', async () => {
     const { repository, service } = buildService()
     repository.addMembership('course-1', student.id)
     const session = repository.addSession('course-1', student.id, 'History')
@@ -491,6 +491,7 @@ describe('StudentChatService', () => {
     const response = await service.listMessages('course-1', session.id, student)
 
     expect(response.messages.map((message) => message.sequence)).toEqual([1, 2])
+    expect(response.messages[0]).not.toHaveProperty('authorUserId')
     expect(response.messages[0]).not.toHaveProperty('provider')
     expect(response.messages[0]).not.toHaveProperty('errorMessage')
   })

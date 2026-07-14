@@ -415,7 +415,6 @@ function mapMessage(record: ChatMessageRecord): ChatMessageDto {
     id: record.id,
     sequence: record.sequence,
     role: record.role,
-    authorUserId: record.authorUserId,
     responseToMessageId: record.responseToMessageId,
     content: record.content,
     status: record.status,

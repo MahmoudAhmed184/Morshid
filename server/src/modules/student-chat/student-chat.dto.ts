@@ -95,10 +95,6 @@ export class ChatMessageDto {
 
   @Expose()
   @ApiProperty({ format: 'uuid', nullable: true })
-  authorUserId!: string | null
-
-  @Expose()
-  @ApiProperty({ format: 'uuid', nullable: true })
   responseToMessageId!: string | null
 
   @Expose()
