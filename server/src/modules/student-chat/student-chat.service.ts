@@ -8,6 +8,7 @@ import type {
   ChatSessionListResponseDto,
   ChatSessionResponseDto,
   CreateChatSessionRequest,
+  RenameChatSessionRequest,
 } from './student-chat.dto'
 import {
   activeStudentMembershipRequiredException,
@@ -71,6 +72,35 @@ export class StudentChatService {
       user.id,
       requestContext,
     )
+
+    return { session: mapSession(session) }
+  }
+
+  async renameSession(
+    courseId: string,
+    sessionId: string,
+    body: RenameChatSessionRequest,
+    user: AuthenticatedRequestUser,
+    requestContext?: AuditRequestContext,
+  ): Promise<ChatSessionResponseDto> {
+    await this.requireActiveStudentMembership(courseId, user.id, requestContext)
+
+    const session = await this.studentChatRepository.renameSession(
+      courseId,
+      sessionId,
+      user.id,
+      body.title,
+    )
+
+    if (session === null) {
+      await this.recordSessionAccessDenied(
+        courseId,
+        user.id,
+        sessionId,
+        requestContext,
+      )
+      throw chatSessionNotFoundException()
+    }
 
     return { session: mapSession(session) }
   }

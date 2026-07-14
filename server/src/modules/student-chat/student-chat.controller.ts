@@ -4,6 +4,7 @@ import {
   Controller,
   Get,
   Param,
+  Patch,
   Post,
   Req,
   SerializeOptions,
@@ -30,8 +31,11 @@ import {
   ChatSessionListResponseDto,
   ChatSessionResponseDto,
   CreateChatSessionRequestDto,
+  RenameChatSessionRequestDto,
   createChatSessionRequestSchema,
+  renameChatSessionRequestSchema,
   type CreateChatSessionRequest,
+  type RenameChatSessionRequest,
 } from './student-chat.dto'
 import {
   invalidStudentChatRequestException,
@@ -109,6 +113,33 @@ export class StudentChatController {
     return this.studentChatService.getSession(
       courseId,
       sessionId,
+      request.user,
+      getRequestContext(request),
+    )
+  }
+
+  @Patch(':sessionId')
+  @SerializeOptions({
+    type: ChatSessionResponseDto,
+    strategy: 'excludeAll',
+  })
+  @ApiBody({ type: RenameChatSessionRequestDto })
+  @ApiOkResponse({ type: ChatSessionResponseDto })
+  renameSession(
+    @Param('courseId') courseId: string,
+    @Param('sessionId') sessionId: string,
+    @Body(
+      new ZodValidationPipe(renameChatSessionRequestSchema, (issues) =>
+        invalidStudentChatRequestException(issues.map(mapZodIssue)),
+      ),
+    )
+    body: RenameChatSessionRequest,
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<ChatSessionResponseDto> {
+    return this.studentChatService.renameSession(
+      courseId,
+      sessionId,
+      body,
       request.user,
       getRequestContext(request),
     )

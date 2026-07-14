@@ -48,6 +48,13 @@ export abstract class StudentChatRepository {
     sessionId: string,
     studentId: string,
   ): Promise<ChatSessionRecord | null>
+
+  abstract renameSession(
+    courseId: string,
+    sessionId: string,
+    studentId: string,
+    title: string,
+  ): Promise<ChatSessionRecord | null>
 }
 
 @Injectable()
@@ -120,6 +127,24 @@ export class PrismaStudentChatRepository extends StudentChatRepository {
       where: ownedActiveSessionWhere(courseId, sessionId, studentId),
       select: chatSessionSelect,
     })
+  }
+
+  async renameSession(
+    courseId: string,
+    sessionId: string,
+    studentId: string,
+    title: string,
+  ) {
+    const result = await this.prismaService.chatSession.updateManyAndReturn({
+      where: ownedActiveSessionWhere(courseId, sessionId, studentId),
+      data: {
+        title,
+      },
+      select: chatSessionSelect,
+      limit: 1,
+    })
+
+    return result[0] ?? null
   }
 }
 
