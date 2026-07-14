@@ -281,7 +281,10 @@ class StudentChatTestRepository extends StudentChatRepository {
     )
 
     if (index === -1) {
-      return Promise.resolve({ kind: 'message_not_found' })
+      return Promise.resolve({
+        kind: 'message_not_found',
+        messageId: input.messageId,
+      })
     }
 
     const updated = { ...messages[index], ...values }
@@ -559,6 +562,32 @@ describe('StudentChatService', () => {
     })
     expect(completed).not.toHaveProperty('provider')
     expect(completed).not.toHaveProperty('model')
+  })
+
+  it('audits missing assistant messages distinctly without exposing content', async () => {
+    const { repository, service, auditService } = buildService()
+    repository.addMembership('course-1', student.id)
+    const session = repository.addSession('course-1', student.id, 'Assistant')
+
+    await expect(
+      service.completeAssistantMessage({
+        courseId: 'course-1',
+        sessionId: session.id,
+        studentId: student.id,
+        messageId: 'missing-message',
+        content: 'Should not be audited',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException)
+
+    expect(auditService.recordAccessDenied).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: student.id,
+        courseId: 'course-1',
+        sessionId: session.id,
+        reason: 'ASSISTANT_MESSAGE_NOT_FOUND',
+        messageId: 'missing-message',
+      }),
+    )
   })
 })
 

@@ -101,7 +101,7 @@ export type MessagePersistenceResult =
   | { kind: 'ok'; message: ChatMessageRecord }
   | { kind: 'membership_missing' }
   | { kind: 'session_not_found' }
-  | { kind: 'message_not_found' }
+  | { kind: 'message_not_found'; messageId: string }
 
 const chatSessionSelect = {
   id: true,
@@ -418,27 +418,52 @@ export class PrismaStudentChatRepository extends StudentChatRepository {
         return { kind: 'membership_missing' }
       }
 
-      const sessions = await tx.chatSession.updateManyAndReturn({
+      const ownedSession = await tx.chatSession.findFirst({
         where: ownedActiveSessionWhere(
           input.courseId,
           input.sessionId,
           input.studentId,
         ),
-        data: {
-          lastSequence: {
-            increment: 1,
-          },
-          lastMessageAt: now,
-        },
         select: {
           id: true,
-          lastSequence: true,
         },
-        limit: 1,
       })
-      const session = sessions.at(0)
 
-      if (session === undefined) {
+      if (ownedSession === null) {
+        return { kind: 'session_not_found' }
+      }
+
+      const session = await tx.chatSession
+        .update({
+          where: {
+            id: ownedSession.id,
+            courseId: input.courseId,
+            studentId: input.studentId,
+            deletedAt: null,
+          },
+          data: {
+            lastSequence: {
+              increment: 1,
+            },
+            lastMessageAt: now,
+          },
+          select: {
+            id: true,
+            lastSequence: true,
+          },
+        })
+        .catch((error: unknown) => {
+          if (
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === 'P2025'
+          ) {
+            return null
+          }
+
+          throw error
+        })
+
+      if (session === null) {
         return { kind: 'session_not_found' }
       }
 
@@ -501,7 +526,7 @@ export class PrismaStudentChatRepository extends StudentChatRepository {
       const message = messages.at(0)
 
       if (message === undefined) {
-        return { kind: 'message_not_found' }
+        return { kind: 'message_not_found', messageId: input.messageId }
       }
 
       return { kind: 'ok', message }

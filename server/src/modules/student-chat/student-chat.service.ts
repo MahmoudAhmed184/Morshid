@@ -328,6 +328,18 @@ export class StudentChatService {
       throw activeStudentMembershipRequiredException()
     }
 
+    if (result.kind === 'message_not_found') {
+      await this.studentChatAuditService.recordAccessDenied({
+        actorUserId: studentId,
+        courseId,
+        sessionId,
+        reason: 'ASSISTANT_MESSAGE_NOT_FOUND',
+        messageId: result.messageId,
+        requestContext,
+      })
+      throw chatSessionNotFoundException()
+    }
+
     await this.recordSessionAccessDenied(
       courseId,
       studentId,

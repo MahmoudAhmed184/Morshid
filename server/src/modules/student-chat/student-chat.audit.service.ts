@@ -21,7 +21,11 @@ interface RecordAccessDeniedInput {
   actorUserId: string
   courseId: string
   sessionId?: string | null
-  reason: 'ACTIVE_STUDENT_MEMBERSHIP_REQUIRED' | 'DELETED_OR_UNOWNED'
+  reason:
+    | 'ACTIVE_STUDENT_MEMBERSHIP_REQUIRED'
+    | 'DELETED_OR_UNOWNED'
+    | 'ASSISTANT_MESSAGE_NOT_FOUND'
+  messageId?: string | null
   requestContext?: AuditRequestContext
 }
 
@@ -64,6 +68,9 @@ export class StudentChatAuditService {
         courseId: input.courseId,
         metadata: {
           reason: input.reason,
+          ...(input.messageId === undefined
+            ? {}
+            : { messageId: input.messageId }),
         },
         requestContext: input.requestContext,
       },
