@@ -152,6 +152,7 @@ model CourseMembership {
   userId      String               @map("user_id") @db.Uuid
   role        CourseMembershipRole
   createdById String?              @map("created_by") @db.Uuid
+  removedAt   DateTime?            @map("removed_at") @db.Timestamptz(6)
   createdAt   DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
 
   course       Course        @relation(fields: [courseId], references: [id], onDelete: Restrict)
@@ -160,7 +161,7 @@ model CourseMembership {
   chatSessions ChatSession[] @relation("ChatSessionMembership")
 
   @@unique([courseId, userId], map: "course_memberships_course_id_user_id_key")
-  @@index([courseId, role], map: "idx_memberships_course_role")
+  @@index([courseId, role, removedAt], map: "idx_memberships_course_role_active")
   @@index([userId], map: "idx_memberships_user")
   @@index([createdById], map: "idx_memberships_created_by")
   @@map("course_memberships")
@@ -199,6 +200,7 @@ model ChatSession {
   deletedAt     DateTime? @map("deleted_at") @db.Timestamptz(6)
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  lastSequence  Int       @default(0) @map("last_sequence")
 
   course     Course           @relation(fields: [courseId], references: [id], onDelete: Restrict)
   student    User             @relation("ChatSessionStudent", fields: [studentId], references: [id], onDelete: Restrict)
