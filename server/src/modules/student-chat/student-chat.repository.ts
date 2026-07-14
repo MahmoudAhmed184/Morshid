@@ -5,6 +5,8 @@ import {
   Prisma,
 } from '../../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import type { AuditRequestContext } from '../audit/audit.service'
+import { StudentChatAuditService } from './student-chat.audit.service'
 
 export interface ChatSessionRecord {
   id: string
@@ -14,6 +16,13 @@ export interface ChatSessionRecord {
   lastMessageAt: Date | null
   createdAt: Date
   updatedAt: Date
+}
+
+export interface SoftDeleteChatSessionInput {
+  courseId: string
+  sessionId: string
+  studentId: string
+  requestContext?: AuditRequestContext
 }
 
 const chatSessionSelect = {
@@ -55,11 +64,18 @@ export abstract class StudentChatRepository {
     studentId: string,
     title: string,
   ): Promise<ChatSessionRecord | null>
+
+  abstract softDeleteSession(
+    input: SoftDeleteChatSessionInput,
+  ): Promise<boolean>
 }
 
 @Injectable()
 export class PrismaStudentChatRepository extends StudentChatRepository {
-  constructor(private readonly prismaService: PrismaService) {
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly studentChatAuditService: StudentChatAuditService,
+  ) {
     super()
   }
 
@@ -145,6 +161,37 @@ export class PrismaStudentChatRepository extends StudentChatRepository {
     })
 
     return result[0] ?? null
+  }
+
+  async softDeleteSession(input: SoftDeleteChatSessionInput): Promise<boolean> {
+    return this.prismaService.$transaction(async (tx) => {
+      const result = await tx.chatSession.updateMany({
+        where: ownedActiveSessionWhere(
+          input.courseId,
+          input.sessionId,
+          input.studentId,
+        ),
+        data: {
+          deletedAt: new Date(),
+        },
+      })
+
+      if (result.count === 0) {
+        return false
+      }
+
+      await this.studentChatAuditService.recordSessionDeleted(
+        {
+          actorUserId: input.studentId,
+          courseId: input.courseId,
+          sessionId: input.sessionId,
+          requestContext: input.requestContext,
+        },
+        tx,
+      )
+
+      return true
+    })
   }
 }
 

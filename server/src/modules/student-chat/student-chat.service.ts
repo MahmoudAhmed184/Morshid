@@ -105,6 +105,32 @@ export class StudentChatService {
     return { session: mapSession(session) }
   }
 
+  async softDeleteSession(
+    courseId: string,
+    sessionId: string,
+    user: AuthenticatedRequestUser,
+    requestContext?: AuditRequestContext,
+  ): Promise<void> {
+    await this.requireActiveStudentMembership(courseId, user.id, requestContext)
+
+    const deleted = await this.studentChatRepository.softDeleteSession({
+      courseId,
+      sessionId,
+      studentId: user.id,
+      requestContext,
+    })
+
+    if (!deleted) {
+      await this.recordSessionAccessDenied(
+        courseId,
+        user.id,
+        sessionId,
+        requestContext,
+      )
+      throw chatSessionNotFoundException()
+    }
+  }
+
   private async requireActiveStudentMembership(
     courseId: string,
     studentId: string,

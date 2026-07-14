@@ -2,7 +2,9 @@ import {
   Body,
   ClassSerializerInterceptor,
   Controller,
+  Delete,
   Get,
+  HttpCode,
   Param,
   Patch,
   Post,
@@ -16,6 +18,7 @@ import {
   ApiBody,
   ApiCreatedResponse,
   ApiForbiddenResponse,
+  ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiTags,
@@ -140,6 +143,22 @@ export class StudentChatController {
       courseId,
       sessionId,
       body,
+      request.user,
+      getRequestContext(request),
+    )
+  }
+
+  @Delete(':sessionId')
+  @HttpCode(204)
+  @ApiNoContentResponse()
+  async softDeleteSession(
+    @Param('courseId') courseId: string,
+    @Param('sessionId') sessionId: string,
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<void> {
+    await this.studentChatService.softDeleteSession(
+      courseId,
+      sessionId,
       request.user,
       getRequestContext(request),
     )
