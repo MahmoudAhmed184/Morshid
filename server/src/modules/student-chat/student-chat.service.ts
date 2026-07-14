@@ -9,7 +9,10 @@ import type {
   ChatSessionResponseDto,
   CreateChatSessionRequest,
 } from './student-chat.dto'
-import { activeStudentMembershipRequiredException } from './student-chat.errors'
+import {
+  activeStudentMembershipRequiredException,
+  chatSessionNotFoundException,
+} from './student-chat.errors'
 import {
   type ChatSessionRecord,
   StudentChatRepository,
@@ -56,6 +59,22 @@ export class StudentChatService {
     return { sessions: sessions.map(mapSession) }
   }
 
+  async getSession(
+    courseId: string,
+    sessionId: string,
+    user: AuthenticatedRequestUser,
+    requestContext?: AuditRequestContext,
+  ): Promise<ChatSessionResponseDto> {
+    const session = await this.requireOwnedActiveSession(
+      courseId,
+      sessionId,
+      user.id,
+      requestContext,
+    )
+
+    return { session: mapSession(session) }
+  }
+
   private async requireActiveStudentMembership(
     courseId: string,
     studentId: string,
@@ -76,6 +95,48 @@ export class StudentChatService {
       })
       throw activeStudentMembershipRequiredException()
     }
+  }
+
+  private async requireOwnedActiveSession(
+    courseId: string,
+    sessionId: string,
+    studentId: string,
+    requestContext?: AuditRequestContext,
+  ): Promise<ChatSessionRecord> {
+    await this.requireActiveStudentMembership(courseId, studentId, requestContext)
+
+    const session = await this.studentChatRepository.findOwnedActiveSession(
+      courseId,
+      sessionId,
+      studentId,
+    )
+
+    if (session === null) {
+      await this.recordSessionAccessDenied(
+        courseId,
+        studentId,
+        sessionId,
+        requestContext,
+      )
+      throw chatSessionNotFoundException()
+    }
+
+    return session
+  }
+
+  private recordSessionAccessDenied(
+    courseId: string,
+    studentId: string,
+    sessionId: string,
+    requestContext?: AuditRequestContext,
+  ): Promise<void> {
+    return this.studentChatAuditService.recordAccessDenied({
+      actorUserId: studentId,
+      courseId,
+      sessionId,
+      reason: 'DELETED_OR_UNOWNED',
+      requestContext,
+    })
   }
 }
 

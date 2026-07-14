@@ -42,6 +42,12 @@ export abstract class StudentChatRepository {
     courseId: string,
     studentId: string,
   ): Promise<ChatSessionRecord[]>
+
+  abstract findOwnedActiveSession(
+    courseId: string,
+    sessionId: string,
+    studentId: string,
+  ): Promise<ChatSessionRecord | null>
 }
 
 @Injectable()
@@ -103,5 +109,29 @@ export class PrismaStudentChatRepository extends StudentChatRepository {
         },
       ],
     })
+  }
+
+  findOwnedActiveSession(
+    courseId: string,
+    sessionId: string,
+    studentId: string,
+  ) {
+    return this.prismaService.chatSession.findFirst({
+      where: ownedActiveSessionWhere(courseId, sessionId, studentId),
+      select: chatSessionSelect,
+    })
+  }
+}
+
+function ownedActiveSessionWhere(
+  courseId: string,
+  sessionId: string,
+  studentId: string,
+): Prisma.ChatSessionWhereInput {
+  return {
+    id: sessionId,
+    courseId,
+    studentId,
+    deletedAt: null,
   }
 }

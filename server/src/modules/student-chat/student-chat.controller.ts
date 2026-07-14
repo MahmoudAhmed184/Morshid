@@ -15,6 +15,7 @@ import {
   ApiBody,
   ApiCreatedResponse,
   ApiForbiddenResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiTags,
   ApiUnauthorizedResponse,
@@ -47,6 +48,7 @@ import { StudentChatService } from './student-chat.service'
 @ApiForbiddenResponse({
   description: 'An active Student membership in the course is required.',
 })
+@ApiNotFoundResponse({ description: 'Chat session was not found.' })
 @ApiBadRequestResponse({ description: 'Invalid request body.' })
 export class StudentChatController {
   constructor(private readonly studentChatService: StudentChatService) {}
@@ -88,6 +90,25 @@ export class StudentChatController {
   ): Promise<ChatSessionListResponseDto> {
     return this.studentChatService.listSessions(
       courseId,
+      request.user,
+      getRequestContext(request),
+    )
+  }
+
+  @Get(':sessionId')
+  @SerializeOptions({
+    type: ChatSessionResponseDto,
+    strategy: 'excludeAll',
+  })
+  @ApiOkResponse({ type: ChatSessionResponseDto })
+  getSession(
+    @Param('courseId') courseId: string,
+    @Param('sessionId') sessionId: string,
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<ChatSessionResponseDto> {
+    return this.studentChatService.getSession(
+      courseId,
+      sessionId,
       request.user,
       getRequestContext(request),
     )
