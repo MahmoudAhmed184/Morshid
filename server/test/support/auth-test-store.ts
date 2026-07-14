@@ -409,6 +409,7 @@ export class AuthTestStore {
         userId: user.id,
         role: seedUser.pythonMembershipRole,
         createdById: adminId,
+        removedAt: null,
         createdAt: now,
       })
     }
@@ -752,6 +753,7 @@ export class AuthTestStore {
       userId: args.data.userId,
       role: args.data.role,
       createdById: args.data.createdById,
+      removedAt: null,
       createdAt: new Date('2026-07-06T12:00:00.000Z'),
     }
 

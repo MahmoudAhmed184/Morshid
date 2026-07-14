@@ -19,6 +19,8 @@ export const AUDIT_EVENT_ACTIONS = {
   ADMIN_COURSE_MEMBER_ADDED: 'admin.course_member_added',
   ADMIN_COURSE_MEMBER_REMOVED: 'admin.course_member_removed',
   ADMIN_COURSE_MEMBER_ROLE_CHANGED: 'admin.course_member_role_changed',
+  CHAT_SESSION_DELETED: 'chat.session_deleted',
+  CHAT_SESSION_ACCESS_DENIED: 'chat.session_access_denied',
 } as const
 
 export type AuditEventAction =
