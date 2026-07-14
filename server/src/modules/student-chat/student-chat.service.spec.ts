@@ -62,7 +62,9 @@ class StudentChatTestRepository extends StudentChatRepository {
         const aActivity = a.lastMessageAt?.getTime() ?? Number.NEGATIVE_INFINITY
         const bActivity = b.lastMessageAt?.getTime() ?? Number.NEGATIVE_INFINITY
 
-        return bActivity - aActivity || b.createdAt.getTime() - a.createdAt.getTime()
+        return (
+          bActivity - aActivity || b.createdAt.getTime() - a.createdAt.getTime()
+        )
       })
 
     return Promise.resolve(sessions.map(toSessionRecord))
@@ -274,7 +276,8 @@ class StudentChatTestRepository extends StudentChatRepository {
     const messages = this.messages.get(session.id) ?? []
     const index = messages.findIndex(
       (message) =>
-        message.id === input.messageId && message.role === MessageRole.ASSISTANT,
+        message.id === input.messageId &&
+        message.role === MessageRole.ASSISTANT,
     )
 
     if (index === -1) {
@@ -367,9 +370,9 @@ describe('StudentChatService', () => {
     }
 
     expect(serviceSchema.create.safeParse(create).success).toBe(false)
-    expect(serviceSchema.rename.safeParse({ title: 'Valid', ownerId: 'x' }).success).toBe(
-      false,
-    )
+    expect(
+      serviceSchema.rename.safeParse({ title: 'Valid', ownerId: 'x' }).success,
+    ).toBe(false)
   })
 
   it('lists only owned active sessions in recent activity order', async () => {
@@ -402,7 +405,12 @@ describe('StudentChatService', () => {
     ).resolves.toMatchObject({ session: { title: 'Original' } })
 
     await expect(
-      service.renameSession('course-1', session.id, { title: 'Renamed' }, student),
+      service.renameSession(
+        'course-1',
+        session.id,
+        { title: 'Renamed' },
+        student,
+      ),
     ).resolves.toMatchObject({ session: { title: 'Renamed' } })
 
     await expect(
@@ -415,7 +423,11 @@ describe('StudentChatService', () => {
     repository.addMembership('course-1', student.id)
     repository.addMembership('course-2', student.id)
     const deleted = repository.addSession('course-1', student.id, 'Deleted')
-    const otherOwned = repository.addSession('course-1', otherStudent.id, 'Other')
+    const otherOwned = repository.addSession(
+      'course-1',
+      otherStudent.id,
+      'Other',
+    )
     const crossCourse = repository.addSession('course-2', student.id, 'Cross')
     deleted.deletedAt = new Date()
 
@@ -423,7 +435,12 @@ describe('StudentChatService', () => {
       service.getSession('course-1', deleted.id, student),
     ).rejects.toBeInstanceOf(NotFoundException)
     await expect(
-      service.renameSession('course-1', otherOwned.id, { title: 'Nope' }, student),
+      service.renameSession(
+        'course-1',
+        otherOwned.id,
+        { title: 'Nope' },
+        student,
+      ),
     ).rejects.toBeInstanceOf(NotFoundException)
     await expect(
       service.listMessages('course-1', crossCourse.id, student),

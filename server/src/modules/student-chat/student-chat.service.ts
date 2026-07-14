@@ -265,7 +265,11 @@ export class StudentChatService {
     studentId: string,
     requestContext?: AuditRequestContext,
   ): Promise<ChatSessionRecord> {
-    await this.requireActiveStudentMembership(courseId, studentId, requestContext)
+    await this.requireActiveStudentMembership(
+      courseId,
+      studentId,
+      requestContext,
+    )
 
     const session = await this.studentChatRepository.findOwnedActiveSession(
       courseId,
@@ -334,8 +338,7 @@ export class StudentChatService {
   }
 }
 
-export interface AppendStudentChatMessageInput
-  extends AppendStudentMessageInput {
+export interface AppendStudentChatMessageInput extends AppendStudentMessageInput {
   status?: never
   role?: never
   provider?: never
@@ -343,8 +346,7 @@ export interface AppendStudentChatMessageInput
   citations?: never
 }
 
-export interface AppendPendingAssistantChatMessageInput
-  extends AppendPendingAssistantMessageInput {
+export interface AppendPendingAssistantChatMessageInput extends AppendPendingAssistantMessageInput {
   status?: never
   role?: never
   provider?: never
@@ -352,15 +354,13 @@ export interface AppendPendingAssistantChatMessageInput
   citations?: never
 }
 
-export interface CompleteAssistantChatMessageInput
-  extends CompleteAssistantMessageInput {
+export interface CompleteAssistantChatMessageInput extends CompleteAssistantMessageInput {
   status?: never
   role?: never
   citations?: never
 }
 
-export interface FailAssistantChatMessageInput
-  extends FailAssistantMessageInput {
+export interface FailAssistantChatMessageInput extends FailAssistantMessageInput {
   status?: never
   role?: never
   provider?: never
@@ -368,8 +368,7 @@ export interface FailAssistantChatMessageInput
   citations?: never
 }
 
-export interface BlockAssistantChatMessageInput
-  extends BlockAssistantMessageInput {
+export interface BlockAssistantChatMessageInput extends BlockAssistantMessageInput {
   status?: never
   role?: never
   provider?: never
