@@ -219,7 +219,7 @@ Acceptance criteria:
 | S2-1.1 | Add Sprint 2 RAG persistence migration and configurable PDF-volume storage adapter | Mahmoud | Nourhan | Jul 15 | None; starts immediately from implemented material/course schema | Ready |
 | S2-1.2 | Implement authorized, validated PDF upload and material-status API | Nourhan | Mahmoud | Jul 16 | Storage contract from S2-1.1; authorization/validation tests start immediately | Ready |
 | S2-1.3 | Extract, normalize, deterministically chunk, and transition material status | Nourhan | Ahmed | Jul 17 | Integrates after S2-1.1/1.2; parser/chunker tests start immediately | Ready |
-| S2-1.4 | Connect Instructor upload and processing-status UI | Shaza | Nourhan | Jul 18 | UI states and mocked contract start immediately; final integration uses S2-1.2/1.3 | Ready |
+| S2-1.4 | Connect Instructor upload and processing-status UI | Shaza | Ebram | Jul 18 | UI states and mocked contract start immediately; final integration uses S2-1.2/1.3 | Ready |
 | S2-1.5 | Prove upload validation, processing states, and unavailable-source exclusion | Ebram | Nourhan | Jul 18 | Fixtures/test matrix start immediately; executable integration follows S2-1.2/1.3 | Ready |
 
 Validation:
@@ -294,7 +294,7 @@ Acceptance criteria:
 | ID | Executable task | Owner | Peer reviewer | Due | Dependency / parallel-start rule | Initial workflow |
 |---|---|---|---|---|---|---|
 | S2-3.1 | Implement private Student session/message persistence APIs | Nourhan | Ahmed | Jul 16 | None; starts immediately from implemented membership/session/message schema | Ready |
-| S2-3.2 | Connect Student session list and persisted chat history UI | Ahmed | Nourhan | Jul 18 | UI against contract/mocks starts immediately; integration uses S2-3.1 | Ready |
+| S2-3.2 | Connect Student session list and persisted chat history UI | Ahmed | Mahmoud | Jul 18 | UI against contract/mocks starts immediately; integration uses S2-3.1 | Ready |
 | S2-3.3 | Prove Student-session ownership and Instructor privacy boundaries | Ebram | Ahmed | Jul 18 | Test fixtures start immediately; endpoint assertions use S2-3.1 | Ready |
 
 Validation:
@@ -337,7 +337,7 @@ Acceptance criteria:
 |---|---|---|---|---|---|---|
 | S2-4.1 | Add completion provider contract, deterministic provider, and untrusted-context envelope | Nourhan | Mahmoud | Jul 16 | None; starts immediately | Ready |
 | S2-4.2 | Orchestrate authorized retrieve-complete-persist-cite chat flow | Mahmoud | Nourhan | Jul 20 | Integrates S2-2.2, S2-3.1, and S2-4.1; orchestration contract/tests start now | Backlog |
-| S2-4.3 | Deliver grounded chat, citation, loading, failure, and retry UI | Ahmed | Nourhan | Jul 21 | UI with deterministic fixtures starts now; final integration uses S2-4.2 | Ready |
+| S2-4.3 | Deliver grounded chat, citation, loading, failure, and retry UI | Ahmed | Ebram | Jul 21 | UI with deterministic fixtures starts now; final integration uses S2-4.2 | Ready |
 
 Validation:
 
@@ -415,11 +415,11 @@ prevents useful contract, fixture, unit, or UI work.
 
 | Developer | Accountable stories | Implementation tasks | Primary contribution | Planned peer reviews |
 |---|---:|---:|---|---:|
-| Mahmoud Ahmed | 2 | 4 | RAG persistence/storage, embedding/vector security seam, and chat orchestration | 4 high-risk/QA reviews |
+| Mahmoud Ahmed | 2 | 4 | RAG persistence/storage, embedding/vector security seam, and chat orchestration | 5 high-risk/full-stack reviews |
 | Ahmed Hamada | 1 | 2 | Private/chat/citation frontend integration | 3 API, extraction, and privacy reviews |
 | Nourhan Singer | 1 | 4 | Upload, processing, private sessions, provider adapter | 5 retrieval/UI/integration reviews |
-| Shaza | 1 | 2 | Instructor materials UX and final rehearsal | Cross-UI review during pairing |
-| Ebram Shaker | 0 | 4 bounded tasks | Upload, privacy, retrieval, and Gate 2 test suites | 1 runbook/reproducibility review |
+| Shaza | 1 | 2 | Instructor materials UX and final rehearsal | Cross-UI pairing; no formal review queue |
+| Ebram Shaker | 0 | 4 bounded tasks | Upload, privacy, retrieval, and Gate 2 test suites | 3 bounded UI/reproducibility reviews |
 
 Task counts are not equal because complexity is not equal. Ahmed's two tasks
 span the two major frontend surfaces. Ebram owns meaningful, independently
@@ -430,9 +430,11 @@ authorization seam, provider interface, or transaction boundary unsupported.
 Security/AI-sensitive PRs require the named peer reviewer and one of Mahmoud or
 Ahmed as a second risk reviewer when neither is already the peer reviewer.
 Upload/storage and vector isolation require Mahmoud's risk review. Grounded
-response/prompt-context changes require Mahmoud's AI/security review. UI PRs
-must include the backend contract owner so errors and authorization states are
-not invented client-side.
+response/prompt-context changes require Mahmoud's AI/security review. Ebram's
+formal reviews are deliberately limited to UI testability and demo
+reproducibility; the relevant backend/AI owner remains a required secondary
+reviewer. UI PRs must include the backend contract owner so errors and
+authorization states are not invented client-side.
 
 ## 8. Ten-day integration sequence
 
