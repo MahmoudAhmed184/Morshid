@@ -404,7 +404,6 @@ function mapSession(record: ChatSessionRecord): ChatSessionDto {
     id: record.id,
     courseId: record.courseId,
     title: record.title,
-    lastSequence: record.lastSequence,
     lastMessageAt: record.lastMessageAt?.toISOString() ?? null,
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),

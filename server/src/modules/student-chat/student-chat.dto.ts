@@ -54,10 +54,6 @@ export class ChatSessionDto {
   title!: string
 
   @Expose()
-  @ApiProperty({ minimum: 0 })
-  lastSequence!: number
-
-  @Expose()
   @ApiProperty({ format: 'date-time', nullable: true })
   lastMessageAt!: string | null
 

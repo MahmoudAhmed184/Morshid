@@ -354,9 +354,9 @@ describe('StudentChatService', () => {
     expect(response.session).toMatchObject({
       courseId: 'course-1',
       title: 'Unit 1 help',
-      lastSequence: 0,
       lastMessageAt: null,
     })
+    expect(response.session).not.toHaveProperty('lastSequence')
     expect([...repository.sessions.values()][0].studentId).toBe(student.id)
   })
 
