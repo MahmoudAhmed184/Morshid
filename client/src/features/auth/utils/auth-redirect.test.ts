@@ -1,11 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import {
-  authSessionStorageKey,
-  syncAuthRefreshFromStorage,
-  useAuthStore,
-} from '@/features/auth/stores/auth.store'
-import type { AuthRole, AuthSession } from '@/features/auth/types/auth.types'
+import { useAuthStore } from '@/features/auth/stores/auth.store'
+import type { AuthRole, AuthSession } from '@/features/auth/schemas/auth.schema'
 
 import {
   getDashboardPath,
@@ -56,13 +52,18 @@ describe('client auth guards', () => {
     vi.unstubAllGlobals()
   })
 
-  it('redirects unauthenticated users to login without calling /me', async () => {
-    const fetchMock = vi.fn()
+  it('redirects unauthenticated users when no cookie session can be restored', async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json(
+        { code: 'INVALID_REFRESH_TOKEN', message: 'Invalid refresh token' },
+        { status: 401 },
+      ),
+    )
     vi.stubGlobal('fetch', fetchMock)
 
     await expect(requireAuth()).resolves.toBe('/login')
     await expect(requireRole('ADMIN')).resolves.toBe('/login')
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   it('defers guards until the browser can read the stored session', async () => {
@@ -93,7 +94,7 @@ describe('client auth guards', () => {
     await expect(requireAuth()).resolves.toBeNull()
   })
 
-  it('restores an in-memory access token from persisted refresh metadata', async () => {
+  it('restores an in-memory access token from the HttpOnly cookie session', async () => {
     const session = createMockSession('ADMIN')
     const restoredSession = {
       ...session,
@@ -101,21 +102,12 @@ describe('client auth guards', () => {
       refreshToken: 'rotated-refresh-token',
     }
 
-    syncAuthRefreshFromStorage(
-      JSON.stringify({
-        v: 2,
-        userId: session.user.id,
-        refreshToken: session.refreshToken,
-        refreshTokenExpiresAt: session.refreshTokenExpiresAt,
-      }),
-    )
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         expect(String(input)).toBe('http://localhost:4000/api/v1/auth/refresh')
-        expect(JSON.parse(String(init?.body))).toEqual({
-          refreshToken: session.refreshToken,
-        })
+        expect(JSON.parse(String(init?.body))).toEqual({})
+        expect(init?.credentials).toBe('include')
 
         return Response.json(restoredSession)
       }),
@@ -128,12 +120,7 @@ describe('client auth guards', () => {
       refreshToken: 'rotated-refresh-token',
       user: session.user,
     })
-    expect(
-      JSON.parse(window.localStorage.getItem(authSessionStorageKey)!),
-    ).toMatchObject({
-      v: 2,
-      refreshToken: 'rotated-refresh-token',
-    })
+    expect(window.localStorage).toHaveLength(0)
   })
 
   it('allows users when /me confirms the expected role', async () => {
@@ -196,6 +183,20 @@ describe('client auth guards', () => {
     await expect(requireRole('ADMIN')).resolves.toBe('/student')
   })
 
+  it('redirects wrong-role users away from student-only routes', async () => {
+    useAuthStore.getState().setSession(createMockSession('ADMIN'))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        Response.json({
+          user: createMockSession('ADMIN').user,
+        }),
+      ),
+    )
+
+    await expect(requireRole('STUDENT')).resolves.toBe('/admin')
+  })
+
   it('redirects authenticated users to their dashboard when requested', async () => {
     useAuthStore.getState().setSession(createMockSession('STUDENT'))
     vi.stubGlobal(
@@ -211,11 +212,16 @@ describe('client auth guards', () => {
   })
 
   it('does not redirect unauthenticated users to a dashboard', async () => {
-    const fetchMock = vi.fn()
+    const fetchMock = vi.fn(async () =>
+      Response.json(
+        { code: 'INVALID_REFRESH_TOKEN', message: 'Invalid refresh token' },
+        { status: 401 },
+      ),
+    )
     vi.stubGlobal('fetch', fetchMock)
 
     await expect(redirectAuthenticatedToDashboard()).resolves.toBeNull()
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(fetchMock).toHaveBeenCalledOnce()
   })
 
   it('clears the stored session and redirects to login when /me fails for a required route', async () => {
@@ -266,7 +272,7 @@ describe('client auth guards', () => {
     })
   })
 
-  it('preserves the session when /me fails because the network is unavailable', async () => {
+  it('preserves the session and allows navigation when /me fails because the network is unavailable', async () => {
     const session = createMockSession('ADMIN')
     useAuthStore.getState().setSession(session)
     vi.stubGlobal(
@@ -276,7 +282,7 @@ describe('client auth guards', () => {
       }),
     )
 
-    await expect(requireRole('ADMIN')).rejects.toThrow('Failed to fetch')
+    await expect(requireRole('ADMIN')).resolves.toBeNull()
     expect(useAuthStore.getState()).toMatchObject({
       accessToken: session.accessToken,
       isAuthenticated: true,

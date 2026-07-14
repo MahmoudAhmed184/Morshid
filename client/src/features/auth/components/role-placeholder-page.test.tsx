@@ -8,11 +8,8 @@ import {
 } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import {
-  authSessionStorageKey,
-  useAuthStore,
-} from '@/features/auth/stores/auth.store'
-import type { AuthSession } from '@/features/auth/types/auth.types'
+import { useAuthStore } from '@/features/auth/stores/auth.store'
+import type { AuthSession } from '@/features/auth/schemas/auth.schema'
 
 import { RolePlaceholderPage } from './role-placeholder-page'
 
@@ -36,13 +33,6 @@ const mockSession: AuthSession = {
   accessTokenExpiresAt: '2026-07-11T12:15:00.000Z',
   refreshToken: 'mock-refresh-token:mock-admin',
   refreshTokenExpiresAt: '2026-07-18T12:00:00.000Z',
-}
-
-const storedMockSession = {
-  v: 2,
-  userId: mockSession.user.id,
-  refreshToken: mockSession.refreshToken,
-  refreshTokenExpiresAt: mockSession.refreshTokenExpiresAt,
 }
 
 describe('RolePlaceholderPage', () => {
@@ -71,14 +61,15 @@ describe('RolePlaceholderPage', () => {
 
     expect(screen.getByRole('heading', { name: 'Admin' })).toBeDefined()
     expect(useAuthStore.getState().isAuthenticated).toBe(true)
-    expect(window.localStorage.getItem(authSessionStorageKey)).toBe(
-      JSON.stringify(storedMockSession),
-    )
+    expect(window.localStorage).toHaveLength(0)
 
-    fireEvent.click(screen.getByRole('button', { name: /logout/i }))
+    fireEvent.click(screen.getByRole('button', { name: /sign out/i }))
 
     await waitFor(() => {
-      expect(navigateMock).toHaveBeenCalledWith({ to: '/login' })
+      expect(navigateMock).toHaveBeenCalledWith({
+        to: '/login',
+        replace: true,
+      })
     })
     expect(fetch).toHaveBeenCalledOnce()
     const [requestUrl, requestInit] = vi.mocked(fetch).mock.calls[0]
@@ -94,7 +85,7 @@ describe('RolePlaceholderPage', () => {
     expect(requestHeaders.get('Accept')).toBe('application/json')
     expect(requestHeaders.get('Content-Type')).toBe('application/json')
     expect(useAuthStore.getState().isAuthenticated).toBe(false)
-    expect(window.localStorage.getItem(authSessionStorageKey)).toBeNull()
+    expect(window.localStorage).toHaveLength(0)
   })
 
   it('clears local auth state even when logout revocation fails', async () => {
@@ -107,12 +98,15 @@ describe('RolePlaceholderPage', () => {
 
     render(<RolePlaceholderPage roleName="Admin" />)
 
-    fireEvent.click(screen.getByRole('button', { name: /logout/i }))
+    fireEvent.click(screen.getByRole('button', { name: /sign out/i }))
 
     await waitFor(() => {
-      expect(navigateMock).toHaveBeenCalledWith({ to: '/login' })
+      expect(navigateMock).toHaveBeenCalledWith({
+        to: '/login',
+        replace: true,
+      })
     })
     expect(useAuthStore.getState().isAuthenticated).toBe(false)
-    expect(window.localStorage.getItem(authSessionStorageKey)).toBeNull()
+    expect(window.localStorage).toHaveLength(0)
   })
 })

@@ -1,7 +1,10 @@
 import { getCurrentUser } from '@/features/auth/api/auth.api'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
-import type { AuthUser } from '@/features/auth/types/auth.types'
-import { isTerminalAuthError, restoreAuthSession } from '@/lib/api/api-client'
+import type { AuthUser } from '@/features/auth/schemas/auth.schema'
+import {
+  isTerminalAuthError,
+  restoreAuthSession,
+} from '@/features/auth/api/authenticated-api-client'
 
 const authValidationCacheMs = 5_000
 
@@ -28,6 +31,10 @@ function getCachedUser(sessionVersion: number) {
   return null
 }
 
+function isTransientNetworkError(error: unknown) {
+  return error instanceof TypeError
+}
+
 export async function loadAuthenticatedUser(): Promise<AuthUser | null> {
   if (typeof window === 'undefined') {
     return null
@@ -35,11 +42,20 @@ export async function loadAuthenticatedUser(): Promise<AuthUser | null> {
 
   let authState = useAuthStore.getState()
 
-  if (
-    (!authState.isAuthenticated || !authState.user || !authState.accessToken) &&
-    authState.refreshToken
-  ) {
-    const restoredSession = await restoreAuthSession()
+  if (!authState.isAuthenticated || !authState.user || !authState.accessToken) {
+    const restoredSession = await restoreAuthSession().catch(
+      (error: unknown) => {
+        if (isTerminalAuthError(error)) {
+          return null
+        }
+
+        if (isTransientNetworkError(error)) {
+          return null
+        }
+
+        throw error
+      },
+    )
 
     if (!restoredSession) {
       return useAuthStore.getState().user
@@ -55,12 +71,7 @@ export async function loadAuthenticatedUser(): Promise<AuthUser | null> {
     return restoredSession.user
   }
 
-  const { accessToken, isAuthenticated, sessionVersion, user } = authState
-
-  if (!isAuthenticated || !user || !accessToken) {
-    clearAuthValidationCache()
-    return null
-  }
+  const { sessionVersion } = authState
 
   const cachedUser = getCachedUser(sessionVersion)
 
@@ -108,6 +119,10 @@ export async function loadAuthenticatedUser(): Promise<AuthUser | null> {
       if (isTerminalAuthError(error)) {
         latestAuthState.clearSession(sessionVersion)
         return null
+      }
+
+      if (isTransientNetworkError(error)) {
+        return latestAuthState.user
       }
 
       throw error

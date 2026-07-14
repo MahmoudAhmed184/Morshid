@@ -13,11 +13,15 @@ Never commit real credentials, API keys, production database URLs, private cours
 
 ## Client auth token storage
 
-The current SPA stores a versioned, minimal auth session in `localStorage` so it
-can restore a page refresh and rotate JSON refresh tokens. The client clears
-malformed, legacy, or refresh-expired stored sessions before treating a user as
-authenticated.
+The SPA does not persist access or refresh tokens in `localStorage` or
+`sessionStorage`. Access/session data is held in memory, and legacy stored auth
+entries are removed during startup.
 
-This remains exposed to XSS like any browser-readable token storage. The target
-hardening path is to move refresh-token transport to `Secure`, `HttpOnly`,
-`SameSite` cookies on the server and keep access tokens short lived.
+The server also issues the rotating refresh token as an `HttpOnly`, `SameSite`
+cookie scoped to `/api/v1/auth`; production cookies additionally use `Secure`.
+Browser API requests include credentials so a page refresh can restore the
+in-memory access session without reading the HttpOnly cookie from JavaScript.
+For backward compatibility with non-browser API clients, auth responses still
+include the rotated refresh token; the SPA keeps that response value in memory
+only. Server endpoints remain the authorization boundary for roles and course
+ownership.

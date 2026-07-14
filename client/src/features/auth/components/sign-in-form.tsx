@@ -21,7 +21,7 @@ import { signInSchema } from '@/features/auth/schemas/sign-in.schema'
 import type { SignInFormValues } from '@/features/auth/schemas/sign-in.schema'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 import { getDashboardPath } from '@/features/auth/utils/auth-redirect'
-import { isApiError } from '@/lib/api/api-client'
+import { isApiError } from '@/features/auth/api/authenticated-api-client'
 
 import { PasswordField } from './password-field'
 
