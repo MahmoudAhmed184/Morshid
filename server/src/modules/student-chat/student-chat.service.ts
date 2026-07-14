@@ -4,6 +4,8 @@ import type { AuthenticatedRequestUser } from '../auth/auth.dto'
 import type { AuditRequestContext } from '../audit/audit.service'
 import { StudentChatAuditService } from './student-chat.audit.service'
 import type {
+  ChatMessageDto,
+  ChatMessageHistoryResponseDto,
   ChatSessionDto,
   ChatSessionListResponseDto,
   ChatSessionResponseDto,
@@ -15,6 +17,7 @@ import {
   chatSessionNotFoundException,
 } from './student-chat.errors'
 import {
+  type ChatMessageRecord,
   type ChatSessionRecord,
   StudentChatRepository,
 } from './student-chat.repository'
@@ -131,6 +134,33 @@ export class StudentChatService {
     }
   }
 
+  async listMessages(
+    courseId: string,
+    sessionId: string,
+    user: AuthenticatedRequestUser,
+    requestContext?: AuditRequestContext,
+  ): Promise<ChatMessageHistoryResponseDto> {
+    await this.requireActiveStudentMembership(courseId, user.id, requestContext)
+
+    const messages = await this.studentChatRepository.listMessages(
+      courseId,
+      sessionId,
+      user.id,
+    )
+
+    if (messages === null) {
+      await this.recordSessionAccessDenied(
+        courseId,
+        user.id,
+        sessionId,
+        requestContext,
+      )
+      throw chatSessionNotFoundException()
+    }
+
+    return { messages: messages.map(mapMessage) }
+  }
+
   private async requireActiveStudentMembership(
     courseId: string,
     studentId: string,
@@ -205,5 +235,23 @@ function mapSession(record: ChatSessionRecord): ChatSessionDto {
     lastMessageAt: record.lastMessageAt?.toISOString() ?? null,
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
+  }
+}
+
+function mapMessage(record: ChatMessageRecord): ChatMessageDto {
+  return {
+    id: record.id,
+    sequence: record.sequence,
+    role: record.role,
+    authorUserId: record.authorUserId,
+    responseToMessageId: record.responseToMessageId,
+    content: record.content,
+    status: record.status,
+    requestKind: record.requestKind,
+    guidanceLabel: record.guidanceLabel,
+    hintLevel: record.hintLevel,
+    errorCode: record.errorCode,
+    createdAt: record.createdAt.toISOString(),
+    completedAt: record.completedAt?.toISOString() ?? null,
   }
 }

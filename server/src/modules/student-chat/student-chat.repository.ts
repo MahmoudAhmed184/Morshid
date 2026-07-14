@@ -2,6 +2,10 @@ import { Injectable } from '@nestjs/common'
 
 import {
   CourseMembershipRole,
+  type MessageGuidanceLabel,
+  type MessageRequestKind,
+  type MessageRole,
+  type MessageStatus,
   Prisma,
 } from '../../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
@@ -25,6 +29,22 @@ export interface SoftDeleteChatSessionInput {
   requestContext?: AuditRequestContext
 }
 
+export interface ChatMessageRecord {
+  id: string
+  sequence: number
+  role: MessageRole
+  authorUserId: string | null
+  responseToMessageId: string | null
+  content: string
+  status: MessageStatus
+  requestKind: MessageRequestKind | null
+  guidanceLabel: MessageGuidanceLabel | null
+  hintLevel: number | null
+  errorCode: string | null
+  createdAt: Date
+  completedAt: Date | null
+}
+
 const chatSessionSelect = {
   id: true,
   courseId: true,
@@ -34,6 +54,22 @@ const chatSessionSelect = {
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.ChatSessionSelect
+
+const chatMessageSelect = {
+  id: true,
+  sequence: true,
+  role: true,
+  authorUserId: true,
+  responseToMessageId: true,
+  content: true,
+  status: true,
+  requestKind: true,
+  guidanceLabel: true,
+  hintLevel: true,
+  errorCode: true,
+  createdAt: true,
+  completedAt: true,
+} satisfies Prisma.MessageSelect
 
 export abstract class StudentChatRepository {
   abstract hasActiveStudentMembership(
@@ -68,6 +104,12 @@ export abstract class StudentChatRepository {
   abstract softDeleteSession(
     input: SoftDeleteChatSessionInput,
   ): Promise<boolean>
+
+  abstract listMessages(
+    courseId: string,
+    sessionId: string,
+    studentId: string,
+  ): Promise<ChatMessageRecord[] | null>
 }
 
 @Injectable()
@@ -192,6 +234,27 @@ export class PrismaStudentChatRepository extends StudentChatRepository {
 
       return true
     })
+  }
+
+  async listMessages(
+    courseId: string,
+    sessionId: string,
+    studentId: string,
+  ): Promise<ChatMessageRecord[] | null> {
+    const session = await this.prismaService.chatSession.findFirst({
+      where: ownedActiveSessionWhere(courseId, sessionId, studentId),
+      select: {
+        id: true,
+        messages: {
+          select: chatMessageSelect,
+          orderBy: {
+            sequence: 'asc',
+          },
+        },
+      },
+    })
+
+    return session?.messages ?? null
   }
 }
 

@@ -31,6 +31,7 @@ import { UserRole } from '../../generated/prisma/client'
 import type { AuthenticatedHttpRequest } from '../auth/auth.guard'
 import { Roles } from '../auth/roles.decorator'
 import {
+  ChatMessageHistoryResponseDto,
   ChatSessionListResponseDto,
   ChatSessionResponseDto,
   CreateChatSessionRequestDto,
@@ -157,6 +158,25 @@ export class StudentChatController {
     @Req() request: AuthenticatedHttpRequest,
   ): Promise<void> {
     await this.studentChatService.softDeleteSession(
+      courseId,
+      sessionId,
+      request.user,
+      getRequestContext(request),
+    )
+  }
+
+  @Get(':sessionId/messages')
+  @SerializeOptions({
+    type: ChatMessageHistoryResponseDto,
+    strategy: 'excludeAll',
+  })
+  @ApiOkResponse({ type: ChatMessageHistoryResponseDto })
+  listMessages(
+    @Param('courseId') courseId: string,
+    @Param('sessionId') sessionId: string,
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<ChatMessageHistoryResponseDto> {
+    return this.studentChatService.listMessages(
       courseId,
       sessionId,
       request.user,
