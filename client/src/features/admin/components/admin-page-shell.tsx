@@ -1,4 +1,4 @@
-import { Link, Outlet, linkOptions } from '@tanstack/react-router'
+import { Link, Outlet, useRouterState } from '@tanstack/react-router'
 import {
   BookOpenIcon,
   ClipboardListIcon,
@@ -6,115 +6,113 @@ import {
   GraduationCapIcon,
   HistoryIcon,
   LayoutDashboardIcon,
+  SettingsIcon,
   UsersIcon,
 } from 'lucide-react'
 
+import { AppSidebar } from '@/components/layout/app-sidebar'
+import type { AppSidebarNavItem } from '@/components/layout/app-sidebar'
 import { ModeToggle } from '@/components/ui/mode-toggle'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 
-const navItems = linkOptions([
+const navItems: readonly AppSidebarNavItem[] = [
   {
     label: 'Dashboard',
     to: '/admin',
     icon: LayoutDashboardIcon,
-    activeOptions: { exact: true },
+    exact: true,
   },
   {
     label: 'Assignments',
     to: '/admin/assignments',
     icon: ClipboardListIcon,
-    activeOptions: { exact: false },
   },
   {
     label: 'Users',
     to: '/admin/users',
     icon: UsersIcon,
-    activeOptions: { exact: false },
   },
   {
     label: 'Courses',
     to: '/admin/courses',
     icon: BookOpenIcon,
-    activeOptions: { exact: false },
   },
   {
     label: 'Materials',
     to: '/admin/materials',
     icon: FileTextIcon,
-    activeOptions: { exact: false },
   },
   {
     label: 'Audit Logs',
     to: '/admin/audit',
     icon: HistoryIcon,
-    activeOptions: { exact: false },
   },
-] as const)
+]
+
+const settingsNavItem: AppSidebarNavItem = {
+  label: 'Settings',
+  to: '/admin/settings',
+  icon: SettingsIcon,
+}
 
 export function AdminPageShell() {
   const currentUser = useAuthStore((state) => state.user)
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  })
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="h-svh overflow-hidden bg-background text-foreground">
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 border-r border-sidebar-border bg-sidebar lg:flex lg:flex-col">
-        <div className="px-8 py-10">
-          <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-              <GraduationCapIcon className="size-5" />
-            </div>
-            <div>
-              <p className="font-serif text-3xl font-semibold tracking-normal text-sidebar-foreground">
-                Morshid Admin
-              </p>
-              <p className="mt-1 text-xs font-semibold tracking-[0.18em] text-muted-foreground uppercase">
-                Higher Ed AI Portal
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <nav className="flex-1 space-y-2 px-6" aria-label="Admin navigation">
-          {navItems.map((item) => {
-            const Icon = item.icon
-
-            return (
-              <Link
-                key={item.to}
-                to={item.to}
-                activeOptions={item.activeOptions}
-                activeProps={{
-                  className:
-                    'bg-sidebar-accent text-sidebar-accent-foreground ring-1 ring-sidebar-ring/20',
-                }}
-                className="flex h-12 items-center gap-4 rounded-lg px-4 text-sm font-medium text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-              >
-                <Icon className="size-5" />
-                {item.label}
-              </Link>
-            )
-          })}
-        </nav>
-
-        {currentUser ? (
-          <div className="border-t border-sidebar-border p-6">
-            <div className="flex items-center gap-3 rounded-lg border border-sidebar-border bg-sidebar-accent/40 p-4">
-              <div className="flex size-10 items-center justify-center rounded-full bg-sidebar-primary text-sidebar-primary-foreground">
-                <UsersIcon className="size-5" />
-              </div>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-sidebar-foreground">
-                  {currentUser.displayName}
-                </p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {currentUser.email}
-                </p>
+        <AppSidebar
+          navigation={navItems}
+          settings={settingsNavItem}
+          pathname={pathname}
+          ariaLabel="Admin navigation"
+          header={
+            <div className="px-8 py-10">
+              <div className="flex items-center gap-3">
+                <div className="flex size-10 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+                  <GraduationCapIcon className="size-5" />
+                </div>
+                <div>
+                  <p className="font-serif text-3xl font-semibold tracking-normal text-sidebar-foreground">
+                    Morshid Admin
+                  </p>
+                  <p className="mt-1 text-xs font-semibold tracking-[0.18em] text-muted-foreground uppercase">
+                    Higher Ed AI Portal
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
-        ) : null}
+          }
+          navigationClassName="flex-1 space-y-2 px-6"
+          itemClassName="flex h-12 w-full items-center gap-4 rounded-lg px-4 text-sm font-medium text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          activeItemClassName="bg-sidebar-accent text-sidebar-accent-foreground ring-1 ring-sidebar-ring/20"
+          settingsContainerClassName="border-t border-sidebar-border px-6 py-4"
+          footer={
+            currentUser ? (
+              <div className="border-t border-sidebar-border p-6">
+                <div className="flex items-center gap-3 rounded-lg border border-sidebar-border bg-sidebar-accent/40 p-4">
+                  <div className="flex size-10 items-center justify-center rounded-full bg-sidebar-primary text-sidebar-primary-foreground">
+                    <UsersIcon className="size-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-sidebar-foreground">
+                      {currentUser.displayName}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {currentUser.email}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : null
+          }
+        />
       </aside>
 
-      <div className="lg:pl-72">
+      <div className="h-full overflow-y-auto lg:pl-72">
         <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur">
           <div className="flex h-16 items-center justify-end px-4 sm:px-6 lg:px-10">
             <ModeToggle />
@@ -130,14 +128,13 @@ export function AdminPageShell() {
         className="fixed inset-x-0 bottom-0 z-50 grid grid-cols-3 border-t border-sidebar-border bg-sidebar/95 p-2 backdrop-blur lg:hidden"
         aria-label="Admin mobile navigation"
       >
-        {navItems.map((item) => {
+        {[...navItems, settingsNavItem].map((item) => {
           const Icon = item.icon
 
           return (
             <Link
               key={item.to}
               to={item.to}
-              activeOptions={item.activeOptions}
               activeProps={{
                 className: 'bg-sidebar-accent text-sidebar-accent-foreground',
               }}

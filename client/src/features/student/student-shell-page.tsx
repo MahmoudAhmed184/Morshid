@@ -11,16 +11,16 @@ export function StudentShellPage() {
   })
 
   return (
-    <main className="min-h-svh bg-background text-foreground">
-      <div className="flex min-h-svh w-full overflow-hidden">
-        <aside className="hidden w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex">
+    <main className="h-svh overflow-hidden bg-background text-foreground">
+      <div className="flex h-full w-full overflow-hidden">
+        <aside className="sticky top-0 hidden h-svh w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex">
           <StudentSidebar
             assignedCourses={assignedCourses}
             pathname={pathname}
           />
         </aside>
 
-        <section className="flex min-w-0 flex-1 flex-col bg-background">
+        <section className="flex min-w-0 flex-1 flex-col overflow-y-auto bg-background">
           <StudentHeader
             assignedCourses={assignedCourses}
             pathname={pathname}

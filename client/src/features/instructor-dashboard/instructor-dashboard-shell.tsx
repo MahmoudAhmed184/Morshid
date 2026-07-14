@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
 
-import { SignOutButton } from '@/features/auth/components/sign-out-button'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 import { instructorCoursesQueryOptions } from '@/features/instructor-dashboard/instructor-dashboard.api'
 import { InstructorDashboardPage } from '@/features/instructor-dashboard/instructor-dashboard-page'
@@ -25,7 +24,6 @@ export function InstructorDashboardShell() {
 
   return (
     <InstructorDashboardPage
-      actions={<SignOutButton />}
       state={
         course
           ? {
