@@ -11,7 +11,7 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
-import type { StudentCourse } from '@/features/student/api/student-courses.api'
+import type { StudentCourse } from '@/features/student/schemas/student-course.schema'
 import { StudentSidebar } from '@/features/student/components/student-sidebar'
 
 type StudentHeaderProps = {

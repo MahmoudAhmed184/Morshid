@@ -6,7 +6,7 @@ import { Logo } from '@/components/logo'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/custom/empty-state'
-import type { StudentCourse } from '@/features/student/api/student-courses.api'
+import type { StudentCourse } from '@/features/student/schemas/student-course.schema'
 
 const primaryNavItems: readonly AppSidebarNavItem[] = [
   { label: 'Dashboard', icon: Home, to: '/student/dashboard' },

@@ -1,14 +1,7 @@
-import { BookOpen, Sparkles } from 'lucide-react'
-
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
-import { EmptyState } from '@/components/ui/custom/empty-state'
-import { useAuthStore } from '@/features/auth/stores/auth.store'
+import { instructorCourseMetrics } from '@/features/instructor/constants/instructor-dashboard.constants'
 import type { AuthCourseSummary } from '@/features/auth/types/auth.types'
-
-function getPrimaryInstructorCourse(courses: AuthCourseSummary[]) {
-  return courses.length > 0 ? courses[0] : null
-}
 
 function MetricTile({
   label,
@@ -27,7 +20,7 @@ function MetricTile({
   )
 }
 
-function CourseHero({ course }: { course: AuthCourseSummary }) {
+export function CourseHero({ course }: { course: AuthCourseSummary }) {
   return (
     <Card className="rounded-[8px] border-border bg-card py-0 text-card-foreground ring-0">
       <CardContent className="overflow-hidden px-0">
@@ -57,45 +50,17 @@ function CourseHero({ course }: { course: AuthCourseSummary }) {
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3">
-              <MetricTile label="Course" value="Active" />
-              <MetricTile label="Materials" value="Placeholder" />
-              <MetricTile label="Review Queue" value="0 Pending" />
+              {instructorCourseMetrics.map((metric) => (
+                <MetricTile
+                  key={metric.label}
+                  label={metric.label}
+                  value={metric.value}
+                />
+              ))}
             </div>
           </div>
         </div>
       </CardContent>
     </Card>
-  )
-}
-
-function NoCourseState() {
-  return (
-    <EmptyState
-      icon={<BookOpen />}
-      title="No assigned courses"
-      description="This instructor account does not have a course assignment in the current auth session."
-      className="min-h-56 rounded-[8px] border-border bg-card text-card-foreground [&_h2]:text-foreground [&_p]:text-muted-foreground"
-    />
-  )
-}
-
-export function InstructorDashboardPage() {
-  const user = useAuthStore((state) => state.user)
-  const course = user ? getPrimaryInstructorCourse(user.courses) : null
-
-  return (
-    <div className="flex flex-col gap-5">
-      <div>
-        <p className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-          <Sparkles className="size-4 text-primary" aria-hidden />
-          Instructor Workspace
-        </p>
-        <h1 className="mt-2 text-2xl font-semibold text-foreground">
-          Instructor Dashboard
-        </h1>
-      </div>
-
-      {course ? <CourseHero course={course} /> : <NoCourseState />}
-    </div>
   )
 }

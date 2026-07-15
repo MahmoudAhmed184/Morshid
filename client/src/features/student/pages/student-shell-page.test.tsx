@@ -11,8 +11,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 import type { AuthSession } from '@/features/auth/types/auth.types'
-import type { StudentCourse } from '@/features/student/api/student-courses.api'
-import { studentCoursesQueryOptions } from '@/features/student/queries/student-courses.query'
+import { studentCoursesQueryOptions } from '@/features/student/data/student-courses.queries'
+import type { StudentCourse } from '@/features/student/schemas/student-course.schema'
 
 import { StudentAiTutorPage } from './student-ai-tutor-page'
 import { StudentCoursesPage } from './student-courses-page'

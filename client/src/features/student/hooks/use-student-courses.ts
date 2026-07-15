@@ -1,8 +1,8 @@
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 
 import { useAuthStore } from '@/features/auth/stores/auth.store'
-import type { StudentCourse } from '@/features/student/api/student-courses.api'
-import { studentCoursesQueryOptions } from '@/features/student/queries/student-courses.query'
+import { studentCoursesQueryOptions } from '@/features/student/data/student-courses.queries'
+import type { StudentCourse } from '@/features/student/schemas/student-course.schema'
 
 // Route `beforeLoad` is the auth boundary (TanStack Router). useSuspenseQuery
 // cannot be disabled with `enabled`/`skipToken` (TanStack Query), so when logout

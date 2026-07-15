@@ -156,7 +156,7 @@ describe('/instructor', () => {
     expect(
       await screen.findByRole('heading', { name: 'Instructor dashboard' }),
     ).toBeVisible()
-    expect(screen.getByText('Python Programming')).toBeVisible()
+    expect(await screen.findByText('Python Programming')).toBeVisible()
     expect(history.location.pathname).toBe('/instructor')
     expect(document.querySelector('a[href="/admin"]')).toBeNull()
     expect(
@@ -201,6 +201,14 @@ describe('/instructor', () => {
         name: 'Loading instructor dashboard',
       }),
     ).toBeVisible()
+    expect(screen.getByText('Instructor Portal')).toBeVisible()
+    expect(
+      screen.getByRole('searchbox', { name: 'Search course workspace' }),
+    ).toBeVisible()
+    expect(
+      screen.getByRole('heading', { name: 'Course materials' }),
+    ).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Review queue' })).toBeVisible()
   })
 
   it('redirects an Admin session to the Admin shell', async () => {

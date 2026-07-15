@@ -53,7 +53,27 @@ describe('InstructorDashboardPage', () => {
     expect(
       screen.getByRole('status', { name: 'Loading instructor dashboard' }),
     ).toBeVisible()
-    expect(screen.getByText('Loading your course workspace')).toBeVisible()
+    expect(
+      screen.getByRole('heading', { name: 'Instructor dashboard' }),
+    ).toBeVisible()
+    expect(
+      screen.getByRole('heading', { name: 'Assigned course' }),
+    ).toBeVisible()
+    expect(
+      screen.getByRole('heading', { name: 'Workspace metrics' }),
+    ).toBeVisible()
+    expect(
+      screen.getByRole('heading', { name: 'Course materials' }),
+    ).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Review queue' })).toBeVisible()
+    expect(
+      screen.getByRole('heading', { name: 'Source readiness' }),
+    ).toBeVisible()
+    expect(
+      screen.getByText(
+        'Manage course sources and review activity for your assigned course.',
+      ),
+    ).toBeVisible()
   })
 
   it('shows a clear empty state when the Instructor owns no course', () => {
@@ -62,6 +82,13 @@ describe('InstructorDashboardPage', () => {
     expect(
       screen.getByRole('heading', { name: 'No assigned course' }),
     ).toBeVisible()
+    expect(
+      screen.getByRole('heading', { name: 'Workspace metrics' }),
+    ).toBeVisible()
+    expect(
+      screen.getByRole('heading', { name: 'Course materials' }),
+    ).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Review queue' })).toBeVisible()
     expect(
       screen.getByText(/ask an administrator to assign you/i),
     ).toBeVisible()

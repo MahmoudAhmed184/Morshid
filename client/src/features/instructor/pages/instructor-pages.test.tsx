@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 import type { AuthSession } from '@/features/auth/types/auth.types'
-import { InstructorDashboardPage } from './instructor-dashboard-page'
 import { MaterialsPage } from './materials-page'
 import { MyCoursesPage } from './my-courses-page'
 import { ReviewQueuePage } from './review-queue-page'
@@ -50,47 +49,6 @@ describe('Instructor Pages', () => {
     cleanup()
     useAuthStore.getState().clearSession()
     window.localStorage.clear()
-  })
-
-  describe('InstructorDashboardPage', () => {
-    it('renders the instructor dashboard shell', () => {
-      setInstructorSession()
-
-      renderWithLayout(<InstructorDashboardPage />)
-
-      expect(
-        screen.getByRole('heading', { name: 'Instructor Dashboard' }),
-      ).toBeInTheDocument()
-    })
-
-    it('shows the Python Programming course from auth state', () => {
-      setInstructorSession()
-
-      render(<InstructorDashboardPage />)
-
-      expect(
-        screen.getByRole('heading', { name: 'Python Programming' }),
-      ).toBeInTheDocument()
-      expect(screen.getByText('PYTHON-PROG-P0')).toBeInTheDocument()
-      expect(screen.getByText('0 Pending')).toBeInTheDocument()
-    })
-
-    it('handles an instructor auth session without assigned courses', () => {
-      setInstructorSession({
-        ...instructorSession,
-        user: {
-          ...instructorSession.user,
-          courses: [],
-        },
-      })
-
-      render(<InstructorDashboardPage />)
-
-      expect(
-        screen.getByRole('heading', { name: 'No assigned courses' }),
-      ).toBeInTheDocument()
-      expect(screen.queryByText('Python Programming')).not.toBeInTheDocument()
-    })
   })
 
   describe('MyCoursesPage', () => {

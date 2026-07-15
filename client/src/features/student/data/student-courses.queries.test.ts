@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { studentCoursesQueryOptions } from './student-courses.query'
+import { studentCoursesQueryOptions } from './student-courses.queries'
 
 describe('studentCoursesQueryOptions', () => {
   it('partitions scoped course caches by authenticated student', () => {

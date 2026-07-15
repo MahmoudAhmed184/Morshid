@@ -1,14 +1,10 @@
-import { useQuery } from '@tanstack/react-query'
-
-import { useAuthStore } from '@/features/auth/stores/auth.store'
-import { instructorCoursesQueryOptions } from '@/features/instructor-dashboard/instructor-dashboard.api'
-import { InstructorDashboardPage } from '@/features/instructor-dashboard/instructor-dashboard-page'
+import { useInstructorCourses } from '@/features/instructor/hooks/use-instructor-courses'
+import { InstructorDashboardPage } from '@/features/instructor/pages/instructor-dashboard-page'
 
 const p0CourseCode = 'PYTHON-PROG-P0'
 
 export function InstructorDashboardShell() {
-  const userId = useAuthStore((state) => state.user?.id)
-  const coursesQuery = useQuery(instructorCoursesQueryOptions(userId))
+  const coursesQuery = useInstructorCourses()
 
   if (coursesQuery.isPending) {
     return <InstructorDashboardPage state={{ status: 'loading' }} />
