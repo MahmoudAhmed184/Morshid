@@ -1,9 +1,11 @@
 import '@testing-library/jest-dom/vitest'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, render, screen } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 import type { AuthSession } from '@/features/auth/types/auth.types'
+import { instructorCoursesQueryOptions } from '@/features/instructor/data/instructor-dashboard.queries'
 import { MaterialsPage } from './materials-page'
 import { MyCoursesPage } from './my-courses-page'
 import { ReviewQueuePage } from './review-queue-page'
@@ -35,8 +37,44 @@ function setInstructorSession(session: AuthSession = instructorSession) {
   useAuthStore.getState().setSession(session)
 }
 
-function renderWithLayout(ui: React.ReactElement) {
-  return render(ui)
+function renderInstructorPage(
+  ui: React.ReactElement,
+  {
+    session = instructorSession,
+    courses = session.user.courses.map(({ code, title }) => ({ code, title })),
+    deferCourses = false,
+  }: {
+    session?: AuthSession
+    courses?: { code: string; title: string }[]
+    deferCourses?: boolean
+  } = {},
+) {
+  setInstructorSession(session)
+
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+        staleTime: Infinity,
+      },
+    },
+  })
+
+  if (deferCourses) {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise<Response>(() => undefined)),
+    )
+  } else {
+    queryClient.setQueryData(
+      instructorCoursesQueryOptions(session.user.id).queryKey,
+      courses,
+    )
+  }
+
+  return render(
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+  )
 }
 
 describe('Instructor Pages', () => {
@@ -49,13 +87,13 @@ describe('Instructor Pages', () => {
     cleanup()
     useAuthStore.getState().clearSession()
     window.localStorage.clear()
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
   })
 
   describe('MyCoursesPage', () => {
     it('displays the assigned instructor course', () => {
-      setInstructorSession()
-
-      renderWithLayout(<MyCoursesPage />)
+      renderInstructorPage(<MyCoursesPage />)
 
       expect(
         screen.getByRole('heading', { name: 'My Courses' }),
@@ -68,28 +106,28 @@ describe('Instructor Pages', () => {
     })
 
     it('displays all assigned courses when multiple exist', () => {
-      setInstructorSession({
-        ...instructorSession,
-        user: {
-          ...instructorSession.user,
-          courses: [
-            {
-              id: 'python-course',
-              code: 'PYTHON-PROG-P0',
-              title: 'Python Programming',
-              membershipRole: 'INSTRUCTOR',
-            },
-            {
-              id: 'data-structures-course',
-              code: 'DATA-STRUCT-P0',
-              title: 'Data Structures & Algorithms',
-              membershipRole: 'INSTRUCTOR',
-            },
-          ],
+      renderInstructorPage(<MyCoursesPage />, {
+        session: {
+          ...instructorSession,
+          user: {
+            ...instructorSession.user,
+            courses: [
+              {
+                id: 'python-course',
+                code: 'PYTHON-PROG-P0',
+                title: 'Python Programming',
+                membershipRole: 'INSTRUCTOR',
+              },
+              {
+                id: 'data-structures-course',
+                code: 'DATA-STRUCT-P0',
+                title: 'Data Structures & Algorithms',
+                membershipRole: 'INSTRUCTOR',
+              },
+            ],
+          },
         },
       })
-
-      renderWithLayout(<MyCoursesPage />)
 
       expect(
         screen.getByRole('heading', { name: 'My Courses' }),
@@ -105,15 +143,16 @@ describe('Instructor Pages', () => {
     })
 
     it('shows empty state when no courses are assigned', () => {
-      setInstructorSession({
-        ...instructorSession,
-        user: {
-          ...instructorSession.user,
-          courses: [],
+      renderInstructorPage(<MyCoursesPage />, {
+        session: {
+          ...instructorSession,
+          user: {
+            ...instructorSession.user,
+            courses: [],
+          },
         },
+        courses: [],
       })
-
-      renderWithLayout(<MyCoursesPage />)
 
       expect(
         screen.getByRole('heading', { name: 'No assigned courses' }),
@@ -124,13 +163,32 @@ describe('Instructor Pages', () => {
         ),
       ).toBeInTheDocument()
     })
+
+    it('keeps the page title and streams a course hero skeleton while loading', () => {
+      renderInstructorPage(<MyCoursesPage />, {
+        session: {
+          ...instructorSession,
+          user: {
+            ...instructorSession.user,
+            courses: [],
+          },
+        },
+        deferCourses: true,
+      })
+
+      expect(screen.getByRole('heading', { name: 'My Courses' })).toBeVisible()
+      expect(
+        screen.getByRole('status', { name: 'Loading course' }),
+      ).toBeVisible()
+      expect(
+        screen.queryByRole('heading', { name: 'No assigned courses' }),
+      ).not.toBeInTheDocument()
+    })
   })
 
   describe('MaterialsPage', () => {
     it('renders the materials placeholder', () => {
-      setInstructorSession()
-
-      renderWithLayout(<MaterialsPage />)
+      renderInstructorPage(<MaterialsPage />)
 
       const materialsHeadings = screen.getAllByRole('heading', {
         name: 'Materials',
@@ -146,13 +204,26 @@ describe('Instructor Pages', () => {
         ),
       ).toBeInTheDocument()
     })
+
+    it('keeps materials chrome and streams list skeletons while loading', () => {
+      renderInstructorPage(<MaterialsPage />, { deferCourses: true })
+
+      expect(
+        screen.getAllByRole('heading', { name: 'Materials' }).length,
+      ).toBeGreaterThanOrEqual(1)
+      expect(screen.getByText('Course Materials')).toBeVisible()
+      expect(
+        screen.getByRole('status', { name: 'Loading materials' }),
+      ).toBeVisible()
+      expect(
+        screen.queryByText('Materials are not connected yet'),
+      ).not.toBeInTheDocument()
+    })
   })
 
   describe('ReviewQueuePage', () => {
     it('renders the review queue placeholder', () => {
-      setInstructorSession()
-
-      renderWithLayout(<ReviewQueuePage />)
+      renderInstructorPage(<ReviewQueuePage />)
 
       const reviewQueueHeadings = screen.getAllByRole('heading', {
         name: 'Review Queue',
@@ -164,6 +235,20 @@ describe('Instructor Pages', () => {
           'Flagged exchanges will appear here after the Sprint 3 review workflow is implemented.',
         ),
       ).toBeInTheDocument()
+    })
+
+    it('keeps review queue chrome and streams list skeletons while loading', () => {
+      renderInstructorPage(<ReviewQueuePage />, { deferCourses: true })
+
+      expect(
+        screen.getAllByRole('heading', { name: 'Review Queue' }).length,
+      ).toBeGreaterThanOrEqual(1)
+      expect(
+        screen.getByRole('status', { name: 'Loading review queue' }),
+      ).toBeVisible()
+      expect(
+        screen.queryByText('No review requests yet'),
+      ).not.toBeInTheDocument()
     })
   })
 })

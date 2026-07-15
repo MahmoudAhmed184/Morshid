@@ -74,6 +74,38 @@ describe('InstructorDashboardPage', () => {
         'Manage course sources and review activity for your assigned course.',
       ),
     ).toBeVisible()
+    expect(screen.getByLabelText('Loading assigned course')).toBeVisible()
+    expect(screen.getByLabelText('Loading materials rows')).toBeVisible()
+    expect(screen.getByLabelText('Loading reviews rows')).toBeVisible()
+    expect(
+      screen.getByLabelText('Loading Course materials metric'),
+    ).toBeVisible()
+    expect(screen.getByLabelText('Loading Review queue metric')).toBeVisible()
+  })
+
+  it('keeps section headings and shows an inline error for the course area', () => {
+    render(
+      <InstructorDashboardPage
+        state={{
+          status: 'error',
+          onRetry: () => undefined,
+        }}
+      />,
+    )
+
+    expect(
+      screen.getByRole('heading', { name: 'Instructor dashboard' }),
+    ).toBeVisible()
+    expect(
+      screen.getByRole('heading', { name: 'Assigned course' }),
+    ).toBeVisible()
+    expect(
+      screen.getByRole('heading', { name: 'Unable to load course' }),
+    ).toBeVisible()
+    expect(
+      screen.getByRole('heading', { name: 'Course materials' }),
+    ).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeVisible()
   })
 
   it('shows a clear empty state when the Instructor owns no course', () => {

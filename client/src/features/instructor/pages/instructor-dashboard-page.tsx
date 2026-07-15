@@ -10,9 +10,11 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/custom/empty-state'
+import { ErrorState } from '@/components/ui/custom/error-state'
 import { PageHeader } from '@/components/ui/custom/page-header'
 import { StatCard } from '@/components/ui/custom/stat-card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { InstructorListSkeleton } from '@/features/instructor/components/instructor-list-skeleton'
 import {
   instructorDashboardPanels,
   instructorDashboardStats,
@@ -27,6 +29,11 @@ type InstructorDashboardState =
   | { status: 'loading' }
   | { status: 'empty' }
   | {
+      status: 'error'
+      onRetry?: () => void
+      isRetrying?: boolean
+    }
+  | {
       status: 'ready'
       course: InstructorCourse
       materialCount: number
@@ -38,8 +45,6 @@ type InstructorDashboardPageProps = {
   actions?: React.ReactNode
 }
 
-const skeletonRows = [0, 1, 2] as const
-
 export function InstructorDashboardPage({
   state,
   actions,
@@ -47,9 +52,16 @@ export function InstructorDashboardPage({
   const isLoading = state.status === 'loading'
 
   return (
-    <main className="min-h-[calc(100svh-8rem)] bg-background">
+    <div className="flex flex-col gap-8">
+      <PageHeader
+        eyebrow={<Badge variant="secondary">Instructor workspace</Badge>}
+        title="Instructor dashboard"
+        description="Manage course sources and review activity for your assigned course."
+        actions={actions}
+      />
+
       <div
-        className="mx-auto w-full max-w-7xl space-y-8 px-4 py-8 sm:px-6 lg:px-8"
+        className="flex flex-col gap-8"
         {...(isLoading
           ? {
               role: 'status' as const,
@@ -57,25 +69,22 @@ export function InstructorDashboardPage({
             }
           : {})}
       >
-        <PageHeader
-          eyebrow={<Badge variant="secondary">Instructor workspace</Badge>}
-          title="Instructor dashboard"
-          description="Manage course sources and review activity for your assigned course."
-          actions={actions}
-        />
-
         <CourseSection state={state} />
         <MetricsSection state={state} />
         <DashboardPanels state={state} />
         <SourceReadinessSection isLoading={isLoading} />
       </div>
-    </main>
+    </div>
   )
 }
 
 function CourseSection({ state }: { state: InstructorDashboardState }) {
   return (
-    <section aria-labelledby="course-heading" className="space-y-3">
+    <section
+      aria-labelledby="course-heading"
+      aria-busy={state.status === 'loading' || undefined}
+      className="space-y-3"
+    >
       <div className="space-y-1">
         <h2 id="course-heading" className="text-base font-semibold">
           Assigned course
@@ -85,11 +94,33 @@ function CourseSection({ state }: { state: InstructorDashboardState }) {
         </p>
       </div>
 
-      {state.status === 'loading' ? <CourseSkeleton /> : null}
-      {state.status === 'empty' ? <InstructorDashboardEmptyState /> : null}
-      {state.status === 'ready' ? <CourseCard course={state.course} /> : null}
+      <CourseSectionContent state={state} />
     </section>
   )
+}
+
+function CourseSectionContent({ state }: { state: InstructorDashboardState }) {
+  if (state.status === 'loading') {
+    return <CourseSkeleton />
+  }
+
+  if (state.status === 'empty') {
+    return <InstructorDashboardEmptyState />
+  }
+
+  if (state.status === 'error') {
+    return (
+      <ErrorState
+        title="Unable to load course"
+        description="The assigned course could not be loaded. Try again."
+        onRetry={state.onRetry}
+        isRetrying={state.isRetrying}
+        className="min-h-40"
+      />
+    )
+  }
+
+  return <CourseCard course={state.course} />
 }
 
 function CourseCard({ course }: { course: InstructorCourse }) {
@@ -140,7 +171,11 @@ function InstructorDashboardEmptyState() {
 
 function MetricsSection({ state }: { state: InstructorDashboardState }) {
   return (
-    <section aria-labelledby="metrics-heading" className="space-y-3">
+    <section
+      aria-labelledby="metrics-heading"
+      aria-busy={state.status === 'loading' || undefined}
+      className="space-y-3"
+    >
       <div className="space-y-1">
         <h2 id="metrics-heading" className="text-base font-semibold">
           Workspace metrics
@@ -150,43 +185,59 @@ function MetricsSection({ state }: { state: InstructorDashboardState }) {
         </p>
       </div>
 
-      {state.status === 'empty' ? (
-        <EmptyState
-          title="No metrics available"
-          description="Assign a course before this workspace can show course-specific totals."
-          className="min-h-40"
-        />
-      ) : (
-        <MetricsCards state={state} />
-      )}
+      <MetricsSectionContent state={state} />
     </section>
+  )
+}
+
+function MetricsSectionContent({ state }: { state: InstructorDashboardState }) {
+  if (state.status === 'loading' || state.status === 'ready') {
+    return <MetricsCards state={state} />
+  }
+
+  if (state.status === 'error') {
+    return (
+      <EmptyState
+        title="Metrics unavailable"
+        description="Course metrics will appear here once the assigned course loads successfully."
+        className="min-h-40"
+      />
+    )
+  }
+
+  return (
+    <EmptyState
+      title="No metrics available"
+      description="Assign a course before this workspace can show course-specific totals."
+      className="min-h-40"
+    />
   )
 }
 
 function MetricsCards({
   state,
 }: {
-  state: Exclude<InstructorDashboardState, { status: 'empty' }>
+  state: Extract<InstructorDashboardState, { status: 'loading' | 'ready' }>
 }) {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       {instructorDashboardStats.map((stat) => {
         const Icon = stat.icon
-        const value =
-          state.status === 'loading' ? (
-            <Skeleton className="h-8 w-12" />
-          ) : (
-            {
-              materials: state.materialCount,
-              reviewQueue: state.reviewQueueCount,
-            }[stat.key]
-          )
+
+        if (state.status === 'loading') {
+          return <MetricCardSkeleton key={stat.key} label={stat.label} />
+        }
 
         return (
           <StatCard
             key={stat.key}
             label={stat.label}
-            value={value}
+            value={
+              {
+                materials: state.materialCount,
+                reviewQueue: state.reviewQueueCount,
+              }[stat.key]
+            }
             icon={<Icon aria-hidden />}
             description={stat.description}
           />
@@ -196,81 +247,94 @@ function MetricsCards({
   )
 }
 
-function DashboardPanels({ state }: { state: InstructorDashboardState }) {
+function MetricCardSkeleton({ label }: { label: string }) {
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
-      {instructorDashboardPanels.map((panel) => {
-        const Icon = panel.icon
-
-        return (
-          <section
-            key={panel.id}
-            aria-labelledby={panel.headingId}
-            id={panel.id}
-          >
-            <Card className="h-full">
-              <CardHeader>
-                <CardTitle>
-                  <h2 id={panel.headingId}>{panel.title}</h2>
-                </CardTitle>
-                <CardDescription>{panel.description}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {state.status === 'loading' ? <PanelRowsSkeleton /> : null}
-                {state.status === 'empty' ? (
-                  <EmptyState
-                    icon={<Icon aria-hidden />}
-                    title="Unavailable without a course"
-                    description="Assign a course before this workspace can show course-specific activity."
-                  />
-                ) : null}
-                {state.status === 'ready' ? (
-                  <EmptyState
-                    icon={<Icon aria-hidden />}
-                    title={panel.emptyTitle}
-                    description={panel.emptyDescription}
-                    action={
-                      panel.action === 'upload' ? (
-                        <Button disabled type="button">
-                          <Upload aria-hidden />
-                          Upload material
-                        </Button>
-                      ) : undefined
-                    }
-                  />
-                ) : null}
-              </CardContent>
-            </Card>
-          </section>
-        )
-      })}
-    </div>
+    <Card aria-label={`Loading ${label} metric`}>
+      <CardHeader className="flex flex-row items-start justify-between gap-3">
+        <Skeleton className="h-4 w-28" />
+        <Skeleton className="size-4" />
+      </CardHeader>
+      <CardContent>
+        <Skeleton className="h-8 w-12" />
+        <Skeleton className="mt-2 h-4 w-3/4" />
+      </CardContent>
+    </Card>
   )
 }
 
-function PanelRowsSkeleton() {
+function DashboardPanels({ state }: { state: InstructorDashboardState }) {
   return (
-    <div className="space-y-3" aria-label="Loading section rows">
-      {skeletonRows.map((row) => (
-        <div
-          key={row}
-          className="flex items-center gap-3 rounded-[8px] border border-border px-4 py-3"
+    <div className="grid gap-6 lg:grid-cols-2">
+      {instructorDashboardPanels.map((panel) => (
+        <section
+          key={panel.id}
+          aria-labelledby={panel.headingId}
+          aria-busy={state.status === 'loading' || undefined}
+          id={panel.id}
         >
-          <Skeleton className="size-9 shrink-0" />
-          <div className="min-w-0 flex-1 space-y-2">
-            <Skeleton className="h-4 w-3/5" />
-            <Skeleton className="h-3 w-4/5" />
-          </div>
-          <Skeleton className="h-6 w-20" />
-        </div>
+          <Card className="h-full">
+            <CardHeader>
+              <CardTitle>
+                <h2 id={panel.headingId}>{panel.title}</h2>
+              </CardTitle>
+              <CardDescription>{panel.description}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <DashboardPanelContent state={state} panel={panel} />
+            </CardContent>
+          </Card>
+        </section>
       ))}
     </div>
   )
 }
 
+function DashboardPanelContent({
+  state,
+  panel,
+}: {
+  state: InstructorDashboardState
+  panel: (typeof instructorDashboardPanels)[number]
+}) {
+  const Icon = panel.icon
+
+  if (state.status === 'loading') {
+    return <InstructorListSkeleton aria-label={`Loading ${panel.id} rows`} />
+  }
+
+  if (state.status === 'empty' || state.status === 'error') {
+    return (
+      <EmptyState
+        icon={<Icon aria-hidden />}
+        title="Unavailable without a course"
+        description="Assign a course before this workspace can show course-specific activity."
+      />
+    )
+  }
+
+  return (
+    <EmptyState
+      icon={<Icon aria-hidden />}
+      title={panel.emptyTitle}
+      description={panel.emptyDescription}
+      action={
+        panel.action === 'upload' ? (
+          <Button disabled type="button">
+            <Upload aria-hidden />
+            Upload material
+          </Button>
+        ) : undefined
+      }
+    />
+  )
+}
+
 function SourceReadinessSection({ isLoading }: { isLoading: boolean }) {
   return (
-    <section aria-labelledby="sources-heading">
+    <section
+      aria-labelledby="sources-heading"
+      aria-busy={isLoading || undefined}
+    >
       <Card>
         <CardHeader>
           <CardTitle>
@@ -281,11 +345,17 @@ function SourceReadinessSection({ isLoading }: { isLoading: boolean }) {
             reported here after ingestion integration.
           </CardDescription>
         </CardHeader>
-        {isLoading ? (
-          <CardContent>
-            <PanelRowsSkeleton />
-          </CardContent>
-        ) : null}
+        <CardContent>
+          {isLoading ? (
+            <InstructorListSkeleton aria-label="Loading source readiness" />
+          ) : (
+            <EmptyState
+              title="No source status yet"
+              description="Source processing statuses will appear here after ingestion is connected."
+              className="min-h-40"
+            />
+          )}
+        </CardContent>
       </Card>
     </section>
   )

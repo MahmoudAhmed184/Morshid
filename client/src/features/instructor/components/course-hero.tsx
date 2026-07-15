@@ -1,5 +1,6 @@
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { instructorCourseMetrics } from '@/features/instructor/constants/instructor-dashboard.constants'
 import type { AuthCourseSummary } from '@/features/auth/types/auth.types'
 
@@ -17,6 +18,46 @@ function MetricTile({
       </p>
       <div className="mt-1 text-sm font-semibold text-foreground">{value}</div>
     </div>
+  )
+}
+
+export function CourseHeroSkeleton() {
+  return (
+    <Card
+      aria-label="Loading course"
+      className="rounded-[8px] border-border bg-card py-0 text-card-foreground ring-0"
+      role="status"
+    >
+      <CardContent className="overflow-hidden px-0">
+        <div className="relative min-h-56 p-5 sm:p-6">
+          <div className="relative flex min-h-44 flex-col justify-between gap-8">
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Skeleton className="h-6 w-28" />
+                <Skeleton className="h-6 w-24" />
+              </div>
+              <div className="max-w-2xl space-y-2">
+                <Skeleton className="h-10 w-3/4 max-w-md" />
+                <Skeleton className="h-4 w-full max-w-xl" />
+                <Skeleton className="h-4 w-4/5 max-w-lg" />
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              {instructorCourseMetrics.map((metric) => (
+                <div
+                  key={metric.label}
+                  className="rounded-[8px] border border-border bg-background/70 px-4 py-3"
+                >
+                  <Skeleton className="h-3 w-16" />
+                  <Skeleton className="mt-2 h-4 w-20" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 

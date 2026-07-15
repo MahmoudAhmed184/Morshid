@@ -1,12 +1,29 @@
 import { BookOpen } from 'lucide-react'
 
+import { ErrorState } from '@/components/ui/custom/error-state'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
-import { CourseHero } from '@/features/instructor/components/course-hero'
+import type { AuthCourseSummary } from '@/features/auth/types/auth.types'
+import {
+  CourseHero,
+  CourseHeroSkeleton,
+} from '@/features/instructor/components/course-hero'
 import { NoCourseState } from '@/features/instructor/components/no-course-state'
+import { useInstructorCourses } from '@/features/instructor/hooks/use-instructor-courses'
 
 export function MyCoursesPage() {
   const user = useAuthStore((state) => state.user)
-  const courses = user?.courses ?? []
+  const coursesQuery = useInstructorCourses()
+  const authCourses = user?.courses ?? []
+
+  const showAuthCourses = authCourses.length > 0
+  const isLoading = coursesQuery.isPending && !showAuthCourses
+  const isError = coursesQuery.isError && !showAuthCourses
+  const isEmpty =
+    !isLoading &&
+    !isError &&
+    (coursesQuery.isSuccess
+      ? coursesQuery.data.length === 0
+      : authCourses.length === 0)
 
   return (
     <div className="flex flex-col gap-5">
@@ -20,15 +37,60 @@ export function MyCoursesPage() {
         </h1>
       </div>
 
-      {courses.length === 0 ? (
-        <NoCourseState />
-      ) : (
-        <div className="flex flex-col gap-5">
-          {courses.map((course) => (
-            <CourseHero key={course.id} course={course} />
-          ))}
-        </div>
-      )}
+      <CoursesContent
+        isLoading={isLoading}
+        isError={isError}
+        isEmpty={isEmpty}
+        isRetrying={coursesQuery.isFetching}
+        onRetry={() => {
+          void coursesQuery.refetch()
+        }}
+        courses={authCourses}
+      />
+    </div>
+  )
+}
+
+function CoursesContent({
+  isLoading,
+  isError,
+  isEmpty,
+  isRetrying,
+  onRetry,
+  courses,
+}: {
+  isLoading: boolean
+  isError: boolean
+  isEmpty: boolean
+  isRetrying: boolean
+  onRetry: () => void
+  courses: AuthCourseSummary[]
+}) {
+  if (isLoading) {
+    return <CourseHeroSkeleton />
+  }
+
+  if (isError) {
+    return (
+      <ErrorState
+        title="Unable to load courses"
+        description="Your assigned courses could not be loaded. Try again."
+        onRetry={onRetry}
+        isRetrying={isRetrying}
+        className="min-h-56 rounded-[8px]"
+      />
+    )
+  }
+
+  if (isEmpty) {
+    return <NoCourseState />
+  }
+
+  return (
+    <div className="flex flex-col gap-5">
+      {courses.map((course) => (
+        <CourseHero key={course.id} course={course} />
+      ))}
     </div>
   )
 }

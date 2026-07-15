@@ -11,7 +11,17 @@ export function InstructorDashboardShell() {
   }
 
   if (coursesQuery.isError) {
-    throw coursesQuery.error
+    return (
+      <InstructorDashboardPage
+        state={{
+          status: 'error',
+          onRetry: () => {
+            void coursesQuery.refetch()
+          },
+          isRetrying: coursesQuery.isFetching,
+        }}
+      />
+    )
   }
 
   const course = coursesQuery.data.find(

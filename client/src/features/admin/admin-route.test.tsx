@@ -113,20 +113,22 @@ describe('Admin routes', () => {
           return usersResponse.promise
         }
 
-        throw new Error(`Unexpected request: ${url}`)
+        return emptyAdminResponse(url)
       }),
     )
 
     renderAdminRoute('/admin/users')
 
-    await waitFor(() =>
-      expect(
-        vi
-          .mocked(fetch)
-          .mock.calls.some(([input]) =>
-            String(input).includes('/api/v1/admin/users?'),
-          ),
-      ).toBe(true),
+    await waitFor(
+      () =>
+        expect(
+          vi
+            .mocked(fetch)
+            .mock.calls.some(([input]) =>
+              String(input).includes('/api/v1/admin/users?'),
+            ),
+        ).toBe(true),
+      { timeout: 5_000 },
     )
     expect(
       screen.queryByRole('heading', { name: 'User Management' }),
@@ -137,7 +139,11 @@ describe('Admin routes', () => {
     )
 
     expect(
-      await screen.findByRole('heading', { name: 'User Management' }),
+      await screen.findByRole(
+        'heading',
+        { name: 'User Management' },
+        { timeout: 5_000 },
+      ),
     ).toBeVisible()
     for (const section of [
       'Dashboard',

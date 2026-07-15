@@ -23,6 +23,9 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
+import { InstructorShellContentFallback } from '@/features/instructor/components/instructor-shell-content-fallback'
+
+const instructorLayoutRouteId = '/instructor'
 
 const navItems: readonly AppSidebarNavItem[] = [
   { icon: LayoutDashboard, to: '/instructor', label: 'Dashboard', exact: true },
@@ -79,6 +82,19 @@ function InstructorSidebar({ onNavigate }: { onNavigate?: () => void }) {
   )
 }
 
+function InstructorOutlet() {
+  const hasChildMatch = useRouterState({
+    select: (state) =>
+      state.matches.some((match) => match.routeId !== instructorLayoutRouteId),
+  })
+
+  if (!hasChildMatch) {
+    return <InstructorShellContentFallback />
+  }
+
+  return <Outlet />
+}
+
 export function InstructorLayout() {
   const user = useAuthStore((state) => state.user)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -125,7 +141,7 @@ export function InstructorLayout() {
           </div>
 
           <div className="mx-auto w-full max-w-7xl px-4 py-5 md:px-6">
-            <Outlet />
+            <InstructorOutlet />
           </div>
         </div>
       </div>
