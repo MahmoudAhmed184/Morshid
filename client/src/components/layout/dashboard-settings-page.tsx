@@ -9,24 +9,34 @@ import { useAuthStore } from '@/features/auth/stores/auth.store'
 
 type DashboardSettingsPageProps = {
   roleName: string
+  embedded?: boolean
 }
 
 export function DashboardSettingsPage({
   roleName,
+  embedded = false,
 }: DashboardSettingsPageProps) {
   const user = useAuthStore((state) => state.user)
   const displayName = user?.displayName ?? roleName
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-5 sm:px-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Settings
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Manage your profile and workspace preferences.
-        </p>
-      </div>
+    <div
+      className={
+        embedded
+          ? 'space-y-6'
+          : 'mx-auto w-full max-w-3xl space-y-6 px-4 py-5 sm:px-6'
+      }
+    >
+      {embedded ? null : (
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            Settings
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Manage your profile and workspace preferences.
+          </p>
+        </div>
+      )}
 
       <Card>
         <CardHeader>

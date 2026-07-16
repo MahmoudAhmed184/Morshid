@@ -102,31 +102,20 @@ describe('Instructor Pages', () => {
         screen.getByRole('heading', { name: 'Python Programming' }),
       ).toBeInTheDocument()
       expect(screen.getByText('PYTHON-PROG-P0')).toBeInTheDocument()
-      expect(screen.getByText('INSTRUCTOR')).toBeInTheDocument()
     })
 
     it('displays all assigned courses when multiple exist', () => {
       renderInstructorPage(<MyCoursesPage />, {
-        session: {
-          ...instructorSession,
-          user: {
-            ...instructorSession.user,
-            courses: [
-              {
-                id: 'python-course',
-                code: 'PYTHON-PROG-P0',
-                title: 'Python Programming',
-                membershipRole: 'INSTRUCTOR',
-              },
-              {
-                id: 'data-structures-course',
-                code: 'DATA-STRUCT-P0',
-                title: 'Data Structures & Algorithms',
-                membershipRole: 'INSTRUCTOR',
-              },
-            ],
+        courses: [
+          {
+            code: 'PYTHON-PROG-P0',
+            title: 'Python Programming',
           },
-        },
+          {
+            code: 'DATA-STRUCT-P0',
+            title: 'Data Structures & Algorithms',
+          },
+        ],
       })
 
       expect(
@@ -144,13 +133,6 @@ describe('Instructor Pages', () => {
 
     it('shows empty state when no courses are assigned', () => {
       renderInstructorPage(<MyCoursesPage />, {
-        session: {
-          ...instructorSession,
-          user: {
-            ...instructorSession.user,
-            courses: [],
-          },
-        },
         courses: [],
       })
 
@@ -159,20 +141,13 @@ describe('Instructor Pages', () => {
       ).toBeInTheDocument()
       expect(
         screen.getByText(
-          'This instructor account does not have a course assignment in the current auth session.',
+          'This instructor account does not have a course assignment yet.',
         ),
       ).toBeInTheDocument()
     })
 
     it('keeps the page title and streams a course hero skeleton while loading', () => {
       renderInstructorPage(<MyCoursesPage />, {
-        session: {
-          ...instructorSession,
-          user: {
-            ...instructorSession.user,
-            courses: [],
-          },
-        },
         deferCourses: true,
       })
 

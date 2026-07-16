@@ -1,25 +1,9 @@
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
+import { StatCard } from '@/components/ui/custom/stat-card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { instructorCourseMetrics } from '@/features/instructor/constants/instructor-dashboard.constants'
-import type { AuthCourseSummary } from '@/features/auth/types/auth.types'
-
-function MetricTile({
-  label,
-  value,
-}: {
-  label: string
-  value: React.ReactNode
-}) {
-  return (
-    <div className="rounded-[8px] border border-border bg-background/70 px-4 py-3">
-      <p className="text-[0.68rem] font-medium text-muted-foreground uppercase">
-        {label}
-      </p>
-      <div className="mt-1 text-sm font-semibold text-foreground">{value}</div>
-    </div>
-  )
-}
+import type { InstructorCourse } from '@/features/instructor/schemas/instructor-course.schema'
 
 export function CourseHeroSkeleton() {
   return (
@@ -34,7 +18,6 @@ export function CourseHeroSkeleton() {
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
                 <Skeleton className="h-6 w-28" />
-                <Skeleton className="h-6 w-24" />
               </div>
               <div className="max-w-2xl space-y-2">
                 <Skeleton className="h-10 w-3/4 max-w-md" />
@@ -61,7 +44,7 @@ export function CourseHeroSkeleton() {
   )
 }
 
-export function CourseHero({ course }: { course: AuthCourseSummary }) {
+export function CourseHero({ course }: { course: InstructorCourse }) {
   return (
     <Card className="rounded-[8px] border-border bg-card py-0 text-card-foreground ring-0">
       <CardContent className="overflow-hidden px-0">
@@ -75,9 +58,6 @@ export function CourseHero({ course }: { course: AuthCourseSummary }) {
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge>{course.code}</Badge>
-                {course.membershipRole ? (
-                  <Badge variant="outline">{course.membershipRole}</Badge>
-                ) : null}
               </div>
               <div className="max-w-2xl space-y-2">
                 <h2 className="text-3xl font-semibold text-foreground sm:text-4xl">
@@ -92,10 +72,11 @@ export function CourseHero({ course }: { course: AuthCourseSummary }) {
 
             <div className="grid gap-3 sm:grid-cols-3">
               {instructorCourseMetrics.map((metric) => (
-                <MetricTile
+                <StatCard
                   key={metric.label}
                   label={metric.label}
                   value={metric.value}
+                  className="border-border bg-background/70 py-4 shadow-none"
                 />
               ))}
             </div>

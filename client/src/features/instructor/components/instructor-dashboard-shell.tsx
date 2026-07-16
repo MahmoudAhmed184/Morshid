@@ -34,7 +34,7 @@ export function InstructorDashboardShell() {
         course
           ? {
               status: 'ready',
-              course: { code: course.code, title: course.title },
+              course,
               materialCount: 0,
               reviewQueueCount: 0,
             }
