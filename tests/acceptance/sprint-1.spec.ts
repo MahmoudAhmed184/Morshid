@@ -368,7 +368,7 @@ test.describe('Sprint 1 acceptance and security', () => {
     expect(document).toMatchObject({
       openapi: expect.stringMatching(/^3\./),
       info: {
-        description: 'Foundation scaffold API for Morshid.',
+        description: 'API for the Morshid Socratic teaching assistant.',
         title: 'Morshid API',
         version: '0.1.0',
       },

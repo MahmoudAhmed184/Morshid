@@ -196,18 +196,44 @@ Rules:
 - Reset commands should recreate the seeded baseline before demo-specific
   sources or chat fixtures are applied.
 
-Commands already present in the repository and README:
+The guarded fresh-seed gate is the supported clean-demo path:
+
+```bash
+MORSHID_RESET_CONFIRM=reset-local npm run demo:fresh-seed
+```
+
+> [!WARNING]
+> The gate permanently deletes all data in the configured development database.
+> Verify that `server/.env` points to a disposable local database; never use the
+> command with shared, staging, or production data.
+
+Prerequisites are Node.js 24 with npm 11 or newer, installed dependencies,
+copied and configured root/server/client environment files, and a running
+Docker daemon with Docker Compose. The gate starts PostgreSQL and Redis, resets
+the database while reapplying every migration, seeds deterministic P0 data,
+runs the full repository check, and runs every server E2E acceptance test. It
+stops at the first failure and prints the failed stage plus recovery guidance.
+Repair that stage and rerun the complete guarded command.
+
+A passing gate must recreate all five P0 demo accounts, assign the Instructor
+and three Students to `PYTHON-PROG-P0`, leave `HIDDEN-ISOLATION` unassigned, and
+leave infrastructure running. Continue with `npm run dev` for the demo.
+
+For troubleshooting only, run the corresponding stage directly:
 
 ```bash
 npm run infra:up
+MORSHID_RESET_CONFIRM=reset-local npm run db:reset
 npm run db:migrate
 npm run db:seed
-npm run dev
+npm run check
+npm run test:e2e --workspace server
 ```
 
-The root `npm run db:reset` command also exists for intentional local resets;
-follow the README guard before using it. Do not introduce new fixture commands
-without documenting them.
+The reset itself reapplies migrations but does not seed. Keep individual
+commands as diagnostic tools; fixture workflow documentation should point to
+the guarded fresh-seed gate. Do not introduce new fixture commands without
+documenting them.
 
 ## Change Checklist
 
