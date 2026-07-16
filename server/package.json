@@ -14,7 +14,7 @@
     "prebuild": "node scripts/clean-build-cache.mts && npm run db:generate",
     "db:generate": "prisma generate --config prisma.config.ts",
     "db:migrate": "prisma migrate dev --config prisma.config.ts",
-    "db:reset": "prisma migrate reset --config prisma.config.ts --force --skip-seed",
+    "db:reset": "prisma migrate reset --config prisma.config.ts --force",
     "db:seed": "prisma db seed --config prisma.config.ts",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
