@@ -8,7 +8,7 @@ export const envSchema = z.object({
   CLIENT_ORIGIN: z.url().default('http://localhost:3000'),
   DATABASE_URL: z.url().startsWith('postgresql://'),
   REDIS_URL: z.url().startsWith('redis://'),
-  PDF_STORAGE_PATH: z.string().min(1).default('/workspace/storage/pdfs'),
+  PDF_STORAGE_PATH: z.string().trim().min(1),
   AUTH_ACCESS_TOKEN_SECRET: z.string().min(32),
   AUTH_REFRESH_TOKEN_HASH_SECRET: z.string().min(32),
   AUTH_ACCESS_TOKEN_TTL_SECONDS: z.coerce
