@@ -219,20 +219,12 @@ describe('RAG persistence (e2e)', () => {
       ORDER BY embedding <=> ${queryVector}::vector, chunk_index
       LIMIT 2
     `
-    const indexes = await prisma.$transaction(async (transaction) => {
-      // Keep the catalog assertion independent from the session's active schema.
-      await transaction.$executeRaw`
-        SET LOCAL search_path = pg_catalog, public
-      `
-
-      return transaction.$queryRaw<{ indexdef: string }[]>`
-        SELECT indexdef
-        FROM pg_catalog.pg_indexes
-        WHERE schemaname = 'public'
-          AND tablename = 'material_chunks'
-          AND indexname = 'idx_chunks_embedding_hnsw'
-      `
-    })
+    const indexes = await prisma.$queryRaw<{ indexdef: string }[]>`
+      SELECT indexdef
+      FROM pg_indexes
+      WHERE schemaname = current_schema()
+        AND indexname = 'idx_chunks_embedding_hnsw'
+    `
 
     expect(rankedChunks.map(({ chunkIndex }) => chunkIndex)).toEqual([0, 1])
     expect(rankedChunks[0].distance).toBeCloseTo(0)
