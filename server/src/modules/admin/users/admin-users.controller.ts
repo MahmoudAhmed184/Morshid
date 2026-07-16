@@ -13,15 +13,27 @@ import {
   UseInterceptors,
 } from '@nestjs/common'
 import {
-  ApiBearerAuth,
+  ApiBadRequestResponse,
   ApiBody,
+  ApiConflictResponse,
   ApiCreatedResponse,
+  ApiExtraModels,
+  ApiNotFoundResponse,
   ApiOkResponse,
+  ApiOperation,
+  ApiParam,
   ApiQuery,
   ApiTags,
+  getSchemaPath,
 } from '@nestjs/swagger'
 import type { z } from 'zod'
 
+import {
+  NestBadRequestErrorDto,
+  OpenApiErrorDto,
+  OpenApiValidationErrorDto,
+} from '../../../common/http/openapi-error.dto'
+import { ApiAccessTokenAuth } from '../../../common/http/openapi.decorators'
 import { getRequestContext } from '../../../common/http/request-context'
 import { ZodValidationPipe } from '../../../common/pipes/zod-validation.pipe'
 import { UserRole } from '../../../generated/prisma/client'
@@ -60,23 +72,35 @@ function mapZodIssue(issue: z.core.$ZodIssue): AdminUsersValidationIssue {
 @Controller('admin/users')
 @ApiTags('admin-users')
 @Roles(UserRole.ADMIN)
-@ApiBearerAuth()
+@ApiAccessTokenAuth()
+@ApiExtraModels(OpenApiValidationErrorDto, NestBadRequestErrorDto)
 @UseInterceptors(ClassSerializerInterceptor)
 export class AdminUsersController {
   constructor(private readonly adminUsersService: AdminUsersService) {}
 
   @Get()
   @SerializeOptions({ type: AdminUserListResponseDto, strategy: 'excludeAll' })
-  @ApiOkResponse({ type: AdminUserListResponseDto })
+  @ApiOperation({ summary: 'List users' })
+  @ApiOkResponse({
+    type: AdminUserListResponseDto,
+    description: 'A cursor-paginated list of users.',
+  })
+  @ApiBadRequestResponse({ type: OpenApiValidationErrorDto })
   @ApiQuery({
     name: 'limit',
     required: false,
-    type: Number,
-    minimum: 1,
-    maximum: 100,
-    example: 50,
+    schema: {
+      type: 'integer',
+      minimum: 1,
+      maximum: 100,
+      default: 50,
+    },
   })
-  @ApiQuery({ name: 'cursor', required: false, type: String, format: 'uuid' })
+  @ApiQuery({
+    name: 'cursor',
+    required: false,
+    schema: { type: 'string', format: 'uuid' },
+  })
   listUsers(
     @Query(
       new ZodValidationPipe(adminListUsersQuerySchema, (issues) =>
@@ -93,8 +117,14 @@ export class AdminUsersController {
     type: AdminCreateUserResponseDto,
     strategy: 'excludeAll',
   })
+  @ApiOperation({ summary: 'Create user' })
   @ApiBody({ type: AdminCreateUserRequestDto })
-  @ApiCreatedResponse({ type: AdminCreateUserResponseDto })
+  @ApiCreatedResponse({
+    type: AdminCreateUserResponseDto,
+    description: 'The created student or instructor account.',
+  })
+  @ApiBadRequestResponse({ type: OpenApiValidationErrorDto })
+  @ApiConflictResponse({ type: OpenApiErrorDto })
   createUser(
     @Body(
       new ZodValidationPipe(adminCreateUserRequestSchema, (issues) =>
@@ -116,7 +146,15 @@ export class AdminUsersController {
     type: AdminDisableUserResponseDto,
     strategy: 'excludeAll',
   })
-  @ApiOkResponse({ type: AdminDisableUserResponseDto })
+  @ApiOperation({ summary: 'Disable user' })
+  @ApiParam({ name: 'userId', format: 'uuid' })
+  @ApiOkResponse({
+    type: AdminDisableUserResponseDto,
+    description: 'The disabled user account.',
+  })
+  @ApiBadRequestResponse({ type: NestBadRequestErrorDto })
+  @ApiNotFoundResponse({ type: OpenApiErrorDto })
+  @ApiConflictResponse({ type: OpenApiErrorDto })
   disableUser(
     @Param('userId', new ParseUUIDPipe({ version: '4' })) userId: string,
     @Req() request: AuthenticatedHttpRequest,
@@ -133,7 +171,14 @@ export class AdminUsersController {
     type: AdminReactivateUserResponseDto,
     strategy: 'excludeAll',
   })
-  @ApiOkResponse({ type: AdminReactivateUserResponseDto })
+  @ApiOperation({ summary: 'Reactivate user' })
+  @ApiParam({ name: 'userId', format: 'uuid' })
+  @ApiOkResponse({
+    type: AdminReactivateUserResponseDto,
+    description: 'The reactivated user account.',
+  })
+  @ApiBadRequestResponse({ type: NestBadRequestErrorDto })
+  @ApiNotFoundResponse({ type: OpenApiErrorDto })
   reactivateUser(
     @Param('userId', new ParseUUIDPipe({ version: '4' })) userId: string,
     @Req() request: AuthenticatedHttpRequest,
@@ -150,8 +195,22 @@ export class AdminUsersController {
     type: AdminResetUserPasswordResponseDto,
     strategy: 'excludeAll',
   })
+  @ApiOperation({ summary: 'Reset user password' })
+  @ApiParam({ name: 'userId', format: 'uuid' })
   @ApiBody({ type: AdminResetUserPasswordRequestDto })
-  @ApiOkResponse({ type: AdminResetUserPasswordResponseDto })
+  @ApiOkResponse({
+    type: AdminResetUserPasswordResponseDto,
+    description: 'The user whose password was reset.',
+  })
+  @ApiBadRequestResponse({
+    schema: {
+      oneOf: [
+        { $ref: getSchemaPath(OpenApiValidationErrorDto) },
+        { $ref: getSchemaPath(NestBadRequestErrorDto) },
+      ],
+    },
+  })
+  @ApiNotFoundResponse({ type: OpenApiErrorDto })
   resetUserPassword(
     @Param('userId', new ParseUUIDPipe({ version: '4' })) userId: string,
     @Body(

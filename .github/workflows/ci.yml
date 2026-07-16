@@ -1,4 +1,4 @@
-name: Scaffold CI
+name: Sprint 1 CI
 
 on:
   pull_request:
@@ -13,51 +13,50 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       DATABASE_URL: postgresql://morshid:morshid_local_password@localhost:5432/morshid
       REDIS_URL: redis://localhost:6379
       CLIENT_ORIGIN: http://localhost:3000
+      AUTH_ACCESS_TOKEN_SECRET: test-access-token-secret-with-at-least-32-characters
+      AUTH_REFRESH_TOKEN_HASH_SECRET: test-refresh-token-hash-secret-with-at-least-32-characters
+      AUTH_ACCESS_TOKEN_TTL_SECONDS: 900
+      AUTH_REFRESH_TOKEN_TTL_DAYS: 7
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 24.x
+          node-version-file: .node-version
           cache: npm
           cache-dependency-path: package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Check formatting
-        run: npm run format:check
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Typecheck
-        run: npm run typecheck
+      - name: Run canonical checks
+        run: npm run check
 
       - name: Start infrastructure
-        run: docker compose up -d --wait postgres redis
+        run: npm run infra:up
 
-      - name: Run migrations
+      - name: Deploy migrations
         run: npm run db:migrate:deploy
 
-      - name: Test
-        run: npm run test
-
-      - name: End-to-end tests
-        run: npm run test:e2e --workspace server
-
-      - name: Build
-        run: npm run build
+      - name: Run end-to-end tests
+        run: npm run test:e2e
 
       - name: Stop infrastructure
         if: always()
-        run: docker compose down
+        run: npm run infra:down

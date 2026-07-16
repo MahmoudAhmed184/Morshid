@@ -14,8 +14,7 @@
     "prebuild": "node scripts/clean-build-cache.mts && npm run db:generate",
     "db:generate": "prisma generate --config prisma.config.ts",
     "db:migrate": "prisma migrate dev --config prisma.config.ts",
-    "db:migrate:deploy": "prisma migrate deploy --config prisma.config.ts",
-    "db:reset": "prisma migrate reset --config prisma.config.ts --force --skip-seed",
+    "db:reset": "prisma migrate reset --config prisma.config.ts --force",
     "db:seed": "prisma db seed --config prisma.config.ts",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
@@ -39,7 +38,8 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "pretest:e2e": "npm run db:generate",
-    "test:e2e": "node --experimental-vm-modules ../node_modules/jest/bin/jest.js --config ./test/jest-e2e.json"
+    "test:e2e": "node --experimental-vm-modules ../node_modules/jest/bin/jest.js --config ./test/jest-e2e.json",
+    "db:migrate:deploy": "prisma migrate deploy --config prisma.config.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.27",
