@@ -16,5 +16,11 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["eslint.config.mts", "prettier.config.mts", "scripts/**/*.mts"]
+  "include": [
+    "eslint.config.mts",
+    "playwright.config.ts",
+    "prettier.config.mts",
+    "scripts/**/*.mts",
+    "tests/**/*.ts"
+  ]
 }

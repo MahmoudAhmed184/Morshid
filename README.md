@@ -114,6 +114,24 @@ npm run test
 npm run build
 ```
 
+### Sprint 1 acceptance tests
+
+Install the Chromium browser once after `npm install`:
+
+```bash
+npx playwright install chromium
+```
+
+The acceptance suite exercises the live client and API against the deterministic
+P0 demo seed. Start infrastructure, migrate, seed, and run it in that order:
+
+```bash
+npm run infra:up
+npm run db:migrate
+npm run db:seed
+npm run test:acceptance
+```
+
 ## Troubleshooting
 
 Port conflicts:
