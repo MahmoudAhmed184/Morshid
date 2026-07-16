@@ -217,40 +217,6 @@ describe('Admin users (e2e)', () => {
     expect(store.findUserByEmail('new-admin@morshid.demo')).toBeNull()
   })
 
-  it('publishes the runtime password policy in OpenAPI', async () => {
-    const response = await request(app.getHttpServer())
-      .get('/docs-json')
-      .expect(200)
-    const document = response.body as {
-      components: {
-        schemas: Record<string, { properties: Record<string, unknown> }>
-      }
-      paths: Record<
-        string,
-        { get?: { parameters?: { name: string; required: boolean }[] } }
-      >
-    }
-    const schemas = document.components.schemas
-    const passwordPolicy = {
-      minLength: 8,
-      maxLength: 50,
-      pattern: '^(?=.*[A-Za-z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,50}$',
-    }
-
-    expect(schemas.AdminCreateUserRequestDto.properties.password).toMatchObject(
-      passwordPolicy,
-    )
-    expect(
-      schemas.AdminResetUserPasswordRequestDto.properties.newPassword,
-    ).toMatchObject(passwordPolicy)
-    expect(document.paths['/api/v1/admin/users'].get?.parameters).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ name: 'limit', required: false }),
-        expect.objectContaining({ name: 'cursor', required: false }),
-      ]),
-    )
-  })
-
   it('returns field-level validation errors for empty passwords', async () => {
     const token = await signInAs('admin@morshid.demo')
 

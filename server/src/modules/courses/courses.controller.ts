@@ -6,22 +6,27 @@ import {
   SerializeOptions,
   UseInterceptors,
 } from '@nestjs/common'
-import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger'
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger'
 
+import { ApiAccessTokenAuth } from '../../common/http/openapi.decorators'
 import type { AuthenticatedHttpRequest } from '../auth/auth.guard'
 import { CourseListResponseDto } from './courses.dto'
 import { CoursesService } from './courses.service'
 
 @ApiTags('courses')
 @Controller('courses')
-@ApiBearerAuth()
+@ApiAccessTokenAuth()
 @UseInterceptors(ClassSerializerInterceptor)
 @SerializeOptions({ type: CourseListResponseDto, strategy: 'excludeAll' })
 export class CoursesController {
   constructor(private readonly coursesService: CoursesService) {}
 
   @Get()
-  @ApiOkResponse({ type: CourseListResponseDto })
+  @ApiOperation({ summary: 'List accessible courses' })
+  @ApiOkResponse({
+    type: CourseListResponseDto,
+    description: 'Courses visible to the authenticated user.',
+  })
   listCourses(
     @Req() request: AuthenticatedHttpRequest,
   ): Promise<CourseListResponseDto> {

@@ -8,12 +8,15 @@ import {
   UseInterceptors,
 } from '@nestjs/common'
 import {
-  ApiBearerAuth,
+  ApiBadRequestResponse,
   ApiOkResponse,
+  ApiOperation,
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger'
 
+import { ApiAccessTokenAuth } from '../../../common/http/openapi.decorators'
+import { OpenApiIssuesErrorDto } from '../../../common/http/openapi-error.dto'
 import { ZodValidationPipe } from '../../../common/pipes/zod-validation.pipe'
 import { UserRole } from '../../../generated/prisma/client'
 import { AuditService } from '../../audit/audit.service'
@@ -27,7 +30,7 @@ import {
 @Controller('admin/audit')
 @ApiTags('admin-audit')
 @Roles(UserRole.ADMIN)
-@ApiBearerAuth()
+@ApiAccessTokenAuth()
 @UseInterceptors(ClassSerializerInterceptor)
 export class AdminAuditController {
   constructor(private readonly auditService: AuditService) {}
@@ -37,8 +40,22 @@ export class AdminAuditController {
     type: AdminAuditEventListResponseDto,
     strategy: 'excludeAll',
   })
-  @ApiQuery({ name: 'limit', required: false, minimum: 1, maximum: 100 })
-  @ApiOkResponse({ type: AdminAuditEventListResponseDto })
+  @ApiOperation({ summary: 'List recent audit events' })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    schema: {
+      type: 'integer',
+      minimum: 1,
+      maximum: 100,
+      default: 20,
+    },
+  })
+  @ApiOkResponse({
+    type: AdminAuditEventListResponseDto,
+    description: 'Recent audit events in reverse chronological order.',
+  })
+  @ApiBadRequestResponse({ type: OpenApiIssuesErrorDto })
   async listRecentEvents(
     @Query(
       new ZodValidationPipe(

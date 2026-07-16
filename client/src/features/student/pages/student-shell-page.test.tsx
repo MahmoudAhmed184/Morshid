@@ -20,6 +20,7 @@ import { StudentDashboardPage } from './student-dashboard-page'
 import { StudentShellPage } from './student-shell-page'
 
 const routerMockState = vi.hoisted(() => ({
+  hydrated: true,
   pathname: '/student/dashboard',
 }))
 
@@ -42,6 +43,7 @@ vi.mock('@tanstack/react-router', () => ({
     </a>
   ),
   Outlet: () => <div data-testid="student-route-outlet" />,
+  useHydrated: () => routerMockState.hydrated,
   useRouterState: <T,>({
     select,
   }: {
@@ -96,6 +98,7 @@ describe('StudentShellPage', () => {
   beforeEach(() => {
     window.localStorage.clear()
     useAuthStore.getState().clearSession()
+    routerMockState.hydrated = true
     routerMockState.pathname = '/student/dashboard'
   })
 
@@ -105,6 +108,17 @@ describe('StudentShellPage', () => {
     window.localStorage.clear()
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
+  })
+
+  it('matches the server authentication fallback before hydration', () => {
+    routerMockState.hydrated = false
+
+    renderWithStudentCourses(<StudentShellPage />)
+
+    expect(
+      screen.getByRole('status', { name: 'Checking authentication' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByTestId('student-route-outlet')).toBeNull()
   })
 
   it('renders assigned courses from the scoped course query', () => {
