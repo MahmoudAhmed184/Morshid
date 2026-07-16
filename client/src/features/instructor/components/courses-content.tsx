@@ -46,7 +46,7 @@ export function CoursesContent({
   return (
     <div className="flex flex-col gap-5">
       {courses.map((course) => (
-        <CourseHero key={course.code} course={course} />
+        <CourseHero key={course.id} course={course} />
       ))}
     </div>
   )

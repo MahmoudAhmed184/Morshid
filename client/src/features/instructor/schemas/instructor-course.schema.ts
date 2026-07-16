@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 export const instructorCourseSchema = z.object({
+  id: z.string(),
   code: z.string(),
   title: z.string(),
 })

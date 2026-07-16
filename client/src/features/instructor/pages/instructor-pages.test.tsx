@@ -41,11 +41,15 @@ function renderInstructorPage(
   ui: React.ReactElement,
   {
     session = instructorSession,
-    courses = session.user.courses.map(({ code, title }) => ({ code, title })),
+    courses = session.user.courses.map(({ id, code, title }) => ({
+      id,
+      code,
+      title,
+    })),
     deferCourses = false,
   }: {
     session?: AuthSession
-    courses?: { code: string; title: string }[]
+    courses?: { id: string; code: string; title: string }[]
     deferCourses?: boolean
   } = {},
 ) {
@@ -108,10 +112,12 @@ describe('Instructor Pages', () => {
       renderInstructorPage(<MyCoursesPage />, {
         courses: [
           {
+            id: 'python-course',
             code: 'PYTHON-PROG-P0',
             title: 'Python Programming',
           },
           {
+            id: 'data-structures-course',
             code: 'DATA-STRUCT-P0',
             title: 'Data Structures & Algorithms',
           },

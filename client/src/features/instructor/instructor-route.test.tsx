@@ -84,7 +84,8 @@ function renderAtInstructorRoute(
         return (
           coursesResponse ??
           Response.json({
-            courses: session.user.courses.map(({ code, title }) => ({
+            courses: session.user.courses.map(({ id, code, title }) => ({
+              id,
               code,
               title,
             })),

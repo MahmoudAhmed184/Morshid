@@ -13,6 +13,7 @@ describe('InstructorDashboardPage', () => {
         state={{
           status: 'ready',
           course: {
+            id: 'python-course',
             code: 'PYTHON-PROG-P0',
             title: 'Python Programming',
           },
