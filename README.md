@@ -73,7 +73,17 @@ Local URLs:
 - Client: http://localhost:3000
 - Server health: http://localhost:4000/health/live
 - Server readiness: http://localhost:4000/health/ready
-- Swagger: http://localhost:4000/docs
+- Swagger UI: http://localhost:4000/docs
+- OpenAPI JSON: http://localhost:4000/docs-json
+- OpenAPI YAML: http://localhost:4000/docs-yaml
+
+Swagger is registered only when the server runs with `NODE_ENV=development` or
+`NODE_ENV=test`; all three documentation URLs return `404` in production while
+the API routes remain available. In Swagger UI, authorize with the
+`access-token` bearer scheme using a JWT returned by sign-in or refresh.
+Browser refresh sessions use the HttpOnly `morshid_refresh` cookie. Non-browser
+clients can instead send the optional `refreshToken` JSON field to the refresh
+and logout endpoints.
 
 ### P0 demo seed
 
