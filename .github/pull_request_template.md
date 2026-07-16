@@ -4,11 +4,8 @@
 
 ## Validation
 
-- [ ] `npm run format:check`
-- [ ] `npm run lint`
-- [ ] `npm run typecheck`
-- [ ] `npm run test`
-- [ ] `npm run build`
+- [ ] `npm run check`
+- [ ] If acceptance-test behavior changed: `npm run infra:up`, `npm run db:migrate:deploy`, and `npm run test:e2e` (followed by `npm run infra:down`)
 
 ## Scope Check
 
