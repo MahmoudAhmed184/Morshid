@@ -2,7 +2,6 @@ import { expect, test } from '@playwright/test'
 import type { APIRequestContext, Page } from '@playwright/test'
 
 const apiBaseUrl = 'http://localhost:4000'
-const clientBaseUrl = 'http://localhost:3000'
 const demoPassword = 'MorshidDemoP0!'
 
 const demoAccounts = {
@@ -36,6 +35,14 @@ interface AdminManagedUsersResponse {
   }[]
 }
 
+interface AdminAuditEventsResponse {
+  events: {
+    action: string
+    id: string
+    targetId: string | null
+  }[]
+}
+
 interface OpenApiDocument {
   openapi: string
   info: {
@@ -50,7 +57,7 @@ async function submitSignInForm(
   page: Page,
   account: (typeof demoAccounts)[keyof typeof demoAccounts],
 ) {
-  await page.goto(`${clientBaseUrl}/login`)
+  await page.goto('/login')
   await page.getByLabel('Institutional Email').fill(account.email)
   await page.getByRole('textbox', { name: 'Password' }).fill(demoPassword)
   await page.getByRole('button', { name: 'Sign In to Portal' }).click()
@@ -97,6 +104,19 @@ async function reactivateAdminUser(
   await expect(response).toBeOK()
 }
 
+async function getAdminAuditEvents(
+  request: APIRequestContext,
+  adminAccessToken: string,
+) {
+  const response = await request.get(
+    `${apiBaseUrl}/api/v1/admin/audit?limit=100`,
+    { headers: bearerHeaders(adminAccessToken) },
+  )
+  await expect(response).toBeOK()
+  const body = (await response.json()) as AdminAuditEventsResponse
+  return body.events
+}
+
 test.describe('Sprint 1 acceptance and security', () => {
   test('seeded Admin signs in through the UI and reaches the Admin shell', async ({
     page,
@@ -107,6 +127,7 @@ test.describe('Sprint 1 acceptance and security', () => {
     await expect(
       page.getByRole('navigation', { name: 'Admin navigation' }),
     ).toBeVisible()
+    await expect(page.getByText('Users loaded', { exact: true })).toBeVisible()
   })
 
   test('seeded Instructor signs in through the UI and reaches the Instructor shell', async ({
@@ -149,7 +170,7 @@ test.describe('Sprint 1 acceptance and security', () => {
     await signInThroughUi(page, demoAccounts.student)
 
     for (const forbiddenPath of ['/admin', '/instructor']) {
-      await page.goto(`${clientBaseUrl}${forbiddenPath}`)
+      await page.goto(forbiddenPath)
 
       await expect(page).toHaveURL(/\/student\/dashboard\/?$/)
       await expect(
@@ -265,6 +286,9 @@ test.describe('Sprint 1 acceptance and security', () => {
       await reactivateAdminUser(request, adminAccessToken, disabledAccount.id)
     }
 
+    const auditBefore = await getAdminAuditEvents(request, adminAccessToken)
+    const existingAuditIds = new Set(auditBefore.map((event) => event.id))
+
     try {
       await signInThroughUi(page, demoAccounts.admin)
       await page.getByRole('link', { name: 'Users', exact: true }).click()
@@ -291,9 +315,25 @@ test.describe('Sprint 1 acceptance and security', () => {
       await expect(
         page.getByRole('heading', { name: 'Recent Audit Activity' }),
       ).toBeVisible()
-      await expect(
-        page.getByText('admin.account_disabled', { exact: true }).first(),
-      ).toBeVisible()
+
+      const auditAfter = await getAdminAuditEvents(request, adminAccessToken)
+      const disableAuditEvent = auditAfter.find(
+        (event) =>
+          !existingAuditIds.has(event.id) &&
+          event.action === 'admin.account_disabled' &&
+          event.targetId === disabledAccount.id,
+      )
+
+      expect(disableAuditEvent).toBeDefined()
+      if (!disableAuditEvent) {
+        throw new Error('The disable operation did not create an audit event')
+      }
+
+      const auditRow = page
+        .getByRole('row')
+        .filter({ hasText: disableAuditEvent.id })
+      await expect(auditRow).toContainText('admin.account_disabled')
+      await expect(auditRow).toContainText(disabledAccount.id)
 
       const disabledContext = await browser.newContext()
       try {
