@@ -34,7 +34,7 @@ export function StudentCreateSessionButton({
         type="button"
         size="sm"
         isLoading={isPending}
-        loadingText="Creating..."
+        loadingText="Creating…"
         onClick={handleCreate}
       >
         <Plus aria-hidden />

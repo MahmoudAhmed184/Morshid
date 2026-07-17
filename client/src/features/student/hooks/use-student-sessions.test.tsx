@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import type { InfiniteData } from '@tanstack/react-query'
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -134,7 +135,10 @@ function seedSessionList(
   session: ChatSession = primaryChatSessionFixture,
 ) {
   const key = studentSessionKeys.sessionList(scope)
-  queryClient.setQueryData(key, sessionList(session))
+  queryClient.setQueryData(key, {
+    pages: [sessionList(session)],
+    pageParams: [undefined],
+  })
   return key
 }
 
@@ -145,7 +149,10 @@ function seedHistory(
   firstMessageContent?: string,
 ) {
   const key = studentSessionKeys.messageList({ ...scope, sessionId })
-  queryClient.setQueryData(key, messageHistory(firstMessageContent))
+  queryClient.setQueryData(key, {
+    pages: [messageHistory(firstMessageContent)],
+    pageParams: [undefined],
+  })
   return key
 }
 
@@ -232,10 +239,10 @@ describe('Student session hooks', () => {
       },
     )
 
-    expect(result.current.sessions.data?.sessions[0]?.id).toBe(
+    expect(result.current.sessions.data?.pages[0]?.sessions[0]?.id).toBe(
       studentChatIds.primarySession,
     )
-    expect(result.current.history.data?.messages[0]?.content).toBe(
+    expect(result.current.history.data?.pages[0]?.messages[0]?.content).toBe(
       'Primary Student history',
     )
 
@@ -250,11 +257,11 @@ describe('Student session hooks', () => {
       sessionId: studentChatIds.otherSession,
     })
     await waitFor(() =>
-      expect(result.current.sessions.data?.sessions[0]?.id).toBe(
+      expect(result.current.sessions.data?.pages[0]?.sessions[0]?.id).toBe(
         studentChatIds.otherSession,
       ),
     )
-    expect(result.current.history.data?.messages[0]?.content).toBe(
+    expect(result.current.history.data?.pages[0]?.messages[0]?.content).toBe(
       'Other Student history',
     )
 
@@ -263,16 +270,16 @@ describe('Student session hooks', () => {
       sessionId: studentChatIds.otherSession,
     })
     await waitFor(() =>
-      expect(result.current.sessions.data?.sessions[0]?.courseId).toBe(
-        studentChatIds.otherCourse,
-      ),
+      expect(
+        result.current.sessions.data?.pages[0]?.sessions[0]?.courseId,
+      ).toBe(studentChatIds.otherCourse),
     )
-    expect(result.current.history.data?.messages[0]?.content).toBe(
+    expect(result.current.history.data?.pages[0]?.messages[0]?.content).toBe(
       'Other course history',
     )
   })
 
-  it('invalidates only the mutation-start Student and course after create', async () => {
+  it('caches a created empty session only for the mutation-start scope', async () => {
     const queryClient = createQueryClient()
     const primaryKey = seedSessionList(queryClient, primaryScope)
     const otherKey = seedSessionList(
@@ -307,8 +314,26 @@ describe('Student session hooks', () => {
     resolveSession(primaryChatSessionFixture)
     await act(async () => mutation)
 
-    expect(queryClient.getQueryState(primaryKey)?.isInvalidated).toBe(true)
-    expect(queryClient.getQueryState(otherKey)?.isInvalidated).toBe(false)
+    expect(
+      queryClient.getQueryData<
+        InfiniteData<ChatSessionListResponse, string | undefined>
+      >(primaryKey)?.pages[0]?.sessions,
+    ).toEqual([primaryChatSessionFixture])
+    expect(queryClient.getQueryData(otherKey)).toEqual({
+      pages: [sessionList(otherStudentSession)],
+      pageParams: [undefined],
+    })
+    expect(
+      queryClient.getQueryData(
+        studentSessionKeys.messageList({
+          ...primaryScope,
+          sessionId: primaryChatSessionFixture.id,
+        }),
+      ),
+    ).toEqual({
+      pages: [{ messages: [], nextCursor: null }],
+      pageParams: [undefined],
+    })
   })
 
   it('renames only the owning Student session cache', async () => {
@@ -338,13 +363,56 @@ describe('Student session hooks', () => {
     )
 
     expect(
-      queryClient.getQueryData<ChatSessionListResponse>(primaryKey)?.sessions[0]
-        ?.title,
+      queryClient.getQueryData<
+        InfiniteData<ChatSessionListResponse, string | undefined>
+      >(primaryKey)?.pages[0]?.sessions[0]?.title,
     ).toBe('Renamed session')
     expect(
-      queryClient.getQueryData<ChatSessionListResponse>(otherKey)?.sessions[0]
-        ?.title,
+      queryClient.getQueryData<
+        InfiniteData<ChatSessionListResponse, string | undefined>
+      >(otherKey)?.pages[0]?.sessions[0]?.title,
     ).toBe(otherStudentSession.title)
+  })
+
+  it('updates a session stored on a later cached page', async () => {
+    const queryClient = createQueryClient()
+    const primaryKey = studentSessionKeys.sessionList(primaryScope)
+    const firstPageSession = {
+      ...primaryChatSessionFixture,
+      id: studentChatIds.otherSession,
+      title: 'Earlier session page',
+    }
+    queryClient.setQueryData(primaryKey, {
+      pages: [
+        { sessions: [firstPageSession], nextCursor: 'next-page' },
+        { sessions: [primaryChatSessionFixture], nextCursor: null },
+      ],
+      pageParams: [undefined, 'next-page'],
+    })
+    const renamedSession = {
+      ...primaryChatSessionFixture,
+      title: 'Renamed later-page session',
+    }
+    renameStudentSessionMock.mockResolvedValue(renamedSession)
+    authenticate()
+    const { result } = renderHook(
+      () => useRenameStudentSession({ courseId: primaryScope.courseId }),
+      { wrapper: createWrapper(queryClient) },
+    )
+
+    await act(() =>
+      result.current.mutateAsync({
+        sessionId: studentChatIds.primarySession,
+        input: { title: renamedSession.title },
+      }),
+    )
+
+    const cached =
+      queryClient.getQueryData<
+        InfiniteData<ChatSessionListResponse, string | undefined>
+      >(primaryKey)
+    expect(cached?.pages[0]?.sessions[0]).toEqual(firstPageSession)
+    expect(cached?.pages[1]?.sessions[0]).toEqual(renamedSession)
   })
 
   it('deletes only the owning session list and history caches', async () => {
@@ -371,14 +439,20 @@ describe('Student session hooks', () => {
     await act(() => result.current.mutateAsync(studentChatIds.primarySession))
 
     expect(
-      queryClient.getQueryData<ChatSessionListResponse>(primaryListKey)
-        ?.sessions,
+      queryClient.getQueryData<
+        InfiniteData<ChatSessionListResponse, string | undefined>
+      >(primaryListKey)?.pages[0]?.sessions,
     ).toEqual([])
     expect(
-      queryClient.getQueryData<ChatSessionListResponse>(otherListKey)?.sessions,
+      queryClient.getQueryData<
+        InfiniteData<ChatSessionListResponse, string | undefined>
+      >(otherListKey)?.pages[0]?.sessions,
     ).toEqual(sessionList(otherStudentSession).sessions)
     expect(queryClient.getQueryData(primaryHistoryKey)).toBeUndefined()
-    expect(queryClient.getQueryData(otherHistoryKey)).toEqual(messageHistory())
+    expect(queryClient.getQueryData(otherHistoryKey)).toEqual({
+      pages: [messageHistory()],
+      pageParams: [undefined],
+    })
   })
 
   it('preserves cached data when a mutation fails', async () => {
@@ -400,6 +474,9 @@ describe('Student session hooks', () => {
       ).rejects.toThrow('Server unavailable')
     })
 
-    expect(queryClient.getQueryData(primaryKey)).toEqual(sessionList())
+    expect(queryClient.getQueryData(primaryKey)).toEqual({
+      pages: [sessionList()],
+      pageParams: [undefined],
+    })
   })
 })

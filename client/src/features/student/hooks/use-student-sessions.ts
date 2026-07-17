@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+} from '@tanstack/react-query'
+import type { InfiniteData } from '@tanstack/react-query'
 
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 import {
@@ -12,22 +17,19 @@ import {
   studentSessionsQueryOptions,
 } from '@/features/student/data/student-sessions.queries'
 import type {
+  ChatMessageHistoryResponse,
   ChatSessionListResponse,
   CreateChatSessionInput,
-  ListChatMessagesInput,
-  ListChatSessionsInput,
   RenameChatSessionInput,
 } from '@/features/student/schemas/student-chat.schema'
 
 interface StudentSessionsScope {
   courseId?: string
-  input?: ListChatSessionsInput
 }
 
 interface StudentSessionMessagesScope {
   courseId?: string
   sessionId?: string
-  input?: ListChatMessagesInput
 }
 
 interface StudentCourseScope {
@@ -54,14 +56,13 @@ function requireScope(
   return { studentId, courseId }
 }
 
-export function useStudentSessions({ courseId, input }: StudentSessionsScope) {
+export function useStudentSessions({ courseId }: StudentSessionsScope) {
   const studentId = useStudentId()
 
-  return useQuery({
+  return useInfiniteQuery({
     ...studentSessionsQueryOptions({
       studentId: studentId ?? 'anonymous',
       courseId: courseId ?? 'unknown',
-      input,
     }),
     enabled: studentId !== undefined && courseId !== undefined,
   })
@@ -70,16 +71,14 @@ export function useStudentSessions({ courseId, input }: StudentSessionsScope) {
 export function useStudentSessionMessages({
   courseId,
   sessionId,
-  input,
 }: StudentSessionMessagesScope) {
   const studentId = useStudentId()
 
-  return useQuery({
+  return useInfiniteQuery({
     ...studentSessionMessagesQueryOptions({
       studentId: studentId ?? 'anonymous',
       courseId: courseId ?? 'unknown',
       sessionId: sessionId ?? 'unknown',
-      input,
     }),
     enabled:
       studentId !== undefined &&
@@ -98,10 +97,38 @@ export function useCreateStudentSession({ courseId }: StudentCourseScope) {
       const scope = requireScope(studentId, courseId)
       return createStudentSession({ courseId: scope.courseId, input })
     },
-    onSuccess: async (_session, _input, scope) => {
-      await queryClient.invalidateQueries({
-        queryKey: studentSessionKeys.sessionLists(scope),
+    onSuccess: (createdSession, _input, scope) => {
+      queryClient.setQueryData<
+        InfiniteData<ChatSessionListResponse, string | undefined>
+      >(studentSessionKeys.sessionList(scope), (cached) => {
+        const pages = cached?.pages ?? [{ sessions: [], nextCursor: null }]
+        const pageParams = cached?.pageParams ?? [undefined]
+
+        return {
+          pages: pages.map((page, index) => ({
+            ...page,
+            sessions: [
+              ...(index === 0 ? [createdSession] : []),
+              ...page.sessions.filter(
+                (session) => session.id !== createdSession.id,
+              ),
+            ],
+          })),
+          pageParams,
+        }
       })
+      queryClient.setQueryData<
+        InfiniteData<ChatMessageHistoryResponse, number | undefined>
+      >(
+        studentSessionKeys.messageList({
+          ...scope,
+          sessionId: createdSession.id,
+        }),
+        {
+          pages: [{ messages: [], nextCursor: null }],
+          pageParams: [undefined],
+        },
+      )
     },
   })
 }
@@ -121,7 +148,9 @@ export function useRenameStudentSession({ courseId }: StudentCourseScope) {
       })
     },
     onSuccess: (renamedSession, _variables, scope) => {
-      queryClient.setQueriesData<ChatSessionListResponse>(
+      queryClient.setQueriesData<
+        InfiniteData<ChatSessionListResponse, string | undefined>
+      >(
         {
           queryKey: studentSessionKeys.sessionLists(scope),
         },
@@ -129,9 +158,12 @@ export function useRenameStudentSession({ courseId }: StudentCourseScope) {
           cached
             ? {
                 ...cached,
-                sessions: cached.sessions.map((session) =>
-                  session.id === renamedSession.id ? renamedSession : session,
-                ),
+                pages: cached.pages.map((page) => ({
+                  ...page,
+                  sessions: page.sessions.map((session) =>
+                    session.id === renamedSession.id ? renamedSession : session,
+                  ),
+                })),
               }
             : cached,
       )
@@ -153,7 +185,9 @@ export function useDeleteStudentSession({ courseId }: StudentCourseScope) {
       })
     },
     onSuccess: (_response, sessionId, scope) => {
-      queryClient.setQueriesData<ChatSessionListResponse>(
+      queryClient.setQueriesData<
+        InfiniteData<ChatSessionListResponse, string | undefined>
+      >(
         {
           queryKey: studentSessionKeys.sessionLists(scope),
         },
@@ -161,9 +195,12 @@ export function useDeleteStudentSession({ courseId }: StudentCourseScope) {
           cached
             ? {
                 ...cached,
-                sessions: cached.sessions.filter(
-                  (session) => session.id !== sessionId,
-                ),
+                pages: cached.pages.map((page) => ({
+                  ...page,
+                  sessions: page.sessions.filter(
+                    (session) => session.id !== sessionId,
+                  ),
+                })),
               }
             : cached,
       )

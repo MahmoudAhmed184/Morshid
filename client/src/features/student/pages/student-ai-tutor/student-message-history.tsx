@@ -15,7 +15,10 @@ interface StudentMessageHistoryProps {
   isPending: boolean
   isError: boolean
   isFetching: boolean
+  hasNextPage: boolean
+  isFetchingNextPage: boolean
   onRetry: () => void
+  onLoadMore: () => void
   onRecover: () => void
 }
 
@@ -25,7 +28,10 @@ export function StudentMessageHistory({
   isPending,
   isError,
   isFetching,
+  hasNextPage,
+  isFetchingNextPage,
   onRetry,
+  onLoadMore,
   onRecover,
 }: StudentMessageHistoryProps) {
   if (isPending) {
@@ -72,10 +78,26 @@ export function StudentMessageHistory({
   }
 
   return (
-    <ol aria-label="Conversation history" className="space-y-5">
-      {messages.map((message) => (
-        <StudentChatMessage key={message.id} message={message} />
-      ))}
-    </ol>
+    <div>
+      <ol aria-label="Conversation history" className="space-y-5">
+        {messages.map((message) => (
+          <StudentChatMessage key={message.id} message={message} />
+        ))}
+      </ol>
+      {hasNextPage ? (
+        <div className="mt-6 text-center">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isFetchingNextPage}
+            onClick={onLoadMore}
+          >
+            {isFetchingNextPage
+              ? 'Loading more messages…'
+              : 'Load more messages'}
+          </Button>
+        </div>
+      ) : null}
+    </div>
   )
 }

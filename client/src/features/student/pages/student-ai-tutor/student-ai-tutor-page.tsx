@@ -40,13 +40,16 @@ export function StudentAiTutorPage({
         ? assignedCourses[0]
         : undefined) ?? null
   const sessionsQuery = useStudentSessions({ courseId: selectedCourse?.id })
-  const sessions = sessionsQuery.data?.sessions ?? []
+  const sessions =
+    sessionsQuery.data?.pages.flatMap((page) => page.sessions) ?? []
   const selectedSession =
     sessions.find((session) => session.id === sessionId) ?? null
   const messagesQuery = useStudentSessionMessages({
     courseId: selectedCourse?.id,
     sessionId: selectedSession?.id,
   })
+  const messages =
+    messagesQuery.data?.pages.flatMap((page) => page.messages) ?? []
   const createSession = useCreateStudentSession({
     courseId: selectedCourse?.id,
   })
@@ -168,12 +171,23 @@ export function StudentAiTutorPage({
               isPending={sessionsQuery.isPending}
               isError={sessionsQuery.isError}
               isRefreshing={
-                sessionsQuery.isFetching && !sessionsQuery.isPending
+                sessionsQuery.isFetching &&
+                !sessionsQuery.isPending &&
+                !sessionsQuery.isFetchingNextPage
               }
+              hasNextPage={sessionsQuery.hasNextPage}
+              isFetchingNextPage={sessionsQuery.isFetchingNextPage}
               isCreating={createSession.isPending}
-              renamingSessionId={renameSession.variables?.sessionId}
-              deletingSessionId={deleteSession.variables}
+              renamingSessionId={
+                renameSession.isPending
+                  ? renameSession.variables.sessionId
+                  : undefined
+              }
+              deletingSessionId={
+                deleteSession.isPending ? deleteSession.variables : undefined
+              }
               onRetry={() => void sessionsQuery.refetch()}
+              onLoadMore={() => void sessionsQuery.fetchNextPage()}
               onCreate={handleCreate}
               onRename={handleRename}
               onDelete={handleDelete}
@@ -186,12 +200,15 @@ export function StudentAiTutorPage({
               <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6">
                 {selectedSession ? (
                   <StudentMessageHistory
-                    messages={messagesQuery.data?.messages ?? []}
+                    messages={messages}
                     error={messagesQuery.error}
                     isPending={messagesQuery.isPending}
                     isError={messagesQuery.isError}
                     isFetching={messagesQuery.isFetching}
+                    hasNextPage={messagesQuery.hasNextPage}
+                    isFetchingNextPage={messagesQuery.isFetchingNextPage}
                     onRetry={() => void messagesQuery.refetch()}
+                    onLoadMore={() => void messagesQuery.fetchNextPage()}
                     onRecover={() => void handleStaleSession()}
                   />
                 ) : (

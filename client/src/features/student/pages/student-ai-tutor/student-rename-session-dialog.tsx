@@ -111,7 +111,7 @@ export function StudentRenameSessionDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={!canSubmit || isPending}>
-              {isPending ? 'Saving...' : 'Save title'}
+              {isPending ? 'Saving…' : 'Save title'}
             </Button>
           </DialogFooter>
         </form>

@@ -26,7 +26,6 @@ describe('Student session query options', () => {
       courseId,
       'sessions',
       'list',
-      {},
     ])
     expect(
       studentSessionsQueryOptions({
@@ -42,12 +41,11 @@ describe('Student session query options', () => {
     ).not.toEqual(primary)
   })
 
-  it('partitions history by Student, course, session, and page', () => {
+  it('partitions history by Student, course, and session', () => {
     const primary = studentSessionMessagesQueryOptions({
       studentId,
       courseId,
       sessionId,
-      input: { after: 2 },
     }).queryKey
 
     expect(primary).toEqual([
@@ -58,22 +56,19 @@ describe('Student session query options', () => {
       'sessions',
       sessionId,
       'messages',
-      { after: 2 },
     ])
     expect(
       studentSessionMessagesQueryOptions({
         studentId: otherStudentId,
         courseId,
         sessionId,
-        input: { after: 2 },
       }).queryKey,
     ).not.toEqual(primary)
     expect(
       studentSessionMessagesQueryOptions({
         studentId,
         courseId,
-        sessionId,
-        input: { after: 3 },
+        sessionId: '25587e6e-4e6a-4533-9d4f-97be9e63bd96',
       }).queryKey,
     ).not.toEqual(primary)
   })

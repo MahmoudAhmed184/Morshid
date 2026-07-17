@@ -1,6 +1,7 @@
 import { MessageSquareText } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { ErrorState } from '@/components/ui/custom/error-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { ChatSession } from '@/features/student/schemas/student-chat.schema'
@@ -16,10 +17,13 @@ interface StudentSessionNavigationProps {
   isPending: boolean
   isError: boolean
   isRefreshing: boolean
+  hasNextPage: boolean
+  isFetchingNextPage: boolean
   isCreating: boolean
   renamingSessionId?: string
   deletingSessionId?: string
   onRetry: () => void
+  onLoadMore: () => void
   onCreate: () => Promise<void>
   onRename: (session: ChatSession, title: string) => Promise<void>
   onDelete: (session: ChatSession) => Promise<void>
@@ -32,16 +36,22 @@ export function StudentSessionNavigation({
   isPending,
   isError,
   isRefreshing,
+  hasNextPage,
+  isFetchingNextPage,
   isCreating,
   renamingSessionId,
   deletingSessionId,
   onRetry,
+  onLoadMore,
   onCreate,
   onRename,
   onDelete,
 }: StudentSessionNavigationProps) {
   return (
-    <aside className="border-b border-border bg-muted/15 md:border-r md:border-b-0">
+    <aside
+      aria-label="Session navigation"
+      className="border-b border-border bg-muted/15 md:border-r md:border-b-0"
+    >
       <header className="flex min-h-14 items-center justify-between gap-3 border-b border-border px-4 py-3">
         <div>
           <h2 className="text-sm font-semibold text-foreground">
@@ -109,6 +119,17 @@ export function StudentSessionNavigation({
                 />
               ))}
             </ul>
+            {hasNextPage ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-3 w-full"
+                disabled={isFetchingNextPage}
+                onClick={onLoadMore}
+              >
+                {isFetchingNextPage ? 'Loading more…' : 'Load more'}
+              </Button>
+            ) : null}
           </nav>
         ) : null}
       </div>

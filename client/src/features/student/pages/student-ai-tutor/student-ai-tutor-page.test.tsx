@@ -83,6 +83,12 @@ const secondSession = {
   id: studentChatIds.otherSession,
   title: 'Functions practice',
 }
+const thirdMessage = {
+  ...orderedChatMessagesFixture[1],
+  id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  sequence: 3,
+  content: 'A second persisted page of history.',
+}
 const orderedMessageHistory: ChatMessageHistoryResponse = {
   messages: chatMessageHistoryResponseFixture.messages.map((message) => ({
     ...message,
@@ -134,7 +140,7 @@ function renderWorkspace({
   if (courseId && sessions) {
     queryClient.setQueryData(
       studentSessionKeys.sessionList({ studentId, courseId }),
-      sessions,
+      { pages: [sessions], pageParams: [undefined] },
     )
   } else if (courses.length === 1 && sessions) {
     queryClient.setQueryData(
@@ -142,27 +148,33 @@ function renderWorkspace({
         studentId,
         courseId: courses[0]?.id ?? 'missing-course',
       }),
-      sessions,
+      { pages: [sessions], pageParams: [undefined] },
     )
   }
 
   if (courseId && sessionId && messages) {
     queryClient.setQueryData(
       studentSessionKeys.messageList({ studentId, courseId, sessionId }),
-      messages,
+      { pages: [messages], pageParams: [undefined] },
     )
   }
 
-  return render(
+  const result = render(
     <QueryClientProvider client={queryClient}>
       <StudentAiTutorPage courseId={courseId} sessionId={sessionId} />
     </QueryClientProvider>,
   )
+
+  return { ...result, queryClient }
 }
 
 describe('StudentAiTutorPage workspace', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    getStudentSessionMessagesMock.mockResolvedValue({
+      messages: [],
+      nextCursor: null,
+    })
     window.localStorage.clear()
     useAuthStore.getState().clearSession()
     useAuthStore.getState().setSession(createStudentAuthSession())
@@ -320,6 +332,31 @@ describe('StudentAiTutorPage workspace', () => {
     expect(listStudentSessionsMock).toHaveBeenCalledTimes(2)
   })
 
+  it('loads additional session pages inside the selected course', async () => {
+    listStudentSessionsMock.mockResolvedValueOnce({
+      sessions: [{ ...primaryChatSessionFixture }],
+      nextCursor: primaryChatSessionFixture.id,
+    })
+    listStudentSessionsMock.mockResolvedValueOnce({
+      sessions: [secondSession],
+      nextCursor: null,
+    })
+    renderWorkspace({ courseId: primaryCourse.id })
+
+    expect(
+      await screen.findByRole('link', { name: /python lists/i }),
+    ).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+
+    expect(
+      await screen.findByRole('link', { name: /functions practice/i }),
+    ).toBeInTheDocument()
+    expect(listStudentSessionsMock).toHaveBeenNthCalledWith(2, {
+      courseId: primaryCourse.id,
+      input: { limit: 50, cursor: primaryChatSessionFixture.id },
+    })
+  })
+
   it('creates and selects a new conversation with pending and retry states', async () => {
     let rejectCreate: ((error: Error) => void) | undefined
     createStudentSessionMock.mockImplementationOnce(
@@ -328,14 +365,14 @@ describe('StudentAiTutorPage workspace', () => {
           rejectCreate = reject
         }),
     )
-    renderWorkspace({
+    const { queryClient, rerender } = renderWorkspace({
       courseId: primaryCourse.id,
       sessions: { sessions: [], nextCursor: null },
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'New chat' }))
     expect(
-      await screen.findByRole('button', { name: 'Creating...' }),
+      await screen.findByRole('button', { name: 'Creating…' }),
     ).toBeDisabled()
     await waitFor(() => expect(rejectCreate).toBeTypeOf('function'))
 
@@ -361,6 +398,19 @@ describe('StudentAiTutorPage workspace', () => {
         },
       }),
     )
+
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <StudentAiTutorPage
+          courseId={primaryCourse.id}
+          sessionId={primaryChatSessionFixture.id}
+        />
+      </QueryClientProvider>,
+    )
+    expect(
+      await screen.findByRole('heading', { name: 'No messages yet' }),
+    ).toBeInTheDocument()
+    expect(getStudentSessionMessagesMock).not.toHaveBeenCalled()
   })
 
   it('validates and renames a conversation in the scoped list', async () => {
@@ -401,6 +451,44 @@ describe('StudentAiTutorPage workspace', () => {
     )
     expect(
       await screen.findByRole('link', { name: /renamed python chat/i }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: `Rename ${renamedSession.title}` }),
+    ).toBeEnabled()
+  })
+
+  it('re-enables rename after a failed request so the Student can retry', async () => {
+    const renamedSession = {
+      ...primaryChatSessionFixture,
+      title: 'Retry rename',
+    }
+    renameStudentSessionMock.mockRejectedValueOnce(new Error('Rename failed'))
+    renameStudentSessionMock.mockResolvedValueOnce(renamedSession)
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+    })
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: `Rename ${primaryChatSessionFixture.title}`,
+      }),
+    )
+    fireEvent.change(screen.getByLabelText('Conversation title'), {
+      target: { value: renamedSession.title },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save title' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Rename failed')
+    const retryRename = screen.getByRole('button', { name: 'Save title' })
+    expect(retryRename).toBeEnabled()
+
+    fireEvent.click(retryRename)
+    expect(
+      await screen.findByRole('link', { name: /retry rename/i }),
     ).toBeInTheDocument()
   })
 
@@ -463,6 +551,13 @@ describe('StudentAiTutorPage workspace', () => {
     expect(
       screen.getByRole('heading', { name: 'Delete conversation?' }),
     ).toBeInTheDocument()
+    const retryDelete = screen.getByRole('button', { name: 'Delete' })
+    expect(retryDelete).toBeEnabled()
+
+    fireEvent.click(retryDelete)
+    await waitFor(() =>
+      expect(deleteStudentSessionMock).toHaveBeenCalledTimes(2),
+    )
   })
 
   it('renders persisted messages in the server-provided sequence order', () => {
@@ -488,6 +583,42 @@ describe('StudentAiTutorPage workspace', () => {
     )
     expect(screen.getByLabelText('Message')).toBeDisabled()
     expect(screen.getByRole('button', { name: /send message/i })).toBeDisabled()
+  })
+
+  it('appends additional history pages in stable sequence order', async () => {
+    getStudentSessionMessagesMock.mockResolvedValueOnce({
+      messages: orderedMessageHistory.messages,
+      nextCursor: 2,
+    })
+    getStudentSessionMessagesMock.mockResolvedValueOnce({
+      messages: [thirdMessage],
+      nextCursor: null,
+    })
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+    })
+
+    expect(
+      await screen.findByRole('button', { name: 'Load more messages' }),
+    ).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Load more messages' }))
+
+    expect(await screen.findByText(thirdMessage.content)).toBeInTheDocument()
+    const messageItems = screen
+      .getByRole('list', { name: 'Conversation history' })
+      .querySelectorAll('li')
+    expect(messageItems).toHaveLength(3)
+    expect(messageItems[2]).toHaveTextContent(thirdMessage.content)
+    expect(getStudentSessionMessagesMock).toHaveBeenNthCalledWith(2, {
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      input: { limit: 50, after: 2 },
+    })
   })
 
   it('shows an empty state when the selected conversation has no messages', () => {

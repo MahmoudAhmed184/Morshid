@@ -1,13 +1,9 @@
-import { queryOptions } from '@tanstack/react-query'
+import { infiniteQueryOptions } from '@tanstack/react-query'
 
 import {
   getStudentSessionMessages,
   listStudentSessions,
 } from '@/features/student/data/student-sessions.api'
-import type {
-  ListChatMessagesInput,
-  ListChatSessionsInput,
-} from '@/features/student/schemas/student-chat.schema'
 
 interface StudentCourseScope {
   studentId: string
@@ -18,13 +14,8 @@ interface StudentSessionScope extends StudentCourseScope {
   sessionId: string
 }
 
-interface StudentSessionsQueryParams extends StudentCourseScope {
-  input?: ListChatSessionsInput
-}
-
-interface StudentMessagesQueryParams extends StudentSessionScope {
-  input?: ListChatMessagesInput
-}
+const sessionPageSize = 50
+const messagePageSize = 50
 
 export const studentSessionKeys = {
   sessionLists: ({ studentId, courseId }: StudentCourseScope) =>
@@ -36,8 +27,8 @@ export const studentSessionKeys = {
       'sessions',
       'list',
     ] as const,
-  sessionList: ({ input = {}, ...scope }: StudentSessionsQueryParams) =>
-    [...studentSessionKeys.sessionLists(scope), input] as const,
+  sessionList: (scope: StudentCourseScope) =>
+    [...studentSessionKeys.sessionLists(scope)] as const,
   messages: ({ studentId, courseId, sessionId }: StudentSessionScope) =>
     [
       'student-chat',
@@ -48,22 +39,26 @@ export const studentSessionKeys = {
       sessionId,
       'messages',
     ] as const,
-  messageList: ({ input = {}, ...scope }: StudentMessagesQueryParams) =>
-    [...studentSessionKeys.messages(scope), input] as const,
+  messageList: (scope: StudentSessionScope) =>
+    [...studentSessionKeys.messages(scope)] as const,
 }
 
 export function studentSessionsQueryOptions({
   studentId,
   courseId,
-  input = {},
-}: StudentSessionsQueryParams) {
-  return queryOptions({
+}: StudentCourseScope) {
+  return infiniteQueryOptions({
     queryKey: studentSessionKeys.sessionList({
       studentId,
       courseId,
-      input,
     }),
-    queryFn: () => listStudentSessions({ courseId, input }),
+    queryFn: ({ pageParam }) =>
+      listStudentSessions({
+        courseId,
+        input: { limit: sessionPageSize, cursor: pageParam },
+      }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   })
 }
 
@@ -71,15 +66,20 @@ export function studentSessionMessagesQueryOptions({
   studentId,
   courseId,
   sessionId,
-  input = {},
-}: StudentMessagesQueryParams) {
-  return queryOptions({
+}: StudentSessionScope) {
+  return infiniteQueryOptions({
     queryKey: studentSessionKeys.messageList({
       studentId,
       courseId,
       sessionId,
-      input,
     }),
-    queryFn: () => getStudentSessionMessages({ courseId, sessionId, input }),
+    queryFn: ({ pageParam }) =>
+      getStudentSessionMessages({
+        courseId,
+        sessionId,
+        input: { limit: messagePageSize, after: pageParam },
+      }),
+    initialPageParam: undefined as number | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   })
 }

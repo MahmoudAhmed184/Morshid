@@ -25,7 +25,7 @@ export function StudentDisabledComposer({
         />
         <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">
-            Message sending and grounded guidance arrive in S2-4.
+            Message sending and grounded guidance are coming soon.
           </p>
           <Button type="button" disabled aria-label="Send message">
             <SendHorizontal className="size-4" aria-hidden />
