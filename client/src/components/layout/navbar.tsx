@@ -1,7 +1,8 @@
 import { Link } from '@tanstack/react-router'
-import { GraduationCap, Menu } from 'lucide-react'
+import { Menu } from 'lucide-react'
 import { useState } from 'react'
 
+import { Logo } from '@/components/logo'
 import { Button } from '@/components/ui/button'
 import { ModeToggle } from '@/components/ui/mode-toggle'
 import { Separator } from '@/components/ui/separator'
@@ -13,31 +14,50 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
+import { useAuthStore } from '@/features/auth/stores/auth.store'
+import { getDashboardPath } from '@/features/auth/utils/auth-redirect'
 import { cn } from '@/lib/utils'
 
-const navLinks = [
+const marketingNavLinks = [
   { label: 'Features', href: '#features' },
   { label: 'Pricing', href: '#pricing' },
   { label: 'About', href: '#about' },
 ] as const
 
+const instructorNavLinks = [
+  { label: 'Overview', to: '/instructor' },
+  { label: 'Materials', to: '/instructor', hash: 'materials' },
+  { label: 'Review queue', to: '/instructor', hash: 'reviews' },
+] as const
+
 type NavLinkProps = {
-  href: string
-  children: React.ReactNode
+  item: (typeof marketingNavLinks)[number] | (typeof instructorNavLinks)[number]
+  children?: React.ReactNode
   className?: string
   onClick?: () => void
 }
 
-function NavLink({ href, children, className, onClick }: NavLinkProps) {
+function NavLink({ item, children, className, onClick }: NavLinkProps) {
+  const linkClassName = cn(
+    'text-sm font-medium text-muted-foreground transition-colors hover:text-foreground',
+    className,
+  )
+
+  if ('to' in item) {
+    return (
+      <Link
+        to={item.to}
+        hash={'hash' in item ? item.hash : undefined}
+        onClick={onClick}
+        className={linkClassName}
+      >
+        {children}
+      </Link>
+    )
+  }
+
   return (
-    <a
-      href={href}
-      onClick={onClick}
-      className={cn(
-        'text-sm font-medium text-muted-foreground transition-colors hover:text-foreground',
-        className,
-      )}
-    >
+    <a href={item.href} onClick={onClick} className={linkClassName}>
       {children}
     </a>
   )
@@ -45,6 +65,10 @@ function NavLink({ href, children, className, onClick }: NavLinkProps) {
 
 export function Navbar() {
   const [open, setOpen] = useState(false)
+  const user = useAuthStore((state) => state.user)
+  const dashboardPath = user ? getDashboardPath(user.role) : null
+  const navLinks =
+    user?.role === 'INSTRUCTOR' ? instructorNavLinks : marketingNavLinks
 
   return (
     <header
@@ -60,9 +84,10 @@ export function Navbar() {
             to="/"
             className="flex items-center gap-2.5 text-foreground transition-opacity hover:opacity-80"
           >
-            <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <GraduationCap className="size-4" aria-hidden />
-            </div>
+            <Logo
+              className="size-8 shrink rounded-lg bg-primary text-primary-foreground"
+              iconClassName="size-4"
+            />
             <span className="text-base font-semibold tracking-tight">
               Morshid
             </span>
@@ -71,7 +96,7 @@ export function Navbar() {
 
         <div className="absolute top-1/2 left-1/2 hidden -translate-x-1/2 -translate-y-1/2 items-center gap-8 md:flex">
           {navLinks.map((link) => (
-            <NavLink key={link.href} href={link.href}>
+            <NavLink key={link.label} item={link}>
               {link.label}
             </NavLink>
           ))}
@@ -79,21 +104,33 @@ export function Navbar() {
 
         <div className="flex flex-1 items-center justify-end gap-2 sm:gap-3">
           <ModeToggle />
-          <Button
-            nativeButton={false}
-            render={<Link to="/login" />}
-            variant="ghost"
-            className="hidden sm:inline-flex"
-          >
-            Log in
-          </Button>
-          <Button
-            nativeButton={false}
-            render={<Link to="/login" />}
-            className="hidden sm:inline-flex"
-          >
-            Get Started
-          </Button>
+          {dashboardPath ? (
+            <Button
+              nativeButton={false}
+              render={<Link to={dashboardPath} />}
+              className="hidden sm:inline-flex"
+            >
+              Dashboard
+            </Button>
+          ) : (
+            <>
+              <Button
+                nativeButton={false}
+                render={<Link to="/login" />}
+                variant="ghost"
+                className="hidden sm:inline-flex"
+              >
+                Log in
+              </Button>
+              <Button
+                nativeButton={false}
+                render={<Link to="/login" />}
+                className="hidden sm:inline-flex"
+              >
+                Get Started
+              </Button>
+            </>
+          )}
 
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger
@@ -111,18 +148,21 @@ export function Navbar() {
             <SheetContent side="right" className="w-full max-w-xs">
               <SheetHeader>
                 <SheetTitle className="flex items-center gap-2">
-                  <GraduationCap className="size-5 text-primary" aria-hidden />
+                  <Logo
+                    className="size-5 shrink rounded-none bg-transparent text-primary"
+                    iconClassName="size-5"
+                  />
                   Morshid
                 </SheetTitle>
               </SheetHeader>
               <div className="flex flex-col gap-1 px-4">
                 {navLinks.map((link) => (
                   <SheetClose
-                    key={link.href}
+                    key={link.label}
                     nativeButton={false}
                     render={
-                      <a
-                        href={link.href}
+                      <NavLink
+                        item={link}
                         className="rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                         onClick={() => setOpen(false)}
                       />
@@ -132,31 +172,48 @@ export function Navbar() {
                   </SheetClose>
                 ))}
                 <Separator className="my-3" />
-                <SheetClose
-                  nativeButton={false}
-                  render={
-                    <Button
+                {dashboardPath ? (
+                  <SheetClose
+                    nativeButton={false}
+                    render={
+                      <Button
+                        nativeButton={false}
+                        render={<Link to={dashboardPath} />}
+                        className="w-full"
+                      />
+                    }
+                  >
+                    Dashboard
+                  </SheetClose>
+                ) : (
+                  <>
+                    <SheetClose
                       nativeButton={false}
-                      render={<Link to="/login" />}
-                      variant="outline"
-                      className="w-full"
-                    />
-                  }
-                >
-                  Log in
-                </SheetClose>
-                <SheetClose
-                  nativeButton={false}
-                  render={
-                    <Button
+                      render={
+                        <Button
+                          nativeButton={false}
+                          render={<Link to="/login" />}
+                          variant="outline"
+                          className="w-full"
+                        />
+                      }
+                    >
+                      Log in
+                    </SheetClose>
+                    <SheetClose
                       nativeButton={false}
-                      render={<Link to="/login" />}
-                      className="w-full"
-                    />
-                  }
-                >
-                  Get Started
-                </SheetClose>
+                      render={
+                        <Button
+                          nativeButton={false}
+                          render={<Link to="/login" />}
+                          className="w-full"
+                        />
+                      }
+                    >
+                      Get Started
+                    </SheetClose>
+                  </>
+                )}
               </div>
             </SheetContent>
           </Sheet>

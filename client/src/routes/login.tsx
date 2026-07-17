@@ -1,27 +1,25 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
-import { Button } from '@/components/ui/button'
+import { AuthLoader } from '@/features/auth/components/auth-loader'
+import { RouteLoadError } from '@/components/route-load-error'
+import { SignInPage } from '@/features/auth/sign-in-page'
+import { redirectAuthenticatedToDashboard } from '@/features/auth/utils/auth-redirect'
 
 export const Route = createFileRoute('/login')({
-  component: LoginPlaceholderPage,
+  ssr: false,
+  beforeLoad: async () => {
+    const redirectPath = await redirectAuthenticatedToDashboard()
+
+    if (redirectPath) {
+      throw redirect({ to: redirectPath })
+    }
+  },
+  component: SignInPage,
+  errorComponent: RouteLoadError,
+  pendingComponent: AuthLoader,
+  pendingMs: 0,
+  pendingMinMs: 400,
   head: () => ({
-    meta: [{ title: 'Log in — Morshid' }],
+    meta: [{ title: 'Sign in — Morshid' }],
   }),
 })
-
-function LoginPlaceholderPage() {
-  return (
-    <main className="flex min-h-svh items-center justify-center bg-background px-4">
-      <div className="max-w-md space-y-4 text-center">
-        <h1 className="text-2xl font-semibold text-foreground">Log in</h1>
-        <p className="text-sm text-muted-foreground">
-          Authentication is not implemented yet. This route is reserved for the
-          upcoming sign-in flow.
-        </p>
-        <Button nativeButton={false} render={<a href="/" />}>
-          Back to home
-        </Button>
-      </div>
-    </main>
-  )
-}

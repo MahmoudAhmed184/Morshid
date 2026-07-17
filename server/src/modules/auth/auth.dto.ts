@@ -1,6 +1,7 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
 import { z } from 'zod'
 
-import type {
+import {
   CourseMembershipRole,
   UserRole,
   UserStatus,
@@ -23,46 +24,6 @@ export interface AuthRequestContext {
   userAgent?: string | null
 }
 
-export interface SignInRequest {
-  email: string
-  password: string
-}
-
-export interface RefreshRequest {
-  refreshToken: string
-}
-
-export type LogoutRequest = RefreshRequest
-
-export interface AuthCourseSummary {
-  id: string
-  code: string
-  title: string
-  membershipRole: CourseMembershipRole | null
-}
-
-export interface AuthUserSummary {
-  id: string
-  email: string
-  displayName: string
-  role: UserRole
-  status: UserStatus
-  courses: AuthCourseSummary[]
-}
-
-export interface AuthSessionResponse {
-  tokenType: 'Bearer'
-  accessToken: string
-  accessTokenExpiresAt: string
-  refreshToken: string
-  refreshTokenExpiresAt: string
-  user: AuthUserSummary
-}
-
-export interface MeResponse {
-  user: AuthUserSummary
-}
-
 export interface AuthenticatedRequestUser {
   id: string
   email: string
@@ -70,6 +31,95 @@ export interface AuthenticatedRequestUser {
   role: UserRole
   status: UserStatus
 }
+
+export class SignInRequestDto {
+  @ApiProperty({ format: 'email' })
+  email!: string
+
+  @ApiProperty({ minLength: 1, format: 'password' })
+  password!: string
+}
+
+export class RefreshRequestDto {
+  @ApiPropertyOptional({
+    minLength: 1,
+    description:
+      'JSON fallback for non-browser clients. Omit when the morshid_refresh cookie is present.',
+  })
+  refreshToken?: string
+}
+
+export class AuthCourseSummaryDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string
+
+  @ApiProperty()
+  code!: string
+
+  @ApiProperty()
+  title!: string
+
+  @ApiProperty({
+    enum: CourseMembershipRole,
+    enumName: 'CourseMembershipRole',
+    nullable: true,
+  })
+  membershipRole!: CourseMembershipRole | null
+}
+
+export class AuthUserSummaryDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string
+
+  @ApiProperty({ format: 'email' })
+  email!: string
+
+  @ApiProperty()
+  displayName!: string
+
+  @ApiProperty({ enum: UserRole, enumName: 'UserRole' })
+  role!: UserRole
+
+  @ApiProperty({ enum: UserStatus, enumName: 'UserStatus' })
+  status!: UserStatus
+
+  @ApiProperty({ type: [AuthCourseSummaryDto] })
+  courses!: AuthCourseSummaryDto[]
+}
+
+export class AuthSessionResponseDto {
+  @ApiProperty({ enum: ['Bearer'] })
+  tokenType!: 'Bearer'
+
+  @ApiProperty({ description: 'JWT access token.' })
+  accessToken!: string
+
+  @ApiProperty({ format: 'date-time' })
+  accessTokenExpiresAt!: string
+
+  @ApiProperty({ description: 'Opaque refresh token for JSON-based clients.' })
+  refreshToken!: string
+
+  @ApiProperty({ format: 'date-time' })
+  refreshTokenExpiresAt!: string
+
+  @ApiProperty({ type: AuthUserSummaryDto })
+  user!: AuthUserSummaryDto
+}
+
+export class MeResponseDto {
+  @ApiProperty({ type: AuthUserSummaryDto })
+  user!: AuthUserSummaryDto
+}
+
+export type SignInRequest = SignInRequestDto
+export type RefreshHttpRequest = RefreshRequestDto
+export type RefreshRequest = Required<RefreshRequestDto>
+export type LogoutRequest = RefreshRequest
+export type AuthCourseSummary = AuthCourseSummaryDto
+export type AuthUserSummary = AuthUserSummaryDto
+export type AuthSessionResponse = AuthSessionResponseDto
+export type MeResponse = MeResponseDto
 
 export const signInRequestSchema = z
   .object({
@@ -84,7 +134,7 @@ export const signInRequestSchema = z
 
 export const refreshRequestSchema = z
   .object({
-    refreshToken: z.string().min(1),
+    refreshToken: z.string().min(1).optional(),
   })
   .strict()
 

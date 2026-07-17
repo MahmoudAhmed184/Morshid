@@ -12,12 +12,15 @@ export const AUDIT_EVENT_ACTIONS = {
   ADMIN_ACCOUNT_DISABLED: 'admin.account_disabled',
   ADMIN_ACCOUNT_ENABLED: 'admin.account_enabled',
   ADMIN_ACCOUNT_ROLE_CHANGED: 'admin.account_role_changed',
+  ADMIN_USER_PASSWORD_RESET: 'admin.user_password_reset',
   ADMIN_COURSE_CREATED: 'admin.course_created',
   ADMIN_COURSE_UPDATED: 'admin.course_updated',
   ADMIN_COURSE_ARCHIVED: 'admin.course_archived',
   ADMIN_COURSE_MEMBER_ADDED: 'admin.course_member_added',
   ADMIN_COURSE_MEMBER_REMOVED: 'admin.course_member_removed',
   ADMIN_COURSE_MEMBER_ROLE_CHANGED: 'admin.course_member_role_changed',
+  CHAT_SESSION_DELETED: 'chat.session_deleted',
+  CHAT_SESSION_ACCESS_DENIED: 'chat.session_access_denied',
 } as const
 
 export type AuditEventAction =

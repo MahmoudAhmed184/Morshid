@@ -154,6 +154,10 @@ export class AuthService {
       throw invalidAccessTokenException()
     }
 
+    if (payload.passwordChangedAt !== user.passwordChangedAt.toISOString()) {
+      throw invalidAccessTokenException()
+    }
+
     if (this.authUserService.isDisabled(user)) {
       await this.authAuditService.recordDisabledAccountBlock(
         user,

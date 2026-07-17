@@ -26,13 +26,14 @@ export class AccessTokenService {
     )
   }
 
-  async create(user: Pick<User, 'id'>, now: Date) {
+  async create(user: Pick<User, 'id' | 'passwordChangedAt'>, now: Date) {
     const expiresAt = addSeconds(now, this.accessTokenTtlSeconds)
     const token = await this.jwtService.signAsync(
       {
         sub: user.id,
         typ: 'access',
-      } satisfies VerifiedAccessTokenPayload,
+        pwd: user.passwordChangedAt.toISOString(),
+      } satisfies SignedAccessTokenPayload,
       {
         expiresIn: this.accessTokenTtlSeconds,
         secret: this.accessTokenSecret,
@@ -52,13 +53,18 @@ export class AccessTokenService {
           secret: this.accessTokenSecret,
         })
 
-      if (payload.typ !== 'access' || typeof payload.sub !== 'string') {
+      if (
+        payload.typ !== 'access' ||
+        typeof payload.sub !== 'string' ||
+        typeof payload.pwd !== 'string'
+      ) {
         throw invalidAccessTokenException()
       }
 
       return {
         sub: payload.sub,
         typ: 'access',
+        passwordChangedAt: payload.pwd,
       }
     } catch {
       throw invalidAccessTokenException()
@@ -69,11 +75,19 @@ export class AccessTokenService {
 interface VerifiedAccessTokenPayload {
   sub: string
   typ: 'access'
+  passwordChangedAt: string
+}
+
+interface SignedAccessTokenPayload {
+  sub: string
+  typ: 'access'
+  pwd: string
 }
 
 interface UntrustedAccessTokenPayload {
   sub?: unknown
   typ?: unknown
+  pwd?: unknown
 }
 
 function addSeconds(date: Date, seconds: number) {

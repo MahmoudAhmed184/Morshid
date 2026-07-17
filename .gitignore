@@ -31,3 +31,10 @@ server/src/generated/prisma/
 # Local storage
 storage/pdfs/*
 !storage/pdfs/.gitkeep
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/

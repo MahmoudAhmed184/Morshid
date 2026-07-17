@@ -152,6 +152,7 @@ model CourseMembership {
   userId      String               @map("user_id") @db.Uuid
   role        CourseMembershipRole
   createdById String?              @map("created_by") @db.Uuid
+  removedAt   DateTime?            @map("removed_at") @db.Timestamptz(6)
   createdAt   DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
 
   course       Course        @relation(fields: [courseId], references: [id], onDelete: Restrict)
@@ -160,7 +161,7 @@ model CourseMembership {
   chatSessions ChatSession[] @relation("ChatSessionMembership")
 
   @@unique([courseId, userId], map: "course_memberships_course_id_user_id_key")
-  @@index([courseId, role], map: "idx_memberships_course_role")
+  @@index([courseId, role, removedAt], map: "idx_memberships_course_role_active")
   @@index([userId], map: "idx_memberships_user")
   @@index([createdById], map: "idx_memberships_created_by")
   @@map("course_memberships")
@@ -182,12 +183,30 @@ model Material {
   createdAt           DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  course     Course @relation(fields: [courseId], references: [id], onDelete: Restrict)
-  uploadedBy User   @relation("MaterialUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
+  course     Course            @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  uploadedBy User              @relation("MaterialUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
+  chunks     MaterialChunk[]
+  citations  MessageCitation[]
 
   @@index([courseId, status, deletedAt], map: "idx_materials_course_status")
   @@index([uploadedById], map: "idx_materials_uploaded_by")
   @@map("materials")
+}
+
+model MaterialChunk {
+  id             String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  materialId     String                      @map("material_id") @db.Uuid
+  chunkIndex     Int                         @map("chunk_index")
+  content        String                      @db.Text
+  embedding      Unsupported("vector(1536)")
+  embeddingModel String                      @map("embedding_model") @db.VarChar(120)
+  createdAt      DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  material   Material           @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  retrievals MessageRetrieval[]
+
+  @@unique([materialId, chunkIndex], map: "material_chunks_material_id_chunk_index_key")
+  @@map("material_chunks")
 }
 
 model ChatSession {
@@ -199,6 +218,7 @@ model ChatSession {
   deletedAt     DateTime? @map("deleted_at") @db.Timestamptz(6)
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  lastSequence  Int       @default(0) @map("last_sequence")
 
   course     Course           @relation(fields: [courseId], references: [id], onDelete: Restrict)
   student    User             @relation("ChatSessionStudent", fields: [studentId], references: [id], onDelete: Restrict)
@@ -233,15 +253,50 @@ model Message {
   createdAt           DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
   completedAt         DateTime?             @map("completed_at") @db.Timestamptz(6)
 
-  session           ChatSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
-  author            User?       @relation("MessageAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
-  responseToMessage Message?    @relation("MessageResponse", fields: [responseToMessageId], references: [id], onDelete: SetNull)
-  responses         Message[]   @relation("MessageResponse")
+  session           ChatSession        @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  author            User?              @relation("MessageAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
+  responseToMessage Message?           @relation("MessageResponse", fields: [responseToMessageId], references: [id], onDelete: SetNull)
+  responses         Message[]          @relation("MessageResponse")
+  retrievals        MessageRetrieval[]
+  citations         MessageCitation[]
 
   @@unique([sessionId, sequence], map: "messages_session_id_sequence_key")
   @@index([authorUserId], map: "idx_messages_author")
   @@index([responseToMessageId], map: "idx_messages_response_to")
   @@map("messages")
+}
+
+model MessageRetrieval {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  messageId       String   @map("message_id") @db.Uuid
+  chunkId         String?  @map("chunk_id") @db.Uuid
+  rank            Int
+  /// Raw cosine similarity (1 - cosine distance); range [-1, 1]. Enforced by the
+  /// message_retrievals_similarity_score_check constraint in the migration.
+  similarityScore Decimal? @map("similarity_score") @db.Decimal(8, 6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  message Message        @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  chunk   MaterialChunk? @relation(fields: [chunkId], references: [id], onDelete: SetNull)
+
+  @@unique([messageId, rank], map: "message_retrievals_message_id_rank_key")
+  @@index([chunkId], map: "idx_retrievals_chunk")
+  @@map("message_retrievals")
+}
+
+model MessageCitation {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  messageId     String   @map("message_id") @db.Uuid
+  materialId    String   @map("material_id") @db.Uuid
+  citationOrder Int      @map("citation_order")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  message  Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  material Material @relation(fields: [materialId], references: [id], onDelete: Restrict)
+
+  @@unique([messageId, citationOrder], map: "message_citations_message_id_citation_order_key")
+  @@index([materialId], map: "idx_citations_material")
+  @@map("message_citations")
 }
 
 model AuditLog {
