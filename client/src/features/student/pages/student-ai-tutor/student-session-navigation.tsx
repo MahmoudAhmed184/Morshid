@@ -1,12 +1,12 @@
-import { Link } from '@tanstack/react-router'
 import { MessageSquareText } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { ErrorState } from '@/components/ui/custom/error-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { ChatSession } from '@/features/student/schemas/student-chat.schema'
-import { cn } from '@/lib/utils'
 
+import { StudentCreateSessionButton } from './student-create-session-button'
+import { StudentSessionListItem } from './student-session-list-item'
 import { StudentSessionNavigationSkeleton } from './student-session-navigation-skeleton'
 
 interface StudentSessionNavigationProps {
@@ -16,7 +16,13 @@ interface StudentSessionNavigationProps {
   isPending: boolean
   isError: boolean
   isRefreshing: boolean
+  isCreating: boolean
+  renamingSessionId?: string
+  deletingSessionId?: string
   onRetry: () => void
+  onCreate: () => Promise<void>
+  onRename: (session: ChatSession, title: string) => Promise<void>
+  onDelete: (session: ChatSession) => Promise<void>
 }
 
 export function StudentSessionNavigation({
@@ -26,7 +32,13 @@ export function StudentSessionNavigation({
   isPending,
   isError,
   isRefreshing,
+  isCreating,
+  renamingSessionId,
+  deletingSessionId,
   onRetry,
+  onCreate,
+  onRename,
+  onDelete,
 }: StudentSessionNavigationProps) {
   return (
     <aside className="border-b border-border bg-muted/15 md:border-r md:border-b-0">
@@ -39,13 +51,19 @@ export function StudentSessionNavigation({
             Private to your account
           </p>
         </div>
-        {isPending ? (
-          <Skeleton className="h-5 w-8 rounded-full" />
-        ) : isRefreshing ? (
-          <Badge variant="outline">Refreshing</Badge>
-        ) : (
-          <Badge variant="secondary">{sessions.length}</Badge>
-        )}
+        <div className="flex items-center gap-2">
+          {isPending ? (
+            <Skeleton className="h-5 w-8 rounded-full" />
+          ) : isRefreshing ? (
+            <Badge variant="outline">Refreshing</Badge>
+          ) : (
+            <Badge variant="secondary">{sessions.length}</Badge>
+          )}
+          <StudentCreateSessionButton
+            isPending={isCreating}
+            onCreate={onCreate}
+          />
+        </div>
       </header>
 
       <div className="max-h-64 overflow-y-auto p-3 md:max-h-none">
@@ -78,41 +96,18 @@ export function StudentSessionNavigation({
         {!isPending && !isError && sessions.length > 0 ? (
           <nav aria-label="Course conversations">
             <ul className="space-y-1">
-              {sessions.map((session) => {
-                const isSelected = session.id === selectedSessionId
-
-                return (
-                  <li key={session.id}>
-                    <Link
-                      to="/student/ai-tutor"
-                      search={{ courseId, sessionId: session.id }}
-                      aria-current={isSelected ? 'page' : undefined}
-                      className={cn(
-                        'block rounded-md px-3 py-2.5 text-sm transition-colors',
-                        isSelected
-                          ? 'bg-primary text-primary-foreground'
-                          : 'text-foreground hover:bg-muted',
-                      )}
-                    >
-                      <span className="block truncate font-medium">
-                        {session.title}
-                      </span>
-                      <span
-                        className={cn(
-                          'mt-1 block text-xs',
-                          isSelected
-                            ? 'text-primary-foreground/75'
-                            : 'text-muted-foreground',
-                        )}
-                      >
-                        {session.lastMessageAt
-                          ? 'Conversation history saved'
-                          : 'No messages yet'}
-                      </span>
-                    </Link>
-                  </li>
-                )
-              })}
+              {sessions.map((session) => (
+                <StudentSessionListItem
+                  key={session.id}
+                  courseId={courseId}
+                  session={session}
+                  isSelected={session.id === selectedSessionId}
+                  isRenaming={renamingSessionId === session.id}
+                  isDeleting={deletingSessionId === session.id}
+                  onRename={(title) => onRename(session, title)}
+                  onDelete={() => onDelete(session)}
+                />
+              ))}
             </ul>
           </nav>
         ) : null}

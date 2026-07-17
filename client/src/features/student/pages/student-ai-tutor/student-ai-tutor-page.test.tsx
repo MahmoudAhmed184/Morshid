@@ -11,7 +11,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AuthSession } from '@/features/auth/schemas/auth.schema'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
-import { listStudentSessions } from '@/features/student/data/student-sessions.api'
+import {
+  createStudentSession,
+  deleteStudentSession,
+  listStudentSessions,
+  renameStudentSession,
+} from '@/features/student/data/student-sessions.api'
 import { studentCoursesQueryOptions } from '@/features/student/data/student-courses.queries'
 import { studentSessionKeys } from '@/features/student/data/student-sessions.queries'
 import type { ChatSessionListResponse } from '@/features/student/schemas/student-chat.schema'
@@ -24,6 +29,8 @@ import {
 import { StudentAiTutorPage } from './student-ai-tutor-page'
 
 vi.mock('@/features/student/data/student-sessions.api')
+
+const navigateMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({
@@ -43,9 +50,13 @@ vi.mock('@tanstack/react-router', () => ({
       {children}
     </a>
   ),
+  useNavigate: () => navigateMock,
 }))
 
+const createStudentSessionMock = vi.mocked(createStudentSession)
+const deleteStudentSessionMock = vi.mocked(deleteStudentSession)
 const listStudentSessionsMock = vi.mocked(listStudentSessions)
+const renameStudentSessionMock = vi.mocked(renameStudentSession)
 const studentId = 'student-user'
 const primaryCourse: StudentCourse = {
   id: studentChatIds.primaryCourse,
@@ -65,7 +76,7 @@ const secondSession = {
   title: 'Functions practice',
 }
 
-function createStudentSession(): AuthSession {
+function createStudentAuthSession(): AuthSession {
   return {
     tokenType: 'Bearer',
     user: {
@@ -131,7 +142,7 @@ describe('StudentAiTutorPage workspace', () => {
     vi.resetAllMocks()
     window.localStorage.clear()
     useAuthStore.getState().clearSession()
-    useAuthStore.getState().setSession(createStudentSession())
+    useAuthStore.getState().setSession(createStudentAuthSession())
   })
 
   afterEach(() => {
@@ -248,5 +259,150 @@ describe('StudentAiTutorPage workspace', () => {
       ).toBeInTheDocument(),
     )
     expect(listStudentSessionsMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('creates and selects a new conversation with pending and retry states', async () => {
+    let rejectCreate: ((error: Error) => void) | undefined
+    createStudentSessionMock.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectCreate = reject
+        }),
+    )
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessions: { sessions: [], nextCursor: null },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'New chat' }))
+    expect(
+      await screen.findByRole('button', { name: 'Creating...' }),
+    ).toBeDisabled()
+    await waitFor(() => expect(rejectCreate).toBeTypeOf('function'))
+
+    if (!rejectCreate) {
+      throw new Error('Expected create request to be pending')
+    }
+    rejectCreate(new Error('Create failed'))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Create failed')
+
+    createStudentSessionMock.mockResolvedValueOnce(primaryChatSessionFixture)
+    listStudentSessionsMock.mockResolvedValueOnce({
+      sessions: [primaryChatSessionFixture],
+      nextCursor: null,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'New chat' }))
+
+    await waitFor(() =>
+      expect(navigateMock).toHaveBeenCalledWith({
+        to: '/student/ai-tutor',
+        search: {
+          courseId: primaryCourse.id,
+          sessionId: primaryChatSessionFixture.id,
+        },
+      }),
+    )
+  })
+
+  it('validates and renames a conversation in the scoped list', async () => {
+    const renamedSession = {
+      ...primaryChatSessionFixture,
+      title: 'Renamed Python chat',
+    }
+    renameStudentSessionMock.mockResolvedValueOnce(renamedSession)
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+    })
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: `Rename ${primaryChatSessionFixture.title}`,
+      }),
+    )
+    const titleInput = screen.getByLabelText('Conversation title')
+    const saveButton = screen.getByRole('button', { name: 'Save title' })
+
+    expect(saveButton).toBeDisabled()
+    fireEvent.change(titleInput, { target: { value: '   ' } })
+    expect(saveButton).toBeDisabled()
+    fireEvent.change(titleInput, { target: { value: renamedSession.title } })
+    fireEvent.click(saveButton)
+
+    await waitFor(() =>
+      expect(renameStudentSessionMock).toHaveBeenCalledWith({
+        courseId: primaryCourse.id,
+        sessionId: primaryChatSessionFixture.id,
+        input: { title: renamedSession.title },
+      }),
+    )
+    expect(
+      await screen.findByRole('link', { name: /renamed python chat/i }),
+    ).toBeInTheDocument()
+  })
+
+  it('cancels deletion and recovers routing after confirmed deletion', async () => {
+    deleteStudentSessionMock.mockResolvedValueOnce(undefined)
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+    })
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: `Delete ${primaryChatSessionFixture.title}`,
+      }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(deleteStudentSessionMock).not.toHaveBeenCalled()
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: `Delete ${primaryChatSessionFixture.title}`,
+      }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+
+    await waitFor(() =>
+      expect(deleteStudentSessionMock).toHaveBeenCalledWith({
+        courseId: primaryCourse.id,
+        sessionId: primaryChatSessionFixture.id,
+      }),
+    )
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: '/student/ai-tutor',
+      search: { courseId: primaryCourse.id },
+    })
+  })
+
+  it('keeps the delete confirmation open when the server rejects deletion', async () => {
+    deleteStudentSessionMock.mockRejectedValueOnce(new Error('Delete failed'))
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+    })
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: `Delete ${primaryChatSessionFixture.title}`,
+      }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Delete failed')
+    expect(
+      screen.getByRole('heading', { name: 'Delete conversation?' }),
+    ).toBeInTheDocument()
   })
 })

@@ -1,4 +1,4 @@
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { BookOpen } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
@@ -6,7 +6,13 @@ import { buttonVariants } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/custom/empty-state'
 import { StudentPageHeader } from '@/features/student/components/student-page-header'
 import { useStudentCourses } from '@/features/student/hooks/use-student-courses'
-import { useStudentSessions } from '@/features/student/hooks/use-student-sessions'
+import {
+  useCreateStudentSession,
+  useDeleteStudentSession,
+  useRenameStudentSession,
+  useStudentSessions,
+} from '@/features/student/hooks/use-student-sessions'
+import type { ChatSession } from '@/features/student/schemas/student-chat.schema'
 import { cn } from '@/lib/utils'
 
 import { StudentDisabledComposer } from './student-disabled-composer'
@@ -22,6 +28,7 @@ export function StudentAiTutorPage({
   courseId,
   sessionId,
 }: StudentAiTutorPageProps) {
+  const navigate = useNavigate()
   const { data: assignedCourses } = useStudentCourses()
   const selectedCourse =
     (courseId
@@ -33,6 +40,49 @@ export function StudentAiTutorPage({
   const sessions = sessionsQuery.data?.sessions ?? []
   const selectedSession =
     sessions.find((session) => session.id === sessionId) ?? null
+  const createSession = useCreateStudentSession({
+    courseId: selectedCourse?.id,
+  })
+  const renameSession = useRenameStudentSession({
+    courseId: selectedCourse?.id,
+  })
+  const deleteSession = useDeleteStudentSession({
+    courseId: selectedCourse?.id,
+  })
+
+  const handleCreate = async () => {
+    if (!selectedCourse) {
+      return
+    }
+
+    const session = await createSession.mutateAsync({})
+    await navigate({
+      to: '/student/ai-tutor',
+      search: { courseId: selectedCourse.id, sessionId: session.id },
+    })
+  }
+
+  const handleRename = async (session: ChatSession, title: string) => {
+    await renameSession.mutateAsync({
+      sessionId: session.id,
+      input: { title },
+    })
+  }
+
+  const handleDelete = async (session: ChatSession) => {
+    if (!selectedCourse) {
+      return
+    }
+
+    await deleteSession.mutateAsync(session.id)
+
+    if (session.id === sessionId) {
+      await navigate({
+        to: '/student/ai-tutor',
+        search: { courseId: selectedCourse.id },
+      })
+    }
+  }
 
   return (
     <div className="flex flex-1 flex-col px-4 py-5 sm:px-6">
@@ -55,7 +105,9 @@ export function StudentAiTutorPage({
             </h2>
             <p className="mt-1 truncate text-sm text-muted-foreground">
               {selectedCourse?.code ??
-                courseSelectionDescription(assignedCourses)}
+                (assignedCourses.length === 0
+                  ? 'No active Student course membership.'
+                  : 'Choose an assigned course to continue.')}
             </p>
           </div>
           <Badge variant="outline" className="w-fit">
@@ -99,7 +151,13 @@ export function StudentAiTutorPage({
               isRefreshing={
                 sessionsQuery.isFetching && !sessionsQuery.isPending
               }
+              isCreating={createSession.isPending}
+              renamingSessionId={renameSession.variables?.sessionId}
+              deletingSessionId={deleteSession.variables}
               onRetry={() => void sessionsQuery.refetch()}
+              onCreate={handleCreate}
+              onRename={handleRename}
+              onDelete={handleDelete}
             />
 
             <div className="flex min-h-80 min-w-0 flex-col">
@@ -138,12 +196,4 @@ export function StudentAiTutorPage({
       </section>
     </div>
   )
-}
-
-function courseSelectionDescription(assignedCourses: { id: string }[]): string {
-  if (assignedCourses.length === 0) {
-    return 'No active Student course membership.'
-  }
-
-  return 'Choose an assigned course to continue.'
 }
