@@ -26,7 +26,20 @@ describe('validateEnv', () => {
       PDF_STORAGE_PATH: '../storage/pdfs',
       AUTH_ACCESS_TOKEN_TTL_SECONDS: 900,
       AUTH_REFRESH_TOKEN_TTL_DAYS: 7,
+      EMBEDDING_PROVIDER: 'deterministic',
     })
+  })
+
+  it('accepts only implemented embedding providers', () => {
+    expect(
+      validateEnv({ ...validEnv, EMBEDDING_PROVIDER: 'deterministic' }),
+    ).toMatchObject({ EMBEDDING_PROVIDER: 'deterministic' })
+    expect(() =>
+      validateEnv({ ...validEnv, EMBEDDING_PROVIDER: 'openai' }),
+    ).toThrow(/EMBEDDING_PROVIDER: Invalid input/)
+    expect(() => validateEnv({ ...validEnv, EMBEDDING_PROVIDER: '' })).toThrow(
+      /EMBEDDING_PROVIDER: Invalid input/,
+    )
   })
 
   it('fails clearly when required service URLs are missing', () => {

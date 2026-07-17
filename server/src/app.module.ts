@@ -11,6 +11,7 @@ import { AdminModule } from './modules/admin/admin.module'
 import { StudentChatModule } from './modules/student-chat/student-chat.module'
 import { RagPersistenceModule } from './modules/rag-persistence/rag-persistence.module'
 import { PdfStorageModule } from './modules/pdf-storage/pdf-storage.module'
+import { EmbeddingModule } from './modules/embedding/embedding.module'
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { PdfStorageModule } from './modules/pdf-storage/pdf-storage.module'
     StudentChatModule,
     RagPersistenceModule,
     PdfStorageModule,
+    EmbeddingModule,
   ],
 })
 export class AppModule {}
