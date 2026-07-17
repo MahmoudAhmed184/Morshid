@@ -10,12 +10,15 @@ import {
   useCreateStudentSession,
   useDeleteStudentSession,
   useRenameStudentSession,
+  useStudentSessionMessages,
   useStudentSessions,
 } from '@/features/student/hooks/use-student-sessions'
 import type { ChatSession } from '@/features/student/schemas/student-chat.schema'
 import { cn } from '@/lib/utils'
 
+import { StudentConversationHeader } from './student-conversation-header'
 import { StudentDisabledComposer } from './student-disabled-composer'
+import { StudentMessageHistory } from './student-message-history'
 import { StudentSessionNavigation } from './student-session-navigation'
 import { StudentWorkspaceState } from './student-workspace-state'
 
@@ -40,6 +43,10 @@ export function StudentAiTutorPage({
   const sessions = sessionsQuery.data?.sessions ?? []
   const selectedSession =
     sessions.find((session) => session.id === sessionId) ?? null
+  const messagesQuery = useStudentSessionMessages({
+    courseId: selectedCourse?.id,
+    sessionId: selectedSession?.id,
+  })
   const createSession = useCreateStudentSession({
     courseId: selectedCourse?.id,
   })
@@ -82,6 +89,18 @@ export function StudentAiTutorPage({
         search: { courseId: selectedCourse.id },
       })
     }
+  }
+
+  const handleStaleSession = async () => {
+    if (!selectedCourse) {
+      return
+    }
+
+    await navigate({
+      to: '/student/ai-tutor',
+      search: { courseId: selectedCourse.id },
+    })
+    void sessionsQuery.refetch()
   }
 
   return (
@@ -161,14 +180,30 @@ export function StudentAiTutorPage({
             />
 
             <div className="flex min-h-80 min-w-0 flex-col">
-              <div className="flex flex-1 items-center justify-center px-4 py-10">
-                <StudentWorkspaceState
-                  sessionId={sessionId}
-                  selectedSessionTitle={selectedSession?.title}
-                  sessionsPending={sessionsQuery.isPending}
-                  sessionsError={sessionsQuery.isError}
-                  hasSessions={sessions.length > 0}
-                />
+              {selectedSession ? (
+                <StudentConversationHeader title={selectedSession.title} />
+              ) : null}
+              <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6">
+                {selectedSession ? (
+                  <StudentMessageHistory
+                    messages={messagesQuery.data?.messages ?? []}
+                    error={messagesQuery.error}
+                    isPending={messagesQuery.isPending}
+                    isError={messagesQuery.isError}
+                    isFetching={messagesQuery.isFetching}
+                    onRetry={() => void messagesQuery.refetch()}
+                    onRecover={() => void handleStaleSession()}
+                  />
+                ) : (
+                  <div className="flex min-h-full items-center justify-center py-4">
+                    <StudentWorkspaceState
+                      sessionId={sessionId}
+                      sessionsPending={sessionsQuery.isPending}
+                      sessionsError={sessionsQuery.isError}
+                      hasSessions={sessions.length > 0}
+                    />
+                  </div>
+                )}
               </div>
               <StudentDisabledComposer
                 hasSelectedSession={selectedSession !== null}

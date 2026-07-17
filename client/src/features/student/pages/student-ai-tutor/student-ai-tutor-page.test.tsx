@@ -9,19 +9,26 @@ import {
 } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ApiError } from '@/features/auth/api/authenticated-api-client'
 import type { AuthSession } from '@/features/auth/schemas/auth.schema'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 import {
   createStudentSession,
   deleteStudentSession,
+  getStudentSessionMessages,
   listStudentSessions,
   renameStudentSession,
 } from '@/features/student/data/student-sessions.api'
 import { studentCoursesQueryOptions } from '@/features/student/data/student-courses.queries'
 import { studentSessionKeys } from '@/features/student/data/student-sessions.queries'
-import type { ChatSessionListResponse } from '@/features/student/schemas/student-chat.schema'
+import type {
+  ChatMessageHistoryResponse,
+  ChatSessionListResponse,
+} from '@/features/student/schemas/student-chat.schema'
 import type { StudentCourse } from '@/features/student/schemas/student-course.schema'
 import {
+  chatMessageHistoryResponseFixture,
+  orderedChatMessagesFixture,
   primaryChatSessionFixture,
   studentChatIds,
 } from '@/features/student/testing/student-chat.fixtures'
@@ -55,6 +62,7 @@ vi.mock('@tanstack/react-router', () => ({
 
 const createStudentSessionMock = vi.mocked(createStudentSession)
 const deleteStudentSessionMock = vi.mocked(deleteStudentSession)
+const getStudentSessionMessagesMock = vi.mocked(getStudentSessionMessages)
 const listStudentSessionsMock = vi.mocked(listStudentSessions)
 const renameStudentSessionMock = vi.mocked(renameStudentSession)
 const studentId = 'student-user'
@@ -74,6 +82,12 @@ const secondSession = {
   ...primaryChatSessionFixture,
   id: studentChatIds.otherSession,
   title: 'Functions practice',
+}
+const orderedMessageHistory: ChatMessageHistoryResponse = {
+  messages: chatMessageHistoryResponseFixture.messages.map((message) => ({
+    ...message,
+  })),
+  nextCursor: chatMessageHistoryResponseFixture.nextCursor,
 }
 
 function createStudentAuthSession(): AuthSession {
@@ -99,11 +113,13 @@ function renderWorkspace({
   courseId,
   sessionId,
   sessions,
+  messages,
 }: {
   courses?: StudentCourse[]
   courseId?: string
   sessionId?: string
   sessions?: ChatSessionListResponse
+  messages?: ChatMessageHistoryResponse
 } = {}) {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -127,6 +143,13 @@ function renderWorkspace({
         courseId: courses[0]?.id ?? 'missing-course',
       }),
       sessions,
+    )
+  }
+
+  if (courseId && sessionId && messages) {
+    queryClient.setQueryData(
+      studentSessionKeys.messageList({ studentId, courseId, sessionId }),
+      messages,
     )
   }
 
@@ -404,5 +427,125 @@ describe('StudentAiTutorPage workspace', () => {
     expect(
       screen.getByRole('heading', { name: 'Delete conversation?' }),
     ).toBeInTheDocument()
+  })
+
+  it('renders persisted messages in the server-provided sequence order', () => {
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+      messages: orderedMessageHistory,
+    })
+
+    const history = screen.getByRole('list', { name: 'Conversation history' })
+    const messageItems = history.querySelectorAll('li')
+
+    expect(messageItems).toHaveLength(2)
+    expect(messageItems[0]).toHaveTextContent(
+      orderedChatMessagesFixture[0].content,
+    )
+    expect(messageItems[1]).toHaveTextContent(
+      orderedChatMessagesFixture[1].content,
+    )
+    expect(screen.getByLabelText('Message')).toBeDisabled()
+    expect(screen.getByRole('button', { name: /send message/i })).toBeDisabled()
+  })
+
+  it('shows an empty state when the selected conversation has no messages', () => {
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+      messages: { messages: [], nextCursor: null },
+    })
+
+    expect(
+      screen.getByRole('heading', { name: 'No messages yet' }),
+    ).toBeInTheDocument()
+  })
+
+  it('uses a message-shaped skeleton while history is pending', () => {
+    getStudentSessionMessagesMock.mockReturnValueOnce(new Promise(() => {}))
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+    })
+
+    expect(
+      screen.getByRole('status', { name: 'Loading conversation history' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText(/loading your private workspace/i),
+    ).not.toBeInTheDocument()
+  })
+
+  it('retries history after a server or network failure', async () => {
+    getStudentSessionMessagesMock.mockRejectedValueOnce(
+      new Error('Network failure'),
+    )
+    getStudentSessionMessagesMock.mockResolvedValueOnce(orderedMessageHistory)
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+    })
+
+    expect(
+      await screen.findByRole('heading', { name: 'History unavailable' }),
+    ).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    expect(
+      await screen.findByRole('list', { name: 'Conversation history' }),
+    ).toBeInTheDocument()
+    expect(getStudentSessionMessagesMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('recovers safely when selected history belongs to a deleted session', async () => {
+    getStudentSessionMessagesMock.mockRejectedValueOnce(
+      new ApiError('Session not found', 404, 'STUDENT_CHAT_SESSION_NOT_FOUND'),
+    )
+    listStudentSessionsMock.mockResolvedValueOnce({
+      sessions: [],
+      nextCursor: null,
+    })
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+    })
+
+    expect(
+      await screen.findByRole('heading', { name: 'Conversation unavailable' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText(orderedChatMessagesFixture[0].content),
+    ).not.toBeInTheDocument()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Return to conversations' }),
+    )
+
+    await waitFor(() =>
+      expect(navigateMock).toHaveBeenCalledWith({
+        to: '/student/ai-tutor',
+        search: { courseId: primaryCourse.id },
+      }),
+    )
   })
 })

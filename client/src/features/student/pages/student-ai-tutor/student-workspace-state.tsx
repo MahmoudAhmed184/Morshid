@@ -2,9 +2,10 @@ import { MessageSquareText } from 'lucide-react'
 
 import { EmptyState } from '@/components/ui/custom/empty-state'
 
+import { StudentMessageHistorySkeleton } from './student-message-history-skeleton'
+
 interface StudentWorkspaceStateProps {
   sessionId?: string
-  selectedSessionTitle?: string
   sessionsPending: boolean
   sessionsError: boolean
   hasSessions: boolean
@@ -12,17 +13,12 @@ interface StudentWorkspaceStateProps {
 
 export function StudentWorkspaceState({
   sessionId,
-  selectedSessionTitle,
   sessionsPending,
   sessionsError,
   hasSessions,
 }: StudentWorkspaceStateProps) {
   if (sessionsPending) {
-    return (
-      <p role="status" className="text-sm text-muted-foreground">
-        Loading your private workspace…
-      </p>
-    )
+    return <StudentMessageHistorySkeleton />
   }
 
   if (sessionsError) {
@@ -35,7 +31,7 @@ export function StudentWorkspaceState({
     )
   }
 
-  if (sessionId && !selectedSessionTitle) {
+  if (sessionId) {
     return (
       <EmptyState
         icon={<MessageSquareText className="size-6" aria-hidden />}
@@ -57,22 +53,11 @@ export function StudentWorkspaceState({
     )
   }
 
-  if (!selectedSessionTitle) {
-    return (
-      <EmptyState
-        icon={<MessageSquareText className="size-6" aria-hidden />}
-        title="Choose a conversation"
-        description="Select a conversation from the list to recover its saved history."
-        className="w-full max-w-md border-0 bg-transparent"
-      />
-    )
-  }
-
   return (
     <EmptyState
       icon={<MessageSquareText className="size-6" aria-hidden />}
-      title={selectedSessionTitle}
-      description="This private conversation is selected. Persisted message history is connected in the next task."
+      title="Choose a conversation"
+      description="Select a conversation from the list to recover its saved history."
       className="w-full max-w-md border-0 bg-transparent"
     />
   )
