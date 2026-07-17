@@ -1,4 +1,5 @@
-import { CourseMembershipRole, Prisma } from '../../generated/prisma/client'
+import type { Prisma } from '../../generated/prisma/client';
+import { CourseMembershipRole } from '../../generated/prisma/client'
 
 export const chatSessionSelect = {
   id: true,

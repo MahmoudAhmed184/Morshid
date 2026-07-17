@@ -17,18 +17,25 @@ import {
 } from '@nestjs/common'
 import {
   ApiBadRequestResponse,
-  ApiBearerAuth,
   ApiBody,
   ApiCreatedResponse,
-  ApiForbiddenResponse,
+  ApiExtraModels,
   ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
+  ApiOperation,
+  ApiParam,
   ApiQuery,
   ApiTags,
-  ApiUnauthorizedResponse,
+  getSchemaPath,
 } from '@nestjs/swagger'
 
+import {
+  NestBadRequestErrorDto,
+  OpenApiErrorDto,
+  OpenApiValidationErrorDto,
+} from '../../common/http/openapi-error.dto'
+import { ApiAccessTokenAuth } from '../../common/http/openapi.decorators'
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe'
 import { getRequestContext } from '../../common/http/request-context'
 import { UserRole } from '../../generated/prisma/client'
@@ -58,18 +65,40 @@ import { StudentChatService } from './student-chat.service'
 
 const uuidParam = () => new ParseUUIDPipe({ version: '4' })
 
+const invalidRequestOrUuidBadRequest = () =>
+  ApiBadRequestResponse({
+    description:
+      'The request body/query failed validation, or a path parameter is not a valid UUID.',
+    schema: {
+      oneOf: [
+        { $ref: getSchemaPath(OpenApiValidationErrorDto) },
+        { $ref: getSchemaPath(NestBadRequestErrorDto) },
+      ],
+    },
+  })
+
+const invalidUuidBadRequest = () =>
+  ApiBadRequestResponse({
+    type: NestBadRequestErrorDto,
+    description: 'A path parameter is not a valid UUID.',
+  })
+
+const notFound = () =>
+  ApiNotFoundResponse({
+    type: OpenApiErrorDto,
+    description: 'The chat session was not found.',
+  })
+
+const courseIdParam = () => ApiParam({ name: 'courseId', format: 'uuid' })
+const sessionIdParam = () => ApiParam({ name: 'sessionId', format: 'uuid' })
+
 @Controller('courses/:courseId/chat-sessions')
 @ApiTags('student-chat-sessions')
 @Roles(UserRole.STUDENT)
-@ApiBearerAuth()
+@ApiAccessTokenAuth()
+@ApiExtraModels(OpenApiValidationErrorDto, NestBadRequestErrorDto)
 @UseFilters(StudentChatRoleDenialAuditFilter)
 @UseInterceptors(ClassSerializerInterceptor)
-@ApiUnauthorizedResponse({ description: 'Authentication is required.' })
-@ApiForbiddenResponse({
-  description: 'An active Student membership in the course is required.',
-})
-@ApiNotFoundResponse({ description: 'Chat session was not found.' })
-@ApiBadRequestResponse({ description: 'Invalid request body.' })
 export class StudentChatController {
   constructor(private readonly studentChatService: StudentChatService) {}
 
@@ -78,8 +107,11 @@ export class StudentChatController {
     type: ChatSessionResponseDto,
     strategy: 'excludeAll',
   })
+  @ApiOperation({ summary: 'Create chat session' })
+  @courseIdParam()
   @ApiBody({ type: CreateChatSessionRequestDto })
   @ApiCreatedResponse({ type: ChatSessionResponseDto })
+  @invalidRequestOrUuidBadRequest()
   createSession(
     @Param('courseId', uuidParam()) courseId: string,
     @Body(
@@ -103,9 +135,12 @@ export class StudentChatController {
     type: ChatSessionListResponseDto,
     strategy: 'excludeAll',
   })
+  @ApiOperation({ summary: 'List chat sessions' })
+  @courseIdParam()
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'cursor', required: false, type: String, format: 'uuid' })
   @ApiOkResponse({ type: ChatSessionListResponseDto })
+  @invalidRequestOrUuidBadRequest()
   listSessions(
     @Param('courseId', uuidParam()) courseId: string,
     @Query(
@@ -129,7 +164,12 @@ export class StudentChatController {
     type: ChatSessionResponseDto,
     strategy: 'excludeAll',
   })
+  @ApiOperation({ summary: 'Get chat session' })
+  @courseIdParam()
+  @sessionIdParam()
   @ApiOkResponse({ type: ChatSessionResponseDto })
+  @invalidUuidBadRequest()
+  @notFound()
   getSession(
     @Param('courseId', uuidParam()) courseId: string,
     @Param('sessionId', uuidParam()) sessionId: string,
@@ -148,8 +188,13 @@ export class StudentChatController {
     type: ChatSessionResponseDto,
     strategy: 'excludeAll',
   })
+  @ApiOperation({ summary: 'Rename chat session' })
+  @courseIdParam()
+  @sessionIdParam()
   @ApiBody({ type: RenameChatSessionRequestDto })
   @ApiOkResponse({ type: ChatSessionResponseDto })
+  @invalidRequestOrUuidBadRequest()
+  @notFound()
   renameSession(
     @Param('courseId', uuidParam()) courseId: string,
     @Param('sessionId', uuidParam()) sessionId: string,
@@ -172,7 +217,12 @@ export class StudentChatController {
 
   @Delete(':sessionId')
   @HttpCode(204)
+  @ApiOperation({ summary: 'Delete chat session' })
+  @courseIdParam()
+  @sessionIdParam()
   @ApiNoContentResponse()
+  @invalidUuidBadRequest()
+  @notFound()
   async softDeleteSession(
     @Param('courseId', uuidParam()) courseId: string,
     @Param('sessionId', uuidParam()) sessionId: string,
@@ -191,9 +241,14 @@ export class StudentChatController {
     type: ChatMessageHistoryResponseDto,
     strategy: 'excludeAll',
   })
+  @ApiOperation({ summary: 'List chat session messages' })
+  @courseIdParam()
+  @sessionIdParam()
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'after', required: false, type: Number })
   @ApiOkResponse({ type: ChatMessageHistoryResponseDto })
+  @invalidRequestOrUuidBadRequest()
+  @notFound()
   listMessages(
     @Param('courseId', uuidParam()) courseId: string,
     @Param('sessionId', uuidParam()) sessionId: string,

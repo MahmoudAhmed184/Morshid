@@ -17,7 +17,7 @@ import {
   renameChatSessionRequestSchema,
 } from './student-chat.dto'
 import { STUDENT_CHAT_ERROR_CODES } from './student-chat.errors'
-import { StudentChatMessageRepository } from './student-chat-message.repository'
+import type { StudentChatMessageRepository } from './student-chat-message.repository'
 import { StudentChatSessionRepository } from './student-chat-session.repository'
 import type {
   AppendPendingAssistantMessageInput,

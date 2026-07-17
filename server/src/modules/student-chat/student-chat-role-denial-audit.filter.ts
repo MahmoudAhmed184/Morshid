@@ -70,7 +70,6 @@ function isInsufficientRoleDenial(exception: ForbiddenException): boolean {
 
   return (
     typeof body === 'object' &&
-    body !== null &&
     'code' in body &&
     (body as { code?: unknown }).code === AUTH_ERROR_CODES.INSUFFICIENT_ROLE
   )
