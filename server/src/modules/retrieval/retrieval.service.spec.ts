@@ -97,6 +97,23 @@ describe('RetrievalService', () => {
     })
   })
 
+  it.each(['', '   ', '\n\t'])(
+    'reports insufficient evidence for blank query %j without embedding or querying',
+    async (blankQuery) => {
+      await expect(
+        service.retrieveCourseEvidence(courseId, blankQuery),
+      ).resolves.toEqual({ kind: 'insufficient_evidence' })
+      expect(embedBatch).not.toHaveBeenCalled()
+      expect(findTopChunksForCourse).not.toHaveBeenCalled()
+    },
+  )
+
+  it('embeds the trimmed query text', async () => {
+    await service.retrieveCourseEvidence(courseId, '  what is a variable?  ')
+
+    expect(embedBatch).toHaveBeenCalledWith(['what is a variable?'])
+  })
+
   it('reports insufficient evidence when no row meets the threshold', async () => {
     findTopChunksForCourse.mockResolvedValue([])
 

@@ -52,7 +52,17 @@ export class RetrievalService {
     courseId: string,
     query: string,
   ): Promise<CourseRetrievalResult> {
-    const [queryEmbedding] = await this.embeddingProvider.embedBatch([query])
+    // A blank query can never match evidence; short-circuit before the
+    // provider, whose contract rejects whitespace-only texts, so callers see
+    // the retrieval result type instead of an embedding-module error.
+    const trimmedQuery = query.trim()
+    if (trimmedQuery.length === 0) {
+      return { kind: 'insufficient_evidence' }
+    }
+
+    const [queryEmbedding] = await this.embeddingProvider.embedBatch([
+      trimmedQuery,
+    ])
 
     const rows = await this.courseRetrievalRepository.findTopChunksForCourse({
       courseId,
