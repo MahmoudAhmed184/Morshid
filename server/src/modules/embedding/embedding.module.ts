@@ -3,12 +3,12 @@ import { ConfigService } from '@nestjs/config'
 
 import type { AppEnvironment } from '../config/env.schema'
 import { createEmbeddingProvider } from './embedding-provider.factory'
-import { EMBEDDING_PROVIDER } from './embedding-provider'
+import { EMBEDDING_PROVIDER_TOKEN } from './embedding-provider'
 
 @Module({
   providers: [
     {
-      provide: EMBEDDING_PROVIDER,
+      provide: EMBEDDING_PROVIDER_TOKEN,
       inject: [ConfigService],
       useFactory: (configService: ConfigService<AppEnvironment, true>) =>
         createEmbeddingProvider(
@@ -16,6 +16,6 @@ import { EMBEDDING_PROVIDER } from './embedding-provider'
         ),
     },
   ],
-  exports: [EMBEDDING_PROVIDER],
+  exports: [EMBEDDING_PROVIDER_TOKEN],
 })
 export class EmbeddingModule {}

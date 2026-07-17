@@ -16,7 +16,7 @@ export interface EmbeddingProvider {
   embedBatch(texts: readonly string[]): Promise<readonly (readonly number[])[]>
 }
 
-export const EMBEDDING_PROVIDER = Symbol('EmbeddingProvider')
+export const EMBEDDING_PROVIDER_TOKEN = Symbol('EmbeddingProvider')
 
 // Error messages carry only counts and indices — never input text, vector
 // values, or provider credentials — so they are safe to log verbatim.
