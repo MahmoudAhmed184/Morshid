@@ -283,6 +283,35 @@ export class StudentChatService {
     )
   }
 
+  /**
+   * Records a role-guard denial (a non-Student reaching a Student-only chat
+   * endpoint). The global `RolesGuard` rejects the request before any handler
+   * runs, so this is invoked from a chat-scoped exception filter to keep role
+   * denials audited alongside membership/ownership denials. Like every deny
+   * path here it is best-effort and FK-safe: it never converts the 403 into a
+   * 500 and never stores an unverified course id in the FK column.
+   */
+  async recordRoleAccessDenied(
+    courseId: string | null,
+    actorUserId: string | null,
+    requestContext?: AuditRequestContext,
+  ): Promise<void> {
+    if (actorUserId === null) {
+      return
+    }
+
+    const courseExists =
+      courseId !== null && (await this.courseExistsSafe(courseId))
+
+    await this.recordAccessDenied({
+      actorUserId,
+      courseId: courseExists ? courseId : null,
+      unverifiedCourseId: courseExists ? null : courseId,
+      reason: 'INSUFFICIENT_ROLE',
+      requestContext,
+    })
+  }
+
   private async requireActiveStudentMembership(
     courseId: string,
     studentId: string,

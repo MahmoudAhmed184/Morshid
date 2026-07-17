@@ -12,6 +12,7 @@ import {
   Query,
   Req,
   SerializeOptions,
+  UseFilters,
   UseInterceptors,
 } from '@nestjs/common'
 import {
@@ -33,6 +34,7 @@ import { getRequestContext } from '../../common/http/request-context'
 import { UserRole } from '../../generated/prisma/client'
 import type { AuthenticatedHttpRequest } from '../auth/auth.guard'
 import { Roles } from '../auth/roles.decorator'
+import { StudentChatRoleDenialAuditFilter } from './student-chat-role-denial-audit.filter'
 import {
   ChatMessageHistoryResponseDto,
   ChatSessionListResponseDto,
@@ -60,6 +62,7 @@ const uuidParam = () => new ParseUUIDPipe({ version: '4' })
 @ApiTags('student-chat-sessions')
 @Roles(UserRole.STUDENT)
 @ApiBearerAuth()
+@UseFilters(StudentChatRoleDenialAuditFilter)
 @UseInterceptors(ClassSerializerInterceptor)
 @ApiUnauthorizedResponse({ description: 'Authentication is required.' })
 @ApiForbiddenResponse({

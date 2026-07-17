@@ -5,6 +5,7 @@ import { AuthModule } from '../auth/auth.module'
 import { PrismaModule } from '../prisma/prisma.module'
 import { StudentChatAuditService } from './student-chat.audit.service'
 import { StudentChatController } from './student-chat.controller'
+import { StudentChatRoleDenialAuditFilter } from './student-chat-role-denial-audit.filter'
 import {
   PrismaStudentChatMessageRepository,
   StudentChatMessageRepository,
@@ -21,6 +22,7 @@ import { StudentChatService } from './student-chat.service'
   providers: [
     StudentChatAuditService,
     StudentChatService,
+    StudentChatRoleDenialAuditFilter,
     {
       provide: StudentChatSessionRepository,
       useClass: PrismaStudentChatSessionRepository,

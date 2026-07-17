@@ -34,6 +34,7 @@ export interface RecordAccessDeniedInput {
   sessionId?: string | null
   reason:
     | 'ACTIVE_STUDENT_MEMBERSHIP_REQUIRED'
+    | 'INSUFFICIENT_ROLE'
     | 'DELETED_OR_UNOWNED'
     | 'ASSISTANT_MESSAGE_NOT_FOUND'
     | 'ASSISTANT_MESSAGE_NOT_PENDING'
