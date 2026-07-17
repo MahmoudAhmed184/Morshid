@@ -20,8 +20,6 @@ import { AuthTestStore } from './support/auth-test-store'
 
 const auditUserAgent = 'Morshid e2e'
 
-// Admin-only (`@Roles(UserRole.ADMIN)`) endpoints that any non-admin role must
-// be denied with a 403 `INSUFFICIENT_ROLE`.
 const ADMIN_ONLY_ENDPOINTS = [
   '/api/v1/admin/users',
   '/api/v1/admin/courses',
