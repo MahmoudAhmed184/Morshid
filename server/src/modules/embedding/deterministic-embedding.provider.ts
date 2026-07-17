@@ -23,6 +23,9 @@ const MAX_UINT32 = 0xff_ff_ff_ff
 export class DeterministicEmbeddingProvider implements EmbeddingProvider {
   readonly model = 'deterministic-embedding-v1'
 
+  // Hashing runs synchronously on the event loop (~48 SHA-256 digests per
+  // text); at P0 ingestion batch sizes this is sub-millisecond per text. If
+  // batches grow to thousands of chunks, split them upstream.
   embedBatch(
     texts: readonly string[],
   ): Promise<readonly (readonly number[])[]> {
@@ -42,8 +45,8 @@ export class DeterministicEmbeddingProvider implements EmbeddingProvider {
       .digest()
 
     const components = new Array<number>(EMBEDDING_DIMENSIONS)
+    const counter = Buffer.alloc(4)
     for (let block = 0; block < BLOCK_COUNT; block += 1) {
-      const counter = Buffer.alloc(4)
       counter.writeUInt32BE(block)
       const bytes = createHash('sha256').update(seed).update(counter).digest()
 
