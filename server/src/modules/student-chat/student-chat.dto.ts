@@ -11,6 +11,11 @@ import {
 
 const titleSchema = z.string().trim().min(1).max(160)
 
+export const MAX_SESSION_PAGE_SIZE = 100
+export const DEFAULT_SESSION_PAGE_SIZE = 50
+export const MAX_MESSAGE_PAGE_SIZE = 200
+export const DEFAULT_MESSAGE_PAGE_SIZE = 50
+
 export const createChatSessionRequestSchema = z
   .object({
     title: titleSchema.optional(),
@@ -23,12 +28,28 @@ export const renameChatSessionRequestSchema = z
   })
   .strict()
 
+export const listChatSessionsQuerySchema = z
+  .object({
+    limit: z.coerce.number().int().min(1).max(MAX_SESSION_PAGE_SIZE).optional(),
+    cursor: z.uuid().optional(),
+  })
+  .strict()
+
+export const listChatMessagesQuerySchema = z
+  .object({
+    limit: z.coerce.number().int().min(1).max(MAX_MESSAGE_PAGE_SIZE).optional(),
+    after: z.coerce.number().int().min(0).optional(),
+  })
+  .strict()
+
 export type CreateChatSessionRequest = z.infer<
   typeof createChatSessionRequestSchema
 >
 export type RenameChatSessionRequest = z.infer<
   typeof renameChatSessionRequestSchema
 >
+export type ListChatSessionsQuery = z.infer<typeof listChatSessionsQuerySchema>
+export type ListChatMessagesQuery = z.infer<typeof listChatMessagesQuerySchema>
 
 export class CreateChatSessionRequestDto {
   @ApiProperty({ minLength: 1, maxLength: 160, required: false })
@@ -78,6 +99,15 @@ export class ChatSessionListResponseDto {
   @Type(() => ChatSessionDto)
   @ApiProperty({ type: [ChatSessionDto] })
   sessions!: ChatSessionDto[]
+
+  @Expose()
+  @ApiProperty({
+    format: 'uuid',
+    nullable: true,
+    description:
+      'Pass as `cursor` to fetch the next page; null when no more sessions.',
+  })
+  nextCursor!: string | null
 }
 
 export class ChatMessageDto {
@@ -135,4 +165,12 @@ export class ChatMessageHistoryResponseDto {
   @Type(() => ChatMessageDto)
   @ApiProperty({ type: [ChatMessageDto] })
   messages!: ChatMessageDto[]
+
+  @Expose()
+  @ApiProperty({
+    nullable: true,
+    description:
+      'Pass as `after` to fetch the next page; null when no more messages.',
+  })
+  nextCursor!: number | null
 }

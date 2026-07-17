@@ -1,8 +1,11 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 
 import type { AuthenticatedRequestUser } from '../auth/auth.dto'
 import type { AuditRequestContext } from '../audit/audit.service'
-import { StudentChatAuditService } from './student-chat.audit.service'
+import {
+  StudentChatAuditService,
+  type RecordAccessDeniedInput,
+} from './student-chat.audit.service'
 import type {
   ChatMessageDto,
   ChatMessageHistoryResponseDto,
@@ -10,17 +13,22 @@ import type {
   ChatSessionListResponseDto,
   ChatSessionResponseDto,
   CreateChatSessionRequest,
+  ListChatMessagesQuery,
+  ListChatSessionsQuery,
   RenameChatSessionRequest,
 } from './student-chat.dto'
 import {
+  DEFAULT_MESSAGE_PAGE_SIZE,
+  DEFAULT_SESSION_PAGE_SIZE,
+  MAX_MESSAGE_PAGE_SIZE,
+  MAX_SESSION_PAGE_SIZE,
+} from './student-chat.dto'
+import {
   activeStudentMembershipRequiredException,
+  assistantMessageNotFoundException,
+  assistantMessageNotPendingException,
   chatSessionNotFoundException,
 } from './student-chat.errors'
-import {
-  MessageStatus,
-  type MessageGuidanceLabel,
-  type MessageRequestKind,
-} from '../../generated/prisma/client'
 import {
   type ChatMessageRecord,
   type AppendPendingAssistantMessageInput,
@@ -37,6 +45,8 @@ const DEFAULT_CHAT_TITLE = 'New chat'
 
 @Injectable()
 export class StudentChatService {
+  private readonly logger = new Logger(StudentChatService.name)
+
   constructor(
     private readonly studentChatRepository: StudentChatRepository,
     private readonly studentChatAuditService: StudentChatAuditService,
@@ -56,22 +66,42 @@ export class StudentChatService {
       body.title ?? DEFAULT_CHAT_TITLE,
     )
 
+    // A null result means the membership was removed between the guard and the
+    // insert (composite FK violation) — treat it as a membership denial, not a
+    // 500.
+    if (session === null) {
+      await this.recordMembershipDenied(courseId, user.id, requestContext)
+      throw activeStudentMembershipRequiredException()
+    }
+
     return { session: mapSession(session) }
   }
 
   async listSessions(
     courseId: string,
     user: AuthenticatedRequestUser,
+    query: ListChatSessionsQuery,
     requestContext?: AuditRequestContext,
   ): Promise<ChatSessionListResponseDto> {
     await this.requireActiveStudentMembership(courseId, user.id, requestContext)
 
+    const limit = Math.min(
+      query.limit ?? DEFAULT_SESSION_PAGE_SIZE,
+      MAX_SESSION_PAGE_SIZE,
+    )
     const sessions = await this.studentChatRepository.listSessions(
       courseId,
       user.id,
+      { limit, cursor: query.cursor ?? null },
     )
 
-    return { sessions: sessions.map(mapSession) }
+    return {
+      sessions: sessions.map(mapSession),
+      nextCursor:
+        sessions.length === limit
+          ? (sessions[sessions.length - 1]?.id ?? null)
+          : null,
+    }
   }
 
   async getSession(
@@ -127,14 +157,16 @@ export class StudentChatService {
   ): Promise<void> {
     await this.requireActiveStudentMembership(courseId, user.id, requestContext)
 
-    const deleted = await this.studentChatRepository.softDeleteSession({
+    const outcome = await this.studentChatRepository.softDeleteSession({
       courseId,
       sessionId,
       studentId: user.id,
       requestContext,
     })
 
-    if (!deleted) {
+    // Deleting a session you own that is already deleted is idempotent success
+    // (204) — it must not emit a spurious access-denied audit row nor a 404.
+    if (outcome === 'not_found') {
       await this.recordSessionAccessDenied(
         courseId,
         user.id,
@@ -149,14 +181,20 @@ export class StudentChatService {
     courseId: string,
     sessionId: string,
     user: AuthenticatedRequestUser,
+    query: ListChatMessagesQuery,
     requestContext?: AuditRequestContext,
   ): Promise<ChatMessageHistoryResponseDto> {
     await this.requireActiveStudentMembership(courseId, user.id, requestContext)
 
+    const limit = Math.min(
+      query.limit ?? DEFAULT_MESSAGE_PAGE_SIZE,
+      MAX_MESSAGE_PAGE_SIZE,
+    )
     const messages = await this.studentChatRepository.listMessages(
       courseId,
       sessionId,
       user.id,
+      { limit, after: query.after ?? null },
     )
 
     if (messages === null) {
@@ -169,7 +207,13 @@ export class StudentChatService {
       throw chatSessionNotFoundException()
     }
 
-    return { messages: messages.map(mapMessage) }
+    return {
+      messages: messages.map(mapMessage),
+      nextCursor:
+        messages.length === limit
+          ? (messages[messages.length - 1]?.sequence ?? null)
+          : null,
+    }
   }
 
   appendStudentMessage(
@@ -249,13 +293,62 @@ export class StudentChatService {
       )
 
     if (!hasMembership) {
-      await this.studentChatAuditService.recordAccessDenied({
-        actorUserId: studentId,
-        courseId,
-        reason: 'ACTIVE_STUDENT_MEMBERSHIP_REQUIRED',
-        requestContext,
-      })
+      await this.recordMembershipDenied(courseId, studentId, requestContext)
       throw activeStudentMembershipRequiredException()
+    }
+  }
+
+  /**
+   * Records a membership access-denied audit event without ever converting the
+   * intended 403 into a 500:
+   *  - the raw `courseId` may reference a non-existent course, which would
+   *    violate the `audit_logs.course_id` FK, so it is only stored in the FK
+   *    column when the course is confirmed to exist (otherwise kept in
+   *    unconstrained JSONB metadata); this also removes a course-existence
+   *    oracle for students.
+   *  - the write itself is best-effort so a transient audit failure never
+   *    replaces the domain response.
+   */
+  private async recordMembershipDenied(
+    courseId: string,
+    studentId: string,
+    requestContext?: AuditRequestContext,
+  ): Promise<void> {
+    const courseExists = await this.courseExistsSafe(courseId)
+
+    await this.recordAccessDenied({
+      actorUserId: studentId,
+      courseId: courseExists ? courseId : null,
+      unverifiedCourseId: courseExists ? null : courseId,
+      reason: 'ACTIVE_STUDENT_MEMBERSHIP_REQUIRED',
+      requestContext,
+    })
+  }
+
+  private async courseExistsSafe(courseId: string): Promise<boolean> {
+    try {
+      return await this.studentChatRepository.courseExists(courseId)
+    } catch (error) {
+      this.logger.error(
+        'Failed to resolve course existence for student chat audit',
+        error instanceof Error ? error.stack : undefined,
+      )
+
+      return false
+    }
+  }
+
+  private async recordAccessDenied(
+    input: RecordAccessDeniedInput,
+  ): Promise<void> {
+    try {
+      await this.studentChatAuditService.recordAccessDenied(input)
+    } catch (error) {
+      // Deny-path audit writes must never turn a correct 403/404 into a 500.
+      this.logger.error(
+        'Failed to record student chat access-denied audit event',
+        error instanceof Error ? error.stack : undefined,
+      )
     }
   }
 
@@ -296,7 +389,9 @@ export class StudentChatService {
     sessionId: string,
     requestContext?: AuditRequestContext,
   ): Promise<void> {
-    return this.studentChatAuditService.recordAccessDenied({
+    // Reached only after an active membership was confirmed, so the course is
+    // known to exist and `courseId` is safe for the FK column.
+    return this.recordAccessDenied({
       actorUserId: studentId,
       courseId,
       sessionId,
@@ -319,17 +414,12 @@ export class StudentChatService {
     }
 
     if (result.kind === 'membership_missing') {
-      await this.studentChatAuditService.recordAccessDenied({
-        actorUserId: studentId,
-        courseId,
-        reason: 'ACTIVE_STUDENT_MEMBERSHIP_REQUIRED',
-        requestContext,
-      })
+      await this.recordMembershipDenied(courseId, studentId, requestContext)
       throw activeStudentMembershipRequiredException()
     }
 
     if (result.kind === 'message_not_found') {
-      await this.studentChatAuditService.recordAccessDenied({
+      await this.recordAccessDenied({
         actorUserId: studentId,
         courseId,
         sessionId,
@@ -337,7 +427,19 @@ export class StudentChatService {
         messageId: result.messageId,
         requestContext,
       })
-      throw chatSessionNotFoundException()
+      throw assistantMessageNotFoundException()
+    }
+
+    if (result.kind === 'message_not_pending') {
+      await this.recordAccessDenied({
+        actorUserId: studentId,
+        courseId,
+        sessionId,
+        reason: 'ASSISTANT_MESSAGE_NOT_PENDING',
+        messageId: result.messageId,
+        requestContext,
+      })
+      throw assistantMessageNotPendingException()
     }
 
     await this.recordSessionAccessDenied(
@@ -386,17 +488,6 @@ export interface BlockAssistantChatMessageInput extends BlockAssistantMessageInp
   provider?: never
   model?: never
   citations?: never
-}
-
-export type TrustedAssistantStatus =
-  | typeof MessageStatus.COMPLETED
-  | typeof MessageStatus.FAILED
-  | typeof MessageStatus.BLOCKED
-
-export interface TrustedMessageClassification {
-  requestKind?: MessageRequestKind | null
-  guidanceLabel?: MessageGuidanceLabel | null
-  hintLevel?: number | null
 }
 
 function mapSession(record: ChatSessionRecord): ChatSessionDto {

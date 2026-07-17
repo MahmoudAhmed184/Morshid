@@ -102,6 +102,20 @@ export type MessagePersistenceResult =
   | { kind: 'membership_missing' }
   | { kind: 'session_not_found' }
   | { kind: 'message_not_found'; messageId: string }
+  | { kind: 'message_not_pending'; messageId: string }
+
+export interface SessionListPagination {
+  limit: number
+  cursor?: string | null
+}
+
+export interface MessageListPagination {
+  limit: number
+  after?: number | null
+}
+
+export type SoftDeleteSessionOutcome =
+  'deleted' | 'already_deleted' | 'not_found'
 
 const chatSessionSelect = {
   id: true,
@@ -135,15 +149,18 @@ export abstract class StudentChatRepository {
     studentId: string,
   ): Promise<boolean>
 
+  abstract courseExists(courseId: string): Promise<boolean>
+
   abstract createSession(
     courseId: string,
     studentId: string,
     title: string,
-  ): Promise<ChatSessionRecord>
+  ): Promise<ChatSessionRecord | null>
 
   abstract listSessions(
     courseId: string,
     studentId: string,
+    pagination: SessionListPagination,
   ): Promise<ChatSessionRecord[]>
 
   abstract findOwnedActiveSession(
@@ -161,12 +178,13 @@ export abstract class StudentChatRepository {
 
   abstract softDeleteSession(
     input: SoftDeleteChatSessionInput,
-  ): Promise<boolean>
+  ): Promise<SoftDeleteSessionOutcome>
 
   abstract listMessages(
     courseId: string,
     sessionId: string,
     studentId: string,
+    pagination: MessageListPagination,
   ): Promise<ChatMessageRecord[] | null>
 
   abstract appendStudentMessage(
@@ -218,21 +236,49 @@ export class PrismaStudentChatRepository extends StudentChatRepository {
     return membership !== null
   }
 
-  createSession(courseId: string, studentId: string, title: string) {
-    return this.prismaService.chatSession.create({
-      data: {
-        courseId,
-        studentId,
-        title,
-        lastSequence: 0,
-        lastMessageAt: null,
-        deletedAt: null,
-      },
-      select: chatSessionSelect,
+  async courseExists(courseId: string): Promise<boolean> {
+    const course = await this.prismaService.course.findUnique({
+      where: { id: courseId },
+      select: { id: true },
     })
+
+    return course !== null
   }
 
-  listSessions(courseId: string, studentId: string) {
+  async createSession(
+    courseId: string,
+    studentId: string,
+    title: string,
+  ): Promise<ChatSessionRecord | null> {
+    try {
+      return await this.prismaService.chatSession.create({
+        data: {
+          courseId,
+          studentId,
+          title,
+        },
+        select: chatSessionSelect,
+      })
+    } catch (error) {
+      // The composite (course_id, student_id) foreign key onto an active
+      // membership can fail with P2003 if the membership was removed between
+      // the guard check and the insert. Surface it as "no active membership".
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2003'
+      ) {
+        return null
+      }
+
+      throw error
+    }
+  }
+
+  listSessions(
+    courseId: string,
+    studentId: string,
+    pagination: SessionListPagination,
+  ) {
     return this.prismaService.chatSession.findMany({
       where: {
         courseId,
@@ -250,7 +296,14 @@ export class PrismaStudentChatRepository extends StudentChatRepository {
         {
           createdAt: 'desc',
         },
+        {
+          id: 'desc',
+        },
       ],
+      take: pagination.limit,
+      ...(pagination.cursor != null
+        ? { cursor: { id: pagination.cursor }, skip: 1 }
+        : {}),
     })
   }
 
@@ -283,7 +336,9 @@ export class PrismaStudentChatRepository extends StudentChatRepository {
     return result[0] ?? null
   }
 
-  async softDeleteSession(input: SoftDeleteChatSessionInput): Promise<boolean> {
+  async softDeleteSession(
+    input: SoftDeleteChatSessionInput,
+  ): Promise<SoftDeleteSessionOutcome> {
     return this.prismaService.$transaction(async (tx) => {
       const result = await tx.chatSession.updateMany({
         where: ownedActiveSessionWhere(
@@ -297,7 +352,24 @@ export class PrismaStudentChatRepository extends StudentChatRepository {
       })
 
       if (result.count === 0) {
-        return false
+        // Distinguish "already deleted by the owner" (idempotent success) from
+        // "not owned / does not exist" (a genuine access denial).
+        const existing = await tx.chatSession.findFirst({
+          where: {
+            id: input.sessionId,
+            courseId: input.courseId,
+            studentId: input.studentId,
+          },
+          select: {
+            deletedAt: true,
+          },
+        })
+
+        if (existing !== null && existing.deletedAt !== null) {
+          return 'already_deleted'
+        }
+
+        return 'not_found'
       }
 
       await this.studentChatAuditService.recordSessionDeleted(
@@ -310,7 +382,7 @@ export class PrismaStudentChatRepository extends StudentChatRepository {
         tx,
       )
 
-      return true
+      return 'deleted'
     })
   }
 
@@ -318,27 +390,36 @@ export class PrismaStudentChatRepository extends StudentChatRepository {
     courseId: string,
     sessionId: string,
     studentId: string,
+    pagination: MessageListPagination,
   ): Promise<ChatMessageRecord[] | null> {
     const session = await this.prismaService.chatSession.findFirst({
       where: ownedActiveSessionWhere(courseId, sessionId, studentId),
       select: {
         id: true,
-        messages: {
-          select: chatMessageSelect,
-          orderBy: {
-            sequence: 'asc',
-          },
-        },
       },
     })
 
-    return session?.messages ?? null
+    if (session === null) {
+      return null
+    }
+
+    return this.prismaService.message.findMany({
+      where: {
+        sessionId: session.id,
+        ...(pagination.after !== undefined && pagination.after !== null
+          ? { sequence: { gt: pagination.after } }
+          : {}),
+      },
+      select: chatMessageSelect,
+      orderBy: {
+        sequence: 'asc',
+      },
+      take: pagination.limit,
+    })
   }
 
   appendStudentMessage(input: AppendStudentMessageInput) {
-    const now = new Date()
-
-    return this.appendMessage(input, now, {
+    return this.appendMessage(input, {
       role: MessageRole.STUDENT,
       authorUserId: input.studentId,
       content: input.content,
@@ -346,14 +427,11 @@ export class PrismaStudentChatRepository extends StudentChatRepository {
       requestKind: input.requestKind ?? null,
       guidanceLabel: input.guidanceLabel ?? null,
       hintLevel: input.hintLevel ?? null,
-      completedAt: now,
     })
   }
 
   appendPendingAssistantMessage(input: AppendPendingAssistantMessageInput) {
-    const now = new Date()
-
-    return this.appendMessage(input, now, {
+    return this.appendMessage(input, {
       role: MessageRole.ASSISTANT,
       authorUserId: null,
       responseToMessageId: input.responseToMessageId ?? null,
@@ -375,7 +453,10 @@ export class PrismaStudentChatRepository extends StudentChatRepository {
       promptVersion: input.promptVersion ?? null,
       inputTokens: input.inputTokens ?? null,
       outputTokens: input.outputTokens ?? null,
-      guidanceLabel: input.guidanceLabel ?? undefined,
+      // Preserve an explicit `null` (re-classify as unlabeled); only `undefined`
+      // means "leave the pending label unchanged".
+      guidanceLabel:
+        input.guidanceLabel === undefined ? undefined : input.guidanceLabel,
       errorCode: null,
       errorMessage: null,
     })
@@ -401,7 +482,6 @@ export class PrismaStudentChatRepository extends StudentChatRepository {
 
   private appendMessage(
     input: AppendStudentMessageInput | AppendPendingAssistantMessageInput,
-    now: Date,
     data: Omit<
       Prisma.MessageUncheckedCreateInput,
       'id' | 'sessionId' | 'sequence' | 'createdAt'
@@ -418,25 +498,13 @@ export class PrismaStudentChatRepository extends StudentChatRepository {
         return { kind: 'membership_missing' }
       }
 
-      const ownedSession = await tx.chatSession.findFirst({
-        where: ownedActiveSessionWhere(
-          input.courseId,
-          input.sessionId,
-          input.studentId,
-        ),
-        select: {
-          id: true,
-        },
-      })
-
-      if (ownedSession === null) {
-        return { kind: 'session_not_found' }
-      }
-
+      // The row-locking increment doubles as the ownership check: the identical
+      // predicate is enforced here, and a missing/soft-deleted session surfaces
+      // as P2025. A separate pre-read would only widen the TOCTOU window.
       const session = await tx.chatSession
         .update({
           where: {
-            id: ownedSession.id,
+            id: input.sessionId,
             courseId: input.courseId,
             studentId: input.studentId,
             deletedAt: null,
@@ -445,7 +513,6 @@ export class PrismaStudentChatRepository extends StudentChatRepository {
             lastSequence: {
               increment: 1,
             },
-            lastMessageAt: now,
           },
           select: {
             id: true,
@@ -467,13 +534,54 @@ export class PrismaStudentChatRepository extends StudentChatRepository {
         return { kind: 'session_not_found' }
       }
 
+      // A reply must target a message that belongs to the same session; the FK
+      // alone only requires the referenced message to exist somewhere.
+      const responseToMessageId =
+        typeof data.responseToMessageId === 'string'
+          ? data.responseToMessageId
+          : null
+
+      if (responseToMessageId !== null) {
+        const target = await tx.message.findFirst({
+          where: {
+            id: responseToMessageId,
+            sessionId: session.id,
+          },
+          select: {
+            id: true,
+          },
+        })
+
+        if (target === null) {
+          return { kind: 'message_not_found', messageId: responseToMessageId }
+        }
+      }
+
+      // Use a single database clock source so `lastMessageAt`, `completedAt`,
+      // and `createdAt` stay mutually consistent and monotonic with sequence.
+      const now = await currentDatabaseTime(tx)
+
       const message = await tx.message.create({
         data: {
           ...data,
           sessionId: session.id,
           sequence: session.lastSequence,
+          createdAt: now,
+          completedAt:
+            data.status === MessageStatus.COMPLETED
+              ? now
+              : (data.completedAt ?? null),
         },
         select: chatMessageSelect,
+      })
+
+      await tx.chatSession.update({
+        where: {
+          id: session.id,
+        },
+        data: {
+          lastMessageAt: now,
+        },
       })
 
       return { kind: 'ok', message }
@@ -513,11 +621,15 @@ export class PrismaStudentChatRepository extends StudentChatRepository {
         return { kind: 'session_not_found' }
       }
 
+      // Only PENDING assistant messages may transition to a terminal state.
+      // Persisted chat history is an immutable record: a late/duplicate callback
+      // must not overwrite a COMPLETED answer or flip it to FAILED/BLOCKED.
       const messages = await tx.message.updateManyAndReturn({
         where: {
           id: input.messageId,
           sessionId: session.id,
           role: MessageRole.ASSISTANT,
+          status: MessageStatus.PENDING,
         },
         data,
         select: chatMessageSelect,
@@ -526,12 +638,37 @@ export class PrismaStudentChatRepository extends StudentChatRepository {
       const message = messages.at(0)
 
       if (message === undefined) {
+        // Distinguish "already finalized" from "never existed" so callers can
+        // treat a duplicate finalization differently from a genuine miss.
+        const existing = await tx.message.findFirst({
+          where: {
+            id: input.messageId,
+            sessionId: session.id,
+            role: MessageRole.ASSISTANT,
+          },
+          select: {
+            id: true,
+          },
+        })
+
+        if (existing !== null) {
+          return { kind: 'message_not_pending', messageId: input.messageId }
+        }
+
         return { kind: 'message_not_found', messageId: input.messageId }
       }
 
       return { kind: 'ok', message }
     })
   }
+}
+
+async function currentDatabaseTime(
+  database: Pick<Prisma.TransactionClient, '$queryRaw'>,
+): Promise<Date> {
+  const rows = await database.$queryRaw<{ now: Date }[]>`SELECT now() AS now`
+
+  return rows[0].now
 }
 
 function ownedActiveSessionWhere(

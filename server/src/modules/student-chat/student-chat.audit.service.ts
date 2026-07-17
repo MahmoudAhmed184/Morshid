@@ -17,14 +17,26 @@ interface RecordSessionDeletedInput {
   requestContext?: AuditRequestContext
 }
 
-interface RecordAccessDeniedInput {
+export interface RecordAccessDeniedInput {
   actorUserId: string
-  courseId: string
+  /**
+   * Verified course id. Pass `null` when the course could not be confirmed to
+   * exist so the audit row does not violate the `audit_logs.course_id` foreign
+   * key; the raw value is preserved in `unverifiedCourseId`.
+   */
+  courseId: string | null
+  /**
+   * Raw, unverified course id from the request. Stored in JSONB metadata (which
+   * carries no foreign key) so the audit trail is never lost for a denial that
+   * references a non-existent course.
+   */
+  unverifiedCourseId?: string | null
   sessionId?: string | null
   reason:
     | 'ACTIVE_STUDENT_MEMBERSHIP_REQUIRED'
     | 'DELETED_OR_UNOWNED'
     | 'ASSISTANT_MESSAGE_NOT_FOUND'
+    | 'ASSISTANT_MESSAGE_NOT_PENDING'
   messageId?: string | null
   requestContext?: AuditRequestContext
 }
@@ -71,6 +83,10 @@ export class StudentChatAuditService {
           ...(input.messageId === undefined
             ? {}
             : { messageId: input.messageId }),
+          ...(input.unverifiedCourseId === undefined ||
+          input.unverifiedCourseId === null
+            ? {}
+            : { unverifiedCourseId: input.unverifiedCourseId }),
         },
         requestContext: input.requestContext,
       },

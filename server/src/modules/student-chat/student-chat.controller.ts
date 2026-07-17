@@ -6,8 +6,10 @@ import {
   Get,
   HttpCode,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Req,
   SerializeOptions,
   UseInterceptors,
@@ -21,6 +23,7 @@ import {
   ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
+  ApiQuery,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger'
@@ -37,8 +40,12 @@ import {
   CreateChatSessionRequestDto,
   RenameChatSessionRequestDto,
   createChatSessionRequestSchema,
+  listChatMessagesQuerySchema,
+  listChatSessionsQuerySchema,
   renameChatSessionRequestSchema,
   type CreateChatSessionRequest,
+  type ListChatMessagesQuery,
+  type ListChatSessionsQuery,
   type RenameChatSessionRequest,
 } from './student-chat.dto'
 import {
@@ -46,6 +53,8 @@ import {
   type StudentChatValidationIssue,
 } from './student-chat.errors'
 import { StudentChatService } from './student-chat.service'
+
+const uuidParam = () => new ParseUUIDPipe({ version: '4' })
 
 @Controller('courses/:courseId/chat-sessions')
 @ApiTags('student-chat-sessions')
@@ -69,7 +78,7 @@ export class StudentChatController {
   @ApiBody({ type: CreateChatSessionRequestDto })
   @ApiCreatedResponse({ type: ChatSessionResponseDto })
   createSession(
-    @Param('courseId') courseId: string,
+    @Param('courseId', uuidParam()) courseId: string,
     @Body(
       new ZodValidationPipe(createChatSessionRequestSchema, (issues) =>
         invalidStudentChatRequestException(issues.map(mapZodIssue)),
@@ -91,14 +100,23 @@ export class StudentChatController {
     type: ChatSessionListResponseDto,
     strategy: 'excludeAll',
   })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'cursor', required: false, type: String, format: 'uuid' })
   @ApiOkResponse({ type: ChatSessionListResponseDto })
   listSessions(
-    @Param('courseId') courseId: string,
+    @Param('courseId', uuidParam()) courseId: string,
+    @Query(
+      new ZodValidationPipe(listChatSessionsQuerySchema, (issues) =>
+        invalidStudentChatRequestException(issues.map(mapZodIssue)),
+      ),
+    )
+    query: ListChatSessionsQuery,
     @Req() request: AuthenticatedHttpRequest,
   ): Promise<ChatSessionListResponseDto> {
     return this.studentChatService.listSessions(
       courseId,
       request.user,
+      query,
       getRequestContext(request),
     )
   }
@@ -110,8 +128,8 @@ export class StudentChatController {
   })
   @ApiOkResponse({ type: ChatSessionResponseDto })
   getSession(
-    @Param('courseId') courseId: string,
-    @Param('sessionId') sessionId: string,
+    @Param('courseId', uuidParam()) courseId: string,
+    @Param('sessionId', uuidParam()) sessionId: string,
     @Req() request: AuthenticatedHttpRequest,
   ): Promise<ChatSessionResponseDto> {
     return this.studentChatService.getSession(
@@ -130,8 +148,8 @@ export class StudentChatController {
   @ApiBody({ type: RenameChatSessionRequestDto })
   @ApiOkResponse({ type: ChatSessionResponseDto })
   renameSession(
-    @Param('courseId') courseId: string,
-    @Param('sessionId') sessionId: string,
+    @Param('courseId', uuidParam()) courseId: string,
+    @Param('sessionId', uuidParam()) sessionId: string,
     @Body(
       new ZodValidationPipe(renameChatSessionRequestSchema, (issues) =>
         invalidStudentChatRequestException(issues.map(mapZodIssue)),
@@ -153,8 +171,8 @@ export class StudentChatController {
   @HttpCode(204)
   @ApiNoContentResponse()
   async softDeleteSession(
-    @Param('courseId') courseId: string,
-    @Param('sessionId') sessionId: string,
+    @Param('courseId', uuidParam()) courseId: string,
+    @Param('sessionId', uuidParam()) sessionId: string,
     @Req() request: AuthenticatedHttpRequest,
   ): Promise<void> {
     await this.studentChatService.softDeleteSession(
@@ -170,16 +188,25 @@ export class StudentChatController {
     type: ChatMessageHistoryResponseDto,
     strategy: 'excludeAll',
   })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'after', required: false, type: Number })
   @ApiOkResponse({ type: ChatMessageHistoryResponseDto })
   listMessages(
-    @Param('courseId') courseId: string,
-    @Param('sessionId') sessionId: string,
+    @Param('courseId', uuidParam()) courseId: string,
+    @Param('sessionId', uuidParam()) sessionId: string,
+    @Query(
+      new ZodValidationPipe(listChatMessagesQuerySchema, (issues) =>
+        invalidStudentChatRequestException(issues.map(mapZodIssue)),
+      ),
+    )
+    query: ListChatMessagesQuery,
     @Req() request: AuthenticatedHttpRequest,
   ): Promise<ChatMessageHistoryResponseDto> {
     return this.studentChatService.listMessages(
       courseId,
       sessionId,
       request.user,
+      query,
       getRequestContext(request),
     )
   }
