@@ -6,7 +6,7 @@
   "private": true,
   "license": "UNLICENSED",
   "engines": {
-    "node": ">=24.3 <25",
+    "node": ">=24.7 <25",
     "npm": ">=11"
   },
   "scripts": {
@@ -14,7 +14,7 @@
     "prebuild": "node scripts/clean-build-cache.mts && npm run db:generate",
     "db:generate": "prisma generate --config prisma.config.ts",
     "db:migrate": "prisma migrate dev --config prisma.config.ts",
-    "db:reset": "prisma migrate reset --config prisma.config.ts --force --skip-seed",
+    "db:reset": "prisma migrate reset --config prisma.config.ts --force",
     "db:seed": "prisma db seed --config prisma.config.ts",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
@@ -37,17 +37,21 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "pretest:e2e": "npm run db:generate",
+    "test:e2e": "node --experimental-vm-modules ../node_modules/jest/bin/jest.js --config ./test/jest-e2e.json",
+    "db:migrate:deploy": "prisma migrate deploy --config prisma.config.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.27",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.1.27",
+    "@nestjs/jwt": "^11.0.2",
     "@nestjs/platform-express": "^11.1.27",
     "@nestjs/swagger": "^11.4.5",
     "@nestjs/terminus": "^11.1.1",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
+    "class-transformer": "^0.5.1",
     "pg": "^8.22.0",
     "redis": "^6.1.0",
     "reflect-metadata": "^0.2.2",
@@ -93,6 +97,9 @@
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "moduleNameMapper": {
+      "^(\\.{1,2}/.*)\\.js$": "$1"
     },
     "collectCoverageFrom": [
       "**/*.(t|j)s"

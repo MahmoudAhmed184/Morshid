@@ -29,6 +29,66 @@ services:
       timeout: 5s
       retries: 5
 
+  migrate:
+    profiles: ['app']
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+      target: migration
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-morshid}:${POSTGRES_PASSWORD:-morshid_local_password}@postgres:5432/${POSTGRES_DB:-morshid}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+
+  server:
+    profiles: ['app']
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+      target: server
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      CLIENT_ORIGIN: ${CLIENT_ORIGIN:-http://localhost:3000}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-morshid}:${POSTGRES_PASSWORD:-morshid_local_password}@postgres:5432/${POSTGRES_DB:-morshid}
+      REDIS_URL: redis://redis:6379
+      PDF_STORAGE_PATH: /workspace/storage/pdfs
+      # No insecure fallback: an unset variable is passed through empty (not a
+      # committed placeholder), and the server's env schema rejects empty,
+      # placeholder, or identical secrets at boot. A `:?` guard is intentionally
+      # avoided here because Compose interpolates the whole file even for the
+      # infrastructure-only `infra:up` command, which must not require app secrets.
+      AUTH_ACCESS_TOKEN_SECRET: ${AUTH_ACCESS_TOKEN_SECRET}
+      AUTH_REFRESH_TOKEN_HASH_SECRET: ${AUTH_REFRESH_TOKEN_HASH_SECRET}
+      AUTH_ACCESS_TOKEN_TTL_SECONDS: ${AUTH_ACCESS_TOKEN_TTL_SECONDS:-900}
+      AUTH_REFRESH_TOKEN_TTL_DAYS: ${AUTH_REFRESH_TOKEN_TTL_DAYS:-7}
+    ports:
+      - '${PORT:-4000}:4000'
+    volumes:
+      - morshid-pdf-storage:/workspace/storage/pdfs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:4000/health/ready').then((response) => process.exit(response.ok ? 0 : 1), () => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
 volumes:
   morshid-postgres-data:
   morshid-pdf-storage:

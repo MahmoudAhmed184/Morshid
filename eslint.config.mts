@@ -20,7 +20,7 @@ export default defineConfig([
   ...tseslint.configs.stylisticTypeChecked,
   {
     name: 'root/typescript',
-    files: ['*.ts', '*.mts', 'scripts/**/*.mts'],
+    files: ['*.ts', '*.mts', 'scripts/**/*.mts', 'tests/**/*.ts'],
     languageOptions: {
       globals: globals.node,
       sourceType: 'module',
