@@ -28,7 +28,7 @@ server/dist/
 server/coverage/
 server/src/generated/prisma/
 
-# Local storage
+# Local storage (runtime uploads only; committed source fixtures live in fixtures/sources/)
 storage/pdfs/*
 !storage/pdfs/.gitkeep
 
