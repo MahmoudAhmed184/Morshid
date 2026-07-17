@@ -234,10 +234,17 @@ describe('StudentAiTutorPage workspace', () => {
     renderWorkspace({ sessions: { sessions: [], nextCursor: null } })
 
     expect(
-      screen.getByRole('heading', { name: primaryCourse.title }),
+      screen.getByRole('button', {
+        name: `Current course: ${primaryCourse.code} ${primaryCourse.title}. Choose course`,
+      }),
     ).toBeInTheDocument()
-    expect(screen.getByText(primaryCourse.code)).toBeInTheDocument()
-    expect(screen.getByText('Private workspace')).toBeInTheDocument()
+    expect(
+      screen.getByText(`${primaryCourse.code} · ${primaryCourse.title}`),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Student course')).toBeInTheDocument()
+    expect(
+      screen.getByRole('searchbox', { name: 'Search sessions' }),
+    ).toHaveAttribute('placeholder', 'Search sessions...')
     expect(
       screen.getByRole('heading', { name: 'No conversations yet' }),
     ).toBeInTheDocument()
@@ -245,20 +252,51 @@ describe('StudentAiTutorPage workspace', () => {
     expect(screen.getByRole('button', { name: /send message/i })).toBeDisabled()
   })
 
-  it('uses explicit course routing when multiple courses are assigned', () => {
+  it('uses explicit course routing when multiple courses are assigned', async () => {
     renderWorkspace({
       courses: [primaryCourse, otherCourse],
       courseId: otherCourse.id,
       sessions: { sessions: [], nextCursor: null },
     })
 
+    const courseSwitcher = screen.getByRole('button', {
+      name: `Current course: ${otherCourse.code} ${otherCourse.title}. Choose course`,
+    })
+
+    expect(courseSwitcher).toBeInTheDocument()
     expect(
-      screen.getByRole('heading', { name: otherCourse.title }),
+      screen.getByText(`${otherCourse.code} · ${otherCourse.title}`),
     ).toBeInTheDocument()
-    expect(screen.getByText(otherCourse.code)).toBeInTheDocument()
+
+    fireEvent.click(courseSwitcher)
+
     expect(
-      screen.getByRole('link', { name: primaryCourse.title }),
+      await screen.findByRole('menuitem', {
+        name: new RegExp(`${primaryCourse.code}.*${primaryCourse.title}`),
+      }),
     ).toHaveAttribute('href', `/student/ai-tutor?courseId=${primaryCourse.id}`)
+  })
+
+  it('filters the visible sessions by title', () => {
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture, secondSession],
+        nextCursor: null,
+      },
+    })
+
+    fireEvent.change(
+      screen.getByRole('searchbox', { name: 'Search sessions' }),
+      {
+        target: { value: 'functions' },
+      },
+    )
+
+    expect(
+      screen.getByRole('link', { name: /functions practice/i }),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /python lists/i })).toBeNull()
   })
 
   it('routes session selection and marks the selected conversation', () => {

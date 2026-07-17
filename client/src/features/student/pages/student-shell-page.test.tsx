@@ -12,6 +12,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 import type { AuthSession } from '@/features/auth/types/auth.types'
 import { studentCoursesQueryOptions } from '@/features/student/data/student-courses.queries'
+import { studentSessionKeys } from '@/features/student/data/student-sessions.queries'
+import type { ChatSessionListResponse } from '@/features/student/schemas/student-chat.schema'
 import type { StudentCourse } from '@/features/student/schemas/student-course.schema'
 
 import { StudentCoursesPage } from './student-courses-page'
@@ -21,6 +23,7 @@ import { StudentShellPage } from './student-shell-page'
 const routerMockState = vi.hoisted(() => ({
   hydrated: true,
   pathname: '/student/dashboard',
+  search: {},
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -46,11 +49,14 @@ vi.mock('@tanstack/react-router', () => ({
   useRouterState: <T,>({
     select,
   }: {
-    select: (state: { location: { pathname: string } }) => T
+    select: (state: {
+      location: { pathname: string; search: Record<string, string> }
+    }) => T
   }) =>
     select({
       location: {
         pathname: routerMockState.pathname,
+        search: routerMockState.search,
       },
     }),
 }))
@@ -78,6 +84,10 @@ function createStudentSession(
 function renderWithStudentCourses(
   ui: React.ReactNode,
   courses: StudentCourse[] = [],
+  sessionList?: {
+    courseId: string
+    response: ChatSessionListResponse
+  },
 ) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -87,6 +97,15 @@ function renderWithStudentCourses(
     studentCoursesQueryOptions('student-user').queryKey,
     courses,
   )
+  if (sessionList) {
+    queryClient.setQueryData(
+      studentSessionKeys.sessionList({
+        studentId: 'student-user',
+        courseId: sessionList.courseId,
+      }),
+      { pages: [sessionList.response], pageParams: [undefined] },
+    )
+  }
 
   return render(
     <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
@@ -99,6 +118,7 @@ describe('StudentShellPage', () => {
     useAuthStore.getState().clearSession()
     routerMockState.hydrated = true
     routerMockState.pathname = '/student/dashboard'
+    routerMockState.search = {}
   })
 
   afterEach(() => {
@@ -120,40 +140,15 @@ describe('StudentShellPage', () => {
     expect(screen.queryByTestId('student-route-outlet')).toBeNull()
   })
 
-  it('renders assigned courses from the scoped course query', () => {
-    const fetchMock = vi.fn()
-
-    vi.stubGlobal('fetch', fetchMock)
-    useAuthStore.getState().setSession(createStudentSession([]))
-
-    renderWithStudentCourses(<StudentShellPage />, [
-      {
-        id: 'python-course',
-        code: 'PYTHON-PROG-P0',
-        title: 'Python Programming',
-        membershipRole: 'STUDENT',
-      },
-    ])
-
-    const coursesList = screen.getByRole('list', {
-      name: /assigned courses/i,
-    })
-
-    expect(coursesList).toBeInTheDocument()
-    expect(
-      within(coursesList).getByText('Python Programming'),
-    ).toBeInTheDocument()
-    expect(within(coursesList).getByText('PYTHON-PROG-P0')).toBeInTheDocument()
-    expect(screen.queryByText('Instructor Only')).toBeNull()
-    expect(fetchMock).not.toHaveBeenCalled()
-  })
-
-  it('shows an empty state when no courses are assigned', () => {
+  it('does not show assigned courses in the sidebar', () => {
     useAuthStore.getState().setSession(createStudentSession([]))
 
     renderWithStudentCourses(<StudentShellPage />)
 
-    expect(screen.getByText('No courses assigned yet.')).toBeInTheDocument()
+    const sidebar = screen.getByLabelText('Student navigation')
+
+    expect(within(sidebar).queryByText('Assigned Courses')).toBeNull()
+    expect(within(sidebar).queryByText('No courses assigned yet.')).toBeNull()
   })
 
   it('links sidebar navigation to the nested student routes', () => {
@@ -192,6 +187,57 @@ describe('StudentShellPage', () => {
     expect(
       screen.getByRole('link', { name: /dashboard/i }),
     ).not.toHaveAttribute('aria-current')
+  })
+
+  it('gives the AI Tutor its full-width session workspace', () => {
+    const courseId = 'course-id'
+    const sessionId = 'session-id'
+    routerMockState.pathname = '/student/ai-tutor'
+    routerMockState.search = { courseId, sessionId }
+    useAuthStore.getState().setSession(createStudentSession([]))
+
+    renderWithStudentCourses(
+      <StudentShellPage />,
+      [
+        {
+          id: courseId,
+          code: 'CS 214',
+          title: 'Data Structures & Algorithms',
+          membershipRole: 'STUDENT',
+        },
+      ],
+      {
+        courseId,
+        response: {
+          sessions: [
+            {
+              id: sessionId,
+              courseId,
+              title: 'Big-O of merge sort, step by step',
+              lastMessageAt: null,
+              createdAt: '2026-07-17T12:00:00.000Z',
+              updatedAt: '2026-07-17T12:00:00.000Z',
+            },
+          ],
+          nextCursor: null,
+        },
+      },
+    )
+
+    expect(screen.queryByLabelText('Student navigation')).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: /open student navigation/i }),
+    ).toBeNull()
+    expect(screen.getByRole('link', { name: 'Courses' })).toHaveAttribute(
+      'href',
+      '/student/courses',
+    )
+    expect(
+      within(screen.getByLabelText('Tutor breadcrumb')).getByText(
+        'CS 214 · Big-O of merge sort, step by step',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByTestId('student-route-outlet')).toBeInTheDocument()
   })
 
   it('opens student navigation in the mobile drawer', () => {

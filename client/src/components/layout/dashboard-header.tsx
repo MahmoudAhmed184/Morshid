@@ -25,6 +25,7 @@ type DashboardHeaderProps = {
   searchLabel: string
   searchPlaceholder: string
   leading?: React.ReactNode
+  content?: React.ReactNode
 }
 
 export function DashboardHeader({
@@ -33,6 +34,7 @@ export function DashboardHeader({
   searchLabel,
   searchPlaceholder,
   leading,
+  content,
 }: DashboardHeaderProps) {
   const initials = getUserInitials(displayName)
 
@@ -40,18 +42,22 @@ export function DashboardHeader({
     <header className="flex min-h-16 items-center gap-3 border-b border-border bg-card px-4 md:px-6">
       {leading}
 
-      <div className="relative hidden min-w-0 flex-1 sm:block">
-        <Search
-          className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-          aria-hidden
-        />
-        <Input
-          type="search"
-          aria-label={searchLabel}
-          placeholder={searchPlaceholder}
-          className="h-9 bg-background pl-9"
-        />
-      </div>
+      {content ? (
+        <div className="min-w-0 flex-1">{content}</div>
+      ) : (
+        <div className="relative hidden min-w-0 flex-1 sm:block">
+          <Search
+            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden
+          />
+          <Input
+            type="search"
+            aria-label={searchLabel}
+            placeholder={searchPlaceholder}
+            className="h-9 bg-background pl-9"
+          />
+        </div>
+      )}
 
       <div className="ml-auto flex items-center gap-2">
         <Button
