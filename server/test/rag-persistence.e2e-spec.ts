@@ -1,44 +1,26 @@
 import { randomUUID } from 'node:crypto'
-import { readFile, readdir } from 'node:fs/promises'
-import { join } from 'node:path'
 
-import type { ConfigService } from '@nestjs/config'
-import { Client } from 'pg'
-
-import type { AppEnvironment } from '../src/modules/config/env.schema'
-import { PrismaService } from '../src/modules/prisma/prisma.service'
+import type { PrismaService } from '../src/modules/prisma/prisma.service'
 import {
   InvalidMaterialChunkEmbeddingError,
   MAX_INSERT_BATCH_ROWS,
   PrismaRagPersistenceRepository,
   type RagPersistenceRepository,
 } from '../src/modules/rag-persistence/rag-persistence.repository'
+import {
+  setUpDisposableDatabase,
+  type DisposableDatabase,
+} from './support/disposable-database'
 
 describe('RAG persistence (e2e)', () => {
-  let originalDatabaseUrl: string
-  let disposableDatabaseName: string
+  let database: DisposableDatabase | undefined
   let prisma: PrismaService
   let repository: RagPersistenceRepository
   let materialId: string
 
   beforeAll(async () => {
-    originalDatabaseUrl = requireDatabaseUrl()
-    disposableDatabaseName = `morshid_issue76_${randomUUID().replaceAll('-', '')}`
-    await runDatabaseAdminStatement(
-      originalDatabaseUrl,
-      `CREATE DATABASE "${disposableDatabaseName}"`,
-    )
-    const disposableDatabaseUrl = databaseUrlFor(
-      originalDatabaseUrl,
-      disposableDatabaseName,
-    )
-    await applyMigrations(disposableDatabaseUrl)
-
-    const configService = {
-      get: () => disposableDatabaseUrl,
-    } as unknown as ConfigService<AppEnvironment, true>
-    prisma = new PrismaService(configService)
-    await prisma.$connect()
+    database = await setUpDisposableDatabase('morshid_issue76')
+    prisma = database.prisma
     repository = new PrismaRagPersistenceRepository(prisma)
   })
 
@@ -47,17 +29,7 @@ describe('RAG persistence (e2e)', () => {
   })
 
   afterAll(async () => {
-    try {
-      // `prisma` is undefined when beforeAll throws after CREATE DATABASE; the
-      // guard keeps teardown from masking the real setup failure and orphaning
-      // the disposable database.
-      await disconnectQuietly(prisma)
-    } finally {
-      await runDatabaseAdminStatement(
-        originalDatabaseUrl,
-        `DROP DATABASE IF EXISTS "${disposableDatabaseName}" WITH (FORCE)`,
-      )
-    }
+    await database?.dispose()
   })
 
   it('migrates an empty database and round-trips 1,536-value vectors', async () => {
@@ -594,71 +566,4 @@ function makeBasisEmbedding(dimension: number): number[] {
 
 function serializeVector(embedding: readonly number[]): string {
   return `[${embedding.join(',')}]`
-}
-
-async function disconnectQuietly(
-  client: PrismaService | undefined,
-): Promise<void> {
-  if (client === undefined) {
-    return
-  }
-
-  await client.$disconnect()
-}
-
-function requireDatabaseUrl(): string {
-  const databaseUrl = process.env.DATABASE_URL
-
-  if (databaseUrl === undefined) {
-    throw new Error('DATABASE_URL is required for persistence e2e tests')
-  }
-
-  return databaseUrl
-}
-
-function databaseUrlFor(databaseUrl: string, databaseName: string): string {
-  const url = new URL(databaseUrl)
-  url.pathname = `/${databaseName}`
-  url.searchParams.delete('schema')
-  return url.toString()
-}
-
-async function runDatabaseAdminStatement(
-  databaseUrl: string,
-  statement: string,
-): Promise<void> {
-  const client = new Client({
-    connectionString: databaseUrlFor(databaseUrl, 'postgres'),
-  })
-  await client.connect()
-
-  try {
-    await client.query(statement)
-  } finally {
-    await client.end()
-  }
-}
-
-async function applyMigrations(databaseUrl: string): Promise<void> {
-  const migrationsDirectory = join(process.cwd(), 'prisma', 'migrations')
-  const migrationDirectories = (
-    await readdir(migrationsDirectory, { withFileTypes: true })
-  )
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .sort()
-  const client = new Client({ connectionString: databaseUrl })
-  await client.connect()
-
-  try {
-    for (const migrationDirectory of migrationDirectories) {
-      const sql = await readFile(
-        join(migrationsDirectory, migrationDirectory, 'migration.sql'),
-        'utf8',
-      )
-      await client.query(sql)
-    }
-  } finally {
-    await client.end()
-  }
 }

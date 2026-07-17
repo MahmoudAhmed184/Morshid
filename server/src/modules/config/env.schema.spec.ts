@@ -27,7 +27,39 @@ describe('validateEnv', () => {
       AUTH_ACCESS_TOKEN_TTL_SECONDS: 900,
       AUTH_REFRESH_TOKEN_TTL_DAYS: 7,
       EMBEDDING_PROVIDER: 'deterministic',
+      RETRIEVAL_TOP_K: 5,
+      RETRIEVAL_MIN_SIMILARITY: 0.7,
     })
+  })
+
+  it('coerces and bounds the retrieval top-k value', () => {
+    expect(validateEnv({ ...validEnv, RETRIEVAL_TOP_K: '10' })).toMatchObject({
+      RETRIEVAL_TOP_K: 10,
+    })
+    expect(() => validateEnv({ ...validEnv, RETRIEVAL_TOP_K: '0' })).toThrow(
+      /RETRIEVAL_TOP_K: Too small/,
+    )
+    expect(() => validateEnv({ ...validEnv, RETRIEVAL_TOP_K: '51' })).toThrow(
+      /RETRIEVAL_TOP_K: Too big/,
+    )
+    expect(() => validateEnv({ ...validEnv, RETRIEVAL_TOP_K: '2.5' })).toThrow(
+      /RETRIEVAL_TOP_K: Invalid input/,
+    )
+  })
+
+  it('coerces and bounds the retrieval similarity threshold', () => {
+    expect(
+      validateEnv({ ...validEnv, RETRIEVAL_MIN_SIMILARITY: '0.85' }),
+    ).toMatchObject({ RETRIEVAL_MIN_SIMILARITY: 0.85 })
+    expect(() =>
+      validateEnv({ ...validEnv, RETRIEVAL_MIN_SIMILARITY: '-0.1' }),
+    ).toThrow(/RETRIEVAL_MIN_SIMILARITY: Too small/)
+    expect(() =>
+      validateEnv({ ...validEnv, RETRIEVAL_MIN_SIMILARITY: '1.1' }),
+    ).toThrow(/RETRIEVAL_MIN_SIMILARITY: Too big/)
+    expect(() =>
+      validateEnv({ ...validEnv, RETRIEVAL_MIN_SIMILARITY: 'high' }),
+    ).toThrow(/RETRIEVAL_MIN_SIMILARITY: Invalid input/)
   })
 
   it('accepts only implemented embedding providers', () => {

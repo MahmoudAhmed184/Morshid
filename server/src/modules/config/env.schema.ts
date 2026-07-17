@@ -20,6 +20,12 @@ export const envSchema = z
     // never has to reject a configured-but-unimplemented provider at runtime.
     // The deterministic default keeps CI and local work keyless and offline.
     EMBEDDING_PROVIDER: z.enum(['deterministic']).default('deterministic'),
+    // Retrieval knobs are validated configuration, never caller input: the
+    // repository/service signatures expose no limit or threshold parameters.
+    // The 0.70 floor may change only after the sprint 4.1 midpoint check
+    // records results against locked fixtures.
+    RETRIEVAL_TOP_K: z.coerce.number().int().min(1).max(50).default(5),
+    RETRIEVAL_MIN_SIMILARITY: z.coerce.number().min(0).max(1).default(0.7),
     AUTH_ACCESS_TOKEN_SECRET: z.string().min(32),
     AUTH_REFRESH_TOKEN_HASH_SECRET: z.string().min(32),
     AUTH_ACCESS_TOKEN_TTL_SECONDS: z.coerce
