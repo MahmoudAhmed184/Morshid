@@ -10,14 +10,14 @@ export function StudentConversationHeader({
   courseTitle,
 }: StudentConversationHeaderProps) {
   return (
-    <header className="border-b border-border px-4 py-3 sm:px-6">
-      <h1 className="truncate text-sm font-semibold text-foreground">
+    <header className="px-6 pt-6 pb-2 sm:px-8">
+      <h1 className="truncate text-lg font-semibold tracking-tight text-slate-950">
         {title}
       </h1>
-      <p className="mt-1 truncate text-xs text-muted-foreground">
+      <p className="mt-1 truncate text-sm text-muted-foreground">
         <span className="font-medium text-foreground">{courseCode}</span>
         {' · '}
-        {courseTitle} · private saved history
+        {courseTitle} · Private saved history
       </p>
     </header>
   )

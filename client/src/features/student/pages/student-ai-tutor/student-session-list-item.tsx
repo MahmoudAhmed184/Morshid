@@ -15,7 +15,14 @@ interface StudentSessionListItemProps {
   isDeleting: boolean
   onRename: (title: string) => Promise<void>
   onDelete: () => Promise<void>
+  onNavigate?: () => void
 }
+
+const sessionActivityFormatter = new Intl.DateTimeFormat('en', {
+  month: 'short',
+  day: 'numeric',
+  timeZone: 'UTC',
+})
 
 export function StudentSessionListItem({
   courseId,
@@ -25,11 +32,12 @@ export function StudentSessionListItem({
   isDeleting,
   onRename,
   onDelete,
+  onNavigate,
 }: StudentSessionListItemProps) {
   const [isEditing, setIsEditing] = useState(false)
 
   return (
-    <li className="group relative rounded-md [contain-intrinsic-size:auto_3.5rem] [content-visibility:auto]">
+    <li className="group relative rounded-xl [contain-intrinsic-size:auto_4rem] [content-visibility:auto]">
       {isEditing ? (
         <StudentSessionInlineRename
           session={session}
@@ -43,36 +51,42 @@ export function StudentSessionListItem({
         <Link
           to="/student/ai-tutor"
           search={{ courseId, sessionId: session.id }}
+          onClick={onNavigate}
           aria-current={isSelected ? 'page' : undefined}
           className={cn(
-            'block rounded-md py-2.5 pr-12 pl-3 text-sm transition-colors',
+            'flex min-h-16 flex-col justify-center rounded-xl py-2.5 pr-12 pl-3.5 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:outline-none',
             isSelected
-              ? 'bg-primary text-primary-foreground'
-              : 'text-foreground hover:bg-muted',
+              ? 'bg-blue-50 text-slate-950'
+              : 'text-slate-800 hover:bg-slate-50',
           )}
         >
           <span className="block truncate font-medium">{session.title}</span>
           <span
             className={cn(
               'mt-1 block text-xs',
-              isSelected
-                ? 'text-primary-foreground/75'
-                : 'text-muted-foreground',
+              isSelected ? 'text-blue-600' : 'text-muted-foreground',
             )}
           >
-            {session.lastMessageAt
-              ? 'Conversation history saved'
-              : 'No messages yet'}
+            {session.lastMessageAt ? (
+              <time dateTime={session.lastMessageAt}>
+                Last active{' '}
+                {sessionActivityFormatter.format(
+                  new Date(session.lastMessageAt),
+                )}
+              </time>
+            ) : (
+              'No messages yet'
+            )}
           </span>
         </Link>
       )}
       {!isEditing ? (
         <div
           className={cn(
-            'absolute top-1/2 right-1 flex -translate-y-1/2 items-center rounded-md',
+            'absolute top-1/2 right-1.5 flex -translate-y-1/2 items-center rounded-lg',
             isSelected
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-background/90',
+              ? 'bg-blue-50 text-slate-600'
+              : 'bg-white/90 text-slate-500',
           )}
         >
           <StudentSessionActionsMenu

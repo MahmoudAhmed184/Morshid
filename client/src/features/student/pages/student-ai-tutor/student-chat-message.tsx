@@ -39,11 +39,11 @@ export function StudentChatMessage({ message }: StudentChatMessageProps) {
       </div>
       <div
         className={cn(
-          'max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-6',
+          'max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm',
           isStudent
-            ? 'rounded-tr-md bg-secondary text-secondary-foreground'
-            : 'rounded-tl-md bg-muted text-foreground',
-          isSystem && 'rounded-md border border-border bg-background',
+            ? 'rounded-tr-md bg-blue-600 text-white'
+            : 'rounded-tl-md border border-slate-200 bg-white text-slate-800',
+          isSystem && 'rounded-xl border border-slate-200 bg-white',
         )}
       >
         <span className="sr-only">

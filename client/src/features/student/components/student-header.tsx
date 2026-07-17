@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { Menu } from 'lucide-react'
+import { ChevronRight, Menu } from 'lucide-react'
 import { useState } from 'react'
 
 import { DashboardHeader } from '@/components/layout/dashboard-header'
@@ -36,26 +36,37 @@ function StudentTutorBreadcrumb({
   const { data } = useStudentSessions({ courseId: selectedCourse?.id })
   const sessions = data?.pages.flatMap((page) => page.sessions) ?? []
   const selectedSession = sessions.find((session) => session.id === sessionId)
-  const currentLabel = selectedCourse
-    ? `${selectedCourse.code} · ${selectedSession?.title ?? selectedCourse.title}`
-    : 'AI Tutor'
-
   return (
     <nav
       aria-label="Tutor breadcrumb"
-      className="flex min-w-0 items-center gap-3 text-sm"
+      className="flex min-w-0 items-center gap-2 text-sm"
     >
-      <Link
-        to="/student/courses"
-        className="shrink-0 text-muted-foreground hover:text-foreground"
-      >
-        Courses
-      </Link>
-      <span className="text-border" aria-hidden>
-        /
+      <span className="hidden min-w-0 items-center gap-2 md:flex">
+        <Link
+          to="/student/courses"
+          className="shrink-0 text-muted-foreground hover:text-foreground"
+        >
+          Courses
+        </Link>
+        <ChevronRight className="size-4 shrink-0 text-slate-300" aria-hidden />
+        {selectedCourse ? (
+          <>
+            <Link
+              to="/student/ai-tutor"
+              search={{ courseId: selectedCourse.id }}
+              className="max-w-48 truncate text-muted-foreground hover:text-foreground"
+            >
+              {selectedCourse.title}
+            </Link>
+            <ChevronRight
+              className="size-4 shrink-0 text-slate-300"
+              aria-hidden
+            />
+          </>
+        ) : null}
       </span>
       <span className="truncate font-medium text-foreground">
-        {currentLabel}
+        {selectedSession?.title ?? 'AI Tutor'}
       </span>
     </nav>
   )
@@ -75,41 +86,45 @@ export function StudentHeader({
       displayName={user?.displayName}
       email={user?.email}
       searchLabel="Search student workspace"
-      searchPlaceholder="Search courses or learning resources..."
+      searchPlaceholder="Search courses or learning resources…"
       content={
         isAiTutorWorkspace ? (
           <StudentTutorBreadcrumb courseId={courseId} sessionId={sessionId} />
         ) : undefined
       }
+      showHelp={!isAiTutorWorkspace}
+      className={isAiTutorWorkspace ? 'border-slate-200 bg-white' : undefined}
       leading={
-        !isAiTutorWorkspace ? (
-          <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-            <SheetTrigger
-              render={
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="bg-transparent md:hidden"
-                  aria-label="Open student navigation"
-                />
-              }
-            >
-              <Menu className="size-5" aria-hidden />
-            </SheetTrigger>
-            <SheetContent
-              side="left"
-              className="w-72 max-w-[85vw] gap-0 border-sidebar-border bg-sidebar p-0 text-sidebar-foreground sm:max-w-xs"
-            >
-              <SheetHeader className="sr-only">
-                <SheetTitle>Student navigation</SheetTitle>
-              </SheetHeader>
-              <StudentSidebar
-                pathname={pathname}
-                onNavigate={() => setMobileNavOpen(false)}
+        <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+          <SheetTrigger
+            render={
+              <Button
+                variant="outline"
+                size="icon"
+                className={
+                  isAiTutorWorkspace
+                    ? 'bg-transparent'
+                    : 'bg-transparent md:hidden'
+                }
+                aria-label="Open student navigation"
               />
-            </SheetContent>
-          </Sheet>
-        ) : undefined
+            }
+          >
+            <Menu className="size-5" aria-hidden />
+          </SheetTrigger>
+          <SheetContent
+            side="left"
+            className="w-72 max-w-[85vw] gap-0 border-sidebar-border bg-sidebar p-0 text-sidebar-foreground sm:max-w-xs"
+          >
+            <SheetHeader className="sr-only">
+              <SheetTitle>Student navigation</SheetTitle>
+            </SheetHeader>
+            <StudentSidebar
+              pathname={pathname}
+              onNavigate={() => setMobileNavOpen(false)}
+            />
+          </SheetContent>
+        </Sheet>
       }
     />
   )

@@ -1,7 +1,16 @@
 import { useNavigate } from '@tanstack/react-router'
-import { BookOpen } from 'lucide-react'
+import { BookOpen, PanelLeft } from 'lucide-react'
+import { useState } from 'react'
 
+import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/custom/empty-state'
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet'
 import { useStudentCourses } from '@/features/student/hooks/use-student-courses'
 import {
   useCreateStudentSession,
@@ -28,6 +37,7 @@ export function StudentAiTutorPage({
   sessionId,
 }: StudentAiTutorPageProps) {
   const navigate = useNavigate()
+  const [mobileSessionsOpen, setMobileSessionsOpen] = useState(false)
   const { data: assignedCourses } = useStudentCourses()
   const selectedCourse =
     (courseId
@@ -102,45 +112,86 @@ export function StudentAiTutorPage({
     void sessionsQuery.refetch()
   }
 
+  const sessionNavigationProps = selectedCourse
+    ? {
+        selectedCourse,
+        courses: assignedCourses,
+        sessions,
+        selectedSessionId: sessionId,
+        isPending: sessionsQuery.isPending,
+        isError: sessionsQuery.isError && sessions.length === 0,
+        isRefreshing:
+          sessionsQuery.isFetching &&
+          !sessionsQuery.isPending &&
+          !sessionsQuery.isFetchingNextPage,
+        hasNextPage: sessionsQuery.hasNextPage,
+        isFetchingNextPage: sessionsQuery.isFetchingNextPage,
+        isFetchNextPageError: sessionsQuery.isFetchNextPageError,
+        isCreating: createSession.isPending,
+        renamingSessionId: renameSession.isPending
+          ? renameSession.variables.sessionId
+          : undefined,
+        deletingSessionId: deleteSession.isPending
+          ? deleteSession.variables
+          : undefined,
+        onRetry: () => void sessionsQuery.refetch(),
+        onLoadMore: () => void sessionsQuery.fetchNextPage(),
+        onCreate: handleCreate,
+        onRename: handleRename,
+        onDelete: handleDelete,
+      }
+    : null
+  const activeSessionNavigationProps = sessionNavigationProps!
+
   return (
     <section
-      className="flex min-h-0 flex-1 overflow-hidden bg-card text-card-foreground"
+      className="flex min-h-0 flex-1 overflow-hidden bg-slate-50 text-card-foreground"
       aria-label="Student AI Tutor"
     >
       {selectedCourse ? (
-        <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] md:grid-cols-[18rem_minmax(0,1fr)] md:grid-rows-1 md:overflow-hidden">
-          <StudentSessionNavigation
-            selectedCourse={selectedCourse}
-            courses={assignedCourses}
-            sessions={sessions}
-            selectedSessionId={sessionId}
-            isPending={sessionsQuery.isPending}
-            isError={sessionsQuery.isError && sessions.length === 0}
-            isRefreshing={
-              sessionsQuery.isFetching &&
-              !sessionsQuery.isPending &&
-              !sessionsQuery.isFetchingNextPage
-            }
-            hasNextPage={sessionsQuery.hasNextPage}
-            isFetchingNextPage={sessionsQuery.isFetchingNextPage}
-            isFetchNextPageError={sessionsQuery.isFetchNextPageError}
-            isCreating={createSession.isPending}
-            renamingSessionId={
-              renameSession.isPending
-                ? renameSession.variables.sessionId
-                : undefined
-            }
-            deletingSessionId={
-              deleteSession.isPending ? deleteSession.variables : undefined
-            }
-            onRetry={() => void sessionsQuery.refetch()}
-            onLoadMore={() => void sessionsQuery.fetchNextPage()}
-            onCreate={handleCreate}
-            onRename={handleRename}
-            onDelete={handleDelete}
-          />
+        <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)] md:grid-cols-[20rem_minmax(0,1fr)] md:overflow-hidden">
+          <div className="hidden min-h-0 md:contents">
+            <StudentSessionNavigation {...activeSessionNavigationProps} />
+          </div>
 
-          <div className="flex min-h-80 min-w-0 flex-col">
+          <div className="flex min-h-80 min-w-0 flex-col bg-slate-50">
+            <Sheet
+              open={mobileSessionsOpen}
+              onOpenChange={setMobileSessionsOpen}
+            >
+              <div className="flex h-12 shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-3 md:hidden">
+                <SheetTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-9 rounded-[10px] text-slate-700 hover:bg-slate-100"
+                      aria-label="Open sessions"
+                    />
+                  }
+                >
+                  <PanelLeft className="size-5" aria-hidden />
+                </SheetTrigger>
+                <span className="truncate text-sm font-medium text-slate-700">
+                  Courses & chats
+                </span>
+              </div>
+              <SheetContent
+                side="left"
+                className="inset-y-2! left-2! h-[calc(100svh-1rem)]! w-[80vw]! max-w-80 gap-0 overflow-hidden overscroll-contain rounded-2xl border border-slate-200 bg-white p-0 shadow-2xl md:hidden"
+              >
+                <SheetHeader className="sr-only">
+                  <SheetTitle>Course sessions</SheetTitle>
+                </SheetHeader>
+                <StudentSessionNavigation
+                  {...activeSessionNavigationProps}
+                  onNavigate={() => setMobileSessionsOpen(false)}
+                  className="h-full border-0 pt-8"
+                />
+              </SheetContent>
+            </Sheet>
+
             {selectedSession ? (
               <StudentConversationHeader
                 title={selectedSession.title}
@@ -148,9 +199,9 @@ export function StudentAiTutorPage({
                 courseTitle={selectedCourse.title}
               />
             ) : null}
-            <div className="scrollbar-themed min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6">
+            <div className="scrollbar-themed min-h-0 flex-1 overflow-y-auto px-4 py-8 sm:px-8">
               {selectedSession ? (
-                <div className="mx-auto min-h-full max-w-4xl">
+                <div className="mx-auto min-h-full max-w-5xl">
                   <StudentMessageHistory
                     messages={messages}
                     error={messagesQuery.error}

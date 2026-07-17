@@ -15,34 +15,36 @@ import type { StudentCourse } from '@/features/student/schemas/student-course.sc
 interface StudentCourseSwitcherProps {
   courses: StudentCourse[]
   selectedCourse: StudentCourse
+  onNavigate?: () => void
 }
 
 export function StudentCourseSwitcher({
   courses,
   selectedCourse,
+  onNavigate,
 }: StudentCourseSwitcherProps) {
   return (
-    <div className="px-3 pb-3">
+    <div className="px-4 pt-5 pb-4">
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
             <Button
               type="button"
               variant="outline"
-              className="h-auto w-full justify-start gap-3 rounded-2xl bg-muted/35 px-3 py-3 text-left shadow-none"
+              className="h-12 w-full justify-start gap-3 rounded-xl border-slate-200 bg-white px-3 text-left shadow-none hover:bg-slate-50"
               aria-label={`Current course: ${selectedCourse.code} ${selectedCourse.title}. Choose course`}
             />
           }
         >
-          <span className="size-2.5 shrink-0 rounded-full bg-amber-400" />
+          <span
+            className="size-2.5 shrink-0 rounded-full bg-blue-500"
+            aria-hidden
+          />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-semibold text-foreground">
               {selectedCourse.code}
               {' · '}
               {selectedCourse.title}
-            </span>
-            <span className="mt-1 block truncate text-xs font-normal text-muted-foreground">
-              Student course
             </span>
           </span>
           <ChevronDown
@@ -60,11 +62,15 @@ export function StudentCourseSwitcher({
                   <Link
                     to="/student/ai-tutor"
                     search={{ courseId: course.id }}
+                    onClick={onNavigate}
                   />
                 }
                 className="gap-3 px-3 py-2.5"
               >
-                <span className="size-2 shrink-0 rounded-full bg-amber-400" />
+                <span
+                  className="size-2 shrink-0 rounded-full bg-blue-500"
+                  aria-hidden
+                />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">
                     {course.code}

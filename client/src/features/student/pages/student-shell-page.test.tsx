@@ -189,7 +189,7 @@ describe('StudentShellPage', () => {
     ).not.toHaveAttribute('aria-current')
   })
 
-  it('gives the AI Tutor its full-width session workspace', () => {
+  it('moves student navigation into a drawer in the AI Tutor workspace', () => {
     const courseId = 'course-id'
     const sessionId = 'session-id'
     routerMockState.pathname = '/student/ai-tutor'
@@ -226,16 +226,34 @@ describe('StudentShellPage', () => {
 
     expect(screen.queryByLabelText('Student navigation')).toBeNull()
     expect(
-      screen.queryByRole('button', { name: /open student navigation/i }),
-    ).toBeNull()
-    expect(screen.getByRole('link', { name: 'Courses' })).toHaveAttribute(
-      'href',
-      '/student/courses',
-    )
+      screen.getByRole('button', { name: /open student navigation/i }),
+    ).toBeInTheDocument()
+    const coursesBreadcrumb = within(
+      screen.getByLabelText('Tutor breadcrumb'),
+    ).getByRole('link', { name: 'Courses' })
+
+    expect(coursesBreadcrumb).toHaveAttribute('href', '/student/courses')
+    expect(coursesBreadcrumb.closest('span')).toHaveClass('hidden', 'md:flex')
+    const breadcrumb = screen.getByLabelText('Tutor breadcrumb')
+
     expect(
-      within(screen.getByLabelText('Tutor breadcrumb')).getByText(
-        'CS 214 · Big-O of merge sort, step by step',
-      ),
+      within(breadcrumb).getByRole('link', {
+        name: 'Data Structures & Algorithms',
+      }),
+    ).toHaveAttribute('href', '/student/ai-tutor?courseId=course-id')
+    expect(
+      within(breadcrumb).getByText('Big-O of merge sort, step by step'),
+    ).toBeInTheDocument()
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /open student navigation/i }),
+    )
+    const navigationDrawer = screen.getByRole('dialog', {
+      name: 'Student navigation',
+    })
+
+    expect(
+      within(navigationDrawer).getByRole('link', { name: 'Dashboard' }),
     ).toBeInTheDocument()
     expect(screen.getByTestId('student-route-outlet')).toBeInTheDocument()
   })

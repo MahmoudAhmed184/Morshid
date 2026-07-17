@@ -29,22 +29,20 @@ export function StudentCreateSessionButton({
   }
 
   return (
-    <div className="flex flex-col items-end gap-1">
+    <div className="flex flex-col gap-1.5">
       <AsyncButton
         type="button"
         size="sm"
         isLoading={isPending}
         loadingText="Creating…"
         onClick={handleCreate}
+        className="h-10 w-full justify-center rounded-[10px] bg-blue-600 text-white shadow-sm hover:bg-blue-700 focus-visible:ring-blue-500/50"
       >
         <Plus aria-hidden />
         New chat
       </AsyncButton>
       {errorMessage ? (
-        <p
-          role="alert"
-          className="max-w-36 text-right text-xs text-destructive"
-        >
+        <p role="alert" className="text-xs text-destructive">
           {errorMessage}
         </p>
       ) : null}

@@ -7,6 +7,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -241,13 +242,16 @@ describe('StudentAiTutorPage workspace', () => {
     expect(
       screen.getByText(`${primaryCourse.code} · ${primaryCourse.title}`),
     ).toBeInTheDocument()
-    expect(screen.getByText('Student course')).toBeInTheDocument()
     expect(
       screen.getByRole('searchbox', { name: 'Search sessions' }),
-    ).toHaveAttribute('placeholder', 'Search sessions...')
+    ).toHaveAttribute('placeholder', 'Search sessions…')
     expect(
       screen.getByRole('heading', { name: 'No conversations yet' }),
     ).toBeInTheDocument()
+    const openSessions = screen.getByRole('button', { name: 'Open sessions' })
+    expect(openSessions).toBeInTheDocument()
+    expect(openSessions).not.toHaveClass('fixed')
+    expect(screen.getByText('Courses & chats')).toBeInTheDocument()
     expect(screen.getByLabelText('Message')).toBeDisabled()
     expect(screen.getByRole('button', { name: /send message/i })).toBeDisabled()
   })
@@ -299,6 +303,37 @@ describe('StudentAiTutorPage workspace', () => {
     expect(screen.queryByRole('link', { name: /python lists/i })).toBeNull()
   })
 
+  it('opens sessions in a mobile drawer and closes it after navigation', async () => {
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture, secondSession],
+        nextCursor: null,
+      },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open sessions' }))
+
+    const drawer = await screen.findByRole('dialog', {
+      name: 'Course sessions',
+    })
+    expect(drawer).toHaveAttribute('data-side', 'left')
+    expect(drawer).toHaveClass('w-[80vw]!', 'rounded-2xl')
+    expect(
+      within(drawer).getByRole('searchbox', { name: 'Search sessions' }),
+    ).toBeInTheDocument()
+
+    fireEvent.click(
+      within(drawer).getByRole('link', { name: /functions practice/i }),
+    )
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('dialog', { name: 'Course sessions' }),
+      ).toBeNull(),
+    )
+  })
+
   it('routes session selection and marks the selected conversation', () => {
     renderWorkspace({
       courseId: primaryCourse.id,
@@ -337,6 +372,36 @@ describe('StudentAiTutorPage workspace', () => {
       'overflow-y-auto',
       'overscroll-contain',
     )
+  })
+
+  it('opens the file picker and manages selected attachments', () => {
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+      messages: { messages: [], nextCursor: null },
+    })
+
+    const fileInput = screen.getByLabelText('Choose files')
+    const inputClick = vi.spyOn(fileInput, 'click')
+    const attachment = new File(['course notes'], 'course-notes.pdf', {
+      type: 'application/pdf',
+      lastModified: 1,
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Attach file' }))
+    expect(inputClick).toHaveBeenCalledOnce()
+
+    fireEvent.change(fileInput, { target: { files: [attachment] } })
+    expect(screen.getByText('course-notes.pdf')).toBeInTheDocument()
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Remove course-notes.pdf' }),
+    )
+    expect(screen.queryByText('course-notes.pdf')).toBeNull()
   })
 
   it('recovers the routed course, session, and persisted history after refresh', async () => {
