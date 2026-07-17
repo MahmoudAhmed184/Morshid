@@ -60,6 +60,18 @@ describe('PrismaCourseRetrievalRepository', () => {
     expect(staticSql).toContain('ORDER BY distance ASC')
   })
 
+  it.each([
+    '',
+    'not-a-uuid',
+    "0f0a3f39'; DROP TABLE materials; --",
+    '0f0a3f39-2f6a-4a0e-9a8e-5b9a3a1c2d4', // one hex digit short
+  ])('rejects course id %j without touching the database', async (badId) => {
+    await expect(
+      repository.findTopChunksForCourse(buildQuery({ courseId: badId })),
+    ).rejects.toThrow(InvalidRetrievalQueryError)
+    expect(queryRaw).not.toHaveBeenCalled()
+  })
+
   it.each([0, 1.5, 51, -1])(
     'rejects top-k %p without touching the database',
     async (topK) => {

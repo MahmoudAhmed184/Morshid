@@ -11,6 +11,12 @@ const EMBEDDING_DIMENSIONS = 1_536
 // validated to the same range in env.schema.ts.
 const MAX_TOP_K = 50
 
+// Course ids are UUIDs; rejecting other shapes here keeps a malformed id from
+// surfacing as a raw Postgres ::uuid cast error instead of the typed
+// InvalidRetrievalQueryError the rest of the boundary throws.
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export interface CourseChunkQuery {
   courseId: string
   queryEmbedding: readonly number[]
@@ -29,7 +35,7 @@ export interface RankedChunkRow {
 }
 
 export class InvalidRetrievalQueryError extends Error {
-  constructor(reason: 'embedding' | 'top-k' | 'min-similarity') {
+  constructor(reason: 'course-id' | 'embedding' | 'top-k' | 'min-similarity') {
     super(`Retrieval query rejected: invalid ${reason}`)
     this.name = 'InvalidRetrievalQueryError'
   }
@@ -95,6 +101,10 @@ export class PrismaCourseRetrievalRepository extends CourseRetrievalRepository {
 }
 
 function assertValidQuery(query: CourseChunkQuery): void {
+  if (!UUID_PATTERN.test(query.courseId)) {
+    throw new InvalidRetrievalQueryError('course-id')
+  }
+
   if (
     query.queryEmbedding.length !== EMBEDDING_DIMENSIONS ||
     !query.queryEmbedding.every((component) => Number.isFinite(component))
