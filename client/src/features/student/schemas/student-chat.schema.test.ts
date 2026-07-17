@@ -7,6 +7,7 @@ import {
   createChatSessionRequestSchema,
   deleteChatSessionResponseSchema,
   renameChatSessionRequestSchema,
+  studentAiTutorSearchSchema,
 } from './student-chat.schema'
 import {
   chatMessageHistoryResponseFixture,
@@ -100,5 +101,17 @@ describe('Student chat contract schemas', () => {
   it('models the delete contract as an empty 204 response', () => {
     expect(deleteChatSessionResponseSchema.parse(undefined)).toBeUndefined()
     expect(() => deleteChatSessionResponseSchema.parse({})).toThrow()
+  })
+
+  it('validates optional AI Tutor course and session search state', () => {
+    expect(studentAiTutorSearchSchema.parse({})).toEqual({})
+    expect(
+      studentAiTutorSearchSchema.parse({
+        courseId: 'course-id',
+        sessionId: 'session-id',
+      }),
+    ).toEqual({ courseId: 'course-id', sessionId: 'session-id' })
+    expect(() => studentAiTutorSearchSchema.parse({ courseId: '' })).toThrow()
+    expect(() => studentAiTutorSearchSchema.parse({ sessionId: '' })).toThrow()
   })
 })

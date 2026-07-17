@@ -2,6 +2,11 @@ import { z } from 'zod'
 
 const chatTitleSchema = z.string().trim().min(1).max(160)
 
+export const studentAiTutorSearchSchema = z.object({
+  courseId: z.string().min(1).optional(),
+  sessionId: z.string().min(1).optional(),
+})
+
 export const chatSessionSchema = z
   .object({
     id: z.uuid(),
