@@ -1,6 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common'
 
 import type { AuthenticatedRequestUser } from '../auth/auth.dto'
+import {
+  AccessAuditService,
+  type AccessAuditActor,
+  type AccessAuditRouteContext,
+} from '../audit/access-audit.service'
 import type { AuditRequestContext } from '../audit/audit.service'
 import {
   StudentChatAuditService,
@@ -52,6 +57,7 @@ export class StudentChatService {
     private readonly sessionRepository: StudentChatSessionRepository,
     private readonly messageRepository: StudentChatMessageRepository,
     private readonly studentChatAuditService: StudentChatAuditService,
+    private readonly accessAuditService: AccessAuditService,
   ) {}
 
   async createSession(
@@ -284,30 +290,30 @@ export class StudentChatService {
   }
 
   /**
-   * Records a role-guard denial (a non-Student reaching a Student-only chat
-   * endpoint). The global `RolesGuard` rejects the request before any handler
-   * runs, so this is invoked from a chat-scoped exception filter to keep role
-   * denials audited alongside membership/ownership denials. Like every deny
-   * path here it is best-effort and FK-safe: it never converts the 403 into a
-   * 500 and never stores an unverified course id in the FK column.
+   * Records a course-boundary denial (a Student reaching a course-scoped chat
+   * endpoint for a course they are not an active member of). The membership
+   * check lives inside the service, so the 403 is thrown from deep in the call
+   * stack; this is invoked from a controller-scoped exception filter where the
+   * attempted operation (method/path) and request context are still available.
+   * Emits the generic `ACCESS_COURSE_BOUNDARY_DENIED` audit event (Issue #15)
+   * in addition to the chat-scoped membership event. Like every deny path here
+   * it is best-effort and FK-safe: it never converts the 403 into a 500 and
+   * never stores an unverified course id in the FK column.
    */
-  async recordRoleAccessDenied(
+  async recordCourseBoundaryDenied(
     courseId: string | null,
-    actorUserId: string | null,
-    requestContext?: AuditRequestContext,
+    actor: AccessAuditActor | null,
+    route: AccessAuditRouteContext,
+    requestContext: AuditRequestContext,
   ): Promise<void> {
-    if (actorUserId === null) {
-      return
-    }
-
     const courseExists =
       courseId !== null && (await this.courseExistsSafe(courseId))
 
-    await this.recordAccessDenied({
-      actorUserId,
+    await this.accessAuditService.recordCourseBoundaryDenied({
+      actor,
       courseId: courseExists ? courseId : null,
       unverifiedCourseId: courseExists ? null : courseId,
-      reason: 'INSUFFICIENT_ROLE',
+      route,
       requestContext,
     })
   }

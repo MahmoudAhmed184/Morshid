@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
 
 import type { AuditLog, Prisma } from '../../generated/prisma/client'
@@ -118,9 +119,12 @@ describe('AccessAuditService', () => {
     })
   })
 
-  it('does not throw when audit persistence fails for RBAC denied events', async () => {
+  it('does not throw but logs when audit persistence fails for RBAC denied events', async () => {
     const { auditLog, service } = await buildService()
     auditLog.create.mockRejectedValueOnce(new Error('audit unavailable'))
+    const logSpy = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined)
 
     await expect(
       service.recordRbacDenied({
@@ -133,5 +137,104 @@ describe('AccessAuditService', () => {
         requestContext,
       }),
     ).resolves.toBeUndefined()
+
+    expect(logSpy).toHaveBeenCalledWith(
+      'Failed to record RBAC-denied audit event',
+      expect.any(String),
+    )
+
+    logSpy.mockRestore()
+  })
+
+  it('records course-boundary denied audit events with the verified course id and operation', async () => {
+    const { auditLog, service } = await buildService()
+
+    await service.recordCourseBoundaryDenied({
+      actor: {
+        id: '00000000-0000-4000-8000-000000000003',
+        role: 'STUDENT',
+      },
+      courseId: '00000000-0000-4000-8000-000000000102',
+      route: {
+        method: 'GET',
+        path: '/api/v1/courses/:courseId/chat-sessions',
+      },
+      requestContext,
+    })
+
+    expect(auditLog.create).toHaveBeenCalledWith({
+      data: {
+        actorUserId: '00000000-0000-4000-8000-000000000003',
+        action: AUDIT_EVENT_ACTIONS.ACCESS_COURSE_BOUNDARY_DENIED,
+        targetType: AUDIT_TARGET_TYPES.COURSE,
+        targetId: '00000000-0000-4000-8000-000000000102',
+        courseId: '00000000-0000-4000-8000-000000000102',
+        ip: '203.0.113.10',
+        userAgent: 'Jest',
+        metadata: {
+          actorRole: 'STUDENT',
+          method: 'GET',
+          path: '/api/v1/courses/:courseId/chat-sessions',
+          operation: 'GET /api/v1/courses/:courseId/chat-sessions',
+        },
+      },
+    })
+  })
+
+  it('keeps an unverified course id out of the FK column and in metadata', async () => {
+    const { auditLog, service } = await buildService()
+
+    await service.recordCourseBoundaryDenied({
+      actor: {
+        id: '00000000-0000-4000-8000-000000000003',
+        role: 'STUDENT',
+      },
+      courseId: null,
+      unverifiedCourseId: '11111111-1111-4111-8111-111111111111',
+      route: {
+        method: 'POST',
+        path: '/api/v1/courses/:courseId/chat-sessions',
+      },
+      requestContext,
+    })
+
+    const call = auditLog.create.mock.calls[0][0] as {
+      data: { courseId: string | null; metadata: Record<string, unknown> }
+    }
+    expect(call.data.courseId).toBeNull()
+    expect(call.data.metadata).toMatchObject({
+      unverifiedCourseId: '11111111-1111-4111-8111-111111111111',
+      operation: 'POST /api/v1/courses/:courseId/chat-sessions',
+    })
+  })
+
+  it('does not throw but logs when audit persistence fails for course-boundary events', async () => {
+    const { auditLog, service } = await buildService()
+    auditLog.create.mockRejectedValueOnce(new Error('audit unavailable'))
+    const logSpy = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined)
+
+    await expect(
+      service.recordCourseBoundaryDenied({
+        actor: {
+          id: '00000000-0000-4000-8000-000000000003',
+          role: 'STUDENT',
+        },
+        courseId: '00000000-0000-4000-8000-000000000102',
+        route: {
+          method: 'GET',
+          path: '/api/v1/courses/:courseId/chat-sessions',
+        },
+        requestContext,
+      }),
+    ).resolves.toBeUndefined()
+
+    expect(logSpy).toHaveBeenCalledWith(
+      'Failed to record course-boundary-denied audit event',
+      expect.any(String),
+    )
+
+    logSpy.mockRestore()
   })
 })

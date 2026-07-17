@@ -41,7 +41,7 @@ import { getRequestContext } from '../../common/http/request-context'
 import { UserRole } from '../../generated/prisma/client'
 import type { AuthenticatedHttpRequest } from '../auth/auth.guard'
 import { Roles } from '../auth/roles.decorator'
-import { StudentChatRoleDenialAuditFilter } from './student-chat-role-denial-audit.filter'
+import { StudentChatCourseBoundaryAuditFilter } from './student-chat-course-boundary-audit.filter'
 import {
   ChatMessageHistoryResponseDto,
   ChatSessionListResponseDto,
@@ -97,7 +97,7 @@ const sessionIdParam = () => ApiParam({ name: 'sessionId', format: 'uuid' })
 @Roles(UserRole.STUDENT)
 @ApiAccessTokenAuth()
 @ApiExtraModels(OpenApiValidationErrorDto, NestBadRequestErrorDto)
-@UseFilters(StudentChatRoleDenialAuditFilter)
+@UseFilters(StudentChatCourseBoundaryAuditFilter)
 @UseInterceptors(ClassSerializerInterceptor)
 export class StudentChatController {
   constructor(private readonly studentChatService: StudentChatService) {}

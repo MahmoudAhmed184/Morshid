@@ -4,9 +4,9 @@ import { Reflector } from '@nestjs/core'
 import type { Request } from 'express'
 
 import {
-  getAuditRequestContext,
+  getRequestContext,
   getRouteContext,
-} from '../../common/http-request-context'
+} from '../../common/http/request-context'
 import type { UserRole } from '../../generated/prisma/client'
 import { AccessAuditService } from '../audit/access-audit.service'
 import type { AuthenticatedRequestUser } from './auth.dto'
@@ -49,12 +49,20 @@ export class RolesGuard implements CanActivate {
             }
           : null,
         allowedRoles,
+        unverifiedCourseId: readCourseIdParam(request),
         route: getRouteContext(request),
-        requestContext: getAuditRequestContext(request),
+        requestContext: getRequestContext(request),
       })
       throw insufficientRoleException()
     }
 
     return true
   }
+}
+
+function readCourseIdParam(request: RoleProtectedHttpRequest): string | null {
+  const courseId = (request.params as Record<string, string | undefined>)
+    .courseId
+
+  return typeof courseId === 'string' ? courseId : null
 }

@@ -153,6 +153,7 @@ describe('RolesGuard (e2e)', () => {
           requiredRoles: ['ADMIN'],
           actorRole: 'STUDENT',
           method: 'GET',
+          path: '/api/v1/test-roles/admin-only',
         }) as unknown,
         createdAt: anyDate,
       }),
@@ -163,5 +164,13 @@ describe('RolesGuard (e2e)', () => {
     await request(app.getHttpServer())
       .get('/api/v1/test-roles/admin-only')
       .expect(401)
+
+    // The global AuthGuard rejects with 401 before RolesGuard runs, so an
+    // unauthenticated request must never produce an RBAC-denied audit row.
+    expect(
+      readAuditEvents(store).filter(
+        (event) => event.action === AUDIT_EVENT_ACTIONS.ACCESS_RBAC_DENIED,
+      ),
+    ).toHaveLength(0)
   })
 })

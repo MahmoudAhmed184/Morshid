@@ -76,6 +76,7 @@ function createExecutionContext({
         user,
         method,
         path,
+        params: {},
         route: {
           path,
         },
@@ -145,6 +146,7 @@ describe('RolesGuard', () => {
         role: 'STUDENT',
       },
       allowedRoles: ['ADMIN'],
+      unverifiedCourseId: null,
       route: {
         method: 'GET',
         path: '/test',
@@ -169,6 +171,12 @@ describe('RolesGuard', () => {
         code: AUTH_ERROR_CODES.INSUFFICIENT_ROLE,
         message: 'Insufficient role',
       })
+      expect(recordRbacDenied).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actor: null,
+          allowedRoles: ['ADMIN'],
+        }),
+      )
       return
     }
 
@@ -196,6 +204,12 @@ describe('RolesGuard', () => {
         code: AUTH_ERROR_CODES.INSUFFICIENT_ROLE,
         message: 'Insufficient role',
       })
+      expect(recordRbacDenied).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actor: { id: 'user-1', role: undefined },
+          allowedRoles: ['ADMIN'],
+        }),
+      )
       return
     }
 

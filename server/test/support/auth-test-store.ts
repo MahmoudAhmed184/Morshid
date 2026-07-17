@@ -2,6 +2,7 @@ import type {
   AuditLog,
   Course,
   CourseMembership,
+  CourseMembershipRole,
   Material,
   Prisma,
   RefreshToken,
@@ -112,6 +113,18 @@ interface FindManyMembershipArgs {
     role?: 'asc' | 'desc'
     user?: { email?: 'asc' | 'desc' }
   }[]
+}
+
+interface FindFirstMembershipArgs {
+  where?: {
+    userId?: string
+    courseId?: string
+    role?: CourseMembershipRole
+    removedAt?: Date | null
+  }
+  select?: {
+    id?: boolean
+  }
 }
 
 interface FindManyCourseArgs {
@@ -256,6 +269,9 @@ export class AuthTestStore {
     courseMembership: {
       findUnique: jest.fn((args: FindUniqueMembershipArgs) =>
         Promise.resolve(this.findUniqueMembership(args)),
+      ),
+      findFirst: jest.fn((args?: FindFirstMembershipArgs) =>
+        Promise.resolve(this.findFirstMembership(args)),
       ),
       findMany: jest.fn((args?: FindManyMembershipArgs) =>
         Promise.resolve(this.findMemberships(args)),
@@ -734,6 +750,21 @@ export class AuthTestStore {
         (m) => m.courseId === course.id,
       ),
     }
+  }
+
+  private findFirstMembership(
+    args: FindFirstMembershipArgs | undefined,
+  ): { id: string } | null {
+    const where = args?.where
+    const membership = this.memberships.find(
+      (m) =>
+        (where?.courseId === undefined || m.courseId === where.courseId) &&
+        (where?.userId === undefined || m.userId === where.userId) &&
+        (where?.role === undefined || m.role === where.role) &&
+        (where?.removedAt === undefined || m.removedAt === where.removedAt),
+    )
+
+    return membership ? { id: membership.id } : null
   }
 
   private findUniqueMembership(args: FindUniqueMembershipArgs) {
