@@ -11,6 +11,7 @@ import {
   UserStatus,
 } from '../../generated/prisma/client'
 import type { AuthenticatedRequestUser } from '../auth/auth.dto'
+import type { AccessAuditService } from '../audit/access-audit.service'
 import type { StudentChatAuditService } from './student-chat.audit.service'
 import {
   createChatSessionRequestSchema,
@@ -405,14 +406,19 @@ describe('StudentChatService', () => {
       recordAccessDenied: jest.fn().mockResolvedValue(undefined),
       recordSessionDeleted: jest.fn().mockResolvedValue(undefined),
     } satisfies Partial<StudentChatAuditService>
+    const accessAuditService = {
+      recordCourseBoundaryDenied: jest.fn().mockResolvedValue(undefined),
+    } satisfies Partial<AccessAuditService>
 
     return {
       repository,
       auditService,
+      accessAuditService,
       service: new StudentChatService(
         repository,
         repository,
         auditService as unknown as StudentChatAuditService,
+        accessAuditService as unknown as AccessAuditService,
       ),
     }
   }

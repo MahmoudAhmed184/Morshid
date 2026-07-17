@@ -71,13 +71,19 @@ describe('Student chat role-denial auditing (e2e)', () => {
     return (response.body as AuthSessionResponse).accessToken
   }
 
-  function accessDeniedAudits() {
+  function rbacDeniedAudits() {
+    return [...store.auditLogs.values()].filter(
+      (log) => log.action === AUDIT_EVENT_ACTIONS.ACCESS_RBAC_DENIED,
+    )
+  }
+
+  function chatAccessDeniedAudits() {
     return [...store.auditLogs.values()].filter(
       (log) => log.action === AUDIT_EVENT_ACTIONS.CHAT_SESSION_ACCESS_DENIED,
     )
   }
 
-  it('rejects an Instructor with 403 and audits the role denial with the verified course id', async () => {
+  it('rejects an Instructor with 403 and audits exactly one generic RBAC denial with the course context', async () => {
     const token = await signInAs('instructor@morshid.demo')
     const instructor = store.findUserByEmail('instructor@morshid.demo')
 
@@ -90,19 +96,28 @@ describe('Student chat role-denial auditing (e2e)', () => {
         message: 'Insufficient role',
       })
 
-    const denials = accessDeniedAudits()
+    // The global RolesGuard is the single source of truth for role denials, so
+    // there is exactly one audit row and it is the generic RBAC-denied event —
+    // no duplicate chat-scoped role-denial row.
+    const denials = rbacDeniedAudits()
     expect(denials).toHaveLength(1)
     expect(denials[0]).toMatchObject({
-      action: AUDIT_EVENT_ACTIONS.CHAT_SESSION_ACCESS_DENIED,
-      targetType: AUDIT_TARGET_TYPES.CHAT_SESSION,
+      action: AUDIT_EVENT_ACTIONS.ACCESS_RBAC_DENIED,
+      targetType: AUDIT_TARGET_TYPES.SYSTEM,
       targetId: null,
       actorUserId: instructor?.id,
-      courseId: DEMO_COURSE_ID,
-      metadata: { reason: 'INSUFFICIENT_ROLE' },
+      courseId: null,
+      metadata: {
+        requiredRoles: ['STUDENT'],
+        actorRole: 'INSTRUCTOR',
+        method: 'GET',
+        unverifiedCourseId: DEMO_COURSE_ID,
+      },
     })
+    expect(chatAccessDeniedAudits()).toHaveLength(0)
   })
 
-  it('audits a role denial on an unknown course without violating the course FK', async () => {
+  it('keeps the raw course id out of the FK column for a role denial on an unknown course', async () => {
     const token = await signInAs('instructor@morshid.demo')
 
     await request(app.getHttpServer())
@@ -111,18 +126,19 @@ describe('Student chat role-denial auditing (e2e)', () => {
       .send({ title: 'Should never be created' })
       .expect(403)
 
-    const denials = accessDeniedAudits()
+    const denials = rbacDeniedAudits()
     expect(denials).toHaveLength(1)
-    // The raw course id is unverified, so it is kept out of the FK column and
-    // preserved only in unconstrained JSONB metadata.
+    // The guard never verifies the course, so the raw id is kept out of the FK
+    // column and preserved only in unconstrained JSONB metadata.
     expect(denials[0].courseId).toBeNull()
     expect(denials[0].metadata).toMatchObject({
-      reason: 'INSUFFICIENT_ROLE',
+      actorRole: 'INSTRUCTOR',
+      method: 'POST',
       unverifiedCourseId: UNKNOWN_COURSE_ID,
     })
   })
 
-  it('still rejects an Admin from the Student-only chat endpoints', async () => {
+  it('still rejects an Admin from the Student-only chat endpoints and audits one RBAC denial', async () => {
     const token = await signInAs('admin@morshid.demo')
 
     await request(app.getHttpServer())
@@ -130,6 +146,7 @@ describe('Student chat role-denial auditing (e2e)', () => {
       .set('Authorization', `Bearer ${token}`)
       .expect(403)
 
-    expect(accessDeniedAudits()).toHaveLength(1)
+    expect(rbacDeniedAudits()).toHaveLength(1)
+    expect(chatAccessDeniedAudits()).toHaveLength(0)
   })
 })
