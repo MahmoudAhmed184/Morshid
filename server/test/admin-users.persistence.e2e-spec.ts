@@ -1,9 +1,4 @@
 import { randomUUID } from 'node:crypto'
-import { readFile, readdir } from 'node:fs/promises'
-import { join } from 'node:path'
-
-import type { ConfigService } from '@nestjs/config'
-import { Client } from 'pg'
 
 import { UserRole, UserStatus } from '../src/generated/prisma/client'
 import { AdminUsersAuditService } from '../src/modules/admin/users/admin-users.audit.service'
@@ -14,40 +9,28 @@ import {
 import { PrismaAdminUsersRepository } from '../src/modules/admin/users/admin-users.repository'
 import type { AdminUsersRepository } from '../src/modules/admin/users/admin-users.repository'
 import { AuditService } from '../src/modules/audit/audit.service'
-import type { AppEnvironment } from '../src/modules/config/env.schema'
-import { PrismaService } from '../src/modules/prisma/prisma.service'
+import type { PrismaService } from '../src/modules/prisma/prisma.service'
+import {
+  setUpDisposableDatabase,
+  type DisposableDatabase,
+} from './support/disposable-database'
 
 describe('Admin users persistence (e2e)', () => {
+  let database: DisposableDatabase | undefined
   let prisma: PrismaService
   let repository: AdminUsersRepository
-  let originalDatabaseUrl: string
-  let disposableDatabaseName: string
   const createdUserIds = new Set<string>()
 
   beforeAll(async () => {
-    originalDatabaseUrl = requireDatabaseUrl()
-    disposableDatabaseName = `morshid_pr61_${randomUUID().replaceAll('-', '')}`
-    await runDatabaseAdminStatement(
-      originalDatabaseUrl,
-      `CREATE DATABASE "${disposableDatabaseName}"`,
-    )
-    const disposableDatabaseUrl = databaseUrlFor(
-      originalDatabaseUrl,
-      disposableDatabaseName,
-    )
-    await applyMigrations(disposableDatabaseUrl)
-    const configService = {
-      get: () => disposableDatabaseUrl,
-    } as unknown as ConfigService<AppEnvironment, true>
-    prisma = new PrismaService(configService)
-    await prisma.$connect()
+    database = await setUpDisposableDatabase('morshid_pr61')
+    prisma = database.prisma
     const auditService = new AuditService(prisma)
     const adminUsersAuditService = new AdminUsersAuditService(auditService)
     repository = new PrismaAdminUsersRepository(prisma, adminUsersAuditService)
     const [connection] = await prisma.$queryRaw<{ database: string }[]>`
       SELECT current_database() AS database
     `
-    expect(connection.database).toBe(disposableDatabaseName)
+    expect(connection.database).toBe(database.databaseName)
   })
 
   afterEach(async () => {
@@ -65,11 +48,7 @@ describe('Admin users persistence (e2e)', () => {
   })
 
   afterAll(async () => {
-    await prisma.$disconnect()
-    await runDatabaseAdminStatement(
-      originalDatabaseUrl,
-      `DROP DATABASE IF EXISTS "${disposableDatabaseName}" WITH (FORCE)`,
-    )
+    await database?.dispose()
   })
 
   it('keeps one admin active when two admins disable each other concurrently', async () => {
@@ -175,62 +154,3 @@ describe('Admin users persistence (e2e)', () => {
     return user
   }
 })
-
-function requireDatabaseUrl(): string {
-  const databaseUrl = process.env.DATABASE_URL
-
-  if (databaseUrl === undefined) {
-    throw new Error('DATABASE_URL is required for persistence e2e tests')
-  }
-
-  return databaseUrl
-}
-
-function databaseUrlFor(databaseUrl: string, databaseName: string): string {
-  const url = new URL(databaseUrl)
-  url.pathname = `/${databaseName}`
-  url.searchParams.delete('schema')
-  return url.toString()
-}
-
-async function runDatabaseAdminStatement(
-  databaseUrl: string,
-  statement: string,
-): Promise<void> {
-  const client = new Client({
-    connectionString: databaseUrlFor(databaseUrl, 'postgres'),
-  })
-  await client.connect()
-
-  try {
-    await client.query(statement)
-  } finally {
-    await client.end()
-  }
-}
-
-async function applyMigrations(databaseUrl: string): Promise<void> {
-  const migrationsDirectory = join(process.cwd(), 'prisma', 'migrations')
-  const migrationDirectories = (
-    await readdir(migrationsDirectory, {
-      withFileTypes: true,
-    })
-  )
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .sort()
-  const client = new Client({ connectionString: databaseUrl })
-  await client.connect()
-
-  try {
-    for (const migrationDirectory of migrationDirectories) {
-      const sql = await readFile(
-        join(migrationsDirectory, migrationDirectory, 'migration.sql'),
-        'utf8',
-      )
-      await client.query(sql)
-    }
-  } finally {
-    await client.end()
-  }
-}

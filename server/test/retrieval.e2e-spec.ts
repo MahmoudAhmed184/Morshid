@@ -1,14 +1,11 @@
 import { randomUUID } from 'node:crypto'
-import { readFile, readdir } from 'node:fs/promises'
-import { join } from 'node:path'
 
 import type { ConfigService } from '@nestjs/config'
-import { Client } from 'pg'
 
 import type { AppEnvironment } from '../src/modules/config/env.schema'
 import { DeterministicEmbeddingProvider } from '../src/modules/embedding/deterministic-embedding.provider'
 import type { EmbeddingProvider } from '../src/modules/embedding/embedding-provider'
-import { PrismaService } from '../src/modules/prisma/prisma.service'
+import type { PrismaService } from '../src/modules/prisma/prisma.service'
 import { MaterialChunkEmbeddingService } from '../src/modules/rag-persistence/material-chunk-embedding.service'
 import {
   PrismaRagPersistenceRepository,
@@ -16,6 +13,10 @@ import {
 } from '../src/modules/rag-persistence/rag-persistence.repository'
 import { PrismaCourseRetrievalRepository } from '../src/modules/retrieval/course-retrieval.repository'
 import { RetrievalService } from '../src/modules/retrieval/retrieval.service'
+import {
+  setUpDisposableDatabase,
+  type DisposableDatabase,
+} from './support/disposable-database'
 
 const TOP_K = 5
 // Seeded similarities deliberately straddle this floor (0.72 above, 0.5
@@ -26,43 +27,20 @@ const TOP_K = 5
 const MIN_SIMILARITY = 0.7
 
 describe('Course-filtered top-k retrieval (e2e)', () => {
-  let originalDatabaseUrl: string
-  let disposableDatabaseName: string
+  let database: DisposableDatabase | undefined
   let prisma: PrismaService
   let persistence: RagPersistenceRepository
   let retrievalRepository: PrismaCourseRetrievalRepository
 
   beforeAll(async () => {
-    originalDatabaseUrl = requireDatabaseUrl()
-    disposableDatabaseName = `morshid_issue82_${randomUUID().replaceAll('-', '')}`
-    await runDatabaseAdminStatement(
-      originalDatabaseUrl,
-      `CREATE DATABASE "${disposableDatabaseName}"`,
-    )
-    const disposableDatabaseUrl = databaseUrlFor(
-      originalDatabaseUrl,
-      disposableDatabaseName,
-    )
-    await applyMigrations(disposableDatabaseUrl)
-
-    const configService = {
-      get: () => disposableDatabaseUrl,
-    } as unknown as ConfigService<AppEnvironment, true>
-    prisma = new PrismaService(configService)
-    await prisma.$connect()
+    database = await setUpDisposableDatabase('morshid_issue82')
+    prisma = database.prisma
     persistence = new PrismaRagPersistenceRepository(prisma)
     retrievalRepository = new PrismaCourseRetrievalRepository(prisma)
   })
 
   afterAll(async () => {
-    try {
-      await disconnectQuietly(prisma)
-    } finally {
-      await runDatabaseAdminStatement(
-        originalDatabaseUrl,
-        `DROP DATABASE IF EXISTS "${disposableDatabaseName}" WITH (FORCE)`,
-      )
-    }
+    await database?.dispose()
   })
 
   it('returns at most five same-course chunks in descending similarity order', async () => {
@@ -444,71 +422,4 @@ async function createMaterial(
   })
 
   return material.id
-}
-
-async function disconnectQuietly(
-  client: PrismaService | undefined,
-): Promise<void> {
-  if (client === undefined) {
-    return
-  }
-
-  await client.$disconnect()
-}
-
-function requireDatabaseUrl(): string {
-  const databaseUrl = process.env.DATABASE_URL
-
-  if (databaseUrl === undefined) {
-    throw new Error('DATABASE_URL is required for retrieval e2e tests')
-  }
-
-  return databaseUrl
-}
-
-function databaseUrlFor(databaseUrl: string, databaseName: string): string {
-  const url = new URL(databaseUrl)
-  url.pathname = `/${databaseName}`
-  url.searchParams.delete('schema')
-  return url.toString()
-}
-
-async function runDatabaseAdminStatement(
-  databaseUrl: string,
-  statement: string,
-): Promise<void> {
-  const client = new Client({
-    connectionString: databaseUrlFor(databaseUrl, 'postgres'),
-  })
-  await client.connect()
-
-  try {
-    await client.query(statement)
-  } finally {
-    await client.end()
-  }
-}
-
-async function applyMigrations(databaseUrl: string): Promise<void> {
-  const migrationsDirectory = join(process.cwd(), 'prisma', 'migrations')
-  const migrationDirectories = (
-    await readdir(migrationsDirectory, { withFileTypes: true })
-  )
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .sort()
-  const client = new Client({ connectionString: databaseUrl })
-  await client.connect()
-
-  try {
-    for (const migrationDirectory of migrationDirectories) {
-      const sql = await readFile(
-        join(migrationsDirectory, migrationDirectory, 'migration.sql'),
-        'utf8',
-      )
-      await client.query(sql)
-    }
-  } finally {
-    await client.end()
-  }
 }

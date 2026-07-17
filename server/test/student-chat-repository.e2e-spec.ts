@@ -1,13 +1,9 @@
 import { randomUUID } from 'node:crypto'
-import { readFile, readdir } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import type { ConfigService } from '@nestjs/config'
-import { Client } from 'pg'
-
-import type { AppEnvironment } from '../src/modules/config/env.schema'
 import { AuditService } from '../src/modules/audit/audit.service'
-import { PrismaService } from '../src/modules/prisma/prisma.service'
+import type { PrismaService } from '../src/modules/prisma/prisma.service'
 import { StudentChatAuditService } from '../src/modules/student-chat/student-chat.audit.service'
 import {
   PrismaStudentChatMessageRepository,
@@ -17,6 +13,10 @@ import {
   PrismaStudentChatSessionRepository,
   type StudentChatSessionRepository,
 } from '../src/modules/student-chat/student-chat-session.repository'
+import {
+  setUpDisposableDatabase,
+  type DisposableDatabase,
+} from './support/disposable-database'
 
 interface EnrolledStudent {
   courseId: string
@@ -24,30 +24,14 @@ interface EnrolledStudent {
 }
 
 describe('Student chat repositories (e2e)', () => {
-  let originalDatabaseUrl: string
-  let disposableDatabaseName: string
+  let database: DisposableDatabase | undefined
   let prisma: PrismaService
   let sessionRepository: StudentChatSessionRepository
   let messageRepository: StudentChatMessageRepository
 
   beforeAll(async () => {
-    originalDatabaseUrl = requireDatabaseUrl()
-    disposableDatabaseName = `morshid_issue84_${randomUUID().replaceAll('-', '')}`
-    await runDatabaseAdminStatement(
-      originalDatabaseUrl,
-      `CREATE DATABASE "${disposableDatabaseName}"`,
-    )
-    const disposableDatabaseUrl = databaseUrlFor(
-      originalDatabaseUrl,
-      disposableDatabaseName,
-    )
-    await applyMigrations(disposableDatabaseUrl)
-
-    const configService = {
-      get: () => disposableDatabaseUrl,
-    } as unknown as ConfigService<AppEnvironment, true>
-    prisma = new PrismaService(configService)
-    await prisma.$connect()
+    database = await setUpDisposableDatabase('morshid_issue84')
+    prisma = database.prisma
 
     const studentChatAuditService = new StudentChatAuditService(
       new AuditService(prisma),
@@ -60,14 +44,7 @@ describe('Student chat repositories (e2e)', () => {
   })
 
   afterAll(async () => {
-    try {
-      await disconnectQuietly(prisma)
-    } finally {
-      await runDatabaseAdminStatement(
-        originalDatabaseUrl,
-        `DROP DATABASE IF EXISTS "${disposableDatabaseName}" WITH (FORCE)`,
-      )
-    }
+    await database?.dispose()
   })
 
   async function createEnrolledStudent(): Promise<EnrolledStudent> {
@@ -337,71 +314,4 @@ async function readBackfillStatement(): Promise<string> {
   }
 
   return match[0]
-}
-
-async function disconnectQuietly(
-  client: PrismaService | undefined,
-): Promise<void> {
-  if (client === undefined) {
-    return
-  }
-
-  await client.$disconnect()
-}
-
-function requireDatabaseUrl(): string {
-  const databaseUrl = process.env.DATABASE_URL
-
-  if (databaseUrl === undefined) {
-    throw new Error('DATABASE_URL is required for persistence e2e tests')
-  }
-
-  return databaseUrl
-}
-
-function databaseUrlFor(databaseUrl: string, databaseName: string): string {
-  const url = new URL(databaseUrl)
-  url.pathname = `/${databaseName}`
-  url.searchParams.delete('schema')
-  return url.toString()
-}
-
-async function runDatabaseAdminStatement(
-  databaseUrl: string,
-  statement: string,
-): Promise<void> {
-  const client = new Client({
-    connectionString: databaseUrlFor(databaseUrl, 'postgres'),
-  })
-  await client.connect()
-
-  try {
-    await client.query(statement)
-  } finally {
-    await client.end()
-  }
-}
-
-async function applyMigrations(databaseUrl: string): Promise<void> {
-  const migrationsDirectory = join(process.cwd(), 'prisma', 'migrations')
-  const migrationDirectories = (
-    await readdir(migrationsDirectory, { withFileTypes: true })
-  )
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .sort()
-  const client = new Client({ connectionString: databaseUrl })
-  await client.connect()
-
-  try {
-    for (const migrationDirectory of migrationDirectories) {
-      const sql = await readFile(
-        join(migrationsDirectory, migrationDirectory, 'migration.sql'),
-        'utf8',
-      )
-      await client.query(sql)
-    }
-  } finally {
-    await client.end()
-  }
 }
