@@ -18,6 +18,11 @@ import { PrismaCourseRetrievalRepository } from '../src/modules/retrieval/course
 import { RetrievalService } from '../src/modules/retrieval/retrieval.service'
 
 const TOP_K = 5
+// Seeded similarities deliberately straddle this floor (0.72 above, 0.5
+// below) rather than sitting exactly on it: embeddings are stored as float4,
+// so a chunk seeded at exactly 0.70 quantizes to a value marginally on either
+// side of the >= boundary and the assertion would hinge on pgvector's
+// float internals instead of the threshold semantics under test.
 const MIN_SIMILARITY = 0.7
 
 describe('Course-filtered top-k retrieval (e2e)', () => {
