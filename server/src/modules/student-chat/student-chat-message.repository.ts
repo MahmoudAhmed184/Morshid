@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common'
 
-import { MessageRole, MessageStatus, Prisma } from '../../generated/prisma/client'
+import {
+  MessageRole,
+  MessageStatus,
+  Prisma,
+} from '../../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import {
   chatMessageSelect,

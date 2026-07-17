@@ -109,6 +109,4 @@ export interface MessageListPagination {
 }
 
 export type SoftDeleteSessionOutcome =
-  | 'deleted'
-  | 'already_deleted'
-  | 'not_found'
+  'deleted' | 'already_deleted' | 'not_found'
