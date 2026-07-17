@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { z } from 'zod'
 
-import { StudentAiTutorPage } from '@/features/student/student-ai-tutor-page'
+import { StudentAiTutorPage } from '@/features/student/pages/student-ai-tutor-page'
 
 export const Route = createFileRoute('/student/ai-tutor')({
   validateSearch: z.object({

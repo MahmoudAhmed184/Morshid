@@ -1,23 +1,26 @@
-import { Link } from '@tanstack/react-router'
 import { Bell, BookOpen, Bot, Home, Settings } from 'lucide-react'
 
+import { AppSidebar } from '@/components/layout/app-sidebar'
+import type { AppSidebarNavItem } from '@/components/layout/app-sidebar'
 import { Logo } from '@/components/logo'
 import { Badge } from '@/components/ui/badge'
-import { Button, buttonVariants } from '@/components/ui/button'
+import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/custom/empty-state'
-import type { StudentCourse } from '@/features/student/api/student-courses.api'
-import { cn } from '@/lib/utils'
+import type { StudentCourse } from '@/features/student/schemas/student-course.schema'
 
-const primaryNavItems = [
+const primaryNavItems: readonly AppSidebarNavItem[] = [
   { label: 'Dashboard', icon: Home, to: '/student/dashboard' },
   { label: 'Courses', icon: BookOpen, to: '/student/courses' },
   { label: 'AI Tutor', icon: Bot, to: '/student/ai-tutor' },
 ] as const
 
-const secondaryNavItems = [
-  { label: 'Notifications', icon: Bell },
-  { label: 'Settings', icon: Settings },
-] as const
+const secondaryNavItems = [{ label: 'Notifications', icon: Bell }] as const
+
+const settingsNavItem: AppSidebarNavItem = {
+  label: 'Settings',
+  icon: Settings,
+  to: '/student/settings',
+}
 
 type StudentSidebarProps = {
   assignedCourses: StudentCourse[]
@@ -31,48 +34,49 @@ export function StudentSidebar({
   onNavigate,
 }: StudentSidebarProps) {
   return (
-    <div className="flex h-full min-h-0 w-full flex-col overflow-y-auto px-4 py-5">
-      <div className="mb-8 flex items-center gap-3">
-        <Logo
-          className="size-9 rounded-md bg-sidebar-primary text-sidebar-primary-foreground"
-          iconClassName="size-4"
-        />
-        <div>
-          <p className="text-sm font-semibold text-sidebar-foreground">
-            Morshid
-          </p>
-          <p className="text-xs text-muted-foreground">Student Portal</p>
+    <AppSidebar
+      navigation={primaryNavItems}
+      settings={settingsNavItem}
+      pathname={pathname}
+      ariaLabel="Student navigation"
+      onNavigate={onNavigate}
+      className="overflow-y-auto px-4 py-5"
+      header={
+        <div className="mb-8 flex items-center gap-3">
+          <Logo
+            className="size-9 rounded-md bg-sidebar-primary text-sidebar-primary-foreground"
+            iconClassName="size-4"
+          />
+          <div>
+            <p className="text-sm font-semibold text-sidebar-foreground">
+              Morshid
+            </p>
+            <p className="text-xs text-muted-foreground">Student Portal</p>
+          </div>
         </div>
-      </div>
-
-      <nav className="space-y-1" aria-label="Student navigation">
-        {primaryNavItems.map((item) => {
-          const isActive = pathname === item.to
-          const navClassName = cn(
-            buttonVariants({
-              variant: 'ghost',
-              className:
-                'h-9 w-full justify-start gap-2 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-            }),
-            isActive &&
-              'bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground',
-          )
-
-          return (
-            <Link
+      }
+      navigationClassName="space-y-1"
+      itemClassName="flex h-9 w-full items-center gap-2 rounded-md px-3 text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+      activeItemClassName="bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground"
+      settingsContainerClassName="border-t border-sidebar-border pt-1"
+      footer={
+        <div className="mt-auto space-y-1 pt-6">
+          {secondaryNavItems.map((item) => (
+            <Button
               key={item.label}
-              to={item.to}
-              className={navClassName}
-              aria-current={isActive ? 'page' : undefined}
-              onClick={onNavigate}
+              type="button"
+              variant="ghost"
+              className="h-9 w-full justify-start gap-2 text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              disabled
+              title="Coming soon"
             >
               <item.icon className="size-4" aria-hidden />
               {item.label}
-            </Link>
-          )
-        })}
-      </nav>
-
+            </Button>
+          ))}
+        </div>
+      }
+    >
       <section className="mt-7 border-t border-sidebar-border pt-5">
         <h2 className="mb-3 text-xs font-medium tracking-[0.12em] text-muted-foreground uppercase">
           Assigned Courses
@@ -107,22 +111,6 @@ export function StudentSidebar({
           />
         )}
       </section>
-
-      <div className="mt-auto space-y-1 pt-6">
-        {secondaryNavItems.map((item) => (
-          <Button
-            key={item.label}
-            type="button"
-            variant="ghost"
-            className="h-9 w-full justify-start gap-2 text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-            disabled
-            title="Coming soon"
-          >
-            <item.icon className="size-4" aria-hidden />
-            {item.label}
-          </Button>
-        ))}
-      </div>
-    </div>
+    </AppSidebar>
   )
 }

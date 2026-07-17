@@ -1,0 +1,15 @@
+.git
+.github
+.agents
+.codex
+design
+node_modules
+**/node_modules
+dist
+**/dist
+coverage
+**/coverage
+.env
+**/.env
+storage/pdfs/*
+!storage/pdfs/.gitkeep
