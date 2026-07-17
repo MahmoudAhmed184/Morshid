@@ -15,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 import type { AuthSession, AuthUser } from '@/features/auth/schemas/auth.schema'
+import { InstructorRoutePending } from '@/features/instructor/components/instructor-route-pending'
 import { routeTree } from '@/routeTree.gen'
 import { getAppQueryClient } from '@/lib/query/query-client'
 
@@ -83,7 +84,8 @@ function renderAtInstructorRoute(
         return (
           coursesResponse ??
           Response.json({
-            courses: session.user.courses.map(({ code, title }) => ({
+            courses: session.user.courses.map(({ id, code, title }) => ({
+              id,
               code,
               title,
             })),
@@ -156,7 +158,7 @@ describe('/instructor', () => {
     expect(
       await screen.findByRole('heading', { name: 'Instructor dashboard' }),
     ).toBeVisible()
-    expect(screen.getByText('Python Programming')).toBeVisible()
+    expect(await screen.findByText('Python Programming')).toBeVisible()
     expect(history.location.pathname).toBe('/instructor')
     expect(document.querySelector('a[href="/admin"]')).toBeNull()
     expect(
@@ -190,6 +192,15 @@ describe('/instructor', () => {
     expect(screen.queryByText('Python Programming')).not.toBeInTheDocument()
   })
 
+  it('shows AuthLoader while authentication is being resolved', () => {
+    useAuthStore.getState().clearSession()
+
+    render(<InstructorRoutePending />)
+
+    expect(screen.getByLabelText('Checking authentication')).toBeVisible()
+    expect(screen.queryByText('Instructor Portal')).not.toBeInTheDocument()
+  })
+
   it('shows dashboard loading while owned courses are requested', async () => {
     renderAtInstructorRoute(
       createSession('INSTRUCTOR'),
@@ -201,6 +212,63 @@ describe('/instructor', () => {
         name: 'Loading instructor dashboard',
       }),
     ).toBeVisible()
+    expect(screen.getByText('Instructor Portal')).toBeVisible()
+    expect(
+      screen.getByRole('searchbox', { name: 'Search course workspace' }),
+    ).toBeVisible()
+    expect(
+      screen.getByRole('heading', { name: 'Course materials' }),
+    ).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Review queue' })).toBeVisible()
+    expect(
+      screen.queryByLabelText('Checking authentication'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('keeps the instructor shell mounted while navigating between child routes', async () => {
+    const { history } = renderAtInstructorRoute(createSession('INSTRUCTOR'))
+
+    expect(
+      await screen.findByRole('heading', { name: 'Instructor dashboard' }),
+    ).toBeVisible()
+
+    fireEvent.click(screen.getByRole('link', { name: 'My Courses' }))
+
+    expect(
+      await screen.findByRole('heading', { name: 'My Courses' }),
+    ).toBeVisible()
+    expect(history.location.pathname).toBe('/instructor/courses')
+    expect(screen.getByText('Instructor Portal')).toBeVisible()
+    expect(
+      screen.getByRole('searchbox', { name: 'Search course workspace' }),
+    ).toBeVisible()
+    expect(
+      screen.queryByLabelText('Checking authentication'),
+    ).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('link', { name: 'Materials' }))
+
+    await waitFor(() => {
+      expect(history.location.pathname).toBe('/instructor/materials')
+    })
+    expect(
+      (await screen.findAllByRole('heading', { name: 'Materials' })).length,
+    ).toBeGreaterThanOrEqual(1)
+    expect(screen.getByText('Instructor Portal')).toBeVisible()
+    expect(
+      screen.getByRole('searchbox', { name: 'Search course workspace' }),
+    ).toBeVisible()
+    expect(
+      screen.queryByLabelText('Checking authentication'),
+    ).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('link', { name: 'Dashboard' }))
+
+    expect(
+      await screen.findByRole('heading', { name: 'Instructor dashboard' }),
+    ).toBeVisible()
+    expect(history.location.pathname).toBe('/instructor')
+    expect(screen.getByText('Instructor Portal')).toBeVisible()
   })
 
   it('redirects an Admin session to the Admin shell', async () => {

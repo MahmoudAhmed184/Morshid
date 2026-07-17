@@ -1,20 +1,8 @@
-import { z } from 'zod'
-
 import { apiJson } from '@/features/auth/api/authenticated-api-client'
 import type { ApiFetchOptions } from '@/features/auth/api/authenticated-api-client'
+import { studentCoursesResponseSchema } from '@/features/student/schemas/student-course.schema'
 
-const studentCourseSchema = z.object({
-  id: z.string(),
-  code: z.string(),
-  title: z.string(),
-  membershipRole: z.literal('STUDENT'),
-})
-
-const studentCoursesResponseSchema = z.object({
-  courses: z.array(studentCourseSchema),
-})
-
-export type StudentCourse = z.infer<typeof studentCourseSchema>
+export type { StudentCourse } from '@/features/student/schemas/student-course.schema'
 
 export async function getStudentCourses(options: ApiFetchOptions = {}) {
   const response = await apiJson<unknown>('/api/v1/courses', {
