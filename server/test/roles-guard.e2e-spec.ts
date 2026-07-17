@@ -1,0 +1,131 @@
+import type { INestApplication } from '@nestjs/common'
+import { Controller, Get } from '@nestjs/common'
+import { Test, type TestingModule } from '@nestjs/testing'
+import request from 'supertest'
+import type { App } from 'supertest/types'
+
+import { configureApp } from '../src/app.setup'
+import { AppModule } from '../src/app.module'
+import { AUTH_ERROR_CODES } from '../src/modules/auth/auth.dto'
+import type { AuthSessionResponse } from '../src/modules/auth/auth.dto'
+import { Public } from '../src/modules/auth/public.decorator'
+import { Roles } from '../src/modules/auth/roles.decorator'
+import { PrismaService } from '../src/modules/prisma/prisma.service'
+import { RedisService } from '../src/modules/redis/redis.service'
+import { P0_DEMO_PASSWORD } from '../src/seeds/p0-demo.seed'
+import { AuthTestStore } from './support/auth-test-store'
+
+@Controller('test-roles')
+class RolesTestController {
+  @Get('public')
+  @Public()
+  publicRoute() {
+    return { ok: true }
+  }
+
+  @Get('admin-only')
+  @Roles('ADMIN')
+  adminOnly() {
+    return { ok: true }
+  }
+
+  @Get('authenticated')
+  authenticated() {
+    return { ok: true }
+  }
+}
+
+describe('RolesGuard (e2e)', () => {
+  let app: INestApplication<App>
+  let store: AuthTestStore
+
+  const redisService = {
+    ping: jest.fn().mockResolvedValue('PONG'),
+  }
+
+  beforeAll(() => {
+    process.env.DATABASE_URL =
+      'postgresql://morshid:morshid_local_password@localhost:5432/morshid'
+    process.env.REDIS_URL = 'redis://localhost:6379'
+    process.env.AUTH_ACCESS_TOKEN_SECRET =
+      'test-access-token-secret-with-at-least-32-characters'
+    process.env.AUTH_REFRESH_TOKEN_HASH_SECRET =
+      'test-refresh-token-hash-secret-with-at-least-32-characters'
+    process.env.AUTH_ACCESS_TOKEN_TTL_SECONDS = '900'
+    process.env.AUTH_REFRESH_TOKEN_TTL_DAYS = '7'
+  })
+
+  beforeEach(async () => {
+    store = new AuthTestStore()
+    jest.clearAllMocks()
+
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+      controllers: [RolesTestController],
+    })
+      .overrideProvider(PrismaService)
+      .useValue(store.prisma)
+      .overrideProvider(RedisService)
+      .useValue(redisService)
+      .compile()
+
+    app = moduleFixture.createNestApplication()
+    configureApp(app)
+    await app.init()
+  })
+
+  afterEach(async () => {
+    await app.close()
+  })
+
+  async function signInAs(email: string): Promise<string> {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/auth/sign-in')
+      .send({ email, password: P0_DEMO_PASSWORD })
+      .expect(200)
+
+    return (response.body as AuthSessionResponse).accessToken
+  }
+
+  it('allows access to a @Public() route without a token', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/test-roles/public')
+      .expect(200)
+      .expect({ ok: true })
+  })
+
+  it('blocks an authenticated route when no token is provided', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/test-roles/authenticated')
+      .expect(401)
+  })
+
+  it('allows an admin to access an @Roles(ADMIN) route', async () => {
+    const token = await signInAs('admin@morshid.demo')
+
+    await request(app.getHttpServer())
+      .get('/api/v1/test-roles/admin-only')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect({ ok: true })
+  })
+
+  it('rejects a student from an @Roles(ADMIN) route with 403', async () => {
+    const token = await signInAs('student1@morshid.demo')
+
+    await request(app.getHttpServer())
+      .get('/api/v1/test-roles/admin-only')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(403)
+      .expect({
+        code: AUTH_ERROR_CODES.INSUFFICIENT_ROLE,
+        message: 'Insufficient role',
+      })
+  })
+
+  it('blocks an @Roles(ADMIN) route with 401 when no token is provided', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/test-roles/admin-only')
+      .expect(401)
+  })
+})

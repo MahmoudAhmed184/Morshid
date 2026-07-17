@@ -1,0 +1,391 @@
+import { Injectable } from '@nestjs/common'
+
+import {
+  CourseMembershipRole,
+  Prisma,
+  UserRole,
+  UserStatus,
+} from '../../../generated/prisma/client'
+import { PrismaService } from '../../prisma/prisma.service'
+import type { AuditRequestContext } from '../../audit/audit.service'
+import type { AdminCreatableUserRole } from './admin-users.dto'
+import { AdminUsersAuditService } from './admin-users.audit.service'
+import {
+  AdminUserEmailAlreadyExistsError,
+  AdminUserNotFoundError,
+  CannotDisableLastActiveAdminError,
+} from './admin-users.errors'
+
+export interface AdminUserRecord {
+  id: string
+  email: string
+  displayName: string
+  role: UserRole
+  status: UserStatus
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface AdminUserCourseAssignmentRecord {
+  courseId: string
+  role: CourseMembershipRole
+  course: {
+    id: string
+    code: string
+    title: string
+  }
+}
+
+export interface AdminListedUserRecord extends AdminUserRecord {
+  memberships: AdminUserCourseAssignmentRecord[]
+}
+
+export interface ListAdminUsersRepositoryInput {
+  limit: number
+  cursor?: string
+}
+
+export interface AdminListedUsersPage {
+  users: AdminListedUserRecord[]
+  nextCursor?: string
+}
+
+export interface CreateAdminUserRepositoryInput {
+  email: string
+  displayName: string
+  role: AdminCreatableUserRole
+  passwordHash: string
+  actorUserId: string
+  requestContext?: AuditRequestContext
+}
+
+export interface DisableAdminUserRepositoryInput {
+  userId: string
+  actorUserId: string
+  disabledAt: Date
+  requestContext?: AuditRequestContext
+}
+
+export interface ReactivateAdminUserRepositoryInput {
+  userId: string
+  actorUserId: string
+  requestContext?: AuditRequestContext
+}
+
+export interface ResetAdminUserPasswordRepositoryInput {
+  userId: string
+  passwordHash: string
+  passwordChangedAt: Date
+  actorUserId: string
+  requestContext?: AuditRequestContext
+}
+
+const adminUserRecordSelect = {
+  id: true,
+  email: true,
+  displayName: true,
+  role: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.UserSelect
+
+const adminListedUserRecordSelect = {
+  ...adminUserRecordSelect,
+  memberships: {
+    select: {
+      courseId: true,
+      role: true,
+      course: {
+        select: {
+          id: true,
+          code: true,
+          title: true,
+        },
+      },
+    },
+  },
+} satisfies Prisma.UserSelect
+
+export abstract class AdminUsersRepository {
+  abstract findByEmail(email: string): Promise<AdminUserRecord | null>
+
+  abstract findById(userId: string): Promise<AdminUserRecord | null>
+
+  abstract listUsers(
+    input: ListAdminUsersRepositoryInput,
+  ): Promise<AdminListedUsersPage>
+
+  abstract createUser(
+    input: CreateAdminUserRepositoryInput,
+  ): Promise<AdminUserRecord>
+
+  abstract disableUser(
+    input: DisableAdminUserRepositoryInput,
+  ): Promise<AdminUserRecord>
+
+  abstract reactivateUser(
+    input: ReactivateAdminUserRepositoryInput,
+  ): Promise<AdminUserRecord>
+
+  abstract resetUserPassword(
+    input: ResetAdminUserPasswordRepositoryInput,
+  ): Promise<AdminUserRecord>
+}
+
+@Injectable()
+export class PrismaAdminUsersRepository extends AdminUsersRepository {
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly adminUsersAuditService: AdminUsersAuditService,
+  ) {
+    super()
+  }
+
+  findByEmail(email: string): Promise<AdminUserRecord | null> {
+    return this.prismaService.user.findUnique({
+      where: {
+        email,
+      },
+      select: adminUserRecordSelect,
+    })
+  }
+
+  findById(userId: string): Promise<AdminUserRecord | null> {
+    return this.prismaService.user.findUnique({
+      where: {
+        id: userId,
+      },
+      select: adminUserRecordSelect,
+    })
+  }
+
+  async listUsers(
+    input: ListAdminUsersRepositoryInput,
+  ): Promise<AdminListedUsersPage> {
+    const users = await this.prismaService.user.findMany({
+      select: adminListedUserRecordSelect,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: input.limit + 1,
+      ...(input.cursor === undefined
+        ? {}
+        : { cursor: { id: input.cursor }, skip: 1 }),
+    })
+
+    const hasNextPage = users.length > input.limit
+    const pageUsers = hasNextPage ? users.slice(0, input.limit) : users
+    const nextCursor = hasNextPage ? pageUsers.at(-1)?.id : undefined
+
+    return {
+      users: pageUsers,
+      ...(nextCursor === undefined ? {} : { nextCursor }),
+    }
+  }
+
+  async createUser(
+    input: CreateAdminUserRepositoryInput,
+  ): Promise<AdminUserRecord> {
+    try {
+      return await this.prismaService.$transaction(async (tx) => {
+        const user = await tx.user.create({
+          data: {
+            email: input.email,
+            displayName: input.displayName,
+            role: input.role,
+            status: UserStatus.ACTIVE,
+            passwordHash: input.passwordHash,
+          },
+          select: adminUserRecordSelect,
+        })
+
+        await this.adminUsersAuditService.recordUserCreated(
+          {
+            actorUserId: input.actorUserId,
+            targetUser: user,
+            requestContext: input.requestContext,
+          },
+          tx,
+        )
+
+        return user
+      })
+    } catch (error) {
+      if (isUniqueConstraintViolation(error)) {
+        throw new AdminUserEmailAlreadyExistsError(input.email)
+      }
+
+      throw error
+    }
+  }
+
+  async disableUser(
+    input: DisableAdminUserRepositoryInput,
+  ): Promise<AdminUserRecord> {
+    const target = await this.prismaService.user.findUnique({
+      where: { id: input.userId },
+      select: { role: true },
+    })
+    const protectsActiveAdmins = target?.role === UserRole.ADMIN
+
+    return this.prismaService.$transaction(
+      async (tx) => {
+        const lockedActiveAdmins = protectsActiveAdmins
+          ? await lockActiveAdmins(tx)
+          : null
+        const findCurrentUser = () =>
+          tx.user.findUnique({
+            where: {
+              id: input.userId,
+            },
+            select: adminUserRecordSelect,
+          })
+        const currentUser = await findCurrentUser()
+
+        if (currentUser === null) {
+          throw new AdminUserNotFoundError(input.userId)
+        }
+
+        if (currentUser.status === UserStatus.DISABLED) {
+          return currentUser
+        }
+
+        if (currentUser.role === UserRole.ADMIN) {
+          const activeAdminCount = lockedActiveAdmins?.length ?? 0
+
+          if (activeAdminCount <= 1) {
+            throw new CannotDisableLastActiveAdminError()
+          }
+        }
+
+        const user = await tx.user.update({
+          where: {
+            id: input.userId,
+          },
+          data: {
+            status: UserStatus.DISABLED,
+            disabledAt: input.disabledAt,
+            disabledById: input.actorUserId,
+          },
+          select: adminUserRecordSelect,
+        })
+
+        const revokedRefreshTokens = await tx.refreshToken.updateMany({
+          where: {
+            userId: input.userId,
+            revokedAt: null,
+            expiresAt: {
+              gt: input.disabledAt,
+            },
+          },
+          data: {
+            revokedAt: input.disabledAt,
+          },
+        })
+
+        await this.adminUsersAuditService.recordUserDisabled(
+          {
+            actorUserId: input.actorUserId,
+            targetUser: user,
+            revokedRefreshTokenCount: revokedRefreshTokens.count,
+            requestContext: input.requestContext,
+          },
+          tx,
+        )
+
+        return user
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
+    )
+  }
+
+  reactivateUser(
+    input: ReactivateAdminUserRepositoryInput,
+  ): Promise<AdminUserRecord> {
+    return this.prismaService.$transaction(async (tx) => {
+      const user = await tx.user.update({
+        where: {
+          id: input.userId,
+        },
+        data: {
+          status: UserStatus.ACTIVE,
+          disabledAt: null,
+          disabledById: null,
+        },
+        select: adminUserRecordSelect,
+      })
+
+      await this.adminUsersAuditService.recordUserReactivated(
+        {
+          actorUserId: input.actorUserId,
+          targetUser: user,
+          requestContext: input.requestContext,
+        },
+        tx,
+      )
+
+      return user
+    })
+  }
+
+  resetUserPassword(
+    input: ResetAdminUserPasswordRepositoryInput,
+  ): Promise<AdminUserRecord> {
+    return this.prismaService.$transaction(async (tx) => {
+      const user = await tx.user.update({
+        where: {
+          id: input.userId,
+        },
+        data: {
+          passwordHash: input.passwordHash,
+          passwordChangedAt: input.passwordChangedAt,
+        },
+        select: adminUserRecordSelect,
+      })
+
+      const revokedRefreshTokens = await tx.refreshToken.updateMany({
+        where: {
+          userId: input.userId,
+          revokedAt: null,
+          expiresAt: {
+            gt: input.passwordChangedAt,
+          },
+        },
+        data: {
+          revokedAt: input.passwordChangedAt,
+        },
+      })
+
+      await this.adminUsersAuditService.recordUserPasswordReset(
+        {
+          actorUserId: input.actorUserId,
+          targetUser: user,
+          revokedRefreshTokenCount: revokedRefreshTokens.count,
+          requestContext: input.requestContext,
+        },
+        tx,
+      )
+
+      return user
+    })
+  }
+}
+
+function isUniqueConstraintViolation(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === 'P2002'
+  )
+}
+
+async function lockActiveAdmins(
+  transaction: Prisma.TransactionClient,
+): Promise<{ id: string }[]> {
+  return transaction.$queryRaw<{ id: string }[]>`
+    SELECT id
+    FROM users
+    WHERE role = 'ADMIN'::user_role
+      AND status = 'ACTIVE'::user_status
+    ORDER BY id
+    FOR UPDATE
+  `
+}

@@ -30,6 +30,16 @@ interface FindUniqueAuditLogArgs {
   }
 }
 
+interface FindManyAuditLogArgs {
+  orderBy: { createdAt: 'desc' }
+  take: number
+  include: {
+    actor: {
+      select: { id: true; email: true; displayName: true }
+    }
+  }
+}
+
 class InMemoryAuditLogDelegate {
   private readonly records = new Map<string, AuditLog>()
 
@@ -59,6 +69,16 @@ class InMemoryAuditLogDelegate {
 
   readonly findUnique = jest.fn((args: FindUniqueAuditLogArgs) => {
     return Promise.resolve(this.records.get(args.where.id) ?? null)
+  })
+
+  readonly findMany = jest.fn((args: FindManyAuditLogArgs) => {
+    const events = [...this.records.values()]
+      .sort(
+        (left, right) => right.createdAt.getTime() - left.createdAt.getTime(),
+      )
+      .slice(0, args.take)
+      .map((event) => ({ ...event, actor: null }))
+    return Promise.resolve(events)
   })
 }
 
@@ -183,6 +203,32 @@ describe('AuditService', () => {
     expect(auditLog.findUnique).toHaveBeenCalledWith({
       where: {
         id: created.id,
+      },
+    })
+  })
+
+  it('lists the most recent audit events with safe actor summaries', async () => {
+    const { auditLog, service } = await buildService()
+    await service.recordEvent({
+      action: AUDIT_EVENT_ACTIONS.AUTH_LOGIN_FAILED,
+      target: { type: AUDIT_TARGET_TYPES.AUTH_SESSION },
+    })
+    await service.recordEvent({
+      action: AUDIT_EVENT_ACTIONS.ADMIN_ACCOUNT_CREATED,
+      target: { type: AUDIT_TARGET_TYPES.USER },
+    })
+
+    const events = await service.listRecentEvents(1)
+
+    expect(events).toHaveLength(1)
+    expect(events[0].action).toBe(AUDIT_EVENT_ACTIONS.ADMIN_ACCOUNT_CREATED)
+    expect(auditLog.findMany).toHaveBeenCalledWith({
+      orderBy: { createdAt: 'desc' },
+      take: 1,
+      include: {
+        actor: {
+          select: { id: true, email: true, displayName: true },
+        },
       },
     })
   })
