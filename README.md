@@ -120,6 +120,41 @@ command or advice, and the full guarded command to rerun. Use the individual
 commands in [Troubleshooting](#troubleshooting) only to diagnose and repair the
 reported stage before rerunning the complete gate.
 
+### PDF storage runtimes
+
+`PDF_STORAGE_PATH` is required and validated when NestJS starts. The copied
+`server/.env` points host-run development at `../storage/pdfs`, which resolves
+to the repository's git-ignored `storage/pdfs/` directory when the server runs
+from its workspace. The adapter creates this directory when it first stores a
+file.
+
+The database stores only generated relative keys such as
+`550e8400-e29b-41d4-a716-446655440000.pdf` in `materials.storage_path`. Do not
+store host paths or Compose container paths in that column. PDF validation,
+upload limits, and ingestion are handled by the upload workflow, not by the
+storage adapter.
+
+To run the built server in Compose as well as PostgreSQL and Redis:
+
+```bash
+docker compose --profile app up -d --build --wait server
+```
+
+The profile runs `prisma migrate deploy` as a one-shot `migrate` service. The
+server starts only after PostgreSQL and Redis are healthy and that migration
+job succeeds. Compose injects `PDF_STORAGE_PATH=/workspace/storage/pdfs` and
+mounts `morshid-pdf-storage` at exactly that path. `npm run infra:up` remains
+the faster infrastructure-only command and does not build or start the server.
+
+The host directory and Compose volume are separate storage backends. The named
+volume survives `docker compose down`; `docker compose down -v` deliberately
+removes both database and PDF volumes. Replace every placeholder secret in the
+copied environment files before starting either server runtime.
+
+Failed writes remove any partial file automatically. Application workflows
+should call the idempotent storage `delete` operation when later persistence or
+processing fails; deleting a missing key is safe.
+
 ### P0 demo seed
 
 The fresh-seed gate runs `npm run db:seed` to load deterministic local demo
@@ -204,6 +239,14 @@ docker compose logs postgres
 docker compose logs redis
 ```
 
+Profiled server or migration not healthy:
+
+```bash
+docker compose --profile app ps -a
+docker compose --profile app logs migrate
+docker compose --profile app logs server
+```
+
 Prisma migration issues:
 
 ```bash
@@ -228,5 +271,6 @@ partial fresh-seed run.
 Environment precedence:
 
 - Docker Compose reads root `.env` for infrastructure variables.
-- NestJS reads `server/.env` when run from the server workspace and can also fall back to root `.env`.
+- Host-run NestJS reads `server/.env` first and can fall back to root `.env`; its required PDF root should remain `../storage/pdfs`.
+- The Compose server receives `/workspace/storage/pdfs` directly from `docker-compose.yml`, matching its named-volume mount.
 - TanStack Start reads `client/.env` for `VITE_API_BASE_URL`.
