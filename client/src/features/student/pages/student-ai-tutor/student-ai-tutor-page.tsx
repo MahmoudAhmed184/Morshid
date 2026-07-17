@@ -107,7 +107,7 @@ export function StudentAiTutorPage({
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4 py-5 sm:px-6">
+    <div className="flex flex-1 flex-col px-4 py-5 sm:px-6 md:min-h-0 md:overflow-hidden">
       <StudentPageHeader title="AI Tutor" />
 
       <section
@@ -163,13 +163,13 @@ export function StudentAiTutorPage({
         ) : null}
 
         {selectedCourse ? (
-          <div className="grid min-h-0 flex-1 md:grid-cols-[17rem_minmax(0,1fr)]">
+          <div className="grid min-h-0 flex-1 md:grid-cols-[17rem_minmax(0,1fr)] md:overflow-hidden">
             <StudentSessionNavigation
               courseId={selectedCourse.id}
               sessions={sessions}
               selectedSessionId={sessionId}
               isPending={sessionsQuery.isPending}
-              isError={sessionsQuery.isError}
+              isError={sessionsQuery.isError && sessions.length === 0}
               isRefreshing={
                 sessionsQuery.isFetching &&
                 !sessionsQuery.isPending &&
@@ -177,6 +177,7 @@ export function StudentAiTutorPage({
               }
               hasNextPage={sessionsQuery.hasNextPage}
               isFetchingNextPage={sessionsQuery.isFetchingNextPage}
+              isFetchNextPageError={sessionsQuery.isFetchNextPageError}
               isCreating={createSession.isPending}
               renamingSessionId={
                 renameSession.isPending
@@ -216,7 +217,9 @@ export function StudentAiTutorPage({
                     <StudentWorkspaceState
                       sessionId={sessionId}
                       sessionsPending={sessionsQuery.isPending}
-                      sessionsError={sessionsQuery.isError}
+                      sessionsError={
+                        sessionsQuery.isError && sessions.length === 0
+                      }
                       hasSessions={sessions.length > 0}
                     />
                   </div>

@@ -7,7 +7,6 @@ import { isApiError } from '@/features/auth/api/authenticated-api-client'
 import type { ChatMessage } from '@/features/student/schemas/student-chat.schema'
 
 import { StudentChatMessage } from './student-chat-message'
-import { StudentMessageHistorySkeleton } from './student-message-history-skeleton'
 
 interface StudentMessageHistoryProps {
   messages: ChatMessage[]
@@ -35,7 +34,14 @@ export function StudentMessageHistory({
   onRecover,
 }: StudentMessageHistoryProps) {
   if (isPending) {
-    return <StudentMessageHistorySkeleton />
+    return (
+      <div
+        role="status"
+        aria-label="Loading conversation history"
+        aria-busy="true"
+        className="min-h-full"
+      />
+    )
   }
 
   if (

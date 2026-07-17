@@ -1,12 +1,11 @@
 import { MessageSquareText } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { ErrorState } from '@/components/ui/custom/error-state'
-import { Skeleton } from '@/components/ui/skeleton'
 import type { ChatSession } from '@/features/student/schemas/student-chat.schema'
 
 import { StudentCreateSessionButton } from './student-create-session-button'
+import { StudentSessionInfiniteScroll } from './student-session-infinite-scroll'
 import { StudentSessionListItem } from './student-session-list-item'
 import { StudentSessionNavigationSkeleton } from './student-session-navigation-skeleton'
 
@@ -19,6 +18,7 @@ interface StudentSessionNavigationProps {
   isRefreshing: boolean
   hasNextPage: boolean
   isFetchingNextPage: boolean
+  isFetchNextPageError: boolean
   isCreating: boolean
   renamingSessionId?: string
   deletingSessionId?: string
@@ -38,6 +38,7 @@ export function StudentSessionNavigation({
   isRefreshing,
   hasNextPage,
   isFetchingNextPage,
+  isFetchNextPageError,
   isCreating,
   renamingSessionId,
   deletingSessionId,
@@ -50,7 +51,7 @@ export function StudentSessionNavigation({
   return (
     <aside
       aria-label="Session navigation"
-      className="border-b border-border bg-muted/15 md:border-r md:border-b-0"
+      className="flex max-h-72 min-h-0 flex-col overflow-hidden border-b border-border bg-muted/15 md:max-h-none md:border-r md:border-b-0"
     >
       <header className="flex min-h-14 items-center justify-between gap-3 border-b border-border px-4 py-3">
         <div>
@@ -62,13 +63,7 @@ export function StudentSessionNavigation({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {isPending ? (
-            <Skeleton className="h-5 w-8 rounded-full" />
-          ) : isRefreshing ? (
-            <Badge variant="outline">Refreshing</Badge>
-          ) : (
-            <Badge variant="secondary">{sessions.length}</Badge>
-          )}
+          {isRefreshing ? <Badge variant="outline">Refreshing</Badge> : null}
           <StudentCreateSessionButton
             isPending={isCreating}
             onCreate={onCreate}
@@ -76,7 +71,12 @@ export function StudentSessionNavigation({
         </div>
       </header>
 
-      <div className="max-h-64 overflow-y-auto p-3 md:max-h-none">
+      <div
+        role="region"
+        aria-label="Conversation list"
+        tabIndex={0}
+        className="scrollbar-themed min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
+      >
         {isPending ? <StudentSessionNavigationSkeleton /> : null}
 
         {isError ? (
@@ -119,17 +119,12 @@ export function StudentSessionNavigation({
                 />
               ))}
             </ul>
-            {hasNextPage ? (
-              <Button
-                type="button"
-                variant="outline"
-                className="mt-3 w-full"
-                disabled={isFetchingNextPage}
-                onClick={onLoadMore}
-              >
-                {isFetchingNextPage ? 'Loading more…' : 'Load more'}
-              </Button>
-            ) : null}
+            <StudentSessionInfiniteScroll
+              hasNextPage={hasNextPage}
+              isFetching={isFetchingNextPage}
+              isError={isFetchNextPageError}
+              onLoadMore={onLoadMore}
+            />
           </nav>
         ) : null}
       </div>

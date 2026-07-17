@@ -1,4 +1,4 @@
-import { Bell, BookOpen, Bot, Home, Settings } from 'lucide-react'
+import { Bell, BookOpen, Home, Settings } from 'lucide-react'
 
 import { AppSidebar } from '@/components/layout/app-sidebar'
 import type { AppSidebarNavItem } from '@/components/layout/app-sidebar'
@@ -11,7 +11,6 @@ import type { StudentCourse } from '@/features/student/schemas/student-course.sc
 const primaryNavItems: readonly AppSidebarNavItem[] = [
   { label: 'Dashboard', icon: Home, to: '/student/dashboard' },
   { label: 'Courses', icon: BookOpen, to: '/student/courses' },
-  { label: 'AI Tutor', icon: Bot, to: '/student/ai-tutor' },
 ] as const
 
 const secondaryNavItems = [{ label: 'Notifications', icon: Bell }] as const

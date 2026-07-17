@@ -14,7 +14,7 @@ interface StudentSessionScope extends StudentCourseScope {
   sessionId: string
 }
 
-const sessionPageSize = 50
+const sessionPageSize = 25
 const messagePageSize = 50
 
 export const studentSessionKeys = {

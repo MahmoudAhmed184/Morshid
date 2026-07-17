@@ -169,10 +169,9 @@ describe('StudentShellPage', () => {
       'href',
       '/student/courses',
     )
-    expect(screen.getByRole('link', { name: /ai tutor/i })).toHaveAttribute(
-      'href',
-      '/student/ai-tutor',
-    )
+    expect(
+      screen.queryByRole('link', { name: /ai tutor/i }),
+    ).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: /settings/i })).toHaveAttribute(
       'href',
       '/student/settings',
@@ -215,8 +214,8 @@ describe('StudentShellPage', () => {
       within(drawer).getByRole('link', { name: /courses/i }),
     ).toHaveAttribute('href', '/student/courses')
     expect(
-      within(drawer).getByRole('link', { name: /ai tutor/i }),
-    ).toHaveAttribute('href', '/student/ai-tutor')
+      within(drawer).queryByRole('link', { name: /ai tutor/i }),
+    ).not.toBeInTheDocument()
     expect(
       within(drawer).getByRole('link', { name: /settings/i }),
     ).toHaveAttribute('href', '/student/settings')
