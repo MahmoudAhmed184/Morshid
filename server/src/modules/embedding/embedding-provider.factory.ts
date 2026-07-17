@@ -18,16 +18,13 @@ const embeddingProviderFactories = {
 export function createEmbeddingProvider(
   provider: AppEnvironment['EMBEDDING_PROVIDER'],
 ): EmbeddingProvider {
-  // The lookup goes through a partial view because the runtime value can
-  // drift from the compile-time enum; an unknown provider must fail at
-  // startup instead of at the first embedding call.
-  const factories: Partial<Record<string, () => EmbeddingProvider>> =
-    embeddingProviderFactories
-  const createInnerProvider = factories[provider]
-
-  if (createInnerProvider === undefined) {
+  // The runtime value can drift from the compile-time enum, and an unknown
+  // provider must fail at startup instead of at the first embedding call.
+  // Object.hasOwn keeps prototype members (e.g. `constructor`) from
+  // satisfying the lookup.
+  if (!Object.hasOwn(embeddingProviderFactories, provider)) {
     throw new UnsupportedEmbeddingProviderError(provider)
   }
 
-  return new ValidatedEmbeddingProvider(createInnerProvider())
+  return new ValidatedEmbeddingProvider(embeddingProviderFactories[provider]())
 }
