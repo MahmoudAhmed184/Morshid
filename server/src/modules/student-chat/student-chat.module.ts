@@ -6,9 +6,13 @@ import { PrismaModule } from '../prisma/prisma.module'
 import { StudentChatAuditService } from './student-chat.audit.service'
 import { StudentChatController } from './student-chat.controller'
 import {
-  PrismaStudentChatRepository,
-  StudentChatRepository,
-} from './student-chat.repository'
+  PrismaStudentChatMessageRepository,
+  StudentChatMessageRepository,
+} from './student-chat-message.repository'
+import {
+  PrismaStudentChatSessionRepository,
+  StudentChatSessionRepository,
+} from './student-chat-session.repository'
 import { StudentChatService } from './student-chat.service'
 
 @Module({
@@ -18,8 +22,12 @@ import { StudentChatService } from './student-chat.service'
     StudentChatAuditService,
     StudentChatService,
     {
-      provide: StudentChatRepository,
-      useClass: PrismaStudentChatRepository,
+      provide: StudentChatSessionRepository,
+      useClass: PrismaStudentChatSessionRepository,
+    },
+    {
+      provide: StudentChatMessageRepository,
+      useClass: PrismaStudentChatMessageRepository,
     },
   ],
   exports: [StudentChatAuditService, StudentChatService],

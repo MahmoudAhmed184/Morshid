@@ -17,27 +17,31 @@ import {
   renameChatSessionRequestSchema,
 } from './student-chat.dto'
 import { STUDENT_CHAT_ERROR_CODES } from './student-chat.errors'
-import {
-  type AppendPendingAssistantMessageInput,
-  type AppendStudentMessageInput,
-  type BlockAssistantMessageInput,
-  type ChatMessageRecord,
-  type ChatSessionRecord,
-  type CompleteAssistantMessageInput,
-  type FailAssistantMessageInput,
-  type MessageListPagination,
-  type MessagePersistenceResult,
-  type SessionListPagination,
-  type SoftDeleteChatSessionInput,
-  type SoftDeleteSessionOutcome,
-  StudentChatRepository,
-} from './student-chat.repository'
+import { StudentChatMessageRepository } from './student-chat-message.repository'
+import { StudentChatSessionRepository } from './student-chat-session.repository'
+import type {
+  AppendPendingAssistantMessageInput,
+  AppendStudentMessageInput,
+  BlockAssistantMessageInput,
+  ChatMessageRecord,
+  ChatSessionRecord,
+  CompleteAssistantMessageInput,
+  FailAssistantMessageInput,
+  MessageListPagination,
+  MessagePersistenceResult,
+  SessionListPagination,
+  SoftDeleteChatSessionInput,
+  SoftDeleteSessionOutcome,
+} from './student-chat.repository.types'
 import { StudentChatService } from './student-chat.service'
 
 const createdAt = new Date('2026-07-14T10:00:00.000Z')
 const updatedAt = new Date('2026-07-14T10:01:00.000Z')
 
-class StudentChatTestRepository extends StudentChatRepository {
+class StudentChatTestRepository
+  extends StudentChatSessionRepository
+  implements StudentChatMessageRepository
+{
   readonly memberships = new Set<string>()
   readonly courses = new Set<string>()
   readonly sessions = new Map<
@@ -406,6 +410,7 @@ describe('StudentChatService', () => {
       repository,
       auditService,
       service: new StudentChatService(
+        repository,
         repository,
         auditService as unknown as StudentChatAuditService,
       ),

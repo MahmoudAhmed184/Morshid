@@ -29,17 +29,18 @@ import {
   assistantMessageNotPendingException,
   chatSessionNotFoundException,
 } from './student-chat.errors'
-import {
-  type ChatMessageRecord,
-  type AppendPendingAssistantMessageInput,
-  type AppendStudentMessageInput,
-  type BlockAssistantMessageInput,
-  type CompleteAssistantMessageInput,
-  type FailAssistantMessageInput,
-  type MessagePersistenceResult,
-  type ChatSessionRecord,
-  StudentChatRepository,
-} from './student-chat.repository'
+import { StudentChatMessageRepository } from './student-chat-message.repository'
+import { StudentChatSessionRepository } from './student-chat-session.repository'
+import type {
+  ChatMessageRecord,
+  AppendPendingAssistantMessageInput,
+  AppendStudentMessageInput,
+  BlockAssistantMessageInput,
+  CompleteAssistantMessageInput,
+  FailAssistantMessageInput,
+  MessagePersistenceResult,
+  ChatSessionRecord,
+} from './student-chat.repository.types'
 
 const DEFAULT_CHAT_TITLE = 'New chat'
 
@@ -48,7 +49,8 @@ export class StudentChatService {
   private readonly logger = new Logger(StudentChatService.name)
 
   constructor(
-    private readonly studentChatRepository: StudentChatRepository,
+    private readonly sessionRepository: StudentChatSessionRepository,
+    private readonly messageRepository: StudentChatMessageRepository,
     private readonly studentChatAuditService: StudentChatAuditService,
   ) {}
 
@@ -60,7 +62,7 @@ export class StudentChatService {
   ): Promise<ChatSessionResponseDto> {
     await this.requireActiveStudentMembership(courseId, user.id, requestContext)
 
-    const session = await this.studentChatRepository.createSession(
+    const session = await this.sessionRepository.createSession(
       courseId,
       user.id,
       body.title ?? DEFAULT_CHAT_TITLE,
@@ -89,7 +91,7 @@ export class StudentChatService {
       query.limit ?? DEFAULT_SESSION_PAGE_SIZE,
       MAX_SESSION_PAGE_SIZE,
     )
-    const sessions = await this.studentChatRepository.listSessions(
+    const sessions = await this.sessionRepository.listSessions(
       courseId,
       user.id,
       { limit, cursor: query.cursor ?? null },
@@ -129,7 +131,7 @@ export class StudentChatService {
   ): Promise<ChatSessionResponseDto> {
     await this.requireActiveStudentMembership(courseId, user.id, requestContext)
 
-    const session = await this.studentChatRepository.renameSession(
+    const session = await this.sessionRepository.renameSession(
       courseId,
       sessionId,
       user.id,
@@ -157,7 +159,7 @@ export class StudentChatService {
   ): Promise<void> {
     await this.requireActiveStudentMembership(courseId, user.id, requestContext)
 
-    const outcome = await this.studentChatRepository.softDeleteSession({
+    const outcome = await this.sessionRepository.softDeleteSession({
       courseId,
       sessionId,
       studentId: user.id,
@@ -190,7 +192,7 @@ export class StudentChatService {
       query.limit ?? DEFAULT_MESSAGE_PAGE_SIZE,
       MAX_MESSAGE_PAGE_SIZE,
     )
-    const messages = await this.studentChatRepository.listMessages(
+    const messages = await this.messageRepository.listMessages(
       courseId,
       sessionId,
       user.id,
@@ -225,7 +227,7 @@ export class StudentChatService {
       input.sessionId,
       input.studentId,
       requestContext,
-      this.studentChatRepository.appendStudentMessage(input),
+      this.messageRepository.appendStudentMessage(input),
     )
   }
 
@@ -238,7 +240,7 @@ export class StudentChatService {
       input.sessionId,
       input.studentId,
       requestContext,
-      this.studentChatRepository.appendPendingAssistantMessage(input),
+      this.messageRepository.appendPendingAssistantMessage(input),
     )
   }
 
@@ -251,7 +253,7 @@ export class StudentChatService {
       input.sessionId,
       input.studentId,
       requestContext,
-      this.studentChatRepository.completeAssistantMessage(input),
+      this.messageRepository.completeAssistantMessage(input),
     )
   }
 
@@ -264,7 +266,7 @@ export class StudentChatService {
       input.sessionId,
       input.studentId,
       requestContext,
-      this.studentChatRepository.failAssistantMessage(input),
+      this.messageRepository.failAssistantMessage(input),
     )
   }
 
@@ -277,7 +279,7 @@ export class StudentChatService {
       input.sessionId,
       input.studentId,
       requestContext,
-      this.studentChatRepository.blockAssistantMessage(input),
+      this.messageRepository.blockAssistantMessage(input),
     )
   }
 
@@ -287,7 +289,7 @@ export class StudentChatService {
     requestContext?: AuditRequestContext,
   ): Promise<void> {
     const hasMembership =
-      await this.studentChatRepository.hasActiveStudentMembership(
+      await this.sessionRepository.hasActiveStudentMembership(
         courseId,
         studentId,
       )
@@ -327,7 +329,7 @@ export class StudentChatService {
 
   private async courseExistsSafe(courseId: string): Promise<boolean> {
     try {
-      return await this.studentChatRepository.courseExists(courseId)
+      return await this.sessionRepository.courseExists(courseId)
     } catch (error) {
       this.logger.error(
         'Failed to resolve course existence for student chat audit',
@@ -364,7 +366,7 @@ export class StudentChatService {
       requestContext,
     )
 
-    const session = await this.studentChatRepository.findOwnedActiveSession(
+    const session = await this.sessionRepository.findOwnedActiveSession(
       courseId,
       sessionId,
       studentId,
