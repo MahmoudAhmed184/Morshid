@@ -195,6 +195,10 @@ describe('OpenAPI contract (e2e)', () => {
           description: 'Course access for authenticated users.',
         },
         {
+          name: 'student-chat-sessions',
+          description: 'Private Student chat session and message persistence.',
+        },
+        {
           name: 'admin-users',
           description: 'Administrative user account operations.',
         },
@@ -583,6 +587,150 @@ describe('OpenAPI contract (e2e)', () => {
       expect(
         schemas.AdminResetUserPasswordRequestDto.properties.newPassword,
       ).toMatchObject(passwordPolicy)
+    } finally {
+      await app.close()
+    }
+  })
+
+  it('documents student chat session operations and reachable error shapes', async () => {
+    const app = await createApp('test')
+
+    try {
+      const response = await request(app.getHttpServer())
+        .get('/docs-json')
+        .expect(200)
+      const document = response.body as OpenAPIObject
+      const base = '/api/v1/courses/{courseId}/chat-sessions'
+      const expectedOperations = [
+        {
+          path: base,
+          method: 'post',
+          tag: 'student-chat-sessions',
+          summary: 'Create chat session',
+          statuses: ['201', '400', '401', '403'],
+        },
+        {
+          path: base,
+          method: 'get',
+          tag: 'student-chat-sessions',
+          summary: 'List chat sessions',
+          statuses: ['200', '400', '401', '403'],
+        },
+        {
+          path: `${base}/{sessionId}`,
+          method: 'get',
+          tag: 'student-chat-sessions',
+          summary: 'Get chat session',
+          statuses: ['200', '400', '401', '403', '404'],
+        },
+        {
+          path: `${base}/{sessionId}`,
+          method: 'patch',
+          tag: 'student-chat-sessions',
+          summary: 'Rename chat session',
+          statuses: ['200', '400', '401', '403', '404'],
+        },
+        {
+          path: `${base}/{sessionId}`,
+          method: 'delete',
+          tag: 'student-chat-sessions',
+          summary: 'Delete chat session',
+          statuses: ['204', '400', '401', '403', '404'],
+        },
+        {
+          path: `${base}/{sessionId}/messages`,
+          method: 'get',
+          tag: 'student-chat-sessions',
+          summary: 'List chat session messages',
+          statuses: ['200', '400', '401', '403', '404'],
+        },
+      ] as const
+
+      for (const expected of expectedOperations) {
+        const operation = expectProtectedOperation(document, expected)
+
+        expect(getParameter(operation, 'courseId')).toMatchObject({
+          in: 'path',
+          required: true,
+          schema: { type: 'string', format: 'uuid' },
+        })
+
+        if (expected.path.includes('{sessionId}')) {
+          expect(getParameter(operation, 'sessionId')).toMatchObject({
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+          })
+        }
+
+        if ((expected.statuses as readonly string[]).includes('404')) {
+          expectResponseSchemaReference(operation, '404', 'OpenApiErrorDto')
+        }
+      }
+
+      // Endpoints with a request body or query carry both validation shapes at
+      // 400 (Zod validation error or a non-UUID path parameter).
+      const validationOrUuidBadRequest = {
+        oneOf: [
+          { $ref: '#/components/schemas/OpenApiValidationErrorDto' },
+          { $ref: '#/components/schemas/NestBadRequestErrorDto' },
+        ],
+      }
+      for (const { path, method } of [
+        { path: base, method: 'post' },
+        { path: base, method: 'get' },
+        { path: `${base}/{sessionId}`, method: 'patch' },
+        { path: `${base}/{sessionId}/messages`, method: 'get' },
+      ] as const) {
+        expect(
+          getOperation(document, path, method).responses['400'],
+        ).toMatchObject({
+          content: {
+            'application/json': { schema: validationOrUuidBadRequest },
+          },
+        })
+      }
+
+      // Endpoints with only UUID path parameters can only 400 on a bad UUID.
+      for (const { path, method } of [
+        { path: `${base}/{sessionId}`, method: 'get' },
+        { path: `${base}/{sessionId}`, method: 'delete' },
+      ] as const) {
+        expectResponseSchemaReference(
+          getOperation(document, path, method),
+          '400',
+          'NestBadRequestErrorDto',
+        )
+      }
+
+      expectRequestSchemaReference(
+        getOperation(document, base, 'post'),
+        'CreateChatSessionRequestDto',
+      )
+      expectResponseSchemaReference(
+        getOperation(document, base, 'post'),
+        '201',
+        'ChatSessionResponseDto',
+      )
+      expectResponseSchemaReference(
+        getOperation(document, base, 'get'),
+        '200',
+        'ChatSessionListResponseDto',
+      )
+      expectRequestSchemaReference(
+        getOperation(document, `${base}/{sessionId}`, 'patch'),
+        'RenameChatSessionRequestDto',
+      )
+      expectResponseSchemaReference(
+        getOperation(document, `${base}/{sessionId}`, 'get'),
+        '200',
+        'ChatSessionResponseDto',
+      )
+      expectResponseSchemaReference(
+        getOperation(document, `${base}/{sessionId}/messages`, 'get'),
+        '200',
+        'ChatMessageHistoryResponseDto',
+      )
     } finally {
       await app.close()
     }

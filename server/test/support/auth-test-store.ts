@@ -103,6 +103,7 @@ interface FindManyMembershipArgs {
   where?: {
     userId?: string
     courseId?: string
+    removedAt?: Date | null
   }
   include?: {
     course?: boolean
@@ -162,7 +163,7 @@ interface UpdateCourseMembershipArgs {
       userId: string
     }
   }
-  data: Partial<Pick<CourseMembership, 'role'>>
+  data: Partial<Pick<CourseMembership, 'role' | 'removedAt' | 'createdById'>>
 }
 
 interface FindUniqueMembershipArgs {
@@ -409,6 +410,7 @@ export class AuthTestStore {
         userId: user.id,
         role: seedUser.pythonMembershipRole,
         createdById: adminId,
+        removedAt: null,
         createdAt: now,
       })
     }
@@ -655,6 +657,10 @@ export class AuthTestStore {
       memberships = memberships.filter((m) => m.courseId === courseId)
     }
 
+    if (args?.where?.removedAt === null) {
+      memberships = memberships.filter((m) => m.removedAt === null)
+    }
+
     return memberships.map((membership) => {
       if (args?.include?.course !== true) {
         return {
@@ -752,6 +758,7 @@ export class AuthTestStore {
       userId: args.data.userId,
       role: args.data.role,
       createdById: args.data.createdById,
+      removedAt: null,
       createdAt: new Date('2026-07-06T12:00:00.000Z'),
     }
 
@@ -799,10 +806,18 @@ export class AuthTestStore {
       throw new Error('Membership not found')
     }
 
-    const role = args.data.role
+    const current = this.memberships[index]
     const updated: CourseMembership = {
-      ...this.memberships[index],
-      role: role ?? this.memberships[index].role,
+      ...current,
+      role: args.data.role ?? current.role,
+      removedAt:
+        args.data.removedAt === undefined
+          ? current.removedAt
+          : args.data.removedAt,
+      createdById:
+        args.data.createdById === undefined
+          ? current.createdById
+          : args.data.createdById,
     }
     this.memberships[index] = updated
     return {

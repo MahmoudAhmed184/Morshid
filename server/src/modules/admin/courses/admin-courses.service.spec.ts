@@ -23,17 +23,22 @@ import { AdminCoursesService } from './admin-courses.service'
 const createdAt = new Date('2026-07-11T10:00:00.000Z')
 const updatedAt = new Date('2026-07-11T10:01:00.000Z')
 
+type StoredMembership = AdminCourseMembershipRecord & {
+  removedAt?: Date | null
+}
+
 class AdminCoursesServiceTestRepository extends AdminCoursesRepository {
   readonly courses = new Map<string, AdminCourseRecord>()
-  readonly memberships = new Map<string, AdminCourseMembershipRecord>()
+  readonly memberships = new Map<string, StoredMembership>()
   readonly materials = new Map<string, AdminMaterialRecord>()
   readonly users = new Map<string, { id: string }>()
 
   readonly addMember = jest.fn((input: AddCourseMemberInput) =>
     Promise.resolve(this.insertMembership(input)),
   )
+  // Soft removal: keep the row and stamp removedAt (mirrors the FK-safe repo).
   readonly removeMember = jest.fn((input: RemoveCourseMemberInput) => {
-    this.deleteMembership(input)
+    this.softRemoveMembership(input)
 
     return Promise.resolve()
   })
@@ -63,14 +68,21 @@ class AdminCoursesServiceTestRepository extends AdminCoursesRepository {
     userId: string,
   ): Promise<AdminCourseMembershipRecord | null> {
     const id = `${courseId}_${userId}`
-    return Promise.resolve(this.memberships.get(id) ?? null)
+    const membership = this.memberships.get(id)
+
+    // Soft-removed memberships are treated as absent.
+    if (membership === undefined || membership.removedAt != null) {
+      return Promise.resolve(null)
+    }
+
+    return Promise.resolve(membership)
   }
 
   listMembers(courseId: string): Promise<AdminCourseMembershipRecord[]> {
     const course = this.courses.get(courseId)
     const memberIds = new Set((course?.memberships ?? []).map((cm) => cm.id))
     const members = [...this.memberships.values()]
-      .filter((m) => memberIds.has(m.id))
+      .filter((m) => memberIds.has(m.id) && m.removedAt == null)
       .sort(
         (a, b) =>
           a.role.localeCompare(b.role) ||
@@ -102,11 +114,14 @@ class AdminCoursesServiceTestRepository extends AdminCoursesRepository {
     input: AddCourseMemberInput,
   ): AdminCourseMembershipRecord {
     const id = `${input.courseId}_${input.userId}`
-    const membership: AdminCourseMembershipRecord = {
+    const existing = this.memberships.get(id)
+    const membership: StoredMembership = {
       id,
       userId: input.userId,
       role: input.role,
-      createdAt,
+      createdAt: existing?.createdAt ?? createdAt,
+      // Re-adding reactivates a soft-removed row rather than duplicating it.
+      removedAt: null,
       user: {
         id: input.userId,
         email: `user_${input.userId}@demo.com`,
@@ -120,20 +135,19 @@ class AdminCoursesServiceTestRepository extends AdminCoursesRepository {
 
     // Also update the course's memberships array so tests see it
     const course = this.courses.get(input.courseId)
-    if (course) {
+    if (course && existing === undefined) {
       course.memberships.push(membership)
     }
 
     return membership
   }
 
-  private deleteMembership(input: RemoveCourseMemberInput): void {
+  private softRemoveMembership(input: RemoveCourseMemberInput): void {
     const id = `${input.courseId}_${input.userId}`
-    this.memberships.delete(id)
+    const membership = this.memberships.get(id)
 
-    const course = this.courses.get(input.courseId)
-    if (course) {
-      course.memberships = course.memberships.filter((m) => m.id !== id)
+    if (membership) {
+      membership.removedAt = new Date()
     }
   }
 
@@ -381,6 +395,92 @@ describe('AdminCoursesService', () => {
       await expect(removeMember).rejects.toBeInstanceOf(NotFoundException)
       await expect(removeMember).rejects.toMatchObject({
         response: { code: ADMIN_COURSES_ERROR_CODES.MEMBER_NOT_FOUND },
+      })
+    })
+
+    it('re-adds a previously soft-removed member (H1)', async () => {
+      const { repository, service } = buildService()
+      repository.courses.set(dummyCourse.id, { ...dummyCourse })
+      repository.users.set('user-1', { id: 'user-1' })
+      repository.memberships.set(`${dummyCourse.id}_user-1`, {
+        id: 'mem-1',
+        userId: 'user-1',
+        role: CourseMembershipRole.STUDENT,
+        createdAt,
+        user: {
+          id: 'user-1',
+          email: 'user_1@demo.com',
+          displayName: 'User 1',
+          role: UserRole.STUDENT,
+          status: UserStatus.ACTIVE,
+        },
+      })
+
+      await service.removeMember(
+        dummyCourse.id,
+        'user-1',
+        actor,
+        requestContext,
+      )
+
+      // A removed member no longer counts as a conflicting existing member, so
+      // re-adding must succeed instead of throwing "already exists".
+      const readded = await service.addMember(
+        dummyCourse.id,
+        { userId: 'user-1', role: CourseMembershipRole.STUDENT },
+        actor,
+        requestContext,
+      )
+
+      expect(readded.member.userId).toBe('user-1')
+      await expect(service.listMembers(dummyCourse.id)).resolves.toMatchObject({
+        members: [{ userId: 'user-1' }],
+      })
+    })
+
+    it('excludes soft-removed members from the member list (H1)', async () => {
+      const { repository, service } = buildService()
+      repository.courses.set(dummyCourse.id, {
+        ...dummyCourse,
+        memberships: [
+          {
+            id: 'mem-1',
+            userId: 'user-1',
+            role: CourseMembershipRole.STUDENT,
+            createdAt,
+            user: {
+              id: 'user-1',
+              email: 'student@demo.com',
+              displayName: 'Student',
+              role: UserRole.STUDENT,
+              status: UserStatus.ACTIVE,
+            },
+          },
+        ],
+      })
+      repository.memberships.set(`${dummyCourse.id}_user-1`, {
+        id: 'mem-1',
+        userId: 'user-1',
+        role: CourseMembershipRole.STUDENT,
+        createdAt,
+        user: {
+          id: 'user-1',
+          email: 'student@demo.com',
+          displayName: 'Student',
+          role: UserRole.STUDENT,
+          status: UserStatus.ACTIVE,
+        },
+      })
+
+      await service.removeMember(
+        dummyCourse.id,
+        'user-1',
+        actor,
+        requestContext,
+      )
+
+      await expect(service.listMembers(dummyCourse.id)).resolves.toMatchObject({
+        members: [],
       })
     })
 

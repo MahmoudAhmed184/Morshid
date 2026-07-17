@@ -8,6 +8,7 @@ import { validateEnv } from './modules/config/env.schema'
 import { CoursesModule } from './modules/courses/courses.module'
 import { HealthModule } from './modules/health/health.module'
 import { AdminModule } from './modules/admin/admin.module'
+import { StudentChatModule } from './modules/student-chat/student-chat.module'
 import { RagPersistenceModule } from './modules/rag-persistence/rag-persistence.module'
 import { PdfStorageModule } from './modules/pdf-storage/pdf-storage.module'
 
@@ -24,6 +25,7 @@ import { PdfStorageModule } from './modules/pdf-storage/pdf-storage.module'
     AuthModule,
     CoursesModule,
     AdminModule,
+    StudentChatModule,
     RagPersistenceModule,
     PdfStorageModule,
   ],

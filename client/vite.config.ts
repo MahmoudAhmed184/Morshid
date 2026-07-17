@@ -16,6 +16,7 @@ const config = defineConfig({
         url: 'http://localhost:3000',
       },
     },
+    fileParallelism: false,
     setupFiles: ['./src/test/setup.ts'],
   },
 })

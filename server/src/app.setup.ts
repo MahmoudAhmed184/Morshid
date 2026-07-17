@@ -20,6 +20,10 @@ export function configureApp(app: INestApplication) {
     .setOpenAPIVersion('3.0.4')
     .addTag('auth', 'Authentication and session management.')
     .addTag('courses', 'Course access for authenticated users.')
+    .addTag(
+      'student-chat-sessions',
+      'Private Student chat session and message persistence.',
+    )
     .addTag('admin-users', 'Administrative user account operations.')
     .addTag(
       'admin-courses',

@@ -231,7 +231,7 @@ export class PrismaAdminCoursesRepository extends AdminCoursesRepository {
     courseId: string,
     userId: string,
   ): Promise<AdminCourseMembershipRecord | null> {
-    return this.prismaService.courseMembership.findUnique({
+    const membership = await this.prismaService.courseMembership.findUnique({
       where: {
         courseId_userId: { courseId, userId },
       },
@@ -240,11 +240,26 @@ export class PrismaAdminCoursesRepository extends AdminCoursesRepository {
         userId: true,
         role: true,
         createdAt: true,
+        removedAt: true,
         user: {
           select: courseUserSelect,
         },
       },
     })
+
+    if (membership === null) {
+      return null
+    }
+
+    // Only active memberships count: a soft-removed member is treated as absent
+    // (re-addable, not removable/updatable) across the admin surface.
+    if (membership.removedAt !== null) {
+      return null
+    }
+
+    const { removedAt: _removedAt, ...record } = membership
+
+    return record
   }
 
   async addMember(
@@ -252,23 +267,70 @@ export class PrismaAdminCoursesRepository extends AdminCoursesRepository {
   ): Promise<AdminCourseMembershipRecord> {
     try {
       return await this.prismaService.$transaction(async (tx) => {
-        const membership = await tx.courseMembership.create({
-          data: {
-            courseId: input.courseId,
-            userId: input.userId,
-            role: input.role,
-            createdById: input.actorUserId,
+        const existing = await tx.courseMembership.findUnique({
+          where: {
+            courseId_userId: {
+              courseId: input.courseId,
+              userId: input.userId,
+            },
           },
           select: {
             id: true,
-            userId: true,
-            role: true,
-            createdAt: true,
-            user: {
-              select: courseUserSelect,
-            },
+            removedAt: true,
           },
         })
+
+        if (existing?.removedAt === null) {
+          throw new AdminCourseMemberAlreadyExistsError(
+            input.courseId,
+            input.userId,
+          )
+        }
+
+        // The @@unique([courseId, userId]) constraint keeps the soft-removed row
+        // around, so re-adding reactivates it (clearing removedAt) rather than
+        // inserting a duplicate.
+        const membership =
+          existing === null
+            ? await tx.courseMembership.create({
+                data: {
+                  courseId: input.courseId,
+                  userId: input.userId,
+                  role: input.role,
+                  createdById: input.actorUserId,
+                },
+                select: {
+                  id: true,
+                  userId: true,
+                  role: true,
+                  createdAt: true,
+                  user: {
+                    select: courseUserSelect,
+                  },
+                },
+              })
+            : await tx.courseMembership.update({
+                where: {
+                  courseId_userId: {
+                    courseId: input.courseId,
+                    userId: input.userId,
+                  },
+                },
+                data: {
+                  role: input.role,
+                  removedAt: null,
+                  createdById: input.actorUserId,
+                },
+                select: {
+                  id: true,
+                  userId: true,
+                  role: true,
+                  createdAt: true,
+                  user: {
+                    select: courseUserSelect,
+                  },
+                },
+              })
 
         await this.adminCoursesAuditService.recordMemberAdded(
           {
@@ -283,6 +345,10 @@ export class PrismaAdminCoursesRepository extends AdminCoursesRepository {
         return membership
       })
     } catch (error) {
+      if (error instanceof AdminCourseMemberAlreadyExistsError) {
+        throw error
+      }
+
       if (isUniqueConstraintViolation(error)) {
         throw new AdminCourseMemberAlreadyExistsError(
           input.courseId,
@@ -296,12 +362,19 @@ export class PrismaAdminCoursesRepository extends AdminCoursesRepository {
 
   async removeMember(input: RemoveCourseMemberInput): Promise<void> {
     await this.prismaService.$transaction(async (tx) => {
-      const membership = await tx.courseMembership.delete({
+      // Soft removal: chat_sessions carry an ON DELETE RESTRICT FK onto the
+      // membership, so a hard delete would 500 once the student has any chat
+      // session. Setting removed_at preserves referential integrity and keeps
+      // the audit trail intact.
+      const membership = await tx.courseMembership.update({
         where: {
           courseId_userId: {
             courseId: input.courseId,
             userId: input.userId,
           },
+        },
+        data: {
+          removedAt: new Date(),
         },
         select: {
           id: true,
@@ -328,7 +401,7 @@ export class PrismaAdminCoursesRepository extends AdminCoursesRepository {
 
   listMembers(courseId: string): Promise<AdminCourseMembershipRecord[]> {
     return this.prismaService.courseMembership.findMany({
-      where: { courseId },
+      where: { courseId, removedAt: null },
       select: {
         id: true,
         userId: true,
