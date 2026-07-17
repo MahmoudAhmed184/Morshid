@@ -14,7 +14,6 @@ import type { AuthSession } from '@/features/auth/types/auth.types'
 import { studentCoursesQueryOptions } from '@/features/student/data/student-courses.queries'
 import type { StudentCourse } from '@/features/student/schemas/student-course.schema'
 
-import { StudentAiTutorPage } from './student-ai-tutor-page'
 import { StudentCoursesPage } from './student-courses-page'
 import { StudentDashboardPage } from './student-dashboard-page'
 import { StudentShellPage } from './student-shell-page'
@@ -221,76 +220,6 @@ describe('StudentShellPage', () => {
     expect(
       within(drawer).getByRole('link', { name: /settings/i }),
     ).toHaveAttribute('href', '/student/settings')
-  })
-})
-
-describe('StudentAiTutorPage', () => {
-  beforeEach(() => {
-    window.localStorage.clear()
-    useAuthStore.getState().clearSession()
-  })
-
-  afterEach(() => {
-    cleanup()
-    useAuthStore.getState().clearSession()
-    window.localStorage.clear()
-  })
-
-  it('renders the disconnected chat placeholder for the selected course context', () => {
-    useAuthStore.getState().setSession(createStudentSession([]))
-
-    renderWithStudentCourses(<StudentAiTutorPage />, [
-      {
-        id: 'python-course',
-        code: 'PYTHON-PROG-P0',
-        title: 'Python Programming',
-        membershipRole: 'STUDENT',
-      },
-    ])
-
-    expect(
-      screen.getByRole('heading', { name: 'Python Programming' }),
-    ).toBeInTheDocument()
-    expect(screen.getByText('PYTHON-PROG-P0')).toBeInTheDocument()
-    expect(screen.getByText('Chat not connected')).toBeInTheDocument()
-    expect(
-      screen.getByRole('heading', { name: 'No conversation yet' }),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText(/course-grounded chat is not available yet/i),
-    ).toBeInTheDocument()
-    expect(screen.getByLabelText('Message')).toBeDisabled()
-    expect(screen.getByRole('button', { name: /send message/i })).toBeDisabled()
-  })
-
-  it('uses an explicit course id when multiple courses are assigned', () => {
-    useAuthStore.getState().setSession(createStudentSession([]))
-
-    renderWithStudentCourses(
-      <StudentAiTutorPage courseId="javascript-course" />,
-      [
-        {
-          id: 'python-course',
-          code: 'PYTHON-PROG-P0',
-          title: 'Python Programming',
-          membershipRole: 'STUDENT',
-        },
-        {
-          id: 'javascript-course',
-          code: 'JAVASCRIPT-P0',
-          title: 'JavaScript Programming',
-          membershipRole: 'STUDENT',
-        },
-      ],
-    )
-
-    expect(
-      screen.getByRole('heading', { name: 'JavaScript Programming' }),
-    ).toBeInTheDocument()
-    expect(screen.getByText('JAVASCRIPT-P0')).toBeInTheDocument()
-    expect(
-      screen.getByRole('link', { name: /python programming/i }),
-    ).toHaveAttribute('href', '/student/ai-tutor?courseId=python-course')
   })
 })
 
