@@ -205,7 +205,6 @@ model MaterialChunk {
   retrievals MessageRetrieval[]
 
   @@unique([materialId, chunkIndex], map: "material_chunks_material_id_chunk_index_key")
-  @@index([materialId], map: "idx_chunks_material")
   @@map("material_chunks")
 }
 
@@ -270,6 +269,8 @@ model MessageRetrieval {
   messageId       String   @map("message_id") @db.Uuid
   chunkId         String?  @map("chunk_id") @db.Uuid
   rank            Int
+  /// Raw cosine similarity (1 - cosine distance); range [-1, 1]. Enforced by the
+  /// message_retrievals_similarity_score_check constraint in the migration.
   similarityScore Decimal? @map("similarity_score") @db.Decimal(8, 6)
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
@@ -277,7 +278,6 @@ model MessageRetrieval {
   chunk   MaterialChunk? @relation(fields: [chunkId], references: [id], onDelete: SetNull)
 
   @@unique([messageId, rank], map: "message_retrievals_message_id_rank_key")
-  @@index([messageId], map: "idx_retrievals_message")
   @@index([chunkId], map: "idx_retrievals_chunk")
   @@map("message_retrievals")
 }
@@ -293,7 +293,6 @@ model MessageCitation {
   material Material @relation(fields: [materialId], references: [id], onDelete: Restrict)
 
   @@unique([messageId, citationOrder], map: "message_citations_message_id_citation_order_key")
-  @@index([messageId], map: "idx_citations_message")
   @@index([materialId], map: "idx_citations_material")
   @@map("message_citations")
 }

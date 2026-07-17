@@ -9,6 +9,7 @@ import type { AppEnvironment } from '../src/modules/config/env.schema'
 import { PrismaService } from '../src/modules/prisma/prisma.service'
 import {
   InvalidMaterialChunkEmbeddingError,
+  MAX_INSERT_BATCH_ROWS,
   PrismaRagPersistenceRepository,
   type RagPersistenceRepository,
 } from '../src/modules/rag-persistence/rag-persistence.repository'
@@ -46,11 +47,17 @@ describe('RAG persistence (e2e)', () => {
   })
 
   afterAll(async () => {
-    await prisma.$disconnect()
-    await runDatabaseAdminStatement(
-      originalDatabaseUrl,
-      `DROP DATABASE IF EXISTS "${disposableDatabaseName}" WITH (FORCE)`,
-    )
+    try {
+      // `prisma` is undefined when beforeAll throws after CREATE DATABASE; the
+      // guard keeps teardown from masking the real setup failure and orphaning
+      // the disposable database.
+      await disconnectQuietly(prisma)
+    } finally {
+      await runDatabaseAdminStatement(
+        originalDatabaseUrl,
+        `DROP DATABASE IF EXISTS "${disposableDatabaseName}" WITH (FORCE)`,
+      )
+    }
   })
 
   it('migrates an empty database and round-trips 1,536-value vectors', async () => {
@@ -253,6 +260,15 @@ describe('RAG persistence (e2e)', () => {
         similarityScore: 0.75,
       },
     })
+    // Raw cosine similarity is legitimately negative for dissimilar embeddings.
+    await prisma.messageRetrieval.create({
+      data: {
+        messageId,
+        chunkId: chunk.id,
+        rank: 2,
+        similarityScore: -0.05,
+      },
+    })
     await expect(
       prisma.messageRetrieval.create({
         data: { messageId, chunkId: chunk.id, rank: 1 },
@@ -268,8 +284,18 @@ describe('RAG persistence (e2e)', () => {
         data: {
           messageId,
           chunkId: chunk.id,
-          rank: 2,
+          rank: 3,
           similarityScore: 1.000_001,
+        },
+      }),
+    ).rejects.toThrow()
+    await expect(
+      prisma.messageRetrieval.create({
+        data: {
+          messageId,
+          chunkId: chunk.id,
+          rank: 4,
+          similarityScore: -1.000_001,
         },
       }),
     ).rejects.toThrow()
@@ -338,6 +364,156 @@ describe('RAG persistence (e2e)', () => {
     await expect(
       prisma.materialChunk.count({ where: { materialId } }),
     ).resolves.toBe(0)
+  })
+
+  it('persists batches that exceed the single-statement bind-parameter limit', async () => {
+    const chunkCount = MAX_INSERT_BATCH_ROWS + 200
+    const embedding = makeEmbedding(0.5)
+    const chunks = Array.from({ length: chunkCount }, (_, chunkIndex) => ({
+      chunkIndex,
+      content: `Chunk ${String(chunkIndex)}`,
+      embedding,
+      embeddingModel: 'test-embedding-1536',
+    }))
+
+    await repository.insertMaterialChunks(materialId, chunks)
+
+    const stored = await repository.findMaterialChunks(materialId)
+    expect(stored).toHaveLength(chunkCount)
+    expect(stored.map(({ chunkIndex }) => chunkIndex)).toEqual(
+      Array.from({ length: chunkCount }, (_, chunkIndex) => chunkIndex),
+    )
+  })
+
+  it('rolls back the whole insert across batch boundaries on a constraint violation', async () => {
+    await repository.insertMaterialChunks(materialId, [
+      {
+        chunkIndex: MAX_INSERT_BATCH_ROWS + 5,
+        content: 'Pre-existing chunk',
+        embedding: makeEmbedding(0.5),
+        embeddingModel: 'test-embedding-1536',
+      },
+    ])
+
+    const chunks = Array.from(
+      { length: MAX_INSERT_BATCH_ROWS + 10 },
+      (_, chunkIndex) => ({
+        chunkIndex,
+        content: `Chunk ${String(chunkIndex)}`,
+        embedding: makeEmbedding(0.25),
+        embeddingModel: 'test-embedding-1536',
+      }),
+    )
+
+    // The duplicate index lands in the second batch; the first batch must roll back.
+    await expect(
+      repository.insertMaterialChunks(materialId, chunks),
+    ).rejects.toThrow()
+    await expect(
+      prisma.materialChunk.count({ where: { materialId } }),
+    ).resolves.toBe(1)
+  })
+
+  it('replaces material chunks and preserves retrieval provenance', async () => {
+    await repository.insertMaterialChunks(materialId, [
+      {
+        chunkIndex: 0,
+        content: 'Model A chunk 0',
+        embedding: makeEmbedding(0.25),
+        embeddingModel: 'text-embedding-a',
+      },
+      {
+        chunkIndex: 1,
+        content: 'Model A chunk 1',
+        embedding: makeEmbedding(0.5),
+        embeddingModel: 'text-embedding-a',
+      },
+      {
+        chunkIndex: 2,
+        content: 'Model A chunk 2',
+        embedding: makeEmbedding(0.75),
+        embeddingModel: 'text-embedding-a',
+      },
+    ])
+    const [firstChunk] = await repository.findMaterialChunks(materialId)
+    const messageId = await createMessage(prisma, materialId)
+    const retrieval = await prisma.messageRetrieval.create({
+      data: { messageId, chunkId: firstChunk.id, rank: 1 },
+    })
+
+    await repository.replaceMaterialChunks(materialId, [
+      {
+        chunkIndex: 0,
+        content: 'Model B chunk 0',
+        embedding: makeEmbedding(0.1),
+        embeddingModel: 'text-embedding-b',
+      },
+      {
+        chunkIndex: 1,
+        content: 'Model B chunk 1',
+        embedding: makeEmbedding(0.2),
+        embeddingModel: 'text-embedding-b',
+      },
+    ])
+
+    const replaced = await repository.findMaterialChunks(materialId)
+    expect(replaced).toHaveLength(2)
+    expect(replaced.map(({ content }) => content)).toEqual([
+      'Model B chunk 0',
+      'Model B chunk 1',
+    ])
+    expect(
+      replaced.every(
+        ({ embeddingModel }) => embeddingModel === 'text-embedding-b',
+      ),
+    ).toBe(true)
+    await expect(
+      prisma.messageRetrieval.findUniqueOrThrow({
+        where: { id: retrieval.id },
+        select: { chunkId: true },
+      }),
+    ).resolves.toEqual({ chunkId: null })
+  })
+
+  it('excludes chunks of soft-deleted materials from readback', async () => {
+    await repository.insertMaterialChunks(materialId, [
+      {
+        chunkIndex: 0,
+        content: 'Soft-deleted material chunk',
+        embedding: makeEmbedding(0.5),
+        embeddingModel: 'test-embedding-1536',
+      },
+    ])
+    await expect(
+      repository.findMaterialChunks(materialId),
+    ).resolves.toHaveLength(1)
+
+    await prisma.material.update({
+      where: { id: materialId },
+      data: { deletedAt: new Date() },
+    })
+
+    await expect(repository.findMaterialChunks(materialId)).resolves.toEqual([])
+  })
+
+  it('round-trips float4-quantized embeddings with tolerance, not exact equality', async () => {
+    // float4 holds ~7 significant decimal digits, so a 9-digit component cannot
+    // be stored exactly and reads back quantized.
+    const lossyComponent = 0.123456789
+    const embedding = makeEmbedding(lossyComponent)
+
+    await repository.insertMaterialChunks(materialId, [
+      {
+        chunkIndex: 0,
+        content: 'Lossy embedding chunk',
+        embedding,
+        embeddingModel: 'test-embedding-1536',
+      },
+    ])
+
+    const [chunk] = await repository.findMaterialChunks(materialId)
+    expect(chunk.embedding[0]).toBeCloseTo(lossyComponent, 5)
+    expect(chunk.embedding[0]).not.toBe(lossyComponent)
   })
 })
 
@@ -418,6 +594,16 @@ function makeBasisEmbedding(dimension: number): number[] {
 
 function serializeVector(embedding: readonly number[]): string {
   return `[${embedding.join(',')}]`
+}
+
+async function disconnectQuietly(
+  client: PrismaService | undefined,
+): Promise<void> {
+  if (client === undefined) {
+    return
+  }
+
+  await client.$disconnect()
 }
 
 function requireDatabaseUrl(): string {
