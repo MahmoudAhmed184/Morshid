@@ -12,6 +12,7 @@ import { StudentChatModule } from './modules/student-chat/student-chat.module'
 import { RagPersistenceModule } from './modules/rag-persistence/rag-persistence.module'
 import { PdfStorageModule } from './modules/pdf-storage/pdf-storage.module'
 import { EmbeddingModule } from './modules/embedding/embedding.module'
+import { RetrievalModule } from './modules/retrieval/retrieval.module'
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { EmbeddingModule } from './modules/embedding/embedding.module'
     RagPersistenceModule,
     PdfStorageModule,
     EmbeddingModule,
+    RetrievalModule,
   ],
 })
 export class AppModule {}
