@@ -16,6 +16,10 @@ export const envSchema = z
     DATABASE_URL: z.url().startsWith('postgresql://'),
     REDIS_URL: z.url().startsWith('redis://'),
     PDF_STORAGE_PATH: z.string().trim().min(1),
+    // Only providers with a wired implementation are accepted so the factory
+    // never has to reject a configured-but-unimplemented provider at runtime.
+    // The deterministic default keeps CI and local work keyless and offline.
+    EMBEDDING_PROVIDER: z.enum(['deterministic']).default('deterministic'),
     AUTH_ACCESS_TOKEN_SECRET: z.string().min(32),
     AUTH_REFRESH_TOKEN_HASH_SECRET: z.string().min(32),
     AUTH_ACCESS_TOKEN_TTL_SECONDS: z.coerce
