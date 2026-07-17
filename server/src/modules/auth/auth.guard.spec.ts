@@ -1,5 +1,6 @@
 import { ForbiddenException } from '@nestjs/common'
 import type { ExecutionContext } from '@nestjs/common'
+import { Reflector } from '@nestjs/core'
 
 import { buildAuthServiceTestHarness } from '../../../test/support/auth-service-test-harness'
 import { P0_DEMO_PASSWORD } from '../../seeds/p0-demo.seed'
@@ -10,12 +11,15 @@ function buildGuard() {
 
   return {
     ...harness,
-    guard: new AuthGuard(harness.service),
+    guard: new AuthGuard(harness.service, new Reflector()),
   }
 }
 
 function createExecutionContext(authorization: string): ExecutionContext {
+  const handler = () => undefined
   return {
+    getHandler: () => handler,
+    getClass: () => Object,
     switchToHttp: () => ({
       getRequest: () => ({
         headers: {
