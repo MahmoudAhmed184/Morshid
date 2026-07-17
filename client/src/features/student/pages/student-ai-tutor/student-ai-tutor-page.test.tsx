@@ -245,6 +245,42 @@ describe('StudentAiTutorPage workspace', () => {
     )
   })
 
+  it('recovers the routed course, session, and persisted history after refresh', async () => {
+    listStudentSessionsMock.mockResolvedValueOnce({
+      sessions: [{ ...primaryChatSessionFixture }],
+      nextCursor: null,
+    })
+    getStudentSessionMessagesMock.mockResolvedValueOnce(orderedMessageHistory)
+
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+    })
+
+    expect(
+      screen.getByRole('status', { name: 'Loading conversations' }),
+    ).toBeInTheDocument()
+    expect(
+      await screen.findByText(orderedChatMessagesFixture[0].content),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: primaryChatSessionFixture.title }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /python lists/i })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+    expect(listStudentSessionsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ courseId: primaryCourse.id }),
+    )
+    expect(getStudentSessionMessagesMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        courseId: primaryCourse.id,
+        sessionId: primaryChatSessionFixture.id,
+      }),
+    )
+  })
+
   it('shows a safe stale-session state', () => {
     renderWorkspace({
       courseId: primaryCourse.id,

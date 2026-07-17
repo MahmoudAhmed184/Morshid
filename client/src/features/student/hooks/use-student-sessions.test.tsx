@@ -113,11 +113,17 @@ function sessionList(
   return { sessions: [session], nextCursor: null }
 }
 
-function messageHistory(): ChatMessageHistoryResponse {
+function messageHistory(
+  firstMessageContent: string = chatMessageHistoryResponseFixture.messages[0]
+    .content,
+): ChatMessageHistoryResponse {
   return {
-    messages: chatMessageHistoryResponseFixture.messages.map((message) => ({
-      ...message,
-    })),
+    messages: chatMessageHistoryResponseFixture.messages.map(
+      (message, index) => ({
+        ...message,
+        content: index === 0 ? firstMessageContent : message.content,
+      }),
+    ),
     nextCursor: null,
   }
 }
@@ -136,9 +142,10 @@ function seedHistory(
   queryClient: QueryClient,
   scope: CourseScope,
   sessionId: string = studentChatIds.primarySession,
+  firstMessageContent?: string,
 ) {
   const key = studentSessionKeys.messageList({ ...scope, sessionId })
-  queryClient.setQueryData(key, messageHistory())
+  queryClient.setQueryData(key, messageHistory(firstMessageContent))
   return key
 }
 
@@ -185,37 +192,83 @@ describe('Student session hooks', () => {
     expect(createStudentSessionMock).not.toHaveBeenCalled()
   })
 
-  it('switches Student and course keys without showing prior scoped data', async () => {
+  it('isolates sessions and history through logout, login, and course switches', async () => {
     const queryClient = createQueryClient()
     seedSessionList(queryClient, primaryScope)
     seedSessionList(queryClient, otherStudentScope, otherStudentSession)
     seedSessionList(queryClient, otherCourseScope, otherChatSessionFixture)
+    seedHistory(
+      queryClient,
+      primaryScope,
+      studentChatIds.primarySession,
+      'Primary Student history',
+    )
+    seedHistory(
+      queryClient,
+      otherStudentScope,
+      studentChatIds.otherSession,
+      'Other Student history',
+    )
+    seedHistory(
+      queryClient,
+      otherCourseScope,
+      studentChatIds.otherSession,
+      'Other course history',
+    )
+    getStudentSessionMessagesMock.mockRejectedValue(new Error('Denied scope'))
     authenticate()
 
     const { result, rerender } = renderHook(
-      ({ courseId }: { courseId: string }) => useStudentSessions({ courseId }),
+      ({ courseId, sessionId }: { courseId: string; sessionId: string }) => ({
+        sessions: useStudentSessions({ courseId }),
+        history: useStudentSessionMessages({ courseId, sessionId }),
+      }),
       {
-        initialProps: { courseId: String(primaryScope.courseId) },
+        initialProps: {
+          courseId: String(primaryScope.courseId),
+          sessionId: String(studentChatIds.primarySession),
+        },
         wrapper: createWrapper(queryClient),
       },
     )
 
-    expect(result.current.data?.sessions[0]?.id).toBe(
+    expect(result.current.sessions.data?.sessions[0]?.id).toBe(
       studentChatIds.primarySession,
     )
+    expect(result.current.history.data?.messages[0]?.content).toBe(
+      'Primary Student history',
+    )
+
+    act(() => useAuthStore.getState().clearSession())
+    await waitFor(() => expect(result.current.sessions.data).toBeUndefined())
+    expect(result.current.history.data).toBeUndefined()
 
     act(() => authenticate(studentChatIds.otherStudent))
+    expect(result.current.history.data).toBeUndefined()
+    rerender({
+      courseId: studentChatIds.primaryCourse,
+      sessionId: studentChatIds.otherSession,
+    })
     await waitFor(() =>
-      expect(result.current.data?.sessions[0]?.id).toBe(
+      expect(result.current.sessions.data?.sessions[0]?.id).toBe(
         studentChatIds.otherSession,
       ),
     )
+    expect(result.current.history.data?.messages[0]?.content).toBe(
+      'Other Student history',
+    )
 
-    rerender({ courseId: studentChatIds.otherCourse })
+    rerender({
+      courseId: studentChatIds.otherCourse,
+      sessionId: studentChatIds.otherSession,
+    })
     await waitFor(() =>
-      expect(result.current.data?.sessions[0]?.courseId).toBe(
+      expect(result.current.sessions.data?.sessions[0]?.courseId).toBe(
         studentChatIds.otherCourse,
       ),
+    )
+    expect(result.current.history.data?.messages[0]?.content).toBe(
+      'Other course history',
     )
   })
 
