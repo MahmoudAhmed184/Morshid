@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import {
   access,
   mkdtemp,
@@ -12,9 +13,14 @@ import { join } from 'node:path'
 import {
   InvalidPdfStoragePathError,
   PdfStorageNotFoundError,
+  PdfStorageObjectTooLargeError,
   type PdfStorage,
 } from './pdf-storage'
 import { LocalPdfStorageAdapter } from './local-pdf-storage.adapter'
+
+function validKey(): string {
+  return `${randomUUID()}.pdf`
+}
 
 describe('LocalPdfStorageAdapter', () => {
   let rootPath: string
@@ -63,8 +69,8 @@ describe('LocalPdfStorageAdapter', () => {
   })
 
   it('uses exclusive creation without replacing an existing file', async () => {
-    const collidingPath = 'collision.pdf'
-    const replacementPath = 'fresh.pdf'
+    const collidingPath = validKey()
+    const replacementPath = validKey()
     await writeFile(join(rootPath, collidingPath), 'existing bytes')
     const keys = [collidingPath, replacementPath]
     const storageWithCollision = new LocalPdfStorageAdapter(
@@ -88,6 +94,9 @@ describe('LocalPdfStorageAdapter', () => {
     '../traversal.pdf',
     'nested/file.pdf',
     'nested\\file.pdf',
+    'not-a-uuid.pdf',
+    'plain-name.pdf',
+    ' 550e8400-e29b-41d4-a716-446655440000.pdf',
   ])('rejects non-flat storage path %s', async (storagePath) => {
     await expect(storage.read(storagePath)).rejects.toBeInstanceOf(
       InvalidPdfStoragePathError,
@@ -108,7 +117,7 @@ describe('LocalPdfStorageAdapter', () => {
   it('rejects a flat symlink that resolves outside the canonical root', async () => {
     const outsideRoot = await mkdtemp(join(tmpdir(), 'morshid-pdf-outside-'))
     const outsidePath = join(outsideRoot, 'outside.pdf')
-    const storagePath = 'escape.pdf'
+    const storagePath = validKey()
     await writeFile(outsidePath, 'outside bytes')
     await symlink(outsidePath, join(rootPath, storagePath))
 
@@ -126,7 +135,7 @@ describe('LocalPdfStorageAdapter', () => {
   })
 
   it('returns a typed error when a PDF is missing', async () => {
-    await expect(storage.read('missing.pdf')).rejects.toBeInstanceOf(
+    await expect(storage.read(validKey())).rejects.toBeInstanceOf(
       PdfStorageNotFoundError,
     )
   })
@@ -143,16 +152,14 @@ describe('LocalPdfStorageAdapter', () => {
     const missingRootStorage = new LocalPdfStorageAdapter(
       join(rootPath, 'does-not-exist'),
     )
-    await expect(
-      missingRootStorage.delete('missing.pdf'),
-    ).resolves.toBeUndefined()
+    await expect(missingRootStorage.delete(validKey())).resolves.toBeUndefined()
   })
 
   it('removes a partially written file after a write failure', async () => {
     const writeFailure = new Error('simulated write failure')
     const failingStorage = new LocalPdfStorageAdapter(
       rootPath,
-      () => 'partial.pdf',
+      () => validKey(),
       async (handle) => {
         await handle.writeFile(Buffer.from('partial bytes'))
         throw writeFailure
@@ -163,5 +170,42 @@ describe('LocalPdfStorageAdapter', () => {
       writeFailure,
     )
     await expect(readdir(rootPath)).resolves.toEqual([])
+  })
+
+  it('rejects a stored object larger than the configured maximum on write', async () => {
+    const cappedStorage = new LocalPdfStorageAdapter(
+      rootPath,
+      undefined,
+      undefined,
+      8,
+    )
+
+    await expect(
+      cappedStorage.create(Buffer.from('this is more than eight bytes')),
+    ).rejects.toBeInstanceOf(PdfStorageObjectTooLargeError)
+    await expect(readdir(rootPath)).resolves.toEqual([])
+  })
+
+  it('rejects reading an object larger than the configured maximum', async () => {
+    const key = await storage.create(Buffer.from('twelve bytes'))
+    const cappedStorage = new LocalPdfStorageAdapter(
+      rootPath,
+      undefined,
+      undefined,
+      4,
+    )
+
+    await expect(cappedStorage.read(key)).rejects.toBeInstanceOf(
+      PdfStorageObjectTooLargeError,
+    )
+  })
+
+  it('rejects keys that are not the generated uuid shape with a typed error', async () => {
+    await expect(
+      storage.read('..%2f..%2fetc%2fpasswd.pdf'),
+    ).rejects.toBeInstanceOf(InvalidPdfStoragePathError)
+    await expect(
+      storage.delete('DROP TABLE materials.pdf'),
+    ).rejects.toBeInstanceOf(InvalidPdfStoragePathError)
   })
 })

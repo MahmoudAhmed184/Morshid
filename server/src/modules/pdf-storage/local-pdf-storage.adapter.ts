@@ -9,19 +9,29 @@ import {
 } from 'node:fs/promises'
 import { isAbsolute, relative, resolve, sep } from 'node:path'
 
+import { Logger } from '@nestjs/common'
+
 import {
   InvalidPdfStoragePathError,
+  MAX_PDF_OBJECT_BYTES,
   PdfStorageNotFoundError,
+  PdfStorageObjectTooLargeError,
   type PdfStorage,
 } from './pdf-storage'
 
 const MAX_CREATE_ATTEMPTS = 10
+
+// Storage keys are always `${randomUUID()}.pdf`; reject anything else so read
+// and delete keep their typed-error contract instead of leaking raw fs errors.
+const FLAT_KEY_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.pdf$/i
 
 type StorageKeyFactory = () => string
 type StorageWriter = (handle: FileHandle, contents: Buffer) => Promise<void>
 
 export class LocalPdfStorageAdapter implements PdfStorage {
   private readonly rootPath: string
+  private readonly logger = new Logger(LocalPdfStorageAdapter.name)
 
   constructor(
     rootPath: string,
@@ -29,15 +39,26 @@ export class LocalPdfStorageAdapter implements PdfStorage {
       `${randomUUID()}.pdf`,
     private readonly writeContents: StorageWriter = (handle, contents) =>
       handle.writeFile(contents),
+    private readonly maxObjectBytes: number = MAX_PDF_OBJECT_BYTES,
   ) {
     if (rootPath.trim().length === 0) {
       throw new Error('PDF storage root must not be blank')
     }
 
     this.rootPath = resolve(rootPath)
+    // Surface the effective (cwd-resolved) root once so a misconfigured working
+    // directory that would split the corpus is visible instead of silent.
+    this.logger.log(`PDF storage root resolved to ${this.rootPath}`)
   }
 
   async create(contents: Buffer): Promise<string> {
+    if (contents.byteLength > this.maxObjectBytes) {
+      throw new PdfStorageObjectTooLargeError(
+        contents.byteLength,
+        this.maxObjectBytes,
+      )
+    }
+
     await mkdir(this.rootPath, { recursive: true })
     const canonicalRoot = await realpath(this.rootPath)
 
@@ -99,6 +120,12 @@ export class LocalPdfStorageAdapter implements PdfStorage {
     }
 
     try {
+      const stats = await handle.stat()
+
+      if (stats.size > this.maxObjectBytes) {
+        throw new PdfStorageObjectTooLargeError(stats.size, this.maxObjectBytes)
+      }
+
       return await handle.readFile()
     } finally {
       await handle.close()
@@ -146,6 +173,9 @@ export class LocalPdfStorageAdapter implements PdfStorage {
 
     try {
       await this.writeContents(handle, contents)
+      // Flush to disk before reporting success so a crash cannot leave a
+      // committed DB row pointing at a missing or empty file.
+      await handle.sync()
     } catch (error) {
       failure = error
     }
@@ -219,14 +249,9 @@ export class LocalPdfStorageAdapter implements PdfStorage {
   }
 
   private assertFlatPath(storagePath: string): void {
-    if (
-      storagePath.length === 0 ||
-      storagePath === '.' ||
-      storagePath === '..' ||
-      isAbsolute(storagePath) ||
-      storagePath.includes('/') ||
-      storagePath.includes('\\')
-    ) {
+    // The UUID+`.pdf` shape already excludes empty strings, `.`/`..`, absolute
+    // paths, separators, NUL bytes, and control characters.
+    if (!FLAT_KEY_PATTERN.test(storagePath)) {
       throw new InvalidPdfStoragePathError(storagePath)
     }
   }
