@@ -28,9 +28,7 @@ server/dist/
 server/coverage/
 server/src/generated/prisma/
 
-# P0 PDF source materials are tracked for ingestion/evaluation readiness.
-
-# Local storage
+# Local storage (runtime uploads only; committed source fixtures live in fixtures/sources/)
 storage/pdfs/*
 !storage/pdfs/.gitkeep
 
