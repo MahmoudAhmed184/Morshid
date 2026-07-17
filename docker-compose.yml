@@ -56,8 +56,13 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-morshid}:${POSTGRES_PASSWORD:-morshid_local_password}@postgres:5432/${POSTGRES_DB:-morshid}
       REDIS_URL: redis://redis:6379
       PDF_STORAGE_PATH: /workspace/storage/pdfs
-      AUTH_ACCESS_TOKEN_SECRET: ${AUTH_ACCESS_TOKEN_SECRET:-replace-with-at-least-32-random-characters}
-      AUTH_REFRESH_TOKEN_HASH_SECRET: ${AUTH_REFRESH_TOKEN_HASH_SECRET:-replace-with-at-least-32-random-characters}
+      # No insecure fallback: an unset variable is passed through empty (not a
+      # committed placeholder), and the server's env schema rejects empty,
+      # placeholder, or identical secrets at boot. A `:?` guard is intentionally
+      # avoided here because Compose interpolates the whole file even for the
+      # infrastructure-only `infra:up` command, which must not require app secrets.
+      AUTH_ACCESS_TOKEN_SECRET: ${AUTH_ACCESS_TOKEN_SECRET}
+      AUTH_REFRESH_TOKEN_HASH_SECRET: ${AUTH_REFRESH_TOKEN_HASH_SECRET}
       AUTH_ACCESS_TOKEN_TTL_SECONDS: ${AUTH_ACCESS_TOKEN_TTL_SECONDS:-900}
       AUTH_REFRESH_TOKEN_TTL_DAYS: ${AUTH_REFRESH_TOKEN_TTL_DAYS:-7}
     ports:
@@ -77,7 +82,7 @@ services:
           'CMD',
           'node',
           '-e',
-          "fetch('http://127.0.0.1:4000/health/ready').then((response) => { if (!response.ok) process.exit(1) }).catch(() => process.exit(1))",
+          "fetch('http://127.0.0.1:4000/health/ready').then((response) => process.exit(response.ok ? 0 : 1), () => process.exit(1))",
         ]
       interval: 10s
       timeout: 5s
