@@ -1,7 +1,5 @@
 import { Outlet, useRouterState } from '@tanstack/react-router'
 import {
-  BarChart3,
-  Bell,
   BookOpen,
   ClipboardList,
   FileText,
@@ -35,10 +33,7 @@ const navItems: readonly AppSidebarNavItem[] = [
     to: '/instructor/review-queue',
     label: 'Review Queue',
   },
-  { icon: BookOpen, to: '/instructor/students', label: 'Students' },
   { icon: FileText, to: '/instructor/materials', label: 'Materials' },
-  { icon: Bell, to: '/instructor/notifications', label: 'Notifications' },
-  { icon: BarChart3, to: '/instructor/analytics', label: 'Analytics' },
 ]
 
 const settingsNavItem: AppSidebarNavItem = {
