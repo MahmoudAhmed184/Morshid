@@ -21,6 +21,16 @@ export type SafeMaterialRecord = Pick<
   | 'updatedAt'
 >
 
+export type MaterialStatusRecord = Pick<
+  Material,
+  | 'id'
+  | 'status'
+  | 'extractedTextLength'
+  | 'chunkCount'
+  | 'errorMessage'
+  | 'updatedAt'
+>
+
 export class UploadMaterialRequestDto {
   @ApiProperty({ minLength: 1, maxLength: 180 })
   title!: string
@@ -89,6 +99,32 @@ export class MaterialListResponseDto {
   materials!: MaterialDto[]
 }
 
+export class MaterialStatusDto {
+  @Expose()
+  @ApiProperty({ format: 'uuid' })
+  id!: string
+
+  @Expose()
+  @ApiProperty({ enum: MaterialStatus, enumName: 'MaterialStatus' })
+  status!: MaterialStatus
+
+  @Expose()
+  @ApiProperty({ nullable: true })
+  extractedTextLength!: number | null
+
+  @Expose()
+  @ApiProperty({ nullable: true })
+  chunkCount!: number | null
+
+  @Expose()
+  @ApiProperty({ nullable: true })
+  errorMessage!: string | null
+
+  @Expose()
+  @ApiProperty({ format: 'date-time' })
+  updatedAt!: string
+}
+
 export function mapMaterialRecord(material: SafeMaterialRecord): MaterialDto {
   return {
     id: material.id,
@@ -100,6 +136,19 @@ export function mapMaterialRecord(material: SafeMaterialRecord): MaterialDto {
     chunkCount: material.chunkCount,
     errorMessage: material.errorMessage,
     createdAt: material.createdAt.toISOString(),
+    updatedAt: material.updatedAt.toISOString(),
+  }
+}
+
+export function mapMaterialStatusRecord(
+  material: MaterialStatusRecord,
+): MaterialStatusDto {
+  return {
+    id: material.id,
+    status: material.status,
+    extractedTextLength: material.extractedTextLength,
+    chunkCount: material.chunkCount,
+    errorMessage: material.errorMessage,
     updatedAt: material.updatedAt.toISOString(),
   }
 }

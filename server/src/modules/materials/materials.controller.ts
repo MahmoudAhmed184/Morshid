@@ -35,6 +35,7 @@ import { Roles } from '../auth/roles.decorator'
 import {
   MaterialListResponseDto,
   MaterialResponseDto,
+  MaterialStatusDto,
   UploadMaterialRequestDto,
   type UploadMaterialRequest,
 } from './materials.dto'
@@ -109,6 +110,36 @@ export class MaterialsController {
     @Req() request: AuthenticatedHttpRequest,
   ): Promise<MaterialListResponseDto> {
     return this.materialsService.listMaterials(courseId, request.user)
+  }
+
+  @Get(':materialId/status')
+  @SerializeOptions({
+    type: MaterialStatusDto,
+    strategy: 'excludeAll',
+  })
+  @ApiOperation({ summary: 'Get course material processing status' })
+  @ApiParam({ name: 'courseId', format: 'uuid' })
+  @ApiParam({ name: 'materialId', format: 'uuid' })
+  @ApiOkResponse({
+    type: MaterialStatusDto,
+    description: 'The selected material processing status.',
+  })
+  @ApiBadRequestResponse({
+    type: OpenApiValidationErrorDto,
+    description: 'A path parameter was not a valid UUID.',
+  })
+  @ApiNotFoundResponse({ type: OpenApiErrorDto })
+  getMaterialStatus(
+    @Param('courseId', new ParseUUIDPipe({ version: '4' })) courseId: string,
+    @Param('materialId', new ParseUUIDPipe({ version: '4' }))
+    materialId: string,
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<MaterialStatusDto> {
+    return this.materialsService.getMaterialStatus(
+      courseId,
+      materialId,
+      request.user,
+    )
   }
 
   @Get(':materialId')

@@ -5,7 +5,7 @@ import {
   type Prisma,
 } from '../../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
-import type { SafeMaterialRecord } from './materials.dto'
+import type { MaterialStatusRecord, SafeMaterialRecord } from './materials.dto'
 
 export abstract class MaterialsRepository {
   protected abstract readonly repositoryName: string
@@ -22,6 +22,11 @@ export abstract class MaterialsRepository {
     courseId: string,
     materialId: string,
   ): Promise<SafeMaterialRecord | null>
+
+  abstract findCourseMaterialStatus(
+    courseId: string,
+    materialId: string,
+  ): Promise<MaterialStatusRecord | null>
 
   abstract deleteMaterial(materialId: string): Promise<void>
 }
@@ -45,6 +50,15 @@ const safeMaterialSelect = {
   chunkCount: true,
   errorMessage: true,
   createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.MaterialSelect
+
+const materialStatusSelect = {
+  id: true,
+  status: true,
+  extractedTextLength: true,
+  chunkCount: true,
+  errorMessage: true,
   updatedAt: true,
 } satisfies Prisma.MaterialSelect
 
@@ -107,6 +121,20 @@ export class PrismaMaterialsRepository extends MaterialsRepository {
         deletedAt: null,
       },
       select: safeMaterialSelect,
+    })
+  }
+
+  findCourseMaterialStatus(
+    courseId: string,
+    materialId: string,
+  ): Promise<MaterialStatusRecord | null> {
+    return this.prismaService.material.findFirst({
+      where: {
+        id: materialId,
+        courseId,
+        deletedAt: null,
+      },
+      select: materialStatusSelect,
     })
   }
 

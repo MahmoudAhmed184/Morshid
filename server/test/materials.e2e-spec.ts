@@ -160,6 +160,19 @@ describe('Materials upload (e2e)', () => {
       .set('Authorization', `Bearer ${input.token}`)
   }
 
+  function getMaterialStatus(input: {
+    token: string
+    courseId?: string
+    materialId: string
+  }) {
+    return request(app.getHttpServer())
+      .get(
+        `/api/v1/courses/${input.courseId ?? pythonCourseId()}/materials/${input.materialId}/status`,
+      )
+      .set('User-Agent', userAgent)
+      .set('Authorization', `Bearer ${input.token}`)
+  }
+
   function uploadPdf(input: {
     token: string
     courseId?: string
@@ -517,6 +530,48 @@ describe('Materials upload (e2e)', () => {
     await getMaterial({
       token,
       materialId: '00000000-0000-4000-8000-000000000722',
+    }).expect(404)
+  })
+
+  it('returns only safe processing status fields', async () => {
+    const token = await signInAs('instructor@morshid.demo')
+
+    const response = await getMaterialStatus({
+      token,
+      materialId: '00000000-0000-4000-8000-000000000401',
+    }).expect(200)
+    const body = response.body as Record<string, unknown>
+
+    expect(Object.keys(body).sort()).toEqual([
+      'chunkCount',
+      'errorMessage',
+      'extractedTextLength',
+      'id',
+      'status',
+      'updatedAt',
+    ])
+    expect(body).toMatchObject({
+      id: '00000000-0000-4000-8000-000000000401',
+      status: 'READY',
+      extractedTextLength: 1000,
+      chunkCount: 10,
+      errorMessage: null,
+    })
+  })
+
+  it('does not return a material from another course through the status route', async () => {
+    const token = await signInAs('admin@morshid.demo')
+    addMaterial({
+      id: '00000000-0000-4000-8000-000000000731',
+      courseId: '00000000-0000-4000-8000-000000000102',
+      title: 'Hidden status material',
+      deletedAt: null,
+    })
+
+    await getMaterialStatus({
+      token,
+      courseId: pythonCourseId(),
+      materialId: '00000000-0000-4000-8000-000000000731',
     }).expect(404)
   })
 })

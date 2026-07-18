@@ -13,9 +13,11 @@ import { CourseAccessService } from '../courses/course-access.service'
 import { PDF_STORAGE, type PdfStorage } from '../pdf-storage/pdf-storage'
 import { MaterialProcessingScheduler } from './material-processing.scheduler'
 import {
+  mapMaterialStatusRecord,
   mapMaterialRecord,
   type MaterialListResponseDto,
   type MaterialResponseDto,
+  type MaterialStatusDto,
 } from './materials.dto'
 import { MaterialsAuditService } from './materials.audit.service'
 import { MATERIALS_ERROR_CODES } from './materials.errors'
@@ -171,6 +173,25 @@ export class MaterialsService {
     return {
       material: mapMaterialRecord(material),
     }
+  }
+
+  async getMaterialStatus(
+    courseId: string,
+    materialId: string,
+    actor: AuthenticatedRequestUser,
+  ): Promise<MaterialStatusDto> {
+    await this.assertCanManageMaterialsCourse(courseId, actor)
+
+    const material = await this.materialsRepository.findCourseMaterialStatus(
+      courseId,
+      materialId,
+    )
+
+    if (material === null) {
+      throw materialNotFoundException()
+    }
+
+    return mapMaterialStatusRecord(material)
   }
 
   private async assertCanManageMaterialsCourse(
