@@ -5,6 +5,7 @@ import { z } from 'zod'
 // Rejects the committed `.env.example` placeholders so a fresh checkout cannot
 // boot with a publicly known signing secret (see docker-compose `${VAR:?}`).
 const SECRET_PLACEHOLDER_PREFIX = 'replace-with'
+export const DEFAULT_PDF_MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 export const envSchema = z
   .object({
@@ -16,6 +17,11 @@ export const envSchema = z
     DATABASE_URL: z.url().startsWith('postgresql://'),
     REDIS_URL: z.url().startsWith('redis://'),
     PDF_STORAGE_PATH: z.string().trim().min(1),
+    PDF_MAX_UPLOAD_BYTES: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(DEFAULT_PDF_MAX_UPLOAD_BYTES),
     // Only providers with a wired implementation are accepted so the factory
     // never has to reject a configured-but-unimplemented provider at runtime.
     // The deterministic default keeps CI and local work keyless and offline.

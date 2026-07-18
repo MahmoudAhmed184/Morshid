@@ -6,11 +6,13 @@ import {
   PrismaMaterialsRepository,
 } from './materials.repository'
 import { MaterialsService } from './materials.service'
+import { PdfUploadValidator } from './pdf-upload.validator'
 
 @Module({
   imports: [PrismaModule],
   providers: [
     MaterialsService,
+    PdfUploadValidator,
     {
       provide: MaterialsRepository,
       useClass: PrismaMaterialsRepository,
