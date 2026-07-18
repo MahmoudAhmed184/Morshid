@@ -11,7 +11,10 @@ import { AUTH_ERROR_CODES } from '../src/modules/auth/auth.dto'
 import type { Material } from '../src/generated/prisma/client'
 import { MATERIALS_ERROR_CODES } from '../src/modules/materials/materials.errors'
 import { MaterialProcessingScheduler } from '../src/modules/materials/material-processing.scheduler'
-import { PDF_STORAGE, type PdfStorage } from '../src/modules/pdf-storage/pdf-storage'
+import {
+  PDF_STORAGE,
+  type PdfStorage,
+} from '../src/modules/pdf-storage/pdf-storage'
 import { PrismaService } from '../src/modules/prisma/prisma.service'
 import { RedisService } from '../src/modules/redis/redis.service'
 import { P0_DEMO_COURSE, P0_DEMO_PASSWORD } from '../src/seeds/p0-demo.seed'
@@ -253,12 +256,10 @@ describe('Materials upload (e2e)', () => {
     const token = await signInAs('student1@morshid.demo')
     const materialCountBefore = store.materials.size
 
-    await uploadPdf({ token, title: 'Student upload' })
-      .expect(403)
-      .expect({
-        code: AUTH_ERROR_CODES.INSUFFICIENT_ROLE,
-        message: 'Insufficient role',
-      })
+    await uploadPdf({ token, title: 'Student upload' }).expect(403).expect({
+      code: AUTH_ERROR_CODES.INSUFFICIENT_ROLE,
+      message: 'Insufficient role',
+    })
 
     expect(storage.create).not.toHaveBeenCalled()
     expect(store.materials.size).toBe(materialCountBefore)
@@ -496,8 +497,12 @@ describe('Materials upload (e2e)', () => {
       ],
     })
     expect(JSON.stringify(response.body)).not.toContain('storagePath')
-    expect(JSON.stringify(response.body)).not.toContain('Hidden course material')
-    expect(JSON.stringify(response.body)).not.toContain('Deleted Python material')
+    expect(JSON.stringify(response.body)).not.toContain(
+      'Hidden course material',
+    )
+    expect(JSON.stringify(response.body)).not.toContain(
+      'Deleted Python material',
+    )
   })
 
   it('denies list access to instructors outside the course', async () => {

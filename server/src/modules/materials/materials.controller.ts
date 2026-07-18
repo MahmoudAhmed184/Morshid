@@ -83,7 +83,8 @@ export class MaterialsController {
   uploadMaterial(
     @Param('courseId', new ParseUUIDPipe({ version: '4' })) courseId: string,
     @UploadedFile() file: UploadedPdfFile | undefined,
-    @Req() request: AuthenticatedHttpRequest & {
+    @Req()
+    request: AuthenticatedHttpRequest & {
       body: UploadMaterialRequest
     },
   ): Promise<MaterialResponseDto> {
@@ -176,10 +177,6 @@ export class MaterialsController {
     materialId: string,
     @Req() request: AuthenticatedHttpRequest,
   ): Promise<MaterialResponseDto> {
-    return this.materialsService.getMaterial(
-      courseId,
-      materialId,
-      request.user,
-    )
+    return this.materialsService.getMaterial(courseId, materialId, request.user)
   }
 }

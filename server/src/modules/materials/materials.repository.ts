@@ -1,9 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
-import {
-  MaterialStatus,
-  type Prisma,
-} from '../../generated/prisma/client'
+import { MaterialStatus, type Prisma } from '../../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import type { MaterialStatusRecord, SafeMaterialRecord } from './materials.dto'
 

@@ -2,7 +2,10 @@ import { BadRequestException, PayloadTooLargeException } from '@nestjs/common'
 import type { ConfigService } from '@nestjs/config'
 
 import type { AppEnvironment } from '../config/env.schema'
-import { PdfUploadValidator, type UploadedPdfFile } from './pdf-upload.validator'
+import {
+  PdfUploadValidator,
+  type UploadedPdfFile,
+} from './pdf-upload.validator'
 
 const maxBytes = 10 * 1024 * 1024
 const validPdf = Buffer.from('%PDF-1.7\nminimal test pdf')
@@ -47,9 +50,9 @@ describe('PdfUploadValidator', () => {
   it('rejects a missing file', () => {
     const validator = buildValidator()
 
-    expect(() =>
-      validator.validate({ title: 'Python basics' }),
-    ).toThrow(BadRequestException)
+    expect(() => validator.validate({ title: 'Python basics' })).toThrow(
+      BadRequestException,
+    )
   })
 
   it('rejects an empty title', () => {
