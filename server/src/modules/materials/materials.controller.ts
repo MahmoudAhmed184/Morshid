@@ -15,6 +15,7 @@ import {
   ApiBody,
   ApiConsumes,
   ApiCreatedResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
@@ -108,5 +109,35 @@ export class MaterialsController {
     @Req() request: AuthenticatedHttpRequest,
   ): Promise<MaterialListResponseDto> {
     return this.materialsService.listMaterials(courseId, request.user)
+  }
+
+  @Get(':materialId')
+  @SerializeOptions({
+    type: MaterialResponseDto,
+    strategy: 'excludeAll',
+  })
+  @ApiOperation({ summary: 'Get course material' })
+  @ApiParam({ name: 'courseId', format: 'uuid' })
+  @ApiParam({ name: 'materialId', format: 'uuid' })
+  @ApiOkResponse({
+    type: MaterialResponseDto,
+    description: 'The selected course material.',
+  })
+  @ApiBadRequestResponse({
+    type: OpenApiValidationErrorDto,
+    description: 'A path parameter was not a valid UUID.',
+  })
+  @ApiNotFoundResponse({ type: OpenApiErrorDto })
+  getMaterial(
+    @Param('courseId', new ParseUUIDPipe({ version: '4' })) courseId: string,
+    @Param('materialId', new ParseUUIDPipe({ version: '4' }))
+    materialId: string,
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<MaterialResponseDto> {
+    return this.materialsService.getMaterial(
+      courseId,
+      materialId,
+      request.user,
+    )
   }
 }

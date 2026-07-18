@@ -147,6 +147,19 @@ describe('Materials upload (e2e)', () => {
       .set('Authorization', `Bearer ${input.token}`)
   }
 
+  function getMaterial(input: {
+    token: string
+    courseId?: string
+    materialId: string
+  }) {
+    return request(app.getHttpServer())
+      .get(
+        `/api/v1/courses/${input.courseId ?? pythonCourseId()}/materials/${input.materialId}`,
+      )
+      .set('User-Agent', userAgent)
+      .set('Authorization', `Bearer ${input.token}`)
+  }
+
   function uploadPdf(input: {
     token: string
     courseId?: string
@@ -448,5 +461,62 @@ describe('Materials upload (e2e)', () => {
         code: MATERIALS_ERROR_CODES.COURSE_MANAGEMENT_REQUIRED,
         message: 'Active instructor course membership is required',
       })
+  })
+
+  it('returns safe detail for a course material', async () => {
+    const token = await signInAs('instructor@morshid.demo')
+
+    const response = await getMaterial({
+      token,
+      materialId: '00000000-0000-4000-8000-000000000401',
+    }).expect(200)
+
+    expect(response.body).toMatchObject({
+      material: {
+        id: '00000000-0000-4000-8000-000000000401',
+        courseId: pythonCourseId(),
+        title: 'Python Basics',
+        status: 'READY',
+      },
+    })
+    expect(JSON.stringify(response.body)).not.toContain('storagePath')
+    expect(JSON.stringify(response.body)).not.toContain('sha256Hash')
+    expect(JSON.stringify(response.body)).not.toContain('uploadedBy')
+  })
+
+  it('does not return a material from another course through the detail route', async () => {
+    const token = await signInAs('admin@morshid.demo')
+    addMaterial({
+      id: '00000000-0000-4000-8000-000000000721',
+      courseId: '00000000-0000-4000-8000-000000000102',
+      title: 'Hidden material',
+      deletedAt: null,
+    })
+
+    await getMaterial({
+      token,
+      courseId: pythonCourseId(),
+      materialId: '00000000-0000-4000-8000-000000000721',
+    })
+      .expect(404)
+      .expect({
+        code: MATERIALS_ERROR_CODES.MATERIAL_NOT_FOUND,
+        message: 'Material was not found',
+      })
+  })
+
+  it('does not return a deleted material through the detail route', async () => {
+    const token = await signInAs('admin@morshid.demo')
+    addMaterial({
+      id: '00000000-0000-4000-8000-000000000722',
+      courseId: pythonCourseId(),
+      title: 'Deleted material',
+      deletedAt: new Date('2026-07-08T00:00:00.000Z'),
+    })
+
+    await getMaterial({
+      token,
+      materialId: '00000000-0000-4000-8000-000000000722',
+    }).expect(404)
   })
 })

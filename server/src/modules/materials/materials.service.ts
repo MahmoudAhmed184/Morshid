@@ -152,6 +152,27 @@ export class MaterialsService {
     }
   }
 
+  async getMaterial(
+    courseId: string,
+    materialId: string,
+    actor: AuthenticatedRequestUser,
+  ): Promise<MaterialResponseDto> {
+    await this.assertCanManageMaterialsCourse(courseId, actor)
+
+    const material = await this.materialsRepository.findCourseMaterial(
+      courseId,
+      materialId,
+    )
+
+    if (material === null) {
+      throw materialNotFoundException()
+    }
+
+    return {
+      material: mapMaterialRecord(material),
+    }
+  }
+
   private async assertCanManageMaterialsCourse(
     courseId: string,
     actor: AuthenticatedRequestUser,
@@ -197,5 +218,12 @@ function materialCourseNotFoundException() {
   return new NotFoundException({
     code: MATERIALS_ERROR_CODES.COURSE_NOT_FOUND,
     message: 'Course was not found',
+  })
+}
+
+function materialNotFoundException() {
+  return new NotFoundException({
+    code: MATERIALS_ERROR_CODES.MATERIAL_NOT_FOUND,
+    message: 'Material was not found',
   })
 }

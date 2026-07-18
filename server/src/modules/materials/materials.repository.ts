@@ -18,6 +18,11 @@ export abstract class MaterialsRepository {
 
   abstract listCourseMaterials(courseId: string): Promise<SafeMaterialRecord[]>
 
+  abstract findCourseMaterial(
+    courseId: string,
+    materialId: string,
+  ): Promise<SafeMaterialRecord | null>
+
   abstract deleteMaterial(materialId: string): Promise<void>
 }
 
@@ -88,6 +93,20 @@ export class PrismaMaterialsRepository extends MaterialsRepository {
       orderBy: {
         createdAt: 'desc',
       },
+    })
+  }
+
+  findCourseMaterial(
+    courseId: string,
+    materialId: string,
+  ): Promise<SafeMaterialRecord | null> {
+    return this.prismaService.material.findFirst({
+      where: {
+        id: materialId,
+        courseId,
+        deletedAt: null,
+      },
+      select: safeMaterialSelect,
     })
   }
 
