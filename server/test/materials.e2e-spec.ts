@@ -43,6 +43,10 @@ class FakePdfStorage implements PdfStorage {
     return Promise.resolve(file)
   })
 
+  readonly exists = jest.fn((storagePath: string) =>
+    Promise.resolve(this.files.has(storagePath)),
+  )
+
   readonly delete = jest.fn((storagePath: string) => {
     this.files.delete(storagePath)
 
