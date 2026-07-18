@@ -6,6 +6,7 @@ import {
   EMBEDDING_PROVIDER_TOKEN,
   type EmbeddingProvider,
 } from '../embedding/embedding-provider'
+import { PDF_STORAGE, type PdfStorage } from '../pdf-storage/pdf-storage'
 import { CourseRetrievalRepository } from './course-retrieval.repository'
 
 export interface RetrievedChunk {
@@ -34,6 +35,7 @@ export class RetrievalService {
     private readonly embeddingProvider: EmbeddingProvider,
     private readonly courseRetrievalRepository: CourseRetrievalRepository,
     configService: ConfigService<AppEnvironment, true>,
+    @Inject(PDF_STORAGE) private readonly pdfStorage: PdfStorage,
   ) {
     this.topK = configService.get('RETRIEVAL_TOP_K', { infer: true })
     this.minSimilarity = configService.get('RETRIEVAL_MIN_SIMILARITY', {
@@ -71,13 +73,22 @@ export class RetrievalService {
       minSimilarity: this.minSimilarity,
     })
 
-    if (rows.length === 0) {
+    const availableRows = (
+      await Promise.all(
+        rows.map(async (row) => ({
+          row,
+          available: await this.isBackingFileAvailable(row.storagePath),
+        })),
+      )
+    ).filter(({ available }) => available)
+
+    if (availableRows.length === 0) {
       return { kind: 'insufficient_evidence' }
     }
 
     return {
       kind: 'evidence',
-      chunks: rows.map((row, index) => ({
+      chunks: availableRows.map(({ row }, index) => ({
         chunkId: row.chunkId,
         materialId: row.materialId,
         materialTitle: row.materialTitle,
@@ -86,6 +97,14 @@ export class RetrievalService {
         rank: index + 1,
         similarityScore: 1 - row.distance,
       })),
+    }
+  }
+
+  private async isBackingFileAvailable(storagePath: string): Promise<boolean> {
+    try {
+      return await this.pdfStorage.exists(storagePath)
+    } catch {
+      return false
     }
   }
 }

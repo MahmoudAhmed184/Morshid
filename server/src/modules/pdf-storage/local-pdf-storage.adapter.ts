@@ -163,6 +163,21 @@ export class LocalPdfStorageAdapter implements PdfStorage {
     }
   }
 
+  async exists(storagePath: string): Promise<boolean> {
+    try {
+      const canonicalRoot = await this.findCanonicalRoot(storagePath)
+      const targetPath = this.resolveFlatPath(canonicalRoot, storagePath)
+      await this.findCanonicalTarget(canonicalRoot, targetPath, storagePath)
+      return true
+    } catch (error) {
+      if (error instanceof PdfStorageNotFoundError) {
+        return false
+      }
+
+      throw error
+    }
+  }
+
   private async writeCreatedFile(
     handle: FileHandle,
     targetPath: string,

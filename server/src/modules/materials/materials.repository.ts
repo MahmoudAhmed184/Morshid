@@ -25,6 +25,20 @@ export abstract class MaterialsRepository {
     materialId: string,
   ): Promise<MaterialStatusRecord | null>
 
+  abstract findMaterialForProcessing(
+    materialId: string,
+  ): Promise<MaterialProcessingRecord | null>
+
+  abstract completeMaterialProcessing(
+    materialId: string,
+    input: CompleteMaterialProcessingInput,
+  ): Promise<boolean>
+
+  abstract failMaterialProcessing(
+    materialId: string,
+    reasonCode: string,
+  ): Promise<boolean>
+
   abstract deleteMaterial(materialId: string): Promise<void>
 }
 
@@ -35,6 +49,19 @@ export interface CreateProcessingMaterialInput {
   originalFilename: string
   storagePath: string
   sha256Hash: string
+}
+
+export interface MaterialProcessingRecord {
+  id: string
+  courseId: string
+  uploadedById: string
+  storagePath: string
+}
+
+export interface CompleteMaterialProcessingInput {
+  status: 'READY' | 'WARNING'
+  extractedTextLength: number
+  chunkCount: number
 }
 
 const safeMaterialSelect = {
@@ -133,6 +160,66 @@ export class PrismaMaterialsRepository extends MaterialsRepository {
       },
       select: materialStatusSelect,
     })
+  }
+
+  findMaterialForProcessing(
+    materialId: string,
+  ): Promise<MaterialProcessingRecord | null> {
+    return this.prismaService.material.findFirst({
+      where: {
+        id: materialId,
+        status: MaterialStatus.PROCESSING,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        courseId: true,
+        uploadedById: true,
+        storagePath: true,
+      },
+    })
+  }
+
+  async completeMaterialProcessing(
+    materialId: string,
+    input: CompleteMaterialProcessingInput,
+  ): Promise<boolean> {
+    const result = await this.prismaService.material.updateMany({
+      where: {
+        id: materialId,
+        status: MaterialStatus.PROCESSING,
+        deletedAt: null,
+      },
+      data: {
+        status: input.status,
+        extractedTextLength: input.extractedTextLength,
+        chunkCount: input.chunkCount,
+        errorMessage: null,
+      },
+    })
+
+    return result.count === 1
+  }
+
+  async failMaterialProcessing(
+    materialId: string,
+    reasonCode: string,
+  ): Promise<boolean> {
+    const result = await this.prismaService.material.updateMany({
+      where: {
+        id: materialId,
+        status: MaterialStatus.PROCESSING,
+        deletedAt: null,
+      },
+      data: {
+        status: MaterialStatus.FAILED,
+        extractedTextLength: null,
+        chunkCount: 0,
+        errorMessage: reasonCode,
+      },
+    })
+
+    return result.count === 1
   }
 
   async deleteMaterial(materialId: string): Promise<void> {

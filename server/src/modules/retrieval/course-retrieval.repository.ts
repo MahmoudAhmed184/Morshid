@@ -30,6 +30,7 @@ export interface RankedChunkRow {
   materialTitle: string
   chunkIndex: number
   content: string
+  storagePath: string
   // Cosine distance; similarity = 1 - distance.
   distance: number
 }
@@ -78,12 +79,15 @@ export class PrismaCourseRetrievalRepository extends CourseRetrievalRepository {
           chunk.chunk_index,
           chunk.content,
           material.title,
+          material.storage_path,
           chunk.embedding <=> ${serializeEmbedding(query.queryEmbedding)}::vector(1536) AS distance
         FROM material_chunks AS chunk
         JOIN materials AS material ON material.id = chunk.material_id
         WHERE material.course_id = ${query.courseId}::uuid
           AND material.status IN ('READY'::material_status, 'WARNING'::material_status)
           AND material.deleted_at IS NULL
+          AND material.extracted_text_length > 0
+          AND material.chunk_count > 0
       )
       SELECT
         id AS "chunkId",
@@ -91,6 +95,7 @@ export class PrismaCourseRetrievalRepository extends CourseRetrievalRepository {
         chunk_index AS "chunkIndex",
         content,
         title AS "materialTitle",
+        storage_path AS "storagePath",
         distance
       FROM eligible_chunks
       WHERE 1 - distance >= ${query.minSimilarity}

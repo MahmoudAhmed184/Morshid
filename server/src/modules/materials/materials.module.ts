@@ -4,10 +4,13 @@ import { AuditModule } from '../audit/audit.module'
 import { CoursesModule } from '../courses/courses.module'
 import { PdfStorageModule } from '../pdf-storage/pdf-storage.module'
 import { PrismaModule } from '../prisma/prisma.module'
+import { RagPersistenceModule } from '../rag-persistence/rag-persistence.module'
 import {
+  InProcessMaterialProcessingScheduler,
   MaterialProcessingScheduler,
-  NoopMaterialProcessingScheduler,
 } from './material-processing.scheduler'
+import { MaterialProcessingService } from './material-processing.service'
+import { MaterialTextChunker } from './material-text-chunker'
 import { MaterialsAuditService } from './materials.audit.service'
 import { MaterialsController } from './materials.controller'
 import {
@@ -16,22 +19,36 @@ import {
 } from './materials.repository'
 import { MaterialsService } from './materials.service'
 import { PdfUploadValidator } from './pdf-upload.validator'
+import { PDF_TEXT_EXTRACTOR, PdfJsTextExtractor } from './pdf-text-extractor'
 
 @Module({
-  imports: [PrismaModule, CoursesModule, PdfStorageModule, AuditModule],
+  imports: [
+    PrismaModule,
+    CoursesModule,
+    PdfStorageModule,
+    AuditModule,
+    RagPersistenceModule,
+  ],
   controllers: [MaterialsController],
   providers: [
     MaterialsService,
     PdfUploadValidator,
     MaterialsAuditService,
+    MaterialProcessingService,
+    MaterialTextChunker,
+    {
+      provide: PDF_TEXT_EXTRACTOR,
+      useClass: PdfJsTextExtractor,
+    },
     {
       provide: MaterialProcessingScheduler,
-      useClass: NoopMaterialProcessingScheduler,
+      useClass: InProcessMaterialProcessingScheduler,
     },
     {
       provide: MaterialsRepository,
       useClass: PrismaMaterialsRepository,
     },
   ],
+  exports: [MaterialProcessingService, PDF_TEXT_EXTRACTOR],
 })
 export class MaterialsModule {}
