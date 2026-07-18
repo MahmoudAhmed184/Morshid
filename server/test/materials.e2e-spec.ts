@@ -282,6 +282,18 @@ describe('Materials upload (e2e)', () => {
 
     expect(storage.create).not.toHaveBeenCalled()
     expect(store.materials.size).toBe(materialCountBefore)
+    const deniedAudit = [...store.auditLogs.values()].find(
+      (event) => event.action === AUDIT_EVENT_ACTIONS.MATERIAL_UPLOAD_DENIED,
+    )
+    expect(deniedAudit).toMatchObject({
+      targetType: 'material',
+      courseId: null,
+      metadata: {
+        reason: 'COURSE_MANAGEMENT_REQUIRED',
+        unverifiedCourseId: hiddenCourseId,
+      },
+    })
+    expect(JSON.stringify(deniedAudit?.metadata)).not.toContain('%PDF-')
   })
 
   it.each([
@@ -337,6 +349,32 @@ describe('Materials upload (e2e)', () => {
 
     expect(storage.create).not.toHaveBeenCalled()
     expect(store.materials.size).toBe(materialCountBefore)
+  })
+
+  it('records safe failed-upload audit metadata for invalid PDFs', async () => {
+    const token = await signInAs('instructor@morshid.demo')
+
+    await uploadPdf({
+      token,
+      title: 'Invalid audited upload',
+      buffer: Buffer.from('not a pdf'),
+    }).expect(400)
+
+    const failedAudit = [...store.auditLogs.values()].find(
+      (event) => event.action === AUDIT_EVENT_ACTIONS.MATERIAL_UPLOAD_FAILED,
+    )
+    expect(failedAudit).toMatchObject({
+      targetType: 'material',
+      courseId: pythonCourseId(),
+      metadata: {
+        originalFilename: 'python.pdf',
+        fileSize: 9,
+        mimetype: 'application/pdf',
+        reason: 'VALIDATION_FAILED',
+      },
+    })
+    expect(JSON.stringify(failedAudit?.metadata)).not.toContain('not a pdf')
+    expect(JSON.stringify(failedAudit?.metadata)).not.toContain('stack')
   })
 
   it('rejects oversize PDFs before storage', async () => {

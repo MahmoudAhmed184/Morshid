@@ -15,15 +15,18 @@ import {
   ApiBody,
   ApiConsumes,
   ApiCreatedResponse,
+  ApiExtraModels,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
   ApiPayloadTooLargeResponse,
   ApiTags,
+  getSchemaPath,
 } from '@nestjs/swagger'
 
 import {
+  NestBadRequestErrorDto,
   OpenApiErrorDto,
   OpenApiValidationErrorDto,
 } from '../../common/http/openapi-error.dto'
@@ -47,6 +50,7 @@ import type { UploadedPdfFile } from './pdf-upload.validator'
 @ApiTags('materials')
 @Roles(UserRole.ADMIN, UserRole.INSTRUCTOR)
 @ApiAccessTokenAuth()
+@ApiExtraModels(OpenApiValidationErrorDto, NestBadRequestErrorDto)
 @UseInterceptors(ClassSerializerInterceptor)
 export class MaterialsController {
   constructor(private readonly materialsService: MaterialsService) {}
@@ -66,9 +70,15 @@ export class MaterialsController {
     description: 'The uploaded course material, queued for processing.',
   })
   @ApiBadRequestResponse({
-    type: OpenApiValidationErrorDto,
     description: 'The title, PDF metadata, signature, or UUID was invalid.',
+    schema: {
+      oneOf: [
+        { $ref: getSchemaPath(OpenApiValidationErrorDto) },
+        { $ref: getSchemaPath(NestBadRequestErrorDto) },
+      ],
+    },
   })
+  @ApiNotFoundResponse({ type: OpenApiErrorDto })
   @ApiPayloadTooLargeResponse({ type: OpenApiErrorDto })
   uploadMaterial(
     @Param('courseId', new ParseUUIDPipe({ version: '4' })) courseId: string,
@@ -102,9 +112,10 @@ export class MaterialsController {
     description: 'Non-deleted materials for the selected course.',
   })
   @ApiBadRequestResponse({
-    type: OpenApiValidationErrorDto,
+    type: NestBadRequestErrorDto,
     description: 'The course ID was not a valid UUID.',
   })
+  @ApiNotFoundResponse({ type: OpenApiErrorDto })
   listMaterials(
     @Param('courseId', new ParseUUIDPipe({ version: '4' })) courseId: string,
     @Req() request: AuthenticatedHttpRequest,
@@ -125,7 +136,7 @@ export class MaterialsController {
     description: 'The selected material processing status.',
   })
   @ApiBadRequestResponse({
-    type: OpenApiValidationErrorDto,
+    type: NestBadRequestErrorDto,
     description: 'A path parameter was not a valid UUID.',
   })
   @ApiNotFoundResponse({ type: OpenApiErrorDto })
@@ -155,7 +166,7 @@ export class MaterialsController {
     description: 'The selected course material.',
   })
   @ApiBadRequestResponse({
-    type: OpenApiValidationErrorDto,
+    type: NestBadRequestErrorDto,
     description: 'A path parameter was not a valid UUID.',
   })
   @ApiNotFoundResponse({ type: OpenApiErrorDto })

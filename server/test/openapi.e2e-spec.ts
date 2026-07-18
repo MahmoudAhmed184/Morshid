@@ -195,6 +195,11 @@ describe('OpenAPI contract (e2e)', () => {
           description: 'Course access for authenticated users.',
         },
         {
+          name: 'materials',
+          description:
+            'Instructor and admin course material upload and status operations.',
+        },
+        {
           name: 'student-chat-sessions',
           description: 'Private Student chat session and message persistence.',
         },
@@ -587,6 +592,154 @@ describe('OpenAPI contract (e2e)', () => {
       expect(
         schemas.AdminResetUserPasswordRequestDto.properties.newPassword,
       ).toMatchObject(passwordPolicy)
+    } finally {
+      await app.close()
+    }
+  })
+
+  it('documents materials upload, list, detail, and status operations', async () => {
+    const app = await createApp('test')
+
+    try {
+      const response = await request(app.getHttpServer())
+        .get('/docs-json')
+        .expect(200)
+      const document = response.body as OpenAPIObject
+      const base = '/api/v1/courses/{courseId}/materials'
+      const expectedOperations = [
+        {
+          path: base,
+          method: 'post',
+          tag: 'materials',
+          summary: 'Upload course PDF material',
+          statuses: ['201', '400', '401', '403', '404', '413'],
+        },
+        {
+          path: base,
+          method: 'get',
+          tag: 'materials',
+          summary: 'List course materials',
+          statuses: ['200', '400', '401', '403', '404'],
+        },
+        {
+          path: `${base}/{materialId}`,
+          method: 'get',
+          tag: 'materials',
+          summary: 'Get course material',
+          statuses: ['200', '400', '401', '403', '404'],
+        },
+        {
+          path: `${base}/{materialId}/status`,
+          method: 'get',
+          tag: 'materials',
+          summary: 'Get course material processing status',
+          statuses: ['200', '400', '401', '403', '404'],
+        },
+      ] as const
+
+      for (const expected of expectedOperations) {
+        const operation = expectProtectedOperation(document, expected)
+
+        expect(getParameter(operation, 'courseId')).toMatchObject({
+          in: 'path',
+          required: true,
+          schema: { type: 'string', format: 'uuid' },
+        })
+
+        if (expected.path.includes('{materialId}')) {
+          expect(getParameter(operation, 'materialId')).toMatchObject({
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+          })
+        }
+
+        expectResponseSchemaReference(operation, '404', 'OpenApiErrorDto')
+      }
+
+      const upload = getOperation(document, base, 'post')
+      expect(upload.requestBody).toMatchObject({
+        content: {
+          'multipart/form-data': {
+            schema: {
+              $ref: '#/components/schemas/UploadMaterialRequestDto',
+            },
+          },
+        },
+      })
+      expect(upload.responses['400']).toMatchObject({
+        content: {
+          'application/json': {
+            schema: {
+              oneOf: [
+                {
+                  $ref: '#/components/schemas/OpenApiValidationErrorDto',
+                },
+                { $ref: '#/components/schemas/NestBadRequestErrorDto' },
+              ],
+            },
+          },
+        },
+      })
+      expectResponseSchemaReference(upload, '201', 'MaterialResponseDto')
+      expectResponseSchemaReference(upload, '413', 'OpenApiErrorDto')
+
+      expectResponseSchemaReference(
+        getOperation(document, base, 'get'),
+        '200',
+        'MaterialListResponseDto',
+      )
+      expectResponseSchemaReference(
+        getOperation(document, `${base}/{materialId}`, 'get'),
+        '200',
+        'MaterialResponseDto',
+      )
+      expectResponseSchemaReference(
+        getOperation(document, `${base}/{materialId}/status`, 'get'),
+        '200',
+        'MaterialStatusDto',
+      )
+
+      for (const operation of [
+        getOperation(document, base, 'get'),
+        getOperation(document, `${base}/{materialId}`, 'get'),
+        getOperation(document, `${base}/{materialId}/status`, 'get'),
+      ]) {
+        expectResponseSchemaReference(
+          operation,
+          '400',
+          'NestBadRequestErrorDto',
+        )
+      }
+
+      const schemas = document.components?.schemas as Record<
+        string,
+        { required?: string[]; properties?: Record<string, unknown> }
+      >
+      expect(schemas.UploadMaterialRequestDto.properties).toMatchObject({
+        title: { type: 'string', minLength: 1, maxLength: 180 },
+        file: { type: 'string', format: 'binary' },
+      })
+      expect(Object.keys(schemas.MaterialDto.properties ?? {})).toEqual([
+        'id',
+        'courseId',
+        'title',
+        'originalFilename',
+        'status',
+        'extractedTextLength',
+        'chunkCount',
+        'errorMessage',
+        'createdAt',
+        'updatedAt',
+      ])
+      expect(Object.keys(schemas.MaterialStatusDto.properties ?? {})).toEqual([
+        'id',
+        'status',
+        'extractedTextLength',
+        'chunkCount',
+        'errorMessage',
+        'updatedAt',
+      ])
     } finally {
       await app.close()
     }
