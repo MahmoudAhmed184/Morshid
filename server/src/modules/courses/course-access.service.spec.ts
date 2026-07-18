@@ -21,6 +21,13 @@ class CourseAccessTestRepository extends CoursesRepository {
     Promise.resolve(this.owners.get(courseId) === userId),
   )
 
+  readonly hasActiveCourseMembership = jest.fn(
+    (userId: string, courseId: string, role: CourseMembershipRole) =>
+      Promise.resolve(
+        this.memberships.get(this.membershipKey(userId, courseId)) === role,
+      ),
+  )
+
   listAdminCourses() {
     return Promise.resolve([])
   }
@@ -141,5 +148,26 @@ describe('CourseAccessService', () => {
     await expect(
       service.canManageCourse(student, 'assigned-course'),
     ).resolves.toBe(false)
+  })
+
+  it('requires an active instructor membership to manage course materials', async () => {
+    const { service, repository } = buildService()
+    const instructor = buildUser('instructor-user', UserRole.INSTRUCTOR)
+
+    repository.addOwner(instructor.id, 'owned-course')
+
+    await expect(
+      service.canManageCourseMaterials(instructor, 'owned-course'),
+    ).resolves.toBe(false)
+
+    repository.addMembership(
+      instructor.id,
+      'owned-course',
+      CourseMembershipRole.INSTRUCTOR,
+    )
+
+    await expect(
+      service.canManageCourseMaterials(instructor, 'owned-course'),
+    ).resolves.toBe(true)
   })
 })

@@ -3,7 +3,11 @@ import { Expose, Type } from 'class-transformer'
 
 import { MaterialStatus, type Material } from '../../generated/prisma/client'
 
-type SafeMaterialRecord = Pick<
+export interface UploadMaterialRequest {
+  title?: string
+}
+
+export type SafeMaterialRecord = Pick<
   Material,
   | 'id'
   | 'courseId'
@@ -16,6 +20,18 @@ type SafeMaterialRecord = Pick<
   | 'createdAt'
   | 'updatedAt'
 >
+
+export class UploadMaterialRequestDto {
+  @ApiProperty({ minLength: 1, maxLength: 180 })
+  title!: string
+
+  @ApiProperty({
+    type: 'string',
+    format: 'binary',
+    description: 'A single PDF file.',
+  })
+  file!: string
+}
 
 export class MaterialDto {
   @Expose()
