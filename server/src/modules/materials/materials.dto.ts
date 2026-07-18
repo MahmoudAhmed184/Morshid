@@ -82,6 +82,13 @@ export class MaterialResponseDto {
   material!: MaterialDto
 }
 
+export class MaterialListResponseDto {
+  @Expose()
+  @Type(() => MaterialDto)
+  @ApiProperty({ type: [MaterialDto] })
+  materials!: MaterialDto[]
+}
+
 export function mapMaterialRecord(material: SafeMaterialRecord): MaterialDto {
   return {
     id: material.id,

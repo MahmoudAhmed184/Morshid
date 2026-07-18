@@ -12,7 +12,11 @@ import type { AuthenticatedRequestUser } from '../auth/auth.dto'
 import { CourseAccessService } from '../courses/course-access.service'
 import { PDF_STORAGE, type PdfStorage } from '../pdf-storage/pdf-storage'
 import { MaterialProcessingScheduler } from './material-processing.scheduler'
-import { mapMaterialRecord, type MaterialResponseDto } from './materials.dto'
+import {
+  mapMaterialRecord,
+  type MaterialListResponseDto,
+  type MaterialResponseDto,
+} from './materials.dto'
 import { MaterialsAuditService } from './materials.audit.service'
 import { MATERIALS_ERROR_CODES } from './materials.errors'
 import { MaterialsRepository } from './materials.repository'
@@ -131,6 +135,40 @@ export class MaterialsService {
         requestContext,
       })
       throw error
+    }
+  }
+
+  async listMaterials(
+    courseId: string,
+    actor: AuthenticatedRequestUser,
+  ): Promise<MaterialListResponseDto> {
+    await this.assertCanManageMaterialsCourse(courseId, actor)
+
+    const materials =
+      await this.materialsRepository.listCourseMaterials(courseId)
+
+    return {
+      materials: materials.map(mapMaterialRecord),
+    }
+  }
+
+  private async assertCanManageMaterialsCourse(
+    courseId: string,
+    actor: AuthenticatedRequestUser,
+  ): Promise<void> {
+    const canManage = await this.courseAccessService.canManageCourseMaterials(
+      actor,
+      courseId,
+    )
+
+    if (!canManage) {
+      throw courseManagementRequiredException()
+    }
+
+    const courseExists = await this.materialsRepository.courseExists(courseId)
+
+    if (!courseExists) {
+      throw materialCourseNotFoundException()
     }
   }
 

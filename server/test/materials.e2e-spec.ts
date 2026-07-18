@@ -8,6 +8,7 @@ import { AppModule } from '../src/app.module'
 import { AUDIT_EVENT_ACTIONS } from '../src/modules/audit/audit.constants'
 import type { AuthSessionResponse } from '../src/modules/auth/auth.dto'
 import { AUTH_ERROR_CODES } from '../src/modules/auth/auth.dto'
+import type { Material } from '../src/generated/prisma/client'
 import { MATERIALS_ERROR_CODES } from '../src/modules/materials/materials.errors'
 import { MaterialProcessingScheduler } from '../src/modules/materials/material-processing.scheduler'
 import { PDF_STORAGE, type PdfStorage } from '../src/modules/pdf-storage/pdf-storage'
@@ -128,6 +129,22 @@ describe('Materials upload (e2e)', () => {
     }
 
     return course.id
+  }
+
+  function addMaterial(input: Partial<Material> & Pick<Material, 'id'>) {
+    const existing = [...store.materials.values()][0]
+
+    store.materials.set(input.id, {
+      ...existing,
+      ...input,
+    })
+  }
+
+  function listMaterials(input: { token: string; courseId?: string }) {
+    return request(app.getHttpServer())
+      .get(`/api/v1/courses/${input.courseId ?? pythonCourseId()}/materials`)
+      .set('User-Agent', userAgent)
+      .set('Authorization', `Bearer ${input.token}`)
   }
 
   function uploadPdf(input: {
@@ -374,5 +391,62 @@ describe('Materials upload (e2e)', () => {
       },
     })
     expect(JSON.stringify(uploadAudit?.metadata)).not.toContain('%PDF-')
+  })
+
+  it('lists only non-deleted materials for the requested course newest first', async () => {
+    const token = await signInAs('instructor@morshid.demo')
+    addMaterial({
+      id: '00000000-0000-4000-8000-000000000711',
+      courseId: pythonCourseId(),
+      title: 'Deleted Python material',
+      deletedAt: new Date('2026-07-07T00:00:00.000Z'),
+      createdAt: new Date('2026-07-08T00:00:00.000Z'),
+    })
+    addMaterial({
+      id: '00000000-0000-4000-8000-000000000712',
+      courseId: pythonCourseId(),
+      title: 'Newest Python material',
+      deletedAt: null,
+      createdAt: new Date('2026-07-09T00:00:00.000Z'),
+    })
+    addMaterial({
+      id: '00000000-0000-4000-8000-000000000713',
+      courseId: '00000000-0000-4000-8000-000000000102',
+      title: 'Hidden course material',
+      deletedAt: null,
+      createdAt: new Date('2026-07-10T00:00:00.000Z'),
+    })
+
+    const response = await listMaterials({ token }).expect(200)
+
+    expect(response.body).toMatchObject({
+      materials: [
+        {
+          id: '00000000-0000-4000-8000-000000000712',
+          title: 'Newest Python material',
+        },
+        {
+          id: '00000000-0000-4000-8000-000000000401',
+          title: 'Python Basics',
+        },
+      ],
+    })
+    expect(JSON.stringify(response.body)).not.toContain('storagePath')
+    expect(JSON.stringify(response.body)).not.toContain('Hidden course material')
+    expect(JSON.stringify(response.body)).not.toContain('Deleted Python material')
+  })
+
+  it('denies list access to instructors outside the course', async () => {
+    const token = await signInAs('instructor@morshid.demo')
+
+    await listMaterials({
+      token,
+      courseId: '00000000-0000-4000-8000-000000000102',
+    })
+      .expect(403)
+      .expect({
+        code: MATERIALS_ERROR_CODES.COURSE_MANAGEMENT_REQUIRED,
+        message: 'Active instructor course membership is required',
+      })
   })
 })

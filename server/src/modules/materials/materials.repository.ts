@@ -16,6 +16,8 @@ export abstract class MaterialsRepository {
     input: CreateProcessingMaterialInput,
   ): Promise<SafeMaterialRecord>
 
+  abstract listCourseMaterials(courseId: string): Promise<SafeMaterialRecord[]>
+
   abstract deleteMaterial(materialId: string): Promise<void>
 }
 
@@ -73,6 +75,19 @@ export class PrismaMaterialsRepository extends MaterialsRepository {
         status: MaterialStatus.PROCESSING,
       },
       select: safeMaterialSelect,
+    })
+  }
+
+  listCourseMaterials(courseId: string): Promise<SafeMaterialRecord[]> {
+    return this.prismaService.material.findMany({
+      where: {
+        courseId,
+        deletedAt: null,
+      },
+      select: safeMaterialSelect,
+      orderBy: {
+        createdAt: 'desc',
+      },
     })
   }
 

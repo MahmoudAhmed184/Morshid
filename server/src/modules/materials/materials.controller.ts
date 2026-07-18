@@ -1,6 +1,7 @@
 import {
   ClassSerializerInterceptor,
   Controller,
+  Get,
   Param,
   ParseUUIDPipe,
   Post,
@@ -14,6 +15,7 @@ import {
   ApiBody,
   ApiConsumes,
   ApiCreatedResponse,
+  ApiOkResponse,
   ApiOperation,
   ApiParam,
   ApiPayloadTooLargeResponse,
@@ -30,6 +32,7 @@ import { UserRole } from '../../generated/prisma/client'
 import type { AuthenticatedHttpRequest } from '../auth/auth.guard'
 import { Roles } from '../auth/roles.decorator'
 import {
+  MaterialListResponseDto,
   MaterialResponseDto,
   UploadMaterialRequestDto,
   type UploadMaterialRequest,
@@ -83,5 +86,27 @@ export class MaterialsController {
       request.user,
       getRequestContext(request),
     )
+  }
+
+  @Get()
+  @SerializeOptions({
+    type: MaterialListResponseDto,
+    strategy: 'excludeAll',
+  })
+  @ApiOperation({ summary: 'List course materials' })
+  @ApiParam({ name: 'courseId', format: 'uuid' })
+  @ApiOkResponse({
+    type: MaterialListResponseDto,
+    description: 'Non-deleted materials for the selected course.',
+  })
+  @ApiBadRequestResponse({
+    type: OpenApiValidationErrorDto,
+    description: 'The course ID was not a valid UUID.',
+  })
+  listMaterials(
+    @Param('courseId', new ParseUUIDPipe({ version: '4' })) courseId: string,
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<MaterialListResponseDto> {
+    return this.materialsService.listMaterials(courseId, request.user)
   }
 }
