@@ -20,6 +20,7 @@ import type {
   AdminUserListResponseDto,
 } from '../src/modules/admin/users/admin-users.dto'
 import { ADMIN_USERS_ERROR_CODES } from '../src/modules/admin/users/admin-users.errors'
+import { MaterialProcessingScheduler } from '../src/modules/materials/material-processing.scheduler'
 import { PrismaService } from '../src/modules/prisma/prisma.service'
 import { RedisService } from '../src/modules/redis/redis.service'
 import { P0_DEMO_COURSE, P0_DEMO_PASSWORD } from '../src/seeds/p0-demo.seed'
@@ -29,6 +30,7 @@ import {
   UserStatus,
 } from '../src/generated/prisma/client'
 import { AuthTestStore } from './support/auth-test-store'
+import { NoopMaterialProcessingScheduler } from './support/noop-material-processing-scheduler'
 
 const auditUserAgent = 'Morshid admin users e2e'
 const anyString = expect.any(String) as unknown as string
@@ -65,6 +67,8 @@ describe('Admin users (e2e)', () => {
       .useValue(store.prisma)
       .overrideProvider(RedisService)
       .useValue(redisService)
+      .overrideProvider(MaterialProcessingScheduler)
+      .useClass(NoopMaterialProcessingScheduler)
       .compile()
 
     app = moduleFixture.createNestApplication()

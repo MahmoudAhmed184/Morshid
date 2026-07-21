@@ -111,6 +111,10 @@ export class DurableMaterialProcessingScheduler
         })
 
       for (const command of commands) {
+        if (this.isStopped()) {
+          return
+        }
+
         try {
           await this.materialProcessingService.processMaterial(
             command.materialId,
@@ -124,5 +128,9 @@ export class DurableMaterialProcessingScheduler
     } finally {
       this.drainRunning = false
     }
+  }
+
+  private isStopped(): boolean {
+    return this.stopped
   }
 }

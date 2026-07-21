@@ -10,11 +10,13 @@ import {
   AUDIT_TARGET_TYPES,
 } from '../src/modules/audit/audit.constants'
 import type { AuthSessionResponse } from '../src/modules/auth/auth.dto'
+import { MaterialProcessingScheduler } from '../src/modules/materials/material-processing.scheduler'
 import { PrismaService } from '../src/modules/prisma/prisma.service'
 import { RedisService } from '../src/modules/redis/redis.service'
 import { STUDENT_CHAT_ERROR_CODES } from '../src/modules/student-chat/student-chat.errors'
 import { P0_DEMO_PASSWORD } from '../src/seeds/p0-demo.seed'
 import { AuthTestStore } from './support/auth-test-store'
+import { NoopMaterialProcessingScheduler } from './support/noop-material-processing-scheduler'
 
 // student1 is an active member of the Python demo course only. The seeded
 // hidden isolation course has no memberships — the canonical cross-course
@@ -52,6 +54,8 @@ describe('Course boundary audit (e2e)', () => {
       .useValue(store.prisma)
       .overrideProvider(RedisService)
       .useValue(redisService)
+      .overrideProvider(MaterialProcessingScheduler)
+      .useClass(NoopMaterialProcessingScheduler)
       .compile()
 
     app = moduleFixture.createNestApplication()

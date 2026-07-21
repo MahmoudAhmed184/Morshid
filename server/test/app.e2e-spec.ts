@@ -4,8 +4,10 @@ import request from 'supertest'
 import type { App } from 'supertest/types'
 import { configureApp } from '../src/app.setup'
 import { AppModule } from './../src/app.module'
+import { MaterialProcessingScheduler } from '../src/modules/materials/material-processing.scheduler'
 import { PrismaService } from '../src/modules/prisma/prisma.service'
 import { RedisService } from '../src/modules/redis/redis.service'
+import { NoopMaterialProcessingScheduler } from './support/noop-material-processing-scheduler'
 
 interface HealthResponse {
   status: string
@@ -46,6 +48,8 @@ describe('HealthController (e2e)', () => {
       .useValue(prismaService)
       .overrideProvider(RedisService)
       .useValue(redisService)
+      .overrideProvider(MaterialProcessingScheduler)
+      .useClass(NoopMaterialProcessingScheduler)
       .compile()
 
     app = moduleFixture.createNestApplication()
