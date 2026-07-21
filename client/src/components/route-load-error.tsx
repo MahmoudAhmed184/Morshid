@@ -1,29 +1,23 @@
 import { useRouter } from '@tanstack/react-router'
-import { TriangleAlert } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
+import { ErrorState } from '@/components/ui/custom/error-state/error-state'
 
 export function RouteLoadError() {
   const router = useRouter()
 
   return (
-    <main className="flex min-h-svh items-center justify-center bg-background px-4">
-      <section className="w-full max-w-md rounded-lg border bg-card p-6 text-center shadow-sm">
-        <TriangleAlert className="mx-auto size-10 text-amber-500" aria-hidden />
-        <h1 className="mt-4 text-xl font-semibold text-foreground">
-          Unable to load this page
-        </h1>
-        <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          Morshid could not reach a required service. No local data was changed.
-        </p>
-        <Button
-          type="button"
-          className="mt-5"
-          onClick={() => void router.invalidate()}
-        >
-          Try again
-        </Button>
-      </section>
+    <main className="relative flex min-h-svh items-center justify-center overflow-hidden bg-background px-4">
+      <div
+        className="bg-radial-spot pointer-events-none absolute inset-0 opacity-60 [mask-image:radial-gradient(ellipse_at_center,black,transparent_70%)]"
+        aria-hidden
+      />
+      <ErrorState
+        className="relative w-full max-w-md"
+        title="Unable to load this page"
+        description="Morshid could not reach a required service. No local data was changed — try again in a moment."
+        retryLabel="Try again"
+        onRetry={() => void router.invalidate()}
+      />
     </main>
   )
 }

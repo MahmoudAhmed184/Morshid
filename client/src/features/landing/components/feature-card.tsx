@@ -19,12 +19,12 @@ export function FeatureCard({
   return (
     <Card
       className={cn(
-        'h-full transition-shadow hover:shadow-md hover:ring-primary/20',
+        'group/feature h-full transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:ring-primary/20',
         className,
       )}
     >
       <CardHeader className="space-y-4">
-        <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+        <div className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/15 transition-colors duration-300 group-hover/feature:bg-primary/15">
           <Icon className="size-5" aria-hidden />
         </div>
         <CardTitle className="text-lg font-semibold">{title}</CardTitle>

@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate } from '@tanstack/react-router'
-import { ChevronRight, Mail } from 'lucide-react'
+import { ChevronRight, Mail, TriangleAlert } from 'lucide-react'
 import { useId, useState } from 'react'
 import { useForm } from 'react-hook-form'
 
@@ -148,12 +148,13 @@ export function SignInForm() {
         />
 
         {authErrorMessage ? (
-          <p
+          <div
             role="alert"
-            className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            className="flex items-start gap-2.5 rounded-xl bg-destructive/10 px-3.5 py-3 text-sm text-destructive ring-1 ring-destructive/15"
           >
-            {authErrorMessage}
-          </p>
+            <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+            <span>{authErrorMessage}</span>
+          </div>
         ) : null}
 
         <Button
@@ -161,10 +162,13 @@ export function SignInForm() {
           variant="default"
           size="lg"
           disabled={form.formState.isSubmitting}
-          className="h-12 w-full rounded-full text-lg font-medium"
+          className="group/submit h-12 w-full gap-2 rounded-full text-lg font-medium hover:shadow-glow-primary"
         >
           Sign In to Portal
-          <ChevronRight className="size-4" aria-hidden />
+          <ChevronRight
+            className="size-4 transition-transform duration-200 group-hover/submit:translate-x-0.5"
+            aria-hidden
+          />
         </Button>
       </form>
     </Form>
