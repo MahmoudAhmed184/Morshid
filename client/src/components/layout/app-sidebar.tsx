@@ -56,10 +56,15 @@ function AppSidebarLink({
     <Link
       to={item.to}
       aria-current={isActive ? 'page' : undefined}
+      data-active={isActive || undefined}
       onClick={onNavigate}
-      className={cn(itemClassName, isActive && activeItemClassName)}
+      className={cn(
+        'outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+        itemClassName,
+        isActive && activeItemClassName,
+      )}
     >
-      <Icon className="size-4 shrink-0" aria-hidden />
+      <Icon className="size-4 shrink-0 transition-transform" aria-hidden />
       <span className="truncate">{item.label}</span>
     </Link>
   )

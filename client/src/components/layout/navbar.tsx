@@ -39,7 +39,7 @@ type NavLinkProps = {
 
 function NavLink({ item, children, className, onClick }: NavLinkProps) {
   const linkClassName = cn(
-    'text-sm font-medium text-muted-foreground transition-colors hover:text-foreground',
+    'relative text-sm font-medium text-muted-foreground transition-colors duration-200 hover:text-foreground focus-visible:text-foreground focus-visible:outline-none',
     className,
   )
 
@@ -71,10 +71,7 @@ export function Navbar() {
     user?.role === 'INSTRUCTOR' ? instructorNavLinks : marketingNavLinks
 
   return (
-    <header
-      className="sticky top-0 z-50 border-b border-border/60 bg-background/80 backdrop-blur-md"
-      onWheel={(event) => event.preventDefault()}
-    >
+    <header className="surface-glass sticky top-0 z-50 border-b border-border/60">
       <nav
         className="relative mx-auto flex h-16 w-full max-w-7xl items-center px-4 sm:px-6 lg:px-8"
         aria-label="Main navigation"
@@ -82,11 +79,11 @@ export function Navbar() {
         <div className="flex flex-1 items-center">
           <Link
             to="/"
-            className="flex items-center gap-2.5 text-foreground transition-opacity hover:opacity-80"
+            className="group flex items-center gap-2.5 rounded-lg text-foreground transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             <Logo
-              className="size-8 shrink rounded-lg bg-primary text-primary-foreground"
-              iconClassName="size-4"
+              className="size-8 rounded-lg transition-transform duration-300 group-hover:scale-105"
+              iconClassName="size-4.5"
             />
             <span className="text-base font-semibold tracking-tight">
               Morshid
@@ -96,7 +93,11 @@ export function Navbar() {
 
         <div className="absolute top-1/2 left-1/2 hidden -translate-x-1/2 -translate-y-1/2 items-center gap-8 md:flex">
           {navLinks.map((link) => (
-            <NavLink key={link.label} item={link}>
+            <NavLink
+              key={link.label}
+              item={link}
+              className="after:absolute after:-bottom-1.5 after:left-0 after:h-0.5 after:w-full after:origin-left after:scale-x-0 after:rounded-full after:bg-primary after:transition-transform after:duration-300 hover:after:scale-x-100"
+            >
               {link.label}
             </NavLink>
           ))}
@@ -108,7 +109,7 @@ export function Navbar() {
             <Button
               nativeButton={false}
               render={<Link to={dashboardPath} />}
-              className="hidden sm:inline-flex"
+              className="hidden shadow-xs sm:inline-flex"
             >
               Dashboard
             </Button>
@@ -125,7 +126,7 @@ export function Navbar() {
               <Button
                 nativeButton={false}
                 render={<Link to="/login" />}
-                className="hidden sm:inline-flex"
+                className="hidden shadow-xs sm:inline-flex"
               >
                 Get Started
               </Button>
@@ -147,11 +148,8 @@ export function Navbar() {
             </SheetTrigger>
             <SheetContent side="right" className="w-full max-w-xs">
               <SheetHeader>
-                <SheetTitle className="flex items-center gap-2">
-                  <Logo
-                    className="size-5 shrink rounded-none bg-transparent text-primary"
-                    iconClassName="size-5"
-                  />
+                <SheetTitle className="flex items-center gap-2.5">
+                  <Logo className="size-7 rounded-lg" iconClassName="size-4" />
                   Morshid
                 </SheetTitle>
               </SheetHeader>

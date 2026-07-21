@@ -17,7 +17,7 @@ const themePresets = [
   {
     value: 'default',
     label: 'Default',
-    swatches: ['#1da1f2', '#0f172a', '#f8fafc'],
+    swatches: ['#4f46e5', '#8b5cf6', '#e2b04a'],
   },
   {
     value: 'slate',

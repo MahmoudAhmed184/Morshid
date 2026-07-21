@@ -70,18 +70,16 @@ function FooterLinkGroup({ title, links, id }: FooterLinkGroupProps) {
 
 export function Footer() {
   return (
-    <footer
-      className="border-t border-border bg-card"
-      onWheel={(event) => event.preventDefault()}
-    >
-      <div className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
+    <footer className="relative overflow-hidden border-t border-border bg-card">
+      <div
+        className="bg-star-field pointer-events-none absolute inset-0 opacity-40"
+        aria-hidden
+      />
+      <div className="relative mx-auto w-full max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-5">
           <div className="space-y-5 sm:col-span-2 lg:col-span-2">
             <div className="flex items-center gap-2.5">
-              <Logo
-                className="size-8 shrink rounded-lg bg-primary text-primary-foreground"
-                iconClassName="size-4"
-              />
+              <Logo className="size-8 rounded-lg" iconClassName="size-4" />
               <span className="text-base font-semibold text-foreground">
                 Morshid
               </span>
@@ -96,7 +94,7 @@ export function Footer() {
                   key={social.label}
                   href={social.href}
                   aria-label={social.label}
-                  className="flex size-9 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
+                  className="flex size-9 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:border-primary/40 hover:bg-accent hover:text-foreground"
                 >
                   {social.icon}
                 </a>
@@ -118,8 +116,8 @@ export function Footer() {
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <span
               className={cn(
-                'size-2 rounded-full bg-primary',
-                'ring-3 ring-primary/20',
+                'size-2 rounded-full bg-success',
+                'ring-3 ring-success/20',
               )}
               aria-hidden
             />
