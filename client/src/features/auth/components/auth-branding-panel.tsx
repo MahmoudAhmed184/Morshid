@@ -17,7 +17,7 @@ export function AuthBrandingPanel({ className }: AuthBrandingPanelProps) {
   return (
     <aside
       className={cn(
-        'flex-col justify-between bg-foreground p-14 text-background',
+        'flex-col justify-between rounded-3xl bg-foreground p-14 text-background shadow-xl',
         className,
       )}
     >

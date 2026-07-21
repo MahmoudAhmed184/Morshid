@@ -6,6 +6,7 @@ import { useForm } from 'react-hook-form'
 
 import { Button } from '@/components/ui/button'
 import { Form, FormField } from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 import {
@@ -19,7 +20,6 @@ import { getDashboardPath } from '@/features/auth/utils/auth-redirect'
 import { isApiError } from '@/features/auth/api/authenticated-api-client'
 
 import { PasswordField } from './password-field'
-import { RuledFieldInput } from './ruled-field-input'
 
 export function SignInForm() {
   const [authErrorMessage, setAuthErrorMessage] = useState<string | null>(null)
@@ -76,7 +76,7 @@ export function SignInForm() {
                 <Label htmlFor={emailInputId} className="smallcaps-label">
                   Institutional Email
                 </Label>
-                <RuledFieldInput
+                <Input
                   {...field}
                   id={emailInputId}
                   type="email"
@@ -130,7 +130,7 @@ export function SignInForm() {
         {authErrorMessage ? (
           <div
             role="alert"
-            className="flex items-start gap-2.5 rounded-md border border-rubric/40 bg-rubric/5 px-3.5 py-3 text-sm text-rubric"
+            className="flex items-start gap-2.5 rounded-xl border border-rubric/40 bg-rubric/5 px-3.5 py-3 text-sm text-rubric"
           >
             <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
             <span>{authErrorMessage}</span>

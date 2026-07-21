@@ -3,10 +3,9 @@ import * as React from 'react'
 import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
-
-import { RuledFieldInput } from './ruled-field-input'
 
 type PasswordFieldProps = Omit<
   React.ComponentProps<'input'>,
@@ -53,7 +52,7 @@ export const PasswordField = React.forwardRef<
         ) : null}
       </div>
       <div className="relative">
-        <RuledFieldInput
+        <Input
           ref={ref}
           id={id}
           type={visible ? 'text' : 'password'}
