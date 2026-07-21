@@ -1,9 +1,9 @@
 import { GuidingStar } from '@/components/guiding-star'
-import { Avatar, AvatarFallback, AvatarGroup } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Logo } from '@/components/logo'
 import { cn } from '@/lib/utils'
 
-const educatorAvatars = ['JD', 'AS', 'ML'] as const
+const educators = ['JD', 'AS', 'ML'] as const
 
 type AuthBrandingPanelProps = {
   className?: string
@@ -67,15 +67,15 @@ export function AuthBrandingPanel({ className }: AuthBrandingPanelProps) {
       </div>
 
       <div className="relative flex items-center gap-4">
-        <AvatarGroup>
-          {educatorAvatars.map((initials) => (
-            <Avatar key={initials} size="sm">
-              <AvatarFallback className="bg-muted text-[10px] font-medium text-foreground">
+        <div className="flex -space-x-2">
+          {educators.map((initials) => (
+            <Avatar key={initials} className="ring-2 ring-card">
+              <AvatarFallback className="bg-secondary text-[11px] font-semibold text-secondary-foreground">
                 {initials}
               </AvatarFallback>
             </Avatar>
           ))}
-        </AvatarGroup>
+        </div>
         <p className="text-xs text-muted-foreground">
           Trusted by educators and students alike
         </p>
