@@ -164,7 +164,6 @@ async function waitForPromise(
     timeout = setTimeout(() => {
       resolve(false)
     }, timeoutMs)
-    timeout.unref()
   })
 
   try {
