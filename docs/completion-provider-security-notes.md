@@ -18,6 +18,14 @@ user message. Escaping `<`, `>`, `&`, and Unicode line separators before embeddi
 the JSON is an implementation-specific way to stop input from reproducing this
 envelope's literal markers while preserving parseable data.
 
+The public provider snapshots every allowed request value exactly once into frozen
+plain data before it validates or prepares the prompt. The selected adapter receives
+only the two prepared messages and a composed cancellation signal; it never receives
+the caller's request object or raw context entries. The envelope parser validates an
+exact runtime schema and returns a second minimized frozen snapshot, so delimited
+`null`, arrays, extra keys, wrong field types, unsafe chunk indices, and over-budget
+values fail with the fixed invalid-request error.
+
 OWASP's RAG guidance recommends delimiters that explicitly label retrieved content
 as untrusted data, but also says not to rely solely on prompt positioning and calls
 for limits, screening, and model-specific testing
@@ -46,6 +54,13 @@ and upstream failures likewise become bounded, stable error codes. The 30-second
 default and 120-second configuration ceiling are local availability policies, not
 values prescribed by OWASP.
 
+The provider seam applies explicit Unicode code-point budgets before prompt
+preparation: 4,000 for the question, 300 for each source title, 8,000 for each chunk,
+50 context entries, and 32,000 aggregate title-plus-chunk code points. These are
+local, provider-independent ceilings rather than model token claims. A future live
+adapter may impose a smaller tokenizer-aware budget behind the same contract
+([AISVS C2.1.4](https://github.com/OWASP/AISVS/blob/main/1.0/en/0x10-C02-Input-Validation.md#c21-prompt-injection-defenses)).
+
 ## Result validation and safe errors
 
 AISVS requires model outputs to be validated against a defined schema and rejected
@@ -53,6 +68,10 @@ when they do not match
 ([AISVS C7.1.1](https://github.com/OWASP/AISVS/blob/main/1.0/en/0x10-C07-Model-Behavior.md#c71-output-format-enforcement)).
 The validating wrapper consequently checks nonblank content, provider, model, and
 prompt-version metadata and non-negative token counts before returning a result.
+Output content is limited to 16,000 Unicode code points. Result objects are also
+snapshotted exactly once before validation, preventing accessors or proxies from
+substituting data between the check and the returned minimized result
+([AISVS C7.1.2](https://github.com/OWASP/AISVS/blob/main/1.0/en/0x10-C07-Model-Behavior.md#c71-output-format-enforcement)).
 The deterministic adapter is an offline implementation for stable development and
 tests; its exact digest format is a product decision, not an OWASP control.
 
@@ -79,6 +98,10 @@ wrapper separately races completion against abort so a non-cooperative adapter
 cannot delay the caller indefinitely. HTTP-disconnect wiring remains the
 orchestrator's responsibility.
 
+The wrapper installs distinct one-shot listeners on the caller and timeout signals.
+The first listener to run fixes the public classification, and settlement removes
+those exact listener functions on resolution, rejection, cancellation, and timeout.
+
 ## NestJS registration and configuration
 
 Nest supports symbols as non-class provider tokens, dynamic `useFactory` providers,
@@ -90,7 +113,8 @@ missing or invalid environment values during startup and supports a synchronous
 custom validator that can transform values and stop bootstrap by throwing
 ([NestJS configuration](https://docs.nestjs.com/techniques/configuration#custom-validate-function)).
 Startup validation plus an exhaustive runtime factory provides two independent
-checks against an unknown provider or invalid timeout.
+checks against an unknown provider or a timeout outside the inclusive 1–120,000 ms
+integer range. Both fail synchronously with fixed non-sensitive errors.
 
 ## Content-minimized observability
 
@@ -113,11 +137,12 @@ telemetry layer with explicit retention, redaction, and access policies.
 
 ## Explicit exclusions
 
-This issue does not implement retrieval authorization, context selection or limits,
+This issue does not implement retrieval authorization or context selection,
 prompt-injection classifiers, citation selection, output-policy classifiers,
 persistence, telemetry exporters, provider networking, streaming, or HTTP
-disconnect propagation. In particular, citations should later be derived from
-retrieval metadata rather than invented by the model, as required by
+disconnect propagation. The provider's defensive context budgets do not choose,
+retrieve, rank, or authorize chunks. In particular, citations should later be
+derived from retrieval metadata rather than invented by the model, as required by
 [AISVS C7.4.2](https://github.com/OWASP/AISVS/blob/main/1.0/en/0x10-C07-Model-Behavior.md#c74-source-attribution--citation-integrity).
 
 ## Primary sources used
