@@ -53,7 +53,6 @@
     "@prisma/client": "^7.8.0",
     "class-transformer": "^0.5.1",
     "pdfjs-dist": "^6.1.200",
-    "pdf-parse": "^2.4.5",
     "pg": "^8.22.0",
     "redis": "^6.1.0",
     "reflect-metadata": "^0.2.2",
