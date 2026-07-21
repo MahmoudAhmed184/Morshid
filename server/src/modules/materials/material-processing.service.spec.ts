@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/unbound-method */
+
 import { MaterialStatus } from '../../generated/prisma/client'
 import type { EmbeddingProvider } from '../embedding/embedding-provider'
 import type { PdfStorage } from '../pdf-storage/pdf-storage'
@@ -73,8 +75,14 @@ describe('MaterialProcessingService', () => {
   })
 
   it('processes a clean PDF into ready chunks and embeddings', async () => {
-    const { service, storage, extractor, embeddingProvider, repository, auditService } =
-      buildService()
+    const {
+      service,
+      storage,
+      extractor,
+      embeddingProvider,
+      repository,
+      auditService,
+    } = buildService()
 
     await expect(service.processMaterial(materialId)).resolves.toBe(
       MaterialStatus.READY,
@@ -232,7 +240,9 @@ describe('MaterialProcessingService', () => {
 
   it('clears chunks and fails safely when ready persistence fails', async () => {
     const { service, repository, auditService } = buildService()
-    repository.completeProcessing.mockRejectedValueOnce(new Error('sql details'))
+    repository.completeProcessing.mockRejectedValueOnce(
+      new Error('sql details'),
+    )
 
     await expect(service.processMaterial(materialId)).resolves.toBe(
       MaterialStatus.FAILED,

@@ -46,9 +46,7 @@ describe('chunkNormalizedText', () => {
   })
 
   it('prefers paragraph boundaries near the target size', () => {
-    const firstParagraph = 'a'.repeat(
-      MATERIAL_CHUNK_TARGET_CHARACTERS - 150,
-    )
+    const firstParagraph = 'a'.repeat(MATERIAL_CHUNK_TARGET_CHARACTERS - 150)
     const secondParagraph = 'b'.repeat(600)
     const text = `${firstParagraph}\n\n${secondParagraph}`
 
@@ -67,17 +65,15 @@ describe('chunkNormalizedText', () => {
     const text = `${'a'.repeat(300)}\n\n${'b'.repeat(1_500)}`
     const chunks = chunkNormalizedText(text)
 
-    expect(chunks[0]?.content).toHaveLength(
-      MATERIAL_CHUNK_TARGET_CHARACTERS,
-    )
+    expect(chunks[0]?.content).toHaveLength(MATERIAL_CHUNK_TARGET_CHARACTERS)
   })
 
   it('does not emit empty chunks around boundary whitespace', () => {
     const text = `${'a'.repeat(1_050)}\n\n\n\n${'b'.repeat(1_050)}`
 
-    expect(chunkNormalizedText(text).every((chunk) => chunk.content !== '')).toBe(
-      true,
-    )
+    expect(
+      chunkNormalizedText(text).every((chunk) => chunk.content !== ''),
+    ).toBe(true)
   })
 
   it('is repeatable for the same normalized text', () => {

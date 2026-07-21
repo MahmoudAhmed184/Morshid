@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/unbound-method */
+
 import { MaterialStatus } from '../../generated/prisma/client'
 import type { PrismaService } from '../prisma/prisma.service'
 import { MaterialNoLongerProcessableError } from './material-processing.errors'
@@ -24,8 +26,8 @@ function buildRepository() {
         storagePath: '00000000-0000-4000-8000-000000000701.pdf',
       }),
     },
-    $transaction: jest.fn(async (callback: (client: typeof tx) => unknown) =>
-      callback(tx),
+    $transaction: jest.fn((callback: (client: typeof tx) => unknown) =>
+      Promise.resolve(callback(tx)),
     ),
   } as unknown as PrismaService
 
@@ -40,14 +42,14 @@ describe('PrismaMaterialProcessingRepository', () => {
   it('loads only non-deleted processing materials', async () => {
     const { prismaService, repository } = buildRepository()
 
-    await expect(repository.findProcessableMaterial(materialId)).resolves.toEqual(
-      {
-        id: materialId,
-        courseId,
-        uploadedById,
-        storagePath: '00000000-0000-4000-8000-000000000701.pdf',
-      },
-    )
+    await expect(
+      repository.findProcessableMaterial(materialId),
+    ).resolves.toEqual({
+      id: materialId,
+      courseId,
+      uploadedById,
+      storagePath: '00000000-0000-4000-8000-000000000701.pdf',
+    })
     expect(prismaService.material.findFirst).toHaveBeenCalledWith({
       where: {
         id: materialId,

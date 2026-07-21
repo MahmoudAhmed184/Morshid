@@ -1,9 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
 import { MaterialStatus, Prisma } from '../src/generated/prisma/client'
-import {
-  MaterialNoLongerProcessableError,
-} from '../src/modules/materials/material-processing.errors'
+import { MaterialNoLongerProcessableError } from '../src/modules/materials/material-processing.errors'
 import { PrismaMaterialProcessingRepository } from '../src/modules/materials/material-processing.repository'
 import type { PrismaService } from '../src/modules/prisma/prisma.service'
 import {

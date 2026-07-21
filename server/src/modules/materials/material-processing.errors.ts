@@ -16,8 +16,7 @@ export const MATERIAL_PROCESSING_SAFE_MESSAGES = {
   PDF_READ_FAILED: 'The PDF could not be read.',
   NO_EXTRACTABLE_TEXT:
     'No extractable text was found. Scanned PDFs are not supported.',
-  CHUNKING_FAILED:
-    'The extracted content could not be prepared for retrieval.',
+  CHUNKING_FAILED: 'The extracted content could not be prepared for retrieval.',
   EMBEDDING_FAILED: 'The material could not be embedded.',
   PERSISTENCE_FAILED:
     'The extracted content could not be prepared for retrieval.',

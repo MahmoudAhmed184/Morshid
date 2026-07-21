@@ -1,4 +1,7 @@
-import { PdfTextExtractor, type PdfTextParserFactory } from './pdf-text.extractor'
+import {
+  PdfTextExtractor,
+  type PdfTextParserFactory,
+} from './pdf-text.extractor'
 import {
   MATERIAL_PROCESSING_ERROR_CODES,
   SafeMaterialProcessingError,
@@ -9,17 +12,19 @@ function buildExtractor(input: {
   failure?: Error
   destroyFailure?: Error
 }) {
-  const getText = jest.fn(async () => {
+  const getText = jest.fn(() => {
     if (input.failure !== undefined) {
-      throw input.failure
+      return Promise.reject(input.failure)
     }
 
-    return { text: input.text ?? 'Python text' }
+    return Promise.resolve({ text: input.text ?? 'Python text' })
   })
-  const destroy = jest.fn(async () => {
+  const destroy = jest.fn(() => {
     if (input.destroyFailure !== undefined) {
-      throw input.destroyFailure
+      return Promise.reject(input.destroyFailure)
     }
+
+    return Promise.resolve()
   })
   const createParser: PdfTextParserFactory = jest.fn(() => ({
     getText,
@@ -58,7 +63,8 @@ describe('PdfTextExtractor', () => {
 
       await expect(extractor.extract(pdfBytes)).rejects.toMatchObject({
         code: MATERIAL_PROCESSING_ERROR_CODES.NO_EXTRACTABLE_TEXT,
-        message: 'No extractable text was found. Scanned PDFs are not supported.',
+        message:
+          'No extractable text was found. Scanned PDFs are not supported.',
       } satisfies Partial<SafeMaterialProcessingError>)
       expect(destroy).toHaveBeenCalledTimes(1)
     },

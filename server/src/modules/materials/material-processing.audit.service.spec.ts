@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/unbound-method */
+
 import { Logger } from '@nestjs/common'
 
 import { AUDIT_EVENT_ACTIONS } from '../audit/audit.constants'

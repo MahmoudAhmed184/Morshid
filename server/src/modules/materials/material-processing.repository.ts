@@ -187,7 +187,9 @@ export class PrismaMaterialProcessingRepository extends MaterialProcessingReposi
   }
 }
 
-function assertValidChunks(chunks: readonly ProcessedMaterialChunkInput[]): void {
+function assertValidChunks(
+  chunks: readonly ProcessedMaterialChunkInput[],
+): void {
   for (const chunk of chunks) {
     if (chunk.content.trim() === '') {
       throw new Error('Processed material chunk content must not be blank')

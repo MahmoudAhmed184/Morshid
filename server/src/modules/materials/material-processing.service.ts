@@ -37,10 +37,14 @@ export class MaterialProcessingService {
     private readonly embeddingProvider: EmbeddingProvider,
   ) {}
 
-  async processMaterial(materialId: string): Promise<MaterialProcessingOutcome> {
+  async processMaterial(
+    materialId: string,
+  ): Promise<MaterialProcessingOutcome> {
     const startedAt = Date.now()
     const material =
-      await this.materialProcessingRepository.findProcessableMaterial(materialId)
+      await this.materialProcessingRepository.findProcessableMaterial(
+        materialId,
+      )
 
     if (material === null) {
       return 'SKIPPED'
@@ -70,16 +74,20 @@ export class MaterialProcessingService {
       const embeddings = await this.embedChunks(
         chunks.map((chunk) => chunk.content),
       )
-      const firstWarning = extraction.warnings[0] ?? null
+      const firstWarning =
+        extraction.warnings.length === 0 ? undefined : extraction.warnings[0]
       const finalStatus =
-        firstWarning === null ? MaterialStatus.READY : MaterialStatus.WARNING
+        firstWarning === undefined
+          ? MaterialStatus.READY
+          : MaterialStatus.WARNING
 
       try {
         await this.materialProcessingRepository.completeProcessing({
           materialId: material.id,
           status: finalStatus,
           extractedTextLength: normalizedText.length,
-          warningMessage: firstWarning?.message ?? null,
+          warningMessage:
+            firstWarning === undefined ? null : firstWarning.message,
           chunks: chunks.map((chunk, index) => ({
             chunkIndex: chunk.chunkIndex,
             content: chunk.content,
@@ -104,7 +112,7 @@ export class MaterialProcessingService {
         status: finalStatus,
         extractedTextLength: normalizedText.length,
         chunkCount: chunks.length,
-        warningCode: firstWarning?.code ?? null,
+        warningCode: firstWarning === undefined ? null : firstWarning.code,
         durationMs: Date.now() - startedAt,
       })
 
@@ -122,7 +130,8 @@ export class MaterialProcessingService {
         await this.materialProcessingRepository.failProcessing({
           materialId: material.id,
           extractedTextLength:
-            safeError.code === MATERIAL_PROCESSING_ERROR_CODES.NO_EXTRACTABLE_TEXT
+            safeError.code ===
+            MATERIAL_PROCESSING_ERROR_CODES.NO_EXTRACTABLE_TEXT
               ? 0
               : extractedTextLength,
           errorMessage: safeError.message,
