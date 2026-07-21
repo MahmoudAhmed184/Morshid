@@ -2,6 +2,7 @@ import type { ConfigService } from '@nestjs/config'
 
 import type { AppEnvironment } from '../config/env.schema'
 import type { EmbeddingProvider } from '../embedding/embedding-provider'
+import type { PdfStorage } from '../pdf-storage/pdf-storage'
 import type {
   CourseRetrievalRepository,
   RankedChunkRow,
@@ -15,10 +16,12 @@ describe('RetrievalService', () => {
   let embedBatch: jest.Mock
   let findTopChunksForCourse: jest.Mock
   let service: RetrievalService
+  let exists: jest.Mock
 
   beforeEach(() => {
     embedBatch = jest.fn().mockResolvedValue([queryEmbedding])
     findTopChunksForCourse = jest.fn().mockResolvedValue([])
+    exists = jest.fn().mockResolvedValue(true)
 
     const embeddingProvider = {
       model: 'test-embedding-model',
@@ -32,7 +35,13 @@ describe('RetrievalService', () => {
         key === 'RETRIEVAL_TOP_K' ? 5 : 0.7,
     } as unknown as ConfigService<AppEnvironment, true>
 
-    service = new RetrievalService(embeddingProvider, repository, configService)
+    const storage = { exists } as unknown as PdfStorage
+    service = new RetrievalService(
+      embeddingProvider,
+      repository,
+      configService,
+      storage,
+    )
   })
 
   it('embeds the query once and forwards only configured limits with the course id', async () => {
@@ -46,6 +55,7 @@ describe('RetrievalService', () => {
       queryEmbedding,
       topK: 5,
       minSimilarity: 0.7,
+      offset: 0,
     })
   })
 
@@ -57,6 +67,7 @@ describe('RetrievalService', () => {
         materialTitle: 'Python Basics',
         chunkIndex: 3,
         content: 'closest chunk',
+        storagePath: '00000000-0000-4000-8000-000000000001.pdf',
         distance: 0.05,
       },
       {
@@ -65,6 +76,7 @@ describe('RetrievalService', () => {
         materialTitle: 'Loops',
         chunkIndex: 0,
         content: 'second chunk',
+        storagePath: '00000000-0000-4000-8000-000000000002.pdf',
         distance: 0.2,
       },
     ]
@@ -120,6 +132,104 @@ describe('RetrievalService', () => {
     await expect(
       service.retrieveCourseEvidence(courseId, 'unrelated question'),
     ).resolves.toEqual({ kind: 'insufficient_evidence' })
+  })
+
+  it('excludes rows whose backing PDF is unavailable and re-ranks evidence', async () => {
+    findTopChunksForCourse.mockResolvedValue([
+      {
+        chunkId: 'missing-chunk',
+        materialId: 'missing-material',
+        materialTitle: 'Missing',
+        chunkIndex: 0,
+        content: 'must not return',
+        storagePath: '00000000-0000-4000-8000-000000000001.pdf',
+        distance: 0.01,
+      },
+      {
+        chunkId: 'available-chunk',
+        materialId: 'available-material',
+        materialTitle: 'Available',
+        chunkIndex: 0,
+        content: 'safe evidence',
+        storagePath: '00000000-0000-4000-8000-000000000002.pdf',
+        distance: 0.1,
+      },
+    ])
+    exists.mockImplementation((storagePath: string) =>
+      Promise.resolve(storagePath.endsWith('2.pdf')),
+    )
+
+    await expect(
+      service.retrieveCourseEvidence(courseId, 'query'),
+    ).resolves.toEqual({
+      kind: 'evidence',
+      chunks: [
+        expect.objectContaining({
+          chunkId: 'available-chunk',
+          rank: 1,
+        }),
+      ],
+    })
+  })
+
+  it('backfills an available rank K+1 candidate after missing top-ranked files', async () => {
+    const missingRows = Array.from({ length: 5 }, (_, chunkIndex) => ({
+      chunkId: `missing-${String(chunkIndex)}`,
+      materialId: 'missing-material',
+      materialTitle: 'Missing',
+      chunkIndex,
+      content: 'unavailable evidence',
+      storagePath: 'missing.pdf',
+      distance: 0.01 + chunkIndex / 100,
+    }))
+    const availableRow = {
+      chunkId: 'rank-six',
+      materialId: 'available-material',
+      materialTitle: 'Available',
+      chunkIndex: 0,
+      content: 'rank K+1 evidence',
+      storagePath: 'available.pdf',
+      distance: 0.2,
+    }
+    findTopChunksForCourse
+      .mockResolvedValueOnce(missingRows)
+      .mockResolvedValueOnce([availableRow])
+    exists.mockImplementation((storagePath: string) =>
+      Promise.resolve(storagePath === 'available.pdf'),
+    )
+
+    await expect(
+      service.retrieveCourseEvidence(courseId, 'query'),
+    ).resolves.toEqual({
+      kind: 'evidence',
+      chunks: [expect.objectContaining({ chunkId: 'rank-six', rank: 1 })],
+    })
+    expect(findTopChunksForCourse).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ offset: 5, topK: 5 }),
+    )
+    expect(exists).toHaveBeenCalledTimes(2)
+  })
+
+  it('bounds unavailable candidate scans and checks each storage path once', async () => {
+    findTopChunksForCourse.mockResolvedValue(
+      Array.from({ length: 5 }, (_, chunkIndex) => ({
+        chunkId: `missing-${String(chunkIndex)}`,
+        materialId: 'missing-material',
+        materialTitle: 'Missing',
+        chunkIndex,
+        content: 'unavailable evidence',
+        storagePath: 'same-missing.pdf',
+        distance: 0.01 + chunkIndex / 100,
+      })),
+    )
+    exists.mockResolvedValue(false)
+
+    await expect(
+      service.retrieveCourseEvidence(courseId, 'query'),
+    ).resolves.toEqual({ kind: 'insufficient_evidence' })
+    expect(findTopChunksForCourse).toHaveBeenCalledTimes(5)
+    expect(exists).toHaveBeenCalledTimes(1)
   })
 
   it('propagates provider failures without querying the repository', async () => {

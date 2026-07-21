@@ -25,6 +25,7 @@ describe('PrismaCourseRetrievalRepository', () => {
       queryEmbedding: buildEmbedding(),
       topK: 5,
       minSimilarity: 0.7,
+      offset: 0,
       ...overrides,
     }
   }
@@ -42,6 +43,7 @@ describe('PrismaCourseRetrievalRepository', () => {
       courseId,
       0.7,
       5,
+      0,
     ])
   })
 
@@ -55,8 +57,11 @@ describe('PrismaCourseRetrievalRepository', () => {
       "material.status IN ('READY'::material_status, 'WARNING'::material_status)",
     )
     expect(staticSql).toContain('material.deleted_at IS NULL')
+    expect(staticSql).toContain('material.extracted_text_length > 0')
+    expect(staticSql).toContain('material.chunk_count > 0')
     expect(staticSql).toContain('1 - distance >= ?')
     expect(staticSql).toContain('LIMIT ?')
+    expect(staticSql).toContain('OFFSET ?')
     expect(staticSql).toContain('ORDER BY distance ASC')
   })
 
@@ -77,6 +82,16 @@ describe('PrismaCourseRetrievalRepository', () => {
     async (topK) => {
       await expect(
         repository.findTopChunksForCourse(buildQuery({ topK })),
+      ).rejects.toThrow(InvalidRetrievalQueryError)
+      expect(queryRaw).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each([-1, 1.5, 251])(
+    'rejects candidate offset %p without touching the database',
+    async (offset) => {
+      await expect(
+        repository.findTopChunksForCourse(buildQuery({ offset })),
       ).rejects.toThrow(InvalidRetrievalQueryError)
       expect(queryRaw).not.toHaveBeenCalled()
     },
@@ -121,6 +136,7 @@ describe('PrismaCourseRetrievalRepository', () => {
         materialTitle: 'Python Basics',
         chunkIndex: 0,
         content: 'first',
+        storagePath: '00000000-0000-4000-8000-000000000001.pdf',
         distance: 0.05,
       },
       {
@@ -129,6 +145,7 @@ describe('PrismaCourseRetrievalRepository', () => {
         materialTitle: 'Python Basics',
         chunkIndex: 1,
         content: 'second',
+        storagePath: '00000000-0000-4000-8000-000000000001.pdf',
         distance: 0.1,
       },
     ]

@@ -3,9 +3,11 @@ import { Injectable } from '@nestjs/common'
 import {
   MaterialStatus,
   type Material,
-  type Prisma,
+  Prisma,
 } from '../../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import type { MaterialChunkInput } from '../rag-persistence/rag-persistence.repository'
+import { MATERIAL_PROCESSING_LEASE_MS } from './material-processing.constants'
 
 export type SafeMaterialRecord = Pick<
   Material,
@@ -52,6 +54,24 @@ export abstract class MaterialsRepository {
     materialId: string,
   ): Promise<MaterialStatusRecord | null>
 
+  abstract claimMaterialProcessing(
+    materialId: string,
+    processingAttemptId: string,
+  ): Promise<MaterialProcessingRecord | null>
+
+  abstract completeMaterialProcessing(
+    materialId: string,
+    processingAttemptId: string,
+    chunks: readonly MaterialChunkInput[],
+    input: CompleteMaterialProcessingInput,
+  ): Promise<boolean>
+
+  abstract failMaterialProcessing(
+    materialId: string,
+    processingAttemptId: string,
+    reasonCode: string,
+  ): Promise<boolean>
+
   abstract markUploadCleanupRequired(materialId: string): Promise<void>
 
   abstract deleteMaterial(materialId: string): Promise<void>
@@ -64,6 +84,19 @@ export interface CreateProcessingMaterialInput {
   originalFilename: string
   storagePath: string
   sha256Hash: string
+}
+
+export interface MaterialProcessingRecord {
+  id: string
+  courseId: string
+  uploadedById: string
+  storagePath: string
+}
+
+export interface CompleteMaterialProcessingInput {
+  status: 'READY' | 'WARNING'
+  extractedTextLength: number
+  chunkCount: number
 }
 
 const safeMaterialSelect = {
@@ -164,6 +197,156 @@ export class PrismaMaterialsRepository extends MaterialsRepository {
     })
   }
 
+  async claimMaterialProcessing(
+    materialId: string,
+    processingAttemptId: string,
+  ): Promise<MaterialProcessingRecord | null> {
+    return this.prismaService.$transaction(async (tx) => {
+      const claimedAt = new Date()
+      const leaseExpiresAt = new Date(
+        claimedAt.getTime() + MATERIAL_PROCESSING_LEASE_MS,
+      )
+      const commandClaim = await tx.materialProcessingCommand.updateMany({
+        where: {
+          materialId,
+          OR: [
+            { processingAttemptId: null },
+            { leaseExpiresAt: { lte: claimedAt } },
+          ],
+        },
+        data: { processingAttemptId, leaseExpiresAt },
+      })
+
+      if (commandClaim.count !== 1) {
+        return null
+      }
+
+      const materialClaim = await tx.material.updateMany({
+        where: {
+          id: materialId,
+          status: MaterialStatus.PROCESSING,
+          deletedAt: null,
+        },
+        data: { processingAttemptId },
+      })
+
+      if (materialClaim.count !== 1) {
+        await tx.materialProcessingCommand.deleteMany({
+          where: { materialId, processingAttemptId },
+        })
+        return null
+      }
+
+      return tx.material.findFirst({
+        where: {
+          id: materialId,
+          processingAttemptId,
+        },
+        select: {
+          id: true,
+          courseId: true,
+          uploadedById: true,
+          storagePath: true,
+        },
+      })
+    })
+  }
+
+  async completeMaterialProcessing(
+    materialId: string,
+    processingAttemptId: string,
+    chunks: readonly MaterialChunkInput[],
+    input: CompleteMaterialProcessingInput,
+  ): Promise<boolean> {
+    try {
+      return await this.prismaService.$transaction(async (tx) => {
+        const command = await tx.materialProcessingCommand.deleteMany({
+          where: { materialId, processingAttemptId },
+        })
+
+        if (command.count !== 1) {
+          return false
+        }
+
+        const result = await tx.material.updateMany({
+          where: {
+            id: materialId,
+            status: MaterialStatus.PROCESSING,
+            processingAttemptId,
+            deletedAt: null,
+          },
+          data: {
+            status: input.status,
+            processingAttemptId: null,
+            extractedTextLength: input.extractedTextLength,
+            chunkCount: input.chunkCount,
+            errorMessage: null,
+          },
+        })
+
+        if (result.count !== 1) {
+          throw new ProcessingAttemptOwnershipError()
+        }
+
+        await tx.materialChunk.deleteMany({ where: { materialId } })
+        await insertMaterialChunkBatches(tx, materialId, chunks)
+
+        return true
+      })
+    } catch (error) {
+      if (error instanceof ProcessingAttemptOwnershipError) {
+        return false
+      }
+      throw error
+    }
+  }
+
+  async failMaterialProcessing(
+    materialId: string,
+    processingAttemptId: string,
+    reasonCode: string,
+  ): Promise<boolean> {
+    try {
+      return await this.prismaService.$transaction(async (tx) => {
+        const command = await tx.materialProcessingCommand.deleteMany({
+          where: { materialId, processingAttemptId },
+        })
+
+        if (command.count !== 1) {
+          return false
+        }
+
+        const result = await tx.material.updateMany({
+          where: {
+            id: materialId,
+            status: MaterialStatus.PROCESSING,
+            processingAttemptId,
+            deletedAt: null,
+          },
+          data: {
+            status: MaterialStatus.FAILED,
+            processingAttemptId: null,
+            extractedTextLength: null,
+            chunkCount: 0,
+            errorMessage: reasonCode,
+          },
+        })
+
+        if (result.count !== 1) {
+          throw new ProcessingAttemptOwnershipError()
+        }
+
+        await tx.materialChunk.deleteMany({ where: { materialId } })
+        return true
+      })
+    } catch (error) {
+      if (error instanceof ProcessingAttemptOwnershipError) {
+        return false
+      }
+      throw error
+    }
+  }
+
   async markUploadCleanupRequired(materialId: string): Promise<void> {
     await this.prismaService.material.update({
       where: { id: materialId },
@@ -182,4 +365,50 @@ export class PrismaMaterialsRepository extends MaterialsRepository {
       select: { id: true } satisfies Prisma.MaterialSelect,
     } satisfies Prisma.MaterialDeleteArgs)
   }
+}
+
+class ProcessingAttemptOwnershipError extends Error {}
+
+type PrismaTransactionClient = Parameters<
+  Parameters<PrismaService['$transaction']>[0]
+>[0]
+
+const MAX_INSERT_BATCH_ROWS = 1_000
+
+async function insertMaterialChunkBatches(
+  tx: PrismaTransactionClient,
+  materialId: string,
+  chunks: readonly MaterialChunkInput[],
+): Promise<void> {
+  for (
+    let offset = 0;
+    offset < chunks.length;
+    offset += MAX_INSERT_BATCH_ROWS
+  ) {
+    const batch = chunks.slice(offset, offset + MAX_INSERT_BATCH_ROWS)
+    const rows = batch.map(
+      (chunk) => Prisma.sql`(
+        ${materialId}::uuid,
+        ${chunk.chunkIndex},
+        ${chunk.content},
+        ${serializeEmbedding(chunk.embedding)}::vector(1536),
+        ${chunk.embeddingModel}
+      )`,
+    )
+
+    await tx.$executeRaw(Prisma.sql`
+      INSERT INTO material_chunks (
+        material_id,
+        chunk_index,
+        content,
+        embedding,
+        embedding_model
+      )
+      VALUES ${Prisma.join(rows)}
+    `)
+  }
+}
+
+function serializeEmbedding(embedding: readonly number[]): string {
+  return `[${embedding.join(',')}]`
 }

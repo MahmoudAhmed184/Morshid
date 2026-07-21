@@ -6,7 +6,11 @@ import {
   EMBEDDING_PROVIDER_TOKEN,
   type EmbeddingProvider,
 } from '../embedding/embedding-provider'
-import { CourseRetrievalRepository } from './course-retrieval.repository'
+import { PDF_STORAGE, type PdfStorage } from '../pdf-storage/pdf-storage'
+import {
+  CourseRetrievalRepository,
+  type RankedChunkRow,
+} from './course-retrieval.repository'
 
 export interface RetrievedChunk {
   chunkId: string
@@ -24,6 +28,8 @@ export type CourseRetrievalResult =
   | { kind: 'evidence'; chunks: RetrievedChunk[] }
   | { kind: 'insufficient_evidence' }
 
+const AVAILABILITY_SCAN_MULTIPLIER = 5
+
 @Injectable()
 export class RetrievalService {
   private readonly topK: number
@@ -34,6 +40,7 @@ export class RetrievalService {
     private readonly embeddingProvider: EmbeddingProvider,
     private readonly courseRetrievalRepository: CourseRetrievalRepository,
     configService: ConfigService<AppEnvironment, true>,
+    @Inject(PDF_STORAGE) private readonly pdfStorage: PdfStorage,
   ) {
     this.topK = configService.get('RETRIEVAL_TOP_K', { infer: true })
     this.minSimilarity = configService.get('RETRIEVAL_MIN_SIMILARITY', {
@@ -64,20 +71,52 @@ export class RetrievalService {
       trimmedQuery,
     ])
 
-    const rows = await this.courseRetrievalRepository.findTopChunksForCourse({
-      courseId,
-      queryEmbedding,
-      topK: this.topK,
-      minSimilarity: this.minSimilarity,
-    })
+    const availableRows: RankedChunkRow[] = []
+    const availabilityByStoragePath = new Map<string, Promise<boolean>>()
+    const maxCandidates = this.topK * AVAILABILITY_SCAN_MULTIPLIER
+    let offset = 0
 
-    if (rows.length === 0) {
+    while (offset < maxCandidates && availableRows.length < this.topK) {
+      const pageSize = Math.min(this.topK, maxCandidates - offset)
+      const rows = await this.courseRetrievalRepository.findTopChunksForCourse({
+        courseId,
+        queryEmbedding,
+        topK: pageSize,
+        minSimilarity: this.minSimilarity,
+        offset,
+      })
+
+      const checkedRows = await Promise.all(
+        rows.map(async (row) => ({
+          row,
+          available: await this.getBackingFileAvailability(
+            row.storagePath,
+            availabilityByStoragePath,
+          ),
+        })),
+      )
+      for (const checked of checkedRows) {
+        if (checked.available) {
+          availableRows.push(checked.row)
+          if (availableRows.length === this.topK) {
+            break
+          }
+        }
+      }
+
+      offset += rows.length
+      if (rows.length < pageSize) {
+        break
+      }
+    }
+
+    if (availableRows.length === 0) {
       return { kind: 'insufficient_evidence' }
     }
 
     return {
       kind: 'evidence',
-      chunks: rows.map((row, index) => ({
+      chunks: availableRows.map((row, index) => ({
         chunkId: row.chunkId,
         materialId: row.materialId,
         materialTitle: row.materialTitle,
@@ -86,6 +125,28 @@ export class RetrievalService {
         rank: index + 1,
         similarityScore: 1 - row.distance,
       })),
+    }
+  }
+
+  private getBackingFileAvailability(
+    storagePath: string,
+    availabilityByStoragePath: Map<string, Promise<boolean>>,
+  ): Promise<boolean> {
+    const existing = availabilityByStoragePath.get(storagePath)
+    if (existing !== undefined) {
+      return existing
+    }
+
+    const availability = this.isBackingFileAvailable(storagePath)
+    availabilityByStoragePath.set(storagePath, availability)
+    return availability
+  }
+
+  private async isBackingFileAvailable(storagePath: string): Promise<boolean> {
+    try {
+      return await this.pdfStorage.exists(storagePath)
+    } catch {
+      return false
     }
   }
 }

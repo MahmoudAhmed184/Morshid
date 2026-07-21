@@ -10,6 +10,7 @@ const EMBEDDING_DIMENSIONS = 1_536
 // Upper bound re-asserted at the repository boundary; the configured value is
 // validated to the same range in env.schema.ts.
 const MAX_TOP_K = 50
+const MAX_CANDIDATE_OFFSET = 250
 
 // Course ids are UUIDs; rejecting other shapes here keeps a malformed id from
 // surfacing as a raw Postgres ::uuid cast error instead of the typed
@@ -22,6 +23,7 @@ export interface CourseChunkQuery {
   queryEmbedding: readonly number[]
   topK: number
   minSimilarity: number
+  offset: number
 }
 
 export interface RankedChunkRow {
@@ -30,19 +32,22 @@ export interface RankedChunkRow {
   materialTitle: string
   chunkIndex: number
   content: string
+  storagePath: string
   // Cosine distance; similarity = 1 - distance.
   distance: number
 }
 
 export class InvalidRetrievalQueryError extends Error {
-  constructor(reason: 'course-id' | 'embedding' | 'top-k' | 'min-similarity') {
+  constructor(
+    reason: 'course-id' | 'embedding' | 'top-k' | 'min-similarity' | 'offset',
+  ) {
     super(`Retrieval query rejected: invalid ${reason}`)
     this.name = 'InvalidRetrievalQueryError'
   }
 }
 
 export abstract class CourseRetrievalRepository {
-  // Returns at most topK rows from the given course only, ordered by
+  // Returns at most topK rows after offset from the given course only, ordered by
   // ascending cosine distance (descending similarity), already filtered to
   // READY/WARNING, non-deleted materials and thresholded in SQL. The course
   // predicate is part of the signature; there is no unscoped variant.
@@ -78,12 +83,15 @@ export class PrismaCourseRetrievalRepository extends CourseRetrievalRepository {
           chunk.chunk_index,
           chunk.content,
           material.title,
+          material.storage_path,
           chunk.embedding <=> ${serializeEmbedding(query.queryEmbedding)}::vector(1536) AS distance
         FROM material_chunks AS chunk
         JOIN materials AS material ON material.id = chunk.material_id
         WHERE material.course_id = ${query.courseId}::uuid
           AND material.status IN ('READY'::material_status, 'WARNING'::material_status)
           AND material.deleted_at IS NULL
+          AND material.extracted_text_length > 0
+          AND material.chunk_count > 0
       )
       SELECT
         id AS "chunkId",
@@ -91,11 +99,13 @@ export class PrismaCourseRetrievalRepository extends CourseRetrievalRepository {
         chunk_index AS "chunkIndex",
         content,
         title AS "materialTitle",
+        storage_path AS "storagePath",
         distance
       FROM eligible_chunks
       WHERE 1 - distance >= ${query.minSimilarity}
       ORDER BY distance ASC, material_id ASC, chunk_index ASC
       LIMIT ${query.topK}
+      OFFSET ${query.offset}
     `)
   }
 }
@@ -118,6 +128,14 @@ function assertValidQuery(query: CourseChunkQuery): void {
     query.topK > MAX_TOP_K
   ) {
     throw new InvalidRetrievalQueryError('top-k')
+  }
+
+  if (
+    !Number.isInteger(query.offset) ||
+    query.offset < 0 ||
+    query.offset > MAX_CANDIDATE_OFFSET
+  ) {
+    throw new InvalidRetrievalQueryError('offset')
   }
 
   if (

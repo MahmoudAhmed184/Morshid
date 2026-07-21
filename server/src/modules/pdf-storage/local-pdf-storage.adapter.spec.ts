@@ -44,6 +44,7 @@ describe('LocalPdfStorageAdapter', () => {
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.pdf$/,
     )
     await expect(storage.read(storagePath)).resolves.toEqual(contents)
+    await expect(storage.exists(storagePath)).resolves.toBe(true)
   })
 
   it('generates a unique flat name for every stored PDF', async () => {
@@ -138,6 +139,7 @@ describe('LocalPdfStorageAdapter', () => {
     await expect(storage.read(validKey())).rejects.toBeInstanceOf(
       PdfStorageNotFoundError,
     )
+    await expect(storage.exists(validKey())).resolves.toBe(false)
   })
 
   it('deletes an existing PDF and ignores missing files and roots', async () => {
@@ -148,6 +150,7 @@ describe('LocalPdfStorageAdapter', () => {
     await expect(storage.read(storagePath)).rejects.toBeInstanceOf(
       PdfStorageNotFoundError,
     )
+    await expect(storage.exists(storagePath)).resolves.toBe(false)
 
     const missingRootStorage = new LocalPdfStorageAdapter(
       join(rootPath, 'does-not-exist'),

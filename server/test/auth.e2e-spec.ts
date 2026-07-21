@@ -14,6 +14,7 @@ import type {
   AuthSessionResponse,
   MeResponse,
 } from '../src/modules/auth/auth.dto'
+import { MaterialProcessingScheduler } from '../src/modules/materials/material-processing.scheduler'
 import { PrismaService } from '../src/modules/prisma/prisma.service'
 import { RedisService } from '../src/modules/redis/redis.service'
 import {
@@ -22,6 +23,7 @@ import {
   P0_HIDDEN_ISOLATION_COURSE,
 } from '../src/seeds/p0-demo.seed'
 import { AuthTestStore } from './support/auth-test-store'
+import { NoopMaterialProcessingScheduler } from './support/noop-material-processing-scheduler'
 
 function readSessionBody(response: { body: unknown }): AuthSessionResponse {
   return response.body as AuthSessionResponse
@@ -66,6 +68,8 @@ describe('AuthController (e2e)', () => {
       .useValue(store.prisma)
       .overrideProvider(RedisService)
       .useValue(redisService)
+      .overrideProvider(MaterialProcessingScheduler)
+      .useClass(NoopMaterialProcessingScheduler)
       .compile()
 
     app = moduleFixture.createNestApplication()

@@ -14,10 +14,12 @@ import { AUTH_ERROR_CODES } from '../src/modules/auth/auth.dto'
 import type { AuthSessionResponse } from '../src/modules/auth/auth.dto'
 import { Public } from '../src/modules/auth/public.decorator'
 import { Roles } from '../src/modules/auth/roles.decorator'
+import { MaterialProcessingScheduler } from '../src/modules/materials/material-processing.scheduler'
 import { PrismaService } from '../src/modules/prisma/prisma.service'
 import { RedisService } from '../src/modules/redis/redis.service'
 import { P0_DEMO_PASSWORD } from '../src/seeds/p0-demo.seed'
 import { AuthTestStore } from './support/auth-test-store'
+import { NoopMaterialProcessingScheduler } from './support/noop-material-processing-scheduler'
 
 function readAuditEvents(store: AuthTestStore) {
   return [...store.auditLogs.values()]
@@ -79,6 +81,8 @@ describe('RolesGuard (e2e)', () => {
       .useValue(store.prisma)
       .overrideProvider(RedisService)
       .useValue(redisService)
+      .overrideProvider(MaterialProcessingScheduler)
+      .useClass(NoopMaterialProcessingScheduler)
       .compile()
 
     app = moduleFixture.createNestApplication()

@@ -176,6 +176,7 @@ model Material {
   storagePath         String         @map("storage_path") @db.Text
   sha256Hash          String?        @map("sha256_hash") @db.Char(64)
   status              MaterialStatus @default(PROCESSING)
+  processingAttemptId String?        @map("processing_attempt_id") @db.Uuid
   extractedTextLength Int?           @map("extracted_text_length")
   chunkCount          Int?           @map("chunk_count")
   errorMessage        String?        @map("error_message") @db.Text
@@ -195,11 +196,14 @@ model Material {
 }
 
 model MaterialProcessingCommand {
-  materialId String   @id @map("material_id") @db.Uuid
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  materialId          String    @id @map("material_id") @db.Uuid
+  processingAttemptId String?   @map("processing_attempt_id") @db.Uuid
+  leaseExpiresAt      DateTime? @map("lease_expires_at") @db.Timestamptz(6)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   material Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
 
+  @@index([leaseExpiresAt, createdAt], map: "idx_material_processing_commands_lease")
   @@map("material_processing_commands")
 }
 

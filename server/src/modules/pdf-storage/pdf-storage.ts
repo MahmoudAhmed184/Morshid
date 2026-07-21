@@ -7,6 +7,7 @@ export const MAX_PDF_OBJECT_BYTES = 100 * 1024 * 1024
 export interface PdfStorage {
   create(contents: Buffer): Promise<string>
   read(storagePath: string): Promise<Buffer>
+  exists(storagePath: string): Promise<boolean>
   delete(storagePath: string): Promise<void>
 }
 
