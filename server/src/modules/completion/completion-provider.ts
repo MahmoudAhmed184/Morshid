@@ -8,6 +8,7 @@ export const COMPLETION_ERROR_CODES = [
   'COMPLETION_TIMEOUT',
   'COMPLETION_CANCELLED',
   'COMPLETION_PROVIDER_UNSUPPORTED',
+  'COMPLETION_CONFIGURATION_INVALID',
 ] as const
 
 export type CompletionErrorCode = (typeof COMPLETION_ERROR_CODES)[number]
@@ -50,6 +51,7 @@ const SAFE_ERROR_MESSAGES = {
   COMPLETION_TIMEOUT: 'Completion timed out',
   COMPLETION_CANCELLED: 'Completion was cancelled',
   COMPLETION_PROVIDER_UNSUPPORTED: 'Completion provider is unsupported',
+  COMPLETION_CONFIGURATION_INVALID: 'Completion configuration is invalid',
 } as const satisfies Record<CompletionErrorCode, string>
 
 // The fixed message and code are the only diagnostic data retained. In

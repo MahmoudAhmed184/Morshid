@@ -1,10 +1,10 @@
 import { Logger } from '@nestjs/common'
 
 import type {
-  CompletionProvider,
-  CompletionRequest,
-  CompletionResult,
-} from './completion-provider'
+  CompletionAdapter,
+  PreparedCompletionRequest,
+} from './completion-adapter'
+import type { CompletionRequest, CompletionResult } from './completion-provider'
 import { CompletionProviderError } from './completion-provider'
 import {
   MAX_COMPLETION_CONTEXT_CODE_POINTS,
@@ -13,7 +13,7 @@ import {
   MAX_COMPLETION_QUESTION_CODE_POINTS,
   MAX_COMPLETION_SOURCE_TITLE_CODE_POINTS,
 } from './completion-input'
-import { DeterministicCompletionProvider } from './deterministic-completion.provider'
+import { parseGroundedCompletionInputEnvelope } from './grounded-completion-envelope'
 import {
   DEFAULT_COMPLETION_TIMEOUT_MS,
   MAX_COMPLETION_OUTPUT_CODE_POINTS,
@@ -43,9 +43,9 @@ const validRequest = (
   ...overrides,
 })
 
-class FakeCompletionProvider implements CompletionProvider {
+class FakeCompletionProvider implements CompletionAdapter {
   readonly complete = jest.fn(
-    (_request: CompletionRequest): Promise<CompletionResult> =>
+    (_request: PreparedCompletionRequest): Promise<CompletionResult> =>
       Promise.resolve(validResult()),
   )
 }
@@ -98,6 +98,10 @@ function rejectUnknownForProviderTest(reason: unknown): Promise<never> {
   return Promise.reject(reason)
 }
 
+afterEach(() => {
+  jest.restoreAllMocks()
+})
+
 describe('ValidatedCompletionProvider request validation', () => {
   it('snapshots accessor-backed request fields exactly once before adapter use', async () => {
     const { inner, provider } = buildProvider()
@@ -148,7 +152,10 @@ describe('ValidatedCompletionProvider request validation', () => {
       chunkIndex: 1,
       content: 1,
     })
-    expect(inner.complete).toHaveBeenCalledWith({
+    const adapterRequest = inner.complete.mock.calls[0][0]
+    expect(
+      parseGroundedCompletionInputEnvelope(adapterRequest.messages[1].content),
+    ).toEqual({
       studentQuestion: 'What does this topic mean?',
       context: [
         {
@@ -157,8 +164,8 @@ describe('ValidatedCompletionProvider request validation', () => {
           content: 'Authorized content',
         },
       ],
-      signal: expect.any(AbortSignal) as AbortSignal,
     })
+    expect(adapterRequest.signal).toBeInstanceOf(AbortSignal)
   })
 
   it('contains proxy failures and never exposes private request values', async () => {
@@ -200,7 +207,9 @@ describe('ValidatedCompletionProvider request validation', () => {
     )
     expect(inner.complete).toHaveBeenCalledTimes(1)
     const adapterRequest = inner.complete.mock.calls[0][0]
-    expect(adapterRequest).toEqual({
+    expect(
+      parseGroundedCompletionInputEnvelope(adapterRequest.messages[1].content),
+    ).toEqual({
       studentQuestion: 'What does this topic mean?',
       context: [
         {
@@ -209,11 +218,10 @@ describe('ValidatedCompletionProvider request validation', () => {
           content: 'Authorized content',
         },
       ],
-      signal: expect.any(AbortSignal) as AbortSignal,
     })
     expect(adapterRequest.signal).not.toBe(callerController.signal)
     expect(Object.isFrozen(adapterRequest)).toBe(true)
-    expect(Object.isFrozen(adapterRequest.context)).toBe(true)
+    expect(Object.isFrozen(adapterRequest.messages)).toBe(true)
   })
 
   it('rejects empty context with its explicit code before invoking the adapter', async () => {
@@ -566,8 +574,7 @@ describe('ValidatedCompletionProvider execution safety', () => {
     inner.complete.mockImplementationOnce(
       (request) =>
         new Promise((_, reject) => {
-          expect(request.signal).toBeDefined()
-          request.signal?.addEventListener(
+          request.signal.addEventListener(
             'abort',
             () => {
               reject(new Error(privateReason))
@@ -604,27 +611,84 @@ describe('ValidatedCompletionProvider execution safety', () => {
     expectSafeFailure(failure, 'COMPLETION_TIMEOUT', [privateReason])
   })
 
-  it('uses one-shot abort listeners and removes them after completion', async () => {
-    const addListener = jest.spyOn(AbortSignal.prototype, 'addEventListener')
-    const removeListener = jest.spyOn(
-      AbortSignal.prototype,
-      'removeEventListener',
-    )
-    const { provider } = buildProvider()
+  it.each(['resolve', 'reject', 'cancel', 'timeout'] as const)(
+    'removes the exact caller and timeout listeners after %s',
+    async (settlePath) => {
+      const addListener = jest.spyOn(EventTarget.prototype, 'addEventListener')
+      const removeListener = jest.spyOn(
+        EventTarget.prototype,
+        'removeEventListener',
+      )
+      const callerController = new AbortController()
+      const { inner, provider, timeoutController } = buildProvider()
+      if (settlePath === 'reject') {
+        inner.complete.mockRejectedValueOnce(new Error('private-rejection'))
+      } else if (settlePath === 'cancel' || settlePath === 'timeout') {
+        inner.complete.mockImplementationOnce(
+          () => new Promise(() => undefined),
+        )
+      }
 
-    await provider.complete(validRequest())
+      const pending = provider.complete(
+        validRequest({ signal: callerController.signal }),
+      )
+      if (settlePath === 'cancel') {
+        callerController.abort('private-cancellation')
+      } else if (settlePath === 'timeout') {
+        timeoutController.abort('private-timeout')
+      }
+      await captureFailure(pending)
 
-    expect(addListener).toHaveBeenCalledWith(
-      'abort',
-      expect.any(Function) as EventListener,
-      { once: true },
-    )
-    expect(removeListener).toHaveBeenCalledWith(
-      'abort',
-      expect.any(Function) as EventListener,
-    )
-    addListener.mockRestore()
-    removeListener.mockRestore()
+      for (const signal of [
+        callerController.signal,
+        timeoutController.signal,
+      ]) {
+        const addIndex = addListener.mock.contexts.findIndex(
+          (context) => context === signal,
+        )
+        expect(addIndex).toBeGreaterThanOrEqual(0)
+        expect(addListener.mock.calls[addIndex]).toEqual([
+          'abort',
+          expect.any(Function),
+          { once: true },
+        ])
+        const installedListener = addListener.mock.calls[addIndex][1]
+        expect(
+          removeListener.mock.calls.some(
+            (call, index) =>
+              removeListener.mock.contexts[index] === signal &&
+              call[0] === 'abort' &&
+              call[1] === installedListener,
+          ),
+        ).toBe(true)
+      }
+    },
+  )
+
+  it('classifies whichever of caller cancellation and timeout aborts first', async () => {
+    for (const firstAbort of ['caller', 'timeout'] as const) {
+      const callerController = new AbortController()
+      const { inner, provider, timeoutController } = buildProvider()
+      inner.complete.mockImplementationOnce(() => new Promise(() => undefined))
+      const pending = provider.complete(
+        validRequest({ signal: callerController.signal }),
+      )
+
+      if (firstAbort === 'caller') {
+        callerController.abort('private-caller-reason')
+        timeoutController.abort('private-timeout-reason')
+      } else {
+        timeoutController.abort('private-timeout-reason')
+        callerController.abort('private-caller-reason')
+      }
+
+      const failure = await captureFailure(pending)
+      expectSafeFailure(
+        failure,
+        firstAbort === 'caller' ? 'COMPLETION_CANCELLED' : 'COMPLETION_TIMEOUT',
+        ['private-caller-reason', 'private-timeout-reason'],
+      )
+    }
   })
 
   it('normalizes synchronous, asynchronous, and non-Error provider failures', async () => {
@@ -641,7 +705,7 @@ describe('ValidatedCompletionProvider execution safety', () => {
     for (const fail of cases) {
       const { inner, provider } = buildProvider()
       inner.complete.mockImplementationOnce(
-        fail as CompletionProvider['complete'],
+        fail as CompletionAdapter['complete'],
       )
 
       const failure = await captureFailure(provider.complete(validRequest()))
@@ -652,19 +716,21 @@ describe('ValidatedCompletionProvider execution safety', () => {
     }
   })
 
-  it('normalizes the deterministic adapter controlled failure', async () => {
-    const timeoutController = new AbortController()
-    const provider = new ValidatedCompletionProvider(
-      new DeterministicCompletionProvider('fail'),
-      DEFAULT_COMPLETION_TIMEOUT_MS,
-      () => timeoutController.signal,
+  it('contains a hostile provider thenable without exposing its failure', async () => {
+    const privateFailure = 'private-thenable-getter-sentinel'
+    const hostileThenable = {
+      get then(): never {
+        throw new Error(privateFailure)
+      },
+    }
+    const { inner, provider } = buildProvider()
+    inner.complete.mockReturnValueOnce(
+      hostileThenable as unknown as Promise<CompletionResult>,
     )
 
     const failure = await captureFailure(provider.complete(validRequest()))
 
-    expectSafeFailure(failure, 'COMPLETION_PROVIDER_FAILURE', [
-      'deterministic controlled failure',
-    ])
+    expectSafeFailure(failure, 'COMPLETION_PROVIDER_FAILURE', [privateFailure])
   })
 
   it('does not emit prompt, result, or failure logs', async () => {

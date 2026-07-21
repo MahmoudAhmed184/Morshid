@@ -96,6 +96,22 @@ export function hasAtMostCodePoints(value: string, maximum: number): boolean {
   return true
 }
 
+export function readAbortSignalAborted(signal: AbortSignal): boolean {
+  const abortedDescriptor = Object.getOwnPropertyDescriptor(
+    AbortSignal.prototype,
+    'aborted',
+  )
+  if (abortedDescriptor?.get === undefined) {
+    throw new TypeError('AbortSignal.aborted is unavailable')
+  }
+
+  const aborted: unknown = abortedDescriptor.get.call(signal)
+  if (typeof aborted !== 'boolean') {
+    throw new TypeError('Invalid AbortSignal state')
+  }
+  return aborted
+}
+
 function snapshotCompletionInputValues(
   studentQuestionValue: unknown,
   contextValue: unknown,
@@ -255,13 +271,6 @@ function isGenuineAbortSignal(value: unknown): value is AbortSignal {
     return false
   }
 
-  const abortedDescriptor = Object.getOwnPropertyDescriptor(
-    AbortSignal.prototype,
-    'aborted',
-  )
-  if (abortedDescriptor?.get === undefined) {
-    return false
-  }
-  abortedDescriptor.get.call(value)
+  readAbortSignalAborted(value)
   return true
 }

@@ -23,22 +23,48 @@ describe('CompletionModule', () => {
       ],
     }).compile()
 
-    const provider = module.get<CompletionProvider>(COMPLETION_PROVIDER_TOKEN)
+    try {
+      const provider = module.get<CompletionProvider>(COMPLETION_PROVIDER_TOKEN)
 
-    await expect(
-      provider.complete({
-        studentQuestion: 'What should I practice?',
-        context: [
-          {
-            sourceTitle: 'Offline fixture',
-            chunkIndex: 0,
-            content: 'Practice the supplied exercise.',
-          },
-        ],
-      }),
-    ).resolves.toMatchObject({
-      provider: 'deterministic',
-      model: 'deterministic-completion-v1',
+      await expect(
+        provider.complete({
+          studentQuestion: 'What should I practice?',
+          context: [
+            {
+              sourceTitle: 'Offline fixture',
+              chunkIndex: 0,
+              content: 'Practice the supplied exercise.',
+            },
+          ],
+        }),
+      ).resolves.toMatchObject({
+        provider: 'deterministic',
+        model: 'deterministic-completion-v1',
+      })
+    } finally {
+      await module.close()
+    }
+  })
+
+  it('rejects an invalid timeout while assembling the provider', async () => {
+    const compiling = Test.createTestingModule({
+      imports: [
+        ConfigModule.forRoot({
+          ignoreEnvFile: true,
+          isGlobal: true,
+          load: [
+            () => ({
+              COMPLETION_PROVIDER: 'deterministic',
+              COMPLETION_TIMEOUT_MS: 0,
+            }),
+          ],
+        }),
+        CompletionModule,
+      ],
+    }).compile()
+
+    await expect(compiling).rejects.toMatchObject({
+      code: 'COMPLETION_CONFIGURATION_INVALID',
     })
   })
 })

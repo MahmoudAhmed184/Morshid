@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing'
 
+import type { PreparedCompletionRequest } from './completion-adapter'
 import type { CompletionRequest } from './completion-provider'
 import { CompletionProviderError } from './completion-provider'
 import {
@@ -7,11 +8,13 @@ import {
   DETERMINISTIC_COMPLETION_PROVIDER,
   DETERMINISTIC_EVIDENCE_EXCERPT_CODE_POINTS,
   DeterministicCompletionProvider,
-  normalizeCompletionText,
 } from './deterministic-completion.provider'
-import { GROUNDED_COMPLETION_PROMPT_VERSION } from './grounded-completion-envelope'
+import {
+  GROUNDED_COMPLETION_PROMPT_VERSION,
+  buildGroundedCompletionMessages,
+} from './grounded-completion-envelope'
 
-function request(
+function completionInput(
   overrides: Partial<CompletionRequest> = {},
 ): CompletionRequest {
   return {
@@ -32,15 +35,30 @@ function request(
   }
 }
 
+function request(
+  overrides: Partial<CompletionRequest> = {},
+): PreparedCompletionRequest {
+  const input = completionInput(overrides)
+
+  return {
+    messages: buildGroundedCompletionMessages(input),
+    signal: input.signal ?? new AbortController().signal,
+  }
+}
+
 describe('DeterministicCompletionProvider', () => {
   it('is resolvable from its Nest provider scaffold', async () => {
     const module = await Test.createTestingModule({
       providers: [DeterministicCompletionProvider],
     }).compile()
 
-    expect(module.get(DeterministicCompletionProvider)).toBeInstanceOf(
-      DeterministicCompletionProvider,
-    )
+    try {
+      expect(module.get(DeterministicCompletionProvider)).toBeInstanceOf(
+        DeterministicCompletionProvider,
+      )
+    } finally {
+      await module.close()
+    }
   })
 
   it('pins complete offline output and persistence metadata', async () => {
@@ -101,7 +119,7 @@ describe('DeterministicCompletionProvider', () => {
     expect(result.content).not.toContain(absentKnowledge)
     for (const line of result.content.split('\n').slice(1)) {
       expect(
-        request().context.some(
+        completionInput().context.some(
           ({ sourceTitle, chunkIndex, content }) =>
             line.includes(sourceTitle) &&
             line.includes(String(chunkIndex)) &&
@@ -169,26 +187,6 @@ describe('DeterministicCompletionProvider', () => {
     expect(result.content).not.toContain('excluded-sentinel')
   })
 
-  it('supports a controlled failure mode selected only by its constructor', async () => {
-    const provider = new DeterministicCompletionProvider('fail')
-
-    await expect(provider.complete(request())).rejects.toThrow(
-      'deterministic controlled failure',
-    )
-  })
-
-  it('waits until the supplied signal aborts in its cancellation test mode', async () => {
-    const provider = new DeterministicCompletionProvider('wait-until-aborted')
-    const controller = new AbortController()
-    const pending = provider.complete(request({ signal: controller.signal }))
-
-    controller.abort('private-abort-reason')
-
-    await expect(pending).rejects.toMatchObject({
-      code: 'COMPLETION_CANCELLED',
-    } satisfies Partial<CompletionProviderError>)
-  })
-
   it('rejects pre-aborted requests without retaining the abort reason', async () => {
     const controller = new AbortController()
     const privateReason = 'private-pre-abort-reason'
@@ -207,16 +205,5 @@ describe('DeterministicCompletionProvider', () => {
     )
     expect(JSON.stringify(failure)).not.toContain(privateReason)
     expect((failure as Error).message).not.toContain(privateReason)
-  })
-})
-
-describe('normalizeCompletionText', () => {
-  it.each([
-    ['trims surrounding whitespace', '  foo  ', 'foo'],
-    ['collapses whitespace runs', 'a \n\t b', 'a b'],
-    ['applies NFKC normalization', 'ﬁle', 'file'],
-    ['reduces whitespace-only input to empty', ' \n\t ', ''],
-  ])('%s', (_, input, expected) => {
-    expect(normalizeCompletionText(input)).toBe(expected)
   })
 })

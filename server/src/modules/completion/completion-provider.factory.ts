@@ -1,8 +1,10 @@
 import type { AppEnvironment } from '../config/env.schema'
+import type { CompletionAdapter } from './completion-adapter'
 import type { CompletionProvider } from './completion-provider'
 import { CompletionProviderError } from './completion-provider'
 import { DeterministicCompletionProvider } from './deterministic-completion.provider'
 import {
+  MAX_COMPLETION_TIMEOUT_MS,
   ValidatedCompletionProvider,
   defaultCompletionTimeoutSignalFactory,
 } from './validated-completion.provider'
@@ -14,7 +16,7 @@ const completionProviderFactories = {
   deterministic: () => new DeterministicCompletionProvider(),
 } satisfies Record<
   AppEnvironment['COMPLETION_PROVIDER'],
-  () => CompletionProvider
+  () => CompletionAdapter
 >
 
 export function createCompletionProvider(
@@ -32,12 +34,26 @@ export function createCompletionProvider(
     throw new CompletionProviderError('COMPLETION_PROVIDER_UNSUPPORTED')
   }
 
-  // The production selection always constructs the adapter in normal mode.
-  // Controlled failure and wait modes are reachable only by explicitly
-  // constructing DeterministicCompletionProvider in a test.
+  const runtimeTimeout: unknown = timeoutMs
+  if (
+    typeof runtimeTimeout !== 'number' ||
+    !Number.isSafeInteger(runtimeTimeout) ||
+    runtimeTimeout < 1 ||
+    runtimeTimeout > MAX_COMPLETION_TIMEOUT_MS
+  ) {
+    throw new CompletionProviderError('COMPLETION_CONFIGURATION_INVALID')
+  }
+
+  // Production selection always constructs the singular offline adapter.
+  // Tests represent rejection and non-cooperation with adapters at the
+  // internal adapter seam instead of adding test modes to production code.
   const inner =
     completionProviderFactories[
       runtimeProvider as AppEnvironment['COMPLETION_PROVIDER']
     ]()
-  return new ValidatedCompletionProvider(inner, timeoutMs, timeoutSignalFactory)
+  return new ValidatedCompletionProvider(
+    inner,
+    runtimeTimeout,
+    timeoutSignalFactory,
+  )
 }

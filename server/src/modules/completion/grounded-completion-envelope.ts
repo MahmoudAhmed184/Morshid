@@ -36,7 +36,11 @@ const SYSTEM_MESSAGE = Object.freeze<GroundedCompletionMessage>({
 export function buildGroundedCompletionMessages(
   request: Pick<CompletionRequest, 'studentQuestion' | 'context'>,
 ): readonly [GroundedCompletionMessage, GroundedCompletionMessage] {
-  const payload: GroundedCompletionInput = snapshotCompletionRequest(request)
+  const requestSnapshot = snapshotCompletionRequest(request)
+  const payload: GroundedCompletionInput = {
+    studentQuestion: requestSnapshot.studentQuestion,
+    context: requestSnapshot.context,
+  }
   const encodedPayload = escapeJsonForUntrustedEnvelope(JSON.stringify(payload))
   const userMessage = Object.freeze<GroundedCompletionMessage>({
     role: 'user',

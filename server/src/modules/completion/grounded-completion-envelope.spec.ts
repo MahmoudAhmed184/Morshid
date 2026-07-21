@@ -1,5 +1,9 @@
 import { CompletionProviderError } from './completion-provider'
 import {
+  MAX_COMPLETION_CONTEXT_ENTRY_CODE_POINTS,
+  MAX_COMPLETION_QUESTION_CODE_POINTS,
+} from './completion-input'
+import {
   GROUNDED_COMPLETION_PROMPT_VERSION,
   UNTRUSTED_INPUT_BEGIN_MARKER,
   UNTRUSTED_INPUT_END_MARKER,
@@ -187,4 +191,37 @@ describe('grounded completion envelope', () => {
     expect(Object.isFrozen(parsed.context)).toBe(true)
     expect(parsed.context.every((entry) => Object.isFrozen(entry))).toBe(true)
   })
+
+  it.each([
+    [
+      'question',
+      {
+        ...request,
+        studentQuestion: 'q'.repeat(MAX_COMPLETION_QUESTION_CODE_POINTS + 1),
+      },
+    ],
+    [
+      'context entry',
+      {
+        ...request,
+        context: [
+          {
+            ...request.context[0],
+            content: 'c'.repeat(MAX_COMPLETION_CONTEXT_ENTRY_CODE_POINTS + 1),
+          },
+        ],
+      },
+    ],
+  ])(
+    'rejects an oversized %s inside an otherwise valid envelope',
+    (_, payload) => {
+      const envelope = `${UNTRUSTED_INPUT_BEGIN_MARKER}\n${JSON.stringify(payload)}\n${UNTRUSTED_INPUT_END_MARKER}`
+
+      expect(() => parseGroundedCompletionInputEnvelope(envelope)).toThrow(
+        expect.objectContaining({
+          code: 'COMPLETION_INVALID_REQUEST',
+        }) as CompletionProviderError,
+      )
+    },
+  )
 })

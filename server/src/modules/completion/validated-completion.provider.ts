@@ -4,11 +4,19 @@ import type {
   CompletionResult,
 } from './completion-provider'
 import { CompletionProviderError } from './completion-provider'
+import type {
+  CompletionAdapter,
+  PreparedCompletionRequest,
+} from './completion-adapter'
 import {
   hasAtMostCodePoints,
+  readAbortSignalAborted,
   snapshotCompletionRequest,
 } from './completion-input'
-import { GROUNDED_COMPLETION_PROMPT_VERSION } from './grounded-completion-envelope'
+import {
+  GROUNDED_COMPLETION_PROMPT_VERSION,
+  buildGroundedCompletionMessages,
+} from './grounded-completion-envelope'
 
 export const DEFAULT_COMPLETION_TIMEOUT_MS = 30_000
 export const MAX_COMPLETION_TIMEOUT_MS = 120_000
@@ -36,7 +44,7 @@ export const defaultCompletionTimeoutSignalFactory: CompletionTimeoutSignalFacto
 // adapter failure into the fixed public error model without retaining causes.
 export class ValidatedCompletionProvider implements CompletionProvider {
   constructor(
-    private readonly inner: CompletionProvider,
+    private readonly inner: CompletionAdapter,
     private readonly timeoutMs = DEFAULT_COMPLETION_TIMEOUT_MS,
     private readonly timeoutSignalFactory: CompletionTimeoutSignalFactory = defaultCompletionTimeoutSignalFactory,
   ) {}
@@ -44,7 +52,15 @@ export class ValidatedCompletionProvider implements CompletionProvider {
   async complete(request: CompletionRequest): Promise<CompletionResult> {
     const requestSnapshot = snapshotCompletionRequest(request)
 
-    if (requestSnapshot.signal?.aborted === true) {
+    let callerAborted: boolean
+    try {
+      callerAborted =
+        requestSnapshot.signal !== undefined &&
+        readAbortSignalAborted(requestSnapshot.signal)
+    } catch {
+      throw new CompletionProviderError('COMPLETION_INVALID_REQUEST')
+    }
+    if (callerAborted) {
       throw new CompletionProviderError('COMPLETION_CANCELLED')
     }
 
@@ -55,6 +71,7 @@ export class ValidatedCompletionProvider implements CompletionProvider {
       if (!(timeoutSignal instanceof AbortSignal)) {
         throw new TypeError('Invalid timeout signal')
       }
+      readAbortSignalAborted(timeoutSignal)
       composedSignal = AbortSignal.any([
         ...(requestSnapshot.signal === undefined
           ? []
@@ -65,50 +82,88 @@ export class ValidatedCompletionProvider implements CompletionProvider {
       throw new CompletionProviderError('COMPLETION_PROVIDER_FAILURE')
     }
 
-    const providerRequest = Object.freeze({
-      studentQuestion: requestSnapshot.studentQuestion,
-      context: requestSnapshot.context,
+    const providerRequest = Object.freeze<PreparedCompletionRequest>({
+      messages: buildGroundedCompletionMessages(requestSnapshot),
       signal: composedSignal,
     })
     const rawResult = await this.executeProvider(
       providerRequest,
       requestSnapshot.signal,
       timeoutSignal,
-      composedSignal,
     )
 
     return validateResultSafely(rawResult)
   }
 
   private executeProvider(
-    request: CompletionRequest,
+    request: PreparedCompletionRequest,
     callerSignal: AbortSignal | undefined,
     timeoutSignal: AbortSignal,
-    composedSignal: AbortSignal,
   ): Promise<unknown> {
     return new Promise((resolve, reject) => {
       let settled = false
+      let callerListenerInstalled = false
+      let timeoutListenerInstalled = false
 
       const finish = (settle: () => void) => {
         if (settled) {
           return
         }
         settled = true
-        composedSignal.removeEventListener('abort', onAbort)
+        if (callerSignal !== undefined && callerListenerInstalled) {
+          removeAbortListenerSafely(callerSignal, onCallerAbort)
+        }
+        if (timeoutListenerInstalled) {
+          removeAbortListenerSafely(timeoutSignal, onTimeout)
+        }
         settle()
       }
-      const onAbort = () => {
+      const onCallerAbort = () => {
         finish(() => {
-          reject(abortError(callerSignal, timeoutSignal))
+          reject(new CompletionProviderError('COMPLETION_CANCELLED'))
+        })
+      }
+      const onTimeout = () => {
+        finish(() => {
+          reject(new CompletionProviderError('COMPLETION_TIMEOUT'))
         })
       }
 
-      if (composedSignal.aborted) {
-        onAbort()
+      try {
+        if (
+          callerSignal !== undefined &&
+          readAbortSignalAborted(callerSignal)
+        ) {
+          onCallerAbort()
+          return
+        }
+        if (readAbortSignalAborted(timeoutSignal)) {
+          onTimeout()
+          return
+        }
+
+        if (callerSignal !== undefined) {
+          EventTarget.prototype.addEventListener.call(
+            callerSignal,
+            'abort',
+            onCallerAbort,
+            { once: true },
+          )
+          callerListenerInstalled = true
+        }
+        EventTarget.prototype.addEventListener.call(
+          timeoutSignal,
+          'abort',
+          onTimeout,
+          { once: true },
+        )
+        timeoutListenerInstalled = true
+      } catch {
+        finish(() => {
+          reject(new CompletionProviderError('COMPLETION_PROVIDER_FAILURE'))
+        })
         return
       }
-
-      composedSignal.addEventListener('abort', onAbort, { once: true })
 
       let pending: Promise<CompletionResult>
       try {
@@ -133,6 +188,17 @@ export class ValidatedCompletionProvider implements CompletionProvider {
         },
       )
     })
+  }
+}
+
+function removeAbortListenerSafely(
+  signal: AbortSignal,
+  listener: EventListener,
+): void {
+  try {
+    EventTarget.prototype.removeEventListener.call(signal, 'abort', listener)
+  } catch {
+    // Listener cleanup cannot change the fixed operation outcome.
   }
 }
 
@@ -182,19 +248,6 @@ function validateResultSafely(result: unknown): CompletionResult {
   } catch {
     throw new CompletionProviderError('COMPLETION_INVALID_RESULT')
   }
-}
-
-function abortError(
-  callerSignal: AbortSignal | undefined,
-  timeoutSignal: AbortSignal,
-): CompletionProviderError {
-  return new CompletionProviderError(
-    callerSignal?.aborted === true
-      ? 'COMPLETION_CANCELLED'
-      : timeoutSignal.aborted
-        ? 'COMPLETION_TIMEOUT'
-        : 'COMPLETION_PROVIDER_FAILURE',
-  )
 }
 
 function hasOnlyKeys<const Key extends string>(
