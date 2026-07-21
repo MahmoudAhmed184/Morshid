@@ -7,7 +7,10 @@ import type { App } from 'supertest/types'
 
 import { configureApp } from '../src/app.setup'
 import { AppModule } from '../src/app.module'
-import type { AuthSessionResponse } from '../src/modules/auth/auth.dto'
+import {
+  AUTH_ERROR_CODES,
+  type AuthSessionResponse,
+} from '../src/modules/auth/auth.dto'
 import {
   AUDIT_EVENT_ACTIONS,
   AUDIT_TARGET_TYPES,
@@ -37,6 +40,7 @@ import { NoopMaterialProcessingScheduler } from './support/noop-material-process
 const STUDENT_1_EMAIL = 'student1@morshid.demo'
 const STUDENT_2_EMAIL = 'student2@morshid.demo'
 const UNASSIGNED_STUDENT_EMAIL = 'student3@morshid.demo'
+const INSTRUCTOR_EMAIL = 'instructor@morshid.demo'
 
 const OWNER_PRIVATE_TITLE = 'Issue 86 owner private Python session'
 const RENAMED_PRIVATE_TITLE = 'Issue 86 renamed private Python session'
@@ -55,8 +59,15 @@ const MEMBERSHIP_REQUIRED_ERROR = {
   message: 'Active student course membership is required',
 } as const
 
+const INSUFFICIENT_ROLE_ERROR = {
+  code: AUTH_ERROR_CODES.INSUFFICIENT_ROLE,
+  message: 'Insufficient role',
+} as const
+
 const FOREIGN_OPERATIONS = ['get', 'rename', 'delete', 'history'] as const
 type ForeignOperation = (typeof FOREIGN_OPERATIONS)[number]
+const INSTRUCTOR_OPERATIONS = ['list', 'get', 'history'] as const
+type InstructorOperation = (typeof INSTRUCTOR_OPERATIONS)[number]
 
 interface SeededActor {
   id: string
@@ -74,9 +85,11 @@ describe('Student chat ownership and privacy boundaries (e2e)', () => {
   let student1: SeededActor
   let student2: SeededActor
   let unassignedStudent: SeededActor
+  let instructor: SeededActor
   let student1Token: string
   let student2Token: string
   let unassignedStudentToken: string
+  let instructorToken: string
 
   beforeAll(async () => {
     database = await setUpDisposableDatabase('morshid_issue86')
@@ -87,6 +100,7 @@ describe('Student chat ownership and privacy boundaries (e2e)', () => {
     student1 = requireSeededActor(STUDENT_1_EMAIL)
     student2 = requireSeededActor(STUDENT_2_EMAIL)
     unassignedStudent = requireSeededActor(UNASSIGNED_STUDENT_EMAIL)
+    instructor = requireSeededActor(INSTRUCTOR_EMAIL)
 
     await prisma.courseMembership.update({
       where: {
@@ -117,6 +131,7 @@ describe('Student chat ownership and privacy boundaries (e2e)', () => {
     student1Token = await signInAs(STUDENT_1_EMAIL)
     student2Token = await signInAs(STUDENT_2_EMAIL)
     unassignedStudentToken = await signInAs(UNASSIGNED_STUDENT_EMAIL)
+    instructorToken = await signInAs(INSTRUCTOR_EMAIL)
   })
 
   beforeEach(async () => {
@@ -245,6 +260,32 @@ describe('Student chat ownership and privacy boundaries (e2e)', () => {
           .get(`${path}/messages`)
           .set('Authorization', authorization)
           .expect(404)
+    }
+  }
+
+  async function attemptInstructorOperation(
+    operation: InstructorOperation,
+    sessionId: string,
+  ) {
+    const authorization = `Bearer ${instructorToken}`
+    const path = `${sessionPath()}/${sessionId}`
+
+    switch (operation) {
+      case 'list':
+        return request(app.getHttpServer())
+          .get(sessionPath())
+          .set('Authorization', authorization)
+          .expect(403)
+      case 'get':
+        return request(app.getHttpServer())
+          .get(path)
+          .set('Authorization', authorization)
+          .expect(403)
+      case 'history':
+        return request(app.getHttpServer())
+          .get(`${path}/messages`)
+          .set('Authorization', authorization)
+          .expect(403)
     }
   }
 
@@ -659,5 +700,171 @@ describe('Student chat ownership and privacy boundaries (e2e)', () => {
       pythonCourseId,
     ])
     expectAuditRecordsContentFree(denials)
+  })
+
+  it.each(INSTRUCTOR_OPERATIONS)(
+    'denies Instructor %s with one global RBAC audit and no chat exception',
+    async (operation) => {
+      const ownerSession = await createSession(
+        student1Token,
+        OWNER_PRIVATE_TITLE,
+      )
+      await chatService.appendStudentMessage({
+        courseId: pythonCourseId,
+        sessionId: ownerSession.id,
+        studentId: student1.id,
+        content: OWNER_PRIVATE_MESSAGE,
+      })
+      await prisma.auditLog.deleteMany()
+      const unchanged = await readExactChatState()
+
+      const response = await attemptInstructorOperation(
+        operation,
+        ownerSession.id,
+      )
+
+      expectSafeErrorBody(response.body, INSUFFICIENT_ROLE_ERROR, [
+        ownerSession.id,
+        OWNER_PRIVATE_TITLE,
+        OWNER_PRIVATE_MESSAGE,
+        student1.id,
+        student1.email,
+        pythonCourseId,
+      ])
+      await expect(readExactChatState()).resolves.toEqual(unchanged)
+
+      const rbacDenials = await prisma.auditLog.findMany({
+        where: { action: AUDIT_EVENT_ACTIONS.ACCESS_RBAC_DENIED },
+      })
+      const chatDenials = await prisma.auditLog.findMany({
+        where: { action: AUDIT_EVENT_ACTIONS.CHAT_SESSION_ACCESS_DENIED },
+      })
+      const courseBoundaryDenials = await prisma.auditLog.findMany({
+        where: { action: AUDIT_EVENT_ACTIONS.ACCESS_COURSE_BOUNDARY_DENIED },
+      })
+
+      expect(rbacDenials).toHaveLength(1)
+      expect(rbacDenials[0]).toMatchObject({
+        actorUserId: instructor.id,
+        action: AUDIT_EVENT_ACTIONS.ACCESS_RBAC_DENIED,
+        targetType: AUDIT_TARGET_TYPES.SYSTEM,
+        targetId: null,
+        courseId: null,
+        metadata: {
+          requiredRoles: ['STUDENT'],
+          actorRole: 'INSTRUCTOR',
+          method: 'GET',
+          unverifiedCourseId: pythonCourseId,
+        },
+      })
+      expect(chatDenials).toHaveLength(0)
+      expect(courseBoundaryDenials).toHaveLength(0)
+      expectAuditRecordsContentFree(rbacDenials)
+    },
+  )
+
+  it('conceals a deleted session, blocks appends, and keeps repeated deletion idempotent', async () => {
+    const ownerSession = await createSession(student1Token, OWNER_PRIVATE_TITLE)
+    await chatService.appendStudentMessage({
+      courseId: pythonCourseId,
+      sessionId: ownerSession.id,
+      studentId: student1.id,
+      content: OWNER_PRIVATE_MESSAGE,
+    })
+    await prisma.auditLog.deleteMany()
+
+    await request(app.getHttpServer())
+      .delete(`${sessionPath()}/${ownerSession.id}`)
+      .set('Authorization', `Bearer ${student1Token}`)
+      .expect(204)
+
+    const deletedState = await readExactChatState()
+    expect(deletedState.sessions).toHaveLength(1)
+    expect(deletedState.sessions[0]?.deletedAt).toBeInstanceOf(Date)
+    expect(deletedState.messages).toHaveLength(1)
+
+    const deniedHttpAttempts = [
+      () =>
+        request(app.getHttpServer())
+          .get(`${sessionPath()}/${ownerSession.id}`)
+          .set('Authorization', `Bearer ${student1Token}`),
+      () =>
+        request(app.getHttpServer())
+          .patch(`${sessionPath()}/${ownerSession.id}`)
+          .set('Authorization', `Bearer ${student1Token}`)
+          .send({ title: RENAMED_PRIVATE_TITLE }),
+      () =>
+        request(app.getHttpServer())
+          .get(`${sessionPath()}/${ownerSession.id}/messages`)
+          .set('Authorization', `Bearer ${student1Token}`),
+    ]
+
+    for (const attempt of deniedHttpAttempts) {
+      const response = await attempt().expect(404)
+      expectSafeErrorBody(response.body, SESSION_NOT_FOUND_ERROR, [
+        ownerSession.id,
+        OWNER_PRIVATE_TITLE,
+        RENAMED_PRIVATE_TITLE,
+        OWNER_PRIVATE_MESSAGE,
+        student1.id,
+        student1.email,
+      ])
+      await expect(readExactChatState()).resolves.toEqual(deletedState)
+    }
+
+    await expectTrustedAppendDenied(
+      chatService.appendPendingAssistantMessage({
+        courseId: pythonCourseId,
+        sessionId: ownerSession.id,
+        studentId: student1.id,
+        content: DENIED_APPEND_CONTENT,
+      }),
+      404,
+      SESSION_NOT_FOUND_ERROR,
+      [
+        ownerSession.id,
+        OWNER_PRIVATE_TITLE,
+        OWNER_PRIVATE_MESSAGE,
+        DENIED_APPEND_CONTENT,
+      ],
+    )
+    await expect(readExactChatState()).resolves.toEqual(deletedState)
+
+    await request(app.getHttpServer())
+      .delete(`${sessionPath()}/${ownerSession.id}`)
+      .set('Authorization', `Bearer ${student1Token}`)
+      .expect(204)
+    await expect(readExactChatState()).resolves.toEqual(deletedState)
+
+    const deletionAudits = await prisma.auditLog.findMany({
+      where: { action: AUDIT_EVENT_ACTIONS.CHAT_SESSION_DELETED },
+    })
+    const accessDenials = await prisma.auditLog.findMany({
+      where: { action: AUDIT_EVENT_ACTIONS.CHAT_SESSION_ACCESS_DENIED },
+      orderBy: { createdAt: 'asc' },
+    })
+
+    expect(deletionAudits).toHaveLength(1)
+    expect(deletionAudits[0]).toMatchObject({
+      actorUserId: student1.id,
+      targetType: AUDIT_TARGET_TYPES.CHAT_SESSION,
+      targetId: ownerSession.id,
+      courseId: pythonCourseId,
+      metadata: {},
+    })
+    expect(accessDenials).toHaveLength(4)
+    expect(accessDenials.map((denial) => denial.targetId)).toEqual([
+      ownerSession.id,
+      ownerSession.id,
+      ownerSession.id,
+      ownerSession.id,
+    ])
+    expect(accessDenials.map((denial) => denial.metadata)).toEqual([
+      { reason: 'DELETED_OR_UNOWNED' },
+      { reason: 'DELETED_OR_UNOWNED' },
+      { reason: 'DELETED_OR_UNOWNED' },
+      { reason: 'DELETED_OR_UNOWNED' },
+    ])
+    expectAuditRecordsContentFree([...deletionAudits, ...accessDenials])
   })
 })
