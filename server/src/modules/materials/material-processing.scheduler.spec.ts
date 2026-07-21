@@ -22,8 +22,8 @@ describe('DurableMaterialProcessingScheduler', () => {
     )
   })
 
-  afterEach(() => {
-    scheduler.onModuleDestroy()
+  afterEach(async () => {
+    await scheduler.onModuleDestroy()
     jest.useRealTimers()
     jest.restoreAllMocks()
   })
@@ -96,7 +96,7 @@ describe('DurableMaterialProcessingScheduler', () => {
     jest.useFakeTimers()
 
     scheduler.onModuleInit()
-    scheduler.onModuleDestroy()
+    await scheduler.onModuleDestroy()
     await jest.advanceTimersByTimeAsync(5_000)
 
     await scheduler.scheduleMaterialProcessing('after-shutdown')
@@ -119,11 +119,30 @@ describe('DurableMaterialProcessingScheduler', () => {
     await new Promise<void>((resolve) => setImmediate(resolve))
     expect(findMany).toHaveBeenCalledTimes(1)
 
-    scheduler.onModuleDestroy()
+    const shutdown = scheduler.onModuleDestroy()
     commands.resolve([{ materialId: 'pending-at-shutdown' }])
-    await flushImmediate()
+    await shutdown
 
     expect(processMaterial).not.toHaveBeenCalled()
+  })
+
+  it('waits for an in-flight processing job during shutdown', async () => {
+    const processing = deferredProcessing()
+    findMany.mockResolvedValueOnce([{ materialId: 'active-at-shutdown' }])
+    processMaterial.mockReturnValueOnce(processing.promise)
+    scheduler.onModuleInit()
+    await waitForCalls(processMaterial, 1)
+
+    let shutdownComplete = false
+    const shutdown = scheduler.onModuleDestroy().then(() => {
+      shutdownComplete = true
+    })
+    await flushImmediate()
+
+    expect(shutdownComplete).toBe(false)
+    processing.resolve()
+    await shutdown
+    expect(shutdownComplete).toBe(true)
   })
 })
 
@@ -134,6 +153,21 @@ function deferredCommands() {
   })
 
   return { promise, resolve }
+}
+
+function deferredProcessing() {
+  let resolve!: () => void
+  const promise = new Promise<void>((done) => {
+    resolve = done
+  })
+
+  return { promise, resolve }
+}
+
+async function waitForCalls(mock: jest.Mock, count: number): Promise<void> {
+  while (mock.mock.calls.length < count) {
+    await new Promise<void>((resolve) => setImmediate(resolve))
+  }
 }
 
 async function flushImmediate(): Promise<void> {

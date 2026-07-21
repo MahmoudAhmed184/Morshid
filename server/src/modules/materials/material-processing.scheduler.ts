@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service'
 import {
   MATERIAL_PROCESSING_DRAIN_BATCH_SIZE,
   MATERIAL_PROCESSING_POLL_MS,
+  MATERIAL_PROCESSING_SHUTDOWN_TIMEOUT_MS,
 } from './material-processing.constants'
 import { MaterialProcessingService } from './material-processing.service'
 
@@ -26,6 +27,7 @@ export class DurableMaterialProcessingScheduler
   private drainImmediate: NodeJS.Immediate | undefined
   private drainRunning = false
   private drainRequested = false
+  private activeDrain: Promise<void> | undefined
   private stopped = false
 
   constructor(
@@ -44,7 +46,7 @@ export class DurableMaterialProcessingScheduler
     this.requestDrain()
   }
 
-  onModuleDestroy(): void {
+  async onModuleDestroy(): Promise<void> {
     this.stopped = true
     if (this.pollTimer !== undefined) {
       clearInterval(this.pollTimer)
@@ -53,6 +55,21 @@ export class DurableMaterialProcessingScheduler
     if (this.drainImmediate !== undefined) {
       clearImmediate(this.drainImmediate)
       this.drainImmediate = undefined
+    }
+
+    const activeDrain = this.activeDrain
+    if (activeDrain === undefined) {
+      return
+    }
+
+    const completed = await waitForPromise(
+      activeDrain,
+      MATERIAL_PROCESSING_SHUTDOWN_TIMEOUT_MS,
+    )
+    if (!completed) {
+      this.logger.warn(
+        'Material processing drain exceeded the graceful shutdown timeout',
+      )
     }
   }
 
@@ -77,15 +94,18 @@ export class DurableMaterialProcessingScheduler
 
     this.drainImmediate = setImmediate(() => {
       this.drainImmediate = undefined
-      void this.drainOnce()
-        .catch(() => {
-          this.logger.error('Material processing command drain failed')
-        })
-        .finally(() => {
-          if (this.drainRequested) {
-            this.requestDrain()
-          }
-        })
+      const activeDrain = this.drainOnce().catch(() => {
+        this.logger.error('Material processing command drain failed')
+      })
+      this.activeDrain = activeDrain
+      void activeDrain.finally(() => {
+        if (this.activeDrain === activeDrain) {
+          this.activeDrain = undefined
+        }
+        if (this.drainRequested) {
+          this.requestDrain()
+        }
+      })
     })
   }
 
@@ -132,5 +152,25 @@ export class DurableMaterialProcessingScheduler
 
   private isStopped(): boolean {
     return this.stopped
+  }
+}
+
+async function waitForPromise(
+  promise: Promise<void>,
+  timeoutMs: number,
+): Promise<boolean> {
+  let timeout: NodeJS.Timeout | undefined
+  const timeoutReached = new Promise<boolean>((resolve) => {
+    timeout = setTimeout(() => {
+      resolve(false)
+    }, timeoutMs)
+  })
+
+  try {
+    return await Promise.race([promise.then(() => true), timeoutReached])
+  } finally {
+    if (timeout !== undefined) {
+      clearTimeout(timeout)
+    }
   }
 }

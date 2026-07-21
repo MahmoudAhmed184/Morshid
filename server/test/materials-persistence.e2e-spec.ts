@@ -187,7 +187,7 @@ describe('Materials persistence and local storage (e2e)', () => {
     const runningScheduler: DurableMaterialProcessingScheduler = app.get(
       MaterialProcessingScheduler,
     )
-    runningScheduler.onModuleDestroy()
+    await runningScheduler.onModuleDestroy()
     const uploader = await prisma.user.findUniqueOrThrow({
       where: { email: 'instructor@morshid.demo' },
     })
@@ -219,7 +219,7 @@ describe('Materials persistence and local storage (e2e)', () => {
         }),
       ).resolves.toBeNull()
     } finally {
-      restartedScheduler.onModuleDestroy()
+      await restartedScheduler.onModuleDestroy()
     }
   })
 
