@@ -1,20 +1,22 @@
 import type {
-  CompletionContextEntry,
   CompletionProvider,
   CompletionRequest,
   CompletionResult,
-  NonEmptyCompletionContext,
 } from './completion-provider'
 import { CompletionProviderError } from './completion-provider'
+import {
+  hasAtMostCodePoints,
+  snapshotCompletionRequest,
+} from './completion-input'
 import { GROUNDED_COMPLETION_PROMPT_VERSION } from './grounded-completion-envelope'
 
 export const DEFAULT_COMPLETION_TIMEOUT_MS = 30_000
 export const MAX_COMPLETION_TIMEOUT_MS = 120_000
+export const MAX_COMPLETION_OUTPUT_CODE_POINTS = 16_000
 
 const MAX_PROVIDER_LENGTH = 80
 const MAX_MODEL_LENGTH = 120
 const MAX_PROMPT_VERSION_LENGTH = 80
-const CONTEXT_ENTRY_KEYS = ['sourceTitle', 'chunkIndex', 'content'] as const
 const RESULT_KEYS = [
   'content',
   'provider',
@@ -40,9 +42,9 @@ export class ValidatedCompletionProvider implements CompletionProvider {
   ) {}
 
   async complete(request: CompletionRequest): Promise<CompletionResult> {
-    validateRequestSafely(request)
+    const requestSnapshot = snapshotCompletionRequest(request)
 
-    if (request.signal?.aborted === true) {
+    if (requestSnapshot.signal?.aborted === true) {
       throw new CompletionProviderError('COMPLETION_CANCELLED')
     }
 
@@ -54,17 +56,23 @@ export class ValidatedCompletionProvider implements CompletionProvider {
         throw new TypeError('Invalid timeout signal')
       }
       composedSignal = AbortSignal.any([
-        ...(request.signal === undefined ? [] : [request.signal]),
+        ...(requestSnapshot.signal === undefined
+          ? []
+          : [requestSnapshot.signal]),
         timeoutSignal,
       ])
     } catch {
       throw new CompletionProviderError('COMPLETION_PROVIDER_FAILURE')
     }
 
-    const providerRequest = minimizeRequest(request, composedSignal)
+    const providerRequest = Object.freeze({
+      studentQuestion: requestSnapshot.studentQuestion,
+      context: requestSnapshot.context,
+      signal: composedSignal,
+    })
     const rawResult = await this.executeProvider(
       providerRequest,
-      request.signal,
+      requestSnapshot.signal,
       timeoutSignal,
       composedSignal,
     )
@@ -128,103 +136,52 @@ export class ValidatedCompletionProvider implements CompletionProvider {
   }
 }
 
-function validateRequestSafely(request: CompletionRequest): void {
-  try {
-    if (!isRecord(request) || !isNonBlankString(request.studentQuestion)) {
-      throw new CompletionProviderError('COMPLETION_INVALID_REQUEST')
-    }
-    if (!Array.isArray(request.context)) {
-      throw new CompletionProviderError('COMPLETION_INVALID_REQUEST')
-    }
-    if (request.context.length === 0) {
-      throw new CompletionProviderError('COMPLETION_EMPTY_CONTEXT')
-    }
-    if (
-      request.signal !== undefined &&
-      !(request.signal instanceof AbortSignal)
-    ) {
-      throw new CompletionProviderError('COMPLETION_INVALID_REQUEST')
-    }
-
-    for (const entry of request.context as readonly unknown[]) {
-      if (
-        !hasOnlyKeys(entry, CONTEXT_ENTRY_KEYS) ||
-        !isNonBlankString(entry.sourceTitle) ||
-        !Number.isSafeInteger(entry.chunkIndex) ||
-        (entry.chunkIndex as number) < 0 ||
-        !isNonBlankString(entry.content)
-      ) {
-        throw new CompletionProviderError('COMPLETION_INVALID_REQUEST')
-      }
-    }
-  } catch (error) {
-    if (error instanceof CompletionProviderError) {
-      throw error
-    }
-    throw new CompletionProviderError('COMPLETION_INVALID_REQUEST')
-  }
-}
-
 function validateResultSafely(result: unknown): CompletionResult {
   try {
-    if (
-      !hasOnlyKeys(result, RESULT_KEYS) ||
-      !isNonBlankString(result.content) ||
-      !isBoundedMetadata(result.provider, MAX_PROVIDER_LENGTH) ||
-      !isBoundedMetadata(result.model, MAX_MODEL_LENGTH) ||
-      !isBoundedMetadata(result.promptVersion, MAX_PROMPT_VERSION_LENGTH) ||
-      result.promptVersion !== GROUNDED_COMPLETION_PROMPT_VERSION ||
-      !isOptionalTokenCount(result.inputTokens) ||
-      !isOptionalTokenCount(result.outputTokens)
-    ) {
-      throw new CompletionProviderError('COMPLETION_INVALID_RESULT')
+    if (!hasOnlyKeys(result, RESULT_KEYS)) {
+      throw new TypeError('Invalid result shape')
     }
 
-    return {
-      content: result.content,
-      provider: result.provider,
-      model: result.model,
-      promptVersion: result.promptVersion,
-      ...(result.inputTokens === undefined
-        ? {}
-        : { inputTokens: result.inputTokens }),
-      ...(result.outputTokens === undefined
-        ? {}
-        : { outputTokens: result.outputTokens }),
+    const snapshot = {
+      content: Reflect.get(result, 'content'),
+      provider: Reflect.get(result, 'provider'),
+      model: Reflect.get(result, 'model'),
+      promptVersion: Reflect.get(result, 'promptVersion'),
+      inputTokens: Reflect.get(result, 'inputTokens'),
+      outputTokens: Reflect.get(result, 'outputTokens'),
     }
-  } catch (error) {
-    if (error instanceof CompletionProviderError) {
-      throw error
+
+    if (
+      !isNonBlankString(snapshot.content) ||
+      !hasAtMostCodePoints(
+        snapshot.content,
+        MAX_COMPLETION_OUTPUT_CODE_POINTS,
+      ) ||
+      !isBoundedMetadata(snapshot.provider, MAX_PROVIDER_LENGTH) ||
+      !isBoundedMetadata(snapshot.model, MAX_MODEL_LENGTH) ||
+      !isBoundedMetadata(snapshot.promptVersion, MAX_PROMPT_VERSION_LENGTH) ||
+      snapshot.promptVersion !== GROUNDED_COMPLETION_PROMPT_VERSION ||
+      !isOptionalTokenCount(snapshot.inputTokens) ||
+      !isOptionalTokenCount(snapshot.outputTokens)
+    ) {
+      throw new TypeError('Invalid result values')
     }
+
+    return Object.freeze({
+      content: snapshot.content,
+      provider: snapshot.provider,
+      model: snapshot.model,
+      promptVersion: snapshot.promptVersion,
+      ...(snapshot.inputTokens === undefined
+        ? {}
+        : { inputTokens: snapshot.inputTokens }),
+      ...(snapshot.outputTokens === undefined
+        ? {}
+        : { outputTokens: snapshot.outputTokens }),
+    })
+  } catch {
     throw new CompletionProviderError('COMPLETION_INVALID_RESULT')
   }
-}
-
-function minimizeRequest(
-  request: CompletionRequest,
-  signal: AbortSignal,
-): CompletionRequest {
-  const [first, ...rest] = request.context
-  const context: NonEmptyCompletionContext = [
-    minimizeContextEntry(first),
-    ...rest.map(minimizeContextEntry),
-  ]
-
-  return Object.freeze({
-    studentQuestion: request.studentQuestion,
-    context: Object.freeze(context),
-    signal,
-  })
-}
-
-function minimizeContextEntry(
-  entry: CompletionContextEntry,
-): CompletionContextEntry {
-  return Object.freeze({
-    sourceTitle: entry.sourceTitle,
-    chunkIndex: entry.chunkIndex,
-    content: entry.content,
-  })
 }
 
 function abortError(

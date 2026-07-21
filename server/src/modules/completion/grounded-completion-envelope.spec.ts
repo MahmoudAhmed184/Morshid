@@ -41,15 +41,12 @@ describe('grounded completion envelope', () => {
   })
 
   it('round-trips only the three authorized context fields', () => {
-    const contextWithExtraData = {
-      ...request.context[0],
+    const requestWithExtraData = {
+      ...request,
       courseId: 'must-not-enter-the-prompt',
       apiKey: 'must-not-enter-the-prompt',
     }
-    const messages = buildGroundedCompletionMessages({
-      studentQuestion: request.studentQuestion,
-      context: [contextWithExtraData],
-    })
+    const messages = buildGroundedCompletionMessages(requestWithExtraData)
 
     expect(parseGroundedCompletionInputEnvelope(messages[1].content)).toEqual(
       request,
@@ -113,5 +110,81 @@ describe('grounded completion envelope', () => {
       )
       expect((failure as Error).message).not.toContain(privateSentinel)
     }
+  })
+
+  it.each([
+    ['null', null],
+    ['array', []],
+    ['missing context', { studentQuestion: 'valid' }],
+    ['extra root key', { ...request, privateValue: 'do-not-copy' }],
+    ['non-string question', { ...request, studentQuestion: 42 }],
+    ['empty context', { ...request, context: [] }],
+    [
+      'missing entry key',
+      {
+        ...request,
+        context: [{ sourceTitle: 'valid', chunkIndex: 0 }],
+      },
+    ],
+    [
+      'extra entry key',
+      {
+        ...request,
+        context: [
+          {
+            sourceTitle: 'valid',
+            chunkIndex: 0,
+            content: 'valid',
+            privateValue: 'do-not-copy',
+          },
+        ],
+      },
+    ],
+    [
+      'wrong entry field type',
+      {
+        ...request,
+        context: [{ sourceTitle: 'valid', chunkIndex: '0', content: 'valid' }],
+      },
+    ],
+    [
+      'negative chunk index',
+      {
+        ...request,
+        context: [{ sourceTitle: 'valid', chunkIndex: -1, content: 'valid' }],
+      },
+    ],
+    [
+      'unsafe chunk index',
+      {
+        ...request,
+        context: [
+          {
+            sourceTitle: 'valid',
+            chunkIndex: Number.MAX_SAFE_INTEGER + 1,
+            content: 'valid',
+          },
+        ],
+      },
+    ],
+  ])('rejects valid JSON with a %s runtime shape', (_, payload) => {
+    const envelope = `${UNTRUSTED_INPUT_BEGIN_MARKER}\n${JSON.stringify(payload)}\n${UNTRUSTED_INPUT_END_MARKER}`
+
+    expect(() => parseGroundedCompletionInputEnvelope(envelope)).toThrow(
+      expect.objectContaining({
+        code: 'COMPLETION_INVALID_REQUEST',
+      }) as CompletionProviderError,
+    )
+  })
+
+  it('returns only immutable minimized input data', () => {
+    const envelope = `${UNTRUSTED_INPUT_BEGIN_MARKER}\n${JSON.stringify(request)}\n${UNTRUSTED_INPUT_END_MARKER}`
+
+    const parsed = parseGroundedCompletionInputEnvelope(envelope)
+
+    expect(parsed).toEqual(request)
+    expect(Object.isFrozen(parsed)).toBe(true)
+    expect(Object.isFrozen(parsed.context)).toBe(true)
+    expect(parsed.context.every((entry) => Object.isFrozen(entry))).toBe(true)
   })
 })

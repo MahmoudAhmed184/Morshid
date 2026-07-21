@@ -1,8 +1,12 @@
-import type {
-  CompletionContextEntry,
-  CompletionRequest,
-} from './completion-provider'
+import type { CompletionRequest } from './completion-provider'
 import { CompletionProviderError } from './completion-provider'
+import type { GroundedCompletionInput } from './completion-input'
+import {
+  snapshotCompletionRequest,
+  snapshotGroundedCompletionInput,
+} from './completion-input'
+
+export type { GroundedCompletionInput } from './completion-input'
 
 export const GROUNDED_COMPLETION_PROMPT_VERSION = 'grounded-completion-v1'
 export const UNTRUSTED_INPUT_BEGIN_MARKER =
@@ -13,11 +17,6 @@ export type GroundedCompletionMessage = Readonly<{
   role: 'system' | 'user'
   content: string
 }>
-
-export interface GroundedCompletionInput {
-  readonly studentQuestion: string
-  readonly context: readonly CompletionContextEntry[]
-}
 
 const SYSTEM_MESSAGE = Object.freeze<GroundedCompletionMessage>({
   role: 'system',
@@ -37,14 +36,7 @@ const SYSTEM_MESSAGE = Object.freeze<GroundedCompletionMessage>({
 export function buildGroundedCompletionMessages(
   request: Pick<CompletionRequest, 'studentQuestion' | 'context'>,
 ): readonly [GroundedCompletionMessage, GroundedCompletionMessage] {
-  const payload: GroundedCompletionInput = {
-    studentQuestion: request.studentQuestion,
-    context: request.context.map(({ sourceTitle, chunkIndex, content }) => ({
-      sourceTitle,
-      chunkIndex,
-      content,
-    })),
-  }
+  const payload: GroundedCompletionInput = snapshotCompletionRequest(request)
   const encodedPayload = escapeJsonForUntrustedEnvelope(JSON.stringify(payload))
   const userMessage = Object.freeze<GroundedCompletionMessage>({
     role: 'user',
@@ -63,14 +55,20 @@ export function parseGroundedCompletionInputEnvelope(
 ): GroundedCompletionInput {
   const prefix = `${UNTRUSTED_INPUT_BEGIN_MARKER}\n`
   const suffix = `\n${UNTRUSTED_INPUT_END_MARKER}`
-  if (!envelope.startsWith(prefix) || !envelope.endsWith(suffix)) {
-    throw new CompletionProviderError('COMPLETION_INVALID_REQUEST')
-  }
 
   try {
-    return JSON.parse(
+    if (
+      typeof envelope !== 'string' ||
+      !envelope.startsWith(prefix) ||
+      !envelope.endsWith(suffix)
+    ) {
+      throw new TypeError('Invalid envelope markers')
+    }
+
+    const parsed: unknown = JSON.parse(
       envelope.slice(prefix.length, -suffix.length),
-    ) as GroundedCompletionInput
+    )
+    return snapshotGroundedCompletionInput(parsed)
   } catch {
     throw new CompletionProviderError('COMPLETION_INVALID_REQUEST')
   }

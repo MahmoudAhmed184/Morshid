@@ -6,9 +6,17 @@ import type {
   CompletionResult,
 } from './completion-provider'
 import { CompletionProviderError } from './completion-provider'
+import {
+  MAX_COMPLETION_CONTEXT_CODE_POINTS,
+  MAX_COMPLETION_CONTEXT_ENTRIES,
+  MAX_COMPLETION_CONTEXT_ENTRY_CODE_POINTS,
+  MAX_COMPLETION_QUESTION_CODE_POINTS,
+  MAX_COMPLETION_SOURCE_TITLE_CODE_POINTS,
+} from './completion-input'
 import { DeterministicCompletionProvider } from './deterministic-completion.provider'
 import {
   DEFAULT_COMPLETION_TIMEOUT_MS,
+  MAX_COMPLETION_OUTPUT_CODE_POINTS,
   ValidatedCompletionProvider,
 } from './validated-completion.provider'
 
@@ -91,6 +99,83 @@ function rejectUnknownForProviderTest(reason: unknown): Promise<never> {
 }
 
 describe('ValidatedCompletionProvider request validation', () => {
+  it('snapshots accessor-backed request fields exactly once before adapter use', async () => {
+    const { inner, provider } = buildProvider()
+    const reads = {
+      studentQuestion: 0,
+      context: 0,
+      sourceTitle: 0,
+      chunkIndex: 0,
+      content: 0,
+    }
+    const contextEntry = {
+      get sourceTitle() {
+        reads.sourceTitle += 1
+        return reads.sourceTitle === 1 ? 'Lecture notes' : 'private-title'
+      },
+      get chunkIndex() {
+        reads.chunkIndex += 1
+        return reads.chunkIndex === 1 ? 3 : -1
+      },
+      get content() {
+        reads.content += 1
+        return reads.content === 1 ? 'Authorized content' : 'private-content'
+      },
+    }
+    const accessorRequest = {
+      get studentQuestion() {
+        reads.studentQuestion += 1
+        if (reads.studentQuestion > 1) {
+          throw new Error('private-question-getter')
+        }
+        return 'What does this topic mean?'
+      },
+      get context() {
+        reads.context += 1
+        if (reads.context > 1) {
+          throw new Error('private-context-getter')
+        }
+        return [contextEntry]
+      },
+    } as unknown as CompletionRequest
+
+    await provider.complete(accessorRequest)
+
+    expect(reads).toEqual({
+      studentQuestion: 1,
+      context: 1,
+      sourceTitle: 1,
+      chunkIndex: 1,
+      content: 1,
+    })
+    expect(inner.complete).toHaveBeenCalledWith({
+      studentQuestion: 'What does this topic mean?',
+      context: [
+        {
+          sourceTitle: 'Lecture notes',
+          chunkIndex: 3,
+          content: 'Authorized content',
+        },
+      ],
+      signal: expect.any(AbortSignal) as AbortSignal,
+    })
+  })
+
+  it('contains proxy failures and never exposes private request values', async () => {
+    const privateSentinel = 'private-request-proxy-sentinel'
+    const hostileRequest = new Proxy(validRequest(), {
+      get() {
+        throw new Error(privateSentinel)
+      },
+    })
+    const { inner, provider } = buildProvider()
+
+    const failure = await captureFailure(provider.complete(hostileRequest))
+
+    expectSafeFailure(failure, 'COMPLETION_INVALID_REQUEST', [privateSentinel])
+    expect(inner.complete).not.toHaveBeenCalled()
+  })
+
   it('passes a minimized request and composed signal to the adapter', async () => {
     const { inner, provider, timeoutSignalFactory } = buildProvider()
     const callerController = new AbortController()
@@ -210,9 +295,160 @@ describe('ValidatedCompletionProvider request validation', () => {
     expectSafeFailure(failure, 'COMPLETION_INVALID_REQUEST')
     expect(inner.complete).not.toHaveBeenCalled()
   })
+
+  it.each([
+    [
+      'question',
+      validRequest({
+        studentQuestion: 'q'.repeat(MAX_COMPLETION_QUESTION_CODE_POINTS + 1),
+      }),
+    ],
+    [
+      'source title',
+      validRequest({
+        context: [
+          {
+            sourceTitle: 's'.repeat(
+              MAX_COMPLETION_SOURCE_TITLE_CODE_POINTS + 1,
+            ),
+            chunkIndex: 0,
+            content: 'valid',
+          },
+        ],
+      }),
+    ],
+    [
+      'context entry',
+      validRequest({
+        context: [
+          {
+            sourceTitle: 'valid',
+            chunkIndex: 0,
+            content: 'c'.repeat(MAX_COMPLETION_CONTEXT_ENTRY_CODE_POINTS + 1),
+          },
+        ],
+      }),
+    ],
+    [
+      'entry count',
+      validRequest({
+        context: Array.from(
+          { length: MAX_COMPLETION_CONTEXT_ENTRIES + 1 },
+          (_, chunkIndex) => ({
+            sourceTitle: 'valid',
+            chunkIndex,
+            content: 'valid',
+          }),
+        ) as unknown as CompletionRequest['context'],
+      }),
+    ],
+  ])(
+    'rejects a request over the %s budget before adapter use',
+    async (_, request) => {
+      const { inner, provider, timeoutSignalFactory } = buildProvider()
+
+      const failure = await captureFailure(provider.complete(request))
+
+      expectSafeFailure(failure, 'COMPLETION_INVALID_REQUEST')
+      expect(timeoutSignalFactory).not.toHaveBeenCalled()
+      expect(inner.complete).not.toHaveBeenCalled()
+    },
+  )
+
+  it('accepts exact Unicode code-point boundaries and rejects one over', async () => {
+    const { inner, provider } = buildProvider()
+    const exactQuestion = '😀'.repeat(MAX_COMPLETION_QUESTION_CODE_POINTS)
+
+    await provider.complete(validRequest({ studentQuestion: exactQuestion }))
+
+    expect(inner.complete).toHaveBeenCalledTimes(1)
+    const failure = await captureFailure(
+      provider.complete(
+        validRequest({ studentQuestion: `${exactQuestion}😀` }),
+      ),
+    )
+    expectSafeFailure(failure, 'COMPLETION_INVALID_REQUEST')
+    expect(inner.complete).toHaveBeenCalledTimes(1)
+  })
+
+  it('enforces the aggregate context budget independently of per-entry limits', async () => {
+    const exactContext = Array.from({ length: 4 }, (_, chunkIndex) => ({
+      sourceTitle: 's',
+      chunkIndex,
+      content: 'c'.repeat(MAX_COMPLETION_CONTEXT_CODE_POINTS / 4 - 1),
+    })) as unknown as CompletionRequest['context']
+    const { inner, provider } = buildProvider()
+
+    await provider.complete(validRequest({ context: exactContext }))
+
+    expect(inner.complete).toHaveBeenCalledTimes(1)
+    const oneOverContext = exactContext.map((entry, index) => ({
+      ...entry,
+      content: index === 0 ? `${entry.content}c` : entry.content,
+    })) as unknown as CompletionRequest['context']
+    const failure = await captureFailure(
+      provider.complete(validRequest({ context: oneOverContext })),
+    )
+    expectSafeFailure(failure, 'COMPLETION_INVALID_REQUEST')
+    expect(inner.complete).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('ValidatedCompletionProvider result validation', () => {
+  it('snapshots accessor-backed result fields exactly once', async () => {
+    const { inner, provider } = buildProvider()
+    const reads = new Map<string, number>()
+    const expectedResult = validResult()
+    const rawResult: Record<string, unknown> = {}
+    for (const key of Object.keys(
+      expectedResult,
+    ) as (keyof CompletionResult)[]) {
+      const firstValue = expectedResult[key]
+      Object.defineProperty(rawResult, key, {
+        enumerable: true,
+        get: () => {
+          const count = (reads.get(key) ?? 0) + 1
+          reads.set(key, count)
+          if (count > 1) {
+            throw new Error(`private-${key}-getter`)
+          }
+          return firstValue
+        },
+      })
+    }
+    inner.complete.mockResolvedValueOnce(
+      rawResult as unknown as CompletionResult,
+    )
+
+    await expect(provider.complete(validRequest())).resolves.toEqual(
+      validResult(),
+    )
+    expect(Object.fromEntries(reads)).toEqual({
+      content: 1,
+      provider: 1,
+      model: 1,
+      promptVersion: 1,
+      inputTokens: 1,
+      outputTokens: 1,
+    })
+  })
+
+  it('contains proxy failures and never exposes private result values', async () => {
+    const privateSentinel = 'private-result-proxy-sentinel'
+    const { inner, provider } = buildProvider()
+    inner.complete.mockResolvedValueOnce(
+      new Proxy(validResult(), {
+        ownKeys() {
+          throw new Error(privateSentinel)
+        },
+      }),
+    )
+
+    const failure = await captureFailure(provider.complete(validRequest()))
+
+    expectSafeFailure(failure, 'COMPLETION_INVALID_RESULT', [privateSentinel])
+  })
+
   it('returns a minimized valid result with optional token counts', async () => {
     const { inner, provider } = buildProvider()
     inner.complete.mockResolvedValueOnce({
@@ -285,6 +521,25 @@ describe('ValidatedCompletionProvider result validation', () => {
     const failure = await captureFailure(provider.complete(validRequest()))
 
     expectSafeFailure(failure, 'COMPLETION_INVALID_RESULT', [privateResult])
+  })
+
+  it('accepts the exact output code-point budget and rejects one over', async () => {
+    const { inner, provider } = buildProvider()
+    inner.complete.mockResolvedValueOnce({
+      ...validResult(),
+      content: '😀'.repeat(MAX_COMPLETION_OUTPUT_CODE_POINTS),
+    })
+
+    await expect(provider.complete(validRequest())).resolves.toMatchObject({
+      content: '😀'.repeat(MAX_COMPLETION_OUTPUT_CODE_POINTS),
+    })
+
+    inner.complete.mockResolvedValueOnce({
+      ...validResult(),
+      content: '😀'.repeat(MAX_COMPLETION_OUTPUT_CODE_POINTS + 1),
+    })
+    const failure = await captureFailure(provider.complete(validRequest()))
+    expectSafeFailure(failure, 'COMPLETION_INVALID_RESULT')
   })
 })
 
