@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 import type { AuthSession } from '@/features/auth/types/auth.types'
 import { instructorCoursesQueryOptions } from '@/features/instructor/data/instructor-dashboard.queries'
-import { MaterialsPage } from './materials-page'
 import { MyCoursesPage } from './my-courses-page'
 import { ReviewQueuePage } from './review-queue-page'
 
@@ -163,41 +162,6 @@ describe('Instructor Pages', () => {
       ).toBeVisible()
       expect(
         screen.queryByRole('heading', { name: 'No assigned courses' }),
-      ).not.toBeInTheDocument()
-    })
-  })
-
-  describe('MaterialsPage', () => {
-    it('renders the materials placeholder', () => {
-      renderInstructorPage(<MaterialsPage />)
-
-      const materialsHeadings = screen.getAllByRole('heading', {
-        name: 'Materials',
-      })
-      expect(materialsHeadings.length).toBeGreaterThanOrEqual(1)
-      expect(screen.getByText('Course Materials')).toBeInTheDocument()
-      expect(
-        screen.getByText('Materials are not connected yet'),
-      ).toBeInTheDocument()
-      expect(
-        screen.getByText(
-          'This panel is reserved for Sprint 2 upload, processing, and source readiness status.',
-        ),
-      ).toBeInTheDocument()
-    })
-
-    it('keeps materials chrome and streams list skeletons while loading', () => {
-      renderInstructorPage(<MaterialsPage />, { deferCourses: true })
-
-      expect(
-        screen.getAllByRole('heading', { name: 'Materials' }).length,
-      ).toBeGreaterThanOrEqual(1)
-      expect(screen.getByText('Course Materials')).toBeVisible()
-      expect(
-        screen.getByRole('status', { name: 'Loading materials' }),
-      ).toBeVisible()
-      expect(
-        screen.queryByText('Materials are not connected yet'),
       ).not.toBeInTheDocument()
     })
   })

@@ -4,6 +4,7 @@ import type { InstructorMaterialStatus } from '@/features/instructor/schemas/ins
 
 import {
   instructorMaterialKeys,
+  instructorMaterialsQueryOptions,
   instructorMaterialStatusQueryOptions,
 } from './instructor-materials.queries'
 
@@ -39,6 +40,29 @@ function pollingIntervalFor(status: InstructorMaterialStatus['status']) {
   } as Parameters<typeof refetchInterval>[0])
 }
 
+function listPollingIntervalFor(status: InstructorMaterialStatus['status']) {
+  const options = instructorMaterialsQueryOptions(scope)
+  const refetchInterval = options.refetchInterval
+
+  if (typeof refetchInterval !== 'function') {
+    throw new Error('Expected a material-list polling callback')
+  }
+
+  return refetchInterval({
+    state: {
+      data: [
+        {
+          ...statusResponse(status),
+          courseId: scope.courseId,
+          title: 'Python Functions',
+          originalFilename: 'python-functions.pdf',
+          createdAt: '2026-07-21T12:00:00.000Z',
+        },
+      ],
+    },
+  } as Parameters<typeof refetchInterval>[0])
+}
+
 describe('Instructor material query options', () => {
   it('partitions material keys by Instructor, course, and material', () => {
     expect(instructorMaterialKeys.list(scope)).toEqual([
@@ -68,12 +92,14 @@ describe('Instructor material query options', () => {
 
   it('polls while material processing is active', () => {
     expect(pollingIntervalFor('PROCESSING')).toBe(2_000)
+    expect(listPollingIntervalFor('PROCESSING')).toBe(2_000)
   })
 
   it.each(['READY', 'WARNING', 'FAILED'] as const)(
     'stops polling when material status becomes %s',
     (status) => {
       expect(pollingIntervalFor(status)).toBe(false)
+      expect(listPollingIntervalFor(status)).toBe(false)
     },
   )
 })

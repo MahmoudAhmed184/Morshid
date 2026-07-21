@@ -252,8 +252,8 @@ describe('/instructor', () => {
       expect(history.location.pathname).toBe('/instructor/materials')
     })
     expect(
-      (await screen.findAllByRole('heading', { name: 'Materials' })).length,
-    ).toBeGreaterThanOrEqual(1)
+      await screen.findByRole('heading', { name: 'Course Materials' }),
+    ).toBeVisible()
     expect(screen.getByText('Instructor Portal')).toBeVisible()
     expect(
       screen.getByRole('searchbox', { name: 'Search course workspace' }),

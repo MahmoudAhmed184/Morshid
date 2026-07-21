@@ -14,7 +14,7 @@ interface InstructorMaterialScope extends InstructorCourseScope {
   materialId: string
 }
 
-const materialStatusPollingIntervalMs = 2_000
+const materialPollingIntervalMs = 2_000
 
 export const instructorMaterialKeys = {
   all: (instructorId: string) =>
@@ -51,6 +51,10 @@ export function instructorMaterialsQueryOptions({
       const response = await listInstructorMaterials(courseId)
       return response.materials
     },
+    refetchInterval: (query) =>
+      query.state.data?.some((material) => material.status === 'PROCESSING')
+        ? materialPollingIntervalMs
+        : false,
   })
 }
 
@@ -68,7 +72,7 @@ export function instructorMaterialStatusQueryOptions({
     queryFn: () => getInstructorMaterialStatus(courseId, materialId),
     refetchInterval: (query) =>
       query.state.data?.status === 'PROCESSING'
-        ? materialStatusPollingIntervalMs
+        ? materialPollingIntervalMs
         : false,
   })
 }
