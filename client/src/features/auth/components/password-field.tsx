@@ -1,15 +1,12 @@
-import { Eye, EyeOff, Lock } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import * as React from 'react'
 import { useState } from 'react'
 
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupInput,
-} from '@/components/ui/input-group'
+import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
+
+import { RuledFieldInput } from './ruled-field-input'
 
 type PasswordFieldProps = Omit<
   React.ComponentProps<'input'>,
@@ -43,48 +40,39 @@ export const PasswordField = React.forwardRef<
   return (
     <div className={cn('space-y-2.5', className)}>
       <div className="flex items-center justify-between gap-3">
-        <Label
-          htmlFor={id}
-          className="text-xs font-medium tracking-[0.12em] text-foreground uppercase sm:text-sm"
-        >
+        <Label htmlFor={id} className="smallcaps-label">
           {label}
         </Label>
         {showForgotPassword ? (
           <a
             href={forgotPasswordHref}
-            className={cn(
-              'text-sm font-medium text-primary transition-colors hover:text-primary/80 sm:text-base',
-            )}
+            className="link-editorial font-mono text-xs text-muted-foreground"
           >
-            Forgot Password?
+            Forgot password?
           </a>
         ) : null}
       </div>
-      <InputGroup className="h-12 rounded-full px-1">
-        <InputGroupAddon align="inline-start" className="pl-3">
-          <Lock className="size-[1.125rem] text-foreground" aria-hidden />
-        </InputGroupAddon>
-        <InputGroupInput
+      <div className="relative">
+        <RuledFieldInput
           ref={ref}
           id={id}
           type={visible ? 'text' : 'password'}
           placeholder={placeholder}
           autoComplete="current-password"
-          className="text-base"
+          className="pr-9"
           {...inputProps}
         />
-        <InputGroupAddon align="inline-end" className="pr-1">
-          <InputGroupButton
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => setVisible((current) => !current)}
-            aria-label={visible ? 'Hide password' : 'Show password'}
-          >
-            {visible ? <EyeOff aria-hidden /> : <Eye aria-hidden />}
-          </InputGroupButton>
-        </InputGroupAddon>
-      </InputGroup>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          onClick={() => setVisible((current) => !current)}
+          aria-label={visible ? 'Hide password' : 'Show password'}
+          className="absolute inset-y-0 right-0 my-auto text-muted-foreground hover:bg-transparent hover:text-foreground"
+        >
+          {visible ? <EyeOff aria-hidden /> : <Eye aria-hidden />}
+        </Button>
+      </div>
     </div>
   )
 })

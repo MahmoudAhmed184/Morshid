@@ -52,9 +52,7 @@ function renderSignInForm() {
 }
 
 function getForm() {
-  return screen
-    .getByRole('button', { name: /sign in to portal/i })
-    .closest('form')!
+  return screen.getByRole('button', { name: /sign in/i }).closest('form')!
 }
 
 function getEmailInput() {
@@ -66,7 +64,7 @@ function getPasswordInput() {
 }
 
 function getSubmitButton() {
-  return screen.getByRole('button', { name: /sign in to portal/i })
+  return screen.getByRole('button', { name: /sign in/i })
 }
 
 function fillSignInForm({

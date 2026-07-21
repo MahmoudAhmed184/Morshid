@@ -283,7 +283,7 @@ describe('/instructor', () => {
 
     await waitFor(() => expect(history.location.pathname).toBe('/login'))
     expect(
-      await screen.findByRole('heading', { name: 'Welcome Back' }),
+      await screen.findByRole('heading', { name: 'Welcome back.' }),
     ).toBeVisible()
   })
 
@@ -328,7 +328,7 @@ describe('/instructor', () => {
       (await screen.findAllByRole('button', { name: 'Begin studying' }))[0],
     )
     expect(
-      await screen.findByRole('heading', { name: 'Welcome Back' }),
+      await screen.findByRole('heading', { name: 'Welcome back.' }),
     ).toBeVisible()
 
     fireEvent.change(
@@ -338,7 +338,7 @@ describe('/instructor', () => {
     fireEvent.change(screen.getByLabelText('Password'), {
       target: { value: 'MorshidDemoP0!' },
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Sign In to Portal' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
 
     expect(
       await screen.findByRole('heading', { name: 'Instructor dashboard' }),
