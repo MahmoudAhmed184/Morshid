@@ -8,9 +8,19 @@ import { useStudentCourses } from '@/features/student/hooks/use-student-courses'
 export function StudentShellPage() {
   const isHydrated = useHydrated()
   const { data: assignedCourses } = useStudentCourses()
-  const pathname = useRouterState({
-    select: (state) => state.location.pathname,
+  const location = useRouterState({
+    select: (state) => state.location,
   })
+  const pathname = location.pathname
+  const isAiTutorWorkspace = pathname === '/student/ai-tutor'
+  const courseId =
+    typeof location.search.courseId === 'string'
+      ? location.search.courseId
+      : undefined
+  const sessionId =
+    typeof location.search.sessionId === 'string'
+      ? location.search.sessionId
+      : undefined
 
   if (!isHydrated) {
     return <AuthLoader />
@@ -19,17 +29,27 @@ export function StudentShellPage() {
   return (
     <main className="h-svh overflow-hidden bg-background text-foreground">
       <div className="flex h-full w-full overflow-hidden">
-        <aside className="sticky top-0 hidden h-svh w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex">
-          <StudentSidebar
-            assignedCourses={assignedCourses}
-            pathname={pathname}
-          />
-        </aside>
+        {!isAiTutorWorkspace ? (
+          <aside className="sticky top-0 hidden h-svh w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex">
+            <StudentSidebar
+              assignedCourses={assignedCourses}
+              pathname={pathname}
+            />
+          </aside>
+        ) : null}
 
-        <section className="flex min-w-0 flex-1 flex-col overflow-y-auto bg-background">
+        <section
+          className={
+            isAiTutorWorkspace
+              ? 'flex min-w-0 flex-1 flex-col overflow-hidden bg-background'
+              : 'flex min-w-0 flex-1 flex-col overflow-y-auto bg-background'
+          }
+        >
           <StudentHeader
             assignedCourses={assignedCourses}
             pathname={pathname}
+            courseId={courseId}
+            sessionId={sessionId}
           />
           <Outlet />
         </section>

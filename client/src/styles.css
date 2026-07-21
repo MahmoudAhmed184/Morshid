@@ -437,6 +437,57 @@
   }
 }
 
+@layer utilities {
+  .scrollbar-themed {
+    scrollbar-color: color-mix(
+        in oklab,
+        var(--muted-foreground) 35%,
+        transparent
+      )
+      transparent;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+  }
+
+  .scrollbar-themed:hover,
+  .scrollbar-themed:focus-visible {
+    scrollbar-color: color-mix(
+        in oklab,
+        var(--muted-foreground) 55%,
+        transparent
+      )
+      transparent;
+  }
+
+  .scrollbar-themed::-webkit-scrollbar {
+    width: 0.5rem;
+  }
+
+  .scrollbar-themed::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-themed::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 9999px;
+    background-clip: padding-box;
+    background-color: color-mix(
+      in oklab,
+      var(--muted-foreground) 35%,
+      transparent
+    );
+  }
+
+  .scrollbar-themed:hover::-webkit-scrollbar-thumb,
+  .scrollbar-themed:focus-visible::-webkit-scrollbar-thumb {
+    background-color: color-mix(
+      in oklab,
+      var(--muted-foreground) 55%,
+      transparent
+    );
+  }
+}
+
 @layer base {
   * {
     box-sizing: border-box;
