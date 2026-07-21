@@ -31,13 +31,13 @@ export function StudentCourseSwitcher({
             <Button
               type="button"
               variant="outline"
-              className="h-12 w-full justify-start gap-3 rounded-xl border-slate-200 bg-white px-3 text-left shadow-none hover:bg-slate-50"
+              className="h-12 w-full justify-start gap-3 rounded-xl border-border bg-card px-3 text-left shadow-none hover:bg-accent"
               aria-label={`Current course: ${selectedCourse.code} ${selectedCourse.title}. Choose course`}
             />
           }
         >
           <span
-            className="size-2.5 shrink-0 rounded-full bg-blue-500"
+            className="size-2.5 shrink-0 rounded-full bg-primary"
             aria-hidden
           />
           <span className="min-w-0 flex-1">
@@ -68,7 +68,7 @@ export function StudentCourseSwitcher({
                 className="gap-3 px-3 py-2.5"
               >
                 <span
-                  className="size-2 shrink-0 rounded-full bg-blue-500"
+                  className="size-2 shrink-0 rounded-full bg-primary"
                   aria-hidden
                 />
                 <span className="min-w-0 flex-1">

@@ -11,6 +11,7 @@ export function StudentMessageHistorySkeleton() {
     <div
       role="status"
       aria-label="Loading conversation history"
+      aria-busy="true"
       className="w-full space-y-5"
     >
       {skeletonMessages.map((message) => (

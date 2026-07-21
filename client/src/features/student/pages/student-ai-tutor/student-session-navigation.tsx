@@ -1,9 +1,7 @@
-import { MessageSquareText, Search } from 'lucide-react'
-import { useState } from 'react'
+import { MessageSquareText } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { ErrorState } from '@/components/ui/custom/error-state'
-import { Input } from '@/components/ui/input'
 import type { ChatSession } from '@/features/student/schemas/student-chat.schema'
 import type { StudentCourse } from '@/features/student/schemas/student-course.schema'
 import { cn } from '@/lib/utils'
@@ -26,6 +24,7 @@ interface StudentSessionNavigationProps {
   isFetchingNextPage: boolean
   isFetchNextPageError: boolean
   isCreating: boolean
+  areSessionMutationsPending: boolean
   renamingSessionId?: string
   deletingSessionId?: string
   onRetry: () => void
@@ -49,6 +48,7 @@ export function StudentSessionNavigation({
   isFetchingNextPage,
   isFetchNextPageError,
   isCreating,
+  areSessionMutationsPending,
   renamingSessionId,
   deletingSessionId,
   onRetry,
@@ -59,19 +59,11 @@ export function StudentSessionNavigation({
   onNavigate,
   className,
 }: StudentSessionNavigationProps) {
-  const [sessionSearch, setSessionSearch] = useState('')
-  const normalizedSearch = sessionSearch.trim().toLocaleLowerCase()
-  const visibleSessions = normalizedSearch
-    ? sessions.filter((session) =>
-        session.title.toLocaleLowerCase().includes(normalizedSearch),
-      )
-    : sessions
-
   return (
     <aside
       aria-label="Session navigation"
       className={cn(
-        'flex min-h-0 flex-col overflow-hidden border-b border-slate-200 bg-white md:border-r md:border-b-0',
+        'flex min-h-0 flex-col overflow-hidden border-b border-border bg-card text-card-foreground md:border-r md:border-b-0',
         className,
       )}
     >
@@ -81,23 +73,6 @@ export function StudentSessionNavigation({
           selectedCourse={selectedCourse}
           onNavigate={onNavigate}
         />
-
-        <div className="relative px-4 pb-4">
-          <Search
-            className="pointer-events-none absolute top-1/2 left-7 size-4 -translate-y-[calc(50%+0.5rem)] text-slate-400"
-            aria-hidden
-          />
-          <Input
-            type="search"
-            name="session-search"
-            autoComplete="off"
-            value={sessionSearch}
-            onChange={(event) => setSessionSearch(event.target.value)}
-            aria-label="Search sessions"
-            placeholder="Search sessions…"
-            className="h-10 rounded-xl border-slate-200 bg-slate-50/70 pl-9 shadow-none"
-          />
-        </div>
 
         <div className="px-4 pb-5">
           <StudentCreateSessionButton
@@ -120,7 +95,7 @@ export function StudentSessionNavigation({
           role="region"
           aria-label="Conversation list"
           tabIndex={0}
-          className="scrollbar-themed min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-4 focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-inset focus-visible:outline-none"
+          className="scrollbar-themed min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-4 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-inset focus-visible:outline-none"
         >
           {isPending ? <StudentSessionNavigationSkeleton /> : null}
 
@@ -134,7 +109,7 @@ export function StudentSessionNavigation({
           ) : null}
 
           {!isPending && !isError && sessions.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-200 px-4 py-8 text-center">
+            <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">
               <MessageSquareText
                 className="mx-auto size-5 text-muted-foreground"
                 aria-hidden
@@ -148,24 +123,16 @@ export function StudentSessionNavigation({
             </div>
           ) : null}
 
-          {!isPending &&
-          !isError &&
-          sessions.length > 0 &&
-          visibleSessions.length === 0 ? (
-            <p className="px-3 py-8 text-center text-sm text-muted-foreground">
-              No sessions match your search.
-            </p>
-          ) : null}
-
-          {!isPending && !isError && visibleSessions.length > 0 ? (
+          {!isPending && !isError && sessions.length > 0 ? (
             <nav aria-label="Course conversations">
               <ul className="space-y-1">
-                {visibleSessions.map((session) => (
+                {sessions.map((session) => (
                   <StudentSessionListItem
                     key={session.id}
                     courseId={selectedCourse.id}
                     session={session}
                     isSelected={session.id === selectedSessionId}
+                    areLifecycleMutationsPending={areSessionMutationsPending}
                     isRenaming={renamingSessionId === session.id}
                     isDeleting={deletingSessionId === session.id}
                     onRename={(title) => onRename(session, title)}

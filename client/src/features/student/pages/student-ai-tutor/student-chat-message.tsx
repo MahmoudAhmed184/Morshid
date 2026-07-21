@@ -41,9 +41,9 @@ export function StudentChatMessage({ message }: StudentChatMessageProps) {
         className={cn(
           'max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm',
           isStudent
-            ? 'rounded-tr-md bg-blue-600 text-white'
-            : 'rounded-tl-md border border-slate-200 bg-white text-slate-800',
-          isSystem && 'rounded-xl border border-slate-200 bg-white',
+            ? 'rounded-tr-md bg-primary text-primary-foreground'
+            : 'rounded-tl-md border border-border bg-card text-card-foreground',
+          isSystem && 'rounded-xl border border-border bg-card',
         )}
       >
         <span className="sr-only">

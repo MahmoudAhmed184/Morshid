@@ -16,6 +16,7 @@ import {
   useCreateStudentSession,
   useDeleteStudentSession,
   useRenameStudentSession,
+  useStudentSession,
   useStudentSessionMessages,
   useStudentSessions,
 } from '@/features/student/hooks/use-student-sessions'
@@ -48,8 +49,17 @@ export function StudentAiTutorPage({
   const sessionsQuery = useStudentSessions({ courseId: selectedCourse?.id })
   const sessions =
     sessionsQuery.data?.pages.flatMap((page) => page.sessions) ?? []
-  const selectedSession =
+  const listedSession =
     sessions.find((session) => session.id === sessionId) ?? null
+  const routedSessionQuery = useStudentSession({
+    courseId: selectedCourse?.id,
+    sessionId,
+  })
+  const selectedSession = routedSessionQuery.data ?? null
+  const visibleSessions =
+    selectedSession && !listedSession
+      ? [selectedSession, ...sessions]
+      : sessions
   const messagesQuery = useStudentSessionMessages({
     courseId: selectedCourse?.id,
     sessionId: selectedSession?.id,
@@ -116,7 +126,7 @@ export function StudentAiTutorPage({
     ? {
         selectedCourse,
         courses: assignedCourses,
-        sessions,
+        sessions: visibleSessions,
         selectedSessionId: sessionId,
         isPending: sessionsQuery.isPending,
         isError: sessionsQuery.isError && sessions.length === 0,
@@ -128,6 +138,8 @@ export function StudentAiTutorPage({
         isFetchingNextPage: sessionsQuery.isFetchingNextPage,
         isFetchNextPageError: sessionsQuery.isFetchNextPageError,
         isCreating: createSession.isPending,
+        areSessionMutationsPending:
+          renameSession.isPending || deleteSession.isPending,
         renamingSessionId: renameSession.isPending
           ? renameSession.variables.sessionId
           : undefined,
@@ -145,7 +157,7 @@ export function StudentAiTutorPage({
 
   return (
     <section
-      className="flex min-h-0 flex-1 overflow-hidden bg-slate-50 text-card-foreground"
+      className="flex min-h-0 flex-1 overflow-hidden bg-background text-foreground"
       aria-label="Student AI Tutor"
     >
       {selectedCourse ? (
@@ -154,32 +166,32 @@ export function StudentAiTutorPage({
             <StudentSessionNavigation {...activeSessionNavigationProps} />
           </div>
 
-          <div className="flex min-h-80 min-w-0 flex-col bg-slate-50">
+          <div className="flex min-h-80 min-w-0 flex-col bg-background">
             <Sheet
               open={mobileSessionsOpen}
               onOpenChange={setMobileSessionsOpen}
             >
-              <div className="flex h-12 shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-3 md:hidden">
+              <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-card px-3 md:hidden">
                 <SheetTrigger
                   render={
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="size-9 rounded-[10px] text-slate-700 hover:bg-slate-100"
+                      className="size-9 rounded-[10px] text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                       aria-label="Open sessions"
                     />
                   }
                 >
                   <PanelLeft className="size-5" aria-hidden />
                 </SheetTrigger>
-                <span className="truncate text-sm font-medium text-slate-700">
+                <span className="truncate text-sm font-medium text-foreground">
                   Courses & chats
                 </span>
               </div>
               <SheetContent
                 side="left"
-                className="inset-y-2! left-2! h-[calc(100svh-1rem)]! w-[80vw]! max-w-80 gap-0 overflow-hidden overscroll-contain rounded-2xl border border-slate-200 bg-white p-0 shadow-2xl md:hidden"
+                className="inset-y-2! left-2! h-[calc(100svh-1rem)]! w-[80vw]! max-w-80 gap-0 overflow-hidden overscroll-contain rounded-2xl border border-border bg-card p-0 shadow-2xl md:hidden"
               >
                 <SheetHeader className="sr-only">
                   <SheetTitle>Course sessions</SheetTitle>
@@ -210,6 +222,7 @@ export function StudentAiTutorPage({
                     isFetching={messagesQuery.isFetching}
                     hasNextPage={messagesQuery.hasNextPage}
                     isFetchingNextPage={messagesQuery.isFetchingNextPage}
+                    isFetchNextPageError={messagesQuery.isFetchNextPageError}
                     onRetry={() => void messagesQuery.refetch()}
                     onLoadMore={() => void messagesQuery.fetchNextPage()}
                     onRecover={() => void handleStaleSession()}
@@ -224,6 +237,13 @@ export function StudentAiTutorPage({
                       sessionsQuery.isError && sessions.length === 0
                     }
                     hasSessions={sessions.length > 0}
+                    sessionPending={
+                      routedSessionQuery.isPending &&
+                      routedSessionQuery.fetchStatus !== 'idle'
+                    }
+                    sessionError={routedSessionQuery.error}
+                    sessionRetrying={routedSessionQuery.isFetching}
+                    onRetrySession={() => void routedSessionQuery.refetch()}
                   />
                 </div>
               )}

@@ -36,7 +36,7 @@ export function StudentCreateSessionButton({
         isLoading={isPending}
         loadingText="Creating…"
         onClick={handleCreate}
-        className="h-10 w-full justify-center rounded-[10px] bg-blue-600 text-white shadow-sm hover:bg-blue-700 focus-visible:ring-blue-500/50"
+        className="h-10 w-full justify-center rounded-[10px] bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 focus-visible:ring-ring/50"
       >
         <Plus aria-hidden />
         New chat

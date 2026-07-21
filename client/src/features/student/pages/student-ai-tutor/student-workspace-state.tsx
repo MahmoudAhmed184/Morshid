@@ -1,6 +1,8 @@
 import { MessageSquareText } from 'lucide-react'
 
 import { EmptyState } from '@/components/ui/custom/empty-state'
+import { ErrorState } from '@/components/ui/custom/error-state'
+import { isApiError } from '@/features/auth/api/authenticated-api-client'
 
 import { StudentMessageHistorySkeleton } from './student-message-history-skeleton'
 
@@ -9,6 +11,10 @@ interface StudentWorkspaceStateProps {
   sessionsPending: boolean
   sessionsError: boolean
   hasSessions: boolean
+  sessionPending: boolean
+  sessionError: unknown
+  sessionRetrying: boolean
+  onRetrySession: () => void
 }
 
 export function StudentWorkspaceState({
@@ -16,8 +22,12 @@ export function StudentWorkspaceState({
   sessionsPending,
   sessionsError,
   hasSessions,
+  sessionPending,
+  sessionError,
+  sessionRetrying,
+  onRetrySession,
 }: StudentWorkspaceStateProps) {
-  if (sessionsPending) {
+  if (sessionsPending || (sessionId !== undefined && sessionPending)) {
     return <StudentMessageHistorySkeleton />
   }
 
@@ -26,6 +36,25 @@ export function StudentWorkspaceState({
       <EmptyState
         title="Workspace unavailable"
         description="Retry the conversation list to continue."
+        className="w-full max-w-md border-0 bg-transparent"
+      />
+    )
+  }
+
+  if (
+    sessionId &&
+    sessionError &&
+    !(
+      isApiError(sessionError) &&
+      sessionError.code === 'STUDENT_CHAT_SESSION_NOT_FOUND'
+    )
+  ) {
+    return (
+      <ErrorState
+        title="Conversation unavailable"
+        description="The selected conversation could not be loaded."
+        onRetry={onRetrySession}
+        isRetrying={sessionRetrying}
         className="w-full max-w-md border-0 bg-transparent"
       />
     )

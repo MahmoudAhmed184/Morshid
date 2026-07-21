@@ -7,6 +7,7 @@ import { isApiError } from '@/features/auth/api/authenticated-api-client'
 import type { ChatMessage } from '@/features/student/schemas/student-chat.schema'
 
 import { StudentChatMessage } from './student-chat-message'
+import { StudentMessageHistorySkeleton } from './student-message-history-skeleton'
 
 interface StudentMessageHistoryProps {
   messages: ChatMessage[]
@@ -16,6 +17,7 @@ interface StudentMessageHistoryProps {
   isFetching: boolean
   hasNextPage: boolean
   isFetchingNextPage: boolean
+  isFetchNextPageError: boolean
   onRetry: () => void
   onLoadMore: () => void
   onRecover: () => void
@@ -29,19 +31,13 @@ export function StudentMessageHistory({
   isFetching,
   hasNextPage,
   isFetchingNextPage,
+  isFetchNextPageError,
   onRetry,
   onLoadMore,
   onRecover,
 }: StudentMessageHistoryProps) {
   if (isPending) {
-    return (
-      <div
-        role="status"
-        aria-label="Loading conversation history"
-        aria-busy="true"
-        className="min-h-full"
-      />
-    )
+    return <StudentMessageHistorySkeleton />
   }
 
   if (
@@ -60,7 +56,7 @@ export function StudentMessageHistory({
     )
   }
 
-  if (isError) {
+  if (isError && messages.length === 0) {
     return (
       <ErrorState
         title="History unavailable"
@@ -90,7 +86,27 @@ export function StudentMessageHistory({
           <StudentChatMessage key={message.id} message={message} />
         ))}
       </ol>
-      {hasNextPage ? (
+      {isError ? (
+        <div
+          role="alert"
+          className="mt-6 rounded-md border border-destructive/30 px-3 py-3 text-center"
+        >
+          <p className="text-sm text-destructive">
+            {isFetchNextPageError
+              ? 'More messages could not be loaded.'
+              : 'Conversation refresh failed.'}
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-2"
+            onClick={isFetchNextPageError ? onLoadMore : onRetry}
+          >
+            Retry loading messages
+          </Button>
+        </div>
+      ) : hasNextPage ? (
         <div className="mt-6 text-center">
           <Button
             type="button"
