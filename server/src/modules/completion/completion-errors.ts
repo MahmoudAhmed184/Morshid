@@ -7,6 +7,7 @@ export type CompletionErrorCode =
   | 'COMPLETION_PROVIDER_TIMEOUT'
   | 'COMPLETION_PROVIDER_FAILURE'
   | 'COMPLETION_CANCELLED'
+  | 'COMPLETION_UNSUPPORTED_PROVIDER'
 
 export class CompletionProviderError extends Error {
   constructor(
@@ -96,5 +97,17 @@ export class CompletionCancelledError extends CompletionProviderError {
       false,
     )
     this.name = 'CompletionCancelledError'
+  }
+}
+
+export class UnsupportedCompletionProviderError extends CompletionProviderError {
+  constructor(readonly provider: string) {
+    super(
+      'COMPLETION_UNSUPPORTED_PROVIDER',
+      'Unsupported completion provider',
+      false,
+      { provider },
+    )
+    this.name = 'UnsupportedCompletionProviderError'
   }
 }
