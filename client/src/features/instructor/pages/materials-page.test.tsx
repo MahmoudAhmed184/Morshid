@@ -59,6 +59,38 @@ const secondCourseMaterial = {
   chunkCount: 12,
   errorMessage: null,
 } as const
+const statusMaterials = [
+  {
+    ...material,
+    id: '9b7539af-9219-40a4-a5e3-da1567667024',
+    title: 'Queued source',
+    status: 'PROCESSING',
+    extractedTextLength: null,
+    chunkCount: null,
+    errorMessage: null,
+  },
+  {
+    ...material,
+    id: '50454f1a-f541-4410-a315-d440d208909f',
+    title: 'Available source',
+    status: 'READY',
+    errorMessage: null,
+  },
+  {
+    ...material,
+    id: 'abac5762-5c0d-49ac-ac3c-ced4600603d4',
+    title: 'Source with warning',
+    status: 'WARNING',
+    errorMessage: null,
+  },
+  {
+    ...material,
+    id: '370549a0-579b-40da-a41f-80a85a91bc4c',
+    title: 'Failed source',
+    status: 'FAILED',
+    errorMessage: null,
+  },
+] as const
 
 const refetchCourses = vi.fn()
 const refetchMaterials = vi.fn()
@@ -192,6 +224,28 @@ describe('MaterialsPage', () => {
     expect(
       screen.getByRole('button', { name: 'Upload Material' }),
     ).toBeVisible()
+  })
+
+  it('renders consistent status badges and safe messages on desktop and mobile', () => {
+    useInstructorMaterialsMock.mockReturnValue(
+      queryResult(statusMaterials) as unknown as ReturnType<
+        typeof useInstructorMaterials
+      >,
+    )
+
+    renderMaterialsPage()
+
+    for (const status of ['PROCESSING', 'READY', 'WARNING', 'FAILED']) {
+      expect(screen.getAllByText(status)).toHaveLength(2)
+    }
+    expect(
+      screen.getAllByText('This material is ready with a warning.'),
+    ).toHaveLength(2)
+    expect(
+      screen.getAllByText(
+        'This material could not be processed. Check the PDF and try again.',
+      ),
+    ).toHaveLength(2)
   })
 
   it('filters the repository by material title or filename', async () => {

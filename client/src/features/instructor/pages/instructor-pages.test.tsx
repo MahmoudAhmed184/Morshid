@@ -46,10 +46,12 @@ function renderInstructorPage(
       title,
     })),
     deferCourses = false,
+    coursesError = false,
   }: {
     session?: AuthSession
     courses?: { id: string; code: string; title: string }[]
     deferCourses?: boolean
+    coursesError?: boolean
   } = {},
 ) {
   setInstructorSession(session)
@@ -63,7 +65,23 @@ function renderInstructorPage(
     },
   })
 
-  if (deferCourses) {
+  if (coursesError) {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            code: 'COURSES_UNAVAILABLE',
+            message: 'Courses unavailable',
+          }),
+          {
+            status: 503,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        ),
+      ),
+    )
+  } else if (deferCourses) {
     vi.stubGlobal(
       'fetch',
       vi.fn(() => new Promise<Response>(() => undefined)),
@@ -158,11 +176,20 @@ describe('Instructor Pages', () => {
 
       expect(screen.getByRole('heading', { name: 'My Courses' })).toBeVisible()
       expect(
-        screen.getByRole('status', { name: 'Loading course' }),
-      ).toBeVisible()
+        screen.getAllByRole('status', { name: 'Loading course' }),
+      ).toHaveLength(3)
       expect(
         screen.queryByRole('heading', { name: 'No assigned courses' }),
       ).not.toBeInTheDocument()
+    })
+
+    it('shows a retryable error when assigned courses cannot be loaded', async () => {
+      renderInstructorPage(<MyCoursesPage />, { coursesError: true })
+
+      expect(
+        await screen.findByRole('heading', { name: 'Unable to load courses' }),
+      ).toBeVisible()
+      expect(screen.getByRole('button', { name: 'Retry' })).toBeVisible()
     })
   })
 

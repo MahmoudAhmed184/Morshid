@@ -28,52 +28,19 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { InstructorListSkeleton } from '@/features/instructor/components/instructor-list-skeleton'
-import { InstructorMaterialCard } from '@/features/instructor/components/instructor-material-card'
+import {
+  getInstructorMaterialStatusMessage,
+  InstructorMaterialCard,
+  InstructorMaterialStatusBadge,
+} from '@/features/instructor/components/instructor-material-card'
 import { MaterialUploadDialog } from '@/features/instructor/components/material-upload-dialog'
 import { useInstructorCourses } from '@/features/instructor/hooks/use-instructor-courses'
 import { useInstructorMaterials } from '@/features/instructor/hooks/use-instructor-materials'
-import { StatusBadge } from '@/components/ui/custom/status-badge'
 import type { InstructorMaterial } from '@/features/instructor/schemas/instructor-material.schema'
 
 const materialDateFormatter = new Intl.DateTimeFormat(undefined, {
   dateStyle: 'medium',
 })
-
-const materialStatusTones = {
-  PROCESSING: 'secondary',
-  READY: 'default',
-  WARNING: 'outline',
-  FAILED: 'destructive',
-} as const
-
-function getInstructorMaterialStatusMessage(material: InstructorMaterial) {
-  if (material.status === 'WARNING') {
-    return material.errorMessage ?? 'This material is ready with a warning.'
-  }
-
-  if (material.status === 'FAILED') {
-    return (
-      material.errorMessage ??
-      'This material could not be processed. Check the PDF and try again.'
-    )
-  }
-
-  return null
-}
-
-function InstructorMaterialStatusBadge({
-  status,
-}: {
-  status: InstructorMaterial['status']
-}) {
-  return (
-    <StatusBadge
-      status={status}
-      label={status}
-      tone={materialStatusTones[status]}
-    />
-  )
-}
 
 const materialTableHeaders = [
   'Material name',

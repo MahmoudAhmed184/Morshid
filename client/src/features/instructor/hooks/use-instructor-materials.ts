@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 
 import { uploadInstructorMaterial } from '@/features/instructor/data/instructor-materials.api'
 import {
@@ -27,6 +32,20 @@ export function useInstructorMaterials(courseId?: string) {
       courseId: courseId ?? 'unknown',
     }),
     enabled: instructorId !== undefined && courseId !== undefined,
+  })
+}
+
+export function useInstructorMaterialsByCourse(courseIds: string[]) {
+  const instructorId = useInstructorId()
+
+  return useQueries({
+    queries: courseIds.map((courseId) => ({
+      ...instructorMaterialsQueryOptions({
+        instructorId: instructorId ?? 'anonymous',
+        courseId,
+      }),
+      enabled: instructorId !== undefined,
+    })),
   })
 }
 

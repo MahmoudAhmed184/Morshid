@@ -1,45 +1,63 @@
 import { useInstructorCourses } from '@/features/instructor/hooks/use-instructor-courses'
+import { useInstructorMaterialsByCourse } from '@/features/instructor/hooks/use-instructor-materials'
 import { InstructorDashboardPage } from '@/features/instructor/pages/instructor-dashboard-page'
-
-const p0CourseCode = 'PYTHON-PROG-P0'
 
 export function InstructorDashboardShell() {
   const coursesQuery = useInstructorCourses()
+  const courses = coursesQuery.data ?? []
+  const materialQueries = useInstructorMaterialsByCourse(
+    courses.map((course) => course.id),
+  )
+  const isMaterialsPending = materialQueries.some((query) => query.isPending)
+  const isMaterialsError = materialQueries.some((query) => query.isError)
+  const isMaterialsFetching = materialQueries.some((query) => query.isFetching)
 
-  if (coursesQuery.isPending) {
+  if (coursesQuery.isPending || isMaterialsPending) {
     return <InstructorDashboardPage state={{ status: 'loading' }} />
   }
 
-  if (coursesQuery.isError) {
+  if (coursesQuery.isError || isMaterialsError) {
     return (
       <InstructorDashboardPage
         state={{
           status: 'error',
           onRetry: () => {
-            void coursesQuery.refetch()
+            if (coursesQuery.isError) {
+              void coursesQuery.refetch()
+              return
+            }
+
+            void Promise.all(materialQueries.map((query) => query.refetch()))
           },
-          isRetrying: coursesQuery.isFetching,
+          isRetrying: coursesQuery.isFetching || isMaterialsFetching,
         }}
       />
     )
   }
 
-  const course = coursesQuery.data.find(
-    (candidate) => candidate.code === p0CourseCode,
-  )
+  if (courses.length === 0) {
+    return <InstructorDashboardPage state={{ status: 'empty' }} />
+  }
+
+  const materials = materialQueries.flatMap((query) => query.data ?? [])
 
   return (
     <InstructorDashboardPage
-      state={
-        course
-          ? {
-              status: 'ready',
-              course,
-              materialCount: 0,
-              reviewQueueCount: 0,
-            }
-          : { status: 'empty' }
-      }
+      state={{
+        status: 'ready',
+        courses,
+        materialCount: materials.length,
+        readyMaterialCount: materials.filter(
+          (material) => material.status === 'READY',
+        ).length,
+        processingMaterialCount: materials.filter(
+          (material) => material.status === 'PROCESSING',
+        ).length,
+        attentionMaterialCount: materials.filter(
+          (material) =>
+            material.status === 'WARNING' || material.status === 'FAILED',
+        ).length,
+      }}
     />
   )
 }

@@ -10,7 +10,9 @@ export type InstructorDashboardState =
     }
   | {
       status: 'ready'
-      course: InstructorCourse
+      courses: InstructorCourse[]
       materialCount: number
-      reviewQueueCount: number
+      readyMaterialCount: number
+      processingMaterialCount: number
+      attentionMaterialCount: number
     }

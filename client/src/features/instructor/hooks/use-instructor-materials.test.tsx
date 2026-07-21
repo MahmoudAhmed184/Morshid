@@ -14,6 +14,7 @@ import {
 import { instructorMaterialKeys } from '@/features/instructor/data/instructor-materials.queries'
 
 import {
+  useInstructorMaterialsByCourse,
   useInstructorMaterials,
   useInstructorMaterialStatus,
   useUploadInstructorMaterial,
@@ -107,6 +108,35 @@ describe('Instructor material hooks', () => {
 
     await waitFor(() => expect(result.current.data).toEqual([material]))
     expect(listInstructorMaterialsMock).toHaveBeenCalledWith(courseId)
+  })
+
+  it('loads independently scoped material lists for multiple courses', async () => {
+    const secondCourseId = '55b55350-4cc4-4cf4-9e00-689c13359c8f'
+    const secondMaterial = {
+      ...material,
+      id: 'b1c32511-1348-411d-be9b-6879be6af035',
+      courseId: secondCourseId,
+      title: 'Graph Theory',
+    }
+    listInstructorMaterialsMock.mockImplementation(async (requestedCourseId) =>
+      requestedCourseId === secondCourseId
+        ? { materials: [secondMaterial] }
+        : { materials: [material] },
+    )
+
+    const { result } = renderHook(
+      () => useInstructorMaterialsByCourse([courseId, secondCourseId]),
+      { wrapper: createWrapper(createQueryClient()) },
+    )
+
+    await waitFor(() =>
+      expect(result.current.map((query) => query.data)).toEqual([
+        [material],
+        [secondMaterial],
+      ]),
+    )
+    expect(listInstructorMaterialsMock).toHaveBeenCalledWith(courseId)
+    expect(listInstructorMaterialsMock).toHaveBeenCalledWith(secondCourseId)
   })
 
   it('exposes a materials request error', async () => {

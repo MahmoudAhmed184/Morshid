@@ -6,6 +6,8 @@ import {
 import { NoCourseState } from '@/features/instructor/components/no-course-state'
 import type { InstructorCourse } from '@/features/instructor/schemas/instructor-course.schema'
 
+const courseSkeletonKeys = ['course-1', 'course-2', 'course-3'] as const
+
 type CoursesContentProps = {
   isLoading: boolean
   isError: boolean
@@ -24,7 +26,13 @@ export function CoursesContent({
   courses,
 }: CoursesContentProps) {
   if (isLoading) {
-    return <CourseHeroSkeleton />
+    return (
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {courseSkeletonKeys.map((key) => (
+          <CourseHeroSkeleton key={key} />
+        ))}
+      </div>
+    )
   }
 
   if (isError) {
@@ -44,7 +52,7 @@ export function CoursesContent({
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
       {courses.map((course) => (
         <CourseHero key={course.id} course={course} />
       ))}

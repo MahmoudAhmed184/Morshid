@@ -38,7 +38,7 @@ function createSession(role: AuthUser['role']): AuthSession {
         role === 'INSTRUCTOR'
           ? [
               {
-                id: 'python-course',
+                id: 'f5bb713c-09b7-42d3-acf3-02f39a902e5a',
                 code: 'PYTHON-PROG-P0',
                 title: 'Python Programming',
                 membershipRole: 'INSTRUCTOR',
@@ -91,6 +91,29 @@ function renderAtInstructorRoute(
             })),
           })
         )
+      }
+
+      if (
+        url.endsWith(
+          '/api/v1/courses/f5bb713c-09b7-42d3-acf3-02f39a902e5a/materials',
+        )
+      ) {
+        return Response.json({
+          materials: [
+            {
+              id: '3e533215-42ba-42b8-ad6a-404e7bb3c8d7',
+              courseId: 'f5bb713c-09b7-42d3-acf3-02f39a902e5a',
+              title: 'Course source',
+              originalFilename: 'course-source.pdf',
+              status: 'READY',
+              extractedTextLength: 1_200,
+              chunkCount: 2,
+              errorMessage: null,
+              createdAt: '2026-07-21T12:00:00.000Z',
+              updatedAt: '2026-07-21T12:01:00.000Z',
+            },
+          ],
+        })
       }
 
       throw new Error(`Unexpected request: ${url}`)
@@ -217,9 +240,8 @@ describe('/instructor', () => {
       screen.getByRole('searchbox', { name: 'Search course workspace' }),
     ).toBeVisible()
     expect(
-      screen.getByRole('heading', { name: 'Course materials' }),
+      screen.getByRole('heading', { name: 'Source readiness' }),
     ).toBeVisible()
-    expect(screen.getByRole('heading', { name: 'Review queue' })).toBeVisible()
     expect(
       screen.queryByLabelText('Checking authentication'),
     ).not.toBeInTheDocument()
