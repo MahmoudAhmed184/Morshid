@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import { Inject, Injectable, Logger } from '@nestjs/common'
 
-import { AuditService } from '../audit/audit.service'
+import type { RecordAuditEventInput } from '../audit/audit.service'
 import {
   AUDIT_EVENT_ACTIONS,
   AUDIT_TARGET_TYPES,
@@ -18,6 +18,8 @@ import { MaterialsRepository } from './materials.repository'
 import {
   PDF_TEXT_EXTRACTOR,
   PdfExtractionError,
+  PDF_TEXT_WARNINGS,
+  type PdfTextWarning,
   type PdfTextExtractor,
 } from './pdf-text-extractor'
 
@@ -33,6 +35,21 @@ export const MATERIAL_PROCESSING_FAILURES = {
 export type MaterialProcessingFailure =
   (typeof MATERIAL_PROCESSING_FAILURES)[keyof typeof MATERIAL_PROCESSING_FAILURES]
 
+export const MATERIAL_PROCESSING_SAFE_MESSAGES = {
+  BACKING_FILE_MISSING: 'The PDF backing file could not be found.',
+  STORAGE_READ_FAILED: 'The PDF could not be read from storage.',
+  PDF_EXTRACTION_FAILED: 'The PDF text could not be extracted.',
+  NO_EXTRACTABLE_TEXT:
+    'No extractable text was found. Scanned PDFs are not supported.',
+  EMBEDDING_FAILED: 'The material could not be embedded.',
+  FINALIZATION_FAILED: 'The extracted content could not be saved.',
+} satisfies Record<MaterialProcessingFailure, string>
+
+export const MATERIAL_PROCESSING_WARNING_MESSAGES = {
+  [PDF_TEXT_WARNINGS.PARTIAL_PAGE_TEXT]:
+    'Some PDF pages did not contain extractable text.',
+} satisfies Record<PdfTextWarning, string>
+
 @Injectable()
 export class MaterialProcessingService {
   private readonly logger = new Logger(MaterialProcessingService.name)
@@ -44,7 +61,6 @@ export class MaterialProcessingService {
     private readonly pdfTextExtractor: PdfTextExtractor,
     private readonly materialTextChunker: MaterialTextChunker,
     private readonly materialChunkEmbeddingService: MaterialChunkEmbeddingService,
-    private readonly auditService: AuditService,
   ) {}
 
   async processMaterial(materialId: string): Promise<void> {
@@ -74,12 +90,14 @@ export class MaterialProcessingService {
 
     let stage: 'storage' | 'extraction' | 'embedding' | 'finalization' =
       'storage'
+    let extractedTextLength: number | null = null
 
     try {
       const contents = await this.pdfStorage.read(material.storagePath)
       stage = 'extraction'
       const extraction = await this.pdfTextExtractor.extract(contents)
       const normalizedText = this.materialTextChunker.normalize(extraction.text)
+      extractedTextLength = normalizedText.length
       const chunks = this.materialTextChunker.chunk(normalizedText)
 
       if (normalizedText.length === 0 || chunks.length === 0) {
@@ -87,6 +105,7 @@ export class MaterialProcessingService {
           material,
           processingAttemptId,
           'NO_EXTRACTABLE_TEXT',
+          extractedTextLength,
         )
         return
       }
@@ -106,21 +125,26 @@ export class MaterialProcessingService {
             status,
             extractedTextLength: normalizedText.length,
             chunkCount: chunks.length,
+            errorMessage: warningMessage(extraction.warnings),
+            auditEvent: processingAuditEvent(material, status, {
+              chunkCount: chunks.length,
+              extractedTextLength: normalizedText.length,
+              warningCodes: extraction.warnings,
+            }),
           },
         )
 
       if (!completed) {
         throw new Error('Material processing finalization was not applied')
       }
-
-      await this.recordProcessingEvent(material, status, {
-        chunkCount: chunks.length,
-        extractedTextLength: normalizedText.length,
-        warningCodes: extraction.warnings,
-      })
     } catch (error) {
       const reason = classifyFailure(error, stage)
-      await this.failMaterial(material, processingAttemptId, reason)
+      await this.failMaterial(
+        material,
+        processingAttemptId,
+        reason,
+        extractedTextLength,
+      )
     }
   }
 
@@ -132,54 +156,59 @@ export class MaterialProcessingService {
     },
     processingAttemptId: string,
     reason: MaterialProcessingFailure,
+    extractedTextLength: number | null,
   ): Promise<void> {
-    let failed = false
-
     try {
-      failed = await this.materialsRepository.failMaterialProcessing(
+      await this.materialsRepository.failMaterialProcessing(
         material.id,
         processingAttemptId,
-        reason,
+        {
+          reasonCode: reason,
+          extractedTextLength,
+          errorMessage: MATERIAL_PROCESSING_SAFE_MESSAGES[reason],
+          auditEvent: processingAuditEvent(material, 'FAILED', {
+            reasonCode: reason,
+            ...(extractedTextLength === null ? {} : { extractedTextLength }),
+          }),
+        },
       )
     } catch {
       this.logger.error(
         `Material processing failure finalization failed materialId=${material.id} reasonCode=${reason}`,
       )
     }
+  }
+}
 
-    if (failed) {
-      await this.recordProcessingEvent(material, 'FAILED', {
-        reasonCode: reason,
-      })
-    }
+function processingAuditEvent(
+  material: { id: string; courseId: string; uploadedById: string },
+  status: 'READY' | 'WARNING' | 'FAILED',
+  metadata: Record<string, number | string | string[]>,
+): RecordAuditEventInput {
+  const action =
+    status === 'READY'
+      ? AUDIT_EVENT_ACTIONS.MATERIAL_PROCESSING_READY
+      : status === 'WARNING'
+        ? AUDIT_EVENT_ACTIONS.MATERIAL_PROCESSING_WARNING
+        : AUDIT_EVENT_ACTIONS.MATERIAL_PROCESSING_FAILED
+
+  return {
+    actorUserId: material.uploadedById,
+    action,
+    target: { type: AUDIT_TARGET_TYPES.MATERIAL, id: material.id },
+    courseId: material.courseId,
+    metadata: { materialId: material.id, status, ...metadata },
+  }
+}
+
+function warningMessage(warnings: readonly PdfTextWarning[]): string | null {
+  if (warnings.length === 0) {
+    return null
   }
 
-  private async recordProcessingEvent(
-    material: { id: string; courseId: string; uploadedById: string },
-    status: 'READY' | 'WARNING' | 'FAILED',
-    metadata: Record<string, number | string | string[]>,
-  ): Promise<void> {
-    const action =
-      status === 'READY'
-        ? AUDIT_EVENT_ACTIONS.MATERIAL_PROCESSING_READY
-        : status === 'WARNING'
-          ? AUDIT_EVENT_ACTIONS.MATERIAL_PROCESSING_WARNING
-          : AUDIT_EVENT_ACTIONS.MATERIAL_PROCESSING_FAILED
-
-    try {
-      await this.auditService.recordEvent({
-        actorUserId: material.uploadedById,
-        action,
-        target: { type: AUDIT_TARGET_TYPES.MATERIAL, id: material.id },
-        courseId: material.courseId,
-        metadata: { materialId: material.id, status, ...metadata },
-      })
-    } catch {
-      this.logger.error(
-        `Material processing audit failed materialId=${material.id} status=${status}`,
-      )
-    }
-  }
+  return warnings
+    .map((warning) => MATERIAL_PROCESSING_WARNING_MESSAGES[warning])
+    .join(' ')
 }
 
 function classifyFailure(

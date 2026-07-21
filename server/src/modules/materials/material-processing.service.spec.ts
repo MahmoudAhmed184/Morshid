@@ -1,12 +1,15 @@
-import type { AuditService } from '../audit/audit.service'
 import type { PdfStorage } from '../pdf-storage/pdf-storage'
 import type { MaterialChunkEmbeddingService } from '../rag-persistence/material-chunk-embedding.service'
 import type {
+  CompleteMaterialProcessingInput,
+  FailMaterialProcessingInput,
   MaterialsRepository,
   MaterialProcessingRecord,
 } from './materials.repository'
 import {
   MATERIAL_PROCESSING_FAILURES,
+  MATERIAL_PROCESSING_SAFE_MESSAGES,
+  MATERIAL_PROCESSING_WARNING_MESSAGES,
   MaterialProcessingService,
 } from './material-processing.service'
 import { MaterialTextChunker } from './material-text-chunker'
@@ -27,7 +30,6 @@ describe('MaterialProcessingService', () => {
   let storage: { read: jest.Mock }
   let extractor: { extract: jest.Mock }
   let embedding: { embedMaterialChunks: jest.Mock }
-  let audit: { recordEvent: jest.Mock }
   let service: MaterialProcessingService
 
   beforeEach(() => {
@@ -53,14 +55,12 @@ describe('MaterialProcessingService', () => {
         },
       ]),
     }
-    audit = { recordEvent: jest.fn().mockResolvedValue(undefined) }
     service = new MaterialProcessingService(
       repository as unknown as MaterialsRepository,
       storage as unknown as PdfStorage,
       extractor,
       new MaterialTextChunker(),
       embedding as unknown as MaterialChunkEmbeddingService,
-      audit as unknown as AuditService,
     )
   })
 
@@ -78,16 +78,20 @@ describe('MaterialProcessingService', () => {
         status: 'READY',
         extractedTextLength: 31,
         chunkCount: 1,
+        errorMessage: null,
       }),
     )
+    const completeCalls = repository.completeMaterialProcessing.mock
+      .calls as unknown as [
+      string,
+      string,
+      unknown[],
+      CompleteMaterialProcessingInput,
+    ][]
+    const completeInput = completeCalls[0][3]
+    expect(completeInput.auditEvent.action).toBe('material.processing_ready')
+    expect(completeInput.auditEvent.metadata).toMatchObject({ status: 'READY' })
     expect(repository.failMaterialProcessing).not.toHaveBeenCalled()
-    const [event] = audit.recordEvent.mock.calls[0] as [
-      { action: string; metadata: { status: string } },
-    ]
-    expect(event).toMatchObject({
-      action: 'material.processing_ready',
-      metadata: { status: 'READY' },
-    })
   })
 
   it.each([
@@ -109,8 +113,19 @@ describe('MaterialProcessingService', () => {
     expect(repository.failMaterialProcessing).toHaveBeenCalledWith(
       material.id,
       expect.any(String),
-      reason,
+      expect.objectContaining({
+        reasonCode: reason,
+        errorMessage: MATERIAL_PROCESSING_SAFE_MESSAGES[reason],
+        extractedTextLength: 0,
+      }),
     )
+    const failureCalls = repository.failMaterialProcessing.mock
+      .calls as unknown as [string, string, FailMaterialProcessingInput][]
+    const failureInput = failureCalls[0][2]
+    expect(failureInput.auditEvent.action).toBe('material.processing_failed')
+    expect(failureInput.auditEvent.metadata).toMatchObject({
+      reasonCode: reason,
+    })
     expect(embedding.embedMaterialChunks).not.toHaveBeenCalled()
   })
 
@@ -126,8 +141,25 @@ describe('MaterialProcessingService', () => {
       material.id,
       expect.any(String),
       expect.any(Array),
-      expect.objectContaining({ status: 'WARNING', chunkCount: 1 }),
+      expect.objectContaining({
+        status: 'WARNING',
+        chunkCount: 1,
+        errorMessage: MATERIAL_PROCESSING_WARNING_MESSAGES.PARTIAL_PAGE_TEXT,
+      }),
     )
+    const completeCalls = repository.completeMaterialProcessing.mock
+      .calls as unknown as [
+      string,
+      string,
+      unknown[],
+      CompleteMaterialProcessingInput,
+    ][]
+    const completeInput = completeCalls[0][3]
+    expect(completeInput.auditEvent.action).toBe('material.processing_warning')
+    expect(completeInput.auditEvent.metadata).toMatchObject({
+      status: 'WARNING',
+      warningCodes: ['PARTIAL_PAGE_TEXT'],
+    })
   })
 
   it.each([
@@ -161,10 +193,19 @@ describe('MaterialProcessingService', () => {
     expect(repository.failMaterialProcessing).toHaveBeenCalledWith(
       material.id,
       expect.any(String),
-      reason,
+      expect.objectContaining({
+        reasonCode: reason,
+        errorMessage: MATERIAL_PROCESSING_SAFE_MESSAGES[reason],
+        extractedTextLength:
+          reason === MATERIAL_PROCESSING_FAILURES.EMBEDDING_FAILED ? 31 : null,
+      }),
     )
-    const serializedAudit = JSON.stringify(audit.recordEvent.mock.calls)
-    expect(serializedAudit).not.toContain('SYNTHETIC_SENTINEL_TASK80_7f2b')
+    const serializedFinalization = JSON.stringify(
+      repository.failMaterialProcessing.mock.calls,
+    )
+    expect(serializedFinalization).not.toContain(
+      'SYNTHETIC_SENTINEL_TASK80_7f2b',
+    )
   })
 
   it('rolls back chunks and fails safely when final state persistence is unavailable', async () => {
@@ -175,7 +216,10 @@ describe('MaterialProcessingService', () => {
     expect(repository.failMaterialProcessing).toHaveBeenCalledWith(
       material.id,
       expect.any(String),
-      MATERIAL_PROCESSING_FAILURES.FINALIZATION_FAILED,
+      expect.objectContaining({
+        reasonCode: MATERIAL_PROCESSING_FAILURES.FINALIZATION_FAILED,
+        extractedTextLength: 31,
+      }),
     )
   })
 
@@ -192,7 +236,7 @@ describe('MaterialProcessingService', () => {
     expect(repository.claimMaterialProcessing).toHaveBeenCalledTimes(2)
     expect(embedding.embedMaterialChunks).toHaveBeenCalledTimes(1)
     expect(repository.failMaterialProcessing).not.toHaveBeenCalled()
-    expect(audit.recordEvent).toHaveBeenCalledTimes(1)
+    expect(repository.completeMaterialProcessing).toHaveBeenCalledTimes(1)
   })
 
   it('contains claim lookup failures before any background work escapes', async () => {
@@ -204,7 +248,7 @@ describe('MaterialProcessingService', () => {
 
     expect(storage.read).not.toHaveBeenCalled()
     expect(embedding.embedMaterialChunks).not.toHaveBeenCalled()
-    expect(audit.recordEvent).not.toHaveBeenCalled()
+    expect(repository.completeMaterialProcessing).not.toHaveBeenCalled()
   })
 
   it('does not emit a terminal audit when an expired stale attempt loses ownership', async () => {
@@ -245,14 +289,7 @@ describe('MaterialProcessingService', () => {
       (call) => (call as [string, string])[1],
     )
     expect(new Set(attempts).size).toBe(2)
-    expect(audit.recordEvent).toHaveBeenCalledTimes(1)
-    const [event] = audit.recordEvent.mock.calls[0] as [
-      { action: string; metadata: { status: string } },
-    ]
-    expect(event).toMatchObject({
-      action: 'material.processing_ready',
-      metadata: { status: 'READY' },
-    })
+    expect(repository.completeMaterialProcessing).toHaveBeenCalledTimes(2)
   })
 })
 
