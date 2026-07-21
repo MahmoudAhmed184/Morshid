@@ -2,6 +2,7 @@ import { BadRequestException, PayloadTooLargeException } from '@nestjs/common'
 import type { ConfigService } from '@nestjs/config'
 
 import type { AppEnvironment } from '../config/env.schema'
+import { MATERIAL_TITLE_MAX_LENGTH } from './materials.constants'
 import {
   PdfUploadValidator,
   type UploadedPdfFile,
@@ -60,6 +61,24 @@ describe('PdfUploadValidator', () => {
 
     expect(() =>
       validator.validate({ title: '   ', file: buildFile() }),
+    ).toThrow(BadRequestException)
+  })
+
+  it('accepts a title at the storage boundary', () => {
+    const validator = buildValidator()
+    const title = 'a'.repeat(MATERIAL_TITLE_MAX_LENGTH)
+
+    expect(validator.validate({ title, file: buildFile() }).title).toBe(title)
+  })
+
+  it('rejects a title beyond the storage boundary before persistence', () => {
+    const validator = buildValidator()
+
+    expect(() =>
+      validator.validate({
+        title: 'a'.repeat(MATERIAL_TITLE_MAX_LENGTH + 1),
+        file: buildFile(),
+      }),
     ).toThrow(BadRequestException)
   })
 
