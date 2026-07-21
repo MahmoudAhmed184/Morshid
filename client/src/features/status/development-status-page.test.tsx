@@ -44,11 +44,7 @@ describe('DevelopmentStatusPage', () => {
 
     render(
       <QueryClientProvider client={queryClient}>
-        <ThemeProvider
-          defaultTheme="system"
-          storageKey="test-theme"
-          presetStorageKey="test-theme-preset"
-        >
+        <ThemeProvider defaultTheme="system" storageKey="test-theme">
           <DevelopmentStatusPage />
         </ThemeProvider>
       </QueryClientProvider>,
@@ -79,11 +75,7 @@ describe('DevelopmentStatusPage', () => {
 
   it('renders the theme menu trigger without nesting buttons', () => {
     const markup = renderToStaticMarkup(
-      <ThemeProvider
-        defaultTheme="system"
-        storageKey="test-theme"
-        presetStorageKey="test-theme-preset"
-      >
+      <ThemeProvider defaultTheme="system" storageKey="test-theme">
         <ModeToggle />
       </ThemeProvider>,
     )

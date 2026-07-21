@@ -30,23 +30,21 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        'relative flex min-h-64 flex-col items-center justify-center overflow-hidden rounded-lg border border-dashed bg-muted/20 px-6 py-12 text-center',
+        'flex min-h-64 flex-col items-center justify-center rounded-2xl border border-dashed bg-muted/20 px-6 py-12 text-center',
         className,
       )}
     >
-      <div className="relative mb-4 flex size-12 items-center justify-center rounded-md bg-primary/10 text-primary [&_svg]:size-5">
+      <div className="mb-4 flex size-12 items-center justify-center rounded-xl bg-primary/10 text-primary [&_svg]:size-5">
         {icon ?? <InboxIcon />}
       </div>
-      <h2 className="relative text-base font-medium text-foreground">
-        {title}
-      </h2>
+      <h2 className="text-base font-medium text-foreground">{title}</h2>
       {description ? (
-        <p className="relative mt-2 max-w-md text-sm leading-6 text-muted-foreground">
+        <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
           {description}
         </p>
       ) : null}
       {action || secondaryAction ? (
-        <div className="relative mt-5 flex flex-col-reverse gap-2 sm:flex-row">
+        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row">
           {secondaryAction}
           {action}
         </div>

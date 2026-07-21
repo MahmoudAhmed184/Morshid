@@ -11,7 +11,7 @@ type PageHeaderProps = {
 /*
 Usage:
 <PageHeader
-  eyebrow={<Badge variant="secondary">Courses</Badge>}
+  eyebrow="Courses"
   title="Course management"
   description="Create, edit, and publish course content."
   actions={<Button>Create course</Button>}
@@ -27,16 +27,16 @@ export function PageHeader({
   return (
     <div
       className={cn(
-        'flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-end sm:justify-between',
+        'flex flex-col gap-4 border-b pb-6 sm:flex-row sm:items-end sm:justify-between',
         className,
       )}
     >
       <div className="min-w-0 space-y-2">
-        {eyebrow ? <div className="flex w-fit">{eyebrow}</div> : null}
+        {eyebrow ? (
+          <div className="smallcaps-label w-fit">{eyebrow}</div>
+        ) : null}
         <div>
-          <h1 className="text-3xl font-semibold tracking-normal text-foreground">
-            {title}
-          </h1>
+          <h1 className="display-3 text-foreground">{title}</h1>
           {description ? (
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
               {description}

@@ -35,7 +35,7 @@ function FooterLinkGroup({ title, links, id }: FooterLinkGroupProps) {
 
 export function Footer() {
   return (
-    <footer className="rule bg-background">
+    <footer className="rounded-t-3xl bg-secondary/50">
       <div className="mx-auto w-full max-w-6xl px-6 py-16 md:px-10">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-5">
           <div className="space-y-4 sm:col-span-2">

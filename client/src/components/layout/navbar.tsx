@@ -1,18 +1,10 @@
 import { Link } from '@tanstack/react-router'
-import { Menu } from 'lucide-react'
-import { useState } from 'react'
+import { Menu, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
 import { Logo } from '@/components/logo'
 import { Button } from '@/components/ui/button'
 import { ModeToggle } from '@/components/ui/mode-toggle'
-import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from '@/components/ui/sheet'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 import { getDashboardPath } from '@/features/auth/utils/auth-redirect'
 import { cn } from '@/lib/utils'
@@ -32,13 +24,14 @@ type NavLinkProps = {
   item: (typeof marketingNavLinks)[number] | (typeof instructorNavLinks)[number]
   children?: React.ReactNode
   className?: string
+  style?: React.CSSProperties
   onClick?: () => void
 }
 
 const navLinkClassName =
-  'smallcaps-label transition-colors duration-200 hover:text-foreground focus-visible:text-foreground focus-visible:outline-none'
+  'smallcaps-label rounded-sm transition-colors duration-200 outline-none hover:text-foreground focus-visible:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background'
 
-function NavLink({ item, children, className, onClick }: NavLinkProps) {
+function NavLink({ item, children, className, style, onClick }: NavLinkProps) {
   const linkClassName = cn(navLinkClassName, className)
 
   if ('to' in item) {
@@ -48,6 +41,7 @@ function NavLink({ item, children, className, onClick }: NavLinkProps) {
         hash={'hash' in item ? item.hash : undefined}
         onClick={onClick}
         className={linkClassName}
+        style={style}
       >
         {children}
       </Link>
@@ -55,7 +49,12 @@ function NavLink({ item, children, className, onClick }: NavLinkProps) {
   }
 
   return (
-    <a href={item.href} onClick={onClick} className={linkClassName}>
+    <a
+      href={item.href}
+      onClick={onClick}
+      className={linkClassName}
+      style={style}
+    >
       {children}
     </a>
   )
@@ -68,23 +67,35 @@ export function Navbar() {
   const navLinks =
     user?.role === 'INSTRUCTOR' ? instructorNavLinks : marketingNavLinks
 
+  const closeMenu = () => setOpen(false)
+
+  useEffect(() => {
+    if (!open) return
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+
+    document.addEventListener('keydown', onKeyDown)
+
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [open])
+
   return (
-    <header className="rule sticky top-0 z-50 bg-background/95 backdrop-blur-sm">
+    <header className="fixed inset-x-4 top-4 z-50">
       <nav
-        className="mx-auto flex h-16 w-full max-w-6xl items-center gap-6 px-6 md:px-10"
+        className="glass-paper relative mx-auto flex h-14 w-full max-w-6xl items-center gap-4 rounded-full pr-2 pl-5 shadow-md"
         aria-label="Main navigation"
       >
-        <div className="flex flex-1 items-center">
-          <Link
-            to="/"
-            className="group flex items-center gap-2.5 text-foreground transition-opacity hover:opacity-90 focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          >
-            <Logo iconClassName="size-6" />
-            <span className="font-display text-xl font-semibold">Morshid</span>
-          </Link>
-        </div>
+        <Link
+          to="/"
+          className="group flex items-center gap-2.5 rounded-full text-foreground outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        >
+          <Logo iconClassName="size-[22px]" />
+          <span className="font-display text-lg font-semibold">Morshid</span>
+        </Link>
 
-        <div className="hidden items-center gap-8 md:flex">
+        <div className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-8 lg:flex">
           {navLinks.map((link) => (
             <NavLink key={link.label} item={link}>
               {link.label}
@@ -92,13 +103,14 @@ export function Navbar() {
           ))}
         </div>
 
-        <div className="flex flex-1 items-center justify-end gap-4 sm:gap-5">
+        <div className="ml-auto flex items-center gap-2">
           <ModeToggle />
+
           {dashboardPath ? (
             <Button
               nativeButton={false}
               render={<Link to={dashboardPath} />}
-              className="hidden sm:inline-flex"
+              className="hidden lg:inline-flex"
             >
               Dashboard
             </Button>
@@ -106,105 +118,95 @@ export function Navbar() {
             <>
               <Link
                 to="/login"
-                className={cn(navLinkClassName, 'hidden sm:inline-flex')}
+                className={cn(navLinkClassName, 'hidden px-2 lg:inline-flex')}
               >
                 Sign in
               </Link>
               <Button
                 nativeButton={false}
                 render={<Link to="/login" />}
-                className="hidden sm:inline-flex"
+                className="hidden lg:inline-flex"
               >
                 Begin studying
               </Button>
             </>
           )}
 
-          <Sheet open={open} onOpenChange={setOpen}>
-            <SheetTrigger
-              render={
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="md:hidden"
-                  aria-label="Open menu"
-                />
-              }
-            >
-              <Menu className="size-5" />
-            </SheetTrigger>
-            <SheetContent side="right" className="w-full max-w-xs">
-              <SheetHeader>
-                <SheetTitle className="flex items-center gap-2.5">
-                  <Logo iconClassName="size-5" />
-                  <span className="font-display text-lg font-semibold">
-                    Morshid
-                  </span>
-                </SheetTitle>
-              </SheetHeader>
-              <div className="flex flex-col gap-4 px-6">
-                {navLinks.map((link) => (
-                  <SheetClose
-                    key={link.label}
-                    nativeButton={false}
-                    render={
-                      <NavLink
-                        item={link}
-                        className="py-1"
-                        onClick={() => setOpen(false)}
-                      />
-                    }
-                  >
-                    {link.label}
-                  </SheetClose>
-                ))}
-                <div className="rule mt-2 flex flex-col gap-3 pt-4">
-                  {dashboardPath ? (
-                    <SheetClose
-                      nativeButton={false}
-                      render={
-                        <Button
-                          nativeButton={false}
-                          render={<Link to={dashboardPath} />}
-                          className="w-full"
-                        />
-                      }
-                    >
-                      Dashboard
-                    </SheetClose>
-                  ) : (
-                    <>
-                      <SheetClose
-                        nativeButton={false}
-                        render={
-                          <Link
-                            to="/login"
-                            className={cn(navLinkClassName, 'py-1')}
-                          />
-                        }
-                      >
-                        Sign in
-                      </SheetClose>
-                      <SheetClose
-                        nativeButton={false}
-                        render={
-                          <Button
-                            nativeButton={false}
-                            render={<Link to="/login" />}
-                            className="w-full"
-                          />
-                        }
-                      >
-                        Begin studying
-                      </SheetClose>
-                    </>
-                  )}
-                </div>
-              </div>
-            </SheetContent>
-          </Sheet>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="rounded-full lg:hidden"
+            aria-label={open ? 'Close menu' : 'Open menu'}
+            aria-expanded={open}
+            aria-controls="mobile-navigation"
+            onClick={() => setOpen((value) => !value)}
+          >
+            {open ? <X className="size-5" /> : <Menu className="size-5" />}
+          </Button>
         </div>
       </nav>
+
+      {open && (
+        <>
+          <button
+            type="button"
+            aria-label="Close menu"
+            className="fixed inset-0 -z-10 cursor-default outline-none lg:hidden focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            onClick={closeMenu}
+          />
+          <nav
+            id="mobile-navigation"
+            aria-label="Mobile navigation"
+            className="glass-paper mx-auto mt-2 flex w-full max-w-6xl flex-col gap-1 rounded-3xl p-4 shadow-lg lg:hidden"
+          >
+            {navLinks.map((link, index) => (
+              <NavLink
+                key={link.label}
+                item={link}
+                className="py-2 motion-safe:animate-fade-up"
+                style={{ animationDelay: `${index * 60}ms` }}
+                onClick={closeMenu}
+              >
+                {link.label}
+              </NavLink>
+            ))}
+
+            <div
+              className="rule mt-2 flex flex-col gap-3 pt-4 motion-safe:animate-fade-up"
+              style={{ animationDelay: `${navLinks.length * 60}ms` }}
+            >
+              {dashboardPath ? (
+                <Button
+                  nativeButton={false}
+                  render={<Link to={dashboardPath} />}
+                  className="w-full"
+                  onClick={closeMenu}
+                >
+                  Dashboard
+                </Button>
+              ) : (
+                <>
+                  <Link
+                    to="/login"
+                    className={cn(navLinkClassName, 'py-1')}
+                    onClick={closeMenu}
+                  >
+                    Sign in
+                  </Link>
+                  <Button
+                    nativeButton={false}
+                    render={<Link to="/login" />}
+                    className="w-full"
+                    onClick={closeMenu}
+                  >
+                    Begin studying
+                  </Button>
+                </>
+              )}
+            </div>
+          </nav>
+        </>
+      )}
     </header>
   )
 }
