@@ -28,6 +28,8 @@ describe('validateEnv', () => {
       AUTH_ACCESS_TOKEN_TTL_SECONDS: 900,
       AUTH_REFRESH_TOKEN_TTL_DAYS: 7,
       EMBEDDING_PROVIDER: 'deterministic',
+      COMPLETION_PROVIDER: 'deterministic',
+      COMPLETION_TIMEOUT_MS: 30_000,
       RETRIEVAL_TOP_K: 5,
       RETRIEVAL_MIN_SIMILARITY: 0.7,
     })
@@ -73,6 +75,36 @@ describe('validateEnv', () => {
     expect(() => validateEnv({ ...validEnv, EMBEDDING_PROVIDER: '' })).toThrow(
       /EMBEDDING_PROVIDER: Invalid input/,
     )
+  })
+
+  it('accepts only implemented completion providers', () => {
+    expect(
+      validateEnv({ ...validEnv, COMPLETION_PROVIDER: 'deterministic' }),
+    ).toMatchObject({ COMPLETION_PROVIDER: 'deterministic' })
+    expect(() =>
+      validateEnv({ ...validEnv, COMPLETION_PROVIDER: 'openai' }),
+    ).toThrow(/COMPLETION_PROVIDER: Invalid input/)
+    expect(() => validateEnv({ ...validEnv, COMPLETION_PROVIDER: '' })).toThrow(
+      /COMPLETION_PROVIDER: Invalid input/,
+    )
+  })
+
+  it('coerces and bounds the completion timeout', () => {
+    expect(
+      validateEnv({ ...validEnv, COMPLETION_TIMEOUT_MS: '45000' }),
+    ).toMatchObject({ COMPLETION_TIMEOUT_MS: 45_000 })
+    expect(
+      validateEnv({ ...validEnv, COMPLETION_TIMEOUT_MS: '120000' }),
+    ).toMatchObject({ COMPLETION_TIMEOUT_MS: 120_000 })
+
+    for (const invalidTimeout of ['0', '-1', '1.5', '120001', 'never']) {
+      expect(() =>
+        validateEnv({
+          ...validEnv,
+          COMPLETION_TIMEOUT_MS: invalidTimeout,
+        }),
+      ).toThrow(/COMPLETION_TIMEOUT_MS:/)
+    }
   })
 
   it('fails clearly when required service URLs are missing', () => {

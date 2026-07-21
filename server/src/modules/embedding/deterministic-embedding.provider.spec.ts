@@ -1,7 +1,4 @@
-import {
-  DeterministicEmbeddingProvider,
-  normalizeEmbeddingText,
-} from './deterministic-embedding.provider'
+import { DeterministicEmbeddingProvider } from './deterministic-embedding.provider'
 import { EMBEDDING_DIMENSIONS } from './embedding-provider'
 
 describe('DeterministicEmbeddingProvider', () => {
@@ -80,16 +77,5 @@ describe('DeterministicEmbeddingProvider', () => {
 
     expect(batch).toHaveLength(texts.length)
     expect(batch).toEqual(singletons)
-  })
-})
-
-describe('normalizeEmbeddingText', () => {
-  it.each([
-    ['trims surrounding whitespace', '  foo  ', 'foo'],
-    ['collapses whitespace runs to one space', 'a \n\t b', 'a b'],
-    ['applies NFKC normalization', 'ﬁle', 'file'],
-    ['reduces whitespace-only input to the empty string', ' \n\t ', ''],
-  ])('%s', (_, input, expected) => {
-    expect(normalizeEmbeddingText(input)).toBe(expected)
   })
 })

@@ -1,16 +1,8 @@
 import { createHash } from 'node:crypto'
 
+import { normalizeDeterministicText } from '../../common/text/normalize-deterministic-text'
 import type { EmbeddingProvider } from './embedding-provider'
 import { EMBEDDING_DIMENSIONS } from './embedding-provider'
-
-// Identity, not equality: distinct raw strings that normalize to the same
-// text (PDF extraction is noisy about whitespace and Unicode compatibility
-// forms such as ligatures and Arabic presentation forms) must embed to the
-// same vector. No lowercasing — case folding is locale-sensitive and case can
-// be semantically meaningful.
-export function normalizeEmbeddingText(text: string): string {
-  return text.normalize('NFKC').trim().replace(/\s+/gu, ' ')
-}
 
 const BYTES_PER_COMPONENT = 4
 const HASH_BYTES = 32
@@ -41,7 +33,7 @@ export class DeterministicEmbeddingProvider implements EmbeddingProvider {
     const seed = createHash('sha256')
       .update(this.model)
       .update('\0')
-      .update(normalizeEmbeddingText(text))
+      .update(normalizeDeterministicText(text))
       .digest()
 
     const components = new Array<number>(EMBEDDING_DIMENSIONS)
