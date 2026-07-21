@@ -99,7 +99,7 @@ export function AdminMaterialsPage() {
         >
           <Table className="min-w-[820px]">
             <TableHeader>
-              <TableRow className="border-border hover:bg-transparent">
+              <TableRow>
                 {[
                   'Material',
                   'Course',
@@ -111,7 +111,7 @@ export function AdminMaterialsPage() {
                 ].map((header) => (
                   <TableHead
                     key={header}
-                    className="h-14 px-6 text-xs font-semibold tracking-[0.12em] text-muted-foreground uppercase"
+                    className="h-11 px-4 first:pl-6 last:pr-6"
                   >
                     {header}
                   </TableHead>
@@ -120,40 +120,37 @@ export function AdminMaterialsPage() {
             </TableHeader>
             <TableBody>
               {materialsQuery.data?.map((material) => (
-                <TableRow
-                  key={material.id}
-                  className="border-border hover:bg-muted/40"
-                >
-                  <TableCell className="px-6 py-5">
+                <TableRow key={material.id}>
+                  <TableCell className="px-4 py-3.5 first:pl-6">
                     <p className="font-medium text-foreground">
                       {material.title}
                     </p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="font-mono text-xs text-muted-foreground">
                       {material.id}
                     </p>
                   </TableCell>
-                  <TableCell className="px-6 py-5">
+                  <TableCell className="px-4 py-3.5">
                     {selectedCourse?.code ?? material.courseId}
                   </TableCell>
-                  <TableCell className="px-6 py-5">
+                  <TableCell className="px-4 py-3.5">
                     <p>PDF</p>
                     <p className="text-xs text-muted-foreground">
                       {material.originalFilename}
                     </p>
                   </TableCell>
-                  <TableCell className="px-6 py-5">
+                  <TableCell className="px-4 py-3.5">
                     <AdminStatusBadge status={material.status} />
                   </TableCell>
-                  <TableCell className="px-6 py-5">
+                  <TableCell className="px-4 py-3.5">
                     <p>{material.uploadedBy.displayName}</p>
                     <p className="text-xs text-muted-foreground">
                       {material.uploadedBy.email}
                     </p>
                   </TableCell>
-                  <TableCell className="px-6 py-5">
+                  <TableCell className="px-4 py-3.5 text-muted-foreground tabular-nums">
                     {materialDateFormatter.format(new Date(material.updatedAt))}
                   </TableCell>
-                  <TableCell className="px-6 py-5">
+                  <TableCell className="px-4 py-3.5 last:pr-6">
                     <EditAdminMaterialDialog
                       material={material}
                       isPending={editMaterial.isPending}

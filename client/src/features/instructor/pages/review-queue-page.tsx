@@ -26,16 +26,19 @@ export function ReviewQueuePage() {
       />
 
       <section aria-busy={isLoading || undefined}>
-        <Card className="rounded-[8px] border-border bg-card py-0 text-card-foreground ring-0">
-          <CardHeader className="border-b border-border px-4 py-3">
+        <Card className="py-0">
+          <CardHeader className="border-b px-4 py-3.5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <CardTitle className="flex items-center gap-2 text-sm text-foreground">
                 <ClipboardList className="size-4 text-primary" aria-hidden />
                 Review Queue
               </CardTitle>
               <div className="flex flex-wrap gap-2 text-xs">
-                {reviewQueueFilters.map((item) => (
-                  <Badge key={item} variant="outline">
+                {reviewQueueFilters.map((item, index) => (
+                  <Badge
+                    key={item}
+                    variant={index === 0 ? 'secondary' : 'outline'}
+                  >
                     {item}
                   </Badge>
                 ))}
@@ -83,7 +86,7 @@ function ReviewQueueListContent({
         description="Course context could not be loaded for reviews. Try again."
         onRetry={onRetry}
         isRetrying={isRetrying}
-        className="min-h-44 rounded-[8px]"
+        className="min-h-44 rounded-xl"
       />
     )
   }
@@ -94,7 +97,7 @@ function ReviewQueueListContent({
         icon={<ClipboardList aria-hidden />}
         title="No assigned course"
         description="Assign a course before this workspace can show review requests."
-        className="min-h-44 rounded-[8px]"
+        className="min-h-44 rounded-xl"
       />
     )
   }

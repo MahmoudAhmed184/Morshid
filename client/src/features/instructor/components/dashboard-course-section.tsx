@@ -67,15 +67,22 @@ function CourseCard({ course }: { course: InstructorCourse }) {
     <Card>
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-1">
-            <CardTitle>
-              <h3>{course.title}</h3>
-            </CardTitle>
-            <CardDescription>
-              Your protected Sprint 1 course workspace
-            </CardDescription>
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/15">
+              <BookOpen className="size-5" aria-hidden />
+            </span>
+            <div className="min-w-0 space-y-1">
+              <CardTitle>
+                <h3 className="truncate">{course.title}</h3>
+              </CardTitle>
+              <CardDescription>
+                Your protected Sprint 1 course workspace
+              </CardDescription>
+            </div>
           </div>
-          <Badge variant="outline">{course.code}</Badge>
+          <Badge variant="secondary" className="font-mono">
+            {course.code}
+          </Badge>
         </div>
       </CardHeader>
     </Card>

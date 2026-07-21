@@ -29,8 +29,8 @@ export function AdminAuditPage() {
         title="Recent Audit Activity"
         description="Track recent authentication, authorization, account, assignment, and material events."
         actions={
-          <div className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground">
-            <ShieldCheckIcon className="size-4 text-emerald-500" />
+          <div className="flex items-center gap-2 rounded-lg bg-success/10 px-3 py-2 text-sm font-medium text-[color-mix(in_oklab,var(--success)_74%,var(--foreground))] ring-1 ring-success/20 dark:text-success">
+            <ShieldCheckIcon className="size-4" />
             RBAC monitored
           </div>
         }
@@ -48,12 +48,12 @@ export function AdminAuditPage() {
         >
           <Table className="min-w-[760px]">
             <TableHeader>
-              <TableRow className="border-border hover:bg-transparent">
+              <TableRow>
                 {['Event', 'Actor', 'Target type', 'Course', 'Created'].map(
                   (header) => (
                     <TableHead
                       key={header}
-                      className="h-14 px-6 text-xs font-semibold tracking-[0.12em] text-muted-foreground uppercase"
+                      className="h-11 px-4 first:pl-6 last:pr-6"
                     >
                       {header}
                     </TableHead>
@@ -63,31 +63,30 @@ export function AdminAuditPage() {
             </TableHeader>
             <TableBody>
               {auditQuery.data?.map((event) => (
-                <TableRow
-                  key={event.id}
-                  className="border-border hover:bg-muted/40"
-                >
-                  <TableCell className="px-6 py-5">
+                <TableRow key={event.id}>
+                  <TableCell className="px-4 py-3.5 first:pl-6">
                     <p className="font-medium text-foreground">
                       {event.action}
                     </p>
-                    <p className="text-xs text-muted-foreground">{event.id}</p>
+                    <p className="font-mono text-xs text-muted-foreground">
+                      {event.id}
+                    </p>
                   </TableCell>
-                  <TableCell className="px-6 py-5">
+                  <TableCell className="px-4 py-3.5">
                     {event.actor?.displayName ?? 'System'}
                   </TableCell>
-                  <TableCell className="px-6 py-5">
+                  <TableCell className="px-4 py-3.5">
                     {event.targetType}
                     {event.targetId ? (
-                      <p className="text-xs text-muted-foreground">
+                      <p className="font-mono text-xs text-muted-foreground">
                         {event.targetId}
                       </p>
                     ) : null}
                   </TableCell>
-                  <TableCell className="px-6 py-5">
+                  <TableCell className="px-4 py-3.5 text-muted-foreground">
                     {event.courseId ?? '—'}
                   </TableCell>
-                  <TableCell className="px-6 py-5">
+                  <TableCell className="px-4 py-3.5 text-muted-foreground tabular-nums last:pr-6">
                     {dateFormatter.format(new Date(event.createdAt))}
                   </TableCell>
                 </TableRow>

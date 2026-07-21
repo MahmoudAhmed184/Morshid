@@ -6,12 +6,15 @@ import {
   HistoryIcon,
   UsersIcon,
 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DataTableState } from '@/components/ui/custom/data-table-state'
 import { EmptyState } from '@/components/ui/custom/empty-state'
+import { StatCard } from '@/components/ui/custom/stat-card'
+import { cn } from '@/lib/utils'
 import { AdminPanel } from '../components/admin-panel'
-import { AdminStatusBadge } from '../components/admin-status-badge'
 import { useAdminAudit } from '../hooks/use-admin-audit'
 import { useAdminCourses } from '../hooks/use-admin-courses'
 import { useAdminUsers } from '../hooks/use-admin-users'
@@ -43,10 +46,27 @@ const sections = [
   },
 ] as const
 
+const iconChip =
+  'flex size-9 shrink-0 items-center justify-center rounded-lg [&_svg]:size-4'
+
 const auditDateFormatter = new Intl.DateTimeFormat(undefined, {
   dateStyle: 'medium',
   timeStyle: 'short',
 })
+
+function MetricIcon({
+  icon: Icon,
+  className,
+}: {
+  icon: LucideIcon
+  className: string
+}) {
+  return (
+    <span className={cn(iconChip, className)}>
+      <Icon aria-hidden />
+    </span>
+  )
+}
 
 export function AdminDashboardPage() {
   const usersQuery = useAdminUsers()
@@ -62,9 +82,26 @@ export function AdminDashboardPage() {
   const isError = usersQuery.isError || coursesQuery.isError
 
   const metrics = [
-    ['Users loaded', users.length],
-    ['Courses', courses.length],
-    ['Materials', materialCount],
+    {
+      label: 'Users loaded',
+      value: users.length,
+      icon: (
+        <MetricIcon icon={UsersIcon} className="bg-primary/10 text-primary" />
+      ),
+      description: 'Managed student and instructor accounts',
+    },
+    {
+      label: 'Courses',
+      value: courses.length,
+      icon: <MetricIcon icon={BookOpenIcon} className="bg-info/12 text-info" />,
+      description: 'Active course shells across the platform',
+    },
+    {
+      label: 'Materials',
+      value: materialCount,
+      icon: <MetricIcon icon={FileTextIcon} className="bg-gold/15 text-gold" />,
+      description: 'Learning assets ingested into courses',
+    },
   ] as const
 
   return (
@@ -81,15 +118,14 @@ export function AdminDashboardPage() {
     >
       <div>
         <div className="mb-6 grid gap-4 md:grid-cols-3">
-          {metrics.map(([label, value]) => (
-            <AdminPanel key={label} className="p-5">
-              <p className="text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase">
-                {label}
-              </p>
-              <p className="mt-3 text-3xl font-semibold text-foreground">
-                {value}
-              </p>
-            </AdminPanel>
+          {metrics.map((metric) => (
+            <StatCard
+              key={metric.label}
+              label={metric.label}
+              value={<span className="tabular-nums">{metric.value}</span>}
+              icon={metric.icon}
+              description={metric.description}
+            />
           ))}
         </div>
 
@@ -99,11 +135,14 @@ export function AdminDashboardPage() {
               const Icon = section.icon
 
               return (
-                <AdminPanel key={section.to} className="p-5">
-                  <div className="mb-5 flex size-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <AdminPanel
+                  key={section.to}
+                  className="flex flex-col p-5 transition-shadow hover:shadow-md"
+                >
+                  <div className="mb-5 flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/15">
                     <Icon className="size-5" />
                   </div>
-                  <h2 className="text-lg font-semibold text-foreground">
+                  <h2 className="text-base font-semibold text-foreground">
                     {section.title}
                   </h2>
                   <p className="mt-2 min-h-12 text-sm leading-6 text-muted-foreground">
@@ -111,8 +150,9 @@ export function AdminDashboardPage() {
                   </p>
                   <Button
                     nativeButton={false}
+                    variant="outline"
                     render={<Link to={section.to} />}
-                    className="mt-5"
+                    className="mt-5 w-fit"
                   >
                     Open section
                   </Button>
@@ -122,9 +162,11 @@ export function AdminDashboardPage() {
           </div>
 
           <AdminPanel className="p-5">
-            <div className="mb-5 flex items-center gap-3">
-              <HistoryIcon className="size-5 text-primary" />
-              <h2 className="text-lg font-semibold text-foreground">
+            <div className="mb-5 flex items-center gap-2.5">
+              <span className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <HistoryIcon className="size-4" />
+              </span>
+              <h2 className="text-base font-semibold text-foreground">
                 Recent Audit Activity
               </h2>
             </div>
@@ -142,31 +184,30 @@ export function AdminDashboardPage() {
                 />
               }
             >
-              <div className="space-y-4">
+              <ol className="space-y-2.5">
                 {auditQuery.data?.map((event) => (
-                  <div
+                  <li
                     key={event.id}
-                    className="rounded-lg border border-border bg-muted/20 p-4"
+                    className="rounded-lg bg-muted/40 p-3.5 ring-1 ring-foreground/5 transition-colors hover:bg-muted/60"
                   >
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-medium text-foreground">
+                      <p className="truncate text-sm font-medium text-foreground">
                         {event.action.replaceAll('.', ' ')}
                       </p>
-                      <AdminStatusBadge
-                        status="ACTIVE"
-                        label={event.targetType}
-                      />
+                      <Badge variant="secondary" className="shrink-0">
+                        {event.targetType}
+                      </Badge>
                     </div>
-                    <p className="mt-2 text-sm text-muted-foreground">
+                    <p className="mt-1.5 truncate text-sm text-muted-foreground">
                       {event.actor?.displayName ?? 'System'}
                       {event.targetId ? ` on ${event.targetId}` : ''}
                     </p>
-                    <p className="mt-2 text-xs text-muted-foreground">
+                    <p className="mt-1.5 text-xs text-muted-foreground tabular-nums">
                       {auditDateFormatter.format(new Date(event.createdAt))}
                     </p>
-                  </div>
+                  </li>
                 ))}
-              </div>
+              </ol>
             </DataTableState>
           </AdminPanel>
         </div>

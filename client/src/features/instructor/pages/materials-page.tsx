@@ -28,19 +28,19 @@ export function MaterialsPage() {
       />
 
       <section aria-busy={isLoading || undefined}>
-        <Card className="rounded-[8px] border-border bg-card py-0 text-card-foreground ring-0">
-          <CardHeader className="border-b border-border px-4 py-3">
+        <Card className="py-0">
+          <CardHeader className="border-b px-4 py-3.5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <CardTitle className="flex items-center gap-2 text-sm text-foreground">
                 <FileText className="size-4 text-primary" aria-hidden />
                 Course Materials
               </CardTitle>
               <div className="flex flex-wrap gap-2">
-                <div className="flex h-8 min-w-44 items-center rounded-[6px] border border-border bg-background px-3 text-xs text-muted-foreground">
+                <div className="flex h-8 min-w-44 items-center rounded-lg border border-input bg-background px-3 text-xs text-muted-foreground shadow-xs">
                   <Search className="mr-2 size-3.5" aria-hidden />
                   Search by title
                 </div>
-                <div className="flex h-8 items-center rounded-[6px] border border-border px-3 text-xs text-muted-foreground">
+                <div className="flex h-8 items-center gap-1.5 rounded-lg border border-input bg-background px-3 text-xs text-muted-foreground shadow-xs">
                   All Topics
                 </div>
               </div>
@@ -87,7 +87,7 @@ function MaterialsListContent({
         description="Course context could not be loaded for materials. Try again."
         onRetry={onRetry}
         isRetrying={isRetrying}
-        className="min-h-44 rounded-[8px]"
+        className="min-h-44 rounded-xl"
       />
     )
   }
@@ -98,7 +98,7 @@ function MaterialsListContent({
         icon={<FileText aria-hidden />}
         title="No assigned course"
         description="Assign a course before this workspace can show course materials."
-        className="min-h-44 rounded-[8px]"
+        className="min-h-44 rounded-xl"
       />
     )
   }

@@ -1,6 +1,15 @@
-import { FileText, MoreHorizontal } from 'lucide-react'
+import {
+  CheckCircle2,
+  FileText,
+  Loader2,
+  MoreHorizontal,
+  TriangleAlert,
+  XCircle,
+} from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
+import type { badgeVariants } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -8,6 +17,75 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
+import type { VariantProps } from 'class-variance-authority'
+
+type BadgeVariant = NonNullable<VariantProps<typeof badgeVariants>['variant']>
+
+type StatusPresentation = {
+  variant: BadgeVariant
+  icon: LucideIcon
+  chip: string
+  spin?: boolean
+}
+
+const statusPresentation: Record<string, StatusPresentation> = {
+  ready: {
+    variant: 'success',
+    icon: CheckCircle2,
+    chip: 'bg-success/12 text-success',
+  },
+  complete: {
+    variant: 'success',
+    icon: CheckCircle2,
+    chip: 'bg-success/12 text-success',
+  },
+  processing: {
+    variant: 'info',
+    icon: Loader2,
+    chip: 'bg-info/12 text-info',
+    spin: true,
+  },
+  uploading: {
+    variant: 'info',
+    icon: Loader2,
+    chip: 'bg-info/12 text-info',
+    spin: true,
+  },
+  warning: {
+    variant: 'warning',
+    icon: TriangleAlert,
+    chip: 'bg-warning/15 text-warning-foreground dark:text-warning',
+  },
+  degraded: {
+    variant: 'warning',
+    icon: TriangleAlert,
+    chip: 'bg-warning/15 text-warning-foreground dark:text-warning',
+  },
+  failed: {
+    variant: 'destructive',
+    icon: XCircle,
+    chip: 'bg-destructive/10 text-destructive',
+  },
+  error: {
+    variant: 'destructive',
+    icon: XCircle,
+    chip: 'bg-destructive/10 text-destructive',
+  },
+}
+
+const fallbackPresentation: StatusPresentation = {
+  variant: 'secondary',
+  icon: FileText,
+  chip: 'bg-muted text-primary',
+}
+
+function presentationFor(status?: string): StatusPresentation {
+  if (!status) {
+    return fallbackPresentation
+  }
+
+  return statusPresentation[status.toLowerCase()] ?? fallbackPresentation
+}
 
 type PdfCardProps = {
   title: string
@@ -24,15 +102,23 @@ export function PdfCard({
   actions,
   className,
 }: PdfCardProps) {
+  const presentation = presentationFor(status)
+  const Icon = presentation.icon
+
   return (
     <article
       className={cn(
-        'flex items-start gap-3 rounded-[8px] border border-border bg-background px-4 py-3 text-left',
+        'flex items-start gap-3 rounded-xl bg-background px-4 py-3.5 text-left ring-1 ring-foreground/8 transition-shadow hover:shadow-sm',
         className,
       )}
     >
-      <div className="flex size-10 shrink-0 items-center justify-center rounded-[8px] bg-muted text-primary">
-        <FileText className="size-5" aria-hidden />
+      <div
+        className={cn(
+          'flex size-10 shrink-0 items-center justify-center rounded-xl [&_svg]:size-5',
+          presentation.chip,
+        )}
+      >
+        <Icon className={cn(presentation.spin && 'animate-spin')} aria-hidden />
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-start justify-between gap-2">
@@ -47,7 +133,9 @@ export function PdfCard({
             ) : null}
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {status ? <Badge variant="outline">{status}</Badge> : null}
+            {status ? (
+              <Badge variant={presentation.variant}>{status}</Badge>
+            ) : null}
             {actions ? (
               <DropdownMenu>
                 <DropdownMenuTrigger

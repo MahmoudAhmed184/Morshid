@@ -42,12 +42,9 @@ export function AdminUsersTable({
   return (
     <Table className="min-w-[760px]">
       <TableHeader>
-        <TableRow className="border-border hover:bg-transparent">
+        <TableRow>
           {tableHeaders.map((header) => (
-            <TableHead
-              key={header}
-              className="h-14 px-6 text-xs font-semibold tracking-[0.12em] text-muted-foreground uppercase"
-            >
+            <TableHead key={header} className="h-11 px-4 first:pl-6 last:pr-6">
               {header}
             </TableHead>
           ))}
@@ -58,28 +55,27 @@ export function AdminUsersTable({
           <TableRow
             key={user.id}
             className={cn(
-              'border-border hover:bg-muted/40',
               user.status === 'DISABLED' &&
-                'bg-destructive/5 text-muted-foreground hover:bg-destructive/10',
+                'bg-destructive/[0.04] hover:bg-destructive/[0.07] [&_td:not(:nth-child(4))]:text-muted-foreground',
             )}
           >
-            <TableCell className="px-6 py-5">
+            <TableCell className="px-4 py-3.5 first:pl-6">
               <p className="font-medium text-foreground">{user.displayName}</p>
               <p className="text-xs text-muted-foreground">{user.email}</p>
             </TableCell>
-            <TableCell className="px-6 py-5">
+            <TableCell className="px-4 py-3.5">
               {toRoleLabel(user.role)}
             </TableCell>
-            <TableCell className="px-6 py-5">
+            <TableCell className="px-4 py-3.5 tabular-nums">
               {user.courseAssignments.courseCount}
             </TableCell>
-            <TableCell className="px-6 py-5">
+            <TableCell className="px-4 py-3.5">
               <AdminStatusBadge status={user.status} />
             </TableCell>
-            <TableCell className="px-6 py-5">
+            <TableCell className="px-4 py-3.5 text-muted-foreground tabular-nums">
               {dateFormatter.format(new Date(user.updatedAt))}
             </TableCell>
-            <TableCell className="px-6 py-5">
+            <TableCell className="px-4 py-3.5 last:pr-6">
               <AdminUserActions
                 user={user}
                 isResettingPassword={isResettingPassword}

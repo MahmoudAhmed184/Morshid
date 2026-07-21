@@ -3,7 +3,6 @@ import {
   BookOpenIcon,
   ClipboardListIcon,
   FileTextIcon,
-  GraduationCapIcon,
   HistoryIcon,
   LayoutDashboardIcon,
   SettingsIcon,
@@ -12,6 +11,8 @@ import {
 
 import { AppSidebar } from '@/components/layout/app-sidebar'
 import type { AppSidebarNavItem } from '@/components/layout/app-sidebar'
+import { Logo } from '@/components/logo'
+import { getUserInitials } from '@/components/layout/dashboard-header'
 import { ModeToggle } from '@/components/ui/mode-toggle'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 
@@ -70,16 +71,14 @@ export function AdminPageShell() {
           pathname={pathname}
           ariaLabel="Admin navigation"
           header={
-            <div className="px-8 py-10">
+            <div className="px-6 py-8">
               <div className="flex items-center gap-3">
-                <div className="flex size-10 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                  <GraduationCapIcon className="size-5" />
-                </div>
+                <Logo />
                 <div>
-                  <p className="font-serif text-3xl font-semibold tracking-normal text-sidebar-foreground">
+                  <p className="font-display text-2xl font-semibold tracking-tight text-sidebar-foreground">
                     Morshid Admin
                   </p>
-                  <p className="mt-1 text-xs font-semibold tracking-[0.18em] text-muted-foreground uppercase">
+                  <p className="mt-0.5 text-[0.7rem] font-semibold tracking-[0.18em] text-muted-foreground uppercase">
                     Higher Ed AI Portal
                   </p>
                 </div>
@@ -93,9 +92,9 @@ export function AdminPageShell() {
           footer={
             currentUser ? (
               <div className="border-t border-sidebar-border p-6">
-                <div className="flex items-center gap-3 rounded-lg border border-sidebar-border bg-sidebar-accent/40 p-4">
-                  <div className="flex size-10 items-center justify-center rounded-full bg-sidebar-primary text-sidebar-primary-foreground">
-                    <UsersIcon className="size-5" />
+                <div className="flex items-center gap-3 rounded-xl border border-sidebar-border bg-sidebar-accent/40 p-3">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-sidebar-primary text-sm font-semibold text-sidebar-primary-foreground">
+                    {getUserInitials(currentUser.displayName)}
                   </div>
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-sidebar-foreground">
@@ -113,8 +112,11 @@ export function AdminPageShell() {
       </aside>
 
       <div className="h-full overflow-y-auto lg:pl-72">
-        <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur">
-          <div className="flex h-16 items-center justify-end px-4 sm:px-6 lg:px-10">
+        <header className="surface-glass sticky top-0 z-30 border-b border-border">
+          <div className="flex h-16 items-center justify-between px-4 sm:px-6 lg:px-10">
+            <p className="text-sm font-medium text-muted-foreground">
+              Administrator console
+            </p>
             <ModeToggle />
           </div>
         </header>

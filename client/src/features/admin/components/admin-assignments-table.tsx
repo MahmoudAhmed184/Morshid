@@ -44,25 +44,27 @@ export function AdminAssignmentsTable({
     <Table className="min-w-[680px]">
       <TableHeader>
         <TableRow>
-          <TableHead>User</TableHead>
-          <TableHead>Account role</TableHead>
-          <TableHead>Course role</TableHead>
-          <TableHead className="text-right">Actions</TableHead>
+          <TableHead className="h-11 px-4 pl-6">User</TableHead>
+          <TableHead className="h-11 px-4">Account role</TableHead>
+          <TableHead className="h-11 px-4">Course role</TableHead>
+          <TableHead className="h-11 px-4 pr-6 text-right">Actions</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {members.map((member) => (
           <TableRow key={member.id}>
-            <TableCell>
-              <p className="font-medium">{member.user.displayName}</p>
+            <TableCell className="px-4 py-3.5 pl-6">
+              <p className="font-medium text-foreground">
+                {member.user.displayName}
+              </p>
               <p className="text-xs text-muted-foreground">
                 {member.user.email}
               </p>
             </TableCell>
-            <TableCell className="capitalize">
+            <TableCell className="px-4 py-3.5 capitalize">
               {member.user.role.toLowerCase()}
             </TableCell>
-            <TableCell>
+            <TableCell className="px-4 py-3.5">
               <Select
                 value={member.role}
                 disabled={isPending}
@@ -87,7 +89,7 @@ export function AdminAssignmentsTable({
                 </SelectContent>
               </Select>
             </TableCell>
-            <TableCell className="text-right">
+            <TableCell className="px-4 py-3.5 pr-6 text-right">
               <ConfirmDialog
                 trigger={
                   <Button variant="ghost" size="icon-sm" disabled={isPending}>

@@ -3,6 +3,7 @@ import { Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -20,26 +21,35 @@ type DashboardPanelsSectionProps = {
 export function DashboardPanelsSection({ state }: DashboardPanelsSectionProps) {
   return (
     <div className="grid gap-6 lg:grid-cols-2">
-      {instructorDashboardPanels.map((panel) => (
-        <section
-          key={panel.id}
-          aria-labelledby={panel.headingId}
-          aria-busy={state.status === 'loading' || undefined}
-          id={panel.id}
-        >
-          <Card className="h-full">
-            <CardHeader>
-              <CardTitle>
-                <h2 id={panel.headingId}>{panel.title}</h2>
-              </CardTitle>
-              <CardDescription>{panel.description}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <DashboardPanelContent state={state} panel={panel} />
-            </CardContent>
-          </Card>
-        </section>
-      ))}
+      {instructorDashboardPanels.map((panel) => {
+        const PanelIcon = panel.icon
+
+        return (
+          <section
+            key={panel.id}
+            aria-labelledby={panel.headingId}
+            aria-busy={state.status === 'loading' || undefined}
+            id={panel.id}
+          >
+            <Card className="h-full">
+              <CardHeader>
+                <CardTitle>
+                  <h2 id={panel.headingId}>{panel.title}</h2>
+                </CardTitle>
+                <CardDescription>{panel.description}</CardDescription>
+                <CardAction>
+                  <span className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary [&_svg]:size-4">
+                    <PanelIcon aria-hidden />
+                  </span>
+                </CardAction>
+              </CardHeader>
+              <CardContent>
+                <DashboardPanelContent state={state} panel={panel} />
+              </CardContent>
+            </Card>
+          </section>
+        )
+      })}
     </div>
   )
 }

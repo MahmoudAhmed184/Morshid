@@ -7,11 +7,7 @@ import type { InstructorCourse } from '@/features/instructor/schemas/instructor-
 
 export function CourseHeroSkeleton() {
   return (
-    <Card
-      aria-label="Loading course"
-      className="rounded-[8px] border-border bg-card py-0 text-card-foreground ring-0"
-      role="status"
-    >
+    <Card aria-label="Loading course" className="py-0" role="status">
       <CardContent className="overflow-hidden px-0">
         <div className="relative min-h-56 p-5 sm:p-6">
           <div className="relative flex min-h-44 flex-col justify-between gap-8">
@@ -30,7 +26,7 @@ export function CourseHeroSkeleton() {
               {instructorCourseMetrics.map((metric) => (
                 <div
                   key={metric.label}
-                  className="rounded-[8px] border border-border bg-background/70 px-4 py-3"
+                  className="rounded-lg border border-border bg-background/70 px-4 py-3"
                 >
                   <Skeleton className="h-3 w-16" />
                   <Skeleton className="mt-2 h-4 w-20" />
@@ -46,18 +42,18 @@ export function CourseHeroSkeleton() {
 
 export function CourseHero({ course }: { course: InstructorCourse }) {
   return (
-    <Card className="rounded-[8px] border-border bg-card py-0 text-card-foreground ring-0">
+    <Card className="py-0">
       <CardContent className="overflow-hidden px-0">
         <div className="relative min-h-56 p-5 sm:p-6">
           <div aria-hidden className="absolute inset-0 bg-card" />
           <div
             aria-hidden
-            className="absolute inset-0 opacity-30 [background-image:linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] [background-size:40px_40px]"
+            className="absolute inset-0 opacity-25 [background-image:linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] [background-size:40px_40px] [mask-image:radial-gradient(ellipse_at_top_right,black,transparent_75%)]"
           />
           <div className="relative flex min-h-44 flex-col justify-between gap-8">
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge>{course.code}</Badge>
+                <Badge className="font-mono">{course.code}</Badge>
               </div>
               <div className="max-w-2xl space-y-2">
                 <h2 className="text-3xl font-semibold text-foreground sm:text-4xl">

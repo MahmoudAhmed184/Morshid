@@ -17,11 +17,16 @@ export function AdminCoursesTable({ courses }: { courses: AdminCourse[] }) {
     <Table className="min-w-[820px]">
       <TableHeader>
         <TableRow>
-          <TableHead>Course</TableHead>
-          <TableHead>Instructors</TableHead>
-          <TableHead>Students</TableHead>
-          <TableHead>Materials</TableHead>
-          <TableHead>Updated</TableHead>
+          {['Course', 'Instructors', 'Students', 'Materials', 'Updated'].map(
+            (header) => (
+              <TableHead
+                key={header}
+                className="h-11 px-4 first:pl-6 last:pr-6"
+              >
+                {header}
+              </TableHead>
+            ),
+          )}
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -32,18 +37,24 @@ export function AdminCoursesTable({ courses }: { courses: AdminCourse[] }) {
 
           return (
             <TableRow key={course.id}>
-              <TableCell>
-                <p className="font-medium">{course.title}</p>
+              <TableCell className="px-4 py-3.5 first:pl-6">
+                <p className="font-medium text-foreground">{course.title}</p>
                 <p className="text-xs text-muted-foreground">{course.code}</p>
               </TableCell>
-              <TableCell>
-                {instructors.length > 0
-                  ? instructors.join(', ')
-                  : 'Not assigned'}
+              <TableCell className="px-4 py-3.5">
+                {instructors.length > 0 ? (
+                  instructors.join(', ')
+                ) : (
+                  <span className="text-muted-foreground">Not assigned</span>
+                )}
               </TableCell>
-              <TableCell>{course.adminMetadata.studentCount}</TableCell>
-              <TableCell>{course.adminMetadata.materialCount} total</TableCell>
-              <TableCell>
+              <TableCell className="px-4 py-3.5 tabular-nums">
+                {course.adminMetadata.studentCount}
+              </TableCell>
+              <TableCell className="px-4 py-3.5 tabular-nums">
+                {course.adminMetadata.materialCount} total
+              </TableCell>
+              <TableCell className="px-4 py-3.5 text-muted-foreground tabular-nums last:pr-6">
                 {dateFormatter.format(new Date(course.adminMetadata.updatedAt))}
               </TableCell>
             </TableRow>

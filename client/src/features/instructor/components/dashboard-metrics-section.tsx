@@ -1,9 +1,13 @@
+import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/custom/empty-state'
 import { StatCard } from '@/components/ui/custom/stat-card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { instructorDashboardStats } from '@/features/instructor/constants/instructor-route-dashboard.constants'
 import type { InstructorDashboardState } from '@/features/instructor/types/instructor-dashboard-state'
+
+const iconChip =
+  'flex size-9 shrink-0 items-center justify-center rounded-lg [&_svg]:size-4'
 
 type DashboardMetricsSectionProps = {
   state: InstructorDashboardState
@@ -72,18 +76,40 @@ function MetricsCards({
           return <MetricCardSkeleton key={stat.key} label={stat.label} />
         }
 
+        const value = {
+          materials: state.materialCount,
+          reviewQueue: state.reviewQueueCount,
+        }[stat.key]
+
+        const isReviewQueue = stat.key === 'reviewQueue'
+        const chipClass = isReviewQueue
+          ? value > 0
+            ? 'bg-warning/15 text-warning-foreground dark:text-warning'
+            : 'bg-success/12 text-success'
+          : 'bg-primary/10 text-primary'
+
         return (
           <StatCard
             key={stat.key}
             label={stat.label}
-            value={
-              {
-                materials: state.materialCount,
-                reviewQueue: state.reviewQueueCount,
-              }[stat.key]
+            value={<span className="tabular-nums">{value}</span>}
+            icon={
+              <span className={`${iconChip} ${chipClass}`}>
+                <Icon aria-hidden />
+              </span>
             }
-            icon={<Icon aria-hidden />}
-            description={stat.description}
+            description={
+              isReviewQueue ? (
+                <span className="flex items-center gap-2">
+                  <Badge variant={value > 0 ? 'warning' : 'success'}>
+                    {value > 0 ? 'Needs review' : 'All clear'}
+                  </Badge>
+                  <span>{stat.description}</span>
+                </span>
+              ) : (
+                stat.description
+              )
+            }
           />
         )
       })}
