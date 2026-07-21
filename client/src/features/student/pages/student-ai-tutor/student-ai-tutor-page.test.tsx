@@ -410,11 +410,11 @@ describe('StudentAiTutorPage workspace', () => {
     )
     expect(screen.getByLabelText('Session navigation')).toHaveClass(
       'border-border',
-      'bg-card',
+      'bg-sidebar',
     )
     expect(screen.getByRole('link', { name: /python lists/i })).toHaveClass(
-      'bg-accent',
-      'text-accent-foreground',
+      'bg-sidebar-accent',
+      'text-sidebar-accent-foreground',
     )
   })
 

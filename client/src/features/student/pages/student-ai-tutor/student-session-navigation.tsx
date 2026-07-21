@@ -63,7 +63,7 @@ export function StudentSessionNavigation({
     <aside
       aria-label="Session navigation"
       className={cn(
-        'flex min-h-0 flex-col overflow-hidden border-b border-border bg-card text-card-foreground md:border-r md:border-b-0',
+        'flex min-h-0 flex-col overflow-hidden border-b border-border bg-sidebar text-sidebar-foreground md:border-r md:border-b-0',
         className,
       )}
     >
@@ -85,9 +85,7 @@ export function StudentSessionNavigation({
         </div>
 
         <header className="flex items-center justify-between gap-3 px-5 pb-2.5">
-          <h2 className="text-xs font-medium tracking-[0.12em] text-muted-foreground uppercase">
-            Sessions
-          </h2>
+          <h2 className="smallcaps-label">Sessions</h2>
           {isRefreshing ? (
             <Badge variant="outline" className="gap-1.5">
               <span
@@ -117,8 +115,8 @@ export function StudentSessionNavigation({
           ) : null}
 
           {!isPending && !isError && sessions.length === 0 ? (
-            <div className="mx-1 rounded-md border border-dashed border-border bg-muted/20 px-4 py-8 text-center">
-              <div className="mx-auto flex size-9 items-center justify-center rounded-sm bg-primary/10 text-primary">
+            <div className="mx-1 rounded-xl border border-dashed border-border bg-muted/20 px-4 py-8 text-center">
+              <div className="mx-auto flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <MessageSquareText className="size-4.5" aria-hidden />
               </div>
               <p className="mt-3 text-sm font-medium text-foreground">

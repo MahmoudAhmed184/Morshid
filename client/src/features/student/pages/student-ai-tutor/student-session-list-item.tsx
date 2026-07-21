@@ -39,7 +39,7 @@ export function StudentSessionListItem({
   const [isEditing, setIsEditing] = useState(false)
 
   return (
-    <li className="group relative rounded-md [contain-intrinsic-size:auto_4rem] [content-visibility:auto]">
+    <li className="group relative rounded-xl [contain-intrinsic-size:auto_4rem] [content-visibility:auto]">
       {isEditing ? (
         <StudentSessionInlineRename
           session={session}
@@ -56,15 +56,15 @@ export function StudentSessionListItem({
           onClick={onNavigate}
           aria-current={isSelected ? 'page' : undefined}
           className={cn(
-            'relative flex min-h-16 flex-col justify-center rounded-md py-2.5 pr-12 pl-4 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none',
+            'relative flex min-h-16 flex-col justify-center rounded-xl py-2.5 pr-12 pl-4 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none',
             isSelected
-              ? 'bg-accent text-accent-foreground'
-              : 'text-foreground hover:bg-muted',
+              ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+              : 'text-sidebar-foreground hover:bg-secondary/60',
           )}
         >
           <span
             className={cn(
-              'absolute inset-y-2.5 left-1 w-1 rounded-full bg-primary transition-opacity',
+              'absolute top-1/2 left-0 h-5 w-0.5 -translate-y-1/2 rounded-full bg-rubric transition-opacity',
               isSelected ? 'opacity-100' : 'opacity-0',
             )}
             aria-hidden
@@ -72,8 +72,8 @@ export function StudentSessionListItem({
           <span className="block truncate font-medium">{session.title}</span>
           <span
             className={cn(
-              'mt-1 block text-xs',
-              isSelected ? 'text-primary' : 'text-muted-foreground',
+              'footnote mt-1 block',
+              isSelected ? 'text-sidebar-accent-foreground' : '',
             )}
           >
             {session.lastMessageAt ? (
@@ -94,8 +94,8 @@ export function StudentSessionListItem({
           className={cn(
             'absolute top-1/2 right-1.5 flex -translate-y-1/2 items-center rounded-lg',
             isSelected
-              ? 'bg-accent text-muted-foreground'
-              : 'bg-card/90 text-muted-foreground',
+              ? 'bg-sidebar-accent text-muted-foreground'
+              : 'bg-sidebar/90 text-muted-foreground',
           )}
         >
           <StudentSessionActionsMenu

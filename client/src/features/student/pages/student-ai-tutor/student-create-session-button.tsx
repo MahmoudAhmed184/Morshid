@@ -32,11 +32,10 @@ export function StudentCreateSessionButton({
     <div className="flex flex-col gap-1.5">
       <AsyncButton
         type="button"
-        size="sm"
         isLoading={isPending}
         loadingText="Creating…"
         onClick={handleCreate}
-        className="h-10 w-full justify-center rounded-md bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 focus-visible:ring-ring/50"
+        className="w-full justify-center"
       >
         <Plus aria-hidden />
         New chat

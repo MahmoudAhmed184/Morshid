@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 import type { AuthSession } from '@/features/auth/types/auth.types'
+import { ThemeProvider } from '@/providers/theme-provider'
 import { studentCoursesQueryOptions } from '@/features/student/data/student-courses.queries'
 import { studentSessionKeys } from '@/features/student/data/student-sessions.queries'
 import type { ChatSessionListResponse } from '@/features/student/schemas/student-chat.schema'
@@ -45,6 +46,8 @@ vi.mock('@tanstack/react-router', () => ({
     </a>
   ),
   Outlet: () => <div data-testid="student-route-outlet" />,
+  ScriptOnce: () => null,
+  useNavigate: () => () => Promise.resolve(),
   useHydrated: () => routerMockState.hydrated,
   useRouterState: <T,>({
     select,
@@ -89,6 +92,20 @@ function renderWithStudentCourses(
     response: ChatSessionListResponse
   },
 ) {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  )
+
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
@@ -118,7 +135,11 @@ function renderWithStudentCourses(
   }
 
   return render(
-    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider defaultTheme="system" storageKey="test-theme">
+        {ui}
+      </ThemeProvider>
+    </QueryClientProvider>,
   )
 }
 
@@ -344,9 +365,7 @@ describe('StudentDashboardPage', () => {
       },
     ])
 
-    expect(
-      screen.getByRole('heading', { name: 'Dashboard' }),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('P0.')
     expect(screen.getByText('Assigned courses')).toBeInTheDocument()
     expect(screen.getByText('1')).toBeInTheDocument()
     expect(screen.getByText('Chat not connected')).toBeInTheDocument()
@@ -377,7 +396,9 @@ describe('StudentCoursesPage', () => {
       },
     ])
 
-    expect(screen.getByRole('heading', { name: 'Courses' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Your courses.' }),
+    ).toBeInTheDocument()
     expect(
       screen.getByRole('heading', { name: 'Python Programming' }),
     ).toBeInTheDocument()
@@ -389,7 +410,9 @@ describe('StudentCoursesPage', () => {
 
     renderWithStudentCourses(<StudentCoursesPage />)
 
-    expect(screen.getByRole('heading', { name: 'Courses' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Your courses.' }),
+    ).toBeInTheDocument()
     expect(screen.getByText('No courses assigned yet.')).toBeInTheDocument()
   })
 })

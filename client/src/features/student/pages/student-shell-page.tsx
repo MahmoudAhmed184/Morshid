@@ -30,7 +30,7 @@ export function StudentShellPage() {
     <main className="h-svh overflow-hidden bg-background text-foreground">
       <div className="flex h-full w-full overflow-hidden">
         {!isAiTutorWorkspace ? (
-          <aside className="sticky top-0 hidden h-svh w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex">
+          <aside className="m-3 hidden h-[calc(100svh-1.5rem)] w-64 shrink-0 overflow-hidden rounded-2xl border bg-sidebar text-sidebar-foreground shadow-sm md:block">
             <StudentSidebar
               assignedCourses={assignedCourses}
               pathname={pathname}

@@ -5,6 +5,7 @@ import { ErrorState } from '@/components/ui/custom/error-state'
 import { isApiError } from '@/features/auth/api/authenticated-api-client'
 
 import { StudentMessageHistorySkeleton } from './student-message-history-skeleton'
+import { StudentSuggestionPills } from './student-suggestion-pills'
 
 interface StudentWorkspaceStateProps {
   sessionId?: string
@@ -73,21 +74,27 @@ export function StudentWorkspaceState({
 
   if (!hasSessions) {
     return (
-      <EmptyState
-        icon={<MessageSquareText className="size-6" aria-hidden />}
-        title="No conversations yet"
-        description="Start a private conversation and your tutor will guide you through this course, one question at a time."
-        className="w-full max-w-md border-0 bg-transparent"
-      />
+      <div className="flex w-full flex-col items-center gap-8">
+        <EmptyState
+          icon={<MessageSquareText className="size-6" aria-hidden />}
+          title="No conversations yet"
+          description="Start a private conversation and your tutor will guide you through this course, one question at a time."
+          className="w-full max-w-md border-0 bg-transparent"
+        />
+        <StudentSuggestionPills />
+      </div>
     )
   }
 
   return (
-    <EmptyState
-      icon={<MessageSquareText className="size-6" aria-hidden />}
-      title="Choose a conversation"
-      description="Pick a conversation from the list to pick up exactly where you left off."
-      className="w-full max-w-md border-0 bg-transparent"
-    />
+    <div className="flex w-full flex-col items-center gap-8">
+      <EmptyState
+        icon={<MessageSquareText className="size-6" aria-hidden />}
+        title="Choose a conversation"
+        description="Pick a conversation from the list to pick up exactly where you left off."
+        className="w-full max-w-md border-0 bg-transparent"
+      />
+      <StudentSuggestionPills />
+    </div>
   )
 }

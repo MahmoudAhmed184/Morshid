@@ -2,8 +2,8 @@ import { Link } from '@tanstack/react-router'
 import { ChevronRight, Menu } from 'lucide-react'
 import { useState } from 'react'
 
-import { DashboardHeader } from '@/components/layout/dashboard-header'
 import { Button } from '@/components/ui/button'
+import { ModeToggle } from '@/components/ui/mode-toggle'
 import {
   Sheet,
   SheetContent,
@@ -11,7 +11,6 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
-import { useAuthStore } from '@/features/auth/stores/auth.store'
 import { StudentSidebar } from '@/features/student/components/student-sidebar'
 import { useStudentCourses } from '@/features/student/hooks/use-student-courses'
 import { useStudentSession } from '@/features/student/hooks/use-student-sessions'
@@ -27,6 +26,31 @@ type StudentHeaderProps = {
 type StudentTutorBreadcrumbProps = {
   courseId?: string
   sessionId?: string
+}
+
+const segmentLabels: Record<string, string> = {
+  dashboard: 'Dashboard',
+  courses: 'Courses',
+  'ai-tutor': 'AI Tutor',
+  settings: 'Settings',
+}
+
+function StudentBreadcrumb({ pathname }: { pathname: string }) {
+  const segment = pathname.split('/').filter(Boolean).at(-1) ?? 'dashboard'
+  const label = segmentLabels[segment] ?? segment
+
+  return (
+    <nav
+      aria-label="Breadcrumb"
+      className="smallcaps-label flex min-w-0 items-center gap-1.5"
+    >
+      <span className="hidden sm:inline">Student</span>
+      <span className="hidden sm:inline" aria-hidden>
+        ·
+      </span>
+      <span className="truncate text-foreground">{label}</span>
+    </nav>
+  )
 }
 
 function StudentTutorBreadcrumb({
@@ -86,34 +110,18 @@ export function StudentHeader({
   sessionId,
 }: StudentHeaderProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
-  const user = useAuthStore((state) => state.user)
   const isAiTutorWorkspace = pathname === '/student/ai-tutor'
 
   return (
-    <DashboardHeader
-      displayName={user?.displayName}
-      email={user?.email}
-      searchLabel="Search student workspace"
-      searchPlaceholder="Search courses or learning resources…"
-      content={
-        isAiTutorWorkspace ? (
-          <StudentTutorBreadcrumb courseId={courseId} sessionId={sessionId} />
-        ) : undefined
-      }
-      showHelp={!isAiTutorWorkspace}
-      className={isAiTutorWorkspace ? 'border-border bg-card' : undefined}
-      leading={
+    <header className="glass-paper sticky top-3 z-40 mx-3 mt-3 flex h-14 shrink-0 items-center justify-between gap-3 rounded-2xl px-4 shadow-sm">
+      <div className="flex min-w-0 items-center gap-3">
         <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
           <SheetTrigger
             render={
               <Button
-                variant="outline"
+                variant="ghost"
                 size="icon"
-                className={
-                  isAiTutorWorkspace
-                    ? 'bg-transparent'
-                    : 'bg-transparent md:hidden'
-                }
+                className={isAiTutorWorkspace ? '' : 'md:hidden'}
                 aria-label="Open student navigation"
               />
             }
@@ -134,7 +142,17 @@ export function StudentHeader({
             />
           </SheetContent>
         </Sheet>
-      }
-    />
+
+        {isAiTutorWorkspace ? (
+          <StudentTutorBreadcrumb courseId={courseId} sessionId={sessionId} />
+        ) : (
+          <StudentBreadcrumb pathname={pathname} />
+        )}
+      </div>
+
+      <div className="flex items-center gap-1.5">
+        <ModeToggle />
+      </div>
+    </header>
   )
 }

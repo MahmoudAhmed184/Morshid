@@ -26,14 +26,16 @@ export function StudentMessageHistorySkeleton() {
           <Skeleton className="size-8 shrink-0 rounded-full" />
           <div
             className={cn(
-              'flex max-w-[min(90%,44rem)] flex-col gap-2 rounded-md border border-border px-4 py-3.5',
-              message.isStudent ? 'bg-accent' : 'bg-card',
+              'flex max-w-[min(90%,44rem)] flex-col gap-2 px-4 py-3.5',
+              message.isStudent
+                ? 'rounded-2xl rounded-br-lg bg-accent'
+                : 'rounded-2xl rounded-bl-lg border border-border bg-card',
             )}
           >
             {message.lines.map((line, index) => (
               <Skeleton
                 key={index}
-                className={cn('h-3.5 rounded-sm bg-foreground/10', line)}
+                className={cn('h-3.5 rounded-md bg-foreground/10', line)}
               />
             ))}
           </div>

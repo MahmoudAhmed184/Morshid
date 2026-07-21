@@ -161,7 +161,7 @@ export function StudentAiTutorPage({
       aria-label="Student AI Tutor"
     >
       {selectedCourse ? (
-        <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)] md:grid-cols-[20rem_minmax(0,1fr)] md:overflow-hidden">
+        <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)] md:grid-cols-[18rem_minmax(0,1fr)] md:overflow-hidden">
           <div className="hidden min-h-0 md:contents">
             <StudentSessionNavigation {...activeSessionNavigationProps} />
           </div>
@@ -211,9 +211,9 @@ export function StudentAiTutorPage({
                 courseTitle={selectedCourse.title}
               />
             ) : null}
-            <div className="scrollbar-themed min-h-0 flex-1 overflow-y-auto px-4 py-8 sm:px-8">
+            <div className="scrollbar-themed min-h-0 flex-1 overflow-y-auto px-6 py-8">
               {selectedSession ? (
-                <div className="mx-auto min-h-full max-w-5xl">
+                <div className="mx-auto min-h-full max-w-3xl">
                   <StudentMessageHistory
                     messages={messages}
                     error={messagesQuery.error}

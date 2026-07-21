@@ -31,13 +31,13 @@ export function StudentCourseSwitcher({
             <Button
               type="button"
               variant="outline"
-              className="h-14 w-full justify-start gap-3 rounded-md border-border bg-card px-2.5 text-left shadow-xs hover:bg-accent"
+              className="h-14 w-full justify-start gap-3 rounded-xl border-transparent bg-secondary/60 px-2.5 text-left hover:bg-secondary"
               aria-label={`Current course: ${selectedCourse.code} ${selectedCourse.title}. Choose course`}
             />
           }
         >
           <span
-            className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-inset ring-primary/15"
+            className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"
             aria-hidden
           >
             <BookOpen className="size-4.5" />
@@ -73,7 +73,7 @@ export function StudentCourseSwitcher({
                 className="gap-3 px-3 py-2.5"
               >
                 <span
-                  className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary ring-1 ring-inset ring-primary/15"
+                  className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"
                   aria-hidden
                 >
                   <BookOpen className="size-4" />

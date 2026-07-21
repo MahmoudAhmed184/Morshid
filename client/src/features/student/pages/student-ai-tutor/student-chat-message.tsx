@@ -34,7 +34,7 @@ export function StudentChatMessage({ message }: StudentChatMessageProps) {
         className={cn(
           'flex size-8 shrink-0 items-center justify-center rounded-full',
           isStudent
-            ? 'bg-secondary text-secondary-foreground'
+            ? 'bg-secondary text-foreground'
             : 'bg-primary/10 text-primary',
         )}
         aria-hidden
@@ -47,10 +47,10 @@ export function StudentChatMessage({ message }: StudentChatMessageProps) {
       </div>
       <div
         className={cn(
-          'max-w-[min(90%,44rem)] rounded-md border px-4 py-3 text-sm leading-7',
+          'max-w-[min(90%,44rem)] px-4 py-3 text-sm leading-7',
           isStudent
-            ? 'border-border bg-accent text-foreground'
-            : 'border-border bg-card text-card-foreground',
+            ? 'rounded-2xl rounded-br-lg bg-accent text-foreground'
+            : 'rounded-2xl rounded-bl-lg border bg-card text-card-foreground shadow-xs',
         )}
       >
         <span className="sr-only">{isStudent ? 'You' : 'AI Tutor'}: </span>

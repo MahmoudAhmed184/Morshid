@@ -8,6 +8,7 @@ import type { ChatMessage } from '@/features/student/schemas/student-chat.schema
 
 import { StudentChatMessage } from './student-chat-message'
 import { StudentMessageHistorySkeleton } from './student-message-history-skeleton'
+import { StudentSuggestionPills } from './student-suggestion-pills'
 
 interface StudentMessageHistoryProps {
   messages: ChatMessage[]
@@ -70,12 +71,15 @@ export function StudentMessageHistory({
 
   if (messages.length === 0) {
     return (
-      <EmptyState
-        icon={<MessageSquareText className="size-6" aria-hidden />}
-        title="No messages yet"
-        description="This conversation is ready. Ask your first question and your saved history will begin here."
-        className="w-full border-0 bg-transparent"
-      />
+      <div className="flex w-full flex-col items-center gap-8">
+        <EmptyState
+          icon={<MessageSquareText className="size-6" aria-hidden />}
+          title="No messages yet"
+          description="This conversation is ready. Ask your first question and your saved history will begin here."
+          className="w-full border-0 bg-transparent"
+        />
+        <StudentSuggestionPills />
+      </div>
     )
   }
 
