@@ -10,7 +10,7 @@ type StatCardProps = {
   icon?: React.ReactNode
   /**
    * Semantic accent for the icon chip. When set, `icon` is rendered inside a
-   * `size-9 rounded-sm` tinted chip (the pattern staff dashboards hand-roll).
+   * `size-9 rounded-lg` tinted chip (the pattern staff dashboards hand-roll).
    * Omit it to keep the legacy behavior where `icon` renders as-is.
    */
   tone?: StatCardTone
@@ -57,7 +57,7 @@ export function StatCard({
           tone ? (
             <span
               className={cn(
-                'flex size-9 shrink-0 items-center justify-center rounded-sm [&_svg]:size-4',
+                'flex size-9 shrink-0 items-center justify-center rounded-lg [&_svg]:size-4',
                 toneChipClass[tone],
               )}
             >

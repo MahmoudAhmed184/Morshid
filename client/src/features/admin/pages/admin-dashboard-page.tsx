@@ -1,47 +1,55 @@
 import { Link } from '@tanstack/react-router'
 import {
   BookOpenIcon,
-  ClipboardListIcon,
+  ChevronRightIcon,
   FileTextIcon,
+  GraduationCapIcon,
   HistoryIcon,
   UsersIcon,
 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { DataTableState } from '@/components/ui/custom/data-table-state'
 import { EmptyState } from '@/components/ui/custom/empty-state'
+import { PageHeader } from '@/components/ui/custom/page-header'
 import { StatCard } from '@/components/ui/custom/stat-card'
+import { cn } from '@/lib/utils'
 import { AdminPanel } from '../components/admin-panel'
 import { useAdminAudit } from '../hooks/use-admin-audit'
 import { useAdminCourses } from '../hooks/use-admin-courses'
 import { useAdminUsers } from '../hooks/use-admin-users'
 
-const sections = [
-  {
-    title: 'Assignments',
-    description: 'Manage student and instructor access to course shells.',
-    to: '/admin/assignments',
-    icon: ClipboardListIcon,
-  },
-  {
-    title: 'Users',
-    description: 'Create accounts, reset access, and manage active status.',
-    to: '/admin/users',
-    icon: UsersIcon,
-  },
-  {
-    title: 'Courses',
-    description: 'Track course ownership, enrollment, and material counts.',
-    to: '/admin/courses',
-    icon: BookOpenIcon,
-  },
+type QuickNavTone = 'primary' | 'info' | 'gold' | 'success'
+
+const quickNav: {
+  title: string
+  to: string
+  icon: LucideIcon
+  tone: QuickNavTone
+}[] = [
+  { title: 'Users', to: '/admin/users', icon: UsersIcon, tone: 'primary' },
+  { title: 'Courses', to: '/admin/courses', icon: BookOpenIcon, tone: 'info' },
   {
     title: 'Materials',
-    description: 'Audit learning assets across course shells.',
     to: '/admin/materials',
     icon: FileTextIcon,
+    tone: 'gold',
   },
-] as const
+  {
+    title: 'Audit Logs',
+    to: '/admin/audit',
+    icon: HistoryIcon,
+    tone: 'success',
+  },
+]
+
+const quickNavChip: Record<QuickNavTone, string> = {
+  primary: 'bg-primary/10 text-primary',
+  info: 'bg-info/10 text-info',
+  gold: 'bg-gold/10 text-gold',
+  success: 'bg-success/10 text-success',
+}
 
 const auditDateFormatter = new Intl.DateTimeFormat(undefined, {
   dateStyle: 'medium',
@@ -58,142 +66,167 @@ export function AdminDashboardPage() {
     (total, course) => total + course.adminMetadata.materialCount,
     0,
   )
+  const studentCount = users.filter((user) => user.role === 'STUDENT').length
+  const instructorCount = users.filter(
+    (user) => user.role === 'INSTRUCTOR',
+  ).length
   const isLoading = usersQuery.isPending || coursesQuery.isPending
   const isError = usersQuery.isError || coursesQuery.isError
 
   const metrics = [
     {
-      label: 'Users loaded',
-      value: users.length,
-      icon: <UsersIcon aria-hidden />,
+      label: 'Students',
+      value: studentCount,
+      icon: <GraduationCapIcon aria-hidden />,
       tone: 'primary',
-      description: 'Managed student and instructor accounts',
+      description: 'Managed student accounts loaded',
+    },
+    {
+      label: 'Instructors',
+      value: instructorCount,
+      icon: <UsersIcon aria-hidden />,
+      tone: 'info',
+      description: 'Managed instructor accounts loaded',
     },
     {
       label: 'Courses',
       value: courses.length,
       icon: <BookOpenIcon aria-hidden />,
-      tone: 'info',
+      tone: 'gold',
       description: 'Active course shells across the platform',
     },
     {
       label: 'Materials',
       value: materialCount,
       icon: <FileTextIcon aria-hidden />,
-      tone: 'gold',
+      tone: 'success',
       description: 'Learning assets ingested into courses',
     },
   ] as const
 
   return (
-    <DataTableState
-      isLoading={isLoading}
-      isError={isError}
-      isEmpty={users.length === 0 && courses.length === 0}
-      onRetry={() =>
-        void Promise.all([usersQuery.refetch(), coursesQuery.refetch()])
-      }
-      isRetrying={usersQuery.isFetching || coursesQuery.isFetching}
-      emptyTitle="No admin data found"
-      emptyDescription="Users and courses will appear after the P0 seed or API setup is complete."
-    >
-      <div>
-        <div className="mb-6 grid gap-4 md:grid-cols-3">
-          {metrics.map((metric) => (
-            <StatCard
-              key={metric.label}
-              label={metric.label}
-              value={<span className="tabular-nums">{metric.value}</span>}
-              icon={metric.icon}
-              tone={metric.tone}
-              description={metric.description}
-            />
-          ))}
-        </div>
+    <div className="flex flex-col gap-8">
+      <PageHeader
+        eyebrow="THE LEDGER"
+        title="System overview."
+        description="Platform-wide identity, enrollment, and content activity."
+      />
 
-        <div className="grid gap-6 xl:grid-cols-[1fr_24rem]">
-          <div className="grid gap-4 md:grid-cols-2">
-            {sections.map((section) => {
-              const Icon = section.icon
-
-              return (
-                <AdminPanel
-                  key={section.to}
-                  className="flex flex-col p-5 transition-colors hover:border-foreground/30"
-                >
-                  <div className="mb-5 flex size-11 items-center justify-center rounded-sm bg-primary/10 text-primary">
-                    <Icon className="size-5" />
-                  </div>
-                  <h2 className="text-base font-semibold text-foreground">
-                    {section.title}
-                  </h2>
-                  <p className="mt-2 min-h-12 text-sm leading-6 text-muted-foreground">
-                    {section.description}
-                  </p>
-                  <Button
-                    nativeButton={false}
-                    variant="outline"
-                    render={<Link to={section.to} />}
-                    className="mt-5 w-fit"
-                  >
-                    Open section
-                  </Button>
-                </AdminPanel>
-              )
-            })}
+      <DataTableState
+        isLoading={isLoading}
+        isError={isError}
+        isEmpty={users.length === 0 && courses.length === 0}
+        onRetry={() =>
+          void Promise.all([usersQuery.refetch(), coursesQuery.refetch()])
+        }
+        isRetrying={usersQuery.isFetching || coursesQuery.isFetching}
+        emptyTitle="No admin data found"
+        emptyDescription="Users and courses will appear after the P0 seed or API setup is complete."
+      >
+        <div className="flex flex-col gap-6">
+          <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+            {metrics.map((metric) => (
+              <StatCard
+                key={metric.label}
+                label={metric.label}
+                value={<span className="tabular-nums">{metric.value}</span>}
+                icon={metric.icon}
+                tone={metric.tone}
+                description={metric.description}
+              />
+            ))}
           </div>
 
-          <AdminPanel className="p-5">
-            <div className="mb-5 flex items-center gap-2.5">
-              <span className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <HistoryIcon className="size-4" />
-              </span>
-              <h2 className="text-base font-semibold text-foreground">
-                Recent Audit Activity
-              </h2>
-            </div>
-            <DataTableState
-              isLoading={auditQuery.isPending}
-              isError={auditQuery.isError}
-              isEmpty={auditQuery.data?.length === 0}
-              onRetry={() => void auditQuery.refetch()}
-              isRetrying={auditQuery.isFetching}
-              empty={
-                <EmptyState
-                  title="No audit activity"
-                  description="Operational events will appear here once APIs start returning activity."
-                  className="min-h-52"
-                />
-              }
-            >
-              <ol className="space-y-2.5">
-                {auditQuery.data?.map((event) => (
-                  <li
-                    key={event.id}
-                    className="rounded-lg bg-muted/40 p-3.5 ring-1 ring-foreground/5 transition-colors hover:bg-muted/60"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="truncate text-sm font-medium text-foreground">
-                        {event.action.replaceAll('.', ' ')}
+          <div className="grid gap-6 lg:grid-cols-3">
+            <AdminPanel className="p-5 lg:col-span-2">
+              <div className="mb-5 flex items-center gap-2.5">
+                <span className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary [&_svg]:size-4">
+                  <HistoryIcon />
+                </span>
+                <h2 className="text-base font-semibold text-foreground">
+                  Recent activity
+                </h2>
+              </div>
+              <DataTableState
+                isLoading={auditQuery.isPending}
+                isError={auditQuery.isError}
+                isEmpty={auditQuery.data?.length === 0}
+                onRetry={() => void auditQuery.refetch()}
+                isRetrying={auditQuery.isFetching}
+                empty={
+                  <EmptyState
+                    title="No audit activity"
+                    description="Operational events will appear here once APIs start returning activity."
+                    className="min-h-52"
+                  />
+                }
+              >
+                <ol className="space-y-2.5">
+                  {auditQuery.data?.map((event) => (
+                    <li
+                      key={event.id}
+                      className="rounded-xl bg-secondary/30 p-3.5 transition-colors hover:bg-secondary/50"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="truncate text-sm font-medium text-foreground">
+                          {event.action.replaceAll('.', ' ')}
+                        </p>
+                        <Badge variant="secondary" className="shrink-0">
+                          {event.targetType}
+                        </Badge>
+                      </div>
+                      <p className="mt-1.5 truncate text-sm text-muted-foreground">
+                        {event.actor?.displayName ?? 'System'}
+                        {event.targetId ? ` on ${event.targetId}` : ''}
                       </p>
-                      <Badge variant="secondary" className="shrink-0">
-                        {event.targetType}
-                      </Badge>
-                    </div>
-                    <p className="mt-1.5 truncate text-sm text-muted-foreground">
-                      {event.actor?.displayName ?? 'System'}
-                      {event.targetId ? ` on ${event.targetId}` : ''}
-                    </p>
-                    <p className="mt-1.5 text-xs text-muted-foreground tabular-nums">
-                      {auditDateFormatter.format(new Date(event.createdAt))}
-                    </p>
-                  </li>
-                ))}
-              </ol>
-            </DataTableState>
-          </AdminPanel>
+                      <p className="footnote mt-1.5 tabular-nums">
+                        {auditDateFormatter.format(new Date(event.createdAt))}
+                      </p>
+                    </li>
+                  ))}
+                </ol>
+              </DataTableState>
+            </AdminPanel>
+
+            <AdminPanel className="p-5">
+              <h2 className="smallcaps-label mb-4 px-1">Quick navigation</h2>
+              <nav
+                className="flex flex-col gap-1"
+                aria-label="Quick navigation"
+              >
+                {quickNav.map((item) => {
+                  const Icon = item.icon
+
+                  return (
+                    <Link
+                      key={item.to}
+                      to={item.to}
+                      className="group flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-secondary/60"
+                    >
+                      <span
+                        className={cn(
+                          'flex size-9 shrink-0 items-center justify-center rounded-lg [&_svg]:size-4',
+                          quickNavChip[item.tone],
+                        )}
+                        aria-hidden
+                      >
+                        <Icon />
+                      </span>
+                      <span className="flex-1 text-sm font-medium text-foreground">
+                        {item.title}
+                      </span>
+                      <ChevronRightIcon
+                        className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+                        aria-hidden
+                      />
+                    </Link>
+                  )
+                })}
+              </nav>
+            </AdminPanel>
+          </div>
         </div>
-      </div>
-    </DataTableState>
+      </DataTableState>
+    </div>
   )
 }

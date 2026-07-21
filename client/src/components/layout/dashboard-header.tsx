@@ -1,8 +1,4 @@
-import { Bell, HelpCircle, Search } from 'lucide-react'
-
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { ModeToggle } from '@/components/ui/mode-toggle'
 import { cn } from '@/lib/utils'
 
 export function getUserInitials(displayName?: string, fallback = 'U') {
@@ -21,101 +17,53 @@ export function getUserInitials(displayName?: string, fallback = 'U') {
 }
 
 type DashboardHeaderProps = {
+  /** Breadcrumb / contextual label rendered on the left (`.smallcaps-label`). */
+  breadcrumb?: React.ReactNode
+  /** Leading slot — typically the mobile navigation trigger. */
+  leading?: React.ReactNode
+  /**
+   * Legacy contextual slot (e.g. the tutor breadcrumb). When present it takes
+   * the breadcrumb region so existing callers keep rendering their content.
+   */
+  content?: React.ReactNode
+  /** Extra actions rendered to the left of the mode toggle. */
+  actions?: React.ReactNode
+  className?: string
+  // Legacy props kept accepted (and ignored) so existing callers still compile.
   displayName?: string
   email?: string
-  searchLabel: string
-  searchPlaceholder: string
-  leading?: React.ReactNode
-  content?: React.ReactNode
+  searchLabel?: string
+  searchPlaceholder?: string
   showHelp?: boolean
-  className?: string
 }
 
+/**
+ * Studio Shell header — a floating frosted-glass bar. Positioning
+ * (`sticky top-3 z-40 mx-3`) is supplied by the surrounding shell via
+ * `className` so the same bar can float in any content column.
+ */
 export function DashboardHeader({
-  displayName,
-  email,
-  searchLabel,
-  searchPlaceholder,
+  breadcrumb,
   leading,
   content,
-  showHelp = true,
+  actions,
   className,
 }: DashboardHeaderProps) {
-  const initials = getUserInitials(displayName)
-
   return (
     <header
       className={cn(
-        'flex min-h-16 items-center gap-3 border-b border-border bg-card/95 px-4 backdrop-blur-sm md:px-6',
+        'glass-paper flex h-14 items-center justify-between gap-3 rounded-2xl px-4 shadow-sm',
         className,
       )}
     >
-      {leading}
+      <div className="flex min-w-0 items-center gap-3">
+        {leading}
+        {content ?? breadcrumb}
+      </div>
 
-      {content ? (
-        <div className="min-w-0 flex-1">{content}</div>
-      ) : (
-        <div className="relative hidden min-w-0 flex-1 sm:block">
-          <Search
-            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground transition-colors"
-            aria-hidden
-          />
-          <Input
-            type="search"
-            name="workspace-search"
-            autoComplete="off"
-            aria-label={searchLabel}
-            placeholder={searchPlaceholder}
-            className="h-9 max-w-md rounded-md bg-background pl-9"
-          />
-        </div>
-      )}
-
-      <div className="ml-auto flex items-center gap-1.5">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="relative text-muted-foreground hover:bg-accent hover:text-foreground"
-          aria-label="Notifications"
-        >
-          <Bell className="size-4" aria-hidden />
-          <span
-            className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-primary ring-2 ring-card"
-            aria-hidden
-          />
-        </Button>
-        {showHelp ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="text-muted-foreground hover:bg-accent hover:text-foreground"
-            aria-label="Help"
-          >
-            <HelpCircle className="size-4" aria-hidden />
-          </Button>
-        ) : null}
-        <div className="ml-1 flex items-center gap-2.5">
-          <div className="hidden text-right sm:block">
-            <p className="max-w-40 truncate text-xs font-medium text-foreground">
-              {displayName ?? 'User'}
-            </p>
-            {email ? (
-              <p className="max-w-40 truncate text-[0.68rem] text-muted-foreground">
-                {email}
-              </p>
-            ) : null}
-          </div>
-          <Avatar
-            className="bg-primary text-primary-foreground"
-            aria-label={displayName}
-          >
-            <AvatarFallback className="bg-primary text-xs font-semibold text-primary-foreground">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
-        </div>
+      <div className="flex shrink-0 items-center gap-1.5">
+        {actions}
+        <ModeToggle />
       </div>
     </header>
   )

@@ -10,6 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { PageHeader } from '@/components/ui/custom/page-header'
 import { ModeToggle } from '@/components/ui/mode-toggle'
 import { SignOutButton } from '@/features/auth/components/sign-out-button'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
@@ -35,14 +36,11 @@ export function DashboardSettingsPage({
       }
     >
       {embedded ? null : (
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            Settings
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Manage your profile and workspace preferences.
-          </p>
-        </div>
+        <PageHeader
+          eyebrow="Workspace"
+          title="Settings"
+          description="Manage your profile and workspace preferences."
+        />
       )}
 
       <Card>
@@ -54,8 +52,8 @@ export function DashboardSettingsPage({
         </CardHeader>
         <CardContent className="flex flex-col gap-5 sm:flex-row sm:items-center">
           <div className="flex items-center gap-4">
-            <Avatar size="lg" className="bg-primary text-primary-foreground">
-              <AvatarFallback className="bg-primary text-base font-semibold text-primary-foreground">
+            <Avatar size="lg" className="bg-secondary text-foreground">
+              <AvatarFallback className="bg-secondary text-base font-semibold text-foreground">
                 {getUserInitials(displayName)}
               </AvatarFallback>
             </Avatar>

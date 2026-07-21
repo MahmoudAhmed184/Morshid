@@ -1,12 +1,8 @@
+import { Link } from '@tanstack/react-router'
 import { BookOpen } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
-import {
-  Card,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/custom/empty-state'
 import { ErrorState } from '@/components/ui/custom/error-state'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -17,100 +13,107 @@ type DashboardCourseSectionProps = {
   state: InstructorDashboardState
 }
 
-export function DashboardCourseSection({ state }: DashboardCourseSectionProps) {
+function CoursePanelFrame({
+  children,
+  ariaLabel,
+  role,
+}: {
+  children: React.ReactNode
+  ariaLabel?: string
+  role?: string
+}) {
   return (
     <section
-      aria-labelledby="course-heading"
-      aria-busy={state.status === 'loading' || undefined}
-      className="space-y-3"
+      aria-label={ariaLabel}
+      role={role}
+      className="relative overflow-hidden rounded-3xl border border-foreground/8 bg-card p-8 shadow-sm"
     >
-      <div className="space-y-1">
-        <h2 id="course-heading" className="text-base font-semibold">
-          Assigned course
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          Your protected Sprint 1 course workspace.
-        </p>
-      </div>
-
-      <DashboardCourseSectionContent state={state} />
+      <span
+        className="absolute inset-y-8 left-0 w-0.5 rounded-full bg-rubric"
+        aria-hidden
+      />
+      {children}
     </section>
   )
 }
 
-function DashboardCourseSectionContent({ state }: DashboardCourseSectionProps) {
+export function DashboardCourseSection({ state }: DashboardCourseSectionProps) {
   if (state.status === 'loading') {
     return <CourseSkeleton />
   }
 
   if (state.status === 'empty') {
-    return <InstructorDashboardEmptyState />
+    return (
+      <CoursePanelFrame>
+        <EmptyState
+          icon={<BookOpen aria-hidden />}
+          title="No assigned course"
+          description="Ask an administrator to assign you to a course before managing materials or reviews."
+          className="min-h-52 border-none bg-transparent"
+        />
+      </CoursePanelFrame>
+    )
   }
 
   if (state.status === 'error') {
     return (
-      <ErrorState
-        title="Unable to load course"
-        description="The assigned course could not be loaded. Try again."
-        onRetry={state.onRetry}
-        isRetrying={state.isRetrying}
-        className="min-h-40"
-      />
+      <CoursePanelFrame>
+        <ErrorState
+          title="Unable to load course"
+          description="The assigned course could not be loaded. Try again."
+          onRetry={state.onRetry}
+          isRetrying={state.isRetrying}
+          className="min-h-52 border-none bg-transparent"
+        />
+      </CoursePanelFrame>
     )
   }
 
-  return <CourseCard course={state.course} />
+  return <CoursePanel course={state.course} />
 }
 
-function CourseCard({ course }: { course: InstructorCourse }) {
+function CoursePanel({ course }: { course: InstructorCourse }) {
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex min-w-0 items-start gap-3">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-sm bg-primary/10 text-primary">
-              <BookOpen className="size-5" aria-hidden />
+    <CoursePanelFrame>
+      <div className="flex h-full flex-col gap-6">
+        <div className="space-y-3">
+          <div className="smallcaps-label">Assigned course</div>
+          <h2 id="course-heading" className="display-3 text-foreground">
+            {course.title}
+          </h2>
+          <div className="flex flex-wrap items-center gap-3">
+            <Badge variant="secondary" className="font-mono">
+              {course.code}
+            </Badge>
+            <span className="footnote">
+              Your protected Sprint 1 course workspace
             </span>
-            <div className="min-w-0 space-y-1">
-              <CardTitle>
-                <h3 className="truncate">{course.title}</h3>
-              </CardTitle>
-              <CardDescription>
-                Your protected Sprint 1 course workspace
-              </CardDescription>
-            </div>
           </div>
-          <Badge variant="secondary" className="font-mono">
-            {course.code}
-          </Badge>
         </div>
-      </CardHeader>
-    </Card>
+        <div>
+          <Button
+            nativeButton={false}
+            render={<Link to="/instructor/materials" />}
+          >
+            Open materials →
+          </Button>
+        </div>
+      </div>
+    </CoursePanelFrame>
   )
 }
 
 function CourseSkeleton() {
   return (
-    <Card aria-label="Loading assigned course">
-      <CardHeader>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-2">
-            <Skeleton className="h-6 w-56" />
-            <Skeleton className="h-4 w-72" />
-          </div>
-          <Skeleton className="h-6 w-28" />
+    <CoursePanelFrame ariaLabel="Loading assigned course" role="status">
+      <div className="flex flex-col gap-6">
+        <div className="space-y-3">
+          <Skeleton className="h-3 w-28" />
+          <Skeleton className="h-9 w-3/4 max-w-md" />
+          <Skeleton className="h-5 w-56" />
         </div>
-      </CardHeader>
-    </Card>
-  )
-}
-
-function InstructorDashboardEmptyState() {
-  return (
-    <EmptyState
-      icon={<BookOpen aria-hidden />}
-      title="No assigned course"
-      description="Ask an administrator to assign you to a course before managing materials or reviews."
-    />
+        <Skeleton className="h-10 w-40" />
+      </div>
+    </CoursePanelFrame>
   )
 }

@@ -1,6 +1,6 @@
-import { FileText, Search } from 'lucide-react'
+import { FileText, Search, Upload } from 'lucide-react'
 
-import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/custom/empty-state'
 import { ErrorState } from '@/components/ui/custom/error-state'
@@ -22,9 +22,15 @@ export function MaterialsPage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow={<Badge variant="secondary">Instructor workspace</Badge>}
+        eyebrow="Instructor workspace"
         title="Materials"
         description="Shell view for course source readiness. Upload and ingestion are deferred."
+        actions={
+          <Button size="lg" disabled type="button">
+            <Upload aria-hidden />
+            Upload material
+          </Button>
+        }
       />
 
       <section aria-busy={isLoading || undefined}>
@@ -36,11 +42,11 @@ export function MaterialsPage() {
                 Course Materials
               </CardTitle>
               <div className="flex flex-wrap gap-2">
-                <div className="flex h-8 min-w-44 items-center rounded-lg border border-input bg-background px-3 text-xs text-muted-foreground shadow-xs">
+                <div className="flex h-9 min-w-44 items-center rounded-xl bg-secondary/60 px-4 text-xs text-muted-foreground">
                   <Search className="mr-2 size-3.5" aria-hidden />
                   Search by title
                 </div>
-                <div className="flex h-8 items-center gap-1.5 rounded-lg border border-input bg-background px-3 text-xs text-muted-foreground shadow-xs">
+                <div className="flex h-9 items-center gap-1.5 rounded-xl bg-secondary/60 px-4 text-xs text-muted-foreground">
                   All Topics
                 </div>
               </div>
@@ -87,7 +93,7 @@ function MaterialsListContent({
         description="Course context could not be loaded for materials. Try again."
         onRetry={onRetry}
         isRetrying={isRetrying}
-        className="min-h-44 rounded-md"
+        className="min-h-44"
       />
     )
   }
@@ -98,13 +104,13 @@ function MaterialsListContent({
         icon={<FileText aria-hidden />}
         title="No assigned course"
         description="Assign a course before this workspace can show course materials."
-        className="min-h-44 rounded-md"
+        className="min-h-44"
       />
     )
   }
 
   return (
-    <div className="space-y-3">
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
       {placeholderPdfMaterials.map((material) => (
         <PdfCard
           key={material.id}

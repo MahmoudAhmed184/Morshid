@@ -50,7 +50,7 @@ export function CreateAdminUserDialog() {
       </DialogTrigger>
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
-          <span className="mb-1 flex size-10 items-center justify-center rounded-sm bg-primary/10 text-primary">
+          <span className="mb-1 flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
             <UserPlusIcon className="size-5" aria-hidden />
           </span>
           <DialogTitle>Create User</DialogTitle>

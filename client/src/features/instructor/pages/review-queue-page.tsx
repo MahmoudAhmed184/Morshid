@@ -20,7 +20,7 @@ export function ReviewQueuePage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow={<Badge variant="secondary">Instructor workspace</Badge>}
+        eyebrow="Instructor workspace"
         title="Review Queue"
         description="Shell view for flagged responses. Review actions are deferred."
       />
@@ -86,7 +86,7 @@ function ReviewQueueListContent({
         description="Course context could not be loaded for reviews. Try again."
         onRetry={onRetry}
         isRetrying={isRetrying}
-        className="min-h-44 rounded-md"
+        className="min-h-44"
       />
     )
   }
@@ -97,7 +97,7 @@ function ReviewQueueListContent({
         icon={<ClipboardList aria-hidden />}
         title="No assigned course"
         description="Assign a course before this workspace can show review requests."
-        className="min-h-44 rounded-md"
+        className="min-h-44"
       />
     )
   }
@@ -107,7 +107,7 @@ function ReviewQueueListContent({
       icon={<ClipboardList aria-hidden />}
       title="No review requests yet"
       description="Flagged exchanges will appear here after the Sprint 3 review workflow is implemented."
-      className="min-h-44 rounded-sm"
+      className="min-h-44"
     />
   )
 }

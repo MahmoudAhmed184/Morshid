@@ -153,7 +153,7 @@ describe('Admin routes', () => {
       'Materials',
       'Audit Logs',
     ]) {
-      expect(screen.getAllByRole('link', { name: section })).toHaveLength(2)
+      expect(screen.getAllByRole('link', { name: section })).toHaveLength(1)
     }
   })
 

@@ -10,6 +10,22 @@ import { MaterialsPage } from './materials-page'
 import { MyCoursesPage } from './my-courses-page'
 import { ReviewQueuePage } from './review-queue-page'
 
+vi.mock('@tanstack/react-router', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  Link: ({
+    to,
+    children,
+    ...props
+  }: {
+    to?: string
+    children?: React.ReactNode
+  }) => (
+    <a href={typeof to === 'string' ? to : '#'} {...props}>
+      {children}
+    </a>
+  ),
+}))
+
 const instructorSession: AuthSession = {
   user: {
     id: 'instructor-user',

@@ -1,59 +1,63 @@
-import { Link, Outlet, useRouterState } from '@tanstack/react-router'
+import { Outlet, useRouterState } from '@tanstack/react-router'
 import {
   BookOpenIcon,
   ClipboardListIcon,
   FileTextIcon,
   HistoryIcon,
   LayoutDashboardIcon,
+  MenuIcon,
   SettingsIcon,
   UsersIcon,
 } from 'lucide-react'
+import { useState } from 'react'
 
-import { AppSidebar } from '@/components/layout/app-sidebar'
 import type { AppSidebarNavItem } from '@/components/layout/app-sidebar'
-import { Logo } from '@/components/logo'
-import { getUserInitials } from '@/components/layout/dashboard-header'
-import { ModeToggle } from '@/components/ui/mode-toggle'
+import { DashboardHeader } from '@/components/layout/dashboard-header'
+import { StudioSidebar } from '@/components/layout/studio-sidebar'
+import { Button } from '@/components/ui/button'
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 
 const navItems: readonly AppSidebarNavItem[] = [
-  {
-    label: 'Dashboard',
-    to: '/admin',
-    icon: LayoutDashboardIcon,
-    exact: true,
-  },
-  {
-    label: 'Assignments',
-    to: '/admin/assignments',
-    icon: ClipboardListIcon,
-  },
-  {
-    label: 'Users',
-    to: '/admin/users',
-    icon: UsersIcon,
-  },
-  {
-    label: 'Courses',
-    to: '/admin/courses',
-    icon: BookOpenIcon,
-  },
-  {
-    label: 'Materials',
-    to: '/admin/materials',
-    icon: FileTextIcon,
-  },
-  {
-    label: 'Audit Logs',
-    to: '/admin/audit',
-    icon: HistoryIcon,
-  },
+  { label: 'Dashboard', to: '/admin', icon: LayoutDashboardIcon, exact: true },
+  { label: 'Assignments', to: '/admin/assignments', icon: ClipboardListIcon },
+  { label: 'Users', to: '/admin/users', icon: UsersIcon },
+  { label: 'Courses', to: '/admin/courses', icon: BookOpenIcon },
+  { label: 'Materials', to: '/admin/materials', icon: FileTextIcon },
+  { label: 'Audit Logs', to: '/admin/audit', icon: HistoryIcon },
+  { label: 'Settings', to: '/admin/settings', icon: SettingsIcon },
 ]
 
-const settingsNavItem: AppSidebarNavItem = {
-  label: 'Settings',
-  to: '/admin/settings',
-  icon: SettingsIcon,
+function activeSectionLabel(pathname: string) {
+  const match = [...navItems]
+    .sort((a, b) => b.to.length - a.to.length)
+    .find((item) =>
+      item.exact
+        ? pathname === item.to || pathname === `${item.to}/`
+        : pathname === item.to || pathname.startsWith(`${item.to}/`),
+    )
+
+  return match?.label ?? 'Dashboard'
+}
+
+function AdminBreadcrumb({ pathname }: { pathname: string }) {
+  return (
+    <nav
+      aria-label="Breadcrumb"
+      className="smallcaps-label flex min-w-0 items-center gap-2"
+    >
+      <span>Admin</span>
+      <span aria-hidden>·</span>
+      <span className="truncate text-foreground">
+        {activeSectionLabel(pathname)}
+      </span>
+    </nav>
+  )
 }
 
 export function AdminPageShell() {
@@ -61,93 +65,68 @@ export function AdminPageShell() {
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   })
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
+  const sidebarUser = currentUser
+    ? { displayName: currentUser.displayName, roleLabel: 'Administrator' }
+    : undefined
 
   return (
-    <div className="h-svh overflow-hidden bg-background text-foreground">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 border-r border-sidebar-border bg-sidebar lg:flex lg:flex-col">
-        <AppSidebar
-          navigation={navItems}
-          settings={settingsNavItem}
-          pathname={pathname}
-          ariaLabel="Admin navigation"
-          header={
-            <div className="px-6 py-8">
-              <div className="flex items-center gap-3">
-                <Logo />
-                <div>
-                  <p className="text-xl font-semibold tracking-tight text-sidebar-foreground">
-                    Morshid Admin
-                  </p>
-                  <p className="mt-0.5 text-[0.7rem] font-semibold tracking-[0.18em] text-muted-foreground uppercase">
-                    Higher Ed AI Portal
-                  </p>
-                </div>
-              </div>
-            </div>
-          }
-          navigationClassName="flex-1 space-y-2 px-6"
-          itemClassName="flex h-12 w-full items-center gap-4 rounded-md border-l-2 border-transparent px-4 text-sm font-medium text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          activeItemClassName="border-l-rubric bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          settingsContainerClassName="border-t border-sidebar-border px-6 py-4"
-          footer={
-            currentUser ? (
-              <div className="border-t border-sidebar-border p-6">
-                <div className="flex items-center gap-3 rounded-md border border-sidebar-border bg-sidebar-accent/40 p-3">
-                  <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-sidebar-primary text-sm font-semibold text-sidebar-primary-foreground">
-                    {getUserInitials(currentUser.displayName)}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-sidebar-foreground">
-                      {currentUser.displayName}
-                    </p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {currentUser.email}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ) : null
-          }
-        />
+    <div className="flex h-svh overflow-hidden bg-background text-foreground">
+      {/* Desktop sidebar — inset floating panel */}
+      <aside className="hidden shrink-0 md:block">
+        <div className="m-3 h-[calc(100svh-1.5rem)] w-64 overflow-hidden rounded-2xl border bg-sidebar text-sidebar-foreground shadow-sm">
+          <StudioSidebar
+            navigation={navItems}
+            roleChip="ADMIN"
+            ariaLabel="Admin navigation"
+            pathname={pathname}
+            user={sidebarUser}
+          />
+        </div>
       </aside>
 
-      <div className="h-full overflow-y-auto lg:pl-72">
-        <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur-sm">
-          <div className="flex h-16 items-center justify-between px-4 sm:px-6 lg:px-10">
-            <p className="text-sm font-medium text-muted-foreground">
-              Administrator console
-            </p>
-            <ModeToggle />
-          </div>
-        </header>
+      {/* Mobile sidebar drawer */}
+      <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+        <SheetContent
+          side="left"
+          className="w-72 max-w-[85vw] gap-0 rounded-r-3xl border-sidebar-border bg-sidebar p-0 text-sidebar-foreground"
+        >
+          <SheetHeader className="sr-only">
+            <SheetTitle>Admin navigation</SheetTitle>
+          </SheetHeader>
+          <StudioSidebar
+            navigation={navItems}
+            roleChip="ADMIN"
+            ariaLabel="Admin navigation"
+            pathname={pathname}
+            user={sidebarUser}
+            onNavigate={() => setMobileMenuOpen(false)}
+          />
+        </SheetContent>
+      </Sheet>
 
-        <main className="min-h-[calc(100vh-4rem)] px-4 pt-8 pb-32 sm:px-6 lg:px-10 lg:pb-8">
-          <Outlet />
-        </main>
-      </div>
-
-      <nav
-        className="fixed inset-x-0 bottom-0 z-50 grid grid-cols-3 border-t border-sidebar-border bg-sidebar/95 p-2 backdrop-blur lg:hidden"
-        aria-label="Admin mobile navigation"
-      >
-        {[...navItems, settingsNavItem].map((item) => {
-          const Icon = item.icon
-
-          return (
-            <Link
-              key={item.to}
-              to={item.to}
-              activeProps={{
-                className: 'bg-sidebar-accent text-sidebar-accent-foreground',
-              }}
-              className="flex flex-col items-center gap-1 rounded-md px-1 py-2 text-[0.7rem] text-sidebar-foreground/70"
+      <div className="flex min-w-0 flex-1 flex-col overflow-y-auto scrollbar-themed">
+        <DashboardHeader
+          className="sticky top-3 z-40 mx-3 mt-3"
+          leading={
+            <Button
+              variant="ghost"
+              size="icon"
+              className="md:hidden"
+              aria-label="Open menu"
+              onClick={() => setMobileMenuOpen(true)}
             >
-              <Icon className="size-4" />
-              <span className="truncate">{item.label}</span>
-            </Link>
-          )
-        })}
-      </nav>
+              <MenuIcon className="size-5" aria-hidden />
+            </Button>
+          }
+          breadcrumb={<AdminBreadcrumb pathname={pathname} />}
+        />
+
+        <div className="mx-auto w-full max-w-7xl px-6 py-8 md:px-8">
+          <Outlet />
+        </div>
+      </div>
     </div>
   )
 }

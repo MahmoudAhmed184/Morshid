@@ -1,95 +1,55 @@
-import { Upload } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
 
-import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import { EmptyState } from '@/components/ui/custom/empty-state'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { InstructorListSkeleton } from '@/features/instructor/components/instructor-list-skeleton'
-import { instructorDashboardPanels } from '@/features/instructor/constants/instructor-route-dashboard.constants'
 import type { InstructorDashboardState } from '@/features/instructor/types/instructor-dashboard-state'
 
-type DashboardPanelsSectionProps = {
+type DashboardReviewQueuePanelProps = {
   state: InstructorDashboardState
 }
 
-export function DashboardPanelsSection({ state }: DashboardPanelsSectionProps) {
-  return (
-    <div className="grid gap-6 lg:grid-cols-2">
-      {instructorDashboardPanels.map((panel) => {
-        const PanelIcon = panel.icon
-
-        return (
-          <section
-            key={panel.id}
-            aria-labelledby={panel.headingId}
-            aria-busy={state.status === 'loading' || undefined}
-            id={panel.id}
-          >
-            <Card className="h-full">
-              <CardHeader>
-                <CardTitle>
-                  <h2 id={panel.headingId}>{panel.title}</h2>
-                </CardTitle>
-                <CardDescription>{panel.description}</CardDescription>
-                <CardAction>
-                  <span className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary [&_svg]:size-4">
-                    <PanelIcon aria-hidden />
-                  </span>
-                </CardAction>
-              </CardHeader>
-              <CardContent>
-                <DashboardPanelContent state={state} panel={panel} />
-              </CardContent>
-            </Card>
-          </section>
-        )
-      })}
-    </div>
-  )
-}
-
-function DashboardPanelContent({
+/**
+ * The Register review-queue panel (col-1).
+ *
+ * The dashboard queries only expose a review-queue *count*, not the individual
+ * flagged rows, so this panel degrades to an at-a-glance summary plus the
+ * "Open the queue →" link rather than rendering per-row entries.
+ */
+export function DashboardReviewQueuePanel({
   state,
-  panel,
-}: {
-  state: InstructorDashboardState
-  panel: (typeof instructorDashboardPanels)[number]
-}) {
-  const Icon = panel.icon
-
-  if (state.status === 'loading') {
-    return <InstructorListSkeleton aria-label={`Loading ${panel.id} rows`} />
-  }
-
-  if (state.status === 'empty' || state.status === 'error') {
-    return (
-      <EmptyState
-        icon={<Icon aria-hidden />}
-        title="Unavailable without a course"
-        description="Assign a course before this workspace can show course-specific activity."
-      />
-    )
-  }
+}: DashboardReviewQueuePanelProps) {
+  const hasCourse = state.status === 'ready'
+  const reviewCount = state.status === 'ready' ? state.reviewQueueCount : 0
 
   return (
-    <EmptyState
-      icon={<Icon aria-hidden />}
-      title={panel.emptyTitle}
-      description={panel.emptyDescription}
-      action={
-        panel.action === 'upload' ? (
-          <Button disabled type="button">
-            <Upload aria-hidden />
-            Upload material
-          </Button>
-        ) : undefined
-      }
-    />
+    <Card className="flex flex-col">
+      <CardHeader>
+        <div className="smallcaps-label">Needs review</div>
+      </CardHeader>
+      <CardContent className="flex flex-1 flex-col gap-4">
+        {state.status === 'loading' ? (
+          <InstructorListSkeleton rows={3} aria-label="Loading review queue" />
+        ) : (
+          <div className="flex-1 rounded-xl border border-dashed bg-secondary/20 px-4 py-8 text-center">
+            <p className="text-sm font-medium text-foreground">
+              {hasCourse && reviewCount > 0
+                ? `${reviewCount} awaiting review`
+                : 'No reviews waiting'}
+            </p>
+            <p className="footnote mt-1">
+              {hasCourse
+                ? 'Flagged exchanges from this course appear here.'
+                : 'Assign a course to collect flagged exchanges.'}
+            </p>
+          </div>
+        )}
+        <Link
+          to="/instructor/review-queue"
+          className="link-editorial footnote w-fit"
+        >
+          Open the queue →
+        </Link>
+      </CardContent>
+    </Card>
   )
 }

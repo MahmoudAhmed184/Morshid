@@ -156,7 +156,7 @@ describe('/instructor', () => {
     const { history } = renderAtInstructorRoute(createSession('INSTRUCTOR'))
 
     expect(
-      await screen.findByRole('heading', { name: 'Instructor dashboard' }),
+      await screen.findByRole('heading', { name: "Today's teaching desk." }),
     ).toBeVisible()
     expect(await screen.findByText('Python Programming')).toBeVisible()
     expect(history.location.pathname).toBe('/instructor')
@@ -172,12 +172,11 @@ describe('/instructor', () => {
     await waitFor(() =>
       expect(history.location.pathname).toBe('/student/dashboard'),
     )
-    expect(
-      await screen.findByRole('heading', { name: 'Dashboard' }),
-    ).toBeVisible()
-    expect(
-      screen.queryByRole('heading', { name: 'Instructor dashboard' }),
-    ).not.toBeInTheDocument()
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('heading', { name: "Today's teaching desk." }),
+      ).not.toBeInTheDocument(),
+    )
   })
 
   it('shows the route empty state when the Instructor owns no course', async () => {
@@ -212,14 +211,9 @@ describe('/instructor', () => {
         name: 'Loading instructor dashboard',
       }),
     ).toBeVisible()
-    expect(screen.getByText('Instructor Portal')).toBeVisible()
     expect(
-      screen.getByRole('searchbox', { name: 'Search course workspace' }),
+      screen.getByRole('heading', { name: 'Source readiness' }),
     ).toBeVisible()
-    expect(
-      screen.getByRole('heading', { name: 'Course materials' }),
-    ).toBeVisible()
-    expect(screen.getByRole('heading', { name: 'Review queue' })).toBeVisible()
     expect(
       screen.queryByLabelText('Checking authentication'),
     ).not.toBeInTheDocument()
@@ -229,7 +223,7 @@ describe('/instructor', () => {
     const { history } = renderAtInstructorRoute(createSession('INSTRUCTOR'))
 
     expect(
-      await screen.findByRole('heading', { name: 'Instructor dashboard' }),
+      await screen.findByRole('heading', { name: "Today's teaching desk." }),
     ).toBeVisible()
 
     fireEvent.click(screen.getByRole('link', { name: 'My Courses' }))
@@ -238,10 +232,6 @@ describe('/instructor', () => {
       await screen.findByRole('heading', { name: 'My Courses' }),
     ).toBeVisible()
     expect(history.location.pathname).toBe('/instructor/courses')
-    expect(screen.getByText('Instructor Portal')).toBeVisible()
-    expect(
-      screen.getByRole('searchbox', { name: 'Search course workspace' }),
-    ).toBeVisible()
     expect(
       screen.queryByLabelText('Checking authentication'),
     ).not.toBeInTheDocument()
@@ -254,10 +244,6 @@ describe('/instructor', () => {
     expect(
       (await screen.findAllByRole('heading', { name: 'Materials' })).length,
     ).toBeGreaterThanOrEqual(1)
-    expect(screen.getByText('Instructor Portal')).toBeVisible()
-    expect(
-      screen.getByRole('searchbox', { name: 'Search course workspace' }),
-    ).toBeVisible()
     expect(
       screen.queryByLabelText('Checking authentication'),
     ).not.toBeInTheDocument()
@@ -265,17 +251,17 @@ describe('/instructor', () => {
     fireEvent.click(screen.getByRole('link', { name: 'Dashboard' }))
 
     expect(
-      await screen.findByRole('heading', { name: 'Instructor dashboard' }),
+      await screen.findByRole('heading', { name: "Today's teaching desk." }),
     ).toBeVisible()
     expect(history.location.pathname).toBe('/instructor')
-    expect(screen.getByText('Instructor Portal')).toBeVisible()
+    expect(screen.getByText('INSTRUCTOR')).toBeVisible()
   })
 
   it('redirects an Admin session to the Admin shell', async () => {
     const { history } = renderAtInstructorRoute(createSession('ADMIN'))
 
     await waitFor(() => expect(history.location.pathname).toBe('/admin'))
-    expect(await screen.findByText('Morshid Admin')).toBeVisible()
+    expect(await screen.findByText('ADMIN')).toBeVisible()
   })
 
   it('redirects an unauthenticated browser session to sign in', async () => {
@@ -341,7 +327,7 @@ describe('/instructor', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
 
     expect(
-      await screen.findByRole('heading', { name: 'Instructor dashboard' }),
+      await screen.findByRole('heading', { name: "Today's teaching desk." }),
     ).toBeVisible()
     expect(history.location.pathname).toBe('/instructor')
   })

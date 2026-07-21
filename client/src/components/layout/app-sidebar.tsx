@@ -12,10 +12,17 @@ export type AppSidebarNavItem = {
 
 type AppSidebarProps = {
   navigation: readonly AppSidebarNavItem[]
-  settings: AppSidebarNavItem
+  /**
+   * Optional trailing settings item rendered in its own container below the
+   * main nav. Omit it when the settings link is folded into `navigation`
+   * (the Studio Shell keeps the user card as the last element instead).
+   */
+  settings?: AppSidebarNavItem
   pathname: string
   ariaLabel: string
   header: React.ReactNode
+  /** Optional `.smallcaps-label` heading rendered above the nav items. */
+  navHeading?: React.ReactNode
   footer?: React.ReactNode
   children?: React.ReactNode
   onNavigate?: () => void
@@ -76,6 +83,7 @@ export function AppSidebar({
   pathname,
   ariaLabel,
   header,
+  navHeading,
   footer,
   children,
   onNavigate,
@@ -90,6 +98,9 @@ export function AppSidebar({
       {header}
 
       <nav className={navigationClassName} aria-label={ariaLabel}>
+        {navHeading ? (
+          <div className="smallcaps-label px-2 pb-2">{navHeading}</div>
+        ) : null}
         {navigation.map((item) => (
           <AppSidebarLink
             key={item.to}
@@ -104,15 +115,17 @@ export function AppSidebar({
 
       {children}
       {footer}
-      <div className={settingsContainerClassName}>
-        <AppSidebarLink
-          item={settings}
-          pathname={pathname}
-          onNavigate={onNavigate}
-          itemClassName={itemClassName}
-          activeItemClassName={activeItemClassName}
-        />
-      </div>
+      {settings ? (
+        <div className={settingsContainerClassName}>
+          <AppSidebarLink
+            item={settings}
+            pathname={pathname}
+            onNavigate={onNavigate}
+            itemClassName={itemClassName}
+            activeItemClassName={activeItemClassName}
+          />
+        </div>
+      ) : null}
     </div>
   )
 }

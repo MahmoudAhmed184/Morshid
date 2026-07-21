@@ -11,6 +11,7 @@ import type { LucideIcon } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import type { badgeVariants } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,6 +26,7 @@ type StatusPresentation = {
   variant: BadgeVariant
   icon: LucideIcon
   chip: string
+  bar: string
   spin?: boolean
 }
 
@@ -33,50 +35,59 @@ const statusPresentation: Record<string, StatusPresentation> = {
     variant: 'success',
     icon: CheckCircle2,
     chip: 'bg-success/10 text-success',
+    bar: 'bg-success',
   },
   complete: {
     variant: 'success',
     icon: CheckCircle2,
     chip: 'bg-success/10 text-success',
+    bar: 'bg-success',
   },
   processing: {
     variant: 'info',
     icon: Loader2,
     chip: 'bg-info/10 text-info',
+    bar: 'bg-info',
     spin: true,
   },
   uploading: {
     variant: 'info',
     icon: Loader2,
     chip: 'bg-info/10 text-info',
+    bar: 'bg-info',
     spin: true,
   },
   warning: {
     variant: 'warning',
     icon: TriangleAlert,
     chip: 'bg-warning/10 text-warning',
+    bar: 'bg-warning',
   },
   degraded: {
     variant: 'warning',
     icon: TriangleAlert,
     chip: 'bg-warning/10 text-warning',
+    bar: 'bg-warning',
   },
   failed: {
     variant: 'destructive',
     icon: XCircle,
     chip: 'bg-destructive/10 text-destructive',
+    bar: 'bg-destructive',
   },
   error: {
     variant: 'destructive',
     icon: XCircle,
     chip: 'bg-destructive/10 text-destructive',
+    bar: 'bg-destructive',
   },
 }
 
 const fallbackPresentation: StatusPresentation = {
   variant: 'secondary',
   icon: FileText,
-  chip: 'bg-muted text-primary',
+  chip: 'bg-primary/10 text-primary',
+  bar: 'bg-muted-foreground',
 }
 
 function presentationFor(status?: string): StatusPresentation {
@@ -106,56 +117,57 @@ export function PdfCard({
   const Icon = presentation.icon
 
   return (
-    <article
-      className={cn(
-        'flex items-start gap-3 rounded-md border border-border bg-background px-4 py-3.5 text-left transition-colors hover:border-foreground/30',
-        className,
-      )}
+    <Card
+      className={cn('hover-float relative flex flex-row gap-3 p-5', className)}
     >
+      <span
+        className={cn(
+          'absolute inset-y-5 left-0 w-0.5 rounded-full',
+          presentation.bar,
+        )}
+        aria-hidden
+      />
       <div
         className={cn(
-          'flex size-10 shrink-0 items-center justify-center rounded-sm [&_svg]:size-5',
+          'flex size-9 shrink-0 items-center justify-center rounded-lg [&_svg]:size-4',
           presentation.chip,
         )}
       >
         <Icon className={cn(presentation.spin && 'animate-spin')} aria-hidden />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="min-w-0">
-            <h3 className="truncate text-sm font-medium text-foreground">
-              {title}
-            </h3>
-            {description ? (
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                {description}
-              </p>
-            ) : null}
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {status ? (
-              <Badge variant={presentation.variant}>{status}</Badge>
-            ) : null}
-            {actions ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={`Open actions for ${title}`}
-                    />
-                  }
-                >
-                  <MoreHorizontal className="size-4" aria-hidden />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">{actions}</DropdownMenuContent>
-              </DropdownMenu>
-            ) : null}
-          </div>
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="truncate font-mono text-sm font-medium text-foreground">
+            {title}
+          </h3>
+          {actions ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="-mt-1 -mr-1 shrink-0"
+                    aria-label={`Open actions for ${title}`}
+                  />
+                }
+              >
+                <MoreHorizontal className="size-4" aria-hidden />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">{actions}</DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
         </div>
+        {description ? (
+          <p className="footnote mt-1 line-clamp-2 leading-5">{description}</p>
+        ) : null}
+        {status ? (
+          <div className="mt-3">
+            <Badge variant={presentation.variant}>{status}</Badge>
+          </div>
+        ) : null}
       </div>
-    </article>
+    </Card>
   )
 }

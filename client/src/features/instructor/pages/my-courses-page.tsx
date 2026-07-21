@@ -1,4 +1,3 @@
-import { Badge } from '@/components/ui/badge'
 import { PageHeader } from '@/components/ui/custom/page-header'
 import { CoursesContent } from '@/features/instructor/components/courses-content'
 import { useInstructorCourses } from '@/features/instructor/hooks/use-instructor-courses'
@@ -12,7 +11,7 @@ export function MyCoursesPage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow={<Badge variant="secondary">Instructor workspace</Badge>}
+        eyebrow="Instructor workspace"
         title="My Courses"
         description="View your assigned courses and workspace activity."
       />

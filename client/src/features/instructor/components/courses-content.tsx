@@ -34,7 +34,7 @@ export function CoursesContent({
         description="Your assigned courses could not be loaded. Try again."
         onRetry={onRetry}
         isRetrying={isRetrying}
-        className="min-h-56 rounded-sm"
+        className="min-h-56"
       />
     )
   }
@@ -44,7 +44,7 @@ export function CoursesContent({
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
       {courses.map((course) => (
         <CourseHero key={course.id} course={course} />
       ))}

@@ -1,83 +1,55 @@
+import { Link } from '@tanstack/react-router'
+import { BookOpen } from 'lucide-react'
+
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent } from '@/components/ui/card'
-import { StatCard } from '@/components/ui/custom/stat-card'
+import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { instructorCourseMetrics } from '@/features/instructor/constants/instructor-dashboard.constants'
 import type { InstructorCourse } from '@/features/instructor/schemas/instructor-course.schema'
 
 export function CourseHeroSkeleton() {
   return (
-    <Card
-      aria-label="Loading course"
-      className="border-l-2 border-l-rubric py-0"
-      role="status"
-    >
-      <CardContent className="overflow-hidden px-0">
-        <div className="relative min-h-56 p-5 sm:p-6">
-          <div className="relative flex min-h-44 flex-col justify-between gap-8">
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <Skeleton className="h-6 w-28" />
-              </div>
-              <div className="max-w-2xl space-y-2">
-                <Skeleton className="h-10 w-3/4 max-w-md" />
-                <Skeleton className="h-4 w-full max-w-xl" />
-                <Skeleton className="h-4 w-4/5 max-w-lg" />
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-3">
-              {instructorCourseMetrics.map((metric) => (
-                <div
-                  key={metric.label}
-                  className="rounded-lg border border-border bg-background/70 px-4 py-3"
-                >
-                  <Skeleton className="h-3 w-16" />
-                  <Skeleton className="mt-2 h-4 w-20" />
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </CardContent>
+    <Card aria-label="Loading course" className="p-6" role="status">
+      <div className="flex items-start justify-between gap-3">
+        <Skeleton className="size-10 rounded-lg" />
+        <Skeleton className="h-5 w-20 rounded-full" />
+      </div>
+      <div className="mt-4 space-y-2">
+        <Skeleton className="h-6 w-3/4" />
+        <Skeleton className="h-4 w-24" />
+      </div>
+      <div className="rule mt-5 pt-4">
+        <Skeleton className="h-4 w-40" />
+      </div>
     </Card>
   )
 }
 
 export function CourseHero({ course }: { course: InstructorCourse }) {
   return (
-    <Card className="border-l-2 border-l-rubric py-0">
-      <CardContent className="overflow-hidden px-0">
-        <div className="relative min-h-56 p-5 sm:p-6">
-          <div className="relative flex min-h-44 flex-col justify-between gap-8">
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge className="font-mono">{course.code}</Badge>
-              </div>
-              <div className="max-w-2xl space-y-2">
-                <h2 className="font-display text-[1.75rem] leading-tight tracking-tight text-foreground">
-                  {course.title}
-                </h2>
-                <p className="max-w-xl text-sm leading-6 text-muted-foreground">
-                  Sprint 1 instructor shell for course materials and flagged
-                  guidance review.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-3">
-              {instructorCourseMetrics.map((metric) => (
-                <StatCard
-                  key={metric.label}
-                  label={metric.label}
-                  value={metric.value}
-                  className="border-border bg-background/70 py-4 shadow-none"
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-      </CardContent>
+    <Card className="hover-float flex flex-col p-6">
+      <div className="flex items-start justify-between gap-3">
+        <span
+          className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary [&_svg]:size-5"
+          aria-hidden
+        >
+          <BookOpen />
+        </span>
+        <Badge variant="success">Assigned</Badge>
+      </div>
+      <div className="mt-4 min-w-0 space-y-1">
+        <h3 className="truncate text-lg font-medium text-foreground">
+          {course.title}
+        </h3>
+        <p className="footnote">{course.code}</p>
+      </div>
+      <div className="rule mt-5 pt-4">
+        <Link
+          to="/instructor/materials"
+          className="link-editorial footnote w-fit"
+        >
+          Manage materials →
+        </Link>
+      </div>
     </Card>
   )
 }

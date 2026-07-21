@@ -9,11 +9,10 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 
-import { AppSidebar } from '@/components/layout/app-sidebar'
 import type { AppSidebarNavItem } from '@/components/layout/app-sidebar'
 import { DashboardHeader } from '@/components/layout/dashboard-header'
+import { StudioSidebar } from '@/components/layout/studio-sidebar'
 import { Button } from '@/components/ui/button'
-import { Logo } from '@/components/logo'
 import {
   Sheet,
   SheetContent,
@@ -34,46 +33,33 @@ const navItems: readonly AppSidebarNavItem[] = [
     label: 'Review Queue',
   },
   { icon: FileText, to: '/instructor/materials', label: 'Materials' },
+  { icon: Settings, to: '/instructor/settings', label: 'Settings' },
 ]
 
-const settingsNavItem: AppSidebarNavItem = {
-  icon: Settings,
-  to: '/instructor/settings',
-  label: 'Settings',
+function activeSectionLabel(pathname: string) {
+  const match = [...navItems]
+    .sort((a, b) => b.to.length - a.to.length)
+    .find((item) =>
+      item.exact
+        ? pathname === item.to || pathname === `${item.to}/`
+        : pathname === item.to || pathname.startsWith(`${item.to}/`),
+    )
+
+  return match?.label ?? 'Dashboard'
 }
 
-function InstructorSidebar({ onNavigate }: { onNavigate?: () => void }) {
-  const pathname = useRouterState({
-    select: (state) => state.location.pathname,
-  })
-
+function InstructorBreadcrumb({ pathname }: { pathname: string }) {
   return (
-    <AppSidebar
-      navigation={navItems}
-      settings={settingsNavItem}
-      pathname={pathname}
-      ariaLabel="Instructor navigation"
-      onNavigate={onNavigate}
-      className="bg-card text-card-foreground"
-      header={
-        <div className="flex min-h-16 items-center gap-3 border-b border-border px-4 md:min-h-20">
-          <Logo
-            className="size-8 rounded-md bg-primary text-primary-foreground"
-            iconClassName="size-4"
-          />
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-foreground">Morshid</p>
-            <p className="truncate text-[0.68rem] text-muted-foreground">
-              Instructor Portal
-            </p>
-          </div>
-        </div>
-      }
-      navigationClassName="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-3"
-      itemClassName="flex h-9 w-full items-center gap-2 rounded-md border-l-2 border-transparent px-3 text-left text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-      activeItemClassName="border-l-rubric bg-accent text-accent-foreground hover:bg-accent hover:text-accent-foreground"
-      settingsContainerClassName="border-t border-border px-3 py-4"
-    />
+    <nav
+      aria-label="Breadcrumb"
+      className="smallcaps-label flex min-w-0 items-center gap-2"
+    >
+      <span>Instructor</span>
+      <span aria-hidden>·</span>
+      <span className="truncate text-foreground">
+        {activeSectionLabel(pathname)}
+      </span>
+    </nav>
   )
 }
 
@@ -92,54 +78,72 @@ function InstructorOutlet() {
 
 export function InstructorLayout() {
   const user = useAuthStore((state) => state.user)
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  })
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
+  const sidebarUser = {
+    displayName: user?.displayName,
+    roleLabel: 'Instructor',
+  }
+
   return (
-    <main className="h-svh overflow-hidden bg-background text-foreground">
-      <div className="h-full md:grid md:grid-cols-[13rem_minmax(0,1fr)]">
-        {/* Mobile sidebar */}
-        <div className="md:hidden">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="fixed left-4 top-4 z-40 md:hidden"
-            aria-label="Open menu"
-            onClick={() => setMobileMenuOpen(true)}
-          >
-            <Menu className="size-5" aria-hidden />
-          </Button>
-          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-            <SheetContent side="left" className="w-64 p-0">
-              <SheetHeader className="border-b border-border px-4 py-3">
-                <SheetTitle className="text-sm font-semibold text-foreground">
-                  Menu
-                </SheetTitle>
-              </SheetHeader>
-              <InstructorSidebar onNavigate={() => setMobileMenuOpen(false)} />
-            </SheetContent>
-          </Sheet>
+    <div className="flex h-svh overflow-hidden bg-background text-foreground">
+      {/* Desktop sidebar — inset floating panel */}
+      <aside className="hidden shrink-0 md:block">
+        <div className="m-3 h-[calc(100svh-1.5rem)] w-64 overflow-hidden rounded-2xl border bg-sidebar text-sidebar-foreground shadow-sm">
+          <StudioSidebar
+            navigation={navItems}
+            roleChip="INSTRUCTOR"
+            ariaLabel="Instructor navigation"
+            pathname={pathname}
+            user={sidebarUser}
+          />
         </div>
+      </aside>
 
-        {/* Desktop sidebar */}
-        <aside className="sticky top-0 hidden h-svh border-r border-border md:block">
-          <InstructorSidebar />
-        </aside>
+      {/* Mobile sidebar drawer */}
+      <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+        <SheetContent
+          side="left"
+          className="w-72 max-w-[85vw] gap-0 rounded-r-3xl border-sidebar-border bg-sidebar p-0 text-sidebar-foreground"
+        >
+          <SheetHeader className="sr-only">
+            <SheetTitle>Instructor navigation</SheetTitle>
+          </SheetHeader>
+          <StudioSidebar
+            navigation={navItems}
+            roleChip="INSTRUCTOR"
+            ariaLabel="Instructor navigation"
+            pathname={pathname}
+            user={sidebarUser}
+            onNavigate={() => setMobileMenuOpen(false)}
+          />
+        </SheetContent>
+      </Sheet>
 
-        <div className="min-w-0 overflow-y-auto bg-background">
-          <div className="sticky top-0 z-20">
-            <DashboardHeader
-              displayName={user?.displayName}
-              email={user?.email}
-              searchLabel="Search course workspace"
-              searchPlaceholder="Search course, materials, or reviews..."
-            />
-          </div>
+      <div className="flex min-w-0 flex-1 flex-col overflow-y-auto scrollbar-themed">
+        <DashboardHeader
+          className="sticky top-3 z-40 mx-3 mt-3"
+          leading={
+            <Button
+              variant="ghost"
+              size="icon"
+              className="md:hidden"
+              aria-label="Open menu"
+              onClick={() => setMobileMenuOpen(true)}
+            >
+              <Menu className="size-5" aria-hidden />
+            </Button>
+          }
+          breadcrumb={<InstructorBreadcrumb pathname={pathname} />}
+        />
 
-          <div className="mx-auto w-full max-w-7xl px-4 py-5 md:px-6">
-            <InstructorOutlet />
-          </div>
+        <div className="mx-auto w-full max-w-7xl px-6 py-8 md:px-8">
+          <InstructorOutlet />
         </div>
       </div>
-    </main>
+    </div>
   )
 }

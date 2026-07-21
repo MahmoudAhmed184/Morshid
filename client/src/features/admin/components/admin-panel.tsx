@@ -6,7 +6,7 @@ export function AdminPanel({ className, ...props }: AdminPanelProps) {
   return (
     <section
       className={cn(
-        'overflow-hidden rounded-md border border-border bg-card text-card-foreground',
+        'overflow-hidden rounded-2xl border border-foreground/8 bg-card text-card-foreground shadow-sm',
         className,
       )}
       {...props}

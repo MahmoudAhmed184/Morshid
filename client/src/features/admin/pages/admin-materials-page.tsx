@@ -64,7 +64,7 @@ export function AdminMaterialsPage() {
 
       <AdminPanel>
         <DataToolbar
-          className="border-b p-4"
+          className="border-b px-4 py-3"
           filters={
             <Select
               value={courseId ?? null}
@@ -97,75 +97,82 @@ export function AdminMaterialsPage() {
           emptyTitle="No materials found"
           emptyDescription="No material metadata is available for this course."
         >
-          <Table className="min-w-[820px]">
-            <TableHeader>
-              <TableRow>
-                {[
-                  'Material',
-                  'Course',
-                  'Type',
-                  'Status',
-                  'Owner',
-                  'Updated',
-                  'Actions',
-                ].map((header) => (
-                  <TableHead
-                    key={header}
-                    className="h-11 px-4 first:pl-6 last:pr-6"
-                  >
-                    {header}
-                  </TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {materialsQuery.data?.map((material) => (
-                <TableRow key={material.id}>
-                  <TableCell className="px-4 py-3.5 first:pl-6">
-                    <p className="font-medium text-foreground">
-                      {material.title}
-                    </p>
-                    <p className="font-mono text-xs text-muted-foreground">
-                      {material.id}
-                    </p>
-                  </TableCell>
-                  <TableCell className="px-4 py-3.5">
-                    {selectedCourse?.code ?? material.courseId}
-                  </TableCell>
-                  <TableCell className="px-4 py-3.5">
-                    <p>PDF</p>
-                    <p className="text-xs text-muted-foreground">
-                      {material.originalFilename}
-                    </p>
-                  </TableCell>
-                  <TableCell className="px-4 py-3.5">
-                    <AdminStatusBadge status={material.status} />
-                  </TableCell>
-                  <TableCell className="px-4 py-3.5">
-                    <p>{material.uploadedBy.displayName}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {material.uploadedBy.email}
-                    </p>
-                  </TableCell>
-                  <TableCell className="px-4 py-3.5 text-muted-foreground tabular-nums">
-                    {materialDateFormatter.format(new Date(material.updatedAt))}
-                  </TableCell>
-                  <TableCell className="px-4 py-3.5 last:pr-6">
-                    <EditAdminMaterialDialog
-                      material={material}
-                      isPending={editMaterial.isPending}
-                      onSave={(title) =>
-                        editMaterial.mutateAsync({
-                          materialId: material.id,
-                          title,
-                        })
-                      }
-                    />
-                  </TableCell>
+          <div className="max-h-[65vh] overflow-auto scrollbar-themed">
+            <Table className="min-w-[820px]">
+              <TableHeader className="sticky top-0 z-10 bg-secondary/40">
+                <TableRow>
+                  {[
+                    'Material',
+                    'Course',
+                    'Type',
+                    'Status',
+                    'Owner',
+                    'Updated',
+                    'Actions',
+                  ].map((header) => (
+                    <TableHead
+                      key={header}
+                      className="smallcaps-label h-11 px-4 first:pl-6 last:pr-6"
+                    >
+                      {header}
+                    </TableHead>
+                  ))}
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {materialsQuery.data?.map((material) => (
+                  <TableRow
+                    key={material.id}
+                    className="h-[52px] hover:bg-secondary/40"
+                  >
+                    <TableCell className="px-4 py-3.5 first:pl-6">
+                      <p className="font-medium text-foreground">
+                        {material.title}
+                      </p>
+                      <p className="font-mono text-xs text-muted-foreground">
+                        {material.id}
+                      </p>
+                    </TableCell>
+                    <TableCell className="px-4 py-3.5">
+                      {selectedCourse?.code ?? material.courseId}
+                    </TableCell>
+                    <TableCell className="px-4 py-3.5">
+                      <p>PDF</p>
+                      <p className="text-xs text-muted-foreground">
+                        {material.originalFilename}
+                      </p>
+                    </TableCell>
+                    <TableCell className="px-4 py-3.5">
+                      <AdminStatusBadge status={material.status} />
+                    </TableCell>
+                    <TableCell className="px-4 py-3.5">
+                      <p>{material.uploadedBy.displayName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {material.uploadedBy.email}
+                      </p>
+                    </TableCell>
+                    <TableCell className="px-4 py-3.5 text-muted-foreground tabular-nums">
+                      {materialDateFormatter.format(
+                        new Date(material.updatedAt),
+                      )}
+                    </TableCell>
+                    <TableCell className="px-4 py-3.5 last:pr-6">
+                      <EditAdminMaterialDialog
+                        material={material}
+                        isPending={editMaterial.isPending}
+                        onSave={(title) =>
+                          editMaterial.mutateAsync({
+                            materialId: material.id,
+                            title,
+                          })
+                        }
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </DataTableState>
       </AdminPanel>
     </div>
