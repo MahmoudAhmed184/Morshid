@@ -29,18 +29,13 @@ export interface CompletionRequest {
   readonly signal?: AbortSignal
 }
 
-export interface CompletionTokenUsage {
-  readonly inputTokens?: number
-  readonly outputTokens?: number
-  readonly totalTokens?: number
-}
-
 export interface CompletionResult {
   readonly content: string
   readonly provider: string
   readonly model: string
   readonly promptVersion: string
-  readonly tokenUsage?: CompletionTokenUsage
+  readonly inputTokens?: number
+  readonly outputTokens?: number
 }
 
 export interface CompletionProvider {
