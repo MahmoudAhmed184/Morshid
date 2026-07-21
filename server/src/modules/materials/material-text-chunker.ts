@@ -41,7 +41,7 @@ export class MaterialTextChunker {
         maximumEnd === normalized.length
           ? maximumEnd
           : findPreferredBoundary(normalized, start, maximumEnd)
-      const content = normalized.slice(start, end).trim()
+      const content = normalized.slice(start, end)
 
       if (content.length > 0) {
         chunks.push({ chunkIndex: chunks.length, content })
@@ -51,11 +51,7 @@ export class MaterialTextChunker {
         break
       }
 
-      const overlapStart = Math.max(
-        start + 1,
-        end - MATERIAL_CHUNK_OVERLAP_CHARACTERS,
-      )
-      start = skipWhitespace(normalized, overlapStart)
+      start = end - MATERIAL_CHUNK_OVERLAP_CHARACTERS
     }
 
     return chunks
@@ -74,17 +70,9 @@ function findPreferredBoundary(
   for (const separator of ['\n\n', '\n', ' ']) {
     const separatorIndex = window.lastIndexOf(separator)
     if (separatorIndex >= 0) {
-      return minimumBoundary + separatorIndex + separator.length
+      return minimumBoundary + separatorIndex
     }
   }
 
   return maximumEnd
-}
-
-function skipWhitespace(text: string, offset: number): number {
-  let next = offset
-  while (next < text.length && /\s/.test(text[next])) {
-    next += 1
-  }
-  return next
 }

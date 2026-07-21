@@ -14,6 +14,15 @@ describe('MaterialTextChunker', () => {
     expect(chunker.chunk(' \n\t ')).toEqual([])
   })
 
+  it('handles short text as one zero-indexed chunk', () => {
+    expect(chunker.chunk('Python stores values in variables.')).toEqual([
+      {
+        chunkIndex: 0,
+        content: 'Python stores values in variables.',
+      },
+    ])
+  })
+
   it('chunks repeatably with bounded size, stable indexes, and overlap', () => {
     const paragraphs = Array.from(
       { length: 20 },
@@ -35,5 +44,38 @@ describe('MaterialTextChunker', () => {
     ).toBe(true)
     expect(MATERIAL_CHUNK_OVERLAP_CHARACTERS).toBe(200)
     expect(first.length).toBeGreaterThan(1)
+  })
+
+  it.each([
+    { name: 'space', separator: ' ' },
+    { name: 'newline', separator: '\n' },
+    { name: 'paragraph', separator: '\n\n' },
+  ])(
+    'preserves exactly 200 shared characters across a $name boundary',
+    ({ separator }) => {
+      const firstSection = 'a'.repeat(1_000)
+      const secondSection = 'b'.repeat(600)
+      const chunks = chunker.chunk(
+        `${firstSection}${separator}${secondSection}`,
+      )
+
+      expect(chunks).toHaveLength(2)
+      expect(chunks[0]).toEqual({ chunkIndex: 0, content: firstSection })
+      expect(chunks[1]?.chunkIndex).toBe(1)
+      expect(chunks[0]?.content.slice(-200)).toBe('a'.repeat(200))
+      expect(chunks[1]?.content.slice(0, 200)).toBe('a'.repeat(200))
+      expect(chunks[1]?.content.slice(200)).toBe(
+        `${separator}${secondSection}`,
+      )
+    },
+  )
+
+  it('falls back to target size when a paragraph boundary is too early', () => {
+    const chunks = chunker.chunk(`${'a'.repeat(300)}\n\n${'b'.repeat(1_500)}`)
+
+    expect(chunks[0]?.content).toHaveLength(
+      MATERIAL_CHUNK_TARGET_CHARACTERS,
+    )
+    expect(chunks.every((chunk) => chunk.content.length > 0)).toBe(true)
   })
 })
