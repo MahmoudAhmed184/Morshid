@@ -28,6 +28,9 @@ describe('validateEnv', () => {
       AUTH_ACCESS_TOKEN_TTL_SECONDS: 900,
       AUTH_REFRESH_TOKEN_TTL_DAYS: 7,
       EMBEDDING_PROVIDER: 'deterministic',
+      COMPLETION_PROVIDER: 'deterministic',
+      COMPLETION_MODEL: 'morshid-deterministic-completion-v1',
+      COMPLETION_TIMEOUT_MS: 30_000,
       RETRIEVAL_TOP_K: 5,
       RETRIEVAL_MIN_SIMILARITY: 0.7,
     })
@@ -73,6 +76,40 @@ describe('validateEnv', () => {
     expect(() => validateEnv({ ...validEnv, EMBEDDING_PROVIDER: '' })).toThrow(
       /EMBEDDING_PROVIDER: Invalid input/,
     )
+  })
+
+  it('accepts only implemented completion providers without requiring API keys', () => {
+    expect(
+      validateEnv({
+        ...validEnv,
+        COMPLETION_PROVIDER: 'deterministic',
+        COMPLETION_MODEL: ' custom-completion-model ',
+      }),
+    ).toMatchObject({
+      COMPLETION_PROVIDER: 'deterministic',
+      COMPLETION_MODEL: 'custom-completion-model',
+    })
+    expect(() =>
+      validateEnv({ ...validEnv, COMPLETION_PROVIDER: 'openai' }),
+    ).toThrow(/COMPLETION_PROVIDER: Invalid input/)
+    expect(() =>
+      validateEnv({ ...validEnv, COMPLETION_PROVIDER: '' }),
+    ).toThrow(/COMPLETION_PROVIDER: Invalid input/)
+  })
+
+  it('coerces and bounds the completion timeout', () => {
+    expect(
+      validateEnv({ ...validEnv, COMPLETION_TIMEOUT_MS: '15000' }),
+    ).toMatchObject({ COMPLETION_TIMEOUT_MS: 15_000 })
+    expect(() =>
+      validateEnv({ ...validEnv, COMPLETION_TIMEOUT_MS: '0' }),
+    ).toThrow(/COMPLETION_TIMEOUT_MS: Too small/)
+    expect(() =>
+      validateEnv({ ...validEnv, COMPLETION_TIMEOUT_MS: '120001' }),
+    ).toThrow(/COMPLETION_TIMEOUT_MS: Too big/)
+    expect(() =>
+      validateEnv({ ...validEnv, COMPLETION_TIMEOUT_MS: 'slow' }),
+    ).toThrow(/COMPLETION_TIMEOUT_MS: Invalid input/)
   })
 
   it('fails clearly when required service URLs are missing', () => {
