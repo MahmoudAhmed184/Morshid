@@ -79,23 +79,16 @@ export class CompletionProviderTimeoutError extends CompletionProviderError {
 
 export class CompletionProviderFailureError extends CompletionProviderError {
   constructor(readonly provider: string) {
-    super(
-      'COMPLETION_PROVIDER_FAILURE',
-      'Completion provider failed',
-      true,
-      { provider },
-    )
+    super('COMPLETION_PROVIDER_FAILURE', 'Completion provider failed', true, {
+      provider,
+    })
     this.name = 'CompletionProviderFailureError'
   }
 }
 
 export class CompletionCancelledError extends CompletionProviderError {
   constructor() {
-    super(
-      'COMPLETION_CANCELLED',
-      'Completion request was cancelled',
-      false,
-    )
+    super('COMPLETION_CANCELLED', 'Completion request was cancelled', false)
     this.name = 'CompletionCancelledError'
   }
 }

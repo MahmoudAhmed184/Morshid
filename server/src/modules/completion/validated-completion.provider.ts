@@ -83,10 +83,7 @@ export function validateCompletionResult(
     validateTokenCount(result.tokenUsage.outputTokens)
   }
 
-  if (
-    result.metadata !== undefined &&
-    !isSafeMetadata(result.metadata)
-  ) {
+  if (result.metadata !== undefined && !isSafeMetadata(result.metadata)) {
     throw new MalformedCompletionResultError('invalid_metadata')
   }
 }
@@ -116,14 +113,11 @@ function isSafeMetadata(metadata: CompletionSafeMetadata): boolean {
   }
 
   return Object.entries(metadata).every(
-    ([key, value]) =>
-      key.trim() !== '' && isSafeMetadataValue(value),
+    ([key, value]) => key.trim() !== '' && isSafeMetadataValue(value),
   )
 }
 
-function isSafeMetadataValue(
-  value: CompletionSafeMetadataValue,
-): boolean {
+function isSafeMetadataValue(value: CompletionSafeMetadataValue): boolean {
   if (value === null) {
     return true
   }

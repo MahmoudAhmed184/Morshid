@@ -92,9 +92,9 @@ describe('validateEnv', () => {
     expect(() =>
       validateEnv({ ...validEnv, COMPLETION_PROVIDER: 'openai' }),
     ).toThrow(/COMPLETION_PROVIDER: Invalid input/)
-    expect(() =>
-      validateEnv({ ...validEnv, COMPLETION_PROVIDER: '' }),
-    ).toThrow(/COMPLETION_PROVIDER: Invalid input/)
+    expect(() => validateEnv({ ...validEnv, COMPLETION_PROVIDER: '' })).toThrow(
+      /COMPLETION_PROVIDER: Invalid input/,
+    )
   })
 
   it('coerces and bounds the completion timeout', () => {

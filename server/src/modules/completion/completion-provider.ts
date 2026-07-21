@@ -33,9 +33,7 @@ export type CompletionGuidanceLabel =
   | 'REFUSAL'
 
 export type CompletionFinishReason =
-  | 'complete'
-  | 'insufficient_context'
-  | 'refusal'
+  'complete' | 'insufficient_context' | 'refusal'
 
 export interface CompletionTokenUsage {
   readonly inputTokens?: number

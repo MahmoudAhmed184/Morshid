@@ -1,6 +1,4 @@
-import {
-  CompletionProviderFailureError,
-} from './completion-errors'
+import { CompletionProviderFailureError } from './completion-errors'
 import type {
   CompletionProvider,
   CompletionProviderMetadata,

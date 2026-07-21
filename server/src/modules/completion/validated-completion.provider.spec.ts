@@ -51,9 +51,7 @@ class FakeCompletionProvider implements CompletionProvider {
   )
 }
 
-function malformed(
-  patch: Record<string, unknown>,
-): GroundedCompletionResult {
+function malformed(patch: Record<string, unknown>): GroundedCompletionResult {
   return { ...validResult, ...patch } as GroundedCompletionResult
 }
 
