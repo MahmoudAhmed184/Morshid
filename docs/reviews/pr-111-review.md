@@ -163,7 +163,7 @@ All issue #86/S2-3.3 requirements are now exercised: owner lifecycle/history, ex
 
 | Command / evidence | Result |
 |---|---|
-| Initial and pre-push remote-head pin | Initial check: remote PR branch was exactly `a977ebbd3d797dab8cf47f23209b07f8a37c2dc3`; the pre-push result is recorded after the final commit. |
+| Initial and pre-push remote-head pin | Both checks resolved the remote PR branch to the reviewed SHA `a977ebbd3d797dab8cf47f23209b07f8a37c2dc3`; it did not move while fixes were prepared. |
 | Cross-course red tracer | Expected 404 but received the old 403 membership denial; 1 failed, 12 skipped. This proved the reviewed fixture did not reach the session predicate. |
 | Cross-course green tracer | Passed after adding the active second-course membership; 1 passed, 12 skipped. |
 | `npx prettier --check server/test/student-chat-privacy-boundaries.e2e-spec.ts` | Passed after formatting. |
