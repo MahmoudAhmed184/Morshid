@@ -38,7 +38,10 @@ export function MaterialsPage() {
           <CardHeader className="border-b px-4 py-3.5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <CardTitle className="flex items-center gap-2 text-sm text-foreground">
-                <FileText className="size-4 text-primary" aria-hidden />
+                <FileText
+                  className="size-4 text-muted-foreground"
+                  aria-hidden
+                />
                 Course Materials
               </CardTitle>
               <div className="flex flex-wrap gap-2">

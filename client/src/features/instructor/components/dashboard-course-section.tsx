@@ -8,6 +8,7 @@ import { ErrorState } from '@/components/ui/custom/error-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { InstructorCourse } from '@/features/instructor/schemas/instructor-course.schema'
 import type { InstructorDashboardState } from '@/features/instructor/types/instructor-dashboard-state'
+import { cn } from '@/lib/utils'
 
 type DashboardCourseSectionProps = {
   state: InstructorDashboardState
@@ -69,13 +70,40 @@ export function DashboardCourseSection({ state }: DashboardCourseSectionProps) {
     )
   }
 
-  return <CoursePanel course={state.course} />
+  return (
+    <CoursePanel
+      course={state.course}
+      courses={state.courses ?? [state.course]}
+      materialCount={state.materialCount}
+      onSelectCourse={state.onSelectCourse}
+    />
+  )
 }
 
-function CoursePanel({ course }: { course: InstructorCourse }) {
+function CoursePanel({
+  course,
+  courses,
+  materialCount,
+  onSelectCourse,
+}: {
+  course: InstructorCourse
+  courses: InstructorCourse[]
+  materialCount: number
+  onSelectCourse?: (courseId: string) => void
+}) {
+  const hasMultipleCourses = courses.length > 1
+
   return (
     <CoursePanelFrame>
       <div className="flex h-full flex-col gap-6">
+        {hasMultipleCourses ? (
+          <CourseSwitcher
+            courses={courses}
+            selectedId={course.id}
+            onSelectCourse={onSelectCourse}
+          />
+        ) : null}
+
         <div className="space-y-3">
           <div className="smallcaps-label">Assigned course</div>
           <h2 id="course-heading" className="display-3 text-foreground">
@@ -90,7 +118,19 @@ function CoursePanel({ course }: { course: InstructorCourse }) {
             </span>
           </div>
         </div>
-        <div>
+
+        <div className="space-y-1">
+          <div className="smallcaps-label">Sources</div>
+          <p className="text-sm text-foreground">
+            <span className="font-mono tabular-nums">{materialCount}</span>{' '}
+            uploaded to this course
+          </p>
+          <p className="footnote">
+            Per-status readiness appears in the source readiness panel below.
+          </p>
+        </div>
+
+        <div className="mt-auto">
           <Button
             nativeButton={false}
             render={<Link to="/instructor/materials" />}
@@ -100,6 +140,45 @@ function CoursePanel({ course }: { course: InstructorCourse }) {
         </div>
       </div>
     </CoursePanelFrame>
+  )
+}
+
+function CourseSwitcher({
+  courses,
+  selectedId,
+  onSelectCourse,
+}: {
+  courses: InstructorCourse[]
+  selectedId: string
+  onSelectCourse?: (courseId: string) => void
+}) {
+  return (
+    <div
+      role="group"
+      aria-label="Switch course"
+      className="flex flex-wrap gap-2"
+    >
+      {courses.map((candidate) => {
+        const isActive = candidate.id === selectedId
+
+        return (
+          <button
+            key={candidate.id}
+            type="button"
+            aria-pressed={isActive}
+            onClick={() => onSelectCourse?.(candidate.id)}
+            className={cn(
+              'h-8 rounded-full px-4 font-mono text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
+              isActive
+                ? 'bg-accent text-accent-foreground'
+                : 'bg-secondary/60 text-muted-foreground hover:bg-secondary',
+            )}
+          >
+            {candidate.code}
+          </button>
+        )
+      })}
+    </div>
   )
 }
 

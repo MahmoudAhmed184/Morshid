@@ -1,11 +1,11 @@
 import { Outlet, useRouterState } from '@tanstack/react-router'
 import {
   BookOpenIcon,
-  ClipboardListIcon,
+  ClipboardCheckIcon,
   FileTextIcon,
-  HistoryIcon,
   LayoutDashboardIcon,
   MenuIcon,
+  ScrollTextIcon,
   SettingsIcon,
   UsersIcon,
 } from 'lucide-react'
@@ -25,11 +25,11 @@ import { useAuthStore } from '@/features/auth/stores/auth.store'
 
 const navItems: readonly AppSidebarNavItem[] = [
   { label: 'Dashboard', to: '/admin', icon: LayoutDashboardIcon, exact: true },
-  { label: 'Assignments', to: '/admin/assignments', icon: ClipboardListIcon },
+  { label: 'Assignments', to: '/admin/assignments', icon: ClipboardCheckIcon },
   { label: 'Users', to: '/admin/users', icon: UsersIcon },
   { label: 'Courses', to: '/admin/courses', icon: BookOpenIcon },
   { label: 'Materials', to: '/admin/materials', icon: FileTextIcon },
-  { label: 'Audit Logs', to: '/admin/audit', icon: HistoryIcon },
+  { label: 'Audit Logs', to: '/admin/audit', icon: ScrollTextIcon },
   { label: 'Settings', to: '/admin/settings', icon: SettingsIcon },
 ]
 

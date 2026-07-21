@@ -63,6 +63,21 @@ No flow changes. Apply F1/F2 sweeps; verify table pattern conformance from the v
 - Any component left orphaned by the above: delete after import-grep.
 - StatCards on student surfaces — gone with the dashboard. (Register/Ledger keep theirs.)
 
+## F8. The Difference — Morshid is NOT NotebookLM (docs §7 addendum)
+
+Per docs/project-description.md §7: Morshid's identity is **enforced Socratic guidance + instructor oversight**, narrower than both ChatGPT and NotebookLM. The UI must make that visible. Data-honest rule applies: implement what existing data supports; establish only vocabulary for the rest.
+
+- **Guidance labels (REQUIRED — data exists)**: `chatMessageGuidanceLabelSchema` already ships `guidanceLabel` on messages; the chat UI currently ignores it. Render a meta row under the tutor bubble (`.footnote` line) with a label chip per value:
+  - `COURSE_GROUNDED` → chip `GROUNDED IN COURSE SOURCES` — success wash (`bg-success/10 text-success border-success/25`), `FileText` icon.
+  - `GENERAL_NOT_FOUND` → chip `GENERAL GUIDANCE · NOT FROM COURSE SOURCES` — neutral (`bg-secondary text-muted-foreground`), no icon.
+  - `UNCERTAIN_AWAITING_REVIEW` → chip `AWAITING INSTRUCTOR REVIEW` — warning wash, `ClipboardCheck` icon. This is the docs-mandated visible warning (§7.6).
+  - `INSTRUCTOR_REVIEWED` → chip `INSTRUCTOR-REVIEWED` — **the gold seal**: `bg-gold/10 text-gold border-gold/25`, `BookMarked` icon. This is gold's one earned ambient use (§7.5's label).
+  - `null` → no meta row.
+  Chips: pill, mono uppercase 0.6875rem (Badge idiom), one per message. Fixtures already exercise `COURSE_GROUNDED` — tests should assert the rendering.
+- **Flagging affordance**: ONLY if an existing mutation/hook supports flagging; otherwise skip entirely (no dead buttons) and report. Same for the notifications bell (§5.3/§7.8): if no notifications data/hook exists, OMIT the bell — never render a fake affordance.
+- **Hint-ladder & streaming (§7.12–7.13)**: no streaming/ladder data exists in the client yet — do NOT build UI for it; the bubble/meta-row vocabulary above is the extension point. Keep the existing optimistic-send/disabled-composer contracts untouched.
+- **Limits/failure (§7.11)**: existing error/retry footers in message history are the pattern; verify they use ErrorState/retry affordances and preserve composed text where that behavior already exists.
+
 ## F7. QA bars (delta)
 
 - Zero blue hover/selection states anywhere (only links/primary/focus/citations are blue) — verify by screenshot in both themes: dropdown open state, session hover+active, table row hover, select menu, command palette.

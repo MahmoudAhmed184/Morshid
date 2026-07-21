@@ -7,7 +7,6 @@ import { useAuthStore } from '@/features/auth/stores/auth.store'
 import type { AuthSession } from '@/features/auth/types/auth.types'
 import { instructorCoursesQueryOptions } from '@/features/instructor/data/instructor-dashboard.queries'
 import { MaterialsPage } from './materials-page'
-import { MyCoursesPage } from './my-courses-page'
 import { ReviewQueuePage } from './review-queue-page'
 
 vi.mock('@tanstack/react-router', async (importOriginal) => ({
@@ -109,78 +108,6 @@ describe('Instructor Pages', () => {
     window.localStorage.clear()
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
-  })
-
-  describe('MyCoursesPage', () => {
-    it('displays the assigned instructor course', () => {
-      renderInstructorPage(<MyCoursesPage />)
-
-      expect(
-        screen.getByRole('heading', { name: 'My Courses' }),
-      ).toBeInTheDocument()
-      expect(
-        screen.getByRole('heading', { name: 'Python Programming' }),
-      ).toBeInTheDocument()
-      expect(screen.getByText('PYTHON-PROG-P0')).toBeInTheDocument()
-    })
-
-    it('displays all assigned courses when multiple exist', () => {
-      renderInstructorPage(<MyCoursesPage />, {
-        courses: [
-          {
-            id: 'python-course',
-            code: 'PYTHON-PROG-P0',
-            title: 'Python Programming',
-          },
-          {
-            id: 'data-structures-course',
-            code: 'DATA-STRUCT-P0',
-            title: 'Data Structures & Algorithms',
-          },
-        ],
-      })
-
-      expect(
-        screen.getByRole('heading', { name: 'My Courses' }),
-      ).toBeInTheDocument()
-      expect(
-        screen.getByRole('heading', { name: 'Python Programming' }),
-      ).toBeInTheDocument()
-      expect(
-        screen.getByRole('heading', { name: 'Data Structures & Algorithms' }),
-      ).toBeInTheDocument()
-      expect(screen.getByText('PYTHON-PROG-P0')).toBeInTheDocument()
-      expect(screen.getByText('DATA-STRUCT-P0')).toBeInTheDocument()
-    })
-
-    it('shows empty state when no courses are assigned', () => {
-      renderInstructorPage(<MyCoursesPage />, {
-        courses: [],
-      })
-
-      expect(
-        screen.getByRole('heading', { name: 'No assigned courses' }),
-      ).toBeInTheDocument()
-      expect(
-        screen.getByText(
-          'This instructor account does not have a course assignment yet.',
-        ),
-      ).toBeInTheDocument()
-    })
-
-    it('keeps the page title and streams a course hero skeleton while loading', () => {
-      renderInstructorPage(<MyCoursesPage />, {
-        deferCourses: true,
-      })
-
-      expect(screen.getByRole('heading', { name: 'My Courses' })).toBeVisible()
-      expect(
-        screen.getByRole('status', { name: 'Loading course' }),
-      ).toBeVisible()
-      expect(
-        screen.queryByRole('heading', { name: 'No assigned courses' }),
-      ).not.toBeInTheDocument()
-    })
   })
 
   describe('MaterialsPage', () => {

@@ -4,7 +4,7 @@ import {
   ChevronRightIcon,
   FileTextIcon,
   GraduationCapIcon,
-  HistoryIcon,
+  ScrollTextIcon,
   UsersIcon,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -39,7 +39,7 @@ const quickNav: {
   {
     title: 'Audit Logs',
     to: '/admin/audit',
-    icon: HistoryIcon,
+    icon: ScrollTextIcon,
     tone: 'success',
   },
 ]
@@ -141,7 +141,7 @@ export function AdminDashboardPage() {
             <AdminPanel className="p-5 lg:col-span-2">
               <div className="mb-5 flex items-center gap-2.5">
                 <span className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary [&_svg]:size-4">
-                  <HistoryIcon />
+                  <ScrollTextIcon />
                 </span>
                 <h2 className="text-base font-semibold text-foreground">
                   Recent activity

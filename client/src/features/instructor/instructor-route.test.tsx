@@ -226,12 +226,12 @@ describe('/instructor', () => {
       await screen.findByRole('heading', { name: "Today's teaching desk." }),
     ).toBeVisible()
 
-    fireEvent.click(screen.getByRole('link', { name: 'My Courses' }))
+    fireEvent.click(screen.getByRole('link', { name: 'Review Queue' }))
 
     expect(
-      await screen.findByRole('heading', { name: 'My Courses' }),
-    ).toBeVisible()
-    expect(history.location.pathname).toBe('/instructor/courses')
+      (await screen.findAllByRole('heading', { name: 'Review Queue' })).length,
+    ).toBeGreaterThanOrEqual(1)
+    expect(history.location.pathname).toBe('/instructor/review-queue')
     expect(
       screen.queryByLabelText('Checking authentication'),
     ).not.toBeInTheDocument()

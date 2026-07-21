@@ -1,7 +1,6 @@
 import { Outlet, useRouterState } from '@tanstack/react-router'
 import {
-  BookOpen,
-  ClipboardList,
+  ClipboardCheck,
   FileText,
   LayoutDashboard,
   Menu,
@@ -26,9 +25,8 @@ const instructorLayoutRouteId = '/instructor'
 
 const navItems: readonly AppSidebarNavItem[] = [
   { icon: LayoutDashboard, to: '/instructor', label: 'Dashboard', exact: true },
-  { icon: BookOpen, to: '/instructor/courses', label: 'My Courses' },
   {
-    icon: ClipboardList,
+    icon: ClipboardCheck,
     to: '/instructor/review-queue',
     label: 'Review Queue',
   },
