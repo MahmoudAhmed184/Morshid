@@ -27,7 +27,7 @@ export function StudentCoursesPage() {
           {assignedCourses.map((course) => (
             <Card
               key={course.id}
-              className="group/course justify-between transition-shadow hover:shadow-md"
+              className="group/course justify-between transition-colors hover:border-foreground/30"
             >
               <CardContent className="flex flex-col gap-4">
                 <div className="flex items-start justify-between gap-3">

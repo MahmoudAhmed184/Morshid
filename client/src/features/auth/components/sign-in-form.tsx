@@ -140,6 +140,7 @@ export function SignInForm() {
         <Button
           type="submit"
           variant="default"
+          size="lg"
           disabled={form.formState.isSubmitting}
           className="w-full"
         >

@@ -119,7 +119,7 @@ export function AdminDashboardPage() {
               return (
                 <AdminPanel
                   key={section.to}
-                  className="flex flex-col p-5 transition-shadow hover:shadow-md"
+                  className="flex flex-col p-5 transition-colors hover:border-foreground/30"
                 >
                   <div className="mb-5 flex size-11 items-center justify-center rounded-sm bg-primary/10 text-primary">
                     <Icon className="size-5" />
