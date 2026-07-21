@@ -311,6 +311,41 @@ describe('Materials upload (e2e)', () => {
     expect(JSON.stringify(deniedAudit?.metadata)).not.toContain('%PDF-')
   })
 
+  it('audits an invalid course UUID before multipart parsing or persistence', async () => {
+    const token = await signInAs('instructor@morshid.demo')
+    const materialCountBefore = store.materials.size
+    const invalidCourseId = 'not-a-course-uuid'
+
+    await uploadPdf({
+      token,
+      courseId: invalidCourseId,
+      title: 'Invalid course identifier',
+    })
+      .expect(400)
+      .expect({
+        message: 'Validation failed (uuid v 4 is expected)',
+        error: 'Bad Request',
+        statusCode: 400,
+      })
+
+    expect(storage.create).not.toHaveBeenCalled()
+    expect(store.materials.size).toBe(materialCountBefore)
+    const failedAudits = [...store.auditLogs.values()].filter(
+      (event) => event.action === AUDIT_EVENT_ACTIONS.MATERIAL_UPLOAD_FAILED,
+    )
+    expect(failedAudits).toHaveLength(1)
+    expect(failedAudits[0]).toMatchObject({
+      targetType: 'material',
+      targetId: null,
+      courseId: null,
+      metadata: {
+        reason: 'INVALID_COURSE_ID',
+        unverifiedCourseId: invalidCourseId,
+      },
+    })
+    expect(JSON.stringify(failedAudits[0]?.metadata)).not.toContain('%PDF-')
+  })
+
   it.each([
     {
       title: 'wrong MIME',
@@ -620,6 +655,45 @@ describe('Materials upload (e2e)', () => {
     expect(failedAudit?.metadata).toMatchObject({
       reason: 'UPLOAD_CLEANUP_FAILED',
     })
+  })
+
+  it('retains the row and path when quarantine and file cleanup both fail', async () => {
+    const token = await signInAs('instructor@morshid.demo')
+    scheduler.failNextSchedule = true
+    storage.delete.mockRejectedValueOnce(
+      new Error('simulated storage cleanup failure'),
+    )
+    const materialDelegate = store.prisma.material as unknown as {
+      update: jest.Mock
+      delete: jest.Mock
+    }
+    materialDelegate.update
+      .mockRejectedValueOnce(new Error('simulated quarantine failure'))
+      .mockRejectedValueOnce(new Error('simulated retry quarantine failure'))
+
+    await uploadPdf({ token, title: 'Combined cleanup failure' }).expect(500)
+
+    expect(materialDelegate.update).toHaveBeenCalledTimes(2)
+    expect(materialDelegate.delete).not.toHaveBeenCalled()
+    expect(storage.delete).toHaveBeenCalledWith(generatedStoragePath)
+    expect(storage.files.get(generatedStoragePath)).toEqual(validPdf)
+    const retainedMaterial = [...store.materials.values()].find(
+      (material) => material.title === 'Combined cleanup failure',
+    )
+    expect(retainedMaterial).toMatchObject({
+      storagePath: generatedStoragePath,
+      status: 'PROCESSING',
+      deletedAt: null,
+    })
+    const failedAudit = [...store.auditLogs.values()].find(
+      (event) => event.action === AUDIT_EVENT_ACTIONS.MATERIAL_UPLOAD_FAILED,
+    )
+    expect(failedAudit?.metadata).toMatchObject({
+      reason: 'UPLOAD_CLEANUP_FAILED',
+    })
+    expect(JSON.stringify(failedAudit?.metadata)).not.toContain(
+      generatedStoragePath,
+    )
   })
 
   it('records safe upload audit events', async () => {

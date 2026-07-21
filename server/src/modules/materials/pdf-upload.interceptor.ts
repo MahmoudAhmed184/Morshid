@@ -1,5 +1,6 @@
 import {
   Injectable,
+  ParseUUIDPipe,
   PayloadTooLargeException,
   type CallHandler,
   type ExecutionContext,
@@ -21,6 +22,7 @@ import {
 @Injectable()
 export class PdfUploadInterceptor implements NestInterceptor {
   private readonly interceptor: NestInterceptor
+  private readonly courseIdPipe = new ParseUUIDPipe({ version: '4' })
 
   constructor(
     configService: ConfigService<AppEnvironment, true>,
@@ -41,6 +43,29 @@ export class PdfUploadInterceptor implements NestInterceptor {
     context: ExecutionContext,
     next: CallHandler,
   ): Promise<Observable<unknown>> {
+    const request = context
+      .switchToHttp()
+      .getRequest<AuthenticatedHttpRequest>()
+    const rawCourseId = (request.params as Record<string, unknown>).courseId
+    const courseId = typeof rawCourseId === 'string' ? rawCourseId : ''
+
+    try {
+      await this.courseIdPipe.transform(courseId, {
+        type: 'param',
+        metatype: String,
+        data: 'courseId',
+      })
+    } catch (error) {
+      await this.materialsAuditService.recordUploadFailed({
+        actor: request.user,
+        courseId: null,
+        unverifiedCourseId: courseId.length > 0 ? courseId : null,
+        reason: 'INVALID_COURSE_ID',
+        requestContext: getRequestContext(request),
+      })
+      throw error
+    }
+
     let downstreamStarted = false
     const trackedNext: CallHandler = {
       handle: () => {
