@@ -32,34 +32,34 @@ const statusPresentation: Record<string, StatusPresentation> = {
   ready: {
     variant: 'success',
     icon: CheckCircle2,
-    chip: 'bg-success/12 text-success',
+    chip: 'bg-success/10 text-success',
   },
   complete: {
     variant: 'success',
     icon: CheckCircle2,
-    chip: 'bg-success/12 text-success',
+    chip: 'bg-success/10 text-success',
   },
   processing: {
     variant: 'info',
     icon: Loader2,
-    chip: 'bg-info/12 text-info',
+    chip: 'bg-info/10 text-info',
     spin: true,
   },
   uploading: {
     variant: 'info',
     icon: Loader2,
-    chip: 'bg-info/12 text-info',
+    chip: 'bg-info/10 text-info',
     spin: true,
   },
   warning: {
     variant: 'warning',
     icon: TriangleAlert,
-    chip: 'bg-warning/15 text-warning-foreground dark:text-warning',
+    chip: 'bg-warning/10 text-warning',
   },
   degraded: {
     variant: 'warning',
     icon: TriangleAlert,
-    chip: 'bg-warning/15 text-warning-foreground dark:text-warning',
+    chip: 'bg-warning/10 text-warning',
   },
   failed: {
     variant: 'destructive',
@@ -108,13 +108,13 @@ export function PdfCard({
   return (
     <article
       className={cn(
-        'flex items-start gap-3 rounded-xl bg-background px-4 py-3.5 text-left ring-1 ring-foreground/8 transition-shadow hover:shadow-sm',
+        'flex items-start gap-3 rounded-md border border-border bg-background px-4 py-3.5 text-left transition-colors hover:border-foreground/30',
         className,
       )}
     >
       <div
         className={cn(
-          'flex size-10 shrink-0 items-center justify-center rounded-xl [&_svg]:size-5',
+          'flex size-10 shrink-0 items-center justify-center rounded-sm [&_svg]:size-5',
           presentation.chip,
         )}
       >

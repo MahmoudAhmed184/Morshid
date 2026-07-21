@@ -1,6 +1,5 @@
-import { MessageSquareText, Sparkles } from 'lucide-react'
+import { MessageSquareText } from 'lucide-react'
 
-import { GuidingStar } from '@/components/guiding-star'
 import { EmptyState } from '@/components/ui/custom/empty-state'
 import { ErrorState } from '@/components/ui/custom/error-state'
 import { isApiError } from '@/features/auth/api/authenticated-api-client'
@@ -75,7 +74,7 @@ export function StudentWorkspaceState({
   if (!hasSessions) {
     return (
       <EmptyState
-        icon={<GuidingStar withCore />}
+        icon={<MessageSquareText className="size-6" aria-hidden />}
         title="No conversations yet"
         description="Start a private conversation and your tutor will guide you through this course, one question at a time."
         className="w-full max-w-md border-0 bg-transparent"
@@ -85,7 +84,7 @@ export function StudentWorkspaceState({
 
   return (
     <EmptyState
-      icon={<Sparkles className="size-6" aria-hidden />}
+      icon={<MessageSquareText className="size-6" aria-hidden />}
       title="Choose a conversation"
       description="Pick a conversation from the list to pick up exactly where you left off."
       className="w-full max-w-md border-0 bg-transparent"

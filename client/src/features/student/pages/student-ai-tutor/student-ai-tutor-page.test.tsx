@@ -322,7 +322,7 @@ describe('StudentAiTutorPage workspace', () => {
       name: 'Course sessions',
     })
     expect(drawer).toHaveAttribute('data-side', 'left')
-    expect(drawer).toHaveClass('w-[80vw]!', 'rounded-2xl')
+    expect(drawer).toHaveClass('w-[80vw]!', 'rounded-lg')
     expect(within(drawer).queryByRole('searchbox')).not.toBeInTheDocument()
 
     fireEvent.click(

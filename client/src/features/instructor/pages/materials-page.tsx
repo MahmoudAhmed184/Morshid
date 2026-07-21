@@ -87,7 +87,7 @@ function MaterialsListContent({
         description="Course context could not be loaded for materials. Try again."
         onRetry={onRetry}
         isRetrying={isRetrying}
-        className="min-h-44 rounded-xl"
+        className="min-h-44 rounded-md"
       />
     )
   }
@@ -98,7 +98,7 @@ function MaterialsListContent({
         icon={<FileText aria-hidden />}
         title="No assigned course"
         description="Assign a course before this workspace can show course materials."
-        className="min-h-44 rounded-xl"
+        className="min-h-44 rounded-md"
       />
     )
   }

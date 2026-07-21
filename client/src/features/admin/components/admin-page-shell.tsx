@@ -75,7 +75,7 @@ export function AdminPageShell() {
               <div className="flex items-center gap-3">
                 <Logo />
                 <div>
-                  <p className="font-display text-2xl font-semibold tracking-tight text-sidebar-foreground">
+                  <p className="text-xl font-semibold tracking-tight text-sidebar-foreground">
                     Morshid Admin
                   </p>
                   <p className="mt-0.5 text-[0.7rem] font-semibold tracking-[0.18em] text-muted-foreground uppercase">
@@ -86,13 +86,13 @@ export function AdminPageShell() {
             </div>
           }
           navigationClassName="flex-1 space-y-2 px-6"
-          itemClassName="flex h-12 w-full items-center gap-4 rounded-lg px-4 text-sm font-medium text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          activeItemClassName="bg-sidebar-accent text-sidebar-accent-foreground ring-1 ring-sidebar-ring/20"
+          itemClassName="flex h-12 w-full items-center gap-4 rounded-md border-l-2 border-transparent px-4 text-sm font-medium text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          activeItemClassName="border-l-rubric bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           settingsContainerClassName="border-t border-sidebar-border px-6 py-4"
           footer={
             currentUser ? (
               <div className="border-t border-sidebar-border p-6">
-                <div className="flex items-center gap-3 rounded-xl border border-sidebar-border bg-sidebar-accent/40 p-3">
+                <div className="flex items-center gap-3 rounded-md border border-sidebar-border bg-sidebar-accent/40 p-3">
                   <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-sidebar-primary text-sm font-semibold text-sidebar-primary-foreground">
                     {getUserInitials(currentUser.displayName)}
                   </div>
@@ -112,7 +112,7 @@ export function AdminPageShell() {
       </aside>
 
       <div className="h-full overflow-y-auto lg:pl-72">
-        <header className="surface-glass sticky top-0 z-30 border-b border-border">
+        <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur-sm">
           <div className="flex h-16 items-center justify-between px-4 sm:px-6 lg:px-10">
             <p className="text-sm font-medium text-muted-foreground">
               Administrator console

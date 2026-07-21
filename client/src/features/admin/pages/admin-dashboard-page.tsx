@@ -121,7 +121,7 @@ export function AdminDashboardPage() {
                   key={section.to}
                   className="flex flex-col p-5 transition-shadow hover:shadow-md"
                 >
-                  <div className="mb-5 flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/15">
+                  <div className="mb-5 flex size-11 items-center justify-center rounded-sm bg-primary/10 text-primary">
                     <Icon className="size-5" />
                   </div>
                   <h2 className="text-base font-semibold text-foreground">

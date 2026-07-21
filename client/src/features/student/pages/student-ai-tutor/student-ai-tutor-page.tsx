@@ -191,7 +191,7 @@ export function StudentAiTutorPage({
               </div>
               <SheetContent
                 side="left"
-                className="inset-y-2! left-2! h-[calc(100svh-1rem)]! w-[80vw]! max-w-80 gap-0 overflow-hidden overscroll-contain rounded-2xl border border-border bg-card p-0 shadow-2xl md:hidden"
+                className="inset-y-2! left-2! h-[calc(100svh-1rem)]! w-[80vw]! max-w-80 gap-0 overflow-hidden overscroll-contain rounded-lg border border-border bg-card p-0 shadow-lg md:hidden"
               >
                 <SheetHeader className="sr-only">
                   <SheetTitle>Course sessions</SheetTitle>

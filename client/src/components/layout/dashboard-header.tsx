@@ -46,7 +46,7 @@ export function DashboardHeader({
   return (
     <header
       className={cn(
-        'flex min-h-16 items-center gap-3 border-b border-border bg-card/80 px-4 backdrop-blur-md md:px-6',
+        'flex min-h-16 items-center gap-3 border-b border-border bg-card/95 px-4 backdrop-blur-sm md:px-6',
         className,
       )}
     >
@@ -66,7 +66,7 @@ export function DashboardHeader({
             autoComplete="off"
             aria-label={searchLabel}
             placeholder={searchPlaceholder}
-            className="h-9 max-w-md rounded-lg bg-background pl-9"
+            className="h-9 max-w-md rounded-md bg-background pl-9"
           />
         </div>
       )}
@@ -108,10 +108,10 @@ export function DashboardHeader({
             ) : null}
           </div>
           <Avatar
-            className="bg-primary text-primary-foreground ring-1 ring-primary/20 ring-offset-1 ring-offset-card"
+            className="bg-primary text-primary-foreground"
             aria-label={displayName}
           >
-            <AvatarFallback className="bg-[linear-gradient(140deg,var(--primary),oklch(0.56_0.2_305))] text-xs font-semibold text-primary-foreground">
+            <AvatarFallback className="bg-primary text-xs font-semibold text-primary-foreground">
               {initials}
             </AvatarFallback>
           </Avatar>

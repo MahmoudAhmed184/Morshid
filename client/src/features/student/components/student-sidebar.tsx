@@ -56,8 +56,8 @@ export function StudentSidebar({
         </div>
       }
       navigationClassName="space-y-1"
-      itemClassName="flex h-9 w-full items-center gap-2 rounded-md px-3 text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-      activeItemClassName="bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground"
+      itemClassName="flex h-9 w-full items-center gap-2 rounded-md border-l-2 border-transparent px-3 text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+      activeItemClassName="border-l-rubric bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
       settingsContainerClassName="border-t border-sidebar-border pt-1"
       footer={
         <div className="mt-auto space-y-1 pt-6">
@@ -78,19 +78,17 @@ export function StudentSidebar({
       }
     >
       <section className="mt-7 border-t border-sidebar-border pt-5">
-        <h2 className="mb-3 text-xs font-medium tracking-[0.12em] text-muted-foreground uppercase">
-          Assigned Courses
-        </h2>
+        <h2 className="smallcaps-label mb-3">Assigned Courses</h2>
         {assignedCourses.length > 0 ? (
           <ul className="space-y-2" aria-label="Assigned courses">
             {assignedCourses.map((course) => (
               <li
                 key={course.id}
-                className="rounded-xl border border-sidebar-border bg-sidebar-accent/40 p-3 transition-colors hover:bg-sidebar-accent/70"
+                className="rounded-md border border-sidebar-border bg-sidebar-accent/40 p-3 transition-colors hover:bg-sidebar-accent/70"
               >
                 <div className="flex min-w-0 items-start gap-2.5">
                   <span
-                    className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary/10 text-sidebar-primary ring-1 ring-inset ring-sidebar-primary/20"
+                    className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-sm bg-sidebar-primary/10 text-sidebar-primary"
                     aria-hidden
                   >
                     <BookOpen className="size-4" />

@@ -71,7 +71,7 @@ function InstructorSidebar({ onNavigate }: { onNavigate?: () => void }) {
       }
       navigationClassName="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-3"
       itemClassName="flex h-9 w-full items-center gap-2 rounded-md border-l-2 border-transparent px-3 text-left text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-      activeItemClassName="border-primary bg-primary text-primary-foreground"
+      activeItemClassName="border-l-rubric bg-accent text-accent-foreground hover:bg-accent hover:text-accent-foreground"
       settingsContainerClassName="border-t border-border px-3 py-4"
     />
   )

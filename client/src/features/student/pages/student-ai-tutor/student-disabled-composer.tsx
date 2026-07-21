@@ -1,4 +1,4 @@
-import { SendHorizontal, Sparkles } from 'lucide-react'
+import { SendHorizontal } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -11,9 +11,9 @@ export function StudentDisabledComposer({
   hasSelectedSession,
 }: StudentDisabledComposerProps) {
   return (
-    <footer className="bg-gradient-to-t from-background via-background to-transparent px-4 pt-4 pb-5 sm:px-8">
+    <footer className="border-t border-border bg-background px-4 pt-4 pb-5 sm:px-8">
       <div className="mx-auto max-w-5xl">
-        <div className="group rounded-3xl border border-border bg-card p-2 shadow-sm ring-1 ring-foreground/[0.03] transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/15">
+        <div className="group rounded-md border border-border bg-card p-2 transition-colors focus-within:border-ring focus-within:ring-1 focus-within:ring-ring/40">
           <div className="relative">
             <Textarea
               aria-label="Message"
@@ -32,14 +32,13 @@ export function StudentDisabledComposer({
               size="icon"
               disabled
               aria-label="Send message"
-              className="absolute right-1 bottom-1 size-9 rounded-xl bg-primary text-primary-foreground shadow-xs"
+              className="absolute right-1 bottom-1 size-9 rounded-md bg-primary text-primary-foreground shadow-xs"
             >
               <SendHorizontal className="size-4" aria-hidden />
             </Button>
           </div>
         </div>
-        <p className="mt-2.5 flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
-          <Sparkles className="size-3.5 text-gold" aria-hidden />
+        <p className="footnote mt-2.5 text-center">
           Live tutoring arrives in the next Student Chat story — your saved
           history is ready.
         </p>

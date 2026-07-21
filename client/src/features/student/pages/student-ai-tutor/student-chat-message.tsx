@@ -1,6 +1,6 @@
-import { GraduationCap, Info } from 'lucide-react'
+import { GraduationCap } from 'lucide-react'
 
-import { GuidingStar } from '@/components/guiding-star'
+import { Logo } from '@/components/logo'
 import type { ChatMessage } from '@/features/student/schemas/student-chat.schema'
 import { cn } from '@/lib/utils'
 
@@ -15,11 +15,10 @@ export function StudentChatMessage({ message }: StudentChatMessageProps) {
   if (isSystem) {
     return (
       <li className="flex justify-center">
-        <div className="flex max-w-prose items-center gap-2 rounded-full border border-border bg-muted/60 px-3.5 py-1.5 text-xs leading-5 text-muted-foreground">
-          <Info className="size-3.5 shrink-0 text-info" aria-hidden />
+        <p className="footnote max-w-prose break-words text-center">
           <span className="sr-only">System: </span>
-          <p className="min-w-0 break-words">{message.content}</p>
-        </div>
+          {message.content}
+        </p>
       </li>
     )
   }
@@ -33,25 +32,25 @@ export function StudentChatMessage({ message }: StudentChatMessageProps) {
     >
       <div
         className={cn(
-          'flex size-8 shrink-0 items-center justify-center rounded-full shadow-xs ring-1 ring-inset',
+          'flex size-8 shrink-0 items-center justify-center rounded-full',
           isStudent
-            ? 'bg-secondary text-secondary-foreground ring-border'
-            : 'bg-[linear-gradient(140deg,var(--primary),oklch(0.56_0.2_305))] text-primary-foreground ring-white/15',
+            ? 'bg-secondary text-secondary-foreground'
+            : 'bg-primary/10 text-primary',
         )}
         aria-hidden
       >
         {isStudent ? (
           <GraduationCap className="size-4" />
         ) : (
-          <GuidingStar withCore />
+          <Logo className="size-8" iconClassName="size-4" />
         )}
       </div>
       <div
         className={cn(
-          'max-w-[min(90%,44rem)] rounded-2xl px-4 py-3 text-sm leading-7 shadow-sm transition-shadow',
+          'max-w-[min(90%,44rem)] rounded-md border px-4 py-3 text-sm leading-7',
           isStudent
-            ? 'rounded-br-md bg-[linear-gradient(160deg,var(--primary),oklch(0.47_0.2_285))] text-primary-foreground'
-            : 'rounded-bl-md border border-border bg-card text-card-foreground ring-1 ring-foreground/[0.04]',
+            ? 'border-border bg-accent text-foreground'
+            : 'border-border bg-card text-card-foreground',
         )}
       >
         <span className="sr-only">{isStudent ? 'You' : 'AI Tutor'}: </span>

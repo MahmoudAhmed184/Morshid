@@ -68,7 +68,7 @@ function CourseCard({ course }: { course: InstructorCourse }) {
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/15">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-sm bg-primary/10 text-primary">
               <BookOpen className="size-5" aria-hidden />
             </span>
             <div className="min-w-0 space-y-1">

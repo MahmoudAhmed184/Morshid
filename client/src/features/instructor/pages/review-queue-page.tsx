@@ -86,7 +86,7 @@ function ReviewQueueListContent({
         description="Course context could not be loaded for reviews. Try again."
         onRetry={onRetry}
         isRetrying={isRetrying}
-        className="min-h-44 rounded-xl"
+        className="min-h-44 rounded-md"
       />
     )
   }
@@ -97,7 +97,7 @@ function ReviewQueueListContent({
         icon={<ClipboardList aria-hidden />}
         title="No assigned course"
         description="Assign a course before this workspace can show review requests."
-        className="min-h-44 rounded-xl"
+        className="min-h-44 rounded-md"
       />
     )
   }

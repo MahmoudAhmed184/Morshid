@@ -39,7 +39,7 @@ export function StudentSessionListItem({
   const [isEditing, setIsEditing] = useState(false)
 
   return (
-    <li className="group relative rounded-xl [contain-intrinsic-size:auto_4rem] [content-visibility:auto]">
+    <li className="group relative rounded-md [contain-intrinsic-size:auto_4rem] [content-visibility:auto]">
       {isEditing ? (
         <StudentSessionInlineRename
           session={session}
@@ -56,7 +56,7 @@ export function StudentSessionListItem({
           onClick={onNavigate}
           aria-current={isSelected ? 'page' : undefined}
           className={cn(
-            'relative flex min-h-16 flex-col justify-center rounded-xl py-2.5 pr-12 pl-4 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none',
+            'relative flex min-h-16 flex-col justify-center rounded-md py-2.5 pr-12 pl-4 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none',
             isSelected
               ? 'bg-accent text-accent-foreground'
               : 'text-foreground hover:bg-muted',

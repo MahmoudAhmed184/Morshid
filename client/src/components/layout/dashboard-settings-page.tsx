@@ -54,11 +54,8 @@ export function DashboardSettingsPage({
         </CardHeader>
         <CardContent className="flex flex-col gap-5 sm:flex-row sm:items-center">
           <div className="flex items-center gap-4">
-            <Avatar
-              size="lg"
-              className="ring-1 ring-primary/20 ring-offset-2 ring-offset-card"
-            >
-              <AvatarFallback className="bg-[linear-gradient(140deg,var(--primary),oklch(0.56_0.2_305))] text-base font-semibold text-primary-foreground">
+            <Avatar size="lg" className="bg-primary text-primary-foreground">
+              <AvatarFallback className="bg-primary text-base font-semibold text-primary-foreground">
                 {getUserInitials(displayName)}
               </AvatarFallback>
             </Avatar>

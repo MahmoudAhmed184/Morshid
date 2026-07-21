@@ -31,7 +31,7 @@ export function StudentCourseSwitcher({
             <Button
               type="button"
               variant="outline"
-              className="h-14 w-full justify-start gap-3 rounded-xl border-border bg-card px-2.5 text-left shadow-xs hover:bg-accent"
+              className="h-14 w-full justify-start gap-3 rounded-md border-border bg-card px-2.5 text-left shadow-xs hover:bg-accent"
               aria-label={`Current course: ${selectedCourse.code} ${selectedCourse.title}. Choose course`}
             />
           }
