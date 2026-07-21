@@ -14,6 +14,7 @@ import { PdfStorageModule } from './modules/pdf-storage/pdf-storage.module'
 import { EmbeddingModule } from './modules/embedding/embedding.module'
 import { MaterialsModule } from './modules/materials/materials.module'
 import { RetrievalModule } from './modules/retrieval/retrieval.module'
+import { CompletionModule } from './modules/completion/completion.module'
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { RetrievalModule } from './modules/retrieval/retrieval.module'
     RagPersistenceModule,
     PdfStorageModule,
     EmbeddingModule,
+    CompletionModule,
     RetrievalModule,
     MaterialsModule,
   ],
