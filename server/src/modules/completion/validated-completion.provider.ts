@@ -9,6 +9,7 @@ import { CompletionProviderError } from './completion-provider'
 import { GROUNDED_COMPLETION_PROMPT_VERSION } from './grounded-completion-envelope'
 
 export const DEFAULT_COMPLETION_TIMEOUT_MS = 30_000
+export const MAX_COMPLETION_TIMEOUT_MS = 120_000
 
 const MAX_PROVIDER_LENGTH = 80
 const MAX_MODEL_LENGTH = 120

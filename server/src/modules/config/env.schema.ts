@@ -2,6 +2,10 @@ import { isAbsolute } from 'node:path'
 
 import { z } from 'zod'
 
+import {
+  DEFAULT_COMPLETION_TIMEOUT_MS,
+  MAX_COMPLETION_TIMEOUT_MS,
+} from '../completion/validated-completion.provider'
 import { MAX_PDF_OBJECT_BYTES } from '../pdf-storage/pdf-storage'
 
 // Rejects the committed `.env.example` placeholders so a fresh checkout cannot
@@ -34,6 +38,15 @@ export const envSchema = z
     // never has to reject a configured-but-unimplemented provider at runtime.
     // The deterministic default keeps CI and local work keyless and offline.
     EMBEDDING_PROVIDER: z.enum(['deterministic']).default('deterministic'),
+    // Completion remains keyless and offline in P0. The timeout bounds every
+    // adapter invocation even when an implementation ignores cancellation.
+    COMPLETION_PROVIDER: z.enum(['deterministic']).default('deterministic'),
+    COMPLETION_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .max(MAX_COMPLETION_TIMEOUT_MS)
+      .default(DEFAULT_COMPLETION_TIMEOUT_MS),
     // Retrieval knobs are validated configuration, never caller input: the
     // repository/service signatures expose no limit or threshold parameters.
     // The 0.70 floor may change only after the sprint 4.1 midpoint check
