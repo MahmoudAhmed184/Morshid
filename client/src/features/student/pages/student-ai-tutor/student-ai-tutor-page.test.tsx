@@ -772,6 +772,58 @@ describe('StudentAiTutorPage workspace', () => {
     )
   })
 
+  it('disables every open rename editor while one rename is pending', async () => {
+    let resolveRename: ((session: ChatSession) => void) | undefined
+    renameStudentSessionMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRename = resolve
+        }),
+    )
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture, secondSession],
+        nextCursor: null,
+      },
+    })
+
+    await chooseSessionAction(primaryChatSessionFixture.title, 'Rename')
+    const firstTitleInput = screen.getByRole('textbox', {
+      name: `Rename ${primaryChatSessionFixture.title}`,
+    })
+    fireEvent.change(firstTitleInput, { target: { value: '   ' } })
+    fireEvent.submit(firstTitleInput.closest('form')!)
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Enter a conversation title.',
+    )
+    await chooseSessionAction(secondSession.title, 'Rename')
+    const secondTitleInput = screen.getByRole('textbox', {
+      name: `Rename ${secondSession.title}`,
+    })
+    fireEvent.change(secondTitleInput, {
+      target: { value: 'Pending second rename' },
+    })
+    fireEvent.submit(secondTitleInput.closest('form')!)
+
+    await waitFor(() => expect(resolveRename).toBeTypeOf('function'))
+    expect(firstTitleInput).toBeDisabled()
+    expect(secondTitleInput).toBeDisabled()
+
+    fireEvent.change(firstTitleInput, {
+      target: { value: 'Overlapping first rename' },
+    })
+    fireEvent.submit(firstTitleInput.closest('form')!)
+    expect(renameStudentSessionMock).toHaveBeenCalledTimes(1)
+
+    if (!resolveRename) {
+      throw new Error('Expected rename request to be pending')
+    }
+
+    resolveRename({ ...secondSession, title: 'Pending second rename' })
+    await waitFor(() => expect(firstTitleInput).toBeEnabled())
+  })
+
   it('cancels inline rename with Escape without mutating the session', async () => {
     renderWorkspace({
       courseId: primaryCourse.id,

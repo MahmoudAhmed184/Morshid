@@ -44,7 +44,7 @@ export function StudentSessionListItem({
         <StudentSessionInlineRename
           session={session}
           isSelected={isSelected}
-          isPending={isRenaming}
+          isPending={isRenaming || areLifecycleMutationsPending}
           onCancel={() => setIsEditing(false)}
           onComplete={() => setIsEditing(false)}
           onRename={onRename}
