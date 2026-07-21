@@ -1,6 +1,5 @@
 import {
   CompletionProviderFailureError,
-  EmptyCompletionContextError,
 } from './completion-errors'
 import type {
   CompletionProvider,
@@ -56,27 +55,12 @@ export class DeterministicCompletionProvider implements CompletionProvider {
     )
 
     if (selected === null) {
-      return {
-        answer: INSUFFICIENT_CONTEXT_ANSWER,
-        provider: this.metadata.provider,
-        model: this.metadata.model,
-        promptVersion: envelope.promptVersion,
-        guidanceLabel: 'GENERAL_NOT_FOUND',
-        finishReason: 'insufficient_context',
-        tokenUsage: {
-          inputTokens: estimateTokens(envelope.prompt),
-          outputTokens: estimateTokens(INSUFFICIENT_CONTEXT_ANSWER),
-        },
-        metadata: {
-          contextChunkCount: envelope.contextChunkCount,
-          supportsStreaming: this.metadata.supportsStreaming,
-        },
-      }
+      return this.buildInsufficientContextResult(envelope)
     }
 
     const snippet = compactContextSnippet(selected.chunk.content)
     if (snippet === '') {
-      throw new EmptyCompletionContextError()
+      return this.buildInsufficientContextResult(envelope)
     }
 
     const answer = [
@@ -100,6 +84,29 @@ export class DeterministicCompletionProvider implements CompletionProvider {
         contextChunkCount: envelope.contextChunkCount,
         selectedSourceIndex: selected.sourceIndex,
         selectedChunkIndex: selected.chunk.chunkIndex,
+        supportsStreaming: this.metadata.supportsStreaming,
+      },
+    }
+  }
+
+  private buildInsufficientContextResult(envelope: {
+    readonly promptVersion: string
+    readonly prompt: string
+    readonly contextChunkCount: number
+  }): GroundedCompletionResult {
+    return {
+      answer: INSUFFICIENT_CONTEXT_ANSWER,
+      provider: this.metadata.provider,
+      model: this.metadata.model,
+      promptVersion: envelope.promptVersion,
+      guidanceLabel: 'GENERAL_NOT_FOUND',
+      finishReason: 'insufficient_context',
+      tokenUsage: {
+        inputTokens: estimateTokens(envelope.prompt),
+        outputTokens: estimateTokens(INSUFFICIENT_CONTEXT_ANSWER),
+      },
+      metadata: {
+        contextChunkCount: envelope.contextChunkCount,
         supportsStreaming: this.metadata.supportsStreaming,
       },
     }
@@ -156,12 +163,25 @@ function toSearchTerms(text: string): Set<string> {
 
 function compactContextSnippet(content: string): string {
   const normalized = content.normalize('NFKC').trim().replace(/\s+/gu, ' ')
+  const conceptualSentences = normalized
+    .split(/(?<=[.!?])\s+/u)
+    .filter((sentence) => !looksLikeInstructionInjection(sentence))
+    .join(' ')
+    .trim()
 
-  if (normalized.length <= MAX_CONTEXT_SNIPPET_CHARACTERS) {
-    return normalized
+  if (conceptualSentences.length <= MAX_CONTEXT_SNIPPET_CHARACTERS) {
+    return conceptualSentences
   }
 
-  return `${normalized.slice(0, MAX_CONTEXT_SNIPPET_CHARACTERS - 3).trim()}...`
+  return `${conceptualSentences
+    .slice(0, MAX_CONTEXT_SNIPPET_CHARACTERS - 3)
+    .trim()}...`
+}
+
+function looksLikeInstructionInjection(sentence: string): boolean {
+  return /\b(api key|credential|developer message|ignore previous|reveal|secret|system prompt|system rules)\b/iu.test(
+    sentence,
+  )
 }
 
 function estimateTokens(text: string): number {
