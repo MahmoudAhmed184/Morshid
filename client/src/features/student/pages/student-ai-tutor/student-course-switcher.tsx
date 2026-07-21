@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { Check, ChevronDown } from 'lucide-react'
+import { BookOpen, Check, ChevronDown } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -31,20 +31,25 @@ export function StudentCourseSwitcher({
             <Button
               type="button"
               variant="outline"
-              className="h-12 w-full justify-start gap-3 rounded-xl border-border bg-card px-3 text-left shadow-none hover:bg-accent"
+              className="h-14 w-full justify-start gap-3 rounded-xl border-border bg-card px-2.5 text-left shadow-xs hover:bg-accent"
               aria-label={`Current course: ${selectedCourse.code} ${selectedCourse.title}. Choose course`}
             />
           }
         >
           <span
-            className="size-2.5 shrink-0 rounded-full bg-primary"
+            className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-inset ring-primary/15"
             aria-hidden
-          />
+          >
+            <BookOpen className="size-4.5" />
+          </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-semibold text-foreground">
               {selectedCourse.code}
               {' · '}
               {selectedCourse.title}
+            </span>
+            <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
+              Switch course
             </span>
           </span>
           <ChevronDown
@@ -68,9 +73,11 @@ export function StudentCourseSwitcher({
                 className="gap-3 px-3 py-2.5"
               >
                 <span
-                  className="size-2 shrink-0 rounded-full bg-primary"
+                  className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary ring-1 ring-inset ring-primary/15"
                   aria-hidden
-                />
+                >
+                  <BookOpen className="size-4" />
+                </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">
                     {course.code}

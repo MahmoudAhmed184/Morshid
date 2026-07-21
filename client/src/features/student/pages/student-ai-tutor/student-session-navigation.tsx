@@ -84,11 +84,19 @@ export function StudentSessionNavigation({
           />
         </div>
 
-        <header className="flex items-center justify-between gap-3 px-5 pb-2">
+        <header className="flex items-center justify-between gap-3 px-5 pb-2.5">
           <h2 className="text-xs font-medium tracking-[0.12em] text-muted-foreground uppercase">
             Sessions
           </h2>
-          {isRefreshing ? <Badge variant="outline">Refreshing</Badge> : null}
+          {isRefreshing ? (
+            <Badge variant="outline" className="gap-1.5">
+              <span
+                className="size-1.5 animate-pulse rounded-full bg-primary"
+                aria-hidden
+              />
+              Refreshing
+            </Badge>
+          ) : null}
         </header>
 
         <div
@@ -109,16 +117,15 @@ export function StudentSessionNavigation({
           ) : null}
 
           {!isPending && !isError && sessions.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">
-              <MessageSquareText
-                className="mx-auto size-5 text-muted-foreground"
-                aria-hidden
-              />
+            <div className="mx-1 rounded-xl border border-dashed border-border bg-muted/20 px-4 py-8 text-center">
+              <div className="mx-auto flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-inset ring-primary/15">
+                <MessageSquareText className="size-4.5" aria-hidden />
+              </div>
               <p className="mt-3 text-sm font-medium text-foreground">
                 No conversations yet
               </p>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                Create a conversation to start working in this course.
+                Start a new chat to begin studying this course with your tutor.
               </p>
             </div>
           ) : null}

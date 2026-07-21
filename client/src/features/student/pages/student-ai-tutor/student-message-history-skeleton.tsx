@@ -2,8 +2,9 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
 const skeletonMessages = [
-  { id: 'student', isStudent: true, width: 'w-3/5' },
-  { id: 'assistant', isStudent: false, width: 'w-4/5' },
+  { id: 'assistant', isStudent: false, lines: ['w-4/5', 'w-3/5'] },
+  { id: 'student', isStudent: true, lines: ['w-2/3'] },
+  { id: 'assistant-2', isStudent: false, lines: ['w-11/12', 'w-3/4', 'w-2/5'] },
 ] as const
 
 export function StudentMessageHistorySkeleton() {
@@ -12,27 +13,32 @@ export function StudentMessageHistorySkeleton() {
       role="status"
       aria-label="Loading conversation history"
       aria-busy="true"
-      className="w-full space-y-5"
+      className="w-full space-y-6"
     >
       {skeletonMessages.map((message) => (
         <div
           key={message.id}
           className={cn(
-            'flex gap-3',
+            'flex items-end gap-3',
             message.isStudent ? 'flex-row-reverse' : 'flex-row',
           )}
         >
           <Skeleton className="size-8 shrink-0 rounded-full" />
-          <Skeleton
+          <div
             className={cn(
-              'rounded-2xl px-4 py-3',
-              message.isStudent ? 'rounded-tr-md' : 'rounded-tl-md',
-              message.width,
+              'flex max-w-[min(90%,44rem)] flex-col gap-2 rounded-2xl px-4 py-3.5',
+              message.isStudent
+                ? 'rounded-br-md bg-primary/10'
+                : 'rounded-bl-md bg-muted',
             )}
           >
-            <div className="h-4 w-full rounded bg-background/50" />
-            <div className="mt-2 h-4 w-2/3 rounded bg-background/50" />
-          </Skeleton>
+            {message.lines.map((line, index) => (
+              <Skeleton
+                key={index}
+                className={cn('h-3.5 rounded-full bg-foreground/10', line)}
+              />
+            ))}
+          </div>
         </div>
       ))}
     </div>

@@ -86,14 +86,20 @@ export function StudentSidebar({
             {assignedCourses.map((course) => (
               <li
                 key={course.id}
-                className="rounded-md border border-sidebar-border bg-sidebar-accent/40 p-3"
+                className="rounded-xl border border-sidebar-border bg-sidebar-accent/40 p-3 transition-colors hover:bg-sidebar-accent/70"
               >
-                <div className="flex min-w-0 items-start justify-between gap-2">
-                  <div className="min-w-0">
+                <div className="flex min-w-0 items-start gap-2.5">
+                  <span
+                    className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary/10 text-sidebar-primary ring-1 ring-inset ring-sidebar-primary/20"
+                    aria-hidden
+                  >
+                    <BookOpen className="size-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-sidebar-foreground">
                       {course.title}
                     </p>
-                    <p className="mt-1 truncate text-xs text-muted-foreground">
+                    <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
                       {course.code}
                     </p>
                   </div>

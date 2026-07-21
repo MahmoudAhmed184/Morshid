@@ -56,12 +56,19 @@ export function StudentSessionListItem({
           onClick={onNavigate}
           aria-current={isSelected ? 'page' : undefined}
           className={cn(
-            'flex min-h-16 flex-col justify-center rounded-xl py-2.5 pr-12 pl-3.5 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none',
+            'relative flex min-h-16 flex-col justify-center rounded-xl py-2.5 pr-12 pl-4 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none',
             isSelected
               ? 'bg-accent text-accent-foreground'
               : 'text-foreground hover:bg-muted',
           )}
         >
+          <span
+            className={cn(
+              'absolute inset-y-2.5 left-1 w-1 rounded-full bg-primary transition-opacity',
+              isSelected ? 'opacity-100' : 'opacity-0',
+            )}
+            aria-hidden
+          />
           <span className="block truncate font-medium">{session.title}</span>
           <span
             className={cn(

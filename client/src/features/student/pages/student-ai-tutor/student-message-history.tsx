@@ -73,7 +73,7 @@ export function StudentMessageHistory({
       <EmptyState
         icon={<MessageSquareText className="size-6" aria-hidden />}
         title="No messages yet"
-        description="Saved messages will appear here when this conversation begins."
+        description="This conversation is ready. Ask your first question and your saved history will begin here."
         className="w-full border-0 bg-transparent"
       />
     )
@@ -81,7 +81,7 @@ export function StudentMessageHistory({
 
   return (
     <div>
-      <ol aria-label="Conversation history" className="space-y-5">
+      <ol aria-label="Conversation history" className="space-y-6">
         {messages.map((message) => (
           <StudentChatMessage key={message.id} message={message} />
         ))}
@@ -89,7 +89,7 @@ export function StudentMessageHistory({
       {isError ? (
         <div
           role="alert"
-          className="mt-6 rounded-md border border-destructive/30 px-3 py-3 text-center"
+          className="mt-6 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3.5 text-center"
         >
           <p className="text-sm text-destructive">
             {isFetchNextPageError
@@ -100,7 +100,7 @@ export function StudentMessageHistory({
             type="button"
             variant="outline"
             size="sm"
-            className="mt-2"
+            className="mt-2.5"
             onClick={isFetchNextPageError ? onLoadMore : onRetry}
           >
             Retry loading messages
