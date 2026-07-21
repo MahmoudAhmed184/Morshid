@@ -27,6 +27,23 @@ interface RankedContextChunk {
 const MAX_CONTEXT_SNIPPET_CHARACTERS = 360
 const INSUFFICIENT_CONTEXT_ANSWER =
   'I could not find enough authorized course context to answer this question.'
+const SEARCH_STOP_WORDS = new Set([
+  'about',
+  'and',
+  'are',
+  'can',
+  'does',
+  'for',
+  'from',
+  'how',
+  'the',
+  'this',
+  'what',
+  'when',
+  'where',
+  'why',
+  'with',
+])
 
 export class DeterministicCompletionProvider implements CompletionProvider {
   readonly metadata: CompletionProviderMetadata
@@ -157,7 +174,8 @@ function toSearchTerms(text: string): Set<string> {
     text
       .normalize('NFKC')
       .toLowerCase()
-      .match(/[a-z][a-z0-9_]{2,}/gu) ?? [],
+      .match(/[a-z][a-z0-9_]{2,}/gu)
+      ?.filter((term) => !SEARCH_STOP_WORDS.has(term)) ?? [],
   )
 }
 
