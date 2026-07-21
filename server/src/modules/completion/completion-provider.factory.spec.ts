@@ -8,6 +8,7 @@ describe('createCompletionProvider', () => {
     const provider = createCompletionProvider({
       provider: 'deterministic',
       model: DETERMINISTIC_COMPLETION_MODEL,
+      timeoutMs: 30_000,
     })
 
     expect(provider.metadata).toEqual({
@@ -28,6 +29,7 @@ describe('createCompletionProvider', () => {
     const provider = createCompletionProvider({
       provider: 'deterministic',
       model: 'custom-deterministic-model',
+      timeoutMs: 30_000,
     })
 
     expect(provider.metadata.model).toBe('custom-deterministic-model')
@@ -38,6 +40,7 @@ describe('createCompletionProvider', () => {
       createCompletionProvider({
         provider: 'openai' as AppEnvironment['COMPLETION_PROVIDER'],
         model: DETERMINISTIC_COMPLETION_MODEL,
+        timeoutMs: 30_000,
       }),
     ).toThrow('Unsupported completion provider')
   })
@@ -50,6 +53,7 @@ describe('createCompletionProvider', () => {
       const provider = createCompletionProvider({
         provider: 'deterministic',
         model: DETERMINISTIC_COMPLETION_MODEL,
+        timeoutMs: 30_000,
       })
 
       await expect(
