@@ -2,9 +2,17 @@ import { isAbsolute } from 'node:path'
 
 import { z } from 'zod'
 
+import { MAX_PDF_OBJECT_BYTES } from '../pdf-storage/pdf-storage'
+
 // Rejects the committed `.env.example` placeholders so a fresh checkout cannot
 // boot with a publicly known signing secret (see docker-compose `${VAR:?}`).
 const SECRET_PLACEHOLDER_PREFIX = 'replace-with'
+const PDF_UPLOAD_OPERATIONAL_CEILING_BYTES = 10 * 1024 * 1024
+export const MAX_PDF_UPLOAD_BYTES = Math.min(
+  PDF_UPLOAD_OPERATIONAL_CEILING_BYTES,
+  MAX_PDF_OBJECT_BYTES,
+)
+export const DEFAULT_PDF_MAX_UPLOAD_BYTES = MAX_PDF_UPLOAD_BYTES
 
 export const envSchema = z
   .object({
@@ -16,6 +24,12 @@ export const envSchema = z
     DATABASE_URL: z.url().startsWith('postgresql://'),
     REDIS_URL: z.url().startsWith('redis://'),
     PDF_STORAGE_PATH: z.string().trim().min(1),
+    PDF_MAX_UPLOAD_BYTES: z.coerce
+      .number()
+      .int()
+      .positive()
+      .max(MAX_PDF_UPLOAD_BYTES)
+      .default(DEFAULT_PDF_MAX_UPLOAD_BYTES),
     // Only providers with a wired implementation are accepted so the factory
     // never has to reject a configured-but-unimplemented provider at runtime.
     // The deterministic default keeps CI and local work keyless and offline.

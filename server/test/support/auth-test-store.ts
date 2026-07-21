@@ -219,6 +219,25 @@ interface UpdateMaterialArgs {
   data: Partial<Pick<Material, 'title'>>
 }
 
+interface CreateMaterialArgs {
+  data: Pick<
+    Material,
+    | 'courseId'
+    | 'uploadedById'
+    | 'title'
+    | 'originalFilename'
+    | 'storagePath'
+    | 'sha256Hash'
+    | 'status'
+  >
+}
+
+interface DeleteMaterialArgs {
+  where: {
+    id: string
+  }
+}
+
 export class AuthTestStore {
   readonly users = new Map<string, User>()
   readonly courses = new Map<string, Course>()
@@ -301,8 +320,14 @@ export class AuthTestStore {
       findFirst: jest.fn((args?: FindFirstMaterialArgs) =>
         Promise.resolve(this.findFirstMaterial(args)),
       ),
+      create: jest.fn((args: CreateMaterialArgs) =>
+        Promise.resolve(this.createMaterial(args)),
+      ),
       update: jest.fn((args: UpdateMaterialArgs) =>
         Promise.resolve(this.updateMaterial(args)),
+      ),
+      delete: jest.fn((args: DeleteMaterialArgs) =>
+        Promise.resolve(this.deleteMaterial(args)),
       ),
     },
     auditLog: {
@@ -913,6 +938,43 @@ export class AuthTestStore {
     }
     this.materials.set(args.where.id, updated)
     return updated
+  }
+
+  private createMaterial(args: CreateMaterialArgs): StoredMaterial {
+    const sequence = this.nextMaterialSequence
+    this.nextMaterialSequence += 1
+    const now = new Date('2026-07-06T12:00:00.000Z')
+    const material: Material = {
+      id: `00000000-0000-4000-8000-0000000006${sequence.toString().padStart(2, '0')}`,
+      courseId: args.data.courseId,
+      uploadedById: args.data.uploadedById,
+      title: args.data.title,
+      originalFilename: args.data.originalFilename,
+      storagePath: args.data.storagePath,
+      sha256Hash: args.data.sha256Hash,
+      status: args.data.status,
+      extractedTextLength: null,
+      chunkCount: null,
+      errorMessage: null,
+      deletedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    }
+
+    this.materials.set(material.id, material)
+
+    return material
+  }
+
+  private deleteMaterial(args: DeleteMaterialArgs): StoredMaterial {
+    const material = this.materials.get(args.where.id)
+    if (!material) {
+      throw new Error('Material not found')
+    }
+
+    this.materials.delete(args.where.id)
+
+    return material
   }
 
   private createAuditLog(args: CreateAuditLogArgs): AuditLog {

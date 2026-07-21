@@ -76,6 +76,10 @@ class CoursesTestRepository extends CoursesRepository {
     return Promise.resolve(false)
   }
 
+  hasActiveCourseMembership() {
+    return Promise.resolve(false)
+  }
+
   listAdminCourses(): Promise<AdminCourseRecord[]> {
     return Promise.resolve(adminCourses)
   }

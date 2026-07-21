@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common'
 
-import type { CourseMembershipRole } from '../../generated/prisma/client'
+import {
+  CourseMembershipRole,
+  UserRole,
+  type CourseMembershipRole as CourseMembershipRoleType,
+} from '../../generated/prisma/client'
 import type { AuthenticatedRequestUser } from '../auth/auth.dto'
 import { getCourseRolePolicy } from './course-access.policy'
 import { CoursesRepository } from './courses.repository'
@@ -39,10 +43,29 @@ export class CourseAccessService {
     return this.canViewCourse(user, courseId)
   }
 
+  async canManageCourseMaterials(
+    user: AuthenticatedRequestUser,
+    courseId: string,
+  ): Promise<boolean> {
+    if (user.role === UserRole.ADMIN) {
+      return true
+    }
+
+    if (user.role !== UserRole.INSTRUCTOR) {
+      return false
+    }
+
+    return this.coursesRepository.hasActiveCourseMembership(
+      user.id,
+      courseId,
+      CourseMembershipRole.INSTRUCTOR,
+    )
+  }
+
   private async hasCourseMembership(
     userId: string,
     courseId: string,
-    expectedRole: CourseMembershipRole,
+    expectedRole: CourseMembershipRoleType,
   ) {
     const membershipRole = await this.coursesRepository.findMembershipRole(
       userId,

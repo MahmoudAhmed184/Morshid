@@ -59,6 +59,12 @@ export abstract class CoursesRepository {
 
   abstract isCourseOwner(userId: string, courseId: string): Promise<boolean>
 
+  abstract hasActiveCourseMembership(
+    userId: string,
+    courseId: string,
+    role: CourseMembershipRole,
+  ): Promise<boolean>
+
   abstract listAdminCourses(): Promise<AdminCourseRecord[]>
 
   abstract listMemberCourses(
@@ -103,6 +109,26 @@ export class PrismaCoursesRepository extends CoursesRepository {
     })
 
     return course !== null
+  }
+
+  async hasActiveCourseMembership(
+    userId: string,
+    courseId: string,
+    role: CourseMembershipRole,
+  ) {
+    const membership = await this.prismaService.courseMembership.findFirst({
+      where: {
+        courseId,
+        userId,
+        role,
+        removedAt: null,
+      },
+      select: {
+        id: true,
+      },
+    })
+
+    return membership !== null
   }
 
   listAdminCourses(): Promise<AdminCourseRecord[]> {

@@ -1,4 +1,4 @@
-import { validateEnv } from './env.schema'
+import { MAX_PDF_UPLOAD_BYTES, validateEnv } from './env.schema'
 
 describe('validateEnv', () => {
   const validEnv = {
@@ -24,6 +24,7 @@ describe('validateEnv', () => {
         'postgresql://morshid:morshid_local_password@localhost:5432/morshid',
       REDIS_URL: 'redis://localhost:6379',
       PDF_STORAGE_PATH: '../storage/pdfs',
+      PDF_MAX_UPLOAD_BYTES: 10 * 1024 * 1024,
       AUTH_ACCESS_TOKEN_TTL_SECONDS: 900,
       AUTH_REFRESH_TOKEN_TTL_DAYS: 7,
       EMBEDDING_PROVIDER: 'deterministic',
@@ -89,6 +90,26 @@ describe('validateEnv', () => {
     expect(() => validateEnv({ ...validEnv, PDF_STORAGE_PATH: '   ' })).toThrow(
       /PDF_STORAGE_PATH: Too small/,
     )
+  })
+
+  it('coerces and bounds the PDF max upload size', () => {
+    expect(
+      validateEnv({ ...validEnv, PDF_MAX_UPLOAD_BYTES: '5242880' }),
+    ).toMatchObject({
+      PDF_MAX_UPLOAD_BYTES: 5 * 1024 * 1024,
+    })
+    expect(() =>
+      validateEnv({ ...validEnv, PDF_MAX_UPLOAD_BYTES: '0' }),
+    ).toThrow(/PDF_MAX_UPLOAD_BYTES: Too small/)
+    expect(() =>
+      validateEnv({ ...validEnv, PDF_MAX_UPLOAD_BYTES: '10.5' }),
+    ).toThrow(/PDF_MAX_UPLOAD_BYTES: Invalid input/)
+    expect(() =>
+      validateEnv({
+        ...validEnv,
+        PDF_MAX_UPLOAD_BYTES: String(MAX_PDF_UPLOAD_BYTES + 1),
+      }),
+    ).toThrow(/PDF_MAX_UPLOAD_BYTES: Too big/)
   })
 
   it('rejects the committed placeholder signing secrets', () => {

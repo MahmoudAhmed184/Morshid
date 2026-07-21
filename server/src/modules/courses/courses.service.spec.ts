@@ -64,6 +64,18 @@ class CoursesServiceTestRepository extends CoursesRepository {
     Promise.resolve(this.courses.get(courseId)?.createdById === userId),
   )
 
+  readonly hasActiveCourseMembership = jest.fn(
+    (userId: string, courseId: string, role: CourseMembershipRole) =>
+      Promise.resolve(
+        this.memberships.some(
+          (membership) =>
+            membership.userId === userId &&
+            membership.courseId === courseId &&
+            membership.role === role,
+        ),
+      ),
+  )
+
   readonly listOwnedCourses = jest.fn((userId: string) =>
     Promise.resolve(this.findOwnedCourses(userId)),
   )

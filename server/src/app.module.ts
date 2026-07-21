@@ -12,6 +12,7 @@ import { StudentChatModule } from './modules/student-chat/student-chat.module'
 import { RagPersistenceModule } from './modules/rag-persistence/rag-persistence.module'
 import { PdfStorageModule } from './modules/pdf-storage/pdf-storage.module'
 import { EmbeddingModule } from './modules/embedding/embedding.module'
+import { MaterialsModule } from './modules/materials/materials.module'
 import { RetrievalModule } from './modules/retrieval/retrieval.module'
 
 @Module({
@@ -32,6 +33,7 @@ import { RetrievalModule } from './modules/retrieval/retrieval.module'
     PdfStorageModule,
     EmbeddingModule,
     RetrievalModule,
+    MaterialsModule,
   ],
 })
 export class AppModule {}
