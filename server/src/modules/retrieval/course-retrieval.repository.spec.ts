@@ -25,6 +25,7 @@ describe('PrismaCourseRetrievalRepository', () => {
       queryEmbedding: buildEmbedding(),
       topK: 5,
       minSimilarity: 0.7,
+      offset: 0,
       ...overrides,
     }
   }
@@ -42,6 +43,7 @@ describe('PrismaCourseRetrievalRepository', () => {
       courseId,
       0.7,
       5,
+      0,
     ])
   })
 
@@ -59,6 +61,7 @@ describe('PrismaCourseRetrievalRepository', () => {
     expect(staticSql).toContain('material.chunk_count > 0')
     expect(staticSql).toContain('1 - distance >= ?')
     expect(staticSql).toContain('LIMIT ?')
+    expect(staticSql).toContain('OFFSET ?')
     expect(staticSql).toContain('ORDER BY distance ASC')
   })
 
@@ -79,6 +82,16 @@ describe('PrismaCourseRetrievalRepository', () => {
     async (topK) => {
       await expect(
         repository.findTopChunksForCourse(buildQuery({ topK })),
+      ).rejects.toThrow(InvalidRetrievalQueryError)
+      expect(queryRaw).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each([-1, 1.5, 251])(
+    'rejects candidate offset %p without touching the database',
+    async (offset) => {
+      await expect(
+        repository.findTopChunksForCourse(buildQuery({ offset })),
       ).rejects.toThrow(InvalidRetrievalQueryError)
       expect(queryRaw).not.toHaveBeenCalled()
     },
