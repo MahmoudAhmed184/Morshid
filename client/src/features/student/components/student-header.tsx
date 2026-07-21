@@ -14,9 +14,11 @@ import {
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 import { StudentSidebar } from '@/features/student/components/student-sidebar'
 import { useStudentCourses } from '@/features/student/hooks/use-student-courses'
-import { useStudentSessions } from '@/features/student/hooks/use-student-sessions'
+import { useStudentSession } from '@/features/student/hooks/use-student-sessions'
+import type { StudentCourse } from '@/features/student/schemas/student-course.schema'
 
 type StudentHeaderProps = {
+  assignedCourses: StudentCourse[]
   pathname: string
   courseId?: string
   sessionId?: string
@@ -33,9 +35,11 @@ function StudentTutorBreadcrumb({
 }: StudentTutorBreadcrumbProps) {
   const { data: courses } = useStudentCourses()
   const selectedCourse = courses.find((course) => course.id === courseId)
-  const { data } = useStudentSessions({ courseId: selectedCourse?.id })
-  const sessions = data?.pages.flatMap((page) => page.sessions) ?? []
-  const selectedSession = sessions.find((session) => session.id === sessionId)
+  const { data: routedSession } = useStudentSession({
+    courseId: selectedCourse?.id,
+    sessionId,
+  })
+  const selectedSession = routedSession
   return (
     <nav
       aria-label="Tutor breadcrumb"
@@ -48,7 +52,10 @@ function StudentTutorBreadcrumb({
         >
           Courses
         </Link>
-        <ChevronRight className="size-4 shrink-0 text-slate-300" aria-hidden />
+        <ChevronRight
+          className="size-4 shrink-0 text-muted-foreground/50"
+          aria-hidden
+        />
         {selectedCourse ? (
           <>
             <Link
@@ -59,7 +66,7 @@ function StudentTutorBreadcrumb({
               {selectedCourse.title}
             </Link>
             <ChevronRight
-              className="size-4 shrink-0 text-slate-300"
+              className="size-4 shrink-0 text-muted-foreground/50"
               aria-hidden
             />
           </>
@@ -73,6 +80,7 @@ function StudentTutorBreadcrumb({
 }
 
 export function StudentHeader({
+  assignedCourses,
   pathname,
   courseId,
   sessionId,
@@ -93,7 +101,7 @@ export function StudentHeader({
         ) : undefined
       }
       showHelp={!isAiTutorWorkspace}
-      className={isAiTutorWorkspace ? 'border-slate-200 bg-white' : undefined}
+      className={isAiTutorWorkspace ? 'border-border bg-card' : undefined}
       leading={
         <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
           <SheetTrigger
@@ -120,6 +128,7 @@ export function StudentHeader({
               <SheetTitle>Student navigation</SheetTitle>
             </SheetHeader>
             <StudentSidebar
+              assignedCourses={assignedCourses}
               pathname={pathname}
               onNavigate={() => setMobileNavOpen(false)}
             />

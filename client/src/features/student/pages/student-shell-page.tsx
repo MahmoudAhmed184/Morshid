@@ -3,9 +3,11 @@ import { Outlet, useHydrated, useRouterState } from '@tanstack/react-router'
 import { AuthLoader } from '@/features/auth/components/auth-loader'
 import { StudentHeader } from '@/features/student/components/student-header'
 import { StudentSidebar } from '@/features/student/components/student-sidebar'
+import { useStudentCourses } from '@/features/student/hooks/use-student-courses'
 
 export function StudentShellPage() {
   const isHydrated = useHydrated()
+  const { data: assignedCourses } = useStudentCourses()
   const location = useRouterState({
     select: (state) => state.location,
   })
@@ -29,7 +31,10 @@ export function StudentShellPage() {
       <div className="flex h-full w-full overflow-hidden">
         {!isAiTutorWorkspace ? (
           <aside className="sticky top-0 hidden h-svh w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex">
-            <StudentSidebar pathname={pathname} />
+            <StudentSidebar
+              assignedCourses={assignedCourses}
+              pathname={pathname}
+            />
           </aside>
         ) : null}
 
@@ -41,6 +46,7 @@ export function StudentShellPage() {
           }
         >
           <StudentHeader
+            assignedCourses={assignedCourses}
             pathname={pathname}
             courseId={courseId}
             sessionId={sessionId}

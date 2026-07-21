@@ -105,6 +105,16 @@ function renderWithStudentCourses(
       }),
       { pages: [sessionList.response], pageParams: [undefined] },
     )
+    for (const session of sessionList.response.sessions) {
+      queryClient.setQueryData(
+        studentSessionKeys.detail({
+          studentId: 'student-user',
+          courseId: sessionList.courseId,
+          sessionId: session.id,
+        }),
+        session,
+      )
+    }
   }
 
   return render(
@@ -140,15 +150,38 @@ describe('StudentShellPage', () => {
     expect(screen.queryByTestId('student-route-outlet')).toBeNull()
   })
 
-  it('does not show assigned courses in the sidebar', () => {
+  it('renders assigned courses in the normal sidebar', () => {
+    const fetchMock = vi.fn()
+
+    vi.stubGlobal('fetch', fetchMock)
+    useAuthStore.getState().setSession(createStudentSession([]))
+
+    renderWithStudentCourses(<StudentShellPage />, [
+      {
+        id: 'python-course',
+        code: 'PYTHON-PROG-P0',
+        title: 'Python Programming',
+        membershipRole: 'STUDENT',
+      },
+    ])
+
+    const coursesList = screen.getByRole('list', {
+      name: /assigned courses/i,
+    })
+
+    expect(
+      within(coursesList).getByText('Python Programming'),
+    ).toBeInTheDocument()
+    expect(within(coursesList).getByText('PYTHON-PROG-P0')).toBeInTheDocument()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('shows the normal sidebar empty state without assigned courses', () => {
     useAuthStore.getState().setSession(createStudentSession([]))
 
     renderWithStudentCourses(<StudentShellPage />)
 
-    const sidebar = screen.getByLabelText('Student navigation')
-
-    expect(within(sidebar).queryByText('Assigned Courses')).toBeNull()
-    expect(within(sidebar).queryByText('No courses assigned yet.')).toBeNull()
+    expect(screen.getByText('No courses assigned yet.')).toBeInTheDocument()
   })
 
   it('links sidebar navigation to the nested student routes', () => {
@@ -164,9 +197,10 @@ describe('StudentShellPage', () => {
       'href',
       '/student/courses',
     )
-    expect(
-      screen.queryByRole('link', { name: /ai tutor/i }),
-    ).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /ai tutor/i })).toHaveAttribute(
+      'href',
+      '/student/ai-tutor',
+    )
     expect(screen.getByRole('link', { name: /settings/i })).toHaveAttribute(
       'href',
       '/student/settings',
@@ -278,8 +312,8 @@ describe('StudentShellPage', () => {
       within(drawer).getByRole('link', { name: /courses/i }),
     ).toHaveAttribute('href', '/student/courses')
     expect(
-      within(drawer).queryByRole('link', { name: /ai tutor/i }),
-    ).not.toBeInTheDocument()
+      within(drawer).getByRole('link', { name: /ai tutor/i }),
+    ).toHaveAttribute('href', '/student/ai-tutor')
     expect(
       within(drawer).getByRole('link', { name: /settings/i }),
     ).toHaveAttribute('href', '/student/settings')
