@@ -46,7 +46,7 @@ export function DashboardSettingsPage({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <UserRound className="size-4 text-primary" aria-hidden />
+            <UserRound className="size-4 text-muted-foreground" aria-hidden />
             Profile
           </CardTitle>
         </CardHeader>
@@ -75,7 +75,7 @@ export function DashboardSettingsPage({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Palette className="size-4 text-primary" aria-hidden />
+            <Palette className="size-4 text-muted-foreground" aria-hidden />
             Appearance
           </CardTitle>
           <CardDescription>

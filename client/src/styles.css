@@ -22,8 +22,8 @@
   --secondary-foreground: oklch(0.24 0.02 60);
   --muted: oklch(0.93 0.012 85);
   --muted-foreground: oklch(0.46 0.02 70);
-  --accent: oklch(0.92 0.018 264);
-  --accent-foreground: oklch(0.45 0.19 264);
+  --accent: oklch(0.94 0.01 85);
+  --accent-foreground: oklch(0.24 0.02 60);
   --destructive: oklch(0.54 0.19 29);
   --destructive-foreground: oklch(0.98 0.006 85);
   --rubric: oklch(0.52 0.19 29);
@@ -48,8 +48,8 @@
   --sidebar-foreground: oklch(0.24 0.02 60);
   --sidebar-primary: oklch(0.45 0.19 264);
   --sidebar-primary-foreground: oklch(0.98 0.006 85);
-  --sidebar-accent: oklch(0.92 0.018 264);
-  --sidebar-accent-foreground: oklch(0.45 0.19 264);
+  --sidebar-accent: oklch(0.94 0.01 85);
+  --sidebar-accent-foreground: oklch(0.24 0.02 60);
   --sidebar-border: oklch(0.87 0.012 80);
   --sidebar-ring: oklch(0.45 0.19 264);
   --font-sans:
@@ -98,8 +98,8 @@
   --secondary-foreground: oklch(0.93 0.01 85);
   --muted: oklch(0.275 0.014 60);
   --muted-foreground: oklch(0.72 0.018 75);
-  --accent: oklch(0.3 0.03 264);
-  --accent-foreground: oklch(0.78 0.09 264);
+  --accent: oklch(0.3 0.014 60);
+  --accent-foreground: oklch(0.93 0.01 85);
   --destructive: oklch(0.66 0.18 25);
   --destructive-foreground: oklch(0.98 0.006 85);
   --rubric: oklch(0.68 0.16 30);
@@ -124,8 +124,8 @@
   --sidebar-foreground: oklch(0.93 0.01 85);
   --sidebar-primary: oklch(0.72 0.12 264);
   --sidebar-primary-foreground: oklch(0.208 0.012 60);
-  --sidebar-accent: oklch(0.3 0.03 264);
-  --sidebar-accent-foreground: oklch(0.78 0.09 264);
+  --sidebar-accent: oklch(0.3 0.014 60);
+  --sidebar-accent-foreground: oklch(0.93 0.01 85);
   --sidebar-border: oklch(0.33 0.015 65);
   --sidebar-ring: oklch(0.72 0.12 264);
   /* Elevation — same geometry, black-based, ~double alpha. */
@@ -540,7 +540,12 @@
   }
 
   ::selection {
-    background-color: color-mix(in oklab, var(--primary) 24%, transparent);
+    background-color: color-mix(in oklab, var(--gold) 30%, transparent);
+    color: var(--foreground);
+  }
+
+  .dark ::selection {
+    background-color: color-mix(in oklab, var(--gold) 25%, transparent);
     color: var(--foreground);
   }
 

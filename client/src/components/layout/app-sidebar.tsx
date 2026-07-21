@@ -71,7 +71,14 @@ function AppSidebarLink({
         isActive && activeItemClassName,
       )}
     >
-      <Icon className="size-4 shrink-0 transition-transform" aria-hidden />
+      <Icon
+        className={cn(
+          'size-4 shrink-0 transition-transform',
+          isActive ? 'text-foreground' : 'text-muted-foreground',
+        )}
+        strokeWidth={1.75}
+        aria-hidden
+      />
       <span className="truncate">{item.label}</span>
     </Link>
   )
