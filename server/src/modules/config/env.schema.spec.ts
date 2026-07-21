@@ -1,4 +1,4 @@
-import { validateEnv } from './env.schema'
+import { MAX_PDF_UPLOAD_BYTES, validateEnv } from './env.schema'
 
 describe('validateEnv', () => {
   const validEnv = {
@@ -104,6 +104,12 @@ describe('validateEnv', () => {
     expect(() =>
       validateEnv({ ...validEnv, PDF_MAX_UPLOAD_BYTES: '10.5' }),
     ).toThrow(/PDF_MAX_UPLOAD_BYTES: Invalid input/)
+    expect(() =>
+      validateEnv({
+        ...validEnv,
+        PDF_MAX_UPLOAD_BYTES: String(MAX_PDF_UPLOAD_BYTES + 1),
+      }),
+    ).toThrow(/PDF_MAX_UPLOAD_BYTES: Too big/)
   })
 
   it('rejects the committed placeholder signing secrets', () => {

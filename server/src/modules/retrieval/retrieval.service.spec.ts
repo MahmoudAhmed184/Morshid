@@ -55,6 +55,7 @@ describe('RetrievalService', () => {
       queryEmbedding,
       topK: 5,
       minSimilarity: 0.7,
+      offset: 0,
     })
   })
 
@@ -169,6 +170,66 @@ describe('RetrievalService', () => {
         }),
       ],
     })
+  })
+
+  it('backfills an available rank K+1 candidate after missing top-ranked files', async () => {
+    const missingRows = Array.from({ length: 5 }, (_, chunkIndex) => ({
+      chunkId: `missing-${String(chunkIndex)}`,
+      materialId: 'missing-material',
+      materialTitle: 'Missing',
+      chunkIndex,
+      content: 'unavailable evidence',
+      storagePath: 'missing.pdf',
+      distance: 0.01 + chunkIndex / 100,
+    }))
+    const availableRow = {
+      chunkId: 'rank-six',
+      materialId: 'available-material',
+      materialTitle: 'Available',
+      chunkIndex: 0,
+      content: 'rank K+1 evidence',
+      storagePath: 'available.pdf',
+      distance: 0.2,
+    }
+    findTopChunksForCourse
+      .mockResolvedValueOnce(missingRows)
+      .mockResolvedValueOnce([availableRow])
+    exists.mockImplementation((storagePath: string) =>
+      Promise.resolve(storagePath === 'available.pdf'),
+    )
+
+    await expect(
+      service.retrieveCourseEvidence(courseId, 'query'),
+    ).resolves.toEqual({
+      kind: 'evidence',
+      chunks: [expect.objectContaining({ chunkId: 'rank-six', rank: 1 })],
+    })
+    expect(findTopChunksForCourse).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ offset: 5, topK: 5 }),
+    )
+    expect(exists).toHaveBeenCalledTimes(2)
+  })
+
+  it('bounds unavailable candidate scans and checks each storage path once', async () => {
+    findTopChunksForCourse.mockResolvedValue(
+      Array.from({ length: 5 }, (_, chunkIndex) => ({
+        chunkId: `missing-${String(chunkIndex)}`,
+        materialId: 'missing-material',
+        materialTitle: 'Missing',
+        chunkIndex,
+        content: 'unavailable evidence',
+        storagePath: 'same-missing.pdf',
+        distance: 0.01 + chunkIndex / 100,
+      })),
+    )
+    exists.mockResolvedValue(false)
+
+    await expect(
+      service.retrieveCourseEvidence(courseId, 'query'),
+    ).resolves.toEqual({ kind: 'insufficient_evidence' })
+    expect(findTopChunksForCourse).toHaveBeenCalledTimes(5)
+    expect(exists).toHaveBeenCalledTimes(1)
   })
 
   it('propagates provider failures without querying the repository', async () => {

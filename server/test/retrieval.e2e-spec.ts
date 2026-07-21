@@ -227,6 +227,68 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
     ).resolves.toEqual({ kind: 'insufficient_evidence' })
   })
 
+  it('backfills rank K+1 when the top K chunks share a missing PDF', async () => {
+    const owner = await createOwner(prisma)
+    const courseId = await createCourse(
+      prisma,
+      owner,
+      `I80-${randomUUID().slice(0, 20)}`,
+    )
+    const missingMaterialId = await createMaterial(prisma, {
+      courseId,
+      uploadedById: owner,
+      title: 'Missing top ranks',
+      status: 'READY',
+    })
+    const availableMaterialId = await createMaterial(prisma, {
+      courseId,
+      uploadedById: owner,
+      title: 'Available rank six',
+      status: 'READY',
+    })
+    await persistence.insertMaterialChunks(
+      missingMaterialId,
+      [0.99, 0.98, 0.97, 0.96, 0.95].map((similarity, chunkIndex) => ({
+        chunkIndex,
+        content: `Missing ${String(chunkIndex)}`,
+        embedding: similarityVector(similarity),
+        embeddingModel: 'test-embedding-1536',
+      })),
+    )
+    await persistence.insertMaterialChunks(availableMaterialId, [
+      {
+        chunkIndex: 0,
+        content: 'Available rank K+1',
+        embedding: similarityVector(0.94),
+        embeddingModel: 'test-embedding-1536',
+      },
+    ])
+    const availableMaterial = await prisma.material.findUniqueOrThrow({
+      where: { id: availableMaterialId },
+      select: { storagePath: true },
+    })
+    const storage = {
+      exists: (storagePath: string) =>
+        Promise.resolve(storagePath === availableMaterial.storagePath),
+    } as unknown as PdfStorage
+
+    await expect(
+      buildService(queryVectorProvider(), storage).retrieveCourseEvidence(
+        courseId,
+        'query',
+      ),
+    ).resolves.toEqual({
+      kind: 'evidence',
+      chunks: [
+        expect.objectContaining({
+          materialId: availableMaterialId,
+          content: 'Available rank K+1',
+          rank: 1,
+        }),
+      ],
+    })
+  })
+
   it('never returns chunks from another course, even more similar or identical ones', async () => {
     const owner = await createOwner(prisma)
     const pythonCourseId = await createCourse(

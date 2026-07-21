@@ -4,7 +4,10 @@ import {
   EMBEDDING_PROVIDER_TOKEN,
   type EmbeddingProvider,
 } from '../embedding/embedding-provider'
-import { RagPersistenceRepository } from './rag-persistence.repository'
+import {
+  type MaterialChunkInput,
+  RagPersistenceRepository,
+} from './rag-persistence.repository'
 
 export interface MaterialChunkTextInput {
   chunkIndex: number
@@ -34,18 +37,28 @@ export class MaterialChunkEmbeddingService {
       return
     }
 
+    await this.ragPersistenceRepository.replaceMaterialChunks(
+      materialId,
+      await this.embedMaterialChunks(chunks),
+    )
+  }
+
+  async embedMaterialChunks(
+    chunks: readonly MaterialChunkTextInput[],
+  ): Promise<MaterialChunkInput[]> {
+    if (chunks.length === 0) {
+      return []
+    }
+
     const embeddings = await this.embeddingProvider.embedBatch(
       chunks.map((chunk) => chunk.content),
     )
 
-    await this.ragPersistenceRepository.replaceMaterialChunks(
-      materialId,
-      chunks.map((chunk, index) => ({
-        chunkIndex: chunk.chunkIndex,
-        content: chunk.content,
-        embedding: embeddings[index],
-        embeddingModel: this.embeddingProvider.model,
-      })),
-    )
+    return chunks.map((chunk, index) => ({
+      chunkIndex: chunk.chunkIndex,
+      content: chunk.content,
+      embedding: embeddings[index],
+      embeddingModel: this.embeddingProvider.model,
+    }))
   }
 }

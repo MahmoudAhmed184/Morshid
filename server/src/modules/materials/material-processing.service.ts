@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import { Inject, Injectable, Logger } from '@nestjs/common'
 
 import { AuditService } from '../audit/audit.service'
@@ -46,8 +48,25 @@ export class MaterialProcessingService {
   ) {}
 
   async processMaterial(materialId: string): Promise<void> {
-    const material =
-      await this.materialsRepository.findMaterialForProcessing(materialId)
+    const processingAttemptId = randomUUID()
+    let material: {
+      id: string
+      courseId: string
+      uploadedById: string
+      storagePath: string
+    } | null
+
+    try {
+      material = await this.materialsRepository.claimMaterialProcessing(
+        materialId,
+        processingAttemptId,
+      )
+    } catch {
+      this.logger.error(
+        `Material processing claim failed materialId=${materialId}`,
+      )
+      return
+    }
 
     if (material === null) {
       return
@@ -64,24 +83,31 @@ export class MaterialProcessingService {
       const chunks = this.materialTextChunker.chunk(normalizedText)
 
       if (normalizedText.length === 0 || chunks.length === 0) {
-        await this.failMaterial(material, 'NO_EXTRACTABLE_TEXT')
+        await this.failMaterial(
+          material,
+          processingAttemptId,
+          'NO_EXTRACTABLE_TEXT',
+        )
         return
       }
 
       stage = 'embedding'
-      await this.materialChunkEmbeddingService.embedAndReplaceMaterialChunks(
-        material.id,
-        chunks,
-      )
+      const embeddedChunks =
+        await this.materialChunkEmbeddingService.embedMaterialChunks(chunks)
 
       stage = 'finalization'
       const status = extraction.warnings.length > 0 ? 'WARNING' : 'READY'
       const completed =
-        await this.materialsRepository.completeMaterialProcessing(material.id, {
-          status,
-          extractedTextLength: normalizedText.length,
-          chunkCount: chunks.length,
-        })
+        await this.materialsRepository.completeMaterialProcessing(
+          material.id,
+          processingAttemptId,
+          embeddedChunks,
+          {
+            status,
+            extractedTextLength: normalizedText.length,
+            chunkCount: chunks.length,
+          },
+        )
 
       if (!completed) {
         throw new Error('Material processing finalization was not applied')
@@ -94,7 +120,7 @@ export class MaterialProcessingService {
       })
     } catch (error) {
       const reason = classifyFailure(error, stage)
-      await this.failMaterial(material, reason)
+      await this.failMaterial(material, processingAttemptId, reason)
     }
   }
 
@@ -104,28 +130,28 @@ export class MaterialProcessingService {
       courseId: string
       uploadedById: string
     },
+    processingAttemptId: string,
     reason: MaterialProcessingFailure,
   ): Promise<void> {
+    let failed = false
+
     try {
-      await this.materialChunkEmbeddingService.embedAndReplaceMaterialChunks(
+      failed = await this.materialsRepository.failMaterialProcessing(
         material.id,
-        [],
+        processingAttemptId,
+        reason,
       )
     } catch {
       this.logger.error(
-        `Material processing cleanup failed materialId=${material.id} reasonCode=${reason}`,
+        `Material processing failure finalization failed materialId=${material.id} reasonCode=${reason}`,
       )
     }
 
-    try {
-      await this.materialsRepository.failMaterialProcessing(material.id, reason)
-    } catch {
-      this.logger.error(
-        `Material processing state update failed materialId=${material.id} reasonCode=${reason}`,
-      )
+    if (failed) {
+      await this.recordProcessingEvent(material, 'FAILED', {
+        reasonCode: reason,
+      })
     }
-
-    await this.recordProcessingEvent(material, 'FAILED', { reasonCode: reason })
   }
 
   private async recordProcessingEvent(

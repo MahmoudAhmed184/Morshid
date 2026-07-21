@@ -6,7 +6,7 @@ import { PdfStorageModule } from '../pdf-storage/pdf-storage.module'
 import { PrismaModule } from '../prisma/prisma.module'
 import { RagPersistenceModule } from '../rag-persistence/rag-persistence.module'
 import {
-  InProcessMaterialProcessingScheduler,
+  DurableMaterialProcessingScheduler,
   MaterialProcessingScheduler,
 } from './material-processing.scheduler'
 import { MaterialProcessingService } from './material-processing.service'
@@ -19,7 +19,13 @@ import {
 } from './materials.repository'
 import { MaterialsService } from './materials.service'
 import { PdfUploadValidator } from './pdf-upload.validator'
-import { PDF_TEXT_EXTRACTOR, PdfJsTextExtractor } from './pdf-text-extractor'
+import {
+  PDF_DOCUMENT_LOADER,
+  PDF_TEXT_EXTRACTOR,
+  PdfJsDocumentLoader,
+  PdfJsTextExtractor,
+} from './pdf-text-extractor'
+import { PdfUploadInterceptor } from './pdf-upload.interceptor'
 
 @Module({
   imports: [
@@ -33,16 +39,21 @@ import { PDF_TEXT_EXTRACTOR, PdfJsTextExtractor } from './pdf-text-extractor'
   providers: [
     MaterialsService,
     PdfUploadValidator,
+    PdfUploadInterceptor,
     MaterialsAuditService,
     MaterialProcessingService,
     MaterialTextChunker,
+    {
+      provide: PDF_DOCUMENT_LOADER,
+      useClass: PdfJsDocumentLoader,
+    },
     {
       provide: PDF_TEXT_EXTRACTOR,
       useClass: PdfJsTextExtractor,
     },
     {
       provide: MaterialProcessingScheduler,
-      useClass: InProcessMaterialProcessingScheduler,
+      useClass: DurableMaterialProcessingScheduler,
     },
     {
       provide: MaterialsRepository,

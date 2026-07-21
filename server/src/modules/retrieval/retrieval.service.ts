@@ -7,7 +7,10 @@ import {
   type EmbeddingProvider,
 } from '../embedding/embedding-provider'
 import { PDF_STORAGE, type PdfStorage } from '../pdf-storage/pdf-storage'
-import { CourseRetrievalRepository } from './course-retrieval.repository'
+import {
+  CourseRetrievalRepository,
+  type RankedChunkRow,
+} from './course-retrieval.repository'
 
 export interface RetrievedChunk {
   chunkId: string
@@ -24,6 +27,8 @@ export interface RetrievedChunk {
 export type CourseRetrievalResult =
   | { kind: 'evidence'; chunks: RetrievedChunk[] }
   | { kind: 'insufficient_evidence' }
+
+const AVAILABILITY_SCAN_MULTIPLIER = 5
 
 @Injectable()
 export class RetrievalService {
@@ -66,21 +71,44 @@ export class RetrievalService {
       trimmedQuery,
     ])
 
-    const rows = await this.courseRetrievalRepository.findTopChunksForCourse({
-      courseId,
-      queryEmbedding,
-      topK: this.topK,
-      minSimilarity: this.minSimilarity,
-    })
+    const availableRows: RankedChunkRow[] = []
+    const availabilityByStoragePath = new Map<string, Promise<boolean>>()
+    const maxCandidates = this.topK * AVAILABILITY_SCAN_MULTIPLIER
+    let offset = 0
 
-    const availableRows = (
-      await Promise.all(
+    while (offset < maxCandidates && availableRows.length < this.topK) {
+      const pageSize = Math.min(this.topK, maxCandidates - offset)
+      const rows = await this.courseRetrievalRepository.findTopChunksForCourse({
+        courseId,
+        queryEmbedding,
+        topK: pageSize,
+        minSimilarity: this.minSimilarity,
+        offset,
+      })
+
+      const checkedRows = await Promise.all(
         rows.map(async (row) => ({
           row,
-          available: await this.isBackingFileAvailable(row.storagePath),
+          available: await this.getBackingFileAvailability(
+            row.storagePath,
+            availabilityByStoragePath,
+          ),
         })),
       )
-    ).filter(({ available }) => available)
+      for (const checked of checkedRows) {
+        if (checked.available) {
+          availableRows.push(checked.row)
+          if (availableRows.length === this.topK) {
+            break
+          }
+        }
+      }
+
+      offset += rows.length
+      if (rows.length < pageSize) {
+        break
+      }
+    }
 
     if (availableRows.length === 0) {
       return { kind: 'insufficient_evidence' }
@@ -88,7 +116,7 @@ export class RetrievalService {
 
     return {
       kind: 'evidence',
-      chunks: availableRows.map(({ row }, index) => ({
+      chunks: availableRows.map((row, index) => ({
         chunkId: row.chunkId,
         materialId: row.materialId,
         materialTitle: row.materialTitle,
@@ -98,6 +126,20 @@ export class RetrievalService {
         similarityScore: 1 - row.distance,
       })),
     }
+  }
+
+  private getBackingFileAvailability(
+    storagePath: string,
+    availabilityByStoragePath: Map<string, Promise<boolean>>,
+  ): Promise<boolean> {
+    const existing = availabilityByStoragePath.get(storagePath)
+    if (existing !== undefined) {
+      return existing
+    }
+
+    const availability = this.isBackingFileAvailable(storagePath)
+    availabilityByStoragePath.set(storagePath, availability)
+    return availability
   }
 
   private async isBackingFileAvailable(storagePath: string): Promise<boolean> {

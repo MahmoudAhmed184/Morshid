@@ -1,38 +1,19 @@
 import { ApiProperty } from '@nestjs/swagger'
 import { Expose, Type } from 'class-transformer'
 
-import { MaterialStatus, type Material } from '../../generated/prisma/client'
+import { MaterialStatus } from '../../generated/prisma/client'
+import { MATERIAL_TITLE_MAX_LENGTH } from './materials.constants'
+import type {
+  MaterialStatusRecord,
+  SafeMaterialRecord,
+} from './materials.repository'
 
 export interface UploadMaterialRequest {
   title?: string
 }
 
-export type SafeMaterialRecord = Pick<
-  Material,
-  | 'id'
-  | 'courseId'
-  | 'title'
-  | 'originalFilename'
-  | 'status'
-  | 'extractedTextLength'
-  | 'chunkCount'
-  | 'errorMessage'
-  | 'createdAt'
-  | 'updatedAt'
->
-
-export type MaterialStatusRecord = Pick<
-  Material,
-  | 'id'
-  | 'status'
-  | 'extractedTextLength'
-  | 'chunkCount'
-  | 'errorMessage'
-  | 'updatedAt'
->
-
 export class UploadMaterialRequestDto {
-  @ApiProperty({ minLength: 1, maxLength: 180 })
+  @ApiProperty({ minLength: 1, maxLength: MATERIAL_TITLE_MAX_LENGTH })
   title!: string
 
   @ApiProperty({
