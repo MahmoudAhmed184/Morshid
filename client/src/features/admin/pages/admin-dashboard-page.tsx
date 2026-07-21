@@ -6,14 +6,11 @@ import {
   HistoryIcon,
   UsersIcon,
 } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
-
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DataTableState } from '@/components/ui/custom/data-table-state'
 import { EmptyState } from '@/components/ui/custom/empty-state'
 import { StatCard } from '@/components/ui/custom/stat-card'
-import { cn } from '@/lib/utils'
 import { AdminPanel } from '../components/admin-panel'
 import { useAdminAudit } from '../hooks/use-admin-audit'
 import { useAdminCourses } from '../hooks/use-admin-courses'
@@ -46,27 +43,10 @@ const sections = [
   },
 ] as const
 
-const iconChip =
-  'flex size-9 shrink-0 items-center justify-center rounded-lg [&_svg]:size-4'
-
 const auditDateFormatter = new Intl.DateTimeFormat(undefined, {
   dateStyle: 'medium',
   timeStyle: 'short',
 })
-
-function MetricIcon({
-  icon: Icon,
-  className,
-}: {
-  icon: LucideIcon
-  className: string
-}) {
-  return (
-    <span className={cn(iconChip, className)}>
-      <Icon aria-hidden />
-    </span>
-  )
-}
 
 export function AdminDashboardPage() {
   const usersQuery = useAdminUsers()
@@ -85,21 +65,22 @@ export function AdminDashboardPage() {
     {
       label: 'Users loaded',
       value: users.length,
-      icon: (
-        <MetricIcon icon={UsersIcon} className="bg-primary/10 text-primary" />
-      ),
+      icon: <UsersIcon aria-hidden />,
+      tone: 'primary',
       description: 'Managed student and instructor accounts',
     },
     {
       label: 'Courses',
       value: courses.length,
-      icon: <MetricIcon icon={BookOpenIcon} className="bg-info/12 text-info" />,
+      icon: <BookOpenIcon aria-hidden />,
+      tone: 'info',
       description: 'Active course shells across the platform',
     },
     {
       label: 'Materials',
       value: materialCount,
-      icon: <MetricIcon icon={FileTextIcon} className="bg-gold/15 text-gold" />,
+      icon: <FileTextIcon aria-hidden />,
+      tone: 'gold',
       description: 'Learning assets ingested into courses',
     },
   ] as const
@@ -124,6 +105,7 @@ export function AdminDashboardPage() {
               label={metric.label}
               value={<span className="tabular-nums">{metric.value}</span>}
               icon={metric.icon}
+              tone={metric.tone}
               description={metric.description}
             />
           ))}

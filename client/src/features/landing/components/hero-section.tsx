@@ -1,11 +1,11 @@
 import { Link } from '@tanstack/react-router'
 import { ArrowRight, Play } from 'lucide-react'
 
+import { GuidingStar } from '@/components/guiding-star'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 
 import { ChatPreviewCard } from './chat-preview-card'
-import { GuidingStar } from './guiding-star'
 import { TrustLogosSection } from './trust-logos-section'
 
 export function HeroSection() {
@@ -76,7 +76,7 @@ export function HeroSection() {
 
         <div className="animate-fade-up relative mx-auto mt-16 max-w-3xl [animation-delay:320ms] sm:mt-20">
           <div
-            className="pointer-events-none absolute -inset-x-12 -top-10 -bottom-6 rounded-[2rem] bg-primary/15 blur-3xl"
+            className="pointer-events-none absolute -inset-x-12 -top-10 -bottom-6 rounded-2xl bg-primary/15 blur-3xl"
             aria-hidden
           />
           <ChatPreviewCard />

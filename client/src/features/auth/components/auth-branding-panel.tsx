@@ -1,3 +1,4 @@
+import { GuidingStar } from '@/components/guiding-star'
 import { Avatar, AvatarFallback, AvatarGroup } from '@/components/ui/avatar'
 import { Logo } from '@/components/logo'
 import { cn } from '@/lib/utils'
@@ -6,26 +7,6 @@ const educatorAvatars = ['JD', 'AS', 'ML'] as const
 
 type AuthBrandingPanelProps = {
   className?: string
-}
-
-/**
- * Decorative eight-pointed guiding star (Rub el Hizb), matching the logo mark.
- */
-function StarMark({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className={cn('size-4', className)}
-      fill="currentColor"
-      aria-hidden
-    >
-      <path
-        fillRule="evenodd"
-        clipRule="evenodd"
-        d="M4.8 4.8h14.4v14.4H4.8zM12 1.5l10.5 10.5L12 22.5 1.5 12z"
-      />
-    </svg>
-  )
 }
 
 export function AuthBrandingPanel({ className }: AuthBrandingPanelProps) {
@@ -45,8 +26,8 @@ export function AuthBrandingPanel({ className }: AuthBrandingPanelProps) {
         className="bg-star-field pointer-events-none absolute inset-0 opacity-40 [mask-image:radial-gradient(ellipse_at_center,black,transparent_78%)]"
         aria-hidden
       />
-      <StarMark className="animate-float pointer-events-none absolute top-16 right-14 size-6 text-gold/40 motion-reduce:animate-none" />
-      <StarMark className="animate-float pointer-events-none absolute bottom-40 left-16 size-4 text-primary/25 [animation-delay:2s] motion-reduce:animate-none" />
+      <GuidingStar className="animate-float pointer-events-none absolute top-16 right-14 size-6 text-gold/40 motion-reduce:animate-none" />
+      <GuidingStar className="animate-float pointer-events-none absolute bottom-40 left-16 size-4 text-primary/25 [animation-delay:2s] motion-reduce:animate-none" />
 
       <div className="relative flex items-center gap-2.5">
         <Logo />

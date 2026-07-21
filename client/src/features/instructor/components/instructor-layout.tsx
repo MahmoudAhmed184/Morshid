@@ -58,7 +58,7 @@ function InstructorSidebar({ onNavigate }: { onNavigate?: () => void }) {
       header={
         <div className="flex min-h-16 items-center gap-3 border-b border-border px-4 md:min-h-20">
           <Logo
-            className="size-8 rounded-[6px] bg-primary text-primary-foreground"
+            className="size-8 rounded-md bg-primary text-primary-foreground"
             iconClassName="size-4"
           />
           <div className="min-w-0">
@@ -70,7 +70,7 @@ function InstructorSidebar({ onNavigate }: { onNavigate?: () => void }) {
         </div>
       }
       navigationClassName="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-3"
-      itemClassName="flex h-9 w-full items-center gap-2 rounded-[6px] border-l-2 border-transparent px-3 text-left text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      itemClassName="flex h-9 w-full items-center gap-2 rounded-md border-l-2 border-transparent px-3 text-left text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
       activeItemClassName="border-primary bg-primary text-primary-foreground"
       settingsContainerClassName="border-t border-border px-3 py-4"
     />

@@ -1,21 +1,39 @@
 import { Badge } from '@/components/ui/badge'
 
-type StatusTone = 'default' | 'secondary' | 'destructive' | 'outline'
+export type StatusTone =
+  | 'default'
+  | 'secondary'
+  | 'destructive'
+  | 'outline'
+  | 'success'
+  | 'warning'
+  | 'info'
 
 const statusToneMap: Partial<Record<string, StatusTone>> = {
-  active: 'default',
-  approved: 'default',
-  complete: 'default',
-  completed: 'default',
-  degraded: 'secondary',
-  draft: 'secondary',
-  inactive: 'secondary',
-  offline: 'destructive',
-  pending: 'secondary',
-  ready: 'default',
-  rejected: 'destructive',
+  active: 'success',
+  approved: 'success',
+  complete: 'success',
+  completed: 'success',
+  online: 'success',
+  ready: 'success',
+  draft: 'warning',
+  degraded: 'warning',
+  pending: 'warning',
+  warning: 'warning',
+  processing: 'info',
+  uploading: 'info',
+  disabled: 'destructive',
+  error: 'destructive',
   failed: 'destructive',
+  offline: 'destructive',
+  rejected: 'destructive',
+  inactive: 'secondary',
   archived: 'outline',
+}
+
+/** Resolve a status string to its semantic Badge tone (falls back to `outline`). */
+export function resolveStatusTone(status: string): StatusTone {
+  return statusToneMap[status.toLowerCase()] ?? 'outline'
 }
 
 type StatusBadgeProps = {
@@ -39,10 +57,7 @@ export function StatusBadge({
   const normalizedStatus = status.toLowerCase()
 
   return (
-    <Badge
-      variant={tone ?? statusToneMap[normalizedStatus] ?? 'outline'}
-      className={className}
-    >
+    <Badge variant={tone ?? resolveStatusTone(status)} className={className}>
       {label ?? normalizedStatus}
     </Badge>
   )

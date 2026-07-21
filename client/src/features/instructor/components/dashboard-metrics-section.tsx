@@ -6,9 +6,6 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { instructorDashboardStats } from '@/features/instructor/constants/instructor-route-dashboard.constants'
 import type { InstructorDashboardState } from '@/features/instructor/types/instructor-dashboard-state'
 
-const iconChip =
-  'flex size-9 shrink-0 items-center justify-center rounded-lg [&_svg]:size-4'
-
 type DashboardMetricsSectionProps = {
   state: InstructorDashboardState
 }
@@ -82,22 +79,19 @@ function MetricsCards({
         }[stat.key]
 
         const isReviewQueue = stat.key === 'reviewQueue'
-        const chipClass = isReviewQueue
+        const tone = isReviewQueue
           ? value > 0
-            ? 'bg-warning/15 text-warning-foreground dark:text-warning'
-            : 'bg-success/12 text-success'
-          : 'bg-primary/10 text-primary'
+            ? 'warning'
+            : 'success'
+          : 'primary'
 
         return (
           <StatCard
             key={stat.key}
             label={stat.label}
             value={<span className="tabular-nums">{value}</span>}
-            icon={
-              <span className={`${iconChip} ${chipClass}`}>
-                <Icon aria-hidden />
-              </span>
-            }
+            icon={<Icon aria-hidden />}
+            tone={tone}
             description={
               isReviewQueue ? (
                 <span className="flex items-center gap-2">

@@ -91,7 +91,7 @@ export function StudentSessionNavigation({
           {isRefreshing ? (
             <Badge variant="outline" className="gap-1.5">
               <span
-                className="size-1.5 animate-pulse rounded-full bg-primary"
+                className="size-1.5 motion-safe:animate-pulse rounded-full bg-primary"
                 aria-hidden
               />
               Refreshing

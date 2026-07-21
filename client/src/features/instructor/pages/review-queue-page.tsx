@@ -107,7 +107,7 @@ function ReviewQueueListContent({
       icon={<ClipboardList aria-hidden />}
       title="No review requests yet"
       description="Flagged exchanges will appear here after the Sprint 3 review workflow is implemented."
-      className="min-h-44 rounded-[8px]"
+      className="min-h-44 rounded-sm"
     />
   )
 }

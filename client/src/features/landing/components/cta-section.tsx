@@ -1,16 +1,16 @@
 import { Link } from '@tanstack/react-router'
 import { ArrowRight } from 'lucide-react'
 
+import { GuidingStar } from '@/components/guiding-star'
 import { Button } from '@/components/ui/button'
 
-import { GuidingStar } from './guiding-star'
 import { Reveal } from './reveal'
 
 export function CtaSection() {
   return (
     <section className="border-t border-border/60 px-4 py-20 sm:px-6 sm:py-28 lg:px-8">
       <Reveal className="mx-auto w-full max-w-5xl">
-        <div className="relative overflow-hidden rounded-[2rem] bg-primary px-6 py-16 text-center ring-1 ring-primary/40 shadow-2xl sm:px-12 sm:py-20">
+        <div className="relative overflow-hidden rounded-2xl bg-primary px-6 py-16 text-center ring-1 ring-primary/40 shadow-2xl sm:px-12 sm:py-20">
           <div
             className="bg-star-field pointer-events-none absolute inset-0 opacity-30 [--star-size:44px] [mask-image:radial-gradient(ellipse_at_center,black,transparent_78%)]"
             aria-hidden

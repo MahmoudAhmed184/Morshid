@@ -34,7 +34,7 @@ export function CoursesContent({
         description="Your assigned courses could not be loaded. Try again."
         onRetry={onRetry}
         isRetrying={isRetrying}
-        className="min-h-56 rounded-[8px]"
+        className="min-h-56 rounded-sm"
       />
     )
   }

@@ -178,7 +178,7 @@ export function StudentAiTutorPage({
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="size-9 rounded-[10px] text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                      className="size-9 rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                       aria-label="Open sessions"
                     />
                   }

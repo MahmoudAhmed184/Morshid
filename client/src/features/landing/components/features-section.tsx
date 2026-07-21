@@ -1,8 +1,8 @@
 import { BookOpen, Clock, MessageCircleQuestion, Quote } from 'lucide-react'
 
+import { GuidingStar } from '@/components/guiding-star'
 import { FeatureCard } from '@/features/landing/components/feature-card'
 
-import { GuidingStar } from './guiding-star'
 import { Reveal } from './reveal'
 
 const features = [

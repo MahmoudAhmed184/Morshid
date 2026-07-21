@@ -1,33 +1,11 @@
 import { GraduationCap, Info } from 'lucide-react'
 
+import { GuidingStar } from '@/components/guiding-star'
 import type { ChatMessage } from '@/features/student/schemas/student-chat.schema'
 import { cn } from '@/lib/utils'
 
 interface StudentChatMessageProps {
   message: ChatMessage
-}
-
-/**
- * The eight-pointed "guiding star" mark, echoing the Morshid logo, used as the
- * AI tutor's avatar so its voice reads as the guide rather than a generic bot.
- */
-function TutorStarMark({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className={cn('size-4', className)}
-      fill="currentColor"
-      aria-hidden
-    >
-      <path
-        fillRule="evenodd"
-        clipRule="evenodd"
-        d="M4.8 4.8h14.4v14.4H4.8zM12 1.5l10.5 10.5L12 22.5 1.5 12z"
-        opacity="0.95"
-      />
-      <circle cx="12" cy="12" r="2.6" fill="currentColor" opacity="0.35" />
-    </svg>
-  )
 }
 
 export function StudentChatMessage({ message }: StudentChatMessageProps) {
@@ -62,7 +40,11 @@ export function StudentChatMessage({ message }: StudentChatMessageProps) {
         )}
         aria-hidden
       >
-        {isStudent ? <GraduationCap className="size-4" /> : <TutorStarMark />}
+        {isStudent ? (
+          <GraduationCap className="size-4" />
+        ) : (
+          <GuidingStar withCore />
+        )}
       </div>
       <div
         className={cn(

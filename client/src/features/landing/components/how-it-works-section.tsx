@@ -1,7 +1,8 @@
 import { MessagesSquare, Sparkles, Upload } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
-import { GuidingStar } from './guiding-star'
+import { GuidingStar } from '@/components/guiding-star'
+
 import { Reveal } from './reveal'
 
 type Step = {

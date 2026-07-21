@@ -1,10 +1,9 @@
 import { GraduationCap, Sparkles } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
+import { GuidingStar } from '@/components/guiding-star'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-
-import { GuidingStar } from './guiding-star'
 
 type ChatMessageProps = {
   role: 'student' | 'ai'
