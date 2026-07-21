@@ -36,6 +36,7 @@ const SEARCH_STOP_WORDS = new Set([
   'for',
   'from',
   'how',
+  'python',
   'the',
   'this',
   'what',
