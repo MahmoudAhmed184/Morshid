@@ -1,10 +1,12 @@
 import { Footer } from '#/components/layout/footer'
 import { Navbar } from '#/components/layout/navbar'
-import { CtaSection } from './components/cta-section'
-import { FeaturesSection } from './components/features-section'
+
+import { ColophonCtaSection } from './components/colophon-cta-section'
+import { CourseSection } from './components/course-section'
+import { CredoStrip } from './components/credo-strip'
 import { HeroSection } from './components/hero-section'
-import { HowItWorksSection } from './components/how-it-works-section'
-import { TestimonialsSection } from './components/testimonials-section'
+import { MarginaliaSection } from './components/marginalia-section'
+import { MethodSection } from './components/method-section'
 
 export function LandingPage() {
   return (
@@ -12,10 +14,11 @@ export function LandingPage() {
       <Navbar />
       <main className="flex-1">
         <HeroSection />
-        <FeaturesSection />
-        <HowItWorksSection />
-        <TestimonialsSection />
-        <CtaSection />
+        <CredoStrip />
+        <MethodSection />
+        <CourseSection />
+        <MarginaliaSection />
+        <ColophonCtaSection />
       </main>
       <Footer />
     </div>

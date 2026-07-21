@@ -1,88 +1,143 @@
 import { Link } from '@tanstack/react-router'
-import { ArrowRight, Play } from 'lucide-react'
 
-import { GuidingStar } from '@/components/guiding-star'
-import { Badge } from '@/components/ui/badge'
+import { Logo } from '@/components/logo'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
-import { ChatPreviewCard } from './chat-preview-card'
-import { TrustLogosSection } from './trust-logos-section'
+type SpeakerLabelProps = {
+  children: React.ReactNode
+  /** STUDENT. is rubric; MORSHID. is primary. */
+  tone: 'student' | 'morshid'
+}
+
+function SpeakerLabel({ children, tone }: SpeakerLabelProps) {
+  return (
+    <p
+      className={cn(
+        'smallcaps-label',
+        tone === 'student' ? 'text-rubric!' : 'text-primary!',
+      )}
+    >
+      {children}
+    </p>
+  )
+}
+
+/**
+ * A superscript citation marker. The digit inherits `primary` from the parent
+ * `<sup>`, so `.link-editorial` (which sets `color: inherit`) resolves to ink
+ * blue without an important override.
+ */
+function Citation({ n, href }: { n: number; href: string }) {
+  return (
+    <sup className="ml-0.5 align-super text-[0.7em] font-medium text-primary">
+      <a href={href} className="link-editorial">
+        {n}
+      </a>
+    </sup>
+  )
+}
 
 export function HeroSection() {
   return (
-    <section className="relative overflow-hidden">
-      {/* Layered brand atmosphere: indigo spotlight, faint rule grid, star field. */}
-      <div
-        className="bg-radial-spot pointer-events-none absolute inset-0"
-        aria-hidden
-      />
-      <div
-        className="bg-grid-faint pointer-events-none absolute inset-0 opacity-60 [mask-image:radial-gradient(ellipse_at_top,black,transparent_65%)]"
-        aria-hidden
-      />
-      <div
-        className="bg-star-field pointer-events-none absolute inset-0 opacity-40 [mask-image:radial-gradient(ellipse_at_top,black,transparent_55%)]"
-        aria-hidden
-      />
+    <section className="mx-auto w-full max-w-6xl px-6 pt-20 pb-24 md:px-10 md:pt-28">
+      <div className="grid gap-12 lg:grid-cols-12">
+        {/* Left — cols 1–7 */}
+        <div className="lg:col-span-7">
+          <div className="flex items-center gap-2.5">
+            <span className="rubric-square" aria-hidden />
+            <span className="smallcaps-label">
+              A Socratic tutor, bound to your course
+            </span>
+          </div>
 
-      {/* Floating gold star ornaments — sparing, decorative. */}
-      <GuidingStar className="animate-float pointer-events-none absolute top-28 left-[8%] size-6 text-gold/40 motion-reduce:animate-none max-lg:hidden" />
-      <GuidingStar className="animate-float pointer-events-none absolute top-52 right-[12%] size-4 text-primary/30 [animation-delay:1.5s] motion-reduce:animate-none max-lg:hidden" />
-      <GuidingStar className="animate-float pointer-events-none absolute bottom-40 left-[14%] size-3.5 text-gold/30 [animation-delay:3s] motion-reduce:animate-none max-lg:hidden" />
-
-      <div className="relative mx-auto w-full max-w-7xl px-4 pt-16 pb-20 sm:px-6 sm:pt-24 sm:pb-24 lg:px-8">
-        <div className="mx-auto max-w-3xl text-center">
-          <Badge
-            variant="outline"
-            className="animate-fade-in mx-auto h-7 gap-2 border-border/70 bg-card/70 px-3.5 py-1.5 text-muted-foreground backdrop-blur-sm"
-          >
-            <GuidingStar className="size-3 text-gold" />
-            Grounded in your own course materials
-          </Badge>
-
-          <h1 className="animate-fade-up mt-7 font-display text-5xl leading-[1.04] font-semibold tracking-tight text-balance text-foreground [animation-delay:60ms] sm:text-6xl lg:text-7xl">
-            Master your courses with{' '}
-            <span className="text-gradient-brand italic">Socratic AI</span>
+          <h1 className="mt-6 font-display text-[clamp(3.25rem,7vw,6.75rem)] leading-[1.02] font-semibold text-balance text-foreground">
+            Every answer has a page number.
           </h1>
 
-          <p className="animate-fade-up mx-auto mt-6 max-w-2xl text-base leading-7 text-pretty text-muted-foreground [animation-delay:140ms] sm:text-lg">
-            Morshid is an AI tutor that guides you through your own syllabus,
-            slides, and notes — asking the right questions instead of handing
-            over answers, and citing every source as it goes.
+          <p className="mt-6 max-w-[52ch] text-lg leading-relaxed text-muted-foreground">
+            Morshid reads the syllabus, slides, and notes your professor
+            actually assigned — then tutors you the Socratic way: asking before
+            answering, and citing the page when it does.
           </p>
 
-          <div className="animate-fade-up mt-9 flex flex-col items-center justify-center gap-3 [animation-delay:220ms] sm:flex-row">
+          <div className="mt-9 flex flex-wrap items-baseline gap-6">
             <Button
               nativeButton={false}
               render={<Link to="/login" />}
               size="lg"
-              className="shadow-glow-primary h-12 min-w-48 gap-2 px-6 text-base"
             >
-              Start learning free
-              <ArrowRight className="size-4" aria-hidden />
+              Begin studying
             </Button>
-            <Button
-              nativeButton={false}
-              render={<a href="#how-it-works" />}
-              variant="outline"
-              size="lg"
-              className="h-12 min-w-40 gap-2 px-6 text-base"
+            <a
+              href="#method"
+              className="link-editorial font-mono text-sm text-foreground"
             >
-              <Play className="size-4" aria-hidden />
-              See how it works
-            </Button>
+              Read the method ↓
+            </a>
           </div>
         </div>
 
-        <div className="animate-fade-up relative mx-auto mt-16 max-w-3xl [animation-delay:320ms] sm:mt-20">
-          <div
-            className="pointer-events-none absolute -inset-x-12 -top-10 -bottom-6 rounded-2xl bg-primary/15 blur-3xl"
-            aria-hidden
-          />
-          <ChatPreviewCard />
-        </div>
+        {/* Right — cols 8–12: The transcript */}
+        <div className="lg:col-span-5">
+          <figure className="rounded-md border bg-card p-8">
+            <figcaption className="flex items-center justify-between gap-4">
+              <span className="smallcaps-label">
+                Transcript — Data Structures, Week 8
+              </span>
+              <Logo iconClassName="size-5" className="size-5 text-foreground" />
+            </figcaption>
 
-        <TrustLogosSection />
+            <div className="mt-6 space-y-5">
+              <div className="motion-safe:animate-fade-up">
+                <SpeakerLabel tone="student">Student.</SpeakerLabel>
+                <p className="mt-1 font-display text-[1.25rem] leading-snug text-foreground italic">
+                  Why does quicksort average O(n log n)?
+                </p>
+              </div>
+
+              <div className="motion-safe:animate-fade-up [animation-delay:120ms]">
+                <SpeakerLabel tone="morshid">Morshid.</SpeakerLabel>
+                <p className="mt-1 leading-relaxed text-foreground">
+                  Let us reason it out. If each pivot splits the array roughly
+                  in half, how many times can you halve n before reaching 1?
+                  <Citation n={1} href="#hero-fn-1" />
+                </p>
+              </div>
+
+              <div className="motion-safe:animate-fade-up [animation-delay:240ms]">
+                <SpeakerLabel tone="student">Student.</SpeakerLabel>
+                <p className="mt-1 font-display text-[1.25rem] leading-snug text-foreground italic">
+                  About log n times.
+                </p>
+              </div>
+
+              <div className="motion-safe:animate-fade-up [animation-delay:360ms]">
+                <SpeakerLabel tone="morshid">Morshid.</SpeakerLabel>
+                <p className="mt-1 leading-relaxed text-foreground">
+                  Exactly — and every level touches each element once. So what
+                  is the total work?
+                  <Citation n={2} href="#hero-fn-2" />
+                </p>
+              </div>
+            </div>
+
+            <div className="rule mt-6 space-y-1.5 pt-4">
+              <p
+                id="hero-fn-1"
+                className="footnote motion-safe:animate-fade-in [animation-delay:480ms]"
+              >
+                1 — Lecture 08 · Quicksort — p. 12
+              </p>
+              <p
+                id="hero-fn-2"
+                className="footnote motion-safe:animate-fade-in [animation-delay:600ms]"
+              >
+                2 — Problem Set 3 · Analysis — p. 4
+              </p>
+            </div>
+          </figure>
+        </div>
       </div>
     </section>
   )
