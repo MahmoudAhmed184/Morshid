@@ -10,6 +10,7 @@ import { useAuthStore } from '@/features/auth/stores/auth.store'
 import {
   createStudentSession,
   deleteStudentSession,
+  getStudentSession,
   getStudentSessionMessages,
   listStudentSessions,
   renameStudentSession,
@@ -31,6 +32,7 @@ import {
   useCreateStudentSession,
   useDeleteStudentSession,
   useRenameStudentSession,
+  useStudentSession,
   useStudentSessionMessages,
   useStudentSessions,
 } from './use-student-sessions'
@@ -39,6 +41,7 @@ vi.mock('@/features/student/data/student-sessions.api')
 
 const createStudentSessionMock = vi.mocked(createStudentSession)
 const deleteStudentSessionMock = vi.mocked(deleteStudentSession)
+const getStudentSessionMock = vi.mocked(getStudentSession)
 const getStudentSessionMessagesMock = vi.mocked(getStudentSessionMessages)
 const listStudentSessionsMock = vi.mocked(listStudentSessions)
 const renameStudentSessionMock = vi.mocked(renameStudentSession)
@@ -182,6 +185,13 @@ describe('Student session hooks', () => {
         }),
       { wrapper },
     )
+    const session = renderHook(
+      () =>
+        useStudentSession({
+          courseId: studentChatIds.primaryCourse,
+        }),
+      { wrapper },
+    )
     const createSession = renderHook(
       () => useCreateStudentSession({ courseId: studentChatIds.primaryCourse }),
       { wrapper },
@@ -189,6 +199,7 @@ describe('Student session hooks', () => {
 
     expect(sessions.result.current.fetchStatus).toBe('idle')
     expect(messages.result.current.fetchStatus).toBe('idle')
+    expect(session.result.current.fetchStatus).toBe('idle')
     await act(async () => {
       await expect(
         createSession.result.current.mutateAsync({ title: 'Blocked request' }),
@@ -196,7 +207,47 @@ describe('Student session hooks', () => {
     })
     expect(listStudentSessionsMock).not.toHaveBeenCalled()
     expect(getStudentSessionMessagesMock).not.toHaveBeenCalled()
+    expect(getStudentSessionMock).not.toHaveBeenCalled()
     expect(createStudentSessionMock).not.toHaveBeenCalled()
+  })
+
+  it('loads one routed session through its Student and course cache scope', async () => {
+    const queryClient = createQueryClient()
+    getStudentSessionMock.mockResolvedValue(primaryChatSessionFixture)
+    authenticate()
+
+    const { result } = renderHook(
+      () =>
+        useStudentSession({
+          courseId: primaryScope.courseId,
+          sessionId: studentChatIds.primarySession,
+        }),
+      { wrapper: createWrapper(queryClient) },
+    )
+
+    await waitFor(() =>
+      expect(result.current.data).toEqual(primaryChatSessionFixture),
+    )
+    expect(getStudentSessionMock).toHaveBeenCalledWith({
+      courseId: primaryScope.courseId,
+      sessionId: studentChatIds.primarySession,
+    })
+    expect(
+      queryClient.getQueryData(
+        studentSessionKeys.detail({
+          ...primaryScope,
+          sessionId: studentChatIds.primarySession,
+        }),
+      ),
+    ).toEqual(primaryChatSessionFixture)
+    expect(
+      queryClient.getQueryData(
+        studentSessionKeys.detail({
+          ...otherStudentScope,
+          sessionId: studentChatIds.primarySession,
+        }),
+      ),
+    ).toBeUndefined()
   })
 
   it('isolates sessions and history through logout, login, and course switches', async () => {
@@ -334,6 +385,14 @@ describe('Student session hooks', () => {
       pages: [{ messages: [], nextCursor: null }],
       pageParams: [undefined],
     })
+    expect(
+      queryClient.getQueryData(
+        studentSessionKeys.detail({
+          ...primaryScope,
+          sessionId: primaryChatSessionFixture.id,
+        }),
+      ),
+    ).toEqual(primaryChatSessionFixture)
   })
 
   it('renames only the owning Student session cache', async () => {
@@ -348,6 +407,13 @@ describe('Student session hooks', () => {
       ...primaryChatSessionFixture,
       title: 'Renamed session',
     }
+    queryClient.setQueryData(
+      studentSessionKeys.detail({
+        ...primaryScope,
+        sessionId: primaryChatSessionFixture.id,
+      }),
+      primaryChatSessionFixture,
+    )
     renameStudentSessionMock.mockResolvedValue(renamedSession)
     authenticate()
     const { result } = renderHook(
@@ -372,6 +438,14 @@ describe('Student session hooks', () => {
         InfiniteData<ChatSessionListResponse, string | undefined>
       >(otherKey)?.pages[0]?.sessions[0]?.title,
     ).toBe(otherStudentSession.title)
+    expect(
+      queryClient.getQueryData(
+        studentSessionKeys.detail({
+          ...primaryScope,
+          sessionId: primaryChatSessionFixture.id,
+        }),
+      ),
+    ).toEqual(renamedSession)
   })
 
   it('updates a session stored on a later cached page', async () => {
@@ -424,6 +498,11 @@ describe('Student session hooks', () => {
       otherStudentSession,
     )
     const primaryHistoryKey = seedHistory(queryClient, primaryScope)
+    const primaryDetailKey = studentSessionKeys.detail({
+      ...primaryScope,
+      sessionId: studentChatIds.primarySession,
+    })
+    queryClient.setQueryData(primaryDetailKey, primaryChatSessionFixture)
     const otherHistoryKey = seedHistory(
       queryClient,
       otherStudentScope,
@@ -449,6 +528,7 @@ describe('Student session hooks', () => {
       >(otherListKey)?.pages[0]?.sessions,
     ).toEqual(sessionList(otherStudentSession).sessions)
     expect(queryClient.getQueryData(primaryHistoryKey)).toBeUndefined()
+    expect(queryClient.getQueryData(primaryDetailKey)).toBeUndefined()
     expect(queryClient.getQueryData(otherHistoryKey)).toEqual({
       pages: [messageHistory()],
       pageParams: [undefined],

@@ -11,6 +11,7 @@ import {
 import {
   createStudentSession,
   deleteStudentSession,
+  getStudentSession,
   getStudentSessionMessages,
   listStudentSessions,
   renameStudentSession,
@@ -115,6 +116,27 @@ describe('Student session API', () => {
     ).resolves.toEqual(renamedSession)
   })
 
+  it('loads and validates one course-scoped session', async () => {
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        expect(String(input)).toBe(
+          `http://localhost:4000/api/v1/courses/${studentChatIds.primaryCourse}/chat-sessions/${studentChatIds.primarySession}`,
+        )
+        expect(init?.method).toBe('GET')
+
+        return Response.json({ session: primaryChatSessionFixture })
+      },
+    )
+
+    await expect(
+      getStudentSession({
+        courseId: studentChatIds.primaryCourse,
+        sessionId: studentChatIds.primarySession,
+        options: { fetchImpl: fetchMock },
+      }),
+    ).resolves.toEqual(primaryChatSessionFixture)
+  })
+
   it('soft-deletes the course-scoped session through DELETE', async () => {
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -134,6 +156,20 @@ describe('Student session API', () => {
         options: { fetchImpl: fetchMock },
       }),
     ).resolves.toBeUndefined()
+  })
+
+  it('rejects a successful delete response that is not empty 204', async () => {
+    const wrongStatusFetch = vi.fn(async () =>
+      Response.json({ deleted: true }, { status: 200 }),
+    )
+
+    await expect(
+      deleteStudentSession({
+        courseId: studentChatIds.primaryCourse,
+        sessionId: studentChatIds.primarySession,
+        options: { fetchImpl: wrongStatusFetch },
+      }),
+    ).rejects.toThrow('Expected DELETE chat session to return 204 No Content')
   })
 
   it('loads and validates ordered history through the owning session', async () => {

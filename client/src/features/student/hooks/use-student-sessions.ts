@@ -1,6 +1,7 @@
 import {
   useInfiniteQuery,
   useMutation,
+  useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
 import type { InfiniteData } from '@tanstack/react-query'
@@ -14,6 +15,7 @@ import {
 import {
   studentSessionKeys,
   studentSessionMessagesQueryOptions,
+  studentSessionQueryOptions,
   studentSessionsQueryOptions,
 } from '@/features/student/data/student-sessions.queries'
 import type {
@@ -87,6 +89,25 @@ export function useStudentSessionMessages({
   })
 }
 
+export function useStudentSession({
+  courseId,
+  sessionId,
+}: StudentSessionMessagesScope) {
+  const studentId = useStudentId()
+
+  return useQuery({
+    ...studentSessionQueryOptions({
+      studentId: studentId ?? 'anonymous',
+      courseId: courseId ?? 'unknown',
+      sessionId: sessionId ?? 'unknown',
+    }),
+    enabled:
+      studentId !== undefined &&
+      courseId !== undefined &&
+      sessionId !== undefined,
+  })
+}
+
 export function useCreateStudentSession({ courseId }: StudentCourseScope) {
   const studentId = useStudentId()
   const queryClient = useQueryClient()
@@ -129,6 +150,13 @@ export function useCreateStudentSession({ courseId }: StudentCourseScope) {
           pageParams: [undefined],
         },
       )
+      queryClient.setQueryData(
+        studentSessionKeys.detail({
+          ...scope,
+          sessionId: createdSession.id,
+        }),
+        createdSession,
+      )
     },
   })
 }
@@ -166,6 +194,13 @@ export function useRenameStudentSession({ courseId }: StudentCourseScope) {
                 })),
               }
             : cached,
+      )
+      queryClient.setQueryData(
+        studentSessionKeys.detail({
+          ...scope,
+          sessionId: renamedSession.id,
+        }),
+        renamedSession,
       )
     },
   })
@@ -206,6 +241,11 @@ export function useDeleteStudentSession({ courseId }: StudentCourseScope) {
       )
       queryClient.removeQueries({
         queryKey: studentSessionKeys.messages({ ...scope, sessionId }),
+        exact: true,
+      })
+      queryClient.removeQueries({
+        queryKey: studentSessionKeys.detail({ ...scope, sessionId }),
+        exact: true,
       })
     },
   })

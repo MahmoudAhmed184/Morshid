@@ -1,6 +1,7 @@
-import { infiniteQueryOptions } from '@tanstack/react-query'
+import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query'
 
 import {
+  getStudentSession,
   getStudentSessionMessages,
   listStudentSessions,
 } from '@/features/student/data/student-sessions.api'
@@ -29,6 +30,16 @@ export const studentSessionKeys = {
     ] as const,
   sessionList: (scope: StudentCourseScope) =>
     [...studentSessionKeys.sessionLists(scope)] as const,
+  detail: ({ studentId, courseId, sessionId }: StudentSessionScope) =>
+    [
+      'student-chat',
+      studentId,
+      'courses',
+      courseId,
+      'sessions',
+      sessionId,
+      'detail',
+    ] as const,
   messages: ({ studentId, courseId, sessionId }: StudentSessionScope) =>
     [
       'student-chat',
@@ -41,6 +52,17 @@ export const studentSessionKeys = {
     ] as const,
   messageList: (scope: StudentSessionScope) =>
     [...studentSessionKeys.messages(scope)] as const,
+}
+
+export function studentSessionQueryOptions({
+  studentId,
+  courseId,
+  sessionId,
+}: StudentSessionScope) {
+  return queryOptions({
+    queryKey: studentSessionKeys.detail({ studentId, courseId, sessionId }),
+    queryFn: () => getStudentSession({ courseId, sessionId }),
+  })
 }
 
 export function studentSessionsQueryOptions({

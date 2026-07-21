@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   studentSessionKeys,
+  studentSessionQueryOptions,
   studentSessionMessagesQueryOptions,
   studentSessionsQueryOptions,
 } from './student-sessions.queries'
@@ -73,6 +74,38 @@ describe('Student session query options', () => {
     ).not.toEqual(primary)
   })
 
+  it('partitions session details by Student, course, and session', () => {
+    const primary = studentSessionQueryOptions({
+      studentId,
+      courseId,
+      sessionId,
+    }).queryKey
+
+    expect(primary).toEqual([
+      'student-chat',
+      studentId,
+      'courses',
+      courseId,
+      'sessions',
+      sessionId,
+      'detail',
+    ])
+    expect(
+      studentSessionQueryOptions({
+        studentId: otherStudentId,
+        courseId,
+        sessionId,
+      }).queryKey,
+    ).not.toEqual(primary)
+    expect(
+      studentSessionQueryOptions({
+        studentId,
+        courseId: otherCourseId,
+        sessionId,
+      }).queryKey,
+    ).not.toEqual(primary)
+  })
+
   it('keeps list and message prefixes separate for scoped cache updates', () => {
     expect(studentSessionKeys.sessionLists({ studentId, courseId })).toEqual([
       'student-chat',
@@ -92,6 +125,17 @@ describe('Student session query options', () => {
       'sessions',
       sessionId,
       'messages',
+    ])
+    expect(
+      studentSessionKeys.detail({ studentId, courseId, sessionId }),
+    ).toEqual([
+      'student-chat',
+      studentId,
+      'courses',
+      courseId,
+      'sessions',
+      sessionId,
+      'detail',
     ])
   })
 })

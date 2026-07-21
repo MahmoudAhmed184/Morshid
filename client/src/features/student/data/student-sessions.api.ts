@@ -43,6 +43,12 @@ interface RenameStudentSessionParams {
   options?: ApiFetchOptions
 }
 
+interface GetStudentSessionParams {
+  courseId: string
+  sessionId: string
+  options?: ApiFetchOptions
+}
+
 interface DeleteStudentSessionParams {
   courseId: string
   sessionId: string
@@ -139,15 +145,34 @@ export async function renameStudentSession({
   return chatSessionResponseSchema.parse(response).session
 }
 
+export async function getStudentSession({
+  courseId,
+  sessionId,
+  options = {},
+}: GetStudentSessionParams) {
+  const response = await apiJson<unknown>(sessionPath(courseId, sessionId), {
+    ...options,
+    method: 'GET',
+  })
+
+  return chatSessionResponseSchema.parse(response).session
+}
+
 export async function deleteStudentSession({
   courseId,
   sessionId,
   options = {},
 }: DeleteStudentSessionParams) {
-  await apiFetch(sessionPath(courseId, sessionId), {
+  const response = await apiFetch(sessionPath(courseId, sessionId), {
     ...options,
     method: 'DELETE',
   })
+
+  if (response.status !== 204 || (await response.text()).length > 0) {
+    throw new Error(
+      'Expected DELETE chat session to return 204 No Content with an empty body',
+    )
+  }
 
   return deleteChatSessionResponseSchema.parse(undefined)
 }
