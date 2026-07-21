@@ -8,6 +8,11 @@ import { AppModule } from '../src/app.module'
 import { AUDIT_EVENT_ACTIONS } from '../src/modules/audit/audit.constants'
 import type { AuthSessionResponse } from '../src/modules/auth/auth.dto'
 import { AUTH_ERROR_CODES } from '../src/modules/auth/auth.dto'
+import { DEFAULT_PDF_MAX_UPLOAD_BYTES } from '../src/modules/config/env.schema'
+import {
+  EMBEDDING_PROVIDER_TOKEN,
+  type EmbeddingProvider,
+} from '../src/modules/embedding/embedding-provider'
 import type { Material } from '../src/generated/prisma/client'
 import { MATERIALS_ERROR_CODES } from '../src/modules/materials/materials.errors'
 import { MaterialProcessingScheduler } from '../src/modules/materials/material-processing.scheduler'
@@ -16,11 +21,18 @@ import {
   type PdfStorage,
 } from '../src/modules/pdf-storage/pdf-storage'
 import { PrismaService } from '../src/modules/prisma/prisma.service'
+import { RagPersistenceRepository } from '../src/modules/rag-persistence/rag-persistence.repository'
 import { RedisService } from '../src/modules/redis/redis.service'
 import { P0_DEMO_COURSE, P0_DEMO_PASSWORD } from '../src/seeds/p0-demo.seed'
+import {
+  TASK_80_SENTINEL,
+  cleanTextPdf,
+  invalidPdfSignature,
+  oversizedPdf,
+} from './fixtures/pdf-fixtures'
 import { AuthTestStore } from './support/auth-test-store'
 
-const validPdf = Buffer.from('%PDF-1.7\nminimal upload test pdf')
+const validPdf = cleanTextPdf('minimal upload test pdf')
 const userAgent = 'Morshid materials e2e'
 const generatedStoragePath = '00000000-0000-4000-8000-000000000701.pdf'
 
@@ -75,6 +87,8 @@ describe('Materials upload (e2e)', () => {
   let store: AuthTestStore
   let storage: FakePdfStorage
   let scheduler: FakeMaterialProcessingScheduler
+  let embedBatch: jest.Mock
+  let replaceMaterialChunks: jest.Mock
 
   const redisService = {
     ping: jest.fn().mockResolvedValue('PONG'),
@@ -84,6 +98,8 @@ describe('Materials upload (e2e)', () => {
     store = new AuthTestStore()
     storage = new FakePdfStorage()
     scheduler = new FakeMaterialProcessingScheduler()
+    embedBatch = jest.fn().mockResolvedValue([])
+    replaceMaterialChunks = jest.fn().mockResolvedValue(undefined)
     jest.clearAllMocks()
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -97,6 +113,13 @@ describe('Materials upload (e2e)', () => {
       .useValue(storage)
       .overrideProvider(MaterialProcessingScheduler)
       .useValue(scheduler)
+      .overrideProvider(EMBEDDING_PROVIDER_TOKEN)
+      .useValue({
+        model: 'authorization-side-effect-spy',
+        embedBatch,
+      } satisfies EmbeddingProvider)
+      .overrideProvider(RagPersistenceRepository)
+      .useValue({ replaceMaterialChunks })
       .compile()
 
     app = moduleFixture.createNestApplication()
@@ -267,6 +290,9 @@ describe('Materials upload (e2e)', () => {
 
     expect(storage.create).not.toHaveBeenCalled()
     expect(store.materials.size).toBe(materialCountBefore)
+    expect(scheduler.scheduleMaterialProcessing).not.toHaveBeenCalled()
+    expect(embedBatch).not.toHaveBeenCalled()
+    expect(replaceMaterialChunks).not.toHaveBeenCalled()
   })
 
   it('denies an instructor who is not actively assigned to the course', async () => {
@@ -287,6 +313,9 @@ describe('Materials upload (e2e)', () => {
 
     expect(storage.create).not.toHaveBeenCalled()
     expect(store.materials.size).toBe(materialCountBefore)
+    expect(scheduler.scheduleMaterialProcessing).not.toHaveBeenCalled()
+    expect(embedBatch).not.toHaveBeenCalled()
+    expect(replaceMaterialChunks).not.toHaveBeenCalled()
     const deniedAudit = [...store.auditLogs.values()].find(
       (event) => event.action === AUDIT_EVENT_ACTIONS.MATERIAL_UPLOAD_DENIED,
     )
@@ -314,7 +343,7 @@ describe('Materials upload (e2e)', () => {
     },
     {
       title: 'bad signature',
-      input: { buffer: Buffer.from('not a pdf') },
+      input: { buffer: invalidPdfSignature() },
       expectedCode: MATERIALS_ERROR_CODES.INVALID_REQUEST,
     },
     {
@@ -362,7 +391,7 @@ describe('Materials upload (e2e)', () => {
     await uploadPdf({
       token,
       title: 'Invalid audited upload',
-      buffer: Buffer.from('not a pdf'),
+      buffer: invalidPdfSignature(),
     }).expect(400)
 
     const failedAudit = [...store.auditLogs.values()].find(
@@ -373,12 +402,14 @@ describe('Materials upload (e2e)', () => {
       courseId: pythonCourseId(),
       metadata: {
         originalFilename: 'python.pdf',
-        fileSize: 9,
+        fileSize: invalidPdfSignature().byteLength,
         mimetype: 'application/pdf',
         reason: 'VALIDATION_FAILED',
       },
     })
-    expect(JSON.stringify(failedAudit?.metadata)).not.toContain('not a pdf')
+    expect(JSON.stringify(failedAudit?.metadata)).not.toContain(
+      TASK_80_SENTINEL,
+    )
     expect(JSON.stringify(failedAudit?.metadata)).not.toContain('stack')
   })
 
@@ -389,7 +420,7 @@ describe('Materials upload (e2e)', () => {
     await uploadPdf({
       token,
       title: 'Oversize upload',
-      buffer: Buffer.concat([Buffer.from('%PDF-'), Buffer.alloc(10_485_760)]),
+      buffer: oversizedPdf(DEFAULT_PDF_MAX_UPLOAD_BYTES + 1),
     }).expect(413)
 
     expect(storage.create).not.toHaveBeenCalled()
