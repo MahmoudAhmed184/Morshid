@@ -20,19 +20,19 @@ const material: MaterialProcessingRecord = {
 
 describe('MaterialProcessingService', () => {
   let repository: {
-    findMaterialForProcessing: jest.Mock
+    claimMaterialProcessing: jest.Mock
     completeMaterialProcessing: jest.Mock
     failMaterialProcessing: jest.Mock
   }
   let storage: { read: jest.Mock }
   let extractor: { extract: jest.Mock }
-  let embedding: { embedAndReplaceMaterialChunks: jest.Mock }
+  let embedding: { embedMaterialChunks: jest.Mock }
   let audit: { recordEvent: jest.Mock }
   let service: MaterialProcessingService
 
   beforeEach(() => {
     repository = {
-      findMaterialForProcessing: jest.fn().mockResolvedValue(material),
+      claimMaterialProcessing: jest.fn().mockResolvedValue(material),
       completeMaterialProcessing: jest.fn().mockResolvedValue(true),
       failMaterialProcessing: jest.fn().mockResolvedValue(true),
     }
@@ -44,7 +44,14 @@ describe('MaterialProcessingService', () => {
       }),
     }
     embedding = {
-      embedAndReplaceMaterialChunks: jest.fn().mockResolvedValue(undefined),
+      embedMaterialChunks: jest.fn().mockResolvedValue([
+        {
+          chunkIndex: 0,
+          content: 'Variables bind names to values.',
+          embedding: [0.1],
+          embeddingModel: 'test-model',
+        },
+      ]),
     }
     audit = { recordEvent: jest.fn().mockResolvedValue(undefined) }
     service = new MaterialProcessingService(
@@ -60,12 +67,13 @@ describe('MaterialProcessingService', () => {
   it('finalizes a clean source only after embedding completes', async () => {
     await service.processMaterial(material.id)
 
-    expect(embedding.embedAndReplaceMaterialChunks).toHaveBeenCalledWith(
-      material.id,
-      [{ chunkIndex: 0, content: 'Variables bind names to values.' }],
-    )
+    expect(embedding.embedMaterialChunks).toHaveBeenCalledWith([
+      { chunkIndex: 0, content: 'Variables bind names to values.' },
+    ])
     expect(repository.completeMaterialProcessing).toHaveBeenCalledWith(
       material.id,
+      expect.any(String),
+      expect.any(Array),
       expect.objectContaining({
         status: 'READY',
         extractedTextLength: 31,
@@ -98,15 +106,12 @@ describe('MaterialProcessingService', () => {
 
     await service.processMaterial(material.id)
 
-    expect(repository.completeMaterialProcessing).not.toHaveBeenCalled()
     expect(repository.failMaterialProcessing).toHaveBeenCalledWith(
       material.id,
+      expect.any(String),
       reason,
     )
-    expect(embedding.embedAndReplaceMaterialChunks).toHaveBeenCalledWith(
-      material.id,
-      [],
-    )
+    expect(embedding.embedMaterialChunks).not.toHaveBeenCalled()
   })
 
   it('turns a partially extracted warning into an eligible-completion state', async () => {
@@ -119,6 +124,8 @@ describe('MaterialProcessingService', () => {
 
     expect(repository.completeMaterialProcessing).toHaveBeenCalledWith(
       material.id,
+      expect.any(String),
+      expect.any(Array),
       expect.objectContaining({ status: 'WARNING', chunkCount: 1 }),
     )
   })
@@ -135,7 +142,7 @@ describe('MaterialProcessingService', () => {
     {
       name: 'embedding failure after one chunk',
       configure: () =>
-        embedding.embedAndReplaceMaterialChunks.mockRejectedValue(
+        embedding.embedMaterialChunks.mockRejectedValue(
           new Error('provider saw SYNTHETIC_SENTINEL_TASK80_7f2b'),
         ),
       reason: MATERIAL_PROCESSING_FAILURES.EMBEDDING_FAILED,
@@ -151,14 +158,10 @@ describe('MaterialProcessingService', () => {
 
     await service.processMaterial(material.id)
 
-    expect(repository.completeMaterialProcessing).not.toHaveBeenCalled()
     expect(repository.failMaterialProcessing).toHaveBeenCalledWith(
       material.id,
+      expect.any(String),
       reason,
-    )
-    expect(embedding.embedAndReplaceMaterialChunks).toHaveBeenLastCalledWith(
-      material.id,
-      [],
     )
     const serializedAudit = JSON.stringify(audit.recordEvent.mock.calls)
     expect(serializedAudit).not.toContain('SYNTHETIC_SENTINEL_TASK80_7f2b')
@@ -169,13 +172,38 @@ describe('MaterialProcessingService', () => {
 
     await service.processMaterial(material.id)
 
-    expect(embedding.embedAndReplaceMaterialChunks).toHaveBeenLastCalledWith(
-      material.id,
-      [],
-    )
     expect(repository.failMaterialProcessing).toHaveBeenCalledWith(
       material.id,
+      expect.any(String),
       MATERIAL_PROCESSING_FAILURES.FINALIZATION_FAILED,
     )
+  })
+
+  it('lets only the atomic claim winner process and audit a material', async () => {
+    repository.claimMaterialProcessing
+      .mockResolvedValueOnce(material)
+      .mockResolvedValueOnce(null)
+
+    await Promise.all([
+      service.processMaterial(material.id),
+      service.processMaterial(material.id),
+    ])
+
+    expect(repository.claimMaterialProcessing).toHaveBeenCalledTimes(2)
+    expect(embedding.embedMaterialChunks).toHaveBeenCalledTimes(1)
+    expect(repository.failMaterialProcessing).not.toHaveBeenCalled()
+    expect(audit.recordEvent).toHaveBeenCalledTimes(1)
+  })
+
+  it('contains claim lookup failures before any background work escapes', async () => {
+    repository.claimMaterialProcessing.mockRejectedValue(
+      new Error('database unavailable'),
+    )
+
+    await expect(service.processMaterial(material.id)).resolves.toBeUndefined()
+
+    expect(storage.read).not.toHaveBeenCalled()
+    expect(embedding.embedMaterialChunks).not.toHaveBeenCalled()
+    expect(audit.recordEvent).not.toHaveBeenCalled()
   })
 })

@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common'
 
-import { MaterialStatus, type Prisma } from '../../generated/prisma/client'
+import { MaterialStatus, Prisma } from '../../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import type { MaterialChunkInput } from '../rag-persistence/rag-persistence.repository'
 import type { MaterialStatusRecord, SafeMaterialRecord } from './materials.dto'
 
 export abstract class MaterialsRepository {
@@ -25,17 +26,21 @@ export abstract class MaterialsRepository {
     materialId: string,
   ): Promise<MaterialStatusRecord | null>
 
-  abstract findMaterialForProcessing(
+  abstract claimMaterialProcessing(
     materialId: string,
+    processingAttemptId: string,
   ): Promise<MaterialProcessingRecord | null>
 
   abstract completeMaterialProcessing(
     materialId: string,
+    processingAttemptId: string,
+    chunks: readonly MaterialChunkInput[],
     input: CompleteMaterialProcessingInput,
   ): Promise<boolean>
 
   abstract failMaterialProcessing(
     materialId: string,
+    processingAttemptId: string,
     reasonCode: string,
   ): Promise<boolean>
 
@@ -162,64 +167,103 @@ export class PrismaMaterialsRepository extends MaterialsRepository {
     })
   }
 
-  findMaterialForProcessing(
+  async claimMaterialProcessing(
     materialId: string,
+    processingAttemptId: string,
   ): Promise<MaterialProcessingRecord | null> {
-    return this.prismaService.material.findFirst({
-      where: {
-        id: materialId,
-        status: MaterialStatus.PROCESSING,
-        deletedAt: null,
-      },
-      select: {
-        id: true,
-        courseId: true,
-        uploadedById: true,
-        storagePath: true,
-      },
+    return this.prismaService.$transaction(async (tx) => {
+      const claim = await tx.material.updateMany({
+        where: {
+          id: materialId,
+          status: MaterialStatus.PROCESSING,
+          processingAttemptId: null,
+          deletedAt: null,
+        },
+        data: { processingAttemptId },
+      })
+
+      if (claim.count !== 1) {
+        return null
+      }
+
+      return tx.material.findFirst({
+        where: {
+          id: materialId,
+          processingAttemptId,
+        },
+        select: {
+          id: true,
+          courseId: true,
+          uploadedById: true,
+          storagePath: true,
+        },
+      })
     })
   }
 
   async completeMaterialProcessing(
     materialId: string,
+    processingAttemptId: string,
+    chunks: readonly MaterialChunkInput[],
     input: CompleteMaterialProcessingInput,
   ): Promise<boolean> {
-    const result = await this.prismaService.material.updateMany({
-      where: {
-        id: materialId,
-        status: MaterialStatus.PROCESSING,
-        deletedAt: null,
-      },
-      data: {
-        status: input.status,
-        extractedTextLength: input.extractedTextLength,
-        chunkCount: input.chunkCount,
-        errorMessage: null,
-      },
-    })
+    return this.prismaService.$transaction(async (tx) => {
+      const result = await tx.material.updateMany({
+        where: {
+          id: materialId,
+          status: MaterialStatus.PROCESSING,
+          processingAttemptId,
+          deletedAt: null,
+        },
+        data: {
+          status: input.status,
+          processingAttemptId: null,
+          extractedTextLength: input.extractedTextLength,
+          chunkCount: input.chunkCount,
+          errorMessage: null,
+        },
+      })
 
-    return result.count === 1
+      if (result.count !== 1) {
+        return false
+      }
+
+      await tx.materialChunk.deleteMany({ where: { materialId } })
+      await insertMaterialChunkBatches(tx, materialId, chunks)
+
+      return true
+    })
   }
 
   async failMaterialProcessing(
     materialId: string,
+    processingAttemptId: string,
     reasonCode: string,
   ): Promise<boolean> {
-    const result = await this.prismaService.material.updateMany({
-      where: {
-        id: materialId,
-        status: MaterialStatus.PROCESSING,
-        deletedAt: null,
-      },
-      data: {
-        status: MaterialStatus.FAILED,
-        extractedTextLength: null,
-        chunkCount: 0,
-        errorMessage: reasonCode,
-      },
-    })
+    return this.prismaService.$transaction(async (tx) => {
+      const result = await tx.material.updateMany({
+        where: {
+          id: materialId,
+          status: MaterialStatus.PROCESSING,
+          processingAttemptId,
+          deletedAt: null,
+        },
+        data: {
+          status: MaterialStatus.FAILED,
+          processingAttemptId: null,
+          extractedTextLength: null,
+          chunkCount: 0,
+          errorMessage: reasonCode,
+        },
+      })
 
-    return result.count === 1
+      if (result.count !== 1) {
+        return false
+      }
+
+      await tx.materialChunk.deleteMany({ where: { materialId } })
+      return true
+    })
   }
 
   async deleteMaterial(materialId: string): Promise<void> {
@@ -228,4 +272,48 @@ export class PrismaMaterialsRepository extends MaterialsRepository {
       select: { id: true } satisfies Prisma.MaterialSelect,
     } satisfies Prisma.MaterialDeleteArgs)
   }
+}
+
+type PrismaTransactionClient = Parameters<
+  Parameters<PrismaService['$transaction']>[0]
+>[0]
+
+const MAX_INSERT_BATCH_ROWS = 1_000
+
+async function insertMaterialChunkBatches(
+  tx: PrismaTransactionClient,
+  materialId: string,
+  chunks: readonly MaterialChunkInput[],
+): Promise<void> {
+  for (
+    let offset = 0;
+    offset < chunks.length;
+    offset += MAX_INSERT_BATCH_ROWS
+  ) {
+    const batch = chunks.slice(offset, offset + MAX_INSERT_BATCH_ROWS)
+    const rows = batch.map(
+      (chunk) => Prisma.sql`(
+        ${materialId}::uuid,
+        ${chunk.chunkIndex},
+        ${chunk.content},
+        ${serializeEmbedding(chunk.embedding)}::vector(1536),
+        ${chunk.embeddingModel}
+      )`,
+    )
+
+    await tx.$executeRaw(Prisma.sql`
+      INSERT INTO material_chunks (
+        material_id,
+        chunk_index,
+        content,
+        embedding,
+        embedding_model
+      )
+      VALUES ${Prisma.join(rows)}
+    `)
+  }
+}
+
+function serializeEmbedding(embedding: readonly number[]): string {
+  return `[${embedding.join(',')}]`
 }

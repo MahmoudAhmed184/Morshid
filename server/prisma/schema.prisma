@@ -176,6 +176,7 @@ model Material {
   storagePath         String         @map("storage_path") @db.Text
   sha256Hash          String?        @map("sha256_hash") @db.Char(64)
   status              MaterialStatus @default(PROCESSING)
+  processingAttemptId String?        @map("processing_attempt_id") @db.Uuid
   extractedTextLength Int?           @map("extracted_text_length")
   chunkCount          Int?           @map("chunk_count")
   errorMessage        String?        @map("error_message") @db.Text
