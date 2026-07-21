@@ -24,6 +24,9 @@ export const AUDIT_EVENT_ACTIONS = {
   MATERIAL_UPLOAD_SUCCEEDED: 'material.upload_succeeded',
   MATERIAL_UPLOAD_DENIED: 'material.upload_denied',
   MATERIAL_UPLOAD_FAILED: 'material.upload_failed',
+  MATERIAL_PROCESSING_READY: 'material.processing_ready',
+  MATERIAL_PROCESSING_WARNING: 'material.processing_warning',
+  MATERIAL_PROCESSING_FAILED: 'material.processing_failed',
 } as const
 
 export type AuditEventAction =
