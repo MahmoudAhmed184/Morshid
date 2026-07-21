@@ -7,21 +7,14 @@ const credoItems = [
 
 export function CredoStrip() {
   return (
-    <div className="rule border-b">
-      <div className="mx-auto w-full max-w-6xl px-6 py-5 md:px-10">
-        <ul className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          {credoItems.map((item, index) => (
-            <li key={item} className="flex items-center gap-x-3">
-              {index > 0 && (
-                <span className="smallcaps-label" aria-hidden>
-                  ·
-                </span>
-              )}
-              <span className="smallcaps-label">{item}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
+    <div className="mx-auto w-full max-w-6xl px-6 py-5 md:px-10">
+      <ul className="flex flex-wrap items-center justify-center gap-3">
+        {credoItems.map((item) => (
+          <li key={item} className="glass-paper rounded-full px-5 py-2.5">
+            <span className="smallcaps-label text-foreground/70">{item}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }

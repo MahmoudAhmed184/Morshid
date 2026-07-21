@@ -1,3 +1,4 @@
+import { Reveal } from '@/components/reveal'
 import { Badge } from '@/components/ui/badge'
 
 type MethodRowProps = {
@@ -10,23 +11,23 @@ type MethodRowProps = {
 
 function MethodRow({ index, title, prose, figure, caption }: MethodRowProps) {
   return (
-    <div className="rule grid grid-cols-1 gap-x-6 gap-y-8 pt-12 lg:grid-cols-12">
-      <p className="font-display text-[1.75rem] leading-none text-muted-foreground lg:col-span-1">
+    <Reveal className="rule grid grid-cols-1 gap-x-6 gap-y-8 pt-12 lg:grid-cols-12">
+      <p className="display-3 leading-none text-muted-foreground lg:col-span-1">
         {index}
       </p>
       <div className="lg:col-span-5 lg:col-start-2">
-        <h3 className="font-display text-[1.75rem] leading-tight font-semibold text-foreground">
-          {title}
-        </h3>
+        <h3 className="display-3 text-foreground">{title}</h3>
         <p className="mt-3 max-w-[48ch] leading-relaxed text-muted-foreground">
           {prose}
         </p>
       </div>
       <figure className="lg:col-span-5 lg:col-start-8">
-        <div className="rounded-md border bg-card p-6">{figure}</div>
+        <div className="hover-float rounded-2xl border bg-card p-6 shadow-sm">
+          {figure}
+        </div>
         <figcaption className="footnote mt-3">{caption}</figcaption>
       </figure>
-    </div>
+    </Reveal>
   )
 }
 
@@ -40,17 +41,15 @@ export function MethodSection() {
   return (
     <section
       id="method"
-      className="mx-auto w-full max-w-6xl scroll-mt-24 px-6 py-24 md:px-10 md:py-32"
+      className="mx-auto w-full max-w-6xl scroll-mt-32 px-6 py-24 md:px-10 md:py-32"
     >
       <header>
         <div className="flex items-center gap-3">
-          <span className="font-display text-[1.5rem] leading-none text-muted-foreground">
-            02
-          </span>
+          <span className="display-index leading-none">02</span>
           <span className="rubric-square" aria-hidden />
           <span className="smallcaps-label">The Method</span>
         </div>
-        <h2 className="mt-5 max-w-[20ch] font-display text-[clamp(2.25rem,4vw,3.75rem)] leading-[1.05] font-semibold text-balance text-foreground">
+        <h2 className="display-2 mt-5 max-w-[20ch] text-balance text-foreground">
           It teaches the way good teachers do.
         </h2>
       </header>
@@ -93,7 +92,7 @@ export function MethodSection() {
                   key={file.name}
                   className="flex items-center justify-between gap-3 border-b border-border pb-2.5 last:border-b-0 last:pb-0"
                 >
-                  <span className="font-mono text-[0.8125rem] text-foreground">
+                  <span className="font-mono text-xs text-foreground">
                     {file.name}{' '}
                     <span className="text-muted-foreground">
                       · {file.pages}
