@@ -93,7 +93,7 @@ export function StudentMessageHistory({
       {isError ? (
         <div
           role="alert"
-          className="mt-6 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3.5 text-center"
+          className="mt-6 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3.5 text-center"
         >
           <p className="text-sm text-destructive">
             {isFetchNextPageError

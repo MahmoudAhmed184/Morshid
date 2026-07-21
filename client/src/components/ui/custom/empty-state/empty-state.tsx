@@ -34,7 +34,7 @@ export function EmptyState({
         className,
       )}
     >
-      <div className="mb-4 flex size-12 items-center justify-center rounded-xl bg-primary/10 text-primary [&_svg]:size-5">
+      <div className="mb-4 flex size-12 items-center justify-center rounded-lg bg-primary/10 text-primary [&_svg]:size-5">
         {icon ?? <InboxIcon />}
       </div>
       <h2 className="text-base font-medium text-foreground">{title}</h2>
