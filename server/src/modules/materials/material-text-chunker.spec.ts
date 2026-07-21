@@ -64,18 +64,14 @@ describe('MaterialTextChunker', () => {
       expect(chunks[1]?.chunkIndex).toBe(1)
       expect(chunks[0]?.content.slice(-200)).toBe('a'.repeat(200))
       expect(chunks[1]?.content.slice(0, 200)).toBe('a'.repeat(200))
-      expect(chunks[1]?.content.slice(200)).toBe(
-        `${separator}${secondSection}`,
-      )
+      expect(chunks[1]?.content.slice(200)).toBe(`${separator}${secondSection}`)
     },
   )
 
   it('falls back to target size when a paragraph boundary is too early', () => {
     const chunks = chunker.chunk(`${'a'.repeat(300)}\n\n${'b'.repeat(1_500)}`)
 
-    expect(chunks[0]?.content).toHaveLength(
-      MATERIAL_CHUNK_TARGET_CHARACTERS,
-    )
+    expect(chunks[0]?.content).toHaveLength(MATERIAL_CHUNK_TARGET_CHARACTERS)
     expect(chunks.every((chunk) => chunk.content.length > 0)).toBe(true)
   })
 })

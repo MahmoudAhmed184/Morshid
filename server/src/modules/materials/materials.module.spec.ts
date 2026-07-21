@@ -12,10 +12,7 @@ import {
   MaterialsRepository,
   PrismaMaterialsRepository,
 } from './materials.repository'
-import {
-  PDF_TEXT_EXTRACTOR,
-  PdfJsTextExtractor,
-} from './pdf-text-extractor'
+import { PDF_TEXT_EXTRACTOR, PdfJsTextExtractor } from './pdf-text-extractor'
 import { MaterialsModule } from './materials.module'
 
 describe('MaterialsModule processing graph', () => {
@@ -57,9 +54,7 @@ describe('MaterialsModule processing graph', () => {
     expect(moduleRef.get(MaterialsRepository)).toBeInstanceOf(
       PrismaMaterialsRepository,
     )
-    expect(moduleRef.get(PDF_TEXT_EXTRACTOR)).toBeInstanceOf(
-      PdfJsTextExtractor,
-    )
+    expect(moduleRef.get(PDF_TEXT_EXTRACTOR)).toBeInstanceOf(PdfJsTextExtractor)
     expect(moduleRef.get(MaterialProcessingScheduler)).toBeInstanceOf(
       DurableMaterialProcessingScheduler,
     )
