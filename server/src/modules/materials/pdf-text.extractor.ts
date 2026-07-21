@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Inject, Injectable, Optional } from '@nestjs/common'
 import { PDFParse, VerbosityLevel, type TextResult } from 'pdf-parse'
 
 import {
@@ -23,9 +23,13 @@ interface PdfTextParser {
 
 export type PdfTextParserFactory = (contents: Buffer) => PdfTextParser
 
+export const PDF_TEXT_PARSER_FACTORY = Symbol('PdfTextParserFactory')
+
 @Injectable()
 export class PdfTextExtractor {
   constructor(
+    @Optional()
+    @Inject(PDF_TEXT_PARSER_FACTORY)
     private readonly createParser: PdfTextParserFactory = createPdfParseParser,
   ) {}
 
