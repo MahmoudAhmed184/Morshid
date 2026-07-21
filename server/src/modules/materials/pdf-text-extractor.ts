@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common'
+import { Inject, Injectable } from '@nestjs/common'
 import type { PDFDocumentLoadingTask } from 'pdfjs-dist/legacy/build/pdf.mjs'
 
 export const PDF_TEXT_EXTRACTOR = Symbol('PdfTextExtractor')
+export const PDF_DOCUMENT_LOADER = Symbol('PdfDocumentLoader')
 
 export interface PdfTextExtractionResult {
   text: string
@@ -12,6 +13,10 @@ export interface PdfTextExtractor {
   extract(contents: Buffer): Promise<PdfTextExtractionResult>
 }
 
+export interface PdfDocumentLoader {
+  load(contents: Buffer): Promise<PDFDocumentLoadingTask>
+}
+
 export class PdfExtractionError extends Error {
   constructor() {
     super('PDF text extraction failed')
@@ -20,16 +25,28 @@ export class PdfExtractionError extends Error {
 }
 
 @Injectable()
+export class PdfJsDocumentLoader implements PdfDocumentLoader {
+  async load(contents: Buffer): Promise<PDFDocumentLoadingTask> {
+    const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs')
+    return getDocument({
+      data: new Uint8Array(contents),
+      verbosity: 0,
+    })
+  }
+}
+
+@Injectable()
 export class PdfJsTextExtractor implements PdfTextExtractor {
+  constructor(
+    @Inject(PDF_DOCUMENT_LOADER)
+    private readonly documentLoader: PdfDocumentLoader,
+  ) {}
+
   async extract(contents: Buffer): Promise<PdfTextExtractionResult> {
     let loadingTask: PDFDocumentLoadingTask | undefined
 
     try {
-      const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs')
-      loadingTask = getDocument({
-        data: new Uint8Array(contents),
-        verbosity: 0,
-      })
+      loadingTask = await this.documentLoader.load(contents)
       const document = await loadingTask.promise
       const pageCount = document.numPages
       const pages: string[] = []
@@ -68,8 +85,9 @@ export class PdfJsTextExtractor implements PdfTextExtractor {
             : [],
       }
     } catch {
-      await loadingTask?.destroy().catch(() => undefined)
       throw new PdfExtractionError()
+    } finally {
+      await loadingTask?.destroy().catch(() => undefined)
     }
   }
 }

@@ -19,7 +19,12 @@ import {
 } from './materials.repository'
 import { MaterialsService } from './materials.service'
 import { PdfUploadValidator } from './pdf-upload.validator'
-import { PDF_TEXT_EXTRACTOR, PdfJsTextExtractor } from './pdf-text-extractor'
+import {
+  PDF_DOCUMENT_LOADER,
+  PDF_TEXT_EXTRACTOR,
+  PdfJsDocumentLoader,
+  PdfJsTextExtractor,
+} from './pdf-text-extractor'
 
 @Module({
   imports: [
@@ -36,6 +41,10 @@ import { PDF_TEXT_EXTRACTOR, PdfJsTextExtractor } from './pdf-text-extractor'
     MaterialsAuditService,
     MaterialProcessingService,
     MaterialTextChunker,
+    {
+      provide: PDF_DOCUMENT_LOADER,
+      useClass: PdfJsDocumentLoader,
+    },
     {
       provide: PDF_TEXT_EXTRACTOR,
       useClass: PdfJsTextExtractor,
