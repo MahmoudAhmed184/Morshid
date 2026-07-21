@@ -1,141 +1,131 @@
 @import 'tailwindcss';
 @import 'shadcn/tailwind.css';
 @import '@fontsource-variable/geist';
+@import '@fontsource-variable/geist-mono';
 @import '@fontsource-variable/fraunces/opsz.css';
 @import '@fontsource-variable/fraunces/opsz-italic.css';
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Morshid brand — "Guiding Star". Indigo intellect + illuminated gold.
-     Light theme = warm paper, deep indigo ink. */
-  --background: oklch(0.994 0.002 275);
-  --foreground: oklch(0.21 0.028 274);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.21 0.028 274);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.21 0.028 274);
-  --primary: oklch(0.515 0.196 275);
-  --primary-foreground: oklch(0.99 0.005 275);
-  --secondary: oklch(0.965 0.008 274);
-  --secondary-foreground: oklch(0.3 0.03 274);
-  --muted: oklch(0.968 0.006 274);
-  --muted-foreground: oklch(0.505 0.022 273);
-  --accent: oklch(0.945 0.022 274);
-  --accent-foreground: oklch(0.4 0.13 275);
-  --destructive: oklch(0.585 0.222 27);
-  --destructive-foreground: oklch(0.99 0.005 27);
-  --success: oklch(0.6 0.145 152);
-  --success-foreground: oklch(0.99 0.01 152);
-  --warning: oklch(0.75 0.15 78);
-  --warning-foreground: oklch(0.28 0.06 70);
-  --info: oklch(0.6 0.14 250);
-  --info-foreground: oklch(0.99 0.01 250);
-  --gold: oklch(0.76 0.13 76);
-  --gold-foreground: oklch(0.28 0.06 66);
-  --border: oklch(0.915 0.008 274);
-  --input: oklch(0.915 0.008 274);
-  --ring: oklch(0.515 0.196 275);
-  --chart-1: oklch(0.515 0.196 275);
-  --chart-2: oklch(0.7 0.14 190);
-  --chart-3: oklch(0.76 0.13 76);
-  --chart-4: oklch(0.62 0.18 12);
-  --chart-5: oklch(0.58 0.14 250);
-  --sidebar: oklch(0.978 0.005 274);
-  --sidebar-foreground: oklch(0.21 0.028 274);
-  --sidebar-primary: oklch(0.515 0.196 275);
-  --sidebar-primary-foreground: oklch(0.99 0.005 275);
-  --sidebar-accent: oklch(0.945 0.022 274);
-  --sidebar-accent-foreground: oklch(0.4 0.13 275);
-  --sidebar-border: oklch(0.912 0.008 274);
-  --sidebar-ring: oklch(0.515 0.196 275);
+  /* Morshid — "The Annotated Page". Light theme = "Reading Room":
+     warm cream paper, warm ink black, ink blue + rubrication red accents. */
+  --background: oklch(0.972 0.008 85);
+  --foreground: oklch(0.24 0.02 60);
+  --card: oklch(0.985 0.006 85);
+  --card-foreground: oklch(0.24 0.02 60);
+  --popover: oklch(0.985 0.006 85);
+  --popover-foreground: oklch(0.24 0.02 60);
+  --primary: oklch(0.45 0.19 264);
+  --primary-foreground: oklch(0.98 0.006 85);
+  --secondary: oklch(0.93 0.012 85);
+  --secondary-foreground: oklch(0.24 0.02 60);
+  --muted: oklch(0.93 0.012 85);
+  --muted-foreground: oklch(0.46 0.02 70);
+  --accent: oklch(0.92 0.018 264);
+  --accent-foreground: oklch(0.45 0.19 264);
+  --destructive: oklch(0.54 0.19 29);
+  --destructive-foreground: oklch(0.98 0.006 85);
+  --rubric: oklch(0.52 0.19 29);
+  --rubric-foreground: oklch(0.98 0.006 85);
+  --success: oklch(0.52 0.12 150);
+  --success-foreground: oklch(0.98 0.006 85);
+  --warning: oklch(0.64 0.13 75);
+  --warning-foreground: oklch(0.24 0.02 60);
+  --info: oklch(0.52 0.1 240);
+  --info-foreground: oklch(0.98 0.006 85);
+  --gold: oklch(0.7 0.11 85);
+  --gold-foreground: oklch(0.24 0.02 60);
+  --border: oklch(0.87 0.012 80);
+  --input: oklch(0.87 0.012 80);
+  --ring: oklch(0.45 0.19 264);
+  --chart-1: oklch(0.45 0.19 264);
+  --chart-2: oklch(0.52 0.19 29);
+  --chart-3: oklch(0.7 0.11 85);
+  --chart-4: oklch(0.52 0.12 150);
+  --chart-5: oklch(0.52 0.1 240);
+  --sidebar: oklch(0.972 0.008 85);
+  --sidebar-foreground: oklch(0.24 0.02 60);
+  --sidebar-primary: oklch(0.45 0.19 264);
+  --sidebar-primary-foreground: oklch(0.98 0.006 85);
+  --sidebar-accent: oklch(0.92 0.018 264);
+  --sidebar-accent-foreground: oklch(0.45 0.19 264);
+  --sidebar-border: oklch(0.87 0.012 80);
+  --sidebar-ring: oklch(0.45 0.19 264);
   --font-sans:
     'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
     Roboto, sans-serif;
-  --font-serif:
-    'Fraunces Variable', ui-serif, Georgia, 'Times New Roman', serif;
-  --font-display:
-    'Fraunces Variable', ui-serif, Georgia, 'Times New Roman', serif;
+  --font-serif: 'Fraunces Variable', Georgia, 'Times New Roman', serif;
+  --font-display: 'Fraunces Variable', Georgia, serif;
   --font-mono:
-    ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
-  --radius: 0.75rem;
+    'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --radius: 0.375rem;
   --tracking-normal: 0em;
   --spacing: 0.25rem;
-  /* Elevation — cool indigo-tinted shadows that actually render. */
-  --shadow-2xs: 0 1px 2px 0 oklch(0.45 0.07 274 / 0.05);
-  --shadow-xs: 0 1px 2px 0 oklch(0.45 0.07 274 / 0.06);
-  --shadow-sm:
-    0 1px 3px 0 oklch(0.45 0.07 274 / 0.09),
-    0 1px 2px -1px oklch(0.45 0.07 274 / 0.07);
-  --shadow:
-    0 1px 3px 0 oklch(0.45 0.07 274 / 0.1),
-    0 1px 2px -1px oklch(0.45 0.07 274 / 0.07);
-  --shadow-md:
-    0 4px 8px -2px oklch(0.45 0.07 274 / 0.1),
-    0 2px 4px -2px oklch(0.45 0.07 274 / 0.07);
-  --shadow-lg:
-    0 12px 20px -4px oklch(0.45 0.07 274 / 0.12),
-    0 4px 8px -4px oklch(0.45 0.07 274 / 0.08);
-  --shadow-xl:
-    0 20px 28px -6px oklch(0.44 0.08 274 / 0.14),
-    0 8px 12px -6px oklch(0.45 0.07 274 / 0.09);
-  --shadow-2xl: 0 28px 56px -12px oklch(0.42 0.1 274 / 0.26);
+  /* Elevation — near-eliminated. Depth comes from hairline borders and
+     paper-tone shifts, never glow. md/lg/xl are for overlays only. */
+  --shadow-2xs: 0 1px 2px 0 oklch(0.2 0.02 60 / 0.06);
+  --shadow-xs: 0 1px 2px 0 oklch(0.2 0.02 60 / 0.06);
+  --shadow-sm: 0 1px 3px 0 oklch(0.2 0.02 60 / 0.08);
+  --shadow: 0 1px 3px 0 oklch(0.2 0.02 60 / 0.08);
+  --shadow-md: 0 8px 24px -6px oklch(0.2 0.02 60 / 0.12);
+  --shadow-lg: 0 8px 24px -6px oklch(0.2 0.02 60 / 0.12);
+  --shadow-xl: 0 8px 24px -6px oklch(0.2 0.02 60 / 0.12);
+  --shadow-2xl: 0 8px 24px -6px oklch(0.2 0.02 60 / 0.12);
 }
 .dark {
-  /* Dark theme = deep indigo night, never pure black. */
-  --background: oklch(0.175 0.018 274);
-  --foreground: oklch(0.955 0.008 275);
-  --card: oklch(0.213 0.021 274);
-  --card-foreground: oklch(0.955 0.008 275);
-  --popover: oklch(0.213 0.021 274);
-  --popover-foreground: oklch(0.955 0.008 275);
-  --primary: oklch(0.585 0.196 274);
-  --primary-foreground: oklch(0.99 0.006 275);
-  --secondary: oklch(0.27 0.02 274);
-  --secondary-foreground: oklch(0.95 0.008 275);
-  --muted: oklch(0.255 0.018 274);
-  --muted-foreground: oklch(0.71 0.02 275);
-  --accent: oklch(0.3 0.038 275);
-  --accent-foreground: oklch(0.9 0.04 280);
-  --destructive: oklch(0.62 0.21 25);
-  --destructive-foreground: oklch(0.99 0.01 25);
-  --success: oklch(0.66 0.15 152);
-  --success-foreground: oklch(0.16 0.03 152);
-  --warning: oklch(0.78 0.14 78);
-  --warning-foreground: oklch(0.24 0.05 70);
-  --info: oklch(0.66 0.14 250);
-  --info-foreground: oklch(0.15 0.03 250);
-  --gold: oklch(0.8 0.13 78);
-  --gold-foreground: oklch(0.24 0.05 66);
-  --border: oklch(0.3 0.016 274);
-  --input: oklch(0.34 0.02 274);
-  --ring: oklch(0.62 0.17 274);
-  --chart-1: oklch(0.66 0.18 274);
-  --chart-2: oklch(0.74 0.13 190);
-  --chart-3: oklch(0.8 0.13 78);
-  --chart-4: oklch(0.68 0.17 12);
-  --chart-5: oklch(0.66 0.14 250);
-  --sidebar: oklch(0.198 0.02 274);
-  --sidebar-foreground: oklch(0.95 0.008 275);
-  --sidebar-primary: oklch(0.585 0.196 274);
-  --sidebar-primary-foreground: oklch(0.99 0.006 275);
-  --sidebar-accent: oklch(0.3 0.038 275);
-  --sidebar-accent-foreground: oklch(0.9 0.04 280);
-  --sidebar-border: oklch(0.29 0.016 274);
-  --sidebar-ring: oklch(0.62 0.17 274);
-  /* Deeper, blacker elevation for dark surfaces. */
+  /* Dark theme = "Lamplight": warm dark, never blue-black. */
+  --background: oklch(0.208 0.012 60);
+  --foreground: oklch(0.93 0.01 85);
+  --card: oklch(0.242 0.013 60);
+  --card-foreground: oklch(0.93 0.01 85);
+  --popover: oklch(0.242 0.013 60);
+  --popover-foreground: oklch(0.93 0.01 85);
+  --primary: oklch(0.72 0.12 264);
+  --primary-foreground: oklch(0.208 0.012 60);
+  --secondary: oklch(0.275 0.014 60);
+  --secondary-foreground: oklch(0.93 0.01 85);
+  --muted: oklch(0.275 0.014 60);
+  --muted-foreground: oklch(0.68 0.018 75);
+  --accent: oklch(0.3 0.03 264);
+  --accent-foreground: oklch(0.78 0.09 264);
+  --destructive: oklch(0.66 0.18 25);
+  --destructive-foreground: oklch(0.98 0.006 85);
+  --rubric: oklch(0.68 0.16 30);
+  --rubric-foreground: oklch(0.208 0.012 60);
+  --success: oklch(0.67 0.1 150);
+  --success-foreground: oklch(0.208 0.012 60);
+  --warning: oklch(0.79 0.11 75);
+  --warning-foreground: oklch(0.208 0.012 60);
+  --info: oklch(0.67 0.08 240);
+  --info-foreground: oklch(0.208 0.012 60);
+  --gold: oklch(0.85 0.09 85);
+  --gold-foreground: oklch(0.208 0.012 60);
+  --border: oklch(0.33 0.015 65);
+  --input: oklch(0.33 0.015 65);
+  --ring: oklch(0.72 0.12 264);
+  --chart-1: oklch(0.72 0.12 264);
+  --chart-2: oklch(0.68 0.16 30);
+  --chart-3: oklch(0.85 0.09 85);
+  --chart-4: oklch(0.67 0.1 150);
+  --chart-5: oklch(0.67 0.08 240);
+  --sidebar: oklch(0.208 0.012 60);
+  --sidebar-foreground: oklch(0.93 0.01 85);
+  --sidebar-primary: oklch(0.72 0.12 264);
+  --sidebar-primary-foreground: oklch(0.208 0.012 60);
+  --sidebar-accent: oklch(0.3 0.03 264);
+  --sidebar-accent-foreground: oklch(0.78 0.09 264);
+  --sidebar-border: oklch(0.33 0.015 65);
+  --sidebar-ring: oklch(0.72 0.12 264);
+  /* Elevation — warm dark, overlays only for md/lg/xl. */
   --shadow-2xs: 0 1px 2px 0 oklch(0 0 0 / 0.24);
-  --shadow-xs: 0 1px 2px 0 oklch(0 0 0 / 0.3);
-  --shadow-sm:
-    0 1px 3px 0 oklch(0 0 0 / 0.4), 0 1px 2px -1px oklch(0 0 0 / 0.34);
-  --shadow: 0 1px 3px 0 oklch(0 0 0 / 0.44), 0 1px 2px -1px oklch(0 0 0 / 0.34);
-  --shadow-md:
-    0 4px 8px -2px oklch(0 0 0 / 0.46), 0 2px 4px -2px oklch(0 0 0 / 0.36);
-  --shadow-lg:
-    0 12px 20px -4px oklch(0 0 0 / 0.52), 0 4px 8px -4px oklch(0 0 0 / 0.4);
-  --shadow-xl:
-    0 20px 28px -6px oklch(0 0 0 / 0.58), 0 8px 12px -6px oklch(0 0 0 / 0.42);
-  --shadow-2xl: 0 28px 56px -12px oklch(0 0 0 / 0.7);
+  --shadow-xs: 0 1px 2px 0 oklch(0 0 0 / 0.24);
+  --shadow-sm: 0 1px 3px 0 oklch(0 0 0 / 0.3);
+  --shadow: 0 1px 3px 0 oklch(0 0 0 / 0.3);
+  --shadow-md: 0 8px 24px -6px oklch(0 0 0 / 0.45);
+  --shadow-lg: 0 8px 24px -6px oklch(0 0 0 / 0.45);
+  --shadow-xl: 0 8px 24px -6px oklch(0 0 0 / 0.45);
+  --shadow-2xl: 0 8px 24px -6px oklch(0 0 0 / 0.45);
 }
 
 .theme-slate {
@@ -387,6 +377,8 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-rubric: var(--rubric);
+  --color-rubric-foreground: var(--rubric-foreground);
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
@@ -439,9 +431,6 @@
 
   --animate-fade-up: fade-up 0.5s var(--ease-out-expo) both;
   --animate-fade-in: fade-in 0.4s var(--ease-out-quart) both;
-  --animate-float: float 7s ease-in-out infinite;
-  --animate-aurora: aurora 14s linear infinite;
-  --animate-star-spin: star-spin 44s linear infinite;
 }
 
 /* ── Brand keyframes ─────────────────────────────────────────── */
@@ -462,34 +451,6 @@
   }
   to {
     opacity: 1;
-  }
-}
-
-@keyframes float {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-0.5rem);
-  }
-}
-
-@keyframes aurora {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
-}
-
-@keyframes star-spin {
-  to {
-    transform: rotate(360deg);
   }
 }
 
@@ -561,68 +522,59 @@
     );
   }
 
-  /* Frosted chrome — navbars, floating toolbars, command palettes. */
-  .surface-glass {
-    background-color: color-mix(in oklab, var(--background) 72%, transparent);
-    backdrop-filter: blur(12px) saturate(1.6);
-    -webkit-backdrop-filter: blur(12px) saturate(1.6);
+  /* ── Editorial marginalia primitives ─────────────────────────── */
+
+  /* Hairline rules — the page is sectioned by these, not by cards. */
+  .rule {
+    border-top: 1px solid var(--border);
   }
 
-  /* Brand headline gradient: indigo → violet → gold. */
-  .text-gradient-brand {
-    background-image: linear-gradient(
-      100deg,
-      var(--primary),
-      oklch(0.62 0.2 300) 42%,
-      var(--gold)
-    );
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+  .rule-strong {
+    border-top: 2px solid var(--foreground);
   }
 
-  /* Colored focus/CTA glow. */
-  .shadow-glow-primary {
-    box-shadow:
-      0 0 0 1px color-mix(in oklab, var(--primary) 28%, transparent),
-      0 10px 34px -10px color-mix(in oklab, var(--primary) 55%, transparent);
+  /* Mono small-caps eyebrow / label. */
+  .smallcaps-label {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
   }
 
-  /* Faint rule grid for hero / empty backgrounds. */
-  .bg-grid-faint {
-    background-image:
-      linear-gradient(
-        to right,
-        color-mix(in oklab, var(--border) 55%, transparent) 1px,
-        transparent 1px
-      ),
-      linear-gradient(
-        to bottom,
-        color-mix(in oklab, var(--border) 55%, transparent) 1px,
-        transparent 1px
-      );
-    background-size: 3rem 3rem;
+  /* Footnote — mono, small, muted. Resolves citation markers. */
+  .footnote {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--muted-foreground);
   }
 
-  /* Soft primary spotlight glow behind hero content. */
-  .bg-radial-spot {
-    background-image: radial-gradient(
-      60% 55% at 50% 0%,
-      color-mix(in oklab, var(--primary) 22%, transparent),
-      transparent 72%
-    );
+  /* The tiny rubrication square that precedes eyebrows. */
+  .rubric-square {
+    display: inline-block;
+    width: 0.5em;
+    height: 0.5em;
+    background-color: var(--rubric);
   }
 
-  /* Tessellating eight-point star (Rub el Hizb) motif, primary-tinted. */
-  .bg-star-field {
-    --star-size: 52px;
-    -webkit-mask-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'><path fill='%23000' fill-rule='evenodd' d='M17 17h14v14H17z M24 14 34 24 24 34 14 24z'/></svg>");
-    mask-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'><path fill='%23000' fill-rule='evenodd' d='M17 17h14v14H17z M24 14 34 24 24 34 14 24z'/></svg>");
-    -webkit-mask-size: var(--star-size) var(--star-size);
-    mask-size: var(--star-size) var(--star-size);
-    -webkit-mask-repeat: repeat;
-    mask-repeat: repeat;
-    background-color: color-mix(in oklab, var(--primary) 8%, transparent);
+  /* Editorial underline link — hairline rule that inks red on hover. */
+  .link-editorial {
+    color: inherit;
+    text-decoration-line: underline;
+    text-underline-offset: 4px;
+    text-decoration-thickness: 1px;
+    text-decoration-color: var(--border);
+    transition: text-decoration-color 200ms ease-out;
+  }
+
+  .link-editorial:hover {
+    text-decoration-color: var(--rubric);
+  }
+
+  .link-editorial:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: 2px;
   }
 
   /* Premium skeleton sweep. Pairs with bg-muted on the element. */
@@ -672,8 +624,16 @@
     @apply bg-background text-foreground;
   }
 
-  /* Display type: Fraunces auto optical sizing for large cuts. */
-  .font-display,
+  /* Display type: Fraunces at max optical size, no soft/wonk. */
+  .font-display {
+    font-variation-settings:
+      'opsz' 144,
+      'SOFT' 0,
+      'WONK' 0;
+    letter-spacing: -0.015em;
+  }
+
+  /* Serif prose: Fraunces with automatic optical sizing. */
   .font-serif {
     font-optical-sizing: auto;
     letter-spacing: -0.01em;
@@ -726,10 +686,7 @@
   @media (prefers-reduced-motion: reduce) {
     .shimmer::after,
     .animate-fade-up,
-    .animate-fade-in,
-    .animate-float,
-    .animate-aurora,
-    .animate-star-spin {
+    .animate-fade-in {
       animation: none !important;
     }
 

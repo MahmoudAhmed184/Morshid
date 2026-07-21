@@ -325,7 +325,7 @@ describe('/instructor', () => {
     render(<RouterProvider router={router} />)
 
     fireEvent.click(
-      (await screen.findAllByRole('button', { name: 'Get Started' }))[0],
+      (await screen.findAllByRole('button', { name: 'Begin studying' }))[0],
     )
     expect(
       await screen.findByRole('heading', { name: 'Welcome Back' }),

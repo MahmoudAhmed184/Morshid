@@ -59,12 +59,12 @@ describe('Navbar', () => {
   it('shows login actions for guests', () => {
     render(<Navbar />)
 
-    expect(screen.getByRole('button', { name: /log in/i })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /sign in/i })).toHaveAttribute(
       'href',
       '/login',
     )
     expect(
-      screen.getByRole('button', { name: /get started/i }),
+      screen.getByRole('button', { name: /begin studying/i }),
     ).toHaveAttribute('href', '/login')
     expect(screen.queryByRole('button', { name: /dashboard/i })).toBeNull()
   })
@@ -78,8 +78,8 @@ describe('Navbar', () => {
       'href',
       '/admin',
     )
-    expect(screen.queryByRole('button', { name: /log in/i })).toBeNull()
-    expect(screen.queryByRole('button', { name: /get started/i })).toBeNull()
+    expect(screen.queryByRole('link', { name: /sign in/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /begin studying/i })).toBeNull()
   })
 
   it('shows stable Instructor workspace navigation for Instructor users', () => {

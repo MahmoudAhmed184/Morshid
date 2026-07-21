@@ -5,7 +5,6 @@ import { useState } from 'react'
 import { Logo } from '@/components/logo'
 import { Button } from '@/components/ui/button'
 import { ModeToggle } from '@/components/ui/mode-toggle'
-import { Separator } from '@/components/ui/separator'
 import {
   Sheet,
   SheetClose,
@@ -19,9 +18,8 @@ import { getDashboardPath } from '@/features/auth/utils/auth-redirect'
 import { cn } from '@/lib/utils'
 
 const marketingNavLinks = [
-  { label: 'Features', href: '#features' },
-  { label: 'Pricing', href: '#pricing' },
-  { label: 'About', href: '#about' },
+  { label: 'The Method', href: '/#method' },
+  { label: 'For Instructors', href: '/#instructors' },
 ] as const
 
 const instructorNavLinks = [
@@ -37,11 +35,11 @@ type NavLinkProps = {
   onClick?: () => void
 }
 
+const navLinkClassName =
+  'smallcaps-label transition-colors duration-200 hover:text-foreground focus-visible:text-foreground focus-visible:outline-none'
+
 function NavLink({ item, children, className, onClick }: NavLinkProps) {
-  const linkClassName = cn(
-    'relative text-sm font-medium text-muted-foreground transition-colors duration-200 hover:text-foreground focus-visible:text-foreground focus-visible:outline-none',
-    className,
-  )
+  const linkClassName = cn(navLinkClassName, className)
 
   if ('to' in item) {
     return (
@@ -71,64 +69,53 @@ export function Navbar() {
     user?.role === 'INSTRUCTOR' ? instructorNavLinks : marketingNavLinks
 
   return (
-    <header className="surface-glass sticky top-0 z-50 border-b border-border/60">
+    <header className="rule sticky top-0 z-50 bg-background/95 backdrop-blur-sm">
       <nav
-        className="relative mx-auto flex h-16 w-full max-w-7xl items-center px-4 sm:px-6 lg:px-8"
+        className="mx-auto flex h-16 w-full max-w-6xl items-center gap-6 px-6 md:px-10"
         aria-label="Main navigation"
       >
         <div className="flex flex-1 items-center">
           <Link
             to="/"
-            className="group flex items-center gap-2.5 rounded-lg text-foreground transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="group flex items-center gap-2.5 text-foreground transition-opacity hover:opacity-90 focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
-            <Logo
-              className="size-8 rounded-lg transition-transform duration-300 group-hover:scale-105"
-              iconClassName="size-4.5"
-            />
-            <span className="text-base font-semibold tracking-tight">
-              Morshid
-            </span>
+            <Logo iconClassName="size-6" />
+            <span className="font-display text-xl font-semibold">Morshid</span>
           </Link>
         </div>
 
-        <div className="absolute top-1/2 left-1/2 hidden -translate-x-1/2 -translate-y-1/2 items-center gap-8 md:flex">
+        <div className="hidden items-center gap-8 md:flex">
           {navLinks.map((link) => (
-            <NavLink
-              key={link.label}
-              item={link}
-              className="after:absolute after:-bottom-1.5 after:left-0 after:h-0.5 after:w-full after:origin-left after:scale-x-0 after:rounded-full after:bg-primary after:transition-transform after:duration-300 hover:after:scale-x-100"
-            >
+            <NavLink key={link.label} item={link}>
               {link.label}
             </NavLink>
           ))}
         </div>
 
-        <div className="flex flex-1 items-center justify-end gap-2 sm:gap-3">
+        <div className="flex flex-1 items-center justify-end gap-4 sm:gap-5">
           <ModeToggle />
           {dashboardPath ? (
             <Button
               nativeButton={false}
               render={<Link to={dashboardPath} />}
-              className="hidden shadow-xs sm:inline-flex"
+              className="hidden sm:inline-flex"
             >
               Dashboard
             </Button>
           ) : (
             <>
+              <Link
+                to="/login"
+                className={cn(navLinkClassName, 'hidden sm:inline-flex')}
+              >
+                Sign in
+              </Link>
               <Button
                 nativeButton={false}
                 render={<Link to="/login" />}
-                variant="ghost"
                 className="hidden sm:inline-flex"
               >
-                Log in
-              </Button>
-              <Button
-                nativeButton={false}
-                render={<Link to="/login" />}
-                className="hidden shadow-xs sm:inline-flex"
-              >
-                Get Started
+                Begin studying
               </Button>
             </>
           )}
@@ -149,11 +136,13 @@ export function Navbar() {
             <SheetContent side="right" className="w-full max-w-xs">
               <SheetHeader>
                 <SheetTitle className="flex items-center gap-2.5">
-                  <Logo className="size-7 rounded-lg" iconClassName="size-4" />
-                  Morshid
+                  <Logo iconClassName="size-5" />
+                  <span className="font-display text-lg font-semibold">
+                    Morshid
+                  </span>
                 </SheetTitle>
               </SheetHeader>
-              <div className="flex flex-col gap-1 px-4">
+              <div className="flex flex-col gap-4 px-6">
                 {navLinks.map((link) => (
                   <SheetClose
                     key={link.label}
@@ -161,7 +150,7 @@ export function Navbar() {
                     render={
                       <NavLink
                         item={link}
-                        className="rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        className="py-1"
                         onClick={() => setOpen(false)}
                       />
                     }
@@ -169,49 +158,48 @@ export function Navbar() {
                     {link.label}
                   </SheetClose>
                 ))}
-                <Separator className="my-3" />
-                {dashboardPath ? (
-                  <SheetClose
-                    nativeButton={false}
-                    render={
-                      <Button
+                <div className="rule mt-2 flex flex-col gap-3 pt-4">
+                  {dashboardPath ? (
+                    <SheetClose
+                      nativeButton={false}
+                      render={
+                        <Button
+                          nativeButton={false}
+                          render={<Link to={dashboardPath} />}
+                          className="w-full"
+                        />
+                      }
+                    >
+                      Dashboard
+                    </SheetClose>
+                  ) : (
+                    <>
+                      <SheetClose
                         nativeButton={false}
-                        render={<Link to={dashboardPath} />}
-                        className="w-full"
-                      />
-                    }
-                  >
-                    Dashboard
-                  </SheetClose>
-                ) : (
-                  <>
-                    <SheetClose
-                      nativeButton={false}
-                      render={
-                        <Button
-                          nativeButton={false}
-                          render={<Link to="/login" />}
-                          variant="outline"
-                          className="w-full"
-                        />
-                      }
-                    >
-                      Log in
-                    </SheetClose>
-                    <SheetClose
-                      nativeButton={false}
-                      render={
-                        <Button
-                          nativeButton={false}
-                          render={<Link to="/login" />}
-                          className="w-full"
-                        />
-                      }
-                    >
-                      Get Started
-                    </SheetClose>
-                  </>
-                )}
+                        render={
+                          <Link
+                            to="/login"
+                            className={cn(navLinkClassName, 'py-1')}
+                          />
+                        }
+                      >
+                        Sign in
+                      </SheetClose>
+                      <SheetClose
+                        nativeButton={false}
+                        render={
+                          <Button
+                            nativeButton={false}
+                            render={<Link to="/login" />}
+                            className="w-full"
+                          />
+                        }
+                      >
+                        Begin studying
+                      </SheetClose>
+                    </>
+                  )}
+                </div>
               </div>
             </SheetContent>
           </Sheet>
