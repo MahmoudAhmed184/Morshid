@@ -51,10 +51,13 @@ export class ManagedCompletionProvider implements CompletionProvider {
         return
       }
 
-      const abort = () => reject(new CompletionCancelledError())
+      const abort = () => {
+        reject(new CompletionCancelledError())
+      }
       input.signal.addEventListener('abort', abort, { once: true })
-      removeAbortListener = () =>
+      removeAbortListener = () => {
         input.signal?.removeEventListener('abort', abort)
+      }
     })
 
     try {

@@ -119,12 +119,8 @@ describe('DeterministicCompletionProvider', () => {
     expect(result.answer).toContain('Python loops repeat a block of code.')
     expect(result.answer).not.toContain('Ignore previous instructions')
     expect(result.answer).not.toContain('API key')
-    expect(result.metadata).not.toEqual(
-      expect.objectContaining({
-        materialTitle: expect.any(String),
-        content: expect.any(String),
-      }),
-    )
+    expect(result.metadata).not.toHaveProperty('materialTitle')
+    expect(result.metadata).not.toHaveProperty('content')
   })
 
   it('supports a controlled provider failure mode without raw input leakage', async () => {

@@ -39,8 +39,8 @@ class FakeCompletionProvider implements CompletionProvider {
     supportsStreaming: false,
   }
 
-  readonly completeGrounded = jest.fn(
-    async (): Promise<GroundedCompletionResult> => validResult,
+  readonly completeGrounded = jest.fn((): Promise<GroundedCompletionResult> =>
+    Promise.resolve(validResult),
   )
 }
 

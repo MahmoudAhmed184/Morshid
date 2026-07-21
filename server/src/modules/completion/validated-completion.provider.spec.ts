@@ -46,13 +46,13 @@ class FakeCompletionProvider implements CompletionProvider {
     supportsStreaming: false,
   }
 
-  readonly completeGrounded = jest.fn(
-    async (): Promise<GroundedCompletionResult> => validResult,
+  readonly completeGrounded = jest.fn((): Promise<GroundedCompletionResult> =>
+    Promise.resolve(validResult),
   )
 }
 
 function malformed(patch: Record<string, unknown>): GroundedCompletionResult {
-  return { ...validResult, ...patch } as GroundedCompletionResult
+  return { ...validResult, ...patch }
 }
 
 describe('ValidatedCompletionProvider', () => {

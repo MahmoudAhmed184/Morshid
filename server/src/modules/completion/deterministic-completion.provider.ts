@@ -57,9 +57,15 @@ export class DeterministicCompletionProvider implements CompletionProvider {
     }
   }
 
-  async completeGrounded(
+  completeGrounded(
     input: GroundedCompletionRequest,
   ): Promise<GroundedCompletionResult> {
+    return Promise.resolve().then(() => this.completeGroundedSync(input))
+  }
+
+  private completeGroundedSync(
+    input: GroundedCompletionRequest,
+  ): GroundedCompletionResult {
     if (this.options.failOnComplete === true) {
       throw new CompletionProviderFailureError(this.metadata.provider)
     }

@@ -40,9 +40,7 @@ export class ValidatedCompletionProvider implements CompletionProvider {
   }
 }
 
-export function validateCompletionResult(
-  result: GroundedCompletionResult,
-): void {
+export function validateCompletionResult(result: unknown): void {
   if (!isRecord(result)) {
     throw new MalformedCompletionResultError('missing_provider')
   }
@@ -66,11 +64,17 @@ export function validateCompletionResult(
     throw new MalformedCompletionResultError('missing_prompt_version')
   }
 
-  if (!VALID_FINISH_REASONS.has(result.finishReason)) {
+  if (
+    typeof result.finishReason !== 'string' ||
+    !VALID_FINISH_REASONS.has(result.finishReason as CompletionFinishReason)
+  ) {
     throw new MalformedCompletionResultError('invalid_finish_reason')
   }
 
-  if (!VALID_GUIDANCE_LABELS.has(result.guidanceLabel)) {
+  if (
+    typeof result.guidanceLabel !== 'string' ||
+    !VALID_GUIDANCE_LABELS.has(result.guidanceLabel as CompletionGuidanceLabel)
+  ) {
     throw new MalformedCompletionResultError('invalid_guidance_label')
   }
 
@@ -107,8 +111,12 @@ function validateTokenCount(value: unknown): void {
   }
 }
 
-function isSafeMetadata(metadata: CompletionSafeMetadata): boolean {
-  if (Array.isArray(metadata) || metadata === null) {
+function isSafeMetadata(metadata: unknown): metadata is CompletionSafeMetadata {
+  if (
+    typeof metadata !== 'object' ||
+    Array.isArray(metadata) ||
+    metadata === null
+  ) {
     return false
   }
 
@@ -117,7 +125,9 @@ function isSafeMetadata(metadata: CompletionSafeMetadata): boolean {
   )
 }
 
-function isSafeMetadataValue(value: CompletionSafeMetadataValue): boolean {
+function isSafeMetadataValue(
+  value: unknown,
+): value is CompletionSafeMetadataValue {
   if (value === null) {
     return true
   }
