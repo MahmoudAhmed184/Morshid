@@ -124,7 +124,10 @@ export class MaterialsService {
         material: mapMaterialRecord(material),
       }
     } catch (error) {
-      await this.cleanupPartialUpload(materialId, storagePath)
+      const cleanupErrors = await this.cleanupPartialUpload(
+        materialId,
+        storagePath,
+      )
       await this.materialsAuditService.recordUploadFailed({
         actor,
         courseId,
@@ -133,9 +136,22 @@ export class MaterialsService {
         mimetype: upload.mimetype,
         materialId,
         reason:
-          materialId === null ? 'PERSISTENCE_FAILED' : 'SCHEDULING_FAILED',
+          cleanupErrors.length > 0
+            ? 'UPLOAD_CLEANUP_FAILED'
+            : materialId === null
+              ? 'PERSISTENCE_FAILED'
+              : 'SCHEDULING_FAILED',
         requestContext,
       })
+
+      if (cleanupErrors.length > 0) {
+        throw new AggregateError(
+          [error, ...cleanupErrors],
+          'Material upload failed and cleanup was incomplete',
+          { cause: error },
+        )
+      }
+
       throw error
     }
   }
@@ -217,14 +233,55 @@ export class MaterialsService {
   private async cleanupPartialUpload(
     materialId: string | null,
     storagePath: string | null,
-  ): Promise<void> {
+  ): Promise<unknown[]> {
+    const cleanupErrors: unknown[] = []
+    let materialQuarantined = false
+    let storedFileDeleted = storagePath === null
+
     if (materialId !== null) {
-      await this.materialsRepository.deleteMaterial(materialId)
+      try {
+        await this.materialsRepository.markUploadCleanupRequired(materialId)
+        materialQuarantined = true
+      } catch (error) {
+        cleanupErrors.push(error)
+      }
     }
 
     if (storagePath !== null) {
-      await this.pdfStorage.delete(storagePath)
+      try {
+        await this.pdfStorage.delete(storagePath)
+        storedFileDeleted = true
+      } catch (error) {
+        cleanupErrors.push(error)
+      }
     }
+
+    if (materialId !== null && !storedFileDeleted && !materialQuarantined) {
+      try {
+        await this.materialsRepository.markUploadCleanupRequired(materialId)
+        materialQuarantined = true
+      } catch (error) {
+        cleanupErrors.push(error)
+      }
+    }
+
+    if (materialId !== null && storedFileDeleted) {
+      try {
+        await this.materialsRepository.deleteMaterial(materialId)
+      } catch (error) {
+        cleanupErrors.push(error)
+
+        if (!materialQuarantined) {
+          try {
+            await this.materialsRepository.markUploadCleanupRequired(materialId)
+          } catch (quarantineError) {
+            cleanupErrors.push(quarantineError)
+          }
+        }
+      }
+    }
+
+    return cleanupErrors
   }
 }
 

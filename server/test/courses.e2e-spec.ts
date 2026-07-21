@@ -11,6 +11,7 @@ import {
   CoursesRepository,
   type AdminCourseRecord,
 } from '../src/modules/courses/courses.repository'
+import { MaterialProcessingScheduler } from '../src/modules/materials/material-processing.scheduler'
 import { PrismaService } from '../src/modules/prisma/prisma.service'
 import { RedisService } from '../src/modules/redis/redis.service'
 import {
@@ -20,6 +21,7 @@ import {
 } from '../src/generated/prisma/client'
 import { P0_DEMO_PASSWORD } from '../src/seeds/p0-demo.seed'
 import { AuthTestStore } from './support/auth-test-store'
+import { NoopMaterialProcessingScheduler } from './support/noop-material-processing-scheduler'
 
 const createdAt = new Date('2026-07-06T00:00:00.000Z')
 const updatedAt = new Date('2026-07-06T01:00:00.000Z')
@@ -137,6 +139,8 @@ describe('Courses (e2e)', () => {
       .useValue(store.prisma)
       .overrideProvider(RedisService)
       .useValue(redisService)
+      .overrideProvider(MaterialProcessingScheduler)
+      .useClass(NoopMaterialProcessingScheduler)
       .overrideProvider(CoursesRepository)
       .useClass(CoursesTestRepository)
       .compile()

@@ -2,19 +2,15 @@ import { Module } from '@nestjs/common'
 
 import { AuditModule } from '../audit/audit.module'
 import { CoursesModule } from '../courses/courses.module'
-import { EmbeddingModule } from '../embedding/embedding.module'
 import { PdfStorageModule } from '../pdf-storage/pdf-storage.module'
 import { PrismaModule } from '../prisma/prisma.module'
+import { RagPersistenceModule } from '../rag-persistence/rag-persistence.module'
 import {
-  AsyncMaterialProcessingScheduler,
+  DurableMaterialProcessingScheduler,
   MaterialProcessingScheduler,
 } from './material-processing.scheduler'
-import { MaterialProcessingAuditService } from './material-processing.audit.service'
-import {
-  MaterialProcessingRepository,
-  PrismaMaterialProcessingRepository,
-} from './material-processing.repository'
 import { MaterialProcessingService } from './material-processing.service'
+import { MaterialTextChunker } from './material-text-chunker'
 import { MaterialsAuditService } from './materials.audit.service'
 import { MaterialsController } from './materials.controller'
 import {
@@ -22,8 +18,14 @@ import {
   PrismaMaterialsRepository,
 } from './materials.repository'
 import { MaterialsService } from './materials.service'
-import { PdfTextExtractor } from './pdf-text.extractor'
 import { PdfUploadValidator } from './pdf-upload.validator'
+import {
+  PDF_DOCUMENT_LOADER,
+  PDF_TEXT_EXTRACTOR,
+  PdfJsDocumentLoader,
+  PdfJsTextExtractor,
+} from './pdf-text-extractor'
+import { PdfUploadInterceptor } from './pdf-upload.interceptor'
 
 @Module({
   imports: [
@@ -31,28 +33,33 @@ import { PdfUploadValidator } from './pdf-upload.validator'
     CoursesModule,
     PdfStorageModule,
     AuditModule,
-    EmbeddingModule,
+    RagPersistenceModule,
   ],
   controllers: [MaterialsController],
   providers: [
     MaterialsService,
     PdfUploadValidator,
+    PdfUploadInterceptor,
     MaterialsAuditService,
-    PdfTextExtractor,
     MaterialProcessingService,
-    MaterialProcessingAuditService,
+    MaterialTextChunker,
     {
-      provide: MaterialProcessingScheduler,
-      useClass: AsyncMaterialProcessingScheduler,
+      provide: PDF_DOCUMENT_LOADER,
+      useClass: PdfJsDocumentLoader,
     },
     {
-      provide: MaterialProcessingRepository,
-      useClass: PrismaMaterialProcessingRepository,
+      provide: PDF_TEXT_EXTRACTOR,
+      useClass: PdfJsTextExtractor,
+    },
+    {
+      provide: MaterialProcessingScheduler,
+      useClass: DurableMaterialProcessingScheduler,
     },
     {
       provide: MaterialsRepository,
       useClass: PrismaMaterialsRepository,
     },
   ],
+  exports: [MaterialProcessingService, PDF_TEXT_EXTRACTOR],
 })
 export class MaterialsModule {}

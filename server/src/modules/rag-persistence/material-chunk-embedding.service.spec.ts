@@ -93,4 +93,28 @@ describe('MaterialChunkEmbeddingService', () => {
     ).rejects.toThrow('provider unavailable')
     expect(replaceMaterialChunks).not.toHaveBeenCalled()
   })
+
+  it('prepares embedded chunks for atomic processing finalization', async () => {
+    embedBatch.mockResolvedValue([[0.1], [0.2]])
+
+    await expect(
+      service.embedMaterialChunks([
+        { chunkIndex: 0, content: 'variables' },
+        { chunkIndex: 1, content: 'loops' },
+      ]),
+    ).resolves.toEqual([
+      {
+        chunkIndex: 0,
+        content: 'variables',
+        embedding: [0.1],
+        embeddingModel: 'test-embedding-model',
+      },
+      {
+        chunkIndex: 1,
+        content: 'loops',
+        embedding: [0.2],
+        embeddingModel: 'test-embedding-model',
+      },
+    ])
+  })
 })

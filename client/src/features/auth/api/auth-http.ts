@@ -1,12 +1,20 @@
 import { clientEnv } from '@/lib/env'
 
-export type ApiErrorCode =
-  | 'ACCOUNT_DISABLED'
-  | 'INSUFFICIENT_ROLE'
-  | 'INVALID_ACCESS_TOKEN'
-  | 'INVALID_CREDENTIALS'
-  | 'INVALID_REFRESH_TOKEN'
-  | 'INVALID_REQUEST'
+const API_ERROR_CODES = [
+  'ACCOUNT_DISABLED',
+  'INSUFFICIENT_ROLE',
+  'INVALID_ACCESS_TOKEN',
+  'INVALID_CREDENTIALS',
+  'INVALID_REFRESH_TOKEN',
+  'INVALID_REQUEST',
+  'STUDENT_CHAT_ACTIVE_STUDENT_MEMBERSHIP_REQUIRED',
+  'STUDENT_CHAT_INVALID_REQUEST',
+  'STUDENT_CHAT_SESSION_NOT_FOUND',
+] as const
+
+const apiErrorCodeSet: ReadonlySet<string> = new Set(API_ERROR_CODES)
+
+export type ApiErrorCode = (typeof API_ERROR_CODES)[number]
 
 type ApiErrorEnvelope = {
   code?: unknown
@@ -83,12 +91,5 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isApiErrorCode(value: unknown): value is ApiErrorCode {
-  return (
-    value === 'ACCOUNT_DISABLED' ||
-    value === 'INSUFFICIENT_ROLE' ||
-    value === 'INVALID_ACCESS_TOKEN' ||
-    value === 'INVALID_CREDENTIALS' ||
-    value === 'INVALID_REFRESH_TOKEN' ||
-    value === 'INVALID_REQUEST'
-  )
+  return typeof value === 'string' && apiErrorCodeSet.has(value)
 }

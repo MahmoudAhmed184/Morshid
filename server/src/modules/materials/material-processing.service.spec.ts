@@ -1,263 +1,263 @@
-/* eslint-disable @typescript-eslint/unbound-method */
-
-import { MaterialStatus } from '../../generated/prisma/client'
-import type { EmbeddingProvider } from '../embedding/embedding-provider'
+import type { AuditService } from '../audit/audit.service'
 import type { PdfStorage } from '../pdf-storage/pdf-storage'
+import type { MaterialChunkEmbeddingService } from '../rag-persistence/material-chunk-embedding.service'
+import type {
+  MaterialsRepository,
+  MaterialProcessingRecord,
+} from './materials.repository'
 import {
-  MATERIAL_PROCESSING_ERROR_CODES,
-  MaterialNoLongerProcessableError,
-} from './material-processing.errors'
-import type { MaterialProcessingAuditService } from './material-processing.audit.service'
-import type { MaterialProcessingRepository } from './material-processing.repository'
-import { MaterialProcessingService } from './material-processing.service'
-import type { PdfTextExtractor } from './pdf-text.extractor'
+  MATERIAL_PROCESSING_FAILURES,
+  MaterialProcessingService,
+} from './material-processing.service'
+import { MaterialTextChunker } from './material-text-chunker'
 
-const materialId = '00000000-0000-4000-8000-000000000701'
-const courseId = '00000000-0000-4000-8000-000000000101'
-const uploadedById = '00000000-0000-4000-8000-000000000002'
-const storagePath = '00000000-0000-4000-8000-000000000701.pdf'
-const pdfBytes = Buffer.from('%PDF-1.7\nclean text pdf')
-const embedding = new Array<number>(1_536).fill(0.01)
-
-function buildService() {
-  const repository = {
-    findProcessableMaterial: jest.fn().mockResolvedValue({
-      id: materialId,
-      courseId,
-      uploadedById,
-      storagePath,
-    }),
-    completeProcessing: jest.fn().mockResolvedValue(undefined),
-    failProcessing: jest.fn().mockResolvedValue(undefined),
-  } as unknown as jest.Mocked<MaterialProcessingRepository>
-  const extractor = {
-    extract: jest.fn().mockResolvedValue({
-      text: '  Variables\tstore values.\r\n\r\nLoops repeat work.  ',
-      warnings: [],
-    }),
-  } as unknown as jest.Mocked<PdfTextExtractor>
-  const storage = {
-    read: jest.fn().mockResolvedValue(pdfBytes),
-  } as unknown as jest.Mocked<PdfStorage>
-  const embeddingProvider = {
-    model: 'deterministic-embedding-v1',
-    embedBatch: jest.fn().mockResolvedValue([embedding]),
-  } as unknown as jest.Mocked<EmbeddingProvider>
-  const auditService = {
-    recordReady: jest.fn().mockResolvedValue(undefined),
-    recordWarning: jest.fn().mockResolvedValue(undefined),
-    recordFailed: jest.fn().mockResolvedValue(undefined),
-  } as unknown as jest.Mocked<MaterialProcessingAuditService>
-
-  return {
-    repository,
-    extractor,
-    storage,
-    embeddingProvider,
-    auditService,
-    service: new MaterialProcessingService(
-      repository,
-      extractor,
-      auditService,
-      storage,
-      embeddingProvider,
-    ),
-  }
+const material: MaterialProcessingRecord = {
+  id: 'material-80',
+  courseId: 'course-80',
+  uploadedById: 'instructor-80',
+  storagePath: '00000000-0000-4000-8000-000000000080.pdf',
 }
 
 describe('MaterialProcessingService', () => {
+  let repository: {
+    claimMaterialProcessing: jest.Mock
+    completeMaterialProcessing: jest.Mock
+    failMaterialProcessing: jest.Mock
+  }
+  let storage: { read: jest.Mock }
+  let extractor: { extract: jest.Mock }
+  let embedding: { embedMaterialChunks: jest.Mock }
+  let audit: { recordEvent: jest.Mock }
+  let service: MaterialProcessingService
+
   beforeEach(() => {
-    jest.spyOn(Date, 'now').mockReturnValue(1_000)
-  })
-
-  afterEach(() => {
-    jest.restoreAllMocks()
-  })
-
-  it('processes a clean PDF into ready chunks and embeddings', async () => {
-    const {
-      service,
-      storage,
-      extractor,
-      embeddingProvider,
-      repository,
-      auditService,
-    } = buildService()
-
-    await expect(service.processMaterial(materialId)).resolves.toBe(
-      MaterialStatus.READY,
-    )
-
-    expect(storage.read).toHaveBeenCalledWith(storagePath)
-    expect(extractor.extract).toHaveBeenCalledWith(pdfBytes)
-    expect(embeddingProvider.embedBatch).toHaveBeenCalledWith([
-      'Variables store values.\n\nLoops repeat work.',
-    ])
-    expect(repository.completeProcessing).toHaveBeenCalledWith({
-      materialId,
-      status: MaterialStatus.READY,
-      extractedTextLength: 43,
-      warningMessage: null,
-      chunks: [
+    repository = {
+      claimMaterialProcessing: jest.fn().mockResolvedValue(material),
+      completeMaterialProcessing: jest.fn().mockResolvedValue(true),
+      failMaterialProcessing: jest.fn().mockResolvedValue(true),
+    }
+    storage = { read: jest.fn().mockResolvedValue(Buffer.from('pdf')) }
+    extractor = {
+      extract: jest.fn().mockResolvedValue({
+        text: 'Variables bind names to values.',
+        warnings: [],
+      }),
+    }
+    embedding = {
+      embedMaterialChunks: jest.fn().mockResolvedValue([
         {
           chunkIndex: 0,
-          content: 'Variables store values.\n\nLoops repeat work.',
-          embedding,
-          embeddingModel: 'deterministic-embedding-v1',
+          content: 'Variables bind names to values.',
+          embedding: [0.1],
+          embeddingModel: 'test-model',
         },
-      ],
-    })
-    expect(repository.failProcessing).not.toHaveBeenCalled()
-    expect(auditService.recordReady).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actorUserId: uploadedById,
-        materialId,
-        courseId,
-        extractedTextLength: 43,
-        chunkCount: 1,
-        embeddingModel: 'deterministic-embedding-v1',
-      }),
+      ]),
+    }
+    audit = { recordEvent: jest.fn().mockResolvedValue(undefined) }
+    service = new MaterialProcessingService(
+      repository as unknown as MaterialsRepository,
+      storage as unknown as PdfStorage,
+      extractor,
+      new MaterialTextChunker(),
+      embedding as unknown as MaterialChunkEmbeddingService,
+      audit as unknown as AuditService,
     )
   })
 
-  it('marks usable extraction warnings as warning and still persists chunks', async () => {
-    const { service, extractor, repository, auditService } = buildService()
-    extractor.extract.mockResolvedValueOnce({
+  it('finalizes a clean source only after embedding completes', async () => {
+    await service.processMaterial(material.id)
+
+    expect(embedding.embedMaterialChunks).toHaveBeenCalledWith([
+      { chunkIndex: 0, content: 'Variables bind names to values.' },
+    ])
+    expect(repository.completeMaterialProcessing).toHaveBeenCalledWith(
+      material.id,
+      expect.any(String),
+      expect.any(Array),
+      expect.objectContaining({
+        status: 'READY',
+        extractedTextLength: 31,
+        chunkCount: 1,
+      }),
+    )
+    expect(repository.failMaterialProcessing).not.toHaveBeenCalled()
+    const [event] = audit.recordEvent.mock.calls[0] as [
+      { action: string; metadata: { status: string } },
+    ]
+    expect(event).toMatchObject({
+      action: 'material.processing_ready',
+      metadata: { status: 'READY' },
+    })
+  })
+
+  it.each([
+    {
+      name: 'empty text',
+      extraction: { text: ' \n\t ', warnings: [] },
+      reason: MATERIAL_PROCESSING_FAILURES.NO_EXTRACTABLE_TEXT,
+    },
+    {
+      name: 'image-only text layer',
+      extraction: { text: '', warnings: [] },
+      reason: MATERIAL_PROCESSING_FAILURES.NO_EXTRACTABLE_TEXT,
+    },
+  ])('fails safely for $name', async ({ extraction, reason }) => {
+    extractor.extract.mockResolvedValue(extraction)
+
+    await service.processMaterial(material.id)
+
+    expect(repository.failMaterialProcessing).toHaveBeenCalledWith(
+      material.id,
+      expect.any(String),
+      reason,
+    )
+    expect(embedding.embedMaterialChunks).not.toHaveBeenCalled()
+  })
+
+  it('turns a partially extracted warning into an eligible-completion state', async () => {
+    extractor.extract.mockResolvedValue({
       text: 'Usable text',
-      warnings: [
-        {
-          code: 'PDF_EXTRACTION_WARNING',
-          message: 'Processed with non-fatal PDF extraction warnings.',
-        },
-      ],
+      warnings: ['PARTIAL_PAGE_TEXT'],
     })
 
-    await expect(service.processMaterial(materialId)).resolves.toBe(
-      MaterialStatus.WARNING,
-    )
+    await service.processMaterial(material.id)
 
-    expect(repository.completeProcessing).toHaveBeenCalledWith(
-      expect.objectContaining({
-        status: MaterialStatus.WARNING,
-        warningMessage: 'Processed with non-fatal PDF extraction warnings.',
-      }),
-    )
-    expect(auditService.recordWarning).toHaveBeenCalledWith(
-      expect.objectContaining({
-        warningCode: 'PDF_EXTRACTION_WARNING',
-        chunkCount: 1,
-      }),
+    expect(repository.completeMaterialProcessing).toHaveBeenCalledWith(
+      material.id,
+      expect.any(String),
+      expect.any(Array),
+      expect.objectContaining({ status: 'WARNING', chunkCount: 1 }),
     )
   })
 
-  it('fails empty normalized extraction without embedding chunks', async () => {
-    const { service, extractor, embeddingProvider, repository, auditService } =
-      buildService()
-    extractor.extract.mockResolvedValueOnce({
-      text: '   \n\t  ',
-      warnings: [],
-    })
+  it.each([
+    {
+      name: 'parser failure after partial extraction',
+      configure: () =>
+        extractor.extract.mockRejectedValue(
+          new Error('parser saw SYNTHETIC_SENTINEL_TASK80_7f2b'),
+        ),
+      reason: MATERIAL_PROCESSING_FAILURES.PDF_EXTRACTION_FAILED,
+    },
+    {
+      name: 'embedding failure after one chunk',
+      configure: () =>
+        embedding.embedMaterialChunks.mockRejectedValue(
+          new Error('provider saw SYNTHETIC_SENTINEL_TASK80_7f2b'),
+        ),
+      reason: MATERIAL_PROCESSING_FAILURES.EMBEDDING_FAILED,
+    },
+    {
+      name: 'backing file failure',
+      configure: () =>
+        storage.read.mockRejectedValue(new Error('storage path failure')),
+      reason: MATERIAL_PROCESSING_FAILURES.STORAGE_READ_FAILED,
+    },
+  ])('leaves no eligible source after $name', async ({ configure, reason }) => {
+    configure()
 
-    await expect(service.processMaterial(materialId)).resolves.toBe(
-      MaterialStatus.FAILED,
+    await service.processMaterial(material.id)
+
+    expect(repository.failMaterialProcessing).toHaveBeenCalledWith(
+      material.id,
+      expect.any(String),
+      reason,
     )
+    const serializedAudit = JSON.stringify(audit.recordEvent.mock.calls)
+    expect(serializedAudit).not.toContain('SYNTHETIC_SENTINEL_TASK80_7f2b')
+  })
 
-    expect(embeddingProvider.embedBatch).not.toHaveBeenCalled()
-    expect(repository.completeProcessing).not.toHaveBeenCalled()
-    expect(repository.failProcessing).toHaveBeenCalledWith({
-      materialId,
-      extractedTextLength: 0,
-      errorMessage:
-        'No extractable text was found. Scanned PDFs are not supported.',
-    })
-    expect(auditService.recordFailed).toHaveBeenCalledWith(
-      expect.objectContaining({
-        errorCode: MATERIAL_PROCESSING_ERROR_CODES.NO_EXTRACTABLE_TEXT,
-        chunkCount: 0,
-      }),
+  it('rolls back chunks and fails safely when final state persistence is unavailable', async () => {
+    repository.completeMaterialProcessing.mockResolvedValue(false)
+
+    await service.processMaterial(material.id)
+
+    expect(repository.failMaterialProcessing).toHaveBeenCalledWith(
+      material.id,
+      expect.any(String),
+      MATERIAL_PROCESSING_FAILURES.FINALIZATION_FAILED,
     )
   })
 
-  it('marks embedding provider errors as failed without persisting chunks', async () => {
-    const { service, embeddingProvider, repository, auditService } =
-      buildService()
-    embeddingProvider.embedBatch.mockRejectedValueOnce(
-      new Error('provider payload should stay private'),
-    )
+  it('lets only the atomic claim winner process and audit a material', async () => {
+    repository.claimMaterialProcessing
+      .mockResolvedValueOnce(material)
+      .mockResolvedValueOnce(null)
 
-    await expect(service.processMaterial(materialId)).resolves.toBe(
-      MaterialStatus.FAILED,
-    )
+    await Promise.all([
+      service.processMaterial(material.id),
+      service.processMaterial(material.id),
+    ])
 
-    expect(repository.completeProcessing).not.toHaveBeenCalled()
-    expect(repository.failProcessing).toHaveBeenCalledWith(
-      expect.objectContaining({
-        errorMessage: 'The material could not be embedded.',
-      }),
-    )
-    expect(auditService.recordFailed).toHaveBeenCalledWith(
-      expect.objectContaining({
-        errorCode: MATERIAL_PROCESSING_ERROR_CODES.EMBEDDING_FAILED,
-      }),
-    )
+    expect(repository.claimMaterialProcessing).toHaveBeenCalledTimes(2)
+    expect(embedding.embedMaterialChunks).toHaveBeenCalledTimes(1)
+    expect(repository.failMaterialProcessing).not.toHaveBeenCalled()
+    expect(audit.recordEvent).toHaveBeenCalledTimes(1)
   })
 
-  it('rejects malformed embedding dimensions as embedding failure', async () => {
-    const { service, embeddingProvider, repository } = buildService()
-    embeddingProvider.embedBatch.mockResolvedValueOnce([[0.1]])
-
-    await expect(service.processMaterial(materialId)).resolves.toBe(
-      MaterialStatus.FAILED,
+  it('contains claim lookup failures before any background work escapes', async () => {
+    repository.claimMaterialProcessing.mockRejectedValue(
+      new Error('database unavailable'),
     )
 
-    expect(repository.failProcessing).toHaveBeenCalledWith(
-      expect.objectContaining({
-        errorMessage: 'The material could not be embedded.',
-      }),
-    )
-  })
+    await expect(service.processMaterial(material.id)).resolves.toBeUndefined()
 
-  it('skips non-processable materials without mutating chunks or status', async () => {
-    const { service, repository, storage } = buildService()
-    repository.findProcessableMaterial.mockResolvedValueOnce(null)
-
-    await expect(service.processMaterial(materialId)).resolves.toBe('SKIPPED')
     expect(storage.read).not.toHaveBeenCalled()
-    expect(repository.completeProcessing).not.toHaveBeenCalled()
-    expect(repository.failProcessing).not.toHaveBeenCalled()
+    expect(embedding.embedMaterialChunks).not.toHaveBeenCalled()
+    expect(audit.recordEvent).not.toHaveBeenCalled()
   })
 
-  it('treats stale duplicate completion calls as no-op', async () => {
-    const { service, repository, auditService } = buildService()
-    repository.completeProcessing.mockRejectedValueOnce(
-      new MaterialNoLongerProcessableError(materialId),
-    )
-
-    await expect(service.processMaterial(materialId)).resolves.toBe('SKIPPED')
-    expect(repository.failProcessing).not.toHaveBeenCalled()
-    expect(auditService.recordReady).not.toHaveBeenCalled()
-  })
-
-  it('clears chunks and fails safely when ready persistence fails', async () => {
-    const { service, repository, auditService } = buildService()
-    repository.completeProcessing.mockRejectedValueOnce(
-      new Error('sql details'),
-    )
-
-    await expect(service.processMaterial(materialId)).resolves.toBe(
-      MaterialStatus.FAILED,
-    )
-
-    expect(repository.failProcessing).toHaveBeenCalledWith({
-      materialId,
-      extractedTextLength: 43,
-      errorMessage:
-        'The extracted content could not be prepared for retrieval.',
+  it('does not emit a terminal audit when an expired stale attempt loses ownership', async () => {
+    let releaseStaleEmbedding: ((value: unknown[]) => void) | undefined
+    const staleEmbedding = new Promise<unknown[]>((resolve) => {
+      releaseStaleEmbedding = resolve
     })
-    expect(auditService.recordFailed).toHaveBeenCalledWith(
-      expect.objectContaining({
-        errorCode: MATERIAL_PROCESSING_ERROR_CODES.PERSISTENCE_FAILED,
-      }),
+    repository.claimMaterialProcessing.mockResolvedValue(material)
+    embedding.embedMaterialChunks
+      .mockReturnValueOnce(staleEmbedding)
+      .mockResolvedValueOnce([
+        {
+          chunkIndex: 0,
+          content: 'Variables bind names to values.',
+          embedding: [0.1],
+          embeddingModel: 'test-model',
+        },
+      ])
+    repository.completeMaterialProcessing
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false)
+    repository.failMaterialProcessing.mockResolvedValue(false)
+
+    const staleProcessing = service.processMaterial(material.id)
+    await waitForCalls(embedding.embedMaterialChunks, 1)
+    await service.processMaterial(material.id)
+    releaseStaleEmbedding?.([
+      {
+        chunkIndex: 0,
+        content: 'Variables bind names to values.',
+        embedding: [0.1],
+        embeddingModel: 'test-model',
+      },
+    ])
+    await staleProcessing
+
+    const attempts = repository.claimMaterialProcessing.mock.calls.map(
+      (call) => (call as [string, string])[1],
     )
+    expect(new Set(attempts).size).toBe(2)
+    expect(audit.recordEvent).toHaveBeenCalledTimes(1)
+    const [event] = audit.recordEvent.mock.calls[0] as [
+      { action: string; metadata: { status: string } },
+    ]
+    expect(event).toMatchObject({
+      action: 'material.processing_ready',
+      metadata: { status: 'READY' },
+    })
   })
 })
+
+async function waitForCalls(mock: jest.Mock, count: number): Promise<void> {
+  while (mock.mock.calls.length < count) {
+    await new Promise<void>((resolve) => setImmediate(resolve))
+  }
+}

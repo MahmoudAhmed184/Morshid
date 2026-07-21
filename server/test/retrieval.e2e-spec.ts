@@ -6,6 +6,7 @@ import type { AppEnvironment } from '../src/modules/config/env.schema'
 import { DeterministicEmbeddingProvider } from '../src/modules/embedding/deterministic-embedding.provider'
 import type { EmbeddingProvider } from '../src/modules/embedding/embedding-provider'
 import type { PrismaService } from '../src/modules/prisma/prisma.service'
+import type { PdfStorage } from '../src/modules/pdf-storage/pdf-storage'
 import { MaterialChunkEmbeddingService } from '../src/modules/rag-persistence/material-chunk-embedding.service'
 import {
   PrismaRagPersistenceRepository,
@@ -128,7 +129,15 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
       title: 'Warning material',
       status: 'WARNING',
     })
+    const incompleteWarningMaterialId = await createMaterial(prisma, {
+      courseId,
+      uploadedById: owner,
+      title: 'Incomplete warning material',
+      status: 'WARNING',
+      completed: false,
+    })
     const excludedMaterials = [
+      incompleteWarningMaterialId,
       await createMaterial(prisma, {
         courseId,
         uploadedById: owner,
@@ -192,6 +201,92 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
     expect(
       result.chunks.some(({ content }) => content === 'Ineligible chunk'),
     ).toBe(false)
+  })
+
+  it('excludes a completed material when its backing PDF is missing', async () => {
+    const { courseId, materialId } = await seedCourseWithMaterial(prisma, {
+      title: 'Missing backing file',
+    })
+    await persistence.insertMaterialChunks(materialId, [
+      {
+        chunkIndex: 0,
+        content: 'Unavailable despite a highly similar vector',
+        embedding: similarityVector(0.99),
+        embeddingModel: 'test-embedding-1536',
+      },
+    ])
+    const unavailableStorage = {
+      exists: () => Promise.resolve(false),
+    } as unknown as PdfStorage
+
+    await expect(
+      buildService(
+        queryVectorProvider(),
+        unavailableStorage,
+      ).retrieveCourseEvidence(courseId, 'query'),
+    ).resolves.toEqual({ kind: 'insufficient_evidence' })
+  })
+
+  it('backfills rank K+1 when the top K chunks share a missing PDF', async () => {
+    const owner = await createOwner(prisma)
+    const courseId = await createCourse(
+      prisma,
+      owner,
+      `I80-${randomUUID().slice(0, 20)}`,
+    )
+    const missingMaterialId = await createMaterial(prisma, {
+      courseId,
+      uploadedById: owner,
+      title: 'Missing top ranks',
+      status: 'READY',
+    })
+    const availableMaterialId = await createMaterial(prisma, {
+      courseId,
+      uploadedById: owner,
+      title: 'Available rank six',
+      status: 'READY',
+    })
+    await persistence.insertMaterialChunks(
+      missingMaterialId,
+      [0.99, 0.98, 0.97, 0.96, 0.95].map((similarity, chunkIndex) => ({
+        chunkIndex,
+        content: `Missing ${String(chunkIndex)}`,
+        embedding: similarityVector(similarity),
+        embeddingModel: 'test-embedding-1536',
+      })),
+    )
+    await persistence.insertMaterialChunks(availableMaterialId, [
+      {
+        chunkIndex: 0,
+        content: 'Available rank K+1',
+        embedding: similarityVector(0.94),
+        embeddingModel: 'test-embedding-1536',
+      },
+    ])
+    const availableMaterial = await prisma.material.findUniqueOrThrow({
+      where: { id: availableMaterialId },
+      select: { storagePath: true },
+    })
+    const storage = {
+      exists: (storagePath: string) =>
+        Promise.resolve(storagePath === availableMaterial.storagePath),
+    } as unknown as PdfStorage
+
+    await expect(
+      buildService(queryVectorProvider(), storage).retrieveCourseEvidence(
+        courseId,
+        'query',
+      ),
+    ).resolves.toEqual({
+      kind: 'evidence',
+      chunks: [
+        expect.objectContaining({
+          materialId: availableMaterialId,
+          content: 'Available rank K+1',
+          rank: 1,
+        }),
+      ],
+    })
   })
 
   it('never returns chunks from another course, even more similar or identical ones', async () => {
@@ -314,13 +409,27 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
     ).resolves.toEqual({ kind: 'insufficient_evidence' })
   })
 
-  function buildService(provider: EmbeddingProvider): RetrievalService {
+  function buildService(
+    provider: EmbeddingProvider,
+    storageOverride?: PdfStorage,
+  ): RetrievalService {
     const configService = {
       get: (key: 'RETRIEVAL_TOP_K' | 'RETRIEVAL_MIN_SIMILARITY') =>
         key === 'RETRIEVAL_TOP_K' ? TOP_K : MIN_SIMILARITY,
     } as unknown as ConfigService<AppEnvironment, true>
 
-    return new RetrievalService(provider, retrievalRepository, configService)
+    const storage =
+      storageOverride ??
+      ({
+        exists: () => Promise.resolve(true),
+      } as unknown as PdfStorage)
+
+    return new RetrievalService(
+      provider,
+      retrievalRepository,
+      configService,
+      storage,
+    )
   }
 })
 
@@ -407,6 +516,7 @@ async function createMaterial(
     title: string
     status: 'PROCESSING' | 'READY' | 'WARNING' | 'FAILED'
     deletedAt?: Date
+    completed?: boolean
   },
 ): Promise<string> {
   const material = await prisma.material.create({
@@ -417,6 +527,16 @@ async function createMaterial(
       originalFilename: `${randomUUID()}.pdf`,
       storagePath: `${randomUUID()}.pdf`,
       status: options.status,
+      extractedTextLength:
+        options.completed !== false &&
+        (options.status === 'READY' || options.status === 'WARNING')
+          ? 100
+          : null,
+      chunkCount:
+        options.completed !== false &&
+        (options.status === 'READY' || options.status === 'WARNING')
+          ? 1
+          : null,
       deletedAt: options.deletedAt,
     },
   })

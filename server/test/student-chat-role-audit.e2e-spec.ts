@@ -11,10 +11,12 @@ import {
   AUDIT_EVENT_ACTIONS,
   AUDIT_TARGET_TYPES,
 } from '../src/modules/audit/audit.constants'
+import { MaterialProcessingScheduler } from '../src/modules/materials/material-processing.scheduler'
 import { PrismaService } from '../src/modules/prisma/prisma.service'
 import { RedisService } from '../src/modules/redis/redis.service'
 import { P0_DEMO_PASSWORD } from '../src/seeds/p0-demo.seed'
 import { AuthTestStore } from './support/auth-test-store'
+import { NoopMaterialProcessingScheduler } from './support/noop-material-processing-scheduler'
 
 // The Python demo course id seeded by AuthTestStore.
 const DEMO_COURSE_ID = '00000000-0000-4000-8000-000000000101'
@@ -51,6 +53,8 @@ describe('Student chat role-denial auditing (e2e)', () => {
       .useValue(store.prisma)
       .overrideProvider(RedisService)
       .useValue(redisService)
+      .overrideProvider(MaterialProcessingScheduler)
+      .useClass(NoopMaterialProcessingScheduler)
       .compile()
 
     app = moduleFixture.createNestApplication()

@@ -1,253 +1,202 @@
-import { Inject, Injectable } from '@nestjs/common'
+import { randomUUID } from 'node:crypto'
 
-import { MaterialStatus } from '../../generated/prisma/client'
-import {
-  EMBEDDING_DIMENSIONS,
-  EMBEDDING_PROVIDER_TOKEN,
-  type EmbeddingProvider,
-} from '../embedding/embedding-provider'
-import { PDF_STORAGE, type PdfStorage } from '../pdf-storage/pdf-storage'
-import { chunkNormalizedText } from './deterministic-text-chunker'
-import {
-  MATERIAL_PROCESSING_ERROR_CODES,
-  MATERIAL_PROCESSING_SAFE_MESSAGES,
-  MaterialNoLongerProcessableError,
-  SafeMaterialProcessingError,
-  type MaterialProcessingErrorCode,
-} from './material-processing.errors'
-import { MaterialProcessingAuditService } from './material-processing.audit.service'
-import { MaterialProcessingRepository } from './material-processing.repository'
-import { PdfTextExtractor } from './pdf-text.extractor'
-import { normalizeExtractedText } from './text-normalizer'
+import { Inject, Injectable, Logger } from '@nestjs/common'
 
-export type MaterialProcessingOutcome =
-  | typeof MaterialStatus.READY
-  | typeof MaterialStatus.WARNING
-  | typeof MaterialStatus.FAILED
-  | 'SKIPPED'
+import { AuditService } from '../audit/audit.service'
+import {
+  AUDIT_EVENT_ACTIONS,
+  AUDIT_TARGET_TYPES,
+} from '../audit/audit.constants'
+import {
+  PDF_STORAGE,
+  PdfStorageNotFoundError,
+  type PdfStorage,
+} from '../pdf-storage/pdf-storage'
+import { MaterialChunkEmbeddingService } from '../rag-persistence/material-chunk-embedding.service'
+import { MaterialTextChunker } from './material-text-chunker'
+import { MaterialsRepository } from './materials.repository'
+import {
+  PDF_TEXT_EXTRACTOR,
+  PdfExtractionError,
+  type PdfTextExtractor,
+} from './pdf-text-extractor'
+
+export const MATERIAL_PROCESSING_FAILURES = {
+  BACKING_FILE_MISSING: 'BACKING_FILE_MISSING',
+  STORAGE_READ_FAILED: 'STORAGE_READ_FAILED',
+  PDF_EXTRACTION_FAILED: 'PDF_EXTRACTION_FAILED',
+  NO_EXTRACTABLE_TEXT: 'NO_EXTRACTABLE_TEXT',
+  EMBEDDING_FAILED: 'EMBEDDING_FAILED',
+  FINALIZATION_FAILED: 'FINALIZATION_FAILED',
+} as const
+
+export type MaterialProcessingFailure =
+  (typeof MATERIAL_PROCESSING_FAILURES)[keyof typeof MATERIAL_PROCESSING_FAILURES]
 
 @Injectable()
 export class MaterialProcessingService {
+  private readonly logger = new Logger(MaterialProcessingService.name)
+
   constructor(
-    private readonly materialProcessingRepository: MaterialProcessingRepository,
-    private readonly pdfTextExtractor: PdfTextExtractor,
-    private readonly materialProcessingAuditService: MaterialProcessingAuditService,
+    private readonly materialsRepository: MaterialsRepository,
     @Inject(PDF_STORAGE) private readonly pdfStorage: PdfStorage,
-    @Inject(EMBEDDING_PROVIDER_TOKEN)
-    private readonly embeddingProvider: EmbeddingProvider,
+    @Inject(PDF_TEXT_EXTRACTOR)
+    private readonly pdfTextExtractor: PdfTextExtractor,
+    private readonly materialTextChunker: MaterialTextChunker,
+    private readonly materialChunkEmbeddingService: MaterialChunkEmbeddingService,
+    private readonly auditService: AuditService,
   ) {}
 
-  async processMaterial(
-    materialId: string,
-  ): Promise<MaterialProcessingOutcome> {
-    const startedAt = Date.now()
-    const material =
-      await this.materialProcessingRepository.findProcessableMaterial(
+  async processMaterial(materialId: string): Promise<void> {
+    const processingAttemptId = randomUUID()
+    let material: {
+      id: string
+      courseId: string
+      uploadedById: string
+      storagePath: string
+    } | null
+
+    try {
+      material = await this.materialsRepository.claimMaterialProcessing(
         materialId,
+        processingAttemptId,
       )
+    } catch {
+      this.logger.error(
+        `Material processing claim failed materialId=${materialId}`,
+      )
+      return
+    }
 
     if (material === null) {
-      return 'SKIPPED'
+      return
     }
 
-    let normalizedText: string | null = null
+    let stage: 'storage' | 'extraction' | 'embedding' | 'finalization' =
+      'storage'
 
     try {
-      const pdfBytes = await this.readPdf(material.storagePath)
-      const extraction = await this.pdfTextExtractor.extract(pdfBytes)
-      normalizedText = normalizeExtractedText(extraction.text)
+      const contents = await this.pdfStorage.read(material.storagePath)
+      stage = 'extraction'
+      const extraction = await this.pdfTextExtractor.extract(contents)
+      const normalizedText = this.materialTextChunker.normalize(extraction.text)
+      const chunks = this.materialTextChunker.chunk(normalizedText)
 
-      if (normalizedText === '') {
-        throw new SafeMaterialProcessingError(
-          MATERIAL_PROCESSING_ERROR_CODES.NO_EXTRACTABLE_TEXT,
+      if (normalizedText.length === 0 || chunks.length === 0) {
+        await this.failMaterial(
+          material,
+          processingAttemptId,
+          'NO_EXTRACTABLE_TEXT',
         )
+        return
       }
 
-      const chunks = chunkNormalizedText(normalizedText)
+      stage = 'embedding'
+      const embeddedChunks =
+        await this.materialChunkEmbeddingService.embedMaterialChunks(chunks)
 
-      if (chunks.length === 0) {
-        throw new SafeMaterialProcessingError(
-          MATERIAL_PROCESSING_ERROR_CODES.CHUNKING_FAILED,
+      stage = 'finalization'
+      const status = extraction.warnings.length > 0 ? 'WARNING' : 'READY'
+      const completed =
+        await this.materialsRepository.completeMaterialProcessing(
+          material.id,
+          processingAttemptId,
+          embeddedChunks,
+          {
+            status,
+            extractedTextLength: normalizedText.length,
+            chunkCount: chunks.length,
+          },
         )
+
+      if (!completed) {
+        throw new Error('Material processing finalization was not applied')
       }
 
-      const embeddings = await this.embedChunks(
-        chunks.map((chunk) => chunk.content),
-      )
-      const firstWarning =
-        extraction.warnings.length === 0 ? undefined : extraction.warnings[0]
-      const finalStatus =
-        firstWarning === undefined
-          ? MaterialStatus.READY
-          : MaterialStatus.WARNING
-
-      try {
-        await this.materialProcessingRepository.completeProcessing({
-          materialId: material.id,
-          status: finalStatus,
-          extractedTextLength: normalizedText.length,
-          warningMessage:
-            firstWarning === undefined ? null : firstWarning.message,
-          chunks: chunks.map((chunk, index) => ({
-            chunkIndex: chunk.chunkIndex,
-            content: chunk.content,
-            embedding: embeddings[index],
-            embeddingModel: this.embeddingProvider.model,
-          })),
-        })
-      } catch (error) {
-        if (error instanceof MaterialNoLongerProcessableError) {
-          return 'SKIPPED'
-        }
-
-        throw new SafeMaterialProcessingError(
-          MATERIAL_PROCESSING_ERROR_CODES.PERSISTENCE_FAILED,
-        )
-      }
-
-      await this.recordSuccessfulAudit({
-        actorUserId: material.uploadedById,
-        materialId: material.id,
-        courseId: material.courseId,
-        status: finalStatus,
-        extractedTextLength: normalizedText.length,
+      await this.recordProcessingEvent(material, status, {
         chunkCount: chunks.length,
-        warningCode: firstWarning === undefined ? null : firstWarning.code,
-        durationMs: Date.now() - startedAt,
+        extractedTextLength: normalizedText.length,
+        warningCodes: extraction.warnings,
       })
-
-      return finalStatus
     } catch (error) {
-      if (error instanceof MaterialNoLongerProcessableError) {
-        return 'SKIPPED'
-      }
-
-      const safeError = toSafeProcessingError(error)
-      const extractedTextLength =
-        normalizedText === null ? null : normalizedText.length
-
-      try {
-        await this.materialProcessingRepository.failProcessing({
-          materialId: material.id,
-          extractedTextLength:
-            safeError.code ===
-            MATERIAL_PROCESSING_ERROR_CODES.NO_EXTRACTABLE_TEXT
-              ? 0
-              : extractedTextLength,
-          errorMessage: safeError.message,
-        })
-      } catch (failureError) {
-        if (failureError instanceof MaterialNoLongerProcessableError) {
-          return 'SKIPPED'
-        }
-
-        throw failureError
-      }
-
-      await this.materialProcessingAuditService.recordFailed({
-        actorUserId: material.uploadedById,
-        materialId: material.id,
-        courseId: material.courseId,
-        extractedTextLength:
-          safeError.code === MATERIAL_PROCESSING_ERROR_CODES.NO_EXTRACTABLE_TEXT
-            ? 0
-            : extractedTextLength,
-        chunkCount: 0,
-        errorCode: safeError.code,
-        durationMs: Date.now() - startedAt,
-      })
-
-      return MaterialStatus.FAILED
+      const reason = classifyFailure(error, stage)
+      await this.failMaterial(material, processingAttemptId, reason)
     }
   }
 
-  private async readPdf(storagePath: string): Promise<Buffer> {
+  private async failMaterial(
+    material: {
+      id: string
+      courseId: string
+      uploadedById: string
+    },
+    processingAttemptId: string,
+    reason: MaterialProcessingFailure,
+  ): Promise<void> {
+    let failed = false
+
     try {
-      return await this.pdfStorage.read(storagePath)
+      failed = await this.materialsRepository.failMaterialProcessing(
+        material.id,
+        processingAttemptId,
+        reason,
+      )
     } catch {
-      throw new SafeMaterialProcessingError(
-        MATERIAL_PROCESSING_ERROR_CODES.STORAGE_READ_FAILED,
+      this.logger.error(
+        `Material processing failure finalization failed materialId=${material.id} reasonCode=${reason}`,
       )
     }
-  }
 
-  private async embedChunks(
-    chunks: readonly string[],
-  ): Promise<readonly (readonly number[])[]> {
-    try {
-      const embeddings = await this.embeddingProvider.embedBatch(chunks)
-
-      if (
-        embeddings.length !== chunks.length ||
-        !embeddings.every(isValidEmbedding)
-      ) {
-        throw new SafeMaterialProcessingError(
-          MATERIAL_PROCESSING_ERROR_CODES.EMBEDDING_FAILED,
-        )
-      }
-
-      return embeddings
-    } catch (error) {
-      if (error instanceof SafeMaterialProcessingError) {
-        throw error
-      }
-
-      throw new SafeMaterialProcessingError(
-        MATERIAL_PROCESSING_ERROR_CODES.EMBEDDING_FAILED,
-      )
-    }
-  }
-
-  private recordSuccessfulAudit(input: {
-    actorUserId: string
-    materialId: string
-    courseId: string
-    status: typeof MaterialStatus.READY | typeof MaterialStatus.WARNING
-    extractedTextLength: number
-    chunkCount: number
-    warningCode: string | null
-    durationMs: number
-  }): Promise<void> {
-    const auditInput = {
-      actorUserId: input.actorUserId,
-      materialId: input.materialId,
-      courseId: input.courseId,
-      extractedTextLength: input.extractedTextLength,
-      chunkCount: input.chunkCount,
-      embeddingModel: this.embeddingProvider.model,
-      durationMs: input.durationMs,
-    }
-
-    if (input.status === MaterialStatus.WARNING) {
-      return this.materialProcessingAuditService.recordWarning({
-        ...auditInput,
-        warningCode: input.warningCode,
+    if (failed) {
+      await this.recordProcessingEvent(material, 'FAILED', {
+        reasonCode: reason,
       })
     }
+  }
 
-    return this.materialProcessingAuditService.recordReady(auditInput)
+  private async recordProcessingEvent(
+    material: { id: string; courseId: string; uploadedById: string },
+    status: 'READY' | 'WARNING' | 'FAILED',
+    metadata: Record<string, number | string | string[]>,
+  ): Promise<void> {
+    const action =
+      status === 'READY'
+        ? AUDIT_EVENT_ACTIONS.MATERIAL_PROCESSING_READY
+        : status === 'WARNING'
+          ? AUDIT_EVENT_ACTIONS.MATERIAL_PROCESSING_WARNING
+          : AUDIT_EVENT_ACTIONS.MATERIAL_PROCESSING_FAILED
+
+    try {
+      await this.auditService.recordEvent({
+        actorUserId: material.uploadedById,
+        action,
+        target: { type: AUDIT_TARGET_TYPES.MATERIAL, id: material.id },
+        courseId: material.courseId,
+        metadata: { materialId: material.id, status, ...metadata },
+      })
+    } catch {
+      this.logger.error(
+        `Material processing audit failed materialId=${material.id} status=${status}`,
+      )
+    }
   }
 }
 
-function toSafeProcessingError(error: unknown): SafeMaterialProcessingError {
-  if (error instanceof SafeMaterialProcessingError) {
-    return error
+function classifyFailure(
+  error: unknown,
+  stage: 'storage' | 'extraction' | 'embedding' | 'finalization',
+): MaterialProcessingFailure {
+  if (error instanceof PdfStorageNotFoundError) {
+    return 'BACKING_FILE_MISSING'
   }
-
-  return new SafeMaterialProcessingError(
-    MATERIAL_PROCESSING_ERROR_CODES.PERSISTENCE_FAILED,
-  )
-}
-
-function isValidEmbedding(embedding: readonly number[]): boolean {
-  return (
-    embedding.length === EMBEDDING_DIMENSIONS &&
-    embedding.every((component) => Number.isFinite(component))
-  )
-}
-
-export function getSafeMaterialProcessingMessage(
-  code: MaterialProcessingErrorCode,
-): string {
-  return MATERIAL_PROCESSING_SAFE_MESSAGES[code]
+  if (error instanceof PdfExtractionError || stage === 'extraction') {
+    return 'PDF_EXTRACTION_FAILED'
+  }
+  if (stage === 'storage') {
+    return 'STORAGE_READ_FAILED'
+  }
+  if (stage === 'embedding') {
+    return 'EMBEDDING_FAILED'
+  }
+  return 'FINALIZATION_FAILED'
 }
