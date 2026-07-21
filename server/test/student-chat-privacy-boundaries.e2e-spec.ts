@@ -7,6 +7,7 @@ import type { App } from 'supertest/types'
 
 import { configureApp } from '../src/app.setup'
 import { AppModule } from '../src/app.module'
+import { CourseMembershipRole } from '../src/generated/prisma/client'
 import {
   AUTH_ERROR_CODES,
   type AuthSessionResponse,
@@ -19,6 +20,7 @@ import { MaterialProcessingScheduler } from '../src/modules/materials/material-p
 import { PrismaService } from '../src/modules/prisma/prisma.service'
 import { RedisService } from '../src/modules/redis/redis.service'
 import type {
+  ChatMessageDto,
   ChatMessageHistoryResponseDto,
   ChatSessionListResponseDto,
   ChatSessionResponseDto,
@@ -47,7 +49,38 @@ const RENAMED_PRIVATE_TITLE = 'Issue 86 renamed private Python session'
 const OWNER_PRIVATE_MESSAGE = 'Student secret: my loop fails after iteration 4'
 const ASSISTANT_PRIVATE_MESSAGE = 'Assistant secret: inspect the loop condition'
 const FOREIGN_PRIVATE_TITLE = 'Issue 86 other Student private session'
-const DENIED_APPEND_CONTENT = 'Denied append secret that must not persist'
+const SPOOFED_OWNER_TITLE = 'Issue 86 spoofed owner session'
+const DENIED_SESSION_TITLE = 'Denied session title that must not persist'
+const DENIED_RENAME_TITLE = 'Attempted private-session rename'
+const DENIED_STUDENT_MESSAGE = 'Denied Student message that must not persist'
+const DENIED_PENDING_MESSAGE = 'Denied pending answer that must not persist'
+const DENIED_COMPLETION_MESSAGE =
+  'Denied completed answer that must not persist'
+const DENIED_FAILURE_MESSAGE = 'Denied failure detail that must not persist'
+const DENIED_PROVIDER = 'issue-86-denied-provider-secret'
+const DENIED_MODEL = 'issue-86-denied-model-secret'
+const DENIED_PROMPT_VERSION = 'issue-86-denied-prompt-secret'
+
+const AUDIT_FORBIDDEN_VALUES = [
+  OWNER_PRIVATE_TITLE,
+  RENAMED_PRIVATE_TITLE,
+  OWNER_PRIVATE_MESSAGE,
+  ASSISTANT_PRIVATE_MESSAGE,
+  FOREIGN_PRIVATE_TITLE,
+  SPOOFED_OWNER_TITLE,
+  DENIED_SESSION_TITLE,
+  DENIED_RENAME_TITLE,
+  DENIED_STUDENT_MESSAGE,
+  DENIED_PENDING_MESSAGE,
+  DENIED_COMPLETION_MESSAGE,
+  DENIED_FAILURE_MESSAGE,
+  P0_HIDDEN_ISOLATION_COURSE.title,
+  'issue-86-provider-secret',
+  'issue-86-model-secret',
+  DENIED_PROVIDER,
+  DENIED_MODEL,
+  DENIED_PROMPT_VERSION,
+] as const
 
 const SESSION_NOT_FOUND_ERROR = {
   code: STUDENT_CHAT_ERROR_CODES.SESSION_NOT_FOUND,
@@ -64,10 +97,39 @@ const INSUFFICIENT_ROLE_ERROR = {
   message: 'Insufficient role',
 } as const
 
-const FOREIGN_OPERATIONS = ['get', 'rename', 'delete', 'history'] as const
-type ForeignOperation = (typeof FOREIGN_OPERATIONS)[number]
-const INSTRUCTOR_OPERATIONS = ['list', 'get', 'history'] as const
-type InstructorOperation = (typeof INSTRUCTOR_OPERATIONS)[number]
+const HTTP_OPERATIONS = [
+  'create',
+  'list',
+  'get',
+  'rename',
+  'delete',
+  'history',
+] as const
+type HttpOperation = (typeof HTTP_OPERATIONS)[number]
+
+const SESSION_OPERATIONS = ['get', 'rename', 'delete', 'history'] as const
+const UNASSIGNED_OPERATIONS = HTTP_OPERATIONS
+const INSTRUCTOR_OPERATIONS = HTTP_OPERATIONS
+const CROSS_COURSE_HTTP_OPERATIONS = SESSION_OPERATIONS
+const DELETED_HTTP_OPERATIONS = ['get', 'rename', 'history'] as const
+
+const TRUSTED_WRITE_OPERATIONS = [
+  'append-student',
+  'append-pending',
+  'complete-assistant',
+  'fail-assistant',
+  'block-assistant',
+] as const
+type TrustedWriteOperation = (typeof TRUSTED_WRITE_OPERATIONS)[number]
+
+const HTTP_METHODS: Readonly<Record<HttpOperation, string>> = {
+  create: 'POST',
+  list: 'GET',
+  get: 'GET',
+  rename: 'PATCH',
+  delete: 'DELETE',
+  history: 'GET',
+}
 
 interface SeededActor {
   id: string
@@ -75,7 +137,7 @@ interface SeededActor {
 }
 
 describe('Student chat ownership and privacy boundaries (e2e)', () => {
-  let app: INestApplication<App>
+  let app: INestApplication<App> | undefined
   let database: DisposableDatabase | undefined
   let prisma: PrismaService
   let chatService: StudentChatService
@@ -101,6 +163,14 @@ describe('Student chat ownership and privacy boundaries (e2e)', () => {
     student2 = requireSeededActor(STUDENT_2_EMAIL)
     unassignedStudent = requireSeededActor(UNASSIGNED_STUDENT_EMAIL)
     instructor = requireSeededActor(INSTRUCTOR_EMAIL)
+
+    await prisma.courseMembership.create({
+      data: {
+        courseId: hiddenCourseId,
+        userId: student1.id,
+        role: CourseMembershipRole.STUDENT,
+      },
+    })
 
     await prisma.courseMembership.update({
       where: {
@@ -141,9 +211,20 @@ describe('Student chat ownership and privacy boundaries (e2e)', () => {
   })
 
   afterAll(async () => {
-    await app.close()
-    await database?.dispose()
+    try {
+      await app?.close()
+    } finally {
+      await database?.dispose()
+    }
   })
+
+  function requireApp(): INestApplication<App> {
+    if (app === undefined) {
+      throw new Error('Expected the test application to be initialized')
+    }
+
+    return app
+  }
 
   function requireSeededActor(email: string): SeededActor {
     const actor = seed.users.find((user) => user.email === email)
@@ -156,7 +237,7 @@ describe('Student chat ownership and privacy boundaries (e2e)', () => {
   }
 
   async function signInAs(email: string): Promise<string> {
-    const response = await request(app.getHttpServer())
+    const response = await request(requireApp().getHttpServer())
       .post('/api/v1/auth/sign-in')
       .send({ email, password: P0_DEMO_PASSWORD })
       .expect(200)
@@ -172,7 +253,7 @@ describe('Student chat ownership and privacy boundaries (e2e)', () => {
     token: string,
     title: string,
   ): Promise<ChatSessionResponseDto['session']> {
-    const response = await request(app.getHttpServer())
+    const response = await request(requireApp().getHttpServer())
       .post(sessionPath())
       .set('Authorization', `Bearer ${token}`)
       .send({ title })
@@ -201,17 +282,7 @@ describe('Student chat ownership and privacy boundaries (e2e)', () => {
   function expectAuditRecordsContentFree(records: readonly unknown[]): void {
     const serialized = JSON.stringify(records)
 
-    for (const secret of [
-      OWNER_PRIVATE_TITLE,
-      RENAMED_PRIVATE_TITLE,
-      OWNER_PRIVATE_MESSAGE,
-      ASSISTANT_PRIVATE_MESSAGE,
-      FOREIGN_PRIVATE_TITLE,
-      DENIED_APPEND_CONTENT,
-      P0_HIDDEN_ISOLATION_COURSE.title,
-      'issue-86-provider-secret',
-      'issue-86-model-secret',
-    ]) {
+    for (const secret of AUDIT_FORBIDDEN_VALUES) {
       expect(serialized).not.toContain(secret)
     }
     expect(serialized).not.toContain('inputTokens')
@@ -231,73 +302,183 @@ describe('Student chat ownership and privacy boundaries (e2e)', () => {
     return { sessions, messages, sessionCount, messageCount }
   }
 
-  async function attemptForeignOperation(
-    operation: ForeignOperation,
-    sessionId: string,
+  async function createOwnerChatFixture(
+    options: Readonly<{ withPendingAssistant?: boolean }> = {},
   ) {
-    const authorization = `Bearer ${student2Token}`
-    const path = `${sessionPath()}/${sessionId}`
+    const session = await createSession(student1Token, OWNER_PRIVATE_TITLE)
+    const studentMessage = await chatService.appendStudentMessage({
+      courseId: pythonCourseId,
+      sessionId: session.id,
+      studentId: student1.id,
+      content: OWNER_PRIVATE_MESSAGE,
+    })
+    const pendingAssistant =
+      options.withPendingAssistant === true
+        ? await chatService.appendPendingAssistantMessage({
+            courseId: pythonCourseId,
+            sessionId: session.id,
+            studentId: student1.id,
+            responseToMessageId: studentMessage.id,
+          })
+        : undefined
 
-    switch (operation) {
-      case 'get':
-        return request(app.getHttpServer())
-          .get(path)
-          .set('Authorization', authorization)
-          .expect(404)
-      case 'rename':
-        return request(app.getHttpServer())
-          .patch(path)
-          .set('Authorization', authorization)
-          .send({ title: 'Attempted foreign rename' })
-          .expect(404)
-      case 'delete':
-        return request(app.getHttpServer())
-          .delete(path)
-          .set('Authorization', authorization)
-          .expect(404)
-      case 'history':
-        return request(app.getHttpServer())
-          .get(`${path}/messages`)
-          .set('Authorization', authorization)
-          .expect(404)
+    await prisma.auditLog.deleteMany()
+
+    return {
+      session,
+      studentMessage,
+      pendingAssistant,
+      unchanged: await readExactChatState(),
     }
   }
 
-  async function attemptInstructorOperation(
-    operation: InstructorOperation,
-    sessionId: string,
+  async function createDeletedOwnerChatFixture() {
+    const fixture = await createOwnerChatFixture({ withPendingAssistant: true })
+
+    await request(requireApp().getHttpServer())
+      .delete(`${sessionPath()}/${fixture.session.id}`)
+      .set('Authorization', `Bearer ${student1Token}`)
+      .expect(204)
+
+    return { ...fixture, unchanged: await readExactChatState() }
+  }
+
+  function ownerPrivateValues(
+    fixture: Awaited<ReturnType<typeof createOwnerChatFixture>>,
+    ...additional: string[]
+  ): string[] {
+    return [
+      fixture.session.id,
+      OWNER_PRIVATE_TITLE,
+      OWNER_PRIVATE_MESSAGE,
+      student1.id,
+      student1.email,
+      ...additional,
+    ]
+  }
+
+  async function attemptHttpOperation(
+    operation: HttpOperation,
+    input: Readonly<{
+      token: string
+      courseId: string
+      sessionId: string
+      expectedStatus: number
+    }>,
   ) {
-    const authorization = `Bearer ${instructorToken}`
-    const path = `${sessionPath()}/${sessionId}`
+    const authorization = `Bearer ${input.token}`
+    const collectionPath = sessionPath(input.courseId)
+    const resourcePath = `${collectionPath}/${input.sessionId}`
 
     switch (operation) {
+      case 'create':
+        return request(requireApp().getHttpServer())
+          .post(collectionPath)
+          .set('Authorization', authorization)
+          .send({ title: DENIED_SESSION_TITLE })
+          .expect(input.expectedStatus)
       case 'list':
-        return request(app.getHttpServer())
-          .get(sessionPath())
+        return request(requireApp().getHttpServer())
+          .get(collectionPath)
           .set('Authorization', authorization)
-          .expect(403)
+          .expect(input.expectedStatus)
       case 'get':
-        return request(app.getHttpServer())
-          .get(path)
+        return request(requireApp().getHttpServer())
+          .get(resourcePath)
           .set('Authorization', authorization)
-          .expect(403)
+          .expect(input.expectedStatus)
+      case 'rename':
+        return request(requireApp().getHttpServer())
+          .patch(resourcePath)
+          .set('Authorization', authorization)
+          .send({ title: DENIED_RENAME_TITLE })
+          .expect(input.expectedStatus)
+      case 'delete':
+        return request(requireApp().getHttpServer())
+          .delete(resourcePath)
+          .set('Authorization', authorization)
+          .expect(input.expectedStatus)
       case 'history':
-        return request(app.getHttpServer())
-          .get(`${path}/messages`)
+        return request(requireApp().getHttpServer())
+          .get(`${resourcePath}/messages`)
           .set('Authorization', authorization)
-          .expect(403)
+          .expect(input.expectedStatus)
     }
   }
 
-  async function expectTrustedAppendDenied(
-    append: Promise<unknown>,
+  function attemptTrustedWrite(
+    operation: TrustedWriteOperation,
+    input: Readonly<{
+      courseId: string
+      studentId: string
+      fixture: Awaited<ReturnType<typeof createOwnerChatFixture>>
+    }>,
+  ): Promise<ChatMessageDto> {
+    const { courseId, studentId, fixture } = input
+    const pendingAssistant = fixture.pendingAssistant
+
+    if (pendingAssistant === undefined) {
+      throw new Error('Expected a pending assistant message in the fixture')
+    }
+
+    switch (operation) {
+      case 'append-student':
+        return chatService.appendStudentMessage({
+          courseId,
+          sessionId: fixture.session.id,
+          studentId,
+          content: DENIED_STUDENT_MESSAGE,
+        })
+      case 'append-pending':
+        return chatService.appendPendingAssistantMessage({
+          courseId,
+          sessionId: fixture.session.id,
+          studentId,
+          responseToMessageId: fixture.studentMessage.id,
+          content: DENIED_PENDING_MESSAGE,
+        })
+      case 'complete-assistant':
+        return chatService.completeAssistantMessage({
+          courseId,
+          sessionId: fixture.session.id,
+          studentId,
+          messageId: pendingAssistant.id,
+          content: DENIED_COMPLETION_MESSAGE,
+          provider: DENIED_PROVIDER,
+          model: DENIED_MODEL,
+          promptVersion: DENIED_PROMPT_VERSION,
+          inputTokens: 101,
+          outputTokens: 202,
+        })
+      case 'fail-assistant':
+        return chatService.failAssistantMessage({
+          courseId,
+          sessionId: fixture.session.id,
+          studentId,
+          messageId: pendingAssistant.id,
+          errorCode: 'ISSUE_86_DENIED_FAILURE',
+          safeErrorMessage: DENIED_FAILURE_MESSAGE,
+        })
+      case 'block-assistant':
+        return chatService.blockAssistantMessage({
+          courseId,
+          sessionId: fixture.session.id,
+          studentId,
+          messageId: pendingAssistant.id,
+          errorCode: 'ISSUE_86_DENIED_BLOCK',
+        })
+    }
+  }
+
+  async function expectTrustedWriteDenied(
+    write: Promise<unknown>,
     status: number,
     expected: Readonly<{ code: string; message: string }>,
     secrets: readonly string[],
   ): Promise<void> {
     try {
-      await append
-      throw new Error('Expected the trusted append to be denied')
+      await write
+      throw new Error('Expected the trusted write to be denied')
     } catch (error) {
       expect(error).toBeInstanceOf(HttpException)
       const exception = error as HttpException
@@ -307,7 +488,7 @@ describe('Student chat ownership and privacy boundaries (e2e)', () => {
   }
 
   it('lets an owner complete the private session lifecycle and read ordered history', async () => {
-    const createResponse = await request(app.getHttpServer())
+    const createResponse = await request(requireApp().getHttpServer())
       .post(sessionPath())
       .set('Authorization', `Bearer ${student1Token}`)
       .send({ title: OWNER_PRIVATE_TITLE })
@@ -320,7 +501,7 @@ describe('Student chat ownership and privacy boundaries (e2e)', () => {
       lastMessageAt: null,
     })
 
-    const listResponse = await request(app.getHttpServer())
+    const listResponse = await request(requireApp().getHttpServer())
       .get(sessionPath())
       .set('Authorization', `Bearer ${student1Token}`)
       .expect(200)
@@ -328,13 +509,13 @@ describe('Student chat ownership and privacy boundaries (e2e)', () => {
       created,
     ])
 
-    await request(app.getHttpServer())
+    await request(requireApp().getHttpServer())
       .get(`${sessionPath()}/${created.id}`)
       .set('Authorization', `Bearer ${student1Token}`)
       .expect(200)
       .expect({ session: created })
 
-    const renameResponse = await request(app.getHttpServer())
+    const renameResponse = await request(requireApp().getHttpServer())
       .patch(`${sessionPath()}/${created.id}`)
       .set('Authorization', `Bearer ${student1Token}`)
       .send({ title: RENAMED_PRIVATE_TITLE })
@@ -373,7 +554,7 @@ describe('Student chat ownership and privacy boundaries (e2e)', () => {
       outputTokens: 17,
     })
 
-    const historyResponse = await request(app.getHttpServer())
+    const historyResponse = await request(requireApp().getHttpServer())
       .get(`${sessionPath()}/${created.id}/messages`)
       .set('Authorization', `Bearer ${student1Token}`)
       .expect(200)
@@ -388,12 +569,12 @@ describe('Student chat ownership and privacy boundaries (e2e)', () => {
     expect(historyResponse.body).not.toHaveProperty('messages.1.inputTokens')
     expect(historyResponse.body).not.toHaveProperty('messages.1.outputTokens')
 
-    await request(app.getHttpServer())
+    await request(requireApp().getHttpServer())
       .delete(`${sessionPath()}/${created.id}`)
       .set('Authorization', `Bearer ${student1Token}`)
       .expect(204)
 
-    const listAfterDelete = await request(app.getHttpServer())
+    const listAfterDelete = await request(requireApp().getHttpServer())
       .get(sessionPath())
       .set('Authorization', `Bearer ${student1Token}`)
       .expect(200)
@@ -423,6 +604,43 @@ describe('Student chat ownership and privacy boundaries (e2e)', () => {
     expectAuditRecordsContentFree(deletionAudits)
   })
 
+  it('rejects client-supplied ownership and course fields without creating a session', async () => {
+    const unchanged = await readExactChatState()
+
+    const response = await request(requireApp().getHttpServer())
+      .post(sessionPath())
+      .set('Authorization', `Bearer ${student1Token}`)
+      .send({
+        title: SPOOFED_OWNER_TITLE,
+        studentId: student2.id,
+        courseId: hiddenCourseId,
+      })
+      .expect(400)
+
+    expect(response.body).toMatchObject({
+      code: STUDENT_CHAT_ERROR_CODES.INVALID_REQUEST,
+      message: 'Invalid student chat request',
+    })
+    const validationErrors = (response.body as { errors?: unknown }).errors
+    expect(Array.isArray(validationErrors)).toBe(true)
+    expect(validationErrors as unknown[]).not.toHaveLength(0)
+    const serialized = JSON.stringify(response.body)
+    for (const secret of [
+      SPOOFED_OWNER_TITLE,
+      student2.id,
+      student2.email,
+      hiddenCourseId,
+      P0_HIDDEN_ISOLATION_COURSE.title,
+    ]) {
+      expect(serialized).not.toContain(secret)
+    }
+    await expect(readExactChatState()).resolves.toEqual(unchanged)
+
+    const auditRecords = await prisma.auditLog.findMany()
+    expect(auditRecords).toHaveLength(0)
+    expectAuditRecordsContentFree(auditRecords)
+  })
+
   it('keeps each Student list limited to sessions they own', async () => {
     const student1Session = await createSession(
       student1Token,
@@ -433,11 +651,11 @@ describe('Student chat ownership and privacy boundaries (e2e)', () => {
       FOREIGN_PRIVATE_TITLE,
     )
 
-    const student1List = await request(app.getHttpServer())
+    const student1List = await request(requireApp().getHttpServer())
       .get(sessionPath())
       .set('Authorization', `Bearer ${student1Token}`)
       .expect(200)
-    const student2List = await request(app.getHttpServer())
+    const student2List = await request(requireApp().getHttpServer())
       .get(sessionPath())
       .set('Authorization', `Bearer ${student2Token}`)
       .expect(200)
@@ -458,40 +676,30 @@ describe('Student chat ownership and privacy boundaries (e2e)', () => {
     expect(JSON.stringify(student2List.body)).not.toContain(OWNER_PRIVATE_TITLE)
   })
 
-  it.each(FOREIGN_OPERATIONS)(
+  it.each(SESSION_OPERATIONS)(
     'conceals a foreign %s as the same 404 returned for a guessed UUID',
     async (operation) => {
-      const ownerSession = await createSession(
-        student1Token,
-        OWNER_PRIVATE_TITLE,
-      )
-      await chatService.appendStudentMessage({
-        courseId: pythonCourseId,
-        sessionId: ownerSession.id,
-        studentId: student1.id,
-        content: OWNER_PRIVATE_MESSAGE,
-      })
-      await prisma.auditLog.deleteMany()
-      const before = await readExactChatState()
+      const fixture = await createOwnerChatFixture()
       const guessedSessionId = randomUUID()
 
-      const foreignResponse = await attemptForeignOperation(
-        operation,
-        ownerSession.id,
-      )
-      const guessedResponse = await attemptForeignOperation(
-        operation,
-        guessedSessionId,
-      )
+      const foreignResponse = await attemptHttpOperation(operation, {
+        token: student2Token,
+        courseId: pythonCourseId,
+        sessionId: fixture.session.id,
+        expectedStatus: 404,
+      })
+      const guessedResponse = await attemptHttpOperation(operation, {
+        token: student2Token,
+        courseId: pythonCourseId,
+        sessionId: guessedSessionId,
+        expectedStatus: 404,
+      })
 
-      const secrets = [
-        ownerSession.id,
+      const secrets = ownerPrivateValues(
+        fixture,
         guessedSessionId,
-        OWNER_PRIVATE_TITLE,
-        OWNER_PRIVATE_MESSAGE,
-        student1.id,
-        student1.email,
-      ]
+        DENIED_RENAME_TITLE,
+      )
       expectSafeErrorBody(
         foreignResponse.body,
         SESSION_NOT_FOUND_ERROR,
@@ -502,7 +710,7 @@ describe('Student chat ownership and privacy boundaries (e2e)', () => {
         SESSION_NOT_FOUND_ERROR,
         secrets,
       )
-      await expect(readExactChatState()).resolves.toEqual(before)
+      await expect(readExactChatState()).resolves.toEqual(fixture.unchanged)
 
       const denials = await prisma.auditLog.findMany({
         where: {
@@ -513,7 +721,7 @@ describe('Student chat ownership and privacy boundaries (e2e)', () => {
       })
       expect(denials).toHaveLength(2)
       expect(denials.map((denial) => denial.targetId)).toEqual([
-        ownerSession.id,
+        fixture.session.id,
         guessedSessionId,
       ])
       expect(denials.map((denial) => denial.metadata)).toEqual([
@@ -524,179 +732,193 @@ describe('Student chat ownership and privacy boundaries (e2e)', () => {
     },
   )
 
-  it('denies unassigned and hidden-course HTTP requests without creating sessions', async () => {
-    const chatStateBefore = await readExactChatState()
-    const attempts = [
-      () =>
-        request(app.getHttpServer())
-          .post(sessionPath())
-          .set('Authorization', `Bearer ${unassignedStudentToken}`)
-          .send({ title: DENIED_APPEND_CONTENT }),
-      () =>
-        request(app.getHttpServer())
-          .get(sessionPath())
-          .set('Authorization', `Bearer ${unassignedStudentToken}`),
-      () =>
-        request(app.getHttpServer())
-          .post(sessionPath(hiddenCourseId))
-          .set('Authorization', `Bearer ${student1Token}`)
-          .send({ title: DENIED_APPEND_CONTENT }),
-      () =>
-        request(app.getHttpServer())
-          .get(sessionPath(hiddenCourseId))
-          .set('Authorization', `Bearer ${student1Token}`),
-    ]
+  it.each(CROSS_COURSE_HTTP_OPERATIONS)(
+    'conceals a Python session from enrolled cross-course HTTP %s',
+    async (operation) => {
+      const fixture = await createOwnerChatFixture()
 
-    for (const attempt of attempts) {
-      const response = await attempt().expect(403)
-      expectSafeErrorBody(response.body, MEMBERSHIP_REQUIRED_ERROR, [
-        DENIED_APPEND_CONTENT,
-        P0_HIDDEN_ISOLATION_COURSE.title,
-        hiddenCourseId,
-        student1.id,
-        student1.email,
-        unassignedStudent.id,
-        unassignedStudent.email,
-      ])
-    }
+      const response = await attemptHttpOperation(operation, {
+        token: student1Token,
+        courseId: hiddenCourseId,
+        sessionId: fixture.session.id,
+        expectedStatus: 404,
+      })
 
-    await expect(readExactChatState()).resolves.toEqual(chatStateBefore)
+      expectSafeErrorBody(
+        response.body,
+        SESSION_NOT_FOUND_ERROR,
+        ownerPrivateValues(
+          fixture,
+          DENIED_RENAME_TITLE,
+          P0_HIDDEN_ISOLATION_COURSE.title,
+        ),
+      )
+      await expect(readExactChatState()).resolves.toEqual(fixture.unchanged)
 
-    const chatDenials = await prisma.auditLog.findMany({
-      where: { action: AUDIT_EVENT_ACTIONS.CHAT_SESSION_ACCESS_DENIED },
-      orderBy: { createdAt: 'asc' },
-    })
-    const courseBoundaryDenials = await prisma.auditLog.findMany({
-      where: { action: AUDIT_EVENT_ACTIONS.ACCESS_COURSE_BOUNDARY_DENIED },
-      orderBy: { createdAt: 'asc' },
-    })
-    expect(chatDenials).toHaveLength(4)
-    expect(chatDenials.map((denial) => denial.metadata)).toEqual([
-      { reason: 'ACTIVE_STUDENT_MEMBERSHIP_REQUIRED' },
-      { reason: 'ACTIVE_STUDENT_MEMBERSHIP_REQUIRED' },
-      { reason: 'ACTIVE_STUDENT_MEMBERSHIP_REQUIRED' },
-      { reason: 'ACTIVE_STUDENT_MEMBERSHIP_REQUIRED' },
-    ])
-    expect(chatDenials.map((denial) => denial.actorUserId)).toEqual([
-      unassignedStudent.id,
-      unassignedStudent.id,
-      student1.id,
-      student1.id,
-    ])
-    expect(chatDenials.map((denial) => denial.courseId)).toEqual([
-      pythonCourseId,
-      pythonCourseId,
-      hiddenCourseId,
-      hiddenCourseId,
-    ])
-    expect(courseBoundaryDenials).toHaveLength(4)
-    expect(courseBoundaryDenials.map((denial) => denial.targetId)).toEqual([
-      pythonCourseId,
-      pythonCourseId,
-      hiddenCourseId,
-      hiddenCourseId,
-    ])
-    expect(courseBoundaryDenials.map((denial) => denial.actorUserId)).toEqual([
-      unassignedStudent.id,
-      unassignedStudent.id,
-      student1.id,
-      student1.id,
-    ])
-    expect(
-      courseBoundaryDenials.map(
-        (denial) => (denial.metadata as { operation: string }).operation,
-      ),
-    ).toEqual([
-      expect.stringMatching(/^POST .*chat-sessions$/),
-      expect.stringMatching(/^GET .*chat-sessions$/),
-      expect.stringMatching(/^POST .*chat-sessions$/),
-      expect.stringMatching(/^GET .*chat-sessions$/),
-    ])
-    expectAuditRecordsContentFree([...chatDenials, ...courseBoundaryDenials])
-  })
+      const denials = await prisma.auditLog.findMany({
+        where: { action: AUDIT_EVENT_ACTIONS.CHAT_SESSION_ACCESS_DENIED },
+      })
+      expect(denials).toHaveLength(1)
+      expect(denials[0]).toMatchObject({
+        actorUserId: student1.id,
+        targetId: fixture.session.id,
+        courseId: hiddenCourseId,
+        metadata: { reason: 'DELETED_OR_UNOWNED' },
+      })
+      expectAuditRecordsContentFree(denials)
+    },
+  )
 
-  it('rejects foreign, wrong-course, and unassigned trusted appends without changing chat rows', async () => {
-    const ownerSession = await createSession(student1Token, OWNER_PRIVATE_TITLE)
-    await prisma.auditLog.deleteMany()
-    const unchanged = await readExactChatState()
+  it.each(TRUSTED_WRITE_OPERATIONS)(
+    'denies enrolled cross-course trusted %s without changing chat rows',
+    async (operation) => {
+      const fixture = await createOwnerChatFixture({
+        withPendingAssistant: true,
+      })
 
-    await expectTrustedAppendDenied(
+      await expectTrustedWriteDenied(
+        attemptTrustedWrite(operation, {
+          courseId: hiddenCourseId,
+          studentId: student1.id,
+          fixture,
+        }),
+        404,
+        SESSION_NOT_FOUND_ERROR,
+        ownerPrivateValues(
+          fixture,
+          P0_HIDDEN_ISOLATION_COURSE.title,
+          DENIED_STUDENT_MESSAGE,
+          DENIED_PENDING_MESSAGE,
+          DENIED_COMPLETION_MESSAGE,
+          DENIED_FAILURE_MESSAGE,
+        ),
+      )
+      await expect(readExactChatState()).resolves.toEqual(fixture.unchanged)
+
+      const denials = await prisma.auditLog.findMany({
+        where: { action: AUDIT_EVENT_ACTIONS.CHAT_SESSION_ACCESS_DENIED },
+      })
+      expect(denials).toHaveLength(1)
+      expect(denials[0]).toMatchObject({
+        actorUserId: student1.id,
+        targetId: fixture.session.id,
+        courseId: hiddenCourseId,
+        metadata: { reason: 'DELETED_OR_UNOWNED' },
+      })
+      expectAuditRecordsContentFree(denials)
+    },
+  )
+
+  it.each(UNASSIGNED_OPERATIONS)(
+    'denies unassigned Student HTTP %s without changing chat rows',
+    async (operation) => {
+      const fixture = await createOwnerChatFixture()
+
+      const response = await attemptHttpOperation(operation, {
+        token: unassignedStudentToken,
+        courseId: pythonCourseId,
+        sessionId: fixture.session.id,
+        expectedStatus: 403,
+      })
+
+      expectSafeErrorBody(
+        response.body,
+        MEMBERSHIP_REQUIRED_ERROR,
+        ownerPrivateValues(
+          fixture,
+          DENIED_SESSION_TITLE,
+          DENIED_RENAME_TITLE,
+          unassignedStudent.id,
+          unassignedStudent.email,
+        ),
+      )
+      await expect(readExactChatState()).resolves.toEqual(fixture.unchanged)
+
+      const chatDenials = await prisma.auditLog.findMany({
+        where: { action: AUDIT_EVENT_ACTIONS.CHAT_SESSION_ACCESS_DENIED },
+      })
+      const courseBoundaryDenials = await prisma.auditLog.findMany({
+        where: { action: AUDIT_EVENT_ACTIONS.ACCESS_COURSE_BOUNDARY_DENIED },
+      })
+      expect(chatDenials).toHaveLength(1)
+      expect(chatDenials[0]).toMatchObject({
+        actorUserId: unassignedStudent.id,
+        targetId: null,
+        courseId: pythonCourseId,
+        metadata: { reason: 'ACTIVE_STUDENT_MEMBERSHIP_REQUIRED' },
+      })
+      expect(courseBoundaryDenials).toHaveLength(1)
+      expect(courseBoundaryDenials[0]).toMatchObject({
+        actorUserId: unassignedStudent.id,
+        targetId: pythonCourseId,
+        courseId: pythonCourseId,
+      })
+      const boundaryMetadata = courseBoundaryDenials[0]?.metadata as {
+        operation?: unknown
+      }
+      expect(typeof boundaryMetadata.operation).toBe('string')
+      expect(
+        new RegExp(`^${HTTP_METHODS[operation]} .*chat-sessions`).test(
+          boundaryMetadata.operation as string,
+        ),
+      ).toBe(true)
+      expectAuditRecordsContentFree([...chatDenials, ...courseBoundaryDenials])
+    },
+  )
+
+  it('rejects foreign and unassigned trusted Student appends without changing chat rows', async () => {
+    const fixture = await createOwnerChatFixture()
+
+    await expectTrustedWriteDenied(
       chatService.appendStudentMessage({
         courseId: pythonCourseId,
-        sessionId: ownerSession.id,
+        sessionId: fixture.session.id,
         studentId: student2.id,
-        content: DENIED_APPEND_CONTENT,
+        content: DENIED_STUDENT_MESSAGE,
       }),
       404,
       SESSION_NOT_FOUND_ERROR,
-      [
-        ownerSession.id,
-        OWNER_PRIVATE_TITLE,
-        DENIED_APPEND_CONTENT,
-        student1.id,
-      ],
+      ownerPrivateValues(fixture, DENIED_STUDENT_MESSAGE),
     )
-    await expect(readExactChatState()).resolves.toEqual(unchanged)
+    await expect(readExactChatState()).resolves.toEqual(fixture.unchanged)
 
-    await expectTrustedAppendDenied(
-      chatService.appendPendingAssistantMessage({
-        courseId: hiddenCourseId,
-        sessionId: ownerSession.id,
-        studentId: student1.id,
-        content: DENIED_APPEND_CONTENT,
-      }),
-      403,
-      MEMBERSHIP_REQUIRED_ERROR,
-      [
-        ownerSession.id,
-        OWNER_PRIVATE_TITLE,
-        DENIED_APPEND_CONTENT,
-        P0_HIDDEN_ISOLATION_COURSE.title,
-      ],
-    )
-    await expect(readExactChatState()).resolves.toEqual(unchanged)
-
-    await expectTrustedAppendDenied(
+    await expectTrustedWriteDenied(
       chatService.appendStudentMessage({
         courseId: pythonCourseId,
-        sessionId: ownerSession.id,
+        sessionId: fixture.session.id,
         studentId: unassignedStudent.id,
-        content: DENIED_APPEND_CONTENT,
+        content: DENIED_STUDENT_MESSAGE,
       }),
       403,
       MEMBERSHIP_REQUIRED_ERROR,
-      [
-        ownerSession.id,
-        OWNER_PRIVATE_TITLE,
-        DENIED_APPEND_CONTENT,
-        student1.id,
-      ],
+      ownerPrivateValues(
+        fixture,
+        DENIED_STUDENT_MESSAGE,
+        unassignedStudent.id,
+        unassignedStudent.email,
+      ),
     )
-    await expect(readExactChatState()).resolves.toEqual(unchanged)
+    await expect(readExactChatState()).resolves.toEqual(fixture.unchanged)
 
     const denials = await prisma.auditLog.findMany({
       where: { action: AUDIT_EVENT_ACTIONS.CHAT_SESSION_ACCESS_DENIED },
       orderBy: { createdAt: 'asc' },
     })
-    expect(denials).toHaveLength(3)
+    expect(denials).toHaveLength(2)
     expect(denials.map((denial) => denial.metadata)).toEqual([
       { reason: 'DELETED_OR_UNOWNED' },
       { reason: 'ACTIVE_STUDENT_MEMBERSHIP_REQUIRED' },
-      { reason: 'ACTIVE_STUDENT_MEMBERSHIP_REQUIRED' },
     ])
     expect(denials.map((denial) => denial.targetId)).toEqual([
-      ownerSession.id,
-      null,
+      fixture.session.id,
       null,
     ])
     expect(denials.map((denial) => denial.actorUserId)).toEqual([
       student2.id,
-      student1.id,
       unassignedStudent.id,
     ])
     expect(denials.map((denial) => denial.courseId)).toEqual([
       pythonCourseId,
-      hiddenCourseId,
       pythonCourseId,
     ])
     expectAuditRecordsContentFree(denials)
@@ -705,33 +927,26 @@ describe('Student chat ownership and privacy boundaries (e2e)', () => {
   it.each(INSTRUCTOR_OPERATIONS)(
     'denies Instructor %s with one global RBAC audit and no chat exception',
     async (operation) => {
-      const ownerSession = await createSession(
-        student1Token,
-        OWNER_PRIVATE_TITLE,
-      )
-      await chatService.appendStudentMessage({
+      const fixture = await createOwnerChatFixture()
+
+      const response = await attemptHttpOperation(operation, {
+        token: instructorToken,
         courseId: pythonCourseId,
-        sessionId: ownerSession.id,
-        studentId: student1.id,
-        content: OWNER_PRIVATE_MESSAGE,
+        sessionId: fixture.session.id,
+        expectedStatus: 403,
       })
-      await prisma.auditLog.deleteMany()
-      const unchanged = await readExactChatState()
 
-      const response = await attemptInstructorOperation(
-        operation,
-        ownerSession.id,
+      expectSafeErrorBody(
+        response.body,
+        INSUFFICIENT_ROLE_ERROR,
+        ownerPrivateValues(
+          fixture,
+          DENIED_SESSION_TITLE,
+          DENIED_RENAME_TITLE,
+          pythonCourseId,
+        ),
       )
-
-      expectSafeErrorBody(response.body, INSUFFICIENT_ROLE_ERROR, [
-        ownerSession.id,
-        OWNER_PRIVATE_TITLE,
-        OWNER_PRIVATE_MESSAGE,
-        student1.id,
-        student1.email,
-        pythonCourseId,
-      ])
-      await expect(readExactChatState()).resolves.toEqual(unchanged)
+      await expect(readExactChatState()).resolves.toEqual(fixture.unchanged)
 
       const rbacDenials = await prisma.auditLog.findMany({
         where: { action: AUDIT_EVENT_ACTIONS.ACCESS_RBAC_DENIED },
@@ -753,7 +968,7 @@ describe('Student chat ownership and privacy boundaries (e2e)', () => {
         metadata: {
           requiredRoles: ['STUDENT'],
           actorRole: 'INSTRUCTOR',
-          method: 'GET',
+          method: HTTP_METHODS[operation],
           unverifiedCourseId: pythonCourseId,
         },
       })
@@ -763,108 +978,91 @@ describe('Student chat ownership and privacy boundaries (e2e)', () => {
     },
   )
 
-  it('conceals a deleted session, blocks appends, and keeps repeated deletion idempotent', async () => {
-    const ownerSession = await createSession(student1Token, OWNER_PRIVATE_TITLE)
-    await chatService.appendStudentMessage({
-      courseId: pythonCourseId,
-      sessionId: ownerSession.id,
-      studentId: student1.id,
-      content: OWNER_PRIVATE_MESSAGE,
-    })
-    await prisma.auditLog.deleteMany()
+  it.each(DELETED_HTTP_OPERATIONS)(
+    'conceals a deleted session from owner HTTP %s',
+    async (operation) => {
+      const fixture = await createDeletedOwnerChatFixture()
 
-    await request(app.getHttpServer())
-      .delete(`${sessionPath()}/${ownerSession.id}`)
-      .set('Authorization', `Bearer ${student1Token}`)
-      .expect(204)
+      expect(fixture.unchanged.sessions).toHaveLength(1)
+      expect(fixture.unchanged.sessions[0]?.deletedAt).toBeInstanceOf(Date)
+      expect(fixture.unchanged.messages).toHaveLength(2)
 
-    const deletedState = await readExactChatState()
-    expect(deletedState.sessions).toHaveLength(1)
-    expect(deletedState.sessions[0]?.deletedAt).toBeInstanceOf(Date)
-    expect(deletedState.messages).toHaveLength(1)
-
-    const deniedHttpAttempts = [
-      () =>
-        request(app.getHttpServer())
-          .get(`${sessionPath()}/${ownerSession.id}`)
-          .set('Authorization', `Bearer ${student1Token}`),
-      () =>
-        request(app.getHttpServer())
-          .patch(`${sessionPath()}/${ownerSession.id}`)
-          .set('Authorization', `Bearer ${student1Token}`)
-          .send({ title: RENAMED_PRIVATE_TITLE }),
-      () =>
-        request(app.getHttpServer())
-          .get(`${sessionPath()}/${ownerSession.id}/messages`)
-          .set('Authorization', `Bearer ${student1Token}`),
-    ]
-
-    for (const attempt of deniedHttpAttempts) {
-      const response = await attempt().expect(404)
-      expectSafeErrorBody(response.body, SESSION_NOT_FOUND_ERROR, [
-        ownerSession.id,
-        OWNER_PRIVATE_TITLE,
-        RENAMED_PRIVATE_TITLE,
-        OWNER_PRIVATE_MESSAGE,
-        student1.id,
-        student1.email,
-      ])
-      await expect(readExactChatState()).resolves.toEqual(deletedState)
-    }
-
-    await expectTrustedAppendDenied(
-      chatService.appendPendingAssistantMessage({
+      const response = await attemptHttpOperation(operation, {
+        token: student1Token,
         courseId: pythonCourseId,
-        sessionId: ownerSession.id,
-        studentId: student1.id,
-        content: DENIED_APPEND_CONTENT,
-      }),
-      404,
-      SESSION_NOT_FOUND_ERROR,
-      [
-        ownerSession.id,
-        OWNER_PRIVATE_TITLE,
-        OWNER_PRIVATE_MESSAGE,
-        DENIED_APPEND_CONTENT,
-      ],
-    )
-    await expect(readExactChatState()).resolves.toEqual(deletedState)
+        sessionId: fixture.session.id,
+        expectedStatus: 404,
+      })
+      expectSafeErrorBody(
+        response.body,
+        SESSION_NOT_FOUND_ERROR,
+        ownerPrivateValues(fixture, DENIED_RENAME_TITLE),
+      )
+      await expect(readExactChatState()).resolves.toEqual(fixture.unchanged)
 
-    await request(app.getHttpServer())
-      .delete(`${sessionPath()}/${ownerSession.id}`)
-      .set('Authorization', `Bearer ${student1Token}`)
-      .expect(204)
-    await expect(readExactChatState()).resolves.toEqual(deletedState)
+      const deletionAudits = await prisma.auditLog.findMany({
+        where: { action: AUDIT_EVENT_ACTIONS.CHAT_SESSION_DELETED },
+      })
+      const accessDenials = await prisma.auditLog.findMany({
+        where: { action: AUDIT_EVENT_ACTIONS.CHAT_SESSION_ACCESS_DENIED },
+      })
+      expect(deletionAudits).toHaveLength(1)
+      expect(deletionAudits[0]).toMatchObject({
+        actorUserId: student1.id,
+        targetType: AUDIT_TARGET_TYPES.CHAT_SESSION,
+        targetId: fixture.session.id,
+        courseId: pythonCourseId,
+        metadata: {},
+      })
+      expect(accessDenials).toHaveLength(1)
+      expect(accessDenials[0]).toMatchObject({
+        actorUserId: student1.id,
+        targetId: fixture.session.id,
+        courseId: pythonCourseId,
+        metadata: { reason: 'DELETED_OR_UNOWNED' },
+      })
+      expectAuditRecordsContentFree([...deletionAudits, ...accessDenials])
+    },
+  )
 
-    const deletionAudits = await prisma.auditLog.findMany({
-      where: { action: AUDIT_EVENT_ACTIONS.CHAT_SESSION_DELETED },
-    })
-    const accessDenials = await prisma.auditLog.findMany({
-      where: { action: AUDIT_EVENT_ACTIONS.CHAT_SESSION_ACCESS_DENIED },
-      orderBy: { createdAt: 'asc' },
-    })
+  it.each(TRUSTED_WRITE_OPERATIONS)(
+    'denies post-delete trusted %s without changing the pending history',
+    async (operation) => {
+      const fixture = await createDeletedOwnerChatFixture()
 
-    expect(deletionAudits).toHaveLength(1)
-    expect(deletionAudits[0]).toMatchObject({
-      actorUserId: student1.id,
-      targetType: AUDIT_TARGET_TYPES.CHAT_SESSION,
-      targetId: ownerSession.id,
-      courseId: pythonCourseId,
-      metadata: {},
-    })
-    expect(accessDenials).toHaveLength(4)
-    expect(accessDenials.map((denial) => denial.targetId)).toEqual([
-      ownerSession.id,
-      ownerSession.id,
-      ownerSession.id,
-      ownerSession.id,
-    ])
-    expect(accessDenials.map((denial) => denial.metadata)).toEqual([
-      { reason: 'DELETED_OR_UNOWNED' },
-      { reason: 'DELETED_OR_UNOWNED' },
-      { reason: 'DELETED_OR_UNOWNED' },
-      { reason: 'DELETED_OR_UNOWNED' },
-    ])
-    expectAuditRecordsContentFree([...deletionAudits, ...accessDenials])
-  })
+      await expectTrustedWriteDenied(
+        attemptTrustedWrite(operation, {
+          courseId: pythonCourseId,
+          studentId: student1.id,
+          fixture,
+        }),
+        404,
+        SESSION_NOT_FOUND_ERROR,
+        ownerPrivateValues(
+          fixture,
+          DENIED_STUDENT_MESSAGE,
+          DENIED_PENDING_MESSAGE,
+          DENIED_COMPLETION_MESSAGE,
+          DENIED_FAILURE_MESSAGE,
+        ),
+      )
+      await expect(readExactChatState()).resolves.toEqual(fixture.unchanged)
+
+      const deletionAudits = await prisma.auditLog.findMany({
+        where: { action: AUDIT_EVENT_ACTIONS.CHAT_SESSION_DELETED },
+      })
+      const accessDenials = await prisma.auditLog.findMany({
+        where: { action: AUDIT_EVENT_ACTIONS.CHAT_SESSION_ACCESS_DENIED },
+      })
+      expect(deletionAudits).toHaveLength(1)
+      expect(accessDenials).toHaveLength(1)
+      expect(accessDenials[0]).toMatchObject({
+        actorUserId: student1.id,
+        targetId: fixture.session.id,
+        courseId: pythonCourseId,
+        metadata: { reason: 'DELETED_OR_UNOWNED' },
+      })
+      expectAuditRecordsContentFree([...deletionAudits, ...accessDenials])
+    },
+  )
 })
