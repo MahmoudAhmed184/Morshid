@@ -8,6 +8,7 @@ import { AppModule } from '../src/app.module'
 import { AuditService } from '../src/modules/audit/audit.service'
 import { AUTH_ERROR_CODES } from '../src/modules/auth/auth.dto'
 import type { MeResponse } from '../src/modules/auth/auth.dto'
+import { MaterialProcessingScheduler } from '../src/modules/materials/material-processing.scheduler'
 import { PrismaService } from '../src/modules/prisma/prisma.service'
 import { RedisService } from '../src/modules/redis/redis.service'
 import { STUDENT_CHAT_ERROR_CODES } from '../src/modules/student-chat/student-chat.errors'
@@ -17,6 +18,7 @@ import {
   P0_HIDDEN_ISOLATION_COURSE,
 } from '../src/seeds/p0-demo.seed'
 import { AuthTestStore } from './support/auth-test-store'
+import { NoopMaterialProcessingScheduler } from './support/noop-material-processing-scheduler'
 
 const auditUserAgent = 'Morshid e2e'
 
@@ -96,6 +98,8 @@ describe('RBAC (e2e)', () => {
       .useValue(store.prisma)
       .overrideProvider(RedisService)
       .useValue(redisMock)
+      .overrideProvider(MaterialProcessingScheduler)
+      .useClass(NoopMaterialProcessingScheduler)
       .overrideProvider(AuditService)
       .useValue(auditService)
       .compile()

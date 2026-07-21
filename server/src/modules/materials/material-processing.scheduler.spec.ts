@@ -24,6 +24,7 @@ describe('DurableMaterialProcessingScheduler', () => {
 
   afterEach(() => {
     scheduler.onModuleDestroy()
+    jest.useRealTimers()
     jest.restoreAllMocks()
   })
 
@@ -90,7 +91,50 @@ describe('DurableMaterialProcessingScheduler', () => {
       'Material processing command drain failed',
     )
   })
+
+  it('cancels pending wakes and polling when the module is destroyed', async () => {
+    jest.useFakeTimers()
+
+    scheduler.onModuleInit()
+    scheduler.onModuleDestroy()
+    await jest.advanceTimersByTimeAsync(5_000)
+
+    await scheduler.scheduleMaterialProcessing('after-shutdown')
+    await jest.runOnlyPendingTimersAsync()
+
+    expect(upsert).toHaveBeenCalledWith({
+      where: { materialId: 'after-shutdown' },
+      create: { materialId: 'after-shutdown' },
+      update: {},
+    })
+    expect(findMany).not.toHaveBeenCalled()
+    expect(processMaterial).not.toHaveBeenCalled()
+  })
+
+  it('does not start processing work returned after module destruction', async () => {
+    const commands = deferredCommands()
+    findMany.mockReturnValueOnce(commands.promise)
+
+    scheduler.onModuleInit()
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(findMany).toHaveBeenCalledTimes(1)
+
+    scheduler.onModuleDestroy()
+    commands.resolve([{ materialId: 'pending-at-shutdown' }])
+    await flushImmediate()
+
+    expect(processMaterial).not.toHaveBeenCalled()
+  })
 })
+
+function deferredCommands() {
+  let resolve!: (commands: { materialId: string }[]) => void
+  const promise = new Promise<{ materialId: string }[]>((done) => {
+    resolve = done
+  })
+
+  return { promise, resolve }
+}
 
 async function flushImmediate(): Promise<void> {
   await new Promise<void>((resolve) => setImmediate(resolve))
