@@ -6,7 +6,7 @@ import { PdfStorageModule } from '../pdf-storage/pdf-storage.module'
 import { PrismaModule } from '../prisma/prisma.module'
 import { RagPersistenceModule } from '../rag-persistence/rag-persistence.module'
 import {
-  InProcessMaterialProcessingScheduler,
+  DurableMaterialProcessingScheduler,
   MaterialProcessingScheduler,
 } from './material-processing.scheduler'
 import { MaterialProcessingService } from './material-processing.service'
@@ -25,6 +25,7 @@ import {
   PdfJsDocumentLoader,
   PdfJsTextExtractor,
 } from './pdf-text-extractor'
+import { PdfUploadInterceptor } from './pdf-upload.interceptor'
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import {
   providers: [
     MaterialsService,
     PdfUploadValidator,
+    PdfUploadInterceptor,
     MaterialsAuditService,
     MaterialProcessingService,
     MaterialTextChunker,
@@ -51,7 +53,7 @@ import {
     },
     {
       provide: MaterialProcessingScheduler,
-      useClass: InProcessMaterialProcessingScheduler,
+      useClass: DurableMaterialProcessingScheduler,
     },
     {
       provide: MaterialsRepository,

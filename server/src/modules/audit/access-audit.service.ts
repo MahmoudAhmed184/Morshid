@@ -4,6 +4,7 @@ import type { UserRole } from '../../generated/prisma/client'
 import { AUDIT_EVENT_ACTIONS, AUDIT_TARGET_TYPES } from './audit.constants'
 import type { AuditRequestContext } from './audit.service'
 import { AuditService } from './audit.service'
+import type { RoleDenialAuditMetadata } from './role-denial-audit.decorator'
 
 export interface AccessAuditActor {
   id: string
@@ -56,6 +57,40 @@ export class AccessAuditService {
       // Audit failures must not change authorization responses.
       this.logger.error(
         'Failed to record RBAC-denied audit event',
+        error instanceof Error ? error.stack : undefined,
+      )
+    }
+  }
+
+  async recordRoleDeniedEvent(input: {
+    actor?: AccessAuditActor | null
+    audit: RoleDenialAuditMetadata
+    unverifiedCourseId?: string | null
+    route: AccessAuditRouteContext
+    requestContext: AuditRequestContext
+  }): Promise<void> {
+    try {
+      await this.auditService.recordEvent({
+        actorUserId: input.actor?.id ?? null,
+        action: input.audit.action,
+        target: {
+          type: input.audit.targetType,
+        },
+        metadata: {
+          reason: input.audit.reason,
+          actorRole: input.actor?.role ?? null,
+          method: input.route.method,
+          path: input.route.path,
+          ...(input.unverifiedCourseId === undefined ||
+          input.unverifiedCourseId === null
+            ? {}
+            : { unverifiedCourseId: input.unverifiedCourseId }),
+        },
+        requestContext: input.requestContext,
+      })
+    } catch (error) {
+      this.logger.error(
+        `Failed to record ${input.audit.action} role-denied audit event`,
         error instanceof Error ? error.stack : undefined,
       )
     }

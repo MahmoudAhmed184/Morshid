@@ -23,6 +23,7 @@ import {
   MaterialProcessingService,
   type MaterialProcessingFailure,
 } from '../src/modules/materials/material-processing.service'
+import { MaterialsRepository } from '../src/modules/materials/materials.repository'
 import {
   PDF_TEXT_EXTRACTOR,
   PdfJsDocumentLoader,
@@ -169,6 +170,7 @@ describe('Material processing truthfulness (e2e)', () => {
   let prisma: PrismaService
   let app: INestApplication<App>
   let processingService: MaterialProcessingService
+  let materialsRepository: MaterialsRepository
   let retrievalService: RetrievalService
   let chunkEmbeddingService: MaterialChunkEmbeddingService
   let persistence: RagPersistenceRepository
@@ -219,6 +221,7 @@ describe('Material processing truthfulness (e2e)', () => {
     await app.init()
 
     processingService = moduleFixture.get(MaterialProcessingService)
+    materialsRepository = moduleFixture.get(MaterialsRepository)
     retrievalService = moduleFixture.get(RetrievalService)
     chunkEmbeddingService = moduleFixture.get(MaterialChunkEmbeddingService)
     persistence = moduleFixture.get(RagPersistenceRepository)
@@ -394,6 +397,45 @@ describe('Material processing truthfulness (e2e)', () => {
     )
   })
 
+  it('reclaims an expired lease while stale attempts lose terminal writes', async () => {
+    const materialId = await upload(cleanTextPdf(), 'Expired lease source')
+    const staleAttemptId = '00000000-0000-4000-8000-000000000081'
+    const activeAttemptId = '00000000-0000-4000-8000-000000000082'
+
+    await expect(
+      materialsRepository.claimMaterialProcessing(materialId, staleAttemptId),
+    ).resolves.toMatchObject({ id: materialId })
+    await prisma.materialProcessingCommand.update({
+      where: { materialId },
+      data: { leaseExpiresAt: new Date(0) },
+    })
+    await expect(
+      materialsRepository.claimMaterialProcessing(materialId, activeAttemptId),
+    ).resolves.toMatchObject({ id: materialId })
+
+    await expect(
+      materialsRepository.failMaterialProcessing(
+        materialId,
+        staleAttemptId,
+        MATERIAL_PROCESSING_FAILURES.STORAGE_READ_FAILED,
+      ),
+    ).resolves.toBe(false)
+    await expect(
+      materialsRepository.failMaterialProcessing(
+        materialId,
+        activeAttemptId,
+        MATERIAL_PROCESSING_FAILURES.STORAGE_READ_FAILED,
+      ),
+    ).resolves.toBe(true)
+    await expect(
+      prisma.materialProcessingCommand.findUnique({ where: { materialId } }),
+    ).resolves.toBeNull()
+    await expectStatus(materialId, {
+      status: 'FAILED',
+      errorMessage: MATERIAL_PROCESSING_FAILURES.STORAGE_READ_FAILED,
+    })
+  })
+
   async function upload(contents: Buffer, title: string): Promise<string> {
     const response = await request(app.getHttpServer())
       .post(`/api/v1/courses/${courseId}/materials`)
@@ -407,6 +449,7 @@ describe('Material processing truthfulness (e2e)', () => {
     const materialId = (response.body as { material: { id: string } }).material
       .id
     expect(scheduler.scheduledMaterialIds).toContain(materialId)
+    await prisma.materialProcessingCommand.create({ data: { materialId } })
     return materialId
   }
 

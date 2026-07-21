@@ -184,14 +184,27 @@ model Material {
   createdAt           DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  course     Course            @relation(fields: [courseId], references: [id], onDelete: Restrict)
-  uploadedBy User              @relation("MaterialUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
-  chunks     MaterialChunk[]
-  citations  MessageCitation[]
+  course            Course                     @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  uploadedBy        User                       @relation("MaterialUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
+  chunks            MaterialChunk[]
+  citations         MessageCitation[]
+  processingCommand MaterialProcessingCommand?
 
   @@index([courseId, status, deletedAt], map: "idx_materials_course_status")
   @@index([uploadedById], map: "idx_materials_uploaded_by")
   @@map("materials")
+}
+
+model MaterialProcessingCommand {
+  materialId          String    @id @map("material_id") @db.Uuid
+  processingAttemptId String?   @map("processing_attempt_id") @db.Uuid
+  leaseExpiresAt      DateTime? @map("lease_expires_at") @db.Timestamptz(6)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  material Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@index([leaseExpiresAt, createdAt], map: "idx_material_processing_commands_lease")
+  @@map("material_processing_commands")
 }
 
 model MaterialChunk {

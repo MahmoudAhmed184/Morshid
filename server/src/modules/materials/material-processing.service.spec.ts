@@ -206,4 +206,58 @@ describe('MaterialProcessingService', () => {
     expect(embedding.embedMaterialChunks).not.toHaveBeenCalled()
     expect(audit.recordEvent).not.toHaveBeenCalled()
   })
+
+  it('does not emit a terminal audit when an expired stale attempt loses ownership', async () => {
+    let releaseStaleEmbedding: ((value: unknown[]) => void) | undefined
+    const staleEmbedding = new Promise<unknown[]>((resolve) => {
+      releaseStaleEmbedding = resolve
+    })
+    repository.claimMaterialProcessing.mockResolvedValue(material)
+    embedding.embedMaterialChunks
+      .mockReturnValueOnce(staleEmbedding)
+      .mockResolvedValueOnce([
+        {
+          chunkIndex: 0,
+          content: 'Variables bind names to values.',
+          embedding: [0.1],
+          embeddingModel: 'test-model',
+        },
+      ])
+    repository.completeMaterialProcessing
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false)
+    repository.failMaterialProcessing.mockResolvedValue(false)
+
+    const staleProcessing = service.processMaterial(material.id)
+    await waitForCalls(embedding.embedMaterialChunks, 1)
+    await service.processMaterial(material.id)
+    releaseStaleEmbedding?.([
+      {
+        chunkIndex: 0,
+        content: 'Variables bind names to values.',
+        embedding: [0.1],
+        embeddingModel: 'test-model',
+      },
+    ])
+    await staleProcessing
+
+    const attempts = repository.claimMaterialProcessing.mock.calls.map(
+      (call) => (call as [string, string])[1],
+    )
+    expect(new Set(attempts).size).toBe(2)
+    expect(audit.recordEvent).toHaveBeenCalledTimes(1)
+    const [event] = audit.recordEvent.mock.calls[0] as [
+      { action: string; metadata: { status: string } },
+    ]
+    expect(event).toMatchObject({
+      action: 'material.processing_ready',
+      metadata: { status: 'READY' },
+    })
+  })
 })
+
+async function waitForCalls(mock: jest.Mock, count: number): Promise<void> {
+  while (mock.mock.calls.length < count) {
+    await new Promise<void>((resolve) => setImmediate(resolve))
+  }
+}

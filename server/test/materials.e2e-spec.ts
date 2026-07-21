@@ -293,6 +293,20 @@ describe('Materials upload (e2e)', () => {
     expect(scheduler.scheduleMaterialProcessing).not.toHaveBeenCalled()
     expect(embedBatch).not.toHaveBeenCalled()
     expect(replaceMaterialChunks).not.toHaveBeenCalled()
+    const deniedAudit = [...store.auditLogs.values()].find(
+      (event) => event.action === AUDIT_EVENT_ACTIONS.MATERIAL_UPLOAD_DENIED,
+    )
+    expect(deniedAudit).toMatchObject({
+      targetType: 'material',
+      targetId: null,
+      courseId: null,
+      metadata: {
+        reason: 'INSUFFICIENT_ROLE',
+        actorRole: 'STUDENT',
+        unverifiedCourseId: pythonCourseId(),
+      },
+    })
+    expect(JSON.stringify(deniedAudit?.metadata)).not.toContain('%PDF-')
   })
 
   it('denies an instructor who is not actively assigned to the course', async () => {
@@ -385,6 +399,25 @@ describe('Materials upload (e2e)', () => {
     expect(store.materials.size).toBe(materialCountBefore)
   })
 
+  it('rejects a title longer than the documented storage boundary', async () => {
+    const token = await signInAs('instructor@morshid.demo')
+
+    await uploadPdf({ token, title: 'a'.repeat(181) })
+      .expect(400)
+      .expect({
+        code: MATERIALS_ERROR_CODES.INVALID_REQUEST,
+        message: 'Invalid materials request',
+        errors: [
+          {
+            field: 'title',
+            message: 'Title must be at most 180 characters',
+          },
+        ],
+      })
+
+    expect(storage.create).not.toHaveBeenCalled()
+  })
+
   it('records safe failed-upload audit metadata for invalid PDFs', async () => {
     const token = await signInAs('instructor@morshid.demo')
 
@@ -421,10 +454,99 @@ describe('Materials upload (e2e)', () => {
       token,
       title: 'Oversize upload',
       buffer: oversizedPdf(DEFAULT_PDF_MAX_UPLOAD_BYTES + 1),
-    }).expect(413)
+    })
+      .expect(413)
+      .expect({
+        code: MATERIALS_ERROR_CODES.PDF_TOO_LARGE,
+        message: 'PDF upload exceeds the configured size limit',
+      })
 
     expect(storage.create).not.toHaveBeenCalled()
     expect(store.materials.size).toBe(materialCountBefore)
+    const failedAudit = [...store.auditLogs.values()].find(
+      (event) => event.action === AUDIT_EVENT_ACTIONS.MATERIAL_UPLOAD_FAILED,
+    )
+    expect(failedAudit).toMatchObject({
+      courseId: null,
+      metadata: {
+        reason: 'PDF_TOO_LARGE',
+        unverifiedCourseId: pythonCourseId(),
+      },
+    })
+    expect(JSON.stringify(failedAudit?.metadata)).not.toContain('%PDF-')
+  })
+
+  it('translates and audits an unexpected multipart file field safely', async () => {
+    const token = await signInAs('instructor@morshid.demo')
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/courses/${pythonCourseId()}/materials`)
+      .set('User-Agent', userAgent)
+      .set('Authorization', `Bearer ${token}`)
+      .field('title', 'Unexpected field')
+      .attach('document', validPdf, {
+        filename: 'private.pdf',
+        contentType: 'application/pdf',
+      })
+      .expect(400)
+      .expect({
+        code: MATERIALS_ERROR_CODES.INVALID_REQUEST,
+        message: 'Invalid materials request',
+        errors: [
+          {
+            field: 'file',
+            message: 'Multipart PDF upload is malformed',
+          },
+        ],
+      })
+
+    const failedAudit = [...store.auditLogs.values()].find(
+      (event) => event.action === AUDIT_EVENT_ACTIONS.MATERIAL_UPLOAD_FAILED,
+    )
+    expect(failedAudit).toMatchObject({
+      metadata: {
+        reason: 'MALFORMED_MULTIPART',
+        unverifiedCourseId: pythonCourseId(),
+      },
+    })
+    expect(JSON.stringify(failedAudit?.metadata)).not.toContain('private.pdf')
+    expect(JSON.stringify(failedAudit?.metadata)).not.toContain('%PDF-')
+  })
+
+  it('audits malformed multipart bodies without echoing body content', async () => {
+    const token = await signInAs('instructor@morshid.demo')
+    const privateBodyMarker = 'private-multipart-body-marker'
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/courses/${pythonCourseId()}/materials`)
+      .set('User-Agent', userAgent)
+      .set('Authorization', `Bearer ${token}`)
+      .set('Content-Type', 'multipart/form-data; boundary=broken-boundary')
+      .send(`--broken-boundary\r\n${privateBodyMarker}`)
+      .expect(400)
+      .expect({
+        code: MATERIALS_ERROR_CODES.INVALID_REQUEST,
+        message: 'Invalid materials request',
+        errors: [
+          {
+            field: 'file',
+            message: 'Multipart PDF upload is malformed',
+          },
+        ],
+      })
+
+    const failedAudit = [...store.auditLogs.values()].find(
+      (event) => event.action === AUDIT_EVENT_ACTIONS.MATERIAL_UPLOAD_FAILED,
+    )
+    expect(failedAudit).toMatchObject({
+      metadata: {
+        reason: 'MALFORMED_MULTIPART',
+        unverifiedCourseId: pythonCourseId(),
+      },
+    })
+    expect(JSON.stringify(failedAudit?.metadata)).not.toContain(
+      privateBodyMarker,
+    )
   })
 
   it('uses generated storage keys for path-like filenames', async () => {
@@ -470,6 +592,69 @@ describe('Materials upload (e2e)', () => {
     expect(storage.delete).toHaveBeenCalledWith(generatedStoragePath)
     expect(storage.files.size).toBe(0)
     expect(store.materials.size).toBe(materialCountBefore)
+  })
+
+  it('quarantines the material and audits when file cleanup fails', async () => {
+    const token = await signInAs('instructor@morshid.demo')
+    scheduler.failNextSchedule = true
+    storage.delete.mockRejectedValueOnce(
+      new Error('simulated storage cleanup failure'),
+    )
+
+    await uploadPdf({ token, title: 'File cleanup failure' }).expect(500)
+
+    const failedMaterial = [...store.materials.values()].find(
+      (material) => material.title === 'File cleanup failure',
+    )
+    expect(failedMaterial).toMatchObject({
+      status: 'FAILED',
+      errorMessage: 'Upload cleanup required',
+    })
+    expect(failedMaterial?.deletedAt).toBeInstanceOf(Date)
+    expect(storage.delete).toHaveBeenCalledWith(generatedStoragePath)
+    if (failedMaterial === undefined) {
+      throw new Error('Missing quarantined material')
+    }
+    await getMaterial({
+      token,
+      materialId: failedMaterial.id,
+    }).expect(404)
+    const failedAudit = [...store.auditLogs.values()].find(
+      (event) => event.action === AUDIT_EVENT_ACTIONS.MATERIAL_UPLOAD_FAILED,
+    )
+    expect(failedAudit?.metadata).toMatchObject({
+      reason: 'UPLOAD_CLEANUP_FAILED',
+    })
+  })
+
+  it('still deletes the file and audits when material cleanup fails', async () => {
+    const token = await signInAs('instructor@morshid.demo')
+    scheduler.failNextSchedule = true
+    const materialDelegate = store.prisma.material as unknown as {
+      delete: jest.Mock
+    }
+    materialDelegate.delete.mockRejectedValueOnce(
+      new Error('simulated material cleanup failure'),
+    )
+
+    await uploadPdf({ token, title: 'Row cleanup failure' }).expect(500)
+
+    expect(storage.delete).toHaveBeenCalledWith(generatedStoragePath)
+    expect(storage.files.size).toBe(0)
+    const failedMaterial = [...store.materials.values()].find(
+      (material) => material.title === 'Row cleanup failure',
+    )
+    expect(failedMaterial).toMatchObject({
+      status: 'FAILED',
+      errorMessage: 'Upload cleanup required',
+    })
+    expect(failedMaterial?.deletedAt).toBeInstanceOf(Date)
+    const failedAudit = [...store.auditLogs.values()].find(
+      (event) => event.action === AUDIT_EVENT_ACTIONS.MATERIAL_UPLOAD_FAILED,
+    )
+    expect(failedAudit?.metadata).toMatchObject({
+      reason: 'UPLOAD_CLEANUP_FAILED',
+    })
   })
 
   it('records safe upload audit events', async () => {

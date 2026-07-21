@@ -10,6 +10,7 @@ import {
   pdfTooLargeException,
   type MaterialsValidationIssue,
 } from './materials.errors'
+import { MATERIAL_TITLE_MAX_LENGTH } from './materials.constants'
 
 const PDF_SIGNATURE = Buffer.from('%PDF-')
 const MAX_DISPLAY_FILENAME_LENGTH = 255
@@ -48,6 +49,11 @@ export class PdfUploadValidator {
         field: 'title',
         message: 'Title is required',
       })
+    } else if (Array.from(title).length > MATERIAL_TITLE_MAX_LENGTH) {
+      issues.push({
+        field: 'title',
+        message: `Title must be at most ${String(MATERIAL_TITLE_MAX_LENGTH)} characters`,
+      })
     }
 
     if (input.file === undefined) {
@@ -65,7 +71,7 @@ export class PdfUploadValidator {
     const originalFilename = sanitizeOriginalFilename(file.originalname)
 
     if (file.size > maxBytes) {
-      throw pdfTooLargeException(maxBytes)
+      throw pdfTooLargeException()
     }
 
     if (!originalFilename.toLowerCase().endsWith('.pdf')) {
