@@ -63,7 +63,7 @@ interface FixtureMaterial {
   title: string
   storagePath: string
   status: MaterialStatus
-  completed: boolean
+  hasCompletionMetadata: boolean
   deleted: boolean
 }
 
@@ -117,8 +117,10 @@ export async function seedRetrievalTask83Fixture(
         originalFilename: `${material.id}.pdf`,
         storagePath: material.storagePath,
         status: material.status,
-        extractedTextLength: material.completed ? 1_000 : null,
-        chunkCount: material.completed ? chunkCount(material.id) : null,
+        extractedTextLength: material.hasCompletionMetadata ? 1_000 : null,
+        chunkCount: material.hasCompletionMetadata
+          ? chunkCount(material.id)
+          : null,
         deletedAt: material.deleted ? new Date('2026-07-19T00:00:00Z') : null,
       },
     })
@@ -159,8 +161,11 @@ function buildMaterials(): FixtureMaterial[] {
   return [
     material('ready', pythonCourseId, 'READY', true),
     material('warning', pythonCourseId, 'WARNING', true),
-    material('processing', pythonCourseId, 'PROCESSING', false),
-    material('failed', pythonCourseId, 'FAILED', false),
+    // These unavailable statuses deliberately look complete otherwise. Their
+    // high-scoring chunks can only be excluded by the production status
+    // predicate, making the fixture sensitive to that predicate in isolation.
+    material('processing', pythonCourseId, 'PROCESSING', true),
+    material('failed', pythonCourseId, 'FAILED', true),
     material('deleted', pythonCourseId, 'READY', true, true),
     material('incomplete', pythonCourseId, 'READY', false),
     material('missing', pythonCourseId, 'READY', true),
@@ -173,7 +178,7 @@ function material(
   key: keyof typeof RETRIEVAL_TASK_83.materialIds,
   courseId: string,
   status: MaterialStatus,
-  completed: boolean,
+  hasCompletionMetadata: boolean,
   deleted = false,
 ): FixtureMaterial {
   const fixture = RETRIEVAL_TASK_83
@@ -183,7 +188,7 @@ function material(
     title: `Task 83 ${key} material`,
     storagePath: fixture.storagePaths[key],
     status,
-    completed,
+    hasCompletionMetadata,
     deleted,
   }
 }

@@ -107,6 +107,46 @@ describe('Retrieval threshold readiness and cross-course isolation (e2e)', () =>
   })
 
   it('includes only usable READY and contract-allowed WARNING materials', async () => {
+    const statusAdversaries = await prisma.material.findMany({
+      where: {
+        id: {
+          in: [
+            RETRIEVAL_TASK_83.materialIds.processing,
+            RETRIEVAL_TASK_83.materialIds.failed,
+            RETRIEVAL_TASK_83.materialIds.incomplete,
+          ],
+        },
+      },
+      select: {
+        id: true,
+        status: true,
+        extractedTextLength: true,
+        chunkCount: true,
+      },
+      orderBy: { id: 'asc' },
+    })
+
+    expect(statusAdversaries).toEqual([
+      {
+        id: RETRIEVAL_TASK_83.materialIds.processing,
+        status: 'PROCESSING',
+        extractedTextLength: 1_000,
+        chunkCount: 1,
+      },
+      {
+        id: RETRIEVAL_TASK_83.materialIds.failed,
+        status: 'FAILED',
+        extractedTextLength: 1_000,
+        chunkCount: 1,
+      },
+      {
+        id: RETRIEVAL_TASK_83.materialIds.incomplete,
+        status: 'READY',
+        extractedTextLength: null,
+        chunkCount: null,
+      },
+    ])
+
     const result = await buildService({ topK: 50 }).retrieveCourseEvidence(
       RETRIEVAL_TASK_83.pythonCourseId,
       'synthetic material readiness question',
@@ -139,22 +179,22 @@ describe('Retrieval threshold readiness and cross-course isolation (e2e)', () =>
     )
   })
 
-  it('never returns stronger or identical-text chunks from HIDDEN-ISOLATION', async () => {
+  it('returns zero hidden-course rows at the production retrieval service boundary', async () => {
     const result = await buildService({ topK: 50 }).retrieveCourseEvidence(
       RETRIEVAL_TASK_83.pythonCourseId,
       'synthetic course-isolation question',
     )
     const chunks = requireEvidence(result)
 
-    expect(chunks.map(({ chunkId }) => chunkId)).not.toEqual(
-      expect.arrayContaining([
-        RETRIEVAL_TASK_83.chunkIds.hiddenStronger,
-        RETRIEVAL_TASK_83.chunkIds.hiddenIdentical,
-      ]),
+    const hiddenRows = chunks.filter(
+      ({ chunkId, materialId, content }) =>
+        materialId === RETRIEVAL_TASK_83.materialIds.hidden ||
+        chunkId === RETRIEVAL_TASK_83.chunkIds.hiddenStronger ||
+        chunkId === RETRIEVAL_TASK_83.chunkIds.hiddenIdentical ||
+        content.includes(RETRIEVAL_TASK_83.sentinels.hidden),
     )
-    expect(chunks.map(({ materialId }) => materialId)).not.toContain(
-      RETRIEVAL_TASK_83.materialIds.hidden,
-    )
+
+    expect(hiddenRows).toHaveLength(0)
     const identicalRows = chunks.filter(
       ({ content }) => content === RETRIEVAL_TASK_83.sentinels.identical,
     )
@@ -164,55 +204,6 @@ describe('Retrieval threshold readiness and cross-course isolation (e2e)', () =>
         materialId: RETRIEVAL_TASK_83.materialIds.ready,
       }),
     ])
-  })
-
-  it('exposes no hidden-course chunk to completion context or citation candidates', async () => {
-    const result = await buildService({ topK: 50 }).retrieveCourseEvidence(
-      RETRIEVAL_TASK_83.pythonCourseId,
-      'synthetic downstream-boundary question',
-    )
-    const chunks = requireEvidence(result)
-    const completionProvider = {
-      complete: jest.fn((_context: readonly RetrievedChunk[]) =>
-        Promise.resolve('synthetic completion'),
-      ),
-    }
-    const collectCitationCandidates = jest.fn(
-      (_chunks: readonly RetrievedChunk[]) => undefined,
-    )
-
-    await completionProvider.complete(chunks)
-    collectCitationCandidates(chunks)
-
-    const completionContext = completionProvider.complete.mock.calls[0][0]
-    const citationCandidates = collectCitationCandidates.mock.calls[0][0]
-    const expectedChunkIds = [
-      RETRIEVAL_TASK_83.chunkIds.pythonRelevant,
-      RETRIEVAL_TASK_83.chunkIds.pythonIdentical,
-      RETRIEVAL_TASK_83.chunkIds.warningUsable,
-      RETRIEVAL_TASK_83.chunkIds.topKOverflow,
-      RETRIEVAL_TASK_83.chunkIds.exactThreshold,
-      RETRIEVAL_TASK_83.chunkIds.belowThreshold,
-    ]
-
-    expect(completionContext.map(({ chunkId }) => chunkId)).toEqual(
-      expectedChunkIds,
-    )
-    expect(citationCandidates.map(({ chunkId }) => chunkId)).toEqual(
-      expectedChunkIds,
-    )
-    expect(JSON.stringify(completionContext)).not.toContain(
-      RETRIEVAL_TASK_83.sentinels.hidden,
-    )
-    expect(JSON.stringify(citationCandidates)).not.toContain(
-      RETRIEVAL_TASK_83.sentinels.hidden,
-    )
-    expect(completionContext.map(({ materialId }) => materialId)).not.toContain(
-      RETRIEVAL_TASK_83.materialIds.hidden,
-    )
-    expect(
-      citationCandidates.map(({ materialId }) => materialId),
-    ).not.toContain(RETRIEVAL_TASK_83.materialIds.hidden)
   })
 
   function buildService(
