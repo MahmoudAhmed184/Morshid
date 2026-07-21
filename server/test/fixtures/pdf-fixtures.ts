@@ -28,6 +28,27 @@ export function partiallyEmptyTextPdf(
   ])
 }
 
+export function multiPageTextPdf(pages: readonly string[]): Buffer {
+  const fontObjectId = 3 + pages.length * 2
+  const pageObjectIds = pages.map((_, index) => 3 + index * 2)
+  const pageObjects = pages.flatMap((text, index) => {
+    const pageObjectId = pageObjectIds[index]
+    const contentObjectId = pageObjectId + 1
+    const content = `BT /F1 18 Tf 72 720 Td (${escapePdfText(text)}) Tj ET`
+    return [
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 ${String(fontObjectId)} 0 R >> >> /Contents ${String(contentObjectId)} 0 R >>`,
+      streamObject(content),
+    ]
+  })
+
+  return buildPdf([
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    `<< /Type /Pages /Kids [${pageObjectIds.map((id) => `${String(id)} 0 R`).join(' ')}] /Count ${String(pages.length)} >>`,
+    ...pageObjects,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ])
+}
+
 export function emptyPdf(): Buffer {
   return buildPdf([
     '<< /Type /Catalog /Pages 2 0 R >>',
