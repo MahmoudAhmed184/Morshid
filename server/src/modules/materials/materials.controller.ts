@@ -33,6 +33,11 @@ import {
 import { ApiAccessTokenAuth } from '../../common/http/openapi.decorators'
 import { getRequestContext } from '../../common/http/request-context'
 import { UserRole } from '../../generated/prisma/client'
+import {
+  AUDIT_EVENT_ACTIONS,
+  AUDIT_TARGET_TYPES,
+} from '../audit/audit.constants'
+import { AuditRoleDenial } from '../audit/role-denial-audit.decorator'
 import type { AuthenticatedHttpRequest } from '../auth/auth.guard'
 import { Roles } from '../auth/roles.decorator'
 import {
@@ -56,6 +61,11 @@ export class MaterialsController {
   constructor(private readonly materialsService: MaterialsService) {}
 
   @Post()
+  @AuditRoleDenial({
+    action: AUDIT_EVENT_ACTIONS.MATERIAL_UPLOAD_DENIED,
+    targetType: AUDIT_TARGET_TYPES.MATERIAL,
+    reason: 'INSUFFICIENT_ROLE',
+  })
   @UseInterceptors(PdfUploadInterceptor)
   @SerializeOptions({
     type: MaterialResponseDto,

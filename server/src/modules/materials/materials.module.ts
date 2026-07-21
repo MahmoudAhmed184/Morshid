@@ -5,8 +5,8 @@ import { CoursesModule } from '../courses/courses.module'
 import { PdfStorageModule } from '../pdf-storage/pdf-storage.module'
 import { PrismaModule } from '../prisma/prisma.module'
 import {
+  DurableMaterialProcessingScheduler,
   MaterialProcessingScheduler,
-  NoopMaterialProcessingScheduler,
 } from './material-processing.scheduler'
 import { MaterialsAuditService } from './materials.audit.service'
 import { MaterialsController } from './materials.controller'
@@ -16,6 +16,7 @@ import {
 } from './materials.repository'
 import { MaterialsService } from './materials.service'
 import { PdfUploadValidator } from './pdf-upload.validator'
+import { PdfUploadInterceptor } from './pdf-upload.interceptor'
 
 @Module({
   imports: [PrismaModule, CoursesModule, PdfStorageModule, AuditModule],
@@ -23,10 +24,11 @@ import { PdfUploadValidator } from './pdf-upload.validator'
   providers: [
     MaterialsService,
     PdfUploadValidator,
+    PdfUploadInterceptor,
     MaterialsAuditService,
     {
       provide: MaterialProcessingScheduler,
-      useClass: NoopMaterialProcessingScheduler,
+      useClass: DurableMaterialProcessingScheduler,
     },
     {
       provide: MaterialsRepository,

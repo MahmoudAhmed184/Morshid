@@ -1,0 +1,1 @@
+export const MATERIAL_TITLE_MAX_LENGTH = 180

@@ -27,10 +27,9 @@ export function invalidMaterialsRequestException(
   })
 }
 
-export function pdfTooLargeException(maxBytes: number): HttpException {
+export function pdfTooLargeException(): HttpException {
   return new PayloadTooLargeException({
     code: MATERIALS_ERROR_CODES.PDF_TOO_LARGE,
     message: 'PDF upload exceeds the configured size limit',
-    maxBytes,
   })
 }

@@ -1,8 +1,35 @@
 import { Injectable } from '@nestjs/common'
 
-import { MaterialStatus, type Prisma } from '../../generated/prisma/client'
+import {
+  MaterialStatus,
+  type Material,
+  type Prisma,
+} from '../../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
-import type { MaterialStatusRecord, SafeMaterialRecord } from './materials.dto'
+
+export type SafeMaterialRecord = Pick<
+  Material,
+  | 'id'
+  | 'courseId'
+  | 'title'
+  | 'originalFilename'
+  | 'status'
+  | 'extractedTextLength'
+  | 'chunkCount'
+  | 'errorMessage'
+  | 'createdAt'
+  | 'updatedAt'
+>
+
+export type MaterialStatusRecord = Pick<
+  Material,
+  | 'id'
+  | 'status'
+  | 'extractedTextLength'
+  | 'chunkCount'
+  | 'errorMessage'
+  | 'updatedAt'
+>
 
 export abstract class MaterialsRepository {
   protected abstract readonly repositoryName: string
@@ -24,6 +51,8 @@ export abstract class MaterialsRepository {
     courseId: string,
     materialId: string,
   ): Promise<MaterialStatusRecord | null>
+
+  abstract markUploadCleanupRequired(materialId: string): Promise<void>
 
   abstract deleteMaterial(materialId: string): Promise<void>
 }
@@ -132,6 +161,18 @@ export class PrismaMaterialsRepository extends MaterialsRepository {
         deletedAt: null,
       },
       select: materialStatusSelect,
+    })
+  }
+
+  async markUploadCleanupRequired(materialId: string): Promise<void> {
+    await this.prismaService.material.update({
+      where: { id: materialId },
+      data: {
+        status: MaterialStatus.FAILED,
+        deletedAt: new Date(),
+        errorMessage: 'Upload cleanup required',
+      },
+      select: { id: true } satisfies Prisma.MaterialSelect,
     })
   }
 

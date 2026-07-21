@@ -9,6 +9,10 @@ import {
 } from '../../common/http/request-context'
 import type { UserRole } from '../../generated/prisma/client'
 import { AccessAuditService } from '../audit/access-audit.service'
+import {
+  ROLE_DENIAL_AUDIT_KEY,
+  type RoleDenialAuditMetadata,
+} from '../audit/role-denial-audit.decorator'
 import type { AuthenticatedRequestUser } from './auth.dto'
 import { insufficientRoleException } from './auth.errors'
 import { ROLES_KEY } from './roles.decorator'
@@ -41,18 +45,37 @@ export class RolesGuard implements CanActivate {
       request.user === undefined ||
       !allowedRoles.includes(request.user.role)
     ) {
+      const roleDenialAudit = this.reflector.getAllAndOverride<
+        RoleDenialAuditMetadata | undefined
+      >(ROLE_DENIAL_AUDIT_KEY, [context.getHandler(), context.getClass()])
+      const actor = request.user
+        ? {
+            id: request.user.id,
+            role: request.user.role,
+          }
+        : null
+      const unverifiedCourseId = readCourseIdParam(request)
+      const route = getRouteContext(request)
+      const requestContext = getRequestContext(request)
+
       await this.accessAuditService.recordRbacDenied({
-        actor: request.user
-          ? {
-              id: request.user.id,
-              role: request.user.role,
-            }
-          : null,
+        actor,
         allowedRoles,
-        unverifiedCourseId: readCourseIdParam(request),
-        route: getRouteContext(request),
-        requestContext: getRequestContext(request),
+        unverifiedCourseId,
+        route,
+        requestContext,
       })
+
+      if (roleDenialAudit !== undefined) {
+        await this.accessAuditService.recordRoleDeniedEvent({
+          actor,
+          audit: roleDenialAudit,
+          unverifiedCourseId,
+          route,
+          requestContext,
+        })
+      }
+
       throw insufficientRoleException()
     }
 

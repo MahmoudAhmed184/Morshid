@@ -183,14 +183,24 @@ model Material {
   createdAt           DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  course     Course            @relation(fields: [courseId], references: [id], onDelete: Restrict)
-  uploadedBy User              @relation("MaterialUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
-  chunks     MaterialChunk[]
-  citations  MessageCitation[]
+  course            Course                     @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  uploadedBy        User                       @relation("MaterialUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
+  chunks            MaterialChunk[]
+  citations         MessageCitation[]
+  processingCommand MaterialProcessingCommand?
 
   @@index([courseId, status, deletedAt], map: "idx_materials_course_status")
   @@index([uploadedById], map: "idx_materials_uploaded_by")
   @@map("materials")
+}
+
+model MaterialProcessingCommand {
+  materialId String   @id @map("material_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  material Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@map("material_processing_commands")
 }
 
 model MaterialChunk {
