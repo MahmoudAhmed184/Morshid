@@ -16,6 +16,9 @@ import { COMPLETION_PROVIDER_TOKEN } from './completion-provider'
             infer: true,
           }),
           model: configService.get('COMPLETION_MODEL', { infer: true }),
+          timeoutMs: configService.get('COMPLETION_TIMEOUT_MS', {
+            infer: true,
+          }),
         }),
     },
   ],
