@@ -256,7 +256,16 @@ export class MaterialsService {
       }
     }
 
-    if (materialId !== null && (storedFileDeleted || !materialQuarantined)) {
+    if (materialId !== null && !storedFileDeleted && !materialQuarantined) {
+      try {
+        await this.materialsRepository.markUploadCleanupRequired(materialId)
+        materialQuarantined = true
+      } catch (error) {
+        cleanupErrors.push(error)
+      }
+    }
+
+    if (materialId !== null && storedFileDeleted) {
       try {
         await this.materialsRepository.deleteMaterial(materialId)
       } catch (error) {
