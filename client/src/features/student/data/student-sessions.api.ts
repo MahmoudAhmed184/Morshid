@@ -2,6 +2,7 @@ import { apiFetch, apiJson } from '@/features/auth/api/authenticated-api-client'
 import type { ApiFetchOptions } from '@/features/auth/api/authenticated-api-client'
 import {
   chatMessageHistoryResponseSchema,
+  groundedChatTurnResponseSchema,
   chatSessionListResponseSchema,
   chatSessionResponseSchema,
   createChatSessionRequestSchema,
@@ -9,12 +10,15 @@ import {
   listChatMessagesInputSchema,
   listChatSessionsInputSchema,
   renameChatSessionRequestSchema,
+  sendStudentChatMessageRequestSchema,
 } from '@/features/student/schemas/student-chat.schema'
 import type {
   CreateChatSessionInput,
+  GroundedChatTurnResponse,
   ListChatMessagesInput,
   ListChatSessionsInput,
   RenameChatSessionInput,
+  SendStudentChatMessageInput,
 } from '@/features/student/schemas/student-chat.schema'
 
 export type {
@@ -22,6 +26,7 @@ export type {
   ChatMessageHistoryResponse,
   ChatSession,
   ChatSessionListResponse,
+  GroundedChatTurnResponse,
 } from '@/features/student/schemas/student-chat.schema'
 
 interface ListStudentSessionsParams {
@@ -59,6 +64,20 @@ interface GetStudentSessionMessagesParams {
   courseId: string
   sessionId: string
   input?: ListChatMessagesInput
+  options?: ApiFetchOptions
+}
+
+interface SendStudentChatMessageParams {
+  courseId: string
+  sessionId: string
+  input: SendStudentChatMessageInput
+  options?: ApiFetchOptions
+}
+
+interface RetryStudentChatMessageParams {
+  courseId: string
+  sessionId: string
+  studentMessageId: string
   options?: ApiFetchOptions
 }
 
@@ -190,4 +209,33 @@ export async function getStudentSessionMessages({
   )
 
   return chatMessageHistoryResponseSchema.parse(response)
+}
+
+export async function sendStudentChatMessage({
+  courseId,
+  sessionId,
+  input,
+  options = {},
+}: SendStudentChatMessageParams): Promise<GroundedChatTurnResponse> {
+  const body = sendStudentChatMessageRequestSchema.parse(input)
+  const response = await apiJson<unknown>(
+    `${sessionPath(courseId, sessionId)}/messages`,
+    jsonRequestOptions('POST', body, options),
+  )
+
+  return groundedChatTurnResponseSchema.parse(response)
+}
+
+export async function retryStudentChatMessage({
+  courseId,
+  sessionId,
+  studentMessageId,
+  options = {},
+}: RetryStudentChatMessageParams): Promise<GroundedChatTurnResponse> {
+  const response = await apiJson<unknown>(
+    `${sessionPath(courseId, sessionId)}/messages/${studentMessageId}/retry`,
+    { ...options, method: 'POST' },
+  )
+
+  return groundedChatTurnResponseSchema.parse(response)
 }
