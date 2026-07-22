@@ -319,6 +319,29 @@ export class StudentChatService {
     })
   }
 
+  async recordGroundedTurnDenied(input: {
+    courseId: string
+    sessionId: string
+    studentId: string
+    reason:
+      | 'ACTIVE_STUDENT_MEMBERSHIP_REQUIRED'
+      | 'DELETED_OR_UNOWNED'
+      | 'RETRY_TARGET_NOT_FOUND'
+      | 'TURN_IN_PROGRESS'
+      | 'RETRY_NOT_ALLOWED'
+    messageId?: string
+    requestContext?: AuditRequestContext
+  }): Promise<void> {
+    await this.recordAccessDenied({
+      actorUserId: input.studentId,
+      courseId: input.courseId,
+      sessionId: input.sessionId,
+      reason: input.reason,
+      ...(input.messageId === undefined ? {} : { messageId: input.messageId }),
+      requestContext: input.requestContext,
+    })
+  }
+
   private async requireActiveStudentMembership(
     courseId: string,
     studentId: string,

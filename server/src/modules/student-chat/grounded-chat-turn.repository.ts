@@ -348,7 +348,11 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
         ),
       })
 
-      return updated
+      const message = await tx.message.findUniqueOrThrow({
+        where: { id: input.assistantMessageId },
+        select: chatMessageSelect,
+      })
+      return { kind: 'ok', message }
     })
   }
 

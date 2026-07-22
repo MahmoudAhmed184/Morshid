@@ -4,6 +4,8 @@ import { AuditModule } from '../audit/audit.module'
 import { AuthModule } from '../auth/auth.module'
 import { PrismaModule } from '../prisma/prisma.module'
 import { PdfStorageModule } from '../pdf-storage/pdf-storage.module'
+import { RetrievalModule } from '../retrieval/retrieval.module'
+import { CompletionModule } from '../completion/completion.module'
 import { StudentChatAuditService } from './student-chat.audit.service'
 import { StudentChatController } from './student-chat.controller'
 import { StudentChatCourseBoundaryAuditFilter } from './student-chat-course-boundary-audit.filter'
@@ -21,9 +23,17 @@ import {
   GroundedChatTurnRepository,
   PrismaGroundedChatTurnRepository,
 } from './grounded-chat-turn.repository'
+import { GroundedChatService } from './grounded-chat.service'
 
 @Module({
-  imports: [AuditModule, AuthModule, PdfStorageModule, PrismaModule],
+  imports: [
+    AuditModule,
+    AuthModule,
+    CompletionModule,
+    PdfStorageModule,
+    PrismaModule,
+    RetrievalModule,
+  ],
   controllers: [StudentChatController],
   providers: [
     StudentChatAuditService,
@@ -42,7 +52,8 @@ import {
       provide: GroundedChatTurnRepository,
       useClass: PrismaGroundedChatTurnRepository,
     },
+    GroundedChatService,
   ],
-  exports: [StudentChatAuditService, StudentChatService],
+  exports: [GroundedChatService, StudentChatAuditService, StudentChatService],
 })
 export class StudentChatModule {}
