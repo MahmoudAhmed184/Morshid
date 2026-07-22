@@ -1,11 +1,12 @@
-import { Injectable } from '@nestjs/common'
+import { ForbiddenException, Injectable } from '@nestjs/common'
 
-import { CourseMembershipRole } from '../../generated/prisma/client'
+import { CourseMembershipRole, UserRole } from '../../generated/prisma/client'
 import type { AuthenticatedRequestUser } from '../auth/auth.dto'
 import { getCourseRolePolicy } from './course-access.policy'
 import type {
   CourseListItemDto,
   CourseListResponseDto,
+  MaterialManageableCourseListResponseDto,
   CourseMembershipSummaryDto,
 } from './courses.dto'
 import { CoursesRepository } from './courses.repository'
@@ -33,6 +34,28 @@ export class CoursesService {
 
     return {
       courses: await this.listMemberCourses(user.id, policy.membershipRole),
+    }
+  }
+
+  async listMaterialManageableCourses(
+    user: AuthenticatedRequestUser,
+  ): Promise<MaterialManageableCourseListResponseDto> {
+    if (user.role !== UserRole.INSTRUCTOR) {
+      throw new ForbiddenException(
+        'Instructor access is required to manage course materials',
+      )
+    }
+
+    const courses = await this.listMemberCourses(
+      user.id,
+      CourseMembershipRole.INSTRUCTOR,
+    )
+
+    return {
+      courses: courses.map((course) => ({
+        ...course,
+        canManageMaterials: true,
+      })),
     }
   }
 
