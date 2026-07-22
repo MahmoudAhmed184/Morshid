@@ -23,7 +23,7 @@ export function DashboardMetricsSection({
           Workspace metrics
         </h2>
         <p className="text-sm text-muted-foreground">
-          Course source and review activity totals.
+          Course context here; source totals stay in each Materials workspace.
         </p>
       </div>
 
@@ -64,7 +64,7 @@ function MetricsCards({
   state: Extract<InstructorDashboardState, { status: 'loading' | 'ready' }>
 }) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
       {instructorDashboardStats.map((stat) => {
         const Icon = stat.icon
 
@@ -76,14 +76,14 @@ function MetricsCards({
           <StatCard
             key={stat.key}
             label={stat.label}
-            value={
-              {
-                materials: state.materialCount,
-                reviewQueue: state.reviewQueueCount,
-              }[stat.key]
-            }
+            value={stat.key === 'courses' ? state.courses.length : '—'}
             icon={<Icon aria-hidden />}
-            description={stat.description}
+            description={
+              stat.key === 'courses'
+                ? stat.description
+                : 'Available in the selected course Materials workspace'
+            }
+            className="rounded-[8px] [--card-spacing:--spacing(3)]"
           />
         )
       })}
@@ -93,7 +93,10 @@ function MetricsCards({
 
 function MetricCardSkeleton({ label }: { label: string }) {
   return (
-    <Card aria-label={`Loading ${label} metric`}>
+    <Card
+      aria-label={`Loading ${label} metric`}
+      className="rounded-[8px] [--card-spacing:--spacing(3)]"
+    >
       <CardHeader className="flex flex-row items-start justify-between gap-3">
         <Skeleton className="h-4 w-28" />
         <Skeleton className="size-4" />

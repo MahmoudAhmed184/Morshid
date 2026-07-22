@@ -1,42 +1,22 @@
-import { FileText, Inbox } from 'lucide-react'
+import { BookOpen, CircleCheck, FileText } from 'lucide-react'
 
 export const instructorDashboardStats = [
   {
+    key: 'courses',
+    label: 'Assigned courses',
+    icon: BookOpen,
+    description: 'Course workspaces available to you',
+  },
+  {
     key: 'materials',
-    label: 'Course materials',
+    label: 'Total materials',
     icon: FileText,
-    description: 'Uploaded sources available to this course',
+    description: 'Uploaded sources across assigned courses',
   },
   {
-    key: 'reviewQueue',
-    label: 'Review queue',
-    icon: Inbox,
-    description: 'Flagged exchanges awaiting review',
-  },
-] as const
-
-export const instructorDashboardPanels = [
-  {
-    id: 'materials',
-    headingId: 'materials-heading',
-    title: 'Course materials',
-    description:
-      'Upload and source management will connect in the next sprint.',
-    emptyTitle: 'No course materials yet',
-    emptyDescription:
-      'The materials API is not connected yet. This area is ready for Python course sources.',
-    icon: FileText,
-    action: 'upload',
-  },
-  {
-    id: 'reviews',
-    headingId: 'reviews-heading',
-    title: 'Review queue',
-    description: 'Only flagged exchanges from this course will appear here.',
-    emptyTitle: 'No reviews waiting',
-    emptyDescription:
-      'Flagged and student-requested reviews will appear after the review API is connected.',
-    icon: Inbox,
-    action: null,
+    key: 'readyMaterials',
+    label: 'Ready materials',
+    icon: CircleCheck,
+    description: 'Sources ready for course retrieval',
   },
 ] as const

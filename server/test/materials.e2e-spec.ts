@@ -149,6 +149,29 @@ describe('Materials upload (e2e)', () => {
       .field('title', input.title)
   }
 
+  it('returns the effective PDF upload constraints to Instructors', async () => {
+    const token = await signInAs('instructor@morshid.demo')
+
+    await request(app.getHttpServer())
+      .get('/api/v1/materials/upload-configuration')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect({
+        maxUploadBytes: DEFAULT_PDF_MAX_UPLOAD_BYTES,
+        acceptedMimeType: 'application/pdf',
+        acceptedFileExtension: '.pdf',
+      })
+  })
+
+  it('does not expose the Instructor upload configuration to students', async () => {
+    const token = await signInAs('student1@morshid.demo')
+
+    await request(app.getHttpServer())
+      .get('/api/v1/materials/upload-configuration')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(403)
+  })
+
   function pythonCourseId(): string {
     const course = [...store.courses.values()].find(
       (candidate) => candidate.code === P0_DEMO_COURSE.code,

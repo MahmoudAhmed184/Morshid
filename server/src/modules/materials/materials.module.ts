@@ -11,6 +11,8 @@ import {
 } from './material-processing.scheduler'
 import { MaterialProcessingService } from './material-processing.service'
 import { MaterialTextChunker } from './material-text-chunker'
+import { MaterialUploadConfigurationController } from './material-upload-configuration.controller'
+import { MaterialUploadConfigurationService } from './material-upload-configuration.service'
 import { MaterialsAuditService } from './materials.audit.service'
 import { MaterialsController } from './materials.controller'
 import {
@@ -35,7 +37,7 @@ import { PdfUploadInterceptor } from './pdf-upload.interceptor'
     AuditModule,
     RagPersistenceModule,
   ],
-  controllers: [MaterialsController],
+  controllers: [MaterialsController, MaterialUploadConfigurationController],
   providers: [
     MaterialsService,
     PdfUploadValidator,
@@ -43,6 +45,7 @@ import { PdfUploadInterceptor } from './pdf-upload.interceptor'
     MaterialsAuditService,
     MaterialProcessingService,
     MaterialTextChunker,
+    MaterialUploadConfigurationService,
     {
       provide: PDF_DOCUMENT_LOADER,
       useClass: PdfJsDocumentLoader,

@@ -10,7 +10,11 @@ import {
   pdfTooLargeException,
   type MaterialsValidationIssue,
 } from './materials.errors'
-import { MATERIAL_TITLE_MAX_LENGTH } from './materials.constants'
+import {
+  MATERIAL_TITLE_MAX_LENGTH,
+  PDF_UPLOAD_FILE_EXTENSION,
+  PDF_UPLOAD_MIME_TYPE,
+} from './materials.constants'
 
 const PDF_SIGNATURE = Buffer.from('%PDF-')
 const MAX_DISPLAY_FILENAME_LENGTH = 255
@@ -74,14 +78,14 @@ export class PdfUploadValidator {
       throw pdfTooLargeException()
     }
 
-    if (!originalFilename.toLowerCase().endsWith('.pdf')) {
+    if (!originalFilename.toLowerCase().endsWith(PDF_UPLOAD_FILE_EXTENSION)) {
       issues.push({
         field: 'file',
         message: 'File extension must be .pdf',
       })
     }
 
-    if (file.mimetype !== 'application/pdf') {
+    if (file.mimetype !== PDF_UPLOAD_MIME_TYPE) {
       issues.push({
         field: 'file',
         message: 'File MIME type must be application/pdf',

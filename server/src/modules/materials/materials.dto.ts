@@ -12,6 +12,20 @@ export interface UploadMaterialRequest {
   title?: string
 }
 
+export class MaterialUploadConfigurationDto {
+  @Expose()
+  @ApiProperty({ minimum: 1 })
+  maxUploadBytes!: number
+
+  @Expose()
+  @ApiProperty({ example: 'application/pdf' })
+  acceptedMimeType!: string
+
+  @Expose()
+  @ApiProperty({ example: '.pdf' })
+  acceptedFileExtension!: string
+}
+
 export class UploadMaterialRequestDto {
   @ApiProperty({ minLength: 1, maxLength: MATERIAL_TITLE_MAX_LENGTH })
   title!: string
