@@ -1,4 +1,4 @@
-import { BookOpen, Lock } from 'lucide-react'
+import { BookOpen } from 'lucide-react'
 
 interface StudentConversationHeaderProps {
   title: string
@@ -20,10 +20,6 @@ export function StudentConversationHeader({
             {courseCode}
           </span>
           <span className="truncate">{courseTitle}</span>
-          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground/80">
-            <Lock className="size-3" aria-hidden />
-            Private saved history
-          </span>
         </div>
         <h1 className="mt-1.5 truncate text-lg font-medium text-foreground">
           {title}

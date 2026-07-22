@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@/features/auth/api/authenticated-api-client'
 import type { AuthSession } from '@/features/auth/schemas/auth.schema'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
+import { ThemeProvider } from '@/providers/theme-provider'
 import {
   createStudentSession,
   deleteStudentSession,
@@ -61,6 +62,7 @@ vi.mock('@tanstack/react-router', () => ({
       {children}
     </a>
   ),
+  ScriptOnce: () => null,
   useNavigate: () => navigateMock,
 }))
 
@@ -151,6 +153,20 @@ function renderWorkspace({
   sessions?: ChatSessionListResponse
   messages?: ChatMessageHistoryResponse
 } = {}) {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  )
+
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
@@ -185,7 +201,9 @@ function renderWorkspace({
 
   const result = render(
     <QueryClientProvider client={queryClient}>
-      <StudentAiTutorPage courseId={courseId} sessionId={sessionId} />
+      <ThemeProvider defaultTheme="system" storageKey="test-theme">
+        <StudentAiTutorPage courseId={courseId} sessionId={sessionId} />
+      </ThemeProvider>
     </QueryClientProvider>,
   )
 
@@ -418,6 +436,30 @@ describe('StudentAiTutorPage workspace', () => {
     )
   })
 
+  it('connects grounded responses to guidance labels and the sources panel', async () => {
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+      messages: orderedMessageHistory,
+    })
+
+    expect(await screen.findByText('GROUNDED IN COURSE SOURCES')).toBeVisible()
+    const sourcesPanel = screen.getByLabelText('Sources and citations')
+    expect(
+      within(sourcesPanel).getByText('Cited in this conversation'),
+    ).toBeVisible()
+    expect(within(sourcesPanel).getByText('Python lists')).toBeVisible()
+    expect(
+      within(sourcesPanel).getByText(
+        'Python lists are ordered and mutable collections.',
+      ),
+    ).toBeVisible()
+  })
+
   it('recovers a routed session beyond the first page after refresh', async () => {
     listStudentSessionsMock.mockResolvedValueOnce({
       sessions: [{ ...primaryChatSessionFixture }],
@@ -633,10 +675,12 @@ describe('StudentAiTutorPage workspace', () => {
 
     rerender(
       <QueryClientProvider client={queryClient}>
-        <StudentAiTutorPage
-          courseId={primaryCourse.id}
-          sessionId={primaryChatSessionFixture.id}
-        />
+        <ThemeProvider defaultTheme="system" storageKey="test-theme">
+          <StudentAiTutorPage
+            courseId={primaryCourse.id}
+            sessionId={primaryChatSessionFixture.id}
+          />
+        </ThemeProvider>
       </QueryClientProvider>,
     )
     expect(

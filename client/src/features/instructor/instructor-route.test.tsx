@@ -199,7 +199,7 @@ describe('/instructor', () => {
     const { history } = renderAtInstructorRoute(createSession('STUDENT'))
 
     await waitFor(() =>
-      expect(history.location.pathname).toBe('/student/dashboard'),
+      expect(history.location.pathname).toBe('/student/ai-tutor'),
     )
     await waitFor(() =>
       expect(

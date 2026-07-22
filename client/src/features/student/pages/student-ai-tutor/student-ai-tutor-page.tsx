@@ -1,9 +1,10 @@
 import { useNavigate } from '@tanstack/react-router'
-import { BookOpen, PanelLeft } from 'lucide-react'
+import { BookMarked, BookOpen, PanelLeft } from 'lucide-react'
 import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/custom/empty-state'
+import { ModeToggle } from '@/components/ui/mode-toggle'
 import {
   Sheet,
   SheetContent,
@@ -26,6 +27,7 @@ import { StudentConversationHeader } from './student-conversation-header'
 import { StudentDisabledComposer } from './student-disabled-composer'
 import { StudentMessageHistory } from './student-message-history'
 import { StudentSessionNavigation } from './student-session-navigation'
+import { StudentSourcesPanel } from './student-sources-panel'
 import { StudentWorkspaceState } from './student-workspace-state'
 
 interface StudentAiTutorPageProps {
@@ -39,6 +41,8 @@ export function StudentAiTutorPage({
 }: StudentAiTutorPageProps) {
   const navigate = useNavigate()
   const [mobileSessionsOpen, setMobileSessionsOpen] = useState(false)
+  const [mobileSourcesOpen, setMobileSourcesOpen] = useState(false)
+  const [sourcesOpen, setSourcesOpen] = useState(true)
   const { data: assignedCourses } = useStudentCourses()
   const selectedCourse =
     (courseId
@@ -161,96 +165,181 @@ export function StudentAiTutorPage({
       aria-label="Student AI Tutor"
     >
       {selectedCourse ? (
-        <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)] md:grid-cols-[18rem_minmax(0,1fr)] md:overflow-hidden">
+        <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)] md:grid-cols-[19rem_minmax(0,1fr)] md:overflow-hidden">
           <div className="hidden min-h-0 md:contents">
             <StudentSessionNavigation {...activeSessionNavigationProps} />
           </div>
 
           <div className="flex min-h-80 min-w-0 flex-col bg-background">
-            <Sheet
-              open={mobileSessionsOpen}
-              onOpenChange={setMobileSessionsOpen}
-            >
-              <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-card px-3 md:hidden">
-                <SheetTrigger
-                  render={
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-9 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                      aria-label="Open sessions"
-                    />
-                  }
-                >
-                  <PanelLeft className="size-5" aria-hidden />
-                </SheetTrigger>
-                <span className="truncate text-sm font-medium text-foreground">
-                  Courses & chats
-                </span>
-              </div>
-              <SheetContent
-                side="left"
-                className="inset-y-2! left-2! h-[calc(100svh-1rem)]! w-[80vw]! max-w-80 gap-0 overflow-hidden overscroll-contain rounded-lg border border-border bg-card p-0 shadow-lg md:hidden"
+            <header className="glass-paper flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border px-3 md:px-4">
+              <Sheet
+                open={mobileSessionsOpen}
+                onOpenChange={setMobileSessionsOpen}
               >
-                <SheetHeader className="sr-only">
-                  <SheetTitle>Course sessions</SheetTitle>
-                </SheetHeader>
-                <StudentSessionNavigation
-                  {...activeSessionNavigationProps}
-                  onNavigate={() => setMobileSessionsOpen(false)}
-                  className="h-full border-0 pt-8"
-                />
-              </SheetContent>
-            </Sheet>
+                <div className="flex min-w-0 items-center gap-2">
+                  <SheetTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-9 text-muted-foreground md:hidden"
+                        aria-label="Open sessions"
+                      />
+                    }
+                  >
+                    <PanelLeft
+                      className="size-5"
+                      strokeWidth={1.75}
+                      aria-hidden
+                    />
+                  </SheetTrigger>
+                  <span className="truncate text-sm font-medium text-foreground md:hidden">
+                    Courses & chats
+                  </span>
+                  <nav
+                    aria-label="Workspace breadcrumb"
+                    className="smallcaps-label hidden min-w-0 items-center gap-1.5 md:flex"
+                  >
+                    <span>Student</span>
+                    <span aria-hidden>·</span>
+                    <span className="truncate text-foreground">
+                      {selectedCourse.code}
+                    </span>
+                  </nav>
+                </div>
+                <SheetContent
+                  side="left"
+                  className="inset-y-2! left-2! h-[calc(100svh-1rem)]! w-[80vw]! max-w-80 gap-0 overflow-hidden overscroll-contain rounded-lg border border-border bg-card p-0 shadow-lg md:hidden"
+                >
+                  <SheetHeader className="sr-only">
+                    <SheetTitle>Course sessions</SheetTitle>
+                  </SheetHeader>
+                  <StudentSessionNavigation
+                    {...activeSessionNavigationProps}
+                    onNavigate={() => setMobileSessionsOpen(false)}
+                    className="h-full border-0 pt-8"
+                  />
+                </SheetContent>
+              </Sheet>
 
-            {selectedSession ? (
-              <StudentConversationHeader
-                title={selectedSession.title}
-                courseCode={selectedCourse.code}
-                courseTitle={selectedCourse.title}
-              />
-            ) : null}
-            <div className="scrollbar-themed min-h-0 flex-1 overflow-y-auto px-6 py-8">
-              {selectedSession ? (
-                <div className="mx-auto min-h-full max-w-3xl">
-                  <StudentMessageHistory
+              <Sheet
+                open={mobileSourcesOpen}
+                onOpenChange={setMobileSourcesOpen}
+              >
+                <div className="flex shrink-0 items-center gap-1">
+                  <ModeToggle />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Toggle sources and citations"
+                    aria-pressed={sourcesOpen}
+                    onClick={() => setSourcesOpen((open) => !open)}
+                    className="hidden lg:inline-flex"
+                  >
+                    <BookMarked
+                      className="size-4 text-muted-foreground"
+                      strokeWidth={1.75}
+                      aria-hidden
+                    />
+                  </Button>
+                  <SheetTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="lg:hidden"
+                        aria-label="Show sources and citations"
+                      />
+                    }
+                  >
+                    <BookMarked
+                      className="size-4 text-muted-foreground"
+                      strokeWidth={1.75}
+                      aria-hidden
+                    />
+                  </SheetTrigger>
+                </div>
+                <SheetContent
+                  side="right"
+                  className="w-[85vw]! max-w-sm gap-0 border-border bg-card p-0 lg:hidden"
+                >
+                  <SheetHeader className="sr-only">
+                    <SheetTitle>Sources and citations</SheetTitle>
+                  </SheetHeader>
+                  <StudentSourcesPanel
+                    course={selectedCourse}
                     messages={messages}
-                    error={messagesQuery.error}
-                    isPending={messagesQuery.isPending}
-                    isError={messagesQuery.isError}
-                    isFetching={messagesQuery.isFetching}
-                    hasNextPage={messagesQuery.hasNextPage}
-                    isFetchingNextPage={messagesQuery.isFetchingNextPage}
-                    isFetchNextPageError={messagesQuery.isFetchNextPageError}
-                    onRetry={() => void messagesQuery.refetch()}
-                    onLoadMore={() => void messagesQuery.fetchNextPage()}
-                    onRecover={() => void handleStaleSession()}
+                    className="h-full rounded-none border-0 shadow-none"
                   />
-                </div>
-              ) : (
-                <div className="flex min-h-full items-center justify-center py-4">
-                  <StudentWorkspaceState
-                    sessionId={sessionId}
-                    sessionsPending={sessionsQuery.isPending}
-                    sessionsError={
-                      sessionsQuery.isError && sessions.length === 0
-                    }
-                    hasSessions={sessions.length > 0}
-                    sessionPending={
-                      routedSessionQuery.isPending &&
-                      routedSessionQuery.fetchStatus !== 'idle'
-                    }
-                    sessionError={routedSessionQuery.error}
-                    sessionRetrying={routedSessionQuery.isFetching}
-                    onRetrySession={() => void routedSessionQuery.refetch()}
+                </SheetContent>
+              </Sheet>
+            </header>
+
+            <div className="flex min-h-0 flex-1 overflow-hidden">
+              <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+                {selectedSession ? (
+                  <StudentConversationHeader
+                    title={selectedSession.title}
+                    courseCode={selectedCourse.code}
+                    courseTitle={selectedCourse.title}
                   />
+                ) : null}
+                <div className="scrollbar-themed min-h-0 flex-1 overflow-y-auto px-6 py-8">
+                  {selectedSession ? (
+                    <div className="mx-auto min-h-full max-w-3xl">
+                      <StudentMessageHistory
+                        messages={messages}
+                        error={messagesQuery.error}
+                        isPending={messagesQuery.isPending}
+                        isError={messagesQuery.isError}
+                        isFetching={messagesQuery.isFetching}
+                        hasNextPage={messagesQuery.hasNextPage}
+                        isFetchingNextPage={messagesQuery.isFetchingNextPage}
+                        isFetchNextPageError={
+                          messagesQuery.isFetchNextPageError
+                        }
+                        onRetry={() => void messagesQuery.refetch()}
+                        onLoadMore={() => void messagesQuery.fetchNextPage()}
+                        onRecover={() => void handleStaleSession()}
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex min-h-full items-center justify-center py-4">
+                      <StudentWorkspaceState
+                        sessionId={sessionId}
+                        sessionsPending={sessionsQuery.isPending}
+                        sessionsError={
+                          sessionsQuery.isError && sessions.length === 0
+                        }
+                        hasSessions={sessions.length > 0}
+                        sessionPending={
+                          routedSessionQuery.isPending &&
+                          routedSessionQuery.fetchStatus !== 'idle'
+                        }
+                        sessionError={routedSessionQuery.error}
+                        sessionRetrying={routedSessionQuery.isFetching}
+                        onRetrySession={() => void routedSessionQuery.refetch()}
+                      />
+                    </div>
+                  )}
                 </div>
-              )}
+                <StudentDisabledComposer
+                  hasSelectedSession={selectedSession !== null}
+                />
+              </div>
+
+              {sourcesOpen ? (
+                <StudentSourcesPanel
+                  course={selectedCourse}
+                  messages={messages}
+                  onCollapse={() => setSourcesOpen(false)}
+                  className="m-3 ml-0 hidden w-80 shrink-0 lg:flex"
+                />
+              ) : null}
             </div>
-            <StudentDisabledComposer
-              hasSelectedSession={selectedSession !== null}
-            />
           </div>
         </div>
       ) : (

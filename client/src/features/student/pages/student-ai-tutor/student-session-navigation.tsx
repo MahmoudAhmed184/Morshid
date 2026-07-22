@@ -1,7 +1,13 @@
-import { MessageSquareText } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
+import { LogOut, MessageSquareText, Settings2 } from 'lucide-react'
 
+import { getUserInitials } from '@/components/layout/dashboard-header'
+import { Logo } from '@/components/logo'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { ErrorState } from '@/components/ui/custom/error-state'
+import { useLogout } from '@/features/auth/hooks/use-logout'
+import { useAuthStore } from '@/features/auth/stores/auth.store'
 import type { ChatSession } from '@/features/student/schemas/student-chat.schema'
 import type { StudentCourse } from '@/features/student/schemas/student-course.schema'
 import { cn } from '@/lib/utils'
@@ -59,6 +65,13 @@ export function StudentSessionNavigation({
   onNavigate,
   className,
 }: StudentSessionNavigationProps) {
+  const user = useAuthStore((state) => state.user)
+  const logout = useLogout()
+  const displayName = user?.displayName ?? 'Student'
+  const roleLabel = user?.role
+    ? `${user.role.charAt(0)}${user.role.slice(1).toLowerCase()}`
+    : 'Student'
+
   return (
     <aside
       aria-label="Session navigation"
@@ -67,12 +80,32 @@ export function StudentSessionNavigation({
         className,
       )}
     >
+      <div className="flex items-center gap-2.5 px-4 pt-4">
+        <Logo className="size-8 text-foreground" iconClassName="size-5" />
+        <span className="font-display text-[1.125rem] leading-none text-foreground">
+          Morshid
+        </span>
+        <Badge variant="secondary" className="ml-auto">
+          Student
+        </Badge>
+      </div>
+
       <div className="flex min-h-0 flex-1 flex-col">
         <StudentCourseSwitcher
           courses={courses}
           selectedCourse={selectedCourse}
           onNavigate={onNavigate}
         />
+
+        <div className="-mt-2 px-4 pb-4">
+          <Link
+            to="/student/courses"
+            onClick={onNavigate}
+            className="link-editorial text-sm text-muted-foreground"
+          >
+            All courses →
+          </Link>
+        </div>
 
         <div className="px-4 pb-5">
           <StudentCreateSessionButton
@@ -155,6 +188,39 @@ export function StudentSessionNavigation({
             </nav>
           ) : null}
         </div>
+      </div>
+
+      <div className="m-3 flex items-center gap-2 rounded-xl border bg-card p-3">
+        <span
+          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-foreground"
+          aria-hidden
+        >
+          {getUserInitials(user?.displayName)}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-foreground">
+            {displayName}
+          </p>
+          <p className="footnote truncate">{roleLabel}</p>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Settings"
+          render={<Link to="/student/settings" onClick={onNavigate} />}
+        >
+          <Settings2 className="size-4" strokeWidth={1.75} aria-hidden />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Sign out"
+          onClick={() => void logout()}
+        >
+          <LogOut className="size-4" strokeWidth={1.75} aria-hidden />
+        </Button>
       </div>
     </aside>
   )

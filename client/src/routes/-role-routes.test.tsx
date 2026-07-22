@@ -86,6 +86,6 @@ describe('role route boundaries', () => {
       ),
     )
 
-    await expect(loadRoute('/admin')).resolves.toBe('/student/dashboard')
+    await expect(loadRoute('/admin')).resolves.toBe('/student/ai-tutor')
   })
 })
