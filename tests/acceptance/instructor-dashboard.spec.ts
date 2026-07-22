@@ -42,8 +42,8 @@ test.describe('Instructor dashboard', () => {
       {
         link: 'Materials',
         path: /\/instructor\/materials\/?$/,
-        heading: 'Materials',
-        placeholder: 'Materials are not connected yet',
+        heading: 'Course Materials',
+        placeholder: 'No materials yet',
       },
     ] as const
 
@@ -105,7 +105,7 @@ test.describe('Instructor dashboard', () => {
       await menu.getByRole('link', { name: 'Materials', exact: true }).click()
       await expect(page).toHaveURL(/\/instructor\/materials\/?$/)
       await expect(
-        page.getByRole('heading', { name: 'Materials', exact: true }),
+        page.getByRole('heading', { name: 'Course Materials', exact: true }),
       ).toBeVisible()
       await expect(menu).toBeHidden()
 
