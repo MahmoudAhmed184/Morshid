@@ -110,6 +110,51 @@ export class ChatSessionListResponseDto {
   nextCursor!: string | null
 }
 
+export class ChatCitationEvidenceDto {
+  @Expose()
+  @ApiProperty({ minimum: 1 })
+  rank!: number
+
+  @Expose()
+  @ApiProperty({ minimum: -1, maximum: 1 })
+  similarityScore!: number
+
+  @Expose()
+  @ApiProperty({ format: 'uuid' })
+  chunkId!: string
+
+  @Expose()
+  @ApiProperty({ minimum: 1 })
+  chunkNumber!: number
+
+  @Expose()
+  @ApiProperty({ maxLength: 240 })
+  excerpt!: string
+}
+
+export class ChatCitationDto {
+  @Expose()
+  @ApiProperty({ minimum: 1 })
+  order!: number
+
+  @Expose()
+  @ApiProperty({ format: 'uuid' })
+  materialId!: string
+
+  @Expose()
+  @ApiProperty()
+  materialTitle!: string
+
+  @Expose()
+  @ApiProperty()
+  sourceAvailable!: boolean
+
+  @Expose()
+  @Type(() => ChatCitationEvidenceDto)
+  @ApiProperty({ type: [ChatCitationEvidenceDto] })
+  evidence!: ChatCitationEvidenceDto[]
+}
+
 export class ChatMessageDto {
   @Expose()
   @ApiProperty({ format: 'uuid' })
@@ -158,6 +203,11 @@ export class ChatMessageDto {
   @Expose()
   @ApiProperty({ format: 'date-time', nullable: true })
   completedAt!: string | null
+
+  @Expose()
+  @Type(() => ChatCitationDto)
+  @ApiProperty({ type: [ChatCitationDto] })
+  citations!: ChatCitationDto[]
 }
 
 export class ChatMessageHistoryResponseDto {

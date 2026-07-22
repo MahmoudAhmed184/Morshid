@@ -19,6 +19,7 @@ import {
 } from './student-chat.dto'
 import { STUDENT_CHAT_ERROR_CODES } from './student-chat.errors'
 import type { StudentChatMessageRepository } from './student-chat-message.repository'
+import { StudentChatMessagePresenter } from './student-chat-message.presenter'
 import { StudentChatSessionRepository } from './student-chat-session.repository'
 import type {
   AppendPendingAssistantMessageInput,
@@ -419,6 +420,9 @@ describe('StudentChatService', () => {
         repository,
         auditService as unknown as StudentChatAuditService,
         accessAuditService as unknown as AccessAuditService,
+        new StudentChatMessagePresenter({
+          exists: jest.fn().mockResolvedValue(true),
+        } as never),
       ),
     }
   }
@@ -958,6 +962,8 @@ function makeMessage(
     errorCode: values.errorCode ?? null,
     createdAt,
     completedAt: values.completedAt ?? null,
+    citations: values.citations ?? [],
+    retrievals: values.retrievals ?? [],
   }
 }
 

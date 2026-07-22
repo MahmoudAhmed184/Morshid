@@ -35,9 +35,9 @@ import {
   chatSessionNotFoundException,
 } from './student-chat.errors'
 import { StudentChatMessageRepository } from './student-chat-message.repository'
+import { StudentChatMessagePresenter } from './student-chat-message.presenter'
 import { StudentChatSessionRepository } from './student-chat-session.repository'
 import type {
-  ChatMessageRecord,
   AppendPendingAssistantMessageInput,
   AppendStudentMessageInput,
   BlockAssistantMessageInput,
@@ -58,6 +58,7 @@ export class StudentChatService {
     private readonly messageRepository: StudentChatMessageRepository,
     private readonly studentChatAuditService: StudentChatAuditService,
     private readonly accessAuditService: AccessAuditService,
+    private readonly messagePresenter: StudentChatMessagePresenter,
   ) {}
 
   async createSession(
@@ -216,7 +217,7 @@ export class StudentChatService {
     }
 
     return {
-      messages: messages.map(mapMessage),
+      messages: await this.messagePresenter.presentMany(messages),
       nextCursor:
         messages.length === limit
           ? (messages[messages.length - 1]?.sequence ?? null)
@@ -447,7 +448,7 @@ export class StudentChatService {
     const result = await resultPromise
 
     if (result.kind === 'ok') {
-      return mapMessage(result.message)
+      return this.messagePresenter.present(result.message)
     }
 
     if (result.kind === 'membership_missing') {
@@ -535,22 +536,5 @@ function mapSession(record: ChatSessionRecord): ChatSessionDto {
     lastMessageAt: record.lastMessageAt?.toISOString() ?? null,
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
-  }
-}
-
-function mapMessage(record: ChatMessageRecord): ChatMessageDto {
-  return {
-    id: record.id,
-    sequence: record.sequence,
-    role: record.role,
-    responseToMessageId: record.responseToMessageId,
-    content: record.content,
-    status: record.status,
-    requestKind: record.requestKind,
-    guidanceLabel: record.guidanceLabel,
-    hintLevel: record.hintLevel,
-    errorCode: record.errorCode,
-    createdAt: record.createdAt.toISOString(),
-    completedAt: record.completedAt?.toISOString() ?? null,
   }
 }

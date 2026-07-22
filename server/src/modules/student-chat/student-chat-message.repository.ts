@@ -8,6 +8,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service'
 import {
   chatMessageSelect,
+  chatMessageScalarSelect,
   currentDatabaseTime,
   hasActiveStudentMembershipInTransaction,
   ownedActiveSessionWhere,
@@ -304,12 +305,12 @@ export class PrismaStudentChatMessageRepository extends StudentChatMessageReposi
           status: MessageStatus.PENDING,
         },
         data,
-        select: chatMessageSelect,
+        select: chatMessageScalarSelect,
         limit: 1,
       })
-      const message = messages.at(0)
+      const updated = messages.at(0)
 
-      if (message === undefined) {
+      if (updated === undefined) {
         // Distinguish "already finalized" from "never existed" so callers can
         // treat a duplicate finalization differently from a genuine miss.
         const existing = await tx.message.findFirst({
@@ -330,6 +331,10 @@ export class PrismaStudentChatMessageRepository extends StudentChatMessageReposi
         return { kind: 'message_not_found', messageId: input.messageId }
       }
 
+      const message = await tx.message.findUniqueOrThrow({
+        where: { id: updated.id },
+        select: chatMessageSelect,
+      })
       return { kind: 'ok', message }
     })
   }
