@@ -28,6 +28,23 @@ Morshid bound, not a Prisma-prescribed count. Keeping provider work outside the
 callback is important: a database retry must never repeat an already-issued
 completion call.
 
+An orchestration attempt is identified by a server-generated UUID and a
+database-timestamped five-minute lease on its pending assistant row. Every
+terminal transition compares that UUID. A retry may reclaim an expired lease
+on the same Student/assistant pair, while a late worker from the prior attempt
+can no longer overwrite the newer attempt. A new send first converts expired
+pending work to the fixed safe failure state, so process death or a temporarily
+unavailable terminal write cannot wedge the session indefinitely. The lease is
+only a recovery boundary: retrieval and completion still run outside the
+transaction and are never repeated by the database retry loop.
+
+A connection failure after PostgreSQL commits but before Prisma receives the
+acknowledgement is treated as ambiguous rather than as a proven rollback.
+Begin, retry, and terminal writes use their preallocated attempt/message ids to
+read back the exact state. A matching committed result is returned; an exact
+pending result can be failed safely; and `503` is reserved for state that still
+cannot be determined or terminalized.
+
 The session lock needs raw SQL because it uses PostgreSQL's locking clause. A
 Prisma `$queryRaw` tagged template turns interpolated data values into prepared
 statement parameters; the documentation warns against constructing query text
@@ -64,6 +81,16 @@ The repository should consequently lock the session first and keep a consistent
 write order across send, retry, finalization, blocking, and failure paths. This
 also reinforces the short-transaction boundary above.
 
+For user-authorized begin, retry, completion, and blocked transitions, the
+repository locks the trusted session row first and then locks the exact
+course-membership row before validating that its role is Student and
+`removed_at` is null. Failure cleanup is different: the persisted
+session/Student/assistant/attempt relationship is an internal capability, so an
+exact pending attempt can be changed to the fixed safe failed state even after
+membership revocation or session soft deletion. This cannot create or expose a
+turn; it only closes work already authorized and persisted. Grounded completion
+still requires current authorization.
+
 ## One assistant response per Student message
 
 Prisma defines a SQL one-to-one relation by placing a `UNIQUE` constraint on
@@ -96,6 +123,15 @@ The migration must therefore establish that no duplicate non-null
 response index with the unique index, and preserve nullability. The duplicate
 check and index replacement are migration-review obligations derived from the
 new invariant, not automatic data repair by Prisma.
+
+Morshid's explicit legacy-data policy is non-destructive: the migration checks
+for duplicate non-null response pointers before dropping the old index. If it
+finds any, it aborts the transaction with SQLSTATE `23505`, a targeted message,
+the affected Student message ids, and a remediation hint. Operators must review
+and reconcile those assistant histories before retrying the migration; the
+migration never guesses which answer or evidence should survive. Upgrade tests
+cover both this diagnostic/rollback and successful index creation after an
+operator-simulated reconciliation.
 
 Prisma's development CLI supports `migrate dev --name ... --create-only`, which
 creates but does not apply the migration, allowing the SQL to be inspected

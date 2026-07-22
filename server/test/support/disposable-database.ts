@@ -11,6 +11,7 @@ import { PrismaService } from '../../src/modules/prisma/prisma.service'
 export interface DisposableDatabase {
   prisma: PrismaService
   databaseName: string
+  databaseUrl: string
   // Disconnects the Prisma client (when it was created) and force-drops the
   // disposable database. Safe to call from afterAll even when setup failed.
   dispose(): Promise<void>
@@ -22,6 +23,7 @@ export interface DisposableDatabase {
 // dropped before the error propagates so failed runs cannot orphan databases.
 export async function setUpDisposableDatabase(
   namePrefix: string,
+  options: { throughMigration?: string } = {},
 ): Promise<DisposableDatabase> {
   const originalDatabaseUrl = requireDatabaseUrl()
   const databaseName = `${namePrefix}_${randomUUID().replaceAll('-', '')}`
@@ -44,7 +46,7 @@ export async function setUpDisposableDatabase(
 
   try {
     const databaseUrl = databaseUrlFor(originalDatabaseUrl, databaseName)
-    await applyMigrations(databaseUrl)
+    await applyMigrations(databaseUrl, options.throughMigration)
 
     const configService = {
       get: () => databaseUrl,
@@ -52,7 +54,7 @@ export async function setUpDisposableDatabase(
     prisma = new PrismaService(configService)
     await prisma.$connect()
 
-    return { prisma, databaseName, dispose }
+    return { prisma, databaseName, databaseUrl, dispose }
   } catch (error) {
     await dispose()
     throw error
@@ -92,7 +94,10 @@ async function runDatabaseAdminStatement(
   }
 }
 
-async function applyMigrations(databaseUrl: string): Promise<void> {
+async function applyMigrations(
+  databaseUrl: string,
+  throughMigration?: string,
+): Promise<void> {
   const migrationsDirectory = join(process.cwd(), 'prisma', 'migrations')
   const migrationDirectories = (
     await readdir(migrationsDirectory, { withFileTypes: true })
@@ -110,6 +115,9 @@ async function applyMigrations(databaseUrl: string): Promise<void> {
         'utf8',
       )
       await client.query(sql)
+      if (migrationDirectory === throughMigration) {
+        break
+      }
     }
   } finally {
     await client.end()
