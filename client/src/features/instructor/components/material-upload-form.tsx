@@ -1,12 +1,13 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2Icon, UploadIcon } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 
 import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -15,14 +16,30 @@ import {
 import { Input } from '@/components/ui/input'
 import { isApiError } from '@/features/auth/api/authenticated-api-client'
 import { useUploadInstructorMaterial } from '@/features/instructor/hooks/use-instructor-materials'
-import { instructorMaterialUploadSchema } from '@/features/instructor/schemas/instructor-material.schema'
-import type { InstructorMaterialUpload } from '@/features/instructor/schemas/instructor-material.schema'
+import {
+  createInstructorMaterialUploadSchema,
+  formatFileSize,
+} from '@/features/instructor/schemas/instructor-material.schema'
+import type {
+  InstructorMaterialUpload,
+  InstructorMaterialUploadConfiguration,
+} from '@/features/instructor/schemas/instructor-material.schema'
 
-export function MaterialUploadForm({ courseId }: { courseId: string }) {
+export function MaterialUploadForm({
+  courseId,
+  configuration,
+}: {
+  courseId: string
+  configuration: InstructorMaterialUploadConfiguration
+}) {
   const uploadMutation = useUploadInstructorMaterial()
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const uploadSchema = useMemo(
+    () => createInstructorMaterialUploadSchema(configuration.maxUploadBytes),
+    [configuration.maxUploadBytes],
+  )
   const form = useForm<InstructorMaterialUpload>({
-    resolver: zodResolver(instructorMaterialUploadSchema),
+    resolver: zodResolver(uploadSchema),
     mode: 'onSubmit',
     reValidateMode: 'onChange',
     defaultValues: {
@@ -86,12 +103,16 @@ export function MaterialUploadForm({ courseId }: { courseId: string }) {
                   ref={ref}
                   name={name}
                   type="file"
-                  accept=".pdf,application/pdf"
+                  accept={`${configuration.acceptedFileExtension},${configuration.acceptedMimeType}`}
                   disabled={isPending}
                   onBlur={onBlur}
                   onChange={(event) => onChange(event.target.files?.[0])}
                 />
               </FormControl>
+              <FormDescription>
+                PDF only. Maximum {formatFileSize(configuration.maxUploadBytes)}
+                .
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}

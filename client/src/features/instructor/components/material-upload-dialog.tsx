@@ -10,8 +10,15 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { MaterialUploadForm } from '@/features/instructor/components/material-upload-form'
+import type { InstructorMaterialUploadConfiguration } from '@/features/instructor/schemas/instructor-material.schema'
 
-export function MaterialUploadDialog({ courseId }: { courseId: string }) {
+export function MaterialUploadDialog({
+  courseId,
+  configuration,
+}: {
+  courseId: string
+  configuration: InstructorMaterialUploadConfiguration
+}) {
   return (
     <Dialog>
       <DialogTrigger render={<Button className="w-full sm:w-auto" />}>
@@ -25,7 +32,7 @@ export function MaterialUploadDialog({ courseId }: { courseId: string }) {
             Add a clean, text-based PDF to the selected course.
           </DialogDescription>
         </DialogHeader>
-        <MaterialUploadForm courseId={courseId} />
+        <MaterialUploadForm courseId={courseId} configuration={configuration} />
       </DialogContent>
     </Dialog>
   )

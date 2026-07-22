@@ -1,6 +1,5 @@
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/custom/empty-state'
-import { StatCard } from '@/components/ui/custom/stat-card'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { InstructorDashboardState } from '@/features/instructor/types/instructor-dashboard-state'
 
@@ -64,33 +63,11 @@ function DashboardSourceReadinessContent({
     )
   }
 
-  const readinessItems = [
-    {
-      label: 'Processing',
-      value: state.processingMaterialCount,
-      description: 'Sources currently being prepared',
-    },
-    {
-      label: 'Ready',
-      value: state.readyMaterialCount,
-      description: 'Sources available for retrieval',
-    },
-    {
-      label: 'Needs attention',
-      value: state.attentionMaterialCount,
-      description: 'Sources with warnings or failures',
-    },
-  ]
-
   return (
-    <div className="grid gap-4 sm:grid-cols-3">
-      {readinessItems.map((item) => (
-        <StatCard
-          key={item.label}
-          {...item}
-          className="rounded-[8px] [--card-spacing:--spacing(3)]"
-        />
-      ))}
-    </div>
+    <EmptyState
+      title="Source readiness is course-specific"
+      description="Open a course in Materials to see live processing, ready, warning, and failed states."
+      className="min-h-40"
+    />
   )
 }

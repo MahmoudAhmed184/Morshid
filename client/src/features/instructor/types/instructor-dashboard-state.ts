@@ -11,8 +11,4 @@ export type InstructorDashboardState =
   | {
       status: 'ready'
       courses: InstructorCourse[]
-      materialCount: number
-      readyMaterialCount: number
-      processingMaterialCount: number
-      attentionMaterialCount: number
     }

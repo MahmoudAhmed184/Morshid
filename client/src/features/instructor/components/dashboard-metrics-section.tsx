@@ -23,7 +23,7 @@ export function DashboardMetricsSection({
           Workspace metrics
         </h2>
         <p className="text-sm text-muted-foreground">
-          Live totals across your assigned course workspaces.
+          Course context here; source totals stay in each Materials workspace.
         </p>
       </div>
 
@@ -76,15 +76,13 @@ function MetricsCards({
           <StatCard
             key={stat.key}
             label={stat.label}
-            value={
-              {
-                courses: state.courses.length,
-                materials: state.materialCount,
-                readyMaterials: state.readyMaterialCount,
-              }[stat.key]
-            }
+            value={stat.key === 'courses' ? state.courses.length : '—'}
             icon={<Icon aria-hidden />}
-            description={stat.description}
+            description={
+              stat.key === 'courses'
+                ? stat.description
+                : 'Available in the selected course Materials workspace'
+            }
             className="rounded-[8px] [--card-spacing:--spacing(3)]"
           />
         )

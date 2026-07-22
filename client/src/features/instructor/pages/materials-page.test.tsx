@@ -11,9 +11,11 @@ import userEvent from '@testing-library/user-event'
 import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ApiError } from '@/features/auth/api/authenticated-api-client'
 import { useInstructorCourses } from '@/features/instructor/hooks/use-instructor-courses'
 import {
   useInstructorMaterials,
+  useInstructorMaterialUploadConfiguration,
   useUploadInstructorMaterial,
 } from '@/features/instructor/hooks/use-instructor-materials'
 
@@ -24,17 +26,24 @@ vi.mock('@/features/instructor/hooks/use-instructor-materials')
 
 const useInstructorCoursesMock = vi.mocked(useInstructorCourses)
 const useInstructorMaterialsMock = vi.mocked(useInstructorMaterials)
+const useInstructorMaterialUploadConfigurationMock = vi.mocked(
+  useInstructorMaterialUploadConfiguration,
+)
 const useUploadInstructorMaterialMock = vi.mocked(useUploadInstructorMaterial)
 
 const course = {
   id: 'f5bb713c-09b7-42d3-acf3-02f39a902e5a',
   code: 'CS-201',
   title: 'Data Structures',
+  membershipRole: 'INSTRUCTOR',
+  canManageMaterials: true,
 }
 const secondCourse = {
   id: '7fc308e8-dc70-43dc-933c-7ee3c548c889',
   code: 'MATH-310',
   title: 'Discrete Mathematics',
+  membershipRole: 'INSTRUCTOR',
+  canManageMaterials: true,
 }
 const material = {
   id: '3e533215-42ba-42b8-ad6a-404e7bb3c8d7',
@@ -140,6 +149,15 @@ describe('MaterialsPage', () => {
         refetch: refetchMaterials,
       }) as unknown as ReturnType<typeof useInstructorMaterials>,
     )
+    useInstructorMaterialUploadConfigurationMock.mockReturnValue(
+      queryResult({
+        maxUploadBytes: 1_024,
+        acceptedMimeType: 'application/pdf',
+        acceptedFileExtension: '.pdf',
+      }) as unknown as ReturnType<
+        typeof useInstructorMaterialUploadConfiguration
+      >,
+    )
     useUploadInstructorMaterialMock.mockReturnValue({
       mutate: vi.fn(),
       mutateAsync: uploadMaterial,
@@ -200,6 +218,43 @@ describe('MaterialsPage', () => {
       screen.getByRole('heading', { name: 'Unable to load materials' }),
     ).toBeVisible()
     expect(refetchMaterials).toHaveBeenCalledOnce()
+    expect(screen.getByText('Material summary unavailable')).toBeVisible()
+    expect(screen.queryByText('All documents settled')).toBeNull()
+  })
+
+  it('keeps summary values pending until material data is available', () => {
+    useInstructorMaterialsMock.mockReturnValue(
+      queryResult(undefined, {
+        isPending: true,
+      }) as unknown as ReturnType<typeof useInstructorMaterials>,
+    )
+
+    renderMaterialsPage()
+
+    expect(
+      screen.getByRole('status', { name: 'Loading material summary' }),
+    ).toBeVisible()
+    expect(screen.queryByText('All documents settled')).toBeNull()
+  })
+
+  it('retains material data and offers retry after a polling refresh failure', async () => {
+    useInstructorMaterialsMock.mockReturnValue(
+      queryResult(statusMaterials, {
+        isRefetchError: true,
+        refetch: refetchMaterials,
+      }) as unknown as ReturnType<typeof useInstructorMaterials>,
+    )
+    const user = userEvent.setup()
+
+    renderMaterialsPage()
+
+    expect(screen.getByText('Processing status refresh failed')).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Queued source' })).toBeVisible()
+
+    await user.click(
+      screen.getByRole('button', { name: 'Retry status refresh' }),
+    )
+    expect(refetchMaterials).toHaveBeenCalledOnce()
   })
 
   it('renders the Figma-aligned summary, repository, and material metadata', () => {
@@ -246,6 +301,34 @@ describe('MaterialsPage', () => {
         'This material could not be processed. Check the PDF and try again.',
       ),
     ).toHaveLength(2)
+  })
+
+  it('renders complete long filenames and status messages in the desktop table', () => {
+    const longFilename = `${'long-filename-'.repeat(12)}source.pdf`
+    const longMessage = `${'Processing warning details '.repeat(10)}resolved.`
+    useInstructorMaterialsMock.mockReturnValue(
+      queryResult([
+        {
+          ...material,
+          originalFilename: longFilename,
+          errorMessage: longMessage,
+        },
+      ]) as unknown as ReturnType<typeof useInstructorMaterials>,
+    )
+
+    renderMaterialsPage()
+
+    const desktopFilename = screen
+      .getAllByText(longFilename)
+      .find((element) => element.closest('table'))
+    const desktopMessage = screen
+      .getAllByText(longMessage)
+      .find((element) => element.closest('table'))
+
+    expect(desktopFilename).toHaveClass('break-all')
+    expect(desktopFilename).not.toHaveClass('truncate')
+    expect(desktopMessage).toHaveClass('break-words')
+    expect(desktopMessage).not.toHaveClass('truncate')
   })
 
   it('filters the repository by material title or filename', async () => {
@@ -346,6 +429,107 @@ describe('MaterialsPage', () => {
 
     expect(screen.getByText('Title is required')).toBeVisible()
     expect(uploadMaterial).not.toHaveBeenCalled()
+  })
+
+  it('shows the effective PDF expectation and rejects an oversized file before submit', async () => {
+    const user = userEvent.setup()
+    renderMaterialsPage()
+
+    await user.click(screen.getByRole('button', { name: 'Upload Material' }))
+    const fileInput = screen.getByLabelText('PDF file')
+    expect(screen.getByText('PDF only. Maximum 1 KB.')).toBeVisible()
+    expect(fileInput).toHaveAttribute('accept', '.pdf,application/pdf')
+
+    await user.type(screen.getByLabelText('Material title'), 'Oversized PDF')
+    await user.upload(
+      fileInput,
+      new File([new Uint8Array(1_025)], 'oversized.pdf', {
+        type: 'application/pdf',
+      }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Upload PDF' }))
+
+    expect(screen.getByText('PDF must be 1 KB or smaller')).toBeVisible()
+    expect(uploadMaterial).not.toHaveBeenCalled()
+  })
+
+  it('disables the form and announces upload progress while submit is pending', async () => {
+    let resolveUpload!: (value: { material: typeof material }) => void
+    const uploadPromise = new Promise<{ material: typeof material }>(
+      (resolve) => {
+        resolveUpload = resolve
+      },
+    )
+    uploadMaterial.mockReturnValue(uploadPromise)
+    const user = userEvent.setup()
+    const file = new File(['%PDF-1.7'], 'pending.pdf', {
+      type: 'application/pdf',
+    })
+    renderMaterialsPage()
+
+    await user.click(screen.getByRole('button', { name: 'Upload Material' }))
+    await user.type(screen.getByLabelText('Material title'), 'Pending upload')
+    await user.upload(screen.getByLabelText('PDF file'), file)
+    await user.click(screen.getByRole('button', { name: 'Upload PDF' }))
+
+    expect(screen.getByRole('button', { name: 'Uploading...' })).toBeDisabled()
+    expect(screen.getByLabelText('Material title')).toBeDisabled()
+    expect(screen.getByLabelText('PDF file')).toBeDisabled()
+
+    resolveUpload({ material })
+    expect(
+      await screen.findByText('PDF uploaded and queued for processing.'),
+    ).toBeVisible()
+  })
+
+  it('renders a typed server error and succeeds when the retained upload is resubmitted', async () => {
+    uploadMaterial
+      .mockRejectedValueOnce(
+        new ApiError('PDF upload exceeds the configured size limit', 413),
+      )
+      .mockResolvedValueOnce({ material })
+    const user = userEvent.setup()
+    const file = new File(['%PDF-1.7'], 'retry.pdf', {
+      type: 'application/pdf',
+    })
+    renderMaterialsPage()
+
+    await user.click(screen.getByRole('button', { name: 'Upload Material' }))
+    await user.type(screen.getByLabelText('Material title'), 'Retry upload')
+    await user.upload(screen.getByLabelText('PDF file'), file)
+    await user.click(screen.getByRole('button', { name: 'Upload PDF' }))
+
+    expect(
+      await screen.findByText('PDF upload exceeds the configured size limit'),
+    ).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Upload PDF' }))
+
+    expect(
+      await screen.findByText('PDF uploaded and queued for processing.'),
+    ).toBeVisible()
+    expect(uploadMaterial).toHaveBeenCalledTimes(2)
+  })
+
+  it('renders a safe generic message for an unexpected upload failure', async () => {
+    uploadMaterial.mockRejectedValueOnce(new Error('private network details'))
+    const user = userEvent.setup()
+    renderMaterialsPage()
+
+    await user.click(screen.getByRole('button', { name: 'Upload Material' }))
+    await user.type(screen.getByLabelText('Material title'), 'Generic failure')
+    await user.upload(
+      screen.getByLabelText('PDF file'),
+      new File(['%PDF-1.7'], 'generic.pdf', {
+        type: 'application/pdf',
+      }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Upload PDF' }))
+
+    expect(
+      await screen.findByText('Unable to upload this PDF. Please try again.'),
+    ).toBeVisible()
+    expect(screen.queryByText('private network details')).toBeNull()
   })
 
   it('uploads a valid PDF and resets the form after success', async () => {

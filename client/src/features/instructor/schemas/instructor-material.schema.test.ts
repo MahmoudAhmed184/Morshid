@@ -4,8 +4,8 @@ import {
   instructorMaterialResponseSchema,
   instructorMaterialSchema,
   instructorMaterialsResponseSchema,
-  instructorMaterialStatusSchema,
-  instructorMaterialUploadSchema,
+  instructorMaterialUploadConfigurationSchema,
+  createInstructorMaterialUploadSchema,
 } from './instructor-material.schema'
 
 const validMaterial = {
@@ -29,7 +29,7 @@ function createPdfFile(
 }
 
 function parseUpload(input: Record<string, unknown> = {}) {
-  return instructorMaterialUploadSchema.safeParse({
+  return createInstructorMaterialUploadSchema(1_024).safeParse({
     title: 'Python Functions',
     file: createPdfFile(),
     ...input,
@@ -87,46 +87,23 @@ describe('Instructor material contract schemas', () => {
       instructorMaterialResponseSchema.parse({ material: null }),
     ).toThrow()
   })
-
-  it('parses the material status endpoint response', () => {
-    const statusResponse = {
-      id: validMaterial.id,
-      status: 'WARNING',
-      extractedTextLength: 4_820,
-      chunkCount: 6,
-      errorMessage: 'Some text could not be extracted.',
-      updatedAt: validMaterial.updatedAt,
-    }
-
-    expect(instructorMaterialStatusSchema.parse(statusResponse)).toEqual(
-      statusResponse,
-    )
-  })
-
-  it('rejects invalid status endpoint fields', () => {
-    expect(() =>
-      instructorMaterialStatusSchema.parse({
-        id: validMaterial.id,
-        status: 'PENDING',
-        extractedTextLength: null,
-        chunkCount: null,
-        errorMessage: null,
-        updatedAt: validMaterial.updatedAt,
-      }),
-    ).toThrow()
-    expect(() =>
-      instructorMaterialStatusSchema.parse({
-        id: validMaterial.id,
-        status: 'FAILED',
-        extractedTextLength: null,
-        chunkCount: null,
-        errorMessage: null,
-      }),
-    ).toThrow()
-  })
 })
 
 describe('Instructor material upload schema', () => {
+  it('parses effective upload constraints from the server', () => {
+    expect(
+      instructorMaterialUploadConfigurationSchema.parse({
+        maxUploadBytes: 1_024,
+        acceptedMimeType: 'application/pdf',
+        acceptedFileExtension: '.pdf',
+      }),
+    ).toEqual({
+      maxUploadBytes: 1_024,
+      acceptedMimeType: 'application/pdf',
+      acceptedFileExtension: '.pdf',
+    })
+  })
+
   it('accepts and trims a valid PDF upload', () => {
     const result = parseUpload({ title: '  Python Functions  ' })
 
@@ -166,5 +143,22 @@ describe('Instructor material upload schema', () => {
     expect(
       parseUpload({ file: createPdfFile('python-functions.PDF') }).success,
     ).toBe(true)
+  })
+
+  it('accepts the effective maximum and rejects a larger PDF', () => {
+    expect(
+      parseUpload({
+        file: new File([new Uint8Array(1_024)], 'maximum.pdf', {
+          type: 'application/pdf',
+        }),
+      }).success,
+    ).toBe(true)
+    expect(
+      parseUpload({
+        file: new File([new Uint8Array(1_025)], 'too-large.pdf', {
+          type: 'application/pdf',
+        }),
+      }).success,
+    ).toBe(false)
   })
 })

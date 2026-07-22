@@ -80,7 +80,7 @@ function renderAtInstructorRoute(
         return Response.json({ events: [] })
       }
 
-      if (url.endsWith('/api/v1/courses')) {
+      if (url.endsWith('/api/v1/courses/material-management')) {
         return (
           coursesResponse ??
           Response.json({
@@ -88,9 +88,15 @@ function renderAtInstructorRoute(
               id,
               code,
               title,
+              membershipRole: 'INSTRUCTOR',
+              canManageMaterials: true,
             })),
           })
         )
+      }
+
+      if (url.endsWith('/api/v1/courses')) {
+        return Response.json({ courses: session.user.courses })
       }
 
       if (
@@ -203,7 +209,7 @@ describe('/instructor', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('shows the route empty state when the Instructor owns no course', async () => {
+  it('shows the route empty state when the Instructor has no manageable course', async () => {
     const session = createSession('INSTRUCTOR')
     session.user.courses = []
 
@@ -224,7 +230,7 @@ describe('/instructor', () => {
     expect(screen.queryByText('Instructor Portal')).not.toBeInTheDocument()
   })
 
-  it('shows dashboard loading while owned courses are requested', async () => {
+  it('shows dashboard loading while manageable courses are requested', async () => {
     renderAtInstructorRoute(
       createSession('INSTRUCTOR'),
       new Promise<Response>(() => undefined),

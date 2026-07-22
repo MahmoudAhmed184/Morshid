@@ -6,12 +6,15 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/custom/empty-state'
 import { ErrorState } from '@/components/ui/custom/error-state'
 import { PageHeader } from '@/components/ui/custom/page-header'
 import { SearchInput } from '@/components/ui/custom/search-input'
 import { StatCard } from '@/components/ui/custom/stat-card'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Select,
   SelectContent,
@@ -34,8 +37,12 @@ import {
   InstructorMaterialStatusBadge,
 } from '@/features/instructor/components/instructor-material-card'
 import { MaterialUploadDialog } from '@/features/instructor/components/material-upload-dialog'
+import { summarizeInstructorMaterials } from '@/features/instructor/domain/summarize-instructor-materials'
 import { useInstructorCourses } from '@/features/instructor/hooks/use-instructor-courses'
-import { useInstructorMaterials } from '@/features/instructor/hooks/use-instructor-materials'
+import {
+  useInstructorMaterials,
+  useInstructorMaterialUploadConfiguration,
+} from '@/features/instructor/hooks/use-instructor-materials'
 import type { InstructorMaterial } from '@/features/instructor/schemas/instructor-material.schema'
 
 const materialDateFormatter = new Intl.DateTimeFormat(undefined, {
@@ -54,6 +61,7 @@ export function MaterialsPage() {
   const [selectedCourseId, setSelectedCourseId] = useState<string>()
   const [search, setSearch] = useState('')
   const coursesQuery = useInstructorCourses()
+  const uploadConfigurationQuery = useInstructorMaterialUploadConfiguration()
   const courses = coursesQuery.data ?? []
   const courseSelectItems = courses.map((course) => ({
     label: `${course.code} — ${course.title}`,
@@ -72,46 +80,12 @@ export function MaterialsPage() {
           material.originalFilename.toLowerCase().includes(normalizedSearch),
       )
     : materials
-  const processingCount = materials.filter(
-    (material) => material.status === 'PROCESSING',
-  ).length
-  const readyCount = materials.filter(
-    (material) => material.status === 'READY',
-  ).length
-  const attentionCount = materials.filter(
-    (material) => material.status === 'WARNING' || material.status === 'FAILED',
-  ).length
-  const summaryItems = [
-    {
-      label: 'Total materials',
-      value: materials.length,
-      description: selectedCourse?.code ?? 'No course selected',
-      icon: <FileTextIcon aria-hidden />,
-    },
-    {
-      label: 'Processing',
-      value: processingCount,
-      description:
-        processingCount === 0 ? 'All documents settled' : 'Preparing sources',
-      icon: <LoaderCircleIcon aria-hidden />,
-    },
-    {
-      label: 'Ready',
-      value: readyCount,
-      description: 'Available course sources',
-      icon: <CircleCheckIcon aria-hidden />,
-    },
-    {
-      label: 'Needs attention',
-      value: attentionCount,
-      description: 'Warnings and failures',
-      icon: <TriangleAlertIcon aria-hidden />,
-    },
-  ]
+  const hasColdMaterialsError =
+    materialsQuery.isError && materialsQuery.data === undefined
   const isLoading =
     coursesQuery.isPending ||
     (activeCourseId !== undefined && materialsQuery.isPending)
-  const isError = coursesQuery.isError || materialsQuery.isError
+  const isError = coursesQuery.isError || hasColdMaterialsError
 
   return (
     <div className="flex flex-col gap-6">
@@ -119,28 +93,28 @@ export function MaterialsPage() {
         title="Course Materials"
         description="Manage and upload course PDF sources for your students."
         actions={
-          activeCourseId ? (
-            <MaterialUploadDialog courseId={activeCourseId} />
+          activeCourseId && uploadConfigurationQuery.data ? (
+            <MaterialUploadDialog
+              courseId={activeCourseId}
+              configuration={uploadConfigurationQuery.data}
+            />
+          ) : activeCourseId ? (
+            <Button disabled variant="outline">
+              {uploadConfigurationQuery.isError
+                ? 'Upload unavailable'
+                : 'Loading upload limits...'}
+            </Button>
           ) : null
         }
       />
 
       {activeCourseId && !coursesQuery.isPending ? (
-        <section
-          className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
-          aria-label="Material summary"
-        >
-          {summaryItems.map((item) => (
-            <StatCard
-              key={item.label}
-              label={item.label}
-              value={item.value}
-              description={item.description}
-              icon={item.icon}
-              className="rounded-[8px] [--card-spacing:--spacing(3)]"
-            />
-          ))}
-        </section>
+        <MaterialSummarySection
+          courseCode={selectedCourse.code}
+          isPending={materialsQuery.isPending}
+          isError={hasColdMaterialsError}
+          materials={materialsQuery.data}
+        />
       ) : null}
 
       <Card
@@ -193,6 +167,9 @@ export function MaterialsPage() {
             materials={filteredMaterials}
             hasSearch={normalizedSearch.length > 0}
             isRetrying={coursesQuery.isFetching || materialsQuery.isFetching}
+            hasRefreshError={
+              materialsQuery.data !== undefined && materialsQuery.isRefetchError
+            }
             onRetry={() => {
               if (coursesQuery.isError) {
                 void coursesQuery.refetch()
@@ -208,6 +185,107 @@ export function MaterialsPage() {
   )
 }
 
+function MaterialSummarySection({
+  courseCode,
+  isPending,
+  isError,
+  materials,
+}: {
+  courseCode: string
+  isPending: boolean
+  isError: boolean
+  materials: InstructorMaterial[] | undefined
+}) {
+  if (isPending && materials === undefined) {
+    return (
+      <section
+        aria-label="Loading material summary"
+        className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+        role="status"
+      >
+        {['total', 'processing', 'ready', 'attention'].map((key) => (
+          <Card
+            key={key}
+            aria-hidden
+            className="rounded-[8px] [--card-spacing:--spacing(3)]"
+          >
+            <CardHeader>
+              <Skeleton className="h-4 w-28" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-8 w-12" />
+              <Skeleton className="mt-2 h-4 w-32" />
+            </CardContent>
+          </Card>
+        ))}
+      </section>
+    )
+  }
+
+  if (isError || materials === undefined) {
+    return (
+      <section aria-label="Material summary" role="status">
+        <Card className="rounded-[8px] [--card-spacing:--spacing(3)]">
+          <CardHeader>
+            <CardTitle className="text-sm">
+              Material summary unavailable
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            Retry the materials request to load current totals.
+          </CardContent>
+        </Card>
+      </section>
+    )
+  }
+
+  const summary = summarizeInstructorMaterials(materials)
+  const summaryItems = [
+    {
+      label: 'Total materials',
+      value: summary.total,
+      description: courseCode,
+      icon: <FileTextIcon aria-hidden />,
+    },
+    {
+      label: 'Processing',
+      value: summary.processing,
+      description:
+        summary.processing === 0
+          ? 'All documents settled'
+          : 'Preparing sources',
+      icon: <LoaderCircleIcon aria-hidden />,
+    },
+    {
+      label: 'Ready',
+      value: summary.ready,
+      description: 'Available course sources',
+      icon: <CircleCheckIcon aria-hidden />,
+    },
+    {
+      label: 'Needs attention',
+      value: summary.attention,
+      description: 'Warnings and failures',
+      icon: <TriangleAlertIcon aria-hidden />,
+    },
+  ]
+
+  return (
+    <section
+      className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+      aria-label="Material summary"
+    >
+      {summaryItems.map((item) => (
+        <StatCard
+          key={item.label}
+          {...item}
+          className="rounded-[8px] [--card-spacing:--spacing(3)]"
+        />
+      ))}
+    </section>
+  )
+}
+
 function MaterialsContent({
   isLoading,
   isError,
@@ -215,6 +293,7 @@ function MaterialsContent({
   materials,
   hasSearch,
   isRetrying,
+  hasRefreshError,
   onRetry,
 }: {
   isLoading: boolean
@@ -223,6 +302,7 @@ function MaterialsContent({
   materials: InstructorMaterial[]
   hasSearch: boolean
   isRetrying: boolean
+  hasRefreshError: boolean
   onRetry: () => void
 }) {
   if (isLoading) {
@@ -273,6 +353,25 @@ function MaterialsContent({
 
   return (
     <>
+      {hasRefreshError ? (
+        <Alert className="m-4 mb-0">
+          <TriangleAlertIcon aria-hidden />
+          <AlertTitle>Processing status refresh failed</AlertTitle>
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+            Previously loaded materials are shown. Retry to refresh their
+            current status.
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isRetrying}
+              onClick={onRetry}
+            >
+              Retry status refresh
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : null}
       <div className="hidden md:block">
         <Table className="min-w-[760px]">
           <TableHeader className="bg-muted/50">
@@ -317,11 +416,11 @@ function InstructorMaterialRow({ material }: { material: InstructorMaterial }) {
             <p className="truncate font-medium text-foreground">
               {material.title}
             </p>
-            <p className="truncate text-xs text-muted-foreground">
+            <p className="break-all text-xs whitespace-normal text-muted-foreground">
               {material.originalFilename}
             </p>
             {statusMessage ? (
-              <p className="mt-1 truncate text-xs text-muted-foreground">
+              <p className="mt-1 break-words text-xs whitespace-normal text-muted-foreground">
                 {statusMessage}
               </p>
             ) : null}

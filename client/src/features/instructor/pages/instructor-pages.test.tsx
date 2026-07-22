@@ -89,7 +89,11 @@ function renderInstructorPage(
   } else {
     queryClient.setQueryData(
       instructorCoursesQueryOptions(session.user.id).queryKey,
-      courses,
+      courses.map((course) => ({
+        ...course,
+        membershipRole: 'INSTRUCTOR' as const,
+        canManageMaterials: true as const,
+      })),
     )
   }
 
@@ -176,8 +180,8 @@ describe('Instructor Pages', () => {
 
       expect(screen.getByRole('heading', { name: 'My Courses' })).toBeVisible()
       expect(
-        screen.getAllByRole('status', { name: 'Loading course' }),
-      ).toHaveLength(3)
+        screen.getByRole('status', { name: 'Loading assigned courses' }),
+      ).toBeVisible()
       expect(
         screen.queryByRole('heading', { name: 'No assigned courses' }),
       ).not.toBeInTheDocument()

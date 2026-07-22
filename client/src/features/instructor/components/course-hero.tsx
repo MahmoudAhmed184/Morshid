@@ -6,9 +6,8 @@ import type { InstructorCourse } from '@/features/instructor/schemas/instructor-
 export function CourseHeroSkeleton() {
   return (
     <Card
-      aria-label="Loading course"
+      aria-hidden
       className="min-h-72 rounded-[8px] border-border bg-card py-0 text-card-foreground ring-0"
-      role="status"
     >
       <CardContent className="overflow-hidden px-0">
         <div className="relative min-h-72 p-5">

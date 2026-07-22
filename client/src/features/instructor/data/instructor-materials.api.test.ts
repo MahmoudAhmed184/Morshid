@@ -3,8 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { ApiError } from '@/features/auth/api/authenticated-api-client'
 
 import {
-  getInstructorMaterial,
-  getInstructorMaterialStatus,
+  getInstructorMaterialUploadConfiguration,
   listInstructorMaterials,
   uploadInstructorMaterial,
 } from './instructor-materials.api'
@@ -44,49 +43,42 @@ describe('Instructor materials API', () => {
     expect(fetchMock).toHaveBeenCalledOnce()
   })
 
-  it('loads and validates one wrapped course material through GET', async () => {
-    const response = { material }
-    const fetchMock = vi.fn(
-      async (input: RequestInfo | URL, init?: RequestInit) => {
-        expect(String(input)).toBe(
-          `http://localhost:4000/api/v1/courses/${courseId}/materials/${materialId}`,
-        )
-        expect(init?.method).toBe('GET')
-
-        return Response.json(response)
-      },
-    )
-
-    await expect(
-      getInstructorMaterial(courseId, materialId, { fetchImpl: fetchMock }),
-    ).resolves.toEqual(response)
-  })
-
-  it('loads a direct material status response without a wrapper', async () => {
-    const statusResponse = {
-      id: materialId,
-      status: 'WARNING',
-      extractedTextLength: 4_820,
-      chunkCount: 6,
-      errorMessage: 'Some text could not be extracted.',
-      updatedAt: '2026-07-21T12:02:00.000Z',
+  it('loads and validates the effective PDF upload configuration', async () => {
+    const configuration = {
+      maxUploadBytes: 2_097_152,
+      acceptedMimeType: 'application/pdf',
+      acceptedFileExtension: '.pdf',
     }
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         expect(String(input)).toBe(
-          `http://localhost:4000/api/v1/courses/${courseId}/materials/${materialId}/status`,
+          'http://localhost:4000/api/v1/materials/upload-configuration',
         )
         expect(init?.method).toBe('GET')
 
-        return Response.json(statusResponse)
+        return Response.json(configuration)
       },
     )
 
     await expect(
-      getInstructorMaterialStatus(courseId, materialId, {
-        fetchImpl: fetchMock,
+      getInstructorMaterialUploadConfiguration({ fetchImpl: fetchMock }),
+    ).resolves.toEqual(configuration)
+  })
+
+  it('rejects malformed PDF upload configuration responses', async () => {
+    const malformedFetch = vi.fn(async () =>
+      Response.json({
+        maxUploadBytes: 0,
+        acceptedMimeType: 'text/plain',
+        acceptedFileExtension: '.txt',
       }),
-    ).resolves.toEqual(statusResponse)
+    )
+
+    await expect(
+      getInstructorMaterialUploadConfiguration({
+        fetchImpl: malformedFetch,
+      }),
+    ).rejects.toThrow()
   })
 
   it('uploads title and file as multipart FormData without a content-type header', async () => {

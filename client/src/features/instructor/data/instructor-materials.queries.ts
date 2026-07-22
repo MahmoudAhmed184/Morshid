@@ -1,17 +1,13 @@
 import { queryOptions } from '@tanstack/react-query'
 
 import {
-  getInstructorMaterialStatus,
+  getInstructorMaterialUploadConfiguration,
   listInstructorMaterials,
 } from '@/features/instructor/data/instructor-materials.api'
 
 interface InstructorCourseScope {
   instructorId: string
   courseId: string
-}
-
-interface InstructorMaterialScope extends InstructorCourseScope {
-  materialId: string
 }
 
 const materialPollingIntervalMs = 2_000
@@ -27,18 +23,21 @@ export const instructorMaterialKeys = {
       'courses',
       courseId,
     ] as const,
-  statuses: ({ instructorId, courseId }: InstructorCourseScope) =>
+  uploadConfiguration: (instructorId: string) =>
     [
       ...instructorMaterialKeys.all(instructorId),
-      'courses',
-      courseId,
-      'status',
+      'upload-configuration',
     ] as const,
-  status: ({ instructorId, courseId, materialId }: InstructorMaterialScope) =>
-    [
-      ...instructorMaterialKeys.statuses({ instructorId, courseId }),
-      materialId,
-    ] as const,
+}
+
+export function instructorMaterialUploadConfigurationQueryOptions(
+  instructorId: string,
+) {
+  return queryOptions({
+    queryKey: instructorMaterialKeys.uploadConfiguration(instructorId),
+    queryFn: getInstructorMaterialUploadConfiguration,
+    staleTime: Number.POSITIVE_INFINITY,
+  })
 }
 
 export function instructorMaterialsQueryOptions({
@@ -52,26 +51,8 @@ export function instructorMaterialsQueryOptions({
       return response.materials
     },
     refetchInterval: (query) =>
+      query.state.error === null &&
       query.state.data?.some((material) => material.status === 'PROCESSING')
-        ? materialPollingIntervalMs
-        : false,
-  })
-}
-
-export function instructorMaterialStatusQueryOptions({
-  instructorId,
-  courseId,
-  materialId,
-}: InstructorMaterialScope) {
-  return queryOptions({
-    queryKey: instructorMaterialKeys.status({
-      instructorId,
-      courseId,
-      materialId,
-    }),
-    queryFn: () => getInstructorMaterialStatus(courseId, materialId),
-    refetchInterval: (query) =>
-      query.state.data?.status === 'PROCESSING'
         ? materialPollingIntervalMs
         : false,
   })

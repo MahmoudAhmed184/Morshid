@@ -7,7 +7,7 @@ import { InstructorDashboardPage } from './instructor-dashboard-page'
 describe('InstructorDashboardPage', () => {
   afterEach(cleanup)
 
-  it('renders multiple assigned courses and real material totals', () => {
+  it('renders multiple assigned courses without starting dashboard-wide material aggregation', () => {
     render(
       <InstructorDashboardPage
         state={{
@@ -17,17 +17,17 @@ describe('InstructorDashboardPage', () => {
               id: 'data-structures-course',
               code: 'CS-201',
               title: 'Data Structures',
+              membershipRole: 'INSTRUCTOR',
+              canManageMaterials: true,
             },
             {
               id: 'discrete-math-course',
               code: 'MATH-310',
               title: 'Discrete Mathematics',
+              membershipRole: 'INSTRUCTOR',
+              canManageMaterials: true,
             },
           ],
-          materialCount: 7,
-          readyMaterialCount: 4,
-          processingMaterialCount: 2,
-          attentionMaterialCount: 1,
         }}
       />,
     )
@@ -49,21 +49,16 @@ describe('InstructorDashboardPage', () => {
     const totalMaterialsCard = screen
       .getByText('Total materials', { selector: '[data-slot="card-title"]' })
       .closest('[data-slot="card"]')
-    const processingCard = screen
-      .getByText('Processing', { selector: '[data-slot="card-title"]' })
-      .closest('[data-slot="card"]')
-    const attentionCard = screen
-      .getByText('Needs attention', { selector: '[data-slot="card-title"]' })
-      .closest('[data-slot="card"]')
 
     expect(
       within(assignedCoursesCard as HTMLElement).getByText('2'),
     ).toBeVisible()
     expect(
-      within(totalMaterialsCard as HTMLElement).getByText('7'),
+      within(totalMaterialsCard as HTMLElement).getByText('—'),
     ).toBeVisible()
-    expect(within(processingCard as HTMLElement).getByText('2')).toBeVisible()
-    expect(within(attentionCard as HTMLElement).getByText('1')).toBeVisible()
+    expect(
+      screen.getByText('Source readiness is course-specific'),
+    ).toBeVisible()
   })
 
   it('shows a dashboard loading state while course data is requested', () => {

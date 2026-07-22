@@ -27,7 +27,11 @@ export function CoursesContent({
 }: CoursesContentProps) {
   if (isLoading) {
     return (
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div
+        aria-label="Loading assigned courses"
+        className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"
+        role="status"
+      >
         {courseSkeletonKeys.map((key) => (
           <CourseHeroSkeleton key={key} />
         ))}

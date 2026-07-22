@@ -3,13 +3,13 @@ import type { ApiFetchOptions } from '@/features/auth/api/authenticated-api-clie
 import {
   instructorMaterialResponseSchema,
   instructorMaterialsResponseSchema,
-  instructorMaterialStatusSchema,
+  instructorMaterialUploadConfigurationSchema,
 } from '@/features/instructor/schemas/instructor-material.schema'
 import type {
   InstructorMaterialResponse,
   InstructorMaterialsResponse,
-  InstructorMaterialStatus,
   InstructorMaterialUpload,
+  InstructorMaterialUploadConfiguration,
 } from '@/features/instructor/schemas/instructor-material.schema'
 
 export async function listInstructorMaterials(
@@ -24,30 +24,15 @@ export async function listInstructorMaterials(
   return instructorMaterialsResponseSchema.parse(response)
 }
 
-export async function getInstructorMaterial(
-  courseId: string,
-  materialId: string,
+export async function getInstructorMaterialUploadConfiguration(
   options: ApiFetchOptions = {},
-): Promise<InstructorMaterialResponse> {
+): Promise<InstructorMaterialUploadConfiguration> {
   const response = await apiJson<unknown>(
-    `/api/v1/courses/${courseId}/materials/${materialId}`,
+    '/api/v1/materials/upload-configuration',
     { ...options, method: 'GET' },
   )
 
-  return instructorMaterialResponseSchema.parse(response)
-}
-
-export async function getInstructorMaterialStatus(
-  courseId: string,
-  materialId: string,
-  options: ApiFetchOptions = {},
-): Promise<InstructorMaterialStatus> {
-  const response = await apiJson<unknown>(
-    `/api/v1/courses/${courseId}/materials/${materialId}/status`,
-    { ...options, method: 'GET' },
-  )
-
-  return instructorMaterialStatusSchema.parse(response)
+  return instructorMaterialUploadConfigurationSchema.parse(response)
 }
 
 export async function uploadInstructorMaterial(

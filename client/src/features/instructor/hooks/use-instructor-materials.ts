@@ -1,15 +1,10 @@
-import {
-  useMutation,
-  useQueries,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { uploadInstructorMaterial } from '@/features/instructor/data/instructor-materials.api'
 import {
   instructorMaterialKeys,
+  instructorMaterialUploadConfigurationQueryOptions,
   instructorMaterialsQueryOptions,
-  instructorMaterialStatusQueryOptions,
 } from '@/features/instructor/data/instructor-materials.queries'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 
@@ -35,17 +30,14 @@ export function useInstructorMaterials(courseId?: string) {
   })
 }
 
-export function useInstructorMaterialsByCourse(courseIds: string[]) {
+export function useInstructorMaterialUploadConfiguration() {
   const instructorId = useInstructorId()
 
-  return useQueries({
-    queries: courseIds.map((courseId) => ({
-      ...instructorMaterialsQueryOptions({
-        instructorId: instructorId ?? 'anonymous',
-        courseId,
-      }),
-      enabled: instructorId !== undefined,
-    })),
+  return useQuery({
+    ...instructorMaterialUploadConfigurationQueryOptions(
+      instructorId ?? 'anonymous',
+    ),
+    enabled: instructorId !== undefined,
   })
 }
 
@@ -75,24 +67,5 @@ export function useUploadInstructorMaterial() {
         exact: true,
       })
     },
-  })
-}
-
-export function useInstructorMaterialStatus(
-  courseId?: string,
-  materialId?: string,
-) {
-  const instructorId = useInstructorId()
-
-  return useQuery({
-    ...instructorMaterialStatusQueryOptions({
-      instructorId: instructorId ?? 'anonymous',
-      courseId: courseId ?? 'unknown',
-      materialId: materialId ?? 'unknown',
-    }),
-    enabled:
-      instructorId !== undefined &&
-      courseId !== undefined &&
-      materialId !== undefined,
   })
 }
