@@ -46,11 +46,16 @@ export const listChatMessagesQuerySchema = z
   .object({
     limit: z.coerce.number().int().min(1).max(MAX_MESSAGE_PAGE_SIZE).optional(),
     after: z.coerce.number().int().min(0).optional(),
+    before: z.coerce.number().int().positive().optional(),
   })
   .strict()
+  .refine(({ after, before }) => after === undefined || before === undefined, {
+    message: 'Message pagination cannot use after and before together',
+  })
 
 export const sendStudentChatMessageRequestSchema = z
   .object({
+    clientMessageId: z.uuid().optional(),
     content: messageContentSchema,
   })
   .strict()
@@ -78,6 +83,9 @@ export class RenameChatSessionRequestDto {
 }
 
 export class SendStudentChatMessageRequestDto {
+  @ApiProperty({ format: 'uuid', required: false })
+  clientMessageId?: string
+
   @ApiProperty({ minLength: 1, maxLength: 4_000 })
   content!: string
 }
@@ -241,7 +249,7 @@ export class ChatMessageHistoryResponseDto {
   @ApiProperty({
     nullable: true,
     description:
-      'Pass as `after` to fetch the next page; null when no more messages.',
+      'Pass as `after` for forward pagination or `before` for backward pagination; null when no more messages.',
   })
   nextCursor!: number | null
 }

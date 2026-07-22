@@ -99,12 +99,10 @@ function appendMessage(
   message: ChatMessage,
 ): MessageHistoryData {
   const history = cached ?? emptyMessageHistory()
-  const lastPageIndex = history.pages.length - 1
-
   return {
     ...history,
     pages: history.pages.map((page, index) =>
-      index === lastPageIndex
+      index === 0
         ? {
             ...page,
             messages: [
@@ -128,14 +126,12 @@ function replaceOptimisticTurn(
     turn.studentMessage.id,
     turn.assistantMessage.id,
   ])
-  const lastPageIndex = history.pages.length - 1
-
   return {
     ...history,
     pages: history.pages.map((page, index) => {
       const messages = page.messages.filter(({ id }) => !replacementIds.has(id))
 
-      return index === lastPageIndex
+      return index === 0
         ? {
             ...page,
             messages: [
@@ -208,6 +204,16 @@ function highestCachedSequence(cached: MessageHistoryData | undefined) {
   return highestSequence
 }
 
+function hasPendingAssistant(cached: MessageHistoryData | undefined) {
+  return (cached?.pages ?? []).some((page) =>
+    page.messages.some(
+      (message) =>
+        message.role === 'ASSISTANT' &&
+        (message.status === 'PENDING' || message.status === 'STREAMING'),
+    ),
+  )
+}
+
 export function useStudentSessions({ courseId }: StudentSessionsScope) {
   const studentId = useStudentId()
 
@@ -236,6 +242,8 @@ export function useStudentSessionMessages({
       studentId !== undefined &&
       courseId !== undefined &&
       sessionId !== undefined,
+    refetchInterval: (query) =>
+      hasPendingAssistant(query.state.data) ? 1_500 : false,
   })
 }
 
@@ -425,7 +433,7 @@ export function useSendStudentChatMessage({
         queryClient.getQueryData<MessageHistoryData>(queryKey)
       const now = new Date().toISOString()
       const optimisticMessage: ChatMessage = {
-        id: crypto.randomUUID(),
+        id: input.clientMessageId,
         sequence: highestCachedSequence(previousMessages) + 1,
         role: 'STUDENT',
         responseToMessageId: null,
@@ -471,14 +479,16 @@ export function useSendStudentChatMessage({
           ),
       )
     },
-    onSettled: (_turn, _error, _input, mutationContext) => {
+    onSettled: (_turn, error, _input, mutationContext) => {
       if (!mutationContext) {
         return
       }
 
-      void queryClient.invalidateQueries({
-        queryKey: mutationContext.queryKey,
-      })
+      if (error) {
+        void queryClient.invalidateQueries({
+          queryKey: mutationContext.queryKey,
+        })
+      }
       void queryClient.invalidateQueries({
         queryKey: studentSessionKeys.sessionLists(mutationContext.scope),
       })

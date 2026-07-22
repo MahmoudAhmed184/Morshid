@@ -1,6 +1,6 @@
 import { useNavigate } from '@tanstack/react-router'
 import { BookOpen, PanelLeft } from 'lucide-react'
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/custom/empty-state'
@@ -89,7 +89,45 @@ export function StudentAiTutorPage({
     courseId: selectedCourse?.id,
     sessionId: selectedSession?.id,
   })
-  const isGenerationActive = sendMessage.isPending || retryMessage.isPending
+  const hasPersistedGeneration = messages.some(
+    (message) =>
+      message.role === 'ASSISTANT' &&
+      (message.status === 'PENDING' || message.status === 'STREAMING'),
+  )
+  const isGenerationActive =
+    sendMessage.isPending || retryMessage.isPending || hasPersistedGeneration
+  const historyScrollRef = useRef<HTMLDivElement>(null)
+  const previousSessionIdRef = useRef<string | undefined>(undefined)
+  const previousLatestMessageRef = useRef<string | undefined>(undefined)
+  const activeSessionId = selectedSession?.id
+  const latestMessage = messages.at(-1)
+  const latestMessageKey = latestMessage
+    ? [
+        latestMessage.id,
+        latestMessage.status,
+        latestMessage.completedAt,
+        latestMessage.content.length,
+      ].join(':')
+    : undefined
+
+  useLayoutEffect(() => {
+    if (messagesQuery.isPending || !activeSessionId) {
+      return
+    }
+
+    const sessionChanged = previousSessionIdRef.current !== activeSessionId
+    const latestMessageChanged =
+      previousLatestMessageRef.current !== latestMessageKey
+    previousSessionIdRef.current = activeSessionId
+    previousLatestMessageRef.current = latestMessageKey
+
+    if (sessionChanged || latestMessageChanged) {
+      const scrollContainer = historyScrollRef.current
+      if (scrollContainer) {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight
+      }
+    }
+  }, [activeSessionId, latestMessageKey, messagesQuery.isPending])
 
   const handleCreate = async () => {
     if (!selectedCourse) {
@@ -137,11 +175,11 @@ export function StudentAiTutorPage({
     void sessionsQuery.refetch()
   }
 
-  const handleSend = async (content: string) => {
+  const handleSend = async (content: string, clientMessageId: string) => {
     retryMessage.reset()
 
     try {
-      await sendMessage.mutateAsync({ content })
+      await sendMessage.mutateAsync({ clientMessageId, content })
       return true
     } catch {
       return false
@@ -166,10 +204,6 @@ export function StudentAiTutorPage({
         selectedSessionId: sessionId,
         isPending: sessionsQuery.isPending,
         isError: sessionsQuery.isError && sessions.length === 0,
-        isRefreshing:
-          sessionsQuery.isFetching &&
-          !sessionsQuery.isPending &&
-          !sessionsQuery.isFetchingNextPage,
         hasNextPage: sessionsQuery.hasNextPage,
         isFetchingNextPage: sessionsQuery.isFetchingNextPage,
         isFetchNextPageError: sessionsQuery.isFetchNextPageError,
@@ -193,16 +227,16 @@ export function StudentAiTutorPage({
 
   return (
     <section
-      className="flex min-h-0 flex-1 overflow-hidden bg-background text-foreground"
+      className="flex h-0 min-h-0 w-full flex-1 overflow-hidden overscroll-none bg-background text-foreground"
       aria-label="Student AI Tutor"
     >
       {selectedCourse ? (
-        <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)] md:grid-cols-[20rem_minmax(0,1fr)] md:overflow-hidden">
+        <div className="grid h-full min-h-0 w-full flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)] overflow-hidden md:grid-cols-[17.5rem_minmax(0,1fr)]">
           <div className="hidden min-h-0 md:contents">
             <StudentSessionNavigation {...activeSessionNavigationProps} />
           </div>
 
-          <div className="flex min-h-80 min-w-0 flex-col bg-background">
+          <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background">
             <Sheet
               open={mobileSessionsOpen}
               onOpenChange={setMobileSessionsOpen}
@@ -247,9 +281,14 @@ export function StudentAiTutorPage({
                 courseTitle={selectedCourse.title}
               />
             ) : null}
-            <div className="scrollbar-themed min-h-0 flex-1 overflow-y-auto px-4 py-8 sm:px-8">
+            <div
+              ref={historyScrollRef}
+              aria-label="Conversation messages"
+              className="scrollbar-themed min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-6 sm:px-6"
+              role="region"
+            >
               {selectedSession ? (
-                <div className="mx-auto min-h-full max-w-5xl">
+                <div className="mx-auto max-w-3xl">
                   <StudentMessageHistory
                     messages={messages}
                     error={messagesQuery.error}
@@ -271,7 +310,7 @@ export function StudentAiTutorPage({
                   />
                 </div>
               ) : (
-                <div className="flex min-h-full items-center justify-center py-4">
+                <div className="flex h-full items-center justify-center py-4">
                   <StudentWorkspaceState
                     sessionId={sessionId}
                     sessionsPending={sessionsQuery.isPending}

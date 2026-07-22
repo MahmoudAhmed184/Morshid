@@ -424,6 +424,30 @@ describe('StudentAiTutorPage workspace', () => {
     await waitFor(() => expect(screen.getByLabelText('Message')).toBeEnabled())
   })
 
+  it('keeps sending disabled for an empty question without showing an error', async () => {
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+      messages: { messages: [], nextCursor: null },
+    })
+
+    const composer = await screen.findByRole('textbox', { name: 'Message' })
+    const sendButton = screen.getByRole('button', { name: 'Send message' })
+    await waitFor(() => expect(composer).toBeEnabled())
+
+    expect(sendButton).toBeDisabled()
+    fireEvent.keyDown(composer, { key: 'Enter' })
+
+    expect(sendStudentChatMessageMock).not.toHaveBeenCalled()
+    expect(
+      screen.queryByText('Enter a question before sending.'),
+    ).not.toBeInTheDocument()
+  })
+
   it('uses semantic theme tokens throughout the workspace', () => {
     renderWorkspace({
       courseId: primaryCourse.id,
@@ -441,12 +465,44 @@ describe('StudentAiTutorPage workspace', () => {
     )
     expect(screen.getByLabelText('Session navigation')).toHaveClass(
       'border-border',
-      'bg-card',
+      'bg-muted/30',
     )
     expect(screen.getByRole('link', { name: /python lists/i })).toHaveClass(
-      'bg-accent',
-      'text-accent-foreground',
+      'bg-muted',
+      'text-foreground',
     )
+  })
+
+  it('contains responsive scrolling inside the conversation viewport', async () => {
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+      messages: orderedMessageHistory,
+    })
+
+    const workspace = screen.getByLabelText('Student AI Tutor')
+    const workspaceGrid = workspace.firstElementChild
+    const conversationArea = await screen.findByRole('region', {
+      name: 'Conversation messages',
+    })
+    const composer = screen.getByRole('form', { name: 'Message composer' })
+
+    expect(workspace).toHaveClass(
+      'h-0',
+      'min-h-0',
+      'overflow-hidden',
+      'overscroll-none',
+    )
+    expect(workspaceGrid).toHaveClass('h-full', 'overflow-hidden')
+    expect(conversationArea).toHaveClass(
+      'overflow-y-auto',
+      'overscroll-contain',
+    )
+    expect(composer.closest('footer')).toHaveClass('shrink-0')
   })
 
   it('recovers a routed session beyond the first page after refresh', async () => {
@@ -671,7 +727,9 @@ describe('StudentAiTutorPage workspace', () => {
       </QueryClientProvider>,
     )
     expect(
-      await screen.findByRole('heading', { name: 'No messages yet' }),
+      await screen.findByRole('heading', {
+        name: 'What can I help you learn?',
+      }),
     ).toBeInTheDocument()
     expect(getStudentSessionMessagesMock).not.toHaveBeenCalled()
   })
@@ -965,6 +1023,25 @@ describe('StudentAiTutorPage workspace', () => {
     expect(screen.getByRole('button', { name: /send message/i })).toBeDisabled()
   })
 
+  it('requests the newest message page when a conversation opens', async () => {
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+    })
+
+    await waitFor(() =>
+      expect(getStudentSessionMessagesMock).toHaveBeenCalledWith({
+        courseId: primaryCourse.id,
+        sessionId: primaryChatSessionFixture.id,
+        input: { limit: 50, before: 2_147_483_647 },
+      }),
+    )
+  })
+
   it('appends additional history pages in stable sequence order', async () => {
     getStudentSessionMessagesMock.mockResolvedValueOnce({
       messages: orderedMessageHistory.messages,
@@ -984,9 +1061,11 @@ describe('StudentAiTutorPage workspace', () => {
     })
 
     expect(
-      await screen.findByRole('button', { name: 'Load more messages' }),
+      await screen.findByRole('button', { name: 'Load earlier messages' }),
     ).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Load more messages' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Load earlier messages' }),
+    )
 
     expect(await screen.findByText(thirdMessage.content)).toBeInTheDocument()
     const messageItems = screen
@@ -997,7 +1076,7 @@ describe('StudentAiTutorPage workspace', () => {
     expect(getStudentSessionMessagesMock).toHaveBeenNthCalledWith(2, {
       courseId: primaryCourse.id,
       sessionId: primaryChatSessionFixture.id,
-      input: { limit: 50, after: 2 },
+      input: { limit: 50, before: 2 },
     })
   })
 
@@ -1023,7 +1102,7 @@ describe('StudentAiTutorPage workspace', () => {
     })
 
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Load more messages' }),
+      await screen.findByRole('button', { name: 'Load earlier messages' }),
     )
 
     expect(
@@ -1081,11 +1160,65 @@ describe('StudentAiTutorPage workspace', () => {
     })
 
     expect(
-      await screen.findByRole('heading', { name: 'No messages yet' }),
+      await screen.findByRole('heading', {
+        name: 'What can I help you learn?',
+      }),
     ).toBeInTheDocument()
   })
 
-  it('shows a visible history skeleton while messages are pending', () => {
+  it('opens persisted history at its latest message', async () => {
+    const scrollHeightSpy = vi
+      .spyOn(HTMLElement.prototype, 'scrollHeight', 'get')
+      .mockReturnValue(900)
+
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+      messages: orderedMessageHistory,
+    })
+
+    const scrollContainer = await screen.findByRole('region', {
+      name: 'Conversation messages',
+    })
+    await waitFor(() => expect(scrollContainer.scrollTop).toBe(900))
+    scrollHeightSpy.mockRestore()
+  })
+
+  it('keeps the composer disabled for a persisted active response after refresh', async () => {
+    const pendingHistory: ChatMessageHistoryResponse = {
+      messages: [
+        groundedChatTurnResponseFixture.studentMessage,
+        {
+          ...groundedChatTurnResponseFixture.assistantMessage,
+          status: 'PENDING',
+          content: '',
+          completedAt: null,
+          guidanceLabel: null,
+          citations: [],
+        },
+      ],
+      nextCursor: null,
+    }
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+      messages: pendingHistory,
+    })
+
+    expect(await screen.findByLabelText('Message')).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled()
+    expect(sendStudentChatMessageMock).not.toHaveBeenCalled()
+  })
+
+  it('leaves the conversation area blank while messages are pending', () => {
     getStudentSessionMessagesMock.mockReturnValueOnce(new Promise(() => {}))
     renderWorkspace({
       courseId: primaryCourse.id,
@@ -1096,13 +1229,12 @@ describe('StudentAiTutorPage workspace', () => {
       },
     })
 
-    const pendingHistory = screen.getByRole('status', {
-      name: 'Loading conversation history',
+    const conversationArea = screen.getByRole('region', {
+      name: 'Conversation messages',
     })
-    expect(pendingHistory).not.toBeEmptyDOMElement()
-    expect(pendingHistory).toHaveAttribute('aria-busy', 'true')
+    expect(conversationArea.textContent).toBe('')
     expect(
-      screen.queryByText(/loading your private workspace/i),
+      screen.queryByRole('status', { name: 'Loading conversation history' }),
     ).not.toBeInTheDocument()
   })
 
@@ -1199,13 +1331,12 @@ describe('StudentAiTutorPage workspace', () => {
     ).toBeInTheDocument()
     await waitFor(() => expect(composer).toBeDisabled())
     expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled()
-    expect(screen.getByRole('status')).toHaveTextContent(
-      'Grounding your question in course materials',
-    )
+    expect(screen.getByText('Thinking…')).toBeInTheDocument()
     expect(sendStudentChatMessageMock).toHaveBeenCalledWith({
       courseId: primaryCourse.id,
       sessionId: primaryChatSessionFixture.id,
       input: {
+        clientMessageId: expect.any(String),
         content: groundedChatTurnResponseFixture.studentMessage.content,
       },
     })
@@ -1224,6 +1355,7 @@ describe('StudentAiTutorPage workspace', () => {
     ).toBeInTheDocument()
     expect(composer).toBeEnabled()
     expect(composer).toHaveValue('')
+    expect(composer).toHaveFocus()
     expect(
       screen
         .getByRole('list', { name: 'Conversation history' })
@@ -1261,12 +1393,6 @@ describe('StudentAiTutorPage workspace', () => {
     expect(composer).toBeEnabled()
     expect(composer).toHaveValue('Keep my exact question')
 
-    fireEvent.change(composer, {
-      target: { value: groundedChatTurnResponseFixture.studentMessage.content },
-    })
-    await waitFor(() =>
-      expect(screen.queryByRole('alert')).not.toBeInTheDocument(),
-    )
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
 
     expect(
@@ -1275,6 +1401,12 @@ describe('StudentAiTutorPage workspace', () => {
       ),
     ).toBeInTheDocument()
     expect(sendStudentChatMessageMock).toHaveBeenCalledTimes(2)
+    const firstId =
+      sendStudentChatMessageMock.mock.calls[0]?.[0].input.clientMessageId
+    const secondId =
+      sendStudentChatMessageMock.mock.calls[1]?.[0].input.clientMessageId
+    expect(firstId).toMatch(/^[0-9a-f-]{36}$/)
+    expect(secondId).toBe(firstId)
   })
 
   it('renders guidance, inline citations, and collapsible source evidence', async () => {

@@ -36,13 +36,13 @@ export function StudentCreateSessionButton({
         isLoading={isPending}
         loadingText="Creating…"
         onClick={handleCreate}
-        className="h-10 w-full justify-center rounded-[10px] bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 focus-visible:ring-ring/50"
+        className="h-10 w-full justify-start rounded-lg border border-border bg-transparent px-3 text-foreground shadow-none hover:bg-muted focus-visible:ring-ring/50"
       >
         <Plus aria-hidden />
         New chat
       </AsyncButton>
       {errorMessage ? (
-        <p role="alert" className="text-xs text-destructive">
+        <p role="alert" className="text-xs text-foreground">
           {errorMessage}
         </p>
       ) : null}

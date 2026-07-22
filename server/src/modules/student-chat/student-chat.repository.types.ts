@@ -134,6 +134,7 @@ export interface SessionListPagination {
 export interface MessageListPagination {
   limit: number
   after?: number | null
+  before?: number | null
 }
 
 export type SoftDeleteSessionOutcome =

@@ -205,6 +205,7 @@ describe('Student session API', () => {
         )
         expect(init?.method).toBe('POST')
         expect(JSON.parse(String(init?.body))).toEqual({
+          clientMessageId: studentChatIds.studentMessage,
           content: 'Explain Python lists',
         })
 
@@ -216,7 +217,10 @@ describe('Student session API', () => {
       sendStudentChatMessage({
         courseId: studentChatIds.primaryCourse,
         sessionId: studentChatIds.primarySession,
-        input: { content: '  Explain Python lists  ' },
+        input: {
+          clientMessageId: studentChatIds.studentMessage,
+          content: '  Explain Python lists  ',
+        },
         options: { fetchImpl: fetchMock },
       }),
     ).resolves.toEqual(groundedChatTurnResponseFixture)
@@ -234,7 +238,10 @@ describe('Student session API', () => {
       sendStudentChatMessage({
         courseId: studentChatIds.primaryCourse,
         sessionId: studentChatIds.primarySession,
-        input: unsafeInput as { content: string },
+        input: unsafeInput as {
+          clientMessageId: string
+          content: string
+        },
         options: { fetchImpl: fetchMock },
       }),
     ).rejects.toThrow()

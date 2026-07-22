@@ -271,6 +271,7 @@ export const renameChatSessionRequestSchema = z
 
 export const sendStudentChatMessageRequestSchema = z
   .object({
+    clientMessageId: z.uuid(),
     content: z
       .string()
       .trim()
@@ -294,8 +295,12 @@ export const listChatMessagesInputSchema = z
   .object({
     limit: z.number().int().min(1).max(200).optional(),
     after: z.number().int().nonnegative().optional(),
+    before: z.number().int().positive().optional(),
   })
   .strict()
+  .refine(({ after, before }) => after === undefined || before === undefined, {
+    message: 'Message pagination cannot use after and before together',
+  })
 
 export type ChatSession = z.infer<typeof chatSessionSchema>
 export type ChatSessionListResponse = z.infer<

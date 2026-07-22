@@ -22,6 +22,7 @@ import type {
   ChatMessageHistoryResponse,
   ChatSession,
   ChatSessionListResponse,
+  GroundedChatTurnResponse,
 } from '@/features/student/schemas/student-chat.schema'
 import {
   chatMessageHistoryResponseFixture,
@@ -576,8 +577,22 @@ describe('Student session hooks', () => {
       studentChatIds.otherSession,
       'Other Student history',
     )
-    let resolveTurn:
-      ((turn: typeof groundedChatTurnResponseFixture) => void) | undefined
+    const clientMessageId = studentChatIds.primaryMaterial
+    const assistantMessageId = studentChatIds.primaryChunk
+    const persistedTurn: GroundedChatTurnResponse = {
+      studentMessage: {
+        ...groundedChatTurnResponseFixture.studentMessage,
+        id: clientMessageId,
+        sequence: 3,
+      },
+      assistantMessage: {
+        ...groundedChatTurnResponseFixture.assistantMessage,
+        id: assistantMessageId,
+        sequence: 4,
+        responseToMessageId: clientMessageId,
+      },
+    }
+    let resolveTurn: ((turn: GroundedChatTurnResponse) => void) | undefined
     sendStudentChatMessageMock.mockImplementation(
       () =>
         new Promise((resolve) => {
@@ -597,6 +612,7 @@ describe('Student session hooks', () => {
     let mutation: Promise<unknown> | undefined
     act(() => {
       mutation = result.current.mutateAsync({
+        clientMessageId,
         content: 'How do Python lists work?',
       })
     })
@@ -621,7 +637,7 @@ describe('Student session hooks', () => {
       throw new Error('Expected the grounded turn request to be pending')
     }
 
-    resolveTurn(groundedChatTurnResponseFixture)
+    resolveTurn(persistedTurn)
     await act(async () => mutation)
 
     const persisted =
@@ -629,16 +645,14 @@ describe('Student session hooks', () => {
         InfiniteData<ChatMessageHistoryResponse, number | undefined>
       >(historyKey)
     expect(
-      persisted?.pages[0]?.messages.filter(
-        ({ id }) => id === studentChatIds.studentMessage,
-      ),
+      persisted?.pages[0]?.messages.filter(({ id }) => id === clientMessageId),
     ).toHaveLength(1)
     expect(
       persisted?.pages[0]?.messages.filter(
-        ({ id }) => id === studentChatIds.assistantMessage,
+        ({ id }) => id === assistantMessageId,
       ),
     ).toHaveLength(1)
-    expect(persisted?.pages[0]?.messages).toHaveLength(2)
+    expect(persisted?.pages[0]?.messages).toHaveLength(4)
   })
 
   it('rolls back an optimistic send after a transport failure', async () => {
@@ -660,7 +674,10 @@ describe('Student session hooks', () => {
 
     await act(async () => {
       await expect(
-        result.current.mutateAsync({ content: 'Keep this draft' }),
+        result.current.mutateAsync({
+          clientMessageId: studentChatIds.studentMessage,
+          content: 'Keep this draft',
+        }),
       ).rejects.toThrow('Failed to fetch')
     })
 

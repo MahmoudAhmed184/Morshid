@@ -203,7 +203,7 @@ export class StudentChatService {
       courseId,
       sessionId,
       user.id,
-      { limit, after: query.after ?? null },
+      { limit, after: query.after ?? null, before: query.before ?? null },
     )
 
     if (messages === null) {
@@ -220,7 +220,9 @@ export class StudentChatService {
       messages: await this.messagePresenter.presentMany(messages),
       nextCursor:
         messages.length === limit
-          ? (messages[messages.length - 1]?.sequence ?? null)
+          ? query.before === undefined
+            ? (messages[messages.length - 1]?.sequence ?? null)
+            : (messages[0]?.sequence ?? null)
           : null,
     }
   }

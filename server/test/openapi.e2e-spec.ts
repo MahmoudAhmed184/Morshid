@@ -937,6 +937,10 @@ describe('OpenAPI contract (e2e)', () => {
         { required?: string[]; properties?: Record<string, unknown> }
       >
       expect(schemas.SendStudentChatMessageRequestDto.properties).toEqual({
+        clientMessageId: {
+          type: 'string',
+          format: 'uuid',
+        },
         content: {
           type: 'string',
           minLength: 1,

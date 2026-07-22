@@ -70,7 +70,7 @@ function CitationSource({ citation }: { citation: ChatCitation }) {
         <p className="min-w-0 break-words font-medium text-foreground">
           {citation.materialTitle}
         </p>
-        <Badge variant={citation.sourceAvailable ? 'secondary' : 'destructive'}>
+        <Badge variant={citation.sourceAvailable ? 'secondary' : 'outline'}>
           {citation.sourceAvailable ? 'Available' : 'Unavailable'}
         </Badge>
       </div>

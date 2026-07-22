@@ -4,8 +4,6 @@ import { EmptyState } from '@/components/ui/custom/empty-state'
 import { ErrorState } from '@/components/ui/custom/error-state'
 import { isApiError } from '@/features/auth/api/authenticated-api-client'
 
-import { StudentMessageHistorySkeleton } from './student-message-history-skeleton'
-
 interface StudentWorkspaceStateProps {
   sessionId?: string
   sessionsPending: boolean
@@ -28,7 +26,7 @@ export function StudentWorkspaceState({
   onRetrySession,
 }: StudentWorkspaceStateProps) {
   if (sessionsPending || (sessionId !== undefined && sessionPending)) {
-    return <StudentMessageHistorySkeleton />
+    return null
   }
 
   if (sessionsError) {

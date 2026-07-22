@@ -1,10 +1,10 @@
 import {
   Bot,
   CircleAlert,
-  GraduationCap,
   Info,
   LoaderCircle,
   RotateCcw,
+  UserRound,
 } from 'lucide-react'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -58,7 +58,7 @@ export function StudentChatMessage({
   return (
     <li
       className={cn(
-        'flex gap-3',
+        'flex gap-3 py-2',
         isStudent ? 'flex-row-reverse' : 'flex-row',
         isSystem && 'justify-center',
       )}
@@ -74,7 +74,7 @@ export function StudentChatMessage({
         aria-hidden
       >
         {isStudent ? (
-          <GraduationCap className="size-4" />
+          <UserRound className="size-4" />
         ) : isSystem ? (
           <Info className="size-4" />
         ) : (
@@ -83,11 +83,11 @@ export function StudentChatMessage({
       </div>
       <div
         className={cn(
-          'max-w-[90%] min-w-0 rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm sm:max-w-[85%]',
+          'max-w-[90%] min-w-0 px-1 py-1 text-sm leading-7 sm:max-w-[85%]',
           isStudent
-            ? 'rounded-tr-md bg-primary text-primary-foreground'
-            : 'rounded-tl-md border border-border bg-card text-card-foreground',
-          isSystem && 'rounded-xl border border-border bg-card',
+            ? 'rounded-3xl bg-muted px-4 py-2.5 text-foreground'
+            : 'text-foreground',
+          isSystem && 'rounded-xl border border-border bg-card px-4 py-3',
         )}
       >
         <span className="sr-only">
@@ -102,7 +102,7 @@ export function StudentChatMessage({
         {isAssistantPending ? (
           <p className="flex items-center gap-2 text-muted-foreground">
             <LoaderCircle className="size-4 animate-spin" aria-hidden />
-            Grounding your question in course materials…
+            Thinking…
           </p>
         ) : (
           <p className="whitespace-pre-wrap break-words">{message.content}</p>
@@ -122,8 +122,8 @@ export function StudentChatMessage({
         <StudentCitationSources citations={message.citations} />
 
         {canRetry ? (
-          <div className="mt-3 border-t border-destructive/20 pt-3">
-            <p className="flex items-start gap-2 text-sm text-destructive">
+          <div className="mt-3 border-t border-border pt-3">
+            <p className="flex items-start gap-2 text-sm text-foreground">
               <CircleAlert className="mt-1 size-4 shrink-0" aria-hidden />
               The grounded response failed. Your question is saved and can be
               retried without creating another message.
@@ -146,7 +146,7 @@ export function StudentChatMessage({
             </Button>
 
             {hasRetryError ? (
-              <Alert className="mt-2" variant="destructive">
+              <Alert className="mt-2">
                 <CircleAlert aria-hidden />
                 <AlertDescription>
                   The retry could not be completed. Your saved question is
