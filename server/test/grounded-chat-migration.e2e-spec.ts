@@ -88,6 +88,37 @@ describe('Grounded chat identity migration (e2e)', () => {
       expect(indexesAfter.rows.map(({ indexname }) => indexname)).toContain(
         'idx_messages_grounding_lease',
       )
+      expect(indexesAfter.rows.map(({ indexname }) => indexname)).not.toContain(
+        'idx_messages_response_to',
+      )
+
+      const attemptColumns = await client.query<{
+        column_name: string
+        data_type: string
+        is_nullable: string
+      }>(`
+        SELECT column_name, data_type, is_nullable
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'messages'
+          AND column_name IN (
+            'grounding_attempt_id',
+            'grounding_lease_expires_at'
+          )
+        ORDER BY column_name
+      `)
+      expect(attemptColumns.rows).toEqual([
+        {
+          column_name: 'grounding_attempt_id',
+          data_type: 'uuid',
+          is_nullable: 'YES',
+        },
+        {
+          column_name: 'grounding_lease_expires_at',
+          data_type: 'timestamp with time zone',
+          is_nullable: 'YES',
+        },
+      ])
 
       await expect(
         client.query(

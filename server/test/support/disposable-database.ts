@@ -109,6 +109,7 @@ async function applyMigrations(
   await client.connect()
 
   try {
+    let reachedRequestedMigration = throughMigration === undefined
     for (const migrationDirectory of migrationDirectories) {
       const sql = await readFile(
         join(migrationsDirectory, migrationDirectory, 'migration.sql'),
@@ -116,8 +117,12 @@ async function applyMigrations(
       )
       await client.query(sql)
       if (migrationDirectory === throughMigration) {
+        reachedRequestedMigration = true
         break
       }
+    }
+    if (!reachedRequestedMigration && throughMigration !== undefined) {
+      throw new Error(`Migration not found: ${throughMigration}`)
     }
   } finally {
     await client.end()
