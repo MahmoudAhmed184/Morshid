@@ -21,6 +21,8 @@ import {
   getStudentSessionMessages,
   listStudentSessions,
   renameStudentSession,
+  retryStudentChatMessage,
+  sendStudentChatMessage,
 } from '@/features/student/data/student-sessions.api'
 import { studentCoursesQueryOptions } from '@/features/student/data/student-courses.queries'
 import { studentSessionKeys } from '@/features/student/data/student-sessions.queries'
@@ -28,10 +30,12 @@ import type {
   ChatMessageHistoryResponse,
   ChatSession,
   ChatSessionListResponse,
+  GroundedChatTurnResponse,
 } from '@/features/student/schemas/student-chat.schema'
 import type { StudentCourse } from '@/features/student/schemas/student-course.schema'
 import {
   chatMessageHistoryResponseFixture,
+  groundedChatTurnResponseFixture,
   orderedChatMessagesFixture,
   primaryChatSessionFixture,
   studentChatIds,
@@ -70,6 +74,8 @@ const getStudentSessionMock = vi.mocked(getStudentSession)
 const getStudentSessionMessagesMock = vi.mocked(getStudentSessionMessages)
 const listStudentSessionsMock = vi.mocked(listStudentSessions)
 const renameStudentSessionMock = vi.mocked(renameStudentSession)
+const retryStudentChatMessageMock = vi.mocked(retryStudentChatMessage)
+const sendStudentChatMessageMock = vi.mocked(sendStudentChatMessage)
 let triggerSessionIntersection: (() => void) | undefined
 
 class TestIntersectionObserver {
@@ -118,6 +124,20 @@ const orderedMessageHistory: ChatMessageHistoryResponse = {
     ...message,
   })),
   nextCursor: chatMessageHistoryResponseFixture.nextCursor,
+}
+
+function failedGroundedTurn(): GroundedChatTurnResponse {
+  return {
+    studentMessage: { ...groundedChatTurnResponseFixture.studentMessage },
+    assistantMessage: {
+      ...groundedChatTurnResponseFixture.assistantMessage,
+      content: 'I could not complete a grounded response right now.',
+      status: 'FAILED',
+      guidanceLabel: null,
+      errorCode: 'GROUNDING_RESPONSE_FAILED',
+      citations: [],
+    },
+  }
 }
 
 function createStudentAuthSession(): AuthSession {
@@ -213,10 +233,20 @@ describe('StudentAiTutorPage workspace', () => {
       messages: [],
       nextCursor: null,
     })
+    listStudentSessionsMock.mockResolvedValue({
+      sessions: [primaryChatSessionFixture],
+      nextCursor: null,
+    })
     getStudentSessionMock.mockImplementation(async ({ sessionId }) =>
       sessionId === secondSession.id
         ? secondSession
         : primaryChatSessionFixture,
+    )
+    retryStudentChatMessageMock.mockResolvedValue(
+      groundedChatTurnResponseFixture,
+    )
+    sendStudentChatMessageMock.mockResolvedValue(
+      groundedChatTurnResponseFixture,
     )
     window.localStorage.clear()
     useAuthStore.getState().clearSession()
@@ -376,7 +406,7 @@ describe('StudentAiTutorPage workspace', () => {
     )
   })
 
-  it('keeps the deferred composer free of an active attachment workflow', () => {
+  it('keeps the grounded composer free of an attachment workflow', async () => {
     renderWorkspace({
       courseId: primaryCourse.id,
       sessionId: primaryChatSessionFixture.id,
@@ -391,6 +421,7 @@ describe('StudentAiTutorPage workspace', () => {
     expect(
       screen.queryByRole('button', { name: 'Attach file' }),
     ).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.getByLabelText('Message')).toBeEnabled())
   })
 
   it('uses semantic theme tokens throughout the workspace', () => {
@@ -921,7 +952,7 @@ describe('StudentAiTutorPage workspace', () => {
     const history = await screen.findByRole('list', {
       name: 'Conversation history',
     })
-    const messageItems = history.querySelectorAll('li')
+    const messageItems = history.querySelectorAll(':scope > li')
 
     expect(messageItems).toHaveLength(2)
     expect(messageItems[0]).toHaveTextContent(
@@ -930,7 +961,7 @@ describe('StudentAiTutorPage workspace', () => {
     expect(messageItems[1]).toHaveTextContent(
       orderedChatMessagesFixture[1].content,
     )
-    expect(screen.getByLabelText('Message')).toBeDisabled()
+    expect(screen.getByLabelText('Message')).toBeEnabled()
     expect(screen.getByRole('button', { name: /send message/i })).toBeDisabled()
   })
 
@@ -960,7 +991,7 @@ describe('StudentAiTutorPage workspace', () => {
     expect(await screen.findByText(thirdMessage.content)).toBeInTheDocument()
     const messageItems = screen
       .getByRole('list', { name: 'Conversation history' })
-      .querySelectorAll('li')
+      .querySelectorAll(':scope > li')
     expect(messageItems).toHaveLength(3)
     expect(messageItems[2]).toHaveTextContent(thirdMessage.content)
     expect(getStudentSessionMessagesMock).toHaveBeenNthCalledWith(2, {
@@ -1133,5 +1164,288 @@ describe('StudentAiTutorPage workspace', () => {
         search: { courseId: primaryCourse.id },
       }),
     )
+  })
+
+  it('renders the Student message immediately and locks one active generation', async () => {
+    let resolveTurn: ((turn: GroundedChatTurnResponse) => void) | undefined
+    sendStudentChatMessageMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveTurn = resolve
+        }),
+    )
+    getStudentSessionMessagesMock.mockResolvedValueOnce(orderedMessageHistory)
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+      messages: { messages: [], nextCursor: null },
+    })
+
+    const composer = await screen.findByRole('textbox', { name: 'Message' })
+    await waitFor(() => expect(composer).toBeEnabled())
+    fireEvent.change(composer, {
+      target: { value: groundedChatTurnResponseFixture.studentMessage.content },
+    })
+    fireEvent.keyDown(composer, { key: 'Enter' })
+
+    expect(
+      await screen.findByText(
+        groundedChatTurnResponseFixture.studentMessage.content,
+      ),
+    ).toBeInTheDocument()
+    await waitFor(() => expect(composer).toBeDisabled())
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled()
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Grounding your question in course materials',
+    )
+    expect(sendStudentChatMessageMock).toHaveBeenCalledWith({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      input: {
+        content: groundedChatTurnResponseFixture.studentMessage.content,
+      },
+    })
+
+    const completeTurn = resolveTurn
+    if (!completeTurn) {
+      throw new Error('Expected a pending grounded response')
+    }
+
+    await act(async () => completeTurn(groundedChatTurnResponseFixture))
+
+    expect(
+      await screen.findByText(
+        groundedChatTurnResponseFixture.assistantMessage.content,
+      ),
+    ).toBeInTheDocument()
+    expect(composer).toBeEnabled()
+    expect(composer).toHaveValue('')
+    expect(
+      screen
+        .getByRole('list', { name: 'Conversation history' })
+        .querySelectorAll(':scope > li'),
+    ).toHaveLength(2)
+  })
+
+  it('keeps a failed network send editable and retryable from the composer', async () => {
+    sendStudentChatMessageMock
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce(groundedChatTurnResponseFixture)
+    getStudentSessionMessagesMock
+      .mockResolvedValueOnce({ messages: [], nextCursor: null })
+      .mockResolvedValueOnce(orderedMessageHistory)
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+      messages: { messages: [], nextCursor: null },
+    })
+
+    const composer = await screen.findByRole('textbox', { name: 'Message' })
+    await waitFor(() => expect(composer).toBeEnabled())
+    fireEvent.change(composer, { target: { value: 'Keep my exact question' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    expect(
+      await screen.findByText(
+        'Your message could not be sent. It remains in the composer so you can try again.',
+      ),
+    ).toBeInTheDocument()
+    expect(composer).toBeEnabled()
+    expect(composer).toHaveValue('Keep my exact question')
+
+    fireEvent.change(composer, {
+      target: { value: groundedChatTurnResponseFixture.studentMessage.content },
+    })
+    await waitFor(() =>
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument(),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    expect(
+      await screen.findByText(
+        groundedChatTurnResponseFixture.assistantMessage.content,
+      ),
+    ).toBeInTheDocument()
+    expect(sendStudentChatMessageMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('renders guidance, inline citations, and collapsible source evidence', async () => {
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+      messages: orderedMessageHistory,
+    })
+
+    expect(
+      await screen.findByText('Course-grounded guidance'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('[Python lists, chunk 1]')).toBeInTheDocument()
+
+    fireEvent.click(
+      await screen.findByRole(
+        'button',
+        { name: 'Sources (1)' },
+        { timeout: 5_000 },
+      ),
+    )
+
+    expect(
+      await screen.findByText(
+        'Python lists are ordered and mutable collections.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Available')).toBeInTheDocument()
+    expect(screen.getByText('Chunk 1')).toBeInTheDocument()
+  })
+
+  it('shows unavailable sources and no-evidence responses without invented metadata', async () => {
+    const unavailableAssistant = {
+      ...groundedChatTurnResponseFixture.assistantMessage,
+      citations: [
+        {
+          ...groundedChatTurnResponseFixture.assistantMessage.citations[0],
+          sourceAvailable: false,
+          evidence: [],
+        },
+      ],
+    }
+    const unavailableHistory: ChatMessageHistoryResponse = {
+      messages: [
+        groundedChatTurnResponseFixture.studentMessage,
+        unavailableAssistant,
+      ],
+      nextCursor: null,
+    }
+    const { queryClient } = renderWorkspace({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+      messages: unavailableHistory,
+    })
+
+    fireEvent.click(
+      await screen.findByRole(
+        'button',
+        { name: 'Sources (1)' },
+        { timeout: 5_000 },
+      ),
+    )
+    expect(await screen.findByText('Unavailable')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'This source is no longer available. No excerpt is shown.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/page \d/i)).not.toBeInTheDocument()
+
+    const blockedAssistant = {
+      ...groundedChatTurnResponseFixture.assistantMessage,
+      content: 'I could not find enough course evidence for that question.',
+      status: 'BLOCKED' as const,
+      guidanceLabel: 'GENERAL_NOT_FOUND' as const,
+      errorCode: 'GROUNDING_INSUFFICIENT_EVIDENCE',
+      citations: [],
+    }
+    queryClient.setQueryData(
+      studentSessionKeys.messageList({
+        studentId,
+        courseId: primaryCourse.id,
+        sessionId: primaryChatSessionFixture.id,
+      }),
+      {
+        pages: [
+          {
+            messages: [
+              groundedChatTurnResponseFixture.studentMessage,
+              blockedAssistant,
+            ],
+            nextCursor: null,
+          },
+        ],
+        pageParams: [undefined],
+      },
+    )
+
+    expect(
+      await screen.findByText('Course evidence not found'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('No supporting course sources were found.'),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /sources/i })).toBeNull()
+  })
+
+  it('retries a failed persisted response without duplicating either message', async () => {
+    const failedTurn = failedGroundedTurn()
+    let resolveRetry: ((turn: GroundedChatTurnResponse) => void) | undefined
+    retryStudentChatMessageMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRetry = resolve
+        }),
+    )
+    getStudentSessionMessagesMock.mockResolvedValueOnce(orderedMessageHistory)
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+      messages: {
+        messages: [failedTurn.studentMessage, failedTurn.assistantMessage],
+        nextCursor: null,
+      },
+    })
+
+    expect(
+      await screen.findByText(
+        'The grounded response failed. Your question is saved and can be retried without creating another message.',
+        {},
+        { timeout: 5_000 },
+      ),
+    ).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry response' }))
+
+    expect(await screen.findByLabelText('Message')).toBeDisabled()
+    expect(retryStudentChatMessageMock).toHaveBeenCalledWith({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      studentMessageId: failedTurn.studentMessage.id,
+    })
+
+    const completeRetry = resolveRetry
+    if (!completeRetry) {
+      throw new Error('Expected a pending grounded response retry')
+    }
+
+    await act(async () => completeRetry(groundedChatTurnResponseFixture))
+
+    expect(
+      await screen.findByText(
+        groundedChatTurnResponseFixture.assistantMessage.content,
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen
+        .getByRole('list', { name: 'Conversation history' })
+        .querySelectorAll(':scope > li'),
+    ).toHaveLength(2)
+    expect(screen.queryByText(/grounded response failed/i)).toBeNull()
   })
 })

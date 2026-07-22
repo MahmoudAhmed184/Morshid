@@ -1,4 +1,4 @@
-import { MessageSquareText } from 'lucide-react'
+import { LoaderCircle, MessageSquareText } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/custom/empty-state'
@@ -18,9 +18,13 @@ interface StudentMessageHistoryProps {
   hasNextPage: boolean
   isFetchingNextPage: boolean
   isFetchNextPageError: boolean
+  isGenerationActive: boolean
+  retryError: unknown
+  retryMessageId?: string
   onRetry: () => void
   onLoadMore: () => void
   onRecover: () => void
+  onRetryResponse: (studentMessageId: string) => void
 }
 
 export function StudentMessageHistory({
@@ -32,9 +36,13 @@ export function StudentMessageHistory({
   hasNextPage,
   isFetchingNextPage,
   isFetchNextPageError,
+  isGenerationActive,
+  retryError,
+  retryMessageId,
   onRetry,
   onLoadMore,
   onRecover,
+  onRetryResponse,
 }: StudentMessageHistoryProps) {
   if (isPending) {
     return <StudentMessageHistorySkeleton />
@@ -68,7 +76,7 @@ export function StudentMessageHistory({
     )
   }
 
-  if (messages.length === 0) {
+  if (messages.length === 0 && !isGenerationActive) {
     return (
       <EmptyState
         icon={<MessageSquareText className="size-6" aria-hidden />}
@@ -79,12 +87,35 @@ export function StudentMessageHistory({
     )
   }
 
+  const hasPendingAssistant = messages.some(
+    (message) =>
+      message.role === 'ASSISTANT' &&
+      (message.status === 'PENDING' || message.status === 'STREAMING'),
+  )
+
   return (
     <div>
       <ol aria-label="Conversation history" className="space-y-5">
         {messages.map((message) => (
-          <StudentChatMessage key={message.id} message={message} />
+          <StudentChatMessage
+            key={message.id}
+            message={message}
+            isGenerationActive={isGenerationActive}
+            retryError={retryError}
+            retryMessageId={retryMessageId}
+            onRetry={onRetryResponse}
+          />
         ))}
+        {isGenerationActive && !hasPendingAssistant ? (
+          <li className="flex gap-3" aria-hidden="true">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+              <LoaderCircle className="size-4 animate-spin" />
+            </div>
+            <div className="rounded-2xl rounded-tl-md border border-border bg-card px-4 py-3 text-sm text-muted-foreground shadow-sm">
+              Grounding your question in course materials…
+            </div>
+          </li>
+        ) : null}
       </ol>
       {isError ? (
         <div

@@ -16,14 +16,19 @@ import {
   useCreateStudentSession,
   useDeleteStudentSession,
   useRenameStudentSession,
+  useRetryStudentChatMessage,
+  useSendStudentChatMessage,
   useStudentSession,
   useStudentSessionMessages,
   useStudentSessions,
 } from '@/features/student/hooks/use-student-sessions'
-import type { ChatSession } from '@/features/student/schemas/student-chat.schema'
+import type {
+  ChatMessage,
+  ChatSession,
+} from '@/features/student/schemas/student-chat.schema'
 
 import { StudentConversationHeader } from './student-conversation-header'
-import { StudentDisabledComposer } from './student-disabled-composer'
+import { StudentChatComposer } from './student-chat-composer'
 import { StudentMessageHistory } from './student-message-history'
 import { StudentSessionNavigation } from './student-session-navigation'
 import { StudentWorkspaceState } from './student-workspace-state'
@@ -64,8 +69,9 @@ export function StudentAiTutorPage({
     courseId: selectedCourse?.id,
     sessionId: selectedSession?.id,
   })
-  const messages =
-    messagesQuery.data?.pages.flatMap((page) => page.messages) ?? []
+  const messages = reconcileMessages(
+    messagesQuery.data?.pages.flatMap((page) => page.messages) ?? [],
+  )
   const createSession = useCreateStudentSession({
     courseId: selectedCourse?.id,
   })
@@ -75,6 +81,15 @@ export function StudentAiTutorPage({
   const deleteSession = useDeleteStudentSession({
     courseId: selectedCourse?.id,
   })
+  const sendMessage = useSendStudentChatMessage({
+    courseId: selectedCourse?.id,
+    sessionId: selectedSession?.id,
+  })
+  const retryMessage = useRetryStudentChatMessage({
+    courseId: selectedCourse?.id,
+    sessionId: selectedSession?.id,
+  })
+  const isGenerationActive = sendMessage.isPending || retryMessage.isPending
 
   const handleCreate = async () => {
     if (!selectedCourse) {
@@ -120,6 +135,27 @@ export function StudentAiTutorPage({
       search: { courseId: selectedCourse.id },
     })
     void sessionsQuery.refetch()
+  }
+
+  const handleSend = async (content: string) => {
+    retryMessage.reset()
+
+    try {
+      await sendMessage.mutateAsync({ content })
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  const handleRetryMessage = async (studentMessageId: string) => {
+    sendMessage.reset()
+
+    try {
+      await retryMessage.mutateAsync(studentMessageId)
+    } catch {
+      // Mutation state renders the scoped retry failure next to the response.
+    }
   }
 
   const sessionNavigationProps = selectedCourse
@@ -223,9 +259,15 @@ export function StudentAiTutorPage({
                     hasNextPage={messagesQuery.hasNextPage}
                     isFetchingNextPage={messagesQuery.isFetchingNextPage}
                     isFetchNextPageError={messagesQuery.isFetchNextPageError}
+                    isGenerationActive={isGenerationActive}
+                    retryError={retryMessage.error}
+                    retryMessageId={retryMessage.variables}
                     onRetry={() => void messagesQuery.refetch()}
                     onLoadMore={() => void messagesQuery.fetchNextPage()}
                     onRecover={() => void handleStaleSession()}
+                    onRetryResponse={(studentMessageId) =>
+                      void handleRetryMessage(studentMessageId)
+                    }
                   />
                 </div>
               ) : (
@@ -248,8 +290,12 @@ export function StudentAiTutorPage({
                 </div>
               )}
             </div>
-            <StudentDisabledComposer
+            <StudentChatComposer
               hasSelectedSession={selectedSession !== null}
+              isGenerating={isGenerationActive}
+              sendError={sendMessage.error}
+              onDismissError={sendMessage.reset}
+              onSend={handleSend}
             />
           </div>
         </div>
@@ -272,5 +318,17 @@ export function StudentAiTutorPage({
         </div>
       )}
     </section>
+  )
+}
+
+function reconcileMessages(messages: ChatMessage[]) {
+  const messagesById = new Map<string, ChatMessage>()
+
+  for (const message of messages) {
+    messagesById.set(message.id, message)
+  }
+
+  return [...messagesById.values()].sort(
+    (left, right) => left.sequence - right.sequence,
   )
 }
