@@ -251,7 +251,7 @@ model Message {
   sequence            Int
   role                MessageRole
   authorUserId        String?               @map("author_user_id") @db.Uuid
-  responseToMessageId String?               @map("response_to_message_id") @db.Uuid
+  responseToMessageId String?               @unique(map: "messages_response_to_message_id_key") @map("response_to_message_id") @db.Uuid
   content             String                @db.Text
   status              MessageStatus
   requestKind         MessageRequestKind?   @map("request_kind")
@@ -270,13 +270,12 @@ model Message {
   session           ChatSession        @relation(fields: [sessionId], references: [id], onDelete: Restrict)
   author            User?              @relation("MessageAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
   responseToMessage Message?           @relation("MessageResponse", fields: [responseToMessageId], references: [id], onDelete: SetNull)
-  responses         Message[]          @relation("MessageResponse")
+  response          Message?           @relation("MessageResponse")
   retrievals        MessageRetrieval[]
   citations         MessageCitation[]
 
   @@unique([sessionId, sequence], map: "messages_session_id_sequence_key")
   @@index([authorUserId], map: "idx_messages_author")
-  @@index([responseToMessageId], map: "idx_messages_response_to")
   @@map("messages")
 }
 

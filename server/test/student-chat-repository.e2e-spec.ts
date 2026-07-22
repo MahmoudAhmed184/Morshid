@@ -123,6 +123,52 @@ describe('Student chat repositories (e2e)', () => {
     expect(reloaded.lastSequence).toBe(12)
   })
 
+  it('enforces one assistant response per student message', async () => {
+    const { courseId, studentId } = await createEnrolledStudent()
+    const session = await sessionRepository.createSession(
+      courseId,
+      studentId,
+      'Response identity',
+    )
+    if (session === null) {
+      throw new Error('Expected the session to be created')
+    }
+
+    const studentMessage = await prisma.message.create({
+      data: {
+        sessionId: session.id,
+        sequence: 1,
+        role: 'STUDENT',
+        authorUserId: studentId,
+        content: 'What is a Python list?',
+        status: 'COMPLETED',
+      },
+    })
+    await prisma.message.create({
+      data: {
+        sessionId: session.id,
+        sequence: 2,
+        role: 'ASSISTANT',
+        responseToMessageId: studentMessage.id,
+        content: '',
+        status: 'PENDING',
+      },
+    })
+
+    await expect(
+      prisma.message.create({
+        data: {
+          sessionId: session.id,
+          sequence: 3,
+          role: 'ASSISTANT',
+          responseToMessageId: studentMessage.id,
+          content: '',
+          status: 'PENDING',
+        },
+      }),
+    ).rejects.toThrow()
+  })
+
   it('keeps the chat-session FK satisfied when a membership is soft-removed and reactivated (H1)', async () => {
     const { courseId, studentId } = await createEnrolledStudent()
     const session = await sessionRepository.createSession(
