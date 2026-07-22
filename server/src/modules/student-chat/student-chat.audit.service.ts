@@ -38,6 +38,9 @@ export interface RecordAccessDeniedInput {
     | 'DELETED_OR_UNOWNED'
     | 'ASSISTANT_MESSAGE_NOT_FOUND'
     | 'ASSISTANT_MESSAGE_NOT_PENDING'
+    | 'RETRY_TARGET_NOT_FOUND'
+    | 'TURN_IN_PROGRESS'
+    | 'RETRY_NOT_ALLOWED'
   messageId?: string | null
   requestContext?: AuditRequestContext
 }

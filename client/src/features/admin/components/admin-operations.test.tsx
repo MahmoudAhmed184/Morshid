@@ -126,8 +126,12 @@ describe('Admin operation controls', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add assignment' }))
     const userSelect = await screen.findByRole('combobox', { name: 'User' })
-    userSelect.focus()
-    await user.keyboard('{ArrowDown}{Enter}')
+    await user.click(userSelect)
+    await user.click(
+      await screen.findByRole('option', {
+        name: 'Demo Student (student@morshid.demo)',
+      }),
+    )
     await user.click(screen.getByRole('button', { name: 'Add assignment' }))
 
     await waitFor(() =>
@@ -154,8 +158,8 @@ describe('Admin operation controls', () => {
     const roleSelect = screen.getByRole('combobox', {
       name: 'Course role for Demo Student',
     })
-    roleSelect.focus()
-    await user.keyboard('{ArrowDown}{ArrowDown}{Enter}')
+    await user.click(roleSelect)
+    await user.click(await screen.findByRole('option', { name: 'Instructor' }))
 
     expect(onRoleChange).toHaveBeenCalledWith(member.userId, 'INSTRUCTOR')
   })

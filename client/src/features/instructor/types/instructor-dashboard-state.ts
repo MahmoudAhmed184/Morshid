@@ -10,16 +10,9 @@ export type InstructorDashboardState =
     }
   | {
       status: 'ready'
-      /** The course the panel currently displays. */
       course: InstructorCourse
-      /**
-       * All courses owned by the instructor. Used to render the course-panel
-       * switcher when more than one exists (F4 merge). Optional so consumers
-       * with a single course can omit it.
-       */
-      courses?: InstructorCourse[]
-      /** Selects which owned course the panel displays. */
+      courses: InstructorCourse[]
       onSelectCourse?: (courseId: string) => void
-      materialCount: number
-      reviewQueueCount: number
+      materialCount?: number
+      reviewQueueCount?: number
     }

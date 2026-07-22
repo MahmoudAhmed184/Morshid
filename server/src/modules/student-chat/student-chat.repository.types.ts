@@ -1,8 +1,10 @@
 import type {
+  MaterialStatus,
   MessageGuidanceLabel,
   MessageRequestKind,
   MessageRole,
   MessageStatus,
+  Prisma,
 } from '../../generated/prisma/client'
 import type { AuditRequestContext } from '../audit/audit.service'
 
@@ -37,6 +39,32 @@ export interface ChatMessageRecord {
   errorCode: string | null
   createdAt: Date
   completedAt: Date | null
+  citations: ChatMessageCitationRecord[]
+  retrievals: ChatMessageRetrievalRecord[]
+}
+
+export interface ChatMessageCitationRecord {
+  citationOrder: number
+  material: {
+    id: string
+    title: string
+    storagePath: string
+    status: MaterialStatus
+    deletedAt: Date | null
+    extractedTextLength: number | null
+    chunkCount: number | null
+  }
+}
+
+export interface ChatMessageRetrievalRecord {
+  rank: number
+  similarityScore: Prisma.Decimal | null
+  chunk: {
+    id: string
+    materialId: string
+    chunkIndex: number
+    content: string
+  } | null
 }
 
 export interface AppendStudentMessageInput {

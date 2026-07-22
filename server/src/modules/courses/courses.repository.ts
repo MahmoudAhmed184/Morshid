@@ -174,6 +174,7 @@ export class PrismaCoursesRepository extends CoursesRepository {
       where: {
         userId,
         role,
+        removedAt: null,
       },
       select: {
         role: true,

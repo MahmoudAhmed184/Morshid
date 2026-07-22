@@ -38,7 +38,7 @@ function createSession(role: AuthUser['role']): AuthSession {
         role === 'INSTRUCTOR'
           ? [
               {
-                id: 'python-course',
+                id: 'f5bb713c-09b7-42d3-acf3-02f39a902e5a',
                 code: 'PYTHON-PROG-P0',
                 title: 'Python Programming',
                 membershipRole: 'INSTRUCTOR',
@@ -80,7 +80,7 @@ function renderAtInstructorRoute(
         return Response.json({ events: [] })
       }
 
-      if (url.endsWith('/api/v1/courses')) {
+      if (url.endsWith('/api/v1/courses/material-management')) {
         return (
           coursesResponse ??
           Response.json({
@@ -88,9 +88,38 @@ function renderAtInstructorRoute(
               id,
               code,
               title,
+              membershipRole: 'INSTRUCTOR',
+              canManageMaterials: true,
             })),
           })
         )
+      }
+
+      if (url.endsWith('/api/v1/courses')) {
+        return Response.json({ courses: session.user.courses })
+      }
+
+      if (
+        url.endsWith(
+          '/api/v1/courses/f5bb713c-09b7-42d3-acf3-02f39a902e5a/materials',
+        )
+      ) {
+        return Response.json({
+          materials: [
+            {
+              id: '3e533215-42ba-42b8-ad6a-404e7bb3c8d7',
+              courseId: 'f5bb713c-09b7-42d3-acf3-02f39a902e5a',
+              title: 'Course source',
+              originalFilename: 'course-source.pdf',
+              status: 'READY',
+              extractedTextLength: 1_200,
+              chunkCount: 2,
+              errorMessage: null,
+              createdAt: '2026-07-21T12:00:00.000Z',
+              updatedAt: '2026-07-21T12:01:00.000Z',
+            },
+          ],
+        })
       }
 
       throw new Error(`Unexpected request: ${url}`)
@@ -179,7 +208,7 @@ describe('/instructor', () => {
     )
   })
 
-  it('shows the route empty state when the Instructor owns no course', async () => {
+  it('shows the route empty state when the Instructor has no manageable course', async () => {
     const session = createSession('INSTRUCTOR')
     session.user.courses = []
 
@@ -200,7 +229,7 @@ describe('/instructor', () => {
     expect(screen.queryByText('Instructor Portal')).not.toBeInTheDocument()
   })
 
-  it('shows dashboard loading while owned courses are requested', async () => {
+  it('shows dashboard loading while manageable courses are requested', async () => {
     renderAtInstructorRoute(
       createSession('INSTRUCTOR'),
       new Promise<Response>(() => undefined),
@@ -242,8 +271,8 @@ describe('/instructor', () => {
       expect(history.location.pathname).toBe('/instructor/materials')
     })
     expect(
-      (await screen.findAllByRole('heading', { name: 'Materials' })).length,
-    ).toBeGreaterThanOrEqual(1)
+      await screen.findByRole('heading', { name: 'Course Materials' }),
+    ).toBeVisible()
     expect(
       screen.queryByLabelText('Checking authentication'),
     ).not.toBeInTheDocument()

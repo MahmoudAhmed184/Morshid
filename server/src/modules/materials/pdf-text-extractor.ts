@@ -4,9 +4,16 @@ import type { PDFDocumentLoadingTask } from 'pdfjs-dist/legacy/build/pdf.mjs'
 export const PDF_TEXT_EXTRACTOR = Symbol('PdfTextExtractor')
 export const PDF_DOCUMENT_LOADER = Symbol('PdfDocumentLoader')
 
+export const PDF_TEXT_WARNINGS = {
+  PARTIAL_PAGE_TEXT: 'PARTIAL_PAGE_TEXT',
+} as const
+
+export type PdfTextWarning =
+  (typeof PDF_TEXT_WARNINGS)[keyof typeof PDF_TEXT_WARNINGS]
+
 export interface PdfTextExtractionResult {
   text: string
-  warnings: string[]
+  warnings: PdfTextWarning[]
 }
 
 export interface PdfTextExtractor {
@@ -81,7 +88,7 @@ export class PdfJsTextExtractor implements PdfTextExtractor {
         text: pages.join('\n\n'),
         warnings:
           pagesWithoutText > 0 && pagesWithoutText < pageCount
-            ? ['PARTIAL_PAGE_TEXT']
+            ? [PDF_TEXT_WARNINGS.PARTIAL_PAGE_TEXT]
             : [],
       }
     } catch {

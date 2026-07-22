@@ -59,6 +59,47 @@ export const chatMessageGuidanceLabelSchema = z.enum([
   'REFUSAL',
 ])
 
+export const chatCitationEvidenceSchema = z
+  .object({
+    rank: z.number().int().positive(),
+    similarityScore: z.number().min(-1).max(1),
+    chunkId: z.uuid(),
+    chunkNumber: z.number().int().positive(),
+    excerpt: z.string().refine((value) => Array.from(value).length <= 240, {
+      message: 'Citation excerpts must contain at most 240 code points',
+    }),
+  })
+  .strict()
+
+export const chatCitationSchema = z
+  .object({
+    order: z.number().int().positive(),
+    materialId: z.uuid(),
+    materialTitle: z.string().trim().min(1),
+    sourceAvailable: z.boolean(),
+    evidence: z.array(chatCitationEvidenceSchema),
+  })
+  .strict()
+  .superRefine(({ sourceAvailable, evidence }, context) => {
+    if (sourceAvailable !== evidence.length > 0) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Citation availability must match its evidence',
+        path: ['evidence'],
+      })
+    }
+
+    for (let index = 1; index < evidence.length; index += 1) {
+      if (evidence[index].rank <= evidence[index - 1].rank) {
+        context.addIssue({
+          code: 'custom',
+          message: 'Citation evidence must be ordered by increasing rank',
+          path: ['evidence', index, 'rank'],
+        })
+      }
+    }
+  })
+
 export const chatMessageSchema = z
   .object({
     id: z.uuid(),
@@ -73,6 +114,14 @@ export const chatMessageSchema = z
     errorCode: z.string().nullable(),
     createdAt: z.iso.datetime(),
     completedAt: z.iso.datetime().nullable(),
+    citations: z.array(chatCitationSchema),
+  })
+  .strict()
+
+export const groundedChatTurnResponseSchema = z
+  .object({
+    studentMessage: chatMessageSchema,
+    assistantMessage: chatMessageSchema,
   })
   .strict()
 
@@ -109,6 +158,18 @@ export const renameChatSessionRequestSchema = z
   })
   .strict()
 
+export const sendStudentChatMessageRequestSchema = z
+  .object({
+    content: z
+      .string()
+      .trim()
+      .min(1)
+      .refine((value) => Array.from(value).length <= 4_000, {
+        message: 'Message content must contain at most 4,000 code points',
+      }),
+  })
+  .strict()
+
 export const deleteChatSessionResponseSchema = z.undefined()
 
 export const listChatSessionsInputSchema = z
@@ -133,11 +194,17 @@ export type ChatMessage = z.infer<typeof chatMessageSchema>
 export type ChatMessageHistoryResponse = z.infer<
   typeof chatMessageHistoryResponseSchema
 >
+export type GroundedChatTurnResponse = z.infer<
+  typeof groundedChatTurnResponseSchema
+>
 export type CreateChatSessionInput = z.input<
   typeof createChatSessionRequestSchema
 >
 export type RenameChatSessionInput = z.input<
   typeof renameChatSessionRequestSchema
+>
+export type SendStudentChatMessageInput = z.input<
+  typeof sendStudentChatMessageRequestSchema
 >
 export type ListChatSessionsInput = z.input<typeof listChatSessionsInputSchema>
 export type ListChatMessagesInput = z.input<typeof listChatMessagesInputSchema>

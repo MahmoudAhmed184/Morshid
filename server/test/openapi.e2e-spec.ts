@@ -801,6 +801,20 @@ describe('OpenAPI contract (e2e)', () => {
           summary: 'List chat session messages',
           statuses: ['200', '400', '401', '403', '404'],
         },
+        {
+          path: `${base}/{sessionId}/messages`,
+          method: 'post',
+          tag: 'student-chat-sessions',
+          summary: 'Send grounded chat message',
+          statuses: ['201', '400', '401', '403', '404', '409', '503'],
+        },
+        {
+          path: `${base}/{sessionId}/messages/{studentMessageId}/retry`,
+          method: 'post',
+          tag: 'student-chat-sessions',
+          summary: 'Retry failed grounded chat response',
+          statuses: ['200', '400', '401', '403', '404', '409', '503'],
+        },
       ] as const
 
       for (const expected of expectedOperations) {
@@ -814,6 +828,14 @@ describe('OpenAPI contract (e2e)', () => {
 
         if (expected.path.includes('{sessionId}')) {
           expect(getParameter(operation, 'sessionId')).toMatchObject({
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+          })
+        }
+
+        if (expected.path.includes('{studentMessageId}')) {
+          expect(getParameter(operation, 'studentMessageId')).toMatchObject({
             in: 'path',
             required: true,
             schema: { type: 'string', format: 'uuid' },
@@ -838,6 +860,11 @@ describe('OpenAPI contract (e2e)', () => {
         { path: base, method: 'get' },
         { path: `${base}/{sessionId}`, method: 'patch' },
         { path: `${base}/{sessionId}/messages`, method: 'get' },
+        { path: `${base}/{sessionId}/messages`, method: 'post' },
+        {
+          path: `${base}/{sessionId}/messages/{studentMessageId}/retry`,
+          method: 'post',
+        },
       ] as const) {
         expect(
           getOperation(document, path, method).responses['400'],
@@ -888,6 +915,42 @@ describe('OpenAPI contract (e2e)', () => {
         '200',
         'ChatMessageHistoryResponseDto',
       )
+      expectRequestSchemaReference(
+        getOperation(document, `${base}/{sessionId}/messages`, 'post'),
+        'SendStudentChatMessageRequestDto',
+      )
+      expectResponseSchemaReference(
+        getOperation(document, `${base}/{sessionId}/messages`, 'post'),
+        '201',
+        'GroundedChatTurnResponseDto',
+      )
+      const retry = getOperation(
+        document,
+        `${base}/{sessionId}/messages/{studentMessageId}/retry`,
+        'post',
+      )
+      expect(retry.requestBody).toBeUndefined()
+      expectResponseSchemaReference(retry, '200', 'GroundedChatTurnResponseDto')
+
+      const schemas = document.components?.schemas as Record<
+        string,
+        { required?: string[]; properties?: Record<string, unknown> }
+      >
+      expect(schemas.SendStudentChatMessageRequestDto.properties).toEqual({
+        content: {
+          type: 'string',
+          minLength: 1,
+          maxLength: 4000,
+        },
+      })
+      expect(schemas.ChatMessageDto.properties?.citations).toEqual({
+        type: 'array',
+        items: { $ref: '#/components/schemas/ChatCitationDto' },
+      })
+      expect(schemas.ChatCitationDto.properties?.evidence).toEqual({
+        type: 'array',
+        items: { $ref: '#/components/schemas/ChatCitationEvidenceDto' },
+      })
     } finally {
       await app.close()
     }

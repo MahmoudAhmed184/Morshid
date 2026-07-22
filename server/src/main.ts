@@ -7,6 +7,7 @@ import { AppModule } from './app.module'
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule)
+  app.enableShutdownHooks()
   const configService = app.get(ConfigService<AppEnvironment, true>)
   const port = configService.get('PORT', { infer: true })
   const clientOrigin = configService.get('CLIENT_ORIGIN', { infer: true })

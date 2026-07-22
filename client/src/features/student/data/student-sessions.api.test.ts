@@ -4,6 +4,7 @@ import type { ApiError } from '@/features/auth/api/authenticated-api-client'
 import {
   chatMessageHistoryResponseFixture,
   chatSessionListResponseFixture,
+  groundedChatTurnResponseFixture,
   primaryChatSessionFixture,
   studentChatIds,
 } from '@/features/student/testing/student-chat.fixtures'
@@ -15,6 +16,8 @@ import {
   getStudentSessionMessages,
   listStudentSessions,
   renameStudentSession,
+  retryStudentChatMessage,
+  sendStudentChatMessage,
 } from './student-sessions.api'
 
 describe('Student session API', () => {
@@ -192,6 +195,74 @@ describe('Student session API', () => {
         options: { fetchImpl: fetchMock },
       }),
     ).resolves.toEqual(chatMessageHistoryResponseFixture)
+  })
+
+  it('sends only validated message content to the grounded-chat endpoint', async () => {
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        expect(String(input)).toBe(
+          `http://localhost:4000/api/v1/courses/${studentChatIds.primaryCourse}/chat-sessions/${studentChatIds.primarySession}/messages`,
+        )
+        expect(init?.method).toBe('POST')
+        expect(JSON.parse(String(init?.body))).toEqual({
+          content: 'Explain Python lists',
+        })
+
+        return Response.json(groundedChatTurnResponseFixture, { status: 201 })
+      },
+    )
+
+    await expect(
+      sendStudentChatMessage({
+        courseId: studentChatIds.primaryCourse,
+        sessionId: studentChatIds.primarySession,
+        input: { content: '  Explain Python lists  ' },
+        options: { fetchImpl: fetchMock },
+      }),
+    ).resolves.toEqual(groundedChatTurnResponseFixture)
+  })
+
+  it('rejects orchestration overrides before sending a grounded message', async () => {
+    const fetchMock = vi.fn<typeof fetch>()
+    const unsafeInput: unknown = {
+      content: 'Question',
+      provider: 'client-provider',
+      citations: [],
+    }
+
+    await expect(
+      sendStudentChatMessage({
+        courseId: studentChatIds.primaryCourse,
+        sessionId: studentChatIds.primarySession,
+        input: unsafeInput as { content: string },
+        options: { fetchImpl: fetchMock },
+      }),
+    ).rejects.toThrow()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('retries a failed response without sending a request body', async () => {
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        expect(String(input)).toBe(
+          `http://localhost:4000/api/v1/courses/${studentChatIds.primaryCourse}/chat-sessions/${studentChatIds.primarySession}/messages/${studentChatIds.studentMessage}/retry`,
+        )
+        expect(init?.method).toBe('POST')
+        expect(init?.body).toBeUndefined()
+        expect(new Headers(init?.headers).get('Content-Type')).toBeNull()
+
+        return Response.json(groundedChatTurnResponseFixture)
+      },
+    )
+
+    await expect(
+      retryStudentChatMessage({
+        courseId: studentChatIds.primaryCourse,
+        sessionId: studentChatIds.primarySession,
+        studentMessageId: studentChatIds.studentMessage,
+        options: { fetchImpl: fetchMock },
+      }),
+    ).resolves.toEqual(groundedChatTurnResponseFixture)
   })
 
   it('rejects malformed and cross-shaped responses', async () => {

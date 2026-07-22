@@ -100,8 +100,11 @@ function presentationFor(status?: string): StatusPresentation {
 
 type PdfCardProps = {
   title: string
-  description?: string
-  status?: string
+  description?: React.ReactNode
+  status?: React.ReactNode
+  statusKey?: string
+  details?: React.ReactNode
+  message?: React.ReactNode
   actions?: React.ReactNode
   className?: string
 }
@@ -110,10 +113,15 @@ export function PdfCard({
   title,
   description,
   status,
+  statusKey,
+  details,
+  message,
   actions,
   className,
 }: PdfCardProps) {
-  const presentation = presentationFor(status)
+  const presentation = presentationFor(
+    statusKey ?? (typeof status === 'string' ? status : undefined),
+  )
   const Icon = presentation.icon
 
   return (
@@ -137,36 +145,44 @@ export function PdfCard({
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
-          <h3 className="truncate font-mono text-sm font-medium text-foreground">
-            {title}
-          </h3>
-          {actions ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="-mt-1 -mr-1 shrink-0"
-                    aria-label={`Open actions for ${title}`}
-                  />
-                }
-              >
-                <MoreHorizontal className="size-4" aria-hidden />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">{actions}</DropdownMenuContent>
-            </DropdownMenu>
-          ) : null}
-        </div>
-        {description ? (
-          <p className="footnote mt-1 line-clamp-2 leading-5">{description}</p>
-        ) : null}
-        {status ? (
-          <div className="mt-3">
-            <Badge variant={presentation.variant}>{status}</Badge>
+          <div className="min-w-0 flex-1">
+            <h3 className="truncate text-sm font-medium text-foreground">
+              {title}
+            </h3>
+            {description ? (
+              <div className="footnote mt-1 truncate font-mono">
+                {description}
+              </div>
+            ) : null}
           </div>
-        ) : null}
+          <div className="flex shrink-0 items-center gap-2">
+            {typeof status === 'string' ? (
+              <Badge variant={presentation.variant}>{status}</Badge>
+            ) : (
+              status
+            )}
+            {actions ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="-mt-1 -mr-1"
+                      aria-label={`Open actions for ${title}`}
+                    />
+                  }
+                >
+                  <MoreHorizontal aria-hidden />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">{actions}</DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
+          </div>
+        </div>
+        {details ? <div className="mt-3">{details}</div> : null}
+        {message ? <div className="mt-3">{message}</div> : null}
       </div>
     </Card>
   )

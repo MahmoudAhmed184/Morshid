@@ -20,23 +20,26 @@ vi.mock('@tanstack/react-router', async (importOriginal) => ({
   ),
 }))
 
-const renderWithRouter = render
+const pythonCourse = {
+  id: 'python-course',
+  code: 'PYTHON-PROG-P0',
+  title: 'Python Programming',
+  membershipRole: 'INSTRUCTOR' as const,
+  canManageMaterials: true as const,
+}
 
 describe('InstructorDashboardPage', () => {
   afterEach(cleanup)
 
-  it('shows the seeded Python course and the teaching-desk work areas', () => {
-    renderWithRouter(
+  it('shows the selected course and the teaching-desk work areas', () => {
+    render(
       <InstructorDashboardPage
         state={{
           status: 'ready',
-          course: {
-            id: 'python-course',
-            code: 'PYTHON-PROG-P0',
-            title: 'Python Programming',
-          },
-          materialCount: 0,
-          reviewQueueCount: 0,
+          course: pythonCourse,
+          courses: [pythonCourse],
+          materialCount: 4,
+          reviewQueueCount: 2,
         }}
       />,
     )
@@ -51,30 +54,22 @@ describe('InstructorDashboardPage', () => {
     expect(screen.getAllByText('PYTHON-PROG-P0').length).toBeGreaterThanOrEqual(
       1,
     )
-    expect(screen.getByText('Needs review')).toBeVisible()
+    expect(screen.getByText('2 awaiting review')).toBeVisible()
     expect(
       screen.getByRole('heading', { name: 'Source readiness' }),
     ).toBeVisible()
     expect(screen.getByText('Open materials →')).toBeVisible()
     expect(screen.getByText('Open the queue →')).toBeVisible()
-    expect(
-      screen.queryByRole('button', { name: /manage users/i }),
-    ).not.toBeInTheDocument()
   })
 
   it('shows a dashboard loading state while course data is requested', () => {
-    renderWithRouter(<InstructorDashboardPage state={{ status: 'loading' }} />)
+    render(<InstructorDashboardPage state={{ status: 'loading' }} />)
 
     expect(
       screen.getByRole('status', { name: 'Loading instructor dashboard' }),
     ).toBeVisible()
     expect(
       screen.getByRole('heading', { name: "Today's teaching desk." }),
-    ).toBeVisible()
-    expect(
-      screen.getByText(
-        'Manage course sources and review activity for your assigned course.',
-      ),
     ).toBeVisible()
     expect(screen.getByLabelText('Loading assigned course')).toBeVisible()
     expect(screen.getByLabelText('Loading Course metric')).toBeVisible()
@@ -84,7 +79,7 @@ describe('InstructorDashboardPage', () => {
   })
 
   it('keeps the header and shows an inline error for the course area', () => {
-    renderWithRouter(
+    render(
       <InstructorDashboardPage
         state={{
           status: 'error',
@@ -103,7 +98,7 @@ describe('InstructorDashboardPage', () => {
   })
 
   it('shows a clear empty state when the Instructor owns no course', () => {
-    renderWithRouter(<InstructorDashboardPage state={{ status: 'empty' }} />)
+    render(<InstructorDashboardPage state={{ status: 'empty' }} />)
 
     expect(
       screen.getByRole('heading', { name: 'No assigned course' }),
@@ -111,6 +106,26 @@ describe('InstructorDashboardPage', () => {
     expect(screen.getByText('Needs review')).toBeVisible()
     expect(
       screen.getByText(/ask an administrator to assign you/i),
+    ).toBeVisible()
+  })
+
+  it('does not invent material or review totals when the dashboard lacks them', () => {
+    render(
+      <InstructorDashboardPage
+        state={{
+          status: 'ready',
+          course: pythonCourse,
+          courses: [pythonCourse],
+        }}
+      />,
+    )
+
+    expect(
+      screen.getByText('Live totals are available in Materials'),
+    ).toBeVisible()
+    expect(screen.getByText('Review activity is course-specific')).toBeVisible()
+    expect(
+      screen.getByText('Source readiness is course-specific'),
     ).toBeVisible()
   })
 })

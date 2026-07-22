@@ -5,6 +5,10 @@ import {
   type Material,
   Prisma,
 } from '../../generated/prisma/client'
+import {
+  AuditService,
+  type RecordAuditEventInput,
+} from '../audit/audit.service'
 import { PrismaService } from '../prisma/prisma.service'
 import type { MaterialChunkInput } from '../rag-persistence/rag-persistence.repository'
 import { MATERIAL_PROCESSING_LEASE_MS } from './material-processing.constants'
@@ -69,7 +73,7 @@ export abstract class MaterialsRepository {
   abstract failMaterialProcessing(
     materialId: string,
     processingAttemptId: string,
-    reasonCode: string,
+    input: FailMaterialProcessingInput,
   ): Promise<boolean>
 
   abstract markUploadCleanupRequired(materialId: string): Promise<void>
@@ -97,6 +101,15 @@ export interface CompleteMaterialProcessingInput {
   status: 'READY' | 'WARNING'
   extractedTextLength: number
   chunkCount: number
+  errorMessage: string | null
+  auditEvent: RecordAuditEventInput
+}
+
+export interface FailMaterialProcessingInput {
+  reasonCode: string
+  extractedTextLength: number | null
+  errorMessage: string
+  auditEvent: RecordAuditEventInput
 }
 
 const safeMaterialSelect = {
@@ -125,7 +138,10 @@ const materialStatusSelect = {
 export class PrismaMaterialsRepository extends MaterialsRepository {
   protected readonly repositoryName = PrismaMaterialsRepository.name
 
-  constructor(private readonly prismaService: PrismaService) {
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly auditService: AuditService,
+  ) {
     super()
     void this.prismaService
   }
@@ -280,7 +296,7 @@ export class PrismaMaterialsRepository extends MaterialsRepository {
             processingAttemptId: null,
             extractedTextLength: input.extractedTextLength,
             chunkCount: input.chunkCount,
-            errorMessage: null,
+            errorMessage: input.errorMessage,
           },
         })
 
@@ -290,6 +306,7 @@ export class PrismaMaterialsRepository extends MaterialsRepository {
 
         await tx.materialChunk.deleteMany({ where: { materialId } })
         await insertMaterialChunkBatches(tx, materialId, chunks)
+        await this.auditService.recordEvent(input.auditEvent, tx)
 
         return true
       })
@@ -304,7 +321,7 @@ export class PrismaMaterialsRepository extends MaterialsRepository {
   async failMaterialProcessing(
     materialId: string,
     processingAttemptId: string,
-    reasonCode: string,
+    input: FailMaterialProcessingInput,
   ): Promise<boolean> {
     try {
       return await this.prismaService.$transaction(async (tx) => {
@@ -326,9 +343,9 @@ export class PrismaMaterialsRepository extends MaterialsRepository {
           data: {
             status: MaterialStatus.FAILED,
             processingAttemptId: null,
-            extractedTextLength: null,
+            extractedTextLength: input.extractedTextLength,
             chunkCount: 0,
-            errorMessage: reasonCode,
+            errorMessage: input.errorMessage,
           },
         })
 
@@ -337,6 +354,7 @@ export class PrismaMaterialsRepository extends MaterialsRepository {
         }
 
         await tx.materialChunk.deleteMany({ where: { materialId } })
+        await this.auditService.recordEvent(input.auditEvent, tx)
         return true
       })
     } catch (error) {

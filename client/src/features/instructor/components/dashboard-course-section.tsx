@@ -73,7 +73,7 @@ export function DashboardCourseSection({ state }: DashboardCourseSectionProps) {
   return (
     <CoursePanel
       course={state.course}
-      courses={state.courses ?? [state.course]}
+      courses={state.courses}
       materialCount={state.materialCount}
       onSelectCourse={state.onSelectCourse}
     />
@@ -88,7 +88,7 @@ function CoursePanel({
 }: {
   course: InstructorCourse
   courses: InstructorCourse[]
-  materialCount: number
+  materialCount?: number
   onSelectCourse?: (courseId: string) => void
 }) {
   const hasMultipleCourses = courses.length > 1
@@ -113,21 +113,27 @@ function CoursePanel({
             <Badge variant="secondary" className="font-mono">
               {course.code}
             </Badge>
-            <span className="footnote">
-              Your protected Sprint 1 course workspace
-            </span>
+            <span className="footnote">Your protected course workspace</span>
           </div>
         </div>
 
         <div className="space-y-1">
           <div className="smallcaps-label">Sources</div>
-          <p className="text-sm text-foreground">
-            <span className="font-mono tabular-nums">{materialCount}</span>{' '}
-            uploaded to this course
-          </p>
-          <p className="footnote">
-            Per-status readiness appears in the source readiness panel below.
-          </p>
+          {materialCount === undefined ? (
+            <p className="footnote">
+              Open Materials for live source totals and processing readiness.
+            </p>
+          ) : (
+            <>
+              <p className="text-sm text-foreground">
+                <span className="font-mono tabular-nums">{materialCount}</span>{' '}
+                uploaded to this course
+              </p>
+              <p className="footnote">
+                Per-status readiness appears in the source readiness panel.
+              </p>
+            </>
+          )}
         </div>
 
         <div className="mt-auto">

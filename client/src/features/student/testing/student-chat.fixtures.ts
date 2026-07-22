@@ -1,3 +1,5 @@
+import type { ChatMessage } from '@/features/student/schemas/student-chat.schema'
+
 export const studentChatIds = {
   primaryStudent: '8f9c19d1-eed5-43de-8bd9-995919825f9f',
   otherStudent: '96f2fa84-7cd0-4488-8b18-439b0ce7a0f8',
@@ -7,6 +9,8 @@ export const studentChatIds = {
   otherSession: '1ba7b947-84c6-42eb-94d6-3f1bb7b5d3a5',
   studentMessage: 'c139776a-0c68-44fe-97f8-e9128aa40458',
   assistantMessage: '25587e6e-4e6a-4533-9d4f-97be9e63bd96',
+  primaryMaterial: 'ac06fd75-b2d8-4770-8b36-a3ceaf129fe7',
+  primaryChunk: '94d07771-9cf6-43a1-b9f6-7183f85a82a3',
 } as const
 
 export const primaryStudentFixture = {
@@ -57,6 +61,7 @@ export const orderedChatMessagesFixture = [
     errorCode: null,
     createdAt: '2026-07-17T09:01:00.000Z',
     completedAt: '2026-07-17T09:01:00.000Z',
+    citations: [] as ChatMessage['citations'],
   },
   {
     id: studentChatIds.assistantMessage,
@@ -71,6 +76,23 @@ export const orderedChatMessagesFixture = [
     errorCode: null,
     createdAt: '2026-07-17T09:02:00.000Z',
     completedAt: '2026-07-17T09:02:00.000Z',
+    citations: [
+      {
+        order: 1,
+        materialId: studentChatIds.primaryMaterial,
+        materialTitle: 'Python lists',
+        sourceAvailable: true,
+        evidence: [
+          {
+            rank: 1,
+            similarityScore: 0.94,
+            chunkId: studentChatIds.primaryChunk,
+            chunkNumber: 1,
+            excerpt: 'Python lists are ordered and mutable collections.',
+          },
+        ],
+      },
+    ] as ChatMessage['citations'],
   },
 ] as const
 
@@ -82,6 +104,11 @@ export const chatSessionListResponseFixture = {
 export const chatMessageHistoryResponseFixture = {
   messages: orderedChatMessagesFixture,
   nextCursor: null,
+} as const
+
+export const groundedChatTurnResponseFixture = {
+  studentMessage: orderedChatMessagesFixture[0],
+  assistantMessage: orderedChatMessagesFixture[1],
 } as const
 
 export const emptyChatSessionListResponseFixture = {

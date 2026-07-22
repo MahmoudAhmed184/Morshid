@@ -10,7 +10,6 @@ type DashboardMetricsSectionProps = {
   state: InstructorDashboardState
 }
 
-/** The Register stat row — three cards summarising the teaching desk. */
 export function DashboardMetricsSection({
   state,
 }: DashboardMetricsSectionProps) {
@@ -29,9 +28,10 @@ export function DashboardMetricsSection({
   }
 
   const course = state.status === 'ready' ? state.course : undefined
-  const materialCount = state.status === 'ready' ? state.materialCount : 0
-  const reviewCount = state.status === 'ready' ? state.reviewQueueCount : 0
-  const hasCourse = Boolean(course)
+  const materialCount =
+    state.status === 'ready' ? state.materialCount : undefined
+  const reviewCount =
+    state.status === 'ready' ? state.reviewQueueCount : undefined
 
   return (
     <div className="grid gap-6 sm:grid-cols-3">
@@ -46,36 +46,36 @@ export function DashboardMetricsSection({
             '—'
           )
         }
-        description={hasCourse ? 'Your assigned course' : 'No course assigned'}
+        description={course ? 'Your assigned course' : 'No course assigned'}
       />
       <StatCard
         label="Materials"
         tone="primary"
         icon={<FileText aria-hidden />}
-        value={
-          <span className="tabular-nums">
-            {hasCourse ? materialCount : '—'}
-          </span>
+        value={<span className="tabular-nums">{materialCount ?? '—'}</span>}
+        description={
+          materialCount === undefined
+            ? 'Live totals are available in Materials'
+            : 'Uploaded sources available to this course'
         }
-        description="Uploaded sources available to this course"
       />
       <StatCard
         label="Review queue"
-        tone={hasCourse && reviewCount > 0 ? 'warning' : 'success'}
-        icon={<Inbox aria-hidden />}
-        value={
-          <span className="tabular-nums">{hasCourse ? reviewCount : '—'}</span>
+        tone={
+          reviewCount !== undefined && reviewCount > 0 ? 'warning' : 'success'
         }
+        icon={<Inbox aria-hidden />}
+        value={<span className="tabular-nums">{reviewCount ?? '—'}</span>}
         description={
-          hasCourse ? (
+          reviewCount === undefined ? (
+            'Open the queue for current requests'
+          ) : (
             <span className="flex items-center gap-2">
               <Badge variant={reviewCount > 0 ? 'warning' : 'success'}>
                 {reviewCount > 0 ? 'Needs review' : 'All clear'}
               </Badge>
               <span>Flagged exchanges awaiting review</span>
             </span>
-          ) : (
-            'Flagged exchanges awaiting review'
           )
         }
       />

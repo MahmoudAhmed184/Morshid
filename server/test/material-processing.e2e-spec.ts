@@ -10,6 +10,11 @@ import type { App } from 'supertest/types'
 import { configureApp } from '../src/app.setup'
 import { AppModule } from '../src/app.module'
 import { AUDIT_EVENT_ACTIONS } from '../src/modules/audit/audit.constants'
+import {
+  AuditService,
+  type AuditDatabase,
+  type RecordAuditEventInput,
+} from '../src/modules/audit/audit.service'
 import type { AuthSessionResponse } from '../src/modules/auth/auth.dto'
 import { DeterministicEmbeddingProvider } from '../src/modules/embedding/deterministic-embedding.provider'
 import {
@@ -20,6 +25,8 @@ import { ValidatedEmbeddingProvider } from '../src/modules/embedding/validated-e
 import { MaterialProcessingScheduler } from '../src/modules/materials/material-processing.scheduler'
 import {
   MATERIAL_PROCESSING_FAILURES,
+  MATERIAL_PROCESSING_SAFE_MESSAGES,
+  MATERIAL_PROCESSING_WARNING_MESSAGES,
   MaterialProcessingService,
   type MaterialProcessingFailure,
 } from '../src/modules/materials/material-processing.service'
@@ -48,13 +55,46 @@ import {
   corruptPdfWithPdfFilename,
   emptyPdf,
   imageOnlyPdf,
+  multiPageTextPdf,
+  partiallyEmptyTextPdf,
 } from './fixtures/pdf-fixtures'
 import {
   setUpDisposableDatabase,
   type DisposableDatabase,
 } from './support/disposable-database'
 
-const FAILURE_SENTINEL = `provider/parser/storage saw ${TASK_80_SENTINEL}`
+const SECRET_SENTINEL = 'sk-test-secret-must-never-leak'
+const FAILURE_SENTINEL = `provider/parser/storage saw ${TASK_80_SENTINEL} ${SECRET_SENTINEL}`
+
+const TERMINAL_PROCESSING_ACTIONS = new Set<string>([
+  AUDIT_EVENT_ACTIONS.MATERIAL_PROCESSING_READY,
+  AUDIT_EVENT_ACTIONS.MATERIAL_PROCESSING_WARNING,
+  AUDIT_EVENT_ACTIONS.MATERIAL_PROCESSING_FAILED,
+])
+
+class FaultInjectingAuditService extends AuditService {
+  private remainingTerminalFailures = 0
+
+  failNextTerminalEvents(count: number): void {
+    this.remainingTerminalFailures = count
+  }
+
+  reset(): void {
+    this.remainingTerminalFailures = 0
+  }
+
+  override recordEvent(input: RecordAuditEventInput, database?: AuditDatabase) {
+    if (
+      TERMINAL_PROCESSING_ACTIONS.has(input.action) &&
+      this.remainingTerminalFailures > 0
+    ) {
+      this.remainingTerminalFailures -= 1
+      return Promise.reject(new Error(`audit failed ${FAILURE_SENTINEL}`))
+    }
+
+    return super.recordEvent(input, database)
+  }
+}
 
 class CapturingProcessingScheduler extends MaterialProcessingScheduler {
   readonly scheduledMaterialIds: string[] = []
@@ -177,6 +217,7 @@ describe('Material processing truthfulness (e2e)', () => {
   let storage: IsolatedFaultInjectingStorage
   let extractor: FaultInjectingExtractor
   let provider: FaultInjectingEmbeddingProvider
+  let auditService: FaultInjectingAuditService
   let scheduler: CapturingProcessingScheduler
   let accessToken: string
   let courseId: string
@@ -198,6 +239,7 @@ describe('Material processing truthfulness (e2e)', () => {
       new ValidatedEmbeddingProvider(new DeterministicEmbeddingProvider()),
     )
     scheduler = new CapturingProcessingScheduler()
+    auditService = new FaultInjectingAuditService(prisma)
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -206,6 +248,8 @@ describe('Material processing truthfulness (e2e)', () => {
       .useValue(prisma)
       .overrideProvider(RedisService)
       .useValue({ ping: () => Promise.resolve('PONG') })
+      .overrideProvider(AuditService)
+      .useValue(auditService)
       .overrideProvider(PDF_STORAGE)
       .useValue(storage)
       .overrideProvider(PDF_TEXT_EXTRACTOR)
@@ -242,6 +286,7 @@ describe('Material processing truthfulness (e2e)', () => {
     await storage.clear()
     extractor.reset()
     provider.reset()
+    auditService.reset()
     scheduler.reset()
   })
 
@@ -273,6 +318,115 @@ describe('Material processing truthfulness (e2e)', () => {
       chunks: [expect.objectContaining({ materialId })],
     })
     await expectSafeTerminalAudit(materialId, 'material.processing_ready')
+  })
+
+  it('persists and exposes a usable WARNING source with safe details', async () => {
+    const materialId = await upload(
+      partiallyEmptyTextPdf(),
+      'Partially extracted source',
+    )
+
+    await processingService.processMaterial(materialId)
+
+    const material = await expectStatus(materialId, {
+      status: 'WARNING',
+      errorMessage: MATERIAL_PROCESSING_WARNING_MESSAGES.PARTIAL_PAGE_TEXT,
+    })
+    expect(material.extractedTextLength).toBeGreaterThan(0)
+    const chunks = await persistence.findMaterialChunks(materialId)
+    expect(chunks).toHaveLength(material.chunkCount ?? 0)
+    await expect(
+      retrievalService.retrieveCourseEvidence(courseId, chunks[0].content),
+    ).resolves.toMatchObject({
+      kind: 'evidence',
+      chunks: [expect.objectContaining({ materialId })],
+    })
+    const audit = await expectSafeTerminalAudit(
+      materialId,
+      AUDIT_EVENT_ACTIONS.MATERIAL_PROCESSING_WARNING,
+    )
+    expect(audit.metadata).toMatchObject({
+      status: 'WARNING',
+      warningCodes: ['PARTIAL_PAGE_TEXT'],
+      chunkCount: material.chunkCount,
+      extractedTextLength: material.extractedTextLength,
+    })
+  })
+
+  it('persists repeatable chunks, indices, models, and vectors for the same input', async () => {
+    const fixture = multiPageTextPdf(
+      Array.from(
+        { length: 4 },
+        (_, index) =>
+          `Page ${String(index)}. ${'Repeatable Python material. '.repeat(35)}${TASK_80_SENTINEL}`,
+      ),
+    )
+    const firstMaterialId = await upload(fixture, 'Repeatable source one')
+    const secondMaterialId = await upload(fixture, 'Repeatable source two')
+
+    await processingService.processMaterial(firstMaterialId)
+    await processingService.processMaterial(secondMaterialId)
+
+    const firstChunks = await persistence.findMaterialChunks(firstMaterialId)
+    const secondChunks = await persistence.findMaterialChunks(secondMaterialId)
+    expect(firstChunks.length).toBeGreaterThan(0)
+    expect(
+      firstChunks.map(({ chunkIndex, content, embedding, embeddingModel }) => ({
+        chunkIndex,
+        content,
+        embedding,
+        embeddingModel,
+      })),
+    ).toEqual(
+      secondChunks.map(
+        ({ chunkIndex, content, embedding, embeddingModel }) => ({
+          chunkIndex,
+          content,
+          embedding,
+          embeddingModel,
+        }),
+      ),
+    )
+  })
+
+  it('keeps terminal state retryable when its required audit cannot persist', async () => {
+    const materialId = await upload(cleanTextPdf(), 'Audit retry source')
+    auditService.failNextTerminalEvents(2)
+
+    await processingService.processMaterial(materialId)
+
+    const pendingMaterial = await prisma.material.findUniqueOrThrow({
+      where: { id: materialId },
+    })
+    expect(pendingMaterial).toMatchObject({
+      status: 'PROCESSING',
+      chunkCount: null,
+      errorMessage: null,
+    })
+    expect(typeof pendingMaterial.processingAttemptId).toBe('string')
+    await expect(persistence.findMaterialChunks(materialId)).resolves.toEqual(
+      [],
+    )
+    await expect(
+      prisma.auditLog.count({
+        where: {
+          targetId: materialId,
+          action: { in: [...TERMINAL_PROCESSING_ACTIONS] },
+        },
+      }),
+    ).resolves.toBe(0)
+    await prisma.materialProcessingCommand.update({
+      where: { materialId },
+      data: { leaseExpiresAt: new Date(0) },
+    })
+
+    await processingService.processMaterial(materialId)
+
+    await expectStatus(materialId, { status: 'READY', errorMessage: null })
+    await expectSafeTerminalAudit(
+      materialId,
+      AUDIT_EVENT_ACTIONS.MATERIAL_PROCESSING_READY,
+    )
   })
 
   it.each([
@@ -341,7 +495,12 @@ describe('Material processing truthfulness (e2e)', () => {
 
       await processingService.processMaterial(materialId)
 
-      await expectFailedAndExcluded(materialId, reason)
+      const failedMaterial = await expectFailedAndExcluded(materialId, reason)
+      if (reason === MATERIAL_PROCESSING_FAILURES.EMBEDDING_FAILED) {
+        expect(failedMaterial.extractedTextLength).toBeGreaterThan(0)
+      } else {
+        expect(failedMaterial.extractedTextLength).toBeNull()
+      }
     },
   )
 
@@ -417,14 +576,14 @@ describe('Material processing truthfulness (e2e)', () => {
       materialsRepository.failMaterialProcessing(
         materialId,
         staleAttemptId,
-        MATERIAL_PROCESSING_FAILURES.STORAGE_READ_FAILED,
+        failureTransitionInput(materialId),
       ),
     ).resolves.toBe(false)
     await expect(
       materialsRepository.failMaterialProcessing(
         materialId,
         activeAttemptId,
-        MATERIAL_PROCESSING_FAILURES.STORAGE_READ_FAILED,
+        failureTransitionInput(materialId),
       ),
     ).resolves.toBe(true)
     await expect(
@@ -432,7 +591,7 @@ describe('Material processing truthfulness (e2e)', () => {
     ).resolves.toBeNull()
     await expectStatus(materialId, {
       status: 'FAILED',
-      errorMessage: MATERIAL_PROCESSING_FAILURES.STORAGE_READ_FAILED,
+      errorMessage: MATERIAL_PROCESSING_SAFE_MESSAGES.STORAGE_READ_FAILED,
     })
   })
 
@@ -455,7 +614,10 @@ describe('Material processing truthfulness (e2e)', () => {
 
   async function expectStatus(
     materialId: string,
-    expected: { status: 'READY' | 'FAILED'; errorMessage: string | null },
+    expected: {
+      status: 'READY' | 'WARNING' | 'FAILED'
+      errorMessage: string | null
+    },
   ) {
     const persisted = await prisma.material.findUniqueOrThrow({
       where: { id: materialId },
@@ -473,16 +635,18 @@ describe('Material processing truthfulness (e2e)', () => {
     expect(response.body).not.toHaveProperty('processingAttemptId')
     expect(response.body).not.toHaveProperty('storagePath')
     expect(JSON.stringify(response.body)).not.toContain(TASK_80_SENTINEL)
+    expect(JSON.stringify(response.body)).not.toContain(FAILURE_SENTINEL)
+    expect(JSON.stringify(response.body)).not.toContain(SECRET_SENTINEL)
     return persisted
   }
 
   async function expectFailedAndExcluded(
     materialId: string,
     reason: MaterialProcessingFailure,
-  ): Promise<void> {
+  ) {
     const material = await expectStatus(materialId, {
       status: 'FAILED',
-      errorMessage: reason,
+      errorMessage: MATERIAL_PROCESSING_SAFE_MESSAGES[reason],
     })
     expect(material.chunkCount).toBe(0)
     await expect(persistence.findMaterialChunks(materialId)).resolves.toEqual(
@@ -496,13 +660,14 @@ describe('Material processing truthfulness (e2e)', () => {
       AUDIT_EVENT_ACTIONS.MATERIAL_PROCESSING_FAILED,
       reason,
     )
+    return material
   }
 
   async function expectSafeTerminalAudit(
     materialId: string,
     action: string,
     reason?: MaterialProcessingFailure,
-  ): Promise<void> {
+  ) {
     const audit = await prisma.auditLog.findFirstOrThrow({
       where: { targetId: materialId, action },
       orderBy: { createdAt: 'desc' },
@@ -514,6 +679,24 @@ describe('Material processing truthfulness (e2e)', () => {
     const serialized = JSON.stringify(audit)
     expect(serialized).not.toContain(TASK_80_SENTINEL)
     expect(serialized).not.toContain(FAILURE_SENTINEL)
+    expect(serialized).not.toContain(SECRET_SENTINEL)
     expect(serialized).not.toContain('stack')
+    return audit
+  }
+
+  function failureTransitionInput(materialId: string) {
+    const reasonCode = MATERIAL_PROCESSING_FAILURES.STORAGE_READ_FAILED
+    return {
+      reasonCode,
+      extractedTextLength: null,
+      errorMessage: MATERIAL_PROCESSING_SAFE_MESSAGES[reasonCode],
+      auditEvent: {
+        actorUserId: null,
+        action: AUDIT_EVENT_ACTIONS.MATERIAL_PROCESSING_FAILED,
+        target: { type: 'material' as const, id: materialId },
+        courseId,
+        metadata: { materialId, status: 'FAILED', reasonCode },
+      },
+    }
   }
 })

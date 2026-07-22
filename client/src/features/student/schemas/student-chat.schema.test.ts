@@ -8,10 +8,13 @@ import {
   deleteChatSessionResponseSchema,
   renameChatSessionRequestSchema,
   studentAiTutorSearchSchema,
+  groundedChatTurnResponseSchema,
+  sendStudentChatMessageRequestSchema,
 } from './student-chat.schema'
 import {
   chatMessageHistoryResponseFixture,
   chatSessionListResponseFixture,
+  groundedChatTurnResponseFixture,
   malformedChatSessionResponseFixture,
   primaryChatSessionFixture,
 } from '../testing/student-chat.fixtures'
@@ -69,6 +72,35 @@ describe('Student chat contract schemas', () => {
     ).toThrow()
   })
 
+  it('validates strict grounded-turn citations and availability invariants', () => {
+    expect(
+      groundedChatTurnResponseSchema.parse(groundedChatTurnResponseFixture),
+    ).toEqual(groundedChatTurnResponseFixture)
+
+    const citation =
+      groundedChatTurnResponseFixture.assistantMessage.citations[0]
+    for (const malformed of [
+      { ...citation, sourceAvailable: false },
+      { ...citation, evidence: [{ ...citation.evidence[0], rank: 0 }] },
+      {
+        ...citation,
+        evidence: [{ ...citation.evidence[0], similarityScore: 1.1 }],
+      },
+      { ...citation, evidence: [{ ...citation.evidence[0], chunkNumber: 0 }] },
+      { ...citation, evidence: [{ ...citation.evidence[0], score: 0.9 }] },
+    ]) {
+      expect(() =>
+        groundedChatTurnResponseSchema.parse({
+          ...groundedChatTurnResponseFixture,
+          assistantMessage: {
+            ...groundedChatTurnResponseFixture.assistantMessage,
+            citations: [malformed],
+          },
+        }),
+      ).toThrow()
+    }
+  })
+
   it('rejects message history that is not in stable sequence order', () => {
     expect(() =>
       chatMessageHistoryResponseSchema.parse({
@@ -96,6 +128,35 @@ describe('Student chat contract schemas', () => {
     expect(() =>
       renameChatSessionRequestSchema.parse({ title: '   ' }),
     ).toThrow()
+  })
+
+  it('accepts only trimmed grounded-chat content within 4,000 Unicode code points', () => {
+    expect(
+      sendStudentChatMessageRequestSchema.parse({
+        content: '  Explain lists  ',
+      }),
+    ).toEqual({ content: 'Explain lists' })
+    expect(
+      sendStudentChatMessageRequestSchema.safeParse({
+        content: '😀'.repeat(4_000),
+      }).success,
+    ).toBe(true)
+
+    for (const input of [
+      { content: ' ' },
+      { content: '😀'.repeat(4_001) },
+      { content: 'Question', courseId: 'client-course' },
+      { content: 'Question', studentId: 'client-student' },
+      { content: 'Question', chunks: [] },
+      { content: 'Question', ranks: [1] },
+      { content: 'Question', citations: [] },
+      { content: 'Question', provider: 'client-provider' },
+      { content: 'Question', model: 'client-model' },
+    ]) {
+      expect(sendStudentChatMessageRequestSchema.safeParse(input).success).toBe(
+        false,
+      )
+    }
   })
 
   it('models the delete contract as an empty 204 response', () => {

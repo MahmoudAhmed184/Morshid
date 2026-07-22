@@ -43,7 +43,7 @@ export function InstructorDashboardPage({
           <DashboardReviewQueuePanel state={state} />
         </div>
 
-        <DashboardSourceReadinessSection isLoading={isLoading} />
+        <DashboardSourceReadinessSection state={state} />
       </div>
     </div>
   )

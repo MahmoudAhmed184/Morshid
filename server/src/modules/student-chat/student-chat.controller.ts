@@ -19,6 +19,7 @@ import {
   ApiBadRequestResponse,
   ApiBody,
   ApiCreatedResponse,
+  ApiConflictResponse,
   ApiExtraModels,
   ApiNoContentResponse,
   ApiNotFoundResponse,
@@ -26,6 +27,7 @@ import {
   ApiOperation,
   ApiParam,
   ApiQuery,
+  ApiServiceUnavailableResponse,
   ApiTags,
   getSchemaPath,
 } from '@nestjs/swagger'
@@ -44,24 +46,29 @@ import { Roles } from '../auth/roles.decorator'
 import { StudentChatCourseBoundaryAuditFilter } from './student-chat-course-boundary-audit.filter'
 import {
   ChatMessageHistoryResponseDto,
+  GroundedChatTurnResponseDto,
   ChatSessionListResponseDto,
   ChatSessionResponseDto,
   CreateChatSessionRequestDto,
   RenameChatSessionRequestDto,
+  SendStudentChatMessageRequestDto,
   createChatSessionRequestSchema,
   listChatMessagesQuerySchema,
   listChatSessionsQuerySchema,
   renameChatSessionRequestSchema,
+  sendStudentChatMessageRequestSchema,
   type CreateChatSessionRequest,
   type ListChatMessagesQuery,
   type ListChatSessionsQuery,
   type RenameChatSessionRequest,
+  type SendStudentChatMessageRequest,
 } from './student-chat.dto'
 import {
   invalidStudentChatRequestException,
   type StudentChatValidationIssue,
 } from './student-chat.errors'
 import { StudentChatService } from './student-chat.service'
+import { GroundedChatService } from './grounded-chat.service'
 
 const uuidParam = () => new ParseUUIDPipe({ version: '4' })
 
@@ -91,6 +98,21 @@ const notFound = () =>
 
 const courseIdParam = () => ApiParam({ name: 'courseId', format: 'uuid' })
 const sessionIdParam = () => ApiParam({ name: 'sessionId', format: 'uuid' })
+const studentMessageIdParam = () =>
+  ApiParam({ name: 'studentMessageId', format: 'uuid' })
+
+const groundedChatConflict = () =>
+  ApiConflictResponse({
+    type: OpenApiErrorDto,
+    description:
+      'Another turn is in progress, or the selected response cannot be retried.',
+  })
+
+const groundedChatUnavailable = () =>
+  ApiServiceUnavailableResponse({
+    type: OpenApiErrorDto,
+    description: 'A trustworthy terminal chat state could not be persisted.',
+  })
 
 @Controller('courses/:courseId/chat-sessions')
 @ApiTags('student-chat-sessions')
@@ -100,7 +122,10 @@ const sessionIdParam = () => ApiParam({ name: 'sessionId', format: 'uuid' })
 @UseFilters(StudentChatCourseBoundaryAuditFilter)
 @UseInterceptors(ClassSerializerInterceptor)
 export class StudentChatController {
-  constructor(private readonly studentChatService: StudentChatService) {}
+  constructor(
+    private readonly studentChatService: StudentChatService,
+    private readonly groundedChatService: GroundedChatService,
+  ) {}
 
   @Post()
   @SerializeOptions({
@@ -265,6 +290,76 @@ export class StudentChatController {
       sessionId,
       request.user,
       query,
+      getRequestContext(request),
+    )
+  }
+
+  @Post(':sessionId/messages')
+  @SerializeOptions({
+    type: GroundedChatTurnResponseDto,
+    strategy: 'excludeAll',
+  })
+  @ApiOperation({ summary: 'Send grounded chat message' })
+  @courseIdParam()
+  @sessionIdParam()
+  @ApiBody({ type: SendStudentChatMessageRequestDto })
+  @ApiCreatedResponse({ type: GroundedChatTurnResponseDto })
+  @invalidRequestOrUuidBadRequest()
+  @notFound()
+  @groundedChatConflict()
+  @groundedChatUnavailable()
+  sendMessage(
+    @Param('courseId', uuidParam()) courseId: string,
+    @Param('sessionId', uuidParam()) sessionId: string,
+    @Body(
+      new ZodValidationPipe(sendStudentChatMessageRequestSchema, (issues) =>
+        invalidStudentChatRequestException(issues.map(mapZodIssue)),
+      ),
+    )
+    body: SendStudentChatMessageRequest,
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<GroundedChatTurnResponseDto> {
+    return this.groundedChatService.send(
+      courseId,
+      sessionId,
+      body,
+      request.user,
+      getRequestContext(request),
+    )
+  }
+
+  @Post(':sessionId/messages/:studentMessageId/retry')
+  @HttpCode(200)
+  @SerializeOptions({
+    type: GroundedChatTurnResponseDto,
+    strategy: 'excludeAll',
+  })
+  @ApiOperation({ summary: 'Retry failed grounded chat response' })
+  @courseIdParam()
+  @sessionIdParam()
+  @studentMessageIdParam()
+  @ApiOkResponse({ type: GroundedChatTurnResponseDto })
+  @invalidRequestOrUuidBadRequest()
+  @notFound()
+  @groundedChatConflict()
+  @groundedChatUnavailable()
+  retryMessage(
+    @Param('courseId', uuidParam()) courseId: string,
+    @Param('sessionId', uuidParam()) sessionId: string,
+    @Param('studentMessageId', uuidParam()) studentMessageId: string,
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<GroundedChatTurnResponseDto> {
+    if (request.body !== undefined) {
+      throw invalidStudentChatRequestException([
+        { field: 'body', message: 'Retry requests must not include a body' },
+      ])
+    }
+
+    return this.groundedChatService.retry(
+      courseId,
+      sessionId,
+      studentMessageId,
+      request.user,
       getRequestContext(request),
     )
   }

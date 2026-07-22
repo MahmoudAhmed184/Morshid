@@ -11,7 +11,7 @@ export const chatSessionSelect = {
   updatedAt: true,
 } satisfies Prisma.ChatSessionSelect
 
-export const chatMessageSelect = {
+export const chatMessageScalarSelect = {
   id: true,
   sequence: true,
   role: true,
@@ -25,6 +25,46 @@ export const chatMessageSelect = {
   errorCode: true,
   createdAt: true,
   completedAt: true,
+} satisfies Prisma.MessageSelect
+
+export const chatMessageSelect = {
+  ...chatMessageScalarSelect,
+  citations: {
+    select: {
+      citationOrder: true,
+      material: {
+        select: {
+          id: true,
+          title: true,
+          storagePath: true,
+          status: true,
+          deletedAt: true,
+          extractedTextLength: true,
+          chunkCount: true,
+        },
+      },
+    },
+    orderBy: {
+      citationOrder: 'asc',
+    },
+  },
+  retrievals: {
+    select: {
+      rank: true,
+      similarityScore: true,
+      chunk: {
+        select: {
+          id: true,
+          materialId: true,
+          chunkIndex: true,
+          content: true,
+        },
+      },
+    },
+    orderBy: {
+      rank: 'asc',
+    },
+  },
 } satisfies Prisma.MessageSelect
 
 export function ownedActiveSessionWhere(

@@ -19,7 +19,8 @@ export function DashboardReviewQueuePanel({
   state,
 }: DashboardReviewQueuePanelProps) {
   const hasCourse = state.status === 'ready'
-  const reviewCount = state.status === 'ready' ? state.reviewQueueCount : 0
+  const reviewCount =
+    state.status === 'ready' ? state.reviewQueueCount : undefined
 
   return (
     <Card className="flex flex-col">
@@ -32,13 +33,15 @@ export function DashboardReviewQueuePanel({
         ) : (
           <div className="flex-1 rounded-xl border border-dashed bg-secondary/20 px-4 py-8 text-center">
             <p className="text-sm font-medium text-foreground">
-              {hasCourse && reviewCount > 0
+              {reviewCount !== undefined && reviewCount > 0
                 ? `${reviewCount} awaiting review`
-                : 'No reviews waiting'}
+                : reviewCount === 0
+                  ? 'No reviews waiting'
+                  : 'Review activity is course-specific'}
             </p>
             <p className="footnote mt-1">
               {hasCourse
-                ? 'Flagged exchanges from this course appear here.'
+                ? 'Open the queue to see current flagged exchanges.'
                 : 'Assign a course to collect flagged exchanges.'}
             </p>
           </div>

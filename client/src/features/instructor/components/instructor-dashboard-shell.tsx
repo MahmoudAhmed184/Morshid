@@ -3,8 +3,6 @@ import { useState } from 'react'
 import { useInstructorCourses } from '@/features/instructor/hooks/use-instructor-courses'
 import { InstructorDashboardPage } from '@/features/instructor/pages/instructor-dashboard-page'
 
-const p0CourseCode = 'PYTHON-PROG-P0'
-
 export function InstructorDashboardShell() {
   const coursesQuery = useInstructorCourses()
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null)
@@ -33,12 +31,8 @@ export function InstructorDashboardShell() {
     return <InstructorDashboardPage state={{ status: 'empty' }} />
   }
 
-  // Prefer an explicit switcher selection, then the seeded P0 course, then the
-  // first owned course. In current data there is exactly one course.
   const course =
-    courses.find((candidate) => candidate.id === selectedCourseId) ??
-    courses.find((candidate) => candidate.code === p0CourseCode) ??
-    courses[0]
+    courses.find((candidate) => candidate.id === selectedCourseId) ?? courses[0]
 
   return (
     <InstructorDashboardPage
@@ -47,8 +41,6 @@ export function InstructorDashboardShell() {
         course,
         courses,
         onSelectCourse: setSelectedCourseId,
-        materialCount: 0,
-        reviewQueueCount: 0,
       }}
     />
   )
