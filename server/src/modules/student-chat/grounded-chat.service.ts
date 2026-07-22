@@ -75,6 +75,20 @@ type OrchestrationPhase =
   | 'blocked_persistence'
   | 'failed_persistence'
 
+type TerminalPersistence =
+  | {
+      kind: 'blocked'
+      phase: 'blocked_persistence'
+      content: string
+      errorCode: string
+    }
+  | {
+      kind: 'failed'
+      phase: 'failed_persistence'
+      content: string
+      errorCode: string
+    }
+
 @Injectable()
 export class GroundedChatService {
   private readonly logger = new Logger(GroundedChatService.name)
@@ -265,50 +279,54 @@ export class GroundedChatService {
     turn: ActiveGroundedTurn,
     operation: OrchestrationContext,
   ): Promise<GroundedChatTurnResponseDto> {
-    try {
-      const result = await this.turnRepository.blockTurn({
-        courseId: turn.courseId,
-        sessionId: operation.sessionId,
-        studentId: operation.studentId,
-        attemptId: turn.attemptId,
-        studentMessageId: turn.studentMessage.id,
-        assistantMessageId: turn.assistantMessage.id,
-        content: GROUNDING_BLOCKED_CONTENT,
-        errorCode: GROUNDING_INSUFFICIENT_EVIDENCE,
-      })
-      switch (result.kind) {
-        case 'ok':
-          return await this.presentTurn(turn.studentMessage, result.message)
-        case 'membership_missing':
-        case 'session_not_found':
-        case 'message_not_found':
-        case 'message_not_pending':
-          this.logResultFailure('blocked_persistence', operation, result.kind)
-          return await this.persistFailure(turn, operation)
-        default:
-          return assertNever(result)
-      }
-    } catch (error) {
-      this.logFailure('blocked_persistence', operation, error)
-      return await this.persistFailure(turn, operation)
-    }
+    return this.persistTerminal(turn, operation, {
+      kind: 'blocked',
+      phase: 'blocked_persistence',
+      content: GROUNDING_BLOCKED_CONTENT,
+      errorCode: GROUNDING_INSUFFICIENT_EVIDENCE,
+    })
   }
 
   private async persistFailure(
     turn: ActiveGroundedTurn,
     operation: OrchestrationContext,
   ): Promise<GroundedChatTurnResponseDto> {
+    return this.persistTerminal(turn, operation, {
+      kind: 'failed',
+      phase: 'failed_persistence',
+      content: GROUNDING_FAILED_CONTENT,
+      errorCode: GROUNDING_RESPONSE_FAILED,
+    })
+  }
+
+  private async persistTerminal(
+    turn: ActiveGroundedTurn,
+    operation: OrchestrationContext,
+    terminal: TerminalPersistence,
+  ): Promise<GroundedChatTurnResponseDto> {
     try {
-      const result = await this.turnRepository.failTurn({
+      const input = {
         courseId: turn.courseId,
         sessionId: operation.sessionId,
         studentId: operation.studentId,
         attemptId: turn.attemptId,
         studentMessageId: turn.studentMessage.id,
         assistantMessageId: turn.assistantMessage.id,
-        content: GROUNDING_FAILED_CONTENT,
-        errorCode: GROUNDING_RESPONSE_FAILED,
-      })
+        content: terminal.content,
+        errorCode: terminal.errorCode,
+      }
+      let result: FinalizeGroundedChatTurnResult
+      switch (terminal.kind) {
+        case 'blocked':
+          result = await this.turnRepository.blockTurn(input)
+          break
+        case 'failed':
+          result = await this.turnRepository.failTurn(input)
+          break
+        default:
+          return assertNever(terminal)
+      }
+
       switch (result.kind) {
         case 'ok':
           return await this.presentTurn(turn.studentMessage, result.message)
@@ -316,13 +334,17 @@ export class GroundedChatService {
         case 'session_not_found':
         case 'message_not_found':
         case 'message_not_pending':
-          this.logResultFailure('failed_persistence', operation, result.kind)
+          this.logResultFailure(terminal.phase, operation, result.kind)
           break
         default:
           return assertNever(result)
       }
     } catch (error) {
-      this.logFailure('failed_persistence', operation, error)
+      this.logFailure(terminal.phase, operation, error)
+    }
+
+    if (terminal.kind === 'blocked') {
+      return this.persistFailure(turn, operation)
     }
 
     throw studentChatTerminalStateUnavailableException()
