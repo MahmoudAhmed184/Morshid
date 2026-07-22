@@ -54,6 +54,6 @@ import { GroundedChatService } from './grounded-chat.service'
     },
     GroundedChatService,
   ],
-  exports: [GroundedChatService, StudentChatAuditService, StudentChatService],
+  exports: [StudentChatAuditService, StudentChatService],
 })
 export class StudentChatModule {}

@@ -73,7 +73,7 @@ export function studentChatTurnInProgressException(): HttpException {
 export function studentChatRetryNotAllowedException(): HttpException {
   return new ConflictException({
     code: STUDENT_CHAT_ERROR_CODES.RETRY_NOT_ALLOWED,
-    message: 'Only a failed assistant response can be retried',
+    message: 'Only a failed or expired assistant response can be retried',
   })
 }
 

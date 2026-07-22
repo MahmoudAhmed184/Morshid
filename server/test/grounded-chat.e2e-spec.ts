@@ -246,6 +246,15 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
   })
 
   beforeEach(async () => {
+    await prisma.courseMembership.update({
+      where: {
+        courseId_userId: {
+          courseId: pythonCourseId,
+          userId: student1.id,
+        },
+      },
+      data: { removedAt: null },
+    })
     await prisma.auditLog.deleteMany()
     await prisma.message.deleteMany()
     await prisma.chatSession.deleteMany()
@@ -637,7 +646,7 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
       .expect(409)
     expect(disallowedRetry.body).toEqual({
       code: STUDENT_CHAT_ERROR_CODES.RETRY_NOT_ALLOWED,
-      message: 'Only a failed assistant response can be retried',
+      message: 'Only a failed or expired assistant response can be retried',
     })
   })
 
@@ -804,5 +813,145 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
       message: 'The student chat turn could not be safely persisted',
     })
     expect(JSON.stringify(response.body)).not.toContain(PROVIDER_SECRET)
+  })
+
+  it('recovers a terminal-write outage by reclaiming the expired exact turn without duplicate answers', async () => {
+    await createEvidenceMaterial({
+      title: 'Recovery source',
+      content: 'Recovery evidence',
+    })
+    const session = await createSession()
+    completionBehavior = () => Promise.reject(new Error(PROVIDER_SECRET))
+    turnRepository.failFailurePersistence = true
+
+    await request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${student1Token}`)
+      .send({ content: 'Recover this exact question' })
+      .expect(503)
+
+    const [studentMessage, assistantMessage] = await prisma.message.findMany({
+      where: { sessionId: session.id },
+      orderBy: { sequence: 'asc' },
+    })
+    expect(assistantMessage.status).toBe('PENDING')
+    await prisma.message.update({
+      where: { id: assistantMessage.id },
+      data: { groundingLeaseExpiresAt: new Date(0) },
+    })
+
+    turnRepository.failFailurePersistence = false
+    completionBehavior = () => Promise.resolve(successfulCompletion())
+    const retry = await request(requireApp().getHttpServer())
+      .post(`${messagesPath(session.id)}/${studentMessage.id}/retry`)
+      .set('Authorization', `Bearer ${student1Token}`)
+      .expect(200)
+
+    expect(retry.body).toMatchObject({
+      studentMessage: { id: studentMessage.id },
+      assistantMessage: {
+        id: assistantMessage.id,
+        status: 'COMPLETED',
+        content: GROUNDED_ANSWER,
+      },
+    })
+    await expect(
+      prisma.message.count({ where: { sessionId: session.id } }),
+    ).resolves.toBe(2)
+  })
+
+  it('terminalizes safely when membership is removed while completion is in flight', async () => {
+    await createEvidenceMaterial({
+      title: 'Revocation race source',
+      content: 'Revocation race evidence',
+    })
+    const session = await createSession()
+    let releaseCompletion: (() => void) | undefined
+    let markCompletionStarted: (() => void) | undefined
+    const completionStarted = new Promise<void>((resolve) => {
+      markCompletionStarted = resolve
+    })
+    const completionGate = new Promise<void>((resolve) => {
+      releaseCompletion = resolve
+    })
+    completionBehavior = async () => {
+      markCompletionStarted?.()
+      await completionGate
+      return successfulCompletion()
+    }
+
+    const responsePromise = request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${student1Token}`)
+      .send({ content: 'Question racing membership removal' })
+      .then((response) => response)
+    await completionStarted
+    await prisma.courseMembership.update({
+      where: {
+        courseId_userId: {
+          courseId: pythonCourseId,
+          userId: student1.id,
+        },
+      },
+      data: { removedAt: new Date() },
+    })
+    releaseCompletion?.()
+
+    const response = await responsePromise
+    expect(response.status).toBe(201)
+    expect(response.body).toMatchObject({
+      assistantMessage: {
+        status: 'FAILED',
+        content: GROUNDING_FAILED_CONTENT,
+      },
+    })
+  })
+
+  it('terminalizes safely when the session is deleted while completion is in flight', async () => {
+    await createEvidenceMaterial({
+      title: 'Deletion race source',
+      content: 'Deletion race evidence',
+    })
+    const session = await createSession()
+    let releaseCompletion: (() => void) | undefined
+    let markCompletionStarted: (() => void) | undefined
+    const completionStarted = new Promise<void>((resolve) => {
+      markCompletionStarted = resolve
+    })
+    const completionGate = new Promise<void>((resolve) => {
+      releaseCompletion = resolve
+    })
+    completionBehavior = async () => {
+      markCompletionStarted?.()
+      await completionGate
+      return successfulCompletion()
+    }
+
+    const responsePromise = request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${student1Token}`)
+      .send({ content: 'Question racing session deletion' })
+      .then((response) => response)
+    await completionStarted
+    await prisma.chatSession.update({
+      where: { id: session.id },
+      data: { deletedAt: new Date() },
+    })
+    releaseCompletion?.()
+
+    const response = await responsePromise
+    expect(response.status).toBe(201)
+    expect(response.body).toMatchObject({
+      assistantMessage: {
+        status: 'FAILED',
+        content: GROUNDING_FAILED_CONTENT,
+      },
+    })
+    await expect(
+      prisma.message.findFirstOrThrow({
+        where: { sessionId: session.id, role: 'ASSISTANT' },
+        select: { status: true },
+      }),
+    ).resolves.toEqual({ status: 'FAILED' })
   })
 })

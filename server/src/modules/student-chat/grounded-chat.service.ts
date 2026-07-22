@@ -1,8 +1,12 @@
-import { Inject, Injectable } from '@nestjs/common'
+import { randomUUID } from 'node:crypto'
 
+import { Inject, Injectable, Logger } from '@nestjs/common'
+
+import { Prisma } from '../../generated/prisma/client'
 import type { AuthenticatedRequestUser } from '../auth/auth.dto'
 import {
   COMPLETION_PROVIDER_TOKEN,
+  CompletionProviderError,
   type CompletionProvider,
   type CompletionResult,
   type NonEmptyCompletionContext,
@@ -15,6 +19,7 @@ import {
 import {
   type BeginGroundedChatTurnResult,
   type FinalizeGroundedChatTurnResult,
+  GroundedChatEvidenceUnavailableError,
   GroundedChatTurnRepository,
   type RetryGroundedChatTurnResult,
 } from './grounded-chat-turn.repository'
@@ -33,22 +38,47 @@ import {
 import { StudentChatMessagePresenter } from './student-chat-message.presenter'
 import type { ChatMessageRecord } from './student-chat.repository.types'
 import { StudentChatService } from './student-chat.service'
+import {
+  GROUNDING_BLOCKED_CONTENT,
+  GROUNDING_FAILED_CONTENT,
+  GROUNDING_INSUFFICIENT_EVIDENCE,
+  GROUNDING_RESPONSE_FAILED,
+} from './grounded-chat.constants'
 
-export const GROUNDING_BLOCKED_CONTENT =
-  'I could not find enough course evidence to answer that question.'
-export const GROUNDING_FAILED_CONTENT =
-  'I could not generate a grounded response right now. Please retry.'
-export const GROUNDING_INSUFFICIENT_EVIDENCE = 'GROUNDING_INSUFFICIENT_EVIDENCE'
-export const GROUNDING_RESPONSE_FAILED = 'GROUNDING_RESPONSE_FAILED'
+export {
+  GROUNDING_BLOCKED_CONTENT,
+  GROUNDING_FAILED_CONTENT,
+} from './grounded-chat.constants'
 
 interface ActiveGroundedTurn {
   courseId: string
+  attemptId: string
   studentMessage: ChatMessageRecord
   assistantMessage: ChatMessageRecord
 }
 
+interface OrchestrationContext {
+  operationId: string
+  courseId: string
+  sessionId: string
+  studentId: string
+  studentMessageId?: string
+  assistantMessageId?: string
+}
+
+type OrchestrationPhase =
+  | 'begin'
+  | 'retry'
+  | 'retrieval'
+  | 'completion'
+  | 'finalization'
+  | 'blocked_persistence'
+  | 'failed_persistence'
+
 @Injectable()
 export class GroundedChatService {
+  private readonly logger = new Logger(GroundedChatService.name)
+
   constructor(
     private readonly studentChatService: StudentChatService,
     private readonly turnRepository: GroundedChatTurnRepository,
@@ -65,6 +95,12 @@ export class GroundedChatService {
     user: AuthenticatedRequestUser,
     requestContext?: AuditRequestContext,
   ): Promise<GroundedChatTurnResponseDto> {
+    const operation = {
+      operationId: randomUUID(),
+      courseId,
+      sessionId,
+      studentId: user.id,
+    }
     await this.studentChatService.getSession(
       courseId,
       sessionId,
@@ -80,7 +116,8 @@ export class GroundedChatService {
         studentId: user.id,
         content: body.content,
       })
-    } catch {
+    } catch (error) {
+      this.logFailure('begin', operation, error)
       throw studentChatTerminalStateUnavailableException()
     }
     if (result.kind !== 'ok') {
@@ -93,7 +130,11 @@ export class GroundedChatService {
       )
     }
 
-    return this.orchestrate(result, sessionId, user.id)
+    return this.orchestrate(result, {
+      ...operation,
+      studentMessageId: result.studentMessage.id,
+      assistantMessageId: result.assistantMessage.id,
+    })
   }
 
   async retry(
@@ -103,6 +144,13 @@ export class GroundedChatService {
     user: AuthenticatedRequestUser,
     requestContext?: AuditRequestContext,
   ): Promise<GroundedChatTurnResponseDto> {
+    const operation = {
+      operationId: randomUUID(),
+      courseId,
+      sessionId,
+      studentId: user.id,
+      studentMessageId,
+    }
     await this.studentChatService.getSession(
       courseId,
       sessionId,
@@ -118,7 +166,8 @@ export class GroundedChatService {
         studentId: user.id,
         studentMessageId,
       })
-    } catch {
+    } catch (error) {
+      this.logFailure('retry', operation, error)
       throw studentChatTerminalStateUnavailableException()
     }
     if (result.kind !== 'ok') {
@@ -132,13 +181,15 @@ export class GroundedChatService {
       )
     }
 
-    return this.orchestrate(result, sessionId, user.id)
+    return this.orchestrate(result, {
+      ...operation,
+      assistantMessageId: result.assistantMessage.id,
+    })
   }
 
   private async orchestrate(
     turn: ActiveGroundedTurn,
-    sessionId: string,
-    studentId: string,
+    operation: OrchestrationContext,
   ): Promise<GroundedChatTurnResponseDto> {
     let evidence: RetrievedChunk[]
     try {
@@ -147,16 +198,17 @@ export class GroundedChatService {
         turn.studentMessage.content,
       )
       if (retrieval.kind === 'insufficient_evidence') {
-        return await this.persistBlocked(turn, sessionId, studentId)
+        return await this.persistBlocked(turn, operation)
       }
       evidence = retrieval.chunks
-    } catch {
-      return this.persistFailure(turn, sessionId, studentId)
+    } catch (error) {
+      this.logFailure('retrieval', operation, error)
+      return this.persistFailure(turn, operation)
     }
 
     const context = toCompletionContext(evidence)
     if (context === null) {
-      return this.persistBlocked(turn, sessionId, studentId)
+      return this.persistBlocked(turn, operation)
     }
 
     let completion: CompletionResult
@@ -165,16 +217,18 @@ export class GroundedChatService {
         studentQuestion: turn.studentMessage.content,
         context,
       })
-    } catch {
-      return this.persistFailure(turn, sessionId, studentId)
+    } catch (error) {
+      this.logFailure('completion', operation, error)
+      return this.persistFailure(turn, operation)
     }
 
     let completed: FinalizeGroundedChatTurnResult
     try {
       completed = await this.turnRepository.completeTurn({
         courseId: turn.courseId,
-        sessionId,
-        studentId,
+        sessionId: operation.sessionId,
+        studentId: operation.studentId,
+        attemptId: turn.attemptId,
         studentMessageId: turn.studentMessage.id,
         assistantMessageId: turn.assistantMessage.id,
         content: completion.content,
@@ -189,62 +243,86 @@ export class GroundedChatService {
           : { outputTokens: completion.outputTokens }),
         evidence,
       })
-    } catch {
-      return this.persistFailure(turn, sessionId, studentId)
+    } catch (error) {
+      this.logFailure('finalization', operation, error)
+      return this.persistFailure(turn, operation)
     }
-    if (completed.kind !== 'ok') {
-      return this.persistFailure(turn, sessionId, studentId)
+    switch (completed.kind) {
+      case 'ok':
+        return this.presentTurn(turn.studentMessage, completed.message)
+      case 'membership_missing':
+      case 'session_not_found':
+      case 'message_not_found':
+      case 'message_not_pending':
+        this.logResultFailure('finalization', operation, completed.kind)
+        return this.persistFailure(turn, operation)
+      default:
+        return assertNever(completed)
     }
-
-    return this.presentTurn(turn.studentMessage, completed.message)
   }
 
   private async persistBlocked(
     turn: ActiveGroundedTurn,
-    sessionId: string,
-    studentId: string,
+    operation: OrchestrationContext,
   ): Promise<GroundedChatTurnResponseDto> {
     try {
       const result = await this.turnRepository.blockTurn({
         courseId: turn.courseId,
-        sessionId,
-        studentId,
+        sessionId: operation.sessionId,
+        studentId: operation.studentId,
+        attemptId: turn.attemptId,
         studentMessageId: turn.studentMessage.id,
         assistantMessageId: turn.assistantMessage.id,
         content: GROUNDING_BLOCKED_CONTENT,
         errorCode: GROUNDING_INSUFFICIENT_EVIDENCE,
       })
-      if (result.kind === 'ok') {
-        return await this.presentTurn(turn.studentMessage, result.message)
+      switch (result.kind) {
+        case 'ok':
+          return await this.presentTurn(turn.studentMessage, result.message)
+        case 'membership_missing':
+        case 'session_not_found':
+        case 'message_not_found':
+        case 'message_not_pending':
+          this.logResultFailure('blocked_persistence', operation, result.kind)
+          return await this.persistFailure(turn, operation)
+        default:
+          return assertNever(result)
       }
-    } catch {
-      // The fixed 503 below is the only safe outcome when terminal persistence
-      // cannot be trusted. Raw retrieval/database details are never retained.
+    } catch (error) {
+      this.logFailure('blocked_persistence', operation, error)
+      return await this.persistFailure(turn, operation)
     }
-
-    throw studentChatTerminalStateUnavailableException()
   }
 
   private async persistFailure(
     turn: ActiveGroundedTurn,
-    sessionId: string,
-    studentId: string,
+    operation: OrchestrationContext,
   ): Promise<GroundedChatTurnResponseDto> {
     try {
       const result = await this.turnRepository.failTurn({
         courseId: turn.courseId,
-        sessionId,
-        studentId,
+        sessionId: operation.sessionId,
+        studentId: operation.studentId,
+        attemptId: turn.attemptId,
         studentMessageId: turn.studentMessage.id,
         assistantMessageId: turn.assistantMessage.id,
         content: GROUNDING_FAILED_CONTENT,
         errorCode: GROUNDING_RESPONSE_FAILED,
       })
-      if (result.kind === 'ok') {
-        return await this.presentTurn(turn.studentMessage, result.message)
+      switch (result.kind) {
+        case 'ok':
+          return await this.presentTurn(turn.studentMessage, result.message)
+        case 'membership_missing':
+        case 'session_not_found':
+        case 'message_not_found':
+        case 'message_not_pending':
+          this.logResultFailure('failed_persistence', operation, result.kind)
+          break
+        default:
+          return assertNever(result)
       }
-    } catch {
-      // See persistBlocked: no raw error crosses or is retained by this seam.
+    } catch (error) {
+      this.logFailure('failed_persistence', operation, error)
     }
 
     throw studentChatTerminalStateUnavailableException()
@@ -272,35 +350,37 @@ export class GroundedChatService {
     studentId: string,
     requestContext?: AuditRequestContext,
   ): Promise<never> {
-    if (result.kind === 'membership_missing') {
-      await this.recordDenial({
-        courseId,
-        sessionId,
-        studentId,
-        reason: 'ACTIVE_STUDENT_MEMBERSHIP_REQUIRED',
-        requestContext,
-      })
-      throw activeStudentMembershipRequiredException()
+    switch (result.kind) {
+      case 'membership_missing':
+        await this.recordDenial({
+          courseId,
+          sessionId,
+          studentId,
+          reason: 'ACTIVE_STUDENT_MEMBERSHIP_REQUIRED',
+          requestContext,
+        })
+        throw activeStudentMembershipRequiredException()
+      case 'session_not_found':
+        await this.recordDenial({
+          courseId,
+          sessionId,
+          studentId,
+          reason: 'DELETED_OR_UNOWNED',
+          requestContext,
+        })
+        throw chatSessionNotFoundException()
+      case 'turn_in_progress':
+        await this.recordDenial({
+          courseId,
+          sessionId,
+          studentId,
+          reason: 'TURN_IN_PROGRESS',
+          requestContext,
+        })
+        throw studentChatTurnInProgressException()
+      default:
+        return assertNever(result)
     }
-    if (result.kind === 'session_not_found') {
-      await this.recordDenial({
-        courseId,
-        sessionId,
-        studentId,
-        reason: 'DELETED_OR_UNOWNED',
-        requestContext,
-      })
-      throw chatSessionNotFoundException()
-    }
-
-    await this.recordDenial({
-      courseId,
-      sessionId,
-      studentId,
-      reason: 'TURN_IN_PROGRESS',
-      requestContext,
-    })
-    throw studentChatTurnInProgressException()
   }
 
   private async handleRetryDenial(
@@ -311,57 +391,84 @@ export class GroundedChatService {
     studentMessageId: string,
     requestContext?: AuditRequestContext,
   ): Promise<never> {
-    if (result.kind === 'membership_missing') {
-      await this.recordDenial({
-        courseId,
-        sessionId,
-        studentId,
-        reason: 'ACTIVE_STUDENT_MEMBERSHIP_REQUIRED',
-        requestContext,
-      })
-      throw activeStudentMembershipRequiredException()
+    switch (result.kind) {
+      case 'membership_missing':
+        await this.recordDenial({
+          courseId,
+          sessionId,
+          studentId,
+          reason: 'ACTIVE_STUDENT_MEMBERSHIP_REQUIRED',
+          requestContext,
+        })
+        throw activeStudentMembershipRequiredException()
+      case 'session_not_found':
+        await this.recordDenial({
+          courseId,
+          sessionId,
+          studentId,
+          reason: 'DELETED_OR_UNOWNED',
+          requestContext,
+        })
+        throw chatSessionNotFoundException()
+      case 'message_not_found':
+        await this.recordDenial({
+          courseId,
+          sessionId,
+          studentId,
+          messageId: studentMessageId,
+          reason: 'RETRY_TARGET_NOT_FOUND',
+          requestContext,
+        })
+        throw studentChatRetryTargetNotFoundException()
+      case 'retry_not_allowed':
+        await this.recordDenial({
+          courseId,
+          sessionId,
+          studentId,
+          messageId: studentMessageId,
+          reason: 'RETRY_NOT_ALLOWED',
+          requestContext,
+        })
+        throw studentChatRetryNotAllowedException()
+      case 'turn_in_progress':
+        await this.recordDenial({
+          courseId,
+          sessionId,
+          studentId,
+          reason: 'TURN_IN_PROGRESS',
+          requestContext,
+        })
+        throw studentChatTurnInProgressException()
+      default:
+        return assertNever(result)
     }
-    if (result.kind === 'session_not_found') {
-      await this.recordDenial({
-        courseId,
-        sessionId,
-        studentId,
-        reason: 'DELETED_OR_UNOWNED',
-        requestContext,
-      })
-      throw chatSessionNotFoundException()
-    }
-    if (result.kind === 'message_not_found') {
-      await this.recordDenial({
-        courseId,
-        sessionId,
-        studentId,
-        messageId: studentMessageId,
-        reason: 'RETRY_TARGET_NOT_FOUND',
-        requestContext,
-      })
-      throw studentChatRetryTargetNotFoundException()
-    }
-    if (result.kind === 'retry_not_allowed') {
-      await this.recordDenial({
-        courseId,
-        sessionId,
-        studentId,
-        messageId: studentMessageId,
-        reason: 'RETRY_NOT_ALLOWED',
-        requestContext,
-      })
-      throw studentChatRetryNotAllowedException()
-    }
+  }
 
-    await this.recordDenial({
-      courseId,
-      sessionId,
-      studentId,
-      reason: 'TURN_IN_PROGRESS',
-      requestContext,
+  private logFailure(
+    phase: OrchestrationPhase,
+    operation: OrchestrationContext,
+    error: unknown,
+  ): void {
+    this.logger.warn({
+      event: 'grounded_chat_phase_failed',
+      phase,
+      ...safeErrorDescriptor(error),
+      ...operation,
     })
-    throw studentChatTurnInProgressException()
+  }
+
+  private logResultFailure(
+    phase: OrchestrationPhase,
+    operation: OrchestrationContext,
+    resultKind: Exclude<FinalizeGroundedChatTurnResult['kind'], 'ok'>,
+  ): void {
+    this.logger.warn({
+      event: 'grounded_chat_phase_failed',
+      phase,
+      errorClass: 'RepositoryResult',
+      errorCode: resultKind,
+      ...operation,
+    })
   }
 
   private recordDenial(
@@ -388,4 +495,41 @@ function toContextEntry(chunk: RetrievedChunk) {
     chunkIndex: chunk.chunkIndex,
     content: chunk.content,
   }
+}
+
+function safeErrorDescriptor(error: unknown): {
+  errorClass: string
+  errorCode?: string
+} {
+  if (error instanceof CompletionProviderError) {
+    return {
+      errorClass: 'CompletionProviderError',
+      errorCode: error.code,
+    }
+  }
+  if (error instanceof GroundedChatEvidenceUnavailableError) {
+    return { errorClass: 'GroundedChatEvidenceUnavailableError' }
+  }
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    return {
+      errorClass: 'PrismaClientKnownRequestError',
+      ...(isSafePrismaCode(error.code) ? { errorCode: error.code } : {}),
+    }
+  }
+  if (error instanceof TypeError) {
+    return { errorClass: 'TypeError' }
+  }
+  if (error instanceof Error) {
+    return { errorClass: 'Error' }
+  }
+
+  return { errorClass: 'UnknownError' }
+}
+
+function isSafePrismaCode(code: string): boolean {
+  return /^P\d{4}$/u.test(code)
+}
+
+function assertNever(_value: never): never {
+  throw new Error('Unhandled grounded chat result')
 }

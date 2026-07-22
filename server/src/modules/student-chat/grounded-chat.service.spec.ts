@@ -1,4 +1,8 @@
-import { ConflictException, ServiceUnavailableException } from '@nestjs/common'
+import {
+  ConflictException,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common'
 
 import {
   MessageGuidanceLabel,
@@ -35,6 +39,7 @@ const courseId = '17d1a78d-60be-4f5f-a03d-e3ee326ec796'
 const sessionId = 'eff4bf27-cce3-45d9-b245-4f1d913f0a27'
 const studentMessageId = 'c139776a-0c68-44fe-97f8-e9128aa40458'
 const assistantMessageId = '25587e6e-4e6a-4533-9d4f-97be9e63bd96'
+const attemptId = '95dbec62-d6d5-4544-9fa7-6e265739cb80'
 const user: AuthenticatedRequestUser = {
   id: '8f9c19d1-eed5-43de-8bd9-995919825f9f',
   email: 'student@morshid.test',
@@ -190,6 +195,7 @@ describe('GroundedChatService', () => {
       courseId,
       sessionId,
       studentId: user.id,
+      attemptId,
       studentMessageId,
       assistantMessageId,
       content: 'Grounded answer',
@@ -229,6 +235,7 @@ describe('GroundedChatService', () => {
       courseId,
       sessionId,
       studentId: user.id,
+      attemptId,
       studentMessageId,
       assistantMessageId,
       content: GROUNDING_BLOCKED_CONTENT,
@@ -275,6 +282,7 @@ describe('GroundedChatService', () => {
         courseId,
         sessionId,
         studentId: user.id,
+        attemptId,
         studentMessageId,
         assistantMessageId,
         content: GROUNDING_FAILED_CONTENT,
@@ -297,6 +305,152 @@ describe('GroundedChatService', () => {
       service.send(courseId, sessionId, { content: 'Question' }, user),
     ).rejects.toBeInstanceOf(ServiceUnavailableException)
   })
+
+  it('uses trusted exact failure cleanup when authorization disappears before completion', async () => {
+    completeTurn.mockResolvedValue({ kind: 'membership_missing' })
+
+    const response = await service.send(
+      courseId,
+      sessionId,
+      { content: 'Question before membership removal' },
+      user,
+    )
+
+    expect(failTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attemptId,
+        studentMessageId,
+        assistantMessageId,
+      }),
+    )
+    expect(response.assistantMessage.status).toBe(MessageStatus.FAILED)
+  })
+
+  it.each([
+    [
+      'begin',
+      () => beginTurn.mockRejectedValue(new Error('PRIVATE-BEGIN-ERROR')),
+      () =>
+        service.send(
+          courseId,
+          sessionId,
+          { content: 'PRIVATE-QUESTION' },
+          user,
+        ),
+    ],
+    [
+      'retry',
+      () => retryTurn.mockRejectedValue(new Error('PRIVATE-RETRY-ERROR')),
+      () => service.retry(courseId, sessionId, studentMessageId, user),
+    ],
+    [
+      'retrieval',
+      () =>
+        retrieveCourseEvidence.mockRejectedValue(
+          new Error('PRIVATE-RETRIEVAL-ERROR'),
+        ),
+      () =>
+        service.send(
+          courseId,
+          sessionId,
+          { content: 'PRIVATE-QUESTION' },
+          user,
+        ),
+    ],
+    [
+      'completion',
+      () => complete.mockRejectedValue(new Error('PRIVATE-PROVIDER-PAYLOAD')),
+      () =>
+        service.send(
+          courseId,
+          sessionId,
+          { content: 'PRIVATE-QUESTION' },
+          user,
+        ),
+    ],
+    [
+      'finalization',
+      () => completeTurn.mockRejectedValue(new Error('PRIVATE-DATABASE-ERROR')),
+      () =>
+        service.send(
+          courseId,
+          sessionId,
+          { content: 'PRIVATE-QUESTION' },
+          user,
+        ),
+    ],
+    [
+      'blocked_persistence',
+      () => {
+        retrieveCourseEvidence.mockResolvedValue({
+          kind: 'insufficient_evidence',
+        })
+        blockTurn.mockRejectedValue(new Error('PRIVATE-BLOCK-ERROR'))
+      },
+      () =>
+        service.send(
+          courseId,
+          sessionId,
+          { content: 'PRIVATE-QUESTION' },
+          user,
+        ),
+    ],
+    [
+      'failed_persistence',
+      () => {
+        retrieveCourseEvidence.mockRejectedValue(
+          new Error('PRIVATE-RETRIEVAL-ERROR'),
+        )
+        failTurn.mockRejectedValue(new Error('PRIVATE-FAILURE-ERROR'))
+      },
+      () =>
+        service.send(
+          courseId,
+          sessionId,
+          { content: 'PRIVATE-QUESTION' },
+          user,
+        ),
+    ],
+  ])(
+    'emits sanitized structured %s telemetry without private orchestration data',
+    async (phase, arrange, act) => {
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation()
+      arrange()
+
+      await act().catch(() => undefined)
+
+      const calls = warn.mock.calls as unknown as [unknown, ...unknown[]][]
+      const event = calls
+        .map(([entry]) => entry)
+        .find(isTelemetryEventFor(phase))
+      expect(event).toMatchObject({
+        event: 'grounded_chat_phase_failed',
+        phase,
+        errorClass: 'Error',
+        courseId,
+        sessionId,
+        studentId: user.id,
+      })
+      expect(event).toHaveProperty('operationId')
+
+      const serializedLogs = JSON.stringify(calls)
+      for (const secret of [
+        'PRIVATE-BEGIN-ERROR',
+        'PRIVATE-RETRY-ERROR',
+        'PRIVATE-RETRIEVAL-ERROR',
+        'PRIVATE-PROVIDER-PAYLOAD',
+        'PRIVATE-DATABASE-ERROR',
+        'PRIVATE-BLOCK-ERROR',
+        'PRIVATE-FAILURE-ERROR',
+        'PRIVATE-QUESTION',
+        'First ranked evidence',
+        'Second ranked evidence',
+      ]) {
+        expect(serializedLogs).not.toContain(secret)
+      }
+      warn.mockRestore()
+    },
+  )
 
   it('retries with the original persisted Student row and assistant row', async () => {
     const response = await service.retry(
@@ -357,6 +511,7 @@ function beginOk(): BeginGroundedChatTurnResult {
   return {
     kind: 'ok',
     courseId,
+    attemptId,
     studentMessage: studentMessage(),
     assistantMessage: assistantMessage(),
   }
@@ -437,4 +592,14 @@ function evidenceChunks(): RetrievedChunk[] {
       similarityScore: 0.85,
     },
   ]
+}
+
+function isTelemetryEventFor(
+  phase: string,
+): (entry: unknown) => entry is Record<string, unknown> {
+  return (entry): entry is Record<string, unknown> =>
+    typeof entry === 'object' &&
+    entry !== null &&
+    'phase' in entry &&
+    entry.phase === phase
 }

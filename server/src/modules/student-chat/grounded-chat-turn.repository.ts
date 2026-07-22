@@ -1,6 +1,9 @@
+import { randomUUID } from 'node:crypto'
+
 import { Injectable } from '@nestjs/common'
 
 import {
+  CourseMembershipRole,
   MaterialStatus,
   MessageGuidanceLabel,
   MessageRequestKind,
@@ -13,9 +16,13 @@ import {
   chatMessageSelect,
   chatMessageScalarSelect,
   currentDatabaseTime,
-  hasActiveStudentMembershipInTransaction,
 } from './student-chat.repository.support'
 import type { ChatMessageRecord } from './student-chat.repository.types'
+import {
+  GROUNDING_ATTEMPT_EXPIRED,
+  GROUNDING_ATTEMPT_LEASE_MS,
+  GROUNDING_FAILED_CONTENT,
+} from './grounded-chat.constants'
 
 const MAX_TRANSACTION_ATTEMPTS = 3
 
@@ -44,6 +51,7 @@ export interface GroundedChatEvidenceInput {
 }
 
 export interface CompleteGroundedChatTurnInput extends AuthorizedTurnInput {
+  attemptId: string
   studentMessageId: string
   assistantMessageId: string
   content: string
@@ -56,6 +64,7 @@ export interface CompleteGroundedChatTurnInput extends AuthorizedTurnInput {
 }
 
 export interface FinalizeGroundedChatTurnInput extends AuthorizedTurnInput {
+  attemptId: string
   studentMessageId: string
   assistantMessageId: string
   content: string
@@ -66,6 +75,7 @@ export type BeginGroundedChatTurnResult =
   | {
       kind: 'ok'
       courseId: string
+      attemptId: string
       studentMessage: ChatMessageRecord
       assistantMessage: ChatMessageRecord
     }
@@ -77,6 +87,7 @@ export type RetryGroundedChatTurnResult =
   | {
       kind: 'ok'
       courseId: string
+      attemptId: string
       studentMessage: ChatMessageRecord
       assistantMessage: ChatMessageRecord
     }
@@ -97,6 +108,12 @@ interface LockedSession {
   id: string
   courseId: string
   lastSequence: number
+  deletedAt: Date | null
+}
+
+interface LockedMembership {
+  role: CourseMembershipRole
+  removedAt: Date | null
 }
 
 type AuthorizationResult =
@@ -139,221 +156,270 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
     super()
   }
 
-  beginTurn(
+  async beginTurn(
     input: BeginGroundedChatTurnInput,
   ): Promise<BeginGroundedChatTurnResult> {
-    return this.runTransaction(async (tx) => {
-      const authorization = await this.lockAuthorizedSession(tx, input)
-      if (authorization.kind !== 'ok') {
-        return authorization
-      }
-      const { session } = authorization
-      const activeAssistant = await tx.message.findFirst({
-        where: {
-          sessionId: session.id,
-          role: MessageRole.ASSISTANT,
-          status: { in: [MessageStatus.PENDING, MessageStatus.STREAMING] },
-        },
-        select: { id: true },
-      })
-      if (activeAssistant !== null) {
-        return { kind: 'turn_in_progress' }
-      }
+    const identity = {
+      studentMessageId: randomUUID(),
+      assistantMessageId: randomUUID(),
+      attemptId: randomUUID(),
+    }
 
-      const now = await currentDatabaseTime(tx)
-      const studentSequence = session.lastSequence + 1
-      const assistantSequence = studentSequence + 1
-      const studentMessage = await tx.message.create({
-        data: {
-          sessionId: session.id,
-          sequence: studentSequence,
-          role: MessageRole.STUDENT,
-          authorUserId: input.studentId,
-          content: input.content,
-          status: MessageStatus.COMPLETED,
-          requestKind: MessageRequestKind.CONCEPTUAL,
-          guidanceLabel: null,
-          hintLevel: null,
-          createdAt: now,
-          completedAt: now,
-        },
-        select: chatMessageSelect,
-      })
-      const assistantMessage = await tx.message.create({
-        data: {
-          sessionId: session.id,
-          sequence: assistantSequence,
-          role: MessageRole.ASSISTANT,
-          authorUserId: null,
-          responseToMessageId: studentMessage.id,
-          content: '',
-          status: MessageStatus.PENDING,
-          requestKind: MessageRequestKind.CONCEPTUAL,
-          guidanceLabel: null,
-          hintLevel: null,
-          createdAt: now,
-          completedAt: null,
-        },
-        select: chatMessageSelect,
-      })
-      await tx.chatSession.update({
-        where: { id: session.id },
-        data: {
-          lastSequence: assistantSequence,
-          lastMessageAt: now,
-        },
-      })
+    try {
+      return await this.runTransaction(async (tx) => {
+        const authorization = await this.lockAuthorizedSession(tx, input)
+        if (authorization.kind !== 'ok') {
+          return authorization
+        }
+        const { session } = authorization
+        const now = await currentDatabaseTime(tx)
+        await this.failExpiredActiveTurns(tx, session.id, now)
 
-      return {
-        kind: 'ok',
-        courseId: session.courseId,
-        studentMessage,
-        assistantMessage,
-      }
-    })
+        const activeAssistant = await tx.message.findFirst({
+          where: {
+            sessionId: session.id,
+            role: MessageRole.ASSISTANT,
+            status: { in: [MessageStatus.PENDING, MessageStatus.STREAMING] },
+          },
+          select: { id: true },
+        })
+        if (activeAssistant !== null) {
+          return { kind: 'turn_in_progress' }
+        }
+
+        const studentSequence = session.lastSequence + 1
+        const assistantSequence = studentSequence + 1
+        const studentMessage = await tx.message.create({
+          data: {
+            id: identity.studentMessageId,
+            sessionId: session.id,
+            sequence: studentSequence,
+            role: MessageRole.STUDENT,
+            authorUserId: input.studentId,
+            content: input.content,
+            status: MessageStatus.COMPLETED,
+            requestKind: MessageRequestKind.CONCEPTUAL,
+            guidanceLabel: null,
+            hintLevel: null,
+            createdAt: now,
+            completedAt: now,
+          },
+          select: chatMessageSelect,
+        })
+        const assistantMessage = await tx.message.create({
+          data: {
+            id: identity.assistantMessageId,
+            sessionId: session.id,
+            sequence: assistantSequence,
+            role: MessageRole.ASSISTANT,
+            authorUserId: null,
+            responseToMessageId: studentMessage.id,
+            content: '',
+            status: MessageStatus.PENDING,
+            requestKind: MessageRequestKind.CONCEPTUAL,
+            guidanceLabel: null,
+            hintLevel: null,
+            groundingAttemptId: identity.attemptId,
+            groundingLeaseExpiresAt: leaseExpiry(now),
+            createdAt: now,
+            completedAt: null,
+          },
+          select: chatMessageSelect,
+        })
+        await tx.chatSession.update({
+          where: { id: session.id },
+          data: {
+            lastSequence: assistantSequence,
+            lastMessageAt: now,
+          },
+        })
+
+        return {
+          kind: 'ok',
+          courseId: session.courseId,
+          attemptId: identity.attemptId,
+          studentMessage,
+          assistantMessage,
+        }
+      })
+    } catch (error) {
+      return this.reconcileStartedTurn(input, identity, error)
+    }
   }
 
-  retryTurn(
+  async retryTurn(
     input: RetryGroundedChatTurnInput,
   ): Promise<RetryGroundedChatTurnResult> {
-    return this.runTransaction(async (tx) => {
-      const authorization = await this.lockAuthorizedSession(tx, input)
-      if (authorization.kind !== 'ok') {
-        return authorization
-      }
-      const { session } = authorization
-      const studentMessage = await tx.message.findFirst({
-        where: {
-          id: input.studentMessageId,
-          sessionId: session.id,
-          role: MessageRole.STUDENT,
-          authorUserId: input.studentId,
-        },
-        select: chatMessageSelect,
-      })
-      if (studentMessage === null) {
-        return { kind: 'message_not_found', messageId: input.studentMessageId }
-      }
+    const attemptId = randomUUID()
 
-      const assistantMessage = await tx.message.findUnique({
-        where: { responseToMessageId: studentMessage.id },
-        select: chatMessageSelect,
-      })
-      if (assistantMessage?.role !== MessageRole.ASSISTANT) {
-        return { kind: 'message_not_found', messageId: input.studentMessageId }
-      }
-      if (assistantMessage.status !== MessageStatus.FAILED) {
-        return {
-          kind: 'retry_not_allowed',
-          messageId: input.studentMessageId,
+    try {
+      return await this.runTransaction(async (tx) => {
+        const authorization = await this.lockAuthorizedSession(tx, input)
+        if (authorization.kind !== 'ok') {
+          return authorization
         }
-      }
+        const { session } = authorization
+        const now = await currentDatabaseTime(tx)
+        await this.failExpiredActiveTurns(tx, session.id, now)
+        const studentMessage = await tx.message.findFirst({
+          where: {
+            id: input.studentMessageId,
+            sessionId: session.id,
+            role: MessageRole.STUDENT,
+            authorUserId: input.studentId,
+          },
+          select: chatMessageSelect,
+        })
+        if (studentMessage === null) {
+          return {
+            kind: 'message_not_found',
+            messageId: input.studentMessageId,
+          }
+        }
 
-      const otherActiveAssistant = await tx.message.findFirst({
-        where: {
-          sessionId: session.id,
-          role: MessageRole.ASSISTANT,
-          status: { in: [MessageStatus.PENDING, MessageStatus.STREAMING] },
-          id: { not: assistantMessage.id },
+        const assistantMessage = await tx.message.findUnique({
+          where: { responseToMessageId: studentMessage.id },
+          select: {
+            ...chatMessageSelect,
+            groundingLeaseExpiresAt: true,
+          },
+        })
+        if (assistantMessage?.role !== MessageRole.ASSISTANT) {
+          return {
+            kind: 'message_not_found',
+            messageId: input.studentMessageId,
+          }
+        }
+        if (!isRetryableAssistant(assistantMessage, now)) {
+          return {
+            kind: 'retry_not_allowed',
+            messageId: input.studentMessageId,
+          }
+        }
+
+        const otherActiveAssistant = await tx.message.findFirst({
+          where: {
+            sessionId: session.id,
+            role: MessageRole.ASSISTANT,
+            status: { in: [MessageStatus.PENDING, MessageStatus.STREAMING] },
+            id: { not: assistantMessage.id },
+          },
+          select: { id: true },
+        })
+        if (otherActiveAssistant !== null) {
+          return { kind: 'turn_in_progress' }
+        }
+
+        await tx.messageRetrieval.deleteMany({
+          where: { messageId: assistantMessage.id },
+        })
+        await tx.messageCitation.deleteMany({
+          where: { messageId: assistantMessage.id },
+        })
+        const resetAssistant = await tx.message.update({
+          where: { id: assistantMessage.id },
+          data: {
+            status: MessageStatus.PENDING,
+            content: '',
+            guidanceLabel: null,
+            provider: null,
+            model: null,
+            promptVersion: null,
+            inputTokens: null,
+            outputTokens: null,
+            errorCode: null,
+            errorMessage: null,
+            groundingAttemptId: attemptId,
+            groundingLeaseExpiresAt: leaseExpiry(now),
+            completedAt: null,
+          },
+          select: chatMessageSelect,
+        })
+
+        return {
+          kind: 'ok',
+          courseId: session.courseId,
+          attemptId,
+          studentMessage,
+          assistantMessage: resetAssistant,
+        }
+      })
+    } catch (error) {
+      return this.reconcileStartedTurn(
+        input,
+        {
+          studentMessageId: input.studentMessageId,
+          attemptId,
         },
-        select: { id: true },
-      })
-      if (otherActiveAssistant !== null) {
-        return { kind: 'turn_in_progress' }
-      }
-
-      await tx.messageRetrieval.deleteMany({
-        where: { messageId: assistantMessage.id },
-      })
-      await tx.messageCitation.deleteMany({
-        where: { messageId: assistantMessage.id },
-      })
-      const resetAssistant = await tx.message.update({
-        where: { id: assistantMessage.id },
-        data: {
-          status: MessageStatus.PENDING,
-          content: '',
-          guidanceLabel: null,
-          provider: null,
-          model: null,
-          promptVersion: null,
-          inputTokens: null,
-          outputTokens: null,
-          errorCode: null,
-          errorMessage: null,
-          completedAt: null,
-        },
-        select: chatMessageSelect,
-      })
-
-      return {
-        kind: 'ok',
-        courseId: session.courseId,
-        studentMessage,
-        assistantMessage: resetAssistant,
-      }
-    })
+        error,
+      )
+    }
   }
 
-  completeTurn(
+  async completeTurn(
     input: CompleteGroundedChatTurnInput,
   ): Promise<FinalizeGroundedChatTurnResult> {
-    return this.runTransaction(async (tx) => {
-      const authorization = await this.lockAuthorizedSession(tx, input)
-      if (authorization.kind !== 'ok') {
-        return authorization
-      }
-      const { session } = authorization
-      await this.requireEligibleEvidence(tx, session.courseId, input.evidence)
+    try {
+      return await this.runTransaction(async (tx) => {
+        const authorization = await this.lockAuthorizedSession(tx, input)
+        if (authorization.kind !== 'ok') {
+          return authorization
+        }
+        const { session } = authorization
+        await this.requireEligibleEvidence(tx, session.courseId, input.evidence)
 
-      const now = await currentDatabaseTime(tx)
-      const updated = await this.transitionPendingAssistant(tx, input, {
-        status: MessageStatus.COMPLETED,
-        content: input.content,
-        guidanceLabel: MessageGuidanceLabel.COURSE_GROUNDED,
-        provider: input.provider,
-        model: input.model,
-        promptVersion: input.promptVersion,
-        inputTokens: input.inputTokens ?? null,
-        outputTokens: input.outputTokens ?? null,
-        errorCode: null,
-        errorMessage: null,
-        completedAt: now,
-      })
-      if (updated.kind !== 'ok') {
-        return updated
-      }
+        const now = await currentDatabaseTime(tx)
+        const updated = await this.transitionPendingAssistant(tx, input, {
+          status: MessageStatus.COMPLETED,
+          content: input.content,
+          guidanceLabel: MessageGuidanceLabel.COURSE_GROUNDED,
+          provider: input.provider,
+          model: input.model,
+          promptVersion: input.promptVersion,
+          inputTokens: input.inputTokens ?? null,
+          outputTokens: input.outputTokens ?? null,
+          errorCode: null,
+          errorMessage: null,
+          groundingLeaseExpiresAt: null,
+          completedAt: now,
+        })
+        if (updated.kind !== 'ok') {
+          return updated
+        }
 
-      await tx.messageRetrieval.deleteMany({
-        where: { messageId: input.assistantMessageId },
-      })
-      await tx.messageCitation.deleteMany({
-        where: { messageId: input.assistantMessageId },
-      })
-      await tx.messageRetrieval.createMany({
-        data: input.evidence.map((entry) => ({
-          messageId: input.assistantMessageId,
-          chunkId: entry.chunkId,
-          rank: entry.rank,
-          similarityScore: entry.similarityScore,
-        })),
-      })
-      await tx.messageCitation.createMany({
-        data: orderedCitationMaterialIds(input.evidence).map(
-          (materialId, index) => ({
+        await tx.messageRetrieval.deleteMany({
+          where: { messageId: input.assistantMessageId },
+        })
+        await tx.messageCitation.deleteMany({
+          where: { messageId: input.assistantMessageId },
+        })
+        await tx.messageRetrieval.createMany({
+          data: input.evidence.map((entry) => ({
             messageId: input.assistantMessageId,
-            materialId,
-            citationOrder: index + 1,
-          }),
-        ),
-      })
+            chunkId: entry.chunkId,
+            rank: entry.rank,
+            similarityScore: entry.similarityScore,
+          })),
+        })
+        await tx.messageCitation.createMany({
+          data: orderedCitationMaterialIds(input.evidence).map(
+            (materialId, index) => ({
+              messageId: input.assistantMessageId,
+              materialId,
+              citationOrder: index + 1,
+            }),
+          ),
+        })
 
-      const message = await tx.message.findUniqueOrThrow({
-        where: { id: input.assistantMessageId },
-        select: chatMessageSelect,
+        const message = await tx.message.findUniqueOrThrow({
+          where: { id: input.assistantMessageId },
+          select: chatMessageSelect,
+        })
+        return { kind: 'ok', message }
       })
-      return { kind: 'ok', message }
-    })
+    } catch (error) {
+      return this.reconcileTerminalTurn(input, MessageStatus.COMPLETED, error)
+    }
   }
 
   failTurn(
@@ -387,41 +453,61 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
       errorCode: string
     },
   ): Promise<FinalizeGroundedChatTurnResult> {
-    return this.runTransaction(async (tx) => {
-      const authorization = await this.lockAuthorizedSession(tx, input)
-      if (authorization.kind !== 'ok') {
-        return authorization
-      }
-      const now = await currentDatabaseTime(tx)
-      const updated = await this.transitionPendingAssistant(tx, input, {
-        ...terminal,
-        provider: null,
-        model: null,
-        promptVersion: null,
-        inputTokens: null,
-        outputTokens: null,
-        errorMessage: null,
-        completedAt: now,
-      })
-      if (updated.kind !== 'ok') {
-        return updated
-      }
+    return this.persistTerminalWithoutEvidence(input, terminal)
+  }
 
-      await tx.messageRetrieval.deleteMany({
-        where: { messageId: input.assistantMessageId },
+  private async persistTerminalWithoutEvidence(
+    input: FinalizeGroundedChatTurnInput,
+    terminal: {
+      status: typeof MessageStatus.FAILED | typeof MessageStatus.BLOCKED
+      content: string
+      guidanceLabel: typeof MessageGuidanceLabel.GENERAL_NOT_FOUND | null
+      errorCode: string
+    },
+  ): Promise<FinalizeGroundedChatTurnResult> {
+    try {
+      return await this.runTransaction(async (tx) => {
+        const authorization =
+          terminal.status === MessageStatus.FAILED
+            ? await this.lockExactTurnSession(tx, input)
+            : await this.lockAuthorizedSession(tx, input)
+        if (authorization.kind !== 'ok') {
+          return authorization
+        }
+        const now = await currentDatabaseTime(tx)
+        const updated = await this.transitionPendingAssistant(tx, input, {
+          ...terminal,
+          provider: null,
+          model: null,
+          promptVersion: null,
+          inputTokens: null,
+          outputTokens: null,
+          errorMessage: null,
+          groundingLeaseExpiresAt: null,
+          completedAt: now,
+        })
+        if (updated.kind !== 'ok') {
+          return updated
+        }
+
+        await tx.messageRetrieval.deleteMany({
+          where: { messageId: input.assistantMessageId },
+        })
+        await tx.messageCitation.deleteMany({
+          where: { messageId: input.assistantMessageId },
+        })
+        return updated
       })
-      await tx.messageCitation.deleteMany({
-        where: { messageId: input.assistantMessageId },
-      })
-      return updated
-    })
+    } catch (error) {
+      return this.reconcileTerminalTurn(input, terminal.status, error)
+    }
   }
 
   private async transitionPendingAssistant(
     tx: Prisma.TransactionClient,
     input: Pick<
       CompleteGroundedChatTurnInput,
-      'sessionId' | 'studentMessageId' | 'assistantMessageId'
+      'sessionId' | 'studentMessageId' | 'assistantMessageId' | 'attemptId'
     >,
     data: Prisma.MessageUpdateManyMutationInput,
   ): Promise<FinalizeGroundedChatTurnResult> {
@@ -432,6 +518,7 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
         role: MessageRole.ASSISTANT,
         status: MessageStatus.PENDING,
         responseToMessageId: input.studentMessageId,
+        groundingAttemptId: input.attemptId,
       },
       data,
       select: chatMessageScalarSelect,
@@ -498,24 +585,55 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
     tx: Prisma.TransactionClient,
     input: AuthorizedTurnInput,
   ): Promise<AuthorizationResult> {
-    const hasMembership = await hasActiveStudentMembershipInTransaction(
-      tx,
-      input.courseId,
-      input.studentId,
-    )
-    if (!hasMembership) {
-      return { kind: 'membership_missing' }
-    }
-
     const sessions = await tx.$queryRaw<LockedSession[]>(Prisma.sql`
       SELECT
         id,
         course_id AS "courseId",
-        last_sequence AS "lastSequence"
+        last_sequence AS "lastSequence",
+        deleted_at AS "deletedAt"
       FROM chat_sessions
       WHERE id = ${input.sessionId}::uuid
         AND student_id = ${input.studentId}::uuid
-        AND deleted_at IS NULL
+      FOR UPDATE
+    `)
+    const session = sessions.at(0)
+    if (session?.courseId !== input.courseId || session.deletedAt !== null) {
+      return { kind: 'session_not_found' }
+    }
+
+    const memberships = await tx.$queryRaw<LockedMembership[]>(Prisma.sql`
+      SELECT
+        role,
+        removed_at AS "removedAt"
+      FROM course_memberships
+      WHERE course_id = ${session.courseId}::uuid
+        AND user_id = ${input.studentId}::uuid
+      FOR UPDATE
+    `)
+    const membership = memberships.at(0)
+    if (
+      membership?.role !== CourseMembershipRole.STUDENT ||
+      membership.removedAt !== null
+    ) {
+      return { kind: 'membership_missing' }
+    }
+
+    return { kind: 'ok', session }
+  }
+
+  private async lockExactTurnSession(
+    tx: Prisma.TransactionClient,
+    input: AuthorizedTurnInput,
+  ): Promise<AuthorizationResult> {
+    const sessions = await tx.$queryRaw<LockedSession[]>(Prisma.sql`
+      SELECT
+        id,
+        course_id AS "courseId",
+        last_sequence AS "lastSequence",
+        deleted_at AS "deletedAt"
+      FROM chat_sessions
+      WHERE id = ${input.sessionId}::uuid
+        AND student_id = ${input.studentId}::uuid
       FOR UPDATE
     `)
     const session = sessions.at(0)
@@ -524,6 +642,173 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
     }
 
     return { kind: 'ok', session }
+  }
+
+  private async failExpiredActiveTurns(
+    tx: Prisma.TransactionClient,
+    sessionId: string,
+    now: Date,
+  ): Promise<void> {
+    const expired = await tx.message.findMany({
+      where: {
+        sessionId,
+        role: MessageRole.ASSISTANT,
+        status: { in: [MessageStatus.PENDING, MessageStatus.STREAMING] },
+        OR: [
+          { groundingLeaseExpiresAt: null },
+          { groundingLeaseExpiresAt: { lte: now } },
+        ],
+      },
+      select: { id: true },
+    })
+    if (expired.length === 0) {
+      return
+    }
+
+    const messageIds = expired.map(({ id }) => id)
+    await tx.message.updateMany({
+      where: {
+        id: { in: messageIds },
+        status: { in: [MessageStatus.PENDING, MessageStatus.STREAMING] },
+      },
+      data: {
+        status: MessageStatus.FAILED,
+        content: GROUNDING_FAILED_CONTENT,
+        guidanceLabel: null,
+        provider: null,
+        model: null,
+        promptVersion: null,
+        inputTokens: null,
+        outputTokens: null,
+        errorCode: GROUNDING_ATTEMPT_EXPIRED,
+        errorMessage: null,
+        groundingLeaseExpiresAt: null,
+        completedAt: now,
+      },
+    })
+    await tx.messageRetrieval.deleteMany({
+      where: { messageId: { in: messageIds } },
+    })
+    await tx.messageCitation.deleteMany({
+      where: { messageId: { in: messageIds } },
+    })
+  }
+
+  private async reconcileStartedTurn(
+    input: AuthorizedTurnInput,
+    identity: {
+      studentMessageId: string
+      assistantMessageId?: string
+      attemptId: string
+    },
+    originalError: unknown,
+  ): Promise<Extract<BeginGroundedChatTurnResult, { kind: 'ok' }>> {
+    try {
+      const reconciled = await this.prismaService.$transaction(async (tx) => {
+        const session = await tx.chatSession.findFirst({
+          where: {
+            id: input.sessionId,
+            courseId: input.courseId,
+            studentId: input.studentId,
+          },
+          select: { courseId: true },
+        })
+        if (session === null) {
+          return null
+        }
+
+        const studentMessage = await tx.message.findFirst({
+          where: {
+            id: identity.studentMessageId,
+            sessionId: input.sessionId,
+            role: MessageRole.STUDENT,
+            authorUserId: input.studentId,
+          },
+          select: chatMessageSelect,
+        })
+        if (studentMessage === null) {
+          return null
+        }
+
+        const assistantMessage = await tx.message.findFirst({
+          where: {
+            ...(identity.assistantMessageId === undefined
+              ? {}
+              : { id: identity.assistantMessageId }),
+            sessionId: input.sessionId,
+            role: MessageRole.ASSISTANT,
+            responseToMessageId: studentMessage.id,
+            status: MessageStatus.PENDING,
+            groundingAttemptId: identity.attemptId,
+          },
+          select: chatMessageSelect,
+        })
+        if (assistantMessage === null) {
+          return null
+        }
+
+        return {
+          kind: 'ok' as const,
+          courseId: session.courseId,
+          attemptId: identity.attemptId,
+          studentMessage,
+          assistantMessage,
+        }
+      })
+      if (reconciled !== null) {
+        return reconciled
+      }
+    } catch {
+      // The original failure remains the most accurate safe category. Neither
+      // exception is persisted or returned to the client.
+    }
+
+    throw originalError
+  }
+
+  private async reconcileTerminalTurn(
+    input: CompleteGroundedChatTurnInput | FinalizeGroundedChatTurnInput,
+    expectedStatus:
+      | typeof MessageStatus.COMPLETED
+      | typeof MessageStatus.FAILED
+      | typeof MessageStatus.BLOCKED,
+    originalError: unknown,
+  ): Promise<FinalizeGroundedChatTurnResult> {
+    try {
+      const message = await this.prismaService.$transaction(async (tx) => {
+        const exact = await tx.message.findFirst({
+          where: {
+            id: input.assistantMessageId,
+            sessionId: input.sessionId,
+            role: MessageRole.ASSISTANT,
+            responseToMessageId: input.studentMessageId,
+            groundingAttemptId: input.attemptId,
+            status: expectedStatus,
+          },
+          select: chatMessageSelect,
+        })
+        if (exact === null) {
+          return null
+        }
+
+        const session = await tx.chatSession.findFirst({
+          where: {
+            id: input.sessionId,
+            courseId: input.courseId,
+            studentId: input.studentId,
+          },
+          select: { id: true },
+        })
+        return session === null ? null : exact
+      })
+      if (message !== null) {
+        return { kind: 'ok', message }
+      }
+    } catch {
+      // Preserve the original sanitized failure category at the service seam.
+    }
+
+    throw originalError
   }
 
   private async runTransaction<T>(
@@ -555,6 +840,29 @@ function orderedCitationMaterialIds(
     }
   }
   return ordered
+}
+
+function leaseExpiry(now: Date): Date {
+  return new Date(now.getTime() + GROUNDING_ATTEMPT_LEASE_MS)
+}
+
+function isRetryableAssistant(
+  assistant: {
+    status: MessageStatus
+    groundingLeaseExpiresAt: Date | null
+  },
+  now: Date,
+): boolean {
+  if (assistant.status === MessageStatus.FAILED) {
+    return true
+  }
+
+  return (
+    (assistant.status === MessageStatus.PENDING ||
+      assistant.status === MessageStatus.STREAMING) &&
+    (assistant.groundingLeaseExpiresAt === null ||
+      assistant.groundingLeaseExpiresAt <= now)
+  )
 }
 
 function isWriteConflict(error: unknown): boolean {
