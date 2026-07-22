@@ -16,6 +16,7 @@ import type { StudentChatAuditService } from './student-chat.audit.service'
 import {
   createChatSessionRequestSchema,
   renameChatSessionRequestSchema,
+  sendStudentChatMessageRequestSchema,
 } from './student-chat.dto'
 import { STUDENT_CHAT_ERROR_CODES } from './student-chat.errors'
 import type { StudentChatMessageRepository } from './student-chat-message.repository'
@@ -461,6 +462,34 @@ describe('StudentChatService', () => {
     expect(
       serviceSchema.rename.safeParse({ title: 'Valid', ownerId: 'x' }).success,
     ).toBe(false)
+  })
+
+  it('accepts only trimmed nonblank grounded-chat content within 4,000 Unicode code points', () => {
+    expect(
+      sendStudentChatMessageRequestSchema.parse({
+        content: '  How do lists work?  ',
+      }),
+    ).toEqual({ content: 'How do lists work?' })
+    expect(
+      sendStudentChatMessageRequestSchema.safeParse({
+        content: '😀'.repeat(4_000),
+      }).success,
+    ).toBe(true)
+
+    for (const input of [
+      { content: '   ' },
+      { content: '😀'.repeat(4_001) },
+      { content: 'Question', provider: 'client-selected' },
+      { content: 'Question', citations: [] },
+      { content: 'Question', courseId: 'other-course' },
+      { content: 'Question', studentId: otherStudent.id },
+      { content: 'Question', chunks: [] },
+      { content: 'Question', rank: 1, similarityScore: 1 },
+    ]) {
+      expect(sendStudentChatMessageRequestSchema.safeParse(input).success).toBe(
+        false,
+      )
+    }
   })
 
   it('lists only owned active sessions in recent activity order', async () => {

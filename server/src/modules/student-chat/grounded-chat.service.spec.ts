@@ -104,7 +104,8 @@ describe('GroundedChatService', () => {
       kind: 'evidence',
       chunks: evidenceChunks(),
     })
-    complete = jest.fn<CompletionProvider['complete']>().mockResolvedValue({
+    complete = jest.fn() as jest.MockedFunction<CompletionProvider['complete']>
+    complete.mockResolvedValue({
       content: 'Grounded answer',
       provider: 'deterministic',
       model: 'deterministic-completion-v1',

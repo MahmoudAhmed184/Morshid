@@ -18,7 +18,10 @@ import {
   GroundedChatTurnRepository,
   type RetryGroundedChatTurnResult,
 } from './grounded-chat-turn.repository'
-import type { ChatMessageDto } from './student-chat.dto'
+import type {
+  GroundedChatTurnResponseDto,
+  SendStudentChatMessageRequest,
+} from './student-chat.dto'
 import {
   activeStudentMembershipRequiredException,
   chatSessionNotFoundException,
@@ -37,15 +40,6 @@ export const GROUNDING_FAILED_CONTENT =
   'I could not generate a grounded response right now. Please retry.'
 export const GROUNDING_INSUFFICIENT_EVIDENCE = 'GROUNDING_INSUFFICIENT_EVIDENCE'
 export const GROUNDING_RESPONSE_FAILED = 'GROUNDING_RESPONSE_FAILED'
-
-export interface SendGroundedChatMessageInput {
-  content: string
-}
-
-export interface GroundedChatTurnResponse {
-  studentMessage: ChatMessageDto
-  assistantMessage: ChatMessageDto
-}
 
 interface ActiveGroundedTurn {
   courseId: string
@@ -67,10 +61,10 @@ export class GroundedChatService {
   async send(
     courseId: string,
     sessionId: string,
-    body: SendGroundedChatMessageInput,
+    body: SendStudentChatMessageRequest,
     user: AuthenticatedRequestUser,
     requestContext?: AuditRequestContext,
-  ): Promise<GroundedChatTurnResponse> {
+  ): Promise<GroundedChatTurnResponseDto> {
     await this.studentChatService.getSession(
       courseId,
       sessionId,
@@ -108,7 +102,7 @@ export class GroundedChatService {
     studentMessageId: string,
     user: AuthenticatedRequestUser,
     requestContext?: AuditRequestContext,
-  ): Promise<GroundedChatTurnResponse> {
+  ): Promise<GroundedChatTurnResponseDto> {
     await this.studentChatService.getSession(
       courseId,
       sessionId,
@@ -145,7 +139,7 @@ export class GroundedChatService {
     turn: ActiveGroundedTurn,
     sessionId: string,
     studentId: string,
-  ): Promise<GroundedChatTurnResponse> {
+  ): Promise<GroundedChatTurnResponseDto> {
     let evidence: RetrievedChunk[]
     try {
       const retrieval = await this.retrievalService.retrieveCourseEvidence(
@@ -209,7 +203,7 @@ export class GroundedChatService {
     turn: ActiveGroundedTurn,
     sessionId: string,
     studentId: string,
-  ): Promise<GroundedChatTurnResponse> {
+  ): Promise<GroundedChatTurnResponseDto> {
     try {
       const result = await this.turnRepository.blockTurn({
         courseId: turn.courseId,
@@ -235,7 +229,7 @@ export class GroundedChatService {
     turn: ActiveGroundedTurn,
     sessionId: string,
     studentId: string,
-  ): Promise<GroundedChatTurnResponse> {
+  ): Promise<GroundedChatTurnResponseDto> {
     try {
       const result = await this.turnRepository.failTurn({
         courseId: turn.courseId,
@@ -259,7 +253,7 @@ export class GroundedChatService {
   private async presentTurn(
     studentMessage: ChatMessageRecord,
     assistantMessage: ChatMessageRecord,
-  ): Promise<GroundedChatTurnResponse> {
+  ): Promise<GroundedChatTurnResponseDto> {
     const [presentedStudent, presentedAssistant] =
       await this.messagePresenter.presentMany([
         studentMessage,

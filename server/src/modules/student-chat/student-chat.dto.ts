@@ -10,6 +10,13 @@ import {
 } from '../../generated/prisma/client'
 
 const titleSchema = z.string().trim().min(1).max(160)
+const messageContentSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .refine((content) => Array.from(content).length <= 4_000, {
+    message: 'Content must contain at most 4,000 Unicode code points',
+  })
 
 export const MAX_SESSION_PAGE_SIZE = 100
 export const DEFAULT_SESSION_PAGE_SIZE = 50
@@ -42,6 +49,12 @@ export const listChatMessagesQuerySchema = z
   })
   .strict()
 
+export const sendStudentChatMessageRequestSchema = z
+  .object({
+    content: messageContentSchema,
+  })
+  .strict()
+
 export type CreateChatSessionRequest = z.infer<
   typeof createChatSessionRequestSchema
 >
@@ -50,6 +63,9 @@ export type RenameChatSessionRequest = z.infer<
 >
 export type ListChatSessionsQuery = z.infer<typeof listChatSessionsQuerySchema>
 export type ListChatMessagesQuery = z.infer<typeof listChatMessagesQuerySchema>
+export type SendStudentChatMessageRequest = z.infer<
+  typeof sendStudentChatMessageRequestSchema
+>
 
 export class CreateChatSessionRequestDto {
   @ApiProperty({ minLength: 1, maxLength: 160, required: false })
@@ -59,6 +75,11 @@ export class CreateChatSessionRequestDto {
 export class RenameChatSessionRequestDto {
   @ApiProperty({ minLength: 1, maxLength: 160 })
   title!: string
+}
+
+export class SendStudentChatMessageRequestDto {
+  @ApiProperty({ minLength: 1, maxLength: 4_000 })
+  content!: string
 }
 
 export class ChatSessionDto {
@@ -223,4 +244,16 @@ export class ChatMessageHistoryResponseDto {
       'Pass as `after` to fetch the next page; null when no more messages.',
   })
   nextCursor!: number | null
+}
+
+export class GroundedChatTurnResponseDto {
+  @Expose()
+  @Type(() => ChatMessageDto)
+  @ApiProperty({ type: ChatMessageDto })
+  studentMessage!: ChatMessageDto
+
+  @Expose()
+  @Type(() => ChatMessageDto)
+  @ApiProperty({ type: ChatMessageDto })
+  assistantMessage!: ChatMessageDto
 }
