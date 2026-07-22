@@ -1,12 +1,13 @@
-import { ConfigService } from '@nestjs/config'
+import type { ConfigService } from '@nestjs/config'
 
 import type { AppEnvironment } from '../config/env.schema'
 import { MaterialUploadConfigurationService } from './material-upload-configuration.service'
 
 describe('MaterialUploadConfigurationService', () => {
   it('exposes the effective server limit and enforced PDF type contract', () => {
+    const get = jest.fn().mockReturnValue(2_097_152)
     const configService = {
-      get: jest.fn().mockReturnValue(2_097_152),
+      get,
     } as unknown as ConfigService<AppEnvironment, true>
     const service = new MaterialUploadConfigurationService(configService)
 
@@ -15,7 +16,7 @@ describe('MaterialUploadConfigurationService', () => {
       acceptedMimeType: 'application/pdf',
       acceptedFileExtension: '.pdf',
     })
-    expect(configService.get).toHaveBeenCalledWith('PDF_MAX_UPLOAD_BYTES', {
+    expect(get).toHaveBeenCalledWith('PDF_MAX_UPLOAD_BYTES', {
       infer: true,
     })
   })

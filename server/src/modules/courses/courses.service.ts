@@ -53,7 +53,10 @@ export class CoursesService {
 
     return {
       courses: courses.map((course) => ({
-        ...course,
+        id: course.id,
+        code: course.code,
+        title: course.title,
+        membershipRole: course.membershipRole,
         canManageMaterials: true,
       })),
     }
