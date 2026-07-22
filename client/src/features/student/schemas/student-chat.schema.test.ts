@@ -101,6 +101,64 @@ describe('Student chat contract schemas', () => {
     }
   })
 
+  it('rejects duplicated retrieval evidence and unordered material citations', () => {
+    const citation =
+      groundedChatTurnResponseFixture.assistantMessage.citations[0]
+    const duplicatedEvidence = {
+      ...citation,
+      evidence: [citation.evidence[0], { ...citation.evidence[0], rank: 2 }],
+    }
+    const unorderedCitations = [
+      citation,
+      {
+        ...citation,
+        materialId: 'd9025891-76d7-4e2d-97d5-b9ff32183217',
+      },
+    ]
+
+    for (const citations of [[duplicatedEvidence], unorderedCitations]) {
+      expect(() =>
+        groundedChatTurnResponseSchema.parse({
+          ...groundedChatTurnResponseFixture,
+          assistantMessage: {
+            ...groundedChatTurnResponseFixture.assistantMessage,
+            citations,
+          },
+        }),
+      ).toThrow()
+    }
+  })
+
+  it('rejects cross-shaped and non-terminal complete grounded turns', () => {
+    for (const response of [
+      {
+        ...groundedChatTurnResponseFixture,
+        studentMessage: {
+          ...groundedChatTurnResponseFixture.studentMessage,
+          role: 'ASSISTANT',
+        },
+      },
+      {
+        ...groundedChatTurnResponseFixture,
+        assistantMessage: {
+          ...groundedChatTurnResponseFixture.assistantMessage,
+          responseToMessageId: null,
+        },
+      },
+      {
+        ...groundedChatTurnResponseFixture,
+        assistantMessage: {
+          ...groundedChatTurnResponseFixture.assistantMessage,
+          status: 'PENDING',
+        },
+      },
+    ]) {
+      expect(groundedChatTurnResponseSchema.safeParse(response).success).toBe(
+        false,
+      )
+    }
+  })
+
   it('rejects message history that is not in stable sequence order', () => {
     expect(() =>
       chatMessageHistoryResponseSchema.parse({
@@ -108,6 +166,19 @@ describe('Student chat contract schemas', () => {
         nextCursor: null,
       }),
     ).toThrow(/increasing sequence/)
+
+    expect(() =>
+      chatMessageHistoryResponseSchema.parse({
+        messages: [
+          chatMessageHistoryResponseFixture.messages[0],
+          {
+            ...chatMessageHistoryResponseFixture.messages[0],
+            sequence: 2,
+          },
+        ],
+        nextCursor: null,
+      }),
+    ).toThrow(/duplicate messages/)
   })
 
   it('accepts only the approved create and rename request fields', () => {
