@@ -326,6 +326,58 @@ function compareCourseRecords(
 }
 
 describe('CoursesService', () => {
+  describe('material-management course context', () => {
+    it('returns assigned non-owned courses and excludes ownership-only courses', async () => {
+      const { service, repository } = buildService()
+      const instructor = buildUser('instructor-user', UserRole.INSTRUCTOR)
+
+      const response = await service.listMaterialManageableCourses(instructor)
+
+      expect(response.courses).toEqual([
+        {
+          id: 'database-course',
+          code: 'DB-P0',
+          title: 'Database Systems',
+          membershipRole: CourseMembershipRole.INSTRUCTOR,
+          canManageMaterials: true,
+        },
+        {
+          id: 'python-course',
+          code: 'PYTHON-PROG-P0',
+          title: 'Python Programming',
+          membershipRole: CourseMembershipRole.INSTRUCTOR,
+          canManageMaterials: true,
+        },
+      ])
+      expect(repository.listMemberCourses).toHaveBeenCalledWith(
+        instructor.id,
+        CourseMembershipRole.INSTRUCTOR,
+      )
+      expect(repository.listOwnedCourses).not.toHaveBeenCalled()
+    })
+
+    it('does not grant material capability to an owner without membership', async () => {
+      const { service } = buildService()
+      const ownerWithoutMembership = buildUser(
+        'other-instructor',
+        UserRole.INSTRUCTOR,
+      )
+
+      await expect(
+        service.listMaterialManageableCourses(ownerWithoutMembership),
+      ).resolves.toEqual({ courses: [] })
+    })
+
+    it('rejects non-instructors from the material-management contract', async () => {
+      const { service } = buildService()
+      const student = buildUser('student-user', UserRole.STUDENT)
+
+      await expect(
+        service.listMaterialManageableCourses(student),
+      ).rejects.toMatchObject({ status: 403 })
+    })
+  })
+
   it('returns all courses with admin metadata for admins', async () => {
     const { service, repository } = buildService()
     const admin = buildUser('admin-user', UserRole.ADMIN)

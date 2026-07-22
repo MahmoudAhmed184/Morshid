@@ -10,11 +10,11 @@ export function MyCoursesPage() {
   const isEmpty = coursesQuery.isSuccess && coursesQuery.data.length === 0
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-6">
       <PageHeader
         eyebrow={<Badge variant="secondary">Instructor workspace</Badge>}
         title="My Courses"
-        description="View your assigned courses and workspace activity."
+        description="View and manage every course assigned to your Instructor account."
       />
 
       <CoursesContent

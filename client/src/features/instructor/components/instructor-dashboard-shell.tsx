@@ -1,10 +1,9 @@
 import { useInstructorCourses } from '@/features/instructor/hooks/use-instructor-courses'
 import { InstructorDashboardPage } from '@/features/instructor/pages/instructor-dashboard-page'
 
-const p0CourseCode = 'PYTHON-PROG-P0'
-
 export function InstructorDashboardShell() {
   const coursesQuery = useInstructorCourses()
+  const courses = coursesQuery.data ?? []
 
   if (coursesQuery.isPending) {
     return <InstructorDashboardPage state={{ status: 'loading' }} />
@@ -24,22 +23,16 @@ export function InstructorDashboardShell() {
     )
   }
 
-  const course = coursesQuery.data.find(
-    (candidate) => candidate.code === p0CourseCode,
-  )
+  if (courses.length === 0) {
+    return <InstructorDashboardPage state={{ status: 'empty' }} />
+  }
 
   return (
     <InstructorDashboardPage
-      state={
-        course
-          ? {
-              status: 'ready',
-              course,
-              materialCount: 0,
-              reviewQueueCount: 0,
-            }
-          : { status: 'empty' }
-      }
+      state={{
+        status: 'ready',
+        courses,
+      }}
     />
   )
 }

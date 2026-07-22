@@ -26,10 +26,10 @@ export function DashboardCourseSection({ state }: DashboardCourseSectionProps) {
     >
       <div className="space-y-1">
         <h2 id="course-heading" className="text-base font-semibold">
-          Assigned course
+          Assigned courses
         </h2>
         <p className="text-sm text-muted-foreground">
-          Your protected Sprint 1 course workspace.
+          Course workspaces currently assigned to your Instructor account.
         </p>
       </div>
 
@@ -59,21 +59,25 @@ function DashboardCourseSectionContent({ state }: DashboardCourseSectionProps) {
     )
   }
 
-  return <CourseCard course={state.course} />
+  return (
+    <div className="grid gap-3 md:grid-cols-2">
+      {state.courses.map((course) => (
+        <CourseCard key={course.id} course={course} />
+      ))}
+    </div>
+  )
 }
 
 function CourseCard({ course }: { course: InstructorCourse }) {
   return (
-    <Card>
+    <Card className="rounded-[8px] py-0 ring-1 ring-foreground/10">
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-1">
             <CardTitle>
               <h3>{course.title}</h3>
             </CardTitle>
-            <CardDescription>
-              Your protected Sprint 1 course workspace
-            </CardDescription>
+            <CardDescription>Assigned Instructor workspace</CardDescription>
           </div>
           <Badge variant="outline">{course.code}</Badge>
         </div>
@@ -84,7 +88,10 @@ function CourseCard({ course }: { course: InstructorCourse }) {
 
 function CourseSkeleton() {
   return (
-    <Card aria-label="Loading assigned course">
+    <Card
+      aria-label="Loading assigned course"
+      className="rounded-[8px] py-0 ring-1 ring-foreground/10"
+    >
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-2">
@@ -103,7 +110,7 @@ function InstructorDashboardEmptyState() {
     <EmptyState
       icon={<BookOpen aria-hidden />}
       title="No assigned course"
-      description="Ask an administrator to assign you to a course before managing materials or reviews."
+      description="Ask an administrator to assign you to a course before managing course materials."
     />
   )
 }

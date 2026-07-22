@@ -87,6 +87,17 @@ class CoursesTestRepository extends CoursesRepository {
   }
 
   listMemberCourses(_userId: string, _role: CourseMembershipRole) {
+    if (_role === CourseMembershipRole.INSTRUCTOR) {
+      return Promise.resolve([
+        {
+          id: 'assigned-course',
+          code: 'ASSIGNED-P0',
+          title: 'Assigned but not owned',
+          membershipRole: CourseMembershipRole.INSTRUCTOR,
+        },
+      ])
+    }
+
     return Promise.resolve([
       {
         id: 'python-course',
@@ -100,10 +111,10 @@ class CoursesTestRepository extends CoursesRepository {
   listOwnedCourses() {
     return Promise.resolve([
       {
-        id: 'python-course',
-        code: 'PYTHON-PROG-P0',
-        title: 'Python Programming',
-        membershipRole: CourseMembershipRole.INSTRUCTOR,
+        id: 'owned-course',
+        code: 'OWNED-P0',
+        title: 'Owned without membership',
+        membershipRole: null,
       },
     ])
   }
@@ -194,21 +205,51 @@ describe('Courses (e2e)', () => {
     })
   })
 
-  it.each([
-    ['instructor@morshid.demo', CourseMembershipRole.INSTRUCTOR],
-    ['student1@morshid.demo', CourseMembershipRole.STUDENT],
-  ])('scopes %s to its course membership', async (email, membershipRole) => {
-    const response = await listCoursesAs(email)
+  it.each([['student1@morshid.demo', CourseMembershipRole.STUDENT]])(
+    'scopes %s to its course membership',
+    async (email, membershipRole) => {
+      const response = await listCoursesAs(email)
+
+      expect(response.body).toEqual({
+        courses: [
+          {
+            id: 'python-course',
+            code: 'PYTHON-PROG-P0',
+            title: 'Python Programming',
+            membershipRole,
+          },
+        ],
+      })
+    },
+  )
+
+  it('returns only active Instructor memberships as material-manageable courses', async () => {
+    const token = await signInAs('instructor@morshid.demo')
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/courses/material-management')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200)
 
     expect(response.body).toEqual({
       courses: [
         {
-          id: 'python-course',
-          code: 'PYTHON-PROG-P0',
-          title: 'Python Programming',
-          membershipRole,
+          id: 'assigned-course',
+          code: 'ASSIGNED-P0',
+          title: 'Assigned but not owned',
+          membershipRole: CourseMembershipRole.INSTRUCTOR,
+          canManageMaterials: true,
         },
       ],
     })
+  })
+
+  it('does not expose material-manageable course context to students', async () => {
+    const token = await signInAs('student1@morshid.demo')
+
+    await request(app.getHttpServer())
+      .get('/api/v1/courses/material-management')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(403)
   })
 })

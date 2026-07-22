@@ -11,8 +11,10 @@ import { cn } from '@/lib/utils'
 
 type PdfCardProps = {
   title: string
-  description?: string
-  status?: string
+  description?: React.ReactNode
+  status?: React.ReactNode
+  details?: React.ReactNode
+  message?: React.ReactNode
   actions?: React.ReactNode
   className?: string
 }
@@ -21,6 +23,8 @@ export function PdfCard({
   title,
   description,
   status,
+  details,
+  message,
   actions,
   className,
 }: PdfCardProps) {
@@ -45,9 +49,15 @@ export function PdfCard({
                 {description}
               </p>
             ) : null}
+            {details ? <div className="mt-2">{details}</div> : null}
+            {message ? <div className="mt-3">{message}</div> : null}
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {status ? <Badge variant="outline">{status}</Badge> : null}
+            {typeof status === 'string' ? (
+              <Badge variant="outline">{status}</Badge>
+            ) : (
+              status
+            )}
             {actions ? (
               <DropdownMenu>
                 <DropdownMenuTrigger

@@ -132,3 +132,19 @@ export class CourseListResponseDto {
   @ApiProperty({ type: [CourseListItemDto] })
   courses!: CourseListItemDto[]
 }
+
+export class MaterialManageableCourseDto extends CourseListItemDto {
+  @Expose()
+  @ApiProperty({
+    description:
+      'True only when the authenticated Instructor has an active Instructor membership.',
+  })
+  canManageMaterials!: true
+}
+
+export class MaterialManageableCourseListResponseDto {
+  @Expose()
+  @Type(() => MaterialManageableCourseDto)
+  @ApiProperty({ type: [MaterialManageableCourseDto] })
+  courses!: MaterialManageableCourseDto[]
+}

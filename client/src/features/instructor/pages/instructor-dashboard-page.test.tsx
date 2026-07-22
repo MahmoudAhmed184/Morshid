@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { InstructorDashboardPage } from './instructor-dashboard-page'
@@ -7,18 +7,27 @@ import { InstructorDashboardPage } from './instructor-dashboard-page'
 describe('InstructorDashboardPage', () => {
   afterEach(cleanup)
 
-  it('shows the seeded Python course and later-sprint work areas', () => {
+  it('renders multiple assigned courses without starting dashboard-wide material aggregation', () => {
     render(
       <InstructorDashboardPage
         state={{
           status: 'ready',
-          course: {
-            id: 'python-course',
-            code: 'PYTHON-PROG-P0',
-            title: 'Python Programming',
-          },
-          materialCount: 0,
-          reviewQueueCount: 0,
+          courses: [
+            {
+              id: 'data-structures-course',
+              code: 'CS-201',
+              title: 'Data Structures',
+              membershipRole: 'INSTRUCTOR',
+              canManageMaterials: true,
+            },
+            {
+              id: 'discrete-math-course',
+              code: 'MATH-310',
+              title: 'Discrete Mathematics',
+              membershipRole: 'INSTRUCTOR',
+              canManageMaterials: true,
+            },
+          ],
         }}
       />,
     )
@@ -27,25 +36,29 @@ describe('InstructorDashboardPage', () => {
       screen.getByRole('heading', { name: 'Instructor dashboard' }),
     ).toBeVisible()
     expect(
-      screen.getByRole('heading', { name: 'Python Programming' }),
-    ).toBeVisible()
-    expect(screen.getByText('PYTHON-PROG-P0')).toBeVisible()
-    expect(
-      screen.getByRole('heading', { name: 'Course materials' }),
-    ).toBeVisible()
-    expect(screen.getByRole('heading', { name: 'Review queue' })).toBeVisible()
-    expect(
-      screen.getByRole('heading', { name: 'Source readiness' }),
+      screen.getByRole('heading', { name: 'Data Structures' }),
     ).toBeVisible()
     expect(
-      screen.getByRole('button', { name: 'Upload material' }),
-    ).toBeDisabled()
+      screen.getByRole('heading', { name: 'Discrete Mathematics' }),
+    ).toBeVisible()
+    expect(screen.getByText('CS-201')).toBeVisible()
+    expect(screen.getByText('MATH-310')).toBeVisible()
+    const assignedCoursesCard = screen
+      .getByText('Assigned courses', { selector: '[data-slot="card-title"]' })
+      .closest('[data-slot="card"]')
+    const totalMaterialsCard = screen
+      .getByText('Total materials', { selector: '[data-slot="card-title"]' })
+      .closest('[data-slot="card"]')
+
     expect(
-      screen.queryByRole('button', { name: /manage users/i }),
-    ).not.toBeInTheDocument()
+      within(assignedCoursesCard as HTMLElement).getByText('2'),
+    ).toBeVisible()
     expect(
-      screen.queryByRole('button', { name: /course assignments/i }),
-    ).not.toBeInTheDocument()
+      within(totalMaterialsCard as HTMLElement).getByText('—'),
+    ).toBeVisible()
+    expect(
+      screen.getByText('Source readiness is course-specific'),
+    ).toBeVisible()
   })
 
   it('shows a dashboard loading state while course data is requested', () => {
@@ -58,30 +71,30 @@ describe('InstructorDashboardPage', () => {
       screen.getByRole('heading', { name: 'Instructor dashboard' }),
     ).toBeVisible()
     expect(
-      screen.getByRole('heading', { name: 'Assigned course' }),
+      screen.getByRole('heading', { name: 'Assigned courses' }),
     ).toBeVisible()
     expect(
       screen.getByRole('heading', { name: 'Workspace metrics' }),
     ).toBeVisible()
     expect(
-      screen.getByRole('heading', { name: 'Course materials' }),
-    ).toBeVisible()
-    expect(screen.getByRole('heading', { name: 'Review queue' })).toBeVisible()
-    expect(
       screen.getByRole('heading', { name: 'Source readiness' }),
     ).toBeVisible()
     expect(
       screen.getByText(
-        'Manage course sources and review activity for your assigned course.',
+        'Monitor your assigned courses and course-source readiness.',
       ),
     ).toBeVisible()
     expect(screen.getByLabelText('Loading assigned course')).toBeVisible()
-    expect(screen.getByLabelText('Loading materials rows')).toBeVisible()
-    expect(screen.getByLabelText('Loading reviews rows')).toBeVisible()
     expect(
-      screen.getByLabelText('Loading Course materials metric'),
+      screen.getByLabelText('Loading Assigned courses metric'),
     ).toBeVisible()
-    expect(screen.getByLabelText('Loading Review queue metric')).toBeVisible()
+    expect(
+      screen.getByLabelText('Loading Total materials metric'),
+    ).toBeVisible()
+    expect(
+      screen.getByLabelText('Loading Ready materials metric'),
+    ).toBeVisible()
+    expect(screen.getByLabelText('Loading Processing sources')).toBeVisible()
   })
 
   it('keeps section headings and shows an inline error for the course area', () => {
@@ -98,13 +111,10 @@ describe('InstructorDashboardPage', () => {
       screen.getByRole('heading', { name: 'Instructor dashboard' }),
     ).toBeVisible()
     expect(
-      screen.getByRole('heading', { name: 'Assigned course' }),
+      screen.getByRole('heading', { name: 'Assigned courses' }),
     ).toBeVisible()
     expect(
       screen.getByRole('heading', { name: 'Unable to load course' }),
-    ).toBeVisible()
-    expect(
-      screen.getByRole('heading', { name: 'Course materials' }),
     ).toBeVisible()
     expect(screen.getByRole('button', { name: 'Retry' })).toBeVisible()
   })
@@ -118,10 +128,6 @@ describe('InstructorDashboardPage', () => {
     expect(
       screen.getByRole('heading', { name: 'Workspace metrics' }),
     ).toBeVisible()
-    expect(
-      screen.getByRole('heading', { name: 'Course materials' }),
-    ).toBeVisible()
-    expect(screen.getByRole('heading', { name: 'Review queue' })).toBeVisible()
     expect(
       screen.getByText(/ask an administrator to assign you/i),
     ).toBeVisible()
