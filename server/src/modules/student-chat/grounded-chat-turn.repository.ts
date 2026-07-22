@@ -533,6 +533,10 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
       return { kind: 'ok', message }
     }
 
+    // The previous terminal write may have committed even when its caller lost
+    // both the acknowledgement and the first reconciliation read. An exact
+    // terminal state for this attempt is authoritative and must not be replaced
+    // with a generic failure or surfaced as an untrustworthy 503.
     const existing = await tx.message.findFirst({
       where: {
         id: input.assistantMessageId,
@@ -540,11 +544,29 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
         role: MessageRole.ASSISTANT,
         responseToMessageId: input.studentMessageId,
       },
-      select: { id: true },
+      select: {
+        ...chatMessageSelect,
+        groundingAttemptId: true,
+      },
     })
-    return existing === null
-      ? { kind: 'message_not_found', messageId: input.assistantMessageId }
-      : { kind: 'message_not_pending', messageId: input.assistantMessageId }
+    if (existing === null) {
+      return {
+        kind: 'message_not_found',
+        messageId: input.assistantMessageId,
+      }
+    }
+    if (
+      existing.groundingAttemptId === input.attemptId &&
+      isTerminalMessageStatus(existing.status)
+    ) {
+      const { groundingAttemptId: _groundingAttemptId, ...message } = existing
+      return { kind: 'ok', message }
+    }
+
+    return {
+      kind: 'message_not_pending',
+      messageId: input.assistantMessageId,
+    }
   }
 
   private async requireEligibleEvidence(
@@ -862,6 +884,14 @@ function isRetryableAssistant(
       assistant.status === MessageStatus.STREAMING) &&
     (assistant.groundingLeaseExpiresAt === null ||
       assistant.groundingLeaseExpiresAt <= now)
+  )
+}
+
+function isTerminalMessageStatus(status: MessageStatus): boolean {
+  return (
+    status === MessageStatus.COMPLETED ||
+    status === MessageStatus.FAILED ||
+    status === MessageStatus.BLOCKED
   )
 }
 

@@ -326,6 +326,33 @@ describe('GroundedChatService', () => {
     expect(response.assistantMessage.status).toBe(MessageStatus.FAILED)
   })
 
+  it('returns an exact completed turn recovered by failure cleanup instead of reporting 503', async () => {
+    completeTurn.mockRejectedValue(
+      new Error('completion acknowledgement and reconciliation unavailable'),
+    )
+    failTurn.mockResolvedValue({
+      kind: 'ok',
+      message: assistantMessage({
+        status: MessageStatus.COMPLETED,
+        content: 'Already committed grounded answer',
+        guidanceLabel: MessageGuidanceLabel.COURSE_GROUNDED,
+        completedAt: new Date('2026-07-21T12:01:00.000Z'),
+      }),
+    })
+
+    const response = await service.send(
+      courseId,
+      sessionId,
+      { content: 'Question with an ambiguous completion acknowledgement' },
+      user,
+    )
+
+    expect(response.assistantMessage).toMatchObject({
+      status: MessageStatus.COMPLETED,
+      content: 'Already committed grounded answer',
+    })
+  })
+
   it.each([
     [
       'begin',

@@ -45,6 +45,11 @@ read back the exact state. A matching committed result is returned; an exact
 pending result can be failed safely; and `503` is reserved for state that still
 cannot be determined or terminalized.
 
+Terminal transitions are idempotent by exact attempt identity. If a completion
+committed but both its acknowledgement and the first reconciliation read were
+lost, the compensating failure path recognizes and returns that already-settled
+row instead of overwriting it or reporting an untrustworthy `503`.
+
 The session lock needs raw SQL because it uses PostgreSQL's locking clause. A
 Prisma `$queryRaw` tagged template turns interpolated data values into prepared
 statement parameters; the documentation warns against constructing query text

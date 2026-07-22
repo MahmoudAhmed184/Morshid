@@ -618,6 +618,65 @@ describe('Grounded chat turn repository (e2e)', () => {
     }
   })
 
+  it('returns an exact committed terminal result when acknowledgement and the first reconciliation read both fail', async () => {
+    const fixture = await createFixture(prisma)
+    const source = await createEvidence(
+      prisma,
+      fixture,
+      'Delayed reconciliation source',
+      0,
+    )
+    const turn = await repository.beginTurn({
+      ...fixture,
+      content: 'Reconcile this committed terminal state',
+    })
+    if (turn.kind !== 'ok') {
+      throw new Error('Expected the turn to begin')
+    }
+    const intermittentlyUnavailable = new PrismaGroundedChatTurnRepository(
+      loseAcknowledgementAndFirstReconciliation(prisma),
+    )
+
+    await expect(
+      intermittentlyUnavailable.completeTurn({
+        ...fixture,
+        attemptId: turn.attemptId,
+        studentMessageId: turn.studentMessage.id,
+        assistantMessageId: turn.assistantMessage.id,
+        content: 'Committed before the connection failed',
+        provider: 'provider',
+        model: 'model',
+        promptVersion: 'prompt',
+        evidence: [
+          evidence(
+            source,
+            1,
+            0.9,
+            'Delayed reconciliation source',
+            0,
+            'source',
+          ),
+        ],
+      }),
+    ).rejects.toThrow('simulated lost transaction acknowledgement')
+
+    const terminal = await intermittentlyUnavailable.failTurn({
+      ...fixture,
+      attemptId: turn.attemptId,
+      studentMessageId: turn.studentMessage.id,
+      assistantMessageId: turn.assistantMessage.id,
+      content: 'Must not replace the committed answer',
+      errorCode: 'GROUNDING_RESPONSE_FAILED',
+    })
+    expect(terminal.kind).toBe('ok')
+    if (terminal.kind === 'ok') {
+      expect(terminal.message).toMatchObject({
+        status: 'COMPLETED',
+        content: 'Committed before the connection failed',
+      })
+    }
+  })
+
   it('reloads ordered evidence and exposes the unavailable form after chunk reprocessing', async () => {
     const fixture = await createFixture(prisma)
     const source = await createEvidence(prisma, fixture, 'Durable title', 0)
@@ -839,6 +898,36 @@ function loseNextTransactionAcknowledgement(
     const result = await prisma.$transaction(callback)
     if (loseAcknowledgement) {
       loseAcknowledgement = false
+      throw new Error('simulated lost transaction acknowledgement')
+    }
+    return result
+  }
+
+  return new Proxy(prisma, {
+    get(target, property, receiver) {
+      if (property === '$transaction') {
+        return transaction
+      }
+      const value: unknown = Reflect.get(target, property, receiver)
+      return value
+    },
+  })
+}
+
+function loseAcknowledgementAndFirstReconciliation(
+  prisma: PrismaService,
+): PrismaService {
+  let transactionCall = 0
+  const transaction = async (
+    callback: (tx: Prisma.TransactionClient) => Promise<unknown>,
+  ): Promise<unknown> => {
+    transactionCall += 1
+    if (transactionCall === 2) {
+      throw new Error('simulated reconciliation read outage')
+    }
+
+    const result = await prisma.$transaction(callback)
+    if (transactionCall === 1) {
       throw new Error('simulated lost transaction acknowledgement')
     }
     return result
