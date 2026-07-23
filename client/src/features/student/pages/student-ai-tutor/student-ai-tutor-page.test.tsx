@@ -452,7 +452,7 @@ describe('StudentAiTutorPage workspace', () => {
       'overflow-y-auto',
       'overscroll-contain',
     )
-    expect(composer.closest('footer')).toHaveClass('shrink-0')
+    expect(composer).toHaveClass('shrink-0')
   })
 
   it('shows a safe stale-session state', async () => {

@@ -108,75 +108,69 @@ export const StudentChatComposer = forwardRef<
   }
 
   return (
-    <footer className="shrink-0 bg-gradient-to-t from-background via-background via-80% to-transparent px-4 pt-4 pb-3 sm:px-6">
-      <form
-        aria-label="Message composer"
-        className="mx-auto max-w-3xl"
-        onSubmit={(event) => void handleSubmit(event)}
-      >
-        <div className="glass-paper rounded-2xl p-2 shadow-md shadow-foreground/5 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/10">
-          <Textarea
-            ref={textareaRef}
-            aria-describedby="chat-composer-hint chat-composer-error"
-            aria-invalid={Boolean(sendError)}
-            aria-label="Message"
-            autoComplete="off"
-            className="max-h-40 min-h-12 resize-none border-0 bg-transparent px-3 py-3 shadow-none focus-visible:ring-0"
-            disabled={!hasSelectedSession || isGenerating}
-            name="chat-message"
-            onChange={(event) => {
-              setDraft(limitMessageDraft(event.target.value))
-              clientMessageIdRef.current = null
-              if (sendError) {
-                onDismissError()
-              }
-            }}
-            onKeyDown={handleKeyDown}
-            placeholder={
-              hasSelectedSession
-                ? 'Ask a conceptual question about this course…'
-                : 'Select a conversation first.'
+    <form
+      aria-label="Message composer"
+      className="shrink-0"
+      onSubmit={(event) => void handleSubmit(event)}
+    >
+      <div className="mx-auto max-w-3xl rounded-t-2xl border border-b-0 border-border/70 bg-card/80 shadow-[0_-8px_24px_-16px] shadow-foreground/10 backdrop-blur-md focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20">
+        <Textarea
+          ref={textareaRef}
+          aria-describedby="chat-composer-hint chat-composer-error"
+          aria-invalid={Boolean(sendError)}
+          aria-label="Message"
+          autoComplete="off"
+          className="max-h-40 min-h-12 resize-none border-0 bg-transparent px-4 pt-3.5 pb-1 shadow-none focus-visible:ring-0"
+          disabled={!hasSelectedSession || isGenerating}
+          name="chat-message"
+          onChange={(event) => {
+            setDraft(limitMessageDraft(event.target.value))
+            clientMessageIdRef.current = null
+            if (sendError) {
+              onDismissError()
             }
-            rows={1}
-            value={draft}
-          />
-          <div className="flex items-center justify-end px-1 pt-1">
-            <Button
-              aria-label="Send message"
-              className="size-9 rounded-full bg-primary text-primary-foreground shadow-none disabled:bg-muted disabled:text-muted-foreground"
-              disabled={!canSend}
-              size="icon"
-              type="submit"
-            >
-              <ArrowUp className="size-4" aria-hidden />
-            </Button>
-          </div>
-        </div>
-
-        <p
-          id="chat-composer-hint"
-          className="mt-2 text-center text-xs text-muted-foreground"
-        >
-          AI responses can be inaccurate. Check important course information.
-        </p>
-
-        {sendError ? (
-          <div
-            id="chat-composer-error"
-            className="mt-2 flex items-start gap-2 rounded-xl border border-border bg-secondary/60 px-3 py-2 text-sm text-foreground"
-            role="alert"
+          }}
+          onKeyDown={handleKeyDown}
+          placeholder={
+            hasSelectedSession
+              ? 'Ask a conceptual question about this course…'
+              : 'Select a conversation first.'
+          }
+          rows={1}
+          value={draft}
+        />
+        <div className="flex items-center justify-between gap-2 px-3 pt-1 pb-2.5">
+          <p id="chat-composer-hint" className="footnote text-muted-foreground">
+            AI responses can be inaccurate. Check important course information.
+          </p>
+          <Button
+            aria-label="Send message"
+            className="size-9 rounded-xl bg-primary text-primary-foreground shadow-none disabled:bg-muted disabled:text-muted-foreground"
+            disabled={!canSend}
+            size="icon"
+            type="submit"
           >
-            <CircleAlert
-              className="mt-0.5 size-4 shrink-0 text-muted-foreground"
-              aria-hidden
-            />
-            <p>{sendErrorMessage(sendError)}</p>
-          </div>
-        ) : (
-          <span id="chat-composer-error" />
-        )}
-      </form>
-    </footer>
+            <ArrowUp className="size-4" aria-hidden />
+          </Button>
+        </div>
+      </div>
+
+      {sendError ? (
+        <div
+          id="chat-composer-error"
+          className="mx-auto mt-2 flex max-w-3xl items-start gap-2 rounded-xl border border-border bg-secondary/60 px-3 py-2 text-sm text-foreground"
+          role="alert"
+        >
+          <CircleAlert
+            className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+            aria-hidden
+          />
+          <p>{sendErrorMessage(sendError)}</p>
+        </div>
+      ) : (
+        <span id="chat-composer-error" />
+      )}
+    </form>
   )
 })
 
