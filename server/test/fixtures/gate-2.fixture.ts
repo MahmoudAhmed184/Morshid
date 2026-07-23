@@ -18,6 +18,12 @@ export const GATE_2_FIXTURE = {
     'How do I calculate orbital transfer windows for a mission to Neptune?',
   visibleSentinel: 'GATE_2_AUTHORIZED_PYTHON_COLLECTIONS',
   hiddenSentinel: 'GATE_2_HIDDEN_ISOLATION_MUST_NEVER_LEAK',
+  visibleContent: [
+    'GATE_2_AUTHORIZED_PYTHON_COLLECTIONS',
+    'A Python list stores an ordered collection addressed by numeric index.',
+    'A Python dictionary maps unique keys to values.',
+    'Use a list for ordered items and a dictionary for named lookups.',
+  ].join(' '),
 } as const
 
 export const GATE_2_VISIBLE_SIMILARITY = 0.82
@@ -61,14 +67,7 @@ export class Gate2DeterministicEmbeddingProvider implements EmbeddingProvider {
 }
 
 export function gate2PermissionSafePdf(): Buffer {
-  return cleanTextPdf(
-    [
-      GATE_2_FIXTURE.visibleSentinel,
-      'A Python list stores an ordered collection addressed by numeric index.',
-      'A Python dictionary maps unique keys to values.',
-      'Use a list for ordered items and a dictionary for named lookups.',
-    ].join(' '),
-  )
+  return cleanTextPdf(GATE_2_FIXTURE.visibleContent)
 }
 
 export interface Gate2HiddenAdversary {

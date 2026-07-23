@@ -240,21 +240,25 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
         })
         .expect(201),
     )
-    const uploadedMaterialId = (
-      upload.body as { material: { id: string; status: string } }
-    ).material.id
-    expect(upload.body).toMatchObject({
-      material: {
-        id: uploadedMaterialId,
-        courseId: seed.courses.pythonProgramming.id,
-        title: GATE_2_FIXTURE.sourceTitle,
-        originalFilename: GATE_2_FIXTURE.sourceFilename,
-        status: 'PROCESSING',
+    const uploadedMaterialId = await gate2Stage(
+      'verify upload contract and processing schedule',
+      () => {
+        const materialId = (
+          upload.body as { material: { id: string; status: string } }
+        ).material.id
+        expect(upload.body).toMatchObject({
+          material: {
+            id: materialId,
+            courseId: seed.courses.pythonProgramming.id,
+            title: GATE_2_FIXTURE.sourceTitle,
+            originalFilename: GATE_2_FIXTURE.sourceFilename,
+            status: 'PROCESSING',
+          },
+        })
+        expect(processingScheduler.scheduledMaterialIds).toEqual([materialId])
+        return materialId
       },
-    })
-    expect(processingScheduler.scheduledMaterialIds).toEqual([
-      uploadedMaterialId,
-    ])
+    )
 
     const terminalStatus = await gate2Stage(
       'run real processing and wait for retrievable material readiness',
@@ -266,13 +270,15 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
         )
       },
     )
-    expect(terminalStatus).toMatchObject({
-      id: uploadedMaterialId,
-      status: 'READY',
-      errorMessage: null,
+    await gate2Stage('verify terminal material readiness', () => {
+      expect(terminalStatus).toMatchObject({
+        id: uploadedMaterialId,
+        status: 'READY',
+        errorMessage: null,
+      })
+      expect(terminalStatus.extractedTextLength).toBeGreaterThan(0)
+      expect(terminalStatus.chunkCount).toBeGreaterThan(0)
     })
-    expect(terminalStatus.extractedTextLength).toBeGreaterThan(0)
-    expect(terminalStatus.chunkCount).toBeGreaterThan(0)
 
     const uploadedChunks = await gate2Stage(
       'inspect extracted chunks and 1,536-dimension embeddings',
@@ -287,12 +293,21 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
         return chunks
       },
     )
-    const visibleChunk = uploadedChunks.find(({ content }) =>
-      content.includes(GATE_2_FIXTURE.visibleSentinel),
+    const visibleChunk = await gate2Stage(
+      'identify the authorized uploaded evidence chunk',
+      () => {
+        const chunk = uploadedChunks.find(({ content }) =>
+          content.includes(GATE_2_FIXTURE.visibleSentinel),
+        )
+        if (chunk === undefined) {
+          throw new Error(
+            'Gate 2 expected an uploaded authorized evidence chunk',
+          )
+        }
+        expect(chunk.content).toBe(GATE_2_FIXTURE.visibleContent)
+        return chunk
+      },
     )
-    if (visibleChunk === undefined) {
-      throw new Error('Gate 2 expected an uploaded authorized evidence chunk')
-    }
     await gate2Stage('verify upload and readiness audit evidence', async () => {
       const audits = await prisma.auditLog.findMany({
         where: { targetId: uploadedMaterialId },
@@ -313,19 +328,20 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
       )
     })
 
-    const instructor = await prisma.user.findUniqueOrThrow({
-      where: { email: 'instructor@morshid.demo' },
-    })
     const hidden = await gate2Stage(
       'inject stronger unassigned HIDDEN-ISOLATION fixture',
-      () =>
-        injectGate2HiddenAdversary({
+      async () => {
+        const instructor = await prisma.user.findUniqueOrThrow({
+          where: { email: 'instructor@morshid.demo' },
+        })
+        return injectGate2HiddenAdversary({
           courseId: seed.courses.hiddenIsolation.id,
           persistence,
           prisma,
           storage,
           uploadedById: instructor.id,
-        }),
+        })
+      },
     )
     await gate2Stage(
       'prove the persisted hidden adversary is stronger and available',
@@ -381,16 +397,21 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
           GATE_2_FIXTURE.question,
         ),
     )
-    const retrievedChunks = requireEvidence(retrieval)
-    expect(retrievedChunks.map(({ materialId }) => materialId)).toContain(
-      uploadedMaterialId,
+    await gate2Stage(
+      'prove course-scoped retrieval excludes hidden evidence',
+      () => {
+        const retrievedChunks = requireEvidence(retrieval)
+        expect(retrievedChunks.map(({ materialId }) => materialId)).toContain(
+          uploadedMaterialId,
+        )
+        expect(
+          retrievedChunks.find(
+            ({ materialId }) => materialId === uploadedMaterialId,
+          )?.content,
+        ).toContain(GATE_2_FIXTURE.visibleSentinel)
+        expectNoHiddenState(JSON.stringify(retrieval), hidden)
+      },
     )
-    expect(
-      retrievedChunks.find(
-        ({ materialId }) => materialId === uploadedMaterialId,
-      )?.content,
-    ).toContain(GATE_2_FIXTURE.visibleSentinel)
-    expectNoHiddenState(JSON.stringify(retrieval), hidden)
 
     const studentToken = await gate2Stage(
       'authenticate assigned Python Student',
@@ -404,30 +425,34 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
       'retrieve, complete, persist, and cite the locked question',
       () => sendGate2Message(sessionId, GATE_2_FIXTURE.question, studentToken),
     )
+    const expectedAssistantContent = expectedGate2AssistantContent()
 
-    expect(turn.studentMessage).toMatchObject({
-      sequence: 1,
-      content: GATE_2_FIXTURE.question,
-      status: 'COMPLETED',
-      citations: [],
-    })
-    expect(turn.assistantMessage).toMatchObject({
-      sequence: 2,
-      responseToMessageId: turn.studentMessage.id,
-      status: 'COMPLETED',
-      guidanceLabel: 'COURSE_GROUNDED',
-    })
-    expect(turn.assistantMessage.citations).toHaveLength(1)
-    const citation = turn.assistantMessage.citations[0]
-    expect(citation).toMatchObject({
-      materialId: uploadedMaterialId,
-      materialTitle: GATE_2_FIXTURE.sourceTitle,
-      sourceAvailable: true,
-    })
-    expect(citation.evidence).toHaveLength(1)
-    expect(citation.evidence[0]).toMatchObject({
-      chunkId: visibleChunk.id,
-      chunkNumber: 1,
+    await gate2Stage('verify exact grounded response and citations', () => {
+      expect(turn.studentMessage).toMatchObject({
+        sequence: 1,
+        content: GATE_2_FIXTURE.question,
+        status: 'COMPLETED',
+        citations: [],
+      })
+      expect(turn.assistantMessage).toMatchObject({
+        sequence: 2,
+        responseToMessageId: turn.studentMessage.id,
+        status: 'COMPLETED',
+        guidanceLabel: 'COURSE_GROUNDED',
+        content: expectedAssistantContent,
+      })
+      expect(turn.assistantMessage.citations).toHaveLength(1)
+      const citation = turn.assistantMessage.citations[0]
+      expect(citation).toMatchObject({
+        materialId: uploadedMaterialId,
+        materialTitle: GATE_2_FIXTURE.sourceTitle,
+        sourceAvailable: true,
+      })
+      expect(citation.evidence).toHaveLength(1)
+      expect(citation.evidence[0]).toMatchObject({
+        chunkId: visibleChunk.id,
+        chunkNumber: 1,
+      })
     })
 
     await gate2Stage(
@@ -445,8 +470,8 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
           sourceTitle: GATE_2_FIXTURE.sourceTitle,
           chunkIndex: 0,
         })
-        expect(providerInput.context[0].content).toContain(
-          GATE_2_FIXTURE.visibleSentinel,
+        expect(providerInput.context[0].content).toBe(
+          GATE_2_FIXTURE.visibleContent,
         )
 
         const persistedAssistant = await prisma.message.findUniqueOrThrow({
@@ -460,7 +485,7 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
           },
         })
         expect(persistedAssistant).toMatchObject({
-          content: turn.assistantMessage.content,
+          content: expectedAssistantContent,
           status: 'COMPLETED',
           provider: 'deterministic',
           model: 'deterministic-completion-v1',
@@ -531,7 +556,7 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
           }),
           expect.objectContaining({
             id: turn.assistantMessage.id,
-            content: turn.assistantMessage.content,
+            content: expectedAssistantContent,
             citations: turn.assistantMessage.citations,
           }),
         ])
@@ -541,26 +566,31 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
   })
 
   it('blocks insufficient evidence without an ungrounded completion call', async () => {
-    const instructor = await prisma.user.findUniqueOrThrow({
-      where: { email: 'instructor@morshid.demo' },
-    })
     await gate2Stage(
       'insufficient evidence: install an eligible below-threshold row',
-      () =>
-        injectGate2BelowThresholdEvidence({
+      async () => {
+        const instructor = await prisma.user.findUniqueOrThrow({
+          where: { email: 'instructor@morshid.demo' },
+        })
+        return injectGate2BelowThresholdEvidence({
           courseId: seed.courses.pythonProgramming.id,
           persistence,
           prisma,
           storage,
           uploadedById: instructor.id,
-        }),
+        })
+      },
     )
-    await expect(
-      retrievalService.retrieveCourseEvidence(
-        seed.courses.pythonProgramming.id,
-        GATE_2_FIXTURE.unsupportedQuestion,
-      ),
-    ).resolves.toEqual({ kind: 'insufficient_evidence' })
+    await gate2Stage(
+      'insufficient evidence: prove the locked threshold rejects retrieval',
+      () =>
+        expect(
+          retrievalService.retrieveCourseEvidence(
+            seed.courses.pythonProgramming.id,
+            GATE_2_FIXTURE.unsupportedQuestion,
+          ),
+        ).resolves.toEqual({ kind: 'insufficient_evidence' }),
+    )
 
     const studentToken = await gate2Stage(
       'insufficient evidence: authenticate Student',
@@ -580,24 +610,29 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
         ),
     )
 
-    expect(completionProvider.requests).toHaveLength(0)
-    expect(turn.assistantMessage).toMatchObject({
-      status: 'BLOCKED',
-      guidanceLabel: 'GENERAL_NOT_FOUND',
-      content: GROUNDING_BLOCKED_CONTENT,
-      errorCode: 'GROUNDING_INSUFFICIENT_EVIDENCE',
-      citations: [],
-    })
-    await expect(
-      prisma.messageRetrieval.count({
-        where: { messageId: turn.assistantMessage.id },
-      }),
-    ).resolves.toBe(0)
-    await expect(
-      prisma.messageCitation.count({
-        where: { messageId: turn.assistantMessage.id },
-      }),
-    ).resolves.toBe(0)
+    await gate2Stage(
+      'insufficient evidence: verify blocked response and empty evidence sinks',
+      async () => {
+        expect(completionProvider.requests).toHaveLength(0)
+        expect(turn.assistantMessage).toMatchObject({
+          status: 'BLOCKED',
+          guidanceLabel: 'GENERAL_NOT_FOUND',
+          content: GROUNDING_BLOCKED_CONTENT,
+          errorCode: 'GROUNDING_INSUFFICIENT_EVIDENCE',
+          citations: [],
+        })
+        await expect(
+          prisma.messageRetrieval.count({
+            where: { messageId: turn.assistantMessage.id },
+          }),
+        ).resolves.toBe(0)
+        await expect(
+          prisma.messageCitation.count({
+            where: { messageId: turn.assistantMessage.id },
+          }),
+        ).resolves.toBe(0)
+      },
+    )
   })
 
   function requireApp(): INestApplication<App> {
@@ -700,6 +735,13 @@ function expectNoHiddenState(
   ]) {
     expect(serialized).not.toContain(hiddenValue)
   }
+}
+
+function expectedGate2AssistantContent(): string {
+  return [
+    'Grounded guidance based only on the supplied authorized context:',
+    `1. ${JSON.stringify(GATE_2_FIXTURE.visibleContent)} — ${JSON.stringify(GATE_2_FIXTURE.sourceTitle)}, chunk 0`,
+  ].join('\n')
 }
 
 function cosineSimilarity(
