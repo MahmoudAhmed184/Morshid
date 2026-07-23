@@ -36,6 +36,7 @@
     "test": "node --experimental-vm-modules ../node_modules/jest/bin/jest.js",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
+    "test:gemini:smoke": "tsx scripts/gemini-live-smoke.mts",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "pretest:e2e": "npm run db:generate",
     "test:e2e": "node --experimental-vm-modules ../node_modules/jest/bin/jest.js --config ./test/jest-e2e.json",
@@ -44,6 +45,7 @@
     "pretest:e2e:gate-2": "npm run db:generate"
   },
   "dependencies": {
+    "@google/genai": "^2.13.0",
     "@nestjs/common": "^11.1.27",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.1.27",

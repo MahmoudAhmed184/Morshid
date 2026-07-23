@@ -93,6 +93,54 @@ record is revoked, a new refresh token record is created, and the old record is
 linked to the new one. Reusing the prior token after rotation is rejected as an
 invalid refresh token.
 
+## Restricted Gemini completion demo
+
+The completion provider defaults to `deterministic` and remains offline in
+production, CI, and normal tests. `COMPLETION_PROVIDER=gemini` is accepted only
+with `NODE_ENV=development` for an access-controlled internal demo. The free
+tier must receive only synthetic, permission-safe content; do not send real
+student activity, private course materials, assessments, PII, data from minors,
+or any content that has not been approved for this use.
+
+Before enabling the demo:
+
+1. Revoke the exposed credential without making a test request with it. Review
+   its usage in AI Studio, then create a new **authorization key**. Google plans
+   to reject standard keys starting in September 2026; see the
+   [API-key guidance](https://ai.google.dev/gemini-api/docs/api-key).
+2. Copy the commented Gemini variables from `.env.example` into the ignored
+   `server/.env`. Never commit the replacement key.
+3. Keep the stable `gemini-3.5-flash-lite` model ID unless an approved stable,
+   non-preview override is required. Do not use a moving `-latest` alias; see
+   the [model guidance](https://ai.google.dev/gemini-api/docs/latest-model).
+4. In the signed-in AI Studio quota view, read the project/model RPM, input
+   TPM, and RPD values. Configure effective caps no higher than 90% of those
+   values, plus explicit Morshid hour and month budgets. Limits vary by project,
+   model, and tier and are not guaranteed; see the
+   [rate-limit guidance](https://ai.google.dev/gemini-api/docs/rate-limits).
+5. Start Redis through `npm run infra:up`. Compose enables Redis AOF on the
+   `morshid-redis-data` volume so long-window local budgets survive restarts.
+
+Gemini configuration is intentionally absent from the production Compose
+server profile. `store: false` prevents Interactions storage, but free-tier
+inputs and outputs may still be reviewed or used to improve Google products.
+Real pilot or production data requires a separately approved paid/no-training
+arrangement. Review the
+[Gemini terms](https://ai.google.dev/gemini-api/terms) and
+[Interactions retention guidance](https://ai.google.dev/gemini-api/docs/interactions-overview)
+before changing this boundary.
+
+After the key has been rotated and the local caps are configured, run the
+opt-in synthetic smoke once:
+
+```bash
+npm run test:gemini:smoke
+```
+
+The command is deliberately excluded from `npm run check`. It prints only the
+provider, model, prompt version, and token counts, and it consumes the same
+Redis quota guard as the application.
+
 ## Local OpenAPI documentation
 
 When `NODE_ENV` is `development` or `test`, the server publishes:

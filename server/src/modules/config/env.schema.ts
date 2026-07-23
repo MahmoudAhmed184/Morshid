@@ -6,11 +6,30 @@ import {
   DEFAULT_COMPLETION_TIMEOUT_MS,
   MAX_COMPLETION_TIMEOUT_MS,
 } from '../completion/validated-completion.provider'
+import {
+  DEFAULT_GEMINI_MODEL,
+  MAX_GEMINI_API_KEY_LENGTH,
+  MAX_GEMINI_MODEL_ID_LENGTH,
+} from '../completion/gemini-completion.constants'
 import { MAX_PDF_OBJECT_BYTES } from '../pdf-storage/pdf-storage'
 
 // Rejects the committed `.env.example` placeholders so a fresh checkout cannot
 // boot with a publicly known signing secret (see docker-compose `${VAR:?}`).
 const SECRET_PLACEHOLDER_PREFIX = 'replace-with'
+const GEMINI_SECRET_PLACEHOLDERS = [
+  SECRET_PLACEHOLDER_PREFIX,
+  'your-',
+  'change-me',
+  'changeme',
+  'placeholder',
+] as const
+const GEMINI_QUOTA_KEYS = [
+  'GEMINI_REQUESTS_PER_MINUTE',
+  'GEMINI_INPUT_TOKENS_PER_MINUTE',
+  'GEMINI_REQUESTS_PER_HOUR',
+  'GEMINI_REQUESTS_PER_DAY',
+  'GEMINI_REQUESTS_PER_MONTH',
+] as const
 const PDF_UPLOAD_OPERATIONAL_CEILING_BYTES = 10 * 1024 * 1024
 export const MAX_PDF_UPLOAD_BYTES = Math.min(
   PDF_UPLOAD_OPERATIONAL_CEILING_BYTES,
@@ -38,15 +57,39 @@ export const envSchema = z
     // never has to reject a configured-but-unimplemented provider at runtime.
     // The deterministic default keeps CI and local work keyless and offline.
     EMBEDDING_PROVIDER: z.enum(['deterministic']).default('deterministic'),
-    // Completion remains keyless and offline in P0. The timeout bounds every
-    // adapter invocation even when an implementation ignores cancellation.
-    COMPLETION_PROVIDER: z.enum(['deterministic']).default('deterministic'),
+    // Deterministic remains the explicit offline default. Gemini is restricted
+    // to validated internal development/demo deployments.
+    COMPLETION_PROVIDER: z
+      .enum(['deterministic', 'gemini'])
+      .default('deterministic'),
     COMPLETION_TIMEOUT_MS: z.coerce
       .number()
       .int()
       .positive()
       .max(MAX_COMPLETION_TIMEOUT_MS)
       .default(DEFAULT_COMPLETION_TIMEOUT_MS),
+    GEMINI_API_KEY: z
+      .string()
+      .trim()
+      .min(20)
+      .max(MAX_GEMINI_API_KEY_LENGTH)
+      .optional(),
+    GEMINI_MODEL: z
+      .string()
+      .trim()
+      .min(1)
+      .max(MAX_GEMINI_MODEL_ID_LENGTH)
+      .regex(/^[a-z0-9][a-z0-9._-]*$/u)
+      .default(DEFAULT_GEMINI_MODEL),
+    GEMINI_REQUESTS_PER_MINUTE: z.coerce.number().int().positive().optional(),
+    GEMINI_INPUT_TOKENS_PER_MINUTE: z.coerce
+      .number()
+      .int()
+      .positive()
+      .optional(),
+    GEMINI_REQUESTS_PER_HOUR: z.coerce.number().int().positive().optional(),
+    GEMINI_REQUESTS_PER_DAY: z.coerce.number().int().positive().optional(),
+    GEMINI_REQUESTS_PER_MONTH: z.coerce.number().int().positive().optional(),
     // Retrieval knobs are validated configuration, never caller input: the
     // repository/service signatures expose no limit or threshold parameters.
     // The 0.70 floor may change only after the sprint 4.1 midpoint check
@@ -92,6 +135,72 @@ export const envSchema = z
         path: ['PDF_STORAGE_PATH'],
         message:
           'must be an absolute path in production so PDFs do not depend on the process working directory',
+      })
+    }
+
+    if (env.COMPLETION_PROVIDER !== 'gemini') {
+      return
+    }
+
+    if (env.NODE_ENV !== 'development') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['COMPLETION_PROVIDER'],
+        message:
+          'gemini is restricted to access-controlled development/demo environments',
+      })
+    }
+
+    if (env.GEMINI_API_KEY === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['GEMINI_API_KEY'],
+        message: 'is required when COMPLETION_PROVIDER is gemini',
+      })
+    } else {
+      const geminiApiKey = env.GEMINI_API_KEY
+      if (
+        GEMINI_SECRET_PLACEHOLDERS.some((placeholder) =>
+          geminiApiKey.toLowerCase().startsWith(placeholder),
+        )
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['GEMINI_API_KEY'],
+          message: 'must be a non-placeholder authorization key',
+        })
+      }
+    }
+
+    for (const key of GEMINI_QUOTA_KEYS) {
+      if (env[key] === undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [key],
+          message: 'is required when COMPLETION_PROVIDER is gemini',
+        })
+      }
+    }
+
+    const requestsPerMinute = env.GEMINI_REQUESTS_PER_MINUTE
+    const requestsPerHour = env.GEMINI_REQUESTS_PER_HOUR
+    const requestsPerDay = env.GEMINI_REQUESTS_PER_DAY
+    const requestsPerMonth = env.GEMINI_REQUESTS_PER_MONTH
+    if (
+      requestsPerMinute !== undefined &&
+      requestsPerHour !== undefined &&
+      requestsPerDay !== undefined &&
+      requestsPerMonth !== undefined &&
+      !(
+        requestsPerMinute <= requestsPerHour &&
+        requestsPerHour <= requestsPerDay &&
+        requestsPerDay <= requestsPerMonth
+      )
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['GEMINI_REQUESTS_PER_MONTH'],
+        message: 'request caps must satisfy minute <= hour <= day <= month',
       })
     }
   })

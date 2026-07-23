@@ -38,6 +38,7 @@
     "typecheck": "npm run typecheck:root && npm run typecheck --workspaces --if-present",
     "typecheck:root": "tsc --noEmit -p tsconfig.json",
     "test:acceptance": "playwright test",
+    "test:gemini:smoke": "npm run test:gemini:smoke --workspace server",
     "test": "npm run test:root && npm run test --workspaces --if-present",
     "test:root": "node --test --test-isolation=none scripts/*.test.mts",
     "build": "npm run build --workspaces --if-present",

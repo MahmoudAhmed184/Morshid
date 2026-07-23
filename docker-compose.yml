@@ -21,8 +21,12 @@ services:
   redis:
     image: redis:8.4-alpine
     restart: unless-stopped
+    command:
+      ['redis-server', '--appendonly', 'yes', '--appendfsync', 'everysec']
     ports:
       - '${REDIS_PORT:-6379}:6379'
+    volumes:
+      - morshid-redis-data:/data
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
@@ -91,4 +95,5 @@ services:
 
 volumes:
   morshid-postgres-data:
+  morshid-redis-data:
   morshid-pdf-storage:
