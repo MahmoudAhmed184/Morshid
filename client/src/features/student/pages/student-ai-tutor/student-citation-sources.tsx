@@ -28,7 +28,7 @@ export function StudentCitationSources({
         {citations.map((citation) => (
           <li key={`${citation.order}:${citation.materialId}`}>
             <Badge
-              className="h-auto max-w-full whitespace-normal border-primary/25 bg-primary/5 font-mono text-xs text-primary"
+              className="h-auto max-w-full whitespace-normal border-info/25 bg-info/5 font-mono text-xs text-info"
               variant="outline"
             >
               [{citation.order}] {citation.materialTitle}
@@ -82,7 +82,7 @@ function CitationSource({ citation }: { citation: ChatCitation }) {
           {citation.evidence.map((evidence) => (
             <figure
               key={evidence.chunkId}
-              className="border-l-2 border-primary/30 pl-3"
+              className="border-l-2 border-info/30 pl-3"
             >
               <blockquote className="break-words text-xs leading-5 text-muted-foreground">
                 {evidence.excerpt}

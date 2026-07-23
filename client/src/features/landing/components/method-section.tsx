@@ -70,7 +70,7 @@ export function MethodSection() {
                 </p>
               </div>
               <div>
-                <p className="smallcaps-label text-primary!">Morshid.</p>
+                <p className="smallcaps-label text-info!">Morshid.</p>
                 <p className="mt-1 leading-relaxed text-foreground">
                   You tell me — what has to be true of everything to its left?
                 </p>
@@ -115,7 +115,7 @@ export function MethodSection() {
             <div>
               <p className="leading-relaxed text-foreground">
                 Halving n repeatedly reaches 1 after about log n steps.
-                <sup className="ml-0.5 align-super text-[0.7em] font-medium text-primary">
+                <sup className="ml-0.5 align-super text-[0.7em] font-medium text-info">
                   3
                 </sup>
               </p>

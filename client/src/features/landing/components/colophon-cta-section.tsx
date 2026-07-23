@@ -20,7 +20,7 @@ export function ColophonCtaSection() {
               nativeButton={false}
               render={<Link to="/login" />}
               size="lg"
-              className="bg-background text-foreground hover:bg-primary hover:text-primary-foreground"
+              className="bg-background text-foreground hover:bg-info hover:text-info-foreground"
             >
               Begin studying
             </Button>

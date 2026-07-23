@@ -93,7 +93,7 @@ export function StudentSourcesPanel({
                       {citation.evidence.map((evidence) => (
                         <figure
                           key={evidence.chunkId}
-                          className="border-l-2 border-primary/30 pl-3"
+                          className="border-l-2 border-info/30 pl-3"
                         >
                           <blockquote className="text-xs leading-5 text-muted-foreground">
                             {evidence.excerpt}

@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 
 type SpeakerLabelProps = {
   children: React.ReactNode
-  /** STUDENT. is rubric; MORSHID. is primary. */
+  /** STUDENT. is rubric; MORSHID. is info (editorial blue). */
   tone: 'student' | 'morshid'
 }
 
@@ -15,7 +15,7 @@ function SpeakerLabel({ children, tone }: SpeakerLabelProps) {
     <p
       className={cn(
         'smallcaps-label',
-        tone === 'student' ? 'text-rubric!' : 'text-primary!',
+        tone === 'student' ? 'text-rubric!' : 'text-info!',
       )}
     >
       {children}
@@ -24,13 +24,12 @@ function SpeakerLabel({ children, tone }: SpeakerLabelProps) {
 }
 
 /**
- * A superscript citation marker. The digit inherits `primary` from the parent
- * `<sup>`, so `.link-editorial` (which sets `color: inherit`) resolves to ink
- * blue without an important override.
+ * A superscript citation marker. The digit is editorial blue via `info`; the
+ * inner `.link-editorial` also renders `info`, so the marker stays blue.
  */
 function Citation({ n, href }: { n: number; href: string }) {
   return (
-    <sup className="ml-0.5 align-super text-[0.7em] font-medium text-primary">
+    <sup className="ml-0.5 align-super text-[0.7em] font-medium text-info">
       <a href={href} className="link-editorial">
         {n}
       </a>

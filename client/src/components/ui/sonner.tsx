@@ -1,4 +1,7 @@
-import { useTheme } from 'next-themes'
+'use client'
+
+/* morshid: theme comes from the app's own ThemeProvider */
+import { useTheme } from '@/providers/theme-provider'
 import { Toaster as Sonner } from 'sonner'
 import type { ToasterProps } from 'sonner'
 import {
@@ -10,11 +13,11 @@ import {
 } from 'lucide-react'
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = 'system' } = useTheme()
+  const { theme } = useTheme()
 
   return (
     <Sonner
-      theme={theme as ToasterProps['theme']}
+      theme={theme}
       className="toaster group"
       icons={{
         success: <CircleCheckIcon className="size-4" />,
@@ -25,16 +28,15 @@ const Toaster = ({ ...props }: ToasterProps) => {
       }}
       style={
         {
-          '--normal-bg': 'color-mix(in oklab, var(--popover) 78%, transparent)',
+          '--normal-bg': 'var(--popover)',
           '--normal-text': 'var(--popover-foreground)',
-          '--normal-border':
-            'color-mix(in oklab, var(--foreground) 12%, transparent)',
-          '--border-radius': '2rem',
+          '--normal-border': 'var(--border)',
+          '--border-radius': 'var(--radius)',
         } as React.CSSProperties
       }
       toastOptions={{
         classNames: {
-          toast: 'cn-toast glass-paper shadow-md',
+          toast: 'cn-toast',
         },
       }}
       {...props}
