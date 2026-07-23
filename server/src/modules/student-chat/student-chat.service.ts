@@ -199,14 +199,21 @@ export class StudentChatService {
       query.limit ?? DEFAULT_MESSAGE_PAGE_SIZE,
       MAX_MESSAGE_PAGE_SIZE,
     )
-    const messages = await this.messageRepository.listMessages(
+    const isLoadingLatestOrEarlier =
+      query.page === 'latest' || query.before !== undefined
+    const messagesWithLookahead = await this.messageRepository.listMessages(
       courseId,
       sessionId,
       user.id,
-      { limit, after: query.after ?? null },
+      {
+        limit: limit + 1,
+        after: query.after ?? null,
+        before: query.before ?? null,
+        latest: query.page === 'latest',
+      },
     )
 
-    if (messages === null) {
+    if (messagesWithLookahead === null) {
       await this.recordSessionAccessDenied(
         courseId,
         user.id,
@@ -216,12 +223,18 @@ export class StudentChatService {
       throw chatSessionNotFoundException()
     }
 
+    const hasMore = messagesWithLookahead.length > limit
+    const messages = isLoadingLatestOrEarlier
+      ? messagesWithLookahead.slice(-limit)
+      : messagesWithLookahead.slice(0, limit)
+
     return {
       messages: await this.messagePresenter.presentMany(messages),
-      nextCursor:
-        messages.length === limit
-          ? (messages[messages.length - 1]?.sequence ?? null)
-          : null,
+      nextCursor: hasMore
+        ? isLoadingLatestOrEarlier
+          ? (messages[0]?.sequence ?? null)
+          : (messages[messages.length - 1]?.sequence ?? null)
+        : null,
     }
   }
 

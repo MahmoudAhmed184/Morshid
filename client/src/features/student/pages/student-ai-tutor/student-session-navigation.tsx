@@ -1,6 +1,5 @@
 import { MessageSquareText } from 'lucide-react'
 
-import { Badge } from '@/components/ui/badge'
 import { ErrorState } from '@/components/ui/custom/error-state'
 import type { ChatSession } from '@/features/student/schemas/student-chat.schema'
 import type { StudentCourse } from '@/features/student/schemas/student-course.schema'
@@ -19,7 +18,6 @@ interface StudentSessionNavigationProps {
   selectedSessionId?: string
   isPending: boolean
   isError: boolean
-  isRefreshing: boolean
   hasNextPage: boolean
   isFetchingNextPage: boolean
   isFetchNextPageError: boolean
@@ -43,7 +41,6 @@ export function StudentSessionNavigation({
   selectedSessionId,
   isPending,
   isError,
-  isRefreshing,
   hasNextPage,
   isFetchingNextPage,
   isFetchNextPageError,
@@ -63,7 +60,7 @@ export function StudentSessionNavigation({
     <aside
       aria-label="Session navigation"
       className={cn(
-        'flex min-h-0 flex-col overflow-hidden border-b border-border bg-card text-card-foreground md:border-r md:border-b-0',
+        'flex min-h-0 flex-col overflow-hidden border-b border-border bg-muted/30 text-foreground md:border-r md:border-b-0',
         className,
       )}
     >
@@ -84,11 +81,10 @@ export function StudentSessionNavigation({
           />
         </div>
 
-        <header className="flex items-center justify-between gap-3 px-5 pb-2">
-          <h2 className="text-xs font-medium tracking-[0.12em] text-muted-foreground uppercase">
-            Sessions
+        <header className="px-4 pb-2">
+          <h2 className="text-xs font-medium text-muted-foreground">
+            Your chats
           </h2>
-          {isRefreshing ? <Badge variant="outline">Refreshing</Badge> : null}
         </header>
 
         <div

@@ -8,11 +8,11 @@ import {
   buildHeaders,
   isApiError,
   readJsonBody,
-} from '@/features/auth/api/auth-http'
-import type { ApiFetchOptions } from '@/features/auth/api/auth-http'
+} from '@/lib/api/http'
+import type { ApiFetchOptions } from '@/lib/api/http'
 
-export { ApiError, isApiError } from '@/features/auth/api/auth-http'
-export type { ApiFetchOptions } from '@/features/auth/api/auth-http'
+export { ApiError, isApiError } from '@/lib/api/http'
+export type { ApiFetchOptions } from '@/lib/api/http'
 
 export function isTerminalAuthError(error: unknown) {
   return (

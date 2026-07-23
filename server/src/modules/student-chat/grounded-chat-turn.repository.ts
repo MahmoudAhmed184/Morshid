@@ -33,6 +33,7 @@ interface AuthorizedTurnInput {
 }
 
 export interface BeginGroundedChatTurnInput extends AuthorizedTurnInput {
+  clientMessageId?: string
   content: string
 }
 
@@ -76,6 +77,11 @@ export type BeginGroundedChatTurnResult =
       kind: 'ok'
       courseId: string
       attemptId: string
+      studentMessage: ChatMessageRecord
+      assistantMessage: ChatMessageRecord
+    }
+  | {
+      kind: 'replayed'
       studentMessage: ChatMessageRecord
       assistantMessage: ChatMessageRecord
     }
@@ -160,7 +166,7 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
     input: BeginGroundedChatTurnInput,
   ): Promise<BeginGroundedChatTurnResult> {
     const identity = {
-      studentMessageId: randomUUID(),
+      studentMessageId: input.clientMessageId ?? randomUUID(),
       assistantMessageId: randomUUID(),
       attemptId: randomUUID(),
     }
@@ -174,6 +180,38 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
         const { session } = authorization
         const now = await currentDatabaseTime(tx)
         await this.failExpiredActiveTurns(tx, session.id, now)
+
+        if (input.clientMessageId !== undefined) {
+          const replayedStudent = await tx.message.findFirst({
+            where: {
+              id: input.clientMessageId,
+              sessionId: session.id,
+              role: MessageRole.STUDENT,
+              authorUserId: input.studentId,
+              content: input.content,
+            },
+            select: chatMessageSelect,
+          })
+          if (replayedStudent !== null) {
+            const replayedAssistant = await tx.message.findUnique({
+              where: { responseToMessageId: replayedStudent.id },
+              select: chatMessageSelect,
+            })
+            if (
+              replayedAssistant !== null &&
+              replayedAssistant.role === MessageRole.ASSISTANT &&
+              isTerminalMessageStatus(replayedAssistant.status)
+            ) {
+              return {
+                kind: 'replayed' as const,
+                studentMessage: replayedStudent,
+                assistantMessage: replayedAssistant,
+              }
+            }
+
+            return { kind: 'turn_in_progress' as const }
+          }
+        }
 
         const activeAssistant = await tx.message.findFirst({
           where: {
