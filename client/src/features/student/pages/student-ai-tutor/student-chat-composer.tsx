@@ -23,10 +23,11 @@ const maximumMessageCodePoints = 4_000
 
 export interface StudentChatComposerHandle {
   prefill: (text: string) => void
+  submitWith: (text: string, clientMessageId: string) => void
+  focus: () => void
 }
 
 interface StudentChatComposerProps {
-  hasSelectedSession: boolean
   isGenerating: boolean
   sendError: unknown
   onDismissError: () => void
@@ -37,22 +38,36 @@ export const StudentChatComposer = forwardRef<
   StudentChatComposerHandle,
   StudentChatComposerProps
 >(function StudentChatComposerImpl(
-  { hasSelectedSession, isGenerating, sendError, onDismissError, onSend },
+  { isGenerating, sendError, onDismissError, onSend },
   ref,
 ) {
   const [draft, setDraft] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const formRef = useRef<HTMLFormElement>(null)
   const clientMessageIdRef = useRef<string | null>(null)
+  const autoSubmitRef = useRef(false)
   const wasGeneratingRef = useRef(isGenerating)
   const canSend =
-    hasSelectedSession &&
-    !isGenerating &&
-    studentChatMessageContentSchema.safeParse(draft).success
+    !isGenerating && studentChatMessageContentSchema.safeParse(draft).success
 
   useImperativeHandle(ref, () => ({
     prefill: (text: string) => {
       setDraft(limitMessageDraft(text))
       clientMessageIdRef.current = null
+      textareaRef.current?.focus()
+    },
+    // T15.2 — hand the draft's first message to the freshly-created session so
+    // the send runs through the normal composer submit path (optimistic append,
+    // and, on failure, the message stays in this composer with the same
+    // clientMessageId ready to retry).
+    submitWith: (text: string, clientMessageId: string) => {
+      setDraft(limitMessageDraft(text))
+      clientMessageIdRef.current = clientMessageId
+      autoSubmitRef.current = true
+    },
+    // T15.7 — the sidebar's New chat / collapsed `+` focus the draft composer
+    // through the chrome context after entering the draft state.
+    focus: () => {
       textareaRef.current?.focus()
     },
   }))
@@ -61,10 +76,17 @@ export const StudentChatComposer = forwardRef<
     const generationFinished = wasGeneratingRef.current && !isGenerating
     wasGeneratingRef.current = isGenerating
 
-    if (generationFinished && hasSelectedSession) {
+    if (generationFinished) {
       textareaRef.current?.focus()
     }
-  }, [hasSelectedSession, isGenerating])
+  }, [isGenerating])
+
+  useEffect(() => {
+    if (autoSubmitRef.current && canSend) {
+      autoSubmitRef.current = false
+      formRef.current?.requestSubmit()
+    }
+  }, [canSend])
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -109,6 +131,7 @@ export const StudentChatComposer = forwardRef<
 
   return (
     <form
+      ref={formRef}
       aria-label="Message composer"
       className="shrink-0"
       onSubmit={(event) => void handleSubmit(event)}
@@ -121,7 +144,7 @@ export const StudentChatComposer = forwardRef<
           aria-label="Message"
           autoComplete="off"
           className="max-h-40 min-h-12 resize-none border-0 bg-transparent px-4 pt-3.5 pb-1 shadow-none focus-visible:ring-0"
-          disabled={!hasSelectedSession || isGenerating}
+          disabled={isGenerating}
           name="chat-message"
           onChange={(event) => {
             setDraft(limitMessageDraft(event.target.value))
@@ -131,11 +154,7 @@ export const StudentChatComposer = forwardRef<
             }
           }}
           onKeyDown={handleKeyDown}
-          placeholder={
-            hasSelectedSession
-              ? 'Ask a conceptual question about this course…'
-              : 'Select a conversation first.'
-          }
+          placeholder="Ask a conceptual question about this course…"
           rows={1}
           value={draft}
         />

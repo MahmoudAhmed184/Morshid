@@ -13,6 +13,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SidebarProvider } from '@/components/ui/sidebar'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 import type { AuthSession } from '@/features/auth/schemas/auth.schema'
+import {
+  StudentChromeProvider,
+  useRegisterComposerFocus,
+} from '@/features/student/components/student-chrome-context'
 import { ThemeProvider } from '@/providers/theme-provider'
 import {
   createStudentSession,
@@ -155,12 +159,14 @@ function renderSidebar({
   sessionId,
   sessions,
   newChatButtonRef,
+  probe,
 }: {
   courses?: StudentCourse[]
   courseId?: string
   sessionId?: string
   sessions?: ChatSessionListResponse
   newChatButtonRef?: { current: HTMLButtonElement | null }
+  probe?: React.ReactNode
 } = {}) {
   vi.stubGlobal(
     'matchMedia',
@@ -197,11 +203,20 @@ function renderSidebar({
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="system" storageKey="test-theme">
         <SidebarProvider>
-          <StudentSidebarContent newChatButtonRef={newChatButtonRef} />
+          <StudentChromeProvider>
+            {probe}
+            <StudentSidebarContent newChatButtonRef={newChatButtonRef} />
+          </StudentChromeProvider>
         </SidebarProvider>
       </ThemeProvider>
     </QueryClientProvider>,
   )
+}
+
+// Stands in for the draft composer registering its focus handle (T15.7).
+function ComposerFocusProbe({ onFocus }: { onFocus: () => void }) {
+  useRegisterComposerFocus(onFocus)
+  return null
 }
 
 async function chooseSessionAction(
@@ -367,14 +382,17 @@ describe('StudentSidebarContent', () => {
     )
   })
 
-  it('creates a new conversation and routes to it', async () => {
-    createStudentSessionMock.mockResolvedValueOnce(primaryChatSessionFixture)
-    listStudentSessionsMock.mockResolvedValueOnce({
-      sessions: [primaryChatSessionFixture],
-      nextCursor: null,
-    })
+  // T15.1 — New chat opens the draft state (no session is created until the
+  // first message is sent). Superseded the T11.2 reuse-guard: the create-on-click
+  // and empty-session-reuse tests were removed with that machinery.
+  it('navigates to the draft state without creating a session', async () => {
+    routerMockState.search = {
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+    }
     renderSidebar({
-      sessions: { sessions: [], nextCursor: null },
+      sessionId: primaryChatSessionFixture.id,
+      sessions: { sessions: [primaryChatSessionFixture], nextCursor: null },
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'New chat' }))
@@ -382,108 +400,36 @@ describe('StudentSidebarContent', () => {
     await waitFor(() =>
       expect(navigateMock).toHaveBeenCalledWith({
         to: '/chat',
-        search: {
-          courseId: primaryCourse.id,
-          sessionId: primaryChatSessionFixture.id,
-        },
+        search: { courseId: primaryCourse.id },
       }),
     )
+    expect(createStudentSessionMock).not.toHaveBeenCalled()
   })
 
-  it('surfaces a failed conversation creation', async () => {
-    createStudentSessionMock.mockRejectedValueOnce(new Error('Create failed'))
+  it('is a no-op when New chat is pressed while already in the draft', async () => {
+    routerMockState.search = { courseId: primaryCourse.id }
     renderSidebar({
-      sessions: { sessions: [], nextCursor: null },
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: 'New chat' }))
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('Create failed')
-  })
-
-  const emptySelectedSession = sessionAt({
-    id: '55555555-5555-4555-8555-555555555555',
-    title: 'Empty selected draft',
-    lastMessageAt: null,
-  })
-  const emptyOtherSession = sessionAt({
-    id: '66666666-6666-4666-8666-666666666666',
-    title: 'Empty other draft',
-    lastMessageAt: null,
-    createdAt: '2026-07-18T12:00:00.000Z',
-    updatedAt: '2026-07-18T12:00:00.000Z',
-  })
-
-  it('does not create when the selected session is already empty', async () => {
-    getStudentSessionMock.mockResolvedValue(emptySelectedSession)
-    renderSidebar({
-      sessionId: emptySelectedSession.id,
-      sessions: { sessions: [emptySelectedSession], nextCursor: null },
+      sessions: { sessions: [primaryChatSessionFixture], nextCursor: null },
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'New chat' }))
 
     await Promise.resolve()
-    expect(createStudentSessionMock).not.toHaveBeenCalled()
     expect(navigateMock).not.toHaveBeenCalled()
-  })
-
-  it('reuses the newest empty session instead of creating another', async () => {
-    renderSidebar({
-      sessionId: primaryChatSessionFixture.id,
-      sessions: {
-        sessions: [primaryChatSessionFixture, emptyOtherSession],
-        nextCursor: null,
-      },
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: 'New chat' }))
-
-    await waitFor(() =>
-      expect(navigateMock).toHaveBeenCalledWith({
-        to: '/chat',
-        search: {
-          courseId: primaryCourse.id,
-          sessionId: emptyOtherSession.id,
-        },
-      }),
-    )
     expect(createStudentSessionMock).not.toHaveBeenCalled()
   })
 
-  it('creates when no empty session is at hand', async () => {
-    createStudentSessionMock.mockResolvedValueOnce(primaryChatSessionFixture)
-    renderSidebar({
-      sessions: {
-        sessions: [
-          { ...secondSession, lastMessageAt: '2026-07-17T09:02:00.000Z' },
-        ],
-        nextCursor: null,
-      },
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: 'New chat' }))
-
-    await waitFor(() =>
-      expect(createStudentSessionMock).toHaveBeenCalledTimes(1),
-    )
-    expect(navigateMock).toHaveBeenCalledWith({
-      to: '/chat',
-      search: {
-        courseId: primaryCourse.id,
-        sessionId: primaryChatSessionFixture.id,
-      },
-    })
-  })
-
-  it('applies the same guard to the collapsed-cluster plus button', async () => {
-    getStudentSessionMock.mockResolvedValue(emptySelectedSession)
+  it('opens the draft from the collapsed-cluster plus button without creating', async () => {
+    routerMockState.search = {
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+    }
     const newChatButtonRef: { current: HTMLButtonElement | null } = {
       current: null,
     }
     renderSidebar({
-      sessionId: emptySelectedSession.id,
-      sessions: { sessions: [emptySelectedSession], nextCursor: null },
+      sessionId: primaryChatSessionFixture.id,
+      sessions: { sessions: [primaryChatSessionFixture], nextCursor: null },
       newChatButtonRef,
     })
 
@@ -491,8 +437,50 @@ describe('StudentSidebarContent', () => {
     expect(newChatButtonRef.current).not.toBeNull()
     fireEvent.click(newChatButtonRef.current!)
 
-    await Promise.resolve()
+    await waitFor(() =>
+      expect(navigateMock).toHaveBeenCalledWith({
+        to: '/chat',
+        search: { courseId: primaryCourse.id },
+      }),
+    )
     expect(createStudentSessionMock).not.toHaveBeenCalled()
+  })
+
+  it('focuses the composer when New chat is activated (T15.7)', async () => {
+    const focusSpy = vi.fn()
+    routerMockState.search = {
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+    }
+    renderSidebar({
+      sessionId: primaryChatSessionFixture.id,
+      sessions: { sessions: [primaryChatSessionFixture], nextCursor: null },
+      probe: <ComposerFocusProbe onFocus={focusSpy} />,
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'New chat' }))
+
+    await waitFor(() =>
+      expect(navigateMock).toHaveBeenCalledWith({
+        to: '/chat',
+        search: { courseId: primaryCourse.id },
+      }),
+    )
+    expect(focusSpy).toHaveBeenCalled()
+  })
+
+  it('focuses the composer even when already in the draft (T15.7)', async () => {
+    const focusSpy = vi.fn()
+    routerMockState.search = { courseId: primaryCourse.id }
+    renderSidebar({
+      sessions: { sessions: [primaryChatSessionFixture], nextCursor: null },
+      probe: <ComposerFocusProbe onFocus={focusSpy} />,
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'New chat' }))
+
+    await waitFor(() => expect(focusSpy).toHaveBeenCalled())
+    // Already in the draft — no redundant navigation.
     expect(navigateMock).not.toHaveBeenCalled()
   })
 

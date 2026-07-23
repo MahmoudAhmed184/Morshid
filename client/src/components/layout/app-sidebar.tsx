@@ -39,6 +39,7 @@ import {
 } from '@/components/ui/sidebar'
 import { useLogout } from '@/features/auth/hooks/use-logout'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
+import { useStudentChromeActions } from '@/features/student/components/student-chrome-context'
 import { StudentSidebarContent } from '@/features/student/components/student-sidebar-content'
 import { useTheme } from '@/providers/theme-provider'
 import { cn } from '@/lib/utils'
@@ -189,14 +190,13 @@ function SidebarFooterUser({ role }: { role: AppSidebarRole }) {
 
 function CollapsedCluster({
   role,
-  searchInputRef,
   newChatButtonRef,
 }: {
   role: AppSidebarRole
-  searchInputRef: React.RefObject<HTMLInputElement | null>
   newChatButtonRef: React.RefObject<HTMLButtonElement | null>
 }) {
-  const { state, isMobile, setOpen, setOpenMobile } = useSidebar()
+  const { state, isMobile } = useSidebar()
+  const { openSearchPalette } = useStudentChromeActions()
 
   // On desktop the cluster stands in for the trigger only while collapsed. On
   // mobile the sidebar is always an off-canvas sheet, so students (who have no
@@ -207,35 +207,30 @@ function CollapsedCluster({
     return null
   }
 
-  const expandThen = (action: () => void) => {
-    if (isMobile) {
-      setOpenMobile(true)
-    } else {
-      setOpen(true)
-    }
-    requestAnimationFrame(() => action())
-  }
-
   return (
     <div className="glass-paper fixed top-3 left-3 z-50 flex gap-1 rounded-xl p-1 shadow-sm">
       <SidebarTrigger />
       {role === 'student' ? (
         <>
+          {/* T15.8 — open the ⌘K search palette directly; do not expand the
+              sidebar. */}
           <Button
             type="button"
             variant="ghost"
             size="icon-sm"
             aria-label="Search your chats"
-            onClick={() => expandThen(() => searchInputRef.current?.focus())}
+            onClick={() => openSearchPalette()}
           >
             <Search aria-hidden />
           </Button>
+          {/* T15.7 — trigger New chat (draft + focus) directly without
+              expanding the sidebar. */}
           <Button
             type="button"
             variant="ghost"
             size="icon-sm"
             aria-label="New chat"
-            onClick={() => expandThen(() => newChatButtonRef.current?.click())}
+            onClick={() => newChatButtonRef.current?.click()}
           >
             <Plus aria-hidden />
           </Button>
@@ -292,11 +287,7 @@ export function AppSidebar({ role, navigation, ariaLabel }: AppSidebarProps) {
         </SidebarFooter>
       </Sidebar>
 
-      <CollapsedCluster
-        role={role}
-        searchInputRef={searchInputRef}
-        newChatButtonRef={newChatButtonRef}
-      />
+      <CollapsedCluster role={role} newChatButtonRef={newChatButtonRef} />
     </>
   )
 }

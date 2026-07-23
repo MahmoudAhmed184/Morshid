@@ -17,6 +17,11 @@ import { useAuthStore } from '@/features/auth/stores/auth.store'
 import { ThemeProvider } from '@/providers/theme-provider'
 import { SidebarProvider } from '@/components/ui/sidebar'
 import {
+  StudentChromeProvider,
+  useStudentChromeSources,
+} from '@/features/student/components/student-chrome-context'
+import {
+  createStudentSession,
   getStudentSession,
   getStudentSessionMessages,
   listStudentSessions,
@@ -71,6 +76,7 @@ vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigateMock,
 }))
 
+const createStudentSessionMock = vi.mocked(createStudentSession)
 const getStudentSessionMock = vi.mocked(getStudentSession)
 const getStudentSessionMessagesMock = vi.mocked(getStudentSessionMessages)
 const listStudentSessionsMock = vi.mocked(listStudentSessions)
@@ -146,12 +152,14 @@ function renderWorkspace({
   sessionId,
   sessions,
   messages,
+  probe,
 }: {
   courses?: StudentCourse[]
   courseId?: string
   sessionId?: string
   sessions?: ChatSessionListResponse
   messages?: ChatMessageHistoryResponse
+  probe?: React.ReactNode
 } = {}) {
   vi.stubGlobal(
     'matchMedia',
@@ -203,13 +211,37 @@ function renderWorkspace({
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="system" storageKey="test-theme">
         <SidebarProvider>
-          <StudentAiTutorPage courseId={courseId} sessionId={sessionId} />
+          <StudentChromeProvider>
+            {probe}
+            <StudentAiTutorPage courseId={courseId} sessionId={sessionId} />
+          </StudentChromeProvider>
         </SidebarProvider>
       </ThemeProvider>
     </QueryClientProvider>,
   )
 
   return { ...result, queryClient }
+}
+
+// Surfaces the shell's registered sources control (the BookMarked toggle lives
+// in the shell cluster, not the page) so tests can assert when it appears and
+// drive it (T15.6).
+function SourcesControlProbe() {
+  const sources = useStudentChromeSources()
+
+  if (!sources) {
+    return <span data-testid="no-sources-toggle" />
+  }
+
+  return (
+    <button
+      type="button"
+      aria-label="probe-sources-toggle"
+      onClick={sources.onToggle}
+    >
+      toggle
+    </button>
+  )
 }
 
 describe('StudentAiTutorPage workspace', () => {
@@ -253,6 +285,187 @@ describe('StudentAiTutorPage workspace', () => {
       screen.getByRole('heading', { name: 'No assigned course' }),
     ).toBeInTheDocument()
     expect(listStudentSessionsMock).not.toHaveBeenCalled()
+  })
+
+  // T15.1 — landing at /chat?courseId (no sessionId) is the live draft: an
+  // enabled composer, greeting, and suggestions, with no session created.
+  it('renders the draft state with an enabled composer and suggestions', async () => {
+    renderWorkspace({ courseId: primaryCourse.id })
+
+    expect(
+      await screen.findByRole('heading', { name: 'How can I help you, Test?' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Walk me through problem set 3.' }),
+    ).toBeInTheDocument()
+    const composer = screen.getByRole('textbox', { name: 'Message' })
+    expect(composer).toBeEnabled()
+    expect(composer).toHaveAttribute(
+      'placeholder',
+      'Ask a conceptual question about this course…',
+    )
+    expect(createStudentSessionMock).not.toHaveBeenCalled()
+  })
+
+  // T15.2 — the first send creates the session, navigates to it with history
+  // replace, and the message is sent from the destination conversation.
+  it('chains create then navigate (replace) then send on the first message', async () => {
+    createStudentSessionMock.mockResolvedValueOnce(primaryChatSessionFixture)
+    const { rerender, queryClient } = renderWorkspace({
+      courseId: primaryCourse.id,
+    })
+
+    const composer = await screen.findByRole('textbox', { name: 'Message' })
+    fireEvent.change(composer, { target: { value: 'My first question' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() =>
+      expect(createStudentSessionMock).toHaveBeenCalledWith({
+        courseId: primaryCourse.id,
+        input: {},
+      }),
+    )
+    await waitFor(() =>
+      expect(navigateMock).toHaveBeenCalledWith({
+        to: '/chat',
+        search: {
+          courseId: primaryCourse.id,
+          sessionId: primaryChatSessionFixture.id,
+        },
+        replace: true,
+      }),
+    )
+    // The send runs only once the session exists and is navigated to.
+    expect(sendStudentChatMessageMock).not.toHaveBeenCalled()
+
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider defaultTheme="system" storageKey="test-theme">
+          <SidebarProvider>
+            <StudentChromeProvider>
+              <StudentAiTutorPage
+                courseId={primaryCourse.id}
+                sessionId={primaryChatSessionFixture.id}
+              />
+            </StudentChromeProvider>
+          </SidebarProvider>
+        </ThemeProvider>
+      </QueryClientProvider>,
+    )
+
+    await waitFor(() =>
+      expect(sendStudentChatMessageMock).toHaveBeenCalledWith({
+        courseId: primaryCourse.id,
+        sessionId: primaryChatSessionFixture.id,
+        input: {
+          clientMessageId: expect.any(String),
+          content: 'My first question',
+        },
+      }),
+    )
+  })
+
+  // T15.2 — create failure preserves the draft and surfaces through the
+  // composer's error affordance; no session is created and nothing navigates.
+  it('keeps the draft and shows an error when session creation fails', async () => {
+    createStudentSessionMock.mockRejectedValueOnce(new Error('Create failed'))
+    renderWorkspace({ courseId: primaryCourse.id })
+
+    const composer = await screen.findByRole('textbox', { name: 'Message' })
+    fireEvent.change(composer, { target: { value: 'Draft that survives' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    expect(
+      await screen.findByText(/message could not be sent/i),
+    ).toBeInTheDocument()
+    expect(composer).toHaveValue('Draft that survives')
+    expect(navigateMock).not.toHaveBeenCalled()
+    expect(sendStudentChatMessageMock).not.toHaveBeenCalled()
+  })
+
+  // T15.6 — the draft has no sources chrome at all (nothing to cite yet).
+  it('renders no sources panel in the draft state', async () => {
+    renderWorkspace({ courseId: primaryCourse.id })
+
+    await screen.findByRole('textbox', { name: 'Message' })
+    expect(
+      screen.queryByLabelText('Sources and citations'),
+    ).not.toBeInTheDocument()
+  })
+
+  // T15.6 — in a conversation the panel exists but stays hidden by default; it
+  // is summoned only via the toggle.
+  it('keeps the sources panel hidden by default in a conversation', async () => {
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+      messages: orderedMessageHistory,
+    })
+
+    const panel = await screen.findByLabelText('Sources and citations')
+    expect(panel.parentElement).toHaveAttribute('aria-hidden', 'true')
+  })
+
+  // T15.6 — the BookMarked toggle registers only once a conversation holds ≥1
+  // message: absent in the draft and in an empty conversation.
+  it('registers no sources toggle in the draft state', async () => {
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      probe: <SourcesControlProbe />,
+    })
+
+    await screen.findByRole('textbox', { name: 'Message' })
+    expect(screen.getByTestId('no-sources-toggle')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'probe-sources-toggle' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('registers no sources toggle in an empty conversation', async () => {
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+      messages: { messages: [], nextCursor: null },
+      probe: <SourcesControlProbe />,
+    })
+
+    await screen.findByRole('textbox', { name: 'Message' })
+    expect(screen.getByTestId('no-sources-toggle')).toBeInTheDocument()
+  })
+
+  // T15.6 — once messages exist the toggle appears and summons the panel; the
+  // panel is closed until the toggle is used.
+  it('registers the sources toggle once messages exist and opens the panel on demand', async () => {
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+      messages: orderedMessageHistory,
+      probe: <SourcesControlProbe />,
+    })
+
+    const toggle = await screen.findByRole('button', {
+      name: 'probe-sources-toggle',
+    })
+    const panel = screen.getByLabelText('Sources and citations')
+    expect(panel.parentElement).toHaveAttribute('aria-hidden', 'true')
+
+    fireEvent.click(toggle)
+
+    await waitFor(() =>
+      expect(panel.parentElement).toHaveAttribute('aria-hidden', 'false'),
+    )
   })
 
   it('keeps the grounded composer free of an attachment workflow', async () => {
@@ -437,10 +650,14 @@ describe('StudentAiTutorPage workspace', () => {
     })
 
     const workspace = screen.getByLabelText('Student AI Tutor')
-    const conversationArea = await screen.findByRole('region', {
+    // The composer form is present only once the requested session resolves into
+    // the conversation (the loading placeholder offers no composer), so await it.
+    const composer = await screen.findByRole('form', {
+      name: 'Message composer',
+    })
+    const conversationArea = screen.getByRole('region', {
       name: 'Conversation messages',
     })
-    const composer = screen.getByRole('form', { name: 'Message composer' })
 
     expect(workspace).toHaveClass(
       'h-full',
@@ -1012,10 +1229,12 @@ describe('StudentAiTutorPage workspace', () => {
       <QueryClientProvider client={queryClient}>
         <ThemeProvider defaultTheme="system" storageKey="test-theme">
           <SidebarProvider>
-            <StudentAiTutorPage
-              courseId={primaryCourse.id}
-              sessionId={secondSession.id}
-            />
+            <StudentChromeProvider>
+              <StudentAiTutorPage
+                courseId={primaryCourse.id}
+                sessionId={secondSession.id}
+              />
+            </StudentChromeProvider>
           </SidebarProvider>
         </ThemeProvider>
       </QueryClientProvider>,
@@ -1112,10 +1331,12 @@ describe('StudentAiTutorPage workspace', () => {
       <QueryClientProvider client={queryClient}>
         <ThemeProvider defaultTheme="system" storageKey="test-theme">
           <SidebarProvider>
-            <StudentAiTutorPage
-              courseId={otherCourse.id}
-              sessionId={otherCourseSession.id}
-            />
+            <StudentChromeProvider>
+              <StudentAiTutorPage
+                courseId={otherCourse.id}
+                sessionId={otherCourseSession.id}
+              />
+            </StudentChromeProvider>
           </SidebarProvider>
         </ThemeProvider>
       </QueryClientProvider>,

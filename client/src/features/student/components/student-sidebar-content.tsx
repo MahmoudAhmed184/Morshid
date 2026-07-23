@@ -13,10 +13,10 @@ import {
 import { Input } from '@/components/ui/input'
 import { ErrorState } from '@/components/ui/custom/error-state'
 import { useSidebar } from '@/components/ui/sidebar'
+import { useStudentChromeActions } from '@/features/student/components/student-chrome-context'
 import { useStudentCourses } from '@/features/student/hooks/use-student-courses'
 import type { StudentCourse } from '@/features/student/schemas/student-course.schema'
 import {
-  useCreateStudentSession,
   useDeleteStudentSession,
   useRenameStudentSession,
   useStudentSession,
@@ -76,32 +76,6 @@ function groupSessionsByRecency(sessions: ChatSession[]): SessionGroup[] {
     { key: 'week', label: 'Last 7 days', sessions: buckets.week },
     { key: 'older', label: 'Older', sessions: buckets.older },
   ].filter((group) => group.sessions.length > 0)
-}
-
-// A session that has never recorded a message has a null `lastMessageAt` — the
-// same signal the pre-v5 rail used to render its "No messages yet" subtitle.
-function isEmptySession(session: ChatSession): boolean {
-  return session.lastMessageAt === null
-}
-
-// Newest by creation time, so the New-chat guard reuses the most recently
-// opened empty session rather than an older abandoned one.
-function findNewestEmptySession(sessions: ChatSession[]): ChatSession | null {
-  return sessions.reduce<ChatSession | null>((newest, session) => {
-    if (!isEmptySession(session)) {
-      return newest
-    }
-
-    if (
-      !newest ||
-      new Date(session.createdAt).getTime() >
-        new Date(newest.createdAt).getTime()
-    ) {
-      return session
-    }
-
-    return newest
-  }, null)
 }
 
 // T12.1 — the notebook switcher. A full-width quiet control between the wordmark
@@ -170,6 +144,7 @@ export function StudentSidebarContent({
 }: StudentSidebarContentProps) {
   const navigate = useNavigate()
   const { isMobile, setOpenMobile } = useSidebar()
+  const { requestComposerFocus } = useStudentChromeActions()
   const search = useRouterState({
     select: (state) => state.location.search,
   })
@@ -198,12 +173,7 @@ export function StudentSidebarContent({
   const routedSession = routedSessionQuery.data ?? null
   const visibleSessions =
     routedSession && !listedSession ? [routedSession, ...sessions] : sessions
-  const selectedSession =
-    visibleSessions.find((session) => session.id === routeSessionId) ?? null
 
-  const createSession = useCreateStudentSession({
-    courseId: selectedCourse?.id,
-  })
   const renameSession = useRenameStudentSession({
     courseId: selectedCourse?.id,
   })
@@ -217,7 +187,7 @@ export function StudentSidebarContent({
     }
   }
 
-  const handleCreate = async () => {
+  const handleNewChat = async () => {
     // T12.4 — with no active course there is nowhere to open a conversation and
     // no library page to fall back to (the sidebar shows `No courses yet`), so
     // New chat is a no-op rather than navigating to a deleted route.
@@ -225,42 +195,19 @@ export function StudentSidebarContent({
       return
     }
 
-    // T11.2 guard — do not spawn another empty session when one is at hand.
-    // 1. The currently-selected session has no messages → stay on it (it is
-    //    already the active route by definition) and do not create. Focusing
-    //    the composer is not trivially reachable from here — it lives in a
-    //    separate route subtree with no ref/callback wired to the sidebar — so
-    //    we navigate/stay only.
-    if (selectedSession && isEmptySession(selectedSession)) {
-      closeOnMobile()
-      return
-    }
-
-    // 2. Reuse the newest already-loaded empty session for this course.
-    const reusableEmptySession = findNewestEmptySession(visibleSessions)
-    if (reusableEmptySession) {
+    // T15.1 — New chat opens the draft state; no session is created until the
+    // first message is sent. Already in the draft (no routed session) → skip the
+    // redundant navigation. T15.7 — focus the draft composer on every activation
+    // (the chat page registers its focus handle through the chrome context).
+    if (routeSessionId !== undefined) {
       await navigate({
         to: '/chat',
-        search: {
-          courseId: selectedCourse.id,
-          sessionId: reusableEmptySession.id,
-        },
+        search: { courseId: selectedCourse.id },
       })
-      closeOnMobile()
-      return
     }
 
-    // 3. Neither applies → create via the existing mutation, unchanged.
-    try {
-      const session = await createSession.mutateAsync({})
-      await navigate({
-        to: '/chat',
-        search: { courseId: selectedCourse.id, sessionId: session.id },
-      })
-      closeOnMobile()
-    } catch {
-      // The failure surfaces via the create mutation error below the button.
-    }
+    requestComposerFocus()
+    closeOnMobile()
   }
 
   const handleRename = async (session: ChatSession, title: string) => {
@@ -307,19 +254,11 @@ export function StudentSidebarContent({
           ref={newChatButtonRef}
           type="button"
           className="w-full justify-center rounded-lg"
-          onClick={() => void handleCreate()}
-          disabled={createSession.isPending}
+          onClick={() => void handleNewChat()}
         >
           <Plus aria-hidden />
           New chat
         </Button>
-        {createSession.isError ? (
-          <p role="alert" className="px-1 text-xs text-destructive">
-            {createSession.error instanceof Error
-              ? createSession.error.message
-              : 'Unable to create a conversation.'}
-          </p>
-        ) : null}
 
         <div className="relative px-1">
           <Search
