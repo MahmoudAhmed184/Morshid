@@ -8,18 +8,3 @@ export function firstNameFromDisplayName(
   const first = displayName?.trim().split(/\s+/).filter(Boolean)[0]
   return first && first.length > 0 ? first : undefined
 }
-
-/**
- * Time-aware greeting title used on the student home. Includes the first name
- * when known (`Good evening, Sara.`) and omits it otherwise (`Good evening.`).
- */
-export function timeAwareGreeting(
-  firstName?: string,
-  now: Date = new Date(),
-): string {
-  const hour = now.getHours()
-  const salutation =
-    hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
-
-  return firstName ? `${salutation}, ${firstName}.` : `${salutation}.`
-}

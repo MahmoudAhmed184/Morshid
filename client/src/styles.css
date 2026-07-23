@@ -241,12 +241,6 @@
   }
 }
 
-@keyframes shimmer {
-  100% {
-    transform: translateX(100%);
-  }
-}
-
 .theme-transition-ripple {
   position: fixed;
   z-index: 2147483647;
@@ -410,26 +404,6 @@
     outline: 2px solid var(--ring);
     outline-offset: 2px;
     border-radius: 2px;
-  }
-
-  /* Premium skeleton sweep. Pairs with bg-muted on the element. */
-  .shimmer {
-    position: relative;
-    overflow: hidden;
-  }
-
-  .shimmer::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    transform: translateX(-100%);
-    background-image: linear-gradient(
-      90deg,
-      transparent,
-      color-mix(in oklab, var(--foreground) 8%, transparent),
-      transparent
-    );
-    animation: shimmer 1.75s var(--ease-out-quart) infinite;
   }
 
   /* ── 2040 materiality ────────────────────────────────────────── */
@@ -629,7 +603,6 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .shimmer::after,
     .animate-fade-up,
     .animate-fade-in {
       animation: none !important;
