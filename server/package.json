@@ -39,7 +39,9 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "pretest:e2e": "npm run db:generate",
     "test:e2e": "node --experimental-vm-modules ../node_modules/jest/bin/jest.js --config ./test/jest-e2e.json",
-    "db:migrate:deploy": "prisma migrate deploy --config prisma.config.ts"
+    "db:migrate:deploy": "prisma migrate deploy --config prisma.config.ts",
+    "test:e2e:gate-2": "node --experimental-vm-modules ../node_modules/jest/bin/jest.js --config ./test/jest-e2e.json --runInBand --runTestsByPath ./test/gate-2.e2e-spec.ts",
+    "pretest:e2e:gate-2": "npm run db:generate"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.27",
