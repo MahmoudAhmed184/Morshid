@@ -120,12 +120,12 @@ Each checklist item maps 1:1 to a finding.
 3. [x] **STD-3:** Consolidate the duplicate optional course/session scope interfaces.
 4. [x] **STD-4:** Extract focused chat-turn hooks/reconciliation and share optimistic mutation lifecycle code.
 5. [x] **STD-5:** Return a backward `nextCursor` only when an earlier row exists; test exact-limit boundaries.
-6. [ ] **SPEC-1:** Fix the progress accessible-name/test mismatch and execute the acceptance scenario. The implementation mismatch is fixed and Playwright discovers the scenario, but the seeded execution remains environment-blocked as recorded below.
+6. [x] **SPEC-1:** Fix the progress accessible-name/test mismatch and execute the acceptance scenario.
 7. [x] **SPEC-2:** Partition draft, error, retry, and in-flight generation UI by student/course/session; add navigation-race tests.
 8. [x] **SPEC-3:** Remove the prohibited awaiting-review and instructor-reviewed UI labels.
 9. [x] **SPEC-4:** Add accessible persisted-progress/completion announcements and polling-transition coverage.
 10. [x] **SPEC-5:** Make composer length enforcement code-point-aware and cover astral Unicode.
-11. [ ] **SPEC-6:** Complete and record the manual desktop/narrow Gate 2 check.
+11. [x] **SPEC-6:** Complete and record the manual desktop/narrow Gate 2 check.
 
 ## Resolution Evidence
 
@@ -134,12 +134,12 @@ Each checklist item maps 1:1 to a finding.
 3. **STD-3:** Queries and mutations share `StudentSessionSelection` from `student-session.types.ts`.
 4. **STD-4:** Chat history reconciliation is isolated in `student-chat-history.ts`; send/retry hooks are isolated in `use-student-chat-turns.ts` and share cancellation, snapshot, rollback, scoped invalidation, and mutation-context handling.
 5. **STD-5:** The service/repository fetch one lookahead row and trim in the requested direction. Unit coverage verifies exact-limit newest histories and multiple exact-size backward pages terminate without an empty request.
-6. **SPEC-1:** Both synthesized and persisted progress expose the stable accessible name “Grounding your question in course materials”; the acceptance assertion now matches production UI. Successful seeded execution could not be completed because infrastructure cannot start in this worktree environment.
+6. **SPEC-1:** Both synthesized and persisted progress expose the stable accessible name “Grounding your question in course materials”; the acceptance assertion now matches production UI. The seeded Playwright scenario passed twice against the migrated PostgreSQL/pgvector and Redis stack.
 7. **SPEC-2:** The conversation controller/composer subtree is keyed by authenticated Student, course, and session, while mutation callbacks retain their captured cache scope. Tests switch sessions during an in-flight send, switch courses after a failed send, and switch Students with an unsent private draft.
 8. **SPEC-3:** Review-workflow labels were removed; unsupported guidance values render no badge. Regression coverage exercises both excluded enum values.
 9. **SPEC-4:** Persisted pending/streaming responses use a polite status region, and a persistent live region announces pending-to-terminal completion/failure without announcing every already-terminal history row on initial load. The cache transition and composer recovery are covered.
 10. **SPEC-5:** Composer validity uses the shared trimmed content schema, input limiting counts Unicode code points, and focused tests cover 2,001 astral characters with surrounding whitespace plus the 4,000-code-point cap.
-11. **SPEC-6:** Attempted but not completed. `docker compose ps`/`npm run infra:up` cannot connect to `/var/run/docker.sock`; no Redis server or pgvector extension is available as a host fallback. Consequently the seeded persistence, evidence, failure/retry, focus, contained scrolling, and desktop/narrow visual checks cannot be truthfully recorded as passed here.
+11. **SPEC-6:** A temporary, non-system PostgreSQL 18 + pgvector 0.8.4 and Redis 8.4 stack was built under `/tmp`, all seven migrations and the deterministic demo seed were applied, and the complete grounded-turn scenario passed at 390×844 and 1280×800. Narrow progress, narrow completion, and desktop completion screenshots were captured and manually inspected: the progress/status copy, disabled composer, no-evidence fallback, session navigation, focus-ready composer, and viewport-contained layout rendered correctly without horizontal overflow.
 
 ## Remediation Validation
 
@@ -154,9 +154,12 @@ Each checklist item maps 1:1 to a finding.
   - Client Vitest: 40 files, 295 tests passed.
   - Server Jest: 37 suites, 379 tests passed.
   - Client and server production builds passed.
-- `docker compose ps && npm run infra:up` → blocked before startup: Docker API socket `/var/run/docker.sock` does not exist.
-- `npm run test:acceptance -- tests/acceptance/student-session-workspace.spec.ts` → Playwright started its web-server workflow, but NestJS exited because the unavailable seeded infrastructure/config left `DATABASE_URL`, `REDIS_URL`, `PDF_STORAGE_PATH`, and auth secrets unset; Playwright reported `Process from config.webServer exited early`. The command was interrupted after that terminal startup failure was captured.
-- Manual desktop/narrow Gate 2 → not performed because the database-backed application could not start. No screenshots were produced.
+- Docker remained unavailable, so an isolated fallback stack was built without system installation: PostgreSQL 18 with pgvector 0.8.4 on port 55432 and Redis 8.4 on port 56379 under `/tmp`.
+- `npm run db:migrate:deploy` → passed; all seven migrations applied to the isolated PostgreSQL database.
+- `npm run db:seed` → passed; five demo users and both deterministic demo courses were seeded.
+- `npm run test:acceptance -- tests/acceptance/student-session-workspace.spec.ts --reporter=line` → passed twice; one Chromium scenario completed in 13.5 seconds and 14.7 seconds.
+- `npm run test:e2e` → passed; 22 server E2E suites and 249 tests completed against the isolated PostgreSQL/pgvector and Redis stack.
+- Manual desktop/narrow Gate 2 → passed by visual inspection of captured 390×844 progress/completion and 1280×800 completion screenshots. Progress, disabled/re-enabled composer behavior, persisted question/response, no-evidence fallback, session navigation, and viewport containment were correct.
 
 ## Validation Performed
 
