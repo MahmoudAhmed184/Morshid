@@ -74,13 +74,17 @@ export interface Gate2HiddenAdversary {
   material: Material
 }
 
-export async function injectGate2HiddenAdversary(input: {
+export interface Gate2MaterialFixtureContext {
   courseId: string
   persistence: RagPersistenceRepository
   prisma: PrismaService
   storage: PdfStorage
   uploadedById: string
-}): Promise<Gate2HiddenAdversary> {
+}
+
+export async function injectGate2HiddenAdversary(
+  input: Gate2MaterialFixtureContext,
+): Promise<Gate2HiddenAdversary> {
   const content = [
     GATE_2_FIXTURE.hiddenSentinel,
     'This deliberately stronger vector belongs only to HIDDEN-ISOLATION.',
@@ -95,13 +99,9 @@ export async function injectGate2HiddenAdversary(input: {
   })
 }
 
-export function injectGate2BelowThresholdEvidence(input: {
-  courseId: string
-  persistence: RagPersistenceRepository
-  prisma: PrismaService
-  storage: PdfStorage
-  uploadedById: string
-}): Promise<Gate2HiddenAdversary> {
+export function injectGate2BelowThresholdEvidence(
+  input: Gate2MaterialFixtureContext,
+): Promise<Gate2HiddenAdversary> {
   const content = [
     GATE_2_FIXTURE.visibleSentinel,
     'This eligible Python row is deliberately below the unsupported query threshold.',
@@ -116,18 +116,15 @@ export function injectGate2BelowThresholdEvidence(input: {
   })
 }
 
-async function injectGate2Material(input: {
-  courseId: string
-  persistence: RagPersistenceRepository
-  prisma: PrismaService
-  storage: PdfStorage
-  uploadedById: string
-  content: string
-  title: string
-  filename: string
-  embedding: readonly number[]
-  embeddingModel: string
-}): Promise<Gate2HiddenAdversary> {
+async function injectGate2Material(
+  input: Gate2MaterialFixtureContext & {
+    content: string
+    title: string
+    filename: string
+    embedding: readonly number[]
+    embeddingModel: string
+  },
+): Promise<Gate2HiddenAdversary> {
   const storagePath = await input.storage.create(cleanTextPdf(input.content))
   const material = await input.prisma.material.create({
     data: {

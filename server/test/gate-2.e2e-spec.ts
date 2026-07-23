@@ -154,13 +154,34 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
   })
 
   afterAll(async () => {
+    const cleanupFailures: unknown[] = []
+
     try {
-      await app?.close()
-    } finally {
-      await database?.dispose()
-      if (storageRoot !== undefined) {
-        await rm(storageRoot, { recursive: true, force: true })
+      try {
+        await app?.close()
+      } catch (error) {
+        cleanupFailures.push(error)
       }
+    } finally {
+      try {
+        try {
+          await database?.dispose()
+        } catch (error) {
+          cleanupFailures.push(error)
+        }
+      } finally {
+        if (storageRoot !== undefined) {
+          try {
+            await rm(storageRoot, { recursive: true, force: true })
+          } catch (error) {
+            cleanupFailures.push(error)
+          }
+        }
+      }
+    }
+
+    if (cleanupFailures.length > 0) {
+      throw new AggregateError(cleanupFailures, 'Gate 2 teardown failed')
     }
   })
 
@@ -295,26 +316,14 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
       'authenticate assigned Python Student',
       () => signInAs('student1@morshid.demo'),
     )
-    const session = await gate2Stage('create private Python chat session', () =>
-      request(requireApp().getHttpServer())
-        .post(
-          `/api/v1/courses/${seed.courses.pythonProgramming.id}/chat-sessions`,
-        )
-        .set('Authorization', `Bearer ${studentToken}`)
-        .send({ title: 'Gate 2 conceptual question' })
-        .expect(201),
+    const sessionId = await gate2Stage(
+      'create private Python chat session',
+      () => createGate2Session('Gate 2 conceptual question', studentToken),
     )
-    const sessionId = (session.body as ChatSessionResponseDto).session.id
-    const response = await gate2Stage(
+    const turn = await gate2Stage(
       'retrieve, complete, persist, and cite the locked question',
-      () =>
-        request(requireApp().getHttpServer())
-          .post(messagesPath(sessionId))
-          .set('Authorization', `Bearer ${studentToken}`)
-          .send({ content: GATE_2_FIXTURE.question })
-          .expect(201),
+      () => sendGate2Message(sessionId, GATE_2_FIXTURE.question, studentToken),
     )
-    const turn = response.body as GroundedChatTurnResponseDto
 
     expect(turn.studentMessage).toMatchObject({
       sequence: 1,
@@ -421,7 +430,7 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
           retrieval,
           providerInput,
           persistedAssistant,
-          renderedResponse: response.body as unknown,
+          renderedResponse: turn,
         })
         expectNoHiddenState(exposedState, hidden)
       },
@@ -479,28 +488,19 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
       'insufficient evidence: authenticate Student',
       () => signInAs('student1@morshid.demo'),
     )
-    const session = await gate2Stage(
+    const sessionId = await gate2Stage(
       'insufficient evidence: create private session',
-      () =>
-        request(requireApp().getHttpServer())
-          .post(
-            `/api/v1/courses/${seed.courses.pythonProgramming.id}/chat-sessions`,
-          )
-          .set('Authorization', `Bearer ${studentToken}`)
-          .send({ title: 'Gate 2 insufficient evidence' })
-          .expect(201),
+      () => createGate2Session('Gate 2 insufficient evidence', studentToken),
     )
-    const sessionId = (session.body as ChatSessionResponseDto).session.id
-    const response = await gate2Stage(
+    const turn = await gate2Stage(
       'insufficient evidence: enforce threshold before completion',
       () =>
-        request(requireApp().getHttpServer())
-          .post(messagesPath(sessionId))
-          .set('Authorization', `Bearer ${studentToken}`)
-          .send({ content: GATE_2_FIXTURE.unsupportedQuestion })
-          .expect(201),
+        sendGate2Message(
+          sessionId,
+          GATE_2_FIXTURE.unsupportedQuestion,
+          studentToken,
+        ),
     )
-    const turn = response.body as GroundedChatTurnResponseDto
 
     expect(completionProvider.requests).toHaveLength(0)
     expect(turn.assistantMessage).toMatchObject({
@@ -535,6 +535,35 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
       .send({ email, password: P0_DEMO_PASSWORD })
       .expect(200)
     return (response.body as AuthSessionResponse).accessToken
+  }
+
+  async function createGate2Session(
+    title: string,
+    token: string,
+  ): Promise<string> {
+    const response = await request(requireApp().getHttpServer())
+      .post(
+        `/api/v1/courses/${seed.courses.pythonProgramming.id}/chat-sessions`,
+      )
+      .set('Authorization', `Bearer ${token}`)
+      .send({ title })
+      .expect(201)
+
+    return (response.body as ChatSessionResponseDto).session.id
+  }
+
+  async function sendGate2Message(
+    sessionId: string,
+    content: string,
+    token: string,
+  ): Promise<GroundedChatTurnResponseDto> {
+    const response = await request(requireApp().getHttpServer())
+      .post(messagesPath(sessionId))
+      .set('Authorization', `Bearer ${token}`)
+      .send({ content })
+      .expect(201)
+
+    return response.body as GroundedChatTurnResponseDto
   }
 
   function messagesPath(sessionId: string): string {
