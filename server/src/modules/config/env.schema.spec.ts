@@ -30,6 +30,7 @@ describe('validateEnv', () => {
       EMBEDDING_PROVIDER: 'deterministic',
       COMPLETION_PROVIDER: 'deterministic',
       COMPLETION_TIMEOUT_MS: 30_000,
+      GEMINI_MODEL: 'gemini-3.5-flash-lite',
       RETRIEVAL_TOP_K: 5,
       RETRIEVAL_MIN_SIMILARITY: 0.7,
     })
@@ -83,9 +84,150 @@ describe('validateEnv', () => {
     ).toMatchObject({ COMPLETION_PROVIDER: 'deterministic' })
     expect(() =>
       validateEnv({ ...validEnv, COMPLETION_PROVIDER: 'openai' }),
-    ).toThrow(/COMPLETION_PROVIDER: Invalid input/)
+    ).toThrow(/COMPLETION_PROVIDER: Invalid option/)
     expect(() => validateEnv({ ...validEnv, COMPLETION_PROVIDER: '' })).toThrow(
-      /COMPLETION_PROVIDER: Invalid input/,
+      /COMPLETION_PROVIDER: Invalid option/,
+    )
+  })
+
+  describe('Gemini completion configuration', () => {
+    const validGeminiEnv = {
+      ...validEnv,
+      NODE_ENV: 'development',
+      COMPLETION_PROVIDER: 'gemini',
+      GEMINI_API_KEY: 'authorization-key-with-sufficient-entropy',
+      GEMINI_REQUESTS_PER_MINUTE: '9',
+      GEMINI_INPUT_TOKENS_PER_MINUTE: '90000',
+      GEMINI_REQUESTS_PER_HOUR: '90',
+      GEMINI_REQUESTS_PER_DAY: '900',
+      GEMINI_REQUESTS_PER_MONTH: '9000',
+    }
+
+    it('accepts Gemini only with a key and every positive quota cap', () => {
+      expect(validateEnv(validGeminiEnv)).toMatchObject({
+        COMPLETION_PROVIDER: 'gemini',
+        GEMINI_API_KEY: 'authorization-key-with-sufficient-entropy',
+        GEMINI_MODEL: 'gemini-3.5-flash-lite',
+        GEMINI_REQUESTS_PER_MINUTE: 9,
+        GEMINI_INPUT_TOKENS_PER_MINUTE: 90_000,
+        GEMINI_REQUESTS_PER_HOUR: 90,
+        GEMINI_REQUESTS_PER_DAY: 900,
+        GEMINI_REQUESTS_PER_MONTH: 9_000,
+      })
+    })
+
+    it('accepts a bounded explicit model ID', () => {
+      expect(
+        validateEnv({
+          ...validGeminiEnv,
+          GEMINI_MODEL: 'gemini-custom-model-001',
+        }),
+      ).toMatchObject({ GEMINI_MODEL: 'gemini-custom-model-001' })
+
+      expect(() =>
+        validateEnv({
+          ...validGeminiEnv,
+          GEMINI_MODEL: 'invalid model/id',
+        }),
+      ).toThrow(/GEMINI_MODEL: Invalid string/)
+      expect(() =>
+        validateEnv({
+          ...validGeminiEnv,
+          GEMINI_MODEL: `gemini-${'x'.repeat(120)}`,
+        }),
+      ).toThrow(/GEMINI_MODEL: Too big/)
+    })
+
+    it('requires the key and all caps only in Gemini mode', () => {
+      const conditionalKeys = [
+        'GEMINI_API_KEY',
+        'GEMINI_REQUESTS_PER_MINUTE',
+        'GEMINI_INPUT_TOKENS_PER_MINUTE',
+        'GEMINI_REQUESTS_PER_HOUR',
+        'GEMINI_REQUESTS_PER_DAY',
+        'GEMINI_REQUESTS_PER_MONTH',
+      ] as const
+
+      for (const key of conditionalKeys) {
+        const incomplete = Object.fromEntries(
+          Object.entries(validGeminiEnv).filter(
+            ([entryKey]) => entryKey !== key,
+          ),
+        )
+
+        expect(() => validateEnv(incomplete)).toThrow(
+          new RegExp(`${key}: is required`),
+        )
+      }
+
+      expect(validateEnv(validEnv)).toMatchObject({
+        COMPLETION_PROVIDER: 'deterministic',
+      })
+    })
+
+    it('rejects placeholders without including secret values in errors', () => {
+      const privatePlaceholder =
+        'replace-with-private-gemini-key-value-that-must-not-leak'
+      let failure: unknown
+
+      try {
+        validateEnv({
+          ...validGeminiEnv,
+          GEMINI_API_KEY: privatePlaceholder,
+        })
+      } catch (error) {
+        failure = error
+      }
+
+      expect(failure).toBeInstanceOf(Error)
+      expect((failure as Error).message).toContain(
+        'GEMINI_API_KEY: must be a non-placeholder authorization key',
+      )
+      expect((failure as Error).message).not.toContain(privatePlaceholder)
+    })
+
+    it.each(['test', 'production'] as const)(
+      'rejects Gemini in %s',
+      (nodeEnv) => {
+        expect(() =>
+          validateEnv({ ...validGeminiEnv, NODE_ENV: nodeEnv }),
+        ).toThrow(
+          /COMPLETION_PROVIDER: gemini is restricted to access-controlled development\/demo environments/,
+        )
+      },
+    )
+
+    it('requires monotonic request caps', () => {
+      expect(() =>
+        validateEnv({
+          ...validGeminiEnv,
+          GEMINI_REQUESTS_PER_MINUTE: '10',
+          GEMINI_REQUESTS_PER_HOUR: '9',
+        }),
+      ).toThrow(
+        /GEMINI_REQUESTS_PER_MONTH: request caps must satisfy minute <= hour <= day <= month/,
+      )
+      expect(() =>
+        validateEnv({
+          ...validGeminiEnv,
+          GEMINI_REQUESTS_PER_HOUR: '1000',
+          GEMINI_REQUESTS_PER_DAY: '999',
+        }),
+      ).toThrow(
+        /GEMINI_REQUESTS_PER_MONTH: request caps must satisfy minute <= hour <= day <= month/,
+      )
+    })
+
+    it.each(['0', '-1', '1.5', 'unlimited'])(
+      'rejects invalid quota cap %s',
+      (cap) => {
+        expect(() =>
+          validateEnv({
+            ...validGeminiEnv,
+            GEMINI_REQUESTS_PER_MONTH: cap,
+          }),
+        ).toThrow(/GEMINI_REQUESTS_PER_MONTH:/)
+      },
     )
   })
 

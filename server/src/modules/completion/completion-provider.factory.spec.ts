@@ -1,4 +1,5 @@
 import type { AppEnvironment } from '../config/env.schema'
+import type { CompletionAdapter } from './completion-adapter'
 import { createCompletionProvider } from './completion-provider.factory'
 import { CompletionProviderError } from './completion-provider'
 import { DeterministicCompletionProvider } from './deterministic-completion.provider'
@@ -43,6 +44,55 @@ describe('createCompletionProvider', () => {
     await expect(
       provider.complete({ ...request, context: [] as never }),
     ).rejects.toMatchObject({ code: 'COMPLETION_EMPTY_CONTEXT' })
+  })
+
+  it('does not construct the Gemini adapter in deterministic mode', async () => {
+    const geminiFactory = jest.fn<CompletionAdapter, []>()
+    const provider = createCompletionProvider(
+      'deterministic',
+      30_000,
+      undefined,
+      { gemini: geminiFactory },
+    )
+
+    await provider.complete(request)
+
+    expect(geminiFactory).not.toHaveBeenCalled()
+  })
+
+  it('composes a selected Gemini adapter through validation', async () => {
+    const complete: jest.MockedFunction<CompletionAdapter['complete']> = jest
+      .fn()
+      .mockResolvedValue({
+        content: 'Grounded Gemini result',
+        provider: 'gemini',
+        model: 'gemini-test-stable',
+        promptVersion: 'grounded-completion-v1',
+        inputTokens: 10,
+        outputTokens: 4,
+      })
+    const geminiFactory = jest.fn(() => ({ complete }))
+    const provider = createCompletionProvider('gemini', 30_000, undefined, {
+      gemini: geminiFactory,
+    })
+
+    await expect(provider.complete(request)).resolves.toMatchObject({
+      provider: 'gemini',
+      model: 'gemini-test-stable',
+    })
+    expect(geminiFactory).toHaveBeenCalledTimes(1)
+    expect(complete).toHaveBeenCalledTimes(1)
+    const adapterRequest = complete.mock.calls[0][0]
+    expect(adapterRequest.messages).toHaveLength(2)
+    expect(adapterRequest.signal).toBeInstanceOf(AbortSignal)
+  })
+
+  it('rejects Gemini selection without runtime dependencies', () => {
+    expect(() => createCompletionProvider('gemini', 30_000)).toThrow(
+      expect.objectContaining({
+        code: 'COMPLETION_CONFIGURATION_INVALID',
+      }) as CompletionProviderError,
+    )
   })
 
   it('defensively rejects unknown runtime values without echoing them', () => {

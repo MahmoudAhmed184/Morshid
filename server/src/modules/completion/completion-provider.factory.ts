@@ -10,26 +10,28 @@ import {
 } from './validated-completion.provider'
 import type { CompletionTimeoutSignalFactory } from './validated-completion.provider'
 
-// `satisfies` makes provider selection exhaustive over the validated env enum.
-// Adding a configuration value without an adapter is therefore a type error.
-const completionProviderFactories = {
-  deterministic: () => new DeterministicCompletionProvider(),
-} satisfies Record<
-  AppEnvironment['COMPLETION_PROVIDER'],
-  () => CompletionAdapter
->
+export interface CompletionAdapterFactories {
+  readonly deterministic?: () => CompletionAdapter
+  readonly gemini?: () => CompletionAdapter
+}
+
+const SUPPORTED_COMPLETION_PROVIDERS = {
+  deterministic: true,
+  gemini: true,
+} satisfies Record<AppEnvironment['COMPLETION_PROVIDER'], true>
 
 export function createCompletionProvider(
   provider: AppEnvironment['COMPLETION_PROVIDER'],
   timeoutMs: number,
   timeoutSignalFactory: CompletionTimeoutSignalFactory = defaultCompletionTimeoutSignalFactory,
+  adapterFactories: CompletionAdapterFactories = {},
 ): CompletionProvider {
   // Startup validation is the first guard; this runtime check remains because
   // JavaScript callers and deployment tooling can still violate static types.
   const runtimeProvider: unknown = provider
   if (
     typeof runtimeProvider !== 'string' ||
-    !Object.hasOwn(completionProviderFactories, runtimeProvider)
+    !Object.hasOwn(SUPPORTED_COMPLETION_PROVIDERS, runtimeProvider)
   ) {
     throw new CompletionProviderError('COMPLETION_PROVIDER_UNSUPPORTED')
   }
@@ -44,13 +46,21 @@ export function createCompletionProvider(
     throw new CompletionProviderError('COMPLETION_CONFIGURATION_INVALID')
   }
 
-  // Production selection always constructs the singular offline adapter.
-  // Tests represent rejection and non-cooperation with adapters at the
-  // internal adapter seam instead of adding test modes to production code.
-  const inner =
-    completionProviderFactories[
-      runtimeProvider as AppEnvironment['COMPLETION_PROVIDER']
-    ]()
+  const adapterFactory =
+    runtimeProvider === 'deterministic'
+      ? (adapterFactories.deterministic ??
+        (() => new DeterministicCompletionProvider()))
+      : adapterFactories.gemini
+  if (adapterFactory === undefined) {
+    throw new CompletionProviderError('COMPLETION_CONFIGURATION_INVALID')
+  }
+
+  let inner: CompletionAdapter
+  try {
+    inner = adapterFactory()
+  } catch {
+    throw new CompletionProviderError('COMPLETION_CONFIGURATION_INVALID')
+  }
   return new ValidatedCompletionProvider(
     inner,
     runtimeTimeout,

@@ -716,6 +716,17 @@ describe('ValidatedCompletionProvider execution safety', () => {
     }
   })
 
+  it('preserves only the fixed rate-limited adapter outcome', async () => {
+    const { inner, provider } = buildProvider()
+    inner.complete.mockRejectedValueOnce(
+      new CompletionProviderError('COMPLETION_RATE_LIMITED'),
+    )
+
+    const failure = await captureFailure(provider.complete(validRequest()))
+
+    expectSafeFailure(failure, 'COMPLETION_RATE_LIMITED')
+  })
+
   it('contains a hostile provider thenable without exposing its failure', async () => {
     const privateFailure = 'private-thenable-getter-sentinel'
     const hostileThenable = {
