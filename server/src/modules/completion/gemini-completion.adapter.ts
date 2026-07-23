@@ -126,9 +126,18 @@ export class GeminiCompletionAdapter implements CompletionAdapter {
       await this.quota.reserveRequest()
       const countResult = await this.client.countTokens({
         model: this.options.model,
-        contents: inputMessage.content,
+        // The Gemini Developer API countTokens endpoint does not accept
+        // systemInstruction through @google/genai. Preserve both exact texts
+        // as separate parts so preflight still counts the full request input;
+        // response usage is reconciled below if provider framing costs more.
+        contents: {
+          role: 'user',
+          parts: [
+            { text: systemMessage.content },
+            { text: inputMessage.content },
+          ],
+        },
         config: {
-          systemInstruction: systemMessage.content,
           abortSignal: request.signal,
           httpOptions: {
             retryOptions: {

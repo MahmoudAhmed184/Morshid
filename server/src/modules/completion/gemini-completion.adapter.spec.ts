@@ -171,9 +171,11 @@ describe('GeminiCompletionAdapter', () => {
 
     expect(countTokens).toHaveBeenCalledWith({
       model: 'gemini-test-stable',
-      contents: untrustedInput,
+      contents: {
+        role: 'user',
+        parts: [{ text: systemInstruction }, { text: untrustedInput }],
+      },
       config: {
-        systemInstruction,
         abortSignal: request.signal,
         httpOptions: {
           retryOptions: {
