@@ -1,4 +1,4 @@
-import { ClipboardList } from 'lucide-react'
+import { ClipboardCheck } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -20,29 +20,35 @@ export function ReviewQueuePage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow={<Badge variant="secondary">Instructor workspace</Badge>}
+        eyebrow="Instructor workspace"
         title="Review Queue"
         description="Shell view for flagged responses. Review actions are deferred."
       />
 
       <section aria-busy={isLoading || undefined}>
-        <Card className="rounded-[8px] border-border bg-card py-0 text-card-foreground ring-0">
-          <CardHeader className="border-b border-border px-4 py-3">
+        <Card>
+          <CardHeader className="border-b">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <CardTitle className="flex items-center gap-2 text-sm text-foreground">
-                <ClipboardList className="size-4 text-primary" aria-hidden />
+                <ClipboardCheck
+                  className="size-4 text-muted-foreground"
+                  aria-hidden
+                />
                 Review Queue
               </CardTitle>
               <div className="flex flex-wrap gap-2 text-xs">
-                {reviewQueueFilters.map((item) => (
-                  <Badge key={item} variant="outline">
+                {reviewQueueFilters.map((item, index) => (
+                  <Badge
+                    key={item}
+                    variant={index === 0 ? 'secondary' : 'outline'}
+                  >
                     {item}
                   </Badge>
                 ))}
               </div>
             </div>
           </CardHeader>
-          <CardContent className="px-4 py-4">
+          <CardContent>
             <ReviewQueueListContent
               isLoading={isLoading}
               isError={isError}
@@ -83,7 +89,7 @@ function ReviewQueueListContent({
         description="Course context could not be loaded for reviews. Try again."
         onRetry={onRetry}
         isRetrying={isRetrying}
-        className="min-h-44 rounded-[8px]"
+        className="min-h-44"
       />
     )
   }
@@ -91,20 +97,20 @@ function ReviewQueueListContent({
   if (!hasCourse) {
     return (
       <EmptyState
-        icon={<ClipboardList aria-hidden />}
+        icon={<ClipboardCheck aria-hidden />}
         title="No assigned course"
         description="Assign a course before this workspace can show review requests."
-        className="min-h-44 rounded-[8px]"
+        className="min-h-44"
       />
     )
   }
 
   return (
     <EmptyState
-      icon={<ClipboardList aria-hidden />}
+      icon={<ClipboardCheck aria-hidden />}
       title="No review requests yet"
       description="Flagged exchanges will appear here after the Sprint 3 review workflow is implemented."
-      className="min-h-44 rounded-[8px]"
+      className="min-h-44"
     />
   )
 }

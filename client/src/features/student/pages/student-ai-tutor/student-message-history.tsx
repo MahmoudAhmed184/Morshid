@@ -1,5 +1,6 @@
-import { Bot, LoaderCircle, MessageSquareText } from 'lucide-react'
+import { LoaderCircle, MessageSquareText } from 'lucide-react'
 
+import { Logo } from '@/components/logo'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/custom/empty-state'
 import { ErrorState } from '@/components/ui/custom/error-state'
@@ -10,6 +11,7 @@ import {
 import type { ChatMessage } from '@/features/student/schemas/student-chat.schema'
 
 import { StudentChatMessage } from './student-chat-message'
+import { StudentSuggestionRows } from './student-suggestion-rows'
 import { STUDENT_CHAT_GENERATION_STATUS } from './student-chat-status'
 
 interface StudentMessageHistoryProps {
@@ -24,10 +26,12 @@ interface StudentMessageHistoryProps {
   isGenerationActive: boolean
   retryError: unknown
   retryMessageId?: string
+  firstName?: string
   onRetry: () => void
   onLoadMore: () => void
   onRecover: () => void
   onRetryResponse: (studentMessageId: string) => void
+  onSuggestionSelect: (text: string) => void
 }
 
 export function StudentMessageHistory({
@@ -42,10 +46,12 @@ export function StudentMessageHistory({
   isGenerationActive,
   retryError,
   retryMessageId,
+  firstName,
   onRetry,
   onLoadMore,
   onRecover,
   onRetryResponse,
+  onSuggestionSelect,
 }: StudentMessageHistoryProps) {
   if (isPending) {
     return null
@@ -80,18 +86,13 @@ export function StudentMessageHistory({
 
   if (messages.length === 0 && !isGenerationActive) {
     return (
-      <div className="flex min-h-[50vh] items-center justify-center px-4 text-center">
-        <div>
-          <div className="mx-auto flex size-10 items-center justify-center rounded-full border border-border bg-card">
-            <MessageSquareText className="size-5" aria-hidden />
-          </div>
-          <h2 className="mt-4 text-balance text-2xl font-semibold tracking-tight text-foreground">
-            What can I help you learn?
-          </h2>
-          <p className="mt-2 text-pretty text-sm text-muted-foreground">
-            Ask a question about your course materials.
-          </p>
-        </div>
+      <div className="flex min-h-[60vh] w-full flex-col items-center justify-center gap-8 px-4">
+        <h2 className="display-2 text-center text-foreground">
+          {firstName
+            ? `How can I help you, ${firstName}?`
+            : 'How can I help you?'}
+        </h2>
+        <StudentSuggestionRows onSelect={onSuggestionSelect} />
       </div>
     )
   }
@@ -118,7 +119,7 @@ export function StudentMessageHistory({
           </Button>
         </div>
       ) : null}
-      <ol aria-label="Conversation history" className="space-y-3">
+      <ol aria-label="Conversation history" className="space-y-6">
         {messages.map((message) => (
           <StudentChatMessage
             key={message.id}
@@ -136,8 +137,8 @@ export function StudentMessageHistory({
             className="flex gap-3 py-2"
             role="status"
           >
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
-              <Bot className="size-4" aria-hidden />
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <Logo className="size-8" iconClassName="size-4" />
             </div>
             <div className="flex items-center gap-2 px-1 py-1 text-sm text-muted-foreground">
               <LoaderCircle className="size-4 animate-spin" aria-hidden />
@@ -149,9 +150,9 @@ export function StudentMessageHistory({
       {isError ? (
         <div
           role="alert"
-          className="mt-6 rounded-xl border border-border bg-muted/40 px-3 py-3 text-center"
+          className="mt-6 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3.5 text-center"
         >
-          <p className="text-sm text-foreground">
+          <p className="text-sm text-destructive">
             {isFetchNextPageError
               ? 'More messages could not be loaded.'
               : 'Conversation refresh failed.'}
@@ -160,7 +161,7 @@ export function StudentMessageHistory({
             type="button"
             variant="outline"
             size="sm"
-            className="mt-2"
+            className="mt-2.5"
             onClick={isFetchNextPageError ? onLoadMore : onRetry}
           >
             Retry loading messages

@@ -1,7 +1,7 @@
-import { Badge } from '@/components/ui/badge'
 import { PageHeader } from '@/components/ui/custom/page-header'
 import { DashboardCourseSection } from '@/features/instructor/components/dashboard-course-section'
 import { DashboardMetricsSection } from '@/features/instructor/components/dashboard-metrics-section'
+import { DashboardReviewQueuePanel } from '@/features/instructor/components/dashboard-panels-section'
 import { DashboardSourceReadinessSection } from '@/features/instructor/components/dashboard-source-readiness-section'
 import type { InstructorDashboardState } from '@/features/instructor/types/instructor-dashboard-state'
 
@@ -17,11 +17,11 @@ export function InstructorDashboardPage({
   const isLoading = state.status === 'loading'
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow={<Badge variant="secondary">Instructor workspace</Badge>}
-        title="Instructor dashboard"
-        description="Monitor your assigned courses and course-source readiness."
+        eyebrow="THE REGISTER"
+        title="Today's teaching desk."
+        description="Manage course sources and review activity for your assigned course."
         actions={actions}
       />
 
@@ -34,8 +34,15 @@ export function InstructorDashboardPage({
             }
           : {})}
       >
-        <DashboardCourseSection state={state} />
         <DashboardMetricsSection state={state} />
+
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <DashboardCourseSection state={state} />
+          </div>
+          <DashboardReviewQueuePanel state={state} />
+        </div>
+
         <DashboardSourceReadinessSection state={state} />
       </div>
     </div>

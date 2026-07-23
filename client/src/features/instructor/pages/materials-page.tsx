@@ -22,20 +22,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { InstructorListSkeleton } from '@/features/instructor/components/instructor-list-skeleton'
-import {
-  getInstructorMaterialStatusMessage,
-  InstructorMaterialCard,
-  InstructorMaterialStatusBadge,
-} from '@/features/instructor/components/instructor-material-card'
+import { InstructorMaterialCard } from '@/features/instructor/components/instructor-material-card'
 import { MaterialUploadDialog } from '@/features/instructor/components/material-upload-dialog'
 import { summarizeInstructorMaterials } from '@/features/instructor/domain/summarize-instructor-materials'
 import { useInstructorCourses } from '@/features/instructor/hooks/use-instructor-courses'
@@ -44,18 +32,6 @@ import {
   useInstructorMaterialUploadConfiguration,
 } from '@/features/instructor/hooks/use-instructor-materials'
 import type { InstructorMaterial } from '@/features/instructor/schemas/instructor-material.schema'
-
-const materialDateFormatter = new Intl.DateTimeFormat(undefined, {
-  dateStyle: 'medium',
-})
-
-const materialTableHeaders = [
-  'Material name',
-  'Updated',
-  'Status',
-  'Extracted text',
-  'Chunks',
-] as const
 
 export function MaterialsPage() {
   const [selectedCourseId, setSelectedCourseId] = useState<string>()
@@ -88,10 +64,11 @@ export function MaterialsPage() {
   const isError = coursesQuery.isError || hasColdMaterialsError
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8">
       <PageHeader
+        eyebrow="COURSE SOURCES"
         title="Course Materials"
-        description="Manage and upload course PDF sources for your students."
+        description="Upload and manage the PDF sources that ground student guidance."
         actions={
           activeCourseId && uploadConfigurationQuery.data ? (
             <MaterialUploadDialog
@@ -99,7 +76,7 @@ export function MaterialsPage() {
               configuration={uploadConfigurationQuery.data}
             />
           ) : activeCourseId ? (
-            <Button disabled variant="outline">
+            <Button size="lg" disabled>
               {uploadConfigurationQuery.isError
                 ? 'Upload unavailable'
                 : 'Loading upload limits...'}
@@ -117,13 +94,16 @@ export function MaterialsPage() {
         />
       ) : null}
 
-      <Card
-        className="rounded-[8px] py-0 ring-1 ring-foreground/10"
-        aria-busy={isLoading || undefined}
-      >
-        <CardHeader className="border-b border-border px-4 py-3">
+      <Card aria-busy={isLoading || undefined}>
+        <CardHeader className="border-b">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <CardTitle className="text-sm">Material repository</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <FileTextIcon
+                className="size-4 text-muted-foreground"
+                aria-hidden
+              />
+              Material repository
+            </CardTitle>
             <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
               <SearchInput
                 value={search}
@@ -159,7 +139,7 @@ export function MaterialsPage() {
             </div>
           </div>
         </CardHeader>
-        <CardContent className="px-0">
+        <CardContent>
           <MaterialsContent
             isLoading={isLoading}
             isError={isError}
@@ -200,15 +180,11 @@ function MaterialSummarySection({
     return (
       <section
         aria-label="Loading material summary"
-        className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+        className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4"
         role="status"
       >
         {['total', 'processing', 'ready', 'attention'].map((key) => (
-          <Card
-            key={key}
-            aria-hidden
-            className="rounded-[8px] [--card-spacing:--spacing(3)]"
-          >
+          <Card key={key}>
             <CardHeader>
               <Skeleton className="h-4 w-28" />
             </CardHeader>
@@ -225,7 +201,7 @@ function MaterialSummarySection({
   if (isError || materials === undefined) {
     return (
       <section aria-label="Material summary" role="status">
-        <Card className="rounded-[8px] [--card-spacing:--spacing(3)]">
+        <Card>
           <CardHeader>
             <CardTitle className="text-sm">
               Material summary unavailable
@@ -246,6 +222,7 @@ function MaterialSummarySection({
       value: summary.total,
       description: courseCode,
       icon: <FileTextIcon aria-hidden />,
+      tone: 'default' as const,
     },
     {
       label: 'Processing',
@@ -255,32 +232,31 @@ function MaterialSummarySection({
           ? 'All documents settled'
           : 'Preparing sources',
       icon: <LoaderCircleIcon aria-hidden />,
+      tone: 'info' as const,
     },
     {
       label: 'Ready',
       value: summary.ready,
       description: 'Available course sources',
       icon: <CircleCheckIcon aria-hidden />,
+      tone: 'success' as const,
     },
     {
       label: 'Needs attention',
       value: summary.attention,
       description: 'Warnings and failures',
       icon: <TriangleAlertIcon aria-hidden />,
+      tone: 'warning' as const,
     },
   ]
 
   return (
     <section
-      className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+      className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4"
       aria-label="Material summary"
     >
       {summaryItems.map((item) => (
-        <StatCard
-          key={item.label}
-          {...item}
-          className="rounded-[8px] [--card-spacing:--spacing(3)]"
-        />
+        <StatCard key={item.label} {...item} />
       ))}
     </section>
   )
@@ -306,11 +282,7 @@ function MaterialsContent({
   onRetry: () => void
 }) {
   if (isLoading) {
-    return (
-      <div className="p-4">
-        <InstructorListSkeleton aria-label="Loading materials" rows={5} />
-      </div>
-    )
+    return <InstructorListSkeleton aria-label="Loading materials" rows={5} />
   }
 
   if (isError) {
@@ -320,7 +292,7 @@ function MaterialsContent({
         description="Course materials could not be loaded. Try again."
         onRetry={onRetry}
         isRetrying={isRetrying}
-        className="m-4 min-h-44 rounded-[8px]"
+        className="min-h-44"
       />
     )
   }
@@ -331,7 +303,7 @@ function MaterialsContent({
         icon={<FileTextIcon aria-hidden />}
         title="No assigned course"
         description="Assign a course before this workspace can show course materials."
-        className="m-4 min-h-44 rounded-[8px]"
+        className="min-h-44"
       />
     )
   }
@@ -346,7 +318,7 @@ function MaterialsContent({
             ? 'Try a different material title or filename.'
             : 'Upload a clean, text-based PDF to prepare the first course source.'
         }
-        className="m-4 min-h-44 rounded-[8px]"
+        className="min-h-44"
       />
     )
   }
@@ -354,7 +326,7 @@ function MaterialsContent({
   return (
     <>
       {hasRefreshError ? (
-        <Alert className="m-4 mb-0">
+        <Alert className="mb-4">
           <TriangleAlertIcon aria-hidden />
           <AlertTitle>Processing status refresh failed</AlertTitle>
           <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
@@ -372,73 +344,11 @@ function MaterialsContent({
           </AlertDescription>
         </Alert>
       ) : null}
-      <div className="hidden md:block">
-        <Table className="min-w-[760px]">
-          <TableHeader className="bg-muted/50">
-            <TableRow className="hover:bg-transparent">
-              {materialTableHeaders.map((header) => (
-                <TableHead
-                  key={header}
-                  className="h-11 px-4 text-[0.68rem] font-semibold tracking-[0.1em] text-muted-foreground uppercase"
-                >
-                  {header}
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {materials.map((material) => (
-              <InstructorMaterialRow key={material.id} material={material} />
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-      <div className="space-y-3 p-4 md:hidden">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {materials.map((material) => (
           <InstructorMaterialCard key={material.id} material={material} />
         ))}
       </div>
     </>
-  )
-}
-
-function InstructorMaterialRow({ material }: { material: InstructorMaterial }) {
-  const statusMessage = getInstructorMaterialStatusMessage(material)
-
-  return (
-    <TableRow className="hover:bg-muted/30">
-      <TableCell className="max-w-80 px-4 py-3">
-        <div className="flex items-center gap-3">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-[6px] bg-muted text-primary">
-            <FileTextIcon className="size-4" aria-hidden />
-          </div>
-          <div className="min-w-0">
-            <p className="truncate font-medium text-foreground">
-              {material.title}
-            </p>
-            <p className="break-all text-xs whitespace-normal text-muted-foreground">
-              {material.originalFilename}
-            </p>
-            {statusMessage ? (
-              <p className="mt-1 break-words text-xs whitespace-normal text-muted-foreground">
-                {statusMessage}
-              </p>
-            ) : null}
-          </div>
-        </div>
-      </TableCell>
-      <TableCell className="px-4 py-3 text-muted-foreground">
-        {materialDateFormatter.format(new Date(material.updatedAt))}
-      </TableCell>
-      <TableCell className="px-4 py-3">
-        <InstructorMaterialStatusBadge status={material.status} />
-      </TableCell>
-      <TableCell className="px-4 py-3 text-muted-foreground">
-        {material.extractedTextLength?.toLocaleString() ?? '—'}
-      </TableCell>
-      <TableCell className="px-4 py-3 text-muted-foreground">
-        {material.chunkCount?.toLocaleString() ?? '—'}
-      </TableCell>
-    </TableRow>
   )
 }

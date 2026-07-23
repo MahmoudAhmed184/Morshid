@@ -185,7 +185,7 @@ describe('/instructor', () => {
     const { history } = renderAtInstructorRoute(createSession('INSTRUCTOR'))
 
     expect(
-      await screen.findByRole('heading', { name: 'Instructor dashboard' }),
+      await screen.findByRole('heading', { name: "Today's teaching desk." }),
     ).toBeVisible()
     expect(await screen.findByText('Python Programming')).toBeVisible()
     expect(history.location.pathname).toBe('/instructor')
@@ -198,15 +198,12 @@ describe('/instructor', () => {
   it('redirects a Student session to the Student shell', async () => {
     const { history } = renderAtInstructorRoute(createSession('STUDENT'))
 
+    await waitFor(() => expect(history.location.pathname).toBe('/chat'))
     await waitFor(() =>
-      expect(history.location.pathname).toBe('/student/dashboard'),
+      expect(
+        screen.queryByRole('heading', { name: "Today's teaching desk." }),
+      ).not.toBeInTheDocument(),
     )
-    expect(
-      await screen.findByRole('heading', { name: 'Dashboard' }),
-    ).toBeVisible()
-    expect(
-      screen.queryByRole('heading', { name: 'Instructor dashboard' }),
-    ).not.toBeInTheDocument()
   })
 
   it('shows the route empty state when the Instructor has no manageable course', async () => {
@@ -241,10 +238,6 @@ describe('/instructor', () => {
         name: 'Loading instructor dashboard',
       }),
     ).toBeVisible()
-    expect(screen.getByText('Instructor Portal')).toBeVisible()
-    expect(
-      screen.getByRole('searchbox', { name: 'Search course workspace' }),
-    ).toBeVisible()
     expect(
       screen.getByRole('heading', { name: 'Source readiness' }),
     ).toBeVisible()
@@ -257,19 +250,15 @@ describe('/instructor', () => {
     const { history } = renderAtInstructorRoute(createSession('INSTRUCTOR'))
 
     expect(
-      await screen.findByRole('heading', { name: 'Instructor dashboard' }),
+      await screen.findByRole('heading', { name: "Today's teaching desk." }),
     ).toBeVisible()
 
-    fireEvent.click(screen.getByRole('link', { name: 'My Courses' }))
+    fireEvent.click(screen.getByRole('link', { name: 'Review Queue' }))
 
     expect(
-      await screen.findByRole('heading', { name: 'My Courses' }),
-    ).toBeVisible()
-    expect(history.location.pathname).toBe('/instructor/courses')
-    expect(screen.getByText('Instructor Portal')).toBeVisible()
-    expect(
-      screen.getByRole('searchbox', { name: 'Search course workspace' }),
-    ).toBeVisible()
+      (await screen.findAllByRole('heading', { name: 'Review Queue' })).length,
+    ).toBeGreaterThanOrEqual(1)
+    expect(history.location.pathname).toBe('/instructor/review-queue')
     expect(
       screen.queryByLabelText('Checking authentication'),
     ).not.toBeInTheDocument()
@@ -282,10 +271,6 @@ describe('/instructor', () => {
     expect(
       await screen.findByRole('heading', { name: 'Course Materials' }),
     ).toBeVisible()
-    expect(screen.getByText('Instructor Portal')).toBeVisible()
-    expect(
-      screen.getByRole('searchbox', { name: 'Search course workspace' }),
-    ).toBeVisible()
     expect(
       screen.queryByLabelText('Checking authentication'),
     ).not.toBeInTheDocument()
@@ -293,17 +278,25 @@ describe('/instructor', () => {
     fireEvent.click(screen.getByRole('link', { name: 'Dashboard' }))
 
     expect(
-      await screen.findByRole('heading', { name: 'Instructor dashboard' }),
+      await screen.findByRole('heading', { name: "Today's teaching desk." }),
     ).toBeVisible()
     expect(history.location.pathname).toBe('/instructor')
-    expect(screen.getByText('Instructor Portal')).toBeVisible()
+    // The breadcrumb bar was removed (T9.1); the instructor shell identity is
+    // now carried by the role-specific sidebar navigation.
+    expect(
+      screen.getByRole('list', { name: 'Instructor navigation' }),
+    ).toBeInTheDocument()
   })
 
   it('redirects an Admin session to the Admin shell', async () => {
     const { history } = renderAtInstructorRoute(createSession('ADMIN'))
 
     await waitFor(() => expect(history.location.pathname).toBe('/admin'))
-    expect(await screen.findByText('Morshid Admin')).toBeVisible()
+    // The breadcrumb bar was removed (T9.1); assert the admin shell rendered
+    // via its role-specific sidebar navigation.
+    expect(
+      await screen.findByRole('list', { name: 'Admin navigation' }),
+    ).toBeInTheDocument()
   })
 
   it('redirects an unauthenticated browser session to sign in', async () => {
@@ -311,7 +304,7 @@ describe('/instructor', () => {
 
     await waitFor(() => expect(history.location.pathname).toBe('/login'))
     expect(
-      await screen.findByRole('heading', { name: 'Welcome Back' }),
+      await screen.findByRole('heading', { name: 'Welcome back.' }),
     ).toBeVisible()
   })
 
@@ -353,10 +346,10 @@ describe('/instructor', () => {
     render(<RouterProvider router={router} />)
 
     fireEvent.click(
-      (await screen.findAllByRole('button', { name: 'Get Started' }))[0],
+      (await screen.findAllByRole('button', { name: 'Begin studying' }))[0],
     )
     expect(
-      await screen.findByRole('heading', { name: 'Welcome Back' }),
+      await screen.findByRole('heading', { name: 'Welcome back.' }),
     ).toBeVisible()
 
     fireEvent.change(
@@ -366,10 +359,10 @@ describe('/instructor', () => {
     fireEvent.change(screen.getByLabelText('Password'), {
       target: { value: 'MorshidDemoP0!' },
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Sign In to Portal' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
 
     expect(
-      await screen.findByRole('heading', { name: 'Instructor dashboard' }),
+      await screen.findByRole('heading', { name: "Today's teaching desk." }),
     ).toBeVisible()
     expect(history.location.pathname).toBe('/instructor')
   })

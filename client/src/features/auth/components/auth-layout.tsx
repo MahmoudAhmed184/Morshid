@@ -9,7 +9,7 @@ type AuthLayoutProps = {
 
 export function AuthLayout({ children, className }: AuthLayoutProps) {
   return (
-    <div className="grid min-h-svh bg-background lg:grid-cols-2">
+    <div className="grid min-h-svh gap-6 bg-background p-4 lg:grid-cols-2 lg:p-6">
       <AuthBrandingPanel className="hidden lg:flex" />
       <div
         className={cn(

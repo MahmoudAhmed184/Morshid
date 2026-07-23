@@ -1,13 +1,16 @@
 import {
-  Bot,
+  BookMarked,
   CircleAlert,
-  Info,
+  ClipboardCheck,
+  FileText,
+  GraduationCap,
   LoaderCircle,
   RotateCcw,
-  UserRound,
 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 
+import { Logo } from '@/components/logo'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -29,12 +32,43 @@ interface StudentChatMessageProps {
   onRetry: (studentMessageId: string) => void
 }
 
-const guidanceLabels: Partial<
-  Record<NonNullable<ChatMessage['guidanceLabel']>, string>
+type GuidanceLabel = NonNullable<ChatMessage['guidanceLabel']>
+
+const guidancePresentation: Record<
+  GuidanceLabel,
+  {
+    label: string
+    supportingLabel?: string
+    className: string
+    icon?: LucideIcon
+  }
 > = {
-  COURSE_GROUNDED: 'Course-grounded guidance',
-  GENERAL_NOT_FOUND: 'Course evidence not found',
-  REFUSAL: 'Request declined',
+  COURSE_GROUNDED: {
+    label: 'GROUNDED IN COURSE SOURCES',
+    supportingLabel: 'Course-grounded guidance',
+    className: 'border-success/25 bg-success/10 text-success',
+    icon: FileText,
+  },
+  GENERAL_NOT_FOUND: {
+    label: 'GENERAL GUIDANCE · NOT FROM COURSE SOURCES',
+    supportingLabel: 'Course evidence not found',
+    className: 'border-border bg-secondary text-muted-foreground',
+  },
+  UNCERTAIN_AWAITING_REVIEW: {
+    label: 'AWAITING INSTRUCTOR REVIEW',
+    className: 'border-warning/25 bg-warning/10 text-warning',
+    icon: ClipboardCheck,
+  },
+  INSTRUCTOR_REVIEWED: {
+    label: 'INSTRUCTOR-REVIEWED',
+    className: 'border-gold/25 bg-gold/10 text-gold',
+    icon: BookMarked,
+  },
+  REFUSAL: {
+    label: 'GUIDANCE REFUSED',
+    supportingLabel: 'Request declined',
+    className: 'border-border bg-secondary text-muted-foreground',
+  },
 }
 
 export function StudentChatMessage({
@@ -55,9 +89,6 @@ export function StudentChatMessage({
     message.role === 'ASSISTANT' &&
     message.status === 'FAILED' &&
     message.responseToMessageId !== null
-  const guidanceLabel = message.guidanceLabel
-    ? guidanceLabels[message.guidanceLabel]
-    : undefined
   const hasRetryError =
     Boolean(retryError) && message.responseToMessageId === retryMessageId
 
@@ -80,121 +111,146 @@ export function StudentChatMessage({
     }
   }, [isAssistantPending, message.role, message.status])
 
+  if (isSystem) {
+    return (
+      <li className="flex justify-center">
+        <p className="footnote max-w-prose break-words text-center">
+          <span className="sr-only">System: </span>
+          {message.content}
+        </p>
+      </li>
+    )
+  }
+
   return (
     <li
       className={cn(
-        'flex gap-3 py-2',
+        'flex items-end gap-3',
         isStudent ? 'flex-row-reverse' : 'flex-row',
-        isSystem && 'justify-center',
       )}
     >
       <div
         className={cn(
           'flex size-8 shrink-0 items-center justify-center rounded-full',
           isStudent
-            ? 'bg-secondary text-secondary-foreground'
-            : 'bg-primary text-primary-foreground',
-          isSystem && 'bg-muted text-muted-foreground',
+            ? 'bg-secondary text-foreground'
+            : 'bg-primary/10 text-primary',
         )}
         aria-hidden
       >
         {isStudent ? (
-          <UserRound className="size-4" />
-        ) : isSystem ? (
-          <Info className="size-4" />
+          <GraduationCap className="size-4" />
         ) : (
-          <Bot className="size-4" />
+          <Logo className="size-8" iconClassName="size-4" />
         )}
       </div>
-      <div
-        className={cn(
-          'max-w-[90%] min-w-0 px-1 py-1 text-sm leading-7 sm:max-w-[85%]',
-          isStudent
-            ? 'rounded-3xl bg-muted px-4 py-2.5 text-foreground'
-            : 'text-foreground',
-          isSystem && 'rounded-xl border border-border bg-card px-4 py-3',
-        )}
-      >
-        <span className="sr-only">
-          {isStudent ? 'You' : isSystem ? 'System' : 'AI Tutor'}:{' '}
-        </span>
-        {guidanceLabel ? (
-          <Badge className="mb-2" variant="secondary">
-            {guidanceLabel}
-          </Badge>
-        ) : null}
+      <div className="max-w-[min(90%,44rem)]">
+        <div
+          className={cn(
+            'px-4 py-3 text-sm leading-7',
+            isStudent
+              ? 'rounded-2xl rounded-br-lg bg-accent text-foreground'
+              : 'rounded-2xl rounded-bl-lg border bg-card text-card-foreground shadow-xs',
+          )}
+        >
+          <span className="sr-only">{isStudent ? 'You' : 'AI Tutor'}: </span>
 
-        {isAssistantPending ? (
-          <p
-            aria-label={STUDENT_CHAT_GENERATION_STATUS}
-            aria-live="polite"
-            className="flex items-center gap-2 text-muted-foreground"
-            role="status"
-          >
-            <LoaderCircle className="size-4 animate-spin" aria-hidden />
-            {STUDENT_CHAT_GENERATION_STATUS}…
-          </p>
-        ) : (
-          <p className="whitespace-pre-wrap break-words">{message.content}</p>
-        )}
-
-        <span
-          ref={terminalAnnouncementRef}
-          aria-atomic="true"
-          aria-live="polite"
-          className="sr-only"
-          role="status"
-        />
-
-        {isStudent && message.status === 'PENDING' ? (
-          <p className="mt-1 text-xs opacity-75">Sending…</p>
-        ) : null}
-
-        {message.guidanceLabel === 'GENERAL_NOT_FOUND' &&
-        message.citations.length === 0 ? (
-          <p className="mt-3 border-t border-border/70 pt-3 text-xs text-muted-foreground">
-            No supporting course sources were found.
-          </p>
-        ) : null}
-
-        <StudentCitationSources citations={message.citations} />
-
-        {canRetry ? (
-          <div className="mt-3 border-t border-border pt-3">
-            <p className="flex items-start gap-2 text-sm text-foreground">
-              <CircleAlert className="mt-1 size-4 shrink-0" aria-hidden />
-              The grounded response failed. Your question is saved and can be
-              retried without creating another message.
-            </p>
-            <Button
-              className="mt-2"
-              disabled={isGenerationActive}
-              onClick={() => onRetry(message.responseToMessageId!)}
-              size="sm"
-              type="button"
-              variant="outline"
+          {isAssistantPending ? (
+            <p
+              aria-label={STUDENT_CHAT_GENERATION_STATUS}
+              aria-live="polite"
+              className="flex items-center gap-2 text-muted-foreground"
+              role="status"
             >
-              {isGenerationActive &&
-              message.responseToMessageId === retryMessageId ? (
-                <LoaderCircle className="animate-spin" aria-hidden />
-              ) : (
-                <RotateCcw aria-hidden />
-              )}
-              Retry response
-            </Button>
+              <LoaderCircle className="size-4 animate-spin" aria-hidden />
+              {STUDENT_CHAT_GENERATION_STATUS}…
+            </p>
+          ) : (
+            <p className="whitespace-pre-wrap break-words">{message.content}</p>
+          )}
 
-            {hasRetryError ? (
-              <Alert className="mt-2">
-                <CircleAlert aria-hidden />
-                <AlertDescription>
-                  The retry could not be completed. Your saved question is
-                  unchanged, so you can try again.
-                </AlertDescription>
-              </Alert>
-            ) : null}
-          </div>
+          <span
+            ref={terminalAnnouncementRef}
+            aria-atomic="true"
+            aria-live="polite"
+            className="sr-only"
+            role="status"
+          />
+
+          {isStudent && message.status === 'PENDING' ? (
+            <p className="mt-1 text-xs opacity-75">Sending…</p>
+          ) : null}
+
+          {message.guidanceLabel === 'GENERAL_NOT_FOUND' &&
+          message.citations.length === 0 ? (
+            <p className="mt-3 border-t border-border/70 pt-3 text-xs text-muted-foreground">
+              No supporting course sources were found.
+            </p>
+          ) : null}
+
+          <StudentCitationSources citations={message.citations} />
+
+          {canRetry ? (
+            <div className="mt-3 border-t border-border pt-3">
+              <p className="flex items-start gap-2 text-sm text-foreground">
+                <CircleAlert className="mt-1 size-4 shrink-0" aria-hidden />
+                The grounded response failed. Your question is saved and can be
+                retried without creating another message.
+              </p>
+              <Button
+                className="mt-2"
+                disabled={isGenerationActive}
+                onClick={() => onRetry(message.responseToMessageId!)}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                {isGenerationActive &&
+                message.responseToMessageId === retryMessageId ? (
+                  <LoaderCircle className="animate-spin" aria-hidden />
+                ) : (
+                  <RotateCcw aria-hidden />
+                )}
+                Retry response
+              </Button>
+
+              {hasRetryError ? (
+                <Alert className="mt-2">
+                  <CircleAlert aria-hidden />
+                  <AlertDescription>
+                    The retry could not be completed. Your saved question is
+                    unchanged, so you can try again.
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+
+        {!isStudent && message.guidanceLabel ? (
+          <GuidanceBadge guidanceLabel={message.guidanceLabel} />
         ) : null}
       </div>
     </li>
+  )
+}
+
+function GuidanceBadge({ guidanceLabel }: { guidanceLabel: GuidanceLabel }) {
+  const presentation = guidancePresentation[guidanceLabel]
+  const Icon = presentation.icon
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2">
+      <Badge
+        variant="outline"
+        className={cn('gap-1.5 font-mono', presentation.className)}
+      >
+        {Icon ? <Icon className="size-3" aria-hidden /> : null}
+        {presentation.label}
+      </Badge>
+      {presentation.supportingLabel ? (
+        <span className="footnote">{presentation.supportingLabel}</span>
+      ) : null}
+    </div>
   )
 }

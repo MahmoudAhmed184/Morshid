@@ -33,7 +33,7 @@ export function StudentSessionListItem({
   const [isEditing, setIsEditing] = useState(false)
 
   return (
-    <li className="group relative rounded-lg [contain-intrinsic-size:auto_2.75rem] [content-visibility:auto]">
+    <li className="group relative rounded-lg [contain-intrinsic-size:auto_2.25rem] [content-visibility:auto]">
       {isEditing ? (
         <StudentSessionInlineRename
           session={session}
@@ -45,27 +45,32 @@ export function StudentSessionListItem({
         />
       ) : (
         <Link
-          to="/student/ai-tutor"
+          to="/chat"
           search={{ courseId, sessionId: session.id }}
           onClick={onNavigate}
           aria-current={isSelected ? 'page' : undefined}
           className={cn(
-            'flex min-h-10 items-center rounded-lg py-2 pr-11 pl-3 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none',
+            'relative flex h-9 items-center rounded-lg pr-8 pl-3 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none',
             isSelected
-              ? 'bg-muted text-foreground'
-              : 'text-foreground hover:bg-muted/70',
+              ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+              : 'text-sidebar-foreground hover:bg-sidebar-accent/60',
           )}
         >
-          <span className="block truncate font-normal">{session.title}</span>
+          <span
+            className={cn(
+              'absolute top-1/2 left-0 h-5 w-0.5 -translate-y-1/2 rounded-full bg-rubric transition-opacity',
+              isSelected ? 'opacity-100' : 'opacity-0',
+            )}
+            aria-hidden
+          />
+          <span className="block truncate">{session.title}</span>
         </Link>
       )}
       {!isEditing ? (
         <div
           className={cn(
-            'absolute top-1/2 right-1.5 flex -translate-y-1/2 items-center rounded-lg',
-            isSelected
-              ? 'bg-muted text-muted-foreground'
-              : 'bg-transparent text-muted-foreground',
+            'absolute top-1/2 right-1 flex -translate-y-1/2 items-center rounded-md opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100',
+            isSelected && 'opacity-100',
           )}
         >
           <StudentSessionActionsMenu

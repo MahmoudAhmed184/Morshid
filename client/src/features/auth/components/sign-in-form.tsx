@@ -1,16 +1,12 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate } from '@tanstack/react-router'
-import { ChevronRight, Mail } from 'lucide-react'
+import { TriangleAlert } from 'lucide-react'
 import { useId, useState } from 'react'
 import { useForm } from 'react-hook-form'
 
 import { Button } from '@/components/ui/button'
 import { Form, FormField } from '@/components/ui/form'
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from '@/components/ui/input-group'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 import {
@@ -77,41 +73,25 @@ export function SignInForm() {
           render={({ field, fieldState }) => (
             <div className="space-y-0">
               <div className="space-y-2.5">
-                <div className="flex items-center justify-between gap-3">
-                  <Label
-                    htmlFor={emailInputId}
-                    className="text-xs font-medium tracking-[0.12em] text-foreground uppercase sm:text-sm"
-                  >
-                    Institutional Email
-                  </Label>
-                </div>
-                <InputGroup className="h-12 rounded-full px-1">
-                  <InputGroupAddon align="inline-start" className="pl-3">
-                    <Mail
-                      className="size-[1.125rem] text-foreground"
-                      aria-hidden
-                    />
-                  </InputGroupAddon>
-                  <InputGroupInput
-                    {...field}
-                    id={emailInputId}
-                    type="email"
-                    placeholder="instructor@morshid.demo"
-                    autoComplete="email"
-                    aria-invalid={fieldState.error ? true : undefined}
-                    aria-describedby={
-                      fieldState.error ? emailErrorId : undefined
-                    }
-                    className="text-base"
-                  />
-                </InputGroup>
+                <Label htmlFor={emailInputId} className="smallcaps-label">
+                  Institutional Email
+                </Label>
+                <Input
+                  {...field}
+                  id={emailInputId}
+                  type="email"
+                  placeholder="instructor@morshid.demo"
+                  autoComplete="email"
+                  aria-invalid={fieldState.error ? true : undefined}
+                  aria-describedby={fieldState.error ? emailErrorId : undefined}
+                />
               </div>
 
               {fieldState.error ? (
                 <p
                   id={emailErrorId}
                   role="alert"
-                  className="mt-2 text-sm text-destructive"
+                  className="mt-2 text-sm text-rubric"
                 >
                   {fieldState.error.message}
                 </p>
@@ -138,7 +118,7 @@ export function SignInForm() {
                 <p
                   id={passwordErrorId}
                   role="alert"
-                  className="mt-2 text-sm text-destructive"
+                  className="mt-2 text-sm text-rubric"
                 >
                   {fieldState.error.message}
                 </p>
@@ -148,12 +128,13 @@ export function SignInForm() {
         />
 
         {authErrorMessage ? (
-          <p
+          <div
             role="alert"
-            className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            className="flex items-start gap-2.5 rounded-xl border border-rubric/40 bg-rubric/5 px-3.5 py-3 text-sm text-rubric"
           >
-            {authErrorMessage}
-          </p>
+            <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+            <span>{authErrorMessage}</span>
+          </div>
         ) : null}
 
         <Button
@@ -161,10 +142,9 @@ export function SignInForm() {
           variant="default"
           size="lg"
           disabled={form.formState.isSubmitting}
-          className="h-12 w-full rounded-full text-lg font-medium"
+          className="h-12 w-full gap-2 rounded-full px-7 text-base"
         >
-          Sign In to Portal
-          <ChevronRight className="size-4" aria-hidden />
+          Sign in
         </Button>
       </form>
     </Form>

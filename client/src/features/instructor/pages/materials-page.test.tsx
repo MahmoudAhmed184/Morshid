@@ -257,7 +257,7 @@ describe('MaterialsPage', () => {
     expect(refetchMaterials).toHaveBeenCalledOnce()
   })
 
-  it('renders the Figma-aligned summary, repository, and material metadata', () => {
+  it('renders the redesigned summary, repository, and material metadata', () => {
     useInstructorMaterialsMock.mockReturnValue(
       queryResult([material]) as unknown as ReturnType<
         typeof useInstructorMaterials
@@ -274,7 +274,8 @@ describe('MaterialsPage', () => {
     ).toBeVisible()
     expect(screen.getAllByText(material.originalFilename)).not.toHaveLength(0)
     expect(screen.getAllByText('WARNING')).not.toHaveLength(0)
-    expect(screen.getByRole('columnheader', { name: 'Chunks' })).toBeVisible()
+    expect(screen.getByText('4,820 characters')).toBeVisible()
+    expect(screen.getByText('Chunks:')).toBeVisible()
     expect(screen.getAllByText(material.errorMessage)).not.toHaveLength(0)
     expect(
       screen.getByRole('button', { name: 'Upload Material' }),
@@ -291,19 +292,19 @@ describe('MaterialsPage', () => {
     renderMaterialsPage()
 
     for (const status of ['PROCESSING', 'READY', 'WARNING', 'FAILED']) {
-      expect(screen.getAllByText(status)).toHaveLength(2)
+      expect(screen.getByText(status)).toBeVisible()
     }
     expect(
-      screen.getAllByText('This material is ready with a warning.'),
-    ).toHaveLength(2)
+      screen.getByText('This material is ready with a warning.'),
+    ).toBeVisible()
     expect(
-      screen.getAllByText(
+      screen.getByText(
         'This material could not be processed. Check the PDF and try again.',
       ),
-    ).toHaveLength(2)
+    ).toBeVisible()
   })
 
-  it('renders complete long filenames and status messages in the desktop table', () => {
+  it('truncates long filenames without truncating status messages', () => {
     const longFilename = `${'long-filename-'.repeat(12)}source.pdf`
     const longMessage = `${'Processing warning details '.repeat(10)}resolved.`
     useInstructorMaterialsMock.mockReturnValue(
@@ -318,17 +319,9 @@ describe('MaterialsPage', () => {
 
     renderMaterialsPage()
 
-    const desktopFilename = screen
-      .getAllByText(longFilename)
-      .find((element) => element.closest('table'))
-    const desktopMessage = screen
-      .getAllByText(longMessage)
-      .find((element) => element.closest('table'))
-
-    expect(desktopFilename).toHaveClass('break-all')
-    expect(desktopFilename).not.toHaveClass('truncate')
-    expect(desktopMessage).toHaveClass('break-words')
-    expect(desktopMessage).not.toHaveClass('truncate')
+    expect(screen.getByText(longFilename)).toHaveClass('truncate')
+    expect(screen.getByText(longFilename)).toHaveClass('font-mono')
+    expect(screen.getByText(longMessage)).toBeVisible()
   })
 
   it('filters the repository by material title or filename', async () => {

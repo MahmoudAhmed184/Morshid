@@ -74,7 +74,7 @@ export function AdminAssignmentsPage() {
 
       <AdminPanel>
         <DataToolbar
-          className="border-b p-4"
+          className="border-b px-4 py-3"
           filters={
             <Select
               value={courseId ?? null}

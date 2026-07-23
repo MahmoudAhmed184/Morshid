@@ -62,7 +62,7 @@ export function AdminUsersPage() {
 
       <AdminPanel>
         <DataToolbar
-          className="border-b p-4"
+          className="border-b px-4 py-3"
           filters={
             <>
               <Select

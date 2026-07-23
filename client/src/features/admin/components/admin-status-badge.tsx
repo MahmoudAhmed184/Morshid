@@ -1,22 +1,40 @@
 import { Badge } from '@/components/ui/badge'
+import { resolveStatusTone } from '@/components/ui/custom/status-badge'
+import type { StatusTone } from '@/components/ui/custom/status-badge'
+import { cn } from '@/lib/utils'
+
+type AdminStatus =
+  'ACTIVE' | 'DISABLED' | 'PROCESSING' | 'READY' | 'WARNING' | 'FAILED'
 
 type AdminStatusBadgeProps = {
-  status: 'ACTIVE' | 'DISABLED' | 'PROCESSING' | 'READY' | 'WARNING' | 'FAILED'
+  status: AdminStatus
   label?: string
 }
 
-const statusClasses: Record<AdminStatusBadgeProps['status'], string> = {
-  ACTIVE: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-500',
-  READY: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-500',
-  DISABLED: 'border-destructive/30 bg-destructive/10 text-destructive',
-  FAILED: 'border-destructive/30 bg-destructive/10 text-destructive',
-  WARNING: 'border-amber-500/30 bg-amber-500/10 text-amber-500',
-  PROCESSING: 'border-sky-500/30 bg-sky-500/10 text-sky-500',
+const toneDotClass: Record<StatusTone, string> = {
+  default: 'bg-muted-foreground',
+  secondary: 'bg-muted-foreground',
+  outline: 'bg-muted-foreground',
+  destructive: 'bg-destructive',
+  success: 'bg-success',
+  warning: 'bg-warning',
+  info: 'bg-info',
 }
 
 export function AdminStatusBadge({ status, label }: AdminStatusBadgeProps) {
+  const tone = resolveStatusTone(status)
+  const isProcessing = status === 'PROCESSING'
+
   return (
-    <Badge variant="outline" className={`capitalize ${statusClasses[status]}`}>
+    <Badge variant={tone} className="capitalize">
+      <span
+        className={cn(
+          'size-1.5 shrink-0 rounded-full',
+          toneDotClass[tone],
+          isProcessing && 'motion-safe:animate-pulse',
+        )}
+        aria-hidden
+      />
       {label ?? status.toLowerCase()}
     </Badge>
   )

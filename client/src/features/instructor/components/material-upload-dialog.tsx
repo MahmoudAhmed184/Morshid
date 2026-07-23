@@ -21,7 +21,7 @@ export function MaterialUploadDialog({
 }) {
   return (
     <Dialog>
-      <DialogTrigger render={<Button className="w-full sm:w-auto" />}>
+      <DialogTrigger render={<Button size="lg" className="w-full sm:w-auto" />}>
         <UploadIcon aria-hidden />
         Upload Material
       </DialogTrigger>

@@ -1,48 +1,45 @@
-import { Avatar, AvatarFallback, AvatarGroup } from '@/components/ui/avatar'
 import { Logo } from '@/components/logo'
 import { cn } from '@/lib/utils'
-
-const educatorAvatars = ['JD', 'AS', 'ML'] as const
 
 type AuthBrandingPanelProps = {
   className?: string
 }
 
+/**
+ * The title page — the ink-black left panel of the auth surface.
+ *
+ * A centered, typeset colophon in the spirit of a university-press half-title:
+ * the logo mark, spaced capitals of the wordmark between two printer's rules,
+ * a small-caps tagline, and a footnote pinned to the foot of the page. This is
+ * the one deliberately centered composition in the product.
+ */
 export function AuthBrandingPanel({ className }: AuthBrandingPanelProps) {
   return (
     <aside
       className={cn(
-        'relative flex flex-col justify-between overflow-hidden border-r border-border/60 bg-background p-10 xl:p-14',
+        'flex-col justify-between rounded-3xl bg-foreground p-14 text-background shadow-xl',
         className,
       )}
     >
-      <div
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,var(--color-primary)_0%,transparent_70%)] opacity-15"
-        aria-hidden
-      />
+      <div className="flex flex-1 flex-col items-center justify-center text-center">
+        <Logo className="text-background" iconClassName="size-6" />
 
-      <Logo className="relative" />
+        <div className="mt-8 w-16 border-t-2 border-background/30" />
 
-      <div className="relative max-w-md space-y-5">
-        <h1 className="text-5xl leading-tight font-semibold tracking-tight text-foreground xl:text-6xl">
-          The Future of <span className="text-primary italic">Academic</span>{' '}
-          Intelligence.
+        <h1 className="font-display mt-8 indent-[0.35em] text-[3rem] leading-none font-semibold tracking-[0.35em] text-background">
+          MORSHID
         </h1>
-        <p className="text-base leading-relaxed text-foreground sm:text-lg">
-          A specialized ecosystem designed to empower educators with
-          high-fidelity analytical tools and streamlined academic management.
+
+        <p className="smallcaps-label mt-6 max-w-xs text-background/60">
+          A SOCRATIC TUTOR, BOUND TO YOUR COURSE MATERIALS
         </p>
+
+        <div className="mt-8 w-16 border-t-2 border-background/30" />
       </div>
 
-      <AvatarGroup className="relative">
-        {educatorAvatars.map((initials) => (
-          <Avatar key={initials} size="sm">
-            <AvatarFallback className="bg-muted text-[10px] font-medium text-foreground">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
-        ))}
-      </AvatarGroup>
+      <p className="footnote text-center text-background/40">
+        EST. MMXXVI · EVERY ANSWER HAS A PAGE NUMBER
+      </p>
     </aside>
   )
 }

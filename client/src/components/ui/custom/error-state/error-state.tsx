@@ -33,11 +33,11 @@ export function ErrorState({
   return (
     <div
       className={cn(
-        'flex min-h-64 flex-col items-center justify-center rounded-lg border bg-card px-6 py-12 text-center',
+        'flex min-h-64 flex-col items-center justify-center rounded-2xl border bg-card px-6 py-12 text-center shadow-none',
         className,
       )}
     >
-      <div className="mb-4 flex size-11 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
+      <div className="mb-4 flex size-12 items-center justify-center rounded-lg bg-destructive/10 text-destructive [&_svg]:size-5">
         <TriangleAlertIcon />
       </div>
       <h2 className="text-base font-medium text-foreground">{title}</h2>

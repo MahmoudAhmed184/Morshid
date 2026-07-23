@@ -1,4 +1,4 @@
-import { BookOpenCheck, CircleAlert } from 'lucide-react'
+import { BookMarked, CircleAlert } from 'lucide-react'
 
 import {
   Accordion,
@@ -25,25 +25,27 @@ export function StudentCitationSources({
   return (
     <div className="mt-3 border-t border-border/70 pt-3">
       <ul aria-label="Inline citations" className="flex flex-wrap gap-1.5">
-        {citations.flatMap((citation) =>
-          citation.evidence.map((evidence) => (
-            <li key={`${citation.materialId}:${evidence.chunkId}`}>
-              <Badge
-                className="h-auto max-w-full whitespace-normal"
-                variant="outline"
-              >
-                [{citation.materialTitle}, chunk {evidence.chunkNumber}]
-              </Badge>
-            </li>
-          )),
-        )}
+        {citations.map((citation) => (
+          <li key={`${citation.order}:${citation.materialId}`}>
+            <Badge
+              className="h-auto max-w-full whitespace-normal border-info/25 bg-info/5 font-mono text-xs text-info"
+              variant="outline"
+            >
+              [{citation.order}] {citation.materialTitle}
+            </Badge>
+          </li>
+        ))}
       </ul>
 
       <Accordion className="mt-2">
         <AccordionItem className="border-0" value="sources">
           <AccordionTrigger className="py-2 no-underline hover:no-underline">
             <span className="flex items-center gap-2">
-              <BookOpenCheck className="size-4" aria-hidden />
+              <BookMarked
+                className="size-4 text-muted-foreground"
+                strokeWidth={1.75}
+                aria-hidden
+              />
               Sources ({citations.length})
             </span>
           </AccordionTrigger>
@@ -65,7 +67,7 @@ export function StudentCitationSources({
 
 function CitationSource({ citation }: { citation: ChatCitation }) {
   return (
-    <li className="min-w-0 rounded-xl border border-border bg-muted/40 p-3">
+    <li className="min-w-0 rounded-xl border border-border bg-secondary/40 p-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <p className="min-w-0 break-words font-medium text-foreground">
           {citation.materialTitle}
@@ -76,18 +78,21 @@ function CitationSource({ citation }: { citation: ChatCitation }) {
       </div>
 
       {citation.sourceAvailable ? (
-        <ul className="mt-2 space-y-2">
+        <div className="mt-3 space-y-3">
           {citation.evidence.map((evidence) => (
-            <li key={evidence.chunkId}>
-              <p className="text-xs font-medium text-muted-foreground">
-                Chunk {evidence.chunkNumber}
-              </p>
-              <p className="mt-1 break-words text-sm leading-5 text-foreground">
+            <figure
+              key={evidence.chunkId}
+              className="border-l-2 border-info/30 pl-3"
+            >
+              <blockquote className="break-words text-xs leading-5 text-muted-foreground">
                 {evidence.excerpt}
-              </p>
-            </li>
+              </blockquote>
+              <figcaption className="footnote mt-1 font-mono">
+                Source passage {evidence.chunkNumber}
+              </figcaption>
+            </figure>
           ))}
-        </ul>
+        </div>
       ) : (
         <p className="mt-2 flex items-start gap-1.5 text-sm text-muted-foreground">
           <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />

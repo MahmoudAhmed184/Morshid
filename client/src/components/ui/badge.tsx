@@ -15,6 +15,16 @@ const badgeVariants = cva(
           'bg-secondary text-secondary-foreground [a]:hover:bg-secondary/80',
         destructive:
           'bg-destructive/10 text-destructive focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:focus-visible:ring-destructive/40 [a]:hover:bg-destructive/20',
+        /* morshid: warm-wash tone variants (success/warning/info/gold) — stock
+           dropped the project's colored-badge family; consumers (status-badge,
+           admin-status-badge, pdf-card, landing) depend on these. Class strings
+           recovered from git HEAD; gold added on the same idiom. */
+        success:
+          'border-success/25 bg-success/10 text-success focus-visible:ring-success/20 dark:bg-success/18 [a]:hover:bg-success/15',
+        warning:
+          'border-warning/25 bg-warning/10 text-warning focus-visible:ring-warning/25 dark:bg-warning/20 [a]:hover:bg-warning/15',
+        info: 'border-info/25 bg-info/10 text-info focus-visible:ring-info/20 dark:bg-info/18 [a]:hover:bg-info/15',
+        gold: 'border-gold/25 bg-gold/10 text-gold focus-visible:ring-gold/20 dark:bg-gold/18 [a]:hover:bg-gold/15',
         outline:
           'border-border text-foreground [a]:hover:bg-muted [a]:hover:text-muted-foreground',
         ghost:

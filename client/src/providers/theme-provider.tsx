@@ -2,41 +2,21 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { ScriptOnce } from '@tanstack/react-router'
 
 type ThemeMode = 'dark' | 'light' | 'system'
-type ThemePreset = 'default' | 'slate' | 'emerald' | 'rose' | 'amber'
 type ThemeTransitionOrigin = { x: number; y: number }
-
-const THEME_PRESETS: ThemePreset[] = [
-  'default',
-  'slate',
-  'emerald',
-  'rose',
-  'amber',
-]
 
 type ThemeProviderProps = {
   children: React.ReactNode
   defaultTheme?: ThemeMode
-  defaultPreset?: ThemePreset
   storageKey?: string
-  presetStorageKey?: string
 }
 
 type ThemeProviderState = {
   theme: ThemeMode
-  themePreset: ThemePreset
   setTheme: (theme: ThemeMode, origin?: ThemeTransitionOrigin) => void
-  setThemePreset: (
-    themePreset: ThemePreset,
-    origin?: ThemeTransitionOrigin,
-  ) => void
 }
 
 function isThemeMode(value: unknown): value is ThemeMode {
   return value === 'light' || value === 'dark' || value === 'system'
-}
-
-function isThemePreset(value: unknown): value is ThemePreset {
-  return THEME_PRESETS.includes(value as ThemePreset)
 }
 
 function getStoredTheme(
@@ -49,42 +29,20 @@ function getStoredTheme(
   return isThemeMode(stored) ? stored : defaultTheme
 }
 
-function getStoredThemePreset(
-  storageKey: string,
-  defaultPreset: ThemePreset,
-): ThemePreset {
-  if (typeof window === 'undefined') return defaultPreset
-
-  const stored = localStorage.getItem(storageKey)
-  return isThemePreset(stored) ? stored : defaultPreset
-}
-
-function getThemeScript(
-  storageKey: string,
-  presetStorageKey: string,
-  defaultTheme: ThemeMode,
-  defaultPreset: ThemePreset,
-) {
+function getThemeScript(storageKey: string, defaultTheme: ThemeMode) {
   const key = JSON.stringify(storageKey)
-  const presetKey = JSON.stringify(presetStorageKey)
   const fallback = JSON.stringify(defaultTheme)
-  const presetFallback = JSON.stringify(defaultPreset)
-  const presets = JSON.stringify(THEME_PRESETS)
 
-  return `(function(){try{var t=localStorage.getItem(${key});if(t!=='light'&&t!=='dark'&&t!=='system'){t=${fallback}}var p=localStorage.getItem(${presetKey});var a=${presets};if(a.indexOf(p)===-1){p=${presetFallback}}var d=matchMedia('(prefers-color-scheme: dark)').matches;var r=t==='system'?(d?'dark':'light'):t;var e=document.documentElement;e.classList.add(r,'theme-'+p);e.style.colorScheme=r}catch(e){}})();`
+  return `(function(){try{var t=localStorage.getItem(${key});if(t!=='light'&&t!=='dark'&&t!=='system'){t=${fallback}}var d=matchMedia('(prefers-color-scheme: dark)').matches;var r=t==='system'?(d?'dark':'light'):t;var e=document.documentElement;e.classList.add(r);e.style.colorScheme=r}catch(e){}})();`
 }
 
 const ThemeProviderContext = createContext<ThemeProviderState | undefined>(
   undefined,
 )
 
-function applyTheme(theme: ThemeMode, themePreset: ThemePreset) {
+function applyTheme(theme: ThemeMode) {
   const root = document.documentElement
-  root.classList.remove(
-    'light',
-    'dark',
-    ...THEME_PRESETS.map((preset) => `theme-${preset}`),
-  )
+  root.classList.remove('light', 'dark')
 
   const resolved =
     theme === 'system'
@@ -93,7 +51,7 @@ function applyTheme(theme: ThemeMode, themePreset: ThemePreset) {
         : 'light'
       : theme
 
-  root.classList.add(resolved, `theme-${themePreset}`)
+  root.classList.add(resolved)
   root.style.colorScheme = resolved
 }
 
@@ -152,62 +110,37 @@ function runThemeTransition(
 export function ThemeProvider({
   children,
   defaultTheme = 'system',
-  defaultPreset = 'default',
   storageKey = 'theme',
-  presetStorageKey = 'theme-preset',
 }: ThemeProviderProps) {
   const [theme, setThemeState] = useState<ThemeMode>(() =>
     getStoredTheme(storageKey, defaultTheme),
   )
-  const [themePreset, setThemePresetState] = useState<ThemePreset>(() =>
-    getStoredThemePreset(presetStorageKey, defaultPreset),
-  )
 
   useEffect(() => {
-    applyTheme(theme, themePreset)
-  }, [theme, themePreset])
+    applyTheme(theme)
+  }, [theme])
 
   useEffect(() => {
     if (theme !== 'system') return
 
     const media = window.matchMedia('(prefers-color-scheme: dark)')
-    const onChange = () => applyTheme('system', themePreset)
+    const onChange = () => applyTheme('system')
 
     media.addEventListener('change', onChange)
     return () => media.removeEventListener('change', onChange)
-  }, [theme, themePreset])
+  }, [theme])
 
   const setTheme = (next: ThemeMode, origin?: ThemeTransitionOrigin) => {
     runThemeTransition(() => {
       localStorage.setItem(storageKey, next)
       setThemeState(next)
-      applyTheme(next, themePreset)
-    }, origin)
-  }
-
-  const setThemePreset = (
-    next: ThemePreset,
-    origin?: ThemeTransitionOrigin,
-  ) => {
-    runThemeTransition(() => {
-      localStorage.setItem(presetStorageKey, next)
-      setThemePresetState(next)
-      applyTheme(theme, next)
+      applyTheme(next)
     }, origin)
   }
 
   return (
-    <ThemeProviderContext
-      value={{ theme, themePreset, setTheme, setThemePreset }}
-    >
-      <ScriptOnce>
-        {getThemeScript(
-          storageKey,
-          presetStorageKey,
-          defaultTheme,
-          defaultPreset,
-        )}
-      </ScriptOnce>
+    <ThemeProviderContext value={{ theme, setTheme }}>
+      <ScriptOnce>{getThemeScript(storageKey, defaultTheme)}</ScriptOnce>
       {children}
     </ThemeProviderContext>
   )
