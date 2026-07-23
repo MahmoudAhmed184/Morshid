@@ -129,10 +129,10 @@ export function StudentSourcesPanel({
             </p>
             <p className="footnote mt-1 font-mono">{course.code}</p>
             <div className="rule mt-3 flex flex-wrap items-center gap-2 pt-3">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-0.5 font-mono text-xs font-medium text-primary">
+              <Badge variant="success" className="font-mono">
                 <FileText className="size-3.5" strokeWidth={1.75} aria-hidden />
                 Assigned course
-              </span>
+              </Badge>
               <span className="footnote">Private notebook</span>
             </div>
           </div>
