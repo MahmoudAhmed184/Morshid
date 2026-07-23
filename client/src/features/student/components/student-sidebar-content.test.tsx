@@ -412,14 +412,18 @@ describe('StudentSidebarContent', () => {
     createStudentSessionMock.mockResolvedValueOnce(primaryChatSessionFixture)
     renderSidebar({
       sessions: {
-        sessions: [{ ...secondSession, lastMessageAt: '2026-07-17T09:02:00.000Z' }],
+        sessions: [
+          { ...secondSession, lastMessageAt: '2026-07-17T09:02:00.000Z' },
+        ],
         nextCursor: null,
       },
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'New chat' }))
 
-    await waitFor(() => expect(createStudentSessionMock).toHaveBeenCalledTimes(1))
+    await waitFor(() =>
+      expect(createStudentSessionMock).toHaveBeenCalledTimes(1),
+    )
     expect(navigateMock).toHaveBeenCalledWith({
       to: '/chat',
       search: {

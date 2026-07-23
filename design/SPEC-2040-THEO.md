@@ -128,6 +128,27 @@ Every floating menu in the app currently renders as a bare rectangle. Menus adop
   3. Only when neither applies → create (existing mutation, unchanged).
   No new API calls/queries. Report which layers shipped and the emptiness signal used. Add tests for the guard (create-called vs not-called per case). The plus-button in the collapsed cluster follows the same guard.
 
+## T12. Course isolation — the notebook switcher (BINDING; supersedes T4's `/courses` home and T5's composer picker)
+
+Ruling: course = notebook (grounding context), NOT a chat filter. The switcher moves to the sidebar; the full-page picker and the composer picker retire.
+
+- **T12.1 Sidebar course dropdown** (student, between the wordmark header and `New chat`): full-width quiet control — current course TITLE + `ChevronDown size-3.5`, `rounded-lg px-3 h-10 text-sm font-medium hover:bg-accent` — opening a T10-kit `DropdownMenu`: one item per course title, check on the active one. Selecting navigates `/chat?courseId=…` (existing selection mechanism) and the session list beneath re-scopes. Zero courses → static muted label `No courses yet`, no menu. One course → still a dropdown (single checked item). The switcher's aria-label uses titles only.
+- **T12.2 Home = `/chat`.** `authRedirectByRole.STUDENT` → `'/chat'`. `/chat` without `courseId` resolves via the existing course-selection logic (last-used/first). `/courses` route becomes a redirect → `/chat`; DELETE `student-courses-page.tsx` (+ its test, coverage of the greeting moves to the chat empty-state tests if not already there). Legacy `/student*` redirects retarget the `/chat` family. Wordmark click (student) → `/chat`.
+- **T12.3 Composer simplifies**: remove the course-picker row entirely — composer = textarea + send (+ hint/error), byte-identical behavior. Course identity lives in the sidebar dropdown + sources panel.
+- **T12.4 New-chat guard** (T11.2) retargets: "no active course" case → no-op with the `No courses yet` state (never navigate to a deleted page).
+- **T12.5 Verification**: login → `/chat` one hop; switcher swaps sessions+context; `/courses` redirects; composer has no picker; all prior chat/session contracts green.
+- **T12.6 Collapsed-state collision fix (user-reported bug)**: with the sidebar COLLAPSED and the sources panel open, the panel's top edge reaches/underlaps the floating top-right cluster. When the sidebar is collapsed, the workspace content (specifically the sources-panel column, and anything else that would collide) must clear the floating clusters — plainest: the content panel keeps a `h-12`-equivalent top inset in the collapsed state too (or the sources wrapper gets `mt-12` when `state === 'collapsed'`), so the panel never sits under the cluster. Both themes, verify at `lg:` with the panel open + sidebar collapsed.
+
+## T13. Dead-code cleanup round (BINDING)
+
+Five redesign rounds left strata. Sweep `client/src` for dead/stale code and DELETE it:
+- Orphaned components/pages (no import path from any route): check especially `features/student/**` leftovers (old shell/top-bar/pills/workspace-state remnants), `components/layout/**`, `components/ui/custom/**` (cube-loader, data-toolbar, empty/error/loading-state, page-header, search-input, stat-card tones — verify each has a live importer; delete unused).
+- Unused exports within kept files (helpers, variants, types) — remove; unused npm deps ONLY flagged, not removed.
+- styles.css utilities with zero class usage in src (candidates: `.sheet-stack`, `.atmosphere`, `.display-index`, `.shimmer`, `.rubric-square`, others — grep each) — delete the dead ones.
+- Stale tests testing deleted things; stale mocks/fixtures.
+- Method: prefer `npx knip` if it runs cleanly without config wrestling; otherwise import-graph via grep/tsc. EVERY deletion listed in the report with its evidence (zero importers). When in doubt (dynamic/registry usage, route files, test utils), KEEP and flag.
+- Bars: typecheck, lint, full client+server tests, build, root `npm run check` — all green after deletions.
+
 ## T7. QA bars (v5)
 
 1. Blue exists ONLY as: links, citation chips/borders, focus rings, landing/auth editorial accents. Screenshot proof: buttons at rest AND hover, badges, stat chips, avatars, nav states — zero blue, both themes.

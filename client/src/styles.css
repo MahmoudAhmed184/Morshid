@@ -498,6 +498,44 @@
       box-shadow: var(--shadow-md);
     }
   }
+
+  /* morshid: menu kit — shared origin-aware popover motion (T10.3).
+     Hooks base-ui popup transition attrs: data-starting-style (animating in)
+     and data-ending-style (animating out); data-side drives the inherited
+     --transform-origin so the scale grows out of the trigger side. */
+  .menu-pop {
+    transform-origin: var(--transform-origin);
+    transition:
+      opacity 150ms var(--ease-out-quart),
+      transform 150ms var(--ease-out-quart);
+  }
+  .menu-pop[data-starting-style],
+  .menu-pop[data-ending-style] {
+    opacity: 0;
+    transform: scale(0.96) translateY(4px);
+  }
+  .menu-pop[data-ending-style] {
+    transition-duration: 100ms;
+  }
+  /* Item-aligned select popups position via their own transform — fade only. */
+  .menu-pop[data-align-trigger='true'] {
+    transform: none;
+    transition: opacity 150ms var(--ease-out-quart);
+  }
+  .menu-pop[data-align-trigger='true'][data-starting-style],
+  .menu-pop[data-align-trigger='true'][data-ending-style] {
+    transform: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .menu-pop {
+      transition-property: opacity;
+      transform: none;
+    }
+    .menu-pop[data-starting-style],
+    .menu-pop[data-ending-style] {
+      transform: none;
+    }
+  }
 }
 
 @layer base {
