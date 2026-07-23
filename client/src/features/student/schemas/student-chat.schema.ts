@@ -269,16 +269,18 @@ export const renameChatSessionRequestSchema = z
   })
   .strict()
 
+export const studentChatMessageContentSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .refine((value) => Array.from(value).length <= 4_000, {
+    message: 'Message content must contain at most 4,000 code points',
+  })
+
 export const sendStudentChatMessageRequestSchema = z
   .object({
     clientMessageId: z.uuid(),
-    content: z
-      .string()
-      .trim()
-      .min(1)
-      .refine((value) => Array.from(value).length <= 4_000, {
-        message: 'Message content must contain at most 4,000 code points',
-      }),
+    content: studentChatMessageContentSchema,
   })
   .strict()
 

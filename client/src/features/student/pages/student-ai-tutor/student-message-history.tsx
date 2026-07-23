@@ -10,6 +10,7 @@ import {
 import type { ChatMessage } from '@/features/student/schemas/student-chat.schema'
 
 import { StudentChatMessage } from './student-chat-message'
+import { STUDENT_CHAT_GENERATION_STATUS } from './student-chat-status'
 
 interface StudentMessageHistoryProps {
   messages: ChatMessage[]
@@ -129,13 +130,18 @@ export function StudentMessageHistory({
           />
         ))}
         {isGenerationActive && !hasPendingAssistant ? (
-          <li className="flex gap-3 py-2" role="status">
+          <li
+            aria-label={STUDENT_CHAT_GENERATION_STATUS}
+            aria-live="polite"
+            className="flex gap-3 py-2"
+            role="status"
+          >
             <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
               <Bot className="size-4" aria-hidden />
             </div>
             <div className="flex items-center gap-2 px-1 py-1 text-sm text-muted-foreground">
               <LoaderCircle className="size-4 animate-spin" aria-hidden />
-              Thinking…
+              {STUDENT_CHAT_GENERATION_STATUS}…
             </div>
           </li>
         ) : null}

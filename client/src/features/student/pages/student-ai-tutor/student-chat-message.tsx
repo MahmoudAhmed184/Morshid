@@ -6,6 +6,7 @@ import {
   RotateCcw,
   UserRound,
 } from 'lucide-react'
+import { useEffect, useRef } from 'react'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -14,6 +15,11 @@ import type { ChatMessage } from '@/features/student/schemas/student-chat.schema
 import { cn } from '@/lib/utils'
 
 import { StudentCitationSources } from './student-citation-sources'
+import {
+  STUDENT_CHAT_COMPLETION_STATUS,
+  STUDENT_CHAT_FAILURE_STATUS,
+  STUDENT_CHAT_GENERATION_STATUS,
+} from './student-chat-status'
 
 interface StudentChatMessageProps {
   message: ChatMessage
@@ -28,8 +34,6 @@ const guidanceLabels: Partial<
 > = {
   COURSE_GROUNDED: 'Course-grounded guidance',
   GENERAL_NOT_FOUND: 'Course evidence not found',
-  UNCERTAIN_AWAITING_REVIEW: 'Awaiting review',
-  INSTRUCTOR_REVIEWED: 'Instructor-reviewed guidance',
   REFUSAL: 'Request declined',
 }
 
@@ -45,6 +49,8 @@ export function StudentChatMessage({
   const isAssistantPending =
     message.role === 'ASSISTANT' &&
     (message.status === 'PENDING' || message.status === 'STREAMING')
+  const previousStatusRef = useRef(message.status)
+  const terminalAnnouncementRef = useRef<HTMLSpanElement>(null)
   const canRetry =
     message.role === 'ASSISTANT' &&
     message.status === 'FAILED' &&
@@ -54,6 +60,25 @@ export function StudentChatMessage({
     : undefined
   const hasRetryError =
     Boolean(retryError) && message.responseToMessageId === retryMessageId
+
+  useEffect(() => {
+    const previousStatus = previousStatusRef.current
+    previousStatusRef.current = message.status
+    const wasPending =
+      previousStatus === 'PENDING' || previousStatus === 'STREAMING'
+    if (!wasPending || isAssistantPending || message.role !== 'ASSISTANT') {
+      return
+    }
+
+    const announcement =
+      message.status === 'FAILED'
+        ? STUDENT_CHAT_FAILURE_STATUS
+        : STUDENT_CHAT_COMPLETION_STATUS
+    terminalAnnouncementRef.current?.setAttribute('aria-label', announcement)
+    if (terminalAnnouncementRef.current) {
+      terminalAnnouncementRef.current.textContent = announcement
+    }
+  }, [isAssistantPending, message.role, message.status])
 
   return (
     <li
@@ -100,13 +125,26 @@ export function StudentChatMessage({
         ) : null}
 
         {isAssistantPending ? (
-          <p className="flex items-center gap-2 text-muted-foreground">
+          <p
+            aria-label={STUDENT_CHAT_GENERATION_STATUS}
+            aria-live="polite"
+            className="flex items-center gap-2 text-muted-foreground"
+            role="status"
+          >
             <LoaderCircle className="size-4 animate-spin" aria-hidden />
-            Thinking…
+            {STUDENT_CHAT_GENERATION_STATUS}…
           </p>
         ) : (
           <p className="whitespace-pre-wrap break-words">{message.content}</p>
         )}
+
+        <span
+          ref={terminalAnnouncementRef}
+          aria-atomic="true"
+          aria-live="polite"
+          className="sr-only"
+          role="status"
+        />
 
         {isStudent && message.status === 'PENDING' ? (
           <p className="mt-1 text-xs opacity-75">Sending…</p>

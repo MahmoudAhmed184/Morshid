@@ -42,6 +42,10 @@ import {
 } from '@/features/student/testing/student-chat.fixtures'
 
 import { StudentAiTutorPage } from './student-ai-tutor-page'
+import {
+  STUDENT_CHAT_COMPLETION_STATUS,
+  STUDENT_CHAT_GENERATION_STATUS,
+} from './student-chat-status'
 
 vi.mock('@/features/student/data/student-sessions.api')
 
@@ -448,6 +452,64 @@ describe('StudentAiTutorPage workspace', () => {
     expect(
       screen.queryByText('Enter a question before sending.'),
     ).not.toBeInTheDocument()
+  })
+
+  it('accepts valid astral Unicode content using code-point limits', async () => {
+    const unicodeQuestion = `  ${'😀'.repeat(2_001)}  `
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+      messages: { messages: [], nextCursor: null },
+    })
+
+    await waitFor(() =>
+      expect(screen.getByRole('textbox', { name: 'Message' })).toBeEnabled(),
+    )
+    const composer = screen.getByRole('textbox', { name: 'Message' })
+    fireEvent.change(composer, { target: { value: unicodeQuestion } })
+
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() =>
+      expect(sendStudentChatMessageMock).toHaveBeenCalledWith({
+        courseId: primaryCourse.id,
+        sessionId: primaryChatSessionFixture.id,
+        input: {
+          clientMessageId: expect.any(String),
+          content: '😀'.repeat(2_001),
+        },
+      }),
+    )
+  })
+
+  it('caps composed content at 4,000 Unicode code points', async () => {
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+      messages: { messages: [], nextCursor: null },
+    })
+
+    await waitFor(() =>
+      expect(screen.getByRole('textbox', { name: 'Message' })).toBeEnabled(),
+    )
+    const composer = screen.getByRole('textbox', { name: 'Message' })
+    fireEvent.change(composer, {
+      target: { value: `  ${'😀'.repeat(4_001)}` },
+    })
+
+    expect(
+      Array.from((composer as HTMLTextAreaElement).value.trim()),
+    ).toHaveLength(4_000)
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeEnabled()
   })
 
   it('uses semantic theme tokens throughout the workspace', () => {
@@ -1208,7 +1270,7 @@ describe('StudentAiTutorPage workspace', () => {
       ],
       nextCursor: null,
     }
-    renderWorkspace({
+    const { queryClient } = renderWorkspace({
       courseId: primaryCourse.id,
       sessionId: primaryChatSessionFixture.id,
       sessions: {
@@ -1220,7 +1282,41 @@ describe('StudentAiTutorPage workspace', () => {
 
     expect(await screen.findByLabelText('Message')).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled()
+    expect(
+      await screen.findByRole('status', {
+        name: STUDENT_CHAT_GENERATION_STATUS,
+      }),
+    ).toBeInTheDocument()
     expect(sendStudentChatMessageMock).not.toHaveBeenCalled()
+
+    act(() => {
+      queryClient.setQueryData(
+        studentSessionKeys.messageList({
+          studentId,
+          courseId: primaryCourse.id,
+          sessionId: primaryChatSessionFixture.id,
+        }),
+        {
+          pages: [
+            {
+              messages: [
+                groundedChatTurnResponseFixture.studentMessage,
+                groundedChatTurnResponseFixture.assistantMessage,
+              ],
+              nextCursor: null,
+            },
+          ],
+          pageParams: [undefined],
+        },
+      )
+    })
+
+    expect(
+      await screen.findByRole('status', {
+        name: STUDENT_CHAT_COMPLETION_STATUS,
+      }),
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText('Message')).toBeEnabled()
   })
 
   it('leaves the conversation area blank while messages are pending', () => {
@@ -1338,7 +1434,11 @@ describe('StudentAiTutorPage workspace', () => {
     ).toBeInTheDocument()
     await waitFor(() => expect(composer).toBeDisabled())
     expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled()
-    expect(screen.getByText('Thinking…')).toBeInTheDocument()
+    expect(
+      screen.getByRole('status', {
+        name: STUDENT_CHAT_GENERATION_STATUS,
+      }),
+    ).toBeInTheDocument()
     expect(sendStudentChatMessageMock).toHaveBeenCalledWith({
       courseId: primaryCourse.id,
       sessionId: primaryChatSessionFixture.id,
@@ -1443,7 +1543,11 @@ describe('StudentAiTutorPage workspace', () => {
       target: { value: 'Question scoped to the first session' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
-    expect(await screen.findByText('Thinking…')).toBeInTheDocument()
+    expect(
+      await screen.findByRole('status', {
+        name: STUDENT_CHAT_GENERATION_STATUS,
+      }),
+    ).toBeInTheDocument()
 
     queryClient.setQueryData(
       studentSessionKeys.detail({
@@ -1477,7 +1581,11 @@ describe('StudentAiTutorPage workspace', () => {
       await screen.findByRole('heading', { name: secondSession.title }),
     ).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Message' })).toBeEnabled()
-    expect(screen.queryByText('Thinking…')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('status', {
+        name: STUDENT_CHAT_GENERATION_STATUS,
+      }),
+    ).not.toBeInTheDocument()
     expect(
       screen.queryByText('Question scoped to the first session'),
     ).not.toBeInTheDocument()
@@ -1669,6 +1777,52 @@ describe('StudentAiTutorPage workspace', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('Available')).toBeInTheDocument()
     expect(screen.getByText('Chunk 1')).toBeInTheDocument()
+  })
+
+  it('does not expose excluded review-workflow labels', async () => {
+    const firstStudent = groundedChatTurnResponseFixture.studentMessage
+    const firstAssistant = {
+      ...groundedChatTurnResponseFixture.assistantMessage,
+      guidanceLabel: 'UNCERTAIN_AWAITING_REVIEW' as const,
+    }
+    const secondStudent = {
+      ...firstStudent,
+      id: '11111111-1111-4111-8111-111111111111',
+      sequence: 3,
+      content: 'A second question',
+    }
+    const secondAssistant = {
+      ...firstAssistant,
+      id: '22222222-2222-4222-8222-222222222222',
+      sequence: 4,
+      responseToMessageId: secondStudent.id,
+      guidanceLabel: 'INSTRUCTOR_REVIEWED' as const,
+      content: 'A second answer',
+    }
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+      messages: {
+        messages: [
+          firstStudent,
+          firstAssistant,
+          secondStudent,
+          secondAssistant,
+        ],
+        nextCursor: null,
+      },
+    })
+
+    expect(await screen.findByText(firstAssistant.content)).toBeInTheDocument()
+    expect(screen.getByText(secondAssistant.content)).toBeInTheDocument()
+    expect(screen.queryByText('Awaiting review')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Instructor-reviewed guidance'),
+    ).not.toBeInTheDocument()
   })
 
   it('shows unavailable sources and no-evidence responses without invented metadata', async () => {

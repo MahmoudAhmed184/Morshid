@@ -8,7 +8,12 @@ import {
   isStudentChatApiError,
   STUDENT_CHAT_ERROR_CODES,
 } from '@/features/student/data/student-chat.errors'
-import { sendStudentChatMessageRequestSchema } from '@/features/student/schemas/student-chat.schema'
+import {
+  sendStudentChatMessageRequestSchema,
+  studentChatMessageContentSchema,
+} from '@/features/student/schemas/student-chat.schema'
+
+const maximumMessageCodePoints = 4_000
 
 interface StudentChatComposerProps {
   hasSelectedSession: boolean
@@ -32,8 +37,7 @@ export function StudentChatComposer({
   const canSend =
     hasSelectedSession &&
     !isGenerating &&
-    draft.trim().length > 0 &&
-    draft.length <= 4_000
+    studentChatMessageContentSchema.safeParse(draft).success
 
   useEffect(() => {
     const generationFinished = wasGeneratingRef.current && !isGenerating
@@ -102,10 +106,9 @@ export function StudentChatComposer({
               autoComplete="off"
               className="max-h-40 min-h-12 resize-none border-0 bg-transparent px-3 py-3 pr-12 shadow-none focus-visible:ring-0"
               disabled={!hasSelectedSession || isGenerating}
-              maxLength={4_000}
               name="chat-message"
               onChange={(event) => {
-                setDraft(event.target.value)
+                setDraft(limitMessageDraft(event.target.value))
                 clientMessageIdRef.current = null
                 if (sendError) {
                   onDismissError()
@@ -157,6 +160,20 @@ export function StudentChatComposer({
       </form>
     </footer>
   )
+}
+
+function limitMessageDraft(value: string) {
+  const trimmed = value.trim()
+  const codePoints = Array.from(trimmed)
+
+  if (codePoints.length <= maximumMessageCodePoints) {
+    return value
+  }
+
+  const leadingWhitespace = value.slice(0, value.indexOf(trimmed))
+  return `${leadingWhitespace}${codePoints
+    .slice(0, maximumMessageCodePoints)
+    .join('')}`
 }
 
 function sendErrorMessage(error: unknown) {
