@@ -22,6 +22,9 @@ export const GATE_2_FIXTURE = {
 
 export const GATE_2_VISIBLE_SIMILARITY = 0.82
 export const GATE_2_HIDDEN_SIMILARITY = 0.99
+export const GATE_2_BELOW_THRESHOLD_SIMILARITY = -GATE_2_VISIBLE_SIMILARITY
+export const GATE_2_RETRIEVAL_MIN_SIMILARITY = 0.7
+export const GATE_2_RETRIEVAL_TOP_K = 5
 
 const QUERY_VECTOR = unitSimilarityVector(1)
 const VISIBLE_VECTOR = unitSimilarityVector(GATE_2_VISIBLE_SIMILARITY)

@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import type { INestApplication } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
 import { Test, type TestingModule } from '@nestjs/testing'
 import request from 'supertest'
 import type { App } from 'supertest/types'
@@ -21,6 +22,7 @@ import {
 import {
   EMBEDDING_DIMENSIONS,
   EMBEDDING_PROVIDER_TOKEN,
+  type EmbeddingProvider,
 } from '../src/modules/embedding/embedding-provider'
 import { ValidatedEmbeddingProvider } from '../src/modules/embedding/validated-embedding.provider'
 import { MaterialProcessingScheduler } from '../src/modules/materials/material-processing.scheduler'
@@ -47,8 +49,11 @@ import {
   type P0DemoSeedResult,
 } from '../src/seeds/p0-demo.seed'
 import {
+  GATE_2_BELOW_THRESHOLD_SIMILARITY,
   GATE_2_FIXTURE,
   GATE_2_HIDDEN_SIMILARITY,
+  GATE_2_RETRIEVAL_MIN_SIMILARITY,
+  GATE_2_RETRIEVAL_TOP_K,
   GATE_2_VISIBLE_SIMILARITY,
   Gate2DeterministicEmbeddingProvider,
   gate2PermissionSafePdf,
@@ -105,6 +110,7 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
   let storage: LocalPdfStorageAdapter
   let persistence: RagPersistenceRepository
   let retrievalService: RetrievalService
+  let embeddingProvider: EmbeddingProvider
   let processingService: MaterialProcessingService
   let processingScheduler: CapturingProcessingScheduler
   let completionProvider: CapturingCompletionProvider
@@ -120,33 +126,66 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
     )
     processingScheduler = new CapturingProcessingScheduler(prisma)
 
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    })
-      .overrideProvider(PrismaService)
-      .useValue(prisma)
-      .overrideProvider(RedisService)
-      .useValue({ ping: jest.fn().mockResolvedValue('PONG') })
-      .overrideProvider(PDF_STORAGE)
-      .useValue(storage)
-      .overrideProvider(EMBEDDING_PROVIDER_TOKEN)
-      .useValue(
-        new ValidatedEmbeddingProvider(
-          new Gate2DeterministicEmbeddingProvider(),
-        ),
+    const ambientRetrievalConfig = {
+      minSimilarity: process.env.RETRIEVAL_MIN_SIMILARITY,
+      topK: process.env.RETRIEVAL_TOP_K,
+    }
+    process.env.RETRIEVAL_MIN_SIMILARITY = String(
+      GATE_2_RETRIEVAL_MIN_SIMILARITY,
+    )
+    process.env.RETRIEVAL_TOP_K = String(GATE_2_RETRIEVAL_TOP_K)
+
+    let moduleFixture: TestingModule
+    try {
+      moduleFixture = await Test.createTestingModule({
+        imports: [AppModule],
+      })
+        .overrideProvider(PrismaService)
+        .useValue(prisma)
+        .overrideProvider(RedisService)
+        .useValue({ ping: jest.fn().mockResolvedValue('PONG') })
+        .overrideProvider(PDF_STORAGE)
+        .useValue(storage)
+        .overrideProvider(EMBEDDING_PROVIDER_TOKEN)
+        .useValue(
+          new ValidatedEmbeddingProvider(
+            new Gate2DeterministicEmbeddingProvider(),
+          ),
+        )
+        .overrideProvider(COMPLETION_PROVIDER_TOKEN)
+        .useValue(completionProvider)
+        .overrideProvider(MaterialProcessingScheduler)
+        .useValue(processingScheduler)
+        .compile()
+    } finally {
+      restoreEnvironmentVariable(
+        'RETRIEVAL_MIN_SIMILARITY',
+        ambientRetrievalConfig.minSimilarity,
       )
-      .overrideProvider(COMPLETION_PROVIDER_TOKEN)
-      .useValue(completionProvider)
-      .overrideProvider(MaterialProcessingScheduler)
-      .useValue(processingScheduler)
-      .compile()
+      restoreEnvironmentVariable('RETRIEVAL_TOP_K', ambientRetrievalConfig.topK)
+    }
 
     app = moduleFixture.createNestApplication()
     configureApp(app)
     await app.init()
     persistence = moduleFixture.get(RagPersistenceRepository)
     retrievalService = moduleFixture.get(RetrievalService)
+    embeddingProvider = moduleFixture.get(EMBEDDING_PROVIDER_TOKEN)
     processingService = moduleFixture.get(MaterialProcessingService)
+
+    await gate2Stage('lock deterministic retrieval configuration', () => {
+      const config = moduleFixture.get(ConfigService)
+      expect(config.get('RETRIEVAL_MIN_SIMILARITY')).toBe(
+        GATE_2_RETRIEVAL_MIN_SIMILARITY,
+      )
+      expect(config.get('RETRIEVAL_TOP_K')).toBe(GATE_2_RETRIEVAL_TOP_K)
+      expect(GATE_2_VISIBLE_SIMILARITY).toBeGreaterThan(
+        GATE_2_RETRIEVAL_MIN_SIMILARITY,
+      )
+      expect(GATE_2_BELOW_THRESHOLD_SIMILARITY).toBeLessThan(
+        GATE_2_RETRIEVAL_MIN_SIMILARITY,
+      )
+    })
   })
 
   beforeEach(() => {
@@ -248,6 +287,12 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
         return chunks
       },
     )
+    const visibleChunk = uploadedChunks.find(({ content }) =>
+      content.includes(GATE_2_FIXTURE.visibleSentinel),
+    )
+    if (visibleChunk === undefined) {
+      throw new Error('Gate 2 expected an uploaded authorized evidence chunk')
+    }
     await gate2Stage('verify upload and readiness audit evidence', async () => {
       const audits = await prisma.auditLog.findMany({
         where: { targetId: uploadedMaterialId },
@@ -282,16 +327,51 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
           uploadedById: instructor.id,
         }),
     )
-    expect(GATE_2_HIDDEN_SIMILARITY).toBeGreaterThan(GATE_2_VISIBLE_SIMILARITY)
-    await expect(
-      prisma.courseMembership.count({
-        where: {
-          courseId: seed.courses.hiddenIsolation.id,
-          user: { email: 'student1@morshid.demo' },
-          removedAt: null,
-        },
-      }),
-    ).resolves.toBe(0)
+    await gate2Stage(
+      'prove the persisted hidden adversary is stronger and available',
+      async () => {
+        const hiddenChunks = await persistence.findMaterialChunks(
+          hidden.material.id,
+        )
+        expect(hiddenChunks).toHaveLength(1)
+        const hiddenChunk = hiddenChunks[0]
+
+        const [queryEmbedding] = await embeddingProvider.embedBatch([
+          GATE_2_FIXTURE.question,
+        ])
+        const visibleSimilarity = cosineSimilarity(
+          visibleChunk.embedding,
+          queryEmbedding,
+        )
+        const hiddenSimilarity = cosineSimilarity(
+          hiddenChunk.embedding,
+          queryEmbedding,
+        )
+
+        expect(visibleSimilarity).toBeCloseTo(GATE_2_VISIBLE_SIMILARITY, 5)
+        expect(hiddenSimilarity).toBeCloseTo(GATE_2_HIDDEN_SIMILARITY, 5)
+        expect(hiddenSimilarity).toBeGreaterThan(visibleSimilarity)
+        expect(visibleSimilarity).toBeGreaterThan(
+          GATE_2_RETRIEVAL_MIN_SIMILARITY,
+        )
+        expect(await storage.exists(hidden.material.storagePath)).toBe(true)
+
+        const uploadedMaterial = await prisma.material.findUniqueOrThrow({
+          where: { id: uploadedMaterialId },
+          select: { storagePath: true },
+        })
+        expect(await storage.exists(uploadedMaterial.storagePath)).toBe(true)
+        await expect(
+          prisma.courseMembership.count({
+            where: {
+              courseId: seed.courses.hiddenIsolation.id,
+              user: { email: 'student1@morshid.demo' },
+              removedAt: null,
+            },
+          }),
+        ).resolves.toBe(0)
+      },
+    )
 
     const retrieval = await gate2Stage(
       'query production retrieval with mandatory Python course scope',
@@ -346,7 +426,7 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
     })
     expect(citation.evidence).toHaveLength(1)
     expect(citation.evidence[0]).toMatchObject({
-      chunkId: uploadedChunks[0].id,
+      chunkId: visibleChunk.id,
       chunkNumber: 1,
     })
 
@@ -390,9 +470,7 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
           GATE_2_FIXTURE.hiddenSentinel,
         )
         expect(persistedAssistant.retrievals).toHaveLength(1)
-        expect(persistedAssistant.retrievals[0].chunkId).toBe(
-          uploadedChunks[0].id,
-        )
+        expect(persistedAssistant.retrievals[0].chunkId).toBe(visibleChunk.id)
         expect(persistedAssistant.citations).toEqual([
           expect.objectContaining({ materialId: uploadedMaterialId }),
         ])
@@ -624,9 +702,51 @@ function expectNoHiddenState(
   }
 }
 
+function cosineSimilarity(
+  left: readonly number[],
+  right: readonly number[],
+): number {
+  if (left.length !== right.length || left.length === 0) {
+    throw new Error('Gate 2 cosine vectors must have equal non-zero dimensions')
+  }
+
+  let dotProduct = 0
+  let leftMagnitudeSquared = 0
+  let rightMagnitudeSquared = 0
+  for (let index = 0; index < left.length; index += 1) {
+    const leftValue = left[index] ?? 0
+    const rightValue = right[index] ?? 0
+    dotProduct += leftValue * rightValue
+    leftMagnitudeSquared += leftValue * leftValue
+    rightMagnitudeSquared += rightValue * rightValue
+  }
+
+  if (leftMagnitudeSquared === 0 || rightMagnitudeSquared === 0) {
+    throw new Error('Gate 2 cosine vectors must have non-zero magnitudes')
+  }
+
+  return dotProduct / Math.sqrt(leftMagnitudeSquared * rightMagnitudeSquared)
+}
+
+function restoreEnvironmentVariable(
+  name: 'RETRIEVAL_MIN_SIMILARITY' | 'RETRIEVAL_TOP_K',
+  value: string | undefined,
+): void {
+  if (value === undefined) {
+    if (name === 'RETRIEVAL_MIN_SIMILARITY') {
+      delete process.env.RETRIEVAL_MIN_SIMILARITY
+    } else {
+      delete process.env.RETRIEVAL_TOP_K
+    }
+    return
+  }
+
+  process.env[name] = value
+}
+
 async function gate2Stage<Result>(
   name: string,
-  operation: () => Promise<Result>,
+  operation: () => Result | Promise<Result>,
 ): Promise<Result> {
   try {
     return await operation()
