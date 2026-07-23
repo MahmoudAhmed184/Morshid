@@ -20,7 +20,7 @@ import { useAdminAudit } from '../hooks/use-admin-audit'
 import { useAdminCourses } from '../hooks/use-admin-courses'
 import { useAdminUsers } from '../hooks/use-admin-users'
 
-type QuickNavTone = 'neutral' | 'info' | 'gold' | 'success'
+type QuickNavTone = 'neutral' | 'gold' | 'success'
 
 const quickNav: {
   title: string
@@ -29,7 +29,12 @@ const quickNav: {
   tone: QuickNavTone
 }[] = [
   { title: 'Users', to: '/admin/users', icon: UsersIcon, tone: 'neutral' },
-  { title: 'Courses', to: '/admin/courses', icon: BookOpenIcon, tone: 'info' },
+  {
+    title: 'Courses',
+    to: '/admin/courses',
+    icon: BookOpenIcon,
+    tone: 'neutral',
+  },
   {
     title: 'Materials',
     to: '/admin/materials',
@@ -46,7 +51,6 @@ const quickNav: {
 
 const quickNavChip: Record<QuickNavTone, string> = {
   neutral: 'bg-secondary text-foreground',
-  info: 'bg-info/10 text-info',
   gold: 'bg-gold/10 text-gold',
   success: 'bg-success/10 text-success',
 }
@@ -85,7 +89,7 @@ export function AdminDashboardPage() {
       label: 'Instructors',
       value: instructorCount,
       icon: <UsersIcon aria-hidden />,
-      tone: 'info',
+      tone: 'default',
       description: 'Managed instructor accounts loaded',
     },
     {
