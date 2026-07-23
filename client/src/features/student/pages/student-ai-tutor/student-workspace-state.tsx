@@ -2,7 +2,10 @@ import { MessageSquareText } from 'lucide-react'
 
 import { EmptyState } from '@/components/ui/custom/empty-state'
 import { ErrorState } from '@/components/ui/custom/error-state'
-import { isApiError } from '@/features/auth/api/authenticated-api-client'
+import {
+  isStudentChatApiError,
+  STUDENT_CHAT_ERROR_CODES,
+} from '@/features/student/data/student-chat.errors'
 
 interface StudentWorkspaceStateProps {
   sessionId?: string
@@ -42,9 +45,9 @@ export function StudentWorkspaceState({
   if (
     sessionId &&
     sessionError &&
-    !(
-      isApiError(sessionError) &&
-      sessionError.code === 'STUDENT_CHAT_SESSION_NOT_FOUND'
+    !isStudentChatApiError(
+      sessionError,
+      STUDENT_CHAT_ERROR_CODES.SESSION_NOT_FOUND,
     )
   ) {
     return (

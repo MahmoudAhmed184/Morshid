@@ -11,7 +11,7 @@ import {
 } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ApiError } from '@/features/auth/api/authenticated-api-client'
+import { ApiError } from '@/lib/api/http'
 import type { AuthSession } from '@/features/auth/schemas/auth.schema'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 import {

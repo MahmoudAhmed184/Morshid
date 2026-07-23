@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import type { ApiError } from '@/features/auth/api/authenticated-api-client'
+import type { ApiError } from '@/lib/api/http'
 import {
   chatMessageHistoryResponseFixture,
   chatSessionListResponseFixture,

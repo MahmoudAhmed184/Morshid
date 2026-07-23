@@ -4,7 +4,10 @@ import type { FormEvent, KeyboardEvent } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { isApiError } from '@/features/auth/api/authenticated-api-client'
+import {
+  isStudentChatApiError,
+  STUDENT_CHAT_ERROR_CODES,
+} from '@/features/student/data/student-chat.errors'
 import { sendStudentChatMessageRequestSchema } from '@/features/student/schemas/student-chat.schema'
 
 interface StudentChatComposerProps {
@@ -157,17 +160,21 @@ export function StudentChatComposer({
 }
 
 function sendErrorMessage(error: unknown) {
-  if (isApiError(error)) {
-    switch (error.code) {
-      case 'STUDENT_CHAT_TURN_IN_PROGRESS':
-        return 'This conversation is already generating a response. Refresh the history before trying again.'
-      case 'STUDENT_CHAT_SESSION_NOT_FOUND':
-        return 'This conversation is no longer available.'
-      case 'STUDENT_CHAT_TERMINAL_STATE_UNAVAILABLE':
-        return 'Your message may have been saved, but its final state could not be confirmed. Refresh the history before retrying.'
-      default:
-        break
-    }
+  if (isStudentChatApiError(error, STUDENT_CHAT_ERROR_CODES.TURN_IN_PROGRESS)) {
+    return 'This conversation is already generating a response. Refresh the history before trying again.'
+  }
+  if (
+    isStudentChatApiError(error, STUDENT_CHAT_ERROR_CODES.SESSION_NOT_FOUND)
+  ) {
+    return 'This conversation is no longer available.'
+  }
+  if (
+    isStudentChatApiError(
+      error,
+      STUDENT_CHAT_ERROR_CODES.TERMINAL_STATE_UNAVAILABLE,
+    )
+  ) {
+    return 'Your message may have been saved, but its final state could not be confirmed. Refresh the history before retrying.'
   }
 
   return 'Your message could not be sent. It remains in the composer so you can try again.'

@@ -3,7 +3,10 @@ import { Bot, LoaderCircle, MessageSquareText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/custom/empty-state'
 import { ErrorState } from '@/components/ui/custom/error-state'
-import { isApiError } from '@/features/auth/api/authenticated-api-client'
+import {
+  isStudentChatApiError,
+  STUDENT_CHAT_ERROR_CODES,
+} from '@/features/student/data/student-chat.errors'
 import type { ChatMessage } from '@/features/student/schemas/student-chat.schema'
 
 import { StudentChatMessage } from './student-chat-message'
@@ -49,8 +52,7 @@ export function StudentMessageHistory({
 
   if (
     isError &&
-    isApiError(error) &&
-    error.code === 'STUDENT_CHAT_SESSION_NOT_FOUND'
+    isStudentChatApiError(error, STUDENT_CHAT_ERROR_CODES.SESSION_NOT_FOUND)
   ) {
     return (
       <EmptyState
