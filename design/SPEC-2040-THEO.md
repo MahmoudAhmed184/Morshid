@@ -84,6 +84,16 @@ Course switcher: REMOVED from the sidebar (it moves into the composer, T5). "All
 - `admin-status-badge.tsx` `default` dot → `bg-muted-foreground`.
 - Development status page icons: `text-primary` is now ink — leave as-is.
 
+## T8. Landing/auth regression remediation (BINDING — corrects T1 overreach)
+
+User-reported regressions after the repivot/rebase. Ground truth for "previous look" = commit `137364c` (pre-v5). Blue's reserved set SHRINKS again: **citations and focus rings only**. Links are NOT blue.
+
+- **T8.1 Links are ink.** `.link-editorial` reverts to `color: inherit` (keep its underline/offset idiom exactly as it was at `137364c`). Footer columns (Product/Company/Legal), `Read the method ↓`, `Forgot password?`, `Open the queue →` and every other editorial link render ink with the underline treatment, both themes. Citation chips/evidence borders KEEP their `info` blue.
+- **T8.2 Landing/navbar/auth button presentation restored.** The fresh stock Button shrank the landing CTAs and navbar button and lost the editorial typography. Recover the exact pre-v5 rendered classes: diff each call site (navbar, hero CTA, colophon CTA, auth submit, any landing section buttons) between `137364c` and HEAD, including what the OLD `button.tsx` variants contributed (`git show 137364c:client/src/components/ui/button.tsx`), and restore the previous visual size/shape/typography (pill radius, height, padding, font size/tracking) — preferably via call-site classes; a `/* morshid: */` delta in `button.tsx` is allowed ONLY if the old presentation lived in a variant that multiple call sites share (report which route was taken). App-surface buttons (student/staff) are NOT in scope — they stay stock.
+- **T8.3 Colophon CTA ("Bring the course. Keep the understanding.")**: its button must never turn blue on hover/active/selected. On the inverted ink band the hover is the warm inverse (paper `bg-background text-foreground` fill, per the pre-v5 inverted idiom if it was warm; if the pre-v5 hover was blue, override it — warm inverse wins). Same rule for any other button on inverted bands.
+- **T8.4 Link/button typography on landing/auth**: wherever the rebase changed font-size/tracking/weight of links or buttons on these surfaces, restore the `137364c` values (call-site or utility-level, reported).
+- **T8.5 Verification**: side-by-side screenshots (landing top/method/colophon/footer, sign-in; both themes) against `137364c` equivalents; zero blue links anywhere; buttons visually match pre-v5 proportions; citations still blue; app surfaces unchanged (spot-check /courses and one staff page for accidental fallout).
+
 ## T7. QA bars (v5)
 
 1. Blue exists ONLY as: links, citation chips/borders, focus rings, landing/auth editorial accents. Screenshot proof: buttons at rest AND hover, badges, stat chips, avatars, nav states — zero blue, both themes.

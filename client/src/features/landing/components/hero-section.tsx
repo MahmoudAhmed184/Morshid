@@ -66,6 +66,7 @@ export function HeroSection() {
                 nativeButton={false}
                 render={<Link to="/login" />}
                 size="lg"
+                className="h-12 gap-2 rounded-full px-7 text-base"
               >
                 Begin studying
               </Button>

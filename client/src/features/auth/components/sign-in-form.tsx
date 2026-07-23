@@ -142,7 +142,7 @@ export function SignInForm() {
           variant="default"
           size="lg"
           disabled={form.formState.isSubmitting}
-          className="w-full"
+          className="h-12 w-full gap-2 rounded-full px-7 text-base"
         >
           Sign in
         </Button>

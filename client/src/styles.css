@@ -394,7 +394,7 @@
 
   /* Editorial underline link — hairline rule that inks red on hover. */
   .link-editorial {
-    color: var(--info);
+    color: inherit;
     text-decoration-line: underline;
     text-underline-offset: 4px;
     text-decoration-thickness: 1px;

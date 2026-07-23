@@ -31,6 +31,10 @@ type NavLinkProps = {
 const navLinkClassName =
   'smallcaps-label rounded-sm transition-colors duration-200 outline-none hover:text-foreground focus-visible:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background'
 
+/* morshid: pre-v5 CTA presentation (pill radius, h-10, px-5) — restores the
+   editorial size/shape the stock Button `default` size dropped. */
+const ctaButtonClassName = 'h-10 gap-2 rounded-full px-5'
+
 function NavLink({ item, children, className, style, onClick }: NavLinkProps) {
   const linkClassName = cn(navLinkClassName, className)
 
@@ -110,7 +114,7 @@ export function Navbar() {
             <Button
               nativeButton={false}
               render={<Link to={dashboardPath} />}
-              className="hidden lg:inline-flex"
+              className={cn(ctaButtonClassName, 'hidden lg:inline-flex')}
             >
               Dashboard
             </Button>
@@ -125,7 +129,7 @@ export function Navbar() {
               <Button
                 nativeButton={false}
                 render={<Link to="/login" />}
-                className="hidden lg:inline-flex"
+                className={cn(ctaButtonClassName, 'hidden lg:inline-flex')}
               >
                 Begin studying
               </Button>
@@ -179,7 +183,7 @@ export function Navbar() {
                 <Button
                   nativeButton={false}
                   render={<Link to={dashboardPath} />}
-                  className="w-full"
+                  className={cn(ctaButtonClassName, 'w-full')}
                   onClick={closeMenu}
                 >
                   Dashboard
@@ -196,7 +200,7 @@ export function Navbar() {
                   <Button
                     nativeButton={false}
                     render={<Link to="/login" />}
-                    className="w-full"
+                    className={cn(ctaButtonClassName, 'w-full')}
                     onClick={closeMenu}
                   >
                     Begin studying
