@@ -275,12 +275,19 @@ describe('Student chat contract schemas', () => {
     expect(() => deleteChatSessionResponseSchema.parse({})).toThrow()
   })
 
-  it('supports backward message pagination without mixed cursors', () => {
+  it('supports explicit latest and backward pagination without mixed cursors', () => {
     expect(
       listChatMessagesInputSchema.parse({ limit: 50, before: 101 }),
     ).toEqual({ limit: 50, before: 101 })
     expect(
+      listChatMessagesInputSchema.parse({ limit: 50, page: 'latest' }),
+    ).toEqual({ limit: 50, page: 'latest' })
+    expect(
       listChatMessagesInputSchema.safeParse({ after: 50, before: 101 }).success,
+    ).toBe(false)
+    expect(
+      listChatMessagesInputSchema.safeParse({ after: 50, page: 'latest' })
+        .success,
     ).toBe(false)
   })
 

@@ -77,11 +77,12 @@ export class PrismaStudentChatMessageRepository extends StudentChatMessageReposi
     }
 
     const before = pagination.before
-    const isLoadingEarlier = before !== undefined && before !== null
+    const isLoadingLatestOrEarlier =
+      pagination.latest === true || (before !== undefined && before !== null)
     const sequenceFilter =
       pagination.after !== undefined && pagination.after !== null
         ? { gt: pagination.after }
-        : isLoadingEarlier
+        : before !== undefined && before !== null
           ? { lt: before }
           : undefined
     const messages = await this.prismaService.message.findMany({
@@ -91,12 +92,12 @@ export class PrismaStudentChatMessageRepository extends StudentChatMessageReposi
       },
       select: chatMessageSelect,
       orderBy: {
-        sequence: isLoadingEarlier ? 'desc' : 'asc',
+        sequence: isLoadingLatestOrEarlier ? 'desc' : 'asc',
       },
       take: pagination.limit,
     })
 
-    return isLoadingEarlier ? messages.reverse() : messages
+    return isLoadingLatestOrEarlier ? messages.reverse() : messages
   }
 
   appendStudentMessage(input: AppendStudentMessageInput) {

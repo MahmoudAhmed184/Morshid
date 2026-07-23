@@ -17,7 +17,6 @@ interface StudentSessionScope extends StudentCourseScope {
 
 const sessionPageSize = 25
 const messagePageSize = 50
-const latestMessageCursor = 2_147_483_647
 
 export const studentSessionKeys = {
   sessionLists: ({ studentId, courseId }: StudentCourseScope) =>
@@ -100,9 +99,12 @@ export function studentSessionMessagesQueryOptions({
       getStudentSessionMessages({
         courseId,
         sessionId,
-        input: { limit: messagePageSize, before: pageParam },
+        input:
+          pageParam === undefined
+            ? { limit: messagePageSize, page: 'latest' }
+            : { limit: messagePageSize, before: pageParam },
       }),
-    initialPageParam: latestMessageCursor,
+    initialPageParam: undefined as number | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   })
 }

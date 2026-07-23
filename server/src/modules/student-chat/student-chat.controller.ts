@@ -271,6 +271,14 @@ export class StudentChatController {
   @sessionIdParam()
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'after', required: false, type: Number })
+  @ApiQuery({ name: 'before', required: false, type: Number })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    enum: ['latest'],
+    description:
+      'Use page=latest to load the newest page. It cannot be combined with cursor parameters.',
+  })
   @ApiOkResponse({ type: ChatMessageHistoryResponseDto })
   @invalidRequestOrUuidBadRequest()
   @notFound()

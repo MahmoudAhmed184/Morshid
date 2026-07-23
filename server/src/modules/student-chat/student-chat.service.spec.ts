@@ -197,9 +197,10 @@ class StudentChatTestRepository
         return true
       })
     const messages =
-      pagination.before === undefined || pagination.before === null
-        ? orderedMessages.slice(0, pagination.limit)
-        : orderedMessages.slice(-pagination.limit)
+      pagination.latest === true ||
+      (pagination.before !== undefined && pagination.before !== null)
+        ? orderedMessages.slice(-pagination.limit)
+        : orderedMessages.slice(0, pagination.limit)
 
     return Promise.resolve(messages)
   }
@@ -505,13 +506,22 @@ describe('StudentChatService', () => {
     }
   })
 
-  it('accepts one message pagination direction at a time', () => {
+  it('accepts one explicit message pagination direction at a time', () => {
     expect(listChatMessagesQuerySchema.parse({ before: '101' })).toEqual({
       before: 101,
+    })
+    expect(listChatMessagesQuerySchema.parse({ page: 'latest' })).toEqual({
+      page: 'latest',
     })
     expect(
       listChatMessagesQuerySchema.safeParse({ after: '50', before: '101' })
         .success,
+    ).toBe(false)
+    expect(
+      listChatMessagesQuerySchema.safeParse({
+        after: '50',
+        page: 'latest',
+      }).success,
     ).toBe(false)
   })
 
@@ -982,7 +992,7 @@ describe('StudentChatService', () => {
 
     const newest = await service.listMessages('course-1', session.id, student, {
       limit: 2,
-      before: 2_147_483_647,
+      page: 'latest',
     })
     expect(newest.messages.map((message) => message.sequence)).toEqual([2, 3])
     expect(newest.nextCursor).toBe(2)
@@ -995,6 +1005,60 @@ describe('StudentChatService', () => {
     )
     expect(earlier.messages.map((message) => message.sequence)).toEqual([1])
     expect(earlier.nextCursor).toBeNull()
+  })
+
+  it('does not advertise an earlier page for an exact-limit newest history', async () => {
+    const { repository, service } = buildService()
+    repository.addMembership('course-1', student.id)
+    const session = repository.addSession('course-1', student.id, 'History')
+    for (let sequence = 1; sequence <= 2; sequence += 1) {
+      repository.addMessage(session.id, {
+        sequence,
+        role: MessageRole.STUDENT,
+        authorUserId: student.id,
+        content: `Message ${String(sequence)}`,
+        status: MessageStatus.COMPLETED,
+      })
+    }
+
+    const newest = await service.listMessages('course-1', session.id, student, {
+      limit: 2,
+      page: 'latest',
+    })
+
+    expect(newest.messages.map((message) => message.sequence)).toEqual([1, 2])
+    expect(newest.nextCursor).toBeNull()
+  })
+
+  it('paginates multiple exact-size backward pages without an empty page', async () => {
+    const { repository, service } = buildService()
+    repository.addMembership('course-1', student.id)
+    const session = repository.addSession('course-1', student.id, 'History')
+    for (let sequence = 1; sequence <= 4; sequence += 1) {
+      repository.addMessage(session.id, {
+        sequence,
+        role: MessageRole.STUDENT,
+        authorUserId: student.id,
+        content: `Message ${String(sequence)}`,
+        status: MessageStatus.COMPLETED,
+      })
+    }
+
+    const newest = await service.listMessages('course-1', session.id, student, {
+      limit: 2,
+      page: 'latest',
+    })
+    const earliest = await service.listMessages(
+      'course-1',
+      session.id,
+      student,
+      { limit: 2, before: newest.nextCursor ?? undefined },
+    )
+
+    expect(newest.messages.map((message) => message.sequence)).toEqual([3, 4])
+    expect(newest.nextCursor).toBe(3)
+    expect(earliest.messages.map((message) => message.sequence)).toEqual([1, 2])
+    expect(earliest.nextCursor).toBeNull()
   })
 })
 

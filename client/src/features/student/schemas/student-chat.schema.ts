@@ -296,11 +296,17 @@ export const listChatMessagesInputSchema = z
     limit: z.number().int().min(1).max(200).optional(),
     after: z.number().int().nonnegative().optional(),
     before: z.number().int().positive().optional(),
+    page: z.literal('latest').optional(),
   })
   .strict()
-  .refine(({ after, before }) => after === undefined || before === undefined, {
-    message: 'Message pagination cannot use after and before together',
-  })
+  .refine(
+    ({ after, before, page }) =>
+      [after, before, page].filter((value) => value !== undefined).length <= 1,
+    {
+      message:
+        'Message pagination must use only one of after, before, or page=latest',
+    },
+  )
 
 export type ChatSession = z.infer<typeof chatSessionSchema>
 export type ChatSessionListResponse = z.infer<

@@ -1037,7 +1037,7 @@ describe('StudentAiTutorPage workspace', () => {
       expect(getStudentSessionMessagesMock).toHaveBeenCalledWith({
         courseId: primaryCourse.id,
         sessionId: primaryChatSessionFixture.id,
-        input: { limit: 50, before: 2_147_483_647 },
+        input: { limit: 50, page: 'latest' },
       }),
     )
   })

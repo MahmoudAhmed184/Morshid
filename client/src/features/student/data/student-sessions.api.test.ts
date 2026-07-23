@@ -197,6 +197,25 @@ describe('Student session API', () => {
     ).resolves.toEqual(chatMessageHistoryResponseFixture)
   })
 
+  it('requests the newest message page through the explicit latest contract', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      expect(String(input)).toBe(
+        `http://localhost:4000/api/v1/courses/${studentChatIds.primaryCourse}/chat-sessions/${studentChatIds.primarySession}/messages?limit=50&page=latest`,
+      )
+
+      return Response.json(chatMessageHistoryResponseFixture)
+    })
+
+    await expect(
+      getStudentSessionMessages({
+        courseId: studentChatIds.primaryCourse,
+        sessionId: studentChatIds.primarySession,
+        input: { limit: 50, page: 'latest' },
+        options: { fetchImpl: fetchMock },
+      }),
+    ).resolves.toEqual(chatMessageHistoryResponseFixture)
+  })
+
   it('sends only validated message content to the grounded-chat endpoint', async () => {
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {

@@ -47,11 +47,17 @@ export const listChatMessagesQuerySchema = z
     limit: z.coerce.number().int().min(1).max(MAX_MESSAGE_PAGE_SIZE).optional(),
     after: z.coerce.number().int().min(0).optional(),
     before: z.coerce.number().int().positive().optional(),
+    page: z.literal('latest').optional(),
   })
   .strict()
-  .refine(({ after, before }) => after === undefined || before === undefined, {
-    message: 'Message pagination cannot use after and before together',
-  })
+  .refine(
+    ({ after, before, page }) =>
+      [after, before, page].filter((value) => value !== undefined).length <= 1,
+    {
+      message:
+        'Message pagination must use only one of after, before, or page=latest',
+    },
+  )
 
 export const sendStudentChatMessageRequestSchema = z
   .object({
