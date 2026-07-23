@@ -6,6 +6,16 @@ import {
   DEFAULT_COMPLETION_TIMEOUT_MS,
   MAX_COMPLETION_TIMEOUT_MS,
 } from '../completion/validated-completion.provider'
+import {
+  DEFAULT_SBG_BASE_URL,
+  DEFAULT_SBG_MAX_TOKENS,
+  DEFAULT_SBG_MODEL_ID,
+  MAX_SBG_API_KEY_LENGTH,
+  MAX_SBG_BASE_URL_LENGTH,
+  MAX_SBG_MAX_TOKENS,
+  MAX_SBG_MODEL_ID_LENGTH,
+  MIN_SBG_MAX_TOKENS,
+} from '../completion/student-bedrock-gateway-completion.provider'
 import { MAX_PDF_OBJECT_BYTES } from '../pdf-storage/pdf-storage'
 
 // Rejects the committed `.env.example` placeholders so a fresh checkout cannot
@@ -38,15 +48,35 @@ export const envSchema = z
     // never has to reject a configured-but-unimplemented provider at runtime.
     // The deterministic default keeps CI and local work keyless and offline.
     EMBEDDING_PROVIDER: z.enum(['deterministic']).default('deterministic'),
-    // Completion remains keyless and offline in P0. The timeout bounds every
-    // adapter invocation even when an implementation ignores cancellation.
-    COMPLETION_PROVIDER: z.enum(['deterministic']).default('deterministic'),
+    // Deterministic remains the committed keyless/offline default. Live
+    // completion is selected explicitly and always goes through ITI's gateway.
+    COMPLETION_PROVIDER: z
+      .enum(['deterministic', 'student-bedrock-gateway'])
+      .default('deterministic'),
     COMPLETION_TIMEOUT_MS: z.coerce
       .number()
       .int()
       .positive()
       .max(MAX_COMPLETION_TIMEOUT_MS)
       .default(DEFAULT_COMPLETION_TIMEOUT_MS),
+    SBG_BASE_URL: z
+      .url()
+      .max(MAX_SBG_BASE_URL_LENGTH)
+      .default(DEFAULT_SBG_BASE_URL),
+    SBG_API_KEY: z.string().max(MAX_SBG_API_KEY_LENGTH).optional(),
+    SBG_MODEL_ID: z
+      .string()
+      .trim()
+      .min(1)
+      .max(MAX_SBG_MODEL_ID_LENGTH)
+      .regex(/^[A-Za-z0-9][A-Za-z0-9._:-]*$/u)
+      .default(DEFAULT_SBG_MODEL_ID),
+    SBG_MAX_TOKENS: z.coerce
+      .number()
+      .int()
+      .min(MIN_SBG_MAX_TOKENS)
+      .max(MAX_SBG_MAX_TOKENS)
+      .default(DEFAULT_SBG_MAX_TOKENS),
     // Retrieval knobs are validated configuration, never caller input: the
     // repository/service signatures expose no limit or threshold parameters.
     // The 0.70 floor may change only after the sprint 4.1 midpoint check
@@ -86,6 +116,47 @@ export const envSchema = z
       })
     }
 
+    try {
+      const sbgBaseUrl = new URL(env.SBG_BASE_URL)
+      if (
+        sbgBaseUrl.protocol !== 'https:' ||
+        sbgBaseUrl.username !== '' ||
+        sbgBaseUrl.password !== '' ||
+        sbgBaseUrl.search !== '' ||
+        sbgBaseUrl.hash !== ''
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['SBG_BASE_URL'],
+          message:
+            'must be an HTTPS URL without credentials, a query, or a fragment',
+        })
+      }
+    } catch {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['SBG_BASE_URL'],
+        message: 'must be a valid HTTPS URL',
+      })
+    }
+
+    if (env.COMPLETION_PROVIDER === 'student-bedrock-gateway') {
+      const apiKey = env.SBG_API_KEY
+      if (
+        apiKey === undefined ||
+        apiKey.trim() === '' ||
+        apiKey !== apiKey.trim() ||
+        hasControlCharacter(apiKey)
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['SBG_API_KEY'],
+          message:
+            'is required for student-bedrock-gateway and must not contain surrounding whitespace or control characters',
+        })
+      }
+    }
+
     if (env.NODE_ENV === 'production' && !isAbsolute(env.PDF_STORAGE_PATH)) {
       ctx.addIssue({
         code: 'custom',
@@ -97,6 +168,16 @@ export const envSchema = z
   })
 
 export type AppEnvironment = z.infer<typeof envSchema>
+
+function hasControlCharacter(value: string): boolean {
+  for (const character of value) {
+    const codePoint = character.codePointAt(0)
+    if (codePoint !== undefined && (codePoint <= 0x1f || codePoint === 0x7f)) {
+      return true
+    }
+  }
+  return false
+}
 
 export function formatEnvIssues(error: z.ZodError) {
   return error.issues

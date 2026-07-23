@@ -1,3 +1,10 @@
+import {
+  DEFAULT_SBG_BASE_URL,
+  DEFAULT_SBG_MAX_TOKENS,
+  DEFAULT_SBG_MODEL_ID,
+  MAX_SBG_MAX_TOKENS,
+  MIN_SBG_MAX_TOKENS,
+} from '../completion/student-bedrock-gateway-completion.provider'
 import { MAX_PDF_UPLOAD_BYTES, validateEnv } from './env.schema'
 
 describe('validateEnv', () => {
@@ -30,6 +37,9 @@ describe('validateEnv', () => {
       EMBEDDING_PROVIDER: 'deterministic',
       COMPLETION_PROVIDER: 'deterministic',
       COMPLETION_TIMEOUT_MS: 30_000,
+      SBG_BASE_URL: DEFAULT_SBG_BASE_URL,
+      SBG_MODEL_ID: DEFAULT_SBG_MODEL_ID,
+      SBG_MAX_TOKENS: DEFAULT_SBG_MAX_TOKENS,
       RETRIEVAL_TOP_K: 5,
       RETRIEVAL_MIN_SIMILARITY: 0.7,
     })
@@ -83,10 +93,94 @@ describe('validateEnv', () => {
     ).toMatchObject({ COMPLETION_PROVIDER: 'deterministic' })
     expect(() =>
       validateEnv({ ...validEnv, COMPLETION_PROVIDER: 'openai' }),
-    ).toThrow(/COMPLETION_PROVIDER: Invalid input/)
+    ).toThrow(/COMPLETION_PROVIDER: Invalid option/)
     expect(() => validateEnv({ ...validEnv, COMPLETION_PROVIDER: '' })).toThrow(
-      /COMPLETION_PROVIDER: Invalid input/,
+      /COMPLETION_PROVIDER: Invalid option/,
     )
+  })
+
+  it('keeps deterministic startup keyless and requires a key only for the gateway', () => {
+    const deterministicEnv = validateEnv({
+      ...validEnv,
+      COMPLETION_PROVIDER: 'deterministic',
+    })
+    expect(deterministicEnv).toMatchObject({
+      COMPLETION_PROVIDER: 'deterministic',
+    })
+    expect(deterministicEnv).not.toHaveProperty('SBG_API_KEY')
+
+    expect(() =>
+      validateEnv({
+        ...validEnv,
+        COMPLETION_PROVIDER: 'student-bedrock-gateway',
+      }),
+    ).toThrow(/SBG_API_KEY: is required for student-bedrock-gateway/)
+    expect(() =>
+      validateEnv({
+        ...validEnv,
+        COMPLETION_PROVIDER: 'student-bedrock-gateway',
+        SBG_API_KEY: '   ',
+      }),
+    ).toThrow(/SBG_API_KEY: is required for student-bedrock-gateway/)
+
+    expect(
+      validateEnv({
+        ...validEnv,
+        COMPLETION_PROVIDER: 'student-bedrock-gateway',
+        SBG_API_KEY: '<test-only-placeholder>',
+      }),
+    ).toMatchObject({
+      COMPLETION_PROVIDER: 'student-bedrock-gateway',
+      SBG_API_KEY: '<test-only-placeholder>',
+    })
+  })
+
+  it('requires an HTTPS gateway base URL without embedded credentials', () => {
+    expect(() =>
+      validateEnv({
+        ...validEnv,
+        SBG_BASE_URL: 'http://apiaccess.iti.net.eg/student/integration',
+      }),
+    ).toThrow(/SBG_BASE_URL: must be an HTTPS URL/)
+    expect(() =>
+      validateEnv({
+        ...validEnv,
+        SBG_BASE_URL: 'https://user:password@gateway.example.test/api/v1',
+      }),
+    ).toThrow(/SBG_BASE_URL: must be an HTTPS URL/)
+    expect(() =>
+      validateEnv({
+        ...validEnv,
+        SBG_BASE_URL: 'https://gateway.example.test/api/v1?secret=value',
+      }),
+    ).toThrow(/SBG_BASE_URL: must be an HTTPS URL/)
+  })
+
+  it('accepts approved model overrides and bounds max tokens', () => {
+    const configured = validateEnv({
+      ...validEnv,
+      SBG_MODEL_ID: 'global.anthropic.approved-model-v1:0',
+      SBG_MAX_TOKENS: String(MAX_SBG_MAX_TOKENS),
+    })
+
+    expect(configured).toMatchObject({
+      SBG_MODEL_ID: 'global.anthropic.approved-model-v1:0',
+      SBG_MAX_TOKENS: MAX_SBG_MAX_TOKENS,
+    })
+
+    for (const invalidTokens of [
+      String(MIN_SBG_MAX_TOKENS - 1),
+      '1.5',
+      String(MAX_SBG_MAX_TOKENS + 1),
+      'many',
+    ]) {
+      expect(() =>
+        validateEnv({ ...validEnv, SBG_MAX_TOKENS: invalidTokens }),
+      ).toThrow(/SBG_MAX_TOKENS:/)
+    }
+    expect(() =>
+      validateEnv({ ...validEnv, SBG_MODEL_ID: 'invalid/model' }),
+    ).toThrow(/SBG_MODEL_ID:/)
   })
 
   it('coerces and bounds the completion timeout', () => {
