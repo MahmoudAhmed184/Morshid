@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import type { ApiError } from '@/features/auth/api/authenticated-api-client'
+import type { ApiError } from '@/lib/api/http'
 import {
   chatMessageHistoryResponseFixture,
   chatSessionListResponseFixture,
@@ -197,6 +197,25 @@ describe('Student session API', () => {
     ).resolves.toEqual(chatMessageHistoryResponseFixture)
   })
 
+  it('requests the newest message page through the explicit latest contract', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      expect(String(input)).toBe(
+        `http://localhost:4000/api/v1/courses/${studentChatIds.primaryCourse}/chat-sessions/${studentChatIds.primarySession}/messages?limit=50&page=latest`,
+      )
+
+      return Response.json(chatMessageHistoryResponseFixture)
+    })
+
+    await expect(
+      getStudentSessionMessages({
+        courseId: studentChatIds.primaryCourse,
+        sessionId: studentChatIds.primarySession,
+        input: { limit: 50, page: 'latest' },
+        options: { fetchImpl: fetchMock },
+      }),
+    ).resolves.toEqual(chatMessageHistoryResponseFixture)
+  })
+
   it('sends only validated message content to the grounded-chat endpoint', async () => {
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -205,6 +224,7 @@ describe('Student session API', () => {
         )
         expect(init?.method).toBe('POST')
         expect(JSON.parse(String(init?.body))).toEqual({
+          clientMessageId: studentChatIds.studentMessage,
           content: 'Explain Python lists',
         })
 
@@ -216,7 +236,10 @@ describe('Student session API', () => {
       sendStudentChatMessage({
         courseId: studentChatIds.primaryCourse,
         sessionId: studentChatIds.primarySession,
-        input: { content: '  Explain Python lists  ' },
+        input: {
+          clientMessageId: studentChatIds.studentMessage,
+          content: '  Explain Python lists  ',
+        },
         options: { fetchImpl: fetchMock },
       }),
     ).resolves.toEqual(groundedChatTurnResponseFixture)
@@ -234,7 +257,10 @@ describe('Student session API', () => {
       sendStudentChatMessage({
         courseId: studentChatIds.primaryCourse,
         sessionId: studentChatIds.primarySession,
-        input: unsafeInput as { content: string },
+        input: unsafeInput as {
+          clientMessageId: string
+          content: string
+        },
         options: { fetchImpl: fetchMock },
       }),
     ).rejects.toThrow()

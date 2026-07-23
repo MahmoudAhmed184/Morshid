@@ -24,14 +24,14 @@ export function StudentCourseSwitcher({
   onNavigate,
 }: StudentCourseSwitcherProps) {
   return (
-    <div className="px-4 pt-5 pb-4">
+    <div className="px-3 pt-3 pb-3">
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
             <Button
               type="button"
               variant="outline"
-              className="h-12 w-full justify-start gap-3 rounded-xl border-border bg-card px-3 text-left shadow-none hover:bg-accent"
+              className="h-11 w-full justify-start gap-3 rounded-lg border-transparent bg-transparent px-3 text-left shadow-none hover:bg-muted"
               aria-label={`Current course: ${selectedCourse.code} ${selectedCourse.title}. Choose course`}
             />
           }

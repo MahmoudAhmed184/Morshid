@@ -289,7 +289,19 @@ describe('StudentShellPage', () => {
     expect(
       within(navigationDrawer).getByRole('link', { name: 'Dashboard' }),
     ).toBeInTheDocument()
-    expect(screen.getByTestId('student-route-outlet')).toBeInTheDocument()
+    const routeOutlet = screen.getByTestId('student-route-outlet')
+
+    expect(routeOutlet).toBeInTheDocument()
+    expect(routeOutlet.closest('main')).toHaveClass(
+      'h-dvh',
+      'overflow-hidden',
+      'overscroll-none',
+    )
+    expect(routeOutlet.closest('section')).toHaveClass(
+      'h-full',
+      'min-h-0',
+      'overflow-hidden',
+    )
   })
 
   it('opens student navigation in the mobile drawer', () => {

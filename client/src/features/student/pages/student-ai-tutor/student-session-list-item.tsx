@@ -19,12 +19,6 @@ interface StudentSessionListItemProps {
   onNavigate?: () => void
 }
 
-const sessionActivityFormatter = new Intl.DateTimeFormat('en', {
-  month: 'short',
-  day: 'numeric',
-  timeZone: 'UTC',
-})
-
 export function StudentSessionListItem({
   courseId,
   session,
@@ -39,7 +33,7 @@ export function StudentSessionListItem({
   const [isEditing, setIsEditing] = useState(false)
 
   return (
-    <li className="group relative rounded-xl [contain-intrinsic-size:auto_4rem] [content-visibility:auto]">
+    <li className="group relative rounded-lg [contain-intrinsic-size:auto_2.75rem] [content-visibility:auto]">
       {isEditing ? (
         <StudentSessionInlineRename
           session={session}
@@ -56,30 +50,13 @@ export function StudentSessionListItem({
           onClick={onNavigate}
           aria-current={isSelected ? 'page' : undefined}
           className={cn(
-            'flex min-h-16 flex-col justify-center rounded-xl py-2.5 pr-12 pl-3.5 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none',
+            'flex min-h-10 items-center rounded-lg py-2 pr-11 pl-3 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none',
             isSelected
-              ? 'bg-accent text-accent-foreground'
-              : 'text-foreground hover:bg-muted',
+              ? 'bg-muted text-foreground'
+              : 'text-foreground hover:bg-muted/70',
           )}
         >
-          <span className="block truncate font-medium">{session.title}</span>
-          <span
-            className={cn(
-              'mt-1 block text-xs',
-              isSelected ? 'text-primary' : 'text-muted-foreground',
-            )}
-          >
-            {session.lastMessageAt ? (
-              <time dateTime={session.lastMessageAt}>
-                Last active{' '}
-                {sessionActivityFormatter.format(
-                  new Date(session.lastMessageAt),
-                )}
-              </time>
-            ) : (
-              'No messages yet'
-            )}
-          </span>
+          <span className="block truncate font-normal">{session.title}</span>
         </Link>
       )}
       {!isEditing ? (
@@ -87,8 +64,8 @@ export function StudentSessionListItem({
           className={cn(
             'absolute top-1/2 right-1.5 flex -translate-y-1/2 items-center rounded-lg',
             isSelected
-              ? 'bg-accent text-muted-foreground'
-              : 'bg-card/90 text-muted-foreground',
+              ? 'bg-muted text-muted-foreground'
+              : 'bg-transparent text-muted-foreground',
           )}
         >
           <StudentSessionActionsMenu

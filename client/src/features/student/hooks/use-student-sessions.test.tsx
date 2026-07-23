@@ -14,15 +14,19 @@ import {
   getStudentSessionMessages,
   listStudentSessions,
   renameStudentSession,
+  retryStudentChatMessage,
+  sendStudentChatMessage,
 } from '@/features/student/data/student-sessions.api'
 import { studentSessionKeys } from '@/features/student/data/student-sessions.queries'
 import type {
   ChatMessageHistoryResponse,
   ChatSession,
   ChatSessionListResponse,
+  GroundedChatTurnResponse,
 } from '@/features/student/schemas/student-chat.schema'
 import {
   chatMessageHistoryResponseFixture,
+  groundedChatTurnResponseFixture,
   otherChatSessionFixture,
   primaryChatSessionFixture,
   studentChatIds,
@@ -36,6 +40,10 @@ import {
   useStudentSessionMessages,
   useStudentSessions,
 } from './use-student-sessions'
+import {
+  useRetryStudentChatMessage,
+  useSendStudentChatMessage,
+} from './use-student-chat-turns'
 
 vi.mock('@/features/student/data/student-sessions.api')
 
@@ -45,6 +53,8 @@ const getStudentSessionMock = vi.mocked(getStudentSession)
 const getStudentSessionMessagesMock = vi.mocked(getStudentSessionMessages)
 const listStudentSessionsMock = vi.mocked(listStudentSessions)
 const renameStudentSessionMock = vi.mocked(renameStudentSession)
+const retryStudentChatMessageMock = vi.mocked(retryStudentChatMessage)
+const sendStudentChatMessageMock = vi.mocked(sendStudentChatMessage)
 
 interface CourseScope {
   studentId: string
@@ -557,6 +567,199 @@ describe('Student session hooks', () => {
     expect(queryClient.getQueryData(primaryKey)).toEqual({
       pages: [sessionList()],
       pageParams: [undefined],
+    })
+  })
+
+  it('optimistically sends within one Student, course, and session cache', async () => {
+    const queryClient = createQueryClient()
+    const historyKey = seedHistory(queryClient, primaryScope)
+    const otherHistoryKey = seedHistory(
+      queryClient,
+      otherStudentScope,
+      studentChatIds.otherSession,
+      'Other Student history',
+    )
+    const clientMessageId = studentChatIds.primaryMaterial
+    const assistantMessageId = studentChatIds.primaryChunk
+    const persistedTurn: GroundedChatTurnResponse = {
+      studentMessage: {
+        ...groundedChatTurnResponseFixture.studentMessage,
+        id: clientMessageId,
+        sequence: 3,
+      },
+      assistantMessage: {
+        ...groundedChatTurnResponseFixture.assistantMessage,
+        id: assistantMessageId,
+        sequence: 4,
+        responseToMessageId: clientMessageId,
+      },
+    }
+    let resolveTurn: ((turn: GroundedChatTurnResponse) => void) | undefined
+    sendStudentChatMessageMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveTurn = resolve
+        }),
+    )
+    authenticate()
+    const { result } = renderHook(
+      () =>
+        useSendStudentChatMessage({
+          courseId: primaryScope.courseId,
+          sessionId: studentChatIds.primarySession,
+        }),
+      { wrapper: createWrapper(queryClient) },
+    )
+
+    let mutation: Promise<unknown> | undefined
+    act(() => {
+      mutation = result.current.mutateAsync({
+        clientMessageId,
+        content: 'How do Python lists work?',
+      })
+    })
+    await waitFor(() => expect(resolveTurn).toBeTypeOf('function'))
+
+    const optimistic =
+      queryClient.getQueryData<
+        InfiniteData<ChatMessageHistoryResponse, number | undefined>
+      >(historyKey)
+    expect(optimistic?.pages[0]?.messages).toHaveLength(3)
+    expect(optimistic?.pages[0]?.messages.at(-1)).toMatchObject({
+      content: 'How do Python lists work?',
+      role: 'STUDENT',
+      status: 'PENDING',
+    })
+    expect(queryClient.getQueryData(otherHistoryKey)).toEqual({
+      pages: [messageHistory('Other Student history')],
+      pageParams: [undefined],
+    })
+
+    if (!resolveTurn || !mutation) {
+      throw new Error('Expected the grounded turn request to be pending')
+    }
+
+    resolveTurn(persistedTurn)
+    await act(async () => mutation)
+
+    const persisted =
+      queryClient.getQueryData<
+        InfiniteData<ChatMessageHistoryResponse, number | undefined>
+      >(historyKey)
+    expect(
+      persisted?.pages[0]?.messages.filter(({ id }) => id === clientMessageId),
+    ).toHaveLength(1)
+    expect(
+      persisted?.pages[0]?.messages.filter(
+        ({ id }) => id === assistantMessageId,
+      ),
+    ).toHaveLength(1)
+    expect(persisted?.pages[0]?.messages).toHaveLength(4)
+  })
+
+  it('rolls back an optimistic send after a transport failure', async () => {
+    const queryClient = createQueryClient()
+    const historyKey = seedHistory(queryClient, primaryScope)
+    const previousHistory = queryClient.getQueryData(historyKey)
+    sendStudentChatMessageMock.mockRejectedValue(
+      new TypeError('Failed to fetch'),
+    )
+    authenticate()
+    const { result } = renderHook(
+      () =>
+        useSendStudentChatMessage({
+          courseId: primaryScope.courseId,
+          sessionId: studentChatIds.primarySession,
+        }),
+      { wrapper: createWrapper(queryClient) },
+    )
+
+    await act(async () => {
+      await expect(
+        result.current.mutateAsync({
+          clientMessageId: studentChatIds.studentMessage,
+          content: 'Keep this draft',
+        }),
+      ).rejects.toThrow('Failed to fetch')
+    })
+
+    expect(queryClient.getQueryData(historyKey)).toEqual(previousHistory)
+  })
+
+  it('retries a failed persisted turn by replacing the same message ids', async () => {
+    const queryClient = createQueryClient()
+    const failedHistory: ChatMessageHistoryResponse = {
+      messages: [
+        { ...groundedChatTurnResponseFixture.studentMessage },
+        {
+          ...groundedChatTurnResponseFixture.assistantMessage,
+          content: 'I could not complete that response.',
+          status: 'FAILED',
+          guidanceLabel: null,
+          errorCode: 'GROUNDING_RESPONSE_FAILED',
+          citations: [],
+        },
+      ],
+      nextCursor: null,
+    }
+    const historyKey = studentSessionKeys.messageList({
+      ...primaryScope,
+      sessionId: studentChatIds.primarySession,
+    })
+    queryClient.setQueryData(historyKey, {
+      pages: [failedHistory],
+      pageParams: [undefined],
+    })
+    let resolveTurn:
+      ((turn: typeof groundedChatTurnResponseFixture) => void) | undefined
+    retryStudentChatMessageMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveTurn = resolve
+        }),
+    )
+    authenticate()
+    const { result } = renderHook(
+      () =>
+        useRetryStudentChatMessage({
+          courseId: primaryScope.courseId,
+          sessionId: studentChatIds.primarySession,
+        }),
+      { wrapper: createWrapper(queryClient) },
+    )
+
+    let mutation: Promise<unknown> | undefined
+    act(() => {
+      mutation = result.current.mutateAsync(studentChatIds.studentMessage)
+    })
+    await waitFor(() => expect(resolveTurn).toBeTypeOf('function'))
+    expect(
+      queryClient.getQueryData<
+        InfiniteData<ChatMessageHistoryResponse, number | undefined>
+      >(historyKey)?.pages[0]?.messages[1]?.status,
+    ).toBe('PENDING')
+
+    if (!resolveTurn || !mutation) {
+      throw new Error('Expected the grounded retry request to be pending')
+    }
+
+    resolveTurn(groundedChatTurnResponseFixture)
+    await act(async () => mutation)
+
+    const retried =
+      queryClient.getQueryData<
+        InfiniteData<ChatMessageHistoryResponse, number | undefined>
+      >(historyKey)?.pages[0]?.messages
+    expect(retried).toHaveLength(2)
+    expect(retried?.map(({ id }) => id)).toEqual([
+      studentChatIds.studentMessage,
+      studentChatIds.assistantMessage,
+    ])
+    expect(retried?.[1]?.status).toBe('COMPLETED')
+    expect(retryStudentChatMessageMock).toHaveBeenCalledWith({
+      courseId: primaryScope.courseId,
+      sessionId: studentChatIds.primarySession,
+      studentMessageId: studentChatIds.studentMessage,
     })
   })
 })

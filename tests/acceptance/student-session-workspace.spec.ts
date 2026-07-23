@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test'
 import { demoAccounts, signInThroughUi } from './support/demo-auth'
 
 test.describe('Student session workspace', () => {
-  test('preserves course and session navigation across responsive widths', async ({
+  test('persists a complete grounded turn across responsive widths', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 390, height: 844 })
@@ -36,10 +36,75 @@ test.describe('Student session workspace', () => {
     await expect(page).toHaveURL(/\/student\/ai-tutor\?courseId=.*&sessionId=/)
     await expect(
       page.getByRole('textbox', { name: 'Message', exact: true }),
-    ).toBeDisabled()
+    ).toBeEnabled()
     await expect(
       page.getByRole('button', { name: 'Send message' }),
     ).toBeDisabled()
+
+    let releaseGeneration: (() => void) | undefined
+    const generationGate = new Promise<void>((resolve) => {
+      releaseGeneration = resolve
+    })
+    await page.route(
+      '**/api/v1/courses/*/chat-sessions/*/messages',
+      async (route) => {
+        if (route.request().method() === 'POST') {
+          await generationGate
+        }
+        await route.continue()
+      },
+    )
+
+    const question = 'How do Python lists preserve insertion order?'
+    const composer = page.getByRole('textbox', {
+      name: 'Message',
+      exact: true,
+    })
+    await composer.fill(question)
+    await page.getByRole('button', { name: 'Send message' }).click()
+
+    const conversationHistory = page.getByRole('list', {
+      name: 'Conversation history',
+    })
+    await expect(
+      conversationHistory.getByText(question, { exact: true }),
+    ).toBeVisible()
+    await expect(composer).toBeDisabled()
+    await expect(
+      page.getByRole('status').filter({
+        hasText: 'Grounding your question in course materials',
+      }),
+    ).toBeVisible()
+
+    if (!releaseGeneration) {
+      throw new Error('Expected the grounded generation gate to be ready')
+    }
+    releaseGeneration()
+
+    const guidanceLabel = page.getByText(
+      /Course-grounded guidance|Course evidence not found/,
+    )
+    await expect(guidanceLabel).toBeVisible()
+
+    if (await page.getByText('Course-grounded guidance').isVisible()) {
+      const sources = page.getByRole('button', { name: /Sources \(\d+\)/ })
+      await expect(sources).toBeVisible()
+      await sources.click()
+      await expect(
+        page.getByRole('list', { name: 'Response sources' }),
+      ).toBeVisible()
+    } else {
+      await expect(
+        page.getByText('No supporting course sources were found.'),
+      ).toBeVisible()
+    }
+
+    await page.reload()
+    await expect(
+      conversationHistory.getByText(question, { exact: true }),
+    ).toHaveCount(1)
+    await expect(guidanceLabel).toHaveCount(1)
+    await expect(composer).toBeEnabled()
     await expect
       .poll(() =>
         page.evaluate(
@@ -58,7 +123,11 @@ test.describe('Student session workspace', () => {
     ).toBeVisible()
     await expect(
       page.getByRole('textbox', { name: 'Message', exact: true }),
-    ).toBeDisabled()
+    ).toBeEnabled()
+    await expect(
+      conversationHistory.getByText(question, { exact: true }),
+    ).toHaveCount(1)
+    await expect(guidanceLabel).toHaveCount(1)
     await expect
       .poll(() =>
         page.evaluate(
