@@ -148,7 +148,7 @@ export function StudentSessionNavigation({
           ) : null}
 
           {!isPending && !isError && sessions.length === 0 ? (
-            <div className="mx-1 rounded-xl border border-dashed border-border bg-muted/20 px-4 py-8 text-center">
+            <div className="mx-1 rounded-xl border border-dashed border-border bg-secondary/40 px-4 py-8 text-center">
               <div className="mx-auto flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <MessageSquareText className="size-4.5" aria-hidden />
               </div>

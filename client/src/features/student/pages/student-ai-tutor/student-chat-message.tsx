@@ -188,25 +188,6 @@ export function StudentChatMessage({
             </p>
           ) : null}
 
-          {!isStudent && message.citations.length > 0 ? (
-            <div
-              className="mt-3 flex flex-wrap gap-2"
-              aria-label="Message citations"
-            >
-              {message.citations.map((citation) => (
-                <Badge
-                  key={`${citation.materialId}-${citation.order}`}
-                  variant="outline"
-                  className="max-w-full font-mono"
-                >
-                  <span className="truncate">
-                    [{citation.order}] {citation.materialTitle}
-                  </span>
-                </Badge>
-              ))}
-            </div>
-          ) : null}
-
           <StudentCitationSources citations={message.citations} />
 
           {canRetry ? (

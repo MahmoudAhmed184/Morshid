@@ -86,7 +86,7 @@ export function StudentCourseSwitcher({
                   </span>
                 </span>
                 {course.id === selectedCourse.id ? (
-                  <Check className="size-4 text-primary" aria-hidden />
+                  <Check className="size-4 text-foreground" aria-hidden />
                 ) : null}
               </DropdownMenuItem>
             ))}

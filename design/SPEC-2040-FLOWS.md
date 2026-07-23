@@ -78,6 +78,20 @@ Per docs/project-description.md §7: Morshid's identity is **enforced Socratic g
 - **Hint-ladder & streaming (§7.12–7.13)**: no streaming/ladder data exists in the client yet — do NOT build UI for it; the bubble/meta-row vocabulary above is the extension point. Keep the existing optimistic-send/disabled-composer contracts untouched.
 - **Limits/failure (§7.11)**: existing error/retry footers in message history are the pattern; verify they use ErrorState/retry affordances and preserve composed text where that behavior already exists.
 
+## F9. Merge reconciliation — grounded-chat UI joins the manuscript (BINDING)
+
+Context: dev merged PR #116 (grounded chat citations + retry) into this branch. The behavior, hooks, schema, copy, aria contracts, and test suites from that merge are LOAD-BEARING — do not change any behavior, query, aria-label, or user-facing sentence except where this section explicitly renames a presentation detail. This section restyles and de-duplicates presentation only.
+
+- **F9.1 Citation renderings — from three to two.** A tutor message's citations currently render three times: (1) a plain badge row `[order] title` inside the bubble, (2) the `StudentCitationSources` accordion chips `[title, chunk N]` + evidence, (3) the session-wide Sources panel. Ruling:
+  - DELETE rendering (1) (the `aria-label="Message citations"` badge row in `student-chat-message.tsx`). Its job moves to (2)'s chip row.
+  - KEEP (2) `StudentCitationSources` as the per-message evidence surface, restyled: chip row becomes mono citation chips `[n] title` (`font-mono text-xs`, `border-primary/25 bg-primary/5 text-primary` — citations are one of blue's reserved uses per F1); accordion trigger icon `BookOpenCheck` → `BookMarked` (F2), `size-4 strokeWidth={1.75} text-muted-foreground`; evidence cards `bg-muted/40` → `bg-secondary/40 rounded-xl`, evidence excerpts adopt the panel's figure/blockquote idiom (`border-l-2 border-primary/30 pl-3`, `.footnote` mono figcaption `Source passage N`). All copy strings unchanged ("Sources (N)", "This source is no longer available. No excerpt is shown.", availability badges).
+  - KEEP (3) the Sources panel exactly as merged (it is already on-spec).
+  - Migrate tests that assert the deleted badge row deliberately and minimally; all other citation assertions must keep passing.
+- **F9.2 Composer**: `rounded-[1.75rem]` (off the radius scale) → `rounded-2xl`; wrapper `border bg-card` → `glass-paper` + keep `p-2 shadow-md`; send button stays a `size-9 rounded-full` primary pill; error box `bg-muted/50` → `bg-secondary/60 rounded-xl`. Every behavior — draft limiting, clientMessageId, Enter-to-send, disabled logic, aria wiring, hint/error copy — byte-identical.
+- **F9.3 Guidance chips**: the merged `guidancePresentation` map (incl. dev's new `REFUSAL` value, neutral) is APPROVED as the F8 implementation. No changes beyond what F9.1 touches around it.
+- **F9.4 Icon straggler**: `instructor-layout.tsx` still imports lucide `Settings` → `Settings2` (F2). Verify by grep that no bare lucide `Settings` import remains anywhere in client/src.
+- **F9.5 Sweep**: audit `student-ai-tutor/**` + `student-shell-page.tsx` + `student-top-bar.tsx` for merge-era off-spec styling: arbitrary radii not on the scale, `bg-muted` washes where `bg-secondary` is the warm idiom, ambient `text-primary` icons (F2), retry-footer styling (keep `Alert`/copy, ensure `rounded-xl` and warm tones). Report every touch.
+
 ## F7. QA bars (delta)
 
 - Zero blue hover/selection states anywhere (only links/primary/focus/citations are blue) — verify by screenshot in both themes: dropdown open state, session hover+active, table row hover, select menu, command palette.

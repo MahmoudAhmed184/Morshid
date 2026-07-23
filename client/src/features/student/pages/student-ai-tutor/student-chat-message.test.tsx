@@ -31,7 +31,7 @@ describe('StudentChatMessage', () => {
     )
 
     expect(screen.getByText('GROUNDED IN COURSE SOURCES')).toBeVisible()
-    expect(screen.getByLabelText('Message citations')).toHaveTextContent(
+    expect(screen.getByLabelText('Inline citations')).toHaveTextContent(
       '[1] Python lists',
     )
   })

@@ -4,7 +4,7 @@ import {
   FileText,
   LayoutDashboard,
   Menu,
-  Settings,
+  Settings2,
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -31,7 +31,7 @@ const navItems: readonly AppSidebarNavItem[] = [
     label: 'Review Queue',
   },
   { icon: FileText, to: '/instructor/materials', label: 'Materials' },
-  { icon: Settings, to: '/instructor/settings', label: 'Settings' },
+  { icon: Settings2, to: '/instructor/settings', label: 'Settings' },
 ]
 
 function activeSectionLabel(pathname: string) {

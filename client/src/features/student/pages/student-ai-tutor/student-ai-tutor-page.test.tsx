@@ -1808,7 +1808,7 @@ describe('StudentAiTutorPage workspace', () => {
     expect(
       await screen.findByText('Course-grounded guidance'),
     ).toBeInTheDocument()
-    expect(screen.getByText('[Python lists, chunk 1]')).toBeInTheDocument()
+    expect(screen.getByText('[1] Python lists')).toBeInTheDocument()
 
     fireEvent.click(
       await screen.findByRole(
@@ -1827,7 +1827,9 @@ describe('StudentAiTutorPage workspace', () => {
       ),
     ).toBeInTheDocument()
     expect(within(responseSources).getByText('Available')).toBeInTheDocument()
-    expect(within(responseSources).getByText('Chunk 1')).toBeInTheDocument()
+    expect(
+      within(responseSources).getByText('Source passage 1'),
+    ).toBeInTheDocument()
   })
 
   it('does not expose excluded review-workflow labels', async () => {

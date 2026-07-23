@@ -96,7 +96,7 @@ export function StudentChatComposer({
         className="mx-auto max-w-3xl"
         onSubmit={(event) => void handleSubmit(event)}
       >
-        <div className="rounded-[1.75rem] border border-border bg-card p-2 shadow-md shadow-foreground/5 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/10">
+        <div className="glass-paper rounded-2xl p-2 shadow-md shadow-foreground/5 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/10">
           <div className="relative">
             <Textarea
               ref={textareaRef}
@@ -145,7 +145,7 @@ export function StudentChatComposer({
         {sendError ? (
           <div
             id="chat-composer-error"
-            className="mt-2 flex items-start gap-2 rounded-xl border border-border bg-muted/50 px-3 py-2 text-sm text-foreground"
+            className="mt-2 flex items-start gap-2 rounded-xl border border-border bg-secondary/60 px-3 py-2 text-sm text-foreground"
             role="alert"
           >
             <CircleAlert
