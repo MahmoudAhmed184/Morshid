@@ -11,7 +11,7 @@ import {
 import type { ChatMessage } from '@/features/student/schemas/student-chat.schema'
 
 import { StudentChatMessage } from './student-chat-message'
-import { StudentSuggestionPills } from './student-suggestion-pills'
+import { StudentSuggestionRows } from './student-suggestion-rows'
 import { STUDENT_CHAT_GENERATION_STATUS } from './student-chat-status'
 
 interface StudentMessageHistoryProps {
@@ -26,10 +26,12 @@ interface StudentMessageHistoryProps {
   isGenerationActive: boolean
   retryError: unknown
   retryMessageId?: string
+  firstName?: string
   onRetry: () => void
   onLoadMore: () => void
   onRecover: () => void
   onRetryResponse: (studentMessageId: string) => void
+  onSuggestionSelect: (text: string) => void
 }
 
 export function StudentMessageHistory({
@@ -44,10 +46,12 @@ export function StudentMessageHistory({
   isGenerationActive,
   retryError,
   retryMessageId,
+  firstName,
   onRetry,
   onLoadMore,
   onRecover,
   onRetryResponse,
+  onSuggestionSelect,
 }: StudentMessageHistoryProps) {
   if (isPending) {
     return null
@@ -82,21 +86,13 @@ export function StudentMessageHistory({
 
   if (messages.length === 0 && !isGenerationActive) {
     return (
-      <div className="flex w-full flex-col items-center gap-8">
-        <div className="flex min-h-[50vh] items-center justify-center px-4 text-center">
-          <div>
-            <div className="mx-auto flex size-10 items-center justify-center rounded-full border border-border bg-card">
-              <MessageSquareText className="size-5" aria-hidden />
-            </div>
-            <h2 className="mt-4 text-balance text-2xl font-semibold tracking-tight text-foreground">
-              What can I help you learn?
-            </h2>
-            <p className="mt-2 text-pretty text-sm text-muted-foreground">
-              Ask a question about your course materials.
-            </p>
-          </div>
-        </div>
-        <StudentSuggestionPills />
+      <div className="flex min-h-[60vh] w-full flex-col items-center justify-center gap-8 px-4">
+        <h2 className="display-2 text-center text-foreground">
+          {firstName
+            ? `How can I help you, ${firstName}?`
+            : 'How can I help you?'}
+        </h2>
+        <StudentSuggestionRows onSelect={onSuggestionSelect} />
       </div>
     )
   }

@@ -1,10 +1,11 @@
 import { useNavigate } from '@tanstack/react-router'
-import { BookMarked, BookOpen, PanelLeft } from 'lucide-react'
+import { BookMarked, BookOpen } from 'lucide-react'
 import { useLayoutEffect, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/custom/empty-state'
-import { ModeToggle } from '@/components/ui/mode-toggle'
+import { ErrorState } from '@/components/ui/custom/error-state'
 import {
   Sheet,
   SheetContent,
@@ -12,15 +13,16 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
+import { useSidebar } from '@/components/ui/sidebar'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
+import {
+  isStudentChatApiError,
+  STUDENT_CHAT_ERROR_CODES,
+} from '@/features/student/data/student-chat.errors'
 import { useStudentCourses } from '@/features/student/hooks/use-student-courses'
 import {
-  useCreateStudentSession,
-  useDeleteStudentSession,
-  useRenameStudentSession,
   useStudentSession,
   useStudentSessionMessages,
-  useStudentSessions,
 } from '@/features/student/hooks/use-student-sessions'
 import {
   useRetryStudentChatMessage,
@@ -31,13 +33,13 @@ import type {
   ChatSession,
 } from '@/features/student/schemas/student-chat.schema'
 import type { StudentCourse } from '@/features/student/schemas/student-course.schema'
+import { firstNameFromDisplayName } from '@/features/student/utils/greeting'
+import { cn } from '@/lib/utils'
 
 import { StudentChatComposer } from './student-chat-composer'
-import { StudentConversationHeader } from './student-conversation-header'
+import type { StudentChatComposerHandle } from './student-chat-composer'
 import { StudentMessageHistory } from './student-message-history'
-import { StudentSessionNavigation } from './student-session-navigation'
 import { StudentSourcesPanel } from './student-sources-panel'
-import { StudentWorkspaceState } from './student-workspace-state'
 
 interface StudentAiTutorPageProps {
   courseId?: string
@@ -49,8 +51,9 @@ export function StudentAiTutorPage({
   sessionId,
 }: StudentAiTutorPageProps) {
   const navigate = useNavigate()
-  const [mobileSessionsOpen, setMobileSessionsOpen] = useState(false)
   const studentId = useAuthStore((state) => state.user?.id)
+  const displayName = useAuthStore((state) => state.user?.displayName)
+  const firstName = firstNameFromDisplayName(displayName)
   const { data: assignedCourses } = useStudentCourses()
   const selectedCourse =
     (courseId
@@ -58,277 +61,210 @@ export function StudentAiTutorPage({
       : assignedCourses.length === 1
         ? assignedCourses[0]
         : undefined) ?? null
-  const sessionsQuery = useStudentSessions({ courseId: selectedCourse?.id })
-  const sessions =
-    sessionsQuery.data?.pages.flatMap((page) => page.sessions) ?? []
-  const listedSession =
-    sessions.find((session) => session.id === sessionId) ?? null
   const routedSessionQuery = useStudentSession({
     courseId: selectedCourse?.id,
     sessionId,
   })
   const selectedSession = routedSessionQuery.data ?? null
-  const visibleSessions =
-    selectedSession && !listedSession
-      ? [selectedSession, ...sessions]
-      : sessions
-  const createSession = useCreateStudentSession({
-    courseId: selectedCourse?.id,
-  })
-  const renameSession = useRenameStudentSession({
-    courseId: selectedCourse?.id,
-  })
-  const deleteSession = useDeleteStudentSession({
-    courseId: selectedCourse?.id,
-  })
-
-  const handleCreate = async () => {
-    if (!selectedCourse) {
-      return
-    }
-
-    const session = await createSession.mutateAsync({})
-    await navigate({
-      to: '/student/ai-tutor',
-      search: { courseId: selectedCourse.id, sessionId: session.id },
-    })
-  }
-
-  const handleRename = async (session: ChatSession, title: string) => {
-    await renameSession.mutateAsync({
-      sessionId: session.id,
-      input: { title },
-    })
-  }
-
-  const handleDelete = async (session: ChatSession) => {
-    if (!selectedCourse) {
-      return
-    }
-
-    await deleteSession.mutateAsync(session.id)
-
-    if (session.id === sessionId) {
-      await navigate({
-        to: '/student/ai-tutor',
-        search: { courseId: selectedCourse.id },
-      })
-    }
-  }
 
   const handleStaleSession = async () => {
     if (!selectedCourse) {
       return
     }
 
-    await navigate({
-      to: '/student/ai-tutor',
-      search: { courseId: selectedCourse.id },
-    })
-    void sessionsQuery.refetch()
+    await navigate({ to: '/chat', search: { courseId: selectedCourse.id } })
+    void routedSessionQuery.refetch()
   }
 
-  const sessionNavigationProps = selectedCourse
-    ? {
-        selectedCourse,
-        courses: assignedCourses,
-        sessions: visibleSessions,
-        selectedSessionId: sessionId,
-        isPending: sessionsQuery.isPending,
-        isError: sessionsQuery.isError && sessions.length === 0,
-        isRefreshing:
-          sessionsQuery.isFetching &&
-          !sessionsQuery.isPending &&
-          !sessionsQuery.isFetchingNextPage,
-        hasNextPage: sessionsQuery.hasNextPage,
-        isFetchingNextPage: sessionsQuery.isFetchingNextPage,
-        isFetchNextPageError: sessionsQuery.isFetchNextPageError,
-        isCreating: createSession.isPending,
-        areSessionMutationsPending:
-          renameSession.isPending || deleteSession.isPending,
-        renamingSessionId: renameSession.isPending
-          ? renameSession.variables.sessionId
-          : undefined,
-        deletingSessionId: deleteSession.isPending
-          ? deleteSession.variables
-          : undefined,
-        onRetry: () => void sessionsQuery.refetch(),
-        onLoadMore: () => void sessionsQuery.fetchNextPage(),
-        onCreate: handleCreate,
-        onRename: handleRename,
-        onDelete: handleDelete,
-      }
-    : null
-  const activeSessionNavigationProps = sessionNavigationProps!
+  if (!selectedCourse) {
+    return (
+      <div className="flex h-full flex-1 items-center justify-center px-4 py-12">
+        <EmptyState
+          icon={<BookOpen className="size-6" aria-hidden />}
+          title={
+            assignedCourses.length === 0
+              ? 'No assigned course'
+              : 'Choose a course'
+          }
+          description={
+            assignedCourses.length === 0
+              ? 'An active Student course membership is required before you can open a private workspace.'
+              : 'Select one of your assigned courses to load its private conversations.'
+          }
+          className="w-full max-w-md border-0 bg-transparent"
+        />
+      </div>
+    )
+  }
+
+  const isSessionLoading =
+    sessionId !== undefined &&
+    routedSessionQuery.isPending &&
+    routedSessionQuery.fetchStatus !== 'idle'
 
   return (
     <section
-      className="flex h-0 min-h-0 w-full flex-1 overflow-hidden overscroll-none bg-background text-foreground"
+      className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden overscroll-none bg-background text-foreground"
       aria-label="Student AI Tutor"
     >
-      {selectedCourse ? (
-        <div className="grid h-full min-h-0 w-full flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)] overflow-hidden md:grid-cols-[19rem_minmax(0,1fr)]">
-          <div className="hidden min-h-0 md:contents">
-            <StudentSessionNavigation {...activeSessionNavigationProps} />
-          </div>
-
-          <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background">
-            <Sheet
-              open={mobileSessionsOpen}
-              onOpenChange={setMobileSessionsOpen}
-            >
-              {selectedSession ? (
-                <StudentConversation
-                  key={`${studentId ?? 'anonymous'}:${selectedCourse.id}:${selectedSession.id}`}
-                  course={selectedCourse}
-                  session={selectedSession}
-                  mobileSessionsTrigger={<StudentSessionsTrigger />}
-                  onRecover={() => void handleStaleSession()}
-                />
-              ) : (
-                <>
-                  <StudentWorkspaceToolbar
-                    courseCode={selectedCourse.code}
-                    mobileSessionsTrigger={<StudentSessionsTrigger />}
-                    actions={<ModeToggle />}
-                  />
-                  <div
-                    aria-label="Conversation messages"
-                    className="scrollbar-themed min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-8"
-                    role="region"
-                  >
-                    <div className="flex min-h-full items-center justify-center py-4">
-                      <StudentWorkspaceState
-                        sessionId={sessionId}
-                        sessionsPending={sessionsQuery.isPending}
-                        sessionsError={
-                          sessionsQuery.isError && sessions.length === 0
-                        }
-                        hasSessions={sessions.length > 0}
-                        sessionPending={
-                          routedSessionQuery.isPending &&
-                          routedSessionQuery.fetchStatus !== 'idle'
-                        }
-                        sessionError={routedSessionQuery.error}
-                        sessionRetrying={routedSessionQuery.isFetching}
-                        onRetrySession={() => void routedSessionQuery.refetch()}
-                      />
-                    </div>
-                  </div>
-                  <StudentChatComposer
-                    key={`${studentId ?? 'anonymous'}:${selectedCourse.id}:${sessionId ?? 'no-session'}`}
-                    hasSelectedSession={false}
-                    isGenerating={false}
-                    sendError={null}
-                    onDismissError={() => undefined}
-                    onSend={() => Promise.resolve(false)}
-                  />
-                </>
-              )}
-
-              <SheetContent
-                side="left"
-                className="inset-y-2! left-2! h-[calc(100svh-1rem)]! w-[80vw]! max-w-80 gap-0 overflow-hidden overscroll-contain rounded-lg border border-border bg-card p-0 shadow-lg md:hidden"
-              >
-                <SheetHeader className="sr-only">
-                  <SheetTitle>Course sessions</SheetTitle>
-                </SheetHeader>
-                <StudentSessionNavigation
-                  {...activeSessionNavigationProps}
-                  onNavigate={() => setMobileSessionsOpen(false)}
-                  className="h-full border-0 pt-8"
-                />
-              </SheetContent>
-            </Sheet>
-          </div>
-        </div>
+      {selectedSession ? (
+        <StudentConversation
+          key={`${studentId ?? 'anonymous'}:${selectedCourse.id}:${selectedSession.id}`}
+          course={selectedCourse}
+          courses={assignedCourses}
+          session={selectedSession}
+          firstName={firstName}
+          onRecover={() => void handleStaleSession()}
+        />
       ) : (
-        <div className="flex flex-1 items-center justify-center px-4 py-12">
-          <EmptyState
-            icon={<BookOpen className="size-6" aria-hidden />}
-            title={
-              assignedCourses.length === 0
-                ? 'No assigned course'
-                : 'Choose a course'
-            }
-            description={
-              assignedCourses.length === 0
-                ? 'An active Student course membership is required before you can open a private workspace.'
-                : 'Select one of your assigned courses to load its private conversations.'
-            }
-            className="w-full max-w-md border-0 bg-transparent"
-          />
-        </div>
+        <StudentNewChatState
+          course={selectedCourse}
+          courses={assignedCourses}
+          firstName={firstName}
+          isSessionLoading={isSessionLoading}
+          sessionRequested={sessionId !== undefined}
+          sessionError={routedSessionQuery.error}
+          sessionRetrying={routedSessionQuery.isFetching}
+          onRetrySession={() => void routedSessionQuery.refetch()}
+        />
       )}
     </section>
   )
 }
 
-function StudentSessionsTrigger() {
-  return (
-    <SheetTrigger
-      render={
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="size-9 text-muted-foreground md:hidden"
-          aria-label="Open sessions"
-        />
-      }
-    >
-      <PanelLeft className="size-5" strokeWidth={1.75} aria-hidden />
-    </SheetTrigger>
-  )
-}
-
-interface StudentWorkspaceToolbarProps {
-  courseCode: string
-  mobileSessionsTrigger: React.ReactNode
-  actions: React.ReactNode
-}
-
-function StudentWorkspaceToolbar({
-  courseCode,
-  mobileSessionsTrigger,
+function StudentChatTopBar({
+  title,
   actions,
-}: StudentWorkspaceToolbarProps) {
+}: {
+  title?: string
+  actions?: ReactNode
+}) {
+  const { state, isMobile } = useSidebar()
+  const clusterPresent = isMobile || state === 'collapsed'
+
   return (
-    <header className="glass-paper flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border px-3 md:px-4">
-      <div className="flex min-w-0 items-center gap-2">
-        {mobileSessionsTrigger}
-        <span className="truncate text-sm font-medium text-foreground md:hidden">
-          Courses & chats
-        </span>
-        <nav
-          aria-label="Workspace breadcrumb"
-          className="smallcaps-label hidden min-w-0 items-center gap-1.5 md:flex"
-        >
-          <span>Student</span>
-          <span aria-hidden>·</span>
-          <span className="truncate text-foreground">{courseCode}</span>
-        </nav>
+    <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border px-3 md:px-4">
+      <div
+        className={cn('flex min-w-0 items-center', clusterPresent && 'pl-28')}
+      >
+        {title ? (
+          <span className="truncate text-sm font-medium text-foreground">
+            {title}
+          </span>
+        ) : null}
       </div>
       <div className="flex shrink-0 items-center gap-1">{actions}</div>
     </header>
   )
 }
 
+interface StudentNewChatStateProps {
+  course: StudentCourse
+  courses: StudentCourse[]
+  firstName?: string
+  isSessionLoading: boolean
+  sessionRequested: boolean
+  sessionError: unknown
+  sessionRetrying: boolean
+  onRetrySession: () => void
+}
+
+function StudentNewChatState({
+  course,
+  courses,
+  firstName,
+  isSessionLoading,
+  sessionRequested,
+  sessionError,
+  sessionRetrying,
+  onRetrySession,
+}: StudentNewChatStateProps) {
+  const hasBlockingSessionError =
+    sessionRequested &&
+    sessionError !== null &&
+    !isStudentChatApiError(
+      sessionError,
+      STUDENT_CHAT_ERROR_CODES.SESSION_NOT_FOUND,
+    )
+  const hasMissingSession =
+    sessionRequested && !isSessionLoading && !hasBlockingSessionError
+
+  let body: ReactNode
+
+  if (isSessionLoading) {
+    body = null
+  } else if (hasBlockingSessionError) {
+    body = (
+      <ErrorState
+        title="Conversation unavailable"
+        description="The selected conversation could not be loaded."
+        onRetry={onRetrySession}
+        isRetrying={sessionRetrying}
+        className="w-full max-w-md border-0 bg-transparent"
+      />
+    )
+  } else if (hasMissingSession) {
+    body = (
+      <EmptyState
+        title="Conversation unavailable"
+        description="This conversation may have been deleted or does not belong to the selected course."
+        className="w-full max-w-md border-0 bg-transparent"
+      />
+    )
+  } else {
+    body = (
+      <h1 className="display-2 text-center text-foreground">
+        {firstName
+          ? `How can I help you, ${firstName}?`
+          : 'How can I help you?'}
+      </h1>
+    )
+  }
+
+  return (
+    <>
+      <StudentChatTopBar />
+      <div
+        aria-label="Conversation messages"
+        className="scrollbar-themed min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-8"
+        role="region"
+      >
+        <div className="mx-auto flex min-h-full max-w-3xl items-center justify-center">
+          {body}
+        </div>
+      </div>
+      <StudentChatComposer
+        key={`${course.id}:no-session`}
+        hasSelectedSession={false}
+        isGenerating={false}
+        sendError={null}
+        courses={courses}
+        selectedCourse={course}
+        onDismissError={() => undefined}
+        onSend={() => Promise.resolve(false)}
+      />
+    </>
+  )
+}
+
 interface StudentConversationProps {
   course: StudentCourse
+  courses: StudentCourse[]
   session: ChatSession
-  mobileSessionsTrigger: React.ReactNode
+  firstName?: string
   onRecover: () => void
 }
 
 function StudentConversation({
   course,
+  courses,
   session,
-  mobileSessionsTrigger,
+  firstName,
   onRecover,
 }: StudentConversationProps) {
   const [mobileSourcesOpen, setMobileSourcesOpen] = useState(false)
   const [sourcesOpen, setSourcesOpen] = useState(true)
+  const composerRef = useRef<StudentChatComposerHandle>(null)
   const messagesQuery = useStudentSessionMessages({
     courseId: course.id,
     sessionId: session.id,
@@ -402,71 +338,62 @@ function StudentConversation({
   }
 
   return (
-    <>
-      <Sheet open={mobileSourcesOpen} onOpenChange={setMobileSourcesOpen}>
-        <StudentWorkspaceToolbar
-          courseCode={course.code}
-          mobileSessionsTrigger={mobileSessionsTrigger}
-          actions={
-            <>
-              <ModeToggle />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="Toggle sources and citations"
-                aria-pressed={sourcesOpen}
-                onClick={() => setSourcesOpen((open) => !open)}
-                className="hidden lg:inline-flex"
-              >
-                <BookMarked
-                  className="size-4 text-muted-foreground"
-                  strokeWidth={1.75}
-                  aria-hidden
+    <Sheet open={mobileSourcesOpen} onOpenChange={setMobileSourcesOpen}>
+      <StudentChatTopBar
+        title={session.title}
+        actions={
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="Toggle sources and citations"
+              aria-pressed={sourcesOpen}
+              onClick={() => setSourcesOpen((open) => !open)}
+              className="hidden lg:inline-flex"
+            >
+              <BookMarked
+                className="size-4 text-muted-foreground"
+                strokeWidth={1.75}
+                aria-hidden
+              />
+            </Button>
+            <SheetTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="lg:hidden"
+                  aria-label="Show sources and citations"
                 />
-              </Button>
-              <SheetTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="lg:hidden"
-                    aria-label="Show sources and citations"
-                  />
-                }
-              >
-                <BookMarked
-                  className="size-4 text-muted-foreground"
-                  strokeWidth={1.75}
-                  aria-hidden
-                />
-              </SheetTrigger>
-            </>
-          }
+              }
+            >
+              <BookMarked
+                className="size-4 text-muted-foreground"
+                strokeWidth={1.75}
+                aria-hidden
+              />
+            </SheetTrigger>
+          </>
+        }
+      />
+      <SheetContent
+        side="right"
+        className="w-[85vw]! max-w-sm gap-0 border-border bg-card p-0 lg:hidden"
+      >
+        <SheetHeader className="sr-only">
+          <SheetTitle>Sources and citations</SheetTitle>
+        </SheetHeader>
+        <StudentSourcesPanel
+          course={course}
+          messages={messages}
+          className="h-full rounded-none border-0 shadow-none"
         />
-        <SheetContent
-          side="right"
-          className="w-[85vw]! max-w-sm gap-0 border-border bg-card p-0 lg:hidden"
-        >
-          <SheetHeader className="sr-only">
-            <SheetTitle>Sources and citations</SheetTitle>
-          </SheetHeader>
-          <StudentSourcesPanel
-            course={course}
-            messages={messages}
-            className="h-full rounded-none border-0 shadow-none"
-          />
-        </SheetContent>
-      </Sheet>
+      </SheetContent>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <StudentConversationHeader
-            title={session.title}
-            courseCode={course.code}
-            courseTitle={course.title}
-          />
           <div
             ref={historyScrollRef}
             aria-label="Conversation messages"
@@ -486,19 +413,26 @@ function StudentConversation({
                 isGenerationActive={isGenerationActive}
                 retryError={retryMessage.error}
                 retryMessageId={retryMessage.variables}
+                firstName={firstName}
                 onRetry={() => void messagesQuery.refetch()}
                 onLoadMore={() => void messagesQuery.fetchNextPage()}
                 onRecover={onRecover}
                 onRetryResponse={(studentMessageId) =>
                   void handleRetryMessage(studentMessageId)
                 }
+                onSuggestionSelect={(text) =>
+                  composerRef.current?.prefill(text)
+                }
               />
             </div>
           </div>
           <StudentChatComposer
+            ref={composerRef}
             hasSelectedSession
             isGenerating={isGenerationActive}
             sendError={sendMessage.error}
+            courses={courses}
+            selectedCourse={course}
             onDismissError={sendMessage.reset}
             onSend={handleSend}
           />
@@ -513,7 +447,7 @@ function StudentConversation({
           />
         ) : null}
       </div>
-    </>
+    </Sheet>
   )
 }
 

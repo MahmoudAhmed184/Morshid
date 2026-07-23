@@ -19,12 +19,6 @@ interface StudentSessionListItemProps {
   onNavigate?: () => void
 }
 
-const sessionActivityFormatter = new Intl.DateTimeFormat('en', {
-  month: 'short',
-  day: 'numeric',
-  timeZone: 'UTC',
-})
-
 export function StudentSessionListItem({
   courseId,
   session,
@@ -39,7 +33,7 @@ export function StudentSessionListItem({
   const [isEditing, setIsEditing] = useState(false)
 
   return (
-    <li className="group relative rounded-xl [contain-intrinsic-size:auto_4rem] [content-visibility:auto]">
+    <li className="group relative rounded-lg [contain-intrinsic-size:auto_2.25rem] [content-visibility:auto]">
       {isEditing ? (
         <StudentSessionInlineRename
           session={session}
@@ -51,15 +45,15 @@ export function StudentSessionListItem({
         />
       ) : (
         <Link
-          to="/student/ai-tutor"
+          to="/chat"
           search={{ courseId, sessionId: session.id }}
           onClick={onNavigate}
           aria-current={isSelected ? 'page' : undefined}
           className={cn(
-            'relative flex min-h-16 flex-col justify-center rounded-xl py-2.5 pr-12 pl-4 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none',
+            'relative flex h-9 items-center rounded-lg pr-8 pl-3 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none',
             isSelected
               ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-              : 'text-sidebar-foreground hover:bg-secondary/60',
+              : 'text-sidebar-foreground hover:bg-sidebar-accent/60',
           )}
         >
           <span
@@ -69,33 +63,14 @@ export function StudentSessionListItem({
             )}
             aria-hidden
           />
-          <span className="block truncate font-medium">{session.title}</span>
-          <span
-            className={cn(
-              'footnote mt-1 block',
-              isSelected ? 'text-sidebar-accent-foreground' : '',
-            )}
-          >
-            {session.lastMessageAt ? (
-              <time dateTime={session.lastMessageAt}>
-                Last active{' '}
-                {sessionActivityFormatter.format(
-                  new Date(session.lastMessageAt),
-                )}
-              </time>
-            ) : (
-              'No messages yet'
-            )}
-          </span>
+          <span className="block truncate">{session.title}</span>
         </Link>
       )}
       {!isEditing ? (
         <div
           className={cn(
-            'absolute top-1/2 right-1.5 flex -translate-y-1/2 items-center rounded-lg',
-            isSelected
-              ? 'bg-sidebar-accent text-muted-foreground'
-              : 'bg-sidebar/90 text-muted-foreground',
+            'absolute top-1/2 right-1 flex -translate-y-1/2 items-center rounded-md opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100',
+            isSelected && 'opacity-100',
           )}
         >
           <StudentSessionActionsMenu

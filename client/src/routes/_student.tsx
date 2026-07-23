@@ -1,14 +1,14 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
 
-import { AuthLoader } from '@/features/auth/components/auth-loader'
 import { RouteLoadError } from '@/components/route-load-error'
+import { AuthLoader } from '@/features/auth/components/auth-loader'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
-import { studentCoursesQueryOptions } from '@/features/student/data/student-courses.queries'
-import { StudentShellPage } from '@/features/student/pages/student-shell-page'
 import { requireRole } from '@/features/auth/utils/auth-redirect'
+import { studentCoursesQueryOptions } from '@/features/student/data/student-courses.queries'
+import { StudentLayout } from '@/features/student/pages/student-layout'
 import { getAppQueryClient } from '@/lib/query/query-client'
 
-export const Route = createFileRoute('/student')({
+export const Route = createFileRoute('/_student')({
   ssr: false,
   beforeLoad: async () => {
     const redirectPath = await requireRole('STUDENT')
@@ -28,12 +28,12 @@ export const Route = createFileRoute('/student')({
       studentCoursesQueryOptions(studentId),
     )
   },
-  component: StudentShellPage,
+  component: StudentLayout,
   errorComponent: RouteLoadError,
   pendingComponent: AuthLoader,
   pendingMs: 200,
   pendingMinMs: 400,
   head: () => ({
-    meta: [{ title: 'Student — Morshid' }],
+    meta: [{ title: 'Morshid' }],
   }),
 })

@@ -11,18 +11,20 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as HealthRouteImport } from './routes/health'
-import { Route as StudentRouteRouteImport } from './routes/student/route'
+import { Route as StudentRouteImport } from './routes/_student'
 import { Route as InstructorRouteRouteImport } from './routes/instructor/route'
 import { Route as AdminRouteRouteImport } from './routes/admin/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as StudentIndexRouteImport } from './routes/student/index'
 import { Route as InstructorIndexRouteImport } from './routes/instructor/index'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
-import { Route as StudentSettingsRouteImport } from './routes/student/settings'
-import { Route as StudentCoursesRouteImport } from './routes/student/courses'
 import { Route as StudentAiTutorRouteImport } from './routes/student/ai-tutor'
+import { Route as StudentSplatRouteImport } from './routes/student/$'
 import { Route as InstructorSettingsRouteImport } from './routes/instructor/settings'
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
+import { Route as StudentSettingsRouteImport } from './routes/_student.settings'
+import { Route as StudentCoursesRouteImport } from './routes/_student.courses'
+import { Route as StudentChatRouteImport } from './routes/_student.chat'
 import { Route as InstructorReviewQueueIndexRouteImport } from './routes/instructor/review-queue/index'
 import { Route as InstructorMaterialsIndexRouteImport } from './routes/instructor/materials/index'
 import { Route as AdminUsersIndexRouteImport } from './routes/admin/users/index'
@@ -41,9 +43,8 @@ const HealthRoute = HealthRouteImport.update({
   path: '/health',
   getParentRoute: () => rootRouteImport,
 } as any)
-const StudentRouteRoute = StudentRouteRouteImport.update({
-  id: '/student',
-  path: '/student',
+const StudentRoute = StudentRouteImport.update({
+  id: '/_student',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InstructorRouteRoute = InstructorRouteRouteImport.update({
@@ -62,9 +63,9 @@ const IndexRoute = IndexRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const StudentIndexRoute = StudentIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => StudentRouteRoute,
+  id: '/student/',
+  path: '/student/',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const InstructorIndexRoute = InstructorIndexRouteImport.update({
   id: '/',
@@ -76,20 +77,15 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminRouteRoute,
 } as any)
-const StudentSettingsRoute = StudentSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => StudentRouteRoute,
-} as any)
-const StudentCoursesRoute = StudentCoursesRouteImport.update({
-  id: '/courses',
-  path: '/courses',
-  getParentRoute: () => StudentRouteRoute,
-} as any)
 const StudentAiTutorRoute = StudentAiTutorRouteImport.update({
-  id: '/ai-tutor',
-  path: '/ai-tutor',
-  getParentRoute: () => StudentRouteRoute,
+  id: '/student/ai-tutor',
+  path: '/student/ai-tutor',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StudentSplatRoute = StudentSplatRouteImport.update({
+  id: '/student/$',
+  path: '/student/$',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const InstructorSettingsRoute = InstructorSettingsRouteImport.update({
   id: '/settings',
@@ -100,6 +96,21 @@ const AdminSettingsRoute = AdminSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
   getParentRoute: () => AdminRouteRoute,
+} as any)
+const StudentSettingsRoute = StudentSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => StudentRoute,
+} as any)
+const StudentCoursesRoute = StudentCoursesRouteImport.update({
+  id: '/courses',
+  path: '/courses',
+  getParentRoute: () => StudentRoute,
+} as any)
+const StudentChatRoute = StudentChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
+  getParentRoute: () => StudentRoute,
 } as any)
 const InstructorReviewQueueIndexRoute =
   InstructorReviewQueueIndexRouteImport.update({
@@ -143,14 +154,15 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteRouteWithChildren
   '/instructor': typeof InstructorRouteRouteWithChildren
-  '/student': typeof StudentRouteRouteWithChildren
   '/health': typeof HealthRoute
   '/login': typeof LoginRoute
+  '/chat': typeof StudentChatRoute
+  '/courses': typeof StudentCoursesRoute
+  '/settings': typeof StudentSettingsRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/instructor/settings': typeof InstructorSettingsRoute
+  '/student/$': typeof StudentSplatRoute
   '/student/ai-tutor': typeof StudentAiTutorRoute
-  '/student/courses': typeof StudentCoursesRoute
-  '/student/settings': typeof StudentSettingsRoute
   '/admin/': typeof AdminIndexRoute
   '/instructor/': typeof InstructorIndexRoute
   '/student/': typeof StudentIndexRoute
@@ -166,11 +178,13 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/health': typeof HealthRoute
   '/login': typeof LoginRoute
+  '/chat': typeof StudentChatRoute
+  '/courses': typeof StudentCoursesRoute
+  '/settings': typeof StudentSettingsRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/instructor/settings': typeof InstructorSettingsRoute
+  '/student/$': typeof StudentSplatRoute
   '/student/ai-tutor': typeof StudentAiTutorRoute
-  '/student/courses': typeof StudentCoursesRoute
-  '/student/settings': typeof StudentSettingsRoute
   '/admin': typeof AdminIndexRoute
   '/instructor': typeof InstructorIndexRoute
   '/student': typeof StudentIndexRoute
@@ -187,14 +201,16 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteRouteWithChildren
   '/instructor': typeof InstructorRouteRouteWithChildren
-  '/student': typeof StudentRouteRouteWithChildren
+  '/_student': typeof StudentRouteWithChildren
   '/health': typeof HealthRoute
   '/login': typeof LoginRoute
+  '/_student/chat': typeof StudentChatRoute
+  '/_student/courses': typeof StudentCoursesRoute
+  '/_student/settings': typeof StudentSettingsRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/instructor/settings': typeof InstructorSettingsRoute
+  '/student/$': typeof StudentSplatRoute
   '/student/ai-tutor': typeof StudentAiTutorRoute
-  '/student/courses': typeof StudentCoursesRoute
-  '/student/settings': typeof StudentSettingsRoute
   '/admin/': typeof AdminIndexRoute
   '/instructor/': typeof InstructorIndexRoute
   '/student/': typeof StudentIndexRoute
@@ -212,14 +228,15 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/instructor'
-    | '/student'
     | '/health'
     | '/login'
+    | '/chat'
+    | '/courses'
+    | '/settings'
     | '/admin/settings'
     | '/instructor/settings'
+    | '/student/$'
     | '/student/ai-tutor'
-    | '/student/courses'
-    | '/student/settings'
     | '/admin/'
     | '/instructor/'
     | '/student/'
@@ -235,11 +252,13 @@ export interface FileRouteTypes {
     | '/'
     | '/health'
     | '/login'
+    | '/chat'
+    | '/courses'
+    | '/settings'
     | '/admin/settings'
     | '/instructor/settings'
+    | '/student/$'
     | '/student/ai-tutor'
-    | '/student/courses'
-    | '/student/settings'
     | '/admin'
     | '/instructor'
     | '/student'
@@ -255,14 +274,16 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/instructor'
-    | '/student'
+    | '/_student'
     | '/health'
     | '/login'
+    | '/_student/chat'
+    | '/_student/courses'
+    | '/_student/settings'
     | '/admin/settings'
     | '/instructor/settings'
+    | '/student/$'
     | '/student/ai-tutor'
-    | '/student/courses'
-    | '/student/settings'
     | '/admin/'
     | '/instructor/'
     | '/student/'
@@ -279,9 +300,12 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRouteRoute: typeof AdminRouteRouteWithChildren
   InstructorRouteRoute: typeof InstructorRouteRouteWithChildren
-  StudentRouteRoute: typeof StudentRouteRouteWithChildren
+  StudentRoute: typeof StudentRouteWithChildren
   HealthRoute: typeof HealthRoute
   LoginRoute: typeof LoginRoute
+  StudentSplatRoute: typeof StudentSplatRoute
+  StudentAiTutorRoute: typeof StudentAiTutorRoute
+  StudentIndexRoute: typeof StudentIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -300,11 +324,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HealthRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/student': {
-      id: '/student'
-      path: '/student'
-      fullPath: '/student'
-      preLoaderRoute: typeof StudentRouteRouteImport
+    '/_student': {
+      id: '/_student'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof StudentRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/instructor': {
@@ -330,10 +354,10 @@ declare module '@tanstack/react-router' {
     }
     '/student/': {
       id: '/student/'
-      path: '/'
+      path: '/student'
       fullPath: '/student/'
       preLoaderRoute: typeof StudentIndexRouteImport
-      parentRoute: typeof StudentRouteRoute
+      parentRoute: typeof rootRouteImport
     }
     '/instructor/': {
       id: '/instructor/'
@@ -349,26 +373,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRouteRoute
     }
-    '/student/settings': {
-      id: '/student/settings'
-      path: '/settings'
-      fullPath: '/student/settings'
-      preLoaderRoute: typeof StudentSettingsRouteImport
-      parentRoute: typeof StudentRouteRoute
-    }
-    '/student/courses': {
-      id: '/student/courses'
-      path: '/courses'
-      fullPath: '/student/courses'
-      preLoaderRoute: typeof StudentCoursesRouteImport
-      parentRoute: typeof StudentRouteRoute
-    }
     '/student/ai-tutor': {
       id: '/student/ai-tutor'
-      path: '/ai-tutor'
+      path: '/student/ai-tutor'
       fullPath: '/student/ai-tutor'
       preLoaderRoute: typeof StudentAiTutorRouteImport
-      parentRoute: typeof StudentRouteRoute
+      parentRoute: typeof rootRouteImport
+    }
+    '/student/$': {
+      id: '/student/$'
+      path: '/student/$'
+      fullPath: '/student/$'
+      preLoaderRoute: typeof StudentSplatRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/instructor/settings': {
       id: '/instructor/settings'
@@ -383,6 +400,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/settings'
       preLoaderRoute: typeof AdminSettingsRouteImport
       parentRoute: typeof AdminRouteRoute
+    }
+    '/_student/settings': {
+      id: '/_student/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof StudentSettingsRouteImport
+      parentRoute: typeof StudentRoute
+    }
+    '/_student/courses': {
+      id: '/_student/courses'
+      path: '/courses'
+      fullPath: '/courses'
+      preLoaderRoute: typeof StudentCoursesRouteImport
+      parentRoute: typeof StudentRoute
+    }
+    '/_student/chat': {
+      id: '/_student/chat'
+      path: '/chat'
+      fullPath: '/chat'
+      preLoaderRoute: typeof StudentChatRouteImport
+      parentRoute: typeof StudentRoute
     }
     '/instructor/review-queue/': {
       id: '/instructor/review-queue/'
@@ -478,31 +516,31 @@ const InstructorRouteRouteWithChildren = InstructorRouteRoute._addFileChildren(
   InstructorRouteRouteChildren,
 )
 
-interface StudentRouteRouteChildren {
-  StudentAiTutorRoute: typeof StudentAiTutorRoute
+interface StudentRouteChildren {
+  StudentChatRoute: typeof StudentChatRoute
   StudentCoursesRoute: typeof StudentCoursesRoute
   StudentSettingsRoute: typeof StudentSettingsRoute
-  StudentIndexRoute: typeof StudentIndexRoute
 }
 
-const StudentRouteRouteChildren: StudentRouteRouteChildren = {
-  StudentAiTutorRoute: StudentAiTutorRoute,
+const StudentRouteChildren: StudentRouteChildren = {
+  StudentChatRoute: StudentChatRoute,
   StudentCoursesRoute: StudentCoursesRoute,
   StudentSettingsRoute: StudentSettingsRoute,
-  StudentIndexRoute: StudentIndexRoute,
 }
 
-const StudentRouteRouteWithChildren = StudentRouteRoute._addFileChildren(
-  StudentRouteRouteChildren,
-)
+const StudentRouteWithChildren =
+  StudentRoute._addFileChildren(StudentRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRouteRoute: AdminRouteRouteWithChildren,
   InstructorRouteRoute: InstructorRouteRouteWithChildren,
-  StudentRouteRoute: StudentRouteRouteWithChildren,
+  StudentRoute: StudentRouteWithChildren,
   HealthRoute: HealthRoute,
   LoginRoute: LoginRoute,
+  StudentSplatRoute: StudentSplatRoute,
+  StudentAiTutorRoute: StudentAiTutorRoute,
+  StudentIndexRoute: StudentIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

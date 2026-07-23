@@ -198,9 +198,7 @@ describe('/instructor', () => {
   it('redirects a Student session to the Student shell', async () => {
     const { history } = renderAtInstructorRoute(createSession('STUDENT'))
 
-    await waitFor(() =>
-      expect(history.location.pathname).toBe('/student/ai-tutor'),
-    )
+    await waitFor(() => expect(history.location.pathname).toBe('/courses'))
     await waitFor(() =>
       expect(
         screen.queryByRole('heading', { name: "Today's teaching desk." }),
@@ -283,14 +281,18 @@ describe('/instructor', () => {
       await screen.findByRole('heading', { name: "Today's teaching desk." }),
     ).toBeVisible()
     expect(history.location.pathname).toBe('/instructor')
-    expect(screen.getByText('INSTRUCTOR')).toBeVisible()
+    expect(
+      screen.getByRole('navigation', { name: 'Breadcrumb' }),
+    ).toHaveTextContent('Instructor')
   })
 
   it('redirects an Admin session to the Admin shell', async () => {
     const { history } = renderAtInstructorRoute(createSession('ADMIN'))
 
     await waitFor(() => expect(history.location.pathname).toBe('/admin'))
-    expect(await screen.findByText('ADMIN')).toBeVisible()
+    expect(
+      await screen.findByRole('navigation', { name: 'Breadcrumb' }),
+    ).toHaveTextContent('Admin')
   })
 
   it('redirects an unauthenticated browser session to sign in', async () => {

@@ -15,13 +15,11 @@ import { ApiError } from '@/lib/api/http'
 import type { AuthSession } from '@/features/auth/schemas/auth.schema'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 import { ThemeProvider } from '@/providers/theme-provider'
+import { SidebarProvider } from '@/components/ui/sidebar'
 import {
-  createStudentSession,
-  deleteStudentSession,
   getStudentSession,
   getStudentSessionMessages,
   listStudentSessions,
-  renameStudentSession,
   retryStudentChatMessage,
   sendStudentChatMessage,
 } from '@/features/student/data/student-sessions.api'
@@ -29,7 +27,6 @@ import { studentCoursesQueryOptions } from '@/features/student/data/student-cour
 import { studentSessionKeys } from '@/features/student/data/student-sessions.queries'
 import type {
   ChatMessageHistoryResponse,
-  ChatSession,
   ChatSessionListResponse,
   GroundedChatTurnResponse,
 } from '@/features/student/schemas/student-chat.schema'
@@ -74,32 +71,11 @@ vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigateMock,
 }))
 
-const createStudentSessionMock = vi.mocked(createStudentSession)
-const deleteStudentSessionMock = vi.mocked(deleteStudentSession)
 const getStudentSessionMock = vi.mocked(getStudentSession)
 const getStudentSessionMessagesMock = vi.mocked(getStudentSessionMessages)
 const listStudentSessionsMock = vi.mocked(listStudentSessions)
-const renameStudentSessionMock = vi.mocked(renameStudentSession)
 const retryStudentChatMessageMock = vi.mocked(retryStudentChatMessage)
 const sendStudentChatMessageMock = vi.mocked(sendStudentChatMessage)
-let triggerSessionIntersection: (() => void) | undefined
-
-class TestIntersectionObserver {
-  constructor(callback: IntersectionObserverCallback) {
-    triggerSessionIntersection = () =>
-      callback(
-        [{ isIntersecting: true } as IntersectionObserverEntry],
-        this as unknown as IntersectionObserver,
-      )
-  }
-
-  observe() {}
-  unobserve() {}
-  disconnect() {}
-  takeRecords() {
-    return []
-  }
-}
 
 const studentId = 'student-user'
 const primaryCourse: StudentCourse = {
@@ -226,7 +202,9 @@ function renderWorkspace({
   const result = render(
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="system" storageKey="test-theme">
-        <StudentAiTutorPage courseId={courseId} sessionId={sessionId} />
+        <SidebarProvider>
+          <StudentAiTutorPage courseId={courseId} sessionId={sessionId} />
+        </SidebarProvider>
       </ThemeProvider>
     </QueryClientProvider>,
   )
@@ -234,23 +212,9 @@ function renderWorkspace({
   return { ...result, queryClient }
 }
 
-async function chooseSessionAction(
-  sessionTitle: string,
-  action: 'Rename' | 'Delete',
-) {
-  fireEvent.click(
-    screen.getByRole('button', {
-      name: `Open actions for ${sessionTitle}`,
-    }),
-  )
-  fireEvent.click(await screen.findByRole('menuitem', { name: action }))
-}
-
 describe('StudentAiTutorPage workspace', () => {
   beforeEach(() => {
     vi.resetAllMocks()
-    triggerSessionIntersection = undefined
-    vi.stubGlobal('IntersectionObserver', TestIntersectionObserver)
     getStudentSessionMessagesMock.mockResolvedValue({
       messages: [],
       nextCursor: null,
@@ -291,141 +255,28 @@ describe('StudentAiTutorPage workspace', () => {
     expect(listStudentSessionsMock).not.toHaveBeenCalled()
   })
 
-  it('shows the selected course with an empty private session list', () => {
-    renderWorkspace({ sessions: { sessions: [], nextCursor: null } })
-
-    expect(
-      screen.getByRole('button', {
-        name: `Current course: ${primaryCourse.code} ${primaryCourse.title}. Choose course`,
-      }),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText(`${primaryCourse.code} · ${primaryCourse.title}`),
-    ).toBeInTheDocument()
-    expect(
-      screen.queryByRole('searchbox', { name: 'Search sessions' }),
-    ).not.toBeInTheDocument()
-    expect(
-      screen.getByRole('heading', { name: 'No conversations yet' }),
-    ).toBeInTheDocument()
-    const openSessions = screen.getByRole('button', { name: 'Open sessions' })
-    expect(openSessions).toBeInTheDocument()
-    expect(openSessions).not.toHaveClass('fixed')
-    expect(screen.getByText('Courses & chats')).toBeInTheDocument()
-    expect(screen.getByLabelText('Message')).toBeDisabled()
-    expect(screen.getByRole('button', { name: /send message/i })).toBeDisabled()
-  })
-
-  it('uses explicit course routing when multiple courses are assigned', async () => {
+  it('lists course titles in the composer picker and routes by course', async () => {
     renderWorkspace({
       courses: [primaryCourse, otherCourse],
       courseId: otherCourse.id,
       sessions: { sessions: [], nextCursor: null },
     })
 
-    const courseSwitcher = screen.getByRole('button', {
-      name: `Current course: ${otherCourse.code} ${otherCourse.title}. Choose course`,
+    const picker = screen.getByRole('button', {
+      name: `Current course: ${otherCourse.title}. Choose course`,
     })
-
-    expect(courseSwitcher).toBeInTheDocument()
-    expect(
-      screen.getByText(`${otherCourse.code} · ${otherCourse.title}`),
-    ).toBeInTheDocument()
-
-    fireEvent.click(courseSwitcher)
+    fireEvent.click(picker)
 
     expect(
       await screen.findByRole('menuitem', {
-        name: new RegExp(`${primaryCourse.code}.*${primaryCourse.title}`),
+        name: new RegExp(primaryCourse.title),
       }),
-    ).toHaveAttribute('href', `/student/ai-tutor?courseId=${primaryCourse.id}`)
-  })
-
-  it('does not expose the excluded session search feature', () => {
-    renderWorkspace({
-      courseId: primaryCourse.id,
-      sessions: {
-        sessions: [primaryChatSessionFixture, secondSession],
-        nextCursor: null,
-      },
-    })
-
+    ).toHaveAttribute('href', `/chat?courseId=${primaryCourse.id}`)
     expect(
-      screen.getByRole('link', { name: /functions practice/i }),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole('link', { name: /python lists/i }),
-    ).toBeInTheDocument()
-    expect(screen.queryByRole('searchbox')).not.toBeInTheDocument()
-  })
-
-  it('opens sessions in a mobile drawer and closes it after navigation', async () => {
-    renderWorkspace({
-      courseId: primaryCourse.id,
-      sessions: {
-        sessions: [primaryChatSessionFixture, secondSession],
-        nextCursor: null,
-      },
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: 'Open sessions' }))
-
-    const drawer = await screen.findByRole('dialog', {
-      name: 'Course sessions',
-    })
-    expect(drawer).toHaveAttribute('data-side', 'left')
-    expect(drawer).toHaveClass('w-[80vw]!', 'rounded-lg')
-    expect(within(drawer).queryByRole('searchbox')).not.toBeInTheDocument()
-
-    fireEvent.click(
-      within(drawer).getByRole('link', { name: /functions practice/i }),
-    )
-
-    await waitFor(() =>
-      expect(
-        screen.queryByRole('dialog', { name: 'Course sessions' }),
-      ).toBeNull(),
-    )
-  })
-
-  it('routes session selection and marks the selected conversation', async () => {
-    renderWorkspace({
-      courseId: primaryCourse.id,
-      sessionId: secondSession.id,
-      sessions: {
-        sessions: [primaryChatSessionFixture, secondSession],
-        nextCursor: null,
-      },
-    })
-
-    const conversations = screen.getByRole('navigation', {
-      name: 'Course conversations',
-    })
-    const selectedLink = screen.getByRole('link', {
-      name: /functions practice/i,
-    })
-    const conversationList = screen.getByRole('region', {
-      name: 'Conversation list',
-    })
-
-    expect(selectedLink).toHaveAttribute('aria-current', 'page')
-    expect(selectedLink).toHaveAttribute(
-      'href',
-      `/student/ai-tutor?courseId=${primaryCourse.id}&sessionId=${secondSession.id}`,
-    )
-    expect(
-      await screen.findByRole('heading', { name: secondSession.title }),
-    ).toBeInTheDocument()
-    expect(conversations.closest('aside')).toHaveClass(
-      'border-b',
-      'md:border-r',
-    )
-    expect(conversationList).toHaveAttribute('tabindex', '0')
-    expect(conversationList).toHaveClass(
-      'scrollbar-themed',
-      'overflow-y-auto',
-      'overscroll-contain',
-    )
+      screen.getByRole('menuitem', { name: 'All courses' }),
+    ).toHaveAttribute('href', '/courses')
+    expect(screen.queryByText(otherCourse.code)).not.toBeInTheDocument()
+    expect(screen.queryByText(primaryCourse.code)).not.toBeInTheDocument()
   })
 
   it('keeps the grounded composer free of an attachment workflow', async () => {
@@ -470,6 +321,33 @@ describe('StudentAiTutorPage workspace', () => {
     expect(
       screen.queryByText('Enter a question before sending.'),
     ).not.toBeInTheDocument()
+  })
+
+  it('prefills the composer draft from a suggestion row', async () => {
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+      messages: { messages: [], nextCursor: null },
+    })
+
+    expect(
+      await screen.findByRole('heading', {
+        name: 'How can I help you, Test?',
+      }),
+    ).toBeInTheDocument()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Walk me through problem set 3.' }),
+    )
+
+    const composer = screen.getByRole('textbox', { name: 'Message' })
+    await waitFor(() =>
+      expect(composer).toHaveValue('Walk me through problem set 3.'),
+    )
+    expect(composer).toHaveFocus()
   })
 
   it('accepts valid astral Unicode content using code-point limits', async () => {
@@ -545,14 +423,6 @@ describe('StudentAiTutorPage workspace', () => {
       'bg-background',
       'text-foreground',
     )
-    expect(screen.getByLabelText('Session navigation')).toHaveClass(
-      'border-border',
-      'bg-sidebar',
-    )
-    expect(screen.getByRole('link', { name: /python lists/i })).toHaveClass(
-      'bg-sidebar-accent',
-      'text-sidebar-accent-foreground',
-    )
   })
 
   it('connects grounded responses to guidance labels and the sources panel', async () => {
@@ -591,64 +461,22 @@ describe('StudentAiTutorPage workspace', () => {
     })
 
     const workspace = screen.getByLabelText('Student AI Tutor')
-    const workspaceGrid = workspace.firstElementChild
     const conversationArea = await screen.findByRole('region', {
       name: 'Conversation messages',
     })
     const composer = screen.getByRole('form', { name: 'Message composer' })
 
     expect(workspace).toHaveClass(
-      'h-0',
+      'h-full',
       'min-h-0',
       'overflow-hidden',
       'overscroll-none',
     )
-    expect(workspaceGrid).toHaveClass('h-full', 'overflow-hidden')
     expect(conversationArea).toHaveClass(
       'overflow-y-auto',
       'overscroll-contain',
     )
     expect(composer.closest('footer')).toHaveClass('shrink-0')
-  })
-
-  it('recovers a routed session beyond the first page after refresh', async () => {
-    listStudentSessionsMock.mockResolvedValueOnce({
-      sessions: [{ ...primaryChatSessionFixture }],
-      nextCursor: primaryChatSessionFixture.id,
-    })
-    getStudentSessionMock.mockResolvedValueOnce(secondSession)
-    getStudentSessionMessagesMock.mockResolvedValueOnce(orderedMessageHistory)
-
-    renderWorkspace({
-      courseId: primaryCourse.id,
-      sessionId: secondSession.id,
-    })
-
-    expect(
-      screen.getByRole('status', { name: 'Loading conversations' }),
-    ).toBeInTheDocument()
-    expect(
-      await screen.findByText(orderedChatMessagesFixture[0].content),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole('heading', { name: secondSession.title }),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole('link', { name: /functions practice/i }),
-    ).toHaveAttribute('aria-current', 'page')
-    expect(listStudentSessionsMock).toHaveBeenCalledWith(
-      expect.objectContaining({ courseId: primaryCourse.id }),
-    )
-    expect(getStudentSessionMock).toHaveBeenCalledWith({
-      courseId: primaryCourse.id,
-      sessionId: secondSession.id,
-    })
-    expect(getStudentSessionMessagesMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        courseId: primaryCourse.id,
-        sessionId: secondSession.id,
-      }),
-    )
   })
 
   it('shows a safe stale-session state', async () => {
@@ -690,418 +518,28 @@ describe('StudentAiTutorPage workspace', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
 
-    expect(
-      await screen.findByRole('heading', { name: secondSession.title }),
-    ).toBeInTheDocument()
+    expect(await screen.findByText(secondSession.title)).toBeInTheDocument()
     expect(getStudentSessionMessagesMock).toHaveBeenCalledWith(
       expect.objectContaining({ sessionId: secondSession.id }),
     )
   })
 
-  it('shows loading and supports retry after a session-list failure', async () => {
-    listStudentSessionsMock.mockRejectedValueOnce(new Error('Network failure'))
-    listStudentSessionsMock.mockResolvedValueOnce({
-      sessions: [],
-      nextCursor: null,
-    })
-    renderWorkspace({ courseId: primaryCourse.id })
-
-    expect(
-      screen.getByRole('status', { name: 'Loading conversations' }),
-    ).toBeInTheDocument()
-    expect(await screen.findByText('Sessions unavailable')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
-
-    await waitFor(() =>
-      expect(
-        screen.getByRole('heading', { name: 'No conversations yet' }),
-      ).toBeInTheDocument(),
-    )
-    expect(listStudentSessionsMock).toHaveBeenCalledTimes(2)
-  })
-
-  it('loads additional session pages while scrolling inside the selected course', async () => {
-    listStudentSessionsMock.mockResolvedValueOnce({
-      sessions: [{ ...primaryChatSessionFixture }],
-      nextCursor: primaryChatSessionFixture.id,
-    })
-    listStudentSessionsMock.mockResolvedValueOnce({
-      sessions: [secondSession],
-      nextCursor: null,
-    })
-    renderWorkspace({ courseId: primaryCourse.id })
-
-    expect(
-      await screen.findByRole('link', { name: /python lists/i }),
-    ).toBeInTheDocument()
-    await waitFor(() =>
-      expect(triggerSessionIntersection).toBeTypeOf('function'),
-    )
-    act(() => triggerSessionIntersection?.())
-
-    expect(
-      await screen.findByRole('link', { name: /functions practice/i }),
-    ).toBeInTheDocument()
-    expect(listStudentSessionsMock).toHaveBeenNthCalledWith(2, {
+  it('shows the greeting empty state for a conversation with no messages', async () => {
+    renderWorkspace({
       courseId: primaryCourse.id,
-      input: { limit: 25, cursor: primaryChatSessionFixture.id },
-    })
-  })
-
-  it('keeps loaded sessions visible when infinite scrolling needs a retry', async () => {
-    listStudentSessionsMock.mockResolvedValueOnce({
-      sessions: [{ ...primaryChatSessionFixture }],
-      nextCursor: primaryChatSessionFixture.id,
-    })
-    listStudentSessionsMock.mockRejectedValueOnce(new Error('Network failure'))
-    listStudentSessionsMock.mockResolvedValueOnce({
-      sessions: [secondSession],
-      nextCursor: null,
-    })
-    renderWorkspace({ courseId: primaryCourse.id })
-
-    expect(
-      await screen.findByRole('link', { name: /python lists/i }),
-    ).toBeInTheDocument()
-    await waitFor(() =>
-      expect(triggerSessionIntersection).toBeTypeOf('function'),
-    )
-    act(() => triggerSessionIntersection?.())
-
-    expect(
-      await screen.findByText('More conversations could not be loaded.'),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole('link', { name: /python lists/i }),
-    ).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
-    expect(
-      await screen.findByRole('link', { name: /functions practice/i }),
-    ).toBeInTheDocument()
-  })
-
-  it('creates and selects a new conversation with pending and retry states', async () => {
-    let rejectCreate: ((error: Error) => void) | undefined
-    createStudentSessionMock.mockImplementationOnce(
-      () =>
-        new Promise((_, reject) => {
-          rejectCreate = reject
-        }),
-    )
-    const { queryClient, rerender } = renderWorkspace({
-      courseId: primaryCourse.id,
-      sessions: { sessions: [], nextCursor: null },
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+      messages: { messages: [], nextCursor: null },
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'New chat' }))
-    expect(
-      await screen.findByRole('button', { name: 'Creating…' }),
-    ).toBeDisabled()
-    await waitFor(() => expect(rejectCreate).toBeTypeOf('function'))
-
-    if (!rejectCreate) {
-      throw new Error('Expected create request to be pending')
-    }
-    rejectCreate(new Error('Create failed'))
-    expect(await screen.findByRole('alert')).toHaveTextContent('Create failed')
-
-    createStudentSessionMock.mockResolvedValueOnce(primaryChatSessionFixture)
-    listStudentSessionsMock.mockResolvedValueOnce({
-      sessions: [primaryChatSessionFixture],
-      nextCursor: null,
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'New chat' }))
-
-    await waitFor(() =>
-      expect(navigateMock).toHaveBeenCalledWith({
-        to: '/student/ai-tutor',
-        search: {
-          courseId: primaryCourse.id,
-          sessionId: primaryChatSessionFixture.id,
-        },
-      }),
-    )
-
-    rerender(
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider defaultTheme="system" storageKey="test-theme">
-          <StudentAiTutorPage
-            courseId={primaryCourse.id}
-            sessionId={primaryChatSessionFixture.id}
-          />
-        </ThemeProvider>
-      </QueryClientProvider>,
-    )
     expect(
       await screen.findByRole('heading', {
-        name: 'What can I help you learn?',
+        name: 'How can I help you, Test?',
       }),
     ).toBeInTheDocument()
-    expect(getStudentSessionMessagesMock).not.toHaveBeenCalled()
-  })
-
-  it('validates and renames a conversation in the scoped list', async () => {
-    const renamedSession = {
-      ...primaryChatSessionFixture,
-      title: 'Renamed Python chat',
-    }
-    renameStudentSessionMock.mockResolvedValueOnce(renamedSession)
-    renderWorkspace({
-      courseId: primaryCourse.id,
-      sessionId: primaryChatSessionFixture.id,
-      sessions: {
-        sessions: [primaryChatSessionFixture],
-        nextCursor: null,
-      },
-    })
-
-    await chooseSessionAction(primaryChatSessionFixture.title, 'Rename')
-    const titleInput = screen.getByRole('textbox', {
-      name: `Rename ${primaryChatSessionFixture.title}`,
-    })
-
-    expect(titleInput).toHaveFocus()
-    expect(titleInput).toHaveValue(primaryChatSessionFixture.title)
-    fireEvent.change(titleInput, { target: { value: '   ' } })
-    fireEvent.submit(titleInput.closest('form')!)
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Enter a conversation title.',
-    )
-    expect(renameStudentSessionMock).not.toHaveBeenCalled()
-
-    fireEvent.change(titleInput, { target: { value: renamedSession.title } })
-    fireEvent.blur(titleInput)
-
-    await waitFor(() =>
-      expect(renameStudentSessionMock).toHaveBeenCalledWith({
-        courseId: primaryCourse.id,
-        sessionId: primaryChatSessionFixture.id,
-        input: { title: renamedSession.title },
-      }),
-    )
-    expect(
-      await screen.findByRole('link', { name: /renamed python chat/i }),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', {
-        name: `Open actions for ${renamedSession.title}`,
-      }),
-    ).toBeEnabled()
-  })
-
-  it('re-enables rename after a failed request so the Student can retry', async () => {
-    const renamedSession = {
-      ...primaryChatSessionFixture,
-      title: 'Retry rename',
-    }
-    renameStudentSessionMock.mockRejectedValueOnce(new Error('Rename failed'))
-    renameStudentSessionMock.mockResolvedValueOnce(renamedSession)
-    renderWorkspace({
-      courseId: primaryCourse.id,
-      sessions: {
-        sessions: [primaryChatSessionFixture],
-        nextCursor: null,
-      },
-    })
-
-    await chooseSessionAction(primaryChatSessionFixture.title, 'Rename')
-    const titleInput = screen.getByRole('textbox', {
-      name: `Rename ${primaryChatSessionFixture.title}`,
-    })
-    fireEvent.change(titleInput, {
-      target: { value: renamedSession.title },
-    })
-    fireEvent.submit(titleInput.closest('form')!)
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('Rename failed')
-    expect(titleInput).toBeEnabled()
-
-    fireEvent.submit(titleInput.closest('form')!)
-    expect(
-      await screen.findByRole('link', { name: /retry rename/i }),
-    ).toBeInTheDocument()
-  })
-
-  it('prevents overlapping lifecycle mutations across session rows', async () => {
-    let resolveRename: ((session: ChatSession) => void) | undefined
-    renameStudentSessionMock.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          resolveRename = resolve
-        }),
-    )
-    renderWorkspace({
-      courseId: primaryCourse.id,
-      sessions: {
-        sessions: [primaryChatSessionFixture, secondSession],
-        nextCursor: null,
-      },
-    })
-
-    await chooseSessionAction(primaryChatSessionFixture.title, 'Rename')
-    const titleInput = screen.getByRole('textbox', {
-      name: `Rename ${primaryChatSessionFixture.title}`,
-    })
-    fireEvent.change(titleInput, { target: { value: 'Pending rename' } })
-    fireEvent.submit(titleInput.closest('form')!)
-
-    await waitFor(() => expect(resolveRename).toBeTypeOf('function'))
-    expect(titleInput).toBeDisabled()
-    expect(
-      screen.getByRole('button', {
-        name: `Open actions for ${secondSession.title}`,
-      }),
-    ).toBeDisabled()
-
-    if (!resolveRename) {
-      throw new Error('Expected rename request to be pending')
-    }
-
-    resolveRename({ ...primaryChatSessionFixture, title: 'Pending rename' })
-    await waitFor(() =>
-      expect(
-        screen.getByRole('button', {
-          name: `Open actions for ${secondSession.title}`,
-        }),
-      ).toBeEnabled(),
-    )
-  })
-
-  it('disables every open rename editor while one rename is pending', async () => {
-    let resolveRename: ((session: ChatSession) => void) | undefined
-    renameStudentSessionMock.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          resolveRename = resolve
-        }),
-    )
-    renderWorkspace({
-      courseId: primaryCourse.id,
-      sessions: {
-        sessions: [primaryChatSessionFixture, secondSession],
-        nextCursor: null,
-      },
-    })
-
-    await chooseSessionAction(primaryChatSessionFixture.title, 'Rename')
-    const firstTitleInput = screen.getByRole('textbox', {
-      name: `Rename ${primaryChatSessionFixture.title}`,
-    })
-    fireEvent.change(firstTitleInput, { target: { value: '   ' } })
-    fireEvent.submit(firstTitleInput.closest('form')!)
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Enter a conversation title.',
-    )
-    await chooseSessionAction(secondSession.title, 'Rename')
-    const secondTitleInput = screen.getByRole('textbox', {
-      name: `Rename ${secondSession.title}`,
-    })
-    fireEvent.change(secondTitleInput, {
-      target: { value: 'Pending second rename' },
-    })
-    fireEvent.submit(secondTitleInput.closest('form')!)
-
-    await waitFor(() => expect(resolveRename).toBeTypeOf('function'))
-    expect(firstTitleInput).toBeDisabled()
-    expect(secondTitleInput).toBeDisabled()
-
-    fireEvent.change(firstTitleInput, {
-      target: { value: 'Overlapping first rename' },
-    })
-    fireEvent.submit(firstTitleInput.closest('form')!)
-    expect(renameStudentSessionMock).toHaveBeenCalledTimes(1)
-
-    if (!resolveRename) {
-      throw new Error('Expected rename request to be pending')
-    }
-
-    resolveRename({ ...secondSession, title: 'Pending second rename' })
-    await waitFor(() => expect(firstTitleInput).toBeEnabled())
-  })
-
-  it('cancels inline rename with Escape without mutating the session', async () => {
-    renderWorkspace({
-      courseId: primaryCourse.id,
-      sessions: {
-        sessions: [primaryChatSessionFixture],
-        nextCursor: null,
-      },
-    })
-
-    await chooseSessionAction(primaryChatSessionFixture.title, 'Rename')
-    const titleInput = screen.getByRole('textbox', {
-      name: `Rename ${primaryChatSessionFixture.title}`,
-    })
-    fireEvent.change(titleInput, { target: { value: 'Discard this title' } })
-    fireEvent.keyDown(titleInput, { key: 'Escape' })
-
-    expect(
-      screen.queryByRole('textbox', {
-        name: `Rename ${primaryChatSessionFixture.title}`,
-      }),
-    ).not.toBeInTheDocument()
-    expect(
-      screen.getByRole('link', { name: /python lists/i }),
-    ).toBeInTheDocument()
-    expect(renameStudentSessionMock).not.toHaveBeenCalled()
-  })
-
-  it('cancels deletion and recovers routing after confirmed deletion', async () => {
-    deleteStudentSessionMock.mockResolvedValueOnce(undefined)
-    renderWorkspace({
-      courseId: primaryCourse.id,
-      sessionId: primaryChatSessionFixture.id,
-      sessions: {
-        sessions: [primaryChatSessionFixture],
-        nextCursor: null,
-      },
-    })
-
-    await chooseSessionAction(primaryChatSessionFixture.title, 'Delete')
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    expect(deleteStudentSessionMock).not.toHaveBeenCalled()
-
-    await chooseSessionAction(primaryChatSessionFixture.title, 'Delete')
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
-
-    await waitFor(() =>
-      expect(deleteStudentSessionMock).toHaveBeenCalledWith({
-        courseId: primaryCourse.id,
-        sessionId: primaryChatSessionFixture.id,
-      }),
-    )
-    expect(navigateMock).toHaveBeenCalledWith({
-      to: '/student/ai-tutor',
-      search: { courseId: primaryCourse.id },
-    })
-  })
-
-  it('keeps the delete confirmation open when the server rejects deletion', async () => {
-    deleteStudentSessionMock.mockRejectedValueOnce(new Error('Delete failed'))
-    renderWorkspace({
-      courseId: primaryCourse.id,
-      sessions: {
-        sessions: [primaryChatSessionFixture],
-        nextCursor: null,
-      },
-    })
-
-    await chooseSessionAction(primaryChatSessionFixture.title, 'Delete')
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('Delete failed')
-    expect(
-      screen.getByRole('heading', { name: 'Delete conversation?' }),
-    ).toBeInTheDocument()
-    const retryDelete = screen.getByRole('button', { name: 'Delete' })
-    expect(retryDelete).toBeEnabled()
-
-    fireEvent.click(retryDelete)
-    await waitFor(() =>
-      expect(deleteStudentSessionMock).toHaveBeenCalledTimes(2),
-    )
   })
 
   it('renders persisted messages in the server-provided sequence order', async () => {
@@ -1256,24 +694,6 @@ describe('StudentAiTutorPage workspace', () => {
     ).toBeInTheDocument()
   })
 
-  it('shows an empty state when the selected conversation has no messages', async () => {
-    renderWorkspace({
-      courseId: primaryCourse.id,
-      sessionId: primaryChatSessionFixture.id,
-      sessions: {
-        sessions: [primaryChatSessionFixture],
-        nextCursor: null,
-      },
-      messages: { messages: [], nextCursor: null },
-    })
-
-    expect(
-      await screen.findByRole('heading', {
-        name: 'What can I help you learn?',
-      }),
-    ).toBeInTheDocument()
-  })
-
   it('opens persisted history at its latest message', async () => {
     const scrollHeightSpy = vi
       .spyOn(HTMLElement.prototype, 'scrollHeight', 'get')
@@ -1412,10 +832,6 @@ describe('StudentAiTutorPage workspace', () => {
     getStudentSessionMessagesMock.mockRejectedValueOnce(
       new ApiError('Session not found', 404, 'STUDENT_CHAT_SESSION_NOT_FOUND'),
     )
-    listStudentSessionsMock.mockResolvedValueOnce({
-      sessions: [],
-      nextCursor: null,
-    })
     renderWorkspace({
       courseId: primaryCourse.id,
       sessionId: primaryChatSessionFixture.id,
@@ -1437,7 +853,7 @@ describe('StudentAiTutorPage workspace', () => {
 
     await waitFor(() =>
       expect(navigateMock).toHaveBeenCalledWith({
-        to: '/student/ai-tutor',
+        to: '/chat',
         search: { courseId: primaryCourse.id },
       }),
     )
@@ -1615,17 +1031,17 @@ describe('StudentAiTutorPage workspace', () => {
     rerender(
       <QueryClientProvider client={queryClient}>
         <ThemeProvider defaultTheme="system" storageKey="test-theme">
-          <StudentAiTutorPage
-            courseId={primaryCourse.id}
-            sessionId={secondSession.id}
-          />
+          <SidebarProvider>
+            <StudentAiTutorPage
+              courseId={primaryCourse.id}
+              sessionId={secondSession.id}
+            />
+          </SidebarProvider>
         </ThemeProvider>
       </QueryClientProvider>,
     )
 
-    expect(
-      await screen.findByRole('heading', { name: secondSession.title }),
-    ).toBeInTheDocument()
+    expect(await screen.findByText(secondSession.title)).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Message' })).toBeEnabled()
     expect(
       screen.queryByRole('status', {
@@ -1640,9 +1056,7 @@ describe('StudentAiTutorPage workspace', () => {
       throw new Error('Expected the first session turn to remain in flight')
     }
     await act(async () => resolveTurn?.(groundedChatTurnResponseFixture))
-    expect(
-      screen.getByRole('heading', { name: secondSession.title }),
-    ).toBeInTheDocument()
+    expect(screen.getByText(secondSession.title)).toBeInTheDocument()
     expect(
       screen.queryByText(
         groundedChatTurnResponseFixture.assistantMessage.content,
@@ -1713,16 +1127,18 @@ describe('StudentAiTutorPage workspace', () => {
     rerender(
       <QueryClientProvider client={queryClient}>
         <ThemeProvider defaultTheme="system" storageKey="test-theme">
-          <StudentAiTutorPage
-            courseId={otherCourse.id}
-            sessionId={otherCourseSession.id}
-          />
+          <SidebarProvider>
+            <StudentAiTutorPage
+              courseId={otherCourse.id}
+              sessionId={otherCourseSession.id}
+            />
+          </SidebarProvider>
         </ThemeProvider>
       </QueryClientProvider>,
     )
 
     expect(
-      await screen.findByRole('heading', { name: otherCourseSession.title }),
+      await screen.findByText(otherCourseSession.title),
     ).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('')
     expect(screen.queryByText(/message could not be sent/i)).toBeNull()

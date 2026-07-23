@@ -4,24 +4,19 @@ import {
   ClipboardCheckIcon,
   FileTextIcon,
   LayoutDashboardIcon,
-  MenuIcon,
   ScrollTextIcon,
   SettingsIcon,
   UsersIcon,
 } from 'lucide-react'
-import { useState } from 'react'
 
+import { AppSidebar } from '@/components/layout/app-sidebar'
 import type { AppSidebarNavItem } from '@/components/layout/app-sidebar'
 import { DashboardHeader } from '@/components/layout/dashboard-header'
-import { StudioSidebar } from '@/components/layout/studio-sidebar'
-import { Button } from '@/components/ui/button'
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
-import { useAuthStore } from '@/features/auth/stores/auth.store'
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from '@/components/ui/sidebar'
 
 const navItems: readonly AppSidebarNavItem[] = [
   { label: 'Dashboard', to: '/admin', icon: LayoutDashboardIcon, exact: true },
@@ -61,72 +56,28 @@ function AdminBreadcrumb({ pathname }: { pathname: string }) {
 }
 
 export function AdminPageShell() {
-  const currentUser = useAuthStore((state) => state.user)
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   })
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-
-  const sidebarUser = currentUser
-    ? { displayName: currentUser.displayName, roleLabel: 'Administrator' }
-    : undefined
 
   return (
-    <div className="flex h-svh overflow-hidden bg-background text-foreground">
-      {/* Desktop sidebar — inset floating panel */}
-      <aside className="hidden shrink-0 md:block">
-        <div className="m-3 h-[calc(100svh-1.5rem)] w-64 overflow-hidden rounded-2xl border bg-sidebar text-sidebar-foreground shadow-sm">
-          <StudioSidebar
-            navigation={navItems}
-            roleChip="ADMIN"
-            ariaLabel="Admin navigation"
-            pathname={pathname}
-            user={sidebarUser}
-          />
-        </div>
-      </aside>
-
-      {/* Mobile sidebar drawer */}
-      <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-        <SheetContent
-          side="left"
-          className="w-72 max-w-[85vw] gap-0 rounded-r-3xl border-sidebar-border bg-sidebar p-0 text-sidebar-foreground"
-        >
-          <SheetHeader className="sr-only">
-            <SheetTitle>Admin navigation</SheetTitle>
-          </SheetHeader>
-          <StudioSidebar
-            navigation={navItems}
-            roleChip="ADMIN"
-            ariaLabel="Admin navigation"
-            pathname={pathname}
-            user={sidebarUser}
-            onNavigate={() => setMobileMenuOpen(false)}
-          />
-        </SheetContent>
-      </Sheet>
-
-      <div className="flex min-w-0 flex-1 flex-col overflow-y-auto scrollbar-themed">
+    <SidebarProvider className="h-svh overflow-hidden">
+      <AppSidebar
+        role="admin"
+        navigation={navItems}
+        ariaLabel="Admin navigation"
+      />
+      <SidebarInset className="scrollbar-themed min-h-0 overflow-y-auto">
         <DashboardHeader
           className="sticky top-3 z-40 mx-3 mt-3"
-          leading={
-            <Button
-              variant="ghost"
-              size="icon"
-              className="md:hidden"
-              aria-label="Open menu"
-              onClick={() => setMobileMenuOpen(true)}
-            >
-              <MenuIcon className="size-5" aria-hidden />
-            </Button>
-          }
+          leading={<SidebarTrigger className="md:hidden" />}
           breadcrumb={<AdminBreadcrumb pathname={pathname} />}
         />
 
         <div className="mx-auto w-full max-w-7xl px-6 py-8 md:px-8">
           <Outlet />
         </div>
-      </div>
-    </div>
+      </SidebarInset>
+    </SidebarProvider>
   )
 }

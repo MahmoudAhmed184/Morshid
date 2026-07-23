@@ -127,7 +127,6 @@ export function StudentSourcesPanel({
             <p className="text-sm font-medium text-foreground">
               {course.title}
             </p>
-            <p className="footnote mt-1 font-mono">{course.code}</p>
             <div className="rule mt-3 flex flex-wrap items-center gap-2 pt-3">
               <Badge variant="success" className="font-mono">
                 <FileText className="size-3.5" strokeWidth={1.75} aria-hidden />
