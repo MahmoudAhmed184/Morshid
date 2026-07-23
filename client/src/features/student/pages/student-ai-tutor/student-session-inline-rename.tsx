@@ -93,7 +93,7 @@ export function StudentSessionInlineRename({
         }}
       />
       {errorMessage ? (
-        <p role="alert" className="mt-1 px-1 text-xs text-destructive">
+        <p role="alert" className="mt-1 px-1 text-xs text-foreground">
           {errorMessage}
         </p>
       ) : null}

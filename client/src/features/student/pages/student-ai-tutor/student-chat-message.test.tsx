@@ -21,7 +21,12 @@ describe('StudentChatMessage', () => {
   it('shows grounded guidance and citation chips on tutor responses', () => {
     render(
       <ol>
-        <StudentChatMessage message={assistantMessage} />
+        <StudentChatMessage
+          message={assistantMessage}
+          isGenerationActive={false}
+          retryError={null}
+          onRetry={() => undefined}
+        />
       </ol>,
     )
 
@@ -41,6 +46,9 @@ describe('StudentChatMessage', () => {
       <ol>
         <StudentChatMessage
           message={{ ...assistantMessage, guidanceLabel, citations: [] }}
+          isGenerationActive={false}
+          retryError={null}
+          onRetry={() => undefined}
         />
       </ol>,
     )

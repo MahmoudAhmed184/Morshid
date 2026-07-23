@@ -95,6 +95,43 @@ describe('Grounded chat turn repository (e2e)', () => {
     ).resolves.toBe(2)
   })
 
+  it('replays a terminal turn for the same client message id without duplicating messages', async () => {
+    const fixture = await createFixture(prisma)
+    const clientMessageId = randomUUID()
+    const turn = await repository.beginTurn({
+      ...fixture,
+      clientMessageId,
+      content: 'Idempotent question',
+    })
+    if (turn.kind !== 'ok') {
+      throw new Error('Expected the turn to begin')
+    }
+    await repository.failTurn({
+      ...fixture,
+      attemptId: turn.attemptId,
+      studentMessageId: turn.studentMessage.id,
+      assistantMessageId: turn.assistantMessage.id,
+      content: 'Safe failure',
+      errorCode: 'GROUNDING_RESPONSE_FAILED',
+    })
+
+    const replay = await repository.beginTurn({
+      ...fixture,
+      clientMessageId,
+      content: 'Idempotent question',
+    })
+
+    expect(replay.kind).toBe('replayed')
+    if (replay.kind !== 'replayed') {
+      return
+    }
+    expect(replay.studentMessage.id).toBe(clientMessageId)
+    expect(replay.assistantMessage.id).toBe(turn.assistantMessage.id)
+    await expect(
+      prisma.message.count({ where: { sessionId: fixture.sessionId } }),
+    ).resolves.toBe(2)
+  })
+
   it('commits completion metadata, exact retrieval ranks, and deduplicated citation order together', async () => {
     const fixture = await createFixture(prisma)
     const first = await createEvidence(prisma, fixture, 'Lists', 0)
