@@ -18,6 +18,7 @@ export const GATE_2_FIXTURE = {
     'How do I calculate orbital transfer windows for a mission to Neptune?',
   visibleSentinel: 'GATE_2_AUTHORIZED_PYTHON_COLLECTIONS',
   hiddenSentinel: 'GATE_2_HIDDEN_ISOLATION_MUST_NEVER_LEAK',
+  visibleEvidenceChunk: 'GATE_2_AUTHORIZED_PYTHON_COLLECTIONS A Python list st',
   visibleContent: [
     'GATE_2_AUTHORIZED_PYTHON_COLLECTIONS',
     'A Python list stores an ordered collection addressed by numeric index.',

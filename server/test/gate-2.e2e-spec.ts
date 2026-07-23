@@ -304,7 +304,7 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
             'Gate 2 expected an uploaded authorized evidence chunk',
           )
         }
-        expect(chunk.content).toBe(GATE_2_FIXTURE.visibleContent)
+        expect(chunk.content).toBe(GATE_2_FIXTURE.visibleEvidenceChunk)
         return chunk
       },
     )
@@ -471,7 +471,7 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
           chunkIndex: 0,
         })
         expect(providerInput.context[0].content).toBe(
-          GATE_2_FIXTURE.visibleContent,
+          GATE_2_FIXTURE.visibleEvidenceChunk,
         )
 
         const persistedAssistant = await prisma.message.findUniqueOrThrow({
@@ -740,7 +740,7 @@ function expectNoHiddenState(
 function expectedGate2AssistantContent(): string {
   return [
     'Grounded guidance based only on the supplied authorized context:',
-    `1. ${JSON.stringify(GATE_2_FIXTURE.visibleContent)} — ${JSON.stringify(GATE_2_FIXTURE.sourceTitle)}, chunk 0`,
+    `1. ${JSON.stringify(GATE_2_FIXTURE.visibleEvidenceChunk)} — ${JSON.stringify(GATE_2_FIXTURE.sourceTitle)}, chunk 0`,
   ].join('\n')
 }
 
