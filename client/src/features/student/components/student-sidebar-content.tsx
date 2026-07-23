@@ -71,6 +71,32 @@ function groupSessionsByRecency(sessions: ChatSession[]): SessionGroup[] {
   ].filter((group) => group.sessions.length > 0)
 }
 
+// A session that has never recorded a message has a null `lastMessageAt` — the
+// same signal the pre-v5 rail used to render its "No messages yet" subtitle.
+function isEmptySession(session: ChatSession): boolean {
+  return session.lastMessageAt === null
+}
+
+// Newest by creation time, so the New-chat guard reuses the most recently
+// opened empty session rather than an older abandoned one.
+function findNewestEmptySession(sessions: ChatSession[]): ChatSession | null {
+  return sessions.reduce<ChatSession | null>((newest, session) => {
+    if (!isEmptySession(session)) {
+      return newest
+    }
+
+    if (
+      !newest ||
+      new Date(session.createdAt).getTime() >
+        new Date(newest.createdAt).getTime()
+    ) {
+      return session
+    }
+
+    return newest
+  }, null)
+}
+
 export function StudentSidebarContent({
   searchInputRef,
   newChatButtonRef,
@@ -105,6 +131,8 @@ export function StudentSidebarContent({
   const routedSession = routedSessionQuery.data ?? null
   const visibleSessions =
     routedSession && !listedSession ? [routedSession, ...sessions] : sessions
+  const selectedSession =
+    visibleSessions.find((session) => session.id === routeSessionId) ?? null
 
   const createSession = useCreateStudentSession({
     courseId: selectedCourse?.id,
@@ -129,6 +157,32 @@ export function StudentSidebarContent({
       return
     }
 
+    // T11.2 guard — do not spawn another empty session when one is at hand.
+    // 1. The currently-selected session has no messages → stay on it (it is
+    //    already the active route by definition) and do not create. Focusing
+    //    the composer is not trivially reachable from here — it lives in a
+    //    separate route subtree with no ref/callback wired to the sidebar — so
+    //    we navigate/stay only.
+    if (selectedSession && isEmptySession(selectedSession)) {
+      closeOnMobile()
+      return
+    }
+
+    // 2. Reuse the newest already-loaded empty session for this course.
+    const reusableEmptySession = findNewestEmptySession(visibleSessions)
+    if (reusableEmptySession) {
+      await navigate({
+        to: '/chat',
+        search: {
+          courseId: selectedCourse.id,
+          sessionId: reusableEmptySession.id,
+        },
+      })
+      closeOnMobile()
+      return
+    }
+
+    // 3. Neither applies → create via the existing mutation, unchanged.
     try {
       const session = await createSession.mutateAsync({})
       await navigate({
@@ -195,9 +249,9 @@ export function StudentSidebarContent({
           </p>
         ) : null}
 
-        <div className="flex items-center gap-2 px-1">
+        <div className="relative px-1">
           <Search
-            className="size-4 shrink-0 text-muted-foreground"
+            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
             strokeWidth={1.75}
             aria-hidden
           />
@@ -209,7 +263,7 @@ export function StudentSidebarContent({
             placeholder="Search your chats..."
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            className="h-8 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+            className="h-8 border-0 bg-transparent px-0 pl-9 shadow-none focus-visible:ring-0"
           />
         </div>
       </div>
@@ -236,11 +290,13 @@ export function StudentSidebarContent({
         {!isPending && !isError && groups.length > 0 ? (
           <nav
             aria-label="Course conversations"
-            className="flex flex-col gap-4"
+            className="flex flex-col gap-4 pt-3"
           >
             {groups.map((group) => (
               <div key={group.key}>
-                <p className="smallcaps-label px-3 pb-1.5">{group.label}</p>
+                <p className="smallcaps-label px-3 pb-1.5 font-semibold">
+                  {group.label}
+                </p>
                 <ul className="flex flex-col gap-0.5">
                   {group.sessions.map((session) => (
                     <StudentSessionListItem

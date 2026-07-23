@@ -148,11 +148,13 @@ function renderSidebar({
   courseId = primaryCourse.id,
   sessionId,
   sessions,
+  newChatButtonRef,
 }: {
   courses?: StudentCourse[]
   courseId?: string
   sessionId?: string
   sessions?: ChatSessionListResponse
+  newChatButtonRef?: { current: HTMLButtonElement | null }
 } = {}) {
   vi.stubGlobal(
     'matchMedia',
@@ -189,7 +191,7 @@ function renderSidebar({
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="system" storageKey="test-theme">
         <SidebarProvider>
-          <StudentSidebarContent />
+          <StudentSidebarContent newChatButtonRef={newChatButtonRef} />
         </SidebarProvider>
       </ThemeProvider>
     </QueryClientProvider>,
@@ -354,6 +356,97 @@ describe('StudentSidebarContent', () => {
     fireEvent.click(screen.getByRole('button', { name: 'New chat' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Create failed')
+  })
+
+  const emptySelectedSession = sessionAt({
+    id: '55555555-5555-4555-8555-555555555555',
+    title: 'Empty selected draft',
+    lastMessageAt: null,
+  })
+  const emptyOtherSession = sessionAt({
+    id: '66666666-6666-4666-8666-666666666666',
+    title: 'Empty other draft',
+    lastMessageAt: null,
+    createdAt: '2026-07-18T12:00:00.000Z',
+    updatedAt: '2026-07-18T12:00:00.000Z',
+  })
+
+  it('does not create when the selected session is already empty', async () => {
+    getStudentSessionMock.mockResolvedValue(emptySelectedSession)
+    renderSidebar({
+      sessionId: emptySelectedSession.id,
+      sessions: { sessions: [emptySelectedSession], nextCursor: null },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'New chat' }))
+
+    await Promise.resolve()
+    expect(createStudentSessionMock).not.toHaveBeenCalled()
+    expect(navigateMock).not.toHaveBeenCalled()
+  })
+
+  it('reuses the newest empty session instead of creating another', async () => {
+    renderSidebar({
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture, emptyOtherSession],
+        nextCursor: null,
+      },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'New chat' }))
+
+    await waitFor(() =>
+      expect(navigateMock).toHaveBeenCalledWith({
+        to: '/chat',
+        search: {
+          courseId: primaryCourse.id,
+          sessionId: emptyOtherSession.id,
+        },
+      }),
+    )
+    expect(createStudentSessionMock).not.toHaveBeenCalled()
+  })
+
+  it('creates when no empty session is at hand', async () => {
+    createStudentSessionMock.mockResolvedValueOnce(primaryChatSessionFixture)
+    renderSidebar({
+      sessions: {
+        sessions: [{ ...secondSession, lastMessageAt: '2026-07-17T09:02:00.000Z' }],
+        nextCursor: null,
+      },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'New chat' }))
+
+    await waitFor(() => expect(createStudentSessionMock).toHaveBeenCalledTimes(1))
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: '/chat',
+      search: {
+        courseId: primaryCourse.id,
+        sessionId: primaryChatSessionFixture.id,
+      },
+    })
+  })
+
+  it('applies the same guard to the collapsed-cluster plus button', async () => {
+    getStudentSessionMock.mockResolvedValue(emptySelectedSession)
+    const newChatButtonRef: { current: HTMLButtonElement | null } = {
+      current: null,
+    }
+    renderSidebar({
+      sessionId: emptySelectedSession.id,
+      sessions: { sessions: [emptySelectedSession], nextCursor: null },
+      newChatButtonRef,
+    })
+
+    // The collapsed cluster's plus button forwards to this same button ref.
+    expect(newChatButtonRef.current).not.toBeNull()
+    fireEvent.click(newChatButtonRef.current!)
+
+    await Promise.resolve()
+    expect(createStudentSessionMock).not.toHaveBeenCalled()
+    expect(navigateMock).not.toHaveBeenCalled()
   })
 
   it('validates and renames a conversation in the scoped list', async () => {
