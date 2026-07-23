@@ -1,6 +1,6 @@
 import { useNavigate } from '@tanstack/react-router'
 import { BookOpen, PanelLeft } from 'lucide-react'
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/custom/empty-state'
@@ -11,6 +11,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
+import { useAuthStore } from '@/features/auth/stores/auth.store'
 import { useStudentCourses } from '@/features/student/hooks/use-student-courses'
 import {
   useCreateStudentSession,
@@ -20,10 +21,18 @@ import {
   useStudentSessionMessages,
   useStudentSessions,
 } from '@/features/student/hooks/use-student-sessions'
-import type { ChatSession } from '@/features/student/schemas/student-chat.schema'
+import {
+  useRetryStudentChatMessage,
+  useSendStudentChatMessage,
+} from '@/features/student/hooks/use-student-chat-turns'
+import type {
+  ChatMessage,
+  ChatSession,
+} from '@/features/student/schemas/student-chat.schema'
+import type { StudentCourse } from '@/features/student/schemas/student-course.schema'
 
 import { StudentConversationHeader } from './student-conversation-header'
-import { StudentDisabledComposer } from './student-disabled-composer'
+import { StudentChatComposer } from './student-chat-composer'
 import { StudentMessageHistory } from './student-message-history'
 import { StudentSessionNavigation } from './student-session-navigation'
 import { StudentWorkspaceState } from './student-workspace-state'
@@ -39,6 +48,7 @@ export function StudentAiTutorPage({
 }: StudentAiTutorPageProps) {
   const navigate = useNavigate()
   const [mobileSessionsOpen, setMobileSessionsOpen] = useState(false)
+  const studentId = useAuthStore((state) => state.user?.id)
   const { data: assignedCourses } = useStudentCourses()
   const selectedCourse =
     (courseId
@@ -60,12 +70,6 @@ export function StudentAiTutorPage({
     selectedSession && !listedSession
       ? [selectedSession, ...sessions]
       : sessions
-  const messagesQuery = useStudentSessionMessages({
-    courseId: selectedCourse?.id,
-    sessionId: selectedSession?.id,
-  })
-  const messages =
-    messagesQuery.data?.pages.flatMap((page) => page.messages) ?? []
   const createSession = useCreateStudentSession({
     courseId: selectedCourse?.id,
   })
@@ -75,7 +79,6 @@ export function StudentAiTutorPage({
   const deleteSession = useDeleteStudentSession({
     courseId: selectedCourse?.id,
   })
-
   const handleCreate = async () => {
     if (!selectedCourse) {
       return
@@ -130,10 +133,6 @@ export function StudentAiTutorPage({
         selectedSessionId: sessionId,
         isPending: sessionsQuery.isPending,
         isError: sessionsQuery.isError && sessions.length === 0,
-        isRefreshing:
-          sessionsQuery.isFetching &&
-          !sessionsQuery.isPending &&
-          !sessionsQuery.isFetchingNextPage,
         hasNextPage: sessionsQuery.hasNextPage,
         isFetchingNextPage: sessionsQuery.isFetchingNextPage,
         isFetchNextPageError: sessionsQuery.isFetchNextPageError,
@@ -157,16 +156,16 @@ export function StudentAiTutorPage({
 
   return (
     <section
-      className="flex min-h-0 flex-1 overflow-hidden bg-background text-foreground"
+      className="flex h-0 min-h-0 w-full flex-1 overflow-hidden overscroll-none bg-background text-foreground"
       aria-label="Student AI Tutor"
     >
       {selectedCourse ? (
-        <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)] md:grid-cols-[20rem_minmax(0,1fr)] md:overflow-hidden">
+        <div className="grid h-full min-h-0 w-full flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)] overflow-hidden md:grid-cols-[17.5rem_minmax(0,1fr)]">
           <div className="hidden min-h-0 md:contents">
             <StudentSessionNavigation {...activeSessionNavigationProps} />
           </div>
 
-          <div className="flex min-h-80 min-w-0 flex-col bg-background">
+          <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background">
             <Sheet
               open={mobileSessionsOpen}
               onOpenChange={setMobileSessionsOpen}
@@ -205,52 +204,47 @@ export function StudentAiTutorPage({
             </Sheet>
 
             {selectedSession ? (
-              <StudentConversationHeader
-                title={selectedSession.title}
-                courseCode={selectedCourse.code}
-                courseTitle={selectedCourse.title}
+              <StudentConversation
+                key={`${studentId ?? 'anonymous'}:${selectedCourse.id}:${selectedSession.id}`}
+                course={selectedCourse}
+                session={selectedSession}
+                onRecover={() => void handleStaleSession()}
               />
-            ) : null}
-            <div className="scrollbar-themed min-h-0 flex-1 overflow-y-auto px-4 py-8 sm:px-8">
-              {selectedSession ? (
-                <div className="mx-auto min-h-full max-w-5xl">
-                  <StudentMessageHistory
-                    messages={messages}
-                    error={messagesQuery.error}
-                    isPending={messagesQuery.isPending}
-                    isError={messagesQuery.isError}
-                    isFetching={messagesQuery.isFetching}
-                    hasNextPage={messagesQuery.hasNextPage}
-                    isFetchingNextPage={messagesQuery.isFetchingNextPage}
-                    isFetchNextPageError={messagesQuery.isFetchNextPageError}
-                    onRetry={() => void messagesQuery.refetch()}
-                    onLoadMore={() => void messagesQuery.fetchNextPage()}
-                    onRecover={() => void handleStaleSession()}
-                  />
+            ) : (
+              <>
+                <div
+                  aria-label="Conversation messages"
+                  className="scrollbar-themed min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-6 sm:px-6"
+                  role="region"
+                >
+                  <div className="flex h-full items-center justify-center py-4">
+                    <StudentWorkspaceState
+                      sessionId={sessionId}
+                      sessionsPending={sessionsQuery.isPending}
+                      sessionsError={
+                        sessionsQuery.isError && sessions.length === 0
+                      }
+                      hasSessions={sessions.length > 0}
+                      sessionPending={
+                        routedSessionQuery.isPending &&
+                        routedSessionQuery.fetchStatus !== 'idle'
+                      }
+                      sessionError={routedSessionQuery.error}
+                      sessionRetrying={routedSessionQuery.isFetching}
+                      onRetrySession={() => void routedSessionQuery.refetch()}
+                    />
+                  </div>
                 </div>
-              ) : (
-                <div className="flex min-h-full items-center justify-center py-4">
-                  <StudentWorkspaceState
-                    sessionId={sessionId}
-                    sessionsPending={sessionsQuery.isPending}
-                    sessionsError={
-                      sessionsQuery.isError && sessions.length === 0
-                    }
-                    hasSessions={sessions.length > 0}
-                    sessionPending={
-                      routedSessionQuery.isPending &&
-                      routedSessionQuery.fetchStatus !== 'idle'
-                    }
-                    sessionError={routedSessionQuery.error}
-                    sessionRetrying={routedSessionQuery.isFetching}
-                    onRetrySession={() => void routedSessionQuery.refetch()}
-                  />
-                </div>
-              )}
-            </div>
-            <StudentDisabledComposer
-              hasSelectedSession={selectedSession !== null}
-            />
+                <StudentChatComposer
+                  key={`${studentId ?? 'anonymous'}:${selectedCourse.id}:${sessionId ?? 'no-session'}`}
+                  hasSelectedSession={false}
+                  isGenerating={false}
+                  sendError={null}
+                  onDismissError={() => undefined}
+                  onSend={() => Promise.resolve(false)}
+                />
+              </>
+            )}
           </div>
         </div>
       ) : (
@@ -272,5 +266,146 @@ export function StudentAiTutorPage({
         </div>
       )}
     </section>
+  )
+}
+
+interface StudentConversationProps {
+  course: StudentCourse
+  session: ChatSession
+  onRecover: () => void
+}
+
+function StudentConversation({
+  course,
+  session,
+  onRecover,
+}: StudentConversationProps) {
+  const messagesQuery = useStudentSessionMessages({
+    courseId: course.id,
+    sessionId: session.id,
+  })
+  const messages = reconcileMessages(
+    messagesQuery.data?.pages.flatMap((page) => page.messages) ?? [],
+  )
+  const sendMessage = useSendStudentChatMessage({
+    courseId: course.id,
+    sessionId: session.id,
+  })
+  const retryMessage = useRetryStudentChatMessage({
+    courseId: course.id,
+    sessionId: session.id,
+  })
+  const hasPersistedGeneration = messages.some(
+    (message) =>
+      message.role === 'ASSISTANT' &&
+      (message.status === 'PENDING' || message.status === 'STREAMING'),
+  )
+  const isGenerationActive =
+    sendMessage.isPending || retryMessage.isPending || hasPersistedGeneration
+  const historyScrollRef = useRef<HTMLDivElement>(null)
+  const previousLatestMessageRef = useRef<string | undefined>(undefined)
+  const latestMessage = messages.at(-1)
+  const latestMessageKey = latestMessage
+    ? [
+        latestMessage.id,
+        latestMessage.status,
+        latestMessage.completedAt,
+        latestMessage.content.length,
+      ].join(':')
+    : undefined
+
+  useLayoutEffect(() => {
+    if (messagesQuery.isPending) {
+      return
+    }
+
+    const latestMessageChanged =
+      previousLatestMessageRef.current !== latestMessageKey
+    previousLatestMessageRef.current = latestMessageKey
+
+    if (latestMessageChanged) {
+      const scrollContainer = historyScrollRef.current
+      if (scrollContainer) {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight
+      }
+    }
+  }, [latestMessageKey, messagesQuery.isPending])
+
+  const handleSend = async (content: string, clientMessageId: string) => {
+    retryMessage.reset()
+
+    try {
+      await sendMessage.mutateAsync({ clientMessageId, content })
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  const handleRetryMessage = async (studentMessageId: string) => {
+    sendMessage.reset()
+
+    try {
+      await retryMessage.mutateAsync(studentMessageId)
+    } catch {
+      // Mutation state renders the scoped retry failure next to the response.
+    }
+  }
+
+  return (
+    <>
+      <StudentConversationHeader
+        title={session.title}
+        courseCode={course.code}
+        courseTitle={course.title}
+      />
+      <div
+        ref={historyScrollRef}
+        aria-label="Conversation messages"
+        className="scrollbar-themed min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-6 sm:px-6"
+        role="region"
+      >
+        <div className="mx-auto max-w-3xl">
+          <StudentMessageHistory
+            messages={messages}
+            error={messagesQuery.error}
+            isPending={messagesQuery.isPending}
+            isError={messagesQuery.isError}
+            isFetching={messagesQuery.isFetching}
+            hasNextPage={messagesQuery.hasNextPage}
+            isFetchingNextPage={messagesQuery.isFetchingNextPage}
+            isFetchNextPageError={messagesQuery.isFetchNextPageError}
+            isGenerationActive={isGenerationActive}
+            retryError={retryMessage.error}
+            retryMessageId={retryMessage.variables}
+            onRetry={() => void messagesQuery.refetch()}
+            onLoadMore={() => void messagesQuery.fetchNextPage()}
+            onRecover={onRecover}
+            onRetryResponse={(studentMessageId) =>
+              void handleRetryMessage(studentMessageId)
+            }
+          />
+        </div>
+      </div>
+      <StudentChatComposer
+        hasSelectedSession
+        isGenerating={isGenerationActive}
+        sendError={sendMessage.error}
+        onDismissError={sendMessage.reset}
+        onSend={handleSend}
+      />
+    </>
+  )
+}
+
+function reconcileMessages(messages: ChatMessage[]) {
+  const messagesById = new Map<string, ChatMessage>()
+
+  for (const message of messages) {
+    messagesById.set(message.id, message)
+  }
+
+  return [...messagesById.values()].sort(
+    (left, right) => left.sequence - right.sequence,
   )
 }

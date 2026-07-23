@@ -1,13 +1,16 @@
-import { MessageSquareText } from 'lucide-react'
+import { Bot, LoaderCircle, MessageSquareText } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/custom/empty-state'
 import { ErrorState } from '@/components/ui/custom/error-state'
-import { isApiError } from '@/features/auth/api/authenticated-api-client'
+import {
+  isStudentChatApiError,
+  STUDENT_CHAT_ERROR_CODES,
+} from '@/features/student/data/student-chat.errors'
 import type { ChatMessage } from '@/features/student/schemas/student-chat.schema'
 
 import { StudentChatMessage } from './student-chat-message'
-import { StudentMessageHistorySkeleton } from './student-message-history-skeleton'
+import { STUDENT_CHAT_GENERATION_STATUS } from './student-chat-status'
 
 interface StudentMessageHistoryProps {
   messages: ChatMessage[]
@@ -18,9 +21,13 @@ interface StudentMessageHistoryProps {
   hasNextPage: boolean
   isFetchingNextPage: boolean
   isFetchNextPageError: boolean
+  isGenerationActive: boolean
+  retryError: unknown
+  retryMessageId?: string
   onRetry: () => void
   onLoadMore: () => void
   onRecover: () => void
+  onRetryResponse: (studentMessageId: string) => void
 }
 
 export function StudentMessageHistory({
@@ -32,18 +39,21 @@ export function StudentMessageHistory({
   hasNextPage,
   isFetchingNextPage,
   isFetchNextPageError,
+  isGenerationActive,
+  retryError,
+  retryMessageId,
   onRetry,
   onLoadMore,
   onRecover,
+  onRetryResponse,
 }: StudentMessageHistoryProps) {
   if (isPending) {
-    return <StudentMessageHistorySkeleton />
+    return null
   }
 
   if (
     isError &&
-    isApiError(error) &&
-    error.code === 'STUDENT_CHAT_SESSION_NOT_FOUND'
+    isStudentChatApiError(error, STUDENT_CHAT_ERROR_CODES.SESSION_NOT_FOUND)
   ) {
     return (
       <EmptyState
@@ -68,30 +78,80 @@ export function StudentMessageHistory({
     )
   }
 
-  if (messages.length === 0) {
+  if (messages.length === 0 && !isGenerationActive) {
     return (
-      <EmptyState
-        icon={<MessageSquareText className="size-6" aria-hidden />}
-        title="No messages yet"
-        description="Saved messages will appear here when this conversation begins."
-        className="w-full border-0 bg-transparent"
-      />
+      <div className="flex min-h-[50vh] items-center justify-center px-4 text-center">
+        <div>
+          <div className="mx-auto flex size-10 items-center justify-center rounded-full border border-border bg-card">
+            <MessageSquareText className="size-5" aria-hidden />
+          </div>
+          <h2 className="mt-4 text-balance text-2xl font-semibold tracking-tight text-foreground">
+            What can I help you learn?
+          </h2>
+          <p className="mt-2 text-pretty text-sm text-muted-foreground">
+            Ask a question about your course materials.
+          </p>
+        </div>
+      </div>
     )
   }
 
+  const hasPendingAssistant = messages.some(
+    (message) =>
+      message.role === 'ASSISTANT' &&
+      (message.status === 'PENDING' || message.status === 'STREAMING'),
+  )
+
   return (
     <div>
-      <ol aria-label="Conversation history" className="space-y-5">
+      {hasNextPage && !isError ? (
+        <div className="mb-6 text-center">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isFetchingNextPage}
+            onClick={onLoadMore}
+          >
+            {isFetchingNextPage
+              ? 'Loading earlier messages…'
+              : 'Load earlier messages'}
+          </Button>
+        </div>
+      ) : null}
+      <ol aria-label="Conversation history" className="space-y-3">
         {messages.map((message) => (
-          <StudentChatMessage key={message.id} message={message} />
+          <StudentChatMessage
+            key={message.id}
+            message={message}
+            isGenerationActive={isGenerationActive}
+            retryError={retryError}
+            retryMessageId={retryMessageId}
+            onRetry={onRetryResponse}
+          />
         ))}
+        {isGenerationActive && !hasPendingAssistant ? (
+          <li
+            aria-label={STUDENT_CHAT_GENERATION_STATUS}
+            aria-live="polite"
+            className="flex gap-3 py-2"
+            role="status"
+          >
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+              <Bot className="size-4" aria-hidden />
+            </div>
+            <div className="flex items-center gap-2 px-1 py-1 text-sm text-muted-foreground">
+              <LoaderCircle className="size-4 animate-spin" aria-hidden />
+              {STUDENT_CHAT_GENERATION_STATUS}…
+            </div>
+          </li>
+        ) : null}
       </ol>
       {isError ? (
         <div
           role="alert"
-          className="mt-6 rounded-md border border-destructive/30 px-3 py-3 text-center"
+          className="mt-6 rounded-xl border border-border bg-muted/40 px-3 py-3 text-center"
         >
-          <p className="text-sm text-destructive">
+          <p className="text-sm text-foreground">
             {isFetchNextPageError
               ? 'More messages could not be loaded.'
               : 'Conversation refresh failed.'}
@@ -104,19 +164,6 @@ export function StudentMessageHistory({
             onClick={isFetchNextPageError ? onLoadMore : onRetry}
           >
             Retry loading messages
-          </Button>
-        </div>
-      ) : hasNextPage ? (
-        <div className="mt-6 text-center">
-          <Button
-            type="button"
-            variant="outline"
-            disabled={isFetchingNextPage}
-            onClick={onLoadMore}
-          >
-            {isFetchingNextPage
-              ? 'Loading more messages…'
-              : 'Load more messages'}
           </Button>
         </div>
       ) : null}

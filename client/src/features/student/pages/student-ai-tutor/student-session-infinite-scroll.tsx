@@ -49,9 +49,9 @@ export function StudentSessionInfiniteScroll({
     return (
       <div
         role="alert"
-        className="mt-3 rounded-md border border-destructive/30 px-3 py-2 text-center"
+        className="mt-3 rounded-lg border border-border bg-muted/40 px-3 py-2 text-center"
       >
-        <p className="text-xs text-destructive">
+        <p className="text-xs text-foreground">
           More conversations could not be loaded.
         </p>
         <Button

@@ -27,8 +27,8 @@ export function StudentShellPage() {
   }
 
   return (
-    <main className="h-svh overflow-hidden bg-background text-foreground">
-      <div className="flex h-full w-full overflow-hidden">
+    <main className="h-dvh overflow-hidden overscroll-none bg-background text-foreground">
+      <div className="flex h-full min-h-0 w-full overflow-hidden">
         {!isAiTutorWorkspace ? (
           <aside className="sticky top-0 hidden h-svh w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex">
             <StudentSidebar
@@ -41,7 +41,7 @@ export function StudentShellPage() {
         <section
           className={
             isAiTutorWorkspace
-              ? 'flex min-w-0 flex-1 flex-col overflow-hidden bg-background'
+              ? 'flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background'
               : 'flex min-w-0 flex-1 flex-col overflow-y-auto bg-background'
           }
         >
