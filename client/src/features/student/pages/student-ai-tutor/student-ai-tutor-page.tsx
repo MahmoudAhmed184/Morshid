@@ -16,12 +16,14 @@ import {
   useCreateStudentSession,
   useDeleteStudentSession,
   useRenameStudentSession,
-  useRetryStudentChatMessage,
-  useSendStudentChatMessage,
   useStudentSession,
   useStudentSessionMessages,
   useStudentSessions,
 } from '@/features/student/hooks/use-student-sessions'
+import {
+  useRetryStudentChatMessage,
+  useSendStudentChatMessage,
+} from '@/features/student/hooks/use-student-chat-turns'
 import type {
   ChatMessage,
   ChatSession,

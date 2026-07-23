@@ -36,12 +36,14 @@ import {
   useCreateStudentSession,
   useDeleteStudentSession,
   useRenameStudentSession,
-  useRetryStudentChatMessage,
-  useSendStudentChatMessage,
   useStudentSession,
   useStudentSessionMessages,
   useStudentSessions,
 } from './use-student-sessions'
+import {
+  useRetryStudentChatMessage,
+  useSendStudentChatMessage,
+} from './use-student-chat-turns'
 
 vi.mock('@/features/student/data/student-sessions.api')
 
