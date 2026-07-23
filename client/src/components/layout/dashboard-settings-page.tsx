@@ -1,6 +1,6 @@
 import { LogOut, Palette, UserRound } from 'lucide-react'
 
-import { getUserInitials } from '@/components/layout/dashboard-header'
+import { getUserInitials } from '@/components/layout/get-user-initials'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import {

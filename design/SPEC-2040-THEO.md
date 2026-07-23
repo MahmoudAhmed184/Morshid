@@ -94,6 +94,40 @@ User-reported regressions after the repivot/rebase. Ground truth for "previous l
 - **T8.4 Link/button typography on landing/auth**: wherever the rebase changed font-size/tracking/weight of links or buttons on these surfaces, restore the `137364c` values (call-site or utility-level, reported).
 - **T8.5 Verification**: side-by-side screenshots (landing top/method/colophon/footer, sign-in; both themes) against `137364c` equivalents; zero blue links anywhere; buttons visually match pre-v5 proportions; citations still blue; app surfaces unchanged (spot-check /courses and one staff page for accidental fallout).
 
+## T9. Chrome removal + the t3 corner treatment (BINDING)
+
+Reference: `screenshots/Screenshot_20260723_182214.png` (sidebar open — note the sidebar-colored band above the content panel and the top-right controls sitting integrated in that band, with the content panel's rounded top corner) vs `Screenshot_20260723_182236.png` (collapsed — controls float free).
+
+- **T9.1 Breadcrumb bars die.** Remove the top breadcrumb bars from ALL dashboards: the staff `DashboardHeader` ("ADMIN · SETTINGS" / "INSTRUCTOR · DASHBOARD" style) is deleted from both staff shells (its `{actions}` slot consumers, if any, move into their page content next to the PageHeader; report each). The student top bar (session title + sources toggle) is deleted too — the session title lives in the sidebar's active item; the sources toggle moves to the new top-right cluster (T9.2). Page titles remain the in-content PageHeaders. The staff collapsed-state floating trigger cluster stays; the expanded-state trigger lives in the sidebar header (already does).
+- **T9.2 Student top-right cluster (t3 model).** A control cluster containing exactly two icon-buttons: sources-panel toggle (`BookMarked`) and theme switcher (sun/moon toggle cycling or the existing mode-toggle menu). Two states:
+  - **Sidebar expanded (desktop `md:`+)**: the app shell renders a `bg-sidebar` backdrop with the content as an inset panel — content panel gets `rounded-tl-2xl` where it meets the sidebar and a `bg-sidebar` top band; the top-right cluster sits INSIDE that band (integrated, `bg-sidebar`, no border/shadow), flush to the top-right, with the content panel's `rounded-tr-2xl` corner beneath/beside it forming the t3 notch. Implementation latitude: achieve the visual (sidebar-colored frame around a rounded content panel, controls living in the frame's top-right) with the plainest DOM (e.g., `SidebarInset` wrapper `bg-sidebar` + inner `rounded-t-2xl bg-background` panel + absolutely-positioned cluster in the frame). Report the DOM chosen.
+  - **Sidebar collapsed**: the band disappears (content full-bleed) and the cluster becomes a floating `glass-paper rounded-xl shadow-sm p-1` cluster fixed top-right — the mirror of the top-left one.
+  - Student-only. Applies to the whole student shell (all three routes) so the frame doesn't pop in/out between pages. The sidebar-footer theme submenu stays (two entry points are fine).
+- **T9.3 Sources panel animation.** The citations/sources panel animates in/out smoothly: width+opacity (or transform) transition ≈ 250ms `ease-out` on toggle, the conversation column reflow animating with it (`transition-[width,margin]` on the affected containers). Honor `prefers-reduced-motion: reduce` (no animation). Mobile Sheet keeps its existing slide.
+- **T9.4 Verification**: screenshots expanded + collapsed (both themes): band + integrated cluster when open, floating cluster when collapsed, no breadcrumb bars anywhere (student + both staff roles), sources panel animates (capture mid-transition or verify the transition classes + a before/after pair), no layout jump of the reading column beyond the panel width.
+
+## T10. Stunning menus — the popover surface kit (BINDING)
+
+Every floating menu in the app currently renders as a bare rectangle. Menus adopt the manuscript's glass materiality and a calm origin animation. ONE treatment, defined once, applied inside the primitives (this is a sanctioned delta-ledger extension — mark every edit `/* morshid: menu kit */`). No consumer file changes.
+
+- **T10.1 Surface** (`DropdownMenuContent`, `ContextMenuContent`, `SelectContent`/`SelectPopup`, combobox popup, `CommandDialog`'s command surface, and the select-like popups inside command):
+  `rounded-2xl border border-border/60 bg-popover/92 backdrop-blur-xl backdrop-saturate-150 p-1.5 shadow-[0_16px_40px_-12px] shadow-foreground/14 min-w-[12rem]` (keep each primitive's positioning/side-offset props; side offset ≥ 6px). Dark mode: same classes (tokens handle it) — verify the popover token has enough contrast against content; if not, adjust `--popover` slightly (report values).
+- **T10.2 Items** (menu items, select items, command items, radio/checkbox items):
+  `rounded-lg px-3 py-2 gap-2.5 text-sm` — highlight state = warm accent (`data-highlighted`/focus → `bg-accent text-accent-foreground`); icons `size-4 text-muted-foreground` inheriting foreground when highlighted; destructive items `text-destructive` with `data-highlighted:bg-destructive/10`; selected check `size-4` right-aligned for selects/radio (keep each primitive's existing indicator slot position if moving it breaks the API — report); disabled `opacity-50`.
+  Labels/group headings: `.smallcaps-label px-3 pt-2 pb-1`. Separators: hairline `bg-border/70 -mx-1 my-1`.
+- **T10.3 Motion**: origin-aware entrance ≈ 150ms ease-out — `opacity 0→1, scale 0.96→1, translateY 4px→0` from the trigger side (base-ui data-side attributes drive `transform-origin`); exit ≈ 100ms. Implement as styles.css utilities (e.g. `.menu-pop` keyframes + `data-[open]`/`data-[starting-style]` hooks per base-ui transition conventions) so all primitives share it. `prefers-reduced-motion: reduce` → opacity-only.
+- **T10.4 Harmonize**: tooltip content `rounded-lg` ink surface (keep small/simple, no blur); Sheet/Dialog NOT in scope (already treated).
+- **T10.5 Verification**: screenshots open-state in both themes of: composer course picker, session kebab menu, sidebar footer account menu, an admin table select/filter, the admin row-actions (if menu), command palette (if reachable). Bars: identical surface/item treatment across all; animation classes present; reduced-motion path exists; no clipped shadows (check overflow on portals); tests green.
+
+## T11. Sidebar fit-and-finish (BINDING)
+
+- **T11.1 Search input inset.** In the sidebar chat search, the typed text/caret starts too close to the leading icon (ugly in dark mode). The input takes a proper left inset clearing the icon (icon `size-4` at `left-3` → input `pl-9`; match the file's actual geometry), placeholder and typed text aligned identically; caret never under the icon. Verify visually in dark.
+- **T11.2 New-chat guard (no more empty-session spam).** Clicking `New chat` must NOT create another session when an empty one is already at hand:
+  1. If the CURRENTLY-SELECTED session has no messages → do not create; stay on it (navigate if needed) and focus the composer.
+  2. Else, INVESTIGATE what the already-loaded session-list data exposes about emptiness (the old rail rendered "No messages yet" — find its source field: lastMessage/messageCount/timestamps). If derivable, reuse the newest empty session of the active course (navigate to it) instead of creating.
+  3. Only when neither applies → create (existing mutation, unchanged).
+  No new API calls/queries. Report which layers shipped and the emptiness signal used. Add tests for the guard (create-called vs not-called per case). The plus-button in the collapsed cluster follows the same guard.
+
 ## T7. QA bars (v5)
 
 1. Blue exists ONLY as: links, citation chips/borders, focus rings, landing/auth editorial accents. Screenshot proof: buttons at rest AND hover, badges, stat chips, avatars, nav states — zero blue, both themes.

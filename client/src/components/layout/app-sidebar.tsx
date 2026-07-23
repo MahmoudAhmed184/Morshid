@@ -12,7 +12,7 @@ import {
 import { useRef } from 'react'
 import type { LucideIcon } from 'lucide-react'
 
-import { getUserInitials } from '@/components/layout/dashboard-header'
+import { getUserInitials } from '@/components/layout/get-user-initials'
 import { Logo } from '@/components/logo'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'

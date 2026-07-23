@@ -1,9 +1,8 @@
 import { useNavigate } from '@tanstack/react-router'
-import { BookMarked, BookOpen } from 'lucide-react'
-import { useLayoutEffect, useRef, useState } from 'react'
+import { BookOpen } from 'lucide-react'
+import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 
-import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/custom/empty-state'
 import { ErrorState } from '@/components/ui/custom/error-state'
 import {
@@ -11,10 +10,9 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
-  SheetTrigger,
 } from '@/components/ui/sheet'
-import { useSidebar } from '@/components/ui/sidebar'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
+import { useRegisterSourcesControl } from '@/features/student/components/student-chrome-context'
 import {
   isStudentChatApiError,
   STUDENT_CHAT_ERROR_CODES,
@@ -132,32 +130,6 @@ export function StudentAiTutorPage({
   )
 }
 
-function StudentChatTopBar({
-  title,
-  actions,
-}: {
-  title?: string
-  actions?: ReactNode
-}) {
-  const { state, isMobile } = useSidebar()
-  const clusterPresent = isMobile || state === 'collapsed'
-
-  return (
-    <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border px-3 md:px-4">
-      <div
-        className={cn('flex min-w-0 items-center', clusterPresent && 'pl-28')}
-      >
-        {title ? (
-          <span className="truncate text-sm font-medium text-foreground">
-            {title}
-          </span>
-        ) : null}
-      </div>
-      <div className="flex shrink-0 items-center gap-1">{actions}</div>
-    </header>
-  )
-}
-
 interface StudentNewChatStateProps {
   course: StudentCourse
   courses: StudentCourse[]
@@ -223,7 +195,6 @@ function StudentNewChatState({
 
   return (
     <>
-      <StudentChatTopBar />
       <div
         aria-label="Conversation messages"
         className="scrollbar-themed min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-8"
@@ -264,6 +235,9 @@ function StudentConversation({
 }: StudentConversationProps) {
   const [mobileSourcesOpen, setMobileSourcesOpen] = useState(false)
   const [sourcesOpen, setSourcesOpen] = useState(true)
+  const toggleSources = useCallback(() => setSourcesOpen((open) => !open), [])
+  const openMobileSources = useCallback(() => setMobileSourcesOpen(true), [])
+  useRegisterSourcesControl(sourcesOpen, toggleSources, openMobileSources)
   const composerRef = useRef<StudentChatComposerHandle>(null)
   const messagesQuery = useStudentSessionMessages({
     courseId: course.id,
@@ -339,45 +313,6 @@ function StudentConversation({
 
   return (
     <Sheet open={mobileSourcesOpen} onOpenChange={setMobileSourcesOpen}>
-      <StudentChatTopBar
-        title={session.title}
-        actions={
-          <>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label="Toggle sources and citations"
-              aria-pressed={sourcesOpen}
-              onClick={() => setSourcesOpen((open) => !open)}
-              className="hidden lg:inline-flex"
-            >
-              <BookMarked
-                className="size-4 text-muted-foreground"
-                strokeWidth={1.75}
-                aria-hidden
-              />
-            </Button>
-            <SheetTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="lg:hidden"
-                  aria-label="Show sources and citations"
-                />
-              }
-            >
-              <BookMarked
-                className="size-4 text-muted-foreground"
-                strokeWidth={1.75}
-                aria-hidden
-              />
-            </SheetTrigger>
-          </>
-        }
-      />
       <SheetContent
         side="right"
         className="w-[85vw]! max-w-sm gap-0 border-border bg-card p-0 lg:hidden"
@@ -438,14 +373,20 @@ function StudentConversation({
           />
         </div>
 
-        {sourcesOpen ? (
+        <div
+          aria-hidden={!sourcesOpen}
+          className={cn(
+            'hidden shrink-0 overflow-hidden transition-[width,opacity] duration-[250ms] ease-out motion-reduce:transition-none lg:flex',
+            sourcesOpen ? 'w-[20.75rem] opacity-100' : 'w-0 opacity-0',
+          )}
+        >
           <StudentSourcesPanel
             course={course}
             messages={messages}
             onCollapse={() => setSourcesOpen(false)}
-            className="m-3 ml-0 hidden w-80 shrink-0 lg:flex"
+            className="m-3 ml-0 flex w-80 shrink-0"
           />
-        ) : null}
+        </div>
       </div>
     </Sheet>
   )

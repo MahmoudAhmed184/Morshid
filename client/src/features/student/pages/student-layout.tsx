@@ -1,8 +1,10 @@
-import { Outlet, useHydrated } from '@tanstack/react-router'
+import { useHydrated } from '@tanstack/react-router'
 
 import { AppSidebar } from '@/components/layout/app-sidebar'
-import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
+import { SidebarProvider } from '@/components/ui/sidebar'
 import { AuthLoader } from '@/features/auth/components/auth-loader'
+import { StudentChromeProvider } from '@/features/student/components/student-chrome-context'
+import { StudentShell } from '@/features/student/components/student-shell'
 
 export function StudentLayout() {
   const isHydrated = useHydrated()
@@ -13,10 +15,10 @@ export function StudentLayout() {
 
   return (
     <SidebarProvider className="h-svh overflow-hidden">
-      <AppSidebar role="student" />
-      <SidebarInset className="min-h-0 overflow-hidden">
-        <Outlet />
-      </SidebarInset>
+      <StudentChromeProvider>
+        <AppSidebar role="student" />
+        <StudentShell />
+      </StudentChromeProvider>
     </SidebarProvider>
   )
 }

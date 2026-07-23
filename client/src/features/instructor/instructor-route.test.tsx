@@ -281,18 +281,22 @@ describe('/instructor', () => {
       await screen.findByRole('heading', { name: "Today's teaching desk." }),
     ).toBeVisible()
     expect(history.location.pathname).toBe('/instructor')
+    // The breadcrumb bar was removed (T9.1); the instructor shell identity is
+    // now carried by the role-specific sidebar navigation.
     expect(
-      screen.getByRole('navigation', { name: 'Breadcrumb' }),
-    ).toHaveTextContent('Instructor')
+      screen.getByRole('list', { name: 'Instructor navigation' }),
+    ).toBeInTheDocument()
   })
 
   it('redirects an Admin session to the Admin shell', async () => {
     const { history } = renderAtInstructorRoute(createSession('ADMIN'))
 
     await waitFor(() => expect(history.location.pathname).toBe('/admin'))
+    // The breadcrumb bar was removed (T9.1); assert the admin shell rendered
+    // via its role-specific sidebar navigation.
     expect(
-      await screen.findByRole('navigation', { name: 'Breadcrumb' }),
-    ).toHaveTextContent('Admin')
+      await screen.findByRole('list', { name: 'Admin navigation' }),
+    ).toBeInTheDocument()
   })
 
   it('redirects an unauthenticated browser session to sign in', async () => {

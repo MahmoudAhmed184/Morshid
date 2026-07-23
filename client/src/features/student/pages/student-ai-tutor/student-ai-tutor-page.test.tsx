@@ -518,7 +518,11 @@ describe('StudentAiTutorPage workspace', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
 
-    expect(await screen.findByText(secondSession.title)).toBeInTheDocument()
+    // The session title moved to the sidebar's active item (T9.1); the loaded
+    // conversation is now observed here via its per-conversation sources panel.
+    expect(
+      await screen.findByLabelText('Sources and citations'),
+    ).toBeInTheDocument()
     expect(getStudentSessionMessagesMock).toHaveBeenCalledWith(
       expect.objectContaining({ sessionId: secondSession.id }),
     )
@@ -1041,7 +1045,11 @@ describe('StudentAiTutorPage workspace', () => {
       </QueryClientProvider>,
     )
 
-    expect(await screen.findByText(secondSession.title)).toBeInTheDocument()
+    // The switched-to conversation is observed via its sources panel now that
+    // the session title lives in the sidebar's active item (T9.1).
+    expect(
+      await screen.findByLabelText('Sources and citations'),
+    ).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Message' })).toBeEnabled()
     expect(
       screen.queryByRole('status', {
@@ -1056,7 +1064,7 @@ describe('StudentAiTutorPage workspace', () => {
       throw new Error('Expected the first session turn to remain in flight')
     }
     await act(async () => resolveTurn?.(groundedChatTurnResponseFixture))
-    expect(screen.getByText(secondSession.title)).toBeInTheDocument()
+    expect(screen.getByLabelText('Sources and citations')).toBeInTheDocument()
     expect(
       screen.queryByText(
         groundedChatTurnResponseFixture.assistantMessage.content,
@@ -1137,8 +1145,10 @@ describe('StudentAiTutorPage workspace', () => {
       </QueryClientProvider>,
     )
 
+    // The switched-course conversation is observed via its sources panel now
+    // that the session title lives in the sidebar's active item (T9.1).
     expect(
-      await screen.findByText(otherCourseSession.title),
+      await screen.findByLabelText('Sources and citations'),
     ).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('')
     expect(screen.queryByText(/message could not be sent/i)).toBeNull()
