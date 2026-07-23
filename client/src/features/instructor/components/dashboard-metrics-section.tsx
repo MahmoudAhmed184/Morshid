@@ -37,7 +37,7 @@ export function DashboardMetricsSection({
     <div className="grid gap-6 sm:grid-cols-3">
       <StatCard
         label="Course"
-        tone="primary"
+        tone="default"
         icon={<BookOpen aria-hidden />}
         value={
           course ? (
@@ -50,7 +50,7 @@ export function DashboardMetricsSection({
       />
       <StatCard
         label="Materials"
-        tone="primary"
+        tone="default"
         icon={<FileText aria-hidden />}
         value={<span className="tabular-nums">{materialCount ?? '—'}</span>}
         description={

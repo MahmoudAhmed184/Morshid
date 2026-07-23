@@ -94,8 +94,8 @@ export function MaterialsPage() {
         />
       ) : null}
 
-      <Card className="py-0" aria-busy={isLoading || undefined}>
-        <CardHeader className="border-b px-4 py-3.5">
+      <Card aria-busy={isLoading || undefined}>
+        <CardHeader className="border-b">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <CardTitle className="flex items-center gap-2 text-sm">
               <FileTextIcon
@@ -139,7 +139,7 @@ export function MaterialsPage() {
             </div>
           </div>
         </CardHeader>
-        <CardContent className="px-0">
+        <CardContent>
           <MaterialsContent
             isLoading={isLoading}
             isError={isError}
@@ -222,7 +222,7 @@ function MaterialSummarySection({
       value: summary.total,
       description: courseCode,
       icon: <FileTextIcon aria-hidden />,
-      tone: 'primary' as const,
+      tone: 'default' as const,
     },
     {
       label: 'Processing',
@@ -282,11 +282,7 @@ function MaterialsContent({
   onRetry: () => void
 }) {
   if (isLoading) {
-    return (
-      <div className="p-4">
-        <InstructorListSkeleton aria-label="Loading materials" rows={5} />
-      </div>
-    )
+    return <InstructorListSkeleton aria-label="Loading materials" rows={5} />
   }
 
   if (isError) {
@@ -296,7 +292,7 @@ function MaterialsContent({
         description="Course materials could not be loaded. Try again."
         onRetry={onRetry}
         isRetrying={isRetrying}
-        className="m-4 min-h-44"
+        className="min-h-44"
       />
     )
   }
@@ -307,7 +303,7 @@ function MaterialsContent({
         icon={<FileTextIcon aria-hidden />}
         title="No assigned course"
         description="Assign a course before this workspace can show course materials."
-        className="m-4 min-h-44"
+        className="min-h-44"
       />
     )
   }
@@ -322,7 +318,7 @@ function MaterialsContent({
             ? 'Try a different material title or filename.'
             : 'Upload a clean, text-based PDF to prepare the first course source.'
         }
-        className="m-4 min-h-44"
+        className="min-h-44"
       />
     )
   }
@@ -330,7 +326,7 @@ function MaterialsContent({
   return (
     <>
       {hasRefreshError ? (
-        <Alert className="m-4 mb-0">
+        <Alert className="mb-4">
           <TriangleAlertIcon aria-hidden />
           <AlertTitle>Processing status refresh failed</AlertTitle>
           <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
@@ -348,7 +344,7 @@ function MaterialsContent({
           </AlertDescription>
         </Alert>
       ) : null}
-      <div className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {materials.map((material) => (
           <InstructorMaterialCard key={material.id} material={material} />
         ))}

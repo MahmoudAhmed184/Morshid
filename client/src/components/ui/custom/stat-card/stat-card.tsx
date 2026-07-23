@@ -1,8 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
-type StatCardTone =
-  'default' | 'primary' | 'success' | 'warning' | 'info' | 'gold'
+type StatCardTone = 'default' | 'success' | 'warning' | 'info' | 'gold'
 
 type StatCardProps = {
   label: React.ReactNode
@@ -21,7 +20,6 @@ type StatCardProps = {
 
 const toneChipClass: Record<StatCardTone, string> = {
   default: 'bg-muted text-muted-foreground',
-  primary: 'bg-primary/10 text-primary',
   success: 'bg-success/10 text-success',
   warning: 'bg-warning/10 text-warning',
   info: 'bg-info/10 text-info',
@@ -34,7 +32,7 @@ Usage:
   label="Active students"
   value={128}
   trend="+12%"
-  tone="primary"
+  tone="gold"
   icon={<UsersIcon />}
 />
 */
@@ -72,7 +70,9 @@ export function StatCard({
         <div className="flex items-baseline gap-2">
           <div className="text-2xl font-semibold text-foreground">{value}</div>
           {trend ? (
-            <div className="text-sm font-medium text-primary">{trend}</div>
+            <div className="text-sm font-medium text-muted-foreground">
+              {trend}
+            </div>
           ) : null}
         </div>
         {description ? (

@@ -1,4 +1,4 @@
-import { ModeToggle } from '@/components/ui/mode-toggle'
+import { useSidebar } from '@/components/ui/sidebar'
 import { cn } from '@/lib/utils'
 
 export function getUserInitials(displayName?: string, fallback = 'U') {
@@ -49,6 +49,11 @@ export function DashboardHeader({
   actions,
   className,
 }: DashboardHeaderProps) {
+  // While the sidebar is collapsed a fixed floating trigger cluster occupies the
+  // top-left corner; pad the header content so it does not sit under that cluster.
+  const { state } = useSidebar()
+  const clusterPresent = state === 'collapsed'
+
   return (
     <header
       className={cn(
@@ -56,15 +61,17 @@ export function DashboardHeader({
         className,
       )}
     >
-      <div className="flex min-w-0 items-center gap-3">
+      <div
+        className={cn(
+          'flex min-w-0 items-center gap-3',
+          clusterPresent && 'pl-8',
+        )}
+      >
         {leading}
         {content ?? breadcrumb}
       </div>
 
-      <div className="flex shrink-0 items-center gap-1.5">
-        {actions}
-        <ModeToggle />
-      </div>
+      <div className="flex shrink-0 items-center gap-1.5">{actions}</div>
     </header>
   )
 }

@@ -20,7 +20,7 @@ import { useAdminAudit } from '../hooks/use-admin-audit'
 import { useAdminCourses } from '../hooks/use-admin-courses'
 import { useAdminUsers } from '../hooks/use-admin-users'
 
-type QuickNavTone = 'primary' | 'info' | 'gold' | 'success'
+type QuickNavTone = 'neutral' | 'info' | 'gold' | 'success'
 
 const quickNav: {
   title: string
@@ -28,7 +28,7 @@ const quickNav: {
   icon: LucideIcon
   tone: QuickNavTone
 }[] = [
-  { title: 'Users', to: '/admin/users', icon: UsersIcon, tone: 'primary' },
+  { title: 'Users', to: '/admin/users', icon: UsersIcon, tone: 'neutral' },
   { title: 'Courses', to: '/admin/courses', icon: BookOpenIcon, tone: 'info' },
   {
     title: 'Materials',
@@ -45,7 +45,7 @@ const quickNav: {
 ]
 
 const quickNavChip: Record<QuickNavTone, string> = {
-  primary: 'bg-primary/10 text-primary',
+  neutral: 'bg-secondary text-foreground',
   info: 'bg-info/10 text-info',
   gold: 'bg-gold/10 text-gold',
   success: 'bg-success/10 text-success',
@@ -78,7 +78,7 @@ export function AdminDashboardPage() {
       label: 'Students',
       value: studentCount,
       icon: <GraduationCapIcon aria-hidden />,
-      tone: 'primary',
+      tone: 'gold',
       description: 'Managed student accounts loaded',
     },
     {
@@ -140,7 +140,7 @@ export function AdminDashboardPage() {
           <div className="grid gap-6 lg:grid-cols-3">
             <AdminPanel className="p-5 lg:col-span-2">
               <div className="mb-5 flex items-center gap-2.5">
-                <span className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary [&_svg]:size-4">
+                <span className="flex size-9 items-center justify-center rounded-lg bg-secondary text-foreground [&_svg]:size-4">
                   <ScrollTextIcon />
                 </span>
                 <h2 className="text-base font-semibold text-foreground">

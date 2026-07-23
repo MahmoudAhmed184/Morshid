@@ -3,6 +3,7 @@ import { BookOpen } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/custom/empty-state'
 import { ErrorState } from '@/components/ui/custom/error-state'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -24,17 +25,13 @@ function CoursePanelFrame({
   role?: string
 }) {
   return (
-    <section
-      aria-label={ariaLabel}
-      role={role}
-      className="relative overflow-hidden rounded-3xl border border-foreground/8 bg-card p-8 shadow-sm"
-    >
+    <Card aria-label={ariaLabel} role={role} className="relative">
       <span
-        className="absolute inset-y-8 left-0 w-0.5 rounded-full bg-rubric"
+        className="absolute inset-y-4 left-0 w-0.5 rounded-full bg-rubric"
         aria-hidden
       />
-      {children}
-    </section>
+      <CardContent>{children}</CardContent>
+    </Card>
   )
 }
 

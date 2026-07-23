@@ -26,8 +26,8 @@ export function ReviewQueuePage() {
       />
 
       <section aria-busy={isLoading || undefined}>
-        <Card className="py-0">
-          <CardHeader className="border-b px-4 py-3.5">
+        <Card>
+          <CardHeader className="border-b">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <CardTitle className="flex items-center gap-2 text-sm text-foreground">
                 <ClipboardCheck
@@ -48,7 +48,7 @@ export function ReviewQueuePage() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="px-4 py-4">
+          <CardContent>
             <ReviewQueueListContent
               isLoading={isLoading}
               isError={isError}

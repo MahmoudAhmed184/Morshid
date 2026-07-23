@@ -11,7 +11,7 @@ import type { LucideIcon } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import type { badgeVariants } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -86,7 +86,7 @@ const statusPresentation: Record<string, StatusPresentation> = {
 const fallbackPresentation: StatusPresentation = {
   variant: 'secondary',
   icon: FileText,
-  chip: 'bg-primary/10 text-primary',
+  chip: 'bg-muted text-muted-foreground',
   bar: 'bg-muted-foreground',
 }
 
@@ -125,65 +125,70 @@ export function PdfCard({
   const Icon = presentation.icon
 
   return (
-    <Card
-      className={cn('hover-float relative flex flex-row gap-3 p-5', className)}
-    >
+    <Card className={cn('hover-float relative', className)}>
       <span
         className={cn(
-          'absolute inset-y-5 left-0 w-0.5 rounded-full',
+          'absolute inset-y-4 left-0 w-0.5 rounded-full',
           presentation.bar,
         )}
         aria-hidden
       />
-      <div
-        className={cn(
-          'flex size-9 shrink-0 items-center justify-center rounded-lg [&_svg]:size-4',
-          presentation.chip,
-        )}
-      >
-        <Icon className={cn(presentation.spin && 'animate-spin')} aria-hidden />
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <h3 className="truncate text-sm font-medium text-foreground">
-              {title}
-            </h3>
-            {description ? (
-              <div className="footnote mt-1 truncate font-mono">
-                {description}
-              </div>
-            ) : null}
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {typeof status === 'string' ? (
-              <Badge variant={presentation.variant}>{status}</Badge>
-            ) : (
-              status
-            )}
-            {actions ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      className="-mt-1 -mr-1"
-                      aria-label={`Open actions for ${title}`}
-                    />
-                  }
-                >
-                  <MoreHorizontal aria-hidden />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">{actions}</DropdownMenuContent>
-              </DropdownMenu>
-            ) : null}
-          </div>
+      <CardContent className="flex flex-row gap-3">
+        <div
+          className={cn(
+            'flex size-9 shrink-0 items-center justify-center rounded-lg [&_svg]:size-4',
+            presentation.chip,
+          )}
+        >
+          <Icon
+            className={cn(presentation.spin && 'animate-spin')}
+            aria-hidden
+          />
         </div>
-        {details ? <div className="mt-3">{details}</div> : null}
-        {message ? <div className="mt-3">{message}</div> : null}
-      </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <h3 className="truncate text-sm font-medium text-foreground">
+                {title}
+              </h3>
+              {description ? (
+                <div className="footnote mt-1 truncate font-mono">
+                  {description}
+                </div>
+              ) : null}
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {typeof status === 'string' ? (
+                <Badge variant={presentation.variant}>{status}</Badge>
+              ) : (
+                status
+              )}
+              {actions ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="-mt-1 -mr-1"
+                        aria-label={`Open actions for ${title}`}
+                      />
+                    }
+                  >
+                    <MoreHorizontal aria-hidden />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {actions}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : null}
+            </div>
+          </div>
+          {details ? <div className="mt-3">{details}</div> : null}
+          {message ? <div className="mt-3">{message}</div> : null}
+        </div>
+      </CardContent>
     </Card>
   )
 }

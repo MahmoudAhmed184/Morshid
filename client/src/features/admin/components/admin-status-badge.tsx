@@ -12,7 +12,7 @@ type AdminStatusBadgeProps = {
 }
 
 const toneDotClass: Record<StatusTone, string> = {
-  default: 'bg-primary',
+  default: 'bg-muted-foreground',
   secondary: 'bg-muted-foreground',
   outline: 'bg-muted-foreground',
   destructive: 'bg-destructive',
