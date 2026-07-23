@@ -8,6 +8,7 @@ import { Test, type TestingModule } from '@nestjs/testing'
 import request from 'supertest'
 import type { App } from 'supertest/types'
 
+import { restoreGate2RetrievalEnvironment } from './support/gate-2-retrieval-environment'
 import { configureApp } from '../src/app.setup'
 import { AppModule } from '../src/app.module'
 import { AUDIT_EVENT_ACTIONS } from '../src/modules/audit/audit.constants'
@@ -66,6 +67,8 @@ import {
 } from './support/disposable-database'
 
 const GATE_2_TIMEOUT_MS = 10_000
+
+restoreGate2RetrievalEnvironment()
 
 jest.setTimeout(30_000)
 
@@ -126,44 +129,26 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
     )
     processingScheduler = new CapturingProcessingScheduler(prisma)
 
-    const ambientRetrievalConfig = {
-      minSimilarity: process.env.RETRIEVAL_MIN_SIMILARITY,
-      topK: process.env.RETRIEVAL_TOP_K,
-    }
-    process.env.RETRIEVAL_MIN_SIMILARITY = String(
-      GATE_2_RETRIEVAL_MIN_SIMILARITY,
-    )
-    process.env.RETRIEVAL_TOP_K = String(GATE_2_RETRIEVAL_TOP_K)
-
-    let moduleFixture: TestingModule
-    try {
-      moduleFixture = await Test.createTestingModule({
-        imports: [AppModule],
-      })
-        .overrideProvider(PrismaService)
-        .useValue(prisma)
-        .overrideProvider(RedisService)
-        .useValue({ ping: jest.fn().mockResolvedValue('PONG') })
-        .overrideProvider(PDF_STORAGE)
-        .useValue(storage)
-        .overrideProvider(EMBEDDING_PROVIDER_TOKEN)
-        .useValue(
-          new ValidatedEmbeddingProvider(
-            new Gate2DeterministicEmbeddingProvider(),
-          ),
-        )
-        .overrideProvider(COMPLETION_PROVIDER_TOKEN)
-        .useValue(completionProvider)
-        .overrideProvider(MaterialProcessingScheduler)
-        .useValue(processingScheduler)
-        .compile()
-    } finally {
-      restoreEnvironmentVariable(
-        'RETRIEVAL_MIN_SIMILARITY',
-        ambientRetrievalConfig.minSimilarity,
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    })
+      .overrideProvider(PrismaService)
+      .useValue(prisma)
+      .overrideProvider(RedisService)
+      .useValue({ ping: jest.fn().mockResolvedValue('PONG') })
+      .overrideProvider(PDF_STORAGE)
+      .useValue(storage)
+      .overrideProvider(EMBEDDING_PROVIDER_TOKEN)
+      .useValue(
+        new ValidatedEmbeddingProvider(
+          new Gate2DeterministicEmbeddingProvider(),
+        ),
       )
-      restoreEnvironmentVariable('RETRIEVAL_TOP_K', ambientRetrievalConfig.topK)
-    }
+      .overrideProvider(COMPLETION_PROVIDER_TOKEN)
+      .useValue(completionProvider)
+      .overrideProvider(MaterialProcessingScheduler)
+      .useValue(processingScheduler)
+      .compile()
 
     app = moduleFixture.createNestApplication()
     configureApp(app)
@@ -768,22 +753,6 @@ function cosineSimilarity(
   }
 
   return dotProduct / Math.sqrt(leftMagnitudeSquared * rightMagnitudeSquared)
-}
-
-function restoreEnvironmentVariable(
-  name: 'RETRIEVAL_MIN_SIMILARITY' | 'RETRIEVAL_TOP_K',
-  value: string | undefined,
-): void {
-  if (value === undefined) {
-    if (name === 'RETRIEVAL_MIN_SIMILARITY') {
-      delete process.env.RETRIEVAL_MIN_SIMILARITY
-    } else {
-      delete process.env.RETRIEVAL_TOP_K
-    }
-    return
-  }
-
-  process.env[name] = value
 }
 
 async function gate2Stage<Result>(
