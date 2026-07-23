@@ -140,12 +140,12 @@ function failedGroundedTurn(): GroundedChatTurnResponse {
   }
 }
 
-function createStudentAuthSession(): AuthSession {
+function createStudentAuthSession(id: string = studentId): AuthSession {
   return {
     tokenType: 'Bearer',
     user: {
-      id: studentId,
-      email: 'student@morshid.test',
+      id,
+      email: `${id}@morshid.test`,
       displayName: 'Test Student',
       role: 'STUDENT',
       status: 'ACTIVE',
@@ -435,9 +435,11 @@ describe('StudentAiTutorPage workspace', () => {
       messages: { messages: [], nextCursor: null },
     })
 
-    const composer = await screen.findByRole('textbox', { name: 'Message' })
+    await waitFor(() =>
+      expect(screen.getByRole('textbox', { name: 'Message' })).toBeEnabled(),
+    )
+    const composer = screen.getByRole('textbox', { name: 'Message' })
     const sendButton = screen.getByRole('button', { name: 'Send message' })
-    await waitFor(() => expect(composer).toBeEnabled())
 
     expect(sendButton).toBeDisabled()
     fireEvent.keyDown(composer, { key: 'Enter' })
@@ -1181,10 +1183,13 @@ describe('StudentAiTutorPage workspace', () => {
       messages: orderedMessageHistory,
     })
 
-    const scrollContainer = await screen.findByRole('region', {
-      name: 'Conversation messages',
-    })
-    await waitFor(() => expect(scrollContainer.scrollTop).toBe(900))
+    await waitFor(() =>
+      expect(
+        screen.getByRole('region', {
+          name: 'Conversation messages',
+        }).scrollTop,
+      ).toBe(900),
+    )
     scrollHeightSpy.mockRestore()
   })
 
@@ -1317,8 +1322,10 @@ describe('StudentAiTutorPage workspace', () => {
       messages: { messages: [], nextCursor: null },
     })
 
-    const composer = await screen.findByRole('textbox', { name: 'Message' })
-    await waitFor(() => expect(composer).toBeEnabled())
+    await waitFor(() =>
+      expect(screen.getByRole('textbox', { name: 'Message' })).toBeEnabled(),
+    )
+    const composer = screen.getByRole('textbox', { name: 'Message' })
     fireEvent.change(composer, {
       target: { value: groundedChatTurnResponseFixture.studentMessage.content },
     })
@@ -1380,8 +1387,10 @@ describe('StudentAiTutorPage workspace', () => {
       messages: { messages: [], nextCursor: null },
     })
 
-    const composer = await screen.findByRole('textbox', { name: 'Message' })
-    await waitFor(() => expect(composer).toBeEnabled())
+    await waitFor(() =>
+      expect(screen.getByRole('textbox', { name: 'Message' })).toBeEnabled(),
+    )
+    const composer = screen.getByRole('textbox', { name: 'Message' })
     fireEvent.change(composer, { target: { value: 'Keep my exact question' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
 
@@ -1407,6 +1416,226 @@ describe('StudentAiTutorPage workspace', () => {
       sendStudentChatMessageMock.mock.calls[1]?.[0].input.clientMessageId
     expect(firstId).toMatch(/^[0-9a-f-]{36}$/)
     expect(secondId).toBe(firstId)
+  })
+
+  it('does not expose an in-flight turn after switching sessions', async () => {
+    let resolveTurn: ((turn: GroundedChatTurnResponse) => void) | undefined
+    sendStudentChatMessageMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveTurn = resolve
+        }),
+    )
+    const { queryClient, rerender } = renderWorkspace({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture, secondSession],
+        nextCursor: null,
+      },
+      messages: { messages: [], nextCursor: null },
+    })
+
+    await waitFor(() =>
+      expect(screen.getByRole('textbox', { name: 'Message' })).toBeEnabled(),
+    )
+    fireEvent.change(screen.getByRole('textbox', { name: 'Message' }), {
+      target: { value: 'Question scoped to the first session' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    expect(await screen.findByText('Thinking…')).toBeInTheDocument()
+
+    queryClient.setQueryData(
+      studentSessionKeys.detail({
+        studentId,
+        courseId: primaryCourse.id,
+        sessionId: secondSession.id,
+      }),
+      secondSession,
+    )
+    queryClient.setQueryData(
+      studentSessionKeys.messageList({
+        studentId,
+        courseId: primaryCourse.id,
+        sessionId: secondSession.id,
+      }),
+      {
+        pages: [{ messages: [], nextCursor: null }],
+        pageParams: [undefined],
+      },
+    )
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <StudentAiTutorPage
+          courseId={primaryCourse.id}
+          sessionId={secondSession.id}
+        />
+      </QueryClientProvider>,
+    )
+
+    expect(
+      await screen.findByRole('heading', { name: secondSession.title }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Message' })).toBeEnabled()
+    expect(screen.queryByText('Thinking…')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Question scoped to the first session'),
+    ).not.toBeInTheDocument()
+
+    if (!resolveTurn) {
+      throw new Error('Expected the first session turn to remain in flight')
+    }
+    await act(async () => resolveTurn?.(groundedChatTurnResponseFixture))
+    expect(
+      screen.getByRole('heading', { name: secondSession.title }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText(
+        groundedChatTurnResponseFixture.assistantMessage.content,
+      ),
+    ).not.toBeInTheDocument()
+  })
+
+  it('clears a failed send and retained draft when switching courses', async () => {
+    sendStudentChatMessageMock.mockRejectedValueOnce(
+      new TypeError('Failed to fetch'),
+    )
+    const otherCourseSession = {
+      ...secondSession,
+      courseId: otherCourse.id,
+      title: 'JavaScript functions',
+    }
+    const { queryClient, rerender } = renderWorkspace({
+      courses: [primaryCourse, otherCourse],
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+      messages: { messages: [], nextCursor: null },
+    })
+
+    await waitFor(() =>
+      expect(screen.getByRole('textbox', { name: 'Message' })).toBeEnabled(),
+    )
+    fireEvent.change(screen.getByRole('textbox', { name: 'Message' }), {
+      target: { value: 'Failed Python question' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    expect(
+      await screen.findByText(/message could not be sent/i),
+    ).toBeInTheDocument()
+
+    queryClient.setQueryData(
+      studentSessionKeys.sessionList({
+        studentId,
+        courseId: otherCourse.id,
+      }),
+      {
+        pages: [{ sessions: [otherCourseSession], nextCursor: null }],
+        pageParams: [undefined],
+      },
+    )
+    queryClient.setQueryData(
+      studentSessionKeys.detail({
+        studentId,
+        courseId: otherCourse.id,
+        sessionId: otherCourseSession.id,
+      }),
+      otherCourseSession,
+    )
+    queryClient.setQueryData(
+      studentSessionKeys.messageList({
+        studentId,
+        courseId: otherCourse.id,
+        sessionId: otherCourseSession.id,
+      }),
+      {
+        pages: [{ messages: [], nextCursor: null }],
+        pageParams: [undefined],
+      },
+    )
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <StudentAiTutorPage
+          courseId={otherCourse.id}
+          sessionId={otherCourseSession.id}
+        />
+      </QueryClientProvider>,
+    )
+
+    expect(
+      await screen.findByRole('heading', { name: otherCourseSession.title }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('')
+    expect(screen.queryByText(/message could not be sent/i)).toBeNull()
+  })
+
+  it('does not carry an unsent draft into another Student cache partition', async () => {
+    const otherStudentId = 'other-student-user'
+    const { queryClient } = renderWorkspace({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+      messages: { messages: [], nextCursor: null },
+    })
+
+    await waitFor(() =>
+      expect(screen.getByRole('textbox', { name: 'Message' })).toBeEnabled(),
+    )
+    fireEvent.change(screen.getByRole('textbox', { name: 'Message' }), {
+      target: { value: 'Private draft for the first Student' },
+    })
+
+    queryClient.setQueryData(
+      studentCoursesQueryOptions(otherStudentId).queryKey,
+      [primaryCourse],
+    )
+    queryClient.setQueryData(
+      studentSessionKeys.sessionList({
+        studentId: otherStudentId,
+        courseId: primaryCourse.id,
+      }),
+      {
+        pages: [{ sessions: [primaryChatSessionFixture], nextCursor: null }],
+        pageParams: [undefined],
+      },
+    )
+    queryClient.setQueryData(
+      studentSessionKeys.detail({
+        studentId: otherStudentId,
+        courseId: primaryCourse.id,
+        sessionId: primaryChatSessionFixture.id,
+      }),
+      primaryChatSessionFixture,
+    )
+    queryClient.setQueryData(
+      studentSessionKeys.messageList({
+        studentId: otherStudentId,
+        courseId: primaryCourse.id,
+        sessionId: primaryChatSessionFixture.id,
+      }),
+      {
+        pages: [{ messages: [], nextCursor: null }],
+        pageParams: [undefined],
+      },
+    )
+    act(() => {
+      useAuthStore
+        .getState()
+        .setSession(createStudentAuthSession(otherStudentId))
+    })
+
+    await waitFor(() =>
+      expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue(''),
+    )
+    expect(
+      screen.queryByDisplayValue('Private draft for the first Student'),
+    ).not.toBeInTheDocument()
   })
 
   it('renders guidance, inline citations, and collapsible source evidence', async () => {

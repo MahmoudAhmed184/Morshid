@@ -11,6 +11,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
+import { useAuthStore } from '@/features/auth/stores/auth.store'
 import { useStudentCourses } from '@/features/student/hooks/use-student-courses'
 import {
   useCreateStudentSession,
@@ -28,6 +29,7 @@ import type {
   ChatMessage,
   ChatSession,
 } from '@/features/student/schemas/student-chat.schema'
+import type { StudentCourse } from '@/features/student/schemas/student-course.schema'
 
 import { StudentConversationHeader } from './student-conversation-header'
 import { StudentChatComposer } from './student-chat-composer'
@@ -46,6 +48,7 @@ export function StudentAiTutorPage({
 }: StudentAiTutorPageProps) {
   const navigate = useNavigate()
   const [mobileSessionsOpen, setMobileSessionsOpen] = useState(false)
+  const studentId = useAuthStore((state) => state.user?.id)
   const { data: assignedCourses } = useStudentCourses()
   const selectedCourse =
     (courseId
@@ -67,13 +70,6 @@ export function StudentAiTutorPage({
     selectedSession && !listedSession
       ? [selectedSession, ...sessions]
       : sessions
-  const messagesQuery = useStudentSessionMessages({
-    courseId: selectedCourse?.id,
-    sessionId: selectedSession?.id,
-  })
-  const messages = reconcileMessages(
-    messagesQuery.data?.pages.flatMap((page) => page.messages) ?? [],
-  )
   const createSession = useCreateStudentSession({
     courseId: selectedCourse?.id,
   })
@@ -83,54 +79,6 @@ export function StudentAiTutorPage({
   const deleteSession = useDeleteStudentSession({
     courseId: selectedCourse?.id,
   })
-  const sendMessage = useSendStudentChatMessage({
-    courseId: selectedCourse?.id,
-    sessionId: selectedSession?.id,
-  })
-  const retryMessage = useRetryStudentChatMessage({
-    courseId: selectedCourse?.id,
-    sessionId: selectedSession?.id,
-  })
-  const hasPersistedGeneration = messages.some(
-    (message) =>
-      message.role === 'ASSISTANT' &&
-      (message.status === 'PENDING' || message.status === 'STREAMING'),
-  )
-  const isGenerationActive =
-    sendMessage.isPending || retryMessage.isPending || hasPersistedGeneration
-  const historyScrollRef = useRef<HTMLDivElement>(null)
-  const previousSessionIdRef = useRef<string | undefined>(undefined)
-  const previousLatestMessageRef = useRef<string | undefined>(undefined)
-  const activeSessionId = selectedSession?.id
-  const latestMessage = messages.at(-1)
-  const latestMessageKey = latestMessage
-    ? [
-        latestMessage.id,
-        latestMessage.status,
-        latestMessage.completedAt,
-        latestMessage.content.length,
-      ].join(':')
-    : undefined
-
-  useLayoutEffect(() => {
-    if (messagesQuery.isPending || !activeSessionId) {
-      return
-    }
-
-    const sessionChanged = previousSessionIdRef.current !== activeSessionId
-    const latestMessageChanged =
-      previousLatestMessageRef.current !== latestMessageKey
-    previousSessionIdRef.current = activeSessionId
-    previousLatestMessageRef.current = latestMessageKey
-
-    if (sessionChanged || latestMessageChanged) {
-      const scrollContainer = historyScrollRef.current
-      if (scrollContainer) {
-        scrollContainer.scrollTop = scrollContainer.scrollHeight
-      }
-    }
-  }, [activeSessionId, latestMessageKey, messagesQuery.isPending])
-
   const handleCreate = async () => {
     if (!selectedCourse) {
       return
@@ -175,27 +123,6 @@ export function StudentAiTutorPage({
       search: { courseId: selectedCourse.id },
     })
     void sessionsQuery.refetch()
-  }
-
-  const handleSend = async (content: string, clientMessageId: string) => {
-    retryMessage.reset()
-
-    try {
-      await sendMessage.mutateAsync({ clientMessageId, content })
-      return true
-    } catch {
-      return false
-    }
-  }
-
-  const handleRetryMessage = async (studentMessageId: string) => {
-    sendMessage.reset()
-
-    try {
-      await retryMessage.mutateAsync(studentMessageId)
-    } catch {
-      // Mutation state renders the scoped retry failure next to the response.
-    }
   }
 
   const sessionNavigationProps = selectedCourse
@@ -277,67 +204,47 @@ export function StudentAiTutorPage({
             </Sheet>
 
             {selectedSession ? (
-              <StudentConversationHeader
-                title={selectedSession.title}
-                courseCode={selectedCourse.code}
-                courseTitle={selectedCourse.title}
+              <StudentConversation
+                key={`${studentId ?? 'anonymous'}:${selectedCourse.id}:${selectedSession.id}`}
+                course={selectedCourse}
+                session={selectedSession}
+                onRecover={() => void handleStaleSession()}
               />
-            ) : null}
-            <div
-              ref={historyScrollRef}
-              aria-label="Conversation messages"
-              className="scrollbar-themed min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-6 sm:px-6"
-              role="region"
-            >
-              {selectedSession ? (
-                <div className="mx-auto max-w-3xl">
-                  <StudentMessageHistory
-                    messages={messages}
-                    error={messagesQuery.error}
-                    isPending={messagesQuery.isPending}
-                    isError={messagesQuery.isError}
-                    isFetching={messagesQuery.isFetching}
-                    hasNextPage={messagesQuery.hasNextPage}
-                    isFetchingNextPage={messagesQuery.isFetchingNextPage}
-                    isFetchNextPageError={messagesQuery.isFetchNextPageError}
-                    isGenerationActive={isGenerationActive}
-                    retryError={retryMessage.error}
-                    retryMessageId={retryMessage.variables}
-                    onRetry={() => void messagesQuery.refetch()}
-                    onLoadMore={() => void messagesQuery.fetchNextPage()}
-                    onRecover={() => void handleStaleSession()}
-                    onRetryResponse={(studentMessageId) =>
-                      void handleRetryMessage(studentMessageId)
-                    }
-                  />
+            ) : (
+              <>
+                <div
+                  aria-label="Conversation messages"
+                  className="scrollbar-themed min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-6 sm:px-6"
+                  role="region"
+                >
+                  <div className="flex h-full items-center justify-center py-4">
+                    <StudentWorkspaceState
+                      sessionId={sessionId}
+                      sessionsPending={sessionsQuery.isPending}
+                      sessionsError={
+                        sessionsQuery.isError && sessions.length === 0
+                      }
+                      hasSessions={sessions.length > 0}
+                      sessionPending={
+                        routedSessionQuery.isPending &&
+                        routedSessionQuery.fetchStatus !== 'idle'
+                      }
+                      sessionError={routedSessionQuery.error}
+                      sessionRetrying={routedSessionQuery.isFetching}
+                      onRetrySession={() => void routedSessionQuery.refetch()}
+                    />
+                  </div>
                 </div>
-              ) : (
-                <div className="flex h-full items-center justify-center py-4">
-                  <StudentWorkspaceState
-                    sessionId={sessionId}
-                    sessionsPending={sessionsQuery.isPending}
-                    sessionsError={
-                      sessionsQuery.isError && sessions.length === 0
-                    }
-                    hasSessions={sessions.length > 0}
-                    sessionPending={
-                      routedSessionQuery.isPending &&
-                      routedSessionQuery.fetchStatus !== 'idle'
-                    }
-                    sessionError={routedSessionQuery.error}
-                    sessionRetrying={routedSessionQuery.isFetching}
-                    onRetrySession={() => void routedSessionQuery.refetch()}
-                  />
-                </div>
-              )}
-            </div>
-            <StudentChatComposer
-              hasSelectedSession={selectedSession !== null}
-              isGenerating={isGenerationActive}
-              sendError={sendMessage.error}
-              onDismissError={sendMessage.reset}
-              onSend={handleSend}
-            />
+                <StudentChatComposer
+                  key={`${studentId ?? 'anonymous'}:${selectedCourse.id}:${sessionId ?? 'no-session'}`}
+                  hasSelectedSession={false}
+                  isGenerating={false}
+                  sendError={null}
+                  onDismissError={() => undefined}
+                  onSend={() => Promise.resolve(false)}
+                />
+              </>
+            )}
           </div>
         </div>
       ) : (
@@ -359,6 +266,135 @@ export function StudentAiTutorPage({
         </div>
       )}
     </section>
+  )
+}
+
+interface StudentConversationProps {
+  course: StudentCourse
+  session: ChatSession
+  onRecover: () => void
+}
+
+function StudentConversation({
+  course,
+  session,
+  onRecover,
+}: StudentConversationProps) {
+  const messagesQuery = useStudentSessionMessages({
+    courseId: course.id,
+    sessionId: session.id,
+  })
+  const messages = reconcileMessages(
+    messagesQuery.data?.pages.flatMap((page) => page.messages) ?? [],
+  )
+  const sendMessage = useSendStudentChatMessage({
+    courseId: course.id,
+    sessionId: session.id,
+  })
+  const retryMessage = useRetryStudentChatMessage({
+    courseId: course.id,
+    sessionId: session.id,
+  })
+  const hasPersistedGeneration = messages.some(
+    (message) =>
+      message.role === 'ASSISTANT' &&
+      (message.status === 'PENDING' || message.status === 'STREAMING'),
+  )
+  const isGenerationActive =
+    sendMessage.isPending || retryMessage.isPending || hasPersistedGeneration
+  const historyScrollRef = useRef<HTMLDivElement>(null)
+  const previousLatestMessageRef = useRef<string | undefined>(undefined)
+  const latestMessage = messages.at(-1)
+  const latestMessageKey = latestMessage
+    ? [
+        latestMessage.id,
+        latestMessage.status,
+        latestMessage.completedAt,
+        latestMessage.content.length,
+      ].join(':')
+    : undefined
+
+  useLayoutEffect(() => {
+    if (messagesQuery.isPending) {
+      return
+    }
+
+    const latestMessageChanged =
+      previousLatestMessageRef.current !== latestMessageKey
+    previousLatestMessageRef.current = latestMessageKey
+
+    if (latestMessageChanged) {
+      const scrollContainer = historyScrollRef.current
+      if (scrollContainer) {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight
+      }
+    }
+  }, [latestMessageKey, messagesQuery.isPending])
+
+  const handleSend = async (content: string, clientMessageId: string) => {
+    retryMessage.reset()
+
+    try {
+      await sendMessage.mutateAsync({ clientMessageId, content })
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  const handleRetryMessage = async (studentMessageId: string) => {
+    sendMessage.reset()
+
+    try {
+      await retryMessage.mutateAsync(studentMessageId)
+    } catch {
+      // Mutation state renders the scoped retry failure next to the response.
+    }
+  }
+
+  return (
+    <>
+      <StudentConversationHeader
+        title={session.title}
+        courseCode={course.code}
+        courseTitle={course.title}
+      />
+      <div
+        ref={historyScrollRef}
+        aria-label="Conversation messages"
+        className="scrollbar-themed min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-6 sm:px-6"
+        role="region"
+      >
+        <div className="mx-auto max-w-3xl">
+          <StudentMessageHistory
+            messages={messages}
+            error={messagesQuery.error}
+            isPending={messagesQuery.isPending}
+            isError={messagesQuery.isError}
+            isFetching={messagesQuery.isFetching}
+            hasNextPage={messagesQuery.hasNextPage}
+            isFetchingNextPage={messagesQuery.isFetchingNextPage}
+            isFetchNextPageError={messagesQuery.isFetchNextPageError}
+            isGenerationActive={isGenerationActive}
+            retryError={retryMessage.error}
+            retryMessageId={retryMessage.variables}
+            onRetry={() => void messagesQuery.refetch()}
+            onLoadMore={() => void messagesQuery.fetchNextPage()}
+            onRecover={onRecover}
+            onRetryResponse={(studentMessageId) =>
+              void handleRetryMessage(studentMessageId)
+            }
+          />
+        </div>
+      </div>
+      <StudentChatComposer
+        hasSelectedSession
+        isGenerating={isGenerationActive}
+        sendError={sendMessage.error}
+        onDismissError={sendMessage.reset}
+        onSend={handleSend}
+      />
+    </>
   )
 }
 
