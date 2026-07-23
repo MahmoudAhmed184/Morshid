@@ -93,6 +93,56 @@ record is revoked, a new refresh token record is created, and the old record is
 linked to the new one. Reusing the prior token after rotation is rejected as an
 invalid refresh token.
 
+## ITI Student Bedrock Gateway completion
+
+Morshid defaults to the deterministic completion provider, which is keyless,
+offline, and used by CI. Live completion must be selected explicitly and goes
+through the [ITI Student Bedrock Gateway](https://apiaccess.iti.net.eg/student/integration);
+the server does not use direct AWS credentials or the AWS SDK.
+
+Before any live test, revoke the previously exposed gateway key in the ITI
+portal and generate a new one. Put the new key only in the git-ignored
+`server/.env`; never add it to an example file, command line, test fixture, or
+application log. Start from `server/.env.example` and set:
+
+```dotenv
+COMPLETION_PROVIDER=student-bedrock-gateway
+COMPLETION_TIMEOUT_MS=60000
+SBG_BASE_URL=https://apiaccess.iti.net.eg/api/v1
+SBG_API_KEY=<new key in server/.env only>
+SBG_MODEL_ID=anthropic.claude-haiku-4-5-20251001-v1:0
+SBG_MAX_TOKENS=1024
+```
+
+`SBG_BASE_URL` must use HTTPS. The provider sends exactly one non-retried `POST`
+to `${SBG_BASE_URL}/student/chat`; automatic retries are intentionally disabled
+because a repeated request could consume the monthly budget twice. Startup
+fails if live mode lacks a valid key, model, HTTPS base URL, or bounded token
+limit.
+
+Before starting, compare `SBG_MODEL_ID` with the portal's **Approved models**
+list. If the approved Haiku ID has a `us.` or `global.` prefix, copy that exact
+ID into `server/.env`; changing the model requires a server restart and no code
+change.
+
+For the one opt-in local verification:
+
+1. Note the current usage-event count in the ITI portal.
+2. Start the local infrastructure, migrate and seed the database, then start
+   Morshid with the live settings above.
+3. Complete one student chat turn and confirm exactly one new portal usage
+   event.
+4. Confirm the assistant message persisted provider
+   `student-bedrock-gateway`, the configured model ID, and prompt version
+   `grounded-completion-v1`.
+5. Restart once with another approved dashboard model ID and verify one chat
+   turn with that model if the project budget permits.
+6. Inspect `git diff`, `git status`, and application logs to confirm no key,
+   authorization header, prompt, or upstream body was emitted.
+
+Return `COMPLETION_PROVIDER` to `deterministic` after live verification unless
+continued gateway usage is intentional.
+
 ## Local OpenAPI documentation
 
 When `NODE_ENV` is `development` or `test`, the server publishes:

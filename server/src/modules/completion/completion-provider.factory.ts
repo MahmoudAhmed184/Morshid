@@ -4,6 +4,10 @@ import type { CompletionProvider } from './completion-provider'
 import { CompletionProviderError } from './completion-provider'
 import { DeterministicCompletionProvider } from './deterministic-completion.provider'
 import {
+  StudentBedrockGatewayCompletionProvider,
+  type StudentBedrockGatewayConfiguration,
+} from './student-bedrock-gateway-completion.provider'
+import {
   MAX_COMPLETION_TIMEOUT_MS,
   ValidatedCompletionProvider,
   defaultCompletionTimeoutSignalFactory,
@@ -13,16 +17,26 @@ import type { CompletionTimeoutSignalFactory } from './validated-completion.prov
 // `satisfies` makes provider selection exhaustive over the validated env enum.
 // Adding a configuration value without an adapter is therefore a type error.
 const completionProviderFactories = {
-  deterministic: () => new DeterministicCompletionProvider(),
+  deterministic: (_configuration?: StudentBedrockGatewayConfiguration) =>
+    new DeterministicCompletionProvider(),
+  'student-bedrock-gateway': (
+    configuration?: StudentBedrockGatewayConfiguration,
+  ) => {
+    if (configuration === undefined) {
+      throw new CompletionProviderError('COMPLETION_CONFIGURATION_INVALID')
+    }
+    return new StudentBedrockGatewayCompletionProvider(configuration)
+  },
 } satisfies Record<
   AppEnvironment['COMPLETION_PROVIDER'],
-  () => CompletionAdapter
+  (configuration?: StudentBedrockGatewayConfiguration) => CompletionAdapter
 >
 
 export function createCompletionProvider(
   provider: AppEnvironment['COMPLETION_PROVIDER'],
   timeoutMs: number,
   timeoutSignalFactory: CompletionTimeoutSignalFactory = defaultCompletionTimeoutSignalFactory,
+  studentBedrockGatewayConfiguration?: StudentBedrockGatewayConfiguration,
 ): CompletionProvider {
   // Startup validation is the first guard; this runtime check remains because
   // JavaScript callers and deployment tooling can still violate static types.
@@ -44,13 +58,11 @@ export function createCompletionProvider(
     throw new CompletionProviderError('COMPLETION_CONFIGURATION_INVALID')
   }
 
-  // Production selection always constructs the singular offline adapter.
   // Tests represent rejection and non-cooperation with adapters at the
-  // internal adapter seam instead of adding test modes to production code.
-  const inner =
-    completionProviderFactories[
-      runtimeProvider as AppEnvironment['COMPLETION_PROVIDER']
-    ]()
+  // internal seam instead of adding test modes to production code.
+  const inner = completionProviderFactories[
+    runtimeProvider as AppEnvironment['COMPLETION_PROVIDER']
+  ](studentBedrockGatewayConfiguration)
   return new ValidatedCompletionProvider(
     inner,
     runtimeTimeout,

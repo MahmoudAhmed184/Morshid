@@ -67,4 +67,30 @@ describe('CompletionModule', () => {
       code: 'COMPLETION_CONFIGURATION_INVALID',
     })
   })
+
+  it('fails assembly when the gateway is selected without valid configuration', async () => {
+    const compiling = Test.createTestingModule({
+      imports: [
+        ConfigModule.forRoot({
+          ignoreEnvFile: true,
+          isGlobal: true,
+          load: [
+            () => ({
+              COMPLETION_PROVIDER: 'student-bedrock-gateway',
+              COMPLETION_TIMEOUT_MS: 30_000,
+              SBG_BASE_URL: 'https://gateway.example.test/api/v1',
+              SBG_API_KEY: '',
+              SBG_MODEL_ID: 'anthropic.test-model-v1:0',
+              SBG_MAX_TOKENS: 1_024,
+            }),
+          ],
+        }),
+        CompletionModule,
+      ],
+    }).compile()
+
+    await expect(compiling).rejects.toMatchObject({
+      code: 'COMPLETION_CONFIGURATION_INVALID',
+    })
+  })
 })

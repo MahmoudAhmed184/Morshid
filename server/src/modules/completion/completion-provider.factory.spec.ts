@@ -7,6 +7,7 @@ import {
   parseGroundedCompletionInputEnvelope,
 } from './grounded-completion-envelope'
 import { MAX_COMPLETION_TIMEOUT_MS } from './validated-completion.provider'
+import { DEFAULT_SBG_MAX_TOKENS } from './student-bedrock-gateway-completion.provider'
 
 const request = {
   studentQuestion: 'How should I study?',
@@ -43,6 +44,46 @@ describe('createCompletionProvider', () => {
     await expect(
       provider.complete({ ...request, context: [] as never }),
     ).rejects.toMatchObject({ code: 'COMPLETION_EMPTY_CONTEXT' })
+  })
+
+  it('selects the gateway adapter through the exhaustive factory with its configured model', async () => {
+    const fetchSpy = jest
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(
+        new Response(JSON.stringify({ output_text: 'Gateway response' })),
+      )
+    const configuredModel = 'global.anthropic.approved-model-v1:0'
+    const provider = createCompletionProvider(
+      'student-bedrock-gateway',
+      30_000,
+      undefined,
+      {
+        baseUrl: 'https://gateway.example.test/api/v1',
+        apiKey: '<test-only-placeholder>',
+        modelId: configuredModel,
+        maxTokens: DEFAULT_SBG_MAX_TOKENS,
+      },
+    )
+
+    await expect(provider.complete(request)).resolves.toMatchObject({
+      provider: 'student-bedrock-gateway',
+      model: configuredModel,
+      promptVersion: 'grounded-completion-v1',
+    })
+    const body = JSON.parse(
+      fetchSpy.mock.calls[0][1]?.body as string,
+    ) as Record<string, unknown>
+    expect(body.model_id).toBe(configuredModel)
+  })
+
+  it('requires gateway configuration when the gateway is selected', () => {
+    expect(() =>
+      createCompletionProvider('student-bedrock-gateway', 30_000),
+    ).toThrow(
+      expect.objectContaining({
+        code: 'COMPLETION_CONFIGURATION_INVALID',
+      }) as CompletionProviderError,
+    )
   })
 
   it('defensively rejects unknown runtime values without echoing them', () => {
