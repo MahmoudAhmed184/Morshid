@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 /**
  * Control surface the /chat page publishes so the shell-level top-right cluster
  * (T9.2) can render the sources toggle. The frame lives at the student shell so
- * it stays stable across /courses, /chat and /settings; only the chat workspace
+ * it stays stable across /chat and /settings; only the chat workspace
  * registers a control, and only while a conversation is mounted — everywhere
  * else the cluster shows the theme switcher alone.
  */

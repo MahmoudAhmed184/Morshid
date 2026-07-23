@@ -198,7 +198,7 @@ describe('/instructor', () => {
   it('redirects a Student session to the Student shell', async () => {
     const { history } = renderAtInstructorRoute(createSession('STUDENT'))
 
-    await waitFor(() => expect(history.location.pathname).toBe('/courses'))
+    await waitFor(() => expect(history.location.pathname).toBe('/chat'))
     await waitFor(() =>
       expect(
         screen.queryByRole('heading', { name: "Today's teaching desk." }),

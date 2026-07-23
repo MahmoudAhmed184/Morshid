@@ -32,7 +32,7 @@ describe('getDashboardPath', () => {
   it.each([
     ['ADMIN', '/admin'],
     ['INSTRUCTOR', '/instructor'],
-    ['STUDENT', '/courses'],
+    ['STUDENT', '/chat'],
   ] as const)('redirects %s users to %s', (role, path) => {
     expect(getDashboardPath(role)).toBe(path)
   })
@@ -180,7 +180,7 @@ describe('client auth guards', () => {
       ),
     )
 
-    await expect(requireRole('ADMIN')).resolves.toBe('/courses')
+    await expect(requireRole('ADMIN')).resolves.toBe('/chat')
   })
 
   it('redirects wrong-role users away from student-only routes', async () => {
@@ -208,7 +208,7 @@ describe('client auth guards', () => {
       ),
     )
 
-    await expect(redirectAuthenticatedToDashboard()).resolves.toBe('/courses')
+    await expect(redirectAuthenticatedToDashboard()).resolves.toBe('/chat')
   })
 
   it('does not redirect unauthenticated users to a dashboard', async () => {
@@ -308,7 +308,7 @@ describe('client auth guards', () => {
     useAuthStore.getState().setSession(nextSession)
     resolveMe(Response.json({ user: oldSession.user }))
 
-    await expect(guardResult).resolves.toBe('/courses')
+    await expect(guardResult).resolves.toBe('/chat')
     expect(useAuthStore.getState()).toMatchObject({
       accessToken: nextSession.accessToken,
       user: nextSession.user,

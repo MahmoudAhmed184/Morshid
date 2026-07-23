@@ -11,6 +11,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { useSidebar } from '@/components/ui/sidebar'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 import { useRegisterSourcesControl } from '@/features/student/components/student-chrome-context'
 import {
@@ -109,7 +110,6 @@ export function StudentAiTutorPage({
         <StudentConversation
           key={`${studentId ?? 'anonymous'}:${selectedCourse.id}:${selectedSession.id}`}
           course={selectedCourse}
-          courses={assignedCourses}
           session={selectedSession}
           firstName={firstName}
           onRecover={() => void handleStaleSession()}
@@ -117,7 +117,6 @@ export function StudentAiTutorPage({
       ) : (
         <StudentNewChatState
           course={selectedCourse}
-          courses={assignedCourses}
           firstName={firstName}
           isSessionLoading={isSessionLoading}
           sessionRequested={sessionId !== undefined}
@@ -132,7 +131,6 @@ export function StudentAiTutorPage({
 
 interface StudentNewChatStateProps {
   course: StudentCourse
-  courses: StudentCourse[]
   firstName?: string
   isSessionLoading: boolean
   sessionRequested: boolean
@@ -143,7 +141,6 @@ interface StudentNewChatStateProps {
 
 function StudentNewChatState({
   course,
-  courses,
   firstName,
   isSessionLoading,
   sessionRequested,
@@ -209,8 +206,6 @@ function StudentNewChatState({
         hasSelectedSession={false}
         isGenerating={false}
         sendError={null}
-        courses={courses}
-        selectedCourse={course}
         onDismissError={() => undefined}
         onSend={() => Promise.resolve(false)}
       />
@@ -220,7 +215,6 @@ function StudentNewChatState({
 
 interface StudentConversationProps {
   course: StudentCourse
-  courses: StudentCourse[]
   session: ChatSession
   firstName?: string
   onRecover: () => void
@@ -228,11 +222,11 @@ interface StudentConversationProps {
 
 function StudentConversation({
   course,
-  courses,
   session,
   firstName,
   onRecover,
 }: StudentConversationProps) {
+  const { state: sidebarState } = useSidebar()
   const [mobileSourcesOpen, setMobileSourcesOpen] = useState(false)
   const [sourcesOpen, setSourcesOpen] = useState(true)
   const toggleSources = useCallback(() => setSourcesOpen((open) => !open), [])
@@ -366,8 +360,6 @@ function StudentConversation({
             hasSelectedSession
             isGenerating={isGenerationActive}
             sendError={sendMessage.error}
-            courses={courses}
-            selectedCourse={course}
             onDismissError={sendMessage.reset}
             onSend={handleSend}
           />
@@ -378,6 +370,10 @@ function StudentConversation({
           className={cn(
             'hidden shrink-0 overflow-hidden transition-[width,opacity] duration-[250ms] ease-out motion-reduce:transition-none lg:flex',
             sourcesOpen ? 'w-[20.75rem] opacity-100' : 'w-0 opacity-0',
+            // T12.6 — when the sidebar is collapsed the shell drops its top band
+            // and floats a glass cluster at the top-right; keep the sources
+            // column clear of it with an h-12-equivalent top inset.
+            sidebarState === 'collapsed' && 'mt-12',
           )}
         >
           <StudentSourcesPanel

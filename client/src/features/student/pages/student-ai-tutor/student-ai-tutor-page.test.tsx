@@ -255,30 +255,6 @@ describe('StudentAiTutorPage workspace', () => {
     expect(listStudentSessionsMock).not.toHaveBeenCalled()
   })
 
-  it('lists course titles in the composer picker and routes by course', async () => {
-    renderWorkspace({
-      courses: [primaryCourse, otherCourse],
-      courseId: otherCourse.id,
-      sessions: { sessions: [], nextCursor: null },
-    })
-
-    const picker = screen.getByRole('button', {
-      name: `Current course: ${otherCourse.title}. Choose course`,
-    })
-    fireEvent.click(picker)
-
-    expect(
-      await screen.findByRole('menuitem', {
-        name: new RegExp(primaryCourse.title),
-      }),
-    ).toHaveAttribute('href', `/chat?courseId=${primaryCourse.id}`)
-    expect(
-      screen.getByRole('menuitem', { name: 'All courses' }),
-    ).toHaveAttribute('href', '/courses')
-    expect(screen.queryByText(otherCourse.code)).not.toBeInTheDocument()
-    expect(screen.queryByText(primaryCourse.code)).not.toBeInTheDocument()
-  })
-
   it('keeps the grounded composer free of an attachment workflow', async () => {
     renderWorkspace({
       courseId: primaryCourse.id,

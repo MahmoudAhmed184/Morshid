@@ -1,10 +1,10 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
-import { StudentCoursesPage } from '@/features/student/pages/student-courses-page'
-
+// T12.2 — course = notebook, not a page. The library home retires; `/courses`
+// now redirects into the chat workspace, which resolves the active course via
+// the existing selection logic.
 export const Route = createFileRoute('/_student/courses')({
-  component: StudentCoursesPage,
-  head: () => ({
-    meta: [{ title: 'Courses — Morshid' }],
-  }),
+  beforeLoad: () => {
+    throw redirect({ to: '/chat' })
+  },
 })

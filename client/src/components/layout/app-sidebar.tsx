@@ -59,7 +59,7 @@ type AppSidebarProps = {
 }
 
 const wordmarkTargetByRole: Record<AppSidebarRole, string> = {
-  student: '/courses',
+  student: '/chat',
   instructor: '/instructor',
   admin: '/admin',
 }

@@ -113,6 +113,12 @@ const primaryCourse: StudentCourse = {
   title: 'Python Programming',
   membershipRole: 'STUDENT',
 }
+const otherCourse: StudentCourse = {
+  id: studentChatIds.otherCourse,
+  code: 'JAVASCRIPT-P0',
+  title: 'JavaScript Programming',
+  membershipRole: 'STUDENT',
+}
 const secondSession: ChatSession = {
   ...primaryChatSessionFixture,
   id: studentChatIds.otherSession,
@@ -275,6 +281,43 @@ describe('StudentSidebarContent', () => {
     expect(
       screen.getByRole('link', { name: 'Fresh today' }),
     ).toBeInTheDocument()
+  })
+
+  it('switches courses from the sidebar dropdown using titles only', async () => {
+    renderSidebar({
+      courses: [primaryCourse, otherCourse],
+      courseId: otherCourse.id,
+      sessions: { sessions: [], nextCursor: null },
+    })
+
+    const switcher = screen.getByRole('button', {
+      name: `Current course: ${otherCourse.title}. Choose course`,
+    })
+    fireEvent.click(switcher)
+
+    expect(
+      await screen.findByRole('menuitem', {
+        name: new RegExp(primaryCourse.title),
+      }),
+    ).toHaveAttribute('href', `/chat?courseId=${primaryCourse.id}`)
+    expect(
+      screen.queryByRole('menuitem', { name: 'All courses' }),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText(otherCourse.code)).not.toBeInTheDocument()
+    expect(screen.queryByText(primaryCourse.code)).not.toBeInTheDocument()
+  })
+
+  it('shows a static label when no courses are assigned', () => {
+    renderSidebar({
+      courses: [],
+      courseId: undefined,
+      sessions: { sessions: [], nextCursor: null },
+    })
+
+    expect(screen.getByText('No courses yet')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /choose course/i }),
+    ).not.toBeInTheDocument()
   })
 
   it('filters the loaded conversations with the search box', () => {

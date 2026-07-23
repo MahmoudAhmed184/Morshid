@@ -1,13 +1,20 @@
-import { useNavigate, useRouterState } from '@tanstack/react-router'
-import { Plus, Search } from 'lucide-react'
+import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
+import { Check, ChevronDown, Plus, Search } from 'lucide-react'
 import { useState } from 'react'
 import type { RefObject } from 'react'
 
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { ErrorState } from '@/components/ui/custom/error-state'
 import { useSidebar } from '@/components/ui/sidebar'
 import { useStudentCourses } from '@/features/student/hooks/use-student-courses'
+import type { StudentCourse } from '@/features/student/schemas/student-course.schema'
 import {
   useCreateStudentSession,
   useDeleteStudentSession,
@@ -97,6 +104,66 @@ function findNewestEmptySession(sessions: ChatSession[]): ChatSession | null {
   }, null)
 }
 
+// T12.1 — the notebook switcher. A full-width quiet control between the wordmark
+// and New chat: current course title + chevron, opening a T10-kit dropdown of
+// course titles with a check on the active one. Selecting a course navigates to
+// `/chat?courseId=…` (the existing selection mechanism) and the session list
+// beneath re-scopes. Zero courses render a static muted label with no menu.
+function CourseSwitcher({
+  courses,
+  selectedCourse,
+}: {
+  courses: StudentCourse[]
+  selectedCourse: StudentCourse | null
+}) {
+  if (courses.length === 0) {
+    return (
+      <div className="flex h-10 items-center rounded-lg px-3 text-sm font-medium text-muted-foreground">
+        No courses yet
+      </div>
+    )
+  }
+
+  const triggerLabel = selectedCourse?.title ?? 'Choose a course'
+  const ariaLabel = selectedCourse
+    ? `Current course: ${selectedCourse.title}. Choose course`
+    : 'Choose a course'
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            type="button"
+            variant="ghost"
+            className="h-10 w-full justify-between rounded-lg px-3 text-sm font-medium hover:bg-accent"
+            aria-label={ariaLabel}
+          />
+        }
+      >
+        <span className="truncate">{triggerLabel}</span>
+        <ChevronDown
+          className="size-3.5 shrink-0 text-muted-foreground"
+          aria-hidden
+        />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-56 max-w-[90vw]">
+        {courses.map((course) => (
+          <DropdownMenuItem
+            key={course.id}
+            render={<Link to="/chat" search={{ courseId: course.id }} />}
+          >
+            <span className="min-w-0 flex-1 truncate">{course.title}</span>
+            {selectedCourse && course.id === selectedCourse.id ? (
+              <Check className="size-4 text-foreground" aria-hidden />
+            ) : null}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 export function StudentSidebarContent({
   searchInputRef,
   newChatButtonRef,
@@ -151,9 +218,10 @@ export function StudentSidebarContent({
   }
 
   const handleCreate = async () => {
+    // T12.4 — with no active course there is nowhere to open a conversation and
+    // no library page to fall back to (the sidebar shows `No courses yet`), so
+    // New chat is a no-op rather than navigating to a deleted route.
     if (!selectedCourse) {
-      await navigate({ to: '/courses' })
-      closeOnMobile()
       return
     }
 
@@ -231,6 +299,10 @@ export function StudentSidebarContent({
   return (
     <>
       <div className="flex flex-col gap-2 px-2 pt-1 pb-2">
+        <CourseSwitcher
+          courses={assignedCourses}
+          selectedCourse={selectedCourse}
+        />
         <Button
           ref={newChatButtonRef}
           type="button"

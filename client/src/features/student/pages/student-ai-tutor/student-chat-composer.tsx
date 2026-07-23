@@ -1,5 +1,4 @@
-import { Link } from '@tanstack/react-router'
-import { ArrowUp, Check, ChevronDown, CircleAlert } from 'lucide-react'
+import { ArrowUp, CircleAlert } from 'lucide-react'
 import {
   forwardRef,
   useEffect,
@@ -10,13 +9,6 @@ import {
 import type { FormEvent, KeyboardEvent } from 'react'
 
 import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { Textarea } from '@/components/ui/textarea'
 import {
   isStudentChatApiError,
@@ -26,7 +18,6 @@ import {
   sendStudentChatMessageRequestSchema,
   studentChatMessageContentSchema,
 } from '@/features/student/schemas/student-chat.schema'
-import type { StudentCourse } from '@/features/student/schemas/student-course.schema'
 
 const maximumMessageCodePoints = 4_000
 
@@ -38,8 +29,6 @@ interface StudentChatComposerProps {
   hasSelectedSession: boolean
   isGenerating: boolean
   sendError: unknown
-  courses: StudentCourse[]
-  selectedCourse: StudentCourse
   onDismissError: () => void
   onSend: (content: string, clientMessageId: string) => Promise<boolean>
 }
@@ -48,15 +37,7 @@ export const StudentChatComposer = forwardRef<
   StudentChatComposerHandle,
   StudentChatComposerProps
 >(function StudentChatComposerImpl(
-  {
-    hasSelectedSession,
-    isGenerating,
-    sendError,
-    courses,
-    selectedCourse,
-    onDismissError,
-    onSend,
-  },
+  { hasSelectedSession, isGenerating, sendError, onDismissError, onSend },
   ref,
 ) {
   const [draft, setDraft] = useState('')
@@ -159,8 +140,7 @@ export const StudentChatComposer = forwardRef<
             rows={1}
             value={draft}
           />
-          <div className="flex items-center justify-between gap-2 px-1 pt-1">
-            <CoursePicker courses={courses} selectedCourse={selectedCourse} />
+          <div className="flex items-center justify-end px-1 pt-1">
             <Button
               aria-label="Send message"
               className="size-9 rounded-full bg-primary text-primary-foreground shadow-none disabled:bg-muted disabled:text-muted-foreground"
@@ -199,50 +179,6 @@ export const StudentChatComposer = forwardRef<
     </footer>
   )
 })
-
-function CoursePicker({
-  courses,
-  selectedCourse,
-}: {
-  courses: StudentCourse[]
-  selectedCourse: StudentCourse
-}) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="max-w-[16rem] gap-1 text-muted-foreground"
-            aria-label={`Current course: ${selectedCourse.title}. Choose course`}
-          />
-        }
-      >
-        <span className="truncate">{selectedCourse.title}</span>
-        <ChevronDown className="size-3.5 shrink-0" aria-hidden />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-64 max-w-[90vw]">
-        {courses.map((course) => (
-          <DropdownMenuItem
-            key={course.id}
-            render={<Link to="/chat" search={{ courseId: course.id }} />}
-          >
-            <span className="min-w-0 flex-1 truncate">{course.title}</span>
-            {course.id === selectedCourse.id ? (
-              <Check className="size-4 text-foreground" aria-hidden />
-            ) : null}
-          </DropdownMenuItem>
-        ))}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem render={<Link to="/courses" />}>
-          All courses
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-}
 
 function limitMessageDraft(value: string) {
   const trimmed = value.trim()

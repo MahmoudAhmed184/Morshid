@@ -4,7 +4,7 @@ import { loadAuthenticatedUser } from '@/features/auth/utils/auth-loader'
 const authRedirectByRole = {
   ADMIN: '/admin',
   INSTRUCTOR: '/instructor',
-  STUDENT: '/courses',
+  STUDENT: '/chat',
 } as const satisfies Record<AuthRole, string>
 
 export type AuthRedirectPath = (typeof authRedirectByRole)[AuthRole]
