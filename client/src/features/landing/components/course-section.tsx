@@ -1,3 +1,4 @@
+import Stepper, { Step } from '@/components/Stepper'
 import { Reveal } from '@/components/reveal'
 
 const steps = [
@@ -25,7 +26,7 @@ export function CourseSection() {
   return (
     <section
       id="instructors"
-      className="mx-auto w-full max-w-6xl scroll-mt-32 px-6 py-24 md:px-10 md:py-32"
+      className="mx-auto w-full max-w-6xl scroll-mt-32 px-4 py-8 sm:px-6 sm:py-16 md:px-10 md:py-24"
     >
       <Reveal>
         <header>
@@ -39,7 +40,8 @@ export function CourseSection() {
           </h2>
         </header>
 
-        <div className="rule mt-16 grid grid-cols-1 gap-10 pt-10 md:grid-cols-3">
+        {/* Desktop Layout — 3 Columns Grid */}
+        <div className="rule mt-16 hidden grid-cols-3 gap-10 pt-10 md:grid">
           {steps.map((step) => (
             <div key={step.title}>
               <p className="display-3 leading-none text-muted-foreground">
@@ -53,6 +55,28 @@ export function CourseSection() {
               </p>
             </div>
           ))}
+        </div>
+
+        {/* Mobile Layout — Interactive Stepper (Edge-to-Edge) */}
+        <div className="mt-8 -mx-6 sm:-mx-10 md:hidden">
+          <Stepper
+            className="!p-0"
+            stepCircleContainerClassName="!w-full !max-w-none !rounded-none !border-x-0 !border-y !shadow-none"
+            contentClassName="!px-4"
+          >
+            {steps.map((step) => (
+              <Step key={step.title}>
+                <div className="py-2 text-center">
+                  <h3 className="text-lg font-semibold text-foreground">
+                    {step.title}
+                  </h3>
+                  <p className="mt-2 text-sm leading-relaxed text-pretty text-muted-foreground">
+                    {step.prose}
+                  </p>
+                </div>
+              </Step>
+            ))}
+          </Stepper>
         </div>
       </Reveal>
     </section>

@@ -3,6 +3,7 @@
 Use `DataToolbar` above tables and lists to keep search, filters, actions, and bulk actions consistent.
 
 Good places to use it:
+
 - Course lists, student lists, admin tables, invoice tables.
 - Any page with search plus filters and a create/action button.
 
@@ -37,5 +38,6 @@ With filters and bulk actions:
 ```
 
 Notes:
+
 - `bulkActions` only appears when `selectedCount > 0`.
 - `filters` can be any React node: selects, tabs, chips, or custom controls.
