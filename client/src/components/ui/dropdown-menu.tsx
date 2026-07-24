@@ -40,8 +40,8 @@ function DropdownMenuContent({
         <MenuPrimitive.Popup
           data-slot="dropdown-menu-content"
           className={cn(
-            /* morshid: menu kit */
-            'menu-pop z-50 max-h-(--available-height) w-(--anchor-width) min-w-[12rem] overflow-x-hidden overflow-y-auto rounded-2xl border border-border/60 bg-popover/92 p-1.5 text-popover-foreground shadow-[0_16px_40px_-12px] shadow-foreground/14 backdrop-blur-xl backdrop-saturate-150 outline-none data-closed:overflow-hidden',
+            /* morshid: sharp menu popover */
+            'menu-pop z-50 max-h-(--available-height) w-(--anchor-width) min-w-[10rem] overflow-x-hidden overflow-y-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg backdrop-blur-md outline-none data-closed:overflow-hidden',
             className,
           )}
           {...props}
@@ -68,7 +68,7 @@ function DropdownMenuLabel({
       data-inset={inset}
       className={cn(
         /* morshid: menu kit */
-        'smallcaps-label px-3 pt-2 pb-1 data-inset:pl-7',
+        'smallcaps-label px-2.5 pt-1.5 pb-1 data-inset:pl-7',
         className,
       )}
       {...props}
@@ -91,8 +91,8 @@ function DropdownMenuItem({
       data-inset={inset}
       data-variant={variant}
       className={cn(
-        /* morshid: menu kit */
-        "group/dropdown-menu-item relative flex cursor-default items-center gap-2.5 rounded-lg px-3 py-2 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground not-data-[variant=destructive]:[&_svg:not([class*='size-'])]:text-muted-foreground data-inset:pl-7 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive dark:data-[variant=destructive]:focus:bg-destructive/20 data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 data-[variant=destructive]:*:[svg]:text-destructive",
+        /* morshid: sharp menu item */
+        "group/dropdown-menu-item relative flex cursor-default items-center gap-2 rounded-md px-2.5 py-1.5 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground not-data-[variant=destructive]:[&_svg:not([class*='size-'])]:text-muted-foreground data-inset:pl-7 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive dark:data-[variant=destructive]:focus:bg-destructive/20 data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 data-[variant=destructive]:*:[svg]:text-destructive",
         className,
       )}
       {...props}
