@@ -1,12 +1,13 @@
-import type { AppEnvironment } from '../config/env.schema'
 import type { CompletionAdapter } from './completion-adapter'
+import {
+  AWS_BEDROCK_COMPLETION_PROVIDER,
+  DETERMINISTIC_COMPLETION_PROVIDER,
+  type AwsBedrockConfiguration,
+} from './completion-configuration'
 import type { CompletionProvider } from './completion-provider'
 import { CompletionProviderError } from './completion-provider'
-import { DeterministicCompletionProvider } from './deterministic-completion.provider'
-import {
-  StudentBedrockGatewayCompletionProvider,
-  type StudentBedrockGatewayConfiguration,
-} from './student-bedrock-gateway-completion.provider'
+import { ItiBedrockGatewayAdapter } from './providers/aws-bedrock/iti-bedrock-gateway.adapter'
+import { DeterministicCompletionAdapter } from './providers/deterministic/deterministic-completion.adapter'
 import {
   MAX_COMPLETION_TIMEOUT_MS,
   ValidatedCompletionProvider,
@@ -14,58 +15,94 @@ import {
 } from './validated-completion.provider'
 import type { CompletionTimeoutSignalFactory } from './validated-completion.provider'
 
-// `satisfies` makes provider selection exhaustive over the validated env enum.
-// Adding a configuration value without an adapter is therefore a type error.
-const completionProviderFactories = {
-  deterministic: (_configuration?: StudentBedrockGatewayConfiguration) =>
-    new DeterministicCompletionProvider(),
-  'student-bedrock-gateway': (
-    configuration?: StudentBedrockGatewayConfiguration,
-  ) => {
-    if (configuration === undefined) {
-      throw new CompletionProviderError('COMPLETION_CONFIGURATION_INVALID')
+export type CompletionProviderConfiguration =
+  | {
+      readonly provider: typeof DETERMINISTIC_COMPLETION_PROVIDER
+      readonly timeoutMs: number
     }
-    return new StudentBedrockGatewayCompletionProvider(configuration)
-  },
-} satisfies Record<
-  AppEnvironment['COMPLETION_PROVIDER'],
-  (configuration?: StudentBedrockGatewayConfiguration) => CompletionAdapter
->
+  | {
+      readonly provider: typeof AWS_BEDROCK_COMPLETION_PROVIDER
+      readonly timeoutMs: number
+      readonly awsBedrock: AwsBedrockConfiguration
+    }
 
 export function createCompletionProvider(
-  provider: AppEnvironment['COMPLETION_PROVIDER'],
-  timeoutMs: number,
+  configuration: CompletionProviderConfiguration,
   timeoutSignalFactory: CompletionTimeoutSignalFactory = defaultCompletionTimeoutSignalFactory,
-  studentBedrockGatewayConfiguration?: StudentBedrockGatewayConfiguration,
 ): CompletionProvider {
-  // Startup validation is the first guard; this runtime check remains because
-  // JavaScript callers and deployment tooling can still violate static types.
-  const runtimeProvider: unknown = provider
+  const snapshot = snapshotFactoryConfiguration(configuration)
+  let adapter: CompletionAdapter
+
+  switch (snapshot.provider) {
+    case DETERMINISTIC_COMPLETION_PROVIDER:
+      adapter = new DeterministicCompletionAdapter()
+      break
+    case AWS_BEDROCK_COMPLETION_PROVIDER:
+      adapter = new ItiBedrockGatewayAdapter(snapshot.awsBedrock)
+      break
+    default:
+      assertNever(snapshot)
+  }
+
+  return new ValidatedCompletionProvider(
+    adapter,
+    snapshot.timeoutMs,
+    timeoutSignalFactory,
+  )
+}
+
+function snapshotFactoryConfiguration(
+  configuration: unknown,
+): CompletionProviderConfiguration {
+  let provider: unknown
+  let timeoutMs: unknown
+  let awsBedrock: unknown
+
+  try {
+    if (typeof configuration !== 'object' || configuration === null) {
+      throw new CompletionProviderError('COMPLETION_CONFIGURATION_INVALID')
+    }
+    const record = configuration as Record<PropertyKey, unknown>
+    provider = Reflect.get(record, 'provider')
+    timeoutMs = Reflect.get(record, 'timeoutMs')
+    if (provider === AWS_BEDROCK_COMPLETION_PROVIDER) {
+      awsBedrock = Reflect.get(record, 'awsBedrock')
+    }
+  } catch (error) {
+    if (error instanceof CompletionProviderError) {
+      throw error
+    }
+    throw new CompletionProviderError('COMPLETION_CONFIGURATION_INVALID')
+  }
+
   if (
-    typeof runtimeProvider !== 'string' ||
-    !Object.hasOwn(completionProviderFactories, runtimeProvider)
+    provider !== DETERMINISTIC_COMPLETION_PROVIDER &&
+    provider !== AWS_BEDROCK_COMPLETION_PROVIDER
   ) {
     throw new CompletionProviderError('COMPLETION_PROVIDER_UNSUPPORTED')
   }
 
-  const runtimeTimeout: unknown = timeoutMs
   if (
-    typeof runtimeTimeout !== 'number' ||
-    !Number.isSafeInteger(runtimeTimeout) ||
-    runtimeTimeout < 1 ||
-    runtimeTimeout > MAX_COMPLETION_TIMEOUT_MS
+    typeof timeoutMs !== 'number' ||
+    !Number.isSafeInteger(timeoutMs) ||
+    timeoutMs < 1 ||
+    timeoutMs > MAX_COMPLETION_TIMEOUT_MS
   ) {
     throw new CompletionProviderError('COMPLETION_CONFIGURATION_INVALID')
   }
 
-  // Tests represent rejection and non-cooperation with adapters at the
-  // internal seam instead of adding test modes to production code.
-  const inner = completionProviderFactories[
-    runtimeProvider as AppEnvironment['COMPLETION_PROVIDER']
-  ](studentBedrockGatewayConfiguration)
-  return new ValidatedCompletionProvider(
-    inner,
-    runtimeTimeout,
-    timeoutSignalFactory,
-  )
+  if (provider === DETERMINISTIC_COMPLETION_PROVIDER) {
+    return Object.freeze({ provider, timeoutMs })
+  }
+
+  return Object.freeze({
+    provider,
+    timeoutMs,
+    awsBedrock: awsBedrock as AwsBedrockConfiguration,
+  })
+}
+
+function assertNever(value: never): never {
+  void value
+  throw new CompletionProviderError('COMPLETION_PROVIDER_UNSUPPORTED')
 }

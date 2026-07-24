@@ -93,55 +93,76 @@ record is revoked, a new refresh token record is created, and the old record is
 linked to the new one. Reusing the prior token after rotation is rejected as an
 invalid refresh token.
 
-## ITI Student Bedrock Gateway completion
+## AWS Bedrock completion through ITI
 
 Morshid defaults to the deterministic completion provider, which is keyless,
-offline, and used by CI. Live completion must be selected explicitly and goes
-through the [ITI Student Bedrock Gateway](https://apiaccess.iti.net.eg/student/integration);
-the server does not use direct AWS credentials or the AWS SDK.
+offline, and used by CI. Selecting `aws-bedrock` preserves the same public
+completion contract and sends one request through the
+[ITI Student Bedrock Gateway](https://apiaccess.iti.net.eg/student/integration).
+ITI remains the credential authority and owns AWS access, budgets, account
+policy, and usage accounting. Morshid has no direct AWS credentials and uses
+neither the AWS SDK nor LangChain.
 
-Before any live test, revoke the previously exposed gateway key in the ITI
-portal and generate a new one. Put the new key only in the git-ignored
-`server/.env`; never add it to an example file, command line, test fixture, or
-application log. Start from `server/.env.example` and set:
+Before a live test, rotate the ITI gateway key. Store the replacement only in
+the git-ignored `server/.env`, set that file to mode `0600`, and never place the
+key in a command line, test fixture, example file, or log. Start from
+`server/.env.example` and set:
 
 ```dotenv
-COMPLETION_PROVIDER=student-bedrock-gateway
+COMPLETION_PROVIDER=aws-bedrock
 COMPLETION_TIMEOUT_MS=60000
-SBG_BASE_URL=https://apiaccess.iti.net.eg/api/v1
-SBG_API_KEY=<new key in server/.env only>
-SBG_MODEL_ID=anthropic.claude-haiku-4-5-20251001-v1:0
-SBG_MAX_TOKENS=1024
+ITI_BEDROCK_GATEWAY_BASE_URL=https://apiaccess.iti.net.eg/api/v1
+ITI_BEDROCK_GATEWAY_API_KEY=<rotated key in server/.env only>
+ITI_BEDROCK_ALLOW_INSECURE_HTTP=false
+AWS_BEDROCK_MODEL_ID=<exact approved model ID>
+AWS_BEDROCK_ALLOWED_MODEL_IDS=<comma-separated approved model IDs>
+AWS_BEDROCK_MAX_TOKENS=1024
 ```
 
-`SBG_BASE_URL` must use HTTPS. The provider sends exactly one non-retried `POST`
-to `${SBG_BASE_URL}/student/chat`; automatic retries are intentionally disabled
-because a repeated request could consume the monthly budget twice. Startup
-fails if live mode lacks a valid key, model, HTTPS base URL, or bounded token
-limit.
+There is deliberately no committed model ID. The selected model must be in the
+bounded, duplicate-free local allow-list. Copy exact IDs from the portal's
+**Approved models** list; a model or allow-list change requires a server
+restart. Startup fails if `aws-bedrock` lacks a valid key, explicit model,
+nonempty allow-list, membership, base URL, or token limit.
 
-Before starting, compare `SBG_MODEL_ID` with the portal's **Approved models**
-list. If the approved Haiku ID has a `us.` or `global.` prefix, copy that exact
-ID into `server/.env`; changing the model requires a server restart and no code
-change.
+The adapter sends exactly one non-retried `POST` to
+`${ITI_BEDROCK_GATEWAY_BASE_URL}/student/chat`. It has no model, transport,
+retry, or protocol fallback, so failures cannot silently consume budget through
+a second attempt.
 
-For the one opt-in local verification:
+### Temporary local HTTP exception
 
-1. Note the current usage-event count in the ITI portal.
-2. Start the local infrastructure, migrate and seed the database, then start
-   Morshid with the live settings above.
-3. Complete one student chat turn and confirm exactly one new portal usage
-   event.
-4. Confirm the assistant message persisted provider
-   `student-bedrock-gateway`, the configured model ID, and prompt version
-   `grounded-completion-v1`.
-5. Restart once with another approved dashboard model ID and verify one chat
-   turn with that model if the project budget permits.
-6. Inspect `git diff`, `git status`, and application logs to confirm no key,
-   authorization header, prompt, or upstream body was emitted.
+Bearer credentials and prompts should travel over HTTPS. If ITI's HTTPS
+endpoint is temporarily unavailable, development may opt into the known
+plaintext endpoint only with all three settings below:
 
-Return `COMPLETION_PROVIDER` to `deterministic` after live verification unless
-continued gateway usage is intentional.
+```dotenv
+NODE_ENV=development
+ITI_BEDROCK_GATEWAY_BASE_URL=http://apiaccess.iti.net.eg/api/v1
+ITI_BEDROCK_ALLOW_INSECURE_HTTP=true
+```
+
+This knowingly insecure exception accepts only that exact host, port, and base
+path, emits a fixed credential-free startup warning, and still performs one
+request to the configured URL. It never tries HTTPS before HTTP. Production and
+Compose reject the exception. Return to HTTPS as soon as ITI restores it.
+
+For one opt-in local verification:
+
+1. Record the current ITI usage-event count.
+2. Start infrastructure, migrate and seed the database, then start Morshid with
+   the live settings.
+3. Complete one database-backed student chat turn.
+4. Confirm exactly one additional portal usage event.
+5. Confirm the assistant message persisted provider `aws-bedrock`, the selected
+   model ID, and prompt version `grounded-completion-v1`.
+6. Inspect Git changes and application logs for keys, authorization values,
+   prompts, output, or upstream response bodies.
+7. Restore `COMPLETION_PROVIDER=deterministic`, clear the diagnostic key, and
+   revoke it in the ITI portal.
+
+Key rotation never requires a code change: revoke the old key, replace only
+`ITI_BEDROCK_GATEWAY_API_KEY` in the ignored file, and restart the server.
 
 ## Local OpenAPI documentation
 

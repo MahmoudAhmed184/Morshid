@@ -1,23 +1,27 @@
-import type { PreparedCompletionRequest } from './completion-adapter'
-import { CompletionProviderError } from './completion-provider'
-import { buildGroundedCompletionMessages } from './grounded-completion-envelope'
+import type { PreparedCompletionRequest } from '../../completion-adapter'
 import {
-  DEFAULT_SBG_MAX_TOKENS,
-  DEFAULT_SBG_MODEL_ID,
-  MAX_SBG_MAX_TOKENS,
-  MAX_SBG_RESPONSE_BYTES,
-  MIN_SBG_MAX_TOKENS,
-  STUDENT_BEDROCK_GATEWAY_PROVIDER,
-  StudentBedrockGatewayCompletionProvider,
-  type StudentBedrockGatewayConfiguration,
-} from './student-bedrock-gateway-completion.provider'
-import { MAX_COMPLETION_OUTPUT_CODE_POINTS } from './validated-completion.provider'
+  AWS_BEDROCK_COMPLETION_PROVIDER,
+  DEFAULT_AWS_BEDROCK_MAX_TOKENS,
+  MAX_AWS_BEDROCK_ALLOWED_MODEL_IDS,
+  MAX_AWS_BEDROCK_MAX_TOKENS,
+  MAX_AWS_BEDROCK_MODEL_ID_LENGTH,
+  MAX_ITI_BEDROCK_API_KEY_LENGTH,
+  MAX_ITI_BEDROCK_BASE_URL_LENGTH,
+  MAX_ITI_BEDROCK_RESPONSE_BYTES,
+  MIN_AWS_BEDROCK_MAX_TOKENS,
+  type AwsBedrockConfiguration,
+} from '../../completion-configuration'
+import { CompletionProviderError } from '../../completion-provider'
+import { buildGroundedCompletionMessages } from '../../grounded-completion-envelope'
+import { MAX_COMPLETION_OUTPUT_CODE_POINTS } from '../../validated-completion.provider'
+import { ItiBedrockGatewayAdapter } from './iti-bedrock-gateway.adapter'
 
 const apiKey = '<test-only-placeholder>'
 const baseUrl = 'https://gateway.example.test/api/v1'
 const systemPromptSentinel = 'authoritative-system-prompt-sentinel'
 const userPromptSentinel = 'prepared-user-prompt-sentinel'
 const upstreamBodySentinel = 'hostile-upstream-body-sentinel'
+const modelId = 'test.approved-model-v1:0'
 
 type FetchImplementation = (
   input: string | URL | Request,
@@ -25,12 +29,15 @@ type FetchImplementation = (
 ) => Promise<Response>
 
 const configuration = (
-  overrides: Partial<StudentBedrockGatewayConfiguration> = {},
-): StudentBedrockGatewayConfiguration => ({
+  overrides: Partial<AwsBedrockConfiguration> = {},
+): AwsBedrockConfiguration => ({
   baseUrl,
   apiKey,
-  modelId: DEFAULT_SBG_MODEL_ID,
-  maxTokens: DEFAULT_SBG_MAX_TOKENS,
+  modelId,
+  allowedModelIds: [modelId],
+  maxTokens: DEFAULT_AWS_BEDROCK_MAX_TOKENS,
+  allowInsecureHttp: false,
+  environment: 'test',
   ...overrides,
 })
 
@@ -74,7 +81,7 @@ function expectSafeFailure(
   }
 }
 
-describe('StudentBedrockGatewayCompletionProvider', () => {
+describe('ItiBedrockGatewayAdapter', () => {
   it('posts the exact mapped request once and returns trusted metadata', async () => {
     const configuredModel = 'us.anthropic.approved-model-v1:0'
     const fetchImplementation = jest
@@ -90,10 +97,11 @@ describe('StudentBedrockGatewayCompletionProvider', () => {
           { status: 200 },
         ),
       )
-    const provider = new StudentBedrockGatewayCompletionProvider(
+    const provider = new ItiBedrockGatewayAdapter(
       configuration({
         baseUrl: `${baseUrl}/`,
         modelId: configuredModel,
+        allowedModelIds: [configuredModel],
         maxTokens: 777,
       }),
       fetchImplementation,
@@ -103,7 +111,7 @@ describe('StudentBedrockGatewayCompletionProvider', () => {
     const result = await provider.complete(request)
     expect(result).toEqual({
       content: 'Grounded gateway answer',
-      provider: STUDENT_BEDROCK_GATEWAY_PROVIDER,
+      provider: AWS_BEDROCK_COMPLETION_PROVIDER,
       model: configuredModel,
       promptVersion: 'grounded-completion-v1',
     })
@@ -143,7 +151,7 @@ describe('StudentBedrockGatewayCompletionProvider', () => {
     const fetchImplementation = jest
       .fn<ReturnType<FetchImplementation>, Parameters<FetchImplementation>>()
       .mockResolvedValue(successfulResponse())
-    const provider = new StudentBedrockGatewayCompletionProvider(
+    const provider = new ItiBedrockGatewayAdapter(
       configuration(),
       fetchImplementation,
     )
@@ -165,10 +173,10 @@ describe('StudentBedrockGatewayCompletionProvider', () => {
 
     const request = fetchImplementation.mock.calls[0][1]
     expect(JSON.parse(request?.body as string)).toEqual({
-      model_id: DEFAULT_SBG_MODEL_ID,
+      model_id: modelId,
       system_prompt: messages[0].content,
       messages: [{ role: 'user', content: messages[1].content }],
-      max_tokens: DEFAULT_SBG_MAX_TOKENS,
+      max_tokens: DEFAULT_AWS_BEDROCK_MAX_TOKENS,
     })
   })
 
@@ -189,7 +197,7 @@ describe('StudentBedrockGatewayCompletionProvider', () => {
           )
         }),
     )
-    const provider = new StudentBedrockGatewayCompletionProvider(
+    const provider = new ItiBedrockGatewayAdapter(
       configuration(),
       fetchImplementation,
     )
@@ -215,7 +223,7 @@ describe('StudentBedrockGatewayCompletionProvider', () => {
       ReturnType<FetchImplementation>,
       Parameters<FetchImplementation>
     >()
-    const provider = new StudentBedrockGatewayCompletionProvider(
+    const provider = new ItiBedrockGatewayAdapter(
       configuration(),
       fetchImplementation,
     )
@@ -230,6 +238,8 @@ describe('StudentBedrockGatewayCompletionProvider', () => {
 
   it.each([
     ['malformed JSON', new Response(`{"output_text":"${upstreamBodySentinel}`)],
+    ['malformed UTF-8', new Response(new Uint8Array([0xc3, 0x28]))],
+    ['missing body', new Response(null)],
     ['missing output', new Response(JSON.stringify({ result: 'missing' }))],
     ['blank output', successfulResponse(' \n\t ')],
     [
@@ -241,7 +251,7 @@ describe('StudentBedrockGatewayCompletionProvider', () => {
       new Response(
         JSON.stringify({
           output_text: 'valid',
-          padding: 'x'.repeat(MAX_SBG_RESPONSE_BYTES),
+          padding: 'x'.repeat(MAX_ITI_BEDROCK_RESPONSE_BYTES),
         }),
       ),
     ],
@@ -249,7 +259,7 @@ describe('StudentBedrockGatewayCompletionProvider', () => {
     const fetchImplementation = jest
       .fn<ReturnType<FetchImplementation>, Parameters<FetchImplementation>>()
       .mockResolvedValue(response)
-    const provider = new StudentBedrockGatewayCompletionProvider(
+    const provider = new ItiBedrockGatewayAdapter(
       configuration(),
       fetchImplementation,
     )
@@ -278,7 +288,7 @@ describe('StudentBedrockGatewayCompletionProvider', () => {
       const fetchImplementation = jest
         .fn<ReturnType<FetchImplementation>, Parameters<FetchImplementation>>()
         .mockResolvedValue(response)
-      const provider = new StudentBedrockGatewayCompletionProvider(
+      const provider = new ItiBedrockGatewayAdapter(
         configuration(),
         fetchImplementation,
       )
@@ -296,6 +306,33 @@ describe('StudentBedrockGatewayCompletionProvider', () => {
     },
   )
 
+  it('accepts a valid response exactly at the 64 KiB byte limit', async () => {
+    const emptyPaddingBody = JSON.stringify({
+      output_text: 'valid',
+      padding: '',
+    })
+    const body = JSON.stringify({
+      output_text: 'valid',
+      padding: 'x'.repeat(
+        MAX_ITI_BEDROCK_RESPONSE_BYTES -
+          new TextEncoder().encode(emptyPaddingBody).byteLength,
+      ),
+    })
+    expect(new TextEncoder().encode(body)).toHaveLength(
+      MAX_ITI_BEDROCK_RESPONSE_BYTES,
+    )
+    const fetchImplementation = jest
+      .fn<ReturnType<FetchImplementation>, Parameters<FetchImplementation>>()
+      .mockResolvedValue(new Response(body))
+
+    await expect(
+      new ItiBedrockGatewayAdapter(
+        configuration(),
+        fetchImplementation,
+      ).complete(preparedRequest()),
+    ).resolves.toMatchObject({ content: 'valid', provider: 'aws-bedrock' })
+  })
+
   it('contains network failures and never retries the POST', async () => {
     const hostileNetworkValue = {
       authorization: `Bearer ${apiKey}`,
@@ -305,7 +342,7 @@ describe('StudentBedrockGatewayCompletionProvider', () => {
     const fetchImplementation = jest
       .fn<ReturnType<FetchImplementation>, Parameters<FetchImplementation>>()
       .mockRejectedValue(hostileNetworkValue)
-    const provider = new StudentBedrockGatewayCompletionProvider(
+    const provider = new ItiBedrockGatewayAdapter(
       configuration(),
       fetchImplementation,
     )
@@ -322,7 +359,13 @@ describe('StudentBedrockGatewayCompletionProvider', () => {
   })
 
   it.each([
-    ['HTTP URL', configuration({ baseUrl: 'http://gateway.example.test' })],
+    [
+      'unapproved HTTP URL',
+      configuration({
+        baseUrl: 'http://gateway.example.test',
+        allowInsecureHttp: true,
+      }),
+    ],
     [
       'URL credentials',
       configuration({
@@ -331,13 +374,53 @@ describe('StudentBedrockGatewayCompletionProvider', () => {
     ],
     ['blank key', configuration({ apiKey: '   ' })],
     ['key control character', configuration({ apiKey: 'key\nvalue' })],
+    [
+      'oversized key',
+      configuration({
+        apiKey: 'k'.repeat(MAX_ITI_BEDROCK_API_KEY_LENGTH + 1),
+      }),
+    ],
     ['invalid model', configuration({ modelId: 'model/id' })],
-    ['low max tokens', configuration({ maxTokens: MIN_SBG_MAX_TOKENS - 1 })],
-    ['high max tokens', configuration({ maxTokens: MAX_SBG_MAX_TOKENS + 1 })],
+    [
+      'oversized model',
+      configuration({
+        modelId: `m${'x'.repeat(MAX_AWS_BEDROCK_MODEL_ID_LENGTH)}`,
+        allowedModelIds: [`m${'x'.repeat(MAX_AWS_BEDROCK_MODEL_ID_LENGTH)}`],
+      }),
+    ],
+    ['model outside allow-list', configuration({ modelId: 'other.model' })],
+    ['empty allow-list', configuration({ allowedModelIds: [] })],
+    [
+      'duplicate allow-list',
+      configuration({ allowedModelIds: [modelId, modelId] }),
+    ],
+    [
+      'oversized allow-list',
+      configuration({
+        allowedModelIds: Array.from(
+          { length: MAX_AWS_BEDROCK_ALLOWED_MODEL_IDS + 1 },
+          (_, index) => `test.model-${String(index)}`,
+        ),
+      }),
+    ],
+    [
+      'oversized base URL',
+      configuration({
+        baseUrl: `https://gateway.example.test/${'x'.repeat(MAX_ITI_BEDROCK_BASE_URL_LENGTH)}`,
+      }),
+    ],
+    [
+      'low max tokens',
+      configuration({ maxTokens: MIN_AWS_BEDROCK_MAX_TOKENS - 1 }),
+    ],
+    [
+      'high max tokens',
+      configuration({ maxTokens: MAX_AWS_BEDROCK_MAX_TOKENS + 1 }),
+    ],
   ])('rejects %s without exposing configuration', (_, invalidConfiguration) => {
     let failure: unknown
     try {
-      new StudentBedrockGatewayCompletionProvider(invalidConfiguration)
+      new ItiBedrockGatewayAdapter(invalidConfiguration)
     } catch (error) {
       failure = error
     }
@@ -347,6 +430,27 @@ describe('StudentBedrockGatewayCompletionProvider', () => {
       invalidConfiguration.apiKey,
       invalidConfiguration.baseUrl,
       invalidConfiguration.modelId,
+    ])
+  })
+
+  it('contains hostile configuration access without retaining thrown values', () => {
+    const privateConfigurationSentinel = 'private-configuration-sentinel'
+    const hostileConfiguration = new Proxy(configuration(), {
+      get() {
+        throw new Error(privateConfigurationSentinel)
+      },
+    })
+
+    let failure: unknown
+    try {
+      new ItiBedrockGatewayAdapter(hostileConfiguration)
+    } catch (error) {
+      failure = error
+    }
+
+    expectSafeFailure(failure, 'COMPLETION_CONFIGURATION_INVALID', [
+      privateConfigurationSentinel,
+      apiKey,
     ])
   })
 })

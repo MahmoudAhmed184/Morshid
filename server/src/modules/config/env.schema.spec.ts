@@ -1,10 +1,10 @@
 import {
-  DEFAULT_SBG_BASE_URL,
-  DEFAULT_SBG_MAX_TOKENS,
-  DEFAULT_SBG_MODEL_ID,
-  MAX_SBG_MAX_TOKENS,
-  MIN_SBG_MAX_TOKENS,
-} from '../completion/student-bedrock-gateway-completion.provider'
+  DEFAULT_AWS_BEDROCK_MAX_TOKENS,
+  DEFAULT_ITI_BEDROCK_GATEWAY_BASE_URL,
+  MAX_AWS_BEDROCK_ALLOWED_MODEL_IDS,
+  MAX_AWS_BEDROCK_MAX_TOKENS,
+  MIN_AWS_BEDROCK_MAX_TOKENS,
+} from '../completion/completion-configuration'
 import { MAX_PDF_UPLOAD_BYTES, validateEnv } from './env.schema'
 
 describe('validateEnv', () => {
@@ -37,9 +37,11 @@ describe('validateEnv', () => {
       EMBEDDING_PROVIDER: 'deterministic',
       COMPLETION_PROVIDER: 'deterministic',
       COMPLETION_TIMEOUT_MS: 30_000,
-      SBG_BASE_URL: DEFAULT_SBG_BASE_URL,
-      SBG_MODEL_ID: DEFAULT_SBG_MODEL_ID,
-      SBG_MAX_TOKENS: DEFAULT_SBG_MAX_TOKENS,
+      ITI_BEDROCK_GATEWAY_BASE_URL: DEFAULT_ITI_BEDROCK_GATEWAY_BASE_URL,
+      ITI_BEDROCK_ALLOW_INSECURE_HTTP: false,
+      AWS_BEDROCK_MODEL_ID: '',
+      AWS_BEDROCK_ALLOWED_MODEL_IDS: [],
+      AWS_BEDROCK_MAX_TOKENS: DEFAULT_AWS_BEDROCK_MAX_TOKENS,
       RETRIEVAL_TOP_K: 5,
       RETRIEVAL_MIN_SIMILARITY: 0.7,
     })
@@ -91,6 +93,15 @@ describe('validateEnv', () => {
     expect(
       validateEnv({ ...validEnv, COMPLETION_PROVIDER: 'deterministic' }),
     ).toMatchObject({ COMPLETION_PROVIDER: 'deterministic' })
+    expect(
+      validateEnv({
+        ...validEnv,
+        COMPLETION_PROVIDER: 'aws-bedrock',
+        ITI_BEDROCK_GATEWAY_API_KEY: '<test-only-placeholder>',
+        AWS_BEDROCK_MODEL_ID: 'openai.test-model-v1:0',
+        AWS_BEDROCK_ALLOWED_MODEL_IDS: 'openai.test-model-v1:0',
+      }),
+    ).toMatchObject({ COMPLETION_PROVIDER: 'aws-bedrock' })
     expect(() =>
       validateEnv({ ...validEnv, COMPLETION_PROVIDER: 'openai' }),
     ).toThrow(/COMPLETION_PROVIDER: Invalid option/)
@@ -107,80 +118,200 @@ describe('validateEnv', () => {
     expect(deterministicEnv).toMatchObject({
       COMPLETION_PROVIDER: 'deterministic',
     })
-    expect(deterministicEnv).not.toHaveProperty('SBG_API_KEY')
+    expect(deterministicEnv).not.toHaveProperty('ITI_BEDROCK_GATEWAY_API_KEY')
 
     expect(() =>
       validateEnv({
         ...validEnv,
-        COMPLETION_PROVIDER: 'student-bedrock-gateway',
+        COMPLETION_PROVIDER: 'aws-bedrock',
       }),
-    ).toThrow(/SBG_API_KEY: is required for student-bedrock-gateway/)
+    ).toThrow(/ITI_BEDROCK_GATEWAY_API_KEY: is required for aws-bedrock/)
     expect(() =>
       validateEnv({
         ...validEnv,
-        COMPLETION_PROVIDER: 'student-bedrock-gateway',
-        SBG_API_KEY: '   ',
+        COMPLETION_PROVIDER: 'aws-bedrock',
+        ITI_BEDROCK_GATEWAY_API_KEY: '   ',
       }),
-    ).toThrow(/SBG_API_KEY: is required for student-bedrock-gateway/)
+    ).toThrow(/ITI_BEDROCK_GATEWAY_API_KEY: is required for aws-bedrock/)
 
     expect(
       validateEnv({
         ...validEnv,
-        COMPLETION_PROVIDER: 'student-bedrock-gateway',
-        SBG_API_KEY: '<test-only-placeholder>',
+        COMPLETION_PROVIDER: 'aws-bedrock',
+        ITI_BEDROCK_GATEWAY_API_KEY: '<test-only-placeholder>',
+        AWS_BEDROCK_MODEL_ID: 'openai.test-model-v1:0',
+        AWS_BEDROCK_ALLOWED_MODEL_IDS: 'openai.test-model-v1:0',
       }),
     ).toMatchObject({
-      COMPLETION_PROVIDER: 'student-bedrock-gateway',
-      SBG_API_KEY: '<test-only-placeholder>',
+      COMPLETION_PROVIDER: 'aws-bedrock',
+      ITI_BEDROCK_GATEWAY_API_KEY: '<test-only-placeholder>',
     })
   })
 
-  it('requires an HTTPS gateway base URL without embedded credentials', () => {
+  it('accepts HTTPS without credentials, query, or fragment', () => {
+    expect(
+      validateEnv({
+        ...validEnv,
+        ITI_BEDROCK_GATEWAY_BASE_URL:
+          'https://gateway.example.test/custom/base/',
+      }),
+    ).toMatchObject({
+      ITI_BEDROCK_GATEWAY_BASE_URL: 'https://gateway.example.test/custom/base/',
+    })
+
     expect(() =>
       validateEnv({
         ...validEnv,
-        SBG_BASE_URL: 'http://apiaccess.iti.net.eg/student/integration',
+        ITI_BEDROCK_GATEWAY_BASE_URL:
+          'https://user:password@gateway.example.test/api/v1',
       }),
-    ).toThrow(/SBG_BASE_URL: must be an HTTPS URL/)
+    ).toThrow(/ITI_BEDROCK_GATEWAY_BASE_URL:/)
     expect(() =>
       validateEnv({
         ...validEnv,
-        SBG_BASE_URL: 'https://user:password@gateway.example.test/api/v1',
+        ITI_BEDROCK_GATEWAY_BASE_URL:
+          'https://gateway.example.test/api/v1?secret=value',
       }),
-    ).toThrow(/SBG_BASE_URL: must be an HTTPS URL/)
+    ).toThrow(/ITI_BEDROCK_GATEWAY_BASE_URL:/)
     expect(() =>
       validateEnv({
         ...validEnv,
-        SBG_BASE_URL: 'https://gateway.example.test/api/v1?secret=value',
+        ITI_BEDROCK_GATEWAY_BASE_URL:
+          'https://gateway.example.test/api/v1#fragment',
       }),
-    ).toThrow(/SBG_BASE_URL: must be an HTTPS URL/)
+    ).toThrow(/ITI_BEDROCK_GATEWAY_BASE_URL:/)
   })
 
-  it('accepts approved model overrides and bounds max tokens', () => {
+  it('allows HTTP only for the exact explicitly enabled ITI development endpoint', () => {
+    const httpBase = {
+      ...validEnv,
+      NODE_ENV: 'development',
+      ITI_BEDROCK_ALLOW_INSECURE_HTTP: 'true',
+      ITI_BEDROCK_GATEWAY_BASE_URL: 'http://apiaccess.iti.net.eg/api/v1',
+    }
+    expect(validateEnv(httpBase)).toMatchObject({
+      ITI_BEDROCK_ALLOW_INSECURE_HTTP: true,
+      ITI_BEDROCK_GATEWAY_BASE_URL: 'http://apiaccess.iti.net.eg/api/v1',
+    })
+
+    const invalidOverrides = [
+      { ITI_BEDROCK_ALLOW_INSECURE_HTTP: 'false' },
+      { NODE_ENV: 'production' },
+      {
+        ITI_BEDROCK_GATEWAY_BASE_URL: 'http://other.example.test/api/v1',
+      },
+      {
+        ITI_BEDROCK_GATEWAY_BASE_URL: 'http://apiaccess.iti.net.eg/other',
+      },
+      {
+        ITI_BEDROCK_GATEWAY_BASE_URL: 'http://apiaccess.iti.net.eg:8080/api/v1',
+      },
+      {
+        ITI_BEDROCK_GATEWAY_BASE_URL:
+          'http://user:password@apiaccess.iti.net.eg/api/v1',
+      },
+      {
+        ITI_BEDROCK_GATEWAY_BASE_URL:
+          'http://apiaccess.iti.net.eg/api/v1?query=value',
+      },
+      {
+        ITI_BEDROCK_GATEWAY_BASE_URL:
+          'http://apiaccess.iti.net.eg/api/v1#fragment',
+      },
+    ]
+    for (const override of invalidOverrides) {
+      expect(() => validateEnv({ ...httpBase, ...override })).toThrow(
+        /ITI_BEDROCK_GATEWAY_BASE_URL:/,
+      )
+    }
+  })
+
+  it('requires an explicit locally allowed model for aws-bedrock', () => {
+    const awsBedrockEnv = {
+      ...validEnv,
+      COMPLETION_PROVIDER: 'aws-bedrock',
+      ITI_BEDROCK_GATEWAY_API_KEY: '<test-only-placeholder>',
+    }
+    expect(() => validateEnv(awsBedrockEnv)).toThrow(
+      /AWS_BEDROCK_MODEL_ID: must be an explicit valid model ID/,
+    )
+    expect(() =>
+      validateEnv({
+        ...awsBedrockEnv,
+        AWS_BEDROCK_MODEL_ID: 'openai.test-model-v1:0',
+      }),
+    ).toThrow(/AWS_BEDROCK_ALLOWED_MODEL_IDS: must contain at least one/)
+    expect(() =>
+      validateEnv({
+        ...awsBedrockEnv,
+        AWS_BEDROCK_MODEL_ID: 'openai.test-model-v1:0',
+        AWS_BEDROCK_ALLOWED_MODEL_IDS: 'anthropic.other-model-v1:0',
+      }),
+    ).toThrow(/AWS_BEDROCK_MODEL_ID: must be present/)
+  })
+
+  it('parses a bounded comma-separated allow-list and rejects duplicates', () => {
+    expect(
+      validateEnv({
+        ...validEnv,
+        AWS_BEDROCK_ALLOWED_MODEL_IDS:
+          'openai.first-v1:0, anthropic.second-v1:0',
+      }),
+    ).toMatchObject({
+      AWS_BEDROCK_ALLOWED_MODEL_IDS: [
+        'openai.first-v1:0',
+        'anthropic.second-v1:0',
+      ],
+    })
+    expect(() =>
+      validateEnv({
+        ...validEnv,
+        AWS_BEDROCK_ALLOWED_MODEL_IDS:
+          'openai.duplicate-v1:0,openai.duplicate-v1:0',
+      }),
+    ).toThrow(/AWS_BEDROCK_ALLOWED_MODEL_IDS: must not contain duplicate/)
+    expect(() =>
+      validateEnv({
+        ...validEnv,
+        AWS_BEDROCK_ALLOWED_MODEL_IDS: Array.from(
+          { length: MAX_AWS_BEDROCK_ALLOWED_MODEL_IDS + 1 },
+          (_, index) => `test.model-${String(index)}`,
+        ).join(','),
+      }),
+    ).toThrow(/AWS_BEDROCK_ALLOWED_MODEL_IDS: must contain at most/)
+  })
+
+  it('accepts model overrides and bounds max tokens', () => {
     const configured = validateEnv({
       ...validEnv,
-      SBG_MODEL_ID: 'global.anthropic.approved-model-v1:0',
-      SBG_MAX_TOKENS: String(MAX_SBG_MAX_TOKENS),
+      AWS_BEDROCK_MODEL_ID: 'global.anthropic.approved-model-v1:0',
+      AWS_BEDROCK_MAX_TOKENS: String(MAX_AWS_BEDROCK_MAX_TOKENS),
     })
 
     expect(configured).toMatchObject({
-      SBG_MODEL_ID: 'global.anthropic.approved-model-v1:0',
-      SBG_MAX_TOKENS: MAX_SBG_MAX_TOKENS,
+      AWS_BEDROCK_MODEL_ID: 'global.anthropic.approved-model-v1:0',
+      AWS_BEDROCK_MAX_TOKENS: MAX_AWS_BEDROCK_MAX_TOKENS,
     })
 
     for (const invalidTokens of [
-      String(MIN_SBG_MAX_TOKENS - 1),
+      String(MIN_AWS_BEDROCK_MAX_TOKENS - 1),
       '1.5',
-      String(MAX_SBG_MAX_TOKENS + 1),
+      String(MAX_AWS_BEDROCK_MAX_TOKENS + 1),
       'many',
     ]) {
       expect(() =>
-        validateEnv({ ...validEnv, SBG_MAX_TOKENS: invalidTokens }),
-      ).toThrow(/SBG_MAX_TOKENS:/)
+        validateEnv({ ...validEnv, AWS_BEDROCK_MAX_TOKENS: invalidTokens }),
+      ).toThrow(/AWS_BEDROCK_MAX_TOKENS:/)
     }
     expect(() =>
-      validateEnv({ ...validEnv, SBG_MODEL_ID: 'invalid/model' }),
-    ).toThrow(/SBG_MODEL_ID:/)
+      validateEnv({
+        ...validEnv,
+        COMPLETION_PROVIDER: 'aws-bedrock',
+        ITI_BEDROCK_GATEWAY_API_KEY: '<test-only-placeholder>',
+        AWS_BEDROCK_MODEL_ID: 'invalid/model',
+        AWS_BEDROCK_ALLOWED_MODEL_IDS: 'invalid/model',
+      }),
+    ).toThrow(/AWS_BEDROCK_/)
   })
 
   it('coerces and bounds the completion timeout', () => {
