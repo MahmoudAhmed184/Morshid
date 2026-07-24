@@ -53,8 +53,12 @@ export function StudentMessageHistory({
   onRetryResponse,
   onSuggestionSelect,
 }: StudentMessageHistoryProps) {
-  if (isPending) {
-    return null
+  if (isPending && !isGenerationActive && messages.length === 0) {
+    return (
+      <div className="flex min-h-[40vh] w-full items-center justify-center">
+        <LoaderCircle className="size-6 animate-spin text-muted-foreground" aria-hidden />
+      </div>
+    )
   }
 
   if (

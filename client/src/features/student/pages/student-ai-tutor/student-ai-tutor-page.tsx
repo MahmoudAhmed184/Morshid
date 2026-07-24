@@ -30,6 +30,7 @@ import {
 import { useStudentCourses } from '@/features/student/hooks/use-student-courses'
 import {
   useCreateStudentSession,
+  useRenameStudentSession,
   useStudentSession,
   useStudentSessionMessages,
 } from '@/features/student/hooks/use-student-sessions'
@@ -350,7 +351,11 @@ function StudentDraftState({
   // through the composer's error affordance.
   const handleDraftSend = async (content: string, clientMessageId: string) => {
     try {
-      const session = await createSession.mutateAsync({})
+      const generatedTitle =
+        content.trim().length > 0 ? content.trim().slice(0, 60) : undefined
+      const session = await createSession.mutateAsync({
+        title: generatedTitle,
+      })
       onFirstMessageCreated(session, content, clientMessageId)
       return true
     } catch {
@@ -476,8 +481,18 @@ function StudentConversation({
     }
   }, [latestMessageKey, messagesQuery.isPending])
 
+  const renameSession = useRenameStudentSession({ courseId: course.id })
+
   const handleSend = async (content: string, clientMessageId: string) => {
     retryMessage.reset()
+
+    if (session.title === 'New chat' && content.trim().length > 0) {
+      const newTitle = content.trim().slice(0, 60)
+      void renameSession.mutateAsync({
+        sessionId: session.id,
+        input: { title: newTitle },
+      }).catch(() => {})
+    }
 
     try {
       await sendMessage.mutateAsync({ clientMessageId, content })
