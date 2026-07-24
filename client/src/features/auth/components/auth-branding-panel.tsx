@@ -1,5 +1,4 @@
 import { Logo } from '@/components/logo'
-import Glitch from '@/components/canvasui/Glitch'
 import { cn } from '@/lib/utils'
 
 type AuthBrandingPanelProps = {
@@ -18,11 +17,11 @@ export function AuthBrandingPanel({ className }: AuthBrandingPanelProps) {
   return (
     <aside
       className={cn(
-        'relative overflow-hidden rounded-3xl bg-foreground text-background shadow-xl',
+        'relative overflow-hidden rounded-3xl bg-foreground/90 text-background shadow-xl backdrop-blur-md',
         className,
       )}
     >
-      <Glitch className="relative z-10 flex h-full w-full flex-col justify-between p-14">
+      <div className="relative z-10 flex h-full w-full flex-col justify-between p-14">
         <div className="flex flex-1 flex-col items-center justify-start pt-12 sm:pt-16 text-center">
           <Logo className="text-background" iconClassName="size-6" />
 
@@ -42,7 +41,7 @@ export function AuthBrandingPanel({ className }: AuthBrandingPanelProps) {
         <p className="footnote text-center text-background/40">
           EST. MMXXVI · EVERY ANSWER HAS A PAGE NUMBER
         </p>
-      </Glitch>
+      </div>
     </aside>
   )
 }
