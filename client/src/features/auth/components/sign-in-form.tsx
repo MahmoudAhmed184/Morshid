@@ -63,7 +63,7 @@ export function SignInForm() {
   const fillDemo = (role: 'instructor' | 'student' | 'admin') => {
     const emails: Record<typeof role, string> = {
       instructor: 'instructor@morshid.demo',
-      student: 'student@morshid.demo',
+      student: 'student1@morshid.demo',
       admin: 'admin@morshid.demo',
     }
     form.setValue('email', emails[role], { shouldValidate: true })
