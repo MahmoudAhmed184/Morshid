@@ -150,8 +150,8 @@ export function AdminAssignmentForm({
               ? 'Updating...'
               : 'Adding...'
             : isEditing
-              ? 'Update Assignment'
-              : 'Add Assignment'}
+              ? 'Update assignment'
+              : 'Add assignment'}
         </Button>
       </div>
     </form>
