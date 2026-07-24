@@ -51,6 +51,20 @@ export function AdminUsersPage() {
     userMutations.disableUser.isPending ||
     userMutations.reactivateUser.isPending
 
+  const roleFilterText =
+    roleFilter === 'STUDENT'
+      ? 'Students'
+      : roleFilter === 'INSTRUCTOR'
+        ? 'Instructors'
+        : 'All roles'
+
+  const statusFilterText =
+    statusFilter === 'ACTIVE'
+      ? 'Active'
+      : statusFilter === 'DISABLED'
+        ? 'Disabled'
+        : 'All statuses'
+
   return (
     <div>
       <PageHeader
@@ -64,15 +78,15 @@ export function AdminUsersPage() {
         <DataToolbar
           className="border-b px-4 py-3"
           filters={
-            <>
+            <div className="flex flex-row items-center gap-2 overflow-x-auto no-scrollbar">
               <Select
                 value={roleFilter}
                 onValueChange={(value) => {
-                  if (value) setRoleFilter(value)
+                  if (value) setRoleFilter(value as RoleFilter)
                 }}
               >
-                <SelectTrigger aria-label="Filter users by role">
-                  <SelectValue />
+                <SelectTrigger className="h-9 px-2.5 text-xs rounded-lg border-border/80 w-auto min-w-[105px]" aria-label="Filter users by role">
+                  <span className="truncate">{roleFilterText}</span>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ALL">All roles</SelectItem>
@@ -83,11 +97,11 @@ export function AdminUsersPage() {
               <Select
                 value={statusFilter}
                 onValueChange={(value) => {
-                  if (value) setStatusFilter(value)
+                  if (value) setStatusFilter(value as StatusFilter)
                 }}
               >
-                <SelectTrigger aria-label="Filter users by status">
-                  <SelectValue />
+                <SelectTrigger className="h-9 px-2.5 text-xs rounded-lg border-border/80 w-auto min-w-[105px]" aria-label="Filter users by status">
+                  <span className="truncate">{statusFilterText}</span>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ALL">All statuses</SelectItem>
@@ -95,7 +109,7 @@ export function AdminUsersPage() {
                   <SelectItem value="DISABLED">Disabled</SelectItem>
                 </SelectContent>
               </Select>
-            </>
+            </div>
           }
           actions={<CreateAdminUserDialog />}
         />

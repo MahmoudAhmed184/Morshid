@@ -10,5 +10,13 @@ type AdminPanelProps = React.ComponentProps<typeof Card>
  * padding and gap are zeroed out here (consumers add padding via `className`).
  */
 export function AdminPanel({ className, ...props }: AdminPanelProps) {
-  return <Card className={cn('gap-0 py-0', className)} {...props} />
+  return (
+    <Card
+      className={cn(
+        'gap-0 py-0 -mx-4 rounded-none border-x-0 sm:mx-0 sm:rounded-xl sm:border-x overflow-hidden',
+        className,
+      )}
+      {...props}
+    />
+  )
 }

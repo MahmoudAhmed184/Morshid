@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion'
 import { LogOut, Monitor, Moon, Palette, Sun, UserRound } from 'lucide-react'
 
 import { getUserInitials } from '@/components/layout/get-user-initials'
@@ -52,7 +51,7 @@ export function DashboardSettingsPage({
         />
       )}
 
-      <Card>
+      <Card className="-mx-4 rounded-none border-x-0 sm:mx-0 sm:rounded-xl sm:border-x">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <UserRound className="size-4 text-muted-foreground" aria-hidden />
@@ -81,7 +80,7 @@ export function DashboardSettingsPage({
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="-mx-4 rounded-none border-x-0 sm:mx-0 sm:rounded-xl sm:border-x">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Palette className="size-4 text-muted-foreground" aria-hidden />
@@ -94,7 +93,7 @@ export function DashboardSettingsPage({
         <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm font-medium text-foreground">Theme mode</p>
 
-          <div className="inline-flex items-center gap-1 rounded-2xl border border-border/80 bg-muted/50 p-1.5 shadow-xs">
+          <div className="grid w-full grid-cols-3 gap-1 rounded-2xl border border-border/80 bg-muted/50 p-1.5 shadow-xs sm:w-auto sm:inline-flex">
             {themeOptions.map((option) => {
               const Icon = option.icon
               const isActive = theme === option.value
@@ -103,34 +102,16 @@ export function DashboardSettingsPage({
                 <button
                   key={option.value}
                   type="button"
-                  onClick={(event) =>
-                    setTheme(option.value, {
-                      x: event.clientX,
-                      y: event.clientY,
-                    })
-                  }
+                  onClick={() => setTheme(option.value)}
                   className={cn(
-                    'relative flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium transition-colors cursor-pointer select-none',
+                    'flex items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs font-medium sm:px-3.5 sm:text-sm transition-colors cursor-pointer select-none min-w-0',
                     isActive
-                      ? 'text-foreground font-semibold'
+                      ? 'bg-background text-foreground font-semibold shadow-xs border border-border/40'
                       : 'text-muted-foreground hover:text-foreground',
                   )}
                 >
-                  {isActive ? (
-                    <motion.div
-                      layoutId="activeThemePill"
-                      className="absolute inset-0 rounded-xl bg-background shadow-xs border border-border/40"
-                      transition={{
-                        type: 'spring',
-                        stiffness: 500,
-                        damping: 35,
-                      }}
-                    />
-                  ) : null}
-                  <span className="relative z-10 flex items-center gap-2">
-                    <Icon className="size-4" aria-hidden />
-                    {option.label}
-                  </span>
+                  <Icon className="size-3.5 sm:size-4 shrink-0" aria-hidden />
+                  <span className="truncate">{option.label}</span>
                 </button>
               )
             })}
@@ -138,7 +119,7 @@ export function DashboardSettingsPage({
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="-mx-4 rounded-none border-x-0 sm:mx-0 sm:rounded-xl sm:border-x">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <LogOut className="size-4 text-muted-foreground" aria-hidden />

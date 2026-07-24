@@ -63,7 +63,7 @@ function runThemeTransition(
     '(prefers-reduced-motion: reduce)',
   ).matches
 
-  if (reduceMotion) {
+  if (reduceMotion || !origin) {
     updateTheme()
     return
   }
@@ -72,8 +72,8 @@ function runThemeTransition(
     typeof document !== 'undefined' && 'startViewTransition' in document
 
   if (hasViewTransition) {
-    const x = origin?.x ?? window.innerWidth / 2
-    const y = origin?.y ?? window.innerHeight / 2
+    const x = origin.x
+    const y = origin.y
     const endRadius = Math.hypot(
       Math.max(x, window.innerWidth - x),
       Math.max(y, window.innerHeight - y),
@@ -96,8 +96,8 @@ function runThemeTransition(
           ],
         },
         {
-          duration: 800,
-          easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+          duration: 450,
+          easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
           pseudoElement: '::view-transition-new(root)',
         },
       )
@@ -132,9 +132,9 @@ export function ThemeProvider({
   }, [theme])
 
   const setTheme = (next: ThemeMode, origin?: ThemeTransitionOrigin) => {
+    localStorage.setItem(storageKey, next)
+    setThemeState(next)
     runThemeTransition(() => {
-      localStorage.setItem(storageKey, next)
-      setThemeState(next)
       applyTheme(next)
     }, origin)
   }

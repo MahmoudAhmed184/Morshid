@@ -3,7 +3,7 @@ import { BookMarked } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { ModeToggle } from '@/components/ui/mode-toggle'
-import { SidebarInset, useSidebar } from '@/components/ui/sidebar'
+import { SidebarInset, SidebarTrigger, useSidebar } from '@/components/ui/sidebar'
 import { useStudentChromeSources } from '@/features/student/components/student-chrome-context'
 import { cn } from '@/lib/utils'
 
@@ -92,9 +92,14 @@ export function StudentShell() {
       </div>
 
       {framed ? null : (
-        <div className="glass-paper fixed top-3 right-3 z-50 flex gap-1 rounded-xl p-1 shadow-sm">
-          <ClusterButtons />
-        </div>
+        <>
+          <div className="glass-paper fixed top-3 left-3 z-50 flex items-center gap-1 rounded-xl p-1 shadow-sm md:hidden">
+            <SidebarTrigger />
+          </div>
+          <div className="glass-paper fixed top-3 right-3 z-50 flex gap-1 rounded-xl p-1 shadow-sm">
+            <ClusterButtons />
+          </div>
+        </>
       )}
     </SidebarInset>
   )

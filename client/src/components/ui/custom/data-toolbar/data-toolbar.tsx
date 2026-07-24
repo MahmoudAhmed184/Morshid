@@ -35,8 +35,8 @@ export function DataToolbar({
 }: DataToolbarProps) {
   return (
     <div className={cn('flex flex-col gap-3', className)}>
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
+      <div className="flex flex-wrap items-center justify-between gap-2.5">
+        <div className="flex flex-1 flex-wrap items-center gap-2">
           {onSearchChange ? (
             <SearchInput
               value={search ?? ''}
@@ -47,7 +47,7 @@ export function DataToolbar({
           {filters}
         </div>
         {actions ? (
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             {actions}
           </div>
         ) : null}

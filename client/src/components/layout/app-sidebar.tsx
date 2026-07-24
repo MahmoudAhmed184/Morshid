@@ -90,6 +90,8 @@ function StaffSidebarContent({
   ariaLabel: string
   pathname: string
 }) {
+  const { isMobile, setOpenMobile } = useSidebar()
+
   return (
     <SidebarMenu aria-label={ariaLabel} className="gap-0.5 px-2 pt-2">
       {navigation.map((item) => {
@@ -100,6 +102,11 @@ function StaffSidebarContent({
           <SidebarMenuItem key={item.to}>
             <SidebarMenuButton
               isActive={isActive}
+              onClick={() => {
+                if (isMobile) {
+                  setOpenMobile(false)
+                }
+              }}
               render={
                 <Link
                   to={item.to}
@@ -121,6 +128,7 @@ function SidebarFooterUser({ role }: { role: AppSidebarRole }) {
   const user = useAuthStore((state) => state.user)
   const logout = useLogout()
   const { theme, setTheme } = useTheme()
+  const { isMobile, setOpenMobile } = useSidebar()
   const [confirmSignOutOpen, setConfirmSignOutOpen] = useState(false)
 
   const displayName = user?.displayName ?? 'Account'
@@ -154,7 +162,14 @@ function SidebarFooterUser({ role }: { role: AppSidebarRole }) {
           </span>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-56">
-          <DropdownMenuItem render={<Link to={settingsTargetByRole[role]} />}>
+          <DropdownMenuItem
+            onClick={() => {
+              if (isMobile) {
+                setOpenMobile(false)
+              }
+            }}
+            render={<Link to={settingsTargetByRole[role]} />}
+          >
             <Settings aria-hidden />
             Settings
           </DropdownMenuItem>
@@ -256,6 +271,7 @@ function CollapsedCluster({
 }
 
 export function AppSidebar({ role, navigation, ariaLabel }: AppSidebarProps) {
+  const { isMobile, setOpenMobile } = useSidebar()
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   })
@@ -269,6 +285,11 @@ export function AppSidebar({ role, navigation, ariaLabel }: AppSidebarProps) {
           <SidebarTrigger className="-ml-1" />
           <Link
             to={wordmarkTargetByRole[role]}
+            onClick={() => {
+              if (isMobile) {
+                setOpenMobile(false)
+              }
+            }}
             className="flex items-center gap-2 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
           >
             <Logo className="size-6 text-foreground" iconClassName="size-4.5" />
