@@ -60,13 +60,51 @@ export function SignInForm() {
     await navigate({ to: getDashboardPath(session.user.role) })
   }
 
+  const fillDemo = (role: 'instructor' | 'student' | 'admin') => {
+    const emails: Record<typeof role, string> = {
+      instructor: 'instructor@morshid.demo',
+      student: 'student@morshid.demo',
+      admin: 'admin@morshid.demo',
+    }
+    form.setValue('email', emails[role], { shouldValidate: true })
+    form.setValue('password', 'MorshidDemoP0!', { shouldValidate: true })
+    setAuthErrorMessage(null)
+  }
+
   return (
     <Form {...form}>
       <form
-        className="space-y-6"
+        className="space-y-5"
         noValidate
         onSubmit={form.handleSubmit(onSubmit)}
       >
+        {/* Quick Demo Credentials Pills */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="font-mono text-[0.68rem] uppercase tracking-wider text-muted-foreground mr-1">
+            Autofill:
+          </span>
+          <button
+            type="button"
+            onClick={() => fillDemo('instructor')}
+            className="rounded-full border border-border/80 bg-muted/60 px-2.5 py-0.5 font-mono text-[0.68rem] font-medium text-foreground/90 transition-colors hover:bg-muted hover:text-foreground"
+          >
+            Instructor
+          </button>
+          <button
+            type="button"
+            onClick={() => fillDemo('student')}
+            className="rounded-full border border-border/80 bg-muted/60 px-2.5 py-0.5 font-mono text-[0.68rem] font-medium text-foreground/90 transition-colors hover:bg-muted hover:text-foreground"
+          >
+            Student
+          </button>
+          <button
+            type="button"
+            onClick={() => fillDemo('admin')}
+            className="rounded-full border border-border/80 bg-muted/60 px-2.5 py-0.5 font-mono text-[0.68rem] font-medium text-foreground/90 transition-colors hover:bg-muted hover:text-foreground"
+          >
+            Admin
+          </button>
+        </div>
         <FormField
           control={form.control}
           name="email"

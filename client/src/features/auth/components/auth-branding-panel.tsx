@@ -1,4 +1,5 @@
 import { Logo } from '@/components/logo'
+import Grid from '@/components/canvasui/Grid'
 import { cn } from '@/lib/utils'
 
 type AuthBrandingPanelProps = {
@@ -17,29 +18,31 @@ export function AuthBrandingPanel({ className }: AuthBrandingPanelProps) {
   return (
     <aside
       className={cn(
-        'flex-col justify-between rounded-3xl bg-foreground p-14 text-background shadow-xl',
+        'relative overflow-hidden rounded-3xl bg-foreground text-background shadow-xl',
         className,
       )}
     >
-      <div className="flex flex-1 flex-col items-center justify-center text-center">
-        <Logo className="text-background" iconClassName="size-6" />
+      <Grid className="relative z-10 flex h-full w-full flex-col justify-between p-14">
+        <div className="flex flex-1 flex-col items-center justify-start pt-12 sm:pt-16 text-center">
+          <Logo className="text-background" iconClassName="size-6" />
 
-        <div className="mt-8 w-16 border-t-2 border-background/30" />
+          <div className="mt-8 w-16 border-t-2 border-background/30" />
 
-        <h1 className="font-display mt-8 indent-[0.35em] text-[3rem] leading-none font-semibold tracking-[0.35em] text-background">
-          MORSHID
-        </h1>
+          <h1 className="font-display mt-8 indent-[0.35em] text-[3rem] leading-none font-semibold tracking-[0.35em] text-background">
+            MORSHID
+          </h1>
 
-        <p className="smallcaps-label mt-6 max-w-xs text-background/60">
-          A SOCRATIC TUTOR, BOUND TO YOUR COURSE MATERIALS
+          <p className="smallcaps-label mt-6 max-w-xs text-background/60">
+            A SOCRATIC TUTOR, BOUND TO YOUR COURSE MATERIALS
+          </p>
+
+          <div className="mt-8 w-16 border-t-2 border-background/30" />
+        </div>
+
+        <p className="footnote text-center text-background/40">
+          EST. MMXXVI · EVERY ANSWER HAS A PAGE NUMBER
         </p>
-
-        <div className="mt-8 w-16 border-t-2 border-background/30" />
-      </div>
-
-      <p className="footnote text-center text-background/40">
-        EST. MMXXVI · EVERY ANSWER HAS A PAGE NUMBER
-      </p>
+      </Grid>
     </aside>
   )
 }
