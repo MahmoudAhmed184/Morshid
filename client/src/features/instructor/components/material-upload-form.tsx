@@ -49,6 +49,7 @@ export function MaterialUploadForm({
   const [progress, setProgress] = useState(0)
   const [dragActive, setDragActive] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const uploadSchema = useMemo(
@@ -64,8 +65,6 @@ export function MaterialUploadForm({
       file: undefined,
     },
   })
-
-  const selectedFile = form.watch('file') as File | undefined
 
   const simulateProgress = (): Promise<void> => {
     return new Promise((resolve) => {
@@ -115,6 +114,7 @@ export function MaterialUploadForm({
 
   const handleReset = () => {
     form.reset({ title: '', file: undefined })
+    setSelectedFile(null)
     setStatus('idle')
     setProgress(0)
     setErrorMessage(null)
@@ -135,9 +135,10 @@ export function MaterialUploadForm({
     event.stopPropagation()
     setDragActive(false)
 
-    if (event.dataTransfer.files && event.dataTransfer.files[0]) {
-      const file = event.dataTransfer.files[0]
+    const file = event.dataTransfer.files.item(0)
+    if (file) {
       form.setValue('file', file, { shouldValidate: true })
+      setSelectedFile(file)
       if (!form.getValues('title')) {
         const titleFromFilename = file.name.replace(/\.[^/.]+$/, '')
         form.setValue('title', titleFromFilename, { shouldValidate: true })
@@ -178,22 +179,22 @@ export function MaterialUploadForm({
               render={({ field: { onChange, onBlur, name } }) => (
                 <FormItem className="w-full min-w-0">
                   <FormLabel>PDF file</FormLabel>
-                  <FormControl>
-                    <div
-                      onDragEnter={handleDrag}
-                      onDragLeave={handleDrag}
-                      onDragOver={handleDrag}
-                      onDrop={handleDrop}
-                      onClick={() => fileInputRef.current?.click()}
-                      className={cn(
-                        'relative flex w-full min-w-0 max-w-full cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-4 sm:p-5 text-center transition-all overflow-hidden',
-                        dragActive
-                          ? 'border-primary bg-primary/5'
-                          : selectedFile
-                            ? 'border-border bg-card'
-                            : 'border-border/80 bg-muted/30 hover:border-muted-foreground/40 hover:bg-muted/60',
-                      )}
-                    >
+                  <div
+                    onDragEnter={handleDrag}
+                    onDragLeave={handleDrag}
+                    onDragOver={handleDrag}
+                    onDrop={handleDrop}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={cn(
+                      'relative flex w-full min-w-0 max-w-full cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-4 sm:p-5 text-center transition-all overflow-hidden',
+                      dragActive
+                        ? 'border-primary bg-primary/5'
+                        : selectedFile
+                          ? 'border-border bg-card'
+                          : 'border-border/80 bg-muted/30 hover:border-muted-foreground/40 hover:bg-muted/60',
+                    )}
+                  >
+                    <FormControl>
                       <input
                         ref={fileInputRef}
                         name={name}
@@ -205,6 +206,7 @@ export function MaterialUploadForm({
                           const file = event.target.files?.[0]
                           if (file) {
                             onChange(file)
+                            setSelectedFile(file)
                             if (!form.getValues('title')) {
                               const titleFromFilename = file.name.replace(
                                 /\.[^/.]+$/,
@@ -217,59 +219,57 @@ export function MaterialUploadForm({
                           }
                         }}
                       />
+                    </FormControl>
 
-                      {selectedFile ? (
-                        <div className="flex w-full min-w-0 max-w-full items-center justify-between gap-3 overflow-hidden">
-                          <div className="flex items-center gap-3 min-w-0 flex-1 overflow-hidden">
-                            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                              <FileTextIcon className="size-5" />
-                            </div>
-                            <div className="text-left min-w-0 flex-1 overflow-hidden">
-                              <p className="truncate text-sm font-semibold text-foreground">
-                                {selectedFile.name}
-                              </p>
-                              <p className="font-mono text-xs text-muted-foreground">
-                                {formatFileSize(selectedFile.size)}
-                              </p>
-                            </div>
+                    {selectedFile ? (
+                      <div className="flex w-full min-w-0 max-w-full items-center justify-between gap-3 overflow-hidden">
+                        <div className="flex items-center gap-3 min-w-0 flex-1 overflow-hidden">
+                          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                            <FileTextIcon className="size-5" />
                           </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-sm"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              form.setValue(
-                                'file',
-                                undefined as unknown as File,
-                                {
-                                  shouldValidate: true,
-                                },
-                              )
-                            }}
-                            className="shrink-0 text-muted-foreground hover:text-foreground"
-                          >
-                            <XIcon className="size-4" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center gap-2">
-                          <div className="flex size-11 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
-                            <UploadCloudIcon className="size-6" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-foreground">
-                              Click or drag PDF file here
+                          <div className="text-left min-w-0 flex-1 overflow-hidden">
+                            <p className="truncate text-sm font-semibold text-foreground">
+                              {selectedFile.name}
                             </p>
-                            <p className="mt-0.5 text-xs text-muted-foreground">
-                              Maximum{' '}
-                              {formatFileSize(configuration.maxUploadBytes)}
+                            <p className="font-mono text-xs text-muted-foreground">
+                              {formatFileSize(selectedFile.size)}
                             </p>
                           </div>
                         </div>
-                      )}
-                    </div>
-                  </FormControl>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            form.resetField('file')
+                            setSelectedFile(null)
+                            if (fileInputRef.current) {
+                              fileInputRef.current.value = ''
+                            }
+                          }}
+                          className="shrink-0 text-muted-foreground hover:text-foreground"
+                        >
+                          <XIcon className="size-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="flex size-11 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
+                          <UploadCloudIcon className="size-6" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-foreground">
+                            Click or drag PDF file here
+                          </p>
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            Maximum{' '}
+                            {formatFileSize(configuration.maxUploadBytes)}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                   <FormDescription className="sr-only">
                     PDF only. Maximum{' '}
                     {formatFileSize(configuration.maxUploadBytes)}.

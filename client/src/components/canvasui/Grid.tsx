@@ -1,12 +1,7 @@
 'use client'
 
-import {
-  useEffect,
-  useRef,
-  useState,
-  useSyncExternalStore,
-  type ReactNode,
-} from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import type { ReactNode } from 'react'
 
 export interface GridOptions {
   /** Size of each grid tile in CSS pixels. */
@@ -317,7 +312,7 @@ void main () {
 export function supportsHtmlInCanvas(): boolean {
   if (typeof document === 'undefined') return false
   const probe = document.createElement('canvas') as PaintableCanvas
-  const ctx = probe.getContext('2d') as ElementImageContext | null
+  const ctx: ElementImageContext | null = probe.getContext('2d')
   return Boolean(
     ctx &&
     typeof ctx.drawElementImage === 'function' &&
@@ -341,7 +336,7 @@ export function createGrid(
   })
   if (!gl || gl.isContextLost()) return null
 
-  const sourceCtx = source.getContext('2d') as ElementImageContext | null
+  const sourceCtx: ElementImageContext | null = source.getContext('2d')
   const paintable = source as PaintableCanvas
   const htmlInCanvas = Boolean(
     sourceCtx &&
@@ -376,7 +371,7 @@ export function createGrid(
   function link(fragText: string) {
     const vertexShader = compile(gl!.VERTEX_SHADER, VERT)
     const fragmentShader = compile(gl!.FRAGMENT_SHADER, fragText)
-    const program = gl!.createProgram()!
+    const program = gl!.createProgram()
     gl!.attachShader(program, vertexShader)
     gl!.attachShader(program, fragmentShader)
     gl!.linkProgram(program)
@@ -402,7 +397,7 @@ export function createGrid(
   gl.enableVertexAttribArray(0)
   gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0)
 
-  const contentTexture = gl.createTexture()!
+  const contentTexture = gl.createTexture()
   gl.bindTexture(gl.TEXTURE_2D, contentTexture)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
@@ -421,7 +416,7 @@ export function createGrid(
   )
 
   const trailData = new Float32Array(MAX_TRAIL * 4)
-  const trailTexture = gl.createTexture()!
+  const trailTexture = gl.createTexture()
   gl.bindTexture(gl.TEXTURE_2D, trailTexture)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
@@ -789,16 +784,16 @@ export function createGrid(
       motionQuery.removeEventListener('change', onMotionChange)
       listenTarget.removeEventListener('pointermove', onPointerMove)
       listenTarget.removeEventListener('pointerleave', onPointerLeave)
-      gl!.deleteTexture(contentTexture)
-      gl!.deleteTexture(trailTexture)
-      if (tileTexture) gl!.deleteTexture(tileTexture)
-      if (tileFbo) gl!.deleteFramebuffer(tileFbo)
+      gl.deleteTexture(contentTexture)
+      gl.deleteTexture(trailTexture)
+      if (tileTexture) gl.deleteTexture(tileTexture)
+      if (tileFbo) gl.deleteFramebuffer(tileFbo)
       for (const pass of [mainPass, tilePass]) {
-        gl!.deleteProgram(pass.program)
-        gl!.deleteShader(pass.vertexShader)
-        gl!.deleteShader(pass.fragmentShader)
+        gl.deleteProgram(pass.program)
+        gl.deleteShader(pass.vertexShader)
+        gl.deleteShader(pass.fragmentShader)
       }
-      gl!.deleteBuffer(quad)
+      gl.deleteBuffer(quad)
       if (htmlInCanvas) paintable.onpaint = null
     },
   }

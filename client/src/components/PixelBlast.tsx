@@ -122,7 +122,7 @@ const createTouchTexture = (): TouchTexture => {
       point.age++
       if (point.age > maxAge) trail.splice(i, 1)
     }
-    for (let i = 0; i < trail.length; i++) drawPoint(trail[i])
+    for (const point of trail) drawPoint(point)
     texture.needsUpdate = true
   }
   return {
@@ -472,7 +472,7 @@ const PixelBlast: React.FC<PixelBlastProps> = ({
           ),
         },
         uClickTimes: { value: new Float32Array(MAX_CLICKS) },
-        uShapeType: { value: SHAPE_MAP[variant] ?? 0 },
+        uShapeType: { value: SHAPE_MAP[variant] },
         uPixelSize: { value: pixelSize * renderer.getPixelRatio() },
         uScale: { value: patternScale },
         uDensity: { value: patternDensity },
@@ -517,12 +517,9 @@ const PixelBlast: React.FC<PixelBlastProps> = ({
       const ro = new ResizeObserver(setSize)
       ro.observe(container)
       const randomFloat = (): number => {
-        if (typeof window !== 'undefined' && window.crypto?.getRandomValues) {
-          const u32 = new Uint32Array(1)
-          window.crypto.getRandomValues(u32)
-          return u32[0] / 0xffffffff
-        }
-        return Math.random()
+        const u32 = new Uint32Array(1)
+        window.crypto.getRandomValues(u32)
+        return u32[0] / 0xffffffff
       }
       const timeOffset = randomFloat() * 1000
       let composer: EffectComposer | undefined
@@ -559,7 +556,7 @@ const PixelBlast: React.FC<PixelBlastProps> = ({
         )
         const noisePass = new EffectPass(camera, noiseEffect)
         noisePass.renderToScreen = true
-        if (composer && composer.passes.length > 0) {
+        if (composer.passes.length > 0) {
           composer.passes.forEach((p) => {
             const pass = p as { renderToScreen?: boolean }
             pass.renderToScreen = false
@@ -609,9 +606,7 @@ const PixelBlast: React.FC<PixelBlastProps> = ({
         uniforms.uTime.value =
           timeOffset + clock.getElapsedTime() * speedRef.current
         if (liquidEffect) {
-          const liqEffect = liquidEffect as Effect & {
-            uniforms: Map<string, THREE.Uniform>
-          }
+          const liqEffect = liquidEffect
           const timeUniform = liqEffect.uniforms.get('uTime')
           if (timeUniform) timeUniform.value = uniforms.uTime.value
         }
@@ -623,7 +618,7 @@ const PixelBlast: React.FC<PixelBlastProps> = ({
             }
             if (pass.effects) {
               pass.effects.forEach((eff) => {
-                const timeUniform = eff.uniforms?.get('uTime')
+                const timeUniform = eff.uniforms.get('uTime')
                 if (timeUniform) timeUniform.value = uniforms.uTime.value
               })
             }
@@ -651,7 +646,7 @@ const PixelBlast: React.FC<PixelBlastProps> = ({
       }
     } else {
       const t = threeRef.current!
-      t.uniforms.uShapeType.value = SHAPE_MAP[variant] ?? 0
+      t.uniforms.uShapeType.value = SHAPE_MAP[variant]
       t.uniforms.uPixelSize.value = pixelSize * t.renderer.getPixelRatio()
       t.uniforms.uColor.value.set(color)
       t.uniforms.uScale.value = patternScale
@@ -665,9 +660,7 @@ const PixelBlast: React.FC<PixelBlastProps> = ({
       if (transparent) t.renderer.setClearAlpha(0)
       else t.renderer.setClearColor(0x000000, 1)
       if (t.liquidEffect) {
-        const liqEffect = t.liquidEffect as Effect & {
-          uniforms: Map<string, THREE.Uniform>
-        }
+        const liqEffect = t.liquidEffect
         const uStrength = liqEffect.uniforms.get('uStrength')
         if (uStrength) uStrength.value = liquidStrength
         const uFreq = liqEffect.uniforms.get('uFreq')

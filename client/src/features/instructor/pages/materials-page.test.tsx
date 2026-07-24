@@ -418,9 +418,10 @@ describe('MaterialsPage', () => {
     renderMaterialsPage()
 
     await user.click(screen.getByRole('button', { name: 'Upload Material' }))
-    await user.click(screen.getByRole('button', { name: 'Upload PDF' }))
+    await user.type(screen.getByLabelText('Material title'), ' ')
 
     expect(screen.getByText('Title is required')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Upload PDF' })).toBeDisabled()
     expect(uploadMaterial).not.toHaveBeenCalled()
   })
 
@@ -446,7 +447,7 @@ describe('MaterialsPage', () => {
     expect(uploadMaterial).not.toHaveBeenCalled()
   })
 
-  it('disables the form and announces upload progress while submit is pending', async () => {
+  it('replaces the form with upload progress while submit is pending', async () => {
     let resolveUpload!: (value: { material: typeof material }) => void
     const uploadPromise = new Promise<{ material: typeof material }>(
       (resolve) => {
@@ -465,17 +466,21 @@ describe('MaterialsPage', () => {
     await user.upload(screen.getByLabelText('PDF file'), file)
     await user.click(screen.getByRole('button', { name: 'Upload PDF' }))
 
-    expect(screen.getByRole('button', { name: 'Uploading...' })).toBeDisabled()
-    expect(screen.getByLabelText('Material title')).toBeDisabled()
-    expect(screen.getByLabelText('PDF file')).toBeDisabled()
+    expect(await screen.findByText('Uploading pending.pdf…')).toBeVisible()
+    expect(screen.queryByLabelText('Material title')).toBeNull()
+    expect(screen.queryByLabelText('PDF file')).toBeNull()
 
     resolveUpload({ material })
     expect(
-      await screen.findByText('PDF uploaded and queued for processing.'),
+      await screen.findByText(
+        'PDF uploaded and queued for processing and Socratic citations.',
+        {},
+        { timeout: 3_000 },
+      ),
     ).toBeVisible()
   })
 
-  it('renders a typed server error and succeeds when the retained upload is resubmitted', async () => {
+  it('renders a typed server error and succeeds after the form is reset', async () => {
     uploadMaterial
       .mockRejectedValueOnce(
         new ApiError('PDF upload exceeds the configured size limit', 413),
@@ -496,10 +501,17 @@ describe('MaterialsPage', () => {
       await screen.findByText('PDF upload exceeds the configured size limit'),
     ).toBeVisible()
 
+    await user.click(screen.getByRole('button', { name: 'Try again' }))
+    await user.type(screen.getByLabelText('Material title'), 'Retry upload')
+    await user.upload(screen.getByLabelText('PDF file'), file)
     await user.click(screen.getByRole('button', { name: 'Upload PDF' }))
 
     expect(
-      await screen.findByText('PDF uploaded and queued for processing.'),
+      await screen.findByText(
+        'PDF uploaded and queued for processing and Socratic citations.',
+        {},
+        { timeout: 3_000 },
+      ),
     ).toBeVisible()
     expect(uploadMaterial).toHaveBeenCalledTimes(2)
   })
@@ -520,7 +532,9 @@ describe('MaterialsPage', () => {
     await user.click(screen.getByRole('button', { name: 'Upload PDF' }))
 
     expect(
-      await screen.findByText('Unable to upload this PDF. Please try again.'),
+      await screen.findByText(
+        'Unable to upload this PDF. Please verify the file and try again.',
+      ),
     ).toBeVisible()
     expect(screen.queryByText('private network details')).toBeNull()
   })
@@ -547,8 +561,13 @@ describe('MaterialsPage', () => {
       }),
     )
     expect(
-      await screen.findByText('PDF uploaded and queued for processing.'),
+      await screen.findByText(
+        'PDF uploaded and queued for processing and Socratic citations.',
+        {},
+        { timeout: 3_000 },
+      ),
     ).toBeVisible()
-    expect(titleInput).toHaveValue('')
+    await user.click(screen.getByRole('button', { name: 'Upload another' }))
+    expect(screen.getByLabelText('Material title')).toHaveValue('')
   })
 })

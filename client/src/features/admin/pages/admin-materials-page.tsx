@@ -34,7 +34,7 @@ import {
   useAdminCourseMutations,
   useAdminCourses,
 } from '../hooks/use-admin-courses'
-import type { AdminCourseMaterial } from '../schemas/admin-course-material.schema'
+import type { AdminMaterial } from '../schemas/admin-course.schema'
 
 const materialDateFormatter = new Intl.DateTimeFormat(undefined, {
   dateStyle: 'medium',
@@ -43,7 +43,7 @@ const materialDateFormatter = new Intl.DateTimeFormat(undefined, {
 export function AdminMaterialsPage() {
   const [selectedCourseId, setSelectedCourseId] = useState('')
   const [selectedMaterial, setSelectedMaterial] =
-    useState<AdminCourseMaterial | null>(null)
+    useState<AdminMaterial | null>(null)
   const coursesQuery = useAdminCourses()
   const courseId = selectedCourseId || coursesQuery.data?.[0]?.id
   const materialsQuery = useAdminCourseMaterials(courseId)

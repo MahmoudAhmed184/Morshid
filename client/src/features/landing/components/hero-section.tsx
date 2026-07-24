@@ -164,7 +164,7 @@ export function HeroTranscriptStack() {
           <div className="mt-4 space-y-3.5 sm:mt-5 sm:space-y-4 opacity-50">
             {thirdSheet.turns.map((turn, idx) => (
               <div key={idx}>
-                <SpeakerLabel tone={turn.tone as 'student' | 'morshid'}>
+                <SpeakerLabel tone={turn.tone}>
                   {turn.tone === 'student' ? 'Student.' : 'Morshid.'}
                 </SpeakerLabel>
                 <p className="mt-1 leading-relaxed text-foreground text-xs">
@@ -196,7 +196,7 @@ export function HeroTranscriptStack() {
           <div className="mt-4 space-y-3.5 sm:mt-5 sm:space-y-4">
             {nextSheet.turns.map((turn, idx) => (
               <div key={idx}>
-                <SpeakerLabel tone={turn.tone as 'student' | 'morshid'}>
+                <SpeakerLabel tone={turn.tone}>
                   {turn.tone === 'student' ? 'Student.' : 'Morshid.'}
                 </SpeakerLabel>
                 <p
@@ -282,7 +282,7 @@ export function HeroTranscriptStack() {
           <div className="mt-4 space-y-3.5 sm:mt-5 sm:space-y-4">
             {currentSheet.turns.map((turn, idx) => (
               <div key={idx} className="motion-safe:animate-fade-up">
-                <SpeakerLabel tone={turn.tone as 'student' | 'morshid'}>
+                <SpeakerLabel tone={turn.tone}>
                   {turn.tone === 'student' ? 'Student.' : 'Morshid.'}
                 </SpeakerLabel>
                 <p

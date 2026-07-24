@@ -9,8 +9,7 @@ import {
   Settings,
   Sun,
 } from 'lucide-react'
-import { useState } from 'react'
-import { useRef } from 'react'
+import { useState, useRef } from 'react'
 import type { LucideIcon } from 'lucide-react'
 
 import { getUserInitials } from '@/components/layout/get-user-initials'

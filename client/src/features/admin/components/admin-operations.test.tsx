@@ -74,7 +74,9 @@ describe('Admin operation controls', () => {
       />,
     )
 
-    await user.click(screen.getByRole('button', { name: 'Remove assignment' }))
+    await user.click(
+      screen.getAllByRole('button', { name: 'Remove assignment' })[0],
+    )
     expect(
       await screen.findByRole('heading', {
         name: 'Remove course assignment?',

@@ -30,6 +30,7 @@ import type {
 } from '@/features/admin/schemas/admin-course.schema'
 
 type AdminAssignmentsTableProps = {
+  courseId?: string
   members: AdminCourseMember[]
   isPending: boolean
   onRoleChange: (userId: string, role: CourseMembershipRole) => void
@@ -42,6 +43,7 @@ const roleSelectItems = [
 ]
 
 export function AdminAssignmentsTable({
+  courseId,
   members,
   isPending,
   onRoleChange,
@@ -254,14 +256,16 @@ export function AdminAssignmentsTable({
                 </div>
               </div>
 
-              <div className="rounded-xl border bg-card p-3 space-y-1">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Course ID
-                </p>
-                <p className="font-mono text-xs text-foreground select-all break-all">
-                  {selectedMember.courseId}
-                </p>
-              </div>
+              {courseId ? (
+                <div className="rounded-xl border bg-card p-3 space-y-1">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Course ID
+                  </p>
+                  <p className="font-mono text-xs text-foreground select-all break-all">
+                    {courseId}
+                  </p>
+                </div>
+              ) : null}
 
               <div className="rounded-xl border bg-card p-3 space-y-1">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">

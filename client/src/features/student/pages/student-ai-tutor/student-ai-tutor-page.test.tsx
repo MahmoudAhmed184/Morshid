@@ -322,7 +322,7 @@ describe('StudentAiTutorPage workspace', () => {
     await waitFor(() =>
       expect(createStudentSessionMock).toHaveBeenCalledWith({
         courseId: primaryCourse.id,
-        input: {},
+        input: { title: 'My first question' },
       }),
     )
     await waitFor(() =>

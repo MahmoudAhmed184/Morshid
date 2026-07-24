@@ -9,7 +9,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select'
 import {
   useAdminUserMutations,
@@ -82,7 +81,7 @@ export function AdminUsersPage() {
               <Select
                 value={roleFilter}
                 onValueChange={(value) => {
-                  if (value) setRoleFilter(value as RoleFilter)
+                  if (value) setRoleFilter(value)
                 }}
               >
                 <SelectTrigger
@@ -100,7 +99,7 @@ export function AdminUsersPage() {
               <Select
                 value={statusFilter}
                 onValueChange={(value) => {
-                  if (value) setStatusFilter(value as StatusFilter)
+                  if (value) setStatusFilter(value)
                 }}
               >
                 <SelectTrigger

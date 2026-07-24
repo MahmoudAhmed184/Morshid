@@ -51,17 +51,18 @@ const cx = (...parts: Array<string | false | null | undefined>) =>
 
 const useResizeObserver = (
   callback: () => void,
-  elements: Array<React.RefObject<Element | null>>,
-  dependencies: React.DependencyList,
+  firstElement: React.RefObject<Element | null>,
+  secondElement: React.RefObject<Element | null>,
 ) => {
   useEffect(() => {
-    if (!window.ResizeObserver) {
+    if (typeof ResizeObserver === 'undefined') {
       const handleResize = () => callback()
       window.addEventListener('resize', handleResize)
       callback()
       return () => window.removeEventListener('resize', handleResize)
     }
 
+    const elements = [firstElement, secondElement]
     const observers = elements.map((ref) => {
       if (!ref.current) return null
       const observer = new ResizeObserver(callback)
@@ -74,13 +75,16 @@ const useResizeObserver = (
     return () => {
       observers.forEach((observer) => observer?.disconnect())
     }
-  }, dependencies)
+  }, [callback, firstElement, secondElement])
 }
 
 const useImageLoader = (
   seqRef: React.RefObject<HTMLUListElement | null>,
   onLoad: () => void,
-  dependencies: React.DependencyList,
+  logos: LogoItem[],
+  gap: number,
+  logoHeight: number,
+  isVertical: boolean,
 ) => {
   useEffect(() => {
     const images = seqRef.current?.querySelectorAll('img') ?? []
@@ -99,7 +103,7 @@ const useImageLoader = (
     }
 
     images.forEach((img) => {
-      const htmlImg = img as HTMLImageElement
+      const htmlImg = img
       if (htmlImg.complete) {
         handleImageLoad()
       } else {
@@ -114,7 +118,7 @@ const useImageLoader = (
         img.removeEventListener('error', handleImageLoad)
       })
     }
-  }, dependencies)
+  }, [seqRef, onLoad, logos, gap, logoHeight, isVertical])
 }
 
 const useAnimationLoop = (
@@ -140,10 +144,9 @@ const useAnimationLoop = (
     const track = trackRef.current
     if (!track) return
 
-    const prefersReduced =
-      typeof window !== 'undefined' &&
-      window.matchMedia &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const prefersReduced = window.matchMedia(
+      '(prefers-reduced-motion: reduce)',
+    ).matches
 
     const seqSize = isVertical ? seqHeight : seqWidth
 
@@ -206,7 +209,15 @@ const useAnimationLoop = (
       }
       lastTimestampRef.current = null
     }
-  }, [targetVelocity, seqWidth, seqHeight, isHovered, hoverSpeed, isVertical])
+  }, [
+    trackRef,
+    targetVelocity,
+    seqWidth,
+    seqHeight,
+    isHovered,
+    hoverSpeed,
+    isVertical,
+  ])
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
@@ -214,7 +225,7 @@ const useAnimationLoop = (
       isDraggingRef.current = true
       dragStartPosRef.current = isVertical ? e.clientY : e.clientX
       dragStartOffsetRef.current = offsetRef.current
-      e.currentTarget.setPointerCapture?.(e.pointerId)
+      e.currentTarget.setPointerCapture(e.pointerId)
     },
     [enableDrag, isVertical],
   )
@@ -233,7 +244,7 @@ const useAnimationLoop = (
     (e: React.PointerEvent<HTMLDivElement>) => {
       isDraggingRef.current = false
       try {
-        e.currentTarget.releasePointerCapture?.(e.pointerId)
+        e.currentTarget.releasePointerCapture(e.pointerId)
       } catch {
         // Ignore if pointer capture release fails
       }
@@ -302,7 +313,7 @@ export const LogoLoop = React.memo<LogoLoopProps>(
 
     const updateDimensions = useCallback(() => {
       const containerWidth = containerRef.current?.clientWidth ?? 0
-      const sequenceRect = seqRef.current?.getBoundingClientRect?.()
+      const sequenceRect = seqRef.current?.getBoundingClientRect()
       const sequenceWidth = sequenceRect?.width ?? 0
       const sequenceHeight = sequenceRect?.height ?? 0
       if (isVertical) {
@@ -315,8 +326,7 @@ export const LogoLoop = React.memo<LogoLoopProps>(
         }
         if (sequenceHeight > 0) {
           setSeqHeight(Math.ceil(sequenceHeight))
-          const viewport =
-            containerRef.current?.clientHeight ?? parentHeight ?? sequenceHeight
+          const viewport = containerRef.current?.clientHeight ?? parentHeight
           const copiesNeeded =
             Math.ceil(viewport / sequenceHeight) +
             ANIMATION_CONFIG.COPY_HEADROOM
@@ -331,18 +341,9 @@ export const LogoLoop = React.memo<LogoLoopProps>(
       }
     }, [isVertical])
 
-    useResizeObserver(
-      updateDimensions,
-      [containerRef, seqRef],
-      [logos, gap, logoHeight, isVertical],
-    )
+    useResizeObserver(updateDimensions, containerRef, seqRef)
 
-    useImageLoader(seqRef, updateDimensions, [
-      logos,
-      gap,
-      logoHeight,
-      isVertical,
-    ])
+    useImageLoader(seqRef, updateDimensions, logos, gap, logoHeight, isVertical)
 
     const dragHandlers = useAnimationLoop(
       trackRef,

@@ -129,7 +129,7 @@ export function AdminUserActions({
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {user.courseAssignments.courses.map((course) => (
                     <span
-                      key={course.id}
+                      key={course.courseId}
                       className="inline-flex items-center rounded-md bg-secondary px-2 py-1 text-xs font-medium text-secondary-foreground"
                     >
                       {course.code} — {course.title}

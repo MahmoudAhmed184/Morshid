@@ -155,6 +155,7 @@ export function AdminAssignmentsPage() {
           }
         >
           <AdminAssignmentsTable
+            courseId={courseId}
             members={membersQuery.data ?? []}
             isPending={isPending}
             onRoleChange={(userId, role) =>
