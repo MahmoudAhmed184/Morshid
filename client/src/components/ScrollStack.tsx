@@ -38,11 +38,7 @@ export const ScrollStack: React.FC<ScrollStackProps> = ({
   children,
   className = '',
 }) => {
-  return (
-    <div className={`relative w-full ${className}`.trim()}>
-      {children}
-    </div>
-  )
+  return <div className={`relative w-full ${className}`.trim()}>{children}</div>
 }
 
 export default ScrollStack

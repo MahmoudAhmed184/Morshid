@@ -180,11 +180,19 @@ function SidebarFooterUser({ role }: { role: AppSidebarRole }) {
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
               <DropdownMenuItem onClick={() => setTheme('light')}>
-                {theme === 'light' ? <Check aria-hidden /> : <Sun aria-hidden />}
+                {theme === 'light' ? (
+                  <Check aria-hidden />
+                ) : (
+                  <Sun aria-hidden />
+                )}
                 Light
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setTheme('dark')}>
-                {theme === 'dark' ? <Check aria-hidden /> : <Moon aria-hidden />}
+                {theme === 'dark' ? (
+                  <Check aria-hidden />
+                ) : (
+                  <Moon aria-hidden />
+                )}
                 Dark
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setTheme('system')}>

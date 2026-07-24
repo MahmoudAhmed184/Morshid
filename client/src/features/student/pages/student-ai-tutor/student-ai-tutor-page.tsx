@@ -488,10 +488,12 @@ function StudentConversation({
 
     if (session.title === 'New chat' && content.trim().length > 0) {
       const newTitle = content.trim().slice(0, 60)
-      void renameSession.mutateAsync({
-        sessionId: session.id,
-        input: { title: newTitle },
-      }).catch(() => {})
+      void renameSession
+        .mutateAsync({
+          sessionId: session.id,
+          input: { title: newTitle },
+        })
+        .catch(() => {})
     }
 
     try {

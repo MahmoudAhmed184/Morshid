@@ -90,8 +90,12 @@ export function AdminUserActions({
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 Full Name & Email
               </p>
-              <p className="font-semibold text-foreground text-base">{user.displayName}</p>
-              <p className="text-xs text-muted-foreground select-all">{user.email}</p>
+              <p className="font-semibold text-foreground text-base">
+                {user.displayName}
+              </p>
+              <p className="text-xs text-muted-foreground select-all">
+                {user.email}
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -99,7 +103,9 @@ export function AdminUserActions({
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Role
                 </p>
-                <p className="font-semibold text-foreground capitalize">{user.role.toLowerCase()}</p>
+                <p className="font-semibold text-foreground capitalize">
+                  {user.role.toLowerCase()}
+                </p>
               </div>
 
               <div className="rounded-xl border bg-card p-3 space-y-1">
@@ -137,14 +143,18 @@ export function AdminUserActions({
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 User ID
               </p>
-              <p className="font-mono text-xs text-foreground select-all break-all">{user.id}</p>
+              <p className="font-mono text-xs text-foreground select-all break-all">
+                {user.id}
+              </p>
             </div>
 
             <div className="rounded-xl border bg-card p-3 space-y-1">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 Last Updated
               </p>
-              <p className="font-medium text-foreground">{dateFormatter.format(new Date(user.updatedAt))}</p>
+              <p className="font-medium text-foreground">
+                {dateFormatter.format(new Date(user.updatedAt))}
+              </p>
             </div>
           </div>
         </DialogContent>

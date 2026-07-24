@@ -47,7 +47,8 @@ export function AdminAssignmentsTable({
   onRoleChange,
   onRemove,
 }: AdminAssignmentsTableProps) {
-  const [selectedMember, setSelectedMember] = useState<AdminCourseMember | null>(null)
+  const [selectedMember, setSelectedMember] =
+    useState<AdminCourseMember | null>(null)
 
   return (
     <div>
@@ -62,11 +63,17 @@ export function AdminAssignmentsTable({
               <p className="font-semibold text-foreground truncate text-sm">
                 {member.user.displayName}
               </p>
-              <p className="text-xs text-muted-foreground truncate">{member.user.email}</p>
+              <p className="text-xs text-muted-foreground truncate">
+                {member.user.email}
+              </p>
               <div className="flex items-center gap-2 text-xs text-muted-foreground pt-0.5">
-                <span className="capitalize font-medium text-foreground">{member.role.toLowerCase()}</span>
+                <span className="capitalize font-medium text-foreground">
+                  {member.role.toLowerCase()}
+                </span>
                 <span>•</span>
-                <span className="capitalize">{member.user.role.toLowerCase()}</span>
+                <span className="capitalize">
+                  {member.user.role.toLowerCase()}
+                </span>
               </div>
             </div>
 
@@ -176,7 +183,11 @@ export function AdminAssignmentsTable({
                     </Button>
                     <ConfirmDialog
                       trigger={
-                        <Button variant="ghost" size="icon-sm" disabled={isPending}>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          disabled={isPending}
+                        >
                           <Trash2Icon />
                           <span className="sr-only">Remove assignment</span>
                         </Button>
@@ -215,8 +226,12 @@ export function AdminAssignmentsTable({
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Member Name & Email
                 </p>
-                <p className="font-semibold text-foreground text-base">{selectedMember.user.displayName}</p>
-                <p className="text-xs text-muted-foreground select-all">{selectedMember.user.email}</p>
+                <p className="font-semibold text-foreground text-base">
+                  {selectedMember.user.displayName}
+                </p>
+                <p className="text-xs text-muted-foreground select-all">
+                  {selectedMember.user.email}
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -224,14 +239,18 @@ export function AdminAssignmentsTable({
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Course Role
                   </p>
-                  <p className="font-semibold text-primary capitalize">{selectedMember.role.toLowerCase()}</p>
+                  <p className="font-semibold text-primary capitalize">
+                    {selectedMember.role.toLowerCase()}
+                  </p>
                 </div>
 
                 <div className="rounded-xl border bg-card p-3 space-y-1">
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Account Role
                   </p>
-                  <p className="font-medium text-foreground capitalize">{selectedMember.user.role.toLowerCase()}</p>
+                  <p className="font-medium text-foreground capitalize">
+                    {selectedMember.user.role.toLowerCase()}
+                  </p>
                 </div>
               </div>
 
@@ -239,14 +258,18 @@ export function AdminAssignmentsTable({
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Course ID
                 </p>
-                <p className="font-mono text-xs text-foreground select-all break-all">{selectedMember.courseId}</p>
+                <p className="font-mono text-xs text-foreground select-all break-all">
+                  {selectedMember.courseId}
+                </p>
               </div>
 
               <div className="rounded-xl border bg-card p-3 space-y-1">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Membership ID
                 </p>
-                <p className="font-mono text-xs text-foreground select-all break-all">{selectedMember.id}</p>
+                <p className="font-mono text-xs text-foreground select-all break-all">
+                  {selectedMember.id}
+                </p>
               </div>
             </div>
           ) : null}

@@ -78,8 +78,8 @@ export function MethodSection() {
               </h3>
               <p className="mt-3 max-w-[48ch] leading-relaxed text-muted-foreground">
                 No open-web guessing, no generic textbook voice. Your course's
-                own syllabus, slides, and notes are the entire universe of
-                every answer.
+                own syllabus, slides, and notes are the entire universe of every
+                answer.
               </p>
             </div>
             <figure className="lg:col-span-5 lg:col-start-8">
@@ -119,9 +119,9 @@ export function MethodSection() {
                 It cites the page, every time.
               </h3>
               <p className="mt-3 max-w-[48ch] leading-relaxed text-muted-foreground">
-                Every claim carries a superscript. Every superscript resolves
-                to a page you can open. If Morshid cannot cite it, Morshid will
-                not say it.
+                Every claim carries a superscript. Every superscript resolves to
+                a page you can open. If Morshid cannot cite it, Morshid will not
+                say it.
               </p>
             </div>
             <figure className="lg:col-span-5 lg:col-start-8">

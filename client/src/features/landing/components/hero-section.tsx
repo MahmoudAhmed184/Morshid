@@ -92,7 +92,10 @@ const transcriptSheets = [
         text: 'Look at the nucleophile trajectory. Does it approach from the front or backside?',
         citation: 1,
       },
-      { tone: 'student', text: 'From the backside, opposite the leaving group.' },
+      {
+        tone: 'student',
+        text: 'From the backside, opposite the leaving group.',
+      },
       {
         tone: 'morshid',
         text: 'Precisely — like an umbrella flipping inside out in strong wind!',
@@ -178,9 +181,7 @@ export function HeroTranscriptStack() {
           aria-hidden
         >
           <figcaption className="flex items-center justify-between gap-4 border-b border-border/60 pb-3">
-            <span className="smallcaps-label text-xs">
-              {nextSheet.title}
-            </span>
+            <span className="smallcaps-label text-xs">{nextSheet.title}</span>
             <div className="flex items-center gap-2">
               <span className="rounded-full bg-muted px-2 py-0.5 font-mono text-[0.65rem] text-muted-foreground">
                 Swipe ↔
@@ -294,10 +295,7 @@ export function HeroTranscriptStack() {
                 >
                   {turn.text}
                   {'citation' in turn && (
-                    <Citation
-                      n={turn.citation as number}
-                      href={`#fn-${idx}`}
-                    />
+                    <Citation n={turn.citation as number} href={`#fn-${idx}`} />
                   )}
                 </p>
               </div>

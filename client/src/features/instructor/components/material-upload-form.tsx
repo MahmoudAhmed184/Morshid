@@ -91,7 +91,11 @@ export function MaterialUploadForm({
 
     try {
       const progressPromise = simulateProgress()
-      const uploadPromise = uploadMutation.mutateAsync({ courseId, title, file })
+      const uploadPromise = uploadMutation.mutateAsync({
+        courseId,
+        title,
+        file,
+      })
 
       await Promise.all([progressPromise, uploadPromise])
 
@@ -235,9 +239,13 @@ export function MaterialUploadForm({
                             size="icon-sm"
                             onClick={(e) => {
                               e.stopPropagation()
-                              form.setValue('file', undefined as unknown as File, {
-                                shouldValidate: true,
-                              })
+                              form.setValue(
+                                'file',
+                                undefined as unknown as File,
+                                {
+                                  shouldValidate: true,
+                                },
+                              )
                             }}
                             className="shrink-0 text-muted-foreground hover:text-foreground"
                           >
@@ -263,7 +271,8 @@ export function MaterialUploadForm({
                     </div>
                   </FormControl>
                   <FormDescription className="sr-only">
-                    PDF only. Maximum {formatFileSize(configuration.maxUploadBytes)}.
+                    PDF only. Maximum{' '}
+                    {formatFileSize(configuration.maxUploadBytes)}.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

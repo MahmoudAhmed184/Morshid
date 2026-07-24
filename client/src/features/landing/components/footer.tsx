@@ -2,7 +2,11 @@ import { Logo } from '@/components/logo'
 
 const productLinks = ['Features', 'Pricing', 'Use Cases', 'Changelog'] as const
 const companyLinks = ['About Us', 'Careers', 'Blog', 'Contact'] as const
-const legalLinks = ['Privacy Policy', 'Terms of Service', 'Cookie Policy'] as const
+const legalLinks = [
+  'Privacy Policy',
+  'Terms of Service',
+  'Cookie Policy',
+] as const
 
 type FooterLinkGroupProps = {
   title: string
@@ -17,7 +21,10 @@ function FooterLinkGroup({ title, links, id }: FooterLinkGroupProps) {
       <ul className="mt-2 space-y-1.5 sm:mt-4 sm:space-y-2.5">
         {links.map((link) => (
           <li key={link}>
-            <a href="#" className="link-editorial text-xs text-foreground/80 hover:text-foreground sm:text-sm">
+            <a
+              href="#"
+              className="link-editorial text-xs text-foreground/80 hover:text-foreground sm:text-sm"
+            >
               {link}
             </a>
           </li>
@@ -47,7 +54,11 @@ export function Footer() {
 
           {/* Links Grid — 3 Columns on Mobile */}
           <div className="col-span-full grid grid-cols-3 gap-4 sm:col-span-2 sm:grid-cols-3 lg:col-span-3">
-            <FooterLinkGroup title="Product" links={productLinks} id="pricing" />
+            <FooterLinkGroup
+              title="Product"
+              links={productLinks}
+              id="pricing"
+            />
             <FooterLinkGroup title="Company" links={companyLinks} id="about" />
             <FooterLinkGroup title="Legal" links={legalLinks} />
           </div>

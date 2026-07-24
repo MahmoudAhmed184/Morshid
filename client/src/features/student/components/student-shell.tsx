@@ -3,7 +3,11 @@ import { BookMarked } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { ModeToggle } from '@/components/ui/mode-toggle'
-import { SidebarInset, SidebarTrigger, useSidebar } from '@/components/ui/sidebar'
+import {
+  SidebarInset,
+  SidebarTrigger,
+  useSidebar,
+} from '@/components/ui/sidebar'
 import { useStudentChromeSources } from '@/features/student/components/student-chrome-context'
 import { cn } from '@/lib/utils'
 

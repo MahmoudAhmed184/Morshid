@@ -11,7 +11,11 @@ import {
 
 import { AppSidebar } from '@/components/layout/app-sidebar'
 import type { AppSidebarNavItem } from '@/components/layout/app-sidebar'
-import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from '@/components/ui/sidebar'
 
 const navItems: readonly AppSidebarNavItem[] = [
   { label: 'Dashboard', to: '/admin', icon: LayoutDashboardIcon, exact: true },

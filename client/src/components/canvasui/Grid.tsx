@@ -1,4 +1,4 @@
-"use client";
+'use client'
 
 import {
   useEffect,
@@ -6,61 +6,61 @@ import {
   useState,
   useSyncExternalStore,
   type ReactNode,
-} from "react";
+} from 'react'
 
 export interface GridOptions {
   /** Size of each grid tile in CSS pixels. */
-  tileSize?: number;
+  tileSize?: number
   /** Gap between tiles in CSS pixels. */
-  gap?: number;
+  gap?: number
   /** Corner radius of each tile in CSS pixels. */
-  cornerRadius?: number;
+  cornerRadius?: number
   /** Overall strength of the wave displacement. */
-  amplitude?: number;
+  amplitude?: number
   /** How fast the wavefront expands, in screen heights per second. */
-  waveSpeed?: number;
+  waveSpeed?: number
   /** Spatial oscillation of the wave. Higher means more ripples per wave. */
-  frequency?: number;
+  frequency?: number
   /** Width of the wave ring as a fraction of the screen height. */
-  waveWidth?: number;
+  waveWidth?: number
   /** Seconds for a wave to fade to roughly a third of its strength. */
-  fadeTime?: number;
+  fadeTime?: number
   /** Maximum lift a tile can reach (0 to 1). */
-  maxLift?: number;
+  maxLift?: number
   /** Per-tile randomness in how tiles respond to the wave (0 to 1). */
-  jitter?: number;
+  jitter?: number
   /** How high a fully lifted cube rises, in CSS pixels. */
-  liftHeight?: number;
+  liftHeight?: number
   /** Camera distance in CSS pixels, like CSS perspective. Lower is more dramatic. */
-  perspective?: number;
+  perspective?: number
   /** How much the camera vanishing point leans toward the cursor (0 to 1). */
-  tilt?: number;
+  tilt?: number
   /** Strength of the lighting on cube tops and side walls. */
-  shading?: number;
+  shading?: number
   /** Color lifted tiles blend toward as [r, g, b] in 0-1 range. */
-  tint?: [number, number, number];
+  tint?: [number, number, number]
   /** How strongly lifted tiles take on the tint color (0 to 1). */
-  tintStrength?: number;
+  tintStrength?: number
   /** Seconds between ambient ripples when the cursor is idle. 0 disables. */
-  idleRipples?: number;
+  idleRipples?: number
 }
 
 export interface GridElements {
   /** Canvas with layoutsubtree that hosts the HTML content. */
-  source: HTMLCanvasElement;
+  source: HTMLCanvasElement
   /** The element inside the source canvas that gets captured. */
-  content: HTMLElement;
+  content: HTMLElement
   /** Canvas the WebGL effect renders to. */
-  output: HTMLCanvasElement;
+  output: HTMLCanvasElement
 }
 
 export interface GridInstance {
   /** Update effect options live. */
-  setOptions: (options: GridOptions) => void;
+  setOptions: (options: GridOptions) => void
   /** Re-read canvas size. Call when the element is resized. */
-  resize: () => void;
+  resize: () => void
   /** Stop the loop and release all GPU resources. */
-  destroy: () => void;
+  destroy: () => void
 }
 
 const DEFAULTS: Required<GridOptions> = {
@@ -81,20 +81,20 @@ const DEFAULTS: Required<GridOptions> = {
   tint: [0, 0.33, 1],
   tintStrength: 0.1,
   idleRipples: 0,
-};
+}
 
-const MAX_TRAIL = 64;
-const TRAIL_SPACING = 0.03;
-const IDLE_DELAY = 3;
+const MAX_TRAIL = 64
+const TRAIL_SPACING = 0.03
+const IDLE_DELAY = 3
 
 type PaintableCanvas = HTMLCanvasElement & {
-  onpaint?: (() => void) | null;
-  requestPaint?: () => void;
-};
+  onpaint?: (() => void) | null
+  requestPaint?: () => void
+}
 
 type ElementImageContext = CanvasRenderingContext2D & {
-  drawElementImage?: (element: Element, x: number, y: number) => void;
-};
+  drawElementImage?: (element: Element, x: number, y: number) => void
+}
 
 const VERT = `#version 300 es
 precision highp float;
@@ -103,7 +103,7 @@ out vec2 vUv;
 void main () {
   vUv = aPos * 0.5 + 0.5;
   gl_Position = vec4(aPos, 0.0, 1.0);
-}`;
+}`
 
 const TILE_FRAG = `#version 300 es
 precision highp float;
@@ -153,7 +153,7 @@ void main () {
   );
 
   outColor = vec4(lift * 0.5 + 0.5, 0.0, 0.0, 1.0);
-}`;
+}`
 
 const FRAG = `#version 300 es
 precision highp float;
@@ -312,102 +312,102 @@ void main () {
   col = mix(col, uTint, t);
   float aOut = alpha * mask;
   outColor = vec4(col * aOut, aOut);
-}`;
+}`
 
 export function supportsHtmlInCanvas(): boolean {
-  if (typeof document === "undefined") return false;
-  const probe = document.createElement("canvas") as PaintableCanvas;
-  const ctx = probe.getContext("2d") as ElementImageContext | null;
+  if (typeof document === 'undefined') return false
+  const probe = document.createElement('canvas') as PaintableCanvas
+  const ctx = probe.getContext('2d') as ElementImageContext | null
   return Boolean(
     ctx &&
-    typeof ctx.drawElementImage === "function" &&
-    typeof probe.requestPaint === "function",
-  );
+    typeof ctx.drawElementImage === 'function' &&
+    typeof probe.requestPaint === 'function',
+  )
 }
 
 export function createGrid(
   elements: GridElements,
   options: GridOptions = {},
 ): GridInstance | null {
-  const config = { ...DEFAULTS, ...options };
-  const { source, content, output } = elements;
+  const config = { ...DEFAULTS, ...options }
+  const { source, content, output } = elements
 
-  const gl = output.getContext("webgl2", {
+  const gl = output.getContext('webgl2', {
     alpha: true,
     depth: false,
     stencil: false,
     antialias: false,
     premultipliedAlpha: true,
-  });
-  if (!gl || gl.isContextLost()) return null;
+  })
+  if (!gl || gl.isContextLost()) return null
 
-  const sourceCtx = source.getContext("2d") as ElementImageContext | null;
-  const paintable = source as PaintableCanvas;
+  const sourceCtx = source.getContext('2d') as ElementImageContext | null
+  const paintable = source as PaintableCanvas
   const htmlInCanvas = Boolean(
     sourceCtx &&
-    typeof sourceCtx.drawElementImage === "function" &&
-    typeof paintable.requestPaint === "function",
-  );
+    typeof sourceCtx.drawElementImage === 'function' &&
+    typeof paintable.requestPaint === 'function',
+  )
 
-  let contentDirty = false;
-  let wake = () => {};
+  let contentDirty = false
+  let wake = () => {}
 
   if (htmlInCanvas) {
     paintable.onpaint = () => {
       try {
-        sourceCtx!.reset();
-        sourceCtx!.drawElementImage!(content, 0, 0);
-        contentDirty = true;
-        wake();
+        sourceCtx!.reset()
+        sourceCtx!.drawElementImage!(content, 0, 0)
+        contentDirty = true
+        wake()
       } catch {}
-    };
+    }
   }
 
   function compile(type: number, text: string): WebGLShader {
-    const shader = gl!.createShader(type)!;
-    gl!.shaderSource(shader, text);
-    gl!.compileShader(shader);
+    const shader = gl!.createShader(type)!
+    gl!.shaderSource(shader, text)
+    gl!.compileShader(shader)
     if (!gl!.getShaderParameter(shader, gl!.COMPILE_STATUS)) {
-      console.error("Grid shader error:", gl!.getShaderInfoLog(shader));
+      console.error('Grid shader error:', gl!.getShaderInfoLog(shader))
     }
-    return shader;
+    return shader
   }
 
   function link(fragText: string) {
-    const vertexShader = compile(gl!.VERTEX_SHADER, VERT);
-    const fragmentShader = compile(gl!.FRAGMENT_SHADER, fragText);
-    const program = gl!.createProgram()!;
-    gl!.attachShader(program, vertexShader);
-    gl!.attachShader(program, fragmentShader);
-    gl!.linkProgram(program);
-    const uniforms: Record<string, WebGLUniformLocation> = {};
-    const count = gl!.getProgramParameter(program, gl!.ACTIVE_UNIFORMS);
+    const vertexShader = compile(gl!.VERTEX_SHADER, VERT)
+    const fragmentShader = compile(gl!.FRAGMENT_SHADER, fragText)
+    const program = gl!.createProgram()!
+    gl!.attachShader(program, vertexShader)
+    gl!.attachShader(program, fragmentShader)
+    gl!.linkProgram(program)
+    const uniforms: Record<string, WebGLUniformLocation> = {}
+    const count = gl!.getProgramParameter(program, gl!.ACTIVE_UNIFORMS)
     for (let i = 0; i < count; i++) {
-      const info = gl!.getActiveUniform(program, i)!;
-      uniforms[info.name] = gl!.getUniformLocation(program, info.name)!;
+      const info = gl!.getActiveUniform(program, i)!
+      uniforms[info.name] = gl!.getUniformLocation(program, info.name)!
     }
-    return { program, uniforms, vertexShader, fragmentShader };
+    return { program, uniforms, vertexShader, fragmentShader }
   }
 
-  const mainPass = link(FRAG);
-  const tilePass = link(TILE_FRAG);
+  const mainPass = link(FRAG)
+  const tilePass = link(TILE_FRAG)
 
-  const quad = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+  const quad = gl.createBuffer()
+  gl.bindBuffer(gl.ARRAY_BUFFER, quad)
   gl.bufferData(
     gl.ARRAY_BUFFER,
     new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]),
     gl.STATIC_DRAW,
-  );
-  gl.enableVertexAttribArray(0);
-  gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+  )
+  gl.enableVertexAttribArray(0)
+  gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0)
 
-  const contentTexture = gl.createTexture()!;
-  gl.bindTexture(gl.TEXTURE_2D, contentTexture);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  const contentTexture = gl.createTexture()!
+  gl.bindTexture(gl.TEXTURE_2D, contentTexture)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
   gl.texImage2D(
     gl.TEXTURE_2D,
     0,
@@ -418,15 +418,15 @@ export function createGrid(
     gl.RGBA,
     gl.UNSIGNED_BYTE,
     new Uint8Array([0, 0, 0, 0]),
-  );
+  )
 
-  const trailData = new Float32Array(MAX_TRAIL * 4);
-  const trailTexture = gl.createTexture()!;
-  gl.bindTexture(gl.TEXTURE_2D, trailTexture);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  const trailData = new Float32Array(MAX_TRAIL * 4)
+  const trailTexture = gl.createTexture()!
+  gl.bindTexture(gl.TEXTURE_2D, trailTexture)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
   gl.texImage2D(
     gl.TEXTURE_2D,
     0,
@@ -437,32 +437,32 @@ export function createGrid(
     gl.RGBA,
     gl.FLOAT,
     trailData,
-  );
+  )
 
   function dpr() {
-    return Math.min(window.devicePixelRatio || 1, 2);
+    return Math.min(window.devicePixelRatio || 1, 2)
   }
 
-  let tileTexture: WebGLTexture | null = null;
-  let tileFbo: WebGLFramebuffer | null = null;
-  let tilesX = 0;
-  let tilesY = 0;
+  let tileTexture: WebGLTexture | null = null
+  let tileFbo: WebGLFramebuffer | null = null
+  let tilesX = 0
+  let tilesY = 0
 
   function ensureTileTarget() {
-    const tilePx = Math.max(config.tileSize, 8) * dpr();
-    const nx = Math.max(1, Math.ceil(output.width / tilePx));
-    const ny = Math.max(1, Math.ceil(output.height / tilePx));
-    if (tileTexture && nx === tilesX && ny === tilesY) return;
-    tilesX = nx;
-    tilesY = ny;
-    if (tileTexture) gl!.deleteTexture(tileTexture);
-    if (tileFbo) gl!.deleteFramebuffer(tileFbo);
-    tileTexture = gl!.createTexture()!;
-    gl!.bindTexture(gl!.TEXTURE_2D, tileTexture);
-    gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_MIN_FILTER, gl!.NEAREST);
-    gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_MAG_FILTER, gl!.NEAREST);
-    gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_WRAP_S, gl!.CLAMP_TO_EDGE);
-    gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_WRAP_T, gl!.CLAMP_TO_EDGE);
+    const tilePx = Math.max(config.tileSize, 8) * dpr()
+    const nx = Math.max(1, Math.ceil(output.width / tilePx))
+    const ny = Math.max(1, Math.ceil(output.height / tilePx))
+    if (tileTexture && nx === tilesX && ny === tilesY) return
+    tilesX = nx
+    tilesY = ny
+    if (tileTexture) gl!.deleteTexture(tileTexture)
+    if (tileFbo) gl!.deleteFramebuffer(tileFbo)
+    tileTexture = gl!.createTexture()!
+    gl!.bindTexture(gl!.TEXTURE_2D, tileTexture)
+    gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_MIN_FILTER, gl!.NEAREST)
+    gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_MAG_FILTER, gl!.NEAREST)
+    gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_WRAP_S, gl!.CLAMP_TO_EDGE)
+    gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_WRAP_T, gl!.CLAMP_TO_EDGE)
     gl!.texImage2D(
       gl!.TEXTURE_2D,
       0,
@@ -473,50 +473,50 @@ export function createGrid(
       gl!.RGBA,
       gl!.UNSIGNED_BYTE,
       null,
-    );
-    tileFbo = gl!.createFramebuffer()!;
-    gl!.bindFramebuffer(gl!.FRAMEBUFFER, tileFbo);
+    )
+    tileFbo = gl!.createFramebuffer()!
+    gl!.bindFramebuffer(gl!.FRAMEBUFFER, tileFbo)
     gl!.framebufferTexture2D(
       gl!.FRAMEBUFFER,
       gl!.COLOR_ATTACHMENT0,
       gl!.TEXTURE_2D,
       tileTexture,
       0,
-    );
-    gl!.bindFramebuffer(gl!.FRAMEBUFFER, null);
+    )
+    gl!.bindFramebuffer(gl!.FRAMEBUFFER, null)
   }
 
-  let contentMaxX = 1;
+  let contentMaxX = 1
 
   function syncCanvasSize() {
-    const scale = dpr();
-    const width = Math.max(1, Math.round(output.clientWidth * scale));
-    const height = Math.max(1, Math.round(output.clientHeight * scale));
+    const scale = dpr()
+    const width = Math.max(1, Math.round(output.clientWidth * scale))
+    const height = Math.max(1, Math.round(output.clientHeight * scale))
     if (output.width !== width || output.height !== height) {
-      output.width = width;
-      output.height = height;
+      output.width = width
+      output.height = height
     }
     contentMaxX = Math.min(
       1,
       Math.max(0.05, content.clientWidth / Math.max(output.clientWidth, 1)),
-    );
+    )
     if (htmlInCanvas) {
-      const cssWidth = Math.max(1, Math.round(source.clientWidth));
-      const cssHeight = Math.max(1, Math.round(source.clientHeight));
+      const cssWidth = Math.max(1, Math.round(source.clientWidth))
+      const cssHeight = Math.max(1, Math.round(source.clientHeight))
       if (source.width !== cssWidth || source.height !== cssHeight) {
-        source.width = cssWidth;
-        source.height = cssHeight;
+        source.width = cssWidth
+        source.height = cssHeight
       }
-      paintable.requestPaint!();
+      paintable.requestPaint!()
     }
   }
 
-  syncCanvasSize();
+  syncCanvasSize()
 
   function uploadContent() {
-    if (!htmlInCanvas || !contentDirty) return;
-    contentDirty = false;
-    gl!.bindTexture(gl!.TEXTURE_2D, contentTexture);
+    if (!htmlInCanvas || !contentDirty) return
+    contentDirty = false
+    gl!.bindTexture(gl!.TEXTURE_2D, contentTexture)
     gl!.texImage2D(
       gl!.TEXTURE_2D,
       0,
@@ -524,52 +524,52 @@ export function createGrid(
       gl!.RGBA,
       gl!.UNSIGNED_BYTE,
       source,
-    );
+    )
   }
 
-  type TrailPoint = { x: number; y: number; age: number; strength: number };
-  const trail: TrailPoint[] = [];
-  let lastPoint: { x: number; y: number } | null = null;
-  let timeSinceMove = IDLE_DELAY;
-  let idleTimer = 0;
+  type TrailPoint = { x: number; y: number; age: number; strength: number }
+  const trail: TrailPoint[] = []
+  let lastPoint: { x: number; y: number } | null = null
+  let timeSinceMove = IDLE_DELAY
+  let idleTimer = 0
 
   function addTrailPoint(point: TrailPoint) {
-    if (trail.length >= MAX_TRAIL) trail.shift();
-    trail.push(point);
+    if (trail.length >= MAX_TRAIL) trail.shift()
+    trail.push(point)
   }
 
   function updateTrail(delta: number) {
-    const expiry = Math.max(config.fadeTime, 0.1) * 4;
+    const expiry = Math.max(config.fadeTime, 0.1) * 4
     for (let i = trail.length - 1; i >= 0; i--) {
-      trail[i].age += delta;
-      if (trail[i].age > expiry) trail.splice(i, 1);
+      trail[i].age += delta
+      if (trail[i].age > expiry) trail.splice(i, 1)
     }
 
-    timeSinceMove += delta;
+    timeSinceMove += delta
     if (config.idleRipples > 0 && timeSinceMove >= IDLE_DELAY) {
-      idleTimer += delta;
+      idleTimer += delta
       if (idleTimer >= config.idleRipples) {
-        idleTimer = 0;
+        idleTimer = 0
         const aspect =
-          Math.max(output.clientWidth, 1) / Math.max(output.clientHeight, 1);
+          Math.max(output.clientWidth, 1) / Math.max(output.clientHeight, 1)
         addTrailPoint({
           x: (0.2 + Math.random() * 0.6) * aspect,
           y: 0.2 + Math.random() * 0.6,
           age: 0,
           strength: 0.8 + Math.random() * 0.3,
-        });
+        })
       }
     }
 
-    const count = Math.min(trail.length, MAX_TRAIL);
+    const count = Math.min(trail.length, MAX_TRAIL)
     for (let i = 0; i < count; i++) {
-      const ti = i * 4;
-      trailData[ti] = trail[i].x;
-      trailData[ti + 1] = trail[i].y;
-      trailData[ti + 2] = trail[i].age;
-      trailData[ti + 3] = trail[i].strength;
+      const ti = i * 4
+      trailData[ti] = trail[i].x
+      trailData[ti + 1] = trail[i].y
+      trailData[ti + 2] = trail[i].age
+      trailData[ti + 3] = trail[i].strength
     }
-    gl!.bindTexture(gl!.TEXTURE_2D, trailTexture);
+    gl!.bindTexture(gl!.TEXTURE_2D, trailTexture)
     gl!.texSubImage2D(
       gl!.TEXTURE_2D,
       0,
@@ -580,174 +580,174 @@ export function createGrid(
       gl!.RGBA,
       gl!.FLOAT,
       trailData,
-    );
-    return count;
+    )
+    return count
   }
 
-  let vanishX = 0.5;
-  let vanishY = 0.5;
-  let vanishTargetX = 0.5;
-  let vanishTargetY = 0.5;
+  let vanishX = 0.5
+  let vanishY = 0.5
+  let vanishTargetX = 0.5
+  let vanishTargetY = 0.5
 
   function render(trailCount: number, delta: number) {
-    uploadContent();
-    ensureTileTarget();
-    const scale = output.width / Math.max(output.clientWidth, 1);
-    const tilePx = Math.max(config.tileSize, 8) * scale;
+    uploadContent()
+    ensureTileTarget()
+    const scale = output.width / Math.max(output.clientWidth, 1)
+    const tilePx = Math.max(config.tileSize, 8) * scale
 
-    const ease = 1 - Math.exp(-delta * 4);
-    vanishX += (vanishTargetX - vanishX) * ease;
-    vanishY += (vanishTargetY - vanishY) * ease;
+    const ease = 1 - Math.exp(-delta * 4)
+    vanishX += (vanishTargetX - vanishX) * ease
+    vanishY += (vanishTargetY - vanishY) * ease
 
-    gl!.useProgram(tilePass.program);
-    gl!.activeTexture(gl!.TEXTURE0);
-    gl!.bindTexture(gl!.TEXTURE_2D, trailTexture);
-    gl!.uniform1i(tilePass.uniforms.uTrail, 0);
-    gl!.uniform1i(tilePass.uniforms.uTrailCount, trailCount);
-    gl!.uniform1f(tilePass.uniforms.uWorldPerTile, tilePx / output.height);
+    gl!.useProgram(tilePass.program)
+    gl!.activeTexture(gl!.TEXTURE0)
+    gl!.bindTexture(gl!.TEXTURE_2D, trailTexture)
+    gl!.uniform1i(tilePass.uniforms.uTrail, 0)
+    gl!.uniform1i(tilePass.uniforms.uTrailCount, trailCount)
+    gl!.uniform1f(tilePass.uniforms.uWorldPerTile, tilePx / output.height)
     gl!.uniform1f(
       tilePass.uniforms.uWaveSpeed,
       Math.max(config.waveSpeed, 0.01),
-    );
-    gl!.uniform1f(tilePass.uniforms.uFrequency, config.frequency);
+    )
+    gl!.uniform1f(tilePass.uniforms.uFrequency, config.frequency)
     gl!.uniform1f(
       tilePass.uniforms.uWaveWidth,
       Math.max(config.waveWidth, 0.01),
-    );
-    gl!.uniform1f(tilePass.uniforms.uFadeTime, Math.max(config.fadeTime, 0.1));
-    gl!.uniform1f(tilePass.uniforms.uAmplitude, config.amplitude);
-    gl!.uniform1f(tilePass.uniforms.uJitter, config.jitter);
-    gl!.uniform1f(tilePass.uniforms.uMaxLift, Math.max(config.maxLift, 0.01));
-    gl!.bindFramebuffer(gl!.FRAMEBUFFER, tileFbo);
-    gl!.viewport(0, 0, tilesX, tilesY);
-    gl!.drawArrays(gl!.TRIANGLE_STRIP, 0, 4);
+    )
+    gl!.uniform1f(tilePass.uniforms.uFadeTime, Math.max(config.fadeTime, 0.1))
+    gl!.uniform1f(tilePass.uniforms.uAmplitude, config.amplitude)
+    gl!.uniform1f(tilePass.uniforms.uJitter, config.jitter)
+    gl!.uniform1f(tilePass.uniforms.uMaxLift, Math.max(config.maxLift, 0.01))
+    gl!.bindFramebuffer(gl!.FRAMEBUFFER, tileFbo)
+    gl!.viewport(0, 0, tilesX, tilesY)
+    gl!.drawArrays(gl!.TRIANGLE_STRIP, 0, 4)
 
-    gl!.useProgram(mainPass.program);
-    gl!.activeTexture(gl!.TEXTURE0);
-    gl!.bindTexture(gl!.TEXTURE_2D, contentTexture);
-    gl!.uniform1i(mainPass.uniforms.uContent, 0);
-    gl!.uniform1f(mainPass.uniforms.uHasContent, htmlInCanvas ? 1 : 0);
-    gl!.activeTexture(gl!.TEXTURE1);
-    gl!.bindTexture(gl!.TEXTURE_2D, tileTexture);
-    gl!.uniform1i(mainPass.uniforms.uTiles, 1);
-    gl!.activeTexture(gl!.TEXTURE0);
-    gl!.uniform2f(mainPass.uniforms.uResolution, output.width, output.height);
-    gl!.uniform2i(mainPass.uniforms.uGridTiles, tilesX, tilesY);
-    gl!.uniform1f(mainPass.uniforms.uTilePx, tilePx);
-    gl!.uniform1f(mainPass.uniforms.uGapPx, Math.max(config.gap, 0) * scale);
+    gl!.useProgram(mainPass.program)
+    gl!.activeTexture(gl!.TEXTURE0)
+    gl!.bindTexture(gl!.TEXTURE_2D, contentTexture)
+    gl!.uniform1i(mainPass.uniforms.uContent, 0)
+    gl!.uniform1f(mainPass.uniforms.uHasContent, htmlInCanvas ? 1 : 0)
+    gl!.activeTexture(gl!.TEXTURE1)
+    gl!.bindTexture(gl!.TEXTURE_2D, tileTexture)
+    gl!.uniform1i(mainPass.uniforms.uTiles, 1)
+    gl!.activeTexture(gl!.TEXTURE0)
+    gl!.uniform2f(mainPass.uniforms.uResolution, output.width, output.height)
+    gl!.uniform2i(mainPass.uniforms.uGridTiles, tilesX, tilesY)
+    gl!.uniform1f(mainPass.uniforms.uTilePx, tilePx)
+    gl!.uniform1f(mainPass.uniforms.uGapPx, Math.max(config.gap, 0) * scale)
     gl!.uniform1f(
       mainPass.uniforms.uCornerPx,
       Math.max(config.cornerRadius, 0) * scale,
-    );
+    )
     gl!.uniform1f(
       mainPass.uniforms.uLiftPx,
       Math.max(config.liftHeight, 0) * scale,
-    );
+    )
     gl!.uniform1f(
       mainPass.uniforms.uPersp,
       Math.max(config.perspective, 100) * scale,
-    );
+    )
     gl!.uniform2f(
       mainPass.uniforms.uVanish,
       (0.5 + (vanishX - 0.5) * config.tilt) * output.width,
       (0.5 + (0.5 - vanishY) * config.tilt) * output.height,
-    );
-    gl!.uniform1f(mainPass.uniforms.uShading, config.shading);
+    )
+    gl!.uniform1f(mainPass.uniforms.uShading, config.shading)
     gl!.uniform3f(
       mainPass.uniforms.uTint,
       config.tint[0],
       config.tint[1],
       config.tint[2],
-    );
-    gl!.uniform1f(mainPass.uniforms.uTintStrength, config.tintStrength);
-    gl!.uniform1f(mainPass.uniforms.uMaxX, contentMaxX);
-    gl!.bindFramebuffer(gl!.FRAMEBUFFER, null);
-    gl!.viewport(0, 0, output.width, output.height);
-    gl!.drawArrays(gl!.TRIANGLE_STRIP, 0, 4);
+    )
+    gl!.uniform1f(mainPass.uniforms.uTintStrength, config.tintStrength)
+    gl!.uniform1f(mainPass.uniforms.uMaxX, contentMaxX)
+    gl!.bindFramebuffer(gl!.FRAMEBUFFER, null)
+    gl!.viewport(0, 0, output.width, output.height)
+    gl!.drawArrays(gl!.TRIANGLE_STRIP, 0, 4)
   }
 
-  let raf = 0;
-  let lastTime = performance.now();
-  let destroyed = false;
-  let running = false;
-  let visible = true;
+  let raf = 0
+  let lastTime = performance.now()
+  let destroyed = false
+  let running = false
+  let visible = true
 
-  const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-  let reducedMotion = motionQuery.matches;
+  const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+  let reducedMotion = motionQuery.matches
 
   function frame(now: number) {
-    if (destroyed) return;
+    if (destroyed) return
     if (!visible) {
-      running = false;
-      return;
+      running = false
+      return
     }
-    const delta = Math.min((now - lastTime) / 1000, 1 / 30);
-    lastTime = now;
-    const trailCount = reducedMotion ? 0 : updateTrail(delta);
-    render(trailCount, delta);
+    const delta = Math.min((now - lastTime) / 1000, 1 / 30)
+    lastTime = now
+    const trailCount = reducedMotion ? 0 : updateTrail(delta)
+    render(trailCount, delta)
     const settling =
       Math.abs(vanishX - vanishTargetX) + Math.abs(vanishY - vanishTargetY) >
-      0.001;
+      0.001
     const animating =
-      !reducedMotion && (trailCount > 0 || config.idleRipples > 0 || settling);
+      !reducedMotion && (trailCount > 0 || config.idleRipples > 0 || settling)
     if (!animating && !contentDirty) {
-      running = false;
-      return;
+      running = false
+      return
     }
-    raf = requestAnimationFrame(frame);
+    raf = requestAnimationFrame(frame)
   }
 
   function start() {
-    if (destroyed || running || !visible) return;
-    running = true;
-    lastTime = performance.now();
-    raf = requestAnimationFrame(frame);
+    if (destroyed || running || !visible) return
+    running = true
+    lastTime = performance.now()
+    raf = requestAnimationFrame(frame)
   }
 
-  wake = start;
-  start();
+  wake = start
+  start()
 
   function onMotionChange() {
-    reducedMotion = motionQuery.matches;
-    if (reducedMotion) trail.length = 0;
-    start();
+    reducedMotion = motionQuery.matches
+    if (reducedMotion) trail.length = 0
+    start()
   }
-  motionQuery.addEventListener("change", onMotionChange);
+  motionQuery.addEventListener('change', onMotionChange)
 
   const observer = new ResizeObserver(() => {
-    syncCanvasSize();
-    start();
-  });
-  observer.observe(output);
-  observer.observe(content);
+    syncCanvasSize()
+    start()
+  })
+  observer.observe(output)
+  observer.observe(content)
 
   const intersection = new IntersectionObserver((entries) => {
-    visible = entries[entries.length - 1]?.isIntersecting ?? true;
-    if (visible) start();
-  });
-  intersection.observe(output);
+    visible = entries[entries.length - 1]?.isIntersecting ?? true
+    if (visible) start()
+  })
+  intersection.observe(output)
 
-  const listenTarget = output.parentElement ?? output;
+  const listenTarget = output.parentElement ?? output
 
   function onPointerMove(event: PointerEvent) {
-    if (reducedMotion) return;
-    const rect = output.getBoundingClientRect();
-    const aspect = Math.max(rect.width, 1) / Math.max(rect.height, 1);
-    const fx = (event.clientX - rect.left) / Math.max(rect.width, 1);
-    const fy = (event.clientY - rect.top) / Math.max(rect.height, 1);
-    vanishTargetX = fx;
-    vanishTargetY = fy;
-    const x = fx * aspect;
-    const y = 1 - fy;
+    if (reducedMotion) return
+    const rect = output.getBoundingClientRect()
+    const aspect = Math.max(rect.width, 1) / Math.max(rect.height, 1)
+    const fx = (event.clientX - rect.left) / Math.max(rect.width, 1)
+    const fy = (event.clientY - rect.top) / Math.max(rect.height, 1)
+    vanishTargetX = fx
+    vanishTargetY = fy
+    const x = fx * aspect
+    const y = 1 - fy
 
-    let distDelta = 0.2;
+    let distDelta = 0.2
     if (lastPoint) {
-      const dx = x - lastPoint.x;
-      const dy = y - lastPoint.y;
-      distDelta = Math.hypot(dx, dy);
+      const dx = x - lastPoint.x
+      const dy = y - lastPoint.y
+      distDelta = Math.hypot(dx, dy)
       if (distDelta < TRAIL_SPACING) {
-        start();
-        return;
+        start()
+        return
       }
     }
 
@@ -756,99 +756,99 @@ export function createGrid(
       y,
       age: 0,
       strength: Math.min(Math.max(distDelta * 6, 0.25), 1.2),
-    });
-    lastPoint = { x, y };
-    timeSinceMove = 0;
-    idleTimer = 0;
-    start();
+    })
+    lastPoint = { x, y }
+    timeSinceMove = 0
+    idleTimer = 0
+    start()
   }
 
   function onPointerLeave() {
-    vanishTargetX = 0.5;
-    vanishTargetY = 0.5;
-    start();
+    vanishTargetX = 0.5
+    vanishTargetY = 0.5
+    start()
   }
 
-  listenTarget.addEventListener("pointermove", onPointerMove);
-  listenTarget.addEventListener("pointerleave", onPointerLeave);
+  listenTarget.addEventListener('pointermove', onPointerMove)
+  listenTarget.addEventListener('pointerleave', onPointerLeave)
 
   return {
     setOptions(next) {
-      Object.assign(config, next);
-      start();
+      Object.assign(config, next)
+      start()
     },
     resize() {
-      syncCanvasSize();
-      start();
+      syncCanvasSize()
+      start()
     },
     destroy() {
-      destroyed = true;
-      cancelAnimationFrame(raf);
-      observer.disconnect();
-      intersection.disconnect();
-      motionQuery.removeEventListener("change", onMotionChange);
-      listenTarget.removeEventListener("pointermove", onPointerMove);
-      listenTarget.removeEventListener("pointerleave", onPointerLeave);
-      gl!.deleteTexture(contentTexture);
-      gl!.deleteTexture(trailTexture);
-      if (tileTexture) gl!.deleteTexture(tileTexture);
-      if (tileFbo) gl!.deleteFramebuffer(tileFbo);
+      destroyed = true
+      cancelAnimationFrame(raf)
+      observer.disconnect()
+      intersection.disconnect()
+      motionQuery.removeEventListener('change', onMotionChange)
+      listenTarget.removeEventListener('pointermove', onPointerMove)
+      listenTarget.removeEventListener('pointerleave', onPointerLeave)
+      gl!.deleteTexture(contentTexture)
+      gl!.deleteTexture(trailTexture)
+      if (tileTexture) gl!.deleteTexture(tileTexture)
+      if (tileFbo) gl!.deleteFramebuffer(tileFbo)
       for (const pass of [mainPass, tilePass]) {
-        gl!.deleteProgram(pass.program);
-        gl!.deleteShader(pass.vertexShader);
-        gl!.deleteShader(pass.fragmentShader);
+        gl!.deleteProgram(pass.program)
+        gl!.deleteShader(pass.vertexShader)
+        gl!.deleteShader(pass.fragmentShader)
       }
-      gl!.deleteBuffer(quad);
-      if (htmlInCanvas) paintable.onpaint = null;
+      gl!.deleteBuffer(quad)
+      if (htmlInCanvas) paintable.onpaint = null
     },
-  };
+  }
 }
 
 export interface GridProps extends GridOptions {
-  children: ReactNode;
-  className?: string;
-  style?: React.CSSProperties;
+  children: ReactNode
+  className?: string
+  style?: React.CSSProperties
 }
 
-const emptySubscribe = () => () => {};
+const emptySubscribe = () => () => {}
 
 export function Grid({ children, className, style, ...options }: GridProps) {
-  const sourceRef = useRef<HTMLCanvasElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
-  const outputRef = useRef<HTMLCanvasElement>(null);
-  const instanceRef = useRef<GridInstance | null>(null);
-  const [initialOptions] = useState(options);
-  const [failed, setFailed] = useState(false);
+  const sourceRef = useRef<HTMLCanvasElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const outputRef = useRef<HTMLCanvasElement>(null)
+  const instanceRef = useRef<GridInstance | null>(null)
+  const [initialOptions] = useState(options)
+  const [failed, setFailed] = useState(false)
 
   const supported = useSyncExternalStore(
     emptySubscribe,
     supportsHtmlInCanvas,
     () => false,
-  );
-  const native = supported && !failed;
+  )
+  const native = supported && !failed
 
   useEffect(() => {
-    const source = sourceRef.current;
-    const content = contentRef.current;
-    const output = outputRef.current;
-    if (!source || !content || !output) return;
+    const source = sourceRef.current
+    const content = contentRef.current
+    const output = outputRef.current
+    if (!source || !content || !output) return
     instanceRef.current = createGrid(
       { source, content, output },
       initialOptions,
-    );
-    if (native && !instanceRef.current) setFailed(true);
+    )
+    if (native && !instanceRef.current) setFailed(true)
     return () => {
-      instanceRef.current?.destroy();
-      instanceRef.current = null;
-    };
-  }, [initialOptions, native]);
+      instanceRef.current?.destroy()
+      instanceRef.current = null
+    }
+  }, [initialOptions, native])
 
   useEffect(() => {
-    instanceRef.current?.setOptions(options);
-  });
+    instanceRef.current?.setOptions(options)
+  })
 
   return (
-    <div className={className} style={{ position: "relative", ...style }}>
+    <div className={className} style={{ position: 'relative', ...style }}>
       <canvas
         ref={sourceRef}
         // @ts-expect-error experimental html-in-canvas attribute
@@ -856,18 +856,18 @@ export function Grid({ children, className, style, ...options }: GridProps) {
         suppressHydrationWarning
         style={
           native
-            ? { position: "absolute", inset: 0, width: "100%", height: "100%" }
-            : { display: "none" }
+            ? { position: 'absolute', inset: 0, width: '100%', height: '100%' }
+            : { display: 'none' }
         }
       >
         {native ? (
           <div
             ref={contentRef}
             style={{
-              position: "relative",
-              width: "100%",
-              height: "100%",
-              overflow: "auto",
+              position: 'relative',
+              width: '100%',
+              height: '100%',
+              overflow: 'auto',
             }}
           >
             {children}
@@ -878,10 +878,10 @@ export function Grid({ children, className, style, ...options }: GridProps) {
         <div
           ref={contentRef}
           style={{
-            position: "relative",
-            width: "100%",
-            height: "100%",
-            overflow: "auto",
+            position: 'relative',
+            width: '100%',
+            height: '100%',
+            overflow: 'auto',
           }}
         >
           {children}
@@ -891,16 +891,15 @@ export function Grid({ children, className, style, ...options }: GridProps) {
         ref={outputRef}
         aria-hidden
         style={{
-          position: "absolute",
+          position: 'absolute',
           inset: 0,
-          width: "100%",
-          height: "100%",
-          pointerEvents: "none",
+          width: '100%',
+          height: '100%',
+          pointerEvents: 'none',
         }}
       />
     </div>
-  );
+  )
 }
 
-
-export default Grid;
+export default Grid

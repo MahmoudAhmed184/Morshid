@@ -56,7 +56,10 @@ export function StudentMessageHistory({
   if (isPending && !isGenerationActive && messages.length === 0) {
     return (
       <div className="flex min-h-[40vh] w-full items-center justify-center">
-        <LoaderCircle className="size-6 animate-spin text-muted-foreground" aria-hidden />
+        <LoaderCircle
+          className="size-6 animate-spin text-muted-foreground"
+          aria-hidden
+        />
       </div>
     )
   }

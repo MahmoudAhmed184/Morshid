@@ -1,9 +1,4 @@
-import React, {
-  useState,
-  Children,
-  useRef,
-  useLayoutEffect,
-} from 'react'
+import React, { useState, Children, useRef, useLayoutEffect } from 'react'
 import type { HTMLAttributes, ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { Variants } from 'framer-motion'
@@ -208,7 +203,9 @@ function StepContentWrapper({
   className = '',
 }: StepContentWrapperProps) {
   return (
-    <div className={cn('relative w-full overflow-hidden min-h-[90px]', className)}>
+    <div
+      className={cn('relative w-full overflow-hidden min-h-[90px]', className)}
+    >
       <AnimatePresence mode="wait" custom={direction}>
         {!isCompleted && (
           <motion.div

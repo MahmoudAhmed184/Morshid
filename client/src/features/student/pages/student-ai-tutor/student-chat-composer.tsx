@@ -159,7 +159,10 @@ export const StudentChatComposer = forwardRef<
           value={draft}
         />
         <div className="flex items-center justify-between gap-2 px-3 pt-1 pb-2.5">
-          <p id="chat-composer-hint" className="footnote text-[0.68rem] leading-tight text-muted-foreground sm:text-xs">
+          <p
+            id="chat-composer-hint"
+            className="footnote text-[0.68rem] leading-tight text-muted-foreground sm:text-xs"
+          >
             AI responses can be inaccurate. Check important course information.
           </p>
           <Button

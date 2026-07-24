@@ -48,7 +48,9 @@ export function AdminUsersTable({
             key={user.id}
             className={cn(
               'flex items-center justify-between p-3.5 gap-3',
-              user.status === 'DISABLED' ? 'bg-destructive/[0.04]' : 'hover:bg-secondary/20',
+              user.status === 'DISABLED'
+                ? 'bg-destructive/[0.04]'
+                : 'hover:bg-secondary/20',
             )}
           >
             <div className="min-w-0 flex-1 space-y-1">
@@ -60,7 +62,9 @@ export function AdminUsersTable({
                   {toRoleLabel(user.role)}
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+              <p className="text-xs text-muted-foreground truncate">
+                {user.email}
+              </p>
               <div className="flex items-center gap-2 text-xs text-muted-foreground pt-0.5">
                 <AdminStatusBadge status={user.status} />
                 <span>•</span>

@@ -85,7 +85,10 @@ export function AdminUsersPage() {
                   if (value) setRoleFilter(value as RoleFilter)
                 }}
               >
-                <SelectTrigger className="h-9 px-2.5 text-xs rounded-lg border-border/80 w-auto min-w-[105px]" aria-label="Filter users by role">
+                <SelectTrigger
+                  className="h-9 px-2.5 text-xs rounded-lg border-border/80 w-auto min-w-[105px]"
+                  aria-label="Filter users by role"
+                >
                   <span className="truncate">{roleFilterText}</span>
                 </SelectTrigger>
                 <SelectContent>
@@ -100,7 +103,10 @@ export function AdminUsersPage() {
                   if (value) setStatusFilter(value as StatusFilter)
                 }}
               >
-                <SelectTrigger className="h-9 px-2.5 text-xs rounded-lg border-border/80 w-auto min-w-[105px]" aria-label="Filter users by status">
+                <SelectTrigger
+                  className="h-9 px-2.5 text-xs rounded-lg border-border/80 w-auto min-w-[105px]"
+                  aria-label="Filter users by status"
+                >
                   <span className="truncate">{statusFilterText}</span>
                 </SelectTrigger>
                 <SelectContent>

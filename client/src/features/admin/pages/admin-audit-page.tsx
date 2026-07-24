@@ -29,7 +29,9 @@ const dateFormatter = new Intl.DateTimeFormat(undefined, {
 
 export function AdminAuditPage() {
   const auditQuery = useAdminAudit()
-  const [selectedEvent, setSelectedEvent] = useState<AdminAuditEvent | null>(null)
+  const [selectedEvent, setSelectedEvent] = useState<AdminAuditEvent | null>(
+    null,
+  )
 
   return (
     <div>
@@ -186,8 +188,12 @@ export function AdminAuditPage() {
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Event Action
                 </p>
-                <p className="font-semibold text-foreground text-base">{selectedEvent.action}</p>
-                <p className="font-mono text-xs text-muted-foreground select-all">{selectedEvent.id}</p>
+                <p className="font-semibold text-foreground text-base">
+                  {selectedEvent.action}
+                </p>
+                <p className="font-mono text-xs text-muted-foreground select-all">
+                  {selectedEvent.id}
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -195,9 +201,13 @@ export function AdminAuditPage() {
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Actor
                   </p>
-                  <p className="font-medium text-foreground">{selectedEvent.actor?.displayName ?? 'System'}</p>
+                  <p className="font-medium text-foreground">
+                    {selectedEvent.actor?.displayName ?? 'System'}
+                  </p>
                   {selectedEvent.actor?.email ? (
-                    <p className="text-xs text-muted-foreground truncate">{selectedEvent.actor.email}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {selectedEvent.actor.email}
+                    </p>
                   ) : null}
                 </div>
 
@@ -205,7 +215,9 @@ export function AdminAuditPage() {
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Target Type
                   </p>
-                  <p className="font-medium text-foreground">{selectedEvent.targetType}</p>
+                  <p className="font-medium text-foreground">
+                    {selectedEvent.targetType}
+                  </p>
                 </div>
               </div>
 
@@ -214,7 +226,9 @@ export function AdminAuditPage() {
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Target ID
                   </p>
-                  <p className="font-mono text-xs text-foreground select-all break-all">{selectedEvent.targetId}</p>
+                  <p className="font-mono text-xs text-foreground select-all break-all">
+                    {selectedEvent.targetId}
+                  </p>
                 </div>
               ) : null}
 
@@ -223,7 +237,9 @@ export function AdminAuditPage() {
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Course ID
                   </p>
-                  <p className="font-mono text-xs text-foreground select-all break-all">{selectedEvent.courseId}</p>
+                  <p className="font-mono text-xs text-foreground select-all break-all">
+                    {selectedEvent.courseId}
+                  </p>
                 </div>
               ) : null}
 
@@ -231,7 +247,9 @@ export function AdminAuditPage() {
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Timestamp
                 </p>
-                <p className="font-medium text-foreground">{dateFormatter.format(new Date(selectedEvent.createdAt))}</p>
+                <p className="font-medium text-foreground">
+                  {dateFormatter.format(new Date(selectedEvent.createdAt))}
+                </p>
               </div>
             </div>
           ) : null}

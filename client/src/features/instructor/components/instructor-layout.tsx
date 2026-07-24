@@ -8,7 +8,11 @@ import {
 
 import { AppSidebar } from '@/components/layout/app-sidebar'
 import type { AppSidebarNavItem } from '@/components/layout/app-sidebar'
-import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from '@/components/ui/sidebar'
 import { InstructorShellContentFallback } from '@/features/instructor/components/instructor-shell-content-fallback'
 
 const instructorLayoutRouteId = '/instructor'

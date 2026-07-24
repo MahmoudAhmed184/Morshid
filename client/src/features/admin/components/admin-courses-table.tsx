@@ -94,14 +94,22 @@ export function AdminCoursesTable({ courses }: { courses: AdminCourse[] }) {
                   className="h-[52px] hover:bg-secondary/40"
                 >
                   <TableCell className="px-4 py-3.5 pl-6 min-w-0">
-                    <p className="font-medium text-foreground truncate max-w-[240px]">{course.title}</p>
-                    <p className="text-xs font-mono text-muted-foreground">{course.code}</p>
+                    <p className="font-medium text-foreground truncate max-w-[240px]">
+                      {course.title}
+                    </p>
+                    <p className="text-xs font-mono text-muted-foreground">
+                      {course.code}
+                    </p>
                   </TableCell>
                   <TableCell className="px-4 py-3.5 min-w-0">
                     {instructors.length > 0 ? (
-                      <p className="truncate max-w-[200px]">{instructors.join(', ')}</p>
+                      <p className="truncate max-w-[200px]">
+                        {instructors.join(', ')}
+                      </p>
                     ) : (
-                      <span className="text-muted-foreground">Not assigned</span>
+                      <span className="text-muted-foreground">
+                        Not assigned
+                      </span>
                     )}
                   </TableCell>
                   <TableCell className="px-4 py-3.5 tabular-nums">
@@ -152,8 +160,12 @@ export function AdminCoursesTable({ courses }: { courses: AdminCourse[] }) {
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Course Title & Code
                 </p>
-                <p className="font-semibold text-foreground text-base">{selectedCourse.title}</p>
-                <p className="font-mono text-xs text-primary font-bold">{selectedCourse.code}</p>
+                <p className="font-semibold text-foreground text-base">
+                  {selectedCourse.title}
+                </p>
+                <p className="font-mono text-xs text-primary font-bold">
+                  {selectedCourse.code}
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -161,14 +173,18 @@ export function AdminCoursesTable({ courses }: { courses: AdminCourse[] }) {
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Students
                   </p>
-                  <p className="font-bold text-foreground text-lg">{selectedCourse.adminMetadata.studentCount}</p>
+                  <p className="font-bold text-foreground text-lg">
+                    {selectedCourse.adminMetadata.studentCount}
+                  </p>
                 </div>
 
                 <div className="rounded-xl border bg-card p-3 space-y-1">
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Materials
                   </p>
-                  <p className="font-bold text-foreground text-lg">{selectedCourse.adminMetadata.materialCount}</p>
+                  <p className="font-bold text-foreground text-lg">
+                    {selectedCourse.adminMetadata.materialCount}
+                  </p>
                 </div>
               </div>
 
@@ -188,14 +204,20 @@ export function AdminCoursesTable({ courses }: { courses: AdminCourse[] }) {
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Course ID
                 </p>
-                <p className="font-mono text-xs text-foreground select-all break-all">{selectedCourse.id}</p>
+                <p className="font-mono text-xs text-foreground select-all break-all">
+                  {selectedCourse.id}
+                </p>
               </div>
 
               <div className="rounded-xl border bg-card p-3 space-y-1">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Last Updated
                 </p>
-                <p className="font-medium text-foreground">{dateFormatter.format(new Date(selectedCourse.adminMetadata.updatedAt))}</p>
+                <p className="font-medium text-foreground">
+                  {dateFormatter.format(
+                    new Date(selectedCourse.adminMetadata.updatedAt),
+                  )}
+                </p>
               </div>
             </div>
           ) : null}

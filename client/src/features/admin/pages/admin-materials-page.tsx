@@ -42,7 +42,8 @@ const materialDateFormatter = new Intl.DateTimeFormat(undefined, {
 
 export function AdminMaterialsPage() {
   const [selectedCourseId, setSelectedCourseId] = useState('')
-  const [selectedMaterial, setSelectedMaterial] = useState<AdminCourseMaterial | null>(null)
+  const [selectedMaterial, setSelectedMaterial] =
+    useState<AdminCourseMaterial | null>(null)
   const coursesQuery = useAdminCourses()
   const courseId = selectedCourseId || coursesQuery.data?.[0]?.id
   const materialsQuery = useAdminCourseMaterials(courseId)
@@ -81,12 +82,19 @@ export function AdminMaterialsPage() {
               onValueChange={(value) => setSelectedCourseId(value ?? '')}
               items={courseSelectItems}
             >
-              <SelectTrigger className="h-9 px-3 text-xs rounded-lg border-border/80 w-full sm:w-80 max-w-full" aria-label="Course">
+              <SelectTrigger
+                className="h-9 px-3 text-xs rounded-lg border-border/80 w-full sm:w-80 max-w-full"
+                aria-label="Course"
+              >
                 <SelectValue placeholder="Choose a course" />
               </SelectTrigger>
               <SelectContent>
                 {courseSelectItems.map((course) => (
-                  <SelectItem key={course.value} value={course.value} className="text-xs py-1.5">
+                  <SelectItem
+                    key={course.value}
+                    value={course.value}
+                    className="text-xs py-1.5"
+                  >
                     {course.label}
                   </SelectItem>
                 ))}
@@ -206,7 +214,9 @@ export function AdminMaterialsPage() {
                       <AdminStatusBadge status={material.status} />
                     </TableCell>
                     <TableCell className="px-4 py-3.5 min-w-0">
-                      <p className="truncate max-w-[140px]">{material.uploadedBy.displayName}</p>
+                      <p className="truncate max-w-[140px]">
+                        {material.uploadedBy.displayName}
+                      </p>
                       <p className="text-xs text-muted-foreground truncate max-w-[140px]">
                         {material.uploadedBy.email}
                       </p>
@@ -266,8 +276,12 @@ export function AdminMaterialsPage() {
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Title & Filename
                 </p>
-                <p className="font-semibold text-foreground text-base">{selectedMaterial.title}</p>
-                <p className="font-mono text-xs text-muted-foreground select-all">{selectedMaterial.originalFilename}</p>
+                <p className="font-semibold text-foreground text-base">
+                  {selectedMaterial.title}
+                </p>
+                <p className="font-mono text-xs text-muted-foreground select-all">
+                  {selectedMaterial.originalFilename}
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -284,7 +298,9 @@ export function AdminMaterialsPage() {
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Course Code
                   </p>
-                  <p className="font-medium text-foreground">{selectedCourse?.code ?? selectedMaterial.courseId}</p>
+                  <p className="font-medium text-foreground">
+                    {selectedCourse?.code ?? selectedMaterial.courseId}
+                  </p>
                 </div>
               </div>
 
@@ -292,22 +308,32 @@ export function AdminMaterialsPage() {
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Uploaded By
                 </p>
-                <p className="font-medium text-foreground">{selectedMaterial.uploadedBy.displayName}</p>
-                <p className="text-xs text-muted-foreground select-all">{selectedMaterial.uploadedBy.email}</p>
+                <p className="font-medium text-foreground">
+                  {selectedMaterial.uploadedBy.displayName}
+                </p>
+                <p className="text-xs text-muted-foreground select-all">
+                  {selectedMaterial.uploadedBy.email}
+                </p>
               </div>
 
               <div className="rounded-xl border bg-card p-3 space-y-1">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Material ID
                 </p>
-                <p className="font-mono text-xs text-foreground select-all break-all">{selectedMaterial.id}</p>
+                <p className="font-mono text-xs text-foreground select-all break-all">
+                  {selectedMaterial.id}
+                </p>
               </div>
 
               <div className="rounded-xl border bg-card p-3 space-y-1">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Last Updated
                 </p>
-                <p className="font-medium text-foreground">{materialDateFormatter.format(new Date(selectedMaterial.updatedAt))}</p>
+                <p className="font-medium text-foreground">
+                  {materialDateFormatter.format(
+                    new Date(selectedMaterial.updatedAt),
+                  )}
+                </p>
               </div>
             </div>
           ) : null}
