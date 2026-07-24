@@ -220,6 +220,7 @@ model MaterialChunk {
   retrievals MessageRetrieval[]
 
   @@unique([materialId, chunkIndex], map: "material_chunks_material_id_chunk_index_key")
+  @@index([embedding], map: "idx_chunks_embedding_hnsw")
   @@map("material_chunks")
 }
 
