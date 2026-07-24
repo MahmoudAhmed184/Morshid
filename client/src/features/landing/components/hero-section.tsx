@@ -153,7 +153,7 @@ export function HeroTranscriptStack() {
       <div className="relative min-h-[380px] w-full">
         {/* Layer 3 (Deepest Background Sheet with FULL content) */}
         <div
-          className="absolute inset-0 translate-y-4 scale-94 rounded-2xl border border-border/40 bg-card/60 p-5 shadow-xs opacity-50 sm:rounded-3xl sm:p-8 overflow-hidden"
+          className="absolute inset-0 rounded-2xl border border-border/40 bg-card/60 p-5 opacity-50 sm:rounded-3xl sm:p-8 overflow-hidden"
           aria-hidden
         >
           <figcaption className="flex items-center justify-between gap-4 border-b border-border/40 pb-3">
@@ -177,7 +177,7 @@ export function HeroTranscriptStack() {
 
         {/* Layer 2 (Middle Background Sheet with 100% EXACT FULL content) */}
         <div
-          className="absolute inset-0 translate-y-2 scale-97 rounded-2xl border border-border/80 bg-card p-5 shadow-md opacity-95 sm:rounded-3xl sm:p-8 overflow-hidden"
+          className="absolute inset-0 rounded-2xl border border-border/80 bg-card p-5 opacity-95 sm:rounded-3xl sm:p-8 overflow-hidden"
           aria-hidden
         >
           <figcaption className="flex items-center justify-between gap-4 border-b border-border/60 pb-3">
@@ -234,6 +234,7 @@ export function HeroTranscriptStack() {
         {/* Layer 1 (Top Active Draggable Card) */}
         <motion.figure
           key={currentSheet.id}
+          initial={false}
           drag={!isExiting}
           dragConstraints={{ left: -150, right: 150, top: -50, bottom: 200 }}
           dragElastic={0.2}
@@ -262,7 +263,7 @@ export function HeroTranscriptStack() {
           }
           onAnimationComplete={handleAnimationComplete}
           transition={{ type: 'spring', stiffness: 320, damping: 26 }}
-          className="relative z-30 cursor-grab active:cursor-grabbing rounded-2xl border border-border bg-card p-5 shadow-2xl sm:rounded-3xl sm:p-8"
+          className="relative z-30 cursor-grab active:cursor-grabbing rounded-2xl border border-border bg-card p-5 sm:rounded-3xl sm:p-8"
         >
           <figcaption className="flex items-center justify-between gap-4 border-b border-border/60 pb-3">
             <span className="smallcaps-label text-xs">
@@ -281,7 +282,7 @@ export function HeroTranscriptStack() {
 
           <div className="mt-4 space-y-3.5 sm:mt-5 sm:space-y-4">
             {currentSheet.turns.map((turn, idx) => (
-              <div key={idx} className="motion-safe:animate-fade-up">
+              <div key={idx}>
                 <SpeakerLabel tone={turn.tone}>
                   {turn.tone === 'student' ? 'Student.' : 'Morshid.'}
                 </SpeakerLabel>
@@ -320,7 +321,7 @@ export function HeroTranscriptStack() {
 
 export function HeroSection() {
   return (
-    <section className="atmosphere overflow-x-clip">
+    <section className="atmosphere overflow-x-clip pt-20 sm:pt-28">
       <div className="mx-auto w-full max-w-6xl px-4 pb-10 sm:px-6 sm:pb-24 md:px-10">
         <div className="grid gap-6 sm:gap-12 lg:grid-cols-12">
           {/* Left — cols 1–7 */}

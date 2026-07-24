@@ -11,7 +11,7 @@ export function LandingPage() {
   return (
     <div className="flex min-h-svh flex-col bg-background text-foreground">
       <Navbar />
-      <main className="flex-1 pt-20 sm:pt-28">
+      <main className="flex-1">
         <HeroSection />
         <TrustLogosSection />
         <CredoStrip />
