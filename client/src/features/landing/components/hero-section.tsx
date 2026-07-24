@@ -150,76 +150,86 @@ export function HeroTranscriptStack() {
         </button>
       </div>
 
-      <div className="relative min-h-[380px] w-full">
+      <div className="relative h-[430px] w-full sm:h-[450px]">
         {/* Layer 3 (Deepest Background Sheet with FULL content) */}
         <div
-          className="absolute inset-0 rounded-2xl border border-border/40 bg-card/60 p-5 opacity-50 sm:rounded-3xl sm:p-8 overflow-hidden"
+          className="absolute inset-0 flex flex-col justify-between overflow-hidden rounded-2xl border border-border/40 bg-card/60 p-5 opacity-50 sm:rounded-3xl sm:p-8"
           aria-hidden
         >
-          <figcaption className="flex items-center justify-between gap-4 border-b border-border/40 pb-3">
-            <span className="smallcaps-label text-xs opacity-70">
-              {thirdSheet.title}
-            </span>
-          </figcaption>
-          <div className="mt-4 space-y-3.5 sm:mt-5 sm:space-y-4 opacity-50">
-            {thirdSheet.turns.map((turn, idx) => (
-              <div key={idx}>
-                <SpeakerLabel tone={turn.tone}>
-                  {turn.tone === 'student' ? 'Student.' : 'Morshid.'}
-                </SpeakerLabel>
-                <p className="mt-1 leading-relaxed text-foreground text-xs">
-                  {turn.text}
-                </p>
-              </div>
+          <div>
+            <figcaption className="flex items-center justify-between gap-4 border-b border-border/40 pb-3">
+              <span className="smallcaps-label text-xs opacity-70">
+                {thirdSheet.title}
+              </span>
+            </figcaption>
+            <div className="mt-4 space-y-3.5 opacity-50 sm:mt-5 sm:space-y-4">
+              {thirdSheet.turns.map((turn, idx) => (
+                <div key={idx}>
+                  <SpeakerLabel tone={turn.tone}>
+                    {turn.tone === 'student' ? 'Student.' : 'Morshid.'}
+                  </SpeakerLabel>
+                  <p className="mt-1 text-xs leading-relaxed text-foreground">
+                    {turn.text}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rule mt-auto space-y-1 pt-3 sm:pt-4">
+            {thirdSheet.footnotes.map((fn) => (
+              <p
+                key={fn.n}
+                className="footnote text-[0.68rem] text-muted-foreground"
+              >
+                {fn.label}
+              </p>
             ))}
           </div>
         </div>
 
         {/* Layer 2 (Middle Background Sheet with 100% EXACT FULL content) */}
         <div
-          className="absolute inset-0 rounded-2xl border border-border/80 bg-card p-5 opacity-95 sm:rounded-3xl sm:p-8 overflow-hidden"
+          className="absolute inset-0 flex flex-col justify-between overflow-hidden rounded-2xl border border-border/80 bg-card p-5 opacity-95 sm:rounded-3xl sm:p-8"
           aria-hidden
         >
-          <figcaption className="flex items-center justify-between gap-4 border-b border-border/60 pb-3">
-            <span className="smallcaps-label text-xs">{nextSheet.title}</span>
-            <div className="flex items-center gap-2">
-              <span className="rounded-full bg-muted px-2 py-0.5 font-mono text-[0.65rem] text-muted-foreground">
-                Swipe ↔
-              </span>
+          <div>
+            <figcaption className="flex items-center justify-between gap-4 border-b border-border/60 pb-3">
+              <span className="smallcaps-label text-xs">{nextSheet.title}</span>
               <Logo
                 iconClassName="size-4 sm:size-5"
                 className="size-4 text-foreground sm:size-5"
               />
-            </div>
-          </figcaption>
+            </figcaption>
 
-          <div className="mt-4 space-y-3.5 sm:mt-5 sm:space-y-4">
-            {nextSheet.turns.map((turn, idx) => (
-              <div key={idx}>
-                <SpeakerLabel tone={turn.tone}>
-                  {turn.tone === 'student' ? 'Student.' : 'Morshid.'}
-                </SpeakerLabel>
-                <p
-                  className={cn(
-                    'mt-1 leading-relaxed text-foreground',
-                    turn.tone === 'student'
-                      ? 'font-display text-base italic sm:text-[1.15rem]'
-                      : 'text-xs sm:text-sm',
-                  )}
-                >
-                  {turn.text}
-                  {'citation' in turn && (
-                    <Citation
-                      n={turn.citation as number}
-                      href={`#fn-next-${idx}`}
-                    />
-                  )}
-                </p>
-              </div>
-            ))}
+            <div className="mt-4 space-y-3.5 sm:mt-5 sm:space-y-4">
+              {nextSheet.turns.map((turn, idx) => (
+                <div key={idx}>
+                  <SpeakerLabel tone={turn.tone}>
+                    {turn.tone === 'student' ? 'Student.' : 'Morshid.'}
+                  </SpeakerLabel>
+                  <p
+                    className={cn(
+                      'mt-1 leading-relaxed text-foreground',
+                      turn.tone === 'student'
+                        ? 'font-display text-base italic sm:text-[1.15rem]'
+                        : 'text-xs sm:text-sm',
+                    )}
+                  >
+                    {turn.text}
+                    {'citation' in turn && (
+                      <Citation
+                        n={turn.citation as number}
+                        href={`#fn-next-${idx}`}
+                      />
+                    )}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
 
-          <div className="rule mt-4 space-y-1 pt-3 sm:mt-5 sm:space-y-1 sm:pt-4">
+          <div className="rule mt-auto space-y-1 pt-3 sm:pt-4">
             {nextSheet.footnotes.map((fn) => (
               <p
                 key={fn.n}
@@ -263,47 +273,47 @@ export function HeroTranscriptStack() {
           }
           onAnimationComplete={handleAnimationComplete}
           transition={{ type: 'spring', stiffness: 320, damping: 26 }}
-          className="relative z-30 cursor-grab active:cursor-grabbing rounded-2xl border border-border bg-card p-5 sm:rounded-3xl sm:p-8"
+          className="relative z-30 flex h-full flex-col justify-between cursor-grab rounded-2xl border border-border bg-card p-5 active:cursor-grabbing sm:rounded-3xl sm:p-8"
         >
-          <figcaption className="flex items-center justify-between gap-4 border-b border-border/60 pb-3">
-            <span className="smallcaps-label text-xs">
-              {currentSheet.title}
-            </span>
-            <div className="flex items-center gap-2">
-              <span className="rounded-full bg-muted px-2 py-0.5 font-mono text-[0.65rem] text-muted-foreground">
-                Swipe ↔
+          <div>
+            <figcaption className="flex items-center justify-between gap-4 border-b border-border/60 pb-3">
+              <span className="smallcaps-label text-xs">
+                {currentSheet.title}
               </span>
               <Logo
                 iconClassName="size-4 sm:size-5"
                 className="size-4 text-foreground sm:size-5"
               />
-            </div>
-          </figcaption>
+            </figcaption>
 
-          <div className="mt-4 space-y-3.5 sm:mt-5 sm:space-y-4">
-            {currentSheet.turns.map((turn, idx) => (
-              <div key={idx}>
-                <SpeakerLabel tone={turn.tone}>
-                  {turn.tone === 'student' ? 'Student.' : 'Morshid.'}
-                </SpeakerLabel>
-                <p
-                  className={cn(
-                    'mt-1 leading-relaxed text-foreground',
-                    turn.tone === 'student'
-                      ? 'font-display text-base italic sm:text-[1.15rem]'
-                      : 'text-xs sm:text-sm',
-                  )}
-                >
-                  {turn.text}
-                  {'citation' in turn && (
-                    <Citation n={turn.citation as number} href={`#fn-${idx}`} />
-                  )}
-                </p>
-              </div>
-            ))}
+            <div className="mt-4 space-y-3.5 sm:mt-5 sm:space-y-4">
+              {currentSheet.turns.map((turn, idx) => (
+                <div key={idx}>
+                  <SpeakerLabel tone={turn.tone}>
+                    {turn.tone === 'student' ? 'Student.' : 'Morshid.'}
+                  </SpeakerLabel>
+                  <p
+                    className={cn(
+                      'mt-1 leading-relaxed text-foreground',
+                      turn.tone === 'student'
+                        ? 'font-display text-base italic sm:text-[1.15rem]'
+                        : 'text-xs sm:text-sm',
+                    )}
+                  >
+                    {turn.text}
+                    {'citation' in turn && (
+                      <Citation
+                        n={turn.citation as number}
+                        href={`#fn-${idx}`}
+                      />
+                    )}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
 
-          <div className="rule mt-4 space-y-1 pt-3 sm:mt-5 sm:space-y-1 sm:pt-4">
+          <div className="rule mt-auto space-y-1 pt-3 sm:pt-4">
             {currentSheet.footnotes.map((fn) => (
               <p
                 key={fn.n}
