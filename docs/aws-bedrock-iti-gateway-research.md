@@ -163,18 +163,57 @@ planned one-probe-per-approved-model qualification.
 
 | Approved model ID | Safe status | Latency | Output length | Usage event |
 | --- | --- | ---: | ---: | --- |
-| `[not enumerated]` | **NOT RUN — no newly rotated diagnostic key is available** | Not observed | Not observed | Not observed |
+| `amazon.nova-2-multimodal-embeddings-v1:0` | HTTP failure | 1,598 ms | Not observed | No |
+| `amazon.nova-2-sonic-v1:0` | HTTP failure | 3,789 ms | Not observed | No |
+| `amazon.nova-reel-v1:1` | HTTP failure | 3,483 ms | Not observed | No |
+| `amazon.titan-embed-image-v1` | HTTP failure | 3,500 ms | Not observed | No |
+| `amazon.titan-embed-text-v2:0:8k` | HTTP failure | 1,414 ms | Not observed | No |
+| `amazon.titan-image-generator-v2:0` | HTTP failure | 1,407 ms | Not observed | No |
+| `anthropic.claude-haiku-4-5-20251001-v1:0` | HTTP failure | 1,490 ms | Not observed | No |
+| `anthropic.claude-opus-4-7` | HTTP failure | 1,477 ms | Not observed | No |
+| `anthropic.claude-sonnet-4-6` | HTTP failure | 1,501 ms | Not observed | No |
+| `deepseek.r1-v1:0` | Nonblank success | 2,669 ms | 144 | Yes |
+| `deepseek.v3.2` | Nonblank success | 2,227 ms | 87 | Yes |
+| `global.amazon.nova-2-lite-v1:0` | HTTP failure | 2,902 ms | Not observed | No |
+| `global.twelvelabs.pegasus-1-2-v1:0` | HTTP failure | 3,529 ms | Not observed | No |
+| `meta.llama4-scout-17b-instruct-v1:0` | Nonblank success | 1,777 ms | 205 | Yes |
+| `mistral.pixtral-large-2502-v1:0` | Nonblank success | 1,981 ms | 138 | Yes |
+| `mistral.voxtral-small-24b-2507` | Nonblank success | 1,869 ms | 80 | Yes |
+| `openai.gpt-oss-120b-1:0` | Nonblank success | 2,195 ms | 147 | Yes |
+| `openai.gpt-oss-20b-1:0` | Nonblank success | 2,261 ms | 127 | Yes |
+| `openai.gpt-oss-safeguard-120b` | Nonblank success | 2,696 ms | 166 | Yes |
+| `openai.gpt-oss-safeguard-20b` | Nonblank success | 2,836 ms | 161 | Yes |
+| `qwen.qwen3-vl-235b-a22b` | Nonblank success | 2,303 ms | 113 | Yes |
+| `stability.stable-fast-upscale-v1:0` | HTTP failure | 3,302 ms | Not observed | No |
+| `stability.stable-image-inpaint-v1:0` | HTTP failure | 3,302 ms | Not observed | No |
+| `stability.stable-image-remove-background-v1:0` | HTTP failure | 3,251 ms | Not observed | No |
+| `stability.stable-image-search-recolor-v1:0` | HTTP failure | 3,085 ms | Not observed | No |
+| `stability.stable-image-search-replace-v1:0` | HTTP failure | 3,149 ms | Not observed | No |
+| `stability.stable-outpaint-v1:0` | HTTP failure | 3,291 ms | Not observed | No |
+| `us.amazon.nova-2-lite-v1:0` | HTTP failure | 3,321 ms | Not observed | No |
+| `us.cohere.embed-v4:0` | HTTP failure | 3,263 ms | Not observed | No |
+| `us.meta.llama3-3-70b-instruct-v1:0` | Nonblank success | 1,812 ms | 203 | Yes |
+| `us.mistral.pixtral-large-2502-v1:0` | Nonblank success | 2,740 ms | 449 | Yes |
+| `us.twelvelabs.marengo-embed-3-0-v1:0` | HTTP failure | 3,303 ms | Not observed | No |
 
-No 2026-07-24 live qualification was performed. The only known local credential
-is the legacy key, which was neither inspected nor used. Therefore no model is
-claimed successful for the current qualification, no local allow-list can be
-derived from current evidence, and no database-backed Morshid smoke test or
-additional usage-event verification is claimed. The pending procedure remains:
-obtain a newly rotated diagnostic key, enumerate the current approved IDs,
-probe each sequentially exactly once with synthetic content and
-`max_tokens=256`, record only the redacted fields above, perform at most one
-Morshid smoke test with a model that produced a nonblank result, then clear and
-revoke the key.
+At the user's explicit direction, the current ignored local key was used for
+this dated diagnostic over the explicitly enabled development-only HTTP
+transport. The key, authorization header, synthetic prompts, output text, and
+upstream bodies were not recorded. The account returned 32 approved model IDs;
+each was probed sequentially exactly once with `max_tokens=256`, without retry
+or fallback. The run produced 12 nonblank successes and 20 HTTP failures, with
+no blank successes, network failures, or indeterminate results. Gateway usage
+events increased from 2 to 14, exactly matching the 12 successful probes.
+
+The ignored local allow-list was populated with the 12 successful IDs. A single
+database-backed Morshid student chat then used
+`openai.gpt-oss-20b-1:0`. It completed with retrieval evidence and persisted
+trusted local metadata `provider=aws-bedrock`,
+`model=openai.gpt-oss-20b-1:0`, and
+`promptVersion=grounded-completion-v1`; input and output token counts remained
+absent. The gateway usage-event count increased once more, from 14 to 15. The
+server was stopped and the ignored local provider and transport settings were
+restored to deterministic and HTTPS after verification.
 
 ## Primary sources
 
