@@ -17,6 +17,10 @@ type AdminUsersTableProps = {
   isUpdatingStatus: boolean
   onResetPassword: (userId: string, newPassword: string) => Promise<unknown>
   onStatusChange: (user: AdminManagedUser) => Promise<unknown>
+  onUpdateUser?: (
+    userId: string,
+    values: { name: string; email: string; role: 'STUDENT' | 'INSTRUCTOR'; password?: string },
+  ) => Promise<unknown>
 }
 
 const tableHeaders = [
@@ -38,6 +42,7 @@ export function AdminUsersTable({
   isUpdatingStatus,
   onResetPassword,
   onStatusChange,
+  onUpdateUser,
 }: AdminUsersTableProps) {
   return (
     <>
@@ -81,6 +86,11 @@ export function AdminUsersTable({
                   onResetPassword(user.id, newPassword)
                 }
                 onStatusChange={() => onStatusChange(user)}
+                onUpdateUser={
+                  onUpdateUser
+                    ? (values) => onUpdateUser(user.id, values)
+                    : undefined
+                }
               />
             </div>
           </div>
@@ -140,6 +150,11 @@ export function AdminUsersTable({
                       onResetPassword(user.id, newPassword)
                     }
                     onStatusChange={() => onStatusChange(user)}
+                    onUpdateUser={
+                      onUpdateUser
+                        ? (values) => onUpdateUser(user.id, values)
+                        : undefined
+                    }
                   />
                 </TableCell>
               </TableRow>

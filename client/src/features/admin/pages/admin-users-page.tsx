@@ -143,6 +143,16 @@ export function AdminUsersPage() {
                   ? userMutations.reactivateUser.mutateAsync(user.id)
                   : userMutations.disableUser.mutateAsync(user.id)
               }
+              onUpdateUser={(userId, values) =>
+                userMutations.updateUser.mutateAsync({
+                  userId,
+                  input: {
+                    displayName: values.name,
+                    email: values.email,
+                    role: values.role,
+                  },
+                })
+              }
             />
             {usersQuery.hasNextPage ? (
               <div className="border-t p-4 text-center">

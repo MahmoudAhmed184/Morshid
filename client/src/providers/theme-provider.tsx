@@ -57,28 +57,40 @@ function applyTheme(theme: ThemeMode) {
 
 function runThemeTransition(
   updateTheme: () => void,
+  targetTheme: ThemeMode,
   origin?: ThemeTransitionOrigin,
 ) {
   const reduceMotion = window.matchMedia(
     '(prefers-reduced-motion: reduce)',
   ).matches
 
-  if (reduceMotion || !origin) {
+  if (reduceMotion) {
     updateTheme()
     return
   }
+
+  const isGoingDark =
+    targetTheme === 'dark' ||
+    (targetTheme === 'system' &&
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-color-scheme: dark)').matches)
+
+  const x =
+    origin?.x ??
+    (typeof window !== 'undefined' ? window.innerWidth - 60 : 0)
+  const y = origin?.y ?? (typeof window !== 'undefined' ? 40 : 0)
+  const endRadius =
+    typeof window !== 'undefined'
+      ? Math.hypot(
+          Math.max(x, window.innerWidth - x),
+          Math.max(y, window.innerHeight - y),
+        )
+      : 1000
 
   const hasViewTransition =
     typeof document !== 'undefined' && 'startViewTransition' in document
 
   if (hasViewTransition) {
-    const x = origin.x
-    const y = origin.y
-    const endRadius = Math.hypot(
-      Math.max(x, window.innerWidth - x),
-      Math.max(y, window.innerHeight - y),
-    )
-
     const transition = (
       document as unknown as {
         startViewTransition: (cb: () => void) => { ready: Promise<void> }
@@ -88,16 +100,27 @@ function runThemeTransition(
     })
 
     transition.ready.then(() => {
+      const glowFilter = isGoingDark
+        ? [
+            'drop-shadow(0 0 60px #f59e0b) drop-shadow(0 0 120px #ea580c) brightness(1.2)',
+            'drop-shadow(0 0 0px transparent) brightness(1)',
+          ]
+        : [
+            'drop-shadow(0 0 60px #fde047) drop-shadow(0 0 120px #fbbf24) brightness(1.25)',
+            'drop-shadow(0 0 0px transparent) brightness(1)',
+          ]
+
       document.documentElement.animate(
         {
           clipPath: [
             `circle(0px at ${x}px ${y}px)`,
             `circle(${endRadius}px at ${x}px ${y}px)`,
           ],
+          filter: glowFilter,
         },
         {
-          duration: 450,
-          easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+          duration: 550,
+          easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
           pseudoElement: '::view-transition-new(root)',
         },
       )
@@ -134,9 +157,13 @@ export function ThemeProvider({
   const setTheme = (next: ThemeMode, origin?: ThemeTransitionOrigin) => {
     localStorage.setItem(storageKey, next)
     setThemeState(next)
-    runThemeTransition(() => {
-      applyTheme(next)
-    }, origin)
+    runThemeTransition(
+      () => {
+        applyTheme(next)
+      },
+      next,
+      origin,
+    )
   }
 
   return (

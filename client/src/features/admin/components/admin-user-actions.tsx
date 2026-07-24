@@ -1,4 +1,4 @@
-import { BanIcon, EyeIcon, RotateCcwIcon, UserRoundIcon } from 'lucide-react'
+import { BanIcon, EyeIcon, PencilIcon, RotateCcwIcon, UserRoundIcon } from 'lucide-react'
 import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -6,12 +6,15 @@ import { ConfirmDialog } from '@/components/ui/custom/confirm-dialog'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
 import type { AdminManagedUser } from '@/features/admin/schemas/admin-managed-user.schema'
 import { AdminStatusBadge } from './admin-status-badge'
+import { AdminUserForm } from './admin-user-form'
 import { ResetAdminUserPasswordDialog } from './reset-admin-user-password-dialog'
+import type { AdminCreateUserFormValues } from '../schemas/admin-managed-user.schema'
 
 type AdminUserActionsProps = {
   user: AdminManagedUser
@@ -19,6 +22,7 @@ type AdminUserActionsProps = {
   isUpdatingStatus: boolean
   onResetPassword: (newPassword: string) => Promise<unknown>
   onStatusChange: () => Promise<unknown>
+  onUpdateUser?: (values: AdminCreateUserFormValues) => Promise<unknown>
 }
 
 const dateFormatter = new Intl.DateTimeFormat(undefined, {
@@ -31,9 +35,25 @@ export function AdminUserActions({
   isUpdatingStatus,
   onResetPassword,
   onStatusChange,
+  onUpdateUser,
 }: AdminUserActionsProps) {
   const isDisabled = user.status === 'DISABLED'
   const [showDetails, setShowDetails] = useState(false)
+  const [showEdit, setShowEdit] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  const handleUpdateSubmit = async (values: AdminCreateUserFormValues) => {
+    if (!onUpdateUser) return
+    try {
+      setErrorMessage(null)
+      await onUpdateUser(values)
+      setShowEdit(false)
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : 'Failed to update user.',
+      )
+    }
+  }
 
   return (
     <div className="flex items-center gap-1">
@@ -47,6 +67,22 @@ export function AdminUserActions({
       >
         <EyeIcon className="size-4" />
       </Button>
+
+      {onUpdateUser ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          onClick={() => {
+            setErrorMessage(null)
+            setShowEdit(true)
+          }}
+          aria-label="Edit user"
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <PencilIcon className="size-4" />
+        </Button>
+      ) : null}
 
       <ResetAdminUserPasswordDialog
         user={user}
@@ -159,6 +195,37 @@ export function AdminUserActions({
           </div>
         </DialogContent>
       </Dialog>
+
+      {onUpdateUser ? (
+        <Dialog open={showEdit} onOpenChange={setShowEdit}>
+          <DialogContent className="sm:max-w-xl">
+            <DialogHeader>
+              <span className="mb-1 flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <PencilIcon className="size-5" aria-hidden />
+              </span>
+              <DialogTitle>Update User</DialogTitle>
+              <DialogDescription>
+                Update identity details or assign a new role for {user.displayName}.
+              </DialogDescription>
+            </DialogHeader>
+            {errorMessage ? (
+              <p role="alert" className="text-sm text-destructive">
+                {errorMessage}
+              </p>
+            ) : null}
+            <AdminUserForm
+              isEditing
+              initialValues={{
+                name: user.displayName,
+                email: user.email,
+                role: user.role === 'INSTRUCTOR' ? 'INSTRUCTOR' : 'STUDENT',
+              }}
+              onSubmit={handleUpdateSubmit}
+              onCancel={() => setShowEdit(false)}
+            />
+          </DialogContent>
+        </Dialog>
+      ) : null}
     </div>
   )
 }

@@ -1,6 +1,7 @@
 import { apiFetch, apiJson } from '@/features/auth/api/authenticated-api-client'
 import type { ApiFetchOptions } from '@/features/auth/api/authenticated-api-client'
 import {
+  adminCourseSchema,
   adminCourseListResponseSchema,
   adminCourseMemberResponseSchema,
   adminCourseMembersResponseSchema,
@@ -31,6 +32,29 @@ export async function getAdminCourses(options: ApiFetchOptions = {}) {
     method: 'GET',
   })
   return adminCourseListResponseSchema.parse(response).courses
+}
+
+export async function createAdminCourse(
+  input: { code: string; title: string },
+  options: ApiFetchOptions = {},
+) {
+  const response = await apiJson<unknown>(
+    '/api/v1/admin/courses',
+    jsonRequestOptions('POST', input, options),
+  )
+  return adminCourseSchema.parse(response)
+}
+
+export async function updateAdminCourse(
+  courseId: string,
+  input: { code?: string; title?: string },
+  options: ApiFetchOptions = {},
+) {
+  const response = await apiJson<unknown>(
+    `/api/v1/admin/courses/${courseId}`,
+    jsonRequestOptions('PATCH', input, options),
+  )
+  return adminCourseSchema.parse(response)
 }
 
 export async function getAdminCourseMembers(

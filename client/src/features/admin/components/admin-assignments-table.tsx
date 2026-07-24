@@ -24,6 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { EditCourseMemberDialog } from './add-course-member-dialog'
 import type {
   AdminCourseMember,
   CourseMembershipRole,
@@ -80,6 +81,13 @@ export function AdminAssignmentsTable({
             </div>
 
             <div className="shrink-0 flex items-center gap-1">
+              <EditCourseMemberDialog
+                member={member}
+                isPending={isPending}
+                onUpdateRole={async (role: CourseMembershipRole) =>
+                  onRoleChange(member.userId, role)
+                }
+              />
               <Button
                 type="button"
                 variant="ghost"
@@ -136,10 +144,10 @@ export function AdminAssignmentsTable({
                 className="h-[52px] hover:bg-secondary/40"
               >
                 <TableCell className="px-4 py-3.5 pl-6 min-w-0">
-                  <p className="font-medium text-foreground truncate max-w-[220px]">
+                  <p className="font-medium text-foreground truncate max-w-[240px]">
                     {member.user.displayName}
                   </p>
-                  <p className="text-xs text-muted-foreground truncate max-w-[220px]">
+                  <p className="text-xs text-muted-foreground truncate max-w-[240px]">
                     {member.user.email}
                   </p>
                 </TableCell>
@@ -149,15 +157,13 @@ export function AdminAssignmentsTable({
                 <TableCell className="px-4 py-3.5">
                   <Select
                     value={member.role}
-                    disabled={isPending}
+                    onValueChange={(value) =>
+                      onRoleChange(member.userId, value as CourseMembershipRole)
+                    }
                     items={roleSelectItems}
-                    onValueChange={(value) => {
-                      if (value) {
-                        onRoleChange(member.userId, value)
-                      }
-                    }}
                   >
                     <SelectTrigger
+                      className="h-8 text-xs font-medium border-border/80 w-[130px]"
                       aria-label={`Course role for ${member.user.displayName}`}
                     >
                       <SelectValue />
@@ -173,6 +179,13 @@ export function AdminAssignmentsTable({
                 </TableCell>
                 <TableCell className="px-4 py-3.5 pr-6 text-right">
                   <div className="flex items-center justify-end gap-1">
+                    <EditCourseMemberDialog
+                      member={member}
+                      isPending={isPending}
+                      onUpdateRole={async (role: CourseMembershipRole) =>
+                        onRoleChange(member.userId, role)
+                      }
+                    />
                     <Button
                       type="button"
                       variant="ghost"

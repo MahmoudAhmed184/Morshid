@@ -22,7 +22,18 @@ const dateFormatter = new Intl.DateTimeFormat(undefined, {
   dateStyle: 'medium',
 })
 
-export function AdminCoursesTable({ courses }: { courses: AdminCourse[] }) {
+import { EditAdminCourseDialog } from './course-dialogs'
+
+export function AdminCoursesTable({
+  courses,
+  onUpdateCourse,
+}: {
+  courses: AdminCourse[]
+  onUpdateCourse?: (
+    courseId: string,
+    values: { code: string; title: string },
+  ) => Promise<unknown>
+}) {
   const [selectedCourse, setSelectedCourse] = useState<AdminCourse | null>(null)
 
   return (
@@ -43,16 +54,24 @@ export function AdminCoursesTable({ courses }: { courses: AdminCourse[] }) {
               </p>
             </div>
 
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => setSelectedCourse(course)}
-              aria-label="View course details"
-              className="shrink-0 text-muted-foreground hover:text-foreground"
-            >
-              <EyeIcon className="size-4" />
-            </Button>
+            <div className="shrink-0 flex items-center gap-1">
+              {onUpdateCourse ? (
+                <EditAdminCourseDialog
+                  course={course}
+                  onUpdateCourse={(values) => onUpdateCourse(course.id, values)}
+                />
+              ) : null}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setSelectedCourse(course)}
+                aria-label="View course details"
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <EyeIcon className="size-4" />
+              </Button>
+            </div>
           </div>
         ))}
       </div>
@@ -124,16 +143,26 @@ export function AdminCoursesTable({ courses }: { courses: AdminCourse[] }) {
                     )}
                   </TableCell>
                   <TableCell className="px-4 py-3.5 pr-6 text-center">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => setSelectedCourse(course)}
-                      aria-label="View course details"
-                      className="text-muted-foreground hover:text-foreground"
-                    >
-                      <EyeIcon className="size-4" />
-                    </Button>
+                    <div className="flex items-center justify-center gap-1">
+                      {onUpdateCourse ? (
+                        <EditAdminCourseDialog
+                          course={course}
+                          onUpdateCourse={(values) =>
+                            onUpdateCourse(course.id, values)
+                          }
+                        />
+                      ) : null}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => setSelectedCourse(course)}
+                        aria-label="View course details"
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        <EyeIcon className="size-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               )
