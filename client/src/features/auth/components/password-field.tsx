@@ -58,7 +58,7 @@ export const PasswordField = React.forwardRef<
           type={visible ? 'text' : 'password'}
           placeholder={placeholder}
           autoComplete="current-password"
-          className="pr-9"
+          className="pr-10"
           {...inputProps}
         />
         <Button
@@ -67,7 +67,7 @@ export const PasswordField = React.forwardRef<
           size="icon-sm"
           onClick={() => setVisible((current) => !current)}
           aria-label={visible ? 'Hide password' : 'Show password'}
-          className="absolute inset-y-0 right-0 my-auto text-muted-foreground hover:bg-transparent hover:text-foreground"
+          className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground hover:bg-transparent hover:text-foreground"
         >
           {visible ? <EyeOff aria-hidden /> : <Eye aria-hidden />}
         </Button>
