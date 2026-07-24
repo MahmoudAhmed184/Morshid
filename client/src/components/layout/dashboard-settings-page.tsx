@@ -1,4 +1,5 @@
-import { LogOut, Palette, UserRound } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { LogOut, Monitor, Moon, Palette, Sun, UserRound } from 'lucide-react'
 
 import { getUserInitials } from '@/components/layout/get-user-initials'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -11,20 +12,28 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { PageHeader } from '@/components/ui/custom/page-header'
-import { ModeToggle } from '@/components/ui/mode-toggle'
 import { SignOutButton } from '@/features/auth/components/sign-out-button'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
+import { cn } from '@/lib/utils'
+import { useTheme } from '@/providers/theme-provider'
 
 type DashboardSettingsPageProps = {
   roleName: string
   embedded?: boolean
 }
 
+const themeOptions = [
+  { value: 'light', label: 'Light', icon: Sun },
+  { value: 'dark', label: 'Dark', icon: Moon },
+  { value: 'system', label: 'System', icon: Monitor },
+] as const
+
 export function DashboardSettingsPage({
   roleName,
   embedded = false,
 }: DashboardSettingsPageProps) {
   const user = useAuthStore((state) => state.user)
+  const { theme, setTheme } = useTheme()
   const displayName = user?.displayName ?? roleName
 
   return (
@@ -82,9 +91,50 @@ export function DashboardSettingsPage({
             Choose a color theme and appearance mode.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex items-center justify-between gap-4">
-          <p className="text-sm text-muted-foreground">Theme and mode</p>
-          <ModeToggle />
+        <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm font-medium text-foreground">Theme mode</p>
+
+          <div className="inline-flex items-center gap-1 rounded-2xl border border-border/80 bg-muted/50 p-1.5 shadow-xs">
+            {themeOptions.map((option) => {
+              const Icon = option.icon
+              const isActive = theme === option.value
+
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={(event) =>
+                    setTheme(option.value, {
+                      x: event.clientX,
+                      y: event.clientY,
+                    })
+                  }
+                  className={cn(
+                    'relative flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium transition-colors cursor-pointer select-none',
+                    isActive
+                      ? 'text-foreground font-semibold'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {isActive ? (
+                    <motion.div
+                      layoutId="activeThemePill"
+                      className="absolute inset-0 rounded-xl bg-background shadow-xs border border-border/40"
+                      transition={{
+                        type: 'spring',
+                        stiffness: 500,
+                        damping: 35,
+                      }}
+                    />
+                  ) : null}
+                  <span className="relative z-10 flex items-center gap-2">
+                    <Icon className="size-4" aria-hidden />
+                    {option.label}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
         </CardContent>
       </Card>
 

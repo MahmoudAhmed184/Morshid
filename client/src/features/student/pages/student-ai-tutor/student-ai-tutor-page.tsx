@@ -367,7 +367,7 @@ function StudentDraftState({
     <>
       <div
         aria-label="Conversation messages"
-        className="scrollbar-themed min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-8"
+        className="scrollbar-themed min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-16 pb-8 sm:px-6 sm:py-8"
         role="region"
       >
         <div className="mx-auto flex min-h-full max-w-3xl items-center justify-center">
@@ -517,7 +517,7 @@ function StudentConversation({
       <div
         ref={historyScrollRef}
         aria-label="Conversation messages"
-        className="scrollbar-themed min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-8"
+        className="scrollbar-themed min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-16 pb-8 sm:px-6 sm:py-8"
         role="region"
       >
         <div className="mx-auto min-h-full max-w-3xl">

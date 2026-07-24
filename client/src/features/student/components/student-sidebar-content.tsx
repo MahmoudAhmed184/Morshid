@@ -230,12 +230,22 @@ export function StudentSidebarContent({
   }
 
   const normalizedQuery = query.trim().toLowerCase()
-  const filteredSessions =
-    normalizedQuery.length === 0
-      ? visibleSessions
-      : visibleSessions.filter((session) =>
-          session.title.toLowerCase().includes(normalizedQuery),
-        )
+  const filteredSessions = visibleSessions.filter((session) => {
+    const isEmptyUnsentNewChat =
+      session.title === 'New chat' &&
+      session.lastMessageAt === null &&
+      session.id !== routeSessionId
+
+    if (isEmptyUnsentNewChat) {
+      return false
+    }
+
+    if (normalizedQuery.length === 0) {
+      return true
+    }
+
+    return session.title.toLowerCase().includes(normalizedQuery)
+  })
   const groups = groupSessionsByRecency(filteredSessions)
 
   const isPending = sessionsQuery.isPending && Boolean(selectedCourse)

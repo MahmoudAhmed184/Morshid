@@ -240,16 +240,21 @@ function GuidanceBadge({ guidanceLabel }: { guidanceLabel: GuidanceLabel }) {
   const Icon = presentation.icon
 
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-2">
+    <div className="mt-2 flex flex-wrap items-center gap-2 max-w-full">
       <Badge
         variant="outline"
-        className={cn('gap-1.5 font-mono', presentation.className)}
+        className={cn(
+          'h-auto max-w-full flex-wrap gap-1.5 px-2.5 py-1 font-mono text-[0.65rem] text-balance leading-normal sm:text-xs',
+          presentation.className,
+        )}
       >
-        {Icon ? <Icon className="size-3" aria-hidden /> : null}
-        {presentation.label}
+        {Icon ? <Icon className="size-3 shrink-0" aria-hidden /> : null}
+        <span className="max-w-full break-words">{presentation.label}</span>
       </Badge>
       {presentation.supportingLabel ? (
-        <span className="footnote">{presentation.supportingLabel}</span>
+        <span className="footnote text-[0.7rem] text-muted-foreground">
+          {presentation.supportingLabel}
+        </span>
       ) : null}
     </div>
   )

@@ -63,48 +63,49 @@ function runThemeTransition(
     '(prefers-reduced-motion: reduce)',
   ).matches
 
-  if (!origin || reduceMotion) {
+  if (reduceMotion) {
     updateTheme()
     return
   }
 
+  const hasViewTransition =
+    typeof document !== 'undefined' && 'startViewTransition' in document
+
+  if (hasViewTransition) {
+    const x = origin?.x ?? window.innerWidth / 2
+    const y = origin?.y ?? window.innerHeight / 2
+    const endRadius = Math.hypot(
+      Math.max(x, window.innerWidth - x),
+      Math.max(y, window.innerHeight - y),
+    )
+
+    const transition = (
+      document as unknown as {
+        startViewTransition: (cb: () => void) => { ready: Promise<void> }
+      }
+    ).startViewTransition(() => {
+      updateTheme()
+    })
+
+    transition.ready.then(() => {
+      document.documentElement.animate(
+        {
+          clipPath: [
+            `circle(0px at ${x}px ${y}px)`,
+            `circle(${endRadius}px at ${x}px ${y}px)`,
+          ],
+        },
+        {
+          duration: 800,
+          easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+          pseudoElement: '::view-transition-new(root)',
+        },
+      )
+    })
+    return
+  }
+
   updateTheme()
-
-  const root = document.documentElement
-  const background = getComputedStyle(root)
-    .getPropertyValue('--background')
-    .trim()
-  const ripple = document.createElement('span')
-  const maxX = Math.max(origin.x, window.innerWidth - origin.x)
-  const maxY = Math.max(origin.y, window.innerHeight - origin.y)
-  const radius = Math.hypot(maxX, maxY)
-
-  ripple.className = 'theme-transition-ripple'
-  ripple.style.left = `${origin.x}px`
-  ripple.style.top = `${origin.y}px`
-  ripple.style.background = background
-  document.body.append(ripple)
-
-  const animation = ripple.animate(
-    [
-      {
-        opacity: 0.95,
-        transform: 'translate(-50%, -50%) scale(0.08)',
-      },
-      {
-        opacity: 0,
-        transform: `translate(-50%, -50%) scale(${Math.max(radius / 16, 1)})`,
-      },
-    ],
-    {
-      duration: 3000,
-      easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
-    },
-  )
-
-  animation.addEventListener('finish', () => {
-    ripple.remove()
-  })
 }
 
 export function ThemeProvider({

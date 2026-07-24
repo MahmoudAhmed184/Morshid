@@ -9,6 +9,7 @@ import {
   Settings,
   Sun,
 } from 'lucide-react'
+import { useState } from 'react'
 import { useRef } from 'react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -16,6 +17,7 @@ import { getUserInitials } from '@/components/layout/get-user-initials'
 import { Logo } from '@/components/logo'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { ConfirmDialog } from '@/components/ui/custom/confirm-dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -119,72 +121,85 @@ function SidebarFooterUser({ role }: { role: AppSidebarRole }) {
   const user = useAuthStore((state) => state.user)
   const logout = useLogout()
   const { theme, setTheme } = useTheme()
+  const [confirmSignOutOpen, setConfirmSignOutOpen] = useState(false)
 
   const displayName = user?.displayName ?? 'Account'
   const email = user?.email ?? ''
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            type="button"
-            variant="ghost"
-            className="h-auto w-full justify-start gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-sidebar-accent"
-            aria-label="Account menu"
-          />
-        }
-      >
-        <Avatar className="size-8">
-          <AvatarFallback className="bg-secondary text-foreground">
-            {getUserInitials(user?.displayName)}
-          </AvatarFallback>
-        </Avatar>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium text-sidebar-foreground">
-            {displayName}
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-auto w-full justify-start gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-sidebar-accent"
+              aria-label="Account menu"
+            />
+          }
+        >
+          <Avatar className="size-8">
+            <AvatarFallback className="bg-secondary text-foreground">
+              {getUserInitials(user?.displayName)}
+            </AvatarFallback>
+          </Avatar>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-medium text-sidebar-foreground">
+              {displayName}
+            </span>
+            {email ? (
+              <span className="footnote block truncate">{email}</span>
+            ) : null}
           </span>
-          {email ? (
-            <span className="footnote block truncate">{email}</span>
-          ) : null}
-        </span>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-56">
-        <DropdownMenuItem render={<Link to={settingsTargetByRole[role]} />}>
-          <Settings aria-hidden />
-          Settings
-        </DropdownMenuItem>
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            <Sun aria-hidden />
-            Theme
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
-            <DropdownMenuItem onClick={() => setTheme('light')}>
-              {theme === 'light' ? <Check aria-hidden /> : <Sun aria-hidden />}
-              Light
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTheme('dark')}>
-              {theme === 'dark' ? <Check aria-hidden /> : <Moon aria-hidden />}
-              Dark
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTheme('system')}>
-              {theme === 'system' ? (
-                <Check aria-hidden />
-              ) : (
-                <Monitor aria-hidden />
-              )}
-              System
-            </DropdownMenuItem>
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => void logout()}>
-          <LogOut aria-hidden />
-          Sign out
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-56">
+          <DropdownMenuItem render={<Link to={settingsTargetByRole[role]} />}>
+            <Settings aria-hidden />
+            Settings
+          </DropdownMenuItem>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <Sun aria-hidden />
+              Theme
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuItem onClick={() => setTheme('light')}>
+                {theme === 'light' ? <Check aria-hidden /> : <Sun aria-hidden />}
+                Light
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme('dark')}>
+                {theme === 'dark' ? <Check aria-hidden /> : <Moon aria-hidden />}
+                Dark
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme('system')}>
+                {theme === 'system' ? (
+                  <Check aria-hidden />
+                ) : (
+                  <Monitor aria-hidden />
+                )}
+                System
+              </DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => setConfirmSignOutOpen(true)}>
+            <LogOut aria-hidden />
+            Sign out
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <ConfirmDialog
+        open={confirmSignOutOpen}
+        onOpenChange={setConfirmSignOutOpen}
+        title="Sign out of Morshid?"
+        description="You will need to sign back in to access your course materials and sessions."
+        confirmLabel="Sign out"
+        destructive
+        onConfirm={() => void logout()}
+      />
+    </>
   )
 }
 

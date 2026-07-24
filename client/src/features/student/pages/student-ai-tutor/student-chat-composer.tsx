@@ -159,12 +159,12 @@ export const StudentChatComposer = forwardRef<
           value={draft}
         />
         <div className="flex items-center justify-between gap-2 px-3 pt-1 pb-2.5">
-          <p id="chat-composer-hint" className="footnote text-muted-foreground">
+          <p id="chat-composer-hint" className="footnote text-[0.68rem] leading-tight text-muted-foreground sm:text-xs">
             AI responses can be inaccurate. Check important course information.
           </p>
           <Button
             aria-label="Send message"
-            className="size-9 rounded-xl bg-primary text-primary-foreground shadow-none disabled:bg-muted disabled:text-muted-foreground"
+            className="size-9 shrink-0 rounded-xl bg-primary text-primary-foreground shadow-none disabled:border disabled:border-border/60 disabled:bg-muted/70 disabled:text-muted-foreground/60 transition-colors"
             disabled={!canSend}
             size="icon"
             type="submit"

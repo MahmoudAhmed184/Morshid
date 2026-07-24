@@ -104,7 +104,7 @@ export function MaterialsPage() {
               />
               Material repository
             </CardTitle>
-            <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
+            <div className="flex w-full flex-col gap-2.5 sm:flex-row sm:items-center lg:w-auto">
               <SearchInput
                 value={search}
                 onValueChange={setSearch}
@@ -122,7 +122,7 @@ export function MaterialsPage() {
                   }}
                 >
                   <SelectTrigger
-                    className="w-full sm:w-64"
+                    className="w-full sm:w-72"
                     aria-label="Select assigned course"
                   >
                     <SelectValue placeholder="Select a course" />

@@ -25,7 +25,7 @@ export function MaterialUploadDialog({
         <UploadIcon aria-hidden />
         Upload Material
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-lg overflow-hidden sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Upload new material</DialogTitle>
           <DialogDescription>
