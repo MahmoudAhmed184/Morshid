@@ -6,6 +6,11 @@ the primary-source basis for Morshid's `aws-bedrock` completion adapter and the
 state of model qualification on that date. ITI is the network and credential
 boundary; Morshid does not call AWS directly.
 
+The operator-facing configuration, startup-validation rules, and live-test
+runbook that these findings justify live in
+[`server/README.md`](../server/README.md), under "AWS Bedrock completion through
+ITI".
+
 ## ITI's published integration contract
 
 The public
@@ -83,8 +88,12 @@ redirect target. Node's Web Streams API exposes response bodies as
 `ReadableStream` instances
 ([Node.js v24.16.0 Web Streams](https://nodejs.org/download/release/v24.16.0/docs/api/webstreams.html#class-readablestream)).
 Reading incrementally is therefore the enforceable boundary for the local
-64-KiB response cap; parsing an unbounded convenience body first would apply the
-limit too late.
+response-size cap; parsing an unbounded convenience body first would apply the
+limit too late. The cap is 256 KiB: it is derived from Morshid's own
+16,000-code-point output limit at up to four UTF-8 bytes per code point, so an
+answer that is legitimately at the product's maximum length — Arabic text costs
+two bytes per code point and emoji four — is not rejected as a provider
+failure.
 
 ## NestJS generation, registration, and configuration
 
@@ -216,6 +225,14 @@ server was stopped and the ignored local provider and transport settings were
 restored to deterministic and HTTPS after verification.
 
 ## Primary sources
+
+The ITI links below are cited over `http://` on purpose, and the `http://` form
+is not a typo or a recommendation: as recorded under "ITI's published
+integration contract" above, the HTTPS integration page did not answer from this
+environment on 2026-07-24 while the plaintext page returned HTTP 200, so the
+plaintext URL is what was actually read. Morshid itself still deploys over
+HTTPS, and its plaintext transport is a development-only, explicitly enabled
+exception.
 
 - [ITI Student Bedrock Gateway integration contract](http://apiaccess.iti.net.eg/student/integration)
 - [AWS `gpt-oss-20b` model card](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-oss-20b.html)

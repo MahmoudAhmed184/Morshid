@@ -103,6 +103,11 @@ ITI remains the credential authority and owns AWS access, budgets, account
 policy, and usage accounting. Morshid has no direct AWS credentials and uses
 neither the AWS SDK nor LangChain.
 
+The primary-source basis for this design — the published ITI contract, the
+one-`POST`-no-retry rule, the bounded response read, `redirect: 'error'`, the
+plaintext exception, and the dated model-qualification record — is written up in
+[`docs/aws-bedrock-iti-gateway-research.md`](../docs/aws-bedrock-iti-gateway-research.md).
+
 Before a live test, rotate the ITI gateway key. Store the replacement only in
 the git-ignored `server/.env`, set that file to mode `0600`, and never place the
 key in a command line, test fixture, example file, or log. Start from
@@ -120,15 +125,68 @@ AWS_BEDROCK_MAX_TOKENS=1024
 ```
 
 There is deliberately no committed model ID. The selected model must be in the
-bounded, duplicate-free local allow-list. Copy exact IDs from the portal's
-**Approved models** list; a model or allow-list change requires a server
-restart. Startup fails if `aws-bedrock` lacks a valid key, explicit model,
-nonempty allow-list, membership, base URL, or token limit.
+bounded, duplicate-free local allow-list of at most 50 IDs. Copy exact IDs from
+the portal's **Approved models** list; a model or allow-list change requires a
+server restart.
+
+With `aws-bedrock` selected, startup fails when any of the following holds:
+`ITI_BEDROCK_GATEWAY_API_KEY` is unset, empty, or contains anything outside
+printable ASCII (`U+0021`–`U+007E`); `AWS_BEDROCK_MODEL_ID` is empty;
+`AWS_BEDROCK_ALLOWED_MODEL_IDS` is empty, holds duplicates, or omits the
+selected model; or `ITI_BEDROCK_GATEWAY_BASE_URL` fails transport policy. The
+key is sent as an `Authorization` header value, where a non-ASCII character
+would throw on every request, so it is rejected once at boot instead.
+
+Transport policy requires HTTPS (or the explicit exception below), no userinfo,
+query, or fragment — including a bare trailing `?` or `#`, which would otherwise
+corrupt the request path — and a host that is not `localhost`, loopback,
+link-local, or a private IP range, so a stale value cannot ship the bearer key
+to a metadata service.
+
+`ITI_BEDROCK_GATEWAY_BASE_URL` and `AWS_BEDROCK_MAX_TOKENS` both have committed
+defaults and can never be "missing". Two consequences are worth knowing:
+
+- Transport policy is applied only when `aws-bedrock` is selected, so a
+  `COMPLETION_PROVIDER=deterministic` deployment boots whatever
+  `ITI_BEDROCK_GATEWAY_BASE_URL` holds, as long as the value still parses as a
+  URL.
+- `AWS_BEDROCK_MAX_TOKENS` is bounded to 256–4096 for every provider. The 256
+  floor is not cosmetic: the research note records a probe where a very small
+  budget returned HTTP 200 with blank output while still billing a usage event.
+
+`ITI_BEDROCK_ALLOW_INSECURE_HTTP` accepts only `true`, `false`, or blank, and a
+blank value means `false`, so the blank-valued committed examples and Compose's
+`${VAR:-}` pass-through cannot block startup.
 
 The adapter sends exactly one non-retried `POST` to
-`${ITI_BEDROCK_GATEWAY_BASE_URL}/student/chat`. It has no model, transport,
-retry, or protocol fallback, so failures cannot silently consume budget through
-a second attempt.
+`${ITI_BEDROCK_GATEWAY_BASE_URL}/student/chat` with `redirect: 'error'`, so a
+bearer-authenticated request is never resent to a redirect target. It has no
+model, transport, retry, or protocol fallback, so failures cannot silently
+consume budget through a second attempt. The response body is read
+incrementally and rejected past 256 KiB — the larger of a fixed floor and the
+byte width of a maximum-length UTF-8 answer, so a long Arabic or emoji reply is
+not mistaken for an oversized response.
+
+Every distinguishable upstream failure collapses into the same public error, so
+the adapter writes one server-side diagnostic before rethrowing: the failure
+category (`http_status`, `transport`, `oversized_response`,
+`malformed_response`, `invalid_output`, `blank_output`, or `cancelled`), the
+HTTP status when there was one, and the allow-listed model ID. The key, the
+endpoint, the prompt, the student content, and every byte of the gateway
+response are excluded by construction. Cancellation logs at `warn`; every other
+category logs at `error`.
+
+### Why the environment variables are split
+
+`ITI_BEDROCK_*` names the transport Morshid actually speaks to: the
+ITI-operated gateway, its base URL, its key, and the plaintext exception.
+`AWS_BEDROCK_*` names model policy that originates at AWS and is enforced
+locally: the model ID, the local allow-list, and the output token budget. The
+adapter lives at
+`src/modules/completion/providers/aws-bedrock/iti-bedrock-gateway.adapter.ts`
+for the same reason — the provider selector is the model family, while the
+implementation is the ITI gateway. `server/.env.example` groups the variables
+along the same line.
 
 ### Temporary local HTTP exception
 
@@ -142,10 +200,14 @@ ITI_BEDROCK_GATEWAY_BASE_URL=http://apiaccess.iti.net.eg/api/v1
 ITI_BEDROCK_ALLOW_INSECURE_HTTP=true
 ```
 
-This knowingly insecure exception accepts only that exact host, port, and base
-path, emits a fixed credential-free startup warning, and still performs one
-request to the configured URL. It never tries HTTPS before HTTP. Production and
-Compose reject the exception. Return to HTTPS as soon as ITI restores it.
+This knowingly insecure exception is accepted only outside production — the
+check rejects `NODE_ENV=production`, not everything other than `development` —
+and only for that exact host, default port, and base path. Enabling it emits one
+fixed, credential-free startup warning and still performs a single request to
+the configured URL. The scheme is read from the parsed URL rather than from the
+raw string, so an `HTTP://` spelling behaves identically and is warned about
+identically. It never tries HTTPS before HTTP. Production and Compose reject the
+exception. Return to HTTPS as soon as ITI restores it.
 
 For one opt-in local verification:
 
