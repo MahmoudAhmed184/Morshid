@@ -68,6 +68,21 @@ function expectResponseSchemaReference(
   })
 }
 
+function expectBodyOrRouteParamBadRequest(operation: OperationObject) {
+  expect(operation.responses['400']).toMatchObject({
+    content: {
+      'application/json': {
+        schema: {
+          oneOf: [
+            { $ref: '#/components/schemas/OpenApiValidationErrorDto' },
+            { $ref: '#/components/schemas/NestBadRequestErrorDto' },
+          ],
+        },
+      },
+    },
+  })
+}
+
 function expectRequestSchemaReference(
   operation: OperationObject,
   schemaName: string,
@@ -432,6 +447,13 @@ describe('OpenAPI contract (e2e)', () => {
           statuses: ['201', '400', '401', '403', '409'],
         },
         {
+          path: '/api/v1/admin/users/{userId}',
+          method: 'patch',
+          tag: 'admin-users',
+          summary: 'Update user',
+          statuses: ['200', '400', '401', '403', '404', '409'],
+        },
+        {
           path: '/api/v1/admin/users/{userId}/disable',
           method: 'patch',
           tag: 'admin-users',
@@ -504,6 +526,24 @@ describe('OpenAPI contract (e2e)', () => {
         'OpenApiValidationErrorDto',
       )
       expectResponseSchemaReference(createUser, '409', 'OpenApiErrorDto')
+
+      const updateUser = getOperation(
+        document,
+        '/api/v1/admin/users/{userId}',
+        'patch',
+      )
+      expectRequestSchemaReference(updateUser, 'AdminUpdateUserRequestDto')
+      expect(getParameter(updateUser, 'userId')).toMatchObject({
+        in: 'path',
+        required: true,
+        schema: { type: 'string', format: 'uuid' },
+      })
+      expectResponseSchemaReference(
+        updateUser,
+        '200',
+        'AdminUpdateUserResponseDto',
+      )
+      expectResponseSchemaReference(updateUser, '409', 'OpenApiErrorDto')
 
       for (const action of ['disable', 'reactivate', 'reset-password']) {
         const operation = getOperation(
@@ -977,11 +1017,25 @@ describe('OpenAPI contract (e2e)', () => {
           statuses: ['200', '401', '403'],
         },
         {
+          path: '/api/v1/admin/courses',
+          method: 'post',
+          tag: 'admin-courses',
+          summary: 'Create course',
+          statuses: ['201', '400', '401', '403', '409'],
+        },
+        {
           path: '/api/v1/admin/courses/{courseId}',
           method: 'get',
           tag: 'admin-courses',
           summary: 'Get course details',
-          statuses: ['200', '401', '403', '404'],
+          statuses: ['200', '400', '401', '403', '404'],
+        },
+        {
+          path: '/api/v1/admin/courses/{courseId}',
+          method: 'patch',
+          tag: 'admin-courses',
+          summary: 'Update course',
+          statuses: ['200', '400', '401', '403', '404', '409'],
         },
         {
           path: '/api/v1/admin/courses/{courseId}/members',
@@ -995,14 +1049,14 @@ describe('OpenAPI contract (e2e)', () => {
           method: 'delete',
           tag: 'admin-courses',
           summary: 'Remove course member',
-          statuses: ['204', '401', '403', '404'],
+          statuses: ['204', '400', '401', '403', '404'],
         },
         {
           path: '/api/v1/admin/courses/{courseId}/members',
           method: 'get',
           tag: 'admin-courses',
           summary: 'List course members',
-          statuses: ['200', '401', '403', '404'],
+          statuses: ['200', '400', '401', '403', '404'],
         },
         {
           path: '/api/v1/admin/courses/{courseId}/members/{userId}',
@@ -1016,14 +1070,14 @@ describe('OpenAPI contract (e2e)', () => {
           method: 'get',
           tag: 'admin-courses',
           summary: 'List course materials',
-          statuses: ['200', '401', '403', '404'],
+          statuses: ['200', '400', '401', '403', '404'],
         },
         {
           path: '/api/v1/admin/courses/{courseId}/materials/{materialId}',
           method: 'get',
           tag: 'admin-courses',
           summary: 'Get course material',
-          statuses: ['200', '401', '403', '404'],
+          statuses: ['200', '400', '401', '403', '404'],
         },
         {
           path: '/api/v1/admin/courses/{courseId}/materials/{materialId}',
@@ -1086,12 +1140,30 @@ describe('OpenAPI contract (e2e)', () => {
         'post',
       )
       expectRequestSchemaReference(addMember, 'AdminAddCourseMemberRequestDto')
+      expectBodyOrRouteParamBadRequest(addMember)
+      expectResponseSchemaReference(addMember, '409', 'OpenApiErrorDto')
+
+      const createCourse = getOperation(
+        document,
+        '/api/v1/admin/courses',
+        'post',
+      )
+      expectRequestSchemaReference(createCourse, 'AdminCreateCourseRequestDto')
       expectResponseSchemaReference(
-        addMember,
+        createCourse,
         '400',
         'OpenApiValidationErrorDto',
       )
-      expectResponseSchemaReference(addMember, '409', 'OpenApiErrorDto')
+      expectResponseSchemaReference(createCourse, '409', 'OpenApiErrorDto')
+
+      const updateCourse = getOperation(
+        document,
+        '/api/v1/admin/courses/{courseId}',
+        'patch',
+      )
+      expectRequestSchemaReference(updateCourse, 'AdminUpdateCourseRequestDto')
+      expectBodyOrRouteParamBadRequest(updateCourse)
+      expectResponseSchemaReference(updateCourse, '409', 'OpenApiErrorDto')
 
       const updateMember = getOperation(
         document,
@@ -1102,11 +1174,7 @@ describe('OpenAPI contract (e2e)', () => {
         updateMember,
         'AdminUpdateMemberRoleRequestDto',
       )
-      expectResponseSchemaReference(
-        updateMember,
-        '400',
-        'OpenApiValidationErrorDto',
-      )
+      expectBodyOrRouteParamBadRequest(updateMember)
 
       const updateMaterial = getOperation(
         document,
@@ -1117,11 +1185,7 @@ describe('OpenAPI contract (e2e)', () => {
         updateMaterial,
         'AdminUpdateMaterialRequestDto',
       )
-      expectResponseSchemaReference(
-        updateMaterial,
-        '400',
-        'OpenApiValidationErrorDto',
-      )
+      expectBodyOrRouteParamBadRequest(updateMaterial)
 
       const audit = getOperation(document, '/api/v1/admin/audit', 'get')
       expect(getParameter(audit, 'limit')).toMatchObject({
@@ -1144,8 +1208,20 @@ describe('OpenAPI contract (e2e)', () => {
           schema: 'AdminCourseListResponseDto',
         },
         {
+          path: '/api/v1/admin/courses',
+          method: 'post',
+          status: '201',
+          schema: 'AdminCourseDetailResponseDto',
+        },
+        {
           path: '/api/v1/admin/courses/{courseId}',
           method: 'get',
+          status: '200',
+          schema: 'AdminCourseDetailResponseDto',
+        },
+        {
+          path: '/api/v1/admin/courses/{courseId}',
+          method: 'patch',
           status: '200',
           schema: 'AdminCourseDetailResponseDto',
         },

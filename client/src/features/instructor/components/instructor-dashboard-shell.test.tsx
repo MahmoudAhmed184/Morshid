@@ -8,6 +8,21 @@ import { useInstructorCourses } from '@/features/instructor/hooks/use-instructor
 import { InstructorDashboardShell } from './instructor-dashboard-shell'
 
 vi.mock('@/features/instructor/hooks/use-instructor-courses')
+vi.mock('@tanstack/react-router', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  Link: ({
+    to,
+    children,
+    ...props
+  }: {
+    to?: string
+    children?: React.ReactNode
+  }) => (
+    <a href={typeof to === 'string' ? to : '#'} {...props}>
+      {children}
+    </a>
+  ),
+}))
 
 const useInstructorCoursesMock = vi.mocked(useInstructorCourses)
 const refetchCourses = vi.fn()
@@ -46,12 +61,17 @@ describe('InstructorDashboardShell', () => {
 
   afterEach(cleanup)
 
-  it('renders all manageable courses while keeping live status work course-scoped', () => {
+  it('switches the Register course panel while keeping live status work course-scoped', async () => {
+    const user = userEvent.setup()
     render(<InstructorDashboardShell />)
 
     expect(
       screen.getByRole('heading', { name: 'Data Structures' }),
     ).toBeVisible()
+    expect(screen.getByRole('group', { name: 'Switch course' })).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'MATH-310' }))
+
     expect(
       screen.getByRole('heading', { name: 'Discrete Mathematics' }),
     ).toBeVisible()

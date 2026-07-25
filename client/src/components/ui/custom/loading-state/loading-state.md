@@ -3,6 +3,7 @@
 Use `LoadingState` for consistent skeleton screens while data is loading.
 
 Good places to use it:
+
 - Query-backed cards, tables, and lists.
 - Pages where showing a spinner would cause layout shift.
 
@@ -31,5 +32,6 @@ List skeleton:
 ```
 
 Notes:
+
 - Prefer this inside `DataTableState` for table/list pages.
 - Use `rows` to approximate expected content height.

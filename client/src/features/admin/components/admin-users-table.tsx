@@ -17,6 +17,15 @@ type AdminUsersTableProps = {
   isUpdatingStatus: boolean
   onResetPassword: (userId: string, newPassword: string) => Promise<unknown>
   onStatusChange: (user: AdminManagedUser) => Promise<unknown>
+  onUpdateUser?: (
+    userId: string,
+    values: {
+      name: string
+      email: string
+      role: 'STUDENT' | 'INSTRUCTOR'
+      password?: string
+    },
+  ) => Promise<unknown>
 }
 
 const tableHeaders = [
@@ -38,48 +47,42 @@ export function AdminUsersTable({
   isUpdatingStatus,
   onResetPassword,
   onStatusChange,
+  onUpdateUser,
 }: AdminUsersTableProps) {
   return (
-    <Table className="min-w-[760px]">
-      <TableHeader>
-        <TableRow className="border-border hover:bg-transparent">
-          {tableHeaders.map((header) => (
-            <TableHead
-              key={header}
-              className="h-14 px-6 text-xs font-semibold tracking-[0.12em] text-muted-foreground uppercase"
-            >
-              {header}
-            </TableHead>
-          ))}
-        </TableRow>
-      </TableHeader>
-      <TableBody>
+    <>
+      {/* Mobile Card List (< md) */}
+      <div className="divide-y divide-border border-t md:hidden">
         {users.map((user) => (
-          <TableRow
+          <div
             key={user.id}
             className={cn(
-              'border-border hover:bg-muted/40',
-              user.status === 'DISABLED' &&
-                'bg-destructive/5 text-muted-foreground hover:bg-destructive/10',
+              'flex items-center justify-between p-3.5 gap-3',
+              user.status === 'DISABLED'
+                ? 'bg-destructive/[0.04]'
+                : 'hover:bg-secondary/20',
             )}
           >
-            <TableCell className="px-6 py-5">
-              <p className="font-medium text-foreground">{user.displayName}</p>
-              <p className="text-xs text-muted-foreground">{user.email}</p>
-            </TableCell>
-            <TableCell className="px-6 py-5">
-              {toRoleLabel(user.role)}
-            </TableCell>
-            <TableCell className="px-6 py-5">
-              {user.courseAssignments.courseCount}
-            </TableCell>
-            <TableCell className="px-6 py-5">
-              <AdminStatusBadge status={user.status} />
-            </TableCell>
-            <TableCell className="px-6 py-5">
-              {dateFormatter.format(new Date(user.updatedAt))}
-            </TableCell>
-            <TableCell className="px-6 py-5">
+            <div className="min-w-0 flex-1 space-y-1">
+              <div className="flex items-center gap-2">
+                <p className="font-semibold text-foreground truncate text-sm">
+                  {user.displayName}
+                </p>
+                <span className="inline-flex items-center rounded-md bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-secondary-foreground shrink-0">
+                  {toRoleLabel(user.role)}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground truncate">
+                {user.email}
+              </p>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground pt-0.5">
+                <AdminStatusBadge status={user.status} />
+                <span>•</span>
+                <span>{user.courseAssignments.courseCount} course(s)</span>
+              </div>
+            </div>
+
+            <div className="shrink-0 flex items-center">
               <AdminUserActions
                 user={user}
                 isResettingPassword={isResettingPassword}
@@ -88,13 +91,88 @@ export function AdminUsersTable({
                   onResetPassword(user.id, newPassword)
                 }
                 onStatusChange={() => onStatusChange(user)}
+                onUpdateUser={
+                  onUpdateUser
+                    ? (values) => onUpdateUser(user.id, values)
+                    : undefined
+                }
               />
-            </TableCell>
-          </TableRow>
+            </div>
+          </div>
         ))}
-      </TableBody>
-    </Table>
+      </div>
+
+      {/* Desktop Table (>= md) */}
+      <div className="hidden md:block max-h-[65vh] overflow-x-auto overflow-y-auto scrollbar-themed">
+        <Table className="w-full min-w-[760px]">
+          <TableHeader className="sticky top-0 z-10 bg-secondary/80 backdrop-blur-md">
+            <TableRow>
+              {tableHeaders.map((header) => (
+                <TableHead
+                  key={header}
+                  className="smallcaps-label h-11 px-4 first:pl-6 last:pr-6"
+                >
+                  {header}
+                </TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {users.map((user) => (
+              <TableRow
+                key={user.id}
+                className={cn(
+                  'h-[52px]',
+                  user.status === 'DISABLED'
+                    ? 'bg-destructive/[0.04] hover:bg-destructive/[0.07] [&_td:not(:nth-child(4))]:text-muted-foreground'
+                    : 'hover:bg-secondary/40',
+                )}
+              >
+                <TableCell className="px-4 py-3.5 first:pl-6">
+                  <p className="font-medium text-foreground">
+                    {user.displayName}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{user.email}</p>
+                </TableCell>
+                <TableCell className="px-4 py-3.5">
+                  {toRoleLabel(user.role)}
+                </TableCell>
+                <TableCell className="px-4 py-3.5 tabular-nums">
+                  {courseAssignmentText(user)}
+                </TableCell>
+                <TableCell className="px-4 py-3.5">
+                  <AdminStatusBadge status={user.status} />
+                </TableCell>
+                <TableCell className="px-4 py-3.5 text-muted-foreground tabular-nums">
+                  {dateFormatter.format(new Date(user.updatedAt))}
+                </TableCell>
+                <TableCell className="px-4 py-3.5 last:pr-6">
+                  <AdminUserActions
+                    user={user}
+                    isResettingPassword={isResettingPassword}
+                    isUpdatingStatus={isUpdatingStatus}
+                    onResetPassword={(newPassword) =>
+                      onResetPassword(user.id, newPassword)
+                    }
+                    onStatusChange={() => onStatusChange(user)}
+                    onUpdateUser={
+                      onUpdateUser
+                        ? (values) => onUpdateUser(user.id, values)
+                        : undefined
+                    }
+                  />
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </>
   )
+}
+
+function courseAssignmentText(user: AdminManagedUser) {
+  return `${user.courseAssignments.courseCount}`
 }
 
 function toRoleLabel(role: AdminManagedUser['role']) {

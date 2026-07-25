@@ -3,6 +3,7 @@
 Use `EmptyState` when a page, table, or section has no data to display.
 
 Good places to use it:
+
 - No courses, no students, no search results, no invoices, no messages.
 - First-use screens that need a primary action.
 
@@ -33,5 +34,6 @@ Search empty state:
 ```
 
 Notes:
+
 - Use `action` for the primary next step.
 - Use `secondaryAction` for reset or navigation actions.

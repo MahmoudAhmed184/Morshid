@@ -1,12 +1,19 @@
+import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
-type AdminPanelProps = React.ComponentProps<'section'>
+type AdminPanelProps = React.ComponentProps<typeof Card>
 
+/**
+ * Bordered surface for admin tables and dashboard panels. Composes the stock
+ * `Card` primitive as a bare frame: its consumers are full-bleed (tables,
+ * toolbars) or supply their own slot padding, so the card's default vertical
+ * padding and gap are zeroed out here (consumers add padding via `className`).
+ */
 export function AdminPanel({ className, ...props }: AdminPanelProps) {
   return (
-    <section
+    <Card
       className={cn(
-        'rounded-lg border border-border bg-card text-card-foreground shadow-sm',
+        'gap-0 py-0 -mx-4 rounded-none border-x-0 sm:mx-0 sm:rounded-xl sm:border-x overflow-hidden',
         className,
       )}
       {...props}

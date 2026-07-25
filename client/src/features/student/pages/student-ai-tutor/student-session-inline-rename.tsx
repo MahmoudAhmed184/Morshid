@@ -58,8 +58,8 @@ export function StudentSessionInlineRename({
   return (
     <form
       className={cn(
-        'rounded-md px-2 py-2',
-        isSelected ? 'bg-primary' : 'bg-muted/60',
+        'rounded-xl px-2 py-2',
+        isSelected ? 'bg-sidebar-accent' : 'bg-secondary/60',
       )}
       onSubmit={(event) => {
         event.preventDefault()

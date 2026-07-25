@@ -3,6 +3,7 @@
 Use `PageHeader` for the main heading area of a page.
 
 Good places to use it:
+
 - Dashboard pages, index pages, detail pages, settings pages.
 - Any page with title, description, badge/eyebrow, and right-side actions.
 
@@ -33,5 +34,6 @@ With eyebrow:
 ```
 
 Notes:
+
 - Use once near the top of a page.
 - Put page-level actions in `actions`, not inside the title block.

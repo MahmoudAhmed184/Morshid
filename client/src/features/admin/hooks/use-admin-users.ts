@@ -9,6 +9,7 @@ import {
   disableAdminUser,
   reactivateAdminUser,
   resetAdminUserPassword,
+  updateAdminUser,
 } from '@/features/admin/data/admin-users.api'
 import type { CreateAdminUserInput } from '@/features/admin/data/admin-users.api'
 import { adminAuditKeys } from '@/features/admin/data/admin-audit.queries'
@@ -64,9 +65,24 @@ export function useAdminUserMutations() {
     mutationFn: (userId: string) => reactivateAdminUser(userId),
     onSuccess: invalidateAdminData,
   })
+  const updateUser = useMutation({
+    mutationFn: ({
+      userId,
+      input,
+    }: {
+      userId: string
+      input: {
+        email?: string
+        displayName?: string
+        role?: 'STUDENT' | 'INSTRUCTOR'
+      }
+    }) => updateAdminUser(userId, input),
+    onSuccess: invalidateAdminData,
+  })
 
   return {
     createUser,
+    updateUser,
     resetPassword,
     disableUser,
     reactivateUser,

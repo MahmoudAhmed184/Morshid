@@ -1,6 +1,9 @@
+import { z } from 'zod'
+
 import { apiFetch, apiJson } from '@/features/auth/api/authenticated-api-client'
 import type { ApiFetchOptions } from '@/features/auth/api/authenticated-api-client'
 import {
+  adminCourseSchema,
   adminCourseListResponseSchema,
   adminCourseMemberResponseSchema,
   adminCourseMembersResponseSchema,
@@ -8,6 +11,8 @@ import {
   adminMaterialResponseSchema,
 } from '@/features/admin/schemas/admin-course.schema'
 import type { CourseMembershipRole } from '@/features/admin/schemas/admin-course.schema'
+
+const adminCourseResponseSchema = z.object({ course: adminCourseSchema })
 
 function jsonRequestOptions(
   method: 'PATCH' | 'POST',
@@ -31,6 +36,29 @@ export async function getAdminCourses(options: ApiFetchOptions = {}) {
     method: 'GET',
   })
   return adminCourseListResponseSchema.parse(response).courses
+}
+
+export async function createAdminCourse(
+  input: { code: string; title: string },
+  options: ApiFetchOptions = {},
+) {
+  const response = await apiJson<unknown>(
+    '/api/v1/admin/courses',
+    jsonRequestOptions('POST', input, options),
+  )
+  return adminCourseResponseSchema.parse(response).course
+}
+
+export async function updateAdminCourse(
+  courseId: string,
+  input: { code?: string; title?: string },
+  options: ApiFetchOptions = {},
+) {
+  const response = await apiJson<unknown>(
+    `/api/v1/admin/courses/${courseId}`,
+    jsonRequestOptions('PATCH', input, options),
+  )
+  return adminCourseResponseSchema.parse(response).course
 }
 
 export async function getAdminCourseMembers(

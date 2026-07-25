@@ -1,7 +1,9 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
-import { MyCoursesPage } from '@/features/instructor/pages/my-courses-page'
-
+// Compatibility for bookmarks from the retired instructor My Courses page.
+// Course discovery now lives in the dashboard's course selector.
 export const Route = createFileRoute('/instructor/courses/')({
-  component: MyCoursesPage,
+  beforeLoad: () => {
+    throw redirect({ to: '/instructor' })
+  },
 })

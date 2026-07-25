@@ -17,6 +17,7 @@ import type {
   AdminDisableUserResponseDto,
   AdminReactivateUserResponseDto,
   AdminResetUserPasswordResponseDto,
+  AdminUpdateUserResponseDto,
   AdminUserListResponseDto,
 } from '../src/modules/admin/users/admin-users.dto'
 import { ADMIN_USERS_ERROR_CODES } from '../src/modules/admin/users/admin-users.errors'
@@ -278,6 +279,265 @@ describe('Admin users (e2e)', () => {
         message: 'A user with this email already exists',
         email: 'student1@morshid.demo',
       })
+  })
+
+  describe('PATCH /api/v1/admin/users/:userId', () => {
+    it('updates profile fields and records before/after audit evidence', async () => {
+      const token = await signInAs('admin@morshid.demo')
+      const admin = requireUserByEmail('admin@morshid.demo')
+      const target = requireUserByEmail('student1@morshid.demo')
+
+      const response = await request(app.getHttpServer())
+        .patch(`/api/v1/admin/users/${target.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .set('User-Agent', auditUserAgent)
+        .send({
+          email: 'updated.student@morshid.demo',
+          displayName: 'Updated Student',
+        })
+        .expect(200)
+
+      const body = response.body as AdminUpdateUserResponseDto
+      expect(body.user).toMatchObject({
+        id: target.id,
+        email: 'updated.student@morshid.demo',
+        displayName: 'Updated Student',
+        role: UserRole.STUDENT,
+      })
+
+      const auditLogs = [...store.auditLogs.values()].filter(
+        (log) => log.action === AUDIT_EVENT_ACTIONS.ADMIN_ACCOUNT_UPDATED,
+      )
+      expect(auditLogs).toEqual([
+        expect.objectContaining({
+          actorUserId: admin.id,
+          targetId: target.id,
+          userAgent: auditUserAgent,
+          metadata: {
+            before: {
+              email: target.email,
+              displayName: target.displayName,
+              role: target.role,
+            },
+            after: {
+              email: 'updated.student@morshid.demo',
+              displayName: 'Updated Student',
+              role: target.role,
+            },
+            changedFields: ['email', 'displayName'],
+          },
+        }),
+      ])
+    })
+
+    it('rejects an empty update without writing an audit event', async () => {
+      const token = await signInAs('admin@morshid.demo')
+      const target = requireUserByEmail('student1@morshid.demo')
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/admin/users/${target.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({})
+        .expect(400)
+        .expect((response) => {
+          expect(response.body).toMatchObject({
+            code: ADMIN_USERS_ERROR_CODES.INVALID_UPDATE_REQUEST,
+          })
+        })
+
+      expect(
+        [...store.auditLogs.values()].filter(
+          (log) => log.action === AUDIT_EVENT_ACTIONS.ADMIN_ACCOUNT_UPDATED,
+        ),
+      ).toEqual([])
+    })
+
+    it('rejects role changes while active course memberships exist', async () => {
+      const token = await signInAs('admin@morshid.demo')
+      const target = requireUserByEmail('student1@morshid.demo')
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/admin/users/${target.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ role: UserRole.INSTRUCTOR })
+        .expect(409)
+        .expect({
+          code: ADMIN_USERS_ERROR_CODES.ROLE_CHANGE_HAS_MEMBERSHIPS,
+          message:
+            'Remove active course memberships before changing the account role',
+          userId: target.id,
+        })
+
+      expect(requireUserByEmail(target.email).role).toBe(UserRole.STUDENT)
+      expect(
+        [...store.auditLogs.values()].filter(
+          (log) => log.action === AUDIT_EVENT_ACTIONS.ADMIN_ACCOUNT_UPDATED,
+        ),
+      ).toEqual([])
+    })
+
+    it('applies a role change once the account has no active course memberships', async () => {
+      const token = await signInAs('admin@morshid.demo')
+      const admin = requireUserByEmail('admin@morshid.demo')
+      const created = await createUserAsAdmin(UserRole.STUDENT)
+      const createdUser = (created.body as AdminCreateUserResponseDto).user
+
+      const response = await request(app.getHttpServer())
+        .patch(`/api/v1/admin/users/${createdUser.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .set('User-Agent', auditUserAgent)
+        .send({ role: UserRole.INSTRUCTOR })
+        .expect(200)
+
+      const body = response.body as AdminUpdateUserResponseDto
+      expect(body).toEqual({
+        user: {
+          id: createdUser.id,
+          email: createdUser.email,
+          displayName: createdUser.displayName,
+          role: UserRole.INSTRUCTOR,
+          status: UserStatus.ACTIVE,
+          createdAt: anyString,
+          updatedAt: anyString,
+        },
+      })
+      expect(body.user).not.toHaveProperty('passwordHash')
+      expect(body.user).not.toHaveProperty('password')
+      expect(requireUserByEmail(createdUser.email).role).toBe(
+        UserRole.INSTRUCTOR,
+      )
+      expect(
+        [...store.auditLogs.values()].filter(
+          (log) => log.action === AUDIT_EVENT_ACTIONS.ADMIN_ACCOUNT_UPDATED,
+        ),
+      ).toEqual([
+        expect.objectContaining({
+          actorUserId: admin.id,
+          targetType: AUDIT_TARGET_TYPES.USER,
+          targetId: createdUser.id,
+          metadata: {
+            before: {
+              email: createdUser.email,
+              displayName: createdUser.displayName,
+              role: UserRole.STUDENT,
+            },
+            after: {
+              email: createdUser.email,
+              displayName: createdUser.displayName,
+              role: UserRole.INSTRUCTOR,
+            },
+            changedFields: ['role'],
+          },
+        }),
+      ])
+    })
+
+    it('rejects changing an administrator role', async () => {
+      const token = await signInAs('admin@morshid.demo')
+      const admin = requireUserByEmail('admin@morshid.demo')
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/admin/users/${admin.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ role: UserRole.STUDENT })
+        .expect(403)
+        .expect({
+          code: ADMIN_USERS_ERROR_CODES.CANNOT_CHANGE_ADMIN_ROLE,
+          message: 'Administrator account roles cannot be changed',
+        })
+
+      expect(requireUserByEmail('admin@morshid.demo').role).toBe(UserRole.ADMIN)
+      expect(
+        [...store.auditLogs.values()].filter(
+          (log) => log.action === AUDIT_EVENT_ACTIONS.ADMIN_ACCOUNT_UPDATED,
+        ),
+      ).toEqual([])
+    })
+
+    it('rejects an email that is already owned by another account', async () => {
+      const token = await signInAs('admin@morshid.demo')
+      const target = requireUserByEmail('student1@morshid.demo')
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/admin/users/${target.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ email: 'INSTRUCTOR@morshid.demo' })
+        .expect(409)
+        .expect({
+          code: ADMIN_USERS_ERROR_CODES.DUPLICATE_EMAIL,
+          message: 'A user with this email already exists',
+          email: 'instructor@morshid.demo',
+        })
+
+      expect(requireUserByEmail('student1@morshid.demo').id).toBe(target.id)
+      expect(
+        [...store.auditLogs.values()].filter(
+          (log) => log.action === AUDIT_EVENT_ACTIONS.ADMIN_ACCOUNT_UPDATED,
+        ),
+      ).toEqual([])
+    })
+
+    it('returns not found for an unknown user', async () => {
+      const token = await signInAs('admin@morshid.demo')
+      const missingUserId = '00000000-0000-4000-8000-000000009999'
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/admin/users/${missingUserId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ displayName: 'Nope' })
+        .expect(404)
+        .expect({
+          code: ADMIN_USERS_ERROR_CODES.USER_NOT_FOUND,
+          message: 'Admin user target was not found',
+          userId: missingUserId,
+        })
+    })
+
+    it('rejects unknown update fields such as password', async () => {
+      const token = await signInAs('admin@morshid.demo')
+      const target = requireUserByEmail('student1@morshid.demo')
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/admin/users/${target.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ displayName: 'Renamed', password: 'TempPassword123!' })
+        .expect(400)
+        .expect((response) => {
+          expect(response.body).toMatchObject({
+            code: ADMIN_USERS_ERROR_CODES.INVALID_UPDATE_REQUEST,
+          })
+        })
+
+      expect(requireUserByEmail('student1@morshid.demo').displayName).toBe(
+        target.displayName,
+      )
+      expect(
+        [...store.auditLogs.values()].filter(
+          (log) => log.action === AUDIT_EVENT_ACTIONS.ADMIN_ACCOUNT_UPDATED,
+        ),
+      ).toEqual([])
+    })
+
+    it('rejects malformed user ids', async () => {
+      const token = await signInAs('admin@morshid.demo')
+
+      await request(app.getHttpServer())
+        .patch('/api/v1/admin/users/not-a-uuid')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ displayName: 'Nope' })
+        .expect(400)
+    })
+
+    it('rejects non-admin updates', async () => {
+      const token = await signInAs('student1@morshid.demo')
+      const target = requireUserByEmail('instructor@morshid.demo')
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/admin/users/${target.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ displayName: 'Nope' })
+        .expect(403)
+    })
   })
 
   it('rejects non-admin users', async () => {

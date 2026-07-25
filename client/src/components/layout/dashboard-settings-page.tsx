@@ -1,22 +1,38 @@
-import { Palette, UserRound } from 'lucide-react'
+import { LogOut, Monitor, Moon, Palette, Sun, UserRound } from 'lucide-react'
 
-import { getUserInitials } from '@/components/layout/dashboard-header'
+import { getUserInitials } from '@/components/layout/get-user-initials'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ModeToggle } from '@/components/ui/mode-toggle'
+import { Badge } from '@/components/ui/badge'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { PageHeader } from '@/components/ui/custom/page-header'
 import { SignOutButton } from '@/features/auth/components/sign-out-button'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
+import { cn } from '@/lib/utils'
+import { useTheme } from '@/providers/theme-provider'
 
 type DashboardSettingsPageProps = {
   roleName: string
   embedded?: boolean
 }
 
+const themeOptions = [
+  { value: 'light', label: 'Light', icon: Sun },
+  { value: 'dark', label: 'Dark', icon: Moon },
+  { value: 'system', label: 'System', icon: Monitor },
+] as const
+
 export function DashboardSettingsPage({
   roleName,
   embedded = false,
 }: DashboardSettingsPageProps) {
   const user = useAuthStore((state) => state.user)
+  const { theme, setTheme } = useTheme()
   const displayName = user?.displayName ?? roleName
 
   return (
@@ -28,68 +44,90 @@ export function DashboardSettingsPage({
       }
     >
       {embedded ? null : (
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            Settings
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Manage your profile and workspace preferences.
-          </p>
-        </div>
+        <PageHeader
+          eyebrow="Workspace"
+          title="Settings"
+          description="Manage your profile and workspace preferences."
+        />
       )}
 
-      <Card>
+      <Card className="-mx-4 rounded-none border-x-0 sm:mx-0 sm:rounded-xl sm:border-x">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <UserRound className="size-4" aria-hidden />
+            <UserRound className="size-4 text-muted-foreground" aria-hidden />
             Profile
           </CardTitle>
         </CardHeader>
-        <CardContent className="flex items-center gap-4">
-          <Avatar size="lg" className="bg-primary text-primary-foreground">
-            <AvatarFallback className="bg-primary font-semibold text-primary-foreground">
-              {getUserInitials(displayName)}
-            </AvatarFallback>
-          </Avatar>
-          <dl className="min-w-0 space-y-1">
-            <div>
-              <dt className="text-xs text-muted-foreground">Name</dt>
-              <dd className="truncate font-medium text-foreground">
+        <CardContent className="flex flex-col gap-5 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-4">
+            <Avatar size="lg" className="bg-secondary text-foreground">
+              <AvatarFallback className="bg-secondary text-base font-semibold text-foreground">
+                {getUserInitials(displayName)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <p className="truncate text-base font-semibold text-foreground">
                 {displayName}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-muted-foreground">Email</dt>
-              <dd className="truncate text-sm text-foreground">
+              </p>
+              <p className="truncate text-sm text-muted-foreground">
                 {user?.email ?? 'Not available'}
-              </dd>
+              </p>
+              <Badge variant="secondary" className="mt-2">
+                {roleName}
+              </Badge>
             </div>
-            <div>
-              <dt className="text-xs text-muted-foreground">Role</dt>
-              <dd className="text-sm text-foreground">{roleName}</dd>
-            </div>
-          </dl>
+          </div>
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="-mx-4 rounded-none border-x-0 sm:mx-0 sm:rounded-xl sm:border-x">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Palette className="size-4" aria-hidden />
+            <Palette className="size-4 text-muted-foreground" aria-hidden />
             Appearance
           </CardTitle>
-        </CardHeader>
-        <CardContent className="flex items-center justify-between gap-4">
-          <p className="text-sm text-muted-foreground">
+          <CardDescription>
             Choose a color theme and appearance mode.
-          </p>
-          <ModeToggle />
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm font-medium text-foreground">Theme mode</p>
+
+          <div className="grid w-full grid-cols-3 gap-1 rounded-2xl border border-border/80 bg-muted/50 p-1.5 shadow-xs sm:w-auto sm:inline-flex">
+            {themeOptions.map((option) => {
+              const Icon = option.icon
+              const isActive = theme === option.value
+
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setTheme(option.value)}
+                  className={cn(
+                    'flex items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs font-medium sm:px-3.5 sm:text-sm transition-colors cursor-pointer select-none min-w-0',
+                    isActive
+                      ? 'bg-background text-foreground font-semibold shadow-xs border border-border/40'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  <Icon className="size-3.5 sm:size-4 shrink-0" aria-hidden />
+                  <span className="truncate">{option.label}</span>
+                </button>
+              )
+            })}
+          </div>
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="-mx-4 rounded-none border-x-0 sm:mx-0 sm:rounded-xl sm:border-x">
         <CardHeader>
-          <CardTitle>Account</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <LogOut className="size-4 text-muted-foreground" aria-hidden />
+            Account
+          </CardTitle>
+          <CardDescription>
+            Sign out of your Morshid workspace on this device.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <SignOutButton />
