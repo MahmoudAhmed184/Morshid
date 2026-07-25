@@ -18,6 +18,7 @@ import {
   ApiConflictResponse,
   ApiCreatedResponse,
   ApiExtraModels,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -46,18 +47,23 @@ import {
   AdminReactivateUserResponseDto,
   AdminResetUserPasswordRequestDto,
   AdminResetUserPasswordResponseDto,
+  AdminUpdateUserRequestDto,
+  AdminUpdateUserResponseDto,
   AdminUserListResponseDto,
   adminListUsersQuerySchema,
   adminCreateUserRequestSchema,
   adminResetUserPasswordRequestSchema,
+  adminUpdateUserRequestSchema,
   type AdminCreateUserRequest,
   type AdminListUsersQuery,
   type AdminResetUserPasswordRequest,
+  type AdminUpdateUserRequest,
 } from './admin-users.dto'
 import {
   invalidAdminCreateUserRequestException,
   invalidAdminListUsersRequestException,
   invalidAdminResetUserPasswordRequestException,
+  invalidAdminUpdateUserRequestException,
   type AdminUsersValidationIssue,
 } from './admin-users.errors'
 import { AdminUsersService } from './admin-users.service'
@@ -135,6 +141,47 @@ export class AdminUsersController {
     @Req() request: AuthenticatedHttpRequest,
   ): Promise<AdminCreateUserResponseDto> {
     return this.adminUsersService.createUser(
+      body,
+      request.user,
+      getRequestContext(request),
+    )
+  }
+
+  @Patch(':userId')
+  @SerializeOptions({
+    type: AdminUpdateUserResponseDto,
+    strategy: 'excludeAll',
+  })
+  @ApiOperation({ summary: 'Update user' })
+  @ApiParam({ name: 'userId', format: 'uuid' })
+  @ApiBody({ type: AdminUpdateUserRequestDto })
+  @ApiOkResponse({
+    type: AdminUpdateUserResponseDto,
+    description: 'The updated user account.',
+  })
+  @ApiBadRequestResponse({
+    schema: {
+      oneOf: [
+        { $ref: getSchemaPath(OpenApiValidationErrorDto) },
+        { $ref: getSchemaPath(NestBadRequestErrorDto) },
+      ],
+    },
+  })
+  @ApiForbiddenResponse({ type: OpenApiErrorDto })
+  @ApiNotFoundResponse({ type: OpenApiErrorDto })
+  @ApiConflictResponse({ type: OpenApiErrorDto })
+  updateUser(
+    @Param('userId', new ParseUUIDPipe({ version: '4' })) userId: string,
+    @Body(
+      new ZodValidationPipe(adminUpdateUserRequestSchema, (issues) =>
+        invalidAdminUpdateUserRequestException(issues.map(mapZodIssue)),
+      ),
+    )
+    body: AdminUpdateUserRequest,
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<AdminUpdateUserResponseDto> {
+    return this.adminUsersService.updateUser(
+      userId,
       body,
       request.user,
       getRequestContext(request),

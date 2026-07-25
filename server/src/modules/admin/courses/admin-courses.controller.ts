@@ -43,14 +43,20 @@ import {
   AdminCourseListResponseDto,
   AdminCourseMemberListResponseDto,
   AdminCourseMemberResponseDto,
+  AdminCreateCourseRequestDto,
   AdminMaterialListResponseDto,
   AdminMaterialResponseDto,
+  AdminUpdateCourseRequestDto,
   AdminUpdateMaterialRequestDto,
   AdminUpdateMemberRoleRequestDto,
   adminAddCourseMemberRequestSchema,
+  adminCreateCourseRequestSchema,
+  adminUpdateCourseRequestSchema,
   adminUpdateMaterialRequestSchema,
   adminUpdateMemberRoleRequestSchema,
   type AdminAddCourseMemberRequest,
+  type AdminCreateCourseRequest,
+  type AdminUpdateCourseRequest,
   type AdminUpdateMaterialRequest,
   type AdminUpdateMemberRoleRequest,
 } from './admin-courses.dto'
@@ -105,6 +111,31 @@ export class AdminCoursesController {
     return this.adminCoursesService.listCourses()
   }
 
+  @Post()
+  @SerializeOptions({
+    type: AdminCourseDetailResponseDto,
+    strategy: 'excludeAll',
+  })
+  @ApiOperation({ summary: 'Create course' })
+  @ApiBody({ type: AdminCreateCourseRequestDto })
+  @ApiCreatedResponse({
+    type: AdminCourseDetailResponseDto,
+    description: 'The created course.',
+  })
+  @ApiBadRequestResponse({ type: OpenApiValidationErrorDto })
+  @ApiConflictResponse({ type: OpenApiErrorDto })
+  createCourse(
+    @Body(new AdminCoursesValidationPipe(adminCreateCourseRequestSchema))
+    body: AdminCreateCourseRequest,
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<AdminCourseDetailResponseDto> {
+    return this.adminCoursesService.createCourse(
+      body,
+      request.user,
+      getRequestContext(request),
+    )
+  }
+
   @Get(':courseId')
   @SerializeOptions({
     type: AdminCourseDetailResponseDto,
@@ -121,6 +152,35 @@ export class AdminCoursesController {
     @Param('courseId') courseId: string,
   ): Promise<AdminCourseDetailResponseDto> {
     return this.adminCoursesService.getCourse(courseId)
+  }
+
+  @Patch(':courseId')
+  @SerializeOptions({
+    type: AdminCourseDetailResponseDto,
+    strategy: 'excludeAll',
+  })
+  @ApiOperation({ summary: 'Update course' })
+  @ApiParam({ name: 'courseId', format: 'uuid' })
+  @ApiBody({ type: AdminUpdateCourseRequestDto })
+  @ApiOkResponse({
+    type: AdminCourseDetailResponseDto,
+    description: 'The updated course.',
+  })
+  @ApiBadRequestResponse({ type: OpenApiValidationErrorDto })
+  @ApiNotFoundResponse({ type: OpenApiErrorDto })
+  @ApiConflictResponse({ type: OpenApiErrorDto })
+  updateCourse(
+    @Param('courseId') courseId: string,
+    @Body(new AdminCoursesValidationPipe(adminUpdateCourseRequestSchema))
+    body: AdminUpdateCourseRequest,
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<AdminCourseDetailResponseDto> {
+    return this.adminCoursesService.updateCourse(
+      courseId,
+      body,
+      request.user,
+      getRequestContext(request),
+    )
   }
 
   @Post(':courseId/members')

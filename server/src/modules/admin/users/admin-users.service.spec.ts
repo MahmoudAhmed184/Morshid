@@ -26,6 +26,7 @@ import {
   type ListAdminUsersRepositoryInput,
   type ReactivateAdminUserRepositoryInput,
   type ResetAdminUserPasswordRepositoryInput,
+  type UpdateAdminUserRepositoryInput,
 } from './admin-users.repository'
 import { AdminUsersService } from './admin-users.service'
 
@@ -36,6 +37,9 @@ class AdminUsersServiceTestRepository extends AdminUsersRepository {
   readonly users = new Map<string, AdminListedUserRecord>()
   readonly createUser = jest.fn((input: CreateAdminUserRepositoryInput) =>
     Promise.resolve(this.insertUser(input)),
+  )
+  readonly updateUser = jest.fn((input: UpdateAdminUserRepositoryInput) =>
+    Promise.resolve(this.updateExistingUser(input)),
   )
   readonly disableUser = jest.fn((input: DisableAdminUserRepositoryInput) =>
     Promise.resolve(this.disableExistingUser(input)),
@@ -111,6 +115,31 @@ class AdminUsersServiceTestRepository extends AdminUsersRepository {
     this.addUser(user)
 
     return user
+  }
+
+  private updateExistingUser(
+    input: UpdateAdminUserRepositoryInput,
+  ): AdminListedUserRecord {
+    const user = [...this.users.values()].find(
+      (storedUser) => storedUser.id === input.userId,
+    )
+
+    if (!user) {
+      throw new Error(`Missing user ${input.userId}`)
+    }
+
+    const updatedUser = {
+      ...user,
+      email: input.email ?? user.email,
+      displayName: input.displayName ?? user.displayName,
+      role: input.role ?? user.role,
+      updatedAt,
+    }
+
+    this.users.delete(user.email)
+    this.users.set(updatedUser.email, updatedUser)
+
+    return updatedUser
   }
 
   private disableExistingUser(
@@ -425,6 +454,172 @@ describe('AdminUsersService', () => {
     })
     expect(response.users[0]).not.toHaveProperty('passwordHash')
     expect(response.users[0]).not.toHaveProperty('refreshTokens')
+  })
+
+  it('updates a user profile through the repository and returns a safe response', async () => {
+    const { normalizeEmail, repository, service } = buildService()
+
+    repository.addUser({
+      id: 'target-user',
+      email: 'target@morshid.demo',
+      displayName: 'Target User',
+      role: UserRole.STUDENT,
+      status: UserStatus.ACTIVE,
+      createdAt,
+      updatedAt,
+    })
+
+    const response = await service.updateUser(
+      'target-user',
+      {
+        email: '  Renamed@Morshid.Demo  ',
+        displayName: '  Renamed User  ',
+        role: UserRole.INSTRUCTOR,
+      },
+      actor,
+      requestContext,
+    )
+
+    expect(normalizeEmail).toHaveBeenCalledWith('  Renamed@Morshid.Demo  ')
+    expect(repository.updateUser.mock.calls).toEqual([
+      [
+        {
+          userId: 'target-user',
+          email: 'renamed@morshid.demo',
+          displayName: 'Renamed User',
+          role: UserRole.INSTRUCTOR,
+          actorUserId: actor.id,
+          requestContext,
+        },
+      ],
+    ])
+    expect(response).toEqual({
+      user: {
+        id: 'target-user',
+        email: 'renamed@morshid.demo',
+        displayName: 'Renamed User',
+        role: UserRole.INSTRUCTOR,
+        status: UserStatus.ACTIVE,
+        createdAt: createdAt.toISOString(),
+        updatedAt: updatedAt.toISOString(),
+      },
+    })
+    expect(response.user).not.toHaveProperty('passwordHash')
+    expect(response.user).not.toHaveProperty('refreshTokens')
+  })
+
+  it('rejects updating a missing user', async () => {
+    const { repository, service } = buildService()
+
+    const updateUser = service.updateUser(
+      'missing-user',
+      { displayName: 'Renamed User' },
+      actor,
+      requestContext,
+    )
+
+    await expect(updateUser).rejects.toBeInstanceOf(NotFoundException)
+    await expect(updateUser).rejects.toMatchObject({
+      response: {
+        code: ADMIN_USERS_ERROR_CODES.USER_NOT_FOUND,
+        message: 'Admin user target was not found',
+        userId: 'missing-user',
+      },
+    })
+    expect(repository.updateUser.mock.calls).toHaveLength(0)
+  })
+
+  it('rejects updating a user to an email owned by another account', async () => {
+    const { repository, service } = buildService()
+
+    repository.addUser({
+      id: 'target-user',
+      email: 'target@morshid.demo',
+      displayName: 'Target User',
+      role: UserRole.STUDENT,
+      status: UserStatus.ACTIVE,
+      createdAt,
+      updatedAt,
+    })
+    repository.addUser({
+      id: 'other-user',
+      email: 'other@morshid.demo',
+      displayName: 'Other User',
+      role: UserRole.STUDENT,
+      status: UserStatus.ACTIVE,
+      createdAt,
+      updatedAt,
+    })
+
+    const updateUser = service.updateUser(
+      'target-user',
+      { email: 'OTHER@MORSHID.DEMO' },
+      actor,
+      requestContext,
+    )
+
+    await expect(updateUser).rejects.toBeInstanceOf(ConflictException)
+    await expect(updateUser).rejects.toMatchObject({
+      response: {
+        code: ADMIN_USERS_ERROR_CODES.DUPLICATE_EMAIL,
+        email: 'other@morshid.demo',
+      },
+    })
+    expect(repository.updateUser.mock.calls).toHaveLength(0)
+  })
+
+  it('allows updating a user without changing their own email', async () => {
+    const { repository, service } = buildService()
+
+    repository.addUser({
+      id: 'target-user',
+      email: 'target@morshid.demo',
+      displayName: 'Target User',
+      role: UserRole.STUDENT,
+      status: UserStatus.ACTIVE,
+      createdAt,
+      updatedAt,
+    })
+
+    const response = await service.updateUser(
+      'target-user',
+      { email: 'target@morshid.demo', displayName: 'Renamed User' },
+      actor,
+      requestContext,
+    )
+
+    expect(response.user.email).toBe('target@morshid.demo')
+    expect(response.user.displayName).toBe('Renamed User')
+  })
+
+  it('rejects changing the role of an admin account', async () => {
+    const { repository, service } = buildService()
+
+    repository.addUser({
+      id: 'other-admin',
+      email: 'other-admin@morshid.demo',
+      displayName: 'Other Admin',
+      role: UserRole.ADMIN,
+      status: UserStatus.ACTIVE,
+      createdAt,
+      updatedAt,
+    })
+
+    const updateUser = service.updateUser(
+      'other-admin',
+      { role: UserRole.STUDENT },
+      actor,
+      requestContext,
+    )
+
+    await expect(updateUser).rejects.toBeInstanceOf(ForbiddenException)
+    await expect(updateUser).rejects.toMatchObject({
+      response: {
+        code: ADMIN_USERS_ERROR_CODES.CANNOT_CHANGE_ADMIN_ROLE,
+        message: 'Administrator account roles cannot be changed',
+      },
+    })
+    expect(repository.updateUser.mock.calls).toHaveLength(0)
   })
 
   it('disables an active user through the repository and returns a safe response', async () => {

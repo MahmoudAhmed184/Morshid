@@ -10,7 +10,10 @@ import {
 import { PrismaService } from '../../prisma/prisma.service'
 import type { AuditRequestContext } from '../../audit/audit.service'
 import { AdminCoursesAuditService } from './admin-courses.audit.service'
-import { AdminCourseMemberAlreadyExistsError } from './admin-courses.errors'
+import {
+  AdminCourseCodeAlreadyExistsError,
+  AdminCourseMemberAlreadyExistsError,
+} from './admin-courses.errors'
 
 // ---------------------------------------------------------------------------
 // Record interfaces
@@ -64,6 +67,21 @@ export interface AdminMaterialRecord {
 // ---------------------------------------------------------------------------
 // Repository input interfaces
 // ---------------------------------------------------------------------------
+
+export interface CreateCourseInput {
+  code: string
+  title: string
+  actorUserId: string
+  requestContext?: AuditRequestContext
+}
+
+export interface UpdateCourseInput {
+  courseId: string
+  code?: string
+  title?: string
+  actorUserId: string
+  requestContext?: AuditRequestContext
+}
 
 export interface AddCourseMemberInput {
   courseId: string
@@ -160,6 +178,12 @@ export abstract class AdminCoursesRepository {
 
   abstract findCourseById(courseId: string): Promise<AdminCourseRecord | null>
 
+  abstract findCourseByCode(code: string): Promise<AdminCourseRecord | null>
+
+  abstract createCourse(input: CreateCourseInput): Promise<AdminCourseRecord>
+
+  abstract updateCourse(input: UpdateCourseInput): Promise<AdminCourseRecord>
+
   abstract findUserById(userId: string): Promise<{ id: string } | null>
 
   abstract findMembership(
@@ -218,6 +242,77 @@ export class PrismaAdminCoursesRepository extends AdminCoursesRepository {
       where: { id: courseId },
       select: adminCourseSelect,
     })
+  }
+
+  findCourseByCode(code: string): Promise<AdminCourseRecord | null> {
+    return this.prismaService.course.findUnique({
+      where: { code },
+      select: adminCourseSelect,
+    })
+  }
+
+  async createCourse(input: CreateCourseInput): Promise<AdminCourseRecord> {
+    try {
+      return await this.prismaService.$transaction(async (tx) => {
+        const course = await tx.course.create({
+          data: {
+            code: input.code,
+            title: input.title,
+            createdById: input.actorUserId,
+          },
+          select: adminCourseSelect,
+        })
+
+        await this.adminCoursesAuditService.recordCourseCreated(
+          {
+            actorUserId: input.actorUserId,
+            course,
+            requestContext: input.requestContext,
+          },
+          tx,
+        )
+
+        return course
+      })
+    } catch (error) {
+      if (isUniqueConstraintViolation(error)) {
+        throw new AdminCourseCodeAlreadyExistsError(input.code)
+      }
+
+      throw error
+    }
+  }
+
+  async updateCourse(input: UpdateCourseInput): Promise<AdminCourseRecord> {
+    try {
+      return await this.prismaService.$transaction(async (tx) => {
+        const course = await tx.course.update({
+          where: { id: input.courseId },
+          data: {
+            code: input.code,
+            title: input.title,
+          },
+          select: adminCourseSelect,
+        })
+
+        await this.adminCoursesAuditService.recordCourseUpdated(
+          {
+            actorUserId: input.actorUserId,
+            course,
+            requestContext: input.requestContext,
+          },
+          tx,
+        )
+
+        return course
+      })
+    } catch (error) {
+      if (isUniqueConstraintViolation(error) && input.code !== undefined) {
+        throw new AdminCourseCodeAlreadyExistsError(input.code)
+      }
+
+      throw error
+    }
   }
 
   findUserById(userId: string): Promise<{ id: string } | null> {

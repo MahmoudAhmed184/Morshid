@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 
 import {
   CourseMembershipRole,
+  UserRole,
   UserStatus,
 } from '../../../generated/prisma/client'
 import type { AuthenticatedRequestUser } from '../../auth/auth.dto'
@@ -15,6 +16,8 @@ import type {
   AdminReactivateUserResponseDto,
   AdminResetUserPasswordRequest,
   AdminResetUserPasswordResponseDto,
+  AdminUpdateUserRequest,
+  AdminUpdateUserResponseDto,
   AdminUserListResponseDto,
   AdminListUsersQuery,
 } from './admin-users.dto'
@@ -23,6 +26,7 @@ import {
   AdminUserNotFoundError,
   CannotDisableLastActiveAdminError,
   adminUserNotFoundException,
+  cannotChangeAdminRoleException,
   cannotDisableLastActiveAdminException,
   cannotDisableSelfException,
   duplicateAdminUserEmailException,
@@ -85,6 +89,60 @@ export class AdminUsersService {
     return {
       users: page.users.map(mapAdminListedUserRecord),
       ...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
+    }
+  }
+
+  async updateUser(
+    userId: string,
+    input: AdminUpdateUserRequest,
+    actor: AuthenticatedRequestUser,
+    requestContext?: AuditRequestContext,
+  ): Promise<AdminUpdateUserResponseDto> {
+    const user = await this.adminUsersRepository.findById(userId)
+
+    if (user === null) {
+      throw adminUserNotFoundException(userId)
+    }
+
+    // Admin accounts are never demoted through this endpoint: the create/update
+    // role enum excludes ADMIN, so any role change here would silently strip the
+    // last administrator of their access.
+    if (input.role !== undefined && user.role === UserRole.ADMIN) {
+      throw cannotChangeAdminRoleException()
+    }
+
+    const email =
+      input.email === undefined
+        ? undefined
+        : this.authUserService.normalizeEmail(input.email)
+
+    if (email !== undefined && email !== user.email) {
+      const existingUser = await this.adminUsersRepository.findByEmail(email)
+
+      if (existingUser !== null) {
+        throw duplicateAdminUserEmailException(email)
+      }
+    }
+
+    try {
+      const updatedUser = await this.adminUsersRepository.updateUser({
+        userId,
+        email,
+        displayName: input.displayName?.trim(),
+        role: input.role,
+        actorUserId: actor.id,
+        requestContext,
+      })
+
+      return {
+        user: mapAdminUserRecord(updatedUser),
+      }
+    } catch (error) {
+      if (error instanceof AdminUserEmailAlreadyExistsError) {
+        throw duplicateAdminUserEmailException(error.email)
+      }
+
+      throw error
     }
   }
 

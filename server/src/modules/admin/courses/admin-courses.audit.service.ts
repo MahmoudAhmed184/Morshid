@@ -11,6 +11,26 @@ import {
 } from '../../audit/audit.service'
 import type { CourseMembershipRole } from '../../../generated/prisma/client'
 
+interface RecordCourseCreatedInput {
+  actorUserId: string
+  course: {
+    id: string
+    code: string
+    title: string
+  }
+  requestContext?: AuditRequestContext
+}
+
+interface RecordCourseUpdatedInput {
+  actorUserId: string
+  course: {
+    id: string
+    code: string
+    title: string
+  }
+  requestContext?: AuditRequestContext
+}
+
 interface RecordMemberAddedInput {
   actorUserId: string
   courseId: string
@@ -69,6 +89,52 @@ interface RecordMaterialUpdatedInput {
 @Injectable()
 export class AdminCoursesAuditService {
   constructor(private readonly auditService: AuditService) {}
+
+  async recordCourseCreated(
+    input: RecordCourseCreatedInput,
+    database?: AuditDatabase,
+  ): Promise<void> {
+    await this.auditService.recordEvent(
+      {
+        actorUserId: input.actorUserId,
+        action: AUDIT_EVENT_ACTIONS.ADMIN_COURSE_CREATED,
+        target: {
+          type: AUDIT_TARGET_TYPES.COURSE,
+          id: input.course.id,
+        },
+        courseId: input.course.id,
+        metadata: {
+          code: input.course.code,
+          title: input.course.title,
+        },
+        requestContext: input.requestContext,
+      },
+      database,
+    )
+  }
+
+  async recordCourseUpdated(
+    input: RecordCourseUpdatedInput,
+    database?: AuditDatabase,
+  ): Promise<void> {
+    await this.auditService.recordEvent(
+      {
+        actorUserId: input.actorUserId,
+        action: AUDIT_EVENT_ACTIONS.ADMIN_COURSE_UPDATED,
+        target: {
+          type: AUDIT_TARGET_TYPES.COURSE,
+          id: input.course.id,
+        },
+        courseId: input.course.id,
+        metadata: {
+          code: input.course.code,
+          title: input.course.title,
+        },
+        requestContext: input.requestContext,
+      },
+      database,
+    )
+  }
 
   async recordMemberAdded(
     input: RecordMemberAddedInput,

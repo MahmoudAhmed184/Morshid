@@ -31,6 +31,7 @@ interface AdminUserAuditWithRevocationInput extends AdminUserAuditInput {
 }
 
 type RecordAdminUserCreatedInput = AdminUserAuditInput
+type RecordAdminUserUpdatedInput = AdminUserAuditInput
 type RecordAdminUserDisabledInput = AdminUserAuditWithRevocationInput
 type RecordAdminUserReactivatedInput = AdminUserAuditInput
 type RecordAdminUserPasswordResetInput = AdminUserAuditWithRevocationInput
@@ -45,6 +46,18 @@ export class AdminUsersAuditService {
   ): Promise<void> {
     await this.recordUserEvent(
       AUDIT_EVENT_ACTIONS.ADMIN_ACCOUNT_CREATED,
+      input,
+      {},
+      database,
+    )
+  }
+
+  async recordUserUpdated(
+    input: RecordAdminUserUpdatedInput,
+    database?: AuditDatabase,
+  ): Promise<void> {
+    await this.recordUserEvent(
+      AUDIT_EVENT_ACTIONS.ADMIN_ACCOUNT_UPDATED,
       input,
       {},
       database,

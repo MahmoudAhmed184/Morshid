@@ -11,8 +11,10 @@ export const ADMIN_USERS_ERROR_CODES = {
   CANNOT_DISABLE_LAST_ACTIVE_ADMIN:
     'ADMIN_USERS_CANNOT_DISABLE_LAST_ACTIVE_ADMIN',
   CANNOT_DISABLE_SELF: 'ADMIN_USERS_CANNOT_DISABLE_SELF',
+  CANNOT_CHANGE_ADMIN_ROLE: 'ADMIN_USERS_CANNOT_CHANGE_ADMIN_ROLE',
   INVALID_CREATE_REQUEST: 'ADMIN_USERS_INVALID_CREATE_REQUEST',
   INVALID_LIST_REQUEST: 'ADMIN_USERS_INVALID_LIST_REQUEST',
+  INVALID_UPDATE_REQUEST: 'ADMIN_USERS_INVALID_UPDATE_REQUEST',
   INVALID_RESET_PASSWORD_REQUEST: 'ADMIN_USERS_INVALID_RESET_PASSWORD_REQUEST',
   USER_NOT_FOUND: 'ADMIN_USERS_USER_NOT_FOUND',
 } as const
@@ -62,6 +64,13 @@ export function cannotDisableSelfException(): HttpException {
   })
 }
 
+export function cannotChangeAdminRoleException(): HttpException {
+  return new ForbiddenException({
+    code: ADMIN_USERS_ERROR_CODES.CANNOT_CHANGE_ADMIN_ROLE,
+    message: 'Administrator account roles cannot be changed',
+  })
+}
+
 export function cannotDisableLastActiveAdminException(): HttpException {
   return new ConflictException({
     code: ADMIN_USERS_ERROR_CODES.CANNOT_DISABLE_LAST_ACTIVE_ADMIN,
@@ -85,6 +94,16 @@ export function invalidAdminListUsersRequestException(
   return new BadRequestException({
     code: ADMIN_USERS_ERROR_CODES.INVALID_LIST_REQUEST,
     message: 'Invalid admin user list request',
+    errors,
+  })
+}
+
+export function invalidAdminUpdateUserRequestException(
+  errors: AdminUsersValidationIssue[] = [],
+): HttpException {
+  return new BadRequestException({
+    code: ADMIN_USERS_ERROR_CODES.INVALID_UPDATE_REQUEST,
+    message: 'Invalid admin user update request',
     errors,
   })
 }

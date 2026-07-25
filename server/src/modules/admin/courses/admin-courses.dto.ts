@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger'
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
 import { Expose, Type } from 'class-transformer'
 import { z } from 'zod'
 
@@ -12,6 +12,20 @@ import {
 // ---------------------------------------------------------------------------
 // Zod request schemas
 // ---------------------------------------------------------------------------
+
+export const adminCreateCourseRequestSchema = z
+  .object({
+    code: z.string().trim().min(2).max(40),
+    title: z.string().trim().min(3).max(160),
+  })
+  .strict()
+
+export const adminUpdateCourseRequestSchema = z
+  .object({
+    code: z.string().trim().min(2).max(40).optional(),
+    title: z.string().trim().min(3).max(160).optional(),
+  })
+  .strict()
 
 export const adminAddCourseMemberRequestSchema = z
   .object({
@@ -32,6 +46,12 @@ export const adminUpdateMemberRoleRequestSchema = z
   })
   .strict()
 
+export type AdminCreateCourseRequest = z.infer<
+  typeof adminCreateCourseRequestSchema
+>
+export type AdminUpdateCourseRequest = z.infer<
+  typeof adminUpdateCourseRequestSchema
+>
 export type AdminAddCourseMemberRequest = z.infer<
   typeof adminAddCourseMemberRequestSchema
 >
@@ -45,6 +65,22 @@ export type AdminUpdateMaterialRequest = z.infer<
 // ---------------------------------------------------------------------------
 // Swagger request DTOs
 // ---------------------------------------------------------------------------
+
+export class AdminCreateCourseRequestDto {
+  @ApiProperty({ minLength: 2, maxLength: 40 })
+  code!: string
+
+  @ApiProperty({ minLength: 3, maxLength: 160 })
+  title!: string
+}
+
+export class AdminUpdateCourseRequestDto {
+  @ApiPropertyOptional({ minLength: 2, maxLength: 40 })
+  code?: string
+
+  @ApiPropertyOptional({ minLength: 3, maxLength: 160 })
+  title?: string
+}
 
 export class AdminAddCourseMemberRequestDto {
   @ApiProperty({ format: 'uuid' })
