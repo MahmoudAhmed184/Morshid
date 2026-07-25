@@ -18,11 +18,11 @@ import {
 } from '@/components/ui/table'
 import type { AdminCourse } from '@/features/admin/schemas/admin-course.schema'
 
+import { EditAdminCourseDialog } from './course-dialogs'
+
 const dateFormatter = new Intl.DateTimeFormat(undefined, {
   dateStyle: 'medium',
 })
-
-import { EditAdminCourseDialog } from './course-dialogs'
 
 export function AdminCoursesTable({
   courses,

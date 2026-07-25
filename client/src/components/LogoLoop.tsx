@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 export type LogoItem =
   | {
-      node: React.ReactNode
+    node: React.ReactNode
       href?: string
       title?: string
       ariaLabel?: string

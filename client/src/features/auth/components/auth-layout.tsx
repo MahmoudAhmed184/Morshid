@@ -1,4 +1,3 @@
-import Droplets from '@/components/canvasui/Droplets'
 import { AuthBrandingPanel } from '@/features/auth/components/auth-branding-panel'
 import { cn } from '@/lib/utils'
 
@@ -9,13 +8,7 @@ type AuthLayoutProps = {
 
 export function AuthLayout({ children, className }: AuthLayoutProps) {
   return (
-    <Droplets
-      className="min-h-svh w-full bg-background"
-      intensity={0.45}
-      speed={0.8}
-      staticDrops={0.35}
-      refraction={0.16}
-    >
+    <div className="min-h-svh w-full bg-background">
       <div className="grid min-h-svh gap-6 p-4 lg:grid-cols-2 lg:p-6">
         <AuthBrandingPanel className="hidden lg:flex" />
         <div
@@ -27,6 +20,6 @@ export function AuthLayout({ children, className }: AuthLayoutProps) {
           {children}
         </div>
       </div>
-    </Droplets>
+    </div>
   )
 }

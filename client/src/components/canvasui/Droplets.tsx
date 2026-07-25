@@ -4,9 +4,10 @@ import {
   useEffect,
   useRef,
   useState,
-  useSyncExternalStore,
-  type ReactNode,
+  useSyncExternalStore
+  
 } from "react";
+import type {ReactNode} from "react";
 
 export interface DropletsOptions {
   /** How much rain falls, from a light drizzle to a downpour (0 to 1.25). */
@@ -334,7 +335,7 @@ void main () {
 export function supportsHtmlInCanvas(): boolean {
   if (typeof document === "undefined") return false;
   const probe = document.createElement("canvas") as PaintableCanvas;
-  const ctx = probe.getContext("2d") as ElementImageContext | null;
+  const ctx = probe.getContext("2d");
   return Boolean(
     ctx &&
     typeof ctx.drawElementImage === "function" &&
@@ -358,7 +359,7 @@ export function createDroplets(
   });
   if (!gl || gl.isContextLost()) return null;
 
-  const sourceCtx = source.getContext("2d") as ElementImageContext | null;
+  const sourceCtx = source.getContext("2d");
   const paintable = source as PaintableCanvas;
   const htmlInCanvas = Boolean(
     sourceCtx &&
@@ -395,7 +396,7 @@ export function createDroplets(
   const trailShader = compile(gl.FRAGMENT_SHADER, TRAIL_FRAG);
 
   function link(fragment: WebGLShader) {
-    const prog = gl!.createProgram()!;
+    const prog = gl!.createProgram();
     gl!.attachShader(prog, vertexShader);
     gl!.attachShader(prog, fragment);
     gl!.linkProgram(prog);
@@ -421,7 +422,7 @@ export function createDroplets(
   gl.enableVertexAttribArray(0);
   gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
 
-  const contentTexture = gl.createTexture()!;
+  const contentTexture = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, contentTexture);
   gl.texParameteri(
     gl.TEXTURE_2D,
@@ -490,7 +491,7 @@ export function createDroplets(
     trailTextures.length = 0;
     trailFramebuffers.length = 0;
     for (let i = 0; i < 2; i++) {
-      const texture = gl!.createTexture()!;
+      const texture = gl!.createTexture();
       gl!.bindTexture(gl!.TEXTURE_2D, texture);
       gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_MIN_FILTER, gl!.LINEAR);
       gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_MAG_FILTER, gl!.LINEAR);
@@ -507,7 +508,7 @@ export function createDroplets(
         gl!.UNSIGNED_BYTE,
         null,
       );
-      const framebuffer = gl!.createFramebuffer()!;
+      const framebuffer = gl!.createFramebuffer();
       gl!.bindFramebuffer(gl!.FRAMEBUFFER, framebuffer);
       gl!.framebufferTexture2D(
         gl!.FRAMEBUFFER,
@@ -735,16 +736,16 @@ export function createDroplets(
       listenTarget.removeEventListener("pointermove", onPointerMove);
       listenTarget.removeEventListener("pointerleave", onPointerLeave);
       content.removeEventListener("scroll", start);
-      gl!.deleteTexture(contentTexture);
-      for (const texture of trailTextures) gl!.deleteTexture(texture);
+      gl.deleteTexture(contentTexture);
+      for (const texture of trailTextures) gl.deleteTexture(texture);
       for (const framebuffer of trailFramebuffers)
-        gl!.deleteFramebuffer(framebuffer);
-      gl!.deleteProgram(program);
-      gl!.deleteProgram(trailProgram);
-      gl!.deleteShader(vertexShader);
-      gl!.deleteShader(fragmentShader);
-      gl!.deleteShader(trailShader);
-      gl!.deleteBuffer(quad);
+        gl.deleteFramebuffer(framebuffer);
+      gl.deleteProgram(program);
+      gl.deleteProgram(trailProgram);
+      gl.deleteShader(vertexShader);
+      gl.deleteShader(fragmentShader);
+      gl.deleteShader(trailShader);
+      gl.deleteBuffer(quad);
       if (htmlInCanvas) paintable.onpaint = null;
     },
   };

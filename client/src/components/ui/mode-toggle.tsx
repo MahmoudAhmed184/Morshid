@@ -30,9 +30,9 @@ export function ModeToggle() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        ref={triggerRef}
         render={
           <Button
+            ref={triggerRef}
             variant="ghost"
             size="icon"
             className="rounded-full"
