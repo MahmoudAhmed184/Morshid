@@ -147,9 +147,9 @@ mounts `morshid-pdf-storage` at exactly that path. `npm run infra:up` remains
 the faster infrastructure-only command and does not build or start the server.
 
 The host directory and Compose volume are separate storage backends. The named
-volume survives `docker compose down`; `docker compose down -v` deliberately
-removes both database and PDF volumes. Replace every placeholder secret in the
-copied environment files before starting either server runtime.
+volumes survive `docker compose down`; `docker compose down -v` deliberately
+removes the database, Redis quota, and PDF volumes. Replace every placeholder
+secret in the copied environment files before starting either server runtime.
 
 Failed writes remove any partial file automatically. Application workflows
 should call the idempotent storage `delete` operation when later persistence or

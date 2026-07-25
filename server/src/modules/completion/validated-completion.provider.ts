@@ -161,9 +161,9 @@ export class ValidatedCompletionProvider implements CompletionProvider {
           { once: true },
         )
         timeoutListenerInstalled = true
-      } catch {
+      } catch (error) {
         finish(() => {
-          reject(new CompletionProviderError('COMPLETION_PROVIDER_FAILURE'))
+          reject(normalizeAdapterFailure(error))
         })
         return
       }
@@ -184,14 +184,28 @@ export class ValidatedCompletionProvider implements CompletionProvider {
             resolve(result)
           })
         },
-        () => {
+        (error: unknown) => {
           finish(() => {
-            reject(new CompletionProviderError('COMPLETION_PROVIDER_FAILURE'))
+            reject(normalizeAdapterFailure(error))
           })
         },
       )
     })
   }
+}
+
+function normalizeAdapterFailure(error: unknown): CompletionProviderError {
+  try {
+    if (
+      error instanceof CompletionProviderError &&
+      error.code === 'COMPLETION_RATE_LIMITED'
+    ) {
+      return new CompletionProviderError('COMPLETION_RATE_LIMITED')
+    }
+  } catch {
+    // Hostile adapter errors cannot escape the fixed failure model.
+  }
+  return new CompletionProviderError('COMPLETION_PROVIDER_FAILURE')
 }
 
 function removeAbortListenerSafely(

@@ -2,6 +2,7 @@ import type { CompletionAdapter } from './completion-adapter'
 import {
   AWS_BEDROCK_COMPLETION_PROVIDER,
   DETERMINISTIC_COMPLETION_PROVIDER,
+  GEMINI_COMPLETION_PROVIDER,
   type AwsBedrockConfiguration,
   validateAwsBedrockConfiguration,
 } from './completion-configuration'
@@ -9,6 +10,11 @@ import type { CompletionProvider } from './completion-provider'
 import { CompletionProviderError } from './completion-provider'
 import { ItiBedrockGatewayAdapter } from './providers/aws-bedrock/iti-bedrock-gateway.adapter'
 import { DeterministicCompletionAdapter } from './providers/deterministic/deterministic-completion.adapter'
+import {
+  GeminiCompletionAdapter,
+  type GeminiConfiguration,
+  validateGeminiConfiguration,
+} from './providers/gemini/gemini-completion.adapter'
 import {
   MAX_COMPLETION_TIMEOUT_MS,
   ValidatedCompletionProvider,
@@ -26,6 +32,11 @@ export type CompletionProviderConfiguration =
       readonly timeoutMs: number
       readonly awsBedrock: AwsBedrockConfiguration
     }
+  | {
+      readonly provider: typeof GEMINI_COMPLETION_PROVIDER
+      readonly timeoutMs: number
+      readonly gemini: GeminiConfiguration
+    }
 
 export function createCompletionProvider(
   configuration: CompletionProviderConfiguration,
@@ -40,6 +51,15 @@ export function createCompletionProvider(
       break
     case AWS_BEDROCK_COMPLETION_PROVIDER:
       adapter = new ItiBedrockGatewayAdapter(snapshot.awsBedrock)
+      break
+    case GEMINI_COMPLETION_PROVIDER:
+      adapter = new GeminiCompletionAdapter(
+        snapshot.gemini.client,
+        snapshot.gemini.quota,
+        snapshot.gemini.options,
+        snapshot.gemini.clock,
+        snapshot.gemini.retryDelay,
+      )
       break
     default:
       assertNever(snapshot)
@@ -58,6 +78,7 @@ function snapshotFactoryConfiguration(
   let provider: unknown
   let timeoutMs: unknown
   let awsBedrock: unknown
+  let gemini: unknown
 
   try {
     if (typeof configuration !== 'object' || configuration === null) {
@@ -69,6 +90,9 @@ function snapshotFactoryConfiguration(
     if (provider === AWS_BEDROCK_COMPLETION_PROVIDER) {
       awsBedrock = Reflect.get(record, 'awsBedrock')
     }
+    if (provider === GEMINI_COMPLETION_PROVIDER) {
+      gemini = Reflect.get(record, 'gemini')
+    }
   } catch (error) {
     if (error instanceof CompletionProviderError) {
       throw error
@@ -78,7 +102,8 @@ function snapshotFactoryConfiguration(
 
   if (
     provider !== DETERMINISTIC_COMPLETION_PROVIDER &&
-    provider !== AWS_BEDROCK_COMPLETION_PROVIDER
+    provider !== AWS_BEDROCK_COMPLETION_PROVIDER &&
+    provider !== GEMINI_COMPLETION_PROVIDER
   ) {
     throw new CompletionProviderError('COMPLETION_PROVIDER_UNSUPPORTED')
   }
@@ -96,9 +121,17 @@ function snapshotFactoryConfiguration(
     return Object.freeze({ provider, timeoutMs })
   }
 
-  // The gateway configuration is validated here rather than trusted, so the
+  // Each provider's configuration is validated here rather than trusted, so the
   // declared return type is honest and the adapter receives a snapshot that has
   // already been checked and normalized.
+  if (provider === GEMINI_COMPLETION_PROVIDER) {
+    return Object.freeze({
+      provider,
+      timeoutMs,
+      gemini: validateGeminiConfiguration(gemini),
+    })
+  }
+
   return Object.freeze({
     provider,
     timeoutMs,
