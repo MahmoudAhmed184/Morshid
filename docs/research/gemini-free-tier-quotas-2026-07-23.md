@@ -105,6 +105,42 @@ Source:
 
 - [Gemini API rate limits](https://ai.google.dev/gemini-api/docs/rate-limits)
 
+### Window semantics: the configured units are not the dashboard's
+
+The numbers copied out of AI Studio and the numbers Morshid enforces are
+counted over different windows, so they are not directly comparable.
+
+| Configuration | How Morshid meters it |
+| --- | --- |
+| `GEMINI_REQUESTS_PER_MINUTE` | Continuously refilling token bucket, 60s |
+| `GEMINI_INPUT_TOKENS_PER_MINUTE` | Continuously refilling token bucket, 60s |
+| `GEMINI_REQUESTS_PER_HOUR` | Continuously refilling token bucket, 1h |
+| `GEMINI_REQUESTS_PER_DAY` | Fixed window, resets at 00:00 UTC |
+| `GEMINI_REQUESTS_PER_MONTH` | Fixed window, epoch-aligned 30 days |
+
+The two long budgets are fixed windows rather than rolling ones deliberately:
+a rolling budget drained just after a reset and again just before the next
+one yields roughly twice the configured cap inside a single accounting day,
+which is the wrong shape for a cap an operator reads off a dashboard.
+
+Two consequences an operator sizing caps must account for:
+
+- Google's documentation states that RPD resets at **midnight Pacific**
+  (07:00 UTC under PDT, 08:00 UTC under PST). Morshid's day window resets at
+  **midnight UTC**, so the Morshid day boundary leads Google's by 7-8 hours.
+  UTC alignment is a deliberate implementation choice — it requires no
+  timezone database inside the Redis Lua script and no application clock —
+  but the local daily counter will roll over earlier in the day than the AI
+  Studio figure it was sized against.
+- `GEMINI_REQUESTS_PER_MONTH` is a fixed 30-day window anchored to the Unix
+  epoch, not a calendar month. It does not reset on the 1st, and the reset
+  date drifts through the calendar.
+
+The budget is keyed on the configured API key rather than on `GEMINI_MODEL`,
+matching Google's statement that limits are applied per project and not per
+model or per key. Only a salted, truncated digest of the credential is stored.
+Rotating `GEMINI_MODEL` therefore preserves the current day and month spend.
+
 ## API-key guidance
 
 Google treats a Gemini API key like a password and instructs operators not
@@ -142,8 +178,11 @@ Source:
 5. Set each provider-derived cap to
    `floor(current AI Studio value × 0.90)`.
 6. Choose explicit hour and month budgets that satisfy the application's
-   cap relationships and internal risk tolerance.
+   required ordering — `minute <= hour <= day <= month` — and internal risk
+   tolerance. The server refuses to boot if that ordering is violated, so
+   pick these after the provider-derived RPM/RPD values, not before.
 7. Put only the replacement key and approved caps in the ignored local
-   environment file.
+   environment file, together with `GEMINI_DEMO_ACKNOWLEDGED=true`, which
+   records that the operator accepts the free-tier data-use terms above.
 8. Run the synthetic live smoke test once, then proceed with the
    development demo using synthetic, permission-safe data only.

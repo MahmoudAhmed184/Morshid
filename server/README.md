@@ -97,16 +97,30 @@ invalid refresh token.
 
 `COMPLETION_PROVIDER` accepts `deterministic`, `aws-bedrock`, and `gemini`. It
 defaults to `deterministic`, which is keyless and offline in production, CI, and
-normal tests; `aws-bedrock` is documented in the next section.
-`COMPLETION_PROVIDER=gemini` is accepted only with `NODE_ENV=development` for an
-access-controlled internal demo, and its adapter, quota guard, and constants
-live under `src/modules/completion/providers/gemini/`. Each provider's startup
-rules are gated on that provider being selected, so a Gemini deployment is never
-asked for gateway configuration and a gateway deployment is never asked for
-Gemini caps. The free
-tier must receive only synthetic, permission-safe content; do not send real
-student activity, private course materials, assessments, PII, data from minors,
-or any content that has not been approved for this use.
+normal tests; `aws-bedrock` is documented in the next section. Gemini's adapter,
+quota guard, and constants live under
+`src/modules/completion/providers/gemini/`. Each provider's startup rules are
+gated on that provider being selected, so a Gemini deployment is never asked for
+gateway configuration and a gateway deployment is never asked for Gemini caps.
+The free tier must receive only synthetic, permission-safe content; do not send
+real student activity, private course materials, assessments, PII, data from
+minors, or any content that has not been approved for this use.
+
+`COMPLETION_PROVIDER=gemini` is accepted only under two independent conditions:
+
+- `NODE_ENV` must not be `production`. Free-tier inputs and outputs may be used
+  to improve Google's products, so this provider must never serve real users.
+  This is the load-bearing restriction; it is *not* expressed as
+  "`development` only", because forcing `NODE_ENV` would also change unrelated
+  security behaviour (the refresh cookie's `Secure` flag, unauthenticated
+  Swagger at `/docs`, and the absolute-`PDF_STORAGE_PATH` requirement) and would
+  make the provider unusable from the `NODE_ENV=test` end-to-end suite.
+- `GEMINI_DEMO_ACKNOWLEDGED=true` must be set explicitly. It is an operator
+  acknowledgement, not a feature switch: setting it states that you accept that
+  free-tier prompts and completions may be reviewed and used to improve Google's
+  products, and that only synthetic, permission-safe data will be sent. The
+  variable defaults to false and reads a blank value as false, so a Gemini
+  deployment can never be reached by inheriting an ambient environment.
 
 Before enabling the demo:
 
@@ -124,11 +138,54 @@ Before enabling the demo:
    values, plus explicit Morshid hour and month budgets. Limits vary by project,
    model, and tier and are not guaranteed; see the
    [rate-limit guidance](https://ai.google.dev/gemini-api/docs/rate-limits).
-5. Start Redis through `npm run infra:up`. Compose enables Redis AOF on the
+   **The five request caps must satisfy
+   `GEMINI_REQUESTS_PER_MINUTE <= GEMINI_REQUESTS_PER_HOUR <= GEMINI_REQUESTS_PER_DAY <= GEMINI_REQUESTS_PER_MONTH`,
+   or the server refuses to boot.** Copying the AI Studio RPM/RPD at 90% and
+   then picking hour and month budgets independently can easily violate it — for
+   example an RPD of 1500 with a 1000/month internal budget is rejected. Choose
+   the hour and month budgets after the provider-derived values, not before.
+   (`GEMINI_INPUT_TOKENS_PER_MINUTE` is a separate token dimension and is not
+   part of that ordering.)
+5. Set `GEMINI_DEMO_ACKNOWLEDGED=true`.
+6. Start Redis through `npm run infra:up`. Compose enables Redis AOF on the
    `morshid-redis-data` volume so long-window local budgets survive restarts.
 
+### How each cap is metered
+
+The guard does not meter every dimension the same way, and the units are not
+interchangeable with the AI Studio dashboard's:
+
+| Variable | Window |
+| --- | --- |
+| `GEMINI_REQUESTS_PER_MINUTE` | Continuously refilling token bucket over 60s |
+| `GEMINI_INPUT_TOKENS_PER_MINUTE` | Continuously refilling token bucket over 60s |
+| `GEMINI_REQUESTS_PER_HOUR` | Continuously refilling token bucket over 1h |
+| `GEMINI_REQUESTS_PER_DAY` | **Fixed window**, resets at 00:00 UTC |
+| `GEMINI_REQUESTS_PER_MONTH` | **Fixed window**, epoch-aligned 30 days — not a calendar month, so it does not reset on the 1st |
+
+The two long budgets are fixed windows rather than rolling ones on purpose: a
+rolling budget drained just after a reset and again just before the next one
+yields roughly twice the configured cap inside one accounting day.
+
+Google resets requests-per-day at midnight **Pacific** (07:00 UTC under PDT,
+08:00 UTC under PST), while this guard rolls over at midnight UTC, so the Morshid
+day boundary leads Google's by 7-8 hours. UTC alignment is deliberate — it needs
+no timezone database inside the Lua script and no application clock — but it
+means an operator comparing the local counter against the AI Studio daily figure
+is looking at two different accounting days. Size `GEMINI_REQUESTS_PER_DAY`
+against the AI Studio RPD number, then expect the local counter to roll over
+earlier in the day than the dashboard's.
+
+The budget is keyed on the configured `GEMINI_API_KEY` (as a salted, truncated
+digest; the key itself never reaches Redis), because Gemini limits are applied
+per Google project rather than per model. Changing `GEMINI_MODEL` therefore keeps
+the existing day and month spend, and two deployments sharing one Redis with
+different API keys keep separate budgets.
+
 Gemini configuration is intentionally absent from the production Compose
-server profile. `store: false` prevents Interactions storage, but free-tier
+server profile, which also pins `NODE_ENV: production` and so cannot accept
+`COMPLETION_PROVIDER=gemini` at all. `store: false` prevents Interactions
+storage, but free-tier
 inputs and outputs may still be reviewed or used to improve Google products.
 Real pilot or production data requires a separately approved paid/no-training
 arrangement. Review the

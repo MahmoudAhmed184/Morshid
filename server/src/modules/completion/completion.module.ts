@@ -95,8 +95,12 @@ export class CompletionModule {}
 
 // Gemini's collaborators are built here rather than in the factory: the quota
 // guard is Redis-backed, and the composition root is the only place that owns a
-// connection. The Redis client is resolved lazily inside the eval closure, so a
-// deterministic or gateway deployment never opens a connection.
+// connection. `RedisModule` is imported unconditionally and `RedisService`
+// opens its client in `onModuleInit` whatever `COMPLETION_PROVIDER` says —
+// `HealthModule` requires Redis app-wide regardless — so what a deterministic or
+// gateway deployment avoids is every Redis *command* on the completion path,
+// not the connection. Resolving the client lazily inside the eval closure is
+// what keeps that true.
 function createGeminiConfiguration(
   configService: ConfigService<AppEnvironment, true>,
   redisService: RedisService,
@@ -137,7 +141,12 @@ function createGeminiConfiguration(
         'GEMINI_REQUESTS_PER_MONTH',
       ),
     },
-    model,
+    // Gemini's limits are enforced per Google project, so the budget is keyed
+    // on the credential and not on the model: rotating `GEMINI_MODEL` must not
+    // mint a fresh day/month budget, and two deployments sharing one Redis with
+    // different API keys must not collapse onto one bucket. Only a salted,
+    // truncated digest of this value ever reaches Redis.
+    { credential: apiKey },
   )
 
   return {

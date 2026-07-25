@@ -4,6 +4,7 @@ import {
   MAX_AWS_BEDROCK_ALLOWED_MODEL_IDS,
   MAX_AWS_BEDROCK_MAX_TOKENS,
   MIN_AWS_BEDROCK_MAX_TOKENS,
+  isValidGeminiModelId,
 } from '../completion/completion-configuration'
 import { MAX_PDF_UPLOAD_BYTES, validateEnv } from './env.schema'
 
@@ -116,8 +117,8 @@ describe('validateEnv', () => {
     expect(
       validateEnv({
         ...validEnv,
-        NODE_ENV: 'development',
         COMPLETION_PROVIDER: 'gemini',
+        GEMINI_DEMO_ACKNOWLEDGED: 'true',
         GEMINI_API_KEY: 'authorization-key-with-sufficient-entropy',
         GEMINI_REQUESTS_PER_MINUTE: '9',
         GEMINI_INPUT_TOKENS_PER_MINUTE: '90000',
@@ -135,10 +136,13 @@ describe('validateEnv', () => {
   })
 
   describe('Gemini completion configuration', () => {
+    // Deliberately inherits `NODE_ENV: 'test'` from `validEnv`: the e2e suite
+    // boots AppModule under jest, so a Gemini-configured `server/.env` must not
+    // make every AppModule-booting spec fail validation.
     const validGeminiEnv = {
       ...validEnv,
-      NODE_ENV: 'development',
       COMPLETION_PROVIDER: 'gemini',
+      GEMINI_DEMO_ACKNOWLEDGED: 'true',
       GEMINI_API_KEY: 'authorization-key-with-sufficient-entropy',
       GEMINI_REQUESTS_PER_MINUTE: '9',
       GEMINI_INPUT_TOKENS_PER_MINUTE: '90000',
@@ -173,13 +177,39 @@ describe('validateEnv', () => {
           ...validGeminiEnv,
           GEMINI_MODEL: 'invalid model/id',
         }),
-      ).toThrow(/GEMINI_MODEL: Invalid string/)
+      ).toThrow(/GEMINI_MODEL: must be a valid Gemini model ID/)
       expect(() =>
         validateEnv({
           ...validGeminiEnv,
           GEMINI_MODEL: `gemini-${'x'.repeat(120)}`,
         }),
       ).toThrow(/GEMINI_MODEL: Too big/)
+    })
+
+    // The startup schema and the adapter's runtime configuration check must
+    // both parse through `isValidGeminiModelId`, or a model ID that startup
+    // rejects could still reach the provider through the factory.
+    it('delegates model-ID vocabulary to the shared completion predicate', () => {
+      const accepted = ['gemini-3.5-flash-lite', 'gemini-1.5-pro', 'g0']
+      const rejected = ['', '-leading-dash', '.leading-dot', 'Gemini-Uppercase']
+
+      for (const modelId of accepted) {
+        expect(isValidGeminiModelId(modelId)).toBe(true)
+        expect(
+          validateEnv({ ...validGeminiEnv, GEMINI_MODEL: modelId }),
+        ).toMatchObject({ GEMINI_MODEL: modelId })
+      }
+
+      for (const modelId of rejected) {
+        expect(isValidGeminiModelId(modelId)).toBe(false)
+        expect(() =>
+          validateEnv({ ...validGeminiEnv, GEMINI_MODEL: modelId }),
+        ).toThrow(/GEMINI_MODEL: must be a valid Gemini model ID/)
+      }
+
+      // Bedrock's `provider.model:revision` shape is not Gemini vocabulary, so
+      // the two predicates must not be interchangeable.
+      expect(isValidGeminiModelId('openai.test-model-v1:0')).toBe(false)
     })
 
     it('requires the key and all caps only in Gemini mode', () => {
@@ -224,6 +254,39 @@ describe('validateEnv', () => {
       })
     })
 
+    // One placeholder policy across all three secrets: exactly the prefix the
+    // committed example files use. Broader guesses matched nothing this
+    // repository ships and would only reject a legitimate credential.
+    it('applies the same placeholder prefix to every secret', () => {
+      expect(() =>
+        validateEnv({
+          ...gatewayEnv,
+          ITI_BEDROCK_GATEWAY_API_KEY: 'replace-with-a-rotated-gateway-key',
+        }),
+      ).toThrow(
+        /ITI_BEDROCK_GATEWAY_API_KEY: must not use the placeholder gateway key/,
+      )
+
+      // Re-casing a committed example value is still that example value.
+      expect(() =>
+        validateEnv({
+          ...validGeminiEnv,
+          GEMINI_API_KEY: 'REPLACE-WITH-NEW-AI-STUDIO-AUTHORIZATION-KEY',
+        }),
+      ).toThrow(/GEMINI_API_KEY: must be a non-placeholder authorization key/)
+
+      // Values the removed over-broad patterns used to reject are legitimate.
+      for (const apiKey of [
+        'your-organisation-issued-authorization-key',
+        'changeme-is-a-real-prefix-of-this-key',
+        'placeholder-shaped-but-genuine-api-key',
+      ]) {
+        expect(
+          validateEnv({ ...validGeminiEnv, GEMINI_API_KEY: apiKey }),
+        ).toMatchObject({ GEMINI_API_KEY: apiKey })
+      }
+    })
+
     it('rejects placeholders without including secret values in errors', () => {
       const privatePlaceholder =
         'replace-with-private-gemini-key-value-that-must-not-leak'
@@ -245,16 +308,61 @@ describe('validateEnv', () => {
       expect((failure as Error).message).not.toContain(privatePlaceholder)
     })
 
-    it.each(['test', 'production'] as const)(
-      'rejects Gemini in %s',
+    // The only environment rule that is genuinely load-bearing: the free tier
+    // may use submitted inputs and outputs to improve Google's products, so
+    // gemini must never serve real users.
+    it('rejects Gemini in production', () => {
+      expect(() =>
+        validateEnv({ ...validGeminiEnv, NODE_ENV: 'production' }),
+      ).toThrow(/COMPLETION_PROVIDER: gemini must not serve production traffic/)
+    })
+
+    // Regression for the control that used to be expressed as "development
+    // only": forcing NODE_ENV away from production downgraded the whole
+    // server's posture (non-Secure refresh cookie, unauthenticated Swagger,
+    // relative PDF root) and broke every AppModule-booting e2e spec, which
+    // runs under NODE_ENV=test.
+    it.each(['development', 'test'] as const)(
+      'accepts Gemini in %s without changing NODE_ENV',
       (nodeEnv) => {
-        expect(() =>
+        expect(
           validateEnv({ ...validGeminiEnv, NODE_ENV: nodeEnv }),
-        ).toThrow(
-          /COMPLETION_PROVIDER: gemini is restricted to access-controlled development\/demo environments/,
-        )
+        ).toMatchObject({ NODE_ENV: nodeEnv, COMPLETION_PROVIDER: 'gemini' })
       },
     )
+
+    it('requires an explicit demo acknowledgement to select Gemini', () => {
+      const acknowledgement =
+        /GEMINI_DEMO_ACKNOWLEDGED: must be true to select gemini/
+
+      for (const value of ['false', '', undefined]) {
+        const { GEMINI_DEMO_ACKNOWLEDGED: _omitted, ...withoutFlag } =
+          validGeminiEnv
+        const candidate =
+          value === undefined
+            ? withoutFlag
+            : { ...withoutFlag, GEMINI_DEMO_ACKNOWLEDGED: value }
+
+        expect(() => validateEnv(candidate)).toThrow(acknowledgement)
+      }
+
+      expect(validateEnv(validGeminiEnv)).toMatchObject({
+        COMPLETION_PROVIDER: 'gemini',
+        GEMINI_DEMO_ACKNOWLEDGED: true,
+      })
+    })
+
+    // The acknowledgement is only about Gemini, so it must never block the
+    // keyless default or the gateway.
+    it('never requires the acknowledgement for another provider', () => {
+      expect(validateEnv(validEnv)).toMatchObject({
+        COMPLETION_PROVIDER: 'deterministic',
+        GEMINI_DEMO_ACKNOWLEDGED: false,
+      })
+      expect(validateEnv(gatewayEnv)).toMatchObject({
+        COMPLETION_PROVIDER: 'aws-bedrock',
+      })
+    })
 
     it('requires monotonic request caps', () => {
       expect(() =>

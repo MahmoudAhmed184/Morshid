@@ -5,6 +5,7 @@ import { z } from 'zod'
 import {
   AWS_BEDROCK_COMPLETION_PROVIDER,
   DEFAULT_AWS_BEDROCK_MAX_TOKENS,
+  DEFAULT_GEMINI_MODEL,
   DEFAULT_ITI_BEDROCK_GATEWAY_BASE_URL,
   DETERMINISTIC_COMPLETION_PROVIDER,
   GEMINI_COMPLETION_PROVIDER,
@@ -12,10 +13,13 @@ import {
   MAX_AWS_BEDROCK_ALLOWED_MODEL_IDS_LENGTH,
   MAX_AWS_BEDROCK_MAX_TOKENS,
   MAX_AWS_BEDROCK_MODEL_ID_LENGTH,
+  MAX_GEMINI_API_KEY_LENGTH,
+  MAX_GEMINI_MODEL_ID_LENGTH,
   MAX_ITI_BEDROCK_API_KEY_LENGTH,
   MAX_ITI_BEDROCK_BASE_URL_LENGTH,
   MIN_AWS_BEDROCK_MAX_TOKENS,
   isValidAwsBedrockModelId,
+  isValidGeminiModelId,
   isValidItiBedrockApiKey,
   parseAwsBedrockAllowedModelIds,
   validateItiBedrockBaseUrl,
@@ -24,23 +28,14 @@ import {
   DEFAULT_COMPLETION_TIMEOUT_MS,
   MAX_COMPLETION_TIMEOUT_MS,
 } from '../completion/validated-completion.provider'
-import {
-  DEFAULT_GEMINI_MODEL,
-  MAX_GEMINI_API_KEY_LENGTH,
-  MAX_GEMINI_MODEL_ID_LENGTH,
-} from '../completion/providers/gemini/gemini-completion.constants'
 import { MAX_PDF_OBJECT_BYTES } from '../pdf-storage/pdf-storage'
 
-// Rejects the committed `.env.example` placeholders so a fresh checkout cannot
-// boot with a publicly known signing secret (see docker-compose `${VAR:?}`).
+// The one placeholder policy for every secret this schema accepts, so a fresh
+// checkout cannot boot with a publicly known value. It is exactly the prefix the
+// committed `.env.example` files use; broader guesses (`your-`, `changeme`,
+// `placeholder`) match nothing this repository ships and would only reject a
+// legitimate credential that happens to start with one of them.
 const SECRET_PLACEHOLDER_PREFIX = 'replace-with'
-const GEMINI_SECRET_PLACEHOLDERS = [
-  SECRET_PLACEHOLDER_PREFIX,
-  'your-',
-  'change-me',
-  'changeme',
-  'placeholder',
-] as const
 const GEMINI_QUOTA_KEYS = [
   'GEMINI_REQUESTS_PER_MINUTE',
   'GEMINI_INPUT_TOKENS_PER_MINUTE',
@@ -77,8 +72,8 @@ export const envSchema = z
     EMBEDDING_PROVIDER: z.enum(['deterministic']).default('deterministic'),
     // Deterministic remains the committed keyless/offline default. `aws-bedrock`
     // is the explicitly selected live path and always goes through ITI's
-    // gateway; `gemini` is restricted to validated internal development/demo
-    // deployments.
+    // gateway; `gemini` is barred from production and additionally requires the
+    // explicit `GEMINI_DEMO_ACKNOWLEDGED` opt-in below.
     COMPLETION_PROVIDER: z
       .enum([
         DETERMINISTIC_COMPLETION_PROVIDER,
@@ -98,13 +93,25 @@ export const envSchema = z
       .min(20)
       .max(MAX_GEMINI_API_KEY_LENGTH)
       .optional(),
+    // Parsed through the completion module's shared predicate rather than a
+    // second copy of the pattern, so startup and the adapter's runtime check
+    // cannot drift apart.
     GEMINI_MODEL: z
       .string()
       .trim()
-      .min(1)
       .max(MAX_GEMINI_MODEL_ID_LENGTH)
-      .regex(/^[a-z0-9][a-z0-9._-]*$/u)
+      .refine(isValidGeminiModelId, 'must be a valid Gemini model ID')
       .default(DEFAULT_GEMINI_MODEL),
+    // An operator acknowledgement, not a feature flag: the Gemini free tier
+    // lets Google use submitted inputs and outputs to improve its products
+    // (docs/research/gemini-free-tier-quotas-2026-07-23.md), so selecting the
+    // provider must always be a deliberate act. Accepts blank as false for the
+    // same reason as the gateway flags: Compose passes unset values through as
+    // `${VAR:-}`.
+    GEMINI_DEMO_ACKNOWLEDGED: z
+      .union([z.boolean(), z.enum(['true', 'false', ''])])
+      .default(false)
+      .transform((value) => value === true || value === 'true'),
     GEMINI_REQUESTS_PER_MINUTE: z.coerce.number().int().positive().optional(),
     GEMINI_INPUT_TOKENS_PER_MINUTE: z.coerce
       .number()
@@ -168,7 +175,7 @@ export const envSchema = z
       'AUTH_ACCESS_TOKEN_SECRET',
       'AUTH_REFRESH_TOKEN_HASH_SECRET',
     ] as const) {
-      if (env[key].startsWith(SECRET_PLACEHOLDER_PREFIX)) {
+      if (isPlaceholderSecret(env[key])) {
         ctx.addIssue({
           code: 'custom',
           path: [key],
@@ -212,6 +219,14 @@ export const envSchema = z
           message:
             'is required for aws-bedrock and must contain only printable ASCII characters, without whitespace',
         })
+      } else if (isPlaceholderSecret(env.ITI_BEDROCK_GATEWAY_API_KEY)) {
+        // Same policy as the auth secrets and the Gemini key: no committed
+        // example value may be what a live deployment authenticates with.
+        ctx.addIssue({
+          code: 'custom',
+          path: ['ITI_BEDROCK_GATEWAY_API_KEY'],
+          message: 'must not use the placeholder gateway key',
+        })
       }
 
       if (env.AWS_BEDROCK_MODEL_ID === '') {
@@ -251,12 +266,30 @@ export const envSchema = z
     // Gated exactly like the gateway rules above: selecting one live provider
     // must never demand the other provider's configuration.
     if (env.COMPLETION_PROVIDER === GEMINI_COMPLETION_PROVIDER) {
-      if (env.NODE_ENV !== 'development') {
+      // The load-bearing rule, and the only one keyed on the environment: the
+      // free tier lets Google use submitted inputs and outputs to improve its
+      // products, so gemini must never serve real users. It is deliberately NOT
+      // expressed as "development only" — that would force `NODE_ENV` away from
+      // `production` for its side effects (a non-`Secure` refresh cookie,
+      // unauthenticated Swagger, a relative PDF root) and would break every
+      // AppModule-booting e2e spec, which runs under `NODE_ENV=test`.
+      if (env.NODE_ENV === 'production') {
         ctx.addIssue({
           code: 'custom',
           path: ['COMPLETION_PROVIDER'],
           message:
-            'gemini is restricted to access-controlled development/demo environments',
+            'gemini must not serve production traffic: free-tier inputs and outputs may be used to improve Google products',
+        })
+      }
+
+      // Deliberateness is carried by an explicit acknowledgement instead, so
+      // gemini can never be reached by inheriting an ambient environment value.
+      if (!env.GEMINI_DEMO_ACKNOWLEDGED) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['GEMINI_DEMO_ACKNOWLEDGED'],
+          message:
+            'must be true to select gemini, acknowledging that free-tier inputs and outputs may be used to improve Google products and that only synthetic, permission-safe data may be sent',
         })
       }
 
@@ -266,19 +299,12 @@ export const envSchema = z
           path: ['GEMINI_API_KEY'],
           message: 'is required when COMPLETION_PROVIDER is gemini',
         })
-      } else {
-        const geminiApiKey = env.GEMINI_API_KEY
-        if (
-          GEMINI_SECRET_PLACEHOLDERS.some((placeholder) =>
-            geminiApiKey.toLowerCase().startsWith(placeholder),
-          )
-        ) {
-          ctx.addIssue({
-            code: 'custom',
-            path: ['GEMINI_API_KEY'],
-            message: 'must be a non-placeholder authorization key',
-          })
-        }
+      } else if (isPlaceholderSecret(env.GEMINI_API_KEY)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['GEMINI_API_KEY'],
+          message: 'must be a non-placeholder authorization key',
+        })
       }
 
       for (const key of GEMINI_QUOTA_KEYS) {
@@ -316,6 +342,12 @@ export const envSchema = z
   })
 
 export type AppEnvironment = z.infer<typeof envSchema>
+
+// Case-insensitive so a re-cased copy of a committed example value is still
+// recognized as the placeholder it is.
+function isPlaceholderSecret(value: string): boolean {
+  return value.toLowerCase().startsWith(SECRET_PLACEHOLDER_PREFIX)
+}
 
 const ALLOWED_MODEL_IDS_REJECTION_MESSAGES = {
   'invalid-model-id': 'must be a comma-separated list of valid model IDs',

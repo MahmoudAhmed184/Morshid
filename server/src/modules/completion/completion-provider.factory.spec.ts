@@ -79,7 +79,8 @@ function geminiDoubles(): GeminiDoubles {
       quota: {
         reserveRequest,
         reserveGeneration: jest.fn().mockResolvedValue(undefined),
-        reconcileInputTokens: jest.fn().mockResolvedValue(undefined),
+        reserveInputTokens: jest.fn().mockResolvedValue(undefined),
+        recordInputTokens: jest.fn().mockResolvedValue(undefined),
       },
       options: { model: geminiModel, completionTimeoutMs: 30_000 },
     },

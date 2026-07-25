@@ -1,8 +1,23 @@
 import { CompletionProviderError } from './completion-provider'
 import {
+  DEFAULT_GEMINI_MODEL,
+  MAX_GEMINI_API_KEY_LENGTH,
+  MAX_GEMINI_MODEL_ID_LENGTH,
+} from './providers/gemini/gemini-completion.constants'
+import {
   MAX_COMPLETION_MODEL_LENGTH,
   MAX_COMPLETION_OUTPUT_CODE_POINTS,
 } from './validated-completion.provider'
+
+// Gemini's raw constants are declared next to its adapter, which is their other
+// consumer. They are re-exported here so this file stays the single completion
+// vocabulary surface, exactly as it already is for aws-bedrock: nothing outside
+// `completion/` reaches into `completion/providers/`.
+export {
+  DEFAULT_GEMINI_MODEL,
+  MAX_GEMINI_API_KEY_LENGTH,
+  MAX_GEMINI_MODEL_ID_LENGTH,
+}
 
 export const AWS_BEDROCK_COMPLETION_PROVIDER = 'aws-bedrock'
 export const DETERMINISTIC_COMPLETION_PROVIDER = 'deterministic'
@@ -51,6 +66,11 @@ export const ITI_BEDROCK_INSECURE_HTTP_WARNING =
   'AWS Bedrock completion is using the explicitly configured insecure ITI development transport.'
 
 export const AWS_BEDROCK_MODEL_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/u
+
+// Gemini model codes are published lower-case with dots, dashes, and digits
+// (`gemini-3.5-flash-lite`). No colon: unlike Bedrock there is no `:0` revision
+// suffix in a Gemini model ID.
+export const GEMINI_MODEL_ID_PATTERN = /^[a-z0-9][a-z0-9._-]*$/u
 
 // The key is sent as an `Authorization` header value on every request, and the
 // Headers constructor throws on anything outside Latin-1. Requiring printable
@@ -224,6 +244,20 @@ export function isValidAwsBedrockModelId(value: unknown): value is string {
     value.length > 0 &&
     value.length <= MAX_AWS_BEDROCK_MODEL_ID_LENGTH &&
     AWS_BEDROCK_MODEL_ID_PATTERN.test(value)
+  )
+}
+
+// The single owner of Gemini model-ID vocabulary, mirroring
+// `isValidAwsBedrockModelId` above. The startup environment schema and the
+// adapter's runtime configuration check must both parse through this, or the
+// two entry points drift apart — a startup-only regex would let a model ID that
+// the schema rejects still reach the provider through the factory.
+export function isValidGeminiModelId(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.length > 0 &&
+    value.length <= MAX_GEMINI_MODEL_ID_LENGTH &&
+    GEMINI_MODEL_ID_PATTERN.test(value)
   )
 }
 
