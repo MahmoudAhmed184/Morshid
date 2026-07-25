@@ -2,6 +2,8 @@ import type { Material } from '../../src/generated/prisma/client'
 import { DeterministicEmbeddingProvider } from '../../src/modules/embedding/deterministic-embedding.provider'
 import {
   EMBEDDING_DIMENSIONS,
+  type Embedding,
+  type EmbeddingDocument,
   type EmbeddingProvider,
 } from '../../src/modules/embedding/embedding-provider'
 import type { PdfStorage } from '../../src/modules/pdf-storage/pdf-storage'
@@ -46,15 +48,25 @@ export const GATE_2_EMBEDDING_MODEL = 'gate-2-deterministic-embedding-v1'
 
 export class Gate2DeterministicEmbeddingProvider implements EmbeddingProvider {
   readonly model = GATE_2_EMBEDDING_MODEL
+  readonly queryProtocol = GATE_2_EMBEDDING_MODEL
   private readonly fallback = new DeterministicEmbeddingProvider()
 
-  embedBatch(
-    texts: readonly string[],
-  ): Promise<readonly (readonly number[])[]> {
-    return Promise.all(texts.map((text) => this.embedText(text)))
+  // Symmetric like the deterministic provider it falls back to: the gate's
+  // similarity assertions only hold because a query and its matching chunk land
+  // in the same vector space.
+  embedQuery(query: string): Promise<Embedding> {
+    return this.embedText(query)
   }
 
-  private embedText(text: string): Promise<readonly number[]> {
+  embedDocuments(
+    documents: readonly EmbeddingDocument[],
+  ): Promise<readonly Embedding[]> {
+    return Promise.all(
+      documents.map((document) => this.embedText(document.text)),
+    )
+  }
+
+  private embedText(text: string): Promise<Embedding> {
     const normalized = text.trim()
 
     if (normalized === GATE_2_FIXTURE.question) {
@@ -68,7 +80,7 @@ export class Gate2DeterministicEmbeddingProvider implements EmbeddingProvider {
     }
 
     return this.fallback
-      .embedBatch([normalized])
+      .embedDocuments([{ text: normalized }])
       .then(([embedding]) => [...embedding])
   }
 }

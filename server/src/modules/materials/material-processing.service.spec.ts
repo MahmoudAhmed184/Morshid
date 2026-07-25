@@ -19,6 +19,7 @@ const material: MaterialProcessingRecord = {
   courseId: 'course-80',
   uploadedById: 'instructor-80',
   storagePath: '00000000-0000-4000-8000-000000000080.pdf',
+  title: 'Task 80 material',
 }
 
 describe('MaterialProcessingService', () => {
@@ -67,9 +68,12 @@ describe('MaterialProcessingService', () => {
   it('finalizes a clean source only after embedding completes', async () => {
     await service.processMaterial(material.id)
 
-    expect(embedding.embedMaterialChunks).toHaveBeenCalledWith([
-      { chunkIndex: 0, content: 'Variables bind names to values.' },
-    ])
+    // The material travels as an object rather than two adjacent strings, and
+    // it carries the title the embedding provider folds into each document.
+    expect(embedding.embedMaterialChunks).toHaveBeenCalledWith(
+      { id: material.id, title: material.title },
+      [{ chunkIndex: 0, content: 'Variables bind names to values.' }],
+    )
     expect(repository.completeMaterialProcessing).toHaveBeenCalledWith(
       material.id,
       expect.any(String),

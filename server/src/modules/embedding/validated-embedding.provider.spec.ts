@@ -1,111 +1,377 @@
-import type { EmbeddingProvider } from './embedding-provider'
+import type {
+  Embedding,
+  EmbeddingDocument,
+  EmbeddingProvider,
+} from './embedding-provider'
 import {
-  BlankEmbeddingTextError,
+  BlankEmbeddingDocumentTextError,
+  BlankEmbeddingQueryError,
+  BlankEmbeddingTitleError,
   EMBEDDING_DIMENSIONS,
-  EmbeddingBatchSizeMismatchError,
-  EmptyEmbeddingBatchError,
+  EmbeddingDocumentCountMismatchError,
+  EmbeddingDocumentTooLongError,
+  EmbeddingQueryTooLongError,
+  EmbeddingTitleTooLongError,
+  EmptyEmbeddingDocumentsError,
+  InvalidEmbeddingDocumentVectorError,
+  InvalidEmbeddingModelError,
+  InvalidEmbeddingQueryVectorError,
   InvalidEmbeddingVectorError,
+  MAX_EMBEDDING_INPUT_CODE_POINTS,
+  MAX_EMBEDDING_MODEL_LENGTH,
+  MAX_EMBEDDING_TITLE_CODE_POINTS,
 } from './embedding-provider'
 import { ValidatedEmbeddingProvider } from './validated-embedding.provider'
 
-const validVector = () => new Array<number>(EMBEDDING_DIMENSIONS).fill(0.5)
-
-class FakeEmbeddingProvider implements EmbeddingProvider {
-  readonly model = 'fake-embedding-model'
-  readonly embedBatch = jest.fn(
-    (texts: readonly string[]): Promise<readonly (readonly number[])[]> =>
-      Promise.resolve(texts.map(() => validVector())),
-  )
+function buildVector(fill = 0.5): number[] {
+  return new Array<number>(EMBEDDING_DIMENSIONS).fill(fill)
 }
 
-function buildProvider() {
-  const inner = new FakeEmbeddingProvider()
-  return { inner, provider: new ValidatedEmbeddingProvider(inner) }
+interface StubOverrides {
+  model?: string
+  queryProtocol?: string
+  queryVector?: unknown
+  documentVectors?: unknown
+}
+
+function buildStub(overrides: StubOverrides = {}) {
+  const embedQuery = jest.fn(() =>
+    Promise.resolve((overrides.queryVector ?? buildVector()) as Embedding),
+  )
+  const embedDocuments = jest.fn((documents: readonly EmbeddingDocument[]) =>
+    Promise.resolve(
+      (overrides.documentVectors ??
+        documents.map(() => buildVector())) as readonly Embedding[],
+    ),
+  )
+  const inner = {
+    model: overrides.model ?? 'stub-embedding-v1',
+    queryProtocol: overrides.queryProtocol ?? 'stub-embedding/query-v1',
+    embedQuery,
+    embedDocuments,
+  } as unknown as EmbeddingProvider
+
+  return { inner, embedQuery, embedDocuments }
 }
 
 describe('ValidatedEmbeddingProvider', () => {
-  it('passes through valid results and the inner model name', async () => {
-    const { inner, provider } = buildProvider()
+  describe('model validation', () => {
+    it.each(['', '   '])('rejects blank model %j at construction', (model) => {
+      expect(
+        () => new ValidatedEmbeddingProvider(buildStub({ model }).inner),
+      ).toThrow(InvalidEmbeddingModelError)
+    })
 
-    const vectors = await provider.embedBatch(['a', 'b'])
+    it('rejects a model longer than the persisted column', () => {
+      expect(
+        () =>
+          new ValidatedEmbeddingProvider(
+            buildStub({ model: 'x'.repeat(MAX_EMBEDDING_MODEL_LENGTH + 1) })
+              .inner,
+          ),
+      ).toThrow(InvalidEmbeddingModelError)
+    })
 
-    expect(provider.model).toBe('fake-embedding-model')
-    expect(vectors).toHaveLength(2)
-    expect(vectors[0]).toHaveLength(EMBEDDING_DIMENSIONS)
-    expect(inner.embedBatch).toHaveBeenCalledWith(['a', 'b'])
-  })
+    it('accepts a model of exactly the maximum length', () => {
+      const model = 'x'.repeat(MAX_EMBEDDING_MODEL_LENGTH)
 
-  it('rejects an empty batch without invoking the inner provider', async () => {
-    const { inner, provider } = buildProvider()
+      expect(
+        new ValidatedEmbeddingProvider(buildStub({ model }).inner).model,
+      ).toBe(model)
+    })
 
-    await expect(provider.embedBatch([])).rejects.toBeInstanceOf(
-      EmptyEmbeddingBatchError,
-    )
-    expect(inner.embedBatch).not.toHaveBeenCalled()
-  })
+    // A getter delegating to `inner.model` would validate one string and
+    // persist another if the inner provider mutated it afterwards.
+    it('keeps reporting the value validated at construction', () => {
+      const stub = buildStub()
+      const provider = new ValidatedEmbeddingProvider(stub.inner)
 
-  it.each([[''], ['   '], [' \n\t ']])(
-    'rejects blank text %j without invoking the inner provider',
-    async (blank) => {
-      const { inner, provider } = buildProvider()
+      const mutable = stub.inner as { model: string }
+      mutable.model = ''
 
-      await expect(provider.embedBatch(['ok', blank])).rejects.toBeInstanceOf(
-        BlankEmbeddingTextError,
+      expect(provider.model).toBe('stub-embedding-v1')
+    })
+
+    it('passes the query protocol through unvalidated', () => {
+      const provider = new ValidatedEmbeddingProvider(
+        buildStub({ queryProtocol: 'stub/search-result-v1' }).inner,
       )
-      expect(inner.embedBatch).not.toHaveBeenCalled()
-    },
-  )
 
-  it.each([
-    ['a 1,535-dimension vector', validVector().slice(0, 1_535)],
-    ['a 1,537-dimension vector', [...validVector(), 0.5]],
-    ['an empty vector', []],
-    ['a vector containing NaN', [...validVector().slice(0, -1), Number.NaN]],
-    [
-      'a vector containing Infinity',
-      [...validVector().slice(0, -1), Number.POSITIVE_INFINITY],
-    ],
-    [
-      'a vector containing -Infinity',
-      [...validVector().slice(0, -1), Number.NEGATIVE_INFINITY],
-    ],
-  ])('rejects %s', async (_, malformed: readonly number[]) => {
-    const { inner, provider } = buildProvider()
-    inner.embedBatch.mockResolvedValueOnce([malformed])
+      expect(provider.queryProtocol).toBe('stub/search-result-v1')
+    })
+  })
 
-    await expect(provider.embedBatch(['text'])).rejects.toBeInstanceOf(
+  describe('embedQuery', () => {
+    it('returns the inner vector for a valid query', async () => {
+      const stub = buildStub()
+      const provider = new ValidatedEmbeddingProvider(stub.inner)
+
+      await expect(provider.embedQuery('what is a variable?')).resolves.toEqual(
+        buildVector(),
+      )
+      expect(stub.embedQuery).toHaveBeenCalledWith('what is a variable?')
+    })
+
+    it.each(['', '   ', '\n\t'])(
+      'rejects blank query %j without calling inner',
+      async (query) => {
+        const stub = buildStub()
+        const provider = new ValidatedEmbeddingProvider(stub.inner)
+
+        await expect(provider.embedQuery(query)).rejects.toBeInstanceOf(
+          BlankEmbeddingQueryError,
+        )
+        expect(stub.embedQuery).not.toHaveBeenCalled()
+      },
+    )
+
+    it('rejects an over-length query without calling inner', async () => {
+      const stub = buildStub()
+      const provider = new ValidatedEmbeddingProvider(stub.inner)
+
+      await expect(
+        provider.embedQuery('x'.repeat(MAX_EMBEDDING_INPUT_CODE_POINTS + 1)),
+      ).rejects.toBeInstanceOf(EmbeddingQueryTooLongError)
+      expect(stub.embedQuery).not.toHaveBeenCalled()
+    })
+
+    it('accepts a query of exactly the maximum length', async () => {
+      const provider = new ValidatedEmbeddingProvider(buildStub().inner)
+
+      await expect(
+        provider.embedQuery('x'.repeat(MAX_EMBEDDING_INPUT_CODE_POINTS)),
+      ).resolves.toHaveLength(EMBEDDING_DIMENSIONS)
+    })
+
+    // Code points, not UTF-16 units: a surrogate pair is one character to a
+    // provider and must not count double against the ceiling.
+    it('counts a surrogate pair as one code point', async () => {
+      const provider = new ValidatedEmbeddingProvider(buildStub().inner)
+
+      await expect(
+        provider.embedQuery('😀'.repeat(MAX_EMBEDDING_INPUT_CODE_POINTS)),
+      ).resolves.toHaveLength(EMBEDDING_DIMENSIONS)
+    })
+
+    it('rejects a non-array query result', async () => {
+      const provider = new ValidatedEmbeddingProvider(
+        buildStub({ queryVector: 'not a vector' }).inner,
+      )
+
+      await expect(provider.embedQuery('query')).rejects.toBeInstanceOf(
+        InvalidEmbeddingQueryVectorError,
+      )
+    })
+
+    it('rejects a query vector with the wrong dimension', async () => {
+      const provider = new ValidatedEmbeddingProvider(
+        buildStub({ queryVector: buildVector().slice(0, 1_535) }).inner,
+      )
+
+      await expect(provider.embedQuery('query')).rejects.toMatchObject({
+        reason: 'dimension',
+      })
+    })
+
+    it('rejects a query vector with a non-finite component', async () => {
+      const vector = buildVector()
+      vector[7] = Number.NaN
+      const provider = new ValidatedEmbeddingProvider(
+        buildStub({ queryVector: vector }).inner,
+      )
+
+      await expect(provider.embedQuery('query')).rejects.toMatchObject({
+        reason: 'non-finite',
+      })
+    })
+  })
+
+  describe('embedDocuments', () => {
+    it('returns one vector per document in order', async () => {
+      const stub = buildStub()
+      const provider = new ValidatedEmbeddingProvider(stub.inner)
+
+      const documents = [{ text: 'first' }, { text: 'second', title: 'Week 1' }]
+
+      await expect(provider.embedDocuments(documents)).resolves.toHaveLength(2)
+      expect(stub.embedDocuments).toHaveBeenCalledWith(documents)
+    })
+
+    it('rejects an empty document list without calling inner', async () => {
+      const stub = buildStub()
+      const provider = new ValidatedEmbeddingProvider(stub.inner)
+
+      await expect(provider.embedDocuments([])).rejects.toBeInstanceOf(
+        EmptyEmbeddingDocumentsError,
+      )
+      expect(stub.embedDocuments).not.toHaveBeenCalled()
+    })
+
+    it.each(['', '   ', '\n'])(
+      'rejects blank document text %j at its index',
+      async (text) => {
+        const stub = buildStub()
+        const provider = new ValidatedEmbeddingProvider(stub.inner)
+
+        await expect(
+          provider.embedDocuments([{ text: 'fine' }, { text }]),
+        ).rejects.toMatchObject({ documentIndex: 1 })
+        expect(stub.embedDocuments).not.toHaveBeenCalled()
+      },
+    )
+
+    it('rejects blank document text with the document-specific error', async () => {
+      const provider = new ValidatedEmbeddingProvider(buildStub().inner)
+
+      await expect(
+        provider.embedDocuments([{ text: '  ' }]),
+      ).rejects.toBeInstanceOf(BlankEmbeddingDocumentTextError)
+    })
+
+    it('rejects over-length document text without calling inner', async () => {
+      const stub = buildStub()
+      const provider = new ValidatedEmbeddingProvider(stub.inner)
+
+      await expect(
+        provider.embedDocuments([
+          { text: 'x'.repeat(MAX_EMBEDDING_INPUT_CODE_POINTS + 1) },
+        ]),
+      ).rejects.toBeInstanceOf(EmbeddingDocumentTooLongError)
+      expect(stub.embedDocuments).not.toHaveBeenCalled()
+    })
+
+    // undefined title -> the adapter substitutes its placeholder; supplied
+    // blank title -> caller bug. Accepting blank would erase that distinction.
+    it('accepts an absent title', async () => {
+      const provider = new ValidatedEmbeddingProvider(buildStub().inner)
+
+      await expect(
+        provider.embedDocuments([{ text: 'chunk' }]),
+      ).resolves.toHaveLength(1)
+    })
+
+    it.each(['', '   ', '\t'])(
+      'rejects supplied blank title %j',
+      async (title) => {
+        const stub = buildStub()
+        const provider = new ValidatedEmbeddingProvider(stub.inner)
+
+        await expect(
+          provider.embedDocuments([{ text: 'chunk', title }]),
+        ).rejects.toBeInstanceOf(BlankEmbeddingTitleError)
+        expect(stub.embedDocuments).not.toHaveBeenCalled()
+      },
+    )
+
+    it('rejects an over-length title without calling inner', async () => {
+      const stub = buildStub()
+      const provider = new ValidatedEmbeddingProvider(stub.inner)
+
+      await expect(
+        provider.embedDocuments([
+          {
+            text: 'chunk',
+            title: 'x'.repeat(MAX_EMBEDDING_TITLE_CODE_POINTS + 1),
+          },
+        ]),
+      ).rejects.toBeInstanceOf(EmbeddingTitleTooLongError)
+      expect(stub.embedDocuments).not.toHaveBeenCalled()
+    })
+
+    it('accepts a title of exactly the maximum length', async () => {
+      const provider = new ValidatedEmbeddingProvider(buildStub().inner)
+
+      await expect(
+        provider.embedDocuments([
+          { text: 'chunk', title: 'x'.repeat(MAX_EMBEDDING_TITLE_CODE_POINTS) },
+        ]),
+      ).resolves.toHaveLength(1)
+    })
+
+    // One invalid item must cost nothing upstream, whatever its position.
+    it('checks every document before calling inner', async () => {
+      const stub = buildStub()
+      const provider = new ValidatedEmbeddingProvider(stub.inner)
+
+      await expect(
+        provider.embedDocuments([
+          { text: 'fine' },
+          { text: 'also fine' },
+          { text: 'still fine', title: '   ' },
+        ]),
+      ).rejects.toMatchObject({ documentIndex: 2 })
+      expect(stub.embedDocuments).not.toHaveBeenCalled()
+    })
+
+    it('rejects a cardinality mismatch', async () => {
+      const provider = new ValidatedEmbeddingProvider(
+        buildStub({ documentVectors: [buildVector()] }).inner,
+      )
+
+      await expect(
+        provider.embedDocuments([{ text: 'a' }, { text: 'b' }]),
+      ).rejects.toBeInstanceOf(EmbeddingDocumentCountMismatchError)
+    })
+
+    it('rejects a non-array result', async () => {
+      const provider = new ValidatedEmbeddingProvider(
+        buildStub({ documentVectors: 'not an array' }).inner,
+      )
+
+      await expect(
+        provider.embedDocuments([{ text: 'a' }]),
+      ).rejects.toBeInstanceOf(InvalidEmbeddingDocumentVectorError)
+    })
+
+    it('rejects a document vector with the wrong dimension at its index', async () => {
+      const provider = new ValidatedEmbeddingProvider(
+        buildStub({
+          documentVectors: [buildVector(), buildVector().slice(0, 10)],
+        }).inner,
+      )
+
+      await expect(
+        provider.embedDocuments([{ text: 'a' }, { text: 'b' }]),
+      ).rejects.toMatchObject({ documentIndex: 1, reason: 'dimension' })
+    })
+
+    it('rejects a document vector with a non-finite component', async () => {
+      const vector = buildVector()
+      vector[3] = Number.POSITIVE_INFINITY
+      const provider = new ValidatedEmbeddingProvider(
+        buildStub({ documentVectors: [vector] }).inner,
+      )
+
+      await expect(
+        provider.embedDocuments([{ text: 'a' }]),
+      ).rejects.toMatchObject({ documentIndex: 0, reason: 'non-finite' })
+    })
+  })
+
+  // One `catch (error) { if (error instanceof InvalidEmbeddingVectorError) }`
+  // must still see a malformed vector from either side.
+  it('reports both sides under one vector-error supertype', async () => {
+    const queryProvider = new ValidatedEmbeddingProvider(
+      buildStub({ queryVector: [] }).inner,
+    )
+    const documentProvider = new ValidatedEmbeddingProvider(
+      buildStub({ documentVectors: [[]] }).inner,
+    )
+
+    await expect(queryProvider.embedQuery('q')).rejects.toBeInstanceOf(
       InvalidEmbeddingVectorError,
     )
+    await expect(
+      documentProvider.embedDocuments([{ text: 'd' }]),
+    ).rejects.toBeInstanceOf(InvalidEmbeddingVectorError)
   })
 
-  it('rejects a result count that differs from the input count', async () => {
-    const { inner, provider } = buildProvider()
-    inner.embedBatch.mockResolvedValueOnce([validVector()])
+  it('propagates an inner failure unchanged by identity', async () => {
+    const failure = new Error('inner provider exploded')
+    const stub = buildStub()
+    stub.embedQuery.mockRejectedValue(failure)
+    const provider = new ValidatedEmbeddingProvider(stub.inner)
 
-    await expect(provider.embedBatch(['a', 'b'])).rejects.toBeInstanceOf(
-      EmbeddingBatchSizeMismatchError,
-    )
-  })
-
-  it('propagates inner provider errors unchanged', async () => {
-    const { inner, provider } = buildProvider()
-    const upstream = new Error('upstream provider unavailable')
-    inner.embedBatch.mockRejectedValueOnce(upstream)
-
-    await expect(provider.embedBatch(['text'])).rejects.toBe(upstream)
-  })
-
-  it('never echoes input text into error messages', async () => {
-    const { inner, provider } = buildProvider()
-    const sentinel = 'sensitive-lecture-content-sentinel'
-    inner.embedBatch.mockResolvedValueOnce([[Number.NaN]])
-
-    const failure = await provider.embedBatch([sentinel]).then(
-      () => null,
-      (error: unknown) => error,
-    )
-
-    expect(failure).toBeInstanceOf(InvalidEmbeddingVectorError)
-    expect((failure as Error).message).not.toContain(sentinel)
+    await expect(provider.embedQuery('query')).rejects.toBe(failure)
   })
 })

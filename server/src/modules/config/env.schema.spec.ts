@@ -101,6 +101,51 @@ describe('validateEnv', () => {
     )
   })
 
+  it('defaults the three embedding deadlines independently', () => {
+    expect(validateEnv({ ...validEnv })).toMatchObject({
+      EMBEDDING_QUERY_TIMEOUT_MS: 10_000,
+      EMBEDDING_DOCUMENT_TIMEOUT_MS: 120_000,
+      EMBEDDING_REQUEST_TIMEOUT_MS: 30_000,
+    })
+  })
+
+  // The three budgets are deliberately independent: a longer ingest deadline
+  // must not silently stretch an interactive chat turn's deadline.
+  it('bounds each embedding deadline by its own ceiling', () => {
+    expect(
+      validateEnv({
+        ...validEnv,
+        EMBEDDING_QUERY_TIMEOUT_MS: '60000',
+        EMBEDDING_DOCUMENT_TIMEOUT_MS: '900000',
+        EMBEDDING_REQUEST_TIMEOUT_MS: '120000',
+      }),
+    ).toMatchObject({
+      EMBEDDING_QUERY_TIMEOUT_MS: 60_000,
+      EMBEDDING_DOCUMENT_TIMEOUT_MS: 900_000,
+      EMBEDDING_REQUEST_TIMEOUT_MS: 120_000,
+    })
+
+    expect(() =>
+      validateEnv({ ...validEnv, EMBEDDING_QUERY_TIMEOUT_MS: '60001' }),
+    ).toThrow(/EMBEDDING_QUERY_TIMEOUT_MS/)
+    expect(() =>
+      validateEnv({ ...validEnv, EMBEDDING_DOCUMENT_TIMEOUT_MS: '900001' }),
+    ).toThrow(/EMBEDDING_DOCUMENT_TIMEOUT_MS/)
+    expect(() =>
+      validateEnv({ ...validEnv, EMBEDDING_REQUEST_TIMEOUT_MS: '120001' }),
+    ).toThrow(/EMBEDDING_REQUEST_TIMEOUT_MS/)
+  })
+
+  it.each([
+    'EMBEDDING_QUERY_TIMEOUT_MS',
+    'EMBEDDING_DOCUMENT_TIMEOUT_MS',
+    'EMBEDDING_REQUEST_TIMEOUT_MS',
+  ] as const)('rejects a non-positive %s', (key) => {
+    expect(() => validateEnv({ ...validEnv, [key]: '0' })).toThrow(
+      new RegExp(key),
+    )
+  })
+
   it('accepts only implemented completion providers', () => {
     expect(
       validateEnv({ ...validEnv, COMPLETION_PROVIDER: 'deterministic' }),

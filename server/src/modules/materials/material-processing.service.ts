@@ -14,7 +14,10 @@ import {
 } from '../pdf-storage/pdf-storage'
 import { MaterialChunkEmbeddingService } from '../rag-persistence/material-chunk-embedding.service'
 import { MaterialTextChunker } from './material-text-chunker'
-import { MaterialsRepository } from './materials.repository'
+import {
+  MaterialsRepository,
+  type MaterialProcessingRecord,
+} from './materials.repository'
 import {
   PDF_TEXT_EXTRACTOR,
   PdfExtractionError,
@@ -65,12 +68,7 @@ export class MaterialProcessingService {
 
   async processMaterial(materialId: string): Promise<void> {
     const processingAttemptId = randomUUID()
-    let material: {
-      id: string
-      courseId: string
-      uploadedById: string
-      storagePath: string
-    } | null
+    let material: MaterialProcessingRecord | null
 
     try {
       material = await this.materialsRepository.claimMaterialProcessing(
@@ -112,7 +110,10 @@ export class MaterialProcessingService {
 
       stage = 'embedding'
       const embeddedChunks =
-        await this.materialChunkEmbeddingService.embedMaterialChunks(chunks)
+        await this.materialChunkEmbeddingService.embedMaterialChunks(
+          { id: material.id, title: material.title },
+          chunks,
+        )
 
       stage = 'finalization'
       const status = extraction.warnings.length > 0 ? 'WARNING' : 'READY'

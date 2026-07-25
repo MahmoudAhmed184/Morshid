@@ -19,6 +19,8 @@ import type { AuthSessionResponse } from '../src/modules/auth/auth.dto'
 import { DeterministicEmbeddingProvider } from '../src/modules/embedding/deterministic-embedding.provider'
 import {
   EMBEDDING_PROVIDER_TOKEN,
+  type Embedding,
+  type EmbeddingDocument,
   type EmbeddingProvider,
 } from '../src/modules/embedding/embedding-provider'
 import { ValidatedEmbeddingProvider } from '../src/modules/embedding/validated-embedding.provider'
@@ -175,23 +177,29 @@ class FaultInjectingExtractor implements PdfTextExtractor {
 
 class FaultInjectingEmbeddingProvider implements EmbeddingProvider {
   readonly model: string
+  readonly queryProtocol: string
   callCount = 0
   private nextFailure: Error | undefined
 
   constructor(private readonly delegate: EmbeddingProvider) {
     this.model = delegate.model
+    this.queryProtocol = delegate.queryProtocol
   }
 
-  embedBatch(
-    texts: readonly string[],
-  ): Promise<readonly (readonly number[])[]> {
+  embedQuery(query: string): Promise<Embedding> {
+    return this.delegate.embedQuery(query)
+  }
+
+  embedDocuments(
+    documents: readonly EmbeddingDocument[],
+  ): Promise<readonly Embedding[]> {
     this.callCount += 1
     if (this.nextFailure !== undefined) {
       const failure = this.nextFailure
       this.nextFailure = undefined
       return Promise.reject(failure)
     }
-    return this.delegate.embedBatch(texts)
+    return this.delegate.embedDocuments(documents)
   }
 
   failNext(error: Error): void {
@@ -486,9 +494,10 @@ describe('Material processing truthfulness (e2e)', () => {
     'removes persisted partial chunks after a $name failure',
     async ({ reason, configure }) => {
       const materialId = await upload(cleanTextPdf(), 'Partial source')
-      await chunkEmbeddingService.embedAndReplaceMaterialChunks(materialId, [
-        { chunkIndex: 0, content: 'stale partial chunk' },
-      ])
+      await chunkEmbeddingService.embedAndReplaceMaterialChunks(
+        { id: materialId, title: 'Partial source' },
+        [{ chunkIndex: 0, content: 'stale partial chunk' }],
+      )
       expect(await persistence.findMaterialChunks(materialId)).toHaveLength(1)
       provider.reset()
       configure()
@@ -509,9 +518,10 @@ describe('Material processing truthfulness (e2e)', () => {
     const material = await prisma.material.findUniqueOrThrow({
       where: { id: materialId },
     })
-    await chunkEmbeddingService.embedAndReplaceMaterialChunks(materialId, [
-      { chunkIndex: 0, content: 'stale missing chunk' },
-    ])
+    await chunkEmbeddingService.embedAndReplaceMaterialChunks(
+      { id: materialId, title: 'Missing source' },
+      [{ chunkIndex: 0, content: 'stale missing chunk' }],
+    )
     await storage.delete(material.storagePath)
 
     await processingService.processMaterial(materialId)

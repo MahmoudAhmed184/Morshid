@@ -28,6 +28,15 @@ import {
   DEFAULT_COMPLETION_TIMEOUT_MS,
   MAX_COMPLETION_TIMEOUT_MS,
 } from '../completion/validated-completion.provider'
+import {
+  DEFAULT_EMBEDDING_DOCUMENT_TIMEOUT_MS,
+  DEFAULT_EMBEDDING_QUERY_TIMEOUT_MS,
+  DEFAULT_EMBEDDING_REQUEST_TIMEOUT_MS,
+  DETERMINISTIC_EMBEDDING_PROVIDER,
+  MAX_EMBEDDING_DOCUMENT_TIMEOUT_MS,
+  MAX_EMBEDDING_QUERY_TIMEOUT_MS,
+  MAX_EMBEDDING_REQUEST_TIMEOUT_MS,
+} from '../embedding/embedding-configuration'
 import { MAX_PDF_OBJECT_BYTES } from '../pdf-storage/pdf-storage'
 
 // The one placeholder policy for every secret this schema accepts, so a fresh
@@ -69,7 +78,34 @@ export const envSchema = z
     // Only providers with a wired implementation are accepted so the factory
     // never has to reject a configured-but-unimplemented provider at runtime.
     // The deterministic default keeps CI and local work keyless and offline.
-    EMBEDDING_PROVIDER: z.enum(['deterministic']).default('deterministic'),
+    EMBEDDING_PROVIDER: z
+      .enum([DETERMINISTIC_EMBEDDING_PROVIDER])
+      .default(DETERMINISTIC_EMBEDDING_PROVIDER),
+    // Three budgets rather than one: an interactive chat turn embeds a single
+    // query and must fail fast, while a PDF ingest embeds hundreds of chunks
+    // across many sub-requests and legitimately takes far longer. One shared
+    // value would either abort ingests that were working or leave a student
+    // waiting on a dead provider. The per-request budget is additionally capped
+    // by whatever remains of the whole-call budget, so the last sub-request of
+    // a long ingest cannot outlive the ingest's own deadline.
+    EMBEDDING_QUERY_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .max(MAX_EMBEDDING_QUERY_TIMEOUT_MS)
+      .default(DEFAULT_EMBEDDING_QUERY_TIMEOUT_MS),
+    EMBEDDING_DOCUMENT_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .max(MAX_EMBEDDING_DOCUMENT_TIMEOUT_MS)
+      .default(DEFAULT_EMBEDDING_DOCUMENT_TIMEOUT_MS),
+    EMBEDDING_REQUEST_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .max(MAX_EMBEDDING_REQUEST_TIMEOUT_MS)
+      .default(DEFAULT_EMBEDDING_REQUEST_TIMEOUT_MS),
     // Deterministic remains the committed keyless/offline default. `aws-bedrock`
     // is the explicitly selected live path and always goes through ITI's
     // gateway; `gemini` is barred from production and additionally requires the

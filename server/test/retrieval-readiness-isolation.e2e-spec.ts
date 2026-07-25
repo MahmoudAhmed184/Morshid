@@ -232,8 +232,10 @@ describe('Retrieval threshold readiness and cross-course isolation (e2e)', () =>
     const minSimilarity = overrides.minSimilarity ?? DEFAULT_MIN_SIMILARITY
     const embeddingProvider = {
       model: overrides.embeddingModel ?? RETRIEVAL_TASK_83_EMBEDDING_MODEL,
-      embedBatch: (texts: readonly string[]) =>
-        Promise.resolve(texts.map(() => retrievalTask83QueryEmbedding())),
+      queryProtocol: 'task-83-query-vector',
+      embedQuery: () => Promise.resolve(retrievalTask83QueryEmbedding()),
+      embedDocuments: (documents) =>
+        Promise.resolve(documents.map(() => retrievalTask83QueryEmbedding())),
     } satisfies EmbeddingProvider
     const configService = {
       get: (key: 'RETRIEVAL_TOP_K' | 'RETRIEVAL_MIN_SIMILARITY') =>

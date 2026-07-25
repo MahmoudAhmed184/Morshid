@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common'
+import { Inject, Injectable, Logger } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 
 import type { AppEnvironment } from '../config/env.schema'
@@ -36,6 +36,7 @@ const AVAILABILITY_SCAN_MULTIPLIER = 5
 
 @Injectable()
 export class RetrievalService {
+  private readonly logger = new Logger(RetrievalService.name)
   private readonly topK: number
   private readonly minSimilarity: number
 
@@ -93,15 +94,21 @@ export class RetrievalService {
     }
 
     if (readiness.kind === 'not_ready') {
+      // `queryProtocol` is diagnostic only — there is no column for it — so a
+      // change to the query task is observable in logs and nowhere else.
+      this.logger.warn({
+        event: 'retrieval_embedding_profile_not_ready',
+        expectedModel: embeddingModel,
+        queryProtocol: this.embeddingProvider.queryProtocol,
+        incompleteMaterialCount: readiness.incompleteMaterialCount,
+      })
       return {
         kind: 'embedding_profile_not_ready',
         expectedModel: embeddingModel,
       }
     }
 
-    const [queryEmbedding] = await this.embeddingProvider.embedBatch([
-      trimmedQuery,
-    ])
+    const queryEmbedding = await this.embeddingProvider.embedQuery(trimmedQuery)
 
     const availableRows: RankedChunkRow[] = []
     const availabilityByStoragePath = new Map<string, Promise<boolean>>()

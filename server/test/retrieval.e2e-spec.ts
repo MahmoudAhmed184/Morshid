@@ -436,10 +436,13 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
       persistence,
     )
     const chunkText = 'Python variables store references to objects.'
-    await chunkEmbedding.embedAndReplaceMaterialChunks(materialId, [
-      { chunkIndex: 0, content: chunkText },
-      { chunkIndex: 1, content: 'Loops repeat a block of statements.' },
-    ])
+    await chunkEmbedding.embedAndReplaceMaterialChunks(
+      { id: materialId, title: 'Python Basics' },
+      [
+        { chunkIndex: 0, content: chunkText },
+        { chunkIndex: 1, content: 'Loops repeat a block of statements.' },
+      ],
+    )
 
     const stored = await persistence.findMaterialChunks(materialId)
     expect(stored).toHaveLength(2)
@@ -506,8 +509,10 @@ function queryVectorProvider(
 ): EmbeddingProvider {
   return {
     model,
-    embedBatch: (texts: readonly string[]) =>
-      Promise.resolve(texts.map(() => referenceQueryVector())),
+    queryProtocol: `${model}/query-v1`,
+    embedQuery: () => Promise.resolve(referenceQueryVector()),
+    embedDocuments: (documents) =>
+      Promise.resolve(documents.map(() => referenceQueryVector())),
   }
 }
 

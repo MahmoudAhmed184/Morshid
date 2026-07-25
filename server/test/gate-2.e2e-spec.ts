@@ -340,9 +340,9 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
         expect(hiddenChunks).toHaveLength(1)
         const hiddenChunk = hiddenChunks[0]
 
-        const [queryEmbedding] = await embeddingProvider.embedBatch([
+        const queryEmbedding = await embeddingProvider.embedQuery(
           GATE_2_FIXTURE.question,
-        ])
+        )
         const visibleSimilarity = cosineSimilarity(
           visibleChunk.embedding,
           queryEmbedding,

@@ -1,7 +1,11 @@
 import { createHash } from 'node:crypto'
 
 import { normalizeDeterministicText } from '../../common/text/normalize-deterministic-text'
-import type { EmbeddingProvider } from './embedding-provider'
+import type {
+  Embedding,
+  EmbeddingDocument,
+  EmbeddingProvider,
+} from './embedding-provider'
 import { EMBEDDING_DIMENSIONS } from './embedding-provider'
 
 const BYTES_PER_COMPONENT = 4
@@ -14,17 +18,38 @@ const MAX_UINT32 = 0xff_ff_ff_ff
 // network access, API keys, or dependencies beyond node:crypto.
 export class DeterministicEmbeddingProvider implements EmbeddingProvider {
   readonly model = 'deterministic-embedding-v1'
+  // Deliberately identical to `model`: this provider has no query protocol
+  // distinct from its document protocol, and saying so is more honest than
+  // inventing a separate identifier for a symmetry that is the whole point.
+  readonly queryProtocol = 'deterministic-embedding-v1'
+
+  /**
+   * Symmetric by design: no task prefix, and `title` is ignored.
+   *
+   * Every live provider is asymmetric, but this one must not be. Offline
+   * retrieval only works because a query and an identical chunk hash to the
+   * same vector — `server/test/retrieval.e2e-spec.ts` asserts a similarity of
+   * ~1 for a verbatim match. Adding prefixes here would put the two sides in
+   * different vector spaces and make offline retrieval structurally
+   * impossible, so the invariant `embedQuery(t) === embedDocuments([{text:
+   * t}])[0]` is load-bearing rather than incidental.
+   */
+  embedQuery(query: string): Promise<Embedding> {
+    return Promise.resolve(this.embedText(query))
+  }
 
   // Hashing runs synchronously on the event loop (~48 SHA-256 digests per
   // text); at P0 ingestion batch sizes this is sub-millisecond per text. If
   // batches grow to thousands of chunks, split them upstream.
-  embedBatch(
-    texts: readonly string[],
-  ): Promise<readonly (readonly number[])[]> {
-    return Promise.resolve(texts.map((text) => this.embedText(text)))
+  embedDocuments(
+    documents: readonly EmbeddingDocument[],
+  ): Promise<readonly Embedding[]> {
+    return Promise.resolve(
+      documents.map((document) => this.embedText(document.text)),
+    )
   }
 
-  private embedText(text: string): readonly number[] {
+  private embedText(text: string): Embedding {
     // Seeding with the model name ties every vector to the algorithm version,
     // so bumping `model` changes all vectors instead of silently mixing
     // algorithms under one identifier. NUL is the domain separator between

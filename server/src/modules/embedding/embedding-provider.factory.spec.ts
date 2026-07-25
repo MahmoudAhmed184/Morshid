@@ -1,8 +1,11 @@
 import type { AppEnvironment } from '../config/env.schema'
-import { createEmbeddingProvider } from './embedding-provider.factory'
+import {
+  createEmbeddingProvider,
+  snapshotEmbeddingConfiguration,
+} from './embedding-provider.factory'
 import {
   EMBEDDING_DIMENSIONS,
-  EmptyEmbeddingBatchError,
+  EmptyEmbeddingDocumentsError,
   UnsupportedEmbeddingProviderError,
 } from './embedding-provider'
 
@@ -12,13 +15,24 @@ describe('createEmbeddingProvider', () => {
 
     expect(provider.model).toBe('deterministic-embedding-v1')
 
-    const [vector] = await provider.embedBatch(['course material chunk'])
+    const [vector] = await provider.embedDocuments([
+      { text: 'course material chunk' },
+    ])
     expect(vector).toHaveLength(EMBEDDING_DIMENSIONS)
 
-    // Rejecting the empty batch proves the ValidatedEmbeddingProvider wrapper
-    // is in place, not just the bare deterministic adapter.
-    await expect(provider.embedBatch([])).rejects.toBeInstanceOf(
-      EmptyEmbeddingBatchError,
+    const queryVector = await provider.embedQuery('course material chunk')
+    expect(queryVector).toHaveLength(EMBEDDING_DIMENSIONS)
+
+    // Rejecting the empty document list proves the ValidatedEmbeddingProvider
+    // wrapper is in place, not just the bare deterministic adapter.
+    await expect(provider.embedDocuments([])).rejects.toBeInstanceOf(
+      EmptyEmbeddingDocumentsError,
+    )
+  })
+
+  it('exposes the query protocol through the wrapper', () => {
+    expect(createEmbeddingProvider('deterministic').queryProtocol).toBe(
+      'deterministic-embedding-v1',
     )
   })
 
@@ -27,6 +41,23 @@ describe('createEmbeddingProvider', () => {
       createEmbeddingProvider(
         'unimplemented' as AppEnvironment['EMBEDDING_PROVIDER'],
       ),
+    ).toThrow(UnsupportedEmbeddingProviderError)
+  })
+})
+
+describe('snapshotEmbeddingConfiguration', () => {
+  it('returns the deterministic variant', () => {
+    expect(
+      snapshotEmbeddingConfiguration({ EMBEDDING_PROVIDER: 'deterministic' }),
+    ).toEqual({ provider: 'deterministic' })
+  })
+
+  it('rejects a provider outside the compile-time enum', () => {
+    expect(() =>
+      snapshotEmbeddingConfiguration({
+        EMBEDDING_PROVIDER:
+          'unimplemented' as AppEnvironment['EMBEDDING_PROVIDER'],
+      }),
     ).toThrow(UnsupportedEmbeddingProviderError)
   })
 })

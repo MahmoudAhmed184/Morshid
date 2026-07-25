@@ -15,14 +15,14 @@ describe('RetrievalService', () => {
 
   const embeddingModel = 'test-embedding-model'
 
-  let embedBatch: jest.Mock
+  let embedQuery: jest.Mock
   let findTopChunksForCourse: jest.Mock
   let findEmbeddingProfileReadiness: jest.Mock
   let service: RetrievalService
   let exists: jest.Mock
 
   beforeEach(() => {
-    embedBatch = jest.fn().mockResolvedValue([queryEmbedding])
+    embedQuery = jest.fn().mockResolvedValue(queryEmbedding)
     findTopChunksForCourse = jest.fn().mockResolvedValue([])
     findEmbeddingProfileReadiness = jest.fn().mockResolvedValue({
       kind: 'ready',
@@ -31,7 +31,8 @@ describe('RetrievalService', () => {
 
     const embeddingProvider = {
       model: embeddingModel,
-      embedBatch,
+      queryProtocol: `${embeddingModel}/query-v1`,
+      embedQuery,
     } as unknown as EmbeddingProvider
     const repository = {
       findTopChunksForCourse,
@@ -54,8 +55,8 @@ describe('RetrievalService', () => {
   it('embeds the query once and forwards only configured limits with the course id', async () => {
     await service.retrieveCourseEvidence(courseId, 'what is a variable?')
 
-    expect(embedBatch).toHaveBeenCalledTimes(1)
-    expect(embedBatch).toHaveBeenCalledWith(['what is a variable?'])
+    expect(embedQuery).toHaveBeenCalledTimes(1)
+    expect(embedQuery).toHaveBeenCalledWith('what is a variable?')
     expect(findTopChunksForCourse).toHaveBeenCalledTimes(1)
     expect(findTopChunksForCourse).toHaveBeenCalledWith({
       courseId,
@@ -76,7 +77,7 @@ describe('RetrievalService', () => {
     })
     expect(
       findEmbeddingProfileReadiness.mock.invocationCallOrder[0],
-    ).toBeLessThan(embedBatch.mock.invocationCallOrder[0])
+    ).toBeLessThan(embedQuery.mock.invocationCallOrder[0])
   })
 
   it('reports the profile as not ready without spending provider quota', async () => {
@@ -91,7 +92,7 @@ describe('RetrievalService', () => {
       kind: 'embedding_profile_not_ready',
       expectedModel: embeddingModel,
     })
-    expect(embedBatch).not.toHaveBeenCalled()
+    expect(embedQuery).not.toHaveBeenCalled()
     expect(findTopChunksForCourse).not.toHaveBeenCalled()
   })
 
@@ -103,7 +104,7 @@ describe('RetrievalService', () => {
     await expect(
       service.retrieveCourseEvidence(courseId, 'query'),
     ).resolves.toEqual({ kind: 'insufficient_evidence' })
-    expect(embedBatch).not.toHaveBeenCalled()
+    expect(embedQuery).not.toHaveBeenCalled()
     expect(findTopChunksForCourse).not.toHaveBeenCalled()
   })
 
@@ -163,7 +164,7 @@ describe('RetrievalService', () => {
       await expect(
         service.retrieveCourseEvidence(courseId, blankQuery),
       ).resolves.toEqual({ kind: 'insufficient_evidence' })
-      expect(embedBatch).not.toHaveBeenCalled()
+      expect(embedQuery).not.toHaveBeenCalled()
       expect(findTopChunksForCourse).not.toHaveBeenCalled()
     },
   )
@@ -171,7 +172,7 @@ describe('RetrievalService', () => {
   it('embeds the trimmed query text', async () => {
     await service.retrieveCourseEvidence(courseId, '  what is a variable?  ')
 
-    expect(embedBatch).toHaveBeenCalledWith(['what is a variable?'])
+    expect(embedQuery).toHaveBeenCalledWith('what is a variable?')
   })
 
   it('reports insufficient evidence when no row meets the threshold', async () => {
@@ -281,7 +282,7 @@ describe('RetrievalService', () => {
   })
 
   it('propagates provider failures without querying the repository', async () => {
-    embedBatch.mockRejectedValue(new Error('embedding failed'))
+    embedQuery.mockRejectedValue(new Error('embedding failed'))
 
     await expect(
       service.retrieveCourseEvidence(courseId, 'query'),
