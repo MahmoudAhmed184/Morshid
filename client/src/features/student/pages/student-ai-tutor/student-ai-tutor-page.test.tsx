@@ -20,6 +20,7 @@ import {
   StudentChromeProvider,
   useStudentChromeSources,
 } from '@/features/student/components/student-chrome-context'
+import { StudentCourseProvider } from '@/features/student/components/student-course-context'
 import {
   createStudentSession,
   getStudentSession,
@@ -53,6 +54,10 @@ import {
 vi.mock('@/features/student/data/student-sessions.api')
 
 const navigateMock = vi.hoisted(() => vi.fn())
+const routerMockState = vi.hoisted<{
+  search: { courseId?: string; sessionId?: string }
+  pathname: string
+}>(() => ({ search: {}, pathname: '/chat' }))
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({
@@ -74,6 +79,19 @@ vi.mock('@tanstack/react-router', () => ({
   ),
   ScriptOnce: () => null,
   useNavigate: () => navigateMock,
+  useRouterState: <T,>({
+    select,
+  }: {
+    select: (state: {
+      location: { pathname: string; search: Record<string, unknown> }
+    }) => T
+  }) =>
+    select({
+      location: {
+        pathname: routerMockState.pathname,
+        search: routerMockState.search,
+      },
+    }),
 }))
 
 const createStudentSessionMock = vi.mocked(createStudentSession)
@@ -174,6 +192,10 @@ function renderWorkspace({
       dispatchEvent: vi.fn(),
     })),
   )
+  // The shell resolves the active course from `?courseId`; the page reads it
+  // from the shared student course state rather than a prop.
+  routerMockState.search = { courseId, sessionId }
+  routerMockState.pathname = '/chat'
 
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -212,8 +234,10 @@ function renderWorkspace({
       <ThemeProvider defaultTheme="system" storageKey="test-theme">
         <SidebarProvider>
           <StudentChromeProvider>
-            {probe}
-            <StudentAiTutorPage courseId={courseId} sessionId={sessionId} />
+            <StudentCourseProvider>
+              {probe}
+              <StudentAiTutorPage sessionId={sessionId} />
+            </StudentCourseProvider>
           </StudentChromeProvider>
         </SidebarProvider>
       </ThemeProvider>
@@ -221,6 +245,29 @@ function renderWorkspace({
   )
 
   return { ...result, queryClient }
+}
+
+// Re-renders the workspace as if the router had navigated: the shell's shared
+// course state reads `?courseId`, so the mocked location moves with it.
+function workspaceTree(
+  queryClient: QueryClient,
+  { courseId, sessionId }: { courseId?: string; sessionId?: string },
+) {
+  routerMockState.search = { courseId, sessionId }
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider defaultTheme="system" storageKey="test-theme">
+        <SidebarProvider>
+          <StudentChromeProvider>
+            <StudentCourseProvider>
+              <StudentAiTutorPage sessionId={sessionId} />
+            </StudentCourseProvider>
+          </StudentChromeProvider>
+        </SidebarProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
+  )
 }
 
 // Surfaces the shell's registered sources control (the BookMarked toggle lives
@@ -267,6 +314,7 @@ describe('StudentAiTutorPage workspace', () => {
       groundedChatTurnResponseFixture,
     )
     window.localStorage.clear()
+    window.sessionStorage.clear()
     useAuthStore.getState().clearSession()
     useAuthStore.getState().setSession(createStudentAuthSession())
   })
@@ -276,6 +324,7 @@ describe('StudentAiTutorPage workspace', () => {
     vi.unstubAllGlobals()
     useAuthStore.getState().clearSession()
     window.localStorage.clear()
+    window.sessionStorage.clear()
   })
 
   it('shows the no-course state without requesting sessions', () => {
@@ -339,18 +388,10 @@ describe('StudentAiTutorPage workspace', () => {
     expect(sendStudentChatMessageMock).not.toHaveBeenCalled()
 
     rerender(
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider defaultTheme="system" storageKey="test-theme">
-          <SidebarProvider>
-            <StudentChromeProvider>
-              <StudentAiTutorPage
-                courseId={primaryCourse.id}
-                sessionId={primaryChatSessionFixture.id}
-              />
-            </StudentChromeProvider>
-          </SidebarProvider>
-        </ThemeProvider>
-      </QueryClientProvider>,
+      workspaceTree(queryClient, {
+        courseId: primaryCourse.id,
+        sessionId: primaryChatSessionFixture.id,
+      }),
     )
 
     await waitFor(() =>
@@ -1226,18 +1267,10 @@ describe('StudentAiTutorPage workspace', () => {
       },
     )
     rerender(
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider defaultTheme="system" storageKey="test-theme">
-          <SidebarProvider>
-            <StudentChromeProvider>
-              <StudentAiTutorPage
-                courseId={primaryCourse.id}
-                sessionId={secondSession.id}
-              />
-            </StudentChromeProvider>
-          </SidebarProvider>
-        </ThemeProvider>
-      </QueryClientProvider>,
+      workspaceTree(queryClient, {
+        courseId: primaryCourse.id,
+        sessionId: secondSession.id,
+      }),
     )
 
     // The switched-to conversation is observed via its sources panel now that
@@ -1328,18 +1361,10 @@ describe('StudentAiTutorPage workspace', () => {
       },
     )
     rerender(
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider defaultTheme="system" storageKey="test-theme">
-          <SidebarProvider>
-            <StudentChromeProvider>
-              <StudentAiTutorPage
-                courseId={otherCourse.id}
-                sessionId={otherCourseSession.id}
-              />
-            </StudentChromeProvider>
-          </SidebarProvider>
-        </ThemeProvider>
-      </QueryClientProvider>,
+      workspaceTree(queryClient, {
+        courseId: otherCourse.id,
+        sessionId: otherCourseSession.id,
+      }),
     )
 
     // The switched-course conversation is observed via its sources panel now

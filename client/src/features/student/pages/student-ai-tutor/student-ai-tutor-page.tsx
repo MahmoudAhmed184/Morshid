@@ -17,17 +17,16 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import { useSidebar } from '@/components/ui/sidebar'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 import {
   useRegisterComposerFocus,
   useRegisterSourcesControl,
 } from '@/features/student/components/student-chrome-context'
+import { useStudentCourseContext } from '@/features/student/components/student-course-context'
 import {
   isStudentChatApiError,
   STUDENT_CHAT_ERROR_CODES,
 } from '@/features/student/data/student-chat.errors'
-import { useStudentCourses } from '@/features/student/hooks/use-student-courses'
 import {
   useCreateStudentSession,
   useRenameStudentSession,
@@ -53,7 +52,6 @@ import { StudentSourcesPanel } from './student-sources-panel'
 import { StudentSuggestionRows } from './student-suggestion-rows'
 
 interface StudentAiTutorPageProps {
-  courseId?: string
   sessionId?: string
 }
 
@@ -65,21 +63,16 @@ interface PendingFirstMessage {
   clientMessageId: string
 }
 
-export function StudentAiTutorPage({
-  courseId,
-  sessionId,
-}: StudentAiTutorPageProps) {
+export function StudentAiTutorPage({ sessionId }: StudentAiTutorPageProps) {
   const navigate = useNavigate()
   const studentId = useAuthStore((state) => state.user?.id)
   const displayName = useAuthStore((state) => state.user?.displayName)
   const firstName = firstNameFromDisplayName(displayName)
-  const { data: assignedCourses } = useStudentCourses()
-  const selectedCourse =
-    (courseId
-      ? assignedCourses.find((course) => course.id === courseId)
-      : assignedCourses.length === 1
-        ? assignedCourses[0]
-        : undefined) ?? null
+  // The one active-course model for the whole student shell (it already reads
+  // `?courseId`), so the workspace, the sidebar switcher, New chat and the ⌘K
+  // palette can never disagree about which notebook is open.
+  const { courses: assignedCourses, activeCourse: selectedCourse } =
+    useStudentCourseContext()
   const routedSessionQuery = useStudentSession({
     courseId: selectedCourse?.id,
     sessionId,
@@ -206,7 +199,6 @@ function StudentWorkspaceSources({
   messages,
   children,
 }: StudentWorkspaceSourcesProps) {
-  const { state: sidebarState } = useSidebar()
   const [mobileSourcesOpen, setMobileSourcesOpen] = useState(false)
   const [sourcesOpen, setSourcesOpen] = useState(false)
   const toggleSources = useCallback(() => setSourcesOpen((open) => !open), [])
@@ -245,10 +237,6 @@ function StudentWorkspaceSources({
           className={cn(
             'hidden shrink-0 overflow-hidden transition-[width,opacity] duration-[250ms] ease-out motion-reduce:transition-none lg:flex',
             sourcesOpen ? 'w-[20.75rem] opacity-100' : 'w-0 opacity-0',
-            // T12.6 — when the sidebar is collapsed the shell drops its top band
-            // and floats a glass cluster at the top-right; keep the sources
-            // column clear of it with an h-12-equivalent top inset.
-            sidebarState === 'collapsed' && 'mt-12',
           )}
         >
           <StudentSourcesPanel

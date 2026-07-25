@@ -23,6 +23,7 @@ import {
   StudentChromeProvider,
   useStudentChromeActions,
 } from '@/features/student/components/student-chrome-context'
+import { StudentCourseProvider } from '@/features/student/components/student-course-context'
 import {
   primaryChatSessionFixture,
   studentChatIds,
@@ -130,8 +131,10 @@ function renderPalette({
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="system" storageKey="test-theme">
         <StudentChromeProvider>
-          <PaletteOpener />
-          <StudentSearchPalette />
+          <StudentCourseProvider>
+            <PaletteOpener />
+            <StudentSearchPalette />
+          </StudentCourseProvider>
         </StudentChromeProvider>
       </ThemeProvider>
     </QueryClientProvider>,
@@ -151,6 +154,7 @@ describe('StudentSearchPalette', () => {
     Element.prototype.scrollIntoView = vi.fn()
     routerMockState.search = { courseId: primaryCourse.id }
     window.localStorage.clear()
+    window.sessionStorage.clear()
     useAuthStore.getState().clearSession()
     useAuthStore.getState().setSession(createStudentAuthSession())
   })
@@ -160,6 +164,7 @@ describe('StudentSearchPalette', () => {
     vi.unstubAllGlobals()
     useAuthStore.getState().clearSession()
     window.localStorage.clear()
+    window.sessionStorage.clear()
   })
 
   it('opens with Ctrl/Cmd+K and lists the loaded sessions', async () => {

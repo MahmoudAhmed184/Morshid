@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input'
 import { ErrorState } from '@/components/ui/custom/error-state'
 import { useSidebar } from '@/components/ui/sidebar'
 import { useStudentChromeActions } from '@/features/student/components/student-chrome-context'
-import { useStudentCourses } from '@/features/student/hooks/use-student-courses'
+import { useStudentCourseContext } from '@/features/student/components/student-course-context'
 import type { StudentCourse } from '@/features/student/schemas/student-course.schema'
 import {
   useDeleteStudentSession,
@@ -29,19 +29,6 @@ import { StudentSessionNavigationSkeleton } from '@/features/student/pages/stude
 
 interface StudentSidebarContentProps {
   newChatButtonRef?: RefObject<HTMLButtonElement | null>
-}
-
-function resolveSelectedCourse(
-  courses: StudentCourse[],
-  routeCourseId: string | undefined,
-): StudentCourse | null {
-  return (
-    (routeCourseId
-      ? courses.find((course) => course.id === routeCourseId)
-      : courses.length === 1
-        ? courses[0]
-        : undefined) ?? null
-  )
 }
 
 /**
@@ -60,14 +47,18 @@ export function useStudentNewChat() {
   const search = useRouterState({
     select: (state) => state.location.search,
   })
-  const { data: assignedCourses } = useStudentCourses()
-  const selectedCourse = resolveSelectedCourse(assignedCourses, search.courseId)
+  const { activeCourse: selectedCourse } = useStudentCourseContext()
 
   return async () => {
-    // T12.4 — with no active course there is nowhere to open a conversation and
-    // no library page to fall back to (the sidebar shows `No courses yet`), so
-    // New chat is a no-op rather than navigating to a deleted route.
+    // T12.4 — with no active course there is no notebook to draft into, but the
+    // action must never be silently inert (the Settings regression). `/chat`
+    // without a course renders the actionable `Choose a course` / `No assigned
+    // course` state, so send the student there instead of doing nothing.
     if (!selectedCourse) {
+      if (pathname !== '/chat') {
+        await navigate({ to: '/chat', search: {} })
+      }
+
       return
     }
 
@@ -202,11 +193,10 @@ export function StudentSidebarContent({
   const search = useRouterState({
     select: (state) => state.location.search,
   })
-  const routeCourseId = search.courseId
   const routeSessionId = search.sessionId
 
-  const { data: assignedCourses } = useStudentCourses()
-  const selectedCourse = resolveSelectedCourse(assignedCourses, routeCourseId)
+  const { courses: assignedCourses, activeCourse: selectedCourse } =
+    useStudentCourseContext()
 
   const [query, setQuery] = useState('')
 

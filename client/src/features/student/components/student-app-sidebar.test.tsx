@@ -10,7 +10,6 @@ import {
 } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { AppSidebar } from '@/components/layout/app-sidebar'
 import { SidebarProvider, useSidebar } from '@/components/ui/sidebar'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 import type { AuthSession } from '@/features/auth/schemas/auth.schema'
@@ -22,6 +21,9 @@ import {
   StudentChromeProvider,
   useStudentSearchPalette,
 } from '@/features/student/components/student-chrome-context'
+import { StudentCourseProvider } from '@/features/student/components/student-course-context'
+import { StudentAppSidebar } from '@/features/student/components/student-app-sidebar'
+import { StudentSearchPalette } from '@/features/student/components/student-search-palette'
 import {
   primaryChatSessionFixture,
   studentChatIds,
@@ -75,6 +77,18 @@ const primaryCourse: StudentCourse = {
   title: 'Python Programming',
   membershipRole: 'STUDENT',
 }
+const otherCourse: StudentCourse = {
+  id: studentChatIds.otherCourse,
+  code: 'JAVASCRIPT-P0',
+  title: 'JavaScript Programming',
+  membershipRole: 'STUDENT',
+}
+
+class TestResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
 
 function createStudentAuthSession(): AuthSession {
   return {
@@ -106,7 +120,18 @@ function ShellProbe() {
   )
 }
 
-function renderCollapsedShell() {
+function renderCollapsedShell({
+  courses = [primaryCourse],
+  pathname = '/chat',
+  search = {
+    courseId: primaryCourse.id,
+    sessionId: primaryChatSessionFixture.id,
+  },
+}: {
+  courses?: StudentCourse[]
+  pathname?: string
+  search?: { courseId?: string; sessionId?: string }
+} = {}) {
   vi.stubGlobal(
     'matchMedia',
     vi.fn((query: string) => ({
@@ -120,20 +145,18 @@ function renderCollapsedShell() {
       dispatchEvent: vi.fn(),
     })),
   )
-  routerMockState.search = {
-    courseId: primaryCourse.id,
-    sessionId: primaryChatSessionFixture.id,
-  }
-  routerMockState.pathname = '/chat'
+  routerMockState.search = search
+  routerMockState.pathname = pathname
 
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
     },
   })
-  queryClient.setQueryData(studentCoursesQueryOptions(studentId).queryKey, [
-    primaryCourse,
-  ])
+  queryClient.setQueryData(
+    studentCoursesQueryOptions(studentId).queryKey,
+    courses,
+  )
   queryClient.setQueryData(
     studentSessionKeys.sessionList({ studentId, courseId: primaryCourse.id }),
     {
@@ -142,18 +165,36 @@ function renderCollapsedShell() {
     },
   )
 
-  return render(
+  const tree = () => (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="system" storageKey="test-theme">
         <SidebarProvider defaultOpen={false}>
           <StudentChromeProvider>
-            <AppSidebar role="student" />
-            <ShellProbe />
+            <StudentCourseProvider>
+              <StudentAppSidebar />
+              <ShellProbe />
+              <StudentSearchPalette />
+            </StudentCourseProvider>
           </StudentChromeProvider>
         </SidebarProvider>
       </ThemeProvider>
-    </QueryClientProvider>,
+    </QueryClientProvider>
   )
+
+  const result = render(tree())
+
+  // Moves the shell to another student route without remounting it, the way the
+  // router does — this is what the Settings regression depends on.
+  function goTo(
+    nextPathname: string,
+    nextSearch: { courseId?: string; sessionId?: string } = {},
+  ) {
+    routerMockState.pathname = nextPathname
+    routerMockState.search = nextSearch
+    result.rerender(tree())
+  }
+
+  return { ...result, goTo }
 }
 
 function collapsedCluster() {
@@ -164,10 +205,13 @@ function collapsedCluster() {
   return within(cluster as HTMLElement)
 }
 
-describe('AppSidebar collapsed cluster', () => {
+describe('StudentAppSidebar collapsed cluster', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    vi.stubGlobal('ResizeObserver', TestResizeObserver)
+    Element.prototype.scrollIntoView = vi.fn()
     window.localStorage.clear()
+    window.sessionStorage.clear()
     useAuthStore.getState().clearSession()
     useAuthStore.getState().setSession(createStudentAuthSession())
   })
@@ -177,6 +221,7 @@ describe('AppSidebar collapsed cluster', () => {
     vi.unstubAllGlobals()
     useAuthStore.getState().clearSession()
     window.localStorage.clear()
+    window.sessionStorage.clear()
   })
 
   it('opens the search palette without expanding the sidebar (T15.8)', async () => {
@@ -212,5 +257,76 @@ describe('AppSidebar collapsed cluster', () => {
       }),
     )
     expect(probe).toHaveAttribute('data-sidebar-state', 'collapsed')
+  })
+
+  it('preserves the active course for New chat and Search from Settings', async () => {
+    window.sessionStorage.setItem(
+      `morshid.student.active-course.${studentId}`,
+      primaryCourse.id,
+    )
+    renderCollapsedShell({
+      courses: [primaryCourse, otherCourse],
+      pathname: '/settings',
+      search: {},
+    })
+
+    fireEvent.click(
+      collapsedCluster().getByRole('button', { name: 'New chat' }),
+    )
+    await waitFor(() =>
+      expect(navigateMock).toHaveBeenCalledWith({
+        to: '/chat',
+        search: { courseId: primaryCourse.id },
+      }),
+    )
+
+    fireEvent.click(
+      collapsedCluster().getByRole('button', { name: 'Search your chats' }),
+    )
+    expect(
+      await screen.findByRole('option', { name: /Python lists/ }),
+    ).toBeVisible()
+  })
+
+  // Standards finding 3 / Spec finding 6 — walking a two-course student from the
+  // chat workspace into Settings (where the URL carries no `courseId`) used to
+  // leave New chat and the palette action inert.
+  it('carries the active course into Settings after visiting a course', async () => {
+    const { goTo } = renderCollapsedShell({
+      courses: [primaryCourse, otherCourse],
+      pathname: '/chat',
+      search: { courseId: primaryCourse.id },
+    })
+
+    goTo('/settings')
+
+    fireEvent.click(
+      collapsedCluster().getByRole('button', { name: 'New chat' }),
+    )
+    await waitFor(() =>
+      expect(navigateMock).toHaveBeenCalledWith({
+        to: '/chat',
+        search: { courseId: primaryCourse.id },
+      }),
+    )
+  })
+
+  // With no course to resolve at all, New chat must still take the student
+  // somewhere actionable (`/chat` renders the course picker) rather than
+  // silently doing nothing.
+  it('sends the student to the workspace when no course can be resolved', async () => {
+    renderCollapsedShell({
+      courses: [primaryCourse, otherCourse],
+      pathname: '/settings',
+      search: {},
+    })
+
+    fireEvent.click(
+      collapsedCluster().getByRole('button', { name: 'New chat' }),
+    )
+
+    await waitFor(() =>
+      expect(navigateMock).toHaveBeenCalledWith({ to: '/chat', search: {} }),
+    )
   })
 })

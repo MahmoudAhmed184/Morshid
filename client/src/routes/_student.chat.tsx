@@ -12,7 +12,9 @@ export const Route = createFileRoute('/_student/chat')({
 })
 
 function StudentChatRoute() {
-  const { courseId, sessionId } = Route.useSearch()
+  // `courseId` stays in the URL contract (links and the switcher navigate with
+  // it) but is read through the shell's shared course state, not passed down.
+  const { sessionId } = Route.useSearch()
 
-  return <StudentAiTutorPage courseId={courseId} sessionId={sessionId} />
+  return <StudentAiTutorPage sessionId={sessionId} />
 }

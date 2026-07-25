@@ -1,15 +1,7 @@
 import { Link, useRouterState } from '@tanstack/react-router'
-import {
-  Check,
-  LogOut,
-  Monitor,
-  Moon,
-  Plus,
-  Search,
-  Settings,
-  Sun,
-} from 'lucide-react'
+import { Check, LogOut, Monitor, Moon, Settings, Sun } from 'lucide-react'
 import { useState } from 'react'
+import type { ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
 
 import { getUserInitials } from '@/components/layout/get-user-initials'
@@ -40,11 +32,6 @@ import {
 } from '@/components/ui/sidebar'
 import { useLogout } from '@/features/auth/hooks/use-logout'
 import { useAuthStore } from '@/features/auth/stores/auth.store'
-import { useStudentChromeActions } from '@/features/student/components/student-chrome-context'
-import {
-  StudentSidebarContent,
-  useStudentNewChat,
-} from '@/features/student/components/student-sidebar-content'
 import { useTheme } from '@/providers/theme-provider'
 import { cn } from '@/lib/utils'
 
@@ -61,6 +48,9 @@ type AppSidebarProps = {
   role: AppSidebarRole
   navigation?: readonly AppSidebarNavItem[]
   ariaLabel?: string
+  sidebarContent?: ReactNode
+  collapsedActions?: ReactNode
+  showCollapsedActionsOnMobile?: boolean
 }
 
 const wordmarkTargetByRole: Record<AppSidebarRole, string> = {
@@ -228,49 +218,19 @@ function SidebarFooterUser({ role }: { role: AppSidebarRole }) {
   )
 }
 
-// The student-only cluster actions. They live in their own component so the
-// student data hooks behind New chat never run for the staff roles.
-function StudentClusterActions() {
-  const { openSearchPalette } = useStudentChromeActions()
-  const openNewChat = useStudentNewChat()
-
-  return (
-    <>
-      {/* T15.8 — open the ⌘K search palette directly; do not expand the
-          sidebar. */}
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        aria-label="Search your chats"
-        onClick={() => openSearchPalette()}
-      >
-        <Search aria-hidden />
-      </Button>
-      {/* T15.7 — open the draft and focus its composer directly, without
-          expanding the sidebar. The action runs here rather than forwarding to
-          the sidebar's own button, which is unmounted while the mobile sheet is
-          closed — exactly when this cluster is on screen. */}
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        aria-label="New chat"
-        onClick={() => void openNewChat()}
-      >
-        <Plus aria-hidden />
-      </Button>
-    </>
-  )
-}
-
-function CollapsedCluster({ role }: { role: AppSidebarRole }) {
+function CollapsedCluster({
+  actions,
+  showActionsOnMobile,
+}: {
+  actions?: ReactNode
+  showActionsOnMobile: boolean
+}) {
   const { state, isMobile } = useSidebar()
 
   // On desktop the cluster stands in for the trigger only while collapsed. On
   // mobile the sidebar is always an off-canvas sheet, so students (who have no
   // top bar of their own) always need this cluster to reopen it.
-  const isVisible = state === 'collapsed' || (isMobile && role === 'student')
+  const isVisible = state === 'collapsed' || (isMobile && showActionsOnMobile)
 
   if (!isVisible) {
     return null
@@ -279,12 +239,19 @@ function CollapsedCluster({ role }: { role: AppSidebarRole }) {
   return (
     <div className="glass-paper fixed top-3 left-3 z-50 flex gap-1 rounded-xl p-1 shadow-sm">
       <SidebarTrigger />
-      {role === 'student' ? <StudentClusterActions /> : null}
+      {actions}
     </div>
   )
 }
 
-export function AppSidebar({ role, navigation, ariaLabel }: AppSidebarProps) {
+export function AppSidebar({
+  role,
+  navigation,
+  ariaLabel,
+  sidebarContent,
+  collapsedActions,
+  showCollapsedActionsOnMobile = false,
+}: AppSidebarProps) {
   const { isMobile, setOpenMobile } = useSidebar()
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
@@ -316,9 +283,7 @@ export function AppSidebar({ role, navigation, ariaLabel }: AppSidebarProps) {
         </SidebarHeader>
 
         <SidebarContent>
-          {role === 'student' ? (
-            <StudentSidebarContent />
-          ) : (
+          {sidebarContent ?? (
             <StaffSidebarContent
               navigation={navigation ?? []}
               ariaLabel={ariaLabel ?? 'Navigation'}
@@ -332,7 +297,10 @@ export function AppSidebar({ role, navigation, ariaLabel }: AppSidebarProps) {
         </SidebarFooter>
       </Sidebar>
 
-      <CollapsedCluster role={role} />
+      <CollapsedCluster
+        actions={collapsedActions}
+        showActionsOnMobile={showCollapsedActionsOnMobile}
+      />
     </>
   )
 }

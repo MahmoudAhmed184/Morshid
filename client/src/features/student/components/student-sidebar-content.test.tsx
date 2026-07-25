@@ -17,6 +17,7 @@ import {
   StudentChromeProvider,
   useRegisterComposerFocus,
 } from '@/features/student/components/student-chrome-context'
+import { StudentCourseProvider } from '@/features/student/components/student-course-context'
 import { ThemeProvider } from '@/providers/theme-provider'
 import {
   createStudentSession,
@@ -204,8 +205,10 @@ function renderSidebar({
       <ThemeProvider defaultTheme="system" storageKey="test-theme">
         <SidebarProvider>
           <StudentChromeProvider>
-            {probe}
-            <StudentSidebarContent newChatButtonRef={newChatButtonRef} />
+            <StudentCourseProvider>
+              {probe}
+              <StudentSidebarContent newChatButtonRef={newChatButtonRef} />
+            </StudentCourseProvider>
           </StudentChromeProvider>
         </SidebarProvider>
       </ThemeProvider>
@@ -245,6 +248,7 @@ describe('StudentSidebarContent', () => {
     )
     routerMockState.search = { courseId: primaryCourse.id }
     window.localStorage.clear()
+    window.sessionStorage.clear()
     useAuthStore.getState().clearSession()
     useAuthStore.getState().setSession(createStudentAuthSession())
   })
@@ -254,6 +258,7 @@ describe('StudentSidebarContent', () => {
     vi.unstubAllGlobals()
     useAuthStore.getState().clearSession()
     window.localStorage.clear()
+    window.sessionStorage.clear()
   })
 
   it('groups conversations under recency headings', () => {

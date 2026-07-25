@@ -84,8 +84,17 @@ export function StudentShell() {
       ) : null}
 
       <div
+        data-slot="student-outlet"
         className={cn(
           'flex min-h-0 flex-1 flex-col overflow-hidden bg-background',
+          // The shell owns the inset every student outlet needs. When the
+          // control clusters float (unframed) they are fixed at `top-3` with
+          // `z-50`, so without a reserved band they cover the top of whatever
+          // the outlet renders — the Settings header at every width, and the
+          // chat header between `md` and the width where the centred page
+          // gutters clear the left cluster. Framed mode reserves the same room
+          // with its own `h-12` band instead.
+          !framed && 'pt-16',
           framed && 'md:rounded-t-2xl',
         )}
       >

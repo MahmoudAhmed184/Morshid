@@ -1,4 +1,4 @@
-import { useNavigate, useRouterState } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
 import { MessageSquareText, Plus } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/dialog'
 import { useStudentSearchPalette } from '@/features/student/components/student-chrome-context'
 import { useStudentNewChat } from '@/features/student/components/student-sidebar-content'
-import { useStudentCourses } from '@/features/student/hooks/use-student-courses'
+import { useStudentCourseContext } from '@/features/student/components/student-course-context'
 import { useStudentSessions } from '@/features/student/hooks/use-student-sessions'
 import type { ChatSession } from '@/features/student/schemas/student-chat.schema'
 
@@ -32,16 +32,7 @@ export function StudentSearchPalette() {
   const { isOpen, setOpen } = useStudentSearchPalette()
   const openNewChat = useStudentNewChat()
   const navigate = useNavigate()
-  const search = useRouterState({ select: (state) => state.location.search })
-  const routeCourseId = search.courseId
-
-  const { data: assignedCourses } = useStudentCourses()
-  const selectedCourse =
-    (routeCourseId
-      ? assignedCourses.find((course) => course.id === routeCourseId)
-      : assignedCourses.length === 1
-        ? assignedCourses[0]
-        : undefined) ?? null
+  const { activeCourse: selectedCourse } = useStudentCourseContext()
 
   const sessionsQuery = useStudentSessions({ courseId: selectedCourse?.id })
   const sessions =
