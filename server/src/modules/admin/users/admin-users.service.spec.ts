@@ -14,6 +14,7 @@ import type { AuthUserService } from '../../auth/services/auth-user.service'
 import type { PasswordHasherService } from '../../auth/services/password-hasher.service'
 import {
   ADMIN_USERS_ERROR_CODES,
+  AdminUserRoleChangeHasMembershipsError,
   CannotDisableLastActiveAdminError,
 } from './admin-users.errors'
 import {
@@ -620,6 +621,40 @@ describe('AdminUsersService', () => {
       },
     })
     expect(repository.updateUser.mock.calls).toHaveLength(0)
+  })
+
+  it('maps a repository role-change membership conflict to a stable 409 response', async () => {
+    const { repository, service } = buildService()
+
+    repository.addUser({
+      id: 'target-user',
+      email: 'target@morshid.demo',
+      displayName: 'Target User',
+      role: UserRole.STUDENT,
+      status: UserStatus.ACTIVE,
+      createdAt,
+      updatedAt,
+    })
+    repository.updateUser.mockImplementationOnce(() =>
+      Promise.reject(new AdminUserRoleChangeHasMembershipsError('target-user')),
+    )
+
+    const updateUser = service.updateUser(
+      'target-user',
+      { role: UserRole.INSTRUCTOR },
+      actor,
+      requestContext,
+    )
+
+    await expect(updateUser).rejects.toBeInstanceOf(ConflictException)
+    await expect(updateUser).rejects.toMatchObject({
+      response: {
+        code: ADMIN_USERS_ERROR_CODES.ROLE_CHANGE_HAS_MEMBERSHIPS,
+        message:
+          'Remove active course memberships before changing the account role',
+        userId: 'target-user',
+      },
+    })
   })
 
   it('disables an active user through the repository and returns a safe response', async () => {

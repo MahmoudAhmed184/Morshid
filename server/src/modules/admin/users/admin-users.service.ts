@@ -23,6 +23,7 @@ import type {
 } from './admin-users.dto'
 import {
   AdminUserEmailAlreadyExistsError,
+  AdminUserRoleChangeHasMembershipsError,
   AdminUserNotFoundError,
   CannotDisableLastActiveAdminError,
   adminUserNotFoundException,
@@ -30,6 +31,7 @@ import {
   cannotDisableLastActiveAdminException,
   cannotDisableSelfException,
   duplicateAdminUserEmailException,
+  adminUserRoleChangeHasMembershipsException,
 } from './admin-users.errors'
 import {
   AdminUsersRepository,
@@ -140,6 +142,10 @@ export class AdminUsersService {
     } catch (error) {
       if (error instanceof AdminUserEmailAlreadyExistsError) {
         throw duplicateAdminUserEmailException(error.email)
+      }
+
+      if (error instanceof AdminUserRoleChangeHasMembershipsError) {
+        throw adminUserRoleChangeHasMembershipsException(error.userId)
       }
 
       throw error

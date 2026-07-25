@@ -286,6 +286,18 @@ export class PrismaAdminCoursesRepository extends AdminCoursesRepository {
   async updateCourse(input: UpdateCourseInput): Promise<AdminCourseRecord> {
     try {
       return await this.prismaService.$transaction(async (tx) => {
+        const previousCourse = await tx.course.findUnique({
+          where: { id: input.courseId },
+          select: {
+            code: true,
+            title: true,
+          },
+        })
+
+        if (previousCourse === null) {
+          throw new Error(`Course ${input.courseId} disappeared during update`)
+        }
+
         const course = await tx.course.update({
           where: { id: input.courseId },
           data: {
@@ -299,6 +311,7 @@ export class PrismaAdminCoursesRepository extends AdminCoursesRepository {
           {
             actorUserId: input.actorUserId,
             course,
+            previousCourse,
             requestContext: input.requestContext,
           },
           tx,

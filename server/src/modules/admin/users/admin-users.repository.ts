@@ -13,6 +13,7 @@ import { AdminUsersAuditService } from './admin-users.audit.service'
 import {
   AdminUserEmailAlreadyExistsError,
   AdminUserNotFoundError,
+  AdminUserRoleChangeHasMembershipsError,
   CannotDisableLastActiveAdminError,
 } from './admin-users.errors'
 
@@ -235,30 +236,59 @@ export class PrismaAdminUsersRepository extends AdminUsersRepository {
     input: UpdateAdminUserRepositoryInput,
   ): Promise<AdminUserRecord> {
     try {
-      return await this.prismaService.$transaction(async (tx) => {
-        const user = await tx.user.update({
-          where: {
-            id: input.userId,
-          },
-          data: {
-            email: input.email,
-            displayName: input.displayName,
-            role: input.role,
-          },
-          select: adminUserRecordSelect,
-        })
+      return await this.prismaService.$transaction(
+        async (tx) => {
+          const currentUser = await tx.user.findUnique({
+            where: { id: input.userId },
+            select: adminUserRecordSelect,
+          })
 
-        await this.adminUsersAuditService.recordUserUpdated(
-          {
-            actorUserId: input.actorUserId,
-            targetUser: user,
-            requestContext: input.requestContext,
-          },
-          tx,
-        )
+          if (currentUser === null) {
+            throw new AdminUserNotFoundError(input.userId)
+          }
 
-        return user
-      })
+          if (input.role !== undefined && input.role !== currentUser.role) {
+            const activeMembership = await tx.courseMembership.findFirst({
+              where: {
+                userId: input.userId,
+                removedAt: null,
+              },
+              select: { id: true },
+            })
+
+            if (activeMembership !== null) {
+              throw new AdminUserRoleChangeHasMembershipsError(input.userId)
+            }
+          }
+
+          const user = await tx.user.update({
+            where: {
+              id: input.userId,
+            },
+            data: {
+              email: input.email,
+              displayName: input.displayName,
+              role: input.role,
+            },
+            select: adminUserRecordSelect,
+          })
+
+          await this.adminUsersAuditService.recordUserUpdated(
+            {
+              actorUserId: input.actorUserId,
+              previousUser: currentUser,
+              targetUser: user,
+              requestContext: input.requestContext,
+            },
+            tx,
+          )
+
+          return user
+        },
+        {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        },
+      )
     } catch (error) {
       if (isUniqueConstraintViolation(error) && input.email !== undefined) {
         throw new AdminUserEmailAlreadyExistsError(input.email)

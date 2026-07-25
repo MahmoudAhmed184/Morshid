@@ -12,6 +12,7 @@ export const ADMIN_USERS_ERROR_CODES = {
     'ADMIN_USERS_CANNOT_DISABLE_LAST_ACTIVE_ADMIN',
   CANNOT_DISABLE_SELF: 'ADMIN_USERS_CANNOT_DISABLE_SELF',
   CANNOT_CHANGE_ADMIN_ROLE: 'ADMIN_USERS_CANNOT_CHANGE_ADMIN_ROLE',
+  ROLE_CHANGE_HAS_MEMBERSHIPS: 'ADMIN_USERS_ROLE_CHANGE_HAS_ACTIVE_MEMBERSHIPS',
   INVALID_CREATE_REQUEST: 'ADMIN_USERS_INVALID_CREATE_REQUEST',
   INVALID_LIST_REQUEST: 'ADMIN_USERS_INVALID_LIST_REQUEST',
   INVALID_UPDATE_REQUEST: 'ADMIN_USERS_INVALID_UPDATE_REQUEST',
@@ -38,6 +39,12 @@ export class CannotDisableLastActiveAdminError extends Error {}
 export class AdminUserNotFoundError extends Error {
   constructor(readonly userId: string) {
     super(`Admin user not found: ${userId}`)
+  }
+}
+
+export class AdminUserRoleChangeHasMembershipsError extends Error {
+  constructor(readonly userId: string) {
+    super(`User ${userId} has active course memberships`)
   }
 }
 
@@ -68,6 +75,17 @@ export function cannotChangeAdminRoleException(): HttpException {
   return new ForbiddenException({
     code: ADMIN_USERS_ERROR_CODES.CANNOT_CHANGE_ADMIN_ROLE,
     message: 'Administrator account roles cannot be changed',
+  })
+}
+
+export function adminUserRoleChangeHasMembershipsException(
+  userId: string,
+): HttpException {
+  return new ConflictException({
+    code: ADMIN_USERS_ERROR_CODES.ROLE_CHANGE_HAS_MEMBERSHIPS,
+    message:
+      'Remove active course memberships before changing the account role',
+    userId,
   })
 }
 

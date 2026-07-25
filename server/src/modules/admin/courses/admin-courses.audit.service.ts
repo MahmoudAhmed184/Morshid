@@ -28,6 +28,10 @@ interface RecordCourseUpdatedInput {
     code: string
     title: string
   }
+  previousCourse: {
+    code: string
+    title: string
+  }
   requestContext?: AuditRequestContext
 }
 
@@ -127,8 +131,20 @@ export class AdminCoursesAuditService {
         },
         courseId: input.course.id,
         metadata: {
-          code: input.course.code,
-          title: input.course.title,
+          before: {
+            code: input.previousCourse.code,
+            title: input.previousCourse.title,
+          },
+          after: {
+            code: input.course.code,
+            title: input.course.title,
+          },
+          changedFields: ['code', 'title'].filter(
+            (field) =>
+              input.previousCourse[
+                field as keyof typeof input.previousCourse
+              ] !== input.course[field as 'code' | 'title'],
+          ),
         },
         requestContext: input.requestContext,
       },
