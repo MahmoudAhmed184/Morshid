@@ -458,6 +458,28 @@ disable grounded retrieval → stop/scale material-processing workers to zero
 → restart workers and retrieval
 ```
 
+The migration step is:
+
+```bash
+npm run embedding:migrate -- gemini      # or: deterministic
+```
+
+The target is an **explicit argument**, and its configuration is validated
+independently of `EMBEDDING_PROVIDER` — the whole point is to migrate *before*
+switching, so the target is deliberately not the configured provider. For a
+Gemini target this means `GEMINI_EMBEDDING_*` must be set while
+`EMBEDDING_PROVIDER` is still `deterministic`; the command checks them itself,
+because the environment schema only requires them once Gemini is selected.
+
+Every run scans **all** candidate materials, checks each one's current
+target-profile coverage, skips the complete ones, and retries every incomplete
+one — so re-running it is the resume mechanism. It exits non-zero unless the
+whole target corpus is covered, which is what stops an operator switching
+providers off a partially successful run. It re-embeds the **persisted chunk
+text and material title** and never re-extracts a PDF: re-extraction could
+change chunk boundaries if the extractor or chunker has evolved, silently
+turning a provider migration into an undocumented content migration.
+
 Rollback is reprocessing with the previous provider. A zero-degradation rolling
 migration would require storing multiple profiles per chunk — a schema redesign
 that is explicitly out of scope.

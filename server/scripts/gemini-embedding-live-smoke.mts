@@ -18,6 +18,19 @@ loadEnv({
   quiet: true,
 })
 
+/**
+ * Minimum cosine margin the relevant fixture must beat the unrelated one by.
+ *
+ * A bare `relevant > unrelated` comparison passes on noise: two near-orthogonal
+ * vectors differ by something, so the assertion would hold even if the model
+ * had learned nothing useful. The margin is deliberately **per provider** and
+ * must be recalibrated after measuring both query tasks — see
+ * `docs/gemini-embedding-task-selection.md`. This starting value is
+ * conservative: it is set low enough not to fail a working provider, which
+ * means it currently proves ordering with headroom rather than quality.
+ */
+const MIN_SEMANTIC_MARGIN = 0.05
+
 const MAX_DIAGNOSTIC_MESSAGE_LENGTH = 500
 const REDACTED = '[redacted]'
 
@@ -89,7 +102,9 @@ async function main(): Promise<void> {
       // A successful request at the configured size establishes only that the
       // configured operational batch succeeds — not the model's maximum.
       configuredBatchSucceeded: batch.length === GEMINI_EMBEDDING_BATCH_SIZE,
-      semanticOrderingPassed: relevantSimilarity > unrelatedSimilarity,
+      minSemanticMargin: MIN_SEMANTIC_MARGIN,
+      semanticOrderingPassed:
+        relevantSimilarity > unrelatedSimilarity + MIN_SEMANTIC_MARGIN,
     })}\n`,
   )
 }
