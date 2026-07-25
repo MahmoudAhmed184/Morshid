@@ -19,13 +19,12 @@ export function AuthBrandingPanel({ className }: AuthBrandingPanelProps) {
         className,
       )}
     >
-      {/* Background artwork featuring floating illuminated manuscript pages */}
-      <div className="absolute inset-0 z-0">
-        <img
-          src="/login-art.jpg"
-          alt="Morshid Socratic AI Artwork"
-          className="h-full w-full object-cover object-center opacity-70 transition-opacity duration-500"
-        />
+      {/*
+        Decorative artwork. It is a CSS background rather than an `<img>` and is
+        declared only from `lg` upwards, so the large JPEG is never fetched on
+        the viewports where this panel is hidden.
+      */}
+      <div className="absolute inset-0 z-0 bg-cover bg-center opacity-70 lg:bg-[image:url('/login-art.jpg')]">
         {/* Soft radial vignette to preserve text legibility at top and bottom */}
         <div className="absolute inset-0 bg-gradient-to-b from-foreground/85 via-foreground/45 to-foreground/90 dark:from-background/85 dark:via-background/45 dark:to-background/90" />
       </div>
