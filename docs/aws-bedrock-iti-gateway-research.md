@@ -234,6 +234,47 @@ plaintext URL is what was actually read. Morshid itself still deploys over
 HTTPS, and its plaintext transport is a development-only, explicitly enabled
 exception.
 
+## Embedding endpoint — blocked on a live probe (2026-07-26)
+
+The embedding work (Gemini + AWS Bedrock embedding providers) shipped Phases 0-2.
+**Phase 3, the ITI Cohere embedding adapter, is deliberately not implemented**,
+and `aws-bedrock` is deliberately absent from the `EMBEDDING_PROVIDER` enum.
+
+The blocker is evidence, not effort. Public AWS documentation establishes only
+that `us.cohere.embed-v4:0` requires `input_type`, defaults to 1,536-dimensional
+float vectors, and accepts up to 96 texts per *model* request. Every
+gateway-specific fact remains unverified:
+
+- that `/api/v1/student/embed` is the stable route, and that its body is exactly
+  `{model_id, texts, input_type}`
+- that `us.cohere.embed-v4:0` is approved for this ITI account
+- that the gateway preserves Cohere's default 1,536-dimensional output — the
+  body carries no dimension field, so there is no workaround if it does not
+- the exact response envelope, and whether it echoes the input texts
+- the gateway's practical batch capacity (AWS documents 96 for the model; the
+  gateway's own limit is unknown)
+
+The dated model sweep recorded above probed `/student/chat`, where an embedding
+model fails by construction. It says nothing about `/student/embed`.
+
+Writing the adapter now would mean inventing the response envelope and then
+writing tests that prove compatibility with a payload nobody has observed. That
+is worse than having no adapter: it would let an error envelope resemble a valid
+shape, and it would hide gateway contract drift behind parsing that accepts
+several conventions "just in case".
+
+**To unblock:** run one redacted request against `/student/embed` with a live
+ITI key. Record only the top-level property names, a shape label, the embedding
+count, the dimensions per embedding, and whether the input text is echoed — no
+vector values, no source text, no credentials, no headers. Save a sanitized
+fixture and append the findings here. Then implement **only** the observed shape.
+Quantized `int8`/`binary` variants are rejected unconditionally whatever the
+probe shows: they would pass a finiteness check while living in a different
+metric space.
+
+No ITI credential is present in the local ignored environment as of this date,
+so the probe could not be run.
+
 - [ITI Student Bedrock Gateway integration contract](http://apiaccess.iti.net.eg/student/integration)
 - [AWS `gpt-oss-20b` model card](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-oss-20b.html)
 - [AWS OpenAI model parameters](https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-openai.html)

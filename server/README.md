@@ -427,6 +427,17 @@ the wording — a successful 32-input request establishes that **the configured
 operational batch succeeds**, not the model's maximum; claiming a maximum
 requires deliberately probing increasing sizes.
 
+### AWS Bedrock embedding is not available
+
+`EMBEDDING_PROVIDER` accepts `deterministic` and `gemini` only. An ITI Cohere
+embedding adapter is deliberately not implemented: every gateway-specific fact
+about `/student/embed` — the route, the request body, the response envelope, the
+approved model, and whether the gateway preserves Cohere's 1,536-dimensional
+default — is unverified, and implementing against an invented envelope would
+hide contract drift rather than expose it. See the "Embedding endpoint — blocked
+on a live probe" section of `docs/aws-bedrock-iti-gateway-research.md` for the
+probe that unblocks it.
+
 ### Switching embedding providers
 
 The schema stores one vector and one model id per chunk, and replacement is
