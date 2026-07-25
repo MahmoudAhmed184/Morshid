@@ -1,7 +1,7 @@
 import { Logger } from '@nestjs/common'
 
-import type { PreparedCompletionRequest } from './completion-adapter'
-import { CompletionProviderError } from './completion-provider'
+import type { PreparedCompletionRequest } from '../../completion-adapter'
+import { CompletionProviderError } from '../../completion-provider'
 import {
   type GeminiCompletionClient,
   GeminiCompletionAdapter,

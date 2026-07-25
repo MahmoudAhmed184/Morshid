@@ -125,7 +125,10 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
     storageRoot = await mkdtemp(join(tmpdir(), 'morshid-gate-2-'))
     storage = new LocalPdfStorageAdapter(storageRoot)
     completionProvider = new CapturingCompletionProvider(
-      createCompletionProvider('deterministic', 30_000),
+      createCompletionProvider({
+        provider: 'deterministic',
+        timeoutMs: 30_000,
+      }),
     )
     processingScheduler = new CapturingProcessingScheduler(prisma)
 

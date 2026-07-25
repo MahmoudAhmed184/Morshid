@@ -1,4 +1,4 @@
-export const GEMINI_COMPLETION_PROVIDER = 'gemini'
+// The provider name lives in `completion-configuration` with the other two.
 export const DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash-lite'
 export const GEMINI_API_VERSION = 'v1'
 export const MAX_GEMINI_MODEL_ID_LENGTH = 120

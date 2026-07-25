@@ -5,8 +5,8 @@ import { validateEnv } from '../src/modules/config/env.schema.js'
 import {
   GeminiCompletionAdapter,
   createGeminiCompletionClient,
-} from '../src/modules/completion/gemini-completion.adapter.js'
-import { GeminiQuotaService } from '../src/modules/completion/gemini-quota.service.js'
+} from '../src/modules/completion/providers/gemini/gemini-completion.adapter.js'
+import { GeminiQuotaService } from '../src/modules/completion/providers/gemini/gemini-quota.service.js'
 import { ValidatedCompletionProvider } from '../src/modules/completion/validated-completion.provider.js'
 import { GEMINI_LIVE_SMOKE_FIXTURE } from '../test/fixtures/gemini-live-smoke.fixture.js'
 

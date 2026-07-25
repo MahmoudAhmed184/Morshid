@@ -9,19 +9,21 @@ import {
 import type {
   CompletionAdapter,
   PreparedCompletionRequest,
-} from './completion-adapter'
-import type { CompletionResult } from './completion-provider'
-import { CompletionProviderError } from './completion-provider'
+} from '../../completion-adapter'
+import { GEMINI_COMPLETION_PROVIDER } from '../../completion-configuration'
+import type { CompletionResult } from '../../completion-provider'
+import { CompletionProviderError } from '../../completion-provider'
+import { GROUNDED_COMPLETION_PROMPT_VERSION } from '../../grounded-completion-envelope'
+import { MAX_COMPLETION_TIMEOUT_MS } from '../../validated-completion.provider'
 import {
   GEMINI_API_VERSION,
-  GEMINI_COMPLETION_PROVIDER,
+  MAX_GEMINI_MODEL_ID_LENGTH,
 } from './gemini-completion.constants'
 import {
   type GeminiQuotaDimension,
   GeminiQuotaReservationError,
   type GeminiQuotaService,
 } from './gemini-quota.service'
-import { GROUNDED_COMPLETION_PROMPT_VERSION } from './grounded-completion-envelope'
 
 const MAX_GENERATION_ATTEMPTS = 2
 const DEFAULT_RETRY_DELAY_MS = 250
@@ -75,6 +77,107 @@ export interface GeminiCompletionAdapterOptions {
   readonly completionTimeoutMs: number
 }
 
+// The adapter only ever debits and reconciles; it never reads bucket state, so
+// the port is narrower than the service and a test double stays cheap.
+export type GeminiQuotaPort = Pick<
+  GeminiQuotaService,
+  'reserveRequest' | 'reserveGeneration' | 'reconcileInputTokens'
+>
+
+// Unlike the gateway providers, Gemini cannot be described by plain data: the
+// quota guard is Redis-backed and the SDK client is a network object, so both
+// are collaborators the composition root owns. The factory therefore receives
+// them already constructed and validates their shape, which keeps the
+// injected-seam testability of the adapter without the factory having to reach
+// for Redis itself.
+export interface GeminiConfiguration {
+  readonly client: GeminiCompletionClient
+  readonly quota: GeminiQuotaPort
+  readonly options: GeminiCompletionAdapterOptions
+  readonly clock?: GeminiClock
+  readonly retryDelay?: GeminiRetryDelay
+}
+
+export function validateGeminiConfiguration(
+  configuration: unknown,
+): GeminiConfiguration {
+  try {
+    if (typeof configuration !== 'object' || configuration === null) {
+      throw new TypeError('Invalid configuration')
+    }
+
+    const record = configuration as Record<PropertyKey, unknown>
+    const client = Reflect.get(record, 'client')
+    const quota = Reflect.get(record, 'quota')
+    const options = Reflect.get(record, 'options')
+    const clock = Reflect.get(record, 'clock')
+    const retryDelay = Reflect.get(record, 'retryDelay')
+
+    if (
+      !hasMethods(client, ['countTokens', 'createInteraction']) ||
+      !hasMethods(quota, [
+        'reserveRequest',
+        'reserveGeneration',
+        'reconcileInputTokens',
+      ]) ||
+      !isGeminiAdapterOptions(options) ||
+      !isOptionalFunction(clock) ||
+      !isOptionalFunction(retryDelay)
+    ) {
+      throw new TypeError('Invalid configuration')
+    }
+
+    return Object.freeze({
+      client: client as GeminiCompletionClient,
+      quota: quota as GeminiQuotaPort,
+      options: Object.freeze({
+        model: options.model,
+        completionTimeoutMs: options.completionTimeoutMs,
+      }),
+      ...(clock === undefined ? {} : { clock: clock as GeminiClock }),
+      ...(retryDelay === undefined
+        ? {}
+        : { retryDelay: retryDelay as GeminiRetryDelay }),
+    })
+  } catch {
+    throw new CompletionProviderError('COMPLETION_CONFIGURATION_INVALID')
+  }
+}
+
+function hasMethods(value: unknown, methods: readonly string[]): boolean {
+  if (typeof value !== 'object' || value === null) {
+    return false
+  }
+  return methods.every(
+    (method) => typeof Reflect.get(value, method) === 'function',
+  )
+}
+
+function isGeminiAdapterOptions(
+  value: unknown,
+): value is GeminiCompletionAdapterOptions {
+  if (typeof value !== 'object' || value === null) {
+    return false
+  }
+
+  const model: unknown = Reflect.get(value, 'model')
+  const completionTimeoutMs: unknown = Reflect.get(value, 'completionTimeoutMs')
+
+  return (
+    typeof model === 'string' &&
+    model.length > 0 &&
+    model.length <= MAX_GEMINI_MODEL_ID_LENGTH &&
+    typeof completionTimeoutMs === 'number' &&
+    Number.isSafeInteger(completionTimeoutMs) &&
+    completionTimeoutMs >= 1 &&
+    completionTimeoutMs <= MAX_COMPLETION_TIMEOUT_MS
+  )
+}
+
+function isOptionalFunction(value: unknown): boolean {
+  return value === undefined || typeof value === 'function'
+}
+
 export function createGeminiCompletionClient(
   apiKey: string,
   sdkFactory: GeminiSdkFactory = defaultGeminiSdkFactory,
@@ -101,10 +204,7 @@ export class GeminiCompletionAdapter implements CompletionAdapter {
 
   constructor(
     private readonly client: GeminiCompletionClient,
-    private readonly quota: Pick<
-      GeminiQuotaService,
-      'reserveRequest' | 'reserveGeneration' | 'reconcileInputTokens'
-    >,
+    private readonly quota: GeminiQuotaPort,
     private readonly options: GeminiCompletionAdapterOptions,
     private readonly clock: GeminiClock = Date.now,
     private readonly retryDelay: GeminiRetryDelay = waitForRetry,

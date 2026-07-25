@@ -21,9 +21,12 @@ import {
 export const DEFAULT_COMPLETION_TIMEOUT_MS = 30_000
 export const MAX_COMPLETION_TIMEOUT_MS = 120_000
 export const MAX_COMPLETION_OUTPUT_CODE_POINTS = 16_000
+// The outbound bound on the model string every adapter echoes back. Provider
+// configuration derives its inbound model-ID bound from this constant so the
+// two can never disagree.
+export const MAX_COMPLETION_MODEL_LENGTH = 120
 
 const MAX_PROVIDER_LENGTH = 80
-const MAX_MODEL_LENGTH = 120
 const MAX_PROMPT_VERSION_LENGTH = 80
 const RESULT_KEYS = [
   'content',
@@ -238,7 +241,7 @@ function validateResultSafely(result: unknown): CompletionResult {
         MAX_COMPLETION_OUTPUT_CODE_POINTS,
       ) ||
       !isBoundedMetadata(snapshot.provider, MAX_PROVIDER_LENGTH) ||
-      !isBoundedMetadata(snapshot.model, MAX_MODEL_LENGTH) ||
+      !isBoundedMetadata(snapshot.model, MAX_COMPLETION_MODEL_LENGTH) ||
       !isBoundedMetadata(snapshot.promptVersion, MAX_PROMPT_VERSION_LENGTH) ||
       snapshot.promptVersion !== GROUNDED_COMPLETION_PROMPT_VERSION ||
       !isOptionalTokenCount(snapshot.inputTokens) ||

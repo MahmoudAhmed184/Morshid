@@ -1,8 +1,20 @@
-import type { AppEnvironment } from '../config/env.schema'
 import type { CompletionAdapter } from './completion-adapter'
+import {
+  AWS_BEDROCK_COMPLETION_PROVIDER,
+  DETERMINISTIC_COMPLETION_PROVIDER,
+  GEMINI_COMPLETION_PROVIDER,
+  type AwsBedrockConfiguration,
+  validateAwsBedrockConfiguration,
+} from './completion-configuration'
 import type { CompletionProvider } from './completion-provider'
 import { CompletionProviderError } from './completion-provider'
-import { DeterministicCompletionProvider } from './deterministic-completion.provider'
+import { ItiBedrockGatewayAdapter } from './providers/aws-bedrock/iti-bedrock-gateway.adapter'
+import { DeterministicCompletionAdapter } from './providers/deterministic/deterministic-completion.adapter'
+import {
+  GeminiCompletionAdapter,
+  type GeminiConfiguration,
+  validateGeminiConfiguration,
+} from './providers/gemini/gemini-completion.adapter'
 import {
   MAX_COMPLETION_TIMEOUT_MS,
   ValidatedCompletionProvider,
@@ -10,60 +22,124 @@ import {
 } from './validated-completion.provider'
 import type { CompletionTimeoutSignalFactory } from './validated-completion.provider'
 
-export interface CompletionAdapterFactories {
-  readonly deterministic?: () => CompletionAdapter
-  readonly gemini?: () => CompletionAdapter
-}
-
-const SUPPORTED_COMPLETION_PROVIDERS = {
-  deterministic: true,
-  gemini: true,
-} satisfies Record<AppEnvironment['COMPLETION_PROVIDER'], true>
+export type CompletionProviderConfiguration =
+  | {
+      readonly provider: typeof DETERMINISTIC_COMPLETION_PROVIDER
+      readonly timeoutMs: number
+    }
+  | {
+      readonly provider: typeof AWS_BEDROCK_COMPLETION_PROVIDER
+      readonly timeoutMs: number
+      readonly awsBedrock: AwsBedrockConfiguration
+    }
+  | {
+      readonly provider: typeof GEMINI_COMPLETION_PROVIDER
+      readonly timeoutMs: number
+      readonly gemini: GeminiConfiguration
+    }
 
 export function createCompletionProvider(
-  provider: AppEnvironment['COMPLETION_PROVIDER'],
-  timeoutMs: number,
+  configuration: CompletionProviderConfiguration,
   timeoutSignalFactory: CompletionTimeoutSignalFactory = defaultCompletionTimeoutSignalFactory,
-  adapterFactories: CompletionAdapterFactories = {},
 ): CompletionProvider {
-  // Startup validation is the first guard; this runtime check remains because
-  // JavaScript callers and deployment tooling can still violate static types.
-  const runtimeProvider: unknown = provider
+  const snapshot = snapshotFactoryConfiguration(configuration)
+  let adapter: CompletionAdapter
+
+  switch (snapshot.provider) {
+    case DETERMINISTIC_COMPLETION_PROVIDER:
+      adapter = new DeterministicCompletionAdapter()
+      break
+    case AWS_BEDROCK_COMPLETION_PROVIDER:
+      adapter = new ItiBedrockGatewayAdapter(snapshot.awsBedrock)
+      break
+    case GEMINI_COMPLETION_PROVIDER:
+      adapter = new GeminiCompletionAdapter(
+        snapshot.gemini.client,
+        snapshot.gemini.quota,
+        snapshot.gemini.options,
+        snapshot.gemini.clock,
+        snapshot.gemini.retryDelay,
+      )
+      break
+    default:
+      assertNever(snapshot)
+  }
+
+  return new ValidatedCompletionProvider(
+    adapter,
+    snapshot.timeoutMs,
+    timeoutSignalFactory,
+  )
+}
+
+function snapshotFactoryConfiguration(
+  configuration: unknown,
+): CompletionProviderConfiguration {
+  let provider: unknown
+  let timeoutMs: unknown
+  let awsBedrock: unknown
+  let gemini: unknown
+
+  try {
+    if (typeof configuration !== 'object' || configuration === null) {
+      throw new CompletionProviderError('COMPLETION_CONFIGURATION_INVALID')
+    }
+    const record = configuration as Record<PropertyKey, unknown>
+    provider = Reflect.get(record, 'provider')
+    timeoutMs = Reflect.get(record, 'timeoutMs')
+    if (provider === AWS_BEDROCK_COMPLETION_PROVIDER) {
+      awsBedrock = Reflect.get(record, 'awsBedrock')
+    }
+    if (provider === GEMINI_COMPLETION_PROVIDER) {
+      gemini = Reflect.get(record, 'gemini')
+    }
+  } catch (error) {
+    if (error instanceof CompletionProviderError) {
+      throw error
+    }
+    throw new CompletionProviderError('COMPLETION_CONFIGURATION_INVALID')
+  }
+
   if (
-    typeof runtimeProvider !== 'string' ||
-    !Object.hasOwn(SUPPORTED_COMPLETION_PROVIDERS, runtimeProvider)
+    provider !== DETERMINISTIC_COMPLETION_PROVIDER &&
+    provider !== AWS_BEDROCK_COMPLETION_PROVIDER &&
+    provider !== GEMINI_COMPLETION_PROVIDER
   ) {
     throw new CompletionProviderError('COMPLETION_PROVIDER_UNSUPPORTED')
   }
 
-  const runtimeTimeout: unknown = timeoutMs
   if (
-    typeof runtimeTimeout !== 'number' ||
-    !Number.isSafeInteger(runtimeTimeout) ||
-    runtimeTimeout < 1 ||
-    runtimeTimeout > MAX_COMPLETION_TIMEOUT_MS
+    typeof timeoutMs !== 'number' ||
+    !Number.isSafeInteger(timeoutMs) ||
+    timeoutMs < 1 ||
+    timeoutMs > MAX_COMPLETION_TIMEOUT_MS
   ) {
     throw new CompletionProviderError('COMPLETION_CONFIGURATION_INVALID')
   }
 
-  const adapterFactory =
-    runtimeProvider === 'deterministic'
-      ? (adapterFactories.deterministic ??
-        (() => new DeterministicCompletionProvider()))
-      : adapterFactories.gemini
-  if (adapterFactory === undefined) {
-    throw new CompletionProviderError('COMPLETION_CONFIGURATION_INVALID')
+  if (provider === DETERMINISTIC_COMPLETION_PROVIDER) {
+    return Object.freeze({ provider, timeoutMs })
   }
 
-  let inner: CompletionAdapter
-  try {
-    inner = adapterFactory()
-  } catch {
-    throw new CompletionProviderError('COMPLETION_CONFIGURATION_INVALID')
+  // Each provider's configuration is validated here rather than trusted, so the
+  // declared return type is honest and the adapter receives a snapshot that has
+  // already been checked and normalized.
+  if (provider === GEMINI_COMPLETION_PROVIDER) {
+    return Object.freeze({
+      provider,
+      timeoutMs,
+      gemini: validateGeminiConfiguration(gemini),
+    })
   }
-  return new ValidatedCompletionProvider(
-    inner,
-    runtimeTimeout,
-    timeoutSignalFactory,
-  )
+
+  return Object.freeze({
+    provider,
+    timeoutMs,
+    awsBedrock: validateAwsBedrockConfiguration(awsBedrock),
+  })
+}
+
+function assertNever(value: never): never {
+  void value
+  throw new CompletionProviderError('COMPLETION_PROVIDER_UNSUPPORTED')
 }
