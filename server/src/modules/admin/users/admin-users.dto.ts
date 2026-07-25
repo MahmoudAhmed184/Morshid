@@ -45,6 +45,9 @@ export const adminUpdateUserRequestSchema = z
     role: z.enum([UserRole.STUDENT, UserRole.INSTRUCTOR]).optional(),
   })
   .strict()
+  .refine((input) => Object.keys(input).length > 0, {
+    message: 'At least one user field must be provided',
+  })
 
 export const adminResetUserPasswordRequestSchema = z
   .object({

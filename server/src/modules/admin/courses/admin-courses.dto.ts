@@ -26,6 +26,9 @@ export const adminUpdateCourseRequestSchema = z
     title: z.string().trim().min(3).max(160).optional(),
   })
   .strict()
+  .refine((input) => Object.keys(input).length > 0, {
+    message: 'At least one course field must be provided',
+  })
 
 export const adminAddCourseMemberRequestSchema = z
   .object({
