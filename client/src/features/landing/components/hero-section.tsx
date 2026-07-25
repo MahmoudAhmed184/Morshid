@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { motion } from 'framer-motion'
+import { motion } from 'motion/react'
 
 import { Logo } from '@/components/logo'
 import { Button } from '@/components/ui/button'
@@ -24,12 +24,10 @@ function SpeakerLabel({ children, tone }: SpeakerLabelProps) {
   )
 }
 
-function Citation({ n, href }: { n: number; href: string }) {
+function Citation({ n }: { n: number }) {
   return (
     <sup className="ml-0.5 align-super text-[0.7em] font-medium text-info">
-      <a href={href} className="link-editorial">
-        {n}
-      </a>
+      {n}
     </sup>
   )
 }
@@ -146,7 +144,7 @@ export function HeroTranscriptStack() {
           className="flex items-center gap-1.5 font-mono text-[0.68rem] text-primary transition-colors hover:text-primary/80"
         >
           <span>Swipe/Pull paper</span>
-          <span className="animate-bounce">↔</span>
+          <span className="motion-safe:animate-bounce">↔</span>
         </button>
       </div>
 
@@ -218,10 +216,7 @@ export function HeroTranscriptStack() {
                   >
                     {turn.text}
                     {'citation' in turn && (
-                      <Citation
-                        n={turn.citation as number}
-                        href={`#fn-next-${idx}`}
-                      />
+                      <Citation n={turn.citation as number} />
                     )}
                   </p>
                 </div>
@@ -302,10 +297,7 @@ export function HeroTranscriptStack() {
                   >
                     {turn.text}
                     {'citation' in turn && (
-                      <Citation
-                        n={turn.citation as number}
-                        href={`#fn-${idx}`}
-                      />
+                      <Citation n={turn.citation as number} />
                     )}
                   </p>
                 </div>

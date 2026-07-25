@@ -1,7 +1,7 @@
 import React, { Children, useState } from 'react'
 import type { HTMLAttributes, ReactNode } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import type { Variants } from 'framer-motion'
+import { motion, AnimatePresence } from 'motion/react'
+import type { Variants } from 'motion/react'
 
 import { cn } from '@/lib/utils'
 
@@ -90,9 +90,11 @@ export default function Stepper({
       {...rest}
     >
       <div
-        className={`mx-auto w-full max-w-md rounded-4xl border border-border bg-card shadow-xl ${stepCircleContainerClassName}`}
+        className={`mx-auto w-full max-w-md rounded-3xl border border-border bg-card shadow-xl ${stepCircleContainerClassName}`}
       >
         <div
+          role="group"
+          aria-label="Steps"
           className={`${stepContainerClassName} flex w-full items-center p-8`}
         >
           {stepsArray.map((_, index) => {
@@ -152,7 +154,7 @@ export default function Stepper({
                   setDirection(-1)
                   updateStep(1)
                 }}
-                className="flex items-center justify-center rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground shadow-glow-primary transition hover:bg-primary/90 sm:text-sm"
+                className="flex items-center justify-center rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground shadow-xs transition hover:bg-primary/90 sm:text-sm"
               >
                 Replay steps
               </button>
@@ -174,7 +176,7 @@ export default function Stepper({
               )}
               <button
                 onClick={isLastStep ? handleComplete : handleNext}
-                className="flex items-center justify-center rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground shadow-glow-primary transition hover:bg-primary/90 sm:text-sm"
+                className="flex items-center justify-center rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground shadow-xs transition hover:bg-primary/90 sm:text-sm"
                 {...nextButtonProps}
               >
                 {isLastStep ? 'Finish' : nextButtonText}
@@ -276,9 +278,13 @@ function StepIndicator({
   }
 
   return (
-    <motion.div
+    <motion.button
+      type="button"
       onClick={handleClick}
-      className={`relative outline-none focus:outline-none ${disableStepIndicators ? 'pointer-events-none opacity-50' : 'cursor-pointer'}`}
+      disabled={disableStepIndicators}
+      aria-label={`Step ${step}`}
+      aria-current={status === 'active' ? 'step' : undefined}
+      className={`relative rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background ${disableStepIndicators ? 'pointer-events-none opacity-50' : 'cursor-pointer'}`}
       animate={status}
       initial={false}
     >
@@ -311,7 +317,7 @@ function StepIndicator({
           </span>
         )}
       </motion.div>
-    </motion.div>
+    </motion.button>
   )
 }
 

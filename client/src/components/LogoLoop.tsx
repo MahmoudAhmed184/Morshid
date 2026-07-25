@@ -375,8 +375,7 @@ export const LogoLoop = React.memo<LogoLoopProps>(
             : 'overflow-x-hidden',
           '[--logoloop-gap:32px]',
           '[--logoloop-logoHeight:28px]',
-          '[--logoloop-fadeColorAuto:#ffffff]',
-          'dark:[--logoloop-fadeColorAuto:#0b0b0b]',
+          '[--logoloop-fadeColorAuto:var(--background)]',
           scaleOnHover && 'py-[calc(var(--logoloop-logoHeight)*0.1)]',
           className,
         ),
@@ -574,10 +573,12 @@ export const LogoLoop = React.memo<LogoLoopProps>(
 
         <div
           className={cx(
-            'flex will-change-transform select-none relative z-0 touch-none',
+            'flex will-change-transform select-none relative z-0',
             enableDrag && 'cursor-grab active:cursor-grabbing',
             'motion-reduce:transform-none',
-            isVertical ? 'flex-col h-max w-full' : 'flex-row w-max',
+            isVertical
+              ? 'flex-col h-max w-full touch-pan-x'
+              : 'flex-row w-max touch-pan-y',
           )}
           ref={trackRef}
           onMouseEnter={handleMouseEnter}

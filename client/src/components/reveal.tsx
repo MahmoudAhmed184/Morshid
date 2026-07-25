@@ -7,6 +7,8 @@ type RevealProps = React.ComponentProps<'div'> & {
   delay?: number
 }
 
+const emptySubscribe = () => () => {}
+
 /**
  * Reveal — plays `animate-fade-up` ONCE the first time the element crosses 15%
  * visibility, then disconnects. SSR-safe (renders its children on the server and
@@ -23,6 +25,11 @@ export function Reveal({
   ...props
 }: RevealProps) {
   const ref = React.useRef<HTMLDivElement>(null)
+  const mounted = React.useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false,
+  )
   const [revealed, setRevealed] = React.useState(false)
 
   React.useEffect(() => {
@@ -69,7 +76,8 @@ export function Reveal({
       data-slot="reveal"
       data-revealed={revealed || undefined}
       className={cn(
-        revealed ? 'motion-safe:animate-fade-up' : 'motion-safe:opacity-0',
+        revealed && 'motion-safe:animate-fade-up',
+        mounted && !revealed && 'motion-safe:opacity-0',
         className,
       )}
       style={delay ? { animationDelay: `${delay}ms`, ...style } : style}

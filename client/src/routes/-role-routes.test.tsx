@@ -54,7 +54,7 @@ describe('role route boundaries', () => {
     )
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(loadRoute('/student/courses')).resolves.toBe('/login')
+    await expect(loadRoute('/chat')).resolves.toBe('/login')
     expect(fetchMock).toHaveBeenCalled()
     expect(
       fetchMock.mock.calls.every(([input]) =>
@@ -71,7 +71,8 @@ describe('role route boundaries', () => {
       vi.fn(async () => Response.json({ user: session.user })),
     )
 
-    await expect(loadRoute('/student/courses')).resolves.toBe('/admin')
+    await expect(loadRoute('/chat')).resolves.toBe('/admin')
+    await expect(loadRoute('/settings')).resolves.toBe('/admin')
   })
 
   it('redirects a student away from the admin route tree', async () => {
