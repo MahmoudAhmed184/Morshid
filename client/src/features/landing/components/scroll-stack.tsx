@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import React from 'react'
 
-export interface ScrollStackItemProps {
+interface ScrollStackItemProps {
   itemClassName?: string
   children: ReactNode
   index?: number
@@ -23,7 +23,7 @@ export const ScrollStackItem: React.FC<ScrollStackItemProps> = ({
 
   return (
     <div
-      className={`sticky ${topClass} ${marginBottomClass} -mx-6 sm:-mx-10 md:mx-0 overflow-hidden rounded-none border-x-0 border-y border-border/80 bg-card p-5 sm:p-8 md:rounded-2xl md:border-x shadow-2xl transition-all duration-300 ${itemClassName}`.trim()}
+      className={`sticky ${topClass} ${marginBottomClass} -mx-6 sm:-mx-10 md:mx-0 overflow-hidden rounded-none border-x-0 border-y border-border/80 bg-card p-5 sm:p-8 md:rounded-2xl md:border-x shadow-2xl transition-all duration-300 motion-reduce:transition-none ${itemClassName}`.trim()}
     >
       {children}
     </div>

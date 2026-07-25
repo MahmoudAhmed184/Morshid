@@ -15,7 +15,7 @@ const emptySubscribe = () => () => {}
  * on first client paint). Falls back to rendering plainly — no hidden state —
  * when IntersectionObserver is unavailable or the user prefers reduced motion.
  *
- * Used by landing sections only.
+ * Used by landing sections.
  */
 export function Reveal({
   className,

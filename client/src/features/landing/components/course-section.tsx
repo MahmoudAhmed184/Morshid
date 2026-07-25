@@ -1,5 +1,5 @@
-import Stepper, { Step } from '@/components/Stepper'
-import { Reveal } from '@/components/reveal'
+import { Reveal } from '@/features/landing/components/reveal'
+import { Step, Stepper } from '@/features/landing/components/stepper'
 
 const steps = [
   {

@@ -1,4 +1,6 @@
-import ScrollStack, { ScrollStackItem } from '@/components/ScrollStack'
+import ScrollStack, {
+  ScrollStackItem,
+} from '@/features/landing/components/scroll-stack'
 import { Badge } from '@/components/ui/badge'
 
 const shelfFiles = [
