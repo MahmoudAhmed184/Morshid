@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
+import type { ApiError } from '@/features/auth/api/authenticated-api-client'
+
 import {
   createAdminUser,
   disableAdminUser,
   getAdminUsers,
   reactivateAdminUser,
   resetAdminUserPassword,
+  updateAdminUser,
 } from './admin-users.api'
 
 const userId = '4c530c42-67bf-4cbe-a6f3-2c662564ddd1'
@@ -123,5 +126,101 @@ describe('admin users API', () => {
     await expect(request(userId, { fetchImpl: fetchMock })).resolves.toEqual(
       userResponse,
     )
+  })
+
+  it('updates only the supplied user fields through PATCH', async () => {
+    const fetchMock = async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe(
+        `http://localhost:4000/api/v1/admin/users/${userId}`,
+      )
+      expect(init?.method).toBe('PATCH')
+      const headers = new Headers(init?.headers)
+      expect(headers.get('Content-Type')).toBe('application/json')
+      expect(headers.get('Accept')).toBe('application/json')
+      expect(JSON.parse(String(init?.body))).toEqual({
+        displayName: 'Updated Student',
+      })
+
+      return Response.json({
+        user: { ...userResponse, displayName: 'Updated Student' },
+      })
+    }
+
+    await expect(
+      updateAdminUser(
+        userId,
+        { displayName: 'Updated Student' },
+        { fetchImpl: fetchMock },
+      ),
+    ).resolves.toMatchObject({ displayName: 'Updated Student' })
+  })
+
+  it('sends every supplied identity field on a user update', async () => {
+    const fetchMock = async (_input: RequestInfo | URL, init?: RequestInit) => {
+      expect(JSON.parse(String(init?.body))).toEqual({
+        displayName: 'Updated Student',
+        email: 'updated@morshid.demo',
+        role: 'INSTRUCTOR',
+      })
+
+      return Response.json({
+        user: {
+          ...userResponse,
+          displayName: 'Updated Student',
+          email: 'updated@morshid.demo',
+          role: 'INSTRUCTOR',
+        },
+      })
+    }
+
+    await expect(
+      updateAdminUser(
+        userId,
+        {
+          displayName: 'Updated Student',
+          email: 'updated@morshid.demo',
+          role: 'INSTRUCTOR',
+        },
+        { fetchImpl: fetchMock },
+      ),
+    ).resolves.toMatchObject({
+      email: 'updated@morshid.demo',
+      role: 'INSTRUCTOR',
+    })
+  })
+
+  it('propagates a conflicting email error from the user PATCH endpoint', async () => {
+    const fetchMock = async () =>
+      Response.json(
+        { code: 'ADMIN_USER_EMAIL_TAKEN', message: 'Email already in use' },
+        { status: 409 },
+      )
+
+    await expect(
+      updateAdminUser(
+        userId,
+        { email: 'taken@morshid.demo' },
+        { fetchImpl: fetchMock },
+      ),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<ApiError>>({
+        status: 409,
+        code: 'ADMIN_USER_EMAIL_TAKEN',
+        message: 'Email already in use',
+      }),
+    )
+  })
+
+  it('rejects a malformed user update response through schema parsing', async () => {
+    const fetchMock = async () =>
+      Response.json({ user: { ...userResponse, role: 'SUPERUSER' } })
+
+    await expect(
+      updateAdminUser(
+        userId,
+        { displayName: 'Updated Student' },
+        { fetchImpl: fetchMock },
+      ),
+    ).rejects.toThrow()
   })
 })

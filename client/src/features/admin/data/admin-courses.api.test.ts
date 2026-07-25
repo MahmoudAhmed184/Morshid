@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
+import type { ApiError } from '@/features/auth/api/authenticated-api-client'
+
 import {
   addAdminCourseMember,
+  createAdminCourse,
   getAdminCourses,
   removeAdminCourseMember,
+  updateAdminCourse,
   updateAdminCourseMemberRole,
   updateAdminMaterial,
 } from './admin-courses.api'
@@ -26,6 +30,23 @@ const member = {
   role: 'STUDENT',
   createdAt: '2026-07-01T10:00:00.000Z',
   user,
+}
+const course = {
+  id: courseId,
+  code: 'CS-201',
+  title: 'Data Structures',
+  adminMetadata: {
+    createdById: null,
+    createdBy: null,
+    createdAt: '2026-07-01T10:00:00.000Z',
+    updatedAt: '2026-07-11T10:00:00.000Z',
+    memberships: [],
+    memberCount: 0,
+    instructorCount: 0,
+    studentCount: 0,
+    materialCount: 0,
+    activeMaterialCount: 0,
+  },
 }
 
 describe('admin course API', () => {
@@ -72,6 +93,108 @@ describe('admin course API', () => {
       { userId, role: 'STUDENT' },
       { fetchImpl: fetchMock },
     )
+  })
+
+  it('creates a course through POST', async () => {
+    const fetchMock = async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe('http://localhost:4000/api/v1/admin/courses')
+      expect(init?.method).toBe('POST')
+      const headers = new Headers(init?.headers)
+      expect(headers.get('Content-Type')).toBe('application/json')
+      expect(headers.get('Accept')).toBe('application/json')
+      expect(JSON.parse(String(init?.body))).toEqual({
+        code: course.code,
+        title: course.title,
+      })
+      return Response.json({ course })
+    }
+
+    await expect(
+      createAdminCourse(
+        { code: course.code, title: course.title },
+        { fetchImpl: fetchMock },
+      ),
+    ).resolves.toEqual(course)
+  })
+
+  it('propagates a duplicate course code error from POST', async () => {
+    const fetchMock = async () =>
+      Response.json(
+        { code: 'ADMIN_COURSE_CODE_TAKEN', message: 'Course code is taken' },
+        { status: 409 },
+      )
+
+    await expect(
+      createAdminCourse(
+        { code: course.code, title: course.title },
+        { fetchImpl: fetchMock },
+      ),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<ApiError>>({
+        status: 409,
+        code: 'ADMIN_COURSE_CODE_TAKEN',
+        message: 'Course code is taken',
+      }),
+    )
+  })
+
+  it('updates supplied course fields through PATCH', async () => {
+    const fetchMock = async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe(
+        `http://localhost:4000/api/v1/admin/courses/${courseId}`,
+      )
+      expect(init?.method).toBe('PATCH')
+      const headers = new Headers(init?.headers)
+      expect(headers.get('Content-Type')).toBe('application/json')
+      expect(headers.get('Accept')).toBe('application/json')
+      expect(JSON.parse(String(init?.body))).toEqual({
+        title: 'Advanced Data Structures',
+      })
+      return Response.json({
+        course: { ...course, title: 'Advanced Data Structures' },
+      })
+    }
+
+    await expect(
+      updateAdminCourse(
+        courseId,
+        { title: 'Advanced Data Structures' },
+        { fetchImpl: fetchMock },
+      ),
+    ).resolves.toMatchObject({ title: 'Advanced Data Structures' })
+  })
+
+  it('propagates a missing course error from PATCH', async () => {
+    const fetchMock = async () =>
+      Response.json(
+        { code: 'ADMIN_COURSE_NOT_FOUND', message: 'Course not found' },
+        { status: 404 },
+      )
+
+    await expect(
+      updateAdminCourse(courseId, { code: 'CS-999' }, { fetchImpl: fetchMock }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<ApiError>>({
+        status: 404,
+        code: 'ADMIN_COURSE_NOT_FOUND',
+        message: 'Course not found',
+      }),
+    )
+  })
+
+  it('rejects a malformed course update response through schema parsing', async () => {
+    const fetchMock = async () =>
+      Response.json({
+        course: { id: course.id, code: course.code, title: course.title },
+      })
+
+    await expect(
+      updateAdminCourse(
+        courseId,
+        { title: 'Advanced Data Structures' },
+        { fetchImpl: fetchMock },
+      ),
+    ).rejects.toThrow()
   })
 
   it('changes a course membership role through PATCH', async () => {
