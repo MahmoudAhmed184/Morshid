@@ -147,17 +147,9 @@ test.describe('Student session workspace', () => {
     ).toHaveCount(0)
   })
 
-  test('keeps compatibility routes and mobile settings clear of fixed controls', async ({
-    page,
-  }) => {
+  test('keeps mobile settings clear of fixed controls', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
     await signInThroughUi(page, demoAccounts.student)
-
-    await page.goto('/student/ai-tutor')
-    await expect(page).toHaveURL('/chat')
-
-    await page.goto('/student/courses')
-    await expect(page).toHaveURL(/\/chat(?:\?.*)?$/)
 
     await page.goto('/settings')
     const heading = page.getByRole('heading', { name: 'Settings' })

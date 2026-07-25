@@ -15,19 +15,14 @@ import { Route as StudentRouteImport } from './routes/_student'
 import { Route as InstructorRouteRouteImport } from './routes/instructor/route'
 import { Route as AdminRouteRouteImport } from './routes/admin/route'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as StudentIndexRouteImport } from './routes/student/index'
 import { Route as InstructorIndexRouteImport } from './routes/instructor/index'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
-import { Route as StudentAiTutorRouteImport } from './routes/student/ai-tutor'
-import { Route as StudentSplatRouteImport } from './routes/student/$'
 import { Route as InstructorSettingsRouteImport } from './routes/instructor/settings'
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
 import { Route as StudentSettingsRouteImport } from './routes/_student.settings'
-import { Route as StudentCoursesRouteImport } from './routes/_student.courses'
 import { Route as StudentChatRouteImport } from './routes/_student.chat'
 import { Route as InstructorReviewQueueIndexRouteImport } from './routes/instructor/review-queue/index'
 import { Route as InstructorMaterialsIndexRouteImport } from './routes/instructor/materials/index'
-import { Route as InstructorCoursesIndexRouteImport } from './routes/instructor/courses/index'
 import { Route as AdminUsersIndexRouteImport } from './routes/admin/users/index'
 import { Route as AdminMaterialsIndexRouteImport } from './routes/admin/materials/index'
 import { Route as AdminCoursesIndexRouteImport } from './routes/admin/courses/index'
@@ -63,11 +58,6 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const StudentIndexRoute = StudentIndexRouteImport.update({
-  id: '/student/',
-  path: '/student/',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const InstructorIndexRoute = InstructorIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -77,16 +67,6 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AdminRouteRoute,
-} as any)
-const StudentAiTutorRoute = StudentAiTutorRouteImport.update({
-  id: '/student/ai-tutor',
-  path: '/student/ai-tutor',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const StudentSplatRoute = StudentSplatRouteImport.update({
-  id: '/student/$',
-  path: '/student/$',
-  getParentRoute: () => rootRouteImport,
 } as any)
 const InstructorSettingsRoute = InstructorSettingsRouteImport.update({
   id: '/settings',
@@ -101,11 +81,6 @@ const AdminSettingsRoute = AdminSettingsRouteImport.update({
 const StudentSettingsRoute = StudentSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
-  getParentRoute: () => StudentRoute,
-} as any)
-const StudentCoursesRoute = StudentCoursesRouteImport.update({
-  id: '/courses',
-  path: '/courses',
   getParentRoute: () => StudentRoute,
 } as any)
 const StudentChatRoute = StudentChatRouteImport.update({
@@ -125,11 +100,6 @@ const InstructorMaterialsIndexRoute =
     path: '/materials/',
     getParentRoute: () => InstructorRouteRoute,
   } as any)
-const InstructorCoursesIndexRoute = InstructorCoursesIndexRouteImport.update({
-  id: '/courses/',
-  path: '/courses/',
-  getParentRoute: () => InstructorRouteRoute,
-} as any)
 const AdminUsersIndexRoute = AdminUsersIndexRouteImport.update({
   id: '/users/',
   path: '/users/',
@@ -163,21 +133,16 @@ export interface FileRoutesByFullPath {
   '/health': typeof HealthRoute
   '/login': typeof LoginRoute
   '/chat': typeof StudentChatRoute
-  '/courses': typeof StudentCoursesRoute
   '/settings': typeof StudentSettingsRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/instructor/settings': typeof InstructorSettingsRoute
-  '/student/$': typeof StudentSplatRoute
-  '/student/ai-tutor': typeof StudentAiTutorRoute
   '/admin/': typeof AdminIndexRoute
   '/instructor/': typeof InstructorIndexRoute
-  '/student/': typeof StudentIndexRoute
   '/admin/assignments/': typeof AdminAssignmentsIndexRoute
   '/admin/audit/': typeof AdminAuditIndexRoute
   '/admin/courses/': typeof AdminCoursesIndexRoute
   '/admin/materials/': typeof AdminMaterialsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
-  '/instructor/courses/': typeof InstructorCoursesIndexRoute
   '/instructor/materials/': typeof InstructorMaterialsIndexRoute
   '/instructor/review-queue/': typeof InstructorReviewQueueIndexRoute
 }
@@ -186,21 +151,16 @@ export interface FileRoutesByTo {
   '/health': typeof HealthRoute
   '/login': typeof LoginRoute
   '/chat': typeof StudentChatRoute
-  '/courses': typeof StudentCoursesRoute
   '/settings': typeof StudentSettingsRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/instructor/settings': typeof InstructorSettingsRoute
-  '/student/$': typeof StudentSplatRoute
-  '/student/ai-tutor': typeof StudentAiTutorRoute
   '/admin': typeof AdminIndexRoute
   '/instructor': typeof InstructorIndexRoute
-  '/student': typeof StudentIndexRoute
   '/admin/assignments': typeof AdminAssignmentsIndexRoute
   '/admin/audit': typeof AdminAuditIndexRoute
   '/admin/courses': typeof AdminCoursesIndexRoute
   '/admin/materials': typeof AdminMaterialsIndexRoute
   '/admin/users': typeof AdminUsersIndexRoute
-  '/instructor/courses': typeof InstructorCoursesIndexRoute
   '/instructor/materials': typeof InstructorMaterialsIndexRoute
   '/instructor/review-queue': typeof InstructorReviewQueueIndexRoute
 }
@@ -213,21 +173,16 @@ export interface FileRoutesById {
   '/health': typeof HealthRoute
   '/login': typeof LoginRoute
   '/_student/chat': typeof StudentChatRoute
-  '/_student/courses': typeof StudentCoursesRoute
   '/_student/settings': typeof StudentSettingsRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/instructor/settings': typeof InstructorSettingsRoute
-  '/student/$': typeof StudentSplatRoute
-  '/student/ai-tutor': typeof StudentAiTutorRoute
   '/admin/': typeof AdminIndexRoute
   '/instructor/': typeof InstructorIndexRoute
-  '/student/': typeof StudentIndexRoute
   '/admin/assignments/': typeof AdminAssignmentsIndexRoute
   '/admin/audit/': typeof AdminAuditIndexRoute
   '/admin/courses/': typeof AdminCoursesIndexRoute
   '/admin/materials/': typeof AdminMaterialsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
-  '/instructor/courses/': typeof InstructorCoursesIndexRoute
   '/instructor/materials/': typeof InstructorMaterialsIndexRoute
   '/instructor/review-queue/': typeof InstructorReviewQueueIndexRoute
 }
@@ -240,21 +195,16 @@ export interface FileRouteTypes {
     | '/health'
     | '/login'
     | '/chat'
-    | '/courses'
     | '/settings'
     | '/admin/settings'
     | '/instructor/settings'
-    | '/student/$'
-    | '/student/ai-tutor'
     | '/admin/'
     | '/instructor/'
-    | '/student/'
     | '/admin/assignments/'
     | '/admin/audit/'
     | '/admin/courses/'
     | '/admin/materials/'
     | '/admin/users/'
-    | '/instructor/courses/'
     | '/instructor/materials/'
     | '/instructor/review-queue/'
   fileRoutesByTo: FileRoutesByTo
@@ -263,21 +213,16 @@ export interface FileRouteTypes {
     | '/health'
     | '/login'
     | '/chat'
-    | '/courses'
     | '/settings'
     | '/admin/settings'
     | '/instructor/settings'
-    | '/student/$'
-    | '/student/ai-tutor'
     | '/admin'
     | '/instructor'
-    | '/student'
     | '/admin/assignments'
     | '/admin/audit'
     | '/admin/courses'
     | '/admin/materials'
     | '/admin/users'
-    | '/instructor/courses'
     | '/instructor/materials'
     | '/instructor/review-queue'
   id:
@@ -289,21 +234,16 @@ export interface FileRouteTypes {
     | '/health'
     | '/login'
     | '/_student/chat'
-    | '/_student/courses'
     | '/_student/settings'
     | '/admin/settings'
     | '/instructor/settings'
-    | '/student/$'
-    | '/student/ai-tutor'
     | '/admin/'
     | '/instructor/'
-    | '/student/'
     | '/admin/assignments/'
     | '/admin/audit/'
     | '/admin/courses/'
     | '/admin/materials/'
     | '/admin/users/'
-    | '/instructor/courses/'
     | '/instructor/materials/'
     | '/instructor/review-queue/'
   fileRoutesById: FileRoutesById
@@ -315,9 +255,6 @@ export interface RootRouteChildren {
   StudentRoute: typeof StudentRouteWithChildren
   HealthRoute: typeof HealthRoute
   LoginRoute: typeof LoginRoute
-  StudentSplatRoute: typeof StudentSplatRoute
-  StudentAiTutorRoute: typeof StudentAiTutorRoute
-  StudentIndexRoute: typeof StudentIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -364,13 +301,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/student/': {
-      id: '/student/'
-      path: '/student'
-      fullPath: '/student/'
-      preLoaderRoute: typeof StudentIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/instructor/': {
       id: '/instructor/'
       path: '/'
@@ -384,20 +314,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/'
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRouteRoute
-    }
-    '/student/ai-tutor': {
-      id: '/student/ai-tutor'
-      path: '/student/ai-tutor'
-      fullPath: '/student/ai-tutor'
-      preLoaderRoute: typeof StudentAiTutorRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/student/$': {
-      id: '/student/$'
-      path: '/student/$'
-      fullPath: '/student/$'
-      preLoaderRoute: typeof StudentSplatRouteImport
-      parentRoute: typeof rootRouteImport
     }
     '/instructor/settings': {
       id: '/instructor/settings'
@@ -420,13 +336,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StudentSettingsRouteImport
       parentRoute: typeof StudentRoute
     }
-    '/_student/courses': {
-      id: '/_student/courses'
-      path: '/courses'
-      fullPath: '/courses'
-      preLoaderRoute: typeof StudentCoursesRouteImport
-      parentRoute: typeof StudentRoute
-    }
     '/_student/chat': {
       id: '/_student/chat'
       path: '/chat'
@@ -446,13 +355,6 @@ declare module '@tanstack/react-router' {
       path: '/materials'
       fullPath: '/instructor/materials/'
       preLoaderRoute: typeof InstructorMaterialsIndexRouteImport
-      parentRoute: typeof InstructorRouteRoute
-    }
-    '/instructor/courses/': {
-      id: '/instructor/courses/'
-      path: '/courses'
-      fullPath: '/instructor/courses/'
-      preLoaderRoute: typeof InstructorCoursesIndexRouteImport
       parentRoute: typeof InstructorRouteRoute
     }
     '/admin/users/': {
@@ -520,7 +422,6 @@ const AdminRouteRouteWithChildren = AdminRouteRoute._addFileChildren(
 interface InstructorRouteRouteChildren {
   InstructorSettingsRoute: typeof InstructorSettingsRoute
   InstructorIndexRoute: typeof InstructorIndexRoute
-  InstructorCoursesIndexRoute: typeof InstructorCoursesIndexRoute
   InstructorMaterialsIndexRoute: typeof InstructorMaterialsIndexRoute
   InstructorReviewQueueIndexRoute: typeof InstructorReviewQueueIndexRoute
 }
@@ -528,7 +429,6 @@ interface InstructorRouteRouteChildren {
 const InstructorRouteRouteChildren: InstructorRouteRouteChildren = {
   InstructorSettingsRoute: InstructorSettingsRoute,
   InstructorIndexRoute: InstructorIndexRoute,
-  InstructorCoursesIndexRoute: InstructorCoursesIndexRoute,
   InstructorMaterialsIndexRoute: InstructorMaterialsIndexRoute,
   InstructorReviewQueueIndexRoute: InstructorReviewQueueIndexRoute,
 }
@@ -539,13 +439,11 @@ const InstructorRouteRouteWithChildren = InstructorRouteRoute._addFileChildren(
 
 interface StudentRouteChildren {
   StudentChatRoute: typeof StudentChatRoute
-  StudentCoursesRoute: typeof StudentCoursesRoute
   StudentSettingsRoute: typeof StudentSettingsRoute
 }
 
 const StudentRouteChildren: StudentRouteChildren = {
   StudentChatRoute: StudentChatRoute,
-  StudentCoursesRoute: StudentCoursesRoute,
   StudentSettingsRoute: StudentSettingsRoute,
 }
 
@@ -559,9 +457,6 @@ const rootRouteChildren: RootRouteChildren = {
   StudentRoute: StudentRouteWithChildren,
   HealthRoute: HealthRoute,
   LoginRoute: LoginRoute,
-  StudentSplatRoute: StudentSplatRoute,
-  StudentAiTutorRoute: StudentAiTutorRoute,
-  StudentIndexRoute: StudentIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

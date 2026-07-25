@@ -3,9 +3,7 @@ import { expect, test } from '@playwright/test'
 import { demoAccounts, signInThroughUi } from './support/demo-auth'
 
 test.describe('Instructor workspace', () => {
-  test('navigates every implemented destination and the legacy course route', async ({
-    page,
-  }) => {
+  test('navigates every implemented destination', async ({ page }) => {
     await signInThroughUi(page, demoAccounts.instructor)
 
     await expect(page).toHaveURL(/\/instructor\/?$/)
@@ -56,12 +54,6 @@ test.describe('Instructor workspace', () => {
         }),
       ).toBeVisible()
     }
-
-    await page.goto('/instructor/courses')
-    await expect(page).toHaveURL(/\/instructor\/?$/)
-    await expect(
-      page.getByRole('heading', { name: "Today's teaching desk." }),
-    ).toBeVisible()
 
     await expect(
       page.getByRole('link', { name: /Students|Notifications|Analytics/ }),
