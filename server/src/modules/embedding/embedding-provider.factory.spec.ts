@@ -5,6 +5,7 @@ import {
 } from './embedding-provider.factory'
 import {
   EMBEDDING_DIMENSIONS,
+  EmbeddingConfigurationError,
   EmptyEmbeddingDocumentsError,
   UnsupportedEmbeddingProviderError,
 } from './embedding-provider'
@@ -42,6 +43,51 @@ describe('createEmbeddingProvider', () => {
         'unimplemented' as AppEnvironment['EMBEDDING_PROVIDER'],
       ),
     ).toThrow(UnsupportedEmbeddingProviderError)
+  })
+})
+
+describe('gemini selection', () => {
+  const geminiCollaborators = {
+    gemini: {
+      client: { embedContent: () => Promise.resolve({}) },
+      quota: { reserveGeneration: () => Promise.resolve() },
+      options: {
+        queryTimeoutMs: 10_000,
+        documentTimeoutMs: 120_000,
+        requestTimeoutMs: 30_000,
+      },
+    },
+  }
+
+  it('builds the gemini adapter with validation composed', () => {
+    const provider = createEmbeddingProvider('gemini', geminiCollaborators)
+
+    expect(provider.model).toBe('gemini/gemini-embedding-2/1536/document-v1')
+    expect(provider.queryProtocol).toBe(
+      'gemini/gemini-embedding-2/search-result-v1',
+    )
+  })
+
+  // The collaborators are network and Redis objects the composition root owns,
+  // so a half-built one must fail at selection time rather than at the first
+  // embedding call.
+  it('rejects missing gemini collaborators at selection time', () => {
+    expect(() => createEmbeddingProvider('gemini')).toThrow(
+      EmbeddingConfigurationError,
+    )
+  })
+
+  it('rejects a malformed gemini client at selection time', () => {
+    expect(() =>
+      createEmbeddingProvider('gemini', {
+        gemini: { ...geminiCollaborators.gemini, client: {} },
+      }),
+    ).toThrow(EmbeddingConfigurationError)
+  })
+
+  // Selecting one provider must never demand another's collaborators.
+  it('needs no gemini collaborators while deterministic is selected', () => {
+    expect(() => createEmbeddingProvider('deterministic')).not.toThrow()
   })
 })
 

@@ -9,6 +9,7 @@ import {
   EMBEDDING_DIMENSIONS,
   type EmbeddingProvider,
 } from './embedding-provider'
+import { GeminiEmbeddingAdapter } from './providers/gemini/gemini-embedding.adapter'
 
 function buildVector(): number[] {
   return new Array<number>(EMBEDDING_DIMENSIONS).fill(0.25)
@@ -253,6 +254,45 @@ describe('migrateEmbeddings', () => {
     expect(events).toEqual([
       { kind: 'skipped_complete', materialId: 'material-a', chunkCount: 2 },
       { kind: 'migrated', materialId: 'material-b', chunkCount: 2 },
+    ])
+  })
+
+  // The runner is provider-independent, so a provider registers as a target
+  // simply by being handed in. This drives the real Gemini adapter through it.
+  it('accepts the gemini adapter as a migration target', async () => {
+    const harness = buildHarness(twoMaterials)
+    const embedded: unknown[] = []
+    const gemini = new GeminiEmbeddingAdapter({
+      client: {
+        embedContent: (request) => {
+          embedded.push(request.contents)
+          return Promise.resolve({
+            embeddings: (request.contents as unknown[]).map(() => ({
+              values: buildVector(),
+            })),
+          })
+        },
+      },
+      quota: { reserveGeneration: () => Promise.resolve() },
+      options: {
+        queryTimeoutMs: 10_000,
+        documentTimeoutMs: 120_000,
+        requestTimeoutMs: 30_000,
+      },
+    })
+
+    const summary = await migrateEmbeddings({ ...harness, target: gemini })
+
+    expect(summary).toMatchObject({
+      targetModel: 'gemini/gemini-embedding-2/1536/document-v1',
+      migratedCount: 2,
+      complete: true,
+    })
+    // The material title is folded into the embedded document text, so a
+    // migration reproduces the same document profile normal ingest produces.
+    expect(embedded[0]).toEqual([
+      { parts: [{ text: 'title: Week 1 | text: content 0' }] },
+      { parts: [{ text: 'title: Week 1 | text: content 1' }] },
     ])
   })
 

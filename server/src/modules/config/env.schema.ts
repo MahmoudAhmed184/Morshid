@@ -33,9 +33,13 @@ import {
   DEFAULT_EMBEDDING_QUERY_TIMEOUT_MS,
   DEFAULT_EMBEDDING_REQUEST_TIMEOUT_MS,
   DETERMINISTIC_EMBEDDING_PROVIDER,
+  GEMINI_EMBEDDING_PROVIDER,
   MAX_EMBEDDING_DOCUMENT_TIMEOUT_MS,
   MAX_EMBEDDING_QUERY_TIMEOUT_MS,
   MAX_EMBEDDING_REQUEST_TIMEOUT_MS,
+  MAX_GEMINI_EMBEDDING_API_KEY_LENGTH,
+  MAX_GEMINI_EMBEDDING_QUOTA_PROJECT_ID_LENGTH,
+  isValidGeminiEmbeddingQuotaProjectId,
 } from '../embedding/embedding-configuration'
 import { MAX_PDF_OBJECT_BYTES } from '../pdf-storage/pdf-storage'
 
@@ -45,6 +49,13 @@ import { MAX_PDF_OBJECT_BYTES } from '../pdf-storage/pdf-storage'
 // `placeholder`) match nothing this repository ships and would only reject a
 // legitimate credential that happens to start with one of them.
 const SECRET_PLACEHOLDER_PREFIX = 'replace-with'
+const GEMINI_EMBEDDING_QUOTA_KEYS = [
+  'GEMINI_EMBEDDING_REQUESTS_PER_MINUTE',
+  'GEMINI_EMBEDDING_INPUT_TOKENS_PER_MINUTE',
+  'GEMINI_EMBEDDING_REQUESTS_PER_DAY',
+  'GEMINI_EMBEDDING_LOCAL_REQUESTS_PER_HOUR',
+  'GEMINI_EMBEDDING_LOCAL_REQUESTS_PER_30_DAYS',
+] as const
 const GEMINI_QUOTA_KEYS = [
   'GEMINI_REQUESTS_PER_MINUTE',
   'GEMINI_INPUT_TOKENS_PER_MINUTE',
@@ -52,6 +63,16 @@ const GEMINI_QUOTA_KEYS = [
   'GEMINI_REQUESTS_PER_DAY',
   'GEMINI_REQUESTS_PER_MONTH',
 ] as const
+// `.env.example` ships these blank and Compose passes an unset variable through
+// as `${VAR:-}`, so a blank value must mean "not configured" rather than
+// "configured with an empty string". Without this, a fresh checkout copying the
+// example file fails to boot with `expected string to have >=20 characters`
+// instead of the provider gate's actual "is required when ..." message — and a
+// blank numeric would coerce to 0 and be rejected as non-positive.
+function blankAsUndefined(value: unknown): unknown {
+  return typeof value === 'string' && value.trim() === '' ? undefined : value
+}
+
 const PDF_UPLOAD_OPERATIONAL_CEILING_BYTES = 10 * 1024 * 1024
 export const MAX_PDF_UPLOAD_BYTES = Math.min(
   PDF_UPLOAD_OPERATIONAL_CEILING_BYTES,
@@ -79,7 +100,7 @@ export const envSchema = z
     // never has to reject a configured-but-unimplemented provider at runtime.
     // The deterministic default keeps CI and local work keyless and offline.
     EMBEDDING_PROVIDER: z
-      .enum([DETERMINISTIC_EMBEDDING_PROVIDER])
+      .enum([DETERMINISTIC_EMBEDDING_PROVIDER, GEMINI_EMBEDDING_PROVIDER])
       .default(DETERMINISTIC_EMBEDDING_PROVIDER),
     // Three budgets rather than one: an interactive chat turn embeds a single
     // query and must fail fast, while a PDF ingest embeds hundreds of chunks
@@ -157,6 +178,57 @@ export const envSchema = z
     GEMINI_REQUESTS_PER_HOUR: z.coerce.number().int().positive().optional(),
     GEMINI_REQUESTS_PER_DAY: z.coerce.number().int().positive().optional(),
     GEMINI_REQUESTS_PER_MONTH: z.coerce.number().int().positive().optional(),
+    // A dedicated key under a SEPARATE Google Cloud project, never the
+    // completion key. Gemini rate limits are per project, so a shared key would
+    // let one PDF ingest starve student chat. No GEMINI_EMBEDDING_MODEL: the
+    // model is part of the persisted document profile and is pinned in code.
+    GEMINI_EMBEDDING_API_KEY: z.preprocess(
+      blankAsUndefined,
+      z
+        .string()
+        .trim()
+        .min(20)
+        .max(MAX_GEMINI_EMBEDDING_API_KEY_LENGTH)
+        .optional(),
+    ),
+    // An opaque deployment label (e.g. `embedding-project-01`), NOT the real
+    // Google project name. Every replica on one Google project shares the
+    // label, so they share one budget; a credential rotation never changes it,
+    // so a rotation never mints a fresh day or month window.
+    GEMINI_EMBEDDING_QUOTA_PROJECT_ID: z.preprocess(
+      blankAsUndefined,
+      z
+        .string()
+        .trim()
+        .max(MAX_GEMINI_EMBEDDING_QUOTA_PROJECT_ID_LENGTH)
+        .optional(),
+    ),
+    GEMINI_EMBEDDING_DEMO_ACKNOWLEDGED: z
+      .union([z.boolean(), z.enum(['true', 'false', ''])])
+      .default(false)
+      .transform((value) => value === true || value === 'true'),
+    // Provider-informed caps.
+    GEMINI_EMBEDDING_REQUESTS_PER_MINUTE: z.preprocess(
+      blankAsUndefined,
+      z.coerce.number().int().positive().optional(),
+    ),
+    GEMINI_EMBEDDING_INPUT_TOKENS_PER_MINUTE: z.preprocess(
+      blankAsUndefined,
+      z.coerce.number().int().positive().optional(),
+    ),
+    GEMINI_EMBEDDING_REQUESTS_PER_DAY: z.preprocess(
+      blankAsUndefined,
+      z.coerce.number().int().positive().optional(),
+    ),
+    // Morshid-owned policy caps with no provider counterpart at all.
+    GEMINI_EMBEDDING_LOCAL_REQUESTS_PER_HOUR: z.preprocess(
+      blankAsUndefined,
+      z.coerce.number().int().positive().optional(),
+    ),
+    GEMINI_EMBEDDING_LOCAL_REQUESTS_PER_30_DAYS: z.preprocess(
+      blankAsUndefined,
+      z.coerce.number().int().positive().optional(),
+    ),
     ITI_BEDROCK_GATEWAY_BASE_URL: z
       .url()
       .max(MAX_ITI_BEDROCK_BASE_URL_LENGTH)
@@ -286,6 +358,102 @@ export const envSchema = z
           code: 'custom',
           path: ['AWS_BEDROCK_MODEL_ID'],
           message: 'must be present in AWS_BEDROCK_ALLOWED_MODEL_IDS',
+        })
+      }
+    }
+
+    // Gated exactly like the completion providers: selecting one live provider
+    // must never demand another's configuration.
+    if (env.EMBEDDING_PROVIDER === GEMINI_EMBEDDING_PROVIDER) {
+      // Morshid's free-tier data-governance policy, not an API constraint: the
+      // Gemini free tier lets Google use submitted inputs to improve its
+      // products, and course material is not ours to donate. Deliberately NOT
+      // expressed as "development only" — that would force NODE_ENV away from
+      // production for its unrelated side effects.
+      if (env.NODE_ENV === 'production') {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['EMBEDDING_PROVIDER'],
+          message:
+            'gemini must not embed production material: free-tier inputs may be used to improve Google products',
+        })
+      }
+
+      if (!env.GEMINI_EMBEDDING_DEMO_ACKNOWLEDGED) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['GEMINI_EMBEDDING_DEMO_ACKNOWLEDGED'],
+          message:
+            'must be true to select gemini embedding, acknowledging that free-tier inputs may be used to improve Google products and that only synthetic, permission-safe material may be embedded',
+        })
+      }
+
+      if (env.GEMINI_EMBEDDING_API_KEY === undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['GEMINI_EMBEDDING_API_KEY'],
+          message: 'is required when EMBEDDING_PROVIDER is gemini',
+        })
+      } else if (isPlaceholderSecret(env.GEMINI_EMBEDDING_API_KEY)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['GEMINI_EMBEDDING_API_KEY'],
+          message: 'must be a non-placeholder authorization key',
+        })
+      } else if (env.GEMINI_EMBEDDING_API_KEY === env.GEMINI_API_KEY) {
+        // Distinctness only. No local check can prove the two keys belong to
+        // separate Google projects, which is the property that actually keeps a
+        // PDF ingest from starving student chat — this rejects the one case
+        // that is provably wrong.
+        ctx.addIssue({
+          code: 'custom',
+          path: ['GEMINI_EMBEDDING_API_KEY'],
+          message:
+            'must differ from GEMINI_API_KEY; embedding requires its own key under a separate Google Cloud project, because Gemini rate limits are per project',
+        })
+      }
+
+      if (
+        !isValidGeminiEmbeddingQuotaProjectId(
+          env.GEMINI_EMBEDDING_QUOTA_PROJECT_ID,
+        )
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['GEMINI_EMBEDDING_QUOTA_PROJECT_ID'],
+          message:
+            'is required when EMBEDDING_PROVIDER is gemini and must be a lowercase opaque deployment label of at least three characters, not the real Google project name',
+        })
+      }
+
+      for (const key of GEMINI_EMBEDDING_QUOTA_KEYS) {
+        if (env[key] === undefined) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [key],
+            message: 'is required when EMBEDDING_PROVIDER is gemini',
+          })
+        }
+      }
+
+      // A local consistency rule over local admission-control caps. It says
+      // nothing about Google's enforcement: provider-side 429 RESOURCE_EXHAUSTED
+      // responses remain authoritative.
+      const perMinute = env.GEMINI_EMBEDDING_REQUESTS_PER_MINUTE
+      const perHour = env.GEMINI_EMBEDDING_LOCAL_REQUESTS_PER_HOUR
+      const perDay = env.GEMINI_EMBEDDING_REQUESTS_PER_DAY
+      const per30Days = env.GEMINI_EMBEDDING_LOCAL_REQUESTS_PER_30_DAYS
+      if (
+        perMinute !== undefined &&
+        perHour !== undefined &&
+        perDay !== undefined &&
+        per30Days !== undefined &&
+        !(perMinute <= perHour && perHour <= perDay && perDay <= per30Days)
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['GEMINI_EMBEDDING_LOCAL_REQUESTS_PER_30_DAYS'],
+          message: 'request caps must satisfy minute <= hour <= day <= 30-days',
         })
       }
     }

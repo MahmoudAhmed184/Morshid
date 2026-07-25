@@ -3,6 +3,7 @@ import {
   MAX_EMBEDDING_MODEL_LENGTH,
   MAX_EMBEDDING_TITLE_CODE_POINTS,
 } from './embedding-provider'
+import type { GeminiEmbeddingConfiguration } from './providers/gemini/gemini-embedding.adapter'
 
 // The single embedding vocabulary surface, mirroring `completion-configuration`:
 // nothing outside `embedding/` reaches into `embedding/providers/`, and nothing
@@ -15,6 +16,24 @@ export {
 }
 
 export const DETERMINISTIC_EMBEDDING_PROVIDER = 'deterministic'
+export const GEMINI_EMBEDDING_PROVIDER = 'gemini'
+
+// Gemini's raw constants are declared next to its adapter, which is their other
+// consumer, and re-exported here so this file stays the single embedding
+// vocabulary surface: nothing outside `embedding/` reaches into
+// `embedding/providers/`.
+export {
+  GEMINI_EMBEDDING_BATCH_SIZE,
+  GEMINI_EMBEDDING_DOCUMENT_PROFILE,
+  GEMINI_EMBEDDING_MODEL,
+  GEMINI_EMBEDDING_QUERY_PROTOCOL,
+  GEMINI_EMBEDDING_QUOTA_NAMESPACE,
+  MAX_GEMINI_EMBEDDING_API_KEY_LENGTH,
+  MAX_GEMINI_EMBEDDING_QUOTA_PROJECT_ID_LENGTH,
+  isValidGeminiEmbeddingQuotaProjectId,
+} from './providers/gemini/gemini-embedding.constants'
+export { validateGeminiEmbeddingConfiguration } from './providers/gemini/gemini-embedding.adapter'
+export type { GeminiEmbeddingConfiguration } from './providers/gemini/gemini-embedding.adapter'
 
 /**
  * Three timeout budgets, because one value cannot serve both callers.
@@ -50,9 +69,12 @@ export interface EmbeddingTimeouts {
  * other provider's configuration unreachable, so a half-configured live
  * provider cannot be constructed at all.
  */
-export interface EmbeddingConfiguration {
-  readonly provider: typeof DETERMINISTIC_EMBEDDING_PROVIDER
-}
+export type EmbeddingConfiguration =
+  | { readonly provider: typeof DETERMINISTIC_EMBEDDING_PROVIDER }
+  | {
+      readonly provider: typeof GEMINI_EMBEDDING_PROVIDER
+      readonly gemini: GeminiEmbeddingConfiguration
+    }
 
 export function isValidEmbeddingTimeouts(
   value: unknown,

@@ -366,6 +366,67 @@ so a concurrent material replacement can produce a transient not-ready or
 no-evidence result; the profile filter still prevents cross-space comparisons,
 which is the property that matters.
 
+### Restricted Gemini embedding demo
+
+Selecting `EMBEDDING_PROVIDER=gemini` is refused when `NODE_ENV=production` and
+additionally requires `GEMINI_EMBEDDING_DEMO_ACKNOWLEDGED=true`. That is
+**Morshid's own free-tier data-governance policy, not an API constraint**: the
+free tier lets Google use submitted inputs to improve its products, and course
+material is not ours to donate. Only synthetic, permission-safe material may be
+embedded through it.
+
+`GEMINI_EMBEDDING_API_KEY` must be distinct from `GEMINI_API_KEY` **and live
+under a separate Google Cloud project**. Gemini rate limits are per project, so
+a shared key would let one PDF ingest starve student chat. The schema can only
+prove the two keys differ; project separation is an operator responsibility.
+
+There is no `GEMINI_EMBEDDING_MODEL`. The model, its dimensions, and the
+document formatting together *are* the persisted document profile
+(`gemini/gemini-embedding-2/1536/document-v1`), so the model is pinned in code —
+an environment variable would let an operator split the corpus across two vector
+spaces under one `embedding_model` value.
+
+#### Quota vocabulary
+
+The five caps are **local admission-control caps informed by the project's
+published Gemini limits**. They do not reproduce Google's enforcement:
+
+- Google's requests-per-day resets at midnight Pacific; this guard's day window
+  is epoch-aligned UTC, 7–8 hours earlier.
+- The minute dimensions are token buckets, not Google's undisclosed algorithm.
+- `LOCAL_REQUESTS_PER_HOUR` and `LOCAL_REQUESTS_PER_30_DAYS` are entirely
+  Morshid-owned policy with no provider counterpart at all.
+
+Provider-side `429 RESOURCE_EXHAUSTED` responses remain authoritative.
+
+`GEMINI_EMBEDDING_INPUT_TOKENS_PER_MINUTE` keeps its name because it maps
+conceptually to the upstream constraint, but the value metered against it is
+`estimatedInputUnits` — UTF-8 bytes of the final formatted input — and never an
+actual token count. The estimate is reserved atomically before each request and
+then kept: it is never reconciled or refunded, because the pinned SDK's
+Developer-API response conversion discards `usageMetadata` entirely, so there is
+no actual count to reconcile against. A pinned-SDK contract test asserts that,
+so an SDK upgrade that changes it fails loudly.
+
+`GEMINI_EMBEDDING_QUOTA_PROJECT_ID` is an opaque deployment label (for example
+`embedding-project-01`), not the real Google project name. The budget is keyed
+on it rather than on the credential, so every replica on one Google project
+shares a bucket and a credential rotation never mints a fresh day or 30-day
+window.
+
+#### Live smoke check
+
+```bash
+npm run test:gemini-embedding:smoke
+```
+
+It confirms only what documentation cannot: the selected API version (`v1beta`),
+one embedding per `Content`, 1,536 dimensions, that the configured 32-input
+operational batch succeeds, and semantic ordering over held-out fixtures. Note
+the wording — a successful 32-input request establishes that **the configured
+operational batch succeeds**, not the model's maximum; claiming a maximum
+requires deliberately probing increasing sizes.
+
 ### Switching embedding providers
 
 The schema stores one vector and one model id per chunk, and replacement is
