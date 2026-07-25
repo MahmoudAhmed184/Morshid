@@ -1,16 +1,12 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate } from '@tanstack/react-router'
-import { ChevronRight, Mail } from 'lucide-react'
+import { TriangleAlert } from 'lucide-react'
 import { useId, useState } from 'react'
 import { useForm } from 'react-hook-form'
 
 import { Button } from '@/components/ui/button'
 import { Form, FormField } from '@/components/ui/form'
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from '@/components/ui/input-group'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 import {
@@ -64,54 +60,76 @@ export function SignInForm() {
     await navigate({ to: getDashboardPath(session.user.role) })
   }
 
+  const fillDemo = (role: 'instructor' | 'student' | 'admin') => {
+    const emails: Record<typeof role, string> = {
+      instructor: 'instructor@morshid.demo',
+      student: 'student1@morshid.demo',
+      admin: 'admin@morshid.demo',
+    }
+    form.setValue('email', emails[role], { shouldValidate: true })
+    form.setValue('password', 'MorshidDemoP0!', { shouldValidate: true })
+    setAuthErrorMessage(null)
+  }
+
   return (
     <Form {...form}>
       <form
-        className="space-y-6"
+        className="space-y-5"
         noValidate
         onSubmit={form.handleSubmit(onSubmit)}
       >
+        {/* Quick Demo Credentials Pills */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="font-mono text-[0.68rem] uppercase tracking-wider text-muted-foreground mr-1">
+            Autofill:
+          </span>
+          <button
+            type="button"
+            onClick={() => fillDemo('instructor')}
+            className="rounded-full border border-border/80 bg-muted/60 px-2.5 py-0.5 font-mono text-[0.68rem] font-medium text-foreground/90 transition-colors hover:bg-muted hover:text-foreground"
+          >
+            Instructor
+          </button>
+          <button
+            type="button"
+            onClick={() => fillDemo('student')}
+            className="rounded-full border border-border/80 bg-muted/60 px-2.5 py-0.5 font-mono text-[0.68rem] font-medium text-foreground/90 transition-colors hover:bg-muted hover:text-foreground"
+          >
+            Student
+          </button>
+          <button
+            type="button"
+            onClick={() => fillDemo('admin')}
+            className="rounded-full border border-border/80 bg-muted/60 px-2.5 py-0.5 font-mono text-[0.68rem] font-medium text-foreground/90 transition-colors hover:bg-muted hover:text-foreground"
+          >
+            Admin
+          </button>
+        </div>
         <FormField
           control={form.control}
           name="email"
           render={({ field, fieldState }) => (
             <div className="space-y-0">
               <div className="space-y-2.5">
-                <div className="flex items-center justify-between gap-3">
-                  <Label
-                    htmlFor={emailInputId}
-                    className="text-xs font-medium tracking-[0.12em] text-foreground uppercase sm:text-sm"
-                  >
-                    Institutional Email
-                  </Label>
-                </div>
-                <InputGroup className="h-12 rounded-full px-1">
-                  <InputGroupAddon align="inline-start" className="pl-3">
-                    <Mail
-                      className="size-[1.125rem] text-foreground"
-                      aria-hidden
-                    />
-                  </InputGroupAddon>
-                  <InputGroupInput
-                    {...field}
-                    id={emailInputId}
-                    type="email"
-                    placeholder="instructor@morshid.demo"
-                    autoComplete="email"
-                    aria-invalid={fieldState.error ? true : undefined}
-                    aria-describedby={
-                      fieldState.error ? emailErrorId : undefined
-                    }
-                    className="text-base"
-                  />
-                </InputGroup>
+                <Label htmlFor={emailInputId} className="smallcaps-label">
+                  Institutional Email
+                </Label>
+                <Input
+                  {...field}
+                  id={emailInputId}
+                  type="email"
+                  placeholder="instructor@morshid.demo"
+                  autoComplete="email"
+                  aria-invalid={fieldState.error ? true : undefined}
+                  aria-describedby={fieldState.error ? emailErrorId : undefined}
+                />
               </div>
 
               {fieldState.error ? (
                 <p
                   id={emailErrorId}
                   role="alert"
-                  className="mt-2 text-sm text-destructive"
+                  className="mt-2 text-sm text-rubric"
                 >
                   {fieldState.error.message}
                 </p>
@@ -138,7 +156,7 @@ export function SignInForm() {
                 <p
                   id={passwordErrorId}
                   role="alert"
-                  className="mt-2 text-sm text-destructive"
+                  className="mt-2 text-sm text-rubric"
                 >
                   {fieldState.error.message}
                 </p>
@@ -148,12 +166,13 @@ export function SignInForm() {
         />
 
         {authErrorMessage ? (
-          <p
+          <div
             role="alert"
-            className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            className="flex items-start gap-2.5 rounded-xl border border-rubric/40 bg-rubric/5 px-3.5 py-3 text-sm text-rubric"
           >
-            {authErrorMessage}
-          </p>
+            <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+            <span>{authErrorMessage}</span>
+          </div>
         ) : null}
 
         <Button
@@ -161,10 +180,9 @@ export function SignInForm() {
           variant="default"
           size="lg"
           disabled={form.formState.isSubmitting}
-          className="h-12 w-full rounded-full text-lg font-medium"
+          className="h-12 w-full gap-2 rounded-full px-7 text-base"
         >
-          Sign In to Portal
-          <ChevronRight className="size-4" aria-hidden />
+          Sign in
         </Button>
       </form>
     </Form>

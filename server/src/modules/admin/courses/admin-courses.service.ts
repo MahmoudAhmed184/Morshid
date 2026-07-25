@@ -9,13 +9,17 @@ import type {
   AdminCourseListResponseDto,
   AdminCourseMemberListResponseDto,
   AdminCourseMemberResponseDto,
+  AdminCreateCourseRequest,
   AdminMaterialListResponseDto,
   AdminMaterialResponseDto,
+  AdminUpdateCourseRequest,
   AdminUpdateMaterialRequest,
   AdminUpdateMemberRoleRequest,
 } from './admin-courses.dto'
 import {
+  AdminCourseCodeAlreadyExistsError,
   AdminCourseMemberAlreadyExistsError,
+  adminCourseCodeAlreadyExistsException,
   adminCourseNotFoundException,
   adminCourseMaterialNotFoundException,
   adminCourseMemberAlreadyExistsException,
@@ -52,6 +56,83 @@ export class AdminCoursesService {
 
     return {
       course: mapAdminCourseRecord(course),
+    }
+  }
+
+  async createCourse(
+    input: AdminCreateCourseRequest,
+    actor: AuthenticatedRequestUser,
+    requestContext?: AuditRequestContext,
+  ): Promise<AdminCourseDetailResponseDto> {
+    const existingCourse = await this.adminCoursesRepository.findCourseByCode(
+      input.code,
+    )
+
+    if (existingCourse !== null) {
+      throw adminCourseCodeAlreadyExistsException(input.code)
+    }
+
+    try {
+      const course = await this.adminCoursesRepository.createCourse({
+        code: input.code,
+        title: input.title,
+        actorUserId: actor.id,
+        requestContext,
+      })
+
+      return {
+        course: mapAdminCourseRecord(course),
+      }
+    } catch (error) {
+      if (error instanceof AdminCourseCodeAlreadyExistsError) {
+        throw adminCourseCodeAlreadyExistsException(error.code)
+      }
+
+      throw error
+    }
+  }
+
+  async updateCourse(
+    courseId: string,
+    input: AdminUpdateCourseRequest,
+    actor: AuthenticatedRequestUser,
+    requestContext?: AuditRequestContext,
+  ): Promise<AdminCourseDetailResponseDto> {
+    const existingCourse =
+      await this.adminCoursesRepository.findCourseById(courseId)
+
+    if (existingCourse === null) {
+      throw adminCourseNotFoundException(courseId)
+    }
+
+    if (input.code !== undefined && input.code !== existingCourse.code) {
+      const courseWithCode = await this.adminCoursesRepository.findCourseByCode(
+        input.code,
+      )
+
+      if (courseWithCode !== null) {
+        throw adminCourseCodeAlreadyExistsException(input.code)
+      }
+    }
+
+    try {
+      const course = await this.adminCoursesRepository.updateCourse({
+        courseId,
+        code: input.code,
+        title: input.title,
+        actorUserId: actor.id,
+        requestContext,
+      })
+
+      return {
+        course: mapAdminCourseRecord(course),
+      }
+    } catch (error) {
+      if (error instanceof AdminCourseCodeAlreadyExistsError) {
+        throw adminCourseCodeAlreadyExistsException(error.code)
+      }
+
+      throw error
     }
   }
 

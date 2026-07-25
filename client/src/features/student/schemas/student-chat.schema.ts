@@ -98,6 +98,15 @@ export const chatCitationSchema = z
         })
       }
     }
+
+    const chunkIds = new Set(evidence.map(({ chunkId }) => chunkId))
+    if (chunkIds.size !== evidence.length) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Citation evidence must not repeat chunks',
+        path: ['evidence'],
+      })
+    }
   })
 
 export const chatMessageSchema = z
@@ -117,6 +126,46 @@ export const chatMessageSchema = z
     citations: z.array(chatCitationSchema),
   })
   .strict()
+  .superRefine((message, context) => {
+    if (message.role !== 'ASSISTANT' && message.citations.length > 0) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Only Assistant messages can include citations',
+        path: ['citations'],
+      })
+    }
+
+    if (message.role === 'STUDENT' && message.responseToMessageId !== null) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Student messages cannot respond to another message',
+        path: ['responseToMessageId'],
+      })
+    }
+
+    for (let index = 1; index < message.citations.length; index += 1) {
+      if (
+        message.citations[index].order <= message.citations[index - 1].order
+      ) {
+        context.addIssue({
+          code: 'custom',
+          message: 'Citations must be ordered by increasing order',
+          path: ['citations', index, 'order'],
+        })
+      }
+    }
+
+    const materialIds = new Set(
+      message.citations.map(({ materialId }) => materialId),
+    )
+    if (materialIds.size !== message.citations.length) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Citations must not repeat materials',
+        path: ['citations'],
+      })
+    }
+  })
 
 export const groundedChatTurnResponseSchema = z
   .object({
@@ -124,6 +173,59 @@ export const groundedChatTurnResponseSchema = z
     assistantMessage: chatMessageSchema,
   })
   .strict()
+  .superRefine(({ studentMessage, assistantMessage }, context) => {
+    if (studentMessage.role !== 'STUDENT') {
+      context.addIssue({
+        code: 'custom',
+        message: 'A grounded turn must start with a Student message',
+        path: ['studentMessage', 'role'],
+      })
+    }
+
+    if (assistantMessage.role !== 'ASSISTANT') {
+      context.addIssue({
+        code: 'custom',
+        message: 'A grounded turn must end with an Assistant message',
+        path: ['assistantMessage', 'role'],
+      })
+    }
+
+    if (assistantMessage.responseToMessageId !== studentMessage.id) {
+      context.addIssue({
+        code: 'custom',
+        message: 'The Assistant response must reference its Student message',
+        path: ['assistantMessage', 'responseToMessageId'],
+      })
+    }
+
+    if (assistantMessage.sequence !== studentMessage.sequence + 1) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Grounded turn messages must have adjacent sequences',
+        path: ['assistantMessage', 'sequence'],
+      })
+    }
+
+    if (studentMessage.status !== 'COMPLETED') {
+      context.addIssue({
+        code: 'custom',
+        message: 'A returned Student message must be persisted as completed',
+        path: ['studentMessage', 'status'],
+      })
+    }
+
+    if (
+      assistantMessage.status !== 'COMPLETED' &&
+      assistantMessage.status !== 'FAILED' &&
+      assistantMessage.status !== 'BLOCKED'
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message: 'A complete response must contain a terminal Assistant state',
+        path: ['assistantMessage', 'status'],
+      })
+    }
+  })
 
 export const chatMessageHistoryResponseSchema = z
   .object({
@@ -144,6 +246,15 @@ export const chatMessageHistoryResponseSchema = z
         })
       }
     }
+
+    const messageIds = new Set(messages.map(({ id }) => id))
+    if (messageIds.size !== messages.length) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Message history must not contain duplicate messages',
+        path: ['messages'],
+      })
+    }
   })
 
 export const createChatSessionRequestSchema = z
@@ -158,15 +269,18 @@ export const renameChatSessionRequestSchema = z
   })
   .strict()
 
+export const studentChatMessageContentSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .refine((value) => Array.from(value).length <= 4_000, {
+    message: 'Message content must contain at most 4,000 code points',
+  })
+
 export const sendStudentChatMessageRequestSchema = z
   .object({
-    content: z
-      .string()
-      .trim()
-      .min(1)
-      .refine((value) => Array.from(value).length <= 4_000, {
-        message: 'Message content must contain at most 4,000 code points',
-      }),
+    clientMessageId: z.uuid(),
+    content: studentChatMessageContentSchema,
   })
   .strict()
 
@@ -183,8 +297,18 @@ export const listChatMessagesInputSchema = z
   .object({
     limit: z.number().int().min(1).max(200).optional(),
     after: z.number().int().nonnegative().optional(),
+    before: z.number().int().positive().optional(),
+    page: z.literal('latest').optional(),
   })
   .strict()
+  .refine(
+    ({ after, before, page }) =>
+      [after, before, page].filter((value) => value !== undefined).length <= 1,
+    {
+      message:
+        'Message pagination must use only one of after, before, or page=latest',
+    },
+  )
 
 export type ChatSession = z.infer<typeof chatSessionSchema>
 export type ChatSessionListResponse = z.infer<

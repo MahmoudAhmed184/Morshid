@@ -219,6 +219,38 @@ describe('GroundedChatService', () => {
     })
   })
 
+  it('returns a terminal idempotent replay without generating again', async () => {
+    beginTurn.mockResolvedValue({
+      kind: 'replayed',
+      studentMessage: studentMessage(),
+      assistantMessage: assistantMessage({
+        status: MessageStatus.COMPLETED,
+        content: 'Already generated',
+      }),
+    })
+
+    const response = await service.send(
+      courseId,
+      sessionId,
+      {
+        clientMessageId: studentMessageId,
+        content: 'Explain list iteration',
+      },
+      user,
+    )
+
+    expect(response.assistantMessage.content).toBe('Already generated')
+    expect(beginTurn).toHaveBeenCalledWith({
+      clientMessageId: studentMessageId,
+      courseId,
+      sessionId,
+      studentId: user.id,
+      content: 'Explain list iteration',
+    })
+    expect(retrieveCourseEvidence).not.toHaveBeenCalled()
+    expect(complete).not.toHaveBeenCalled()
+  })
+
   it('blocks insufficient evidence without calling completion or retaining evidence', async () => {
     retrieveCourseEvidence.mockResolvedValue({ kind: 'insufficient_evidence' })
 
@@ -534,7 +566,7 @@ describe('GroundedChatService', () => {
   })
 })
 
-function beginOk(): BeginGroundedChatTurnResult {
+function beginOk(): Extract<BeginGroundedChatTurnResult, { kind: 'ok' }> {
   return {
     kind: 'ok',
     courseId,

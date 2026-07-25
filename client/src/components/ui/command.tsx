@@ -20,7 +20,8 @@ function Command({
     <CommandPrimitive
       data-slot="command"
       className={cn(
-        'flex size-full flex-col overflow-hidden rounded-xl! bg-popover p-1 text-popover-foreground',
+        /* morshid: menu kit — glass surface; border/shadow come from the wrapping DialogContent */
+        'flex size-full flex-col overflow-hidden rounded-2xl bg-popover/92 p-1.5 text-popover-foreground backdrop-blur-xl backdrop-saturate-150',
         className,
       )}
       {...props}
@@ -121,7 +122,8 @@ function CommandGroup({
     <CommandPrimitive.Group
       data-slot="command-group"
       className={cn(
-        'overflow-hidden p-1 text-foreground **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:py-1.5 **:[[cmdk-group-heading]]:text-xs **:[[cmdk-group-heading]]:font-medium **:[[cmdk-group-heading]]:text-muted-foreground',
+        /* morshid: menu kit — heading mirrors .smallcaps-label */
+        'overflow-hidden p-1 text-foreground **:[[cmdk-group-heading]]:px-3 **:[[cmdk-group-heading]]:pt-2 **:[[cmdk-group-heading]]:pb-1 **:[[cmdk-group-heading]]:font-mono **:[[cmdk-group-heading]]:text-[0.6875rem] **:[[cmdk-group-heading]]:tracking-[0.14em] **:[[cmdk-group-heading]]:text-muted-foreground **:[[cmdk-group-heading]]:uppercase',
         className,
       )}
       {...props}
@@ -136,7 +138,10 @@ function CommandSeparator({
   return (
     <CommandPrimitive.Separator
       data-slot="command-separator"
-      className={cn('-mx-1 h-px bg-border', className)}
+      className={cn(
+        /* morshid: menu kit */ '-mx-1 my-1 h-px bg-border/70',
+        className,
+      )}
       {...props}
     />
   )
@@ -151,7 +156,8 @@ function CommandItem({
     <CommandPrimitive.Item
       data-slot="command-item"
       className={cn(
-        "group/command-item relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none in-data-[slot=dialog-content]:rounded-lg! data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 data-selected:bg-muted data-selected:text-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 data-selected:*:[svg]:text-foreground",
+        /* morshid: menu kit */
+        "group/command-item relative flex cursor-default items-center gap-2.5 rounded-lg px-3 py-2 text-sm outline-hidden select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 data-selected:bg-accent data-selected:text-accent-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 data-selected:*:[svg]:text-accent-foreground",
         className,
       )}
       {...props}
@@ -170,7 +176,8 @@ function CommandShortcut({
     <span
       data-slot="command-shortcut"
       className={cn(
-        'ml-auto text-xs tracking-widest text-muted-foreground group-data-selected/command-item:text-foreground',
+        /* morshid: menu kit */
+        'ml-auto text-xs tracking-widest text-muted-foreground group-data-selected/command-item:text-accent-foreground',
         className,
       )}
       {...props}

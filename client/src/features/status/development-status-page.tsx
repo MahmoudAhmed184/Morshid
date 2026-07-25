@@ -78,6 +78,22 @@ function getRuntimeReadinessLabel(
     : 'degraded'
 }
 
+type StatusVariant =
+  'default' | 'secondary' | 'success' | 'warning' | 'destructive'
+
+function getStatusVariant(label: string): StatusVariant {
+  switch (label) {
+    case 'ready':
+      return 'success'
+    case 'degraded':
+      return 'warning'
+    case 'offline':
+      return 'destructive'
+    default:
+      return 'secondary'
+  }
+}
+
 export function DevelopmentStatusPage() {
   const readiness = useQuery(readinessQueryOptions)
 
@@ -86,13 +102,11 @@ export function DevelopmentStatusPage() {
     readiness.isError,
     readiness.data?.status,
   )
-  const readinessIsReady = readinessLabel === 'ready'
   const runtimeReadinessLabel = getRuntimeReadinessLabel(
     readiness.isPending,
     readiness.isError,
     readiness.data?.details,
   )
-  const runtimeIsReady = runtimeReadinessLabel === 'ready'
 
   return (
     <main className="min-h-svh bg-background">
@@ -140,7 +154,7 @@ export function DevelopmentStatusPage() {
               <CardDescription>TanStack Start React</CardDescription>
             </CardHeader>
             <CardContent>
-              <Badge>ready</Badge>
+              <Badge variant="success">ready</Badge>
             </CardContent>
           </Card>
 
@@ -153,7 +167,7 @@ export function DevelopmentStatusPage() {
               <CardDescription>{clientEnv.VITE_API_BASE_URL}</CardDescription>
             </CardHeader>
             <CardContent>
-              <Badge variant={readinessIsReady ? 'default' : 'secondary'}>
+              <Badge variant={getStatusVariant(readinessLabel)}>
                 {readinessLabel}
               </Badge>
             </CardContent>
@@ -168,7 +182,7 @@ export function DevelopmentStatusPage() {
               <CardDescription>PostgreSQL/pgvector and Redis</CardDescription>
             </CardHeader>
             <CardContent>
-              <Badge variant={runtimeIsReady ? 'default' : 'secondary'}>
+              <Badge variant={getStatusVariant(runtimeReadinessLabel)}>
                 {runtimeReadinessLabel}
               </Badge>
             </CardContent>

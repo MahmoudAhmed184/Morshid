@@ -1,13 +1,18 @@
-import { MessageSquareText } from 'lucide-react'
+import { LoaderCircle, MessageSquareText } from 'lucide-react'
 
+import { Logo } from '@/components/logo'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/custom/empty-state'
 import { ErrorState } from '@/components/ui/custom/error-state'
-import { isApiError } from '@/features/auth/api/authenticated-api-client'
+import {
+  isStudentChatApiError,
+  STUDENT_CHAT_ERROR_CODES,
+} from '@/features/student/data/student-chat.errors'
 import type { ChatMessage } from '@/features/student/schemas/student-chat.schema'
 
 import { StudentChatMessage } from './student-chat-message'
-import { StudentMessageHistorySkeleton } from './student-message-history-skeleton'
+import { StudentSuggestionRows } from './student-suggestion-rows'
+import { STUDENT_CHAT_GENERATION_STATUS } from './student-chat-status'
 
 interface StudentMessageHistoryProps {
   messages: ChatMessage[]
@@ -18,9 +23,15 @@ interface StudentMessageHistoryProps {
   hasNextPage: boolean
   isFetchingNextPage: boolean
   isFetchNextPageError: boolean
+  isGenerationActive: boolean
+  retryError: unknown
+  retryMessageId?: string
+  firstName?: string
   onRetry: () => void
   onLoadMore: () => void
   onRecover: () => void
+  onRetryResponse: (studentMessageId: string) => void
+  onSuggestionSelect: (text: string) => void
 }
 
 export function StudentMessageHistory({
@@ -32,18 +43,30 @@ export function StudentMessageHistory({
   hasNextPage,
   isFetchingNextPage,
   isFetchNextPageError,
+  isGenerationActive,
+  retryError,
+  retryMessageId,
+  firstName,
   onRetry,
   onLoadMore,
   onRecover,
+  onRetryResponse,
+  onSuggestionSelect,
 }: StudentMessageHistoryProps) {
-  if (isPending) {
-    return <StudentMessageHistorySkeleton />
+  if (isPending && !isGenerationActive && messages.length === 0) {
+    return (
+      <div className="flex min-h-[40vh] w-full items-center justify-center">
+        <LoaderCircle
+          className="size-6 animate-spin text-muted-foreground"
+          aria-hidden
+        />
+      </div>
+    )
   }
 
   if (
     isError &&
-    isApiError(error) &&
-    error.code === 'STUDENT_CHAT_SESSION_NOT_FOUND'
+    isStudentChatApiError(error, STUDENT_CHAT_ERROR_CODES.SESSION_NOT_FOUND)
   ) {
     return (
       <EmptyState
@@ -68,28 +91,73 @@ export function StudentMessageHistory({
     )
   }
 
-  if (messages.length === 0) {
+  if (messages.length === 0 && !isGenerationActive) {
     return (
-      <EmptyState
-        icon={<MessageSquareText className="size-6" aria-hidden />}
-        title="No messages yet"
-        description="Saved messages will appear here when this conversation begins."
-        className="w-full border-0 bg-transparent"
-      />
+      <div className="flex min-h-[60vh] w-full flex-col items-center justify-center gap-8 px-4">
+        <h2 className="display-2 text-center text-foreground">
+          {firstName
+            ? `How can I help you, ${firstName}?`
+            : 'How can I help you?'}
+        </h2>
+        <StudentSuggestionRows onSelect={onSuggestionSelect} />
+      </div>
     )
   }
 
+  const hasPendingAssistant = messages.some(
+    (message) =>
+      message.role === 'ASSISTANT' &&
+      (message.status === 'PENDING' || message.status === 'STREAMING'),
+  )
+
   return (
     <div>
-      <ol aria-label="Conversation history" className="space-y-5">
+      {hasNextPage && !isError ? (
+        <div className="mb-6 text-center">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isFetchingNextPage}
+            onClick={onLoadMore}
+          >
+            {isFetchingNextPage
+              ? 'Loading earlier messages…'
+              : 'Load earlier messages'}
+          </Button>
+        </div>
+      ) : null}
+      <ol aria-label="Conversation history" className="space-y-6">
         {messages.map((message) => (
-          <StudentChatMessage key={message.id} message={message} />
+          <StudentChatMessage
+            key={message.id}
+            message={message}
+            isGenerationActive={isGenerationActive}
+            retryError={retryError}
+            retryMessageId={retryMessageId}
+            onRetry={onRetryResponse}
+          />
         ))}
+        {isGenerationActive && !hasPendingAssistant ? (
+          <li
+            aria-label={STUDENT_CHAT_GENERATION_STATUS}
+            aria-live="polite"
+            className="flex gap-3 py-2"
+            role="status"
+          >
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <Logo className="size-8" iconClassName="size-4" />
+            </div>
+            <div className="flex items-center gap-2 px-1 py-1 text-sm text-muted-foreground">
+              <LoaderCircle className="size-4 animate-spin" aria-hidden />
+              {STUDENT_CHAT_GENERATION_STATUS}…
+            </div>
+          </li>
+        ) : null}
       </ol>
       {isError ? (
         <div
           role="alert"
-          className="mt-6 rounded-md border border-destructive/30 px-3 py-3 text-center"
+          className="mt-6 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3.5 text-center"
         >
           <p className="text-sm text-destructive">
             {isFetchNextPageError
@@ -100,23 +168,10 @@ export function StudentMessageHistory({
             type="button"
             variant="outline"
             size="sm"
-            className="mt-2"
+            className="mt-2.5"
             onClick={isFetchNextPageError ? onLoadMore : onRetry}
           >
             Retry loading messages
-          </Button>
-        </div>
-      ) : hasNextPage ? (
-        <div className="mt-6 text-center">
-          <Button
-            type="button"
-            variant="outline"
-            disabled={isFetchingNextPage}
-            onClick={onLoadMore}
-          >
-            {isFetchingNextPage
-              ? 'Loading more messages…'
-              : 'Load more messages'}
           </Button>
         </div>
       ) : null}

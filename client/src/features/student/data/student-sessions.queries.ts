@@ -99,7 +99,10 @@ export function studentSessionMessagesQueryOptions({
       getStudentSessionMessages({
         courseId,
         sessionId,
-        input: { limit: messagePageSize, after: pageParam },
+        input:
+          pageParam === undefined
+            ? { limit: messagePageSize, page: 'latest' }
+            : { limit: messagePageSize, before: pageParam },
       }),
     initialPageParam: undefined as number | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,

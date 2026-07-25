@@ -11,8 +11,11 @@ export const ADMIN_USERS_ERROR_CODES = {
   CANNOT_DISABLE_LAST_ACTIVE_ADMIN:
     'ADMIN_USERS_CANNOT_DISABLE_LAST_ACTIVE_ADMIN',
   CANNOT_DISABLE_SELF: 'ADMIN_USERS_CANNOT_DISABLE_SELF',
+  CANNOT_CHANGE_ADMIN_ROLE: 'ADMIN_USERS_CANNOT_CHANGE_ADMIN_ROLE',
+  ROLE_CHANGE_HAS_MEMBERSHIPS: 'ADMIN_USERS_ROLE_CHANGE_HAS_ACTIVE_MEMBERSHIPS',
   INVALID_CREATE_REQUEST: 'ADMIN_USERS_INVALID_CREATE_REQUEST',
   INVALID_LIST_REQUEST: 'ADMIN_USERS_INVALID_LIST_REQUEST',
+  INVALID_UPDATE_REQUEST: 'ADMIN_USERS_INVALID_UPDATE_REQUEST',
   INVALID_RESET_PASSWORD_REQUEST: 'ADMIN_USERS_INVALID_RESET_PASSWORD_REQUEST',
   USER_NOT_FOUND: 'ADMIN_USERS_USER_NOT_FOUND',
 } as const
@@ -39,6 +42,12 @@ export class AdminUserNotFoundError extends Error {
   }
 }
 
+export class AdminUserRoleChangeHasMembershipsError extends Error {
+  constructor(readonly userId: string) {
+    super(`User ${userId} has active course memberships`)
+  }
+}
+
 export function duplicateAdminUserEmailException(email: string): HttpException {
   return new ConflictException({
     code: ADMIN_USERS_ERROR_CODES.DUPLICATE_EMAIL,
@@ -59,6 +68,24 @@ export function cannotDisableSelfException(): HttpException {
   return new ForbiddenException({
     code: ADMIN_USERS_ERROR_CODES.CANNOT_DISABLE_SELF,
     message: 'Administrators cannot disable their own account',
+  })
+}
+
+export function cannotChangeAdminRoleException(): HttpException {
+  return new ForbiddenException({
+    code: ADMIN_USERS_ERROR_CODES.CANNOT_CHANGE_ADMIN_ROLE,
+    message: 'Administrator account roles cannot be changed',
+  })
+}
+
+export function adminUserRoleChangeHasMembershipsException(
+  userId: string,
+): HttpException {
+  return new ConflictException({
+    code: ADMIN_USERS_ERROR_CODES.ROLE_CHANGE_HAS_MEMBERSHIPS,
+    message:
+      'Remove active course memberships before changing the account role',
+    userId,
   })
 }
 
@@ -85,6 +112,16 @@ export function invalidAdminListUsersRequestException(
   return new BadRequestException({
     code: ADMIN_USERS_ERROR_CODES.INVALID_LIST_REQUEST,
     message: 'Invalid admin user list request',
+    errors,
+  })
+}
+
+export function invalidAdminUpdateUserRequestException(
+  errors: AdminUsersValidationIssue[] = [],
+): HttpException {
+  return new BadRequestException({
+    code: ADMIN_USERS_ERROR_CODES.INVALID_UPDATE_REQUEST,
+    message: 'Invalid admin user update request',
     errors,
   })
 }

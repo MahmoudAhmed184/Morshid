@@ -6,6 +6,7 @@ import {
   chatSessionResponseSchema,
   createChatSessionRequestSchema,
   deleteChatSessionResponseSchema,
+  listChatMessagesInputSchema,
   renameChatSessionRequestSchema,
   studentAiTutorSearchSchema,
   groundedChatTurnResponseSchema,
@@ -17,6 +18,7 @@ import {
   groundedChatTurnResponseFixture,
   malformedChatSessionResponseFixture,
   primaryChatSessionFixture,
+  studentChatIds,
 } from '../testing/student-chat.fixtures'
 
 describe('Student chat contract schemas', () => {
@@ -101,6 +103,64 @@ describe('Student chat contract schemas', () => {
     }
   })
 
+  it('rejects duplicated retrieval evidence and unordered material citations', () => {
+    const citation =
+      groundedChatTurnResponseFixture.assistantMessage.citations[0]
+    const duplicatedEvidence = {
+      ...citation,
+      evidence: [citation.evidence[0], { ...citation.evidence[0], rank: 2 }],
+    }
+    const unorderedCitations = [
+      citation,
+      {
+        ...citation,
+        materialId: 'd9025891-76d7-4e2d-97d5-b9ff32183217',
+      },
+    ]
+
+    for (const citations of [[duplicatedEvidence], unorderedCitations]) {
+      expect(() =>
+        groundedChatTurnResponseSchema.parse({
+          ...groundedChatTurnResponseFixture,
+          assistantMessage: {
+            ...groundedChatTurnResponseFixture.assistantMessage,
+            citations,
+          },
+        }),
+      ).toThrow()
+    }
+  })
+
+  it('rejects cross-shaped and non-terminal complete grounded turns', () => {
+    for (const response of [
+      {
+        ...groundedChatTurnResponseFixture,
+        studentMessage: {
+          ...groundedChatTurnResponseFixture.studentMessage,
+          role: 'ASSISTANT',
+        },
+      },
+      {
+        ...groundedChatTurnResponseFixture,
+        assistantMessage: {
+          ...groundedChatTurnResponseFixture.assistantMessage,
+          responseToMessageId: null,
+        },
+      },
+      {
+        ...groundedChatTurnResponseFixture,
+        assistantMessage: {
+          ...groundedChatTurnResponseFixture.assistantMessage,
+          status: 'PENDING',
+        },
+      },
+    ]) {
+      expect(groundedChatTurnResponseSchema.safeParse(response).success).toBe(
+        false,
+      )
+    }
+  })
+
   it('rejects message history that is not in stable sequence order', () => {
     expect(() =>
       chatMessageHistoryResponseSchema.parse({
@@ -108,6 +168,19 @@ describe('Student chat contract schemas', () => {
         nextCursor: null,
       }),
     ).toThrow(/increasing sequence/)
+
+    expect(() =>
+      chatMessageHistoryResponseSchema.parse({
+        messages: [
+          chatMessageHistoryResponseFixture.messages[0],
+          {
+            ...chatMessageHistoryResponseFixture.messages[0],
+            sequence: 2,
+          },
+        ],
+        nextCursor: null,
+      }),
+    ).toThrow(/duplicate messages/)
   })
 
   it('accepts only the approved create and rename request fields', () => {
@@ -133,25 +206,63 @@ describe('Student chat contract schemas', () => {
   it('accepts only trimmed grounded-chat content within 4,000 Unicode code points', () => {
     expect(
       sendStudentChatMessageRequestSchema.parse({
+        clientMessageId: studentChatIds.studentMessage,
         content: '  Explain lists  ',
       }),
-    ).toEqual({ content: 'Explain lists' })
+    ).toEqual({
+      clientMessageId: studentChatIds.studentMessage,
+      content: 'Explain lists',
+    })
     expect(
       sendStudentChatMessageRequestSchema.safeParse({
+        clientMessageId: studentChatIds.studentMessage,
         content: '😀'.repeat(4_000),
       }).success,
     ).toBe(true)
 
     for (const input of [
-      { content: ' ' },
-      { content: '😀'.repeat(4_001) },
-      { content: 'Question', courseId: 'client-course' },
-      { content: 'Question', studentId: 'client-student' },
-      { content: 'Question', chunks: [] },
-      { content: 'Question', ranks: [1] },
-      { content: 'Question', citations: [] },
-      { content: 'Question', provider: 'client-provider' },
-      { content: 'Question', model: 'client-model' },
+      { clientMessageId: studentChatIds.studentMessage, content: ' ' },
+      {
+        clientMessageId: studentChatIds.studentMessage,
+        content: '😀'.repeat(4_001),
+      },
+      {
+        clientMessageId: studentChatIds.studentMessage,
+        content: 'Question',
+        courseId: 'client-course',
+      },
+      {
+        clientMessageId: studentChatIds.studentMessage,
+        content: 'Question',
+        studentId: 'client-student',
+      },
+      {
+        clientMessageId: studentChatIds.studentMessage,
+        content: 'Question',
+        chunks: [],
+      },
+      {
+        clientMessageId: studentChatIds.studentMessage,
+        content: 'Question',
+        ranks: [1],
+      },
+      {
+        clientMessageId: studentChatIds.studentMessage,
+        content: 'Question',
+        citations: [],
+      },
+      {
+        clientMessageId: studentChatIds.studentMessage,
+        content: 'Question',
+        provider: 'client-provider',
+      },
+      {
+        clientMessageId: studentChatIds.studentMessage,
+        content: 'Question',
+        model: 'client-model',
+      },
+      { clientMessageId: 'not-a-uuid', content: 'Question' },
+      { content: 'Question' },
     ]) {
       expect(sendStudentChatMessageRequestSchema.safeParse(input).success).toBe(
         false,
@@ -162,6 +273,22 @@ describe('Student chat contract schemas', () => {
   it('models the delete contract as an empty 204 response', () => {
     expect(deleteChatSessionResponseSchema.parse(undefined)).toBeUndefined()
     expect(() => deleteChatSessionResponseSchema.parse({})).toThrow()
+  })
+
+  it('supports explicit latest and backward pagination without mixed cursors', () => {
+    expect(
+      listChatMessagesInputSchema.parse({ limit: 50, before: 101 }),
+    ).toEqual({ limit: 50, before: 101 })
+    expect(
+      listChatMessagesInputSchema.parse({ limit: 50, page: 'latest' }),
+    ).toEqual({ limit: 50, page: 'latest' })
+    expect(
+      listChatMessagesInputSchema.safeParse({ after: 50, before: 101 }).success,
+    ).toBe(false)
+    expect(
+      listChatMessagesInputSchema.safeParse({ after: 50, page: 'latest' })
+        .success,
+    ).toBe(false)
   })
 
   it('validates optional AI Tutor course and session search state', () => {

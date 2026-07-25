@@ -51,7 +51,6 @@ export function StudentSessionActionsMenu({
             Rename
           </DropdownMenuItem>
           <DropdownMenuItem
-            variant="destructive"
             disabled={isPending}
             onClick={() => setDeleteOpen(true)}
           >

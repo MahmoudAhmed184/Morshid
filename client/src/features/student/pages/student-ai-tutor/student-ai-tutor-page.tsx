@@ -1,276 +1,558 @@
 import { useNavigate } from '@tanstack/react-router'
-import { BookOpen, PanelLeft } from 'lucide-react'
-import { useState } from 'react'
+import { BookOpen } from 'lucide-react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
+import type { ReactNode } from 'react'
 
-import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/custom/empty-state'
+import { ErrorState } from '@/components/ui/custom/error-state'
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
-  SheetTrigger,
 } from '@/components/ui/sheet'
-import { useStudentCourses } from '@/features/student/hooks/use-student-courses'
+import { useAuthStore } from '@/features/auth/stores/auth.store'
+import {
+  useRegisterComposerFocus,
+  useRegisterSourcesControl,
+} from '@/features/student/components/student-chrome-context'
+import { useStudentCourseContext } from '@/features/student/components/student-course-context'
+import {
+  isStudentChatApiError,
+  STUDENT_CHAT_ERROR_CODES,
+} from '@/features/student/data/student-chat.errors'
 import {
   useCreateStudentSession,
-  useDeleteStudentSession,
   useRenameStudentSession,
   useStudentSession,
   useStudentSessionMessages,
-  useStudentSessions,
 } from '@/features/student/hooks/use-student-sessions'
-import type { ChatSession } from '@/features/student/schemas/student-chat.schema'
+import {
+  useRetryStudentChatMessage,
+  useSendStudentChatMessage,
+} from '@/features/student/hooks/use-student-chat-turns'
+import type {
+  ChatMessage,
+  ChatSession,
+} from '@/features/student/schemas/student-chat.schema'
+import type { StudentCourse } from '@/features/student/schemas/student-course.schema'
+import { firstNameFromDisplayName } from '@/features/student/utils/greeting'
+import { cn } from '@/lib/utils'
 
-import { StudentConversationHeader } from './student-conversation-header'
-import { StudentDisabledComposer } from './student-disabled-composer'
+import { StudentChatComposer } from './student-chat-composer'
+import type { StudentChatComposerHandle } from './student-chat-composer'
 import { StudentMessageHistory } from './student-message-history'
-import { StudentSessionNavigation } from './student-session-navigation'
-import { StudentWorkspaceState } from './student-workspace-state'
+import { StudentSourcesPanel } from './student-sources-panel'
+import { StudentSuggestionRows } from './student-suggestion-rows'
 
 interface StudentAiTutorPageProps {
-  courseId?: string
   sessionId?: string
 }
 
-export function StudentAiTutorPage({
-  courseId,
-  sessionId,
-}: StudentAiTutorPageProps) {
+// A first message handed from the draft to the freshly-created session so the
+// send runs through the destination composer (T15.2).
+interface PendingFirstMessage {
+  sessionId: string
+  content: string
+  clientMessageId: string
+}
+
+export function StudentAiTutorPage({ sessionId }: StudentAiTutorPageProps) {
   const navigate = useNavigate()
-  const [mobileSessionsOpen, setMobileSessionsOpen] = useState(false)
-  const { data: assignedCourses } = useStudentCourses()
-  const selectedCourse =
-    (courseId
-      ? assignedCourses.find((course) => course.id === courseId)
-      : assignedCourses.length === 1
-        ? assignedCourses[0]
-        : undefined) ?? null
-  const sessionsQuery = useStudentSessions({ courseId: selectedCourse?.id })
-  const sessions =
-    sessionsQuery.data?.pages.flatMap((page) => page.sessions) ?? []
-  const listedSession =
-    sessions.find((session) => session.id === sessionId) ?? null
+  const studentId = useAuthStore((state) => state.user?.id)
+  const displayName = useAuthStore((state) => state.user?.displayName)
+  const firstName = firstNameFromDisplayName(displayName)
+  // The one active-course model for the whole student shell (it already reads
+  // `?courseId`), so the workspace, the sidebar switcher, New chat and the ⌘K
+  // palette can never disagree about which notebook is open.
+  const { courses: assignedCourses, activeCourse: selectedCourse } =
+    useStudentCourseContext()
   const routedSessionQuery = useStudentSession({
     courseId: selectedCourse?.id,
     sessionId,
   })
   const selectedSession = routedSessionQuery.data ?? null
-  const visibleSessions =
-    selectedSession && !listedSession
-      ? [selectedSession, ...sessions]
-      : sessions
-  const messagesQuery = useStudentSessionMessages({
-    courseId: selectedCourse?.id,
-    sessionId: selectedSession?.id,
-  })
-  const messages =
-    messagesQuery.data?.pages.flatMap((page) => page.messages) ?? []
-  const createSession = useCreateStudentSession({
-    courseId: selectedCourse?.id,
-  })
-  const renameSession = useRenameStudentSession({
-    courseId: selectedCourse?.id,
-  })
-  const deleteSession = useDeleteStudentSession({
-    courseId: selectedCourse?.id,
-  })
-
-  const handleCreate = async () => {
-    if (!selectedCourse) {
-      return
-    }
-
-    const session = await createSession.mutateAsync({})
-    await navigate({
-      to: '/student/ai-tutor',
-      search: { courseId: selectedCourse.id, sessionId: session.id },
-    })
-  }
-
-  const handleRename = async (session: ChatSession, title: string) => {
-    await renameSession.mutateAsync({
-      sessionId: session.id,
-      input: { title },
-    })
-  }
-
-  const handleDelete = async (session: ChatSession) => {
-    if (!selectedCourse) {
-      return
-    }
-
-    await deleteSession.mutateAsync(session.id)
-
-    if (session.id === sessionId) {
-      await navigate({
-        to: '/student/ai-tutor',
-        search: { courseId: selectedCourse.id },
-      })
-    }
-  }
+  const [pendingFirstMessage, setPendingFirstMessage] =
+    useState<PendingFirstMessage | null>(null)
 
   const handleStaleSession = async () => {
     if (!selectedCourse) {
       return
     }
 
-    await navigate({
-      to: '/student/ai-tutor',
-      search: { courseId: selectedCourse.id },
-    })
-    void sessionsQuery.refetch()
+    await navigate({ to: '/chat', search: { courseId: selectedCourse.id } })
+    void routedSessionQuery.refetch()
   }
 
-  const sessionNavigationProps = selectedCourse
-    ? {
-        selectedCourse,
-        courses: assignedCourses,
-        sessions: visibleSessions,
-        selectedSessionId: sessionId,
-        isPending: sessionsQuery.isPending,
-        isError: sessionsQuery.isError && sessions.length === 0,
-        isRefreshing:
-          sessionsQuery.isFetching &&
-          !sessionsQuery.isPending &&
-          !sessionsQuery.isFetchingNextPage,
-        hasNextPage: sessionsQuery.hasNextPage,
-        isFetchingNextPage: sessionsQuery.isFetchingNextPage,
-        isFetchNextPageError: sessionsQuery.isFetchNextPageError,
-        isCreating: createSession.isPending,
-        areSessionMutationsPending:
-          renameSession.isPending || deleteSession.isPending,
-        renamingSessionId: renameSession.isPending
-          ? renameSession.variables.sessionId
-          : undefined,
-        deletingSessionId: deleteSession.isPending
-          ? deleteSession.variables
-          : undefined,
-        onRetry: () => void sessionsQuery.refetch(),
-        onLoadMore: () => void sessionsQuery.fetchNextPage(),
-        onCreate: handleCreate,
-        onRename: handleRename,
-        onDelete: handleDelete,
+  const handleFirstMessageCreated = useCallback(
+    (session: ChatSession, content: string, clientMessageId: string) => {
+      if (!selectedCourse) {
+        return
       }
-    : null
-  const activeSessionNavigationProps = sessionNavigationProps!
+
+      setPendingFirstMessage({
+        sessionId: session.id,
+        content,
+        clientMessageId,
+      })
+      void navigate({
+        to: '/chat',
+        search: { courseId: selectedCourse.id, sessionId: session.id },
+        replace: true,
+      })
+    },
+    [navigate, selectedCourse],
+  )
+
+  const consumePendingFirstMessage = useCallback(
+    () => setPendingFirstMessage(null),
+    [],
+  )
+
+  if (!selectedCourse) {
+    return (
+      <div className="flex h-full flex-1 items-center justify-center px-4 py-12">
+        <EmptyState
+          icon={<BookOpen className="size-6" aria-hidden />}
+          title={
+            assignedCourses.length === 0
+              ? 'No assigned course'
+              : 'Choose a course'
+          }
+          description={
+            assignedCourses.length === 0
+              ? 'An active Student course membership is required before you can open a private workspace.'
+              : 'Select one of your assigned courses to load its private conversations.'
+          }
+          className="w-full max-w-md border-0 bg-transparent"
+        />
+      </div>
+    )
+  }
+
+  const isSessionLoading =
+    sessionId !== undefined &&
+    routedSessionQuery.isPending &&
+    routedSessionQuery.fetchStatus !== 'idle'
 
   return (
     <section
-      className="flex min-h-0 flex-1 overflow-hidden bg-background text-foreground"
+      className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden overscroll-none bg-background text-foreground"
       aria-label="Student AI Tutor"
     >
-      {selectedCourse ? (
-        <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)] md:grid-cols-[20rem_minmax(0,1fr)] md:overflow-hidden">
-          <div className="hidden min-h-0 md:contents">
-            <StudentSessionNavigation {...activeSessionNavigationProps} />
-          </div>
+      {selectedSession ? (
+        <StudentConversation
+          key={`${studentId ?? 'anonymous'}:${selectedCourse.id}:${selectedSession.id}`}
+          course={selectedCourse}
+          session={selectedSession}
+          firstName={firstName}
+          onRecover={() => void handleStaleSession()}
+          pendingFirstMessage={
+            pendingFirstMessage?.sessionId === selectedSession.id
+              ? pendingFirstMessage
+              : null
+          }
+          onConsumePendingFirstMessage={consumePendingFirstMessage}
+        />
+      ) : sessionId !== undefined ? (
+        // A specific session was requested but is not yet available — loading,
+        // unavailable, or missing. This is not the draft: it offers no composer
+        // (the first-message draft lives only at `/chat?courseId` with no
+        // sessionId) and resolves into the conversation once the session loads.
+        <StudentSessionPlaceholder
+          isSessionLoading={isSessionLoading}
+          sessionError={routedSessionQuery.error}
+          sessionRetrying={routedSessionQuery.isFetching}
+          onRetrySession={() => void routedSessionQuery.refetch()}
+        />
+      ) : (
+        <StudentDraftState
+          key={`${studentId ?? 'anonymous'}:${selectedCourse.id}:draft`}
+          course={selectedCourse}
+          firstName={firstName}
+          onFirstMessageCreated={handleFirstMessageCreated}
+        />
+      )}
+    </section>
+  )
+}
 
-          <div className="flex min-h-80 min-w-0 flex-col bg-background">
-            <Sheet
-              open={mobileSessionsOpen}
-              onOpenChange={setMobileSessionsOpen}
-            >
-              <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-card px-3 md:hidden">
-                <SheetTrigger
-                  render={
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-9 rounded-[10px] text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                      aria-label="Open sessions"
-                    />
-                  }
-                >
-                  <PanelLeft className="size-5" aria-hidden />
-                </SheetTrigger>
-                <span className="truncate text-sm font-medium text-foreground">
-                  Courses & chats
-                </span>
-              </div>
-              <SheetContent
-                side="left"
-                className="inset-y-2! left-2! h-[calc(100svh-1rem)]! w-[80vw]! max-w-80 gap-0 overflow-hidden overscroll-contain rounded-2xl border border-border bg-card p-0 shadow-2xl md:hidden"
-              >
-                <SheetHeader className="sr-only">
-                  <SheetTitle>Course sessions</SheetTitle>
-                </SheetHeader>
-                <StudentSessionNavigation
-                  {...activeSessionNavigationProps}
-                  onNavigate={() => setMobileSessionsOpen(false)}
-                  className="h-full border-0 pt-8"
-                />
-              </SheetContent>
-            </Sheet>
+// T15.6 — the conversation's sources chrome: the mobile Sources Sheet, the
+// inline lg: sources column, and registration of the shell's BookMarked toggle.
+// The panel is HIDDEN by default and never auto-opens; it is summoned only via
+// the toggle, which itself appears only once the conversation holds ≥1 message
+// (nothing to cite before then). The draft has no sources chrome at all.
+interface StudentWorkspaceSourcesProps {
+  course: StudentCourse
+  messages: ChatMessage[]
+  children: ReactNode
+}
 
-            {selectedSession ? (
-              <StudentConversationHeader
-                title={selectedSession.title}
-                courseCode={selectedCourse.code}
-                courseTitle={selectedCourse.title}
-              />
-            ) : null}
-            <div className="scrollbar-themed min-h-0 flex-1 overflow-y-auto px-4 py-8 sm:px-8">
-              {selectedSession ? (
-                <div className="mx-auto min-h-full max-w-5xl">
-                  <StudentMessageHistory
-                    messages={messages}
-                    error={messagesQuery.error}
-                    isPending={messagesQuery.isPending}
-                    isError={messagesQuery.isError}
-                    isFetching={messagesQuery.isFetching}
-                    hasNextPage={messagesQuery.hasNextPage}
-                    isFetchingNextPage={messagesQuery.isFetchingNextPage}
-                    isFetchNextPageError={messagesQuery.isFetchNextPageError}
-                    onRetry={() => void messagesQuery.refetch()}
-                    onLoadMore={() => void messagesQuery.fetchNextPage()}
-                    onRecover={() => void handleStaleSession()}
-                  />
-                </div>
-              ) : (
-                <div className="flex min-h-full items-center justify-center py-4">
-                  <StudentWorkspaceState
-                    sessionId={sessionId}
-                    sessionsPending={sessionsQuery.isPending}
-                    sessionsError={
-                      sessionsQuery.isError && sessions.length === 0
-                    }
-                    hasSessions={sessions.length > 0}
-                    sessionPending={
-                      routedSessionQuery.isPending &&
-                      routedSessionQuery.fetchStatus !== 'idle'
-                    }
-                    sessionError={routedSessionQuery.error}
-                    sessionRetrying={routedSessionQuery.isFetching}
-                    onRetrySession={() => void routedSessionQuery.refetch()}
-                  />
-                </div>
-              )}
-            </div>
-            <StudentDisabledComposer
-              hasSelectedSession={selectedSession !== null}
+function StudentWorkspaceSources({
+  course,
+  messages,
+  children,
+}: StudentWorkspaceSourcesProps) {
+  const [mobileSourcesOpen, setMobileSourcesOpen] = useState(false)
+  const [sourcesOpen, setSourcesOpen] = useState(false)
+  const toggleSources = useCallback(() => setSourcesOpen((open) => !open), [])
+  const openMobileSources = useCallback(() => setMobileSourcesOpen(true), [])
+  // The BookMarked toggle renders only when there is something to cite.
+  useRegisterSourcesControl(
+    sourcesOpen,
+    toggleSources,
+    openMobileSources,
+    messages.length > 0,
+  )
+
+  return (
+    <Sheet open={mobileSourcesOpen} onOpenChange={setMobileSourcesOpen}>
+      <SheetContent
+        side="right"
+        className="w-[85vw]! max-w-sm gap-0 border-border bg-card p-0 lg:hidden"
+      >
+        <SheetHeader className="sr-only">
+          <SheetTitle>Sources and citations</SheetTitle>
+        </SheetHeader>
+        <StudentSourcesPanel
+          course={course}
+          messages={messages}
+          className="h-full rounded-none border-0 shadow-none"
+        />
+      </SheetContent>
+
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          {children}
+        </div>
+
+        <div
+          inert={!sourcesOpen}
+          className={cn(
+            'hidden shrink-0 overflow-hidden transition-[width,opacity] duration-[250ms] ease-out motion-reduce:transition-none lg:flex',
+            sourcesOpen ? 'w-[20.75rem] opacity-100' : 'w-0 opacity-0',
+          )}
+        >
+          <StudentSourcesPanel
+            course={course}
+            messages={messages}
+            onCollapse={() => setSourcesOpen(false)}
+            className="m-3 ml-0 flex w-80 shrink-0"
+          />
+        </div>
+      </div>
+    </Sheet>
+  )
+}
+
+interface StudentSessionPlaceholderProps {
+  isSessionLoading: boolean
+  sessionError: unknown
+  sessionRetrying: boolean
+  onRetrySession: () => void
+}
+
+function StudentSessionPlaceholder({
+  isSessionLoading,
+  sessionError,
+  sessionRetrying,
+  onRetrySession,
+}: StudentSessionPlaceholderProps) {
+  const hasBlockingSessionError =
+    sessionError !== null &&
+    !isStudentChatApiError(
+      sessionError,
+      STUDENT_CHAT_ERROR_CODES.SESSION_NOT_FOUND,
+    )
+
+  let body: ReactNode
+
+  if (isSessionLoading) {
+    body = null
+  } else if (hasBlockingSessionError) {
+    body = (
+      <ErrorState
+        title="Conversation unavailable"
+        description="The selected conversation could not be loaded."
+        onRetry={onRetrySession}
+        isRetrying={sessionRetrying}
+        className="w-full max-w-md border-0 bg-transparent"
+      />
+    )
+  } else {
+    body = (
+      <EmptyState
+        title="Conversation unavailable"
+        description="This conversation may have been deleted or does not belong to the selected course."
+        className="w-full max-w-md border-0 bg-transparent"
+      />
+    )
+  }
+
+  return (
+    <div
+      aria-label="Conversation messages"
+      className="scrollbar-themed min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-8"
+      role="region"
+    >
+      <div className="mx-auto flex min-h-full max-w-3xl items-center justify-center">
+        {body}
+      </div>
+    </div>
+  )
+}
+
+interface StudentDraftStateProps {
+  course: StudentCourse
+  firstName?: string
+  onFirstMessageCreated: (
+    session: ChatSession,
+    content: string,
+    clientMessageId: string,
+  ) => void
+}
+
+// T15.1 — the DRAFT state at `/chat?courseId` (no sessionId): greeting +
+// suggestions + an ENABLED composer. No session exists until the first message
+// is sent, and there is no sources chrome (nothing to cite yet — T15.6).
+function StudentDraftState({
+  course,
+  firstName,
+  onFirstMessageCreated,
+}: StudentDraftStateProps) {
+  const composerRef = useRef<StudentChatComposerHandle>(null)
+  const createSession = useCreateStudentSession({ courseId: course.id })
+
+  // T15.7 — publish the draft composer's focus so the sidebar's New chat and the
+  // collapsed `+` can focus it on entry, even from a different route subtree.
+  useRegisterComposerFocus(() => composerRef.current?.focus())
+
+  // T15.2 first-send chain — create the session, then hand the message to the
+  // freshly-created session (the page navigates there and the destination
+  // composer performs the send). Create failure keeps the draft and surfaces
+  // through the composer's error affordance.
+  const handleDraftSend = async (content: string, clientMessageId: string) => {
+    try {
+      const generatedTitle =
+        content.trim().length > 0 ? content.trim().slice(0, 60) : undefined
+      const session = await createSession.mutateAsync({
+        title: generatedTitle,
+      })
+      onFirstMessageCreated(session, content, clientMessageId)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  return (
+    <>
+      <div
+        aria-label="Conversation messages"
+        className="scrollbar-themed min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-16 pb-8 sm:px-6 sm:py-8"
+        role="region"
+      >
+        <div className="mx-auto flex min-h-full max-w-3xl items-center justify-center">
+          <div className="flex min-h-full w-full flex-col items-center justify-center gap-8">
+            <h1 className="display-2 text-center text-foreground">
+              {firstName
+                ? `How can I help you, ${firstName}?`
+                : 'How can I help you?'}
+            </h1>
+            <StudentSuggestionRows
+              onSelect={(text) => composerRef.current?.prefill(text)}
             />
           </div>
         </div>
-      ) : (
-        <div className="flex flex-1 items-center justify-center px-4 py-12">
-          <EmptyState
-            icon={<BookOpen className="size-6" aria-hidden />}
-            title={
-              assignedCourses.length === 0
-                ? 'No assigned course'
-                : 'Choose a course'
+      </div>
+      <StudentChatComposer
+        ref={composerRef}
+        isGenerating={createSession.isPending}
+        sendError={createSession.error}
+        onDismissError={createSession.reset}
+        onSend={handleDraftSend}
+      />
+    </>
+  )
+}
+
+interface StudentConversationProps {
+  course: StudentCourse
+  session: ChatSession
+  firstName?: string
+  onRecover: () => void
+  pendingFirstMessage: PendingFirstMessage | null
+  onConsumePendingFirstMessage: () => void
+}
+
+function StudentConversation({
+  course,
+  session,
+  firstName,
+  onRecover,
+  pendingFirstMessage,
+  onConsumePendingFirstMessage,
+}: StudentConversationProps) {
+  const composerRef = useRef<StudentChatComposerHandle>(null)
+  const messagesQuery = useStudentSessionMessages({
+    courseId: course.id,
+    sessionId: session.id,
+  })
+  const messages = reconcileMessages(
+    messagesQuery.data?.pages.flatMap((page) => page.messages) ?? [],
+  )
+  const sendMessage = useSendStudentChatMessage({
+    courseId: course.id,
+    sessionId: session.id,
+  })
+  const retryMessage = useRetryStudentChatMessage({
+    courseId: course.id,
+    sessionId: session.id,
+  })
+  const hasPersistedGeneration = messages.some(
+    (message) =>
+      message.role === 'ASSISTANT' &&
+      (message.status === 'PENDING' || message.status === 'STREAMING'),
+  )
+  const isGenerationActive =
+    sendMessage.isPending || retryMessage.isPending || hasPersistedGeneration
+  const historyScrollRef = useRef<HTMLDivElement>(null)
+  const previousLatestMessageRef = useRef<string | undefined>(undefined)
+  const latestMessage = messages.at(-1)
+  const latestMessageKey = latestMessage
+    ? [
+        latestMessage.id,
+        latestMessage.status,
+        latestMessage.completedAt,
+        latestMessage.content.length,
+      ].join(':')
+    : undefined
+
+  // T15.2 — a draft's first message arrives here after its session was created
+  // and navigated to. Replay it through the composer once so the normal
+  // optimistic send + send-failure contract (message stays in the composer, with
+  // the same clientMessageId to retry) both apply.
+  const pendingFirstMessageHandledRef = useRef(false)
+  useEffect(() => {
+    if (!pendingFirstMessage || pendingFirstMessageHandledRef.current) {
+      return
+    }
+
+    pendingFirstMessageHandledRef.current = true
+    composerRef.current?.submitWith(
+      pendingFirstMessage.content,
+      pendingFirstMessage.clientMessageId,
+    )
+    onConsumePendingFirstMessage()
+  }, [pendingFirstMessage, onConsumePendingFirstMessage])
+
+  useLayoutEffect(() => {
+    if (messagesQuery.isPending) {
+      return
+    }
+
+    const latestMessageChanged =
+      previousLatestMessageRef.current !== latestMessageKey
+    previousLatestMessageRef.current = latestMessageKey
+
+    if (latestMessageChanged) {
+      const scrollContainer = historyScrollRef.current
+      if (scrollContainer) {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight
+      }
+    }
+  }, [latestMessageKey, messagesQuery.isPending])
+
+  const renameSession = useRenameStudentSession({ courseId: course.id })
+
+  const handleSend = async (content: string, clientMessageId: string) => {
+    retryMessage.reset()
+
+    if (session.title === 'New chat' && content.trim().length > 0) {
+      const newTitle = content.trim().slice(0, 60)
+      void renameSession
+        .mutateAsync({
+          sessionId: session.id,
+          input: { title: newTitle },
+        })
+        .catch(() => {})
+    }
+
+    try {
+      await sendMessage.mutateAsync({ clientMessageId, content })
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  const handleRetryMessage = async (studentMessageId: string) => {
+    sendMessage.reset()
+
+    try {
+      await retryMessage.mutateAsync(studentMessageId)
+    } catch {
+      // Mutation state renders the scoped retry failure next to the response.
+    }
+  }
+
+  return (
+    <StudentWorkspaceSources course={course} messages={messages}>
+      <div
+        ref={historyScrollRef}
+        aria-label="Conversation messages"
+        className="scrollbar-themed min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-16 pb-8 sm:px-6 sm:py-8"
+        role="region"
+      >
+        <div className="mx-auto min-h-full max-w-3xl">
+          <StudentMessageHistory
+            messages={messages}
+            error={messagesQuery.error}
+            isPending={messagesQuery.isPending}
+            isError={messagesQuery.isError}
+            isFetching={messagesQuery.isFetching}
+            hasNextPage={messagesQuery.hasNextPage}
+            isFetchingNextPage={messagesQuery.isFetchingNextPage}
+            isFetchNextPageError={messagesQuery.isFetchNextPageError}
+            isGenerationActive={isGenerationActive}
+            retryError={retryMessage.error}
+            retryMessageId={retryMessage.variables}
+            firstName={firstName}
+            onRetry={() => void messagesQuery.refetch()}
+            onLoadMore={() => void messagesQuery.fetchNextPage()}
+            onRecover={onRecover}
+            onRetryResponse={(studentMessageId) =>
+              void handleRetryMessage(studentMessageId)
             }
-            description={
-              assignedCourses.length === 0
-                ? 'An active Student course membership is required before you can open a private workspace.'
-                : 'Select one of your assigned courses to load its private conversations.'
-            }
-            className="w-full max-w-md border-0 bg-transparent"
+            onSuggestionSelect={(text) => composerRef.current?.prefill(text)}
           />
         </div>
-      )}
-    </section>
+      </div>
+      <StudentChatComposer
+        ref={composerRef}
+        isGenerating={isGenerationActive}
+        sendError={sendMessage.error}
+        onDismissError={sendMessage.reset}
+        onSend={handleSend}
+      />
+    </StudentWorkspaceSources>
+  )
+}
+
+function reconcileMessages(messages: ChatMessage[]) {
+  const messagesById = new Map<string, ChatMessage>()
+
+  for (const message of messages) {
+    messagesById.set(message.id, message)
+  }
+
+  return [...messagesById.values()].sort(
+    (left, right) => left.sequence - right.sequence,
   )
 }

@@ -6,6 +6,7 @@ import {
   Get,
   HttpCode,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Req,
@@ -19,16 +20,19 @@ import {
   ApiBody,
   ApiConflictResponse,
   ApiCreatedResponse,
+  ApiExtraModels,
   ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
   ApiTags,
+  getSchemaPath,
 } from '@nestjs/swagger'
 import type { z } from 'zod'
 
 import {
+  NestBadRequestErrorDto,
   OpenApiErrorDto,
   OpenApiValidationErrorDto,
 } from '../../../common/http/openapi-error.dto'
@@ -43,14 +47,20 @@ import {
   AdminCourseListResponseDto,
   AdminCourseMemberListResponseDto,
   AdminCourseMemberResponseDto,
+  AdminCreateCourseRequestDto,
   AdminMaterialListResponseDto,
   AdminMaterialResponseDto,
+  AdminUpdateCourseRequestDto,
   AdminUpdateMaterialRequestDto,
   AdminUpdateMemberRoleRequestDto,
   adminAddCourseMemberRequestSchema,
+  adminCreateCourseRequestSchema,
+  adminUpdateCourseRequestSchema,
   adminUpdateMaterialRequestSchema,
   adminUpdateMemberRoleRequestSchema,
   type AdminAddCourseMemberRequest,
+  type AdminCreateCourseRequest,
+  type AdminUpdateCourseRequest,
   type AdminUpdateMaterialRequest,
   type AdminUpdateMemberRoleRequest,
 } from './admin-courses.dto'
@@ -83,10 +93,21 @@ function mapZodIssue(issue: z.core.$ZodIssue): AdminCoursesValidationIssue {
   }
 }
 
+// Operations that validate both a request body and a UUID route parameter can
+// answer with either the module validation envelope or Nest's ParseUUIDPipe
+// error, so the contract documents both shapes.
+const bodyOrRouteParamBadRequestSchema = {
+  oneOf: [
+    { $ref: getSchemaPath(OpenApiValidationErrorDto) },
+    { $ref: getSchemaPath(NestBadRequestErrorDto) },
+  ],
+}
+
 @Controller('admin/courses')
 @ApiTags('admin-courses')
 @Roles(UserRole.ADMIN)
 @ApiAccessTokenAuth()
+@ApiExtraModels(OpenApiValidationErrorDto, NestBadRequestErrorDto)
 @UseInterceptors(ClassSerializerInterceptor)
 export class AdminCoursesController {
   constructor(private readonly adminCoursesService: AdminCoursesService) {}
@@ -105,6 +126,31 @@ export class AdminCoursesController {
     return this.adminCoursesService.listCourses()
   }
 
+  @Post()
+  @SerializeOptions({
+    type: AdminCourseDetailResponseDto,
+    strategy: 'excludeAll',
+  })
+  @ApiOperation({ summary: 'Create course' })
+  @ApiBody({ type: AdminCreateCourseRequestDto })
+  @ApiCreatedResponse({
+    type: AdminCourseDetailResponseDto,
+    description: 'The created course.',
+  })
+  @ApiBadRequestResponse({ type: OpenApiValidationErrorDto })
+  @ApiConflictResponse({ type: OpenApiErrorDto })
+  createCourse(
+    @Body(new AdminCoursesValidationPipe(adminCreateCourseRequestSchema))
+    body: AdminCreateCourseRequest,
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<AdminCourseDetailResponseDto> {
+    return this.adminCoursesService.createCourse(
+      body,
+      request.user,
+      getRequestContext(request),
+    )
+  }
+
   @Get(':courseId')
   @SerializeOptions({
     type: AdminCourseDetailResponseDto,
@@ -116,11 +162,41 @@ export class AdminCoursesController {
     type: AdminCourseDetailResponseDto,
     description: 'Course details with memberships and material counts.',
   })
+  @ApiBadRequestResponse({ type: NestBadRequestErrorDto })
   @ApiNotFoundResponse({ type: OpenApiErrorDto })
   getCourse(
-    @Param('courseId') courseId: string,
+    @Param('courseId', new ParseUUIDPipe({ version: '4' })) courseId: string,
   ): Promise<AdminCourseDetailResponseDto> {
     return this.adminCoursesService.getCourse(courseId)
+  }
+
+  @Patch(':courseId')
+  @SerializeOptions({
+    type: AdminCourseDetailResponseDto,
+    strategy: 'excludeAll',
+  })
+  @ApiOperation({ summary: 'Update course' })
+  @ApiParam({ name: 'courseId', format: 'uuid' })
+  @ApiBody({ type: AdminUpdateCourseRequestDto })
+  @ApiOkResponse({
+    type: AdminCourseDetailResponseDto,
+    description: 'The updated course.',
+  })
+  @ApiBadRequestResponse({ schema: bodyOrRouteParamBadRequestSchema })
+  @ApiNotFoundResponse({ type: OpenApiErrorDto })
+  @ApiConflictResponse({ type: OpenApiErrorDto })
+  updateCourse(
+    @Param('courseId', new ParseUUIDPipe({ version: '4' })) courseId: string,
+    @Body(new AdminCoursesValidationPipe(adminUpdateCourseRequestSchema))
+    body: AdminUpdateCourseRequest,
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<AdminCourseDetailResponseDto> {
+    return this.adminCoursesService.updateCourse(
+      courseId,
+      body,
+      request.user,
+      getRequestContext(request),
+    )
   }
 
   @Post(':courseId/members')
@@ -135,11 +211,11 @@ export class AdminCoursesController {
     type: AdminCourseMemberResponseDto,
     description: 'The created course membership.',
   })
-  @ApiBadRequestResponse({ type: OpenApiValidationErrorDto })
+  @ApiBadRequestResponse({ schema: bodyOrRouteParamBadRequestSchema })
   @ApiNotFoundResponse({ type: OpenApiErrorDto })
   @ApiConflictResponse({ type: OpenApiErrorDto })
   addMember(
-    @Param('courseId') courseId: string,
+    @Param('courseId', new ParseUUIDPipe({ version: '4' })) courseId: string,
     @Body(new AdminCoursesValidationPipe(adminAddCourseMemberRequestSchema))
     body: AdminAddCourseMemberRequest,
     @Req() request: AuthenticatedHttpRequest,
@@ -158,10 +234,11 @@ export class AdminCoursesController {
   @ApiParam({ name: 'courseId', format: 'uuid' })
   @ApiParam({ name: 'userId', format: 'uuid' })
   @ApiNoContentResponse({ description: 'The membership was removed.' })
+  @ApiBadRequestResponse({ type: NestBadRequestErrorDto })
   @ApiNotFoundResponse({ type: OpenApiErrorDto })
   async removeMember(
-    @Param('courseId') courseId: string,
-    @Param('userId') userId: string,
+    @Param('courseId', new ParseUUIDPipe({ version: '4' })) courseId: string,
+    @Param('userId', new ParseUUIDPipe({ version: '4' })) userId: string,
     @Req() request: AuthenticatedHttpRequest,
   ): Promise<void> {
     await this.adminCoursesService.removeMember(
@@ -183,9 +260,10 @@ export class AdminCoursesController {
     type: AdminCourseMemberListResponseDto,
     description: 'Memberships for the selected course.',
   })
+  @ApiBadRequestResponse({ type: NestBadRequestErrorDto })
   @ApiNotFoundResponse({ type: OpenApiErrorDto })
   listMembers(
-    @Param('courseId') courseId: string,
+    @Param('courseId', new ParseUUIDPipe({ version: '4' })) courseId: string,
   ): Promise<AdminCourseMemberListResponseDto> {
     return this.adminCoursesService.listMembers(courseId)
   }
@@ -203,11 +281,11 @@ export class AdminCoursesController {
     type: AdminCourseMemberResponseDto,
     description: 'The updated course membership.',
   })
-  @ApiBadRequestResponse({ type: OpenApiValidationErrorDto })
+  @ApiBadRequestResponse({ schema: bodyOrRouteParamBadRequestSchema })
   @ApiNotFoundResponse({ type: OpenApiErrorDto })
   updateMemberRole(
-    @Param('courseId') courseId: string,
-    @Param('userId') userId: string,
+    @Param('courseId', new ParseUUIDPipe({ version: '4' })) courseId: string,
+    @Param('userId', new ParseUUIDPipe({ version: '4' })) userId: string,
     @Body(new AdminCoursesValidationPipe(adminUpdateMemberRoleRequestSchema))
     body: AdminUpdateMemberRoleRequest,
     @Req() request: AuthenticatedHttpRequest,
@@ -232,9 +310,10 @@ export class AdminCoursesController {
     type: AdminMaterialListResponseDto,
     description: 'Materials for the selected course.',
   })
+  @ApiBadRequestResponse({ type: NestBadRequestErrorDto })
   @ApiNotFoundResponse({ type: OpenApiErrorDto })
   listMaterials(
-    @Param('courseId') courseId: string,
+    @Param('courseId', new ParseUUIDPipe({ version: '4' })) courseId: string,
   ): Promise<AdminMaterialListResponseDto> {
     return this.adminCoursesService.listMaterials(courseId)
   }
@@ -251,10 +330,12 @@ export class AdminCoursesController {
     type: AdminMaterialResponseDto,
     description: 'The selected course material.',
   })
+  @ApiBadRequestResponse({ type: NestBadRequestErrorDto })
   @ApiNotFoundResponse({ type: OpenApiErrorDto })
   getMaterial(
-    @Param('courseId') courseId: string,
-    @Param('materialId') materialId: string,
+    @Param('courseId', new ParseUUIDPipe({ version: '4' })) courseId: string,
+    @Param('materialId', new ParseUUIDPipe({ version: '4' }))
+    materialId: string,
   ): Promise<AdminMaterialResponseDto> {
     return this.adminCoursesService.getMaterial(courseId, materialId)
   }
@@ -272,11 +353,12 @@ export class AdminCoursesController {
     type: AdminMaterialResponseDto,
     description: 'The updated course material.',
   })
-  @ApiBadRequestResponse({ type: OpenApiValidationErrorDto })
+  @ApiBadRequestResponse({ schema: bodyOrRouteParamBadRequestSchema })
   @ApiNotFoundResponse({ type: OpenApiErrorDto })
   updateMaterial(
-    @Param('courseId') courseId: string,
-    @Param('materialId') materialId: string,
+    @Param('courseId', new ParseUUIDPipe({ version: '4' })) courseId: string,
+    @Param('materialId', new ParseUUIDPipe({ version: '4' }))
+    materialId: string,
     @Body(new AdminCoursesValidationPipe(adminUpdateMaterialRequestSchema))
     body: AdminUpdateMaterialRequest,
     @Req() request: AuthenticatedHttpRequest,

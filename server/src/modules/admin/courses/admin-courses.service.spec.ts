@@ -14,7 +14,9 @@ import {
   type AdminCourseMembershipRecord,
   type AdminCourseRecord,
   type AdminMaterialRecord,
+  type CreateCourseInput,
   type RemoveCourseMemberInput,
+  type UpdateCourseInput,
   type UpdateMemberRoleInput,
   type UpdateMaterialInput,
 } from './admin-courses.repository'
@@ -33,6 +35,12 @@ class AdminCoursesServiceTestRepository extends AdminCoursesRepository {
   readonly materials = new Map<string, AdminMaterialRecord>()
   readonly users = new Map<string, { id: string }>()
 
+  readonly createCourse = jest.fn((input: CreateCourseInput) =>
+    Promise.resolve(this.insertCourse(input)),
+  )
+  readonly updateCourse = jest.fn((input: UpdateCourseInput) =>
+    Promise.resolve(this.modifyCourse(input)),
+  )
   readonly addMember = jest.fn((input: AddCourseMemberInput) =>
     Promise.resolve(this.insertMembership(input)),
   )
@@ -57,6 +65,12 @@ class AdminCoursesServiceTestRepository extends AdminCoursesRepository {
 
   findCourseById(courseId: string): Promise<AdminCourseRecord | null> {
     return Promise.resolve(this.courses.get(courseId) ?? null)
+  }
+
+  findCourseByCode(code: string): Promise<AdminCourseRecord | null> {
+    return Promise.resolve(
+      [...this.courses.values()].find((course) => course.code === code) ?? null,
+    )
   }
 
   findUserById(userId: string): Promise<{ id: string } | null> {
@@ -108,6 +122,42 @@ class AdminCoursesServiceTestRepository extends AdminCoursesRepository {
       return Promise.resolve(material)
     }
     return Promise.resolve(null)
+  }
+
+  private insertCourse(input: CreateCourseInput): AdminCourseRecord {
+    const course: AdminCourseRecord = {
+      id: `created-${this.courses.size.toString()}`,
+      code: input.code,
+      title: input.title,
+      createdById: input.actorUserId,
+      createdBy: null,
+      createdAt,
+      updatedAt,
+      memberships: [],
+      materials: [],
+    }
+
+    this.courses.set(course.id, course)
+
+    return course
+  }
+
+  private modifyCourse(input: UpdateCourseInput): AdminCourseRecord {
+    const course = this.courses.get(input.courseId)
+
+    if (!course) {
+      throw new Error('Course not found in mock')
+    }
+
+    const updated = {
+      ...course,
+      code: input.code ?? course.code,
+      title: input.title ?? course.title,
+    }
+
+    this.courses.set(input.courseId, updated)
+
+    return updated
   }
 
   private insertMembership(
@@ -282,6 +332,135 @@ describe('AdminCoursesService', () => {
       await expect(getCourse).rejects.toMatchObject({
         response: { code: ADMIN_COURSES_ERROR_CODES.COURSE_NOT_FOUND },
       })
+    })
+
+    it('creates a course', async () => {
+      const { repository, service } = buildService()
+
+      const response = await service.createCourse(
+        { code: 'NEW-1', title: 'New Course' },
+        actor,
+        requestContext,
+      )
+
+      expect(repository.createCourse.mock.calls).toEqual([
+        [
+          {
+            code: 'NEW-1',
+            title: 'New Course',
+            actorUserId: actor.id,
+            requestContext,
+          },
+        ],
+      ])
+      expect(response.course).toMatchObject({
+        code: 'NEW-1',
+        title: 'New Course',
+      })
+      expect(response.course.adminMetadata.memberCount).toBe(0)
+    })
+
+    it('throws conflict when creating a course with an existing code', async () => {
+      const { repository, service } = buildService()
+      repository.courses.set(dummyCourse.id, dummyCourse)
+
+      const createCourse = service.createCourse(
+        { code: dummyCourse.code, title: 'Another Course' },
+        actor,
+        requestContext,
+      )
+
+      await expect(createCourse).rejects.toBeInstanceOf(ConflictException)
+      await expect(createCourse).rejects.toMatchObject({
+        response: {
+          code: ADMIN_COURSES_ERROR_CODES.COURSE_CODE_ALREADY_EXISTS,
+        },
+      })
+      expect(repository.createCourse.mock.calls).toHaveLength(0)
+    })
+
+    it('updates a course code and title', async () => {
+      const { repository, service } = buildService()
+      repository.courses.set(dummyCourse.id, { ...dummyCourse })
+
+      const response = await service.updateCourse(
+        dummyCourse.id,
+        { code: 'TEST-2', title: 'Renamed Course' },
+        actor,
+        requestContext,
+      )
+
+      expect(repository.updateCourse.mock.calls).toEqual([
+        [
+          {
+            courseId: dummyCourse.id,
+            code: 'TEST-2',
+            title: 'Renamed Course',
+            actorUserId: actor.id,
+            requestContext,
+          },
+        ],
+      ])
+      expect(response.course).toMatchObject({
+        id: dummyCourse.id,
+        code: 'TEST-2',
+        title: 'Renamed Course',
+      })
+    })
+
+    it('keeps the existing code when updating a course with its own code', async () => {
+      const { repository, service } = buildService()
+      repository.courses.set(dummyCourse.id, { ...dummyCourse })
+
+      const response = await service.updateCourse(
+        dummyCourse.id,
+        { code: dummyCourse.code, title: 'Renamed Course' },
+        actor,
+        requestContext,
+      )
+
+      expect(response.course.code).toBe(dummyCourse.code)
+      expect(repository.updateCourse).toHaveBeenCalledTimes(1)
+    })
+
+    it('throws not found when updating a missing course', async () => {
+      const { repository, service } = buildService()
+
+      const updateCourse = service.updateCourse(
+        'missing',
+        { title: 'Renamed Course' },
+        actor,
+      )
+
+      await expect(updateCourse).rejects.toBeInstanceOf(NotFoundException)
+      await expect(updateCourse).rejects.toMatchObject({
+        response: { code: ADMIN_COURSES_ERROR_CODES.COURSE_NOT_FOUND },
+      })
+      expect(repository.updateCourse.mock.calls).toHaveLength(0)
+    })
+
+    it('throws conflict when updating a course to a taken code', async () => {
+      const { repository, service } = buildService()
+      repository.courses.set(dummyCourse.id, { ...dummyCourse })
+      repository.courses.set('course-2', {
+        ...dummyCourse,
+        id: 'course-2',
+        code: 'TEST-2',
+      })
+
+      const updateCourse = service.updateCourse(
+        dummyCourse.id,
+        { code: 'TEST-2' },
+        actor,
+      )
+
+      await expect(updateCourse).rejects.toBeInstanceOf(ConflictException)
+      await expect(updateCourse).rejects.toMatchObject({
+        response: {
+          code: ADMIN_COURSES_ERROR_CODES.COURSE_CODE_ALREADY_EXISTS,
+        },
+      })
+      expect(repository.updateCourse.mock.calls).toHaveLength(0)
     })
   })
 

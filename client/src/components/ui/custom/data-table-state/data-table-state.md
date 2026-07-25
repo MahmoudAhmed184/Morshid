@@ -3,6 +3,7 @@
 Use `DataTableState` to centralize loading, error, empty, and content rendering for tables and lists.
 
 Good places to use it:
+
 - Query-backed pages using TanStack Query.
 - Any table page that currently has repeated `isPending`, `isError`, and empty checks.
 
@@ -42,5 +43,6 @@ Custom states:
 ```
 
 Notes:
+
 - State priority is loading, then error, then empty, then children.
 - Use this for table/list pages, not for tiny inline widgets.

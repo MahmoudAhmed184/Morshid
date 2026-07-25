@@ -7,6 +7,7 @@ import {
 
 export const ADMIN_COURSES_ERROR_CODES = {
   COURSE_NOT_FOUND: 'ADMIN_COURSES_COURSE_NOT_FOUND',
+  COURSE_CODE_ALREADY_EXISTS: 'ADMIN_COURSES_COURSE_CODE_ALREADY_EXISTS',
   USER_NOT_FOUND: 'ADMIN_COURSES_USER_NOT_FOUND',
   MEMBER_ALREADY_EXISTS: 'ADMIN_COURSES_MEMBER_ALREADY_EXISTS',
   MEMBER_NOT_FOUND: 'ADMIN_COURSES_MEMBER_NOT_FOUND',
@@ -20,6 +21,12 @@ export type AdminCoursesErrorCode =
 export interface AdminCoursesValidationIssue {
   field: string
   message: string
+}
+
+export class AdminCourseCodeAlreadyExistsError extends Error {
+  constructor(readonly code: string) {
+    super(`Course code already exists: ${code}`)
+  }
 }
 
 export class AdminCourseMemberAlreadyExistsError extends Error {
@@ -36,6 +43,16 @@ export function adminCourseNotFoundException(courseId: string): HttpException {
     code: ADMIN_COURSES_ERROR_CODES.COURSE_NOT_FOUND,
     message: 'Course was not found',
     courseId,
+  })
+}
+
+export function adminCourseCodeAlreadyExistsException(
+  code: string,
+): HttpException {
+  return new ConflictException({
+    code: ADMIN_COURSES_ERROR_CODES.COURSE_CODE_ALREADY_EXISTS,
+    message: 'A course with this code already exists',
+    courseCode: code,
   })
 }
 

@@ -23,6 +23,7 @@ export function StudentDeleteSessionDialog({
       title="Delete conversation?"
       description={`“${session.title}” and its saved history will be removed from your workspace.`}
       confirmLabel="Delete"
+      destructive={false}
       disabled={isPending}
       onConfirm={onDelete}
     />

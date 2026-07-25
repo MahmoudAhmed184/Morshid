@@ -1,9 +1,15 @@
 import { randomUUID } from 'node:crypto'
 
-import { UserRole, UserStatus } from '../src/generated/prisma/client'
+import {
+  CourseMembershipRole,
+  UserRole,
+  UserStatus,
+} from '../src/generated/prisma/client'
+import { AUDIT_EVENT_ACTIONS } from '../src/modules/audit/audit.constants'
 import { AdminUsersAuditService } from '../src/modules/admin/users/admin-users.audit.service'
 import {
   AdminUserEmailAlreadyExistsError,
+  AdminUserRoleChangeHasMembershipsError,
   CannotDisableLastActiveAdminError,
 } from '../src/modules/admin/users/admin-users.errors'
 import { PrismaAdminUsersRepository } from '../src/modules/admin/users/admin-users.repository'
@@ -20,6 +26,7 @@ describe('Admin users persistence (e2e)', () => {
   let prisma: PrismaService
   let repository: AdminUsersRepository
   const createdUserIds = new Set<string>()
+  const createdCourseIds = new Set<string>()
 
   beforeAll(async () => {
     database = await setUpDisposableDatabase('morshid_pr61')
@@ -35,6 +42,18 @@ describe('Admin users persistence (e2e)', () => {
 
   afterEach(async () => {
     const ids = [...createdUserIds]
+    const courseIds = [...createdCourseIds]
+
+    if (courseIds.length > 0) {
+      await prisma.auditLog.deleteMany({
+        where: { courseId: { in: courseIds } },
+      })
+      await prisma.courseMembership.deleteMany({
+        where: { courseId: { in: courseIds } },
+      })
+      await prisma.course.deleteMany({ where: { id: { in: courseIds } } })
+      createdCourseIds.clear()
+    }
 
     if (ids.length > 0) {
       await prisma.auditLog.deleteMany({
@@ -140,6 +159,110 @@ describe('Admin users persistence (e2e)', () => {
   it('exposes native UUID errors below the validated HTTP boundary', async () => {
     await expect(repository.findById('not-a-uuid')).rejects.toThrow()
   })
+
+  it('refuses a role change while an active course membership exists and leaves no audit trail', async () => {
+    const actor = await createUser(UserRole.ADMIN)
+    const target = await createUser(UserRole.STUDENT)
+    const course = await createCourse(actor.id)
+    await prisma.courseMembership.create({
+      data: {
+        courseId: course.id,
+        userId: target.id,
+        role: CourseMembershipRole.STUDENT,
+        createdById: actor.id,
+      },
+    })
+
+    await expect(
+      repository.updateUser({
+        userId: target.id,
+        role: UserRole.INSTRUCTOR,
+        actorUserId: actor.id,
+      }),
+    ).rejects.toBeInstanceOf(AdminUserRoleChangeHasMembershipsError)
+
+    await expect(
+      prisma.user.findUniqueOrThrow({
+        where: { id: target.id },
+        select: { role: true },
+      }),
+    ).resolves.toEqual({ role: UserRole.STUDENT })
+    await expect(
+      prisma.auditLog.count({
+        where: {
+          targetId: target.id,
+          action: AUDIT_EVENT_ACTIONS.ADMIN_ACCOUNT_UPDATED,
+        },
+      }),
+    ).resolves.toBe(0)
+  })
+
+  it('applies a role change and records before/after audit metadata once memberships are removed', async () => {
+    const actor = await createUser(UserRole.ADMIN)
+    const target = await createUser(UserRole.STUDENT)
+    const course = await createCourse(actor.id)
+    await prisma.courseMembership.create({
+      data: {
+        courseId: course.id,
+        userId: target.id,
+        role: CourseMembershipRole.STUDENT,
+        createdById: actor.id,
+        removedAt: new Date(),
+      },
+    })
+
+    const updated = await repository.updateUser({
+      userId: target.id,
+      role: UserRole.INSTRUCTOR,
+      displayName: 'Promoted Instructor',
+      actorUserId: actor.id,
+    })
+
+    expect(updated).toMatchObject({
+      id: target.id,
+      role: UserRole.INSTRUCTOR,
+      displayName: 'Promoted Instructor',
+    })
+
+    const auditEvents = await prisma.auditLog.findMany({
+      where: {
+        targetId: target.id,
+        action: AUDIT_EVENT_ACTIONS.ADMIN_ACCOUNT_UPDATED,
+      },
+      select: { actorUserId: true, metadata: true },
+    })
+
+    expect(auditEvents).toEqual([
+      {
+        actorUserId: actor.id,
+        metadata: {
+          before: {
+            email: target.email,
+            displayName: target.displayName,
+            role: UserRole.STUDENT,
+          },
+          after: {
+            email: target.email,
+            displayName: 'Promoted Instructor',
+            role: UserRole.INSTRUCTOR,
+          },
+          changedFields: ['displayName', 'role'],
+        },
+      },
+    ])
+  })
+
+  async function createCourse(createdById: string) {
+    const course = await prisma.course.create({
+      data: {
+        code: `PR61-${randomUUID().slice(0, 8)}`,
+        title: 'PR 61 persistence course',
+        createdById,
+      },
+    })
+    createdCourseIds.add(course.id)
+    return course
+  }
 
   async function createUser(role: UserRole) {
     const user = await prisma.user.create({

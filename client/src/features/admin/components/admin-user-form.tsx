@@ -1,6 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Loader2Icon, UserPlusIcon } from 'lucide-react'
+import { CheckIcon, Loader2Icon, UserPlusIcon } from 'lucide-react'
 import { useForm } from 'react-hook-form'
+import { z } from 'zod'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -23,21 +24,34 @@ import { adminCreateUserFormSchema } from '../schemas/admin-managed-user.schema'
 import type { AdminCreateUserFormValues } from '../schemas/admin-managed-user.schema'
 import { Input } from '@/components/ui/input'
 
+const adminEditUserFormSchema = adminCreateUserFormSchema.extend({
+  password: z.literal(''),
+})
+
 type AdminUserFormProps = {
+  initialValues?: Partial<AdminCreateUserFormValues>
+  isEditing?: boolean
   onSubmit: (values: AdminCreateUserFormValues) => void | Promise<void>
   onCancel?: () => void
 }
 
-export function AdminUserForm({ onSubmit, onCancel }: AdminUserFormProps) {
+export function AdminUserForm({
+  initialValues,
+  isEditing = false,
+  onSubmit,
+  onCancel,
+}: AdminUserFormProps) {
   const form = useForm<AdminCreateUserFormValues>({
-    resolver: zodResolver(adminCreateUserFormSchema),
+    resolver: zodResolver(
+      isEditing ? adminEditUserFormSchema : adminCreateUserFormSchema,
+    ),
     mode: 'onSubmit',
     reValidateMode: 'onChange',
     defaultValues: {
-      name: '',
-      email: '',
+      name: initialValues?.name ?? '',
+      email: initialValues?.email ?? '',
       password: '',
-      role: 'STUDENT',
+      role: initialValues?.role ?? 'STUDENT',
     },
   })
   const isSubmitting = form.formState.isSubmitting
@@ -87,26 +101,33 @@ export function AdminUserForm({ onSubmit, onCancel }: AdminUserFormProps) {
             )}
           />
 
-          <FormField
-            control={form.control}
-            name="password"
-            render={({ field }) => (
-              <FormItem>
-                <PasswordField
-                  {...field}
-                  id="create-user-password"
-                  label="Password"
-                  placeholder="e.g., Password1!"
-                  autoComplete="new-password"
-                  showForgotPassword={false}
-                />
-                <p className="text-xs text-muted-foreground">
-                  8–50 characters with at least one letter, number, and symbol.
-                </p>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          {isEditing ? (
+            <p className="self-end text-xs text-muted-foreground">
+              To change credentials, use Reset password from the user actions.
+            </p>
+          ) : (
+            <FormField
+              control={form.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem>
+                  <PasswordField
+                    {...field}
+                    id="user-password"
+                    label="Password"
+                    placeholder="e.g., Password1!"
+                    autoComplete="new-password"
+                    showForgotPassword={false}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    8–50 characters with at least one letter, number, and
+                    symbol.
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
 
           <FormField
             control={form.control}
@@ -145,10 +166,18 @@ export function AdminUserForm({ onSubmit, onCancel }: AdminUserFormProps) {
           <Button type="submit" disabled={isSubmitting}>
             {isSubmitting ? (
               <Loader2Icon className="animate-spin" />
+            ) : isEditing ? (
+              <CheckIcon />
             ) : (
               <UserPlusIcon />
             )}
-            {isSubmitting ? 'Creating...' : 'Create User'}
+            {isSubmitting
+              ? isEditing
+                ? 'Updating...'
+                : 'Creating...'
+              : isEditing
+                ? 'Update User'
+                : 'Create User'}
           </Button>
         </div>
       </form>

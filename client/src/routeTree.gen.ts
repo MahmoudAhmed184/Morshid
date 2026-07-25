@@ -11,22 +11,18 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as HealthRouteImport } from './routes/health'
-import { Route as StudentRouteRouteImport } from './routes/student/route'
+import { Route as StudentRouteImport } from './routes/_student'
 import { Route as InstructorRouteRouteImport } from './routes/instructor/route'
 import { Route as AdminRouteRouteImport } from './routes/admin/route'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as StudentIndexRouteImport } from './routes/student/index'
 import { Route as InstructorIndexRouteImport } from './routes/instructor/index'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
-import { Route as StudentSettingsRouteImport } from './routes/student/settings'
-import { Route as StudentDashboardRouteImport } from './routes/student/dashboard'
-import { Route as StudentCoursesRouteImport } from './routes/student/courses'
-import { Route as StudentAiTutorRouteImport } from './routes/student/ai-tutor'
 import { Route as InstructorSettingsRouteImport } from './routes/instructor/settings'
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
+import { Route as StudentSettingsRouteImport } from './routes/_student.settings'
+import { Route as StudentChatRouteImport } from './routes/_student.chat'
 import { Route as InstructorReviewQueueIndexRouteImport } from './routes/instructor/review-queue/index'
 import { Route as InstructorMaterialsIndexRouteImport } from './routes/instructor/materials/index'
-import { Route as InstructorCoursesIndexRouteImport } from './routes/instructor/courses/index'
 import { Route as AdminUsersIndexRouteImport } from './routes/admin/users/index'
 import { Route as AdminMaterialsIndexRouteImport } from './routes/admin/materials/index'
 import { Route as AdminCoursesIndexRouteImport } from './routes/admin/courses/index'
@@ -43,9 +39,8 @@ const HealthRoute = HealthRouteImport.update({
   path: '/health',
   getParentRoute: () => rootRouteImport,
 } as any)
-const StudentRouteRoute = StudentRouteRouteImport.update({
-  id: '/student',
-  path: '/student',
+const StudentRoute = StudentRouteImport.update({
+  id: '/_student',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InstructorRouteRoute = InstructorRouteRouteImport.update({
@@ -63,11 +58,6 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const StudentIndexRoute = StudentIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => StudentRouteRoute,
-} as any)
 const InstructorIndexRoute = InstructorIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -78,26 +68,6 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminRouteRoute,
 } as any)
-const StudentSettingsRoute = StudentSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => StudentRouteRoute,
-} as any)
-const StudentDashboardRoute = StudentDashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
-  getParentRoute: () => StudentRouteRoute,
-} as any)
-const StudentCoursesRoute = StudentCoursesRouteImport.update({
-  id: '/courses',
-  path: '/courses',
-  getParentRoute: () => StudentRouteRoute,
-} as any)
-const StudentAiTutorRoute = StudentAiTutorRouteImport.update({
-  id: '/ai-tutor',
-  path: '/ai-tutor',
-  getParentRoute: () => StudentRouteRoute,
-} as any)
 const InstructorSettingsRoute = InstructorSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -107,6 +77,16 @@ const AdminSettingsRoute = AdminSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
   getParentRoute: () => AdminRouteRoute,
+} as any)
+const StudentSettingsRoute = StudentSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => StudentRoute,
+} as any)
+const StudentChatRoute = StudentChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
+  getParentRoute: () => StudentRoute,
 } as any)
 const InstructorReviewQueueIndexRoute =
   InstructorReviewQueueIndexRouteImport.update({
@@ -120,11 +100,6 @@ const InstructorMaterialsIndexRoute =
     path: '/materials/',
     getParentRoute: () => InstructorRouteRoute,
   } as any)
-const InstructorCoursesIndexRoute = InstructorCoursesIndexRouteImport.update({
-  id: '/courses/',
-  path: '/courses/',
-  getParentRoute: () => InstructorRouteRoute,
-} as any)
 const AdminUsersIndexRoute = AdminUsersIndexRouteImport.update({
   id: '/users/',
   path: '/users/',
@@ -155,24 +130,19 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteRouteWithChildren
   '/instructor': typeof InstructorRouteRouteWithChildren
-  '/student': typeof StudentRouteRouteWithChildren
   '/health': typeof HealthRoute
   '/login': typeof LoginRoute
+  '/chat': typeof StudentChatRoute
+  '/settings': typeof StudentSettingsRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/instructor/settings': typeof InstructorSettingsRoute
-  '/student/ai-tutor': typeof StudentAiTutorRoute
-  '/student/courses': typeof StudentCoursesRoute
-  '/student/dashboard': typeof StudentDashboardRoute
-  '/student/settings': typeof StudentSettingsRoute
   '/admin/': typeof AdminIndexRoute
   '/instructor/': typeof InstructorIndexRoute
-  '/student/': typeof StudentIndexRoute
   '/admin/assignments/': typeof AdminAssignmentsIndexRoute
   '/admin/audit/': typeof AdminAuditIndexRoute
   '/admin/courses/': typeof AdminCoursesIndexRoute
   '/admin/materials/': typeof AdminMaterialsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
-  '/instructor/courses/': typeof InstructorCoursesIndexRoute
   '/instructor/materials/': typeof InstructorMaterialsIndexRoute
   '/instructor/review-queue/': typeof InstructorReviewQueueIndexRoute
 }
@@ -180,21 +150,17 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/health': typeof HealthRoute
   '/login': typeof LoginRoute
+  '/chat': typeof StudentChatRoute
+  '/settings': typeof StudentSettingsRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/instructor/settings': typeof InstructorSettingsRoute
-  '/student/ai-tutor': typeof StudentAiTutorRoute
-  '/student/courses': typeof StudentCoursesRoute
-  '/student/dashboard': typeof StudentDashboardRoute
-  '/student/settings': typeof StudentSettingsRoute
   '/admin': typeof AdminIndexRoute
   '/instructor': typeof InstructorIndexRoute
-  '/student': typeof StudentIndexRoute
   '/admin/assignments': typeof AdminAssignmentsIndexRoute
   '/admin/audit': typeof AdminAuditIndexRoute
   '/admin/courses': typeof AdminCoursesIndexRoute
   '/admin/materials': typeof AdminMaterialsIndexRoute
   '/admin/users': typeof AdminUsersIndexRoute
-  '/instructor/courses': typeof InstructorCoursesIndexRoute
   '/instructor/materials': typeof InstructorMaterialsIndexRoute
   '/instructor/review-queue': typeof InstructorReviewQueueIndexRoute
 }
@@ -203,24 +169,20 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteRouteWithChildren
   '/instructor': typeof InstructorRouteRouteWithChildren
-  '/student': typeof StudentRouteRouteWithChildren
+  '/_student': typeof StudentRouteWithChildren
   '/health': typeof HealthRoute
   '/login': typeof LoginRoute
+  '/_student/chat': typeof StudentChatRoute
+  '/_student/settings': typeof StudentSettingsRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/instructor/settings': typeof InstructorSettingsRoute
-  '/student/ai-tutor': typeof StudentAiTutorRoute
-  '/student/courses': typeof StudentCoursesRoute
-  '/student/dashboard': typeof StudentDashboardRoute
-  '/student/settings': typeof StudentSettingsRoute
   '/admin/': typeof AdminIndexRoute
   '/instructor/': typeof InstructorIndexRoute
-  '/student/': typeof StudentIndexRoute
   '/admin/assignments/': typeof AdminAssignmentsIndexRoute
   '/admin/audit/': typeof AdminAuditIndexRoute
   '/admin/courses/': typeof AdminCoursesIndexRoute
   '/admin/materials/': typeof AdminMaterialsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
-  '/instructor/courses/': typeof InstructorCoursesIndexRoute
   '/instructor/materials/': typeof InstructorMaterialsIndexRoute
   '/instructor/review-queue/': typeof InstructorReviewQueueIndexRoute
 }
@@ -230,24 +192,19 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/instructor'
-    | '/student'
     | '/health'
     | '/login'
+    | '/chat'
+    | '/settings'
     | '/admin/settings'
     | '/instructor/settings'
-    | '/student/ai-tutor'
-    | '/student/courses'
-    | '/student/dashboard'
-    | '/student/settings'
     | '/admin/'
     | '/instructor/'
-    | '/student/'
     | '/admin/assignments/'
     | '/admin/audit/'
     | '/admin/courses/'
     | '/admin/materials/'
     | '/admin/users/'
-    | '/instructor/courses/'
     | '/instructor/materials/'
     | '/instructor/review-queue/'
   fileRoutesByTo: FileRoutesByTo
@@ -255,21 +212,17 @@ export interface FileRouteTypes {
     | '/'
     | '/health'
     | '/login'
+    | '/chat'
+    | '/settings'
     | '/admin/settings'
     | '/instructor/settings'
-    | '/student/ai-tutor'
-    | '/student/courses'
-    | '/student/dashboard'
-    | '/student/settings'
     | '/admin'
     | '/instructor'
-    | '/student'
     | '/admin/assignments'
     | '/admin/audit'
     | '/admin/courses'
     | '/admin/materials'
     | '/admin/users'
-    | '/instructor/courses'
     | '/instructor/materials'
     | '/instructor/review-queue'
   id:
@@ -277,24 +230,20 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/instructor'
-    | '/student'
+    | '/_student'
     | '/health'
     | '/login'
+    | '/_student/chat'
+    | '/_student/settings'
     | '/admin/settings'
     | '/instructor/settings'
-    | '/student/ai-tutor'
-    | '/student/courses'
-    | '/student/dashboard'
-    | '/student/settings'
     | '/admin/'
     | '/instructor/'
-    | '/student/'
     | '/admin/assignments/'
     | '/admin/audit/'
     | '/admin/courses/'
     | '/admin/materials/'
     | '/admin/users/'
-    | '/instructor/courses/'
     | '/instructor/materials/'
     | '/instructor/review-queue/'
   fileRoutesById: FileRoutesById
@@ -303,7 +252,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRouteRoute: typeof AdminRouteRouteWithChildren
   InstructorRouteRoute: typeof InstructorRouteRouteWithChildren
-  StudentRouteRoute: typeof StudentRouteRouteWithChildren
+  StudentRoute: typeof StudentRouteWithChildren
   HealthRoute: typeof HealthRoute
   LoginRoute: typeof LoginRoute
 }
@@ -324,11 +273,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HealthRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/student': {
-      id: '/student'
-      path: '/student'
-      fullPath: '/student'
-      preLoaderRoute: typeof StudentRouteRouteImport
+    '/_student': {
+      id: '/_student'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof StudentRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/instructor': {
@@ -352,13 +301,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/student/': {
-      id: '/student/'
-      path: '/'
-      fullPath: '/student/'
-      preLoaderRoute: typeof StudentIndexRouteImport
-      parentRoute: typeof StudentRouteRoute
-    }
     '/instructor/': {
       id: '/instructor/'
       path: '/'
@@ -372,34 +314,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/'
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRouteRoute
-    }
-    '/student/settings': {
-      id: '/student/settings'
-      path: '/settings'
-      fullPath: '/student/settings'
-      preLoaderRoute: typeof StudentSettingsRouteImport
-      parentRoute: typeof StudentRouteRoute
-    }
-    '/student/dashboard': {
-      id: '/student/dashboard'
-      path: '/dashboard'
-      fullPath: '/student/dashboard'
-      preLoaderRoute: typeof StudentDashboardRouteImport
-      parentRoute: typeof StudentRouteRoute
-    }
-    '/student/courses': {
-      id: '/student/courses'
-      path: '/courses'
-      fullPath: '/student/courses'
-      preLoaderRoute: typeof StudentCoursesRouteImport
-      parentRoute: typeof StudentRouteRoute
-    }
-    '/student/ai-tutor': {
-      id: '/student/ai-tutor'
-      path: '/ai-tutor'
-      fullPath: '/student/ai-tutor'
-      preLoaderRoute: typeof StudentAiTutorRouteImport
-      parentRoute: typeof StudentRouteRoute
     }
     '/instructor/settings': {
       id: '/instructor/settings'
@@ -415,6 +329,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSettingsRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/_student/settings': {
+      id: '/_student/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof StudentSettingsRouteImport
+      parentRoute: typeof StudentRoute
+    }
+    '/_student/chat': {
+      id: '/_student/chat'
+      path: '/chat'
+      fullPath: '/chat'
+      preLoaderRoute: typeof StudentChatRouteImport
+      parentRoute: typeof StudentRoute
+    }
     '/instructor/review-queue/': {
       id: '/instructor/review-queue/'
       path: '/review-queue'
@@ -427,13 +355,6 @@ declare module '@tanstack/react-router' {
       path: '/materials'
       fullPath: '/instructor/materials/'
       preLoaderRoute: typeof InstructorMaterialsIndexRouteImport
-      parentRoute: typeof InstructorRouteRoute
-    }
-    '/instructor/courses/': {
-      id: '/instructor/courses/'
-      path: '/courses'
-      fullPath: '/instructor/courses/'
-      preLoaderRoute: typeof InstructorCoursesIndexRouteImport
       parentRoute: typeof InstructorRouteRoute
     }
     '/admin/users/': {
@@ -501,7 +422,6 @@ const AdminRouteRouteWithChildren = AdminRouteRoute._addFileChildren(
 interface InstructorRouteRouteChildren {
   InstructorSettingsRoute: typeof InstructorSettingsRoute
   InstructorIndexRoute: typeof InstructorIndexRoute
-  InstructorCoursesIndexRoute: typeof InstructorCoursesIndexRoute
   InstructorMaterialsIndexRoute: typeof InstructorMaterialsIndexRoute
   InstructorReviewQueueIndexRoute: typeof InstructorReviewQueueIndexRoute
 }
@@ -509,7 +429,6 @@ interface InstructorRouteRouteChildren {
 const InstructorRouteRouteChildren: InstructorRouteRouteChildren = {
   InstructorSettingsRoute: InstructorSettingsRoute,
   InstructorIndexRoute: InstructorIndexRoute,
-  InstructorCoursesIndexRoute: InstructorCoursesIndexRoute,
   InstructorMaterialsIndexRoute: InstructorMaterialsIndexRoute,
   InstructorReviewQueueIndexRoute: InstructorReviewQueueIndexRoute,
 }
@@ -518,31 +437,24 @@ const InstructorRouteRouteWithChildren = InstructorRouteRoute._addFileChildren(
   InstructorRouteRouteChildren,
 )
 
-interface StudentRouteRouteChildren {
-  StudentAiTutorRoute: typeof StudentAiTutorRoute
-  StudentCoursesRoute: typeof StudentCoursesRoute
-  StudentDashboardRoute: typeof StudentDashboardRoute
+interface StudentRouteChildren {
+  StudentChatRoute: typeof StudentChatRoute
   StudentSettingsRoute: typeof StudentSettingsRoute
-  StudentIndexRoute: typeof StudentIndexRoute
 }
 
-const StudentRouteRouteChildren: StudentRouteRouteChildren = {
-  StudentAiTutorRoute: StudentAiTutorRoute,
-  StudentCoursesRoute: StudentCoursesRoute,
-  StudentDashboardRoute: StudentDashboardRoute,
+const StudentRouteChildren: StudentRouteChildren = {
+  StudentChatRoute: StudentChatRoute,
   StudentSettingsRoute: StudentSettingsRoute,
-  StudentIndexRoute: StudentIndexRoute,
 }
 
-const StudentRouteRouteWithChildren = StudentRouteRoute._addFileChildren(
-  StudentRouteRouteChildren,
-)
+const StudentRouteWithChildren =
+  StudentRoute._addFileChildren(StudentRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRouteRoute: AdminRouteRouteWithChildren,
   InstructorRouteRoute: InstructorRouteRouteWithChildren,
-  StudentRouteRoute: StudentRouteRouteWithChildren,
+  StudentRoute: StudentRouteWithChildren,
   HealthRoute: HealthRoute,
   LoginRoute: LoginRoute,
 }

@@ -144,6 +144,15 @@ describe('Admin courses (e2e)', () => {
       expect(body.course.code).toBe('PYTHON-PROG-P0')
     })
 
+    it('rejects malformed course ids with a stable 400 instead of a database error', async () => {
+      const token = await signInAs('admin@morshid.demo')
+
+      await request(app.getHttpServer())
+        .get('/api/v1/admin/courses/not-a-uuid')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400)
+    })
+
     it('returns 404 for non-existent course', async () => {
       const token = await signInAs('admin@morshid.demo')
 
@@ -156,6 +165,233 @@ describe('Admin courses (e2e)', () => {
           message: 'Course was not found',
           courseId: '00000000-0000-4000-8000-000000009999',
         })
+    })
+  })
+
+  describe('POST /api/v1/admin/courses', () => {
+    it('creates a course and records an audit event', async () => {
+      const token = await signInAs('admin@morshid.demo')
+      const admin = requireUserByEmail('admin@morshid.demo')
+
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/admin/courses')
+        .set('Authorization', `Bearer ${token}`)
+        .set('User-Agent', auditUserAgent)
+        .send({ code: 'CS-201', title: 'Data Structures' })
+        .expect(201)
+
+      const body = response.body as AdminCourseDetailResponseDto
+      expect(body.course).toMatchObject({
+        code: 'CS-201',
+        title: 'Data Structures',
+      })
+      expect(Object.keys(body.course).sort()).toEqual([
+        'adminMetadata',
+        'code',
+        'id',
+        'title',
+      ])
+      expect(body.course.adminMetadata).toMatchObject({
+        createdById: admin.id,
+        memberCount: 0,
+        instructorCount: 0,
+        studentCount: 0,
+        materialCount: 0,
+        activeMaterialCount: 0,
+        memberships: [],
+      })
+      expect(
+        [...store.auditLogs.values()].filter(
+          (log) => log.action === AUDIT_EVENT_ACTIONS.ADMIN_COURSE_CREATED,
+        ),
+      ).toEqual([
+        expect.objectContaining({
+          actorUserId: admin.id,
+          targetId: body.course.id,
+          courseId: body.course.id,
+          metadata: { code: 'CS-201', title: 'Data Structures' },
+        }),
+      ])
+    })
+
+    it('rejects duplicate course codes', async () => {
+      const token = await signInAs('admin@morshid.demo')
+
+      await request(app.getHttpServer())
+        .post('/api/v1/admin/courses')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ code: 'PYTHON-PROG-P0', title: 'Duplicate' })
+        .expect(409)
+        .expect({
+          code: ADMIN_COURSES_ERROR_CODES.COURSE_CODE_ALREADY_EXISTS,
+          message: 'A course with this code already exists',
+          courseCode: 'PYTHON-PROG-P0',
+        })
+
+      expect(store.courses.size).toBe(2)
+    })
+
+    it('returns field-level validation errors for invalid payloads', async () => {
+      const token = await signInAs('admin@morshid.demo')
+
+      await request(app.getHttpServer())
+        .post('/api/v1/admin/courses')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ code: 'C', title: 'ab', description: 'unsupported' })
+        .expect(400)
+        .expect((response) => {
+          const body = response.body as {
+            code: string
+            message: string
+            errors: { field: string; message: string }[]
+          }
+
+          expect(body.code).toBe(ADMIN_COURSES_ERROR_CODES.INVALID_REQUEST)
+          expect(body.message).toBe('Invalid admin courses request')
+          expect([...new Set(body.errors.map((error) => error.field))].sort())
+            // `body` is the unrecognized-key issue raised by the strict schema.
+            .toEqual(['body', 'code', 'title'])
+        })
+
+      expect(store.courses.size).toBe(2)
+      expect(
+        [...store.auditLogs.values()].filter(
+          (log) => log.action === AUDIT_EVENT_ACTIONS.ADMIN_COURSE_CREATED,
+        ),
+      ).toEqual([])
+    })
+
+    it('rejects non-admin course creation', async () => {
+      const token = await signInAs('instructor@morshid.demo')
+
+      await request(app.getHttpServer())
+        .post('/api/v1/admin/courses')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ code: 'CS-999', title: 'Unauthorized Course' })
+        .expect(403)
+
+      expect(store.courses.size).toBe(2)
+    })
+  })
+
+  describe('PATCH /api/v1/admin/courses/:courseId', () => {
+    it('updates a course and records before/after audit evidence', async () => {
+      const token = await signInAs('admin@morshid.demo')
+      const admin = requireUserByEmail('admin@morshid.demo')
+
+      const response = await request(app.getHttpServer())
+        .patch(`/api/v1/admin/courses/${pythonCourseId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .set('User-Agent', auditUserAgent)
+        .send({ code: 'PYTHON-201', title: 'Advanced Python' })
+        .expect(200)
+
+      const body = response.body as AdminCourseDetailResponseDto
+      expect(body.course).toMatchObject({
+        id: pythonCourseId,
+        code: 'PYTHON-201',
+        title: 'Advanced Python',
+      })
+      expect(
+        [...store.auditLogs.values()].filter(
+          (log) => log.action === AUDIT_EVENT_ACTIONS.ADMIN_COURSE_UPDATED,
+        ),
+      ).toEqual([
+        expect.objectContaining({
+          actorUserId: admin.id,
+          targetId: pythonCourseId,
+          metadata: {
+            before: {
+              code: 'PYTHON-PROG-P0',
+              title: 'Python Programming',
+            },
+            after: {
+              code: 'PYTHON-201',
+              title: 'Advanced Python',
+            },
+            changedFields: ['code', 'title'],
+          },
+        }),
+      ])
+    })
+
+    it('rejects an empty update without writing an audit event', async () => {
+      const token = await signInAs('admin@morshid.demo')
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/admin/courses/${pythonCourseId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({})
+        .expect(400)
+        .expect((response) => {
+          expect(response.body).toMatchObject({
+            code: ADMIN_COURSES_ERROR_CODES.INVALID_REQUEST,
+          })
+        })
+
+      expect(
+        [...store.auditLogs.values()].filter(
+          (log) => log.action === AUDIT_EVENT_ACTIONS.ADMIN_COURSE_UPDATED,
+        ),
+      ).toEqual([])
+    })
+
+    it('rejects a code that is already taken by another course', async () => {
+      const token = await signInAs('admin@morshid.demo')
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/admin/courses/${pythonCourseId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ code: 'HIDDEN-ISOLATION' })
+        .expect(409)
+        .expect({
+          code: ADMIN_COURSES_ERROR_CODES.COURSE_CODE_ALREADY_EXISTS,
+          message: 'A course with this code already exists',
+          courseCode: 'HIDDEN-ISOLATION',
+        })
+
+      expect(store.courses.get(pythonCourseId)?.code).toBe('PYTHON-PROG-P0')
+      expect(
+        [...store.auditLogs.values()].filter(
+          (log) => log.action === AUDIT_EVENT_ACTIONS.ADMIN_COURSE_UPDATED,
+        ),
+      ).toEqual([])
+    })
+
+    it('returns not found for an unknown course', async () => {
+      const token = await signInAs('admin@morshid.demo')
+      const missingCourseId = '00000000-0000-4000-8000-000000009999'
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/admin/courses/${missingCourseId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ title: 'Nope' })
+        .expect(404)
+        .expect({
+          code: ADMIN_COURSES_ERROR_CODES.COURSE_NOT_FOUND,
+          message: 'Course was not found',
+          courseId: missingCourseId,
+        })
+    })
+
+    it('rejects malformed course ids', async () => {
+      const token = await signInAs('admin@morshid.demo')
+
+      await request(app.getHttpServer())
+        .patch('/api/v1/admin/courses/not-a-uuid')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ title: 'Nope' })
+        .expect(400)
+    })
+
+    it('rejects non-admin updates', async () => {
+      const token = await signInAs('instructor@morshid.demo')
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/admin/courses/${pythonCourseId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ title: 'Nope' })
+        .expect(403)
     })
   })
 

@@ -49,7 +49,7 @@ export function StudentSessionInfiniteScroll({
     return (
       <div
         role="alert"
-        className="mt-3 rounded-md border border-destructive/30 px-3 py-2 text-center"
+        className="mt-3 rounded-xl border border-destructive/30 px-3 py-2 text-center"
       >
         <p className="text-xs text-destructive">
           More conversations could not be loaded.

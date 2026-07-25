@@ -74,19 +74,26 @@ export function AdminAssignmentsPage() {
 
       <AdminPanel>
         <DataToolbar
-          className="border-b p-4"
+          className="border-b px-4 py-3"
           filters={
             <Select
               value={courseId ?? null}
               onValueChange={(value) => setSelectedCourseId(value ?? '')}
               items={courseSelectItems}
             >
-              <SelectTrigger className="w-full sm:w-96" aria-label="Course">
+              <SelectTrigger
+                className="h-9 px-3 text-xs rounded-lg border-border/80 w-full sm:w-80 max-w-full"
+                aria-label="Course"
+              >
                 <SelectValue placeholder="Choose a course" />
               </SelectTrigger>
               <SelectContent>
                 {courseSelectItems.map((course) => (
-                  <SelectItem key={course.value} value={course.value}>
+                  <SelectItem
+                    key={course.value}
+                    value={course.value}
+                    className="text-xs py-1.5"
+                  >
                     {course.label}
                   </SelectItem>
                 ))}
@@ -148,6 +155,7 @@ export function AdminAssignmentsPage() {
           }
         >
           <AdminAssignmentsTable
+            courseId={courseId}
             members={membersQuery.data ?? []}
             isPending={isPending}
             onRoleChange={(userId, role) =>

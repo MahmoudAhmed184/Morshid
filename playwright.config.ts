@@ -1,6 +1,8 @@
 import { defineConfig, devices } from '@playwright/test'
 
 const isCi = process.env.CI !== undefined
+const clientPort = parsePort(process.env.PLAYWRIGHT_CLIENT_PORT, 3000)
+const clientBaseUrl = `http://localhost:${clientPort.toString()}`
 
 export default defineConfig({
   testDir: './tests/acceptance',
@@ -10,7 +12,7 @@ export default defineConfig({
   workers: 1,
   reporter: 'html',
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: clientBaseUrl,
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
   },
@@ -22,14 +24,25 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'npm run dev:client',
-      url: 'http://localhost:3000',
+      command: `npm exec --workspace client -- vite dev --port ${clientPort.toString()} --strictPort`,
+      url: clientBaseUrl,
       reuseExistingServer: !isCi,
     },
     {
-      command: 'npm run dev:server',
+      command: `env CLIENT_ORIGIN=${clientBaseUrl} npm run dev:server`,
       url: 'http://localhost:4000/health/live',
       reuseExistingServer: !isCi,
+      timeout: 180_000,
     },
   ],
 })
+
+function parsePort(value: string | undefined, fallback: number) {
+  const port = value === undefined ? fallback : Number(value)
+
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+    throw new Error('PLAYWRIGHT_CLIENT_PORT must be a valid TCP port')
+  }
+
+  return port
+}

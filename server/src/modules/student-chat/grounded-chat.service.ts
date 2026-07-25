@@ -128,11 +128,17 @@ export class GroundedChatService {
         courseId,
         sessionId,
         studentId: user.id,
+        ...(body.clientMessageId === undefined
+          ? {}
+          : { clientMessageId: body.clientMessageId }),
         content: body.content,
       })
     } catch (error) {
       this.logFailure('begin', operation, error)
       throw studentChatTerminalStateUnavailableException()
+    }
+    if (result.kind === 'replayed') {
+      return this.presentTurn(result.studentMessage, result.assistantMessage)
     }
     if (result.kind !== 'ok') {
       return this.handleBeginDenial(
@@ -366,7 +372,10 @@ export class GroundedChatService {
   }
 
   private async handleBeginDenial(
-    result: Exclude<BeginGroundedChatTurnResult, { kind: 'ok' }>,
+    result: Exclude<
+      BeginGroundedChatTurnResult,
+      { kind: 'ok' } | { kind: 'replayed' }
+    >,
     courseId: string,
     sessionId: string,
     studentId: string,

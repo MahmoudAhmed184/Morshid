@@ -18,25 +18,17 @@ import {
   studentSessionQueryOptions,
   studentSessionsQueryOptions,
 } from '@/features/student/data/student-sessions.queries'
+import { hasPendingAssistant } from '@/features/student/hooks/student-chat-history'
+import type {
+  StudentCourseSelection,
+  StudentSessionSelection,
+} from '@/features/student/hooks/student-session.types'
 import type {
   ChatMessageHistoryResponse,
   ChatSessionListResponse,
   CreateChatSessionInput,
   RenameChatSessionInput,
 } from '@/features/student/schemas/student-chat.schema'
-
-interface StudentSessionsScope {
-  courseId?: string
-}
-
-interface StudentSessionMessagesScope {
-  courseId?: string
-  sessionId?: string
-}
-
-interface StudentCourseScope {
-  courseId?: string
-}
 
 interface RenameStudentSessionVariables {
   sessionId: string
@@ -58,7 +50,7 @@ function requireScope(
   return { studentId, courseId }
 }
 
-export function useStudentSessions({ courseId }: StudentSessionsScope) {
+export function useStudentSessions({ courseId }: StudentCourseSelection) {
   const studentId = useStudentId()
 
   return useInfiniteQuery({
@@ -73,7 +65,7 @@ export function useStudentSessions({ courseId }: StudentSessionsScope) {
 export function useStudentSessionMessages({
   courseId,
   sessionId,
-}: StudentSessionMessagesScope) {
+}: StudentSessionSelection) {
   const studentId = useStudentId()
 
   return useInfiniteQuery({
@@ -86,13 +78,15 @@ export function useStudentSessionMessages({
       studentId !== undefined &&
       courseId !== undefined &&
       sessionId !== undefined,
+    refetchInterval: (query) =>
+      hasPendingAssistant(query.state.data) ? 1_500 : false,
   })
 }
 
 export function useStudentSession({
   courseId,
   sessionId,
-}: StudentSessionMessagesScope) {
+}: StudentSessionSelection) {
   const studentId = useStudentId()
 
   return useQuery({
@@ -108,7 +102,7 @@ export function useStudentSession({
   })
 }
 
-export function useCreateStudentSession({ courseId }: StudentCourseScope) {
+export function useCreateStudentSession({ courseId }: StudentCourseSelection) {
   const studentId = useStudentId()
   const queryClient = useQueryClient()
 
@@ -161,7 +155,7 @@ export function useCreateStudentSession({ courseId }: StudentCourseScope) {
   })
 }
 
-export function useRenameStudentSession({ courseId }: StudentCourseScope) {
+export function useRenameStudentSession({ courseId }: StudentCourseSelection) {
   const studentId = useStudentId()
   const queryClient = useQueryClient()
 
@@ -206,7 +200,7 @@ export function useRenameStudentSession({ courseId }: StudentCourseScope) {
   })
 }
 
-export function useDeleteStudentSession({ courseId }: StudentCourseScope) {
+export function useDeleteStudentSession({ courseId }: StudentCourseSelection) {
   const studentId = useStudentId()
   const queryClient = useQueryClient()
 

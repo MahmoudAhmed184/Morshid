@@ -3,6 +3,7 @@
 Use `SearchInput` for controlled search fields with icon and clear button.
 
 Good places to use it:
+
 - Table/list search.
 - Search inside pickers, settings, users, courses, invoices, and messages.
 
@@ -33,5 +34,6 @@ With clear callback:
 ```
 
 Notes:
+
 - This component is controlled.
 - Debounce search in the parent when API calls are expensive.
