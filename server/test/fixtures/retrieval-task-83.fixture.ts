@@ -2,7 +2,7 @@ import { Prisma, type MaterialStatus } from '../../src/generated/prisma/client'
 import type { PrismaService } from '../../src/modules/prisma/prisma.service'
 
 const EMBEDDING_DIMENSIONS = 1_536
-const EMBEDDING_MODEL = 'task-83-deterministic-vector'
+export const RETRIEVAL_TASK_83_EMBEDDING_MODEL = 'task-83-deterministic-vector'
 
 export const RETRIEVAL_TASK_83 = {
   ownerId: '83000000-0000-4000-8000-000000000001',
@@ -142,7 +142,7 @@ export async function seedRetrievalTask83Fixture(
         ${chunk.chunkIndex},
         ${chunk.content},
         ${serializeEmbedding(chunk.embedding)}::vector(1536),
-        ${EMBEDDING_MODEL}
+        ${RETRIEVAL_TASK_83_EMBEDDING_MODEL}
       )
     `)
   }

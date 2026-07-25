@@ -27,6 +27,10 @@ export interface RetrievedChunk {
 export type CourseRetrievalResult =
   | { kind: 'evidence'; chunks: RetrievedChunk[] }
   | { kind: 'insufficient_evidence' }
+  // `expectedModel` is an operator diagnostic and must never be serialized to
+  // a student: it names the internal document profile, not anything a learner
+  // can act on.
+  | { kind: 'embedding_profile_not_ready'; expectedModel: string }
 
 const AVAILABILITY_SCAN_MULTIPLIER = 5
 
@@ -67,6 +71,34 @@ export class RetrievalService {
       return { kind: 'insufficient_evidence' }
     }
 
+    // Strict course readiness, checked before the query is embedded: one
+    // incompletely embedded candidate material blocks grounded retrieval for
+    // the whole course. Running it first means a course with no vectors in the
+    // active profile never spends provider quota on a query vector.
+    //
+    // Readiness and retrieval are separate queries, not one atomic snapshot,
+    // so a material replacement running concurrently can produce a transient
+    // not-ready or no-evidence result. The profile filter in the retrieval SQL
+    // still prevents cross-space comparisons, which is the property that
+    // matters; the transient answer resolves on the next turn.
+    const embeddingModel = this.embeddingProvider.model
+    const readiness =
+      await this.courseRetrievalRepository.findEmbeddingProfileReadiness({
+        courseId,
+        embeddingModel,
+      })
+
+    if (readiness.kind === 'no_candidate_materials') {
+      return { kind: 'insufficient_evidence' }
+    }
+
+    if (readiness.kind === 'not_ready') {
+      return {
+        kind: 'embedding_profile_not_ready',
+        expectedModel: embeddingModel,
+      }
+    }
+
     const [queryEmbedding] = await this.embeddingProvider.embedBatch([
       trimmedQuery,
     ])
@@ -81,6 +113,7 @@ export class RetrievalService {
       const rows = await this.courseRetrievalRepository.findTopChunksForCourse({
         courseId,
         queryEmbedding,
+        embeddingModel,
         topK: pageSize,
         minSimilarity: this.minSimilarity,
         offset,

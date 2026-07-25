@@ -217,6 +217,18 @@ export class GroundedChatService {
         turn.courseId,
         turn.studentMessage.content,
       )
+      if (retrieval.kind === 'embedding_profile_not_ready') {
+        // Operator-visible only. The student sees the ordinary grounding-blocked
+        // reply, because an embedding-profile migration in flight is not
+        // something a learner can act on; `expectedModel` names an internal
+        // document profile and stays in the log, never in the response.
+        this.logger.warn({
+          event: 'grounded_chat_embedding_profile_not_ready',
+          expectedModel: retrieval.expectedModel,
+          ...operation,
+        })
+        return await this.persistBlocked(turn, operation)
+      }
       if (retrieval.kind === 'insufficient_evidence') {
         return await this.persistBlocked(turn, operation)
       }

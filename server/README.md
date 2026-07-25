@@ -337,6 +337,59 @@ For one opt-in local verification:
 Key rotation never requires a code change: revoke the old key, replace only
 `ITI_BEDROCK_GATEWAY_API_KEY` in the ignored file, and restart the server.
 
+## Embedding profiles and strict course readiness
+
+Every stored chunk records the **document profile** that produced its vector in
+`material_chunks.embedding_model`. Retrieval filters on the active provider's
+profile, because vectors from different providers all have 1,536 dimensions:
+Postgres will happily compute a cosine distance between a Gemini query vector
+and a deterministic stored vector. That comparison is mathematically valid and
+semantically meaningless, and it surfaces as plausible false matches rather
+than as an error, so it must be excluded structurally rather than detected.
+
+Before a query is embedded, the retrieval service checks profile coverage for
+the course:
+
+> **Strict course readiness** — one incompletely embedded candidate material
+> blocks grounded retrieval for that entire course.
+
+A candidate material is `READY` or `WARNING`, not soft-deleted, and has an
+extracted text length above zero. It is complete when its `chunk_count` is
+positive and at least that many of its chunks carry the active profile. Partial
+coverage would answer from whichever materials happened to be migrated first,
+and a student cannot tell a thin answer from a complete one.
+
+Readiness runs before the query is embedded, so a course with no compatible
+vectors never spends provider quota building a query vector it could not use.
+Readiness and retrieval are separate queries rather than one atomic snapshot,
+so a concurrent material replacement can produce a transient not-ready or
+no-evidence result; the profile filter still prevents cross-space comparisons,
+which is the property that matters.
+
+### Switching embedding providers
+
+The schema stores one vector and one model id per chunk, and replacement is
+transactional only per material — there is no corpus-wide transaction, so a
+transition is necessarily mixed while it runs. Normal material processing also
+uses the *configured* provider, so a migration cannot run alongside it.
+
+The exclusion mechanism is **operational maintenance mode, not a lock**. A
+migration lock would only provide mutual exclusion if the normal workers
+participated in the same protocol; material processing uses lease records and
+would not check a new embedding-migration lock, so such a lock would protect
+nothing.
+
+```text
+disable grounded retrieval → stop/scale material-processing workers to zero
+→ verify no active, unexpired processing leases → run the resumable migration
+→ verify complete target-profile coverage → switch EMBEDDING_PROVIDER
+→ restart workers and retrieval
+```
+
+Rollback is reprocessing with the previous provider. A zero-degradation rolling
+migration would require storing multiple profiles per chunk — a schema redesign
+that is explicitly out of scope.
+
 ## Local OpenAPI documentation
 
 When `NODE_ENV` is `development` or `test`, the server publishes:

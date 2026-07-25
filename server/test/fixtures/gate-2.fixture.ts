@@ -38,8 +38,14 @@ const VISIBLE_VECTOR = unitSimilarityVector(GATE_2_VISIBLE_SIMILARITY)
 const HIDDEN_VECTOR = unitSimilarityVector(GATE_2_HIDDEN_SIMILARITY)
 const UNSUPPORTED_VECTOR = unitSimilarityVector(-1)
 
+// Retrieval filters on the active document profile, so every adversarial row
+// below is stored under this same profile. A row in a foreign profile would be
+// excluded by the profile filter instead of by the boundary or threshold each
+// adversary is meant to exercise, which would silently weaken the fixture.
+export const GATE_2_EMBEDDING_MODEL = 'gate-2-deterministic-embedding-v1'
+
 export class Gate2DeterministicEmbeddingProvider implements EmbeddingProvider {
-  readonly model = 'gate-2-deterministic-embedding-v1'
+  readonly model = GATE_2_EMBEDDING_MODEL
   private readonly fallback = new DeterministicEmbeddingProvider()
 
   embedBatch(
@@ -98,7 +104,7 @@ export async function injectGate2HiddenAdversary(
     title: 'Gate 2 hidden adversarial source',
     filename: 'gate-2-hidden-isolation.pdf',
     embedding: HIDDEN_VECTOR,
-    embeddingModel: 'gate-2-adversarial-vector-v1',
+    embeddingModel: GATE_2_EMBEDDING_MODEL,
   })
 }
 
@@ -115,7 +121,7 @@ export function injectGate2BelowThresholdEvidence(
     title: 'Gate 2 below-threshold Python evidence',
     filename: 'gate-2-below-threshold.pdf',
     embedding: VISIBLE_VECTOR,
-    embeddingModel: 'gate-2-below-threshold-vector-v1',
+    embeddingModel: GATE_2_EMBEDDING_MODEL,
   })
 }
 

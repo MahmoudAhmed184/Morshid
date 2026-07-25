@@ -12,6 +12,7 @@ import {
 } from '../src/modules/retrieval/retrieval.service'
 import {
   RETRIEVAL_TASK_83,
+  RETRIEVAL_TASK_83_EMBEDDING_MODEL,
   retrievalTask83QueryEmbedding,
   seedRetrievalTask83Fixture,
 } from './fixtures/retrieval-task-83.fixture'
@@ -206,13 +207,31 @@ describe('Retrieval threshold readiness and cross-course isolation (e2e)', () =>
     ])
   })
 
+  it('blocks the whole course when the active profile covers none of its materials', async () => {
+    await expect(
+      buildService({
+        embeddingModel: 'gemini/gemini-embedding-2/1536/document-v1',
+      }).retrieveCourseEvidence(
+        RETRIEVAL_TASK_83.pythonCourseId,
+        'synthetic profile-mismatch question',
+      ),
+    ).resolves.toEqual({
+      kind: 'embedding_profile_not_ready',
+      expectedModel: 'gemini/gemini-embedding-2/1536/document-v1',
+    })
+  })
+
   function buildService(
-    overrides: { topK?: number; minSimilarity?: number } = {},
+    overrides: {
+      topK?: number
+      minSimilarity?: number
+      embeddingModel?: string
+    } = {},
   ): RetrievalService {
     const topK = overrides.topK ?? DEFAULT_TOP_K
     const minSimilarity = overrides.minSimilarity ?? DEFAULT_MIN_SIMILARITY
     const embeddingProvider = {
-      model: 'task-83-query-vector',
+      model: overrides.embeddingModel ?? RETRIEVAL_TASK_83_EMBEDDING_MODEL,
       embedBatch: (texts: readonly string[]) =>
         Promise.resolve(texts.map(() => retrievalTask83QueryEmbedding())),
     } satisfies EmbeddingProvider
