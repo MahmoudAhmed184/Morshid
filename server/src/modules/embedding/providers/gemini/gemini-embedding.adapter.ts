@@ -1,7 +1,10 @@
 import { Logger } from '@nestjs/common'
 import type { EmbedContentConfig, EmbedContentParameters } from '@google/genai'
 
-import type { RetryClock } from '../../../../common/upstream/upstream-retry-policy'
+import {
+  type RetryClock,
+  readUpstreamFailure,
+} from '../../../../common/upstream/upstream-retry-policy'
 import type {
   Embedding,
   EmbeddingDocument,
@@ -9,6 +12,7 @@ import type {
 } from '../../embedding-provider'
 import {
   EMBEDDING_DIMENSIONS,
+  type EmbeddingErrorCode,
   EmbeddingConfigurationError,
   EmbeddingUpstreamError,
 } from '../../embedding-provider'
@@ -95,6 +99,7 @@ type GeminiEmbeddingOutcome =
   | 'count_mismatch'
   | 'timeout'
   | 'cancelled'
+  | 'rate_limited'
   | 'upstream_failure'
 
 export function validateGeminiEmbeddingConfiguration(
@@ -269,13 +274,7 @@ export class GeminiEmbeddingAdapter implements EmbeddingProvider {
           ? 'timeout'
           : classifyUpstream(error)
       this.logDiagnostic(outcome, inputs.length)
-      throw new EmbeddingUpstreamError(
-        outcome === 'timeout'
-          ? 'EMBEDDING_TIMEOUT'
-          : outcome === 'cancelled'
-            ? 'EMBEDDING_CANCELLED'
-            : 'EMBEDDING_PROVIDER_FAILURE',
-      )
+      throw new EmbeddingUpstreamError(UPSTREAM_ERROR_CODES[outcome])
     }
 
     return this.readEmbeddings(response, inputs.length)
@@ -349,7 +348,7 @@ export class GeminiEmbeddingAdapter implements EmbeddingProvider {
       this.logger.debug(diagnostic)
       return
     }
-    if (outcome === 'cancelled') {
+    if (outcome === 'cancelled' || outcome === 'rate_limited') {
       this.logger.warn(diagnostic)
       return
     }
@@ -381,10 +380,23 @@ function isQuotaExhausted(error: unknown): boolean {
   )
 }
 
-function classifyUpstream(error: unknown): GeminiEmbeddingOutcome {
+// Only the outcomes `classifyUpstream` can return. Declared as a map rather
+// than a nested ternary so adding an outcome without deciding its public code
+// fails to compile.
+const UPSTREAM_ERROR_CODES = {
+  timeout: 'EMBEDDING_TIMEOUT',
+  cancelled: 'EMBEDDING_CANCELLED',
+  rate_limited: 'EMBEDDING_RATE_LIMITED',
+  upstream_failure: 'EMBEDDING_PROVIDER_FAILURE',
+} as const satisfies Partial<Record<GeminiEmbeddingOutcome, EmbeddingErrorCode>>
+
+type ThrownOutcome = keyof typeof UPSTREAM_ERROR_CODES
+
+function classifyUpstream(error: unknown): ThrownOutcome {
   if (typeof error !== 'object' || error === null) {
     return 'upstream_failure'
   }
+
   const name: unknown = Reflect.get(error, 'name')
   if (name === 'AbortError') {
     return 'cancelled'
@@ -392,7 +404,37 @@ function classifyUpstream(error: unknown): GeminiEmbeddingOutcome {
   if (name === 'TimeoutError') {
     return 'timeout'
   }
-  return 'upstream_failure'
+
+  // A provider-side throttle is not a provider failure: it tells the caller to
+  // back off, which a generic failure does not. The shared classifier reads a
+  // status reflectively when the SDK carries one.
+  const { status } = readUpstreamFailure(error, 0)
+  if (status === 429) {
+    return 'rate_limited'
+  }
+  if (status !== undefined) {
+    return 'upstream_failure'
+  }
+
+  // The pinned SDK throws a plain `Error` carrying the status only in its
+  // message, so message shape is the *only* signal available. It is used for
+  // classification and never retained: the thrown error keeps its fixed
+  // message, so no provider text reaches a caller or a log.
+  return isRateLimitMessage(Reflect.get(error, 'message'))
+    ? 'rate_limited'
+    : 'upstream_failure'
+}
+
+function isRateLimitMessage(message: unknown): boolean {
+  if (typeof message !== 'string') {
+    return false
+  }
+  const normalized = message.toLowerCase()
+  return (
+    normalized.includes('too many requests') ||
+    normalized.includes('429') ||
+    normalized.includes('resource_exhausted')
+  )
 }
 
 function hasMethods<T>(

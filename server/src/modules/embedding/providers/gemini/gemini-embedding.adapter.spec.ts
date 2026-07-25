@@ -432,10 +432,50 @@ describe('GeminiEmbeddingAdapter', () => {
       ).rejects.toMatchObject({ code: 'EMBEDDING_TIMEOUT' })
     })
 
+    // A provider-side throttle tells the caller to back off; a generic provider
+    // failure does not. The pinned SDK throws a plain Error carrying the status
+    // only in its message, so message shape is the only available signal.
+    it.each([
+      ['the SDK rate-limit message', 'Retryable HTTP Error: Too Many Requests'],
+      ['a RESOURCE_EXHAUSTED message', 'RESOURCE_EXHAUSTED: quota exceeded'],
+      ['a bare 429 message', 'request failed with 429'],
+    ])('reports %s as rate limited', async (_, message) => {
+      const harness = buildHarness({ embedContent: jest.fn() })
+      harness.embedContent.mockImplementation(() =>
+        Promise.reject(new Error(message)),
+      )
+
+      await expect(
+        new GeminiEmbeddingAdapter(harness.configuration).embedQuery('q'),
+      ).rejects.toMatchObject({ code: 'EMBEDDING_RATE_LIMITED' })
+    })
+
+    it('reports a reflective 429 status as rate limited', async () => {
+      const harness = buildHarness({ embedContent: jest.fn() })
+      harness.embedContent.mockImplementation(() =>
+        Promise.reject(Object.assign(new Error('throttled'), { status: 429 })),
+      )
+
+      await expect(
+        new GeminiEmbeddingAdapter(harness.configuration).embedQuery('q'),
+      ).rejects.toMatchObject({ code: 'EMBEDDING_RATE_LIMITED' })
+    })
+
+    it('keeps a non-429 status a provider failure', async () => {
+      const harness = buildHarness({ embedContent: jest.fn() })
+      harness.embedContent.mockImplementation(() =>
+        Promise.reject(Object.assign(new Error('boom'), { status: 500 })),
+      )
+
+      await expect(
+        new GeminiEmbeddingAdapter(harness.configuration).embedQuery('q'),
+      ).rejects.toMatchObject({ code: 'EMBEDDING_PROVIDER_FAILURE' })
+    })
+
     it('reports any other upstream failure as a provider failure', async () => {
       const harness = buildHarness({ embedContent: jest.fn() })
       harness.embedContent.mockImplementation(() =>
-        Promise.reject(new Error('500 from Google')),
+        Promise.reject(new Error('internal error from Google')),
       )
 
       await expect(

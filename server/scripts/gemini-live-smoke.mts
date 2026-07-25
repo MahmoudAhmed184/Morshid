@@ -180,6 +180,10 @@ function redact(message: string, sensitive: readonly string[]): string {
   // Belt and braces for a credential shape that reached the message in an
   // encoded or truncated form rather than verbatim.
   redacted = redacted.replace(/\bAIza[0-9A-Za-z_-]{10,}/gu, REDACTED)
+  // The keys this project actually uses are `AQ.`-prefixed, not `AIza`. The
+  // literal value is redacted verbatim above regardless; this is the fallback
+  // for a key that reached the message truncated or re-encoded.
+  redacted = redacted.replace(/\bAQ\.[0-9A-Za-z_-]{10,}/gu, REDACTED)
   redacted = redacted.replace(
     /\b(key|api[_-]?key)=[^&\s"']+/giu,
     `$1=${REDACTED}`,
