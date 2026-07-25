@@ -12,11 +12,9 @@ export function CredoStrip() {
         {credoItems.map((item) => (
           <li
             key={item}
-            className="glass-paper flex items-center justify-center rounded-full border border-border/60 bg-card/60 px-3 py-2 text-center shadow-2xs backdrop-blur-xs sm:px-5 sm:py-2.5"
+            className="glass-paper flex items-center justify-center rounded-full px-3 py-2 text-center shadow-xs sm:px-5 sm:py-2.5"
           >
-            <span className="smallcaps-label text-[0.65rem] tracking-wider text-foreground/80 sm:text-xs">
-              {item}
-            </span>
+            <span className="smallcaps-label">{item}</span>
           </li>
         ))}
       </ul>

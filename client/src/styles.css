@@ -28,13 +28,13 @@
   --destructive-foreground: oklch(0.98 0.006 85);
   --rubric: oklch(0.52 0.19 29);
   --rubric-foreground: oklch(0.98 0.006 85);
-  --success: oklch(0.52 0.12 150);
+  --success: oklch(0.45 0.12 150);
   --success-foreground: oklch(0.98 0.006 85);
-  --warning: oklch(0.55 0.13 75);
+  --warning: oklch(0.45 0.13 75);
   --warning-foreground: oklch(0.24 0.02 60);
   --info: oklch(0.45 0.19 264);
   --info-foreground: oklch(0.98 0.006 85);
-  --gold: oklch(0.55 0.11 85);
+  --gold: oklch(0.45 0.11 85);
   --gold-foreground: oklch(0.24 0.02 60);
   --border: oklch(0.87 0.012 80);
   --input: oklch(0.87 0.012 80);
@@ -101,7 +101,7 @@
   --muted-foreground: oklch(0.72 0.018 75);
   --accent: oklch(0.3 0.014 60);
   --accent-foreground: oklch(0.93 0.01 85);
-  --destructive: oklch(0.66 0.18 25);
+  --destructive: oklch(0.72 0.18 25);
   --destructive-foreground: oklch(0.98 0.006 85);
   --rubric: oklch(0.68 0.16 30);
   --rubric-foreground: oklch(0.208 0.012 60);
@@ -251,32 +251,14 @@ html {
   }
 }
 
-.theme-transition-ripple {
-  position: fixed;
-  z-index: 2147483647;
-  width: 32px;
-  height: 32px;
-  border-radius: 9999px;
-  pointer-events: none;
-  transform: translate(-50%, -50%) scale(0.08);
-  transform-origin: center;
-  will-change: transform, opacity;
-}
+@utility scrollbar-themed {
+  scrollbar-color: color-mix(in oklab, var(--muted-foreground) 35%, transparent)
+    transparent;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
 
-@layer utilities {
-  .scrollbar-themed {
-    scrollbar-color: color-mix(
-        in oklab,
-        var(--muted-foreground) 35%,
-        transparent
-      )
-      transparent;
-    scrollbar-gutter: stable;
-    scrollbar-width: thin;
-  }
-
-  .scrollbar-themed:hover,
-  .scrollbar-themed:focus-visible {
+  &:hover,
+  &:focus-visible {
     scrollbar-color: color-mix(
         in oklab,
         var(--muted-foreground) 55%,
@@ -285,15 +267,15 @@ html {
       transparent;
   }
 
-  .scrollbar-themed::-webkit-scrollbar {
+  &::-webkit-scrollbar {
     width: 0.5rem;
   }
 
-  .scrollbar-themed::-webkit-scrollbar-track {
+  &::-webkit-scrollbar-track {
     background: transparent;
   }
 
-  .scrollbar-themed::-webkit-scrollbar-thumb {
+  &::-webkit-scrollbar-thumb {
     border: 2px solid transparent;
     border-radius: 9999px;
     background-clip: padding-box;
@@ -304,219 +286,188 @@ html {
     );
   }
 
-  .scrollbar-themed:hover::-webkit-scrollbar-thumb,
-  .scrollbar-themed:focus-visible::-webkit-scrollbar-thumb {
+  &:hover::-webkit-scrollbar-thumb,
+  &:focus-visible::-webkit-scrollbar-thumb {
     background-color: color-mix(
       in oklab,
       var(--muted-foreground) 55%,
       transparent
     );
   }
+}
 
-  /* ── Editorial marginalia primitives ─────────────────────────── */
+/* ── Editorial marginalia primitives ─────────────────────────── */
 
-  /* Hairline rules — the page is sectioned by these, not by cards. */
-  .rule {
-    border-top: 1px solid var(--border);
-  }
+/* Hairline rules — the page is sectioned by these, not by cards. */
+@utility rule {
+  border-top: 1px solid var(--border);
+}
 
-  .rule-strong {
-    border-top: 2px solid var(--foreground);
-  }
+/* Display scale — Fraunces at max optical size. The one heading system. */
+@utility display-1 {
+  font-family: var(--font-display);
+  font-variation-settings:
+    'opsz' 144,
+    'SOFT' 0,
+    'WONK' 0;
+  font-weight: 600;
+  font-size: clamp(3.25rem, 7vw, 6.75rem);
+  line-height: 1.02;
+  letter-spacing: -0.015em;
+}
 
-  /* Display scale — Fraunces at max optical size. The one heading system. */
-  .display-1 {
-    font-family: var(--font-display);
-    font-variation-settings:
-      'opsz' 144,
-      'SOFT' 0,
-      'WONK' 0;
-    font-weight: 600;
-    font-size: clamp(3.25rem, 7vw, 6.75rem);
-    line-height: 1.02;
-    letter-spacing: -0.015em;
-  }
+@utility display-2 {
+  font-family: var(--font-display);
+  font-variation-settings:
+    'opsz' 144,
+    'SOFT' 0,
+    'WONK' 0;
+  font-weight: 600;
+  font-size: clamp(2.25rem, 4vw, 3.75rem);
+  line-height: 1.05;
+  letter-spacing: -0.015em;
+}
 
-  .display-2 {
-    font-family: var(--font-display);
-    font-variation-settings:
-      'opsz' 144,
-      'SOFT' 0,
-      'WONK' 0;
-    font-weight: 600;
-    font-size: clamp(2.25rem, 4vw, 3.75rem);
-    line-height: 1.05;
-    letter-spacing: -0.015em;
-  }
+@utility display-3 {
+  font-family: var(--font-display);
+  font-variation-settings:
+    'opsz' 144,
+    'SOFT' 0,
+    'WONK' 0;
+  font-weight: 600;
+  font-size: 1.75rem;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+}
 
-  .display-3 {
-    font-family: var(--font-display);
-    font-variation-settings:
-      'opsz' 144,
-      'SOFT' 0,
-      'WONK' 0;
-    font-weight: 600;
-    font-size: 1.75rem;
-    line-height: 1.15;
-    letter-spacing: -0.015em;
-  }
+@utility display-index {
+  font-family: var(--font-display);
+  font-variation-settings:
+    'opsz' 144,
+    'SOFT' 0,
+    'WONK' 0;
+  font-size: 1.5rem;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
 
-  .display-index {
-    font-family: var(--font-display);
-    font-variation-settings:
-      'opsz' 144,
-      'SOFT' 0,
-      'WONK' 0;
-    font-size: 1.5rem;
-    color: var(--muted-foreground);
-    font-variant-numeric: tabular-nums;
-  }
+/* Mono small-caps eyebrow / label. */
+@utility smallcaps-label {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
 
-  /* Mono small-caps eyebrow / label. */
-  .smallcaps-label {
-    font-family: var(--font-mono);
-    font-size: 0.6875rem;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--muted-foreground);
-  }
+/* Footnote — mono, small, muted. Resolves citation markers. */
+@utility footnote {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
 
-  /* Footnote — mono, small, muted. Resolves citation markers. */
-  .footnote {
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-    color: var(--muted-foreground);
-  }
+/* The tiny rubrication square that precedes eyebrows. */
+@utility rubric-square {
+  display: inline-block;
+  width: 0.5em;
+  height: 0.5em;
+  background-color: var(--rubric);
+}
 
-  /* The tiny rubrication square that precedes eyebrows. */
-  .rubric-square {
-    display: inline-block;
-    width: 0.5em;
-    height: 0.5em;
-    background-color: var(--rubric);
-  }
+/* Editorial underline link — hairline rule that inks red on hover. */
+@utility link-editorial {
+  color: inherit;
+  text-decoration-line: underline;
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+  text-decoration-color: var(--border);
+  transition: text-decoration-color 200ms ease-out;
 
-  /* Editorial underline link — hairline rule that inks red on hover. */
-  .link-editorial {
-    color: inherit;
-    text-decoration-line: underline;
-    text-underline-offset: 4px;
-    text-decoration-thickness: 1px;
-    text-decoration-color: var(--border);
-    transition: text-decoration-color 200ms ease-out;
-  }
-
-  .link-editorial:hover {
+  &:hover {
     text-decoration-color: var(--rubric);
   }
 
-  .link-editorial:focus-visible {
+  &:focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: 2px;
     border-radius: 2px;
   }
+}
 
-  /* ── 2040 materiality ────────────────────────────────────────── */
+/* ── 2040 materiality ────────────────────────────────────────── */
 
-  /* Frosted-glass chrome — floating navbar, dashboard headers, toasts.
-     Paper-tone frost only, never hued. */
-  .glass-paper {
-    background: color-mix(in oklab, var(--background) 72%, transparent);
-    backdrop-filter: blur(20px) saturate(1.4);
-    -webkit-backdrop-filter: blur(20px) saturate(1.4);
-    border: 1px solid color-mix(in oklab, var(--foreground) 10%, transparent);
-  }
+/* Frosted-glass chrome — floating navbar, dashboard headers, toasts.
+   Paper-tone frost only, never hued. */
+@utility glass-paper {
+  background: color-mix(in oklab, var(--background) 72%, transparent);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  border: 1px solid color-mix(in oklab, var(--foreground) 10%, transparent);
+}
 
-  /* Monochrome paper-tone radial wash for section backdrops. NEVER hued. */
-  .atmosphere {
-    background: radial-gradient(
-      80% 60% at 50% 0%,
-      var(--secondary),
-      transparent 70%
-    );
-  }
+/* Monochrome paper-tone radial wash for section backdrops. NEVER hued. */
+@utility atmosphere {
+  background: radial-gradient(
+    80% 60% at 50% 0%,
+    var(--secondary),
+    transparent 70%
+  );
+}
 
-  /* Floating-pages motif — two paper sheets fanned behind the element. */
-  .sheet-stack {
-    position: relative;
-    z-index: 0;
-  }
-
-  .sheet-stack::before,
-  .sheet-stack::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: inherit;
-  }
-
-  .sheet-stack::before {
-    transform: rotate(-1.4deg) translate(-10px, 12px);
-  }
-
-  .sheet-stack::after {
-    transform: rotate(0.9deg) translate(12px, 18px);
-    opacity: 0.7;
-  }
-
-  @media (max-width: 47.99rem) {
-    .sheet-stack::before,
-    .sheet-stack::after {
-      display: none;
-    }
-  }
-
-  /* Physical hover lift — transform + soft shadow, hover & motion-safe only. */
-  .hover-float {
-    transition:
-      transform 0.25s var(--ease-out-quart),
-      box-shadow 0.25s var(--ease-out-quart);
-  }
+/* Physical hover lift — transform + soft shadow, hover & motion-safe only. */
+@utility hover-float {
+  transition:
+    transform 0.25s var(--ease-out-quart),
+    box-shadow 0.25s var(--ease-out-quart);
 
   @media (hover: hover) and (prefers-reduced-motion: no-preference) {
-    .hover-float:hover {
+    &:hover {
       transform: translateY(-3px);
       box-shadow: var(--shadow-md);
     }
   }
+}
 
-  /* morshid: menu kit — shared origin-aware popover motion (T10.3).
-     Hooks base-ui popup transition attrs: data-starting-style (animating in)
-     and data-ending-style (animating out); data-side drives the inherited
-     --transform-origin so the scale grows out of the trigger side. */
-  .menu-pop {
-    transform-origin: var(--transform-origin);
-    transition:
-      opacity 150ms var(--ease-out-quart),
-      transform 150ms var(--ease-out-quart);
-  }
-  .menu-pop[data-starting-style],
-  .menu-pop[data-ending-style] {
+/* morshid: menu kit — shared origin-aware popover motion (T10.3).
+   Hooks base-ui popup transition attrs: data-starting-style (animating in)
+   and data-ending-style (animating out); data-side drives the inherited
+   --transform-origin so the scale grows out of the trigger side. */
+@utility menu-pop {
+  transform-origin: var(--transform-origin);
+  transition:
+    opacity 150ms var(--ease-out-quart),
+    transform 150ms var(--ease-out-quart);
+
+  &[data-starting-style],
+  &[data-ending-style] {
     opacity: 0;
     transform: scale(0.96) translateY(4px);
   }
-  .menu-pop[data-ending-style] {
+
+  &[data-ending-style] {
     transition-duration: 100ms;
   }
+
   /* Item-aligned select popups position via their own transform — fade only. */
-  .menu-pop[data-align-trigger='true'] {
+  &[data-align-trigger='true'] {
     transform: none;
     transition: opacity 150ms var(--ease-out-quart);
   }
-  .menu-pop[data-align-trigger='true'][data-starting-style],
-  .menu-pop[data-align-trigger='true'][data-ending-style] {
+
+  &[data-align-trigger='true'][data-starting-style],
+  &[data-align-trigger='true'][data-ending-style] {
     transform: none;
   }
+
   @media (prefers-reduced-motion: reduce) {
-    .menu-pop {
+    & {
       transition-property: opacity;
       transform: none;
     }
-    .menu-pop[data-starting-style],
-    .menu-pop[data-ending-style] {
+
+    &[data-starting-style],
+    &[data-ending-style] {
       transform: none;
     }
   }
