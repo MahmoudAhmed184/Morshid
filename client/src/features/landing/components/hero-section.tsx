@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { motion } from 'motion/react'
+import { MotionConfig, motion, useReducedMotion } from 'motion/react'
 
 import { Logo } from '@/components/logo'
 import { Button } from '@/components/ui/button'
@@ -108,6 +108,7 @@ const transcriptSheets = [
 ] as const
 
 export function HeroTranscriptStack() {
+  const reducedMotion = useReducedMotion()
   const [activeIndex, setActiveIndex] = useState(0)
   const [isExiting, setIsExiting] = useState(false)
   const [exitVector, setExitVector] = useState({ x: 0, y: 0 })
@@ -119,6 +120,12 @@ export function HeroTranscriptStack() {
 
   const triggerSwipeNext = (vector = { x: 250, y: 0 }) => {
     if (isExiting) return
+
+    if (reducedMotion) {
+      setActiveIndex((previous) => (previous + 1) % total)
+      return
+    }
+
     setExitVector(vector)
     setIsExiting(true)
   }
@@ -132,192 +139,210 @@ export function HeroTranscriptStack() {
   }
 
   return (
-    <div className="relative mx-auto w-full max-w-md select-none">
-      {/* Pull hint */}
-      <div className="mb-2 flex items-center justify-between px-2 text-xs text-muted-foreground">
-        <span className="font-mono text-[0.68rem] uppercase tracking-wider text-muted-foreground/80">
-          Sheet {activeIndex + 1} of {total}
-        </span>
-        <button
-          type="button"
-          onClick={() => triggerSwipeNext({ x: 250, y: 0 })}
-          className="flex items-center gap-1.5 font-mono text-[0.68rem] text-primary transition-colors hover:text-primary/80"
-        >
-          <span>Swipe/Pull paper</span>
-          <span className="motion-safe:animate-bounce">↔</span>
-        </button>
-      </div>
+    <MotionConfig reducedMotion="user">
+      <div
+        className="relative mx-auto w-full max-w-md select-none"
+        data-reduced-motion={reducedMotion || undefined}
+      >
+        {/* Pull hint */}
+        <div className="mb-2 flex items-center justify-between px-2 text-xs text-muted-foreground">
+          <span className="font-mono text-[0.68rem] uppercase tracking-wider text-muted-foreground/80">
+            Sheet {activeIndex + 1} of {total}
+          </span>
+          <button
+            type="button"
+            onClick={() => triggerSwipeNext({ x: 250, y: 0 })}
+            className="flex items-center gap-1.5 font-mono text-[0.68rem] text-primary transition-colors hover:text-primary/80"
+          >
+            <span>Next transcript</span>
+            <span className="motion-safe:animate-bounce" aria-hidden>
+              →
+            </span>
+          </button>
+        </div>
 
-      <div className="relative h-[430px] w-full sm:h-[450px]">
-        {/* Layer 3 (Deepest Background Sheet with FULL content) */}
-        <div
-          className="absolute inset-0 flex flex-col justify-between overflow-hidden rounded-2xl border border-border/40 bg-card/60 p-5 opacity-50 sm:rounded-3xl sm:p-8"
-          aria-hidden
-        >
-          <div>
-            <figcaption className="flex items-center justify-between gap-4 border-b border-border/40 pb-3">
-              <span className="smallcaps-label text-xs opacity-70">
-                {thirdSheet.title}
-              </span>
-            </figcaption>
-            <div className="mt-4 space-y-3.5 opacity-50 sm:mt-5 sm:space-y-4">
-              {thirdSheet.turns.map((turn, idx) => (
-                <div key={idx}>
-                  <SpeakerLabel tone={turn.tone}>
-                    {turn.tone === 'student' ? 'Student.' : 'Morshid.'}
-                  </SpeakerLabel>
-                  <p className="mt-1 text-xs leading-relaxed text-foreground">
-                    {turn.text}
-                  </p>
-                </div>
+        <div className="relative h-[430px] w-full sm:h-[450px]">
+          {/* Layer 3 (Deepest Background Sheet with FULL content) */}
+          <div
+            className="absolute inset-0 flex flex-col justify-between overflow-hidden rounded-2xl border border-border/40 bg-card/60 p-5 opacity-50 sm:rounded-3xl sm:p-8"
+            aria-hidden
+          >
+            <div>
+              <figcaption className="flex items-center justify-between gap-4 border-b border-border/40 pb-3">
+                <span className="smallcaps-label text-xs opacity-70">
+                  {thirdSheet.title}
+                </span>
+              </figcaption>
+              <div className="mt-4 space-y-3.5 opacity-50 sm:mt-5 sm:space-y-4">
+                {thirdSheet.turns.map((turn, idx) => (
+                  <div key={idx}>
+                    <SpeakerLabel tone={turn.tone}>
+                      {turn.tone === 'student' ? 'Student.' : 'Morshid.'}
+                    </SpeakerLabel>
+                    <p className="mt-1 text-xs leading-relaxed text-foreground">
+                      {turn.text}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rule mt-auto space-y-1 pt-3 sm:pt-4">
+              {thirdSheet.footnotes.map((fn) => (
+                <p
+                  key={fn.n}
+                  className="footnote text-[0.68rem] text-muted-foreground"
+                >
+                  {fn.label}
+                </p>
               ))}
             </div>
           </div>
 
-          <div className="rule mt-auto space-y-1 pt-3 sm:pt-4">
-            {thirdSheet.footnotes.map((fn) => (
-              <p
-                key={fn.n}
-                className="footnote text-[0.68rem] text-muted-foreground"
-              >
-                {fn.label}
-              </p>
-            ))}
-          </div>
-        </div>
+          {/* Layer 2 (Middle Background Sheet with 100% EXACT FULL content) */}
+          <div
+            className="absolute inset-0 flex flex-col justify-between overflow-hidden rounded-2xl border border-border/80 bg-card p-5 opacity-95 sm:rounded-3xl sm:p-8"
+            aria-hidden
+          >
+            <div>
+              <figcaption className="flex items-center justify-between gap-4 border-b border-border/60 pb-3">
+                <span className="smallcaps-label text-xs">
+                  {nextSheet.title}
+                </span>
+                <Logo
+                  iconClassName="size-4 sm:size-5"
+                  className="size-4 text-foreground sm:size-5"
+                />
+              </figcaption>
 
-        {/* Layer 2 (Middle Background Sheet with 100% EXACT FULL content) */}
-        <div
-          className="absolute inset-0 flex flex-col justify-between overflow-hidden rounded-2xl border border-border/80 bg-card p-5 opacity-95 sm:rounded-3xl sm:p-8"
-          aria-hidden
-        >
-          <div>
-            <figcaption className="flex items-center justify-between gap-4 border-b border-border/60 pb-3">
-              <span className="smallcaps-label text-xs">{nextSheet.title}</span>
-              <Logo
-                iconClassName="size-4 sm:size-5"
-                className="size-4 text-foreground sm:size-5"
-              />
-            </figcaption>
+              <div className="mt-4 space-y-3.5 sm:mt-5 sm:space-y-4">
+                {nextSheet.turns.map((turn, idx) => (
+                  <div key={idx}>
+                    <SpeakerLabel tone={turn.tone}>
+                      {turn.tone === 'student' ? 'Student.' : 'Morshid.'}
+                    </SpeakerLabel>
+                    <p
+                      className={cn(
+                        'mt-1 leading-relaxed text-foreground',
+                        turn.tone === 'student'
+                          ? 'font-display text-base italic sm:text-[1.15rem]'
+                          : 'text-xs sm:text-sm',
+                      )}
+                    >
+                      {turn.text}
+                      {'citation' in turn ? (
+                        <Citation n={turn.citation} />
+                      ) : null}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
 
-            <div className="mt-4 space-y-3.5 sm:mt-5 sm:space-y-4">
-              {nextSheet.turns.map((turn, idx) => (
-                <div key={idx}>
-                  <SpeakerLabel tone={turn.tone}>
-                    {turn.tone === 'student' ? 'Student.' : 'Morshid.'}
-                  </SpeakerLabel>
-                  <p
-                    className={cn(
-                      'mt-1 leading-relaxed text-foreground',
-                      turn.tone === 'student'
-                        ? 'font-display text-base italic sm:text-[1.15rem]'
-                        : 'text-xs sm:text-sm',
-                    )}
-                  >
-                    {turn.text}
-                    {'citation' in turn && (
-                      <Citation n={turn.citation as number} />
-                    )}
-                  </p>
-                </div>
+            <div className="rule mt-auto space-y-1 pt-3 sm:pt-4">
+              {nextSheet.footnotes.map((fn) => (
+                <p
+                  key={fn.n}
+                  className="footnote text-[0.68rem] text-muted-foreground"
+                >
+                  {fn.label}
+                </p>
               ))}
             </div>
           </div>
 
-          <div className="rule mt-auto space-y-1 pt-3 sm:pt-4">
-            {nextSheet.footnotes.map((fn) => (
-              <p
-                key={fn.n}
-                className="footnote text-[0.68rem] text-muted-foreground"
-              >
-                {fn.label}
-              </p>
-            ))}
-          </div>
-        </div>
-
-        {/* Layer 1 (Top Active Draggable Card) */}
-        <motion.figure
-          key={currentSheet.id}
-          initial={false}
-          drag={!isExiting}
-          dragConstraints={{ left: -150, right: 150, top: -50, bottom: 200 }}
-          dragElastic={0.2}
-          onDragEnd={(_, info) => {
-            const distance = Math.hypot(info.offset.x, info.offset.y)
-            if (
-              distance > 70 ||
-              Math.hypot(info.velocity.x, info.velocity.y) > 250
-            ) {
-              triggerSwipeNext({
-                x: info.offset.x !== 0 ? info.offset.x * 2 : 250,
-                y: info.offset.y !== 0 ? info.offset.y * 2 : 50,
-              })
+          {/* Layer 1 (Top Active Draggable Card) */}
+          <motion.figure
+            key={currentSheet.id}
+            initial={false}
+            drag={!isExiting && !reducedMotion}
+            dragConstraints={{ left: -150, right: 150, top: -50, bottom: 200 }}
+            dragElastic={0.2}
+            onDragEnd={(_, info) => {
+              const distance = Math.hypot(info.offset.x, info.offset.y)
+              if (
+                distance > 70 ||
+                Math.hypot(info.velocity.x, info.velocity.y) > 250
+              ) {
+                triggerSwipeNext({
+                  x: info.offset.x !== 0 ? info.offset.x * 2 : 250,
+                  y: info.offset.y !== 0 ? info.offset.y * 2 : 50,
+                })
+              }
+            }}
+            animate={
+              reducedMotion
+                ? { x: 0, y: 0, opacity: 1, scale: 1, rotate: 0 }
+                : isExiting
+                  ? {
+                      x: exitVector.x !== 0 ? exitVector.x : 280,
+                      y: exitVector.y !== 0 ? exitVector.y : 0,
+                      opacity: 0,
+                      scale: 0.9,
+                      rotate: exitVector.x >= 0 ? 15 : -15,
+                    }
+                  : { x: 0, y: 0, opacity: 1, scale: 1, rotate: 0 }
             }
-          }}
-          animate={
-            isExiting
-              ? {
-                  x: exitVector.x !== 0 ? exitVector.x : 280,
-                  y: exitVector.y !== 0 ? exitVector.y : 0,
-                  opacity: 0,
-                  scale: 0.9,
-                  rotate: exitVector.x >= 0 ? 15 : -15,
-                }
-              : { x: 0, y: 0, opacity: 1, scale: 1, rotate: 0 }
-          }
-          onAnimationComplete={handleAnimationComplete}
-          transition={{ type: 'spring', stiffness: 320, damping: 26 }}
-          className="relative z-30 flex h-full flex-col justify-between cursor-grab rounded-2xl border border-border bg-card p-5 active:cursor-grabbing sm:rounded-3xl sm:p-8"
-        >
-          <div>
-            <figcaption className="flex items-center justify-between gap-4 border-b border-border/60 pb-3">
-              <span className="smallcaps-label text-xs">
-                {currentSheet.title}
-              </span>
-              <Logo
-                iconClassName="size-4 sm:size-5"
-                className="size-4 text-foreground sm:size-5"
-              />
-            </figcaption>
+            onAnimationComplete={handleAnimationComplete}
+            transition={
+              reducedMotion
+                ? { duration: 0 }
+                : { type: 'spring', stiffness: 320, damping: 26 }
+            }
+            className={cn(
+              'relative z-30 flex h-full flex-col justify-between rounded-2xl border border-border bg-card p-5 sm:rounded-3xl sm:p-8',
+              !reducedMotion && 'cursor-grab active:cursor-grabbing',
+            )}
+          >
+            <div>
+              <figcaption className="flex items-center justify-between gap-4 border-b border-border/60 pb-3">
+                <span className="smallcaps-label text-xs">
+                  {currentSheet.title}
+                </span>
+                <Logo
+                  iconClassName="size-4 sm:size-5"
+                  className="size-4 text-foreground sm:size-5"
+                />
+              </figcaption>
 
-            <div className="mt-4 space-y-3.5 sm:mt-5 sm:space-y-4">
-              {currentSheet.turns.map((turn, idx) => (
-                <div key={idx}>
-                  <SpeakerLabel tone={turn.tone}>
-                    {turn.tone === 'student' ? 'Student.' : 'Morshid.'}
-                  </SpeakerLabel>
-                  <p
-                    className={cn(
-                      'mt-1 leading-relaxed text-foreground',
-                      turn.tone === 'student'
-                        ? 'font-display text-base italic sm:text-[1.15rem]'
-                        : 'text-xs sm:text-sm',
-                    )}
-                  >
-                    {turn.text}
-                    {'citation' in turn && (
-                      <Citation n={turn.citation as number} />
-                    )}
-                  </p>
-                </div>
+              <div className="mt-4 space-y-3.5 sm:mt-5 sm:space-y-4">
+                {currentSheet.turns.map((turn, idx) => (
+                  <div key={idx}>
+                    <SpeakerLabel tone={turn.tone}>
+                      {turn.tone === 'student' ? 'Student.' : 'Morshid.'}
+                    </SpeakerLabel>
+                    <p
+                      className={cn(
+                        'mt-1 leading-relaxed text-foreground',
+                        turn.tone === 'student'
+                          ? 'font-display text-base italic sm:text-[1.15rem]'
+                          : 'text-xs sm:text-sm',
+                      )}
+                    >
+                      {turn.text}
+                      {'citation' in turn ? (
+                        <Citation n={turn.citation} />
+                      ) : null}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rule mt-auto space-y-1 pt-3 sm:pt-4">
+              {currentSheet.footnotes.map((fn) => (
+                <p
+                  key={fn.n}
+                  className="footnote text-[0.68rem] text-muted-foreground"
+                >
+                  {fn.label}
+                </p>
               ))}
             </div>
-          </div>
-
-          <div className="rule mt-auto space-y-1 pt-3 sm:pt-4">
-            {currentSheet.footnotes.map((fn) => (
-              <p
-                key={fn.n}
-                className="footnote text-[0.68rem] text-muted-foreground"
-              >
-                {fn.label}
-              </p>
-            ))}
-          </div>
-        </motion.figure>
+          </motion.figure>
+        </div>
       </div>
-    </div>
+    </MotionConfig>
   )
 }
 
