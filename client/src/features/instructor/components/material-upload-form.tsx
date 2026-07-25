@@ -9,7 +9,7 @@ import {
   UploadIcon,
   XIcon,
 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 
 import { Button } from '@/components/ui/button'
@@ -46,15 +46,10 @@ export function MaterialUploadForm({
 }) {
   const uploadMutation = useUploadInstructorMaterial()
   const [status, setStatus] = useState<UploadStatus>('idle')
-  const [progress, setProgress] = useState(0)
   const [dragActive, setDragActive] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
-    null,
-  )
-  const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const uploadSchema = useMemo(
     () => createInstructorMaterialUploadSchema(configuration.maxUploadBytes),
@@ -70,66 +65,19 @@ export function MaterialUploadForm({
     },
   })
 
-  const clearProgressTimers = () => {
-    if (progressIntervalRef.current !== null) {
-      clearInterval(progressIntervalRef.current)
-      progressIntervalRef.current = null
-    }
-    if (successTimeoutRef.current !== null) {
-      clearTimeout(successTimeoutRef.current)
-      successTimeoutRef.current = null
-    }
-  }
-
-  useEffect(() => {
-    return () => {
-      if (progressIntervalRef.current !== null) {
-        clearInterval(progressIntervalRef.current)
-      }
-      if (successTimeoutRef.current !== null) {
-        clearTimeout(successTimeoutRef.current)
-      }
-    }
-  }, [])
-
-  const startProgress = () => {
-    clearProgressTimers()
-
-    let current = 5
-    setProgress(current)
-
-    progressIntervalRef.current = setInterval(() => {
-      current = Math.min(current + Math.floor(Math.random() * 15) + 8, 95)
-      setProgress(current)
-      if (current >= 95 && progressIntervalRef.current !== null) {
-        clearInterval(progressIntervalRef.current)
-        progressIntervalRef.current = null
-      }
-    }, 150)
-  }
-
   const handleSubmit = async ({ title, file }: InstructorMaterialUpload) => {
     setErrorMessage(null)
     setStatus('uploading')
-    setProgress(0)
 
     try {
-      startProgress()
-
       await uploadMutation.mutateAsync({
         courseId,
         title,
         file,
       })
 
-      clearProgressTimers()
-      setProgress(100)
-      successTimeoutRef.current = setTimeout(() => {
-        successTimeoutRef.current = null
-        setStatus('success')
-      }, 300)
+      setStatus('success')
     } catch (error) {
-      clearProgressTimers()
       setStatus('error')
       setErrorMessage(
         isApiError(error)
@@ -140,11 +88,12 @@ export function MaterialUploadForm({
   }
 
   const handleReset = () => {
-    clearProgressTimers()
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
     form.reset({ title: '', file: undefined })
     setSelectedFile(null)
     setStatus('idle')
-    setProgress(0)
     setErrorMessage(null)
   }
 
@@ -174,6 +123,18 @@ export function MaterialUploadForm({
     }
   }
 
+  const selectedFileName = selectedFile?.name ?? 'PDF'
+  const politeAnnouncement =
+    status === 'uploading'
+      ? `Uploading ${selectedFileName}. This may take a moment.`
+      : status === 'success'
+        ? `Upload complete. ${selectedFileName} is queued for course-material processing.`
+        : ''
+  const assertiveAnnouncement =
+    status === 'error'
+      ? `Upload failed. ${errorMessage ?? 'An error occurred during file upload.'}`
+      : ''
+
   return (
     <Form {...form}>
       <form
@@ -181,6 +142,18 @@ export function MaterialUploadForm({
         noValidate
         onSubmit={(event) => void form.handleSubmit(handleSubmit)(event)}
       >
+        {/*
+          Live regions stay mounted for the whole form lifetime. Assistive
+          technology only reliably announces a region that already existed when
+          its text changed, so the status screens below are presentational.
+        */}
+        <div role="status" aria-live="polite" className="sr-only">
+          {politeAnnouncement}
+        </div>
+        <div role="alert" className="sr-only">
+          {assertiveAnnouncement}
+        </div>
+
         {status === 'idle' ? (
           <>
             <FormField
@@ -212,14 +185,16 @@ export function MaterialUploadForm({
                     onDragLeave={handleDrag}
                     onDragOver={handleDrag}
                     onDrop={handleDrop}
-                    onClick={() => fileInputRef.current?.click()}
                     className={cn(
-                      'relative flex w-full min-w-0 max-w-full cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-4 sm:p-5 text-center transition-all overflow-hidden',
+                      'relative flex w-full min-w-0 max-w-full flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed p-4 text-center transition-all motion-reduce:transition-none sm:p-5',
+                      // The native input is visually hidden but stays in the
+                      // tab order, so surface its focus ring on the drop zone.
+                      'has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-ring/60',
                       dragActive
                         ? 'border-primary bg-primary/5'
                         : selectedFile
                           ? 'border-border bg-card'
-                          : 'border-border/80 bg-muted/30 hover:border-muted-foreground/40 hover:bg-muted/60',
+                          : 'border-border/80 bg-muted/30',
                     )}
                   >
                     <FormControl>
@@ -283,20 +258,25 @@ export function MaterialUploadForm({
                         </Button>
                       </div>
                     ) : (
-                      <div className="flex flex-col items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex w-full cursor-pointer flex-col items-center gap-2 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+                        aria-label="Choose PDF file"
+                      >
                         <div className="flex size-11 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
-                          <UploadCloudIcon className="size-6" />
+                          <UploadCloudIcon className="size-6" aria-hidden />
                         </div>
                         <div>
                           <p className="text-sm font-medium text-foreground">
-                            Click or drag PDF file here
+                            Choose or drag PDF file here
                           </p>
                           <p className="mt-0.5 text-xs text-muted-foreground">
                             Maximum{' '}
                             {formatFileSize(configuration.maxUploadBytes)}
                           </p>
                         </div>
-                      </div>
+                      </button>
                     )}
                   </div>
                   <FormDescription className="sr-only">
@@ -322,25 +302,21 @@ export function MaterialUploadForm({
         {status === 'uploading' ? (
           <div className="flex flex-col items-center justify-center gap-4 py-6 text-center">
             <div className="relative flex size-14 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <Loader2Icon className="size-7 animate-spin" />
+              <Loader2Icon className="size-7 animate-spin" aria-hidden />
             </div>
             <div className="w-full space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-medium text-foreground">
-                  Uploading {selectedFile?.name ?? 'PDF'}…
-                </span>
-                <span className="font-mono font-bold text-primary">
-                  {progress}%
-                </span>
-              </div>
-              <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full bg-primary transition-all duration-200 ease-out rounded-full"
-                  style={{ width: `${progress}%` }}
-                />
+              <p className="font-medium text-foreground">
+                Uploading {selectedFile?.name ?? 'PDF'}…
+              </p>
+              <div
+                role="progressbar"
+                aria-label="PDF upload in progress"
+                className="h-2.5 w-full overflow-hidden rounded-full bg-muted"
+              >
+                <div className="h-full w-1/3 animate-pulse rounded-full bg-primary motion-reduce:animate-none" />
               </div>
               <p className="text-xs text-muted-foreground pt-1">
-                Parsing course pages and preparing vector index…
+                The file will be queued for course-material processing.
               </p>
             </div>
           </div>
