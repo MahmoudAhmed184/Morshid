@@ -7,6 +7,7 @@ import {
   DeterministicCompletionAdapter,
 } from './deterministic-completion.adapter'
 import { DETERMINISTIC_COMPLETION_PROVIDER } from '../../completion-configuration'
+import type { GroundedCompletionMessage } from '../../grounded-completion-envelope'
 import {
   GROUNDED_COMPLETION_PROMPT_VERSION,
   buildGroundedCompletionMessages,
@@ -167,6 +168,37 @@ describe('DeterministicCompletionAdapter', () => {
       DETERMINISTIC_EVIDENCE_EXCERPT_CODE_POINTS,
     )
     expect(result.content).not.toContain('excluded-sentinel')
+  })
+
+  // Both fixtures put a well-formed untrusted envelope at index 1, so the
+  // adapter would happily produce output without the role assertion. Only the
+  // declared roles are wrong, which is exactly the silent reordering that the
+  // grounded envelope exists to prevent.
+  it.each([
+    ['the authoritative message is missing entirely', 'both-untrusted'],
+    ['the authoritative message declares the untrusted role', 'mislabelled'],
+  ])('refuses a prepared request where %s', async (_, variant) => {
+    const [systemMessage, userMessage] =
+      buildGroundedCompletionMessages(completionInput())
+    const authoritative: GroundedCompletionMessage =
+      variant === 'both-untrusted'
+        ? userMessage
+        : { role: 'user', content: systemMessage.content }
+
+    const failure = await new DeterministicCompletionAdapter()
+      .complete({
+        messages: [authoritative, userMessage],
+        signal: new AbortController().signal,
+      })
+      .then(
+        () => null,
+        (error: unknown) => error,
+      )
+
+    expect(failure).toBeInstanceOf(CompletionProviderError)
+    expect((failure as CompletionProviderError).code).toBe(
+      'COMPLETION_INVALID_REQUEST',
+    )
   })
 
   it('rejects pre-aborted requests without retaining the abort reason', async () => {

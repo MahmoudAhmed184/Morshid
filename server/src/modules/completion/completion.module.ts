@@ -5,6 +5,7 @@ import type { AppEnvironment } from '../config/env.schema'
 import {
   AWS_BEDROCK_COMPLETION_PROVIDER,
   ITI_BEDROCK_INSECURE_HTTP_WARNING,
+  isInsecureItiBedrockBaseUrl,
 } from './completion-configuration'
 import { createCompletionProvider } from './completion-provider.factory'
 import { COMPLETION_PROVIDER_TOKEN } from './completion-provider'
@@ -57,7 +58,10 @@ const completionModuleLogger = new Logger('CompletionModule')
           },
         })
 
-        if (baseUrl.startsWith('http:')) {
+        // Asks the configuration module what counts as insecure rather than
+        // re-deciding here, so an accepted `HTTP://…` spelling cannot silently
+        // skip the one operator signal for the knowingly-insecure path.
+        if (isInsecureItiBedrockBaseUrl(baseUrl)) {
           completionModuleLogger.warn(ITI_BEDROCK_INSECURE_HTTP_WARNING)
         }
 

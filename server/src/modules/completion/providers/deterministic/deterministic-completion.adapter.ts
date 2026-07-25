@@ -3,6 +3,7 @@ import type {
   CompletionAdapter,
   PreparedCompletionRequest,
 } from '../../completion-adapter'
+import { assertPreparedMessageOrder } from '../../completion-adapter'
 import { DETERMINISTIC_COMPLETION_PROVIDER } from '../../completion-configuration'
 import type { CompletionResult } from '../../completion-provider'
 import { CompletionProviderError } from '../../completion-provider'
@@ -21,29 +22,37 @@ const DETERMINISTIC_HEADER =
 // is an evidence digest rather than generated prose: every variable character
 // comes from the supplied context, and the student question is never echoed.
 export class DeterministicCompletionAdapter implements CompletionAdapter {
+  // The digest is computed synchronously; the executor exists so every refusal
+  // reaches the caller as a rejection rather than a synchronous throw.
   complete(request: PreparedCompletionRequest): Promise<CompletionResult> {
-    if (request.signal.aborted) {
-      return Promise.reject(new CompletionProviderError('COMPLETION_CANCELLED'))
-    }
+    return new Promise<CompletionResult>((resolve) => {
+      if (request.signal.aborted) {
+        throw new CompletionProviderError('COMPLETION_CANCELLED')
+      }
 
-    const input = parseGroundedCompletionInputEnvelope(
-      request.messages[1].content,
-    )
-    const evidence = input.context.map((entry, index) => {
-      const excerpt = takeCodePoints(
-        normalizeDeterministicText(entry.content),
-        DETERMINISTIC_EVIDENCE_EXCERPT_CODE_POINTS,
+      // This adapter reads index 1 as the untrusted envelope purely by
+      // position, so the shared order assertion has to run before the parse.
+      assertPreparedMessageOrder(request)
+
+      const input = parseGroundedCompletionInputEnvelope(
+        request.messages[1].content,
       )
-      const sourceTitle = normalizeDeterministicText(entry.sourceTitle)
+      const evidence = input.context.map((entry, index) => {
+        const excerpt = takeCodePoints(
+          normalizeDeterministicText(entry.content),
+          DETERMINISTIC_EVIDENCE_EXCERPT_CODE_POINTS,
+        )
+        const sourceTitle = normalizeDeterministicText(entry.sourceTitle)
 
-      return `${String(index + 1)}. ${JSON.stringify(excerpt)} — ${JSON.stringify(sourceTitle)}, chunk ${String(entry.chunkIndex)}`
-    })
+        return `${String(index + 1)}. ${JSON.stringify(excerpt)} — ${JSON.stringify(sourceTitle)}, chunk ${String(entry.chunkIndex)}`
+      })
 
-    return Promise.resolve({
-      content: [DETERMINISTIC_HEADER, ...evidence].join('\n'),
-      provider: DETERMINISTIC_COMPLETION_PROVIDER,
-      model: DETERMINISTIC_COMPLETION_MODEL,
-      promptVersion: GROUNDED_COMPLETION_PROMPT_VERSION,
+      resolve({
+        content: [DETERMINISTIC_HEADER, ...evidence].join('\n'),
+        provider: DETERMINISTIC_COMPLETION_PROVIDER,
+        model: DETERMINISTIC_COMPLETION_MODEL,
+        promptVersion: GROUNDED_COMPLETION_PROMPT_VERSION,
+      })
     })
   }
 }
