@@ -68,7 +68,7 @@ export function AdminAssignmentForm({
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    const targetUserId = isEditing ? initialValues?.userId ?? userId : userId
+    const targetUserId = isEditing ? (initialValues?.userId ?? userId) : userId
     if (!targetUserId) return
     void onSubmit({ userId: targetUserId, role })
   }
@@ -134,10 +134,7 @@ export function AdminAssignmentForm({
             Cancel
           </Button>
         ) : null}
-        <Button
-          type="submit"
-          disabled={(!isEditing && !userId) || isPending}
-        >
+        <Button type="submit" disabled={(!isEditing && !userId) || isPending}>
           {isPending ? (
             <Loader2Icon className="animate-spin" />
           ) : isEditing ? (

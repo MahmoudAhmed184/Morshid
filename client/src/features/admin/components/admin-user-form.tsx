@@ -126,7 +126,9 @@ export function AdminUserForm({
                   id="user-password"
                   label={isEditing ? 'New Password (Optional)' : 'Password'}
                   placeholder={
-                    isEditing ? 'Leave blank to keep current' : 'e.g., Password1!'
+                    isEditing
+                      ? 'Leave blank to keep current'
+                      : 'e.g., Password1!'
                   }
                   autoComplete="new-password"
                   showForgotPassword={false}

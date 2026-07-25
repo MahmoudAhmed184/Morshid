@@ -19,7 +19,12 @@ type AdminUsersTableProps = {
   onStatusChange: (user: AdminManagedUser) => Promise<unknown>
   onUpdateUser?: (
     userId: string,
-    values: { name: string; email: string; role: 'STUDENT' | 'INSTRUCTOR'; password?: string },
+    values: {
+      name: string
+      email: string
+      role: 'STUDENT' | 'INSTRUCTOR'
+      password?: string
+    },
   ) => Promise<unknown>
 }
 

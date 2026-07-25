@@ -1,4 +1,10 @@
-import { BanIcon, EyeIcon, PencilIcon, RotateCcwIcon, UserRoundIcon } from 'lucide-react'
+import {
+  BanIcon,
+  EyeIcon,
+  PencilIcon,
+  RotateCcwIcon,
+  UserRoundIcon,
+} from 'lucide-react'
 import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -205,7 +211,8 @@ export function AdminUserActions({
               </span>
               <DialogTitle>Update User</DialogTitle>
               <DialogDescription>
-                Update identity details or assign a new role for {user.displayName}.
+                Update identity details or assign a new role for{' '}
+                {user.displayName}.
               </DialogDescription>
             </DialogHeader>
             {errorMessage ? (

@@ -52,7 +52,9 @@ export function useAdminCourseMaterials(courseId: string | undefined) {
   })
 }
 
-export function useAdminCourseMutations(courseId: string | undefined = undefined) {
+export function useAdminCourseMutations(
+  courseId: string | undefined = undefined,
+) {
   const adminId = useAdminId()
   const queryClient = useQueryClient()
   const invalidateCourseData = async () => {
@@ -129,5 +131,12 @@ export function useAdminCourseMutations(courseId: string | undefined = undefined
     },
   })
 
-  return { createCourse, updateCourse, addMember, updateMemberRole, removeMember, editMaterial }
+  return {
+    createCourse,
+    updateCourse,
+    addMember,
+    updateMemberRole,
+    removeMember,
+    editMaterial,
+  }
 }

@@ -71,7 +71,11 @@ export function useAdminUserMutations() {
       input,
     }: {
       userId: string
-      input: { email?: string; displayName?: string; role?: 'STUDENT' | 'INSTRUCTOR' }
+      input: {
+        email?: string
+        displayName?: string
+        role?: 'STUDENT' | 'INSTRUCTOR'
+      }
     }) => updateAdminUser(userId, input),
     onSuccess: invalidateAdminData,
   })
