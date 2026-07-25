@@ -22,6 +22,16 @@ describe('validateEnv', () => {
       'test-refresh-token-hash-secret-with-at-least-32-characters',
   }
 
+  // Every gateway rule is provider-gated, so gateway assertions start from a
+  // fully configured aws-bedrock environment.
+  const gatewayEnv = {
+    ...validEnv,
+    COMPLETION_PROVIDER: 'aws-bedrock',
+    ITI_BEDROCK_GATEWAY_API_KEY: '<test-only-placeholder>',
+    AWS_BEDROCK_MODEL_ID: 'openai.test-model-v1:0',
+    AWS_BEDROCK_ALLOWED_MODEL_IDS: 'openai.test-model-v1:0',
+  }
+
   it('coerces and validates supported environment values', () => {
     expect(validateEnv(validEnv)).toMatchObject({
       NODE_ENV: 'test',
@@ -148,10 +158,34 @@ describe('validateEnv', () => {
     })
   })
 
+  // A key outside printable ASCII cannot be put in an `Authorization` header:
+  // the Headers constructor throws, so every completion would fail opaquely.
+  it.each([
+    ['Arabic text', 'مفتاح'],
+    ['a smart quote', 'key’value'],
+    ['a non-breaking space', 'key\u00a0value'],
+    ['an emoji', 'key-🔑'],
+    ['a control character', 'key\nvalue'],
+    ['a leading space', ' key'],
+  ])('rejects a gateway key containing %s', (_, apiKey) => {
+    expect(() =>
+      validateEnv({ ...gatewayEnv, ITI_BEDROCK_GATEWAY_API_KEY: apiKey }),
+    ).toThrow(/ITI_BEDROCK_GATEWAY_API_KEY: is required for aws-bedrock/)
+  })
+
+  it('treats a blank insecure-HTTP flag as disabled', () => {
+    expect(
+      validateEnv({ ...validEnv, ITI_BEDROCK_ALLOW_INSECURE_HTTP: '' }),
+    ).toMatchObject({ ITI_BEDROCK_ALLOW_INSECURE_HTTP: false })
+    expect(() =>
+      validateEnv({ ...validEnv, ITI_BEDROCK_ALLOW_INSECURE_HTTP: 'yes' }),
+    ).toThrow(/ITI_BEDROCK_ALLOW_INSECURE_HTTP:/)
+  })
+
   it('accepts HTTPS without credentials, query, or fragment', () => {
     expect(
       validateEnv({
-        ...validEnv,
+        ...gatewayEnv,
         ITI_BEDROCK_GATEWAY_BASE_URL:
           'https://gateway.example.test/custom/base/',
       }),
@@ -161,30 +195,95 @@ describe('validateEnv', () => {
 
     expect(() =>
       validateEnv({
-        ...validEnv,
+        ...gatewayEnv,
         ITI_BEDROCK_GATEWAY_BASE_URL:
           'https://user:password@gateway.example.test/api/v1',
       }),
     ).toThrow(/ITI_BEDROCK_GATEWAY_BASE_URL:/)
     expect(() =>
       validateEnv({
-        ...validEnv,
+        ...gatewayEnv,
         ITI_BEDROCK_GATEWAY_BASE_URL:
           'https://gateway.example.test/api/v1?secret=value',
       }),
     ).toThrow(/ITI_BEDROCK_GATEWAY_BASE_URL:/)
     expect(() =>
       validateEnv({
-        ...validEnv,
+        ...gatewayEnv,
         ITI_BEDROCK_GATEWAY_BASE_URL:
           'https://gateway.example.test/api/v1#fragment',
       }),
     ).toThrow(/ITI_BEDROCK_GATEWAY_BASE_URL:/)
   })
 
+  // A bare delimiter leaves `search`/`hash` empty while the serialization keeps
+  // it, which would silently rewrite the appended `/student/chat` path.
+  it.each([
+    ['bare query delimiter', 'https://gateway.example.test/api/v1?'],
+    ['bare fragment delimiter', 'https://gateway.example.test/api/v1#'],
+    ['both bare delimiters', 'https://gateway.example.test/api/v1?#'],
+  ])('rejects a base URL with a %s', (_, baseUrl) => {
+    expect(() =>
+      validateEnv({ ...gatewayEnv, ITI_BEDROCK_GATEWAY_BASE_URL: baseUrl }),
+    ).toThrow(/ITI_BEDROCK_GATEWAY_BASE_URL:/)
+  })
+
+  // Defence in depth against a stale value pointing the bearer-authenticated
+  // POST at the local host or a cloud metadata service.
+  it.each([
+    ['loopback IPv4', 'https://127.0.0.1/api/v1'],
+    ['shorthand loopback IPv4', 'https://127.1/api/v1'],
+    ['IPv4 metadata address', 'https://169.254.169.254/latest/meta-data'],
+    ['private 10/8 address', 'https://10.0.0.5/api/v1'],
+    ['private 172.16/12 address', 'https://172.20.10.1/api/v1'],
+    ['private 192.168/16 address', 'https://192.168.1.10/api/v1'],
+    ['unspecified IPv4 address', 'https://0.0.0.0/api/v1'],
+    ['loopback IPv6', 'https://[::1]/api/v1'],
+    ['unique-local IPv6', 'https://[fd00::1]/api/v1'],
+    ['link-local IPv6', 'https://[fe80::1]/api/v1'],
+    ['localhost', 'https://localhost/api/v1'],
+    ['localhost subdomain', 'https://gateway.localhost/api/v1'],
+  ])('rejects an HTTPS base URL addressing a %s', (_, baseUrl) => {
+    expect(() =>
+      validateEnv({ ...gatewayEnv, ITI_BEDROCK_GATEWAY_BASE_URL: baseUrl }),
+    ).toThrow(/ITI_BEDROCK_GATEWAY_BASE_URL:/)
+  })
+
+  it('keeps the HTTPS base URL configurable for a public staging gateway', () => {
+    expect(
+      validateEnv({
+        ...gatewayEnv,
+        ITI_BEDROCK_GATEWAY_BASE_URL: 'https://203.0.113.10/api/v1',
+      }),
+    ).toMatchObject({
+      ITI_BEDROCK_GATEWAY_BASE_URL: 'https://203.0.113.10/api/v1',
+    })
+    expect(
+      validateEnv({
+        ...gatewayEnv,
+        ITI_BEDROCK_GATEWAY_BASE_URL: 'https://staging.gateway.example/api/v1',
+      }),
+    ).toMatchObject({
+      ITI_BEDROCK_GATEWAY_BASE_URL: 'https://staging.gateway.example/api/v1',
+    })
+  })
+
+  it('ignores an unusable gateway base URL when the gateway is not selected', () => {
+    expect(
+      validateEnv({
+        ...validEnv,
+        COMPLETION_PROVIDER: 'deterministic',
+        ITI_BEDROCK_GATEWAY_BASE_URL: 'http://stale.example.test/api/v1',
+      }),
+    ).toMatchObject({
+      COMPLETION_PROVIDER: 'deterministic',
+      ITI_BEDROCK_GATEWAY_BASE_URL: 'http://stale.example.test/api/v1',
+    })
+  })
+
   it('allows HTTP only for the exact explicitly enabled ITI development endpoint', () => {
     const httpBase = {
-      ...validEnv,
+      ...gatewayEnv,
       NODE_ENV: 'development',
       ITI_BEDROCK_ALLOW_INSECURE_HTTP: 'true',
       ITI_BEDROCK_GATEWAY_BASE_URL: 'http://apiaccess.iti.net.eg/api/v1',

@@ -26,6 +26,17 @@ const request = {
   ],
 } as const
 
+const gatewayModelId = 'global.anthropic.approved-model-v1:0'
+const gatewayConfiguration: AwsBedrockConfiguration = {
+  baseUrl: 'https://gateway.example.test/api/v1',
+  apiKey: '<test-only-placeholder>',
+  modelId: gatewayModelId,
+  allowedModelIds: [gatewayModelId],
+  maxTokens: DEFAULT_AWS_BEDROCK_MAX_TOKENS,
+  allowInsecureHttp: false,
+  environment: 'test',
+}
+
 describe('createCompletionProvider', () => {
   afterEach(() => {
     jest.restoreAllMocks()
@@ -161,25 +172,54 @@ describe('createCompletionProvider', () => {
     expect(JSON.stringify(failure)).not.toContain(privateProvider)
   })
 
-  it.each(['constructor', 'toString', '__proto__'])(
-    'does not accept inherited object key %s as a provider',
-    (inheritedKey) => {
-      expect(() =>
-        createCompletionProvider({
-          provider: inheritedKey as AppEnvironment['COMPLETION_PROVIDER'],
-          timeoutMs: 30_000,
-        } as unknown as CompletionProviderConfiguration),
-      ).toThrow(CompletionProviderError)
-    },
-  )
-
-  it('safely rejects a non-string runtime provider', () => {
+  // Every value here is a near miss for a supported provider: each one would be
+  // accepted by a lookup that coerced, trimmed, or case-folded the value.
+  it.each([
+    ['a differently cased name', 'Deterministic'],
+    ['a padded name', ' deterministic '],
+    ['an array that stringifies to a provider', ['deterministic']],
+    [
+      'an object that stringifies to a provider',
+      { toString: (): string => 'deterministic' },
+    ],
+    ['a missing provider', undefined],
+    ['a null provider', null],
+  ])('rejects %s as an unsupported provider', (_, provider) => {
     expect(() =>
       createCompletionProvider({
-        provider: null as unknown as AppEnvironment['COMPLETION_PROVIDER'],
+        provider,
         timeoutMs: 30_000,
       } as unknown as CompletionProviderConfiguration),
-    ).toThrow(CompletionProviderError)
+    ).toThrow(
+      expect.objectContaining({
+        code: 'COMPLETION_PROVIDER_UNSUPPORTED',
+      }) as CompletionProviderError,
+    )
+  })
+
+  // The snapshot's declared type promises a validated gateway configuration,
+  // so the factory must validate it rather than cast an unchecked value.
+  it.each([
+    [
+      'a base URL with a bare fragment delimiter',
+      { baseUrl: 'https://gateway.example.test/api/v1#' },
+    ],
+    ['a private-network base URL', { baseUrl: 'https://127.0.0.1/api/v1' }],
+    ['a non-ASCII key', { apiKey: 'مفتاح' }],
+    ['a max-token budget below the floor', { maxTokens: 16 }],
+    ['a model outside the allow-list', { modelId: 'other.model-v1:0' }],
+  ])('rejects gateway configuration with %s', (_, overrides) => {
+    expect(() =>
+      createCompletionProvider({
+        provider: 'aws-bedrock',
+        timeoutMs: 30_000,
+        awsBedrock: { ...gatewayConfiguration, ...overrides },
+      }),
+    ).toThrow(
+      expect.objectContaining({
+        code: 'COMPLETION_CONFIGURATION_INVALID',
+      }) as CompletionProviderError,
+    )
   })
 
   it.each([

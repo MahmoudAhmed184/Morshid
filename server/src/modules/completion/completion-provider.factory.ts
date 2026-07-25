@@ -3,6 +3,7 @@ import {
   AWS_BEDROCK_COMPLETION_PROVIDER,
   DETERMINISTIC_COMPLETION_PROVIDER,
   type AwsBedrockConfiguration,
+  validateAwsBedrockConfiguration,
 } from './completion-configuration'
 import type { CompletionProvider } from './completion-provider'
 import { CompletionProviderError } from './completion-provider'
@@ -95,10 +96,13 @@ function snapshotFactoryConfiguration(
     return Object.freeze({ provider, timeoutMs })
   }
 
+  // The gateway configuration is validated here rather than trusted, so the
+  // declared return type is honest and the adapter receives a snapshot that has
+  // already been checked and normalized.
   return Object.freeze({
     provider,
     timeoutMs,
-    awsBedrock: awsBedrock as AwsBedrockConfiguration,
+    awsBedrock: validateAwsBedrockConfiguration(awsBedrock),
   })
 }
 
