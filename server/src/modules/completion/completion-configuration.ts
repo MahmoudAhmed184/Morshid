@@ -49,7 +49,9 @@ export const MAX_AWS_BEDROCK_ALLOWED_MODEL_IDS_LENGTH =
 export const ITI_BEDROCK_INSECURE_HTTP_WARNING =
   'AWS Bedrock completion is using the explicitly configured insecure ITI development transport.'
 
-export const AWS_BEDROCK_MODEL_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/u
+// Internal to the model-ID predicate below: callers validate through
+// isValidAwsBedrockModelId so the rule has exactly one entry point.
+const AWS_BEDROCK_MODEL_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/u
 
 // The key is sent as an `Authorization` header value on every request, and the
 // Headers constructor throws on anything outside Latin-1. Requiring printable
@@ -226,7 +228,9 @@ export function isValidAwsBedrockModelId(value: unknown): value is string {
   )
 }
 
-export function isValidAwsBedrockMaxTokens(value: unknown): value is number {
+// Internal: the environment schema enforces the same bounds through the shared
+// MIN/MAX constants, so this is the runtime-side half of one rule, not a second.
+function isValidAwsBedrockMaxTokens(value: unknown): value is number {
   return (
     typeof value === 'number' &&
     Number.isSafeInteger(value) &&
