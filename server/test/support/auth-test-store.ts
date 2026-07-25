@@ -18,6 +18,7 @@ import type { PrismaService } from '../../src/modules/prisma/prisma.service'
 
 type StoredCourseMembership = CourseMembership & { course?: Course }
 type StoredCourse = Course & {
+  createdBy?: User | null
   memberships?: CourseMembership[]
   materials?: Material[]
 }
@@ -48,6 +49,9 @@ interface UpdateUserArgs {
       | 'disabledById'
       | 'passwordHash'
       | 'passwordChangedAt'
+      | 'email'
+      | 'displayName'
+      | 'role'
     >
   >
 }
@@ -190,8 +194,20 @@ interface FindUniqueMembershipArgs {
 
 interface FindUniqueCourseArgs {
   where: {
+    id?: string
+    code?: string
+  }
+}
+
+interface CreateCourseArgs {
+  data: Pick<Course, 'code' | 'title' | 'createdById'>
+}
+
+interface UpdateCourseArgs {
+  where: {
     id: string
   }
+  data: Partial<Pick<Course, 'code' | 'title'>>
 }
 
 interface FindManyMaterialArgs {
@@ -251,6 +267,7 @@ export class AuthTestStore {
   private nextAuditLogSequence = 1
   private nextMembershipSequence = 1
   private nextMaterialSequence = 1
+  private nextCourseSequence = 1
   private failNextActiveRefreshTokenRevoke = false
 
   readonly prisma = {
@@ -311,6 +328,12 @@ export class AuthTestStore {
       ),
       findMany: jest.fn((args?: FindManyCourseArgs) =>
         Promise.resolve(this.findCourses(args)),
+      ),
+      create: jest.fn((args: CreateCourseArgs) =>
+        Promise.resolve(this.createCourse(args)),
+      ),
+      update: jest.fn((args: UpdateCourseArgs) =>
+        Promise.resolve(this.updateCourse(args)),
       ),
     },
     material: {
@@ -558,7 +581,27 @@ export class AuthTestStore {
 
     const updated = {
       ...user,
-      ...args.data,
+      ...(args.data.lastLoginAt === undefined
+        ? {}
+        : { lastLoginAt: args.data.lastLoginAt }),
+      ...(args.data.status === undefined ? {} : { status: args.data.status }),
+      ...(args.data.disabledAt === undefined
+        ? {}
+        : { disabledAt: args.data.disabledAt }),
+      ...(args.data.disabledById === undefined
+        ? {}
+        : { disabledById: args.data.disabledById }),
+      ...(args.data.passwordHash === undefined
+        ? {}
+        : { passwordHash: args.data.passwordHash }),
+      ...(args.data.passwordChangedAt === undefined
+        ? {}
+        : { passwordChangedAt: args.data.passwordChangedAt }),
+      ...(args.data.email === undefined ? {} : { email: args.data.email }),
+      ...(args.data.displayName === undefined
+        ? {}
+        : { displayName: args.data.displayName }),
+      ...(args.data.role === undefined ? {} : { role: args.data.role }),
       updatedAt: new Date('2026-07-06T12:00:00.000Z'),
     }
     this.users.set(user.id, updated)
@@ -755,13 +798,18 @@ export class AuthTestStore {
   }
 
   private findCourse(args: FindUniqueCourseArgs): StoredCourse | null {
-    const courseId = args.where.id
-    const course = this.courses.get(courseId)
+    const course =
+      args.where.id !== undefined
+        ? this.courses.get(args.where.id)
+        : [...this.courses.values()].find(
+            (candidate) => candidate.code === args.where.code,
+          )
 
     if (!course) {
       return null
     }
 
+    const courseId = course.id
     const memberships = this.memberships
       .filter((m) => m.courseId === courseId)
       .map((m) => ({
@@ -776,6 +824,61 @@ export class AuthTestStore {
         (m) => m.courseId === course.id,
       ),
     }
+  }
+
+  private createCourse(args: CreateCourseArgs): StoredCourse {
+    if (
+      [...this.courses.values()].some(
+        (course) => course.code === args.data.code,
+      )
+    ) {
+      const error = new Error('Unique constraint failed') as Error & {
+        code?: string
+      }
+      error.code = 'P2002'
+      throw error
+    }
+
+    const sequence = this.nextCourseSequence
+    this.nextCourseSequence += 1
+    const now = new Date('2026-07-06T12:00:00.000Z')
+    const course: Course = {
+      id: `00000000-0000-4000-8000-0000000007${sequence
+        .toString()
+        .padStart(2, '0')}`,
+      code: args.data.code,
+      title: args.data.title,
+      createdById: args.data.createdById,
+      createdAt: now,
+      updatedAt: now,
+    }
+    this.courses.set(course.id, course)
+    return {
+      ...course,
+      createdBy: this.users.get(course.createdById ?? '') ?? null,
+      memberships: [],
+      materials: [],
+    }
+  }
+
+  private updateCourse(args: UpdateCourseArgs): StoredCourse {
+    const course = this.courses.get(args.where.id)
+    if (!course) {
+      throw new Error(`Missing course ${args.where.id}`)
+    }
+
+    const updated = {
+      ...course,
+      ...(args.data.code === undefined ? {} : { code: args.data.code }),
+      ...(args.data.title === undefined ? {} : { title: args.data.title }),
+      updatedAt: new Date('2026-07-06T12:00:00.000Z'),
+    }
+    this.courses.set(course.id, updated)
+    const updatedCourse = this.findCourse({ where: { id: course.id } })
+    if (!updatedCourse) {
+      throw new Error(`Missing updated course ${course.id}`)
+    }
+    return updatedCourse
   }
 
   private findFirstMembership(
