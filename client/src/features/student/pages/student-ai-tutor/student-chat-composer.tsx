@@ -136,7 +136,7 @@ export const StudentChatComposer = forwardRef<
       className="shrink-0"
       onSubmit={(event) => void handleSubmit(event)}
     >
-      <div className="mx-auto max-w-3xl rounded-t-2xl border border-b-0 border-border/70 bg-card/80 shadow-[0_-8px_24px_-16px] shadow-foreground/10 backdrop-blur-md focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20">
+      <div className="glass-paper mx-auto max-w-3xl rounded-t-2xl shadow-md focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/40">
         <Textarea
           ref={textareaRef}
           aria-describedby="chat-composer-hint chat-composer-error"
@@ -167,7 +167,7 @@ export const StudentChatComposer = forwardRef<
           </p>
           <Button
             aria-label="Send message"
-            className="size-9 shrink-0 rounded-xl bg-primary text-primary-foreground shadow-none disabled:border disabled:border-border/60 disabled:bg-muted/70 disabled:text-muted-foreground/60 transition-colors"
+            className="size-9 shrink-0 rounded-full bg-primary text-primary-foreground shadow-none disabled:border disabled:border-border/60 disabled:bg-muted/70 disabled:text-muted-foreground/60 transition-colors"
             disabled={!canSend}
             size="icon"
             type="submit"

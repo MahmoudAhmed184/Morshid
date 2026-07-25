@@ -407,7 +407,7 @@ describe('StudentAiTutorPage workspace', () => {
     })
 
     const panel = await screen.findByLabelText('Sources and citations')
-    expect(panel.parentElement).toHaveAttribute('aria-hidden', 'true')
+    expect(panel.parentElement).toHaveAttribute('inert')
   })
 
   // T15.6 — the BookMarked toggle registers only once a conversation holds ≥1
@@ -459,12 +459,12 @@ describe('StudentAiTutorPage workspace', () => {
       name: 'probe-sources-toggle',
     })
     const panel = screen.getByLabelText('Sources and citations')
-    expect(panel.parentElement).toHaveAttribute('aria-hidden', 'true')
+    expect(panel.parentElement).toHaveAttribute('inert')
 
     fireEvent.click(toggle)
 
     await waitFor(() =>
-      expect(panel.parentElement).toHaveAttribute('aria-hidden', 'false'),
+      expect(panel.parentElement).not.toHaveAttribute('inert'),
     )
   })
 

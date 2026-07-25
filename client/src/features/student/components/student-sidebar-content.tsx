@@ -28,8 +28,63 @@ import { StudentSessionListItem } from '@/features/student/pages/student-ai-tuto
 import { StudentSessionNavigationSkeleton } from '@/features/student/pages/student-ai-tutor/student-session-navigation-skeleton'
 
 interface StudentSidebarContentProps {
-  searchInputRef?: RefObject<HTMLInputElement | null>
   newChatButtonRef?: RefObject<HTMLButtonElement | null>
+}
+
+function resolveSelectedCourse(
+  courses: StudentCourse[],
+  routeCourseId: string | undefined,
+): StudentCourse | null {
+  return (
+    (routeCourseId
+      ? courses.find((course) => course.id === routeCourseId)
+      : courses.length === 1
+        ? courses[0]
+        : undefined) ?? null
+  )
+}
+
+/**
+ * The shared New chat action — open the `/chat` draft for the active course and
+ * focus its composer. The sidebar button, the collapsed cluster's `+` and the
+ * ⌘K palette all call this, so the action behaves identically wherever it is
+ * invoked from and stays alive on the shell's other routes (e.g. `/settings`,
+ * where there is no composer to focus and nothing else would happen).
+ */
+export function useStudentNewChat() {
+  const navigate = useNavigate()
+  const { requestComposerFocus } = useStudentChromeActions()
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  })
+  const search = useRouterState({
+    select: (state) => state.location.search,
+  })
+  const { data: assignedCourses } = useStudentCourses()
+  const selectedCourse = resolveSelectedCourse(assignedCourses, search.courseId)
+
+  return async () => {
+    // T12.4 — with no active course there is nowhere to open a conversation and
+    // no library page to fall back to (the sidebar shows `No courses yet`), so
+    // New chat is a no-op rather than navigating to a deleted route.
+    if (!selectedCourse) {
+      return
+    }
+
+    // T15.1 — New chat opens the draft state; no session is created until the
+    // first message is sent. Only sitting in the draft itself (on `/chat` with
+    // no routed session) makes the navigation redundant. T15.7 — focus the draft
+    // composer on every activation (the chat page registers its focus handle
+    // through the chrome context).
+    if (search.sessionId !== undefined || pathname !== '/chat') {
+      await navigate({
+        to: '/chat',
+        search: { courseId: selectedCourse.id },
+      })
+    }
+
+    requestComposerFocus()
+  }
 }
 
 type SessionGroup = {
@@ -139,12 +194,11 @@ function CourseSwitcher({
 }
 
 export function StudentSidebarContent({
-  searchInputRef,
   newChatButtonRef,
 }: StudentSidebarContentProps) {
   const navigate = useNavigate()
   const { isMobile, setOpenMobile } = useSidebar()
-  const { requestComposerFocus } = useStudentChromeActions()
+  const openNewChat = useStudentNewChat()
   const search = useRouterState({
     select: (state) => state.location.search,
   })
@@ -152,12 +206,7 @@ export function StudentSidebarContent({
   const routeSessionId = search.sessionId
 
   const { data: assignedCourses } = useStudentCourses()
-  const selectedCourse =
-    (routeCourseId
-      ? assignedCourses.find((course) => course.id === routeCourseId)
-      : assignedCourses.length === 1
-        ? assignedCourses[0]
-        : undefined) ?? null
+  const selectedCourse = resolveSelectedCourse(assignedCourses, routeCourseId)
 
   const [query, setQuery] = useState('')
 
@@ -188,25 +237,7 @@ export function StudentSidebarContent({
   }
 
   const handleNewChat = async () => {
-    // T12.4 — with no active course there is nowhere to open a conversation and
-    // no library page to fall back to (the sidebar shows `No courses yet`), so
-    // New chat is a no-op rather than navigating to a deleted route.
-    if (!selectedCourse) {
-      return
-    }
-
-    // T15.1 — New chat opens the draft state; no session is created until the
-    // first message is sent. Already in the draft (no routed session) → skip the
-    // redundant navigation. T15.7 — focus the draft composer on every activation
-    // (the chat page registers its focus handle through the chrome context).
-    if (routeSessionId !== undefined) {
-      await navigate({
-        to: '/chat',
-        search: { courseId: selectedCourse.id },
-      })
-    }
-
-    requestComposerFocus()
+    await openNewChat()
     closeOnMobile()
   }
 
@@ -277,7 +308,6 @@ export function StudentSidebarContent({
             aria-hidden
           />
           <Input
-            ref={searchInputRef}
             type="search"
             role="searchbox"
             aria-label="Search your chats"

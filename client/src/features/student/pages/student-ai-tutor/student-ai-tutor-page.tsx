@@ -241,7 +241,7 @@ function StudentWorkspaceSources({
         </div>
 
         <div
-          aria-hidden={!sourcesOpen}
+          inert={!sourcesOpen}
           className={cn(
             'hidden shrink-0 overflow-hidden transition-[width,opacity] duration-[250ms] ease-out motion-reduce:transition-none lg:flex',
             sourcesOpen ? 'w-[20.75rem] opacity-100' : 'w-0 opacity-0',

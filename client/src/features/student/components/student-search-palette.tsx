@@ -15,10 +15,8 @@ import {
   DialogDescription,
   DialogTitle,
 } from '@/components/ui/dialog'
-import {
-  useStudentChromeActions,
-  useStudentSearchPalette,
-} from '@/features/student/components/student-chrome-context'
+import { useStudentSearchPalette } from '@/features/student/components/student-chrome-context'
+import { useStudentNewChat } from '@/features/student/components/student-sidebar-content'
 import { useStudentCourses } from '@/features/student/hooks/use-student-courses'
 import { useStudentSessions } from '@/features/student/hooks/use-student-sessions'
 import type { ChatSession } from '@/features/student/schemas/student-chat.schema'
@@ -32,11 +30,10 @@ import type { ChatSession } from '@/features/student/schemas/student-chat.schema
  */
 export function StudentSearchPalette() {
   const { isOpen, setOpen } = useStudentSearchPalette()
-  const { requestComposerFocus } = useStudentChromeActions()
+  const openNewChat = useStudentNewChat()
   const navigate = useNavigate()
   const search = useRouterState({ select: (state) => state.location.search })
   const routeCourseId = search.courseId
-  const routeSessionId = search.sessionId
 
   const { data: assignedCourses } = useStudentCourses()
   const selectedCourse =
@@ -81,15 +78,9 @@ export function StudentSearchPalette() {
 
   const handleNewChat = async () => {
     close()
-    // T15.1/T15.7 — open the draft (skip the redundant navigation when already
-    // there) and focus the composer.
-    if (selectedCourse && routeSessionId !== undefined) {
-      await navigate({
-        to: '/chat',
-        search: { courseId: selectedCourse.id },
-      })
-    }
-    requestComposerFocus()
+    // T15.1/T15.7 — the shared action opens the draft and focuses the composer,
+    // so ⌘K → New chat works from every student route, not only /chat.
+    await openNewChat()
   }
 
   const handleSelectSession = async (session: ChatSession) => {

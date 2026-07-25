@@ -90,21 +90,23 @@ function runThemeTransition(
     updateTheme()
   })
 
-  transition.ready.then(() => {
-    document.documentElement.animate(
-      {
-        clipPath: [
-          `circle(0px at ${x}px ${y}px)`,
-          `circle(${endRadius}px at ${x}px ${y}px)`,
-        ],
-      },
-      {
-        duration: 700,
-        easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
-        pseudoElement: '::view-transition-new(root)',
-      },
-    )
-  })
+  transition.ready
+    .then(() => {
+      document.documentElement.animate(
+        {
+          clipPath: [
+            `circle(0px at ${x}px ${y}px)`,
+            `circle(${endRadius}px at ${x}px ${y}px)`,
+          ],
+        },
+        {
+          duration: 700,
+          easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+          pseudoElement: '::view-transition-new(root)',
+        },
+      )
+    })
+    .catch(() => {})
 }
 
 export function ThemeProvider({

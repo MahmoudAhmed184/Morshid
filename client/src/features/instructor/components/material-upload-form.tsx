@@ -9,7 +9,7 @@ import {
   UploadIcon,
   XIcon,
 } from 'lucide-react'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 
 import { Button } from '@/components/ui/button'
@@ -51,6 +51,10 @@ export function MaterialUploadForm({
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
+    null,
+  )
+  const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const uploadSchema = useMemo(
     () => createInstructorMaterialUploadSchema(configuration.maxUploadBytes),
@@ -66,21 +70,42 @@ export function MaterialUploadForm({
     },
   })
 
-  const simulateProgress = (): Promise<void> => {
-    return new Promise((resolve) => {
-      setProgress(5)
-      const interval = setInterval(() => {
-        setProgress((prev) => {
-          if (prev >= 92) {
-            clearInterval(interval)
-            resolve()
-            return 95
-          }
-          const increment = Math.floor(Math.random() * 15) + 8
-          return Math.min(prev + increment, 95)
-        })
-      }, 150)
-    })
+  const clearProgressTimers = () => {
+    if (progressIntervalRef.current !== null) {
+      clearInterval(progressIntervalRef.current)
+      progressIntervalRef.current = null
+    }
+    if (successTimeoutRef.current !== null) {
+      clearTimeout(successTimeoutRef.current)
+      successTimeoutRef.current = null
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      if (progressIntervalRef.current !== null) {
+        clearInterval(progressIntervalRef.current)
+      }
+      if (successTimeoutRef.current !== null) {
+        clearTimeout(successTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  const startProgress = () => {
+    clearProgressTimers()
+
+    let current = 5
+    setProgress(current)
+
+    progressIntervalRef.current = setInterval(() => {
+      current = Math.min(current + Math.floor(Math.random() * 15) + 8, 95)
+      setProgress(current)
+      if (current >= 95 && progressIntervalRef.current !== null) {
+        clearInterval(progressIntervalRef.current)
+        progressIntervalRef.current = null
+      }
+    }, 150)
   }
 
   const handleSubmit = async ({ title, file }: InstructorMaterialUpload) => {
@@ -89,20 +114,22 @@ export function MaterialUploadForm({
     setProgress(0)
 
     try {
-      const progressPromise = simulateProgress()
-      const uploadPromise = uploadMutation.mutateAsync({
+      startProgress()
+
+      await uploadMutation.mutateAsync({
         courseId,
         title,
         file,
       })
 
-      await Promise.all([progressPromise, uploadPromise])
-
+      clearProgressTimers()
       setProgress(100)
-      setTimeout(() => {
+      successTimeoutRef.current = setTimeout(() => {
+        successTimeoutRef.current = null
         setStatus('success')
       }, 300)
     } catch (error) {
+      clearProgressTimers()
       setStatus('error')
       setErrorMessage(
         isApiError(error)
@@ -113,6 +140,7 @@ export function MaterialUploadForm({
   }
 
   const handleReset = () => {
+    clearProgressTimers()
     form.reset({ title: '', file: undefined })
     setSelectedFile(null)
     setStatus('idle')
@@ -151,7 +179,7 @@ export function MaterialUploadForm({
       <form
         className="grid gap-5 w-full min-w-0 max-w-full overflow-hidden"
         noValidate
-        onSubmit={form.handleSubmit(handleSubmit)}
+        onSubmit={(event) => void form.handleSubmit(handleSubmit)(event)}
       >
         {status === 'idle' ? (
           <>
@@ -249,8 +277,9 @@ export function MaterialUploadForm({
                             }
                           }}
                           className="shrink-0 text-muted-foreground hover:text-foreground"
+                          aria-label={`Remove ${selectedFile.name}`}
                         >
-                          <XIcon className="size-4" />
+                          <XIcon className="size-4" aria-hidden />
                         </Button>
                       </div>
                     ) : (
