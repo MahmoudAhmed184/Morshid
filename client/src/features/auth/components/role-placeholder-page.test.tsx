@@ -5,6 +5,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -64,6 +65,15 @@ describe('RolePlaceholderPage', () => {
     expect(window.localStorage).toHaveLength(0)
 
     fireEvent.click(screen.getByRole('button', { name: /sign out/i }))
+    const confirmation = screen
+      .getByRole('heading', { name: 'Sign out of Morshid?' })
+      .closest('[data-slot="alert-dialog-content"]')
+    expect(confirmation).not.toBeNull()
+    fireEvent.click(
+      within(confirmation as HTMLElement).getByRole('button', {
+        name: 'Sign out',
+      }),
+    )
 
     await waitFor(() => {
       expect(navigateMock).toHaveBeenCalledWith({
@@ -99,6 +109,15 @@ describe('RolePlaceholderPage', () => {
     render(<RolePlaceholderPage roleName="Admin" />)
 
     fireEvent.click(screen.getByRole('button', { name: /sign out/i }))
+    const confirmation = screen
+      .getByRole('heading', { name: 'Sign out of Morshid?' })
+      .closest('[data-slot="alert-dialog-content"]')
+    expect(confirmation).not.toBeNull()
+    fireEvent.click(
+      within(confirmation as HTMLElement).getByRole('button', {
+        name: 'Sign out',
+      }),
+    )
 
     await waitFor(() => {
       expect(navigateMock).toHaveBeenCalledWith({

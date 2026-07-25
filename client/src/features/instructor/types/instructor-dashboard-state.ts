@@ -10,5 +10,9 @@ export type InstructorDashboardState =
     }
   | {
       status: 'ready'
+      course: InstructorCourse
       courses: InstructorCourse[]
+      onSelectCourse?: (courseId: string) => void
+      materialCount?: number
+      reviewQueueCount?: number
     }

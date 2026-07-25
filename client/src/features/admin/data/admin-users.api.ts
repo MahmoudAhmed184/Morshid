@@ -106,3 +106,27 @@ export async function reactivateAdminUser(
 
   return adminManagedUserResponseSchema.parse(response).user
 }
+
+export type UpdateAdminUserInput = {
+  email?: string
+  displayName?: string
+  role?: 'STUDENT' | 'INSTRUCTOR'
+}
+
+export async function updateAdminUser(
+  userId: string,
+  input: UpdateAdminUserInput,
+  options: ApiFetchOptions = {},
+) {
+  const response = await apiJson<unknown>(`/api/v1/admin/users/${userId}`, {
+    ...options,
+    body: JSON.stringify(input),
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+    method: 'PATCH',
+  })
+
+  return adminManagedUserResponseSchema.parse(response).user
+}

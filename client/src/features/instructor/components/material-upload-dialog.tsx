@@ -21,11 +21,11 @@ export function MaterialUploadDialog({
 }) {
   return (
     <Dialog>
-      <DialogTrigger render={<Button className="w-full sm:w-auto" />}>
+      <DialogTrigger render={<Button size="lg" className="w-full sm:w-auto" />}>
         <UploadIcon aria-hidden />
         Upload Material
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-lg overflow-hidden sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Upload new material</DialogTitle>
           <DialogDescription>

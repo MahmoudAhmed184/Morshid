@@ -3,6 +3,7 @@
 Use `StatCard` for dashboard metrics and compact page summaries.
 
 Good places to use it:
+
 - Active students, published courses, total revenue, pending requests.
 - Top-row summary cards on admin or teacher dashboards.
 
@@ -34,5 +35,6 @@ With description:
 ```
 
 Notes:
+
 - Keep values short so cards remain scannable.
 - Use `trend` for deltas, percentages, or status hints.

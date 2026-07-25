@@ -32,6 +32,23 @@ export const adminCreateUserRequestSchema = z
   })
   .strict()
 
+export const adminUpdateUserRequestSchema = z
+  .object({
+    email: z
+      .preprocess(
+        (value) =>
+          typeof value === 'string' ? value.trim().toLowerCase() : value,
+        z.email(),
+      )
+      .optional(),
+    displayName: z.string().trim().min(1).max(120).optional(),
+    role: z.enum([UserRole.STUDENT, UserRole.INSTRUCTOR]).optional(),
+  })
+  .strict()
+  .refine((input) => Object.keys(input).length > 0, {
+    message: 'At least one user field must be provided',
+  })
+
 export const adminResetUserPasswordRequestSchema = z
   .object({
     newPassword: adminUserPasswordSchema,
@@ -47,6 +64,9 @@ export const adminListUsersQuerySchema = z
 
 export type AdminCreateUserRequest = z.infer<
   typeof adminCreateUserRequestSchema
+>
+export type AdminUpdateUserRequest = z.infer<
+  typeof adminUpdateUserRequestSchema
 >
 export type AdminResetUserPasswordRequest = z.infer<
   typeof adminResetUserPasswordRequestSchema
@@ -73,6 +93,20 @@ export class AdminCreateUserRequestDto {
     pattern: ADMIN_USER_PASSWORD_PATTERN,
   })
   password!: string
+}
+
+export class AdminUpdateUserRequestDto {
+  @ApiPropertyOptional({ format: 'email' })
+  email?: string
+
+  @ApiPropertyOptional({ maxLength: 120 })
+  displayName?: string
+
+  @ApiPropertyOptional({
+    enum: [UserRole.STUDENT, UserRole.INSTRUCTOR],
+    enumName: 'AdminCreateUserRole',
+  })
+  role?: AdminCreatableUserRole
 }
 
 export class AdminResetUserPasswordRequestDto {
@@ -123,6 +157,13 @@ export class AdminUserDto {
 }
 
 export class AdminCreateUserResponseDto {
+  @Expose()
+  @Type(() => AdminUserDto)
+  @ApiProperty({ type: AdminUserDto })
+  user!: AdminUserDto
+}
+
+export class AdminUpdateUserResponseDto {
   @Expose()
   @Type(() => AdminUserDto)
   @ApiProperty({ type: AdminUserDto })

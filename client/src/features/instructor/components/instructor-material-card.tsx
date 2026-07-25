@@ -9,9 +9,9 @@ const materialDateFormatter = new Intl.DateTimeFormat(undefined, {
 })
 
 const statusTones = {
-  PROCESSING: 'secondary',
-  READY: 'default',
-  WARNING: 'outline',
+  PROCESSING: 'info',
+  READY: 'success',
+  WARNING: 'warning',
   FAILED: 'destructive',
 } as const
 
@@ -54,6 +54,7 @@ export function InstructorMaterialCard({
       title={material.title}
       description={material.originalFilename}
       status={<InstructorMaterialStatusBadge status={material.status} />}
+      statusKey={material.status}
       details={
         <dl className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground">
           {material.extractedTextLength !== null ? (

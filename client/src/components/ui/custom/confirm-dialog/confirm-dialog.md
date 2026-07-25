@@ -3,6 +3,7 @@
 Use `ConfirmDialog` for dangerous or important actions that need explicit confirmation.
 
 Good places to use it:
+
 - Delete course, student, lesson, user, subscription, or payment records.
 - Archive, reset, revoke, disable, or publish actions.
 - High-risk actions that need the user to type a confirmation word.
@@ -53,5 +54,6 @@ Controlled open state:
 ```
 
 Notes:
+
 - `confirmInput.value` must match exactly after trimming the input.
 - The dialog handles async `onConfirm` and closes after success.

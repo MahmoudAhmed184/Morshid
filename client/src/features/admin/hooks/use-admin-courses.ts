@@ -2,7 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import {
   addAdminCourseMember,
+  createAdminCourse,
   removeAdminCourseMember,
+  updateAdminCourse,
   updateAdminCourseMemberRole,
   updateAdminMaterial,
 } from '@/features/admin/data/admin-courses.api'
@@ -50,21 +52,42 @@ export function useAdminCourseMaterials(courseId: string | undefined) {
   })
 }
 
-export function useAdminCourseMutations(courseId: string | undefined) {
+export function useAdminCourseMutations(
+  courseId: string | undefined = undefined,
+) {
   const adminId = useAdminId()
   const queryClient = useQueryClient()
   const invalidateCourseData = async () => {
-    if (!adminId || !courseId) return
+    if (!adminId) return
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: adminCourseKeys.all(adminId) }),
-      queryClient.invalidateQueries({
-        queryKey: adminCourseKeys.members(adminId, courseId),
-      }),
+      courseId
+        ? queryClient.invalidateQueries({
+            queryKey: adminCourseKeys.members(adminId, courseId),
+          })
+        : Promise.resolve(),
       queryClient.invalidateQueries({
         queryKey: adminAuditKeys.all(adminId),
       }),
     ])
   }
+
+  const createCourse = useMutation({
+    mutationFn: (input: { code: string; title: string }) =>
+      createAdminCourse(input),
+    onSuccess: invalidateCourseData,
+  })
+
+  const updateCourse = useMutation({
+    mutationFn: ({
+      id,
+      input,
+    }: {
+      id: string
+      input: { code?: string; title?: string }
+    }) => updateAdminCourse(id, input),
+    onSuccess: invalidateCourseData,
+  })
 
   const addMember = useMutation({
     mutationFn: (input: { userId: string; role: CourseMembershipRole }) => {
@@ -108,5 +131,12 @@ export function useAdminCourseMutations(courseId: string | undefined) {
     },
   })
 
-  return { addMember, updateMemberRole, removeMember, editMaterial }
+  return {
+    createCourse,
+    updateCourse,
+    addMember,
+    updateMemberRole,
+    removeMember,
+    editMaterial,
+  }
 }

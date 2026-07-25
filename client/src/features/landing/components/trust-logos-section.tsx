@@ -1,28 +1,36 @@
-const trustLogos = [
-  { name: 'AWS', label: 'aws' },
-  { name: 'Google', label: 'Google' },
-  { name: 'Microsoft', label: 'Microsoft' },
-  { name: 'Meta', label: 'Meta' },
-  { name: 'Apple', label: 'Apple' },
+const studyPrinciples = [
+  'Course-bound answers',
+  'Page-level citations',
+  'Socratic questions',
+  'Private workspaces',
+  'Instructor materials',
+  'Grounded review',
 ] as const
 
 export function TrustLogosSection() {
   return (
-    <div className="mt-20 border-t border-border/60 pt-12 sm:mt-24">
-      <p className="text-xs font-medium tracking-[0.2em] text-muted-foreground uppercase">
-        Trusted by students at top universities
-      </p>
-      <ul className="mt-8 flex flex-wrap items-center justify-center gap-x-10 gap-y-6 sm:gap-x-14">
-        {trustLogos.map((logo) => (
-          <li
-            key={logo.name}
-            className="text-lg font-semibold tracking-tight text-muted-foreground/50 select-none sm:text-xl"
-            aria-label={logo.name}
-          >
-            {logo.label}
-          </li>
-        ))}
-      </ul>
-    </div>
+    <section
+      aria-labelledby="study-principles-title"
+      className="border-y border-border/60 bg-muted/20 py-8 sm:py-10"
+    >
+      <div className="mx-auto max-w-6xl px-4 text-center sm:px-6 lg:px-8">
+        <p
+          id="study-principles-title"
+          className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+        >
+          Built for focused, course-grounded study
+        </p>
+        <ul className="mt-6 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 lg:grid-cols-6">
+          {studyPrinciples.map((principle) => (
+            <li
+              key={principle}
+              className="text-sm font-semibold tracking-tight text-foreground/80"
+            >
+              {principle}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
   )
 }

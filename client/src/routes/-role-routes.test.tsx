@@ -54,7 +54,7 @@ describe('role route boundaries', () => {
     )
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(loadRoute('/student/courses')).resolves.toBe('/login')
+    await expect(loadRoute('/chat')).resolves.toBe('/login')
     expect(fetchMock).toHaveBeenCalled()
     expect(
       fetchMock.mock.calls.every(([input]) =>
@@ -71,7 +71,8 @@ describe('role route boundaries', () => {
       vi.fn(async () => Response.json({ user: session.user })),
     )
 
-    await expect(loadRoute('/student/courses')).resolves.toBe('/admin')
+    await expect(loadRoute('/chat')).resolves.toBe('/admin')
+    await expect(loadRoute('/settings')).resolves.toBe('/admin')
   })
 
   it('redirects a student away from the admin route tree', async () => {
@@ -86,6 +87,37 @@ describe('role route boundaries', () => {
       ),
     )
 
-    await expect(loadRoute('/admin')).resolves.toBe('/student/dashboard')
+    await expect(loadRoute('/admin')).resolves.toBe('/chat')
+  })
+
+  // Spec finding 5 — the redesign retired the student course library and the
+  // instructor My Courses page. Both deep links must still resolve rather than
+  // dead-end, and they must do so in `beforeLoad`: a component-level redirect
+  // would let the destination's loaders run first (the admin loaders throw for
+  // a non-Admin, turning a role redirect into an error screen).
+  it('keeps legacy student and instructor course links compatible', async () => {
+    const studentSession = createSession('STUDENT')
+    useAuthStore.getState().setSession(studentSession)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) =>
+        String(input).endsWith('/api/v1/courses')
+          ? Response.json({ courses: [] })
+          : Response.json({ user: studentSession.user }),
+      ),
+    )
+
+    await expect(loadRoute('/student/courses')).resolves.toBe('/chat')
+    await expect(loadRoute('/courses')).resolves.toBe('/chat')
+    await expect(loadRoute('/student/ai-tutor')).resolves.toBe('/chat')
+
+    const instructorSession = createSession('INSTRUCTOR')
+    useAuthStore.getState().setSession(instructorSession)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ user: instructorSession.user })),
+    )
+
+    await expect(loadRoute('/instructor/courses')).resolves.toBe('/instructor')
   })
 })

@@ -19,6 +19,10 @@ interface AdminUserAuditInput {
   requestContext?: AuditRequestContext
 }
 
+interface AdminUserUpdatedAuditInput extends AdminUserAuditInput {
+  previousUser: AdminAuditTargetUser
+}
+
 interface AdminAuditTargetUser {
   id: string
   email: string
@@ -31,6 +35,7 @@ interface AdminUserAuditWithRevocationInput extends AdminUserAuditInput {
 }
 
 type RecordAdminUserCreatedInput = AdminUserAuditInput
+type RecordAdminUserUpdatedInput = AdminUserUpdatedAuditInput
 type RecordAdminUserDisabledInput = AdminUserAuditWithRevocationInput
 type RecordAdminUserReactivatedInput = AdminUserAuditInput
 type RecordAdminUserPasswordResetInput = AdminUserAuditWithRevocationInput
@@ -47,6 +52,36 @@ export class AdminUsersAuditService {
       AUDIT_EVENT_ACTIONS.ADMIN_ACCOUNT_CREATED,
       input,
       {},
+      database,
+    )
+  }
+
+  async recordUserUpdated(
+    input: RecordAdminUserUpdatedInput,
+    database?: AuditDatabase,
+  ): Promise<void> {
+    const before = userAuditSnapshot(input.previousUser)
+    const after = userAuditSnapshot(input.targetUser)
+
+    await this.auditService.recordEvent(
+      {
+        actorUserId: input.actorUserId,
+        action: AUDIT_EVENT_ACTIONS.ADMIN_ACCOUNT_UPDATED,
+        target: {
+          type: AUDIT_TARGET_TYPES.USER,
+          id: input.targetUser.id,
+        },
+        metadata: {
+          before,
+          after,
+          changedFields: Object.keys(after).filter(
+            (field) =>
+              before[field as keyof typeof before] !==
+              after[field as keyof typeof after],
+          ),
+        },
+        requestContext: input.requestContext,
+      },
       database,
     )
   }
@@ -114,5 +149,13 @@ export class AdminUsersAuditService {
       },
       database,
     )
+  }
+}
+
+function userAuditSnapshot(user: AdminAuditTargetUser) {
+  return {
+    email: user.email,
+    displayName: user.displayName,
+    role: user.role,
   }
 }

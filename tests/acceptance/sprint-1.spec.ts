@@ -107,9 +107,11 @@ test.describe('Sprint 1 acceptance and security', () => {
 
     await expect(page).toHaveURL(/\/admin\/?$/)
     await expect(
-      page.getByRole('navigation', { name: 'Admin navigation' }),
+      page.getByRole('list', { name: 'Admin navigation' }),
     ).toBeVisible()
-    await expect(page.getByText('Users loaded', { exact: true })).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: 'System overview.' }),
+    ).toBeVisible()
   })
 
   test('seeded Instructor signs in through the UI and reaches the Instructor shell', async ({
@@ -119,7 +121,7 @@ test.describe('Sprint 1 acceptance and security', () => {
 
     await expect(page).toHaveURL(/\/instructor\/?$/)
     await expect(
-      page.getByRole('heading', { name: 'Instructor dashboard' }),
+      page.getByRole('heading', { name: "Today's teaching desk." }),
     ).toBeVisible()
   })
 
@@ -128,8 +130,10 @@ test.describe('Sprint 1 acceptance and security', () => {
   }) => {
     await signInThroughUi(page, demoAccounts.student)
 
-    await expect(page).toHaveURL(/\/student\/dashboard\/?$/)
-    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
+    await expect(page).toHaveURL(/\/chat(?:\?.*)?$/)
+    await expect(
+      page.getByRole('heading', { name: /How can I help you,/ }),
+    ).toBeVisible()
   })
 
   test('Student direct navigation to Admin and Instructor routes returns to the Student shell', async ({
@@ -154,9 +158,9 @@ test.describe('Sprint 1 acceptance and security', () => {
     for (const forbiddenPath of ['/admin', '/instructor']) {
       await page.goto(forbiddenPath)
 
-      await expect(page).toHaveURL(/\/student\/dashboard\/?$/)
+      await expect(page).toHaveURL(/\/chat(?:\?.*)?$/)
       await expect(
-        page.getByRole('heading', { name: 'Dashboard' }),
+        page.getByRole('heading', { name: /How can I help you,/ }),
       ).toBeVisible()
     }
 
@@ -273,7 +277,14 @@ test.describe('Sprint 1 acceptance and security', () => {
 
     try {
       await signInThroughUi(page, demoAccounts.admin)
-      await page.getByRole('link', { name: 'Users', exact: true }).click()
+      // The redesigned dashboard repeats these destinations in a Quick
+      // navigation panel, so the shell navigation has to be addressed by name.
+      const adminNavigation = page.getByRole('list', {
+        name: 'Admin navigation',
+      })
+      await adminNavigation
+        .getByRole('link', { name: 'Users', exact: true })
+        .click()
       await expect(
         page.getByRole('heading', { name: 'User Management' }),
       ).toBeVisible()
@@ -293,7 +304,9 @@ test.describe('Sprint 1 acceptance and security', () => {
         .click()
       await expect(accountRow).toContainText('disabled')
 
-      await page.getByRole('link', { name: 'Audit Logs', exact: true }).click()
+      await adminNavigation
+        .getByRole('link', { name: 'Audit Logs', exact: true })
+        .click()
       await expect(
         page.getByRole('heading', { name: 'Recent Audit Activity' }),
       ).toBeVisible()
