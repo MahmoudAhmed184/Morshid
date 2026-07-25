@@ -97,7 +97,7 @@ export function AdminCoursesTable({
                 Updated
               </TableHead>
               <TableHead className="w-[5%] min-w-[60px] smallcaps-label h-11 px-4 pr-6 text-center">
-                View
+                Actions
               </TableHead>
             </TableRow>
           </TableHeader>

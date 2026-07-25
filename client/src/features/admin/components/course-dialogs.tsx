@@ -23,12 +23,16 @@ export function CreateAdminCourseDialog({
 }: CreateAdminCourseDialogProps) {
   const [open, setOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const handleOpenChange = (nextOpen: boolean) => {
+    setErrorMessage(null)
+    setOpen(nextOpen)
+  }
 
   const handleSubmit = async (values: AdminCourseFormValues) => {
     try {
       setErrorMessage(null)
       await onCreateCourse(values)
-      setOpen(false)
+      handleOpenChange(false)
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : 'Unable to create course.',
@@ -37,7 +41,7 @@ export function CreateAdminCourseDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger render={<Button />}>
         <BookPlusIcon />
         Create Course
@@ -59,7 +63,7 @@ export function CreateAdminCourseDialog({
         ) : null}
         <AdminCourseForm
           onSubmit={handleSubmit}
-          onCancel={() => setOpen(false)}
+          onCancel={() => handleOpenChange(false)}
         />
       </DialogContent>
     </Dialog>
@@ -77,12 +81,16 @@ export function EditAdminCourseDialog({
 }: EditAdminCourseDialogProps) {
   const [open, setOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const handleOpenChange = (nextOpen: boolean) => {
+    setErrorMessage(null)
+    setOpen(nextOpen)
+  }
 
   const handleSubmit = async (values: AdminCourseFormValues) => {
     try {
       setErrorMessage(null)
       await onUpdateCourse(values)
-      setOpen(false)
+      handleOpenChange(false)
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : 'Unable to update course.',
@@ -91,7 +99,7 @@ export function EditAdminCourseDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger
         render={
           <Button
@@ -127,7 +135,7 @@ export function EditAdminCourseDialog({
             title: course.title,
           }}
           onSubmit={handleSubmit}
-          onCancel={() => setOpen(false)}
+          onCancel={() => handleOpenChange(false)}
         />
       </DialogContent>
     </Dialog>

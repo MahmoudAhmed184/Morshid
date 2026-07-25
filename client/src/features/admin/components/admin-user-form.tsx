@@ -25,22 +25,7 @@ import type { AdminCreateUserFormValues } from '../schemas/admin-managed-user.sc
 import { Input } from '@/components/ui/input'
 
 const adminEditUserFormSchema = adminCreateUserFormSchema.extend({
-  password: z
-    .string()
-    .transform((val) => val.trim())
-    .refine(
-      (val) =>
-        val.length === 0 ||
-        (val.length >= 8 &&
-          val.length <= 50 &&
-          /[A-Za-z]/.test(val) &&
-          /\d/.test(val) &&
-          /[^A-Za-z0-9]/.test(val)),
-      {
-        message:
-          'Password must be 8–50 characters with at least one letter, number, and symbol (or leave blank to keep unchanged).',
-      },
-    ),
+  password: z.literal(''),
 })
 
 type AdminUserFormProps = {
@@ -116,32 +101,33 @@ export function AdminUserForm({
             )}
           />
 
-          <FormField
-            control={form.control}
-            name="password"
-            render={({ field }) => (
-              <FormItem>
-                <PasswordField
-                  {...field}
-                  id="user-password"
-                  label={isEditing ? 'New Password (Optional)' : 'Password'}
-                  placeholder={
-                    isEditing
-                      ? 'Leave blank to keep current'
-                      : 'e.g., Password1!'
-                  }
-                  autoComplete="new-password"
-                  showForgotPassword={false}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {isEditing
-                    ? 'Leave empty to preserve existing password.'
-                    : '8–50 characters with at least one letter, number, and symbol.'}
-                </p>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          {isEditing ? (
+            <p className="self-end text-xs text-muted-foreground">
+              To change credentials, use Reset password from the user actions.
+            </p>
+          ) : (
+            <FormField
+              control={form.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem>
+                  <PasswordField
+                    {...field}
+                    id="user-password"
+                    label="Password"
+                    placeholder="e.g., Password1!"
+                    autoComplete="new-password"
+                    showForgotPassword={false}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    8–50 characters with at least one letter, number, and
+                    symbol.
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
 
           <FormField
             control={form.control}
