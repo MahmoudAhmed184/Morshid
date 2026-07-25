@@ -3,6 +3,23 @@ import { isAbsolute } from 'node:path'
 import { z } from 'zod'
 
 import {
+  AWS_BEDROCK_COMPLETION_PROVIDER,
+  DEFAULT_AWS_BEDROCK_MAX_TOKENS,
+  DEFAULT_ITI_BEDROCK_GATEWAY_BASE_URL,
+  DETERMINISTIC_COMPLETION_PROVIDER,
+  MAX_AWS_BEDROCK_ALLOWED_MODEL_IDS,
+  MAX_AWS_BEDROCK_ALLOWED_MODEL_IDS_LENGTH,
+  MAX_AWS_BEDROCK_MAX_TOKENS,
+  MAX_AWS_BEDROCK_MODEL_ID_LENGTH,
+  MAX_ITI_BEDROCK_API_KEY_LENGTH,
+  MAX_ITI_BEDROCK_BASE_URL_LENGTH,
+  MIN_AWS_BEDROCK_MAX_TOKENS,
+  isValidAwsBedrockModelId,
+  isValidItiBedrockApiKey,
+  parseAwsBedrockAllowedModelIds,
+  validateItiBedrockBaseUrl,
+} from '../completion/completion-configuration'
+import {
   DEFAULT_COMPLETION_TIMEOUT_MS,
   MAX_COMPLETION_TIMEOUT_MS,
 } from '../completion/validated-completion.provider'
@@ -38,15 +55,54 @@ export const envSchema = z
     // never has to reject a configured-but-unimplemented provider at runtime.
     // The deterministic default keeps CI and local work keyless and offline.
     EMBEDDING_PROVIDER: z.enum(['deterministic']).default('deterministic'),
-    // Completion remains keyless and offline in P0. The timeout bounds every
-    // adapter invocation even when an implementation ignores cancellation.
-    COMPLETION_PROVIDER: z.enum(['deterministic']).default('deterministic'),
+    // Deterministic remains the committed keyless/offline default. Live
+    // completion is selected explicitly and always goes through ITI's gateway.
+    COMPLETION_PROVIDER: z
+      .enum([
+        DETERMINISTIC_COMPLETION_PROVIDER,
+        AWS_BEDROCK_COMPLETION_PROVIDER,
+      ])
+      .default(DETERMINISTIC_COMPLETION_PROVIDER),
     COMPLETION_TIMEOUT_MS: z.coerce
       .number()
       .int()
       .positive()
       .max(MAX_COMPLETION_TIMEOUT_MS)
       .default(DEFAULT_COMPLETION_TIMEOUT_MS),
+    ITI_BEDROCK_GATEWAY_BASE_URL: z
+      .url()
+      .max(MAX_ITI_BEDROCK_BASE_URL_LENGTH)
+      .default(DEFAULT_ITI_BEDROCK_GATEWAY_BASE_URL),
+    ITI_BEDROCK_GATEWAY_API_KEY: z
+      .string()
+      .max(MAX_ITI_BEDROCK_API_KEY_LENGTH)
+      .optional(),
+    // The sibling gateway keys ship blank in `.env.example` and compose passes
+    // them through as `${VAR:-}`, so a blank value must mean "off" rather than
+    // a boot failure.
+    ITI_BEDROCK_ALLOW_INSECURE_HTTP: z
+      .union([z.boolean(), z.enum(['true', 'false', ''])])
+      .default(false)
+      .transform((value) => value === true || value === 'true'),
+    AWS_BEDROCK_MODEL_ID: z
+      .string()
+      .max(MAX_AWS_BEDROCK_MODEL_ID_LENGTH)
+      .refine(
+        (value) => value === '' || isValidAwsBedrockModelId(value),
+        'must be empty or a valid model ID',
+      )
+      .default(''),
+    AWS_BEDROCK_ALLOWED_MODEL_IDS: z
+      .string()
+      .max(MAX_AWS_BEDROCK_ALLOWED_MODEL_IDS_LENGTH)
+      .default('')
+      .transform((value, ctx) => parseAllowedModelIds(value, ctx)),
+    AWS_BEDROCK_MAX_TOKENS: z.coerce
+      .number()
+      .int()
+      .min(MIN_AWS_BEDROCK_MAX_TOKENS)
+      .max(MAX_AWS_BEDROCK_MAX_TOKENS)
+      .default(DEFAULT_AWS_BEDROCK_MAX_TOKENS),
     // Retrieval knobs are validated configuration, never caller input: the
     // repository/service signatures expose no limit or threshold parameters.
     // The 0.70 floor may change only after the sprint 4.1 midpoint check
@@ -86,6 +142,58 @@ export const envSchema = z
       })
     }
 
+    if (env.COMPLETION_PROVIDER === AWS_BEDROCK_COMPLETION_PROVIDER) {
+      // Gated with every other gateway rule: a keyless offline deployment must
+      // not be blocked from booting by a stale value it never reads.
+      try {
+        validateItiBedrockBaseUrl(
+          env.ITI_BEDROCK_GATEWAY_BASE_URL,
+          env.NODE_ENV,
+          env.ITI_BEDROCK_ALLOW_INSECURE_HTTP,
+        )
+      } catch {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['ITI_BEDROCK_GATEWAY_BASE_URL'],
+          message:
+            'must use HTTPS to a public host without credentials, query, or fragment; HTTP is limited to the explicitly enabled ITI development endpoint',
+        })
+      }
+
+      if (!isValidItiBedrockApiKey(env.ITI_BEDROCK_GATEWAY_API_KEY)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['ITI_BEDROCK_GATEWAY_API_KEY'],
+          message:
+            'is required for aws-bedrock and must contain only printable ASCII characters, without whitespace',
+        })
+      }
+
+      if (env.AWS_BEDROCK_MODEL_ID === '') {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['AWS_BEDROCK_MODEL_ID'],
+          message: 'must be an explicit valid model ID for aws-bedrock',
+        })
+      }
+
+      if (env.AWS_BEDROCK_ALLOWED_MODEL_IDS.length === 0) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['AWS_BEDROCK_ALLOWED_MODEL_IDS'],
+          message: 'must contain at least one model ID for aws-bedrock',
+        })
+      } else if (
+        !env.AWS_BEDROCK_ALLOWED_MODEL_IDS.includes(env.AWS_BEDROCK_MODEL_ID)
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['AWS_BEDROCK_MODEL_ID'],
+          message: 'must be present in AWS_BEDROCK_ALLOWED_MODEL_IDS',
+        })
+      }
+    }
+
     if (env.NODE_ENV === 'production' && !isAbsolute(env.PDF_STORAGE_PATH)) {
       ctx.addIssue({
         code: 'custom',
@@ -97,6 +205,37 @@ export const envSchema = z
   })
 
 export type AppEnvironment = z.infer<typeof envSchema>
+
+const ALLOWED_MODEL_IDS_REJECTION_MESSAGES = {
+  'invalid-model-id': 'must be a comma-separated list of valid model IDs',
+  'duplicate-model-id': 'must not contain duplicate model IDs',
+  'too-many-model-ids': `must contain at most ${String(MAX_AWS_BEDROCK_ALLOWED_MODEL_IDS)} model IDs`,
+} as const
+
+// The environment carries the allow-list as one comma-separated string; the
+// entries themselves are validated by the completion module, which owns this
+// vocabulary for both startup and runtime.
+function parseAllowedModelIds(
+  value: string,
+  ctx: z.RefinementCtx,
+): readonly string[] {
+  if (value === '') {
+    return Object.freeze([])
+  }
+
+  const result = parseAwsBedrockAllowedModelIds(
+    value.split(',').map((modelId) => modelId.trim()),
+  )
+  if (!result.ok) {
+    ctx.addIssue({
+      code: 'custom',
+      message: ALLOWED_MODEL_IDS_REJECTION_MESSAGES[result.rejection],
+    })
+    return z.NEVER
+  }
+
+  return result.modelIds
+}
 
 export function formatEnvIssues(error: z.ZodError) {
   return error.issues

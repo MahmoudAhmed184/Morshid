@@ -56,6 +56,20 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-morshid}:${POSTGRES_PASSWORD:-morshid_local_password}@postgres:5432/${POSTGRES_DB:-morshid}
       REDIS_URL: redis://redis:6379
       PDF_STORAGE_PATH: /workspace/storage/pdfs
+      COMPLETION_PROVIDER: ${COMPLETION_PROVIDER:-deterministic}
+      COMPLETION_TIMEOUT_MS: ${COMPLETION_TIMEOUT_MS:-30000}
+      ITI_BEDROCK_GATEWAY_BASE_URL: ${ITI_BEDROCK_GATEWAY_BASE_URL:-https://apiaccess.iti.net.eg/api/v1}
+      ITI_BEDROCK_GATEWAY_API_KEY: ${ITI_BEDROCK_GATEWAY_API_KEY:-}
+      # Production never permits the temporary plaintext development transport.
+      # The schema also accepts a blank value as false, so the pinned 'false'
+      # here is an explicit statement rather than a load-bearing one.
+      ITI_BEDROCK_ALLOW_INSECURE_HTTP: 'false'
+      AWS_BEDROCK_MODEL_ID: ${AWS_BEDROCK_MODEL_ID:-}
+      AWS_BEDROCK_ALLOWED_MODEL_IDS: ${AWS_BEDROCK_ALLOWED_MODEL_IDS:-}
+      # Must land in 256-4096 whatever the provider: below that floor the
+      # gateway has been observed returning HTTP 200 with blank output while
+      # still billing a usage event. The 1024 default is well above it.
+      AWS_BEDROCK_MAX_TOKENS: ${AWS_BEDROCK_MAX_TOKENS:-1024}
       # No insecure fallback: an unset variable is passed through empty (not a
       # committed placeholder), and the server's env schema rejects empty,
       # placeholder, or identical secrets at boot. A `:?` guard is intentionally

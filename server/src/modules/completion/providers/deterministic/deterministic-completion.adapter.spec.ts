@@ -1,18 +1,17 @@
-import { Test } from '@nestjs/testing'
-
-import type { PreparedCompletionRequest } from './completion-adapter'
-import type { CompletionRequest } from './completion-provider'
-import { CompletionProviderError } from './completion-provider'
+import type { PreparedCompletionRequest } from '../../completion-adapter'
+import type { CompletionRequest } from '../../completion-provider'
+import { CompletionProviderError } from '../../completion-provider'
 import {
   DETERMINISTIC_COMPLETION_MODEL,
-  DETERMINISTIC_COMPLETION_PROVIDER,
   DETERMINISTIC_EVIDENCE_EXCERPT_CODE_POINTS,
-  DeterministicCompletionProvider,
-} from './deterministic-completion.provider'
+  DeterministicCompletionAdapter,
+} from './deterministic-completion.adapter'
+import { DETERMINISTIC_COMPLETION_PROVIDER } from '../../completion-configuration'
+import type { GroundedCompletionMessage } from '../../grounded-completion-envelope'
 import {
   GROUNDED_COMPLETION_PROMPT_VERSION,
   buildGroundedCompletionMessages,
-} from './grounded-completion-envelope'
+} from '../../grounded-completion-envelope'
 
 function completionInput(
   overrides: Partial<CompletionRequest> = {},
@@ -46,23 +45,9 @@ function request(
   }
 }
 
-describe('DeterministicCompletionProvider', () => {
-  it('is resolvable from its Nest provider scaffold', async () => {
-    const module = await Test.createTestingModule({
-      providers: [DeterministicCompletionProvider],
-    }).compile()
-
-    try {
-      expect(module.get(DeterministicCompletionProvider)).toBeInstanceOf(
-        DeterministicCompletionProvider,
-      )
-    } finally {
-      await module.close()
-    }
-  })
-
+describe('DeterministicCompletionAdapter', () => {
   it('pins complete offline output and persistence metadata', async () => {
-    const result = await new DeterministicCompletionProvider().complete(
+    const result = await new DeterministicCompletionAdapter().complete(
       request(),
     )
 
@@ -82,13 +67,11 @@ describe('DeterministicCompletionProvider', () => {
   })
 
   it('is stable across calls and instances while preserving context order', async () => {
-    const provider = new DeterministicCompletionProvider()
+    const provider = new DeterministicCompletionAdapter()
 
     const first = await provider.complete(request())
     const second = await provider.complete(request())
-    const fresh = await new DeterministicCompletionProvider().complete(
-      request(),
-    )
+    const fresh = await new DeterministicCompletionAdapter().complete(request())
 
     expect(second).toEqual(first)
     expect(fresh).toEqual(first)
@@ -98,7 +81,7 @@ describe('DeterministicCompletionProvider', () => {
   })
 
   it('does not use or echo the student question', async () => {
-    const provider = new DeterministicCompletionProvider()
+    const provider = new DeterministicCompletionAdapter()
     const privateQuestion = 'private-question-sentinel'
 
     const first = await provider.complete(request())
@@ -112,7 +95,7 @@ describe('DeterministicCompletionProvider', () => {
 
   it('contains no variable knowledge absent from supplied context', async () => {
     const absentKnowledge = 'absent-context-sentinel'
-    const result = await new DeterministicCompletionProvider().complete(
+    const result = await new DeterministicCompletionAdapter().complete(
       request(),
     )
 
@@ -130,7 +113,7 @@ describe('DeterministicCompletionProvider', () => {
   })
 
   it('changes only when normalized supplied context changes', async () => {
-    const provider = new DeterministicCompletionProvider()
+    const provider = new DeterministicCompletionAdapter()
     const original = await provider.complete(request())
     const changed = await provider.complete(
       request({
@@ -152,7 +135,7 @@ describe('DeterministicCompletionProvider', () => {
     ['surrounding and repeated whitespace', '  alpha\n\t beta  ', 'alpha beta'],
     ['NFKC compatibility forms', 'ﬁle', 'file'],
   ])('normalizes %s in titles and evidence', async (_, raw, normalized) => {
-    const provider = new DeterministicCompletionProvider()
+    const provider = new DeterministicCompletionAdapter()
     const rawResult = await provider.complete(
       request({
         context: [{ sourceTitle: raw, chunkIndex: 0, content: raw }],
@@ -171,7 +154,7 @@ describe('DeterministicCompletionProvider', () => {
 
   it('limits evidence by Unicode code point rather than UTF-16 code unit', async () => {
     const content = `${'😀'.repeat(DETERMINISTIC_EVIDENCE_EXCERPT_CODE_POINTS)}excluded-sentinel`
-    const result = await new DeterministicCompletionProvider().complete(
+    const result = await new DeterministicCompletionAdapter().complete(
       request({
         context: [{ sourceTitle: 'Unicode', chunkIndex: 0, content }],
       }),
@@ -187,12 +170,43 @@ describe('DeterministicCompletionProvider', () => {
     expect(result.content).not.toContain('excluded-sentinel')
   })
 
+  // Both fixtures put a well-formed untrusted envelope at index 1, so the
+  // adapter would happily produce output without the role assertion. Only the
+  // declared roles are wrong, which is exactly the silent reordering that the
+  // grounded envelope exists to prevent.
+  it.each([
+    ['the authoritative message is missing entirely', 'both-untrusted'],
+    ['the authoritative message declares the untrusted role', 'mislabelled'],
+  ])('refuses a prepared request where %s', async (_, variant) => {
+    const [systemMessage, userMessage] =
+      buildGroundedCompletionMessages(completionInput())
+    const authoritative: GroundedCompletionMessage =
+      variant === 'both-untrusted'
+        ? userMessage
+        : { role: 'user', content: systemMessage.content }
+
+    const failure = await new DeterministicCompletionAdapter()
+      .complete({
+        messages: [authoritative, userMessage],
+        signal: new AbortController().signal,
+      })
+      .then(
+        () => null,
+        (error: unknown) => error,
+      )
+
+    expect(failure).toBeInstanceOf(CompletionProviderError)
+    expect((failure as CompletionProviderError).code).toBe(
+      'COMPLETION_INVALID_REQUEST',
+    )
+  })
+
   it('rejects pre-aborted requests without retaining the abort reason', async () => {
     const controller = new AbortController()
     const privateReason = 'private-pre-abort-reason'
     controller.abort(privateReason)
 
-    const failure = await new DeterministicCompletionProvider()
+    const failure = await new DeterministicCompletionAdapter()
       .complete(request({ signal: controller.signal }))
       .then(
         () => null,
