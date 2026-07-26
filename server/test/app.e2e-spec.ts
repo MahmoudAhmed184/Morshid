@@ -4,8 +4,10 @@ import request from 'supertest'
 import type { App } from 'supertest/types'
 import { configureApp } from '../src/app.setup'
 import { AppModule } from './../src/app.module'
+import { MaterialProcessingScheduler } from '../src/modules/materials/material-processing.scheduler'
 import { PrismaService } from '../src/modules/prisma/prisma.service'
 import { RedisService } from '../src/modules/redis/redis.service'
+import { NoopMaterialProcessingScheduler } from './support/noop-material-processing-scheduler'
 
 interface HealthResponse {
   status: string
@@ -26,6 +28,12 @@ describe('HealthController (e2e)', () => {
     process.env.DATABASE_URL =
       'postgresql://morshid:morshid_local_password@localhost:5432/morshid'
     process.env.REDIS_URL = 'redis://localhost:6379'
+    process.env.AUTH_ACCESS_TOKEN_SECRET =
+      'test-access-token-secret-with-at-least-32-characters'
+    process.env.AUTH_REFRESH_TOKEN_HASH_SECRET =
+      'test-refresh-token-hash-secret-with-at-least-32-characters'
+    process.env.AUTH_ACCESS_TOKEN_TTL_SECONDS = '900'
+    process.env.AUTH_REFRESH_TOKEN_TTL_DAYS = '7'
   })
 
   beforeEach(async () => {
@@ -40,6 +48,8 @@ describe('HealthController (e2e)', () => {
       .useValue(prismaService)
       .overrideProvider(RedisService)
       .useValue(redisService)
+      .overrideProvider(MaterialProcessingScheduler)
+      .useClass(NoopMaterialProcessingScheduler)
       .compile()
 
     app = moduleFixture.createNestApplication()

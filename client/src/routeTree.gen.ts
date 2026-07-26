@@ -9,38 +9,291 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as HealthRouteImport } from './routes/health'
+import { Route as StudentRouteImport } from './routes/_student'
+import { Route as InstructorRouteRouteImport } from './routes/instructor/route'
+import { Route as AdminRouteRouteImport } from './routes/admin/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as InstructorIndexRouteImport } from './routes/instructor/index'
+import { Route as AdminIndexRouteImport } from './routes/admin/index'
+import { Route as InstructorSettingsRouteImport } from './routes/instructor/settings'
+import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
+import { Route as StudentSettingsRouteImport } from './routes/_student.settings'
+import { Route as StudentChatRouteImport } from './routes/_student.chat'
+import { Route as InstructorReviewQueueIndexRouteImport } from './routes/instructor/review-queue/index'
+import { Route as InstructorMaterialsIndexRouteImport } from './routes/instructor/materials/index'
+import { Route as AdminUsersIndexRouteImport } from './routes/admin/users/index'
+import { Route as AdminMaterialsIndexRouteImport } from './routes/admin/materials/index'
+import { Route as AdminCoursesIndexRouteImport } from './routes/admin/courses/index'
+import { Route as AdminAuditIndexRouteImport } from './routes/admin/audit/index'
+import { Route as AdminAssignmentsIndexRouteImport } from './routes/admin/assignments/index'
 
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HealthRoute = HealthRouteImport.update({
+  id: '/health',
+  path: '/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StudentRoute = StudentRouteImport.update({
+  id: '/_student',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InstructorRouteRoute = InstructorRouteRouteImport.update({
+  id: '/instructor',
+  path: '/instructor',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRouteRoute = AdminRouteRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const InstructorIndexRoute = InstructorIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => InstructorRouteRoute,
+} as any)
+const AdminIndexRoute = AdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const InstructorSettingsRoute = InstructorSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => InstructorRouteRoute,
+} as any)
+const AdminSettingsRoute = AdminSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const StudentSettingsRoute = StudentSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => StudentRoute,
+} as any)
+const StudentChatRoute = StudentChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
+  getParentRoute: () => StudentRoute,
+} as any)
+const InstructorReviewQueueIndexRoute =
+  InstructorReviewQueueIndexRouteImport.update({
+    id: '/review-queue/',
+    path: '/review-queue/',
+    getParentRoute: () => InstructorRouteRoute,
+  } as any)
+const InstructorMaterialsIndexRoute =
+  InstructorMaterialsIndexRouteImport.update({
+    id: '/materials/',
+    path: '/materials/',
+    getParentRoute: () => InstructorRouteRoute,
+  } as any)
+const AdminUsersIndexRoute = AdminUsersIndexRouteImport.update({
+  id: '/users/',
+  path: '/users/',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminMaterialsIndexRoute = AdminMaterialsIndexRouteImport.update({
+  id: '/materials/',
+  path: '/materials/',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminCoursesIndexRoute = AdminCoursesIndexRouteImport.update({
+  id: '/courses/',
+  path: '/courses/',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminAuditIndexRoute = AdminAuditIndexRouteImport.update({
+  id: '/audit/',
+  path: '/audit/',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminAssignmentsIndexRoute = AdminAssignmentsIndexRouteImport.update({
+  id: '/assignments/',
+  path: '/assignments/',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteRouteWithChildren
+  '/instructor': typeof InstructorRouteRouteWithChildren
+  '/health': typeof HealthRoute
+  '/login': typeof LoginRoute
+  '/chat': typeof StudentChatRoute
+  '/settings': typeof StudentSettingsRoute
+  '/admin/settings': typeof AdminSettingsRoute
+  '/instructor/settings': typeof InstructorSettingsRoute
+  '/admin/': typeof AdminIndexRoute
+  '/instructor/': typeof InstructorIndexRoute
+  '/admin/assignments/': typeof AdminAssignmentsIndexRoute
+  '/admin/audit/': typeof AdminAuditIndexRoute
+  '/admin/courses/': typeof AdminCoursesIndexRoute
+  '/admin/materials/': typeof AdminMaterialsIndexRoute
+  '/admin/users/': typeof AdminUsersIndexRoute
+  '/instructor/materials/': typeof InstructorMaterialsIndexRoute
+  '/instructor/review-queue/': typeof InstructorReviewQueueIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/health': typeof HealthRoute
+  '/login': typeof LoginRoute
+  '/chat': typeof StudentChatRoute
+  '/settings': typeof StudentSettingsRoute
+  '/admin/settings': typeof AdminSettingsRoute
+  '/instructor/settings': typeof InstructorSettingsRoute
+  '/admin': typeof AdminIndexRoute
+  '/instructor': typeof InstructorIndexRoute
+  '/admin/assignments': typeof AdminAssignmentsIndexRoute
+  '/admin/audit': typeof AdminAuditIndexRoute
+  '/admin/courses': typeof AdminCoursesIndexRoute
+  '/admin/materials': typeof AdminMaterialsIndexRoute
+  '/admin/users': typeof AdminUsersIndexRoute
+  '/instructor/materials': typeof InstructorMaterialsIndexRoute
+  '/instructor/review-queue': typeof InstructorReviewQueueIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteRouteWithChildren
+  '/instructor': typeof InstructorRouteRouteWithChildren
+  '/_student': typeof StudentRouteWithChildren
+  '/health': typeof HealthRoute
+  '/login': typeof LoginRoute
+  '/_student/chat': typeof StudentChatRoute
+  '/_student/settings': typeof StudentSettingsRoute
+  '/admin/settings': typeof AdminSettingsRoute
+  '/instructor/settings': typeof InstructorSettingsRoute
+  '/admin/': typeof AdminIndexRoute
+  '/instructor/': typeof InstructorIndexRoute
+  '/admin/assignments/': typeof AdminAssignmentsIndexRoute
+  '/admin/audit/': typeof AdminAuditIndexRoute
+  '/admin/courses/': typeof AdminCoursesIndexRoute
+  '/admin/materials/': typeof AdminMaterialsIndexRoute
+  '/admin/users/': typeof AdminUsersIndexRoute
+  '/instructor/materials/': typeof InstructorMaterialsIndexRoute
+  '/instructor/review-queue/': typeof InstructorReviewQueueIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/admin'
+    | '/instructor'
+    | '/health'
+    | '/login'
+    | '/chat'
+    | '/settings'
+    | '/admin/settings'
+    | '/instructor/settings'
+    | '/admin/'
+    | '/instructor/'
+    | '/admin/assignments/'
+    | '/admin/audit/'
+    | '/admin/courses/'
+    | '/admin/materials/'
+    | '/admin/users/'
+    | '/instructor/materials/'
+    | '/instructor/review-queue/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/health'
+    | '/login'
+    | '/chat'
+    | '/settings'
+    | '/admin/settings'
+    | '/instructor/settings'
+    | '/admin'
+    | '/instructor'
+    | '/admin/assignments'
+    | '/admin/audit'
+    | '/admin/courses'
+    | '/admin/materials'
+    | '/admin/users'
+    | '/instructor/materials'
+    | '/instructor/review-queue'
+  id:
+    | '__root__'
+    | '/'
+    | '/admin'
+    | '/instructor'
+    | '/_student'
+    | '/health'
+    | '/login'
+    | '/_student/chat'
+    | '/_student/settings'
+    | '/admin/settings'
+    | '/instructor/settings'
+    | '/admin/'
+    | '/instructor/'
+    | '/admin/assignments/'
+    | '/admin/audit/'
+    | '/admin/courses/'
+    | '/admin/materials/'
+    | '/admin/users/'
+    | '/instructor/materials/'
+    | '/instructor/review-queue/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRouteRoute: typeof AdminRouteRouteWithChildren
+  InstructorRouteRoute: typeof InstructorRouteRouteWithChildren
+  StudentRoute: typeof StudentRouteWithChildren
+  HealthRoute: typeof HealthRoute
+  LoginRoute: typeof LoginRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/health': {
+      id: '/health'
+      path: '/health'
+      fullPath: '/health'
+      preLoaderRoute: typeof HealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_student': {
+      id: '/_student'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof StudentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/instructor': {
+      id: '/instructor'
+      path: '/instructor'
+      fullPath: '/instructor'
+      preLoaderRoute: typeof InstructorRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,11 +301,162 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/instructor/': {
+      id: '/instructor/'
+      path: '/'
+      fullPath: '/instructor/'
+      preLoaderRoute: typeof InstructorIndexRouteImport
+      parentRoute: typeof InstructorRouteRoute
+    }
+    '/admin/': {
+      id: '/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AdminIndexRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/instructor/settings': {
+      id: '/instructor/settings'
+      path: '/settings'
+      fullPath: '/instructor/settings'
+      preLoaderRoute: typeof InstructorSettingsRouteImport
+      parentRoute: typeof InstructorRouteRoute
+    }
+    '/admin/settings': {
+      id: '/admin/settings'
+      path: '/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof AdminSettingsRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/_student/settings': {
+      id: '/_student/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof StudentSettingsRouteImport
+      parentRoute: typeof StudentRoute
+    }
+    '/_student/chat': {
+      id: '/_student/chat'
+      path: '/chat'
+      fullPath: '/chat'
+      preLoaderRoute: typeof StudentChatRouteImport
+      parentRoute: typeof StudentRoute
+    }
+    '/instructor/review-queue/': {
+      id: '/instructor/review-queue/'
+      path: '/review-queue'
+      fullPath: '/instructor/review-queue/'
+      preLoaderRoute: typeof InstructorReviewQueueIndexRouteImport
+      parentRoute: typeof InstructorRouteRoute
+    }
+    '/instructor/materials/': {
+      id: '/instructor/materials/'
+      path: '/materials'
+      fullPath: '/instructor/materials/'
+      preLoaderRoute: typeof InstructorMaterialsIndexRouteImport
+      parentRoute: typeof InstructorRouteRoute
+    }
+    '/admin/users/': {
+      id: '/admin/users/'
+      path: '/users'
+      fullPath: '/admin/users/'
+      preLoaderRoute: typeof AdminUsersIndexRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/materials/': {
+      id: '/admin/materials/'
+      path: '/materials'
+      fullPath: '/admin/materials/'
+      preLoaderRoute: typeof AdminMaterialsIndexRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/courses/': {
+      id: '/admin/courses/'
+      path: '/courses'
+      fullPath: '/admin/courses/'
+      preLoaderRoute: typeof AdminCoursesIndexRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/audit/': {
+      id: '/admin/audit/'
+      path: '/audit'
+      fullPath: '/admin/audit/'
+      preLoaderRoute: typeof AdminAuditIndexRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/assignments/': {
+      id: '/admin/assignments/'
+      path: '/assignments'
+      fullPath: '/admin/assignments/'
+      preLoaderRoute: typeof AdminAssignmentsIndexRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
   }
 }
 
+interface AdminRouteRouteChildren {
+  AdminSettingsRoute: typeof AdminSettingsRoute
+  AdminIndexRoute: typeof AdminIndexRoute
+  AdminAssignmentsIndexRoute: typeof AdminAssignmentsIndexRoute
+  AdminAuditIndexRoute: typeof AdminAuditIndexRoute
+  AdminCoursesIndexRoute: typeof AdminCoursesIndexRoute
+  AdminMaterialsIndexRoute: typeof AdminMaterialsIndexRoute
+  AdminUsersIndexRoute: typeof AdminUsersIndexRoute
+}
+
+const AdminRouteRouteChildren: AdminRouteRouteChildren = {
+  AdminSettingsRoute: AdminSettingsRoute,
+  AdminIndexRoute: AdminIndexRoute,
+  AdminAssignmentsIndexRoute: AdminAssignmentsIndexRoute,
+  AdminAuditIndexRoute: AdminAuditIndexRoute,
+  AdminCoursesIndexRoute: AdminCoursesIndexRoute,
+  AdminMaterialsIndexRoute: AdminMaterialsIndexRoute,
+  AdminUsersIndexRoute: AdminUsersIndexRoute,
+}
+
+const AdminRouteRouteWithChildren = AdminRouteRoute._addFileChildren(
+  AdminRouteRouteChildren,
+)
+
+interface InstructorRouteRouteChildren {
+  InstructorSettingsRoute: typeof InstructorSettingsRoute
+  InstructorIndexRoute: typeof InstructorIndexRoute
+  InstructorMaterialsIndexRoute: typeof InstructorMaterialsIndexRoute
+  InstructorReviewQueueIndexRoute: typeof InstructorReviewQueueIndexRoute
+}
+
+const InstructorRouteRouteChildren: InstructorRouteRouteChildren = {
+  InstructorSettingsRoute: InstructorSettingsRoute,
+  InstructorIndexRoute: InstructorIndexRoute,
+  InstructorMaterialsIndexRoute: InstructorMaterialsIndexRoute,
+  InstructorReviewQueueIndexRoute: InstructorReviewQueueIndexRoute,
+}
+
+const InstructorRouteRouteWithChildren = InstructorRouteRoute._addFileChildren(
+  InstructorRouteRouteChildren,
+)
+
+interface StudentRouteChildren {
+  StudentChatRoute: typeof StudentChatRoute
+  StudentSettingsRoute: typeof StudentSettingsRoute
+}
+
+const StudentRouteChildren: StudentRouteChildren = {
+  StudentChatRoute: StudentChatRoute,
+  StudentSettingsRoute: StudentSettingsRoute,
+}
+
+const StudentRouteWithChildren =
+  StudentRoute._addFileChildren(StudentRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRouteRoute: AdminRouteRouteWithChildren,
+  InstructorRouteRoute: InstructorRouteRouteWithChildren,
+  StudentRoute: StudentRouteWithChildren,
+  HealthRoute: HealthRoute,
+  LoginRoute: LoginRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

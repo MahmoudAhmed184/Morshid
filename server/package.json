@@ -6,7 +6,7 @@
   "private": true,
   "license": "UNLICENSED",
   "engines": {
-    "node": ">=24.3 <25",
+    "node": ">=24.7 <25",
     "npm": ">=11"
   },
   "scripts": {
@@ -14,8 +14,8 @@
     "prebuild": "node scripts/clean-build-cache.mts && npm run db:generate",
     "db:generate": "prisma generate --config prisma.config.ts",
     "db:migrate": "prisma migrate dev --config prisma.config.ts",
-    "db:reset": "prisma migrate reset --config prisma.config.ts --force --skip-seed",
-    "db:seed": "node scripts/noop-seed.mts",
+    "db:reset": "prisma migrate reset --config prisma.config.ts --force",
+    "db:seed": "prisma db seed --config prisma.config.ts",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "prestart": "node scripts/clean-build-cache.mts",
@@ -33,21 +33,35 @@
     "pretypecheck": "npm run db:generate",
     "typecheck": "tsc --noEmit -p tsconfig.eslint.json",
     "pretest": "npm run db:generate",
-    "test": "jest",
+    "test": "node --experimental-vm-modules ../node_modules/jest/bin/jest.js",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
+    "test:gemini:smoke": "tsx scripts/gemini-live-smoke.mts",
+    "test:gemini-embedding:smoke": "tsx scripts/gemini-embedding-live-smoke.mts",
+    "test:gemini-embedding:task-selection": "tsx scripts/gemini-embedding-task-selection.mts",
+    "test:iti-bedrock-embedding:probe": "tsx scripts/iti-bedrock-embedding-contract-probe.mts",
+    "embedding:migrate": "tsx scripts/embedding-migration.mts",
+    "test:iti-bedrock:smoke": "tsx scripts/iti-bedrock-live-smoke.mts",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "pretest:e2e": "npm run db:generate",
+    "test:e2e": "node --experimental-vm-modules ../node_modules/jest/bin/jest.js --config ./test/jest-e2e.json",
+    "db:migrate:deploy": "prisma migrate deploy --config prisma.config.ts",
+    "test:e2e:gate-2": "node --experimental-vm-modules ../node_modules/jest/bin/jest.js --config ./test/jest-e2e.json --runInBand --runTestsByPath ./test/gate-2.e2e-spec.ts",
+    "pretest:e2e:gate-2": "npm run db:generate"
   },
   "dependencies": {
+    "@google/genai": "^2.13.0",
     "@nestjs/common": "^11.1.27",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.1.27",
+    "@nestjs/jwt": "^11.0.2",
     "@nestjs/platform-express": "^11.1.27",
     "@nestjs/swagger": "^11.4.5",
     "@nestjs/terminus": "^11.1.1",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
+    "class-transformer": "^0.5.1",
+    "pdfjs-dist": "^6.1.200",
     "pg": "^8.22.0",
     "redis": "^6.1.0",
     "reflect-metadata": "^0.2.2",
@@ -79,6 +93,7 @@
     "ts-loader": "^9.6.2",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
+    "tsx": "^4.23.0",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.62.1"
   },
@@ -92,6 +107,9 @@
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "moduleNameMapper": {
+      "^(\\.{1,2}/.*)\\.js$": "$1"
     },
     "collectCoverageFrom": [
       "**/*.(t|j)s"

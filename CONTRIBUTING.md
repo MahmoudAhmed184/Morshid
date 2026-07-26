@@ -39,14 +39,45 @@ Keep the subject imperative, concise, and lowercase after the scope.
 
 ## Local Checks
 
-Before opening a PR, run:
+Before opening a PR, run the same canonical check used by CI:
 
 ```bash
-npm run format:check
-npm run lint
-npm run typecheck
-npm run test
-npm run build
+npm run check
 ```
 
-Run `npm run infra:up` and `npm run db:migrate` for changes touching the database, Redis, Prisma, or readiness checks.
+This checks formatting, strict linting, type safety, frontend and backend unit
+tests, and production builds.
+
+For changes covered by server acceptance tests, also run the complete E2E
+sequence:
+
+```bash
+npm run infra:up
+npm run db:migrate:deploy
+npm run test:e2e
+npm run infra:down
+```
+
+Always run `npm run infra:down` when finished, including after a failed
+migration or test run. `infra:up` starts the required Docker Compose services:
+
+- PostgreSQL with pgvector at `localhost:5432`, using database and user
+  `morshid` and password `morshid_local_password` by default.
+- Redis at `redis://localhost:6379`.
+
+The acceptance-test defaults are:
+
+```dotenv
+DATABASE_URL=postgresql://morshid:morshid_local_password@localhost:5432/morshid
+REDIS_URL=redis://localhost:6379
+CLIENT_ORIGIN=http://localhost:3000
+AUTH_ACCESS_TOKEN_SECRET=test-access-token-secret-with-at-least-32-characters
+AUTH_REFRESH_TOKEN_HASH_SECRET=test-refresh-token-hash-secret-with-at-least-32-characters
+AUTH_ACCESS_TOKEN_TTL_SECONDS=900
+AUTH_REFRESH_TOKEN_TTL_DAYS=7
+```
+
+No GitHub Actions secrets are required for this gate. CI creates PostgreSQL
+and Redis locally with ephemeral credentials, and the E2E auth values are
+deterministic test-only secrets. Never reuse them outside automated or local
+test environments.

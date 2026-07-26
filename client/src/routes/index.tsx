@@ -1,7 +1,19 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-import { DevelopmentStatusPage } from '@/features/status/development-status-page'
+import { LandingPage } from '@/features/landing/landing-page'
 
 export const Route = createFileRoute('/')({
-  component: DevelopmentStatusPage,
+  component: LandingPage,
+  head: () => ({
+    meta: [
+      {
+        title: 'Morshid — Master Your Courses with Socratic AI',
+      },
+      {
+        name: 'description',
+        content:
+          'Morshid guides you through complex university coursework using proven Socratic questioning techniques.',
+      },
+    ],
+  }),
 })

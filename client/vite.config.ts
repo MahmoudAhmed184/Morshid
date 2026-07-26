@@ -11,6 +11,13 @@ const config = defineConfig({
   plugins: [devtools(), tailwindcss(), tanstackStart(), viteReact()],
   test: {
     environment: 'jsdom',
+    environmentOptions: {
+      jsdom: {
+        url: 'http://localhost:3000',
+      },
+    },
+    fileParallelism: false,
+    setupFiles: ['./src/test/setup.ts'],
   },
 })
 
