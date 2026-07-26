@@ -30,7 +30,11 @@ export type CourseRetrievalResult =
   // `expectedModel` is an operator diagnostic and must never be serialized to
   // a student: it names the internal document profile, not anything a learner
   // can act on.
-  | { kind: 'embedding_profile_not_ready'; expectedModel: string }
+  | {
+      kind: 'embedding_profile_not_ready'
+      expectedModel: string
+      incompleteMaterialIds: readonly string[]
+    }
 
 const AVAILABILITY_SCAN_MULTIPLIER = 5
 
@@ -88,6 +92,12 @@ export class RetrievalService {
         courseId,
         embeddingModel,
       })
+    this.logger.debug({
+      event: 'retrieval_embedding_protocol',
+      embeddingModel,
+      queryProtocol: this.embeddingProvider.queryProtocol,
+      readiness: readiness.kind,
+    })
 
     if (readiness.kind === 'no_candidate_materials') {
       return { kind: 'insufficient_evidence' }
@@ -101,10 +111,12 @@ export class RetrievalService {
         expectedModel: embeddingModel,
         queryProtocol: this.embeddingProvider.queryProtocol,
         incompleteMaterialCount: readiness.incompleteMaterialCount,
+        incompleteMaterialIds: readiness.incompleteMaterialIds,
       })
       return {
         kind: 'embedding_profile_not_ready',
         expectedModel: embeddingModel,
+        incompleteMaterialIds: readiness.incompleteMaterialIds,
       }
     }
 

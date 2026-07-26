@@ -17,7 +17,8 @@ export function DashboardSourceReadinessSection({
           Source readiness
         </h2>
         <p className="text-sm text-muted-foreground">
-          Processing status stays scoped to the selected course.
+          Strict course readiness — one incompletely embedded candidate material
+          blocks grounded retrieval for that entire course.
         </p>
       </div>
       <SourceReadinessContent state={state} />

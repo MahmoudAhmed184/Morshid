@@ -58,6 +58,11 @@ describe('InstructorDashboardPage', () => {
     expect(
       screen.getByRole('heading', { name: 'Source readiness' }),
     ).toBeVisible()
+    expect(
+      screen.getByText(
+        'Strict course readiness — one incompletely embedded candidate material blocks grounded retrieval for that entire course.',
+      ),
+    ).toBeVisible()
     expect(screen.getByText('Open materials →')).toBeVisible()
     expect(screen.getByText('Open the queue →')).toBeVisible()
   })

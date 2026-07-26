@@ -84,6 +84,7 @@ describe('RetrievalService', () => {
     findEmbeddingProfileReadiness.mockResolvedValue({
       kind: 'not_ready',
       incompleteMaterialCount: 2,
+      incompleteMaterialIds: ['material-a', 'material-b'],
     })
 
     await expect(
@@ -91,6 +92,7 @@ describe('RetrievalService', () => {
     ).resolves.toEqual({
       kind: 'embedding_profile_not_ready',
       expectedModel: embeddingModel,
+      incompleteMaterialIds: ['material-a', 'material-b'],
     })
     expect(embedQuery).not.toHaveBeenCalled()
     expect(findTopChunksForCourse).not.toHaveBeenCalled()

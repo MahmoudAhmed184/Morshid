@@ -23,6 +23,15 @@ const MAX_EMBEDDING_MODEL_LENGTH = 120
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+// The one SQL definition of candidate material shared by readiness and
+// retrieval. Retrieval adds chunk_count > 0 separately; readiness deliberately
+// does not, so it can report a null/zero count as incomplete.
+const CANDIDATE_MATERIAL_PREDICATE = Prisma.sql`
+  material.status IN ('READY'::material_status, 'WARNING'::material_status)
+  AND material.deleted_at IS NULL
+  AND material.extracted_text_length > 0
+`
+
 export interface CourseChunkQuery {
   courseId: string
   queryEmbedding: readonly number[]
@@ -59,7 +68,11 @@ export interface EmbeddingProfileCoverageQuery {
 // declining — the student cannot tell a thin answer from a complete one.
 export type EmbeddingProfileReadiness =
   | { kind: 'no_candidate_materials' }
-  | { kind: 'not_ready'; incompleteMaterialCount: number }
+  | {
+      kind: 'not_ready'
+      incompleteMaterialCount: number
+      incompleteMaterialIds: readonly string[]
+    }
   | { kind: 'ready' }
 
 export class InvalidRetrievalQueryError extends Error {
@@ -127,9 +140,7 @@ export class PrismaCourseRetrievalRepository extends CourseRetrievalRepository {
         FROM material_chunks AS chunk
         JOIN materials AS material ON material.id = chunk.material_id
         WHERE material.course_id = ${query.courseId}::uuid
-          AND material.status IN ('READY'::material_status, 'WARNING'::material_status)
-          AND material.deleted_at IS NULL
-          AND material.extracted_text_length > 0
+          AND ${CANDIDATE_MATERIAL_PREDICATE}
           AND material.chunk_count > 0
           AND chunk.embedding_model = ${query.embeddingModel}
       )
@@ -166,12 +177,11 @@ export class PrismaCourseRetrievalRepository extends CourseRetrievalRepository {
         SELECT material.id, material.chunk_count
         FROM materials AS material
         WHERE material.course_id = ${query.courseId}::uuid
-          AND material.status IN ('READY'::material_status, 'WARNING'::material_status)
-          AND material.deleted_at IS NULL
-          AND material.extracted_text_length > 0
+          AND ${CANDIDATE_MATERIAL_PREDICATE}
       ),
       coverage AS (
         SELECT
+          candidate.id AS material_id,
           candidate.chunk_count,
           (
             SELECT COUNT(*)
@@ -180,15 +190,25 @@ export class PrismaCourseRetrievalRepository extends CourseRetrievalRepository {
               AND chunk.embedding_model = ${query.embeddingModel}
           ) AS covered_chunk_count
         FROM candidate_materials AS candidate
+      ),
+      readiness AS (
+        SELECT
+          material_id,
+          (
+            chunk_count IS NULL
+            OR chunk_count <= 0
+            OR covered_chunk_count < chunk_count
+          ) AS incomplete
+        FROM coverage
       )
       SELECT
         COUNT(*)::int AS "candidateMaterialCount",
-        COUNT(*) FILTER (
-          WHERE chunk_count IS NULL
-            OR chunk_count <= 0
-            OR covered_chunk_count < chunk_count
-        )::int AS "incompleteMaterialCount"
-      FROM coverage
+        COUNT(*) FILTER (WHERE incomplete)::int AS "incompleteMaterialCount",
+        COALESCE(
+          ARRAY_AGG(material_id ORDER BY material_id) FILTER (WHERE incomplete),
+          ARRAY[]::uuid[]
+        ) AS "incompleteMaterialIds"
+      FROM readiness
     `)
 
     // An aggregate over an empty set still returns exactly one row, so a
@@ -207,6 +227,7 @@ export class PrismaCourseRetrievalRepository extends CourseRetrievalRepository {
       return {
         kind: 'not_ready',
         incompleteMaterialCount: row.incompleteMaterialCount,
+        incompleteMaterialIds: row.incompleteMaterialIds,
       }
     }
 
@@ -217,27 +238,17 @@ export class PrismaCourseRetrievalRepository extends CourseRetrievalRepository {
 interface EmbeddingProfileCoverageRow {
   candidateMaterialCount: number
   incompleteMaterialCount: number
+  incompleteMaterialIds: string[]
 }
 
 function assertValidQuery(query: CourseChunkQuery): void {
-  if (!UUID_PATTERN.test(query.courseId)) {
-    throw new InvalidRetrievalQueryError('course-id')
-  }
+  assertValidCoverageQuery(query)
 
   if (
     query.queryEmbedding.length !== EMBEDDING_DIMENSIONS ||
     !query.queryEmbedding.every((component) => Number.isFinite(component))
   ) {
     throw new InvalidRetrievalQueryError('embedding')
-  }
-
-  // Same persisted-model contract the embedding module enforces: non-blank and
-  // within the column width. The message is fixed and carries no value.
-  if (
-    query.embeddingModel.trim() === '' ||
-    query.embeddingModel.length > MAX_EMBEDDING_MODEL_LENGTH
-  ) {
-    throw new InvalidRetrievalQueryError('embedding-model')
   }
 
   if (

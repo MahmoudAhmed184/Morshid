@@ -225,6 +225,7 @@ export class GroundedChatService {
         this.logger.warn({
           event: 'grounded_chat_embedding_profile_not_ready',
           expectedModel: retrieval.expectedModel,
+          incompleteMaterialIds: retrieval.incompleteMaterialIds,
           ...operation,
         })
         return await this.persistBlocked(turn, operation)

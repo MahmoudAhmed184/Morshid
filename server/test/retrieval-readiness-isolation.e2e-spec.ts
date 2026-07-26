@@ -218,6 +218,12 @@ describe('Retrieval threshold readiness and cross-course isolation (e2e)', () =>
     ).resolves.toEqual({
       kind: 'embedding_profile_not_ready',
       expectedModel: 'gemini/gemini-embedding-2/1536/document-v1',
+      incompleteMaterialIds: [
+        RETRIEVAL_TASK_83.materialIds.ready,
+        RETRIEVAL_TASK_83.materialIds.warning,
+        RETRIEVAL_TASK_83.materialIds.missing,
+        RETRIEVAL_TASK_83.materialIds.unavailable,
+      ],
     })
   })
 

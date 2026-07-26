@@ -147,7 +147,11 @@ describe('PrismaCourseRetrievalRepository', () => {
   describe('findEmbeddingProfileReadiness', () => {
     it('binds the course id and profile and keeps the base scope static', async () => {
       queryRaw.mockResolvedValue([
-        { candidateMaterialCount: 2, incompleteMaterialCount: 0 },
+        {
+          candidateMaterialCount: 2,
+          incompleteMaterialCount: 0,
+          incompleteMaterialIds: [],
+        },
       ])
 
       await repository.findEmbeddingProfileReadiness({
@@ -173,7 +177,11 @@ describe('PrismaCourseRetrievalRepository', () => {
 
     it('reports no candidate materials for an empty course', async () => {
       queryRaw.mockResolvedValue([
-        { candidateMaterialCount: 0, incompleteMaterialCount: 0 },
+        {
+          candidateMaterialCount: 0,
+          incompleteMaterialCount: 0,
+          incompleteMaterialIds: [],
+        },
       ])
 
       await expect(
@@ -183,17 +191,29 @@ describe('PrismaCourseRetrievalRepository', () => {
 
     it('reports the incomplete material count when coverage is partial', async () => {
       queryRaw.mockResolvedValue([
-        { candidateMaterialCount: 4, incompleteMaterialCount: 1 },
+        {
+          candidateMaterialCount: 4,
+          incompleteMaterialCount: 1,
+          incompleteMaterialIds: ['00000000-0000-4000-8000-000000000002'],
+        },
       ])
 
       await expect(
         repository.findEmbeddingProfileReadiness({ courseId, embeddingModel }),
-      ).resolves.toEqual({ kind: 'not_ready', incompleteMaterialCount: 1 })
+      ).resolves.toEqual({
+        kind: 'not_ready',
+        incompleteMaterialCount: 1,
+        incompleteMaterialIds: ['00000000-0000-4000-8000-000000000002'],
+      })
     })
 
     it('reports ready when every candidate material is covered', async () => {
       queryRaw.mockResolvedValue([
-        { candidateMaterialCount: 4, incompleteMaterialCount: 0 },
+        {
+          candidateMaterialCount: 4,
+          incompleteMaterialCount: 0,
+          incompleteMaterialIds: [],
+        },
       ])
 
       await expect(

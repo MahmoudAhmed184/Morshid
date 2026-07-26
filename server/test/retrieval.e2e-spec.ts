@@ -389,6 +389,7 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
     ).resolves.toEqual({
       kind: 'embedding_profile_not_ready',
       expectedModel: 'gemini/gemini-embedding-2/1536/document-v1',
+      incompleteMaterialIds: [materialId],
     })
   })
 
