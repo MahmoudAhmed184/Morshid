@@ -1,5 +1,11 @@
 import { Logger } from '@nestjs/common'
 
+import {
+  type BoundedResponseBodyRejection,
+  discardResponseBody,
+  readBoundedResponseBody,
+} from '../../../../common/upstream/bounded-response-body'
+
 import type {
   CompletionAdapter,
   PreparedCompletionRequest,
@@ -143,7 +149,11 @@ export class ItiBedrockGatewayAdapter implements CompletionAdapter {
       throw new ItiBedrockGatewayFailure('http_status', response.status)
     }
 
-    const responseBody = await readBoundedResponseBody(response)
+    const responseBody = await readBoundedResponseBody(
+      response,
+      MAX_ITI_BEDROCK_RESPONSE_BYTES,
+      toGatewayFailure,
+    )
     const gatewayResponse = parseGatewayResponse(responseBody)
 
     return Object.freeze({
@@ -169,74 +179,6 @@ export class ItiBedrockGatewayAdapter implements CompletionAdapter {
       return
     }
     this.logger.error(diagnostic)
-  }
-}
-
-async function readBoundedResponseBody(response: Response): Promise<string> {
-  if (response.body === null) {
-    throw new ItiBedrockGatewayFailure('malformed_response')
-  }
-
-  const reader = response.body.getReader()
-  const chunks: Uint8Array[] = []
-  let byteLength = 0
-  let drained = false
-
-  try {
-    for (;;) {
-      const { done, value } = await reader.read()
-      if (done) {
-        drained = true
-        break
-      }
-      if (!(value instanceof Uint8Array)) {
-        throw new ItiBedrockGatewayFailure('malformed_response')
-      }
-
-      byteLength += value.byteLength
-      if (byteLength > MAX_ITI_BEDROCK_RESPONSE_BYTES) {
-        throw new ItiBedrockGatewayFailure('oversized_response')
-      }
-      chunks.push(value)
-    }
-  } finally {
-    // Uniform for every non-completing exit — invalid chunk, oversize, or a
-    // stream error. Releasing the lock alone would leave the socket open.
-    if (!drained) {
-      await cancelSafely(reader)
-    }
-    reader.releaseLock()
-  }
-
-  const bytes = new Uint8Array(byteLength)
-  let offset = 0
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset)
-    offset += chunk.byteLength
-  }
-
-  try {
-    return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
-  } catch {
-    throw new ItiBedrockGatewayFailure('malformed_response')
-  }
-}
-
-async function discardResponseBody(response: Response): Promise<void> {
-  const body = response.body
-  if (body === null) {
-    return
-  }
-  await cancelSafely(body)
-}
-
-async function cancelSafely(cancellable: {
-  cancel: () => Promise<void>
-}): Promise<void> {
-  try {
-    await cancellable.cancel()
-  } catch {
-    // Discarding an already-failed body must not mask the original failure.
   }
 }
 
@@ -274,4 +216,16 @@ function parseGatewayResponse(body: string): ItiBedrockGatewayResponse {
   }
 
   return Object.freeze({ output_text: outputText })
+}
+
+// The shared reader has no error vocabulary of its own, so the adapter supplies
+// the mapping onto its internal diagnostic categories.
+function toGatewayFailure(
+  rejection: BoundedResponseBodyRejection,
+): ItiBedrockGatewayFailure {
+  return new ItiBedrockGatewayFailure(
+    rejection === 'oversized_body'
+      ? 'oversized_response'
+      : 'malformed_response',
+  )
 }

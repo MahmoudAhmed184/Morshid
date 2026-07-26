@@ -87,7 +87,7 @@ describe('Materials upload (e2e)', () => {
   let store: AuthTestStore
   let storage: FakePdfStorage
   let scheduler: FakeMaterialProcessingScheduler
-  let embedBatch: jest.Mock
+  let embedDocuments: jest.Mock
   let replaceMaterialChunks: jest.Mock
 
   const redisService = {
@@ -98,7 +98,7 @@ describe('Materials upload (e2e)', () => {
     store = new AuthTestStore()
     storage = new FakePdfStorage()
     scheduler = new FakeMaterialProcessingScheduler()
-    embedBatch = jest.fn().mockResolvedValue([])
+    embedDocuments = jest.fn().mockResolvedValue([])
     replaceMaterialChunks = jest.fn().mockResolvedValue(undefined)
     jest.clearAllMocks()
 
@@ -116,7 +116,10 @@ describe('Materials upload (e2e)', () => {
       .overrideProvider(EMBEDDING_PROVIDER_TOKEN)
       .useValue({
         model: 'authorization-side-effect-spy',
-        embedBatch,
+        queryProtocol: 'authorization-side-effect-spy',
+        embedQuery: () =>
+          Promise.reject(new Error('queries are not embedded in this spec')),
+        embedDocuments,
       } satisfies EmbeddingProvider)
       .overrideProvider(RagPersistenceRepository)
       .useValue({ replaceMaterialChunks })
@@ -314,7 +317,7 @@ describe('Materials upload (e2e)', () => {
     expect(storage.create).not.toHaveBeenCalled()
     expect(store.materials.size).toBe(materialCountBefore)
     expect(scheduler.scheduleMaterialProcessing).not.toHaveBeenCalled()
-    expect(embedBatch).not.toHaveBeenCalled()
+    expect(embedDocuments).not.toHaveBeenCalled()
     expect(replaceMaterialChunks).not.toHaveBeenCalled()
     const deniedAudit = [...store.auditLogs.values()].find(
       (event) => event.action === AUDIT_EVENT_ACTIONS.MATERIAL_UPLOAD_DENIED,
@@ -351,7 +354,7 @@ describe('Materials upload (e2e)', () => {
     expect(storage.create).not.toHaveBeenCalled()
     expect(store.materials.size).toBe(materialCountBefore)
     expect(scheduler.scheduleMaterialProcessing).not.toHaveBeenCalled()
-    expect(embedBatch).not.toHaveBeenCalled()
+    expect(embedDocuments).not.toHaveBeenCalled()
     expect(replaceMaterialChunks).not.toHaveBeenCalled()
     const deniedAudit = [...store.auditLogs.values()].find(
       (event) => event.action === AUDIT_EVENT_ACTIONS.MATERIAL_UPLOAD_DENIED,

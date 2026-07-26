@@ -2,6 +2,8 @@ import type { Material } from '../../src/generated/prisma/client'
 import { DeterministicEmbeddingProvider } from '../../src/modules/embedding/deterministic-embedding.provider'
 import {
   EMBEDDING_DIMENSIONS,
+  type Embedding,
+  type EmbeddingDocument,
   type EmbeddingProvider,
 } from '../../src/modules/embedding/embedding-provider'
 import type { PdfStorage } from '../../src/modules/pdf-storage/pdf-storage'
@@ -38,17 +40,33 @@ const VISIBLE_VECTOR = unitSimilarityVector(GATE_2_VISIBLE_SIMILARITY)
 const HIDDEN_VECTOR = unitSimilarityVector(GATE_2_HIDDEN_SIMILARITY)
 const UNSUPPORTED_VECTOR = unitSimilarityVector(-1)
 
+// Retrieval filters on the active document profile, so every adversarial row
+// below is stored under this same profile. A row in a foreign profile would be
+// excluded by the profile filter instead of by the boundary or threshold each
+// adversary is meant to exercise, which would silently weaken the fixture.
+export const GATE_2_EMBEDDING_MODEL = 'gate-2-deterministic-embedding-v1'
+
 export class Gate2DeterministicEmbeddingProvider implements EmbeddingProvider {
-  readonly model = 'gate-2-deterministic-embedding-v1'
+  readonly model = GATE_2_EMBEDDING_MODEL
+  readonly queryProtocol = GATE_2_EMBEDDING_MODEL
   private readonly fallback = new DeterministicEmbeddingProvider()
 
-  embedBatch(
-    texts: readonly string[],
-  ): Promise<readonly (readonly number[])[]> {
-    return Promise.all(texts.map((text) => this.embedText(text)))
+  // Symmetric like the deterministic provider it falls back to: the gate's
+  // similarity assertions only hold because a query and its matching chunk land
+  // in the same vector space.
+  embedQuery(query: string): Promise<Embedding> {
+    return this.embedText(query)
   }
 
-  private embedText(text: string): Promise<readonly number[]> {
+  embedDocuments(
+    documents: readonly EmbeddingDocument[],
+  ): Promise<readonly Embedding[]> {
+    return Promise.all(
+      documents.map((document) => this.embedText(document.text)),
+    )
+  }
+
+  private embedText(text: string): Promise<Embedding> {
     const normalized = text.trim()
 
     if (normalized === GATE_2_FIXTURE.question) {
@@ -62,7 +80,7 @@ export class Gate2DeterministicEmbeddingProvider implements EmbeddingProvider {
     }
 
     return this.fallback
-      .embedBatch([normalized])
+      .embedDocuments([{ text: normalized }])
       .then(([embedding]) => [...embedding])
   }
 }
@@ -98,7 +116,7 @@ export async function injectGate2HiddenAdversary(
     title: 'Gate 2 hidden adversarial source',
     filename: 'gate-2-hidden-isolation.pdf',
     embedding: HIDDEN_VECTOR,
-    embeddingModel: 'gate-2-adversarial-vector-v1',
+    embeddingModel: GATE_2_EMBEDDING_MODEL,
   })
 }
 
@@ -115,7 +133,7 @@ export function injectGate2BelowThresholdEvidence(
     title: 'Gate 2 below-threshold Python evidence',
     filename: 'gate-2-below-threshold.pdf',
     embedding: VISIBLE_VECTOR,
-    embeddingModel: 'gate-2-below-threshold-vector-v1',
+    embeddingModel: GATE_2_EMBEDDING_MODEL,
   })
 }
 

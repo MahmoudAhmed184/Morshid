@@ -26,6 +26,10 @@ const TOP_K = 5
 // side of the >= boundary and the assertion would hinge on pgvector's
 // float internals instead of the threshold semantics under test.
 const MIN_SIMILARITY = 0.7
+// Retrieval filters on the active document profile, so the seeded chunks and
+// the stub provider must agree on it. A mismatch is exactly the cross-space
+// mixing the filter exists to prevent, and is asserted separately below.
+const TEST_EMBEDDING_MODEL = 'test-embedding-1536'
 
 describe('Course-filtered top-k retrieval (e2e)', () => {
   let database: DisposableDatabase | undefined
@@ -56,7 +60,7 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
         chunkIndex,
         content: `Chunk with similarity ${String(similarity)}`,
         embedding: similarityVector(similarity),
-        embeddingModel: 'test-embedding-1536',
+        embeddingModel: TEST_EMBEDDING_MODEL,
       })),
     )
 
@@ -94,13 +98,13 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
         chunkIndex: 0,
         content: 'Weakly related chunk',
         embedding: similarityVector(0.3),
-        embeddingModel: 'test-embedding-1536',
+        embeddingModel: TEST_EMBEDDING_MODEL,
       },
       {
         chunkIndex: 1,
         content: 'Barely related chunk',
         embedding: similarityVector(0.5),
-        embeddingModel: 'test-embedding-1536',
+        embeddingModel: TEST_EMBEDDING_MODEL,
       },
     ])
 
@@ -164,7 +168,7 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
         chunkIndex: 0,
         content: 'Ready chunk',
         embedding: similarityVector(0.9),
-        embeddingModel: 'test-embedding-1536',
+        embeddingModel: TEST_EMBEDDING_MODEL,
       },
     ])
     await persistence.insertMaterialChunks(warningMaterialId, [
@@ -172,7 +176,7 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
         chunkIndex: 0,
         content: 'Warning chunk',
         embedding: similarityVector(0.8),
-        embeddingModel: 'test-embedding-1536',
+        embeddingModel: TEST_EMBEDDING_MODEL,
       },
     ])
     // The ineligible materials hold the most similar chunks; none may return.
@@ -182,7 +186,7 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
           chunkIndex: 0,
           content: 'Ineligible chunk',
           embedding: similarityVector(0.99),
-          embeddingModel: 'test-embedding-1536',
+          embeddingModel: TEST_EMBEDDING_MODEL,
         },
       ])
     }
@@ -212,7 +216,7 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
         chunkIndex: 0,
         content: 'Unavailable despite a highly similar vector',
         embedding: similarityVector(0.99),
-        embeddingModel: 'test-embedding-1536',
+        embeddingModel: TEST_EMBEDDING_MODEL,
       },
     ])
     const unavailableStorage = {
@@ -252,7 +256,7 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
         chunkIndex,
         content: `Missing ${String(chunkIndex)}`,
         embedding: similarityVector(similarity),
-        embeddingModel: 'test-embedding-1536',
+        embeddingModel: TEST_EMBEDDING_MODEL,
       })),
     )
     await persistence.insertMaterialChunks(availableMaterialId, [
@@ -260,7 +264,7 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
         chunkIndex: 0,
         content: 'Available rank K+1',
         embedding: similarityVector(0.94),
-        embeddingModel: 'test-embedding-1536',
+        embeddingModel: TEST_EMBEDDING_MODEL,
       },
     ])
     const availableMaterial = await prisma.material.findUniqueOrThrow({
@@ -316,13 +320,13 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
         chunkIndex: 0,
         content: 'Python chunk',
         embedding: similarityVector(0.85),
-        embeddingModel: 'test-embedding-1536',
+        embeddingModel: TEST_EMBEDDING_MODEL,
       },
       {
         chunkIndex: 1,
         content: duplicateContent,
         embedding: similarityVector(0.8),
-        embeddingModel: 'test-embedding-1536',
+        embeddingModel: TEST_EMBEDDING_MODEL,
       },
     ])
     // The hidden course holds a deliberately more similar chunk and a copy of
@@ -332,13 +336,13 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
         chunkIndex: 0,
         content: 'Hidden more-similar chunk',
         embedding: similarityVector(0.99),
-        embeddingModel: 'test-embedding-1536',
+        embeddingModel: TEST_EMBEDDING_MODEL,
       },
       {
         chunkIndex: 1,
         content: duplicateContent,
         embedding: similarityVector(0.98),
-        embeddingModel: 'test-embedding-1536',
+        embeddingModel: TEST_EMBEDDING_MODEL,
       },
     ])
 
@@ -361,6 +365,68 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
     expect(duplicates[0].similarityScore).toBeCloseTo(0.8, 5)
   })
 
+  it('never compares a query against chunks stored under another document profile', async () => {
+    const { courseId, materialId } = await seedCourseWithMaterial(prisma, {
+      title: 'Deterministic profile material',
+    })
+    await persistence.insertMaterialChunks(materialId, [
+      {
+        chunkIndex: 0,
+        // A near-perfect vector under a *different* profile: dimensions match,
+        // so Postgres would happily rank it first without the profile filter.
+        content: 'Deterministic-profile chunk',
+        embedding: similarityVector(0.99),
+        embeddingModel: 'deterministic-embedding-v1',
+      },
+    ])
+
+    // The course has one candidate material whose chunks all belong to another
+    // profile, so the active profile covers none of them.
+    await expect(
+      buildService(
+        queryVectorProvider('gemini/gemini-embedding-2/1536/document-v1'),
+      ).retrieveCourseEvidence(courseId, 'query'),
+    ).resolves.toEqual({
+      kind: 'embedding_profile_not_ready',
+      expectedModel: 'gemini/gemini-embedding-2/1536/document-v1',
+      incompleteMaterialIds: [materialId],
+    })
+  })
+
+  it('isolates two profiles stored side by side in the same material', async () => {
+    const { courseId, materialId } = await seedCourseWithMaterial(prisma, {
+      title: 'Mixed profile material',
+    })
+    await persistence.insertMaterialChunks(materialId, [
+      {
+        chunkIndex: 0,
+        content: 'Active profile chunk',
+        embedding: similarityVector(0.8),
+        embeddingModel: TEST_EMBEDDING_MODEL,
+      },
+      {
+        chunkIndex: 1,
+        content: 'Foreign profile chunk',
+        embedding: similarityVector(0.99),
+        embeddingModel: 'iti-bedrock/us.cohere.embed-v4:0/1536/document-v1',
+      },
+    ])
+
+    const result = await buildService(
+      queryVectorProvider(),
+    ).retrieveCourseEvidence(courseId, 'query')
+
+    expect(result).toEqual({
+      kind: 'evidence',
+      chunks: [
+        expect.objectContaining({
+          content: 'Active profile chunk',
+          rank: 1,
+        }),
+      ],
+    })
+  })
+
   it('round-trips deterministic embeddings from persistence to ranked evidence', async () => {
     const { courseId, materialId } = await seedCourseWithMaterial(prisma, {
       title: 'Python Basics',
@@ -371,10 +437,13 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
       persistence,
     )
     const chunkText = 'Python variables store references to objects.'
-    await chunkEmbedding.embedAndReplaceMaterialChunks(materialId, [
-      { chunkIndex: 0, content: chunkText },
-      { chunkIndex: 1, content: 'Loops repeat a block of statements.' },
-    ])
+    await chunkEmbedding.embedAndReplaceMaterialChunks(
+      { id: materialId, title: 'Python Basics' },
+      [
+        { chunkIndex: 0, content: chunkText },
+        { chunkIndex: 1, content: 'Loops repeat a block of statements.' },
+      ],
+    )
 
     const stored = await persistence.findMaterialChunks(materialId)
     expect(stored).toHaveLength(2)
@@ -436,11 +505,15 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
 // A stub provider that embeds every query as the reference vector the seeded
 // chunks were built against, so each chunk's cosine similarity is exactly the
 // value passed to similarityVector (up to float4 quantization).
-function queryVectorProvider(): EmbeddingProvider {
+function queryVectorProvider(
+  model: string = TEST_EMBEDDING_MODEL,
+): EmbeddingProvider {
   return {
-    model: 'query-vector-stub',
-    embedBatch: (texts: readonly string[]) =>
-      Promise.resolve(texts.map(() => referenceQueryVector())),
+    model,
+    queryProtocol: `${model}/query-v1`,
+    embedQuery: () => Promise.resolve(referenceQueryVector()),
+    embedDocuments: (documents) =>
+      Promise.resolve(documents.map(() => referenceQueryVector())),
   }
 }
 

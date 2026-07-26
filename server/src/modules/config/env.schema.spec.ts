@@ -46,6 +46,10 @@ describe('validateEnv', () => {
       AUTH_ACCESS_TOKEN_TTL_SECONDS: 900,
       AUTH_REFRESH_TOKEN_TTL_DAYS: 7,
       EMBEDDING_PROVIDER: 'deterministic',
+      EMBEDDING_QUERY_TIMEOUT_MS: 10_000,
+      EMBEDDING_DOCUMENT_TIMEOUT_MS: 120_000,
+      EMBEDDING_REQUEST_TIMEOUT_MS: 30_000,
+      GEMINI_EMBEDDING_DEMO_ACKNOWLEDGED: false,
       COMPLETION_PROVIDER: 'deterministic',
       COMPLETION_TIMEOUT_MS: 30_000,
       GEMINI_MODEL: 'gemini-3.5-flash-lite',
@@ -95,10 +99,200 @@ describe('validateEnv', () => {
     ).toMatchObject({ EMBEDDING_PROVIDER: 'deterministic' })
     expect(() =>
       validateEnv({ ...validEnv, EMBEDDING_PROVIDER: 'openai' }),
-    ).toThrow(/EMBEDDING_PROVIDER: Invalid input/)
+    ).toThrow(/EMBEDDING_PROVIDER: Invalid option/)
+    expect(
+      validateEnv({ ...geminiEmbeddingEnv, EMBEDDING_PROVIDER: 'gemini' }),
+    ).toMatchObject({ EMBEDDING_PROVIDER: 'gemini' })
     expect(() => validateEnv({ ...validEnv, EMBEDDING_PROVIDER: '' })).toThrow(
-      /EMBEDDING_PROVIDER: Invalid input/,
+      /EMBEDDING_PROVIDER: Invalid option/,
     )
+  })
+
+  it('defaults the three embedding deadlines independently', () => {
+    expect(validateEnv({ ...validEnv })).toMatchObject({
+      EMBEDDING_QUERY_TIMEOUT_MS: 10_000,
+      EMBEDDING_DOCUMENT_TIMEOUT_MS: 120_000,
+      EMBEDDING_REQUEST_TIMEOUT_MS: 30_000,
+    })
+  })
+
+  // The three budgets are deliberately independent: a longer ingest deadline
+  // must not silently stretch an interactive chat turn's deadline.
+  it('bounds each embedding deadline by its own ceiling', () => {
+    expect(
+      validateEnv({
+        ...validEnv,
+        EMBEDDING_QUERY_TIMEOUT_MS: '60000',
+        EMBEDDING_DOCUMENT_TIMEOUT_MS: '900000',
+        EMBEDDING_REQUEST_TIMEOUT_MS: '120000',
+      }),
+    ).toMatchObject({
+      EMBEDDING_QUERY_TIMEOUT_MS: 60_000,
+      EMBEDDING_DOCUMENT_TIMEOUT_MS: 900_000,
+      EMBEDDING_REQUEST_TIMEOUT_MS: 120_000,
+    })
+
+    expect(() =>
+      validateEnv({ ...validEnv, EMBEDDING_QUERY_TIMEOUT_MS: '60001' }),
+    ).toThrow(/EMBEDDING_QUERY_TIMEOUT_MS/)
+    expect(() =>
+      validateEnv({ ...validEnv, EMBEDDING_DOCUMENT_TIMEOUT_MS: '900001' }),
+    ).toThrow(/EMBEDDING_DOCUMENT_TIMEOUT_MS/)
+    expect(() =>
+      validateEnv({ ...validEnv, EMBEDDING_REQUEST_TIMEOUT_MS: '120001' }),
+    ).toThrow(/EMBEDDING_REQUEST_TIMEOUT_MS/)
+  })
+
+  it.each([
+    'EMBEDDING_QUERY_TIMEOUT_MS',
+    'EMBEDDING_DOCUMENT_TIMEOUT_MS',
+    'EMBEDDING_REQUEST_TIMEOUT_MS',
+  ] as const)('rejects a non-positive %s', (key) => {
+    expect(() => validateEnv({ ...validEnv, [key]: '0' })).toThrow(
+      new RegExp(key),
+    )
+  })
+
+  // Every gemini-embedding rule is provider-gated, so these assertions start
+  // from a fully configured gemini embedding environment.
+  const geminiEmbeddingEnv = {
+    ...validEnv,
+    EMBEDDING_PROVIDER: 'gemini',
+    GEMINI_EMBEDDING_DEMO_ACKNOWLEDGED: 'true',
+    GEMINI_EMBEDDING_API_KEY: 'AIzaSy-embedding-test-only-value',
+    GEMINI_EMBEDDING_QUOTA_PROJECT_ID: 'embedding-project-01',
+    GEMINI_EMBEDDING_REQUESTS_PER_MINUTE: '10',
+    GEMINI_EMBEDDING_INPUT_TOKENS_PER_MINUTE: '100000',
+    GEMINI_EMBEDDING_REQUESTS_PER_DAY: '500',
+    GEMINI_EMBEDDING_LOCAL_REQUESTS_PER_HOUR: '200',
+    GEMINI_EMBEDDING_LOCAL_REQUESTS_PER_30_DAYS: '5000',
+  }
+
+  describe('gemini embedding gating', () => {
+    it('accepts a fully configured gemini embedding environment', () => {
+      expect(validateEnv(geminiEmbeddingEnv)).toMatchObject({
+        EMBEDDING_PROVIDER: 'gemini',
+        GEMINI_EMBEDDING_QUOTA_PROJECT_ID: 'embedding-project-01',
+      })
+    })
+
+    // Morshid's free-tier data-governance policy, not an API constraint: course
+    // material is not ours to donate to model training.
+    it('refuses to boot gemini embedding in production', () => {
+      expect(() =>
+        validateEnv({
+          ...geminiEmbeddingEnv,
+          NODE_ENV: 'production',
+          PDF_STORAGE_PATH: '/srv/morshid/pdfs',
+        }),
+      ).toThrow(/EMBEDDING_PROVIDER/)
+    })
+
+    it('requires the explicit acknowledgement', () => {
+      expect(() =>
+        validateEnv({
+          ...geminiEmbeddingEnv,
+          GEMINI_EMBEDDING_DEMO_ACKNOWLEDGED: 'false',
+        }),
+      ).toThrow(/GEMINI_EMBEDDING_DEMO_ACKNOWLEDGED/)
+    })
+
+    it('requires a non-placeholder key', () => {
+      expect(() =>
+        validateEnv({
+          ...geminiEmbeddingEnv,
+          GEMINI_EMBEDDING_API_KEY: undefined,
+        }),
+      ).toThrow(/GEMINI_EMBEDDING_API_KEY/)
+      expect(() =>
+        validateEnv({
+          ...geminiEmbeddingEnv,
+          GEMINI_EMBEDDING_API_KEY: 'replace-with-a-real-embedding-key',
+        }),
+      ).toThrow(/GEMINI_EMBEDDING_API_KEY/)
+    })
+
+    // Distinctness only. No local check can prove the two keys belong to
+    // separate Google projects, which is the property that actually keeps an
+    // ingest from starving chat — this rejects the one provably wrong case.
+    it('rejects reusing the completion key', () => {
+      expect(() =>
+        validateEnv({
+          ...geminiEmbeddingEnv,
+          COMPLETION_PROVIDER: 'deterministic',
+          GEMINI_API_KEY: 'AIzaSy-shared-key-test-only-value',
+          GEMINI_EMBEDDING_API_KEY: 'AIzaSy-shared-key-test-only-value',
+        }),
+      ).toThrow(/GEMINI_EMBEDDING_API_KEY/)
+    })
+
+    it.each([undefined, '', 'ab', 'Embedding-Project', 'project/one'])(
+      'rejects quota project id %j',
+      (quotaProjectId) => {
+        expect(() =>
+          validateEnv({
+            ...geminiEmbeddingEnv,
+            GEMINI_EMBEDDING_QUOTA_PROJECT_ID: quotaProjectId,
+          }),
+        ).toThrow(/GEMINI_EMBEDDING_QUOTA_PROJECT_ID/)
+      },
+    )
+
+    it.each([
+      'GEMINI_EMBEDDING_REQUESTS_PER_MINUTE',
+      'GEMINI_EMBEDDING_INPUT_TOKENS_PER_MINUTE',
+      'GEMINI_EMBEDDING_REQUESTS_PER_DAY',
+      'GEMINI_EMBEDDING_LOCAL_REQUESTS_PER_HOUR',
+      'GEMINI_EMBEDDING_LOCAL_REQUESTS_PER_30_DAYS',
+    ] as const)('requires %s', (key) => {
+      expect(() =>
+        validateEnv({ ...geminiEmbeddingEnv, [key]: undefined }),
+      ).toThrow(new RegExp(key))
+    })
+
+    // A local consistency rule over local admission-control caps; it says
+    // nothing about Google's own enforcement.
+    it('enforces minute <= hour <= day <= 30-days', () => {
+      expect(() =>
+        validateEnv({
+          ...geminiEmbeddingEnv,
+          GEMINI_EMBEDDING_REQUESTS_PER_MINUTE: '1000',
+        }),
+      ).toThrow(/GEMINI_EMBEDDING_LOCAL_REQUESTS_PER_30_DAYS/)
+    })
+
+    // A deterministic deployment must never be blocked from booting by a live
+    // provider's configuration.
+    it('demands none of it while deterministic is selected', () => {
+      expect(() =>
+        validateEnv({ ...validEnv, EMBEDDING_PROVIDER: 'deterministic' }),
+      ).not.toThrow()
+    })
+
+    // `.env.example` ships these blank and Compose passes an unset variable
+    // through as `${VAR:-}`, so blank must read as "not configured" — otherwise
+    // a fresh checkout copying the example file fails to boot on a length or
+    // positivity rule instead of the provider gate that actually applies.
+    it('reads a blank live-provider value as unset', () => {
+      expect(() =>
+        validateEnv({
+          ...validEnv,
+          GEMINI_EMBEDDING_API_KEY: '',
+          GEMINI_EMBEDDING_QUOTA_PROJECT_ID: '',
+          GEMINI_EMBEDDING_REQUESTS_PER_MINUTE: '',
+          GEMINI_EMBEDDING_INPUT_TOKENS_PER_MINUTE: '',
+          GEMINI_EMBEDDING_REQUESTS_PER_DAY: '',
+          GEMINI_EMBEDDING_LOCAL_REQUESTS_PER_HOUR: '',
+          GEMINI_EMBEDDING_LOCAL_REQUESTS_PER_30_DAYS: '',
+        }),
+      ).not.toThrow()
+    })
+
+    it('still reports a blank value as missing when gemini is selected', () => {
+      expect(() =>
+        validateEnv({ ...geminiEmbeddingEnv, GEMINI_EMBEDDING_API_KEY: '' }),
+      ).toThrow(/GEMINI_EMBEDDING_API_KEY: is required/)
+    })
   })
 
   it('accepts only implemented completion providers', () => {

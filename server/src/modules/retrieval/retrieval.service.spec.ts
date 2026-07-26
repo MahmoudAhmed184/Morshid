@@ -13,22 +13,30 @@ describe('RetrievalService', () => {
   const courseId = '9d1a7c2e-3b4f-4a5d-8e6f-0a1b2c3d4e5f'
   const queryEmbedding = [0.25, 0.5]
 
-  let embedBatch: jest.Mock
+  const embeddingModel = 'test-embedding-model'
+
+  let embedQuery: jest.Mock
   let findTopChunksForCourse: jest.Mock
+  let findEmbeddingProfileReadiness: jest.Mock
   let service: RetrievalService
   let exists: jest.Mock
 
   beforeEach(() => {
-    embedBatch = jest.fn().mockResolvedValue([queryEmbedding])
+    embedQuery = jest.fn().mockResolvedValue(queryEmbedding)
     findTopChunksForCourse = jest.fn().mockResolvedValue([])
+    findEmbeddingProfileReadiness = jest.fn().mockResolvedValue({
+      kind: 'ready',
+    })
     exists = jest.fn().mockResolvedValue(true)
 
     const embeddingProvider = {
-      model: 'test-embedding-model',
-      embedBatch,
+      model: embeddingModel,
+      queryProtocol: `${embeddingModel}/query-v1`,
+      embedQuery,
     } as unknown as EmbeddingProvider
     const repository = {
       findTopChunksForCourse,
+      findEmbeddingProfileReadiness,
     } as unknown as CourseRetrievalRepository
     const configService = {
       get: (key: 'RETRIEVAL_TOP_K' | 'RETRIEVAL_MIN_SIMILARITY') =>
@@ -47,16 +55,59 @@ describe('RetrievalService', () => {
   it('embeds the query once and forwards only configured limits with the course id', async () => {
     await service.retrieveCourseEvidence(courseId, 'what is a variable?')
 
-    expect(embedBatch).toHaveBeenCalledTimes(1)
-    expect(embedBatch).toHaveBeenCalledWith(['what is a variable?'])
+    expect(embedQuery).toHaveBeenCalledTimes(1)
+    expect(embedQuery).toHaveBeenCalledWith('what is a variable?')
     expect(findTopChunksForCourse).toHaveBeenCalledTimes(1)
     expect(findTopChunksForCourse).toHaveBeenCalledWith({
       courseId,
       queryEmbedding,
+      embeddingModel,
       topK: 5,
       minSimilarity: 0.7,
       offset: 0,
     })
+  })
+
+  it('checks profile readiness for the active model before embedding the query', async () => {
+    await service.retrieveCourseEvidence(courseId, 'what is a variable?')
+
+    expect(findEmbeddingProfileReadiness).toHaveBeenCalledWith({
+      courseId,
+      embeddingModel,
+    })
+    expect(
+      findEmbeddingProfileReadiness.mock.invocationCallOrder[0],
+    ).toBeLessThan(embedQuery.mock.invocationCallOrder[0])
+  })
+
+  it('reports the profile as not ready without spending provider quota', async () => {
+    findEmbeddingProfileReadiness.mockResolvedValue({
+      kind: 'not_ready',
+      incompleteMaterialCount: 2,
+      incompleteMaterialIds: ['material-a', 'material-b'],
+    })
+
+    await expect(
+      service.retrieveCourseEvidence(courseId, 'query'),
+    ).resolves.toEqual({
+      kind: 'embedding_profile_not_ready',
+      expectedModel: embeddingModel,
+      incompleteMaterialIds: ['material-a', 'material-b'],
+    })
+    expect(embedQuery).not.toHaveBeenCalled()
+    expect(findTopChunksForCourse).not.toHaveBeenCalled()
+  })
+
+  it('reports insufficient evidence when the course has no candidate materials', async () => {
+    findEmbeddingProfileReadiness.mockResolvedValue({
+      kind: 'no_candidate_materials',
+    })
+
+    await expect(
+      service.retrieveCourseEvidence(courseId, 'query'),
+    ).resolves.toEqual({ kind: 'insufficient_evidence' })
+    expect(embedQuery).not.toHaveBeenCalled()
+    expect(findTopChunksForCourse).not.toHaveBeenCalled()
   })
 
   it('maps ranked rows to descending-similarity evidence with dense ranks', async () => {
@@ -115,7 +166,7 @@ describe('RetrievalService', () => {
       await expect(
         service.retrieveCourseEvidence(courseId, blankQuery),
       ).resolves.toEqual({ kind: 'insufficient_evidence' })
-      expect(embedBatch).not.toHaveBeenCalled()
+      expect(embedQuery).not.toHaveBeenCalled()
       expect(findTopChunksForCourse).not.toHaveBeenCalled()
     },
   )
@@ -123,7 +174,7 @@ describe('RetrievalService', () => {
   it('embeds the trimmed query text', async () => {
     await service.retrieveCourseEvidence(courseId, '  what is a variable?  ')
 
-    expect(embedBatch).toHaveBeenCalledWith(['what is a variable?'])
+    expect(embedQuery).toHaveBeenCalledWith('what is a variable?')
   })
 
   it('reports insufficient evidence when no row meets the threshold', async () => {
@@ -233,7 +284,7 @@ describe('RetrievalService', () => {
   })
 
   it('propagates provider failures without querying the repository', async () => {
-    embedBatch.mockRejectedValue(new Error('embedding failed'))
+    embedQuery.mockRejectedValue(new Error('embedding failed'))
 
     await expect(
       service.retrieveCourseEvidence(courseId, 'query'),

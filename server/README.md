@@ -337,6 +337,165 @@ For one opt-in local verification:
 Key rotation never requires a code change: revoke the old key, replace only
 `ITI_BEDROCK_GATEWAY_API_KEY` in the ignored file, and restart the server.
 
+## Embedding profiles and strict course readiness
+
+Every stored chunk records the **document profile** that produced its vector in
+`material_chunks.embedding_model`. Retrieval filters on the active provider's
+profile, because vectors from different providers all have 1,536 dimensions:
+Postgres will happily compute a cosine distance between a Gemini query vector
+and a deterministic stored vector. That comparison is mathematically valid and
+semantically meaningless, and it surfaces as plausible false matches rather
+than as an error, so it must be excluded structurally rather than detected.
+
+Before a query is embedded, the retrieval service checks profile coverage for
+the course:
+
+> **Strict course readiness** — one incompletely embedded candidate material
+> blocks grounded retrieval for that entire course.
+
+A candidate material is `READY` or `WARNING`, not soft-deleted, and has an
+extracted text length above zero. It is complete when its `chunk_count` is
+positive and at least that many of its chunks carry the active profile. Partial
+coverage would answer from whichever materials happened to be migrated first,
+and a student cannot tell a thin answer from a complete one.
+
+Readiness runs before the query is embedded, so a course with no compatible
+vectors never spends provider quota building a query vector it could not use.
+Readiness and retrieval are separate queries rather than one atomic snapshot,
+so a concurrent material replacement can produce a transient not-ready or
+no-evidence result; the profile filter still prevents cross-space comparisons,
+which is the property that matters.
+
+### Restricted Gemini embedding demo
+
+Selecting `EMBEDDING_PROVIDER=gemini` is refused when `NODE_ENV=production` and
+additionally requires `GEMINI_EMBEDDING_DEMO_ACKNOWLEDGED=true`. That is
+**Morshid's own free-tier data-governance policy, not an API constraint**: the
+free tier lets Google use submitted inputs to improve its products, and course
+material is not ours to donate. Only synthetic, permission-safe material may be
+embedded through it.
+
+`GEMINI_EMBEDDING_API_KEY` must be distinct from `GEMINI_API_KEY` **and live
+under a separate Google Cloud project**. Gemini rate limits are per project, so
+a shared key would let one PDF ingest starve student chat. The schema can only
+prove the two keys differ; project separation is an operator responsibility.
+
+There is no `GEMINI_EMBEDDING_MODEL`. The model, its dimensions, and the
+document formatting together *are* the persisted document profile
+(`gemini/gemini-embedding-2/1536/document-v1`), so the model is pinned in code —
+an environment variable would let an operator split the corpus across two vector
+spaces under one `embedding_model` value.
+
+#### Quota vocabulary
+
+The five caps are **local admission-control caps informed by the project's
+published Gemini limits**. They do not reproduce Google's enforcement:
+
+- Google's requests-per-day resets at midnight Pacific; this guard's day window
+  is epoch-aligned UTC, 7–8 hours earlier.
+- The minute dimensions are token buckets, not Google's undisclosed algorithm.
+- `LOCAL_REQUESTS_PER_HOUR` and `LOCAL_REQUESTS_PER_30_DAYS` are entirely
+  Morshid-owned policy with no provider counterpart at all.
+
+Provider-side `429 RESOURCE_EXHAUSTED` responses remain authoritative.
+
+`GEMINI_EMBEDDING_INPUT_TOKENS_PER_MINUTE` keeps its name because it maps
+conceptually to the upstream constraint, but the value metered against it is
+`estimatedInputUnits` — UTF-8 bytes of the final formatted input — and never an
+actual token count. The estimate is reserved atomically before each request and
+then kept: it is never reconciled or refunded, because the pinned SDK's
+Developer-API response conversion discards `usageMetadata` entirely, so there is
+no actual count to reconcile against. A pinned-SDK contract test asserts that,
+so an SDK upgrade that changes it fails loudly.
+
+`GEMINI_EMBEDDING_QUOTA_PROJECT_ID` is an opaque deployment label (for example
+`embedding-project-01`), not the real Google project name. The budget is keyed
+on it rather than on the credential, so every replica on one Google project
+shares a bucket and a credential rotation never mints a fresh day or 30-day
+window.
+
+#### Live smoke check
+
+```bash
+npm run test:gemini-embedding:smoke
+```
+
+It confirms only what documentation cannot: the selected API version (`v1beta`),
+one embedding per `Content`, 1,536 dimensions, that the configured 32-input
+operational batch succeeds, and semantic ordering over held-out fixtures. Note
+the wording — a successful 32-input request establishes that **the configured
+operational batch succeeds**, not the model's maximum; claiming a maximum
+requires deliberately probing increasing sizes.
+
+### AWS Bedrock embedding is not available
+
+`EMBEDDING_PROVIDER` accepts `deterministic` and `gemini` only. An ITI Cohere
+embedding adapter is deliberately not implemented. The gateway's current public
+integration bundle documents `/student/embed` and the
+`{model_id,texts,input_type}` request, but the redacted Cohere request returned
+HTTP 403. The model approval, successful response envelope, preserved
+1,536-dimensional output, input echo behavior, and practical batch capacity
+therefore remain unverified. Implementing against an invented success envelope
+would hide contract drift rather than expose it. See "Embedding endpoint — live
+probe denied" in `docs/aws-bedrock-iti-gateway-research.md`.
+
+After the ITI dashboard shows `us.cohere.embed-v4:0` as approved, rerun the
+single-request structural probe with:
+
+```bash
+npm run test:iti-bedrock-embedding:probe
+```
+
+It emits only response property names, a shape label, vector count,
+dimensionalities, and whether the synthetic input was echoed. It never emits a
+credential, header, URL, source string, body, or vector component.
+
+### Switching embedding providers
+
+The schema stores one vector and one model id per chunk, and replacement is
+transactional only per material — there is no corpus-wide transaction, so a
+transition is necessarily mixed while it runs. Normal material processing also
+uses the *configured* provider, so a migration cannot run alongside it.
+
+The exclusion mechanism is **operational maintenance mode, not a lock**. A
+migration lock would only provide mutual exclusion if the normal workers
+participated in the same protocol; material processing uses lease records and
+would not check a new embedding-migration lock, so such a lock would protect
+nothing.
+
+```text
+disable grounded retrieval → stop/scale material-processing workers to zero
+→ verify no active, unexpired processing leases → run the resumable migration
+→ verify complete target-profile coverage → switch EMBEDDING_PROVIDER
+→ restart workers and retrieval
+```
+
+The migration step is:
+
+```bash
+npm run embedding:migrate -- gemini      # or: deterministic
+```
+
+The target is an **explicit argument**, and its configuration is validated
+independently of `EMBEDDING_PROVIDER` — the whole point is to migrate *before*
+switching, so the target is deliberately not the configured provider. For a
+Gemini target this means `GEMINI_EMBEDDING_*` must be set while
+`EMBEDDING_PROVIDER` is still `deterministic`; the command forces the target
+through that same full schema gate itself.
+
+Every run scans **all** candidate materials, checks each one's current
+target-profile coverage, skips the complete ones, and retries every incomplete
+one — so re-running it is the resume mechanism. It exits non-zero unless the
+whole target corpus is covered, which is what stops an operator switching
+providers off a partially successful run. It re-embeds the **persisted chunk
+text and material title** and never re-extracts a PDF: re-extraction could
+change chunk boundaries if the extractor or chunker has evolved, silently
+turning a provider migration into an undocumented content migration.
+
+Rollback is reprocessing with the previous provider. A zero-degradation rolling
+migration would require storing multiple profiles per chunk — a schema redesign
+that is explicitly out of scope.
+
 ## Local OpenAPI documentation
 
 When `NODE_ENV` is `development` or `test`, the server publishes:

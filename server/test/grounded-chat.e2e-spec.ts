@@ -158,8 +158,8 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
   let completionBehavior: CompletionBehavior
   let turnRepository: ControllableGroundedChatTurnRepository
   const availableStoragePaths = new Set<string>()
-  const embedBatch = jest.fn() as jest.MockedFunction<
-    EmbeddingProvider['embedBatch']
+  const embedQuery = jest.fn() as jest.MockedFunction<
+    EmbeddingProvider['embedQuery']
   >
   const complete = jest.fn() as jest.MockedFunction<
     CompletionProvider['complete']
@@ -194,12 +194,12 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
       data: { removedAt: new Date() },
     })
 
-    embedBatch.mockImplementation((texts) => {
+    embedQuery.mockImplementation(() => {
       if (embeddingFailure) {
         return Promise.reject(new Error('raw embedding failure'))
       }
 
-      return Promise.resolve(texts.map(() => QUERY_VECTOR))
+      return Promise.resolve(QUERY_VECTOR)
     })
     complete.mockImplementation((completionRequest) =>
       completionBehavior(completionRequest),
@@ -221,7 +221,13 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
       .overrideProvider(MaterialProcessingScheduler)
       .useClass(NoopMaterialProcessingScheduler)
       .overrideProvider(EMBEDDING_PROVIDER_TOKEN)
-      .useValue({ model: 'issue-88-test-embedding', embedBatch })
+      .useValue({
+        model: 'issue-88-test-embedding',
+        queryProtocol: 'issue-88-test-embedding',
+        embedQuery,
+        embedDocuments: () =>
+          Promise.reject(new Error('documents are not embedded in this spec')),
+      })
       .overrideProvider(COMPLETION_PROVIDER_TOKEN)
       .useValue({ complete })
       .overrideProvider(PDF_STORAGE)
@@ -261,7 +267,7 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
     await prisma.materialChunk.deleteMany()
     await prisma.material.deleteMany()
     availableStoragePaths.clear()
-    embedBatch.mockClear()
+    embedQuery.mockClear()
     complete.mockClear()
     storageExists.mockClear()
     embeddingFailure = false

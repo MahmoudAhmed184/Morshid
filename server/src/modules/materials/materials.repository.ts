@@ -95,6 +95,11 @@ export interface MaterialProcessingRecord {
   courseId: string
   uploadedById: string
   storagePath: string
+  // Carried through processing so the embedding provider can fold it into each
+  // chunk's document text. Live embedding models are title-aware, and adding
+  // the title later would change the vector space while `embedding_model`
+  // stayed identical — a silent corpus split with no way to detect it.
+  title: string
 }
 
 export interface CompleteMaterialProcessingInput {
@@ -263,6 +268,7 @@ export class PrismaMaterialsRepository extends MaterialsRepository {
           courseId: true,
           uploadedById: true,
           storagePath: true,
+          title: true,
         },
       })
     })

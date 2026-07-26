@@ -60,6 +60,13 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-morshid}:${POSTGRES_PASSWORD:-morshid_local_password}@postgres:5432/${POSTGRES_DB:-morshid}
       REDIS_URL: redis://redis:6379
       PDF_STORAGE_PATH: /workspace/storage/pdfs
+      # Deterministic remains the keyless/offline default. The production
+      # environment gate below refuses Gemini even if an ambient variable tries
+      # to select it.
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-deterministic}
+      EMBEDDING_QUERY_TIMEOUT_MS: ${EMBEDDING_QUERY_TIMEOUT_MS:-10000}
+      EMBEDDING_DOCUMENT_TIMEOUT_MS: ${EMBEDDING_DOCUMENT_TIMEOUT_MS:-120000}
+      EMBEDDING_REQUEST_TIMEOUT_MS: ${EMBEDDING_REQUEST_TIMEOUT_MS:-30000}
       COMPLETION_PROVIDER: ${COMPLETION_PROVIDER:-deterministic}
       COMPLETION_TIMEOUT_MS: ${COMPLETION_TIMEOUT_MS:-30000}
       ITI_BEDROCK_GATEWAY_BASE_URL: ${ITI_BEDROCK_GATEWAY_BASE_URL:-https://apiaccess.iti.net.eg/api/v1}

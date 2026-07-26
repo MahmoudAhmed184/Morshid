@@ -4,18 +4,20 @@ import type { RagPersistenceRepository } from './rag-persistence.repository'
 
 describe('MaterialChunkEmbeddingService', () => {
   const materialId = '4b8d0d5e-9c3a-4f9e-8b21-2f6a1d9c7e10'
+  const material = { id: materialId, title: 'Python Basics' }
 
-  let embedBatch: jest.Mock
+  let embedDocuments: jest.Mock
   let replaceMaterialChunks: jest.Mock
   let service: MaterialChunkEmbeddingService
 
   beforeEach(() => {
-    embedBatch = jest.fn()
+    embedDocuments = jest.fn()
     replaceMaterialChunks = jest.fn().mockResolvedValue(undefined)
 
     const embeddingProvider = {
       model: 'test-embedding-model',
-      embedBatch,
+      queryProtocol: 'test-embedding-model/query-v1',
+      embedDocuments,
     } as unknown as EmbeddingProvider
     const repository = {
       replaceMaterialChunks,
@@ -27,17 +29,19 @@ describe('MaterialChunkEmbeddingService', () => {
   it('persists embedded chunks with the provider model recorded', async () => {
     const firstEmbedding = [0.1, 0.2]
     const secondEmbedding = [0.3, 0.4]
-    embedBatch.mockResolvedValue([firstEmbedding, secondEmbedding])
+    embedDocuments.mockResolvedValue([firstEmbedding, secondEmbedding])
 
-    await service.embedAndReplaceMaterialChunks(materialId, [
+    await service.embedAndReplaceMaterialChunks(material, [
       { chunkIndex: 0, content: 'variables store values' },
       { chunkIndex: 1, content: 'loops repeat statements' },
     ])
 
-    expect(embedBatch).toHaveBeenCalledTimes(1)
-    expect(embedBatch).toHaveBeenCalledWith([
-      'variables store values',
-      'loops repeat statements',
+    expect(embedDocuments).toHaveBeenCalledTimes(1)
+    // The title travels with every document: it is part of the live adapters'
+    // document profile, so it must be plumbed now rather than folded in later.
+    expect(embedDocuments).toHaveBeenCalledWith([
+      { text: 'variables store values', title: 'Python Basics' },
+      { text: 'loops repeat statements', title: 'Python Basics' },
     ])
     expect(replaceMaterialChunks).toHaveBeenCalledWith(materialId, [
       {
@@ -56,9 +60,9 @@ describe('MaterialChunkEmbeddingService', () => {
   })
 
   it('preserves the pairing between chunk indexes and embeddings', async () => {
-    embedBatch.mockResolvedValue([[1], [2], [3]])
+    embedDocuments.mockResolvedValue([[1], [2], [3]])
 
-    await service.embedAndReplaceMaterialChunks(materialId, [
+    await service.embedAndReplaceMaterialChunks(material, [
       { chunkIndex: 7, content: 'seventh' },
       { chunkIndex: 2, content: 'second' },
       { chunkIndex: 9, content: 'ninth' },
@@ -77,17 +81,17 @@ describe('MaterialChunkEmbeddingService', () => {
   })
 
   it('replaces with zero chunks without invoking the provider', async () => {
-    await service.embedAndReplaceMaterialChunks(materialId, [])
+    await service.embedAndReplaceMaterialChunks(material, [])
 
-    expect(embedBatch).not.toHaveBeenCalled()
+    expect(embedDocuments).not.toHaveBeenCalled()
     expect(replaceMaterialChunks).toHaveBeenCalledWith(materialId, [])
   })
 
   it('propagates provider failures without persisting anything', async () => {
-    embedBatch.mockRejectedValue(new Error('provider unavailable'))
+    embedDocuments.mockRejectedValue(new Error('provider unavailable'))
 
     await expect(
-      service.embedAndReplaceMaterialChunks(materialId, [
+      service.embedAndReplaceMaterialChunks(material, [
         { chunkIndex: 0, content: 'text' },
       ]),
     ).rejects.toThrow('provider unavailable')
@@ -95,10 +99,10 @@ describe('MaterialChunkEmbeddingService', () => {
   })
 
   it('prepares embedded chunks for atomic processing finalization', async () => {
-    embedBatch.mockResolvedValue([[0.1], [0.2]])
+    embedDocuments.mockResolvedValue([[0.1], [0.2]])
 
     await expect(
-      service.embedMaterialChunks([
+      service.embedMaterialChunks(material, [
         { chunkIndex: 0, content: 'variables' },
         { chunkIndex: 1, content: 'loops' },
       ]),

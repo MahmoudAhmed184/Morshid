@@ -8,6 +8,7 @@ import {
 
 describe('PrismaCourseRetrievalRepository', () => {
   const courseId = '0f0a3f39-2f6a-4a0e-9a8e-5b9a3a1c2d4e'
+  const embeddingModel = 'deterministic-embedding-v1'
 
   let queryRaw: jest.Mock
   let repository: PrismaCourseRetrievalRepository
@@ -23,6 +24,7 @@ describe('PrismaCourseRetrievalRepository', () => {
     return {
       courseId,
       queryEmbedding: buildEmbedding(),
+      embeddingModel,
       topK: 5,
       minSimilarity: 0.7,
       offset: 0,
@@ -30,7 +32,7 @@ describe('PrismaCourseRetrievalRepository', () => {
     }
   }
 
-  it('binds exactly the vector, course id, threshold, and limit as parameters', async () => {
+  it('binds exactly the vector, course id, profile, threshold, and limit as parameters', async () => {
     const embedding = buildEmbedding()
     await repository.findTopChunksForCourse(
       buildQuery({ queryEmbedding: embedding }),
@@ -41,6 +43,7 @@ describe('PrismaCourseRetrievalRepository', () => {
     expect(statement.values).toEqual([
       `[${embedding.join(',')}]`,
       courseId,
+      embeddingModel,
       0.7,
       5,
       0,
@@ -59,6 +62,7 @@ describe('PrismaCourseRetrievalRepository', () => {
     expect(staticSql).toContain('material.deleted_at IS NULL')
     expect(staticSql).toContain('material.extracted_text_length > 0')
     expect(staticSql).toContain('material.chunk_count > 0')
+    expect(staticSql).toContain('chunk.embedding_model = ?')
     expect(staticSql).toContain('1 - distance >= ?')
     expect(staticSql).toContain('LIMIT ?')
     expect(staticSql).toContain('OFFSET ?')
@@ -126,6 +130,122 @@ describe('PrismaCourseRetrievalRepository', () => {
       ),
     ).rejects.toThrow(InvalidRetrievalQueryError)
     expect(queryRaw).not.toHaveBeenCalled()
+  })
+
+  it.each(['', '   ', 'x'.repeat(121)])(
+    'rejects embedding model %j without touching the database',
+    async (embeddingModelValue) => {
+      await expect(
+        repository.findTopChunksForCourse(
+          buildQuery({ embeddingModel: embeddingModelValue }),
+        ),
+      ).rejects.toThrow(InvalidRetrievalQueryError)
+      expect(queryRaw).not.toHaveBeenCalled()
+    },
+  )
+
+  describe('findEmbeddingProfileReadiness', () => {
+    it('binds the course id and profile and keeps the base scope static', async () => {
+      queryRaw.mockResolvedValue([
+        {
+          candidateMaterialCount: 2,
+          incompleteMaterialCount: 0,
+          incompleteMaterialIds: [],
+        },
+      ])
+
+      await repository.findEmbeddingProfileReadiness({
+        courseId,
+        embeddingModel,
+      })
+
+      const [statement] = queryRaw.mock.calls[0] as [Prisma.Sql]
+      expect(statement.values).toEqual([courseId, embeddingModel])
+
+      const staticSql = statement.strings.join('?')
+      expect(staticSql).toContain('material.course_id = ?::uuid')
+      expect(staticSql).toContain(
+        "material.status IN ('READY'::material_status, 'WARNING'::material_status)",
+      )
+      expect(staticSql).toContain('material.deleted_at IS NULL')
+      expect(staticSql).toContain('material.extracted_text_length > 0')
+      // The base scope deliberately omits `chunk_count > 0`, which is what
+      // makes a null or zero chunk count observable as "not ready".
+      expect(staticSql).not.toContain('material.chunk_count > 0')
+      expect(staticSql).toContain('chunk.embedding_model = ?')
+    })
+
+    it('reports no candidate materials for an empty course', async () => {
+      queryRaw.mockResolvedValue([
+        {
+          candidateMaterialCount: 0,
+          incompleteMaterialCount: 0,
+          incompleteMaterialIds: [],
+        },
+      ])
+
+      await expect(
+        repository.findEmbeddingProfileReadiness({ courseId, embeddingModel }),
+      ).resolves.toEqual({ kind: 'no_candidate_materials' })
+    })
+
+    it('reports the incomplete material count when coverage is partial', async () => {
+      queryRaw.mockResolvedValue([
+        {
+          candidateMaterialCount: 4,
+          incompleteMaterialCount: 1,
+          incompleteMaterialIds: ['00000000-0000-4000-8000-000000000002'],
+        },
+      ])
+
+      await expect(
+        repository.findEmbeddingProfileReadiness({ courseId, embeddingModel }),
+      ).resolves.toEqual({
+        kind: 'not_ready',
+        incompleteMaterialCount: 1,
+        incompleteMaterialIds: ['00000000-0000-4000-8000-000000000002'],
+      })
+    })
+
+    it('reports ready when every candidate material is covered', async () => {
+      queryRaw.mockResolvedValue([
+        {
+          candidateMaterialCount: 4,
+          incompleteMaterialCount: 0,
+          incompleteMaterialIds: [],
+        },
+      ])
+
+      await expect(
+        repository.findEmbeddingProfileReadiness({ courseId, embeddingModel }),
+      ).resolves.toEqual({ kind: 'ready' })
+    })
+
+    it.each(['', 'not-a-uuid'])(
+      'rejects course id %j without touching the database',
+      async (badId) => {
+        await expect(
+          repository.findEmbeddingProfileReadiness({
+            courseId: badId,
+            embeddingModel,
+          }),
+        ).rejects.toThrow(InvalidRetrievalQueryError)
+        expect(queryRaw).not.toHaveBeenCalled()
+      },
+    )
+
+    it.each(['', '   ', 'x'.repeat(121)])(
+      'rejects embedding model %j without touching the database',
+      async (embeddingModelValue) => {
+        await expect(
+          repository.findEmbeddingProfileReadiness({
+            courseId,
+            embeddingModel: embeddingModelValue,
+          }),
+        ).rejects.toThrow(InvalidRetrievalQueryError)
+        expect(queryRaw).not.toHaveBeenCalled()
+      },
+    )
   })
 
   it('returns the rows produced by the query in order', async () => {
