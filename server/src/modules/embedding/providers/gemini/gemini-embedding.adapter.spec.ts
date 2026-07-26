@@ -44,6 +44,7 @@ function buildHarness(
     queryTimeoutMs?: number
     documentTimeoutMs?: number
     requestTimeoutMs?: number
+    createTimeoutSignal?: (timeoutMs: number) => AbortSignal
   } = {},
 ): Harness {
   const requests: GeminiEmbeddingRequest[] = []
@@ -78,7 +79,10 @@ function buildHarness(
     clock: () => nowMs,
     createTimeoutSignal: (timeoutMs) => {
       timeoutSignals.push(timeoutMs)
-      return new AbortController().signal
+      return (
+        overrides.createTimeoutSignal?.(timeoutMs) ??
+        new AbortController().signal
+      )
     },
   }
 
@@ -102,7 +106,7 @@ describe('GeminiEmbeddingAdapter', () => {
     expect(adapter.model).toBe('gemini/gemini-embedding-2/1536/document-v1')
     expect(adapter.queryProtocol).toBe(GEMINI_EMBEDDING_QUERY_PROTOCOL)
     expect(adapter.queryProtocol).toBe(
-      'gemini/gemini-embedding-2/search-result-v1',
+      'gemini/gemini-embedding-2/question-answering-v1',
     )
   })
 
@@ -151,7 +155,11 @@ describe('GeminiEmbeddingAdapter', () => {
 
       expect(harness.requests[0].contents).toEqual([
         {
-          parts: [{ text: 'task: search result | query: what is a variable?' }],
+          parts: [
+            {
+              text: 'task: question answering | query: what is a variable?',
+            },
+          ],
         },
       ])
     })
@@ -282,7 +290,7 @@ describe('GeminiEmbeddingAdapter', () => {
       await new GeminiEmbeddingAdapter(harness.configuration).embedQuery('abc')
 
       expect(harness.reserveGeneration).toHaveBeenCalledWith(
-        Buffer.byteLength('task: search result | query: abc', 'utf8'),
+        Buffer.byteLength('task: question answering | query: abc', 'utf8'),
       )
     })
   })
@@ -372,7 +380,9 @@ describe('GeminiEmbeddingAdapter', () => {
       const harness = buildHarness({ requestTimeoutMs: 5_000 })
       await new GeminiEmbeddingAdapter(harness.configuration).embedQuery('q')
 
-      expect(harness.timeoutSignals).toEqual([5_000])
+      // The whole-call signal bounds quota admission; the second signal bounds
+      // the upstream request by the configured per-request budget.
+      expect(harness.timeoutSignals).toEqual([10_000, 5_000])
     })
 
     // Checking the whole-call budget only BETWEEN sub-batches would leave the
@@ -384,10 +394,10 @@ describe('GeminiEmbeddingAdapter', () => {
       })
       await new GeminiEmbeddingAdapter(harness.configuration).embedQuery('q')
 
-      expect(harness.timeoutSignals).toEqual([2_000])
+      expect(harness.timeoutSignals).toEqual([2_000, 2_000])
     })
 
-    it('reports an expired whole-call budget as a timeout without calling upstream', async () => {
+    it('recomputes the deadline after quota admission and makes no late upstream call', async () => {
       const harness = buildHarness({ documentTimeoutMs: 1_000 })
       const adapter = new GeminiEmbeddingAdapter(harness.configuration)
       harness.reserveGeneration.mockImplementation(() => {
@@ -404,6 +414,30 @@ describe('GeminiEmbeddingAdapter', () => {
       await expect(adapter.embedDocuments(documents)).rejects.toMatchObject({
         code: 'EMBEDDING_TIMEOUT',
       })
+      expect(harness.embedContent).not.toHaveBeenCalled()
+    })
+
+    it('bounds a quota reservation that never settles', async () => {
+      const controllers: AbortController[] = []
+      const harness = buildHarness({
+        reserveGeneration: jest.fn(() => new Promise<void>(() => undefined)),
+        createTimeoutSignal: () => {
+          const controller = new AbortController()
+          controllers.push(controller)
+          return controller.signal
+        },
+      })
+      const embedding = new GeminiEmbeddingAdapter(
+        harness.configuration,
+      ).embedQuery('q')
+
+      await Promise.resolve()
+      controllers[0].abort()
+
+      await expect(embedding).rejects.toMatchObject({
+        code: 'EMBEDDING_TIMEOUT',
+      })
+      expect(harness.embedContent).not.toHaveBeenCalled()
     })
 
     it('reports an upstream abort as cancellation', async () => {

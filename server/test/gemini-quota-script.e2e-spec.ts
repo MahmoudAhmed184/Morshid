@@ -192,6 +192,59 @@ describe('GEMINI_QUOTA_RESERVATION_LUA (e2e)', () => {
     expect(ttlMs).toBeLessThanOrEqual(EXPECTED_KEY_TTL_MS)
   })
 
+  it('continues the literal pre-extraction completion key, fields, windows, and TTL', async () => {
+    const quota = new GeminiQuotaService(
+      {
+        eval: (script, options) =>
+          client.eval(script, {
+            keys: [...options.keys],
+            arguments: [...options.arguments],
+          }),
+      },
+      caps,
+      { credential: 'AIzaSyFIXED-compat-credential' },
+    )
+    const literalPreExtractionKey =
+      'morshid:completion:gemini:quota:7efb944550c62f5a8c0c1966'
+    expect(quota.quotaKey).toBe(literalPreExtractionKey)
+    createdKeys.push(literalPreExtractionKey)
+
+    const serverNowMs = await readServerNowMs()
+    const dayWindowStart = Math.floor(serverNowMs / DAY_MS) * DAY_MS
+    const monthWindowStart =
+      Math.floor(serverNowMs / THIRTY_DAY_WINDOW_MS) * THIRTY_DAY_WINDOW_MS
+    await client.hSet(literalPreExtractionKey, {
+      'requests_minute:tokens': '4',
+      'requests_minute:updated_ms': String(serverNowMs),
+      'requests_hour:tokens': '49',
+      'requests_hour:updated_ms': String(serverNowMs),
+      'requests_day:used': '1',
+      'requests_day:window_start_ms': String(dayWindowStart),
+      'requests_month:used': '1',
+      'requests_month:window_start_ms': String(monthWindowStart),
+      'input_tokens_minute:tokens': '90',
+      'input_tokens_minute:updated_ms': String(serverNowMs),
+    })
+
+    await quota.reserveGeneration(10)
+
+    const hash = await readHash(literalPreExtractionKey)
+    expect(hash['requests_day:used']).toBe('2')
+    expect(hash['requests_day:window_start_ms']).toBe(String(dayWindowStart))
+    expect(hash['requests_month:used']).toBe('2')
+    expect(hash['requests_month:window_start_ms']).toBe(
+      String(monthWindowStart),
+    )
+    expect(Number(hash['input_tokens_minute:tokens'])).toBeGreaterThanOrEqual(
+      80,
+    )
+    expect(Number(hash['input_tokens_minute:tokens'])).toBeLessThan(81)
+
+    const ttlMs = await client.pTTL(literalPreExtractionKey)
+    expect(ttlMs).toBeGreaterThan(EXPECTED_KEY_TTL_MS - MINUTE_MS)
+    expect(ttlMs).toBeLessThanOrEqual(EXPECTED_KEY_TTL_MS)
+  })
+
   it('debits only the token bucket when recording already-billed tokens', async () => {
     const quota = buildQuota()
     await quota.reserveRequest()

@@ -64,7 +64,7 @@ describe('gemini selection', () => {
 
     expect(provider.model).toBe('gemini/gemini-embedding-2/1536/document-v1')
     expect(provider.queryProtocol).toBe(
-      'gemini/gemini-embedding-2/search-result-v1',
+      'gemini/gemini-embedding-2/question-answering-v1',
     )
   })
 

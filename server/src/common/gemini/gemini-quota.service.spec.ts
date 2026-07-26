@@ -35,6 +35,13 @@ const EMBEDDING_NAMESPACE: GeminiQuotaNamespace = Object.freeze({
 class RecordingFakeRedis implements GeminiQuotaRedisClient {
   readonly hashes = new Map<string, Map<string, string>>()
   readonly keys: string[] = []
+  readonly requests: {
+    readonly ttlMs: number
+    readonly dimensions: readonly {
+      readonly name: string
+      readonly windowMs: number
+    }[]
+  }[] = []
 
   eval(
     _script: string,
@@ -47,13 +54,16 @@ class RecordingFakeRedis implements GeminiQuotaRedisClient {
     this.keys.push(key)
 
     const request = JSON.parse(options.arguments[0]) as {
+      readonly ttlMs: number
       readonly dimensions: readonly {
         readonly name: string
         readonly mode: string
         readonly capacity: number
         readonly cost: number
+        readonly windowMs: number
       }[]
     }
+    this.requests.push(request)
     const hash = this.hashes.get(key) ?? new Map<string, string>()
 
     for (const dimension of request.dimensions) {
@@ -129,19 +139,19 @@ describe('shared GeminiQuotaService namespacing', () => {
     // fields into it. This drives an existing budget forward instead.
     it('observes and increments an existing budget rather than starting a parallel one', async () => {
       const redis = new RecordingFakeRedis()
-      const before = new CompletionGeminiQuotaService(redis, caps, {
-        credential: 'AIzaSyFIXED-compat-credential',
-      })
-      await before.reserveGeneration(100)
+      const seededKey =
+        'morshid:completion:gemini:quota:7efb944550c62f5a8c0c1966'
+      const seededHash = new Map<string, string>([
+        ['requests_day:used', '1'],
+        ['requests_day:window_start_ms', '0'],
+        ['input_tokens_minute:tokens', '400'],
+        ['input_tokens_minute:updated_ms', '0'],
+      ])
+      redis.hashes.set(seededKey, seededHash)
 
-      const seededKey = before.quotaKey
-      const seededHash = redis.hashes.get(seededKey)
-      expect(seededHash?.get('requests_day:used')).toBe('1')
-      expect(seededHash?.get('input_tokens_minute:tokens')).toBe('400')
-
-      // A separately constructed instance — the extracted implementation
-      // reached through completion's namespace — must land on the same key and
-      // continue the same counters.
+      // The extracted implementation, reached through completion's exact
+      // namespace, must land on the literal pre-extraction key and continue the
+      // manually seeded pre-extraction fields.
       const after = new SharedGeminiQuotaService(
         redis,
         caps,
@@ -152,9 +162,19 @@ describe('shared GeminiQuotaService namespacing', () => {
 
       expect(after.quotaKey).toBe(seededKey)
       expect(redis.hashes.size).toBe(1)
-      expect(redis.keys).toEqual([seededKey, seededKey])
-      expect(seededHash?.get('requests_day:used')).toBe('2')
-      expect(seededHash?.get('input_tokens_minute:tokens')).toBe('300')
+      expect(redis.keys).toEqual([seededKey])
+      expect(seededHash.get('requests_day:used')).toBe('2')
+      expect(seededHash.get('input_tokens_minute:tokens')).toBe('300')
+      expect(redis.requests[0]).toMatchObject({
+        ttlMs: 5_184_000_000,
+        dimensions: [
+          { name: 'requests_minute', windowMs: 60_000 },
+          { name: 'requests_hour', windowMs: 3_600_000 },
+          { name: 'requests_day', windowMs: 86_400_000 },
+          { name: 'requests_month', windowMs: 2_592_000_000 },
+          { name: 'input_tokens_minute', windowMs: 60_000 },
+        ],
+      })
     })
 
     it('exhausts the shared budget from either instance', async () => {

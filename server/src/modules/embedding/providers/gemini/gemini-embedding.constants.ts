@@ -46,11 +46,11 @@ export const GEMINI_EMBEDDING_CONCURRENCY = 2
  *
  * `taskType` is **unsupported** by this model — Google replaced it with prompt
  * prefixes — so this string is part of the text that gets embedded, not a
- * request field. `search result` is the selected task; see
- * `docs/gemini-embedding-task-selection.md` for the comparison against
- * `question answering` that chose it.
+ * request field. `question answering` is the selected task; see
+ * `docs/gemini-embedding-task-selection.md` for the completed comparison
+ * against `search result`.
  */
-export const GEMINI_EMBEDDING_QUERY_TASK = 'search result'
+export const GEMINI_EMBEDDING_QUERY_TASK = 'question answering'
 
 /** Substituted when a caller supplies no title. */
 export const GEMINI_EMBEDDING_ABSENT_TITLE = 'none'
@@ -70,7 +70,7 @@ export const GEMINI_EMBEDDING_DOCUMENT_PROFILE = `gemini/${GEMINI_EMBEDDING_MODE
  * Both retrieval tasks share one document format, so changing the query task
  * bumps only this string and costs no re-embed.
  */
-export const GEMINI_EMBEDDING_QUERY_PROTOCOL = `gemini/${GEMINI_EMBEDDING_MODEL}/search-result-v1`
+export const GEMINI_EMBEDDING_QUERY_PROTOCOL = `gemini/${GEMINI_EMBEDDING_MODEL}/question-answering-v1`
 
 /** Redis namespace for the embedding quota budgets. */
 export const GEMINI_EMBEDDING_QUOTA_NAMESPACE = Object.freeze({

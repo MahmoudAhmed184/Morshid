@@ -206,7 +206,11 @@ export class GeminiEmbeddingAdapter implements EmbeddingProvider {
       (range, _index, signal) =>
         signal.aborted
           ? Promise.reject(createGroupAbortError())
-          : this.requestBatch(inputs.slice(range.start, range.end), deadlineMs),
+          : this.requestBatch(
+              inputs.slice(range.start, range.end),
+              deadlineMs,
+              signal,
+            ),
     )
 
     return batches.flat()
@@ -222,8 +226,13 @@ export class GeminiEmbeddingAdapter implements EmbeddingProvider {
   private async requestBatch(
     inputs: readonly string[],
     wholeCallDeadlineMs: number,
+    groupSignal?: AbortSignal,
   ): Promise<Embedding[]> {
-    const remainingMs = wholeCallDeadlineMs - this.clock()
+    if (isSignalAborted(groupSignal)) {
+      throw createGroupAbortError()
+    }
+
+    let remainingMs = wholeCallDeadlineMs - this.clock()
     if (remainingMs <= 0) {
       this.logDiagnostic('timeout', inputs.length)
       throw new EmbeddingUpstreamError('EMBEDDING_TIMEOUT')
@@ -234,8 +243,19 @@ export class GeminiEmbeddingAdapter implements EmbeddingProvider {
     // budget makes zero calls to Google. The estimate is never reconciled —
     // see `estimateInputUnits`.
     try {
-      await this.quota.reserveGeneration(estimateInputUnits(inputs))
+      await waitForQuotaReservation(
+        this.quota.reserveGeneration(estimateInputUnits(inputs)),
+        this.createTimeoutSignal(remainingMs),
+        groupSignal,
+      )
     } catch (error) {
+      if (isSignalAborted(groupSignal)) {
+        throw createGroupAbortError()
+      }
+      if (error instanceof WholeCallDeadlineError) {
+        this.logDiagnostic('timeout', inputs.length)
+        throw new EmbeddingUpstreamError('EMBEDDING_TIMEOUT')
+      }
       this.logDiagnostic('quota_denied', inputs.length)
       throw new EmbeddingUpstreamError(
         isQuotaExhausted(error)
@@ -244,10 +264,24 @@ export class GeminiEmbeddingAdapter implements EmbeddingProvider {
       )
     }
 
+    // Redis admission is part of the whole-call budget. Recompute after it
+    // settles: using the pre-reservation value lets a slow quota operation push
+    // the upstream request past the advertised query/document deadline.
+    remainingMs = wholeCallDeadlineMs - this.clock()
+    if (remainingMs <= 0) {
+      this.logDiagnostic('timeout', inputs.length)
+      throw new EmbeddingUpstreamError('EMBEDDING_TIMEOUT')
+    }
+
     const requestTimeoutMs = Math.min(
       this.options.requestTimeoutMs,
       remainingMs,
     )
+    const requestTimeoutSignal = this.createTimeoutSignal(requestTimeoutMs)
+    const requestAbortSignal =
+      groupSignal === undefined
+        ? requestTimeoutSignal
+        : AbortSignal.any([requestTimeoutSignal, groupSignal])
 
     let response: unknown
     try {
@@ -259,7 +293,7 @@ export class GeminiEmbeddingAdapter implements EmbeddingProvider {
         contents: inputs.map((text) => ({ parts: [{ text }] })),
         config: {
           outputDimensionality: GEMINI_EMBEDDING_OUTPUT_DIMENSIONALITY,
-          abortSignal: this.createTimeoutSignal(requestTimeoutMs),
+          abortSignal: requestAbortSignal,
           httpOptions: {
             apiVersion: GEMINI_EMBEDDING_API_VERSION,
             // This adapter owns its own deadline arithmetic; an invisible SDK
@@ -269,6 +303,12 @@ export class GeminiEmbeddingAdapter implements EmbeddingProvider {
         },
       })
     } catch (error) {
+      if (isSignalAborted(groupSignal)) {
+        // A sibling produced the genuine failure. This request was cancelled
+        // only to settle the group promptly and must not compete for failure
+        // selection in mapBoundedConcurrency.
+        throw createGroupAbortError()
+      }
       const outcome =
         this.clock() >= wholeCallDeadlineMs
           ? 'timeout'
@@ -354,6 +394,82 @@ export class GeminiEmbeddingAdapter implements EmbeddingProvider {
     }
     this.logger.error(diagnostic)
   }
+}
+
+class WholeCallDeadlineError extends Error {
+  constructor() {
+    super('Embedding whole-call deadline elapsed')
+    this.name = 'WholeCallDeadlineError'
+  }
+}
+
+/**
+ * Bounds the Redis admission step as part of the whole embedding call.
+ *
+ * Abandoning the wait cannot cancel a Lua command already accepted by Redis,
+ * so a late reservation may still debit the conservative local budget. It can
+ * never trigger an upstream Google request after the caller's deadline.
+ * Attaching both handlers to the reservation also ensures a late Redis
+ * rejection is observed rather than becoming an unhandled rejection.
+ */
+function waitForQuotaReservation(
+  reservation: Promise<void>,
+  deadlineSignal: AbortSignal,
+  groupSignal: AbortSignal | undefined,
+): Promise<void> {
+  if (deadlineSignal.aborted) {
+    return Promise.reject(new WholeCallDeadlineError())
+  }
+  if (isSignalAborted(groupSignal)) {
+    return Promise.reject(createGroupAbortError())
+  }
+
+  return new Promise<void>((resolve, reject) => {
+    let settled = false
+    const settle = (action: () => void): void => {
+      if (settled) {
+        return
+      }
+      settled = true
+      deadlineSignal.removeEventListener('abort', onDeadline)
+      groupSignal?.removeEventListener('abort', onGroupAbort)
+      action()
+    }
+    const onDeadline = () => {
+      settle(() => {
+        reject(new WholeCallDeadlineError())
+      })
+    }
+    const onGroupAbort = () => {
+      settle(() => {
+        reject(createGroupAbortError())
+      })
+    }
+
+    deadlineSignal.addEventListener('abort', onDeadline, { once: true })
+    groupSignal?.addEventListener('abort', onGroupAbort, { once: true })
+    reservation.then(
+      () => {
+        settle(resolve)
+      },
+      (error: unknown) => {
+        settle(() => {
+          reject(
+            error instanceof Error
+              ? error
+              : new Error('Embedding quota reservation failed'),
+          )
+        })
+      },
+    )
+  })
+}
+
+// AbortSignal is mutable external state. Reading through a function prevents
+// TypeScript from treating an earlier false read as permanently true after an
+// await.
+function isSignalAborted(signal: AbortSignal | undefined): boolean {
+  return signal?.aborted ?? false
 }
 
 /**
