@@ -49,7 +49,7 @@ function buildHarness(materials: readonly MigratableMaterial[]): Harness {
   )
   const target = {
     model: 'gemini/gemini-embedding-2/1536/document-v1',
-    queryProtocol: 'gemini/gemini-embedding-2/search-result-v1',
+    queryProtocol: 'gemini/gemini-embedding-2/question-answering-v1',
     embedQuery: () => Promise.resolve(buildVector()),
     embedDocuments,
   } as unknown as EmbeddingProvider
@@ -209,6 +209,24 @@ describe('migrateEmbeddings', () => {
     })
   })
 
+  it.each([null, 0, -1])(
+    'reports a candidate with chunkCount=%s as incomplete without embedding',
+    async (chunkCount) => {
+      const harness = buildHarness([
+        { id: 'material-a', title: 'Week 1', chunkCount },
+      ])
+
+      const summary = await migrateEmbeddings(harness)
+
+      expect(summary).toMatchObject({
+        failedMaterialIds: ['material-a'],
+        complete: false,
+      })
+      expect(harness.embedDocuments).not.toHaveBeenCalled()
+      expect(harness.persistence.replaceMaterialChunks).not.toHaveBeenCalled()
+    },
+  )
+
   // A candidate material with no persisted chunks needs reprocessing, not
   // migration: there is no source text for this runner to re-embed.
   it('reports a candidate material with no chunks as incomplete', async () => {
@@ -224,21 +242,19 @@ describe('migrateEmbeddings', () => {
     expect(harness.embedDocuments).not.toHaveBeenCalled()
   })
 
-  // Mid-migration a material legitimately holds rows in two profiles; embedding
-  // the same chunk index twice would violate (material_id, chunk_index).
-  it('deduplicates mixed-profile rows by chunk index', async () => {
-    const harness = buildHarness([twoMaterials[0]])
-    harness.persistence.findMaterialChunks.mockResolvedValue([
-      buildChunk('material-a', 0, 'deterministic-embedding-v1'),
-      buildChunk('material-a', 0, 'gemini/gemini-embedding-2/1536/document-v1'),
-      buildChunk('material-a', 1, 'deterministic-embedding-v1'),
+  it('reports fewer stored chunks than chunkCount as incomplete', async () => {
+    const harness = buildHarness([
+      { id: 'material-a', title: 'Week 1', chunkCount: 3 },
     ])
 
-    await migrateEmbeddings(harness)
+    const summary = await migrateEmbeddings(harness)
 
-    const [, chunks] = harness.persistence.replaceMaterialChunks.mock
-      .calls[0] as [string, { chunkIndex: number }[]]
-    expect(chunks.map(({ chunkIndex }) => chunkIndex)).toEqual([0, 1])
+    expect(summary).toMatchObject({
+      failedMaterialIds: ['material-a'],
+      complete: false,
+    })
+    expect(harness.embedDocuments).not.toHaveBeenCalled()
+    expect(harness.persistence.replaceMaterialChunks).not.toHaveBeenCalled()
   })
 
   it('emits progress events for reporting only', async () => {

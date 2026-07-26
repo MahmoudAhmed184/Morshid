@@ -1,23 +1,17 @@
 import { Module } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { GoogleGenAI } from '@google/genai'
 
-import { GeminiQuotaService } from '../../common/gemini/gemini-quota.service'
 import type { AppEnvironment } from '../config/env.schema'
 import { RedisModule } from '../redis/redis.module'
 import { RedisService } from '../redis/redis.service'
-import {
-  GEMINI_EMBEDDING_PROVIDER,
-  GEMINI_EMBEDDING_QUOTA_NAMESPACE,
-} from './embedding-configuration'
+import { GEMINI_EMBEDDING_PROVIDER } from './embedding-configuration'
 import {
   createEmbeddingProviderFrom,
   snapshotEmbeddingConfiguration,
   type EmbeddingProviderCollaborators,
 } from './embedding-provider.factory'
 import { EMBEDDING_PROVIDER_TOKEN } from './embedding-provider'
-import { GEMINI_EMBEDDING_API_VERSION } from './providers/gemini/gemini-embedding.constants'
-import type { GeminiEmbeddingRequest } from './providers/gemini/gemini-embedding.adapter'
+import { composeGeminiEmbeddingConfiguration } from './gemini-embedding-runtime'
 
 // `RedisModule` is imported unconditionally, but the client is resolved lazily
 // *inside* the eval closure rather than at factory time: six e2e specs stub
@@ -65,28 +59,20 @@ function buildCollaborators(
   }
 
   const apiKey = requireString(configService, 'GEMINI_EMBEDDING_API_KEY')
-  const sdk = new GoogleGenAI({
+  const gemini = composeGeminiEmbeddingConfiguration({
     apiKey,
-    httpOptions: {
-      apiVersion: GEMINI_EMBEDDING_API_VERSION,
-      // The adapter owns its own deadline arithmetic; an invisible SDK retry
-      // would re-issue a request the quota guard never admitted.
-      retryOptions: { attempts: 1 },
-    },
-  })
-
-  // The budget is keyed on the opaque project label rather than the credential,
-  // so every replica on one Google project shares one bucket and a credential
-  // rotation never mints a fresh day or 30-day window.
-  const quota = new GeminiQuotaService(
-    {
+    quotaProjectId: requireString(
+      configService,
+      'GEMINI_EMBEDDING_QUOTA_PROJECT_ID',
+    ),
+    redis: {
       eval: (script, options) =>
         redisService.getClient().eval(script, {
           keys: [...options.keys],
           arguments: [...options.arguments],
         }),
     },
-    {
+    quotaCaps: {
       requestsPerMinute: requirePositiveInteger(
         configService,
         'GEMINI_EMBEDDING_REQUESTS_PER_MINUTE',
@@ -108,40 +94,24 @@ function buildCollaborators(
         'GEMINI_EMBEDDING_LOCAL_REQUESTS_PER_30_DAYS',
       ),
     },
-    {
-      project: requireString(
+    options: {
+      queryTimeoutMs: requirePositiveInteger(
         configService,
-        'GEMINI_EMBEDDING_QUOTA_PROJECT_ID',
+        'EMBEDDING_QUERY_TIMEOUT_MS',
+      ),
+      documentTimeoutMs: requirePositiveInteger(
+        configService,
+        'EMBEDDING_DOCUMENT_TIMEOUT_MS',
+      ),
+      requestTimeoutMs: requirePositiveInteger(
+        configService,
+        'EMBEDDING_REQUEST_TIMEOUT_MS',
       ),
     },
-    GEMINI_EMBEDDING_QUOTA_NAMESPACE,
-  )
+  })
 
   return {
-    gemini: {
-      client: {
-        embedContent: (request: GeminiEmbeddingRequest) =>
-          sdk.models.embedContent(request),
-      },
-      quota: {
-        reserveGeneration: (estimatedInputUnits: number) =>
-          quota.reserveGeneration(estimatedInputUnits),
-      },
-      options: {
-        queryTimeoutMs: requirePositiveInteger(
-          configService,
-          'EMBEDDING_QUERY_TIMEOUT_MS',
-        ),
-        documentTimeoutMs: requirePositiveInteger(
-          configService,
-          'EMBEDDING_DOCUMENT_TIMEOUT_MS',
-        ),
-        requestTimeoutMs: requirePositiveInteger(
-          configService,
-          'EMBEDDING_REQUEST_TIMEOUT_MS',
-        ),
-      },
-    },
+    gemini,
   }
 }
 

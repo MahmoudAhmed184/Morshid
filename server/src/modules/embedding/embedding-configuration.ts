@@ -23,17 +23,23 @@ export const GEMINI_EMBEDDING_PROVIDER = 'gemini'
 // vocabulary surface: nothing outside `embedding/` reaches into
 // `embedding/providers/`.
 export {
+  GEMINI_EMBEDDING_API_VERSION,
   GEMINI_EMBEDDING_BATCH_SIZE,
   GEMINI_EMBEDDING_DOCUMENT_PROFILE,
   GEMINI_EMBEDDING_MODEL,
+  GEMINI_EMBEDDING_OUTPUT_DIMENSIONALITY,
   GEMINI_EMBEDDING_QUERY_PROTOCOL,
   GEMINI_EMBEDDING_QUOTA_NAMESPACE,
   MAX_GEMINI_EMBEDDING_API_KEY_LENGTH,
   MAX_GEMINI_EMBEDDING_QUOTA_PROJECT_ID_LENGTH,
   isValidGeminiEmbeddingQuotaProjectId,
 } from './providers/gemini/gemini-embedding.constants'
+export { buildGeminiDocumentInput } from './providers/gemini/gemini-embedding-input'
 export { validateGeminiEmbeddingConfiguration } from './providers/gemini/gemini-embedding.adapter'
-export type { GeminiEmbeddingConfiguration } from './providers/gemini/gemini-embedding.adapter'
+export type {
+  GeminiEmbeddingConfiguration,
+  GeminiEmbeddingRequest,
+} from './providers/gemini/gemini-embedding.adapter'
 
 /**
  * Three timeout budgets, because one value cannot serve both callers.

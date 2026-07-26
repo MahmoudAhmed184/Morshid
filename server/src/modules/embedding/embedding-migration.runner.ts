@@ -56,6 +56,7 @@ export type EmbeddingMigrationEvent =
   | { kind: 'migrated'; materialId: string; chunkCount: number }
   | { kind: 'failed'; materialId: string }
   | { kind: 'empty_material'; materialId: string }
+  | { kind: 'invalid_chunk_count'; materialId: string }
 
 export interface EmbeddingMigrationSummary {
   readonly targetModel: string
@@ -102,12 +103,12 @@ export async function migrateEmbeddings(
 
   for (const material of materials) {
     try {
-      const chunks = await persistence.findMaterialChunks(material.id)
-
-      if (chunks.length === 0) {
-        // Nothing to re-embed, and nothing this runner can invent: a candidate
-        // material with no chunks needs reprocessing, not migration.
-        report({ kind: 'empty_material', materialId: material.id })
+      // Strict readiness can never consider a candidate with a null or
+      // non-positive chunk_count complete. Re-embedding cannot repair that
+      // material metadata, so report it for normal reprocessing instead of
+      // exiting zero while retrieval would remain blocked.
+      if (material.chunkCount === null || material.chunkCount <= 0) {
+        report({ kind: 'invalid_chunk_count', materialId: material.id })
         failedMaterialIds.push(material.id)
         continue
       }
@@ -116,7 +117,7 @@ export async function migrateEmbeddings(
         material.id,
         targetModel,
       )
-      if (material.chunkCount !== null && covered >= material.chunkCount) {
+      if (covered >= material.chunkCount) {
         skippedCount += 1
         report({
           kind: 'skipped_complete',
@@ -126,10 +127,24 @@ export async function migrateEmbeddings(
         continue
       }
 
-      // Deduplicate by chunk index and keep source order: a material mid-way
-      // through a migration holds rows in two profiles, and re-embedding a
-      // chunk twice would try to insert a duplicate (material_id, chunk_index).
-      const sourceChunks = dedupeByChunkIndex(chunks)
+      const chunks = await persistence.findMaterialChunks(material.id)
+      if (chunks.length === 0) {
+        // Nothing to re-embed, and nothing this runner can invent: a candidate
+        // material with no chunks needs reprocessing, not migration.
+        report({ kind: 'empty_material', materialId: material.id })
+        failedMaterialIds.push(material.id)
+        continue
+      }
+
+      // Replacement is transactional per material and the database enforces
+      // one row per (material_id, chunk_index), so these are the complete,
+      // stable source texts for this material.
+      const sourceChunks = chunks
+      if (sourceChunks.length < material.chunkCount) {
+        report({ kind: 'failed', materialId: material.id })
+        failedMaterialIds.push(material.id)
+        continue
+      }
       const embeddings = await target.embedDocuments(
         sourceChunks.map((chunk) => ({
           text: chunk.content,
@@ -153,7 +168,10 @@ export async function migrateEmbeddings(
         material.id,
         targetModel,
       )
-      if (verified < replacement.length) {
+      // Verify against the material metadata readiness itself uses. Verifying
+      // only replacement.length can report success after migrating a truncated
+      // source set while chunk_count still says more chunks should exist.
+      if (verified < material.chunkCount) {
         failedMaterialIds.push(material.id)
         report({ kind: 'failed', materialId: material.id })
         continue
@@ -181,19 +199,4 @@ export async function migrateEmbeddings(
     failedMaterialIds: Object.freeze(failedMaterialIds),
     complete: failedMaterialIds.length === 0,
   })
-}
-
-function dedupeByChunkIndex<Chunk extends { chunkIndex: number }>(
-  chunks: readonly Chunk[],
-): Chunk[] {
-  const seen = new Set<number>()
-  const deduped: Chunk[] = []
-  for (const chunk of chunks) {
-    if (seen.has(chunk.chunkIndex)) {
-      continue
-    }
-    seen.add(chunk.chunkIndex)
-    deduped.push(chunk)
-  }
-  return deduped
 }

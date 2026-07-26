@@ -1,22 +1,15 @@
 import type { ConfigService } from '@nestjs/config'
-import { GoogleGenAI } from '@google/genai'
 import { createClient } from 'redis'
 import { config as loadEnv } from 'dotenv'
 
-import { GeminiQuotaService } from '../src/common/gemini/gemini-quota.service.js'
 import type { AppEnvironment } from '../src/modules/config/env.schema.js'
 import { validateEnv } from '../src/modules/config/env.schema.js'
+import { createEmbeddingProvider } from '../src/modules/embedding/embedding-provider.factory.js'
 import { migrateEmbeddings } from '../src/modules/embedding/embedding-migration.runner.js'
 import type { EmbeddingMigrationEvent } from '../src/modules/embedding/embedding-migration.runner.js'
 import type { EmbeddingProvider } from '../src/modules/embedding/embedding-provider.js'
+import { composeGeminiEmbeddingConfiguration } from '../src/modules/embedding/gemini-embedding-runtime.js'
 import { PrismaEmbeddingMigrationCorpus } from '../src/modules/embedding/prisma-embedding-migration.corpus.js'
-import { GeminiEmbeddingAdapter } from '../src/modules/embedding/providers/gemini/gemini-embedding.adapter.js'
-import {
-  GEMINI_EMBEDDING_API_VERSION,
-  GEMINI_EMBEDDING_QUOTA_NAMESPACE,
-} from '../src/modules/embedding/providers/gemini/gemini-embedding.constants.js'
-import { DeterministicEmbeddingProvider } from '../src/modules/embedding/deterministic-embedding.provider.js'
-import { ValidatedEmbeddingProvider } from '../src/modules/embedding/validated-embedding.provider.js'
 import { PrismaService } from '../src/modules/prisma/prisma.service.js'
 import { PrismaRagPersistenceRepository } from '../src/modules/rag-persistence/rag-persistence.repository.js'
 
@@ -44,8 +37,16 @@ type Target = (typeof TARGETS)[number]
  * provider.
  */
 async function main(): Promise<void> {
-  const env = validateEnv(process.env)
   const target = readTarget()
+  // Force validation through the target provider's complete startup gate,
+  // independently of the provider currently serving traffic. A migration to
+  // Gemini must not bypass the production refusal, acknowledgement,
+  // placeholder/distinct-key rules, quota-project syntax, or cap ordering just
+  // because EMBEDDING_PROVIDER is still deterministic before activation.
+  const env = validateEnv({
+    ...process.env,
+    EMBEDDING_PROVIDER: target,
+  })
 
   // PrismaService reads its connection string through ConfigService; this
   // script has no Nest container, so it supplies the one value that needs.
@@ -113,12 +114,9 @@ async function buildTarget(
   teardown: (() => Promise<void>)[],
 ): Promise<EmbeddingProvider> {
   if (target === 'deterministic') {
-    return new ValidatedEmbeddingProvider(new DeterministicEmbeddingProvider())
+    return createEmbeddingProvider('deterministic')
   }
 
-  // Validated here rather than by the env schema, because the schema gates
-  // these on EMBEDDING_PROVIDER=gemini and the whole point of this command is
-  // to run while it is still something else.
   const apiKey = requireValue(
     env.GEMINI_EMBEDDING_API_KEY,
     'GEMINI_EMBEDDING_API_KEY',
@@ -132,15 +130,17 @@ async function buildTarget(
   await redis.connect()
   teardown.push(() => redis.quit().then(() => undefined))
 
-  const quota = new GeminiQuotaService(
-    {
+  const gemini = composeGeminiEmbeddingConfiguration({
+    apiKey,
+    quotaProjectId,
+    redis: {
       eval: (script, options) =>
         redis.eval(script, {
           keys: [...options.keys],
           arguments: [...options.arguments],
         }),
     },
-    {
+    quotaCaps: {
       requestsPerMinute: requireValue(
         env.GEMINI_EMBEDDING_REQUESTS_PER_MINUTE,
         'GEMINI_EMBEDDING_REQUESTS_PER_MINUTE',
@@ -162,33 +162,16 @@ async function buildTarget(
         'GEMINI_EMBEDDING_LOCAL_REQUESTS_PER_30_DAYS',
       ),
     },
-    { project: quotaProjectId },
-    GEMINI_EMBEDDING_QUOTA_NAMESPACE,
-  )
-
-  const sdk = new GoogleGenAI({
-    apiKey,
-    httpOptions: {
-      apiVersion: GEMINI_EMBEDDING_API_VERSION,
-      retryOptions: { attempts: 1 },
+    options: {
+      queryTimeoutMs: env.EMBEDDING_QUERY_TIMEOUT_MS,
+      documentTimeoutMs: env.EMBEDDING_DOCUMENT_TIMEOUT_MS,
+      requestTimeoutMs: env.EMBEDDING_REQUEST_TIMEOUT_MS,
     },
   })
 
-  // Wrapped exactly as the runtime factory wraps it, so a migration cannot
-  // persist a vector the running application would have rejected.
-  return new ValidatedEmbeddingProvider(
-    new GeminiEmbeddingAdapter({
-      client: { embedContent: (request) => sdk.models.embedContent(request) },
-      quota: {
-        reserveGeneration: (units) => quota.reserveGeneration(units),
-      },
-      options: {
-        queryTimeoutMs: env.EMBEDDING_QUERY_TIMEOUT_MS,
-        documentTimeoutMs: env.EMBEDDING_DOCUMENT_TIMEOUT_MS,
-        requestTimeoutMs: env.EMBEDDING_REQUEST_TIMEOUT_MS,
-      },
-    }),
-  )
+  // The same factory and collaborator composer as runtime startup: migration
+  // cannot persist a vector the running application would reject.
+  return createEmbeddingProvider('gemini', { gemini })
 }
 
 function requireValue<Value>(value: Value | undefined, name: string): Value {
@@ -214,7 +197,6 @@ main().catch((error: unknown) => {
     `${JSON.stringify({
       outcome: 'failure',
       error: error instanceof Error ? error.name : typeof error,
-      message: error instanceof Error ? error.message : '',
     })}\n`,
   )
   process.exitCode = 1
