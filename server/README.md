@@ -430,13 +430,25 @@ requires deliberately probing increasing sizes.
 ### AWS Bedrock embedding is not available
 
 `EMBEDDING_PROVIDER` accepts `deterministic` and `gemini` only. An ITI Cohere
-embedding adapter is deliberately not implemented: every gateway-specific fact
-about `/student/embed` — the route, the request body, the response envelope, the
-approved model, and whether the gateway preserves Cohere's 1,536-dimensional
-default — is unverified, and implementing against an invented envelope would
-hide contract drift rather than expose it. See the "Embedding endpoint — blocked
-on a live probe" section of `docs/aws-bedrock-iti-gateway-research.md` for the
-probe that unblocks it.
+embedding adapter is deliberately not implemented. The gateway's current public
+integration bundle documents `/student/embed` and the
+`{model_id,texts,input_type}` request, but the redacted Cohere request returned
+HTTP 403. The model approval, successful response envelope, preserved
+1,536-dimensional output, input echo behavior, and practical batch capacity
+therefore remain unverified. Implementing against an invented success envelope
+would hide contract drift rather than expose it. See "Embedding endpoint — live
+probe denied" in `docs/aws-bedrock-iti-gateway-research.md`.
+
+After the ITI dashboard shows `us.cohere.embed-v4:0` as approved, rerun the
+single-request structural probe with:
+
+```bash
+npm run test:iti-bedrock-embedding:probe
+```
+
+It emits only response property names, a shape label, vector count,
+dimensionalities, and whether the synthetic input was echoed. It never emits a
+credential, header, URL, source string, body, or vector component.
 
 ### Switching embedding providers
 
@@ -468,8 +480,8 @@ The target is an **explicit argument**, and its configuration is validated
 independently of `EMBEDDING_PROVIDER` — the whole point is to migrate *before*
 switching, so the target is deliberately not the configured provider. For a
 Gemini target this means `GEMINI_EMBEDDING_*` must be set while
-`EMBEDDING_PROVIDER` is still `deterministic`; the command checks them itself,
-because the environment schema only requires them once Gemini is selected.
+`EMBEDDING_PROVIDER` is still `deterministic`; the command forces the target
+through that same full schema gate itself.
 
 Every run scans **all** candidate materials, checks each one's current
 target-profile coverage, skips the complete ones, and retries every incomplete

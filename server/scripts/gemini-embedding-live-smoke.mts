@@ -1,13 +1,15 @@
 import { GoogleGenAI } from '@google/genai'
+import { Logger } from '@nestjs/common'
 import { config as loadEnv } from 'dotenv'
 
 import { validateEnv } from '../src/modules/config/env.schema.js'
-import { EMBEDDING_DIMENSIONS } from '../src/modules/embedding/embedding-provider.js'
-import { GeminiEmbeddingAdapter } from '../src/modules/embedding/providers/gemini/gemini-embedding.adapter.js'
 import {
   GEMINI_EMBEDDING_API_VERSION,
   GEMINI_EMBEDDING_BATCH_SIZE,
-} from '../src/modules/embedding/providers/gemini/gemini-embedding.constants.js'
+  type GeminiEmbeddingRequest,
+} from '../src/modules/embedding/embedding-configuration.js'
+import { createEmbeddingProvider } from '../src/modules/embedding/embedding-provider.factory.js'
+import { EMBEDDING_DIMENSIONS } from '../src/modules/embedding/embedding-provider.js'
 import {
   GEMINI_EMBEDDING_LIVE_SMOKE_FIXTURE,
   buildGeminiSmokeBatch,
@@ -18,16 +20,21 @@ loadEnv({
   quiet: true,
 })
 
+// The adapter logs diagnostics in the application. A smoke command has a
+// stricter machine-readable contract: stdout/stderr contain only the single
+// result or redacted failure object emitted below.
+Logger.overrideLogger([])
+
 /**
  * Minimum cosine margin the relevant fixture must beat the unrelated one by.
  *
  * A bare `relevant > unrelated` comparison passes on noise: two near-orthogonal
  * vectors differ by something, so the assertion would hold even if the model
  * had learned nothing useful. The margin is deliberately **per provider** and
- * must be recalibrated after measuring both query tasks — see
- * `docs/gemini-embedding-task-selection.md`. This starting value is
- * conservative: it is set low enough not to fail a working provider, which
- * means it currently proves ordering with headroom rather than quality.
+ * calibrated after measuring both query tasks on disjoint calibration and
+ * held-out fixtures; see `docs/gemini-embedding-task-selection.md`. The selected
+ * protocol's held-out minimum margin was about 0.063, so 0.05 retains measured
+ * headroom while still rejecting noisy ordering.
  */
 const MIN_SEMANTIC_MARGIN = 0.05
 
@@ -60,15 +67,20 @@ async function main(): Promise<void> {
     },
   })
 
-  const adapter = new GeminiEmbeddingAdapter({
-    client: { embedContent: (request) => sdk.models.embedContent(request) },
-    // The smoke check exercises the wire contract, not the local admission
-    // control, so it deliberately does not meter into the shared budget.
-    quota: { reserveGeneration: () => Promise.resolve() },
-    options: {
-      queryTimeoutMs: env.EMBEDDING_QUERY_TIMEOUT_MS,
-      documentTimeoutMs: env.EMBEDDING_DOCUMENT_TIMEOUT_MS,
-      requestTimeoutMs: env.EMBEDDING_REQUEST_TIMEOUT_MS,
+  const adapter = createEmbeddingProvider('gemini', {
+    gemini: {
+      client: {
+        embedContent: (request: GeminiEmbeddingRequest) =>
+          sdk.models.embedContent(request),
+      },
+      // The smoke check exercises the wire contract, not the local admission
+      // control, so it deliberately does not meter into the shared budget.
+      quota: { reserveGeneration: () => Promise.resolve() },
+      options: {
+        queryTimeoutMs: env.EMBEDDING_QUERY_TIMEOUT_MS,
+        documentTimeoutMs: env.EMBEDDING_DOCUMENT_TIMEOUT_MS,
+        requestTimeoutMs: env.EMBEDDING_REQUEST_TIMEOUT_MS,
+      },
     },
   })
 
@@ -88,23 +100,25 @@ async function main(): Promise<void> {
 
   const relevantSimilarity = cosineSimilarity(queryVector, relevantVector)
   const unrelatedSimilarity = cosineSimilarity(queryVector, unrelatedVector)
+  const semanticOrderingPassed =
+    relevantSimilarity > unrelatedSimilarity + MIN_SEMANTIC_MARGIN
+
+  if (
+    queryVector.length !== EMBEDDING_DIMENSIONS ||
+    batch.some((vector) => vector.length !== EMBEDDING_DIMENSIONS) ||
+    batch.length !== GEMINI_EMBEDDING_BATCH_SIZE ||
+    !semanticOrderingPassed
+  ) {
+    throw new Error('Gemini embedding smoke contract failed')
+  }
 
   process.stdout.write(
     `${JSON.stringify({
-      outcome: 'success',
       provider: 'gemini',
-      apiVersion: GEMINI_EMBEDDING_API_VERSION,
-      model: adapter.model,
-      queryProtocol: adapter.queryProtocol,
+      responseShape: 'embeddings[].values[]',
       vectorCount: batch.length,
       dimensions: queryVector.length,
-      dimensionsMatchContract: queryVector.length === EMBEDDING_DIMENSIONS,
-      // A successful request at the configured size establishes only that the
-      // configured operational batch succeeds — not the model's maximum.
-      configuredBatchSucceeded: batch.length === GEMINI_EMBEDDING_BATCH_SIZE,
-      minSemanticMargin: MIN_SEMANTIC_MARGIN,
-      semanticOrderingPassed:
-        relevantSimilarity > unrelatedSimilarity + MIN_SEMANTIC_MARGIN,
+      semanticOrderingPassed,
     })}\n`,
   )
 }

@@ -60,8 +60,9 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-morshid}:${POSTGRES_PASSWORD:-morshid_local_password}@postgres:5432/${POSTGRES_DB:-morshid}
       REDIS_URL: redis://redis:6379
       PDF_STORAGE_PATH: /workspace/storage/pdfs
-      # Pinned rather than interpolated, exactly like COMPLETION_PROVIDER's
-      # live values: only deterministic is wired, and it is keyless and offline.
+      # Deterministic remains the keyless/offline default. The production
+      # environment gate below refuses Gemini even if an ambient variable tries
+      # to select it.
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-deterministic}
       EMBEDDING_QUERY_TIMEOUT_MS: ${EMBEDDING_QUERY_TIMEOUT_MS:-10000}
       EMBEDDING_DOCUMENT_TIMEOUT_MS: ${EMBEDDING_DOCUMENT_TIMEOUT_MS:-120000}
