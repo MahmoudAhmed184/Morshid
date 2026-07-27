@@ -79,6 +79,64 @@ enum MessageGuidanceLabel {
   @@map("message_guidance_label")
 }
 
+enum ReviewStatus {
+  PENDING
+  IN_REVIEW
+  RESOLVED
+  REJECTED
+
+  @@map("review_status")
+}
+
+enum ReviewTriggerType {
+  STUDENT_REQUEST
+  GENERAL_NOT_FOUND
+  CITATION_MISSING
+  SOURCE_CONFLICT
+  POLICY_CHECK_FAILED
+  FINAL_ANSWER_RISK
+
+  @@map("review_trigger_type")
+}
+
+enum ReviewActionType {
+  CREATED
+  TRIGGER_ADDED
+  CLAIMED
+  DRAFT_SAVED
+  APPROVED
+  EDITED
+  REPLACED
+  REJECTED
+
+  @@map("review_action_type")
+}
+
+enum ReviewOutcome {
+  APPROVED
+  EDITED
+  REPLACED
+  REQUEST_REJECTED
+
+  @@map("review_outcome")
+}
+
+enum NotificationType {
+  REVIEW_RESOLVED
+  REVIEW_REJECTED
+  USAGE_LIMIT_REACHED
+
+  @@map("notification_type")
+}
+
+enum NotificationStatus {
+  UNREAD
+  READ
+  DISMISSED
+
+  @@map("notification_status")
+}
+
 model User {
   id                String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email             String     @unique(map: "users_email_key") @db.Citext
@@ -93,16 +151,23 @@ model User {
   createdAt         DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  disabledBy         User?              @relation("UserDisabledBy", fields: [disabledById], references: [id], onDelete: SetNull)
-  disabledUsers      User[]             @relation("UserDisabledBy")
-  refreshTokens      RefreshToken[]     @relation("UserRefreshTokens")
-  createdCourses     Course[]           @relation("CourseCreatedBy")
-  memberships        CourseMembership[] @relation("CourseMembershipUser")
-  createdMemberships CourseMembership[] @relation("CourseMembershipCreatedBy")
-  uploadedMaterials  Material[]         @relation("MaterialUploadedBy")
-  chatSessions       ChatSession[]      @relation("ChatSessionStudent")
-  messages           Message[]          @relation("MessageAuthor")
-  auditLogs          AuditLog[]         @relation("AuditActor")
+  disabledBy         User?               @relation("UserDisabledBy", fields: [disabledById], references: [id], onDelete: SetNull)
+  disabledUsers      User[]              @relation("UserDisabledBy")
+  refreshTokens      RefreshToken[]      @relation("UserRefreshTokens")
+  createdCourses     Course[]            @relation("CourseCreatedBy")
+  memberships        CourseMembership[]  @relation("CourseMembershipUser")
+  createdMemberships CourseMembership[]  @relation("CourseMembershipCreatedBy")
+  uploadedMaterials  Material[]          @relation("MaterialUploadedBy")
+  chatSessions       ChatSession[]       @relation("ChatSessionStudent")
+  messages           Message[]           @relation("MessageAuthor")
+  auditLogs          AuditLog[]          @relation("AuditActor")
+  requestedReviews   ReviewCase[]        @relation("ReviewCaseRequester")
+  assignedReviews    ReviewCase[]        @relation("ReviewCaseAssignee")
+  resolvedReviews    ReviewCase[]        @relation("ReviewCaseResolver")
+  reviewTriggers     ReviewTrigger[]     @relation("ReviewTriggerActor")
+  reviewActions      ReviewAction[]      @relation("ReviewActionActor")
+  idempotencyRecords IdempotencyRecord[]
+  notifications      Notification[]      @relation("NotificationRecipient")
 
   @@index([disabledById], map: "idx_users_disabled_by")
   @@map("users")
@@ -141,6 +206,7 @@ model Course {
   materials    Material[]
   chatSessions ChatSession[]
   auditLogs    AuditLog[]
+  reviewCases  ReviewCase[]
 
   @@index([createdById], map: "idx_courses_created_by")
   @@map("courses")
@@ -193,6 +259,128 @@ model Material {
   @@index([courseId, status, deletedAt], map: "idx_materials_course_status")
   @@index([uploadedById], map: "idx_materials_uploaded_by")
   @@map("materials")
+}
+
+model ReviewCase {
+  id                   String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  targetMessageId      String         @unique(map: "review_cases_target_message_id_key") @map("target_message_id") @db.Uuid
+  courseId             String         @map("course_id") @db.Uuid
+  requestedByUserId    String?        @map("requested_by_user_id") @db.Uuid
+  assignedInstructorId String?        @map("assigned_instructor_id") @db.Uuid
+  resolvedByUserId     String?        @map("resolved_by_user_id") @db.Uuid
+  status               ReviewStatus   @default(PENDING)
+  outcome              ReviewOutcome?
+  draftContent         String?        @map("draft_content") @db.Text
+  publishedContent     String?        @map("published_content") @db.Text
+  resolutionReason     String?        @map("resolution_reason") @db.VarChar(500)
+  version              Int            @default(1)
+  assignedAt           DateTime?      @map("assigned_at") @db.Timestamptz(6)
+  resolvedAt           DateTime?      @map("resolved_at") @db.Timestamptz(6)
+  createdAt            DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  targetMessage      Message                 @relation(fields: [targetMessageId], references: [id], onDelete: Restrict)
+  course             Course                  @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  requestedByUser    User?                   @relation("ReviewCaseRequester", fields: [requestedByUserId], references: [id], onDelete: SetNull)
+  assignedInstructor User?                   @relation("ReviewCaseAssignee", fields: [assignedInstructorId], references: [id], onDelete: SetNull)
+  resolvedByUser     User?                   @relation("ReviewCaseResolver", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+  triggers           ReviewTrigger[]
+  evidence           ReviewEvidenceSnapshot?
+  actions            ReviewAction[]
+  notifications      Notification[]
+
+  @@index([courseId, status, createdAt(sort: Desc), id(sort: Desc)], map: "idx_review_cases_course_status_created")
+  @@index([assignedInstructorId, status, updatedAt(sort: Desc)], map: "idx_review_cases_assignee_status_updated")
+  @@index([requestedByUserId, createdAt(sort: Desc)], map: "idx_review_cases_requester_created")
+  @@map("review_cases")
+}
+
+model ReviewTrigger {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reviewCaseId     String            @map("review_case_id") @db.Uuid
+  type             ReviewTriggerType
+  actorUserId      String?           @map("actor_user_id") @db.Uuid
+  reason           String?           @db.VarChar(200)
+  sourceEventKey   String?           @map("source_event_key") @db.VarChar(200)
+  detectorMetadata Json              @default("{}") @map("detector_metadata") @db.JsonB
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  reviewCase ReviewCase @relation(fields: [reviewCaseId], references: [id], onDelete: Cascade)
+  actor      User?      @relation("ReviewTriggerActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([reviewCaseId, createdAt], map: "idx_review_triggers_case_created")
+  @@index([type, createdAt], map: "idx_review_triggers_type_created")
+  @@map("review_triggers")
+}
+
+model ReviewEvidenceSnapshot {
+  reviewCaseId  String   @id @map("review_case_id") @db.Uuid
+  schemaVersion Int      @default(1) @map("schema_version")
+  evidence      Json     @db.JsonB
+  contentHash   String   @map("content_hash") @db.Char(64)
+  capturedAt    DateTime @default(now()) @map("captured_at") @db.Timestamptz(6)
+
+  reviewCase ReviewCase @relation(fields: [reviewCaseId], references: [id], onDelete: Cascade)
+
+  @@map("review_evidence_snapshots")
+}
+
+model ReviewAction {
+  id           String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reviewCaseId String           @map("review_case_id") @db.Uuid
+  actorUserId  String?          @map("actor_user_id") @db.Uuid
+  actionType   ReviewActionType @map("action_type")
+  fromStatus   ReviewStatus?    @map("from_status")
+  toStatus     ReviewStatus     @map("to_status")
+  content      String?          @db.Text
+  reason       String?          @db.VarChar(1000)
+  caseVersion  Int              @map("case_version")
+  operationId  String           @unique(map: "review_actions_operation_id_key") @map("operation_id") @db.Uuid
+  metadata     Json             @default("{}") @db.JsonB
+  createdAt    DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  reviewCase ReviewCase @relation(fields: [reviewCaseId], references: [id], onDelete: Cascade)
+  actor      User?      @relation("ReviewActionActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@unique([reviewCaseId, caseVersion], map: "review_actions_case_version_key")
+  @@index([reviewCaseId, createdAt, id], map: "idx_review_actions_case_created")
+  @@map("review_actions")
+}
+
+model IdempotencyRecord {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorUserId        String   @map("actor_user_id") @db.Uuid
+  operationScope     String   @map("operation_scope") @db.VarChar(80)
+  key                String   @db.VarChar(200)
+  requestFingerprint String   @map("request_fingerprint") @db.Char(64)
+  resourceId         String   @map("resource_id") @db.Uuid
+  responseStatus     Int      @map("response_status") @db.SmallInt
+  expiresAt          DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  actor User @relation(fields: [actorUserId], references: [id], onDelete: Cascade)
+
+  @@unique([actorUserId, operationScope, key], map: "idempotency_records_actor_scope_key_key")
+  @@index([expiresAt], map: "idx_idempotency_records_expires")
+  @@map("idempotency_records")
+}
+
+model Notification {
+  id              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recipientUserId String             @map("recipient_user_id") @db.Uuid
+  reviewCaseId    String?            @map("review_case_id") @db.Uuid
+  type            NotificationType
+  status          NotificationStatus @default(UNREAD)
+  metadata        Json               @default("{}") @db.JsonB
+  readAt          DateTime?          @map("read_at") @db.Timestamptz(6)
+  dismissedAt     DateTime?          @map("dismissed_at") @db.Timestamptz(6)
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  recipient  User        @relation("NotificationRecipient", fields: [recipientUserId], references: [id], onDelete: Restrict)
+  reviewCase ReviewCase? @relation(fields: [reviewCaseId], references: [id], onDelete: Restrict)
+
+  @@map("notifications")
 }
 
 model MaterialProcessingCommand {
@@ -281,6 +469,7 @@ model Message {
   response          Message?           @relation("MessageResponse")
   retrievals        MessageRetrieval[]
   citations         MessageCitation[]
+  reviewCase        ReviewCase?
 
   @@unique([sessionId, sequence], map: "messages_session_id_sequence_key")
   @@index([authorUserId], map: "idx_messages_author")

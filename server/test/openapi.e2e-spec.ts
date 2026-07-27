@@ -1000,6 +1000,83 @@ describe('OpenAPI contract (e2e)', () => {
     }
   })
 
+  it('documents the review creation seam and forward-compatible review contracts', async () => {
+    const app = await createApp('test')
+
+    try {
+      const response = await request(app.getHttpServer())
+        .get('/docs-json')
+        .expect(200)
+      const document = response.body as OpenAPIObject
+      const operation = expectProtectedOperation(document, {
+        path: '/api/v1/messages/{messageId}/review-requests',
+        method: 'post',
+        tag: 'student-reviews',
+        summary: 'Request Instructor review of an assistant response',
+        statuses: ['200', '201', '400', '401', '403', '404', '409', '413'],
+      })
+
+      expect(getParameter(operation, 'messageId')).toMatchObject({
+        in: 'path',
+        required: true,
+        schema: { type: 'string', format: 'uuid' },
+      })
+      expect(getParameter(operation, 'Idempotency-Key')).toMatchObject({
+        in: 'header',
+        required: true,
+      })
+      expectRequestSchemaReference(operation, 'CreateReviewRequestDto')
+      expectResponseSchemaReference(
+        operation,
+        '201',
+        'CreateReviewRequestResponseDto',
+      )
+
+      const schemas = document.components?.schemas as Record<
+        string,
+        { enum?: string[]; properties?: Record<string, unknown> }
+      >
+      for (const schemaName of [
+        'ReviewQueueItemContractDto',
+        'ReviewDetailContractDto',
+        'ReviewActionContractDto',
+        'PublishedReviewContractDto',
+        'NotificationContractDto',
+      ]) {
+        expect(schemas).toHaveProperty(schemaName)
+      }
+      expect(schemas.ReviewStatus.enum).toEqual([
+        'PENDING',
+        'IN_REVIEW',
+        'RESOLVED',
+        'REJECTED',
+      ])
+      expect(schemas.StudentReviewSummaryDto.properties?.outcome).toMatchObject(
+        {
+          nullable: true,
+        },
+      )
+      expect(schemas.ReviewOutcome.enum).toEqual([
+        'APPROVED',
+        'EDITED',
+        'REPLACED',
+        'REQUEST_REJECTED',
+      ])
+      expect(schemas.NotificationType.enum).toEqual([
+        'REVIEW_RESOLVED',
+        'REVIEW_REJECTED',
+        'USAGE_LIMIT_REACHED',
+      ])
+      expect(schemas.NotificationStatus.enum).toEqual([
+        'UNREAD',
+        'READ',
+        'DISMISSED',
+      ])
+    } finally {
+      await app.close()
+    }
+  })
+
   it('documents admin course, material, and audit operations', async () => {
     const app = await createApp('test')
 
