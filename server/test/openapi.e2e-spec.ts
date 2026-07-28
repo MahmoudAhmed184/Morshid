@@ -161,6 +161,57 @@ describe('OpenAPI contract (e2e)', () => {
     }
   }
 
+  it('documents the minimal Instructor review queue contract', async () => {
+    const app = await createApp('test')
+
+    try {
+      const response = await request(app.getHttpServer())
+        .get('/docs-json')
+        .expect(200)
+      const document = response.body as OpenAPIObject
+      const operation = expectProtectedOperation(document, {
+        path: '/api/v1/instructor/reviews',
+        method: 'get',
+        tag: 'instructor-reviews',
+        summary: 'List the Instructor review queue',
+        statuses: ['200', '400', '401', '403', '404'],
+      })
+
+      expectResponseSchemaReference(
+        operation,
+        '200',
+        'InstructorReviewQueueResponseDto',
+      )
+      expect(
+        operation.parameters?.map((parameter) =>
+          '$ref' in parameter ? parameter.$ref : parameter.name,
+        ),
+      ).toEqual(['limit', 'cursor', 'courseId'])
+
+      const schemas = document.components?.schemas as Record<
+        string,
+        { properties?: Record<string, unknown> }
+      >
+      expect(
+        Object.keys(schemas.InstructorReviewQueueItemDto.properties ?? {}),
+      ).toEqual([
+        'reviewCaseId',
+        'status',
+        'trigger',
+        'createdAt',
+        'age',
+        'course',
+        'student',
+        'pending',
+      ])
+      expect(
+        Object.keys(schemas.InstructorReviewQueueResponseDto.properties ?? {}),
+      ).toEqual(['items', 'pendingCount', 'nextCursor'])
+    } finally {
+      await app.close()
+    }
+  })
+
   it('serves documentation only in development and test', async () => {
     for (const nodeEnv of ['development', 'test'] as const) {
       const app = await createApp(nodeEnv)
