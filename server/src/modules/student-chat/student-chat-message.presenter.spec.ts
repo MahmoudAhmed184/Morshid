@@ -118,6 +118,25 @@ describe('StudentChatMessagePresenter', () => {
     ])
     expect(exists).toHaveBeenCalledTimes(1)
   })
+
+  it('exposes only the pending case identity for a Student-requested review', async () => {
+    const result = await presenter.present(
+      makeMessage({
+        reviewCase: {
+          id: 'review-case-id',
+          status: 'PENDING',
+          triggers: [{ id: 'manual-trigger-id' }],
+        },
+      }),
+    )
+
+    expect(result.reviewSummary).toEqual({
+      reviewCaseId: 'review-case-id',
+      status: 'PENDING',
+    })
+    expect(result.reviewSummary).not.toHaveProperty('triggers')
+    expect(result.reviewSummary).not.toHaveProperty('requestedByUserId')
+  })
 })
 
 function makeMessage(
@@ -137,6 +156,7 @@ function makeMessage(
     errorCode: null,
     createdAt,
     completedAt: createdAt,
+    reviewCase: null,
     citations: [],
     retrievals: [],
     ...overrides,

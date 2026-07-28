@@ -109,6 +109,28 @@ export function markAssistantPending(
   }
 }
 
+export function markMessageReviewPending(
+  cached: MessageHistoryData | undefined,
+  messageId: string,
+  reviewCaseId: string,
+): MessageHistoryData {
+  const history = cached ?? emptyMessageHistory()
+  return {
+    ...history,
+    pages: history.pages.map((page) => ({
+      ...page,
+      messages: page.messages.map((message) =>
+        message.id === messageId
+          ? {
+              ...message,
+              reviewSummary: { reviewCaseId, status: 'PENDING' as const },
+            }
+          : message,
+      ),
+    })),
+  }
+}
+
 export function highestCachedSequence(cached: MessageHistoryData | undefined) {
   let highestSequence = 0
 

@@ -31,6 +31,10 @@ interface StudentMessageHistoryProps {
   onLoadMore: () => void
   onRecover: () => void
   onRetryResponse: (studentMessageId: string) => void
+  onRequestReview: (input: {
+    messageId: string
+    note: string
+  }) => Promise<unknown>
   onSuggestionSelect: (text: string) => void
 }
 
@@ -51,6 +55,7 @@ export function StudentMessageHistory({
   onLoadMore,
   onRecover,
   onRetryResponse,
+  onRequestReview,
   onSuggestionSelect,
 }: StudentMessageHistoryProps) {
   if (isPending && !isGenerationActive && messages.length === 0) {
@@ -135,6 +140,7 @@ export function StudentMessageHistory({
             retryError={retryError}
             retryMessageId={retryMessageId}
             onRetry={onRetryResponse}
+            onRequestReview={onRequestReview}
           />
         ))}
         {isGenerationActive && !hasPendingAssistant ? (

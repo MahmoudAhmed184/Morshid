@@ -57,6 +57,14 @@ export class StudentChatMessagePresenter {
       createdAt: record.createdAt.toISOString(),
       completedAt: record.completedAt?.toISOString() ?? null,
       citations,
+      reviewSummary:
+        record.reviewCase?.status === 'PENDING' &&
+        record.reviewCase.triggers.length > 0
+          ? {
+              reviewCaseId: record.reviewCase.id,
+              status: 'PENDING',
+            }
+          : null,
     }
   }
 

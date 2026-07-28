@@ -243,6 +243,21 @@ export class ChatMessageDto {
   @Type(() => ChatCitationDto)
   @ApiProperty({ type: [ChatCitationDto] })
   citations!: ChatCitationDto[]
+
+  @Expose()
+  @Type(() => ChatMessageReviewSummaryDto)
+  @ApiProperty({ type: () => ChatMessageReviewSummaryDto, nullable: true })
+  reviewSummary!: ChatMessageReviewSummaryDto | null
+}
+
+export class ChatMessageReviewSummaryDto {
+  @Expose()
+  @ApiProperty({ format: 'uuid' })
+  reviewCaseId!: string
+
+  @Expose()
+  @ApiProperty({ enum: ['PENDING'] })
+  status!: 'PENDING'
 }
 
 export class ChatMessageHistoryResponseDto {

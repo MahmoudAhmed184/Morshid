@@ -59,6 +59,13 @@ export const chatMessageGuidanceLabelSchema = z.enum([
   'REFUSAL',
 ])
 
+export const studentReviewSummarySchema = z
+  .object({
+    reviewCaseId: z.uuid(),
+    status: z.literal('PENDING'),
+  })
+  .strict()
+
 export const chatCitationEvidenceSchema = z
   .object({
     rank: z.number().int().positive(),
@@ -124,6 +131,7 @@ export const chatMessageSchema = z
     createdAt: z.iso.datetime(),
     completedAt: z.iso.datetime().nullable(),
     citations: z.array(chatCitationSchema),
+    reviewSummary: studentReviewSummarySchema.nullable(),
   })
   .strict()
   .superRefine((message, context) => {
@@ -284,6 +292,32 @@ export const sendStudentChatMessageRequestSchema = z
   })
   .strict()
 
+export const createStudentReviewRequestSchema = z
+  .object({
+    note: z.string().max(200).nullable(),
+  })
+  .strict()
+
+export const createStudentReviewResponseSchema = z
+  .object({
+    caseId: z.uuid(),
+    messageId: z.uuid(),
+    status: z.literal('PENDING'),
+    trigger: z.literal('STUDENT_REQUEST'),
+    requestedAt: z.iso.datetime(),
+    replayed: z.boolean(),
+    reviewSummary: z
+      .object({
+        status: z.literal('PENDING'),
+        outcome: z.null(),
+        resolvedAt: z.null(),
+        hasNotification: z.boolean(),
+        reviewCaseId: z.uuid(),
+      })
+      .strict(),
+  })
+  .strict()
+
 export const deleteChatSessionResponseSchema = z.undefined()
 
 export const listChatSessionsInputSchema = z
@@ -329,6 +363,9 @@ export type RenameChatSessionInput = z.input<
 >
 export type SendStudentChatMessageInput = z.input<
   typeof sendStudentChatMessageRequestSchema
+>
+export type CreateStudentReviewResponse = z.infer<
+  typeof createStudentReviewResponseSchema
 >
 export type ListChatSessionsInput = z.input<typeof listChatSessionsInputSchema>
 export type ListChatMessagesInput = z.input<typeof listChatMessagesInputSchema>

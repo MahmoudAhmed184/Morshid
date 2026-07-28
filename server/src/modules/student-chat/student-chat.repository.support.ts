@@ -67,6 +67,22 @@ export const chatMessageSelect = {
   },
 } satisfies Prisma.MessageSelect
 
+export function chatMessageSelectForStudent(studentId: string) {
+  return {
+    ...chatMessageSelect,
+    reviewCase: {
+      select: {
+        id: true,
+        status: true,
+        triggers: {
+          where: { type: 'STUDENT_REQUEST' as const, actorUserId: studentId },
+          select: { id: true },
+        },
+      },
+    },
+  } satisfies Prisma.MessageSelect
+}
+
 export function ownedActiveSessionWhere(
   courseId: string,
   sessionId: string,
