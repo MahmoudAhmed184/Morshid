@@ -17,6 +17,7 @@ import { PrismaService } from '../prisma/prisma.service'
 import type { AutomaticReviewEvidenceContribution } from './automatic-review-evidence'
 
 const IDEMPOTENCY_SCOPE = 'review.create.manual'
+const MANUAL_REVIEW_DAILY_LIMIT = 3
 const SNAPSHOT_LIMIT_BYTES = 128 * 1024
 const EXCERPT_CODE_POINTS = 500
 const ADJACENT_CONTENT_CODE_POINTS = 2_000
@@ -58,6 +59,7 @@ export type ReviewCaseCreationOutcome =
   | { kind: 'not_found' }
   | { kind: 'not_reviewable' }
   | { kind: 'idempotency_conflict' }
+  | { kind: 'quota_exceeded' }
   | { kind: 'snapshot_too_large' }
 
 export abstract class ReviewCaseRepository {
@@ -218,6 +220,30 @@ export class PrismaReviewCaseRepository extends ReviewCaseRepository {
           return {
             kind: 'ok',
             record: mapRecord(existing, triggerType(input), true),
+          }
+        }
+
+        if (input.kind === 'manual') {
+          await tx.$queryRaw`
+            SELECT pg_advisory_xact_lock(
+              hashtextextended(${`${input.actorUserId}:manual-review-quota`}, 0)
+            ) IS NULL AS locked
+          `
+          const [usage] = await tx.$queryRaw<{ count: bigint }[]>`
+            SELECT COUNT(*)::bigint AS count
+            FROM "review_cases"
+            WHERE "requested_by_user_id" = ${input.actorUserId}::uuid
+              AND "created_at" >= (
+                date_trunc('day', CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
+                AT TIME ZONE 'UTC'
+              )
+              AND "created_at" < (
+                date_trunc('day', CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
+                AT TIME ZONE 'UTC'
+              ) + INTERVAL '1 day'
+          `
+          if (usage.count >= BigInt(MANUAL_REVIEW_DAILY_LIMIT)) {
+            return { kind: 'quota_exceeded' }
           }
         }
 

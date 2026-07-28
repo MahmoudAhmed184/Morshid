@@ -180,6 +180,20 @@ describe('ReviewCaseCreator', () => {
     })
   })
 
+  it('maps exhausted manual quota to a non-leaking 429 response', async () => {
+    repository.create.mockResolvedValue({ kind: 'quota_exceeded' })
+
+    await expect(
+      creator.createManual(messageId, { note: null }, 'quota-key', user),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'MANUAL_REVIEW_QUOTA_EXCEEDED',
+        message: 'Daily manual review request limit reached',
+      },
+      status: 429,
+    })
+  })
+
   it('conceals absent and cross-course targets with the same response', async () => {
     repository.create.mockResolvedValue({ kind: 'not_found' })
 

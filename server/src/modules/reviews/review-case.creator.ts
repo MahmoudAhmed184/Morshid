@@ -18,6 +18,7 @@ import type {
 import {
   idempotencyKeyReusedException,
   reviewNotFoundException,
+  reviewQuotaExceededException,
   reviewSnapshotTooLargeException,
   targetNotReviewableException,
 } from './review-case.errors'
@@ -109,6 +110,8 @@ export class ReviewCaseCreator {
         throw targetNotReviewableException()
       case 'idempotency_conflict':
         throw idempotencyKeyReusedException()
+      case 'quota_exceeded':
+        throw reviewQuotaExceededException()
       case 'snapshot_too_large':
         throw reviewSnapshotTooLargeException()
     }

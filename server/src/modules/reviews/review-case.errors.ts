@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   ConflictException,
+  HttpException,
+  HttpStatus,
   NotFoundException,
   PayloadTooLargeException,
 } from '@nestjs/common'
@@ -10,6 +12,7 @@ export const REVIEW_ERROR_CODES = {
   NOT_FOUND: 'REVIEW_NOT_FOUND',
   TARGET_NOT_REVIEWABLE: 'TARGET_NOT_REVIEWABLE',
   IDEMPOTENCY_KEY_REUSED: 'IDEMPOTENCY_KEY_REUSED',
+  QUOTA_EXCEEDED: 'MANUAL_REVIEW_QUOTA_EXCEEDED',
   SNAPSHOT_TOO_LARGE: 'REVIEW_SNAPSHOT_TOO_LARGE',
 } as const
 
@@ -40,6 +43,16 @@ export function idempotencyKeyReusedException() {
     code: REVIEW_ERROR_CODES.IDEMPOTENCY_KEY_REUSED,
     message: 'Idempotency key was already used for a different request',
   })
+}
+
+export function reviewQuotaExceededException() {
+  return new HttpException(
+    {
+      code: REVIEW_ERROR_CODES.QUOTA_EXCEEDED,
+      message: 'Daily manual review request limit reached',
+    },
+    HttpStatus.TOO_MANY_REQUESTS,
+  )
 }
 
 export function reviewSnapshotTooLargeException() {

@@ -24,6 +24,7 @@ import {
   ApiOperation,
   ApiParam,
   ApiPayloadTooLargeResponse,
+  ApiTooManyRequestsResponse,
   ApiTags,
 } from '@nestjs/swagger'
 
@@ -91,6 +92,10 @@ export class ReviewCaseController {
     description: 'The target is absent or inaccessible to the Student.',
   })
   @ApiConflictResponse({ type: OpenApiErrorDto })
+  @ApiTooManyRequestsResponse({
+    type: OpenApiErrorDto,
+    description: 'The Student has created three manual review cases today.',
+  })
   @ApiPayloadTooLargeResponse({ type: OpenApiErrorDto })
   async create(
     @Param('messageId', new ParseUUIDPipe({ version: '4' })) messageId: string,

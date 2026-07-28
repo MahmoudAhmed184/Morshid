@@ -1013,7 +1013,17 @@ describe('OpenAPI contract (e2e)', () => {
         method: 'post',
         tag: 'student-reviews',
         summary: 'Request Instructor review of an assistant response',
-        statuses: ['200', '201', '400', '401', '403', '404', '409', '413'],
+        statuses: [
+          '200',
+          '201',
+          '400',
+          '401',
+          '403',
+          '404',
+          '409',
+          '413',
+          '429',
+        ],
       })
 
       expect(getParameter(operation, 'messageId')).toMatchObject({
