@@ -83,20 +83,22 @@ describe('Review persistence seam (e2e)', () => {
     ])
   })
 
-  it('resolves concurrent manual attempts for one assistant message to one durable case', async () => {
-    const fixture = await createReviewableMessage('concurrent')
+  it('resolves concurrent duplicate attempts to one case and consumes quota once', async () => {
+    const fixture = await createReviewableMessages('concurrent', 4)
+    const [firstMessageId, secondMessageId, thirdMessageId, fourthMessageId] =
+      fixture.assistantMessageIds as [string, string, string, string]
 
     const [first, second] = await Promise.all([
       repository.create({
         kind: 'manual',
-        messageId: fixture.assistantMessageId,
+        messageId: firstMessageId,
         actorUserId: fixture.studentId,
         reason: 'Please verify',
         idempotencyKey: 'concurrent-a',
       }),
       repository.create({
         kind: 'manual',
-        messageId: fixture.assistantMessageId,
+        messageId: firstMessageId,
         actorUserId: fixture.studentId,
         reason: 'Please verify',
         idempotencyKey: 'concurrent-b',
@@ -111,7 +113,7 @@ describe('Review persistence seam (e2e)', () => {
     expect(first.record.caseId).toBe(second.record.caseId)
     expect(
       await requireDatabase().prisma.reviewCase.count({
-        where: { targetMessageId: fixture.assistantMessageId },
+        where: { requestedByUserId: fixture.studentId },
       }),
     ).toBe(1)
     expect(
@@ -124,6 +126,59 @@ describe('Review persistence seam (e2e)', () => {
         where: { reviewCaseId: first.record.caseId },
       }),
     ).toBe(1)
+
+    for (const [index, messageId] of [
+      secondMessageId,
+      thirdMessageId,
+    ].entries()) {
+      await expect(
+        repository.create({
+          kind: 'manual',
+          messageId,
+          actorUserId: fixture.studentId,
+          reason: null,
+          idempotencyKey: `concurrent-distinct-${String(index)}`,
+        }),
+      ).resolves.toMatchObject({ kind: 'ok', record: { status: 'PENDING' } })
+    }
+    await expect(
+      repository.create({
+        kind: 'manual',
+        messageId: fourthMessageId,
+        actorUserId: fixture.studentId,
+        reason: null,
+        idempotencyKey: 'concurrent-fourth',
+      }),
+    ).resolves.toEqual({ kind: 'quota_exceeded' })
+  })
+
+  it('creates three distinct pending cases per UTC day and rejects the fourth atomically', async () => {
+    const fixture = await createReviewableMessages('daily-quota', 4)
+
+    for (const [index, messageId] of fixture.assistantMessageIds.entries()) {
+      const result = await repository.create({
+        kind: 'manual',
+        messageId,
+        actorUserId: fixture.studentId,
+        reason: `Request ${String(index + 1)}`,
+        idempotencyKey: `daily-quota-${String(index + 1)}`,
+      })
+
+      if (index < 3) {
+        expect(result).toMatchObject({
+          kind: 'ok',
+          record: { replayed: false, status: 'PENDING' },
+        })
+      } else {
+        expect(result).toEqual({ kind: 'quota_exceeded' })
+      }
+    }
+
+    expect(
+      await requireDatabase().prisma.reviewCase.count({
+        where: { requestedByUserId: fixture.studentId },
+      }),
+    ).toBe(3)
   })
 
   it('replays an exact idempotency key and rejects a changed fingerprint without extra rows', async () => {
@@ -222,11 +277,23 @@ describe('Review persistence seam (e2e)', () => {
   })
 
   async function createReviewableMessage(label: string, content = 'Answer') {
+    const fixture = await createReviewableMessages(label, 1, content)
+    return {
+      studentId: fixture.studentId,
+      courseId: fixture.courseId,
+      assistantMessageId: fixture.assistantMessageIds[0],
+    }
+  }
+
+  async function createReviewableMessages(
+    label: string,
+    count: number,
+    content = 'Answer',
+  ) {
     const studentId = randomUUID()
     const courseId = randomUUID()
     const sessionId = randomUUID()
-    const studentMessageId = randomUUID()
-    const assistantMessageId = randomUUID()
+    const assistantMessageIds: string[] = []
 
     const prisma = requireDatabase().prisma
     await prisma.user.create({
@@ -260,35 +327,41 @@ describe('Review persistence seam (e2e)', () => {
         courseId,
         studentId,
         title: `${label} Session`,
-        lastSequence: 2,
+        lastSequence: count * 2,
       },
     })
-    await prisma.message.createMany({
-      data: [
+    const messages = Array.from({ length: count }, (_, index) => {
+      const studentMessageId = randomUUID()
+      const assistantMessageId = randomUUID()
+      assistantMessageIds.push(assistantMessageId)
+      return [
         {
           id: studentMessageId,
           sessionId,
-          sequence: 1,
-          role: 'STUDENT',
+          sequence: index * 2 + 1,
+          role: 'STUDENT' as const,
           authorUserId: studentId,
           content: 'Question',
-          status: 'COMPLETED',
+          status: 'COMPLETED' as const,
           completedAt: new Date(),
         },
         {
           id: assistantMessageId,
           sessionId,
-          sequence: 2,
-          role: 'ASSISTANT',
+          sequence: index * 2 + 2,
+          role: 'ASSISTANT' as const,
           responseToMessageId: studentMessageId,
           content,
-          status: 'COMPLETED',
+          status: 'COMPLETED' as const,
           completedAt: new Date(),
         },
-      ],
+      ]
+    }).flat()
+    await prisma.message.createMany({
+      data: messages,
     })
 
-    return { studentId, courseId, assistantMessageId }
+    return { studentId, courseId, assistantMessageIds }
   }
 
   function requireDatabase(): DisposableDatabase {

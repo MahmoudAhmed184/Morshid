@@ -8,6 +8,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service'
 import {
   chatMessageSelect,
+  chatMessageSelectForStudent,
   chatMessageScalarSelect,
   currentDatabaseTime,
   hasActiveStudentMembershipInTransaction,
@@ -90,7 +91,7 @@ export class PrismaStudentChatMessageRepository extends StudentChatMessageReposi
         sessionId: session.id,
         ...(sequenceFilter === undefined ? {} : { sequence: sequenceFilter }),
       },
-      select: chatMessageSelect,
+      select: chatMessageSelectForStudent(studentId),
       orderBy: {
         sequence: isLoadingLatestOrEarlier ? 'desc' : 'asc',
       },

@@ -6,6 +6,7 @@ import {
   GraduationCap,
   LoaderCircle,
   RotateCcw,
+  Clock3,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useEffect, useRef } from 'react'
@@ -18,6 +19,7 @@ import type { ChatMessage } from '@/features/student/schemas/student-chat.schema
 import { cn } from '@/lib/utils'
 
 import { StudentCitationSources } from './student-citation-sources'
+import { StudentReviewRequestDialog } from './student-review-request-dialog'
 import {
   STUDENT_CHAT_COMPLETION_STATUS,
   STUDENT_CHAT_FAILURE_STATUS,
@@ -30,6 +32,10 @@ interface StudentChatMessageProps {
   retryError: unknown
   retryMessageId?: string
   onRetry: (studentMessageId: string) => void
+  onRequestReview: (input: {
+    messageId: string
+    note: string
+  }) => Promise<unknown>
 }
 
 type GuidanceLabel = NonNullable<ChatMessage['guidanceLabel']>
@@ -77,6 +83,7 @@ export function StudentChatMessage({
   retryError,
   retryMessageId,
   onRetry,
+  onRequestReview,
 }: StudentChatMessageProps) {
   const isStudent = message.role === 'STUDENT'
   const isSystem = message.role === 'SYSTEM'
@@ -91,6 +98,11 @@ export function StudentChatMessage({
     message.responseToMessageId !== null
   const hasRetryError =
     Boolean(retryError) && message.responseToMessageId === retryMessageId
+  const canRequestReview =
+    message.role === 'ASSISTANT' &&
+    message.status === 'COMPLETED' &&
+    message.completedAt !== null &&
+    message.reviewSummary === null
 
   useEffect(() => {
     const previousStatus = previousStatusRef.current
@@ -229,6 +241,23 @@ export function StudentChatMessage({
 
         {!isStudent && message.guidanceLabel ? (
           <GuidanceBadge guidanceLabel={message.guidanceLabel} />
+        ) : null}
+        {message.reviewSummary?.status === 'PENDING' ? (
+          <p
+            className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground"
+            role="status"
+            aria-live="polite"
+          >
+            <Clock3 className="size-3.5" aria-hidden />
+            Review requested — pending Instructor review
+          </p>
+        ) : canRequestReview ? (
+          <div className="mt-2">
+            <StudentReviewRequestDialog
+              messageId={message.id}
+              onSubmit={onRequestReview}
+            />
+          </div>
         ) : null}
       </div>
     </li>

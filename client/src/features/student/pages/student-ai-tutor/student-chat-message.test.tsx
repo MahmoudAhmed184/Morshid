@@ -1,9 +1,15 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { ChatMessage } from '@/features/student/schemas/student-chat.schema'
-import { orderedChatMessagesFixture } from '@/features/student/testing/student-chat.fixtures'
+import {
+  orderedChatMessagesFixture,
+  studentChatIds,
+} from '@/features/student/testing/student-chat.fixtures'
+import { ApiError } from '@/lib/api/http'
 
 import { StudentChatMessage } from './student-chat-message'
 
@@ -26,6 +32,7 @@ describe('StudentChatMessage', () => {
           isGenerationActive={false}
           retryError={null}
           onRetry={() => undefined}
+          onRequestReview={() => Promise.resolve()}
         />
       </ol>,
     )
@@ -49,10 +56,132 @@ describe('StudentChatMessage', () => {
           isGenerationActive={false}
           retryError={null}
           onRetry={() => undefined}
+          onRequestReview={() => Promise.resolve()}
         />
       </ol>,
     )
 
     expect(screen.getByText(label)).toBeVisible()
   })
+
+  it('shows review only for eligible completed Assistant messages', () => {
+    const { rerender } = renderMessage(assistantMessage)
+    expect(screen.getByRole('button', { name: 'Request review' })).toBeVisible()
+
+    rerender(messageElement({ ...assistantMessage, status: 'FAILED' }))
+    expect(
+      screen.queryByRole('button', { name: 'Request review' }),
+    ).not.toBeInTheDocument()
+
+    rerender(messageElement(orderedChatMessagesFixture[0]))
+    expect(
+      screen.queryByRole('button', { name: 'Request review' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('opens an accessible note dialog and enforces the 200-character limit', async () => {
+    const user = userEvent.setup()
+    renderMessage(assistantMessage)
+    await user.click(screen.getByRole('button', { name: 'Request review' }))
+
+    expect(screen.getByRole('dialog')).toBeVisible()
+    const note = screen.getByRole('textbox', { name: 'Note (optional)' })
+    await user.type(note, 'x'.repeat(201))
+    expect(note).toHaveValue('x'.repeat(200))
+    expect(screen.getByText('0 characters remaining')).toBeVisible()
+  })
+
+  it('renders pending immediately after a successful request and hides the action', async () => {
+    const user = userEvent.setup()
+    render(<ReviewHarness />)
+    await user.click(screen.getByRole('button', { name: 'Request review' }))
+    await user.type(
+      screen.getByRole('textbox', { name: 'Note (optional)' }),
+      '  Please check  ',
+    )
+    await user.click(screen.getByRole('button', { name: 'Submit request' }))
+
+    expect(
+      await screen.findByText('Review requested — pending Instructor review'),
+    ).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: 'Request review' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('renders durable pending state supplied by chat history', () => {
+    renderMessage({
+      ...assistantMessage,
+      reviewSummary: {
+        reviewCaseId: studentChatIds.primarySession,
+        status: 'PENDING',
+      },
+    })
+    expect(
+      screen.getByText('Review requested — pending Instructor review'),
+    ).toBeVisible()
+  })
+
+  it('shows a friendly quota error without backend details', async () => {
+    const user = userEvent.setup()
+    renderMessage(assistantMessage, () =>
+      Promise.reject(
+        new ApiError(
+          'internal quota details',
+          429,
+          'MANUAL_REVIEW_QUOTA_EXCEEDED',
+        ),
+      ),
+    )
+    await user.click(screen.getByRole('button', { name: 'Request review' }))
+    await user.click(screen.getByRole('button', { name: 'Submit request' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'You have reached today’s review request limit.',
+    )
+    expect(screen.queryByText('internal quota details')).not.toBeInTheDocument()
+  })
 })
+
+function messageElement(
+  message: ChatMessage,
+  onRequestReview: (input: {
+    messageId: string
+    note: string
+  }) => Promise<unknown> = vi.fn(() => Promise.resolve()),
+) {
+  return (
+    <ol>
+      <StudentChatMessage
+        message={message}
+        isGenerationActive={false}
+        retryError={null}
+        onRetry={() => undefined}
+        onRequestReview={onRequestReview}
+      />
+    </ol>
+  )
+}
+
+function renderMessage(
+  message: ChatMessage,
+  onRequestReview: (input: {
+    messageId: string
+    note: string
+  }) => Promise<unknown> = vi.fn(() => Promise.resolve()),
+) {
+  return render(messageElement(message, onRequestReview))
+}
+
+function ReviewHarness() {
+  const [message, setMessage] = useState(assistantMessage)
+  return messageElement(message, ({ messageId }) => {
+    setMessage({
+      ...message,
+      reviewSummary: {
+        reviewCaseId: messageId,
+        status: 'PENDING',
+      },
+    })
+    return Promise.resolve()
+  })
+}

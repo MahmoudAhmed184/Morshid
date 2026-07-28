@@ -10,7 +10,7 @@ import {
 
 export const createReviewRequestSchema = z
   .object({
-    reason: z
+    note: z
       .preprocess(
         (value) =>
           typeof value === 'string' && value.trim() === ''
@@ -28,7 +28,7 @@ export type CreateReviewRequest = z.infer<typeof createReviewRequestSchema>
 
 export class CreateReviewRequestDto {
   @ApiProperty({ nullable: true, required: false, maxLength: 200 })
-  reason?: string | null
+  note?: string | null
 }
 
 export class StudentReviewSummaryDto {

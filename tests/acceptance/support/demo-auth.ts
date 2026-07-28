@@ -7,6 +7,7 @@ export const demoAccounts = {
   admin: { email: 'admin@morshid.demo' },
   instructor: { email: 'instructor@morshid.demo' },
   student: { email: 'student1@morshid.demo' },
+  reviewStudent: { email: 'student2@morshid.demo' },
   disabledStudent: { email: 'student3@morshid.demo' },
 } as const
 

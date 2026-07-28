@@ -39,6 +39,11 @@ export interface ChatMessageRecord {
   errorCode: string | null
   createdAt: Date
   completedAt: Date | null
+  reviewCase?: {
+    id: string
+    status: 'PENDING' | 'IN_REVIEW' | 'RESOLVED' | 'REJECTED'
+    triggers: { id: string }[]
+  } | null
   citations: ChatMessageCitationRecord[]
   retrievals: ChatMessageRetrievalRecord[]
 }

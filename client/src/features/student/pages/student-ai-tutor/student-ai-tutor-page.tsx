@@ -37,6 +37,7 @@ import {
   useRetryStudentChatMessage,
   useSendStudentChatMessage,
 } from '@/features/student/hooks/use-student-chat-turns'
+import { useStudentReviewRequest } from '@/features/student/hooks/use-student-review-request'
 import type {
   ChatMessage,
   ChatSession,
@@ -415,6 +416,10 @@ function StudentConversation({
     courseId: course.id,
     sessionId: session.id,
   })
+  const requestReview = useStudentReviewRequest({
+    courseId: course.id,
+    sessionId: session.id,
+  })
   const hasPersistedGeneration = messages.some(
     (message) =>
       message.role === 'ASSISTANT' &&
@@ -530,6 +535,7 @@ function StudentConversation({
             onRetryResponse={(studentMessageId) =>
               void handleRetryMessage(studentMessageId)
             }
+            onRequestReview={(input) => requestReview.mutateAsync(input)}
             onSuggestionSelect={(text) => composerRef.current?.prefill(text)}
           />
         </div>
