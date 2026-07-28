@@ -7,6 +7,11 @@ import { ReviewCaseController } from './review-case.controller'
 import { ReviewCaseCreator } from './review-case.creator'
 import { InstructorReviewQueueController } from './instructor-review-queue.controller'
 import {
+  InstructorReviewDetailRepository,
+  PrismaInstructorReviewDetailRepository,
+} from './instructor-review-detail.repository'
+import { InstructorReviewDetailService } from './instructor-review-detail.service'
+import {
   InstructorReviewQueueRepository,
   PrismaInstructorReviewQueueRepository,
 } from './instructor-review-queue.repository'
@@ -22,6 +27,7 @@ import {
   providers: [
     ReviewCaseCreator,
     InstructorReviewQueueService,
+    InstructorReviewDetailService,
     {
       provide: ReviewCaseRepository,
       useClass: PrismaReviewCaseRepository,
@@ -29,6 +35,10 @@ import {
     {
       provide: InstructorReviewQueueRepository,
       useClass: PrismaInstructorReviewQueueRepository,
+    },
+    {
+      provide: InstructorReviewDetailRepository,
+      useClass: PrismaInstructorReviewDetailRepository,
     },
   ],
   exports: [ReviewCaseCreator],

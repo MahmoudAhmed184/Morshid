@@ -2,6 +2,8 @@ import {
   ClassSerializerInterceptor,
   Controller,
   Get,
+  Param,
+  ParseUUIDPipe,
   Query,
   Req,
   SerializeOptions,
@@ -12,6 +14,7 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiParam,
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger'
@@ -23,6 +26,8 @@ import { UserRole } from '../../generated/prisma/client'
 import type { AuthenticatedHttpRequest } from '../auth/auth.guard'
 import { Roles } from '../auth/roles.decorator'
 import { invalidReviewRequestException } from './review-case.errors'
+import { InstructorReviewDetailDto } from './instructor-review-detail.dto'
+import { InstructorReviewDetailService } from './instructor-review-detail.service'
 import {
   InstructorReviewQueueResponseDto,
   instructorReviewQueueQuerySchema,
@@ -36,7 +41,10 @@ import { InstructorReviewQueueService } from './instructor-review-queue.service'
 @ApiAccessTokenAuth()
 @UseInterceptors(ClassSerializerInterceptor)
 export class InstructorReviewQueueController {
-  constructor(private readonly service: InstructorReviewQueueService) {}
+  constructor(
+    private readonly service: InstructorReviewQueueService,
+    private readonly detailService: InstructorReviewDetailService,
+  ) {}
 
   @Get()
   @SerializeOptions({
@@ -77,5 +85,26 @@ export class InstructorReviewQueueController {
     @Req() request: AuthenticatedHttpRequest,
   ): Promise<InstructorReviewQueueResponseDto> {
     return this.service.list(request.user, query)
+  }
+
+  @Get(':reviewCaseId')
+  @SerializeOptions({ type: InstructorReviewDetailDto, strategy: 'excludeAll' })
+  @ApiOperation({ summary: 'Get an Instructor review case' })
+  @ApiParam({ name: 'reviewCaseId', format: 'uuid' })
+  @ApiOkResponse({
+    type: InstructorReviewDetailDto,
+    description: 'Bounded review evidence for an assigned Instructor.',
+  })
+  @ApiBadRequestResponse({ type: OpenApiErrorDto })
+  @ApiNotFoundResponse({
+    type: OpenApiErrorDto,
+    description: 'The review is absent, deleted, or inaccessible.',
+  })
+  get(
+    @Param('reviewCaseId', new ParseUUIDPipe({ version: '4' }))
+    reviewCaseId: string,
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<InstructorReviewDetailDto> {
+    return this.detailService.get(request.user, reviewCaseId)
   }
 }
