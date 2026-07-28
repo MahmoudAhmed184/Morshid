@@ -27,6 +27,8 @@ export const AUDIT_EVENT_ACTIONS = {
   MATERIAL_PROCESSING_READY: 'material.processing_ready',
   MATERIAL_PROCESSING_WARNING: 'material.processing_warning',
   MATERIAL_PROCESSING_FAILED: 'material.processing_failed',
+  REVIEW_CASE_CREATED: 'review.case_created',
+  REVIEW_TRIGGER_ADDED: 'review.trigger_added',
 } as const
 
 export type AuditEventAction =
@@ -40,6 +42,7 @@ export const AUDIT_TARGET_TYPES = {
   MATERIAL: 'material',
   CHAT_SESSION: 'chat_session',
   MESSAGE: 'message',
+  REVIEW_CASE: 'review_case',
   SYSTEM: 'system',
 } as const
 
