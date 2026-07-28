@@ -54,11 +54,11 @@ CREATE TABLE "review_cases" (
     ("status" = 'REJECTED' AND "outcome" = 'REQUEST_REJECTED' AND "resolved_at" IS NOT NULL AND "published_content" IS NULL AND "resolution_reason" IS NOT NULL)
   ),
   CONSTRAINT "review_cases_target_message_id_key" UNIQUE ("target_message_id"),
-  CONSTRAINT "review_cases_target_message_id_fkey" FOREIGN KEY ("target_message_id") REFERENCES "messages"("id") ON DELETE RESTRICT,
-  CONSTRAINT "review_cases_course_id_fkey" FOREIGN KEY ("course_id") REFERENCES "courses"("id") ON DELETE RESTRICT,
-  CONSTRAINT "review_cases_requested_by_user_id_fkey" FOREIGN KEY ("requested_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL,
-  CONSTRAINT "review_cases_assigned_instructor_id_fkey" FOREIGN KEY ("assigned_instructor_id") REFERENCES "users"("id") ON DELETE SET NULL,
-  CONSTRAINT "review_cases_resolved_by_user_id_fkey" FOREIGN KEY ("resolved_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL
+  CONSTRAINT "review_cases_target_message_id_fkey" FOREIGN KEY ("target_message_id") REFERENCES "messages"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT "review_cases_course_id_fkey" FOREIGN KEY ("course_id") REFERENCES "courses"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT "review_cases_requested_by_user_id_fkey" FOREIGN KEY ("requested_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT "review_cases_assigned_instructor_id_fkey" FOREIGN KEY ("assigned_instructor_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT "review_cases_resolved_by_user_id_fkey" FOREIGN KEY ("resolved_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
 
 CREATE TABLE "review_triggers" (
@@ -78,8 +78,8 @@ CREATE TABLE "review_triggers" (
     OR
     ("type" <> 'STUDENT_REQUEST' AND "actor_user_id" IS NULL AND "source_event_key" IS NOT NULL)
   ),
-  CONSTRAINT "review_triggers_review_case_id_fkey" FOREIGN KEY ("review_case_id") REFERENCES "review_cases"("id") ON DELETE CASCADE,
-  CONSTRAINT "review_triggers_actor_user_id_fkey" FOREIGN KEY ("actor_user_id") REFERENCES "users"("id") ON DELETE SET NULL
+  CONSTRAINT "review_triggers_review_case_id_fkey" FOREIGN KEY ("review_case_id") REFERENCES "review_cases"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT "review_triggers_actor_user_id_fkey" FOREIGN KEY ("actor_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
 
 CREATE TABLE "review_evidence_snapshots" (
@@ -93,7 +93,7 @@ CREATE TABLE "review_evidence_snapshots" (
   CONSTRAINT "review_evidence_object_check" CHECK (jsonb_typeof("evidence") = 'object'),
   CONSTRAINT "review_evidence_size_check" CHECK (octet_length("evidence"::text) <= 131072),
   CONSTRAINT "review_evidence_content_hash_check" CHECK ("content_hash" ~ '^[0-9a-f]{64}$'),
-  CONSTRAINT "review_evidence_review_case_id_fkey" FOREIGN KEY ("review_case_id") REFERENCES "review_cases"("id") ON DELETE CASCADE
+  CONSTRAINT "review_evidence_snapshots_review_case_id_fkey" FOREIGN KEY ("review_case_id") REFERENCES "review_cases"("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 CREATE TABLE "review_actions" (
@@ -115,8 +115,8 @@ CREATE TABLE "review_actions" (
   CONSTRAINT "review_actions_case_version_check" CHECK ("case_version" >= 1),
   CONSTRAINT "review_actions_reason_check" CHECK ("reason" IS NULL OR char_length("reason") BETWEEN 1 AND 1000),
   CONSTRAINT "review_actions_metadata_object_check" CHECK (jsonb_typeof("metadata") = 'object'),
-  CONSTRAINT "review_actions_review_case_id_fkey" FOREIGN KEY ("review_case_id") REFERENCES "review_cases"("id") ON DELETE CASCADE,
-  CONSTRAINT "review_actions_actor_user_id_fkey" FOREIGN KEY ("actor_user_id") REFERENCES "users"("id") ON DELETE SET NULL
+  CONSTRAINT "review_actions_review_case_id_fkey" FOREIGN KEY ("review_case_id") REFERENCES "review_cases"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT "review_actions_actor_user_id_fkey" FOREIGN KEY ("actor_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
 
 CREATE TABLE "idempotency_records" (
@@ -133,7 +133,7 @@ CREATE TABLE "idempotency_records" (
   CONSTRAINT "idempotency_records_actor_scope_key_key" UNIQUE ("actor_user_id", "operation_scope", "key"),
   CONSTRAINT "idempotency_records_fingerprint_check" CHECK ("request_fingerprint" ~ '^[0-9a-f]{64}$'),
   CONSTRAINT "idempotency_records_response_status_check" CHECK ("response_status" BETWEEN 200 AND 599),
-  CONSTRAINT "idempotency_records_actor_user_id_fkey" FOREIGN KEY ("actor_user_id") REFERENCES "users"("id") ON DELETE CASCADE
+  CONSTRAINT "idempotency_records_actor_user_id_fkey" FOREIGN KEY ("actor_user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 CREATE TABLE "notifications" (
@@ -156,8 +156,8 @@ CREATE TABLE "notifications" (
     OR
     ("status" = 'DISMISSED' AND "dismissed_at" IS NOT NULL)
   ),
-  CONSTRAINT "notifications_recipient_user_id_fkey" FOREIGN KEY ("recipient_user_id") REFERENCES "users"("id") ON DELETE RESTRICT,
-  CONSTRAINT "notifications_review_case_id_fkey" FOREIGN KEY ("review_case_id") REFERENCES "review_cases"("id") ON DELETE RESTRICT
+  CONSTRAINT "notifications_recipient_user_id_fkey" FOREIGN KEY ("recipient_user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT "notifications_review_case_id_fkey" FOREIGN KEY ("review_case_id") REFERENCES "review_cases"("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
 CREATE INDEX "idx_review_cases_course_status_created" ON "review_cases"("course_id", "status", "created_at" DESC, "id" DESC);

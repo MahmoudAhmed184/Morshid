@@ -30,7 +30,7 @@ describe('ReviewCaseCreator', () => {
 
     const response = await creator.createManual(
       messageId,
-      { reason: 'Needs checking' },
+      { note: 'Needs checking' },
       'request-1',
       user,
     )
@@ -63,7 +63,7 @@ describe('ReviewCaseCreator', () => {
 
     const response = await creator.createManual(
       messageId,
-      { reason: null },
+      { note: null },
       'request-2',
       user,
     )
@@ -173,7 +173,7 @@ describe('ReviewCaseCreator', () => {
     repository.create.mockResolvedValue({ kind: 'idempotency_conflict' })
 
     await expect(
-      creator.createManual(messageId, { reason: null }, 'reused-key', user),
+      creator.createManual(messageId, { note: null }, 'reused-key', user),
     ).rejects.toMatchObject({
       response: { code: 'IDEMPOTENCY_KEY_REUSED' },
       status: 409,
@@ -185,7 +185,7 @@ describe('ReviewCaseCreator', () => {
 
     for (const key of ['absent-target', 'cross-course-target']) {
       try {
-        await creator.createManual(messageId, { reason: null }, key, user)
+        await creator.createManual(messageId, { note: null }, key, user)
         throw new Error('Expected review creation to fail')
       } catch (error) {
         expect(error).toBeInstanceOf(HttpException)
@@ -201,7 +201,7 @@ describe('ReviewCaseCreator', () => {
     repository.create.mockResolvedValue({ kind: 'not_reviewable' })
 
     await expect(
-      creator.createManual(messageId, { reason: null }, 'request-3', user),
+      creator.createManual(messageId, { note: null }, 'request-3', user),
     ).rejects.toMatchObject({
       response: { code: 'TARGET_NOT_REVIEWABLE' },
       status: 400,
@@ -226,24 +226,24 @@ describe('ReviewCaseCreator', () => {
 })
 
 describe('createReviewRequestSchema', () => {
-  it('trims the reason and normalizes an empty reason to null', () => {
-    expect(
-      createReviewRequestSchema.parse({ reason: '  check this  ' }),
-    ).toEqual({
-      reason: 'check this',
+  it('trims the note and normalizes an empty note to null', () => {
+    expect(createReviewRequestSchema.parse({ note: '  check this  ' })).toEqual(
+      {
+        note: 'check this',
+      },
+    )
+    expect(createReviewRequestSchema.parse({ note: '   ' })).toEqual({
+      note: null,
     })
-    expect(createReviewRequestSchema.parse({ reason: '   ' })).toEqual({
-      reason: null,
-    })
-    expect(createReviewRequestSchema.parse({})).toEqual({ reason: null })
+    expect(createReviewRequestSchema.parse({})).toEqual({ note: null })
   })
 
-  it('rejects reasons over 200 characters and unknown fields', () => {
+  it('rejects notes over 200 characters and unknown fields', () => {
     expect(() =>
-      createReviewRequestSchema.parse({ reason: 'x'.repeat(201) }),
+      createReviewRequestSchema.parse({ note: 'x'.repeat(201) }),
     ).toThrow()
     expect(() =>
-      createReviewRequestSchema.parse({ reason: null, courseId: 'untrusted' }),
+      createReviewRequestSchema.parse({ note: null, courseId: 'untrusted' }),
     ).toThrow()
   })
 })
