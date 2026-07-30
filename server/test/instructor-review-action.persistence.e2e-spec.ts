@@ -57,6 +57,18 @@ describe('Instructor terminal review actions (e2e)', () => {
           where: { reviewCaseId: fixture.reviewCaseId },
         }),
       ).toBe(2)
+      expect(
+        await requireDatabase().prisma.notification.findMany({
+          where: { reviewCaseId: fixture.reviewCaseId },
+          select: { recipientUserId: true, type: true, status: true },
+        }),
+      ).toEqual([
+        {
+          recipientUserId: fixture.studentId,
+          type: 'REVIEW_RESOLVED',
+          status: 'UNREAD',
+        },
+      ])
     },
   )
 
@@ -79,6 +91,17 @@ describe('Instructor terminal review actions (e2e)', () => {
         resolutionReason: 'The request is not valid',
       },
     })
+    expect(
+      await requireDatabase().prisma.notification.findMany({
+        where: { reviewCaseId: fixture.reviewCaseId },
+        select: { recipientUserId: true, type: true },
+      }),
+    ).toEqual([
+      {
+        recipientUserId: fixture.studentId,
+        type: 'REVIEW_REJECTED',
+      },
+    ])
   })
 
   it('conceals an unowned case and rejects stale or terminal transitions', async () => {
@@ -156,6 +179,11 @@ describe('Instructor terminal review actions (e2e)', () => {
         where: { reviewCaseId: fixture.reviewCaseId },
       }),
     ).toBe(2)
+    expect(
+      await requireDatabase().prisma.notification.count({
+        where: { reviewCaseId: fixture.reviewCaseId },
+      }),
+    ).toBe(1)
   })
 
   it('rejects reuse of an idempotency key with a different fingerprint', async () => {
@@ -215,6 +243,41 @@ describe('Instructor terminal review actions (e2e)', () => {
         }),
       ).resolves.toEqual({ kind: 'automatic_not_rejectable' })
     }
+  })
+
+  it('rolls back notification creation when the terminal transaction fails', async () => {
+    const fixture = await createCase()
+
+    await expect(
+      repository.apply({
+        kind: 'resolve',
+        reviewCaseId: fixture.reviewCaseId,
+        instructorId: fixture.instructorId,
+        idempotencyKey: 'x'.repeat(201),
+        request: {
+          expectedVersion: 1,
+          outcome: ReviewOutcome.APPROVED,
+          content: null,
+          reason: null,
+        },
+      }),
+    ).rejects.toBeDefined()
+    expect(
+      await requireDatabase().prisma.notification.count({
+        where: { reviewCaseId: fixture.reviewCaseId },
+      }),
+    ).toBe(0)
+    expect(
+      await requireDatabase().prisma.reviewCase.findUniqueOrThrow({
+        where: { id: fixture.reviewCaseId },
+        select: { status: true, version: true },
+      }),
+    ).toEqual({ status: 'PENDING', version: 1 })
+    expect(
+      await requireDatabase().prisma.reviewAction.count({
+        where: { reviewCaseId: fixture.reviewCaseId },
+      }),
+    ).toBe(1)
   })
 
   async function createCase(
@@ -316,6 +379,7 @@ describe('Instructor terminal review actions (e2e)', () => {
     return {
       reviewCaseId: reviewCase.id,
       instructorId,
+      studentId,
       assistantMessageId,
     }
   }

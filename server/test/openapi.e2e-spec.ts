@@ -307,6 +307,51 @@ describe('OpenAPI contract (e2e)', () => {
     }
   })
 
+  it('documents authenticated notification reads', async () => {
+    const app = await createApp('test')
+
+    try {
+      const response = await request(app.getHttpServer())
+        .get('/docs-json')
+        .expect(200)
+      const document = response.body as OpenAPIObject
+      const list = expectProtectedOperation(document, {
+        path: '/api/v1/notifications',
+        method: 'get',
+        tag: 'notifications',
+        summary: 'List notifications for the authenticated user',
+        statuses: ['200', '400', '401', '403'],
+      })
+      expectResponseSchemaReference(list, '200', 'NotificationListResponseDto')
+
+      const count = expectProtectedOperation(document, {
+        path: '/api/v1/notifications/unread-count',
+        method: 'get',
+        tag: 'notifications',
+        summary: 'Count unread notifications',
+        statuses: ['200', '401', '403'],
+      })
+      expectResponseSchemaReference(count, '200', 'NotificationUnreadCountDto')
+
+      const read = expectProtectedOperation(document, {
+        path: '/api/v1/notifications/{notificationId}/read',
+        method: 'post',
+        tag: 'notifications',
+        summary: 'Mark a notification as read',
+        statuses: ['200', '400', '401', '403', '404'],
+      })
+      expectResponseSchemaReference(read, '200', 'StudentNotificationDto')
+      expectResponseSchemaReference(read, '400', 'NestBadRequestErrorDto')
+      expect(getParameter(read, 'notificationId')).toMatchObject({
+        in: 'path',
+        required: true,
+        schema: { type: 'string', format: 'uuid' },
+      })
+    } finally {
+      await app.close()
+    }
+  })
+
   it('serves documentation only in development and test', async () => {
     for (const nodeEnv of ['development', 'test'] as const) {
       const app = await createApp(nodeEnv)

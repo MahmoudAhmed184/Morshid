@@ -4,6 +4,7 @@ import { Injectable } from '@nestjs/common'
 
 import {
   CourseMembershipRole,
+  NotificationType,
   Prisma,
   ReviewActionType,
   ReviewOutcome,
@@ -112,7 +113,13 @@ export class PrismaInstructorReviewActionRepository extends InstructorReviewActi
           where: authorizedCaseWhere(input),
           select: {
             ...terminalCaseSelect,
-            targetMessage: { select: { content: true } },
+            targetMessage: {
+              select: {
+                id: true,
+                content: true,
+                session: { select: { id: true, studentId: true } },
+              },
+            },
             triggers: { select: { type: true } },
           },
         })
@@ -178,6 +185,20 @@ export class PrismaInstructorReviewActionRepository extends InstructorReviewActi
             reason: publication.resolutionReason,
             caseVersion: version,
             operationId,
+          },
+        })
+        await tx.notification.create({
+          data: {
+            recipientUserId: reviewCase.targetMessage.session.studentId,
+            reviewCaseId: reviewCase.id,
+            type:
+              publication.status === ReviewStatus.REJECTED
+                ? NotificationType.REVIEW_REJECTED
+                : NotificationType.REVIEW_RESOLVED,
+            metadata: {
+              messageId: reviewCase.targetMessage.id,
+              sessionId: reviewCase.targetMessage.session.id,
+            },
           },
         })
         await tx.idempotencyRecord.create({
