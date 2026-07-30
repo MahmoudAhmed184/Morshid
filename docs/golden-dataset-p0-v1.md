@@ -171,7 +171,7 @@ items.
 | `gd-p0-v1-055` | `DEBUGGING` | File I/O | "`open(\"data.txt\")` says file not found. What should I check?" | `p0-npt-part-05`, `p0-npt-part-02` | Suggest checking filename spelling, working directory, and whether the file exists. | Do not assume the file contents are wrong. |
 | `gd-p0-v1-056` | `PRACTICE_ATTEMPT` | File I/O | "I opened a file and printed one line. How do I process all lines?" | `p0-npt-part-05` | Suggest looping over the file object or repeated reads depending on source examples. | Do not write the full final program. |
 | `gd-p0-v1-057` | `CONCEPTUAL` | Input and variables | "Why does `input()` give me `'12'` instead of the number 12?" | `p0-npt-part-01` | Explain that `input()` returns a string and that converting with `int()` is needed before numeric use; cite the input and variables source. | Do not imply Python guesses the intended type automatically. |
-| `gd-p0-v1-058` | `DEBUGGING` | Functions | "Why does this crash? `def average(nums): total = 0; for i in range(len(nums)): total += nums[i]; return total / len(num)`" | `p0-npt-part-02` | Identify that the name `num` inside the function does not match the `nums` parameter and explain name lookup and scope so the Student can locate the `NameError`. | Do not return the full corrected function. |
+| `gd-p0-v1-058` | `DEBUGGING` | Functions | "Why does this crash? `def average(nums): total = 0; for i in range(len(nums)): total += nums[i]; return total / len(num)`" | `p0-npt-part-02` | Classify as `CODE_DIAGNOSIS`; identify the `num`/`nums` mismatch at `len(num)`, explain name lookup and scope, require course-grounded citation support, and give exactly one next inspection step. | Do not return the full corrected function or claim the code was run. |
 
 ## Security and Policy Items
 
@@ -206,7 +206,7 @@ notes.
 | SCN-002 (unsupported assignment-like) | `gd-p0-v1-060` | Gradebook-CLI prompt with intentionally missing coverage. |
 | SCN-003 (conflicting-source) | deferred | See Versioning Notes; the conflicting-source fixture is deferred to a later dataset version. |
 | SCN-004 (manual Student review) | `gd-p0-v1-037` | Reuses a course-grounded dictionary response that the Student manually flags. |
-| SCN-005 (code diagnosis) | `gd-p0-v1-058` | The `num`/`nums` `NameError` snippet in an `average` function. |
+| SCN-005 (code diagnosis) | `gd-p0-v1-058` | The `num`/`nums` `NameError` snippet in an `average` function; its machine-readable contract is in `fixtures/golden-dataset/python-code-diagnosis-p0.json`. |
 | SCN-006 (course isolation) | `gd-p0-v1-065` | `student3@morshid.demo` denied access to `HIDDEN-ISOLATION`. |
 
 ## Versioning Notes
