@@ -47,6 +47,25 @@ test.describe('Instructor review queue and bounded detail', () => {
     await expect(page).toHaveURL(
       `/instructor/review-queue/${fixture.reviewCaseId}`,
     )
+    const dialog = page.getByRole('dialog', {
+      name: 'Instructor review detail',
+    })
+    await expect(dialog).toBeVisible()
+    await expect(
+      dialog.getByRole('heading', { name: 'Review flagged response' }),
+    ).toBeVisible()
+
+    await dialog.getByRole('button', { name: 'Close' }).click()
+    await expect(page).toHaveURL('/instructor/review-queue')
+    await expect(
+      page.getByRole('heading', { name: 'Review Queue', exact: true }),
+    ).toBeVisible()
+
+    await reviewLink.click()
+    await expect(dialog).toBeVisible()
+    await page.goBack()
+    await expect(page).toHaveURL('/instructor/review-queue')
+    await expect(dialog).toBeHidden()
   })
 
   test('renders bounded evidence and excludes unrelated or private data', async ({

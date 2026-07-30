@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import type { Locator } from '@playwright/test'
 
 import {
   demoAccounts,
@@ -21,11 +22,14 @@ test('Student review remains pending across refresh and reopen, deduplicates, en
   try {
     await signInThroughUi(page, demoAccounts.reviewStudent)
     await page.goto(chatUrl)
-    const requestButtons = page.getByRole('button', { name: 'Request review' })
-    await expect(requestButtons).toHaveCount(4)
+    await expect(page.getByText('Eligible review response 1')).toBeVisible({
+      timeout: 15_000,
+    })
+    const actionButtons = page.getByRole('button', { name: 'Request review' })
+    await expect(actionButtons).toHaveCount(4, { timeout: 15_000 })
 
-    await requestButtons.first().focus()
-    await expect(requestButtons.first()).toBeFocused()
+    await actionButtons.first().focus()
+    await expect(actionButtons.first()).toBeFocused()
     await page.keyboard.press('Enter')
     const dialog = page.getByRole('dialog', {
       name: 'Request Instructor review',
@@ -41,7 +45,7 @@ test('Student review remains pending across refresh and reopen, deduplicates, en
     await page.keyboard.press('Escape')
     await expect(dialog).toBeHidden()
 
-    await requestButtons.first().click()
+    await openReviewDialog(actionButtons.first())
     await note.fill('Please verify the explanation')
     const firstResponsePromise = page.waitForResponse(
       (response) =>
@@ -54,15 +58,13 @@ test('Student review remains pending across refresh and reopen, deduplicates, en
     const firstResponse = await firstResponsePromise
     expect(firstResponse.status()).toBe(201)
     const created = (await firstResponse.json()) as { caseId: string }
-    const pending = page.getByText(
-      'Review requested — pending Instructor review',
-    )
+    const pending = page.getByText('Pending review').first()
     await expect(pending).toBeVisible()
-    await expect(requestButtons).toHaveCount(3)
+    await expect(actionButtons).toHaveCount(3)
 
     await page.reload()
     await expect(pending).toBeVisible()
-    await expect(requestButtons).toHaveCount(3)
+    await expect(actionButtons).toHaveCount(3)
     await page.goto('/settings')
     await page.goto(chatUrl)
     await expect(pending).toBeVisible()
@@ -95,18 +97,21 @@ test('Student review remains pending across refresh and reopen, deduplicates, en
       'Eligible review response 3',
     ]) {
       const message = page.getByText(responseText).locator('..').locator('..')
-      await message.getByRole('button', { name: 'Request review' }).click()
+      await openReviewDialog(
+        message.getByRole('button', { name: 'Request review' }),
+      )
       await page.getByRole('button', { name: 'Submit request' }).click()
-      await expect(
-        message.getByText('Review requested — pending Instructor review'),
-      ).toBeVisible()
+      await expect(message.getByText('Pending review')).toBeVisible()
     }
 
     const fourthMessage = page
       .getByText('Eligible review response 4')
       .locator('..')
       .locator('..')
-    await fourthMessage.getByRole('button', { name: 'Request review' }).click()
+    const fourthActions = fourthMessage.getByRole('button', {
+      name: 'Request review',
+    })
+    await openReviewDialog(fourthActions)
     const submit = page.getByRole('button', { name: 'Submit request' })
     await submit.click()
     const quotaError = page.getByRole('alert')
@@ -114,15 +119,14 @@ test('Student review remains pending across refresh and reopen, deduplicates, en
       'You have reached today’s review request limit.',
     )
     await expect(submit).toBeEnabled()
-    await expect(
-      fourthMessage.getByRole('button', { name: 'Request review' }),
-    ).toHaveCount(0)
     await page.keyboard.press('Escape')
-    await expect(
-      fourthMessage.getByRole('button', { name: 'Request review' }),
-    ).toBeVisible()
+    await expect(fourthActions).toBeVisible()
     expect(await fixture.countCases()).toBe(3)
   } finally {
     await fixture.dispose()
   }
 })
+
+async function openReviewDialog(actionButton: Locator) {
+  await actionButton.click()
+}

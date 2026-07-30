@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest'
+import type * as TanStackReactRouter from '@tanstack/react-router'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,6 +10,25 @@ import {
 
 import { ReviewDetailPage } from './review-detail-page'
 import { ReviewQueuePage } from './review-queue-page'
+
+vi.mock('@tanstack/react-router', async (importOriginal) => {
+  const actual = await importOriginal<typeof TanStackReactRouter>()
+  return {
+    ...actual,
+    Link: ({
+      to,
+      params,
+      state: _state,
+      ...props
+    }: React.ComponentProps<'a'> & {
+      to: string
+      params: { reviewCaseId: string }
+      state?: unknown
+    }) => (
+      <a {...props} href={to.replace('$reviewCaseId', params.reviewCaseId)} />
+    ),
+  }
+})
 
 vi.mock('@/features/instructor/hooks/use-instructor-reviews')
 
@@ -68,10 +88,9 @@ describe('Instructor review pages', () => {
   it('links each queue item to its detail route', () => {
     useQueueMock.mockReturnValue(queueQuery([queueItem()]))
     render(<ReviewQueuePage />)
-    expect(screen.getByRole('link', { name: /Review/ })).toHaveAttribute(
-      'href',
-      `/instructor/review-queue/${reviewCaseId}`,
-    )
+    expect(
+      screen.getByRole('link', { name: 'Review Safe Student in Course One' }),
+    ).toHaveAttribute('href', `/instructor/review-queue/${reviewCaseId}`)
   })
 
   it('renders bounded detail evidence and adjacent exchanges', () => {
@@ -90,6 +109,24 @@ describe('Instructor review pages', () => {
     expect(screen.getByText('Following question')).toBeVisible()
     expect(screen.getByText('Following answer')).toBeVisible()
     expect(screen.getByText('Bounded citation snippet')).toBeVisible()
+  })
+
+  it('uses compact metadata in the dialog presentation', () => {
+    useDetailMock.mockReturnValue(
+      queryResult(detail()) as unknown as ReturnType<
+        typeof useInstructorReviewDetail
+      >,
+    )
+    render(
+      <ReviewDetailPage reviewCaseId={reviewCaseId} presentation="dialog" />,
+    )
+
+    expect(
+      screen.getByRole('heading', { name: 'Review flagged response' }),
+    ).toBeVisible()
+    expect(screen.getByText('Course One')).toBeVisible()
+    expect(screen.getByText('Safe Student')).toBeVisible()
+    expect(screen.getByText('Student request')).toBeVisible()
   })
 
   it('does not render non-contract private or unrelated data', () => {

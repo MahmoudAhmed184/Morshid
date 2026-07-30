@@ -1,6 +1,7 @@
 import { ArrowRight, ClipboardCheck } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
 
-import { Button, buttonVariants } from '@/components/ui/button'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/custom/empty-state'
 import { ErrorState } from '@/components/ui/custom/error-state'
@@ -112,7 +113,10 @@ function ReviewQueueTable({ items }: { items: InstructorReviewQueueItem[] }) {
         </TableHeader>
         <TableBody>
           {items.map((item) => (
-            <TableRow key={item.reviewCaseId}>
+            <TableRow
+              key={item.reviewCaseId}
+              className="group relative transition-colors hover:bg-muted/50 has-[a:focus-visible]:bg-muted/50 has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-inset has-[a:focus-visible]:ring-ring"
+            >
               <TableCell className="font-medium">
                 {item.student.displayName}
               </TableCell>
@@ -132,12 +136,22 @@ function ReviewQueueTable({ items }: { items: InstructorReviewQueueItem[] }) {
               <TableCell>{formatDate(item.createdAt)}</TableCell>
               <TableCell>{formatAge(item.age)}</TableCell>
               <TableCell className="text-right">
-                <a
-                  className={buttonVariants({ variant: 'ghost', size: 'sm' })}
-                  href={`/instructor/review-queue/${item.reviewCaseId}`}
+                <Link
+                  className="inline-flex items-center gap-1 text-sm font-medium text-primary outline-none after:absolute after:inset-0"
+                  to="/instructor/review-queue/$reviewCaseId"
+                  params={{ reviewCaseId: item.reviewCaseId }}
+                  state={(previous) => ({
+                    ...previous,
+                    reviewQueueOverlay: true,
+                  })}
+                  aria-label={`Review ${item.student.displayName} in ${item.course.title}`}
                 >
-                  Review <ArrowRight aria-hidden />
-                </a>
+                  <span className="hidden sm:inline">Review</span>
+                  <ArrowRight
+                    className="size-4 transition-transform group-hover:translate-x-0.5"
+                    aria-hidden
+                  />
+                </Link>
               </TableCell>
             </TableRow>
           ))}

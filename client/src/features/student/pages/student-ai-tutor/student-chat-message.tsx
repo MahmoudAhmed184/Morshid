@@ -1,15 +1,19 @@
 import {
   BookMarked,
+  Check,
   CircleAlert,
   ClipboardCheck,
+  Copy,
   FileText,
   GraduationCap,
   LoaderCircle,
   RotateCcw,
+  ThumbsDown,
+  ThumbsUp,
   Clock3,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { Logo } from '@/components/logo'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -92,6 +96,8 @@ export function StudentChatMessage({
     (message.status === 'PENDING' || message.status === 'STREAMING')
   const previousStatusRef = useRef(message.status)
   const terminalAnnouncementRef = useRef<HTMLSpanElement>(null)
+  const [isCopied, setIsCopied] = useState(false)
+  const [feedback, setFeedback] = useState<'like' | 'dislike' | null>(null)
   const canRetry =
     message.role === 'ASSISTANT' &&
     message.status === 'FAILED' &&
@@ -103,6 +109,17 @@ export function StudentChatMessage({
     message.status === 'COMPLETED' &&
     message.completedAt !== null &&
     message.reviewSummary === null
+  const showResponseActions =
+    message.role === 'ASSISTANT' && message.status === 'COMPLETED'
+
+  const copyResponse = async () => {
+    try {
+      await navigator.clipboard.writeText(message.content)
+      setIsCopied(true)
+    } catch {
+      setIsCopied(false)
+    }
+  }
 
   useEffect(() => {
     const previousStatus = previousStatusRef.current
@@ -122,6 +139,13 @@ export function StudentChatMessage({
       terminalAnnouncementRef.current.textContent = announcement
     }
   }, [isAssistantPending, message.role, message.status])
+
+  useEffect(() => {
+    if (!isCopied) return
+
+    const resetCopyState = window.setTimeout(() => setIsCopied(false), 2_000)
+    return () => window.clearTimeout(resetCopyState)
+  }, [isCopied])
 
   if (isSystem) {
     return (
@@ -159,13 +183,34 @@ export function StudentChatMessage({
       <div className="max-w-[min(90%,44rem)]">
         <div
           className={cn(
-            'px-4 py-3 text-sm leading-7',
+            'px-4 py-3 text-sm leading-7 transition-colors',
             isStudent
               ? 'rounded-2xl rounded-br-lg bg-accent text-foreground'
               : 'rounded-2xl rounded-bl-lg border bg-card text-card-foreground shadow-xs',
+            message.reviewSummary?.status === 'PENDING' &&
+              'border-warning/35 bg-warning/[0.04] shadow-[inset_3px_0_0_hsl(var(--warning)/0.45)]',
           )}
         >
           <span className="sr-only">{isStudent ? 'You' : 'AI Tutor'}: </span>
+
+          {!isStudent ? (
+            <div className="mb-2 flex min-h-8 items-center gap-3 border-b border-border/60 pb-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="text-xs font-semibold text-muted-foreground">
+                  AI Tutor
+                </span>
+                {message.reviewSummary?.status === 'PENDING' ? (
+                  <Badge
+                    variant="outline"
+                    className="gap-1 border-warning/30 bg-warning/10 px-2 py-0.5 text-[0.65rem] text-warning"
+                  >
+                    <Clock3 className="size-3" aria-hidden />
+                    Pending review
+                  </Badge>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
 
           {isAssistantPending ? (
             <p
@@ -237,27 +282,73 @@ export function StudentChatMessage({
               ) : null}
             </div>
           ) : null}
+
+          {showResponseActions ? (
+            <div className="mt-3 flex items-center justify-between border-t border-border/60 pt-2">
+              <div className="flex items-center gap-0.5">
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  aria-label="Like response"
+                  aria-pressed={feedback === 'like'}
+                  className={cn(
+                    feedback === 'like' &&
+                      'bg-info/15 text-info hover:bg-info/20 hover:text-info',
+                  )}
+                  onClick={() =>
+                    setFeedback((current) =>
+                      current === 'like' ? null : 'like',
+                    )
+                  }
+                >
+                  <ThumbsUp aria-hidden />
+                </Button>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  aria-label="Dislike response"
+                  aria-pressed={feedback === 'dislike'}
+                  className={cn(
+                    feedback === 'dislike' &&
+                      'bg-destructive/10 text-destructive',
+                  )}
+                  onClick={() =>
+                    setFeedback((current) =>
+                      current === 'dislike' ? null : 'dislike',
+                    )
+                  }
+                >
+                  <ThumbsDown aria-hidden />
+                </Button>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  aria-label={isCopied ? 'Response copied' : 'Copy response'}
+                  onClick={() => void copyResponse()}
+                >
+                  {isCopied ? <Check aria-hidden /> : <Copy aria-hidden />}
+                </Button>
+              </div>
+              {canRequestReview ? (
+                <StudentReviewRequestDialog
+                  messageId={message.id}
+                  onSubmit={onRequestReview}
+                />
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
         {!isStudent && message.guidanceLabel ? (
           <GuidanceBadge guidanceLabel={message.guidanceLabel} />
         ) : null}
         {message.reviewSummary?.status === 'PENDING' ? (
-          <p
-            className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground"
-            role="status"
-            aria-live="polite"
-          >
-            <Clock3 className="size-3.5" aria-hidden />
+          <span className="sr-only" role="status" aria-live="polite">
             Review requested — pending Instructor review
-          </p>
-        ) : canRequestReview ? (
-          <div className="mt-2">
-            <StudentReviewRequestDialog
-              messageId={message.id}
-              onSubmit={onRequestReview}
-            />
-          </div>
+          </span>
         ) : null}
       </div>
     </li>
