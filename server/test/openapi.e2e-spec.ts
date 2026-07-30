@@ -259,6 +259,54 @@ describe('OpenAPI contract (e2e)', () => {
     }
   })
 
+  it('documents Instructor terminal review actions', async () => {
+    const app = await createApp('test')
+
+    try {
+      const response = await request(app.getHttpServer())
+        .get('/docs-json')
+        .expect(200)
+      const document = response.body as OpenAPIObject
+      for (const expectation of [
+        {
+          path: '/api/v1/instructor/reviews/{reviewCaseId}/resolve',
+          summary: 'Publish a terminal Instructor review outcome',
+          requestSchema: 'ResolveReviewRequestDto',
+        },
+        {
+          path: '/api/v1/instructor/reviews/{reviewCaseId}/reject',
+          summary: 'Reject a Student review request',
+          requestSchema: 'RejectReviewRequestDto',
+        },
+      ]) {
+        const operation = expectProtectedOperation(document, {
+          path: expectation.path,
+          method: 'post',
+          tag: 'instructor-reviews',
+          summary: expectation.summary,
+          statuses: ['200', '400', '401', '403', '404', '409'],
+        })
+        expectRequestSchemaReference(operation, expectation.requestSchema)
+        expectResponseSchemaReference(
+          operation,
+          '200',
+          'InstructorReviewActionResponseDto',
+        )
+        expect(getParameter(operation, 'reviewCaseId')).toMatchObject({
+          in: 'path',
+          required: true,
+          schema: { type: 'string', format: 'uuid' },
+        })
+        expect(getParameter(operation, 'Idempotency-Key')).toMatchObject({
+          in: 'header',
+          required: true,
+        })
+      }
+    } finally {
+      await app.close()
+    }
+  })
+
   it('serves documentation only in development and test', async () => {
     for (const nodeEnv of ['development', 'test'] as const) {
       const app = await createApp(nodeEnv)

@@ -14,6 +14,10 @@ export const REVIEW_ERROR_CODES = {
   IDEMPOTENCY_KEY_REUSED: 'IDEMPOTENCY_KEY_REUSED',
   QUOTA_EXCEEDED: 'MANUAL_REVIEW_QUOTA_EXCEEDED',
   SNAPSHOT_TOO_LARGE: 'REVIEW_SNAPSHOT_TOO_LARGE',
+  STALE_VERSION: 'STALE_REVIEW_VERSION',
+  INVALID_TRANSITION: 'INVALID_REVIEW_TRANSITION',
+  OUTCOME_CONTENT_MISMATCH: 'OUTCOME_CONTENT_MISMATCH',
+  AUTOMATIC_CASE_NOT_REJECTABLE: 'AUTOMATIC_CASE_NOT_REJECTABLE',
 } as const
 
 export function invalidReviewRequestException(errors: unknown[] = []) {
@@ -59,5 +63,33 @@ export function reviewSnapshotTooLargeException() {
   return new PayloadTooLargeException({
     code: REVIEW_ERROR_CODES.SNAPSHOT_TOO_LARGE,
     message: 'Required review evidence exceeds the snapshot limit',
+  })
+}
+
+export function staleReviewVersionException() {
+  return new ConflictException({
+    code: REVIEW_ERROR_CODES.STALE_VERSION,
+    message: 'The review was changed by another request',
+  })
+}
+
+export function invalidReviewTransitionException() {
+  return new ConflictException({
+    code: REVIEW_ERROR_CODES.INVALID_TRANSITION,
+    message: 'The review cannot transition from its current state',
+  })
+}
+
+export function outcomeContentMismatchException() {
+  return new BadRequestException({
+    code: REVIEW_ERROR_CODES.OUTCOME_CONTENT_MISMATCH,
+    message: 'Review outcome and published content do not match',
+  })
+}
+
+export function automaticReviewNotRejectableException() {
+  return new BadRequestException({
+    code: REVIEW_ERROR_CODES.AUTOMATIC_CASE_NOT_REJECTABLE,
+    message: 'Automatic or mixed-trigger reviews cannot be rejected',
   })
 }
