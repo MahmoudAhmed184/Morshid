@@ -5,18 +5,10 @@ import {
   MessageRequestKind,
 } from '../../../generated/prisma/client'
 import { PYTHON_CODE_DIAGNOSIS_BOUNDARY_STATES } from './python-code-diagnosis.boundary'
-import { pythonCodeDiagnosisSchema } from './python-code-diagnosis.contract'
-
-export const PYTHON_DIAGNOSIS_CATEGORIES = [
-  'SYNTAX',
-  'NAME_LOOKUP',
-  'INDEX_ACCESS',
-  'LOOP_OR_INDENTATION',
-  'FUNCTION_USAGE',
-  'DICTIONARY_ACCESS',
-  'STRING_HANDLING',
-  'FILE_HANDLING',
-] as const
+import {
+  PYTHON_DIAGNOSIS_CATEGORIES,
+  pythonCodeDiagnosisSchema,
+} from './python-code-diagnosis.contract'
 
 export const PYTHON_DIAGNOSIS_FIXTURE_SAFE_STATES = [
   'DIAGNOSIS_READY',

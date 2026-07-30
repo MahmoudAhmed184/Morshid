@@ -3,8 +3,8 @@ import { resolve } from 'node:path'
 
 import { MessageRequestKind } from '../../../generated/prisma/client'
 import { assessPythonCodeDiagnosisBoundary } from './python-code-diagnosis.boundary'
+import { PYTHON_DIAGNOSIS_CATEGORIES } from './python-code-diagnosis.contract'
 import {
-  PYTHON_DIAGNOSIS_CATEGORIES,
   type PythonCodeDiagnosisFixture,
   materializePythonCodeDiagnosisFixtureInput,
   parsePythonCodeDiagnosisFixtureDataset,
