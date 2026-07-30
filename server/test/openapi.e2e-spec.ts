@@ -307,6 +307,50 @@ describe('OpenAPI contract (e2e)', () => {
     }
   })
 
+  it('documents the Student-safe review detail operation and allow-list', async () => {
+    const app = await createApp('test')
+
+    try {
+      const response = await request(app.getHttpServer())
+        .get('/docs-json')
+        .expect(200)
+      const document = response.body as OpenAPIObject
+      const operation = expectProtectedOperation(document, {
+        path: '/api/v1/student/reviews/{reviewCaseId}',
+        method: 'get',
+        tag: 'student-reviews',
+        summary: 'Get a Student-safe review outcome',
+        statuses: ['200', '400', '401', '403', '404'],
+      })
+      expectResponseSchemaReference(operation, '200', 'StudentReviewDetailDto')
+      expect(getParameter(operation, 'reviewCaseId')).toMatchObject({
+        in: 'path',
+        required: true,
+        schema: { type: 'string', format: 'uuid' },
+      })
+
+      const schemas = document.components?.schemas as Record<
+        string,
+        { properties?: Record<string, unknown> }
+      >
+      expect(
+        Object.keys(schemas.StudentReviewDetailDto.properties ?? {}),
+      ).toEqual([
+        'reviewCaseId',
+        'status',
+        'outcome',
+        'publishedContent',
+        'rejectionReason',
+        'requestedAt',
+        'resolvedAt',
+        'messageId',
+        'sessionId',
+      ])
+    } finally {
+      await app.close()
+    }
+  })
+
   it('documents authenticated notification reads', async () => {
     const app = await createApp('test')
 

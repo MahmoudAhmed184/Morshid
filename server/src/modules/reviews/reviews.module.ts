@@ -4,6 +4,7 @@ import { AuditModule } from '../audit/audit.module'
 import { AuthModule } from '../auth/auth.module'
 import { PrismaModule } from '../prisma/prisma.module'
 import { ReviewCaseController } from './review-case.controller'
+import { StudentReviewDetailController } from './student-review-detail.controller'
 import { ReviewCaseCreator } from './review-case.creator'
 import { InstructorReviewQueueController } from './instructor-review-queue.controller'
 import {
@@ -25,15 +26,25 @@ import {
   PrismaReviewCaseRepository,
   ReviewCaseRepository,
 } from './review-case.repository'
+import {
+  PrismaStudentReviewDetailRepository,
+  StudentReviewDetailRepository,
+} from './student-review-detail.repository'
+import { StudentReviewDetailService } from './student-review-detail.service'
 
 @Module({
   imports: [AuditModule, AuthModule, PrismaModule],
-  controllers: [ReviewCaseController, InstructorReviewQueueController],
+  controllers: [
+    ReviewCaseController,
+    InstructorReviewQueueController,
+    StudentReviewDetailController,
+  ],
   providers: [
     ReviewCaseCreator,
     InstructorReviewQueueService,
     InstructorReviewDetailService,
     InstructorReviewActionService,
+    StudentReviewDetailService,
     {
       provide: ReviewCaseRepository,
       useClass: PrismaReviewCaseRepository,
@@ -49,6 +60,10 @@ import {
     {
       provide: InstructorReviewActionRepository,
       useClass: PrismaInstructorReviewActionRepository,
+    },
+    {
+      provide: StudentReviewDetailRepository,
+      useClass: PrismaStudentReviewDetailRepository,
     },
   ],
   exports: [ReviewCaseCreator],

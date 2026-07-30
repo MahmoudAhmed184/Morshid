@@ -74,10 +74,13 @@ export function chatMessageSelectForStudent(studentId: string) {
       select: {
         id: true,
         status: true,
+        outcome: true,
+        resolvedAt: true,
         triggers: {
           where: { type: 'STUDENT_REQUEST' as const, actorUserId: studentId },
           select: { id: true },
         },
+        _count: { select: { notifications: true } },
       },
     },
   } satisfies Prisma.MessageSelect

@@ -58,11 +58,15 @@ export class StudentChatMessagePresenter {
       completedAt: record.completedAt?.toISOString() ?? null,
       citations,
       reviewSummary:
-        record.reviewCase?.status === 'PENDING' &&
+        record.reviewCase !== null &&
+        record.reviewCase !== undefined &&
         record.reviewCase.triggers.length > 0
           ? {
               reviewCaseId: record.reviewCase.id,
-              status: 'PENDING',
+              status: record.reviewCase.status,
+              outcome: record.reviewCase.outcome,
+              resolvedAt: record.reviewCase.resolvedAt?.toISOString() ?? null,
+              hasNotification: record.reviewCase._count.notifications > 0,
             }
           : null,
     }
