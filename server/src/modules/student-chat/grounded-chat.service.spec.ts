@@ -18,6 +18,8 @@ import type {
   RetrievedChunk,
   RetrievalService,
 } from '../retrieval/retrieval.service'
+import type { OutputPolicyReviewAdapter } from '../output-policy/output-policy-review.adapter'
+import { OutputPolicyService } from '../output-policy/output-policy.service'
 import type {
   BeginGroundedChatTurnResult,
   CompleteGroundedChatTurnInput,
@@ -53,11 +55,17 @@ describe('GroundedChatService', () => {
   let recordGroundedTurnDenied: jest.Mock
   let beginTurn: jest.Mock
   let retryTurn: jest.Mock
-  let completeTurn: jest.Mock
+  let completeTurn: jest.MockedFunction<
+    GroundedChatTurnRepository['completeTurn']
+  >
   let blockTurn: jest.Mock
   let failTurn: jest.Mock
   let retrieveCourseEvidence: jest.Mock
   let complete: jest.MockedFunction<CompletionProvider['complete']>
+  let outputPolicy: OutputPolicyService
+  let createRequiredReview: jest.MockedFunction<
+    OutputPolicyReviewAdapter['createRequiredReview']
+  >
   let service: GroundedChatService
 
   beforeEach(() => {
@@ -65,19 +73,21 @@ describe('GroundedChatService', () => {
     recordGroundedTurnDenied = jest.fn().mockResolvedValue(undefined)
     beginTurn = jest.fn().mockResolvedValue(beginOk())
     retryTurn = jest.fn().mockResolvedValue(retryOk())
-    completeTurn = jest
-      .fn()
-      .mockImplementation((input: CompleteGroundedChatTurnInput) =>
-        Promise.resolve({
-          kind: 'ok',
-          message: assistantMessage({
-            status: MessageStatus.COMPLETED,
-            content: input.content,
-            guidanceLabel: MessageGuidanceLabel.COURSE_GROUNDED,
-            completedAt: new Date('2026-07-21T12:01:00.000Z'),
-          }),
-        } satisfies FinalizeGroundedChatTurnResult),
-      )
+    completeTurn = jest.fn() as jest.MockedFunction<
+      GroundedChatTurnRepository['completeTurn']
+    >
+    completeTurn.mockImplementation((input: CompleteGroundedChatTurnInput) =>
+      Promise.resolve({
+        kind: 'ok',
+        message: assistantMessage({
+          status: MessageStatus.COMPLETED,
+          content: input.content,
+          guidanceLabel:
+            input.guidanceLabel ?? MessageGuidanceLabel.COURSE_GROUNDED,
+          completedAt: new Date('2026-07-21T12:01:00.000Z'),
+        }),
+      } satisfies FinalizeGroundedChatTurnResult),
+    )
     blockTurn = jest
       .fn()
       .mockImplementation((input: FinalizeGroundedChatTurnInput) =>
@@ -137,6 +147,14 @@ describe('GroundedChatService', () => {
     const presenter = new StudentChatMessagePresenter({
       exists: jest.fn().mockResolvedValue(true),
     } as never)
+    outputPolicy = new OutputPolicyService()
+    createRequiredReview = jest.fn() as jest.MockedFunction<
+      OutputPolicyReviewAdapter['createRequiredReview']
+    >
+    createRequiredReview.mockResolvedValue(null)
+    const outputPolicyReview = {
+      createRequiredReview,
+    } as unknown as OutputPolicyReviewAdapter
 
     service = new GroundedChatService(
       studentChatService,
@@ -144,6 +162,8 @@ describe('GroundedChatService', () => {
       retrievalService,
       completionProvider,
       presenter,
+      outputPolicy,
+      outputPolicyReview,
     )
   })
 
@@ -199,12 +219,22 @@ describe('GroundedChatService', () => {
       studentMessageId,
       assistantMessageId,
       content: 'Grounded answer',
+      guidanceLabel: MessageGuidanceLabel.COURSE_GROUNDED,
       provider: 'deterministic',
       model: 'deterministic-completion-v1',
       promptVersion: 'grounded-completion-v1',
       inputTokens: 10,
       outputTokens: 5,
       evidence: evidenceChunks(),
+    })
+    const reviewRequest = createRequiredReview.mock.calls[0][0]
+    expect(reviewRequest).toMatchObject({
+      assistantMessageId,
+      requestContext: undefined,
+    })
+    expect(reviewRequest.decision).toMatchObject({
+      display: 'AS_PROPOSED',
+      createReview: false,
     })
     expect(response).toMatchObject({
       studentMessage: {
@@ -217,6 +247,60 @@ describe('GroundedChatService', () => {
         content: 'Grounded answer',
       },
     })
+  })
+
+  it('replaces risky output before persistence and creates review before display', async () => {
+    const privateRiskyOutput = 'PRIVATE-SYSTEM-PROMPT and complete final answer'
+    complete.mockResolvedValue({
+      content: privateRiskyOutput,
+      provider: 'deterministic',
+      model: 'deterministic-completion-v1',
+      promptVersion: 'grounded-completion-v1',
+    })
+    jest.spyOn(outputPolicy, 'evaluate').mockImplementation((input) =>
+      new OutputPolicyService().evaluate({
+        ...input,
+        assessment: {
+          support: 'SUPPORTED',
+          policyCheck: 'FAILED',
+          answerRisk: 'FINAL_ANSWER',
+          citations: 'PRESENT',
+        },
+      }),
+    )
+    createRequiredReview.mockResolvedValue({
+      caseId: 'review-case-id',
+      messageId: assistantMessageId,
+      status: 'PENDING',
+      replayed: false,
+    })
+
+    const response = await service.send(
+      courseId,
+      sessionId,
+      { content: 'Attempt to bypass policy' },
+      user,
+    )
+
+    const persisted = completeTurn.mock.calls[0][0]
+    expect(persisted.content).not.toContain(privateRiskyOutput)
+    expect(persisted.guidanceLabel).toBe(MessageGuidanceLabel.REFUSAL)
+    expect(response.assistantMessage.content).toBe(persisted.content)
+    expect(response.assistantMessage.content).not.toContain(privateRiskyOutput)
+    const reviewRequest = createRequiredReview.mock.calls[0][0]
+    expect(reviewRequest).toMatchObject({
+      assistantMessageId,
+      requestContext: undefined,
+    })
+    expect(reviewRequest.decision).toMatchObject({
+      display: 'SAFE_REPLACEMENT',
+      safeRefusal: true,
+      createReview: true,
+      reasons: ['POLICY_CHECK_FAILED', 'FINAL_ANSWER_RISK'],
+    })
+    expect(completeTurn.mock.invocationCallOrder[0]).toBeLessThan(
+      createRequiredReview.mock.invocationCallOrder[0],
+    )
   })
 
   it('returns a terminal idempotent replay without generating again', async () => {
@@ -439,6 +523,34 @@ describe('GroundedChatService', () => {
         ),
     ],
     [
+      'policy_evaluation',
+      () =>
+        jest.spyOn(outputPolicy, 'evaluate').mockImplementation(() => {
+          throw new Error('PRIVATE-POLICY-ERROR')
+        }),
+      () =>
+        service.send(
+          courseId,
+          sessionId,
+          { content: 'PRIVATE-QUESTION' },
+          user,
+        ),
+    ],
+    [
+      'review_creation',
+      () =>
+        createRequiredReview.mockRejectedValue(
+          new Error('PRIVATE-REVIEW-ERROR'),
+        ),
+      () =>
+        service.send(
+          courseId,
+          sessionId,
+          { content: 'PRIVATE-QUESTION' },
+          user,
+        ),
+    ],
+    [
       'blocked_persistence',
       () => {
         retrieveCourseEvidence.mockResolvedValue({
@@ -499,6 +611,8 @@ describe('GroundedChatService', () => {
         'PRIVATE-RETRIEVAL-ERROR',
         'PRIVATE-PROVIDER-PAYLOAD',
         'PRIVATE-DATABASE-ERROR',
+        'PRIVATE-POLICY-ERROR',
+        'PRIVATE-REVIEW-ERROR',
         'PRIVATE-BLOCK-ERROR',
         'PRIVATE-FAILURE-ERROR',
         'PRIVATE-QUESTION',

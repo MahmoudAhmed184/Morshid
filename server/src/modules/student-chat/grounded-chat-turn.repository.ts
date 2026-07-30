@@ -62,6 +62,7 @@ export interface CompleteGroundedChatTurnInput extends AuthorizedTurnInput {
   inputTokens?: number
   outputTokens?: number
   evidence: readonly GroundedChatEvidenceInput[]
+  guidanceLabel?: MessageGuidanceLabel
 }
 
 export interface FinalizeGroundedChatTurnInput extends AuthorizedTurnInput {
@@ -410,7 +411,8 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
         const updated = await this.transitionPendingAssistant(tx, input, {
           status: MessageStatus.COMPLETED,
           content: input.content,
-          guidanceLabel: MessageGuidanceLabel.COURSE_GROUNDED,
+          guidanceLabel:
+            input.guidanceLabel ?? MessageGuidanceLabel.COURSE_GROUNDED,
           provider: input.provider,
           model: input.model,
           promptVersion: input.promptVersion,

@@ -17,6 +17,12 @@ import {
   type RetrievedChunk,
 } from '../retrieval/retrieval.service'
 import {
+  OutputPolicyReviewAdapter,
+  OutputPolicyReviewIntegrationError,
+} from '../output-policy/output-policy-review.adapter'
+import type { OutputPolicyDecision } from '../output-policy/output-policy.contract'
+import { OutputPolicyService } from '../output-policy/output-policy.service'
+import {
   type BeginGroundedChatTurnResult,
   type FinalizeGroundedChatTurnResult,
   GroundedChatEvidenceUnavailableError,
@@ -71,7 +77,9 @@ type OrchestrationPhase =
   | 'retry'
   | 'retrieval'
   | 'completion'
+  | 'policy_evaluation'
   | 'finalization'
+  | 'review_creation'
   | 'blocked_persistence'
   | 'failed_persistence'
 
@@ -100,6 +108,8 @@ export class GroundedChatService {
     @Inject(COMPLETION_PROVIDER_TOKEN)
     private readonly completionProvider: CompletionProvider,
     private readonly messagePresenter: StudentChatMessagePresenter,
+    private readonly outputPolicy: OutputPolicyService,
+    private readonly outputPolicyReview: OutputPolicyReviewAdapter,
   ) {}
 
   async send(
@@ -150,11 +160,15 @@ export class GroundedChatService {
       )
     }
 
-    return this.orchestrate(result, {
-      ...operation,
-      studentMessageId: result.studentMessage.id,
-      assistantMessageId: result.assistantMessage.id,
-    })
+    return this.orchestrate(
+      result,
+      {
+        ...operation,
+        studentMessageId: result.studentMessage.id,
+        assistantMessageId: result.assistantMessage.id,
+      },
+      requestContext,
+    )
   }
 
   async retry(
@@ -201,15 +215,20 @@ export class GroundedChatService {
       )
     }
 
-    return this.orchestrate(result, {
-      ...operation,
-      assistantMessageId: result.assistantMessage.id,
-    })
+    return this.orchestrate(
+      result,
+      {
+        ...operation,
+        assistantMessageId: result.assistantMessage.id,
+      },
+      requestContext,
+    )
   }
 
   private async orchestrate(
     turn: ActiveGroundedTurn,
     operation: OrchestrationContext,
+    requestContext?: AuditRequestContext,
   ): Promise<GroundedChatTurnResponseDto> {
     let evidence: RetrievedChunk[]
     try {
@@ -255,6 +274,29 @@ export class GroundedChatService {
       return this.persistFailure(turn, operation)
     }
 
+    let policyDecision: OutputPolicyDecision
+    try {
+      policyDecision = this.outputPolicy.evaluate({
+        proposedContent: completion.content,
+        assessment: {
+          support: 'SUPPORTED',
+          policyCheck: 'PASSED',
+          answerRisk: 'NONE',
+          citations: hasDistinctCitation(evidence) ? 'PRESENT' : 'MISSING',
+        },
+        evidence: evidence.map((chunk) => ({
+          materialId: chunk.materialId,
+          chunkId: chunk.chunkId,
+          excerpt: chunk.content,
+          rank: chunk.rank,
+          score: chunk.similarityScore,
+        })),
+      })
+    } catch (error) {
+      this.logFailure('policy_evaluation', operation, error)
+      return this.persistFailure(turn, operation)
+    }
+
     let completed: FinalizeGroundedChatTurnResult
     try {
       completed = await this.turnRepository.completeTurn({
@@ -264,7 +306,8 @@ export class GroundedChatService {
         attemptId: turn.attemptId,
         studentMessageId: turn.studentMessage.id,
         assistantMessageId: turn.assistantMessage.id,
-        content: completion.content,
+        content: policyDecision.content,
+        guidanceLabel: policyDecision.studentStatus.guidanceLabel,
         provider: completion.provider,
         model: completion.model,
         promptVersion: completion.promptVersion,
@@ -282,6 +325,16 @@ export class GroundedChatService {
     }
     switch (completed.kind) {
       case 'ok':
+        try {
+          await this.outputPolicyReview.createRequiredReview({
+            assistantMessageId: completed.message.id,
+            decision: policyDecision,
+            requestContext,
+          })
+        } catch (error) {
+          this.logFailure('review_creation', operation, error)
+          throw studentChatTerminalStateUnavailableException()
+        }
         return this.presentTurn(turn.studentMessage, completed.message)
       case 'membership_missing':
       case 'session_not_found':
@@ -554,6 +607,9 @@ function safeErrorDescriptor(error: unknown): {
   if (error instanceof GroundedChatEvidenceUnavailableError) {
     return { errorClass: 'GroundedChatEvidenceUnavailableError' }
   }
+  if (error instanceof OutputPolicyReviewIntegrationError) {
+    return { errorClass: 'OutputPolicyReviewIntegrationError' }
+  }
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     return {
       errorClass: 'PrismaClientKnownRequestError',
@@ -568,6 +624,10 @@ function safeErrorDescriptor(error: unknown): {
   }
 
   return { errorClass: 'UnknownError' }
+}
+
+function hasDistinctCitation(evidence: readonly RetrievedChunk[]): boolean {
+  return evidence.some((chunk) => chunk.materialId.trim() !== '')
 }
 
 function isSafePrismaCode(code: string): boolean {
