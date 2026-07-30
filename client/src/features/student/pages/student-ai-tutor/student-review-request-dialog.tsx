@@ -1,4 +1,4 @@
-import { CircleAlert, LoaderCircle, Send } from 'lucide-react'
+import { CircleAlert, Flag, LoaderCircle } from 'lucide-react'
 import { useState } from 'react'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -10,7 +10,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -59,61 +58,69 @@ export function StudentReviewRequestDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger
-        render={<Button type="button" size="sm" variant="outline" />}
+    <>
+      <Button
+        type="button"
+        size="icon-sm"
+        variant="ghost"
+        aria-label="Request review"
+        onClick={() => setOpen(true)}
       >
-        <Send aria-hidden />
-        Request review
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-md" showCloseButton={!isPending}>
-        <DialogHeader>
-          <DialogTitle>Request Instructor review</DialogTitle>
-          <DialogDescription>
-            Ask an Instructor to review this response. You may include a short
-            note.
-          </DialogDescription>
-        </DialogHeader>
-        <form className="space-y-4" noValidate onSubmit={handleSubmit}>
-          <div className="space-y-2">
-            <Label htmlFor={`review-note-${messageId}`}>Note (optional)</Label>
-            <Textarea
-              id={`review-note-${messageId}`}
-              value={note}
-              aria-describedby={`review-note-count-${messageId}`}
-              aria-invalid={remaining < 0}
-              disabled={isPending}
-              maxLength={NOTE_LIMIT}
-              onChange={(event) => setNote(event.target.value)}
-              placeholder="What would you like the Instructor to check?"
-            />
-            <p
-              id={`review-note-count-${messageId}`}
-              className="text-xs text-muted-foreground"
-            >
-              {remaining} characters remaining
-            </p>
-          </div>
-          {error ? <ReviewRequestError error={error} /> : null}
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={isPending}
-              onClick={() => handleOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isPending || remaining < 0}>
-              {isPending ? (
-                <LoaderCircle className="animate-spin" aria-hidden />
-              ) : null}
-              {isPending ? 'Submitting…' : 'Submit request'}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+        <Flag aria-hidden />
+      </Button>
+
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent className="sm:max-w-md" showCloseButton={!isPending}>
+          <DialogHeader>
+            <DialogTitle>Request Instructor review</DialogTitle>
+            <DialogDescription>
+              Ask an Instructor to review this response. You may include a short
+              note.
+            </DialogDescription>
+          </DialogHeader>
+          <form className="space-y-4" noValidate onSubmit={handleSubmit}>
+            <div className="space-y-2">
+              <Label htmlFor={`review-note-${messageId}`}>
+                Note (optional)
+              </Label>
+              <Textarea
+                id={`review-note-${messageId}`}
+                value={note}
+                aria-describedby={`review-note-count-${messageId}`}
+                aria-invalid={remaining < 0}
+                disabled={isPending}
+                maxLength={NOTE_LIMIT}
+                onChange={(event) => setNote(event.target.value)}
+                placeholder="What would you like the Instructor to check?"
+              />
+              <p
+                id={`review-note-count-${messageId}`}
+                className="text-xs text-muted-foreground"
+              >
+                {remaining} characters remaining
+              </p>
+            </div>
+            {error ? <ReviewRequestError error={error} /> : null}
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isPending}
+                onClick={() => handleOpenChange(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isPending || remaining < 0}>
+                {isPending ? (
+                  <LoaderCircle className="animate-spin" aria-hidden />
+                ) : null}
+                {isPending ? 'Submitting…' : 'Submit request'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 

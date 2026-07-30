@@ -11,7 +11,9 @@ export const demoAccounts = {
   disabledStudent: { email: 'student3@morshid.demo' },
 } as const
 
-export type DemoAccount = (typeof demoAccounts)[keyof typeof demoAccounts]
+export interface DemoAccount {
+  readonly email: string
+}
 
 // The Playwright web server runs the client through `vite dev`, so
 // `client/src/routes/__root.tsx` always mounts the TanStack Devtools trigger.

@@ -41,6 +41,27 @@ describe('StudentChatMessage', () => {
     expect(screen.getByLabelText('Inline citations')).toHaveTextContent(
       '[1] Python lists',
     )
+    expect(screen.getByRole('button', { name: 'Copy response' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Like response' })).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'Dislike response' }),
+    ).toBeVisible()
+  })
+
+  it('keeps response feedback local and mutually exclusive', async () => {
+    const user = userEvent.setup()
+    renderMessage(assistantMessage)
+    const like = screen.getByRole('button', { name: 'Like response' })
+    const dislike = screen.getByRole('button', { name: 'Dislike response' })
+
+    await user.click(like)
+    expect(like).toHaveAttribute('aria-pressed', 'true')
+    expect(like).toHaveClass('text-info')
+    expect(dislike).toHaveAttribute('aria-pressed', 'false')
+
+    await user.click(dislike)
+    expect(like).toHaveAttribute('aria-pressed', 'false')
+    expect(dislike).toHaveAttribute('aria-pressed', 'true')
   })
 
   it.each([
@@ -64,7 +85,7 @@ describe('StudentChatMessage', () => {
     expect(screen.getByText(label)).toBeVisible()
   })
 
-  it('shows review only for eligible completed Assistant messages', () => {
+  it('shows review action only for eligible completed Assistant messages', () => {
     const { rerender } = renderMessage(assistantMessage)
     expect(screen.getByRole('button', { name: 'Request review' })).toBeVisible()
 
@@ -82,7 +103,7 @@ describe('StudentChatMessage', () => {
   it('opens an accessible note dialog and enforces the 200-character limit', async () => {
     const user = userEvent.setup()
     renderMessage(assistantMessage)
-    await user.click(screen.getByRole('button', { name: 'Request review' }))
+    await openRequestReview(user)
 
     expect(screen.getByRole('dialog')).toBeVisible()
     const note = screen.getByRole('textbox', { name: 'Note (optional)' })
@@ -94,16 +115,14 @@ describe('StudentChatMessage', () => {
   it('renders pending immediately after a successful request and hides the action', async () => {
     const user = userEvent.setup()
     render(<ReviewHarness />)
-    await user.click(screen.getByRole('button', { name: 'Request review' }))
+    await openRequestReview(user)
     await user.type(
       screen.getByRole('textbox', { name: 'Note (optional)' }),
       '  Please check  ',
     )
     await user.click(screen.getByRole('button', { name: 'Submit request' }))
 
-    expect(
-      await screen.findByText('Review requested — pending Instructor review'),
-    ).toBeVisible()
+    expect(await screen.findByText('Pending review')).toBeVisible()
     expect(
       screen.queryByRole('button', { name: 'Request review' }),
     ).not.toBeInTheDocument()
@@ -117,9 +136,7 @@ describe('StudentChatMessage', () => {
         status: 'PENDING',
       },
     })
-    expect(
-      screen.getByText('Review requested — pending Instructor review'),
-    ).toBeVisible()
+    expect(screen.getByText('Pending review')).toBeVisible()
   })
 
   it('shows a friendly quota error without backend details', async () => {
@@ -133,7 +150,7 @@ describe('StudentChatMessage', () => {
         ),
       ),
     )
-    await user.click(screen.getByRole('button', { name: 'Request review' }))
+    await openRequestReview(user)
     await user.click(screen.getByRole('button', { name: 'Submit request' }))
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'You have reached today’s review request limit.',
@@ -184,4 +201,8 @@ function ReviewHarness() {
     })
     return Promise.resolve()
   })
+}
+
+async function openRequestReview(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: 'Request review' }))
 }

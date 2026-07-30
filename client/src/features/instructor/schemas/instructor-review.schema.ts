@@ -1,0 +1,105 @@
+import { z } from 'zod'
+
+const reviewStatusSchema = z.enum([
+  'PENDING',
+  'IN_REVIEW',
+  'RESOLVED',
+  'REJECTED',
+])
+
+const reviewTriggerSchema = z.enum([
+  'STUDENT_REQUEST',
+  'GENERAL_NOT_FOUND',
+  'CITATION_MISSING',
+  'SOURCE_CONFLICT',
+  'POLICY_CHECK_FAILED',
+  'FINAL_ANSWER_RISK',
+])
+
+const reviewCourseSchema = z.object({
+  id: z.uuid(),
+  code: z.string(),
+  title: z.string(),
+})
+
+const reviewStudentSchema = z.object({
+  id: z.uuid(),
+  displayName: z.string(),
+})
+
+export const instructorReviewQueueItemSchema = z.object({
+  reviewCaseId: z.uuid(),
+  status: reviewStatusSchema,
+  trigger: reviewTriggerSchema,
+  createdAt: z.iso.datetime(),
+  age: z.number().int().nonnegative(),
+  course: reviewCourseSchema,
+  student: reviewStudentSchema,
+  pending: z.boolean(),
+})
+
+export const instructorReviewQueueResponseSchema = z.object({
+  items: z.array(instructorReviewQueueItemSchema),
+  pendingCount: z.number().int().nonnegative(),
+  nextCursor: z.uuid().nullable(),
+})
+
+const reviewMessageSchema = z.object({
+  role: z.enum(['STUDENT', 'ASSISTANT', 'SYSTEM']),
+  content: z.string(),
+  createdAt: z.iso.datetime(),
+})
+
+const reviewExchangeSchema = z.object({
+  studentMessage: reviewMessageSchema.nullable(),
+  assistantResponse: reviewMessageSchema.nullable(),
+})
+
+const reviewCitationSchema = z.object({
+  order: z.number().int().positive(),
+  materialId: z.uuid(),
+  materialTitle: z.string(),
+  snippets: z.array(
+    z.object({
+      chunkNumber: z.number().int().positive(),
+      excerpt: z.string().max(500),
+    }),
+  ),
+})
+
+export const instructorReviewDetailSchema = z.object({
+  reviewCaseId: z.uuid(),
+  status: reviewStatusSchema,
+  trigger: reviewTriggerSchema,
+  createdAt: z.iso.datetime(),
+  requestedAt: z.iso.datetime(),
+  studentNote: z.string().max(200).nullable(),
+  course: reviewCourseSchema,
+  student: reviewStudentSchema,
+  flaggedExchange: reviewMessageSchema,
+  assistantResponse: reviewMessageSchema.extend({
+    citations: z.array(reviewCitationSchema),
+  }),
+  previousExchange: reviewExchangeSchema.nullable(),
+  followingExchange: reviewExchangeSchema.nullable(),
+  reviewSummary: z.object({
+    status: reviewStatusSchema,
+    outcome: z
+      .enum(['APPROVED', 'EDITED', 'REPLACED', 'REQUEST_REJECTED'])
+      .nullable(),
+    resolvedAt: z.iso.datetime().nullable(),
+    hasNotification: z.boolean(),
+    reviewCaseId: z.uuid(),
+  }),
+})
+
+export type InstructorReviewQueueItem = z.infer<
+  typeof instructorReviewQueueItemSchema
+>
+export type InstructorReviewQueueResponse = z.infer<
+  typeof instructorReviewQueueResponseSchema
+>
+export type InstructorReviewDetail = z.infer<
+  typeof instructorReviewDetailSchema
+>
+export type InstructorReviewExchange = z.infer<typeof reviewExchangeSchema>
