@@ -27,20 +27,26 @@ test.describe('Instructor review queue and bounded detail', () => {
     await page.goto('/instructor/review-queue')
 
     await expect(
-      page.getByRole('heading', { name: 'Review Queue', exact: true }),
+      page.getByRole('heading', {
+        name: 'Review Queue',
+        exact: true,
+        level: 1,
+      }),
     ).toBeVisible()
     await expect(page.getByText('1 pending')).toBeVisible()
 
-    const row = page.getByRole('row').filter({ hasText: fixture.studentLabel })
-    await expect(row).toBeVisible()
-    await expect(row).toContainText(fixture.ownedCourseTitle)
-    await expect(row).toContainText('Pending')
-    await expect(row).toContainText('Student request')
-    await expect(row).toContainText(/\d+m/)
-    await expect(row.getByRole('link', { name: 'Review' })).toBeVisible()
+    const card = page
+      .getByRole('article')
+      .filter({ hasText: fixture.studentLabel })
+    await expect(card).toBeVisible()
+    await expect(card).toContainText(fixture.ownedCourseTitle)
+    await expect(card).toContainText('Awaiting Review')
+    await expect(card).toContainText('Student request')
+    await expect(card).toContainText(/\d+m/)
+    await expect(card.getByRole('link', { name: 'Review' })).toBeVisible()
     await expect(page.getByText(fixture.otherCourseTitle)).toHaveCount(0)
 
-    const reviewLink = row.getByRole('link', { name: 'Review' })
+    const reviewLink = card.getByRole('link', { name: 'Review' })
     await reviewLink.focus()
     await expect(reviewLink).toBeFocused()
     await page.keyboard.press('Enter')
@@ -58,7 +64,11 @@ test.describe('Instructor review queue and bounded detail', () => {
     await dialog.getByRole('button', { name: 'Close' }).click()
     await expect(page).toHaveURL('/instructor/review-queue')
     await expect(
-      page.getByRole('heading', { name: 'Review Queue', exact: true }),
+      page.getByRole('heading', {
+        name: 'Review Queue',
+        exact: true,
+        level: 1,
+      }),
     ).toBeVisible()
 
     await reviewLink.click()
@@ -148,7 +158,11 @@ test.describe('Instructor review queue and bounded detail', () => {
 
     const navigation = page.goto('/instructor/review-queue')
     await expect(
-      page.getByRole('heading', { name: 'Review Queue', exact: true }),
+      page.getByRole('heading', {
+        name: 'Review Queue',
+        exact: true,
+        level: 1,
+      }),
     ).toBeVisible()
     await expect(
       page.getByRole('status', { name: 'Loading review queue' }),

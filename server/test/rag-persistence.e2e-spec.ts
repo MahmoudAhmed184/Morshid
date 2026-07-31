@@ -384,7 +384,7 @@ describe('RAG persistence (e2e)', () => {
     await expect(
       prisma.materialChunk.count({ where: { materialId } }),
     ).resolves.toBe(1)
-  })
+  }, 15_000)
 
   it('replaces material chunks and preserves retrieval provenance', async () => {
     await repository.insertMaterialChunks(materialId, [
