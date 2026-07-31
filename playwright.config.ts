@@ -29,7 +29,7 @@ export default defineConfig({
       reuseExistingServer: !isCi,
     },
     {
-      command: `env CLIENT_ORIGIN=${clientBaseUrl} npm run dev:server`,
+      command: `env CLIENT_ORIGIN=${clientBaseUrl} RETRIEVAL_MIN_SIMILARITY=0 npm run dev:server`,
       url: 'http://localhost:4000/health/live',
       reuseExistingServer: !isCi,
       timeout: 180_000,
