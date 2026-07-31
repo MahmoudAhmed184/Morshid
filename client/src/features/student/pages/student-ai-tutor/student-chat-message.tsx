@@ -2,6 +2,7 @@ import {
   BookMarked,
   CircleAlert,
   ClipboardCheck,
+  CodeXml,
   FileText,
   GraduationCap,
   LoaderCircle,
@@ -18,6 +19,7 @@ import type { ChatMessage } from '@/features/student/schemas/student-chat.schema
 import { cn } from '@/lib/utils'
 
 import { StudentCitationSources } from './student-citation-sources'
+import { StudentChatContent } from './student-chat-content'
 import {
   STUDENT_CHAT_COMPLETION_STATUS,
   STUDENT_CHAT_FAILURE_STATUS,
@@ -166,7 +168,7 @@ export function StudentChatMessage({
               {STUDENT_CHAT_GENERATION_STATUS}…
             </p>
           ) : (
-            <p className="whitespace-pre-wrap break-words">{message.content}</p>
+            <StudentChatContent message={message} />
           )}
 
           <span
@@ -227,8 +229,22 @@ export function StudentChatMessage({
           ) : null}
         </div>
 
-        {!isStudent && message.guidanceLabel ? (
-          <GuidanceBadge guidanceLabel={message.guidanceLabel} />
+        {!isStudent &&
+        (message.guidanceLabel || message.requestKind === 'CODE_DIAGNOSIS') ? (
+          <div className="mt-2 flex max-w-full flex-wrap items-center gap-2">
+            {message.requestKind === 'CODE_DIAGNOSIS' ? (
+              <Badge
+                variant="outline"
+                className="h-auto max-w-full gap-1.5 border-primary/25 bg-primary/5 px-2.5 py-1 font-mono text-[0.65rem] leading-normal text-primary sm:text-xs"
+              >
+                <CodeXml className="size-3 shrink-0" aria-hidden />
+                STATIC PYTHON DIAGNOSIS
+              </Badge>
+            ) : null}
+            {message.guidanceLabel ? (
+              <GuidanceBadge guidanceLabel={message.guidanceLabel} />
+            ) : null}
+          </div>
         ) : null}
       </div>
     </li>
@@ -240,7 +256,7 @@ function GuidanceBadge({ guidanceLabel }: { guidanceLabel: GuidanceLabel }) {
   const Icon = presentation.icon
 
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-2 max-w-full">
+    <div className="flex max-w-full flex-wrap items-center gap-2">
       <Badge
         variant="outline"
         className={cn(
