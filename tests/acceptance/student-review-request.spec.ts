@@ -58,7 +58,9 @@ test('Student review remains pending across refresh and reopen, deduplicates, en
     const firstResponse = await firstResponsePromise
     expect(firstResponse.status()).toBe(201)
     const created = (await firstResponse.json()) as { caseId: string }
-    const pending = page.getByText('Pending review').first()
+    const pending = page
+      .locator('[data-slot="badge"]', { hasText: 'Pending review' })
+      .first()
     await expect(pending).toBeVisible()
     await expect(actionButtons).toHaveCount(3)
 
@@ -101,7 +103,11 @@ test('Student review remains pending across refresh and reopen, deduplicates, en
         message.getByRole('button', { name: 'Request review' }),
       )
       await page.getByRole('button', { name: 'Submit request' }).click()
-      await expect(message.getByText('Pending review')).toBeVisible()
+      await expect(
+        message.locator('[data-slot="badge"]', {
+          hasText: 'Pending review',
+        }),
+      ).toBeVisible()
     }
 
     const fourthMessage = page
