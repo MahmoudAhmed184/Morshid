@@ -199,6 +199,8 @@ export function StudentChatMessage({
 
   return (
     <li
+      id={`message-${message.id}`}
+      tabIndex={-1}
       className={cn(
         'flex items-end gap-3',
         isStudent ? 'flex-row-reverse' : 'flex-row',

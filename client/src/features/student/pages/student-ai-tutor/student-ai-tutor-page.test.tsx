@@ -57,7 +57,8 @@ const navigateMock = vi.hoisted(() => vi.fn())
 const routerMockState = vi.hoisted<{
   search: { courseId?: string; sessionId?: string }
   pathname: string
-}>(() => ({ search: {}, pathname: '/chat' }))
+  hash: string
+}>(() => ({ search: {}, pathname: '/chat', hash: '' }))
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({
@@ -83,13 +84,18 @@ vi.mock('@tanstack/react-router', () => ({
     select,
   }: {
     select: (state: {
-      location: { pathname: string; search: Record<string, unknown> }
+      location: {
+        pathname: string
+        search: Record<string, unknown>
+        hash: string
+      }
     }) => T
   }) =>
     select({
       location: {
         pathname: routerMockState.pathname,
         search: routerMockState.search,
+        hash: routerMockState.hash,
       },
     }),
 }))
@@ -100,6 +106,7 @@ const getStudentSessionMessagesMock = vi.mocked(getStudentSessionMessages)
 const listStudentSessionsMock = vi.mocked(listStudentSessions)
 const retryStudentChatMessageMock = vi.mocked(retryStudentChatMessage)
 const sendStudentChatMessageMock = vi.mocked(sendStudentChatMessage)
+const scrollIntoViewMock = vi.fn()
 
 const studentId = 'student-user'
 const primaryCourse: StudentCourse = {
@@ -171,6 +178,7 @@ function renderWorkspace({
   sessions,
   messages,
   probe,
+  hash = '',
 }: {
   courses?: StudentCourse[]
   courseId?: string
@@ -178,6 +186,7 @@ function renderWorkspace({
   sessions?: ChatSessionListResponse
   messages?: ChatMessageHistoryResponse
   probe?: React.ReactNode
+  hash?: string
 } = {}) {
   vi.stubGlobal(
     'matchMedia',
@@ -196,6 +205,7 @@ function renderWorkspace({
   // from the shared student course state rather than a prop.
   routerMockState.search = { courseId, sessionId }
   routerMockState.pathname = '/chat'
+  routerMockState.hash = hash
 
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -251,9 +261,14 @@ function renderWorkspace({
 // course state reads `?courseId`, so the mocked location moves with it.
 function workspaceTree(
   queryClient: QueryClient,
-  { courseId, sessionId }: { courseId?: string; sessionId?: string },
+  {
+    courseId,
+    sessionId,
+    hash = '',
+  }: { courseId?: string; sessionId?: string; hash?: string },
 ) {
   routerMockState.search = { courseId, sessionId }
+  routerMockState.hash = hash
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -294,6 +309,10 @@ function SourcesControlProbe() {
 describe('StudentAiTutorPage workspace', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoViewMock,
+    })
     getStudentSessionMessagesMock.mockResolvedValue({
       messages: [],
       nextCursor: null,
@@ -872,6 +891,108 @@ describe('StudentAiTutorPage workspace', () => {
       sessionId: primaryChatSessionFixture.id,
       input: { limit: 50, before: 2 },
     })
+  })
+
+  it('focuses and scrolls to a loaded message deep-link target', async () => {
+    const targetMessage = orderedMessageHistory.messages[1]
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+      messages: orderedMessageHistory,
+      hash: `message-${targetMessage.id}`,
+    })
+
+    const target = await waitFor(() => {
+      const element = document.getElementById(`message-${targetMessage.id}`)
+      expect(element).not.toBeNull()
+      expect(document.activeElement).toBe(element)
+      return element!
+    })
+    expect(target).toHaveAttribute('tabindex', '-1')
+    expect(scrollIntoViewMock).toHaveBeenCalledWith({ block: 'center' })
+  })
+
+  it('loads older pages until the deep-link target is available', async () => {
+    const newestMessage = orderedMessageHistory.messages[1]
+    const targetMessage = orderedMessageHistory.messages[0]
+    getStudentSessionMessagesMock.mockResolvedValueOnce({
+      messages: [targetMessage],
+      nextCursor: null,
+    })
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+      messages: { messages: [newestMessage], nextCursor: 2 },
+      hash: `message-${targetMessage.id}`,
+    })
+
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        document.getElementById(`message-${targetMessage.id}`),
+      ),
+    )
+    expect(getStudentSessionMessagesMock).toHaveBeenCalledWith({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      input: { limit: 50, before: 2 },
+    })
+    expect(scrollIntoViewMock).toHaveBeenCalledWith({ block: 'center' })
+  })
+
+  it('ignores a malformed message hash without loading more history', async () => {
+    const newestMessage = orderedMessageHistory.messages[1]
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+      messages: { messages: [newestMessage], nextCursor: 2 },
+      hash: 'message-not-a-real-id',
+    })
+
+    expect(await screen.findByText(newestMessage.content)).toBeInTheDocument()
+    expect(getStudentSessionMessagesMock).not.toHaveBeenCalled()
+    expect(scrollIntoViewMock).not.toHaveBeenCalled()
+  })
+
+  it('stops loading when a valid deep-link target does not exist', async () => {
+    const newestMessage = orderedMessageHistory.messages[1]
+    const missingMessageId = 'ffffffff-ffff-4fff-8fff-ffffffffffff'
+    getStudentSessionMessagesMock.mockResolvedValueOnce({
+      messages: [],
+      nextCursor: null,
+    })
+    renderWorkspace({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+      messages: { messages: [newestMessage], nextCursor: 2 },
+      hash: `message-${missingMessageId}`,
+    })
+
+    await waitFor(() =>
+      expect(getStudentSessionMessagesMock).toHaveBeenCalledOnce(),
+    )
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('button', { name: 'Load earlier messages' }),
+      ).not.toBeInTheDocument(),
+    )
+    expect(document.getElementById(`message-${missingMessageId}`)).toBeNull()
+    expect(scrollIntoViewMock).not.toHaveBeenCalled()
   })
 
   it('keeps cached history visible when loading the next page fails', async () => {
