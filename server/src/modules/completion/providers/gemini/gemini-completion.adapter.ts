@@ -490,7 +490,8 @@ export class GeminiCompletionAdapter implements CompletionAdapter {
         content: parsed.outputText,
         provider: GEMINI_COMPLETION_PROVIDER,
         model: this.model,
-        promptVersion: GROUNDED_COMPLETION_PROMPT_VERSION,
+        promptVersion:
+          request.promptVersion ?? GROUNDED_COMPLETION_PROMPT_VERSION,
         inputTokens: parsed.inputTokens,
         outputTokens: parsed.outputTokens,
       })

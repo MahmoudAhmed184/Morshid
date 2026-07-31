@@ -1,5 +1,6 @@
 import type { CompletionResult } from './completion-provider'
 import { CompletionProviderError } from './completion-provider'
+import type { CompletionStrategy } from './completion-provider'
 import type { GroundedCompletionMessage } from './grounded-completion-envelope'
 
 // Internal seam between the deep CompletionProvider module and a selected
@@ -10,6 +11,14 @@ export interface PreparedCompletionRequest {
     GroundedCompletionMessage,
   ]
   readonly signal: AbortSignal
+  readonly strategy?: CompletionStrategy
+  readonly promptVersion?: string
+}
+
+export function preparedCompletionStrategy(
+  request: PreparedCompletionRequest,
+): CompletionStrategy {
+  return request.strategy ?? 'GROUNDED_EXPLANATION'
 }
 
 export interface CompletionAdapter {

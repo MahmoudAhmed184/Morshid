@@ -8,10 +8,10 @@ import {
   parseTutorDecision,
   type TutorDecision,
 } from '../tutor-decision.contract'
+import { PYTHON_CODE_DIAGNOSIS_PROMPT_VERSION } from '../../completion/grounded-completion-envelope'
 
 export const PYTHON_CODE_DIAGNOSIS_MAX_LINES = 100
-export const PYTHON_CODE_DIAGNOSIS_PROMPT_VERSION =
-  'python-code-diagnosis-prompt-v1'
+export { PYTHON_CODE_DIAGNOSIS_PROMPT_VERSION }
 export const PYTHON_CODE_DIAGNOSIS_POLICY_VERSION =
   'python-code-diagnosis-policy-v1'
 

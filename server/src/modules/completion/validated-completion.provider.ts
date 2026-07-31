@@ -14,8 +14,8 @@ import {
   snapshotCompletionRequest,
 } from './completion-input'
 import {
-  GROUNDED_COMPLETION_PROMPT_VERSION,
   buildGroundedCompletionMessages,
+  completionPromptVersionForStrategy,
 } from './grounded-completion-envelope'
 
 export const DEFAULT_COMPLETION_TIMEOUT_MS = 30_000
@@ -88,6 +88,10 @@ export class ValidatedCompletionProvider implements CompletionProvider {
     const providerRequest = Object.freeze<PreparedCompletionRequest>({
       messages: buildGroundedCompletionMessages(requestSnapshot),
       signal: composedSignal,
+      strategy: requestSnapshot.strategy,
+      promptVersion: completionPromptVersionForStrategy(
+        requestSnapshot.strategy,
+      ),
     })
     const rawResult = await this.executeProvider(
       providerRequest,
@@ -95,7 +99,7 @@ export class ValidatedCompletionProvider implements CompletionProvider {
       timeoutSignal,
     )
 
-    return validateResultSafely(rawResult)
+    return validateResultSafely(rawResult, providerRequest.promptVersion)
   }
 
   private executeProvider(
@@ -219,7 +223,10 @@ function removeAbortListenerSafely(
   }
 }
 
-function validateResultSafely(result: unknown): CompletionResult {
+function validateResultSafely(
+  result: unknown,
+  expectedPromptVersion: string | undefined,
+): CompletionResult {
   try {
     if (!hasOnlyKeys(result, RESULT_KEYS)) {
       throw new TypeError('Invalid result shape')
@@ -243,7 +250,7 @@ function validateResultSafely(result: unknown): CompletionResult {
       !isBoundedMetadata(snapshot.provider, MAX_PROVIDER_LENGTH) ||
       !isBoundedMetadata(snapshot.model, MAX_COMPLETION_MODEL_LENGTH) ||
       !isBoundedMetadata(snapshot.promptVersion, MAX_PROMPT_VERSION_LENGTH) ||
-      snapshot.promptVersion !== GROUNDED_COMPLETION_PROMPT_VERSION ||
+      snapshot.promptVersion !== expectedPromptVersion ||
       !isOptionalTokenCount(snapshot.inputTokens) ||
       !isOptionalTokenCount(snapshot.outputTokens)
     ) {
