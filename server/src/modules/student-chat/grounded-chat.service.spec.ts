@@ -166,6 +166,7 @@ describe('GroundedChatService', () => {
       sessionId,
       studentId: user.id,
       content: 'Explain list iteration',
+      requestKind: MessageRequestKind.CONCEPTUAL,
     })
     expect(retrieveCourseEvidence).toHaveBeenCalledWith(
       courseId,
@@ -219,6 +220,109 @@ describe('GroundedChatService', () => {
     })
   })
 
+  it('routes gd-p0-v1-058 through CODE_DIAGNOSIS with a problem-based retrieval query', async () => {
+    const question = [
+      'Why does this Python function crash?',
+      '```python',
+      'def average(nums):',
+      '    total = 0',
+      '    for i in range(len(nums)):',
+      '        total += nums[i]',
+      '    return total / len(num)',
+      '```',
+    ].join('\n')
+    const codeStudentMessage = studentMessage({
+      content: question,
+      requestKind: MessageRequestKind.CODE_DIAGNOSIS,
+    })
+    beginTurn.mockResolvedValue({
+      ...beginOk(),
+      studentMessage: codeStudentMessage,
+      assistantMessage: assistantMessage({
+        requestKind: MessageRequestKind.CODE_DIAGNOSIS,
+      }),
+    })
+    complete.mockResolvedValue({
+      content:
+        'Likely defect\nThe name `num` does not match `nums`.\n\nPython concept\nPython name lookup uses local scope. [1]\n\nNext inspection step\nCompare the return expression names.',
+      provider: 'deterministic',
+      model: 'deterministic-completion-v1',
+      promptVersion: 'python-code-diagnosis-prompt-v1',
+    })
+    completeTurn.mockImplementationOnce(
+      (input: CompleteGroundedChatTurnInput) =>
+        Promise.resolve({
+          kind: 'ok',
+          message: assistantMessage({
+            requestKind: MessageRequestKind.CODE_DIAGNOSIS,
+            status: MessageStatus.COMPLETED,
+            content: input.content,
+            guidanceLabel: MessageGuidanceLabel.COURSE_GROUNDED,
+            completedAt: new Date('2026-07-21T12:01:00.000Z'),
+          }),
+        }),
+    )
+
+    const response = await service.send(
+      courseId,
+      sessionId,
+      { content: question },
+      user,
+    )
+
+    expect(beginTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: question,
+        requestKind: MessageRequestKind.CODE_DIAGNOSIS,
+      }),
+    )
+    expect(retrieveCourseEvidence).toHaveBeenCalledWith(
+      courseId,
+      'Python a possible variable-name mismatch or unresolved name near the loop body; study name lookup and local scope. Diagnostic signals: singular and plural identifiers may not match. Relevant identifiers: num, nums.',
+    )
+    expect(complete).toHaveBeenCalledWith({
+      studentQuestion: question,
+      context: [
+        {
+          sourceTitle: 'Python lists',
+          chunkIndex: 0,
+          content: 'First ranked evidence',
+        },
+        {
+          sourceTitle: 'Python loops',
+          chunkIndex: 3,
+          content: 'Second ranked evidence',
+        },
+      ],
+      strategy: 'PYTHON_CODE_DIAGNOSIS',
+      diagnosis: {
+        likelyDefect: 'The name `num` does not match the visible `nums` name.',
+        location:
+          'The `num` reference in the return expression `total / len(num)`.',
+        conceptExplanation:
+          'Python name lookup searches the active function scope, where `nums` exists but `num` does not.',
+        nextInspectionStep:
+          'Compare every name in the return expression with the function parameters and local variables.',
+      },
+    })
+    expect(completeTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        promptVersion: 'python-code-diagnosis-prompt-v1',
+        evidence: evidenceChunks(),
+      }),
+    )
+    expect(response).toMatchObject({
+      studentMessage: {
+        content: question,
+        requestKind: MessageRequestKind.CODE_DIAGNOSIS,
+      },
+      assistantMessage: {
+        requestKind: MessageRequestKind.CODE_DIAGNOSIS,
+        guidanceLabel: MessageGuidanceLabel.COURSE_GROUNDED,
+      },
+    })
+  })
+
   it('returns a terminal idempotent replay without generating again', async () => {
     beginTurn.mockResolvedValue({
       kind: 'replayed',
@@ -246,6 +350,7 @@ describe('GroundedChatService', () => {
       sessionId,
       studentId: user.id,
       content: 'Explain list iteration',
+      requestKind: MessageRequestKind.CONCEPTUAL,
     })
     expect(retrieveCourseEvidence).not.toHaveBeenCalled()
     expect(complete).not.toHaveBeenCalled()
@@ -580,7 +685,9 @@ function retryOk(): RetryGroundedChatTurnResult {
   return beginOk()
 }
 
-function studentMessage(): ChatMessageRecord {
+function studentMessage(
+  overrides: Partial<ChatMessageRecord> = {},
+): ChatMessageRecord {
   return message({
     id: studentMessageId,
     sequence: 1,
@@ -590,6 +697,7 @@ function studentMessage(): ChatMessageRecord {
     content: 'Explain list iteration',
     status: MessageStatus.COMPLETED,
     completedAt: new Date('2026-07-21T12:00:00.000Z'),
+    ...overrides,
   })
 }
 

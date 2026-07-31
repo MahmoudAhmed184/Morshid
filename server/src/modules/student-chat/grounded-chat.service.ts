@@ -16,6 +16,7 @@ import {
   RetrievalService,
   type RetrievedChunk,
 } from '../retrieval/retrieval.service'
+import { selectTutorStrategy } from '../tutor/tutor-decision'
 import {
   type BeginGroundedChatTurnResult,
   type FinalizeGroundedChatTurnResult,
@@ -109,6 +110,7 @@ export class GroundedChatService {
     user: AuthenticatedRequestUser,
     requestContext?: AuditRequestContext,
   ): Promise<GroundedChatTurnResponseDto> {
+    const selection = selectTutorStrategy(body.content)
     const operation = {
       operationId: randomUUID(),
       courseId,
@@ -132,6 +134,7 @@ export class GroundedChatService {
           ? {}
           : { clientMessageId: body.clientMessageId }),
         content: body.content,
+        requestKind: selection.decision.requestKind,
       })
     } catch (error) {
       this.logFailure('begin', operation, error)
@@ -211,11 +214,12 @@ export class GroundedChatService {
     turn: ActiveGroundedTurn,
     operation: OrchestrationContext,
   ): Promise<GroundedChatTurnResponseDto> {
+    const selection = selectTutorStrategy(turn.studentMessage.content)
     let evidence: RetrievedChunk[]
     try {
       const retrieval = await this.retrievalService.retrieveCourseEvidence(
         turn.courseId,
-        turn.studentMessage.content,
+        selection.retrievalQuery,
       )
       if (retrieval.kind === 'embedding_profile_not_ready') {
         // Operator-visible only. The student sees the ordinary grounding-blocked
@@ -246,10 +250,19 @@ export class GroundedChatService {
 
     let completion: CompletionResult
     try {
-      completion = await this.completionProvider.complete({
-        studentQuestion: turn.studentMessage.content,
-        context,
-      })
+      completion = await this.completionProvider.complete(
+        selection.diagnosis === null
+          ? {
+              studentQuestion: turn.studentMessage.content,
+              context,
+            }
+          : {
+              studentQuestion: turn.studentMessage.content,
+              context,
+              strategy: 'PYTHON_CODE_DIAGNOSIS',
+              diagnosis: selection.diagnosis,
+            },
+      )
     } catch (error) {
       this.logFailure('completion', operation, error)
       return this.persistFailure(turn, operation)
