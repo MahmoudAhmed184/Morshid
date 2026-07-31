@@ -30,6 +30,8 @@ export class InstructorReviewDetailService {
     return {
       reviewCaseId: record.id,
       status: record.status,
+      version: record.version,
+      canReject: record.canReject,
       trigger: record.trigger.type,
       createdAt: record.createdAt.toISOString(),
       requestedAt: record.trigger.createdAt.toISOString(),

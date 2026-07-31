@@ -2,9 +2,42 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { studentChatIds } from '@/features/student/testing/student-chat.fixtures'
 
-import { requestStudentReview } from './student-reviews.api'
+import {
+  getStudentReviewDetail,
+  requestStudentReview,
+} from './student-reviews.api'
 
 describe('Student review API', () => {
+  it('loads and validates the Student-safe review detail', async () => {
+    const response = {
+      reviewCaseId: studentChatIds.primarySession,
+      status: 'RESOLVED',
+      outcome: 'EDITED',
+      publishedContent: 'Reviewed guidance',
+      rejectionReason: null,
+      requestedAt: '2026-07-28T12:00:00.000Z',
+      resolvedAt: '2026-07-28T13:00:00.000Z',
+      messageId: studentChatIds.assistantMessage,
+      sessionId: studentChatIds.primarySession,
+    }
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        expect(String(input)).toBe(
+          `http://localhost:4000/api/v1/student/reviews/${studentChatIds.primarySession}`,
+        )
+        expect(init?.method).toBe('GET')
+        return Response.json(response)
+      },
+    )
+
+    await expect(
+      getStudentReviewDetail({
+        reviewCaseId: studentChatIds.primarySession,
+        options: { fetchImpl: fetchMock },
+      }),
+    ).resolves.toEqual(response)
+  })
+
   it('sends only the note and required idempotency key', async () => {
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {

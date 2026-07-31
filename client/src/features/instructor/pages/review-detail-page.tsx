@@ -15,6 +15,7 @@ import { ErrorState } from '@/components/ui/custom/error-state'
 import { PageHeader } from '@/components/ui/custom/page-header'
 import { StatusBadge } from '@/components/ui/custom/status-badge/status-badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { InstructorReviewActionPanel } from '@/features/instructor/components/instructor-review-action-panel'
 import { useInstructorReviewDetail } from '@/features/instructor/hooks/use-instructor-reviews'
 import type { InstructorReviewExchange } from '@/features/instructor/schemas/instructor-review.schema'
 import { cn } from '@/lib/utils'
@@ -41,10 +42,11 @@ export function ReviewDetailPage({
   }
 
   const review = query.data
+  const isOpen = review.status === 'PENDING' || review.status === 'IN_REVIEW'
   return (
     <div
       className={cn(
-        'mx-auto flex w-full max-w-6xl flex-col gap-8',
+        'mx-auto flex w-full max-w-7xl flex-col gap-8',
         presentation === 'dialog' && 'max-w-none gap-6',
       )}
     >
@@ -144,102 +146,132 @@ export function ReviewDetailPage({
         </Alert>
       ) : null}
 
-      <section className="space-y-4" aria-labelledby="flagged-exchange-title">
-        <SectionHeading
-          id="flagged-exchange-title"
-          icon={<MessageSquareText aria-hidden />}
-          title="Flagged exchange"
-          description="The question and original response submitted for review."
-        />
-        <div className="grid gap-4 lg:grid-cols-2">
-          <MessageCard
-            title="Student message"
-            content={review.flaggedExchange.content}
-            time={review.flaggedExchange.createdAt}
-            tone="student"
-          />
-          <MessageCard
-            title="Original assistant response"
-            content={review.assistantResponse.content}
-            time={review.assistantResponse.createdAt}
-            tone="assistant"
-          />
-        </div>
-      </section>
+      <div
+        className={cn(
+          'grid items-start gap-6',
+          isOpen && 'xl:grid-cols-[minmax(0,1fr)_26rem]',
+        )}
+      >
+        <div className="space-y-6">
+          <section
+            className="space-y-4"
+            aria-labelledby="flagged-exchange-title"
+          >
+            <SectionHeading
+              id="flagged-exchange-title"
+              icon={<MessageSquareText aria-hidden />}
+              title="Flagged exchange"
+              description="The question and original response submitted for review."
+            />
+            <div className="grid gap-4">
+              <MessageCard
+                title="Student message"
+                content={review.flaggedExchange.content}
+                time={review.flaggedExchange.createdAt}
+                tone="student"
+              />
+              <MessageCard
+                title="Original assistant response"
+                content={review.assistantResponse.content}
+                time={review.assistantResponse.createdAt}
+                tone="assistant"
+              />
+            </div>
+          </section>
 
-      {review.assistantResponse.citations.length > 0 ? (
-        <section className="space-y-4" aria-labelledby="review-sources-title">
-          <SectionHeading
-            id="review-sources-title"
-            icon={<FileText aria-hidden />}
-            title="Sources and evidence"
-            description="Bounded excerpts associated with the original response."
-          />
-          <Card className="overflow-hidden">
-            <CardContent className="grid gap-4 p-5 lg:grid-cols-2">
-              {review.assistantResponse.citations.map((citation) => (
-                <div
-                  key={`${citation.materialId}-${citation.order}`}
-                  className="rounded-xl border bg-muted/20 p-4 shadow-xs"
-                >
-                  <div className="flex items-start gap-3">
-                    <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                      {citation.order}
-                    </span>
-                    <p className="pt-1 text-sm font-semibold">
-                      {citation.materialTitle}
-                    </p>
-                  </div>
-                  {citation.snippets.length > 0 ? (
-                    <div className="mt-3 space-y-2">
-                      {citation.snippets.map((snippet) => (
-                        <blockquote
-                          key={`${citation.materialId}-${snippet.chunkNumber}`}
-                          className="relative rounded-lg border bg-background p-3 pl-9 text-sm leading-6 text-muted-foreground"
-                        >
-                          <Quote
-                            className="absolute top-3 left-3 size-3.5 text-primary/60"
-                            aria-hidden
-                          />
-                          <span className="mb-1 block text-xs font-medium text-foreground">
-                            Chunk {snippet.chunkNumber}
-                          </span>
-                          {snippet.excerpt}
-                        </blockquote>
-                      ))}
+          {review.assistantResponse.citations.length > 0 ? (
+            <section
+              className="space-y-4"
+              aria-labelledby="review-sources-title"
+            >
+              <SectionHeading
+                id="review-sources-title"
+                icon={<FileText aria-hidden />}
+                title="Sources and evidence"
+                description="Bounded excerpts associated with the original response."
+              />
+              <Card className="overflow-hidden">
+                <CardContent className="grid gap-3 p-4">
+                  {review.assistantResponse.citations.map((citation) => (
+                    <div
+                      key={`${citation.materialId}-${citation.order}`}
+                      className="rounded-xl border bg-muted/20 p-4 shadow-xs"
+                    >
+                      <div className="flex items-start gap-3">
+                        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                          {citation.order}
+                        </span>
+                        <p className="pt-1 text-sm font-semibold">
+                          {citation.materialTitle}
+                        </p>
+                      </div>
+                      {citation.snippets.length > 0 ? (
+                        <div className="mt-3 space-y-2">
+                          {citation.snippets.map((snippet) => (
+                            <blockquote
+                              key={`${citation.materialId}-${snippet.chunkNumber}`}
+                              className="relative rounded-lg border bg-background p-3 pl-9 text-sm leading-6 text-muted-foreground"
+                            >
+                              <Quote
+                                className="absolute top-3 left-3 size-3.5 text-primary/60"
+                                aria-hidden
+                              />
+                              <span className="mb-1 block text-xs font-medium text-foreground">
+                                Chunk {snippet.chunkNumber}
+                              </span>
+                              {snippet.excerpt}
+                            </blockquote>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          No bounded snippet is available.
+                        </p>
+                      )}
                     </div>
-                  ) : (
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      No bounded snippet is available.
-                    </p>
-                  )}
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </section>
-      ) : null}
+                  ))}
+                </CardContent>
+              </Card>
+            </section>
+          ) : null}
 
-      {review.previousExchange || review.followingExchange ? (
-        <section className="space-y-4" aria-labelledby="review-context-title">
-          <SectionHeading
-            id="review-context-title"
-            icon={<BookOpen aria-hidden />}
-            title="Conversation context"
-            description="A limited view of the exchanges immediately around the flagged response."
-          />
-          <div className="grid gap-4 lg:grid-cols-2">
-            <ExchangeCard
-              title="Previous exchange"
-              exchange={review.previousExchange}
+          {review.previousExchange || review.followingExchange ? (
+            <section
+              className="space-y-4"
+              aria-labelledby="review-context-title"
+            >
+              <SectionHeading
+                id="review-context-title"
+                icon={<BookOpen aria-hidden />}
+                title="Conversation context"
+                description="A limited view of the exchanges immediately around the flagged response."
+              />
+              <div className="grid gap-4 lg:grid-cols-2">
+                <ExchangeCard
+                  title="Previous exchange"
+                  exchange={review.previousExchange}
+                />
+                <ExchangeCard
+                  title="Following exchange"
+                  exchange={review.followingExchange}
+                />
+              </div>
+            </section>
+          ) : null}
+        </div>
+
+        {isOpen ? (
+          <aside className="xl:sticky xl:top-6">
+            <InstructorReviewActionPanel
+              key={review.reviewCaseId}
+              reviewCaseId={review.reviewCaseId}
+              version={review.version}
+              canReject={review.canReject}
+              originalContent={review.assistantResponse.content}
             />
-            <ExchangeCard
-              title="Following exchange"
-              exchange={review.followingExchange}
-            />
-          </div>
-        </section>
-      ) : null}
+          </aside>
+        ) : null}
+      </div>
 
       <p className="text-xs text-muted-foreground">
         Created {formatDate(review.createdAt)} · Requested{' '}

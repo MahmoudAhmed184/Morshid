@@ -31,6 +31,70 @@ describe('Student chat contract schemas', () => {
     ).toEqual(chatMessageHistoryResponseFixture)
   })
 
+  it.each([
+    {
+      status: 'PENDING',
+      outcome: null,
+      resolvedAt: null,
+      hasNotification: false,
+    },
+    {
+      status: 'RESOLVED',
+      outcome: 'EDITED',
+      resolvedAt: '2026-07-31T10:00:00.000Z',
+      hasNotification: true,
+    },
+    {
+      status: 'REJECTED',
+      outcome: 'REQUEST_REJECTED',
+      resolvedAt: '2026-07-31T10:00:00.000Z',
+      hasNotification: true,
+    },
+  ] as const)(
+    'loads saved chat history with a $status review summary',
+    (summary) => {
+      const assistantMessage = chatMessageHistoryResponseFixture.messages[1]
+      const response = {
+        ...chatMessageHistoryResponseFixture,
+        messages: [
+          chatMessageHistoryResponseFixture.messages[0],
+          {
+            ...assistantMessage,
+            reviewSummary: {
+              reviewCaseId: studentChatIds.primarySession,
+              ...summary,
+            },
+          },
+        ],
+      }
+
+      expect(chatMessageHistoryResponseSchema.parse(response)).toEqual(response)
+    },
+  )
+
+  it('keeps review summaries strict and rejects unrelated fields', () => {
+    const assistantMessage = chatMessageHistoryResponseFixture.messages[1]
+    expect(() =>
+      chatMessageHistoryResponseSchema.parse({
+        ...chatMessageHistoryResponseFixture,
+        messages: [
+          chatMessageHistoryResponseFixture.messages[0],
+          {
+            ...assistantMessage,
+            reviewSummary: {
+              reviewCaseId: studentChatIds.primarySession,
+              status: 'RESOLVED',
+              outcome: 'APPROVED',
+              resolvedAt: '2026-07-31T10:00:00.000Z',
+              hasNotification: true,
+              instructorId: 'must-not-be-accepted',
+            },
+          },
+        ],
+      }),
+    ).toThrow()
+  })
+
   it('rejects missing and incorrectly typed session fields', () => {
     const { updatedAt: _updatedAt, ...missingUpdatedAt } =
       primaryChatSessionFixture

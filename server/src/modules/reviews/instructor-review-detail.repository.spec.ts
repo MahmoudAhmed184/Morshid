@@ -86,6 +86,55 @@ describe('PrismaInstructorReviewDetailRepository', () => {
     ])
   })
 
+  it.each([
+    {
+      label: 'manual active',
+      status: ReviewStatus.PENDING,
+      triggers: [ReviewTriggerType.STUDENT_REQUEST],
+      expected: true,
+    },
+    {
+      label: 'automatic',
+      status: ReviewStatus.PENDING,
+      triggers: [ReviewTriggerType.CITATION_MISSING],
+      expected: false,
+    },
+    {
+      label: 'mixed',
+      status: ReviewStatus.IN_REVIEW,
+      triggers: [
+        ReviewTriggerType.STUDENT_REQUEST,
+        ReviewTriggerType.SOURCE_CONFLICT,
+      ],
+      expected: false,
+    },
+    {
+      label: 'terminal manual',
+      status: ReviewStatus.RESOLVED,
+      triggers: [ReviewTriggerType.STUDENT_REQUEST],
+      expected: false,
+    },
+  ])(
+    'derives canReject=false only outside $label eligibility',
+    async ({ status, triggers, expected }) => {
+      findReview.mockResolvedValue(
+        reviewRecord({
+          status,
+          triggers: triggers.map((type) => ({
+            type,
+            reason: null,
+            createdAt: new Date('2026-07-29T10:00:01.000Z'),
+          })),
+        }),
+      )
+      findMessages.mockResolvedValue([])
+
+      await expect(
+        repository.findAuthorized('instructor-1', 'review-1'),
+      ).resolves.toMatchObject({ version: 3, canReject: expected })
+    },
+  )
+
   it('selects only bounded review data and never queries unrelated messages', async () => {
     findReview.mockResolvedValue(reviewRecord())
     findMessages.mockResolvedValue([])
@@ -99,6 +148,7 @@ describe('PrismaInstructorReviewDetailRepository', () => {
     expect(Object.keys(query.select)).toEqual([
       'id',
       'status',
+      'version',
       'outcome',
       'resolvedAt',
       'createdAt',
@@ -119,10 +169,11 @@ describe('PrismaInstructorReviewDetailRepository', () => {
     }
   })
 
-  function reviewRecord() {
+  function reviewRecord(overrides: Record<string, unknown> = {}) {
     return {
       id: 'review-1',
       status: ReviewStatus.PENDING,
+      version: 3,
       outcome: null,
       resolvedAt: null,
       createdAt: new Date('2026-07-29T10:00:00.000Z'),
@@ -153,6 +204,7 @@ describe('PrismaInstructorReviewDetailRepository', () => {
         retrievals: [],
       },
       _count: { notifications: 0 },
+      ...overrides,
     }
   }
 

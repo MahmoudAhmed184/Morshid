@@ -242,6 +242,8 @@ describe('OpenAPI contract (e2e)', () => {
       ).toEqual([
         'reviewCaseId',
         'status',
+        'version',
+        'canReject',
         'trigger',
         'createdAt',
         'requestedAt',

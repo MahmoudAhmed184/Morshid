@@ -1,12 +1,17 @@
 import '@testing-library/jest-dom/vitest'
 import type * as TanStackReactRouter from '@tanstack/react-router'
 import { cleanup, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ApiError } from '@/lib/api/http'
 import {
   useInstructorReviewDetail,
   useInstructorReviewQueue,
+  useRejectInstructorReview,
+  useResolveInstructorReview,
 } from '@/features/instructor/hooks/use-instructor-reviews'
+import type { InstructorReviewQueueItem } from '@/features/instructor/schemas/instructor-review.schema'
 
 import { ReviewDetailPage } from './review-detail-page'
 import { ReviewQueuePage } from './review-queue-page'
@@ -34,6 +39,10 @@ vi.mock('@/features/instructor/hooks/use-instructor-reviews')
 
 const useQueueMock = vi.mocked(useInstructorReviewQueue)
 const useDetailMock = vi.mocked(useInstructorReviewDetail)
+const useResolveMock = vi.mocked(useResolveInstructorReview)
+const useRejectMock = vi.mocked(useRejectInstructorReview)
+const resolveMutate = vi.fn()
+const rejectMutate = vi.fn()
 const reviewCaseId = '10000000-0000-4000-8000-000000000001'
 const courseId = '20000000-0000-4000-8000-000000000001'
 const studentId = '30000000-0000-4000-8000-000000000001'
@@ -52,7 +61,22 @@ function queryResult<T>(data: T, overrides: Record<string, unknown> = {}) {
 }
 
 describe('Instructor review pages', () => {
-  beforeEach(() => vi.resetAllMocks())
+  beforeEach(() => {
+    vi.resetAllMocks()
+    window.sessionStorage.clear()
+    resolveMutate.mockResolvedValue({})
+    rejectMutate.mockResolvedValue({})
+    useResolveMock.mockReturnValue(
+      mutationResult(resolveMutate) as unknown as ReturnType<
+        typeof useResolveInstructorReview
+      >,
+    )
+    useRejectMock.mockReturnValue(
+      mutationResult(rejectMutate) as unknown as ReturnType<
+        typeof useRejectInstructorReview
+      >,
+    )
+  })
   afterEach(() => cleanup())
 
   it('renders the server-ordered queue and pending count', () => {
@@ -62,7 +86,26 @@ describe('Instructor review pages', () => {
     expect(screen.getByText('1 pending')).toBeVisible()
     expect(screen.getByText('Safe Student')).toBeVisible()
     expect(screen.getByText('Course One')).toBeVisible()
-    expect(screen.getByText('Student request')).toBeVisible()
+    expect(screen.getAllByText('Student request')).not.toHaveLength(0)
+    const studentRequestBadge = screen
+      .getAllByText('Student request')
+      .find((element) => element.matches('[data-slot="badge"]'))
+    expect(studentRequestBadge).toHaveAttribute('data-variant', 'info')
+  })
+
+  it('renders resolved reviews with the success tone', () => {
+    useQueueMock.mockReturnValue(
+      queueQuery([
+        { ...queueItem(), status: 'RESOLVED' as const, pending: false },
+      ]),
+    )
+    render(<ReviewQueuePage />)
+
+    const resolvedBadge = screen
+      .getAllByText('Resolved')
+      .find((element) => element.closest('[data-slot="badge"]'))
+      ?.closest('[data-slot="badge"]')
+    expect(resolvedBadge).toHaveAttribute('data-variant', 'success')
   })
 
   it('renders the queue loading state', () => {
@@ -91,6 +134,30 @@ describe('Instructor review pages', () => {
     expect(
       screen.getByRole('link', { name: 'Review Safe Student in Course One' }),
     ).toHaveAttribute('href', `/instructor/review-queue/${reviewCaseId}`)
+  })
+
+  it('filters loaded reviews by trigger', async () => {
+    const user = userEvent.setup()
+    useQueueMock.mockReturnValue(
+      queueQuery([
+        queueItem(),
+        {
+          ...queueItem(),
+          reviewCaseId: '10000000-0000-4000-8000-000000000099',
+          trigger: 'CITATION_MISSING',
+          student: {
+            id: '20000000-0000-4000-8000-000000000099',
+            displayName: 'Citation Student',
+          },
+        },
+      ]),
+    )
+    render(<ReviewQueuePage />)
+
+    await user.click(screen.getByRole('button', { name: 'Citation missing' }))
+
+    expect(screen.getByText('Citation Student')).toBeVisible()
+    expect(screen.queryByText('Safe Student')).not.toBeInTheDocument()
   })
 
   it('renders bounded detail evidence and adjacent exchanges', () => {
@@ -129,6 +196,189 @@ describe('Instructor review pages', () => {
     expect(screen.getByText('Student request')).toBeVisible()
   })
 
+  it('renders all eligible actions for an open manual review', () => {
+    useDetailMock.mockReturnValue(detailQuery())
+    render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
+
+    expect(
+      screen.getByRole('button', { name: 'Approve original guidance' }),
+    ).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'Publish edited guidance' }),
+    ).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'Publish replacement guidance' }),
+    ).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Reject request' })).toBeVisible()
+  })
+
+  it('hides actions for terminal cases', () => {
+    useDetailMock.mockReturnValue(
+      detailQuery({ status: 'RESOLVED', canReject: false }),
+    )
+    render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
+
+    expect(screen.queryByText('Review actions')).toBeNull()
+  })
+
+  it('hides rejection when the backend marks the case ineligible', () => {
+    useDetailMock.mockReturnValue(detailQuery({ canReject: false }))
+    render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
+
+    expect(screen.queryByRole('button', { name: 'Reject request' })).toBeNull()
+    expect(
+      screen.getByRole('button', { name: 'Approve original guidance' }),
+    ).toBeVisible()
+  })
+
+  it('blocks empty edited guidance inline', async () => {
+    const user = userEvent.setup()
+    useDetailMock.mockReturnValue(detailQuery())
+    render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
+
+    await user.click(
+      screen.getByRole('button', { name: 'Publish edited guidance' }),
+    )
+    const editor = screen.getByLabelText('Edited guidance')
+    expect(editor).toHaveValue('Flagged assistant answer')
+    await user.clear(editor)
+    await user.click(screen.getByRole('button', { name: 'Publish guidance' }))
+
+    expect(
+      screen.getByText('Enter reviewed guidance before publishing.'),
+    ).toBeVisible()
+    expect(resolveMutate).not.toHaveBeenCalled()
+  })
+
+  it('keeps the edited working draft while switching action modes', async () => {
+    const user = userEvent.setup()
+    useDetailMock.mockReturnValue(detailQuery())
+    render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
+
+    await user.click(
+      screen.getByRole('button', { name: 'Publish edited guidance' }),
+    )
+    const editor = screen.getByLabelText('Edited guidance')
+    await user.clear(editor)
+    await user.type(editor, 'Working edit')
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await user.click(
+      screen.getByRole('button', { name: 'Publish replacement guidance' }),
+    )
+    expect(screen.getByLabelText('Replacement guidance')).toHaveValue('')
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await user.click(
+      screen.getByRole('button', { name: 'Publish edited guidance' }),
+    )
+
+    expect(screen.getByLabelText('Edited guidance')).toHaveValue('Working edit')
+  })
+
+  it('saves and restores a browser draft after remounting the review', async () => {
+    const user = userEvent.setup()
+    useDetailMock.mockReturnValue(detailQuery())
+    render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
+
+    await user.click(
+      screen.getByRole('button', { name: 'Publish edited guidance' }),
+    )
+    const editor = screen.getByLabelText('Edited guidance')
+    await user.clear(editor)
+    await user.type(editor, 'Saved browser draft')
+    await user.click(screen.getByRole('button', { name: 'Save draft' }))
+    expect(
+      screen.getByText('Draft saved in this browser for this tab.'),
+    ).toBeVisible()
+
+    cleanup()
+    render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
+    await user.click(
+      screen.getByRole('button', { name: 'Publish edited guidance' }),
+    )
+
+    expect(screen.getByLabelText('Edited guidance')).toHaveValue(
+      'Saved browser draft',
+    )
+  })
+
+  it('blocks an empty rejection reason inline', async () => {
+    const user = userEvent.setup()
+    useDetailMock.mockReturnValue(detailQuery())
+    render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
+
+    await user.click(screen.getByRole('button', { name: 'Reject request' }))
+    await user.click(screen.getByRole('button', { name: 'Confirm rejection' }))
+
+    expect(
+      screen.getByText('Enter a reason before rejecting this request.'),
+    ).toBeVisible()
+    expect(rejectMutate).not.toHaveBeenCalled()
+  })
+
+  it('submits trimmed edited guidance with the current version', async () => {
+    const user = userEvent.setup()
+    useDetailMock.mockReturnValue(detailQuery({ version: 7 }))
+    render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
+
+    await user.click(
+      screen.getByRole('button', { name: 'Publish edited guidance' }),
+    )
+    await user.clear(screen.getByLabelText('Edited guidance'))
+    await user.type(
+      screen.getByLabelText('Edited guidance'),
+      '  Better answer  ',
+    )
+    await user.click(screen.getByRole('button', { name: 'Publish guidance' }))
+
+    expect(resolveMutate).toHaveBeenCalledWith({
+      reviewCaseId,
+      idempotencyKey: expect.any(String),
+      request: {
+        expectedVersion: 7,
+        outcome: 'EDITED',
+        content: 'Better answer',
+      },
+    })
+    expect(screen.getByText('Flagged assistant answer')).toBeVisible()
+  })
+
+  it('disables every action while a mutation is pending', () => {
+    useResolveMock.mockReturnValue(
+      mutationResult(resolveMutate, true) as unknown as ReturnType<
+        typeof useResolveInstructorReview
+      >,
+    )
+    useDetailMock.mockReturnValue(detailQuery())
+    render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
+
+    for (const button of screen.getAllByRole('button')) {
+      if (button.textContent !== 'Back to queue') {
+        expect(button).toBeDisabled()
+      }
+    }
+  })
+
+  it('shows a safe stale-version conflict without changing the original response', async () => {
+    const user = userEvent.setup()
+    resolveMutate.mockRejectedValue(
+      new ApiError('Internal concurrency detail', 409, 'STALE_REVIEW_VERSION'),
+    )
+    useDetailMock.mockReturnValue(detailQuery())
+    render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
+
+    await user.click(
+      screen.getByRole('button', { name: 'Approve original guidance' }),
+    )
+
+    expect(
+      await screen.findByText(
+        'This review changed before your action was submitted. Refresh and try again.',
+      ),
+    ).toBeVisible()
+    expect(screen.queryByText('Internal concurrency detail')).toBeNull()
+    expect(screen.getByText('Flagged assistant answer')).toBeVisible()
+  })
+
   it('does not render non-contract private or unrelated data', () => {
     const response = {
       ...detail(),
@@ -165,7 +415,7 @@ function queueQuery(items: ReturnType<typeof queueItem>[]) {
   ) as unknown as ReturnType<typeof useInstructorReviewQueue>
 }
 
-function queueItem() {
+function queueItem(): InstructorReviewQueueItem {
   return {
     reviewCaseId,
     status: 'PENDING' as const,
@@ -187,6 +437,8 @@ function detail() {
   return {
     reviewCaseId,
     status: 'PENDING' as const,
+    version: 3,
+    canReject: true,
     trigger: 'STUDENT_REQUEST' as const,
     createdAt: '2026-07-29T10:00:00.000Z',
     requestedAt: '2026-07-29T10:00:01.000Z',
@@ -220,5 +472,24 @@ function detail() {
       resolvedAt: null,
       hasNotification: false,
     },
+  }
+}
+
+function detailQuery(overrides: Record<string, unknown> = {}) {
+  return queryResult({
+    ...detail(),
+    ...overrides,
+  }) as unknown as ReturnType<typeof useInstructorReviewDetail>
+}
+
+function mutationResult(
+  mutateAsync: ReturnType<typeof vi.fn>,
+  isPending = false,
+) {
+  return {
+    mutateAsync,
+    isPending,
+    error: null,
+    isError: false,
   }
 }

@@ -81,14 +81,38 @@ export function StudentAiTutorPage({ sessionId }: StudentAiTutorPageProps) {
   const selectedSession = routedSessionQuery.data ?? null
   const [pendingFirstMessage, setPendingFirstMessage] =
     useState<PendingFirstMessage | null>(null)
+  const recoveredSessionRef = useRef<string | null>(null)
+  const routedSessionMissing = isStudentChatApiError(
+    routedSessionQuery.error,
+    STUDENT_CHAT_ERROR_CODES.SESSION_NOT_FOUND,
+  )
+
+  useEffect(() => {
+    if (!selectedCourse || sessionId === undefined || !routedSessionMissing) {
+      return
+    }
+
+    const recoveryKey = `${selectedCourse.id}:${sessionId}`
+    if (recoveredSessionRef.current === recoveryKey) return
+    recoveredSessionRef.current = recoveryKey
+
+    void navigate({
+      to: '/chat',
+      search: { courseId: selectedCourse.id, sessionId: undefined },
+      replace: true,
+    })
+  }, [navigate, routedSessionMissing, selectedCourse, sessionId])
 
   const handleStaleSession = async () => {
     if (!selectedCourse) {
       return
     }
 
-    await navigate({ to: '/chat', search: { courseId: selectedCourse.id } })
-    void routedSessionQuery.refetch()
+    await navigate({
+      to: '/chat',
+      search: { courseId: selectedCourse.id, sessionId: undefined },
+      replace: true,
+    })
   }
 
   const handleFirstMessageCreated = useCallback(

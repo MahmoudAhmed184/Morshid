@@ -62,7 +62,28 @@ export const chatMessageGuidanceLabelSchema = z.enum([
 export const studentReviewSummarySchema = z
   .object({
     reviewCaseId: z.uuid(),
-    status: z.literal('PENDING'),
+    status: z.enum(['PENDING', 'IN_REVIEW', 'RESOLVED', 'REJECTED']),
+    outcome: z
+      .enum(['APPROVED', 'EDITED', 'REPLACED', 'REQUEST_REJECTED'])
+      .nullable(),
+    resolvedAt: z.iso.datetime().nullable(),
+    hasNotification: z.boolean(),
+  })
+  .strict()
+
+export const studentReviewDetailSchema = z
+  .object({
+    reviewCaseId: z.uuid(),
+    status: z.enum(['PENDING', 'IN_REVIEW', 'RESOLVED', 'REJECTED']),
+    outcome: z
+      .enum(['APPROVED', 'EDITED', 'REPLACED', 'REQUEST_REJECTED'])
+      .nullable(),
+    publishedContent: z.string().nullable(),
+    rejectionReason: z.string().nullable(),
+    requestedAt: z.iso.datetime(),
+    resolvedAt: z.iso.datetime().nullable(),
+    messageId: z.uuid(),
+    sessionId: z.uuid(),
   })
   .strict()
 
@@ -367,5 +388,6 @@ export type SendStudentChatMessageInput = z.input<
 export type CreateStudentReviewResponse = z.infer<
   typeof createStudentReviewResponseSchema
 >
+export type StudentReviewDetail = z.infer<typeof studentReviewDetailSchema>
 export type ListChatSessionsInput = z.input<typeof listChatSessionsInputSchema>
 export type ListChatMessagesInput = z.input<typeof listChatMessagesInputSchema>

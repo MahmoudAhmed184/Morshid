@@ -41,6 +41,8 @@ describe('InstructorReviewDetailService', () => {
     expect(Object.keys(result)).toEqual([
       'reviewCaseId',
       'status',
+      'version',
+      'canReject',
       'trigger',
       'createdAt',
       'requestedAt',
@@ -67,6 +69,8 @@ describe('InstructorReviewDetailService', () => {
     return {
       id: 'review-1',
       status: ReviewStatus.PENDING,
+      version: 3,
+      canReject: true,
       outcome: null,
       resolvedAt: null,
       createdAt,

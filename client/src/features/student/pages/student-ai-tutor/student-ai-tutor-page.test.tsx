@@ -713,7 +713,7 @@ describe('StudentAiTutorPage workspace', () => {
     expect(composer).toHaveClass('shrink-0')
   })
 
-  it('shows a safe stale-session state', async () => {
+  it('removes a stale routed session automatically without refetching it', async () => {
     getStudentSessionMock.mockRejectedValueOnce(
       new ApiError('Session not found', 404, 'STUDENT_CHAT_SESSION_NOT_FOUND'),
     )
@@ -729,6 +729,15 @@ describe('StudentAiTutorPage workspace', () => {
     expect(
       await screen.findByRole('heading', { name: 'Conversation unavailable' }),
     ).toBeInTheDocument()
+    await waitFor(() =>
+      expect(navigateMock).toHaveBeenCalledWith({
+        to: '/chat',
+        search: { courseId: primaryCourse.id, sessionId: undefined },
+        replace: true,
+      }),
+    )
+    expect(navigateMock).toHaveBeenCalledTimes(1)
+    expect(getStudentSessionMock).toHaveBeenCalledTimes(1)
     expect(screen.queryByText(secondSession.title)).not.toBeInTheDocument()
     expect(getStudentSessionMessagesMock).not.toHaveBeenCalled()
   })
@@ -748,6 +757,7 @@ describe('StudentAiTutorPage workspace', () => {
     expect(
       await screen.findByText('The selected conversation could not be loaded.'),
     ).toBeInTheDocument()
+    expect(navigateMock).not.toHaveBeenCalled()
     expect(getStudentSessionMessagesMock).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
@@ -1092,7 +1102,8 @@ describe('StudentAiTutorPage workspace', () => {
     await waitFor(() =>
       expect(navigateMock).toHaveBeenCalledWith({
         to: '/chat',
-        search: { courseId: primaryCourse.id },
+        search: { courseId: primaryCourse.id, sessionId: undefined },
+        replace: true,
       }),
     )
   })
