@@ -34,6 +34,89 @@ export interface InstructorReviewAcceptanceFixture {
   dispose(): Promise<void>
 }
 
+export interface ReviewCleanupResult {
+  removed: {
+    notifications: number
+    auditLogs: number
+    idempotencyRecords: number
+    evidenceSnapshots: number
+    actions: number
+    triggers: number
+    cases: number
+  }
+  remaining: {
+    notifications: number
+    triggers: number
+    cases: number
+  }
+}
+
+export async function clearAllReviewData(
+  client: Client,
+): Promise<ReviewCleanupResult> {
+  await client.query('BEGIN')
+  try {
+    const notifications = await client.query(
+      'DELETE FROM notifications WHERE review_case_id IS NOT NULL',
+    )
+    const auditLogs = await client.query(
+      `DELETE FROM audit_logs
+       WHERE action LIKE 'review.%' OR target_type LIKE 'review_%'`,
+    )
+    const idempotencyRecords = await client.query(
+      `DELETE FROM idempotency_records
+       WHERE operation_scope IN (
+         'review.create.manual', 'review.resolve', 'review.reject'
+       )`,
+    )
+    const evidenceSnapshots = await client.query(
+      'DELETE FROM review_evidence_snapshots',
+    )
+    const actions = await client.query('DELETE FROM review_actions')
+    const triggers = await client.query('DELETE FROM review_triggers')
+    const cases = await client.query('DELETE FROM review_cases')
+    const verification = await client.query<{
+      cases: string
+      triggers: string
+      notifications: string
+    }>(
+      `SELECT
+         (SELECT COUNT(*) FROM review_cases)::text AS cases,
+         (SELECT COUNT(*) FROM review_triggers)::text AS triggers,
+         (SELECT COUNT(*) FROM notifications
+          WHERE review_case_id IS NOT NULL)::text AS notifications`,
+    )
+    const row = verification.rows[0]
+    const remaining = {
+      cases: Number(row.cases),
+      triggers: Number(row.triggers),
+      notifications: Number(row.notifications),
+    }
+    if (Object.values(remaining).some((count) => count !== 0)) {
+      throw new Error(
+        `Review cleanup verification failed: ${JSON.stringify(remaining)}`,
+      )
+    }
+
+    await client.query('COMMIT')
+    return {
+      removed: {
+        notifications: notifications.rowCount ?? 0,
+        auditLogs: auditLogs.rowCount ?? 0,
+        idempotencyRecords: idempotencyRecords.rowCount ?? 0,
+        evidenceSnapshots: evidenceSnapshots.rowCount ?? 0,
+        actions: actions.rowCount ?? 0,
+        triggers: triggers.rowCount ?? 0,
+        cases: cases.rowCount ?? 0,
+      },
+      remaining,
+    }
+  } catch (error) {
+    await client.query('ROLLBACK')
+    throw error
+  }
+}
+
 export async function createInstructorReviewAcceptanceFixture(): Promise<InstructorReviewAcceptanceFixture> {
   const client = new Client({ connectionString: databaseUrl })
   await client.connect()

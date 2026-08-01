@@ -59,6 +59,7 @@ describe('InstructorReviewQueueService', () => {
       instructorId: user.id,
       courseId: undefined,
       cursor: 'previous-case',
+      studentFlagReason: undefined,
       take: 3,
     })
     expect(result).toEqual({

@@ -29,6 +29,7 @@ export class InstructorReviewQueueService {
       instructorId: user.id,
       courseId: query.courseId,
       cursor: query.cursor,
+      studentFlagReason: query.studentFlagReason,
       take: query.limit + 1,
     })
     const hasNextPage = page.records.length > query.limit

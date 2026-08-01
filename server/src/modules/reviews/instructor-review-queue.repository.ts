@@ -28,11 +28,15 @@ export interface ListInstructorReviewQueueInput {
   instructorId: string
   courseId?: string
   cursor?: string
+  studentFlagReason?: StudentFlagReason
   take: number
 }
 
 const queueWhere = (
-  input: Pick<ListInstructorReviewQueueInput, 'instructorId' | 'courseId'>,
+  input: Pick<
+    ListInstructorReviewQueueInput,
+    'instructorId' | 'courseId' | 'studentFlagReason'
+  >,
 ): Prisma.ReviewCaseWhereInput => ({
   course: {
     ...(input.courseId === undefined ? {} : { id: input.courseId }),
@@ -44,6 +48,16 @@ const queueWhere = (
       },
     },
   },
+  ...(input.studentFlagReason === undefined
+    ? {}
+    : {
+        triggers: {
+          some: {
+            type: ReviewTriggerType.STUDENT_REQUEST,
+            studentFlagReason: input.studentFlagReason,
+          },
+        },
+      }),
 })
 
 export abstract class InstructorReviewQueueRepository {

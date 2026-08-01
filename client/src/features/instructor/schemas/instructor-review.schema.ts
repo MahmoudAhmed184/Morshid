@@ -127,6 +127,7 @@ export const instructorReviewActionResponseSchema = z.object({
 export type InstructorReviewQueueItem = z.infer<
   typeof instructorReviewQueueItemSchema
 >
+export type StudentFlagReason = z.infer<typeof studentFlagReasonSchema>
 export type InstructorReviewQueueResponse = z.infer<
   typeof instructorReviewQueueResponseSchema
 >

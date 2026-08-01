@@ -127,6 +127,9 @@ describe('Instructor review pages', () => {
     expect(
       screen.getByRole('status', { name: 'Loading review queue' }),
     ).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'Source conflict' }),
+    ).toBeVisible()
   })
 
   it('renders the queue empty state', () => {
@@ -150,7 +153,89 @@ describe('Instructor review pages', () => {
     render(<ReviewQueuePage />)
 
     expect(screen.getAllByText('Student request').length).toBeGreaterThan(0)
-    expect(screen.getByText('Seems incorrect')).toBeVisible()
+    expect(
+      screen
+        .getAllByText('Seems incorrect')
+        .find((element) => element.matches('[data-slot="badge"]')),
+    ).toBeVisible()
+  })
+
+  it.each(studentFlagReasonCases)(
+    'filters the queue by %s independently from trigger filters',
+    async (studentFlagReason, label) => {
+      const user = userEvent.setup()
+      useQueueMock.mockReturnValue(queueQuery([queueItem()]))
+      render(<ReviewQueuePage />)
+
+      await user.click(screen.getByRole('button', { name: label }))
+
+      expect(useQueueMock).toHaveBeenLastCalledWith(studentFlagReason)
+      expect(
+        screen.getByRole('button', { name: 'Student request' }),
+      ).toBeVisible()
+    },
+  )
+
+  it('keeps the Student reason controls available when a filter has no results', async () => {
+    const user = userEvent.setup()
+    useQueueMock.mockImplementation((studentFlagReason) =>
+      studentFlagReason === null ? queueQuery([queueItem()]) : queueQuery([]),
+    )
+    render(<ReviewQueuePage />)
+
+    await user.click(screen.getByRole('button', { name: 'Not helpful' }))
+
+    expect(screen.getByText('No matching reviews')).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'Source conflict' }),
+    ).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'All Student reasons' }),
+    ).toBeVisible()
+
+    await user.click(
+      screen.getByRole('button', { name: 'All Student reasons' }),
+    )
+
+    expect(useQueueMock).toHaveBeenLastCalledWith(null)
+  })
+
+  it('preserves trigger and course controls across Student reason results', async () => {
+    const user = userEvent.setup()
+    const sourceConflict = {
+      ...queueItem(),
+      reviewCaseId: '10000000-0000-4000-8000-000000000099',
+      trigger: 'SOURCE_CONFLICT' as const,
+      studentFlagReason: null,
+      course: {
+        id: '20000000-0000-4000-8000-000000000099',
+        code: 'C2',
+        title: 'Course Two',
+      },
+    }
+    useQueueMock.mockImplementation((studentFlagReason) =>
+      studentFlagReason === null
+        ? queueQuery([queueItem(), sourceConflict])
+        : queueQuery([queueItem()]),
+    )
+    render(<ReviewQueuePage />)
+
+    const sourceTrigger = screen.getByRole('button', {
+      name: 'Source conflict',
+    })
+    await user.click(sourceTrigger)
+    await user.click(screen.getByRole('button', { name: 'C2' }))
+    await user.click(screen.getByRole('button', { name: 'Seems incorrect' }))
+
+    expect(sourceTrigger).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'C2' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(
+      screen.getByRole('button', { name: 'Citation missing' }),
+    ).toBeVisible()
+    expect(useQueueMock).toHaveBeenLastCalledWith('INCORRECT')
   })
 
   it.each(studentFlagReasonCases)(
@@ -186,7 +271,11 @@ describe('Instructor review pages', () => {
     render(<ReviewQueuePage />)
 
     expect(screen.getAllByText('Citation missing').length).toBeGreaterThan(0)
-    expect(screen.queryByText('Seems incorrect')).not.toBeInTheDocument()
+    expect(
+      screen
+        .queryAllByText('Seems incorrect')
+        .filter((element) => element.matches('[data-slot="badge"]')),
+    ).toHaveLength(0)
   })
 
   it('filters loaded reviews by trigger', async () => {

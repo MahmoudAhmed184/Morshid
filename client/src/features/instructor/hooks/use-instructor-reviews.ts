@@ -19,6 +19,7 @@ import type {
   RejectReviewCaseRequest,
   ResolveReviewCaseRequest,
 } from '@/features/instructor/data/instructor-reviews.api'
+import type { StudentFlagReason } from '@/features/instructor/schemas/instructor-review.schema'
 
 interface InstructorReviewActionVariables<TRequest> {
   reviewCaseId: string
@@ -32,10 +33,15 @@ export type ResolveInstructorReviewVariables =
 export type RejectInstructorReviewVariables =
   InstructorReviewActionVariables<RejectReviewCaseRequest>
 
-export function useInstructorReviewQueue() {
+export function useInstructorReviewQueue(
+  studentFlagReason: StudentFlagReason | null = null,
+) {
   const instructorId = useAuthStore((state) => state.user?.id)
   return useInfiniteQuery({
-    ...instructorReviewQueueQueryOptions(instructorId ?? 'anonymous'),
+    ...instructorReviewQueueQueryOptions(
+      instructorId ?? 'anonymous',
+      studentFlagReason,
+    ),
     enabled: instructorId !== undefined,
   })
 }
@@ -89,7 +95,6 @@ function useInstructorReviewAction<TRequest>(
         }),
         queryClient.invalidateQueries({
           queryKey: instructorReviewKeys.queue(instructorId),
-          exact: true,
         }),
       ])
     },

@@ -1,8 +1,4 @@
-import type { z } from 'zod'
-
-import type { studentFlagReasonSchema } from './schemas/instructor-review.schema'
-
-type StudentFlagReason = z.infer<typeof studentFlagReasonSchema>
+import type { StudentFlagReason } from './schemas/instructor-review.schema'
 
 const studentFlagReasonLabels: Record<StudentFlagReason, string> = {
   INCORRECT: 'Seems incorrect',
@@ -12,6 +8,10 @@ const studentFlagReasonLabels: Record<StudentFlagReason, string> = {
   TOO_MUCH_ANSWER: 'Gave away too much',
   OTHER: 'Other',
 }
+
+export const studentFlagReasons = Object.keys(
+  studentFlagReasonLabels,
+) as StudentFlagReason[]
 
 export function studentFlagReasonLabel(reason: StudentFlagReason) {
   return studentFlagReasonLabels[reason]

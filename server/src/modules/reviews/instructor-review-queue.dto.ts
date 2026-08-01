@@ -12,6 +12,7 @@ export const instructorReviewQueueQuerySchema = z
   .object({
     courseId: z.uuid().optional(),
     cursor: z.uuid().optional(),
+    studentFlagReason: z.enum(StudentFlagReason).optional(),
     limit: z.coerce.number().int().min(1).max(100).default(25),
   })
   .strict()
@@ -26,6 +27,12 @@ export class InstructorReviewQueueQueryDto {
 
   @ApiPropertyOptional({ format: 'uuid' })
   cursor?: string
+
+  @ApiPropertyOptional({
+    enum: StudentFlagReason,
+    enumName: 'StudentFlagReason',
+  })
+  studentFlagReason?: StudentFlagReason
 
   @ApiPropertyOptional({ minimum: 1, maximum: 100, default: 25 })
   limit?: number

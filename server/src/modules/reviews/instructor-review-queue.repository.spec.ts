@@ -2,6 +2,7 @@ import {
   CourseMembershipRole,
   ReviewStatus,
   ReviewTriggerType,
+  StudentFlagReason,
 } from '../../generated/prisma/client'
 import type { PrismaService } from '../prisma/prisma.service'
 import { PrismaInstructorReviewQueueRepository } from './instructor-review-queue.repository'
@@ -103,6 +104,51 @@ describe('PrismaInstructorReviewQueueRepository', () => {
       }),
     )
   })
+
+  it.each(Object.values(StudentFlagReason))(
+    'filters and paginates %s through Student requests only',
+    async (studentFlagReason) => {
+      findMany.mockResolvedValue([])
+      count.mockResolvedValue(0)
+
+      await repository.list({
+        instructorId: 'instructor-1',
+        cursor: 'case-0',
+        studentFlagReason,
+        take: 26,
+      })
+
+      const filteredWhere = {
+        course: {
+          memberships: {
+            some: {
+              userId: 'instructor-1',
+              role: CourseMembershipRole.INSTRUCTOR,
+              removedAt: null,
+            },
+          },
+        },
+        triggers: {
+          some: {
+            type: ReviewTriggerType.STUDENT_REQUEST,
+            studentFlagReason,
+          },
+        },
+      }
+      expect(findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: filteredWhere,
+          orderBy: [{ status: 'asc' }, { createdAt: 'desc' }, { id: 'desc' }],
+          cursor: { id: 'case-0' },
+          skip: 1,
+          take: 26,
+        }),
+      )
+      expect(count).toHaveBeenCalledWith({
+        where: { ...filteredWhere, status: ReviewStatus.PENDING },
+      })
+    },
+  )
 
   it('authorizes a requested course only through an active Instructor assignment', async () => {
     findFirst.mockResolvedValue(null)

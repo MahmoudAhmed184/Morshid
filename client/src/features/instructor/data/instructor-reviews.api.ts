@@ -10,6 +10,7 @@ import type {
   InstructorReviewActionResponse,
   InstructorReviewOutcome,
   InstructorReviewQueueResponse,
+  StudentFlagReason,
 } from '@/features/instructor/schemas/instructor-review.schema'
 
 export interface ResolveReviewCaseRequest {
@@ -26,10 +27,14 @@ export interface RejectReviewCaseRequest {
 
 export async function listInstructorReviews(
   cursor: string | null,
+  studentFlagReason: StudentFlagReason | null = null,
   options: ApiFetchOptions = {},
 ): Promise<InstructorReviewQueueResponse> {
   const search = new URLSearchParams({ limit: '25' })
   if (cursor !== null) search.set('cursor', cursor)
+  if (studentFlagReason !== null) {
+    search.set('studentFlagReason', studentFlagReason)
+  }
   const response = await apiJson<unknown>(
     `/api/v1/instructor/reviews?${search.toString()}`,
     { ...options, method: 'GET' },

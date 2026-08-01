@@ -4,12 +4,21 @@ import {
   getInstructorReview,
   listInstructorReviews,
 } from '@/features/instructor/data/instructor-reviews.api'
+import type { StudentFlagReason } from '@/features/instructor/schemas/instructor-review.schema'
 
 export const instructorReviewKeys = {
   all: (instructorId: string) =>
     ['instructor', instructorId, 'reviews'] as const,
   queue: (instructorId: string) =>
     [...instructorReviewKeys.all(instructorId), 'queue'] as const,
+  queueFiltered: (
+    instructorId: string,
+    studentFlagReason: StudentFlagReason | null,
+  ) =>
+    [
+      ...instructorReviewKeys.queue(instructorId),
+      { studentFlagReason },
+    ] as const,
   detail: (instructorId: string, reviewCaseId: string) =>
     [
       ...instructorReviewKeys.all(instructorId),
@@ -18,11 +27,17 @@ export const instructorReviewKeys = {
     ] as const,
 }
 
-export function instructorReviewQueueQueryOptions(instructorId: string) {
+export function instructorReviewQueueQueryOptions(
+  instructorId: string,
+  studentFlagReason: StudentFlagReason | null = null,
+) {
   return infiniteQueryOptions({
-    queryKey: instructorReviewKeys.queue(instructorId),
+    queryKey: instructorReviewKeys.queueFiltered(
+      instructorId,
+      studentFlagReason,
+    ),
     queryFn: ({ pageParam, signal }) =>
-      listInstructorReviews(pageParam, { signal }),
+      listInstructorReviews(pageParam, studentFlagReason, { signal }),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     staleTime: 30_000,
