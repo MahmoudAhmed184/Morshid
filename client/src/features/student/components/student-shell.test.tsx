@@ -10,6 +10,32 @@ import { ThemeProvider } from '@/providers/theme-provider'
 vi.mock('@tanstack/react-router', () => ({
   Outlet: () => <div data-testid="outlet-content">Settings</div>,
   ScriptOnce: () => null,
+  useNavigate: () => vi.fn(),
+}))
+
+vi.mock('@/features/notifications/hooks/use-notifications', () => ({
+  useNotifications: () => ({
+    data: { pages: [{ items: [], nextCursor: null }] },
+    fetchNextPage: vi.fn(),
+    hasNextPage: false,
+    isError: false,
+    isFetchingNextPage: false,
+    isPending: false,
+  }),
+  useMarkNotificationRead: () => ({
+    isPending: false,
+    mutateAsync: vi.fn(),
+    variables: undefined,
+  }),
+  useUnreadNotificationCount: () => ({
+    data: { unreadCount: 0 },
+    isError: false,
+    isPending: false,
+  }),
+}))
+
+vi.mock('@/features/student/components/student-course-context', () => ({
+  useStudentCourseContext: () => ({ courses: [], activeCourse: null }),
 }))
 
 function stubViewport({ isMobile }: { isMobile: boolean }) {
@@ -94,5 +120,13 @@ describe('StudentShell top inset', () => {
 
     expect(floatingCluster).toBeNull()
     expect(outlet).not.toHaveClass('pt-16')
+  })
+
+  it('includes the notification bell in the Student chrome', () => {
+    renderShell()
+
+    expect(
+      document.querySelector('button[aria-label="Notifications"]'),
+    ).not.toBeNull()
   })
 })

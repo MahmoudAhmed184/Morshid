@@ -7,6 +7,13 @@ const reviewStatusSchema = z.enum([
   'REJECTED',
 ])
 
+export const instructorReviewOutcomeSchema = z.enum([
+  'APPROVED',
+  'EDITED',
+  'REPLACED',
+  'REQUEST_REJECTED',
+])
+
 const reviewTriggerSchema = z.enum([
   'STUDENT_REQUEST',
   'GENERAL_NOT_FOUND',
@@ -70,6 +77,8 @@ const reviewCitationSchema = z.object({
 export const instructorReviewDetailSchema = z.object({
   reviewCaseId: z.uuid(),
   status: reviewStatusSchema,
+  version: z.number().int().positive(),
+  canReject: z.boolean(),
   trigger: reviewTriggerSchema,
   createdAt: z.iso.datetime(),
   requestedAt: z.iso.datetime(),
@@ -93,6 +102,17 @@ export const instructorReviewDetailSchema = z.object({
   }),
 })
 
+export const instructorReviewActionResponseSchema = z.object({
+  reviewCaseId: z.uuid(),
+  status: z.enum(['RESOLVED', 'REJECTED']),
+  outcome: instructorReviewOutcomeSchema,
+  publishedContent: z.string().nullable(),
+  resolutionReason: z.string().max(500).nullable(),
+  version: z.number().int().min(2),
+  resolvedAt: z.iso.datetime(),
+  replayed: z.boolean(),
+})
+
 export type InstructorReviewQueueItem = z.infer<
   typeof instructorReviewQueueItemSchema
 >
@@ -103,3 +123,9 @@ export type InstructorReviewDetail = z.infer<
   typeof instructorReviewDetailSchema
 >
 export type InstructorReviewExchange = z.infer<typeof reviewExchangeSchema>
+export type InstructorReviewActionResponse = z.infer<
+  typeof instructorReviewActionResponseSchema
+>
+export type InstructorReviewOutcome = z.infer<
+  typeof instructorReviewOutcomeSchema
+>

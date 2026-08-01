@@ -1,4 +1,4 @@
-import { useNavigate } from '@tanstack/react-router'
+import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { BookOpen } from 'lucide-react'
 import {
   useCallback,
@@ -8,6 +8,7 @@ import {
   useState,
 } from 'react'
 import type { ReactNode } from 'react'
+import { z } from 'zod'
 
 import { EmptyState } from '@/components/ui/custom/empty-state'
 import { ErrorState } from '@/components/ui/custom/error-state'
@@ -81,14 +82,38 @@ export function StudentAiTutorPage({ sessionId }: StudentAiTutorPageProps) {
   const selectedSession = routedSessionQuery.data ?? null
   const [pendingFirstMessage, setPendingFirstMessage] =
     useState<PendingFirstMessage | null>(null)
+  const recoveredSessionRef = useRef<string | null>(null)
+  const routedSessionMissing = isStudentChatApiError(
+    routedSessionQuery.error,
+    STUDENT_CHAT_ERROR_CODES.SESSION_NOT_FOUND,
+  )
+
+  useEffect(() => {
+    if (!selectedCourse || sessionId === undefined || !routedSessionMissing) {
+      return
+    }
+
+    const recoveryKey = `${selectedCourse.id}:${sessionId}`
+    if (recoveredSessionRef.current === recoveryKey) return
+    recoveredSessionRef.current = recoveryKey
+
+    void navigate({
+      to: '/chat',
+      search: { courseId: selectedCourse.id, sessionId: undefined },
+      replace: true,
+    })
+  }, [navigate, routedSessionMissing, selectedCourse, sessionId])
 
   const handleStaleSession = async () => {
     if (!selectedCourse) {
       return
     }
 
-    await navigate({ to: '/chat', search: { courseId: selectedCourse.id } })
-    void routedSessionQuery.refetch()
+    await navigate({
+      to: '/chat',
+      search: { courseId: selectedCourse.id, sessionId: undefined },
+      replace: true,
+    })
   }
 
   const handleFirstMessageCreated = useCallback(
@@ -400,6 +425,10 @@ function StudentConversation({
   pendingFirstMessage,
   onConsumePendingFirstMessage,
 }: StudentConversationProps) {
+  const messageHash = useRouterState({
+    select: (state) => state.location.hash,
+  })
+  const deepLinkedMessageId = parseMessageHash(messageHash)
   const composerRef = useRef<StudentChatComposerHandle>(null)
   const messagesQuery = useStudentSessionMessages({
     courseId: course.id,
@@ -473,6 +502,16 @@ function StudentConversation({
       }
     }
   }, [latestMessageKey, messagesQuery.isPending])
+
+  useMessageDeepLink({
+    messageId: deepLinkedMessageId,
+    messages,
+    isPending: messagesQuery.isPending,
+    hasNextPage: messagesQuery.hasNextPage,
+    isFetchingNextPage: messagesQuery.isFetchingNextPage,
+    isFetchNextPageError: messagesQuery.isFetchNextPageError,
+    fetchNextPage: messagesQuery.fetchNextPage,
+  })
 
   const renameSession = useRenameStudentSession({ courseId: course.id })
 
@@ -561,4 +600,75 @@ function reconcileMessages(messages: ChatMessage[]) {
   return [...messagesById.values()].sort(
     (left, right) => left.sequence - right.sequence,
   )
+}
+
+const messageIdSchema = z.uuid()
+
+function parseMessageHash(hash: string) {
+  const normalized = hash.replace(/^#/, '')
+  if (!normalized.startsWith('message-')) return null
+
+  const parsedMessageId = messageIdSchema.safeParse(
+    normalized.slice('message-'.length),
+  )
+  return parsedMessageId.success ? parsedMessageId.data : null
+}
+
+function useMessageDeepLink({
+  messageId,
+  messages,
+  isPending,
+  hasNextPage,
+  isFetchingNextPage,
+  isFetchNextPageError,
+  fetchNextPage,
+}: {
+  messageId: string | null
+  messages: ChatMessage[]
+  isPending: boolean
+  hasNextPage: boolean
+  isFetchingNextPage: boolean
+  isFetchNextPageError: boolean
+  fetchNextPage: () => Promise<unknown>
+}) {
+  const completedTargetRef = useRef<string | null>(null)
+  const requestedTargetRef = useRef<string | null>(null)
+  const [pageAttempt, setPageAttempt] = useState(0)
+
+  useEffect(() => {
+    if (messageId === null || completedTargetRef.current === messageId) return
+
+    const target = document.getElementById(`message-${messageId}`)
+    if (target) {
+      completedTargetRef.current = messageId
+      target.focus({ preventScroll: true })
+      target.scrollIntoView({ block: 'center' })
+      return
+    }
+
+    if (
+      isPending ||
+      !hasNextPage ||
+      isFetchingNextPage ||
+      isFetchNextPageError ||
+      requestedTargetRef.current === messageId
+    ) {
+      return
+    }
+
+    requestedTargetRef.current = messageId
+    void fetchNextPage().finally(() => {
+      requestedTargetRef.current = null
+      setPageAttempt((current) => current + 1)
+    })
+  }, [
+    fetchNextPage,
+    hasNextPage,
+    isFetchNextPageError,
+    isFetchingNextPage,
+    isPending,
+    messageId,
+    messages,
+    pageAttempt,
+  ])
 }

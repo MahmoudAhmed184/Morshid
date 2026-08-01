@@ -84,6 +84,17 @@ export class InstructorReviewDetailDto {
   status!: ReviewStatus
 
   @Expose()
+  @ApiProperty({ minimum: 1 })
+  version!: number
+
+  @Expose()
+  @ApiProperty({
+    description:
+      'True only for active cases containing Student manual-review triggers exclusively.',
+  })
+  canReject!: boolean
+
+  @Expose()
   @ApiProperty({ enum: ReviewTriggerType, enumName: 'ReviewTriggerType' })
   trigger!: ReviewTriggerType
 

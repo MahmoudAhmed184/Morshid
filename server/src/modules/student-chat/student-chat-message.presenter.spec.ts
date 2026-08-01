@@ -119,13 +119,16 @@ describe('StudentChatMessagePresenter', () => {
     expect(exists).toHaveBeenCalledTimes(1)
   })
 
-  it('exposes only the pending case identity for a Student-requested review', async () => {
+  it('exposes the pending Student review summary allow-list', async () => {
     const result = await presenter.present(
       makeMessage({
         reviewCase: {
           id: 'review-case-id',
           status: 'PENDING',
+          outcome: null,
+          resolvedAt: null,
           triggers: [{ id: 'manual-trigger-id' }],
+          _count: { notifications: 0 },
         },
       }),
     )
@@ -133,9 +136,67 @@ describe('StudentChatMessagePresenter', () => {
     expect(result.reviewSummary).toEqual({
       reviewCaseId: 'review-case-id',
       status: 'PENDING',
+      outcome: null,
+      resolvedAt: null,
+      hasNotification: false,
     })
     expect(result.reviewSummary).not.toHaveProperty('triggers')
     expect(result.reviewSummary).not.toHaveProperty('requestedByUserId')
+  })
+
+  it.each([
+    ['RESOLVED', 'APPROVED'],
+    ['RESOLVED', 'EDITED'],
+    ['RESOLVED', 'REPLACED'],
+    ['REJECTED', 'REQUEST_REJECTED'],
+  ] as const)(
+    'exposes a %s/%s Student review summary',
+    async (status, outcome) => {
+      const resolvedAt = new Date('2026-07-31T01:00:00.000Z')
+      const result = await presenter.present(
+        makeMessage({
+          reviewCase: {
+            id: 'review-case-id',
+            status,
+            outcome,
+            resolvedAt,
+            triggers: [{ id: 'manual-trigger-id' }],
+            _count: { notifications: 1 },
+          },
+        }),
+      )
+
+      expect(result.reviewSummary).toEqual({
+        reviewCaseId: 'review-case-id',
+        status,
+        outcome,
+        resolvedAt: resolvedAt.toISOString(),
+        hasNotification: true,
+      })
+    },
+  )
+
+  it('exposes an in-review summary before a terminal outcome exists', async () => {
+    const result = await presenter.present(
+      makeMessage({
+        reviewCase: {
+          id: 'review-case-id',
+          status: 'IN_REVIEW',
+          outcome: null,
+          resolvedAt: null,
+          triggers: [{ id: 'manual-trigger-id' }],
+          _count: { notifications: 0 },
+        },
+      }),
+    )
+
+    expect(result.reviewSummary).toEqual({
+      reviewCaseId: 'review-case-id',
+      status: 'IN_REVIEW',
+      outcome: null,
+      resolvedAt: null,
+      hasNotification: false,
+    })
   })
 })
 

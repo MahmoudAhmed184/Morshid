@@ -34,7 +34,7 @@ function ReviewDetailRoute() {
     <>
       <ReviewQueuePage />
       <Dialog open onOpenChange={(open) => !open && closeDialog()}>
-        <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto p-5 sm:max-w-5xl sm:p-7">
+        <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto p-5 sm:w-[calc(100vw-3rem)] sm:max-w-[calc(100vw-3rem)] sm:p-7 xl:max-w-7xl">
           <DialogTitle className="sr-only">
             Instructor review detail
           </DialogTitle>

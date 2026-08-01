@@ -5,8 +5,8 @@ import {
   type MessageRole,
   Prisma,
   type ReviewOutcome,
-  type ReviewStatus,
-  type ReviewTriggerType,
+  ReviewStatus,
+  ReviewTriggerType,
 } from '../../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 
@@ -22,6 +22,8 @@ export interface ReviewDetailMessageRecord {
 export interface InstructorReviewDetailRecord {
   id: string
   status: ReviewStatus
+  version: number
+  canReject: boolean
   outcome: ReviewOutcome | null
   resolvedAt: Date | null
   createdAt: Date
@@ -76,13 +78,13 @@ export class PrismaInstructorReviewDetailRepository extends InstructorReviewDeta
       select: {
         id: true,
         status: true,
+        version: true,
         outcome: true,
         resolvedAt: true,
         createdAt: true,
         course: { select: { id: true, code: true, title: true } },
         triggers: {
           orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-          take: 1,
           select: { type: true, reason: true, createdAt: true },
         },
         targetMessage: {
@@ -169,6 +171,14 @@ export class PrismaInstructorReviewDetailRepository extends InstructorReviewDeta
     return {
       id: reviewCase.id,
       status: reviewCase.status,
+      version: reviewCase.version,
+      canReject:
+        (reviewCase.status === ReviewStatus.PENDING ||
+          reviewCase.status === ReviewStatus.IN_REVIEW) &&
+        reviewCase.triggers.length > 0 &&
+        reviewCase.triggers.every(
+          ({ type }) => type === ReviewTriggerType.STUDENT_REQUEST,
+        ),
       outcome: reviewCase.outcome,
       resolvedAt: reviewCase.resolvedAt,
       createdAt: reviewCase.createdAt,

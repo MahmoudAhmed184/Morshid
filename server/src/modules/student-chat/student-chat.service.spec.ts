@@ -544,6 +544,12 @@ describe('StudentChatService', () => {
       'Old',
     ])
     expect(response.nextCursor).toBeNull()
+
+    for (const listedSession of response.sessions) {
+      await expect(
+        service.getSession('course-1', listedSession.id, student),
+      ).resolves.toMatchObject({ session: { id: listedSession.id } })
+    }
   })
 
   it('gets and renames only the owned active session', async () => {
@@ -584,6 +590,9 @@ describe('StudentChatService', () => {
 
     await expect(
       service.getSession('course-1', deleted.id, student),
+    ).rejects.toBeInstanceOf(NotFoundException)
+    await expect(
+      service.getSession('course-1', otherOwned.id, student),
     ).rejects.toBeInstanceOf(NotFoundException)
     await expect(
       service.renameSession(

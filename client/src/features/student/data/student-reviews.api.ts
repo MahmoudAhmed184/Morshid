@@ -3,6 +3,7 @@ import type { ApiFetchOptions } from '@/features/auth/api/authenticated-api-clie
 import {
   createStudentReviewRequestSchema,
   createStudentReviewResponseSchema,
+  studentReviewDetailSchema,
 } from '@/features/student/schemas/student-chat.schema'
 
 interface RequestStudentReviewParams {
@@ -10,6 +11,23 @@ interface RequestStudentReviewParams {
   note: string | null
   idempotencyKey: string
   options?: ApiFetchOptions
+}
+
+interface GetStudentReviewDetailParams {
+  reviewCaseId: string
+  options?: ApiFetchOptions
+}
+
+export async function getStudentReviewDetail({
+  reviewCaseId,
+  options = {},
+}: GetStudentReviewDetailParams) {
+  const response = await apiJson<unknown>(
+    `/api/v1/student/reviews/${reviewCaseId}`,
+    { ...options, method: 'GET' },
+  )
+
+  return studentReviewDetailSchema.parse(response)
 }
 
 export async function requestStudentReview({

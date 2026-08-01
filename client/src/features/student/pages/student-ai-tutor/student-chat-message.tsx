@@ -2,12 +2,16 @@ import {
   BookMarked,
   Check,
   CircleAlert,
+  CircleCheck,
+  CircleX,
   ClipboardCheck,
   Copy,
   FileText,
+  Flag,
   GraduationCap,
   LoaderCircle,
   RotateCcw,
+  ShieldCheck,
   ThumbsDown,
   ThumbsUp,
   Clock3,
@@ -19,6 +23,7 @@ import { Logo } from '@/components/logo'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { useStudentReviewDetail } from '@/features/student/hooks/use-student-review-detail'
 import type { ChatMessage } from '@/features/student/schemas/student-chat.schema'
 import { cn } from '@/lib/utils'
 
@@ -43,6 +48,33 @@ interface StudentChatMessageProps {
 }
 
 type GuidanceLabel = NonNullable<ChatMessage['guidanceLabel']>
+type ReviewStatus = NonNullable<ChatMessage['reviewSummary']>['status']
+
+const reviewStatusPresentation: Record<
+  ReviewStatus,
+  { label: string; className: string; icon: LucideIcon }
+> = {
+  PENDING: {
+    label: 'Pending review',
+    className: 'border-warning/30 bg-warning/10 text-warning',
+    icon: Clock3,
+  },
+  IN_REVIEW: {
+    label: 'Under review',
+    className: 'border-info/30 bg-info/10 text-info',
+    icon: ClipboardCheck,
+  },
+  RESOLVED: {
+    label: 'Reviewed',
+    className: 'border-success/30 bg-success/10 text-success',
+    icon: CircleCheck,
+  },
+  REJECTED: {
+    label: 'Review rejected',
+    className: 'border-destructive/30 bg-destructive/10 text-destructive',
+    icon: CircleX,
+  },
+}
 
 const guidancePresentation: Record<
   GuidanceLabel,
@@ -111,6 +143,13 @@ export function StudentChatMessage({
     message.reviewSummary === null
   const showResponseActions =
     message.role === 'ASSISTANT' && message.status === 'COMPLETED'
+  const reviewSummary = message.reviewSummary
+  const hasTerminalReview =
+    reviewSummary?.status === 'RESOLVED' || reviewSummary?.status === 'REJECTED'
+  const reviewDetailQuery = useStudentReviewDetail({
+    reviewCaseId: reviewSummary?.reviewCaseId ?? null,
+    enabled: message.role === 'ASSISTANT' && hasTerminalReview,
+  })
 
   const copyResponse = async () => {
     try {
@@ -160,6 +199,8 @@ export function StudentChatMessage({
 
   return (
     <li
+      id={`message-${message.id}`}
+      tabIndex={-1}
       className={cn(
         'flex items-end gap-3',
         isStudent ? 'flex-row-reverse' : 'flex-row',
@@ -187,7 +228,8 @@ export function StudentChatMessage({
             isStudent
               ? 'rounded-2xl rounded-br-lg bg-accent text-foreground'
               : 'rounded-2xl rounded-bl-lg border bg-card text-card-foreground shadow-xs',
-            message.reviewSummary?.status === 'PENDING' &&
+            (reviewSummary?.status === 'PENDING' ||
+              reviewSummary?.status === 'IN_REVIEW') &&
               'border-warning/35 bg-warning/[0.04] shadow-[inset_3px_0_0_hsl(var(--warning)/0.45)]',
           )}
         >
@@ -199,14 +241,8 @@ export function StudentChatMessage({
                 <span className="text-xs font-semibold text-muted-foreground">
                   AI Tutor
                 </span>
-                {message.reviewSummary?.status === 'PENDING' ? (
-                  <Badge
-                    variant="outline"
-                    className="gap-1 border-warning/30 bg-warning/10 px-2 py-0.5 text-[0.65rem] text-warning"
-                  >
-                    <Clock3 className="size-3" aria-hidden />
-                    Pending review
-                  </Badge>
+                {reviewSummary ? (
+                  <ReviewStatusBadge status={reviewSummary.status} />
                 ) : null}
               </div>
             </div>
@@ -342,16 +378,169 @@ export function StudentChatMessage({
           ) : null}
         </div>
 
+        {!isStudent && hasTerminalReview ? (
+          <StudentReviewOutcomeCard
+            detail={reviewDetailQuery.data}
+            isLoading={reviewDetailQuery.isPending}
+            hasError={reviewDetailQuery.isError}
+          />
+        ) : null}
+
         {!isStudent && message.guidanceLabel ? (
           <GuidanceBadge guidanceLabel={message.guidanceLabel} />
         ) : null}
-        {message.reviewSummary?.status === 'PENDING' ? (
+        {reviewSummary?.status === 'PENDING' ||
+        reviewSummary?.status === 'IN_REVIEW' ? (
           <span className="sr-only" role="status" aria-live="polite">
-            Review requested — pending Instructor review
+            {reviewSummary.status === 'PENDING'
+              ? 'Review requested — pending review'
+              : 'Review request is under review'}
           </span>
         ) : null}
       </div>
     </li>
+  )
+}
+
+function ReviewStatusBadge({ status }: { status: ReviewStatus }) {
+  const presentation = reviewStatusPresentation[status]
+  const Icon = presentation.icon
+
+  return (
+    <Badge
+      variant="outline"
+      className={cn('gap-1 px-2 py-0.5 text-[0.65rem]', presentation.className)}
+    >
+      <Icon className="size-3" aria-hidden />
+      {presentation.label}
+    </Badge>
+  )
+}
+
+function StudentReviewOutcomeCard({
+  detail,
+  isLoading,
+  hasError,
+}: {
+  detail: ReturnType<typeof useStudentReviewDetail>['data']
+  isLoading: boolean
+  hasError: boolean
+}) {
+  if (isLoading) {
+    return (
+      <div
+        className="mt-3 rounded-xl border bg-card px-4 py-3 text-sm text-muted-foreground"
+        role="status"
+      >
+        Loading reviewed outcome…
+      </div>
+    )
+  }
+
+  if (hasError || !detail) {
+    return (
+      <Alert className="mt-3" role="alert">
+        <CircleAlert aria-hidden />
+        <AlertDescription>
+          The reviewed outcome could not be loaded safely.
+        </AlertDescription>
+      </Alert>
+    )
+  }
+
+  const isRejected = detail.status === 'REJECTED'
+  const outcomeLabel =
+    detail.outcome === 'APPROVED'
+      ? 'Approved guidance'
+      : detail.outcome === 'EDITED'
+        ? 'Edited guidance'
+        : detail.outcome === 'REPLACED'
+          ? 'Replacement guidance'
+          : 'Request rejected'
+  const visibleContent = isRejected
+    ? detail.rejectionReason
+    : detail.publishedContent
+  const resolvedLabel = detail.resolvedAt
+    ? new Intl.DateTimeFormat(undefined, {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      }).format(new Date(detail.resolvedAt))
+    : null
+
+  return (
+    <div className="mt-4">
+      <div
+        className={cn(
+          'mb-4 flex items-center gap-3 text-xs font-medium',
+          isRejected ? 'text-destructive' : 'text-success',
+        )}
+        aria-hidden
+      >
+        <span className="h-px flex-1 bg-border" />
+        {isRejected ? (
+          <Flag className="size-3.5" />
+        ) : (
+          <ShieldCheck className="size-3.5" />
+        )}
+        <span>
+          {isRejected ? 'Reviewed — no correction' : 'Reviewed answer'}
+        </span>
+        <span className="h-px flex-1 bg-border" />
+      </div>
+
+      <section
+        aria-label="Reviewed outcome"
+        className={cn(
+          'rounded-2xl border px-4 py-4 shadow-xs sm:px-5',
+          isRejected
+            ? 'border-destructive/35 bg-destructive/[0.06]'
+            : 'border-success/35 bg-success/[0.07]',
+        )}
+      >
+        <div className="mb-3 flex items-start gap-3">
+          <span
+            className={cn(
+              'flex size-8 shrink-0 items-center justify-center rounded-full',
+              isRejected
+                ? 'bg-destructive text-destructive-foreground'
+                : 'bg-success text-success-foreground',
+            )}
+            aria-hidden
+          >
+            {isRejected ? (
+              <Flag className="size-4" />
+            ) : (
+              <ShieldCheck className="size-4" />
+            )}
+          </span>
+          <div className="min-w-0 flex-1">
+            <h3 className="text-sm font-semibold text-foreground">
+              {isRejected ? 'Review Closed — No Change' : 'Reviewed Guidance'}
+            </h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {outcomeLabel}
+              {resolvedLabel ? ` · ${resolvedLabel}` : ''}
+            </p>
+          </div>
+          <Badge
+            variant="outline"
+            className={cn(
+              'hidden shrink-0 sm:inline-flex',
+              isRejected
+                ? 'border-destructive/30 bg-background/70 text-destructive'
+                : 'border-success/30 bg-background/70 text-success',
+            )}
+          >
+            {isRejected ? 'Closed' : 'Published'}
+          </Badge>
+        </div>
+        {visibleContent ? (
+          <p className="whitespace-pre-wrap break-words text-sm leading-7 text-foreground">
+            {visibleContent}
+          </p>
+        ) : null}
+      </section>
+    </div>
   )
 }
 

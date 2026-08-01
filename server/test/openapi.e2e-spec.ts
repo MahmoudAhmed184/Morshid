@@ -242,6 +242,8 @@ describe('OpenAPI contract (e2e)', () => {
       ).toEqual([
         'reviewCaseId',
         'status',
+        'version',
+        'canReject',
         'trigger',
         'createdAt',
         'requestedAt',
@@ -254,6 +256,143 @@ describe('OpenAPI contract (e2e)', () => {
         'followingExchange',
         'reviewSummary',
       ])
+    } finally {
+      await app.close()
+    }
+  })
+
+  it('documents Instructor terminal review actions', async () => {
+    const app = await createApp('test')
+
+    try {
+      const response = await request(app.getHttpServer())
+        .get('/docs-json')
+        .expect(200)
+      const document = response.body as OpenAPIObject
+      for (const expectation of [
+        {
+          path: '/api/v1/instructor/reviews/{reviewCaseId}/resolve',
+          summary: 'Publish a terminal Instructor review outcome',
+          requestSchema: 'ResolveReviewRequestDto',
+        },
+        {
+          path: '/api/v1/instructor/reviews/{reviewCaseId}/reject',
+          summary: 'Reject a Student review request',
+          requestSchema: 'RejectReviewRequestDto',
+        },
+      ]) {
+        const operation = expectProtectedOperation(document, {
+          path: expectation.path,
+          method: 'post',
+          tag: 'instructor-reviews',
+          summary: expectation.summary,
+          statuses: ['200', '400', '401', '403', '404', '409'],
+        })
+        expectRequestSchemaReference(operation, expectation.requestSchema)
+        expectResponseSchemaReference(
+          operation,
+          '200',
+          'InstructorReviewActionResponseDto',
+        )
+        expect(getParameter(operation, 'reviewCaseId')).toMatchObject({
+          in: 'path',
+          required: true,
+          schema: { type: 'string', format: 'uuid' },
+        })
+        expect(getParameter(operation, 'Idempotency-Key')).toMatchObject({
+          in: 'header',
+          required: true,
+        })
+      }
+    } finally {
+      await app.close()
+    }
+  })
+
+  it('documents the Student-safe review detail operation and allow-list', async () => {
+    const app = await createApp('test')
+
+    try {
+      const response = await request(app.getHttpServer())
+        .get('/docs-json')
+        .expect(200)
+      const document = response.body as OpenAPIObject
+      const operation = expectProtectedOperation(document, {
+        path: '/api/v1/student/reviews/{reviewCaseId}',
+        method: 'get',
+        tag: 'student-reviews',
+        summary: 'Get a Student-safe review outcome',
+        statuses: ['200', '400', '401', '403', '404'],
+      })
+      expectResponseSchemaReference(operation, '200', 'StudentReviewDetailDto')
+      expect(getParameter(operation, 'reviewCaseId')).toMatchObject({
+        in: 'path',
+        required: true,
+        schema: { type: 'string', format: 'uuid' },
+      })
+
+      const schemas = document.components?.schemas as Record<
+        string,
+        { properties?: Record<string, unknown> }
+      >
+      expect(
+        Object.keys(schemas.StudentReviewDetailDto.properties ?? {}),
+      ).toEqual([
+        'reviewCaseId',
+        'status',
+        'outcome',
+        'publishedContent',
+        'rejectionReason',
+        'requestedAt',
+        'resolvedAt',
+        'messageId',
+        'sessionId',
+      ])
+    } finally {
+      await app.close()
+    }
+  })
+
+  it('documents authenticated notification reads', async () => {
+    const app = await createApp('test')
+
+    try {
+      const response = await request(app.getHttpServer())
+        .get('/docs-json')
+        .expect(200)
+      const document = response.body as OpenAPIObject
+      const list = expectProtectedOperation(document, {
+        path: '/api/v1/notifications',
+        method: 'get',
+        tag: 'notifications',
+        summary: 'List notifications for the authenticated user',
+        statuses: ['200', '400', '401', '403'],
+      })
+      expectResponseSchemaReference(list, '200', 'NotificationListResponseDto')
+
+      const count = expectProtectedOperation(document, {
+        path: '/api/v1/notifications/unread-count',
+        method: 'get',
+        tag: 'notifications',
+        summary: 'Count unread notifications',
+        statuses: ['200', '401', '403'],
+      })
+      expectResponseSchemaReference(count, '200', 'NotificationUnreadCountDto')
+
+      const read = expectProtectedOperation(document, {
+        path: '/api/v1/notifications/{notificationId}/read',
+        method: 'post',
+        tag: 'notifications',
+        summary: 'Mark a notification as read',
+        statuses: ['200', '400', '401', '403', '404'],
+      })
+      expectResponseSchemaReference(read, '200', 'StudentNotificationDto')
+      expectResponseSchemaReference(read, '400', 'NestBadRequestErrorDto')
+      expect(getParameter(read, 'notificationId')).toMatchObject({
+        in: 'path',
+        required: true,
+        schema: { type: 'string', format: 'uuid' },
+      })
     } finally {
       await app.close()
     }

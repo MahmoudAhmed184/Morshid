@@ -2,7 +2,7 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ChatMessage } from '@/features/student/schemas/student-chat.schema'
 import {
@@ -12,6 +12,12 @@ import {
 import { ApiError } from '@/lib/api/http'
 
 import { StudentChatMessage } from './student-chat-message'
+
+const useStudentReviewDetailMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@/features/student/hooks/use-student-review-detail', () => ({
+  useStudentReviewDetail: useStudentReviewDetailMock,
+}))
 
 const assistantMessage: ChatMessage = {
   ...orderedChatMessagesFixture[1],
@@ -23,6 +29,13 @@ const assistantMessage: ChatMessage = {
 
 describe('StudentChatMessage', () => {
   afterEach(cleanup)
+  beforeEach(() => {
+    useStudentReviewDetailMock.mockReturnValue({
+      data: undefined,
+      isError: false,
+      isPending: false,
+    })
+  })
 
   it('shows grounded guidance and citation chips on tutor responses', () => {
     render(
@@ -134,9 +147,77 @@ describe('StudentChatMessage', () => {
       reviewSummary: {
         reviewCaseId: studentChatIds.primarySession,
         status: 'PENDING',
+        outcome: null,
+        resolvedAt: null,
+        hasNotification: false,
       },
     })
     expect(screen.getByText('Pending review')).toBeVisible()
+  })
+
+  it('renders a review that is currently under review', () => {
+    renderMessage(messageWithReview('IN_REVIEW', null))
+
+    expect(screen.getByText('Under review')).toBeVisible()
+    expect(
+      screen.getByText('Review request is under review'),
+    ).toBeInTheDocument()
+  })
+
+  it.each([
+    ['APPROVED', 'Approved guidance', 'Approved published answer'],
+    ['EDITED', 'Edited guidance', 'Edited published answer'],
+    ['REPLACED', 'Replacement guidance', 'Replacement published answer'],
+  ] as const)(
+    'renders the %s outcome separately below the original message',
+    (outcome, label, publishedContent) => {
+      useStudentReviewDetailMock.mockReturnValue({
+        data: reviewDetail({ outcome, publishedContent }),
+        isError: false,
+        isPending: false,
+      })
+      renderMessage(messageWithReview('RESOLVED', outcome))
+
+      const outcomeCard = screen.getByRole('region', {
+        name: 'Reviewed outcome',
+      })
+      expect(screen.getByText('Reviewed')).toBeVisible()
+      expect(outcomeCard).toHaveTextContent(label)
+      expect(outcomeCard).toHaveTextContent(publishedContent)
+      expect(outcomeCard).not.toHaveTextContent(assistantMessage.content)
+      expect(screen.getByText(assistantMessage.content)).toBeVisible()
+    },
+  )
+
+  it('renders only the student-facing rejection reason for a rejected review', () => {
+    useStudentReviewDetailMock.mockReturnValue({
+      data: {
+        ...reviewDetail({
+          outcome: 'REQUEST_REJECTED',
+          publishedContent: null,
+        }),
+        status: 'REJECTED',
+        rejectionReason: 'This request cannot be reviewed manually.',
+        instructorName: 'Private Instructor',
+        internalNotes: 'Private internal note',
+      },
+      isError: false,
+      isPending: false,
+    })
+    renderMessage(messageWithReview('REJECTED', 'REQUEST_REJECTED'))
+
+    const outcomeCard = screen.getByRole('region', {
+      name: 'Reviewed outcome',
+    })
+    expect(screen.getByText('Review rejected')).toBeVisible()
+    expect(outcomeCard).toHaveTextContent('Request rejected')
+    expect(outcomeCard).toHaveTextContent(
+      'This request cannot be reviewed manually.',
+    )
+    expect(outcomeCard).not.toHaveTextContent('Private Instructor')
+    expect(outcomeCard).not.toHaveTextContent('Private internal note')
+    expect(outcomeCard).not.toHaveTextContent('Unpublished internal content')
+    expect(screen.getByText(assistantMessage.content)).toBeVisible()
   })
 
   it('shows a friendly quota error without backend details', async () => {
@@ -197,6 +278,9 @@ function ReviewHarness() {
       reviewSummary: {
         reviewCaseId: messageId,
         status: 'PENDING',
+        outcome: null,
+        resolvedAt: null,
+        hasNotification: false,
       },
     })
     return Promise.resolve()
@@ -205,4 +289,43 @@ function ReviewHarness() {
 
 async function openRequestReview(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('button', { name: 'Request review' }))
+}
+
+function messageWithReview(
+  status: 'PENDING' | 'IN_REVIEW' | 'RESOLVED' | 'REJECTED',
+  outcome: 'APPROVED' | 'EDITED' | 'REPLACED' | 'REQUEST_REJECTED' | null,
+): ChatMessage {
+  return {
+    ...assistantMessage,
+    reviewSummary: {
+      reviewCaseId: studentChatIds.primarySession,
+      status,
+      outcome,
+      resolvedAt:
+        status === 'RESOLVED' || status === 'REJECTED'
+          ? '2026-07-15T10:00:00.000Z'
+          : null,
+      hasNotification: status === 'RESOLVED' || status === 'REJECTED',
+    },
+  }
+}
+
+function reviewDetail({
+  outcome,
+  publishedContent,
+}: {
+  outcome: 'APPROVED' | 'EDITED' | 'REPLACED' | 'REQUEST_REJECTED'
+  publishedContent: string | null
+}) {
+  return {
+    reviewCaseId: studentChatIds.primarySession,
+    status: 'RESOLVED' as const,
+    outcome,
+    publishedContent,
+    rejectionReason: null,
+    requestedAt: '2026-07-14T10:00:00.000Z',
+    resolvedAt: '2026-07-15T10:00:00.000Z',
+    messageId: assistantMessage.id,
+    sessionId: studentChatIds.primarySession,
+  }
 }

@@ -16,6 +16,7 @@ import { EmbeddingModule } from './modules/embedding/embedding.module'
 import { MaterialsModule } from './modules/materials/materials.module'
 import { RetrievalModule } from './modules/retrieval/retrieval.module'
 import { ReviewsModule } from './modules/reviews/reviews.module'
+import { NotificationsModule } from './modules/notifications/notifications.module'
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { ReviewsModule } from './modules/reviews/reviews.module'
     MaterialsModule,
     CompletionModule,
     ReviewsModule,
+    NotificationsModule,
   ],
 })
 export class AppModule {}

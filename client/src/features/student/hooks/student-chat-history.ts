@@ -123,7 +123,13 @@ export function markMessageReviewPending(
         message.id === messageId
           ? {
               ...message,
-              reviewSummary: { reviewCaseId, status: 'PENDING' as const },
+              reviewSummary: {
+                reviewCaseId,
+                status: 'PENDING' as const,
+                outcome: null,
+                resolvedAt: null,
+                hasNotification: false,
+              },
             }
           : message,
       ),
