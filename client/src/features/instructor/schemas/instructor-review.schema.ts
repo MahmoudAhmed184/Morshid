@@ -48,6 +48,7 @@ export const instructorReviewQueueItemSchema = z.object({
   status: reviewStatusSchema,
   trigger: reviewTriggerSchema,
   studentFlagReason: studentFlagReasonSchema.nullable(),
+  studentNote: z.string().max(200).nullable(),
   createdAt: z.iso.datetime(),
   age: z.number().int().nonnegative(),
   course: reviewCourseSchema,

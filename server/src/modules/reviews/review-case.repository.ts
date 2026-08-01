@@ -79,8 +79,11 @@ export class PrismaReviewCaseRepository extends ReviewCaseRepository {
     super()
   }
 
-  create(input: CreateReviewCaseInput): Promise<ReviewCaseCreationOutcome> {
-    return this.prisma.$transaction(
+  async create(
+    rawInput: CreateReviewCaseInput,
+  ): Promise<ReviewCaseCreationOutcome> {
+    const input = normalizeCreateReviewCaseInput(rawInput)
+    return await this.prisma.$transaction(
       async (tx) => {
         const fingerprint = requestFingerprint(input)
 
@@ -336,6 +339,25 @@ export class PrismaReviewCaseRepository extends ReviewCaseRepository {
       tx,
     )
   }
+}
+
+function normalizeCreateReviewCaseInput(
+  input: CreateReviewCaseInput,
+): CreateReviewCaseInput {
+  if (input.kind === 'automatic') return input
+
+  const trimmedReason = input.reason?.trim()
+  const reason =
+    trimmedReason === undefined || trimmedReason.length === 0
+      ? null
+      : trimmedReason
+  if (input.flagReason === StudentFlagReason.OTHER && reason === null) {
+    throw new Error(
+      'A non-empty note is required when the Student flag reason is OTHER',
+    )
+  }
+
+  return { ...input, reason }
 }
 
 const targetSelect = {

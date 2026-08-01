@@ -43,6 +43,7 @@ export class InstructorReviewQueueService {
         status: record.status,
         trigger: record.trigger,
         studentFlagReason: record.studentFlagReason,
+        studentNote: record.studentNote,
         createdAt: record.createdAt.toISOString(),
         age: Math.max(
           0,

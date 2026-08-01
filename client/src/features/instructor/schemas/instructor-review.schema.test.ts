@@ -73,6 +73,7 @@ const queueItem = {
   status: 'PENDING',
   trigger: 'STUDENT_REQUEST',
   studentFlagReason: null,
+  studentNote: 'student note',
   createdAt: '2026-07-29T10:00:00.000Z',
   age: 120,
   course: { id: courseId, code: 'C1', title: 'Course One' },

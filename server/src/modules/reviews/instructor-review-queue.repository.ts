@@ -17,6 +17,7 @@ export interface InstructorReviewQueueRecord {
   student: { id: string; displayName: string }
   trigger: ReviewTriggerType
   studentFlagReason: StudentFlagReason | null
+  studentNote: string | null
 }
 
 export interface InstructorReviewQueuePage {
@@ -120,7 +121,7 @@ export class PrismaInstructorReviewQueueRepository extends InstructorReviewQueue
           },
           triggers: {
             orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-            select: { type: true, studentFlagReason: true },
+            select: { type: true, studentFlagReason: true, reason: true },
           },
         },
         orderBy: [{ status: 'asc' }, { createdAt: 'desc' }, { id: 'desc' }],
@@ -148,6 +149,7 @@ export class PrismaInstructorReviewQueueRepository extends InstructorReviewQueue
           student: reviewCase.targetMessage.session.student,
           trigger: trigger.type,
           studentFlagReason: studentRequest?.studentFlagReason ?? null,
+          studentNote: studentRequest?.reason ?? null,
         }
       }),
       pendingCount,

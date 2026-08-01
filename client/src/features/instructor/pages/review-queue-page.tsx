@@ -368,6 +368,11 @@ function ReviewQueueCards({ items }: { items: InstructorReviewQueueItem[] }) {
                       {studentFlagReasonLabel(item.studentFlagReason)}
                     </Badge>
                   ) : null}
+                  {item.studentNote ? (
+                    <span className="max-w-80 truncate">
+                      Student note: {item.studentNote}
+                    </span>
+                  ) : null}
                   <span className="inline-flex items-center gap-1">
                     <Clock3 className="size-3.5" aria-hidden />
                     {formatAge(item.age)} ago

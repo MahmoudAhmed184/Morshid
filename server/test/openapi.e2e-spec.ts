@@ -186,7 +186,7 @@ describe('OpenAPI contract (e2e)', () => {
         operation.parameters?.map((parameter) =>
           '$ref' in parameter ? parameter.$ref : parameter.name,
         ),
-      ).toEqual(['limit', 'cursor', 'courseId'])
+      ).toEqual(['limit', 'studentFlagReason', 'cursor', 'courseId'])
 
       const schemas = document.components?.schemas as Record<
         string,
@@ -198,6 +198,8 @@ describe('OpenAPI contract (e2e)', () => {
         'reviewCaseId',
         'status',
         'trigger',
+        'studentFlagReason',
+        'studentNote',
         'createdAt',
         'age',
         'course',
@@ -245,6 +247,7 @@ describe('OpenAPI contract (e2e)', () => {
         'version',
         'canReject',
         'trigger',
+        'studentFlagReason',
         'createdAt',
         'requestedAt',
         'studentNote',

@@ -84,6 +84,10 @@ export class InstructorReviewQueueItemDto {
   studentFlagReason!: StudentFlagReason | null
 
   @Expose()
+  @ApiProperty({ nullable: true, maxLength: 200 })
+  studentNote!: string | null
+
+  @Expose()
   @ApiProperty({ format: 'date-time' })
   createdAt!: string
 

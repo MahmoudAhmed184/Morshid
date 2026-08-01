@@ -302,17 +302,19 @@ export async function createInstructorReviewAcceptanceFixture(): Promise<Instruc
     [randomUUID(), ownedMessageIds[3], ids.chunk],
   )
 
-  for (const [reviewCaseId, messageId, courseId, note] of [
+  for (const [reviewCaseId, messageId, courseId, flagReason, note] of [
     [
       ids.reviewCase,
       ownedMessageIds[3],
       ids.ownedCourse,
+      'INCORRECT',
       'Acceptance student note',
     ],
     [
       ids.otherReviewCase,
       otherAssistantMessage,
       ids.otherCourse,
+      'CONFUSING',
       'Other private note',
     ],
   ] as const) {
@@ -324,9 +326,9 @@ export async function createInstructorReviewAcceptanceFixture(): Promise<Instruc
     )
     await client.query(
       `INSERT INTO review_triggers
-        (id, review_case_id, type, actor_user_id, reason, created_at)
-       VALUES ($1, $2, 'STUDENT_REQUEST', $3, $4, now() - interval '5 minutes')`,
-      [randomUUID(), reviewCaseId, ids.student, note],
+        (id, review_case_id, type, actor_user_id, student_flag_reason, reason, created_at)
+       VALUES ($1, $2, 'STUDENT_REQUEST', $3, $4, $5, now() - interval '5 minutes')`,
+      [randomUUID(), reviewCaseId, ids.student, flagReason, note],
     )
   }
 

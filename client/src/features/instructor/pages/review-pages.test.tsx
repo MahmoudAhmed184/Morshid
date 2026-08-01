@@ -265,6 +265,7 @@ describe('Instructor review pages', () => {
           ...queueItem(),
           trigger: 'CITATION_MISSING',
           studentFlagReason: null,
+          studentNote: null,
         },
       ]),
     )
@@ -288,6 +289,7 @@ describe('Instructor review pages', () => {
           reviewCaseId: '10000000-0000-4000-8000-000000000099',
           trigger: 'CITATION_MISSING',
           studentFlagReason: null,
+          studentNote: null,
           student: {
             id: '20000000-0000-4000-8000-000000000099',
             displayName: 'Citation Student',
@@ -589,6 +591,7 @@ function queueItem(): InstructorReviewQueueItem {
     status: 'PENDING' as const,
     trigger: 'STUDENT_REQUEST' as const,
     studentFlagReason: 'INCORRECT' as const,
+    studentNote: 'Please verify this answer.',
     createdAt: '2026-07-29T10:00:00.000Z',
     age: 120,
     course: { id: courseId, code: 'C1', title: 'Course One' },

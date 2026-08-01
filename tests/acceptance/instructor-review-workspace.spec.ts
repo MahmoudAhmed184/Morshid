@@ -42,6 +42,8 @@ test.describe('Instructor review queue and bounded detail', () => {
     await expect(card).toContainText(fixture.ownedCourseTitle)
     await expect(card).toContainText('Awaiting Review')
     await expect(card).toContainText('Student request')
+    await expect(card).toContainText('Seems incorrect')
+    await expect(card).toContainText('Acceptance student note')
     await expect(card).toContainText(/\d+m/)
     await expect(card.getByRole('link', { name: 'Review' })).toBeVisible()
     await expect(page.getByText(fixture.otherCourseTitle)).toHaveCount(0)
@@ -78,6 +80,29 @@ test.describe('Instructor review queue and bounded detail', () => {
     await expect(dialog).toBeHidden()
   })
 
+  test('filters categorized Student requests while preserving queue controls', async ({
+    page,
+  }) => {
+    await signInThroughUi(page, { email: fixture.instructorEmail })
+    await page.goto('/instructor/review-queue')
+
+    const incorrect = page.getByRole('button', { name: 'Seems incorrect' })
+    await incorrect.click()
+    await expect(incorrect).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByText(fixture.studentLabel)).toBeVisible()
+    await expect(
+      page.getByRole('button', { name: 'All courses' }),
+    ).toBeVisible()
+    await expect(
+      page.getByRole('button', { name: 'All triggers' }),
+    ).toBeVisible()
+
+    await page.getByRole('button', { name: 'Confusing or unclear' }).click()
+    await expect(
+      page.getByRole('heading', { name: 'No matching reviews' }),
+    ).toBeVisible()
+  })
+
   test('renders bounded evidence and excludes unrelated or private data', async ({
     page,
   }) => {
@@ -88,6 +113,7 @@ test.describe('Instructor review queue and bounded detail', () => {
       page.getByRole('heading', { name: 'Review detail' }),
     ).toBeVisible()
     await expect(page.getByText('Acceptance student note')).toBeVisible()
+    await expect(page.getByText('Seems incorrect')).toBeVisible()
     await expect(page.getByText('Flagged acceptance question')).toBeVisible()
     await expect(
       page.getByText('Flagged acceptance assistant response'),
@@ -138,7 +164,9 @@ test.describe('Instructor review queue and bounded detail', () => {
     await page.goto('/instructor/review-queue')
 
     await expect(
-      page.getByRole('heading', { name: 'No review requests' }),
+      page.getByText(
+        'New flagged responses from your assigned courses will appear here.',
+      ),
     ).toBeVisible()
     await expect(page.getByText('0 pending')).toBeVisible()
   })

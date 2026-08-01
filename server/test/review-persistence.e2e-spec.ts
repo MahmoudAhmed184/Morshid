@@ -252,6 +252,113 @@ describe('Review persistence seam (e2e)', () => {
     ).toBe(1)
   })
 
+  it('enforces Student flag reason trigger shape in the database', async () => {
+    const fixture = await createReviewableMessage('trigger-shape')
+    const automatic = await repository.create({
+      kind: 'automatic',
+      messageId: fixture.assistantMessageId,
+      trigger: 'POLICY_CHECK_FAILED',
+      sourceEventKey: 'trigger-shape-automatic',
+      evidence: { summary: 'Policy threshold was not met' },
+    })
+    expect(automatic.kind).toBe('ok')
+    if (automatic.kind !== 'ok') {
+      throw new Error('Expected automatic review case creation to succeed')
+    }
+
+    await expect(
+      requireDatabase().prisma.$executeRaw`
+        INSERT INTO "review_triggers" (
+          "review_case_id",
+          "type",
+          "student_flag_reason",
+          "source_event_key"
+        ) VALUES (
+          ${automatic.record.caseId}::uuid,
+          'CITATION_MISSING',
+          'INCORRECT',
+          'trigger-shape-invalid'
+        )
+      `,
+    ).rejects.toThrow()
+
+    const manualFixture = await createReviewableMessage('trigger-shape-manual')
+    await expect(
+      repository.create({
+        kind: 'manual',
+        messageId: manualFixture.assistantMessageId,
+        actorUserId: manualFixture.studentId,
+        flagReason: StudentFlagReason.INCORRECT,
+        reason: null,
+        idempotencyKey: 'trigger-shape-manual',
+      }),
+    ).resolves.toMatchObject({ kind: 'ok' })
+  })
+
+  it('normalizes notes and requires a non-empty note only for OTHER', async () => {
+    const validOther = await createReviewableMessage('other-valid')
+    await expect(
+      repository.create({
+        kind: 'manual',
+        messageId: validOther.assistantMessageId,
+        actorUserId: validOther.studentId,
+        flagReason: StudentFlagReason.OTHER,
+        reason: '  Please check another concern  ',
+        idempotencyKey: 'other-valid',
+      }),
+    ).resolves.toMatchObject({ kind: 'ok' })
+    await expect(
+      requireDatabase().prisma.reviewTrigger.findFirstOrThrow({
+        where: {
+          reviewCase: { targetMessageId: validOther.assistantMessageId },
+        },
+        select: { reason: true },
+      }),
+    ).resolves.toEqual({ reason: 'Please check another concern' })
+
+    for (const [label, reason] of [
+      ['null', null],
+      ['blank', '   '],
+    ] as const) {
+      const invalidOther = await createReviewableMessage(`other-${label}`)
+      await expect(
+        repository.create({
+          kind: 'manual',
+          messageId: invalidOther.assistantMessageId,
+          actorUserId: invalidOther.studentId,
+          flagReason: StudentFlagReason.OTHER,
+          reason,
+          idempotencyKey: `other-${label}`,
+        }),
+      ).rejects.toThrow('A non-empty note is required')
+      await expect(
+        requireDatabase().prisma.reviewCase.count({
+          where: { targetMessageId: invalidOther.assistantMessageId },
+        }),
+      ).resolves.toBe(0)
+    }
+
+    const optionalNote = await createReviewableMessage('optional-note')
+    await expect(
+      repository.create({
+        kind: 'manual',
+        messageId: optionalNote.assistantMessageId,
+        actorUserId: optionalNote.studentId,
+        flagReason: StudentFlagReason.CONFUSING,
+        reason: '   ',
+        idempotencyKey: 'optional-note',
+      }),
+    ).resolves.toMatchObject({ kind: 'ok' })
+    await expect(
+      requireDatabase().prisma.reviewTrigger.findFirstOrThrow({
+        where: {
+          reviewCase: { targetMessageId: optionalNote.assistantMessageId },
+        },
+        select: { reason: true },
+      }),
+    ).resolves.toEqual({ reason: null })
+  })
+
   it('derives course ownership, conceals a foreign Student target, and rejects oversized evidence atomically', async () => {
     const owned = await createReviewableMessage('ownership')
     const foreign = await createReviewableMessage('foreign')

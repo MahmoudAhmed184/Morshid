@@ -83,16 +83,27 @@ describe('PrismaInstructorReviewQueueRepository', () => {
           {
             type: ReviewTriggerType.STUDENT_REQUEST,
             studentFlagReason: 'INCORRECT',
+            reason: 'Please verify this answer',
           },
         ],
       },
     ])
     count.mockResolvedValue(1)
 
-    await repository.list({
-      instructorId: 'instructor-1',
-      cursor: 'case-0',
-      take: 26,
+    await expect(
+      repository.list({
+        instructorId: 'instructor-1',
+        cursor: 'case-0',
+        take: 26,
+      }),
+    ).resolves.toMatchObject({
+      records: [
+        {
+          trigger: ReviewTriggerType.STUDENT_REQUEST,
+          studentFlagReason: StudentFlagReason.INCORRECT,
+          studentNote: 'Please verify this answer',
+        },
+      ],
     })
 
     expect(findMany).toHaveBeenCalledWith(
