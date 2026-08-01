@@ -132,6 +132,43 @@ test.describe('Instructor review queue and bounded detail', () => {
     await expect(page.getByText('Other private answer')).toHaveCount(0)
   })
 
+  test('resolves the review and exposes one unread Student notification', async ({
+    browser,
+  }) => {
+    const instructorContext = await browser.newContext()
+    const instructorPage = await instructorContext.newPage()
+    await signInThroughUi(instructorPage, { email: fixture.instructorEmail })
+    await instructorPage.goto(
+      `/instructor/review-queue/${fixture.reviewCaseId}`,
+    )
+    await instructorPage
+      .getByRole('button', { name: 'Approve original guidance' })
+      .click()
+    await expect(
+      instructorPage.getByText('Resolved', { exact: true }),
+    ).toBeVisible()
+    await expect(
+      instructorPage.getByText('Flagged acceptance assistant response'),
+    ).toBeVisible()
+    await instructorContext.close()
+
+    const studentContext = await browser.newContext()
+    const studentPage = await studentContext.newPage()
+    await signInThroughUi(studentPage, { email: fixture.secrets.studentEmail })
+    const notifications = studentPage.getByRole('button', {
+      name: 'Notifications, 1 unread',
+    })
+    await expect(notifications).toBeVisible()
+    await notifications.click()
+    const completed = studentPage.getByText('Instructor review completed')
+    await expect(completed).toBeVisible()
+    await completed.click()
+    await expect(
+      studentPage.getByRole('button', { name: 'Notifications', exact: true }),
+    ).toBeVisible()
+    await studentContext.close()
+  })
+
   test('conceals unowned and guessed review ids identically', async ({
     page,
   }) => {
