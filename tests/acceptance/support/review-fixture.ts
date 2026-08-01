@@ -356,6 +356,10 @@ export async function createInstructorReviewAcceptanceFixture(): Promise<Instruc
     },
     async dispose() {
       await client.query(
+        'DELETE FROM notifications WHERE review_case_id = ANY($1::uuid[])',
+        [[ids.reviewCase, ids.otherReviewCase]],
+      )
+      await client.query(
         'DELETE FROM review_cases WHERE id = ANY($1::uuid[])',
         [[ids.reviewCase, ids.otherReviewCase]],
       )
@@ -370,6 +374,10 @@ export async function createInstructorReviewAcceptanceFixture(): Promise<Instruc
       await client.query('DELETE FROM materials WHERE id = $1', [ids.material])
       await client.query(
         'DELETE FROM course_memberships WHERE course_id = ANY($1::uuid[])',
+        [[ids.ownedCourse, ids.otherCourse]],
+      )
+      await client.query(
+        'DELETE FROM audit_logs WHERE course_id = ANY($1::uuid[])',
         [[ids.ownedCourse, ids.otherCourse]],
       )
       await client.query('DELETE FROM courses WHERE id = ANY($1::uuid[])', [
