@@ -10,6 +10,7 @@ import {
   ReviewOutcome,
   ReviewStatus,
   ReviewTriggerType,
+  StudentFlagReason,
 } from '../../generated/prisma/client'
 import { AuditService } from '../audit/audit.service'
 import type { AuditRequestContext } from '../audit/audit.service'
@@ -29,6 +30,7 @@ export type CreateReviewCaseInput =
       kind: 'manual'
       messageId: string
       actorUserId: string
+      flagReason: StudentFlagReason
       reason: string | null
       idempotencyKey: string
       requestContext?: AuditRequestContext
@@ -77,8 +79,11 @@ export class PrismaReviewCaseRepository extends ReviewCaseRepository {
     super()
   }
 
-  create(input: CreateReviewCaseInput): Promise<ReviewCaseCreationOutcome> {
-    return this.prisma.$transaction(
+  async create(
+    rawInput: CreateReviewCaseInput,
+  ): Promise<ReviewCaseCreationOutcome> {
+    const input = normalizeCreateReviewCaseInput(rawInput)
+    return await this.prisma.$transaction(
       async (tx) => {
         const fingerprint = requestFingerprint(input)
 
@@ -336,6 +341,25 @@ export class PrismaReviewCaseRepository extends ReviewCaseRepository {
   }
 }
 
+function normalizeCreateReviewCaseInput(
+  input: CreateReviewCaseInput,
+): CreateReviewCaseInput {
+  if (input.kind === 'automatic') return input
+
+  const trimmedReason = input.reason?.trim()
+  const reason =
+    trimmedReason === undefined || trimmedReason.length === 0
+      ? null
+      : trimmedReason
+  if (input.flagReason === StudentFlagReason.OTHER && reason === null) {
+    throw new Error(
+      'A non-empty note is required when the Student flag reason is OTHER',
+    )
+  }
+
+  return { ...input, reason }
+}
+
 const targetSelect = {
   id: true,
   sequence: true,
@@ -494,6 +518,7 @@ function triggerData(
     ? {
         type: ReviewTriggerType.STUDENT_REQUEST,
         actorUserId: input.actorUserId,
+        studentFlagReason: input.flagReason,
         reason: input.reason,
       }
     : {
@@ -525,7 +550,11 @@ function requestFingerprint(input: CreateReviewCaseInput): string {
   return sha256(
     JSON.stringify(
       input.kind === 'manual'
-        ? { messageId: input.messageId, reason: input.reason }
+        ? {
+            messageId: input.messageId,
+            flagReason: input.flagReason,
+            note: input.reason,
+          }
         : { messageId: input.messageId, sourceEventKey: input.sourceEventKey },
     ),
   )

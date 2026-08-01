@@ -313,11 +313,33 @@ export const sendStudentChatMessageRequestSchema = z
   })
   .strict()
 
+export const studentFlagReasonSchema = z.enum([
+  'INCORRECT',
+  'CONFUSING',
+  'UNHELPFUL',
+  'COURSE_MISMATCH',
+  'TOO_MUCH_ANSWER',
+  'OTHER',
+])
+
 export const createStudentReviewRequestSchema = z
   .object({
-    note: z.string().max(200).nullable(),
+    flagReason: studentFlagReasonSchema,
+    note: z.preprocess(
+      (value) => (typeof value === 'string' ? value.trim() || null : value),
+      z.string().max(200).nullable(),
+    ),
   })
   .strict()
+  .superRefine(({ flagReason, note }, context) => {
+    if (flagReason === 'OTHER' && note === null) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Add a note when selecting Other',
+        path: ['note'],
+      })
+    }
+  })
 
 export const createStudentReviewResponseSchema = z
   .object({
@@ -384,6 +406,10 @@ export type RenameChatSessionInput = z.input<
 >
 export type SendStudentChatMessageInput = z.input<
   typeof sendStudentChatMessageRequestSchema
+>
+export type StudentFlagReason = z.infer<typeof studentFlagReasonSchema>
+export type CreateStudentReviewRequest = z.infer<
+  typeof createStudentReviewRequestSchema
 >
 export type CreateStudentReviewResponse = z.infer<
   typeof createStudentReviewResponseSchema

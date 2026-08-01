@@ -5,6 +5,7 @@ import {
   MessageRole,
   ReviewStatus,
   ReviewTriggerType,
+  StudentFlagReason,
 } from '../../generated/prisma/client'
 import { StudentReviewSummaryDto } from './review-case.dto'
 import {
@@ -97,6 +98,14 @@ export class InstructorReviewDetailDto {
   @Expose()
   @ApiProperty({ enum: ReviewTriggerType, enumName: 'ReviewTriggerType' })
   trigger!: ReviewTriggerType
+
+  @Expose()
+  @ApiProperty({
+    enum: StudentFlagReason,
+    enumName: 'StudentFlagReason',
+    nullable: true,
+  })
+  studentFlagReason!: StudentFlagReason | null
 
   @Expose()
   @ApiProperty({ format: 'date-time' })

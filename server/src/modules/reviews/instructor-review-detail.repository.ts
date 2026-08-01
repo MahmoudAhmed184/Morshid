@@ -7,6 +7,7 @@ import {
   type ReviewOutcome,
   ReviewStatus,
   ReviewTriggerType,
+  type StudentFlagReason,
 } from '../../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 
@@ -27,7 +28,9 @@ export interface InstructorReviewDetailRecord {
   outcome: ReviewOutcome | null
   resolvedAt: Date | null
   createdAt: Date
-  trigger: { type: ReviewTriggerType; reason: string | null; createdAt: Date }
+  trigger: { type: ReviewTriggerType; createdAt: Date }
+  studentFlagReason: StudentFlagReason | null
+  studentNote: string | null
   course: { id: string; code: string; title: string }
   student: { id: string; displayName: string }
   flaggedExchange: ReviewDetailMessageRecord
@@ -85,7 +88,12 @@ export class PrismaInstructorReviewDetailRepository extends InstructorReviewDeta
         course: { select: { id: true, code: true, title: true } },
         triggers: {
           orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-          select: { type: true, reason: true, createdAt: true },
+          select: {
+            type: true,
+            studentFlagReason: true,
+            reason: true,
+            createdAt: true,
+          },
         },
         targetMessage: {
           select: {
@@ -131,6 +139,9 @@ export class PrismaInstructorReviewDetailRepository extends InstructorReviewDeta
     })
 
     const trigger = reviewCase?.triggers[0]
+    const studentRequest = reviewCase?.triggers.find(
+      ({ type }) => type === ReviewTriggerType.STUDENT_REQUEST,
+    )
     const flagged = reviewCase?.targetMessage.responseToMessage
     if (
       reviewCase === null ||
@@ -183,6 +194,8 @@ export class PrismaInstructorReviewDetailRepository extends InstructorReviewDeta
       resolvedAt: reviewCase.resolvedAt,
       createdAt: reviewCase.createdAt,
       trigger,
+      studentFlagReason: studentRequest?.studentFlagReason ?? null,
+      studentNote: studentRequest?.reason ?? null,
       course: reviewCase.course,
       student: reviewCase.targetMessage.session.student,
       flaggedExchange: flagged,

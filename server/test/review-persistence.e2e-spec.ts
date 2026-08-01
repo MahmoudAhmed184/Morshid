@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
+import { StudentFlagReason } from '../src/generated/prisma/client'
 import { AuditService } from '../src/modules/audit/audit.service'
 import { PrismaReviewCaseRepository } from '../src/modules/reviews/review-case.repository'
 import { seedP0DemoData } from '../src/seeds/p0-demo.seed'
@@ -81,6 +82,22 @@ describe('Review persistence seam (e2e)', () => {
       'RESOLVED',
       'REJECTED',
     ])
+
+    const studentFlagReasons = await prisma.$queryRaw<{ enumlabel: string }[]>`
+      SELECT enumlabel
+      FROM pg_enum
+      JOIN pg_type ON pg_type.oid = pg_enum.enumtypid
+      WHERE pg_type.typname = 'student_flag_reason'
+      ORDER BY enumsortorder
+    `
+    expect(studentFlagReasons.map(({ enumlabel }) => enumlabel)).toEqual([
+      'INCORRECT',
+      'CONFUSING',
+      'UNHELPFUL',
+      'COURSE_MISMATCH',
+      'TOO_MUCH_ANSWER',
+      'OTHER',
+    ])
   })
 
   it('resolves concurrent duplicate attempts to one case and consumes quota once', async () => {
@@ -93,6 +110,7 @@ describe('Review persistence seam (e2e)', () => {
         kind: 'manual',
         messageId: firstMessageId,
         actorUserId: fixture.studentId,
+        flagReason: StudentFlagReason.INCORRECT,
         reason: 'Please verify',
         idempotencyKey: 'concurrent-a',
       }),
@@ -100,6 +118,7 @@ describe('Review persistence seam (e2e)', () => {
         kind: 'manual',
         messageId: firstMessageId,
         actorUserId: fixture.studentId,
+        flagReason: StudentFlagReason.INCORRECT,
         reason: 'Please verify',
         idempotencyKey: 'concurrent-b',
       }),
@@ -111,6 +130,15 @@ describe('Review persistence seam (e2e)', () => {
       throw new Error('Expected both concurrent review requests to succeed')
     }
     expect(first.record.caseId).toBe(second.record.caseId)
+    await expect(
+      requireDatabase().prisma.reviewTrigger.findFirstOrThrow({
+        where: { reviewCaseId: first.record.caseId },
+        select: { studentFlagReason: true, reason: true },
+      }),
+    ).resolves.toEqual({
+      studentFlagReason: StudentFlagReason.INCORRECT,
+      reason: 'Please verify',
+    })
     expect(
       await requireDatabase().prisma.reviewCase.count({
         where: { requestedByUserId: fixture.studentId },
@@ -136,6 +164,7 @@ describe('Review persistence seam (e2e)', () => {
           kind: 'manual',
           messageId,
           actorUserId: fixture.studentId,
+          flagReason: StudentFlagReason.CONFUSING,
           reason: null,
           idempotencyKey: `concurrent-distinct-${String(index)}`,
         }),
@@ -146,6 +175,7 @@ describe('Review persistence seam (e2e)', () => {
         kind: 'manual',
         messageId: fourthMessageId,
         actorUserId: fixture.studentId,
+        flagReason: StudentFlagReason.CONFUSING,
         reason: null,
         idempotencyKey: 'concurrent-fourth',
       }),
@@ -160,6 +190,7 @@ describe('Review persistence seam (e2e)', () => {
         kind: 'manual',
         messageId,
         actorUserId: fixture.studentId,
+        flagReason: StudentFlagReason.UNHELPFUL,
         reason: `Request ${String(index + 1)}`,
         idempotencyKey: `daily-quota-${String(index + 1)}`,
       })
@@ -187,6 +218,7 @@ describe('Review persistence seam (e2e)', () => {
       kind: 'manual' as const,
       messageId: fixture.assistantMessageId,
       actorUserId: fixture.studentId,
+      flagReason: StudentFlagReason.COURSE_MISMATCH,
       reason: null,
       idempotencyKey: 'stable-key',
     }
@@ -195,7 +227,7 @@ describe('Review persistence seam (e2e)', () => {
     const replay = await repository.create(input)
     const conflict = await repository.create({
       ...input,
-      reason: 'Different request',
+      flagReason: StudentFlagReason.TOO_MUCH_ANSWER,
     })
 
     expect(created.kind).toBe('ok')
@@ -220,6 +252,113 @@ describe('Review persistence seam (e2e)', () => {
     ).toBe(1)
   })
 
+  it('enforces Student flag reason trigger shape in the database', async () => {
+    const fixture = await createReviewableMessage('trigger-shape')
+    const automatic = await repository.create({
+      kind: 'automatic',
+      messageId: fixture.assistantMessageId,
+      trigger: 'POLICY_CHECK_FAILED',
+      sourceEventKey: 'trigger-shape-automatic',
+      evidence: { summary: 'Policy threshold was not met' },
+    })
+    expect(automatic.kind).toBe('ok')
+    if (automatic.kind !== 'ok') {
+      throw new Error('Expected automatic review case creation to succeed')
+    }
+
+    await expect(
+      requireDatabase().prisma.$executeRaw`
+        INSERT INTO "review_triggers" (
+          "review_case_id",
+          "type",
+          "student_flag_reason",
+          "source_event_key"
+        ) VALUES (
+          ${automatic.record.caseId}::uuid,
+          'CITATION_MISSING',
+          'INCORRECT',
+          'trigger-shape-invalid'
+        )
+      `,
+    ).rejects.toThrow()
+
+    const manualFixture = await createReviewableMessage('trigger-shape-manual')
+    await expect(
+      repository.create({
+        kind: 'manual',
+        messageId: manualFixture.assistantMessageId,
+        actorUserId: manualFixture.studentId,
+        flagReason: StudentFlagReason.INCORRECT,
+        reason: null,
+        idempotencyKey: 'trigger-shape-manual',
+      }),
+    ).resolves.toMatchObject({ kind: 'ok' })
+  })
+
+  it('normalizes notes and requires a non-empty note only for OTHER', async () => {
+    const validOther = await createReviewableMessage('other-valid')
+    await expect(
+      repository.create({
+        kind: 'manual',
+        messageId: validOther.assistantMessageId,
+        actorUserId: validOther.studentId,
+        flagReason: StudentFlagReason.OTHER,
+        reason: '  Please check another concern  ',
+        idempotencyKey: 'other-valid',
+      }),
+    ).resolves.toMatchObject({ kind: 'ok' })
+    await expect(
+      requireDatabase().prisma.reviewTrigger.findFirstOrThrow({
+        where: {
+          reviewCase: { targetMessageId: validOther.assistantMessageId },
+        },
+        select: { reason: true },
+      }),
+    ).resolves.toEqual({ reason: 'Please check another concern' })
+
+    for (const [label, reason] of [
+      ['null', null],
+      ['blank', '   '],
+    ] as const) {
+      const invalidOther = await createReviewableMessage(`other-${label}`)
+      await expect(
+        repository.create({
+          kind: 'manual',
+          messageId: invalidOther.assistantMessageId,
+          actorUserId: invalidOther.studentId,
+          flagReason: StudentFlagReason.OTHER,
+          reason,
+          idempotencyKey: `other-${label}`,
+        }),
+      ).rejects.toThrow('A non-empty note is required')
+      await expect(
+        requireDatabase().prisma.reviewCase.count({
+          where: { targetMessageId: invalidOther.assistantMessageId },
+        }),
+      ).resolves.toBe(0)
+    }
+
+    const optionalNote = await createReviewableMessage('optional-note')
+    await expect(
+      repository.create({
+        kind: 'manual',
+        messageId: optionalNote.assistantMessageId,
+        actorUserId: optionalNote.studentId,
+        flagReason: StudentFlagReason.CONFUSING,
+        reason: '   ',
+        idempotencyKey: 'optional-note',
+      }),
+    ).resolves.toMatchObject({ kind: 'ok' })
+    await expect(
+      requireDatabase().prisma.reviewTrigger.findFirstOrThrow({
+        where: {
+          reviewCase: { targetMessageId: optionalNote.assistantMessageId },
+        },
+        select: { reason: true },
+      }),
+    ).resolves.toEqual({ reason: null })
+  })
+
   it('derives course ownership, conceals a foreign Student target, and rejects oversized evidence atomically', async () => {
     const owned = await createReviewableMessage('ownership')
     const foreign = await createReviewableMessage('foreign')
@@ -228,6 +367,7 @@ describe('Review persistence seam (e2e)', () => {
       kind: 'manual',
       messageId: owned.assistantMessageId,
       actorUserId: owned.studentId,
+      flagReason: StudentFlagReason.INCORRECT,
       reason: null,
       idempotencyKey: 'owned-key',
     })
@@ -250,6 +390,7 @@ describe('Review persistence seam (e2e)', () => {
         kind: 'manual',
         messageId: owned.assistantMessageId,
         actorUserId: foreign.studentId,
+        flagReason: StudentFlagReason.INCORRECT,
         reason: null,
         idempotencyKey: 'foreign-key',
       }),

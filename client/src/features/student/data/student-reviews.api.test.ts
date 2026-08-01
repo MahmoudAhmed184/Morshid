@@ -38,7 +38,7 @@ describe('Student review API', () => {
     ).resolves.toEqual(response)
   })
 
-  it('sends only the note and required idempotency key', async () => {
+  it('sends the category, normalized note, and required idempotency key', async () => {
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         expect(String(input)).toBe(
@@ -48,7 +48,10 @@ describe('Student review API', () => {
         expect(new Headers(init?.headers).get('Idempotency-Key')).toBe(
           'review-key',
         )
-        expect(JSON.parse(String(init?.body))).toEqual({ note: null })
+        expect(JSON.parse(String(init?.body))).toEqual({
+          flagReason: 'CONFUSING',
+          note: 'Please clarify',
+        })
         return Response.json(
           {
             caseId: studentChatIds.primarySession,
@@ -72,7 +75,8 @@ describe('Student review API', () => {
 
     await requestStudentReview({
       messageId: studentChatIds.assistantMessage,
-      note: null,
+      flagReason: 'CONFUSING',
+      note: '  Please clarify  ',
       idempotencyKey: 'review-key',
       options: { fetchImpl: fetchMock },
     })

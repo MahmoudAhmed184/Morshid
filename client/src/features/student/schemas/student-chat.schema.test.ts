@@ -5,6 +5,7 @@ import {
   chatSessionListResponseSchema,
   chatSessionResponseSchema,
   createChatSessionRequestSchema,
+  createStudentReviewRequestSchema,
   deleteChatSessionResponseSchema,
   listChatMessagesInputSchema,
   renameChatSessionRequestSchema,
@@ -22,6 +23,49 @@ import {
 } from '../testing/student-chat.fixtures'
 
 describe('Student chat contract schemas', () => {
+  it.each([
+    'INCORRECT',
+    'CONFUSING',
+    'UNHELPFUL',
+    'COURSE_MISMATCH',
+    'TOO_MUCH_ANSWER',
+    'OTHER',
+  ] as const)('accepts the %s Student flag reason', (flagReason) => {
+    expect(
+      createStudentReviewRequestSchema.parse({
+        flagReason,
+        note: flagReason === 'OTHER' ? 'Another concern' : null,
+      }),
+    ).toEqual({
+      flagReason,
+      note: flagReason === 'OTHER' ? 'Another concern' : null,
+    })
+  })
+
+  it('normalizes notes and requires a non-empty note for OTHER', () => {
+    expect(
+      createStudentReviewRequestSchema.parse({
+        flagReason: 'OTHER',
+        note: '  Another concern  ',
+      }),
+    ).toEqual({ flagReason: 'OTHER', note: 'Another concern' })
+    expect(() =>
+      createStudentReviewRequestSchema.parse({
+        flagReason: 'OTHER',
+        note: '   ',
+      }),
+    ).toThrow()
+    expect(() =>
+      createStudentReviewRequestSchema.parse({ note: null }),
+    ).toThrow()
+    expect(() =>
+      createStudentReviewRequestSchema.parse({
+        flagReason: 'INVALID',
+        note: null,
+      }),
+    ).toThrow()
+  })
+
   it('accepts valid session list and ordered message history responses', () => {
     expect(
       chatSessionListResponseSchema.parse(chatSessionListResponseFixture),

@@ -2,7 +2,11 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type { ApiError } from '@/features/auth/api/authenticated-api-client'
 
-import { rejectReviewCase, resolveReviewCase } from './instructor-reviews.api'
+import {
+  listInstructorReviews,
+  rejectReviewCase,
+  resolveReviewCase,
+} from './instructor-reviews.api'
 
 const reviewCaseId = '10000000-0000-4000-8000-000000000001'
 const actionResponse = {
@@ -17,6 +21,43 @@ const actionResponse = {
 } as const
 
 describe('Instructor review action API', () => {
+  it('sends Student reason and cursor filters without changing pagination', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input))
+      expect(url.pathname).toBe('/api/v1/instructor/reviews')
+      expect(url.searchParams.get('limit')).toBe('25')
+      expect(url.searchParams.get('cursor')).toBe(reviewCaseId)
+      expect(url.searchParams.get('studentFlagReason')).toBe('UNHELPFUL')
+      return Response.json({
+        items: [],
+        pendingCount: 0,
+        nextCursor: null,
+      })
+    })
+
+    await listInstructorReviews(reviewCaseId, 'UNHELPFUL', {
+      fetchImpl: fetchMock,
+    })
+
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('omits the Student reason filter when none is selected', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input))
+      expect(url.searchParams.has('studentFlagReason')).toBe(false)
+      return Response.json({
+        items: [],
+        pendingCount: 0,
+        nextCursor: null,
+      })
+    })
+
+    await listInstructorReviews(null, null, { fetchImpl: fetchMock })
+
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
   it('resolves a review with version and idempotency headers', async () => {
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {

@@ -99,6 +99,17 @@ enum ReviewTriggerType {
   @@map("review_trigger_type")
 }
 
+enum StudentFlagReason {
+  INCORRECT
+  CONFUSING
+  UNHELPFUL
+  COURSE_MISMATCH
+  TOO_MUCH_ANSWER
+  OTHER
+
+  @@map("student_flag_reason")
+}
+
 enum ReviewActionType {
   CREATED
   TRIGGER_ADDED
@@ -296,14 +307,15 @@ model ReviewCase {
 }
 
 model ReviewTrigger {
-  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  reviewCaseId     String            @map("review_case_id") @db.Uuid
-  type             ReviewTriggerType
-  actorUserId      String?           @map("actor_user_id") @db.Uuid
-  reason           String?           @db.VarChar(200)
-  sourceEventKey   String?           @map("source_event_key") @db.VarChar(200)
-  detectorMetadata Json              @default("{}") @map("detector_metadata") @db.JsonB
-  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reviewCaseId      String             @map("review_case_id") @db.Uuid
+  type              ReviewTriggerType
+  actorUserId       String?            @map("actor_user_id") @db.Uuid
+  studentFlagReason StudentFlagReason? @map("student_flag_reason")
+  reason            String?            @db.VarChar(200)
+  sourceEventKey    String?            @map("source_event_key") @db.VarChar(200)
+  detectorMetadata  Json               @default("{}") @map("detector_metadata") @db.JsonB
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
 
   reviewCase ReviewCase @relation(fields: [reviewCaseId], references: [id], onDelete: Cascade)
   actor      User?      @relation("ReviewTriggerActor", fields: [actorUserId], references: [id], onDelete: SetNull)

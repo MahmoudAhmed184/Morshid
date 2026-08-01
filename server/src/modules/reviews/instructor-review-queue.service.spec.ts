@@ -1,6 +1,7 @@
 import {
   ReviewStatus,
   ReviewTriggerType,
+  StudentFlagReason,
   UserRole,
   UserStatus,
 } from '../../generated/prisma/client'
@@ -58,6 +59,7 @@ describe('InstructorReviewQueueService', () => {
       instructorId: user.id,
       courseId: undefined,
       cursor: 'previous-case',
+      studentFlagReason: undefined,
       take: 3,
     })
     expect(result).toEqual({
@@ -66,6 +68,9 @@ describe('InstructorReviewQueueService', () => {
           reviewCaseId: 'case-3',
           age: 60,
           pending: true,
+          trigger: ReviewTriggerType.STUDENT_REQUEST,
+          studentFlagReason: StudentFlagReason.INCORRECT,
+          studentNote: 'Please verify this answer',
         }),
         expect.objectContaining({
           reviewCaseId: 'case-2',
@@ -80,6 +85,8 @@ describe('InstructorReviewQueueService', () => {
       'reviewCaseId',
       'status',
       'trigger',
+      'studentFlagReason',
+      'studentNote',
       'createdAt',
       'age',
       'course',
@@ -93,6 +100,8 @@ describe('InstructorReviewQueueService', () => {
       id,
       status,
       trigger: ReviewTriggerType.STUDENT_REQUEST,
+      studentFlagReason: StudentFlagReason.INCORRECT,
+      studentNote: 'Please verify this answer',
       createdAt: new Date(createdAt),
       course: { id: 'course-1', code: 'C1', title: 'Course One' },
       student: { id: 'student-1', displayName: 'Safe Student' },

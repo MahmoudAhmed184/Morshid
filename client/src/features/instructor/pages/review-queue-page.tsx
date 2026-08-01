@@ -20,7 +20,14 @@ import { StatusBadge } from '@/components/ui/custom/status-badge/status-badge'
 import { Input } from '@/components/ui/input'
 import { InstructorListSkeleton } from '@/features/instructor/components/instructor-list-skeleton'
 import { useInstructorReviewQueue } from '@/features/instructor/hooks/use-instructor-reviews'
-import type { InstructorReviewQueueItem } from '@/features/instructor/schemas/instructor-review.schema'
+import type {
+  InstructorReviewQueueItem,
+  StudentFlagReason,
+} from '@/features/instructor/schemas/instructor-review.schema'
+import {
+  studentFlagReasonLabel,
+  studentFlagReasons,
+} from '@/features/instructor/student-flag-reason'
 import { cn } from '@/lib/utils'
 
 type QueueStatus = 'ALL' | InstructorReviewQueueItem['status']
@@ -34,8 +41,19 @@ const statusTabs: { value: QueueStatus; label: string }[] = [
   { value: 'REJECTED', label: 'Rejected' },
 ]
 
+const triggerOptions: QueueTrigger[] = [
+  'STUDENT_REQUEST',
+  'GENERAL_NOT_FOUND',
+  'CITATION_MISSING',
+  'SOURCE_CONFLICT',
+  'POLICY_CHECK_FAILED',
+  'FINAL_ANSWER_RISK',
+]
+
 export function ReviewQueuePage() {
-  const query = useInstructorReviewQueue()
+  const [studentFlagReason, setStudentFlagReason] =
+    useState<StudentFlagReason | null>(null)
+  const query = useInstructorReviewQueue(studentFlagReason)
   const pages = query.data?.pages ?? []
   const items = pages.flatMap((page) => page.items)
   const pendingCount = pages[0]?.pendingCount ?? 0
@@ -43,11 +61,20 @@ export function ReviewQueuePage() {
   const [status, setStatus] = useState<QueueStatus>('ALL')
   const [courseId, setCourseId] = useState<string | null>(null)
   const [trigger, setTrigger] = useState<QueueTrigger | null>(null)
+  const [preservedCourses, setPreservedCourses] = useState<
+    InstructorReviewQueueItem['course'][]
+  >([])
   const normalizedSearch = search.trim().toLowerCase()
-  const courses = Array.from(
+  const currentCourses = Array.from(
     new Map(items.map((item) => [item.course.id, item.course])).values(),
   )
-  const triggers = Array.from(new Set(items.map((item) => item.trigger)))
+  const courses = studentFlagReason === null ? currentCourses : preservedCourses
+
+  function selectStudentFlagReason(reason: StudentFlagReason) {
+    if (studentFlagReason === null) setPreservedCourses(currentCourses)
+    setStudentFlagReason(reason)
+  }
+
   const filteredItems = items.filter((item) => {
     const matchesStatus = status === 'ALL' || item.status === status
     const matchesCourse = courseId === null || item.course.id === courseId
@@ -131,77 +158,115 @@ export function ReviewQueuePage() {
             })}
           </div>
 
-          {courses.length > 0 ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <div
-                className="flex flex-wrap items-center gap-2"
-                aria-label="Filter by course"
+          <div className="flex flex-wrap items-center gap-2">
+            <div
+              className="flex flex-wrap items-center gap-2"
+              aria-label="Filter by course"
+            >
+              <Button
+                type="button"
+                size="sm"
+                aria-pressed={courseId === null}
+                variant={courseId === null ? 'default' : 'outline'}
+                className="h-8 rounded-full"
+                onClick={() => setCourseId(null)}
               >
+                All courses
+              </Button>
+              {courses.map((course) => (
                 <Button
+                  key={course.id}
                   type="button"
                   size="sm"
-                  variant={courseId === null ? 'default' : 'outline'}
+                  aria-pressed={courseId === course.id}
+                  variant={courseId === course.id ? 'default' : 'outline'}
                   className="h-8 rounded-full"
-                  onClick={() => setCourseId(null)}
+                  onClick={() => setCourseId(course.id)}
                 >
-                  All courses
+                  {course.code}
                 </Button>
-                {courses.map((course) => (
-                  <Button
-                    key={course.id}
-                    type="button"
-                    size="sm"
-                    variant={courseId === course.id ? 'default' : 'outline'}
-                    className="h-8 rounded-full"
-                    onClick={() => setCourseId(course.id)}
-                  >
-                    {course.code}
-                  </Button>
-                ))}
-              </div>
-
-              <span
-                className="mx-1 hidden h-6 w-px bg-border sm:block"
-                aria-hidden
-              />
-
-              <div
-                className="flex flex-wrap items-center gap-2"
-                aria-label="Filter by trigger"
-              >
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={trigger === null ? 'secondary' : 'outline'}
-                  className="h-8 rounded-full"
-                  onClick={() => setTrigger(null)}
-                >
-                  All triggers
-                </Button>
-                {triggers.map((availableTrigger) => (
-                  <Button
-                    key={availableTrigger}
-                    type="button"
-                    size="sm"
-                    variant={
-                      trigger === availableTrigger ? 'secondary' : 'outline'
-                    }
-                    className={cn(
-                      'h-8 rounded-full',
-                      availableTrigger === 'STUDENT_REQUEST' &&
-                        'border-info/25 bg-info/10 text-info hover:bg-info/15 hover:text-info',
-                      trigger === availableTrigger &&
-                        availableTrigger === 'STUDENT_REQUEST' &&
-                        'ring-2 ring-info/25',
-                    )}
-                    onClick={() => setTrigger(availableTrigger)}
-                  >
-                    {humanize(availableTrigger)}
-                  </Button>
-                ))}
-              </div>
+              ))}
             </div>
-          ) : null}
+
+            <span
+              className="mx-1 hidden h-6 w-px bg-border sm:block"
+              aria-hidden
+            />
+
+            <div
+              className="flex flex-wrap items-center gap-2"
+              aria-label="Filter by trigger"
+            >
+              <Button
+                type="button"
+                size="sm"
+                aria-pressed={trigger === null}
+                variant={trigger === null ? 'secondary' : 'outline'}
+                className="h-8 rounded-full"
+                onClick={() => setTrigger(null)}
+              >
+                All triggers
+              </Button>
+              {triggerOptions.map((availableTrigger) => (
+                <Button
+                  key={availableTrigger}
+                  type="button"
+                  size="sm"
+                  aria-pressed={trigger === availableTrigger}
+                  variant={
+                    trigger === availableTrigger ? 'secondary' : 'outline'
+                  }
+                  className={cn(
+                    'h-8 rounded-full',
+                    availableTrigger === 'STUDENT_REQUEST' &&
+                      'border-info/25 bg-info/10 text-info hover:bg-info/15 hover:text-info',
+                    trigger === availableTrigger &&
+                      availableTrigger === 'STUDENT_REQUEST' &&
+                      'ring-2 ring-info/25',
+                  )}
+                  onClick={() => setTrigger(availableTrigger)}
+                >
+                  {humanize(availableTrigger)}
+                </Button>
+              ))}
+            </div>
+
+            <span
+              className="mx-1 hidden h-6 w-px bg-border sm:block"
+              aria-hidden
+            />
+
+            <div
+              className="flex flex-wrap items-center gap-2"
+              aria-label="Filter by Student reason"
+            >
+              <Button
+                type="button"
+                size="sm"
+                aria-pressed={studentFlagReason === null}
+                variant={studentFlagReason === null ? 'secondary' : 'outline'}
+                className="h-8 rounded-full"
+                onClick={() => setStudentFlagReason(null)}
+              >
+                All Student reasons
+              </Button>
+              {studentFlagReasons.map((reason) => (
+                <Button
+                  key={reason}
+                  type="button"
+                  size="sm"
+                  aria-pressed={studentFlagReason === reason}
+                  variant={
+                    studentFlagReason === reason ? 'secondary' : 'outline'
+                  }
+                  className="h-8 rounded-full"
+                  onClick={() => selectStudentFlagReason(reason)}
+                >
+                  {studentFlagReasonLabel(reason)}
+                </Button>
+              ))}
+            </div>
+          </div>
         </CardHeader>
 
         <CardContent className="p-4 sm:p-5">
@@ -217,7 +282,7 @@ export function ReviewQueuePage() {
               isRetrying={query.isFetching}
               className="min-h-44"
             />
-          ) : items.length === 0 ? (
+          ) : items.length === 0 && studentFlagReason === null ? (
             <EmptyState
               icon={<ClipboardCheck aria-hidden />}
               title="No review requests"
@@ -228,7 +293,7 @@ export function ReviewQueuePage() {
             <EmptyState
               icon={<Search aria-hidden />}
               title="No matching reviews"
-              description="Try another search term, status, course, or trigger filter."
+              description="Try another search term, status, course, trigger, or Student reason filter."
               className="min-h-44"
             />
           ) : (
@@ -298,6 +363,16 @@ function ReviewQueueCards({ items }: { items: InstructorReviewQueueItem[] }) {
                   >
                     {humanize(item.trigger)}
                   </Badge>
+                  {item.studentFlagReason ? (
+                    <Badge variant="outline">
+                      {studentFlagReasonLabel(item.studentFlagReason)}
+                    </Badge>
+                  ) : null}
+                  {item.studentNote ? (
+                    <span className="max-w-80 truncate">
+                      Student note: {item.studentNote}
+                    </span>
+                  ) : null}
                   <span className="inline-flex items-center gap-1">
                     <Clock3 className="size-3.5" aria-hidden />
                     {formatAge(item.age)} ago

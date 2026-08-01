@@ -30,7 +30,7 @@ import {
 import { OpenApiErrorDto } from '../../common/http/openapi-error.dto'
 import { ApiAccessTokenAuth } from '../../common/http/openapi.decorators'
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe'
-import { UserRole } from '../../generated/prisma/client'
+import { StudentFlagReason, UserRole } from '../../generated/prisma/client'
 import type { AuthenticatedHttpRequest } from '../auth/auth.guard'
 import { Roles } from '../auth/roles.decorator'
 import { invalidReviewRequestException } from './review-case.errors'
@@ -84,6 +84,12 @@ export class InstructorReviewQueueController {
   })
   @ApiQuery({ name: 'courseId', required: false, format: 'uuid' })
   @ApiQuery({ name: 'cursor', required: false, format: 'uuid' })
+  @ApiQuery({
+    name: 'studentFlagReason',
+    required: false,
+    enum: StudentFlagReason,
+    enumName: 'StudentFlagReason',
+  })
   @ApiQuery({
     name: 'limit',
     required: false,
