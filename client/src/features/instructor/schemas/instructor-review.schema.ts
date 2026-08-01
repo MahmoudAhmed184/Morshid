@@ -23,6 +23,15 @@ const reviewTriggerSchema = z.enum([
   'FINAL_ANSWER_RISK',
 ])
 
+export const studentFlagReasonSchema = z.enum([
+  'INCORRECT',
+  'CONFUSING',
+  'UNHELPFUL',
+  'COURSE_MISMATCH',
+  'TOO_MUCH_ANSWER',
+  'OTHER',
+])
+
 const reviewCourseSchema = z.object({
   id: z.uuid(),
   code: z.string(),
@@ -38,6 +47,7 @@ export const instructorReviewQueueItemSchema = z.object({
   reviewCaseId: z.uuid(),
   status: reviewStatusSchema,
   trigger: reviewTriggerSchema,
+  studentFlagReason: studentFlagReasonSchema.nullable(),
   createdAt: z.iso.datetime(),
   age: z.number().int().nonnegative(),
   course: reviewCourseSchema,
@@ -80,6 +90,7 @@ export const instructorReviewDetailSchema = z.object({
   version: z.number().int().positive(),
   canReject: z.boolean(),
   trigger: reviewTriggerSchema,
+  studentFlagReason: studentFlagReasonSchema.nullable(),
   createdAt: z.iso.datetime(),
   requestedAt: z.iso.datetime(),
   studentNote: z.string().max(200).nullable(),

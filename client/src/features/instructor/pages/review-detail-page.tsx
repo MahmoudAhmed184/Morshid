@@ -18,6 +18,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { InstructorReviewActionPanel } from '@/features/instructor/components/instructor-review-action-panel'
 import { useInstructorReviewDetail } from '@/features/instructor/hooks/use-instructor-reviews'
 import type { InstructorReviewExchange } from '@/features/instructor/schemas/instructor-review.schema'
+import { studentFlagReasonLabel } from '@/features/instructor/student-flag-reason'
 import { cn } from '@/lib/utils'
 
 export function ReviewDetailPage({
@@ -132,6 +133,16 @@ export function ReviewDetailPage({
           />
         </div>
       )}
+
+      {review.studentFlagReason ? (
+        <Alert className="border-info/20 bg-info/[0.04] py-4">
+          <MessageSquareText aria-hidden />
+          <AlertTitle>Student flag category</AlertTitle>
+          <AlertDescription>
+            {studentFlagReasonLabel(review.studentFlagReason)}
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       {review.studentNote ? (
         <Alert

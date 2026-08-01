@@ -12,6 +12,7 @@ import {
   useResolveInstructorReview,
 } from '@/features/instructor/hooks/use-instructor-reviews'
 import type { InstructorReviewQueueItem } from '@/features/instructor/schemas/instructor-review.schema'
+import { instructorReviewDetailSchema } from '@/features/instructor/schemas/instructor-review.schema'
 
 import { ReviewDetailPage } from './review-detail-page'
 import { ReviewQueuePage } from './review-queue-page'
@@ -47,6 +48,14 @@ const reviewCaseId = '10000000-0000-4000-8000-000000000001'
 const courseId = '20000000-0000-4000-8000-000000000001'
 const studentId = '30000000-0000-4000-8000-000000000001'
 const materialId = '40000000-0000-4000-8000-000000000001'
+const studentFlagReasonCases = [
+  ['INCORRECT', 'Seems incorrect'],
+  ['CONFUSING', 'Confusing or unclear'],
+  ['UNHELPFUL', 'Not helpful'],
+  ['COURSE_MISMATCH', 'Doesn’t match course material'],
+  ['TOO_MUCH_ANSWER', 'Gave away too much'],
+  ['OTHER', 'Other'],
+] as const
 
 function queryResult<T>(data: T, overrides: Record<string, unknown> = {}) {
   return {
@@ -136,6 +145,50 @@ describe('Instructor review pages', () => {
     ).toHaveAttribute('href', `/instructor/review-queue/${reviewCaseId}`)
   })
 
+  it('shows the Student flag category in the queue without replacing the trigger', () => {
+    useQueueMock.mockReturnValue(queueQuery([queueItem()]))
+    render(<ReviewQueuePage />)
+
+    expect(screen.getAllByText('Student request').length).toBeGreaterThan(0)
+    expect(screen.getByText('Seems incorrect')).toBeVisible()
+  })
+
+  it.each(studentFlagReasonCases)(
+    'accepts and renders the %s Student flag category as %s',
+    (studentFlagReason, label) => {
+      const parsed = instructorReviewDetailSchema.parse({
+        ...detail(),
+        studentFlagReason,
+      })
+      useDetailMock.mockReturnValue(
+        queryResult(parsed) as unknown as ReturnType<
+          typeof useInstructorReviewDetail
+        >,
+      )
+
+      render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
+
+      expect(parsed.studentFlagReason).toBe(studentFlagReason)
+      expect(screen.getByText(label)).toBeVisible()
+    },
+  )
+
+  it('does not show a Student category for an automatic queue trigger', () => {
+    useQueueMock.mockReturnValue(
+      queueQuery([
+        {
+          ...queueItem(),
+          trigger: 'CITATION_MISSING',
+          studentFlagReason: null,
+        },
+      ]),
+    )
+    render(<ReviewQueuePage />)
+
+    expect(screen.getAllByText('Citation missing').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Seems incorrect')).not.toBeInTheDocument()
+  })
+
   it('filters loaded reviews by trigger', async () => {
     const user = userEvent.setup()
     useQueueMock.mockReturnValue(
@@ -145,6 +198,7 @@ describe('Instructor review pages', () => {
           ...queueItem(),
           reviewCaseId: '10000000-0000-4000-8000-000000000099',
           trigger: 'CITATION_MISSING',
+          studentFlagReason: null,
           student: {
             id: '20000000-0000-4000-8000-000000000099',
             displayName: 'Citation Student',
@@ -176,6 +230,31 @@ describe('Instructor review pages', () => {
     expect(screen.getByText('Following question')).toBeVisible()
     expect(screen.getByText('Following answer')).toBeVisible()
     expect(screen.getByText('Bounded citation snippet')).toBeVisible()
+    expect(screen.getByText('Student flag category')).toBeVisible()
+    expect(screen.getByText('Confusing or unclear')).toBeVisible()
+  })
+
+  it('does not show a Student category for an automatic review detail', () => {
+    useDetailMock.mockReturnValue(
+      detailQuery({
+        trigger: 'CITATION_MISSING',
+        studentFlagReason: null,
+        studentNote: null,
+      }),
+    )
+    render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
+
+    expect(screen.getByText('Citation missing')).toBeVisible()
+    expect(screen.queryByText('Student flag category')).not.toBeInTheDocument()
+  })
+
+  it('rejects unknown Student flag categories in Instructor detail responses', () => {
+    expect(() =>
+      instructorReviewDetailSchema.parse({
+        ...detail(),
+        studentFlagReason: 'UNKNOWN_REASON',
+      }),
+    ).toThrow()
   })
 
   it('uses compact metadata in the dialog presentation', () => {
@@ -420,6 +499,7 @@ function queueItem(): InstructorReviewQueueItem {
     reviewCaseId,
     status: 'PENDING' as const,
     trigger: 'STUDENT_REQUEST' as const,
+    studentFlagReason: 'INCORRECT' as const,
     createdAt: '2026-07-29T10:00:00.000Z',
     age: 120,
     course: { id: courseId, code: 'C1', title: 'Course One' },
@@ -440,6 +520,7 @@ function detail() {
     version: 3,
     canReject: true,
     trigger: 'STUDENT_REQUEST' as const,
+    studentFlagReason: 'CONFUSING' as const,
     createdAt: '2026-07-29T10:00:00.000Z',
     requestedAt: '2026-07-29T10:00:01.000Z',
     studentNote: 'Please check the explanation.',

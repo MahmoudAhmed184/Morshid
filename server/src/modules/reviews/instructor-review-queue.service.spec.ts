@@ -1,6 +1,7 @@
 import {
   ReviewStatus,
   ReviewTriggerType,
+  StudentFlagReason,
   UserRole,
   UserStatus,
 } from '../../generated/prisma/client'
@@ -80,6 +81,7 @@ describe('InstructorReviewQueueService', () => {
       'reviewCaseId',
       'status',
       'trigger',
+      'studentFlagReason',
       'createdAt',
       'age',
       'course',
@@ -93,6 +95,7 @@ describe('InstructorReviewQueueService', () => {
       id,
       status,
       trigger: ReviewTriggerType.STUDENT_REQUEST,
+      studentFlagReason: StudentFlagReason.INCORRECT,
       createdAt: new Date(createdAt),
       course: { id: 'course-1', code: 'C1', title: 'Course One' },
       student: { id: 'student-1', displayName: 'Safe Student' },

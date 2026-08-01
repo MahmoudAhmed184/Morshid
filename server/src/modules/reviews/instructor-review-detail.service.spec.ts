@@ -2,6 +2,7 @@ import {
   MessageRole,
   ReviewStatus,
   ReviewTriggerType,
+  StudentFlagReason,
   UserRole,
   UserStatus,
 } from '../../generated/prisma/client'
@@ -44,6 +45,7 @@ describe('InstructorReviewDetailService', () => {
       'version',
       'canReject',
       'trigger',
+      'studentFlagReason',
       'createdAt',
       'requestedAt',
       'studentNote',
@@ -76,9 +78,10 @@ describe('InstructorReviewDetailService', () => {
       createdAt,
       trigger: {
         type: ReviewTriggerType.STUDENT_REQUEST,
-        reason: 'Please check',
         createdAt,
       },
+      studentFlagReason: StudentFlagReason.CONFUSING,
+      studentNote: 'Please check',
       course: { id: 'course-1', code: 'C1', title: 'Course One' },
       student: { id: 'student-1', displayName: 'Safe Student' },
       flaggedExchange: message(MessageRole.STUDENT, 'flagged question'),

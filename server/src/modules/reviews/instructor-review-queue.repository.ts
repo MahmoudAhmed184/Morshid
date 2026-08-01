@@ -4,7 +4,8 @@ import {
   CourseMembershipRole,
   Prisma,
   ReviewStatus,
-  type ReviewTriggerType,
+  ReviewTriggerType,
+  type StudentFlagReason,
 } from '../../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 
@@ -15,6 +16,7 @@ export interface InstructorReviewQueueRecord {
   course: { id: string; code: string; title: string }
   student: { id: string; displayName: string }
   trigger: ReviewTriggerType
+  studentFlagReason: StudentFlagReason | null
 }
 
 export interface InstructorReviewQueuePage {
@@ -104,8 +106,7 @@ export class PrismaInstructorReviewQueueRepository extends InstructorReviewQueue
           },
           triggers: {
             orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-            take: 1,
-            select: { type: true },
+            select: { type: true, studentFlagReason: true },
           },
         },
         orderBy: [{ status: 'asc' }, { createdAt: 'desc' }, { id: 'desc' }],
@@ -122,6 +123,9 @@ export class PrismaInstructorReviewQueueRepository extends InstructorReviewQueue
     return {
       records: cases.map((reviewCase) => {
         const trigger = reviewCase.triggers[0]
+        const studentRequest = reviewCase.triggers.find(
+          ({ type }) => type === ReviewTriggerType.STUDENT_REQUEST,
+        )
         return {
           id: reviewCase.id,
           status: reviewCase.status,
@@ -129,6 +133,7 @@ export class PrismaInstructorReviewQueueRepository extends InstructorReviewQueue
           course: reviewCase.course,
           student: reviewCase.targetMessage.session.student,
           trigger: trigger.type,
+          studentFlagReason: studentRequest?.studentFlagReason ?? null,
         }
       }),
       pendingCount,

@@ -2,7 +2,11 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
 import { Expose, Type } from 'class-transformer'
 import { z } from 'zod'
 
-import { ReviewStatus, ReviewTriggerType } from '../../generated/prisma/client'
+import {
+  ReviewStatus,
+  ReviewTriggerType,
+  StudentFlagReason,
+} from '../../generated/prisma/client'
 
 export const instructorReviewQueueQuerySchema = z
   .object({
@@ -63,6 +67,14 @@ export class InstructorReviewQueueItemDto {
   @Expose()
   @ApiProperty({ enum: ReviewTriggerType, enumName: 'ReviewTriggerType' })
   trigger!: ReviewTriggerType
+
+  @Expose()
+  @ApiProperty({
+    enum: StudentFlagReason,
+    enumName: 'StudentFlagReason',
+    nullable: true,
+  })
+  studentFlagReason!: StudentFlagReason | null
 
   @Expose()
   @ApiProperty({ format: 'date-time' })

@@ -122,6 +122,7 @@ describe('PrismaInstructorReviewDetailRepository', () => {
           status,
           triggers: triggers.map((type) => ({
             type,
+            studentFlagReason: null,
             reason: null,
             createdAt: new Date('2026-07-29T10:00:01.000Z'),
           })),
@@ -134,6 +135,36 @@ describe('PrismaInstructorReviewDetailRepository', () => {
       ).resolves.toMatchObject({ version: 3, canReject: expected })
     },
   )
+
+  it('preserves the automatic primary trigger and reads Student request fields separately', async () => {
+    findReview.mockResolvedValue(
+      reviewRecord({
+        triggers: [
+          {
+            type: ReviewTriggerType.SOURCE_CONFLICT,
+            studentFlagReason: null,
+            reason: 'automatic reason',
+            createdAt: new Date('2026-07-29T10:00:01.000Z'),
+          },
+          {
+            type: ReviewTriggerType.STUDENT_REQUEST,
+            studentFlagReason: 'INCORRECT',
+            reason: 'student note',
+            createdAt: new Date('2026-07-29T10:00:02.000Z'),
+          },
+        ],
+      }),
+    )
+    findMessages.mockResolvedValue([])
+
+    await expect(
+      repository.findAuthorized('instructor-1', 'review-1'),
+    ).resolves.toMatchObject({
+      trigger: { type: ReviewTriggerType.SOURCE_CONFLICT },
+      studentFlagReason: 'INCORRECT',
+      studentNote: 'student note',
+    })
+  })
 
   it('selects only bounded review data and never queries unrelated messages', async () => {
     findReview.mockResolvedValue(reviewRecord())
@@ -181,6 +212,7 @@ describe('PrismaInstructorReviewDetailRepository', () => {
       triggers: [
         {
           type: ReviewTriggerType.STUDENT_REQUEST,
+          studentFlagReason: 'CONFUSING',
           reason: 'Please check',
           createdAt: new Date('2026-07-29T10:00:01.000Z'),
         },

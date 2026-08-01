@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/input'
 import { InstructorListSkeleton } from '@/features/instructor/components/instructor-list-skeleton'
 import { useInstructorReviewQueue } from '@/features/instructor/hooks/use-instructor-reviews'
 import type { InstructorReviewQueueItem } from '@/features/instructor/schemas/instructor-review.schema'
+import { studentFlagReasonLabel } from '@/features/instructor/student-flag-reason'
 import { cn } from '@/lib/utils'
 
 type QueueStatus = 'ALL' | InstructorReviewQueueItem['status']
@@ -298,6 +299,11 @@ function ReviewQueueCards({ items }: { items: InstructorReviewQueueItem[] }) {
                   >
                     {humanize(item.trigger)}
                   </Badge>
+                  {item.studentFlagReason ? (
+                    <Badge variant="outline">
+                      {studentFlagReasonLabel(item.studentFlagReason)}
+                    </Badge>
+                  ) : null}
                   <span className="inline-flex items-center gap-1">
                     <Clock3 className="size-3.5" aria-hidden />
                     {formatAge(item.age)} ago

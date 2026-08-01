@@ -78,7 +78,12 @@ describe('PrismaInstructorReviewQueueRepository', () => {
         targetMessage: {
           session: { student: { id: 'student-1', displayName: 'Student' } },
         },
-        triggers: [{ type: ReviewTriggerType.STUDENT_REQUEST }],
+        triggers: [
+          {
+            type: ReviewTriggerType.STUDENT_REQUEST,
+            studentFlagReason: 'INCORRECT',
+          },
+        ],
       },
     ])
     count.mockResolvedValue(1)
