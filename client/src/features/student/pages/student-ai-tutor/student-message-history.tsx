@@ -8,7 +8,10 @@ import {
   isStudentChatApiError,
   STUDENT_CHAT_ERROR_CODES,
 } from '@/features/student/data/student-chat.errors'
-import type { ChatMessage } from '@/features/student/schemas/student-chat.schema'
+import type {
+  ChatMessage,
+  StudentFlagReason,
+} from '@/features/student/schemas/student-chat.schema'
 
 import { StudentChatMessage } from './student-chat-message'
 import { StudentSuggestionRows } from './student-suggestion-rows'
@@ -33,6 +36,7 @@ interface StudentMessageHistoryProps {
   onRetryResponse: (studentMessageId: string) => void
   onRequestReview: (input: {
     messageId: string
+    flagReason: StudentFlagReason
     note: string
   }) => Promise<unknown>
   onSuggestionSelect: (text: string) => void

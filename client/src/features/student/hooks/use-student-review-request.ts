@@ -5,6 +5,7 @@ import { requestStudentReview } from '@/features/student/data/student-reviews.ap
 import { studentSessionKeys } from '@/features/student/data/student-sessions.queries'
 import { markMessageReviewPending } from '@/features/student/hooks/student-chat-history'
 import type { MessageHistoryData } from '@/features/student/hooks/student-chat-history'
+import type { StudentFlagReason } from '@/features/student/schemas/student-chat.schema'
 
 interface UseStudentReviewRequestInput {
   courseId: string
@@ -19,10 +20,19 @@ export function useStudentReviewRequest({
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ messageId, note }: { messageId: string; note: string }) =>
+    mutationFn: ({
+      messageId,
+      flagReason,
+      note,
+    }: {
+      messageId: string
+      flagReason: StudentFlagReason
+      note: string
+    }) =>
       requestStudentReview({
         messageId,
-        note: note.trim() || null,
+        flagReason,
+        note,
         idempotencyKey: crypto.randomUUID(),
       }),
     onSuccess: (response) => {

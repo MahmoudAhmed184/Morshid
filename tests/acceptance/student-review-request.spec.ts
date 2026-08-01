@@ -35,8 +35,11 @@ test('Student review remains pending across refresh and reopen, deduplicates, en
       name: 'Request Instructor review',
     })
     await expect(dialog).toBeVisible()
+    const incorrectReason = dialog.getByRole('radio', {
+      name: 'Seems incorrect',
+    })
+    await expect(incorrectReason).toBeFocused()
     const note = dialog.getByRole('textbox', { name: 'Note (optional)' })
-    await expect(note).toBeFocused()
     await expect(note).toHaveAttribute('aria-describedby', /review-note-count/)
     await page.keyboard.press('Tab')
     await page.keyboard.press('Tab')
@@ -46,6 +49,7 @@ test('Student review remains pending across refresh and reopen, deduplicates, en
     await expect(dialog).toBeHidden()
 
     await openReviewDialog(actionButtons.first())
+    await incorrectReason.check()
     await note.fill('Please verify the explanation')
     const firstResponsePromise = page.waitForResponse(
       (response) =>
@@ -81,7 +85,10 @@ test('Student review remains pending across refresh and reopen, deduplicates, en
     const duplicate = await request.post(
       `${apiBaseUrl}/api/v1/messages/${fixture.messageIds[0]}/review-requests`,
       {
-        data: { note: 'Please verify the explanation' },
+        data: {
+          flagReason: 'INCORRECT',
+          note: 'Please verify the explanation',
+        },
         headers: {
           Authorization: `Bearer ${accessToken}`,
           'Idempotency-Key': `browser-duplicate-${crypto.randomUUID()}`,
@@ -102,6 +109,7 @@ test('Student review remains pending across refresh and reopen, deduplicates, en
       await openReviewDialog(
         message.getByRole('button', { name: 'Request review' }),
       )
+      await page.getByRole('radio', { name: 'Seems incorrect' }).check()
       await page.getByRole('button', { name: 'Submit request' }).click()
       await expect(
         message.locator('[data-slot="badge"]', {
@@ -118,6 +126,7 @@ test('Student review remains pending across refresh and reopen, deduplicates, en
       name: 'Request review',
     })
     await openReviewDialog(fourthActions)
+    await page.getByRole('radio', { name: 'Seems incorrect' }).check()
     const submit = page.getByRole('button', { name: 'Submit request' })
     await submit.click()
     const quotaError = page.getByRole('alert')

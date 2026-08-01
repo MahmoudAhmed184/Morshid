@@ -383,6 +383,13 @@ export async function createReviewBrowserFixture(
 
 async function clearStudentReviews(client: Client, studentId: string) {
   await client.query(
+    `DELETE FROM notifications
+     WHERE review_case_id IN (
+       SELECT id FROM review_cases WHERE requested_by_user_id = $1
+     )`,
+    [studentId],
+  )
+  await client.query(
     `DELETE FROM idempotency_records
      WHERE actor_user_id = $1 AND operation_scope = 'review.create.manual'`,
     [studentId],

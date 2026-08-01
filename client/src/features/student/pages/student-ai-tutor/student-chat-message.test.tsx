@@ -4,7 +4,10 @@ import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ChatMessage } from '@/features/student/schemas/student-chat.schema'
+import type {
+  ChatMessage,
+  StudentFlagReason,
+} from '@/features/student/schemas/student-chat.schema'
 import {
   orderedChatMessagesFixture,
   studentChatIds,
@@ -125,10 +128,139 @@ describe('StudentChatMessage', () => {
     expect(screen.getByText('0 characters remaining')).toBeVisible()
   })
 
+  it('renders an accessibly named review reason radio group', async () => {
+    const user = userEvent.setup()
+    renderMessage(assistantMessage)
+    await openRequestReview(user)
+
+    const group = screen.getByRole('radiogroup', { name: 'Reason' })
+    expect(group).toBeVisible()
+    expect(screen.getAllByRole('radio')).toHaveLength(6)
+  })
+
+  it.each([
+    ['Seems incorrect', 'INCORRECT'],
+    ['Confusing or unclear', 'CONFUSING'],
+    ['Not helpful', 'UNHELPFUL'],
+    ['Doesn’t match course material', 'COURSE_MISMATCH'],
+    ['Gave away too much', 'TOO_MUCH_ANSWER'],
+    ['Other', 'OTHER'],
+  ] as const)('maps %s to %s', async (label, value) => {
+    const user = userEvent.setup()
+    renderMessage(assistantMessage)
+    await openRequestReview(user)
+
+    const radio = screen.getByRole('radio', { name: label })
+    expect(radio).toHaveAttribute('value', value)
+    await user.click(radio)
+    expect(radio).toBeChecked()
+  })
+
+  it('blocks submission until a category is selected', async () => {
+    const user = userEvent.setup()
+    const onRequestReview = vi.fn(() => Promise.resolve())
+    renderMessage(assistantMessage, onRequestReview)
+    await openRequestReview(user)
+    await user.click(screen.getByRole('button', { name: 'Submit request' }))
+
+    expect(onRequestReview).not.toHaveBeenCalled()
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Choose a reason for requesting review.',
+    )
+  })
+
+  it('supports keyboard selection and submits the selected value', async () => {
+    const user = userEvent.setup()
+    const onRequestReview = vi.fn(() => Promise.resolve())
+    renderMessage(assistantMessage, onRequestReview)
+    await openRequestReview(user)
+
+    const incorrect = screen.getByRole('radio', { name: 'Seems incorrect' })
+    const confusing = screen.getByRole('radio', {
+      name: 'Confusing or unclear',
+    })
+    incorrect.focus()
+    expect(incorrect).toHaveFocus()
+    await user.keyboard('{ArrowRight}')
+    expect(confusing).toHaveFocus()
+    expect(confusing).toBeChecked()
+    await user.click(screen.getByRole('button', { name: 'Submit request' }))
+    expect(onRequestReview).toHaveBeenCalledWith({
+      messageId: assistantMessage.id,
+      flagReason: 'CONFUSING',
+      note: '',
+    })
+  })
+
+  it('submits a non-OTHER category without a note', async () => {
+    const user = userEvent.setup()
+    const onRequestReview = vi.fn(() => Promise.resolve())
+    renderMessage(assistantMessage, onRequestReview)
+    await openRequestReview(user)
+    await user.click(screen.getByRole('radio', { name: 'Seems incorrect' }))
+    await user.click(screen.getByRole('button', { name: 'Submit request' }))
+
+    expect(onRequestReview).toHaveBeenCalledWith({
+      messageId: assistantMessage.id,
+      flagReason: 'INCORRECT',
+      note: '',
+    })
+  })
+
+  it('requires and trims a note for OTHER', async () => {
+    const user = userEvent.setup()
+    const onRequestReview = vi.fn(() => Promise.resolve())
+    renderMessage(assistantMessage, onRequestReview)
+    await openRequestReview(user)
+    await user.click(screen.getByRole('radio', { name: 'Other' }))
+    await user.click(screen.getByRole('button', { name: 'Submit request' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Add a note when selecting Other.',
+    )
+    expect(onRequestReview).not.toHaveBeenCalled()
+
+    await user.type(
+      screen.getByRole('textbox', { name: 'Note (required)' }),
+      '  Another concern  ',
+    )
+    await user.click(screen.getByRole('button', { name: 'Submit request' }))
+    expect(onRequestReview).toHaveBeenCalledWith({
+      messageId: assistantMessage.id,
+      flagReason: 'OTHER',
+      note: 'Another concern',
+    })
+  })
+
+  it('disables dialog controls while submission is pending', async () => {
+    const user = userEvent.setup()
+    let resolveRequest: (() => void) | undefined
+    const onRequestReview = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveRequest = resolve
+        }),
+    )
+    renderMessage(assistantMessage, onRequestReview)
+    await openRequestReview(user)
+    await user.click(screen.getByRole('radio', { name: 'Not helpful' }))
+    await user.click(screen.getByRole('button', { name: 'Submit request' }))
+
+    expect(screen.getByRole('button', { name: 'Submitting…' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
+    expect(screen.getByRole('radio', { name: 'Not helpful' })).toBeDisabled()
+    expect(
+      screen.getByRole('textbox', { name: 'Note (optional)' }),
+    ).toBeDisabled()
+
+    resolveRequest?.()
+  })
+
   it('renders pending immediately after a successful request and hides the action', async () => {
     const user = userEvent.setup()
     render(<ReviewHarness />)
     await openRequestReview(user)
+    await user.click(screen.getByRole('radio', { name: 'Seems incorrect' }))
     await user.type(
       screen.getByRole('textbox', { name: 'Note (optional)' }),
       '  Please check  ',
@@ -232,6 +364,7 @@ describe('StudentChatMessage', () => {
       ),
     )
     await openRequestReview(user)
+    await user.click(screen.getByRole('radio', { name: 'Seems incorrect' }))
     await user.click(screen.getByRole('button', { name: 'Submit request' }))
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'You have reached today’s review request limit.',
@@ -244,6 +377,7 @@ function messageElement(
   message: ChatMessage,
   onRequestReview: (input: {
     messageId: string
+    flagReason: StudentFlagReason
     note: string
   }) => Promise<unknown> = vi.fn(() => Promise.resolve()),
 ) {
@@ -264,6 +398,7 @@ function renderMessage(
   message: ChatMessage,
   onRequestReview: (input: {
     messageId: string
+    flagReason: StudentFlagReason
     note: string
   }) => Promise<unknown> = vi.fn(() => Promise.resolve()),
 ) {

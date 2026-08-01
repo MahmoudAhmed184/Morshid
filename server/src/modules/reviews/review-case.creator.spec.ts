@@ -1,7 +1,11 @@
 import { HttpException } from '@nestjs/common'
 import { instanceToPlain, plainToInstance } from 'class-transformer'
 
-import { UserRole, UserStatus } from '../../generated/prisma/client'
+import {
+  StudentFlagReason,
+  UserRole,
+  UserStatus,
+} from '../../generated/prisma/client'
 import { ReviewCaseCreator } from './review-case.creator'
 import { createReviewRequestSchema } from './review-case.dto'
 import { CreateReviewRequestResponseDto } from './review-case.dto'
@@ -30,7 +34,7 @@ describe('ReviewCaseCreator', () => {
 
     const response = await creator.createManual(
       messageId,
-      { note: 'Needs checking' },
+      { flagReason: StudentFlagReason.INCORRECT, note: 'Needs checking' },
       'request-1',
       user,
     )
@@ -39,6 +43,7 @@ describe('ReviewCaseCreator', () => {
       kind: 'manual',
       messageId,
       actorUserId: user.id,
+      flagReason: StudentFlagReason.INCORRECT,
       reason: 'Needs checking',
       idempotencyKey: 'request-1',
       requestContext: undefined,
@@ -63,7 +68,7 @@ describe('ReviewCaseCreator', () => {
 
     const response = await creator.createManual(
       messageId,
-      { note: null },
+      { flagReason: StudentFlagReason.CONFUSING, note: null },
       'request-2',
       user,
     )
@@ -173,7 +178,12 @@ describe('ReviewCaseCreator', () => {
     repository.create.mockResolvedValue({ kind: 'idempotency_conflict' })
 
     await expect(
-      creator.createManual(messageId, { note: null }, 'reused-key', user),
+      creator.createManual(
+        messageId,
+        { flagReason: StudentFlagReason.UNHELPFUL, note: null },
+        'reused-key',
+        user,
+      ),
     ).rejects.toMatchObject({
       response: { code: 'IDEMPOTENCY_KEY_REUSED' },
       status: 409,
@@ -184,7 +194,12 @@ describe('ReviewCaseCreator', () => {
     repository.create.mockResolvedValue({ kind: 'quota_exceeded' })
 
     await expect(
-      creator.createManual(messageId, { note: null }, 'quota-key', user),
+      creator.createManual(
+        messageId,
+        { flagReason: StudentFlagReason.COURSE_MISMATCH, note: null },
+        'quota-key',
+        user,
+      ),
     ).rejects.toMatchObject({
       response: {
         code: 'MANUAL_REVIEW_QUOTA_EXCEEDED',
@@ -199,7 +214,12 @@ describe('ReviewCaseCreator', () => {
 
     for (const key of ['absent-target', 'cross-course-target']) {
       try {
-        await creator.createManual(messageId, { note: null }, key, user)
+        await creator.createManual(
+          messageId,
+          { flagReason: StudentFlagReason.TOO_MUCH_ANSWER, note: null },
+          key,
+          user,
+        )
         throw new Error('Expected review creation to fail')
       } catch (error) {
         expect(error).toBeInstanceOf(HttpException)
@@ -215,7 +235,12 @@ describe('ReviewCaseCreator', () => {
     repository.create.mockResolvedValue({ kind: 'not_reviewable' })
 
     await expect(
-      creator.createManual(messageId, { note: null }, 'request-3', user),
+      creator.createManual(
+        messageId,
+        { flagReason: StudentFlagReason.INCORRECT, note: null },
+        'request-3',
+        user,
+      ),
     ).rejects.toMatchObject({
       response: { code: 'TARGET_NOT_REVIEWABLE' },
       status: 400,
@@ -241,23 +266,54 @@ describe('ReviewCaseCreator', () => {
 
 describe('createReviewRequestSchema', () => {
   it('trims the note and normalizes an empty note to null', () => {
-    expect(createReviewRequestSchema.parse({ note: '  check this  ' })).toEqual(
-      {
-        note: 'check this',
-      },
-    )
-    expect(createReviewRequestSchema.parse({ note: '   ' })).toEqual({
-      note: null,
-    })
-    expect(createReviewRequestSchema.parse({})).toEqual({ note: null })
+    expect(
+      createReviewRequestSchema.parse({
+        flagReason: 'INCORRECT',
+        note: '  check this  ',
+      }),
+    ).toEqual({ flagReason: 'INCORRECT', note: 'check this' })
+    expect(
+      createReviewRequestSchema.parse({
+        flagReason: 'CONFUSING',
+        note: '   ',
+      }),
+    ).toEqual({ flagReason: 'CONFUSING', note: null })
+    expect(
+      createReviewRequestSchema.parse({ flagReason: 'UNHELPFUL' }),
+    ).toEqual({ flagReason: 'UNHELPFUL', note: null })
   })
 
-  it('rejects notes over 200 characters and unknown fields', () => {
+  it('requires a non-empty note for OTHER', () => {
+    for (const note of [undefined, null, '   ']) {
+      expect(() =>
+        createReviewRequestSchema.parse({ flagReason: 'OTHER', note }),
+      ).toThrow()
+    }
+    expect(
+      createReviewRequestSchema.parse({
+        flagReason: 'OTHER',
+        note: '  Another issue  ',
+      }),
+    ).toEqual({ flagReason: 'OTHER', note: 'Another issue' })
+  })
+
+  it('rejects missing or invalid reasons, long notes, and unknown fields', () => {
+    expect(() => createReviewRequestSchema.parse({ note: null })).toThrow()
     expect(() =>
-      createReviewRequestSchema.parse({ note: 'x'.repeat(201) }),
+      createReviewRequestSchema.parse({ flagReason: 'NOT_A_REASON' }),
     ).toThrow()
     expect(() =>
-      createReviewRequestSchema.parse({ note: null, courseId: 'untrusted' }),
+      createReviewRequestSchema.parse({
+        flagReason: 'INCORRECT',
+        note: 'x'.repeat(201),
+      }),
+    ).toThrow()
+    expect(() =>
+      createReviewRequestSchema.parse({
+        flagReason: 'INCORRECT',
+        note: null,
+        courseId: 'untrusted',
+      }),
     ).toThrow()
   })
 })

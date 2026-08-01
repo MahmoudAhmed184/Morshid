@@ -10,6 +10,7 @@ import {
   ReviewOutcome,
   ReviewStatus,
   ReviewTriggerType,
+  StudentFlagReason,
 } from '../../generated/prisma/client'
 import { AuditService } from '../audit/audit.service'
 import type { AuditRequestContext } from '../audit/audit.service'
@@ -29,6 +30,7 @@ export type CreateReviewCaseInput =
       kind: 'manual'
       messageId: string
       actorUserId: string
+      flagReason: StudentFlagReason
       reason: string | null
       idempotencyKey: string
       requestContext?: AuditRequestContext
@@ -494,6 +496,7 @@ function triggerData(
     ? {
         type: ReviewTriggerType.STUDENT_REQUEST,
         actorUserId: input.actorUserId,
+        studentFlagReason: input.flagReason,
         reason: input.reason,
       }
     : {
@@ -525,7 +528,11 @@ function requestFingerprint(input: CreateReviewCaseInput): string {
   return sha256(
     JSON.stringify(
       input.kind === 'manual'
-        ? { messageId: input.messageId, reason: input.reason }
+        ? {
+            messageId: input.messageId,
+            flagReason: input.flagReason,
+            note: input.reason,
+          }
         : { messageId: input.messageId, sourceEventKey: input.sourceEventKey },
     ),
   )

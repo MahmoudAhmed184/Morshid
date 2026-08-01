@@ -1,6 +1,10 @@
 import type { Response } from 'express'
 
-import { UserRole, UserStatus } from '../../generated/prisma/client'
+import {
+  StudentFlagReason,
+  UserRole,
+  UserStatus,
+} from '../../generated/prisma/client'
 import type { AuthenticatedHttpRequest } from '../auth/auth.guard'
 import { ReviewCaseController } from './review-case.controller'
 import type { ReviewCaseCreator } from './review-case.creator'
@@ -38,7 +42,10 @@ describe('ReviewCaseController', () => {
         controller.create(
           messageId,
           '  client-request-1  ',
-          { note: 'Please check this answer' },
+          {
+            flagReason: StudentFlagReason.INCORRECT,
+            note: 'Please check this answer',
+          },
           request(),
           { status } as unknown as Response,
         ),
@@ -47,7 +54,10 @@ describe('ReviewCaseController', () => {
       expect(status).toHaveBeenCalledWith(expectedStatus)
       expect(createManual).toHaveBeenCalledWith(
         messageId,
-        { note: 'Please check this answer' },
+        {
+          flagReason: StudentFlagReason.INCORRECT,
+          note: 'Please check this answer',
+        },
         'client-request-1',
         user,
         { ip: '127.0.0.1', userAgent: 'review-api-test' },
@@ -57,9 +67,13 @@ describe('ReviewCaseController', () => {
 
   it('rejects a missing idempotency key before creating a case', async () => {
     await expect(
-      controller.create(messageId, undefined, { note: null }, request(), {
-        status: jest.fn(),
-      } as unknown as Response),
+      controller.create(
+        messageId,
+        undefined,
+        { flagReason: StudentFlagReason.CONFUSING, note: null },
+        request(),
+        { status: jest.fn() } as unknown as Response,
+      ),
     ).rejects.toMatchObject({
       response: { code: 'REVIEW_INVALID_REQUEST' },
       status: 400,

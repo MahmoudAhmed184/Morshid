@@ -6,10 +6,12 @@ import {
   ReviewOutcome,
   ReviewStatus,
   ReviewTriggerType,
+  StudentFlagReason,
 } from '../../generated/prisma/client'
 
 export const createReviewRequestSchema = z
   .object({
+    flagReason: z.enum(StudentFlagReason),
     note: z
       .preprocess(
         (value) =>
@@ -23,10 +25,22 @@ export const createReviewRequestSchema = z
       .default(null),
   })
   .strict()
+  .superRefine(({ flagReason, note }, context) => {
+    if (flagReason === StudentFlagReason.OTHER && note === null) {
+      context.addIssue({
+        code: 'custom',
+        message: 'A non-empty note is required when flagReason is OTHER',
+        path: ['note'],
+      })
+    }
+  })
 
 export type CreateReviewRequest = z.infer<typeof createReviewRequestSchema>
 
 export class CreateReviewRequestDto {
+  @ApiProperty({ enum: StudentFlagReason, enumName: 'StudentFlagReason' })
+  flagReason!: StudentFlagReason
+
   @ApiProperty({ nullable: true, required: false, maxLength: 200 })
   note?: string | null
 }

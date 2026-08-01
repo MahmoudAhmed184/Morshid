@@ -5,9 +5,11 @@ import {
   createStudentReviewResponseSchema,
   studentReviewDetailSchema,
 } from '@/features/student/schemas/student-chat.schema'
+import type { StudentFlagReason } from '@/features/student/schemas/student-chat.schema'
 
 interface RequestStudentReviewParams {
   messageId: string
+  flagReason: StudentFlagReason
   note: string | null
   idempotencyKey: string
   options?: ApiFetchOptions
@@ -32,11 +34,12 @@ export async function getStudentReviewDetail({
 
 export async function requestStudentReview({
   messageId,
+  flagReason,
   note,
   idempotencyKey,
   options = {},
 }: RequestStudentReviewParams) {
-  const body = createStudentReviewRequestSchema.parse({ note })
+  const body = createStudentReviewRequestSchema.parse({ flagReason, note })
   const response = await apiJson<unknown>(
     `/api/v1/messages/${messageId}/review-requests`,
     {

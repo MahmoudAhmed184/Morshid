@@ -57,6 +57,7 @@ export class ReviewCaseCreator {
       kind: 'manual',
       messageId,
       actorUserId: user.id,
+      flagReason: body.flagReason,
       reason: body.note,
       idempotencyKey,
       requestContext,

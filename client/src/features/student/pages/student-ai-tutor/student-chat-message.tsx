@@ -24,7 +24,10 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useStudentReviewDetail } from '@/features/student/hooks/use-student-review-detail'
-import type { ChatMessage } from '@/features/student/schemas/student-chat.schema'
+import type {
+  ChatMessage,
+  StudentFlagReason,
+} from '@/features/student/schemas/student-chat.schema'
 import { cn } from '@/lib/utils'
 
 import { StudentCitationSources } from './student-citation-sources'
@@ -43,6 +46,7 @@ interface StudentChatMessageProps {
   onRetry: (studentMessageId: string) => void
   onRequestReview: (input: {
     messageId: string
+    flagReason: StudentFlagReason
     note: string
   }) => Promise<unknown>
 }
