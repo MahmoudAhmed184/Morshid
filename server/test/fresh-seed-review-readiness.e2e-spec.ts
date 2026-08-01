@@ -54,16 +54,10 @@ describe('Fresh migration and seed manual review readiness (e2e)', () => {
       FROM "_prisma_migrations"
     `
     expect(migrations).toHaveLength(migrationDirectories.length)
-    expect(migrations).toEqual(
-      expect.arrayContaining(
-        migrations.map(() =>
-          expect.objectContaining({
-            finished_at: expect.any(Date),
-            rolled_back_at: null,
-          }),
-        ),
-      ),
-    )
+    for (const migration of migrations) {
+      expect(migration.finished_at).toBeInstanceOf(Date)
+      expect(migration.rolled_back_at).toBeNull()
+    }
 
     const tables = await prisma.$queryRaw<{ table_name: string }[]>`
       SELECT table_name
