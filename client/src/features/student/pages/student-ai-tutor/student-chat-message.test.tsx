@@ -321,6 +321,29 @@ describe('StudentChatMessage', () => {
     },
   )
 
+  it('replaces the awaiting-review presentation with the terminal reviewed outcome', () => {
+    useStudentReviewDetailMock.mockReturnValue({
+      data: reviewDetail({
+        outcome: 'EDITED',
+        publishedContent: 'Edited published answer',
+      }),
+      isError: false,
+      isPending: false,
+    })
+    renderMessage({
+      ...messageWithReview('RESOLVED', 'EDITED'),
+      guidanceLabel: 'UNCERTAIN_AWAITING_REVIEW',
+    })
+
+    expect(screen.getByText('Reviewed')).toBeVisible()
+    expect(
+      screen.getByRole('region', { name: 'Reviewed outcome' }),
+    ).toHaveTextContent('Edited published answer')
+    expect(
+      screen.queryByText('AWAITING INSTRUCTOR REVIEW'),
+    ).not.toBeInTheDocument()
+  })
+
   it('renders only the student-facing rejection reason for a rejected review', () => {
     useStudentReviewDetailMock.mockReturnValue({
       data: {

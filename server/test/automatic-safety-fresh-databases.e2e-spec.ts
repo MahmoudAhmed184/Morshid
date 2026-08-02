@@ -25,6 +25,7 @@ import {
   type AutomaticSafetyFixture,
   type AutomaticSafetyScenarioId,
 } from '../src/modules/output-policy/automatic-safety.fixtures'
+import { AUTOMATIC_SAFETY_RISK_DETECTOR_VERSION } from '../src/modules/output-policy/automatic-safety-risk.detector'
 import {
   OUTPUT_POLICY_GENERAL_NOT_FOUND_CONTENT,
   OUTPUT_POLICY_REFUSAL_CONTENT,
@@ -385,7 +386,7 @@ async function proveScenario(
   }
   if (scenario.id === 'SCN-05' || scenario.id === 'SCN-06') {
     expect(reviewCase.triggers[0]?.detectorMetadata).toMatchObject({
-      detectorVersion: 'automatic-safety-risk-v1',
+      detectorVersion: AUTOMATIC_SAFETY_RISK_DETECTOR_VERSION,
     })
   }
   if (scenario.id === 'SCN-06') {

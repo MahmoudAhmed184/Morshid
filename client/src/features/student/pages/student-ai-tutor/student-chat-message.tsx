@@ -150,6 +150,8 @@ export function StudentChatMessage({
   const reviewSummary = message.reviewSummary
   const hasTerminalReview =
     reviewSummary?.status === 'RESOLVED' || reviewSummary?.status === 'REJECTED'
+  const showGuidanceBadge =
+    message.guidanceLabel !== 'UNCERTAIN_AWAITING_REVIEW' || !hasTerminalReview
   const reviewDetailQuery = useStudentReviewDetail({
     reviewCaseId: reviewSummary?.reviewCaseId ?? null,
     enabled: message.role === 'ASSISTANT' && hasTerminalReview,
@@ -390,7 +392,7 @@ export function StudentChatMessage({
           />
         ) : null}
 
-        {!isStudent && message.guidanceLabel ? (
+        {!isStudent && message.guidanceLabel && showGuidanceBadge ? (
           <GuidanceBadge guidanceLabel={message.guidanceLabel} />
         ) : null}
         {reviewSummary?.status === 'PENDING' ||
