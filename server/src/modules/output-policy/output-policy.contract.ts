@@ -63,7 +63,9 @@ export interface OutputPolicyAssessment {
 
 export interface OutputPolicyEvidenceSource {
   readonly materialId?: string
+  readonly materialTitle?: string
   readonly chunkId?: string
+  readonly chunkIndex?: number
   readonly excerpt: string
   readonly rank?: number
   readonly score?: number

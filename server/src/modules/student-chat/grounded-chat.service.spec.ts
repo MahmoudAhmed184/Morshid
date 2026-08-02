@@ -20,6 +20,7 @@ import type {
 } from '../retrieval/retrieval.service'
 import type { OutputPolicyReviewAdapter } from '../output-policy/output-policy-review.adapter'
 import { OutputPolicyService } from '../output-policy/output-policy.service'
+import { ControlledSourceConflictDetector } from '../output-policy/controlled-source-conflict.detector'
 import type {
   BeginGroundedChatTurnResult,
   CompleteGroundedChatTurnInput,
@@ -59,6 +60,9 @@ describe('GroundedChatService', () => {
   let completeTurn: jest.MockedFunction<
     GroundedChatTurnRepository['completeTurn']
   >
+  let completePolicyTurn: jest.MockedFunction<
+    GroundedChatTurnRepository['completePolicyTurn']
+  >
   let blockTurn: jest.Mock
   let completeUnsupportedTurn: jest.MockedFunction<
     GroundedChatTurnRepository['completeUnsupportedTurn']
@@ -95,6 +99,19 @@ describe('GroundedChatService', () => {
         }),
       } satisfies FinalizeGroundedChatTurnResult),
     )
+    completePolicyTurn = jest.fn() as typeof completePolicyTurn
+    completePolicyTurn.mockImplementation((input) =>
+      Promise.resolve({
+        kind: 'ok',
+        message: assistantMessage({
+          status: MessageStatus.COMPLETED,
+          content: input.content,
+          guidanceLabel: input.guidanceLabel,
+          errorCode: input.errorCode,
+          completedAt: new Date('2026-07-21T12:01:00.000Z'),
+        }),
+      }),
+    )
     blockTurn = jest
       .fn()
       .mockImplementation((input: FinalizeGroundedChatTurnInput) =>
@@ -126,8 +143,9 @@ describe('GroundedChatService', () => {
     readTurnForStudent = jest.fn() as typeof readTurnForStudent
     readTurnForStudent.mockImplementation(() => {
       const completed = completeTurn.mock.calls.at(-1)?.[0]
+      const policy = completePolicyTurn.mock.calls.at(-1)?.[0]
       const unsupported = completeUnsupportedTurn.mock.calls.at(-1)?.[0]
-      const terminal = completed ?? unsupported
+      const terminal = completed ?? policy ?? unsupported
       return Promise.resolve({
         kind: 'ok',
         studentMessage: studentMessage({
@@ -138,8 +156,13 @@ describe('GroundedChatService', () => {
           content: terminal?.content ?? 'Safe reviewed response',
           guidanceLabel:
             completed?.guidanceLabel ??
+            policy?.guidanceLabel ??
             MessageGuidanceLabel.UNCERTAIN_AWAITING_REVIEW,
-          errorCode: completed?.errorCode ?? unsupported?.errorCode ?? null,
+          errorCode:
+            completed?.errorCode ??
+            policy?.errorCode ??
+            unsupported?.errorCode ??
+            null,
           completedAt: new Date('2026-07-21T12:01:00.000Z'),
           reviewCase: {
             id: 'review-case-id',
@@ -187,6 +210,7 @@ describe('GroundedChatService', () => {
       beginTurn,
       retryTurn,
       completeTurn,
+      completePolicyTurn,
       completeUnsupportedTurn,
       readTurnForStudent,
       blockTurn,
@@ -217,6 +241,7 @@ describe('GroundedChatService', () => {
       outputPolicy,
       outputPolicyReview,
       new CorrectnessSensitiveRequestClassifier(),
+      new ControlledSourceConflictDetector(),
     )
   })
 
@@ -347,6 +372,80 @@ describe('GroundedChatService', () => {
     expect(completeTurn.mock.invocationCallOrder[0]).toBeLessThan(
       createRequiredReview.mock.invocationCallOrder[0],
     )
+  })
+
+  it('persists the controlled source conflict from only the opposing top-ranked materials and skips completion', async () => {
+    const conflictEvidence = [
+      {
+        ...evidenceChunks()[0],
+        materialId: 'material-modern',
+        materialTitle: 'Python 3 division',
+        content:
+          'In Python 3, / performs true division and produces a float result for two integers.',
+        rank: 1,
+      },
+      {
+        ...evidenceChunks()[1],
+        materialId: 'material-legacy',
+        materialTitle: 'Legacy division notes',
+        content:
+          'For two integer operands, the / operator performs integer division and truncates the result.',
+        rank: 2,
+      },
+      {
+        ...evidenceChunks()[1],
+        chunkId: 'lower-ranked-chunk',
+        materialId: 'material-lower',
+        content: 'Unrelated lower-ranked content.',
+        rank: 3,
+      },
+    ]
+    retrieveCourseEvidence.mockResolvedValue({
+      kind: 'evidence',
+      chunks: conflictEvidence,
+    })
+    beginTurn.mockResolvedValue(
+      beginOk({
+        content:
+          'In Python, does / with two integers give an integer or a decimal result?',
+      }),
+    )
+    createRequiredReview.mockResolvedValue({
+      caseId: 'review-case-id',
+      messageId: assistantMessageId,
+      status: 'PENDING',
+      replayed: false,
+    })
+
+    const response = await service.send(
+      courseId,
+      sessionId,
+      {
+        content:
+          'In Python, does / with two integers give an integer or a decimal result?',
+      },
+      user,
+    )
+
+    expect(complete).not.toHaveBeenCalled()
+    expect(completeTurn).not.toHaveBeenCalled()
+    expect(completePolicyTurn).toHaveBeenCalledWith({
+      courseId,
+      sessionId,
+      studentId: user.id,
+      attemptId,
+      studentMessageId,
+      assistantMessageId,
+      content:
+        'The available course materials conflict, so I cannot present either position as settled course guidance. An Instructor review is pending.',
+      guidanceLabel: MessageGuidanceLabel.UNCERTAIN_AWAITING_REVIEW,
+      errorCode: 'SOURCE_CONFLICT',
+      evidence: conflictEvidence.slice(0, 2),
+    })
+    expect(response.assistantMessage).toMatchObject({
+      errorCode: 'SOURCE_CONFLICT',
+      reviewSummary: { status: 'PENDING' },
+    })
   })
 
   it('returns a terminal idempotent replay without generating again', async () => {

@@ -165,7 +165,13 @@ function buildReviewEvidence(
       ...(source.materialId === undefined
         ? {}
         : { materialId: source.materialId }),
+      ...(source.materialTitle === undefined
+        ? {}
+        : { materialTitle: source.materialTitle }),
       ...(source.chunkId === undefined ? {} : { chunkId: source.chunkId }),
+      ...(source.chunkIndex === undefined
+        ? {}
+        : { chunkIndex: source.chunkIndex }),
       excerpt: takeCodePoints(
         normalizeWhitespace(source.excerpt),
         MAX_REVIEW_SOURCE_EXCERPT_CODE_POINTS,

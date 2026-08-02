@@ -124,6 +124,12 @@ class ControllableGroundedChatTurnRepository extends GroundedChatTurnRepository 
     return this.delegate.completeTurn(input)
   }
 
+  override completePolicyTurn(
+    input: Parameters<GroundedChatTurnRepository['completePolicyTurn']>[0],
+  ): ReturnType<GroundedChatTurnRepository['completePolicyTurn']> {
+    return this.delegate.completePolicyTurn(input)
+  }
+
   override failTurn(
     input: FinalizeGroundedChatTurnInput,
   ): Promise<FinalizeGroundedChatTurnResult> {

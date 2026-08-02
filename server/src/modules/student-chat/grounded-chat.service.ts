@@ -21,6 +21,10 @@ import {
   OutputPolicyReviewIntegrationError,
 } from '../output-policy/output-policy-review.adapter'
 import {
+  ControlledSourceConflictDetector,
+  type ControlledSourceConflict,
+} from '../output-policy/controlled-source-conflict.detector'
+import {
   decodeAutomaticPolicyReasons,
   encodeAutomaticPolicyReasons,
   type AutomaticPolicyReason,
@@ -118,6 +122,7 @@ export class GroundedChatService {
     private readonly outputPolicy: OutputPolicyService,
     private readonly outputPolicyReview: OutputPolicyReviewAdapter,
     private readonly requestClassifier: CorrectnessSensitiveRequestClassifier,
+    private readonly conflictDetector: ControlledSourceConflictDetector,
   ) {}
 
   async send(
@@ -281,6 +286,19 @@ export class GroundedChatService {
       return this.persistFailure(turn, operation)
     }
 
+    const conflict = this.conflictDetector.detect(
+      turn.studentMessage.content,
+      evidence,
+    )
+    if (conflict !== null) {
+      return this.persistControlledConflict(
+        turn,
+        conflict,
+        operation,
+        requestContext,
+      )
+    }
+
     const context = toCompletionContext(evidence)
     if (context === null) {
       return this.persistInsufficientEvidence(turn, operation, requestContext)
@@ -386,6 +404,70 @@ export class GroundedChatService {
       operation,
       requestContext,
     )
+  }
+
+  private async persistControlledConflict(
+    turn: ActiveGroundedTurn,
+    conflict: ControlledSourceConflict,
+    operation: OrchestrationContext,
+    requestContext?: AuditRequestContext,
+  ): Promise<GroundedChatTurnResponseDto> {
+    const decision = this.outputPolicy.evaluate({
+      proposedContent: GROUNDING_BLOCKED_CONTENT,
+      assessment: {
+        support: 'CONFLICTING',
+        policyCheck: 'PASSED',
+        answerRisk: 'NONE',
+        citations: 'PRESENT',
+      },
+      evidence: conflict.sources.map((source) => ({
+        materialId: source.materialId,
+        materialTitle: source.materialTitle,
+        chunkId: source.chunkId,
+        chunkIndex: source.chunkIndex,
+        excerpt: source.content,
+        rank: source.rank,
+        score: source.similarityScore,
+      })),
+    })
+
+    let completed: FinalizeGroundedChatTurnResult
+    try {
+      completed = await this.turnRepository.completePolicyTurn({
+        courseId: turn.courseId,
+        sessionId: operation.sessionId,
+        studentId: operation.studentId,
+        attemptId: turn.attemptId,
+        studentMessageId: turn.studentMessage.id,
+        assistantMessageId: turn.assistantMessage.id,
+        content: decision.content,
+        guidanceLabel: decision.studentStatus.guidanceLabel,
+        errorCode: encodeAutomaticPolicyReasons(decision.reasons),
+        evidence: conflict.sources,
+      })
+    } catch (error) {
+      this.logFailure('finalization', operation, error)
+      return this.persistFailure(turn, operation)
+    }
+
+    switch (completed.kind) {
+      case 'ok':
+        return this.createPolicyReviewAndPresent(
+          turn.studentMessage,
+          completed.message,
+          decision,
+          operation,
+          requestContext,
+        )
+      case 'membership_missing':
+      case 'session_not_found':
+      case 'message_not_found':
+      case 'message_not_pending':
+        this.logResultFailure('finalization', operation, completed.kind)
+        return this.persistFailure(turn, operation)
+      default:
+        return assertNever(completed)
+    }
   }
 
   private async persistUnsupportedCorrectnessSensitive(
@@ -834,6 +916,9 @@ function hasDistinctCitation(evidence: readonly RetrievedChunk[]): boolean {
 function policyEvidenceFrom(
   message: ChatMessageRecord,
 ): OutputPolicyEvidenceSource[] {
+  const titleByMaterialId = new Map(
+    message.citations.map(({ material }) => [material.id, material.title]),
+  )
   return message.retrievals.flatMap((retrieval) => {
     if (retrieval.chunk === null) {
       return []
@@ -841,7 +926,13 @@ function policyEvidenceFrom(
     return [
       {
         materialId: retrieval.chunk.materialId,
+        ...(titleByMaterialId.get(retrieval.chunk.materialId) === undefined
+          ? {}
+          : {
+              materialTitle: titleByMaterialId.get(retrieval.chunk.materialId),
+            }),
         chunkId: retrieval.chunk.id,
+        chunkIndex: retrieval.chunk.chunkIndex,
         excerpt: retrieval.chunk.content,
         rank: retrieval.rank,
         ...(retrieval.similarityScore === null

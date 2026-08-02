@@ -92,3 +92,17 @@ response is returned. The persisted reason code lets an idempotent delivery
 retry repair an interrupted case creation without generating another assistant
 message; the creator's source-event key and one-case-per-message constraint keep
 the case and trigger unique.
+
+## Controlled Python division conflict slice
+
+Issue #143 activates `SOURCE_CONFLICT` only for the P0 Python integer-division
+fixture. The Student question must ask whether `/` on integer operands produces
+an integer or decimal/float result. Both opposing claims must occur in retrieval
+ranks 1–2 and come from distinct materials. Agreement, same-material wording,
+unrelated text, ambiguous claims, and conflicts below rank 2 remain clean.
+
+Detection runs before completion. A match skips the provider, persists the
+fixed controlled response with the two selected retrievals and citations, and
+stores those same two bounded sources in immutable automatic-review evidence.
+Replay uses the canonical `SOURCE_CONFLICT` reason and persisted selected
+evidence to repair case creation without broadening the detector.

@@ -79,9 +79,10 @@ export const AUTOMATIC_SAFETY_FIXTURES = [
   {
     id: 'SCN-03',
     behavior: 'source_conflict',
-    studentQuestion: 'Which synthetic retry limit is the course rule?',
+    studentQuestion:
+      'In Python, does / with two integers give an integer or a decimal result?',
     input: {
-      proposedContent: 'The retry limit is settled at one value.',
+      proposedContent: 'The division result is settled at one value.',
       assessment: {
         support: 'CONFLICTING',
         policyCheck: 'PASSED',
@@ -91,15 +92,21 @@ export const AUTOMATIC_SAFETY_FIXTURES = [
       evidence: [
         {
           materialId: '10000000-0000-4000-8000-000000000002',
+          materialTitle: 'Python 3 division',
           chunkId: '20000000-0000-4000-8000-000000000002',
-          excerpt: 'The synthetic exercise permits two retries.',
+          chunkIndex: 0,
+          excerpt:
+            'In Python 3, / performs true division and produces a float result for two integers.',
           rank: 1,
           score: 0.89,
         },
         {
           materialId: '10000000-0000-4000-8000-000000000003',
+          materialTitle: 'Legacy division notes',
           chunkId: '20000000-0000-4000-8000-000000000003',
-          excerpt: 'The synthetic exercise permits three retries.',
+          chunkIndex: 0,
+          excerpt:
+            'For two integer operands, the / operator performs integer division and truncates the result.',
           rank: 2,
           score: 0.87,
         },

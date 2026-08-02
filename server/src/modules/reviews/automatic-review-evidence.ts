@@ -8,7 +8,9 @@ const MAX_IDENTIFIER_CODE_POINTS = 200
 
 export interface AutomaticReviewEvidenceSource {
   materialId?: string
+  materialTitle?: string
   chunkId?: string
+  chunkIndex?: number
   excerpt: string
   rank?: number
   score?: number
@@ -66,6 +68,23 @@ export function normalizeAutomaticReviewEvidence(
               source.chunkId,
               `sources[${String(index)}].chunkId`,
               MAX_IDENTIFIER_CODE_POINTS,
+            ),
+          }),
+      ...(source.materialTitle === undefined
+        ? {}
+        : {
+            materialTitle: boundedText(
+              source.materialTitle,
+              `sources[${String(index)}].materialTitle`,
+              MAX_IDENTIFIER_CODE_POINTS,
+            ),
+          }),
+      ...(source.chunkIndex === undefined
+        ? {}
+        : {
+            chunkIndex: nonNegativeInteger(
+              source.chunkIndex,
+              `sources[${String(index)}].chunkIndex`,
             ),
           }),
       excerpt: boundedText(
@@ -128,6 +147,13 @@ function finiteValue(value: number | boolean, field: string): number | boolean {
 function positiveInteger(value: number, field: string): number {
   if (!Number.isSafeInteger(value) || value < 1) {
     throw new TypeError(`${field} must be a positive integer`)
+  }
+  return value
+}
+
+function nonNegativeInteger(value: number, field: string): number {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new TypeError(`${field} must be a non-negative integer`)
   }
   return value
 }

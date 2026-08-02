@@ -542,7 +542,13 @@ function automaticEvidenceSnapshot(
       ...(source.materialId === undefined
         ? {}
         : { materialId: source.materialId }),
+      ...(source.materialTitle === undefined
+        ? {}
+        : { materialTitle: source.materialTitle }),
       ...(source.chunkId === undefined ? {} : { chunkId: source.chunkId }),
+      ...(source.chunkIndex === undefined
+        ? {}
+        : { chunkIndex: source.chunkIndex }),
       excerpt: source.excerpt,
       ...(source.rank === undefined ? {} : { rank: source.rank }),
       ...(source.score === undefined ? {} : { score: source.score }),

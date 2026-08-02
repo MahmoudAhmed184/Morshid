@@ -42,9 +42,10 @@ export class ControlledSourceConflictDetector {
       return null
     }
 
+    const sources: readonly [RetrievedChunk, RetrievedChunk] = [first, second]
     return Object.freeze({
       detectorVersion: CONTROLLED_SOURCE_CONFLICT_DETECTOR_VERSION,
-      sources: Object.freeze([first, second]),
+      sources: Object.freeze(sources),
     })
   }
 }

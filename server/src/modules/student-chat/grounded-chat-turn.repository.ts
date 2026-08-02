@@ -68,6 +68,16 @@ export interface CompleteGroundedChatTurnInput extends AuthorizedTurnInput {
   errorCode?: string
 }
 
+export interface CompletePolicyGroundedChatTurnInput extends AuthorizedTurnInput {
+  attemptId: string
+  studentMessageId: string
+  assistantMessageId: string
+  content: string
+  evidence: readonly GroundedChatEvidenceInput[]
+  guidanceLabel: MessageGuidanceLabel
+  errorCode: string
+}
+
 export interface FinalizeGroundedChatTurnInput extends AuthorizedTurnInput {
   attemptId: string
   studentMessageId: string
@@ -164,6 +174,10 @@ export abstract class GroundedChatTurnRepository {
 
   abstract completeTurn(
     input: CompleteGroundedChatTurnInput,
+  ): Promise<FinalizeGroundedChatTurnResult>
+
+  abstract completePolicyTurn(
+    input: CompletePolicyGroundedChatTurnInput,
   ): Promise<FinalizeGroundedChatTurnResult>
 
   abstract failTurn(
@@ -424,6 +438,44 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
   async completeTurn(
     input: CompleteGroundedChatTurnInput,
   ): Promise<FinalizeGroundedChatTurnResult> {
+    return this.completeWithEvidence(input, {
+      guidanceLabel:
+        input.guidanceLabel ?? MessageGuidanceLabel.COURSE_GROUNDED,
+      provider: input.provider,
+      model: input.model,
+      promptVersion: input.promptVersion,
+      inputTokens: input.inputTokens ?? null,
+      outputTokens: input.outputTokens ?? null,
+      errorCode: input.errorCode ?? null,
+    })
+  }
+
+  completePolicyTurn(
+    input: CompletePolicyGroundedChatTurnInput,
+  ): Promise<FinalizeGroundedChatTurnResult> {
+    return this.completeWithEvidence(input, {
+      guidanceLabel: input.guidanceLabel,
+      provider: null,
+      model: null,
+      promptVersion: null,
+      inputTokens: null,
+      outputTokens: null,
+      errorCode: input.errorCode,
+    })
+  }
+
+  private async completeWithEvidence(
+    input: CompleteGroundedChatTurnInput | CompletePolicyGroundedChatTurnInput,
+    terminal: {
+      guidanceLabel: MessageGuidanceLabel
+      provider: string | null
+      model: string | null
+      promptVersion: string | null
+      inputTokens: number | null
+      outputTokens: number | null
+      errorCode: string | null
+    },
+  ): Promise<FinalizeGroundedChatTurnResult> {
     try {
       return await this.runTransaction(async (tx) => {
         const authorization = await this.lockAuthorizedSession(tx, input)
@@ -437,14 +489,7 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
         const updated = await this.transitionPendingAssistant(tx, input, {
           status: MessageStatus.COMPLETED,
           content: input.content,
-          guidanceLabel:
-            input.guidanceLabel ?? MessageGuidanceLabel.COURSE_GROUNDED,
-          provider: input.provider,
-          model: input.model,
-          promptVersion: input.promptVersion,
-          inputTokens: input.inputTokens ?? null,
-          outputTokens: input.outputTokens ?? null,
-          errorCode: input.errorCode ?? null,
+          ...terminal,
           errorMessage: null,
           groundingLeaseExpiresAt: null,
           completedAt: now,
