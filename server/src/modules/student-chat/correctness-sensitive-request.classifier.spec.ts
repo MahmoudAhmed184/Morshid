@@ -37,6 +37,7 @@ describe('CorrectnessSensitiveRequestClassifier', () => {
     'Discuss implementation choices for this exercise',
     'What does an answer key mean?',
     'Explain why hiding an answer in comments is not acceptable.',
+    'What is wrong with this Python function, and how should I fix it?\n\ndef multiply(n1, n2):\n    return n1 + n2',
     'On which day is Question X scheduled?',
     'According to the uploaded materials, on which day is Question X scheduled?',
   ])(
