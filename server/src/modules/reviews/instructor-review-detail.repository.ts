@@ -95,6 +95,7 @@ export class PrismaInstructorReviewDetailRepository extends InstructorReviewDeta
             createdAt: true,
           },
         },
+        evidence: { select: { evidence: true } },
         targetMessage: {
           select: {
             sequence: true,
@@ -142,6 +143,12 @@ export class PrismaInstructorReviewDetailRepository extends InstructorReviewDeta
     const studentRequest = reviewCase?.triggers.find(
       ({ type }) => type === ReviewTriggerType.STUDENT_REQUEST,
     )
+    const automaticSnapshot =
+      reviewCase?.triggers.some(
+        ({ type }) => type !== ReviewTriggerType.STUDENT_REQUEST,
+      ) === true
+        ? readAutomaticSnapshot(reviewCase.evidence?.evidence)
+        : null
     const flagged = reviewCase?.targetMessage.responseToMessage
     if (
       reviewCase === null ||
@@ -158,26 +165,47 @@ export class PrismaInstructorReviewDetailRepository extends InstructorReviewDeta
       createdAt: true,
     } satisfies Prisma.MessageSelect
     const [previousMessages, followingMessages] =
-      await this.prisma.$transaction([
-        this.prisma.message.findMany({
-          where: {
-            sessionId: reviewCase.targetMessage.session.id,
-            sequence: { lt: flagged.sequence },
-          },
-          select: contextSelect,
-          orderBy: { sequence: 'desc' },
-          take: 2,
-        }),
-        this.prisma.message.findMany({
-          where: {
-            sessionId: reviewCase.targetMessage.session.id,
-            sequence: { gt: reviewCase.targetMessage.sequence },
-          },
-          select: contextSelect,
-          orderBy: { sequence: 'asc' },
-          take: 2,
-        }),
-      ])
+      automaticSnapshot === null
+        ? await this.prisma.$transaction([
+            this.prisma.message.findMany({
+              where: {
+                sessionId: reviewCase.targetMessage.session.id,
+                sequence: { lt: flagged.sequence },
+              },
+              select: contextSelect,
+              orderBy: { sequence: 'desc' },
+              take: 2,
+            }),
+            this.prisma.message.findMany({
+              where: {
+                sessionId: reviewCase.targetMessage.session.id,
+                sequence: { gt: reviewCase.targetMessage.sequence },
+              },
+              select: contextSelect,
+              orderBy: { sequence: 'asc' },
+              take: 2,
+            }),
+          ])
+        : [[], []]
+
+    const immutableFlagged =
+      automaticSnapshot?.studentPrompt === null ||
+      automaticSnapshot?.studentPrompt === undefined
+        ? flagged
+        : {
+            role: flagged.role,
+            content: automaticSnapshot.studentPrompt.content,
+            createdAt: automaticSnapshot.studentPrompt.createdAt,
+          }
+    const immutableAssistant =
+      automaticSnapshot === null
+        ? null
+        : {
+            role: reviewCase.targetMessage.role,
+            content: automaticSnapshot.targetContent,
+            createdAt: reviewCase.targetMessage.createdAt,
+            citations: automaticSnapshot.citations,
+          }
 
     return {
       id: reviewCase.id,
@@ -198,30 +226,131 @@ export class PrismaInstructorReviewDetailRepository extends InstructorReviewDeta
       studentNote: studentRequest?.reason ?? null,
       course: reviewCase.course,
       student: reviewCase.targetMessage.session.student,
-      flaggedExchange: flagged,
-      assistantResponse: {
-        role: reviewCase.targetMessage.role,
-        content: reviewCase.targetMessage.content,
-        createdAt: reviewCase.targetMessage.createdAt,
-        citations: reviewCase.targetMessage.citations.map((citation) => ({
-          order: citation.citationOrder,
-          materialId: citation.material.id,
-          materialTitle: citation.material.title,
-          snippets: reviewCase.targetMessage.retrievals.flatMap((retrieval) =>
-            retrieval.chunk?.materialId === citation.material.id
-              ? [
-                  {
-                    chunkNumber: retrieval.chunk.chunkIndex + 1,
-                    content: retrieval.chunk.content,
-                  },
-                ]
-              : [],
-          ),
-        })),
-      },
+      flaggedExchange: immutableFlagged,
+      assistantResponse:
+        immutableAssistant ?? liveAssistantResponse(reviewCase.targetMessage),
       previousMessages: previousMessages.reverse(),
       followingMessages,
       notificationCount: reviewCase._count.notifications,
     }
   }
+}
+
+interface AutomaticSnapshot {
+  targetContent: string
+  studentPrompt: { content: string; createdAt: Date } | null
+  citations: InstructorReviewDetailRecord['assistantResponse']['citations']
+}
+
+function readAutomaticSnapshot(
+  value: Prisma.JsonValue | undefined,
+): AutomaticSnapshot | null {
+  if (!isObject(value)) return null
+  const target = value.target
+  const automaticEvidence = value.automaticEvidence
+  if (!isObject(target) || typeof target.content !== 'string') return null
+
+  const studentPrompt =
+    isObject(value.studentPrompt) &&
+    typeof value.studentPrompt.content === 'string' &&
+    typeof value.studentPrompt.createdAt === 'string'
+      ? {
+          content: value.studentPrompt.content,
+          createdAt: validDate(value.studentPrompt.createdAt),
+        }
+      : null
+  const sources: unknown[] =
+    isObject(automaticEvidence) && Array.isArray(automaticEvidence.sources)
+      ? automaticEvidence.sources
+      : []
+  const citationsByMaterial = new Map<
+    string,
+    InstructorReviewDetailRecord['assistantResponse']['citations'][number]
+  >()
+  for (const rawSource of sources.slice(0, MAX_SNIPPETS)) {
+    if (!isObject(rawSource)) continue
+    const source = rawSource
+    if (
+      typeof source.materialId !== 'string' ||
+      typeof source.excerpt !== 'string'
+    ) {
+      continue
+    }
+    const existing = citationsByMaterial.get(source.materialId)
+    const snippet = {
+      chunkNumber:
+        typeof source.chunkIndex === 'number' &&
+        Number.isSafeInteger(source.chunkIndex) &&
+        source.chunkIndex >= 0
+          ? source.chunkIndex + 1
+          : typeof source.rank === 'number' &&
+              Number.isSafeInteger(source.rank) &&
+              source.rank > 0
+            ? source.rank
+            : 1,
+      content: source.excerpt,
+    }
+    if (existing === undefined) {
+      citationsByMaterial.set(source.materialId, {
+        order: citationsByMaterial.size + 1,
+        materialId: source.materialId,
+        materialTitle:
+          typeof source.materialTitle === 'string'
+            ? source.materialTitle
+            : 'Course material',
+        snippets: [snippet],
+      })
+    } else {
+      existing.snippets.push(snippet)
+    }
+  }
+
+  return {
+    targetContent: target.content,
+    studentPrompt,
+    citations: [...citationsByMaterial.values()].slice(0, MAX_CITATIONS),
+  }
+}
+
+function liveAssistantResponse(target: {
+  role: MessageRole
+  content: string
+  createdAt: Date
+  citations: {
+    citationOrder: number
+    material: { id: string; title: string }
+  }[]
+  retrievals: {
+    chunk: { materialId: string; chunkIndex: number; content: string } | null
+  }[]
+}): InstructorReviewDetailRecord['assistantResponse'] {
+  return {
+    role: target.role,
+    content: target.content,
+    createdAt: target.createdAt,
+    citations: target.citations.map((citation) => ({
+      order: citation.citationOrder,
+      materialId: citation.material.id,
+      materialTitle: citation.material.title,
+      snippets: target.retrievals.flatMap((retrieval) =>
+        retrieval.chunk?.materialId === citation.material.id
+          ? [
+              {
+                chunkNumber: retrieval.chunk.chunkIndex + 1,
+                content: retrieval.chunk.content,
+              },
+            ]
+          : [],
+      ),
+    })),
+  }
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function validDate(value: string): Date {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? new Date(0) : date
 }

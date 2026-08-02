@@ -166,6 +166,62 @@ describe('PrismaInstructorReviewDetailRepository', () => {
     })
   })
 
+  it('projects automatic detail from bounded immutable evidence without live chat context', async () => {
+    findReview.mockResolvedValue(
+      reviewRecord({
+        triggers: [
+          {
+            type: ReviewTriggerType.GENERAL_NOT_FOUND,
+            studentFlagReason: null,
+            reason: null,
+            createdAt: new Date('2026-07-29T10:00:01.000Z'),
+          },
+        ],
+        evidence: {
+          evidence: {
+            target: { content: 'immutable safe response' },
+            studentPrompt: {
+              content: 'immutable bounded question',
+              createdAt: '2026-07-29T09:58:00.000Z',
+            },
+            automaticEvidence: {
+              sources: [
+                {
+                  materialId: 'material-1',
+                  materialTitle: 'Immutable source',
+                  chunkIndex: 2,
+                  excerpt: 'bounded immutable excerpt',
+                  rank: 1,
+                },
+              ],
+            },
+          },
+        },
+      }),
+    )
+
+    await expect(
+      repository.findAuthorized('instructor-1', 'review-1'),
+    ).resolves.toMatchObject({
+      flaggedExchange: { content: 'immutable bounded question' },
+      assistantResponse: {
+        content: 'immutable safe response',
+        citations: [
+          {
+            materialId: 'material-1',
+            materialTitle: 'Immutable source',
+            snippets: [
+              { chunkNumber: 3, content: 'bounded immutable excerpt' },
+            ],
+          },
+        ],
+      },
+      previousMessages: [],
+      followingMessages: [],
+    })
+    expect(findMessages).not.toHaveBeenCalled()
+  })
+
   it('selects only bounded review data and never queries unrelated messages', async () => {
     findReview.mockResolvedValue(reviewRecord())
     findMessages.mockResolvedValue([])
@@ -185,11 +241,12 @@ describe('PrismaInstructorReviewDetailRepository', () => {
       'createdAt',
       'course',
       'triggers',
+      'evidence',
       'targetMessage',
       '_count',
     ])
     expect(JSON.stringify(query.select)).not.toMatch(
-      /evidence|actions|draftContent|publishedContent|email|similarityScore|embedding|vector|storagePath/,
+      /actions|draftContent|publishedContent|email|similarityScore|embedding|vector|storagePath/,
     )
     const messageCalls = findMessages.mock.calls as unknown as [
       Record<string, unknown>,
@@ -217,6 +274,7 @@ describe('PrismaInstructorReviewDetailRepository', () => {
           createdAt: new Date('2026-07-29T10:00:01.000Z'),
         },
       ],
+      evidence: null,
       targetMessage: {
         sequence: 5,
         role: MessageRole.ASSISTANT,

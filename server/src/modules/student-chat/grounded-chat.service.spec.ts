@@ -60,8 +60,12 @@ describe('GroundedChatService', () => {
     GroundedChatTurnRepository['completeTurn']
   >
   let blockTurn: jest.Mock
-  let completeUnsupportedTurn: jest.Mock
-  let readTurnForStudent: jest.Mock
+  let completeUnsupportedTurn: jest.MockedFunction<
+    GroundedChatTurnRepository['completeUnsupportedTurn']
+  >
+  let readTurnForStudent: jest.MockedFunction<
+    GroundedChatTurnRepository['readTurnForStudent']
+  >
   let failTurn: jest.Mock
   let retrieveCourseEvidence: jest.Mock
   let complete: jest.MockedFunction<CompletionProvider['complete']>
@@ -105,9 +109,9 @@ describe('GroundedChatService', () => {
           }),
         } satisfies FinalizeGroundedChatTurnResult),
       )
-    completeUnsupportedTurn = jest
-      .fn()
-      .mockImplementation((input: FinalizeGroundedChatTurnInput) =>
+    completeUnsupportedTurn = jest.fn() as typeof completeUnsupportedTurn
+    completeUnsupportedTurn.mockImplementation(
+      (input: FinalizeGroundedChatTurnInput) =>
         Promise.resolve({
           kind: 'ok',
           message: assistantMessage({
@@ -118,8 +122,9 @@ describe('GroundedChatService', () => {
             completedAt: new Date('2026-07-21T12:01:00.000Z'),
           }),
         } satisfies FinalizeGroundedChatTurnResult),
-      )
-    readTurnForStudent = jest.fn().mockImplementation(() => {
+    )
+    readTurnForStudent = jest.fn() as typeof readTurnForStudent
+    readTurnForStudent.mockImplementation(() => {
       const completed = completeTurn.mock.calls.at(-1)?.[0]
       const unsupported = completeUnsupportedTurn.mock.calls.at(-1)?.[0]
       const terminal = completed ?? unsupported

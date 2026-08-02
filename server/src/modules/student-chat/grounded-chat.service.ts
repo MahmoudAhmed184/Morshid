@@ -531,7 +531,7 @@ export class GroundedChatService {
       })
       switch (refreshed.kind) {
         case 'ok':
-          return this.presentTurn(
+          return await this.presentTurn(
             refreshed.studentMessage,
             refreshed.assistantMessage,
           )
