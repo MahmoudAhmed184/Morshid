@@ -14,6 +14,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service'
 import {
   chatMessageSelect,
+  chatMessageSelectForStudent,
   chatMessageScalarSelect,
   currentDatabaseTime,
 } from './student-chat.repository.support'
@@ -64,6 +65,7 @@ export interface CompleteGroundedChatTurnInput extends AuthorizedTurnInput {
   outputTokens?: number
   evidence: readonly GroundedChatEvidenceInput[]
   guidanceLabel?: MessageGuidanceLabel
+  errorCode?: string
 }
 
 export interface FinalizeGroundedChatTurnInput extends AuthorizedTurnInput {
@@ -72,6 +74,11 @@ export interface FinalizeGroundedChatTurnInput extends AuthorizedTurnInput {
   assistantMessageId: string
   content: string
   errorCode: string
+}
+
+export interface ReadGroundedChatTurnInput extends AuthorizedTurnInput {
+  studentMessageId: string
+  assistantMessageId: string
 }
 
 export type BeginGroundedChatTurnResult =
@@ -111,6 +118,16 @@ export type FinalizeGroundedChatTurnResult =
   | { kind: 'session_not_found' }
   | { kind: 'message_not_found'; messageId: string }
   | { kind: 'message_not_pending'; messageId: string }
+
+export type ReadGroundedChatTurnResult =
+  | {
+      kind: 'ok'
+      studentMessage: ChatMessageRecord
+      assistantMessage: ChatMessageRecord
+    }
+  | { kind: 'membership_missing' }
+  | { kind: 'session_not_found' }
+  | { kind: 'message_not_found'; messageId: string }
 
 interface LockedSession {
   id: string
@@ -156,6 +173,14 @@ export abstract class GroundedChatTurnRepository {
   abstract blockTurn(
     input: FinalizeGroundedChatTurnInput,
   ): Promise<FinalizeGroundedChatTurnResult>
+
+  abstract completeUnsupportedTurn(
+    input: FinalizeGroundedChatTurnInput,
+  ): Promise<FinalizeGroundedChatTurnResult>
+
+  abstract readTurnForStudent(
+    input: ReadGroundedChatTurnInput,
+  ): Promise<ReadGroundedChatTurnResult>
 }
 
 @Injectable()
@@ -419,7 +444,7 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
           promptVersion: input.promptVersion,
           inputTokens: input.inputTokens ?? null,
           outputTokens: input.outputTokens ?? null,
-          errorCode: null,
+          errorCode: input.errorCode ?? null,
           errorMessage: null,
           groundingLeaseExpiresAt: null,
           completedAt: now,
@@ -485,12 +510,68 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
     })
   }
 
+  completeUnsupportedTurn(
+    input: FinalizeGroundedChatTurnInput,
+  ): Promise<FinalizeGroundedChatTurnResult> {
+    return this.finalizeWithoutEvidence(input, {
+      status: MessageStatus.COMPLETED,
+      content: input.content,
+      guidanceLabel: MessageGuidanceLabel.UNCERTAIN_AWAITING_REVIEW,
+      errorCode: input.errorCode,
+    })
+  }
+
+  readTurnForStudent(
+    input: ReadGroundedChatTurnInput,
+  ): Promise<ReadGroundedChatTurnResult> {
+    return this.runTransaction(async (tx) => {
+      const authorization = await this.lockAuthorizedSession(tx, input)
+      if (authorization.kind !== 'ok') {
+        return authorization
+      }
+
+      const studentMessage = await tx.message.findFirst({
+        where: {
+          id: input.studentMessageId,
+          sessionId: input.sessionId,
+          role: MessageRole.STUDENT,
+          authorUserId: input.studentId,
+        },
+        select: chatMessageSelectForStudent(input.studentId),
+      })
+      if (studentMessage === null) {
+        return { kind: 'message_not_found', messageId: input.studentMessageId }
+      }
+
+      const assistantMessage = await tx.message.findFirst({
+        where: {
+          id: input.assistantMessageId,
+          sessionId: input.sessionId,
+          role: MessageRole.ASSISTANT,
+          responseToMessageId: input.studentMessageId,
+        },
+        select: chatMessageSelectForStudent(input.studentId),
+      })
+      if (assistantMessage === null) {
+        return {
+          kind: 'message_not_found',
+          messageId: input.assistantMessageId,
+        }
+      }
+
+      return { kind: 'ok', studentMessage, assistantMessage }
+    })
+  }
+
   private finalizeWithoutEvidence(
     input: FinalizeGroundedChatTurnInput,
     terminal: {
-      status: typeof MessageStatus.FAILED | typeof MessageStatus.BLOCKED
+      status:
+        | typeof MessageStatus.COMPLETED
+        | typeof MessageStatus.FAILED
+        | typeof MessageStatus.BLOCKED
       content: string
-      guidanceLabel: typeof MessageGuidanceLabel.GENERAL_NOT_FOUND | null
+      guidanceLabel: MessageGuidanceLabel | null
       errorCode: string
     },
   ): Promise<FinalizeGroundedChatTurnResult> {
@@ -500,9 +581,12 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
   private async persistTerminalWithoutEvidence(
     input: FinalizeGroundedChatTurnInput,
     terminal: {
-      status: typeof MessageStatus.FAILED | typeof MessageStatus.BLOCKED
+      status:
+        | typeof MessageStatus.COMPLETED
+        | typeof MessageStatus.FAILED
+        | typeof MessageStatus.BLOCKED
       content: string
-      guidanceLabel: typeof MessageGuidanceLabel.GENERAL_NOT_FOUND | null
+      guidanceLabel: MessageGuidanceLabel | null
       errorCode: string
     },
   ): Promise<FinalizeGroundedChatTurnResult> {

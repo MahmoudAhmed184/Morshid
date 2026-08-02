@@ -60,6 +60,8 @@ describe('GroundedChatService', () => {
     GroundedChatTurnRepository['completeTurn']
   >
   let blockTurn: jest.Mock
+  let completeUnsupportedTurn: jest.Mock
+  let readTurnForStudent: jest.Mock
   let failTurn: jest.Mock
   let retrieveCourseEvidence: jest.Mock
   let complete: jest.MockedFunction<CompletionProvider['complete']>
@@ -103,6 +105,48 @@ describe('GroundedChatService', () => {
           }),
         } satisfies FinalizeGroundedChatTurnResult),
       )
+    completeUnsupportedTurn = jest
+      .fn()
+      .mockImplementation((input: FinalizeGroundedChatTurnInput) =>
+        Promise.resolve({
+          kind: 'ok',
+          message: assistantMessage({
+            status: MessageStatus.COMPLETED,
+            content: input.content,
+            guidanceLabel: MessageGuidanceLabel.UNCERTAIN_AWAITING_REVIEW,
+            errorCode: input.errorCode,
+            completedAt: new Date('2026-07-21T12:01:00.000Z'),
+          }),
+        } satisfies FinalizeGroundedChatTurnResult),
+      )
+    readTurnForStudent = jest.fn().mockImplementation(() => {
+      const completed = completeTurn.mock.calls.at(-1)?.[0]
+      const unsupported = completeUnsupportedTurn.mock.calls.at(-1)?.[0]
+      const terminal = completed ?? unsupported
+      return Promise.resolve({
+        kind: 'ok',
+        studentMessage: studentMessage({
+          requestKind: MessageRequestKind.PROBLEM_LIKE,
+        }),
+        assistantMessage: assistantMessage({
+          status: MessageStatus.COMPLETED,
+          content: terminal?.content ?? 'Safe reviewed response',
+          guidanceLabel:
+            completed?.guidanceLabel ??
+            MessageGuidanceLabel.UNCERTAIN_AWAITING_REVIEW,
+          errorCode: completed?.errorCode ?? unsupported?.errorCode ?? null,
+          completedAt: new Date('2026-07-21T12:01:00.000Z'),
+          reviewCase: {
+            id: 'review-case-id',
+            status: 'PENDING',
+            outcome: null,
+            resolvedAt: null,
+            triggers: [{ id: 'trigger-id' }],
+            _count: { notifications: 0 },
+          },
+        }),
+      })
+    })
     failTurn = jest
       .fn()
       .mockImplementation((input: FinalizeGroundedChatTurnInput) =>
@@ -138,6 +182,8 @@ describe('GroundedChatService', () => {
       beginTurn,
       retryTurn,
       completeTurn,
+      completeUnsupportedTurn,
+      readTurnForStudent,
       blockTurn,
       failTurn,
     } as unknown as GroundedChatTurnRepository
@@ -230,15 +276,7 @@ describe('GroundedChatService', () => {
       outputTokens: 5,
       evidence: evidenceChunks(),
     })
-    const reviewRequest = createRequiredReview.mock.calls[0][0]
-    expect(reviewRequest).toMatchObject({
-      assistantMessageId,
-      requestContext: undefined,
-    })
-    expect(reviewRequest.decision).toMatchObject({
-      display: 'AS_PROPOSED',
-      createReview: false,
-    })
+    expect(createRequiredReview).not.toHaveBeenCalled()
     expect(response).toMatchObject({
       studentMessage: {
         id: studentMessageId,
@@ -367,6 +405,130 @@ describe('GroundedChatService', () => {
       content: GROUNDING_BLOCKED_CONTENT,
       errorCode: 'GROUNDING_INSUFFICIENT_EVIDENCE',
       citations: [],
+    })
+  })
+
+  it('creates one automatic review before returning unsupported correctness-sensitive guidance', async () => {
+    beginTurn.mockResolvedValue(
+      beginOk({
+        content: 'Write the complete solution for my graded Python assignment',
+        requestKind: MessageRequestKind.PROBLEM_LIKE,
+      }),
+    )
+    retrieveCourseEvidence.mockResolvedValue({ kind: 'insufficient_evidence' })
+    createRequiredReview.mockResolvedValue({
+      caseId: 'review-case-id',
+      messageId: assistantMessageId,
+      status: 'PENDING',
+      replayed: false,
+    })
+
+    const response = await service.send(
+      courseId,
+      sessionId,
+      {
+        content: 'Write the complete solution for my graded Python assignment',
+      },
+      user,
+    )
+
+    expect(complete).not.toHaveBeenCalled()
+    expect(blockTurn).not.toHaveBeenCalled()
+    expect(completeUnsupportedTurn).toHaveBeenCalledWith({
+      courseId,
+      sessionId,
+      studentId: user.id,
+      attemptId,
+      studentMessageId,
+      assistantMessageId,
+      content:
+        'I could not find course material that supports this request. I can offer only limited general learning guidance while an Instructor reviews it.',
+      errorCode: 'GENERAL_NOT_FOUND',
+    })
+    const reviewRequest = createRequiredReview.mock.calls[0][0]
+    expect(reviewRequest.assistantMessageId).toBe(assistantMessageId)
+    expect(reviewRequest.decision).toMatchObject({
+      display: 'SAFE_REPLACEMENT',
+      createReview: true,
+      reasons: ['GENERAL_NOT_FOUND'],
+    })
+    expect(completeUnsupportedTurn.mock.invocationCallOrder[0]).toBeLessThan(
+      createRequiredReview.mock.invocationCallOrder[0],
+    )
+    expect(response.assistantMessage).toMatchObject({
+      status: MessageStatus.COMPLETED,
+      guidanceLabel: MessageGuidanceLabel.UNCERTAIN_AWAITING_REVIEW,
+      errorCode: 'GENERAL_NOT_FOUND',
+    })
+  })
+
+  it('repairs an interrupted automatic review on idempotent replay without generating another message', async () => {
+    beginTurn.mockResolvedValue({
+      kind: 'replayed',
+      studentMessage: studentMessage({
+        content: 'Complete this graded assignment',
+        requestKind: MessageRequestKind.PROBLEM_LIKE,
+      }),
+      assistantMessage: assistantMessage({
+        status: MessageStatus.COMPLETED,
+        content:
+          'I could not find course material that supports this request. I can offer only limited general learning guidance while an Instructor reviews it.',
+        guidanceLabel: MessageGuidanceLabel.UNCERTAIN_AWAITING_REVIEW,
+        errorCode: 'GENERAL_NOT_FOUND',
+        completedAt: new Date('2026-07-21T12:01:00.000Z'),
+      }),
+    })
+    createRequiredReview.mockResolvedValue({
+      caseId: 'review-case-id',
+      messageId: assistantMessageId,
+      status: 'PENDING',
+      replayed: true,
+    })
+
+    const response = await service.send(
+      courseId,
+      sessionId,
+      {
+        clientMessageId: studentMessageId,
+        content: 'Complete this graded assignment',
+      },
+      user,
+    )
+
+    expect(retrieveCourseEvidence).not.toHaveBeenCalled()
+    expect(complete).not.toHaveBeenCalled()
+    expect(completeUnsupportedTurn).not.toHaveBeenCalled()
+    expect(createRequiredReview).toHaveBeenCalledTimes(1)
+    expect(response.assistantMessage.id).toBe(assistantMessageId)
+  })
+
+  it('withholds a correctness-sensitive response while the active embedding profile is not ready', async () => {
+    beginTurn.mockResolvedValue(
+      beginOk({
+        content: 'Give me the final answer for this quiz',
+        requestKind: MessageRequestKind.PROBLEM_LIKE,
+      }),
+    )
+    retrieveCourseEvidence.mockResolvedValue({
+      kind: 'embedding_profile_not_ready',
+      expectedModel: 'active-profile',
+      incompleteMaterialIds: ['material-a'],
+    })
+
+    const response = await service.send(
+      courseId,
+      sessionId,
+      { content: 'Give me the final answer for this quiz' },
+      user,
+    )
+
+    expect(complete).not.toHaveBeenCalled()
+    expect(completeUnsupportedTurn).toHaveBeenCalledTimes(1)
+    expect(createRequiredReview).toHaveBeenCalledTimes(1)
+    expect(response.assistantMessage).toMatchObject({
+      status: MessageStatus.COMPLETED,
+      guidanceLabel: MessageGuidanceLabel.UNCERTAIN_AWAITING_REVIEW,
+      errorCode: 'GENERAL_NOT_FOUND',
     })
   })
 
@@ -542,10 +704,21 @@ describe('GroundedChatService', () => {
     ],
     [
       'review_creation',
-      () =>
+      () => {
+        const evaluator = new OutputPolicyService()
+        jest.spyOn(outputPolicy, 'evaluate').mockImplementation((input) =>
+          evaluator.evaluate({
+            ...input,
+            assessment: {
+              ...input.assessment,
+              policyCheck: 'FAILED',
+            },
+          }),
+        )
         createRequiredReview.mockRejectedValue(
           new Error('PRIVATE-REVIEW-ERROR'),
-        ),
+        )
+      },
       () =>
         service.send(
           courseId,
@@ -684,12 +857,14 @@ describe('GroundedChatService', () => {
   })
 })
 
-function beginOk(): Extract<BeginGroundedChatTurnResult, { kind: 'ok' }> {
+function beginOk(
+  studentOverrides: Partial<ChatMessageRecord> = {},
+): Extract<BeginGroundedChatTurnResult, { kind: 'ok' }> {
   return {
     kind: 'ok',
     courseId,
     attemptId,
-    studentMessage: studentMessage(),
+    studentMessage: studentMessage(studentOverrides),
     assistantMessage: assistantMessage(),
   }
 }
@@ -698,7 +873,9 @@ function retryOk(): RetryGroundedChatTurnResult {
   return beginOk()
 }
 
-function studentMessage(): ChatMessageRecord {
+function studentMessage(
+  overrides: Partial<ChatMessageRecord> = {},
+): ChatMessageRecord {
   return message({
     id: studentMessageId,
     sequence: 1,
@@ -708,6 +885,7 @@ function studentMessage(): ChatMessageRecord {
     content: 'Explain list iteration',
     status: MessageStatus.COMPLETED,
     completedAt: new Date('2026-07-21T12:00:00.000Z'),
+    ...overrides,
   })
 }
 

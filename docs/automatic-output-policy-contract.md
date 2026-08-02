@@ -71,6 +71,24 @@ upstream signals are deliberately supplied as an assessment so the later
 vertical slices can add their bounded responsibilities without duplicating
 review persistence: unsupported correctness-sensitive handling (#142),
 controlled source-conflict detection (#143), and prompt/document-injection plus
-final-answer enforcement (#144). Until those slices provide their signals, the
-ordinary grounded-chat path remains clean-only apart from the existing
-retrieval/citation state.
+final-answer enforcement (#144). Signals owned by #143 and #144 remain
+clean-only on the ordinary grounded-chat path until those slices activate them.
+
+## Unsupported correctness-sensitive slice
+
+Issue #142 activates `GENERAL_NOT_FOUND` only for the bounded Sprint 3
+assessment patterns: explicit graded/homework/quiz/exam language,
+assignment/exercise/problem/task language paired with a request to solve or
+complete it, and direct requests for a full answer, implementation, or code.
+Routine conceptual prompts remain on the existing non-review missing-source
+path. This is deliberately a small deterministic request classifier, not a
+general-purpose correctness or fact checker.
+
+When trusted retrieval is unavailable for a covered request, completion is not
+called. The assistant message is completed directly with the fixed safe
+replacement, `UNCERTAIN_AWAITING_REVIEW`, no citations, and a canonical policy
+reason code. The shared creator then creates the automatic case before the
+response is returned. The persisted reason code lets an idempotent delivery
+retry repair an interrupted case creation without generating another assistant
+message; the creator's source-event key and one-case-per-message constraint keep
+the case and trigger unique.

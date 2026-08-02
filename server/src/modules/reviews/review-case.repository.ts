@@ -189,11 +189,40 @@ export class PrismaReviewCaseRepository extends ReviewCaseRepository {
           )
           if (!hasTrigger) {
             const version = existing.version + 1
+            const automaticSnapshot =
+              input.kind === 'automatic'
+                ? serializeSnapshot(buildSnapshot(target, [], input))
+                : null
+            if (
+              automaticSnapshot !== null &&
+              automaticSnapshot.byteLength > SNAPSHOT_LIMIT_BYTES
+            ) {
+              return { kind: 'snapshot_too_large' }
+            }
             await tx.reviewCase.update({
               where: { id: existing.id },
               data: {
                 version,
                 triggers: { create: triggerData(input) },
+                ...(automaticSnapshot === null
+                  ? {}
+                  : {
+                      evidence: {
+                        upsert: {
+                          create: {
+                            schemaVersion: 1,
+                            evidence: automaticSnapshot.snapshot,
+                            contentHash: automaticSnapshot.contentHash,
+                          },
+                          update: {
+                            schemaVersion: 1,
+                            evidence: automaticSnapshot.snapshot,
+                            contentHash: automaticSnapshot.contentHash,
+                            capturedAt: new Date(),
+                          },
+                        },
+                      },
+                    }),
                 actions: {
                   create: actionData(
                     input,
@@ -252,22 +281,26 @@ export class PrismaReviewCaseRepository extends ReviewCaseRepository {
           }
         }
 
-        const adjacentMessages = await tx.message.findMany({
-          where: {
-            sessionId: target.session.id,
-            sequence: {
-              in: [target.sequence - 1, target.sequence + 1].filter(
-                (sequence) => sequence > 0,
-              ),
-            },
-          },
-          orderBy: { sequence: 'asc' },
-          take: 2,
-          select: adjacentMessageSelect,
-        })
-        const snapshot = buildSnapshot(target, adjacentMessages, input)
-        const serialized = JSON.stringify(snapshot)
-        if (Buffer.byteLength(serialized, 'utf8') > SNAPSHOT_LIMIT_BYTES) {
+        const adjacentMessages =
+          input.kind === 'automatic'
+            ? []
+            : await tx.message.findMany({
+                where: {
+                  sessionId: target.session.id,
+                  sequence: {
+                    in: [target.sequence - 1, target.sequence + 1].filter(
+                      (sequence) => sequence > 0,
+                    ),
+                  },
+                },
+                orderBy: { sequence: 'asc' },
+                take: 2,
+                select: adjacentMessageSelect,
+              })
+        const serializedSnapshot = serializeSnapshot(
+          buildSnapshot(target, adjacentMessages, input),
+        )
+        if (serializedSnapshot.byteLength > SNAPSHOT_LIMIT_BYTES) {
           return { kind: 'snapshot_too_large' }
         }
 
@@ -281,8 +314,8 @@ export class PrismaReviewCaseRepository extends ReviewCaseRepository {
             evidence: {
               create: {
                 schemaVersion: 1,
-                evidence: snapshot,
-                contentHash: sha256(serialized),
+                evidence: serializedSnapshot.snapshot,
+                contentHash: serializedSnapshot.contentHash,
               },
             },
             actions: {
@@ -449,28 +482,44 @@ function buildSnapshot(
     studentPrompt: target.responseToMessage
       ? {
           id: target.responseToMessage.id,
-          content: target.responseToMessage.content,
+          content:
+            input.kind === 'automatic' &&
+            input.trigger === ReviewTriggerType.POLICY_CHECK_FAILED
+              ? '[Redacted policy-review prompt]'
+              : truncate(
+                  target.responseToMessage.content,
+                  ADJACENT_CONTENT_CODE_POINTS,
+                ),
           createdAt: target.responseToMessage.createdAt.toISOString(),
         }
       : null,
-    context: { previous: adjacent(-1), next: adjacent(1) },
-    citations: target.citations.map((citation) => ({
-      order: citation.citationOrder,
-      materialId: citation.material.id,
-      title: citation.material.title,
-    })),
-    retrievals: target.retrievals.map((retrieval) => ({
-      rank: retrieval.rank,
-      score: retrieval.similarityScore?.toString() ?? null,
-      chunkId: retrieval.chunk?.id ?? null,
-      excerpt:
-        retrieval.chunk === null
-          ? null
-          : truncate(
-              retrieval.chunk.content.replace(/\s+/gu, ' ').trim(),
-              EXCERPT_CODE_POINTS,
-            ),
-    })),
+    context:
+      input.kind === 'automatic'
+        ? { previous: null, next: null }
+        : { previous: adjacent(-1), next: adjacent(1) },
+    citations:
+      input.kind === 'automatic'
+        ? []
+        : target.citations.map((citation) => ({
+            order: citation.citationOrder,
+            materialId: citation.material.id,
+            title: citation.material.title,
+          })),
+    retrievals:
+      input.kind === 'automatic'
+        ? []
+        : target.retrievals.map((retrieval) => ({
+            rank: retrieval.rank,
+            score: retrieval.similarityScore?.toString() ?? null,
+            chunkId: retrieval.chunk?.id ?? null,
+            excerpt:
+              retrieval.chunk === null
+                ? null
+                : truncate(
+                    retrieval.chunk.content.replace(/\s+/gu, ' ').trim(),
+                    EXCERPT_CODE_POINTS,
+                  ),
+          })),
     automaticEvidence:
       input.kind === 'automatic'
         ? automaticEvidenceSnapshot(input.evidence)
@@ -502,6 +551,19 @@ function automaticEvidenceSnapshot(
       code: fact.code,
       value: fact.value,
     })),
+  }
+}
+
+function serializeSnapshot(snapshot: Prisma.InputJsonObject): {
+  snapshot: Prisma.InputJsonObject
+  byteLength: number
+  contentHash: string
+} {
+  const serialized = JSON.stringify(snapshot)
+  return {
+    snapshot,
+    byteLength: Buffer.byteLength(serialized, 'utf8'),
+    contentHash: sha256(serialized),
   }
 }
 

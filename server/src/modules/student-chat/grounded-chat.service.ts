@@ -20,7 +20,13 @@ import {
   OutputPolicyReviewAdapter,
   OutputPolicyReviewIntegrationError,
 } from '../output-policy/output-policy-review.adapter'
-import type { OutputPolicyDecision } from '../output-policy/output-policy.contract'
+import {
+  decodeAutomaticPolicyReasons,
+  encodeAutomaticPolicyReasons,
+  type AutomaticPolicyReason,
+  type OutputPolicyDecision,
+  type OutputPolicyEvidenceSource,
+} from '../output-policy/output-policy.contract'
 import { OutputPolicyService } from '../output-policy/output-policy.service'
 import {
   type BeginGroundedChatTurnResult,
@@ -152,7 +158,12 @@ export class GroundedChatService {
       throw studentChatTerminalStateUnavailableException()
     }
     if (result.kind === 'replayed') {
-      return this.presentTurn(result.studentMessage, result.assistantMessage)
+      return this.presentReplayedTurn(
+        result.studentMessage,
+        result.assistantMessage,
+        operation,
+        requestContext,
+      )
     }
     if (result.kind !== 'ok') {
       return this.handleBeginDenial(
@@ -251,10 +262,18 @@ export class GroundedChatService {
           incompleteMaterialIds: retrieval.incompleteMaterialIds,
           ...operation,
         })
-        return await this.persistBlocked(turn, operation)
+        return await this.persistInsufficientEvidence(
+          turn,
+          operation,
+          requestContext,
+        )
       }
       if (retrieval.kind === 'insufficient_evidence') {
-        return await this.persistBlocked(turn, operation)
+        return await this.persistInsufficientEvidence(
+          turn,
+          operation,
+          requestContext,
+        )
       }
       evidence = retrieval.chunks
     } catch (error) {
@@ -264,7 +283,7 @@ export class GroundedChatService {
 
     const context = toCompletionContext(evidence)
     if (context === null) {
-      return this.persistBlocked(turn, operation)
+      return this.persistInsufficientEvidence(turn, operation, requestContext)
     }
 
     let completion: CompletionResult
@@ -321,6 +340,9 @@ export class GroundedChatService {
         ...(completion.outputTokens === undefined
           ? {}
           : { outputTokens: completion.outputTokens }),
+        ...(policyDecision.createReview
+          ? { errorCode: encodeAutomaticPolicyReasons(policyDecision.reasons) }
+          : {}),
         evidence,
       })
     } catch (error) {
@@ -329,15 +351,14 @@ export class GroundedChatService {
     }
     switch (completed.kind) {
       case 'ok':
-        try {
-          await this.outputPolicyReview.createRequiredReview({
-            assistantMessageId: completed.message.id,
-            decision: policyDecision,
+        if (policyDecision.createReview) {
+          return this.createPolicyReviewAndPresent(
+            turn.studentMessage,
+            completed.message,
+            policyDecision,
+            operation,
             requestContext,
-          })
-        } catch (error) {
-          this.logFailure('review_creation', operation, error)
-          throw studentChatTerminalStateUnavailableException()
+          )
         }
         return this.presentTurn(turn.studentMessage, completed.message)
       case 'membership_missing':
@@ -348,6 +369,182 @@ export class GroundedChatService {
         return this.persistFailure(turn, operation)
       default:
         return assertNever(completed)
+    }
+  }
+
+  private persistInsufficientEvidence(
+    turn: ActiveGroundedTurn,
+    operation: OrchestrationContext,
+    requestContext?: AuditRequestContext,
+  ): Promise<GroundedChatTurnResponseDto> {
+    if (turn.studentMessage.requestKind !== MessageRequestKind.PROBLEM_LIKE) {
+      return this.persistBlocked(turn, operation)
+    }
+
+    return this.persistUnsupportedCorrectnessSensitive(
+      turn,
+      operation,
+      requestContext,
+    )
+  }
+
+  private async persistUnsupportedCorrectnessSensitive(
+    turn: ActiveGroundedTurn,
+    operation: OrchestrationContext,
+    requestContext?: AuditRequestContext,
+  ): Promise<GroundedChatTurnResponseDto> {
+    const decision = this.outputPolicy.evaluate({
+      proposedContent: GROUNDING_BLOCKED_CONTENT,
+      assessment: {
+        support: 'NOT_FOUND',
+        policyCheck: 'PASSED',
+        answerRisk: 'NONE',
+        citations: 'NOT_REQUIRED',
+      },
+    })
+
+    let completed: FinalizeGroundedChatTurnResult
+    try {
+      completed = await this.turnRepository.completeUnsupportedTurn({
+        courseId: turn.courseId,
+        sessionId: operation.sessionId,
+        studentId: operation.studentId,
+        attemptId: turn.attemptId,
+        studentMessageId: turn.studentMessage.id,
+        assistantMessageId: turn.assistantMessage.id,
+        content: decision.content,
+        errorCode: encodeAutomaticPolicyReasons(decision.reasons),
+      })
+    } catch (error) {
+      this.logFailure('finalization', operation, error)
+      return this.persistFailure(turn, operation)
+    }
+
+    switch (completed.kind) {
+      case 'ok':
+        return this.createPolicyReviewAndPresent(
+          turn.studentMessage,
+          completed.message,
+          decision,
+          operation,
+          requestContext,
+        )
+      case 'membership_missing':
+      case 'session_not_found':
+      case 'message_not_found':
+      case 'message_not_pending':
+        this.logResultFailure('finalization', operation, completed.kind)
+        return this.persistFailure(turn, operation)
+      default:
+        return assertNever(completed)
+    }
+  }
+
+  private async presentReplayedTurn(
+    studentMessage: ChatMessageRecord,
+    assistantMessage: ChatMessageRecord,
+    operation: OrchestrationContext,
+    requestContext?: AuditRequestContext,
+  ): Promise<GroundedChatTurnResponseDto> {
+    const reasons = decodeAutomaticPolicyReasons(assistantMessage.errorCode)
+    if (reasons !== null) {
+      const decision = this.recreatePolicyDecision(assistantMessage, reasons)
+      return this.createPolicyReviewAndPresent(
+        studentMessage,
+        assistantMessage,
+        decision,
+        operation,
+        requestContext,
+      )
+    }
+    return this.presentTurn(studentMessage, assistantMessage)
+  }
+
+  private recreatePolicyDecision(
+    message: ChatMessageRecord,
+    reasons: readonly AutomaticPolicyReason[],
+  ): OutputPolicyDecision {
+    const evidence = policyEvidenceFrom(message)
+    return this.outputPolicy.evaluate({
+      proposedContent: message.content,
+      assessment: {
+        support: reasons.includes('GENERAL_NOT_FOUND')
+          ? 'NOT_FOUND'
+          : reasons.includes('SOURCE_CONFLICT')
+            ? 'CONFLICTING'
+            : 'SUPPORTED',
+        policyCheck: reasons.includes('POLICY_CHECK_FAILED')
+          ? 'FAILED'
+          : 'PASSED',
+        answerRisk: reasons.includes('FINAL_ANSWER_RISK')
+          ? 'FINAL_ANSWER'
+          : 'NONE',
+        citations: reasons.includes('CITATION_MISSING')
+          ? 'MISSING'
+          : evidence.length === 0
+            ? 'NOT_REQUIRED'
+            : 'PRESENT',
+      },
+      evidence,
+    })
+  }
+
+  private async createPolicyReview(
+    message: ChatMessageRecord,
+    decision: OutputPolicyDecision,
+    operation: OrchestrationContext,
+    requestContext?: AuditRequestContext,
+  ): Promise<void> {
+    try {
+      await this.outputPolicyReview.createRequiredReview({
+        assistantMessageId: message.id,
+        decision,
+        requestContext,
+      })
+    } catch (error) {
+      this.logFailure('review_creation', operation, error)
+      throw studentChatTerminalStateUnavailableException()
+    }
+  }
+
+  private async createPolicyReviewAndPresent(
+    studentMessage: ChatMessageRecord,
+    assistantMessage: ChatMessageRecord,
+    decision: OutputPolicyDecision,
+    operation: OrchestrationContext,
+    requestContext?: AuditRequestContext,
+  ): Promise<GroundedChatTurnResponseDto> {
+    await this.createPolicyReview(
+      assistantMessage,
+      decision,
+      operation,
+      requestContext,
+    )
+
+    try {
+      const refreshed = await this.turnRepository.readTurnForStudent({
+        courseId: operation.courseId,
+        sessionId: operation.sessionId,
+        studentId: operation.studentId,
+        studentMessageId: studentMessage.id,
+        assistantMessageId: assistantMessage.id,
+      })
+      switch (refreshed.kind) {
+        case 'ok':
+          return this.presentTurn(
+            refreshed.studentMessage,
+            refreshed.assistantMessage,
+          )
+        case 'membership_missing':
+        case 'session_not_found':
+        case 'message_not_found':
+          throw studentChatTerminalStateUnavailableException()
+        default:
+          return assertNever(refreshed)
+      }
+    } catch (error) {
+      this.logFailure('review_creation', operation, error)
+      throw studentChatTerminalStateUnavailableException()
     }
   }
 
@@ -632,6 +829,27 @@ function safeErrorDescriptor(error: unknown): {
 
 function hasDistinctCitation(evidence: readonly RetrievedChunk[]): boolean {
   return evidence.some((chunk) => chunk.materialId.trim() !== '')
+}
+
+function policyEvidenceFrom(
+  message: ChatMessageRecord,
+): OutputPolicyEvidenceSource[] {
+  return message.retrievals.flatMap((retrieval) => {
+    if (retrieval.chunk === null) {
+      return []
+    }
+    return [
+      {
+        materialId: retrieval.chunk.materialId,
+        chunkId: retrieval.chunk.id,
+        excerpt: retrieval.chunk.content,
+        rank: retrieval.rank,
+        ...(retrieval.similarityScore === null
+          ? {}
+          : { score: retrieval.similarityScore.toNumber() }),
+      },
+    ]
+  })
 }
 
 function isSafePrismaCode(code: string): boolean {

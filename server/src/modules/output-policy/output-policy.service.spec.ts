@@ -3,6 +3,10 @@ import {
   AUTOMATIC_SAFETY_FIXTURES,
   AUTOMATIC_SAFETY_PROVIDER_PROFILES,
 } from './automatic-safety.fixtures'
+import {
+  decodeAutomaticPolicyReasons,
+  encodeAutomaticPolicyReasons,
+} from './output-policy.contract'
 import { OutputPolicyService } from './output-policy.service'
 
 describe('OutputPolicyService', () => {
@@ -171,5 +175,23 @@ describe('OutputPolicyService', () => {
       AUTOMATIC_SAFETY_PROVIDER_PROFILES.liveBedrockGeminiEmbedding
         .requiredOptIns,
     ).toEqual(['GEMINI_EMBEDDING_DEMO_ACKNOWLEDGED'])
+  })
+
+  it('round-trips canonical policy reasons for idempotent review repair', () => {
+    const reasons = [
+      'GENERAL_NOT_FOUND',
+      'FINAL_ANSWER_RISK',
+      'CITATION_MISSING',
+    ] as const
+    const code = encodeAutomaticPolicyReasons(reasons)
+
+    expect(code).toBe('GENERAL_NOT_FOUND+FINAL_ANSWER_RISK+CITATION_MISSING')
+    expect(decodeAutomaticPolicyReasons(code)).toEqual(reasons)
+    expect(
+      decodeAutomaticPolicyReasons('GROUNDING_INSUFFICIENT_EVIDENCE'),
+    ).toBeNull()
+    expect(
+      decodeAutomaticPolicyReasons('CITATION_MISSING+GENERAL_NOT_FOUND'),
+    ).toBeNull()
   })
 })
