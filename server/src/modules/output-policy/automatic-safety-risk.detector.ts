@@ -6,8 +6,13 @@ import {
   UNTRUSTED_INPUT_BEGIN_MARKER,
   UNTRUSTED_INPUT_END_MARKER,
 } from '../completion/grounded-completion-envelope'
+import {
+  isSafetyDiscussion,
+  requestsObfuscatedDeliverable,
+  requestsProtectedSolution,
+} from './automatic-safety-request-intent'
 
-export const AUTOMATIC_SAFETY_RISK_DETECTOR_VERSION = 'automatic-safety-risk-v2'
+export const AUTOMATIC_SAFETY_RISK_DETECTOR_VERSION = 'automatic-safety-risk-v3'
 
 export type AutomaticSafetyRisk =
   | 'INSTRUCTION_OVERRIDE'
@@ -34,39 +39,49 @@ const CONTROL_TARGET =
 const OVERRIDE_PAYLOAD =
   /\b(?:give|provide|produce|write|solve|complete|generate)\b.{0,80}\b(?:answer|solution|code|implementation|program|submission)\b|\b(?:answer|output|print|return|respond with|say)\b(?:.{0,40}\b(?:directly|instead|now|with)\b|.{1,80}$)/iu
 const PERSONAL_AUTHORITY_EXCEPTION =
-  /\b(?:my|our)\s+(?:instructor|teacher|professor|lecturer)\b.{0,100}\b(?:said|says|told|approved|authorized|allowed|permitted|permission|exception)\b|\b(?:i|we)\s+(?:have|received|got|was given|were given)\b.{0,50}\b(?:permission|approval|authorization|an exception)\b.{0,50}\b(?:from|by)\s+(?:(?:my|our|the)\s+)?(?:instructor|teacher|professor|lecturer)\b/iu
-const ANSWER_KEY_DELIVERY_REQUEST =
-  /\b(?:access|give|obtain|provide|reveal|see|send|share|show)\b.{0,60}\b(?:the\s+)?answer\s+key\b|\b(?:the\s+)?answer\s+key\b.{0,60}\b(?:access|give|obtain|provide|reveal|see|send|share|show)\b/iu
+  /\b(?:my|our|the)\s+(?:instructor|teacher|professor|lecturer)\b.{0,100}\b(?:said|says|told|approved|authorized|allowed|permitted|permission|exception)\b|\b(?:i|we)\s+(?:have|received|got|was given|were given)\b.{0,50}\b(?:permission|approval|authorization|an exception)\b.{0,50}\b(?:from|by)\s+(?:(?:my|our|the)\s+)?(?:instructor|teacher|professor|lecturer)\b/iu
 const DISCLOSURE_REQUEST =
-  /\b(?:reveal|show|print|repeat|quote|disclose|expose|dump|return)\b.{0,80}\b(?:hidden|internal|system|developer|initial|secret)\b.{0,40}\b(?:prompt|instructions?|policy|configuration|message)\b/iu
+  /\b(?:access|display|dump|expose|obtain|print|quote|read|repeat|return|reveal|see|show|view)\b.{0,80}\b(?:hidden|internal|system|developer|initial|secret)\b.{0,40}\b(?:prompt|instructions?|policy|configuration|message)\b/iu
 const PROMPT_DISCLOSURE_CONTENT =
   /\b(?:system|developer|hidden|internal) (?:prompt|instructions?|message)\b.{0,80}\b(?:is|are|says|reads|follows|begin|:)\b/iu
 const COMPLETE_DELIVERY =
-  /\b(?:complete|full|entire|finished|final|ready[- ]to[- ]submit|copy[- ]and[- ]paste)\b.{0,60}\b(?:answer|solution|implementation|code|program|submission)\b|\b(?:answer|solution) key\b/iu
+  /\b(?:complete|full|entire|finished|final|ready[- ]to[- ]submit|ready[- ]to[- ]run|copy[- ]and[- ]paste)\b.{0,60}\b(?:answer|solution|implementation|code|program|submission|example)\b|\b(?:answer|solution) key\b/iu
 const DELIVERED_ARTIFACT =
   /```[\s\S]{40,}```|\b(?:here (?:is|are)|the (?:final|complete) answer|solution:)\b|(?:^|\n)\s*(?:def |class |function |public static |#include |SELECT )/iu
 const FULL_PROGRAM_ARTIFACT =
   /(?:^|\n)\s*(?:def |class |function |public static |#include )[\s\S]{40,}\b(?:return|main|end)\b/iu
+const CODE_FENCE =
+  /```(?:python|py|javascript|typescript|java|c|cpp|csharp|sql)?\s*\n([\s\S]*?)```/giu
+const CODE_STATEMENT =
+  /^\s*(?:import\s+|from\s+\S+\s+import\s+|def\s+|class\s+|if\s+|elif\s+|else\s*:|for\s+|while\s+|try\s*:|except\b|finally\s*:|with\s+|return\b|break\b|continue\b|raise\b|print\s*\(|[A-Za-z_]\w*\s*=|[A-Za-z_]\w*\s*\(|[A-Za-z_]\w*\.(?:append|remove|extend|insert|pop|sort)\s*\()/iu
 
 @Injectable()
 export class AutomaticSafetyRiskDetector {
   detectStudentInput(content: string): AutomaticSafetyRiskDetection | null {
     const normalized = normalize(content)
     const risks: AutomaticSafetyRisk[] = []
-    const claimedAnswerKeyException =
+    const protectedSolutionRequest = requestsProtectedSolution(normalized)
+    const claimedAuthorityException =
       PERSONAL_AUTHORITY_EXCEPTION.test(normalized) &&
-      ANSWER_KEY_DELIVERY_REQUEST.test(normalized)
+      (protectedSolutionRequest || DISCLOSURE_REQUEST.test(normalized))
     if (
       (OVERRIDE_COMMAND.test(normalized) &&
         (CONTROL_TARGET.test(normalized) ||
           DISCLOSURE_REQUEST.test(normalized) ||
           OVERRIDE_PAYLOAD.test(normalized))) ||
-      claimedAnswerKeyException
+      claimedAuthorityException
     ) {
       risks.push('INSTRUCTION_OVERRIDE')
     }
     if (DISCLOSURE_REQUEST.test(normalized)) {
       risks.push('HIDDEN_PROMPT_DISCLOSURE')
+    }
+    if (
+      !isSafetyDiscussion(normalized) &&
+      ((!claimedAuthorityException && protectedSolutionRequest) ||
+        requestsObfuscatedDeliverable(normalized))
+    ) {
+      risks.push('FINAL_ANSWER_DELIVERY')
     }
     return detection(risks)
   }
@@ -102,12 +117,31 @@ export class AutomaticSafetyRiskDetector {
       correctnessSensitive &&
       ((COMPLETE_DELIVERY.test(normalized) &&
         DELIVERED_ARTIFACT.test(content)) ||
-        FULL_PROGRAM_ARTIFACT.test(content))
+        FULL_PROGRAM_ARTIFACT.test(content) ||
+        containsSubmissionReadyCode(content))
     ) {
       risks.push('FINAL_ANSWER_DELIVERY')
     }
     return detection(risks)
   }
+}
+
+function containsSubmissionReadyCode(content: string): boolean {
+  const candidates = [...content.matchAll(CODE_FENCE)].map((match) => match[1])
+  candidates.push(content)
+  return candidates.some((candidate) => {
+    const lines = candidate
+      .split(/\r?\n/gu)
+      .map((line) => line.replace(/^\s*(?:#|\/\/|<!--)\s?/u, ''))
+      .filter((line) => line.trim().length > 0)
+    const statementCount = lines.filter((line) =>
+      CODE_STATEMENT.test(line),
+    ).length
+    const hasControlFlow = lines.some((line) =>
+      /^\s*(?:if|elif|else|for|while|try|except|with)\b/iu.test(line),
+    )
+    return statementCount >= 5 || (statementCount >= 3 && hasControlFlow)
+  })
 }
 
 function detection(

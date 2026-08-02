@@ -109,18 +109,26 @@ evidence to repair case creation without broadening the detector.
 
 ## Injection and final-answer safety slice
 
-Issue #144 uses the versioned `automatic-safety-risk-v2` detector at three
+Issue #144 uses the versioned `automatic-safety-risk-v3` detector at three
 ordered boundaries. Compound Student instruction-override or hidden-prompt
 disclosure intent is checked after the idempotent turn is opened but before
 retrieval. Retrieved chunks are checked for compound instruction injection
 before completion. Proposed completion content is checked before any content or
 provider metadata reaches persistence or Student display; full-answer and
-full-code delivery is blocked only for correctness-sensitive requests.
+full-code delivery is blocked only for correctness-sensitive requests. The
+correctness-sensitive boundary includes implicit requests to build a program,
+script, CLI, application, or game; requests for final working code or a
+complete example; and attempts to conceal a deliverable in comments or markup.
+The proposed output check recognizes complete top-level programs as well as
+function-shaped solutions and detects code concealed in comments or details
+markup. Short teaching snippets, hints, and partial debugging guidance remain
+allowed.
 
 The Student boundary also treats a first-person claim of Instructor or teacher
-permission combined with a request to obtain an answer key as an attempted
-policy override. General questions about answer keys, reported future review,
-security discussion, and requests for a hint remain clean.
+permission combined with a request to obtain an answer key, official solution,
+or hidden prompt as an attempted policy override. Claimed authorization does
+not relax either boundary. General questions about answer keys, reported future
+review, security discussion, and requests for a hint remain clean.
 
 Each match completes the assistant message with the fixed refusal,
 `REFUSAL`, and canonical `POLICY_CHECK_FAILED` and/or `FINAL_ANSWER_RISK`

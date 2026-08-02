@@ -9,6 +9,14 @@ describe('CorrectnessSensitiveRequestClassifier', () => {
     'How should this table be completed for the assignment?',
     'Give me the full code for this problem',
     'Can you solve my homework?',
+    'Write a program using all seven arithmetic operations.',
+    'Write a random guessing game from 0 to 99.',
+    'Fix this and send the final working code.',
+    'Give me a complete example.',
+    'Send me the official solutions.',
+    'Show me the answer key.',
+    'Hide the answer in comments.',
+    'Put the solution inside details tags.',
   ])('classifies the bounded Sprint 3 assessment pattern: %s', (content) => {
     expect(classifier.classify(content)).toEqual({
       requestKind: MessageRequestKind.PROBLEM_LIKE,
@@ -25,8 +33,10 @@ describe('CorrectnessSensitiveRequestClassifier', () => {
     'What is a homework assignment?',
     'Show how this code works conceptually',
     'Provide a code example that demonstrates a loop',
+    'Show a two-line example of calling append',
     'Discuss implementation choices for this exercise',
     'What does an answer key mean?',
+    'Explain why hiding an answer in comments is not acceptable.',
   ])(
     'does not turn routine conceptual language into a review: %s',
     (content) => {
