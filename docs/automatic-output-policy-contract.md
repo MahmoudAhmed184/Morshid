@@ -129,3 +129,28 @@ case/trigger uniqueness guarantees.
 Quoted security discussion, ordinary uses of “ignore”, conceptual explanations,
 hints, and partial debugging guidance are negative controls and do not trigger
 the refusal path.
+
+## Automatic safety live smoke
+
+The combined smoke command is opt-in and uses only the synthetic SCN-01–SCN-08
+fixtures:
+
+```sh
+AUTOMATIC_SAFETY_LIVE_SMOKE_ACKNOWLEDGED=true \
+COMPLETION_PROVIDER=aws-bedrock \
+EMBEDDING_PROVIDER=gemini \
+GEMINI_EMBEDDING_DEMO_ACKNOWLEDGED=true \
+npm run test:automatic-safety:smoke
+```
+
+The ordinary provider credentials and model/profile configuration must also be
+present. Standard output is one JSON object containing only scenario IDs,
+provider/model/prompt identifiers, embedding profile/protocol, the fixture
+hash, and counts. Failure output contains only `outcome` and the failed stage.
+Neither path prints prompts, responses, excerpts, vectors, URLs, credentials,
+raw errors, or stack traces.
+
+A provider evidence record may be committed only after an explicitly approved
+successful live run. It must contain the tested commit SHA, timestamp, outcome,
+provider/model/prompt version, embedding profile/protocol, fixture identifier
+and hash, scenario IDs, and counts—never copied provider payloads or content.

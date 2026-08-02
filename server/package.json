@@ -42,6 +42,7 @@
     "test:iti-bedrock-embedding:probe": "tsx scripts/iti-bedrock-embedding-contract-probe.mts",
     "embedding:migrate": "tsx scripts/embedding-migration.mts",
     "test:iti-bedrock:smoke": "tsx scripts/iti-bedrock-live-smoke.mts",
+    "test:automatic-safety:smoke": "tsx scripts/automatic-safety-live-smoke.mts",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "pretest:e2e": "npm run db:generate",
     "test:e2e": "node --experimental-vm-modules ../node_modules/jest/bin/jest.js --config ./test/jest-e2e.json",
