@@ -36,6 +36,7 @@ import {
 import { StudentChatMessagePresenter } from './student-chat-message.presenter'
 import type { ChatMessageRecord } from './student-chat.repository.types'
 import type { StudentChatService } from './student-chat.service'
+import { CorrectnessSensitiveRequestClassifier } from './correctness-sensitive-request.classifier'
 
 const courseId = '17d1a78d-60be-4f5f-a03d-e3ee326ec796'
 const sessionId = 'eff4bf27-cce3-45d9-b245-4f1d913f0a27'
@@ -164,6 +165,7 @@ describe('GroundedChatService', () => {
       presenter,
       outputPolicy,
       outputPolicyReview,
+      new CorrectnessSensitiveRequestClassifier(),
     )
   })
 
@@ -186,6 +188,7 @@ describe('GroundedChatService', () => {
       sessionId,
       studentId: user.id,
       content: 'Explain list iteration',
+      requestKind: MessageRequestKind.CONCEPTUAL,
     })
     expect(retrieveCourseEvidence).toHaveBeenCalledWith(
       courseId,
@@ -330,6 +333,7 @@ describe('GroundedChatService', () => {
       sessionId,
       studentId: user.id,
       content: 'Explain list iteration',
+      requestKind: MessageRequestKind.CONCEPTUAL,
     })
     expect(retrieveCourseEvidence).not.toHaveBeenCalled()
     expect(complete).not.toHaveBeenCalled()

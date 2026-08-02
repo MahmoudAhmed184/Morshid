@@ -25,6 +25,7 @@ import {
   PrismaGroundedChatTurnRepository,
 } from './grounded-chat-turn.repository'
 import { GroundedChatService } from './grounded-chat.service'
+import { CorrectnessSensitiveRequestClassifier } from './correctness-sensitive-request.classifier'
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { GroundedChatService } from './grounded-chat.service'
     StudentChatService,
     StudentChatCourseBoundaryAuditFilter,
     StudentChatMessagePresenter,
+    CorrectnessSensitiveRequestClassifier,
     {
       provide: StudentChatSessionRepository,
       useClass: PrismaStudentChatSessionRepository,

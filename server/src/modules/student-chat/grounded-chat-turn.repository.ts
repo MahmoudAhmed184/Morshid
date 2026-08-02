@@ -35,6 +35,7 @@ interface AuthorizedTurnInput {
 export interface BeginGroundedChatTurnInput extends AuthorizedTurnInput {
   clientMessageId?: string
   content: string
+  requestKind?: MessageRequestKind
 }
 
 export interface RetryGroundedChatTurnInput extends AuthorizedTurnInput {
@@ -237,7 +238,7 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
             authorUserId: input.studentId,
             content: input.content,
             status: MessageStatus.COMPLETED,
-            requestKind: MessageRequestKind.CONCEPTUAL,
+            requestKind: input.requestKind ?? MessageRequestKind.CONCEPTUAL,
             guidanceLabel: null,
             hintLevel: null,
             createdAt: now,
@@ -255,7 +256,7 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
             responseToMessageId: studentMessage.id,
             content: '',
             status: MessageStatus.PENDING,
-            requestKind: MessageRequestKind.CONCEPTUAL,
+            requestKind: input.requestKind ?? MessageRequestKind.CONCEPTUAL,
             guidanceLabel: null,
             hintLevel: null,
             groundingAttemptId: identity.attemptId,

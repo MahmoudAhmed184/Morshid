@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import { Inject, Injectable, Logger } from '@nestjs/common'
 
-import { Prisma } from '../../generated/prisma/client'
+import { MessageRequestKind, Prisma } from '../../generated/prisma/client'
 import type { AuthenticatedRequestUser } from '../auth/auth.dto'
 import {
   COMPLETION_PROVIDER_TOKEN,
@@ -50,6 +50,7 @@ import {
   GROUNDING_INSUFFICIENT_EVIDENCE,
   GROUNDING_RESPONSE_FAILED,
 } from './grounded-chat.constants'
+import { CorrectnessSensitiveRequestClassifier } from './correctness-sensitive-request.classifier'
 
 export {
   GROUNDING_BLOCKED_CONTENT,
@@ -110,6 +111,7 @@ export class GroundedChatService {
     private readonly messagePresenter: StudentChatMessagePresenter,
     private readonly outputPolicy: OutputPolicyService,
     private readonly outputPolicyReview: OutputPolicyReviewAdapter,
+    private readonly requestClassifier: CorrectnessSensitiveRequestClassifier,
   ) {}
 
   async send(
@@ -132,6 +134,7 @@ export class GroundedChatService {
       requestContext,
     )
 
+    const classification = this.requestClassifier.classify(body.content)
     let result: BeginGroundedChatTurnResult
     try {
       result = await this.turnRepository.beginTurn({
@@ -142,6 +145,7 @@ export class GroundedChatService {
           ? {}
           : { clientMessageId: body.clientMessageId }),
         content: body.content,
+        requestKind: classification.requestKind,
       })
     } catch (error) {
       this.logFailure('begin', operation, error)
