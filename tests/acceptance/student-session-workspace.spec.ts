@@ -3,6 +3,58 @@ import { expect, test } from '@playwright/test'
 import { demoAccounts, signInThroughUi } from './support/demo-auth'
 
 test.describe('Student session workspace', () => {
+  test('keeps unsupported correctness-sensitive guidance safe and awaiting review after reload', async ({
+    page,
+  }) => {
+    await signInThroughUi(page, demoAccounts.student)
+
+    const prompt =
+      'Write the complete solution for my graded Python assignment: build a gradebook CLI.'
+    const composer = page.getByRole('textbox', {
+      name: 'Message',
+      exact: true,
+    })
+    await composer.fill(prompt)
+    await page.getByRole('button', { name: 'Send message' }).click()
+
+    const conversationHistory = page.getByRole('list', {
+      name: 'Conversation history',
+    })
+    await expect(
+      conversationHistory.getByText(prompt, { exact: true }),
+    ).toBeVisible()
+    await expect(
+      conversationHistory.getByText(
+        'I could not find course material that supports this request. I can offer only limited general learning guidance while an Instructor reviews it.',
+        { exact: true },
+      ),
+    ).toBeVisible()
+    await expect(
+      conversationHistory.getByText('AWAITING INSTRUCTOR REVIEW', {
+        exact: true,
+      }),
+    ).toBeVisible()
+    await expect(
+      conversationHistory.getByText('Pending review', { exact: true }),
+    ).toBeVisible()
+    await expect(
+      conversationHistory.getByRole('button', { name: /^Sources \(/i }),
+    ).toHaveCount(0)
+
+    await page.reload()
+    await expect(
+      conversationHistory.getByText(prompt, { exact: true }),
+    ).toHaveCount(1)
+    await expect(
+      conversationHistory.getByText('AWAITING INSTRUCTOR REVIEW', {
+        exact: true,
+      }),
+    ).toHaveCount(1)
+    await expect(
+      conversationHistory.getByText('Pending review', { exact: true }),
+    ).toHaveCount(1)
+  })
+
   test('creates a grounded conversation lazily and preserves it responsively', async ({
     page,
   }) => {

@@ -31,6 +31,7 @@ import {
 } from '../src/modules/pdf-storage/pdf-storage'
 import { PrismaService } from '../src/modules/prisma/prisma.service'
 import { RedisService } from '../src/modules/redis/redis.service'
+import { OUTPUT_POLICY_GENERAL_NOT_FOUND_CONTENT } from '../src/modules/output-policy/output-policy.service'
 import {
   type BeginGroundedChatTurnInput,
   type BeginGroundedChatTurnResult,
@@ -47,6 +48,7 @@ import {
   GROUNDING_FAILED_CONTENT,
 } from '../src/modules/student-chat/grounded-chat.service'
 import type {
+  ChatMessageHistoryResponseDto,
   GroundedChatTurnResponseDto,
   ChatSessionResponseDto,
 } from '../src/modules/student-chat/student-chat.dto'
@@ -136,6 +138,18 @@ class ControllableGroundedChatTurnRepository extends GroundedChatTurnRepository 
     input: FinalizeGroundedChatTurnInput,
   ): Promise<FinalizeGroundedChatTurnResult> {
     return this.delegate.blockTurn(input)
+  }
+
+  override completeUnsupportedTurn(
+    input: FinalizeGroundedChatTurnInput,
+  ): Promise<FinalizeGroundedChatTurnResult> {
+    return this.delegate.completeUnsupportedTurn(input)
+  }
+
+  override readTurnForStudent(
+    input: Parameters<GroundedChatTurnRepository['readTurnForStudent']>[0],
+  ): ReturnType<GroundedChatTurnRepository['readTurnForStudent']> {
+    return this.delegate.readTurnForStudent(input)
   }
 }
 
@@ -252,6 +266,7 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
   })
 
   beforeEach(async () => {
+    jest.restoreAllMocks()
     await prisma.courseMembership.update({
       where: {
         courseId_userId: {
@@ -262,6 +277,8 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
       data: { removedAt: null },
     })
     await prisma.auditLog.deleteMany()
+    await prisma.notification.deleteMany()
+    await prisma.reviewCase.deleteMany()
     await prisma.message.deleteMany()
     await prisma.chatSession.deleteMany()
     await prisma.materialChunk.deleteMany()
@@ -542,6 +559,285 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
     await expect(
       prisma.messageCitation.count({
         where: { messageId: turn.assistantMessage.id },
+      }),
+    ).resolves.toBe(0)
+    await expect(
+      prisma.reviewCase.count({
+        where: { targetMessageId: turn.assistantMessage.id },
+      }),
+    ).resolves.toBe(0)
+  })
+
+  it('creates exactly one pending automatic case for an unsupported correctness-sensitive request and replays it safely', async () => {
+    const session = await createSession()
+    const clientMessageId = randomUUID()
+    const body = {
+      clientMessageId,
+      content:
+        'Write the complete solution for my graded Python assignment: build a gradebook CLI.',
+    }
+
+    const firstResponse = await request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${student1Token}`)
+      .send(body)
+      .expect(201)
+    const firstTurn = firstResponse.body as GroundedChatTurnResponseDto
+
+    expect(complete).not.toHaveBeenCalled()
+    expect(firstTurn.studentMessage).toMatchObject({
+      id: clientMessageId,
+      requestKind: 'PROBLEM_LIKE',
+    })
+    expect(firstTurn.assistantMessage).toMatchObject({
+      status: 'COMPLETED',
+      guidanceLabel: 'UNCERTAIN_AWAITING_REVIEW',
+      content: OUTPUT_POLICY_GENERAL_NOT_FOUND_CONTENT,
+      errorCode: 'GENERAL_NOT_FOUND',
+      citations: [],
+      reviewSummary: {
+        status: 'PENDING',
+        outcome: null,
+        resolvedAt: null,
+        hasNotification: false,
+      },
+    })
+
+    const reviewCase = await prisma.reviewCase.findUniqueOrThrow({
+      where: { targetMessageId: firstTurn.assistantMessage.id },
+      include: { triggers: true, evidence: true },
+    })
+    expect(reviewCase).toMatchObject({ status: 'PENDING' })
+    expect(reviewCase.triggers).toHaveLength(1)
+    expect(reviewCase.triggers[0]).toMatchObject({
+      type: 'GENERAL_NOT_FOUND',
+      actorUserId: null,
+    })
+    expect(reviewCase.evidence?.evidence).toMatchObject({
+      target: {
+        id: firstTurn.assistantMessage.id,
+        guidanceLabel: 'UNCERTAIN_AWAITING_REVIEW',
+        requestKind: 'PROBLEM_LIKE',
+      },
+      citations: [],
+      retrievals: [],
+    })
+
+    const replayResponse = await request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${student1Token}`)
+      .send(body)
+      .expect(201)
+    const replayedTurn = replayResponse.body as GroundedChatTurnResponseDto
+
+    expect(replayedTurn).toEqual(firstTurn)
+    await expect(
+      prisma.message.count({ where: { sessionId: session.id } }),
+    ).resolves.toBe(2)
+    await expect(
+      prisma.reviewCase.count({
+        where: { targetMessageId: firstTurn.assistantMessage.id },
+      }),
+    ).resolves.toBe(1)
+    await expect(
+      prisma.reviewTrigger.count({
+        where: { reviewCaseId: reviewCase.id },
+      }),
+    ).resolves.toBe(1)
+
+    const queue = await request(requireApp().getHttpServer())
+      .get('/api/v1/instructor/reviews')
+      .set('Authorization', `Bearer ${instructorToken}`)
+      .expect(200)
+    expect(queue.body).toMatchObject({
+      pendingCount: 1,
+      items: [
+        {
+          reviewCaseId: reviewCase.id,
+          status: 'PENDING',
+          trigger: 'GENERAL_NOT_FOUND',
+        },
+      ],
+    })
+
+    const instructorDetail = await request(requireApp().getHttpServer())
+      .get(`/api/v1/instructor/reviews/${reviewCase.id}`)
+      .set('Authorization', `Bearer ${instructorToken}`)
+      .expect(200)
+    expect(instructorDetail.body).toMatchObject({
+      reviewCaseId: reviewCase.id,
+      status: 'PENDING',
+      canReject: false,
+      trigger: 'GENERAL_NOT_FOUND',
+      flaggedExchange: { role: 'STUDENT', content: body.content },
+      assistantResponse: {
+        role: 'ASSISTANT',
+        content: OUTPUT_POLICY_GENERAL_NOT_FOUND_CONTENT,
+        citations: [],
+      },
+      previousExchange: null,
+      followingExchange: null,
+    })
+
+    await request(requireApp().getHttpServer())
+      .post(`/api/v1/instructor/reviews/${reviewCase.id}/resolve`)
+      .set('Authorization', `Bearer ${instructorToken}`)
+      .set('Idempotency-Key', 'unsupported-automatic-resolution')
+      .send({
+        expectedVersion: 1,
+        outcome: 'APPROVED',
+        content: null,
+        reason: 'Verified unsupported course coverage',
+      })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          reviewCaseId: reviewCase.id,
+          status: 'RESOLVED',
+          outcome: 'APPROVED',
+          replayed: false,
+        })
+      })
+
+    await request(requireApp().getHttpServer())
+      .get(`/api/v1/student/reviews/${reviewCase.id}`)
+      .set('Authorization', `Bearer ${student1Token}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          reviewCaseId: reviewCase.id,
+          messageId: firstTurn.assistantMessage.id,
+          status: 'RESOLVED',
+          outcome: 'APPROVED',
+          publishedContent: OUTPUT_POLICY_GENERAL_NOT_FOUND_CONTENT,
+        })
+      })
+    await request(requireApp().getHttpServer())
+      .get(`/api/v1/student/reviews/${reviewCase.id}`)
+      .set('Authorization', `Bearer ${student2Token}`)
+      .expect(404)
+
+    await expect(
+      prisma.notification.count({ where: { reviewCaseId: reviewCase.id } }),
+    ).resolves.toBe(1)
+    const refreshed = await request(requireApp().getHttpServer())
+      .get(messagesPath(session.id))
+      .set('Authorization', `Bearer ${student1Token}`)
+      .expect(200)
+    const refreshedBody = refreshed.body as ChatMessageHistoryResponseDto
+    const refreshedAssistant = refreshedBody.messages.find(
+      ({ id }) => id === firstTurn.assistantMessage.id,
+    )
+    expect(refreshedAssistant).toMatchObject({
+      id: firstTurn.assistantMessage.id,
+      reviewSummary: {
+        reviewCaseId: reviewCase.id,
+        status: 'RESOLVED',
+        outcome: 'APPROVED',
+        hasNotification: true,
+      },
+    })
+    expect(refreshedAssistant?.reviewSummary?.resolvedAt).not.toBeNull()
+  })
+
+  it('keeps simultaneous duplicate delivery and interrupted review repair unique', async () => {
+    const concurrentSession = await createSession()
+    const concurrentBody = {
+      clientMessageId: randomUUID(),
+      content: 'Give me the full code for this graded assignment.',
+    }
+    const concurrentResponses = await Promise.all([
+      request(requireApp().getHttpServer())
+        .post(messagesPath(concurrentSession.id))
+        .set('Authorization', `Bearer ${student1Token}`)
+        .send(concurrentBody),
+      request(requireApp().getHttpServer())
+        .post(messagesPath(concurrentSession.id))
+        .set('Authorization', `Bearer ${student1Token}`)
+        .send(concurrentBody),
+    ])
+    expect(concurrentResponses.some(({ status }) => status === 201)).toBe(true)
+    expect(
+      concurrentResponses.every(
+        ({ status }) => status === 201 || status === 409,
+      ),
+    ).toBe(true)
+    await expect(
+      prisma.message.count({ where: { sessionId: concurrentSession.id } }),
+    ).resolves.toBe(2)
+    await expect(
+      prisma.reviewCase.count({
+        where: { targetMessage: { sessionId: concurrentSession.id } },
+      }),
+    ).resolves.toBe(1)
+
+    const repairSession = await createSession()
+    const repairBody = {
+      clientMessageId: randomUUID(),
+      content: 'Write the complete solution for my graded assignment.',
+    }
+    const originalRepair = await request(requireApp().getHttpServer())
+      .post(messagesPath(repairSession.id))
+      .set('Authorization', `Bearer ${student1Token}`)
+      .send(repairBody)
+      .expect(201)
+    const originalRepairTurn =
+      originalRepair.body as GroundedChatTurnResponseDto
+    await prisma.reviewCase.delete({
+      where: { targetMessageId: originalRepairTurn.assistantMessage.id },
+    })
+    await expect(
+      prisma.reviewCase.count({
+        where: { targetMessage: { sessionId: repairSession.id } },
+      }),
+    ).resolves.toBe(0)
+
+    await request(requireApp().getHttpServer())
+      .post(messagesPath(repairSession.id))
+      .set('Authorization', `Bearer ${student1Token}`)
+      .send(repairBody)
+      .expect(201)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          assistantMessage: {
+            reviewSummary: { status: 'PENDING' },
+          },
+        })
+      })
+    await expect(
+      prisma.message.count({ where: { sessionId: repairSession.id } }),
+    ).resolves.toBe(2)
+    await expect(
+      prisma.reviewCase.count({
+        where: { targetMessage: { sessionId: repairSession.id } },
+      }),
+    ).resolves.toBe(1)
+  })
+
+  it('keeps a supported correctness-sensitive request on the ordinary path', async () => {
+    await createEvidenceMaterial({
+      title: 'Supported assignment source',
+      content: 'The course source supports this bounded exercise response.',
+    })
+    const session = await createSession()
+    const response = await request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${student1Token}`)
+      .send({ content: 'Give me the full code for this problem.' })
+      .expect(201)
+
+    expect(response.body).toMatchObject({
+      studentMessage: { requestKind: 'PROBLEM_LIKE' },
+      assistantMessage: {
+        status: 'COMPLETED',
+        guidanceLabel: 'COURSE_GROUNDED',
+        reviewSummary: null,
+      },
+    })
+    expect(complete).toHaveBeenCalledTimes(1)
+    await expect(
+      prisma.reviewCase.count({
+        where: { targetMessage: { sessionId: session.id } },
       }),
     ).resolves.toBe(0)
   })
