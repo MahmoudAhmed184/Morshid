@@ -156,6 +156,12 @@ class ControllableGroundedChatTurnRepository extends GroundedChatTurnRepository 
     return this.delegate.completeUnsupportedTurn(input)
   }
 
+  override completeSafetyTurn(
+    input: Parameters<GroundedChatTurnRepository['completeSafetyTurn']>[0],
+  ): ReturnType<GroundedChatTurnRepository['completeSafetyTurn']> {
+    return this.delegate.completeSafetyTurn(input)
+  }
+
   override readTurnForStudent(
     input: Parameters<GroundedChatTurnRepository['readTurnForStudent']>[0],
   ): ReturnType<GroundedChatTurnRepository['readTurnForStudent']> {

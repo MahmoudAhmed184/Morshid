@@ -106,3 +106,26 @@ fixed controlled response with the two selected retrievals and citations, and
 stores those same two bounded sources in immutable automatic-review evidence.
 Replay uses the canonical `SOURCE_CONFLICT` reason and persisted selected
 evidence to repair case creation without broadening the detector.
+
+## Injection and final-answer safety slice
+
+Issue #144 uses the versioned `automatic-safety-risk-v1` detector at three
+ordered boundaries. Compound Student instruction-override or hidden-prompt
+disclosure intent is checked after the idempotent turn is opened but before
+retrieval. Retrieved chunks are checked for compound instruction injection
+before completion. Proposed completion content is checked before any content or
+provider metadata reaches persistence or Student display; full-answer and
+full-code delivery is blocked only for correctness-sensitive requests.
+
+Each match completes the assistant message with the fixed refusal,
+`REFUSAL`, and canonical `POLICY_CHECK_FAILED` and/or `FINAL_ANSWER_RISK`
+reasons. The terminal record has no retrievals, citations, provider, model,
+prompt version, token counts, or raw detector excerpt. Automatic-review
+evidence contains fixed summaries and bounded version/count facts only. This
+keeps injected document text and unsafe completion content out of messages,
+review detail, and policy logs while preserving replay repair and the shared
+case/trigger uniqueness guarantees.
+
+Quoted security discussion, ordinary uses of “ignore”, conceptual explanations,
+hints, and partial debugging guidance are negative controls and do not trigger
+the refusal path.

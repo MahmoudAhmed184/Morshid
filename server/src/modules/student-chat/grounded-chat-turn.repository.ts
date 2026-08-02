@@ -86,6 +86,10 @@ export interface FinalizeGroundedChatTurnInput extends AuthorizedTurnInput {
   errorCode: string
 }
 
+export interface CompleteSafetyGroundedChatTurnInput extends FinalizeGroundedChatTurnInput {
+  guidanceLabel: MessageGuidanceLabel
+}
+
 export interface ReadGroundedChatTurnInput extends AuthorizedTurnInput {
   studentMessageId: string
   assistantMessageId: string
@@ -190,6 +194,10 @@ export abstract class GroundedChatTurnRepository {
 
   abstract completeUnsupportedTurn(
     input: FinalizeGroundedChatTurnInput,
+  ): Promise<FinalizeGroundedChatTurnResult>
+
+  abstract completeSafetyTurn(
+    input: CompleteSafetyGroundedChatTurnInput,
   ): Promise<FinalizeGroundedChatTurnResult>
 
   abstract readTurnForStudent(
@@ -562,6 +570,17 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
       status: MessageStatus.COMPLETED,
       content: input.content,
       guidanceLabel: MessageGuidanceLabel.UNCERTAIN_AWAITING_REVIEW,
+      errorCode: input.errorCode,
+    })
+  }
+
+  completeSafetyTurn(
+    input: CompleteSafetyGroundedChatTurnInput,
+  ): Promise<FinalizeGroundedChatTurnResult> {
+    return this.finalizeWithoutEvidence(input, {
+      status: MessageStatus.COMPLETED,
+      content: input.content,
+      guidanceLabel: input.guidanceLabel,
       errorCode: input.errorCode,
     })
   }

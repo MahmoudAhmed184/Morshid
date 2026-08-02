@@ -5,6 +5,10 @@ import { Inject, Injectable, Logger } from '@nestjs/common'
 import { MessageRequestKind, Prisma } from '../../generated/prisma/client'
 import type { AuthenticatedRequestUser } from '../auth/auth.dto'
 import {
+  AutomaticSafetyRiskDetector,
+  type AutomaticSafetyRiskDetection,
+} from '../output-policy/automatic-safety-risk.detector'
+import {
   COMPLETION_PROVIDER_TOKEN,
   CompletionProviderError,
   type CompletionProvider,
@@ -123,6 +127,7 @@ export class GroundedChatService {
     private readonly outputPolicyReview: OutputPolicyReviewAdapter,
     private readonly requestClassifier: CorrectnessSensitiveRequestClassifier,
     private readonly conflictDetector: ControlledSourceConflictDetector,
+    private readonly safetyRiskDetector: AutomaticSafetyRiskDetector,
   ) {}
 
   async send(
@@ -250,6 +255,18 @@ export class GroundedChatService {
     operation: OrchestrationContext,
     requestContext?: AuditRequestContext,
   ): Promise<GroundedChatTurnResponseDto> {
+    const inputRisk = this.safetyRiskDetector.detectStudentInput(
+      turn.studentMessage.content,
+    )
+    if (inputRisk !== null) {
+      return this.persistSafetyRefusal(
+        turn,
+        inputRisk,
+        operation,
+        requestContext,
+      )
+    }
+
     let evidence: RetrievedChunk[]
     try {
       const retrieval = await this.retrievalService.retrieveCourseEvidence(
@@ -286,6 +303,17 @@ export class GroundedChatService {
       return this.persistFailure(turn, operation)
     }
 
+    const documentRisk =
+      this.safetyRiskDetector.detectRetrievedDocuments(evidence)
+    if (documentRisk !== null) {
+      return this.persistSafetyRefusal(
+        turn,
+        documentRisk,
+        operation,
+        requestContext,
+      )
+    }
+
     const conflict = this.conflictDetector.detect(
       turn.studentMessage.content,
       evidence,
@@ -313,6 +341,19 @@ export class GroundedChatService {
     } catch (error) {
       this.logFailure('completion', operation, error)
       return this.persistFailure(turn, operation)
+    }
+
+    const outputRisk = this.safetyRiskDetector.detectOutput(
+      completion.content,
+      turn.studentMessage.requestKind === MessageRequestKind.PROBLEM_LIKE,
+    )
+    if (outputRisk !== null) {
+      return this.persistSafetyRefusal(
+        turn,
+        outputRisk,
+        operation,
+        requestContext,
+      )
     }
 
     let policyDecision: OutputPolicyDecision
@@ -495,6 +536,66 @@ export class GroundedChatService {
         studentMessageId: turn.studentMessage.id,
         assistantMessageId: turn.assistantMessage.id,
         content: decision.content,
+        errorCode: encodeAutomaticPolicyReasons(decision.reasons),
+      })
+    } catch (error) {
+      this.logFailure('finalization', operation, error)
+      return this.persistFailure(turn, operation)
+    }
+
+    switch (completed.kind) {
+      case 'ok':
+        return this.createPolicyReviewAndPresent(
+          turn.studentMessage,
+          completed.message,
+          decision,
+          operation,
+          requestContext,
+        )
+      case 'membership_missing':
+      case 'session_not_found':
+      case 'message_not_found':
+      case 'message_not_pending':
+        this.logResultFailure('finalization', operation, completed.kind)
+        return this.persistFailure(turn, operation)
+      default:
+        return assertNever(completed)
+    }
+  }
+
+  private async persistSafetyRefusal(
+    turn: ActiveGroundedTurn,
+    detection: AutomaticSafetyRiskDetection,
+    operation: OrchestrationContext,
+    requestContext?: AuditRequestContext,
+  ): Promise<GroundedChatTurnResponseDto> {
+    const decision = this.outputPolicy.evaluate({
+      proposedContent: GROUNDING_BLOCKED_CONTENT,
+      assessment: {
+        support: 'SUPPORTED',
+        policyCheck: detection.risks.some(
+          (risk) => risk !== 'FINAL_ANSWER_DELIVERY',
+        )
+          ? 'FAILED'
+          : 'PASSED',
+        answerRisk: detection.risks.includes('FINAL_ANSWER_DELIVERY')
+          ? 'FINAL_ANSWER'
+          : 'NONE',
+        citations: 'NOT_REQUIRED',
+      },
+    })
+
+    let completed: FinalizeGroundedChatTurnResult
+    try {
+      completed = await this.turnRepository.completeSafetyTurn({
+        courseId: turn.courseId,
+        sessionId: operation.sessionId,
+        studentId: operation.studentId,
+        attemptId: turn.attemptId,
+        studentMessageId: turn.studentMessage.id,
+        assistantMessageId: turn.assistantMessage.id,
+        content: decision.content,
+        guidanceLabel: decision.studentStatus.guidanceLabel,
         errorCode: encodeAutomaticPolicyReasons(decision.reasons),
       })
     } catch (error) {
