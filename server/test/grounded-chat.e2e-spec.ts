@@ -1077,10 +1077,17 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
         facts: [
           { code: 'policy_version', value: 'output-policy-v1' },
           { code: 'reason_count', value: 1 },
+          {
+            code: 'detector_version',
+            value: 'automatic-safety-risk-v1',
+          },
         ],
       },
       citations: [],
       retrievals: [],
+    })
+    expect(reviewCase.triggers[0]?.detectorMetadata).toMatchObject({
+      detectorVersion: 'automatic-safety-risk-v1',
     })
     await expect(
       prisma.message.count({ where: { sessionId: session.id } }),

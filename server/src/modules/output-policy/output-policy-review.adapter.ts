@@ -60,6 +60,7 @@ export class OutputPolicyReviewAdapter {
           detectorMetadata: {
             policyVersion: OUTPUT_POLICY_VERSION,
             reasonCount: request.decision.reasons.length,
+            ...metadataFrom(request.decision),
           },
         },
         request.requestContext,
@@ -87,6 +88,23 @@ export class OutputPolicyReviewAdapter {
       replayed: aggregate.replayed,
     })
   }
+}
+
+function metadataFrom(
+  decision: OutputPolicyDecision,
+): Record<string, string | number | boolean> {
+  const metadata: Record<string, string | number | boolean> = {}
+  for (const fact of decision.reviewEvidence?.facts ?? []) {
+    switch (fact.code) {
+      case 'detector_version':
+        metadata.detectorVersion = fact.value
+        break
+      case 'embedding_model':
+        metadata.embeddingModel = fact.value
+        break
+    }
+  }
+  return metadata
 }
 
 function sourceEventKey(messageId: string, reason: string): string {

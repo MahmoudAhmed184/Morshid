@@ -99,6 +99,29 @@ describe('OutputPolicyService', () => {
     expect(Array.from(excerpt ?? '')).toHaveLength(500)
   })
 
+  it('retains bounded detector and embedding profile facts', () => {
+    const decision = policy.evaluate({
+      proposedContent: 'A proposed conflicted claim',
+      assessment: {
+        support: 'CONFLICTING',
+        policyCheck: 'PASSED',
+        answerRisk: 'NONE',
+        citations: 'PRESENT',
+      },
+      reviewFacts: [
+        { code: 'detector_version', value: 'conflict-v1' },
+        { code: 'embedding_model', value: 'embedding-v1' },
+      ],
+    })
+
+    expect(decision.reviewEvidence?.facts).toEqual([
+      { code: 'policy_version', value: 'output-policy-v1' },
+      { code: 'reason_count', value: 1 },
+      { code: 'detector_version', value: 'conflict-v1' },
+      { code: 'embedding_model', value: 'embedding-v1' },
+    ])
+  })
+
   it('rejects excess evidence before mapping it into a review snapshot', () => {
     expect(() =>
       policy.evaluate({
@@ -174,7 +197,10 @@ describe('OutputPolicyService', () => {
     expect(
       AUTOMATIC_SAFETY_PROVIDER_PROFILES.liveBedrockGeminiEmbedding
         .requiredOptIns,
-    ).toEqual(['GEMINI_EMBEDDING_DEMO_ACKNOWLEDGED'])
+    ).toEqual([
+      'AUTOMATIC_SAFETY_LIVE_SMOKE_ACKNOWLEDGED',
+      'GEMINI_EMBEDDING_DEMO_ACKNOWLEDGED',
+    ])
   })
 
   it('round-trips canonical policy reasons for idempotent review repair', () => {

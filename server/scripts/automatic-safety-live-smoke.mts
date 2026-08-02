@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 
 import { GoogleGenAI } from '@google/genai'
@@ -11,15 +12,27 @@ import {
   type GeminiEmbeddingRequest,
 } from '../src/modules/embedding/embedding-configuration.js'
 import { createEmbeddingProvider } from '../src/modules/embedding/embedding-provider.factory.js'
+import { AutomaticSafetyRiskDetector } from '../src/modules/output-policy/automatic-safety-risk.detector.js'
 import { AUTOMATIC_SAFETY_FIXTURES } from '../src/modules/output-policy/automatic-safety.fixtures.js'
 import {
   serializeAutomaticSafetySmokeFailure,
   serializeAutomaticSafetySmokeSuccess,
   type AutomaticSafetySmokeStage,
 } from '../src/modules/output-policy/automatic-safety-smoke-report.js'
+import { OutputPolicyService } from '../src/modules/output-policy/output-policy.service.js'
 
 loadEnv({ path: ['server/.env', '.env', '../.env'], quiet: true })
 Logger.overrideLogger([])
+
+const FIXTURE_IDENTIFIER = 'automatic-safety-scn-01-08-v1'
+const LIVE_COMPLETION_SCENARIO_IDS = new Set(['SCN-01', 'SCN-04', 'SCN-08'])
+const LIVE_EMBEDDING_SCENARIO_IDS = new Set(
+  AUTOMATIC_SAFETY_FIXTURES.filter(({ id }) => id !== 'SCN-05').map(
+    ({ id }) => id,
+  ),
+)
+const SYNTHETIC_CONTEXT =
+  'This synthetic context supports a small course-policy learning step only.'
 
 let stage: AutomaticSafetySmokeStage = 'configuration'
 
@@ -36,6 +49,7 @@ async function main(): Promise<void> {
   ) {
     throw new Error('Automatic safety live smoke configuration is incomplete')
   }
+  const testedCommitSha = requireCleanCommitSha()
 
   const completion = createCompletionProvider({
     provider: 'aws-bedrock',
@@ -72,9 +86,26 @@ async function main(): Promise<void> {
     },
   })
 
+  stage = 'validation'
+  const outputPolicy = new OutputPolicyService()
+  for (const fixture of AUTOMATIC_SAFETY_FIXTURES) {
+    const decision = outputPolicy.evaluate(fixture.input)
+    if (
+      decision.reasons.length !== fixture.expectedReasons.length ||
+      decision.reasons.some(
+        (reason, index) => reason !== fixture.expectedReasons[index],
+      )
+    ) {
+      throw new Error('Automatic safety deterministic policy preflight failed')
+    }
+  }
+
+  const completionFixtures = AUTOMATIC_SAFETY_FIXTURES.filter(({ id }) =>
+    LIVE_COMPLETION_SCENARIO_IDS.has(id),
+  )
   stage = 'completion'
   const completions = []
-  for (const fixture of AUTOMATIC_SAFETY_FIXTURES) {
+  for (const fixture of completionFixtures) {
     completions.push(
       await completion.complete({
         studentQuestion: fixture.studentQuestion,
@@ -82,17 +113,19 @@ async function main(): Promise<void> {
           {
             sourceTitle: 'Synthetic automatic safety fixture',
             chunkIndex: 0,
-            content:
-              'This synthetic context supports a small course-policy learning step only.',
+            content: SYNTHETIC_CONTEXT,
           },
         ],
       }),
     )
   }
 
+  const embeddingFixtures = AUTOMATIC_SAFETY_FIXTURES.filter(({ id }) =>
+    LIVE_EMBEDDING_SCENARIO_IDS.has(id),
+  )
   stage = 'embedding'
   const vectors = []
-  for (const fixture of AUTOMATIC_SAFETY_FIXTURES) {
+  for (const fixture of embeddingFixtures) {
     vectors.push(await embedding.embedQuery(fixture.studentQuestion))
   }
 
@@ -112,22 +145,83 @@ async function main(): Promise<void> {
     throw new Error('Automatic safety live smoke contract failed')
   }
 
-  process.stdout.write(
-    `${serializeAutomaticSafetySmokeSuccess({
-      scenarioIds: AUTOMATIC_SAFETY_FIXTURES.map(({ id }) => id),
-      completionProvider: firstCompletion.provider,
-      completionModel: firstCompletion.model,
-      promptVersion: firstCompletion.promptVersion,
-      embeddingProvider: 'gemini',
-      embeddingModel: embedding.model,
-      embeddingProtocol: embedding.queryProtocol,
-      fixtureHash: `sha256:${createHash('sha256')
-        .update(JSON.stringify(AUTOMATIC_SAFETY_FIXTURES))
-        .digest('hex')}`,
-      completionCount: completions.length,
-      embeddingCount: vectors.length,
-    })}\n`,
-  )
+  const riskDetector = new AutomaticSafetyRiskDetector()
+  for (const [index, result] of completions.entries()) {
+    const fixture = completionFixtures[index]
+    const detected = riskDetector.detectOutput(
+      result.content,
+      fixture.behavior === 'direct_final_answer',
+    )
+    if (detected === null) continue
+    const decision = outputPolicy.evaluate({
+      proposedContent: result.content,
+      assessment: {
+        support: 'SUPPORTED',
+        policyCheck: detected.risks.some(
+          (risk) => risk !== 'FINAL_ANSWER_DELIVERY',
+        )
+          ? 'FAILED'
+          : 'PASSED',
+        answerRisk: detected.risks.includes('FINAL_ANSWER_DELIVERY')
+          ? 'FINAL_ANSWER'
+          : 'NONE',
+        citations: 'NOT_REQUIRED',
+      },
+    })
+    if (decision.display !== 'SAFE_REPLACEMENT') {
+      throw new Error('Automatic safety live completion containment failed')
+    }
+  }
+
+  const report = serializeAutomaticSafetySmokeSuccess({
+    fixtureIdentifier: FIXTURE_IDENTIFIER,
+    testedCommitSha,
+    executedAt: new Date().toISOString(),
+    scenarioIds: AUTOMATIC_SAFETY_FIXTURES.map(({ id }) => id),
+    completionProvider: firstCompletion.provider,
+    completionModel: firstCompletion.model,
+    promptVersion: firstCompletion.promptVersion,
+    embeddingProvider: 'gemini',
+    embeddingModel: embedding.model,
+    embeddingProtocol: embedding.queryProtocol,
+    fixtureHash: `sha256:${createHash('sha256')
+      .update(JSON.stringify(AUTOMATIC_SAFETY_FIXTURES))
+      .digest('hex')}`,
+    completionCount: completions.length,
+    embeddingCount: vectors.length,
+  })
+  assertReportContainsNoPrivateValues(report, [
+    ...AUTOMATIC_SAFETY_FIXTURES.map(({ studentQuestion }) => studentQuestion),
+    ...completions.map(({ content }) => content),
+    SYNTHETIC_CONTEXT,
+    env.ITI_BEDROCK_GATEWAY_API_KEY,
+    env.GEMINI_EMBEDDING_API_KEY,
+    env.ITI_BEDROCK_GATEWAY_BASE_URL,
+  ])
+  process.stdout.write(`${report}\n`)
+}
+
+function assertReportContainsNoPrivateValues(
+  report: string,
+  privateValues: readonly string[],
+): void {
+  if (
+    privateValues.some((value) => value.length > 0 && report.includes(value))
+  ) {
+    throw new Error('Automatic safety smoke report redaction failed')
+  }
+}
+
+function requireCleanCommitSha(): string {
+  const worktreeStatus = execFileSync('git', ['status', '--porcelain'], {
+    encoding: 'utf8',
+  })
+  if (worktreeStatus.trim().length > 0) {
+    throw new Error('Automatic safety live smoke requires a clean worktree')
+  }
+  return execFileSync('git', ['rev-parse', 'HEAD'], {
+    encoding: 'utf8',
+  }).trim()
 }
 
 main().catch((error: unknown) => {

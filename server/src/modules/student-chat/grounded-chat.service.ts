@@ -5,6 +5,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common'
 import { MessageRequestKind, Prisma } from '../../generated/prisma/client'
 import type { AuthenticatedRequestUser } from '../auth/auth.dto'
 import {
+  AUTOMATIC_SAFETY_RISK_DETECTOR_VERSION,
   AutomaticSafetyRiskDetector,
   type AutomaticSafetyRiskDetection,
 } from '../output-policy/automatic-safety-risk.detector'
@@ -25,6 +26,7 @@ import {
   OutputPolicyReviewIntegrationError,
 } from '../output-policy/output-policy-review.adapter'
 import {
+  CONTROLLED_SOURCE_CONFLICT_DETECTOR_VERSION,
   ControlledSourceConflictDetector,
   type ControlledSourceConflict,
 } from '../output-policy/controlled-source-conflict.detector'
@@ -34,6 +36,7 @@ import {
   type AutomaticPolicyReason,
   type OutputPolicyDecision,
   type OutputPolicyEvidenceSource,
+  type OutputPolicyReviewFact,
 } from '../output-policy/output-policy.contract'
 import { OutputPolicyService } from '../output-policy/output-policy.service'
 import {
@@ -470,45 +473,34 @@ export class GroundedChatService {
         rank: source.rank,
         score: source.similarityScore,
       })),
+      reviewFacts: [
+        { code: 'detector_version', value: conflict.detectorVersion },
+        {
+          code: 'embedding_model',
+          value: requireSingleEmbeddingModel(conflict.sources),
+        },
+      ],
     })
 
-    let completed: FinalizeGroundedChatTurnResult
-    try {
-      completed = await this.turnRepository.completePolicyTurn({
-        courseId: turn.courseId,
-        sessionId: operation.sessionId,
-        studentId: operation.studentId,
-        attemptId: turn.attemptId,
-        studentMessageId: turn.studentMessage.id,
-        assistantMessageId: turn.assistantMessage.id,
-        content: decision.content,
-        guidanceLabel: decision.studentStatus.guidanceLabel,
-        errorCode: encodeAutomaticPolicyReasons(decision.reasons),
-        evidence: conflict.sources,
-      })
-    } catch (error) {
-      this.logFailure('finalization', operation, error)
-      return this.persistFailure(turn, operation)
-    }
-
-    switch (completed.kind) {
-      case 'ok':
-        return this.createPolicyReviewAndPresent(
-          turn.studentMessage,
-          completed.message,
-          decision,
-          operation,
-          requestContext,
-        )
-      case 'membership_missing':
-      case 'session_not_found':
-      case 'message_not_found':
-      case 'message_not_pending':
-        this.logResultFailure('finalization', operation, completed.kind)
-        return this.persistFailure(turn, operation)
-      default:
-        return assertNever(completed)
-    }
+    return this.persistAutomaticPolicyTurn(
+      turn,
+      decision,
+      operation,
+      requestContext,
+      () =>
+        this.turnRepository.completePolicyTurn({
+          courseId: turn.courseId,
+          sessionId: operation.sessionId,
+          studentId: operation.studentId,
+          attemptId: turn.attemptId,
+          studentMessageId: turn.studentMessage.id,
+          assistantMessageId: turn.assistantMessage.id,
+          content: decision.content,
+          guidanceLabel: decision.studentStatus.guidanceLabel,
+          errorCode: encodeAutomaticPolicyReasons(decision.reasons),
+          evidence: conflict.sources,
+        }),
+    )
   }
 
   private async persistUnsupportedCorrectnessSensitive(
@@ -526,41 +518,23 @@ export class GroundedChatService {
       },
     })
 
-    let completed: FinalizeGroundedChatTurnResult
-    try {
-      completed = await this.turnRepository.completeUnsupportedTurn({
-        courseId: turn.courseId,
-        sessionId: operation.sessionId,
-        studentId: operation.studentId,
-        attemptId: turn.attemptId,
-        studentMessageId: turn.studentMessage.id,
-        assistantMessageId: turn.assistantMessage.id,
-        content: decision.content,
-        errorCode: encodeAutomaticPolicyReasons(decision.reasons),
-      })
-    } catch (error) {
-      this.logFailure('finalization', operation, error)
-      return this.persistFailure(turn, operation)
-    }
-
-    switch (completed.kind) {
-      case 'ok':
-        return this.createPolicyReviewAndPresent(
-          turn.studentMessage,
-          completed.message,
-          decision,
-          operation,
-          requestContext,
-        )
-      case 'membership_missing':
-      case 'session_not_found':
-      case 'message_not_found':
-      case 'message_not_pending':
-        this.logResultFailure('finalization', operation, completed.kind)
-        return this.persistFailure(turn, operation)
-      default:
-        return assertNever(completed)
-    }
+    return this.persistAutomaticPolicyTurn(
+      turn,
+      decision,
+      operation,
+      requestContext,
+      () =>
+        this.turnRepository.completeUnsupportedTurn({
+          courseId: turn.courseId,
+          sessionId: operation.sessionId,
+          studentId: operation.studentId,
+          attemptId: turn.attemptId,
+          studentMessageId: turn.studentMessage.id,
+          assistantMessageId: turn.assistantMessage.id,
+          content: decision.content,
+          errorCode: encodeAutomaticPolicyReasons(decision.reasons),
+        }),
+    )
   }
 
   private async persistSafetyRefusal(
@@ -583,21 +557,41 @@ export class GroundedChatService {
           : 'NONE',
         citations: 'NOT_REQUIRED',
       },
+      reviewFacts: [
+        { code: 'detector_version', value: detection.detectorVersion },
+      ],
     })
 
+    return this.persistAutomaticPolicyTurn(
+      turn,
+      decision,
+      operation,
+      requestContext,
+      () =>
+        this.turnRepository.completeSafetyTurn({
+          courseId: turn.courseId,
+          sessionId: operation.sessionId,
+          studentId: operation.studentId,
+          attemptId: turn.attemptId,
+          studentMessageId: turn.studentMessage.id,
+          assistantMessageId: turn.assistantMessage.id,
+          content: decision.content,
+          guidanceLabel: decision.studentStatus.guidanceLabel,
+          errorCode: encodeAutomaticPolicyReasons(decision.reasons),
+        }),
+    )
+  }
+
+  private async persistAutomaticPolicyTurn(
+    turn: ActiveGroundedTurn,
+    decision: OutputPolicyDecision,
+    operation: OrchestrationContext,
+    requestContext: AuditRequestContext | undefined,
+    finalize: () => Promise<FinalizeGroundedChatTurnResult>,
+  ): Promise<GroundedChatTurnResponseDto> {
     let completed: FinalizeGroundedChatTurnResult
     try {
-      completed = await this.turnRepository.completeSafetyTurn({
-        courseId: turn.courseId,
-        sessionId: operation.sessionId,
-        studentId: operation.studentId,
-        attemptId: turn.attemptId,
-        studentMessageId: turn.studentMessage.id,
-        assistantMessageId: turn.assistantMessage.id,
-        content: decision.content,
-        guidanceLabel: decision.studentStatus.guidanceLabel,
-        errorCode: encodeAutomaticPolicyReasons(decision.reasons),
-      })
+      completed = await finalize()
     } catch (error) {
       this.logFailure('finalization', operation, error)
       return this.persistFailure(turn, operation)
@@ -669,6 +663,7 @@ export class GroundedChatService {
             : 'PRESENT',
       },
       evidence,
+      reviewFacts: replayReviewFacts(message, reasons),
     })
   }
 
@@ -1042,6 +1037,54 @@ function policyEvidenceFrom(
       },
     ]
   })
+}
+
+function replayReviewFacts(
+  message: ChatMessageRecord,
+  reasons: readonly AutomaticPolicyReason[],
+): OutputPolicyReviewFact[] {
+  if (reasons.includes('SOURCE_CONFLICT')) {
+    const embeddingModels = new Set(
+      message.retrievals.flatMap(({ chunk }) =>
+        chunk === null ? [] : [chunk.embeddingModel],
+      ),
+    )
+    const facts: OutputPolicyReviewFact[] = [
+      {
+        code: 'detector_version',
+        value: CONTROLLED_SOURCE_CONFLICT_DETECTOR_VERSION,
+      },
+    ]
+    if (embeddingModels.size === 1) {
+      facts.push({
+        code: 'embedding_model',
+        value: [...embeddingModels][0],
+      })
+    }
+    return facts
+  }
+  if (
+    reasons.includes('POLICY_CHECK_FAILED') ||
+    reasons.includes('FINAL_ANSWER_RISK')
+  ) {
+    return [
+      {
+        code: 'detector_version',
+        value: AUTOMATIC_SAFETY_RISK_DETECTOR_VERSION,
+      },
+    ]
+  }
+  return []
+}
+
+function requireSingleEmbeddingModel(
+  sources: ControlledSourceConflict['sources'],
+): string {
+  const models = new Set(sources.map(({ embeddingModel }) => embeddingModel))
+  if (models.size !== 1) {
+    throw new TypeError('Conflict sources must share one embedding profile')
+  }
+  return sources[0].embeddingModel
 }
 
 function isSafePrismaCode(code: string): boolean {

@@ -72,6 +72,7 @@ export interface ChatMessageRetrievalRecord {
     materialId: string
     chunkIndex: number
     content: string
+    embeddingModel: string
   } | null
 }
 

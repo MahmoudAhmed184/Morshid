@@ -544,7 +544,7 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
   failTurn(
     input: FinalizeGroundedChatTurnInput,
   ): Promise<FinalizeGroundedChatTurnResult> {
-    return this.finalizeWithoutEvidence(input, {
+    return this.persistTerminalWithoutEvidence(input, {
       status: MessageStatus.FAILED,
       content: input.content,
       guidanceLabel: null,
@@ -555,7 +555,7 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
   blockTurn(
     input: FinalizeGroundedChatTurnInput,
   ): Promise<FinalizeGroundedChatTurnResult> {
-    return this.finalizeWithoutEvidence(input, {
+    return this.persistTerminalWithoutEvidence(input, {
       status: MessageStatus.BLOCKED,
       content: input.content,
       guidanceLabel: MessageGuidanceLabel.GENERAL_NOT_FOUND,
@@ -566,7 +566,7 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
   completeUnsupportedTurn(
     input: FinalizeGroundedChatTurnInput,
   ): Promise<FinalizeGroundedChatTurnResult> {
-    return this.finalizeWithoutEvidence(input, {
+    return this.persistTerminalWithoutEvidence(input, {
       status: MessageStatus.COMPLETED,
       content: input.content,
       guidanceLabel: MessageGuidanceLabel.UNCERTAIN_AWAITING_REVIEW,
@@ -577,7 +577,7 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
   completeSafetyTurn(
     input: CompleteSafetyGroundedChatTurnInput,
   ): Promise<FinalizeGroundedChatTurnResult> {
-    return this.finalizeWithoutEvidence(input, {
+    return this.persistTerminalWithoutEvidence(input, {
       status: MessageStatus.COMPLETED,
       content: input.content,
       guidanceLabel: input.guidanceLabel,
@@ -625,21 +625,6 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
 
       return { kind: 'ok', studentMessage, assistantMessage }
     })
-  }
-
-  private finalizeWithoutEvidence(
-    input: FinalizeGroundedChatTurnInput,
-    terminal: {
-      status:
-        | typeof MessageStatus.COMPLETED
-        | typeof MessageStatus.FAILED
-        | typeof MessageStatus.BLOCKED
-      content: string
-      guidanceLabel: MessageGuidanceLabel | null
-      errorCode: string
-    },
-  ): Promise<FinalizeGroundedChatTurnResult> {
-    return this.persistTerminalWithoutEvidence(input, terminal)
   }
 
   private async persistTerminalWithoutEvidence(

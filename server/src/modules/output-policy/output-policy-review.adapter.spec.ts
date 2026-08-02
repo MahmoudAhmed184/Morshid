@@ -121,6 +121,48 @@ describe('OutputPolicyReviewAdapter', () => {
     )
   })
 
+  it('copies allowlisted detector facts into immutable trigger metadata', async () => {
+    const decision = policy.evaluate({
+      proposedContent: 'Conflicting guidance',
+      assessment: {
+        support: 'CONFLICTING',
+        policyCheck: 'PASSED',
+        answerRisk: 'NONE',
+        citations: 'PRESENT',
+      },
+      reviewFacts: [
+        { code: 'detector_version', value: 'conflict-v1' },
+        { code: 'embedding_model', value: 'embedding-v1' },
+      ],
+    })
+
+    await adapter.createRequiredReview({ assistantMessageId, decision })
+
+    expect(createAutomatic).toHaveBeenCalledWith(
+      expect.objectContaining({
+        detectorMetadata: {
+          policyVersion: 'output-policy-v1',
+          reasonCount: 1,
+          detectorVersion: 'conflict-v1',
+          embeddingModel: 'embedding-v1',
+        },
+      }),
+      undefined,
+    )
+    expect(
+      Object.keys(
+        createAutomatic.mock.calls[0][0].detectorMetadata ?? {},
+      ).sort(),
+    ).toEqual(
+      [
+        'detectorVersion',
+        'embeddingModel',
+        'policyVersion',
+        'reasonCount',
+      ].sort(),
+    )
+  })
+
   it('fails closed if the shared creator returns different cases for one message', async () => {
     createAutomatic
       .mockResolvedValueOnce({

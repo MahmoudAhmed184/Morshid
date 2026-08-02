@@ -1148,6 +1148,7 @@ function evidenceChunks(): RetrievedChunk[] {
       content: 'First ranked evidence',
       rank: 1,
       similarityScore: 0.95,
+      embeddingModel: 'deterministic-embedding-v1',
     },
     {
       chunkId: 'chunk-2',
@@ -1157,6 +1158,7 @@ function evidenceChunks(): RetrievedChunk[] {
       content: 'Second ranked evidence',
       rank: 2,
       similarityScore: 0.85,
+      embeddingModel: 'deterministic-embedding-v1',
     },
   ]
 }

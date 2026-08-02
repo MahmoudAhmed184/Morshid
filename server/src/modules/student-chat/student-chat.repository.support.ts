@@ -58,6 +58,7 @@ export const chatMessageSelect = {
           materialId: true,
           chunkIndex: true,
           content: true,
+          embeddingModel: true,
         },
       },
     },

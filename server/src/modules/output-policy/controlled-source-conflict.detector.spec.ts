@@ -118,6 +118,7 @@ function chunk(overrides: Partial<RetrievedChunk>): RetrievedChunk {
     content: 'The / operator returns a float result.',
     rank: 1,
     similarityScore: 0.9,
+    embeddingModel: 'deterministic-embedding-v1',
     ...overrides,
   }
 }

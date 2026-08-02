@@ -75,6 +75,12 @@ export interface OutputPolicyInput {
   readonly proposedContent: string
   readonly assessment: OutputPolicyAssessment
   readonly evidence?: readonly OutputPolicyEvidenceSource[]
+  readonly reviewFacts?: readonly OutputPolicyReviewFact[]
+}
+
+export interface OutputPolicyReviewFact {
+  readonly code: 'detector_version' | 'embedding_model'
+  readonly value: string
 }
 
 export type OutputPolicyDisplay = 'AS_PROPOSED' | 'SAFE_REPLACEMENT'

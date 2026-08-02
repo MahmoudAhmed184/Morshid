@@ -22,6 +22,8 @@ export interface RetrievedChunk {
   rank: number
   // Cosine similarity (1 - cosine distance).
   similarityScore: number
+  // Immutable document embedding profile used for this retrieval.
+  embeddingModel: string
 }
 
 export type CourseRetrievalResult =
@@ -176,6 +178,7 @@ export class RetrievalService {
         content: row.content,
         rank: index + 1,
         similarityScore: 1 - row.distance,
+        embeddingModel,
       })),
     }
   }

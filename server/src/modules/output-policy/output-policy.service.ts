@@ -12,6 +12,7 @@ import {
   type OutputPolicyDecision,
   type OutputPolicyEvidenceSource,
   type OutputPolicyInput,
+  type OutputPolicyReviewFact,
 } from './output-policy.contract'
 
 export const OUTPUT_POLICY_GENERAL_NOT_FOUND_CONTENT =
@@ -71,7 +72,11 @@ export class OutputPolicyService {
       safeRefusal,
       createReview: true,
       reasons: Object.freeze(reasons),
-      reviewEvidence: buildReviewEvidence(reasons, input.evidence ?? []),
+      reviewEvidence: buildReviewEvidence(
+        reasons,
+        input.evidence ?? [],
+        input.reviewFacts ?? [],
+      ),
       studentStatus: Object.freeze({
         guidanceLabel: safeRefusal
           ? MessageGuidanceLabel.REFUSAL
@@ -152,6 +157,7 @@ function replacementFor(reasons: readonly AutomaticPolicyReason[]): string {
 function buildReviewEvidence(
   reasons: readonly AutomaticPolicyReason[],
   sources: readonly OutputPolicyEvidenceSource[],
+  facts: readonly OutputPolicyReviewFact[],
 ): AutomaticReviewEvidenceContribution {
   if (sources.length > MAX_REVIEW_SOURCE_COUNT) {
     throw new TypeError('Output-policy evidence contains too many sources')
@@ -182,6 +188,7 @@ function buildReviewEvidence(
     facts: [
       { code: 'policy_version', value: OUTPUT_POLICY_VERSION },
       { code: 'reason_count', value: reasons.length },
+      ...facts,
     ],
   })
 
