@@ -64,6 +64,71 @@ describe('StudentChatMessage', () => {
     ).toBeVisible()
   })
 
+  it('renders Tutor Markdown as structured, styled content', () => {
+    renderMessage({
+      ...assistantMessage,
+      citations: [],
+      content: [
+        '## Python lists',
+        '',
+        'Use `append()` to add an item:',
+        '',
+        '- **Indexing** starts at zero.',
+        '- Slices return part of a list.',
+        '',
+        '```python',
+        'numbers = [1, 2, 3]',
+        'numbers.append(4)',
+        '```',
+        '',
+        '| Method | Purpose |',
+        '| --- | --- |',
+        '| `append()` | Add one item |',
+      ].join('\n'),
+    })
+
+    expect(
+      screen.getByRole('heading', { level: 3, name: 'Python lists' }),
+    ).toBeVisible()
+    expect(screen.getAllByRole('list')).toHaveLength(2)
+    expect(screen.getByText('Indexing')).toHaveClass('font-semibold')
+    const codeBlock = screen.getByText((_content, element) =>
+      Boolean(
+        element?.tagName === 'CODE' &&
+        element.classList.contains('language-python'),
+      ),
+    )
+    expect(codeBlock).toHaveTextContent('numbers.append(4)')
+    expect(
+      screen.getByRole('region', { name: 'Scrollable response table' }),
+    ).toBeVisible()
+    expect(screen.getByRole('table')).toBeVisible()
+  })
+
+  it('does not execute raw HTML or load Markdown images', () => {
+    renderMessage({
+      ...assistantMessage,
+      content:
+        '<script>dangerousCall()</script>\n\n![tracking pixel](https://example.test/pixel.png)',
+    })
+
+    expect(screen.queryByText('dangerousCall()')).not.toBeInTheDocument()
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
+    expect(screen.getByText('[Image: tracking pixel]')).toBeVisible()
+  })
+
+  it('keeps Student-authored Markdown-looking text literal', () => {
+    renderMessage({
+      ...orderedChatMessagesFixture[0],
+      content: '**Do not render this as bold.**',
+    })
+
+    expect(screen.getByText('**Do not render this as bold.**')).toBeVisible()
+    expect(
+      screen.queryByText('Do not render this as bold.'),
+    ).not.toBeInTheDocument()
+  })
+
   it('keeps response feedback local and mutually exclusive', async () => {
     const user = userEvent.setup()
     renderMessage(assistantMessage)

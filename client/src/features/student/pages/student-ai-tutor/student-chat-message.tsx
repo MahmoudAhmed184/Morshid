@@ -37,6 +37,7 @@ import {
   STUDENT_CHAT_FAILURE_STATUS,
   STUDENT_CHAT_GENERATION_STATUS,
 } from './student-chat-status'
+import { StudentAssistantMarkdown } from './student-assistant-markdown'
 
 interface StudentChatMessageProps {
   message: ChatMessage
@@ -264,8 +265,10 @@ export function StudentChatMessage({
               <LoaderCircle className="size-4 animate-spin" aria-hidden />
               {STUDENT_CHAT_GENERATION_STATUS}…
             </p>
-          ) : (
+          ) : isStudent ? (
             <p className="whitespace-pre-wrap break-words">{message.content}</p>
+          ) : (
+            <StudentAssistantMarkdown content={message.content} />
           )}
 
           <span
@@ -541,9 +544,16 @@ function StudentReviewOutcomeCard({
           </Badge>
         </div>
         {visibleContent ? (
-          <p className="whitespace-pre-wrap break-words text-sm leading-7 text-foreground">
-            {visibleContent}
-          </p>
+          isRejected ? (
+            <p className="whitespace-pre-wrap break-words text-sm leading-7 text-foreground">
+              {visibleContent}
+            </p>
+          ) : (
+            <StudentAssistantMarkdown
+              className="text-sm leading-7 text-foreground"
+              content={visibleContent}
+            />
+          )
         ) : null}
       </section>
     </div>
