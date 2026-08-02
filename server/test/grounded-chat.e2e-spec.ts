@@ -31,7 +31,11 @@ import {
 } from '../src/modules/pdf-storage/pdf-storage'
 import { PrismaService } from '../src/modules/prisma/prisma.service'
 import { RedisService } from '../src/modules/redis/redis.service'
-import { OUTPUT_POLICY_GENERAL_NOT_FOUND_CONTENT } from '../src/modules/output-policy/output-policy.service'
+import {
+  OUTPUT_POLICY_GENERAL_NOT_FOUND_CONTENT,
+  OUTPUT_POLICY_SOURCE_CONFLICT_CONTENT,
+} from '../src/modules/output-policy/output-policy.service'
+import type { InstructorReviewDetailDto } from '../src/modules/reviews/instructor-review-detail.dto'
 import {
   type BeginGroundedChatTurnInput,
   type BeginGroundedChatTurnResult,
@@ -836,6 +840,181 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
       studentMessage: { requestKind: 'PROBLEM_LIKE' },
       assistantMessage: {
         status: 'COMPLETED',
+        guidanceLabel: 'COURSE_GROUNDED',
+        reviewSummary: null,
+      },
+    })
+    expect(complete).toHaveBeenCalledTimes(1)
+    await expect(
+      prisma.reviewCase.count({
+        where: { targetMessage: { sessionId: session.id } },
+      }),
+    ).resolves.toBe(0)
+  })
+
+  it('withholds the canonical distinct-material division conflict and preserves only its bounded pair', async () => {
+    const modern = await createEvidenceMaterial({
+      title: 'Python 3 division',
+      content:
+        'In Python 3, / performs true division and produces a float result for two integers.',
+    })
+    const legacy = await createEvidenceMaterial({
+      title: 'Legacy division notes',
+      content:
+        'For two integer operands, the / operator performs integer division and truncates the result.',
+    })
+    const session = await createSession()
+    const body = {
+      clientMessageId: randomUUID(),
+      content:
+        'In Python, does / with two integers give an integer or a decimal result?',
+    }
+
+    const response = await request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${student1Token}`)
+      .send(body)
+      .expect(201)
+    const turn = response.body as GroundedChatTurnResponseDto
+
+    expect(complete).not.toHaveBeenCalled()
+    expect(turn.assistantMessage).toMatchObject({
+      status: 'COMPLETED',
+      content: OUTPUT_POLICY_SOURCE_CONFLICT_CONTENT,
+      guidanceLabel: 'UNCERTAIN_AWAITING_REVIEW',
+      errorCode: 'SOURCE_CONFLICT',
+      reviewSummary: { status: 'PENDING' },
+    })
+    expect(
+      turn.assistantMessage.citations
+        .map(({ materialId }) => materialId)
+        .sort(),
+    ).toEqual([modern.id, legacy.id].sort())
+
+    const originalCase = await prisma.reviewCase.findUniqueOrThrow({
+      where: { targetMessageId: turn.assistantMessage.id },
+      include: { evidence: true, triggers: true },
+    })
+    expect(originalCase.triggers).toHaveLength(1)
+    expect(originalCase.triggers[0]?.type).toBe('SOURCE_CONFLICT')
+    const originalEvidence = originalCase.evidence?.evidence as unknown as {
+      automaticEvidence?: {
+        sources?: {
+          materialId?: string
+          materialTitle?: string
+          excerpt?: string
+          rank?: number
+        }[]
+      }
+      context?: unknown
+      citations?: unknown[]
+      retrievals?: unknown[]
+    }
+    expect(originalEvidence.automaticEvidence?.sources).toHaveLength(2)
+    expect(
+      originalEvidence.automaticEvidence?.sources
+        ?.map(({ materialId }) => materialId)
+        .sort(),
+    ).toEqual([modern.id, legacy.id].sort())
+    expect(originalEvidence).toMatchObject({
+      context: { previous: null, next: null },
+      citations: [],
+      retrievals: [],
+    })
+    for (const source of originalEvidence.automaticEvidence?.sources ?? []) {
+      expect(Array.from(source.excerpt ?? '').length).toBeLessThanOrEqual(500)
+    }
+
+    await prisma.reviewCase.delete({ where: { id: originalCase.id } })
+    const concurrentReplays = await Promise.all([
+      request(requireApp().getHttpServer())
+        .post(messagesPath(session.id))
+        .set('Authorization', `Bearer ${student1Token}`)
+        .send(body),
+      request(requireApp().getHttpServer())
+        .post(messagesPath(session.id))
+        .set('Authorization', `Bearer ${student1Token}`)
+        .send(body),
+    ])
+    expect(concurrentReplays.map(({ status }) => status)).toEqual([201, 201])
+    await expect(
+      prisma.message.count({ where: { sessionId: session.id } }),
+    ).resolves.toBe(2)
+    const repairedCase = await prisma.reviewCase.findUniqueOrThrow({
+      where: { targetMessageId: turn.assistantMessage.id },
+      include: { triggers: true },
+    })
+    expect(repairedCase.triggers).toHaveLength(1)
+
+    const instructorDetail = await request(requireApp().getHttpServer())
+      .get(`/api/v1/instructor/reviews/${repairedCase.id}`)
+      .set('Authorization', `Bearer ${instructorToken}`)
+      .expect(200)
+    const instructorDetailBody =
+      instructorDetail.body as InstructorReviewDetailDto
+    expect(instructorDetailBody).toMatchObject({
+      trigger: 'SOURCE_CONFLICT',
+      assistantResponse: {
+        content: OUTPUT_POLICY_SOURCE_CONFLICT_CONTENT,
+      },
+      previousExchange: null,
+      followingExchange: null,
+    })
+    expect(
+      instructorDetailBody.assistantResponse.citations
+        .map(({ materialTitle }) => materialTitle)
+        .sort(),
+    ).toEqual([modern.title, legacy.title].sort())
+
+    await request(requireApp().getHttpServer())
+      .post(`/api/v1/instructor/reviews/${repairedCase.id}/resolve`)
+      .set('Authorization', `Bearer ${instructorToken}`)
+      .set('Idempotency-Key', 'controlled-conflict-resolution')
+      .send({
+        expectedVersion: 1,
+        outcome: 'APPROVED',
+        content: null,
+        reason: 'Confirmed the course source conflict',
+      })
+      .expect(200)
+    await request(requireApp().getHttpServer())
+      .get(`/api/v1/student/reviews/${repairedCase.id}`)
+      .set('Authorization', `Bearer ${student1Token}`)
+      .expect(200)
+      .expect((studentResponse) => {
+        expect(studentResponse.body).toMatchObject({
+          status: 'RESOLVED',
+          outcome: 'APPROVED',
+          publishedContent: OUTPUT_POLICY_SOURCE_CONFLICT_CONTENT,
+        })
+      })
+    await expect(
+      prisma.notification.count({ where: { reviewCaseId: repairedCase.id } }),
+    ).resolves.toBe(1)
+  })
+
+  it('keeps agreeing top-ranked division sources on the ordinary completion path', async () => {
+    await createEvidenceMaterial({
+      title: 'Python division source A',
+      content: 'The / operator returns a float result for integer operands.',
+    })
+    await createEvidenceMaterial({
+      title: 'Python division source B',
+      content: 'Python true division produces a decimal value.',
+    })
+    const session = await createSession()
+
+    const response = await request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${student1Token}`)
+      .send({
+        content:
+          'In Python, does / with two integers give an integer or a decimal result?',
+      })
+      .expect(201)
+    expect(response.body).toMatchObject({
+      assistantMessage: {
+        content: GROUNDED_ANSWER,
         guidanceLabel: 'COURSE_GROUNDED',
         reviewSummary: null,
       },
