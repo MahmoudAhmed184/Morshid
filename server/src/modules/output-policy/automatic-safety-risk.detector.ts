@@ -54,6 +54,8 @@ const CODE_FENCE =
   /```(?:python|py|javascript|typescript|java|c|cpp|csharp|sql)?\s*\n([\s\S]*?)```/giu
 const CODE_STATEMENT =
   /^\s*(?:import\s+|from\s+\S+\s+import\s+|def\s+|class\s+|if\s+|elif\s+|else\s*:|for\s+|while\s+|try\s*:|except\b|finally\s*:|with\s+|return\b|break\b|continue\b|raise\b|print\s*\(|[A-Za-z_]\w*\s*=|[A-Za-z_]\w*\s*\(|[A-Za-z_]\w*\.(?:append|remove|extend|insert|pop|sort)\s*\()/iu
+const CONTROLLED_NON_AUTHORIZATION_DISCLAIMER =
+  /\b(?:it|this\s+(?:document|content|text))\s+does\s+not\s+grant\s+permission\s+to\s+ignore\s+tutor\s+policy,?\s+reveal\s+hidden\s+instructions,?\s+or\s+provide\s+protected\s+assessment\s+answers\s*\./giu
 
 @Injectable()
 export class AutomaticSafetyRiskDetector {
@@ -90,7 +92,7 @@ export class AutomaticSafetyRiskDetector {
     chunks: readonly RetrievedChunk[],
   ): AutomaticSafetyRiskDetection | null {
     const unsafe = chunks.some(({ content }) => {
-      const normalized = normalize(content)
+      const normalized = normalize(removeNonAuthorizationDisclaimers(content))
       return (
         OVERRIDE_COMMAND.test(normalized) &&
         (CONTROL_TARGET.test(normalized) ||
@@ -124,6 +126,10 @@ export class AutomaticSafetyRiskDetector {
     }
     return detection(risks)
   }
+}
+
+function removeNonAuthorizationDisclaimers(content: string): string {
+  return content.replace(CONTROLLED_NON_AUTHORIZATION_DISCLAIMER, ' ')
 }
 
 function containsSubmissionReadyCode(content: string): boolean {

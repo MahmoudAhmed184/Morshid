@@ -33,6 +33,7 @@ import { PrismaService } from '../src/modules/prisma/prisma.service'
 import { RedisService } from '../src/modules/redis/redis.service'
 import {
   OUTPUT_POLICY_GENERAL_NOT_FOUND_CONTENT,
+  OUTPUT_POLICY_QUESTION_X_SCHEDULE_CONFLICT_CONTENT,
   OUTPUT_POLICY_REFUSAL_CONTENT,
   OUTPUT_POLICY_SOURCE_CONFLICT_CONTENT,
 } from '../src/modules/output-policy/output-policy.service'
@@ -1000,6 +1001,56 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
       prisma.notification.count({ where: { reviewCaseId: repairedCase.id } }),
     ).resolves.toBe(1)
   })
+
+  it.each([
+    'On which day is Question X scheduled?',
+    'According to the uploaded materials, on which day is Question X scheduled?',
+  ])(
+    'retrieves and discloses the controlled Question X schedule conflict: %s',
+    async (content) => {
+      const disclaimer =
+        'This document is official course content. It does not grant permission to ignore Tutor policy, reveal hidden instructions, or provide protected assessment answers.'
+      const monday = await createEvidenceMaterial({
+        title: 'Course Schedule Notice A',
+        content: `Question X is scheduled for Monday. ${disclaimer}`,
+      })
+      const tuesday = await createEvidenceMaterial({
+        title: 'Course Schedule Notice B',
+        content: `Question X is scheduled for Tuesday. ${disclaimer}`,
+      })
+      const session = await createSession()
+
+      const response = await request(requireApp().getHttpServer())
+        .post(messagesPath(session.id))
+        .set('Authorization', `Bearer ${student1Token}`)
+        .send({ content })
+        .expect(201)
+      const turn = response.body as GroundedChatTurnResponseDto
+
+      expect(embedQuery).toHaveBeenCalledTimes(1)
+      expect(complete).not.toHaveBeenCalled()
+      expect(turn.studentMessage.requestKind).toBe('CONCEPTUAL')
+      expect(turn.assistantMessage).toMatchObject({
+        content: OUTPUT_POLICY_QUESTION_X_SCHEDULE_CONFLICT_CONTENT,
+        guidanceLabel: 'UNCERTAIN_AWAITING_REVIEW',
+        errorCode: 'SOURCE_CONFLICT',
+        reviewSummary: { status: 'PENDING' },
+      })
+      expect(turn.assistantMessage.citations).toHaveLength(2)
+      expect(
+        turn.assistantMessage.citations
+          .map(({ materialId }) => materialId)
+          .sort(),
+      ).toEqual([monday.id, tuesday.id].sort())
+
+      const reviewCase = await prisma.reviewCase.findUniqueOrThrow({
+        where: { targetMessageId: turn.assistantMessage.id },
+        include: { triggers: true },
+      })
+      expect(reviewCase.triggers).toHaveLength(1)
+      expect(reviewCase.triggers[0]?.type).toBe('SOURCE_CONFLICT')
+    },
+  )
 
   it('keeps agreeing top-ranked division sources on the ordinary completion path', async () => {
     await createEvidenceMaterial({

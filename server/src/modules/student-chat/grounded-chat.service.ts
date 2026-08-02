@@ -38,7 +38,10 @@ import {
   type OutputPolicyEvidenceSource,
   type OutputPolicyReviewFact,
 } from '../output-policy/output-policy.contract'
-import { OutputPolicyService } from '../output-policy/output-policy.service'
+import {
+  OUTPUT_POLICY_QUESTION_X_SCHEDULE_CONFLICT_CONTENT,
+  OutputPolicyService,
+} from '../output-policy/output-policy.service'
 import {
   type BeginGroundedChatTurnResult,
   type FinalizeGroundedChatTurnResult,
@@ -458,6 +461,7 @@ export class GroundedChatService {
   ): Promise<GroundedChatTurnResponseDto> {
     const decision = this.outputPolicy.evaluate({
       proposedContent: GROUNDING_BLOCKED_CONTENT,
+      controlledConflictKind: conflict.kind,
       assessment: {
         support: 'CONFLICTING',
         policyCheck: 'PASSED',
@@ -644,6 +648,9 @@ export class GroundedChatService {
     const evidence = policyEvidenceFrom(message)
     return this.outputPolicy.evaluate({
       proposedContent: message.content,
+      ...(message.content === OUTPUT_POLICY_QUESTION_X_SCHEDULE_CONFLICT_CONTENT
+        ? { controlledConflictKind: 'QUESTION_X_SCHEDULE' }
+        : {}),
       assessment: {
         support: reasons.includes('GENERAL_NOT_FOUND')
           ? 'NOT_FOUND'

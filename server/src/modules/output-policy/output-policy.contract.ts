@@ -74,9 +74,12 @@ export interface OutputPolicyEvidenceSource {
 export interface OutputPolicyInput {
   readonly proposedContent: string
   readonly assessment: OutputPolicyAssessment
+  readonly controlledConflictKind?: OutputPolicyConflictKind
   readonly evidence?: readonly OutputPolicyEvidenceSource[]
   readonly reviewFacts?: readonly OutputPolicyReviewFact[]
 }
+
+export type OutputPolicyConflictKind = 'PYTHON_DIVISION' | 'QUESTION_X_SCHEDULE'
 
 export interface OutputPolicyReviewFact {
   readonly code: 'detector_version' | 'embedding_model'

@@ -37,6 +37,8 @@ describe('CorrectnessSensitiveRequestClassifier', () => {
     'Discuss implementation choices for this exercise',
     'What does an answer key mean?',
     'Explain why hiding an answer in comments is not acceptable.',
+    'On which day is Question X scheduled?',
+    'According to the uploaded materials, on which day is Question X scheduled?',
   ])(
     'does not turn routine conceptual language into a review: %s',
     (content) => {

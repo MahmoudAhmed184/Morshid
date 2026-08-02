@@ -28,9 +28,39 @@ describe('ControlledSourceConflictDetector', () => {
       ]),
     ).toMatchObject({
       detectorVersion: CONTROLLED_SOURCE_CONFLICT_DETECTOR_VERSION,
+      kind: 'PYTHON_DIVISION',
       sources: [
         { materialId: 'material-modern', rank: 1 },
         { materialId: 'material-legacy', rank: 2 },
+      ],
+    })
+  })
+
+  it.each([
+    'On which day is Question X scheduled?',
+    'According to the uploaded materials, on which day is Question X scheduled?',
+  ])('selects the controlled Question X schedule conflict: %s', (question) => {
+    expect(
+      detector.detect(question, [
+        chunk({
+          materialId: 'schedule-a',
+          materialTitle: 'Course Schedule Notice A',
+          content: 'Question X is scheduled for Monday.',
+          rank: 1,
+        }),
+        chunk({
+          materialId: 'schedule-b',
+          materialTitle: 'Course Schedule Notice B',
+          content: 'Question X is scheduled for Tuesday.',
+          rank: 2,
+        }),
+      ]),
+    ).toMatchObject({
+      detectorVersion: CONTROLLED_SOURCE_CONFLICT_DETECTOR_VERSION,
+      kind: 'QUESTION_X_SCHEDULE',
+      sources: [
+        { materialId: 'schedule-a', rank: 1 },
+        { materialId: 'schedule-b', rank: 2 },
       ],
     })
   })
@@ -90,6 +120,33 @@ describe('ControlledSourceConflictDetector', () => {
           materialId: 'material-c',
           content: 'The / operator performs integer division.',
           rank: 3,
+        }),
+      ],
+    },
+    {
+      label: 'schedule agreement',
+      question: 'On which day is Question X scheduled?',
+      chunks: [
+        chunk({
+          content: 'Question X is scheduled for Monday.',
+          rank: 1,
+        }),
+        chunk({
+          materialId: 'material-b',
+          content: 'The schedule says Question X is scheduled for Monday.',
+          rank: 2,
+        }),
+      ],
+    },
+    {
+      label: 'unrelated schedule text',
+      question: 'On which day is Question X scheduled?',
+      chunks: [
+        chunk({ content: 'Question Y is scheduled for Monday.', rank: 1 }),
+        chunk({
+          materialId: 'material-b',
+          content: 'Question X is scheduled for Tuesday.',
+          rank: 2,
         }),
       ],
     },

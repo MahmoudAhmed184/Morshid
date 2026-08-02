@@ -99,6 +99,23 @@ describe('OutputPolicyService', () => {
     expect(Array.from(excerpt ?? '')).toHaveLength(500)
   })
 
+  it('uses the fixed controlled Question X schedule conflict disclosure', () => {
+    const decision = policy.evaluate({
+      proposedContent: 'A proposed settled schedule claim',
+      controlledConflictKind: 'QUESTION_X_SCHEDULE',
+      assessment: {
+        support: 'CONFLICTING',
+        policyCheck: 'PASSED',
+        answerRisk: 'NONE',
+        citations: 'PRESENT',
+      },
+    })
+
+    expect(decision.content).toBe(
+      'The available course materials conflict: one schedules Question X for Monday and another schedules it for Tuesday. I cannot present either day as settled course guidance. An Instructor review is pending.',
+    )
+  })
+
   it('retains bounded detector and embedding profile facts', () => {
     const decision = policy.evaluate({
       proposedContent: 'A proposed conflicted claim',

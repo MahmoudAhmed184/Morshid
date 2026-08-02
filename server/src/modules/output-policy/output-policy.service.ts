@@ -11,6 +11,7 @@ import {
   type AutomaticPolicyReason,
   type OutputPolicyDecision,
   type OutputPolicyEvidenceSource,
+  type OutputPolicyConflictKind,
   type OutputPolicyInput,
   type OutputPolicyReviewFact,
 } from './output-policy.contract'
@@ -19,6 +20,8 @@ export const OUTPUT_POLICY_GENERAL_NOT_FOUND_CONTENT =
   'I could not find course material that supports this request. I can offer only limited general learning guidance while an Instructor reviews it.'
 export const OUTPUT_POLICY_SOURCE_CONFLICT_CONTENT =
   'The available course materials conflict, so I cannot present either position as settled course guidance. An Instructor review is pending.'
+export const OUTPUT_POLICY_QUESTION_X_SCHEDULE_CONFLICT_CONTENT =
+  'The available course materials conflict: one schedules Question X for Monday and another schedules it for Tuesday. I cannot present either day as settled course guidance. An Instructor review is pending.'
 export const OUTPUT_POLICY_REFUSAL_CONTENT =
   'I cannot provide that response. I can help with a smaller learning step that follows the course policy.'
 export const OUTPUT_POLICY_CITATION_MISSING_CONTENT =
@@ -67,7 +70,7 @@ export class OutputPolicyService {
 
     return Object.freeze({
       policyVersion: OUTPUT_POLICY_VERSION,
-      content: replacementFor(reasons),
+      content: replacementFor(reasons, input.controlledConflictKind),
       display: 'SAFE_REPLACEMENT',
       safeRefusal,
       createReview: true,
@@ -138,7 +141,10 @@ function collectReasons(input: OutputPolicyInput): AutomaticPolicyReason[] {
   return AUTOMATIC_POLICY_REASONS.filter((reason) => detected.has(reason))
 }
 
-function replacementFor(reasons: readonly AutomaticPolicyReason[]): string {
+function replacementFor(
+  reasons: readonly AutomaticPolicyReason[],
+  controlledConflictKind: OutputPolicyConflictKind | undefined,
+): string {
   if (
     reasons.includes('POLICY_CHECK_FAILED') ||
     reasons.includes('FINAL_ANSWER_RISK')
@@ -146,7 +152,9 @@ function replacementFor(reasons: readonly AutomaticPolicyReason[]): string {
     return OUTPUT_POLICY_REFUSAL_CONTENT
   }
   if (reasons.includes('SOURCE_CONFLICT')) {
-    return OUTPUT_POLICY_SOURCE_CONFLICT_CONTENT
+    return controlledConflictKind === 'QUESTION_X_SCHEDULE'
+      ? OUTPUT_POLICY_QUESTION_X_SCHEDULE_CONFLICT_CONTENT
+      : OUTPUT_POLICY_SOURCE_CONFLICT_CONTENT
   }
   if (reasons.includes('GENERAL_NOT_FOUND')) {
     return OUTPUT_POLICY_GENERAL_NOT_FOUND_CONTENT

@@ -26,6 +26,7 @@ import {
   type AutomaticSafetyScenarioId,
 } from '../src/modules/output-policy/automatic-safety.fixtures'
 import { AUTOMATIC_SAFETY_RISK_DETECTOR_VERSION } from '../src/modules/output-policy/automatic-safety-risk.detector'
+import { CONTROLLED_SOURCE_CONFLICT_DETECTOR_VERSION } from '../src/modules/output-policy/controlled-source-conflict.detector'
 import {
   OUTPUT_POLICY_GENERAL_NOT_FOUND_CONTENT,
   OUTPUT_POLICY_REFUSAL_CONTENT,
@@ -380,7 +381,7 @@ async function proveScenario(
   assertBoundedEvidence(reviewCase.evidence?.evidence)
   if (scenario.id === 'SCN-03') {
     expect(reviewCase.triggers[0]?.detectorMetadata).toMatchObject({
-      detectorVersion: 'python-integer-division-conflict-v1',
+      detectorVersion: CONTROLLED_SOURCE_CONFLICT_DETECTOR_VERSION,
       embeddingModel: EMBEDDING_MODEL,
     })
   }
