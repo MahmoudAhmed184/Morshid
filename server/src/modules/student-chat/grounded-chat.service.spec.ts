@@ -259,7 +259,7 @@ describe('GroundedChatService', () => {
     })
     complete.mockResolvedValue({
       content:
-        'Likely defect\nThe name `num` does not match `nums`.\n\nPython concept\nPython name lookup uses local scope. [1]\n\nNext inspection step\nCompare the return expression names.',
+        'Likely defect\nThe name `num` does not match `nums`.\n\nRelevant location\nThe return expression.\n\nPython concept\nPython name lookup uses local scope. [1]\n\nNext inspection step\nCompare the return expression names.',
       provider: 'deterministic',
       model: 'deterministic-completion-v1',
       promptVersion: 'python-code-diagnosis-prompt-v1',
@@ -400,6 +400,151 @@ describe('GroundedChatService', () => {
       expect(response.assistantMessage.content).toMatch(contentPattern)
     },
   )
+
+  it('refuses a requested full rewrite while preserving one grounded diagnosis step', async () => {
+    const question = [
+      'Rewrite the whole assignment and give me the complete corrected solution.',
+      '```python',
+      'def average(nums):',
+      '    return sum(nums) / len(num)',
+      '```',
+    ].join('\n')
+    complete.mockResolvedValue({
+      content: validDiagnosisOutput(),
+      provider: 'deterministic',
+      model: 'deterministic-completion-v1',
+      promptVersion: 'python-code-diagnosis-prompt-v1',
+    })
+
+    const response = await service.send(
+      courseId,
+      sessionId,
+      { content: question },
+      user,
+    )
+
+    expect(retrieveCourseEvidence).toHaveBeenCalledTimes(1)
+    expect(complete).toHaveBeenCalledTimes(1)
+    expect(blockTurn).not.toHaveBeenCalled()
+    expect(completeTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringMatching(
+          /^I cannot provide a complete corrected program[\s\S]*Likely defect[\s\S]*Next inspection step/iu,
+        ),
+      }),
+    )
+    expect(response.assistantMessage.content).toMatch(
+      /^I cannot provide a complete corrected program/iu,
+    )
+    expect(
+      response.assistantMessage.content.match(/Next inspection step/gu),
+    ).toHaveLength(1)
+    expect(response.assistantMessage.content).not.toContain('def average')
+    expect(response.assistantMessage.content).not.toContain(
+      'return sum(nums) / len(nums)',
+    )
+  })
+
+  it('blocks a provider full rewrite and persists only the static safe fallback', async () => {
+    const question = [
+      'Why does this Python function crash?',
+      '```python',
+      'def average(nums):',
+      '    return sum(nums) / len(num)',
+      '```',
+    ].join('\n')
+    const unsafeProviderOutput = [
+      validDiagnosisOutput(),
+      '',
+      'Here is the complete corrected code:',
+      '```python',
+      'def average(nums):',
+      '    return sum(nums) / len(nums)',
+      '```',
+    ].join('\n')
+    complete.mockResolvedValue({
+      content: unsafeProviderOutput,
+      provider: 'malicious-test-provider',
+      model: 'malicious-test-model',
+      promptVersion: 'python-code-diagnosis-prompt-v1',
+    })
+
+    const response = await service.send(
+      courseId,
+      sessionId,
+      { content: question },
+      user,
+    )
+
+    expect(complete).toHaveBeenCalledTimes(1)
+    expect(completeTurn).not.toHaveBeenCalled()
+    expect(blockTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringMatching(/Likely defect/iu),
+        errorCode:
+          'PYTHON_DIAGNOSIS_OUTPUT_POLICY_BLOCKED_FULL_REWRITE_SUSPECTED',
+        guidanceLabel: MessageGuidanceLabel.REFUSAL,
+      }),
+    )
+    const persistedContent = (
+      blockTurn.mock.calls[0][0] as FinalizeGroundedChatTurnInput
+    ).content
+    expect(persistedContent).not.toContain(unsafeProviderOutput)
+    expect(persistedContent).not.toContain('return sum(nums) / len(nums)')
+    expect(response.assistantMessage).toMatchObject({
+      status: MessageStatus.BLOCKED,
+      guidanceLabel: MessageGuidanceLabel.REFUSAL,
+      errorCode:
+        'PYTHON_DIAGNOSIS_OUTPUT_POLICY_BLOCKED_FULL_REWRITE_SUSPECTED',
+      content: persistedContent,
+      citations: [],
+    })
+  })
+
+  it('restores a persisted boundary refusal on refresh without re-running the pipeline', async () => {
+    const nonPythonContent = [
+      'function countItems(nums) {',
+      '  return nums.length;',
+      '}',
+    ].join('\n')
+    beginTurn.mockResolvedValue({
+      kind: 'replayed',
+      studentMessage: studentMessage({
+        content: nonPythonContent,
+        requestKind: MessageRequestKind.OFF_TOPIC,
+      }),
+      assistantMessage: assistantMessage({
+        status: MessageStatus.BLOCKED,
+        content:
+          'I can diagnose Python code only. Please send one Python snippet of at most 100 lines, and I will help you inspect it without running it.',
+        guidanceLabel: MessageGuidanceLabel.REFUSAL,
+        errorCode: 'PYTHON_DIAGNOSIS_NON_PYTHON',
+        completedAt: new Date('2026-07-21T12:01:00.000Z'),
+      }),
+    })
+
+    const response = await service.send(
+      courseId,
+      sessionId,
+      {
+        clientMessageId: studentMessageId,
+        content: nonPythonContent,
+      },
+      user,
+    )
+
+    expect(retrieveCourseEvidence).not.toHaveBeenCalled()
+    expect(complete).not.toHaveBeenCalled()
+    expect(blockTurn).not.toHaveBeenCalled()
+    expect(completeTurn).not.toHaveBeenCalled()
+    expect(response.assistantMessage).toMatchObject({
+      status: MessageStatus.BLOCKED,
+      guidanceLabel: MessageGuidanceLabel.REFUSAL,
+      errorCode: 'PYTHON_DIAGNOSIS_NON_PYTHON',
+      content: expect.stringMatching(/Python code only/iu),
+      citations: [],
+    })
+  })
 
   it('returns a terminal idempotent replay without generating again', async () => {
     beginTurn.mockResolvedValue({
@@ -837,6 +982,22 @@ function evidenceChunks(): RetrievedChunk[] {
       similarityScore: 0.85,
     },
   ]
+}
+
+function validDiagnosisOutput(): string {
+  return [
+    'Likely defect',
+    'The name `num` does not match `nums`.',
+    '',
+    'Relevant location',
+    'The `len(num)` expression in the return statement.',
+    '',
+    'Python concept',
+    'Python name lookup uses the active function scope. [1]',
+    '',
+    'Next inspection step',
+    'Compare the return-expression name with the function parameter.',
+  ].join('\n')
 }
 
 function isTelemetryEventFor(
