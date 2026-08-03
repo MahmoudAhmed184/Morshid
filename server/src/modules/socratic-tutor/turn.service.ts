@@ -8,13 +8,20 @@ import {
   invalidTutorTurnLifecycleTransitionException,
   invalidTurnRequestException,
   staleTutorTurnStatusException,
+  turnLinkageConflictException,
+  turnMessageNotFoundException,
+  turnMessageRoleMismatchException,
   turnNotFoundException,
+  turnScopeMismatchException,
   turnSessionNotFoundException,
+  turnTopicNotFoundException,
   TURN_ERROR_CODES,
 } from './turn.errors'
 import { TurnRepository } from './turn.repository'
 import {
   TURN_ACQUISITION_OUTCOME,
+  type AttachResolvedTopicResult,
+  type LinkStudentMessageResult,
   type TurnAcquisitionResult,
   type TutorTurnSnapshot,
 } from './turn.types'
@@ -130,6 +137,42 @@ export class TurnService {
     }
 
     return await this.rejectStaleOrMissingTurn(normalizedTurnId)
+  }
+
+  async linkStudentMessage(
+    turnId: string,
+    studentMessageId: string,
+  ): Promise<TutorTurnSnapshot> {
+    const input = {
+      turnId: normalizeRequiredIdentifier(turnId, 'turnId'),
+      studentMessageId: normalizeRequiredIdentifier(
+        studentMessageId,
+        'studentMessageId',
+      ),
+    }
+
+    return mapLinkStudentMessageResult(
+      await this.turnRepository.linkStudentMessage(input),
+    )
+  }
+
+  async attachResolvedTopic(
+    turnId: string,
+    studentMessageId: string,
+    topicId: string,
+  ): Promise<TutorTurnSnapshot> {
+    const input = {
+      turnId: normalizeRequiredIdentifier(turnId, 'turnId'),
+      studentMessageId: normalizeRequiredIdentifier(
+        studentMessageId,
+        'studentMessageId',
+      ),
+      topicId: normalizeRequiredIdentifier(topicId, 'topicId'),
+    }
+
+    return mapAttachResolvedTopicResult(
+      await this.turnRepository.attachResolvedTopic(input),
+    )
   }
 
   private async assertSessionExists(sessionId: string): Promise<void> {
@@ -258,5 +301,46 @@ function validateFailureCode(failureCode: TutorTurnFailureCode): void {
         message: 'Failure code is not supported',
       },
     ])
+  }
+}
+
+function mapLinkStudentMessageResult(
+  result: LinkStudentMessageResult,
+): TutorTurnSnapshot {
+  switch (result.kind) {
+    case 'ok':
+      return result.turn
+    case 'turn_not_found':
+      throw turnNotFoundException()
+    case 'message_not_found':
+      throw turnMessageNotFoundException()
+    case 'message_role_mismatch':
+      throw turnMessageRoleMismatchException()
+    case 'session_mismatch':
+      throw turnScopeMismatchException()
+    case 'linkage_conflict':
+      throw turnLinkageConflictException()
+  }
+}
+
+function mapAttachResolvedTopicResult(
+  result: AttachResolvedTopicResult,
+): TutorTurnSnapshot {
+  switch (result.kind) {
+    case 'ok':
+      return result.turn
+    case 'turn_not_found':
+      throw turnNotFoundException()
+    case 'message_not_found':
+      throw turnMessageNotFoundException()
+    case 'topic_not_found':
+      throw turnTopicNotFoundException()
+    case 'message_role_mismatch':
+      throw turnMessageRoleMismatchException()
+    case 'session_mismatch':
+    case 'course_mismatch':
+      throw turnScopeMismatchException()
+    case 'linkage_conflict':
+      throw turnLinkageConflictException()
   }
 }

@@ -34,6 +34,33 @@ export interface TutorTurnSnapshot {
   completedAt: Date | null
 }
 
+export interface LinkStudentMessageInput {
+  turnId: string
+  studentMessageId: string
+}
+
+export interface AttachResolvedTopicInput extends LinkStudentMessageInput {
+  topicId: string
+}
+
+export type LinkStudentMessageResult =
+  | { kind: 'ok'; turn: TutorTurnSnapshot }
+  | { kind: 'turn_not_found' }
+  | { kind: 'message_not_found' }
+  | { kind: 'message_role_mismatch' }
+  | { kind: 'session_mismatch' }
+  | { kind: 'linkage_conflict' }
+
+export type AttachResolvedTopicResult =
+  | { kind: 'ok'; turn: TutorTurnSnapshot }
+  | { kind: 'turn_not_found' }
+  | { kind: 'message_not_found' }
+  | { kind: 'topic_not_found' }
+  | { kind: 'message_role_mismatch' }
+  | { kind: 'session_mismatch' }
+  | { kind: 'course_mismatch' }
+  | { kind: 'linkage_conflict' }
+
 export type TurnAcquisitionResult =
   | {
       outcome: typeof TURN_ACQUISITION_OUTCOME.CREATED
