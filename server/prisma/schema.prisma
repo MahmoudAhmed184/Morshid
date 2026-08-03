@@ -79,6 +79,124 @@ enum MessageGuidanceLabel {
   @@map("message_guidance_label")
 }
 
+enum TopicStatus {
+  ACTIVE
+  PAUSED
+  RESOLVED
+  ABANDONED
+
+  @@map("topic_status")
+}
+
+enum TutorTurnStatus {
+  RECEIVED
+  ANALYZING
+  RETRIEVING
+  DECIDING
+  GENERATING
+  VALIDATING
+  REGENERATING
+  COMPLETED
+  FAILED
+
+  @@map("tutor_turn_status")
+}
+
+enum TutorTurnFailureCode {
+  ANALYSIS_FAILED
+  RETRIEVAL_FAILED
+  GENERATION_FAILED
+  STRUCTURAL_VALIDATION_FAILED
+  DETERMINISTIC_GUARD_REJECTED
+  SEMANTIC_GUARD_REJECTED
+  REGENERATION_EXHAUSTED
+  PERSISTENCE_FAILED
+
+  @@map("tutor_turn_failure_code")
+}
+
+enum StudentState {
+  UNKNOWN
+  NO_PRIOR_KNOWLEDGE
+  PARTIAL_UNDERSTANDING
+  MISCONCEPTION
+  DEBUGGING_ISSUE
+  NEAR_SOLUTION
+
+  @@map("student_state")
+}
+
+enum TeachingStrategy {
+  GUIDED_EXPLANATION
+  SOCRATIC_QUESTIONING
+  MISCONCEPTION_REPAIR
+  DEBUGGING_GUIDANCE
+
+  @@map("teaching_strategy")
+}
+
+enum TeachingTechnique {
+  ORIENTATION_QUESTION
+  FOCUSED_QUESTION
+  DECOMPOSITION
+  ANALOGY
+  COMPARISON
+  COUNTEREXAMPLE
+  TRACE_EXECUTION
+  BOUNDARY_CHECK
+  SELF_EXPLANATION
+  VERIFICATION
+
+  @@map("teaching_technique")
+}
+
+enum RevealPolicy {
+  NO_FINAL_ANSWER
+  PARTIAL_RESULT_ALLOWED
+  FINAL_REASONING_ALLOWED
+  COMPLETE_SOLUTION_ALLOWED
+
+  @@map("reveal_policy")
+}
+
+enum MisconceptionStatus {
+  SUSPECTED
+  ACTIVE
+  CORRECTED
+  DISMISSED
+
+  @@map("misconception_status")
+}
+
+enum TopicType {
+  PROBLEM
+  CONCEPT
+  DEBUGGING_TASK
+  ASSIGNMENT_ITEM
+  MISCONCEPTION_REPAIR
+  UNCLASSIFIED
+
+  @@map("topic_type")
+}
+
+enum LearningStatus {
+  UNKNOWN
+  IN_PROGRESS
+  DEMONSTRATED
+  VERIFIED
+
+  @@map("learning_status")
+}
+
+enum ResolutionEvidenceStrength {
+  NONE
+  WEAK
+  MODERATE
+  STRONG
+
+  @@map("resolution_evidence_strength")
+}
+
 model User {
   id                String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email             String     @unique(map: "users_email_key") @db.Citext
@@ -140,6 +258,7 @@ model Course {
   memberships  CourseMembership[]
   materials    Material[]
   chatSessions ChatSession[]
+  topics       Topic[]
   auditLogs    AuditLog[]
 
   @@index([createdById], map: "idx_courses_created_by")
@@ -244,11 +363,88 @@ model ChatSession {
   student    User             @relation("ChatSessionStudent", fields: [studentId], references: [id], onDelete: Restrict)
   membership CourseMembership @relation("ChatSessionMembership", fields: [courseId, studentId], references: [courseId, userId], onDelete: Restrict)
   messages   Message[]
+  topics     Topic[]
+  tutorTurns TutorTurn[]
 
   @@index([courseId], map: "idx_sessions_course")
   @@index([courseId, studentId], map: "idx_sessions_course_student")
   @@index([studentId, courseId, deletedAt, lastMessageAt], map: "idx_sessions_student_course")
   @@map("chat_sessions")
+}
+
+model Topic {
+  id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId  String      @map("session_id") @db.Uuid
+  courseId   String      @map("course_id") @db.Uuid
+  problemId  String?     @map("problem_id") @db.Uuid
+  conceptId  String?     @map("concept_id") @db.Uuid
+  title      String      @db.VarChar(160)
+  topicType  TopicType   @default(UNCLASSIFIED) @map("topic_type")
+  status     TopicStatus @default(ACTIVE)
+  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  resolvedAt DateTime?   @map("resolved_at") @db.Timestamptz(6)
+
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  course  Course      @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  state   TopicState?
+  turns   TutorTurn[]
+
+  @@index([sessionId, status], map: "idx_topics_session_status")
+  @@index([courseId, problemId], map: "idx_topics_course_problem")
+  @@index([courseId, conceptId], map: "idx_topics_course_concept")
+  @@map("topics")
+}
+
+model TopicState {
+  id                         String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  topicId                    String                     @unique(map: "topic_states_topic_id_key") @map("topic_id") @db.Uuid
+  version                    Int                        @default(1)
+  requestKind                MessageRequestKind?        @map("request_kind")
+  studentState               StudentState               @default(UNKNOWN) @map("student_state")
+  activeStrategy             TeachingStrategy?          @map("active_strategy")
+  primaryTechnique           TeachingTechnique?         @map("primary_technique")
+  supportingTechnique        TeachingTechnique?         @map("supporting_technique")
+  guidanceLevel              Int                        @default(1) @map("guidance_level") @db.SmallInt
+  revealPolicy               RevealPolicy               @default(NO_FINAL_ANSWER) @map("reveal_policy")
+  attemptCount               Int                        @default(0) @map("attempt_count")
+  meaningfulAttemptCount     Int                        @default(0) @map("meaningful_attempt_count")
+  misconceptionStatus        MisconceptionStatus?       @map("misconception_status")
+  learningStatus             LearningStatus             @default(UNKNOWN) @map("learning_status")
+  resolutionEvidenceStrength ResolutionEvidenceStrength @default(NONE) @map("resolution_evidence_strength")
+  summary                    String?                    @db.Text
+  lastTutorQuestion          String?                    @map("last_tutor_question") @db.Text
+  lastStudentAction          String?                    @map("last_student_action") @db.Text
+  resolved                   Boolean                    @default(false)
+  updatedAt                  DateTime                   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  topic Topic @relation(fields: [topicId], references: [id], onDelete: Restrict)
+
+  @@map("topic_states")
+}
+
+model TutorTurn {
+  id                     String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId              String                @map("session_id") @db.Uuid
+  topicId                String?               @map("topic_id") @db.Uuid
+  studentMessageId       String?               @map("student_message_id") @db.Uuid
+  approvedTutorMessageId String?               @unique(map: "tutor_turns_approved_tutor_message_id_key") @map("approved_tutor_message_id") @db.Uuid
+  idempotencyKey         String                @map("idempotency_key") @db.VarChar(160)
+  status                 TutorTurnStatus       @default(RECEIVED)
+  failureCode            TutorTurnFailureCode? @map("failure_code")
+  safeFallbackUsed       Boolean               @default(false) @map("safe_fallback_used")
+  createdAt              DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt            DateTime?             @map("completed_at") @db.Timestamptz(6)
+
+  session              ChatSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  topic                Topic?      @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  studentMessage       Message?    @relation("TutorTurnStudentMessage", fields: [studentMessageId], references: [id], onDelete: SetNull)
+  approvedTutorMessage Message?    @relation("TutorTurnApprovedTutorMessage", fields: [approvedTutorMessageId], references: [id], onDelete: SetNull)
+
+  @@unique([sessionId, idempotencyKey], map: "tutor_turns_session_id_idempotency_key_key")
+  @@index([topicId], map: "idx_tutor_turns_topic")
+  @@index([studentMessageId], map: "idx_tutor_turns_student_message")
+  @@map("tutor_turns")
 }
 
 model Message {
@@ -281,6 +477,8 @@ model Message {
   response          Message?           @relation("MessageResponse")
   retrievals        MessageRetrieval[]
   citations         MessageCitation[]
+  studentTutorTurns TutorTurn[]        @relation("TutorTurnStudentMessage")
+  approvedTutorTurn TutorTurn?         @relation("TutorTurnApprovedTutorMessage")
 
   @@unique([sessionId, sequence], map: "messages_session_id_sequence_key")
   @@index([authorUserId], map: "idx_messages_author")
