@@ -20,3 +20,10 @@ Before accepting a generated migration that touches `material_chunks`, inspect
 its SQL. Do not accept a plain B-tree `CREATE INDEX` for `embedding`, and do not
 drop/rebuild the HNSW index unless an explicit, reviewed operational migration
 requires it.
+
+## Rollback convention
+
+Prisma migrations in this repository are forward-only. To roll back a migration
+after it has been applied outside disposable development data, create and review
+a new forward migration that reverses the intended schema change instead of
+editing or deleting an existing migration directory.
