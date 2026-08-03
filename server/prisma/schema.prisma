@@ -79,6 +79,124 @@ enum MessageGuidanceLabel {
   @@map("message_guidance_label")
 }
 
+enum TopicStatus {
+  ACTIVE
+  PAUSED
+  RESOLVED
+  ABANDONED
+
+  @@map("topic_status")
+}
+
+enum TutorTurnStatus {
+  RECEIVED
+  ANALYZING
+  RETRIEVING
+  DECIDING
+  GENERATING
+  VALIDATING
+  REGENERATING
+  COMPLETED
+  FAILED
+
+  @@map("tutor_turn_status")
+}
+
+enum TutorTurnFailureCode {
+  ANALYSIS_FAILED
+  RETRIEVAL_FAILED
+  GENERATION_FAILED
+  STRUCTURAL_VALIDATION_FAILED
+  DETERMINISTIC_GUARD_REJECTED
+  SEMANTIC_GUARD_REJECTED
+  REGENERATION_EXHAUSTED
+  PERSISTENCE_FAILED
+
+  @@map("tutor_turn_failure_code")
+}
+
+enum StudentState {
+  UNKNOWN
+  NO_PRIOR_KNOWLEDGE
+  PARTIAL_UNDERSTANDING
+  MISCONCEPTION
+  DEBUGGING_ISSUE
+  NEAR_SOLUTION
+
+  @@map("student_state")
+}
+
+enum TeachingStrategy {
+  GUIDED_EXPLANATION
+  SOCRATIC_QUESTIONING
+  MISCONCEPTION_REPAIR
+  DEBUGGING_GUIDANCE
+
+  @@map("teaching_strategy")
+}
+
+enum TeachingTechnique {
+  ORIENTATION_QUESTION
+  FOCUSED_QUESTION
+  DECOMPOSITION
+  ANALOGY
+  COMPARISON
+  COUNTEREXAMPLE
+  TRACE_EXECUTION
+  BOUNDARY_CHECK
+  SELF_EXPLANATION
+  VERIFICATION
+
+  @@map("teaching_technique")
+}
+
+enum RevealPolicy {
+  NO_FINAL_ANSWER
+  PARTIAL_RESULT_ALLOWED
+  FINAL_REASONING_ALLOWED
+  COMPLETE_SOLUTION_ALLOWED
+
+  @@map("reveal_policy")
+}
+
+enum MisconceptionStatus {
+  SUSPECTED
+  ACTIVE
+  CORRECTED
+  DISMISSED
+
+  @@map("misconception_status")
+}
+
+enum TopicType {
+  PROBLEM
+  CONCEPT
+  DEBUGGING_TASK
+  ASSIGNMENT_ITEM
+  MISCONCEPTION_REPAIR
+  UNCLASSIFIED
+
+  @@map("topic_type")
+}
+
+enum LearningStatus {
+  UNKNOWN
+  IN_PROGRESS
+  DEMONSTRATED
+  VERIFIED
+
+  @@map("learning_status")
+}
+
+enum ResolutionEvidenceStrength {
+  NONE
+  WEAK
+  MODERATE
+  STRONG
+
+  @@map("resolution_evidence_strength")
+}
+
 model User {
   id                String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email             String     @unique(map: "users_email_key") @db.Citext
