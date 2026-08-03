@@ -364,6 +364,7 @@ model ChatSession {
   membership CourseMembership @relation("ChatSessionMembership", fields: [courseId, studentId], references: [courseId, userId], onDelete: Restrict)
   messages   Message[]
   topics     Topic[]
+  tutorTurns TutorTurn[]
 
   @@index([courseId], map: "idx_sessions_course")
   @@index([courseId, studentId], map: "idx_sessions_course_student")
@@ -387,6 +388,7 @@ model Topic {
   session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
   course  Course      @relation(fields: [courseId], references: [id], onDelete: Restrict)
   state   TopicState?
+  turns   TutorTurn[]
 
   @@index([sessionId, status], map: "idx_topics_session_status")
   @@index([courseId, problemId], map: "idx_topics_course_problem")
@@ -421,6 +423,30 @@ model TopicState {
   @@map("topic_states")
 }
 
+model TutorTurn {
+  id                     String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId              String                @map("session_id") @db.Uuid
+  topicId                String?               @map("topic_id") @db.Uuid
+  studentMessageId       String?               @map("student_message_id") @db.Uuid
+  approvedTutorMessageId String?               @unique(map: "tutor_turns_approved_tutor_message_id_key") @map("approved_tutor_message_id") @db.Uuid
+  idempotencyKey         String                @map("idempotency_key") @db.VarChar(160)
+  status                 TutorTurnStatus       @default(RECEIVED)
+  failureCode            TutorTurnFailureCode? @map("failure_code")
+  safeFallbackUsed       Boolean               @default(false) @map("safe_fallback_used")
+  createdAt              DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt            DateTime?             @map("completed_at") @db.Timestamptz(6)
+
+  session              ChatSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  topic                Topic?      @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  studentMessage       Message?    @relation("TutorTurnStudentMessage", fields: [studentMessageId], references: [id], onDelete: SetNull)
+  approvedTutorMessage Message?    @relation("TutorTurnApprovedTutorMessage", fields: [approvedTutorMessageId], references: [id], onDelete: SetNull)
+
+  @@unique([sessionId, idempotencyKey], map: "tutor_turns_session_id_idempotency_key_key")
+  @@index([topicId], map: "idx_tutor_turns_topic")
+  @@index([studentMessageId], map: "idx_tutor_turns_student_message")
+  @@map("tutor_turns")
+}
+
 model Message {
   id                      String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   sessionId               String                @map("session_id") @db.Uuid
@@ -451,6 +477,8 @@ model Message {
   response          Message?           @relation("MessageResponse")
   retrievals        MessageRetrieval[]
   citations         MessageCitation[]
+  studentTutorTurns TutorTurn[]        @relation("TutorTurnStudentMessage")
+  approvedTutorTurn TutorTurn?         @relation("TutorTurnApprovedTutorMessage")
 
   @@unique([sessionId, sequence], map: "messages_session_id_sequence_key")
   @@index([authorUserId], map: "idx_messages_author")
