@@ -30,6 +30,7 @@ export interface TutorTurnSnapshot {
   failureCode: TutorTurnFailureCode | null
   safeFallbackUsed: boolean
   createdAt: Date
+  // Terminal processing timestamp; successful completion is status COMPLETED.
   completedAt: Date | null
 }
 
