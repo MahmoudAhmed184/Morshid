@@ -12,6 +12,7 @@ import {
   type PythonCodeDiagnosisBoundaryResponse,
 } from './code-diagnosis/python-code-diagnosis.boundary-response'
 import { PYTHON_CODE_DIAGNOSIS_TUTOR_DECISION } from './code-diagnosis/python-code-diagnosis.contract'
+import { requestsFullCorrectedProgram } from './code-diagnosis/python-code-diagnosis.rewrite-policy'
 import {
   hasPythonCodeDiagnosisIntent,
   preparePythonCodeDiagnosis,
@@ -82,18 +83,21 @@ export type TutorStrategySelection =
       readonly retrievalQuery: string
       readonly diagnosis: null
       readonly boundaryResponse: null
+      readonly fullRewriteRequested: false
     }
   | {
       readonly decision: TutorDecision
       readonly retrievalQuery: string
       readonly diagnosis: Readonly<PythonCodeDiagnosisDraft>
       readonly boundaryResponse: null
+      readonly fullRewriteRequested: boolean
     }
   | {
       readonly decision: TutorDecision
       readonly retrievalQuery: null
       readonly diagnosis: null
       readonly boundaryResponse: PythonCodeDiagnosisBoundaryResponse
+      readonly fullRewriteRequested: false
     }
 
 export function selectTutorStrategy(
@@ -123,6 +127,7 @@ export function selectTutorStrategy(
       retrievalQuery: null,
       diagnosis: null,
       boundaryResponse: buildPythonCodeDiagnosisBoundaryResponse(assessment),
+      fullRewriteRequested: false,
     })
   }
 
@@ -133,6 +138,7 @@ export function selectTutorStrategy(
       retrievalQuery: diagnosis.retrievalQuery,
       diagnosis: diagnosis.diagnosis,
       boundaryResponse: null,
+      fullRewriteRequested: requestsFullCorrectedProgram(studentMessage),
     })
   }
 
@@ -141,6 +147,7 @@ export function selectTutorStrategy(
     retrievalQuery: studentMessage,
     diagnosis: null,
     boundaryResponse: null,
+    fullRewriteRequested: false,
   })
 }
 

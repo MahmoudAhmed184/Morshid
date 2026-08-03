@@ -2,8 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import { Inject, Injectable, Logger } from '@nestjs/common'
 
-import { Prisma } from '../../generated/prisma/client'
-import type { MessageGuidanceLabel } from '../../generated/prisma/client'
+import { MessageGuidanceLabel, Prisma } from '../../generated/prisma/client'
 import type { AuthenticatedRequestUser } from '../auth/auth.dto'
 import {
   COMPLETION_PROVIDER_TOKEN,
@@ -18,6 +17,12 @@ import {
   type RetrievedChunk,
 } from '../retrieval/retrieval.service'
 import { selectTutorStrategy } from '../tutor/tutor-decision'
+import {
+  addFullRewriteRefusal,
+  buildSafePythonCodeDiagnosisFallback,
+  pythonCodeDiagnosisOutputErrorCode,
+  validatePythonCodeDiagnosisOutput,
+} from '../tutor/code-diagnosis/python-code-diagnosis.output-guard'
 import {
   type BeginGroundedChatTurnResult,
   type FinalizeGroundedChatTurnResult,
@@ -282,6 +287,31 @@ export class GroundedChatService {
       return this.persistFailure(turn, operation)
     }
 
+    let completionContent = completion.content
+    if (selection.diagnosis !== null) {
+      const outputPolicyResult = validatePythonCodeDiagnosisOutput({
+        content: completion.content,
+        authorizedCitationCount: evidence.length,
+      })
+      if (outputPolicyResult !== 'ALLOWED_DIAGNOSIS') {
+        this.logger.warn({
+          event: 'python_code_diagnosis_output_blocked',
+          outputPolicyResult,
+          ...operation,
+        })
+        return this.persistTerminal(turn, operation, {
+          kind: 'blocked',
+          phase: 'blocked_persistence',
+          content: buildSafePythonCodeDiagnosisFallback(selection.diagnosis),
+          errorCode: pythonCodeDiagnosisOutputErrorCode(outputPolicyResult),
+          guidanceLabel: MessageGuidanceLabel.REFUSAL,
+        })
+      }
+      if (selection.fullRewriteRequested) {
+        completionContent = addFullRewriteRefusal(completion.content)
+      }
+    }
+
     let completed: FinalizeGroundedChatTurnResult
     try {
       completed = await this.turnRepository.completeTurn({
@@ -291,7 +321,7 @@ export class GroundedChatService {
         attemptId: turn.attemptId,
         studentMessageId: turn.studentMessage.id,
         assistantMessageId: turn.assistantMessage.id,
-        content: completion.content,
+        content: completionContent,
         provider: completion.provider,
         model: completion.model,
         promptVersion: completion.promptVersion,
