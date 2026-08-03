@@ -313,6 +313,24 @@ describe('Message turn and topic linkage persistence (e2e)', () => {
       }),
     ).rejects.toThrow('Message requestKind must use MessageRequestKind')
     await expect(
+      messageRepository.appendStudentMessage({
+        ...fixture,
+        content: 'Student cannot carry approved guidance',
+        hintLevel: 2,
+      }),
+    ).rejects.toThrow(
+      'Message hintLevel is only supported for approved assistant messages',
+    )
+    await expect(
+      messageRepository.appendPendingAssistantMessage({
+        ...fixture,
+        content: '',
+        requestKind: MessageRequestKind.CONCEPTUAL,
+      }),
+    ).rejects.toThrow(
+      'Message requestKind is only supported for student messages',
+    )
+    await expect(
       messageRepository.appendPendingAssistantMessage({
         ...fixture,
         content: '',
