@@ -6,6 +6,8 @@ import {
   TopicStateRepository,
 } from './topic-state.repository'
 import { TopicStateService } from './topic-state.service'
+import { PrismaTurnRepository, TurnRepository } from './turn.repository'
+import { TurnService } from './turn.service'
 import { PrismaTopicRepository, TopicRepository } from './topic.repository'
 import { TopicService } from './topic.service'
 
@@ -14,6 +16,7 @@ import { TopicService } from './topic.service'
   providers: [
     TopicStateService,
     TopicService,
+    TurnService,
     {
       provide: TopicStateRepository,
       useClass: PrismaTopicStateRepository,
@@ -22,7 +25,11 @@ import { TopicService } from './topic.service'
       provide: TopicRepository,
       useClass: PrismaTopicRepository,
     },
+    {
+      provide: TurnRepository,
+      useClass: PrismaTurnRepository,
+    },
   ],
-  exports: [TopicService, TopicStateService],
+  exports: [TopicService, TopicStateService, TurnService],
 })
 export class SocraticTutorModule {}
