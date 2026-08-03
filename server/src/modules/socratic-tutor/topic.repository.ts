@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common'
 
-import { Prisma, TopicStatus, TopicType } from '../../generated/prisma/client'
+import {
+  MessageRole,
+  Prisma,
+  TopicStatus,
+  TopicType,
+} from '../../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import type {
   ActiveTopicReplacementResult,
@@ -337,6 +342,7 @@ export class PrismaTopicRepository extends TopicRepository {
       where: {
         id: { in: messageIds },
         sessionId: scope.sessionId,
+        role: MessageRole.STUDENT,
       },
     })
   }

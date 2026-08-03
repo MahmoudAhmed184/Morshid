@@ -5,7 +5,11 @@ import {
   type CreateTopicRecordInput,
 } from './topic.repository'
 import { TopicService } from './topic.service'
-import { TopicStatus, TopicType } from '../../generated/prisma/client'
+import {
+  MessageRole,
+  TopicStatus,
+  TopicType,
+} from '../../generated/prisma/client'
 import {
   TOPIC_RESOLUTION_EVIDENCE_TYPE,
   TOPIC_RESOLUTION_OUTCOME,
@@ -19,7 +23,10 @@ class FakeTopicRepository extends TopicRepository {
   private topicCounter = 1
   readonly sessions = new Map<string, TopicSessionRecord>()
   readonly topics = new Map<string, TopicRecord>()
-  readonly messageSessionIds = new Map<string, string>()
+  readonly messages = new Map<
+    string,
+    { sessionId: string; role: MessageRole }
+  >()
 
   readonly findAuthoritativeSession = jest.fn((sessionId: string) =>
     Promise.resolve(this.sessions.get(sessionId) ?? null),
@@ -99,10 +106,13 @@ class FakeTopicRepository extends TopicRepository {
   readonly countMessagesByIds = jest.fn(
     (scope: TopicScope, messageIds: string[]) =>
       Promise.resolve(
-        messageIds.filter(
-          (messageId) =>
-            this.messageSessionIds.get(messageId) === scope.sessionId,
-        ).length,
+        messageIds.filter((messageId) => {
+          const message = this.messages.get(messageId)
+          return (
+            message?.sessionId === scope.sessionId &&
+            message.role === MessageRole.STUDENT
+          )
+        }).length,
       ),
   )
 
@@ -110,8 +120,12 @@ class FakeTopicRepository extends TopicRepository {
     this.sessions.set(session.id, session)
   }
 
-  addMessage(sessionId: string, messageId: string) {
-    this.messageSessionIds.set(messageId, sessionId)
+  addMessage(
+    sessionId: string,
+    messageId: string,
+    role: MessageRole = MessageRole.STUDENT,
+  ) {
+    this.messages.set(messageId, { sessionId, role })
   }
 
   addTopic(input: Partial<TopicRecord>) {
@@ -236,6 +250,8 @@ function buildService() {
   repository.addMessage(session.id, 'message-1')
   repository.addMessage(session.id, 'message-2')
   repository.addMessage(otherSession.id, 'other-message')
+  repository.addMessage(session.id, 'assistant-message', MessageRole.ASSISTANT)
+  repository.addMessage(session.id, 'system-message', MessageRole.SYSTEM)
 
   return {
     repository,
@@ -605,6 +621,26 @@ describe('TopicService scope validation', () => {
       TOPIC_ERROR_CODES.RESOLUTION_EVIDENCE_REQUIRED,
     )
   })
+
+  it.each(['assistant-message', 'system-message'])(
+    'rejects non-student evidence message %s',
+    async (messageId) => {
+      const { service, repository } = buildService()
+      const topic = repository.addTopic({})
+
+      await expectRejectCode(
+        service.resolveAsResolved({
+          sessionId: session.id,
+          topicId: topic.id,
+          evidence: {
+            ...sufficientEvidence(),
+            evidenceMessageIds: [messageId],
+          },
+        }),
+        TOPIC_ERROR_CODES.RESOLUTION_EVIDENCE_REQUIRED,
+      )
+    },
+  )
 })
 
 describe('TopicService lifecycle', () => {
