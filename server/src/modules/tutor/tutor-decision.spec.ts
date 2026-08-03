@@ -62,6 +62,51 @@ describe('shared Tutor strategy selection', () => {
       },
       retrievalQuery: 'What does len() do in Python?',
       diagnosis: null,
+      boundaryResponse: null,
+    })
+  })
+
+  it('returns a no-evidence refusal for clearly non-Python code', () => {
+    const input = [
+      'function countItems(nums) {',
+      '  return nums.length;',
+      '}',
+    ].join('\n')
+
+    expect(selectTutorStrategy(input)).toMatchObject({
+      decision: {
+        requestKind: MessageRequestKind.OFF_TOPIC,
+        strategy: 'SAFE_REFUSAL',
+        evidenceRequirement: 'NO_EVIDENCE',
+        guidanceLabel: 'REFUSAL',
+      },
+      retrievalQuery: null,
+      diagnosis: null,
+      boundaryResponse: {
+        errorCode: 'PYTHON_DIAGNOSIS_NON_PYTHON',
+        content: expect.stringMatching(/Python code only/iu),
+      },
+    })
+  })
+
+  it('returns a no-evidence reduction request for 101 Python lines', () => {
+    const input = [
+      'if True:',
+      ...Array.from({ length: 100 }, () => '    pass'),
+    ].join('\n')
+
+    expect(selectTutorStrategy(input)).toMatchObject({
+      decision: {
+        requestKind: MessageRequestKind.CODE_DIAGNOSIS,
+        strategy: 'SAFE_REFUSAL',
+        evidenceRequirement: 'NO_EVIDENCE',
+      },
+      retrievalQuery: null,
+      diagnosis: null,
+      boundaryResponse: {
+        errorCode: 'PYTHON_DIAGNOSIS_LINE_LIMIT_EXCEEDED',
+        content: expect.stringMatching(/101 normalized lines.*at most 100/iu),
+      },
     })
   })
 

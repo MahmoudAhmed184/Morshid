@@ -48,7 +48,7 @@ export function preparePythonCodeDiagnosis(
 ): PythonCodeDiagnosisStrategyInput | null {
   if (
     assessment.state !== 'SUPPORTED' ||
-    !hasDiagnosisIntent(studentMessage, assessment)
+    !hasPythonCodeDiagnosisIntent(studentMessage, assessment)
   ) {
     return null
   }
@@ -72,7 +72,7 @@ export function preparePythonCodeDiagnosis(
   })
 }
 
-function hasDiagnosisIntent(
+export function hasPythonCodeDiagnosisIntent(
   studentMessage: string,
   assessment: PythonCodeDiagnosisBoundaryAssessment,
 ): boolean {

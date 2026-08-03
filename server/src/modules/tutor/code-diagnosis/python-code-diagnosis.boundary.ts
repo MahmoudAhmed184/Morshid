@@ -24,6 +24,17 @@ export interface PythonCodeDiagnosisBoundaryAssessment {
     | 'MULTIPLE_CODE_BLOCKS'
 }
 
+export type RejectedPythonCodeDiagnosisBoundaryAssessment =
+  PythonCodeDiagnosisBoundaryAssessment & {
+    readonly state: Exclude<PythonCodeDiagnosisBoundaryState, 'SUPPORTED'>
+  }
+
+export function isRejectedPythonCodeDiagnosisBoundaryAssessment(
+  assessment: PythonCodeDiagnosisBoundaryAssessment,
+): assessment is RejectedPythonCodeDiagnosisBoundaryAssessment {
+  return assessment.state !== 'SUPPORTED'
+}
+
 interface FencedCodeBlock {
   readonly language: string
   readonly code: string
@@ -31,6 +42,7 @@ interface FencedCodeBlock {
 
 const PYTHON_FENCE_LANGUAGES = new Set(['python', 'python3', 'py', '.py'])
 const CLEARLY_NON_PYTHON_FENCE_LANGUAGES = new Set([
+  'bash',
   'c',
   'c++',
   'cpp',
@@ -40,9 +52,13 @@ const CLEARLY_NON_PYTHON_FENCE_LANGUAGES = new Set([
   'java',
   'javascript',
   'js',
+  'html',
   'php',
   'ruby',
   'rust',
+  'shell',
+  'sh',
+  'sql',
   'ts',
   'typescript',
 ])
@@ -61,6 +77,7 @@ const CLEARLY_NON_PYTHON_SIGNAL_GROUPS = [
     /\bfunction\s+[A-Za-z_$][A-Za-z0-9_$]*\s*\(/u,
     /=>/u,
     /\bconsole\.log\s*\(/u,
+    /\.length\b/u,
   ],
   [
     /\bpublic\s+(?:final\s+)?class\s+[A-Za-z_][A-Za-z0-9_]*/u,
@@ -73,6 +90,34 @@ const CLEARLY_NON_PYTHON_SIGNAL_GROUPS = [
     /\bint\s+main\s*\(/u,
     /\bprintf\s*\(/u,
     /\b(?:char|double|float|int)\s+[A-Za-z_][A-Za-z0-9_]*\s*[=;]/u,
+  ],
+  [
+    /\b(?:const|let|var)\s+[A-Za-z_$][A-Za-z0-9_$]*\s*:\s*(?:boolean|number|string)\b/u,
+    /\b(?:interface|type)\s+[A-Za-z_$][A-Za-z0-9_$]*/u,
+    /\bconsole\.log\s*\(/u,
+  ],
+  [
+    /\busing\s+System\s*;/u,
+    /\bpublic\s+(?:sealed\s+)?class\s+[A-Za-z_][A-Za-z0-9_]*/u,
+    /\bstatic\s+void\s+Main\s*\(/u,
+    /\bConsole\.WriteLine\s*\(/u,
+  ],
+  [
+    /\bSELECT\b[\s\S]*\bFROM\b/iu,
+    /\b(?:INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|CREATE\s+TABLE)\b/iu,
+    /;\s*$/mu,
+  ],
+  [
+    /<!DOCTYPE\s+html\s*>/iu,
+    /<html(?:\s[^>]*)?>/iu,
+    /<(?:body|div|head|script)(?:\s[^>]*)?>/iu,
+    /<\/(?:body|div|head|html|script)>/iu,
+  ],
+  [
+    /^\s*#!\s*\/[^\r\n]*\b(?:ba|z|k)?sh\b/mu,
+    /^\s*(?:echo|printf|source|export)\s+/mu,
+    /\$\{?[A-Za-z_][A-Za-z0-9_]*\}?/u,
+    /\b(?:fi|done|esac)\b/u,
   ],
 ] as const
 

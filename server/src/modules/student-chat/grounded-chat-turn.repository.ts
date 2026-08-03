@@ -71,6 +71,9 @@ export interface FinalizeGroundedChatTurnInput extends AuthorizedTurnInput {
   assistantMessageId: string
   content: string
   errorCode: string
+  guidanceLabel?:
+    | typeof MessageGuidanceLabel.GENERAL_NOT_FOUND
+    | typeof MessageGuidanceLabel.REFUSAL
 }
 
 export type BeginGroundedChatTurnResult =
@@ -478,7 +481,8 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
     return this.finalizeWithoutEvidence(input, {
       status: MessageStatus.BLOCKED,
       content: input.content,
-      guidanceLabel: MessageGuidanceLabel.GENERAL_NOT_FOUND,
+      guidanceLabel:
+        input.guidanceLabel ?? MessageGuidanceLabel.GENERAL_NOT_FOUND,
       errorCode: input.errorCode,
     })
   }
@@ -488,7 +492,10 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
     terminal: {
       status: typeof MessageStatus.FAILED | typeof MessageStatus.BLOCKED
       content: string
-      guidanceLabel: typeof MessageGuidanceLabel.GENERAL_NOT_FOUND | null
+      guidanceLabel:
+        | typeof MessageGuidanceLabel.GENERAL_NOT_FOUND
+        | typeof MessageGuidanceLabel.REFUSAL
+        | null
       errorCode: string
     },
   ): Promise<FinalizeGroundedChatTurnResult> {
@@ -500,7 +507,10 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
     terminal: {
       status: typeof MessageStatus.FAILED | typeof MessageStatus.BLOCKED
       content: string
-      guidanceLabel: typeof MessageGuidanceLabel.GENERAL_NOT_FOUND | null
+      guidanceLabel:
+        | typeof MessageGuidanceLabel.GENERAL_NOT_FOUND
+        | typeof MessageGuidanceLabel.REFUSAL
+        | null
       errorCode: string
     },
   ): Promise<FinalizeGroundedChatTurnResult> {

@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { Inject, Injectable, Logger } from '@nestjs/common'
 
 import { Prisma } from '../../generated/prisma/client'
+import type { MessageGuidanceLabel } from '../../generated/prisma/client'
 import type { AuthenticatedRequestUser } from '../auth/auth.dto'
 import {
   COMPLETION_PROVIDER_TOKEN,
@@ -82,6 +83,9 @@ type TerminalPersistence =
       phase: 'blocked_persistence'
       content: string
       errorCode: string
+      guidanceLabel?:
+        | typeof MessageGuidanceLabel.GENERAL_NOT_FOUND
+        | typeof MessageGuidanceLabel.REFUSAL
     }
   | {
       kind: 'failed'
@@ -215,6 +219,16 @@ export class GroundedChatService {
     operation: OrchestrationContext,
   ): Promise<GroundedChatTurnResponseDto> {
     const selection = selectTutorStrategy(turn.studentMessage.content)
+    if (selection.boundaryResponse !== null) {
+      return this.persistTerminal(turn, operation, {
+        kind: 'blocked',
+        phase: 'blocked_persistence',
+        content: selection.boundaryResponse.content,
+        errorCode: selection.boundaryResponse.errorCode,
+        guidanceLabel: selection.boundaryResponse.guidanceLabel,
+      })
+    }
+
     let evidence: RetrievedChunk[]
     try {
       const retrieval = await this.retrievalService.retrieveCourseEvidence(
@@ -346,6 +360,9 @@ export class GroundedChatService {
         assistantMessageId: turn.assistantMessage.id,
         content: terminal.content,
         errorCode: terminal.errorCode,
+        ...(terminal.kind === 'blocked' && terminal.guidanceLabel !== undefined
+          ? { guidanceLabel: terminal.guidanceLabel }
+          : {}),
       }
       let result: FinalizeGroundedChatTurnResult
       switch (terminal.kind) {

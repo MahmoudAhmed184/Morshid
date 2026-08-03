@@ -54,10 +54,14 @@ export const tutorDecisionSchema = z
       return
     }
 
-    if (decision.strategy !== 'PYTHON_CODE_DIAGNOSIS') {
+    if (
+      decision.strategy !== 'PYTHON_CODE_DIAGNOSIS' &&
+      decision.strategy !== 'SAFE_REFUSAL'
+    ) {
       context.addIssue({
         code: 'custom',
-        message: 'Code diagnosis must use the shared Python strategy',
+        message:
+          'Code diagnosis must use the shared Python strategy or its safe refusal',
         path: ['strategy'],
       })
     }
@@ -73,6 +77,18 @@ export const tutorDecisionSchema = z
         code: 'custom',
         message: 'Code diagnosis must forbid full corrected code',
         path: ['forbiddenOutputs'],
+      })
+    }
+    if (
+      decision.strategy === 'SAFE_REFUSAL' &&
+      (decision.evidenceRequirement !== 'NO_EVIDENCE' ||
+        decision.guidanceLabel !== MessageGuidanceLabel.REFUSAL)
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message:
+          'A code-diagnosis refusal must require no evidence and use the refusal label',
+        path: ['strategy'],
       })
     }
   })

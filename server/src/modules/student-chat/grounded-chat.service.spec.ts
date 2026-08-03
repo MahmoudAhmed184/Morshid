@@ -19,6 +19,7 @@ import type {
   RetrievalService,
 } from '../retrieval/retrieval.service'
 import type {
+  BeginGroundedChatTurnInput,
   BeginGroundedChatTurnResult,
   CompleteGroundedChatTurnInput,
   FinalizeGroundedChatTurnInput,
@@ -63,7 +64,20 @@ describe('GroundedChatService', () => {
   beforeEach(() => {
     getSession = jest.fn().mockResolvedValue({ session: { id: sessionId } })
     recordGroundedTurnDenied = jest.fn().mockResolvedValue(undefined)
-    beginTurn = jest.fn().mockResolvedValue(beginOk())
+    beginTurn = jest
+      .fn()
+      .mockImplementation((input: BeginGroundedChatTurnInput) =>
+        Promise.resolve({
+          ...beginOk(),
+          studentMessage: studentMessage({
+            content: input.content,
+            requestKind: input.requestKind ?? MessageRequestKind.CONCEPTUAL,
+          }),
+          assistantMessage: assistantMessage({
+            requestKind: input.requestKind ?? MessageRequestKind.CONCEPTUAL,
+          }),
+        }),
+      )
     retryTurn = jest.fn().mockResolvedValue(retryOk())
     completeTurn = jest
       .fn()
@@ -86,7 +100,8 @@ describe('GroundedChatService', () => {
           message: assistantMessage({
             status: MessageStatus.BLOCKED,
             content: input.content,
-            guidanceLabel: MessageGuidanceLabel.GENERAL_NOT_FOUND,
+            guidanceLabel:
+              input.guidanceLabel ?? MessageGuidanceLabel.GENERAL_NOT_FOUND,
             errorCode: input.errorCode,
             completedAt: new Date('2026-07-21T12:01:00.000Z'),
           }),
@@ -323,6 +338,69 @@ describe('GroundedChatService', () => {
     })
   })
 
+  it.each([
+    [
+      'clearly non-Python code',
+      ['function countItems(nums) {', '  return nums.length;', '}'].join('\n'),
+      MessageRequestKind.OFF_TOPIC,
+      'PYTHON_DIAGNOSIS_NON_PYTHON',
+      /Python code only/iu,
+    ],
+    [
+      '101-line Python code',
+      ['if True:', ...Array.from({ length: 100 }, () => '    pass')].join('\n'),
+      MessageRequestKind.CODE_DIAGNOSIS,
+      'PYTHON_DIAGNOSIS_LINE_LIMIT_EXCEEDED',
+      /101 normalized lines.*at most 100/iu,
+    ],
+  ])(
+    'persists %s before retrieval, embedding, or completion',
+    async (_label, content, requestKind, errorCode, contentPattern) => {
+      const response = await service.send(
+        courseId,
+        sessionId,
+        { content },
+        user,
+      )
+
+      expect(beginTurn).toHaveBeenCalledWith({
+        courseId,
+        sessionId,
+        studentId: user.id,
+        content,
+        requestKind,
+      })
+      expect(retrieveCourseEvidence).not.toHaveBeenCalled()
+      expect(complete).not.toHaveBeenCalled()
+      expect(completeTurn).not.toHaveBeenCalled()
+      expect(blockTurn).toHaveBeenCalledWith({
+        courseId,
+        sessionId,
+        studentId: user.id,
+        attemptId,
+        studentMessageId,
+        assistantMessageId,
+        content: expect.stringMatching(contentPattern),
+        errorCode,
+        guidanceLabel: MessageGuidanceLabel.REFUSAL,
+      })
+      expect(response).toMatchObject({
+        studentMessage: {
+          content,
+          status: MessageStatus.COMPLETED,
+          requestKind,
+        },
+        assistantMessage: {
+          status: MessageStatus.BLOCKED,
+          guidanceLabel: MessageGuidanceLabel.REFUSAL,
+          errorCode,
+          citations: [],
+        },
+      })
+      expect(response.assistantMessage.content).toMatch(contentPattern)
+    },
+  )
+
   it('returns a terminal idempotent replay without generating again', async () => {
     beginTurn.mockResolvedValue({
       kind: 'replayed',
@@ -411,7 +489,7 @@ describe('GroundedChatService', () => {
       const response = await service.send(
         courseId,
         sessionId,
-        { content: 'Question text must not become an error' },
+        { content: 'Explain list iteration' },
         user,
       )
 

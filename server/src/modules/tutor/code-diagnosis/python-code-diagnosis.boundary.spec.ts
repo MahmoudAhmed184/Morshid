@@ -31,7 +31,7 @@ describe('Python code diagnosis boundary', () => {
   })
 
   it.each([
-    ['JavaScript', 'const values = [1, 2];\nconsole.log(values.length);'],
+    ['JavaScript', 'function countItems(nums) {\n  return nums.length;\n}'],
     [
       'Java',
       'public class Main {\n  public static void main(String[] args) {}\n}',
@@ -41,6 +41,18 @@ describe('Python code diagnosis boundary', () => {
       'a labelled TypeScript fence',
       '```typescript\nconst value: number = 1\nconsole.log(value)\n```',
     ],
+    [
+      'unfenced TypeScript',
+      'interface User { name: string }\nconst user: string = "Mona"',
+    ],
+    ['C++', '#include <iostream>\nint main() { return 0; }'],
+    [
+      'C#',
+      'using System;\npublic class Main { static void Main() { Console.WriteLine("hi"); } }',
+    ],
+    ['SQL', 'SELECT student_id\nFROM submissions;'],
+    ['HTML', '<html><body><div>Hello</div></body></html>'],
+    ['Shell', '#!/bin/bash\necho "$COURSE"'],
   ])('identifies clearly non-Python %s', (_, input) => {
     expect(assessPythonCodeDiagnosisBoundary(input)).toMatchObject({
       state: 'CLEARLY_NON_PYTHON',
@@ -83,6 +95,24 @@ describe('Python code diagnosis boundary', () => {
     expect(assessPythonCodeDiagnosisBoundary(input)).toMatchObject({
       state: 'SUPPORTED',
       lineCount: 3,
+    })
+  })
+
+  it.each([
+    ['LF fenced code', '\n', true],
+    ['CRLF fenced code', '\r\n', true],
+    ['LF unfenced code', '\n', false],
+    ['CRLF unfenced code', '\r\n', false],
+  ])('counts exactly 100 lines for %s', (_, newline, fenced) => {
+    const code = pythonLines(PYTHON_CODE_DIAGNOSIS_MAX_LINES, newline)
+    const input = fenced
+      ? ['```python', code, '```'].join(newline)
+      : `${newline}${code}${newline}`
+
+    expect(assessPythonCodeDiagnosisBoundary(input)).toMatchObject({
+      state: 'SUPPORTED',
+      lineCount: PYTHON_CODE_DIAGNOSIS_MAX_LINES,
+      codeSource: fenced ? 'FENCED' : 'PLAIN',
     })
   })
 
