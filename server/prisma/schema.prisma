@@ -258,6 +258,7 @@ model Course {
   memberships  CourseMembership[]
   materials    Material[]
   chatSessions ChatSession[]
+  topics       Topic[]
   auditLogs    AuditLog[]
 
   @@index([createdById], map: "idx_courses_created_by")
@@ -362,11 +363,34 @@ model ChatSession {
   student    User             @relation("ChatSessionStudent", fields: [studentId], references: [id], onDelete: Restrict)
   membership CourseMembership @relation("ChatSessionMembership", fields: [courseId, studentId], references: [courseId, userId], onDelete: Restrict)
   messages   Message[]
+  topics     Topic[]
 
   @@index([courseId], map: "idx_sessions_course")
   @@index([courseId, studentId], map: "idx_sessions_course_student")
   @@index([studentId, courseId, deletedAt, lastMessageAt], map: "idx_sessions_student_course")
   @@map("chat_sessions")
+}
+
+model Topic {
+  id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId  String      @map("session_id") @db.Uuid
+  courseId   String      @map("course_id") @db.Uuid
+  problemId  String?     @map("problem_id") @db.Uuid
+  conceptId  String?     @map("concept_id") @db.Uuid
+  title      String      @db.VarChar(160)
+  topicType  TopicType   @default(UNCLASSIFIED) @map("topic_type")
+  status     TopicStatus @default(ACTIVE)
+  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  resolvedAt DateTime?   @map("resolved_at") @db.Timestamptz(6)
+
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  course  Course      @relation(fields: [courseId], references: [id], onDelete: Restrict)
+
+  @@index([sessionId, status], map: "idx_topics_session_status")
+  @@index([courseId, problemId], map: "idx_topics_course_problem")
+  @@index([courseId, conceptId], map: "idx_topics_course_concept")
+  @@map("topics")
 }
 
 model Message {
