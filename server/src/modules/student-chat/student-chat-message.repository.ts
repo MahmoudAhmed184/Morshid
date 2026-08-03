@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
 import {
+  MessageRequestKind,
   MessageRole,
   MessageStatus,
   Prisma,
@@ -100,33 +101,55 @@ export class PrismaStudentChatMessageRepository extends StudentChatMessageReposi
     return isLoadingLatestOrEarlier ? messages.reverse() : messages
   }
 
-  appendStudentMessage(input: AppendStudentMessageInput) {
-    return this.appendMessage(input, {
+  async appendStudentMessage(
+    input: AppendStudentMessageInput,
+  ): Promise<MessagePersistenceResult> {
+    const data = {
       role: MessageRole.STUDENT,
       authorUserId: input.studentId,
       content: input.content,
       status: MessageStatus.COMPLETED,
+      turnId: input.turnId ?? null,
+      topicId: input.topicId ?? null,
       requestKind: input.requestKind ?? null,
       guidanceLabel: input.guidanceLabel ?? null,
       hintLevel: input.hintLevel ?? null,
+    }
+    validateTrustedMessageFields(data, {
+      role: MessageRole.STUDENT,
+      approvedAssistant: false,
     })
+
+    return this.appendMessage(input, data)
   }
 
-  appendPendingAssistantMessage(input: AppendPendingAssistantMessageInput) {
-    return this.appendMessage(input, {
+  async appendPendingAssistantMessage(
+    input: AppendPendingAssistantMessageInput,
+  ): Promise<MessagePersistenceResult> {
+    const data = {
       role: MessageRole.ASSISTANT,
       authorUserId: null,
       responseToMessageId: input.responseToMessageId ?? null,
       content: input.content ?? '',
       status: MessageStatus.PENDING,
+      turnId: input.turnId ?? null,
+      topicId: input.topicId ?? null,
       requestKind: input.requestKind ?? null,
       guidanceLabel: input.guidanceLabel ?? null,
       hintLevel: input.hintLevel ?? null,
+    }
+    validateTrustedMessageFields(data, {
+      role: MessageRole.ASSISTANT,
+      approvedAssistant: false,
     })
+
+    return this.appendMessage(input, data)
   }
 
-  completeAssistantMessage(input: CompleteAssistantMessageInput) {
-    return this.updateAssistantMessage(input, {
+  async completeAssistantMessage(
+    input: CompleteAssistantMessageInput,
+  ): Promise<MessagePersistenceResult> {
+    const data = {
       status: MessageStatus.COMPLETED,
       content: input.content,
       completedAt: new Date(),
@@ -135,13 +158,22 @@ export class PrismaStudentChatMessageRepository extends StudentChatMessageReposi
       promptVersion: input.promptVersion ?? null,
       inputTokens: input.inputTokens ?? null,
       outputTokens: input.outputTokens ?? null,
+      turnId: input.turnId === undefined ? undefined : input.turnId,
+      topicId: input.topicId === undefined ? undefined : input.topicId,
+      hintLevel: input.hintLevel === undefined ? undefined : input.hintLevel,
       // Preserve an explicit `null` (re-classify as unlabeled); only `undefined`
       // means "leave the pending label unchanged".
       guidanceLabel:
         input.guidanceLabel === undefined ? undefined : input.guidanceLabel,
       errorCode: null,
       errorMessage: null,
+    }
+    validateTrustedMessageFields(data, {
+      role: MessageRole.ASSISTANT,
+      approvedAssistant: true,
     })
+
+    return this.updateAssistantMessage(input, data)
   }
 
   failAssistantMessage(input: FailAssistantMessageInput) {
@@ -162,7 +194,7 @@ export class PrismaStudentChatMessageRepository extends StudentChatMessageReposi
     })
   }
 
-  private appendMessage(
+  private async appendMessage(
     input: AppendStudentMessageInput | AppendPendingAssistantMessageInput,
     data: Omit<
       Prisma.MessageUncheckedCreateInput,
@@ -270,12 +302,12 @@ export class PrismaStudentChatMessageRepository extends StudentChatMessageReposi
     })
   }
 
-  private updateAssistantMessage(
+  private async updateAssistantMessage(
     input:
       | CompleteAssistantMessageInput
       | FailAssistantMessageInput
       | BlockAssistantMessageInput,
-    data: Prisma.MessageUpdateManyMutationInput,
+    data: Prisma.MessageUncheckedUpdateManyInput,
   ): Promise<MessagePersistenceResult> {
     return this.prismaService.$transaction(async (tx) => {
       const hasMembership = await hasActiveStudentMembershipInTransaction(
@@ -346,5 +378,57 @@ export class PrismaStudentChatMessageRepository extends StudentChatMessageReposi
       })
       return { kind: 'ok', message }
     })
+  }
+}
+
+function validateTrustedMessageFields(
+  data: {
+    requestKind?: unknown
+    hintLevel?: unknown
+  },
+  context: {
+    role: MessageRole
+    approvedAssistant: boolean
+  },
+): void {
+  const requestKind = data.requestKind
+  if (
+    requestKind !== undefined &&
+    requestKind !== null &&
+    !Object.values(MessageRequestKind).includes(
+      requestKind as MessageRequestKind,
+    )
+  ) {
+    throw new Error('Message requestKind must use MessageRequestKind')
+  }
+  if (
+    requestKind !== undefined &&
+    requestKind !== null &&
+    context.role !== MessageRole.STUDENT
+  ) {
+    throw new Error(
+      'Message requestKind is only supported for student messages',
+    )
+  }
+
+  const hintLevel = data.hintLevel
+  if (
+    hintLevel !== undefined &&
+    hintLevel !== null &&
+    (typeof hintLevel !== 'number' ||
+      !Number.isInteger(hintLevel) ||
+      hintLevel < 1 ||
+      hintLevel > 4)
+  ) {
+    throw new Error('Message hintLevel must be between 1 and 4')
+  }
+  if (
+    hintLevel !== undefined &&
+    hintLevel !== null &&
+    !(context.role === MessageRole.ASSISTANT && context.approvedAssistant)
+  ) {
+    throw new Error(
+      'Message hintLevel is only supported for approved assistant messages',
+    )
   }
 }

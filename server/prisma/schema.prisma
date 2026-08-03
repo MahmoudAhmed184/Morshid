@@ -385,10 +385,11 @@ model Topic {
   updatedAt  DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   resolvedAt DateTime?   @map("resolved_at") @db.Timestamptz(6)
 
-  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
-  course  Course      @relation(fields: [courseId], references: [id], onDelete: Restrict)
-  state   TopicState?
-  turns   TutorTurn[]
+  session  ChatSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  course   Course      @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  state    TopicState?
+  turns    TutorTurn[]
+  messages Message[]   @relation("MessageTopic")
 
   @@index([sessionId, status], map: "idx_topics_session_status")
   @@index([courseId, problemId], map: "idx_topics_course_problem")
@@ -440,6 +441,7 @@ model TutorTurn {
   topic                Topic?      @relation(fields: [topicId], references: [id], onDelete: SetNull)
   studentMessage       Message?    @relation("TutorTurnStudentMessage", fields: [studentMessageId], references: [id], onDelete: SetNull)
   approvedTutorMessage Message?    @relation("TutorTurnApprovedTutorMessage", fields: [approvedTutorMessageId], references: [id], onDelete: SetNull)
+  messages             Message[]   @relation("MessageTurn")
 
   @@unique([sessionId, idempotencyKey], map: "tutor_turns_session_id_idempotency_key_key")
   @@index([topicId], map: "idx_tutor_turns_topic")
@@ -450,6 +452,8 @@ model TutorTurn {
 model Message {
   id                      String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   sessionId               String                @map("session_id") @db.Uuid
+  turnId                  String?               @map("turn_id") @db.Uuid
+  topicId                 String?               @map("topic_id") @db.Uuid
   sequence                Int
   role                    MessageRole
   authorUserId            String?               @map("author_user_id") @db.Uuid
@@ -472,6 +476,8 @@ model Message {
   completedAt             DateTime?             @map("completed_at") @db.Timestamptz(6)
 
   session           ChatSession        @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  turn              TutorTurn?         @relation("MessageTurn", fields: [turnId], references: [id], onDelete: SetNull)
+  topic             Topic?             @relation("MessageTopic", fields: [topicId], references: [id], onDelete: SetNull)
   author            User?              @relation("MessageAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
   responseToMessage Message?           @relation("MessageResponse", fields: [responseToMessageId], references: [id], onDelete: SetNull)
   response          Message?           @relation("MessageResponse")
@@ -481,6 +487,8 @@ model Message {
   approvedTutorTurn TutorTurn?         @relation("TutorTurnApprovedTutorMessage")
 
   @@unique([sessionId, sequence], map: "messages_session_id_sequence_key")
+  @@index([turnId], map: "idx_messages_turn")
+  @@index([topicId], map: "idx_messages_topic")
   @@index([authorUserId], map: "idx_messages_author")
   @@index([sessionId, status, groundingLeaseExpiresAt], map: "idx_messages_grounding_lease")
   @@map("messages")

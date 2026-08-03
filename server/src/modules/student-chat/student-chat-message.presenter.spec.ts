@@ -127,6 +127,8 @@ function makeMessage(
     id: 'message-id',
     sequence: 2,
     role: MessageRole.ASSISTANT,
+    turnId: null,
+    topicId: null,
     authorUserId: null,
     responseToMessageId: 'student-message-id',
     content: 'Grounded answer',

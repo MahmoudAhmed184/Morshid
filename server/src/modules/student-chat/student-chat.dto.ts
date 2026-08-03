@@ -204,6 +204,14 @@ export class ChatMessageDto {
   role!: MessageRole
 
   @Expose()
+  @ApiProperty({ format: 'uuid', nullable: true, required: false })
+  turnId!: string | null
+
+  @Expose()
+  @ApiProperty({ format: 'uuid', nullable: true, required: false })
+  topicId!: string | null
+
+  @Expose()
   @ApiProperty({ format: 'uuid', nullable: true })
   responseToMessageId!: string | null
 

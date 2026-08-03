@@ -7,6 +7,10 @@ import { TurnRepository } from './turn.repository'
 import { TurnService } from './turn.service'
 import {
   TURN_ACQUISITION_OUTCOME,
+  type AttachResolvedTopicInput,
+  type AttachResolvedTopicResult,
+  type LinkStudentMessageInput,
+  type LinkStudentMessageResult,
   type TutorTurnSessionRecord,
   type TutorTurnSnapshot,
 } from './turn.types'
@@ -79,6 +83,16 @@ class FakeTurnRepository extends TurnRepository {
       })
       return Promise.resolve(updated)
     },
+  )
+
+  readonly linkStudentMessage = jest.fn(
+    (_input: LinkStudentMessageInput): Promise<LinkStudentMessageResult> =>
+      Promise.resolve({ kind: 'turn_not_found' }),
+  )
+
+  readonly attachResolvedTopic = jest.fn(
+    (_input: AttachResolvedTopicInput): Promise<AttachResolvedTopicResult> =>
+      Promise.resolve({ kind: 'turn_not_found' }),
   )
 
   addSession(
@@ -539,6 +553,47 @@ describe('TurnService', () => {
         'BAD_FAILURE_CODE' as TutorTurnFailureCode,
       ),
       TURN_ERROR_CODES.INVALID_REQUEST,
+    )
+  })
+
+  it('normalizes identifiers before linking a student message', async () => {
+    const { repository, service } = buildService()
+    const linked = repository.addTurn({ studentMessageId: 'message-1' })
+    repository.linkStudentMessage.mockResolvedValueOnce({
+      kind: 'ok',
+      turn: linked,
+    })
+
+    await expect(
+      service.linkStudentMessage(' turn-1 ', ' message-1 '),
+    ).resolves.toBe(linked)
+    expect(repository.linkStudentMessage).toHaveBeenCalledWith({
+      turnId: 'turn-1',
+      studentMessageId: 'message-1',
+    })
+  })
+
+  it('maps student-message linkage conflicts to structured turn errors', async () => {
+    const { repository, service } = buildService()
+    repository.linkStudentMessage.mockResolvedValueOnce({
+      kind: 'linkage_conflict',
+    })
+
+    await expectRejectCode(
+      service.linkStudentMessage('turn-1', 'message-1'),
+      TURN_ERROR_CODES.LINKAGE_CONFLICT,
+    )
+  })
+
+  it('maps resolved-topic scope mismatches to structured turn errors', async () => {
+    const { repository, service } = buildService()
+    repository.attachResolvedTopic.mockResolvedValueOnce({
+      kind: 'course_mismatch',
+    })
+
+    await expectRejectCode(
+      service.attachResolvedTopic('turn-1', 'message-1', 'topic-1'),
+      TURN_ERROR_CODES.SCOPE_MISMATCH,
     )
   })
 })
