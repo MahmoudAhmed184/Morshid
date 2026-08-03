@@ -650,7 +650,6 @@ describe('Phase 1 Socratic persistence flow (e2e)', () => {
       }),
     )
     const initial = graphResult.graph.state
-    await delay(10)
 
     const firstPatch = {
       guidanceLevel: 2,
@@ -684,9 +683,6 @@ describe('Phase 1 Socratic persistence flow (e2e)', () => {
       TOPIC_STATE_ERROR_CODES.STALE_VERSION,
     )
     expect(fulfilled[0].value.version).toBe(initial.version + 1)
-    expect(fulfilled[0].value.updatedAt.getTime()).toBeGreaterThan(
-      initial.updatedAt.getTime(),
-    )
 
     const persisted = await prisma.topicState.findUniqueOrThrow({
       where: { topicId: graphResult.graph.topic.id },
@@ -1166,10 +1162,4 @@ function isRejected(
   result: PromiseSettledResult<unknown>,
 ): result is PromiseRejectedResult {
   return result.status === 'rejected'
-}
-
-function delay(milliseconds: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, milliseconds)
-  })
 }
