@@ -97,11 +97,10 @@ describe('TopicStateService persistence (e2e)', () => {
 
     expect(fulfilled).toHaveLength(1)
     expect(rejected).toHaveLength(1)
-    expect(rejected[0].reason).toMatchObject({
-      response: expect.objectContaining({
-        code: TOPIC_STATE_ERROR_CODES.STALE_VERSION,
-      }),
-    })
+    expect(rejected[0].reason).toHaveProperty(
+      'response.code',
+      TOPIC_STATE_ERROR_CODES.STALE_VERSION,
+    )
     expect(fulfilled[0].value.version).toBe(2)
 
     const persisted = await prisma.topicState.findUniqueOrThrow({

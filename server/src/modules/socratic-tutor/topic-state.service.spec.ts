@@ -48,7 +48,7 @@ class FakeTopicStateRepository extends TopicStateRepository {
     }) => {
       const state = this.states.get(input.topicId)
 
-      if (state === undefined || state.version !== input.expectedVersion) {
+      if (state?.version !== input.expectedVersion) {
         return Promise.resolve(null)
       }
 
@@ -115,7 +115,7 @@ async function expectRejectCode(
   code: string,
 ): Promise<void> {
   await expect(promise).rejects.toMatchObject({
-    response: expect.objectContaining({ code }),
+    response: { code },
   })
 }
 
