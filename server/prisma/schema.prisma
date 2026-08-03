@@ -386,11 +386,39 @@ model Topic {
 
   session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
   course  Course      @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  state   TopicState?
 
   @@index([sessionId, status], map: "idx_topics_session_status")
   @@index([courseId, problemId], map: "idx_topics_course_problem")
   @@index([courseId, conceptId], map: "idx_topics_course_concept")
   @@map("topics")
+}
+
+model TopicState {
+  id                         String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  topicId                    String                     @unique(map: "topic_states_topic_id_key") @map("topic_id") @db.Uuid
+  version                    Int                        @default(1)
+  requestKind                MessageRequestKind?        @map("request_kind")
+  studentState               StudentState               @default(UNKNOWN) @map("student_state")
+  activeStrategy             TeachingStrategy?          @map("active_strategy")
+  primaryTechnique           TeachingTechnique?         @map("primary_technique")
+  supportingTechnique        TeachingTechnique?         @map("supporting_technique")
+  guidanceLevel              Int                        @default(1) @map("guidance_level") @db.SmallInt
+  revealPolicy               RevealPolicy               @default(NO_FINAL_ANSWER) @map("reveal_policy")
+  attemptCount               Int                        @default(0) @map("attempt_count")
+  meaningfulAttemptCount     Int                        @default(0) @map("meaningful_attempt_count")
+  misconceptionStatus        MisconceptionStatus?       @map("misconception_status")
+  learningStatus             LearningStatus             @default(UNKNOWN) @map("learning_status")
+  resolutionEvidenceStrength ResolutionEvidenceStrength @default(NONE) @map("resolution_evidence_strength")
+  summary                    String?                    @db.Text
+  lastTutorQuestion          String?                    @map("last_tutor_question") @db.Text
+  lastStudentAction          String?                    @map("last_student_action") @db.Text
+  resolved                   Boolean                    @default(false)
+  updatedAt                  DateTime                   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  topic Topic @relation(fields: [topicId], references: [id], onDelete: Restrict)
+
+  @@map("topic_states")
 }
 
 model Message {
