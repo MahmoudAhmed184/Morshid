@@ -45,6 +45,9 @@ export class TopicStateService {
     if (!Number.isSafeInteger(expectedVersion) || expectedVersion < 1) {
       throw invalidTopicStateRequestException()
     }
+    if (Object.keys(patch).length === 0) {
+      throw invalidTopicStateRequestException()
+    }
 
     const updated = await this.topicStateRepository.applyVersionedPatch({
       topicId,

@@ -224,6 +224,39 @@ describe('TopicStateService', () => {
     expect(repository.states.get('topic-1')?.version).toBe(8)
   })
 
+  it('updates updatedAt on a successful update', async () => {
+    const { repository, service } = buildService()
+    const initialUpdatedAt = new Date('2026-08-03T12:00:00.000Z')
+    repository.addState(
+      defaultState('topic-1', { updatedAt: initialUpdatedAt }),
+    )
+
+    const updated = await service.applyTransition('topic-1', 1, {
+      guidanceLevel: 2,
+    })
+
+    expect(updated.updatedAt.getTime()).toBeGreaterThan(
+      initialUpdatedAt.getTime(),
+    )
+    expect(repository.states.get('topic-1')?.updatedAt).toEqual(
+      updated.updatedAt,
+    )
+  })
+
+  it('rejects an empty patch without mutating state', async () => {
+    const { repository, service } = buildService()
+    const existing = defaultState('topic-1')
+    repository.addState(existing)
+
+    await expectRejectCode(
+      service.applyTransition('topic-1', 1, {}),
+      TOPIC_STATE_ERROR_CODES.INVALID_REQUEST,
+    )
+
+    expect(repository.applyVersionedPatch).not.toHaveBeenCalled()
+    expect(repository.states.get('topic-1')).toEqual(existing)
+  })
+
   it('rejects a stale version', async () => {
     const { repository, service } = buildService()
     repository.addState(defaultState('topic-1', { version: 3 }))
@@ -252,6 +285,25 @@ describe('TopicStateService', () => {
     )
 
     expect(repository.states.get('topic-1')).toEqual(existing)
+  })
+
+  it('does not update updatedAt when rejecting a stale version', async () => {
+    const { repository, service } = buildService()
+    const initialUpdatedAt = new Date('2026-08-03T12:00:00.000Z')
+    const existing = defaultState('topic-1', {
+      version: 3,
+      updatedAt: initialUpdatedAt,
+    })
+    repository.addState(existing)
+
+    await expectRejectCode(
+      service.applyTransition('topic-1', 2, { guidanceLevel: 2 }),
+      TOPIC_STATE_ERROR_CODES.STALE_VERSION,
+    )
+
+    expect(repository.states.get('topic-1')?.updatedAt).toEqual(
+      initialUpdatedAt,
+    )
   })
 
   it('rejects getOrCreate for a missing Topic', async () => {

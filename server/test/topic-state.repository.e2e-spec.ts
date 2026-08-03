@@ -133,6 +133,84 @@ describe('TopicStateService persistence (e2e)', () => {
     }
   })
 
+  it('updates updatedAt on success and preserves it on stale rejection', async () => {
+    const fixture = await createChatFixture(prisma)
+    const topic = await createTopic(prisma, fixture)
+    const initial = await service.getOrCreate(topic.id)
+    await delay(10)
+
+    const updated = await service.applyTransition(topic.id, initial.version, {
+      guidanceLevel: 2,
+    })
+
+    const persistedAfterSuccess = await prisma.topicState.findUniqueOrThrow({
+      where: { topicId: topic.id },
+      select: {
+        version: true,
+        guidanceLevel: true,
+        updatedAt: true,
+      },
+    })
+
+    expect(updated.version).toBe(initial.version + 1)
+    expect(updated.updatedAt.getTime()).toBeGreaterThan(
+      initial.updatedAt.getTime(),
+    )
+    expect(persistedAfterSuccess).toEqual({
+      version: updated.version,
+      guidanceLevel: 2,
+      updatedAt: updated.updatedAt,
+    })
+
+    await expect(
+      service.applyTransition(topic.id, initial.version, {
+        guidanceLevel: 3,
+      }),
+    ).rejects.toHaveProperty(
+      'response.code',
+      TOPIC_STATE_ERROR_CODES.STALE_VERSION,
+    )
+
+    const persistedAfterStale = await prisma.topicState.findUniqueOrThrow({
+      where: { topicId: topic.id },
+      select: {
+        version: true,
+        guidanceLevel: true,
+        updatedAt: true,
+      },
+    })
+
+    expect(persistedAfterStale).toEqual(persistedAfterSuccess)
+  })
+
+  it('rejects an empty patch without incrementing version or updatedAt', async () => {
+    const fixture = await createChatFixture(prisma)
+    const topic = await createTopic(prisma, fixture)
+    const initial = await service.getOrCreate(topic.id)
+
+    await expect(
+      service.applyTransition(topic.id, initial.version, {}),
+    ).rejects.toHaveProperty(
+      'response.code',
+      TOPIC_STATE_ERROR_CODES.INVALID_REQUEST,
+    )
+
+    const persisted = await prisma.topicState.findUniqueOrThrow({
+      where: { topicId: topic.id },
+      select: {
+        version: true,
+        guidanceLevel: true,
+        updatedAt: true,
+      },
+    })
+
+    expect(persisted).toEqual({
+      version: initial.version,
+      guidanceLevel: initial.guidanceLevel,
+      updatedAt: initial.updatedAt,
+    })
+  })
+
   it('keeps TopicState defaults and database constraints effective', async () => {
     const fixture = await createChatFixture(prisma)
     const topic = await createTopic(prisma, fixture)
@@ -273,4 +351,10 @@ function isRejected(
   result: PromiseSettledResult<unknown>,
 ): result is PromiseRejectedResult {
   return result.status === 'rejected'
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, milliseconds)
+  })
 }
