@@ -130,6 +130,10 @@ export class PrismaAnalysisContextRepository extends AnalysisContextRepository {
         },
         topicId: input.topicId,
         sequence: { lt: input.beforeSequence },
+        // The message table is the only persisted student-visible transcript
+        // source today. Restricting to COMPLETED excludes pending, failed, and
+        // blocked candidate output; later approved-response tables can tighten
+        // this without widening the ContextManager contract.
         status: MessageStatus.COMPLETED,
         role: { in: [MessageRole.STUDENT, MessageRole.ASSISTANT] },
       },

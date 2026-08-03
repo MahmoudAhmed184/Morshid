@@ -1,4 +1,4 @@
-import { MessageRole } from '../../generated/prisma/client'
+import { MessageRole, MessageStatus } from '../../generated/prisma/client'
 import {
   DEFAULT_ANALYSIS_CONTEXT_HISTORY_MESSAGE_LIMIT,
   DEFAULT_ANALYSIS_CONTEXT_HISTORY_TOKEN_BUDGET,
@@ -52,7 +52,10 @@ export function selectAnalysisHistory(input: {
     .filter(
       (message) =>
         message.id !== input.studentMessageId &&
-        message.topicId === input.activeTopicId,
+        message.topicId === input.activeTopicId &&
+        message.status === MessageStatus.COMPLETED &&
+        (message.role === MessageRole.STUDENT ||
+          message.role === MessageRole.ASSISTANT),
     )
     .sort((first, second) => first.sequence - second.sequence)
 
@@ -70,9 +73,15 @@ export function selectAnalysisHistory(input: {
   const selectedById = new Map<string, AnalysisContextMessage>()
   let approximateHistoryTokens = 0
 
-  for (const message of eligible.filter((candidate) =>
-    priorityIds.has(candidate.id),
-  )) {
+  for (const message of [
+    previousStudentAttemptMessage,
+    previousTutorQuestionMessage,
+    latestTutorMessage,
+  ]) {
+    if (message === null || !priorityIds.has(message.id)) {
+      continue
+    }
+
     const tokens = approximateAnalysisTokens(message.content)
     if (
       selectedById.size < budget.maxHistoryMessages &&

@@ -82,6 +82,143 @@ describe('analysis context selection', () => {
     })
   })
 
+  it('uses a safe default for zero budget inputs', () => {
+    const selected = selectAnalysisHistory({
+      activeTopicId: 'topic-1',
+      studentMessageId: 'current',
+      candidates: [message({ id: 'history', sequence: 1 })],
+      historyTokenBudget: 0,
+      historyMessageLimit: 0,
+    })
+
+    expect(selected.selectedHistory.map((entry) => entry.id)).toEqual([
+      'history',
+    ])
+    expect(selected.tokenBudget.maxHistoryTokens).toBe(1200)
+    expect(selected.tokenBudget.maxHistoryMessages).toBe(24)
+  })
+
+  it('keeps messages that exactly fit the token budget and skips overflow', () => {
+    const exact = 'abcdefghijkl'
+    const selected = selectAnalysisHistory({
+      activeTopicId: 'topic-1',
+      studentMessageId: 'current',
+      candidates: [
+        message({ id: 'overflow', sequence: 1, content: 'abcd' }),
+        message({ id: 'exact-fit', sequence: 2, content: exact }),
+      ],
+      historyTokenBudget: approximateAnalysisTokens(exact),
+      historyMessageLimit: 3,
+    })
+
+    expect(selected.selectedHistory.map((entry) => entry.id)).toEqual([
+      'exact-fit',
+    ])
+    expect(selected.tokenBudget.approximateHistoryTokens).toBe(
+      approximateAnalysisTokens(exact),
+    )
+  })
+
+  it('returns empty selected history when the only candidate exceeds the budget', () => {
+    const selected = selectAnalysisHistory({
+      activeTopicId: 'topic-1',
+      studentMessageId: 'current',
+      candidates: [
+        message({
+          id: 'oversized',
+          sequence: 1,
+          content: 'x'.repeat(80),
+        }),
+      ],
+      historyTokenBudget: 2,
+      historyMessageLimit: 3,
+    })
+
+    expect(selected.selectedHistory).toEqual([])
+    expect(selected.tokenBudget.approximateHistoryTokens).toBe(0)
+  })
+
+  it('does not spend budget twice for duplicate messages under constrained budget', () => {
+    const selected = selectAnalysisHistory({
+      activeTopicId: 'topic-1',
+      studentMessageId: 'current',
+      candidates: [
+        message({ id: 'same', sequence: 1, content: 'abcd' }),
+        message({ id: 'same', sequence: 1, content: 'wxyz' }),
+      ],
+      historyTokenBudget: 1,
+      historyMessageLimit: 2,
+    })
+
+    expect(selected.selectedHistory.map((entry) => entry.id)).toEqual(['same'])
+    expect(selected.tokenBudget.approximateHistoryTokens).toBe(1)
+  })
+
+  it('excludes incomplete, failed, blocked, and unsupported-role candidates', () => {
+    const selected = selectAnalysisHistory({
+      activeTopicId: 'topic-1',
+      studentMessageId: 'current',
+      candidates: [
+        message({ id: 'complete', sequence: 1 }),
+        message({
+          id: 'pending',
+          sequence: 2,
+          role: MessageRole.ASSISTANT,
+          status: MessageStatus.PENDING,
+        }),
+        message({
+          id: 'failed',
+          sequence: 3,
+          role: MessageRole.ASSISTANT,
+          status: MessageStatus.FAILED,
+        }),
+        message({
+          id: 'blocked',
+          sequence: 4,
+          role: MessageRole.ASSISTANT,
+          status: MessageStatus.BLOCKED,
+        }),
+        message({
+          id: 'system',
+          sequence: 5,
+          role: MessageRole.SYSTEM,
+        }),
+      ],
+      historyTokenBudget: 100,
+      historyMessageLimit: 10,
+    })
+
+    expect(selected.selectedHistory.map((entry) => entry.id)).toEqual([
+      'complete',
+    ])
+  })
+
+  it('does not mutate candidates and is deterministic for identical input', () => {
+    const candidates = [
+      message({ id: 'later', sequence: 2 }),
+      message({ id: 'earlier', sequence: 1 }),
+    ]
+    const originalOrder = candidates.map((candidate) => candidate.id)
+
+    const first = selectAnalysisHistory({
+      activeTopicId: 'topic-1',
+      studentMessageId: 'current',
+      candidates,
+      historyTokenBudget: 100,
+      historyMessageLimit: 10,
+    })
+    const second = selectAnalysisHistory({
+      activeTopicId: 'topic-1',
+      studentMessageId: 'current',
+      candidates,
+      historyTokenBudget: 100,
+      historyMessageLimit: 10,
+    })
+
+    expect(candidates.map((candidate) => candidate.id)).toEqual(originalOrder)
+    expect(first).toEqual(second)
+  })
+
   it('falls back to TopicState text references when selected history has none', () => {
     const references = textReferencesFromTopicState({
       topicState: topicState({

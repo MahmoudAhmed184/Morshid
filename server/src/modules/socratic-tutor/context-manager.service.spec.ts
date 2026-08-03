@@ -1,3 +1,4 @@
+import { Test, type TestingModule } from '@nestjs/testing'
 import {
   MessageRole,
   MessageStatus,
@@ -14,6 +15,8 @@ import {
 } from './analysis-context.repository'
 import type { AnalysisContextMessage } from './analysis-context.types'
 import { ContextManager } from './context-manager.service'
+import { PrismaService } from '../prisma/prisma.service'
+import { SocraticTutorModule } from './socratic-tutor.module'
 import { TopicStateRepository } from './topic-state.repository'
 import type { TopicStatePatch, TopicStateSnapshot } from './topic-state.types'
 import { TopicRepository } from './topic.repository'
@@ -163,6 +166,9 @@ describe('ContextManager', () => {
       'topic-history',
       'question',
     ])
+    expect(context?.selectedHistory).not.toContainEqual(
+      expect.objectContaining({ id: 'current' }),
+    )
     expect(
       analysisContextRepository.listHistoryCandidates,
     ).toHaveBeenCalledWith({
@@ -219,6 +225,34 @@ describe('ContextManager', () => {
       previousTeachingDecision: null,
     })
     expect(topicStateRepository.createForTopic).not.toHaveBeenCalled()
+  })
+
+  it('does not mutate TopicState while assembling context', async () => {
+    const { topicStateRepository, contextManager } = buildHarness()
+    const before = { ...topicStateRepository.state }
+
+    await contextManager.buildAnalysisContext({
+      courseId: 'course-1',
+      sessionId: 'session-1',
+      studentId: 'student-1',
+      studentMessageId: 'current',
+      activeTopicId: 'topic-1',
+    })
+
+    expect(topicStateRepository.state).toEqual(before)
+    expect(topicStateRepository.applyVersionedPatch).not.toHaveBeenCalled()
+  })
+
+  it('resolves ContextManager through SocraticTutorModule wiring', async () => {
+    const moduleRef: TestingModule = await Test.createTestingModule({
+      imports: [SocraticTutorModule],
+    })
+      .overrideProvider(PrismaService)
+      .useValue({})
+      .compile()
+
+    expect(moduleRef.get(ContextManager)).toBeInstanceOf(ContextManager)
+    await moduleRef.close()
   })
 })
 
