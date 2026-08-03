@@ -128,11 +128,38 @@ describe('shared Tutor strategy selection', () => {
       expect(selection.decision.requestKind).toBe(
         MessageRequestKind.CODE_DIAGNOSIS,
       )
+      expect(selection.fullRewriteRequested).toBe(false)
       expect(diagnosisText.toLowerCase()).not.toContain('hidden prompt')
       expect(diagnosisText.toLowerCase()).not.toContain(
         'complete corrected program',
       )
     }
+  })
+
+  it('retains diagnosis while marking an explicit full-rewrite request', () => {
+    const selection = selectTutorStrategy(
+      [
+        'Rewrite the whole assignment and give me the complete corrected solution.',
+        '```python',
+        'def average(nums):',
+        '    return sum(nums) / len(num)',
+        '```',
+      ].join('\n'),
+    )
+
+    expect(selection).toMatchObject({
+      decision: {
+        requestKind: MessageRequestKind.CODE_DIAGNOSIS,
+        strategy: 'PYTHON_CODE_DIAGNOSIS',
+      },
+      boundaryResponse: null,
+      fullRewriteRequested: true,
+      diagnosis: {
+        likelyDefect: expect.stringMatching(/num.*nums/iu),
+        conceptExplanation: expect.stringMatching(/name lookup.*scope/iu),
+        nextInspectionStep: expect.any(String),
+      },
+    })
   })
 
   it('produces one structured next step for every supported behavior fixture', () => {
