@@ -7,9 +7,7 @@ import {
 } from '../src/modules/socratic-tutor/topic-state.repository'
 import { TopicStateService } from '../src/modules/socratic-tutor/topic-state.service'
 import type { TopicStateSnapshot } from '../src/modules/socratic-tutor/topic-state.types'
-import {
-  TOPIC_STATE_ERROR_CODES,
-} from '../src/modules/socratic-tutor/topic-state.errors'
+import { TOPIC_STATE_ERROR_CODES } from '../src/modules/socratic-tutor/topic-state.errors'
 import {
   LearningStatus,
   MessageRequestKind,

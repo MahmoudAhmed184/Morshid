@@ -1,10 +1,7 @@
 import { TOPIC_STATE_ERROR_CODES } from './topic-state.errors'
 import { TopicStateRepository } from './topic-state.repository'
 import { TopicStateService } from './topic-state.service'
-import type {
-  TopicStatePatch,
-  TopicStateSnapshot,
-} from './topic-state.types'
+import type { TopicStatePatch, TopicStateSnapshot } from './topic-state.types'
 import {
   LearningStatus,
   MessageRequestKind,

@@ -2,21 +2,14 @@ import { Injectable } from '@nestjs/common'
 
 import { Prisma } from '../../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
-import type {
-  TopicStatePatch,
-  TopicStateSnapshot,
-} from './topic-state.types'
+import type { TopicStatePatch, TopicStateSnapshot } from './topic-state.types'
 
 export abstract class TopicStateRepository {
   abstract topicExists(topicId: string): Promise<boolean>
 
-  abstract findByTopicId(
-    topicId: string,
-  ): Promise<TopicStateSnapshot | null>
+  abstract findByTopicId(topicId: string): Promise<TopicStateSnapshot | null>
 
-  abstract createForTopic(
-    topicId: string,
-  ): Promise<TopicStateSnapshot | null>
+  abstract createForTopic(topicId: string): Promise<TopicStateSnapshot | null>
 
   abstract applyVersionedPatch(input: {
     topicId: string

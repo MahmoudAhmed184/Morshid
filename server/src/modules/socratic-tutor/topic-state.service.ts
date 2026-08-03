@@ -7,10 +7,7 @@ import {
   topicStateTopicNotFoundException,
 } from './topic-state.errors'
 import { TopicStateRepository } from './topic-state.repository'
-import type {
-  TopicStatePatch,
-  TopicStateSnapshot,
-} from './topic-state.types'
+import type { TopicStatePatch, TopicStateSnapshot } from './topic-state.types'
 
 @Injectable()
 export class TopicStateService {
