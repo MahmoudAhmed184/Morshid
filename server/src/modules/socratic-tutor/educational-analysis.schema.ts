@@ -7,7 +7,6 @@ import {
   TeachingTechnique,
 } from '../../generated/prisma/client'
 import {
-  EDUCATIONAL_ANALYSIS_SCHEMA_VERSION,
   EFFORT_QUALITY,
   EFFORT_TYPE,
   LEARNING_EVIDENCE_STRENGTH,
@@ -239,7 +238,6 @@ export const MisconceptionAnalysisSchema = z
 
 export const EducationalAnalysisResultSchema = z
   .object({
-    schemaVersion: z.literal(EDUCATIONAL_ANALYSIS_SCHEMA_VERSION),
     requestKind: z.enum(SUPPORTED_EDUCATIONAL_ANALYSIS_REQUEST_KINDS),
     studentState: z.enum(SUPPORTED_EDUCATIONAL_ANALYSIS_STUDENT_STATES),
     effortEvidence: EffortEvidenceSchema,

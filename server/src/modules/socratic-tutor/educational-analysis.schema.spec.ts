@@ -47,7 +47,6 @@ describe('educational analysis schema validation', () => {
     expect(result).toMatchObject({
       success: true,
       data: {
-        schemaVersion: EDUCATIONAL_ANALYSIS_SCHEMA_VERSION,
         requestKind: MessageRequestKind.CODE_DIAGNOSIS,
         studentState: StudentState.DEBUGGING_ISSUE,
         recommendedStrategy: TeachingStrategy.DEBUGGING_GUIDANCE,
@@ -55,6 +54,24 @@ describe('educational analysis schema validation', () => {
         recommendedGuidanceLevel: 2,
       },
     })
+  })
+
+  it('keeps schema version as backend-owned metadata outside model proposals', () => {
+    expect(EDUCATIONAL_ANALYSIS_SCHEMA_VERSION).toBe('educational-analysis.v1')
+
+    const issues = expectInvalid({
+      ...validEducationalAnalysisResult(),
+      schemaVersion: EDUCATIONAL_ANALYSIS_SCHEMA_VERSION,
+    })
+
+    expect(issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category: EDUCATIONAL_ANALYSIS_VALIDATION_CATEGORY.UNKNOWN_FIELD,
+          path: 'body',
+        }),
+      ]),
+    )
   })
 
   it.each(SUPPORTED_EDUCATIONAL_ANALYSIS_REQUEST_KINDS)(
@@ -327,14 +344,6 @@ describe('educational analysis schema validation', () => {
       EDUCATIONAL_ANALYSIS_VALIDATION_CATEGORY.UNKNOWN_FIELD,
     ],
     [
-      'unsupported schema version',
-      {
-        ...validEducationalAnalysisResult(),
-        schemaVersion: 'educational-analysis.v2',
-      },
-      EDUCATIONAL_ANALYSIS_VALIDATION_CATEGORY.UNSUPPORTED_SCHEMA_VERSION,
-    ],
-    [
       'malformed provider-shaped input',
       '{not valid json',
       EDUCATIONAL_ANALYSIS_VALIDATION_CATEGORY.MALFORMED_INPUT,
@@ -540,7 +549,6 @@ function expectInvalid(
 
 function validEducationalAnalysisResult(): EducationalAnalysisResult {
   return {
-    schemaVersion: EDUCATIONAL_ANALYSIS_SCHEMA_VERSION,
     requestKind: MessageRequestKind.CODE_DIAGNOSIS,
     studentState: StudentState.DEBUGGING_ISSUE,
     effortEvidence: {

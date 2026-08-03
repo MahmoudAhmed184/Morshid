@@ -95,7 +95,6 @@ export interface MisconceptionAnalysis {
 export type TopicRelation = TopicResolutionOutcome
 
 export interface EducationalAnalysisResult {
-  schemaVersion: typeof EDUCATIONAL_ANALYSIS_SCHEMA_VERSION
   requestKind: MessageRequestKind
   studentState: StudentState
   effortEvidence: EffortEvidence

@@ -5,7 +5,6 @@ import type {
 } from './analysis-context.types'
 import { EducationalAnalysisResultSchema } from './educational-analysis.schema'
 import {
-  EDUCATIONAL_ANALYSIS_SCHEMA_VERSION,
   EDUCATIONAL_ANALYSIS_VALIDATION_CATEGORY,
   type EducationalAnalysisResult,
   type EducationalAnalysisValidationCategory,
@@ -178,7 +177,7 @@ function mapZodIssue(
   return {
     category: mapZodCategory(issue, raw),
     path: formatIssuePath(issue.path),
-    message: safeZodMessage(issue.message),
+    message: issue.message,
   }
 }
 
@@ -192,14 +191,6 @@ function mapZodCategory(
 ): EducationalAnalysisValidationCategory {
   if (!hasValueAtPath(raw, issue.path)) {
     return EDUCATIONAL_ANALYSIS_VALIDATION_CATEGORY.MISSING_REQUIRED_FIELD
-  }
-
-  if (
-    issue.path.length === 1 &&
-    issue.path[0] === 'schemaVersion' &&
-    issue.code === 'invalid_value'
-  ) {
-    return EDUCATIONAL_ANALYSIS_VALIDATION_CATEGORY.UNSUPPORTED_SCHEMA_VERSION
   }
 
   switch (issue.code) {
@@ -263,10 +254,4 @@ function hasValueAtPath(value: unknown, path: readonly PropertyKey[]): boolean {
   }
 
   return current !== undefined
-}
-
-function safeZodMessage(message: string): string {
-  return message.includes(EDUCATIONAL_ANALYSIS_SCHEMA_VERSION)
-    ? 'Unsupported Educational Analysis schema version'
-    : message
 }
