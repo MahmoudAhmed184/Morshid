@@ -73,7 +73,7 @@ function validateEvidenceReferences(
   result.misconceptions.forEach((misconception, index) => {
     validateEvidenceId(
       misconception.evidenceMessageId,
-      `misconceptions.${index}.evidenceMessageId`,
+      `misconceptions.${String(index)}.evidenceMessageId`,
       allowedMessageIds,
       issues,
     )
@@ -136,7 +136,7 @@ function validateEvidenceArray(
   const seen = new Set<string>()
 
   evidenceMessageIds.forEach((messageId, index) => {
-    const itemPath = `${path}.${index}`
+    const itemPath = `${path}.${String(index)}`
     if (seen.has(messageId)) {
       issues.push({
         category:

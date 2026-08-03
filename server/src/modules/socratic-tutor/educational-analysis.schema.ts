@@ -108,7 +108,7 @@ const messageIdSchema = z
         EDUCATIONAL_ANALYSIS_LIMITS.maxMessageIdCodePoints,
       ),
     {
-      message: `Message ID must contain at most ${EDUCATIONAL_ANALYSIS_LIMITS.maxMessageIdCodePoints} Unicode code points`,
+      message: `Message ID must contain at most ${String(EDUCATIONAL_ANALYSIS_LIMITS.maxMessageIdCodePoints)} Unicode code points`,
     },
   )
 
@@ -215,7 +215,7 @@ export const MisconceptionAnalysisSchema = z
             EDUCATIONAL_ANALYSIS_LIMITS.maxMisconceptionCodeCodePoints,
           ),
         {
-          message: `Misconception code must contain at most ${EDUCATIONAL_ANALYSIS_LIMITS.maxMisconceptionCodeCodePoints} Unicode code points`,
+          message: `Misconception code must contain at most ${String(EDUCATIONAL_ANALYSIS_LIMITS.maxMisconceptionCodeCodePoints)} Unicode code points`,
         },
       ),
     description: z
@@ -229,7 +229,7 @@ export const MisconceptionAnalysisSchema = z
             EDUCATIONAL_ANALYSIS_LIMITS.maxMisconceptionDescriptionCodePoints,
           ),
         {
-          message: `Misconception description must contain at most ${EDUCATIONAL_ANALYSIS_LIMITS.maxMisconceptionDescriptionCodePoints} Unicode code points`,
+          message: `Misconception description must contain at most ${String(EDUCATIONAL_ANALYSIS_LIMITS.maxMisconceptionDescriptionCodePoints)} Unicode code points`,
         },
       ),
     confidence: z.number().min(0).max(1),

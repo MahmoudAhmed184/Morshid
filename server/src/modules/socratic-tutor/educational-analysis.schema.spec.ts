@@ -316,7 +316,7 @@ describe('educational analysis schema validation', () => {
           {
             length: EDUCATIONAL_ANALYSIS_LIMITS.maxEvidenceReferences + 1,
           },
-          (_value, index) => `message-${index}`,
+          (_value, index) => `message-${String(index)}`,
         ),
       },
       EDUCATIONAL_ANALYSIS_VALIDATION_CATEGORY.BOUND_EXCEEDED,
@@ -423,12 +423,15 @@ describe('educational analysis schema validation', () => {
       }),
     )
 
-    expect(issues).toContainEqual({
-      category:
-        EDUCATIONAL_ANALYSIS_VALIDATION_CATEGORY.INVALID_EVIDENCE_REFERENCE,
-      path,
-      message: expect.any(String),
-    })
+    expect(issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category:
+            EDUCATIONAL_ANALYSIS_VALIDATION_CATEGORY.INVALID_EVIDENCE_REFERENCE,
+          path,
+        }),
+      ]),
+    )
   })
 
   it('validates overall evidence references independently of nested evidence arrays', () => {
