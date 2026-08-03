@@ -2,6 +2,11 @@ import { Module } from '@nestjs/common'
 
 import { PrismaModule } from '../prisma/prisma.module'
 import {
+  AnalysisContextRepository,
+  PrismaAnalysisContextRepository,
+} from './analysis-context.repository'
+import { ContextManager } from './context-manager.service'
+import {
   PrismaTopicStateRepository,
   TopicStateRepository,
 } from './topic-state.repository'
@@ -17,9 +22,14 @@ import { TopicService } from './topic.service'
     TopicStateService,
     TopicService,
     TurnService,
+    ContextManager,
     {
       provide: TopicStateRepository,
       useClass: PrismaTopicStateRepository,
+    },
+    {
+      provide: AnalysisContextRepository,
+      useClass: PrismaAnalysisContextRepository,
     },
     {
       provide: TopicRepository,
@@ -30,6 +40,6 @@ import { TopicService } from './topic.service'
       useClass: PrismaTurnRepository,
     },
   ],
-  exports: [TopicService, TopicStateService, TurnService],
+  exports: [TopicService, TopicStateService, TurnService, ContextManager],
 })
 export class SocraticTutorModule {}
