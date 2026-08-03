@@ -29,6 +29,8 @@ export interface ChatMessageRecord {
   id: string
   sequence: number
   role: MessageRole
+  turnId: string | null
+  topicId: string | null
   authorUserId: string | null
   responseToMessageId: string | null
   content: string
@@ -72,6 +74,8 @@ export interface AppendStudentMessageInput {
   sessionId: string
   studentId: string
   content: string
+  turnId?: string | null
+  topicId?: string | null
   requestKind?: MessageRequestKind | null
   guidanceLabel?: MessageGuidanceLabel | null
   hintLevel?: number | null
@@ -83,6 +87,8 @@ export interface AppendPendingAssistantMessageInput {
   studentId: string
   responseToMessageId?: string | null
   content?: string
+  turnId?: string | null
+  topicId?: string | null
   requestKind?: MessageRequestKind | null
   guidanceLabel?: MessageGuidanceLabel | null
   hintLevel?: number | null
@@ -94,12 +100,15 @@ export interface CompleteAssistantMessageInput {
   studentId: string
   messageId: string
   content: string
+  turnId?: string | null
+  topicId?: string | null
   provider?: string | null
   model?: string | null
   promptVersion?: string | null
   inputTokens?: number | null
   outputTokens?: number | null
   guidanceLabel?: MessageGuidanceLabel | null
+  hintLevel?: number | null
 }
 
 export interface FailAssistantMessageInput {

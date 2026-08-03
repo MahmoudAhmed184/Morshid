@@ -47,6 +47,8 @@ export class StudentChatMessagePresenter {
       id: record.id,
       sequence: record.sequence,
       role: record.role,
+      turnId: record.turnId,
+      topicId: record.topicId,
       responseToMessageId: record.responseToMessageId,
       content: record.content,
       status: record.status,

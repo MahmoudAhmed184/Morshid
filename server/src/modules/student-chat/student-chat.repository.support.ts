@@ -15,6 +15,8 @@ export const chatMessageScalarSelect = {
   id: true,
   sequence: true,
   role: true,
+  turnId: true,
+  topicId: true,
   authorUserId: true,
   responseToMessageId: true,
   content: true,

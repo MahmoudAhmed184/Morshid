@@ -614,6 +614,8 @@ function message(overrides: Partial<ChatMessageRecord>): ChatMessageRecord {
     id: 'message-id',
     sequence: 1,
     role: MessageRole.STUDENT,
+    turnId: null,
+    topicId: null,
     authorUserId: user.id,
     responseToMessageId: null,
     content: '',
