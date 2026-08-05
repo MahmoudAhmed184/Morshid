@@ -6,6 +6,10 @@ import {
   MIN_AWS_BEDROCK_MAX_TOKENS,
   isValidGeminiModelId,
 } from '../completion/completion-configuration'
+import {
+  DEFAULT_ANALYSIS_MODEL_BASE_URL,
+  DEFAULT_ANALYSIS_MODEL_NAME,
+} from '../socratic-tutor/analysis-model.configuration'
 import { MAX_PDF_UPLOAD_BYTES, validateEnv } from './env.schema'
 
 describe('validateEnv', () => {
@@ -52,6 +56,11 @@ describe('validateEnv', () => {
       GEMINI_EMBEDDING_DEMO_ACKNOWLEDGED: false,
       COMPLETION_PROVIDER: 'deterministic',
       COMPLETION_TIMEOUT_MS: 30_000,
+      ANALYSIS_MODEL_PROVIDER: 'deterministic',
+      ANALYSIS_MODEL_BASE_URL: DEFAULT_ANALYSIS_MODEL_BASE_URL,
+      ANALYSIS_MODEL_NAME: DEFAULT_ANALYSIS_MODEL_NAME,
+      ANALYSIS_MODEL_API_KEY: '',
+      ANALYSIS_MODEL_TIMEOUT_MS: 30_000,
       GEMINI_MODEL: 'gemini-3.5-flash-lite',
       ITI_BEDROCK_GATEWAY_BASE_URL: DEFAULT_ITI_BEDROCK_GATEWAY_BASE_URL,
       ITI_BEDROCK_ALLOW_INSECURE_HTTP: false,
@@ -151,6 +160,79 @@ describe('validateEnv', () => {
     expect(() => validateEnv({ ...validEnv, [key]: '0' })).toThrow(
       new RegExp(key),
     )
+  })
+
+  describe('analysis model configuration', () => {
+    it('accepts deterministic and OpenAI-compatible analysis providers', () => {
+      expect(
+        validateEnv({ ...validEnv, ANALYSIS_MODEL_PROVIDER: 'deterministic' }),
+      ).toMatchObject({ ANALYSIS_MODEL_PROVIDER: 'deterministic' })
+
+      expect(
+        validateEnv({
+          ...validEnv,
+          ANALYSIS_MODEL_PROVIDER: 'openai-compatible',
+          ANALYSIS_MODEL_BASE_URL: 'http://localhost:8000/v1',
+          ANALYSIS_MODEL_NAME: 'Qwen/Qwen2.5-14B-Instruct',
+          ANALYSIS_MODEL_API_KEY: '',
+        }),
+      ).toMatchObject({
+        ANALYSIS_MODEL_PROVIDER: 'openai-compatible',
+        ANALYSIS_MODEL_BASE_URL: 'http://localhost:8000/v1',
+        ANALYSIS_MODEL_NAME: 'Qwen/Qwen2.5-14B-Instruct',
+        ANALYSIS_MODEL_API_KEY: '',
+      })
+    })
+
+    it('rejects unsupported analysis providers', () => {
+      expect(() =>
+        validateEnv({ ...validEnv, ANALYSIS_MODEL_PROVIDER: 'aws-bedrock' }),
+      ).toThrow(/ANALYSIS_MODEL_PROVIDER: Invalid option/)
+    })
+
+    it('allows HTTP only for local OpenAI-compatible analysis endpoints', () => {
+      expect(() =>
+        validateEnv({
+          ...validEnv,
+          ANALYSIS_MODEL_PROVIDER: 'openai-compatible',
+          ANALYSIS_MODEL_BASE_URL: 'http://example.com/v1',
+        }),
+      ).toThrow(/ANALYSIS_MODEL_BASE_URL/)
+
+      expect(() =>
+        validateEnv({
+          ...validEnv,
+          ANALYSIS_MODEL_PROVIDER: 'openai-compatible',
+          ANALYSIS_MODEL_BASE_URL: 'https://user@example.com/v1',
+        }),
+      ).toThrow(/ANALYSIS_MODEL_BASE_URL/)
+    })
+
+    it('validates analysis model name and optional key', () => {
+      expect(() =>
+        validateEnv({
+          ...validEnv,
+          ANALYSIS_MODEL_PROVIDER: 'openai-compatible',
+          ANALYSIS_MODEL_NAME: 'invalid model name',
+        }),
+      ).toThrow(/ANALYSIS_MODEL_NAME/)
+
+      expect(() =>
+        validateEnv({
+          ...validEnv,
+          ANALYSIS_MODEL_PROVIDER: 'openai-compatible',
+          ANALYSIS_MODEL_API_KEY: 'replace-with-analysis-key',
+        }),
+      ).toThrow(/ANALYSIS_MODEL_API_KEY/)
+
+      expect(
+        validateEnv({
+          ...validEnv,
+          ANALYSIS_MODEL_PROVIDER: 'openai-compatible',
+          ANALYSIS_MODEL_API_KEY: 'analysis-test-key',
+        }),
+      ).toMatchObject({ ANALYSIS_MODEL_API_KEY: 'analysis-test-key' })
+    })
   })
 
   // Every gemini-embedding rule is provider-gated, so these assertions start
