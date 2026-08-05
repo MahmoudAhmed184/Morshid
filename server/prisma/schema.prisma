@@ -159,6 +159,15 @@ enum RevealPolicy {
   @@map("reveal_policy")
 }
 
+enum ReflectionMode {
+  NONE
+  SELF_EXPLANATION
+  VERIFICATION
+  TRANSFER
+
+  @@map("reflection_mode")
+}
+
 enum MisconceptionStatus {
   SUSPECTED
   ACTIVE
@@ -399,6 +408,7 @@ model Topic {
   turns               TutorTurn[]
   messages            Message[]             @relation("MessageTopic")
   educationalAnalyses EducationalAnalysis[]
+  teachingDecisions   TeachingDecision[]
 
   @@index([sessionId, status], map: "idx_topics_session_status")
   @@index([courseId, problemId], map: "idx_topics_course_problem")
@@ -452,6 +462,7 @@ model TutorTurn {
   approvedTutorMessage Message?              @relation("TutorTurnApprovedTutorMessage", fields: [approvedTutorMessageId], references: [id], onDelete: SetNull)
   messages             Message[]             @relation("MessageTurn")
   educationalAnalyses  EducationalAnalysis[]
+  teachingDecision     TeachingDecision?
 
   @@unique([sessionId, idempotencyKey], map: "tutor_turns_session_id_idempotency_key_key")
   @@index([topicId], map: "idx_tutor_turns_topic")
@@ -542,16 +553,43 @@ model EducationalAnalysis {
   infrastructureRetryCount           Int                @default(0) @map("infrastructure_retry_count")
   createdAt                          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  turn           TutorTurn                          @relation(fields: [turnId], references: [id], onDelete: Restrict)
-  topic          Topic                              @relation(fields: [topicId], references: [id], onDelete: Restrict)
-  studentMessage Message                            @relation("EducationalAnalysisStudentMessage", fields: [studentMessageId], references: [id], onDelete: Restrict)
-  evidenceLinks  EducationalAnalysisEvidenceLink[]
-  misconceptions EducationalAnalysisMisconception[]
+  turn             TutorTurn                          @relation(fields: [turnId], references: [id], onDelete: Restrict)
+  topic            Topic                              @relation(fields: [topicId], references: [id], onDelete: Restrict)
+  studentMessage   Message                            @relation("EducationalAnalysisStudentMessage", fields: [studentMessageId], references: [id], onDelete: Restrict)
+  evidenceLinks    EducationalAnalysisEvidenceLink[]
+  misconceptions   EducationalAnalysisMisconception[]
+  teachingDecision TeachingDecision?
 
   @@unique([turnId, attempt], map: "educational_analyses_turn_id_attempt_key")
   @@index([topicId, createdAt], map: "idx_educational_analyses_topic_created")
   @@index([studentMessageId], map: "idx_educational_analyses_student_message")
   @@map("educational_analyses")
+}
+
+model TeachingDecision {
+  id                   String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  turnId               String             @unique(map: "teaching_decisions_turn_id_key") @map("turn_id") @db.Uuid
+  topicId              String             @map("topic_id") @db.Uuid
+  analysisId           String             @unique(map: "teaching_decisions_analysis_id_key") @map("analysis_id") @db.Uuid
+  strategy             TeachingStrategy
+  primaryTechnique     TeachingTechnique  @map("primary_technique")
+  supportingTechnique  TeachingTechnique? @map("supporting_technique")
+  guidanceLevel        Int                @map("guidance_level") @db.SmallInt
+  revealPolicy         RevealPolicy       @map("reveal_policy")
+  reflectionMode       ReflectionMode     @map("reflection_mode")
+  requireStudentAction Boolean            @map("require_student_action")
+  guardPolicy          Json               @map("guard_policy")
+  decisionReason       String             @map("decision_reason") @db.VarChar(240)
+  policyVersion        String             @map("policy_version") @db.VarChar(80)
+  createdAt            DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  turn     TutorTurn           @relation(fields: [turnId], references: [id], onDelete: Restrict)
+  topic    Topic               @relation(fields: [topicId], references: [id], onDelete: Restrict)
+  analysis EducationalAnalysis @relation(fields: [analysisId], references: [id], onDelete: Restrict)
+
+  @@index([topicId, createdAt], map: "idx_teaching_decisions_topic_created")
+  @@index([policyVersion], map: "idx_teaching_decisions_policy_version")
+  @@map("teaching_decisions")
 }
 
 model EducationalAnalysisEvidenceLink {
