@@ -535,6 +535,11 @@ model EducationalAnalysis {
   inputTokens                        Int?               @map("input_tokens")
   outputTokens                       Int?               @map("output_tokens")
   latencyMs                          Int?               @map("latency_ms")
+  analysisSource                     String             @default("model") @map("analysis_source") @db.VarChar(40)
+  fallbackReason                     String?            @map("fallback_reason") @db.VarChar(80)
+  failureCategory                    String?            @map("failure_category") @db.VarChar(120)
+  confidencePolicyVersion            String?            @map("confidence_policy_version") @db.VarChar(120)
+  infrastructureRetryCount           Int                @default(0) @map("infrastructure_retry_count")
   createdAt                          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
 
   turn           TutorTurn                          @relation(fields: [turnId], references: [id], onDelete: Restrict)

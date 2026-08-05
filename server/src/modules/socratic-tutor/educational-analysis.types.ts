@@ -8,6 +8,28 @@ import type { TopicResolutionOutcome } from './topic.types'
 
 export const EDUCATIONAL_ANALYSIS_SCHEMA_VERSION = 'educational-analysis.v1'
 
+export const EDUCATIONAL_ANALYSIS_SOURCE = {
+  MODEL: 'model',
+  FALLBACK: 'fallback',
+} as const
+
+export type EducationalAnalysisSource =
+  (typeof EDUCATIONAL_ANALYSIS_SOURCE)[keyof typeof EDUCATIONAL_ANALYSIS_SOURCE]
+
+export const EDUCATIONAL_ANALYSIS_FALLBACK_REASON = {
+  LOW_CONFIDENCE: 'low_confidence',
+  PROVIDER_TIMEOUT: 'provider_timeout',
+  PROVIDER_TRANSPORT: 'provider_transport',
+  PROVIDER_UNAVAILABLE: 'provider_unavailable',
+  RATE_LIMIT: 'rate_limit',
+  MALFORMED_OUTPUT: 'malformed_output',
+  SCHEMA_VALIDATION: 'schema_validation',
+  UNSUPPORTED_OUTPUT: 'unsupported_output',
+} as const
+
+export type EducationalAnalysisFallbackReason =
+  (typeof EDUCATIONAL_ANALYSIS_FALLBACK_REASON)[keyof typeof EDUCATIONAL_ANALYSIS_FALLBACK_REASON]
+
 export const EFFORT_QUALITY = {
   NONE: 'NONE',
   LOW: 'LOW',
