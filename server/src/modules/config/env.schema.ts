@@ -43,6 +43,14 @@ import {
 } from '../embedding/embedding-configuration'
 import { MAX_PDF_OBJECT_BYTES } from '../pdf-storage/pdf-storage'
 import {
+  DEFAULT_ANALYSIS_CONFIDENCE_THRESHOLD,
+  isValidConfidenceThreshold,
+} from '../socratic-tutor/analysis-confidence-policy'
+import {
+  DEFAULT_ANALYSIS_MODEL_MAX_RETRIES,
+  MAX_ANALYSIS_MODEL_MAX_RETRIES,
+} from '../socratic-tutor/analysis-retry-policy'
+import {
   DEFAULT_ANALYSIS_MODEL_BASE_URL,
   DEFAULT_ANALYSIS_MODEL_NAME,
   DEFAULT_ANALYSIS_MODEL_TIMEOUT_MS,
@@ -192,6 +200,19 @@ export const envSchema = z
       .positive()
       .max(MAX_ANALYSIS_MODEL_TIMEOUT_MS)
       .default(DEFAULT_ANALYSIS_MODEL_TIMEOUT_MS),
+    ANALYSIS_CONFIDENCE_THRESHOLD: z.coerce
+      .number()
+      .refine(
+        isValidConfidenceThreshold,
+        'must be a confidence threshold between 0 and 1',
+      )
+      .default(DEFAULT_ANALYSIS_CONFIDENCE_THRESHOLD),
+    ANALYSIS_MODEL_MAX_RETRIES: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .max(MAX_ANALYSIS_MODEL_MAX_RETRIES)
+      .default(DEFAULT_ANALYSIS_MODEL_MAX_RETRIES),
     GEMINI_API_KEY: z
       .string()
       .trim()

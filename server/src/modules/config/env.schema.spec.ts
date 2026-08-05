@@ -61,6 +61,8 @@ describe('validateEnv', () => {
       ANALYSIS_MODEL_NAME: DEFAULT_ANALYSIS_MODEL_NAME,
       ANALYSIS_MODEL_API_KEY: '',
       ANALYSIS_MODEL_TIMEOUT_MS: 30_000,
+      ANALYSIS_CONFIDENCE_THRESHOLD: 0.6,
+      ANALYSIS_MODEL_MAX_RETRIES: 1,
       GEMINI_MODEL: 'gemini-3.5-flash-lite',
       ITI_BEDROCK_GATEWAY_BASE_URL: DEFAULT_ITI_BEDROCK_GATEWAY_BASE_URL,
       ITI_BEDROCK_ALLOW_INSECURE_HTTP: false,
@@ -232,6 +234,32 @@ describe('validateEnv', () => {
           ANALYSIS_MODEL_API_KEY: 'analysis-test-key',
         }),
       ).toMatchObject({ ANALYSIS_MODEL_API_KEY: 'analysis-test-key' })
+    })
+
+    it('coerces and bounds analysis confidence threshold and retry limit', () => {
+      expect(
+        validateEnv({
+          ...validEnv,
+          ANALYSIS_CONFIDENCE_THRESHOLD: '0.7',
+          ANALYSIS_MODEL_MAX_RETRIES: '2',
+        }),
+      ).toMatchObject({
+        ANALYSIS_CONFIDENCE_THRESHOLD: 0.7,
+        ANALYSIS_MODEL_MAX_RETRIES: 2,
+      })
+
+      expect(() =>
+        validateEnv({ ...validEnv, ANALYSIS_CONFIDENCE_THRESHOLD: '-0.01' }),
+      ).toThrow(/ANALYSIS_CONFIDENCE_THRESHOLD/)
+      expect(() =>
+        validateEnv({ ...validEnv, ANALYSIS_CONFIDENCE_THRESHOLD: '1.01' }),
+      ).toThrow(/ANALYSIS_CONFIDENCE_THRESHOLD/)
+      expect(() =>
+        validateEnv({ ...validEnv, ANALYSIS_MODEL_MAX_RETRIES: '-1' }),
+      ).toThrow(/ANALYSIS_MODEL_MAX_RETRIES/)
+      expect(() =>
+        validateEnv({ ...validEnv, ANALYSIS_MODEL_MAX_RETRIES: '3' }),
+      ).toThrow(/ANALYSIS_MODEL_MAX_RETRIES/)
     })
   })
 
