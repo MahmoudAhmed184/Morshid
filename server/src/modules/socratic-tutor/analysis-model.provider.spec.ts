@@ -56,7 +56,10 @@ const validOutput = Object.freeze({
 
 describe('OpenAICompatibleAnalysisModelAdapter', () => {
   it('maps a valid chat-completions response into a provider-independent analysis response', async () => {
-    const fetchImplementation = jest.fn(() =>
+    const fetchImplementation = jest.fn<
+      Promise<Response>,
+      [string | URL | Request, RequestInit?]
+    >(() =>
       Promise.resolve(
         new Response(
           JSON.stringify({
@@ -94,10 +97,11 @@ describe('OpenAICompatibleAnalysisModelAdapter', () => {
       outputTokens: 20,
     })
     expect(fetchImplementation).toHaveBeenCalledTimes(1)
-    expect(fetchImplementation.mock.calls[0]?.[0]).toBe(
-      'http://localhost:8000/v1/chat/completions',
-    )
-    const init = fetchImplementation.mock.calls[0]?.[1]
+    const calls = fetchImplementation.mock.calls as Array<
+      [string | URL | Request, RequestInit?]
+    >
+    expect(calls[0]?.[0]).toBe('http://localhost:8000/v1/chat/completions')
+    const init = calls[0]?.[1]
     expect(init?.headers).toEqual({
       Accept: 'application/json',
       'Content-Type': 'application/json',
@@ -119,7 +123,10 @@ describe('OpenAICompatibleAnalysisModelAdapter', () => {
   })
 
   it('sends an authorization header only when an API key is configured', async () => {
-    const fetchImplementation = jest.fn(() =>
+    const fetchImplementation = jest.fn<
+      Promise<Response>,
+      [string | URL | Request, RequestInit?]
+    >(() =>
       Promise.resolve(
         new Response(
           JSON.stringify({
@@ -139,7 +146,10 @@ describe('OpenAICompatibleAnalysisModelAdapter', () => {
 
     await adapter.analyze(request)
 
-    expect(fetchImplementation.mock.calls[0]?.[1]?.headers).toMatchObject({
+    const calls = fetchImplementation.mock.calls as Array<
+      [string | URL | Request, RequestInit?]
+    >
+    expect(calls[0]?.[1]?.headers).toMatchObject({
       Authorization: 'Bearer secret-test-key',
     })
   })
