@@ -27,6 +27,11 @@ import {
   EducationalAnalysisRepository,
   PrismaEducationalAnalysisRepository,
 } from './educational-analysis.repository'
+import {
+  PrismaTeachingDecisionRepository,
+  TeachingDecisionRepository,
+} from './teaching-decision.repository'
+import { TeachingPolicyEngine } from './teaching-policy.engine'
 import { EducationalAnalysisService } from './educational-analysis.service'
 import {
   PrismaTopicStateRepository,
@@ -47,6 +52,7 @@ import { TopicService } from './topic.service'
     ContextManager,
     AnalysisFallbackBuilder,
     EducationalAnalysisService,
+    TeachingPolicyEngine,
     {
       provide: TopicStateRepository,
       useClass: PrismaTopicStateRepository,
@@ -66,6 +72,10 @@ import { TopicService } from './topic.service'
     {
       provide: EducationalAnalysisRepository,
       useClass: PrismaEducationalAnalysisRepository,
+    },
+    {
+      provide: TeachingDecisionRepository,
+      useClass: PrismaTeachingDecisionRepository,
     },
     {
       provide: ANALYSIS_CONFIDENCE_POLICY,
@@ -130,6 +140,8 @@ import { TopicService } from './topic.service'
     ContextManager,
     EducationalAnalysisService,
     EducationalAnalysisRepository,
+    TeachingPolicyEngine,
+    TeachingDecisionRepository,
     ANALYSIS_MODEL_PORT,
   ],
 })
