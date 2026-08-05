@@ -97,11 +97,9 @@ describe('OpenAICompatibleAnalysisModelAdapter', () => {
       outputTokens: 20,
     })
     expect(fetchImplementation).toHaveBeenCalledTimes(1)
-    const calls = fetchImplementation.mock.calls as Array<
-      [string | URL | Request, RequestInit?]
-    >
-    expect(calls[0]?.[0]).toBe('http://localhost:8000/v1/chat/completions')
-    const init = calls[0]?.[1]
+    const [firstCall] = fetchImplementation.mock.calls
+    expect(firstCall[0]).toBe('http://localhost:8000/v1/chat/completions')
+    const init = firstCall[1]
     expect(init?.headers).toEqual({
       Accept: 'application/json',
       'Content-Type': 'application/json',
@@ -146,10 +144,8 @@ describe('OpenAICompatibleAnalysisModelAdapter', () => {
 
     await adapter.analyze(request)
 
-    const calls = fetchImplementation.mock.calls as Array<
-      [string | URL | Request, RequestInit?]
-    >
-    expect(calls[0]?.[1]?.headers).toMatchObject({
+    const [firstCall] = fetchImplementation.mock.calls
+    expect(firstCall[1]?.headers).toMatchObject({
       Authorization: 'Bearer secret-test-key',
     })
   })

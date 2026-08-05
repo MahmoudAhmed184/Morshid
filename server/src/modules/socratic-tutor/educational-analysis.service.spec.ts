@@ -113,13 +113,13 @@ describe('EducationalAnalysisService', () => {
       forceReanalysis: false,
     })
     const stored = repository.records[0]
-    expect(stored?.misconceptionRecords).toEqual([
+    expect(stored.misconceptionRecords).toEqual([
       expect.objectContaining({
         code: 'NON_SHRINKING_SEARCH_INTERVAL',
         evidenceMessageId: 'message-22',
       }),
     ])
-    expect(stored?.evidenceLinks).toEqual(
+    expect(stored.evidenceLinks).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           messageId: 'message-22',

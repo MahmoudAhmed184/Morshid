@@ -425,17 +425,50 @@ interface ParsedChatCompletionResponse {
 }
 
 function assertAnalysisModelRequest(request: AnalysisModelRequest): void {
-  if (
-    request.promptVersion !== EDUCATIONAL_ANALYSIS_PROMPT_VERSION ||
-    request.responseSchemaName !== 'EducationalAnalysisResult' ||
-    request.messages.length !== 2 ||
-    request.messages[0].role !== 'system' ||
-    request.messages[1].role !== 'user' ||
-    request.messages[0].content.trim() === '' ||
-    request.messages[1].content.trim() === ''
-  ) {
+  const value: unknown = request
+  if (!isAnalysisModelRequest(value)) {
     throw new AnalysisModelError(ANALYSIS_MODEL_ERROR_CODE.UNSUPPORTED_RESPONSE)
   }
+}
+
+function isAnalysisModelRequest(value: unknown): value is AnalysisModelRequest {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false
+  }
+
+  const promptVersion: unknown = Reflect.get(value, 'promptVersion')
+  const responseSchemaName: unknown = Reflect.get(value, 'responseSchemaName')
+  const messages: unknown = Reflect.get(value, 'messages')
+
+  if (
+    promptVersion !== EDUCATIONAL_ANALYSIS_PROMPT_VERSION ||
+    responseSchemaName !== 'EducationalAnalysisResult' ||
+    !Array.isArray(messages) ||
+    messages.length !== 2
+  ) {
+    return false
+  }
+
+  const systemMessage: unknown = messages[0]
+  const userMessage: unknown = messages[1]
+
+  return (
+    isAnalysisMessage(systemMessage, 'system') &&
+    isAnalysisMessage(userMessage, 'user')
+  )
+}
+
+function isAnalysisMessage(value: unknown, role: 'system' | 'user'): boolean {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false
+  }
+
+  const messageRole: unknown = Reflect.get(value, 'role')
+  const content: unknown = Reflect.get(value, 'content')
+
+  return (
+    messageRole === role && typeof content === 'string' && content.trim() !== ''
+  )
 }
 
 function validateAnalysisModelResponse(
@@ -521,7 +554,7 @@ function parseChatCompletionResponse(
     throw new OpenAICompatibleFailure('malformed_response')
   }
 
-  const choices = Reflect.get(parsed, 'choices')
+  const choices: unknown = Reflect.get(parsed, 'choices')
   if (!Array.isArray(choices) || choices.length === 0) {
     throw new OpenAICompatibleFailure('malformed_response')
   }
@@ -553,7 +586,7 @@ function parseChatCompletionResponse(
   const systemFingerprint = optionalString(
     Reflect.get(parsed, 'system_fingerprint'),
   )
-  const usage = Reflect.get(parsed, 'usage')
+  const usage: unknown = Reflect.get(parsed, 'usage')
   const inputTokens =
     typeof usage === 'object' && usage !== null
       ? optionalTokenCount(Reflect.get(usage, 'prompt_tokens'))
