@@ -18,6 +18,7 @@ import {
   EducationalAnalysisRepository,
   PrismaEducationalAnalysisRepository,
 } from './educational-analysis.repository'
+import { EducationalAnalysisService } from './educational-analysis.service'
 import {
   PrismaTopicStateRepository,
   TopicStateRepository,
@@ -35,6 +36,7 @@ import { TopicService } from './topic.service'
     TopicService,
     TurnService,
     ContextManager,
+    EducationalAnalysisService,
     {
       provide: TopicStateRepository,
       useClass: PrismaTopicStateRepository,
@@ -96,6 +98,7 @@ import { TopicService } from './topic.service'
     TopicStateService,
     TurnService,
     ContextManager,
+    EducationalAnalysisService,
     EducationalAnalysisRepository,
     ANALYSIS_MODEL_PORT,
   ],
