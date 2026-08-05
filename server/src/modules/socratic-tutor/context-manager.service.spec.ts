@@ -1,4 +1,5 @@
 import { Test, type TestingModule } from '@nestjs/testing'
+import { ConfigService } from '@nestjs/config'
 import {
   MessageRole,
   MessageStatus,
@@ -249,6 +250,11 @@ describe('ContextManager', () => {
     })
       .overrideProvider(PrismaService)
       .useValue({})
+      .overrideProvider(ConfigService)
+      .useValue({
+        get: (key: string) =>
+          key === 'ANALYSIS_MODEL_TIMEOUT_MS' ? 30_000 : 'deterministic',
+      })
       .compile()
 
     expect(moduleRef.get(ContextManager)).toBeInstanceOf(ContextManager)

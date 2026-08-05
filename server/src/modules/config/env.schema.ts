@@ -42,6 +42,20 @@ import {
   isValidGeminiEmbeddingQuotaProjectId,
 } from '../embedding/embedding-configuration'
 import { MAX_PDF_OBJECT_BYTES } from '../pdf-storage/pdf-storage'
+import {
+  DEFAULT_ANALYSIS_MODEL_BASE_URL,
+  DEFAULT_ANALYSIS_MODEL_NAME,
+  DEFAULT_ANALYSIS_MODEL_TIMEOUT_MS,
+  DETERMINISTIC_ANALYSIS_MODEL_PROVIDER,
+  MAX_ANALYSIS_MODEL_API_KEY_LENGTH,
+  MAX_ANALYSIS_MODEL_BASE_URL_LENGTH,
+  MAX_ANALYSIS_MODEL_NAME_LENGTH,
+  MAX_ANALYSIS_MODEL_TIMEOUT_MS,
+  OPENAI_COMPATIBLE_ANALYSIS_MODEL_PROVIDER,
+  isValidAnalysisModelName,
+  isValidOptionalAnalysisApiKey,
+  normalizeOpenAICompatibleBaseUrl,
+} from '../socratic-tutor/analysis-model.configuration'
 
 // The one placeholder policy for every secret this schema accepts, so a fresh
 // checkout cannot boot with a publicly known value. It is exactly the prefix the
@@ -144,6 +158,40 @@ export const envSchema = z
       .positive()
       .max(MAX_COMPLETION_TIMEOUT_MS)
       .default(DEFAULT_COMPLETION_TIMEOUT_MS),
+    ANALYSIS_MODEL_PROVIDER: z
+      .enum([
+        DETERMINISTIC_ANALYSIS_MODEL_PROVIDER,
+        OPENAI_COMPATIBLE_ANALYSIS_MODEL_PROVIDER,
+      ])
+      .default(DETERMINISTIC_ANALYSIS_MODEL_PROVIDER),
+    ANALYSIS_MODEL_BASE_URL: z
+      .string()
+      .trim()
+      .max(MAX_ANALYSIS_MODEL_BASE_URL_LENGTH)
+      .default(DEFAULT_ANALYSIS_MODEL_BASE_URL),
+    ANALYSIS_MODEL_NAME: z
+      .string()
+      .trim()
+      .max(MAX_ANALYSIS_MODEL_NAME_LENGTH)
+      .refine(isValidAnalysisModelName, 'must be a valid model name')
+      .default(DEFAULT_ANALYSIS_MODEL_NAME),
+    ANALYSIS_MODEL_API_KEY: z.preprocess(
+      blankAsUndefined,
+      z
+        .string()
+        .max(MAX_ANALYSIS_MODEL_API_KEY_LENGTH)
+        .refine(
+          isValidOptionalAnalysisApiKey,
+          'must be blank or a printable API key without whitespace',
+        )
+        .default(''),
+    ),
+    ANALYSIS_MODEL_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .max(MAX_ANALYSIS_MODEL_TIMEOUT_MS)
+      .default(DEFAULT_ANALYSIS_MODEL_TIMEOUT_MS),
     GEMINI_API_KEY: z
       .string()
       .trim()
@@ -358,6 +406,32 @@ export const envSchema = z
           code: 'custom',
           path: ['AWS_BEDROCK_MODEL_ID'],
           message: 'must be present in AWS_BEDROCK_ALLOWED_MODEL_IDS',
+        })
+      }
+    }
+
+    if (
+      env.ANALYSIS_MODEL_PROVIDER === OPENAI_COMPATIBLE_ANALYSIS_MODEL_PROVIDER
+    ) {
+      try {
+        normalizeOpenAICompatibleBaseUrl(env.ANALYSIS_MODEL_BASE_URL)
+      } catch {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['ANALYSIS_MODEL_BASE_URL'],
+          message:
+            'must be HTTP localhost or HTTPS without credentials, query, or fragment',
+        })
+      }
+
+      if (
+        env.ANALYSIS_MODEL_API_KEY !== '' &&
+        isPlaceholderSecret(env.ANALYSIS_MODEL_API_KEY)
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['ANALYSIS_MODEL_API_KEY'],
+          message: 'must not use a placeholder analysis model key',
         })
       }
     }
