@@ -45,8 +45,7 @@ export interface AnalysisModelPort {
 
 const SAFE_ERROR_MESSAGES = {
   [ANALYSIS_MODEL_ERROR_CODE.TIMEOUT]: 'Analysis model timed out',
-  [ANALYSIS_MODEL_ERROR_CODE.RATE_LIMITED]:
-    'Analysis model rate limit reached',
+  [ANALYSIS_MODEL_ERROR_CODE.RATE_LIMITED]: 'Analysis model rate limit reached',
   [ANALYSIS_MODEL_ERROR_CODE.TRANSPORT_FAILURE]:
     'Analysis model transport failed',
   [ANALYSIS_MODEL_ERROR_CODE.PROVIDER_UNAVAILABLE]:
