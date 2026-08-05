@@ -3,12 +3,21 @@ import { ConfigModule, ConfigService } from '@nestjs/config'
 
 import type { AppEnvironment } from '../config/env.schema'
 import { PrismaModule } from '../prisma/prisma.module'
+import {
+  ANALYSIS_CONFIDENCE_POLICY,
+  AnalysisConfidencePolicy,
+} from './analysis-confidence-policy'
+import { AnalysisFallbackBuilder } from './analysis-fallback-builder'
 import { ANALYSIS_MODEL_PORT } from './analysis-model.port'
 import {
   DETERMINISTIC_ANALYSIS_MODEL_PROVIDER,
   OPENAI_COMPATIBLE_ANALYSIS_MODEL_PROVIDER,
 } from './analysis-model.configuration'
 import { createAnalysisModelPort } from './analysis-model.provider'
+import {
+  ANALYSIS_RETRY_POLICY,
+  AnalysisRetryPolicy,
+} from './analysis-retry-policy'
 import {
   AnalysisContextRepository,
   PrismaAnalysisContextRepository,
@@ -36,6 +45,7 @@ import { TopicService } from './topic.service'
     TopicService,
     TurnService,
     ContextManager,
+    AnalysisFallbackBuilder,
     EducationalAnalysisService,
     {
       provide: TopicStateRepository,
@@ -56,6 +66,26 @@ import { TopicService } from './topic.service'
     {
       provide: EducationalAnalysisRepository,
       useClass: PrismaEducationalAnalysisRepository,
+    },
+    {
+      provide: ANALYSIS_CONFIDENCE_POLICY,
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService<AppEnvironment, true>) =>
+        new AnalysisConfidencePolicy({
+          threshold: configService.get('ANALYSIS_CONFIDENCE_THRESHOLD', {
+            infer: true,
+          }),
+        }),
+    },
+    {
+      provide: ANALYSIS_RETRY_POLICY,
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService<AppEnvironment, true>) =>
+        new AnalysisRetryPolicy(
+          configService.get('ANALYSIS_MODEL_MAX_RETRIES', {
+            infer: true,
+          }),
+        ),
     },
     {
       provide: ANALYSIS_MODEL_PORT,
