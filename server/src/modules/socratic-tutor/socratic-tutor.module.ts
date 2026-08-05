@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common'
-import { ConfigService } from '@nestjs/config'
+import { ConfigModule, ConfigService } from '@nestjs/config'
 
 import type { AppEnvironment } from '../config/env.schema'
 import { PrismaModule } from '../prisma/prisma.module'
@@ -30,7 +30,7 @@ import { PrismaTopicRepository, TopicRepository } from './topic.repository'
 import { TopicService } from './topic.service'
 
 @Module({
-  imports: [PrismaModule],
+  imports: [ConfigModule, PrismaModule],
   providers: [
     TopicStateService,
     TopicService,
