@@ -16,6 +16,8 @@ import {
 } from '../src/modules/socratic-tutor/educational-analysis.repository'
 import { EDUCATIONAL_ANALYSIS_PROMPT_VERSION } from '../src/modules/socratic-tutor/educational-analysis.prompt'
 import {
+  EDUCATIONAL_ANALYSIS_FALLBACK_REASON,
+  EDUCATIONAL_ANALYSIS_SOURCE,
   EDUCATIONAL_ANALYSIS_SCHEMA_VERSION,
   EFFORT_QUALITY,
   EFFORT_TYPE,
@@ -74,6 +76,10 @@ describe('EducationalAnalysisRepository (e2e)', () => {
       inputTokens: 100,
       outputTokens: 50,
       latencyMs: 12,
+      analysisSource: EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
+      fallbackReason: null,
+      confidencePolicyVersion: 'educational-analysis-confidence-policy.v1',
+      infrastructureRetryCount: 0,
       result: {
         requestKind: MessageRequestKind.CODE_DIAGNOSIS,
         studentState: StudentState.DEBUGGING_ISSUE,
@@ -109,6 +115,52 @@ describe('EducationalAnalysisRepository (e2e)', () => {
         evidenceMessageId: fixture.studentMessageId,
       }),
     ])
+    expect(persisted).toMatchObject({
+      analysisSource: EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
+      fallbackReason: null,
+      failureCategory: null,
+      confidencePolicyVersion: 'educational-analysis-confidence-policy.v1',
+      infrastructureRetryCount: 0,
+    })
+  })
+
+  it('persists fallback metadata and reuses it idempotently', async () => {
+    const fixture = await createFixture(prisma)
+    const input = persistInput(
+      fixture,
+      fallbackResult(fixture.studentMessageId),
+      {
+        analysisSource: EDUCATIONAL_ANALYSIS_SOURCE.FALLBACK,
+        fallbackReason: EDUCATIONAL_ANALYSIS_FALLBACK_REASON.PROVIDER_TIMEOUT,
+        failureCategory: 'ANALYSIS_MODEL_TIMEOUT',
+        confidencePolicyVersion: 'educational-analysis-confidence-policy.v1',
+        infrastructureRetryCount: 1,
+      },
+    )
+
+    const first = await repository.storeAccepted(input)
+    const second = await repository.storeAccepted(input)
+
+    expect(first.kind).toBe('created')
+    expect(second.kind).toBe('reused')
+    expect(second.analysis).toMatchObject({
+      id: first.analysis.id,
+      analysisSource: EDUCATIONAL_ANALYSIS_SOURCE.FALLBACK,
+      fallbackReason: EDUCATIONAL_ANALYSIS_FALLBACK_REASON.PROVIDER_TIMEOUT,
+      failureCategory: 'ANALYSIS_MODEL_TIMEOUT',
+      confidencePolicyVersion: 'educational-analysis-confidence-policy.v1',
+      infrastructureRetryCount: 1,
+      result: {
+        studentState: StudentState.UNKNOWN,
+        misconceptions: [],
+        recommendedGuidanceLevel: 1,
+      },
+    })
+    await expect(
+      prisma.educationalAnalysis.count({
+        where: { turnId: fixture.turnId },
+      }),
+    ).resolves.toBe(1)
   })
 
   it('reuses accepted analysis for normal idempotent retry', async () => {
@@ -229,6 +281,13 @@ async function createFixture(prisma: PrismaService): Promise<Fixture> {
 function persistInput(
   fixture: Fixture,
   result: EducationalAnalysisResult,
+  metadata: PersistEducationalAnalysisInput['metadata'] = {
+    analysisSource: EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
+    fallbackReason: null,
+    failureCategory: null,
+    confidencePolicyVersion: 'educational-analysis-confidence-policy.v1',
+    infrastructureRetryCount: 0,
+  },
 ): PersistEducationalAnalysisInput {
   return {
     turnId: fixture.turnId,
@@ -246,6 +305,7 @@ function persistInput(
       latencyMs: 12,
     },
     forceReanalysis: false,
+    metadata,
   }
 }
 
@@ -279,6 +339,33 @@ function analysisResult(studentMessageId: string): EducationalAnalysisResult {
     recommendedTechnique: TeachingTechnique.TRACE_EXECUTION,
     recommendedGuidanceLevel: 2,
     confidence: 0.9,
+    evidenceReferences: [studentMessageId],
+  }
+}
+
+function fallbackResult(studentMessageId: string): EducationalAnalysisResult {
+  return {
+    requestKind: MessageRequestKind.AMBIGUOUS,
+    studentState: StudentState.UNKNOWN,
+    effortEvidence: {
+      present: false,
+      quality: EFFORT_QUALITY.NONE,
+      type: null,
+      addressesPreviousTutorAction: false,
+      isRepeated: false,
+      evidenceMessageIds: [],
+    },
+    learningEvidence: {
+      present: false,
+      strength: LEARNING_EVIDENCE_STRENGTH.NONE,
+      evidenceMessageIds: [],
+    },
+    misconceptions: [],
+    topicRelation: TOPIC_RESOLUTION_OUTCOME.CONTINUE_CURRENT_TOPIC,
+    recommendedStrategy: TeachingStrategy.SOCRATIC_QUESTIONING,
+    recommendedTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+    recommendedGuidanceLevel: 1,
+    confidence: 0.1,
     evidenceReferences: [studentMessageId],
   }
 }

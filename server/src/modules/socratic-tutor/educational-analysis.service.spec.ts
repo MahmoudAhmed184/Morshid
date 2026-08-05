@@ -10,6 +10,8 @@ import {
   TopicType,
 } from '../../generated/prisma/client'
 import type { AnalysisContextPackage } from './analysis-context.types'
+import { EDUCATIONAL_ANALYSIS_CONFIDENCE_POLICY_VERSION } from './analysis-confidence-policy'
+import { AnalysisFallbackBuilder } from './analysis-fallback-builder'
 import {
   ANALYSIS_MODEL_ERROR_CODE,
   type AnalysisModelPort,
@@ -30,6 +32,8 @@ import {
   EducationalAnalysisService,
 } from './educational-analysis.service'
 import {
+  EDUCATIONAL_ANALYSIS_FALLBACK_REASON,
+  EDUCATIONAL_ANALYSIS_SOURCE,
   EDUCATIONAL_ANALYSIS_SCHEMA_VERSION,
   EFFORT_QUALITY,
   EFFORT_TYPE,
@@ -81,6 +85,8 @@ describe('EducationalAnalysisService', () => {
 
     expect(result).toMatchObject({
       success: true,
+      source: EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
+      fallbackReason: null,
       reused: false,
       analysis: {
         turnId: 'turn-1',
@@ -111,6 +117,12 @@ describe('EducationalAnalysisService', () => {
         promptVersion: EDUCATIONAL_ANALYSIS_PROMPT_VERSION,
       },
       forceReanalysis: false,
+      metadata: {
+        analysisSource: EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
+        fallbackReason: null,
+        confidencePolicyVersion: EDUCATIONAL_ANALYSIS_CONFIDENCE_POLICY_VERSION,
+        infrastructureRetryCount: 0,
+      },
     })
     const stored = repository.records[0]
     expect(stored.misconceptionRecords).toEqual([
@@ -181,7 +193,7 @@ describe('EducationalAnalysisService', () => {
     expect(repository.records.map((record) => record.attempt)).toEqual([1, 2])
   })
 
-  it('rejects off-context evidence without persisting analysis', async () => {
+  it('persists fallback instead of accepting off-context evidence', async () => {
     const repository = new FakeEducationalAnalysisRepository()
     const model = new FakeAnalysisModelPort({
       ...goldenResult,
@@ -192,15 +204,25 @@ describe('EducationalAnalysisService', () => {
     const result = await service.analyze(buildContext())
 
     expect(result).toMatchObject({
-      success: false,
-      category: EDUCATIONAL_ANALYSIS_FAILURE_CATEGORY.VALIDATION_FAILURE,
-      errorCode: 'ANALYSIS_VALIDATION_FAILED',
+      success: true,
+      source: EDUCATIONAL_ANALYSIS_SOURCE.FALLBACK,
+      fallbackReason: EDUCATIONAL_ANALYSIS_FALLBACK_REASON.SCHEMA_VALIDATION,
+      analysis: {
+        result: {
+          studentState: StudentState.UNKNOWN,
+          misconceptions: [],
+          evidenceReferences: ['message-22'],
+        },
+        analysisSource: EDUCATIONAL_ANALYSIS_SOURCE.FALLBACK,
+        fallbackReason: EDUCATIONAL_ANALYSIS_FALLBACK_REASON.SCHEMA_VALIDATION,
+        infrastructureRetryCount: 1,
+      },
     })
-    expect(repository.storeInputs).toHaveLength(0)
-    expect(repository.records).toHaveLength(0)
+    expect(model.requests).toHaveLength(2)
+    expect(repository.records).toHaveLength(1)
   })
 
-  it('returns typed provider failure without persisting analysis', async () => {
+  it('persists timeout fallback after bounded provider retry exhaustion', async () => {
     const repository = new FakeEducationalAnalysisRepository()
     const model = new FakeAnalysisModelPort(
       new AnalysisModelError(ANALYSIS_MODEL_ERROR_CODE.TIMEOUT),
@@ -209,12 +231,175 @@ describe('EducationalAnalysisService', () => {
 
     const result = await service.analyze(buildContext())
 
-    expect(result).toEqual({
-      success: false,
-      category: EDUCATIONAL_ANALYSIS_FAILURE_CATEGORY.PROVIDER_FAILURE,
-      errorCode: ANALYSIS_MODEL_ERROR_CODE.TIMEOUT,
+    expect(result).toMatchObject({
+      success: true,
+      source: EDUCATIONAL_ANALYSIS_SOURCE.FALLBACK,
+      fallbackReason: EDUCATIONAL_ANALYSIS_FALLBACK_REASON.PROVIDER_TIMEOUT,
+      analysis: {
+        analysisSource: EDUCATIONAL_ANALYSIS_SOURCE.FALLBACK,
+        fallbackReason: EDUCATIONAL_ANALYSIS_FALLBACK_REASON.PROVIDER_TIMEOUT,
+        infrastructureRetryCount: 1,
+        result: {
+          studentState: StudentState.UNKNOWN,
+          recommendedGuidanceLevel: 1,
+          learningEvidence: {
+            present: false,
+            strength: LEARNING_EVIDENCE_STRENGTH.NONE,
+          },
+          misconceptions: [],
+        },
+      },
     })
-    expect(repository.storeInputs).toHaveLength(0)
+    expect(model.requests).toHaveLength(2)
+    expect(repository.storeInputs[0]?.modelResponse.provider).toBe('backend')
+  })
+
+  it('persists fallback for model confidence immediately below the 0.6 threshold and accepts equality', async () => {
+    const belowThreshold = { ...goldenResult, confidence: 0.599 }
+    const equalThreshold = { ...goldenResult, confidence: 0.6 }
+
+    const lowRepository = new FakeEducationalAnalysisRepository()
+    const lowService = new EducationalAnalysisService(
+      new FakeAnalysisModelPort(belowThreshold),
+      lowRepository,
+    )
+
+    await expect(lowService.analyze(buildContext())).resolves.toMatchObject({
+      success: true,
+      source: EDUCATIONAL_ANALYSIS_SOURCE.FALLBACK,
+      fallbackReason: EDUCATIONAL_ANALYSIS_FALLBACK_REASON.LOW_CONFIDENCE,
+    })
+
+    const equalRepository = new FakeEducationalAnalysisRepository()
+    const equalService = new EducationalAnalysisService(
+      new FakeAnalysisModelPort(equalThreshold),
+      equalRepository,
+    )
+
+    await expect(equalService.analyze(buildContext())).resolves.toMatchObject({
+      success: true,
+      source: EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
+      fallbackReason: null,
+    })
+  })
+
+  it('accepts confidence immediately above the 0.6 threshold as model output', async () => {
+    const repository = new FakeEducationalAnalysisRepository()
+    const service = new EducationalAnalysisService(
+      new FakeAnalysisModelPort({ ...goldenResult, confidence: 0.601 }),
+      repository,
+    )
+
+    await expect(service.analyze(buildContext())).resolves.toMatchObject({
+      success: true,
+      source: EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
+      fallbackReason: null,
+    })
+  })
+
+  it('removes strong educational claims when low confidence triggers fallback', async () => {
+    const repository = new FakeEducationalAnalysisRepository()
+    const service = new EducationalAnalysisService(
+      new FakeAnalysisModelPort({ ...goldenResult, confidence: 0.2 }),
+      repository,
+    )
+
+    await expect(service.analyze(buildContext())).resolves.toMatchObject({
+      success: true,
+      analysis: {
+        result: {
+          studentState: StudentState.UNKNOWN,
+          misconceptions: [],
+          learningEvidence: {
+            present: false,
+            strength: LEARNING_EVIDENCE_STRENGTH.NONE,
+          },
+          recommendedGuidanceLevel: 1,
+        },
+      },
+    })
+  })
+
+  it('retries retryable transport failures and persists a later valid model result', async () => {
+    const repository = new FakeEducationalAnalysisRepository()
+    const model = new FakeAnalysisModelPort(
+      new AnalysisModelError(ANALYSIS_MODEL_ERROR_CODE.TRANSPORT_FAILURE),
+      goldenResult,
+    )
+    const service = new EducationalAnalysisService(model, repository)
+
+    await expect(service.analyze(buildContext())).resolves.toMatchObject({
+      success: true,
+      source: EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
+      analysis: { infrastructureRetryCount: 1 },
+    })
+    expect(model.requests).toHaveLength(2)
+    expect(repository.storeInputs[0]?.metadata).toMatchObject({
+      infrastructureRetryCount: 1,
+    })
+  })
+
+  it('does not retry non-retryable configuration errors before fallback', async () => {
+    const repository = new FakeEducationalAnalysisRepository()
+    const model = new FakeAnalysisModelPort(
+      new AnalysisModelError(ANALYSIS_MODEL_ERROR_CODE.CONFIGURATION_INVALID),
+    )
+    const service = new EducationalAnalysisService(model, repository)
+
+    await expect(service.analyze(buildContext())).resolves.toMatchObject({
+      success: true,
+      source: EDUCATIONAL_ANALYSIS_SOURCE.FALLBACK,
+      fallbackReason: EDUCATIONAL_ANALYSIS_FALLBACK_REASON.UNSUPPORTED_OUTPUT,
+      analysis: { infrastructureRetryCount: 0 },
+    })
+    expect(model.requests).toHaveLength(1)
+  })
+
+  it('persists malformed-output fallback after bounded retry exhaustion', async () => {
+    const repository = new FakeEducationalAnalysisRepository()
+    const model = new FakeAnalysisModelPort(
+      new AnalysisModelError(ANALYSIS_MODEL_ERROR_CODE.MALFORMED_OUTPUT),
+    )
+    const service = new EducationalAnalysisService(model, repository)
+
+    await expect(service.analyze(buildContext())).resolves.toMatchObject({
+      success: true,
+      fallbackReason: EDUCATIONAL_ANALYSIS_FALLBACK_REASON.MALFORMED_OUTPUT,
+      analysis: { infrastructureRetryCount: 1 },
+    })
+    expect(model.requests).toHaveLength(2)
+  })
+
+  it('does not automatically switch to the deterministic adapter as a provider fallback', async () => {
+    const repository = new FakeEducationalAnalysisRepository()
+    const model = new FakeAnalysisModelPort(
+      new AnalysisModelError(ANALYSIS_MODEL_ERROR_CODE.RATE_LIMITED),
+    )
+    const service = new EducationalAnalysisService(model, repository)
+
+    await service.analyze(buildContext())
+
+    expect(model.requests).toHaveLength(2)
+    expect(repository.records[0]?.provider).toBe('backend')
+    expect(repository.records[0]?.model).toBe('analysis-fallback-builder-v1')
+  })
+
+  it('returns typed validation failure when fallback itself cannot be validated', async () => {
+    const repository = new FakeEducationalAnalysisRepository()
+    const service = new EducationalAnalysisService(
+      new FakeAnalysisModelPort({ ...goldenResult, confidence: 0.1 }),
+      repository,
+      new InvalidFallbackBuilder(),
+    )
+
+    const result = await service.analyze(buildContext())
+
+    expect(result).toMatchObject({
+      success: false,
+      category: EDUCATIONAL_ANALYSIS_FAILURE_CATEGORY.VALIDATION_FAILURE,
+      errorCode: 'ANALYSIS_VALIDATION_FAILED',
+    })
+    expect(repository.records).toHaveLength(0)
   })
 
   it('does not treat "give me the answer" as meaningful effort by itself', async () => {
@@ -277,19 +462,22 @@ describe('EducationalAnalysisService', () => {
 
 class FakeAnalysisModelPort implements AnalysisModelPort {
   readonly requests: AnalysisModelRequest[] = []
+  private readonly outputs: readonly unknown[]
 
-  constructor(
-    private readonly output: EducationalAnalysisResult | AnalysisModelError,
-  ) {}
+  constructor(...outputs: readonly unknown[]) {
+    this.outputs = outputs
+  }
 
   analyze(request: AnalysisModelRequest): Promise<AnalysisModelResponse> {
     this.requests.push(request)
-    if (this.output instanceof AnalysisModelError) {
-      return Promise.reject(this.output)
+    const output =
+      this.outputs[Math.min(this.requests.length - 1, this.outputs.length - 1)]
+    if (output instanceof AnalysisModelError) {
+      return Promise.reject(output)
     }
 
     return Promise.resolve({
-      rawOutput: this.output,
+      rawOutput: output,
       provider: 'fake-provider',
       model: 'fake-model',
       modelVersion: 'fake-model-version',
@@ -298,6 +486,16 @@ class FakeAnalysisModelPort implements AnalysisModelPort {
       outputTokens: 50,
       latencyMs: 12,
     })
+  }
+}
+
+class InvalidFallbackBuilder extends AnalysisFallbackBuilder {
+  override build(): EducationalAnalysisResult {
+    return {
+      ...goldenResult,
+      confidence: 0.1,
+      evidenceReferences: ['message-outside-context'],
+    }
   }
 }
 
@@ -348,6 +546,7 @@ class FakeEducationalAnalysisRepository extends EducationalAnalysisRepository {
       attempt: latestAttempt + 1,
       result: input.result,
       modelResponse: input.modelResponse,
+      metadata: input.metadata,
     })
     this.records.push(analysis)
 
@@ -468,6 +667,7 @@ function buildPersistedRecord(input: {
   attempt: number
   result: EducationalAnalysisResult
   modelResponse?: AnalysisModelResponse
+  metadata?: PersistEducationalAnalysisInput['metadata']
 }): PersistedEducationalAnalysisRecord {
   return {
     id: input.id,
@@ -485,6 +685,17 @@ function buildPersistedRecord(input: {
     inputTokens: input.modelResponse?.inputTokens ?? 100,
     outputTokens: input.modelResponse?.outputTokens ?? 50,
     latencyMs: input.modelResponse?.latencyMs ?? 12,
+    analysisSource:
+      input.metadata?.analysisSource ??
+      (input.modelResponse?.provider === 'backend'
+        ? EDUCATIONAL_ANALYSIS_SOURCE.FALLBACK
+        : EDUCATIONAL_ANALYSIS_SOURCE.MODEL),
+    fallbackReason: input.metadata?.fallbackReason ?? null,
+    failureCategory: input.metadata?.failureCategory ?? null,
+    confidencePolicyVersion:
+      input.metadata?.confidencePolicyVersion ??
+      EDUCATIONAL_ANALYSIS_CONFIDENCE_POLICY_VERSION,
+    infrastructureRetryCount: input.metadata?.infrastructureRetryCount ?? 0,
     evidenceLinks: [
       ...input.result.evidenceReferences.map((messageId, ordinal) => ({
         id: `${input.id}-top-${String(ordinal)}`,

@@ -7,8 +7,11 @@ import {
 import { PrismaService } from '../prisma/prisma.service'
 import type { AnalysisModelResponse } from './analysis-model.port'
 import {
+  EDUCATIONAL_ANALYSIS_SOURCE,
   EDUCATIONAL_ANALYSIS_SCHEMA_VERSION,
+  type EducationalAnalysisFallbackReason,
   type EducationalAnalysisResult,
+  type EducationalAnalysisSource,
 } from './educational-analysis.types'
 
 export interface EducationalAnalysisIdentity {
@@ -17,10 +20,19 @@ export interface EducationalAnalysisIdentity {
   studentMessageId: string
 }
 
+export interface PersistEducationalAnalysisMetadata {
+  analysisSource: EducationalAnalysisSource
+  fallbackReason: EducationalAnalysisFallbackReason | null
+  failureCategory: string | null
+  confidencePolicyVersion: string | null
+  infrastructureRetryCount: number
+}
+
 export interface PersistEducationalAnalysisInput extends EducationalAnalysisIdentity {
   result: EducationalAnalysisResult
   modelResponse: AnalysisModelResponse
   forceReanalysis: boolean
+  metadata?: PersistEducationalAnalysisMetadata
 }
 
 export interface PersistedEducationalAnalysisRecord extends EducationalAnalysisIdentity {
@@ -35,6 +47,11 @@ export interface PersistedEducationalAnalysisRecord extends EducationalAnalysisI
   inputTokens: number | null
   outputTokens: number | null
   latencyMs: number | null
+  analysisSource: EducationalAnalysisSource
+  fallbackReason: EducationalAnalysisFallbackReason | null
+  failureCategory: string | null
+  confidencePolicyVersion: string | null
+  infrastructureRetryCount: number
   evidenceLinks: PersistedEducationalAnalysisEvidenceLink[]
   misconceptionRecords: PersistedEducationalAnalysisMisconception[]
   createdAt: Date
@@ -168,6 +185,14 @@ export class PrismaEducationalAnalysisRepository extends EducationalAnalysisRepo
             inputTokens: input.modelResponse.inputTokens,
             outputTokens: input.modelResponse.outputTokens,
             latencyMs: input.modelResponse.latencyMs,
+            analysisSource:
+              input.metadata?.analysisSource ??
+              EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
+            fallbackReason: input.metadata?.fallbackReason,
+            failureCategory: input.metadata?.failureCategory,
+            confidencePolicyVersion: input.metadata?.confidencePolicyVersion,
+            infrastructureRetryCount:
+              input.metadata?.infrastructureRetryCount ?? 0,
             evidenceLinks: {
               create: evidenceLinkCreates(input.result),
             },
@@ -286,6 +311,12 @@ function mapEducationalAnalysis(
     inputTokens: record.inputTokens,
     outputTokens: record.outputTokens,
     latencyMs: record.latencyMs,
+    analysisSource: record.analysisSource as EducationalAnalysisSource,
+    fallbackReason:
+      record.fallbackReason as EducationalAnalysisFallbackReason | null,
+    failureCategory: record.failureCategory,
+    confidencePolicyVersion: record.confidencePolicyVersion,
+    infrastructureRetryCount: record.infrastructureRetryCount,
     evidenceLinks: record.evidenceLinks.map((link) => ({
       id: link.id,
       messageId: link.messageId,
