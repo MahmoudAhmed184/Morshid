@@ -15,6 +15,10 @@ import {
 } from './analysis-context.repository'
 import { ContextManager } from './context-manager.service'
 import {
+  EducationalAnalysisRepository,
+  PrismaEducationalAnalysisRepository,
+} from './educational-analysis.repository'
+import {
   PrismaTopicStateRepository,
   TopicStateRepository,
 } from './topic-state.repository'
@@ -46,6 +50,10 @@ import { TopicService } from './topic.service'
     {
       provide: TurnRepository,
       useClass: PrismaTurnRepository,
+    },
+    {
+      provide: EducationalAnalysisRepository,
+      useClass: PrismaEducationalAnalysisRepository,
     },
     {
       provide: ANALYSIS_MODEL_PORT,
@@ -88,6 +96,7 @@ import { TopicService } from './topic.service'
     TopicStateService,
     TurnService,
     ContextManager,
+    EducationalAnalysisRepository,
     ANALYSIS_MODEL_PORT,
   ],
 })

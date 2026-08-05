@@ -197,6 +197,14 @@ enum ResolutionEvidenceStrength {
   @@map("resolution_evidence_strength")
 }
 
+enum EducationalAnalysisEvidenceKind {
+  TOP_LEVEL
+  EFFORT
+  LEARNING
+
+  @@map("educational_analysis_evidence_kind")
+}
+
 model User {
   id                String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email             String     @unique(map: "users_email_key") @db.Citext
@@ -385,11 +393,12 @@ model Topic {
   updatedAt  DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   resolvedAt DateTime?   @map("resolved_at") @db.Timestamptz(6)
 
-  session  ChatSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
-  course   Course      @relation(fields: [courseId], references: [id], onDelete: Restrict)
-  state    TopicState?
-  turns    TutorTurn[]
-  messages Message[]   @relation("MessageTopic")
+  session             ChatSession           @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  course              Course                @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  state               TopicState?
+  turns               TutorTurn[]
+  messages            Message[]             @relation("MessageTopic")
+  educationalAnalyses EducationalAnalysis[]
 
   @@index([sessionId, status], map: "idx_topics_session_status")
   @@index([courseId, problemId], map: "idx_topics_course_problem")
@@ -437,11 +446,12 @@ model TutorTurn {
   createdAt              DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
   completedAt            DateTime?             @map("completed_at") @db.Timestamptz(6)
 
-  session              ChatSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
-  topic                Topic?      @relation(fields: [topicId], references: [id], onDelete: SetNull)
-  studentMessage       Message?    @relation("TutorTurnStudentMessage", fields: [studentMessageId], references: [id], onDelete: SetNull)
-  approvedTutorMessage Message?    @relation("TutorTurnApprovedTutorMessage", fields: [approvedTutorMessageId], references: [id], onDelete: SetNull)
-  messages             Message[]   @relation("MessageTurn")
+  session              ChatSession           @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  topic                Topic?                @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  studentMessage       Message?              @relation("TutorTurnStudentMessage", fields: [studentMessageId], references: [id], onDelete: SetNull)
+  approvedTutorMessage Message?              @relation("TutorTurnApprovedTutorMessage", fields: [approvedTutorMessageId], references: [id], onDelete: SetNull)
+  messages             Message[]             @relation("MessageTurn")
+  educationalAnalyses  EducationalAnalysis[]
 
   @@unique([sessionId, idempotencyKey], map: "tutor_turns_session_id_idempotency_key_key")
   @@index([topicId], map: "idx_tutor_turns_topic")
@@ -475,16 +485,19 @@ model Message {
   createdAt               DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
   completedAt             DateTime?             @map("completed_at") @db.Timestamptz(6)
 
-  session           ChatSession        @relation(fields: [sessionId], references: [id], onDelete: Restrict)
-  turn              TutorTurn?         @relation("MessageTurn", fields: [turnId], references: [id], onDelete: SetNull)
-  topic             Topic?             @relation("MessageTopic", fields: [topicId], references: [id], onDelete: SetNull)
-  author            User?              @relation("MessageAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
-  responseToMessage Message?           @relation("MessageResponse", fields: [responseToMessageId], references: [id], onDelete: SetNull)
-  response          Message?           @relation("MessageResponse")
-  retrievals        MessageRetrieval[]
-  citations         MessageCitation[]
-  studentTutorTurns TutorTurn[]        @relation("TutorTurnStudentMessage")
-  approvedTutorTurn TutorTurn?         @relation("TutorTurnApprovedTutorMessage")
+  session                          ChatSession                        @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  turn                             TutorTurn?                         @relation("MessageTurn", fields: [turnId], references: [id], onDelete: SetNull)
+  topic                            Topic?                             @relation("MessageTopic", fields: [topicId], references: [id], onDelete: SetNull)
+  author                           User?                              @relation("MessageAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
+  responseToMessage                Message?                           @relation("MessageResponse", fields: [responseToMessageId], references: [id], onDelete: SetNull)
+  response                         Message?                           @relation("MessageResponse")
+  retrievals                       MessageRetrieval[]
+  citations                        MessageCitation[]
+  studentTutorTurns                TutorTurn[]                        @relation("TutorTurnStudentMessage")
+  approvedTutorTurn                TutorTurn?                         @relation("TutorTurnApprovedTutorMessage")
+  educationalAnalyses              EducationalAnalysis[]              @relation("EducationalAnalysisStudentMessage")
+  educationalAnalysisEvidenceLinks EducationalAnalysisEvidenceLink[]
+  misconceptionAnalysisEvidence    EducationalAnalysisMisconception[] @relation("EducationalAnalysisMisconceptionEvidence")
 
   @@unique([sessionId, sequence], map: "messages_session_id_sequence_key")
   @@index([turnId], map: "idx_messages_turn")
@@ -492,6 +505,81 @@ model Message {
   @@index([authorUserId], map: "idx_messages_author")
   @@index([sessionId, status, groundingLeaseExpiresAt], map: "idx_messages_grounding_lease")
   @@map("messages")
+}
+
+model EducationalAnalysis {
+  id                                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  turnId                             String             @map("turn_id") @db.Uuid
+  topicId                            String             @map("topic_id") @db.Uuid
+  studentMessageId                   String             @map("student_message_id") @db.Uuid
+  attempt                            Int                @default(1)
+  requestKind                        MessageRequestKind @map("request_kind")
+  studentState                       StudentState       @map("student_state")
+  effortPresent                      Boolean            @map("effort_present")
+  effortQuality                      String             @map("effort_quality") @db.VarChar(20)
+  effortType                         String?            @map("effort_type") @db.VarChar(40)
+  effortAddressesPreviousTutorAction Boolean            @map("effort_addresses_previous_tutor_action")
+  effortIsRepeated                   Boolean            @map("effort_is_repeated")
+  learningEvidencePresent            Boolean            @map("learning_evidence_present")
+  learningEvidenceStrength           String             @map("learning_evidence_strength") @db.VarChar(20)
+  topicRelation                      String             @map("topic_relation") @db.VarChar(40)
+  recommendedStrategy                TeachingStrategy   @map("recommended_strategy")
+  recommendedTechnique               TeachingTechnique  @map("recommended_technique")
+  recommendedGuidanceLevel           Int                @map("recommended_guidance_level") @db.SmallInt
+  confidence                         Float
+  provider                           String             @db.VarChar(80)
+  model                              String             @db.VarChar(200)
+  modelVersion                       String?            @map("model_version") @db.VarChar(200)
+  promptVersion                      String             @map("prompt_version") @db.VarChar(80)
+  schemaVersion                      String             @map("schema_version") @db.VarChar(80)
+  inputTokens                        Int?               @map("input_tokens")
+  outputTokens                       Int?               @map("output_tokens")
+  latencyMs                          Int?               @map("latency_ms")
+  createdAt                          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  turn           TutorTurn                          @relation(fields: [turnId], references: [id], onDelete: Restrict)
+  topic          Topic                              @relation(fields: [topicId], references: [id], onDelete: Restrict)
+  studentMessage Message                            @relation("EducationalAnalysisStudentMessage", fields: [studentMessageId], references: [id], onDelete: Restrict)
+  evidenceLinks  EducationalAnalysisEvidenceLink[]
+  misconceptions EducationalAnalysisMisconception[]
+
+  @@unique([turnId, attempt], map: "educational_analyses_turn_id_attempt_key")
+  @@index([topicId, createdAt], map: "idx_educational_analyses_topic_created")
+  @@index([studentMessageId], map: "idx_educational_analyses_student_message")
+  @@map("educational_analyses")
+}
+
+model EducationalAnalysisEvidenceLink {
+  id         String                          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  analysisId String                          @map("analysis_id") @db.Uuid
+  messageId  String                          @map("message_id") @db.Uuid
+  kind       EducationalAnalysisEvidenceKind
+  ordinal    Int
+  createdAt  DateTime                        @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  analysis EducationalAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  message  Message             @relation(fields: [messageId], references: [id], onDelete: Restrict)
+
+  @@unique([analysisId, kind, ordinal], map: "educational_analysis_evidence_links_analysis_kind_ordinal_key")
+  @@index([messageId], map: "idx_educational_analysis_evidence_links_message")
+  @@map("educational_analysis_evidence_links")
+}
+
+model EducationalAnalysisMisconception {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  analysisId        String   @map("analysis_id") @db.Uuid
+  code              String   @db.VarChar(64)
+  description       String   @db.Text
+  confidence        Float
+  evidenceMessageId String   @map("evidence_message_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  analysis        EducationalAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  evidenceMessage Message             @relation("EducationalAnalysisMisconceptionEvidence", fields: [evidenceMessageId], references: [id], onDelete: Restrict)
+
+  @@index([analysisId], map: "idx_educational_analysis_misconceptions_analysis")
+  @@index([evidenceMessageId], map: "idx_educational_analysis_misconceptions_evidence")
+  @@map("educational_analysis_misconceptions")
 }
 
 model MessageRetrieval {
