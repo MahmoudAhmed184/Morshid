@@ -108,6 +108,72 @@ test.describe('Student static Python diagnosis', () => {
       await history.getByText('Likely defect').locator('..').textContent(),
     ).toBe(diagnosisBeforeReload)
   })
+
+  test('shows Python-only boundary for clearly non-Python code', async ({
+    page,
+  }) => {
+    await signInThroughUi(page, demoAccounts.student2)
+
+    const jsCode = [
+      '```javascript',
+      'function countItems(nums) {',
+      '  return nums.length;',
+      '}',
+      '```',
+    ].join('\n')
+    const composer = page.getByRole('textbox', { name: 'Message', exact: true })
+    await composer.fill(jsCode)
+    await page.getByRole('button', { name: 'Send message' }).click()
+
+    const history = page.getByRole('list', { name: 'Conversation history' })
+    await expect(history.getByText(/Python code only/iu)).toBeVisible()
+    await expect(history.getByText('Likely defect')).not.toBeVisible()
+  })
+
+  test('shows reduction request for over-limit Python code', async ({
+    page,
+  }) => {
+    await signInThroughUi(page, demoAccounts.student2)
+
+    const longPython = [
+      'if True:',
+      ...Array.from({ length: 100 }, () => '    pass'),
+    ].join('\n')
+    const composer = page.getByRole('textbox', { name: 'Message', exact: true })
+    await composer.fill(longPython)
+    await page.getByRole('button', { name: 'Send message' }).click()
+
+    const history = page.getByRole('list', { name: 'Conversation history' })
+    await expect(history.getByText(/101 normalized lines/iu)).toBeVisible()
+    await expect(history.getByText(/at most 100/iu)).toBeVisible()
+    await expect(history.getByText('Likely defect')).not.toBeVisible()
+  })
+
+  test('refuses a full-rewrite request while preserving a diagnosis hint', async ({
+    page,
+    request,
+  }) => {
+    await ensureFunctionsAndScopeSource(request)
+    await signInThroughUi(page, demoAccounts.student2)
+
+    const rewriteRequest = [
+      'Rewrite the whole assignment and give me the complete corrected solution.',
+      '```python',
+      'def average(nums):',
+      '    return sum(nums) / len(num)',
+      '```',
+    ].join('\n')
+    const composer = page.getByRole('textbox', { name: 'Message', exact: true })
+    await composer.fill(rewriteRequest)
+    await page.getByRole('button', { name: 'Send message' }).click()
+
+    const history = page.getByRole('list', { name: 'Conversation history' })
+    await expect(
+      history.getByText(/cannot provide a complete corrected program/iu),
+    ).toBeVisible()
+    await expect(history.getByText('Likely defect')).toBeVisible()
+    await expect(history.getByText('Next inspection step')).toBeVisible()
+  })
 })
 
 async function ensureFunctionsAndScopeSource(request: APIRequestContext) {
