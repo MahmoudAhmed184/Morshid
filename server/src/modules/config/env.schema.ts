@@ -77,6 +77,19 @@ import {
   isValidOptionalTutorApiKey,
   isValidTutorModelName,
 } from '../socratic-tutor/tutor-model.configuration'
+import {
+  DEFAULT_SEMANTIC_GUARD_BASE_URL,
+  DEFAULT_SEMANTIC_GUARD_MODEL_NAME,
+  DEFAULT_SEMANTIC_GUARD_TIMEOUT_MS,
+  DETERMINISTIC_SEMANTIC_GUARD_PROVIDER,
+  MAX_SEMANTIC_GUARD_API_KEY_LENGTH,
+  MAX_SEMANTIC_GUARD_BASE_URL_LENGTH,
+  MAX_SEMANTIC_GUARD_MODEL_NAME_LENGTH,
+  MAX_SEMANTIC_GUARD_TIMEOUT_MS,
+  OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER,
+  isValidOptionalSemanticGuardApiKey,
+  isValidSemanticGuardModelName,
+} from '../socratic-tutor/semantic-guard.configuration'
 
 // The one placeholder policy for every secret this schema accepts, so a fresh
 // checkout cannot boot with a publicly known value. It is exactly the prefix the
@@ -260,6 +273,40 @@ export const envSchema = z
       .positive()
       .max(MAX_TUTOR_MODEL_TIMEOUT_MS)
       .default(DEFAULT_TUTOR_MODEL_TIMEOUT_MS),
+    SEMANTIC_GUARD_PROVIDER: z
+      .enum([
+        DETERMINISTIC_SEMANTIC_GUARD_PROVIDER,
+        OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER,
+      ])
+      .default(DETERMINISTIC_SEMANTIC_GUARD_PROVIDER),
+    SEMANTIC_GUARD_BASE_URL: z
+      .string()
+      .trim()
+      .max(MAX_SEMANTIC_GUARD_BASE_URL_LENGTH)
+      .default(DEFAULT_SEMANTIC_GUARD_BASE_URL),
+    SEMANTIC_GUARD_MODEL_NAME: z
+      .string()
+      .trim()
+      .max(MAX_SEMANTIC_GUARD_MODEL_NAME_LENGTH)
+      .refine(isValidSemanticGuardModelName, 'must be a valid model name')
+      .default(DEFAULT_SEMANTIC_GUARD_MODEL_NAME),
+    SEMANTIC_GUARD_API_KEY: z.preprocess(
+      blankAsUndefined,
+      z
+        .string()
+        .max(MAX_SEMANTIC_GUARD_API_KEY_LENGTH)
+        .refine(
+          isValidOptionalSemanticGuardApiKey,
+          'must be blank or a printable API key without whitespace',
+        )
+        .default(''),
+    ),
+    SEMANTIC_GUARD_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .max(MAX_SEMANTIC_GUARD_TIMEOUT_MS)
+      .default(DEFAULT_SEMANTIC_GUARD_TIMEOUT_MS),
     GEMINI_API_KEY: z
       .string()
       .trim()
@@ -529,6 +576,32 @@ export const envSchema = z
     }
 
     if (
+      env.SEMANTIC_GUARD_PROVIDER === OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER
+    ) {
+      try {
+        normalizeOpenAICompatibleBaseUrl(env.SEMANTIC_GUARD_BASE_URL)
+      } catch {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['SEMANTIC_GUARD_BASE_URL'],
+          message:
+            'must be HTTP localhost or HTTPS without credentials, query, or fragment',
+        })
+      }
+
+      if (
+        env.SEMANTIC_GUARD_API_KEY !== '' &&
+        isPlaceholderSecret(env.SEMANTIC_GUARD_API_KEY)
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['SEMANTIC_GUARD_API_KEY'],
+          message: 'must not use a placeholder semantic guard key',
+        })
+      }
+    }
+
+    if (
       env.ANALYSIS_MODEL_PROVIDER ===
         OPENAI_COMPATIBLE_ANALYSIS_MODEL_PROVIDER &&
       env.TUTOR_MODEL_PROVIDER === OPENAI_COMPATIBLE_TUTOR_MODEL_PROVIDER &&
@@ -539,6 +612,35 @@ export const envSchema = z
         path: ['TUTOR_MODEL_NAME'],
         message:
           'must differ from ANALYSIS_MODEL_NAME so tutor and analysis model roles cannot alias the same production model identifier',
+      })
+    }
+
+    if (
+      env.SEMANTIC_GUARD_PROVIDER ===
+        OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER &&
+      env.ANALYSIS_MODEL_PROVIDER ===
+        OPENAI_COMPATIBLE_ANALYSIS_MODEL_PROVIDER &&
+      env.SEMANTIC_GUARD_MODEL_NAME === env.ANALYSIS_MODEL_NAME
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['SEMANTIC_GUARD_MODEL_NAME'],
+        message:
+          'must differ from ANALYSIS_MODEL_NAME so semantic guard and analysis roles cannot alias the same production model identifier',
+      })
+    }
+
+    if (
+      env.SEMANTIC_GUARD_PROVIDER ===
+        OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER &&
+      env.TUTOR_MODEL_PROVIDER === OPENAI_COMPATIBLE_TUTOR_MODEL_PROVIDER &&
+      env.SEMANTIC_GUARD_MODEL_NAME === env.TUTOR_MODEL_NAME
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['SEMANTIC_GUARD_MODEL_NAME'],
+        message:
+          'must differ from TUTOR_MODEL_NAME so semantic guard and tutor roles cannot alias the same production model identifier',
       })
     }
 
