@@ -64,6 +64,19 @@ import {
   isValidOptionalAnalysisApiKey,
   normalizeOpenAICompatibleBaseUrl,
 } from '../socratic-tutor/analysis-model.configuration'
+import {
+  DEFAULT_TUTOR_MODEL_BASE_URL,
+  DEFAULT_TUTOR_MODEL_NAME,
+  DEFAULT_TUTOR_MODEL_TIMEOUT_MS,
+  DETERMINISTIC_TUTOR_MODEL_PROVIDER,
+  MAX_TUTOR_MODEL_API_KEY_LENGTH,
+  MAX_TUTOR_MODEL_BASE_URL_LENGTH,
+  MAX_TUTOR_MODEL_NAME_LENGTH,
+  MAX_TUTOR_MODEL_TIMEOUT_MS,
+  OPENAI_COMPATIBLE_TUTOR_MODEL_PROVIDER,
+  isValidOptionalTutorApiKey,
+  isValidTutorModelName,
+} from '../socratic-tutor/tutor-model.configuration'
 
 // The one placeholder policy for every secret this schema accepts, so a fresh
 // checkout cannot boot with a publicly known value. It is exactly the prefix the
@@ -213,6 +226,40 @@ export const envSchema = z
       .min(0)
       .max(MAX_ANALYSIS_MODEL_MAX_RETRIES)
       .default(DEFAULT_ANALYSIS_MODEL_MAX_RETRIES),
+    TUTOR_MODEL_PROVIDER: z
+      .enum([
+        DETERMINISTIC_TUTOR_MODEL_PROVIDER,
+        OPENAI_COMPATIBLE_TUTOR_MODEL_PROVIDER,
+      ])
+      .default(DETERMINISTIC_TUTOR_MODEL_PROVIDER),
+    TUTOR_MODEL_BASE_URL: z
+      .string()
+      .trim()
+      .max(MAX_TUTOR_MODEL_BASE_URL_LENGTH)
+      .default(DEFAULT_TUTOR_MODEL_BASE_URL),
+    TUTOR_MODEL_NAME: z
+      .string()
+      .trim()
+      .max(MAX_TUTOR_MODEL_NAME_LENGTH)
+      .refine(isValidTutorModelName, 'must be a valid model name')
+      .default(DEFAULT_TUTOR_MODEL_NAME),
+    TUTOR_MODEL_API_KEY: z.preprocess(
+      blankAsUndefined,
+      z
+        .string()
+        .max(MAX_TUTOR_MODEL_API_KEY_LENGTH)
+        .refine(
+          isValidOptionalTutorApiKey,
+          'must be blank or a printable API key without whitespace',
+        )
+        .default(''),
+    ),
+    TUTOR_MODEL_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .max(MAX_TUTOR_MODEL_TIMEOUT_MS)
+      .default(DEFAULT_TUTOR_MODEL_TIMEOUT_MS),
     GEMINI_API_KEY: z
       .string()
       .trim()
@@ -455,6 +502,44 @@ export const envSchema = z
           message: 'must not use a placeholder analysis model key',
         })
       }
+    }
+
+    if (env.TUTOR_MODEL_PROVIDER === OPENAI_COMPATIBLE_TUTOR_MODEL_PROVIDER) {
+      try {
+        normalizeOpenAICompatibleBaseUrl(env.TUTOR_MODEL_BASE_URL)
+      } catch {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['TUTOR_MODEL_BASE_URL'],
+          message:
+            'must be HTTP localhost or HTTPS without credentials, query, or fragment',
+        })
+      }
+
+      if (
+        env.TUTOR_MODEL_API_KEY !== '' &&
+        isPlaceholderSecret(env.TUTOR_MODEL_API_KEY)
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['TUTOR_MODEL_API_KEY'],
+          message: 'must not use a placeholder tutor model key',
+        })
+      }
+    }
+
+    if (
+      env.ANALYSIS_MODEL_PROVIDER ===
+        OPENAI_COMPATIBLE_ANALYSIS_MODEL_PROVIDER &&
+      env.TUTOR_MODEL_PROVIDER === OPENAI_COMPATIBLE_TUTOR_MODEL_PROVIDER &&
+      env.ANALYSIS_MODEL_NAME === env.TUTOR_MODEL_NAME
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['TUTOR_MODEL_NAME'],
+        message:
+          'must differ from ANALYSIS_MODEL_NAME so tutor and analysis model roles cannot alias the same production model identifier',
+      })
     }
 
     // Gated exactly like the completion providers: selecting one live provider

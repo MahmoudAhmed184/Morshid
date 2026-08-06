@@ -10,37 +10,32 @@ import {
   readAbortSignalAborted,
 } from '../completion/completion-input'
 import {
-  ANALYSIS_MODEL_ERROR_CODE,
-  type AnalysisModelPort,
-  type AnalysisModelRequest,
-  type AnalysisModelResponse,
-  AnalysisModelError,
-} from './analysis-model.port'
+  DETERMINISTIC_TUTOR_MODEL_PROVIDER,
+  OPENAI_COMPATIBLE_TUTOR_MODEL_PROVIDER,
+  type OpenAICompatibleTutorConfiguration,
+  type TutorModelConfiguration,
+  validateOpenAICompatibleTutorConfiguration,
+  validateTutorModelConfiguration,
+} from './tutor-model.configuration'
 import {
-  DETERMINISTIC_ANALYSIS_MODEL_PROVIDER,
-  OPENAI_COMPATIBLE_ANALYSIS_MODEL_PROVIDER,
-  type AnalysisModelConfiguration,
-  type OpenAICompatibleAnalysisConfiguration,
-  validateAnalysisModelConfiguration,
-  validateOpenAICompatibleAnalysisConfiguration,
-} from './analysis-model.configuration'
-import { EDUCATIONAL_ANALYSIS_PROMPT_VERSION } from './educational-analysis.prompt'
+  TUTOR_GENERATION_FAILURE_CODE,
+  type TutorGenerationFailureCode,
+  TUTOR_MODEL_ERROR_CODE,
+  type TutorModelErrorCode,
+  TutorModelError,
+  type TutorModelPort,
+  type TutorModelRequest,
+  type TutorModelResponse,
+} from './tutor-generation.types'
+import { TUTOR_GENERATION_PROMPT_VERSION } from './tutor-prompt.registry'
 import {
-  EFFORT_QUALITY,
-  LEARNING_EVIDENCE_STRENGTH,
-} from './educational-analysis.types'
-import {
-  MessageRequestKind,
-  StudentState,
   TeachingStrategy,
   TeachingTechnique,
 } from '../../generated/prisma/client'
-import { TOPIC_RESOLUTION_OUTCOME } from './topic.types'
 
-const MAX_ANALYSIS_PROVIDER_LENGTH = 80
-const MAX_ANALYSIS_MODEL_LENGTH = 200
-const MAX_ANALYSIS_MODEL_VERSION_LENGTH = 200
-const MAX_ANALYSIS_RESPONSE_BYTES = 512 * 1_024
+const MAX_TUTOR_PROVIDER_LENGTH = 80
+const MAX_TUTOR_MODEL_LENGTH = 200
+const MAX_TUTOR_RESPONSE_BYTES = 512 * 1_024
 const STRUCTURED_OUTPUT_TEMPERATURE = 0
 const STRUCTURED_OUTPUT_TOP_P = 1
 
@@ -59,54 +54,62 @@ type OpenAICompatibleFailureCategory =
   | 'blank_output'
   | 'cancelled'
 
-class OpenAICompatibleFailure extends Error {
+class OpenAICompatibleTutorFailure extends Error {
   readonly category: OpenAICompatibleFailureCategory
   readonly status: number | undefined
 
   constructor(category: OpenAICompatibleFailureCategory, status?: number) {
-    super('OpenAI-compatible analysis provider failure')
+    super('OpenAI-compatible tutor provider failure')
     this.category = category
     this.status = status
   }
 }
 
-export type AnalysisTimeoutSignalFactory = (timeoutMs: number) => AbortSignal
+interface ParsedChatCompletionResponse {
+  readonly content: string
+  readonly model?: string
+  readonly inputTokens?: number
+  readonly outputTokens?: number
+}
 
-export const defaultAnalysisTimeoutSignalFactory: AnalysisTimeoutSignalFactory =
-  (timeoutMs) => AbortSignal.timeout(timeoutMs)
+export type TutorTimeoutSignalFactory = (timeoutMs: number) => AbortSignal
 
-export function createAnalysisModelPort(
-  configuration: AnalysisModelConfiguration,
-  timeoutSignalFactory: AnalysisTimeoutSignalFactory = defaultAnalysisTimeoutSignalFactory,
-): AnalysisModelPort {
-  const snapshot = validateAnalysisModelConfiguration(configuration)
+export const defaultTutorTimeoutSignalFactory: TutorTimeoutSignalFactory = (
+  timeoutMs,
+) => AbortSignal.timeout(timeoutMs)
+
+export function createTutorModelPort(
+  configuration: TutorModelConfiguration,
+  timeoutSignalFactory: TutorTimeoutSignalFactory = defaultTutorTimeoutSignalFactory,
+): TutorModelPort {
+  const snapshot = validateTutorModelConfiguration(configuration)
   const adapter =
-    snapshot.provider === DETERMINISTIC_ANALYSIS_MODEL_PROVIDER
-      ? new DeterministicAnalysisModelAdapter()
-      : new OpenAICompatibleAnalysisModelAdapter(snapshot.openAICompatible)
+    snapshot.provider === DETERMINISTIC_TUTOR_MODEL_PROVIDER
+      ? new DeterministicTutorModelAdapter()
+      : new OpenAICompatibleTutorModelAdapter(snapshot.openAICompatible)
 
-  return new ValidatedAnalysisModelPort(
+  return new ValidatedTutorModelPort(
     adapter,
     snapshot.timeoutMs,
     timeoutSignalFactory,
   )
 }
 
-export class ValidatedAnalysisModelPort implements AnalysisModelPort {
+export class ValidatedTutorModelPort implements TutorModelPort {
   constructor(
-    private readonly inner: AnalysisModelPort,
+    private readonly inner: TutorModelPort,
     private readonly timeoutMs: number,
-    private readonly timeoutSignalFactory: AnalysisTimeoutSignalFactory = defaultAnalysisTimeoutSignalFactory,
+    private readonly timeoutSignalFactory: TutorTimeoutSignalFactory = defaultTutorTimeoutSignalFactory,
   ) {}
 
-  async analyze(request: AnalysisModelRequest): Promise<AnalysisModelResponse> {
-    assertAnalysisModelRequest(request)
+  async generate(request: TutorModelRequest): Promise<TutorModelResponse> {
+    assertTutorModelRequest(request)
 
     if (
       request.signal !== undefined &&
       readAbortSignalAborted(request.signal)
     ) {
-      throw new AnalysisModelError(ANALYSIS_MODEL_ERROR_CODE.CANCELLED)
+      throw new TutorModelError(TUTOR_MODEL_ERROR_CODE.CANCELLED)
     }
 
     let timeoutSignal: AbortSignal
@@ -116,9 +119,7 @@ export class ValidatedAnalysisModelPort implements AnalysisModelPort {
         throw new TypeError('Invalid timeout signal')
       }
     } catch {
-      throw new AnalysisModelError(
-        ANALYSIS_MODEL_ERROR_CODE.PROVIDER_UNAVAILABLE,
-      )
+      throw new TutorModelError(TUTOR_MODEL_ERROR_CODE.PROVIDER_UNAVAILABLE)
     }
 
     const signal =
@@ -137,29 +138,29 @@ export class ValidatedAnalysisModelPort implements AnalysisModelPort {
         request.signal,
         timeoutSignal,
       )
-      return validateAnalysisModelResponse({
+      return validateTutorModelResponse({
         ...response,
         latencyMs: response.latencyMs ?? Date.now() - startedAt,
       })
     } catch (error) {
       if (readAbortSignalAborted(timeoutSignal)) {
-        throw new AnalysisModelError(ANALYSIS_MODEL_ERROR_CODE.TIMEOUT)
+        throw new TutorModelError(TUTOR_MODEL_ERROR_CODE.TIMEOUT)
       }
       if (
         request.signal !== undefined &&
         readAbortSignalAborted(request.signal)
       ) {
-        throw new AnalysisModelError(ANALYSIS_MODEL_ERROR_CODE.CANCELLED)
+        throw new TutorModelError(TUTOR_MODEL_ERROR_CODE.CANCELLED)
       }
-      throw normalizeAnalysisModelError(error)
+      throw normalizeTutorModelError(error)
     }
   }
 
   private executeInner(
-    request: AnalysisModelRequest,
+    request: TutorModelRequest,
     callerSignal: AbortSignal | undefined,
     timeoutSignal: AbortSignal,
-  ): Promise<AnalysisModelResponse> {
+  ): Promise<TutorModelResponse> {
     return new Promise((resolve, reject) => {
       let settled = false
       let callerListenerInstalled = false
@@ -180,12 +181,12 @@ export class ValidatedAnalysisModelPort implements AnalysisModelPort {
       }
       const onCallerAbort = () => {
         finish(() => {
-          reject(new AnalysisModelError(ANALYSIS_MODEL_ERROR_CODE.CANCELLED))
+          reject(new TutorModelError(TUTOR_MODEL_ERROR_CODE.CANCELLED))
         })
       }
       const onTimeout = () => {
         finish(() => {
-          reject(new AnalysisModelError(ANALYSIS_MODEL_ERROR_CODE.TIMEOUT))
+          reject(new TutorModelError(TUTOR_MODEL_ERROR_CODE.TIMEOUT))
         })
       }
 
@@ -221,22 +222,18 @@ export class ValidatedAnalysisModelPort implements AnalysisModelPort {
       } catch {
         finish(() => {
           reject(
-            new AnalysisModelError(
-              ANALYSIS_MODEL_ERROR_CODE.PROVIDER_UNAVAILABLE,
-            ),
+            new TutorModelError(TUTOR_MODEL_ERROR_CODE.PROVIDER_UNAVAILABLE),
           )
         })
         return
       }
 
-      let pending: Promise<AnalysisModelResponse>
+      let pending: Promise<TutorModelResponse>
       try {
-        pending = Promise.resolve(this.inner.analyze(request))
+        pending = Promise.resolve(this.inner.generate(request))
       } catch {
         finish(() => {
-          reject(
-            new AnalysisModelError(ANALYSIS_MODEL_ERROR_CODE.TRANSPORT_FAILURE),
-          )
+          reject(new TutorModelError(TUTOR_MODEL_ERROR_CODE.TRANSPORT_FAILURE))
         })
         return
       }
@@ -249,7 +246,7 @@ export class ValidatedAnalysisModelPort implements AnalysisModelPort {
         },
         (error: unknown) => {
           finish(() => {
-            reject(normalizeAnalysisModelError(error))
+            reject(normalizeTutorModelError(error))
           })
         },
       )
@@ -257,34 +254,31 @@ export class ValidatedAnalysisModelPort implements AnalysisModelPort {
   }
 }
 
-export class OpenAICompatibleAnalysisModelAdapter implements AnalysisModelPort {
-  private readonly logger = new Logger(
-    OpenAICompatibleAnalysisModelAdapter.name,
-  )
+export class OpenAICompatibleTutorModelAdapter implements TutorModelPort {
+  private readonly logger = new Logger(OpenAICompatibleTutorModelAdapter.name)
   private readonly endpoint: string
   private readonly modelName: string
   private readonly authorization: string | null
 
   constructor(
-    configuration: OpenAICompatibleAnalysisConfiguration,
+    configuration: OpenAICompatibleTutorConfiguration,
     private readonly fetchImplementation: FetchImplementation = globalThis.fetch,
   ) {
-    const snapshot =
-      validateOpenAICompatibleAnalysisConfiguration(configuration)
+    const snapshot = validateOpenAICompatibleTutorConfiguration(configuration)
     this.endpoint = snapshot.endpoint
     this.modelName = snapshot.modelName
     this.authorization =
       snapshot.apiKey === null ? null : `Bearer ${snapshot.apiKey}`
   }
 
-  async analyze(request: AnalysisModelRequest): Promise<AnalysisModelResponse> {
+  async generate(request: TutorModelRequest): Promise<TutorModelResponse> {
     if (
       request.signal !== undefined &&
       readAbortSignalAborted(request.signal)
     ) {
-      throw new AnalysisModelError(ANALYSIS_MODEL_ERROR_CODE.CANCELLED)
+      throw new TutorModelError(TUTOR_MODEL_ERROR_CODE.CANCELLED)
     }
-    assertAnalysisModelRequest(request)
+    assertTutorModelRequest(request)
 
     try {
       const response = await this.fetchImplementation(this.endpoint, {
@@ -313,18 +307,15 @@ export class OpenAICompatibleAnalysisModelAdapter implements AnalysisModelPort {
 
       const responseBody = await readBoundedResponseBody(
         response,
-        MAX_ANALYSIS_RESPONSE_BYTES,
+        MAX_TUTOR_RESPONSE_BYTES,
         toProviderFailure,
       )
       const parsed = parseChatCompletionResponse(responseBody)
 
       return Object.freeze({
         rawOutput: parseStructuredOutput(parsed.content),
-        provider: OPENAI_COMPATIBLE_ANALYSIS_MODEL_PROVIDER,
+        provider: OPENAI_COMPATIBLE_TUTOR_MODEL_PROVIDER,
         model: parsed.model ?? this.modelName,
-        ...(parsed.systemFingerprint === undefined
-          ? {}
-          : { modelVersion: parsed.systemFingerprint }),
         promptVersion: request.promptVersion,
         ...(parsed.inputTokens === undefined
           ? {}
@@ -339,18 +330,18 @@ export class OpenAICompatibleAnalysisModelAdapter implements AnalysisModelPort {
         readAbortSignalAborted(request.signal)
       ) {
         this.logProviderFailure('cancelled', undefined)
-        throw new AnalysisModelError(ANALYSIS_MODEL_ERROR_CODE.CANCELLED)
+        throw new TutorModelError(TUTOR_MODEL_ERROR_CODE.CANCELLED)
       }
-      if (error instanceof OpenAICompatibleFailure) {
+      if (error instanceof OpenAICompatibleTutorFailure) {
         this.logProviderFailure(error.category, error.status)
         throw mapProviderFailure(error)
       }
-      if (error instanceof AnalysisModelError) {
+      if (error instanceof TutorModelError) {
         throw error
       }
 
       this.logProviderFailure('transport', undefined)
-      throw new AnalysisModelError(ANALYSIS_MODEL_ERROR_CODE.TRANSPORT_FAILURE)
+      throw new TutorModelError(TUTOR_MODEL_ERROR_CODE.TRANSPORT_FAILURE)
     }
   }
 
@@ -358,7 +349,7 @@ export class OpenAICompatibleAnalysisModelAdapter implements AnalysisModelPort {
     category: OpenAICompatibleFailureCategory,
     status: number | undefined,
   ): void {
-    const diagnostic = `OpenAI-compatible educational analysis failed (category=${category}, status=${status === undefined ? 'none' : String(status)}, model=${this.modelName})`
+    const diagnostic = `OpenAI-compatible tutor generation failed (category=${category}, status=${status === undefined ? 'none' : String(status)}, model=${this.modelName})`
 
     if (category === 'cancelled') {
       this.logger.warn(diagnostic)
@@ -368,69 +359,82 @@ export class OpenAICompatibleAnalysisModelAdapter implements AnalysisModelPort {
   }
 }
 
-export class DeterministicAnalysisModelAdapter implements AnalysisModelPort {
-  analyze(request: AnalysisModelRequest): Promise<AnalysisModelResponse> {
-    assertAnalysisModelRequest(request)
+export class DeterministicTutorModelAdapter implements TutorModelPort {
+  generate(request: TutorModelRequest): Promise<TutorModelResponse> {
+    assertTutorModelRequest(request)
 
     if (
       request.signal !== undefined &&
       readAbortSignalAborted(request.signal)
     ) {
-      throw new AnalysisModelError(ANALYSIS_MODEL_ERROR_CODE.CANCELLED)
+      throw new TutorModelError(TUTOR_MODEL_ERROR_CODE.CANCELLED)
     }
 
-    const evidenceMessageId = extractCurrentMessageId(request)
     return Promise.resolve(
       Object.freeze({
         rawOutput: Object.freeze({
-          requestKind: MessageRequestKind.AMBIGUOUS,
-          studentState: StudentState.UNKNOWN,
-          effortEvidence: Object.freeze({
-            present: false,
-            quality: EFFORT_QUALITY.NONE,
-            type: null,
-            addressesPreviousTutorAction: false,
-            isRepeated: false,
-            evidenceMessageIds: Object.freeze([]),
+          message:
+            'What is one small step you can try next using the cited course evidence?',
+          responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
+          usedCitationIds: Object.freeze(extractAllowedCitationIds(request)),
+          requiresStudentAction: true,
+          studentAction: Object.freeze({
+            type: TeachingTechnique.ORIENTATION_QUESTION,
+            description: 'Ask the student to identify the next reasoning step.',
           }),
-          learningEvidence: Object.freeze({
-            present: false,
-            strength: LEARNING_EVIDENCE_STRENGTH.NONE,
-            evidenceMessageIds: Object.freeze([]),
+          reflectionIncluded: false,
+          selfReportedCompliance: Object.freeze({
+            finalAnswerRevealed: false,
+            completeSolutionRevealed: false,
           }),
-          misconceptions: Object.freeze([]),
-          topicRelation: TOPIC_RESOLUTION_OUTCOME.CONTINUE_CURRENT_TOPIC,
-          recommendedStrategy: TeachingStrategy.SOCRATIC_QUESTIONING,
-          recommendedTechnique: TeachingTechnique.ORIENTATION_QUESTION,
-          recommendedGuidanceLevel: 1,
-          confidence: 0.2,
-          evidenceReferences: Object.freeze([evidenceMessageId]),
         }),
-        provider: DETERMINISTIC_ANALYSIS_MODEL_PROVIDER,
-        model: 'deterministic-analysis-v1',
-        modelVersion: 'deterministic-analysis-v1',
+        provider: DETERMINISTIC_TUTOR_MODEL_PROVIDER,
+        model: 'deterministic-tutor-generation-v1',
         promptVersion: request.promptVersion,
       }),
     )
   }
 }
 
-interface ParsedChatCompletionResponse {
-  readonly content: string
-  readonly model?: string
-  readonly systemFingerprint?: string
-  readonly inputTokens?: number
-  readonly outputTokens?: number
+export function tutorFailureFromModelError(
+  error: unknown,
+): TutorGenerationFailureCode {
+  if (!(error instanceof TutorModelError)) {
+    return TUTOR_GENERATION_FAILURE_CODE.TUTOR_PROVIDER_TRANSPORT
+  }
+
+  return tutorFailureFromTutorCode(error.code)
 }
 
-function assertAnalysisModelRequest(request: AnalysisModelRequest): void {
-  const value: unknown = request
-  if (!isAnalysisModelRequest(value)) {
-    throw new AnalysisModelError(ANALYSIS_MODEL_ERROR_CODE.UNSUPPORTED_RESPONSE)
+function tutorFailureFromTutorCode(
+  code: TutorModelErrorCode,
+): TutorGenerationFailureCode {
+  switch (code) {
+    case TUTOR_MODEL_ERROR_CODE.TIMEOUT:
+      return TUTOR_GENERATION_FAILURE_CODE.TUTOR_PROVIDER_TIMEOUT
+    case TUTOR_MODEL_ERROR_CODE.RATE_LIMITED:
+      return TUTOR_GENERATION_FAILURE_CODE.TUTOR_PROVIDER_RATE_LIMIT
+    case TUTOR_MODEL_ERROR_CODE.PROVIDER_UNAVAILABLE:
+    case TUTOR_MODEL_ERROR_CODE.CONFIGURATION_INVALID:
+    case TUTOR_MODEL_ERROR_CODE.CANCELLED:
+      return TUTOR_GENERATION_FAILURE_CODE.TUTOR_PROVIDER_UNAVAILABLE
+    case TUTOR_MODEL_ERROR_CODE.MALFORMED_OUTPUT:
+      return TUTOR_GENERATION_FAILURE_CODE.TUTOR_MALFORMED_OUTPUT
+    case TUTOR_MODEL_ERROR_CODE.UNSUPPORTED_RESPONSE:
+      return TUTOR_GENERATION_FAILURE_CODE.TUTOR_INVALID_OUTPUT
+    case TUTOR_MODEL_ERROR_CODE.TRANSPORT_FAILURE:
+      return TUTOR_GENERATION_FAILURE_CODE.TUTOR_PROVIDER_TRANSPORT
   }
 }
 
-function isAnalysisModelRequest(value: unknown): value is AnalysisModelRequest {
+function assertTutorModelRequest(request: TutorModelRequest): void {
+  const value: unknown = request
+  if (!isTutorModelRequest(value)) {
+    throw new TutorModelError(TUTOR_MODEL_ERROR_CODE.UNSUPPORTED_RESPONSE)
+  }
+}
+
+function isTutorModelRequest(value: unknown): value is TutorModelRequest {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     return false
   }
@@ -440,8 +444,8 @@ function isAnalysisModelRequest(value: unknown): value is AnalysisModelRequest {
   const messages: unknown = Reflect.get(value, 'messages')
 
   if (
-    promptVersion !== EDUCATIONAL_ANALYSIS_PROMPT_VERSION ||
-    responseSchemaName !== 'EducationalAnalysisResult' ||
+    promptVersion !== TUTOR_GENERATION_PROMPT_VERSION ||
+    responseSchemaName !== 'CandidateResponse' ||
     !Array.isArray(messages) ||
     messages.length !== 2
   ) {
@@ -452,12 +456,12 @@ function isAnalysisModelRequest(value: unknown): value is AnalysisModelRequest {
   const userMessage: unknown = messages[1]
 
   return (
-    isAnalysisMessage(systemMessage, 'system') &&
-    isAnalysisMessage(userMessage, 'user')
+    isTutorMessage(systemMessage, 'system') &&
+    isTutorMessage(userMessage, 'user')
   )
 }
 
-function isAnalysisMessage(value: unknown, role: 'system' | 'user'): boolean {
+function isTutorMessage(value: unknown, role: 'system' | 'user'): boolean {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     return false
   }
@@ -470,32 +474,27 @@ function isAnalysisMessage(value: unknown, role: 'system' | 'user'): boolean {
   )
 }
 
-function validateAnalysisModelResponse(
-  response: AnalysisModelResponse,
-): AnalysisModelResponse {
+function validateTutorModelResponse(
+  response: TutorModelResponse,
+): TutorModelResponse {
+  const promptVersion: unknown = Reflect.get(response, 'promptVersion')
+
   if (
-    !isBoundedMetadata(response.provider, MAX_ANALYSIS_PROVIDER_LENGTH) ||
-    !isBoundedMetadata(response.model, MAX_ANALYSIS_MODEL_LENGTH) ||
-    !isOptionalBoundedMetadata(
-      response.modelVersion,
-      MAX_ANALYSIS_MODEL_VERSION_LENGTH,
-    ) ||
-    response.promptVersion !== EDUCATIONAL_ANALYSIS_PROMPT_VERSION ||
+    !isBoundedMetadata(response.provider, MAX_TUTOR_PROVIDER_LENGTH) ||
+    !isBoundedMetadata(response.model, MAX_TUTOR_MODEL_LENGTH) ||
+    promptVersion !== TUTOR_GENERATION_PROMPT_VERSION ||
     !isOptionalTokenCount(response.inputTokens) ||
     !isOptionalTokenCount(response.outputTokens) ||
     !isOptionalLatency(response.latencyMs)
   ) {
-    throw new AnalysisModelError(ANALYSIS_MODEL_ERROR_CODE.UNSUPPORTED_RESPONSE)
+    throw new TutorModelError(TUTOR_MODEL_ERROR_CODE.UNSUPPORTED_RESPONSE)
   }
 
   return Object.freeze({
     rawOutput: response.rawOutput,
     provider: response.provider,
     model: response.model,
-    ...(response.modelVersion === undefined
-      ? {}
-      : { modelVersion: response.modelVersion }),
-    promptVersion: response.promptVersion,
+    promptVersion: TUTOR_GENERATION_PROMPT_VERSION,
     ...(response.inputTokens === undefined
       ? {}
       : { inputTokens: response.inputTokens }),
@@ -508,11 +507,11 @@ function validateAnalysisModelResponse(
   })
 }
 
-function normalizeAnalysisModelError(error: unknown): AnalysisModelError {
-  if (error instanceof AnalysisModelError) {
-    return new AnalysisModelError(error.code)
+function normalizeTutorModelError(error: unknown): TutorModelError {
+  if (error instanceof TutorModelError) {
+    return new TutorModelError(error.code)
   }
-  return new AnalysisModelError(ANALYSIS_MODEL_ERROR_CODE.TRANSPORT_FAILURE)
+  return new TutorModelError(TUTOR_MODEL_ERROR_CODE.TRANSPORT_FAILURE)
 }
 
 function removeAbortListenerSafely(
@@ -546,16 +545,16 @@ function parseChatCompletionResponse(
   try {
     parsed = JSON.parse(body)
   } catch {
-    throw new OpenAICompatibleFailure('malformed_response')
+    throw new OpenAICompatibleTutorFailure('malformed_response')
   }
 
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    throw new OpenAICompatibleFailure('malformed_response')
+    throw new OpenAICompatibleTutorFailure('malformed_response')
   }
 
   const choices: unknown = Reflect.get(parsed, 'choices')
   if (!Array.isArray(choices) || choices.length === 0) {
-    throw new OpenAICompatibleFailure('malformed_response')
+    throw new OpenAICompatibleTutorFailure('malformed_response')
   }
 
   const firstChoice: unknown = choices[0]
@@ -564,7 +563,7 @@ function parseChatCompletionResponse(
     firstChoice === null ||
     Array.isArray(firstChoice)
   ) {
-    throw new OpenAICompatibleFailure('malformed_response')
+    throw new OpenAICompatibleTutorFailure('malformed_response')
   }
 
   const message: unknown = Reflect.get(firstChoice, 'message')
@@ -573,18 +572,15 @@ function parseChatCompletionResponse(
     message === null ||
     Array.isArray(message)
   ) {
-    throw new OpenAICompatibleFailure('malformed_response')
+    throw new OpenAICompatibleTutorFailure('malformed_response')
   }
 
   const content: unknown = Reflect.get(message, 'content')
   if (typeof content !== 'string' || content.trim() === '') {
-    throw new OpenAICompatibleFailure('blank_output')
+    throw new OpenAICompatibleTutorFailure('blank_output')
   }
 
   const model = optionalString(Reflect.get(parsed, 'model'))
-  const systemFingerprint = optionalString(
-    Reflect.get(parsed, 'system_fingerprint'),
-  )
   const usage: unknown = Reflect.get(parsed, 'usage')
   const inputTokens =
     typeof usage === 'object' && usage !== null
@@ -598,7 +594,6 @@ function parseChatCompletionResponse(
   return Object.freeze({
     content,
     ...(model === undefined ? {} : { model }),
-    ...(systemFingerprint === undefined ? {} : { systemFingerprint }),
     ...(inputTokens === undefined ? {} : { inputTokens }),
     ...(outputTokens === undefined ? {} : { outputTokens }),
   })
@@ -616,58 +611,71 @@ function parseStructuredOutput(outputText: string): unknown {
     }
     return parsed
   } catch {
-    throw new AnalysisModelError(ANALYSIS_MODEL_ERROR_CODE.MALFORMED_OUTPUT)
+    throw new TutorModelError(TUTOR_MODEL_ERROR_CODE.MALFORMED_OUTPUT)
   }
 }
 
-function httpStatusFailure(status: number): OpenAICompatibleFailure {
+function httpStatusFailure(status: number): OpenAICompatibleTutorFailure {
   if (status === 429) {
-    return new OpenAICompatibleFailure('rate_limited', status)
+    return new OpenAICompatibleTutorFailure('rate_limited', status)
   }
   if (status === 502 || status === 503 || status === 504) {
-    return new OpenAICompatibleFailure('provider_unavailable', status)
+    return new OpenAICompatibleTutorFailure('provider_unavailable', status)
   }
-  return new OpenAICompatibleFailure('http_status', status)
+  return new OpenAICompatibleTutorFailure('http_status', status)
 }
 
 function mapProviderFailure(
-  failure: OpenAICompatibleFailure,
-): AnalysisModelError {
+  failure: OpenAICompatibleTutorFailure,
+): TutorModelError {
   switch (failure.category) {
     case 'rate_limited':
-      return new AnalysisModelError(ANALYSIS_MODEL_ERROR_CODE.RATE_LIMITED)
+      return new TutorModelError(TUTOR_MODEL_ERROR_CODE.RATE_LIMITED)
     case 'provider_unavailable':
-      return new AnalysisModelError(
-        ANALYSIS_MODEL_ERROR_CODE.PROVIDER_UNAVAILABLE,
-      )
+      return new TutorModelError(TUTOR_MODEL_ERROR_CODE.PROVIDER_UNAVAILABLE)
     case 'malformed_response':
     case 'oversized_response':
     case 'blank_output':
-      return new AnalysisModelError(ANALYSIS_MODEL_ERROR_CODE.MALFORMED_OUTPUT)
+      return new TutorModelError(TUTOR_MODEL_ERROR_CODE.MALFORMED_OUTPUT)
     case 'cancelled':
-      return new AnalysisModelError(ANALYSIS_MODEL_ERROR_CODE.CANCELLED)
+      return new TutorModelError(TUTOR_MODEL_ERROR_CODE.CANCELLED)
     case 'http_status':
     case 'transport':
-      return new AnalysisModelError(ANALYSIS_MODEL_ERROR_CODE.TRANSPORT_FAILURE)
+      return new TutorModelError(TUTOR_MODEL_ERROR_CODE.TRANSPORT_FAILURE)
   }
 }
 
 function toProviderFailure(
   rejection: BoundedResponseBodyRejection,
-): OpenAICompatibleFailure {
-  return new OpenAICompatibleFailure(
+): OpenAICompatibleTutorFailure {
+  return new OpenAICompatibleTutorFailure(
     rejection === 'oversized_body'
       ? 'oversized_response'
       : 'malformed_response',
   )
 }
 
-function extractCurrentMessageId(request: AnalysisModelRequest): string {
+function extractAllowedCitationIds(
+  request: TutorModelRequest,
+): readonly string[] {
   const userContent = request.messages[1].content
-  const match = /"studentMessage":\{"id":"(?<messageId>[^"]+)"/u.exec(
+  const match = /"allowedCitationIds":\[(?<ids>(?:"[^"]*"(?:,)?)*)\]/u.exec(
     userContent,
   )
-  return match?.groups?.messageId ?? 'analysis-context-message'
+  if (match?.groups?.ids === undefined || match.groups.ids.trim() === '') {
+    return Object.freeze([])
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(`[${match.groups.ids}]`)
+    return Array.isArray(parsed)
+      ? Object.freeze(
+          parsed.filter((value): value is string => typeof value === 'string'),
+        )
+      : Object.freeze([])
+  } catch {
+    return Object.freeze([])
+  }
 }
 
 function optionalString(value: unknown): string | undefined {
@@ -686,13 +694,6 @@ function isBoundedMetadata(value: unknown, maximum: number): value is string {
     value.trim() !== '' &&
     hasAtMostCodePoints(value, maximum)
   )
-}
-
-function isOptionalBoundedMetadata(
-  value: unknown,
-  maximum: number,
-): value is string | undefined {
-  return value === undefined || isBoundedMetadata(value, maximum)
 }
 
 function isOptionalTokenCount(value: unknown): value is number | undefined {
