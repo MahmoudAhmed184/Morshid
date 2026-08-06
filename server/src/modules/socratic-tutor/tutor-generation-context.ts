@@ -69,8 +69,19 @@ export function buildGenerationContextPackage(input: {
       retrievedEvidence: Object.freeze(retrievedEvidence),
       allowedCitationIds: Object.freeze(allowedCitationIds),
       conversationLanguage: input.analysisContext.conversationLanguage,
+      regeneration: null,
     }),
   }
+}
+
+export function withRegenerationContext(
+  context: GenerationContextPackage,
+  regeneration: GenerationContextPackage['regeneration'],
+): GenerationContextPackage {
+  return Object.freeze({
+    ...context,
+    regeneration,
+  })
 }
 
 function toEvidenceContext(

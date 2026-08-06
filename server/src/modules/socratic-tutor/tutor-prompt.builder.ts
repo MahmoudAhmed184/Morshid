@@ -136,6 +136,30 @@ function buildTutorUserPrompt(context: GenerationContextPackage): string {
       citationInstruction:
         'usedCitationIds must be a subset of allowedCitationIds and may be empty only when evidence is insufficient for a citation.',
     }),
+    ...(context.regeneration === null
+      ? []
+      : [
+          TRUSTED_BACKEND_POLICY_BEGIN_MARKER,
+          section('8b. Bounded Regeneration Instructions', {
+            promptVersion: context.regeneration.promptVersion,
+            candidateAttempt: context.regeneration.candidateAttempt,
+            rejectedStage: context.regeneration.previousValidation.stage,
+            maximumSeverity:
+              context.regeneration.previousValidation.maximumSeverity,
+            violations: context.regeneration.previousValidation.violations.map(
+              (violation) => ({
+                type: violation.type,
+                severity: violation.severity,
+                field: violation.field,
+                evidence: violation.evidence,
+                regenerationInstruction: violation.regenerationInstruction,
+              }),
+            ),
+            invariant:
+              'Preserve TeachingDecision, Guidance Level, Reveal Policy, guard policy, course scope, and allowed citation IDs.',
+          }),
+          TRUSTED_BACKEND_POLICY_END_MARKER,
+        ]),
     section('9. CandidateResponse output contract', {
       message: 'string',
       responseIntent:

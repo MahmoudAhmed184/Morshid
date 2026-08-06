@@ -11,6 +11,7 @@ import type { PersistedTeachingDecisionRecord } from './teaching-decision.reposi
 import type { TopicRecord } from './topic.types'
 import type { TopicStateSnapshot } from './topic-state.types'
 import type { TUTOR_GENERATION_PROMPT_VERSION } from './tutor-prompt.registry'
+import type { ValidationResult } from './response-validation.types'
 
 export const TUTOR_RESPONSE_INTENTS = [
   'GUIDED_EXPLANATION',
@@ -102,6 +103,16 @@ export interface GenerationContextPackage {
   readonly retrievedEvidence: readonly TutorEvidenceContext[]
   readonly allowedCitationIds: readonly string[]
   readonly conversationLanguage: string | null
+  readonly regeneration: TutorRegenerationContext | null
+}
+
+export interface TutorRegenerationContext {
+  readonly promptVersion: 'tutor-regeneration.mvp.v1'
+  readonly candidateAttempt: number
+  readonly previousValidation: Pick<
+    ValidationResult,
+    'stage' | 'violations' | 'maximumSeverity'
+  >
 }
 
 export interface TutorGenerationInput {
@@ -112,6 +123,7 @@ export interface TutorGenerationInput {
   readonly studentMessageId: string
   readonly topicId: string
   readonly retrievalResult: readonly RetrievedChunk[]
+  readonly regeneration?: TutorRegenerationContext
   readonly signal?: AbortSignal
 }
 
