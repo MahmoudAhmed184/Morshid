@@ -49,6 +49,20 @@ import { PrismaTurnRepository, TurnRepository } from './turn.repository'
 import { TurnService } from './turn.service'
 import { PrismaTopicRepository, TopicRepository } from './topic.repository'
 import { TopicService } from './topic.service'
+import { StructuralResponseValidator } from './structural-response.validator'
+import { DeterministicGuardService } from './deterministic-guard.service'
+import { SemanticGuardService } from './semantic-guard.service'
+import { SafeFallbackService } from './safe-fallback.service'
+import { ResponseApprovalService } from './response-approval.service'
+import { SEMANTIC_GUARD_PORT } from './semantic-guard.types'
+import {
+  DEFAULT_SEMANTIC_GUARD_BASE_URL,
+  DEFAULT_SEMANTIC_GUARD_MODEL_NAME,
+  DEFAULT_SEMANTIC_GUARD_TIMEOUT_MS,
+  DETERMINISTIC_SEMANTIC_GUARD_PROVIDER,
+  OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER,
+} from './semantic-guard.configuration'
+import { createSemanticGuardPort } from './semantic-guard.adapter'
 
 @Module({
   imports: [ConfigModule, PrismaModule],
@@ -61,6 +75,11 @@ import { TopicService } from './topic.service'
     EducationalAnalysisService,
     TeachingPolicyEngine,
     TutorGenerationService,
+    StructuralResponseValidator,
+    DeterministicGuardService,
+    SemanticGuardService,
+    SafeFallbackService,
+    ResponseApprovalService,
     {
       provide: TopicStateRepository,
       useClass: PrismaTopicStateRepository,
@@ -175,6 +194,64 @@ import { TopicService } from './topic.service'
         })
       },
     },
+    {
+      provide: SEMANTIC_GUARD_PORT,
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService<AppEnvironment, true>) => {
+        const configuredProvider: unknown = configService.get(
+          'SEMANTIC_GUARD_PROVIDER',
+          {
+            infer: true,
+          },
+        )
+        const provider =
+          configuredProvider === OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER
+            ? OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER
+            : DETERMINISTIC_SEMANTIC_GUARD_PROVIDER
+        const configuredTimeoutMs: unknown = configService.get(
+          'SEMANTIC_GUARD_TIMEOUT_MS',
+          {
+            infer: true,
+          },
+        )
+        const timeoutMs =
+          typeof configuredTimeoutMs === 'number'
+            ? configuredTimeoutMs
+            : DEFAULT_SEMANTIC_GUARD_TIMEOUT_MS
+
+        if (provider === OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER) {
+          return createSemanticGuardPort({
+            provider,
+            timeoutMs,
+            openAICompatible: {
+              baseUrl: stringConfigValue(
+                configService.get('SEMANTIC_GUARD_BASE_URL', {
+                  infer: true,
+                }),
+                DEFAULT_SEMANTIC_GUARD_BASE_URL,
+              ),
+              modelName: stringConfigValue(
+                configService.get('SEMANTIC_GUARD_MODEL_NAME', {
+                  infer: true,
+                }),
+                DEFAULT_SEMANTIC_GUARD_MODEL_NAME,
+              ),
+              apiKey: stringConfigValue(
+                configService.get('SEMANTIC_GUARD_API_KEY', {
+                  infer: true,
+                }),
+                '',
+              ),
+            },
+          })
+        }
+
+        return createSemanticGuardPort({
+          provider: DETERMINISTIC_SEMANTIC_GUARD_PROVIDER,
+          timeoutMs,
+        })
+      },
+    },
   ],
   exports: [
     TopicService,
@@ -186,8 +263,18 @@ import { TopicService } from './topic.service'
     TeachingPolicyEngine,
     TeachingDecisionRepository,
     TutorGenerationService,
+    StructuralResponseValidator,
+    DeterministicGuardService,
+    SemanticGuardService,
+    SafeFallbackService,
+    ResponseApprovalService,
     TUTOR_MODEL_PORT,
     ANALYSIS_MODEL_PORT,
+    SEMANTIC_GUARD_PORT,
   ],
 })
 export class SocraticTutorModule {}
+
+function stringConfigValue(value: unknown, fallback: string): string {
+  return typeof value === 'string' ? value : fallback
+}

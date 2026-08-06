@@ -6,6 +6,7 @@ import { TeachingDecisionRepository } from './teaching-decision.repository'
 import {
   buildGenerationContextPackage,
   citationIdForChunk,
+  withRegenerationContext,
 } from './tutor-generation-context'
 import {
   TUTOR_GENERATION_FAILURE_CODE,
@@ -83,11 +84,12 @@ export class TutorGenerationService {
     if (!generationContext.success) {
       return failure(TUTOR_GENERATION_FAILURE_CODE.INVALID_GENERATION_CONTEXT)
     }
+    const context =
+      input.regeneration === undefined
+        ? generationContext.context
+        : withRegenerationContext(generationContext.context, input.regeneration)
 
-    const request = buildTutorGenerationModelRequest(
-      generationContext.context,
-      input.signal,
-    )
+    const request = buildTutorGenerationModelRequest(context, input.signal)
     const startedAt = Date.now()
     let modelResponse: TutorModelResponse
     try {
@@ -95,7 +97,7 @@ export class TutorGenerationService {
     } catch (error) {
       const errorCode = tutorFailureFromModelError(error)
       this.logGenerationOutcome({
-        context: generationContext.context,
+        context,
         status: 'failed',
         errorCode,
         latencyMs: Date.now() - startedAt,
@@ -126,7 +128,7 @@ export class TutorGenerationService {
     }
 
     this.logGenerationOutcome({
-      context: generationContext.context,
+      context,
       status: 'created',
       provider: validation.data.provider,
       model: validation.data.model,

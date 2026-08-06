@@ -18,6 +18,8 @@ import {
   TutorTurnFailureCode,
   TutorTurnStatus,
 } from '../src/generated/prisma/client'
+import type { RetrievedChunk } from '../src/modules/retrieval/retrieval.service'
+import type { ApprovedResponse } from '../src/modules/socratic-tutor/response-validation.types'
 import {
   setUpDisposableDatabase,
   type DisposableDatabase,
@@ -270,6 +272,111 @@ describe('TurnService persistence (e2e)', () => {
       TOPIC_STATE_ERROR_CODES.STALE_VERSION,
     )
   })
+
+  it('persists one approved tutor response and replays idempotently', async () => {
+    const fixture = await createChatFixture(prisma)
+    const graph = await createPendingTutorTurnGraph(prisma, fixture)
+    const evidence = await createRetrievedChunk(prisma, fixture)
+    const topicState = await prisma.topicState.create({
+      data: { topicId: graph.topicId },
+      select: { updatedAt: true },
+    })
+
+    const input = {
+      courseId: fixture.courseId,
+      sessionId: fixture.sessionId,
+      studentId: fixture.studentId,
+      turnId: graph.turnId,
+      topicId: graph.topicId,
+      studentMessageId: graph.studentMessageId,
+      assistantMessageId: graph.assistantMessageId,
+      approvedResponse: approvedResponse({
+        source: 'VALIDATED_CANDIDATE',
+        usedCitationIds: ['retrieval.rank.1'],
+      }),
+      guidanceLevel: 1,
+      retrievalResult: [evidence],
+    }
+
+    await expect(
+      repository.completeApprovedResponse(input),
+    ).resolves.toMatchObject({
+      kind: 'ok',
+      turn: {
+        status: TutorTurnStatus.COMPLETED,
+        approvedTutorMessageId: graph.assistantMessageId,
+        safeFallbackUsed: false,
+      },
+    })
+    await expect(
+      repository.completeApprovedResponse(input),
+    ).resolves.toMatchObject({
+      kind: 'ok',
+    })
+
+    await expect(
+      prisma.message.count({
+        where: {
+          sessionId: fixture.sessionId,
+          role: 'ASSISTANT',
+          responseToMessageId: graph.studentMessageId,
+          status: 'COMPLETED',
+        },
+      }),
+    ).resolves.toBe(1)
+    await expect(
+      prisma.messageRetrieval.count({
+        where: { messageId: graph.assistantMessageId },
+      }),
+    ).resolves.toBe(1)
+    await expect(
+      prisma.messageCitation.count({
+        where: { messageId: graph.assistantMessageId },
+      }),
+    ).resolves.toBe(1)
+    await expect(
+      prisma.topicState.findUniqueOrThrow({
+        where: { topicId: graph.topicId },
+        select: { updatedAt: true },
+      }),
+    ).resolves.toEqual(topicState)
+  })
+
+  it('persists deterministic safe fallback without citations', async () => {
+    const fixture = await createChatFixture(prisma)
+    const graph = await createPendingTutorTurnGraph(prisma, fixture)
+
+    await expect(
+      repository.completeApprovedResponse({
+        courseId: fixture.courseId,
+        sessionId: fixture.sessionId,
+        studentId: fixture.studentId,
+        turnId: graph.turnId,
+        topicId: graph.topicId,
+        studentMessageId: graph.studentMessageId,
+        assistantMessageId: graph.assistantMessageId,
+        approvedResponse: approvedResponse({
+          source: 'SAFE_FALLBACK',
+          usedCitationIds: [],
+          safeFallbackUsed: true,
+        }),
+        guidanceLevel: 1,
+        retrievalResult: [],
+      }),
+    ).resolves.toMatchObject({
+      kind: 'ok',
+      turn: {
+        status: TutorTurnStatus.COMPLETED,
+        approvedTutorMessageId: graph.assistantMessageId,
+        safeFallbackUsed: true,
+      },
+    })
+    await expect(
+      prisma.messageCitation.count({
+        where: { messageId: graph.assistantMessageId },
+      }),
+    ).resolves.toBe(0)
+  })
 })
 
 async function createChatFixture(prisma: PrismaService): Promise<ChatFixture> {
@@ -381,6 +488,152 @@ async function createStudentAndAssistantMessages(
 
   return {
     approvedTutorMessageId: assistantMessage.id,
+  }
+}
+
+async function createPendingTutorTurnGraph(
+  prisma: PrismaService,
+  fixture: ChatFixture,
+): Promise<{
+  turnId: string
+  topicId: string
+  studentMessageId: string
+  assistantMessageId: string
+}> {
+  const topic = await createTopic(prisma, fixture)
+  const turn = await prisma.tutorTurn.create({
+    data: {
+      sessionId: fixture.sessionId,
+      topicId: topic.id,
+      idempotencyKey: `approval-${randomUUID()}`,
+      status: TutorTurnStatus.VALIDATING,
+    },
+    select: { id: true },
+  })
+  const sequenceBase = Math.floor(Math.random() * 100_000) + 200_000
+  const studentMessage = await prisma.message.create({
+    data: {
+      sessionId: fixture.sessionId,
+      turnId: turn.id,
+      topicId: topic.id,
+      sequence: sequenceBase,
+      role: 'STUDENT',
+      authorUserId: fixture.studentId,
+      content: 'How should I reason about this loop?',
+      status: 'COMPLETED',
+    },
+    select: { id: true },
+  })
+  const assistantMessage = await prisma.message.create({
+    data: {
+      sessionId: fixture.sessionId,
+      turnId: turn.id,
+      topicId: topic.id,
+      sequence: sequenceBase + 1,
+      role: 'ASSISTANT',
+      responseToMessageId: studentMessage.id,
+      content: '',
+      status: 'PENDING',
+    },
+    select: { id: true },
+  })
+  await prisma.tutorTurn.update({
+    where: { id: turn.id },
+    data: { studentMessageId: studentMessage.id },
+  })
+
+  return {
+    turnId: turn.id,
+    topicId: topic.id,
+    studentMessageId: studentMessage.id,
+    assistantMessageId: assistantMessage.id,
+  }
+}
+
+async function createRetrievedChunk(
+  prisma: PrismaService,
+  fixture: ChatFixture,
+): Promise<RetrievedChunk> {
+  const material = await prisma.material.create({
+    data: {
+      courseId: fixture.courseId,
+      uploadedById: fixture.studentId,
+      title: 'Loop notes',
+      originalFilename: 'loops.pdf',
+      storagePath: `test/${randomUUID()}.pdf`,
+      status: 'READY',
+      extractedTextLength: 42,
+      chunkCount: 1,
+    },
+    select: { id: true, title: true },
+  })
+  const chunkId = randomUUID()
+  const vector = `[${Array.from({ length: 1536 }, () => '0').join(',')}]`
+  await prisma.$executeRaw`
+    INSERT INTO material_chunks (
+      id,
+      material_id,
+      chunk_index,
+      content,
+      embedding,
+      embedding_model
+    )
+    VALUES (
+      ${chunkId}::uuid,
+      ${material.id}::uuid,
+      0,
+      'Loop variables change during iteration.',
+      ${vector}::vector(1536),
+      'deterministic-embedding'
+    )
+  `
+
+  return {
+    chunkId,
+    materialId: material.id,
+    materialTitle: material.title,
+    chunkIndex: 0,
+    content: 'Loop variables change during iteration.',
+    rank: 1,
+    similarityScore: 0.9,
+  }
+}
+
+function approvedResponse(input: {
+  source: ApprovedResponse['source']
+  usedCitationIds: readonly string[]
+  safeFallbackUsed?: boolean
+}): ApprovedResponse {
+  return {
+    message:
+      input.source === 'SAFE_FALLBACK'
+        ? 'Let us narrow it down to one step. Show the last step you were confident about.'
+        : 'What value changes first in the loop? [retrieval.rank.1]',
+    responseIntent: 'SOCRATIC_QUESTIONING',
+    usedCitationIds: input.usedCitationIds,
+    requiresStudentAction: true,
+    studentAction: {
+      type: 'ORIENTATION_QUESTION',
+      description: 'Ask the student to identify one next reasoning step.',
+    },
+    reflectionIncluded: false,
+    source: input.source,
+    approvedCandidateAttempt: input.source === 'SAFE_FALLBACK' ? null : 1,
+    safeFallbackUsed: input.safeFallbackUsed ?? false,
+    approvalMetadata: {
+      provider: input.source === 'SAFE_FALLBACK' ? null : 'deterministic',
+      model: input.source === 'SAFE_FALLBACK' ? null : 'deterministic-tutor',
+      promptVersion:
+        input.source === 'SAFE_FALLBACK'
+          ? 'safe-fallback.mvp.v1'
+          : 'tutor-generation.mvp.v1',
+      inputTokens: 0,
+      outputTokens: 0,
+      validationPolicyVersion: 'response-validation.mvp.v1',
+      structuralApproved: input.source !== 'SAFE_FALLBACK',
+      deterministicApproved: input.source !== 'SAFE_FALLBACK',
+      semanticApproved: input.source === 'SAFE_FALLBACK' ? null : true,
+    },
   }
 }
 

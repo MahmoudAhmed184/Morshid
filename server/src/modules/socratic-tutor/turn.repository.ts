@@ -1,12 +1,17 @@
 import { Injectable } from '@nestjs/common'
 
 import {
+  MaterialStatus,
+  MessageGuidanceLabel,
   MessageRole,
+  MessageStatus,
   Prisma,
   TutorTurnFailureCode,
   TutorTurnStatus,
 } from '../../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import type { RetrievedChunk } from '../retrieval/retrieval.service'
+import type { ApprovedResponse } from './response-validation.types'
 import type {
   AttachResolvedTopicInput,
   AttachResolvedTopicResult,
@@ -52,7 +57,31 @@ export abstract class TurnRepository {
   abstract attachResolvedTopic(
     input: AttachResolvedTopicInput,
   ): Promise<AttachResolvedTopicResult>
+
+  abstract completeApprovedResponse(
+    input: CompleteApprovedTutorResponseInput,
+  ): Promise<CompleteApprovedTutorResponseResult>
 }
+
+export interface CompleteApprovedTutorResponseInput {
+  readonly courseId: string
+  readonly sessionId: string
+  readonly studentId: string
+  readonly turnId: string
+  readonly topicId: string
+  readonly studentMessageId: string
+  readonly assistantMessageId: string
+  readonly approvedResponse: ApprovedResponse
+  readonly guidanceLevel: number
+  readonly retrievalResult: readonly RetrievedChunk[]
+}
+
+export type CompleteApprovedTutorResponseResult =
+  | { readonly kind: 'ok'; readonly turn: TutorTurnSnapshot }
+  | { readonly kind: 'turn_not_found' }
+  | { readonly kind: 'message_not_found' }
+  | { readonly kind: 'message_not_pending' }
+  | { readonly kind: 'relationship_mismatch' }
 
 export const tutorTurnSelect = {
   id: true,
@@ -355,6 +384,176 @@ export class PrismaTurnRepository extends TurnRepository {
       return { kind: 'ok', turn: snapshot }
     })
   }
+
+  completeApprovedResponse(
+    input: CompleteApprovedTutorResponseInput,
+  ): Promise<CompleteApprovedTutorResponseResult> {
+    return this.prismaService.$transaction(async (tx) => {
+      const turn = await tx.tutorTurn.findUnique({
+        where: { id: input.turnId },
+        select: {
+          id: true,
+          sessionId: true,
+          topicId: true,
+          studentMessageId: true,
+          approvedTutorMessageId: true,
+          status: true,
+          session: {
+            select: {
+              id: true,
+              courseId: true,
+              studentId: true,
+              deletedAt: true,
+            },
+          },
+        },
+      })
+      if (turn === null) {
+        return { kind: 'turn_not_found' }
+      }
+      if (
+        turn.sessionId !== input.sessionId ||
+        turn.session.courseId !== input.courseId ||
+        turn.session.studentId !== input.studentId ||
+        turn.session.deletedAt !== null ||
+        turn.topicId !== input.topicId ||
+        turn.studentMessageId !== input.studentMessageId
+      ) {
+        return { kind: 'relationship_mismatch' }
+      }
+
+      if (
+        turn.approvedTutorMessageId !== null &&
+        turn.approvedTutorMessageId !== input.assistantMessageId
+      ) {
+        return { kind: 'relationship_mismatch' }
+      }
+
+      if (turn.status === TutorTurnStatus.COMPLETED) {
+        const existing = await tx.message.findUnique({
+          where: { id: input.assistantMessageId },
+          select: { id: true, status: true },
+        })
+        if (
+          existing?.id === turn.approvedTutorMessageId &&
+          existing.status === MessageStatus.COMPLETED
+        ) {
+          const snapshot = await tx.tutorTurn.findUniqueOrThrow({
+            where: { id: turn.id },
+            select: tutorTurnSelect,
+          })
+          return { kind: 'ok', turn: snapshot }
+        }
+        return { kind: 'relationship_mismatch' }
+      }
+
+      const evidenceOk = await selectedEvidenceIsCourseScoped(
+        tx,
+        input.courseId,
+        input.retrievalResult,
+      )
+      if (!evidenceOk) {
+        return { kind: 'relationship_mismatch' }
+      }
+
+      const now = await currentDatabaseTime(tx)
+      const messages = await tx.message.updateManyAndReturn({
+        where: {
+          id: input.assistantMessageId,
+          sessionId: input.sessionId,
+          role: MessageRole.ASSISTANT,
+          status: MessageStatus.PENDING,
+          responseToMessageId: input.studentMessageId,
+          OR: [{ turnId: null }, { turnId: input.turnId }],
+          AND: [{ OR: [{ topicId: null }, { topicId: input.topicId }] }],
+        },
+        data: {
+          status: MessageStatus.COMPLETED,
+          content: input.approvedResponse.message,
+          turnId: input.turnId,
+          topicId: input.topicId,
+          guidanceLabel: MessageGuidanceLabel.COURSE_GROUNDED,
+          hintLevel:
+            input.approvedResponse.source === 'SAFE_FALLBACK'
+              ? null
+              : input.guidanceLevel,
+          provider: input.approvedResponse.approvalMetadata.provider,
+          model: input.approvedResponse.approvalMetadata.model,
+          promptVersion: input.approvedResponse.approvalMetadata.promptVersion,
+          inputTokens: input.approvedResponse.approvalMetadata.inputTokens,
+          outputTokens: input.approvedResponse.approvalMetadata.outputTokens,
+          errorCode: null,
+          errorMessage: null,
+          completedAt: now,
+        },
+        select: { id: true },
+        limit: 1,
+      })
+      if (messages.length === 0) {
+        const existing = await tx.message.findUnique({
+          where: { id: input.assistantMessageId },
+          select: { id: true, status: true },
+        })
+        return existing === null
+          ? { kind: 'message_not_found' }
+          : { kind: 'message_not_pending' }
+      }
+
+      await tx.messageRetrieval.deleteMany({
+        where: { messageId: input.assistantMessageId },
+      })
+      await tx.messageCitation.deleteMany({
+        where: { messageId: input.assistantMessageId },
+      })
+      if (input.retrievalResult.length > 0) {
+        await tx.messageRetrieval.createMany({
+          data: input.retrievalResult.map((entry) => ({
+            messageId: input.assistantMessageId,
+            chunkId: entry.chunkId,
+            rank: entry.rank,
+            similarityScore: entry.similarityScore,
+          })),
+        })
+      }
+      const citedMaterialIds = orderedCitationMaterialIds(
+        input.approvedResponse.usedCitationIds,
+        input.retrievalResult,
+      )
+      if (citedMaterialIds.length > 0) {
+        await tx.messageCitation.createMany({
+          data: citedMaterialIds.map((materialId, index) => ({
+            messageId: input.assistantMessageId,
+            materialId,
+            citationOrder: index + 1,
+          })),
+        })
+      }
+
+      const updated = await tx.tutorTurn.updateManyAndReturn({
+        where: {
+          id: input.turnId,
+          status: {
+            notIn: [TutorTurnStatus.COMPLETED, TutorTurnStatus.FAILED],
+          },
+          approvedTutorMessageId: null,
+        },
+        data: {
+          status: TutorTurnStatus.COMPLETED,
+          approvedTutorMessageId: input.assistantMessageId,
+          safeFallbackUsed: input.approvedResponse.safeFallbackUsed,
+          completedAt: now,
+        },
+        select: tutorTurnSelect,
+        limit: 1,
+      })
+      const snapshot = updated.at(0)
+      if (snapshot === undefined) {
+        return { kind: 'relationship_mismatch' }
+      }
+
+      return { kind: 'ok', turn: snapshot }
+    })
+  }
 }
 
 const tutorTurnReturningSql = Prisma.sql`
@@ -383,4 +582,60 @@ function isForeignKeyConstraintError(error: unknown): boolean {
     error instanceof Prisma.PrismaClientKnownRequestError &&
     error.code === 'P2003'
   )
+}
+
+function currentDatabaseTime(tx: Prisma.TransactionClient): Promise<Date> {
+  return tx
+    .$queryRaw<{ now: Date }[]>(Prisma.sql`SELECT CURRENT_TIMESTAMP AS now`)
+    .then((rows) => rows[0]?.now ?? new Date())
+}
+
+async function selectedEvidenceIsCourseScoped(
+  tx: Prisma.TransactionClient,
+  courseId: string,
+  evidence: readonly RetrievedChunk[],
+): Promise<boolean> {
+  if (evidence.length === 0) {
+    return true
+  }
+
+  const chunks = await tx.materialChunk.findMany({
+    where: {
+      id: { in: evidence.map((entry) => entry.chunkId) },
+      material: {
+        courseId,
+        status: { in: [MaterialStatus.READY, MaterialStatus.WARNING] },
+        deletedAt: null,
+      },
+    },
+    select: {
+      id: true,
+      materialId: true,
+    },
+  })
+  const materialByChunk = new Map(
+    chunks.map((chunk) => [chunk.id, chunk.materialId]),
+  )
+  return evidence.every(
+    (entry) => materialByChunk.get(entry.chunkId) === entry.materialId,
+  )
+}
+
+function orderedCitationMaterialIds(
+  usedCitationIds: readonly string[],
+  evidence: readonly RetrievedChunk[],
+): readonly string[] {
+  const chunkByCitationId = new Map(
+    evidence.map((chunk) => [`retrieval.rank.${String(chunk.rank)}`, chunk]),
+  )
+  const materialIds: string[] = []
+  const seen = new Set<string>()
+  for (const citationId of usedCitationIds) {
+    const materialId = chunkByCitationId.get(citationId)?.materialId
+    if (materialId !== undefined && !seen.has(materialId)) {
+      seen.add(materialId)
+      materialIds.push(materialId)
+    }
+  }
+  return materialIds
 }

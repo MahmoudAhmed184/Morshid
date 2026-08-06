@@ -14,6 +14,10 @@ import {
   DEFAULT_TUTOR_MODEL_BASE_URL,
   DEFAULT_TUTOR_MODEL_NAME,
 } from '../socratic-tutor/tutor-model.configuration'
+import {
+  DEFAULT_SEMANTIC_GUARD_BASE_URL,
+  DEFAULT_SEMANTIC_GUARD_MODEL_NAME,
+} from '../socratic-tutor/semantic-guard.configuration'
 import { MAX_PDF_UPLOAD_BYTES, validateEnv } from './env.schema'
 
 describe('validateEnv', () => {
@@ -72,6 +76,11 @@ describe('validateEnv', () => {
       TUTOR_MODEL_NAME: DEFAULT_TUTOR_MODEL_NAME,
       TUTOR_MODEL_API_KEY: '',
       TUTOR_MODEL_TIMEOUT_MS: 30_000,
+      SEMANTIC_GUARD_PROVIDER: 'deterministic',
+      SEMANTIC_GUARD_BASE_URL: DEFAULT_SEMANTIC_GUARD_BASE_URL,
+      SEMANTIC_GUARD_MODEL_NAME: DEFAULT_SEMANTIC_GUARD_MODEL_NAME,
+      SEMANTIC_GUARD_API_KEY: '',
+      SEMANTIC_GUARD_TIMEOUT_MS: 30_000,
       GEMINI_MODEL: 'gemini-3.5-flash-lite',
       ITI_BEDROCK_GATEWAY_BASE_URL: DEFAULT_ITI_BEDROCK_GATEWAY_BASE_URL,
       ITI_BEDROCK_ALLOW_INSECURE_HTTP: false,
@@ -331,6 +340,89 @@ describe('validateEnv', () => {
           TUTOR_MODEL_NAME: 'Qwen/Qwen2.5-14B-Instruct',
         }),
       ).toThrow(/TUTOR_MODEL_NAME/)
+    })
+  })
+
+  describe('semantic guard model configuration', () => {
+    it('accepts deterministic and OpenAI-compatible semantic guard providers', () => {
+      expect(
+        validateEnv({ ...validEnv, SEMANTIC_GUARD_PROVIDER: 'deterministic' }),
+      ).toMatchObject({ SEMANTIC_GUARD_PROVIDER: 'deterministic' })
+
+      expect(
+        validateEnv({
+          ...validEnv,
+          SEMANTIC_GUARD_PROVIDER: 'openai-compatible',
+          SEMANTIC_GUARD_BASE_URL: 'http://localhost:8000/v1',
+          SEMANTIC_GUARD_MODEL_NAME: 'Qwen/Qwen2.5-7B-Instruct-Guard',
+          SEMANTIC_GUARD_API_KEY: '',
+        }),
+      ).toMatchObject({
+        SEMANTIC_GUARD_PROVIDER: 'openai-compatible',
+        SEMANTIC_GUARD_BASE_URL: 'http://localhost:8000/v1',
+        SEMANTIC_GUARD_MODEL_NAME: 'Qwen/Qwen2.5-7B-Instruct-Guard',
+        SEMANTIC_GUARD_API_KEY: '',
+      })
+    })
+
+    it('rejects unsupported semantic guard providers and invalid settings', () => {
+      expect(() =>
+        validateEnv({ ...validEnv, SEMANTIC_GUARD_PROVIDER: 'aws-bedrock' }),
+      ).toThrow(/SEMANTIC_GUARD_PROVIDER: Invalid option/)
+      expect(() =>
+        validateEnv({
+          ...validEnv,
+          SEMANTIC_GUARD_PROVIDER: 'openai-compatible',
+          SEMANTIC_GUARD_BASE_URL: 'http://example.com/v1',
+        }),
+      ).toThrow(/SEMANTIC_GUARD_BASE_URL/)
+      expect(() =>
+        validateEnv({
+          ...validEnv,
+          SEMANTIC_GUARD_PROVIDER: 'openai-compatible',
+          SEMANTIC_GUARD_MODEL_NAME: 'invalid model name',
+        }),
+      ).toThrow(/SEMANTIC_GUARD_MODEL_NAME/)
+      expect(() =>
+        validateEnv({
+          ...validEnv,
+          SEMANTIC_GUARD_PROVIDER: 'openai-compatible',
+          SEMANTIC_GUARD_API_KEY: 'replace-with-semantic-guard-key',
+        }),
+      ).toThrow(/SEMANTIC_GUARD_API_KEY/)
+    })
+
+    it('rejects non-deterministic semantic guard aliasing with tutor or analysis roles', () => {
+      expect(() =>
+        validateEnv({
+          ...validEnv,
+          ANALYSIS_MODEL_PROVIDER: 'openai-compatible',
+          ANALYSIS_MODEL_NAME: 'Qwen/Qwen2.5-14B-Instruct',
+          SEMANTIC_GUARD_PROVIDER: 'openai-compatible',
+          SEMANTIC_GUARD_MODEL_NAME: 'Qwen/Qwen2.5-14B-Instruct',
+        }),
+      ).toThrow(/SEMANTIC_GUARD_MODEL_NAME/)
+
+      expect(() =>
+        validateEnv({
+          ...validEnv,
+          TUTOR_MODEL_PROVIDER: 'openai-compatible',
+          TUTOR_MODEL_NAME: 'Qwen/Qwen2.5-7B-Instruct',
+          SEMANTIC_GUARD_PROVIDER: 'openai-compatible',
+          SEMANTIC_GUARD_MODEL_NAME: 'Qwen/Qwen2.5-7B-Instruct',
+        }),
+      ).toThrow(/SEMANTIC_GUARD_MODEL_NAME/)
+    })
+
+    it('allows deterministic test aliases because ports remain separate', () => {
+      expect(() =>
+        validateEnv({
+          ...validEnv,
+          ANALYSIS_MODEL_PROVIDER: 'deterministic',
+          TUTOR_MODEL_PROVIDER: 'deterministic',
+          SEMANTIC_GUARD_PROVIDER: 'deterministic',
+        }),
+      ).not.toThrow()
     })
   })
 

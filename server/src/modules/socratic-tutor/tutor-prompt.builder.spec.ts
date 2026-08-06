@@ -204,5 +204,6 @@ function buildGenerationContext(): GenerationContextPackage {
     ],
     allowedCitationIds: ['retrieval.rank.1'],
     conversationLanguage: 'en',
+    regeneration: null,
   }
 }

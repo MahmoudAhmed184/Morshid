@@ -267,6 +267,10 @@ describe('ContextManager', () => {
               return 'deterministic'
             case 'TUTOR_MODEL_TIMEOUT_MS':
               return 30_000
+            case 'SEMANTIC_GUARD_PROVIDER':
+              return 'deterministic'
+            case 'SEMANTIC_GUARD_TIMEOUT_MS':
+              return 30_000
             default:
               return 'deterministic'
           }
