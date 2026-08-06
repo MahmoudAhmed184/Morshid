@@ -10,6 +10,10 @@ import {
   DEFAULT_ANALYSIS_MODEL_BASE_URL,
   DEFAULT_ANALYSIS_MODEL_NAME,
 } from '../socratic-tutor/analysis-model.configuration'
+import {
+  DEFAULT_TUTOR_MODEL_BASE_URL,
+  DEFAULT_TUTOR_MODEL_NAME,
+} from '../socratic-tutor/tutor-model.configuration'
 import { MAX_PDF_UPLOAD_BYTES, validateEnv } from './env.schema'
 
 describe('validateEnv', () => {
@@ -63,6 +67,11 @@ describe('validateEnv', () => {
       ANALYSIS_MODEL_TIMEOUT_MS: 30_000,
       ANALYSIS_CONFIDENCE_THRESHOLD: 0.6,
       ANALYSIS_MODEL_MAX_RETRIES: 1,
+      TUTOR_MODEL_PROVIDER: 'deterministic',
+      TUTOR_MODEL_BASE_URL: DEFAULT_TUTOR_MODEL_BASE_URL,
+      TUTOR_MODEL_NAME: DEFAULT_TUTOR_MODEL_NAME,
+      TUTOR_MODEL_API_KEY: '',
+      TUTOR_MODEL_TIMEOUT_MS: 30_000,
       GEMINI_MODEL: 'gemini-3.5-flash-lite',
       ITI_BEDROCK_GATEWAY_BASE_URL: DEFAULT_ITI_BEDROCK_GATEWAY_BASE_URL,
       ITI_BEDROCK_ALLOW_INSECURE_HTTP: false,
@@ -260,6 +269,68 @@ describe('validateEnv', () => {
       expect(() =>
         validateEnv({ ...validEnv, ANALYSIS_MODEL_MAX_RETRIES: '3' }),
       ).toThrow(/ANALYSIS_MODEL_MAX_RETRIES/)
+    })
+  })
+
+  describe('tutor model configuration', () => {
+    it('accepts deterministic and OpenAI-compatible tutor providers', () => {
+      expect(
+        validateEnv({ ...validEnv, TUTOR_MODEL_PROVIDER: 'deterministic' }),
+      ).toMatchObject({ TUTOR_MODEL_PROVIDER: 'deterministic' })
+
+      expect(
+        validateEnv({
+          ...validEnv,
+          TUTOR_MODEL_PROVIDER: 'openai-compatible',
+          TUTOR_MODEL_BASE_URL: 'http://localhost:8000/v1',
+          TUTOR_MODEL_NAME: 'Qwen/Qwen2.5-7B-Instruct',
+          TUTOR_MODEL_API_KEY: '',
+        }),
+      ).toMatchObject({
+        TUTOR_MODEL_PROVIDER: 'openai-compatible',
+        TUTOR_MODEL_BASE_URL: 'http://localhost:8000/v1',
+        TUTOR_MODEL_NAME: 'Qwen/Qwen2.5-7B-Instruct',
+        TUTOR_MODEL_API_KEY: '',
+      })
+    })
+
+    it('rejects unsupported tutor providers and invalid tutor settings', () => {
+      expect(() =>
+        validateEnv({ ...validEnv, TUTOR_MODEL_PROVIDER: 'aws-bedrock' }),
+      ).toThrow(/TUTOR_MODEL_PROVIDER: Invalid option/)
+      expect(() =>
+        validateEnv({
+          ...validEnv,
+          TUTOR_MODEL_PROVIDER: 'openai-compatible',
+          TUTOR_MODEL_BASE_URL: 'http://example.com/v1',
+        }),
+      ).toThrow(/TUTOR_MODEL_BASE_URL/)
+      expect(() =>
+        validateEnv({
+          ...validEnv,
+          TUTOR_MODEL_PROVIDER: 'openai-compatible',
+          TUTOR_MODEL_NAME: 'invalid model name',
+        }),
+      ).toThrow(/TUTOR_MODEL_NAME/)
+      expect(() =>
+        validateEnv({
+          ...validEnv,
+          TUTOR_MODEL_PROVIDER: 'openai-compatible',
+          TUTOR_MODEL_API_KEY: 'replace-with-tutor-key',
+        }),
+      ).toThrow(/TUTOR_MODEL_API_KEY/)
+    })
+
+    it('rejects non-deterministic tutor and analysis model aliasing', () => {
+      expect(() =>
+        validateEnv({
+          ...validEnv,
+          ANALYSIS_MODEL_PROVIDER: 'openai-compatible',
+          ANALYSIS_MODEL_NAME: 'Qwen/Qwen2.5-14B-Instruct',
+          TUTOR_MODEL_PROVIDER: 'openai-compatible',
+          TUTOR_MODEL_NAME: 'Qwen/Qwen2.5-14B-Instruct',
+        }),
+      ).toThrow(/TUTOR_MODEL_NAME/)
     })
   })
 
