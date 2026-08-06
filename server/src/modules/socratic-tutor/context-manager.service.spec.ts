@@ -20,6 +20,7 @@ import { PrismaService } from '../prisma/prisma.service'
 import { SocraticTutorModule } from './socratic-tutor.module'
 import { TopicStateRepository } from './topic-state.repository'
 import type { TopicStatePatch, TopicStateSnapshot } from './topic-state.types'
+import { TUTOR_MODEL_PORT } from './tutor-generation.types'
 import { TopicRepository } from './topic.repository'
 import type {
   ActiveTopicReplacementResult,
@@ -252,12 +253,29 @@ describe('ContextManager', () => {
       .useValue({})
       .overrideProvider(ConfigService)
       .useValue({
-        get: (key: string) =>
-          key === 'ANALYSIS_MODEL_TIMEOUT_MS' ? 30_000 : 'deterministic',
+        get: (key: string) => {
+          switch (key) {
+            case 'ANALYSIS_MODEL_PROVIDER':
+              return 'deterministic'
+            case 'ANALYSIS_MODEL_TIMEOUT_MS':
+              return 30_000
+            case 'ANALYSIS_MODEL_MAX_RETRIES':
+              return 0
+            case 'ANALYSIS_CONFIDENCE_THRESHOLD':
+              return 0.2
+            case 'TUTOR_MODEL_PROVIDER':
+              return 'deterministic'
+            case 'TUTOR_MODEL_TIMEOUT_MS':
+              return 30_000
+            default:
+              return 'deterministic'
+          }
+        },
       })
       .compile()
 
     expect(moduleRef.get(ContextManager)).toBeInstanceOf(ContextManager)
+    expect(moduleRef.get(TUTOR_MODEL_PORT)).toBeDefined()
     await moduleRef.close()
   })
 })
