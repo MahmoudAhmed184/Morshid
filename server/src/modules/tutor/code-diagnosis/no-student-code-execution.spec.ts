@@ -34,6 +34,10 @@ const TUTOR_EXECUTION_PATTERNS = [
     pattern: /(?<![.\w])eval\s*\(/u,
   },
   {
+    label: 'JavaScript Function constructor',
+    pattern: /\bnew\s+Function\s*\(/u,
+  },
+  {
     label: 'process execution call',
     pattern: /(?<![.\w])(?:exec|execFile|fork|spawn)\s*\(/u,
   },

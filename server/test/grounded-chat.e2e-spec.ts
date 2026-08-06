@@ -685,7 +685,7 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
     const retrievalFailure = await request(requireApp().getHttpServer())
       .post(messagesPath(retrievalFailureSession.id))
       .set('Authorization', `Bearer ${student1Token}`)
-      .send({ content: 'Question with raw retrieval failure' })
+      .send({ content: 'Explain the eligible course evidence' })
       .expect(201)
     expect(retrievalFailure.body).toMatchObject({
       assistantMessage: {
@@ -703,7 +703,7 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
     const finalFailure = await request(requireApp().getHttpServer())
       .post(messagesPath(finalFailureSession.id))
       .set('Authorization', `Bearer ${student1Token}`)
-      .send({ content: 'Question with a final write failure' })
+      .send({ content: 'Summarize the eligible course source' })
       .expect(201)
     const failedTurn = finalFailure.body as GroundedChatTurnResponseDto
     expect(failedTurn.assistantMessage).toMatchObject({

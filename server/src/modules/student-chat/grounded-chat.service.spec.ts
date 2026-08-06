@@ -501,50 +501,71 @@ describe('GroundedChatService', () => {
     })
   })
 
-  it('restores a persisted boundary refusal on refresh without re-running the pipeline', async () => {
-    const nonPythonContent = [
-      'function countItems(nums) {',
-      '  return nums.length;',
-      '}',
-    ].join('\n')
-    beginTurn.mockResolvedValue({
-      kind: 'replayed',
-      studentMessage: studentMessage({
-        content: nonPythonContent,
-        requestKind: MessageRequestKind.OFF_TOPIC,
-      }),
-      assistantMessage: assistantMessage({
+  it.each([
+    [
+      'non-Python',
+      ['function countItems(nums) {', '  return nums.length;', '}'].join('\n'),
+      MessageRequestKind.OFF_TOPIC,
+      'PYTHON_DIAGNOSIS_NON_PYTHON',
+      'I can diagnose Python code only. Please send one Python snippet of at most 100 lines, and I will help you inspect it without running it.',
+      /Python code only/iu,
+    ],
+    [
+      '101-line',
+      ['if True:', ...Array.from({ length: 100 }, () => '    pass')].join('\n'),
+      MessageRequestKind.CODE_DIAGNOSIS,
+      'PYTHON_DIAGNOSIS_LINE_LIMIT_EXCEEDED',
+      'This snippet has 101 normalized lines. Please reduce it to at most 100 lines and resend the smallest section that still shows the problem.',
+      /101 normalized lines.*at most 100/iu,
+    ],
+  ])(
+    'restores a persisted %s boundary refusal on refresh without re-running the pipeline',
+    async (
+      _label,
+      content,
+      requestKind,
+      errorCode,
+      persistedResponse,
+      contentPattern,
+    ) => {
+      beginTurn.mockResolvedValue({
+        kind: 'replayed',
+        studentMessage: studentMessage({
+          content,
+          requestKind,
+        }),
+        assistantMessage: assistantMessage({
+          status: MessageStatus.BLOCKED,
+          content: persistedResponse,
+          guidanceLabel: MessageGuidanceLabel.REFUSAL,
+          errorCode,
+          completedAt: new Date('2026-07-21T12:01:00.000Z'),
+        }),
+      })
+
+      const response = await service.send(
+        courseId,
+        sessionId,
+        {
+          clientMessageId: studentMessageId,
+          content,
+        },
+        user,
+      )
+
+      expect(retrieveCourseEvidence).not.toHaveBeenCalled()
+      expect(complete).not.toHaveBeenCalled()
+      expect(blockTurn).not.toHaveBeenCalled()
+      expect(completeTurn).not.toHaveBeenCalled()
+      expect(response.assistantMessage).toMatchObject({
         status: MessageStatus.BLOCKED,
-        content:
-          'I can diagnose Python code only. Please send one Python snippet of at most 100 lines, and I will help you inspect it without running it.',
         guidanceLabel: MessageGuidanceLabel.REFUSAL,
-        errorCode: 'PYTHON_DIAGNOSIS_NON_PYTHON',
-        completedAt: new Date('2026-07-21T12:01:00.000Z'),
-      }),
-    })
-
-    const response = await service.send(
-      courseId,
-      sessionId,
-      {
-        clientMessageId: studentMessageId,
-        content: nonPythonContent,
-      },
-      user,
-    )
-
-    expect(retrieveCourseEvidence).not.toHaveBeenCalled()
-    expect(complete).not.toHaveBeenCalled()
-    expect(blockTurn).not.toHaveBeenCalled()
-    expect(completeTurn).not.toHaveBeenCalled()
-    expect(response.assistantMessage).toMatchObject({
-      status: MessageStatus.BLOCKED,
-      guidanceLabel: MessageGuidanceLabel.REFUSAL,
-      errorCode: 'PYTHON_DIAGNOSIS_NON_PYTHON',
-      citations: [],
-    })
-    expect(response.assistantMessage.content).toMatch(/Python code only/iu)
-  })
+        errorCode,
+        citations: [],
+      })
+      expect(response.assistantMessage.content).toMatch(contentPattern)
+    },
+  )
 
   it('returns a terminal idempotent replay without generating again', async () => {
     beginTurn.mockResolvedValue({

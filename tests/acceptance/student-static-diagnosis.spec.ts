@@ -11,7 +11,8 @@ import {
 } from './support/demo-auth'
 
 const apiBaseUrl = 'http://localhost:4000'
-const sourceTitle = 'p0-npt-part-02 Functions and Scope'
+const sourceTitle =
+  'p0-npt-part-02 Functions and Scope [deterministic-embedding-v1]'
 const sourceFixturePath = resolve(
   process.cwd(),
   'fixtures',
