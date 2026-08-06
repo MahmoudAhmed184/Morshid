@@ -48,7 +48,7 @@ describe('Python diagnosis output guard', () => {
     ['INVALID_CITATION', validOutput.replace('[1]', '[2]')],
     [
       'UNSUPPORTED_SCOPE',
-      `${validOutput}\n\n\`\`\`python\nx = 1\n\`\`\`\n\`\`\`python\ny = 2\n\`\`\``,
+      `${validOutput}\n\`\`\`python\nx = 1\n\`\`\`\n\`\`\`python\ny = 2\n\`\`\``,
     ],
   ] as const)('returns %s for unsafe provider output', (result, content) => {
     expect(
@@ -57,6 +57,189 @@ describe('Python diagnosis output guard', () => {
         authorizedCitationCount: 1,
       }),
     ).toBe(result)
+  })
+
+  // Regression: heading normalizer accepts common LLM markdown decoration.
+  // Before the fix, these formats triggered INVALID_RESPONSE_SHAPE even though
+  // the response was otherwise structurally valid — causing the pipeline to
+  // fall back to the safe refusal message for every real Gemini response.
+  it.each([
+    [
+      '**bold**',
+      [
+        '**Likely defect**',
+        'The name `num` does not match `nums`.',
+        '',
+        '**Relevant location**',
+        'The return expression.',
+        '',
+        '**Python concept**',
+        'Python resolves names in local scope. [1]',
+        '',
+        '**Next inspection step**',
+        'Compare the return-expression name with the parameter.',
+      ].join('\n'),
+    ],
+    [
+      '**bold with colon**',
+      [
+        '**Likely defect:**',
+        'The name `num` does not match `nums`.',
+        '',
+        '**Relevant location:**',
+        'The return expression.',
+        '',
+        '**Python concept:**',
+        'Python resolves names in local scope. [1]',
+        '',
+        '**Next inspection step:**',
+        'Compare the return-expression name with the parameter.',
+      ].join('\n'),
+    ],
+    [
+      '### ATX heading',
+      [
+        '### Likely defect',
+        'The name `num` does not match `nums`.',
+        '',
+        '### Relevant location',
+        'The return expression.',
+        '',
+        '### Python concept',
+        'Python resolves names in local scope. [1]',
+        '',
+        '### Next inspection step',
+        'Compare the return-expression name with the parameter.',
+      ].join('\n'),
+    ],
+    [
+      'trailing colon',
+      [
+        'Likely defect:',
+        'The name `num` does not match `nums`.',
+        '',
+        'Relevant location:',
+        'The return expression.',
+        '',
+        'Python concept:',
+        'Python resolves names in local scope. [1]',
+        '',
+        'Next inspection step:',
+        'Compare the return-expression name with the parameter.',
+      ].join('\n'),
+    ],
+    [
+      'mixed decoration (real-world Gemini output)',
+      [
+        '**Likely defect:**',
+        'The name `num` does not match `nums`.',
+        '',
+        '### Relevant location',
+        'The return expression.',
+        '',
+        'Python concept:',
+        'Python resolves names in local scope. [1]',
+        '',
+        '**Next inspection step**',
+        'Compare the return-expression name with the parameter.',
+      ].join('\n'),
+    ],
+  ] as const)(
+    'accepts decorated headings (%s) — regression guard for INVALID_RESPONSE_SHAPE false positive',
+    (_label, content) => {
+      expect(
+        validatePythonCodeDiagnosisOutput({
+          content,
+          authorizedCitationCount: 1,
+        }),
+      ).toBe('ALLOWED_DIAGNOSIS')
+    },
+  )
+
+  it('still rejects a response that is completely missing a heading', () => {
+    // Removing 'Relevant location' entirely — no amount of normalization can
+    // find a heading that isn't present at all.
+    expect(
+      validatePythonCodeDiagnosisOutput({
+        content: validOutput.replace(
+          'Relevant location\nThe return expression.\n\n',
+          '',
+        ),
+        authorizedCitationCount: 1,
+      }),
+    ).toBe('INVALID_RESPONSE_SHAPE')
+  })
+
+  it('still rejects a response with a duplicate heading', () => {
+    const withDuplicate = [
+      'Likely defect',
+      'First mention.',
+      '',
+      'Relevant location',
+      'The return expression.',
+      '',
+      'Python concept',
+      'Python resolves names in local scope. [1]',
+      '',
+      'Likely defect',
+      'Second mention — duplicate heading.',
+      '',
+      'Next inspection step',
+      'Compare the return-expression name with the parameter.',
+    ].join('\n')
+
+    expect(
+      validatePythonCodeDiagnosisOutput({
+        content: withDuplicate,
+        authorizedCitationCount: 1,
+      }),
+    ).toBe('INVALID_RESPONSE_SHAPE')
+  })
+
+  it('still rejects a response with headings in the wrong order', () => {
+    const wrongOrder = [
+      'Relevant location',
+      'The return expression.',
+      '',
+      'Likely defect',
+      'The name `num` does not match `nums`.',
+      '',
+      'Python concept',
+      'Python resolves names in local scope. [1]',
+      '',
+      'Next inspection step',
+      'Compare the return-expression name with the parameter.',
+    ].join('\n')
+
+    expect(
+      validatePythonCodeDiagnosisOutput({
+        content: wrongOrder,
+        authorizedCitationCount: 1,
+      }),
+    ).toBe('INVALID_RESPONSE_SHAPE')
+  })
+
+  it('still rejects a response with an empty section body', () => {
+    // Empty 'Python concept' section
+    const emptySection = [
+      'Likely defect',
+      'The name `num` does not match `nums`.',
+      '',
+      'Relevant location',
+      'The return expression.',
+      '',
+      'Python concept',
+      '',
+      'Next inspection step',
+      'Compare the return-expression name with the parameter.',
+    ].join('\n')
+
+    expect(
+      validatePythonCodeDiagnosisOutput({
+        content: emptySection,
+        authorizedCitationCount: 1,
+      }),
+    ).toBe('INVALID_RESPONSE_SHAPE')
   })
 
   it('rejects more than one next inspection step', () => {

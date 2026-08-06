@@ -147,6 +147,27 @@ function containsFullCorrectedProgram(
   )
 }
 
+// Strips common LLM markdown decorators so that headings such as
+// "**Likely defect**", "### Relevant location", or "Likely defect:" are
+// matched exactly as their bare text. This does NOT change any security
+// invariant: all other checks (citations, full-rewrite, execution claims,
+// prompt disclosure, section count, section order, non-empty bodies) remain
+// fully intact after normalization.
+function normalizeHeadingLine(raw: string): string {
+  return (
+    raw
+      .trim()
+      // Remove leading ATX-style markdown heading markers (###, ##, #)
+      .replace(/^#{1,6}\s+/u, '')
+      // Remove surrounding bold/italic markdown markers (**text**, *text*,
+      // __text__, _text_) in the most common single-level form
+      .replace(/^(?:\*{1,2}|_{1,2})(.*?)(?:\*{1,2}|_{1,2})$/u, '$1')
+      // Remove a trailing colon that models frequently append
+      .replace(/:$/u, '')
+      .trim()
+  )
+}
+
 function parseRequiredSections(content: string): readonly string[] | null {
   const lines = content
     .replaceAll('\r\n', '\n')
@@ -154,7 +175,7 @@ function parseRequiredSections(content: string): readonly string[] | null {
     .split('\n')
   const headingIndexes = REQUIRED_SECTION_HEADINGS.map((heading) =>
     lines.reduce<number[]>((indexes, line, index) => {
-      if (line.trim() === heading) {
+      if (normalizeHeadingLine(line) === heading) {
         indexes.push(index)
       }
       return indexes

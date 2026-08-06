@@ -389,6 +389,58 @@ describe('GroundedChatService diagnosis failure paths', () => {
     expect(blockTurn).toHaveBeenCalled()
   })
 
+  // Regression: before the heading-normalizer fix, any Gemini response that
+  // used **bold**, ### ATX markers, or trailing colons on headings was rejected
+  // by parseRequiredSections with INVALID_RESPONSE_SHAPE. The safe-refusal
+  // fallback was then persisted (status=BLOCKED, guidanceLabel=REFUSAL) and the
+  // student saw "GUIDANCE REFUSED / Request declined" for every code-diagnosis
+  // turn. This test pins the correct behavior: the service accepts the response,
+  // calls completeTurn (not blockTurn), and returns COURSE_GROUNDED.
+  it('accepts and persists a Gemini response whose headings use markdown decoration (regression for INVALID_RESPONSE_SHAPE false positive)', async () => {
+    complete.mockResolvedValue({
+      content: [
+        '**Likely defect:**',
+        'The name `num` does not match the visible `nums` parameter.',
+        '',
+        '### Relevant location',
+        'The `return total / len(num)` expression on the last line.',
+        '',
+        'Python concept:',
+        'Python resolves names through the local function scope. [1]',
+        '',
+        '**Next inspection step**',
+        'Compare every name in the return expression with the parameter list.',
+      ].join('\n'),
+      provider: 'gemini',
+      model: 'gemini-2.0-flash',
+      promptVersion: 'python-code-diagnosis-prompt-v1',
+    })
+
+    const response = await service.send(
+      courseId,
+      sessionId,
+      { content: codeQuestion },
+      user,
+    )
+
+    // Output guard must pass — student receives the provider response, not the
+    // safe refusal message
+    expect(response.assistantMessage.content).not.toContain(
+      'I cannot provide a complete corrected program',
+    )
+    expect(response.assistantMessage.content).toContain('num')
+
+    // Must be persisted as a successful completion, not a blocked refusal
+    expect(response.assistantMessage.status).toBe(MessageStatus.COMPLETED)
+    expect(response.assistantMessage.guidanceLabel).toBe(
+      MessageGuidanceLabel.COURSE_GROUNDED,
+    )
+
+    // completeTurn called (not blockTurn)
+    expect(completeTurn).toHaveBeenCalled()
+    expect(blockTurn).not.toHaveBeenCalled()
+  })
+
   it('survives refresh with the persisted refusal state', async () => {
     beginTurn.mockResolvedValue({
       kind: 'replayed',
