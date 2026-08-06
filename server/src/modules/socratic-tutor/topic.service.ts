@@ -274,11 +274,11 @@ export class TopicService {
       )
     }
 
-    const selected = selectableMatches[0]
-
-    if (selected === undefined) {
+    if (selectableMatches.length === 0) {
       return input.createRelatedTopic()
     }
+
+    const selected = selectableMatches[0]
 
     if (selected.status === TopicStatus.ACTIVE) {
       return topicResolution({
@@ -380,7 +380,7 @@ export class TopicService {
       input.sessionId,
     )
 
-    if (session === null || session.deletedAt !== null) {
+    if (session?.deletedAt !== null) {
       throw topicSessionNotFoundException()
     }
 
@@ -474,7 +474,7 @@ function boundedTopicTitle(
     throw invalidTopicRequestException([
       {
         field: 'title',
-        message: `Title must be between 1 and ${MAX_TITLE_LENGTH} characters`,
+        message: `Title must be between 1 and ${String(MAX_TITLE_LENGTH)} characters`,
       },
     ])
   }
