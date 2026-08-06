@@ -176,7 +176,8 @@ export class PrismaTopicRepository extends TopicRepository {
         return null
       }
 
-      const previousTopicId = activeTopics[0]?.id ?? null
+      const previousTopicId =
+        activeTopics.length === 1 ? activeTopics[0].id : null
 
       if (previousTopicId !== null) {
         await tx.topic.updateMany({
@@ -252,7 +253,8 @@ export class PrismaTopicRepository extends TopicRepository {
         return null
       }
 
-      const previousTopicId = activeTopics[0]?.id ?? null
+      const previousTopicId =
+        activeTopics.length === 1 ? activeTopics[0].id : null
 
       if (previousTopicId !== null && previousTopicId !== selected.id) {
         await tx.topic.updateMany({
@@ -283,7 +285,7 @@ export class PrismaTopicRepository extends TopicRepository {
         limit: 1,
       })
 
-      return updated[0] === undefined
+      return updated.length === 0
         ? null
         : {
             topic: updated[0],

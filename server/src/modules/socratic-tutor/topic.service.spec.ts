@@ -130,7 +130,7 @@ class FakeTopicRepository extends TopicRepository {
 
   addTopic(input: Partial<TopicRecord>) {
     const topic = buildTopic({
-      id: `topic-${this.topicCounter++}`,
+      id: `topic-${String(this.topicCounter++)}`,
       ...input,
     })
     this.topics.set(topic.id, topic)
@@ -146,8 +146,8 @@ class FakeTopicRepository extends TopicRepository {
       return null
     }
 
-    const previousTopic = activeTopics[0] ?? null
-    const previousTopicId = previousTopic?.id ?? null
+    const previousTopic = activeTopics.length === 1 ? activeTopics[0] : null
+    const previousTopicId = previousTopic ? previousTopic.id : null
 
     if (previousTopic !== null) {
       this.replaceTopic(previousTopic, { status: TopicStatus.PAUSED })
@@ -159,7 +159,7 @@ class FakeTopicRepository extends TopicRepository {
       problemId: input.problemId ?? null,
       conceptId: input.conceptId ?? null,
       title: input.title,
-      topicType: input.topicType ?? TopicType.UNCLASSIFIED,
+      topicType: input.topicType,
       status: TopicStatus.ACTIVE,
     })
 
@@ -198,8 +198,8 @@ class FakeTopicRepository extends TopicRepository {
       return null
     }
 
-    const previousTopic = activeTopics[0] ?? null
-    const previousTopicId = previousTopic?.id ?? null
+    const previousTopic = activeTopics.length === 1 ? activeTopics[0] : null
+    const previousTopicId = previousTopic ? previousTopic.id : null
 
     if (previousTopic !== null) {
       this.replaceTopic(previousTopic, { status: TopicStatus.PAUSED })
@@ -282,9 +282,7 @@ function isTopicInScope(
   scope: TopicScope,
 ): topic is TopicRecord {
   return (
-    topic !== undefined &&
-    topic.sessionId === scope.sessionId &&
-    topic.courseId === scope.courseId
+    topic?.sessionId === scope.sessionId && topic.courseId === scope.courseId
   )
 }
 
@@ -301,7 +299,7 @@ async function expectRejectCode(
   code: string,
 ): Promise<void> {
   await expect(promise).rejects.toMatchObject({
-    response: expect.objectContaining({ code }),
+    response: { code },
   })
 }
 
