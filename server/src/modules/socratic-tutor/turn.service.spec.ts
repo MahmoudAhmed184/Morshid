@@ -47,6 +47,10 @@ class FakeTurnRepository extends TurnRepository {
     Promise.resolve(this.turns.get(turnId) ?? null),
   )
 
+  readonly completeApprovedResponse = jest.fn(() =>
+    Promise.resolve({ kind: 'relationship_mismatch' as const }),
+  )
+
   readonly transitionStatusAtomically = jest.fn(
     (input: {
       turnId: string
