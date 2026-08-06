@@ -380,7 +380,7 @@ describe('GroundedChatService', () => {
         attemptId,
         studentMessageId,
         assistantMessageId,
-        content: expect.stringMatching(contentPattern),
+        content: expect.stringMatching(contentPattern) as unknown,
         errorCode,
         guidanceLabel: MessageGuidanceLabel.REFUSAL,
       })
@@ -430,7 +430,7 @@ describe('GroundedChatService', () => {
       expect.objectContaining({
         content: expect.stringMatching(
           /^I cannot provide a complete corrected program[\s\S]*Likely defect[\s\S]*Next inspection step/iu,
-        ),
+        ) as unknown,
       }),
     )
     expect(response.assistantMessage.content).toMatch(
@@ -480,15 +480,15 @@ describe('GroundedChatService', () => {
     expect(completeTurn).not.toHaveBeenCalled()
     expect(blockTurn).toHaveBeenCalledWith(
       expect.objectContaining({
-        content: expect.stringMatching(/Likely defect/iu),
+        content: expect.stringMatching(/Likely defect/iu) as unknown,
         errorCode:
           'PYTHON_DIAGNOSIS_OUTPUT_POLICY_BLOCKED_FULL_REWRITE_SUSPECTED',
         guidanceLabel: MessageGuidanceLabel.REFUSAL,
       }),
     )
     const persistedContent = (
-      blockTurn.mock.calls[0][0] as FinalizeGroundedChatTurnInput
-    ).content
+      blockTurn.mock.calls[0] as [FinalizeGroundedChatTurnInput]
+    )[0].content
     expect(persistedContent).not.toContain(unsafeProviderOutput)
     expect(persistedContent).not.toContain('return sum(nums) / len(nums)')
     expect(response.assistantMessage).toMatchObject({
@@ -541,9 +541,9 @@ describe('GroundedChatService', () => {
       status: MessageStatus.BLOCKED,
       guidanceLabel: MessageGuidanceLabel.REFUSAL,
       errorCode: 'PYTHON_DIAGNOSIS_NON_PYTHON',
-      content: expect.stringMatching(/Python code only/iu),
       citations: [],
     })
+    expect(response.assistantMessage.content).toMatch(/Python code only/iu)
   })
 
   it('returns a terminal idempotent replay without generating again', async () => {

@@ -73,7 +73,9 @@ describe('shared Tutor strategy selection', () => {
       '}',
     ].join('\n')
 
-    expect(selectTutorStrategy(input)).toMatchObject({
+    const result = selectTutorStrategy(input)
+
+    expect(result).toMatchObject({
       decision: {
         requestKind: MessageRequestKind.OFF_TOPIC,
         strategy: 'SAFE_REFUSAL',
@@ -82,11 +84,12 @@ describe('shared Tutor strategy selection', () => {
       },
       retrievalQuery: null,
       diagnosis: null,
-      boundaryResponse: {
-        errorCode: 'PYTHON_DIAGNOSIS_NON_PYTHON',
-        content: expect.stringMatching(/Python code only/iu),
-      },
     })
+    expect(result.boundaryResponse).not.toBeNull()
+    expect(result.boundaryResponse?.errorCode).toBe(
+      'PYTHON_DIAGNOSIS_NON_PYTHON',
+    )
+    expect(result.boundaryResponse?.content).toMatch(/Python code only/iu)
   })
 
   it('returns a no-evidence reduction request for 101 Python lines', () => {
@@ -95,7 +98,9 @@ describe('shared Tutor strategy selection', () => {
       ...Array.from({ length: 100 }, () => '    pass'),
     ].join('\n')
 
-    expect(selectTutorStrategy(input)).toMatchObject({
+    const result = selectTutorStrategy(input)
+
+    expect(result).toMatchObject({
       decision: {
         requestKind: MessageRequestKind.CODE_DIAGNOSIS,
         strategy: 'SAFE_REFUSAL',
@@ -103,11 +108,14 @@ describe('shared Tutor strategy selection', () => {
       },
       retrievalQuery: null,
       diagnosis: null,
-      boundaryResponse: {
-        errorCode: 'PYTHON_DIAGNOSIS_LINE_LIMIT_EXCEEDED',
-        content: expect.stringMatching(/101 normalized lines.*at most 100/iu),
-      },
     })
+    expect(result.boundaryResponse).not.toBeNull()
+    expect(result.boundaryResponse?.errorCode).toBe(
+      'PYTHON_DIAGNOSIS_LINE_LIMIT_EXCEEDED',
+    )
+    expect(result.boundaryResponse?.content).toMatch(
+      /101 normalized lines.*at most 100/iu,
+    )
   })
 
   it('treats instructions in Student comments and strings only as diagnosis data', () => {
@@ -154,12 +162,13 @@ describe('shared Tutor strategy selection', () => {
       },
       boundaryResponse: null,
       fullRewriteRequested: true,
-      diagnosis: {
-        likelyDefect: expect.stringMatching(/num.*nums/iu),
-        conceptExplanation: expect.stringMatching(/name lookup.*scope/iu),
-        nextInspectionStep: expect.any(String),
-      },
     })
+    expect(selection.diagnosis).not.toBeNull()
+    expect(selection.diagnosis?.likelyDefect).toMatch(/num.*nums/iu)
+    expect(selection.diagnosis?.conceptExplanation).toMatch(
+      /name lookup.*scope/iu,
+    )
+    expect(selection.diagnosis?.nextInspectionStep).toEqual(expect.any(String))
   })
 
   it('produces one structured next step for every supported behavior fixture', () => {
