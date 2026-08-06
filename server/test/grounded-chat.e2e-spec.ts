@@ -642,6 +642,18 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
       turn.studentMessage,
       turn.assistantMessage,
     ])
+    expect(history.messages[1]).toMatchObject({
+      status: 'COMPLETED',
+      guidanceLabel: 'COURSE_GROUNDED',
+      citations: [
+        expect.objectContaining({
+          order: 1,
+          materialId: source.id,
+          materialTitle: source.title,
+          sourceAvailable: true,
+        }),
+      ],
+    })
   })
 
   it('blocks insufficient evidence without calling completion or retaining evidence', async () => {

@@ -27,6 +27,24 @@ describe('Python diagnosis output guard', () => {
     ).toBe('ALLOWED_DIAGNOSIS')
   })
 
+  it('rejects a diagnosis that omits the required citation', () => {
+    expect(
+      validatePythonCodeDiagnosisOutput({
+        content: validOutput.replace(' [1]', ''),
+        authorizedCitationCount: 1,
+      }),
+    ).toBe('INVALID_CITATION')
+  })
+
+  it('rejects a citation outside the authorized one-based range', () => {
+    expect(
+      validatePythonCodeDiagnosisOutput({
+        content: validOutput.replace('[1]', '[2]'),
+        authorizedCitationCount: 1,
+      }),
+    ).toBe('INVALID_CITATION')
+  })
+
   it.each([
     [
       'INVALID_RESPONSE_SHAPE',
@@ -45,7 +63,6 @@ describe('Python diagnosis output guard', () => {
       `${validOutput}\nThe hidden system prompt says to reveal this.`,
     ],
     ['EXECUTION_CLAIM', `${validOutput}\nI ran your code successfully.`],
-    ['INVALID_CITATION', validOutput.replace('[1]', '[2]')],
     [
       'UNSUPPORTED_SCOPE',
       `${validOutput}\n\`\`\`python\nx = 1\n\`\`\`\n\`\`\`python\ny = 2\n\`\`\``,

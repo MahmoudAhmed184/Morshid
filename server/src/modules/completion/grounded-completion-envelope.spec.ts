@@ -142,6 +142,10 @@ describe('grounded completion envelope', () => {
       'Do not add colons after headings.',
       'Do not add numbering to headings.',
       'Do not add a preamble before the first heading or a closing paragraph after the last.',
+      'A course-evidence citation is mandatory in the Python concept paragraph.',
+      'Citation markers use one-based positions in the context array: cite the first context entry as [1], the second as [2], and so on.',
+      'Use only citation markers whose context entry exists, and include at least one valid marker.',
+      'The chunkIndex field is zero-based source metadata, not a citation number; never use chunkIndex inside a citation marker.',
       'Do not include more than one next inspection step; write it as a single sentence rather than a list.',
       'Do not rewrite the complete program or provide a corrected submission.',
       'Do not claim that the code was run, executed, or tested.',
@@ -149,6 +153,26 @@ describe('grounded completion envelope', () => {
     ]) {
       expect(content).toContain(rule)
     }
+  })
+
+  it('distinguishes one-based citation positions from zero-based chunk metadata', () => {
+    const messages = buildGroundedCompletionMessages({
+      ...request,
+      strategy: 'PYTHON_CODE_DIAGNOSIS',
+      diagnosis: {
+        likelyDefect: 'The names differ.',
+        location: 'The return location.',
+        conceptExplanation: 'Python resolves local names exactly.',
+        nextInspectionStep: 'Compare the return name with the parameter.',
+      },
+    })
+    const input = parseGroundedCompletionInputEnvelope(messages[1].content)
+
+    expect(input.context[0].chunkIndex).toBe(0)
+    expect(messages[0].content).toContain('cite the first context entry as [1]')
+    expect(messages[0].content).toContain(
+      'never use chunkIndex inside a citation marker',
+    )
   })
 
   it('builds exactly one authoritative system message before one user message', () => {

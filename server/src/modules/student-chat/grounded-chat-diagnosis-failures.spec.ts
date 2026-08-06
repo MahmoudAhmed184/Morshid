@@ -441,6 +441,55 @@ describe('GroundedChatService diagnosis failure paths', () => {
     expect(blockTurn).not.toHaveBeenCalled()
   })
 
+  it('persists a live Gemini-style diagnosis with a valid one-based citation', async () => {
+    const liveQuestion = [
+      'Why does this Python function crash?',
+      '```python',
+      'def count_items(nums):',
+      '    return len(num)',
+      '```',
+    ].join('\n')
+    const liveContent = [
+      'Likely defect',
+      'The function attempts to pass the variable `num` to the `len()` function, but `num` has not been defined as a parameter or local variable in this scope, causing a NameError.',
+      '',
+      'Relevant location',
+      'The return statement inside the function body, specifically within the expression `len(num)`.',
+      '',
+      'Python concept',
+      'Python resolves a name by searching the active function scope, and a reference must match a parameter or local variable name exactly [1].',
+      '',
+      'Next inspection step',
+      'Check if the variable name inside the `len()` call matches the parameter name defined in the function signature.',
+    ].join('\n')
+    complete.mockResolvedValue({
+      content: liveContent,
+      provider: 'gemini',
+      model: 'gemini-3.5-flash-lite',
+      promptVersion: 'python-code-diagnosis-prompt-v1',
+    })
+
+    const response = await service.send(
+      courseId,
+      sessionId,
+      { content: liveQuestion },
+      user,
+    )
+
+    expect(response.assistantMessage).toMatchObject({
+      content: liveContent,
+      status: MessageStatus.COMPLETED,
+      guidanceLabel: MessageGuidanceLabel.COURSE_GROUNDED,
+    })
+    expect(completeTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: liveContent,
+        evidence: evidenceChunks(),
+      }),
+    )
+    expect(blockTurn).not.toHaveBeenCalled()
+  })
+
   it('survives refresh with the persisted refusal state', async () => {
     beginTurn.mockResolvedValue({
       kind: 'replayed',
