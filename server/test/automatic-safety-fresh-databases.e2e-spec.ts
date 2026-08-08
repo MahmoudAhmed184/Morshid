@@ -59,8 +59,19 @@ const STUDENT_EMAIL = 'student1@morshid.demo'
 const INSTRUCTOR_EMAIL = 'instructor@morshid.demo'
 const EMBEDDING_MODEL = 'automatic-safety-matrix-embedding-v1'
 const SAFE_COMPLETION = 'Use the course example to reason through one step.'
-const SAFE_DEBUGGING_COMPLETION =
-  'The function is using addition even though its name describes multiplication. Inspect the operator in the return expression and replace it with the multiplication operator.'
+const SAFE_DEBUGGING_COMPLETION = [
+  'Likely defect',
+  'The return expression adds the two parameters even though the function is intended to multiply them.',
+  '',
+  'Relevant location',
+  'The arithmetic operator in the return expression.',
+  '',
+  'Python concept',
+  'Python arithmetic operators determine how operands are combined: `+` adds values, while `*` multiplies them. [1]',
+  '',
+  'Next inspection step',
+  'Compare the operator in the return expression with the operation described by the function name.',
+].join('\n')
 const FULL_CODE_COMPLETION =
   'Here is the implementation:\ndef solve(values):\n    doubled = [value * 2 for value in values]\n    return doubled'
 const DOCUMENT_INJECTION =
@@ -82,6 +93,7 @@ interface MatrixScenario {
   readonly expectedReason: ExpectedReason | null
   readonly expectedContent: string
   readonly completionContent?: string
+  readonly expectedRequestKind?: 'CONCEPTUAL' | 'CODE_DIAGNOSIS'
   readonly materials: readonly { title: string; content: string }[]
 }
 
@@ -196,6 +208,7 @@ const NEGATIVE_CONTROLS = [
     expectedReason: null,
     expectedContent: SAFE_DEBUGGING_COMPLETION,
     completionContent: SAFE_DEBUGGING_COMPLETION,
+    expectedRequestKind: 'CODE_DIAGNOSIS',
     materials: [
       {
         title: 'Python functions and arithmetic operators',
@@ -370,7 +383,9 @@ async function proveScenario(
   })
 
   if (scenario.expectedReason === null) {
-    expect(turn.studentMessage.requestKind).toBe('CONCEPTUAL')
+    expect(turn.studentMessage.requestKind).toBe(
+      scenario.expectedRequestKind ?? 'CONCEPTUAL',
+    )
     expect(turn.assistantMessage.citations.length).toBeGreaterThan(0)
     await expect(
       harness.prisma.reviewCase.count({
@@ -378,6 +393,11 @@ async function proveScenario(
       }),
     ).resolves.toBe(0)
     expect(harness.complete).toHaveBeenCalledTimes(1)
+    if (scenario.expectedRequestKind === 'CODE_DIAGNOSIS') {
+      expect(harness.complete).toHaveBeenCalledWith(
+        expect.objectContaining({ strategy: 'PYTHON_CODE_DIAGNOSIS' }),
+      )
+    }
     return
   }
 
