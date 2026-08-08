@@ -36,10 +36,10 @@ the corresponding fixture folders are introduced.
 
 | Fixture area | Current or planned location | Notes |
 |---|---|---|
-| Demo scenario mapping | Planned `docs/demo-scenario-mapping.md` | Maps protected P0 scenarios to source coverage, fixture data, and later checks. |
+| Demo scenario mapping | `docs/demo-scenario-mapping.md` | Maps protected P0 scenarios to source coverage, fixture data, and later checks. |
 | Fixture update conventions | `docs/fixture-update-conventions.md` | This file. |
 | Seeded users/courses/course assignments | `server/prisma/seed.ts` and `server/src/seeds/p0-demo.seed.ts` | Existing seed entry point and P0 seed implementation. |
-| Golden dataset prompts | Planned `fixtures/golden-dataset/` | Use for locked prompt/action fixtures once a fixture folder is added. |
+| Golden dataset prompts | `docs/golden-dataset-p0-v1.md` and `fixtures/golden-dataset/` | The document is the human-readable v1 catalog; machine-readable behavior fixtures use the fixture directory and its schemas. |
 | Expected outputs | Planned `fixtures/expected-outputs/` | Use behavior-level expectations, not brittle full-response snapshots by default. |
 | Source/material fixtures | Planned `fixtures/sources/` | Permission-safe clean Python PDFs or source plans. Do not rely on local-only uploaded files. |
 | Evaluation results or run notes | Planned `fixtures/evaluation-runs/` | Store dated pass/fail notes or summary records when evaluation runs are introduced. |

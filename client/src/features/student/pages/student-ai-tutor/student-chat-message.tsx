@@ -5,6 +5,7 @@ import {
   CircleCheck,
   CircleX,
   ClipboardCheck,
+  CodeXml,
   Copy,
   FileText,
   Flag,
@@ -31,6 +32,7 @@ import type {
 import { cn } from '@/lib/utils'
 
 import { StudentCitationSources } from './student-citation-sources'
+import { StudentChatContent } from './student-chat-content'
 import { StudentReviewRequestDialog } from './student-review-request-dialog'
 import {
   STUDENT_CHAT_COMPLETION_STATUS,
@@ -266,7 +268,7 @@ export function StudentChatMessage({
               {STUDENT_CHAT_GENERATION_STATUS}…
             </p>
           ) : isStudent ? (
-            <p className="whitespace-pre-wrap break-words">{message.content}</p>
+            <StudentChatContent message={message} />
           ) : (
             <StudentAssistantMarkdown content={message.content} />
           )}
@@ -393,6 +395,19 @@ export function StudentChatMessage({
             isLoading={reviewDetailQuery.isPending}
             hasError={reviewDetailQuery.isError}
           />
+        ) : null}
+
+        {!isStudent &&
+        message.requestKind === 'CODE_DIAGNOSIS' &&
+        message.status === 'COMPLETED' &&
+        message.guidanceLabel === 'COURSE_GROUNDED' ? (
+          <Badge
+            variant="outline"
+            className="mt-2 h-auto max-w-full gap-1.5 border-primary/25 bg-primary/5 px-2.5 py-1 font-mono text-[0.65rem] leading-normal text-primary sm:text-xs"
+          >
+            <CodeXml className="size-3 shrink-0" aria-hidden />
+            STATIC PYTHON DIAGNOSIS
+          </Badge>
         ) : null}
 
         {!isStudent && message.guidanceLabel && showGuidanceBadge ? (
@@ -565,7 +580,7 @@ function GuidanceBadge({ guidanceLabel }: { guidanceLabel: GuidanceLabel }) {
   const Icon = presentation.icon
 
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-2 max-w-full">
+    <div className="flex max-w-full flex-wrap items-center gap-2">
       <Badge
         variant="outline"
         className={cn(

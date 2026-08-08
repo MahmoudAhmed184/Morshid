@@ -2,7 +2,11 @@ import { randomUUID } from 'node:crypto'
 
 import { Inject, Injectable, Logger } from '@nestjs/common'
 
-import { Prisma } from '../../generated/prisma/client'
+import {
+  MessageGuidanceLabel,
+  MessageRequestKind,
+  Prisma,
+} from '../../generated/prisma/client'
 import type { AuthenticatedRequestUser } from '../auth/auth.dto'
 import {
   AUTOMATIC_SAFETY_RISK_DETECTOR_VERSION,
@@ -21,6 +25,18 @@ import {
   RetrievalService,
   type RetrievedChunk,
 } from '../retrieval/retrieval.service'
+import {
+  selectTutorStrategy,
+  type TutorStrategySelection,
+} from '../tutor/tutor-decision'
+import {
+  addFullRewriteRefusal,
+  buildSafePythonCodeDiagnosisFallback,
+  pythonCodeDiagnosisOutputErrorCode,
+  readPythonCodeDiagnosisCitationIndexes,
+  validatePythonCodeDiagnosisOutput,
+} from '../tutor/code-diagnosis/python-code-diagnosis.output-guard'
+import { PYTHON_CODE_DIAGNOSIS_BOUNDARY_ERROR_CODES } from '../tutor/code-diagnosis/python-code-diagnosis.boundary-response'
 import {
   OutputPolicyReviewAdapter,
   OutputPolicyReviewIntegrationError,
@@ -110,6 +126,9 @@ type TerminalPersistence =
       phase: 'blocked_persistence'
       content: string
       errorCode: string
+      guidanceLabel?:
+        | typeof MessageGuidanceLabel.GENERAL_NOT_FOUND
+        | typeof MessageGuidanceLabel.REFUSAL
     }
   | {
       kind: 'failed'
@@ -143,6 +162,7 @@ export class GroundedChatService {
     user: AuthenticatedRequestUser,
     requestContext?: AuditRequestContext,
   ): Promise<GroundedChatTurnResponseDto> {
+    const selection = selectTutorStrategy(body.content)
     const operation = {
       operationId: randomUUID(),
       courseId,
@@ -167,7 +187,10 @@ export class GroundedChatService {
           ? {}
           : { clientMessageId: body.clientMessageId }),
         content: body.content,
-        requestKind: classification.requestKind,
+        requestKind:
+          selection.decision.requestKind === MessageRequestKind.CODE_DIAGNOSIS
+            ? selection.decision.requestKind
+            : classification.requestKind,
       })
     } catch (error) {
       this.logFailure('begin', operation, error)
@@ -199,6 +222,7 @@ export class GroundedChatService {
         assistantMessageId: result.assistantMessage.id,
       },
       requestContext,
+      selection,
     )
   }
 
@@ -260,6 +284,7 @@ export class GroundedChatService {
     turn: ActiveGroundedTurn,
     operation: OrchestrationContext,
     requestContext?: AuditRequestContext,
+    preparedSelection?: TutorStrategySelection,
   ): Promise<GroundedChatTurnResponseDto> {
     // Reclassify from immutable Student content on every orchestration. Older
     // rows can have a null requestKind, and trusting that legacy field on retry
@@ -279,11 +304,30 @@ export class GroundedChatService {
       )
     }
 
+    const selection =
+      preparedSelection ?? selectTutorStrategy(turn.studentMessage.content)
+    const shouldContinueThroughSafetyPipeline =
+      classification.correctnessSensitive &&
+      selection.boundaryResponse?.errorCode ===
+        PYTHON_CODE_DIAGNOSIS_BOUNDARY_ERROR_CODES.INSUFFICIENT_INFORMATION
+    if (
+      selection.boundaryResponse !== null &&
+      !shouldContinueThroughSafetyPipeline
+    ) {
+      return this.persistTerminal(turn, operation, {
+        kind: 'blocked',
+        phase: 'blocked_persistence',
+        content: selection.boundaryResponse.content,
+        errorCode: selection.boundaryResponse.errorCode,
+        guidanceLabel: selection.boundaryResponse.guidanceLabel,
+      })
+    }
+
     let evidence: RetrievedChunk[]
     try {
       const retrieval = await this.retrievalService.retrieveCourseEvidence(
         turn.courseId,
-        turn.studentMessage.content,
+        selection.retrievalQuery ?? turn.studentMessage.content,
       )
       if (retrieval.kind === 'embedding_profile_not_ready') {
         // Operator-visible only. The student sees the ordinary grounding-blocked
@@ -353,17 +397,57 @@ export class GroundedChatService {
 
     let completion: CompletionResult
     try {
-      completion = await this.completionProvider.complete({
-        studentQuestion: turn.studentMessage.content,
-        context,
-      })
+      completion = await this.completionProvider.complete(
+        selection.diagnosis === null
+          ? {
+              studentQuestion: turn.studentMessage.content,
+              context,
+            }
+          : {
+              studentQuestion: turn.studentMessage.content,
+              context,
+              strategy: 'PYTHON_CODE_DIAGNOSIS',
+              diagnosis: selection.diagnosis,
+            },
+      )
     } catch (error) {
       this.logFailure('completion', operation, error)
       return this.persistFailure(turn, operation)
     }
 
+    let completionContent = completion.content
+    let citationContextIndexes: readonly number[] | undefined
+    if (selection.diagnosis !== null) {
+      const outputPolicyResult = validatePythonCodeDiagnosisOutput({
+        content: completion.content,
+        authorizedCitationCount: evidence.length,
+      })
+      if (outputPolicyResult !== 'ALLOWED_DIAGNOSIS') {
+        this.logger.warn({
+          event: 'python_code_diagnosis_output_blocked',
+          outputPolicyResult,
+          ...operation,
+        })
+        return this.persistTerminal(turn, operation, {
+          kind: 'blocked',
+          phase: 'blocked_persistence',
+          content: buildSafePythonCodeDiagnosisFallback(selection.diagnosis),
+          errorCode: pythonCodeDiagnosisOutputErrorCode(outputPolicyResult),
+          guidanceLabel: MessageGuidanceLabel.REFUSAL,
+        })
+      }
+      citationContextIndexes =
+        readPythonCodeDiagnosisCitationIndexes(
+          completion.content,
+          evidence.length,
+        ) ?? undefined
+      if (selection.fullRewriteRequested) {
+        completionContent = addFullRewriteRefusal(completion.content)
+      }
+    }
+
     const outputRisk = this.safetyRiskDetector.detectOutput(
-      completion.content,
+      completionContent,
       classification.correctnessSensitive,
     )
     if (outputRisk !== null) {
@@ -378,7 +462,7 @@ export class GroundedChatService {
     let policyDecision: OutputPolicyDecision
     try {
       policyDecision = this.outputPolicy.evaluate({
-        proposedContent: completion.content,
+        proposedContent: completionContent,
         assessment: {
           support: 'SUPPORTED',
           policyCheck: 'PASSED',
@@ -422,6 +506,9 @@ export class GroundedChatService {
           ? { errorCode: encodeAutomaticPolicyReasons(policyDecision.reasons) }
           : {}),
         evidence,
+        ...(citationContextIndexes === undefined
+          ? {}
+          : { citationContextIndexes }),
       })
     } catch (error) {
       this.logFailure('finalization', operation, error)
@@ -786,6 +873,9 @@ export class GroundedChatService {
         assistantMessageId: turn.assistantMessage.id,
         content: terminal.content,
         errorCode: terminal.errorCode,
+        ...(terminal.kind === 'blocked' && terminal.guidanceLabel !== undefined
+          ? { guidanceLabel: terminal.guidanceLabel }
+          : {}),
       }
       let result: FinalizeGroundedChatTurnResult
       switch (terminal.kind) {

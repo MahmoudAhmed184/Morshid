@@ -552,6 +552,145 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
     expect(checkedPaths).toContain(forbidden[3].storagePath)
   })
 
+  it('persists and restores gd-p0-v1-058 through the normal Student chat API', async () => {
+    const source = await createEvidenceMaterial({
+      title: 'p0-npt-part-02 Functions and Scope',
+      content:
+        'Python resolves names in the active function scope. Parameter names must match references used in expressions.',
+    })
+    const question = [
+      'Why does this Python function crash?',
+      '```python',
+      'def average(nums):',
+      '    total = 0',
+      '    for i in range(len(nums)):',
+      '        total += nums[i]',
+      '    return total / len(num)',
+      '```',
+    ].join('\n')
+    const diagnosis = [
+      'Likely defect',
+      'The name `num` does not match the `nums` parameter.',
+      '',
+      'Relevant location',
+      'The `len(num)` expression on the return line.',
+      '',
+      'Python concept',
+      'Python name lookup searches the active function scope, where `nums` exists but `num` does not. [1]',
+      '',
+      'Next inspection step',
+      'Compare every name on the return line with the function parameter and loop variables.',
+    ].join('\n')
+    completionBehavior = (completionRequest) => {
+      expect(completionRequest).toMatchObject({
+        studentQuestion: question,
+        strategy: 'PYTHON_CODE_DIAGNOSIS',
+        diagnosis: {
+          likelyDefect:
+            'The name `num` does not match the visible `nums` name.',
+        },
+      })
+      expect(completionRequest.diagnosis?.conceptExplanation).toMatch(
+        /name lookup.*scope/iu,
+      )
+      expect(completionRequest.diagnosis?.nextInspectionStep).not.toBe('')
+      return Promise.resolve({
+        content: diagnosis,
+        provider: 'issue-133-test-provider',
+        model: 'issue-133-static-model',
+        promptVersion: 'python-code-diagnosis-prompt-v1',
+        inputTokens: 63,
+        outputTokens: 42,
+      })
+    }
+    const session = await createSession(student2Token)
+
+    const response = await request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${student2Token}`)
+      .send({ content: question })
+      .expect(201)
+    const turn = response.body as GroundedChatTurnResponseDto
+
+    expect(turn).toMatchObject({
+      studentMessage: {
+        content: question,
+        requestKind: 'CODE_DIAGNOSIS',
+        status: 'COMPLETED',
+      },
+      assistantMessage: {
+        content: diagnosis,
+        requestKind: 'CODE_DIAGNOSIS',
+        guidanceLabel: 'COURSE_GROUNDED',
+        status: 'COMPLETED',
+      },
+    })
+    expect(turn.assistantMessage.citations).toEqual([
+      expect.objectContaining({
+        order: 1,
+        materialId: source.id,
+        materialTitle: source.title,
+        sourceAvailable: true,
+      }),
+    ])
+    expect(diagnosis).toMatch(/num.*nums/iu)
+    expect(diagnosis).toMatch(/name lookup.*scope/iu)
+    expect(diagnosis.match(/Next inspection step/gu)).toHaveLength(1)
+    expect(diagnosis).not.toContain('def average')
+    expect(diagnosis).not.toContain('return total / len(nums)')
+    expect(embedQuery).toHaveBeenCalledWith(
+      'Python a possible variable-name mismatch or unresolved name near the loop body; study name lookup and local scope. Diagnostic signals: singular and plural identifiers may not match. Relevant identifiers: num, nums.',
+    )
+
+    const stored = await prisma.message.findMany({
+      where: { sessionId: session.id },
+      orderBy: { sequence: 'asc' },
+      include: { retrievals: true, citations: true },
+    })
+    expect(stored).toHaveLength(2)
+    expect(stored[0]).toMatchObject({
+      content: question,
+      requestKind: 'CODE_DIAGNOSIS',
+      status: 'COMPLETED',
+    })
+    expect(stored[1]).toMatchObject({
+      responseToMessageId: stored[0].id,
+      content: diagnosis,
+      requestKind: 'CODE_DIAGNOSIS',
+      guidanceLabel: 'COURSE_GROUNDED',
+      provider: 'issue-133-test-provider',
+      model: 'issue-133-static-model',
+      promptVersion: 'python-code-diagnosis-prompt-v1',
+      inputTokens: 63,
+      outputTokens: 42,
+      status: 'COMPLETED',
+    })
+    expect(stored[1].retrievals).toHaveLength(1)
+    expect(stored[1].citations).toHaveLength(1)
+
+    const historyResponse = await request(requireApp().getHttpServer())
+      .get(messagesPath(session.id))
+      .set('Authorization', `Bearer ${student2Token}`)
+      .expect(200)
+    const history = historyResponse.body as ChatMessageHistoryResponseDto
+    expect(history.messages).toEqual([
+      turn.studentMessage,
+      turn.assistantMessage,
+    ])
+    expect(history.messages[1]).toMatchObject({
+      status: 'COMPLETED',
+      guidanceLabel: 'COURSE_GROUNDED',
+      citations: [
+        expect.objectContaining({
+          order: 1,
+          materialId: source.id,
+          materialTitle: source.title,
+          sourceAvailable: true,
+        }),
+      ],
+    })
+  })
+
   it('blocks insufficient evidence without calling completion or retaining evidence', async () => {
     const session = await createSession()
 
@@ -1450,7 +1589,7 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
     const retrievalFailure = await request(requireApp().getHttpServer())
       .post(messagesPath(retrievalFailureSession.id))
       .set('Authorization', `Bearer ${student1Token}`)
-      .send({ content: 'Question with raw retrieval failure' })
+      .send({ content: 'Explain the eligible course evidence' })
       .expect(201)
     expect(retrievalFailure.body).toMatchObject({
       assistantMessage: {
@@ -1468,7 +1607,7 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
     const finalFailure = await request(requireApp().getHttpServer())
       .post(messagesPath(finalFailureSession.id))
       .set('Authorization', `Bearer ${student1Token}`)
-      .send({ content: 'Question with a final write failure' })
+      .send({ content: 'Summarize the eligible course source' })
       .expect(201)
     const failedTurn = finalFailure.body as GroundedChatTurnResponseDto
     expect(failedTurn.assistantMessage).toMatchObject({

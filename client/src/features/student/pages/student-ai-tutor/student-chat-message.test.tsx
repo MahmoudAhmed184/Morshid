@@ -204,6 +204,72 @@ describe('StudentChatMessage', () => {
     expect(screen.getByText(label)).toBeVisible()
   })
 
+  it('preserves multiline Python whitespace in an accessible code block', () => {
+    renderMessage({
+      ...orderedChatMessagesFixture[0],
+      requestKind: 'CODE_DIAGNOSIS',
+      content: [
+        'Why does this crash?',
+        '```python',
+        'def average(nums):',
+        '    total = 0',
+        '    return total / len(num)',
+        '```',
+      ].join('\n'),
+    })
+
+    const code = screen.getByLabelText('python code')
+    expect(code).toBeVisible()
+    expect(code.textContent).toBe(
+      [
+        'def average(nums):',
+        '    total = 0',
+        '    return total / len(num)',
+      ].join('\n'),
+    )
+  })
+
+  it('renders a restored static diagnosis with Markdown and its label', () => {
+    renderMessage({
+      ...assistantMessage,
+      requestKind: 'CODE_DIAGNOSIS',
+      content: [
+        '### Likely defect',
+        'The name `num` does not match `nums`.',
+        '',
+        '### Next inspection step',
+        'Compare the return expression names.',
+      ].join('\n'),
+    })
+
+    expect(screen.getByText('STATIC PYTHON DIAGNOSIS')).toBeVisible()
+    expect(screen.getByText('num', { selector: 'code' })).toBeVisible()
+    expect(screen.getByText('nums', { selector: 'code' })).toBeVisible()
+    expect(
+      screen.getByRole('heading', { level: 5, name: 'Likely defect' }),
+    ).toBeVisible()
+  })
+
+  it.each([
+    ['BLOCKED', 'REFUSAL'],
+    ['COMPLETED', 'REFUSAL'],
+  ] as const)(
+    'does not label a %s %s response as a delivered diagnosis',
+    (status, guidanceLabel) => {
+      renderMessage({
+        ...assistantMessage,
+        requestKind: 'CODE_DIAGNOSIS',
+        status,
+        guidanceLabel,
+        content: 'I cannot provide that response.',
+      })
+
+      expect(
+        screen.queryByText('STATIC PYTHON DIAGNOSIS'),
+      ).not.toBeInTheDocument()
+    },
+  )
+
   it('shows review action only for eligible completed Assistant messages', () => {
     const { rerender } = renderMessage(assistantMessage)
     expect(screen.getByRole('button', { name: 'Request review' })).toBeVisible()

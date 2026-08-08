@@ -39,7 +39,7 @@ export default defineConfig({
       reuseExistingServer: !isCi,
     },
     {
-      command: `env PORT=${serverPort.toString()} CLIENT_ORIGIN=${clientBaseUrl} npm run dev:server`,
+      command: `env PORT=${serverPort.toString()} CLIENT_ORIGIN=${clientBaseUrl} EMBEDDING_PROVIDER=deterministic COMPLETION_PROVIDER=deterministic RETRIEVAL_MIN_SIMILARITY=0 npm run dev:server`,
       url: `${serverBaseUrl}/health/live`,
       reuseExistingServer: !isCi,
       timeout: 180_000,

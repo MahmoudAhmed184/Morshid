@@ -2,6 +2,7 @@ node_modules/
 dist/
 coverage/
 server/dist/
+server/.dist-root/
 server/coverage/
 server/tsconfig*.tsbuildinfo
 *.md

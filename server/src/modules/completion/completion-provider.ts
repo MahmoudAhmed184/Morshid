@@ -25,9 +25,25 @@ export type NonEmptyCompletionContext = readonly [
   ...CompletionContextEntry[],
 ]
 
+export const COMPLETION_STRATEGIES = [
+  'GROUNDED_EXPLANATION',
+  'PYTHON_CODE_DIAGNOSIS',
+] as const
+
+export type CompletionStrategy = (typeof COMPLETION_STRATEGIES)[number]
+
+export interface StaticCodeDiagnosis {
+  readonly likelyDefect: string
+  readonly location: string
+  readonly conceptExplanation: string
+  readonly nextInspectionStep: string
+}
+
 export interface CompletionRequest {
   readonly studentQuestion: string
   readonly context: NonEmptyCompletionContext
+  readonly strategy?: CompletionStrategy
+  readonly diagnosis?: StaticCodeDiagnosis
   readonly signal?: AbortSignal
 }
 

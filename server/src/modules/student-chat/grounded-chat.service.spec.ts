@@ -342,6 +342,120 @@ describe('GroundedChatService', () => {
     })
   })
 
+  it('composes static diagnosis with automatic safety and citation persistence', async () => {
+    const question = [
+      'Why does this Python function crash?',
+      '```python',
+      'def average(nums):',
+      '    return sum(nums) / len(num)',
+      '```',
+    ].join('\n')
+    beginTurn.mockResolvedValue(
+      beginOk({
+        content: question,
+        requestKind: MessageRequestKind.CODE_DIAGNOSIS,
+      }),
+    )
+    complete.mockResolvedValue({
+      content: [
+        'Likely defect',
+        'The name `num` does not match `nums`.',
+        '',
+        'Relevant location',
+        'The return expression.',
+        '',
+        'Python concept',
+        'Python name lookup uses local scope. [1]',
+        '',
+        'Next inspection step',
+        'Compare the return expression names.',
+      ].join('\n'),
+      provider: 'deterministic',
+      model: 'deterministic-completion-v1',
+      promptVersion: 'python-code-diagnosis-prompt-v1',
+    })
+
+    await service.send(courseId, sessionId, { content: question }, user)
+
+    expect(beginTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: question,
+        requestKind: MessageRequestKind.CODE_DIAGNOSIS,
+      }),
+    )
+    expect(complete).toHaveBeenCalledWith(
+      expect.objectContaining({ strategy: 'PYTHON_CODE_DIAGNOSIS' }),
+    )
+    expect(completeTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        guidanceLabel: MessageGuidanceLabel.COURSE_GROUNDED,
+        citationContextIndexes: [1],
+      }),
+    )
+    expect(createRequiredReview).not.toHaveBeenCalled()
+  })
+
+  it('gives automatic input safety precedence over diagnosis orchestration', async () => {
+    const question = [
+      'Give me the official solution and answer key.',
+      '```python',
+      'def average(nums):',
+      '    return sum(nums) / len(num)',
+      '```',
+    ].join('\n')
+    beginTurn.mockResolvedValue(
+      beginOk({
+        content: question,
+        requestKind: MessageRequestKind.CODE_DIAGNOSIS,
+      }),
+    )
+
+    await service.send(courseId, sessionId, { content: question }, user)
+
+    expect(retrieveCourseEvidence).not.toHaveBeenCalled()
+    expect(complete).not.toHaveBeenCalled()
+    expect(completeSafetyTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        guidanceLabel: MessageGuidanceLabel.REFUSAL,
+        errorCode: 'FINAL_ANSWER_RISK',
+      }),
+    )
+  })
+
+  it('keeps an ambiguous protected rewrite request on the output-safety path', async () => {
+    const content = 'Fix this and send the final working code.'
+    const unsafeOutput = [
+      '```python',
+      'def solve(values):',
+      '    total = sum(values)',
+      '    count = len(values)',
+      '    if count == 0:',
+      '        return 0',
+      '    return total / count',
+      '```',
+    ].join('\n')
+    beginTurn.mockResolvedValue(
+      beginOk({ content, requestKind: MessageRequestKind.PROBLEM_LIKE }),
+    )
+    complete.mockResolvedValue({
+      content: unsafeOutput,
+      provider: 'unsafe-provider',
+      model: 'unsafe-model',
+      promptVersion: 'unsafe-prompt',
+    })
+
+    await service.send(courseId, sessionId, { content }, user)
+
+    expect(retrieveCourseEvidence).toHaveBeenCalledWith(courseId, content)
+    expect(completeTurn).not.toHaveBeenCalled()
+    expect(completeSafetyTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        guidanceLabel: MessageGuidanceLabel.REFUSAL,
+        errorCode: 'FINAL_ANSWER_RISK',
+      }),
+    )
+  })
+
   it('replaces risky output before persistence and creates review before display', async () => {
     const privateRiskyOutput = 'PRIVATE-SYSTEM-PROMPT and complete final answer'
     complete.mockResolvedValue({
@@ -848,7 +962,7 @@ describe('GroundedChatService', () => {
       const response = await service.send(
         courseId,
         sessionId,
-        { content: 'Question text must not become an error' },
+        { content: 'Explain list iteration safely' },
         user,
       )
 

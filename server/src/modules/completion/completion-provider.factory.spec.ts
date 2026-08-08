@@ -435,7 +435,12 @@ describe('createCompletionProvider', () => {
       ]
       readonly signal: AbortSignal
     }
-    expect(Object.keys(adapterInput)).toEqual(['messages', 'signal'])
+    expect(Object.keys(adapterInput)).toEqual([
+      'messages',
+      'signal',
+      'strategy',
+      'promptVersion',
+    ])
     expect(adapterInput.messages.map(({ role }) => role)).toEqual([
       'system',
       'user',

@@ -160,7 +160,8 @@ export class ItiBedrockGatewayAdapter implements CompletionAdapter {
       content: gatewayResponse.output_text,
       provider: AWS_BEDROCK_COMPLETION_PROVIDER,
       model: this.modelId,
-      promptVersion: GROUNDED_COMPLETION_PROMPT_VERSION,
+      promptVersion:
+        request.promptVersion ?? GROUNDED_COMPLETION_PROMPT_VERSION,
     })
   }
 

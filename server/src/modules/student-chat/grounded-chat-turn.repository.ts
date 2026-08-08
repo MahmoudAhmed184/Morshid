@@ -64,6 +64,7 @@ export interface CompleteGroundedChatTurnInput extends AuthorizedTurnInput {
   inputTokens?: number
   outputTokens?: number
   evidence: readonly GroundedChatEvidenceInput[]
+  citationContextIndexes?: readonly number[]
   guidanceLabel?: MessageGuidanceLabel
   errorCode?: string
 }
@@ -84,6 +85,7 @@ export interface FinalizeGroundedChatTurnInput extends AuthorizedTurnInput {
   assistantMessageId: string
   content: string
   errorCode: string
+  guidanceLabel?: MessageGuidanceLabel
 }
 
 export interface CompleteSafetyGroundedChatTurnInput extends FinalizeGroundedChatTurnInput {
@@ -521,13 +523,11 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
           })),
         })
         await tx.messageCitation.createMany({
-          data: orderedCitationMaterialIds(input.evidence).map(
-            (materialId, index) => ({
-              messageId: input.assistantMessageId,
-              materialId,
-              citationOrder: index + 1,
-            }),
-          ),
+          data: citationRows(input).map(({ materialId, citationOrder }) => ({
+            messageId: input.assistantMessageId,
+            materialId,
+            citationOrder,
+          })),
         })
 
         const message = await tx.message.findUniqueOrThrow({
@@ -558,7 +558,8 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
     return this.persistTerminalWithoutEvidence(input, {
       status: MessageStatus.BLOCKED,
       content: input.content,
-      guidanceLabel: MessageGuidanceLabel.GENERAL_NOT_FOUND,
+      guidanceLabel:
+        input.guidanceLabel ?? MessageGuidanceLabel.GENERAL_NOT_FOUND,
       errorCode: input.errorCode,
     })
   }
@@ -963,7 +964,10 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
   }
 
   private async reconcileTerminalTurn(
-    input: CompleteGroundedChatTurnInput | FinalizeGroundedChatTurnInput,
+    input:
+      | CompleteGroundedChatTurnInput
+      | CompletePolicyGroundedChatTurnInput
+      | FinalizeGroundedChatTurnInput,
     expectedStatus:
       | typeof MessageStatus.COMPLETED
       | typeof MessageStatus.FAILED
@@ -1036,6 +1040,29 @@ function orderedCitationMaterialIds(
     }
   }
   return ordered
+}
+
+function citationRows(
+  input: CompleteGroundedChatTurnInput | CompletePolicyGroundedChatTurnInput,
+): readonly { readonly materialId: string; readonly citationOrder: number }[] {
+  if (
+    !('citationContextIndexes' in input) ||
+    input.citationContextIndexes === undefined
+  ) {
+    return orderedCitationMaterialIds(input.evidence).map(
+      (materialId, index) => ({ materialId, citationOrder: index + 1 }),
+    )
+  }
+
+  return [...new Set(input.citationContextIndexes)]
+    .sort((left, right) => left - right)
+    .map((citationOrder) => {
+      const citedEvidence = input.evidence.at(citationOrder - 1)
+      if (citedEvidence === undefined) {
+        throw new GroundedChatEvidenceUnavailableError()
+      }
+      return { materialId: citedEvidence.materialId, citationOrder }
+    })
 }
 
 function leaseExpiry(now: Date): Date {
