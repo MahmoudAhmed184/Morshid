@@ -102,13 +102,15 @@ describe('Instructor review pages', () => {
     expect(studentRequestBadge).toHaveAttribute('data-variant', 'info')
   })
 
-  it('renders resolved reviews with the success tone', () => {
+  it('renders resolved reviews with the success tone', async () => {
+    const user = userEvent.setup()
     useQueueMock.mockReturnValue(
       queueQuery([
         { ...queueItem(), status: 'RESOLVED' as const, pending: false },
       ]),
     )
     render(<ReviewQueuePage />)
+    await user.click(screen.getByRole('tab', { name: /Resolved/ }))
 
     const resolvedBadge = screen
       .getAllByText('Resolved')
@@ -146,6 +148,24 @@ describe('Instructor review pages', () => {
     expect(
       screen.getByRole('link', { name: 'Review Safe Student in Course One' }),
     ).toHaveAttribute('href', `/instructor/review-queue/${reviewCaseId}`)
+  })
+
+  it('restores queue filters after the detail overlay remounts the queue', async () => {
+    const user = userEvent.setup()
+    useQueueMock.mockReturnValue(queueQuery([queueItem()]))
+    render(<ReviewQueuePage />)
+
+    await user.type(screen.getByRole('textbox'), 'course one')
+    await user.click(screen.getByRole('tab', { name: /Resolved/ }))
+    cleanup()
+
+    render(<ReviewQueuePage />)
+
+    expect(screen.getByRole('textbox')).toHaveValue('course one')
+    expect(screen.getByRole('tab', { name: /Resolved/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
   })
 
   it('shows the Student flag category in the queue without replacing the trigger', () => {
@@ -499,6 +519,7 @@ describe('Instructor review pages', () => {
       '  Better answer  ',
     )
     await user.click(screen.getByRole('button', { name: 'Publish guidance' }))
+    await user.click(screen.getByRole('button', { name: 'Publish outcome' }))
 
     expect(resolveMutate).toHaveBeenCalledWith({
       reviewCaseId,
@@ -510,6 +531,32 @@ describe('Instructor review pages', () => {
       },
     })
     expect(screen.getByText('Flagged assistant answer')).toBeVisible()
+  })
+
+  it('reuses the same idempotency key after an ambiguous action failure', async () => {
+    const user = userEvent.setup()
+    resolveMutate
+      .mockRejectedValueOnce(new Error('response lost'))
+      .mockResolvedValueOnce({})
+    useDetailMock.mockReturnValue(detailQuery({ version: 7 }))
+    render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
+
+    await user.click(
+      screen.getByRole('button', { name: 'Publish edited guidance' }),
+    )
+    const editor = screen.getByLabelText('Edited guidance')
+    await user.clear(editor)
+    await user.type(editor, 'Retry-safe guidance')
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      await user.click(screen.getByRole('button', { name: 'Publish guidance' }))
+      await user.click(screen.getByRole('button', { name: 'Publish outcome' }))
+    }
+
+    expect(resolveMutate).toHaveBeenCalledTimes(2)
+    expect(resolveMutate.mock.calls[1]?.[0].idempotencyKey).toBe(
+      resolveMutate.mock.calls[0]?.[0].idempotencyKey,
+    )
   })
 
   it('disables every action while a mutation is pending', () => {
@@ -539,6 +586,7 @@ describe('Instructor review pages', () => {
     await user.click(
       screen.getByRole('button', { name: 'Approve original guidance' }),
     )
+    await user.click(screen.getByRole('button', { name: 'Publish outcome' }))
 
     expect(
       await screen.findByText(
@@ -638,6 +686,7 @@ function detail() {
       studentMessage: message('STUDENT', 'Following question'),
       assistantResponse: message('ASSISTANT', 'Following answer'),
     },
+    actions: [],
     reviewSummary: {
       reviewCaseId,
       status: 'PENDING' as const,

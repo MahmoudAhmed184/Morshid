@@ -4,6 +4,7 @@ import {
   getNotifications,
   getUnreadNotificationCount,
 } from '@/features/notifications/data/notifications.api'
+import { visibilityAwarePollingInterval } from '@/lib/query/polling'
 
 export const notificationKeys = {
   all: (userId: string) => ['notifications', userId] as const,
@@ -20,6 +21,8 @@ export function notificationListQueryOptions(userId: string) {
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     staleTime: 30_000,
+    refetchInterval: () => visibilityAwarePollingInterval(),
+    refetchIntervalInBackground: true,
   })
 }
 
@@ -28,5 +31,7 @@ export function unreadNotificationCountQueryOptions(userId: string) {
     queryKey: notificationKeys.unreadCount(userId),
     queryFn: ({ signal }) => getUnreadNotificationCount({ signal }),
     staleTime: 30_000,
+    refetchInterval: () => visibilityAwarePollingInterval(),
+    refetchIntervalInBackground: true,
   })
 }

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import { ReviewOutcome } from '../src/generated/prisma/client'
 import { PrismaInstructorReviewActionRepository } from '../src/modules/reviews/instructor-review-action.repository'
+import { AuditService } from '../src/modules/audit/audit.service'
 import {
   setUpDisposableDatabase,
   type DisposableDatabase,
@@ -15,6 +16,7 @@ describe('Instructor terminal review actions (e2e)', () => {
     database = await setUpDisposableDatabase('morshid_issue139_actions')
     repository = new PrismaInstructorReviewActionRepository(
       requireDatabase().prisma,
+      new AuditService(requireDatabase().prisma),
     )
   })
 
@@ -69,6 +71,15 @@ describe('Instructor terminal review actions (e2e)', () => {
           status: 'UNREAD',
         },
       ])
+      await expect(
+        requireDatabase().prisma.auditLog.count({
+          where: {
+            action: 'review.case_resolved',
+            actorUserId: fixture.instructorId,
+            targetId: fixture.reviewCaseId,
+          },
+        }),
+      ).resolves.toBe(1)
     },
   )
 
@@ -102,6 +113,55 @@ describe('Instructor terminal review actions (e2e)', () => {
         type: 'REVIEW_REJECTED',
       },
     ])
+    await expect(
+      requireDatabase().prisma.auditLog.count({
+        where: {
+          action: 'review.case_rejected',
+          actorUserId: fixture.instructorId,
+          targetId: fixture.reviewCaseId,
+        },
+      }),
+    ).resolves.toBe(1)
+  })
+
+  it('allows an expired idempotency key to resolve a different case', async () => {
+    const first = await createCase()
+    await repository.apply({
+      kind: 'resolve',
+      reviewCaseId: first.reviewCaseId,
+      instructorId: first.instructorId,
+      idempotencyKey: 'expired-resolve-key',
+      request: {
+        expectedVersion: 1,
+        outcome: ReviewOutcome.APPROVED,
+        content: null,
+        reason: null,
+      },
+    })
+    await requireDatabase().prisma.idempotencyRecord.updateMany({
+      where: {
+        actorUserId: first.instructorId,
+        operationScope: 'review.resolve',
+        key: 'expired-resolve-key',
+      },
+      data: { expiresAt: new Date(Date.now() - 1_000) },
+    })
+    const second = await createCase()
+
+    await expect(
+      repository.apply({
+        kind: 'resolve',
+        reviewCaseId: second.reviewCaseId,
+        instructorId: second.instructorId,
+        idempotencyKey: 'expired-resolve-key',
+        request: {
+          expectedVersion: 1,
+          outcome: ReviewOutcome.APPROVED,
+          content: null,
+          reason: null,
+        },
+      }),
+    ).resolves.toMatchObject({ kind: 'ok', record: { replayed: false } })
   })
 
   it('conceals an unowned case and rejects stale or terminal transitions', async () => {
@@ -359,6 +419,7 @@ describe('Instructor terminal review actions (e2e)', () => {
           create: triggerTypes.map((type) => ({
             type,
             actorUserId: type === 'STUDENT_REQUEST' ? studentId : null,
+            studentFlagReason: type === 'STUDENT_REQUEST' ? 'OTHER' : null,
             sourceEventKey:
               type === 'STUDENT_REQUEST' ? null : `event-${randomUUID()}`,
           })),

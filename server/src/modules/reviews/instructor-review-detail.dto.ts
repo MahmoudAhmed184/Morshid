@@ -3,6 +3,7 @@ import { Expose, Type } from 'class-transformer'
 
 import {
   MessageRole,
+  ReviewActionType,
   ReviewStatus,
   ReviewTriggerType,
   StudentFlagReason,
@@ -73,6 +74,32 @@ export class InstructorReviewAssistantResponseDto extends InstructorReviewMessag
   @Type(() => InstructorReviewCitationDto)
   @ApiProperty({ type: [InstructorReviewCitationDto] })
   citations!: InstructorReviewCitationDto[]
+}
+
+export class InstructorReviewActionHistoryDto {
+  @Expose()
+  @ApiProperty({ enum: ReviewActionType, enumName: 'ReviewActionType' })
+  type!: ReviewActionType
+
+  @Expose()
+  @ApiProperty({ nullable: true })
+  actorDisplayName!: string | null
+
+  @Expose()
+  @ApiProperty({ nullable: true })
+  content!: string | null
+
+  @Expose()
+  @ApiProperty({ nullable: true, maxLength: 1000 })
+  reason!: string | null
+
+  @Expose()
+  @ApiProperty({ minimum: 1 })
+  version!: number
+
+  @Expose()
+  @ApiProperty({ format: 'date-time' })
+  createdAt!: string
 }
 
 export class InstructorReviewDetailDto {
@@ -148,6 +175,11 @@ export class InstructorReviewDetailDto {
   @Type(() => InstructorReviewExchangeDto)
   @ApiProperty({ type: InstructorReviewExchangeDto, nullable: true })
   followingExchange!: InstructorReviewExchangeDto | null
+
+  @Expose()
+  @Type(() => InstructorReviewActionHistoryDto)
+  @ApiProperty({ type: [InstructorReviewActionHistoryDto] })
+  actions!: InstructorReviewActionHistoryDto[]
 
   @Expose()
   @Type(() => StudentReviewSummaryDto)

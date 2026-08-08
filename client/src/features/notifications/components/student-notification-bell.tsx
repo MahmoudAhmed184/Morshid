@@ -19,6 +19,11 @@ import {
 import type { Notification } from '@/features/notifications/schemas/notification.schema'
 import { resolveNotificationCourseId } from '@/features/notifications/utils/resolve-notification-course'
 import { useStudentCourseContext } from '@/features/student/components/student-course-context'
+import { getStudentReviewDetail } from '@/features/student/data/student-reviews.api'
+import {
+  getStudentSession,
+  getStudentSessionMessages,
+} from '@/features/student/data/student-sessions.api'
 
 export function StudentNotificationBell() {
   const navigate = useNavigate()
@@ -40,30 +45,46 @@ export function StudentNotificationBell() {
     selectionsInFlightRef.current.add(notification.id)
 
     try {
-      const markRead =
-        notification.status === 'UNREAD'
-          ? markReadMutation.mutateAsync(notification.id).catch(() => null)
-          : Promise.resolve(null)
-
       if (notification.sessionId === null || notification.messageId === null) {
-        await markRead
+        if (notification.status === 'UNREAD') {
+          await markReadMutation.mutateAsync(notification.id)
+        }
         return
       }
 
-      const [courseId] = await Promise.all([
-        resolveNotificationCourseId({
-          courses,
-          sessionId: notification.sessionId,
-        }).catch(() => null),
-        markRead,
-      ])
+      const courseId = await resolveNotificationCourseId({
+        courses,
+        sessionId: notification.sessionId,
+      }).catch(() => null)
       if (courseId === null) return
+
+      await Promise.all([
+        getStudentSession({
+          courseId,
+          sessionId: notification.sessionId,
+        }),
+        getStudentSessionMessages({
+          courseId,
+          sessionId: notification.sessionId,
+          input: { limit: 50, page: 'latest' },
+        }),
+        notification.reviewCaseId === null
+          ? Promise.resolve()
+          : getStudentReviewDetail({
+              reviewCaseId: notification.reviewCaseId,
+            }),
+      ])
 
       await navigate({
         to: '/chat',
         search: { courseId, sessionId: notification.sessionId },
         hash: `message-${notification.messageId}`,
       })
+      if (notification.status === 'UNREAD') {
+        await markReadMutation.mutateAsync(notification.id).catch(() => null)
+      }
+    } catch {
+      // Keep the notification unread when its destination cannot be shown.
     } finally {
       selectionsInFlightRef.current.delete(notification.id)
     }

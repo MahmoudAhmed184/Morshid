@@ -94,6 +94,7 @@ describe('InstructorReviewQueueController terminal actions', () => {
       example.body,
       `${example.action}-key`,
       user,
+      { ip: '::ffff:127.0.0.1', userAgent: null },
     )
   })
 

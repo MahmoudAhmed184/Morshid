@@ -12,6 +12,8 @@ import {
   ReviewTriggerType,
 } from '../../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { AuditService } from '../audit/audit.service'
+import type { AuditRequestContext } from '../audit/audit.service'
 import type {
   RejectReviewRequest,
   ResolveReviewRequest,
@@ -28,6 +30,7 @@ export type InstructorReviewActionInput =
       instructorId: string
       idempotencyKey: string
       request: ResolveReviewRequest
+      requestContext?: AuditRequestContext
     }
   | {
       kind: 'reject'
@@ -35,6 +38,7 @@ export type InstructorReviewActionInput =
       instructorId: string
       idempotencyKey: string
       request: RejectReviewRequest
+      requestContext?: AuditRequestContext
     }
 
 export interface InstructorReviewActionRecord {
@@ -65,7 +69,10 @@ export abstract class InstructorReviewActionRepository {
 
 @Injectable()
 export class PrismaInstructorReviewActionRepository extends InstructorReviewActionRepository {
-  constructor(private readonly prisma: PrismaService) {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {
     super()
   }
 
@@ -80,6 +87,15 @@ export class PrismaInstructorReviewActionRepository extends InstructorReviewActi
         await tx.$queryRaw`
           SELECT pg_advisory_xact_lock(hashtextextended(${deliveryKey}, 0)) IS NULL AS locked
         `
+
+        await tx.idempotencyRecord.deleteMany({
+          where: {
+            actorUserId: input.instructorId,
+            operationScope: scope,
+            key: input.idempotencyKey,
+            expiresAt: { lte: new Date() },
+          },
+        })
 
         const replay = await tx.idempotencyRecord.findUnique({
           where: {
@@ -214,6 +230,20 @@ export class PrismaInstructorReviewActionRepository extends InstructorReviewActi
             ),
           },
         })
+        await this.auditService.recordEvent(
+          {
+            actorUserId: input.instructorId,
+            action:
+              publication.status === ReviewStatus.REJECTED
+                ? 'review.case_rejected'
+                : 'review.case_resolved',
+            target: { type: 'review_case', id: reviewCase.id },
+            courseId: reviewCase.courseId,
+            metadata: { outcome: publication.outcome },
+            requestContext: input.requestContext,
+          },
+          tx,
+        )
 
         return {
           kind: 'ok',
@@ -236,6 +266,7 @@ export class PrismaInstructorReviewActionRepository extends InstructorReviewActi
 
 const terminalCaseSelect = {
   id: true,
+  courseId: true,
   status: true,
   outcome: true,
   publishedContent: true,

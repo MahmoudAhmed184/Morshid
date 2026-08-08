@@ -39,6 +39,7 @@ describe('PrismaInstructorReviewQueueRepository', () => {
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
+          targetMessage: { session: { deletedAt: null } },
           course: {
             id: 'course-1',
             memberships: {
@@ -54,6 +55,7 @@ describe('PrismaInstructorReviewQueueRepository', () => {
     )
     expect(count).toHaveBeenCalledWith({
       where: {
+        targetMessage: { session: { deletedAt: null } },
         course: {
           id: 'course-1',
           memberships: {
@@ -130,6 +132,7 @@ describe('PrismaInstructorReviewQueueRepository', () => {
       })
 
       const filteredWhere = {
+        targetMessage: { session: { deletedAt: null } },
         course: {
           memberships: {
             some: {

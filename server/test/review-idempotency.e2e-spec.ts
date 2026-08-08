@@ -10,6 +10,7 @@ import { MaterialProcessingScheduler } from '../src/modules/materials/material-p
 import { PrismaService } from '../src/modules/prisma/prisma.service'
 import { RedisService } from '../src/modules/redis/redis.service'
 import type { CreateReviewRequestResponseDto } from '../src/modules/reviews/review-case.dto'
+import { ReviewCaseCreator } from '../src/modules/reviews/review-case.creator'
 import { REVIEW_ERROR_CODES } from '../src/modules/reviews/review-case.errors'
 import {
   P0_DEMO_PASSWORD,
@@ -57,6 +58,7 @@ describe('Manual review request idempotency (e2e)', () => {
   let studentId: string
   let courseId: string
   let studentToken: string
+  let reviewCaseCreator: ReviewCaseCreator
 
   beforeAll(async () => {
     database = await setUpDisposableDatabase(
@@ -81,6 +83,7 @@ describe('Manual review request idempotency (e2e)', () => {
     app = moduleFixture.createNestApplication()
     configureApp(app)
     await app.init()
+    reviewCaseCreator = moduleFixture.get(ReviewCaseCreator)
     studentToken = await signInAs(STUDENT_EMAIL)
   })
 
@@ -234,6 +237,68 @@ describe('Manual review request idempotency (e2e)', () => {
         where: { targetMessageId: ASSISTANT_MESSAGE_IDS[3] },
       }),
     ).resolves.toBe(0)
+  })
+
+  it('allows an expired idempotency key to identify a new request', async () => {
+    await requestReview({
+      messageId: ASSISTANT_MESSAGE_IDS[0],
+      idempotencyKey: 'expired-key',
+      flagReason: 'INCORRECT',
+      note: null,
+    }).expect(201)
+    await prisma.idempotencyRecord.updateMany({
+      where: { actorUserId: studentId, key: 'expired-key' },
+      data: { expiresAt: new Date(Date.now() - 1_000) },
+    })
+
+    await requestReview({
+      messageId: ASSISTANT_MESSAGE_IDS[1],
+      idempotencyKey: 'expired-key',
+      flagReason: 'CONFUSING',
+      note: null,
+    }).expect(201)
+
+    await expect(
+      prisma.idempotencyRecord.findUniqueOrThrow({
+        where: {
+          actorUserId_operationScope_key: {
+            actorUserId: studentId,
+            operationScope: 'review.create.manual',
+            key: 'expired-key',
+          },
+        },
+        select: { resourceId: true },
+      }),
+    ).resolves.toEqual({
+      resourceId: (await persistedCase(ASSISTANT_MESSAGE_IDS[1])).id,
+    })
+  })
+
+  it('counts manual triggers attached to automatic cases against quota', async () => {
+    for (const [index, messageId] of ASSISTANT_MESSAGE_IDS.entries()) {
+      await reviewCaseCreator.createAutomatic({
+        messageId,
+        trigger: 'POLICY_CHECK_FAILED',
+        sourceEventKey: `automatic-case-${String(index)}`,
+        evidence: { summary: 'Automatic review fixture' },
+      })
+    }
+
+    for (const [index, messageId] of ASSISTANT_MESSAGE_IDS.entries()) {
+      const response = await requestReview({
+        messageId,
+        idempotencyKey: `automatic-manual-${String(index)}`,
+        flagReason: 'INCORRECT',
+        note: null,
+      })
+      expect(response.status).toBe(index < 3 ? 200 : 429)
+    }
+
+    await expect(
+      prisma.reviewTrigger.count({
+        where: { type: 'STUDENT_REQUEST', actorUserId: studentId },
+      }),
+    ).resolves.toBe(3)
   })
 
   function requireApp(): INestApplication<App> {

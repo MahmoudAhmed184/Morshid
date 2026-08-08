@@ -98,5 +98,17 @@ function useInstructorReviewAction<TRequest>(
         }),
       ])
     },
+    onError: async (_error, { reviewCaseId }) => {
+      if (!instructorId) return
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: instructorReviewKeys.detail(instructorId, reviewCaseId),
+          exact: true,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: instructorReviewKeys.queue(instructorId),
+        }),
+      ])
+    },
   })
 }
