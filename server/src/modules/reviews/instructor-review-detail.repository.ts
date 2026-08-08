@@ -1,18 +1,85 @@
 import { Injectable } from '@nestjs/common'
+import { z } from 'zod'
 
 import {
   CourseMembershipRole,
-  type MessageRole,
-  Prisma,
+  MessageRole,
+  type ReviewActionType,
   type ReviewOutcome,
   ReviewStatus,
   ReviewTriggerType,
   type StudentFlagReason,
 } from '../../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { reviewEvidenceContentHash } from './review-evidence-integrity'
 
 const MAX_CITATIONS = 20
 const MAX_SNIPPETS = 20
+
+const evidenceMessageSchema = z.object({
+  id: z.string(),
+  role: z.enum(MessageRole),
+  content: z.string(),
+  createdAt: z.string(),
+})
+
+const reviewEvidenceSchema = z.object({
+  target: z.object({
+    id: z.string(),
+    role: z.enum(MessageRole).optional(),
+    content: z.string(),
+    createdAt: z.string().optional(),
+    completedAt: z.string().nullable(),
+  }),
+  studentPrompt: z
+    .object({
+      id: z.string(),
+      content: z.string(),
+      createdAt: z.string(),
+    })
+    .nullable(),
+  context: z.object({
+    previousMessages: z.array(evidenceMessageSchema).optional(),
+    followingMessages: z.array(evidenceMessageSchema).optional(),
+    previous: evidenceMessageSchema.nullable().optional(),
+    next: evidenceMessageSchema.nullable().optional(),
+  }),
+  citations: z
+    .array(
+      z.object({
+        order: z.number().int().positive(),
+        materialId: z.string(),
+        title: z.string(),
+      }),
+    )
+    .max(MAX_CITATIONS),
+  retrievals: z
+    .array(
+      z.object({
+        rank: z.number().int().positive(),
+        materialId: z.string().nullable().optional(),
+        chunkNumber: z.number().int().positive().nullable().optional(),
+        excerpt: z.string().nullable(),
+      }),
+    )
+    .max(MAX_SNIPPETS),
+  automaticEvidence: z
+    .object({
+      sources: z
+        .array(
+          z.object({
+            materialId: z.string().optional(),
+            materialTitle: z.string().optional(),
+            chunkIndex: z.number().int().nonnegative().optional(),
+            excerpt: z.string(),
+            rank: z.number().int().positive().optional(),
+          }),
+        )
+        .max(MAX_SNIPPETS),
+    })
+    .nullable()
+    .optional(),
+})
 
 export interface ReviewDetailMessageRecord {
   role: MessageRole
@@ -45,6 +112,14 @@ export interface InstructorReviewDetailRecord {
   previousMessages: ReviewDetailMessageRecord[]
   followingMessages: ReviewDetailMessageRecord[]
   notificationCount: number
+  actions: {
+    type: ReviewActionType
+    actorDisplayName: string | null
+    content: string | null
+    reason: string | null
+    version: number
+    createdAt: Date
+  }[]
 }
 
 export abstract class InstructorReviewDetailRepository {
@@ -95,44 +170,27 @@ export class PrismaInstructorReviewDetailRepository extends InstructorReviewDeta
             createdAt: true,
           },
         },
-        evidence: { select: { evidence: true } },
         targetMessage: {
           select: {
-            sequence: true,
-            role: true,
-            content: true,
-            createdAt: true,
-            responseToMessage: {
-              select: {
-                sequence: true,
-                role: true,
-                content: true,
-                createdAt: true,
-              },
-            },
             session: {
               select: {
-                id: true,
                 student: { select: { id: true, displayName: true } },
               },
             },
-            citations: {
-              orderBy: { citationOrder: 'asc' },
-              take: MAX_CITATIONS,
-              select: {
-                citationOrder: true,
-                material: { select: { id: true, title: true } },
-              },
-            },
-            retrievals: {
-              orderBy: { rank: 'asc' },
-              take: MAX_SNIPPETS,
-              select: {
-                chunk: {
-                  select: { materialId: true, chunkIndex: true, content: true },
-                },
-              },
-            },
+          },
+        },
+        evidence: {
+          select: { schemaVersion: true, evidence: true, contentHash: true },
+        },
+        actions: {
+          orderBy: [{ caseVersion: 'asc' }, { createdAt: 'asc' }],
+          select: {
+            actionType: true,
+            content: true,
+            reason: true,
+            caseVersion: true,
+            createdAt: true,
+            actor: { select: { displayName: true } },
           },
         },
         _count: { select: { notifications: true } },
@@ -143,69 +201,39 @@ export class PrismaInstructorReviewDetailRepository extends InstructorReviewDeta
     const studentRequest = reviewCase?.triggers.find(
       ({ type }) => type === ReviewTriggerType.STUDENT_REQUEST,
     )
-    const automaticSnapshot =
-      reviewCase?.triggers.some(
-        ({ type }) => type !== ReviewTriggerType.STUDENT_REQUEST,
-      ) === true
-        ? readAutomaticSnapshot(reviewCase.evidence?.evidence)
-        : null
-    const flagged = reviewCase?.targetMessage.responseToMessage
+    const evidenceRecord = reviewCase?.evidence
+    const evidence = reviewEvidenceSchema.safeParse(
+      evidenceRecord?.schemaVersion === 1 ? evidenceRecord.evidence : undefined,
+    )
+    const evidenceHashMatches =
+      evidence.success &&
+      evidenceRecord?.contentHash !== undefined &&
+      reviewEvidenceContentHash(evidenceRecord.evidence) ===
+        evidenceRecord.contentHash
+    const assistantCreatedAt = evidence.success
+      ? (evidence.data.target.createdAt ?? evidence.data.target.completedAt)
+      : null
+    const studentPrompt = evidence.success ? evidence.data.studentPrompt : null
     if (
       reviewCase === null ||
       trigger === undefined ||
-      flagged === null ||
-      flagged === undefined
+      !evidence.success ||
+      !evidenceHashMatches ||
+      studentPrompt === null ||
+      assistantCreatedAt === null
     ) {
       return null
     }
-
-    const contextSelect = {
-      role: true,
-      content: true,
-      createdAt: true,
-    } satisfies Prisma.MessageSelect
-    const [previousMessages, followingMessages] =
-      automaticSnapshot === null
-        ? await this.prisma.$transaction([
-            this.prisma.message.findMany({
-              where: {
-                sessionId: reviewCase.targetMessage.session.id,
-                sequence: { lt: flagged.sequence },
-              },
-              select: contextSelect,
-              orderBy: { sequence: 'desc' },
-              take: 2,
-            }),
-            this.prisma.message.findMany({
-              where: {
-                sessionId: reviewCase.targetMessage.session.id,
-                sequence: { gt: reviewCase.targetMessage.sequence },
-              },
-              select: contextSelect,
-              orderBy: { sequence: 'asc' },
-              take: 2,
-            }),
-          ])
-        : [[], []]
-
-    const immutableFlagged =
-      automaticSnapshot?.studentPrompt === null ||
-      automaticSnapshot?.studentPrompt === undefined
-        ? flagged
-        : {
-            role: flagged.role,
-            content: automaticSnapshot.studentPrompt.content,
-            createdAt: automaticSnapshot.studentPrompt.createdAt,
-          }
-    const immutableAssistant =
-      automaticSnapshot === null
-        ? null
-        : {
-            role: reviewCase.targetMessage.role,
-            content: automaticSnapshot.targetContent,
-            createdAt: reviewCase.targetMessage.createdAt,
-            citations: automaticSnapshot.citations,
-          }
+    const snapshot = evidence.data
+    const automaticCitations = citationsFromAutomaticEvidence(
+      snapshot.automaticEvidence,
+    )
+    const previousMessages = snapshot.context.previousMessages ?? []
+    const followingMessages =
+      snapshot.context.followingMessages ??
+      (snapshot.context.next === null || snapshot.context.next === undefined
+        ? []
+        : [snapshot.context.next])
 
     return {
       id: reviewCase.id,
@@ -226,131 +254,97 @@ export class PrismaInstructorReviewDetailRepository extends InstructorReviewDeta
       studentNote: studentRequest?.reason ?? null,
       course: reviewCase.course,
       student: reviewCase.targetMessage.session.student,
-      flaggedExchange: immutableFlagged,
-      assistantResponse:
-        immutableAssistant ?? liveAssistantResponse(reviewCase.targetMessage),
-      previousMessages: previousMessages.reverse(),
-      followingMessages,
+      flaggedExchange: {
+        role: MessageRole.STUDENT,
+        content: studentPrompt.content,
+        createdAt: parseSnapshotDate(studentPrompt.createdAt),
+      },
+      assistantResponse: {
+        role: snapshot.target.role ?? MessageRole.ASSISTANT,
+        content: snapshot.target.content,
+        createdAt: parseSnapshotDate(assistantCreatedAt),
+        citations:
+          automaticCitations.length > 0
+            ? automaticCitations
+            : snapshot.citations.map((citation) => ({
+                order: citation.order,
+                materialId: citation.materialId,
+                materialTitle: citation.title,
+                snippets: snapshot.retrievals.flatMap((retrieval) =>
+                  retrieval.materialId === citation.materialId &&
+                  retrieval.chunkNumber !== null &&
+                  retrieval.chunkNumber !== undefined &&
+                  retrieval.excerpt !== null
+                    ? [
+                        {
+                          chunkNumber: retrieval.chunkNumber,
+                          content: retrieval.excerpt,
+                        },
+                      ]
+                    : [],
+                ),
+              })),
+      },
+      previousMessages: previousMessages.map(mapEvidenceMessage),
+      followingMessages: followingMessages.map(mapEvidenceMessage),
       notificationCount: reviewCase._count.notifications,
+      actions: reviewCase.actions.map((action) => ({
+        type: action.actionType,
+        actorDisplayName: action.actor?.displayName ?? null,
+        content: action.content,
+        reason: action.reason,
+        version: action.caseVersion,
+        createdAt: action.createdAt,
+      })),
     }
   }
 }
 
-interface AutomaticSnapshot {
-  targetContent: string
-  studentPrompt: { content: string; createdAt: Date } | null
-  citations: InstructorReviewDetailRecord['assistantResponse']['citations']
-}
-
-function readAutomaticSnapshot(
-  value: Prisma.JsonValue | undefined,
-): AutomaticSnapshot | null {
-  if (!isObject(value)) return null
-  const target = value.target
-  const automaticEvidence = value.automaticEvidence
-  if (!isObject(target) || typeof target.content !== 'string') return null
-
-  const studentPrompt =
-    isObject(value.studentPrompt) &&
-    typeof value.studentPrompt.content === 'string' &&
-    typeof value.studentPrompt.createdAt === 'string'
-      ? {
-          content: value.studentPrompt.content,
-          createdAt: validDate(value.studentPrompt.createdAt),
-        }
-      : null
-  const sources: unknown[] =
-    isObject(automaticEvidence) && Array.isArray(automaticEvidence.sources)
-      ? automaticEvidence.sources
-      : []
-  const citationsByMaterial = new Map<
+function citationsFromAutomaticEvidence(
+  evidence: z.infer<typeof reviewEvidenceSchema>['automaticEvidence'],
+): InstructorReviewDetailRecord['assistantResponse']['citations'] {
+  const citations = new Map<
     string,
     InstructorReviewDetailRecord['assistantResponse']['citations'][number]
   >()
-  for (const rawSource of sources.slice(0, MAX_SNIPPETS)) {
-    if (!isObject(rawSource)) continue
-    const source = rawSource
-    if (
-      typeof source.materialId !== 'string' ||
-      typeof source.excerpt !== 'string'
-    ) {
-      continue
-    }
-    const existing = citationsByMaterial.get(source.materialId)
+  for (const source of evidence?.sources ?? []) {
+    if (source.materialId === undefined) continue
+    const existing = citations.get(source.materialId)
     const snippet = {
       chunkNumber:
-        typeof source.chunkIndex === 'number' &&
-        Number.isSafeInteger(source.chunkIndex) &&
-        source.chunkIndex >= 0
-          ? source.chunkIndex + 1
-          : typeof source.rank === 'number' &&
-              Number.isSafeInteger(source.rank) &&
-              source.rank > 0
-            ? source.rank
-            : 1,
+        source.chunkIndex === undefined
+          ? (source.rank ?? 1)
+          : source.chunkIndex + 1,
       content: source.excerpt,
     }
     if (existing === undefined) {
-      citationsByMaterial.set(source.materialId, {
-        order: citationsByMaterial.size + 1,
+      citations.set(source.materialId, {
+        order: citations.size + 1,
         materialId: source.materialId,
-        materialTitle:
-          typeof source.materialTitle === 'string'
-            ? source.materialTitle
-            : 'Course material',
+        materialTitle: source.materialTitle ?? 'Course material',
         snippets: [snippet],
       })
     } else {
       existing.snippets.push(snippet)
     }
   }
+  return [...citations.values()].slice(0, MAX_CITATIONS)
+}
 
+function mapEvidenceMessage(
+  message: z.infer<typeof evidenceMessageSchema>,
+): ReviewDetailMessageRecord {
   return {
-    targetContent: target.content,
-    studentPrompt,
-    citations: [...citationsByMaterial.values()].slice(0, MAX_CITATIONS),
+    role: message.role,
+    content: message.content,
+    createdAt: parseSnapshotDate(message.createdAt),
   }
 }
 
-function liveAssistantResponse(target: {
-  role: MessageRole
-  content: string
-  createdAt: Date
-  citations: {
-    citationOrder: number
-    material: { id: string; title: string }
-  }[]
-  retrievals: {
-    chunk: { materialId: string; chunkIndex: number; content: string } | null
-  }[]
-}): InstructorReviewDetailRecord['assistantResponse'] {
-  return {
-    role: target.role,
-    content: target.content,
-    createdAt: target.createdAt,
-    citations: target.citations.map((citation) => ({
-      order: citation.citationOrder,
-      materialId: citation.material.id,
-      materialTitle: citation.material.title,
-      snippets: target.retrievals.flatMap((retrieval) =>
-        retrieval.chunk?.materialId === citation.material.id
-          ? [
-              {
-                chunkNumber: retrieval.chunk.chunkIndex + 1,
-                content: retrieval.chunk.content,
-              },
-            ]
-          : [],
-      ),
-    })),
-  }
-}
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function validDate(value: string): Date {
+function parseSnapshotDate(value: string): Date {
   const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? new Date(0) : date
+  if (Number.isNaN(date.getTime())) {
+    throw new Error('Review evidence contains an invalid timestamp')
+  }
+  return date
 }

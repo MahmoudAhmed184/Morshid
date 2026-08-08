@@ -39,6 +39,7 @@ const queueWhere = (
     'instructorId' | 'courseId' | 'studentFlagReason'
   >,
 ): Prisma.ReviewCaseWhereInput => ({
+  targetMessage: { session: { deletedAt: null } },
   course: {
     ...(input.courseId === undefined ? {} : { id: input.courseId }),
     memberships: {

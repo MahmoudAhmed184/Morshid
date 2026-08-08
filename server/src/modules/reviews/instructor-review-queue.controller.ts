@@ -28,6 +28,7 @@ import {
 } from '@nestjs/swagger'
 
 import { OpenApiErrorDto } from '../../common/http/openapi-error.dto'
+import { getRequestContext } from '../../common/http/request-context'
 import { ApiAccessTokenAuth } from '../../common/http/openapi.decorators'
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe'
 import { StudentFlagReason, UserRole } from '../../generated/prisma/client'
@@ -162,6 +163,7 @@ export class InstructorReviewQueueController {
       body,
       requireIdempotencyKey(rawIdempotencyKey),
       request.user,
+      getRequestContext(request),
     )
   }
 
@@ -194,6 +196,7 @@ export class InstructorReviewQueueController {
       body,
       requireIdempotencyKey(rawIdempotencyKey),
       request.user,
+      getRequestContext(request),
     )
   }
 }

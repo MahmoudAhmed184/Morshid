@@ -16,6 +16,10 @@ import { AuditService } from '../audit/audit.service'
 import type { AuditRequestContext } from '../audit/audit.service'
 import { PrismaService } from '../prisma/prisma.service'
 import type { AutomaticReviewEvidenceContribution } from './automatic-review-evidence'
+import {
+  reviewEvidenceContentHash,
+  serializeReviewEvidence,
+} from './review-evidence-integrity'
 
 const IDEMPOTENCY_SCOPE = 'review.create.manual'
 const MANUAL_REVIEW_DAILY_LIMIT = 3
@@ -99,6 +103,14 @@ export class PrismaReviewCaseRepository extends ReviewCaseRepository {
         `
 
         if (input.kind === 'manual') {
+          await tx.idempotencyRecord.deleteMany({
+            where: {
+              actorUserId: input.actorUserId,
+              operationScope: IDEMPOTENCY_SCOPE,
+              key: input.idempotencyKey,
+              expiresAt: { lte: new Date() },
+            },
+          })
           const replay = await tx.idempotencyRecord.findUnique({
             where: {
               actorUserId_operationScope_key: {
@@ -121,12 +133,26 @@ export class PrismaReviewCaseRepository extends ReviewCaseRepository {
                 'Idempotency record references a missing review case',
               )
             }
+            const trigger = await tx.reviewTrigger.findFirst({
+              where: {
+                reviewCaseId: reviewCase.id,
+                type: ReviewTriggerType.STUDENT_REQUEST,
+                actorUserId: input.actorUserId,
+              },
+              select: { createdAt: true },
+            })
+            if (trigger === null) {
+              throw new Error(
+                'Idempotency record references a review case without its manual trigger',
+              )
+            }
             return {
               kind: 'ok',
               record: mapRecord(
                 reviewCase,
                 ReviewTriggerType.STUDENT_REQUEST,
                 true,
+                trigger.createdAt,
               ),
             }
           }
@@ -181,21 +207,30 @@ export class PrismaReviewCaseRepository extends ReviewCaseRepository {
           include: { triggers: true },
         })
         if (existing !== null) {
-          const hasTrigger = existing.triggers.some((trigger) =>
+          const matchingTrigger = existing.triggers.find((trigger) =>
             input.kind === 'manual'
               ? trigger.type === ReviewTriggerType.STUDENT_REQUEST &&
                 trigger.actorUserId === input.actorUserId
               : trigger.sourceEventKey === input.sourceEventKey,
           )
-          if (!hasTrigger) {
+          if (matchingTrigger === undefined && input.kind === 'manual') {
+            if (!(await hasManualReviewQuota(tx, input.actorUserId))) {
+              return { kind: 'quota_exceeded' }
+            }
+          }
+          const triggerCreatedAt = matchingTrigger?.createdAt ?? new Date()
+          if (matchingTrigger === undefined) {
             const version = existing.version + 1
             const automaticSnapshot =
               input.kind === 'automatic'
-                ? serializeSnapshot(buildSnapshot(target, [], input))
+                ? buildSnapshot(target, [], [], input)
                 : null
             if (
               automaticSnapshot !== null &&
-              automaticSnapshot.byteLength > SNAPSHOT_LIMIT_BYTES
+              Buffer.byteLength(
+                serializeReviewEvidence(automaticSnapshot),
+                'utf8',
+              ) > SNAPSHOT_LIMIT_BYTES
             ) {
               return { kind: 'snapshot_too_large' }
             }
@@ -203,7 +238,7 @@ export class PrismaReviewCaseRepository extends ReviewCaseRepository {
               where: { id: existing.id },
               data: {
                 version,
-                triggers: { create: triggerData(input) },
+                triggers: { create: triggerData(input, triggerCreatedAt) },
                 ...(automaticSnapshot === null
                   ? {}
                   : {
@@ -211,13 +246,15 @@ export class PrismaReviewCaseRepository extends ReviewCaseRepository {
                         upsert: {
                           create: {
                             schemaVersion: 1,
-                            evidence: automaticSnapshot.snapshot,
-                            contentHash: automaticSnapshot.contentHash,
+                            evidence: automaticSnapshot,
+                            contentHash:
+                              reviewEvidenceContentHash(automaticSnapshot),
                           },
                           update: {
                             schemaVersion: 1,
-                            evidence: automaticSnapshot.snapshot,
-                            contentHash: automaticSnapshot.contentHash,
+                            evidence: automaticSnapshot,
+                            contentHash:
+                              reviewEvidenceContentHash(automaticSnapshot),
                             capturedAt: new Date(),
                           },
                         },
@@ -253,69 +290,71 @@ export class PrismaReviewCaseRepository extends ReviewCaseRepository {
           }
           return {
             kind: 'ok',
-            record: mapRecord(existing, triggerType(input), true),
+            record: mapRecord(
+              existing,
+              triggerType(input),
+              true,
+              triggerCreatedAt,
+            ),
           }
         }
 
         if (input.kind === 'manual') {
-          await tx.$queryRaw`
-            SELECT pg_advisory_xact_lock(
-              hashtextextended(${`${input.actorUserId}:manual-review-quota`}, 0)
-            ) IS NULL AS locked
-          `
-          const [usage] = await tx.$queryRaw<{ count: bigint }[]>`
-            SELECT COUNT(*)::bigint AS count
-            FROM "review_cases"
-            WHERE "requested_by_user_id" = ${input.actorUserId}::uuid
-              AND "created_at" >= (
-                date_trunc('day', CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
-                AT TIME ZONE 'UTC'
-              )
-              AND "created_at" < (
-                date_trunc('day', CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
-                AT TIME ZONE 'UTC'
-              ) + INTERVAL '1 day'
-          `
-          if (usage.count >= BigInt(MANUAL_REVIEW_DAILY_LIMIT)) {
+          if (!(await hasManualReviewQuota(tx, input.actorUserId))) {
             return { kind: 'quota_exceeded' }
           }
         }
 
-        const adjacentMessages =
+        const previousMessages =
           input.kind === 'automatic'
             ? []
             : await tx.message.findMany({
                 where: {
                   sessionId: target.session.id,
                   sequence: {
-                    in: [target.sequence - 1, target.sequence + 1].filter(
-                      (sequence) => sequence > 0,
-                    ),
+                    lt: target.responseToMessage?.sequence ?? target.sequence,
                   },
+                },
+                orderBy: { sequence: 'desc' },
+                take: 2,
+                select: adjacentMessageSelect,
+              })
+        const followingMessages =
+          input.kind === 'automatic'
+            ? []
+            : await tx.message.findMany({
+                where: {
+                  sessionId: target.session.id,
+                  sequence: { gt: target.sequence },
                 },
                 orderBy: { sequence: 'asc' },
                 take: 2,
                 select: adjacentMessageSelect,
               })
-        const serializedSnapshot = serializeSnapshot(
-          buildSnapshot(target, adjacentMessages, input),
+        const snapshot = buildSnapshot(
+          target,
+          previousMessages.reverse(),
+          followingMessages,
+          input,
         )
-        if (serializedSnapshot.byteLength > SNAPSHOT_LIMIT_BYTES) {
+        const serialized = serializeReviewEvidence(snapshot)
+        if (Buffer.byteLength(serialized, 'utf8') > SNAPSHOT_LIMIT_BYTES) {
           return { kind: 'snapshot_too_large' }
         }
 
+        const triggerCreatedAt = new Date()
         const reviewCase = await tx.reviewCase.create({
           data: {
             targetMessageId: target.id,
             courseId: target.session.courseId,
             requestedByUserId:
               input.kind === 'manual' ? input.actorUserId : null,
-            triggers: { create: triggerData(input) },
+            triggers: { create: triggerData(input, triggerCreatedAt) },
             evidence: {
               create: {
                 schemaVersion: 1,
-                evidence: serializedSnapshot.snapshot,
-                contentHash: serializedSnapshot.contentHash,
+                evidence: snapshot,
+                contentHash: reviewEvidenceContentHash(snapshot),
               },
             },
             actions: {
@@ -343,7 +382,12 @@ export class PrismaReviewCaseRepository extends ReviewCaseRepository {
 
         return {
           kind: 'ok',
-          record: mapRecord(reviewCase, triggerType(input), false),
+          record: mapRecord(
+            reviewCase,
+            triggerType(input),
+            false,
+            triggerCreatedAt,
+          ),
         }
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
@@ -399,6 +443,7 @@ const targetSelect = {
   role: true,
   status: true,
   content: true,
+  createdAt: true,
   completedAt: true,
   guidanceLabel: true,
   requestKind: true,
@@ -406,7 +451,13 @@ const targetSelect = {
   model: true,
   promptVersion: true,
   responseToMessage: {
-    select: { id: true, role: true, content: true, createdAt: true },
+    select: {
+      id: true,
+      sequence: true,
+      role: true,
+      content: true,
+      createdAt: true,
+    },
   },
   session: {
     select: {
@@ -431,7 +482,14 @@ const targetSelect = {
     select: {
       rank: true,
       similarityScore: true,
-      chunk: { select: { id: true, content: true } },
+      chunk: {
+        select: {
+          id: true,
+          materialId: true,
+          chunkIndex: true,
+          content: true,
+        },
+      },
     },
   },
 } satisfies Prisma.MessageSelect
@@ -452,26 +510,16 @@ type AdjacentMessageRecord = Prisma.MessageGetPayload<{
 
 function buildSnapshot(
   target: TargetRecord,
-  adjacentMessages: AdjacentMessageRecord[],
+  previousMessages: AdjacentMessageRecord[],
+  followingMessages: AdjacentMessageRecord[],
   input: CreateReviewCaseInput,
 ): Prisma.InputJsonObject {
-  const adjacent = (offset: number) => {
-    const message = adjacentMessages.find(
-      ({ sequence }) => sequence === target.sequence + offset,
-    )
-    return message === undefined
-      ? null
-      : {
-          id: message.id,
-          role: message.role,
-          content: truncate(message.content, ADJACENT_CONTENT_CODE_POINTS),
-          createdAt: message.createdAt.toISOString(),
-        }
-  }
   return {
     target: {
       id: target.id,
+      role: target.role,
       content: target.content,
+      createdAt: target.createdAt.toISOString(),
       completedAt: target.completedAt?.toISOString() ?? null,
       guidanceLabel: target.guidanceLabel,
       requestKind: target.requestKind,
@@ -493,33 +541,30 @@ function buildSnapshot(
           createdAt: target.responseToMessage.createdAt.toISOString(),
         }
       : null,
-    context:
-      input.kind === 'automatic'
-        ? { previous: null, next: null }
-        : { previous: adjacent(-1), next: adjacent(1) },
-    citations:
-      input.kind === 'automatic'
-        ? []
-        : target.citations.map((citation) => ({
-            order: citation.citationOrder,
-            materialId: citation.material.id,
-            title: citation.material.title,
-          })),
-    retrievals:
-      input.kind === 'automatic'
-        ? []
-        : target.retrievals.map((retrieval) => ({
-            rank: retrieval.rank,
-            score: retrieval.similarityScore?.toString() ?? null,
-            chunkId: retrieval.chunk?.id ?? null,
-            excerpt:
-              retrieval.chunk === null
-                ? null
-                : truncate(
-                    retrieval.chunk.content.replace(/\s+/gu, ' ').trim(),
-                    EXCERPT_CODE_POINTS,
-                  ),
-          })),
+    context: {
+      previousMessages: previousMessages.map(snapshotMessage),
+      followingMessages: followingMessages.map(snapshotMessage),
+    },
+    citations: target.citations.map((citation) => ({
+      order: citation.citationOrder,
+      materialId: citation.material.id,
+      title: citation.material.title,
+    })),
+    retrievals: target.retrievals.map((retrieval) => ({
+      rank: retrieval.rank,
+      score: retrieval.similarityScore?.toString() ?? null,
+      chunkId: retrieval.chunk?.id ?? null,
+      materialId: retrieval.chunk?.materialId ?? null,
+      chunkNumber:
+        retrieval.chunk === null ? null : retrieval.chunk.chunkIndex + 1,
+      excerpt:
+        retrieval.chunk === null
+          ? null
+          : truncate(
+              retrieval.chunk.content.replace(/\s+/gu, ' ').trim(),
+              EXCERPT_CODE_POINTS,
+            ),
+    })),
     automaticEvidence:
       input.kind === 'automatic'
         ? automaticEvidenceSnapshot(input.evidence)
@@ -530,6 +575,15 @@ function buildSnapshot(
       sessionId: target.session.id,
       trigger: triggerType(input),
     },
+  }
+}
+
+function snapshotMessage(message: AdjacentMessageRecord) {
+  return {
+    id: message.id,
+    role: message.role,
+    content: truncate(message.content, ADJACENT_CONTENT_CODE_POINTS),
+    createdAt: message.createdAt.toISOString(),
   }
 }
 
@@ -560,19 +614,6 @@ function automaticEvidenceSnapshot(
   }
 }
 
-function serializeSnapshot(snapshot: Prisma.InputJsonObject): {
-  snapshot: Prisma.InputJsonObject
-  byteLength: number
-  contentHash: string
-} {
-  const serialized = JSON.stringify(snapshot)
-  return {
-    snapshot,
-    byteLength: Buffer.byteLength(serialized, 'utf8'),
-    contentHash: sha256(serialized),
-  }
-}
-
 function triggerType(input: CreateReviewCaseInput): ReviewTriggerType {
   return input.kind === 'manual'
     ? ReviewTriggerType.STUDENT_REQUEST
@@ -581,6 +622,7 @@ function triggerType(input: CreateReviewCaseInput): ReviewTriggerType {
 
 function triggerData(
   input: CreateReviewCaseInput,
+  createdAt?: Date,
 ): Prisma.ReviewTriggerUncheckedCreateWithoutReviewCaseInput {
   return input.kind === 'manual'
     ? {
@@ -588,11 +630,13 @@ function triggerData(
         actorUserId: input.actorUserId,
         studentFlagReason: input.flagReason,
         reason: input.reason,
+        createdAt,
       }
     : {
         type: input.trigger,
         sourceEventKey: input.sourceEventKey,
         detectorMetadata: input.detectorMetadata ?? {},
+        createdAt,
       }
 }
 
@@ -659,6 +703,7 @@ function mapRecord(
   },
   trigger: ReviewTriggerType,
   replayed: boolean,
+  requestedAt: Date = reviewCase.createdAt,
 ): ReviewCaseCreationRecord {
   return {
     caseId: reviewCase.id,
@@ -667,9 +712,35 @@ function mapRecord(
     outcome: reviewCase.outcome,
     resolvedAt: reviewCase.resolvedAt,
     trigger,
-    requestedAt: reviewCase.createdAt,
+    requestedAt,
     replayed,
   }
+}
+
+async function hasManualReviewQuota(
+  tx: Prisma.TransactionClient,
+  actorUserId: string,
+): Promise<boolean> {
+  await tx.$queryRaw`
+    SELECT pg_advisory_xact_lock(
+      hashtextextended(${`${actorUserId}:manual-review-quota`}, 0)
+    ) IS NULL AS locked
+  `
+  const [usage] = await tx.$queryRaw<{ count: bigint }[]>`
+    SELECT COUNT(*)::bigint AS count
+    FROM "review_triggers"
+    WHERE "type" = 'STUDENT_REQUEST'
+      AND "actor_user_id" = ${actorUserId}::uuid
+      AND "created_at" >= (
+        date_trunc('day', CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
+        AT TIME ZONE 'UTC'
+      )
+      AND "created_at" < (
+        date_trunc('day', CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
+        AT TIME ZONE 'UTC'
+      ) + INTERVAL '1 day'
+  `
+  return usage.count < BigInt(MANUAL_REVIEW_DAILY_LIMIT)
 }
 
 function sha256(value: string): string {

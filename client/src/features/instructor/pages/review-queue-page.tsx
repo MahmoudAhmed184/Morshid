@@ -8,7 +8,7 @@ import {
   Search,
   XCircle,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -50,25 +50,66 @@ const triggerOptions: QueueTrigger[] = [
   'FINAL_ANSWER_RISK',
 ]
 
+const queueFilterStorageKey = 'morshid:instructor-review-queue-filters'
+
 export function ReviewQueuePage() {
+  const [storedFilters] = useState(readStoredQueueFilters)
   const [studentFlagReason, setStudentFlagReason] =
-    useState<StudentFlagReason | null>(null)
+    useState<StudentFlagReason | null>(storedFilters.studentFlagReason)
   const query = useInstructorReviewQueue(studentFlagReason)
+  const {
+    dataUpdatedAt,
+    fetchNextPage,
+    hasNextPage,
+    isError,
+    isFetchingNextPage,
+  } = query
   const pages = query.data?.pages ?? []
   const items = pages.flatMap((page) => page.items)
   const pendingCount = pages[0]?.pendingCount ?? 0
-  const [search, setSearch] = useState('')
-  const [status, setStatus] = useState<QueueStatus>('ALL')
-  const [courseId, setCourseId] = useState<string | null>(null)
-  const [trigger, setTrigger] = useState<QueueTrigger | null>(null)
+  const [search, setSearch] = useState(storedFilters.search)
+  const [status, setStatus] = useState<QueueStatus>(storedFilters.status)
+  const [courseId, setCourseId] = useState<string | null>(
+    storedFilters.courseId,
+  )
+  const [trigger, setTrigger] = useState<QueueTrigger | null>(
+    storedFilters.trigger,
+  )
   const [preservedCourses, setPreservedCourses] = useState<
     InstructorReviewQueueItem['course'][]
-  >([])
+  >(storedFilters.preservedCourses)
   const normalizedSearch = search.trim().toLowerCase()
   const currentCourses = Array.from(
     new Map(items.map((item) => [item.course.id, item.course])).values(),
   )
   const courses = studentFlagReason === null ? currentCourses : preservedCourses
+
+  useEffect(() => {
+    if (hasNextPage && !isFetchingNextPage && !isError) {
+      void fetchNextPage()
+    }
+  }, [dataUpdatedAt, fetchNextPage, hasNextPage, isError, isFetchingNextPage])
+
+  const isLoadingCompleteQueue =
+    query.isPending || query.hasNextPage || query.isFetchingNextPage
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem(
+        queueFilterStorageKey,
+        JSON.stringify({
+          search,
+          status,
+          courseId,
+          trigger,
+          studentFlagReason,
+          preservedCourses,
+        }),
+      )
+    } catch {
+      // Filter persistence is a convenience; the queue remains usable without it.
+    }
+  }, [courseId, preservedCourses, search, status, studentFlagReason, trigger])
 
   function selectStudentFlagReason(reason: StudentFlagReason) {
     if (studentFlagReason === null) setPreservedCourses(currentCourses)
@@ -270,7 +311,7 @@ export function ReviewQueuePage() {
         </CardHeader>
 
         <CardContent className="p-4 sm:p-5">
-          {query.isPending ? (
+          {isLoadingCompleteQueue ? (
             <div className="p-2">
               <InstructorListSkeleton aria-label="Loading review queue" />
             </div>
@@ -301,19 +342,67 @@ export function ReviewQueuePage() {
           )}
         </CardContent>
       </Card>
-
-      {query.hasNextPage ? (
-        <div className="flex justify-center">
-          <Button
-            variant="outline"
-            disabled={query.isFetchingNextPage}
-            onClick={() => void query.fetchNextPage()}
-          >
-            {query.isFetchingNextPage ? 'Loading…' : 'Load more reviews'}
-          </Button>
-        </div>
-      ) : null}
     </div>
+  )
+}
+
+interface StoredQueueFilters {
+  search: string
+  status: QueueStatus
+  courseId: string | null
+  trigger: QueueTrigger | null
+  studentFlagReason: StudentFlagReason | null
+  preservedCourses: InstructorReviewQueueItem['course'][]
+}
+
+function readStoredQueueFilters(): StoredQueueFilters {
+  const fallback: StoredQueueFilters = {
+    search: '',
+    status: 'PENDING',
+    courseId: null,
+    trigger: null,
+    studentFlagReason: null,
+    preservedCourses: [],
+  }
+  try {
+    const parsed: unknown = JSON.parse(
+      window.sessionStorage.getItem(queueFilterStorageKey) ?? 'null',
+    )
+    if (typeof parsed !== 'object' || parsed === null) return fallback
+    const candidate = parsed as Partial<StoredQueueFilters>
+    return {
+      search: typeof candidate.search === 'string' ? candidate.search : '',
+      status: statusTabs.some(({ value }) => value === candidate.status)
+        ? (candidate.status ?? 'PENDING')
+        : 'PENDING',
+      courseId:
+        typeof candidate.courseId === 'string' ? candidate.courseId : null,
+      trigger: triggerOptions.includes(candidate.trigger as QueueTrigger)
+        ? (candidate.trigger ?? null)
+        : null,
+      studentFlagReason: studentFlagReasons.includes(
+        candidate.studentFlagReason as StudentFlagReason,
+      )
+        ? (candidate.studentFlagReason ?? null)
+        : null,
+      preservedCourses: Array.isArray(candidate.preservedCourses)
+        ? candidate.preservedCourses.filter(isStoredCourse)
+        : [],
+    }
+  } catch {
+    return fallback
+  }
+}
+
+function isStoredCourse(
+  course: unknown,
+): course is InstructorReviewQueueItem['course'] {
+  if (typeof course !== 'object' || course === null) return false
+  const candidate = course as Record<string, unknown>
+  return (
+    typeof candidate.id === 'string' &&
+    typeof candidate.code === 'string' &&
+    typeof candidate.title === 'string'
   )
 }
 

@@ -159,6 +159,16 @@ export function hasPendingAssistant(cached: MessageHistoryData | undefined) {
   )
 }
 
+export function hasActiveReview(cached: MessageHistoryData | undefined) {
+  return (cached?.pages ?? []).some((page) =>
+    page.messages.some(
+      (message) =>
+        message.reviewSummary?.status === 'PENDING' ||
+        message.reviewSummary?.status === 'IN_REVIEW',
+    ),
+  )
+}
+
 function emptyMessageHistory(): MessageHistoryData {
   return {
     pages: [{ messages: [], nextCursor: null }],

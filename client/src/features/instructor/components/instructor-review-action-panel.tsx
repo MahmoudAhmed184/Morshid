@@ -13,6 +13,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { ConfirmDialog } from '@/components/ui/custom/confirm-dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -23,6 +24,8 @@ import { isApiError } from '@/lib/api/http'
 
 type EditorMode = 'EDITED' | 'REPLACED' | 'REJECT'
 type ReviewDrafts = Record<EditorMode, string>
+type PendingConfirmation =
+  { mode: 'APPROVED'; content: string } | { mode: EditorMode; content: string }
 
 const draftStorageVersion = 1
 
@@ -40,6 +43,10 @@ export function InstructorReviewActionPanel({
   const resolveMutation = useResolveInstructorReview()
   const rejectMutation = useRejectInstructorReview()
   const submissionInFlight = useRef(false)
+  const idempotencyRef = useRef<{
+    fingerprint: string
+    key: string
+  } | null>(null)
   const [mode, setMode] = useState<EditorMode | null>(null)
   const draftStorageKey = `morshid:review-draft:${reviewCaseId}`
   const [drafts, setDrafts] = useState<ReviewDrafts>(
@@ -55,21 +62,13 @@ export function InstructorReviewActionPanel({
   )
   const [validationError, setValidationError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [pendingConfirmation, setPendingConfirmation] =
+    useState<PendingConfirmation | null>(null)
   const isPending = resolveMutation.isPending || rejectMutation.isPending
 
-  async function approveOriginal() {
+  function approveOriginal() {
     if (isPending || submissionInFlight.current) return
-    await runSubmission(() =>
-      resolveMutation.mutateAsync({
-        reviewCaseId,
-        idempotencyKey: crypto.randomUUID(),
-        request: {
-          expectedVersion: version,
-          outcome: 'APPROVED',
-          content: null,
-        },
-      }),
-    )
+    setPendingConfirmation({ mode: 'APPROVED', content: originalContent })
   }
 
   async function submitEditor() {
@@ -84,23 +83,46 @@ export function InstructorReviewActionPanel({
       return
     }
 
+    setPendingConfirmation({ mode, content: trimmedContent })
+  }
+
+  async function confirmSubmission() {
+    const confirmation = pendingConfirmation
+    if (confirmation === null) return
+    const fingerprint = JSON.stringify({
+      reviewCaseId,
+      version,
+      ...confirmation,
+    })
+    const idempotencyKey = idempotencyKeyFor(fingerprint)
     await runSubmission(() =>
-      mode === 'REJECT'
+      confirmation.mode === 'REJECT'
         ? rejectMutation.mutateAsync({
             reviewCaseId,
-            idempotencyKey: crypto.randomUUID(),
-            request: { expectedVersion: version, reason: trimmedContent },
+            idempotencyKey,
+            request: {
+              expectedVersion: version,
+              reason: confirmation.content,
+            },
           })
         : resolveMutation.mutateAsync({
             reviewCaseId,
-            idempotencyKey: crypto.randomUUID(),
+            idempotencyKey,
             request: {
               expectedVersion: version,
-              outcome: mode,
-              content: trimmedContent,
+              outcome: confirmation.mode,
+              content:
+                confirmation.mode === 'APPROVED' ? null : confirmation.content,
             },
           }),
     )
+  }
+
+  function idempotencyKeyFor(fingerprint: string) {
+    if (idempotencyRef.current?.fingerprint !== fingerprint) {
+      idempotencyRef.current = { fingerprint, key: crypto.randomUUID() }
+    }
+    return idempotencyRef.current.key
   }
 
   async function runSubmission(submit: () => Promise<unknown>) {
@@ -109,6 +131,7 @@ export function InstructorReviewActionPanel({
     setActionError(null)
     try {
       await submit()
+      idempotencyRef.current = null
       try {
         window.sessionStorage.removeItem(draftStorageKey)
       } catch {
@@ -180,7 +203,7 @@ export function InstructorReviewActionPanel({
             <Button
               type="button"
               disabled={isPending}
-              onClick={() => void approveOriginal()}
+              onClick={approveOriginal}
               className="justify-start bg-success text-success-foreground hover:bg-success/85"
             >
               <CheckCircle2 aria-hidden />
@@ -337,6 +360,33 @@ export function InstructorReviewActionPanel({
           ) : null}
         </CardContent>
       </Card>
+      <ConfirmDialog
+        open={pendingConfirmation !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingConfirmation(null)
+        }}
+        title="Publish this terminal review outcome?"
+        description={
+          pendingConfirmation === null ? undefined : (
+            <span className="block space-y-3">
+              <span className="block">
+                This action is final. The Student-facing result will be:
+              </span>
+              <span className="block max-h-48 overflow-y-auto whitespace-pre-wrap rounded-lg border bg-muted/30 p-3 text-foreground">
+                {pendingConfirmation.content}
+              </span>
+            </span>
+          )
+        }
+        confirmLabel={
+          pendingConfirmation?.mode === 'REJECT'
+            ? 'Reject request'
+            : 'Publish outcome'
+        }
+        destructive={pendingConfirmation?.mode === 'REJECT'}
+        disabled={isPending}
+        onConfirm={confirmSubmission}
+      />
     </section>
   )
 }

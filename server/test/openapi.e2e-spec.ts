@@ -257,6 +257,7 @@ describe('OpenAPI contract (e2e)', () => {
         'assistantResponse',
         'previousExchange',
         'followingExchange',
+        'actions',
         'reviewSummary',
       ])
     } finally {

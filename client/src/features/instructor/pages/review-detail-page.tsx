@@ -269,6 +269,51 @@ export function ReviewDetailPage({
               </div>
             </section>
           ) : null}
+
+          <section
+            className="space-y-4"
+            aria-labelledby="review-action-history-title"
+          >
+            <SectionHeading
+              id="review-action-history-title"
+              icon={<Clock aria-hidden />}
+              title="Action history"
+              description="A chronological record of this review case."
+            />
+            <Card>
+              <CardContent className="divide-y p-0">
+                {review.actions.map((action) => (
+                  <div
+                    key={`${action.version}-${action.type}`}
+                    className="space-y-2 px-4 py-4"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-semibold">
+                        {humanize(action.type)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Version {action.version} ·{' '}
+                        {formatDate(action.createdAt)}
+                      </p>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {action.actorDisplayName ?? 'Automated review system'}
+                    </p>
+                    {action.reason ? (
+                      <p className="whitespace-pre-wrap text-sm">
+                        {action.reason}
+                      </p>
+                    ) : null}
+                    {action.content ? (
+                      <blockquote className="whitespace-pre-wrap rounded-lg border bg-muted/20 p-3 text-sm">
+                        {action.content}
+                      </blockquote>
+                    ) : null}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </section>
         </div>
 
         {isOpen ? (

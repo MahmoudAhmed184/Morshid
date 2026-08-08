@@ -22,6 +22,11 @@ import type { StudentCourse } from '@/features/student/schemas/student-course.sc
 import { StudentNotificationBell } from './student-notification-bell'
 
 const navigateMock = vi.hoisted(() => vi.fn())
+const destinationApiMocks = vi.hoisted(() => ({
+  getStudentReviewDetail: vi.fn(),
+  getStudentSession: vi.fn(),
+  getStudentSessionMessages: vi.fn(),
+}))
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigateMock,
@@ -29,6 +34,13 @@ vi.mock('@tanstack/react-router', () => ({
 vi.mock('@/features/notifications/hooks/use-notifications')
 vi.mock('@/features/notifications/utils/resolve-notification-course')
 vi.mock('@/features/student/components/student-course-context')
+vi.mock('@/features/student/data/student-reviews.api', () => ({
+  getStudentReviewDetail: destinationApiMocks.getStudentReviewDetail,
+}))
+vi.mock('@/features/student/data/student-sessions.api', () => ({
+  getStudentSession: destinationApiMocks.getStudentSession,
+  getStudentSessionMessages: destinationApiMocks.getStudentSessionMessages,
+}))
 
 const useNotificationsMock = vi.mocked(useNotifications)
 const useUnreadNotificationCountMock = vi.mocked(useUnreadNotificationCount)
@@ -66,6 +78,9 @@ describe('StudentNotificationBell', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     navigateMock.mockResolvedValue(undefined)
+    destinationApiMocks.getStudentReviewDetail.mockResolvedValue({})
+    destinationApiMocks.getStudentSession.mockResolvedValue({})
+    destinationApiMocks.getStudentSessionMessages.mockResolvedValue({})
     markReadMock.mockResolvedValue({ ...notification, status: 'READ' })
     resolveNotificationCourseIdMock.mockResolvedValue(notificationCourse.id)
     useStudentCourseContextMock.mockReturnValue({
@@ -178,6 +193,20 @@ describe('StudentNotificationBell', () => {
     expect(navigateMock).toHaveBeenCalledOnce()
   })
 
+  it('keeps the notification unread when destination content cannot load', async () => {
+    const user = userEvent.setup()
+    destinationApiMocks.getStudentReviewDetail.mockRejectedValue(
+      new Error('review unavailable'),
+    )
+    render(<StudentNotificationBell />)
+    await openDropdown(user)
+
+    await user.click(screen.getByText(notification.title))
+
+    expect(navigateMock).not.toHaveBeenCalled()
+    expect(markReadMock).not.toHaveBeenCalled()
+  })
+
   it('continues navigation when mark-read fails', async () => {
     const user = userEvent.setup()
     markReadMock.mockRejectedValue(new Error('Mark read failed'))
@@ -186,7 +215,7 @@ describe('StudentNotificationBell', () => {
 
     await user.click(screen.getByText(notification.title))
 
-    expect(markReadMock).toHaveBeenCalledOnce()
+    await waitFor(() => expect(markReadMock).toHaveBeenCalledOnce())
     expect(navigateMock).toHaveBeenCalledWith(
       expect.objectContaining({
         search: expect.objectContaining({ courseId: notificationCourse.id }),
@@ -212,7 +241,7 @@ describe('StudentNotificationBell', () => {
     fireEvent.click(item)
     fireEvent.click(item)
 
-    expect(markReadMock).toHaveBeenCalledOnce()
+    await waitFor(() => expect(markReadMock).toHaveBeenCalledOnce())
     finishMarkRead?.()
     await waitFor(() => expect(navigateMock).toHaveBeenCalledOnce())
   })

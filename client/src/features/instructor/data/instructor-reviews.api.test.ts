@@ -25,7 +25,7 @@ describe('Instructor review action API', () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = new URL(String(input))
       expect(url.pathname).toBe('/api/v1/instructor/reviews')
-      expect(url.searchParams.get('limit')).toBe('25')
+      expect(url.searchParams.get('limit')).toBe('100')
       expect(url.searchParams.get('cursor')).toBe(reviewCaseId)
       expect(url.searchParams.get('studentFlagReason')).toBe('UNHELPFUL')
       return Response.json({

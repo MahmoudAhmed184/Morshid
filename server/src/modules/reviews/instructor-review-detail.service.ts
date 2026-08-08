@@ -54,6 +54,10 @@ export class InstructorReviewDetailService {
       },
       previousExchange: presentExchange(record.previousMessages),
       followingExchange: presentExchange(record.followingMessages),
+      actions: record.actions.map((action) => ({
+        ...action,
+        createdAt: action.createdAt.toISOString(),
+      })),
       reviewSummary: {
         reviewCaseId: record.id,
         status: record.status,

@@ -5,6 +5,7 @@ import {
   listInstructorReviews,
 } from '@/features/instructor/data/instructor-reviews.api'
 import type { StudentFlagReason } from '@/features/instructor/schemas/instructor-review.schema'
+import { visibilityAwarePollingInterval } from '@/lib/query/polling'
 
 export const instructorReviewKeys = {
   all: (instructorId: string) =>
@@ -41,6 +42,8 @@ export function instructorReviewQueueQueryOptions(
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     staleTime: 30_000,
+    refetchInterval: () => visibilityAwarePollingInterval(),
+    refetchIntervalInBackground: true,
   })
 }
 
@@ -52,5 +55,12 @@ export function instructorReviewDetailQueryOptions(
     queryKey: instructorReviewKeys.detail(instructorId, reviewCaseId),
     queryFn: ({ signal }) => getInstructorReview(reviewCaseId, { signal }),
     staleTime: 30_000,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status
+      return status === 'PENDING' || status === 'IN_REVIEW'
+        ? visibilityAwarePollingInterval()
+        : false
+    },
+    refetchIntervalInBackground: true,
   })
 }

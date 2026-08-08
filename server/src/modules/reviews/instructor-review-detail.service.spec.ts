@@ -55,6 +55,7 @@ describe('InstructorReviewDetailService', () => {
       'assistantResponse',
       'previousExchange',
       'followingExchange',
+      'actions',
       'reviewSummary',
     ])
     expect(JSON.stringify(result)).not.toMatch(
@@ -103,6 +104,7 @@ describe('InstructorReviewDetailService', () => {
         message(MessageRole.ASSISTANT, 'previous answer'),
       ],
       followingMessages: [],
+      actions: [],
       notificationCount: 0,
     }
   }

@@ -144,6 +144,13 @@ test.describe('Instructor review queue and bounded detail', () => {
     await instructorPage
       .getByRole('button', { name: 'Approve original guidance' })
       .click()
+    const confirmation = instructorPage.getByRole('alertdialog', {
+      name: 'Publish this terminal review outcome?',
+    })
+    await expect(confirmation).toContainText(
+      'Flagged acceptance assistant response',
+    )
+    await confirmation.getByRole('button', { name: 'Publish outcome' }).click()
     await expect(
       instructorPage.getByText('Resolved', { exact: true }),
     ).toBeVisible()
@@ -234,6 +241,7 @@ test.describe('Instructor review queue and bounded detail', () => {
     ).toBeVisible()
     releaseRequest()
     await navigation
+    await page.getByRole('tab', { name: /Resolved/ }).click()
     await expect(page.getByText(fixture.studentLabel)).toBeVisible()
   })
 

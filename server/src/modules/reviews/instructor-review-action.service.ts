@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
 import type { AuthenticatedRequestUser } from '../auth/auth.dto'
+import type { AuditRequestContext } from '../audit/audit.service'
 import type {
   InstructorReviewActionResponseDto,
   RejectReviewRequest,
@@ -28,6 +29,7 @@ export class InstructorReviewActionService {
     request: ResolveReviewRequest,
     idempotencyKey: string,
     user: AuthenticatedRequestUser,
+    requestContext?: AuditRequestContext,
   ): Promise<InstructorReviewActionResponseDto> {
     return this.apply({
       kind: 'resolve',
@@ -35,6 +37,7 @@ export class InstructorReviewActionService {
       instructorId: user.id,
       idempotencyKey,
       request,
+      requestContext,
     })
   }
 
@@ -43,6 +46,7 @@ export class InstructorReviewActionService {
     request: RejectReviewRequest,
     idempotencyKey: string,
     user: AuthenticatedRequestUser,
+    requestContext?: AuditRequestContext,
   ): Promise<InstructorReviewActionResponseDto> {
     return this.apply({
       kind: 'reject',
@@ -50,6 +54,7 @@ export class InstructorReviewActionService {
       instructorId: user.id,
       idempotencyKey,
       request,
+      requestContext,
     })
   }
 

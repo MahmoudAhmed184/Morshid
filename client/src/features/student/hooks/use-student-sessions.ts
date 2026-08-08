@@ -18,7 +18,10 @@ import {
   studentSessionQueryOptions,
   studentSessionsQueryOptions,
 } from '@/features/student/data/student-sessions.queries'
-import { hasPendingAssistant } from '@/features/student/hooks/student-chat-history'
+import {
+  hasActiveReview,
+  hasPendingAssistant,
+} from '@/features/student/hooks/student-chat-history'
 import type {
   StudentCourseSelection,
   StudentSessionSelection,
@@ -29,6 +32,7 @@ import type {
   CreateChatSessionInput,
   RenameChatSessionInput,
 } from '@/features/student/schemas/student-chat.schema'
+import { visibilityAwarePollingInterval } from '@/lib/query/polling'
 
 interface RenameStudentSessionVariables {
   sessionId: string
@@ -78,8 +82,13 @@ export function useStudentSessionMessages({
       studentId !== undefined &&
       courseId !== undefined &&
       sessionId !== undefined,
-    refetchInterval: (query) =>
-      hasPendingAssistant(query.state.data) ? 1_500 : false,
+    refetchInterval: (query) => {
+      if (hasPendingAssistant(query.state.data)) return 1_500
+      return hasActiveReview(query.state.data)
+        ? visibilityAwarePollingInterval()
+        : false
+    },
+    refetchIntervalInBackground: true,
   })
 }
 

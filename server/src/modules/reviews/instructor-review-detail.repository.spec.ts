@@ -6,17 +6,12 @@ import {
 } from '../../generated/prisma/client'
 import type { PrismaService } from '../prisma/prisma.service'
 import { PrismaInstructorReviewDetailRepository } from './instructor-review-detail.repository'
+import { reviewEvidenceContentHash } from './review-evidence-integrity'
 
 describe('PrismaInstructorReviewDetailRepository', () => {
   const findReview = jest.fn()
-  const findMessages = jest.fn()
-  const transaction = jest.fn((operations: unknown[]) =>
-    Promise.all(operations),
-  )
   const repository = new PrismaInstructorReviewDetailRepository({
     reviewCase: { findFirst: findReview },
-    message: { findMany: findMessages },
-    $transaction: transaction,
   } as unknown as PrismaService)
 
   beforeEach(() => jest.clearAllMocks())
@@ -45,37 +40,13 @@ describe('PrismaInstructorReviewDetailRepository', () => {
         },
       }),
     )
-    expect(findMessages).not.toHaveBeenCalled()
   })
 
-  it('fetches at most one previous and one following exchange', async () => {
+  it('returns only the immutable context captured in the evidence snapshot', async () => {
     findReview.mockResolvedValue(reviewRecord())
-    findMessages
-      .mockResolvedValueOnce([
-        message(MessageRole.ASSISTANT, 'previous answer'),
-        message(MessageRole.STUDENT, 'previous question'),
-      ])
-      .mockResolvedValueOnce([
-        message(MessageRole.STUDENT, 'following question'),
-        message(MessageRole.ASSISTANT, 'following answer'),
-      ])
 
     const result = await repository.findAuthorized('instructor-1', 'review-1')
-    const calls = findMessages.mock.calls as unknown as [
-      Record<string, unknown>,
-    ][]
 
-    expect(findMessages).toHaveBeenCalledTimes(2)
-    expect(calls[0]?.[0]).toMatchObject({
-      where: { sessionId: 'session-1', sequence: { lt: 4 } },
-      orderBy: { sequence: 'desc' },
-      take: 2,
-    })
-    expect(calls[1]?.[0]).toMatchObject({
-      where: { sessionId: 'session-1', sequence: { gt: 5 } },
-      orderBy: { sequence: 'asc' },
-      take: 2,
-    })
     expect(result?.previousMessages.map(({ content }) => content)).toEqual([
       'previous question',
       'previous answer',
@@ -84,6 +55,18 @@ describe('PrismaInstructorReviewDetailRepository', () => {
       'following question',
       'following answer',
     ])
+  })
+
+  it('conceals a snapshot whose integrity hash does not match', async () => {
+    const record = reviewRecord()
+    findReview.mockResolvedValue({
+      ...record,
+      evidence: { ...record.evidence, contentHash: 'tampered' },
+    })
+
+    await expect(
+      repository.findAuthorized('instructor-1', 'review-1'),
+    ).resolves.toBeNull()
   })
 
   it.each([
@@ -128,8 +111,6 @@ describe('PrismaInstructorReviewDetailRepository', () => {
           })),
         }),
       )
-      findMessages.mockResolvedValue([])
-
       await expect(
         repository.findAuthorized('instructor-1', 'review-1'),
       ).resolves.toMatchObject({ version: 3, canReject: expected })
@@ -155,8 +136,6 @@ describe('PrismaInstructorReviewDetailRepository', () => {
         ],
       }),
     )
-    findMessages.mockResolvedValue([])
-
     await expect(
       repository.findAuthorized('instructor-1', 'review-1'),
     ).resolves.toMatchObject({
@@ -166,39 +145,47 @@ describe('PrismaInstructorReviewDetailRepository', () => {
     })
   })
 
-  it('projects automatic detail from bounded immutable evidence without live chat context', async () => {
-    findReview.mockResolvedValue(
-      reviewRecord({
-        triggers: [
+  it('projects automatic citations from bounded immutable evidence', async () => {
+    const record = reviewRecord()
+    const evidence = {
+      ...record.evidence.evidence,
+      target: {
+        ...record.evidence.evidence.target,
+        content: 'immutable safe response',
+      },
+      studentPrompt: {
+        ...record.evidence.evidence.studentPrompt,
+        content: 'immutable bounded question',
+      },
+      context: { previousMessages: [], followingMessages: [] },
+      automaticEvidence: {
+        sources: [
           {
-            type: ReviewTriggerType.GENERAL_NOT_FOUND,
-            studentFlagReason: null,
-            reason: null,
-            createdAt: new Date('2026-07-29T10:00:01.000Z'),
+            materialId: 'material-1',
+            materialTitle: 'Immutable source',
+            chunkIndex: 2,
+            excerpt: 'bounded immutable excerpt',
+            rank: 1,
           },
         ],
-        evidence: {
-          evidence: {
-            target: { content: 'immutable safe response' },
-            studentPrompt: {
-              content: 'immutable bounded question',
-              createdAt: '2026-07-29T09:58:00.000Z',
-            },
-            automaticEvidence: {
-              sources: [
-                {
-                  materialId: 'material-1',
-                  materialTitle: 'Immutable source',
-                  chunkIndex: 2,
-                  excerpt: 'bounded immutable excerpt',
-                  rank: 1,
-                },
-              ],
-            },
-          },
+      },
+    }
+    findReview.mockResolvedValue({
+      ...record,
+      triggers: [
+        {
+          type: ReviewTriggerType.GENERAL_NOT_FOUND,
+          studentFlagReason: null,
+          reason: null,
+          createdAt: new Date('2026-07-29T10:00:01.000Z'),
         },
-      }),
-    )
+      ],
+      evidence: {
+        schemaVersion: 1,
+        evidence,
+        contentHash: reviewEvidenceContentHash(evidence),
+      },
+    })
 
     await expect(
       repository.findAuthorized('instructor-1', 'review-1'),
@@ -219,12 +206,10 @@ describe('PrismaInstructorReviewDetailRepository', () => {
       previousMessages: [],
       followingMessages: [],
     })
-    expect(findMessages).not.toHaveBeenCalled()
   })
 
-  it('selects only bounded review data and never queries unrelated messages', async () => {
+  it('selects only bounded review data and never queries live message content', async () => {
     findReview.mockResolvedValue(reviewRecord())
-    findMessages.mockResolvedValue([])
 
     await repository.findAuthorized('instructor-1', 'review-1')
 
@@ -241,23 +226,46 @@ describe('PrismaInstructorReviewDetailRepository', () => {
       'createdAt',
       'course',
       'triggers',
-      'evidence',
       'targetMessage',
+      'evidence',
+      'actions',
       '_count',
     ])
-    expect(JSON.stringify(query.select)).not.toMatch(
-      /actions|draftContent|publishedContent|email|similarityScore|embedding|vector|storagePath/,
+    expect(JSON.stringify(query.select.targetMessage)).not.toMatch(
+      /content|responseToMessage|citations|retrievals/,
     )
-    const messageCalls = findMessages.mock.calls as unknown as [
-      Record<string, unknown>,
-    ][]
-    for (const [messageQuery] of messageCalls) {
-      expect(messageQuery).toHaveProperty('where.sessionId', 'session-1')
-      expect(messageQuery).toHaveProperty('take', 2)
-    }
+    expect(JSON.stringify(query.select)).not.toMatch(
+      /draftContent|publishedContent|email|similarityScore|embedding|vector|storagePath/,
+    )
   })
 
   function reviewRecord(overrides: Record<string, unknown> = {}) {
+    const evidence = {
+      target: {
+        id: 'message-1',
+        role: MessageRole.ASSISTANT,
+        content: 'flagged answer',
+        createdAt: '2026-07-29T09:59:00.000Z',
+        completedAt: '2026-07-29T09:59:01.000Z',
+      },
+      studentPrompt: {
+        id: 'message-0',
+        content: 'flagged question',
+        createdAt: '2026-07-29T09:58:00.000Z',
+      },
+      context: {
+        previousMessages: [
+          snapshotMessage(MessageRole.STUDENT, 'previous question'),
+          snapshotMessage(MessageRole.ASSISTANT, 'previous answer'),
+        ],
+        followingMessages: [
+          snapshotMessage(MessageRole.STUDENT, 'following question'),
+          snapshotMessage(MessageRole.ASSISTANT, 'following answer'),
+        ],
+      },
+      citations: [],
+      retrievals: [],
+    }
     return {
       id: 'review-1',
       status: ReviewStatus.PENDING,
@@ -274,31 +282,28 @@ describe('PrismaInstructorReviewDetailRepository', () => {
           createdAt: new Date('2026-07-29T10:00:01.000Z'),
         },
       ],
-      evidence: null,
       targetMessage: {
-        sequence: 5,
-        role: MessageRole.ASSISTANT,
-        content: 'flagged answer',
-        createdAt: new Date('2026-07-29T09:59:00.000Z'),
-        responseToMessage: {
-          sequence: 4,
-          role: MessageRole.STUDENT,
-          content: 'flagged question',
-          createdAt: new Date('2026-07-29T09:58:00.000Z'),
-        },
         session: {
-          id: 'session-1',
           student: { id: 'student-1', displayName: 'Safe Student' },
         },
-        citations: [],
-        retrievals: [],
       },
+      evidence: {
+        schemaVersion: 1,
+        evidence,
+        contentHash: reviewEvidenceContentHash(evidence),
+      },
+      actions: [],
       _count: { notifications: 0 },
       ...overrides,
     }
   }
 
-  function message(role: MessageRole, content: string) {
-    return { role, content, createdAt: new Date('2026-07-29T09:00:00.000Z') }
+  function snapshotMessage(role: MessageRole, content: string) {
+    return {
+      id: `${role}-${content}`,
+      role,
+      content,
+      createdAt: '2026-07-29T09:00:00.000Z',
+    }
   }
 })

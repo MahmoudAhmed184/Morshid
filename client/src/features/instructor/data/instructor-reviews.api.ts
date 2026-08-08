@@ -30,7 +30,7 @@ export async function listInstructorReviews(
   studentFlagReason: StudentFlagReason | null = null,
   options: ApiFetchOptions = {},
 ): Promise<InstructorReviewQueueResponse> {
-  const search = new URLSearchParams({ limit: '25' })
+  const search = new URLSearchParams({ limit: '100' })
   if (cursor !== null) search.set('cursor', cursor)
   if (studentFlagReason !== null) {
     search.set('studentFlagReason', studentFlagReason)

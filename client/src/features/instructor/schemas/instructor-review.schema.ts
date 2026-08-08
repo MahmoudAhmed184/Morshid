@@ -85,6 +85,24 @@ const reviewCitationSchema = z.object({
   ),
 })
 
+const reviewActionHistorySchema = z.object({
+  type: z.enum([
+    'CREATED',
+    'TRIGGER_ADDED',
+    'CLAIMED',
+    'DRAFT_SAVED',
+    'APPROVED',
+    'EDITED',
+    'REPLACED',
+    'REJECTED',
+  ]),
+  actorDisplayName: z.string().nullable(),
+  content: z.string().nullable(),
+  reason: z.string().max(1000).nullable(),
+  version: z.number().int().positive(),
+  createdAt: z.iso.datetime(),
+})
+
 export const instructorReviewDetailSchema = z.object({
   reviewCaseId: z.uuid(),
   status: reviewStatusSchema,
@@ -103,6 +121,7 @@ export const instructorReviewDetailSchema = z.object({
   }),
   previousExchange: reviewExchangeSchema.nullable(),
   followingExchange: reviewExchangeSchema.nullable(),
+  actions: z.array(reviewActionHistorySchema).default([]),
   reviewSummary: z.object({
     status: reviewStatusSchema,
     outcome: z
