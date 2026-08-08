@@ -89,7 +89,6 @@ function getLiveConfiguration():
     }
     if (
       env.GEMINI_API_KEY === undefined ||
-      env.GEMINI_MODEL === undefined ||
       env.GEMINI_REQUESTS_PER_MINUTE === undefined ||
       env.GEMINI_INPUT_TOKENS_PER_MINUTE === undefined ||
       env.GEMINI_REQUESTS_PER_HOUR === undefined ||
