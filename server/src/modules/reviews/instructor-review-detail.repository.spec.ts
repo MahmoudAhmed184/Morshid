@@ -140,6 +140,10 @@ describe('PrismaInstructorReviewDetailRepository', () => {
       repository.findAuthorized('instructor-1', 'review-1'),
     ).resolves.toMatchObject({
       trigger: { type: ReviewTriggerType.SOURCE_CONFLICT },
+      triggers: [
+        { type: ReviewTriggerType.SOURCE_CONFLICT },
+        { type: ReviewTriggerType.STUDENT_REQUEST },
+      ],
       studentFlagReason: 'INCORRECT',
       studentNote: 'student note',
     })

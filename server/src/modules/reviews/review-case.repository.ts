@@ -221,45 +221,11 @@ export class PrismaReviewCaseRepository extends ReviewCaseRepository {
           const triggerCreatedAt = matchingTrigger?.createdAt ?? new Date()
           if (matchingTrigger === undefined) {
             const version = existing.version + 1
-            const automaticSnapshot =
-              input.kind === 'automatic'
-                ? buildSnapshot(target, [], [], input)
-                : null
-            if (
-              automaticSnapshot !== null &&
-              Buffer.byteLength(
-                serializeReviewEvidence(automaticSnapshot),
-                'utf8',
-              ) > SNAPSHOT_LIMIT_BYTES
-            ) {
-              return { kind: 'snapshot_too_large' }
-            }
             await tx.reviewCase.update({
               where: { id: existing.id },
               data: {
                 version,
                 triggers: { create: triggerData(input, triggerCreatedAt) },
-                ...(automaticSnapshot === null
-                  ? {}
-                  : {
-                      evidence: {
-                        upsert: {
-                          create: {
-                            schemaVersion: 1,
-                            evidence: automaticSnapshot,
-                            contentHash:
-                              reviewEvidenceContentHash(automaticSnapshot),
-                          },
-                          update: {
-                            schemaVersion: 1,
-                            evidence: automaticSnapshot,
-                            contentHash:
-                              reviewEvidenceContentHash(automaticSnapshot),
-                            capturedAt: new Date(),
-                          },
-                        },
-                      },
-                    }),
                 actions: {
                   create: actionData(
                     input,

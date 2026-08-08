@@ -88,7 +88,7 @@ describe('StudentChatMessage', () => {
     })
 
     expect(
-      screen.getByRole('heading', { level: 3, name: 'Python lists' }),
+      screen.getByRole('heading', { level: 4, name: 'Python lists' }),
     ).toBeVisible()
     expect(screen.getAllByRole('list')).toHaveLength(2)
     expect(screen.getByText('Indexing')).toHaveClass('font-semibold')
@@ -115,6 +115,44 @@ describe('StudentChatMessage', () => {
     expect(screen.queryByText('dangerousCall()')).not.toBeInTheDocument()
     expect(screen.queryByRole('img')).not.toBeInTheDocument()
     expect(screen.getByText('[Image: tracking pixel]')).toBeVisible()
+  })
+
+  it('preserves a nested heading outline within the chat surface', () => {
+    renderMessage({
+      ...assistantMessage,
+      content: '# Topic\n## Section\n### Detail\n#### Note',
+    })
+
+    expect(
+      screen.getByRole('heading', { level: 3, name: 'Topic' }),
+    ).toBeVisible()
+    expect(
+      screen.getByRole('heading', { level: 4, name: 'Section' }),
+    ).toBeVisible()
+    expect(
+      screen.getByRole('heading', { level: 5, name: 'Detail' }),
+    ).toBeVisible()
+    expect(
+      screen.getByRole('heading', { level: 6, name: 'Note' }),
+    ).toBeVisible()
+  })
+
+  it('renders model-authored links as inert text', () => {
+    renderMessage({
+      ...assistantMessage,
+      content:
+        '[External](https://example.test/login) https://example.test/tracker [Relative](/account) [Fragment](#answer)',
+    })
+
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
+    expect(screen.getByText('External')).toHaveAttribute(
+      'title',
+      'Links are disabled in Tutor responses',
+    )
+    expect(screen.getByText('Relative')).toHaveAttribute(
+      'title',
+      'Links are disabled in Tutor responses',
+    )
   })
 
   it('keeps Student-authored Markdown-looking text literal', () => {

@@ -13,12 +13,20 @@ interface StudentAssistantMarkdownProps {
 const remarkPlugins = [remarkGfm]
 
 const markdownComponents: Components = {
-  h1: ({ children }) => <MarkdownHeading>{children}</MarkdownHeading>,
-  h2: ({ children }) => <MarkdownHeading>{children}</MarkdownHeading>,
-  h3: ({ children }) => <MarkdownSubheading>{children}</MarkdownSubheading>,
-  h4: ({ children }) => <MarkdownSubheading>{children}</MarkdownSubheading>,
-  h5: ({ children }) => <MarkdownSubheading>{children}</MarkdownSubheading>,
-  h6: ({ children }) => <MarkdownSubheading>{children}</MarkdownSubheading>,
+  h1: ({ children }) => <MarkdownHeading level={3}>{children}</MarkdownHeading>,
+  h2: ({ children }) => <MarkdownHeading level={4}>{children}</MarkdownHeading>,
+  h3: ({ children }) => (
+    <MarkdownSubheading level={5}>{children}</MarkdownSubheading>
+  ),
+  h4: ({ children }) => (
+    <MarkdownSubheading level={6}>{children}</MarkdownSubheading>
+  ),
+  h5: ({ children }) => (
+    <MarkdownSubheading level={6}>{children}</MarkdownSubheading>
+  ),
+  h6: ({ children }) => (
+    <MarkdownSubheading level={6}>{children}</MarkdownSubheading>
+  ),
   p: ({ children }) => <p className="my-3 first:mt-0 last:mb-0">{children}</p>,
   ul: ({ children }) => (
     <ul className="my-3 list-disc space-y-1 pl-6 marker:text-muted-foreground">
@@ -39,16 +47,13 @@ const markdownComponents: Components = {
       {children}
     </blockquote>
   ),
-  a: ({ children, href, title }) => (
-    <a
-      className="font-medium text-info underline decoration-info/35 underline-offset-4 hover:decoration-info focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2"
-      href={href}
-      rel="noreferrer"
-      target="_blank"
-      title={title}
+  a: ({ children }) => (
+    <span
+      className="font-medium text-info underline decoration-info/35 underline-offset-4"
+      title="Links are disabled in Tutor responses"
     >
       {children}
-    </a>
+    </span>
   ),
   code: ({ children, className }) => (
     <code
@@ -113,18 +118,34 @@ export function StudentAssistantMarkdown({
   )
 }
 
-function MarkdownHeading({ children }: { children: ReactNode }) {
-  return (
-    <h3 className="mt-5 mb-2 font-serif text-lg font-semibold leading-snug text-foreground first:mt-0">
-      {children}
-    </h3>
+function MarkdownHeading({
+  children,
+  level,
+}: {
+  children: ReactNode
+  level: 3 | 4
+}) {
+  const className =
+    'mt-5 mb-2 font-serif text-lg font-semibold leading-snug text-foreground first:mt-0'
+  return level === 3 ? (
+    <h3 className={className}>{children}</h3>
+  ) : (
+    <h4 className={className}>{children}</h4>
   )
 }
 
-function MarkdownSubheading({ children }: { children: ReactNode }) {
-  return (
-    <h4 className="mt-4 mb-2 text-sm font-semibold tracking-tight text-foreground first:mt-0">
-      {children}
-    </h4>
+function MarkdownSubheading({
+  children,
+  level,
+}: {
+  children: ReactNode
+  level: 5 | 6
+}) {
+  const className =
+    'mt-4 mb-2 text-sm font-semibold tracking-tight text-foreground first:mt-0'
+  return level === 5 ? (
+    <h5 className={className}>{children}</h5>
+  ) : (
+    <h6 className={className}>{children}</h6>
   )
 }

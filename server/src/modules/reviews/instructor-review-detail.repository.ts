@@ -96,6 +96,7 @@ export interface InstructorReviewDetailRecord {
   resolvedAt: Date | null
   createdAt: Date
   trigger: { type: ReviewTriggerType; createdAt: Date }
+  triggers: { type: ReviewTriggerType; createdAt: Date }[]
   studentFlagReason: StudentFlagReason | null
   studentNote: string | null
   course: { id: string; code: string; title: string }
@@ -250,6 +251,10 @@ export class PrismaInstructorReviewDetailRepository extends InstructorReviewDeta
       resolvedAt: reviewCase.resolvedAt,
       createdAt: reviewCase.createdAt,
       trigger,
+      triggers: reviewCase.triggers.map(({ type, createdAt }) => ({
+        type,
+        createdAt,
+      })),
       studentFlagReason: studentRequest?.studentFlagReason ?? null,
       studentNote: studentRequest?.reason ?? null,
       course: reviewCase.course,

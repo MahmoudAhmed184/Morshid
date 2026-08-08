@@ -45,6 +45,7 @@ describe('InstructorReviewDetailService', () => {
       'version',
       'canReject',
       'trigger',
+      'triggers',
       'studentFlagReason',
       'createdAt',
       'requestedAt',
@@ -81,6 +82,12 @@ describe('InstructorReviewDetailService', () => {
         type: ReviewTriggerType.STUDENT_REQUEST,
         createdAt,
       },
+      triggers: [
+        {
+          type: ReviewTriggerType.STUDENT_REQUEST,
+          createdAt,
+        },
+      ],
       studentFlagReason: StudentFlagReason.CONFUSING,
       studentNote: 'Please check',
       course: { id: 'course-1', code: 'C1', title: 'Course One' },

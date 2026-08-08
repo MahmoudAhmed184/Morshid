@@ -103,9 +103,12 @@ async function main(): Promise<void> {
   const completionFixtures = AUTOMATIC_SAFETY_FIXTURES.filter(({ id }) =>
     LIVE_COMPLETION_SCENARIO_IDS.has(id),
   )
+  const completionAttempts = completionFixtures.flatMap((fixture) =>
+    Array.from({ length: fixture.attempts }, () => fixture),
+  )
   stage = 'completion'
   const completions = []
-  for (const fixture of completionFixtures) {
+  for (const fixture of completionAttempts) {
     completions.push(
       await completion.complete({
         studentQuestion: fixture.studentQuestion,
@@ -126,7 +129,9 @@ async function main(): Promise<void> {
   stage = 'embedding'
   const vectors = []
   for (const fixture of embeddingFixtures) {
-    vectors.push(await embedding.embedQuery(fixture.studentQuestion))
+    for (let attempt = 0; attempt < fixture.attempts; attempt += 1) {
+      vectors.push(await embedding.embedQuery(fixture.studentQuestion))
+    }
   }
 
   stage = 'validation'
@@ -147,7 +152,7 @@ async function main(): Promise<void> {
 
   const riskDetector = new AutomaticSafetyRiskDetector()
   for (const [index, result] of completions.entries()) {
-    const fixture = completionFixtures[index]
+    const fixture = completionAttempts[index]
     const detected = riskDetector.detectOutput(
       result.content,
       fixture.behavior === 'direct_final_answer',
@@ -177,7 +182,10 @@ async function main(): Promise<void> {
     fixtureIdentifier: FIXTURE_IDENTIFIER,
     testedCommitSha,
     executedAt: new Date().toISOString(),
-    scenarioIds: AUTOMATIC_SAFETY_FIXTURES.map(({ id }) => id),
+    qualificationMode: 'provider-boundary-only',
+    deterministicScenarioIds: AUTOMATIC_SAFETY_FIXTURES.map(({ id }) => id),
+    liveCompletionScenarioIds: completionFixtures.map(({ id }) => id),
+    liveQueryEmbeddingScenarioIds: embeddingFixtures.map(({ id }) => id),
     completionProvider: firstCompletion.provider,
     completionModel: firstCompletion.model,
     promptVersion: firstCompletion.promptVersion,

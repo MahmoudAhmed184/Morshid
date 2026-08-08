@@ -163,13 +163,20 @@ npm run test:automatic-safety:smoke
 ```
 
 The ordinary provider credentials and model/profile configuration must also be
-present. Standard output is one JSON object containing only scenario IDs,
-provider/model/prompt identifiers, embedding profile/protocol, the fixture
-hash, and counts. Failure output contains only `outcome` and the failed stage.
+present. Standard output is one JSON object explicitly labeled
+`provider-boundary-only`. It separately records the eight scenarios validated
+by deterministic policy checks, the smaller set sent to live completion, and
+the set sent to live query embedding (including SCN-07's declared retry
+attempt). It also contains provider/model/prompt identifiers, embedding
+profile/protocol, the fixture hash, and per-boundary call counts. It must not be
+represented as an end-to-end live execution of SCN-01–SCN-08. Failure output
+contains only `outcome` and the failed stage.
 Neither path prints prompts, responses, excerpts, vectors, URLs, credentials,
 raw errors, or stack traces.
 
 A provider evidence record may be committed only after an explicitly approved
 successful live run. It must contain the tested commit SHA, timestamp, outcome,
-provider/model/prompt version, embedding profile/protocol, fixture identifier
-and hash, scenario IDs, and counts—never copied provider payloads or content.
+the `provider-boundary-only` qualification mode, provider/model/prompt version,
+embedding profile/protocol, fixture identifier and hash, the separate
+deterministic/live boundary scenario ID sets, and counts—never copied provider
+payloads or content.

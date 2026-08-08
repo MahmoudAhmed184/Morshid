@@ -915,9 +915,12 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
           rank?: number
         }[]
       }
-      context?: unknown
-      citations?: unknown[]
-      retrievals?: unknown[]
+      context?: {
+        previousMessages?: unknown[]
+        followingMessages?: unknown[]
+      }
+      citations?: { materialId?: string }[]
+      retrievals?: { materialId?: string; excerpt?: string }[]
     }
     expect(originalEvidence.automaticEvidence?.sources).toHaveLength(2)
     expect(
@@ -926,12 +929,21 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
         .sort(),
     ).toEqual([modern.id, legacy.id].sort())
     expect(originalEvidence).toMatchObject({
-      context: { previous: null, next: null },
-      citations: [],
-      retrievals: [],
+      context: { previousMessages: [], followingMessages: [] },
     })
+    expect(
+      originalEvidence.citations?.map(({ materialId }) => materialId).sort(),
+    ).toEqual([modern.id, legacy.id].sort())
+    expect(
+      originalEvidence.retrievals?.map(({ materialId }) => materialId).sort(),
+    ).toEqual([modern.id, legacy.id].sort())
     for (const source of originalEvidence.automaticEvidence?.sources ?? []) {
       expect(Array.from(source.excerpt ?? '').length).toBeLessThanOrEqual(500)
+    }
+    for (const retrieval of originalEvidence.retrievals ?? []) {
+      expect(Array.from(retrieval.excerpt ?? '').length).toBeLessThanOrEqual(
+        500,
+      )
     }
 
     await prisma.reviewCase.delete({ where: { id: originalCase.id } })
@@ -1534,6 +1546,68 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
     expect(disallowedRetry.body).toEqual({
       code: STUDENT_CHAT_ERROR_CODES.RETRY_NOT_ALLOWED,
       message: 'Only a failed or expired assistant response can be retried',
+    })
+  })
+
+  it('reclassifies a legacy null-kind retry and blocks a full solution before persistence', async () => {
+    await createEvidenceMaterial({
+      title: 'Legacy retry safety source',
+      content: 'Use a small hint to practice the graded exercise safely.',
+    })
+    const session = await createSession()
+    completionBehavior = () => Promise.reject(new Error(PROVIDER_SECRET))
+    const initialResponse = await request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${student1Token}`)
+      .send({ content: 'Solve my graded homework.' })
+      .expect(201)
+    const initialTurn = initialResponse.body as GroundedChatTurnResponseDto
+    expect(initialTurn.assistantMessage.status).toBe('FAILED')
+    await prisma.message.updateMany({
+      where: {
+        id: {
+          in: [initialTurn.studentMessage.id, initialTurn.assistantMessage.id],
+        },
+      },
+      data: { requestKind: null },
+    })
+
+    const unsafeOutput =
+      'Here is the complete solution:\n```python\ndef solve(values):\n    total = sum(values)\n    count = len(values)\n    if count == 0:\n        return 0\n    return total / count\n```'
+    completionBehavior = () =>
+      Promise.resolve({
+        ...successfulCompletion(),
+        content: unsafeOutput,
+        provider: 'legacy-unsafe-provider',
+        model: 'legacy-unsafe-model',
+        promptVersion: 'legacy-unsafe-prompt',
+      })
+    const retry = await request(requireApp().getHttpServer())
+      .post(
+        `${messagesPath(session.id)}/${initialTurn.studentMessage.id}/retry`,
+      )
+      .set('Authorization', `Bearer ${student1Token}`)
+      .expect(200)
+
+    expect(retry.body).toMatchObject({
+      assistantMessage: {
+        content: OUTPUT_POLICY_REFUSAL_CONTENT,
+        guidanceLabel: 'REFUSAL',
+        errorCode: 'FINAL_ANSWER_RISK',
+        reviewSummary: { status: 'PENDING' },
+      },
+    })
+    const stored = await prisma.message.findUniqueOrThrow({
+      where: { id: initialTurn.assistantMessage.id },
+      include: { citations: true, retrievals: true },
+    })
+    expect(JSON.stringify(stored)).not.toContain(unsafeOutput)
+    expect(stored).toMatchObject({
+      provider: null,
+      model: null,
+      promptVersion: null,
+      citations: [],
+      retrievals: [],
     })
   })
 

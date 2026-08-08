@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import { Inject, Injectable, Logger } from '@nestjs/common'
 
-import { MessageRequestKind, Prisma } from '../../generated/prisma/client'
+import { Prisma } from '../../generated/prisma/client'
 import type { AuthenticatedRequestUser } from '../auth/auth.dto'
 import {
   AUTOMATIC_SAFETY_RISK_DETECTOR_VERSION,
@@ -261,6 +261,12 @@ export class GroundedChatService {
     operation: OrchestrationContext,
     requestContext?: AuditRequestContext,
   ): Promise<GroundedChatTurnResponseDto> {
+    // Reclassify from immutable Student content on every orchestration. Older
+    // rows can have a null requestKind, and trusting that legacy field on retry
+    // would disable correctness-sensitive output enforcement.
+    const classification = this.requestClassifier.classify(
+      turn.studentMessage.content,
+    )
     const inputRisk = this.safetyRiskDetector.detectStudentInput(
       turn.studentMessage.content,
     )
@@ -292,6 +298,7 @@ export class GroundedChatService {
         })
         return await this.persistInsufficientEvidence(
           turn,
+          classification.correctnessSensitive,
           operation,
           requestContext,
         )
@@ -299,6 +306,7 @@ export class GroundedChatService {
       if (retrieval.kind === 'insufficient_evidence') {
         return await this.persistInsufficientEvidence(
           turn,
+          classification.correctnessSensitive,
           operation,
           requestContext,
         )
@@ -335,7 +343,12 @@ export class GroundedChatService {
 
     const context = toCompletionContext(evidence)
     if (context === null) {
-      return this.persistInsufficientEvidence(turn, operation, requestContext)
+      return this.persistInsufficientEvidence(
+        turn,
+        classification.correctnessSensitive,
+        operation,
+        requestContext,
+      )
     }
 
     let completion: CompletionResult
@@ -351,7 +364,7 @@ export class GroundedChatService {
 
     const outputRisk = this.safetyRiskDetector.detectOutput(
       completion.content,
-      turn.studentMessage.requestKind === MessageRequestKind.PROBLEM_LIKE,
+      classification.correctnessSensitive,
     )
     if (outputRisk !== null) {
       return this.persistSafetyRefusal(
@@ -439,10 +452,11 @@ export class GroundedChatService {
 
   private persistInsufficientEvidence(
     turn: ActiveGroundedTurn,
+    correctnessSensitive: boolean,
     operation: OrchestrationContext,
     requestContext?: AuditRequestContext,
   ): Promise<GroundedChatTurnResponseDto> {
-    if (turn.studentMessage.requestKind !== MessageRequestKind.PROBLEM_LIKE) {
+    if (!correctnessSensitive) {
       return this.persistBlocked(turn, operation)
     }
 

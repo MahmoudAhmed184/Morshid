@@ -42,9 +42,12 @@ describe('automatic safety live-smoke report', () => {
         'executedAt',
         'fixtureHash',
         'fixtureIdentifier',
+        'deterministicScenarioIds',
+        'liveCompletionScenarioIds',
+        'liveQueryEmbeddingScenarioIds',
         'outcome',
         'promptVersion',
-        'scenarioIds',
+        'qualificationMode',
         'testedCommitSha',
       ].sort(),
     )
@@ -60,6 +63,15 @@ describe('automatic safety live-smoke report', () => {
         completionModel: 'response-sentinel\nprivate output',
       }),
     ).toThrow('provider metadata is invalid')
+  })
+
+  it('rejects a report that omits the declared retry attempt', () => {
+    expect(() =>
+      serializeAutomaticSafetySmokeSuccess({
+        ...validInput(),
+        embeddingCount: 7,
+      }),
+    ).toThrow('counts are invalid')
   })
 
   it.each(forbiddenSentinels)(
@@ -80,7 +92,18 @@ function validInput() {
     fixtureIdentifier: 'automatic-safety-scn-01-08-v1',
     testedCommitSha: 'a'.repeat(40),
     executedAt: '2026-08-02T12:00:00.000Z',
-    scenarioIds: AUTOMATIC_SCENARIO_IDS,
+    qualificationMode: 'provider-boundary-only' as const,
+    deterministicScenarioIds: AUTOMATIC_SCENARIO_IDS,
+    liveCompletionScenarioIds: ['SCN-01', 'SCN-04', 'SCN-08'] as const,
+    liveQueryEmbeddingScenarioIds: [
+      'SCN-01',
+      'SCN-02',
+      'SCN-03',
+      'SCN-04',
+      'SCN-06',
+      'SCN-07',
+      'SCN-08',
+    ] as const,
     completionProvider: 'aws-bedrock',
     completionModel: 'approved-model',
     promptVersion: 'grounded-completion-v1',
@@ -89,6 +112,6 @@ function validInput() {
     embeddingProtocol: 'query-protocol-v1',
     fixtureHash: `sha256:${'b'.repeat(64)}`,
     completionCount: 3,
-    embeddingCount: 7,
+    embeddingCount: 8,
   } as const
 }

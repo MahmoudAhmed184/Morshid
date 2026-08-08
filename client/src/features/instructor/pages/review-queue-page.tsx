@@ -119,13 +119,15 @@ export function ReviewQueuePage() {
   const filteredItems = items.filter((item) => {
     const matchesStatus = status === 'ALL' || item.status === status
     const matchesCourse = courseId === null || item.course.id === courseId
-    const matchesTrigger = trigger === null || item.trigger === trigger
+    const matchesTrigger = trigger === null || item.triggers.includes(trigger)
     const matchesSearch =
       normalizedSearch.length === 0 ||
       item.student.displayName.toLowerCase().includes(normalizedSearch) ||
       item.course.title.toLowerCase().includes(normalizedSearch) ||
       item.course.code.toLowerCase().includes(normalizedSearch) ||
-      humanize(item.trigger).toLowerCase().includes(normalizedSearch)
+      item.triggers.some((itemTrigger) =>
+        humanize(itemTrigger).toLowerCase().includes(normalizedSearch),
+      )
 
     return matchesStatus && matchesCourse && matchesTrigger && matchesSearch
   })
@@ -445,13 +447,16 @@ function ReviewQueueCards({ items }: { items: InstructorReviewQueueItem[] }) {
 
               <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <Badge
-                    variant={
-                      item.trigger === 'STUDENT_REQUEST' ? 'info' : 'secondary'
-                    }
-                  >
-                    {humanize(item.trigger)}
-                  </Badge>
+                  {item.triggers.map((itemTrigger) => (
+                    <Badge
+                      key={itemTrigger}
+                      variant={
+                        itemTrigger === 'STUDENT_REQUEST' ? 'info' : 'secondary'
+                      }
+                    >
+                      {humanize(itemTrigger)}
+                    </Badge>
+                  ))}
                   {item.studentFlagReason ? (
                     <Badge variant="outline">
                       {studentFlagReasonLabel(item.studentFlagReason)}

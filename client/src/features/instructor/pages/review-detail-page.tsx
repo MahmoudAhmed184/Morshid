@@ -106,7 +106,7 @@ export function ReviewDetailPage({
         <CompactReviewMetadata
           course={review.course.title}
           student={review.student.displayName}
-          trigger={humanize(review.trigger)}
+          trigger={review.triggers.map(humanize).join(' · ')}
           requested={formatDate(review.requestedAt)}
         />
       ) : (
@@ -123,8 +123,8 @@ export function ReviewDetailPage({
           />
           <SummaryCard
             icon={<MessageSquareText aria-hidden />}
-            label="Trigger"
-            value={humanize(review.trigger)}
+            label={review.triggers.length === 1 ? 'Trigger' : 'Triggers'}
+            value={review.triggers.map(humanize).join(' · ')}
           />
           <SummaryCard
             icon={<Clock aria-hidden />}

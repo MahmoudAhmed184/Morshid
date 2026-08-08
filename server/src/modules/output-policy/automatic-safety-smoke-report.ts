@@ -7,7 +7,10 @@ export interface AutomaticSafetySmokeSuccessInput {
   readonly fixtureIdentifier: string
   readonly testedCommitSha: string
   readonly executedAt: string
-  readonly scenarioIds: readonly AutomaticSafetyScenarioId[]
+  readonly qualificationMode: 'provider-boundary-only'
+  readonly deterministicScenarioIds: readonly AutomaticSafetyScenarioId[]
+  readonly liveCompletionScenarioIds: readonly AutomaticSafetyScenarioId[]
+  readonly liveQueryEmbeddingScenarioIds: readonly AutomaticSafetyScenarioId[]
   readonly completionProvider: string
   readonly completionModel: string
   readonly promptVersion: string
@@ -28,8 +31,11 @@ export function serializeAutomaticSafetySmokeSuccess(
     !/^[0-9a-f]{40}$/u.test(input.testedCommitSha) ||
     Number.isNaN(executedAt.valueOf()) ||
     executedAt.toISOString() !== input.executedAt ||
-    input.scenarioIds.length !== 8 ||
-    input.scenarioIds.some((id, index) => id !== `SCN-0${String(index + 1)}`)
+    !isCompleteScenarioMatrix(input.deterministicScenarioIds) ||
+    !isOrderedScenarioSubset(input.liveCompletionScenarioIds) ||
+    input.liveCompletionScenarioIds.length === 0 ||
+    !isOrderedScenarioSubset(input.liveQueryEmbeddingScenarioIds) ||
+    input.liveQueryEmbeddingScenarioIds.length === 0
   ) {
     throw new TypeError('Automatic safety smoke identity is invalid')
   }
@@ -49,10 +55,10 @@ export function serializeAutomaticSafetySmokeSuccess(
     throw new TypeError('Automatic safety smoke fixture hash is invalid')
   }
   if (
-    !Number.isSafeInteger(input.completionCount) ||
-    input.completionCount < 1 ||
-    !Number.isSafeInteger(input.embeddingCount) ||
-    input.embeddingCount < 1
+    input.completionCount !==
+      expectedAttemptCount(input.liveCompletionScenarioIds) ||
+    input.embeddingCount !==
+      expectedAttemptCount(input.liveQueryEmbeddingScenarioIds)
   ) {
     throw new TypeError('Automatic safety smoke counts are invalid')
   }
@@ -62,7 +68,10 @@ export function serializeAutomaticSafetySmokeSuccess(
     fixtureIdentifier: input.fixtureIdentifier,
     testedCommitSha: input.testedCommitSha,
     executedAt: input.executedAt,
-    scenarioIds: input.scenarioIds,
+    qualificationMode: input.qualificationMode,
+    deterministicScenarioIds: input.deterministicScenarioIds,
+    liveCompletionScenarioIds: input.liveCompletionScenarioIds,
+    liveQueryEmbeddingScenarioIds: input.liveQueryEmbeddingScenarioIds,
     completionProvider: input.completionProvider,
     completionModel: input.completionModel,
     promptVersion: input.promptVersion,
@@ -73,6 +82,44 @@ export function serializeAutomaticSafetySmokeSuccess(
     completionCount: input.completionCount,
     embeddingCount: input.embeddingCount,
   })
+}
+
+const ALL_SCENARIO_IDS = [
+  'SCN-01',
+  'SCN-02',
+  'SCN-03',
+  'SCN-04',
+  'SCN-05',
+  'SCN-06',
+  'SCN-07',
+  'SCN-08',
+] as const satisfies readonly AutomaticSafetyScenarioId[]
+
+function isCompleteScenarioMatrix(
+  ids: readonly AutomaticSafetyScenarioId[],
+): boolean {
+  return (
+    ids.length === ALL_SCENARIO_IDS.length &&
+    ids.every((id, index) => id === ALL_SCENARIO_IDS[index])
+  )
+}
+
+function isOrderedScenarioSubset(
+  ids: readonly AutomaticSafetyScenarioId[],
+): boolean {
+  let previousIndex = -1
+  for (const id of ids) {
+    const index = ALL_SCENARIO_IDS.indexOf(id)
+    if (index <= previousIndex) return false
+    previousIndex = index
+  }
+  return true
+}
+
+function expectedAttemptCount(
+  ids: readonly AutomaticSafetyScenarioId[],
+): number {
+  return ids.reduce((count, id) => count + (id === 'SCN-07' ? 2 : 1), 0)
 }
 
 export function serializeAutomaticSafetySmokeFailure(

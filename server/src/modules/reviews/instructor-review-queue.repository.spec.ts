@@ -102,6 +102,7 @@ describe('PrismaInstructorReviewQueueRepository', () => {
       records: [
         {
           trigger: ReviewTriggerType.STUDENT_REQUEST,
+          triggers: [ReviewTriggerType.STUDENT_REQUEST],
           studentFlagReason: StudentFlagReason.INCORRECT,
           studentNote: 'Please verify this answer',
         },

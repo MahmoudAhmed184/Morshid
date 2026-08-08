@@ -16,6 +16,7 @@ export interface InstructorReviewQueueRecord {
   course: { id: string; code: string; title: string }
   student: { id: string; displayName: string }
   trigger: ReviewTriggerType
+  triggers: ReviewTriggerType[]
   studentFlagReason: StudentFlagReason | null
   studentNote: string | null
 }
@@ -149,6 +150,7 @@ export class PrismaInstructorReviewQueueRepository extends InstructorReviewQueue
           course: reviewCase.course,
           student: reviewCase.targetMessage.session.student,
           trigger: trigger.type,
+          triggers: reviewCase.triggers.map(({ type }) => type),
           studentFlagReason: studentRequest?.studentFlagReason ?? null,
           studentNote: studentRequest?.reason ?? null,
         }

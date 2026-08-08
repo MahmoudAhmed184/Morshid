@@ -226,6 +226,7 @@ describe('Instructor review pages', () => {
       ...queueItem(),
       reviewCaseId: '10000000-0000-4000-8000-000000000099',
       trigger: 'SOURCE_CONFLICT' as const,
+      triggers: ['SOURCE_CONFLICT' as const],
       studentFlagReason: null,
       course: {
         id: '20000000-0000-4000-8000-000000000099',
@@ -284,6 +285,7 @@ describe('Instructor review pages', () => {
         {
           ...queueItem(),
           trigger: 'CITATION_MISSING',
+          triggers: ['CITATION_MISSING'],
           studentFlagReason: null,
           studentNote: null,
         },
@@ -307,7 +309,8 @@ describe('Instructor review pages', () => {
         {
           ...queueItem(),
           reviewCaseId: '10000000-0000-4000-8000-000000000099',
-          trigger: 'CITATION_MISSING',
+          trigger: 'POLICY_CHECK_FAILED',
+          triggers: ['POLICY_CHECK_FAILED', 'CITATION_MISSING'],
           studentFlagReason: null,
           studentNote: null,
           student: {
@@ -348,14 +351,16 @@ describe('Instructor review pages', () => {
   it('does not show a Student category for an automatic review detail', () => {
     useDetailMock.mockReturnValue(
       detailQuery({
-        trigger: 'CITATION_MISSING',
+        trigger: 'POLICY_CHECK_FAILED',
+        triggers: ['POLICY_CHECK_FAILED', 'CITATION_MISSING'],
         studentFlagReason: null,
         studentNote: null,
       }),
     )
     render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
 
-    expect(screen.getByText('Citation missing')).toBeVisible()
+    expect(screen.getByText(/Citation missing/)).toBeVisible()
+    expect(screen.getByText(/Policy check failed/)).toBeVisible()
     expect(screen.queryByText('Student flag category')).not.toBeInTheDocument()
   })
 
@@ -638,6 +643,7 @@ function queueItem(): InstructorReviewQueueItem {
     reviewCaseId,
     status: 'PENDING' as const,
     trigger: 'STUDENT_REQUEST' as const,
+    triggers: ['STUDENT_REQUEST' as const],
     studentFlagReason: 'INCORRECT' as const,
     studentNote: 'Please verify this answer.',
     createdAt: '2026-07-29T10:00:00.000Z',
@@ -660,6 +666,7 @@ function detail() {
     version: 3,
     canReject: true,
     trigger: 'STUDENT_REQUEST' as const,
+    triggers: ['STUDENT_REQUEST' as const],
     studentFlagReason: 'CONFUSING' as const,
     createdAt: '2026-07-29T10:00:00.000Z',
     requestedAt: '2026-07-29T10:00:01.000Z',
