@@ -33,10 +33,10 @@ interface GoldenResult {
   expectedBoundary: string
   actualBoundary: string
   retrievalResult: 'query_generated' | 'boundary_blocked' | 'not_applicable'
-  citationResult: string
+  citationResult: 'not_exercised'
   diagnosisShape: 'valid' | 'null' | 'mismatch'
   noFullCode: boolean
-  persistenceResult: string
+  persistenceResult: 'not_exercised'
   pass: boolean
   failureNote: string
   providerMode: 'deterministic'
@@ -109,13 +109,12 @@ function evaluateFixture(fixture: PythonCodeDiagnosisFixture): GoldenResult {
     const e = fixture.expectedDiagnosis
     const defectMatch =
       d.likelyDefect.length > 0 &&
-      (e.likelyDefect
+      e.likelyDefect
         .split(' ')
         .slice(0, 3)
         .some((word) =>
           d.likelyDefect.toLowerCase().includes(word.toLowerCase()),
-        ) ||
-        true)
+        )
     const locationMatch = d.location.length > 0
     const conceptMatch = d.conceptExplanation.length > 0
     const stepMatch = d.nextInspectionStep.length > 0
@@ -165,13 +164,12 @@ function evaluateFixture(fixture: PythonCodeDiagnosisFixture): GoldenResult {
     expectedBoundary: fixture.expectedBoundary,
     actualBoundary,
     retrievalResult,
-    citationResult: fixture.citationExpectation,
+    // This suite evaluates pure strategy data. Retrieval, citations, and
+    // persistence are exercised by grounded-chat.e2e-spec.ts instead.
+    citationResult: 'not_exercised',
     diagnosisShape,
     noFullCode,
-    persistenceResult:
-      fixture.safeExpectedState === 'DIAGNOSIS_READY'
-        ? 'ready'
-        : 'safe_boundary',
+    persistenceResult: 'not_exercised',
     pass,
     failureNote,
     providerMode: 'deterministic',

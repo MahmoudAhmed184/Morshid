@@ -1,43 +1,44 @@
 /**
- * Guarded live-provider code-diagnosis validation.
+ * Guarded live-completion validation for the canonical Python diagnosis.
  *
- * This script supplements deterministic CI validation with a real completion
- * provider and real embeddings. It uses the same locked golden expectations
- * from fixtures/golden-dataset/python-code-diagnosis-p0.json and never
- * rewrites them.
+ * This command makes one real Gemini completion request through the production
+ * completion adapter, then applies the production output guard. It does not
+ * claim to validate database-backed retrieval or embeddings: those concerns
+ * belong to grounded-chat.e2e-spec.ts and test:gemini-embedding:smoke.
  *
  * Required environment:
  *   COMPLETION_PROVIDER=gemini
  *   GEMINI_API_KEY=<real key>
- *   EMBEDDING_PROVIDER=gemini  (or iti-bedrock)
- *   GEMINI_EMBEDDING_API_KEY=<real key>
- *   Database running with embedding profile ready
- *   Redis running
+ *   GEMINI_MODEL=<allowed model>
+ *   REDIS_URL=<running Redis>
+ *   GEMINI_* quota limits and COMPLETION_TIMEOUT_MS
  *
- * Opt-in: run only with explicit npm command:
- *   npm run test:live-diagnosis --workspace server
- *
- * Skip behavior: exits 0 with skip message when credentials are unavailable.
- * Not included in npm run check or normal CI.
- *
- * Does NOT:
- *   - record sensitive request/response content
- *   - modify golden expectations
- *   - commit credentials
- *   - run in normal CI
+ * Opt-in: npm run test:live-diagnosis --workspace server
+ * Skip behavior: exits 0 with a skip message when the live configuration is
+ * unavailable. It never records a credential, prompt, context, or response.
  */
 
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import { config as loadEnv } from 'dotenv'
+import { createClient } from 'redis'
 
-import { selectTutorStrategy } from '../src/modules/tutor/tutor-decision.js'
+import { validateEnv } from '../src/modules/config/env.schema.js'
+import type { CompletionProvider } from '../src/modules/completion/completion-provider.js'
+import {
+  GeminiCompletionAdapter,
+  createGeminiCompletionClient,
+} from '../src/modules/completion/providers/gemini/gemini-completion.adapter.js'
+import { GeminiQuotaService } from '../src/modules/completion/providers/gemini/gemini-quota.service.js'
+import { ValidatedCompletionProvider } from '../src/modules/completion/validated-completion.provider.js'
 import {
   type PythonCodeDiagnosisFixture,
   materializePythonCodeDiagnosisFixtureInput,
   parsePythonCodeDiagnosisFixtureDataset,
 } from '../src/modules/tutor/code-diagnosis/python-code-diagnosis.fixture.js'
+import { validatePythonCodeDiagnosisOutput } from '../src/modules/tutor/code-diagnosis/python-code-diagnosis.output-guard.js'
+import { selectTutorStrategy } from '../src/modules/tutor/tutor-decision.js'
 
 loadEnv({
   path: ['server/.env', '.env', '../.env'],
@@ -45,6 +46,7 @@ loadEnv({
 })
 
 const REDACTED = '[redacted]'
+const CANONICAL_FIXTURE_ID = 'gd-p0-v1-058'
 const fixturePath = resolve(
   process.cwd(),
   '..',
@@ -52,179 +54,204 @@ const fixturePath = resolve(
   'golden-dataset',
   'python-code-diagnosis-p0.json',
 )
+const LIVE_CONTEXT = Object.freeze([
+  Object.freeze({
+    sourceTitle: 'Live qualification: Python functions and scope',
+    chunkIndex: 0,
+    content:
+      'Python resolves names in the active function scope. A parameter name must match the name referenced by an expression.',
+  }),
+])
 
-interface LiveResult {
-  fixtureId: string
-  status: 'passed' | 'failed' | 'skipped'
-  note: string
-  provider?: string
-  model?: string
-  embeddingProfile?: string
+interface LiveGeminiConfiguration {
+  readonly apiKey: string
+  readonly model: string
+  readonly redisUrl: string
+  readonly timeoutMs: number
+  readonly requestsPerMinute: number
+  readonly inputTokensPerMinute: number
+  readonly requestsPerHour: number
+  readonly requestsPerDay: number
+  readonly requestsPerMonth: number
 }
 
-function canRunLive(): {
-  available: boolean
-  reason: string
-  provider?: string
-} {
-  const provider = process.env.COMPLETION_PROVIDER
-  const geminiKey = process.env.GEMINI_API_KEY
-  const embeddingProvider = process.env.EMBEDDING_PROVIDER
-  const databaseUrl = process.env.DATABASE_URL
-
-  if (provider !== 'gemini' && provider !== 'iti-bedrock') {
-    return {
-      available: false,
-      reason: `COMPLETION_PROVIDER is ${String(provider)}, not a live provider`,
+function getLiveConfiguration():
+  | { readonly kind: 'ready'; readonly configuration: LiveGeminiConfiguration }
+  | { readonly kind: 'skipped'; readonly reason: string } {
+  try {
+    const env = validateEnv(process.env)
+    if (env.COMPLETION_PROVIDER !== 'gemini') {
+      return {
+        kind: 'skipped',
+        reason:
+          'COMPLETION_PROVIDER must be gemini for live diagnosis validation',
+      }
     }
-  }
-  if (
-    provider === 'gemini' &&
-    (geminiKey === undefined ||
-      geminiKey === '' ||
-      geminiKey.includes('REPLACE'))
-  ) {
-    return {
-      available: false,
-      reason: 'GEMINI_API_KEY is missing or is a placeholder',
+    if (
+      env.GEMINI_API_KEY === undefined ||
+      env.GEMINI_MODEL === undefined ||
+      env.GEMINI_REQUESTS_PER_MINUTE === undefined ||
+      env.GEMINI_INPUT_TOKENS_PER_MINUTE === undefined ||
+      env.GEMINI_REQUESTS_PER_HOUR === undefined ||
+      env.GEMINI_REQUESTS_PER_DAY === undefined ||
+      env.GEMINI_REQUESTS_PER_MONTH === undefined
+    ) {
+      return {
+        kind: 'skipped',
+        reason: 'Gemini live configuration is incomplete',
+      }
     }
-  }
-  if (embeddingProvider !== 'gemini' && embeddingProvider !== 'iti-bedrock') {
+
     return {
-      available: false,
-      reason: `EMBEDDING_PROVIDER is ${String(embeddingProvider)}, not a live provider`,
+      kind: 'ready',
+      configuration: {
+        apiKey: env.GEMINI_API_KEY,
+        model: env.GEMINI_MODEL,
+        redisUrl: env.REDIS_URL,
+        timeoutMs: env.COMPLETION_TIMEOUT_MS,
+        requestsPerMinute: env.GEMINI_REQUESTS_PER_MINUTE,
+        inputTokensPerMinute: env.GEMINI_INPUT_TOKENS_PER_MINUTE,
+        requestsPerHour: env.GEMINI_REQUESTS_PER_HOUR,
+        requestsPerDay: env.GEMINI_REQUESTS_PER_DAY,
+        requestsPerMonth: env.GEMINI_REQUESTS_PER_MONTH,
+      },
     }
-  }
-  if (databaseUrl === undefined || databaseUrl === '') {
+  } catch {
     return {
-      available: false,
-      reason: 'DATABASE_URL is missing',
+      kind: 'skipped',
+      reason: 'Gemini live configuration is unavailable',
     }
-  }
-
-  return { available: true, reason: 'ready', provider }
-}
-
-function validateFixtureDeterministic(
-  fixture: PythonCodeDiagnosisFixture,
-): LiveResult {
-  const input = materializePythonCodeDiagnosisFixtureInput(fixture)
-  const selection = selectTutorStrategy(input)
-
-  if (fixture.expectedBoundary !== 'SUPPORTED') {
-    const boundaryMatches = selection.boundaryResponse !== null
-    return {
-      fixtureId: fixture.id,
-      status: boundaryMatches ? 'passed' : 'failed',
-      note: boundaryMatches
-        ? `boundary: ${fixture.expectedBoundary}`
-        : `expected boundary ${fixture.expectedBoundary} but got SUPPORTED`,
-    }
-  }
-
-  const hasExpectedClassification =
-    selection.decision.requestKind === 'CODE_DIAGNOSIS'
-  const hasDiagnosis = selection.diagnosis !== null
-
-  if (!hasExpectedClassification || !hasDiagnosis) {
-    return {
-      fixtureId: fixture.id,
-      status: 'failed',
-      note: `classification=${String(hasExpectedClassification)}, diagnosis=${String(hasDiagnosis)}`,
-    }
-  }
-
-  return {
-    fixtureId: fixture.id,
-    status: 'passed',
-    note: 'deterministic validation passed',
   }
 }
 
-function redact(text: string): string {
-  const apiKey = process.env.GEMINI_API_KEY
-  let result = text
-  if (apiKey !== undefined && apiKey !== '') {
-    result = result.split(apiKey).join(REDACTED)
-  }
-  result = result.replace(/\bAIza[0-9A-Za-z_-]{10,}/gu, REDACTED)
-  result = result.replace(/\bAQ\.[0-9A-Za-z_-]{10,}/gu, REDACTED)
-  return result
-}
-
-function main(): void {
-  const liveCheck = canRunLive()
+function findCanonicalFixture(): PythonCodeDiagnosisFixture {
   const dataset = parsePythonCodeDiagnosisFixtureDataset(
     JSON.parse(readFileSync(fixturePath, 'utf8')) as unknown,
   )
+  const fixture = dataset.fixtures.find(({ id }) => id === CANONICAL_FIXTURE_ID)
+  if (fixture === undefined) {
+    throw new Error(`Missing fixture ${CANONICAL_FIXTURE_ID}`)
+  }
+  return fixture
+}
 
-  const results: LiveResult[] = []
+async function createLiveProvider(
+  configuration: LiveGeminiConfiguration,
+): Promise<{
+  readonly provider: CompletionProvider
+  readonly close: () => Promise<void>
+}> {
+  const redis = createClient({ url: configuration.redisUrl })
+  redis.on('error', () => undefined)
+  await redis.connect()
 
-  if (!liveCheck.available) {
+  const quota = new GeminiQuotaService(
+    {
+      eval: (script, options) =>
+        redis.eval(script, {
+          keys: [...options.keys],
+          arguments: [...options.arguments],
+        }),
+    },
+    {
+      requestsPerMinute: configuration.requestsPerMinute,
+      inputTokensPerMinute: configuration.inputTokensPerMinute,
+      requestsPerHour: configuration.requestsPerHour,
+      requestsPerDay: configuration.requestsPerDay,
+      requestsPerMonth: configuration.requestsPerMonth,
+    },
+    { credential: configuration.apiKey },
+  )
+  const adapter = new GeminiCompletionAdapter(
+    createGeminiCompletionClient(configuration.apiKey),
+    quota,
+    {
+      model: configuration.model,
+      completionTimeoutMs: configuration.timeoutMs,
+    },
+  )
+
+  return {
+    provider: new ValidatedCompletionProvider(adapter, configuration.timeoutMs),
+    close: async () => {
+      if (!redis.isOpen) {
+        return
+      }
+      try {
+        await redis.close()
+      } catch {
+        redis.destroy()
+      }
+    },
+  }
+}
+
+async function main(): Promise<void> {
+  const live = getLiveConfiguration()
+  if (live.kind === 'skipped') {
     process.stdout.write(
-      JSON.stringify({
-        outcome: 'skipped',
-        reason: liveCheck.reason,
-        fixtureCount: dataset.fixtures.length,
-        note: 'Live-provider validation skipped; deterministic validation remains in CI.',
-      }) + '\n',
+      `${JSON.stringify({ outcome: 'skipped', reason: live.reason })}\n`,
     )
     return
   }
 
-  process.stdout.write(
-    JSON.stringify({
-      phase: 'start',
-      provider: liveCheck.provider,
-      embeddingProvider: process.env.EMBEDDING_PROVIDER,
-      fixtureCount: dataset.fixtures.length,
-    }) + '\n',
-  )
+  const fixture = findCanonicalFixture()
+  const input = materializePythonCodeDiagnosisFixtureInput(fixture)
+  const selection = selectTutorStrategy(input)
+  if (selection.diagnosis === null) {
+    throw new Error('Canonical fixture did not produce a static diagnosis')
+  }
 
-  // Phase 1: Deterministic validation (same locked expectations)
-  for (const fixture of dataset.fixtures) {
-    try {
-      const result = validateFixtureDeterministic(fixture)
-      results.push(result)
-    } catch (error) {
-      results.push({
-        fixtureId: fixture.id,
-        status: 'failed',
-        note: redact(error instanceof Error ? error.message : 'unknown error'),
-      })
+  const liveProvider = await createLiveProvider(live.configuration)
+  try {
+    const completion = await liveProvider.provider.complete({
+      studentQuestion: input,
+      context: LIVE_CONTEXT,
+      strategy: 'PYTHON_CODE_DIAGNOSIS',
+      diagnosis: selection.diagnosis,
+    })
+    const outputPolicyResult = validatePythonCodeDiagnosisOutput({
+      content: completion.content,
+      authorizedCitationCount: LIVE_CONTEXT.length,
+    })
+    if (outputPolicyResult !== 'ALLOWED_DIAGNOSIS') {
+      throw new Error(
+        `Live completion failed diagnosis output policy: ${outputPolicyResult}`,
+      )
     }
-  }
 
-  // Phase 2: Report results without sensitive content
-  const summary = {
-    outcome: 'completed',
-    provider: liveCheck.provider,
-    model: process.env.GEMINI_MODEL ?? REDACTED,
-    embeddingProvider: process.env.EMBEDDING_PROVIDER,
-    total: results.length,
-    passed: results.filter((r) => r.status === 'passed').length,
-    failed: results.filter((r) => r.status === 'failed').length,
-    skipped: results.filter((r) => r.status === 'skipped').length,
-    failures: results
-      .filter((r) => r.status === 'failed')
-      .map(({ fixtureId, note }) => ({ fixtureId, note })),
-  }
-
-  process.stdout.write(JSON.stringify(summary) + '\n')
-
-  if (summary.failed > 0) {
-    process.exitCode = 1
+    process.stdout.write(
+      `${JSON.stringify({
+        outcome: 'passed',
+        fixtureId: fixture.id,
+        provider: completion.provider,
+        model: completion.model,
+        promptVersion: completion.promptVersion,
+        inputTokens: completion.inputTokens,
+        outputTokens: completion.outputTokens,
+      })}\n`,
+    )
+  } finally {
+    await liveProvider.close()
   }
 }
 
-try {
-  main()
-} catch (error: unknown) {
+function redact(message: string): string {
+  const apiKey = process.env.GEMINI_API_KEY
+  let result = message
+  if (apiKey !== undefined && apiKey !== '') {
+    result = result.split(apiKey).join(REDACTED)
+  }
+  return result
+    .replace(/\bAIza[0-9A-Za-z_-]{10,}/gu, REDACTED)
+    .replace(/\bAQ\.[0-9A-Za-z_-]{10,}/gu, REDACTED)
+    .slice(0, 500)
+}
+
+main().catch((error: unknown) => {
+  const message = error instanceof Error ? error.message : 'unknown error'
   process.stderr.write(
-    JSON.stringify({
-      outcome: 'failure',
-      error: error instanceof Error ? redact(error.message) : 'unknown error',
-    }) + '\n',
+    `${JSON.stringify({ outcome: 'failure', error: redact(message) })}\n`,
   )
   process.exitCode = 1
-}
+})

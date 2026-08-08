@@ -67,6 +67,25 @@ describe('shared Tutor strategy selection', () => {
     })
   })
 
+  it('does not diagnose an object attribute as an unresolved local name', () => {
+    const selection = selectTutorStrategy(
+      [
+        'Why is this Python function suspicious?',
+        '```python',
+        'def display_name(user):',
+        '    return user.name',
+        '```',
+      ].join('\n'),
+    )
+
+    expect(selection.decision.requestKind).toBe(
+      MessageRequestKind.CODE_DIAGNOSIS,
+    )
+    expect(selection.diagnosis?.likelyDefect).not.toMatch(
+      /name.*without a visible definition/iu,
+    )
+  })
+
   it('returns a no-evidence refusal for clearly non-Python code', () => {
     const input = [
       'function countItems(nums) {',

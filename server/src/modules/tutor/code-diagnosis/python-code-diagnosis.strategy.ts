@@ -40,6 +40,41 @@ const PYTHON_BUILTIN_NAMES = new Set([
   'sum',
 ])
 
+const PYTHON_KEYWORDS = new Set([
+  'and',
+  'as',
+  'assert',
+  'async',
+  'await',
+  'break',
+  'class',
+  'continue',
+  'def',
+  'del',
+  'elif',
+  'else',
+  'except',
+  'finally',
+  'for',
+  'from',
+  'global',
+  'if',
+  'import',
+  'in',
+  'is',
+  'lambda',
+  'nonlocal',
+  'not',
+  'or',
+  'pass',
+  'raise',
+  'return',
+  'try',
+  'while',
+  'with',
+  'yield',
+])
+
 export function preparePythonCodeDiagnosis(
   studentMessage: string,
   assessment: PythonCodeDiagnosisBoundaryAssessment = assessPythonCodeDiagnosisBoundary(
@@ -352,10 +387,12 @@ function diagnoseNameLookup(code: string): DiagnosisMatch | null {
   ].map((match) => match[1])
   const visibleNames = new Set([...parameters, ...assigned, ...loopVariables])
   const identifiers =
-    returnExpression[1].match(/\b[A-Za-z_][A-Za-z0-9_]*\b/gu) ?? []
+    returnExpression[1].match(/(?<!\.)\b[A-Za-z_][A-Za-z0-9_]*\b/gu) ?? []
   const unresolved = identifiers.find(
     (identifier) =>
-      !visibleNames.has(identifier) && !PYTHON_BUILTIN_NAMES.has(identifier),
+      !visibleNames.has(identifier) &&
+      !PYTHON_BUILTIN_NAMES.has(identifier) &&
+      !PYTHON_KEYWORDS.has(identifier),
   )
   if (unresolved === undefined) {
     return null
