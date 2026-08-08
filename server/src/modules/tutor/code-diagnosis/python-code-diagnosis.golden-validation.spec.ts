@@ -107,18 +107,24 @@ function evaluateFixture(fixture: PythonCodeDiagnosisFixture): GoldenResult {
     if (selection.diagnosis === null) return 'mismatch'
     const d = selection.diagnosis
     const e = fixture.expectedDiagnosis
-    const defectMatch =
-      d.likelyDefect.length > 0 &&
-      e.likelyDefect
-        .split(' ')
-        .slice(0, 3)
-        .some((word) =>
-          d.likelyDefect.toLowerCase().includes(word.toLowerCase()),
-        )
-    const locationMatch = d.location.length > 0
-    const conceptMatch = d.conceptExplanation.length > 0
-    const stepMatch = d.nextInspectionStep.length > 0
-    return defectMatch && locationMatch && conceptMatch && stepMatch
+    const defectMatch = diagnosisFieldMatches(d.likelyDefect, e.likelyDefect)
+    const locationMatch = diagnosisFieldMatches(d.location, e.location)
+    const conceptMatch = diagnosisFieldMatches(
+      d.conceptExplanation,
+      e.conceptExplanation,
+    )
+    const stepMatch = diagnosisFieldMatches(
+      d.nextInspectionStep,
+      e.nextInspectionStep,
+    )
+    const categoryMatch = selection.suspectedCategory === e.suspectedCategory
+    const stepCountMatch = hasExactlyOneInspectionStep(d.nextInspectionStep)
+    return defectMatch &&
+      locationMatch &&
+      conceptMatch &&
+      stepMatch &&
+      categoryMatch &&
+      stepCountMatch
       ? 'valid'
       : 'mismatch'
   })()
@@ -129,10 +135,7 @@ function evaluateFixture(fixture: PythonCodeDiagnosisFixture): GoldenResult {
   const noFullCode = (() => {
     if (selection.diagnosis === null) return true
     const fallback = buildSafePythonCodeDiagnosisFallback(selection.diagnosis)
-    return (
-      !fallback.includes('def average') &&
-      !fallback.includes('return sum(nums) / len(nums)')
-    )
+    return !/```|(?:^|\n)\s*(?:async\s+)?(?:def|class)\s+/iu.test(fallback)
   })()
 
   const pass =
@@ -177,6 +180,67 @@ function evaluateFixture(fixture: PythonCodeDiagnosisFixture): GoldenResult {
     promptVersion: selection.decision.promptVersion,
     runId: RUN_ID,
   }
+}
+
+const DIAGNOSIS_STOP_WORDS = new Set([
+  'a',
+  'an',
+  'and',
+  'as',
+  'at',
+  'be',
+  'by',
+  'for',
+  'from',
+  'in',
+  'is',
+  'its',
+  'of',
+  'on',
+  'or',
+  'that',
+  'the',
+  'this',
+  'to',
+  'where',
+  'with',
+])
+
+function diagnosisFieldMatches(actual: string, expected: string): boolean {
+  const actualTerms = new Set(diagnosticTerms(actual))
+  const expectedTerms = diagnosticTerms(expected)
+  if (actualTerms.size === 0 || expectedTerms.length === 0) {
+    return false
+  }
+  const matchingTerms = expectedTerms.filter((term) => actualTerms.has(term))
+  return matchingTerms.length / expectedTerms.length >= 0.25
+}
+
+function hasExactlyOneInspectionStep(value: string): boolean {
+  const normalized = value.trim()
+  const sentenceEndings = normalized.match(/[.!?](?:\s|$)/gu) ?? []
+  return (
+    normalized !== '' &&
+    !/\n|^\s*(?:[-*]|\d+[.)])\s+/u.test(normalized) &&
+    sentenceEndings.length <= 1
+  )
+}
+
+function diagnosticTerms(value: string): string[] {
+  return (
+    value
+      .toLowerCase()
+      .match(/[a-z_][a-z0-9_]*|\d+/gu)
+      ?.filter((term) => !DIAGNOSIS_STOP_WORDS.has(term))
+      .map(normalizeDiagnosticTerm) ?? []
+  )
+}
+
+function normalizeDiagnosticTerm(term: string): string {
+  if (term.length > 5 && term.endsWith('ing')) return term.slice(0, -3)
+  if (term.length > 4 && term.endsWith('ed')) return term.slice(0, -2)
+  if (term.length > 4 && term.endsWith('s')) return term.slice(0, -1)
+  return term
 }
 
 describe('Python code diagnosis golden validation', () => {

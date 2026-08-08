@@ -16,11 +16,15 @@ import {
   RetrievalService,
   type RetrievedChunk,
 } from '../retrieval/retrieval.service'
-import { selectTutorStrategy } from '../tutor/tutor-decision'
+import {
+  selectTutorStrategy,
+  type TutorStrategySelection,
+} from '../tutor/tutor-decision'
 import {
   addFullRewriteRefusal,
   buildSafePythonCodeDiagnosisFallback,
   pythonCodeDiagnosisOutputErrorCode,
+  readPythonCodeDiagnosisCitationIndexes,
   validatePythonCodeDiagnosisOutput,
 } from '../tutor/code-diagnosis/python-code-diagnosis.output-guard'
 import {
@@ -162,11 +166,15 @@ export class GroundedChatService {
       )
     }
 
-    return this.orchestrate(result, {
-      ...operation,
-      studentMessageId: result.studentMessage.id,
-      assistantMessageId: result.assistantMessage.id,
-    })
+    return this.orchestrate(
+      result,
+      {
+        ...operation,
+        studentMessageId: result.studentMessage.id,
+        assistantMessageId: result.assistantMessage.id,
+      },
+      selection,
+    )
   }
 
   async retry(
@@ -222,8 +230,10 @@ export class GroundedChatService {
   private async orchestrate(
     turn: ActiveGroundedTurn,
     operation: OrchestrationContext,
+    preparedSelection?: TutorStrategySelection,
   ): Promise<GroundedChatTurnResponseDto> {
-    const selection = selectTutorStrategy(turn.studentMessage.content)
+    const selection =
+      preparedSelection ?? selectTutorStrategy(turn.studentMessage.content)
     if (selection.boundaryResponse !== null) {
       return this.persistTerminal(turn, operation, {
         kind: 'blocked',
@@ -288,6 +298,7 @@ export class GroundedChatService {
     }
 
     let completionContent = completion.content
+    let citationContextIndexes: readonly number[] | undefined
     if (selection.diagnosis !== null) {
       const outputPolicyResult = validatePythonCodeDiagnosisOutput({
         content: completion.content,
@@ -307,6 +318,11 @@ export class GroundedChatService {
           guidanceLabel: MessageGuidanceLabel.REFUSAL,
         })
       }
+      citationContextIndexes =
+        readPythonCodeDiagnosisCitationIndexes(
+          completion.content,
+          evidence.length,
+        ) ?? undefined
       if (selection.fullRewriteRequested) {
         completionContent = addFullRewriteRefusal(completion.content)
       }
@@ -332,6 +348,9 @@ export class GroundedChatService {
           ? {}
           : { outputTokens: completion.outputTokens }),
         evidence,
+        ...(citationContextIndexes === undefined
+          ? {}
+          : { citationContextIndexes }),
       })
     } catch (error) {
       this.logFailure('finalization', operation, error)

@@ -63,6 +63,7 @@ export interface CompleteGroundedChatTurnInput extends AuthorizedTurnInput {
   inputTokens?: number
   outputTokens?: number
   evidence: readonly GroundedChatEvidenceInput[]
+  citationContextIndexes?: readonly number[]
 }
 
 export interface FinalizeGroundedChatTurnInput extends AuthorizedTurnInput {
@@ -444,13 +445,11 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
           })),
         })
         await tx.messageCitation.createMany({
-          data: orderedCitationMaterialIds(input.evidence).map(
-            (materialId, index) => ({
-              messageId: input.assistantMessageId,
-              materialId,
-              citationOrder: index + 1,
-            }),
-          ),
+          data: citationRows(input).map(({ materialId, citationOrder }) => ({
+            messageId: input.assistantMessageId,
+            materialId,
+            citationOrder,
+          })),
         })
 
         const message = await tx.message.findUniqueOrThrow({
@@ -911,6 +910,26 @@ function orderedCitationMaterialIds(
     }
   }
   return ordered
+}
+
+function citationRows(
+  input: CompleteGroundedChatTurnInput,
+): readonly { readonly materialId: string; readonly citationOrder: number }[] {
+  if (input.citationContextIndexes === undefined) {
+    return orderedCitationMaterialIds(input.evidence).map(
+      (materialId, index) => ({ materialId, citationOrder: index + 1 }),
+    )
+  }
+
+  return [...new Set(input.citationContextIndexes)]
+    .sort((left, right) => left - right)
+    .map((citationOrder) => {
+      const citedEvidence = input.evidence.at(citationOrder - 1)
+      if (citedEvidence === undefined) {
+        throw new GroundedChatEvidenceUnavailableError()
+      }
+      return { materialId: citedEvidence.materialId, citationOrder }
+    })
 }
 
 function leaseExpiry(now: Date): Date {

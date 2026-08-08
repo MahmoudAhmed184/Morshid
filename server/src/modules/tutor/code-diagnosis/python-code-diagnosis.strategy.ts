@@ -16,6 +16,7 @@ export type PythonCodeDiagnosisDraft = Omit<PythonCodeDiagnosis, 'citations'>
 export interface PythonCodeDiagnosisStrategyInput {
   readonly diagnosis: Readonly<PythonCodeDiagnosisDraft>
   readonly retrievalQuery: string
+  readonly suspectedCategory: PythonDiagnosisRetrievalQueryInput['suspectedCategory']
 }
 
 interface DiagnosisMatch {
@@ -27,17 +28,82 @@ const DIAGNOSIS_INTENT_PATTERN =
   /\b(?:bug|crash|debug|diagnos|error|fails?|fix|incorrect|issue|rewrite|suspicious|wrong)\w*\b/iu
 
 const PYTHON_BUILTIN_NAMES = new Set([
+  '__import__',
+  'abs',
+  'aiter',
+  'all',
+  'anext',
+  'any',
+  'ascii',
+  'bin',
+  'bool',
+  'breakpoint',
+  'bytearray',
+  'bytes',
+  'callable',
+  'chr',
+  'classmethod',
+  'compile',
+  'complex',
+  'delattr',
+  'dict',
+  'dir',
+  'divmod',
+  'Ellipsis',
+  'enumerate',
+  'eval',
+  'exec',
   'False',
+  'filter',
+  'format',
+  'frozenset',
+  'getattr',
+  'globals',
+  'hasattr',
+  'hash',
+  'help',
+  'hex',
+  'id',
+  'input',
   'None',
+  'NotImplemented',
   'True',
   'float',
   'int',
+  'isinstance',
+  'issubclass',
+  'iter',
   'len',
+  'list',
+  'locals',
+  'map',
+  'max',
+  'memoryview',
+  'min',
+  'next',
+  'object',
+  'oct',
   'open',
+  'ord',
+  'pow',
   'print',
+  'property',
   'range',
+  'repr',
+  'reversed',
+  'round',
+  'set',
+  'setattr',
+  'slice',
+  'sorted',
+  'staticmethod',
   'str',
   'sum',
+  'super',
+  'tuple',
+  'type',
+  'vars',
+  'zip',
 ])
 
 const PYTHON_KEYWORDS = new Set([
@@ -89,21 +155,23 @@ export function preparePythonCodeDiagnosis(
   }
 
   const code = extractCode(studentMessage)
+  const structuralCode = stripStringsAndComments(code)
   const match =
-    diagnoseMissingFunctionColon(code) ??
-    diagnoseIndexAtLength(code) ??
-    diagnoseLoopIndentation(code) ??
-    diagnoseMissingFunctionArgument(code) ??
+    diagnoseMissingFunctionColon(code, structuralCode) ??
+    diagnoseIndexAtLength(code, structuralCode) ??
+    diagnoseLoopIndentation(code, structuralCode) ??
+    diagnoseMissingFunctionArgument(code, structuralCode) ??
     diagnoseMissingDictionaryKey(code) ??
     diagnoseFilePathEscapes(code) ??
     diagnoseStringConcatenation(code) ??
-    diagnoseNameLookup(code) ??
+    diagnoseNameLookup(structuralCode) ??
     uncertainDiagnosis()
 
   const diagnosis = parseDiagnosisDraft(match.diagnosis)
   return Object.freeze({
     diagnosis: Object.freeze(diagnosis),
     retrievalQuery: buildPythonDiagnosisRetrievalQuery(match.retrieval),
+    suspectedCategory: match.retrieval.suspectedCategory,
   })
 }
 
@@ -126,9 +194,13 @@ function extractCode(studentMessage: string): string {
     .trim()
 }
 
-function diagnoseMissingFunctionColon(code: string): DiagnosisMatch | null {
+function diagnoseMissingFunctionColon(
+  code: string,
+  structuralCode: string,
+): DiagnosisMatch | null {
   const lines = code.split('\n')
-  const index = lines.findIndex((line) =>
+  const structuralLines = structuralCode.split('\n')
+  const index = structuralLines.findIndex((line) =>
     /^\s*(?:async\s+)?def\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^)]*\)\s*(?:#.*)?$/u.test(
       line,
     ),
@@ -155,9 +227,12 @@ function diagnoseMissingFunctionColon(code: string): DiagnosisMatch | null {
   }
 }
 
-function diagnoseIndexAtLength(code: string): DiagnosisMatch | null {
+function diagnoseIndexAtLength(
+  code: string,
+  structuralCode: string,
+): DiagnosisMatch | null {
   const pattern = /\b([A-Za-z_][A-Za-z0-9_]*)\s*\[\s*len\(\s*\1\s*\)\s*\]/u
-  const match = pattern.exec(code)
+  const match = pattern.exec(structuralCode)
   if (match === null) {
     return null
   }
@@ -181,15 +256,19 @@ function diagnoseIndexAtLength(code: string): DiagnosisMatch | null {
   }
 }
 
-function diagnoseLoopIndentation(code: string): DiagnosisMatch | null {
+function diagnoseLoopIndentation(
+  code: string,
+  structuralCode: string,
+): DiagnosisMatch | null {
   const lines = code.split('\n')
-  for (let index = 0; index < lines.length - 1; index += 1) {
-    const header = lines[index]
+  const structuralLines = structuralCode.split('\n')
+  for (let index = 0; index < structuralLines.length - 1; index += 1) {
+    const header = structuralLines[index]
     if (!/^\s*(?:for\s+.+\s+in\s+.+|while\s+.+):\s*(?:#.*)?$/u.test(header)) {
       continue
     }
 
-    const nextIndex = lines.findIndex(
+    const nextIndex = structuralLines.findIndex(
       (line, candidateIndex) => candidateIndex > index && line.trim() !== '',
     )
     if (nextIndex < 0) {
@@ -220,9 +299,14 @@ function diagnoseLoopIndentation(code: string): DiagnosisMatch | null {
   return null
 }
 
-function diagnoseMissingFunctionArgument(code: string): DiagnosisMatch | null {
+function diagnoseMissingFunctionArgument(
+  code: string,
+  structuralCode: string,
+): DiagnosisMatch | null {
   const definition =
-    /(?:^|\n)\s*def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*:/u.exec(code)
+    /(?:^|\n)\s*def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*:/u.exec(
+      structuralCode,
+    )
   if (definition === null) {
     return null
   }
@@ -246,7 +330,7 @@ function diagnoseMissingFunctionArgument(code: string): DiagnosisMatch | null {
     `\\b${escapeRegex(definition[1])}\\s*\\(\\s*\\)`,
     'u',
   )
-  const call = callPattern.exec(code.slice(definitionEnd))
+  const call = callPattern.exec(structuralCode.slice(definitionEnd))
   if (call === null) {
     return null
   }
@@ -365,12 +449,12 @@ function diagnoseStringConcatenation(code: string): DiagnosisMatch | null {
   }
 }
 
-function diagnoseNameLookup(code: string): DiagnosisMatch | null {
+function diagnoseNameLookup(structuralCode: string): DiagnosisMatch | null {
   const definition =
-    /(?:^|\n)\s*def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*:/u.exec(code)
-  const returnExpression = /\breturn\s+([^#\r\n]+)/u.exec(
-    stripStringsAndComments(code),
-  )
+    /(?:^|\n)\s*def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*:/u.exec(
+      structuralCode,
+    )
+  const returnExpression = /\breturn\s+([^#\r\n]+)/u.exec(structuralCode)
   if (definition === null || returnExpression === null) {
     return null
   }
@@ -380,12 +464,28 @@ function diagnoseNameLookup(code: string): DiagnosisMatch | null {
     .map((parameter) => parameter.trim().split(/[=:]/u)[0]?.trim())
     .filter((parameter): parameter is string => Boolean(parameter))
   const assigned = [
-    ...code.matchAll(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=/gmu),
+    ...structuralCode.matchAll(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=/gmu),
   ].map((match) => match[1])
   const loopVariables = [
-    ...code.matchAll(/^\s*for\s+([A-Za-z_][A-Za-z0-9_]*)\s+in\b/gmu),
+    ...structuralCode.matchAll(/^\s*for\s+([A-Za-z_][A-Za-z0-9_]*)\s+in\b/gmu),
   ].map((match) => match[1])
-  const visibleNames = new Set([...parameters, ...assigned, ...loopVariables])
+  const importedNames = collectImportedNames(structuralCode)
+  const definedFunctions = [
+    ...structuralCode.matchAll(
+      /^\s*(?:async\s+)?def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/gmu,
+    ),
+  ].map((match) => match[1])
+  const comprehensionVariables = [
+    ...structuralCode.matchAll(/\bfor\s+([A-Za-z_][A-Za-z0-9_]*)\s+in\b/gu),
+  ].map((match) => match[1])
+  const visibleNames = new Set([
+    ...parameters,
+    ...assigned,
+    ...loopVariables,
+    ...importedNames,
+    ...definedFunctions,
+    ...comprehensionVariables,
+  ])
   const identifiers =
     returnExpression[1].match(/(?<!\.)\b[A-Za-z_][A-Za-z0-9_]*\b/gu) ?? []
   const unresolved = identifiers.find(
@@ -445,6 +545,34 @@ function diagnoseNameLookup(code: string): DiagnosisMatch | null {
   }
 }
 
+function collectImportedNames(code: string): string[] {
+  const names: string[] = []
+  for (const match of code.matchAll(/^\s*import\s+([^#\r\n]+)/gmu)) {
+    for (const imported of match[1].split(',')) {
+      const parts = imported.trim().split(/\s+as\s+/u)
+      const visible = parts[1] ?? parts[0].split('.')[0]
+      if (visible !== '') {
+        names.push(visible)
+      }
+    }
+  }
+  for (const match of code.matchAll(
+    /^\s*from\s+[^\s]+\s+import\s+([^#\r\n]+)/gmu,
+  )) {
+    for (const imported of match[1].split(',')) {
+      const parts = imported
+        .trim()
+        .replace(/[()]/gu, '')
+        .split(/\s+as\s+/u)
+      const visible = parts[1] ?? parts[0]
+      if (visible !== '' && visible !== '*') {
+        names.push(visible)
+      }
+    }
+  }
+  return names
+}
+
 function uncertainDiagnosis(): DiagnosisMatch {
   return {
     diagnosis: {
@@ -493,11 +621,68 @@ function indentWidth(line: string): number {
 }
 
 function stripStringsAndComments(code: string): string {
-  return code
-    .replace(/(['"])(?:\\.|(?!\1)[^\\\r\n])*\1/gu, (value) =>
-      ' '.repeat(value.length),
-    )
-    .replace(/#[^\r\n]*/gu, (value) => ' '.repeat(value.length))
+  const output = code.split('')
+  let index = 0
+  while (index < code.length) {
+    const character = code[index]
+    if (character === '#') {
+      while (index < code.length && code[index] !== '\n') {
+        output[index] = ' '
+        index += 1
+      }
+      continue
+    }
+    if (character !== "'" && character !== '"') {
+      index += 1
+      continue
+    }
+
+    maskStringPrefix(code, output, index)
+    const triple = code.slice(index, index + 3) === character.repeat(3)
+    const delimiterLength = triple ? 3 : 1
+    for (let offset = 0; offset < delimiterLength; offset += 1) {
+      output[index + offset] = ' '
+    }
+    index += delimiterLength
+    while (index < code.length) {
+      if (code[index] === '\n' && !triple) break
+      if (code[index] === '\\') {
+        output[index] = ' '
+        if (index + 1 < code.length && code[index + 1] !== '\n') {
+          output[index + 1] = ' '
+          index += 2
+          continue
+        }
+      }
+      if (
+        code.slice(index, index + delimiterLength) ===
+        character.repeat(delimiterLength)
+      ) {
+        for (let offset = 0; offset < delimiterLength; offset += 1) {
+          output[index + offset] = ' '
+        }
+        index += delimiterLength
+        break
+      }
+      if (code[index] !== '\n') output[index] = ' '
+      index += 1
+    }
+  }
+  return output.join('')
+}
+
+function maskStringPrefix(
+  code: string,
+  output: string[],
+  quoteIndex: number,
+): void {
+  const prefix = /(?:^|[^A-Za-z0-9_])([rRuUbBfF]{1,2})$/u.exec(
+    code.slice(Math.max(0, quoteIndex - 3), quoteIndex),
+  )?.[1]
+  if (prefix === undefined) return
+  for (let offset = 1; offset <= prefix.length; offset += 1) {
+    output[quoteIndex - offset] = ' '
+  }
 }
 
 function escapeRegex(value: string): string {

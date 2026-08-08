@@ -24,7 +24,6 @@ interface PythonCodeDiagnosisOutputGuardInput {
 
 interface FencedOutputBlock {
   readonly code: string
-  readonly start: number
 }
 
 export function validatePythonCodeDiagnosisOutput(
@@ -58,12 +57,18 @@ export function validatePythonCodeDiagnosisOutput(
   if (
     sections === null ||
     nextStepSection === undefined ||
-    containsMultipleInspectionSteps(nextStepSection)
+    !hasExactlyOneInspectionStep(nextStepSection)
   ) {
     return 'INVALID_RESPONSE_SHAPE'
   }
+  const conceptSection = sections.at(2)
   if (
-    !hasOnlyAuthorizedCitations(input.content, input.authorizedCitationCount)
+    conceptSection === undefined ||
+    extractPythonCodeDiagnosisCitationIndexes(
+      input.content,
+      conceptSection,
+      input.authorizedCitationCount,
+    ) === null
   ) {
     return 'INVALID_CITATION'
   }
@@ -119,7 +124,6 @@ function extractFencedOutputBlocks(
   return [...content.matchAll(/```[^\r\n`]*\r?\n([\s\S]*?)```/gu)].map(
     (match) => ({
       code: match[1],
-      start: match.index,
     }),
   )
 }
@@ -128,6 +132,9 @@ function containsFullCorrectedProgram(
   content: string,
   codeBlocks: readonly FencedOutputBlock[],
 ): boolean {
+  if (/(?:^|\n)\s*(?:```|~~~)/u.test(content)) {
+    return true
+  }
   if (
     /\b(?:here(?:'s| is)|below is|the following is)\s+(?:(?:the|a)\s+)?(?:full|complete|corrected|fixed|working|final)\s+(?:code|program|script|solution)\b|\bI(?:'ve| have)\s+(?:completed|corrected|fixed|rewritten)\s+(?:(?:the|your)\s+)?(?:assignment|code|program|script|solution)\b/iu.test(
       content,
@@ -136,10 +143,15 @@ function containsFullCorrectedProgram(
     return true
   }
 
-  const visibleCode = [
-    ...codeBlocks.map(({ code }) => code),
-    content.replace(/```[^\r\n`]*\r?\n[\s\S]*?```/gu, ''),
-  ]
+  // The diagnosis contract explicitly forbids a corrected submission. A
+  // fenced block is executable-looking content and even a two-line script can
+  // be a complete answer for a small exercise, so line-count heuristics cannot
+  // distinguish a harmless fragment from a prohibited rewrite reliably.
+  if (codeBlocks.length > 0) {
+    return true
+  }
+
+  const visibleCode = [content]
   return visibleCode.some((code) =>
     /(?:^|\n)\s*(?:async\s+)?(?:def|class)\s+[A-Za-z_][A-Za-z0-9_]*(?:\s*\([^\r\n]*\))?\s*:\s*(?:\r?\n)[ \t]+\S/mu.test(
       code,
@@ -187,6 +199,7 @@ function parseRequiredSections(content: string): readonly string[] | null {
 
   const indexes = headingIndexes.map(([index]) => index)
   if (
+    lines.slice(0, indexes[0]).some((line) => line.trim() !== '') ||
     indexes.some(
       (index, position) => position > 0 && index <= indexes[position - 1],
     )
@@ -203,33 +216,73 @@ function parseRequiredSections(content: string): readonly string[] | null {
   return sections.every((section) => section !== '') ? sections : null
 }
 
-function containsMultipleInspectionSteps(nextStepSection: string): boolean {
-  const listItems = nextStepSection.match(/^\s*(?:[-*]|\d+[.)])\s+/gmu) ?? []
-  return listItems.length > 1
+function hasExactlyOneInspectionStep(nextStepSection: string): boolean {
+  const lines = nextStepSection
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+  if (lines.length !== 1 || /^(?:[-*]|\d+[.)])\s+/u.test(lines[0])) {
+    return false
+  }
+  return (lines[0].match(/[.!?](?:\s|$)/gu) ?? []).length <= 1
 }
 
-function hasOnlyAuthorizedCitations(
+function extractPythonCodeDiagnosisCitationIndexes(
   content: string,
+  conceptSection: string,
   authorizedCitationCount: number,
-): boolean {
+): readonly number[] | null {
   if (
     !Number.isSafeInteger(authorizedCitationCount) ||
     authorizedCitationCount < 1
   ) {
-    return false
+    return null
   }
 
-  const citations = [...content.matchAll(/\[((?:\d+\s*,\s*)*\d+)\]/gu)].flatMap(
-    (match) => match[1].split(',').map((value) => Number(value.trim())),
-  )
+  const citations = extractCitationIndexes(content)
+  const conceptCitations = extractCitationIndexes(conceptSection)
 
-  return (
-    citations.length > 0 &&
-    citations.every(
+  if (
+    hasMalformedCitationMarker(content) ||
+    conceptCitations.length === 0 ||
+    citations.some(
       (citation) =>
-        Number.isSafeInteger(citation) &&
-        citation >= 1 &&
-        citation <= authorizedCitationCount,
+        !Number.isSafeInteger(citation) ||
+        citation < 1 ||
+        citation > authorizedCitationCount,
     )
+  ) {
+    return null
+  }
+
+  return Object.freeze(
+    [...new Set(citations)].sort((left, right) => left - right),
+  )
+}
+
+function hasMalformedCitationMarker(content: string): boolean {
+  return [...content.matchAll(/\[[^\]\r\n]*\]/gu)].some(
+    ([marker]) =>
+      /\d/u.test(marker) && !/^\[(?:\d+\s*,\s*)*\d+\]$/u.test(marker),
+  )
+}
+
+export function readPythonCodeDiagnosisCitationIndexes(
+  content: string,
+  authorizedCitationCount: number,
+): readonly number[] | null {
+  const conceptSection = parseRequiredSections(content)?.at(2)
+  return conceptSection === undefined
+    ? null
+    : extractPythonCodeDiagnosisCitationIndexes(
+        content,
+        conceptSection,
+        authorizedCitationCount,
+      )
+}
+
+function extractCitationIndexes(content: string): number[] {
+  return [...content.matchAll(/\[((?:\d+\s*,\s*)*\d+)\]/gu)].flatMap((match) =>
+    match[1].split(',').map((value) => Number(value.trim())),
   )
 }

@@ -213,6 +213,47 @@ describe('Grounded chat turn repository (e2e)', () => {
     ])
   })
 
+  it('preserves cited context positions instead of citing every retrieved material', async () => {
+    const fixture = await createFixture(prisma)
+    const first = await createEvidence(prisma, fixture, 'Lists', 0)
+    const second = await createEvidence(prisma, fixture, 'Loops', 3)
+    const turn = await repository.beginTurn({
+      ...fixture,
+      content: 'Diagnose list iteration',
+    })
+    if (turn.kind !== 'ok') {
+      throw new Error('Expected the turn to begin')
+    }
+
+    const completed = await repository.completeTurn({
+      ...fixture,
+      attemptId: turn.attemptId,
+      studentMessageId: turn.studentMessage.id,
+      assistantMessageId: turn.assistantMessage.id,
+      content: 'The concept is supported by the second context entry. [2]',
+      provider: 'deterministic',
+      model: 'deterministic-completion-v1',
+      promptVersion: 'python-code-diagnosis-prompt-v1',
+      evidence: [
+        evidence(first, 1, 0.95, 'Lists', 0, 'first excerpt'),
+        evidence(second, 2, 0.9, 'Loops', 3, 'second excerpt'),
+      ],
+      citationContextIndexes: [2],
+    })
+
+    expect(completed.kind).toBe('ok')
+    const citations = await prisma.messageCitation.findMany({
+      where: { messageId: turn.assistantMessage.id },
+      orderBy: { citationOrder: 'asc' },
+    })
+    expect(citations).toEqual([
+      expect.objectContaining({
+        materialId: second.materialId,
+        citationOrder: 2,
+      }),
+    ])
+  })
+
   it('rolls back completed status and partial evidence when final evidence is no longer eligible', async () => {
     const fixture = await createFixture(prisma)
     const source = await createEvidence(prisma, fixture, 'Transient source', 0)

@@ -86,6 +86,75 @@ describe('shared Tutor strategy selection', () => {
     )
   })
 
+  it.each([
+    [
+      'an index expression inside a string',
+      [
+        'Why is this Python function suspicious?',
+        '```python',
+        'def describe(items):',
+        '    note = "items[len(items)] is unsafe"',
+        '    return note',
+        '```',
+      ].join('\n'),
+      /outside its valid index range/iu,
+    ],
+    [
+      'a function call inside a string',
+      [
+        'Why is this Python function suspicious?',
+        '```python',
+        'def greet(name):',
+        '    note = "greet()"',
+        '    return note',
+        '```',
+      ].join('\n'),
+      /supplies no value/iu,
+    ],
+  ])('ignores %s', (_label, input, falsePositive) => {
+    const selection = selectTutorStrategy(input)
+
+    expect(selection.diagnosis?.likelyDefect).not.toMatch(falsePositive)
+  })
+
+  it('treats imported module names as visible in return expressions', () => {
+    const selection = selectTutorStrategy(
+      [
+        'Why is this Python function suspicious?',
+        '```python',
+        'import math',
+        'def root(value):',
+        '    return math.sqrt(value)',
+        '```',
+      ].join('\n'),
+    )
+
+    expect(selection.diagnosis?.likelyDefect).not.toMatch(
+      /`math`.*without a visible definition/iu,
+    )
+  })
+
+  it('ignores detector-shaped text in a multiline Python string', () => {
+    const selection = selectTutorStrategy(
+      [
+        'Why is this Python function suspicious?',
+        '```python',
+        'def describe(value):',
+        '    note = """def fake(value)',
+        'items[len(items)]',
+        'fake()',
+        'import missing_name',
+        '"""',
+        '    return value',
+        '```',
+      ].join('\n'),
+    )
+
+    expect(selection.diagnosis?.likelyDefect).not.toMatch(
+      /missing.*colon|outside its valid index range|supplies no value/iu,
+    )
+  })
+
   it('returns a no-evidence refusal for clearly non-Python code', () => {
     const input = [
       'function countItems(nums) {',

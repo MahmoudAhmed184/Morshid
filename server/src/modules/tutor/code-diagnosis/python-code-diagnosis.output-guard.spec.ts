@@ -45,6 +45,62 @@ describe('Python diagnosis output guard', () => {
     ).toBe('INVALID_CITATION')
   })
 
+  it('requires the citation in the Python concept paragraph', () => {
+    expect(
+      validatePythonCodeDiagnosisOutput({
+        content: validOutput
+          .replace('The return expression.', 'The return expression. [1]')
+          .replace(
+            'Python resolves names in local scope. [1]',
+            'Python resolves names in local scope.',
+          ),
+        authorizedCitationCount: 1,
+      }),
+    ).toBe('INVALID_CITATION')
+  })
+
+  it('rejects a short fenced corrected program without relying on rewrite wording', () => {
+    expect(
+      validatePythonCodeDiagnosisOutput({
+        content: validOutput.replace(
+          'Compare the return-expression name with the parameter.',
+          [
+            'Inspect this:',
+            '```python',
+            'values = [1, 2]',
+            'print(values[-1])',
+            '```',
+          ].join('\n'),
+        ),
+        authorizedCitationCount: 1,
+      }),
+    ).toBe('FULL_REWRITE_SUSPECTED')
+  })
+
+  it.each(['```python\nvalue = 1', '~~~python\nvalue = 1\n~~~'])(
+    'rejects an incomplete or alternate code fence: %s',
+    (code) => {
+      expect(
+        validatePythonCodeDiagnosisOutput({
+          content: validOutput.replace(
+            'Compare the return-expression name with the parameter.',
+            code,
+          ),
+          authorizedCitationCount: 1,
+        }),
+      ).toBe('FULL_REWRITE_SUSPECTED')
+    },
+  )
+
+  it('rejects malformed numeric citation markers', () => {
+    expect(
+      validatePythonCodeDiagnosisOutput({
+        content: validOutput.replace('[1]', '[1,] [1]'),
+        authorizedCitationCount: 1,
+      }),
+    ).toBe('INVALID_CITATION')
+  })
+
   it.each([
     [
       'INVALID_RESPONSE_SHAPE',
@@ -266,6 +322,31 @@ describe('Python diagnosis output guard', () => {
           'Compare the return-expression name with the parameter.',
           '1. Inspect the parameter.\n2. Change the return expression.',
         ),
+        authorizedCitationCount: 1,
+      }),
+    ).toBe('INVALID_RESPONSE_SHAPE')
+  })
+
+  it.each([
+    '- Compare the return-expression name with the parameter.',
+    'Compare the parameter. Then inspect the return expression.',
+    'Compare the parameter.\nInspect the return expression',
+  ])('rejects a next-step section that is not exactly one sentence', (step) => {
+    expect(
+      validatePythonCodeDiagnosisOutput({
+        content: validOutput.replace(
+          'Compare the return-expression name with the parameter.',
+          step,
+        ),
+        authorizedCitationCount: 1,
+      }),
+    ).toBe('INVALID_RESPONSE_SHAPE')
+  })
+
+  it('rejects a preamble before the required headings', () => {
+    expect(
+      validatePythonCodeDiagnosisOutput({
+        content: `Here is the diagnosis.\n\n${validOutput}`,
         authorizedCitationCount: 1,
       }),
     ).toBe('INVALID_RESPONSE_SHAPE')

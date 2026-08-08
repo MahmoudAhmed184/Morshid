@@ -18,6 +18,7 @@ import {
   preparePythonCodeDiagnosis,
   type PythonCodeDiagnosisDraft,
 } from './code-diagnosis/python-code-diagnosis.strategy'
+import type { PythonDiagnosisRetrievalQueryInput } from './code-diagnosis/python-diagnosis-retrieval-query'
 import {
   parseTutorDecision,
   type TutorDecision,
@@ -82,6 +83,7 @@ export type TutorStrategySelection =
       readonly decision: TutorDecision
       readonly retrievalQuery: string
       readonly diagnosis: null
+      readonly suspectedCategory: null
       readonly boundaryResponse: null
       readonly fullRewriteRequested: false
     }
@@ -89,6 +91,7 @@ export type TutorStrategySelection =
       readonly decision: TutorDecision
       readonly retrievalQuery: string
       readonly diagnosis: Readonly<PythonCodeDiagnosisDraft>
+      readonly suspectedCategory: PythonDiagnosisRetrievalQueryInput['suspectedCategory']
       readonly boundaryResponse: null
       readonly fullRewriteRequested: boolean
     }
@@ -96,6 +99,7 @@ export type TutorStrategySelection =
       readonly decision: TutorDecision
       readonly retrievalQuery: null
       readonly diagnosis: null
+      readonly suspectedCategory: null
       readonly boundaryResponse: PythonCodeDiagnosisBoundaryResponse
       readonly fullRewriteRequested: false
     }
@@ -126,6 +130,7 @@ export function selectTutorStrategy(
       decision,
       retrievalQuery: null,
       diagnosis: null,
+      suspectedCategory: null,
       boundaryResponse: buildPythonCodeDiagnosisBoundaryResponse(assessment),
       fullRewriteRequested: false,
     })
@@ -137,6 +142,7 @@ export function selectTutorStrategy(
       decision: PYTHON_CODE_DIAGNOSIS_TUTOR_DECISION,
       retrievalQuery: diagnosis.retrievalQuery,
       diagnosis: diagnosis.diagnosis,
+      suspectedCategory: diagnosis.suspectedCategory,
       boundaryResponse: null,
       fullRewriteRequested: requestsFullCorrectedProgram(studentMessage),
     })
@@ -146,6 +152,7 @@ export function selectTutorStrategy(
     decision: GROUNDED_EXPLANATION_TUTOR_DECISION,
     retrievalQuery: studentMessage,
     diagnosis: null,
+    suspectedCategory: null,
     boundaryResponse: null,
     fullRewriteRequested: false,
   })

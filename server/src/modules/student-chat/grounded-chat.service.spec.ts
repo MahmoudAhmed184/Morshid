@@ -324,6 +324,7 @@ describe('GroundedChatService', () => {
       expect.objectContaining({
         promptVersion: 'python-code-diagnosis-prompt-v1',
         evidence: evidenceChunks(),
+        citationContextIndexes: [1],
       }),
     )
     expect(response).toMatchObject({
@@ -336,6 +337,28 @@ describe('GroundedChatService', () => {
         guidanceLabel: MessageGuidanceLabel.COURSE_GROUNDED,
       },
     })
+  })
+
+  it('persists only the exact context positions cited by a diagnosis', async () => {
+    const question = [
+      'Why does this Python function crash?',
+      '```python',
+      'def average(nums):',
+      '    return sum(nums) / len(num)',
+      '```',
+    ].join('\n')
+    complete.mockResolvedValue({
+      content: validDiagnosisOutput().replace('[1]', '[2]'),
+      provider: 'deterministic',
+      model: 'deterministic-completion-v1',
+      promptVersion: 'python-code-diagnosis-prompt-v1',
+    })
+
+    await service.send(courseId, sessionId, { content: question }, user)
+
+    expect(completeTurn).toHaveBeenCalledWith(
+      expect.objectContaining({ citationContextIndexes: [2] }),
+    )
   })
 
   it.each([
