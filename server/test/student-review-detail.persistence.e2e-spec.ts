@@ -3,6 +3,7 @@ import {
   MessageStatus,
   ReviewStatus,
   ReviewTriggerType,
+  StudentFlagReason,
 } from '../src/generated/prisma/client'
 import { PrismaStudentReviewDetailRepository } from '../src/modules/reviews/student-review-detail.repository'
 import { seedP0DemoData } from '../src/seeds/p0-demo.seed'
@@ -64,6 +65,7 @@ describe('Student review detail persistence (e2e)', () => {
           create: {
             type: ReviewTriggerType.STUDENT_REQUEST,
             actorUserId: studentId,
+            studentFlagReason: StudentFlagReason.INCORRECT,
             reason: 'Please review',
           },
         },
