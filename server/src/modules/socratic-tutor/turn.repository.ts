@@ -237,13 +237,21 @@ export class PrismaTurnRepository extends TurnRepository {
         return { kind: 'linkage_conflict' }
       }
       if (message.turnId !== null && message.turnId !== turn.id) {
-        return { kind: 'linkage_conflict' }
+        const existingTurn = await tx.tutorTurn.findUnique({
+          where: { id: message.turnId },
+          select: { status: true },
+        })
+        if (
+          existingTurn === null ||
+          existingTurn.status !== TutorTurnStatus.FAILED
+        ) {
+          return { kind: 'linkage_conflict' }
+        }
       }
 
       const updatedMessage = await tx.message.updateManyAndReturn({
         where: {
           id: message.id,
-          OR: [{ turnId: null }, { turnId: turn.id }],
         },
         data: { turnId: turn.id },
         select: { id: true },
@@ -337,7 +345,16 @@ export class PrismaTurnRepository extends TurnRepository {
         return { kind: 'linkage_conflict' }
       }
       if (message.turnId !== null && message.turnId !== turn.id) {
-        return { kind: 'linkage_conflict' }
+        const existingTurn = await tx.tutorTurn.findUnique({
+          where: { id: message.turnId },
+          select: { status: true },
+        })
+        if (
+          existingTurn === null ||
+          existingTurn.status !== TutorTurnStatus.FAILED
+        ) {
+          return { kind: 'linkage_conflict' }
+        }
       }
       if (turn.topicId !== null && turn.topicId !== topic.id) {
         return { kind: 'linkage_conflict' }
@@ -349,7 +366,6 @@ export class PrismaTurnRepository extends TurnRepository {
       const updatedMessage = await tx.message.updateManyAndReturn({
         where: {
           id: message.id,
-          OR: [{ turnId: null }, { turnId: turn.id }],
           AND: [{ OR: [{ topicId: null }, { topicId: topic.id }] }],
         },
         data: {

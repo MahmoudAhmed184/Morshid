@@ -46,8 +46,8 @@ const TERMINAL_STATUSES = new Set<TutorTurnStatus>([
 const STATUS_ORDER = new Map<TutorTurnStatus, number>([
   [TutorTurnStatus.RECEIVED, 0],
   [TutorTurnStatus.ANALYZING, 1],
-  [TutorTurnStatus.RETRIEVING, 2],
-  [TutorTurnStatus.DECIDING, 3],
+  [TutorTurnStatus.DECIDING, 2],
+  [TutorTurnStatus.RETRIEVING, 3],
   [TutorTurnStatus.GENERATING, 4],
   [TutorTurnStatus.VALIDATING, 5],
   [TutorTurnStatus.REGENERATING, 6],
