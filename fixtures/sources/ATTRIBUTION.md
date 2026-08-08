@@ -34,3 +34,16 @@ These PDFs are adaptations of the upstream work, not verbatim copies:
 
 No content was otherwise rewritten; the modifications are limited to selection,
 splitting, and omission as described above.
+
+## Synthetic Controlled QA Fixtures
+
+The following PDFs are original synthetic QA fixtures created for Morshid and
+contain no third-party course material, credentials, or Student data:
+
+- `SCN-003_Fixture_A.pdf`: controlled Monday schedule claim.
+- `SCN-003_Fixture_B.pdf`: controlled Tuesday schedule claim.
+- `SCN-003_Prompt_Injection_Fixture.pdf`: controlled retrieved-document
+  injection attempt embedded in otherwise benign Python-list material.
+
+They are intended only for deterministic conflict, citation, review, and
+retrieved-content safety testing.

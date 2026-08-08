@@ -3,6 +3,7 @@ import { config as loadEnv } from 'dotenv'
 
 import { PrismaClient } from '../src/generated/prisma/client'
 import { seedP0DemoData } from '../src/seeds/p0-demo.seed'
+import { seedP0ReviewReadinessData } from '../src/seeds/p0-review-readiness.seed'
 
 const localDatabaseUrl =
   'postgresql://morshid:morshid_local_password@localhost:5432/morshid'
@@ -20,6 +21,7 @@ async function main() {
 
   try {
     const result = await seedP0DemoData(prisma)
+    await seedP0ReviewReadinessData(prisma)
 
     console.log(
       `Seeded ${result.users.length.toString()} P0 demo users, course ${result.courses.pythonProgramming.code}, and isolation course ${result.courses.hiddenIsolation.code}.`,

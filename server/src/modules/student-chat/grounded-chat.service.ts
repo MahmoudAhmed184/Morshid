@@ -2,8 +2,17 @@ import { randomUUID } from 'node:crypto'
 
 import { Inject, Injectable, Logger } from '@nestjs/common'
 
-import { MessageGuidanceLabel, Prisma } from '../../generated/prisma/client'
+import {
+  MessageGuidanceLabel,
+  MessageRequestKind,
+  Prisma,
+} from '../../generated/prisma/client'
 import type { AuthenticatedRequestUser } from '../auth/auth.dto'
+import {
+  AUTOMATIC_SAFETY_RISK_DETECTOR_VERSION,
+  AutomaticSafetyRiskDetector,
+  type AutomaticSafetyRiskDetection,
+} from '../output-policy/automatic-safety-risk.detector'
 import {
   COMPLETION_PROVIDER_TOKEN,
   CompletionProviderError,
@@ -27,6 +36,28 @@ import {
   readPythonCodeDiagnosisCitationIndexes,
   validatePythonCodeDiagnosisOutput,
 } from '../tutor/code-diagnosis/python-code-diagnosis.output-guard'
+import { PYTHON_CODE_DIAGNOSIS_BOUNDARY_ERROR_CODES } from '../tutor/code-diagnosis/python-code-diagnosis.boundary-response'
+import {
+  OutputPolicyReviewAdapter,
+  OutputPolicyReviewIntegrationError,
+} from '../output-policy/output-policy-review.adapter'
+import {
+  CONTROLLED_SOURCE_CONFLICT_DETECTOR_VERSION,
+  ControlledSourceConflictDetector,
+  type ControlledSourceConflict,
+} from '../output-policy/controlled-source-conflict.detector'
+import {
+  decodeAutomaticPolicyReasons,
+  encodeAutomaticPolicyReasons,
+  type AutomaticPolicyReason,
+  type OutputPolicyDecision,
+  type OutputPolicyEvidenceSource,
+  type OutputPolicyReviewFact,
+} from '../output-policy/output-policy.contract'
+import {
+  OUTPUT_POLICY_QUESTION_X_SCHEDULE_CONFLICT_CONTENT,
+  OutputPolicyService,
+} from '../output-policy/output-policy.service'
 import {
   type BeginGroundedChatTurnResult,
   type FinalizeGroundedChatTurnResult,
@@ -55,6 +86,7 @@ import {
   GROUNDING_INSUFFICIENT_EVIDENCE,
   GROUNDING_RESPONSE_FAILED,
 } from './grounded-chat.constants'
+import { CorrectnessSensitiveRequestClassifier } from './correctness-sensitive-request.classifier'
 
 export {
   GROUNDING_BLOCKED_CONTENT,
@@ -82,7 +114,9 @@ type OrchestrationPhase =
   | 'retry'
   | 'retrieval'
   | 'completion'
+  | 'policy_evaluation'
   | 'finalization'
+  | 'review_creation'
   | 'blocked_persistence'
   | 'failed_persistence'
 
@@ -114,6 +148,11 @@ export class GroundedChatService {
     @Inject(COMPLETION_PROVIDER_TOKEN)
     private readonly completionProvider: CompletionProvider,
     private readonly messagePresenter: StudentChatMessagePresenter,
+    private readonly outputPolicy: OutputPolicyService,
+    private readonly outputPolicyReview: OutputPolicyReviewAdapter,
+    private readonly requestClassifier: CorrectnessSensitiveRequestClassifier,
+    private readonly conflictDetector: ControlledSourceConflictDetector,
+    private readonly safetyRiskDetector: AutomaticSafetyRiskDetector,
   ) {}
 
   async send(
@@ -137,6 +176,7 @@ export class GroundedChatService {
       requestContext,
     )
 
+    const classification = this.requestClassifier.classify(body.content)
     let result: BeginGroundedChatTurnResult
     try {
       result = await this.turnRepository.beginTurn({
@@ -147,14 +187,22 @@ export class GroundedChatService {
           ? {}
           : { clientMessageId: body.clientMessageId }),
         content: body.content,
-        requestKind: selection.decision.requestKind,
+        requestKind:
+          selection.decision.requestKind === MessageRequestKind.CODE_DIAGNOSIS
+            ? selection.decision.requestKind
+            : classification.requestKind,
       })
     } catch (error) {
       this.logFailure('begin', operation, error)
       throw studentChatTerminalStateUnavailableException()
     }
     if (result.kind === 'replayed') {
-      return this.presentTurn(result.studentMessage, result.assistantMessage)
+      return this.presentReplayedTurn(
+        result.studentMessage,
+        result.assistantMessage,
+        operation,
+        requestContext,
+      )
     }
     if (result.kind !== 'ok') {
       return this.handleBeginDenial(
@@ -173,6 +221,7 @@ export class GroundedChatService {
         studentMessageId: result.studentMessage.id,
         assistantMessageId: result.assistantMessage.id,
       },
+      requestContext,
       selection,
     )
   }
@@ -221,20 +270,50 @@ export class GroundedChatService {
       )
     }
 
-    return this.orchestrate(result, {
-      ...operation,
-      assistantMessageId: result.assistantMessage.id,
-    })
+    return this.orchestrate(
+      result,
+      {
+        ...operation,
+        assistantMessageId: result.assistantMessage.id,
+      },
+      requestContext,
+    )
   }
 
   private async orchestrate(
     turn: ActiveGroundedTurn,
     operation: OrchestrationContext,
+    requestContext?: AuditRequestContext,
     preparedSelection?: TutorStrategySelection,
   ): Promise<GroundedChatTurnResponseDto> {
+    // Reclassify from immutable Student content on every orchestration. Older
+    // rows can have a null requestKind, and trusting that legacy field on retry
+    // would disable correctness-sensitive output enforcement.
+    const classification = this.requestClassifier.classify(
+      turn.studentMessage.content,
+    )
+    const inputRisk = this.safetyRiskDetector.detectStudentInput(
+      turn.studentMessage.content,
+    )
+    if (inputRisk !== null) {
+      return this.persistSafetyRefusal(
+        turn,
+        inputRisk,
+        operation,
+        requestContext,
+      )
+    }
+
     const selection =
       preparedSelection ?? selectTutorStrategy(turn.studentMessage.content)
-    if (selection.boundaryResponse !== null) {
+    const shouldContinueThroughSafetyPipeline =
+      classification.correctnessSensitive &&
+      selection.boundaryResponse?.errorCode ===
+        PYTHON_CODE_DIAGNOSIS_BOUNDARY_ERROR_CODES.INSUFFICIENT_INFORMATION
+    if (
+      selection.boundaryResponse !== null &&
+      !shouldContinueThroughSafetyPipeline
+    ) {
       return this.persistTerminal(turn, operation, {
         kind: 'blocked',
         phase: 'blocked_persistence',
@@ -248,7 +327,7 @@ export class GroundedChatService {
     try {
       const retrieval = await this.retrievalService.retrieveCourseEvidence(
         turn.courseId,
-        selection.retrievalQuery,
+        selection.retrievalQuery ?? turn.studentMessage.content,
       )
       if (retrieval.kind === 'embedding_profile_not_ready') {
         // Operator-visible only. The student sees the ordinary grounding-blocked
@@ -261,10 +340,20 @@ export class GroundedChatService {
           incompleteMaterialIds: retrieval.incompleteMaterialIds,
           ...operation,
         })
-        return await this.persistBlocked(turn, operation)
+        return await this.persistInsufficientEvidence(
+          turn,
+          classification.correctnessSensitive,
+          operation,
+          requestContext,
+        )
       }
       if (retrieval.kind === 'insufficient_evidence') {
-        return await this.persistBlocked(turn, operation)
+        return await this.persistInsufficientEvidence(
+          turn,
+          classification.correctnessSensitive,
+          operation,
+          requestContext,
+        )
       }
       evidence = retrieval.chunks
     } catch (error) {
@@ -272,9 +361,38 @@ export class GroundedChatService {
       return this.persistFailure(turn, operation)
     }
 
+    const documentRisk =
+      this.safetyRiskDetector.detectRetrievedDocuments(evidence)
+    if (documentRisk !== null) {
+      return this.persistSafetyRefusal(
+        turn,
+        documentRisk,
+        operation,
+        requestContext,
+      )
+    }
+
+    const conflict = this.conflictDetector.detect(
+      turn.studentMessage.content,
+      evidence,
+    )
+    if (conflict !== null) {
+      return this.persistControlledConflict(
+        turn,
+        conflict,
+        operation,
+        requestContext,
+      )
+    }
+
     const context = toCompletionContext(evidence)
     if (context === null) {
-      return this.persistBlocked(turn, operation)
+      return this.persistInsufficientEvidence(
+        turn,
+        classification.correctnessSensitive,
+        operation,
+        requestContext,
+      )
     }
 
     let completion: CompletionResult
@@ -328,6 +446,42 @@ export class GroundedChatService {
       }
     }
 
+    const outputRisk = this.safetyRiskDetector.detectOutput(
+      completionContent,
+      classification.correctnessSensitive,
+    )
+    if (outputRisk !== null) {
+      return this.persistSafetyRefusal(
+        turn,
+        outputRisk,
+        operation,
+        requestContext,
+      )
+    }
+
+    let policyDecision: OutputPolicyDecision
+    try {
+      policyDecision = this.outputPolicy.evaluate({
+        proposedContent: completionContent,
+        assessment: {
+          support: 'SUPPORTED',
+          policyCheck: 'PASSED',
+          answerRisk: 'NONE',
+          citations: hasDistinctCitation(evidence) ? 'PRESENT' : 'MISSING',
+        },
+        evidence: evidence.map((chunk) => ({
+          materialId: chunk.materialId,
+          chunkId: chunk.chunkId,
+          excerpt: chunk.content,
+          rank: chunk.rank,
+          score: chunk.similarityScore,
+        })),
+      })
+    } catch (error) {
+      this.logFailure('policy_evaluation', operation, error)
+      return this.persistFailure(turn, operation)
+    }
+
     let completed: FinalizeGroundedChatTurnResult
     try {
       completed = await this.turnRepository.completeTurn({
@@ -337,7 +491,8 @@ export class GroundedChatService {
         attemptId: turn.attemptId,
         studentMessageId: turn.studentMessage.id,
         assistantMessageId: turn.assistantMessage.id,
-        content: completionContent,
+        content: policyDecision.content,
+        guidanceLabel: policyDecision.studentStatus.guidanceLabel,
         provider: completion.provider,
         model: completion.model,
         promptVersion: completion.promptVersion,
@@ -347,6 +502,9 @@ export class GroundedChatService {
         ...(completion.outputTokens === undefined
           ? {}
           : { outputTokens: completion.outputTokens }),
+        ...(policyDecision.createReview
+          ? { errorCode: encodeAutomaticPolicyReasons(policyDecision.reasons) }
+          : {}),
         evidence,
         ...(citationContextIndexes === undefined
           ? {}
@@ -358,6 +516,15 @@ export class GroundedChatService {
     }
     switch (completed.kind) {
       case 'ok':
+        if (policyDecision.createReview) {
+          return this.createPolicyReviewAndPresent(
+            turn.studentMessage,
+            completed.message,
+            policyDecision,
+            operation,
+            requestContext,
+          )
+        }
         return this.presentTurn(turn.studentMessage, completed.message)
       case 'membership_missing':
       case 'session_not_found':
@@ -367,6 +534,303 @@ export class GroundedChatService {
         return this.persistFailure(turn, operation)
       default:
         return assertNever(completed)
+    }
+  }
+
+  private persistInsufficientEvidence(
+    turn: ActiveGroundedTurn,
+    correctnessSensitive: boolean,
+    operation: OrchestrationContext,
+    requestContext?: AuditRequestContext,
+  ): Promise<GroundedChatTurnResponseDto> {
+    if (!correctnessSensitive) {
+      return this.persistBlocked(turn, operation)
+    }
+
+    return this.persistUnsupportedCorrectnessSensitive(
+      turn,
+      operation,
+      requestContext,
+    )
+  }
+
+  private async persistControlledConflict(
+    turn: ActiveGroundedTurn,
+    conflict: ControlledSourceConflict,
+    operation: OrchestrationContext,
+    requestContext?: AuditRequestContext,
+  ): Promise<GroundedChatTurnResponseDto> {
+    const decision = this.outputPolicy.evaluate({
+      proposedContent: GROUNDING_BLOCKED_CONTENT,
+      controlledConflictKind: conflict.kind,
+      assessment: {
+        support: 'CONFLICTING',
+        policyCheck: 'PASSED',
+        answerRisk: 'NONE',
+        citations: 'PRESENT',
+      },
+      evidence: conflict.sources.map((source) => ({
+        materialId: source.materialId,
+        materialTitle: source.materialTitle,
+        chunkId: source.chunkId,
+        chunkIndex: source.chunkIndex,
+        excerpt: source.content,
+        rank: source.rank,
+        score: source.similarityScore,
+      })),
+      reviewFacts: [
+        { code: 'detector_version', value: conflict.detectorVersion },
+        {
+          code: 'embedding_model',
+          value: requireSingleEmbeddingModel(conflict.sources),
+        },
+      ],
+    })
+
+    return this.persistAutomaticPolicyTurn(
+      turn,
+      decision,
+      operation,
+      requestContext,
+      () =>
+        this.turnRepository.completePolicyTurn({
+          courseId: turn.courseId,
+          sessionId: operation.sessionId,
+          studentId: operation.studentId,
+          attemptId: turn.attemptId,
+          studentMessageId: turn.studentMessage.id,
+          assistantMessageId: turn.assistantMessage.id,
+          content: decision.content,
+          guidanceLabel: decision.studentStatus.guidanceLabel,
+          errorCode: encodeAutomaticPolicyReasons(decision.reasons),
+          evidence: conflict.sources,
+        }),
+    )
+  }
+
+  private async persistUnsupportedCorrectnessSensitive(
+    turn: ActiveGroundedTurn,
+    operation: OrchestrationContext,
+    requestContext?: AuditRequestContext,
+  ): Promise<GroundedChatTurnResponseDto> {
+    const decision = this.outputPolicy.evaluate({
+      proposedContent: GROUNDING_BLOCKED_CONTENT,
+      assessment: {
+        support: 'NOT_FOUND',
+        policyCheck: 'PASSED',
+        answerRisk: 'NONE',
+        citations: 'NOT_REQUIRED',
+      },
+    })
+
+    return this.persistAutomaticPolicyTurn(
+      turn,
+      decision,
+      operation,
+      requestContext,
+      () =>
+        this.turnRepository.completeUnsupportedTurn({
+          courseId: turn.courseId,
+          sessionId: operation.sessionId,
+          studentId: operation.studentId,
+          attemptId: turn.attemptId,
+          studentMessageId: turn.studentMessage.id,
+          assistantMessageId: turn.assistantMessage.id,
+          content: decision.content,
+          errorCode: encodeAutomaticPolicyReasons(decision.reasons),
+        }),
+    )
+  }
+
+  private async persistSafetyRefusal(
+    turn: ActiveGroundedTurn,
+    detection: AutomaticSafetyRiskDetection,
+    operation: OrchestrationContext,
+    requestContext?: AuditRequestContext,
+  ): Promise<GroundedChatTurnResponseDto> {
+    const decision = this.outputPolicy.evaluate({
+      proposedContent: GROUNDING_BLOCKED_CONTENT,
+      assessment: {
+        support: 'SUPPORTED',
+        policyCheck: detection.risks.some(
+          (risk) => risk !== 'FINAL_ANSWER_DELIVERY',
+        )
+          ? 'FAILED'
+          : 'PASSED',
+        answerRisk: detection.risks.includes('FINAL_ANSWER_DELIVERY')
+          ? 'FINAL_ANSWER'
+          : 'NONE',
+        citations: 'NOT_REQUIRED',
+      },
+      reviewFacts: [
+        { code: 'detector_version', value: detection.detectorVersion },
+      ],
+    })
+
+    return this.persistAutomaticPolicyTurn(
+      turn,
+      decision,
+      operation,
+      requestContext,
+      () =>
+        this.turnRepository.completeSafetyTurn({
+          courseId: turn.courseId,
+          sessionId: operation.sessionId,
+          studentId: operation.studentId,
+          attemptId: turn.attemptId,
+          studentMessageId: turn.studentMessage.id,
+          assistantMessageId: turn.assistantMessage.id,
+          content: decision.content,
+          guidanceLabel: decision.studentStatus.guidanceLabel,
+          errorCode: encodeAutomaticPolicyReasons(decision.reasons),
+        }),
+    )
+  }
+
+  private async persistAutomaticPolicyTurn(
+    turn: ActiveGroundedTurn,
+    decision: OutputPolicyDecision,
+    operation: OrchestrationContext,
+    requestContext: AuditRequestContext | undefined,
+    finalize: () => Promise<FinalizeGroundedChatTurnResult>,
+  ): Promise<GroundedChatTurnResponseDto> {
+    let completed: FinalizeGroundedChatTurnResult
+    try {
+      completed = await finalize()
+    } catch (error) {
+      this.logFailure('finalization', operation, error)
+      return this.persistFailure(turn, operation)
+    }
+
+    switch (completed.kind) {
+      case 'ok':
+        return this.createPolicyReviewAndPresent(
+          turn.studentMessage,
+          completed.message,
+          decision,
+          operation,
+          requestContext,
+        )
+      case 'membership_missing':
+      case 'session_not_found':
+      case 'message_not_found':
+      case 'message_not_pending':
+        this.logResultFailure('finalization', operation, completed.kind)
+        return this.persistFailure(turn, operation)
+      default:
+        return assertNever(completed)
+    }
+  }
+
+  private async presentReplayedTurn(
+    studentMessage: ChatMessageRecord,
+    assistantMessage: ChatMessageRecord,
+    operation: OrchestrationContext,
+    requestContext?: AuditRequestContext,
+  ): Promise<GroundedChatTurnResponseDto> {
+    const reasons = decodeAutomaticPolicyReasons(assistantMessage.errorCode)
+    if (reasons !== null) {
+      const decision = this.recreatePolicyDecision(assistantMessage, reasons)
+      return this.createPolicyReviewAndPresent(
+        studentMessage,
+        assistantMessage,
+        decision,
+        operation,
+        requestContext,
+      )
+    }
+    return this.presentTurn(studentMessage, assistantMessage)
+  }
+
+  private recreatePolicyDecision(
+    message: ChatMessageRecord,
+    reasons: readonly AutomaticPolicyReason[],
+  ): OutputPolicyDecision {
+    const evidence = policyEvidenceFrom(message)
+    return this.outputPolicy.evaluate({
+      proposedContent: message.content,
+      ...(message.content === OUTPUT_POLICY_QUESTION_X_SCHEDULE_CONFLICT_CONTENT
+        ? { controlledConflictKind: 'QUESTION_X_SCHEDULE' }
+        : {}),
+      assessment: {
+        support: reasons.includes('GENERAL_NOT_FOUND')
+          ? 'NOT_FOUND'
+          : reasons.includes('SOURCE_CONFLICT')
+            ? 'CONFLICTING'
+            : 'SUPPORTED',
+        policyCheck: reasons.includes('POLICY_CHECK_FAILED')
+          ? 'FAILED'
+          : 'PASSED',
+        answerRisk: reasons.includes('FINAL_ANSWER_RISK')
+          ? 'FINAL_ANSWER'
+          : 'NONE',
+        citations: reasons.includes('CITATION_MISSING')
+          ? 'MISSING'
+          : evidence.length === 0
+            ? 'NOT_REQUIRED'
+            : 'PRESENT',
+      },
+      evidence,
+      reviewFacts: replayReviewFacts(message, reasons),
+    })
+  }
+
+  private async createPolicyReview(
+    message: ChatMessageRecord,
+    decision: OutputPolicyDecision,
+    operation: OrchestrationContext,
+    requestContext?: AuditRequestContext,
+  ): Promise<void> {
+    try {
+      await this.outputPolicyReview.createRequiredReview({
+        assistantMessageId: message.id,
+        decision,
+        requestContext,
+      })
+    } catch (error) {
+      this.logFailure('review_creation', operation, error)
+      throw studentChatTerminalStateUnavailableException()
+    }
+  }
+
+  private async createPolicyReviewAndPresent(
+    studentMessage: ChatMessageRecord,
+    assistantMessage: ChatMessageRecord,
+    decision: OutputPolicyDecision,
+    operation: OrchestrationContext,
+    requestContext?: AuditRequestContext,
+  ): Promise<GroundedChatTurnResponseDto> {
+    await this.createPolicyReview(
+      assistantMessage,
+      decision,
+      operation,
+      requestContext,
+    )
+
+    try {
+      const refreshed = await this.turnRepository.readTurnForStudent({
+        courseId: operation.courseId,
+        sessionId: operation.sessionId,
+        studentId: operation.studentId,
+        studentMessageId: studentMessage.id,
+        assistantMessageId: assistantMessage.id,
+      })
+      switch (refreshed.kind) {
+        case 'ok':
+          return await this.presentTurn(
+            refreshed.studentMessage,
+            refreshed.assistantMessage,
+          )
+        case 'membership_missing':
+        case 'session_not_found':
+        case 'message_not_found':
+          throw studentChatTerminalStateUnavailableException()
+        default:
+          return assertNever(refreshed)
+      }
+    } catch (error) {
+      this.logFailure('review_creation', operation, error)
+      throw studentChatTerminalStateUnavailableException()
     }
   }
 
@@ -633,6 +1097,9 @@ function safeErrorDescriptor(error: unknown): {
   if (error instanceof GroundedChatEvidenceUnavailableError) {
     return { errorClass: 'GroundedChatEvidenceUnavailableError' }
   }
+  if (error instanceof OutputPolicyReviewIntegrationError) {
+    return { errorClass: 'OutputPolicyReviewIntegrationError' }
+  }
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     return {
       errorClass: 'PrismaClientKnownRequestError',
@@ -647,6 +1114,88 @@ function safeErrorDescriptor(error: unknown): {
   }
 
   return { errorClass: 'UnknownError' }
+}
+
+function hasDistinctCitation(evidence: readonly RetrievedChunk[]): boolean {
+  return evidence.some((chunk) => chunk.materialId.trim() !== '')
+}
+
+function policyEvidenceFrom(
+  message: ChatMessageRecord,
+): OutputPolicyEvidenceSource[] {
+  const titleByMaterialId = new Map(
+    message.citations.map(({ material }) => [material.id, material.title]),
+  )
+  return message.retrievals.flatMap((retrieval) => {
+    if (retrieval.chunk === null) {
+      return []
+    }
+    return [
+      {
+        materialId: retrieval.chunk.materialId,
+        ...(titleByMaterialId.get(retrieval.chunk.materialId) === undefined
+          ? {}
+          : {
+              materialTitle: titleByMaterialId.get(retrieval.chunk.materialId),
+            }),
+        chunkId: retrieval.chunk.id,
+        chunkIndex: retrieval.chunk.chunkIndex,
+        excerpt: retrieval.chunk.content,
+        rank: retrieval.rank,
+        ...(retrieval.similarityScore === null
+          ? {}
+          : { score: retrieval.similarityScore.toNumber() }),
+      },
+    ]
+  })
+}
+
+function replayReviewFacts(
+  message: ChatMessageRecord,
+  reasons: readonly AutomaticPolicyReason[],
+): OutputPolicyReviewFact[] {
+  if (reasons.includes('SOURCE_CONFLICT')) {
+    const embeddingModels = new Set(
+      message.retrievals.flatMap(({ chunk }) =>
+        chunk === null ? [] : [chunk.embeddingModel],
+      ),
+    )
+    const facts: OutputPolicyReviewFact[] = [
+      {
+        code: 'detector_version',
+        value: CONTROLLED_SOURCE_CONFLICT_DETECTOR_VERSION,
+      },
+    ]
+    if (embeddingModels.size === 1) {
+      facts.push({
+        code: 'embedding_model',
+        value: [...embeddingModels][0],
+      })
+    }
+    return facts
+  }
+  if (
+    reasons.includes('POLICY_CHECK_FAILED') ||
+    reasons.includes('FINAL_ANSWER_RISK')
+  ) {
+    return [
+      {
+        code: 'detector_version',
+        value: AUTOMATIC_SAFETY_RISK_DETECTOR_VERSION,
+      },
+    ]
+  }
+  return []
+}
+
+function requireSingleEmbeddingModel(
+  sources: ControlledSourceConflict['sources'],
+): string {
+  const models = new Set(sources.map(({ embeddingModel }) => embeddingModel))
+  if (models.size !== 1) {
+    throw new TypeError('Conflict sources must share one embedding profile')
+  }
+  return sources[0].embeddingModel
 }
 
 function isSafePrismaCode(code: string): boolean {

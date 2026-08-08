@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAuthStore } from '@/features/auth/stores/auth.store'
 import type { AuthSession } from '@/features/auth/types/auth.types'
-import { instructorCoursesQueryOptions } from '@/features/instructor/data/instructor-dashboard.queries'
+import { instructorReviewQueueQueryOptions } from '@/features/instructor/data/instructor-reviews.queries'
 
 import { ReviewQueuePage } from './review-queue-page'
 
@@ -48,7 +48,7 @@ const instructorSession: AuthSession = {
   refreshTokenExpiresAt: '2026-07-18T12:00:00.000Z',
 }
 
-function renderReviewQueue({ deferCourses = false } = {}) {
+function renderReviewQueue({ deferReviews = false } = {}) {
   useAuthStore.getState().setSession(instructorSession)
 
   const queryClient = new QueryClient({
@@ -60,23 +60,18 @@ function renderReviewQueue({ deferCourses = false } = {}) {
     },
   })
 
-  if (deferCourses) {
+  if (deferReviews) {
     vi.stubGlobal(
       'fetch',
       vi.fn(() => new Promise<Response>(() => undefined)),
     )
   } else {
     queryClient.setQueryData(
-      instructorCoursesQueryOptions(instructorSession.user.id).queryKey,
-      [
-        {
-          id: 'python-course',
-          code: 'PYTHON-PROG-P0',
-          title: 'Python Programming',
-          membershipRole: 'INSTRUCTOR',
-          canManageMaterials: true,
-        },
-      ],
+      instructorReviewQueueQueryOptions(instructorSession.user.id).queryKey,
+      {
+        pages: [{ items: [], pendingCount: 0, nextCursor: null }],
+        pageParams: [null],
+      },
     )
   }
 
@@ -107,11 +102,11 @@ describe('Instructor Pages', () => {
     expect(
       screen.getAllByRole('heading', { name: 'Review Queue' }).length,
     ).toBeGreaterThanOrEqual(1)
-    expect(screen.getByText('No review requests yet')).toBeInTheDocument()
+    expect(screen.getByText('No review requests')).toBeInTheDocument()
   })
 
-  it('keeps review queue chrome visible while courses load', () => {
-    renderReviewQueue({ deferCourses: true })
+  it('keeps review queue chrome visible while reviews load', () => {
+    renderReviewQueue({ deferReviews: true })
 
     expect(
       screen.getAllByRole('heading', { name: 'Review Queue' }).length,
@@ -119,6 +114,6 @@ describe('Instructor Pages', () => {
     expect(
       screen.getByRole('status', { name: 'Loading review queue' }),
     ).toBeVisible()
-    expect(screen.queryByText('No review requests yet')).not.toBeInTheDocument()
+    expect(screen.queryByText('No review requests')).not.toBeInTheDocument()
   })
 })

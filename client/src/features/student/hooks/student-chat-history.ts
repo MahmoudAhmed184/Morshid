@@ -109,6 +109,34 @@ export function markAssistantPending(
   }
 }
 
+export function markMessageReviewPending(
+  cached: MessageHistoryData | undefined,
+  messageId: string,
+  reviewCaseId: string,
+): MessageHistoryData {
+  const history = cached ?? emptyMessageHistory()
+  return {
+    ...history,
+    pages: history.pages.map((page) => ({
+      ...page,
+      messages: page.messages.map((message) =>
+        message.id === messageId
+          ? {
+              ...message,
+              reviewSummary: {
+                reviewCaseId,
+                status: 'PENDING' as const,
+                outcome: null,
+                resolvedAt: null,
+                hasNotification: false,
+              },
+            }
+          : message,
+      ),
+    })),
+  }
+}
+
 export function highestCachedSequence(cached: MessageHistoryData | undefined) {
   let highestSequence = 0
 
@@ -127,6 +155,16 @@ export function hasPendingAssistant(cached: MessageHistoryData | undefined) {
       (message) =>
         message.role === 'ASSISTANT' &&
         (message.status === 'PENDING' || message.status === 'STREAMING'),
+    ),
+  )
+}
+
+export function hasActiveReview(cached: MessageHistoryData | undefined) {
+  return (cached?.pages ?? []).some((page) =>
+    page.messages.some(
+      (message) =>
+        message.reviewSummary?.status === 'PENDING' ||
+        message.reviewSummary?.status === 'IN_REVIEW',
     ),
   )
 }

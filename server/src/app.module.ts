@@ -15,6 +15,8 @@ import { PdfStorageModule } from './modules/pdf-storage/pdf-storage.module'
 import { EmbeddingModule } from './modules/embedding/embedding.module'
 import { MaterialsModule } from './modules/materials/materials.module'
 import { RetrievalModule } from './modules/retrieval/retrieval.module'
+import { ReviewsModule } from './modules/reviews/reviews.module'
+import { NotificationsModule } from './modules/notifications/notifications.module'
 
 @Module({
   imports: [
@@ -36,6 +38,8 @@ import { RetrievalModule } from './modules/retrieval/retrieval.module'
     RetrievalModule,
     MaterialsModule,
     CompletionModule,
+    ReviewsModule,
+    NotificationsModule,
   ],
 })
 export class AppModule {}

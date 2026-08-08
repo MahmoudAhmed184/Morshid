@@ -70,7 +70,7 @@ export function useStudentNewChat() {
     if (search.sessionId !== undefined || pathname !== '/chat') {
       await navigate({
         to: '/chat',
-        search: { courseId: selectedCourse.id },
+        search: { courseId: selectedCourse.id, sessionId: undefined },
       })
     }
 
@@ -171,7 +171,12 @@ function CourseSwitcher({
         {courses.map((course) => (
           <DropdownMenuItem
             key={course.id}
-            render={<Link to="/chat" search={{ courseId: course.id }} />}
+            render={
+              <Link
+                to="/chat"
+                search={{ courseId: course.id, sessionId: undefined }}
+              />
+            }
           >
             <span className="min-w-0 flex-1 truncate">{course.title}</span>
             {selectedCourse && course.id === selectedCourse.id ? (
@@ -245,7 +250,7 @@ export function StudentSidebarContent({
     if (session.id === routeSessionId) {
       await navigate({
         to: '/chat',
-        search: { courseId: selectedCourse.id },
+        search: { courseId: selectedCourse.id, sessionId: undefined },
       })
     }
   }

@@ -39,6 +39,14 @@ export interface ChatMessageRecord {
   errorCode: string | null
   createdAt: Date
   completedAt: Date | null
+  reviewCase?: {
+    id: string
+    status: 'PENDING' | 'IN_REVIEW' | 'RESOLVED' | 'REJECTED'
+    outcome: 'APPROVED' | 'EDITED' | 'REPLACED' | 'REQUEST_REJECTED' | null
+    resolvedAt: Date | null
+    triggers: { id: string }[]
+    _count: { notifications: number }
+  } | null
   citations: ChatMessageCitationRecord[]
   retrievals: ChatMessageRetrievalRecord[]
 }
@@ -64,6 +72,7 @@ export interface ChatMessageRetrievalRecord {
     materialId: string
     chunkIndex: number
     content: string
+    embeddingModel: string
   } | null
 }
 

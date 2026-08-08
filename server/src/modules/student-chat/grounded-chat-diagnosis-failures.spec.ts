@@ -10,6 +10,10 @@ import {
 } from '../../generated/prisma/client'
 import type { AuthenticatedRequestUser } from '../auth/auth.dto'
 import type { CompletionProvider } from '../completion/completion-provider'
+import { AutomaticSafetyRiskDetector } from '../output-policy/automatic-safety-risk.detector'
+import { ControlledSourceConflictDetector } from '../output-policy/controlled-source-conflict.detector'
+import type { OutputPolicyReviewAdapter } from '../output-policy/output-policy-review.adapter'
+import { OutputPolicyService } from '../output-policy/output-policy.service'
 import type {
   RetrievedChunk,
   RetrievalService,
@@ -26,6 +30,7 @@ import { GROUNDING_FAILED_CONTENT } from './grounded-chat.constants'
 import { StudentChatMessagePresenter } from './student-chat-message.presenter'
 import type { ChatMessageRecord } from './student-chat.repository.types'
 import type { StudentChatService } from './student-chat.service'
+import { CorrectnessSensitiveRequestClassifier } from './correctness-sensitive-request.classifier'
 
 const courseId = 'diagnosis-failure-course'
 const sessionId = 'diagnosis-failure-session'
@@ -146,6 +151,10 @@ describe('GroundedChatService diagnosis failure paths', () => {
         beginTurn,
         retryTurn: jest.fn(),
         completeTurn,
+        completePolicyTurn: jest.fn(),
+        completeUnsupportedTurn: jest.fn(),
+        completeSafetyTurn: jest.fn(),
+        readTurnForStudent: jest.fn(),
         blockTurn,
         failTurn,
       },
@@ -154,6 +163,13 @@ describe('GroundedChatService diagnosis failure paths', () => {
       new StudentChatMessagePresenter({
         exists: jest.fn().mockResolvedValue(true),
       } as never),
+      new OutputPolicyService(),
+      {
+        createRequiredReview: jest.fn().mockResolvedValue(null),
+      } as unknown as OutputPolicyReviewAdapter,
+      new CorrectnessSensitiveRequestClassifier(),
+      new ControlledSourceConflictDetector(),
+      new AutomaticSafetyRiskDetector(),
     )
   })
 
@@ -567,6 +583,7 @@ function evidenceChunks(): RetrievedChunk[] {
       content: 'Function scope and name lookup.',
       rank: 1,
       similarityScore: 0.92,
+      embeddingModel: 'deterministic-embedding-v1',
     },
   ]
 }

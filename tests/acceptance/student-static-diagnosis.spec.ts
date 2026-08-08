@@ -10,7 +10,7 @@ import {
   signInThroughUi,
 } from './support/demo-auth'
 
-const apiBaseUrl = 'http://localhost:4000'
+const apiBaseUrl = `http://localhost:${process.env.PLAYWRIGHT_SERVER_PORT ?? '4000'}`
 const sourceTitle =
   'p0-npt-part-02 Functions and Scope [deterministic-embedding-v1]'
 const sourceFixturePath = resolve(
@@ -78,7 +78,7 @@ test.describe('Student static Python diagnosis', () => {
     )
     await expect(history.getByText('STATIC PYTHON DIAGNOSIS')).toBeVisible()
     await expect(history.getByText('GROUNDED IN COURSE SOURCES')).toBeVisible()
-    await expect(history.getByText('Likely defect')).toBeVisible()
+    await expect(history.getByText(/^Likely defect\b/iu)).toBeVisible()
     await expect(history.getByText(/num.*nums/iu)).toBeVisible()
     await expect(history.getByText(/name lookup.*scope/iu)).toBeVisible()
     await expect(history.getByText('Next inspection step')).toHaveCount(1)
@@ -172,7 +172,7 @@ test.describe('Student static Python diagnosis', () => {
     await expect(
       history.getByText(/cannot provide a complete corrected program/iu),
     ).toBeVisible()
-    await expect(history.getByText('Likely defect')).toBeVisible()
+    await expect(history.getByText(/^Likely defect\b/iu)).toBeVisible()
     await expect(history.getByText('Next inspection step')).toBeVisible()
   })
 })

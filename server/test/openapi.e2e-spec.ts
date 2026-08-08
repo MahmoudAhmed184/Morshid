@@ -161,6 +161,249 @@ describe('OpenAPI contract (e2e)', () => {
     }
   }
 
+  it('documents the minimal Instructor review queue contract', async () => {
+    const app = await createApp('test')
+
+    try {
+      const response = await request(app.getHttpServer())
+        .get('/docs-json')
+        .expect(200)
+      const document = response.body as OpenAPIObject
+      const operation = expectProtectedOperation(document, {
+        path: '/api/v1/instructor/reviews',
+        method: 'get',
+        tag: 'instructor-reviews',
+        summary: 'List the Instructor review queue',
+        statuses: ['200', '400', '401', '403', '404'],
+      })
+
+      expectResponseSchemaReference(
+        operation,
+        '200',
+        'InstructorReviewQueueResponseDto',
+      )
+      expect(
+        operation.parameters?.map((parameter) =>
+          '$ref' in parameter ? parameter.$ref : parameter.name,
+        ),
+      ).toEqual(['limit', 'studentFlagReason', 'cursor', 'courseId'])
+
+      const schemas = document.components?.schemas as Record<
+        string,
+        { properties?: Record<string, unknown> }
+      >
+      expect(
+        Object.keys(schemas.InstructorReviewQueueItemDto.properties ?? {}),
+      ).toEqual([
+        'reviewCaseId',
+        'status',
+        'trigger',
+        'triggers',
+        'studentFlagReason',
+        'studentNote',
+        'createdAt',
+        'age',
+        'course',
+        'student',
+        'pending',
+      ])
+      expect(
+        Object.keys(schemas.InstructorReviewQueueResponseDto.properties ?? {}),
+      ).toEqual(['items', 'pendingCount', 'nextCursor'])
+    } finally {
+      await app.close()
+    }
+  })
+
+  it('documents the bounded Instructor review detail contract', async () => {
+    const app = await createApp('test')
+
+    try {
+      const response = await request(app.getHttpServer())
+        .get('/docs-json')
+        .expect(200)
+      const document = response.body as OpenAPIObject
+      const operation = expectProtectedOperation(document, {
+        path: '/api/v1/instructor/reviews/{reviewCaseId}',
+        method: 'get',
+        tag: 'instructor-reviews',
+        summary: 'Get an Instructor review case',
+        statuses: ['200', '400', '401', '403', '404'],
+      })
+      expectResponseSchemaReference(
+        operation,
+        '200',
+        'InstructorReviewDetailDto',
+      )
+
+      const schemas = document.components?.schemas as Record<
+        string,
+        { properties?: Record<string, unknown> }
+      >
+      expect(
+        Object.keys(schemas.InstructorReviewDetailDto.properties ?? {}),
+      ).toEqual([
+        'reviewCaseId',
+        'status',
+        'version',
+        'canReject',
+        'trigger',
+        'triggers',
+        'studentFlagReason',
+        'createdAt',
+        'requestedAt',
+        'studentNote',
+        'course',
+        'student',
+        'flaggedExchange',
+        'assistantResponse',
+        'previousExchange',
+        'followingExchange',
+        'actions',
+        'reviewSummary',
+      ])
+    } finally {
+      await app.close()
+    }
+  })
+
+  it('documents Instructor terminal review actions', async () => {
+    const app = await createApp('test')
+
+    try {
+      const response = await request(app.getHttpServer())
+        .get('/docs-json')
+        .expect(200)
+      const document = response.body as OpenAPIObject
+      for (const expectation of [
+        {
+          path: '/api/v1/instructor/reviews/{reviewCaseId}/resolve',
+          summary: 'Publish a terminal Instructor review outcome',
+          requestSchema: 'ResolveReviewRequestDto',
+        },
+        {
+          path: '/api/v1/instructor/reviews/{reviewCaseId}/reject',
+          summary: 'Reject a Student review request',
+          requestSchema: 'RejectReviewRequestDto',
+        },
+      ]) {
+        const operation = expectProtectedOperation(document, {
+          path: expectation.path,
+          method: 'post',
+          tag: 'instructor-reviews',
+          summary: expectation.summary,
+          statuses: ['200', '400', '401', '403', '404', '409'],
+        })
+        expectRequestSchemaReference(operation, expectation.requestSchema)
+        expectResponseSchemaReference(
+          operation,
+          '200',
+          'InstructorReviewActionResponseDto',
+        )
+        expect(getParameter(operation, 'reviewCaseId')).toMatchObject({
+          in: 'path',
+          required: true,
+          schema: { type: 'string', format: 'uuid' },
+        })
+        expect(getParameter(operation, 'Idempotency-Key')).toMatchObject({
+          in: 'header',
+          required: true,
+        })
+      }
+    } finally {
+      await app.close()
+    }
+  })
+
+  it('documents the Student-safe review detail operation and allow-list', async () => {
+    const app = await createApp('test')
+
+    try {
+      const response = await request(app.getHttpServer())
+        .get('/docs-json')
+        .expect(200)
+      const document = response.body as OpenAPIObject
+      const operation = expectProtectedOperation(document, {
+        path: '/api/v1/student/reviews/{reviewCaseId}',
+        method: 'get',
+        tag: 'student-reviews',
+        summary: 'Get a Student-safe review outcome',
+        statuses: ['200', '400', '401', '403', '404'],
+      })
+      expectResponseSchemaReference(operation, '200', 'StudentReviewDetailDto')
+      expect(getParameter(operation, 'reviewCaseId')).toMatchObject({
+        in: 'path',
+        required: true,
+        schema: { type: 'string', format: 'uuid' },
+      })
+
+      const schemas = document.components?.schemas as Record<
+        string,
+        { properties?: Record<string, unknown> }
+      >
+      expect(
+        Object.keys(schemas.StudentReviewDetailDto.properties ?? {}),
+      ).toEqual([
+        'reviewCaseId',
+        'status',
+        'outcome',
+        'publishedContent',
+        'rejectionReason',
+        'requestedAt',
+        'resolvedAt',
+        'messageId',
+        'sessionId',
+      ])
+    } finally {
+      await app.close()
+    }
+  })
+
+  it('documents authenticated notification reads', async () => {
+    const app = await createApp('test')
+
+    try {
+      const response = await request(app.getHttpServer())
+        .get('/docs-json')
+        .expect(200)
+      const document = response.body as OpenAPIObject
+      const list = expectProtectedOperation(document, {
+        path: '/api/v1/notifications',
+        method: 'get',
+        tag: 'notifications',
+        summary: 'List notifications for the authenticated user',
+        statuses: ['200', '400', '401', '403'],
+      })
+      expectResponseSchemaReference(list, '200', 'NotificationListResponseDto')
+
+      const count = expectProtectedOperation(document, {
+        path: '/api/v1/notifications/unread-count',
+        method: 'get',
+        tag: 'notifications',
+        summary: 'Count unread notifications',
+        statuses: ['200', '401', '403'],
+      })
+      expectResponseSchemaReference(count, '200', 'NotificationUnreadCountDto')
+
+      const read = expectProtectedOperation(document, {
+        path: '/api/v1/notifications/{notificationId}/read',
+        method: 'post',
+        tag: 'notifications',
+        summary: 'Mark a notification as read',
+        statuses: ['200', '400', '401', '403', '404'],
+      })
+      expectResponseSchemaReference(read, '200', 'StudentNotificationDto')
+      expectResponseSchemaReference(read, '400', 'NestBadRequestErrorDto')
+      expect(getParameter(read, 'notificationId')).toMatchObject({
+        in: 'path',
+        required: true,
+        schema: { type: 'string', format: 'uuid' },
+      })
+    } finally {
+      await app.close()
+    }
+  })
+
   it('serves documentation only in development and test', async () => {
     for (const nodeEnv of ['development', 'test'] as const) {
       const app = await createApp(nodeEnv)
@@ -995,6 +1238,93 @@ describe('OpenAPI contract (e2e)', () => {
         type: 'array',
         items: { $ref: '#/components/schemas/ChatCitationEvidenceDto' },
       })
+    } finally {
+      await app.close()
+    }
+  })
+
+  it('documents the review creation seam and forward-compatible review contracts', async () => {
+    const app = await createApp('test')
+
+    try {
+      const response = await request(app.getHttpServer())
+        .get('/docs-json')
+        .expect(200)
+      const document = response.body as OpenAPIObject
+      const operation = expectProtectedOperation(document, {
+        path: '/api/v1/messages/{messageId}/review-requests',
+        method: 'post',
+        tag: 'student-reviews',
+        summary: 'Request Instructor review of an assistant response',
+        statuses: [
+          '200',
+          '201',
+          '400',
+          '401',
+          '403',
+          '404',
+          '409',
+          '413',
+          '429',
+        ],
+      })
+
+      expect(getParameter(operation, 'messageId')).toMatchObject({
+        in: 'path',
+        required: true,
+        schema: { type: 'string', format: 'uuid' },
+      })
+      expect(getParameter(operation, 'Idempotency-Key')).toMatchObject({
+        in: 'header',
+        required: true,
+      })
+      expectRequestSchemaReference(operation, 'CreateReviewRequestDto')
+      expectResponseSchemaReference(
+        operation,
+        '201',
+        'CreateReviewRequestResponseDto',
+      )
+
+      const schemas = document.components?.schemas as Record<
+        string,
+        { enum?: string[]; properties?: Record<string, unknown> }
+      >
+      for (const schemaName of [
+        'ReviewQueueItemContractDto',
+        'ReviewDetailContractDto',
+        'ReviewActionContractDto',
+        'PublishedReviewContractDto',
+        'NotificationContractDto',
+      ]) {
+        expect(schemas).toHaveProperty(schemaName)
+      }
+      expect(schemas.ReviewStatus.enum).toEqual([
+        'PENDING',
+        'IN_REVIEW',
+        'RESOLVED',
+        'REJECTED',
+      ])
+      expect(schemas.StudentReviewSummaryDto.properties?.outcome).toMatchObject(
+        {
+          nullable: true,
+        },
+      )
+      expect(schemas.ReviewOutcome.enum).toEqual([
+        'APPROVED',
+        'EDITED',
+        'REPLACED',
+        'REQUEST_REJECTED',
+      ])
+      expect(schemas.NotificationType.enum).toEqual([
+        'REVIEW_RESOLVED',
+        'REVIEW_REJECTED',
+        'USAGE_LIMIT_REACHED',
+      ])
+      expect(schemas.NotificationStatus.enum).toEqual([
+        'UNREAD',
+        'READ',
+        'DISMISSED',
+      ])
     } finally {
       await app.close()
     }
