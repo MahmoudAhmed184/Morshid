@@ -18,6 +18,7 @@ describe('Student review detail persistence (e2e)', () => {
   let studentId: string
   let otherStudentId: string
   let reviewCaseId: string
+  let automaticReviewCaseId: string
   let sessionId: string
 
   beforeAll(async () => {
@@ -81,6 +82,34 @@ describe('Student review detail persistence (e2e)', () => {
       },
     })
     reviewCaseId = reviewCase.id
+
+    const automaticMessage = await database.prisma.message.create({
+      data: {
+        sessionId,
+        sequence: 2,
+        role: MessageRole.ASSISTANT,
+        content: 'Safe automatic response',
+        status: MessageStatus.COMPLETED,
+        completedAt: new Date(),
+      },
+    })
+    const automaticReviewCase = await database.prisma.reviewCase.create({
+      data: {
+        targetMessageId: automaticMessage.id,
+        courseId: course.id,
+        status: ReviewStatus.RESOLVED,
+        outcome: 'APPROVED',
+        publishedContent: 'Approved automatic guidance',
+        resolvedAt: new Date(),
+        triggers: {
+          create: {
+            type: ReviewTriggerType.GENERAL_NOT_FOUND,
+            sourceEventKey: `test:${automaticMessage.id}`,
+          },
+        },
+      },
+    })
+    automaticReviewCaseId = automaticReviewCase.id
   })
 
   afterAll(async () => database?.dispose(), 15_000)
@@ -105,6 +134,20 @@ describe('Student review detail persistence (e2e)', () => {
   it('conceals the review from another Student', async () => {
     await expect(
       repository.findOwned(otherStudentId, reviewCaseId),
+    ).resolves.toBeNull()
+  })
+
+  it('loads the terminal outcome for an automatic case owned through the chat session', async () => {
+    const record = await repository.findOwned(studentId, automaticReviewCaseId)
+    expect(record).toMatchObject({
+      id: automaticReviewCaseId,
+      status: ReviewStatus.RESOLVED,
+      outcome: 'APPROVED',
+      publishedContent: 'Approved automatic guidance',
+    })
+    expect(record?.triggers[0]?.createdAt).toBeInstanceOf(Date)
+    await expect(
+      repository.findOwned(otherStudentId, automaticReviewCaseId),
     ).resolves.toBeNull()
   })
 

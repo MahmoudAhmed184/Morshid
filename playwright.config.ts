@@ -1,8 +1,18 @@
 import { defineConfig, devices } from '@playwright/test'
 
 const isCi = process.env.CI !== undefined
-const clientPort = parsePort(process.env.PLAYWRIGHT_CLIENT_PORT, 3000)
+const clientPort = parsePort(
+  process.env.PLAYWRIGHT_CLIENT_PORT,
+  3000,
+  'PLAYWRIGHT_CLIENT_PORT',
+)
+const serverPort = parsePort(
+  process.env.PLAYWRIGHT_SERVER_PORT,
+  4000,
+  'PLAYWRIGHT_SERVER_PORT',
+)
 const clientBaseUrl = `http://localhost:${clientPort.toString()}`
+const serverBaseUrl = `http://localhost:${serverPort.toString()}`
 
 export default defineConfig({
   testDir: './tests/acceptance',
@@ -24,24 +34,24 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: `npm exec --workspace client -- vite dev --port ${clientPort.toString()} --strictPort`,
+      command: `env VITE_API_BASE_URL=${serverBaseUrl} npm exec --workspace client -- vite dev --port ${clientPort.toString()} --strictPort`,
       url: clientBaseUrl,
       reuseExistingServer: !isCi,
     },
     {
-      command: `env CLIENT_ORIGIN=${clientBaseUrl} npm run dev:server`,
-      url: 'http://localhost:4000/health/live',
+      command: `env PORT=${serverPort.toString()} CLIENT_ORIGIN=${clientBaseUrl} npm run dev:server`,
+      url: `${serverBaseUrl}/health/live`,
       reuseExistingServer: !isCi,
       timeout: 180_000,
     },
   ],
 })
 
-function parsePort(value: string | undefined, fallback: number) {
+function parsePort(value: string | undefined, fallback: number, name: string) {
   const port = value === undefined ? fallback : Number(value)
 
   if (!Number.isInteger(port) || port < 1 || port > 65_535) {
-    throw new Error('PLAYWRIGHT_CLIENT_PORT must be a valid TCP port')
+    throw new Error(`${name} must be a valid TCP port`)
   }
 
   return port

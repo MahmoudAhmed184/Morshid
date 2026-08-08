@@ -295,6 +295,55 @@ describe('Review persistence seam (e2e)', () => {
     ).resolves.toMatchObject({ kind: 'ok' })
   })
 
+  it('keeps the first evidence snapshot immutable when automatic reasons aggregate', async () => {
+    const fixture = await createReviewableMessage('immutable-automatic')
+    const first = await repository.create({
+      kind: 'automatic',
+      messageId: fixture.assistantMessageId,
+      trigger: 'POLICY_CHECK_FAILED',
+      sourceEventKey: 'immutable-automatic-policy',
+      evidence: { summary: 'Initial bounded policy evidence' },
+    })
+    expect(first.kind).toBe('ok')
+    if (first.kind !== 'ok') {
+      throw new Error('Expected initial automatic case creation to succeed')
+    }
+    const original =
+      await requireDatabase().prisma.reviewEvidenceSnapshot.findUniqueOrThrow({
+        where: { reviewCaseId: first.record.caseId },
+      })
+
+    await expect(
+      repository.create({
+        kind: 'automatic',
+        messageId: fixture.assistantMessageId,
+        trigger: 'FINAL_ANSWER_RISK',
+        sourceEventKey: 'immutable-automatic-final-answer',
+        evidence: { summary: 'Later contribution must not replace evidence' },
+      }),
+    ).resolves.toMatchObject({ kind: 'ok' })
+
+    const aggregated =
+      await requireDatabase().prisma.reviewCase.findUniqueOrThrow({
+        where: { id: first.record.caseId },
+        include: {
+          evidence: true,
+          triggers: { orderBy: { createdAt: 'asc' } },
+        },
+      })
+    expect(aggregated.triggers.map(({ type }) => type)).toEqual([
+      'POLICY_CHECK_FAILED',
+      'FINAL_ANSWER_RISK',
+    ])
+    expect(aggregated.evidence).toEqual(original)
+    expect(JSON.stringify(aggregated.evidence?.evidence)).toContain(
+      '[Redacted policy-review prompt]',
+    )
+    expect(JSON.stringify(aggregated.evidence?.evidence)).not.toContain(
+      'Later contribution must not replace evidence',
+    )
+  })
+
   it('normalizes notes and requires a non-empty note only for OTHER', async () => {
     const validOther = await createReviewableMessage('other-valid')
     await expect(

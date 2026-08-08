@@ -45,6 +45,7 @@
     "test:iti-bedrock-embedding:probe": "npm run test:iti-bedrock-embedding:probe --workspace server",
     "embedding:migrate": "npm run embedding:migrate --workspace server --",
     "test:iti-bedrock:smoke": "npm run test:iti-bedrock:smoke --workspace server",
+    "test:automatic-safety:smoke": "npm run test:automatic-safety:smoke --workspace server",
     "test": "npm run test:root && npm run test --workspaces --if-present",
     "test:root": "node --test --test-isolation=none scripts/*.test.mts",
     "build": "npm run build --workspaces --if-present",

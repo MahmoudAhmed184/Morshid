@@ -41,8 +41,13 @@ export class PrismaStudentReviewDetailRepository extends StudentReviewDetailRepo
         id: reviewCaseId,
         triggers: {
           some: {
-            type: ReviewTriggerType.STUDENT_REQUEST,
-            actorUserId: studentId,
+            OR: [
+              { type: { not: ReviewTriggerType.STUDENT_REQUEST } },
+              {
+                type: ReviewTriggerType.STUDENT_REQUEST,
+                actorUserId: studentId,
+              },
+            ],
           },
         },
         course: {
@@ -70,8 +75,13 @@ export class PrismaStudentReviewDetailRepository extends StudentReviewDetailRepo
         },
         triggers: {
           where: {
-            type: ReviewTriggerType.STUDENT_REQUEST,
-            actorUserId: studentId,
+            OR: [
+              { type: { not: ReviewTriggerType.STUDENT_REQUEST } },
+              {
+                type: ReviewTriggerType.STUDENT_REQUEST,
+                actorUserId: studentId,
+              },
+            ],
           },
           orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
           take: 1,

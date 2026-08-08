@@ -6,6 +6,7 @@ import { PrismaModule } from '../prisma/prisma.module'
 import { PdfStorageModule } from '../pdf-storage/pdf-storage.module'
 import { RetrievalModule } from '../retrieval/retrieval.module'
 import { CompletionModule } from '../completion/completion.module'
+import { OutputPolicyModule } from '../output-policy/output-policy.module'
 import { StudentChatAuditService } from './student-chat.audit.service'
 import { StudentChatController } from './student-chat.controller'
 import { StudentChatCourseBoundaryAuditFilter } from './student-chat-course-boundary-audit.filter'
@@ -24,12 +25,14 @@ import {
   PrismaGroundedChatTurnRepository,
 } from './grounded-chat-turn.repository'
 import { GroundedChatService } from './grounded-chat.service'
+import { CorrectnessSensitiveRequestClassifier } from './correctness-sensitive-request.classifier'
 
 @Module({
   imports: [
     AuditModule,
     AuthModule,
     CompletionModule,
+    OutputPolicyModule,
     PdfStorageModule,
     PrismaModule,
     RetrievalModule,
@@ -40,6 +43,7 @@ import { GroundedChatService } from './grounded-chat.service'
     StudentChatService,
     StudentChatCourseBoundaryAuditFilter,
     StudentChatMessagePresenter,
+    CorrectnessSensitiveRequestClassifier,
     {
       provide: StudentChatSessionRepository,
       useClass: PrismaStudentChatSessionRepository,

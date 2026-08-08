@@ -271,26 +271,32 @@ export class PrismaReviewCaseRepository extends ReviewCaseRepository {
           }
         }
 
-        const previousMessages = await tx.message.findMany({
-          where: {
-            sessionId: target.session.id,
-            sequence: {
-              lt: target.responseToMessage?.sequence ?? target.sequence,
-            },
-          },
-          orderBy: { sequence: 'desc' },
-          take: 2,
-          select: adjacentMessageSelect,
-        })
-        const followingMessages = await tx.message.findMany({
-          where: {
-            sessionId: target.session.id,
-            sequence: { gt: target.sequence },
-          },
-          orderBy: { sequence: 'asc' },
-          take: 2,
-          select: adjacentMessageSelect,
-        })
+        const previousMessages =
+          input.kind === 'automatic'
+            ? []
+            : await tx.message.findMany({
+                where: {
+                  sessionId: target.session.id,
+                  sequence: {
+                    lt: target.responseToMessage?.sequence ?? target.sequence,
+                  },
+                },
+                orderBy: { sequence: 'desc' },
+                take: 2,
+                select: adjacentMessageSelect,
+              })
+        const followingMessages =
+          input.kind === 'automatic'
+            ? []
+            : await tx.message.findMany({
+                where: {
+                  sessionId: target.session.id,
+                  sequence: { gt: target.sequence },
+                },
+                orderBy: { sequence: 'asc' },
+                take: 2,
+                select: adjacentMessageSelect,
+              })
         const snapshot = buildSnapshot(
           target,
           previousMessages.reverse(),
@@ -490,7 +496,14 @@ function buildSnapshot(
     studentPrompt: target.responseToMessage
       ? {
           id: target.responseToMessage.id,
-          content: target.responseToMessage.content,
+          content:
+            input.kind === 'automatic' &&
+            input.trigger === ReviewTriggerType.POLICY_CHECK_FAILED
+              ? '[Redacted policy-review prompt]'
+              : truncate(
+                  target.responseToMessage.content,
+                  ADJACENT_CONTENT_CODE_POINTS,
+                ),
           createdAt: target.responseToMessage.createdAt.toISOString(),
         }
       : null,
@@ -549,7 +562,13 @@ function automaticEvidenceSnapshot(
       ...(source.materialId === undefined
         ? {}
         : { materialId: source.materialId }),
+      ...(source.materialTitle === undefined
+        ? {}
+        : { materialTitle: source.materialTitle }),
       ...(source.chunkId === undefined ? {} : { chunkId: source.chunkId }),
+      ...(source.chunkIndex === undefined
+        ? {}
+        : { chunkIndex: source.chunkIndex }),
       excerpt: source.excerpt,
       ...(source.rank === undefined ? {} : { rank: source.rank }),
       ...(source.score === undefined ? {} : { score: source.score }),

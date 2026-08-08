@@ -64,6 +64,109 @@ describe('StudentChatMessage', () => {
     ).toBeVisible()
   })
 
+  it('renders Tutor Markdown as structured, styled content', () => {
+    renderMessage({
+      ...assistantMessage,
+      citations: [],
+      content: [
+        '## Python lists',
+        '',
+        'Use `append()` to add an item:',
+        '',
+        '- **Indexing** starts at zero.',
+        '- Slices return part of a list.',
+        '',
+        '```python',
+        'numbers = [1, 2, 3]',
+        'numbers.append(4)',
+        '```',
+        '',
+        '| Method | Purpose |',
+        '| --- | --- |',
+        '| `append()` | Add one item |',
+      ].join('\n'),
+    })
+
+    expect(
+      screen.getByRole('heading', { level: 4, name: 'Python lists' }),
+    ).toBeVisible()
+    expect(screen.getAllByRole('list')).toHaveLength(2)
+    expect(screen.getByText('Indexing')).toHaveClass('font-semibold')
+    const codeBlock = screen.getByText((_content, element) =>
+      Boolean(
+        element?.tagName === 'CODE' &&
+        element.classList.contains('language-python'),
+      ),
+    )
+    expect(codeBlock).toHaveTextContent('numbers.append(4)')
+    expect(
+      screen.getByRole('region', { name: 'Scrollable response table' }),
+    ).toBeVisible()
+    expect(screen.getByRole('table')).toBeVisible()
+  })
+
+  it('does not execute raw HTML or load Markdown images', () => {
+    renderMessage({
+      ...assistantMessage,
+      content:
+        '<script>dangerousCall()</script>\n\n![tracking pixel](https://example.test/pixel.png)',
+    })
+
+    expect(screen.queryByText('dangerousCall()')).not.toBeInTheDocument()
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
+    expect(screen.getByText('[Image: tracking pixel]')).toBeVisible()
+  })
+
+  it('preserves a nested heading outline within the chat surface', () => {
+    renderMessage({
+      ...assistantMessage,
+      content: '# Topic\n## Section\n### Detail\n#### Note',
+    })
+
+    expect(
+      screen.getByRole('heading', { level: 3, name: 'Topic' }),
+    ).toBeVisible()
+    expect(
+      screen.getByRole('heading', { level: 4, name: 'Section' }),
+    ).toBeVisible()
+    expect(
+      screen.getByRole('heading', { level: 5, name: 'Detail' }),
+    ).toBeVisible()
+    expect(
+      screen.getByRole('heading', { level: 6, name: 'Note' }),
+    ).toBeVisible()
+  })
+
+  it('renders model-authored links as inert text', () => {
+    renderMessage({
+      ...assistantMessage,
+      content:
+        '[External](https://example.test/login) https://example.test/tracker [Relative](/account) [Fragment](#answer)',
+    })
+
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
+    expect(screen.getByText('External')).toHaveAttribute(
+      'title',
+      'Links are disabled in Tutor responses',
+    )
+    expect(screen.getByText('Relative')).toHaveAttribute(
+      'title',
+      'Links are disabled in Tutor responses',
+    )
+  })
+
+  it('keeps Student-authored Markdown-looking text literal', () => {
+    renderMessage({
+      ...orderedChatMessagesFixture[0],
+      content: '**Do not render this as bold.**',
+    })
+
+    expect(screen.getByText('**Do not render this as bold.**')).toBeVisible()
+    expect(
+      screen.queryByText('Do not render this as bold.'),
+    ).not.toBeInTheDocument()
+  })
+
   it('keeps response feedback local and mutually exclusive', async () => {
     const user = userEvent.setup()
     renderMessage(assistantMessage)
@@ -320,6 +423,29 @@ describe('StudentChatMessage', () => {
       expect(screen.getByText(assistantMessage.content)).toBeVisible()
     },
   )
+
+  it('replaces the awaiting-review presentation with the terminal reviewed outcome', () => {
+    useStudentReviewDetailMock.mockReturnValue({
+      data: reviewDetail({
+        outcome: 'EDITED',
+        publishedContent: 'Edited published answer',
+      }),
+      isError: false,
+      isPending: false,
+    })
+    renderMessage({
+      ...messageWithReview('RESOLVED', 'EDITED'),
+      guidanceLabel: 'UNCERTAIN_AWAITING_REVIEW',
+    })
+
+    expect(screen.getByText('Reviewed')).toBeVisible()
+    expect(
+      screen.getByRole('region', { name: 'Reviewed outcome' }),
+    ).toHaveTextContent('Edited published answer')
+    expect(
+      screen.queryByText('AWAITING INSTRUCTOR REVIEW'),
+    ).not.toBeInTheDocument()
+  })
 
   it('renders only the student-facing rejection reason for a rejected review', () => {
     useStudentReviewDetailMock.mockReturnValue({

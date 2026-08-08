@@ -33,6 +33,7 @@ export class InstructorReviewDetailService {
       version: record.version,
       canReject: record.canReject,
       trigger: record.trigger.type,
+      triggers: record.triggers.map(({ type }) => type),
       studentFlagReason: record.studentFlagReason,
       createdAt: record.createdAt.toISOString(),
       requestedAt: record.trigger.createdAt.toISOString(),

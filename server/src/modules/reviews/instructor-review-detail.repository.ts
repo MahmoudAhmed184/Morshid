@@ -63,6 +63,22 @@ const reviewEvidenceSchema = z.object({
       }),
     )
     .max(MAX_SNIPPETS),
+  automaticEvidence: z
+    .object({
+      sources: z
+        .array(
+          z.object({
+            materialId: z.string().optional(),
+            materialTitle: z.string().optional(),
+            chunkIndex: z.number().int().nonnegative().optional(),
+            excerpt: z.string(),
+            rank: z.number().int().positive().optional(),
+          }),
+        )
+        .max(MAX_SNIPPETS),
+    })
+    .nullable()
+    .optional(),
 })
 
 export interface ReviewDetailMessageRecord {
@@ -80,6 +96,7 @@ export interface InstructorReviewDetailRecord {
   resolvedAt: Date | null
   createdAt: Date
   trigger: { type: ReviewTriggerType; createdAt: Date }
+  triggers: { type: ReviewTriggerType; createdAt: Date }[]
   studentFlagReason: StudentFlagReason | null
   studentNote: string | null
   course: { id: string; code: string; title: string }
@@ -209,6 +226,9 @@ export class PrismaInstructorReviewDetailRepository extends InstructorReviewDeta
       return null
     }
     const snapshot = evidence.data
+    const automaticCitations = citationsFromAutomaticEvidence(
+      snapshot.automaticEvidence,
+    )
     const previousMessages = snapshot.context.previousMessages ?? []
     const followingMessages =
       snapshot.context.followingMessages ??
@@ -231,6 +251,10 @@ export class PrismaInstructorReviewDetailRepository extends InstructorReviewDeta
       resolvedAt: reviewCase.resolvedAt,
       createdAt: reviewCase.createdAt,
       trigger,
+      triggers: reviewCase.triggers.map(({ type, createdAt }) => ({
+        type,
+        createdAt,
+      })),
       studentFlagReason: studentRequest?.studentFlagReason ?? null,
       studentNote: studentRequest?.reason ?? null,
       course: reviewCase.course,
@@ -244,24 +268,27 @@ export class PrismaInstructorReviewDetailRepository extends InstructorReviewDeta
         role: snapshot.target.role ?? MessageRole.ASSISTANT,
         content: snapshot.target.content,
         createdAt: parseSnapshotDate(assistantCreatedAt),
-        citations: snapshot.citations.map((citation) => ({
-          order: citation.order,
-          materialId: citation.materialId,
-          materialTitle: citation.title,
-          snippets: snapshot.retrievals.flatMap((retrieval) =>
-            retrieval.materialId === citation.materialId &&
-            retrieval.chunkNumber !== null &&
-            retrieval.chunkNumber !== undefined &&
-            retrieval.excerpt !== null
-              ? [
-                  {
-                    chunkNumber: retrieval.chunkNumber,
-                    content: retrieval.excerpt,
-                  },
-                ]
-              : [],
-          ),
-        })),
+        citations:
+          automaticCitations.length > 0
+            ? automaticCitations
+            : snapshot.citations.map((citation) => ({
+                order: citation.order,
+                materialId: citation.materialId,
+                materialTitle: citation.title,
+                snippets: snapshot.retrievals.flatMap((retrieval) =>
+                  retrieval.materialId === citation.materialId &&
+                  retrieval.chunkNumber !== null &&
+                  retrieval.chunkNumber !== undefined &&
+                  retrieval.excerpt !== null
+                    ? [
+                        {
+                          chunkNumber: retrieval.chunkNumber,
+                          content: retrieval.excerpt,
+                        },
+                      ]
+                    : [],
+                ),
+              })),
       },
       previousMessages: previousMessages.map(mapEvidenceMessage),
       followingMessages: followingMessages.map(mapEvidenceMessage),
@@ -276,6 +303,37 @@ export class PrismaInstructorReviewDetailRepository extends InstructorReviewDeta
       })),
     }
   }
+}
+
+function citationsFromAutomaticEvidence(
+  evidence: z.infer<typeof reviewEvidenceSchema>['automaticEvidence'],
+): InstructorReviewDetailRecord['assistantResponse']['citations'] {
+  const citations = new Map<
+    string,
+    InstructorReviewDetailRecord['assistantResponse']['citations'][number]
+  >()
+  for (const source of evidence?.sources ?? []) {
+    if (source.materialId === undefined) continue
+    const existing = citations.get(source.materialId)
+    const snippet = {
+      chunkNumber:
+        source.chunkIndex === undefined
+          ? (source.rank ?? 1)
+          : source.chunkIndex + 1,
+      content: source.excerpt,
+    }
+    if (existing === undefined) {
+      citations.set(source.materialId, {
+        order: citations.size + 1,
+        materialId: source.materialId,
+        materialTitle: source.materialTitle ?? 'Course material',
+        snippets: [snippet],
+      })
+    } else {
+      existing.snippets.push(snippet)
+    }
+  }
+  return [...citations.values()].slice(0, MAX_CITATIONS)
 }
 
 function mapEvidenceMessage(

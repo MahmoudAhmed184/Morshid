@@ -260,6 +260,7 @@ function retrieval(
       materialId,
       chunkIndex,
       content,
+      embeddingModel: 'deterministic-embedding-v1',
     },
   }
 }

@@ -42,6 +42,7 @@ export class InstructorReviewQueueService {
         reviewCaseId: record.id,
         status: record.status,
         trigger: record.trigger,
+        triggers: record.triggers,
         studentFlagReason: record.studentFlagReason,
         studentNote: record.studentNote,
         createdAt: record.createdAt.toISOString(),

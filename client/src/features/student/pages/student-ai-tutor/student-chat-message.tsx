@@ -37,6 +37,7 @@ import {
   STUDENT_CHAT_FAILURE_STATUS,
   STUDENT_CHAT_GENERATION_STATUS,
 } from './student-chat-status'
+import { StudentAssistantMarkdown } from './student-assistant-markdown'
 
 interface StudentChatMessageProps {
   message: ChatMessage
@@ -150,6 +151,8 @@ export function StudentChatMessage({
   const reviewSummary = message.reviewSummary
   const hasTerminalReview =
     reviewSummary?.status === 'RESOLVED' || reviewSummary?.status === 'REJECTED'
+  const showGuidanceBadge =
+    message.guidanceLabel !== 'UNCERTAIN_AWAITING_REVIEW' || !hasTerminalReview
   const reviewDetailQuery = useStudentReviewDetail({
     reviewCaseId: reviewSummary?.reviewCaseId ?? null,
     enabled: message.role === 'ASSISTANT' && hasTerminalReview,
@@ -262,8 +265,10 @@ export function StudentChatMessage({
               <LoaderCircle className="size-4 animate-spin" aria-hidden />
               {STUDENT_CHAT_GENERATION_STATUS}…
             </p>
-          ) : (
+          ) : isStudent ? (
             <p className="whitespace-pre-wrap break-words">{message.content}</p>
+          ) : (
+            <StudentAssistantMarkdown content={message.content} />
           )}
 
           <span
@@ -390,7 +395,7 @@ export function StudentChatMessage({
           />
         ) : null}
 
-        {!isStudent && message.guidanceLabel ? (
+        {!isStudent && message.guidanceLabel && showGuidanceBadge ? (
           <GuidanceBadge guidanceLabel={message.guidanceLabel} />
         ) : null}
         {reviewSummary?.status === 'PENDING' ||
@@ -539,9 +544,16 @@ function StudentReviewOutcomeCard({
           </Badge>
         </div>
         {visibleContent ? (
-          <p className="whitespace-pre-wrap break-words text-sm leading-7 text-foreground">
-            {visibleContent}
-          </p>
+          isRejected ? (
+            <p className="whitespace-pre-wrap break-words text-sm leading-7 text-foreground">
+              {visibleContent}
+            </p>
+          ) : (
+            <StudentAssistantMarkdown
+              className="text-sm leading-7 text-foreground"
+              content={visibleContent}
+            />
+          )
         ) : null}
       </section>
     </div>

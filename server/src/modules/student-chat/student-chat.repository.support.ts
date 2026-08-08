@@ -58,6 +58,7 @@ export const chatMessageSelect = {
           materialId: true,
           chunkIndex: true,
           content: true,
+          embeddingModel: true,
         },
       },
     },
@@ -77,10 +78,19 @@ export function chatMessageSelectForStudent(studentId: string) {
         outcome: true,
         resolvedAt: true,
         triggers: {
-          where: { type: 'STUDENT_REQUEST' as const, actorUserId: studentId },
+          where: {
+            OR: [
+              { type: { not: 'STUDENT_REQUEST' as const } },
+              { type: 'STUDENT_REQUEST' as const, actorUserId: studentId },
+            ],
+          },
           select: { id: true },
         },
-        _count: { select: { notifications: true } },
+        _count: {
+          select: {
+            notifications: { where: { recipientUserId: studentId } },
+          },
+        },
       },
     },
   } satisfies Prisma.MessageSelect

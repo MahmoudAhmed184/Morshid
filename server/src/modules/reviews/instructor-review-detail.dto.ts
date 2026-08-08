@@ -128,6 +128,15 @@ export class InstructorReviewDetailDto {
 
   @Expose()
   @ApiProperty({
+    enum: ReviewTriggerType,
+    enumName: 'ReviewTriggerType',
+    isArray: true,
+    description: 'All trigger reasons in deterministic creation order.',
+  })
+  triggers!: ReviewTriggerType[]
+
+  @Expose()
+  @ApiProperty({
     enum: StudentFlagReason,
     enumName: 'StudentFlagReason',
     nullable: true,

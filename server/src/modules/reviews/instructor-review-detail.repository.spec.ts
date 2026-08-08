@@ -140,8 +140,75 @@ describe('PrismaInstructorReviewDetailRepository', () => {
       repository.findAuthorized('instructor-1', 'review-1'),
     ).resolves.toMatchObject({
       trigger: { type: ReviewTriggerType.SOURCE_CONFLICT },
+      triggers: [
+        { type: ReviewTriggerType.SOURCE_CONFLICT },
+        { type: ReviewTriggerType.STUDENT_REQUEST },
+      ],
       studentFlagReason: 'INCORRECT',
       studentNote: 'student note',
+    })
+  })
+
+  it('projects automatic citations from bounded immutable evidence', async () => {
+    const record = reviewRecord()
+    const evidence = {
+      ...record.evidence.evidence,
+      target: {
+        ...record.evidence.evidence.target,
+        content: 'immutable safe response',
+      },
+      studentPrompt: {
+        ...record.evidence.evidence.studentPrompt,
+        content: 'immutable bounded question',
+      },
+      context: { previousMessages: [], followingMessages: [] },
+      automaticEvidence: {
+        sources: [
+          {
+            materialId: 'material-1',
+            materialTitle: 'Immutable source',
+            chunkIndex: 2,
+            excerpt: 'bounded immutable excerpt',
+            rank: 1,
+          },
+        ],
+      },
+    }
+    findReview.mockResolvedValue({
+      ...record,
+      triggers: [
+        {
+          type: ReviewTriggerType.GENERAL_NOT_FOUND,
+          studentFlagReason: null,
+          reason: null,
+          createdAt: new Date('2026-07-29T10:00:01.000Z'),
+        },
+      ],
+      evidence: {
+        schemaVersion: 1,
+        evidence,
+        contentHash: reviewEvidenceContentHash(evidence),
+      },
+    })
+
+    await expect(
+      repository.findAuthorized('instructor-1', 'review-1'),
+    ).resolves.toMatchObject({
+      flaggedExchange: { content: 'immutable bounded question' },
+      assistantResponse: {
+        content: 'immutable safe response',
+        citations: [
+          {
+            materialId: 'material-1',
+            materialTitle: 'Immutable source',
+            snippets: [
+              { chunkNumber: 3, content: 'bounded immutable excerpt' },
+            ],
+          },
+        ],
+      },
+      previousMessages: [],
+      followingMessages: [],
     })
   })
 
