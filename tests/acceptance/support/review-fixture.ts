@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto'
 
 import { Client } from 'pg'
 
+import { reviewEvidenceContentHash } from '../../../server/src/modules/reviews/review-evidence-integrity.ts'
+
 const databaseUrl =
   process.env.DATABASE_URL ??
   'postgresql://morshid:morshid_local_password@localhost:5432/morshid'
@@ -330,6 +332,90 @@ export async function createInstructorReviewAcceptanceFixture(): Promise<Instruc
        VALUES ($1, $2, 'STUDENT_REQUEST', $3, $4, $5, now() - interval '5 minutes')`,
       [randomUUID(), reviewCaseId, ids.student, flagReason, note],
     )
+
+    const capturedAt = new Date().toISOString()
+    const isOwnedReview = reviewCaseId === ids.reviewCase
+    const evidence = {
+      target: {
+        id: messageId,
+        role: 'ASSISTANT',
+        content: isOwnedReview
+          ? 'Flagged acceptance assistant response'
+          : 'Other private answer',
+        createdAt: capturedAt,
+        completedAt: capturedAt,
+      },
+      studentPrompt: {
+        id: isOwnedReview ? ownedMessageIds[2] : otherStudentMessage,
+        content: isOwnedReview
+          ? 'Flagged acceptance question'
+          : 'Other private question',
+        createdAt: capturedAt,
+      },
+      context: {
+        previousMessages: isOwnedReview
+          ? [
+              snapshotMessage(
+                ownedMessageIds[0],
+                'STUDENT',
+                'Previous bounded question',
+                capturedAt,
+              ),
+              snapshotMessage(
+                ownedMessageIds[1],
+                'ASSISTANT',
+                'Previous bounded answer',
+                capturedAt,
+              ),
+            ]
+          : [],
+        followingMessages: isOwnedReview
+          ? [
+              snapshotMessage(
+                ownedMessageIds[4],
+                'STUDENT',
+                'Following bounded question',
+                capturedAt,
+              ),
+              snapshotMessage(
+                ownedMessageIds[5],
+                'ASSISTANT',
+                'Following bounded answer',
+                capturedAt,
+              ),
+            ]
+          : [],
+      },
+      citations: isOwnedReview
+        ? [
+            {
+              order: 1,
+              materialId: ids.material,
+              title: 'Bounded review source',
+            },
+          ]
+        : [],
+      retrievals: isOwnedReview
+        ? [
+            {
+              rank: 1,
+              materialId: ids.material,
+              chunkNumber: 1,
+              excerpt: `Bounded citation snippet ${'x'.repeat(475)}`,
+            },
+          ]
+        : [],
+    }
+    await client.query(
+      `INSERT INTO review_evidence_snapshots
+        (review_case_id, schema_version, evidence, content_hash)
+       VALUES ($1, 1, $2::jsonb, $3)`,
+      [
+        reviewCaseId,
+        JSON.stringify(evidence),
+        reviewEvidenceContentHash(evidence),
+      ],
+    )
   }
 
   return {
@@ -389,6 +475,15 @@ export async function createInstructorReviewAcceptanceFixture(): Promise<Instruc
       await client.end()
     },
   }
+}
+
+function snapshotMessage(
+  id: string,
+  role: 'STUDENT' | 'ASSISTANT',
+  content: string,
+  createdAt: string,
+) {
+  return { id, role, content, createdAt }
 }
 
 export async function createReviewBrowserFixture(
