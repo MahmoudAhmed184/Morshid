@@ -415,6 +415,60 @@ describe('Gemini Socratic runtime HTTP live verification', () => {
     writeLiveGuardResult('negative', result.result)
   }, 90_000)
 
+  it.each([
+    {
+      testCase: 'negative-ui-turn-3',
+      message:
+        'In Python, standard sequence iteration starts at the very beginning (index 0) and moves forward to the end. If you have [10, 20, 30], which value sits at index 0? [retrieval.rank.1]',
+      studentActionDescription:
+        'Identify the value at index 0 after the iteration order was stated.',
+    },
+    {
+      testCase: 'negative-ui-turn-4',
+      message:
+        'Consider how Python accesses a list from left to right starting at index 0. In the list [10, 20, 30], which number is located at index 0? [retrieval.rank.1]',
+      studentActionDescription:
+        'Locate the value at index 0 after the access direction was stated.',
+    },
+  ])(
+    'has the real Gemini Semantic Guard reject $testCase paraphrase',
+    async ({ testCase, message, studentActionDescription }) => {
+      const result = await requireApp()
+        .get(SemanticGuardService)
+        .evaluate(
+          overRevealEvaluation(
+            candidate({ message, studentActionDescription }),
+          ),
+        )
+
+      expect(result.kind).toBe('validated')
+      expect(result.result).toMatchObject({
+        approved: false,
+        maximumSeverity: 'HIGH',
+        recommendedAction: RESPONSE_VALIDATION_ACTION.REGENERATE,
+        provider: OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER,
+        model: env.SEMANTIC_GUARD_MODEL_NAME,
+        promptVersion: SEMANTIC_GUARD_PROMPT_VERSION,
+      })
+      expect(result.result.violations).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: RESPONSE_VIOLATION_TYPE.DIRECT_ANSWER_DISCLOSURE,
+          }),
+        ]),
+      )
+      expect(
+        countObservedModelCalls(
+          fetchRecorder?.calls() ?? [],
+          env.SEMANTIC_GUARD_MODEL_NAME,
+        ),
+      ).toBe(1)
+
+      writeLiveGuardResult(testCase, result.result)
+    },
+    90_000,
+  )
+
   it('has the real Gemini Semantic Guard approve a bounded Socratic clue', async () => {
     const result = await requireApp()
       .get(SemanticGuardService)
@@ -638,7 +692,7 @@ function candidate(input: {
 }
 
 function writeLiveGuardResult(
-  testCase: 'negative' | 'positive',
+  testCase: string,
   result: Awaited<ReturnType<SemanticGuardService['evaluate']>>['result'],
 ): void {
   process.stdout.write(
