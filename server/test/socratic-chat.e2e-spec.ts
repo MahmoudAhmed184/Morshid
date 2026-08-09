@@ -39,6 +39,7 @@ import type {
   ChatSessionResponseDto,
 } from '../src/modules/student-chat/student-chat.dto'
 import { STUDENT_CHAT_ERROR_CODES } from '../src/modules/student-chat/student-chat.errors'
+import { ANALYSIS_MODEL_PORT } from '../src/modules/socratic-tutor/analysis-model.port'
 import { TUTOR_MODEL_PORT } from '../src/modules/socratic-tutor/tutor-generation.types'
 import { SEMANTIC_GUARD_PORT } from '../src/modules/socratic-tutor/semantic-guard.types'
 import {
@@ -54,8 +55,12 @@ import { NoopMaterialProcessingScheduler } from './support/noop-material-process
 import {
   ControllableTutorModelPort,
   ControllableSemanticGuardPort,
+  ControllableAnalysisModelPort,
   validCandidateRawOutput,
   rejectedCandidateRawOutput,
+  misconceptionAnalysisResponse,
+  approvedSemanticGuardResponse,
+  rejectedSemanticGuardResponse,
   failingSemanticGuardBehavior,
   createDeferredPromise,
 } from './support/socratic-e2e-providers'
@@ -79,6 +84,12 @@ const NON_MATCHING_QUERY_VECTOR = Object.freeze([
 
 const EXPECTED_HAPPY_PATH_MESSAGE =
   'What part of the list comprehension syntax are you most unsure about? Try writing just the expression part first.'
+const OVER_REVEAL_STUDENT_MESSAGE =
+  'x will be 30 first, because I think the loop starts from the last item and moves backward.'
+const OVER_REVEAL_CANDIDATE =
+  'In Python, standard sequence iteration starts at the very beginning (index 0) and moves forward to the end. If you have [10, 20, 30], which value sits at index 0?'
+const BOUNDED_REGENERATED_CANDIDATE =
+  'Look at [10, 20, 30]. Which value is at index 0?'
 
 // ────────────────────────────────────────────────────────────────────────────
 // Test suite
@@ -97,6 +108,7 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
 
   const tutorModel = new ControllableTutorModelPort()
   const semanticGuard = new ControllableSemanticGuardPort()
+  const analysisModel = new ControllableAnalysisModelPort()
 
   const embedQuery = jest.fn() as jest.MockedFunction<
     EmbeddingProvider['embedQuery']
@@ -169,6 +181,8 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
       })
       .overrideProvider(COMPLETION_PROVIDER_TOKEN)
       .useValue({ complete })
+      .overrideProvider(ANALYSIS_MODEL_PORT)
+      .useValue(analysisModel)
       .overrideProvider(TUTOR_MODEL_PORT)
       .useValue(tutorModel)
       .overrideProvider(SEMANTIC_GUARD_PORT)
@@ -212,6 +226,7 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
     rejectUncontextualizedHint = false
     tutorModel.reset()
     semanticGuard.reset()
+    analysisModel.reset()
   })
 
   afterAll(async () => {
@@ -430,6 +445,147 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
     })
     expect(stored.content).toBe(EXPECTED_HAPPY_PATH_MESSAGE)
     expect(stored.status).toBe('COMPLETED')
+  })
+
+  it('rejects semantic over-reveal, regenerates, and persists only the bounded candidate', async () => {
+    await createEvidenceMaterial({
+      title: 'Python for-loop iteration order',
+      content:
+        'A standard Python for loop visits list elements in written order beginning at index 0.',
+    })
+    const session = await createSession()
+    analysisModel.behavior = (modelRequest) =>
+      Promise.resolve(misconceptionAnalysisResponse(modelRequest))
+
+    tutorModel.behavior = (modelRequest) => {
+      const citationIds = tutorModel.extractAllowedCitationIds(modelRequest)
+      const firstAttempt = tutorModel.callCount === 1
+      return Promise.resolve(
+        Object.freeze({
+          rawOutput: Object.freeze({
+            message: firstAttempt
+              ? `${OVER_REVEAL_CANDIDATE} [retrieval.rank.1]`
+              : `${BOUNDED_REGENERATED_CANDIDATE} [retrieval.rank.1]`,
+            responseIntent: 'MISCONCEPTION_REPAIR',
+            usedCitationIds: [...citationIds],
+            requiresStudentAction: true,
+            studentAction: {
+              type: 'COUNTEREXAMPLE',
+              description: firstAttempt
+                ? 'Identify the value after the iteration-order correction was stated.'
+                : 'Inspect the example and identify the value at index 0.',
+            },
+            reflectionIncluded: false,
+            selfReportedCompliance: {
+              finalAnswerRevealed: false,
+              completeSolutionRevealed: false,
+            },
+          }),
+          provider: 'e2e-controllable-tutor',
+          model: 'e2e-controllable-tutor-v1',
+          promptVersion: modelRequest.promptVersion,
+          inputTokens: 100,
+          outputTokens: 50,
+        }),
+      )
+    }
+
+    semanticGuard.behavior = () =>
+      Promise.resolve(
+        semanticGuard.callCount === 1
+          ? rejectedSemanticGuardResponse('DIRECT_ANSWER_DISCLOSURE')
+          : approvedSemanticGuardResponse(),
+      )
+
+    const response = await request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${studentToken}`)
+      .send({ content: OVER_REVEAL_STUDENT_MESSAGE })
+      .expect(201)
+    const turn = response.body as GroundedChatTurnResponseDto
+
+    expect(tutorModel.callCount).toBe(2)
+    expect(semanticGuard.callCount).toBe(2)
+    expect(tutorModel.getCalls()[1]?.messages[1].content).toContain(
+      'DIRECT_ANSWER_DISCLOSURE',
+    )
+
+    const guardPayloads = semanticGuard
+      .getCalls()
+      .map(
+        (request) =>
+          JSON.parse(request.messages[1].content) as Record<string, unknown>,
+      )
+    expect(guardPayloads[0]).toMatchObject({
+      identifiers: { candidateAttempt: 1 },
+      trustedPolicy: {
+        responseIntent: 'MISCONCEPTION_REPAIR',
+        guidanceLevel: 2,
+        revealPolicy: 'NO_FINAL_ANSWER',
+        guardPolicy: {
+          preventDirectAnswer: true,
+          requireStudentReasoning: true,
+        },
+        disclosureContract: {
+          guidanceMode: 'FOCUSED_HINT',
+          directTargetInferenceAllowed: false,
+        },
+      },
+      educationalContext: {
+        currentStudentMessage: { content: OVER_REVEAL_STUDENT_MESSAGE },
+        acceptedAnalysis: {
+          studentState: 'MISCONCEPTION',
+          misconceptions: [
+            expect.objectContaining({ code: 'REVERSE_ITERATION_ORDER' }),
+          ],
+        },
+      },
+      candidate: {
+        message: `${OVER_REVEAL_CANDIDATE} [retrieval.rank.1]`,
+      },
+    })
+    expect(guardPayloads[1]).toMatchObject({
+      identifiers: { candidateAttempt: 2 },
+      candidate: {
+        message: `${BOUNDED_REGENERATED_CANDIDATE} [retrieval.rank.1]`,
+      },
+    })
+
+    const persistedAnalysis = await prisma.educationalAnalysis.findFirstOrThrow(
+      {
+        where: { turn: { sessionId: session.id } },
+        include: { misconceptions: true },
+      },
+    )
+    expect(persistedAnalysis).toMatchObject({
+      studentState: 'MISCONCEPTION',
+      misconceptions: [
+        expect.objectContaining({ code: 'REVERSE_ITERATION_ORDER' }),
+      ],
+    })
+    const persistedDecision = await prisma.teachingDecision.findFirstOrThrow({
+      where: { turn: { sessionId: session.id } },
+    })
+    expect(persistedDecision).toMatchObject({
+      strategy: 'MISCONCEPTION_REPAIR',
+      primaryTechnique: 'COUNTEREXAMPLE',
+      guidanceLevel: 2,
+      revealPolicy: 'NO_FINAL_ANSWER',
+    })
+    expect(persistedDecision.guardPolicy).toMatchObject({
+      preventDirectAnswer: true,
+      requireStudentReasoning: true,
+    })
+
+    expect(turn.assistantMessage).toMatchObject({
+      status: 'COMPLETED',
+      content: `${BOUNDED_REGENERATED_CANDIDATE} [retrieval.rank.1]`,
+      guidanceLabel: 'COURSE_GROUNDED',
+    })
+    expect(turn.assistantMessage.content).not.toContain(OVER_REVEAL_CANDIDATE)
+    await expect(
+      prisma.message.count({ where: { sessionId: session.id } }),
+    ).resolves.toBe(2)
   })
 
   // ── 3. Semantic Guard infrastructure failure → SafeFallback ──────────

@@ -6,9 +6,16 @@
  * semantic guard behavior without adding production hooks.
  */
 import {
+  MessageRequestKind,
+  StudentState,
   TeachingStrategy,
   TeachingTechnique,
 } from '../../src/generated/prisma/client'
+import {
+  type AnalysisModelPort,
+  type AnalysisModelRequest,
+  type AnalysisModelResponse,
+} from '../../src/modules/socratic-tutor/analysis-model.port'
 import {
   type TutorModelPort,
   type TutorModelRequest,
@@ -22,6 +29,122 @@ import {
   SemanticGuardModelError,
   SEMANTIC_GUARD_ERROR_CODE,
 } from '../../src/modules/socratic-tutor/semantic-guard.types'
+
+// ────────────────────────────────────────────────────────────────────────────
+// Analysis Model Port — controllable educational analysis
+// ────────────────────────────────────────────────────────────────────────────
+
+export type AnalysisModelBehavior = (
+  request: AnalysisModelRequest,
+) => Promise<AnalysisModelResponse>
+
+export class ControllableAnalysisModelPort implements AnalysisModelPort {
+  behavior: AnalysisModelBehavior
+
+  constructor() {
+    this.behavior = (request) =>
+      Promise.resolve(defaultAnalysisResponse(request))
+  }
+
+  analyze(request: AnalysisModelRequest): Promise<AnalysisModelResponse> {
+    return this.behavior(request)
+  }
+
+  reset(): void {
+    this.behavior = (request) =>
+      Promise.resolve(defaultAnalysisResponse(request))
+  }
+}
+
+export function misconceptionAnalysisResponse(
+  request: AnalysisModelRequest,
+): AnalysisModelResponse {
+  const evidenceMessageId = extractCurrentMessageId(request)
+  return analysisResponse(request, {
+    requestKind: MessageRequestKind.CONCEPTUAL,
+    studentState: StudentState.MISCONCEPTION,
+    effortEvidence: {
+      present: true,
+      quality: 'MEANINGFUL',
+      type: 'REASONING_ATTEMPT',
+      addressesPreviousTutorAction: true,
+      isRepeated: false,
+      evidenceMessageIds: [evidenceMessageId],
+    },
+    learningEvidence: {
+      present: false,
+      strength: 'NONE',
+      evidenceMessageIds: [],
+    },
+    misconceptions: [
+      {
+        code: 'REVERSE_ITERATION_ORDER',
+        description:
+          'The student believes normal Python list iteration starts from the final item and moves backward.',
+        confidence: 0.98,
+        evidenceMessageId,
+      },
+    ],
+    topicRelation: 'CONTINUE_CURRENT_TOPIC',
+    recommendedStrategy: TeachingStrategy.MISCONCEPTION_REPAIR,
+    recommendedTechnique: TeachingTechnique.COUNTEREXAMPLE,
+    recommendedGuidanceLevel: 1,
+    confidence: 0.98,
+    evidenceReferences: [evidenceMessageId],
+  })
+}
+
+function defaultAnalysisResponse(
+  request: AnalysisModelRequest,
+): AnalysisModelResponse {
+  const evidenceMessageId = extractCurrentMessageId(request)
+  return analysisResponse(request, {
+    requestKind: MessageRequestKind.AMBIGUOUS,
+    studentState: StudentState.UNKNOWN,
+    effortEvidence: {
+      present: false,
+      quality: 'NONE',
+      type: null,
+      addressesPreviousTutorAction: false,
+      isRepeated: false,
+      evidenceMessageIds: [],
+    },
+    learningEvidence: {
+      present: false,
+      strength: 'NONE',
+      evidenceMessageIds: [],
+    },
+    misconceptions: [],
+    topicRelation: 'CONTINUE_CURRENT_TOPIC',
+    recommendedStrategy: TeachingStrategy.SOCRATIC_QUESTIONING,
+    recommendedTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+    recommendedGuidanceLevel: 1,
+    confidence: 0.2,
+    evidenceReferences: [evidenceMessageId],
+  })
+}
+
+function analysisResponse(
+  request: AnalysisModelRequest,
+  rawOutput: Record<string, unknown>,
+): AnalysisModelResponse {
+  return Object.freeze({
+    rawOutput: Object.freeze(rawOutput),
+    provider: 'e2e-controllable-analysis',
+    model: 'e2e-controllable-analysis-v1',
+    modelVersion: 'e2e-controllable-analysis-v1',
+    promptVersion: request.promptVersion,
+    inputTokens: 80,
+    outputTokens: 40,
+  })
+}
+
+function extractCurrentMessageId(request: AnalysisModelRequest): string {
+  const match = /"studentMessage":\{"id":"(?<messageId>[^"]+)"/u.exec(
+    request.messages[1].content,
+  )
+  return match?.groups?.messageId ?? 'analysis-context-message'
+}
 
 // ────────────────────────────────────────────────────────────────────────────
 // Tutor Model Port — controllable generation
@@ -177,6 +300,8 @@ export type SemanticGuardBehavior = (
 
 export class ControllableSemanticGuardPort implements SemanticGuardPort {
   behavior: SemanticGuardBehavior
+  callCount = 0
+  private readonly calls: SemanticGuardRequest[] = []
 
   constructor() {
     this.behavior = () => Promise.resolve(approvedSemanticGuardResponse())
@@ -185,11 +310,19 @@ export class ControllableSemanticGuardPort implements SemanticGuardPort {
   async evaluate(
     request: SemanticGuardRequest,
   ): Promise<SemanticGuardModelResponse> {
+    this.callCount += 1
+    this.calls.push(request)
     return this.behavior(request)
   }
 
   reset(): void {
+    this.callCount = 0
+    this.calls.length = 0
     this.behavior = () => Promise.resolve(approvedSemanticGuardResponse())
+  }
+
+  getCalls(): readonly SemanticGuardRequest[] {
+    return this.calls
   }
 }
 
@@ -207,13 +340,15 @@ export function approvedSemanticGuardResponse(): SemanticGuardModelResponse {
   })
 }
 
-export function rejectedSemanticGuardResponse(): SemanticGuardModelResponse {
+export function rejectedSemanticGuardResponse(
+  violationType = 'SEMANTIC_POLICY_VIOLATION',
+): SemanticGuardModelResponse {
   return Object.freeze({
     rawOutput: Object.freeze({
       approved: false,
       violations: Object.freeze([
         Object.freeze({
-          type: 'SEMANTIC_POLICY_VIOLATION',
+          type: violationType,
           severity: 'HIGH',
           field: 'message',
           evidence: 'Candidate is too direct for the guard policy.',
