@@ -8,13 +8,13 @@ import type {
 export const TEACHING_POLICY_VERSION = 'socratic-policy.mvp.v1'
 
 export interface TeachingGuardPolicy {
-  preventDirectAnswer: true
-  preventFinalResult: true
-  preventCompleteSolution: true
-  preventSubmissionReadyCode: true
-  requireStudentReasoning: true
-  requireGrounding: true
-  enforceCitationSupport: true
+  preventDirectAnswer: boolean
+  preventFinalResult: boolean
+  preventCompleteSolution: boolean
+  preventSubmissionReadyCode: boolean
+  requireStudentReasoning: boolean
+  requireGrounding: boolean
+  enforceCitationSupport: boolean
   maximumDisclosedSteps: 1
 }
 
