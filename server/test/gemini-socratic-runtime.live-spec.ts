@@ -11,7 +11,14 @@ import { configureApp } from '../src/app.setup'
 import {
   MaterialStatus,
   MessageGuidanceLabel,
+  MessageRequestKind,
+  MessageRole,
   Prisma,
+  ReflectionMode,
+  RevealPolicy,
+  StudentState,
+  TeachingStrategy,
+  TeachingTechnique,
   TutorTurnStatus,
 } from '../src/generated/prisma/client'
 import type { AuthSessionResponse } from '../src/modules/auth/auth.dto'
@@ -43,6 +50,21 @@ import { OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER } from '../src/modules/socrat
 import { EDUCATIONAL_ANALYSIS_SOURCE } from '../src/modules/socratic-tutor/educational-analysis.types'
 import { TUTOR_GENERATION_PROMPT_VERSION } from '../src/modules/socratic-tutor/tutor-prompt.registry'
 import { SAFE_FALLBACK_PROMPT_VERSION } from '../src/modules/socratic-tutor/safe-fallback.service'
+import { SemanticGuardService } from '../src/modules/socratic-tutor/semantic-guard.service'
+import {
+  SEMANTIC_GUARD_PROMPT_VERSION,
+  type SemanticGuardEvaluationInput,
+} from '../src/modules/socratic-tutor/semantic-guard.types'
+import {
+  RESPONSE_VALIDATION_ACTION,
+  RESPONSE_VIOLATION_TYPE,
+} from '../src/modules/socratic-tutor/response-validation.types'
+import { buildSocraticDisclosureContract } from '../src/modules/socratic-tutor/socratic-disclosure-policy'
+import type { TeachingGuardPolicy } from '../src/modules/socratic-tutor/teaching-policy.types'
+import type {
+  CandidateResponse,
+  TutorGuardEducationalContext,
+} from '../src/modules/socratic-tutor/tutor-generation.types'
 import {
   P0_DEMO_PASSWORD,
   seedP0DemoData,
@@ -66,6 +88,11 @@ const LIVE_E2E_QUESTION =
   'I wrote total = price + tax after calculating tax = price * rate. How can I check whether my substitution step makes sense without you giving me the final number?'
 const LIVE_E2E_MATERIAL =
   'When checking a substitution step, name each variable, replace one symbol at a time with the given value, and verify the operation order before calculating the final result.'
+const OVER_REVEAL_CITATION_ID = 'retrieval.rank.1'
+const OVER_REVEAL_STUDENT_MESSAGE =
+  'I think iteration starts from the final item and moves backward.'
+const OVER_REVEAL_EVIDENCE =
+  'A standard Python for loop over a list visits the list elements in their written order, beginning at index 0 and continuing toward the final index.'
 const QUERY_VECTOR = Object.freeze([
   1,
   ...Array<number>(EMBEDDING_DIMENSIONS - 1).fill(0),
@@ -348,6 +375,87 @@ describe('Gemini Socratic runtime HTTP live verification', () => {
     )
   }, 180_000)
 
+  it('has the real Gemini Semantic Guard reject target-inference disclosure', async () => {
+    const result = await requireApp()
+      .get(SemanticGuardService)
+      .evaluate(
+        overRevealEvaluation(
+          candidate({
+            message:
+              'Python iteration starts from the first element, not the last. Which element is first? [retrieval.rank.1]',
+            studentActionDescription:
+              'Identify the first element after the correction was stated.',
+          }),
+        ),
+      )
+
+    expect(result.kind).toBe('validated')
+    expect(result.result).toMatchObject({
+      approved: false,
+      recommendedAction: RESPONSE_VALIDATION_ACTION.REGENERATE,
+      provider: OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER,
+      model: env.SEMANTIC_GUARD_MODEL_NAME,
+      promptVersion: SEMANTIC_GUARD_PROMPT_VERSION,
+    })
+    expect(result.result.maximumSeverity).not.toBeNull()
+    expect(result.result.violations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: RESPONSE_VIOLATION_TYPE.DIRECT_ANSWER_DISCLOSURE,
+        }),
+      ]),
+    )
+    expect(
+      countObservedModelCalls(
+        fetchRecorder?.calls() ?? [],
+        env.SEMANTIC_GUARD_MODEL_NAME,
+      ),
+    ).toBe(1)
+
+    writeLiveGuardResult('negative', result.result)
+  }, 90_000)
+
+  it('has the real Gemini Semantic Guard approve a bounded Socratic clue', async () => {
+    const result = await requireApp()
+      .get(SemanticGuardService)
+      .evaluate(
+        overRevealEvaluation(
+          candidate({
+            message:
+              'Look at [5, 10, 15]. Which value is written at position 0? [retrieval.rank.1]',
+            studentActionDescription:
+              'Inspect the example and identify the value written at position 0.',
+          }),
+        ),
+      )
+
+    expect(result.kind).toBe('validated')
+    expect(result.result).toMatchObject({
+      approved: true,
+      violations: [],
+      maximumSeverity: null,
+      recommendedAction: RESPONSE_VALIDATION_ACTION.APPROVE,
+      provider: OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER,
+      model: env.SEMANTIC_GUARD_MODEL_NAME,
+      promptVersion: SEMANTIC_GUARD_PROMPT_VERSION,
+    })
+    expect(result.result.violations).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: RESPONSE_VIOLATION_TYPE.DIRECT_ANSWER_DISCLOSURE,
+        }),
+      ]),
+    )
+    expect(
+      countObservedModelCalls(
+        fetchRecorder?.calls() ?? [],
+        env.SEMANTIC_GUARD_MODEL_NAME,
+      ),
+    ).toBe(1)
+
+    writeLiveGuardResult('positive', result.result)
+  }, 90_000)
+
   function requireApp(): INestApplication<App> {
     if (app === undefined) {
       throw new Error('Expected the test application to be initialized')
@@ -421,6 +529,132 @@ describe('Gemini Socratic runtime HTTP live verification', () => {
     availableStoragePaths.add(storagePath)
   }
 })
+
+const restrictiveOverRevealGuardPolicy: TeachingGuardPolicy = Object.freeze({
+  preventDirectAnswer: true,
+  preventFinalResult: true,
+  preventCompleteSolution: true,
+  preventSubmissionReadyCode: true,
+  requireStudentReasoning: true,
+  requireGrounding: true,
+  enforceCitationSupport: true,
+  maximumDisclosedSteps: 1,
+})
+
+const overRevealEducationalContext: TutorGuardEducationalContext =
+  Object.freeze({
+    currentStudentMessage: Object.freeze({
+      id: 'live-over-reveal-student-message',
+      content: OVER_REVEAL_STUDENT_MESSAGE,
+    }),
+    acceptedAnalysis: Object.freeze({
+      requestKind: MessageRequestKind.CONCEPTUAL,
+      studentState: StudentState.MISCONCEPTION,
+      misconceptions: [
+        {
+          code: 'REVERSE_ITERATION_MISCONCEPTION',
+          description:
+            'The student believes normal Python list iteration starts from the final item and moves backward.',
+          confidence: 0.98,
+          evidenceMessageId: 'live-over-reveal-student-message',
+        },
+      ],
+    }),
+    recentConversation: Object.freeze([
+      Object.freeze({
+        role: MessageRole.ASSISTANT,
+        content:
+          'For x in [5, 10, 15], which value will x hold on the first iteration?',
+      }),
+    ]),
+  })
+
+function overRevealEvaluation(
+  tutorCandidate: CandidateResponse,
+): SemanticGuardEvaluationInput {
+  const validationContext = {
+    allowedCitationIds: new Set([OVER_REVEAL_CITATION_ID]),
+    requireStudentAction: true,
+    reflectionMode: ReflectionMode.NONE,
+    responseIntent: TeachingStrategy.MISCONCEPTION_REPAIR,
+    primaryTechnique: TeachingTechnique.COUNTEREXAMPLE,
+    guidanceLevel: 1,
+    revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
+    maximumDisclosedSteps: 1,
+  } as const
+  const disclosureContract = buildSocraticDisclosureContract({
+    guidanceLevel: validationContext.guidanceLevel,
+    revealPolicy: validationContext.revealPolicy,
+    guardPolicy: restrictiveOverRevealGuardPolicy,
+  })
+  expect(disclosureContract.directTargetInferenceAllowed).toBe(false)
+
+  return {
+    turnId: 'live-over-reveal-turn',
+    topicId: 'live-over-reveal-topic',
+    courseId: 'live-over-reveal-course',
+    candidateAttempt: 1,
+    candidate: tutorCandidate,
+    educationalContext: overRevealEducationalContext,
+    validationContext,
+    guardPolicy: restrictiveOverRevealGuardPolicy,
+    allowedCitationSummaries: [
+      {
+        citationId: OVER_REVEAL_CITATION_ID,
+        chunkId: 'live-over-reveal-chunk',
+        materialId: 'live-over-reveal-material',
+        materialTitle: 'Python iteration order',
+        chunkIndex: 0,
+        rank: 1,
+        content: OVER_REVEAL_EVIDENCE,
+      },
+    ],
+  }
+}
+
+function candidate(input: {
+  readonly message: string
+  readonly studentActionDescription: string
+}): CandidateResponse {
+  return {
+    message: input.message,
+    responseIntent: TeachingStrategy.MISCONCEPTION_REPAIR,
+    usedCitationIds: [OVER_REVEAL_CITATION_ID],
+    requiresStudentAction: true,
+    studentAction: {
+      type: TeachingTechnique.COUNTEREXAMPLE,
+      description: input.studentActionDescription,
+    },
+    reflectionIncluded: false,
+    selfReportedCompliance: {
+      finalAnswerRevealed: false,
+      completeSolutionRevealed: false,
+    },
+    provider: 'live-regression-fixture',
+    model: 'live-regression-fixture',
+    promptVersion: TUTOR_GENERATION_PROMPT_VERSION,
+    tokenUsage: { input: 0, output: 0 },
+  }
+}
+
+function writeLiveGuardResult(
+  testCase: 'negative' | 'positive',
+  result: Awaited<ReturnType<SemanticGuardService['evaluate']>>['result'],
+): void {
+  process.stdout.write(
+    `${JSON.stringify({
+      scope: 'live-gemini-semantic-guard-over-reveal',
+      testCase,
+      approved: result.approved,
+      violationTypes: result.violations.map((violation) => violation.type),
+      maximumSeverity: result.maximumSeverity,
+      recommendedAction: result.recommendedAction,
+      provider: result.provider,
+      model: result.model,
+      promptVersion: result.promptVersion,
+    })}\n`,
+  )
+}
 
 interface ObservedProviderCall {
   readonly endpoint: string
