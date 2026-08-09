@@ -15,6 +15,10 @@ import { TeachingPolicyEngine } from '../socratic-tutor/teaching-policy.engine'
 import { ResponseApprovalService } from '../socratic-tutor/response-approval.service'
 import { TURN_ACQUISITION_OUTCOME } from '../socratic-tutor/turn.types'
 import { TOPIC_RESOLUTION_OUTCOME } from '../socratic-tutor/topic.types'
+import {
+  RetrievalQueryBuilder,
+  retrievalQueryContextFromAnalysis,
+} from '../socratic-tutor/retrieval-query.builder'
 import { chatMessageSelect } from './student-chat.repository.support'
 import type {
   SocraticOrchestrationInput,
@@ -26,7 +30,8 @@ import type {
  *
  * Owns the full lifecycle:
  *   TutorTurn → Topic → TopicState → EducationalAnalysis → TeachingDecision
- *   → course-scoped Retrieval → TutorGeneration + Validation → Approval
+ *   → RetrievalQueryBuilder → course-scoped Retrieval
+ *   → TutorGeneration + Validation → Approval
  *
  * Returns a result that {@link GroundedChatService} maps to the existing
  * response DTO without changing the HTTP contract.
@@ -43,6 +48,7 @@ export class SocraticChatOrchestrator {
     private readonly educationalAnalysisService: EducationalAnalysisService,
     private readonly teachingPolicyEngine: TeachingPolicyEngine,
     private readonly responseApprovalService: ResponseApprovalService,
+    private readonly retrievalQueryBuilder: RetrievalQueryBuilder,
     private readonly retrievalService: RetrievalService,
     private readonly prismaService: PrismaService,
   ) {}
@@ -180,9 +186,22 @@ export class SocraticChatOrchestrator {
       TutorTurnStatus.RETRIEVING,
     )
 
+    const retrievalRequest = this.retrievalQueryBuilder.build(
+      retrievalQueryContextFromAnalysis(
+        analysisContext,
+        analysisResult.analysis,
+      ),
+    )
+    this.logger.debug({
+      event: 'socratic_retrieval_query_built',
+      turnId,
+      queryVersion: retrievalRequest.queryVersion,
+      queryLength: retrievalRequest.query.length,
+      contextualMessageCount: retrievalRequest.contextMessageIds.length,
+    })
     const retrieval = await this.retrievalService.retrieveCourseEvidence(
       input.courseId,
-      input.studentMessageContent,
+      retrievalRequest.query,
     )
     if (retrieval.kind === 'embedding_profile_not_ready') {
       await this.markTurnFailed(
