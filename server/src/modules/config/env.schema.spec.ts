@@ -424,6 +424,42 @@ describe('validateEnv', () => {
         }),
       ).not.toThrow()
     })
+
+    it('accepts distinct Gemini role model identifiers without aliasing', () => {
+      expect(
+        validateEnv({
+          ...validEnv,
+          ANALYSIS_MODEL_PROVIDER: 'openai-compatible',
+          ANALYSIS_MODEL_BASE_URL:
+            'https://generativelanguage.googleapis.com/v1beta/openai',
+          ANALYSIS_MODEL_NAME: 'gemini-3.5-flash',
+          ANALYSIS_MODEL_API_KEY: 'AIzaSy-analysis-test-only-value',
+          TUTOR_MODEL_PROVIDER: 'openai-compatible',
+          TUTOR_MODEL_BASE_URL:
+            'https://generativelanguage.googleapis.com/v1beta/openai',
+          TUTOR_MODEL_NAME: 'gemini-3.6-flash',
+          TUTOR_MODEL_API_KEY: 'AIzaSy-tutor-test-only-value',
+          SEMANTIC_GUARD_PROVIDER: 'openai-compatible',
+          SEMANTIC_GUARD_BASE_URL:
+            'https://generativelanguage.googleapis.com/v1beta/openai',
+          SEMANTIC_GUARD_MODEL_NAME: 'gemini-3.5-flash-lite',
+          SEMANTIC_GUARD_API_KEY: 'AIzaSy-semantic-guard-test-only-value',
+        }),
+      ).toMatchObject({
+        ANALYSIS_MODEL_PROVIDER: 'openai-compatible',
+        ANALYSIS_MODEL_BASE_URL:
+          'https://generativelanguage.googleapis.com/v1beta/openai',
+        ANALYSIS_MODEL_NAME: 'gemini-3.5-flash',
+        TUTOR_MODEL_PROVIDER: 'openai-compatible',
+        TUTOR_MODEL_BASE_URL:
+          'https://generativelanguage.googleapis.com/v1beta/openai',
+        TUTOR_MODEL_NAME: 'gemini-3.6-flash',
+        SEMANTIC_GUARD_PROVIDER: 'openai-compatible',
+        SEMANTIC_GUARD_BASE_URL:
+          'https://generativelanguage.googleapis.com/v1beta/openai',
+        SEMANTIC_GUARD_MODEL_NAME: 'gemini-3.5-flash-lite',
+      })
+    })
   })
 
   // Every gemini-embedding rule is provider-gated, so these assertions start
