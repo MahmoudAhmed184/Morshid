@@ -591,11 +591,21 @@ summary, misconception descriptions, analysis-referenced messages, previous
 student attempt, previous tutor question, and latest tutor context. The builder
 deduplicates these anchors and does not concatenate the full selected history.
 
-`CREATE_NEW_TOPIC` and `UNRESOLVED` analyses use only the normalized current
-student message so prior instructional context cannot contaminate a standalone
-subject. The query is non-empty, whitespace-normalized, capped at 2,000
-characters, and versioned as `retrieval-query.v1`. The current student message
-is preserved when contextual content must be truncated.
+`CREATE_NEW_TOPIC` analyses use only the normalized current student message so
+prior instructional context cannot contaminate a standalone subject. An
+`UNRESOLVED` analysis may use context only when the authoritative same-Topic
+package contains a previous tutor question, previous student attempt, or
+bounded selected-history anchor; without such an anchor it also remains
+current-message-only.
+
+The query is non-empty, whitespace-normalized, capped at 2,000 characters, and
+versioned as `retrieval-query.v1`. Construction reserves the required current
+student message first, then admits per-segment bounded context in priority
+order: active Topic, previous tutor question, unresolved-history fallback,
+previous student attempt, misconceptions, analysis-referenced history, latest
+tutor context, and maintained summary. Lower-priority segments are compressed
+or dropped before required current-turn information, and only admitted message
+segments contribute IDs to `contextMessageIds`.
 
 Trusted `courseId` remains a separate application-owned argument to
 `RetrievalService`; it is intentionally neither accepted from nor returned by

@@ -68,7 +68,7 @@ describe('RetrievalQueryBuilder', () => {
     expect(result.query).toContain('numbers = [10, 20, 30]')
     expect(result.query).toContain('starts with the last list element')
     expect(result.query).not.toBe(input.currentMessage.content)
-    expect(result.contextMessageIds).toEqual(['attempt', 'question'])
+    expect(result.contextMessageIds).toEqual(['question', 'attempt'])
   })
 
   it.each([
@@ -133,8 +133,8 @@ describe('RetrievalQueryBuilder', () => {
     expect(result.query).toContain('numbers = [10, 20, 30]')
     expect(result.query).toContain('Compare your trace with the list order')
     expect(result.contextMessageIds).toEqual([
-      'earlier-attempt',
       'earlier-anchor',
+      'earlier-attempt',
       'latest-tutor',
     ])
   })
@@ -153,6 +153,69 @@ describe('RetrievalQueryBuilder', () => {
         }),
       ],
       previousQuestionId: 'old-loop-question',
+    })
+
+    expect(builder.build(input)).toEqual({
+      query: input.currentMessage.content,
+      queryVersion: RETRIEVAL_QUERY_VERSION,
+      contextMessageIds: [],
+    })
+  })
+
+  it('uses bounded same-topic history for an UNRESOLVED contextual Why turn', () => {
+    const result = builder.build(
+      context({
+        currentContent: 'Why?',
+        topicRelation: TOPIC_RESOLUTION_OUTCOME.UNRESOLVED,
+        topicTitle: 'Python iterator order',
+        history: [
+          message({
+            id: 'same-topic-anchor',
+            role: MessageRole.ASSISTANT,
+            content:
+              'A Python for loop takes values from numbers = [10, 20, 30] in list order.',
+          }),
+        ],
+      }),
+    )
+
+    expect(result.query).toContain('Python iterator order')
+    expect(result.query).toContain('numbers = [10, 20, 30]')
+    expect(result.query).toContain('Current student message: Why?')
+    expect(result.contextMessageIds).toEqual(['same-topic-anchor'])
+  })
+
+  it.each(['Give me a small hint.', 'Can you explain that?'])(
+    'uses a previous same-topic attempt for an UNRESOLVED follow-up %p',
+    (currentContent) => {
+      const result = builder.build(
+        context({
+          currentContent,
+          topicRelation: TOPIC_RESOLUTION_OUTCOME.UNRESOLVED,
+          topicTitle: 'Python for-loop assignment',
+          history: [
+            message({
+              id: 'attempt',
+              content: 'I think x receives the final list element first.',
+            }),
+          ],
+          previousAttemptId: 'attempt',
+        }),
+      )
+
+      expect(result.query).toContain('Python for-loop assignment')
+      expect(result.query).toContain('final list element first')
+      expect(result.query).toContain(currentContent)
+      expect(result.contextMessageIds).toEqual(['attempt'])
+    },
+  )
+
+  it('keeps an UNRESOLVED turn current-only when no trustworthy anchor exists', () => {
+    const input = context({
+      currentContent: 'Could you clarify?',
+      topicRelation: TOPIC_RESOLUTION_OUTCOME.UNRESOLVED,
+      topicTitle: 'Old loop topic',
+      topicSummary: 'Old loop discussion that must not be injected.',
     })
 
     expect(builder.build(input)).toEqual({
@@ -188,6 +251,64 @@ describe('RetrievalQueryBuilder', () => {
     expect(result.query).toContain('controls the order of loop iteration')
   })
 
+  it('bounds oversized context by priority while preserving current-turn content and accurate provenance', () => {
+    const currentContent = 'CURRENT_TURN_REQUIRED_ANCHOR'
+    const result = builder.build(
+      context({
+        currentContent,
+        topicTitle: `HIGH_PRIORITY_TOPIC ${'t'.repeat(700)}`,
+        topicSummary: `LOW_PRIORITY_SUMMARY ${'s'.repeat(1500)}`,
+        history: [
+          message({
+            id: 'previous-question',
+            sequence: 4,
+            role: MessageRole.ASSISTANT,
+            content: `HIGH_PRIORITY_QUESTION ${'q'.repeat(1200)}`,
+          }),
+          message({
+            id: 'previous-attempt',
+            sequence: 5,
+            content: `HIGH_PRIORITY_ATTEMPT ${'a'.repeat(1200)}`,
+          }),
+          message({
+            id: 'referenced-contributed',
+            sequence: 6,
+            content: `MEDIUM_HISTORY_CONTRIBUTED ${'h'.repeat(1200)}`,
+          }),
+          message({
+            id: 'referenced-dropped',
+            sequence: 7,
+            content: `MEDIUM_HISTORY_DROPPED ${'d'.repeat(1200)}`,
+          }),
+        ],
+        previousQuestionId: 'previous-question',
+        previousAttemptId: 'previous-attempt',
+        evidenceReferences: ['referenced-contributed', 'referenced-dropped'],
+        misconception: {
+          code: 'OVERSIZED_MISCONCEPTION',
+          description: `MEDIUM_MISCONCEPTION ${'m'.repeat(1200)}`,
+          confidence: 0.9,
+          evidenceMessageId: 'previous-attempt',
+        },
+      }),
+    )
+
+    expect(result.query.length).toBeLessThanOrEqual(MAX_RETRIEVAL_QUERY_LENGTH)
+    expect(result.query).toContain(`Current student message: ${currentContent}`)
+    expect(result.query).toContain('HIGH_PRIORITY_TOPIC')
+    expect(result.query).toContain('HIGH_PRIORITY_QUESTION')
+    expect(result.query).toContain('HIGH_PRIORITY_ATTEMPT')
+    expect(result.query).toContain('MEDIUM_MISCONCEPTION')
+    expect(result.query).toContain('MEDIUM_HISTORY_CONTRIBUTED')
+    expect(result.query).not.toContain('MEDIUM_HISTORY_DROPPED')
+    expect(result.query).not.toContain('LOW_PRIORITY_SUMMARY')
+    expect(result.contextMessageIds).toEqual([
+      'previous-question',
+      'previous-attempt',
+      'referenced-contributed',
+    ])
+  })
+
   it('is deterministic, normalized, bounded, and carries no course scope', () => {
     const input = context({
       currentContent: `  Explain\nthis ${'x'.repeat(2500)}  `,
@@ -199,6 +320,7 @@ describe('RetrievalQueryBuilder', () => {
 
     expect(first).toEqual(second)
     expect(first.query.length).toBeLessThanOrEqual(MAX_RETRIEVAL_QUERY_LENGTH)
+    expect(first.query).toContain('Current student message: Explain this')
     expect(first.query).not.toMatch(/\s{2,}/u)
     expect(first).not.toHaveProperty('courseId')
   })
