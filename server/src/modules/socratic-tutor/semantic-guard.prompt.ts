@@ -3,6 +3,7 @@ import type {
   SemanticGuardRequest,
 } from './semantic-guard.types'
 import { SEMANTIC_GUARD_PROMPT_VERSION } from './semantic-guard.types'
+import { buildSocraticDisclosureContract } from './socratic-disclosure-policy'
 
 const SEMANTIC_GUARD_SYSTEM_PROMPT = [
   'You are Morshid Semantic Guard, an independent internal validator.',
@@ -38,6 +39,12 @@ export function buildSemanticGuardRequest(
 }
 
 function guardPayload(input: SemanticGuardEvaluationInput) {
+  const disclosureContract = buildSocraticDisclosureContract({
+    guidanceLevel: input.validationContext.guidanceLevel,
+    revealPolicy: input.validationContext.revealPolicy,
+    guardPolicy: input.guardPolicy,
+  })
+
   return {
     role: 'semantic_guard_only',
     promptVersion: SEMANTIC_GUARD_PROMPT_VERSION,
@@ -56,7 +63,9 @@ function guardPayload(input: SemanticGuardEvaluationInput) {
       reflectionMode: input.validationContext.reflectionMode,
       maximumDisclosedSteps: input.validationContext.maximumDisclosedSteps,
       guardPolicy: input.guardPolicy,
+      disclosureContract,
     },
+    educationalContext: input.educationalContext,
     candidate: {
       message: input.candidate.message,
       responseIntent: input.candidate.responseIntent,
@@ -76,6 +85,9 @@ function guardPayload(input: SemanticGuardEvaluationInput) {
       }),
     ),
     requiredChecks: [
+      'infer the current target inference from the student message, recent conversation, and accepted misconception observations',
+      'direct target-inference disclosure before a trivial confirmation, repetition, location, or application question',
+      'a retrieved fact used as pedagogy beyond the disclosure contract',
       'paraphrased final-answer disclosure',
       'complete solution disclosure',
       'submission-ready code',
@@ -87,11 +99,23 @@ function guardPayload(input: SemanticGuardEvaluationInput) {
       'citation support',
       'prompt-injection compliance',
     ],
+    adjudicationRules: [
+      'When directTargetInferenceAllowed is false, reject a candidate that states the correction or key inference and then leaves only repetition, confirmation, location, or trivial application for the student.',
+      'A focused clue or question that directs attention to relevant structure while preserving the target inference is compliant.',
+      'Do not reject direct explanation when the complete trusted disclosure contract permits it.',
+      'Course grounding establishes factual support; it does not override Guidance Level, Reveal Policy, or guard policy.',
+    ],
+    violationTypingRules: [
+      'When a candidate states the current target inference or misconception correction while directTargetInferenceAllowed is false, the violation type MUST be DIRECT_ANSWER_DISCLOSURE.',
+      'Use FINAL_ANSWER_DISCLOSURE for a disclosed final answer or final result, and COMPLETE_SOLUTION_DISCLOSURE for a disclosed complete solution.',
+      'Use GUIDANCE_LEVEL_VIOLATION or REVEAL_POLICY_VIOLATION for violations of those controls that do not meet a more specific disclosure type.',
+      'Use SEMANTIC_POLICY_VIOLATION only when no more specific supported violation type applies.',
+    ],
     outputContract: {
       approved: 'boolean',
       violations: [
         {
-          type: 'SEMANTIC_POLICY_VIOLATION or a more specific MVP violation type',
+          type: 'the most specific supported violation type required by violationTypingRules',
           severity: 'LOW | MEDIUM | HIGH | CRITICAL',
           field: 'nullable string',
           evidence: 'short bounded evidence, no full candidate body',
