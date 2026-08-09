@@ -3,6 +3,7 @@ import {
   type GenerationContextPackage,
   TUTOR_CANDIDATE_LIMITS,
   type TutorEvidenceContext,
+  type TutorGuardEducationalContext,
 } from './tutor-generation.types'
 import type { RetrievedChunk } from '../retrieval/retrieval.service'
 import type { PersistedEducationalAnalysisRecord } from './educational-analysis.repository'
@@ -81,6 +82,30 @@ export function withRegenerationContext(
   return Object.freeze({
     ...context,
     regeneration,
+  })
+}
+
+export function guardEducationalContextFromGenerationContext(
+  context: GenerationContextPackage,
+): TutorGuardEducationalContext {
+  return Object.freeze({
+    currentStudentMessage: Object.freeze({
+      id: context.studentMessage.id,
+      content: context.studentMessage.content,
+    }),
+    acceptedAnalysis: Object.freeze({
+      requestKind: context.acceptedAnalysis.result.requestKind,
+      studentState: context.acceptedAnalysis.result.studentState,
+      misconceptions: context.acceptedAnalysis.result.misconceptions,
+    }),
+    recentConversation: Object.freeze(
+      context.selectedHistory.map((message) =>
+        Object.freeze({
+          role: message.role,
+          content: message.content,
+        }),
+      ),
+    ),
   })
 }
 

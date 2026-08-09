@@ -6,6 +6,7 @@ import { TeachingDecisionRepository } from './teaching-decision.repository'
 import {
   buildGenerationContextPackage,
   citationIdForChunk,
+  guardEducationalContextFromGenerationContext,
   withRegenerationContext,
 } from './tutor-generation-context'
 import {
@@ -142,6 +143,7 @@ export class TutorGenerationService {
     return {
       success: true,
       candidate: validation.data,
+      educationalContext: guardEducationalContextFromGenerationContext(context),
     }
   }
 

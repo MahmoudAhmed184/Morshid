@@ -125,13 +125,41 @@ class FakeSemanticGuardPort implements SemanticGuardPort {
   }
 }
 
-function input(): SemanticGuardEvaluationInput {
+function input(
+  patch: Partial<SemanticGuardEvaluationInput> = {},
+): SemanticGuardEvaluationInput {
   return {
     turnId: 'turn-1',
     topicId: 'topic-1',
     courseId: 'course-1',
     candidateAttempt: 1,
     candidate: candidate(),
+    educationalContext: {
+      currentStudentMessage: {
+        id: 'message-1',
+        content:
+          'I think iteration begins at the final item and moves backward.',
+      },
+      acceptedAnalysis: {
+        requestKind: 'CONCEPTUAL',
+        studentState: 'MISCONCEPTION',
+        misconceptions: [
+          {
+            code: 'REVERSE_ITERATION',
+            description:
+              'The student believes normal collection iteration moves from the final item backward.',
+            confidence: 0.95,
+            evidenceMessageId: 'message-1',
+          },
+        ],
+      },
+      recentConversation: [
+        {
+          role: 'ASSISTANT',
+          content: 'Trace the collection and predict the next value.',
+        },
+      ],
+    },
     validationContext: {
       allowedCitationIds: new Set(['retrieval.rank.1']),
       requireStudentAction: true,
@@ -153,6 +181,7 @@ function input(): SemanticGuardEvaluationInput {
       maximumDisclosedSteps: 1,
     },
     allowedCitationSummaries: [],
+    ...patch,
   }
 }
 

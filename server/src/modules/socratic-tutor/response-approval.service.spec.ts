@@ -42,6 +42,9 @@ describe('ResponseApprovalService', () => {
     }
     expect(harness.generation.calls).toHaveLength(1)
     expect(harness.semantic.calls).toHaveLength(1)
+    expect(harness.semantic.calls[0]?.educationalContext).toMatchObject({
+      currentStudentMessage: { content: 'Inspect the loop state.' },
+    })
   })
 
   it('regenerates once after first rejection and reruns the full pipeline', async () => {
@@ -296,6 +299,18 @@ function generationSuccess(
   return {
     success: true,
     candidate,
+    educationalContext: {
+      currentStudentMessage: {
+        id: 'message-1',
+        content: 'Inspect the loop state.',
+      },
+      acceptedAnalysis: {
+        requestKind: 'CONCEPTUAL',
+        studentState: 'PARTIAL_UNDERSTANDING',
+        misconceptions: [],
+      },
+      recentConversation: [],
+    },
   }
 }
 

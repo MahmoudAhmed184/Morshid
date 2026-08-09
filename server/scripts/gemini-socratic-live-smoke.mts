@@ -7,7 +7,10 @@ import { buildEducationalAnalysisModelRequest } from '../src/modules/socratic-tu
 import { validateEducationalAnalysisResult } from '../src/modules/socratic-tutor/educational-analysis.validator.js'
 import { OPENAI_COMPATIBLE_TUTOR_MODEL_PROVIDER } from '../src/modules/socratic-tutor/tutor-model.configuration.js'
 import { createTutorModelPort } from '../src/modules/socratic-tutor/tutor-model.adapter.js'
-import { buildGenerationContextPackage } from '../src/modules/socratic-tutor/tutor-generation-context.js'
+import {
+  buildGenerationContextPackage,
+  guardEducationalContextFromGenerationContext,
+} from '../src/modules/socratic-tutor/tutor-generation-context.js'
 import { buildTutorGenerationModelRequest } from '../src/modules/socratic-tutor/tutor-prompt.builder.js'
 import { validateCandidateResponse } from '../src/modules/socratic-tutor/tutor-candidate.schema.js'
 import { OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER } from '../src/modules/socratic-tutor/semantic-guard.configuration.js'
@@ -145,6 +148,9 @@ async function main(): Promise<void> {
     courseId: GEMINI_SOCRATIC_LIVE_IDS.courseId,
     candidateAttempt: 1,
     candidate: candidateValidation.data,
+    educationalContext: guardEducationalContextFromGenerationContext(
+      generationContext.context,
+    ),
     validationContext: {
       allowedCitationIds: new Set(generationContext.context.allowedCitationIds),
       requireStudentAction: teachingDecision.requireStudentAction,
@@ -173,6 +179,9 @@ async function main(): Promise<void> {
     courseId: GEMINI_SOCRATIC_LIVE_IDS.courseId,
     candidateAttempt: 1,
     candidate: candidateValidation.data,
+    educationalContext: guardEducationalContextFromGenerationContext(
+      generationContext.context,
+    ),
     validationContext: {
       allowedCitationIds: new Set(generationContext.context.allowedCitationIds),
       requireStudentAction: teachingDecision.requireStudentAction,

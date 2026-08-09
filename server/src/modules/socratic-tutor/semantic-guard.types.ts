@@ -1,6 +1,7 @@
 import type { TeachingGuardPolicy } from './teaching-policy.types'
 import type {
   CandidateResponse,
+  TutorGuardEducationalContext,
   TutorEvidenceContext,
 } from './tutor-generation.types'
 import type {
@@ -69,6 +70,7 @@ export interface SemanticGuardEvaluationInput {
   readonly courseId: string
   readonly candidateAttempt: number
   readonly candidate: CandidateResponse
+  readonly educationalContext: TutorGuardEducationalContext
   readonly validationContext: CandidateValidationContext
   readonly guardPolicy: TeachingGuardPolicy
   readonly allowedCitationSummaries: readonly TutorEvidenceContext[]
