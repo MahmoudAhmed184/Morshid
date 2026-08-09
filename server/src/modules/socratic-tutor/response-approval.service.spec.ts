@@ -335,7 +335,7 @@ function approvedSemanticResult(): ValidationResult {
     recommendedAction: 'APPROVE',
     provider: 'deterministic',
     model: 'semantic-guard',
-    promptVersion: 'semantic-guard.mvp.v2',
+    promptVersion: 'semantic-guard.mvp.v3',
     policyVersion: 'response-validation.mvp.v1',
   }
 }
@@ -349,7 +349,7 @@ function semanticFailureResult(): ValidationResult {
     recommendedAction: 'USE_SAFE_FALLBACK',
     provider: null,
     model: null,
-    promptVersion: 'semantic-guard.mvp.v2',
+    promptVersion: 'semantic-guard.mvp.v3',
     policyVersion: 'response-validation.mvp.v1',
   }
 }
