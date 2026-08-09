@@ -428,10 +428,10 @@ export const envSchema = z
       .default(DEFAULT_AWS_BEDROCK_MAX_TOKENS),
     // Retrieval knobs are validated configuration, never caller input: the
     // repository/service signatures expose no limit or threshold parameters.
-    // The 0.70 floor may change only after the sprint 4.1 midpoint check
-    // records results against locked fixtures.
+    // Calibrated against the Python MVP corpus after the retrieval-threshold
+    // diagnostic showed relevant Gemini matches below the previous 0.70 floor.
     RETRIEVAL_TOP_K: z.coerce.number().int().min(1).max(50).default(5),
-    RETRIEVAL_MIN_SIMILARITY: z.coerce.number().min(0).max(1).default(0.7),
+    RETRIEVAL_MIN_SIMILARITY: z.coerce.number().min(0).max(1).default(0.62),
     AUTH_ACCESS_TOKEN_SECRET: z.string().min(32),
     AUTH_REFRESH_TOKEN_HASH_SECRET: z.string().min(32),
     AUTH_ACCESS_TOKEN_TTL_SECONDS: z.coerce

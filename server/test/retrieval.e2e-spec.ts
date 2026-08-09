@@ -20,12 +20,12 @@ import {
 } from './support/disposable-database'
 
 const TOP_K = 5
-// Seeded similarities deliberately straddle this floor (0.72 above, 0.5
+// Seeded similarities deliberately straddle this floor (0.63 above, 0.61
 // below) rather than sitting exactly on it: embeddings are stored as float4,
-// so a chunk seeded at exactly 0.70 quantizes to a value marginally on either
+// so a chunk seeded at exactly 0.62 quantizes to a value marginally on either
 // side of the >= boundary and the assertion would hinge on pgvector's
 // float internals instead of the threshold semantics under test.
-const MIN_SIMILARITY = 0.7
+const MIN_SIMILARITY = 0.62
 // Retrieval filters on the active document profile, so the seeded chunks and
 // the stub provider must agree on it. A mismatch is exactly the cross-space
 // mixing the filter exists to prevent, and is asserted separately below.
@@ -52,8 +52,9 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
     const { courseId, materialId } = await seedCourseWithMaterial(prisma, {
       title: 'Python Basics',
     })
-    // Six eligible chunks above the 0.70 floor; the cap must cut the sixth.
-    const similarities = [0.95, 0.9, 0.85, 0.8, 0.75, 0.72]
+    // Six eligible chunks above the calibrated 0.62 floor; the cap must cut
+    // the sixth.
+    const similarities = [0.95, 0.9, 0.85, 0.8, 0.75, 0.63]
     await persistence.insertMaterialChunks(
       materialId,
       similarities.map((similarity, chunkIndex) => ({
@@ -89,6 +90,41 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
     })
     const scores = result.chunks.map(({ similarityScore }) => similarityScore)
     expect([...scores].sort((a, b) => b - a)).toEqual(scores)
+  })
+
+  it('uses the calibrated threshold to include just-above scores and reject below-threshold scores', async () => {
+    const { courseId, materialId } = await seedCourseWithMaterial(prisma, {
+      title: 'Calibrated threshold material',
+    })
+    await persistence.insertMaterialChunks(materialId, [
+      {
+        chunkIndex: 0,
+        content: 'Just above calibrated threshold',
+        embedding: similarityVector(0.63),
+        embeddingModel: TEST_EMBEDDING_MODEL,
+      },
+      {
+        chunkIndex: 1,
+        content: 'Below calibrated threshold',
+        embedding: similarityVector(0.61),
+        embeddingModel: TEST_EMBEDDING_MODEL,
+      },
+    ])
+
+    const result = await buildService(
+      queryVectorProvider(),
+    ).retrieveCourseEvidence(courseId, 'query')
+
+    expect(result.kind).toBe('evidence')
+    if (result.kind !== 'evidence') {
+      return
+    }
+    expect(result.chunks).toEqual([
+      expect.objectContaining({
+        content: 'Just above calibrated threshold',
+        similarityScore: expect.closeTo(0.63, 5) as number,
+      }),
+    ])
   })
 
   it('reports insufficient evidence when no chunk reaches the threshold', async () => {
@@ -469,7 +505,7 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
     expect(sameTextResult.chunks[0].similarityScore).toBeCloseTo(1, 4)
 
     // Deterministic embeddings of unrelated texts are nearly orthogonal, so an
-    // off-topic query must fall below the 0.70 floor.
+    // off-topic query must fall below the calibrated similarity floor.
     await expect(
       service.retrieveCourseEvidence(
         courseId,

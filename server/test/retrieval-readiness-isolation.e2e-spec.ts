@@ -22,7 +22,7 @@ import {
 } from './support/disposable-database'
 
 const DEFAULT_TOP_K = 3
-const DEFAULT_MIN_SIMILARITY = 0.7
+const DEFAULT_MIN_SIMILARITY = 0.62
 const EXACT_THRESHOLD = 0.8
 
 describe('Retrieval threshold readiness and cross-course isolation (e2e)', () => {

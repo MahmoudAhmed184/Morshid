@@ -26,7 +26,7 @@ describe('PrismaCourseRetrievalRepository', () => {
       queryEmbedding: buildEmbedding(),
       embeddingModel,
       topK: 5,
-      minSimilarity: 0.7,
+      minSimilarity: 0.62,
       offset: 0,
       ...overrides,
     }
@@ -44,7 +44,7 @@ describe('PrismaCourseRetrievalRepository', () => {
       `[${embedding.join(',')}]`,
       courseId,
       embeddingModel,
-      0.7,
+      0.62,
       5,
       0,
     ])
