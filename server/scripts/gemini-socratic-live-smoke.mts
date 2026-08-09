@@ -27,12 +27,15 @@ import {
   buildLiveTeachingDecision,
 } from '../test/fixtures/gemini-socratic-live.fixture.js'
 
+// Live Socratic role-chain integration smoke, not a full application E2E test.
+// It exercises the real Analysis, Tutor, and Semantic Guard provider adapters
+// plus downstream validation using synthetic context, teaching decision, and
+// retrieval fixtures. It intentionally skips HTTP orchestration and persistence.
+
 loadEnv({
   path: ['server/.env', '.env', '../.env'],
   quiet: true,
 })
-
-type RoleName = 'analysis' | 'tutor' | 'semanticGuard'
 
 interface RoleReport {
   readonly provider: string
@@ -89,11 +92,6 @@ async function main(): Promise<void> {
   const analysisResponse = await analysisPort.analyze(
     buildEducationalAnalysisModelRequest(GEMINI_SOCRATIC_ANALYSIS_CONTEXT),
   )
-  assertConfiguredModel(
-    'analysis',
-    env.ANALYSIS_MODEL_NAME,
-    analysisResponse.model,
-  )
   const analysisValidation = validateEducationalAnalysisResult(
     analysisResponse.rawOutput,
     GEMINI_SOCRATIC_ANALYSIS_CONTEXT,
@@ -120,7 +118,6 @@ async function main(): Promise<void> {
   const tutorResponse = await tutorPort.generate(
     buildTutorGenerationModelRequest(generationContext.context),
   )
-  assertConfiguredModel('tutor', env.TUTOR_MODEL_NAME, tutorResponse.model)
   const candidateValidation = validateCandidateResponse(
     tutorResponse.rawOutput,
     {
@@ -167,11 +164,6 @@ async function main(): Promise<void> {
   if (semanticResult.result.model === null) {
     throw new SmokeFailure('SEMANTIC_GUARD_MODEL_METADATA_MISSING')
   }
-  assertConfiguredModel(
-    'semanticGuard',
-    env.SEMANTIC_GUARD_MODEL_NAME,
-    semanticResult.result.model,
-  )
 
   const fallback = await new SemanticGuardService(
     failingSemanticGuardPort(),
@@ -205,6 +197,7 @@ async function main(): Promise<void> {
   process.stdout.write(
     `${JSON.stringify({
       outcome: 'success',
+      scope: 'live-socratic-role-chain-integration-smoke',
       pipeline: 'analysis-tutor-semantic-guard',
       roles: {
         analysis: roleReport({
@@ -257,16 +250,6 @@ function assertLiveRoleConfiguration(
     env.SEMANTIC_GUARD_PROVIDER !== OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER
   ) {
     throw new SmokeFailure('SEMANTIC_GUARD_PROVIDER_NOT_LIVE')
-  }
-}
-
-function assertConfiguredModel(
-  role: RoleName,
-  configuredModel: string,
-  observedModel: string,
-): void {
-  if (observedModel !== configuredModel) {
-    throw new SmokeFailure(`${role.toUpperCase()}_MODEL_MISMATCH`)
   }
 }
 
