@@ -287,7 +287,7 @@ function validCandidate(
     },
     provider: 'deterministic',
     model: 'deterministic-tutor',
-    promptVersion: 'tutor-generation.mvp.v1',
+    promptVersion: 'tutor-generation.mvp.v2',
     tokenUsage: { input: 10, output: 5 },
     ...patch,
   }
@@ -335,7 +335,7 @@ function approvedSemanticResult(): ValidationResult {
     recommendedAction: 'APPROVE',
     provider: 'deterministic',
     model: 'semantic-guard',
-    promptVersion: 'semantic-guard.mvp.v1',
+    promptVersion: 'semantic-guard.mvp.v2',
     policyVersion: 'response-validation.mvp.v1',
   }
 }
@@ -349,7 +349,7 @@ function semanticFailureResult(): ValidationResult {
     recommendedAction: 'USE_SAFE_FALLBACK',
     provider: null,
     model: null,
-    promptVersion: 'semantic-guard.mvp.v1',
+    promptVersion: 'semantic-guard.mvp.v2',
     policyVersion: 'response-validation.mvp.v1',
   }
 }
