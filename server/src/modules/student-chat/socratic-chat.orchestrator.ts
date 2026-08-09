@@ -77,7 +77,7 @@ export class SocraticChatOrchestrator {
         error: error instanceof Error ? error.message : 'UnknownError',
       })
       await this.safeMarkTurnFailed(turnId)
-      throw error;
+      throw error
     }
   }
 
@@ -90,10 +90,7 @@ export class SocraticChatOrchestrator {
     turnId: string,
   ): Promise<SocraticOrchestrationResult> {
     // ── Link student message to TutorTurn ─────────────────────────
-    await this.turnService.linkStudentMessage(
-      turnId,
-      input.studentMessageId,
-    )
+    await this.turnService.linkStudentMessage(turnId, input.studentMessageId)
 
     // ── Phase 1: Topic resolution ─────────────────────────────────
     const resolution = await this.topicService.resolveTopic({
@@ -231,11 +228,12 @@ export class SocraticChatOrchestrator {
     }
 
     // ── Reload the completed assistant message ────────────────────
-    const assistantMessage =
-      await this.prismaService.message.findUniqueOrThrow({
+    const assistantMessage = await this.prismaService.message.findUniqueOrThrow(
+      {
         where: { id: input.assistantMessageId },
         select: chatMessageSelect,
-      })
+      },
+    )
 
     return { kind: 'completed', assistantMessage }
   }

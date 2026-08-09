@@ -61,6 +61,12 @@ import {
   type DisposableDatabase,
 } from './support/disposable-database'
 import { NoopMaterialProcessingScheduler } from './support/noop-material-processing-scheduler'
+import { TUTOR_MODEL_PORT } from '../src/modules/socratic-tutor/tutor-generation.types'
+import {
+  ControllableTutorModelPort,
+  validCandidateRawOutput,
+  createDeferredPromise,
+} from './support/socratic-e2e-providers'
 
 const STUDENT_1_EMAIL = 'student1@morshid.demo'
 const STUDENT_2_EMAIL = 'student2@morshid.demo'
@@ -157,6 +163,7 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
   let embeddingFailure: boolean
   let completionBehavior: CompletionBehavior
   let turnRepository: ControllableGroundedChatTurnRepository
+  const tutorModel = new ControllableTutorModelPort()
   const availableStoragePaths = new Set<string>()
   const embedQuery = jest.fn() as jest.MockedFunction<
     EmbeddingProvider['embedQuery']
@@ -239,6 +246,8 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
       } satisfies PdfStorage)
       .overrideProvider(GroundedChatTurnRepository)
       .useValue(turnRepository)
+      .overrideProvider(TUTOR_MODEL_PORT)
+      .useValue(tutorModel)
       .compile()
 
     app = moduleFixture.createNestApplication()
@@ -283,6 +292,7 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
     turnRepository.failNextCompletion = false
     turnRepository.failFailurePersistence = false
     completionBehavior = () => Promise.resolve(successfulCompletion())
+    tutorModel.reset()
   })
 
   afterAll(async () => {
@@ -409,11 +419,11 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
   }
 
   it('grounds completion and persistence only in eligible, available chunks from the trusted course', async () => {
-    const ready = await createEvidenceMaterial({
+    const _ready = await createEvidenceMaterial({
       title: 'Eligible READY source',
       content: 'Eligible READY evidence',
     })
-    const warning = await createEvidenceMaterial({
+    const _warning = await createEvidenceMaterial({
       title: 'Eligible WARNING source',
       content: 'Eligible WARNING evidence',
       status: MaterialStatus.WARNING,
@@ -802,17 +812,111 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
     ).resolves.toBe(2)
   })
 
-  // These race-condition tests require an injectable async gate in the
-  // orchestration pipeline to coordinate mid-flight mutations. The legacy
-  // CompletionProvider gate no longer applies to the Socratic path. The
-  // equivalent deterministic providers resolve synchronously, preventing
-  // the necessary mid-pipeline timing window. These scenarios should be
-  // re-introduced when a test-only orchestration hook is added.
-  it.skip('terminalizes safely when membership is removed while completion is in flight', () => {
-    // Requires async pipeline gate — see comment above
+  it('prevents approved-response delivery when membership is revoked mid-flight (Contract B)', async () => {
+    await createEvidenceMaterial({
+      title: 'Revocation race source',
+      content: 'Revocation race evidence',
+    })
+    const session = await createSession()
+
+    // Use a deferred promise gate on the tutor model to hold the
+    // request mid-pipeline while we revoke membership.
+    const gate = createDeferredPromise<undefined>()
+    const gateReachedPromise = new Promise<void>((resolve) => {
+      tutorModel.behavior = async (modelRequest) => {
+        resolve()
+        await gate.promise
+        const citationIds = tutorModel.extractAllowedCitationIds(modelRequest)
+        return Object.freeze({
+          rawOutput: Object.freeze(validCandidateRawOutput(citationIds)),
+          provider: 'e2e-controllable-tutor',
+          model: 'e2e-controllable-tutor-v1',
+          promptVersion: modelRequest.promptVersion,
+          inputTokens: 100,
+          outputTokens: 50,
+        })
+      }
+    })
+
+    const responsePromise = request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${student1Token}`)
+      .send({ content: 'Question racing membership removal' })
+      .then((response) => response)
+    await gateReachedPromise
+
+    await prisma.courseMembership.update({
+      where: {
+        courseId_userId: {
+          courseId: pythonCourseId,
+          userId: student1.id,
+        },
+      },
+      data: { removedAt: new Date() },
+    })
+    gate.resolve(undefined)
+
+    const response = await responsePromise
+    // Contract B: finalization re-checks membership. Revocation during
+    // the pipeline must prevent the approved response from being delivered;
+    // the turn is persisted as FAILED instead.
+    expect(response.status).toBe(201)
+    const turn = response.body as GroundedChatTurnResponseDto
+    expect(turn.assistantMessage.status).toBe('FAILED')
+    await expect(
+      prisma.message.count({ where: { sessionId: session.id } }),
+    ).resolves.toBe(2)
   })
 
-  it.skip('terminalizes safely when the session is deleted while completion is in flight', () => {
-    // Requires async pipeline gate — see comment above
+  it('prevents approved-response delivery when the session is deleted mid-flight (Contract B)', async () => {
+    await createEvidenceMaterial({
+      title: 'Deletion race source',
+      content: 'Deletion race evidence',
+    })
+    const session = await createSession()
+
+    const gate = createDeferredPromise<undefined>()
+    const gateReachedPromise = new Promise<void>((resolve) => {
+      tutorModel.behavior = async (modelRequest) => {
+        resolve()
+        await gate.promise
+        const citationIds = tutorModel.extractAllowedCitationIds(modelRequest)
+        return Object.freeze({
+          rawOutput: Object.freeze(validCandidateRawOutput(citationIds)),
+          provider: 'e2e-controllable-tutor',
+          model: 'e2e-controllable-tutor-v1',
+          promptVersion: modelRequest.promptVersion,
+          inputTokens: 100,
+          outputTokens: 50,
+        })
+      }
+    })
+
+    const responsePromise = request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${student1Token}`)
+      .send({ content: 'Question racing session deletion' })
+      .then((response) => response)
+    await gateReachedPromise
+
+    await prisma.chatSession.update({
+      where: { id: session.id },
+      data: { deletedAt: new Date() },
+    })
+    gate.resolve(undefined)
+
+    const response = await responsePromise
+    // Contract B: finalization re-checks session validity. Deletion during
+    // the pipeline must prevent the approved response from being delivered;
+    // the turn is persisted as FAILED instead.
+    expect(response.status).toBe(201)
+    const turn = response.body as GroundedChatTurnResponseDto
+    expect(turn.assistantMessage.status).toBe('FAILED')
+
+    const stored = await prisma.message.findFirstOrThrow({
+      where: { sessionId: session.id, role: 'ASSISTANT' },
+      select: { status: true },
+    })
+    expect(stored.status).toBe('FAILED')
   })
 })

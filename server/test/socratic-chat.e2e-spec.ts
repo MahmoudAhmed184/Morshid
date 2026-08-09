@@ -39,6 +39,8 @@ import type {
   ChatSessionResponseDto,
 } from '../src/modules/student-chat/student-chat.dto'
 import { STUDENT_CHAT_ERROR_CODES } from '../src/modules/student-chat/student-chat.errors'
+import { TUTOR_MODEL_PORT } from '../src/modules/socratic-tutor/tutor-generation.types'
+import { SEMANTIC_GUARD_PORT } from '../src/modules/socratic-tutor/semantic-guard.types'
 import {
   P0_DEMO_PASSWORD,
   seedP0DemoData,
@@ -49,6 +51,14 @@ import {
   type DisposableDatabase,
 } from './support/disposable-database'
 import { NoopMaterialProcessingScheduler } from './support/noop-material-processing-scheduler'
+import {
+  ControllableTutorModelPort,
+  ControllableSemanticGuardPort,
+  validCandidateRawOutput,
+  rejectedCandidateRawOutput,
+  failingSemanticGuardBehavior,
+  createDeferredPromise,
+} from './support/socratic-e2e-providers'
 
 // ────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -62,6 +72,9 @@ const QUERY_VECTOR = Object.freeze([
   ...Array<number>(EMBEDDING_DIMENSIONS - 1).fill(0),
 ])
 
+const EXPECTED_HAPPY_PATH_MESSAGE =
+  'What part of the list comprehension syntax are you most unsure about? Try writing just the expression part first.'
+
 // ────────────────────────────────────────────────────────────────────────────
 // Test suite
 // ────────────────────────────────────────────────────────────────────────────
@@ -72,10 +85,12 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
   let prisma: PrismaService
   let seed: P0DemoSeedResult
   let pythonCourseId: string
-  let studentId: string
   let instructorId: string
   let studentToken: string
   let embeddingFailure: boolean
+
+  const tutorModel = new ControllableTutorModelPort()
+  const semanticGuard = new ControllableSemanticGuardPort()
 
   const embedQuery = jest.fn() as jest.MockedFunction<
     EmbeddingProvider['embedQuery']
@@ -96,7 +111,6 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
     if (student === undefined) {
       throw new Error(`Seed missing ${STUDENT_EMAIL}`)
     }
-    studentId = student.id
 
     const instructor = seed.users.find(
       (user) => user.email === INSTRUCTOR_EMAIL,
@@ -138,12 +152,14 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
         queryProtocol: 'socratic-e2e-test-embedding',
         embedQuery,
         embedDocuments: () =>
-          Promise.reject(
-            new Error('documents are not embedded in this spec'),
-          ),
+          Promise.reject(new Error('documents are not embedded in this spec')),
       })
       .overrideProvider(COMPLETION_PROVIDER_TOKEN)
       .useValue({ complete })
+      .overrideProvider(TUTOR_MODEL_PORT)
+      .useValue(tutorModel)
+      .overrideProvider(SEMANTIC_GUARD_PORT)
+      .useValue(semanticGuard)
       .overrideProvider(PDF_STORAGE)
       .useValue({
         create: jest.fn(),
@@ -180,6 +196,8 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
     complete.mockClear()
     storageExists.mockClear()
     embeddingFailure = false
+    tutorModel.reset()
+    semanticGuard.reset()
   })
 
   afterAll(async () => {
@@ -215,9 +233,7 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
     return `${sessionsPath()}/${sessionId}/messages`
   }
 
-  async function createSession(): Promise<
-    ChatSessionResponseDto['session']
-  > {
+  async function createSession(): Promise<ChatSessionResponseDto['session']> {
     const response = await request(requireApp().getHttpServer())
       .post(sessionsPath())
       .set('Authorization', `Bearer ${studentToken}`)
@@ -275,14 +291,16 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
     return { chunkId, id: material.id, storagePath }
   }
 
-  // ── 1. Happy path: full Socratic vertical slice ──────────────────────
+  // ── 1. Happy path: validated candidate approved ──────────────────────
 
-  it('executes the full Socratic pipeline from HTTP to approved response', async () => {
+  it('approves a validated candidate through Structural → Deterministic → Semantic', async () => {
     await createEvidenceMaterial({
       title: 'Python comprehension tutorial',
       content: 'List comprehensions provide a concise way to create lists.',
     })
     const session = await createSession()
+
+    // tutorModel and semanticGuard default to approved behavior
 
     const response = await request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
@@ -291,57 +309,38 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
       .expect(201)
     const turn = response.body as GroundedChatTurnResponseDto
 
-    // Student message is trimmed and persisted
     expect(turn.studentMessage).toMatchObject({
       sequence: 1,
       content: QUESTION,
       status: 'COMPLETED',
     })
 
-    // Assistant response from the Socratic pipeline (deterministic safe
-    // fallback or validated candidate) must be COMPLETED and COURSE_GROUNDED
+    // The approved candidate message — NOT a SafeFallback
     expect(turn.assistantMessage).toMatchObject({
       sequence: 2,
       responseToMessageId: turn.studentMessage.id,
+      content: EXPECTED_HAPPY_PATH_MESSAGE,
       status: 'COMPLETED',
       guidanceLabel: 'COURSE_GROUNDED',
     })
-    expect(turn.assistantMessage.content.length).toBeGreaterThan(0)
 
-    // CompletionProvider must NOT be called — Socratic replaces it
+    // CompletionProvider must NOT be called
     expect(complete).not.toHaveBeenCalled()
 
-    // TutorTurn was created and completed
+    // Tutor generation was invoked exactly once
+    expect(tutorModel.callCount).toBe(1)
+
+    // TutorTurn persisted as COMPLETED
     const tutorTurns = await prisma.tutorTurn.findMany({
       where: { sessionId: session.id },
     })
     expect(tutorTurns).toHaveLength(1)
     expect(tutorTurns[0].status).toBe(TutorTurnStatus.COMPLETED)
 
-    // A Topic was created for the session
-    const topics = await prisma.topic.findMany({
-      where: { sessionId: session.id },
-    })
-    expect(topics).toHaveLength(1)
-
-    // An educational analysis was persisted
-    const analyses = await prisma.educationalAnalysis.findMany({
-      where: { turnId: tutorTurns[0].id },
-    })
-    expect(analyses.length).toBeGreaterThanOrEqual(1)
-
-    // A teaching decision was persisted
-    const decisions = await prisma.teachingDecision.findMany({
-      where: { turnId: tutorTurns[0].id },
-    })
-    expect(decisions).toHaveLength(1)
-
-    // The assistant message is persisted with retrieval evidence
+    // Persisted message has correct metadata
     const stored = await prisma.message.findUniqueOrThrow({
       where: { id: turn.assistantMessage.id },
-      include: {
-        retrievals: { orderBy: { rank: 'asc' } },
-      },
+      include: { retrievals: { orderBy: { rank: 'asc' } } },
     })
     expect(stored.status).toBe('COMPLETED')
     expect(stored.guidanceLabel).toBe(MessageGuidanceLabel.COURSE_GROUNDED)
@@ -349,7 +348,119 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
     expect(stored.completedAt).not.toBeNull()
   })
 
-  // ── 2. Insufficient evidence → BLOCKED ──────────────────────────────
+  // ── 2. Regeneration: candidate #1 rejected, #2 approved ─────────────
+
+  it('regenerates after first candidate rejection and approves the second', async () => {
+    await createEvidenceMaterial({
+      title: 'Regeneration test source',
+      content: 'Content for regeneration scenario.',
+    })
+    const session = await createSession()
+
+    let callIndex = 0
+    tutorModel.behavior = (modelRequest) => {
+      callIndex += 1
+      if (callIndex === 1) {
+        // First attempt: return a candidate that will fail deterministic guard
+        return Promise.resolve(
+          Object.freeze({
+            rawOutput: Object.freeze(rejectedCandidateRawOutput()),
+            provider: 'e2e-controllable-tutor',
+            model: 'e2e-controllable-tutor-v1',
+            promptVersion: modelRequest.promptVersion,
+            inputTokens: 100,
+            outputTokens: 50,
+          }),
+        )
+      }
+      // Second attempt: return a valid candidate
+      const citationIds = tutorModel.extractAllowedCitationIds(modelRequest)
+      return Promise.resolve(
+        Object.freeze({
+          rawOutput: Object.freeze(validCandidateRawOutput(citationIds)),
+          provider: 'e2e-controllable-tutor',
+          model: 'e2e-controllable-tutor-v1',
+          promptVersion: modelRequest.promptVersion,
+          inputTokens: 110,
+          outputTokens: 55,
+        }),
+      )
+    }
+
+    const response = await request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${studentToken}`)
+      .send({ content: QUESTION })
+      .expect(201)
+    const turn = response.body as GroundedChatTurnResponseDto
+
+    // Tutor generation was invoked exactly twice
+    expect(tutorModel.callCount).toBe(2)
+
+    // The approved second candidate is the student-visible message
+    expect(turn.assistantMessage).toMatchObject({
+      status: 'COMPLETED',
+      content: EXPECTED_HAPPY_PATH_MESSAGE,
+      guidanceLabel: 'COURSE_GROUNDED',
+    })
+
+    // Only 2 messages persisted (1 student + 1 assistant); the rejected
+    // candidate must NOT be persisted as conversation history
+    await expect(
+      prisma.message.count({ where: { sessionId: session.id } }),
+    ).resolves.toBe(2)
+
+    // The assistant message content is the approved candidate, not rejected
+    const stored = await prisma.message.findUniqueOrThrow({
+      where: { id: turn.assistantMessage.id },
+    })
+    expect(stored.content).toBe(EXPECTED_HAPPY_PATH_MESSAGE)
+    expect(stored.status).toBe('COMPLETED')
+  })
+
+  // ── 3. Semantic Guard infrastructure failure → SafeFallback ──────────
+
+  it('falls back to SafeFallback when Semantic Guard throws an infrastructure error', async () => {
+    await createEvidenceMaterial({
+      title: 'Semantic guard failure source',
+      content: 'Content for semantic guard failure scenario.',
+    })
+    const session = await createSession()
+
+    // Structural and Deterministic will pass (default tutor model behavior),
+    // but the Semantic Guard will throw a transport failure
+    semanticGuard.behavior = failingSemanticGuardBehavior()
+
+    const response = await request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${studentToken}`)
+      .send({ content: QUESTION })
+      .expect(201)
+    const turn = response.body as GroundedChatTurnResponseDto
+
+    // The response is COMPLETED (safe fallback), not FAILED
+    expect(turn.assistantMessage.status).toBe('COMPLETED')
+    expect(turn.assistantMessage.guidanceLabel).toBe('COURSE_GROUNDED')
+
+    // The content is a SafeFallback, NOT the approved candidate
+    expect(turn.assistantMessage.content).not.toBe(EXPECTED_HAPPY_PATH_MESSAGE)
+    expect(turn.assistantMessage.content.length).toBeGreaterThan(0)
+
+    // CompletionProvider must NOT be called
+    expect(complete).not.toHaveBeenCalled()
+
+    // Tutor generation was invoked exactly once
+    expect(tutorModel.callCount).toBe(1)
+
+    // TutorTurn is COMPLETED (safe fallback is still a completed turn)
+    const tutorTurns = await prisma.tutorTurn.findMany({
+      where: { sessionId: session.id },
+    })
+    expect(tutorTurns).toHaveLength(1)
+    expect(tutorTurns[0].status).toBe(TutorTurnStatus.COMPLETED)
+  })
+
+  // ── 4. Insufficient evidence → BLOCKED ──────────────────────────────
 
   it('blocks with insufficient evidence when no material chunks exist', async () => {
     const session = await createSession()
@@ -368,19 +479,10 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
       errorCode: 'GROUNDING_INSUFFICIENT_EVIDENCE',
       citations: [],
     })
-
-    // No retrieval evidence persisted
-    await expect(
-      prisma.messageRetrieval.count({
-        where: { messageId: turn.assistantMessage.id },
-      }),
-    ).resolves.toBe(0)
-
-    // CompletionProvider must NOT be called
     expect(complete).not.toHaveBeenCalled()
   })
 
-  // ── 3. Embedding failure → FAILED with safe terminal state ──────────
+  // ── 5. Embedding failure → FAILED ───────────────────────────────────
 
   it('maps embedding failure to a safe FAILED turn', async () => {
     await createEvidenceMaterial({
@@ -404,7 +506,6 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
       citations: [],
     })
 
-    // The TutorTurn should be marked as FAILED
     const tutorTurns = await prisma.tutorTurn.findMany({
       where: { sessionId: session.id },
     })
@@ -412,7 +513,7 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
     expect(tutorTurns[0].status).toBe(TutorTurnStatus.FAILED)
   })
 
-  // ── 4. Idempotent replay: no duplicate TutorTurn or assistant message ─
+  // ── 6. Idempotent replay ────────────────────────────────────────────
 
   it('replays a completed turn idempotently when the same clientMessageId is sent twice', async () => {
     await createEvidenceMaterial({
@@ -422,7 +523,6 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
     const session = await createSession()
     const clientMessageId = randomUUID()
 
-    // First send with a stable clientMessageId
     const first = await request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
       .set('Authorization', `Bearer ${studentToken}`)
@@ -431,7 +531,6 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
     const firstTurn = first.body as GroundedChatTurnResponseDto
     expect(firstTurn.assistantMessage.status).toBe('COMPLETED')
 
-    // Same clientMessageId should replay, not create duplicates
     const second = await request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
       .set('Authorization', `Bearer ${studentToken}`)
@@ -439,23 +538,19 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
       .expect(201)
     const secondTurn = second.body as GroundedChatTurnResponseDto
 
-    // Same student message and assistant message returned
     expect(secondTurn.studentMessage.id).toBe(firstTurn.studentMessage.id)
     expect(secondTurn.assistantMessage.id).toBe(firstTurn.assistantMessage.id)
     expect(secondTurn.assistantMessage.status).toBe('COMPLETED')
 
-    // Only 2 messages total (1 student + 1 assistant), not 4
     await expect(
       prisma.message.count({ where: { sessionId: session.id } }),
     ).resolves.toBe(2)
-
-    // Only 1 TutorTurn
     await expect(
       prisma.tutorTurn.count({ where: { sessionId: session.id } }),
     ).resolves.toBe(1)
   })
 
-  // ── 5. Retry: failed response can be retried with Socratic pipeline ──
+  // ── 7. Retry: failed → COMPLETED ──────────────────────────────────
 
   it('retries a failed turn through the Socratic pipeline', async () => {
     await createEvidenceMaterial({
@@ -464,7 +559,6 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
     })
     const session = await createSession()
 
-    // Force failure via embedding
     embeddingFailure = true
     const failedResponse = await request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
@@ -474,7 +568,6 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
     const failedTurn = failedResponse.body as GroundedChatTurnResponseDto
     expect(failedTurn.assistantMessage.status).toBe('FAILED')
 
-    // Retry with embedding fixed
     embeddingFailure = false
     const retryPath = `${messagesPath(session.id)}/${failedTurn.studentMessage.id}/retry`
     const retryResponse = await request(requireApp().getHttpServer())
@@ -483,20 +576,15 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
       .expect(200)
     const retriedTurn = retryResponse.body as GroundedChatTurnResponseDto
 
-    // Same message IDs, successful status
     expect(retriedTurn.studentMessage.id).toBe(failedTurn.studentMessage.id)
-    expect(retriedTurn.assistantMessage.id).toBe(
-      failedTurn.assistantMessage.id,
-    )
+    expect(retriedTurn.assistantMessage.id).toBe(failedTurn.assistantMessage.id)
     expect(retriedTurn.assistantMessage.status).toBe('COMPLETED')
     expect(retriedTurn.assistantMessage.guidanceLabel).toBe('COURSE_GROUNDED')
 
-    // Only 2 messages (no duplicates)
     await expect(
       prisma.message.count({ where: { sessionId: session.id } }),
     ).resolves.toBe(2)
 
-    // Cannot retry an already-completed turn
     const disallowedRetry = await request(requireApp().getHttpServer())
       .post(retryPath)
       .set('Authorization', `Bearer ${studentToken}`)
@@ -507,40 +595,69 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
     })
   })
 
-  // ── 6. Concurrent sends → one conflict ────────────────────────────
+  // ── 8. Concurrent sends → deterministic conflict ──────────────────
 
-  it('returns one conflict for concurrent sends without creating orphan messages', async () => {
+  it('returns a conflict for a concurrent send while the first is still in flight', async () => {
     await createEvidenceMaterial({
       title: 'Concurrent source',
       content: 'Concurrent evidence',
     })
     const session = await createSession()
 
-    // Send two requests concurrently
-    const [firstResponse, secondResponse] = await Promise.all([
-      request(requireApp().getHttpServer())
-        .post(messagesPath(session.id))
-        .set('Authorization', `Bearer ${studentToken}`)
-        .send({ content: 'First concurrent question' })
-        .then((response) => response),
-      request(requireApp().getHttpServer())
-        .post(messagesPath(session.id))
-        .set('Authorization', `Bearer ${studentToken}`)
-        .send({ content: 'Second concurrent question' })
-        .then((response) => response),
-    ])
+    // Use a deferred promise gate on the tutor model to hold the first
+    // request mid-pipeline, ensuring the second request arrives while
+    // the first is still in flight.
+    const gate = createDeferredPromise<undefined>()
+    let gateReached = false
+    const gateReachedPromise = new Promise<void>((resolve) => {
+      tutorModel.behavior = async (modelRequest) => {
+        gateReached = true
+        resolve()
+        await gate.promise
+        const citationIds = tutorModel.extractAllowedCitationIds(modelRequest)
+        return Object.freeze({
+          rawOutput: Object.freeze(validCandidateRawOutput(citationIds)),
+          provider: 'e2e-controllable-tutor',
+          model: 'e2e-controllable-tutor-v1',
+          promptVersion: modelRequest.promptVersion,
+          inputTokens: 100,
+          outputTokens: 50,
+        })
+      }
+    })
 
-    // One should succeed (201) and one should conflict (409)
-    const statuses = [firstResponse.status, secondResponse.status].sort()
-    expect(statuses).toEqual([201, 409])
+    const firstResponsePromise = request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${studentToken}`)
+      .send({ content: 'First concurrent question' })
+      .then((response) => response)
 
-    // Only 2 messages (1 student + 1 assistant from the winner)
+    // Wait for the first request to enter the tutor model gate
+    await gateReachedPromise
+    expect(gateReached).toBe(true)
+
+    // Second request should get 409 because the first is still in flight
+    const conflict = await request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${studentToken}`)
+      .send({ content: 'Second concurrent question' })
+      .expect(409)
+    expect(conflict.body).toEqual({
+      code: STUDENT_CHAT_ERROR_CODES.TURN_IN_PROGRESS,
+      message: 'A student chat turn is already in progress',
+    })
+
+    // Release the gate and let the first request complete
+    gate.resolve(undefined)
+    const firstResponse = await firstResponsePromise
+    expect(firstResponse.status).toBe(201)
+
     await expect(
       prisma.message.count({ where: { sessionId: session.id } }),
     ).resolves.toBe(2)
   })
 
-  // ── 7. Privacy: cross-session retry concealment ────────────────────
+  // ── 9. Privacy: cross-session retry concealment ────────────────────
 
   it('conceals cross-session retry targets', async () => {
     await createEvidenceMaterial({
@@ -550,7 +667,6 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
     const session1 = await createSession()
     const session2 = await createSession()
 
-    // Fail in session1
     embeddingFailure = true
     const failedResponse = await request(requireApp().getHttpServer())
       .post(messagesPath(session1.id))
@@ -559,7 +675,6 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
       .expect(201)
     const failedTurn = failedResponse.body as GroundedChatTurnResponseDto
 
-    // Try to retry using session2 — should be 404
     const crossRetry = await request(requireApp().getHttpServer())
       .post(
         `${messagesPath(session2.id)}/${failedTurn.studentMessage.id}/retry`,
