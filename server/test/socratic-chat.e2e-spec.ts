@@ -71,6 +71,11 @@ const QUERY_VECTOR = Object.freeze([
   1,
   ...Array<number>(EMBEDDING_DIMENSIONS - 1).fill(0),
 ])
+const NON_MATCHING_QUERY_VECTOR = Object.freeze([
+  0,
+  1,
+  ...Array<number>(EMBEDDING_DIMENSIONS - 2).fill(0),
+])
 
 const EXPECTED_HAPPY_PATH_MESSAGE =
   'What part of the list comprehension syntax are you most unsure about? Try writing just the expression part first.'
@@ -88,6 +93,7 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
   let instructorId: string
   let studentToken: string
   let embeddingFailure: boolean
+  let rejectUncontextualizedHint: boolean
 
   const tutorModel = new ControllableTutorModelPort()
   const semanticGuard = new ControllableSemanticGuardPort()
@@ -120,9 +126,16 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
     }
     instructorId = instructor.id
 
-    embedQuery.mockImplementation(() => {
+    embedQuery.mockImplementation((query) => {
       if (embeddingFailure) {
         return Promise.reject(new Error('forced embedding failure'))
+      }
+      if (
+        rejectUncontextualizedHint &&
+        query.trim() ===
+          'Can you give me a small hint without telling me the answer?'
+      ) {
+        return Promise.resolve(NON_MATCHING_QUERY_VECTOR)
       }
       return Promise.resolve(QUERY_VECTOR)
     })
@@ -196,6 +209,7 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
     complete.mockClear()
     storageExists.mockClear()
     embeddingFailure = false
+    rejectUncontextualizedHint = false
     tutorModel.reset()
     semanticGuard.reset()
   })
@@ -482,6 +496,66 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
     expect(complete).not.toHaveBeenCalled()
   })
 
+  it('retrieves loop evidence for a contextual hint through an input-sensitive embedding', async () => {
+    await createEvidenceMaterial({
+      title: 'Python for-loop iteration order',
+      content:
+        'A Python for loop visits list elements in order from the beginning and assigns each value to the loop variable.',
+    })
+    const session = await createSession()
+    rejectUncontextualizedHint = true
+
+    const tutorQuestions = [
+      'In a Python for loop, which list element would you inspect first?',
+      'How does that ordering idea apply to the loop variable?',
+      'For Python for-loop iteration, which element is at the very beginning of numbers = [10, 20, 30]?',
+      'Which position in the written list could you inspect first?',
+    ]
+    tutorModel.behavior = (modelRequest) => {
+      const citationIds = tutorModel.extractAllowedCitationIds(modelRequest)
+      const rawOutput = validCandidateRawOutput(citationIds)
+      const message = tutorQuestions[tutorModel.callCount - 1]
+      return Promise.resolve(
+        Object.freeze({
+          rawOutput: Object.freeze({
+            ...rawOutput,
+            message,
+          }),
+          provider: 'e2e-controllable-tutor',
+          model: 'e2e-controllable-tutor-v1',
+          promptVersion: modelRequest.promptVersion,
+          inputTokens: 100,
+          outputTokens: 50,
+        }),
+      )
+    }
+
+    const studentTurns = [
+      'How does a Python for loop iterate over a list?',
+      'I think it follows the list from the beginning.',
+      'I think iteration starts from the last element of numbers = [10, 20, 30].',
+      'Can you give me a small hint without telling me the answer?',
+    ]
+
+    let finalTurn: GroundedChatTurnResponseDto | undefined
+    for (const content of studentTurns) {
+      const response = await request(requireApp().getHttpServer())
+        .post(messagesPath(session.id))
+        .set('Authorization', `Bearer ${studentToken}`)
+        .send({ content })
+        .expect(201)
+      finalTurn = response.body as GroundedChatTurnResponseDto
+      expect(finalTurn.assistantMessage.status).toBe('COMPLETED')
+    }
+
+    const finalQuery = embedQuery.mock.calls.at(-1)?.[0]
+    expect(finalQuery).toBeDefined()
+    expect(finalQuery).not.toBe(studentTurns.at(-1))
+    expect(finalQuery).toContain('Python for-loop iteration')
+    expect(finalQuery).toContain('numbers = [10, 20, 30]')
+    expect(finalTurn?.assistantMessage.guidanceLabel).toBe('COURSE_GROUNDED')
+  })
+
   // ── 5. Embedding failure → FAILED ───────────────────────────────────
 
   it('maps embedding failure to a safe FAILED turn', async () => {
@@ -567,6 +641,8 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
       .expect(201)
     const failedTurn = failedResponse.body as GroundedChatTurnResponseDto
     expect(failedTurn.assistantMessage.status).toBe('FAILED')
+    const failedAttemptQuery = embedQuery.mock.calls.at(-1)?.[0]
+    expect(failedAttemptQuery).toBeDefined()
 
     embeddingFailure = false
     const retryPath = `${messagesPath(session.id)}/${failedTurn.studentMessage.id}/retry`
@@ -580,6 +656,7 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
     expect(retriedTurn.assistantMessage.id).toBe(failedTurn.assistantMessage.id)
     expect(retriedTurn.assistantMessage.status).toBe('COMPLETED')
     expect(retriedTurn.assistantMessage.guidanceLabel).toBe('COURSE_GROUNDED')
+    expect(embedQuery.mock.calls.at(-1)?.[0]).toBe(failedAttemptQuery)
 
     await expect(
       prisma.message.count({ where: { sessionId: session.id } }),
