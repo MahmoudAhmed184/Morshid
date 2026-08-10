@@ -9,6 +9,7 @@ import type { PersistedEducationalAnalysisRecord } from './educational-analysis.
 import {
   EDUCATIONAL_ANALYSIS_SOURCE,
   EFFORT_QUALITY,
+  LEARNING_EVIDENCE_STRENGTH,
 } from './educational-analysis.types'
 import type { TopicStateSnapshot } from './topic-state.types'
 import {
@@ -86,8 +87,7 @@ const blockedStates = new Set<StudentState>([
   StudentState.DEBUGGING_ISSUE,
 ])
 
-const topicResetOutcomes = new Set<string>([
-  TOPIC_RESOLUTION_OUTCOME.CREATE_NEW_TOPIC,
+const restorableTopicOutcomes = new Set<TopicResolutionOutcome>([
   TOPIC_RESOLUTION_OUTCOME.RESUME_PREVIOUS_TOPIC,
   TOPIC_RESOLUTION_OUTCOME.REOPEN_EXISTING_TOPIC,
 ])
@@ -97,6 +97,7 @@ export function selectTeachingDecisionDraft(
 ): TeachingDecisionPolicyDraft {
   const defaults = teachingPolicyDefaults(input.courseTutorConfiguration)
   const strategy = selectTeachingStrategy(input)
+  const guidanceLevel = calculateGuidanceLevel(input, defaults)
 
   return {
     turnId: input.analysis.turnId,
@@ -105,12 +106,12 @@ export function selectTeachingDecisionDraft(
     strategy,
     primaryTechnique: primaryTechniqueForStrategy(strategy),
     supportingTechnique: null,
-    guidanceLevel: calculateGuidanceLevel(input, defaults),
+    guidanceLevel,
     revealPolicy: defaults.defaultRevealPolicy,
     reflectionMode: ReflectionMode.NONE,
     requireStudentAction: true,
     guardPolicy: fixedGuardPolicy,
-    decisionReason: decisionReasonFor(input.analysis, strategy),
+    decisionReason: decisionReasonFor(input, strategy, guidanceLevel),
     policyVersion: TEACHING_POLICY_VERSION,
   }
 }
@@ -118,15 +119,34 @@ export function selectTeachingDecisionDraft(
 export function selectTeachingStrategy(
   input: Pick<
     SelectTeachingDecisionInput,
-    'analysis' | 'previousTeachingDecision'
+    | 'analysis'
+    | 'previousTeachingDecision'
+    | 'topicResolutionOutcome'
   >,
 ): TeachingStrategy {
   const state = input.analysis.result.studentState
 
+  if (hasAuthoritativeTopicConflict(input)) {
+    return TeachingStrategy.SOCRATIC_QUESTIONING
+  }
   if (
-    state === StudentState.NEAR_SOLUTION &&
-    canPreservePreviousStrategy(input)
+    input.analysis.analysisSource === EDUCATIONAL_ANALYSIS_SOURCE.FALLBACK ||
+    state === StudentState.UNKNOWN
   ) {
+    return TeachingStrategy.SOCRATIC_QUESTIONING
+  }
+
+  if (canPreservePreviousStrategy(input)) {
+    if (
+      state === StudentState.MISCONCEPTION &&
+      input.analysis.result.misconceptions.length > 0
+    ) {
+      return TeachingStrategy.MISCONCEPTION_REPAIR
+    }
+    if (state === StudentState.DEBUGGING_ISSUE) {
+      return TeachingStrategy.DEBUGGING_GUIDANCE
+    }
+
     return input.previousTeachingDecision.strategy
   }
 
@@ -147,7 +167,7 @@ export function calculateGuidanceLevel(
 ): number {
   const currentLevel = currentGuidanceLevel(input)
 
-  if (isTopicReset(input)) {
+  if (hasAuthoritativeTopicConflict(input) || isNewOrSwitchedTopic(input)) {
     return 1
   }
   if (input.analysis.analysisSource === EDUCATIONAL_ANALYSIS_SOURCE.FALLBACK) {
@@ -159,10 +179,15 @@ export function calculateGuidanceLevel(
   if (currentLevel === null) {
     return 1
   }
-  if (!hasMeaningfulEffort(input.analysis)) {
+
+  if (isRestoredTopic(input)) {
     return capGuidanceLevel(currentLevel, defaults.maximumGuidanceLevel)
   }
-  if (!blockedStates.has(input.analysis.result.studentState)) {
+
+  if (hasVerifiedLearningEvidence(input.analysis)) {
+    return capGuidanceLevel(currentLevel - 1, defaults.maximumGuidanceLevel)
+  }
+  if (!hasEscalationEvidence(input)) {
     return capGuidanceLevel(currentLevel, defaults.maximumGuidanceLevel)
   }
 
@@ -188,7 +213,7 @@ export function fixedTeachingGuardPolicy(): TeachingGuardPolicy {
 function canPreservePreviousStrategy(
   input: Pick<
     SelectTeachingDecisionInput,
-    'analysis' | 'previousTeachingDecision'
+    'analysis' | 'previousTeachingDecision' | 'topicResolutionOutcome'
   >,
 ): input is Pick<SelectTeachingDecisionInput, 'analysis'> & {
   previousTeachingDecision: PreviousTeachingDecisionSnapshot
@@ -198,38 +223,86 @@ function canPreservePreviousStrategy(
   return (
     previous !== null &&
     previous.topicId === input.analysis.topicId &&
-    canonicalStrategies.has(previous.strategy)
+    canonicalStrategies.has(previous.strategy) &&
+    !isNewOrSwitchedTopic(input)
   )
 }
 
 function currentGuidanceLevel(
   input: SelectTeachingDecisionInput,
 ): number | null {
-  return (
-    input.previousTeachingDecision?.guidanceLevel ??
-    input.topicState?.guidanceLevel ??
-    null
-  )
+  return input.previousTeachingDecision?.guidanceLevel ?? null
 }
 
-function isTopicReset(input: SelectTeachingDecisionInput): boolean {
-  const authoritativeOutcome =
-    input.topicResolutionOutcome ?? input.analysis.result.topicRelation
-
+function isNewOrSwitchedTopic(
+  input: Pick<
+    SelectTeachingDecisionInput,
+    'analysis' | 'previousTeachingDecision' | 'topicResolutionOutcome'
+  >,
+): boolean {
   return (
-    topicResetOutcomes.has(authoritativeOutcome) ||
+    authoritativeTopicOutcome(input) ===
+      TOPIC_RESOLUTION_OUTCOME.CREATE_NEW_TOPIC ||
     (input.previousTeachingDecision !== null &&
       input.previousTeachingDecision.topicId !== input.analysis.topicId)
   )
 }
 
-function hasMeaningfulEffort(
+function isRestoredTopic(input: SelectTeachingDecisionInput): boolean {
+  return restorableTopicOutcomes.has(authoritativeTopicOutcome(input))
+}
+
+function hasEscalationEvidence(input: SelectTeachingDecisionInput): boolean {
+  const effort = input.analysis.result.effortEvidence
+
+  return (
+    input.previousTeachingDecision !== null &&
+    blockedStates.has(input.analysis.result.studentState) &&
+    authoritativeTopicOutcome(input) ===
+      TOPIC_RESOLUTION_OUTCOME.CONTINUE_CURRENT_TOPIC &&
+    effort.present &&
+    effort.type !== null &&
+    effort.addressesPreviousTutorAction &&
+    !effort.isRepeated &&
+    effort.evidenceMessageIds.includes(input.analysis.studentMessageId) &&
+    (effort.quality === EFFORT_QUALITY.MEANINGFUL ||
+      effort.quality === EFFORT_QUALITY.STRONG)
+  )
+}
+
+function hasVerifiedLearningEvidence(
   analysis: PersistedEducationalAnalysisRecord,
 ): boolean {
+  const evidence = analysis.result.learningEvidence
+
   return (
-    analysis.result.effortEvidence.present &&
-    (analysis.result.effortEvidence.quality === EFFORT_QUALITY.MEANINGFUL ||
-      analysis.result.effortEvidence.quality === EFFORT_QUALITY.STRONG)
+    evidence.present &&
+    evidence.evidenceMessageIds.includes(analysis.studentMessageId) &&
+    (evidence.strength === LEARNING_EVIDENCE_STRENGTH.MODERATE ||
+      evidence.strength === LEARNING_EVIDENCE_STRENGTH.STRONG)
+  )
+}
+
+function authoritativeTopicOutcome(
+  input: Pick<
+    SelectTeachingDecisionInput,
+    'analysis' | 'topicResolutionOutcome'
+  >,
+): TopicResolutionOutcome {
+  return input.topicResolutionOutcome ?? input.analysis.result.topicRelation
+}
+
+function hasAuthoritativeTopicConflict(
+  input: Pick<
+    SelectTeachingDecisionInput,
+    'analysis' | 'topicResolutionOutcome'
+  >,
+): boolean {
+  return (
+    input.topicResolutionOutcome !== undefined &&
+    input.analysis.result.topicRelation !==
+      TOPIC_RESOLUTION_OUTCOME.CONTINUE_CURRENT_TOPIC &&
+    input.topicResolutionOutcome !== input.analysis.result.topicRelation
   )
 }
 
@@ -246,10 +319,27 @@ function normalizeMaximumGuidanceLevel(level: number | undefined): number {
 }
 
 function decisionReasonFor(
-  analysis: PersistedEducationalAnalysisRecord,
+  input: SelectTeachingDecisionInput,
   strategy: TeachingStrategy,
+  guidanceLevel: number,
 ): string {
+  const analysis = input.analysis
   const state = analysis.result.studentState
+  if (hasAuthoritativeTopicConflict(input)) {
+    return 'Selected conservative Level 1 Socratic guidance because authoritative TopicResolution conflicts with the accepted analysis topic relation.'
+  }
+
+  const previousLevel = input.previousTeachingDecision?.guidanceLevel ?? null
+  const transitionReason =
+    previousLevel === null
+      ? 'Initialized authoritative guidance at Level 1.'
+      : guidanceLevel > previousLevel
+        ? 'Escalated guidance by one after meaningful, relevant, non-repeated effort addressing the prior tutor action.'
+        : guidanceLevel < previousLevel
+          ? 'De-escalated guidance by one after current-message-supported learning evidence.'
+          : isRestoredTopic(input)
+            ? 'Restored the latest completed same-topic guidance without recalibration.'
+            : 'Preserved the latest completed same-topic guidance.'
   const reason =
     state === StudentState.UNKNOWN
       ? 'Selected conservative Socratic questioning because the accepted analysis uses an unknown student state.'
@@ -263,5 +353,5 @@ function decisionReasonFor(
               ? 'Selected Socratic questioning because the accepted analysis indicates the student is near a solution.'
               : 'Selected Socratic questioning because the accepted analysis indicates partial understanding.'
 
-  return reason.slice(0, 240)
+  return `${reason} ${transitionReason}`.slice(0, 240)
 }

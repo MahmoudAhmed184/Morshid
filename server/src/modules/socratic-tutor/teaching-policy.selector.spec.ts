@@ -140,6 +140,46 @@ describe('teaching policy selector', () => {
     ).toBe(3)
   })
 
+  it.each([
+    ['repeated effort', { effortIsRepeated: true }],
+    ['effort unrelated to the prior tutor action', { effortAddressesPreviousTutorAction: false }],
+    ['effort without current-message evidence', { effortEvidenceMessageIds: ['older-message'] }],
+    ['effort without a supported type', { effortType: null }],
+  ])('does not escalate for %s', (_label, analysisInput) => {
+    expect(
+      guidance({
+        currentLevel: 2,
+        analysis: analysis(analysisInput),
+      }),
+    ).toBe(2)
+  })
+
+  it('de-escalates by one for current-message-supported learning evidence', () => {
+    expect(
+      guidance({
+        currentLevel: 3,
+        analysis: analysis({
+          learningPresent: true,
+          learningStrength: LEARNING_EVIDENCE_STRENGTH.STRONG,
+          learningEvidenceMessageIds: ['message-1'],
+        }),
+      }),
+    ).toBe(2)
+  })
+
+  it('does not de-escalate for unsupported learning self-report', () => {
+    expect(
+      guidance({
+        currentLevel: 3,
+        analysis: analysis({
+          learningPresent: true,
+          learningStrength: LEARNING_EVIDENCE_STRENGTH.STRONG,
+          learningEvidenceMessageIds: [],
+        }),
+      }),
+    ).toBe(4)
+  })
+
   it('does not escalate for direct-answer pressure alone', () => {
     expect(
       guidance({
@@ -159,6 +199,67 @@ describe('teaching policy selector', () => {
         previous: previousDecision({ topicId: 'topic-previous' }),
       }),
     ).toBe(1)
+  })
+
+  it.each([
+    TOPIC_RESOLUTION_OUTCOME.RESUME_PREVIOUS_TOPIC,
+    TOPIC_RESOLUTION_OUTCOME.REOPEN_EXISTING_TOPIC,
+  ])('restores guidance without escalating on %s', (outcome) => {
+    expect(
+      calculateGuidanceLevel({
+        analysis: analysis(),
+        topicState: topicState({ guidanceLevel: 1 }),
+        previousTeachingDecision: previousDecision({ guidanceLevel: 3 }),
+        topicResolutionOutcome: outcome,
+      }),
+    ).toBe(3)
+  })
+
+  it('ignores stale TopicState guidance when no prior decision exists', () => {
+    expect(
+      calculateGuidanceLevel({
+        analysis: analysis(),
+        topicState: topicState({ guidanceLevel: 4 }),
+        previousTeachingDecision: null,
+        topicResolutionOutcome:
+          TOPIC_RESOLUTION_OUTCOME.CONTINUE_CURRENT_TOPIC,
+      }),
+    ).toBe(1)
+  })
+
+  it('fails conservatively on authoritative topic conflict', () => {
+    const draft = selectTeachingDecisionDraft({
+      analysis: analysis({
+        topicRelation: TOPIC_RESOLUTION_OUTCOME.CREATE_NEW_TOPIC,
+      }),
+      topicState: topicState({ guidanceLevel: 4 }),
+      previousTeachingDecision: previousDecision({ guidanceLevel: 4 }),
+      topicResolutionOutcome:
+        TOPIC_RESOLUTION_OUTCOME.CONTINUE_CURRENT_TOPIC,
+    })
+
+    expect(draft).toMatchObject({
+      strategy: TeachingStrategy.SOCRATIC_QUESTIONING,
+      guidanceLevel: 1,
+      revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
+      requireStudentAction: true,
+    })
+    expect(draft.decisionReason).toContain('authoritative TopicResolution')
+  })
+
+  it('preserves strategy continuity without a supported transition', () => {
+    expect(
+      selectTeachingStrategy({
+        analysis: analysis({
+          studentState: StudentState.PARTIAL_UNDERSTANDING,
+        }),
+        previousTeachingDecision: previousDecision({
+          strategy: TeachingStrategy.GUIDED_EXPLANATION,
+        }),
+        topicResolutionOutcome:
+          TOPIC_RESOLUTION_OUTCOME.CONTINUE_CURRENT_TOPIC,
+      }),
+    ).toBe(TeachingStrategy.GUIDED_EXPLANATION)
   })
 
   it('does not escalate near-solution turns', () => {
@@ -225,6 +326,13 @@ function analysis(
     analysisSource: PersistedEducationalAnalysisRecord['analysisSource']
     effortPresent: boolean
     effortQuality: PersistedEducationalAnalysisRecord['result']['effortEvidence']['quality']
+    effortType: PersistedEducationalAnalysisRecord['result']['effortEvidence']['type']
+    effortAddressesPreviousTutorAction: boolean
+    effortIsRepeated: boolean
+    effortEvidenceMessageIds: string[]
+    learningPresent: boolean
+    learningStrength: PersistedEducationalAnalysisRecord['result']['learningEvidence']['strength']
+    learningEvidenceMessageIds: string[]
     requestKind: MessageRequestKind
     studentState: StudentState
     topicRelation: PersistedEducationalAnalysisRecord['result']['topicRelation']
@@ -242,15 +350,20 @@ function analysis(
       effortEvidence: {
         present: input.effortPresent ?? true,
         quality: input.effortQuality ?? EFFORT_QUALITY.MEANINGFUL,
-        type: EFFORT_TYPE.CODE_ATTEMPT,
-        addressesPreviousTutorAction: true,
-        isRepeated: false,
-        evidenceMessageIds: ['message-1'],
+        type:
+          input.effortType === undefined
+            ? EFFORT_TYPE.CODE_ATTEMPT
+            : input.effortType,
+        addressesPreviousTutorAction:
+          input.effortAddressesPreviousTutorAction ?? true,
+        isRepeated: input.effortIsRepeated ?? false,
+        evidenceMessageIds: input.effortEvidenceMessageIds ?? ['message-1'],
       },
       learningEvidence: {
-        present: false,
-        strength: LEARNING_EVIDENCE_STRENGTH.NONE,
-        evidenceMessageIds: [],
+        present: input.learningPresent ?? false,
+        strength:
+          input.learningStrength ?? LEARNING_EVIDENCE_STRENGTH.NONE,
+        evidenceMessageIds: input.learningEvidenceMessageIds ?? [],
       },
       misconceptions: [],
       topicRelation:

@@ -5,7 +5,7 @@ import type {
   TeachingTechnique,
 } from '../../generated/prisma/client'
 
-export const TEACHING_POLICY_VERSION = 'socratic-policy.mvp.v1'
+export const TEACHING_POLICY_VERSION = 'socratic-policy.mvp.v2'
 
 export interface TeachingGuardPolicy {
   preventDirectAnswer: boolean
