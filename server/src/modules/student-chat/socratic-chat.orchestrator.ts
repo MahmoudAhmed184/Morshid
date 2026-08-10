@@ -166,9 +166,18 @@ export class SocraticChatOrchestrator {
       TutorTurnStatus.DECIDING,
     )
 
+    const previousTeachingDecision =
+      await this.teachingPolicyEngine.findPreviousDecision({
+        turnId,
+        topicId,
+      })
+
     const decisionResult = await this.teachingPolicyEngine.selectDecision({
       analysis: analysisResult.analysis,
       topicState,
+      previousTeachingDecision,
+      topicResolutionOutcome: resolution.outcome,
+      previousTopicId: resolution.previousTopicId,
     })
     if (!decisionResult.success) {
       return this.failTurn(

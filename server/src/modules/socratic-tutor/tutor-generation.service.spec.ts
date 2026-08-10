@@ -243,6 +243,10 @@ class FakeTeachingDecisionRepository extends TeachingDecisionRepository {
     return Promise.resolve(this.record)
   }
 
+  findLatestCompletedForSameTopicBeforeTurn(): Promise<PersistedTeachingDecisionRecord | null> {
+    return Promise.resolve(null)
+  }
+
   storeDecision(): never {
     throw new Error('TutorGenerationService must not modify decisions')
   }

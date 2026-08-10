@@ -31,6 +31,11 @@ export abstract class TeachingDecisionRepository {
     turnId: string,
   ): Promise<PersistedTeachingDecisionRecord | null>
 
+  abstract findLatestCompletedForSameTopicBeforeTurn(input: {
+    turnId: string
+    topicId: string
+  }): Promise<PersistedTeachingDecisionRecord | null>
+
   abstract storeDecision(
     draft: TeachingDecisionPolicyDraft,
   ): Promise<StoreTeachingDecisionResult>
@@ -75,6 +80,48 @@ export class PrismaTeachingDecisionRepository extends TeachingDecisionRepository
       .then((decision) =>
         decision === null ? null : mapTeachingDecision(decision),
       )
+  }
+
+  async findLatestCompletedForSameTopicBeforeTurn(input: {
+    turnId: string
+    topicId: string
+  }): Promise<PersistedTeachingDecisionRecord | null> {
+    const currentTurn = await this.prismaService.tutorTurn.findUnique({
+      where: { id: input.turnId },
+      select: {
+        sessionId: true,
+        topicId: true,
+        studentMessage: { select: { sequence: true } },
+      },
+    })
+    if (
+      currentTurn?.topicId !== input.topicId ||
+      currentTurn.studentMessage === null
+    ) {
+      return null
+    }
+
+    const decision = await this.prismaService.teachingDecision.findFirst({
+      where: {
+        topicId: input.topicId,
+        turn: {
+          sessionId: currentTurn.sessionId,
+          status: 'COMPLETED',
+          approvedTutorMessageId: { not: null },
+          studentMessage: {
+            sequence: { lt: currentTurn.studentMessage.sequence },
+          },
+        },
+      },
+      orderBy: [
+        { turn: { studentMessage: { sequence: 'desc' } } },
+        { createdAt: 'desc' },
+        { id: 'desc' },
+      ],
+      select: teachingDecisionSelect,
+    })
+
+    return decision === null ? null : mapTeachingDecision(decision)
   }
 
   async storeDecision(

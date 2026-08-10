@@ -221,6 +221,10 @@ class FakeTeachingDecisionRepository extends TeachingDecisionRepository {
     return Promise.resolve(this.record)
   }
 
+  findLatestCompletedForSameTopicBeforeTurn() {
+    return Promise.resolve(null)
+  }
+
   storeDecision(): never {
     throw new Error('ResponseApprovalService must not store decisions')
   }

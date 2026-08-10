@@ -11,7 +11,10 @@ import {
   EFFORT_QUALITY,
 } from './educational-analysis.types'
 import type { TopicStateSnapshot } from './topic-state.types'
-import { TOPIC_RESOLUTION_OUTCOME } from './topic.types'
+import {
+  TOPIC_RESOLUTION_OUTCOME,
+  type TopicResolutionOutcome,
+} from './topic.types'
 import {
   TEACHING_POLICY_VERSION,
   type CourseTutorConfiguration,
@@ -40,6 +43,8 @@ export interface SelectTeachingDecisionInput {
   analysis: PersistedEducationalAnalysisRecord
   topicState: TopicStateSnapshot | null
   previousTeachingDecision: PreviousTeachingDecisionSnapshot | null
+  topicResolutionOutcome?: TopicResolutionOutcome
+  previousTopicId?: string | null
   courseTutorConfiguration?: CourseTutorConfiguration | null
 }
 
@@ -208,8 +213,11 @@ function currentGuidanceLevel(
 }
 
 function isTopicReset(input: SelectTeachingDecisionInput): boolean {
+  const authoritativeOutcome =
+    input.topicResolutionOutcome ?? input.analysis.result.topicRelation
+
   return (
-    topicResetOutcomes.has(input.analysis.result.topicRelation) ||
+    topicResetOutcomes.has(authoritativeOutcome) ||
     (input.previousTeachingDecision !== null &&
       input.previousTeachingDecision.topicId !== input.analysis.topicId)
   )

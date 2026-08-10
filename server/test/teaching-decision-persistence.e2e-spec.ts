@@ -182,6 +182,50 @@ describe('TeachingDecisionRepository (e2e)', () => {
     ).resolves.toBeGreaterThanOrEqual(2)
   })
 
+  it('loads only the latest completed same-topic decision before the current turn', async () => {
+    const first = await createFixture(prisma)
+    const firstAnalysis = await storeAnalysis(first)
+    const firstDecision = await engine.selectDecision({
+      analysis: firstAnalysis,
+      topicState: topicState(first.topicId),
+    })
+    expect(firstDecision.success).toBe(true)
+
+    const assistant = await prisma.message.create({
+      data: {
+        sessionId: first.sessionId,
+        turnId: first.turnId,
+        topicId: first.topicId,
+        sequence: 2,
+        role: MessageRole.ASSISTANT,
+        responseToMessageId: first.studentMessageId,
+        content: 'What boundary changes after this comparison?',
+        status: MessageStatus.COMPLETED,
+        completedAt: new Date('2026-08-05T00:01:00.000Z'),
+      },
+    })
+    await prisma.tutorTurn.update({
+      where: { id: first.turnId },
+      data: {
+        status: 'COMPLETED',
+        approvedTutorMessageId: assistant.id,
+        completedAt: new Date('2026-08-05T00:01:00.000Z'),
+      },
+    })
+
+    const current = await createFollowingTurn(prisma, first)
+    await expect(
+      decisionRepository.findLatestCompletedForSameTopicBeforeTurn({
+        turnId: current.turnId,
+        topicId: current.topicId,
+      }),
+    ).resolves.toMatchObject({
+      id: firstDecision.success ? firstDecision.decision.id : '',
+      turnId: first.turnId,
+      topicId: first.topicId,
+    })
+  })
+
   it('fails safely for missing or unrelated analysis records', async () => {
     const fixture = await createFixture(prisma)
     const analysis = await storeAnalysis(fixture)
@@ -312,6 +356,42 @@ async function createFixture(prisma: PrismaService): Promise<Fixture> {
     studentId: student.id,
     sessionId: session.id,
     topicId: topic.id,
+    turnId: turn.id,
+    studentMessageId: studentMessage.id,
+  }
+}
+
+async function createFollowingTurn(
+  prisma: PrismaService,
+  first: Fixture,
+): Promise<Fixture> {
+  const turn = await prisma.tutorTurn.create({
+    data: {
+      sessionId: first.sessionId,
+      topicId: first.topicId,
+      idempotencyKey: `decision-following-${randomUUID()}`,
+    },
+  })
+  const studentMessage = await prisma.message.create({
+    data: {
+      sessionId: first.sessionId,
+      turnId: turn.id,
+      topicId: first.topicId,
+      sequence: 3,
+      role: MessageRole.STUDENT,
+      authorUserId: first.studentId,
+      content: 'I changed low to mid plus one; what should I trace next?',
+      status: MessageStatus.COMPLETED,
+      completedAt: new Date('2026-08-05T00:02:00.000Z'),
+    },
+  })
+  await prisma.tutorTurn.update({
+    where: { id: turn.id },
+    data: { studentMessageId: studentMessage.id },
+  })
+
+  return {
+    ...first,
     turnId: turn.id,
     studentMessageId: studentMessage.id,
   }

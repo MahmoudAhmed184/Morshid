@@ -11,6 +11,7 @@ import {
 } from './teaching-decision.repository'
 import type { CourseTutorConfiguration } from './teaching-policy.types'
 import type { TopicStateSnapshot } from './topic-state.types'
+import type { TopicResolutionOutcome } from './topic.types'
 
 export const TEACHING_POLICY_FAILURE_CATEGORY = {
   INVALID_CONTEXT: 'invalid_context',
@@ -39,6 +40,8 @@ export type TeachingPolicyEngineResult =
 export interface TeachingPolicyEngineInput {
   analysis: PersistedEducationalAnalysisRecord
   topicState: TopicStateSnapshot | null
+  topicResolutionOutcome?: TopicResolutionOutcome
+  previousTopicId?: string | null
   previousTeachingDecision?: PersistedTeachingDecisionRecord | null
   courseTutorConfiguration?: CourseTutorConfiguration | null
 }
@@ -48,6 +51,15 @@ export class TeachingPolicyEngine {
   constructor(
     private readonly teachingDecisionRepository: TeachingDecisionRepository,
   ) {}
+
+  findPreviousDecision(input: {
+    turnId: string
+    topicId: string
+  }): Promise<PersistedTeachingDecisionRecord | null> {
+    return this.teachingDecisionRepository.findLatestCompletedForSameTopicBeforeTurn(
+      input,
+    )
+  }
 
   async selectDecision(
     input: TeachingPolicyEngineInput,
@@ -94,6 +106,9 @@ function policyInput(
     analysis: input.analysis,
     topicState: input.topicState,
     previousTeachingDecision: input.previousTeachingDecision ?? null,
+    topicResolutionOutcome:
+      input.topicResolutionOutcome ?? input.analysis.result.topicRelation,
+    previousTopicId: input.previousTopicId ?? null,
     courseTutorConfiguration: input.courseTutorConfiguration ?? null,
   }
 }
