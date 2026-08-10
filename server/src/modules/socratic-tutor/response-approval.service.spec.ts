@@ -353,7 +353,7 @@ function validCandidate(
     },
     provider: 'deterministic',
     model: 'deterministic-tutor',
-    promptVersion: 'tutor-generation.mvp.v3',
+    promptVersion: 'tutor-generation.mvp.v4',
     tokenUsage: { input: 10, output: 5 },
     ...patch,
   }

@@ -515,7 +515,7 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
     expect(turn.assistantMessage.citations).toHaveLength(1)
 
     const promptVersion = Reflect.get(turn.assistantMessage, 'promptVersion')
-    expect(promptVersion).toBe('tutor-generation.mvp.v3')
+    expect(promptVersion).toBe('tutor-generation.mvp.v4')
 
     const reloadResponse = await request(requireApp().getHttpServer())
       .get(messagesPath(session.id))
@@ -602,13 +602,13 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
       },
       {
         message:
-          'You correctly placed the condition check before the update. The next reasoning step is to record the state immediately after that update; what belongs in that next row?',
+          'You correctly placed the condition check before the update. Carry that conclusion forward: each row first records the state at the condition check, then connects it to the state produced if the update runs. That produced state becomes the starting state for the next row. What before-and-after pair belongs in your next row, and how does it connect to the row after it?',
         responseIntent: TeachingStrategy.MISCONCEPTION_REPAIR,
         studentActionType: TeachingTechnique.COUNTEREXAMPLE,
       },
       {
         message:
-          'For an analogous loop that begins with a different state, make a two-column table headed condition and state, then trace one iteration. Apply that same table pattern to your original loop without stating its final output.',
+          'For an analogous loop that starts at 2 and adds 2, the condition row begins with state 2, the update produces state 4, and the next condition row therefore begins with 4. Use that same before-update, after-update, next-check chain as a near-complete scaffold for the original loop. Fill its remaining rows and determine its protected final output yourself.',
         responseIntent: TeachingStrategy.MISCONCEPTION_REPAIR,
         studentActionType: TeachingTechnique.COUNTEREXAMPLE,
       },
@@ -652,8 +652,18 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
     expect(turns[1].assistantMessage.content).toContain('likely misconception')
     expect(turns[1].assistantMessage.content).toMatch(/\?$/u)
     expect(turns[2].assistantMessage.content).toContain('correctly')
-    expect(turns[2].assistantMessage.content).toContain('next reasoning step')
+    expect(turns[2].assistantMessage.content).toContain(
+      'Carry that conclusion forward',
+    )
+    expect(turns[2].assistantMessage.content).toContain('then connects it to')
+    expect(turns[2].assistantMessage.content).toContain(
+      'becomes the starting state for the next row',
+    )
     expect(turns[3].assistantMessage.content).toContain('analogous loop')
+    expect(turns[3].assistantMessage.content).toContain('state 4')
+    expect(turns[3].assistantMessage.content).toContain(
+      'near-complete scaffold',
+    )
     for (const { assistantMessage } of turns) {
       expect(assistantMessage.content).not.toContain('exact final output is')
       expect(assistantMessage.citations.length).toBeGreaterThan(0)

@@ -3,12 +3,29 @@ import { MessageRequestKind, StudentState } from '../../generated/prisma/client'
 import type { EducationalAnalysisResult } from './educational-analysis.types'
 
 export const TUTOR_RESPONSE_REQUIREMENTS_VERSION =
-  'tutor-response-requirements.v1'
+  'tutor-response-requirements.v2'
+
+export type TutorGuidanceMode =
+  'ORIENTATION' | 'FOCUSED_HINT' | 'GUIDED_DECOMPOSITION' | 'STRONG_GUIDANCE'
+
+export interface TutorGuidanceShapeRequirements {
+  readonly mode: TutorGuidanceMode
+  readonly minimumConnectedScaffoldMoves: 0 | 1 | 2 | 3
+  readonly orderedDecompositionRequired: boolean
+  readonly preserveEstablishedIntermediateConclusions: boolean
+  readonly explainConnectionsBetweenScaffoldMoves: boolean
+  readonly singleGuidingQuestionIsSufficient: boolean
+  readonly analogousExampleOrNearCompleteScaffoldRequired: boolean
+  readonly residualStudentWork: string
+  readonly generationInstruction: string
+}
 
 export interface TutorResponseRequirements {
   readonly version: typeof TUTOR_RESPONSE_REQUIREMENTS_VERSION
   readonly requestKind: MessageRequestKind
   readonly guidanceLevel: number
+  readonly guidanceShape: TutorGuidanceShapeRequirements
+  readonly strategyAndTechniqueMustNotReduceGuidanceShape: true
   readonly supportedConceptualExplanation: boolean
   readonly askWhatStudentTried: boolean
   readonly smallStartingHintCount: 0 | 1
@@ -44,6 +61,8 @@ export function buildTutorResponseRequirements(input: {
     version: TUTOR_RESPONSE_REQUIREMENTS_VERSION,
     requestKind,
     guidanceLevel,
+    guidanceShape: guidanceShapeRequirements(guidanceLevel),
+    strategyAndTechniqueMustNotReduceGuidanceShape: true,
     supportedConceptualExplanation:
       requestKind === MessageRequestKind.CONCEPTUAL,
     askWhatStudentTried: isNoAttemptProblem,
@@ -63,6 +82,71 @@ export function buildTutorResponseRequirements(input: {
     protectExactOriginalSolution: isProtectedProblem,
     evaluateSemanticallyWithoutPhraseMatching: true,
   })
+}
+
+function guidanceShapeRequirements(
+  guidanceLevel: number,
+): TutorGuidanceShapeRequirements {
+  switch (guidanceLevel) {
+    case 1:
+      return Object.freeze({
+        mode: 'ORIENTATION',
+        minimumConnectedScaffoldMoves: 0,
+        orderedDecompositionRequired: false,
+        preserveEstablishedIntermediateConclusions: false,
+        explainConnectionsBetweenScaffoldMoves: false,
+        singleGuidingQuestionIsSufficient: true,
+        analogousExampleOrNearCompleteScaffoldRequired: false,
+        residualStudentWork:
+          'The student chooses a starting point or identifies the relevant structure.',
+        generationInstruction:
+          'Orient the student to the task or a starting point without supplying the target inference.',
+      })
+    case 2:
+      return Object.freeze({
+        mode: 'FOCUSED_HINT',
+        minimumConnectedScaffoldMoves: 1,
+        orderedDecompositionRequired: false,
+        preserveEstablishedIntermediateConclusions: false,
+        explainConnectionsBetweenScaffoldMoves: false,
+        singleGuidingQuestionIsSufficient: true,
+        analogousExampleOrNearCompleteScaffoldRequired: false,
+        residualStudentWork:
+          'The student infers the target correction or next reasoning step from one focused clue.',
+        generationInstruction:
+          'Give one focused clue about the relevant concept, condition, location, or example, then request one meaningful student reasoning action.',
+      })
+    case 3:
+      return Object.freeze({
+        mode: 'GUIDED_DECOMPOSITION',
+        minimumConnectedScaffoldMoves: 2,
+        orderedDecompositionRequired: true,
+        preserveEstablishedIntermediateConclusions: true,
+        explainConnectionsBetweenScaffoldMoves: true,
+        singleGuidingQuestionIsSufficient: false,
+        analogousExampleOrNearCompleteScaffoldRequired: false,
+        residualStudentWork:
+          'The student completes at least one meaningful reasoning step after the ordered scaffold.',
+        generationInstruction:
+          'Carry forward conclusions the student has already established, then provide at least two connected scaffold moves in reasoning order and explain how they connect. End with one meaningful step for the student. A confirmation plus one guiding question, or one focused hint plus one question, is insufficient. The ordered scaffold need not be numbered and must remain within Reveal Policy and guard limits.',
+      })
+    case 4:
+      return Object.freeze({
+        mode: 'STRONG_GUIDANCE',
+        minimumConnectedScaffoldMoves: 3,
+        orderedDecompositionRequired: true,
+        preserveEstablishedIntermediateConclusions: true,
+        explainConnectionsBetweenScaffoldMoves: true,
+        singleGuidingQuestionIsSufficient: false,
+        analogousExampleOrNearCompleteScaffoldRequired: true,
+        residualStudentWork:
+          'The student completes the protected final inference, result, or implementation work required by Reveal Policy and guard policy.',
+        generationInstruction:
+          'Provide visibly more support than Guided Decomposition through a bounded analogous worked example or a near-complete connected scaffold. Preserve established conclusions and intermediate connections, but leave every answer, result, code, or solution element protected by Reveal Policy and guard policy for the student.',
+      })
+  }
+
+  return guidanceShapeRequirements(1)
 }
 
 function normalizeGuidanceLevel(level: number): number {

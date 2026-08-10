@@ -1,4 +1,4 @@
-export const TUTOR_GENERATION_PROMPT_VERSION = 'tutor-generation.mvp.v3'
+export const TUTOR_GENERATION_PROMPT_VERSION = 'tutor-generation.mvp.v4'
 
 export interface TutorPromptDefinition {
   readonly id: typeof TUTOR_GENERATION_PROMPT_VERSION

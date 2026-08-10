@@ -109,6 +109,8 @@ describe('tutor prompt builder', () => {
       expected: [
         '"identifyLikelyMisconception":true',
         '"meaningfulGuidingQuestionCount":1',
+        '"mode":"FOCUSED_HINT"',
+        '"singleGuidingQuestionIsSufficient":true',
       ],
     },
     {
@@ -118,6 +120,11 @@ describe('tutor prompt builder', () => {
       expected: [
         '"acknowledgeStudentSupportedCorrectWork":true',
         '"identifyNextReasoningStepWithoutSolving":true',
+        '"mode":"GUIDED_DECOMPOSITION"',
+        '"minimumConnectedScaffoldMoves":2',
+        '"orderedDecompositionRequired":true',
+        '"singleGuidingQuestionIsSufficient":false',
+        'A confirmation plus one guiding question',
       ],
     },
     {
@@ -127,6 +134,10 @@ describe('tutor prompt builder', () => {
       expected: [
         '"analogousWorkedExampleOrBoundedStrongGuidance":true',
         '"protectExactOriginalSolution":true',
+        '"mode":"STRONG_GUIDANCE"',
+        '"minimumConnectedScaffoldMoves":3',
+        '"analogousExampleOrNearCompleteScaffoldRequired":true',
+        'visibly more support than Guided Decomposition',
       ],
     },
   ])(

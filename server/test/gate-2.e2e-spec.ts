@@ -483,7 +483,7 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
         expect(tutorModel.requests).toHaveLength(1)
         const providerInput = tutorModel.requests[0]
         expect(providerInput).toMatchObject({
-          promptVersion: 'tutor-generation.mvp.v3',
+          promptVersion: 'tutor-generation.mvp.v4',
           responseSchemaName: 'CandidateResponse',
         })
         expect(providerInput.messages[1].content).toContain(
@@ -508,7 +508,7 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
           status: 'COMPLETED',
           provider: 'e2e-controllable-tutor',
           model: 'e2e-controllable-tutor-v1',
-          promptVersion: 'tutor-generation.mvp.v3',
+          promptVersion: 'tutor-generation.mvp.v4',
         })
         expect(persistedAssistant.content).not.toContain(
           GATE_2_FIXTURE.hiddenSentinel,

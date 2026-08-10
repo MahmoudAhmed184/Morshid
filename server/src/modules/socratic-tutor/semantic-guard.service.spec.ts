@@ -127,6 +127,7 @@ describe('SemanticGuardService', () => {
         disclosureContract: { directTargetInferenceAllowed: false },
         functionalResponseRequirements: {
           requestKind: 'CONCEPTUAL',
+          strategyAndTechniqueMustNotReduceGuidanceShape: true,
           supportedConceptualExplanation: true,
           evaluateSemanticallyWithoutPhraseMatching: true,
         },
@@ -173,6 +174,24 @@ describe('SemanticGuardService', () => {
         expect.stringContaining(
           'the violation type MUST be DIRECT_ANSWER_DISCLOSURE',
         ),
+      ]),
+    )
+    expect(Reflect.get(payload, 'adjudicationRules')).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('For GUIDED_DECOMPOSITION'),
+        expect.stringContaining('For STRONG_GUIDANCE'),
+      ]),
+    )
+    expect(Reflect.get(payload, 'semanticCalibrationExamples')).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          policyCondition: 'guidanceShape.mode is GUIDED_DECOMPOSITION',
+          verdict: 'REJECT as GUIDANCE_LEVEL_VIOLATION',
+        }),
+        expect.objectContaining({
+          policyCondition: 'guidanceShape.mode is STRONG_GUIDANCE',
+          verdict: 'REJECT as GUIDANCE_LEVEL_VIOLATION',
+        }),
       ]),
     )
   })
@@ -373,7 +392,7 @@ function candidate(patch: Partial<CandidateResponse> = {}): CandidateResponse {
     },
     provider: 'deterministic',
     model: 'deterministic-tutor',
-    promptVersion: 'tutor-generation.mvp.v3',
+    promptVersion: 'tutor-generation.mvp.v4',
     tokenUsage: { input: 0, output: 0 },
     ...patch,
   }

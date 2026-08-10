@@ -136,11 +136,57 @@ function guardPayload(input: SemanticGuardEvaluationInput) {
       'A short diagnostic, tracing, assertion, or instrumentation snippet is allowed when it does not implement the protected solution and meaningful reasoning remains for the student.',
       'Use MISSING_STUDENT_REASONING when an action is present but only asks the student to copy, confirm, locate, or mechanically apply reasoning already disclosed.',
       'Do not reject direct explanation when the complete trusted disclosure contract permits it.',
+      'Strategy and primaryTechnique select the pedagogical method, but they never replace, narrow, or reduce guidanceShape requirements.',
+      'For GUIDED_DECOMPOSITION, reject confirmation plus one guiding question or one focused hint plus one question as GUIDANCE_LEVEL_VIOLATION; require multiple connected scaffold moves in reasoning order while meaningful student work remains.',
+      'For STRONG_GUIDANCE, reject a response that only satisfies GUIDED_DECOMPOSITION; require a bounded analogous worked example or equivalently near-complete connected scaffold while preserving Reveal Policy and guard policy.',
+      'Do not treat the number of scaffold moves as permission to exceed maximumDisclosedSteps; scaffold moves may be questions, structure, or connections rather than disclosed protected solution steps.',
       'Do not use phrase matching to evaluate functionalResponseRequirements; approve equivalent behavior and reject a materially missing required behavior.',
       'When a positive functional response requirement is missing, use SEMANTIC_POLICY_VIOLATION unless a more specific supported violation type applies.',
       'Course grounding establishes factual support; it does not override Guidance Level, Reveal Policy, or guard policy.',
     ],
     semanticCalibrationExamples: [
+      {
+        policyCondition:
+          'guidanceShape.mode is FOCUSED_HINT and directTargetInferenceAllowed is false',
+        candidateMeaning:
+          'The tutor points to one relevant comparison condition and asks the learner to infer when an update should occur.',
+        residualStudentWork:
+          'Infer the target condition from the single focused clue.',
+        verdict: 'APPROVE when all other checks pass',
+      },
+      {
+        policyCondition: 'guidanceShape.mode is GUIDED_DECOMPOSITION',
+        candidateMeaning:
+          'The tutor acknowledges an established initialization conclusion and then asks only one question about the update condition.',
+        residualStudentWork:
+          'Infer one condition from a single focused prompt; no ordered decomposition was provided.',
+        verdict: 'REJECT as GUIDANCE_LEVEL_VIOLATION',
+      },
+      {
+        policyCondition: 'guidanceShape.mode is GUIDED_DECOMPOSITION',
+        candidateMeaning:
+          'The tutor preserves the established initialization, connects it to scanning only the remaining items, and connects each comparison to the running candidate before leaving the update condition for the learner.',
+        residualStudentWork:
+          'Infer and explain the update condition after multiple connected scaffold moves.',
+        verdict: 'APPROVE when all other checks pass',
+      },
+      {
+        policyCondition: 'guidanceShape.mode is STRONG_GUIDANCE',
+        candidateMeaning:
+          'The tutor provides only the same connected decomposition required at Level 3 without an analogous example or near-complete scaffold.',
+        residualStudentWork:
+          'Complete the same amount of reasoning expected after Guided Decomposition.',
+        verdict: 'REJECT as GUIDANCE_LEVEL_VIOLATION',
+      },
+      {
+        policyCondition:
+          'guidanceShape.mode is STRONG_GUIDANCE and protected answers remain prohibited',
+        candidateMeaning:
+          'The tutor walks through the state transitions of a different example and maps that pattern back to the original task, leaving the protected original result or implementation for the learner.',
+        residualStudentWork:
+          'Apply the demonstrated reasoning pattern to produce the protected original inference.',
+        verdict: 'APPROVE when all other checks pass',
+      },
       {
         policyCondition: 'directTargetInferenceAllowed is false',
         acceptedMisconceptionMeaning:

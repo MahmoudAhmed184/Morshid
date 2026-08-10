@@ -86,11 +86,11 @@ function requiredStudentWork(guidanceLevel: number): string {
     case 1:
       return 'Ask the student to inspect the relevant structure or choose a starting point; do not state the target inference first.'
     case 2:
-      return 'Point to one relevant concept, condition, location, or example while preserving the target inference for the student.'
+      return 'Give one focused clue about a relevant concept, condition, location, or example while preserving the target inference for the student.'
     case 3:
-      return 'Guide an ordered substep and leave at least one meaningful reasoning step for the student.'
+      return 'Carry forward established student conclusions and guide at least two connected moves in reasoning order, explaining their connection while leaving at least one meaningful reasoning step for the student. One focused hint or guiding question alone is insufficient.'
     case 4:
-      return 'Provide substantial scaffolding while preserving every restriction that remains in Reveal Policy and guard policy.'
+      return 'Provide visibly more support than Guided Decomposition through a bounded analogous worked example or near-complete connected scaffold while preserving every restriction in Reveal Policy and guard policy.'
   }
 
   return 'Leave one meaningful reasoning step for the student.'
