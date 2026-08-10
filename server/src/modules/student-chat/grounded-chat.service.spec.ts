@@ -26,11 +26,17 @@ import {
   GROUNDING_FAILED_CONTENT,
   GroundedChatService,
 } from './grounded-chat.service'
+import { AutomaticSafetyRiskDetector } from '../output-policy/automatic-safety-risk.detector'
+import { ControlledSourceConflictDetector } from '../output-policy/controlled-source-conflict.detector'
+import { OutputPolicyService } from '../output-policy/output-policy.service'
+import { CorrectnessSensitiveRequestClassifier } from './correctness-sensitive-request.classifier'
 import { StudentChatMessagePresenter } from './student-chat-message.presenter'
 import type { ChatMessageRecord } from './student-chat.repository.types'
 import type { StudentChatService } from './student-chat.service'
 import type { SocraticChatOrchestrator } from './socratic-chat.orchestrator'
 import type { SocraticOrchestrationResult } from './socratic-chat.types'
+import type { RetrievalService } from '../retrieval/retrieval.service'
+import type { CompletionProvider } from '../completion/completion-provider'
 
 const courseId = '17d1a78d-60be-4f5f-a03d-e3ee326ec796'
 const sessionId = 'eff4bf27-cce3-45d9-b245-4f1d913f0a27'
@@ -115,6 +121,13 @@ describe('GroundedChatService', () => {
       orchestrate: socraticOrchestrate,
     } as unknown as SocraticChatOrchestrator
 
+    const retrievalService = {
+      retrieveCourseEvidence: jest.fn(),
+    } as unknown as RetrievalService
+    const completionProvider = {
+      complete: jest.fn(),
+    } as unknown as CompletionProvider
+
     service = new GroundedChatService(
       studentChatService,
       turnRepository,
@@ -122,14 +135,22 @@ describe('GroundedChatService', () => {
       socraticOrchestrator,
       {
         message: {
-          findUnique: jest.fn().mockImplementation(({ where }) =>
-            Promise.resolve({
-              ...studentMessage(),
-              id: (where as { id: string }).id,
-            }),
-          ),
+          findUnique: jest.fn().mockImplementation(({ where }) => {
+            const targetId = (where as { id: string }).id
+            if (targetId === studentMessageId) {
+              return Promise.resolve(studentMessage())
+            }
+            return Promise.resolve(null)
+          }),
         },
       } as unknown as PrismaService,
+      new AutomaticSafetyRiskDetector(),
+      new ControlledSourceConflictDetector(),
+      new OutputPolicyService(),
+      { createRequiredReview: jest.fn().mockResolvedValue(null) } as never,
+      new CorrectnessSensitiveRequestClassifier(),
+      retrievalService,
+      completionProvider,
     )
   })
 
@@ -152,6 +173,7 @@ describe('GroundedChatService', () => {
       sessionId,
       studentId: user.id,
       content: 'Explain list iteration',
+      requestKind: MessageRequestKind.CONCEPTUAL,
     })
     expect(socraticOrchestrate).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -203,6 +225,7 @@ describe('GroundedChatService', () => {
       sessionId,
       studentId: user.id,
       content: 'Explain list iteration',
+      requestKind: MessageRequestKind.CONCEPTUAL,
     })
     expect(socraticOrchestrate).not.toHaveBeenCalled()
   })
@@ -248,7 +271,7 @@ describe('GroundedChatService', () => {
     const response = await service.send(
       courseId,
       sessionId,
-      { content: 'Question text must not become an error' },
+      { content: 'Explain list iteration safely' },
       user,
     )
 

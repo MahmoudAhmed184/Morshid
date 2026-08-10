@@ -162,6 +162,9 @@ function shouldApplyCodeDiagnosisBoundary(
   studentMessage: string,
   assessment: RejectedPythonCodeDiagnosisBoundaryAssessment,
 ): boolean {
+  if (assessment.state === 'CLEARLY_NON_PYTHON') {
+    return hasPythonCodeDiagnosisIntent(studentMessage, assessment)
+  }
   return (
     assessment.state !== 'INSUFFICIENT_INFORMATION' ||
     hasPythonCodeDiagnosisIntent(studentMessage, assessment)

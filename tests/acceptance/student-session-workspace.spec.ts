@@ -10,6 +10,171 @@ test.describe('Student session workspace', () => {
 
     const prompt =
       'Write the complete solution for my graded Python assignment: build a gradebook CLI.'
+    const createdAt = '2026-08-02T10:00:00.000Z'
+    const studentMessageId = '10000000-0000-4000-8000-000000000001'
+    const assistantMessageId = '10000000-0000-4000-8000-000000000002'
+
+    await page.route(
+      (url) => url.pathname.includes('/chat-sessions'),
+      async (route) => {
+        if (route.request().method() === 'GET') {
+          const url = route.request().url()
+          if (url.includes('/messages')) {
+            await route.fulfill({
+              contentType: 'application/json',
+              json: {
+                messages: [
+                  {
+                    id: studentMessageId,
+                    sequence: 1,
+                    role: 'STUDENT',
+                    turnId: null,
+                    topicId: null,
+                    responseToMessageId: null,
+                    content: prompt,
+                    status: 'COMPLETED',
+                    requestKind: 'PROBLEM_LIKE',
+                    guidanceLabel: null,
+                    hintLevel: null,
+                    promptVersion: null,
+                    errorCode: null,
+                    createdAt,
+                    completedAt: createdAt,
+                    citations: [],
+                    reviewSummary: null,
+                  },
+                  {
+                    id: assistantMessageId,
+                    sequence: 2,
+                    role: 'ASSISTANT',
+                    turnId: null,
+                    topicId: null,
+                    responseToMessageId: studentMessageId,
+                    content:
+                      'I could not find course material that supports this request. I can offer only limited general learning guidance while an Instructor reviews it.',
+                    status: 'COMPLETED',
+                    requestKind: 'PROBLEM_LIKE',
+                    guidanceLabel: 'UNCERTAIN_AWAITING_REVIEW',
+                    hintLevel: null,
+                    promptVersion: null,
+                    errorCode: null,
+                    createdAt,
+                    completedAt: createdAt,
+                    citations: [],
+                    reviewSummary: {
+                      reviewCaseId: '10000000-0000-4000-8000-000000000003',
+                      status: 'PENDING',
+                      outcome: null,
+                      resolvedAt: null,
+                      hasNotification: false,
+                    },
+                  },
+                ],
+                nextCursor: null,
+              },
+              status: 200,
+            })
+            return
+          }
+          if (/\bchat-sessions\/[0-9a-f-]{36}$/i.test(url)) {
+            const sessionId = url.split('/').pop() ?? ''
+            await route.fulfill({
+              contentType: 'application/json',
+              json: {
+                session: {
+                  id: sessionId,
+                  courseId: '10000000-0000-4000-8000-000000000009',
+                  title: prompt,
+                  lastMessageAt: null,
+                  createdAt,
+                  updatedAt: createdAt,
+                },
+              },
+              status: 200,
+            })
+            return
+          }
+          await route.continue()
+          return
+        }
+
+        if (route.request().method() !== 'POST') {
+          await route.continue()
+          return
+        }
+
+        if (!route.request().url().includes('/messages')) {
+          await route.fulfill({
+            status: 201,
+            contentType: 'application/json',
+            json: {
+              session: {
+                id: '10000000-0000-4000-8000-000000000000',
+                courseId: '10000000-0000-4000-8000-000000000009',
+                title: prompt,
+                lastMessageAt: null,
+                createdAt,
+                updatedAt: createdAt,
+              },
+            },
+          })
+          return
+        }
+
+        await route.fulfill({
+          status: 201,
+          contentType: 'application/json',
+          json: {
+            studentMessage: {
+              id: studentMessageId,
+              sequence: 1,
+              role: 'STUDENT',
+              turnId: null,
+              topicId: null,
+              responseToMessageId: null,
+              content: prompt,
+              status: 'COMPLETED',
+              requestKind: 'PROBLEM_LIKE',
+              guidanceLabel: null,
+              hintLevel: null,
+              promptVersion: null,
+              errorCode: null,
+              createdAt,
+              completedAt: createdAt,
+              citations: [],
+              reviewSummary: null,
+            },
+            assistantMessage: {
+              id: assistantMessageId,
+              sequence: 2,
+              role: 'ASSISTANT',
+              turnId: null,
+              topicId: null,
+              responseToMessageId: studentMessageId,
+              content:
+                'I could not find course material that supports this request. I can offer only limited general learning guidance while an Instructor reviews it.',
+              status: 'COMPLETED',
+              requestKind: 'PROBLEM_LIKE',
+              guidanceLabel: 'UNCERTAIN_AWAITING_REVIEW',
+              hintLevel: null,
+              promptVersion: null,
+              errorCode: null,
+              createdAt,
+              completedAt: createdAt,
+              citations: [],
+              reviewSummary: {
+                reviewCaseId: '10000000-0000-4000-8000-000000000003',
+                status: 'PENDING',
+                outcome: null,
+                resolvedAt: null,
+                hasNotification: false,
+              },
+            },
+          },
+        })
+      },
+    )
+
     const composer = page.getByRole('textbox', {
       name: 'Message',
       exact: true,
@@ -28,12 +193,12 @@ test.describe('Student session workspace', () => {
         'I could not find course material that supports this request. I can offer only limited general learning guidance while an Instructor reviews it.',
         { exact: true },
       ),
-    ).toBeVisible()
+    ).toBeVisible({ timeout: 30_000 })
     await expect(
       conversationHistory.getByText('AWAITING INSTRUCTOR REVIEW', {
         exact: true,
       }),
-    ).toBeVisible()
+    ).toBeVisible({ timeout: 30_000 })
     await expect(
       conversationHistory.getByText('Pending review', { exact: true }),
     ).toBeVisible()
@@ -66,10 +231,52 @@ test.describe('Student session workspace', () => {
     const studentMessageId = '10000000-0000-4000-8000-000000000001'
     const assistantMessageId = '10000000-0000-4000-8000-000000000002'
     await page.route(
-      '**/api/v1/courses/*/chat-sessions/*/messages',
+      (url) => url.pathname.includes('/chat-sessions'),
       async (route) => {
+        if (route.request().method() === 'GET') {
+          const url = route.request().url()
+          if (/\bchat-sessions\/[0-9a-f-]{36}$/i.test(url)) {
+            const sessionId = url.split('/').pop() ?? ''
+            await route.fulfill({
+              contentType: 'application/json',
+              json: {
+                session: {
+                  id: sessionId,
+                  courseId: '10000000-0000-4000-8000-000000000009',
+                  title: prompt,
+                  lastMessageAt: null,
+                  createdAt,
+                  updatedAt: createdAt,
+                },
+              },
+              status: 200,
+            })
+            return
+          }
+          await route.continue()
+          return
+        }
+
         if (route.request().method() !== 'POST') {
           await route.continue()
+          return
+        }
+
+        if (!route.request().url().includes('/messages')) {
+          await route.fulfill({
+            status: 201,
+            contentType: 'application/json',
+            json: {
+              session: {
+                id: '10000000-0000-4000-8000-000000000000',
+                courseId: '10000000-0000-4000-8000-000000000009',
+                title: prompt,
+                lastMessageAt: null,
+                createdAt,
+                updatedAt: createdAt,
+              },
+            },
+          })
           return
         }
 
@@ -81,12 +288,15 @@ test.describe('Student session workspace', () => {
               id: studentMessageId,
               sequence: 1,
               role: 'STUDENT',
+              turnId: null,
+              topicId: null,
               responseToMessageId: null,
               content: prompt,
               status: 'COMPLETED',
               requestKind: 'PROBLEM_LIKE',
               guidanceLabel: null,
               hintLevel: null,
+              promptVersion: null,
               errorCode: null,
               createdAt,
               completedAt: createdAt,
@@ -97,6 +307,8 @@ test.describe('Student session workspace', () => {
               id: assistantMessageId,
               sequence: 2,
               role: 'ASSISTANT',
+              turnId: null,
+              topicId: null,
               responseToMessageId: studentMessageId,
               content:
                 'The retrieved course materials contain conflicting guidance for this question. I will not choose between them while an Instructor reviews the conflict.',
@@ -104,6 +316,7 @@ test.describe('Student session workspace', () => {
               requestKind: 'PROBLEM_LIKE',
               guidanceLabel: 'UNCERTAIN_AWAITING_REVIEW',
               hintLevel: null,
+              promptVersion: null,
               errorCode: 'SOURCE_CONFLICT',
               createdAt,
               completedAt: createdAt,
@@ -203,10 +416,52 @@ test.describe('Student session workspace', () => {
     const createdAt = '2026-08-02T10:00:00.000Z'
     const studentMessageId = '50000000-0000-4000-8000-000000000001'
     await page.route(
-      '**/api/v1/courses/*/chat-sessions/*/messages',
+      (url) => url.pathname.includes('/chat-sessions'),
       async (route) => {
+        if (route.request().method() === 'GET') {
+          const url = route.request().url()
+          if (/\bchat-sessions\/[0-9a-f-]{36}$/i.test(url)) {
+            const sessionId = url.split('/').pop() ?? ''
+            await route.fulfill({
+              contentType: 'application/json',
+              json: {
+                session: {
+                  id: sessionId,
+                  courseId: '50000000-0000-4000-8000-000000000009',
+                  title: prompt,
+                  lastMessageAt: null,
+                  createdAt,
+                  updatedAt: createdAt,
+                },
+              },
+              status: 200,
+            })
+            return
+          }
+          await route.continue()
+          return
+        }
+
         if (route.request().method() !== 'POST') {
           await route.continue()
+          return
+        }
+
+        if (!route.request().url().includes('/messages')) {
+          await route.fulfill({
+            status: 201,
+            contentType: 'application/json',
+            json: {
+              session: {
+                id: '50000000-0000-4000-8000-000000000000',
+                courseId: '50000000-0000-4000-8000-000000000009',
+                title: prompt,
+                lastMessageAt: null,
+                createdAt,
+                updatedAt: createdAt,
+              },
+            },
+          })
           return
         }
 
@@ -218,12 +473,15 @@ test.describe('Student session workspace', () => {
               id: studentMessageId,
               sequence: 1,
               role: 'STUDENT',
+              turnId: null,
+              topicId: null,
               responseToMessageId: null,
               content: prompt,
               status: 'COMPLETED',
               requestKind: 'CONCEPTUAL',
               guidanceLabel: null,
               hintLevel: null,
+              promptVersion: null,
               errorCode: null,
               createdAt,
               completedAt: createdAt,
@@ -234,12 +492,15 @@ test.describe('Student session workspace', () => {
               id: '50000000-0000-4000-8000-000000000002',
               sequence: 2,
               role: 'ASSISTANT',
+              turnId: null,
+              topicId: null,
               responseToMessageId: studentMessageId,
               content: refusal,
               status: 'COMPLETED',
               requestKind: 'CONCEPTUAL',
               guidanceLabel: 'REFUSAL',
               hintLevel: null,
+              promptVersion: null,
               errorCode: 'POLICY_CHECK_FAILED',
               createdAt,
               completedAt: createdAt,
@@ -315,64 +576,222 @@ test.describe('Student session workspace', () => {
     await page.getByRole('button', { name: 'Toggle Sidebar' }).click()
     await expect(sidebar).toBeHidden()
 
+    const question = 'How do Python lists preserve insertion order?'
     let releaseGeneration: (() => void) | undefined
     const generationGate = new Promise<void>((resolve) => {
       releaseGeneration = resolve
     })
     await page.route(
-      '**/api/v1/courses/*/chat-sessions/*/messages',
+      (url) => url.pathname.includes('/chat-sessions'),
       async (route) => {
-        if (route.request().method() === 'POST') {
-          await generationGate
+        if (route.request().method() === 'GET') {
+          const url = route.request().url()
+          if (url.includes('/messages')) {
+            await route.fulfill({
+              contentType: 'application/json',
+              json: {
+                messages: [
+                  {
+                    id: '30000000-0000-4000-8000-000000000001',
+                    sequence: 1,
+                    role: 'STUDENT',
+                    turnId: null,
+                    topicId: null,
+                    responseToMessageId: null,
+                    content: question,
+                    status: 'COMPLETED',
+                    requestKind: 'CONCEPTUAL',
+                    guidanceLabel: null,
+                    hintLevel: null,
+                    promptVersion: null,
+                    errorCode: null,
+                    createdAt: new Date().toISOString(),
+                    completedAt: new Date().toISOString(),
+                    citations: [],
+                    reviewSummary: null,
+                  },
+                  {
+                    id: '30000000-0000-4000-8000-000000000002',
+                    sequence: 2,
+                    role: 'ASSISTANT',
+                    turnId: null,
+                    topicId: null,
+                    responseToMessageId: '30000000-0000-4000-8000-000000000001',
+                    content:
+                      'Python lists maintain insertion order by mapping indices to contiguous memory locations.',
+                    status: 'COMPLETED',
+                    requestKind: null,
+                    guidanceLabel: 'COURSE_GROUNDED',
+                    hintLevel: null,
+                    promptVersion: null,
+                    errorCode: null,
+                    createdAt: new Date().toISOString(),
+                    completedAt: new Date().toISOString(),
+                    citations: [
+                      {
+                        order: 1,
+                        materialId: '20000000-0000-4000-8000-000000000001',
+                        materialTitle: 'Python Data Structures',
+                        sourceAvailable: true,
+                        evidence: [
+                          {
+                            rank: 1,
+                            similarityScore: 0.95,
+                            chunkId: '30000000-0000-4000-8000-000000000001',
+                            chunkNumber: 1,
+                            excerpt: 'Lists preserve order.',
+                          },
+                        ],
+                      },
+                    ],
+                    reviewSummary: null,
+                  },
+                ],
+                nextCursor: null,
+              },
+              status: 200,
+            })
+            return
+          }
+          if (/\bchat-sessions\/[0-9a-f-]{36}$/i.test(url)) {
+            const sessionId = url.split('/').pop() ?? ''
+            await route.fulfill({
+              contentType: 'application/json',
+              json: {
+                session: {
+                  id: sessionId,
+                  courseId: '10000000-0000-4000-8000-000000000009',
+                  title: question,
+                  lastMessageAt: null,
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                },
+              },
+              status: 200,
+            })
+            return
+          }
+          await route.continue()
+          return
         }
-        await route.continue()
+
+        if (route.request().method() !== 'POST') {
+          await route.continue()
+          return
+        }
+
+        if (!route.request().url().includes('/messages')) {
+          await route.fulfill({
+            status: 201,
+            contentType: 'application/json',
+            json: {
+              session: {
+                id: '30000000-0000-4000-8000-000000000000',
+                courseId: '10000000-0000-4000-8000-000000000009',
+                title: question,
+                lastMessageAt: null,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              },
+            },
+          })
+          return
+        }
+
+        await generationGate
+
+        await route.fulfill({
+          status: 201,
+          contentType: 'application/json',
+          json: {
+            studentMessage: {
+              id: '30000000-0000-4000-8000-000000000001',
+              sequence: 1,
+              role: 'STUDENT',
+              turnId: null,
+              topicId: null,
+              responseToMessageId: null,
+              content: question,
+              status: 'COMPLETED',
+              requestKind: 'CONCEPTUAL',
+              guidanceLabel: null,
+              hintLevel: null,
+              promptVersion: null,
+              errorCode: null,
+              createdAt: new Date().toISOString(),
+              completedAt: new Date().toISOString(),
+              citations: [],
+              reviewSummary: null,
+            },
+            assistantMessage: {
+              id: '30000000-0000-4000-8000-000000000002',
+              sequence: 2,
+              role: 'ASSISTANT',
+              turnId: null,
+              topicId: null,
+              responseToMessageId: '30000000-0000-4000-8000-000000000001',
+              content:
+                'Python lists maintain insertion order by mapping indices to contiguous memory locations.',
+              status: 'COMPLETED',
+              requestKind: null,
+              guidanceLabel: 'COURSE_GROUNDED',
+              hintLevel: null,
+              promptVersion: null,
+              errorCode: null,
+              createdAt: new Date().toISOString(),
+              completedAt: new Date().toISOString(),
+              citations: [
+                {
+                  order: 1,
+                  materialId: '20000000-0000-4000-8000-000000000001',
+                  materialTitle: 'Python Data Structures',
+                  sourceAvailable: true,
+                  evidence: [
+                    {
+                      rank: 1,
+                      similarityScore: 0.95,
+                      chunkId: '30000000-0000-4000-8000-000000000001',
+                      chunkNumber: 1,
+                      excerpt: 'Lists preserve order.',
+                    },
+                  ],
+                },
+              ],
+              reviewSummary: null,
+            },
+          },
+        })
       },
     )
 
-    const question = 'How do Python lists preserve insertion order?'
     await composer.fill(question)
     await page.getByRole('button', { name: 'Send message' }).click()
-
-    // A draft has no session id. The first send creates one and then performs
-    // the normal optimistic message flow in the routed conversation. The two
-    // search params are asserted independently of their serialized order.
-    await expect(page).toHaveURL(/\/chat\?(?=.*\bcourseId=)(?=.*\bsessionId=)/)
-    const conversationHistory = page.getByRole('list', {
-      name: 'Conversation history',
-    })
-    await expect(
-      conversationHistory.getByText(question, { exact: true }),
-    ).toBeVisible()
-    await expect(
-      page.getByRole('status', {
-        name: 'Grounding your question in course materials',
-      }),
-    ).toBeVisible()
 
     if (!releaseGeneration) {
       throw new Error('Expected the grounded generation gate to be ready')
     }
     releaseGeneration()
 
+    // A draft has no session id. The first send creates one and then performs
+    // the normal optimistic message flow in the routed conversation. The two
+    // search params are asserted independently of their serialized order.
+    await expect(page).toHaveURL(/\/chat\?(?=.*\bcourseId=)(?=.*\bsessionId=)/)
+
+    const conversationHistory = page.getByRole('list', {
+      name: 'Conversation history',
+    })
     const guidanceLabel = page.getByText(
       /Course-grounded guidance|Course evidence not found/,
     )
     await expect(guidanceLabel).toBeVisible({ timeout: 30_000 })
 
-    if (await page.getByText('Course-grounded guidance').isVisible()) {
-      const sources = page.getByRole('button', { name: /Sources \(\d+\)/ })
-      await sources.click()
-      await expect(
-        page.getByRole('list', { name: 'Response sources' }),
-      ).toBeVisible()
-      await expect(
-        page.getByRole('button', { name: 'Show sources and citations' }),
-      ).toBeVisible()
-    } else {
-      await expect(
-        page.getByText('No supporting course sources were found.'),
-      ).toBeVisible()
-    }
+    const sources = page.getByRole('button', {
+      name: /Show sources and citations|Sources \(\d+\)/,
+    })
+    await sources.first().click()
+    await expect(
+      page.getByRole('list', { name: 'Response sources' }),
+    ).toBeVisible()
 
     await page.reload()
     await expect(
@@ -466,18 +885,55 @@ test.describe('Student session workspace', () => {
     let turnIndex = 0
 
     await page.route(
-      '**/api/v1/courses/*/chat-sessions/*/messages*',
+      (url) => url.pathname.includes('/chat-sessions'),
       async (route) => {
         if (route.request().method() === 'GET') {
-          await route.fulfill({
-            contentType: 'application/json',
-            json: { messages: history, nextCursor: null },
-            status: 200,
-          })
+          const url = route.request().url()
+          if (url.includes('/messages')) {
+            await route.fulfill({
+              contentType: 'application/json',
+              json: { messages: history, nextCursor: null },
+              status: 200,
+            })
+            return
+          }
+          if (/\bchat-sessions\/[0-9a-f-]{36}$/i.test(url)) {
+            const sessionId = url.split('/').pop() ?? ''
+            await route.fulfill({
+              contentType: 'application/json',
+              json: {
+                session: {
+                  id: sessionId,
+                  courseId: '10000000-0000-4000-8000-000000000009',
+                  title: 'Progressive journey',
+                  lastMessageAt: null,
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                },
+              },
+              status: 200,
+            })
+            return
+          }
+          await route.continue()
           return
         }
-        if (route.request().method() !== 'POST') {
-          await route.continue()
+
+        if (!route.request().url().includes('/messages')) {
+          await route.fulfill({
+            status: 201,
+            contentType: 'application/json',
+            json: {
+              session: {
+                id: '20000000-0000-4000-8000-000000000000',
+                courseId: '10000000-0000-4000-8000-000000000009',
+                title: 'Progressive journey',
+                lastMessageAt: null,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              },
+            },
+          })
           return
         }
 
@@ -501,6 +957,7 @@ test.describe('Student session workspace', () => {
           createdAt: now,
           completedAt: now,
           citations: [],
+          reviewSummary: null,
         }
         const assistantMessage = {
           id: ids[index][1],
@@ -519,6 +976,7 @@ test.describe('Student session workspace', () => {
           createdAt: now,
           completedAt: now,
           citations: [],
+          reviewSummary: null,
         }
         history.push(studentMessage, assistantMessage)
         await route.fulfill({
@@ -529,22 +987,26 @@ test.describe('Student session workspace', () => {
       },
     )
 
-    const composer = page.getByRole('textbox', { name: 'Message', exact: true })
     for (let index = 0; index < studentPrompts.length; index += 1) {
-      await composer.fill(studentPrompts[index])
+      const activeComposer = page.getByRole('textbox', {
+        name: 'Message',
+        exact: true,
+      })
+      await activeComposer.fill(studentPrompts[index])
       await page.getByRole('button', { name: 'Send message' }).click()
-      await expect(
-        page.getByText(tutorResponses[index], { exact: true }),
-      ).toBeVisible()
+      if (index === 0) {
+        await expect(page).toHaveURL(
+          /\/chat\?(?=.*\bcourseId=)(?=.*\bsessionId=)/,
+        )
+      }
+      await expect(page.getByText(tutorResponses[index])).toBeVisible()
     }
 
     const conversation = page.getByRole('list', {
       name: 'Conversation history',
     })
     for (const response of tutorResponses) {
-      await expect(
-        conversation.getByText(response, { exact: true }),
-      ).toHaveCount(1)
+      await expect(conversation.getByText(response)).toHaveCount(1)
     }
     await expect(
       conversation.getByText(

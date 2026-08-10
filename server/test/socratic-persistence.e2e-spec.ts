@@ -207,7 +207,7 @@ describe('Socratic persistence schema (e2e)', () => {
     } finally {
       await compatibilityDatabase?.dispose()
     }
-  })
+  }, 30000)
 })
 
 async function createChatFixture(prisma: PrismaService): Promise<ChatFixture> {

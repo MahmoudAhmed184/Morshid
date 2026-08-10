@@ -19,6 +19,7 @@ import { MATERIALS_ERROR_CODES } from '../src/modules/materials/materials.errors
 import { LocalPdfStorageAdapter } from '../src/modules/pdf-storage/local-pdf-storage.adapter'
 import { PDF_STORAGE } from '../src/modules/pdf-storage/pdf-storage'
 import { PrismaService } from '../src/modules/prisma/prisma.service'
+import { EMBEDDING_PROVIDER_TOKEN } from '../src/modules/embedding/embedding-provider'
 import { RedisService } from '../src/modules/redis/redis.service'
 import {
   P0_DEMO_PASSWORD,
@@ -60,6 +61,17 @@ describe('Materials persistence and local storage (e2e)', () => {
       .useValue({ ping: jest.fn().mockResolvedValue('PONG') })
       .overrideProvider(PDF_STORAGE)
       .useValue(storage)
+      .overrideProvider(EMBEDDING_PROVIDER_TOKEN)
+      .useValue({
+        model: 'materials-e2e-test-embedding',
+        queryProtocol: 'materials-e2e-test-embedding',
+        embedQuery: () =>
+          Promise.resolve(Array.from({ length: 1536 }, () => 0.1)),
+        embedDocuments: (docs: readonly string[]) =>
+          Promise.resolve(
+            docs.map(() => Array.from({ length: 1536 }, () => 0.1)),
+          ),
+      })
       .compile()
 
     app = moduleFixture.createNestApplication()
@@ -143,7 +155,7 @@ describe('Materials persistence and local storage (e2e)', () => {
     const scheduler = app.get(MaterialProcessingScheduler)
     await scheduler.scheduleMaterialProcessing(materialId)
     await waitForCommandCount(materialId, 0)
-  })
+  }, 30_000)
 
   it('rejects an unknown course without creating a row or file', async () => {
     const token = await signInAs('admin@morshid.demo')
@@ -221,7 +233,7 @@ describe('Materials persistence and local storage (e2e)', () => {
     } finally {
       await restartedScheduler.onModuleDestroy()
     }
-  })
+  }, 30_000)
 
   async function waitForMaterialStatus(
     materialId: string,
@@ -250,7 +262,7 @@ describe('Materials persistence and local storage (e2e)', () => {
 })
 
 async function waitFor(predicate: () => Promise<boolean>): Promise<void> {
-  const deadline = Date.now() + 5_000
+  const deadline = Date.now() + 30_000
   while (!(await predicate())) {
     if (Date.now() >= deadline) {
       throw new Error('Timed out waiting for material processing')

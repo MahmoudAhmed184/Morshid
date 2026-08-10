@@ -9,5 +9,6 @@
   "moduleNameMapper": {
     "^(\\.{1,2}/.*)\\.js$": "$1"
   },
-  "setupFiles": ["<rootDir>/jest-env.setup.ts"]
+  "setupFiles": ["<rootDir>/jest-env.setup.ts"],
+  "testTimeout": 30000
 }

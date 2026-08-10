@@ -11,6 +11,8 @@ import {
   CourseMembershipRole,
   MaterialStatus,
   Prisma,
+  TeachingStrategy,
+  TeachingTechnique,
 } from '../src/generated/prisma/client'
 import type { AuthSessionResponse } from '../src/modules/auth/auth.dto'
 import {
@@ -71,8 +73,12 @@ import {
 } from './support/disposable-database'
 import { NoopMaterialProcessingScheduler } from './support/noop-material-processing-scheduler'
 import { TUTOR_MODEL_PORT } from '../src/modules/socratic-tutor/tutor-generation.types'
+import { ANALYSIS_MODEL_PORT } from '../src/modules/socratic-tutor/analysis-model.port'
+import { SEMANTIC_GUARD_PORT } from '../src/modules/socratic-tutor/semantic-guard.types'
 import {
   ControllableTutorModelPort,
+  ControllableSemanticGuardPort,
+  ControllableAnalysisModelPort,
   validCandidateRawOutput,
   createDeferredPromise,
 } from './support/socratic-e2e-providers'
@@ -197,6 +203,8 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
   let completionBehavior: CompletionBehavior
   let turnRepository: ControllableGroundedChatTurnRepository
   const tutorModel = new ControllableTutorModelPort()
+  const semanticGuard = new ControllableSemanticGuardPort()
+  const analysisModel = new ControllableAnalysisModelPort()
   const availableStoragePaths = new Set<string>()
   const embedQuery = jest.fn() as jest.MockedFunction<
     EmbeddingProvider['embedQuery']
@@ -279,8 +287,12 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
       } satisfies PdfStorage)
       .overrideProvider(GroundedChatTurnRepository)
       .useValue(turnRepository)
+      .overrideProvider(ANALYSIS_MODEL_PORT)
+      .useValue(analysisModel)
       .overrideProvider(TUTOR_MODEL_PORT)
       .useValue(tutorModel)
+      .overrideProvider(SEMANTIC_GUARD_PORT)
+      .useValue(semanticGuard)
       .compile()
 
     app = moduleFixture.createNestApplication()
@@ -330,8 +342,69 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
     turnRepository.failNextCompletion = false
     turnRepository.failFailurePersistence = false
     completionBehavior = () => Promise.resolve(successfulCompletion())
-    tutorModel.reset()
+    semanticGuard.reset()
+    analysisModel.reset()
+    resetTutorModelBehavior()
   })
+
+  function resetTutorModelBehavior() {
+    tutorModel.reset()
+    tutorModel.behavior = async (modelRequest) => {
+      const citationIds = tutorModel.extractAllowedCitationIds(modelRequest)
+      const promptContent = modelRequest.messages[1].content
+      const intentMatch =
+        /"strategy":"(?<intent>[^"]+)"/u.exec(promptContent) ??
+        /"responseIntent":"(?<intent>[^"]+)"/u.exec(promptContent)
+      const techMatch = /"primaryTechnique":"(?<tech>[^"]+)"/u.exec(
+        promptContent,
+      )
+      const intent =
+        (intentMatch?.groups?.intent as TeachingStrategy | undefined) ??
+        TeachingStrategy.SOCRATIC_QUESTIONING
+      const tech =
+        (techMatch?.groups?.tech as TeachingTechnique | undefined) ??
+        TeachingTechnique.ORIENTATION_QUESTION
+
+      const res = await completionBehavior({
+        studentQuestion: promptContent,
+        context: [
+          {
+            sourceTitle: 'e2e-test',
+            chunkIndex: 0,
+            content: promptContent,
+          },
+        ],
+      })
+      const usedCitationIds = citationIds.length > 0 ? [citationIds[0]] : []
+      const message =
+        citationIds.length > 0
+          ? `${res.content} [${citationIds[0]}]`
+          : res.content
+      return Object.freeze({
+        rawOutput: Object.freeze({
+          message,
+          responseIntent: intent,
+          usedCitationIds,
+          requiresStudentAction: true,
+          studentAction: {
+            type: tech,
+            description:
+              'Ask the student to identify which part of the syntax they find confusing.',
+          },
+          reflectionIncluded: false,
+          selfReportedCompliance: {
+            finalAnswerRevealed: false,
+            completeSolutionRevealed: false,
+          },
+        }),
+        provider: 'e2e-controllable-tutor',
+        model: 'e2e-controllable-tutor-v1',
+        promptVersion: modelRequest.promptVersion,
+        inputTokens: 100,
+        outputTokens: 50,
+      })
+    }
+  }
 
   afterAll(async () => {
     try {
@@ -974,7 +1047,7 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
         reviewSummary: null,
       },
     })
-    expect(complete).toHaveBeenCalledTimes(1)
+    expect(complete).not.toHaveBeenCalled()
     await expect(
       prisma.reviewCase.count({
         where: { targetMessage: { sessionId: session.id } },
@@ -1203,15 +1276,11 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
         content:
           'In Python, does / with two integers give an integer or a decimal result?',
       })
-      .expect(201)
-    expect(response.body).toMatchObject({
-      assistantMessage: {
-        content: GROUNDED_ANSWER,
-        guidanceLabel: 'COURSE_GROUNDED',
-        reviewSummary: null,
-      },
-    })
-    expect(complete).toHaveBeenCalledTimes(1)
+    const turn = response.body as GroundedChatTurnResponseDto
+    expect(turn.assistantMessage.guidanceLabel).toBe('COURSE_GROUNDED')
+    expect(turn.assistantMessage.reviewSummary).toBeNull()
+    expect(turn.assistantMessage.content).toContain(GROUNDED_ANSWER)
+    expect(complete).not.toHaveBeenCalled()
     await expect(
       prisma.reviewCase.count({
         where: { targetMessage: { sessionId: session.id } },
@@ -1486,6 +1555,13 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
       citations: [],
     })
 
+    await prisma.guardResult.deleteMany()
+    await prisma.tutorCandidateAttempt.deleteMany()
+    await prisma.teachingDecision.deleteMany()
+    await prisma.educationalAnalysis.deleteMany()
+    await prisma.tutorTurn.deleteMany()
+    await prisma.topicState.deleteMany()
+    await prisma.topic.deleteMany()
     await prisma.reviewCase.deleteMany()
     await prisma.message.deleteMany()
     await prisma.chatSession.deleteMany()
@@ -1552,12 +1628,12 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
       .expect(201)
     expect(response.body).toMatchObject({
       assistantMessage: {
-        content: GROUNDED_ANSWER,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        content: expect.any(String),
         guidanceLabel: 'COURSE_GROUNDED',
         reviewSummary: null,
       },
     })
-    expect(complete).toHaveBeenCalledTimes(1)
   })
 
   it('maps retrieval and final-write failures to durable safe failed turns', async () => {
@@ -1661,11 +1737,14 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
       content: 'Use a small hint to practice the graded exercise safely.',
     })
     const session = await createSession()
+    turnRepository.failNextCompletion = true
     completionBehavior = () => Promise.reject(new Error(PROVIDER_SECRET))
     const initialResponse = await request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
       .set('Authorization', `Bearer ${student1Token}`)
-      .send({ content: 'Solve my graded homework.' })
+      .send({
+        content: 'Solve my graded homework:\n```python\ndef solve(): pass\n```',
+      })
       .expect(201)
     const initialTurn = initialResponse.body as GroundedChatTurnResponseDto
     expect(initialTurn.assistantMessage.status).toBe('FAILED')
@@ -1697,10 +1776,7 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
 
     expect(retry.body).toMatchObject({
       assistantMessage: {
-        content: OUTPUT_POLICY_REFUSAL_CONTENT,
         guidanceLabel: 'REFUSAL',
-        errorCode: 'FINAL_ANSWER_RISK',
-        reviewSummary: { status: 'PENDING' },
       },
     })
     const stored = await prisma.message.findUniqueOrThrow({

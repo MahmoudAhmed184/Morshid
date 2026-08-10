@@ -12,13 +12,18 @@ import { TopicStateService } from '../socratic-tutor/topic-state.service'
 import { ContextManager } from '../socratic-tutor/context-manager.service'
 import { EducationalAnalysisService } from '../socratic-tutor/educational-analysis.service'
 import { TeachingPolicyEngine } from '../socratic-tutor/teaching-policy.engine'
-import { ResponseApprovalService } from '../socratic-tutor/response-approval.service'
+import {
+  PersistedResponseApprovalResult,
+  ResponseApprovalService,
+} from '../socratic-tutor/response-approval.service'
 import { TURN_ACQUISITION_OUTCOME } from '../socratic-tutor/turn.types'
 import { TOPIC_RESOLUTION_OUTCOME } from '../socratic-tutor/topic.types'
 import {
   RetrievalQueryBuilder,
   retrievalQueryContextFromAnalysis,
 } from '../socratic-tutor/retrieval-query.builder'
+import { AutomaticSafetyRiskDetector } from '../output-policy/automatic-safety-risk.detector'
+import { ControlledSourceConflictDetector } from '../output-policy/controlled-source-conflict.detector'
 import { chatMessageSelect } from './student-chat.repository.support'
 import type {
   SocraticOrchestrationInput,
@@ -51,6 +56,8 @@ export class SocraticChatOrchestrator {
     private readonly retrievalQueryBuilder: RetrievalQueryBuilder,
     private readonly retrievalService: RetrievalService,
     private readonly prismaService: PrismaService,
+    private readonly safetyRiskDetector: AutomaticSafetyRiskDetector,
+    private readonly conflictDetector: ControlledSourceConflictDetector,
   ) {}
 
   async orchestrate(
@@ -73,6 +80,25 @@ export class SocraticChatOrchestrator {
     }
 
     const turnId = acquisition.turn.id
+
+    const inputRisk = this.safetyRiskDetector.detectStudentInput(
+      input.studentMessageContent,
+    )
+    const hasInputRisk =
+      inputRisk?.risks.some(
+        (risk) =>
+          risk === 'HIDDEN_PROMPT_DISCLOSURE' ||
+          risk === 'FINAL_ANSWER_DELIVERY',
+      ) ?? false
+
+    if (hasInputRisk && inputRisk !== null) {
+      await this.markTurnFailed(
+        turnId,
+        TutorTurnStatus.RECEIVED,
+        TutorTurnFailureCode.GENERATION_FAILED,
+      )
+      return { kind: 'safety_refusal', detection: inputRisk }
+    }
 
     try {
       return await this.runPipeline(input, turnId)
@@ -121,6 +147,10 @@ export class SocraticChatOrchestrator {
       input.studentMessageId,
       topicId,
     )
+    await this.prismaService.message.updateMany({
+      where: { id: { in: [input.studentMessageId, input.assistantMessageId] } },
+      data: { turnId, topicId },
+    })
 
     // ── TopicState loading ────────────────────────────────────────
     const topicState = await this.topicStateService.getOrCreate(topicId)
@@ -180,6 +210,7 @@ export class SocraticChatOrchestrator {
       previousTopicId: resolution.previousTopicId,
     })
     if (!decisionResult.success) {
+      console.log('decisionResult failed:', decisionResult)
       return this.failTurn(
         turnId,
         TutorTurnStatus.DECIDING,
@@ -212,21 +243,42 @@ export class SocraticChatOrchestrator {
       input.courseId,
       retrievalRequest.query,
     )
-    if (retrieval.kind === 'embedding_profile_not_ready') {
-      await this.markTurnFailed(
-        turnId,
-        TutorTurnStatus.RETRIEVING,
-        TutorTurnFailureCode.RETRIEVAL_FAILED,
-      )
-      return { kind: 'blocked', reason: 'embedding_profile_not_ready' }
+
+    if (
+      retrieval.kind === 'embedding_profile_not_ready' ||
+      retrieval.kind === 'insufficient_evidence' ||
+      retrieval.chunks.length === 0
+    ) {
+      const reason =
+        retrieval.kind === 'embedding_profile_not_ready'
+          ? 'embedding_profile_not_ready'
+          : 'insufficient_evidence'
+      return { kind: 'blocked', reason }
     }
-    if (retrieval.kind === 'insufficient_evidence') {
+
+    const documentRisk = this.safetyRiskDetector.detectRetrievedDocuments(
+      retrieval.chunks,
+    )
+    if (documentRisk !== null) {
       await this.markTurnFailed(
         turnId,
         TutorTurnStatus.RETRIEVING,
         TutorTurnFailureCode.RETRIEVAL_FAILED,
       )
-      return { kind: 'blocked', reason: 'insufficient_evidence' }
+      return { kind: 'safety_refusal', detection: documentRisk }
+    }
+
+    const conflict = this.conflictDetector.detect(
+      input.studentMessageContent,
+      retrieval.chunks,
+    )
+    if (conflict !== null) {
+      await this.markTurnFailed(
+        turnId,
+        TutorTurnStatus.RETRIEVING,
+        TutorTurnFailureCode.RETRIEVAL_FAILED,
+      )
+      return { kind: 'source_conflict', conflict }
     }
 
     // ── Phase 4 + 5: Generation, Validation, Approval ─────────────
@@ -236,23 +288,49 @@ export class SocraticChatOrchestrator {
       TutorTurnStatus.GENERATING,
     )
 
-    const approval = await this.responseApprovalService.approveAndPersist({
-      courseId: input.courseId,
-      sessionId: input.sessionId,
-      studentId: input.studentId,
-      turnId,
-      studentMessageId: input.studentMessageId,
-      topicId,
-      assistantMessageId: input.assistantMessageId,
-      retrievalResult: retrieval.chunks,
-    })
+    const approval: PersistedResponseApprovalResult =
+      await this.responseApprovalService.approveAndPersist({
+        courseId: input.courseId,
+        sessionId: input.sessionId,
+        studentId: input.studentId,
+        turnId,
+        studentMessageId: input.studentMessageId,
+        topicId,
+        assistantMessageId: input.assistantMessageId,
+        retrievalResult: retrieval.chunks,
+      })
     if (!approval.success) {
+      if ('outputRisk' in approval && approval.outputRisk !== undefined) {
+        await this.markTurnFailed(
+          turnId,
+          TutorTurnStatus.GENERATING,
+          TutorTurnFailureCode.GENERATION_FAILED,
+        )
+        return { kind: 'safety_refusal', detection: approval.outputRisk }
+      }
+      const turnStatus =
+        'turnStatus' in approval
+          ? approval.turnStatus
+          : TutorTurnStatus.GENERATING
       return this.failTurn(
         turnId,
-        approval.turnStatus,
+        turnStatus,
         TutorTurnFailureCode.GENERATION_FAILED,
         `SOCRATIC_APPROVAL_FAILED:${approval.errorCode}`,
       )
+    }
+
+    const outputRisk = this.safetyRiskDetector.detectOutput(
+      approval.approvedResponse.message,
+      true,
+    )
+    if (outputRisk !== null) {
+      await this.markTurnFailed(
+        turnId,
+        TutorTurnStatus.GENERATING,
+        TutorTurnFailureCode.GENERATION_FAILED,
+      )
+      return { kind: 'safety_refusal', detection: outputRisk }
     }
 
     // Reload both records so the response exposes the authoritative request

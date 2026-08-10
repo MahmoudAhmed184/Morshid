@@ -9,7 +9,7 @@ import {
 } from './support/demo-auth'
 import type { DemoAccount } from './support/demo-auth'
 
-const apiBaseUrl = 'http://localhost:4000'
+const apiBaseUrl = 'http://127.0.0.1:4000'
 
 interface AuthSessionResponse {
   accessToken: string

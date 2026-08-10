@@ -10,7 +10,7 @@ import {
   signInThroughUi,
 } from './support/demo-auth'
 
-const apiBaseUrl = `http://localhost:${process.env.PLAYWRIGHT_SERVER_PORT ?? '4000'}`
+const apiBaseUrl = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? '4000'}`
 const sourceTitle =
   'p0-npt-part-02 Functions and Scope [deterministic-embedding-v1]'
 const sourceFixturePath = resolve(

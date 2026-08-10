@@ -3,6 +3,8 @@ import { Module } from '@nestjs/common'
 import { AuditModule } from '../audit/audit.module'
 import { AuthModule } from '../auth/auth.module'
 import { PrismaModule } from '../prisma/prisma.module'
+import { CompletionModule } from '../completion/completion.module'
+import { OutputPolicyModule } from '../output-policy/output-policy.module'
 import { PdfStorageModule } from '../pdf-storage/pdf-storage.module'
 import { RetrievalModule } from '../retrieval/retrieval.module'
 import { SocraticTutorModule } from '../socratic-tutor/socratic-tutor.module'
@@ -31,6 +33,8 @@ import { CorrectnessSensitiveRequestClassifier } from './correctness-sensitive-r
   imports: [
     AuditModule,
     AuthModule,
+    CompletionModule,
+    OutputPolicyModule,
     PdfStorageModule,
     PrismaModule,
     RetrievalModule,

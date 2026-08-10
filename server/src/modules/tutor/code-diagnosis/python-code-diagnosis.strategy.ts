@@ -25,7 +25,7 @@ interface DiagnosisMatch {
 }
 
 const DIAGNOSIS_INTENT_PATTERN =
-  /\b(?:bug|crash|debug|diagnos|error|fails?|fix|incorrect|issue|rewrite|suspicious|wrong)\w*\b/iu
+  /\b(?:bug|crash|debug|diagnos|error|fails?|fix|incorrect|issue|problem|rewrite|solution|solve|suspicious|wrong)\w*\b/iu
 
 const PYTHON_BUILTIN_NAMES = new Set([
   '__import__',
@@ -175,13 +175,17 @@ export function preparePythonCodeDiagnosis(
   })
 }
 
+const PYTHON_CONTEXT_PATTERN =
+  /\b(?:python|py|code|program|script|function|def|class|method|loop|traceback|syntaxerror|nameerror|typeerror|valueerror|indexerror|keyerror|indentationerror|zero_division|zerodivisionerror|exception|snippet|line|counter|variable|var|value|output|result|parameter|argument|statement|expression|condition|list|dict|dictionary)\b/iu
+
 export function hasPythonCodeDiagnosisIntent(
   studentMessage: string,
   assessment: PythonCodeDiagnosisBoundaryAssessment,
 ): boolean {
   return (
     assessment.codeSource === 'FENCED' ||
-    DIAGNOSIS_INTENT_PATTERN.test(studentMessage) ||
+    (DIAGNOSIS_INTENT_PATTERN.test(studentMessage) &&
+      PYTHON_CONTEXT_PATTERN.test(studentMessage)) ||
     extractCode(studentMessage).includes('\n')
   )
 }

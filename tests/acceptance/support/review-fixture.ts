@@ -6,7 +6,7 @@ import { reviewEvidenceContentHash } from '../../../server/src/modules/reviews/r
 
 const databaseUrl =
   process.env.DATABASE_URL ??
-  'postgresql://morshid:morshid_local_password@localhost:5432/morshid'
+  'postgresql://morshid:morshid_local_password@127.0.0.1:55432/morshid'
 
 export interface ReviewBrowserFixture {
   courseId: string

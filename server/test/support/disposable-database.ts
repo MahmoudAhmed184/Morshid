@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { readFile, readdir } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 
 import type { ConfigService } from '@nestjs/config'
 import { Client } from 'pg'
@@ -100,7 +100,7 @@ async function applyMigrations(
   databaseUrl: string,
   throughMigration?: string,
 ): Promise<void> {
-  const migrationsDirectory = join(process.cwd(), 'prisma', 'migrations')
+  const migrationsDirectory = resolve(__dirname, '../../prisma/migrations')
   const migrationDirectories = (
     await readdir(migrationsDirectory, { withFileTypes: true })
   )

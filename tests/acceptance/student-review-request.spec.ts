@@ -8,7 +8,7 @@ import {
 } from './support/demo-auth'
 import { createReviewBrowserFixture } from './support/review-fixture'
 
-const apiBaseUrl = 'http://localhost:4000'
+const apiBaseUrl = 'http://127.0.0.1:4000'
 
 test('Student review remains pending across refresh and reopen, deduplicates, enforces quota, and stays accessible', async ({
   page,

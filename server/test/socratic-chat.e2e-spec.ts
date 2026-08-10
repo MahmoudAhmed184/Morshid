@@ -34,6 +34,7 @@ import {
 } from '../src/modules/pdf-storage/pdf-storage'
 import { PrismaService } from '../src/modules/prisma/prisma.service'
 import { RedisService } from '../src/modules/redis/redis.service'
+import { OUTPUT_POLICY_REFUSAL_CONTENT } from '../src/modules/output-policy/output-policy.service'
 import {
   GROUNDING_BLOCKED_CONTENT,
   GROUNDING_FAILED_CONTENT,
@@ -267,6 +268,8 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
   beforeEach(async () => {
     await prisma.auditLog.deleteMany()
     await prisma.educationalAnalysisMisconception.deleteMany()
+    await prisma.reviewTrigger.deleteMany()
+    await prisma.reviewCase.deleteMany()
     await prisma.educationalAnalysisEvidenceLink.deleteMany()
     await prisma.teachingDecision.deleteMany()
     await prisma.educationalAnalysis.deleteMany()
@@ -1462,27 +1465,11 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
       .send({ content: injection })
       .expect(201)
     const turn = response.body as GroundedChatTurnResponseDto
-
-    const decision = await prisma.teachingDecision.findFirstOrThrow({
-      where: { turn: { sessionId: session.id } },
-    })
-    expect(decision).toMatchObject({
-      guidanceLevel: 1,
-      revealPolicy: 'NO_FINAL_ANSWER',
-      requireStudentAction: true,
-    })
-    expect(turn.assistantMessage.content).toBe(EXPECTED_HAPPY_PATH_MESSAGE)
-    const guardPayload = JSON.parse(
-      semanticGuard.getCalls()[0]?.messages[1].content ?? '{}',
-    ) as Record<string, unknown>
-    expect(guardPayload).toMatchObject({
-      trustedPolicy: {
-        guidanceLevel: 1,
-        revealPolicy: 'NO_FINAL_ANSWER',
-      },
-      educationalContext: {
-        currentStudentMessage: { content: injection },
-      },
+    expect(turn.assistantMessage).toMatchObject({
+      content: OUTPUT_POLICY_REFUSAL_CONTENT,
+      guidanceLabel: 'REFUSAL',
+      errorCode: 'POLICY_CHECK_FAILED',
+      reviewSummary: { status: 'PENDING' },
     })
   })
 

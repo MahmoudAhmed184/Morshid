@@ -1,3 +1,5 @@
+import type { AutomaticSafetyRiskDetection } from '../output-policy/automatic-safety-risk.detector'
+import type { ControlledSourceConflict } from '../output-policy/controlled-source-conflict.detector'
 import type { ChatMessageRecord } from './student-chat.repository.types'
 
 /**
@@ -28,6 +30,14 @@ export type SocraticOrchestrationResult =
       readonly kind: 'completed'
       readonly studentMessage: ChatMessageRecord
       readonly assistantMessage: ChatMessageRecord
+    }
+  | {
+      readonly kind: 'safety_refusal'
+      readonly detection: AutomaticSafetyRiskDetection
+    }
+  | {
+      readonly kind: 'source_conflict'
+      readonly conflict: ControlledSourceConflict
     }
   | {
       readonly kind: 'blocked'

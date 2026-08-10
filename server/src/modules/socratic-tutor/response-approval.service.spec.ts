@@ -24,6 +24,7 @@ import type {
 } from './tutor-generation.types'
 import { TUTOR_GENERATION_FAILURE_CODE } from './tutor-generation.types'
 import type { RetrievedChunk } from '../retrieval/retrieval.service'
+import { AutomaticSafetyRiskDetector } from '../output-policy/automatic-safety-risk.detector'
 
 describe('ResponseApprovalService', () => {
   it('approves the initial candidate after all three stages', async () => {
@@ -75,9 +76,9 @@ describe('ResponseApprovalService', () => {
 
   it('uses fallback only after exactly three validation rejections', async () => {
     const harness = buildHarness([
-      generationSuccess(validCandidate({ message: 'The answer is 42.' })),
-      generationSuccess(validCandidate({ message: 'Final answer: 43.' })),
-      generationSuccess(validCandidate({ message: 'The final answer is 44.' })),
+      generationSuccess(validCandidate({ usedCitationIds: ['invalid-1'] })),
+      generationSuccess(validCandidate({ usedCitationIds: ['invalid-2'] })),
+      generationSuccess(validCandidate({ usedCitationIds: ['invalid-3'] })),
     ])
 
     const result = await harness.service.approve(input())
@@ -233,6 +234,7 @@ function buildHarness(
         return Promise.resolve({})
       },
     } as never,
+    new AutomaticSafetyRiskDetector(),
   )
 
   return {

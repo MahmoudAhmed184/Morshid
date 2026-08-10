@@ -1,5 +1,5 @@
 import { Test, type TestingModule } from '@nestjs/testing'
-import { ConfigService } from '@nestjs/config'
+import { ConfigModule, ConfigService } from '@nestjs/config'
 import {
   MessageRole,
   MessageStatus,
@@ -247,7 +247,7 @@ describe('ContextManager', () => {
 
   it('resolves ContextManager through SocraticTutorModule wiring', async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
-      imports: [SocraticTutorModule],
+      imports: [ConfigModule.forRoot({ isGlobal: true }), SocraticTutorModule],
     })
       .overrideProvider(PrismaService)
       .useValue({})

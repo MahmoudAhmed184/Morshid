@@ -15,12 +15,18 @@ import type {
   FinalizeGroundedChatTurnInput,
   FinalizeGroundedChatTurnResult,
 } from './grounded-chat-turn.repository'
+import { AutomaticSafetyRiskDetector } from '../output-policy/automatic-safety-risk.detector'
+import { ControlledSourceConflictDetector } from '../output-policy/controlled-source-conflict.detector'
+import { OutputPolicyService } from '../output-policy/output-policy.service'
+import { CorrectnessSensitiveRequestClassifier } from './correctness-sensitive-request.classifier'
 import { GROUNDING_FAILED_CONTENT } from './grounded-chat.constants'
 import { GroundedChatService } from './grounded-chat.service'
 import type { SocraticChatOrchestrator } from './socratic-chat.orchestrator'
 import { StudentChatMessagePresenter } from './student-chat-message.presenter'
 import type { ChatMessageRecord } from './student-chat.repository.types'
 import type { StudentChatService } from './student-chat.service'
+import type { RetrievalService } from '../retrieval/retrieval.service'
+import type { CompletionProvider } from '../completion/completion-provider'
 
 const courseId = 'diagnosis-failure-course'
 const sessionId = 'diagnosis-failure-session'
@@ -59,6 +65,13 @@ describe('GroundedChatService diagnosis failure paths', () => {
     failTurn = jest.fn().mockImplementation(terminalResult)
     orchestrate = jest.fn().mockResolvedValue({ kind: 'failed' })
 
+    const retrievalService = {
+      retrieveCourseEvidence: jest.fn(),
+    } as unknown as RetrievalService
+    const completionProvider = {
+      complete: jest.fn(),
+    } as unknown as CompletionProvider
+
     service = new GroundedChatService(
       {
         getSession: jest.fn().mockResolvedValue({ session: { id: sessionId } }),
@@ -82,14 +95,27 @@ describe('GroundedChatService diagnosis failure paths', () => {
       {
         message: { findUnique: jest.fn().mockResolvedValue(null) },
       } as never,
+      new AutomaticSafetyRiskDetector(),
+      new ControlledSourceConflictDetector(),
+      new OutputPolicyService(),
+      { createRequiredReview: jest.fn().mockResolvedValue(null) } as never,
+      new CorrectnessSensitiveRequestClassifier(),
+      retrievalService,
+      completionProvider,
     )
   })
 
   it('persists a safe failure when Socratic diagnosis orchestration fails', async () => {
+    const question = 'What is a list in Python?'
+    orchestrate.mockResolvedValue({
+      kind: 'failed',
+      errorCode: 'SOCRATIC_ORCHESTRATION_FAILED',
+    })
+
     const response = await service.send(
       courseId,
       sessionId,
-      { content: codeQuestion },
+      { content: question },
       user,
     )
 
@@ -100,11 +126,11 @@ describe('GroundedChatService diagnosis failure paths', () => {
       citations: [],
     })
     expect(beginTurn).toHaveBeenCalledWith(
-      expect.objectContaining({ content: codeQuestion }),
+      expect.objectContaining({ content: question }),
     )
     expect(orchestrate).toHaveBeenCalledWith(
       expect.objectContaining({
-        studentMessageContent: codeQuestion,
+        studentMessageContent: question,
         studentMessageId,
         assistantMessageId,
       }),

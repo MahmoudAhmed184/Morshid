@@ -129,13 +129,19 @@ export function validateCandidateResponse(
       errorCode: 'TUTOR_INVALID_CITATION',
     }
   }
-  if (content.requiresStudentAction !== policy.requireStudentAction) {
+  if (
+    typeof rawOutput !== 'string' &&
+    content.requiresStudentAction !== policy.requireStudentAction
+  ) {
     return {
       success: false,
       errorCode: 'TUTOR_INVALID_OUTPUT',
     }
   }
-  if (content.reflectionIncluded !== (policy.reflectionMode !== 'NONE')) {
+  if (
+    typeof rawOutput !== 'string' &&
+    content.reflectionIncluded !== (policy.reflectionMode !== 'NONE')
+  ) {
     return {
       success: false,
       errorCode: 'TUTOR_INVALID_OUTPUT',

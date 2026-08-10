@@ -68,9 +68,10 @@ import {
 } from './semantic-guard.configuration'
 import { createSemanticGuardPort } from './semantic-guard.adapter'
 import { RetrievalQueryBuilder } from './retrieval-query.builder'
+import { OutputPolicyModule } from '../output-policy/output-policy.module'
 
 @Module({
-  imports: [ConfigModule, PrismaModule],
+  imports: [ConfigModule, PrismaModule, OutputPolicyModule],
   providers: [
     TopicStateService,
     TopicService,

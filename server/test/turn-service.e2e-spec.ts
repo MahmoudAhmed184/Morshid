@@ -50,7 +50,7 @@ describe('TurnService persistence (e2e)', () => {
 
   afterAll(async () => {
     await database?.dispose()
-  })
+  }, 30000)
 
   it('recovers concurrent acquisition with one created row and one processing result', async () => {
     const fixture = await createChatFixture(prisma)

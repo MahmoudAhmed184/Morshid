@@ -67,15 +67,19 @@ export class AutomaticSafetyRiskDetector {
       PERSONAL_AUTHORITY_EXCEPTION.test(normalized) &&
       (protectedSolutionRequest || DISCLOSURE_REQUEST.test(normalized))
     if (
-      (OVERRIDE_COMMAND.test(normalized) &&
+      !isSafetyDiscussion(normalized) &&
+      ((OVERRIDE_COMMAND.test(normalized) &&
         (CONTROL_TARGET.test(normalized) ||
           DISCLOSURE_REQUEST.test(normalized) ||
           OVERRIDE_PAYLOAD.test(normalized))) ||
-      claimedAuthorityException
+        claimedAuthorityException)
     ) {
       risks.push('INSTRUCTION_OVERRIDE')
     }
-    if (DISCLOSURE_REQUEST.test(normalized)) {
+    if (
+      !isSafetyDiscussion(normalized) &&
+      DISCLOSURE_REQUEST.test(normalized)
+    ) {
       risks.push('HIDDEN_PROMPT_DISCLOSURE')
     }
     if (
@@ -118,8 +122,11 @@ export class AutomaticSafetyRiskDetector {
     if (
       correctnessSensitive &&
       ((COMPLETE_DELIVERY.test(normalized) &&
-        DELIVERED_ARTIFACT.test(content)) ||
+        (DELIVERED_ARTIFACT.test(normalized) ||
+          DELIVERED_ARTIFACT.test(content) ||
+          CODE_STATEMENT.test(normalized))) ||
         FULL_PROGRAM_ARTIFACT.test(content) ||
+        FULL_PROGRAM_ARTIFACT.test(normalized) ||
         containsSubmissionReadyCode(content))
     ) {
       risks.push('FINAL_ANSWER_DELIVERY')

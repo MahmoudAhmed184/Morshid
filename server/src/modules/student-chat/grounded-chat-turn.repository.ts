@@ -287,7 +287,7 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
             authorUserId: input.studentId,
             content: input.content,
             status: MessageStatus.COMPLETED,
-            requestKind: null,
+            requestKind: input.requestKind ?? null,
             guidanceLabel: null,
             hintLevel: null,
             createdAt: now,
@@ -643,7 +643,8 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
     try {
       return await this.runTransaction(async (tx) => {
         const authorization =
-          terminal.status === MessageStatus.FAILED
+          terminal.status === MessageStatus.FAILED ||
+          terminal.status === MessageStatus.BLOCKED
             ? await this.lockExactTurnSession(tx, input)
             : await this.lockAuthorizedSession(tx, input)
         if (authorization.kind !== 'ok') {
@@ -724,6 +725,12 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
         groundingAttemptId: true,
       },
     })
+    console.log(
+      'transitionPendingAssistant input.attemptId:',
+      input.attemptId,
+      'existing:',
+      JSON.stringify(existing),
+    )
     if (existing === null) {
       return {
         kind: 'message_not_found',

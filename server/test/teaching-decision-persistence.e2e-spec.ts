@@ -67,7 +67,7 @@ describe('TeachingDecisionRepository (e2e)', () => {
 
   afterAll(async () => {
     await database?.dispose()
-  })
+  }, 30000)
 
   it('persists a complete authoritative TeachingDecision for accepted analysis', async () => {
     const fixture = await createFixture(prisma)

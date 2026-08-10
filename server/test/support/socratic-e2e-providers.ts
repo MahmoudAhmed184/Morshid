@@ -268,9 +268,8 @@ function analysisResponse(
 }
 
 function extractCurrentMessageId(request: AnalysisModelRequest): string {
-  const match = /"studentMessage":\{"id":"(?<messageId>[^"]+)"/u.exec(
-    request.messages[1].content,
-  )
+  const content = request.messages[1].content
+  const match = /"studentMessage":\{"id":"(?<messageId>[^"]+)"/u.exec(content)
   return match?.groups?.messageId ?? 'analysis-context-message'
 }
 

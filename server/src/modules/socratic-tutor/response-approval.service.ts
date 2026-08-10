@@ -10,6 +10,7 @@ import {
 } from './tutor-generation.types'
 import {
   MAX_MVP_CANDIDATE_ATTEMPTS,
+  RESPONSE_VIOLATION_TYPE,
   type ApprovedResponse,
   type ValidationResult,
 } from './response-validation.types'
@@ -39,6 +40,11 @@ import {
   guardResultAudit,
 } from './response-audit.types'
 
+import {
+  AutomaticSafetyRiskDetector,
+  type AutomaticSafetyRiskDetection,
+} from '../output-policy/automatic-safety-risk.detector'
+
 export interface ResponseApprovalInput extends TutorGenerationInput {
   readonly assistantMessageId?: string
 }
@@ -54,16 +60,22 @@ export type ResponseApprovalResult =
     }
   | {
       readonly success: false
+      readonly outputRisk?: AutomaticSafetyRiskDetection
       readonly errorCode:
-        'MISSING_TEACHING_DECISION' | 'RESPONSE_APPROVAL_PERSISTENCE_FAILED'
+        | 'MISSING_TEACHING_DECISION'
+        | 'RESPONSE_APPROVAL_PERSISTENCE_FAILED'
+        | 'SAFETY_RISK_DETECTED'
     }
 
 export type PersistedResponseApprovalResult =
   | Extract<ResponseApprovalResult, { success: true }>
   | {
       readonly success: false
+      readonly outputRisk?: AutomaticSafetyRiskDetection
       readonly errorCode:
-        'MISSING_TEACHING_DECISION' | 'RESPONSE_APPROVAL_PERSISTENCE_FAILED'
+        | 'MISSING_TEACHING_DECISION'
+        | 'RESPONSE_APPROVAL_PERSISTENCE_FAILED'
+        | 'SAFETY_RISK_DETECTED'
       readonly turnStatus: TutorTurnStatus
     }
 
@@ -78,6 +90,7 @@ export class ResponseApprovalService {
     private readonly safeFallbackService: SafeFallbackService,
     private readonly turnRepository: TurnRepository,
     private readonly turnService: TurnService,
+    private readonly safetyRiskDetector: AutomaticSafetyRiskDetector,
   ) {}
 
   approve(input: ResponseApprovalInput): Promise<ResponseApprovalResult> {
@@ -196,6 +209,18 @@ export class ResponseApprovalService {
           infrastructureRetryCount: generation.infrastructureRetryCount,
         }),
       )
+
+      const outputRisk = this.safetyRiskDetector.detectOutput(
+        generation.candidate.message,
+        true,
+      )
+      if (outputRisk !== null) {
+        return {
+          success: false,
+          outputRisk,
+          errorCode: 'SAFETY_RISK_DETECTED',
+        }
+      }
 
       await lifecycle.beginValidation()
 
@@ -381,7 +406,26 @@ function approvalWithFallback(
   reason: SafeFallbackReason,
   candidateAttemptAudits: readonly TutorCandidateAttemptAudit[],
   guardResultAudits: readonly GuardResultAudit[],
-): Extract<ResponseApprovalResult, { success: true }> {
+): ResponseApprovalResult {
+  const hasFinalAnswerRisk = validationResults.some((result) =>
+    result.violations.some(
+      (v) =>
+        v.type === RESPONSE_VIOLATION_TYPE.FINAL_ANSWER_DISCLOSURE ||
+        v.type === RESPONSE_VIOLATION_TYPE.COMPLETE_SOLUTION_DISCLOSURE ||
+        v.type === RESPONSE_VIOLATION_TYPE.SUBMISSION_READY_CODE,
+    ),
+  )
+  if (hasFinalAnswerRisk) {
+    return {
+      success: false,
+      outputRisk: {
+        detectorVersion: 'automatic-safety-risk-v3',
+        risks: ['FINAL_ANSWER_DELIVERY'],
+      },
+      errorCode: 'SAFETY_RISK_DETECTED',
+    }
+  }
+
   return {
     success: true,
     approvedResponse: fallbackService.create(decision, reason),
