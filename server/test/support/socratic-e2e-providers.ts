@@ -94,6 +94,60 @@ export function misconceptionAnalysisResponse(
   })
 }
 
+export function progressionAnalysisResponse(
+  request: AnalysisModelRequest,
+  input: {
+    readonly meaningfulEffort: boolean
+    readonly learningEvidence?: boolean
+    readonly repeatedEffort?: boolean
+    readonly addressesPreviousTutorAction?: boolean
+  },
+): AnalysisModelResponse {
+  const evidenceMessageId = extractCurrentMessageId(request)
+  const learningEvidence = input.learningEvidence ?? false
+
+  return analysisResponse(request, {
+    requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+    studentState: StudentState.PARTIAL_UNDERSTANDING,
+    effortEvidence: input.meaningfulEffort
+      ? {
+          present: true,
+          quality: 'MEANINGFUL',
+          type: 'REASONING_ATTEMPT',
+          addressesPreviousTutorAction:
+            input.addressesPreviousTutorAction ?? true,
+          isRepeated: input.repeatedEffort ?? false,
+          evidenceMessageIds: [evidenceMessageId],
+        }
+      : {
+          present: false,
+          quality: 'NONE',
+          type: null,
+          addressesPreviousTutorAction: false,
+          isRepeated: false,
+          evidenceMessageIds: [],
+        },
+    learningEvidence: learningEvidence
+      ? {
+          present: true,
+          strength: 'STRONG',
+          evidenceMessageIds: [evidenceMessageId],
+        }
+      : {
+          present: false,
+          strength: 'NONE',
+          evidenceMessageIds: [],
+        },
+    misconceptions: [],
+    topicRelation: 'CONTINUE_CURRENT_TOPIC',
+    recommendedStrategy: TeachingStrategy.SOCRATIC_QUESTIONING,
+    recommendedTechnique: TeachingTechnique.FOCUSED_QUESTION,
+    recommendedGuidanceLevel: 1,
+    confidence: 0.95,
+    evidenceReferences: [evidenceMessageId],
+  })
+}
+
 function defaultAnalysisResponse(
   request: AnalysisModelRequest,
 ): AnalysisModelResponse {
