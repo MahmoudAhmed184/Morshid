@@ -123,8 +123,9 @@ export function progressionAnalysisResponse(
           present: false,
           quality: 'NONE',
           type: null,
-          addressesPreviousTutorAction: false,
-          isRepeated: false,
+          addressesPreviousTutorAction:
+            input.addressesPreviousTutorAction ?? false,
+          isRepeated: input.repeatedEffort ?? false,
           evidenceMessageIds: [],
         },
     learningEvidence: learningEvidence
@@ -157,6 +158,8 @@ export function functionalStoryAnalysisResponse(
     readonly recommendedTechnique: TeachingTechnique
     readonly meaningfulEffort?: boolean
     readonly repeatedEffort?: boolean
+    readonly addressesPreviousTutorAction?: boolean
+    readonly learningEvidenceStrength?: 'MODERATE' | 'STRONG'
     readonly misconception?: {
       readonly code: string
       readonly description: string
@@ -174,7 +177,8 @@ export function functionalStoryAnalysisResponse(
           present: true,
           quality: 'MEANINGFUL',
           type: 'REASONING_ATTEMPT',
-          addressesPreviousTutorAction: true,
+          addressesPreviousTutorAction:
+            input.addressesPreviousTutorAction ?? true,
           isRepeated: input.repeatedEffort ?? false,
           evidenceMessageIds: [evidenceMessageId],
         }
@@ -182,15 +186,23 @@ export function functionalStoryAnalysisResponse(
           present: false,
           quality: 'NONE',
           type: null,
-          addressesPreviousTutorAction: false,
-          isRepeated: false,
+          addressesPreviousTutorAction:
+            input.addressesPreviousTutorAction ?? false,
+          isRepeated: input.repeatedEffort ?? false,
           evidenceMessageIds: [],
         },
-    learningEvidence: {
-      present: false,
-      strength: 'NONE',
-      evidenceMessageIds: [],
-    },
+    learningEvidence:
+      input.learningEvidenceStrength === undefined
+        ? {
+            present: false,
+            strength: 'NONE',
+            evidenceMessageIds: [],
+          }
+        : {
+            present: true,
+            strength: input.learningEvidenceStrength,
+            evidenceMessageIds: [evidenceMessageId],
+          },
     misconceptions:
       input.misconception === undefined
         ? []

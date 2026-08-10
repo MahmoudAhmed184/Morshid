@@ -45,6 +45,8 @@ import type {
 } from '../src/modules/student-chat/student-chat.dto'
 import { STUDENT_CHAT_ERROR_CODES } from '../src/modules/student-chat/student-chat.errors'
 import { ANALYSIS_MODEL_PORT } from '../src/modules/socratic-tutor/analysis-model.port'
+import { TopicService } from '../src/modules/socratic-tutor/topic.service'
+import { TOPIC_RESOLUTION_OUTCOME } from '../src/modules/socratic-tutor/topic.types'
 import {
   TUTOR_MODEL_ERROR_CODE,
   TUTOR_MODEL_PORT,
@@ -658,6 +660,170 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
     )
   })
 
+  it('reproduces the find_max journey and persists the meaningful misconception turn at Level 2', async () => {
+    await createEvidenceMaterial({
+      title: 'Python list indexing and comparison',
+      content:
+        'Python list indexing begins at zero. A running candidate can be initialized from an existing list element and compared with later values.',
+    })
+    const session = await createSession()
+    const topicResolutions: string[] = []
+    const topicService = requireApp().get(TopicService)
+    const resolveTopic = topicService.resolveTopic.bind(topicService)
+    const resolutionSpy = jest
+      .spyOn(topicService, 'resolveTopic')
+      .mockImplementation(async (input) => {
+        const resolution = await resolveTopic(input)
+        topicResolutions.push(resolution.outcome)
+        return resolution
+      })
+
+    const analysisPlan = [
+      {
+        requestKind: MessageRequestKind.PROBLEM_LIKE,
+        studentState: StudentState.NO_PRIOR_KNOWLEDGE,
+        recommendedStrategy: TeachingStrategy.GUIDED_EXPLANATION,
+        recommendedTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+      },
+      {
+        requestKind: MessageRequestKind.CONCEPTUAL,
+        studentState: StudentState.NO_PRIOR_KNOWLEDGE,
+        recommendedStrategy: TeachingStrategy.GUIDED_EXPLANATION,
+        recommendedTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+      },
+      {
+        requestKind: MessageRequestKind.CONCEPTUAL,
+        studentState: StudentState.NO_PRIOR_KNOWLEDGE,
+        recommendedStrategy: TeachingStrategy.GUIDED_EXPLANATION,
+        recommendedTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+        repeatedEffort: true,
+      },
+      {
+        // Reproduce the live provider inconsistency: the structured effort,
+        // misconception, and Level 2 recommendation are correct while its
+        // primary request-kind label is incorrectly CONCEPTUAL.
+        requestKind: MessageRequestKind.CONCEPTUAL,
+        studentState: StudentState.MISCONCEPTION,
+        recommendedStrategy: TeachingStrategy.MISCONCEPTION_REPAIR,
+        recommendedTechnique: TeachingTechnique.COUNTEREXAMPLE,
+        meaningfulEffort: true,
+        learningEvidenceStrength: 'MODERATE' as const,
+        misconception: {
+          code: 'ONE_BASED_LIST_INDEXING',
+          description:
+            'The student treats index 1 as the first Python list position.',
+        },
+      },
+    ] as const
+    let analysisIndex = 0
+    analysisModel.behavior = (modelRequest) => {
+      const planned = analysisPlan[analysisIndex]
+      analysisIndex += 1
+      return Promise.resolve(
+        functionalStoryAnalysisResponse(modelRequest, planned),
+      )
+    }
+
+    const candidatePlan = [
+      {
+        message:
+          'What have you tried so far? As one small starting hint, consider which existing list value could initialize the running largest value.',
+        responseIntent: TeachingStrategy.GUIDED_EXPLANATION,
+        studentActionType: TeachingTechnique.ORIENTATION_QUESTION,
+      },
+      {
+        message:
+          'Look at a short list such as [4, 2]. Which existing element could serve as your initial candidate?',
+        responseIntent: TeachingStrategy.GUIDED_EXPLANATION,
+        studentActionType: TeachingTechnique.ORIENTATION_QUESTION,
+      },
+      {
+        message:
+          'Focus on the list itself: which one existing position could provide a safe initial candidate?',
+        responseIntent: TeachingStrategy.GUIDED_EXPLANATION,
+        studentActionType: TeachingTechnique.ORIENTATION_QUESTION,
+      },
+      {
+        message:
+          'Your approach has the right kind of initial value, but it assumes the first Python list position is index 1. With [10, 20, 30], which value does numbers[1] select?',
+        responseIntent: TeachingStrategy.MISCONCEPTION_REPAIR,
+        studentActionType: TeachingTechnique.COUNTEREXAMPLE,
+      },
+    ] as const
+    let candidateIndex = 0
+    tutorModel.behavior = (modelRequest) => {
+      const planned = candidatePlan[candidateIndex]
+      candidateIndex += 1
+      return Promise.resolve(storyCandidateResponse(modelRequest, planned))
+    }
+
+    const turns: GroundedChatTurnResponseDto[] = []
+    try {
+      for (const content of [
+        'Write a Python function find_max(numbers) that returns the largest value in a non-empty list of integers without using max().',
+        "I don't know.",
+        "I still don't know.",
+        'I think the first element would be numbers[1], so I would start with largest = numbers[1]. Then I would compare the other values against it.',
+      ]) {
+        const response = await request(requireApp().getHttpServer())
+          .post(messagesPath(session.id))
+          .set('Authorization', `Bearer ${studentToken}`)
+          .send({ content })
+          .expect(201)
+        turns.push(response.body as GroundedChatTurnResponseDto)
+      }
+    } finally {
+      resolutionSpy.mockRestore()
+    }
+
+    expect(topicResolutions).toEqual([
+      TOPIC_RESOLUTION_OUTCOME.CREATE_NEW_TOPIC,
+      TOPIC_RESOLUTION_OUTCOME.CONTINUE_CURRENT_TOPIC,
+      TOPIC_RESOLUTION_OUTCOME.CONTINUE_CURRENT_TOPIC,
+      TOPIC_RESOLUTION_OUTCOME.CONTINUE_CURRENT_TOPIC,
+    ])
+    expect(
+      turns.map(({ studentMessage }) => studentMessage.requestKind),
+    ).toEqual([
+      MessageRequestKind.PROBLEM_LIKE,
+      MessageRequestKind.CONCEPTUAL,
+      MessageRequestKind.CONCEPTUAL,
+      MessageRequestKind.ATTEMPT_DIAGNOSIS,
+    ])
+    expect(
+      turns.map(({ assistantMessage }) => assistantMessage.hintLevel),
+    ).toEqual([1, 1, 1, 2])
+
+    const finalTurn = turns[3]
+    const finalStudentMessage = finalTurn.studentMessage
+    const finalAnalysis = await prisma.educationalAnalysis.findFirstOrThrow({
+      where: { studentMessageId: finalStudentMessage.id },
+      include: { evidenceLinks: true },
+    })
+    expect(finalAnalysis).toMatchObject({
+      requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+      studentState: StudentState.MISCONCEPTION,
+      effortPresent: true,
+      effortQuality: 'MEANINGFUL',
+      effortAddressesPreviousTutorAction: true,
+      effortIsRepeated: false,
+      learningEvidencePresent: true,
+      learningEvidenceStrength: 'MODERATE',
+      topicRelation: TOPIC_RESOLUTION_OUTCOME.CONTINUE_CURRENT_TOPIC,
+    })
+    expect(finalAnalysis.evidenceLinks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'EFFORT',
+          messageId: finalStudentMessage.id,
+        }),
+      ]),
+    )
+    await expect(guidanceLevelsForSession(prisma, session.id)).resolves.toEqual(
+      [1, 1, 1, 2],
+    )
+  })
+
   // ── 2. Regeneration: candidate #1 rejected, #2 approved ─────────────
 
   it('regenerates after first candidate rejection and approves the second', async () => {
@@ -1110,7 +1276,7 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
       analysisCall += 1
       return Promise.resolve(
         progressionAnalysisResponse(modelRequest, {
-          meaningfulEffort: analysisCall > 1,
+          meaningfulEffort: analysisCall > 1 && analysisCall !== 4,
           learningEvidence: analysisCall === 4,
         }),
       )

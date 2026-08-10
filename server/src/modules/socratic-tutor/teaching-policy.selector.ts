@@ -183,14 +183,14 @@ export function calculateGuidanceLevel(
     return capGuidanceLevel(currentLevel, defaults.maximumGuidanceLevel)
   }
 
+  if (hasEscalationEvidence(input)) {
+    return capGuidanceLevel(currentLevel + 1, defaults.maximumGuidanceLevel)
+  }
   if (hasVerifiedLearningEvidence(input.analysis)) {
     return capGuidanceLevel(currentLevel - 1, defaults.maximumGuidanceLevel)
   }
-  if (!hasEscalationEvidence(input)) {
-    return capGuidanceLevel(currentLevel, defaults.maximumGuidanceLevel)
-  }
 
-  return capGuidanceLevel(currentLevel + 1, defaults.maximumGuidanceLevel)
+  return capGuidanceLevel(currentLevel, defaults.maximumGuidanceLevel)
 }
 
 export function teachingPolicyDefaults(

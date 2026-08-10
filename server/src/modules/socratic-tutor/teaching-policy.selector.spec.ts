@@ -165,8 +165,25 @@ describe('teaching policy selector', () => {
       guidance({
         currentLevel: 3,
         analysis: analysis({
+          effortPresent: false,
+          effortQuality: EFFORT_QUALITY.NONE,
+          effortType: null,
           learningPresent: true,
           learningStrength: LEARNING_EVIDENCE_STRENGTH.STRONG,
+          learningEvidenceMessageIds: ['message-1'],
+        }),
+      }),
+    ).toBe(2)
+  })
+
+  it('prioritizes qualifying blocked-state effort when learning evidence is simultaneous', () => {
+    expect(
+      guidance({
+        currentLevel: 1,
+        analysis: analysis({
+          studentState: StudentState.MISCONCEPTION,
+          learningPresent: true,
+          learningStrength: LEARNING_EVIDENCE_STRENGTH.MODERATE,
           learningEvidenceMessageIds: ['message-1'],
         }),
       }),
