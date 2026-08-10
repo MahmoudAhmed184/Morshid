@@ -44,7 +44,11 @@ import type {
   ChatSessionResponseDto,
 } from '../src/modules/student-chat/student-chat.dto'
 import { STUDENT_CHAT_ERROR_CODES } from '../src/modules/student-chat/student-chat.errors'
-import { ANALYSIS_MODEL_PORT } from '../src/modules/socratic-tutor/analysis-model.port'
+import {
+  ANALYSIS_MODEL_ERROR_CODE,
+  ANALYSIS_MODEL_PORT,
+  AnalysisModelError,
+} from '../src/modules/socratic-tutor/analysis-model.port'
 import { TopicService } from '../src/modules/socratic-tutor/topic.service'
 import { TOPIC_RESOLUTION_OUTCOME } from '../src/modules/socratic-tutor/topic.types'
 import {
@@ -1316,9 +1320,79 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
     expect(decisions.map(({ guidanceLevel }) => guidanceLevel)).toEqual([
       1, 2, 3, 2,
     ])
-    expect(decisions[3].decisionReason).toContain(
-      'De-escalated guidance by one',
+    expect(decisions[3].decisionReason).toContain('De-escalated guidance after')
+  })
+
+  it('resumes the last non-fallback guidance baseline after analysis recovery', async () => {
+    await createEvidenceMaterial({
+      title: 'Fallback continuity source',
+      content:
+        'A list comprehension combines an expression, iteration clause, and optional condition.',
+    })
+    const session = await createSession()
+    let analysisCall = 0
+    analysisModel.behavior = (modelRequest) => {
+      analysisCall += 1
+      if (analysisCall === 3 || analysisCall === 4) {
+        return Promise.reject(
+          new AnalysisModelError(ANALYSIS_MODEL_ERROR_CODE.MALFORMED_OUTPUT),
+        )
+      }
+
+      return Promise.resolve(
+        progressionAnalysisResponse(modelRequest, {
+          meaningfulEffort: analysisCall === 2 || analysisCall === 5,
+        }),
+      )
+    }
+
+    const hintLevels: (number | null)[] = []
+    for (const content of [
+      'I need a starting point.',
+      'I separated the expression from the loop clause.',
+      'I am still working through the next comparison.',
+      'I traced the loop variable through the first element.',
+    ]) {
+      const response = await request(requireApp().getHttpServer())
+        .post(messagesPath(session.id))
+        .set('Authorization', `Bearer ${studentToken}`)
+        .send({ content })
+        .expect(201)
+      const turn = response.body as GroundedChatTurnResponseDto
+      hintLevels.push(turn.assistantMessage.hintLevel)
+    }
+
+    const decisions = await prisma.teachingDecision.findMany({
+      where: { turn: { sessionId: session.id } },
+      include: {
+        analysis: { select: { analysisSource: true } },
+        turn: {
+          select: { studentMessage: { select: { sequence: true } } },
+        },
+      },
+    })
+    decisions.sort(
+      (left, right) =>
+        (left.turn.studentMessage?.sequence ?? 0) -
+        (right.turn.studentMessage?.sequence ?? 0),
     )
+
+    expect(analysisCall).toBe(5)
+    expect(hintLevels).toEqual([1, 2, 1, 3])
+    expect(decisions.map(({ guidanceLevel }) => guidanceLevel)).toEqual([
+      1, 2, 1, 3,
+    ])
+    expect(decisions.map(({ analysis }) => analysis.analysisSource)).toEqual([
+      'model',
+      'model',
+      'fallback',
+      'model',
+    ])
+    expect(decisions[2]).toMatchObject({
+      guidanceLevel: 1,
+      analysis: { analysisSource: 'fallback' },
+    })
+    expect(decisions[3].decisionReason).toContain('Escalated guidance by one')
   })
 
   it('isolates guidance history by chat session', async () => {

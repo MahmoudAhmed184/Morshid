@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 
 import { Prisma } from '../../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { EDUCATIONAL_ANALYSIS_SOURCE } from './educational-analysis.types'
 import type { TeachingDecisionPolicyDraft } from './teaching-policy.selector'
 import type { PreviousTeachingDecisionSnapshot } from './teaching-policy.types'
 import { normalizeTeachingGuardPolicy } from './teaching-policy.types'
@@ -102,6 +103,11 @@ export class PrismaTeachingDecisionRepository extends TeachingDecisionRepository
     const decision = await this.prismaService.teachingDecision.findFirst({
       where: {
         topicId: input.topicId,
+        analysis: {
+          analysisSource: {
+            not: EDUCATIONAL_ANALYSIS_SOURCE.FALLBACK,
+          },
+        },
         turn: {
           sessionId: currentTurn.sessionId,
           status: 'COMPLETED',
