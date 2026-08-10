@@ -59,7 +59,7 @@ describe('Grounded chat turn repository (e2e)', () => {
       role: 'STUDENT',
       status: 'COMPLETED',
       content: 'How do Python lists work?',
-      requestKind: 'CONCEPTUAL',
+      requestKind: null,
       hintLevel: null,
     })
     expect(result.assistantMessage).toMatchObject({

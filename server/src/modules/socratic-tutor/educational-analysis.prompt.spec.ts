@@ -40,6 +40,15 @@ describe('educational analysis prompt', () => {
     expect(request.messages[0].content).toContain(
       'Backend-owned schemaVersion is not part of your JSON output',
     )
+    expect(request.messages[0].content).toContain(
+      'ATTEMPT_DIAGNOSIS means the student presents reasoning',
+    )
+    expect(request.messages[0].content).toContain(
+      'inherits the active problem or task from same-topic history',
+    )
+    expect(request.messages[0].content).toContain(
+      'do not copy a provisional or historical requestKind value',
+    )
     expect(request.messages[1].content).toContain(
       ANALYSIS_UNTRUSTED_CONTEXT_END_MARKER,
     )

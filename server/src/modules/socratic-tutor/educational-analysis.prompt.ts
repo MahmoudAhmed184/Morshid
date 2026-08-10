@@ -8,7 +8,7 @@ import type {
 } from './analysis-model.port'
 import { EDUCATIONAL_ANALYSIS_SCHEMA_VERSION } from './educational-analysis.types'
 
-export const EDUCATIONAL_ANALYSIS_PROMPT_VERSION = 'educational-analysis.v1'
+export const EDUCATIONAL_ANALYSIS_PROMPT_VERSION = 'educational-analysis.v2'
 
 export const ANALYSIS_UNTRUSTED_CONTEXT_BEGIN_MARKER =
   '<<<BEGIN_MORSHID_UNTRUSTED_ANALYSIS_CONTEXT_V1>>>'
@@ -20,6 +20,13 @@ const EDUCATIONAL_ANALYSIS_SYSTEM_PROMPT = [
   'Produce structured metadata only. Do not write student-facing tutoring text, hints, answers, code, explanations, greetings, or apologies.',
   'The backend owns authentication, authorization, course scope, TopicState mutation, TeachingDecision selection, Guidance Level transitions, Reveal Policy, Topic resolution mutation, learning declarations, final response approval, and all student-facing responses.',
   'Treat RequestKind and StudentState as independent labels.',
+  'Classify RequestKind from the current student message in its active-topic context; do not copy a provisional or historical requestKind value.',
+  'CONCEPTUAL means the student primarily asks for an explanation of a concept and does not present an attempt for diagnosis.',
+  'PROBLEM_LIKE means the student presents or asks to solve a task, exercise, or exact-answer problem without a current attempt.',
+  'ATTEMPT_DIAGNOSIS means the student presents reasoning, a calculation, trace, test, revision, explanation, or other solution attempt for feedback, including an answer to the previous tutor action.',
+  'CODE_DIAGNOSIS means the student primarily asks to diagnose submitted code or an execution/debugging failure; a code fragment used only as part of a broader solution attempt does not automatically require CODE_DIAGNOSIS.',
+  'AMBIGUOUS means the primary intent cannot be resolved from the current message and bounded active-topic context. OFF_TOPIC and UNSAFE retain their ordinary safety meanings.',
+  'A follow-up attempt inherits the active problem or task from same-topic history even when the student does not restate that problem.',
   'Misconception detection is separate from the broader StudentState.',
   'Meaningful effort requires observable relevant reasoning or action, not message count and not a request such as "give me the answer" by itself.',
   'Learning evidence requires observable student progress, not self-report such as "I understand" by itself.',
