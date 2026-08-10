@@ -129,6 +129,7 @@ export function useSendStudentChatMessage({
             requestKind: null,
             guidanceLabel: null,
             hintLevel: null,
+            promptVersion: null,
             errorCode: null,
             createdAt: now,
             completedAt: null,

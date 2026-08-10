@@ -236,7 +236,7 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
             authorUserId: input.studentId,
             content: input.content,
             status: MessageStatus.COMPLETED,
-            requestKind: MessageRequestKind.CONCEPTUAL,
+            requestKind: null,
             guidanceLabel: null,
             hintLevel: null,
             createdAt: now,

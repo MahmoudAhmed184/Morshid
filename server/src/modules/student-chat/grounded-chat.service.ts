@@ -5,6 +5,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import { Prisma } from '../../generated/prisma/client'
 import type { AuthenticatedRequestUser } from '../auth/auth.dto'
 import type { AuditRequestContext } from '../audit/audit.service'
+import { PrismaService } from '../prisma/prisma.service'
 import {
   type BeginGroundedChatTurnResult,
   type FinalizeGroundedChatTurnResult,
@@ -27,6 +28,7 @@ import {
 } from './student-chat.errors'
 import { StudentChatMessagePresenter } from './student-chat-message.presenter'
 import type { ChatMessageRecord } from './student-chat.repository.types'
+import { chatMessageSelect } from './student-chat.repository.support'
 import { StudentChatService } from './student-chat.service'
 import {
   GROUNDING_BLOCKED_CONTENT,
@@ -86,6 +88,7 @@ export class GroundedChatService {
     private readonly turnRepository: GroundedChatTurnRepository,
     private readonly messagePresenter: StudentChatMessagePresenter,
     private readonly socraticOrchestrator: SocraticChatOrchestrator,
+    private readonly prismaService: PrismaService,
   ) {}
 
   async send(
@@ -225,7 +228,7 @@ export class GroundedChatService {
     switch (orchestratorResult.kind) {
       case 'completed':
         return this.presentTurn(
-          turn.studentMessage,
+          orchestratorResult.studentMessage,
           orchestratorResult.assistantMessage,
         )
       case 'blocked':
@@ -289,7 +292,10 @@ export class GroundedChatService {
 
       switch (result.kind) {
         case 'ok':
-          return await this.presentTurn(turn.studentMessage, result.message)
+          return await this.presentTurn(
+            await this.reloadStudentMessage(turn.studentMessage),
+            result.message,
+          )
         case 'membership_missing':
         case 'session_not_found':
         case 'message_not_found':
@@ -322,6 +328,26 @@ export class GroundedChatService {
     return {
       studentMessage: presentedStudent,
       assistantMessage: presentedAssistant,
+    }
+  }
+
+  private async reloadStudentMessage(
+    fallback: ChatMessageRecord,
+  ): Promise<ChatMessageRecord> {
+    try {
+      return (
+        (await this.prismaService.message.findUnique({
+          where: { id: fallback.id },
+          select: chatMessageSelect,
+        })) ?? fallback
+      )
+    } catch (error) {
+      this.logger.warn({
+        event: 'student_message_metadata_reload_failed',
+        messageId: fallback.id,
+        ...safeErrorDescriptor(error),
+      })
+      return fallback
     }
   }
 

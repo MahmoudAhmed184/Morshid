@@ -26,6 +26,7 @@ export interface SocraticOrchestrationInput {
 export type SocraticOrchestrationResult =
   | {
       readonly kind: 'completed'
+      readonly studentMessage: ChatMessageRecord
       readonly assistantMessage: ChatMessageRecord
     }
   | {

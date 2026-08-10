@@ -112,6 +112,7 @@ async function main(): Promise<void> {
     analysisContext: GEMINI_SOCRATIC_ANALYSIS_CONTEXT,
     acceptedAnalysis,
     teachingDecision,
+    previousTeachingDecision: null,
     retrievedChunks: GEMINI_SOCRATIC_RETRIEVED_CHUNKS,
   })
   if (!generationContext.success) {

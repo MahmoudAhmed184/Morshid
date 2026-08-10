@@ -189,6 +189,8 @@ describe('Gemini Socratic runtime HTTP live verification', () => {
     await prisma.educationalAnalysisEvidenceLink.deleteMany()
     await prisma.teachingDecision.deleteMany()
     await prisma.educationalAnalysis.deleteMany()
+    await prisma.guardResult.deleteMany()
+    await prisma.tutorCandidateAttempt.deleteMany()
     await prisma.tutorTurn.deleteMany()
     await prisma.topicState.deleteMany()
     await prisma.topic.deleteMany()
@@ -589,6 +591,7 @@ const restrictiveOverRevealGuardPolicy: TeachingGuardPolicy = Object.freeze({
   preventFinalResult: true,
   preventCompleteSolution: true,
   preventSubmissionReadyCode: true,
+  preventProtectedCodeLeakage: true,
   requireStudentReasoning: true,
   requireGrounding: true,
   enforceCitationSupport: true,
@@ -602,8 +605,22 @@ const overRevealEducationalContext: TutorGuardEducationalContext =
       content: OVER_REVEAL_STUDENT_MESSAGE,
     }),
     acceptedAnalysis: Object.freeze({
+      id: 'live-over-reveal-analysis',
       requestKind: MessageRequestKind.CONCEPTUAL,
       studentState: StudentState.MISCONCEPTION,
+      effortEvidence: Object.freeze({
+        present: true,
+        quality: 'MEANINGFUL' as const,
+        type: 'REASONING_ATTEMPT' as const,
+        addressesPreviousTutorAction: true,
+        isRepeated: false,
+        evidenceMessageIds: ['live-over-reveal-student-message'],
+      }),
+      learningEvidence: Object.freeze({
+        present: false,
+        strength: 'NONE' as const,
+        evidenceMessageIds: [],
+      }),
       misconceptions: [
         {
           code: 'REVERSE_ITERATION_MISCONCEPTION',
@@ -613,10 +630,27 @@ const overRevealEducationalContext: TutorGuardEducationalContext =
           evidenceMessageId: 'live-over-reveal-student-message',
         },
       ],
+      evidenceReferences: ['live-over-reveal-student-message'],
+      confidence: 0.98,
+      analysisSource: 'model',
+      promptVersion: 'educational-analysis.v1',
+      schemaVersion: 'educational-analysis.v1',
+    }),
+    topicState: null,
+    previousTeachingDecision: null,
+    currentTeachingDecision: Object.freeze({
+      id: 'live-over-reveal-decision',
+      policyVersion: 'socratic-policy.mvp.v2',
+      guidanceLevel: 1,
+      revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
     }),
     recentConversation: Object.freeze([
       Object.freeze({
+        id: 'live-over-reveal-previous-assistant',
+        sequence: 1,
         role: MessageRole.ASSISTANT,
+        turnId: 'live-over-reveal-previous-turn',
+        topicId: 'live-over-reveal-topic',
         content:
           'For x in [5, 10, 15], which value will x hold on the first iteration?',
       }),

@@ -23,6 +23,7 @@ import {
   AnalysisRetryPolicy,
 } from './analysis-retry-policy'
 import { buildEducationalAnalysisModelRequest } from './educational-analysis.prompt'
+import { reconcileEducationalAnalysisRequestKind } from './educational-analysis.reconciler'
 import {
   EducationalAnalysisRepository,
   type PersistedEducationalAnalysisRecord,
@@ -179,10 +180,15 @@ export class EducationalAnalysisService {
         })
       }
 
+      const acceptedResult = reconcileEducationalAnalysisRequestKind(
+        validation.data,
+        context,
+      )
+
       try {
         const stored = await this.educationalAnalysisRepository.storeAccepted({
           ...identity,
-          result: validation.data,
+          result: acceptedResult,
           modelResponse,
           forceReanalysis,
           metadata: {

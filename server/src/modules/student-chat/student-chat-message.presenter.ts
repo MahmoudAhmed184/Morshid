@@ -55,6 +55,7 @@ export class StudentChatMessagePresenter {
       requestKind: record.requestKind,
       guidanceLabel: record.guidanceLabel,
       hintLevel: record.hintLevel,
+      promptVersion: record.promptVersion,
       errorCode: record.errorCode,
       createdAt: record.createdAt.toISOString(),
       completedAt: record.completedAt?.toISOString() ?? null,

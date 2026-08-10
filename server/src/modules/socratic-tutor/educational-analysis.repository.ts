@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 
 import {
   EducationalAnalysisEvidenceKind,
+  MessageRole,
   Prisma,
 } from '../../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
@@ -140,6 +141,11 @@ export class PrismaEducationalAnalysisRepository extends EducationalAnalysisRepo
           })
 
           if (existing !== null) {
+            await reconcileStudentRequestKind(
+              tx,
+              input.studentMessageId,
+              existing.requestKind,
+            )
             return {
               kind: 'reused',
               analysis: mapEducationalAnalysis(existing),
@@ -207,6 +213,11 @@ export class PrismaEducationalAnalysisRepository extends EducationalAnalysisRepo
           },
           include: educationalAnalysisInclude,
         })
+        await reconcileStudentRequestKind(
+          tx,
+          input.studentMessageId,
+          input.result.requestKind,
+        )
 
         return {
           kind: 'created',
@@ -222,6 +233,25 @@ export class PrismaEducationalAnalysisRepository extends EducationalAnalysisRepo
       }
       throw error
     }
+  }
+}
+
+async function reconcileStudentRequestKind(
+  tx: Prisma.TransactionClient,
+  studentMessageId: string,
+  requestKind: EducationalAnalysisResult['requestKind'],
+): Promise<void> {
+  const updated = await tx.message.updateMany({
+    where: {
+      id: studentMessageId,
+      role: MessageRole.STUDENT,
+    },
+    data: { requestKind },
+  })
+  if (updated.count !== 1) {
+    throw new Error(
+      'Accepted educational analysis must reconcile one Student message request kind',
+    )
   }
 }
 

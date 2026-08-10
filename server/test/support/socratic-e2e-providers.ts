@@ -94,6 +94,134 @@ export function misconceptionAnalysisResponse(
   })
 }
 
+export function progressionAnalysisResponse(
+  request: AnalysisModelRequest,
+  input: {
+    readonly meaningfulEffort: boolean
+    readonly learningEvidence?: boolean
+    readonly repeatedEffort?: boolean
+    readonly addressesPreviousTutorAction?: boolean
+  },
+): AnalysisModelResponse {
+  const evidenceMessageId = extractCurrentMessageId(request)
+  const learningEvidence = input.learningEvidence ?? false
+
+  return analysisResponse(request, {
+    requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+    studentState: StudentState.PARTIAL_UNDERSTANDING,
+    effortEvidence: input.meaningfulEffort
+      ? {
+          present: true,
+          quality: 'MEANINGFUL',
+          type: 'REASONING_ATTEMPT',
+          addressesPreviousTutorAction:
+            input.addressesPreviousTutorAction ?? true,
+          isRepeated: input.repeatedEffort ?? false,
+          evidenceMessageIds: [evidenceMessageId],
+        }
+      : {
+          present: false,
+          quality: 'NONE',
+          type: null,
+          addressesPreviousTutorAction:
+            input.addressesPreviousTutorAction ?? false,
+          isRepeated: input.repeatedEffort ?? false,
+          evidenceMessageIds: [],
+        },
+    learningEvidence: learningEvidence
+      ? {
+          present: true,
+          strength: 'STRONG',
+          evidenceMessageIds: [evidenceMessageId],
+        }
+      : {
+          present: false,
+          strength: 'NONE',
+          evidenceMessageIds: [],
+        },
+    misconceptions: [],
+    topicRelation: 'CONTINUE_CURRENT_TOPIC',
+    recommendedStrategy: TeachingStrategy.SOCRATIC_QUESTIONING,
+    recommendedTechnique: TeachingTechnique.FOCUSED_QUESTION,
+    recommendedGuidanceLevel: 1,
+    confidence: 0.95,
+    evidenceReferences: [evidenceMessageId],
+  })
+}
+
+export function functionalStoryAnalysisResponse(
+  request: AnalysisModelRequest,
+  input: {
+    readonly requestKind: MessageRequestKind
+    readonly studentState: StudentState
+    readonly recommendedStrategy: TeachingStrategy
+    readonly recommendedTechnique: TeachingTechnique
+    readonly meaningfulEffort?: boolean
+    readonly repeatedEffort?: boolean
+    readonly addressesPreviousTutorAction?: boolean
+    readonly learningEvidenceStrength?: 'MODERATE' | 'STRONG'
+    readonly misconception?: {
+      readonly code: string
+      readonly description: string
+    }
+  },
+): AnalysisModelResponse {
+  const evidenceMessageId = extractCurrentMessageId(request)
+  const meaningfulEffort = input.meaningfulEffort ?? false
+
+  return analysisResponse(request, {
+    requestKind: input.requestKind,
+    studentState: input.studentState,
+    effortEvidence: meaningfulEffort
+      ? {
+          present: true,
+          quality: 'MEANINGFUL',
+          type: 'REASONING_ATTEMPT',
+          addressesPreviousTutorAction:
+            input.addressesPreviousTutorAction ?? true,
+          isRepeated: input.repeatedEffort ?? false,
+          evidenceMessageIds: [evidenceMessageId],
+        }
+      : {
+          present: false,
+          quality: 'NONE',
+          type: null,
+          addressesPreviousTutorAction:
+            input.addressesPreviousTutorAction ?? false,
+          isRepeated: input.repeatedEffort ?? false,
+          evidenceMessageIds: [],
+        },
+    learningEvidence:
+      input.learningEvidenceStrength === undefined
+        ? {
+            present: false,
+            strength: 'NONE',
+            evidenceMessageIds: [],
+          }
+        : {
+            present: true,
+            strength: input.learningEvidenceStrength,
+            evidenceMessageIds: [evidenceMessageId],
+          },
+    misconceptions:
+      input.misconception === undefined
+        ? []
+        : [
+            {
+              ...input.misconception,
+              confidence: 0.96,
+              evidenceMessageId,
+            },
+          ],
+    topicRelation: 'CONTINUE_CURRENT_TOPIC',
+    recommendedStrategy: input.recommendedStrategy,
+    recommendedTechnique: input.recommendedTechnique,
+    recommendedGuidanceLevel: 1,
+    confidence: 0.96,
+    evidenceReferences: [evidenceMessageId],
+  })
+}
+
 function defaultAnalysisResponse(
   request: AnalysisModelRequest,
 ): AnalysisModelResponse {

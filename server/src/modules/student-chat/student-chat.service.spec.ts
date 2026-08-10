@@ -1108,6 +1108,7 @@ function makeMessage(
     requestKind: values.requestKind ?? null,
     guidanceLabel: values.guidanceLabel ?? null,
     hintLevel: values.hintLevel ?? null,
+    promptVersion: values.promptVersion ?? null,
     errorCode: values.errorCode ?? null,
     createdAt,
     completedAt: values.completedAt ?? null,

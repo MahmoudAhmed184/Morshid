@@ -1,6 +1,8 @@
 import type {
   TutorTurnFailureCode,
   TutorTurnStatus,
+  TutorApprovalSource,
+  TutorSafeFallbackReason,
 } from '../../generated/prisma/client'
 import type { TURN_ERROR_CODES } from './turn.errors'
 
@@ -29,6 +31,10 @@ export interface TutorTurnSnapshot {
   status: TutorTurnStatus
   failureCode: TutorTurnFailureCode | null
   safeFallbackUsed: boolean
+  approvalSource: TutorApprovalSource | null
+  approvedCandidateAttempt: number | null
+  safeFallbackReason: TutorSafeFallbackReason | null
+  validationPolicyVersion: string | null
   createdAt: Date
   // Terminal processing timestamp; successful completion is status COMPLETED.
   completedAt: Date | null

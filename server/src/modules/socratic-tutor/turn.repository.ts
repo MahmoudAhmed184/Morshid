@@ -9,10 +9,14 @@ import {
   Prisma,
   TutorTurnFailureCode,
   TutorTurnStatus,
+  TutorApprovalSource,
+  TutorSafeFallbackReason,
 } from '../../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import type { RetrievedChunk } from '../retrieval/retrieval.service'
 import type { ApprovedResponse } from './response-validation.types'
+import type { ResponseAuditGraph } from './response-audit.types'
+import type { SafeFallbackReason } from './safe-fallback.service'
 import type {
   AttachResolvedTopicInput,
   AttachResolvedTopicResult,
@@ -75,6 +79,9 @@ export interface CompleteApprovedTutorResponseInput {
   readonly approvedResponse: ApprovedResponse
   readonly guidanceLevel: number
   readonly retrievalResult: readonly RetrievedChunk[]
+  readonly auditGraph: ResponseAuditGraph
+  readonly safeFallbackReason: SafeFallbackReason | null
+  readonly expectedTurnStatus: TutorTurnStatus
 }
 
 export type CompleteApprovedTutorResponseResult =
@@ -94,6 +101,10 @@ export const tutorTurnSelect = {
   status: true,
   failureCode: true,
   safeFallbackUsed: true,
+  approvalSource: true,
+  approvedCandidateAttempt: true,
+  safeFallbackReason: true,
+  validationPolicyVersion: true,
   createdAt: true,
   completedAt: true,
 } satisfies Prisma.TutorTurnSelect
@@ -458,6 +469,14 @@ export class PrismaTurnRepository extends TurnRepository {
         return { kind: 'relationship_mismatch' }
       }
 
+      if (turn.status !== input.expectedTurnStatus) {
+        return { kind: 'relationship_mismatch' }
+      }
+
+      if (!auditGraphMatchesApproval(input)) {
+        return { kind: 'relationship_mismatch' }
+      }
+
       // Re-check membership at finalization — mirrors the lockAuthorizedSession()
       // contract from PrismaGroundedChatTurnRepository.completeTurn(). If membership
       // was revoked while the pipeline was in flight, the approved response must
@@ -560,18 +579,66 @@ export class PrismaTurnRepository extends TurnRepository {
         })
       }
 
+      await tx.tutorCandidateAttempt.createMany({
+        data: input.auditGraph.candidateAttempts.map((attempt) => ({
+          turnId: input.turnId,
+          candidateAttempt: attempt.candidateAttempt,
+          generationOutcome: attempt.generationOutcome,
+          generationFailureCode: attempt.generationFailureCode,
+          contentHash: attempt.contentHash,
+          provider: attempt.provider,
+          model: attempt.model,
+          promptVersion: attempt.promptVersion,
+          inputTokens: attempt.inputTokens,
+          outputTokens: attempt.outputTokens,
+          infrastructureRetryCount: attempt.infrastructureRetryCount,
+          startedAt: attempt.startedAt,
+          completedAt: attempt.completedAt,
+        })),
+      })
+      if (input.auditGraph.guardResults.length > 0) {
+        await tx.guardResult.createMany({
+          data: input.auditGraph.guardResults.map((guard) => ({
+            turnId: input.turnId,
+            candidateAttempt: guard.candidateAttempt,
+            validationStage: guard.result.stage,
+            approved: guard.result.approved,
+            violations: guard.result
+              .violations as unknown as Prisma.InputJsonValue,
+            maximumSeverity: guard.result.maximumSeverity,
+            recommendedAction: guard.result.recommendedAction,
+            provider: guard.result.provider,
+            model: guard.result.model,
+            promptVersion: guard.result.promptVersion,
+            validationPolicyVersion: guard.result.policyVersion,
+            teachingPolicyVersion: guard.teachingPolicyVersion,
+            disclosurePolicyVersion: guard.disclosurePolicyVersion,
+          })),
+        })
+      }
+
       const updated = await tx.tutorTurn.updateManyAndReturn({
         where: {
           id: input.turnId,
-          status: {
-            notIn: [TutorTurnStatus.COMPLETED, TutorTurnStatus.FAILED],
-          },
+          status: input.expectedTurnStatus,
           approvedTutorMessageId: null,
         },
         data: {
           status: TutorTurnStatus.COMPLETED,
           approvedTutorMessageId: input.assistantMessageId,
           safeFallbackUsed: input.approvedResponse.safeFallbackUsed,
+          approvalSource:
+            input.approvedResponse.source === 'SAFE_FALLBACK'
+              ? TutorApprovalSource.SAFE_FALLBACK
+              : TutorApprovalSource.VALIDATED_CANDIDATE,
+          approvedCandidateAttempt:
+            input.approvedResponse.approvedCandidateAttempt,
+          safeFallbackReason:
+            input.safeFallbackReason === null
+              ? null
+              : TutorSafeFallbackReason[input.safeFallbackReason],
+          validationPolicyVersion:
+            input.approvedResponse.approvalMetadata.validationPolicyVersion,
           completedAt: now,
         },
         select: tutorTurnSelect,
@@ -597,6 +664,10 @@ const tutorTurnReturningSql = Prisma.sql`
   "status",
   "failure_code" AS "failureCode",
   "safe_fallback_used" AS "safeFallbackUsed",
+  "approval_source" AS "approvalSource",
+  "approved_candidate_attempt" AS "approvedCandidateAttempt",
+  "safe_fallback_reason" AS "safeFallbackReason",
+  "validation_policy_version" AS "validationPolicyVersion",
   "created_at" AS "createdAt",
   "completed_at" AS "completedAt"
 `
@@ -649,6 +720,54 @@ async function selectedEvidenceIsCourseScoped(
   )
   return evidence.every(
     (entry) => materialByChunk.get(entry.chunkId) === entry.materialId,
+  )
+}
+
+function auditGraphMatchesApproval(
+  input: CompleteApprovedTutorResponseInput,
+): boolean {
+  const attempts = input.auditGraph.candidateAttempts
+  if (attempts.length === 0 || attempts.length > 3) {
+    return false
+  }
+
+  const attemptNumbers = new Set<number>()
+  for (const attempt of attempts) {
+    if (
+      attempt.candidateAttempt < 1 ||
+      attempt.candidateAttempt > 3 ||
+      attemptNumbers.has(attempt.candidateAttempt)
+    ) {
+      return false
+    }
+    attemptNumbers.add(attempt.candidateAttempt)
+  }
+
+  const stageKeys = new Set<string>()
+  for (const guard of input.auditGraph.guardResults) {
+    const key = `${String(guard.candidateAttempt)}:${guard.result.stage}`
+    if (!attemptNumbers.has(guard.candidateAttempt) || stageKeys.has(key)) {
+      return false
+    }
+    stageKeys.add(key)
+  }
+
+  if (input.approvedResponse.source === 'SAFE_FALLBACK') {
+    return (
+      input.approvedResponse.approvedCandidateAttempt === null &&
+      input.safeFallbackReason !== null
+    )
+  }
+
+  const approvedAttempt = input.approvedResponse.approvedCandidateAttempt
+  return (
+    approvedAttempt !== null &&
+    input.safeFallbackReason === null &&
+    attempts.some(
+      (attempt) =>
+        attempt.candidateAttempt === approvedAttempt &&
+        attempt.generationOutcome === 'GENERATED',
+    )
   )
 }
 

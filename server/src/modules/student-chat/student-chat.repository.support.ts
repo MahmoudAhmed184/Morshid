@@ -24,6 +24,7 @@ export const chatMessageScalarSelect = {
   requestKind: true,
   guidanceLabel: true,
   hintLevel: true,
+  promptVersion: true,
   errorCode: true,
   createdAt: true,
   completedAt: true,

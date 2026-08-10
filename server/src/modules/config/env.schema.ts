@@ -65,6 +65,10 @@ import {
   normalizeOpenAICompatibleBaseUrl,
 } from '../socratic-tutor/analysis-model.configuration'
 import {
+  DEFAULT_TUTOR_MODEL_MAX_INFRASTRUCTURE_RETRIES,
+  MAX_TUTOR_MODEL_MAX_INFRASTRUCTURE_RETRIES,
+} from '../socratic-tutor/tutor-infrastructure-retry.policy'
+import {
   DEFAULT_TUTOR_MODEL_BASE_URL,
   DEFAULT_TUTOR_MODEL_NAME,
   DEFAULT_TUTOR_MODEL_TIMEOUT_MS,
@@ -273,6 +277,12 @@ export const envSchema = z
       .positive()
       .max(MAX_TUTOR_MODEL_TIMEOUT_MS)
       .default(DEFAULT_TUTOR_MODEL_TIMEOUT_MS),
+    TUTOR_MODEL_MAX_INFRASTRUCTURE_RETRIES: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .max(MAX_TUTOR_MODEL_MAX_INFRASTRUCTURE_RETRIES)
+      .default(DEFAULT_TUTOR_MODEL_MAX_INFRASTRUCTURE_RETRIES),
     SEMANTIC_GUARD_PROVIDER: z
       .enum([
         DETERMINISTIC_SEMANTIC_GUARD_PROVIDER,
@@ -599,6 +609,18 @@ export const envSchema = z
           message: 'must not use a placeholder semantic guard key',
         })
       }
+    }
+
+    if (
+      env.NODE_ENV === 'production' &&
+      env.SEMANTIC_GUARD_PROVIDER === DETERMINISTIC_SEMANTIC_GUARD_PROVIDER
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['SEMANTIC_GUARD_PROVIDER'],
+        message:
+          'deterministic is restricted to tests and local development; production requires an independent semantic guard model',
+      })
     }
 
     if (

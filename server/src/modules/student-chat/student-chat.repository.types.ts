@@ -38,6 +38,7 @@ export interface ChatMessageRecord {
   requestKind: MessageRequestKind | null
   guidanceLabel: MessageGuidanceLabel | null
   hintLevel: number | null
+  promptVersion: string | null
   errorCode: string | null
   createdAt: Date
   completedAt: Date | null

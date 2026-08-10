@@ -23,6 +23,7 @@ export function buildGenerationContextPackage(input: {
   readonly analysisContext: AnalysisContextPackage
   readonly acceptedAnalysis: PersistedEducationalAnalysisRecord
   readonly teachingDecision: PersistedTeachingDecisionRecord
+  readonly previousTeachingDecision: PersistedTeachingDecisionRecord | null
   readonly retrievedChunks: readonly RetrievedChunk[]
 }): BuildGenerationContextResult {
   const turnId = input.analysisContext.studentMessage.turnId
@@ -59,6 +60,7 @@ export function buildGenerationContextPackage(input: {
       studentMessage: input.analysisContext.studentMessage,
       acceptedAnalysis: input.acceptedAnalysis,
       teachingDecision: input.teachingDecision,
+      previousTeachingDecision: input.previousTeachingDecision,
       activeTopic: input.analysisContext.activeTopic,
       topicState: input.analysisContext.topicState,
       selectedHistory: Object.freeze(
@@ -85,6 +87,24 @@ export function withRegenerationContext(
   })
 }
 
+export function regenerationMatchesTeachingDecision(
+  context: GenerationContextPackage,
+): boolean {
+  const policy = context.regeneration?.authoritativePolicy
+  if (policy === undefined) {
+    return true
+  }
+
+  return (
+    policy.teachingDecisionId === context.teachingDecision.id &&
+    policy.policyVersion === context.teachingDecision.policyVersion &&
+    policy.guidanceLevel === context.teachingDecision.guidanceLevel &&
+    policy.revealPolicy === context.teachingDecision.revealPolicy &&
+    JSON.stringify(policy.guardPolicy) ===
+      JSON.stringify(context.teachingDecision.guardPolicy)
+  )
+}
+
 export function guardEducationalContextFromGenerationContext(
   context: GenerationContextPackage,
 ): TutorGuardEducationalContext {
@@ -94,14 +114,34 @@ export function guardEducationalContextFromGenerationContext(
       content: context.studentMessage.content,
     }),
     acceptedAnalysis: Object.freeze({
+      id: context.acceptedAnalysis.id,
       requestKind: context.acceptedAnalysis.result.requestKind,
       studentState: context.acceptedAnalysis.result.studentState,
+      effortEvidence: context.acceptedAnalysis.result.effortEvidence,
+      learningEvidence: context.acceptedAnalysis.result.learningEvidence,
       misconceptions: context.acceptedAnalysis.result.misconceptions,
+      evidenceReferences: context.acceptedAnalysis.result.evidenceReferences,
+      confidence: context.acceptedAnalysis.result.confidence,
+      analysisSource: context.acceptedAnalysis.analysisSource,
+      promptVersion: context.acceptedAnalysis.promptVersion,
+      schemaVersion: context.acceptedAnalysis.schemaVersion,
+    }),
+    topicState: context.topicState,
+    previousTeachingDecision: context.previousTeachingDecision,
+    currentTeachingDecision: Object.freeze({
+      id: context.teachingDecision.id,
+      policyVersion: context.teachingDecision.policyVersion,
+      guidanceLevel: context.teachingDecision.guidanceLevel,
+      revealPolicy: context.teachingDecision.revealPolicy,
     }),
     recentConversation: Object.freeze(
       context.selectedHistory.map((message) =>
         Object.freeze({
+          id: message.id,
+          sequence: message.sequence,
           role: message.role,
+          turnId: message.turnId,
+          topicId: message.topicId,
           content: message.content,
         }),
       ),

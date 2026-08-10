@@ -106,7 +106,7 @@ export class DeterministicGuardService {
           RESPONSE_VALIDATION_SEVERITY.MEDIUM,
           'message',
           'Candidate discloses more explicit solution steps than the guard policy allows.',
-          'Reduce the response to one bounded student reasoning step.',
+          'Honor maximumDisclosedSteps without reducing the approved guidance shape: keep additional scaffolding as questions, structure, or connections rather than disclosed protected solution steps.',
         ),
       )
     }

@@ -178,6 +178,7 @@ export function buildLiveTeachingDecision(
       preventFinalResult: true,
       preventCompleteSolution: true,
       preventSubmissionReadyCode: true,
+      preventProtectedCodeLeakage: true,
       requireStudentReasoning: true,
       requireGrounding: true,
       enforceCitationSupport: true,

@@ -2,11 +2,10 @@ import { Injectable } from '@nestjs/common'
 
 import { Prisma } from '../../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { EDUCATIONAL_ANALYSIS_SOURCE } from './educational-analysis.types'
 import type { TeachingDecisionPolicyDraft } from './teaching-policy.selector'
-import type {
-  PreviousTeachingDecisionSnapshot,
-  TeachingGuardPolicy,
-} from './teaching-policy.types'
+import type { PreviousTeachingDecisionSnapshot } from './teaching-policy.types'
+import { normalizeTeachingGuardPolicy } from './teaching-policy.types'
 
 export type PersistedTeachingDecisionRecord = PreviousTeachingDecisionSnapshot
 
@@ -30,6 +29,11 @@ export abstract class TeachingDecisionRepository {
   abstract findByTurnId(
     turnId: string,
   ): Promise<PersistedTeachingDecisionRecord | null>
+
+  abstract findLatestCompletedForSameTopicBeforeTurn(input: {
+    turnId: string
+    topicId: string
+  }): Promise<PersistedTeachingDecisionRecord | null>
 
   abstract storeDecision(
     draft: TeachingDecisionPolicyDraft,
@@ -75,6 +79,53 @@ export class PrismaTeachingDecisionRepository extends TeachingDecisionRepository
       .then((decision) =>
         decision === null ? null : mapTeachingDecision(decision),
       )
+  }
+
+  async findLatestCompletedForSameTopicBeforeTurn(input: {
+    turnId: string
+    topicId: string
+  }): Promise<PersistedTeachingDecisionRecord | null> {
+    const currentTurn = await this.prismaService.tutorTurn.findUnique({
+      where: { id: input.turnId },
+      select: {
+        sessionId: true,
+        topicId: true,
+        studentMessage: { select: { sequence: true } },
+      },
+    })
+    if (
+      currentTurn?.topicId !== input.topicId ||
+      currentTurn.studentMessage === null
+    ) {
+      return null
+    }
+
+    const decision = await this.prismaService.teachingDecision.findFirst({
+      where: {
+        topicId: input.topicId,
+        analysis: {
+          analysisSource: {
+            not: EDUCATIONAL_ANALYSIS_SOURCE.FALLBACK,
+          },
+        },
+        turn: {
+          sessionId: currentTurn.sessionId,
+          status: 'COMPLETED',
+          approvedTutorMessageId: { not: null },
+          studentMessage: {
+            sequence: { lt: currentTurn.studentMessage.sequence },
+          },
+        },
+      },
+      orderBy: [
+        { turn: { studentMessage: { sequence: 'desc' } } },
+        { createdAt: 'desc' },
+        { id: 'desc' },
+      ],
+      select: teachingDecisionSelect,
+    })
+
+    return decision === null ? null : mapTeachingDecision(decision)
   }
 
   async storeDecision(
@@ -191,7 +242,7 @@ function mapTeachingDecision(
 ): PersistedTeachingDecisionRecord {
   return {
     ...decision,
-    guardPolicy: decision.guardPolicy as unknown as TeachingGuardPolicy,
+    guardPolicy: normalizeTeachingGuardPolicy(decision.guardPolicy),
   }
 }
 

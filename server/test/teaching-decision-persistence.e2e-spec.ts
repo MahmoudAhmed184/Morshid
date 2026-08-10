@@ -182,6 +182,166 @@ describe('TeachingDecisionRepository (e2e)', () => {
     ).resolves.toBeGreaterThanOrEqual(2)
   })
 
+  it('loads only the latest completed same-topic decision before the current turn', async () => {
+    const first = await createFixture(prisma)
+    const firstAnalysis = await storeAnalysis(first)
+    const firstDecision = await engine.selectDecision({
+      analysis: firstAnalysis,
+      topicState: topicState(first.topicId),
+    })
+    expect(firstDecision.success).toBe(true)
+    await completeTurn(prisma, first)
+
+    const unrelated = await createFixture(prisma)
+    const unrelatedAnalysis = await storeAnalysis(unrelated)
+    await engine.selectDecision({
+      analysis: unrelatedAnalysis,
+      topicState: topicState(unrelated.topicId),
+    })
+    await completeTurn(prisma, unrelated)
+
+    const current = await createFollowingTurn(prisma, first)
+    await expect(
+      decisionRepository.findLatestCompletedForSameTopicBeforeTurn({
+        turnId: current.turnId,
+        topicId: current.topicId,
+      }),
+    ).resolves.toMatchObject({
+      id: firstDecision.success ? firstDecision.decision.id : '',
+      turnId: first.turnId,
+      topicId: first.topicId,
+    })
+  })
+
+  it('resumes the latest non-fallback baseline after consecutive fallback decisions', async () => {
+    const first = await createFixture(prisma)
+    const firstAnalysis = await storeAnalysis(first)
+    const firstDecision = await engine.selectDecision({
+      analysis: firstAnalysis,
+      topicState: topicState(first.topicId),
+    })
+    expect(firstDecision).toMatchObject({
+      success: true,
+      decision: { guidanceLevel: 1 },
+    })
+    await completeTurn(prisma, first)
+
+    const second = await createFollowingTurn(prisma, first)
+    const secondAnalysis = await storeAnalysis(second)
+    const secondDecision = await engine.selectDecision({
+      analysis: secondAnalysis,
+      topicState: topicState(second.topicId),
+      previousTeachingDecision: await engine.findPreviousDecision({
+        turnId: second.turnId,
+        topicId: second.topicId,
+      }),
+    })
+    expect(secondDecision).toMatchObject({
+      success: true,
+      decision: { guidanceLevel: 2 },
+    })
+    if (!secondDecision.success) {
+      throw new Error('Expected the second valid decision to be persisted')
+    }
+    await completeTurn(prisma, second)
+
+    const fallbackDecisions: PersistedTeachingDecisionRecord[] = []
+    let preceding = second
+    for (let index = 0; index < 2; index += 1) {
+      const fallback = await createFollowingTurn(prisma, preceding)
+      const fallbackAnalysis = await storeAnalysis(
+        fallback,
+        fallbackResult(fallback.studentMessageId),
+        EDUCATIONAL_ANALYSIS_SOURCE.FALLBACK,
+      )
+      const fallbackDecision = await engine.selectDecision({
+        analysis: fallbackAnalysis,
+        topicState: topicState(fallback.topicId),
+        previousTeachingDecision: await engine.findPreviousDecision({
+          turnId: fallback.turnId,
+          topicId: fallback.topicId,
+        }),
+      })
+      expect(fallbackDecision).toMatchObject({
+        success: true,
+        decision: { guidanceLevel: 1 },
+      })
+      if (!fallbackDecision.success) {
+        throw new Error('Expected the fallback decision to be persisted')
+      }
+      fallbackDecisions.push(fallbackDecision.decision)
+      await completeTurn(prisma, fallback)
+      preceding = fallback
+    }
+
+    const recovered = await createFollowingTurn(prisma, preceding)
+    const recoveredPrevious = await engine.findPreviousDecision({
+      turnId: recovered.turnId,
+      topicId: recovered.topicId,
+    })
+    expect(recoveredPrevious).toMatchObject({
+      id: secondDecision.decision.id,
+      guidanceLevel: 2,
+    })
+
+    const recoveredAnalysis = await storeAnalysis(recovered)
+    const recoveredDecision = await engine.selectDecision({
+      analysis: recoveredAnalysis,
+      topicState: topicState(recovered.topicId),
+      previousTeachingDecision: recoveredPrevious,
+    })
+    expect(recoveredDecision).toMatchObject({
+      success: true,
+      decision: { guidanceLevel: 3 },
+    })
+
+    for (const fallbackDecision of fallbackDecisions) {
+      await expect(
+        decisionRepository.findByTurnId(fallbackDecision.turnId),
+      ).resolves.toMatchObject({
+        id: fallbackDecision.id,
+        guidanceLevel: 1,
+      })
+    }
+  })
+
+  it('starts recovered guidance at Level 1 when only fallback decisions precede it', async () => {
+    const fallback = await createFixture(prisma)
+    const fallbackAnalysis = await storeAnalysis(
+      fallback,
+      fallbackResult(fallback.studentMessageId),
+      EDUCATIONAL_ANALYSIS_SOURCE.FALLBACK,
+    )
+    const fallbackDecision = await engine.selectDecision({
+      analysis: fallbackAnalysis,
+      topicState: topicState(fallback.topicId),
+    })
+    expect(fallbackDecision).toMatchObject({
+      success: true,
+      decision: { guidanceLevel: 1 },
+    })
+    await completeTurn(prisma, fallback)
+
+    const recovered = await createFollowingTurn(prisma, fallback)
+    const recoveredPrevious = await engine.findPreviousDecision({
+      turnId: recovered.turnId,
+      topicId: recovered.topicId,
+    })
+    expect(recoveredPrevious).toBeNull()
+
+    const recoveredAnalysis = await storeAnalysis(recovered)
+    await expect(
+      engine.selectDecision({
+        analysis: recoveredAnalysis,
+        topicState: topicState(recovered.topicId),
+        previousTeachingDecision: recoveredPrevious,
+      }),
+    ).resolves.toMatchObject({
+      success: true,
+      decision: { guidanceLevel: 1 },
+    })
+  })
+
   it('fails safely for missing or unrelated analysis records', async () => {
     const fixture = await createFixture(prisma)
     const analysis = await storeAnalysis(fixture)
@@ -315,6 +475,83 @@ async function createFixture(prisma: PrismaService): Promise<Fixture> {
     turnId: turn.id,
     studentMessageId: studentMessage.id,
   }
+}
+
+async function createFollowingTurn(
+  prisma: PrismaService,
+  first: Fixture,
+): Promise<Fixture> {
+  const latestSequence = await prisma.message.aggregate({
+    where: { sessionId: first.sessionId },
+    _max: { sequence: true },
+  })
+  const turn = await prisma.tutorTurn.create({
+    data: {
+      sessionId: first.sessionId,
+      topicId: first.topicId,
+      idempotencyKey: `decision-following-${randomUUID()}`,
+    },
+  })
+  const studentMessage = await prisma.message.create({
+    data: {
+      sessionId: first.sessionId,
+      turnId: turn.id,
+      topicId: first.topicId,
+      sequence: (latestSequence._max.sequence ?? 0) + 1,
+      role: MessageRole.STUDENT,
+      authorUserId: first.studentId,
+      content: 'I changed low to mid plus one; what should I trace next?',
+      status: MessageStatus.COMPLETED,
+      completedAt: new Date('2026-08-05T00:02:00.000Z'),
+    },
+  })
+  await prisma.tutorTurn.update({
+    where: { id: turn.id },
+    data: { studentMessageId: studentMessage.id },
+  })
+
+  return {
+    ...first,
+    turnId: turn.id,
+    studentMessageId: studentMessage.id,
+  }
+}
+
+async function completeTurn(
+  prisma: PrismaService,
+  fixture: Fixture,
+): Promise<void> {
+  const studentMessage = await prisma.message.findUniqueOrThrow({
+    where: { id: fixture.studentMessageId },
+    select: { sequence: true },
+  })
+  const completedAt = new Date(
+    Date.parse('2026-08-05T00:00:00.000Z') + studentMessage.sequence * 60_000,
+  )
+  const assistant = await prisma.message.create({
+    data: {
+      sessionId: fixture.sessionId,
+      turnId: fixture.turnId,
+      topicId: fixture.topicId,
+      sequence: studentMessage.sequence + 1,
+      role: MessageRole.ASSISTANT,
+      responseToMessageId: fixture.studentMessageId,
+      content: 'What boundary changes after this comparison?',
+      status: MessageStatus.COMPLETED,
+      completedAt,
+    },
+  })
+  await prisma.tutorTurn.update({
+    where: { id: fixture.turnId },
+    data: {
+      status: 'COMPLETED',
+      approvedTutorMessageId: assistant.id,
+      approvalSource: 'VALIDATED_CANDIDATE',
+      approvedCandidateAttempt: 1,
+      validationPolicyVersion: 'response-validation.mvp.v1',
+      completedAt,
+    },
+  })
 }
 
 function analysisResult(studentMessageId: string): EducationalAnalysisResult {

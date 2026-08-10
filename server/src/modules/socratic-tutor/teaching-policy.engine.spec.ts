@@ -182,6 +182,23 @@ describe('TeachingPolicyEngine', () => {
     }
     expect(state).toEqual(before)
   })
+
+  it('uses the authoritative topic resolution instead of model topic relation', async () => {
+    const repository = new FakeTeachingDecisionRepository()
+    const engine = new TeachingPolicyEngine(repository)
+
+    const result = await engine.selectDecision({
+      analysis: analysis(),
+      topicState: topicState({ guidanceLevel: 3 }),
+      previousTeachingDecision: previousDecision({ guidanceLevel: 3 }),
+      topicResolutionOutcome: TOPIC_RESOLUTION_OUTCOME.CREATE_NEW_TOPIC,
+    })
+
+    expect(result).toMatchObject({
+      success: true,
+      decision: { guidanceLevel: 1 },
+    })
+  })
 })
 
 class FakeTeachingDecisionRepository extends TeachingDecisionRepository {
@@ -199,6 +216,10 @@ class FakeTeachingDecisionRepository extends TeachingDecisionRepository {
     return Promise.resolve(
       this.decisions.find((decision) => decision.turnId === turnId) ?? null,
     )
+  }
+
+  findLatestCompletedForSameTopicBeforeTurn(): Promise<PersistedTeachingDecisionRecord | null> {
+    return Promise.resolve(this.decisions.at(-1) ?? null)
   }
 
   storeDecision(

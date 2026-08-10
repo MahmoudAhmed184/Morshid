@@ -275,6 +275,8 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
     await prisma.educationalAnalysisEvidenceLink.deleteMany()
     await prisma.teachingDecision.deleteMany()
     await prisma.educationalAnalysis.deleteMany()
+    await prisma.guardResult.deleteMany()
+    await prisma.tutorCandidateAttempt.deleteMany()
     await prisma.tutorTurn.deleteMany()
     await prisma.topicState.deleteMany()
     await prisma.topic.deleteMany()

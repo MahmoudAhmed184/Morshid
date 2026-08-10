@@ -115,6 +115,47 @@ enum TutorTurnFailureCode {
   @@map("tutor_turn_failure_code")
 }
 
+enum TutorCandidateGenerationOutcome {
+  GENERATED
+  INVALID_OUTPUT
+  INFRASTRUCTURE_EXHAUSTED
+
+  @@map("tutor_candidate_generation_outcome")
+}
+
+enum GuardValidationStage {
+  STRUCTURAL
+  DETERMINISTIC
+  SEMANTIC
+
+  @@map("guard_validation_stage")
+}
+
+enum GuardRecommendedAction {
+  APPROVE
+  REGENERATE
+  USE_SAFE_FALLBACK
+
+  @@map("guard_recommended_action")
+}
+
+enum TutorApprovalSource {
+  VALIDATED_CANDIDATE
+  SAFE_FALLBACK
+
+  @@map("tutor_approval_source")
+}
+
+enum TutorSafeFallbackReason {
+  VALIDATION_EXHAUSTED
+  GUARD_UNAVAILABLE
+  GENERATION_RETRY_FAILED
+  GROUNDING_UNAVAILABLE
+  LEGACY_UNCLASSIFIED
+
+  @@map("tutor_safe_fallback_reason")
+}
+
 enum StudentState {
   UNKNOWN
   NO_PRIOR_KNOWLEDGE
@@ -444,30 +485,84 @@ model TopicState {
 }
 
 model TutorTurn {
-  id                     String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  sessionId              String                @map("session_id") @db.Uuid
-  topicId                String?               @map("topic_id") @db.Uuid
-  studentMessageId       String?               @map("student_message_id") @db.Uuid
-  approvedTutorMessageId String?               @unique(map: "tutor_turns_approved_tutor_message_id_key") @map("approved_tutor_message_id") @db.Uuid
-  idempotencyKey         String                @map("idempotency_key") @db.VarChar(160)
-  status                 TutorTurnStatus       @default(RECEIVED)
-  failureCode            TutorTurnFailureCode? @map("failure_code")
-  safeFallbackUsed       Boolean               @default(false) @map("safe_fallback_used")
-  createdAt              DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
-  completedAt            DateTime?             @map("completed_at") @db.Timestamptz(6)
+  id                       String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId                String                   @map("session_id") @db.Uuid
+  topicId                  String?                  @map("topic_id") @db.Uuid
+  studentMessageId         String?                  @map("student_message_id") @db.Uuid
+  approvedTutorMessageId   String?                  @unique(map: "tutor_turns_approved_tutor_message_id_key") @map("approved_tutor_message_id") @db.Uuid
+  idempotencyKey           String                   @map("idempotency_key") @db.VarChar(160)
+  status                   TutorTurnStatus          @default(RECEIVED)
+  failureCode              TutorTurnFailureCode?    @map("failure_code")
+  safeFallbackUsed         Boolean                  @default(false) @map("safe_fallback_used")
+  approvalSource           TutorApprovalSource?     @map("approval_source")
+  approvedCandidateAttempt Int?                     @map("approved_candidate_attempt") @db.SmallInt
+  safeFallbackReason       TutorSafeFallbackReason? @map("safe_fallback_reason")
+  validationPolicyVersion  String?                  @map("validation_policy_version") @db.VarChar(80)
+  createdAt                DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt              DateTime?                @map("completed_at") @db.Timestamptz(6)
 
-  session              ChatSession           @relation(fields: [sessionId], references: [id], onDelete: Restrict)
-  topic                Topic?                @relation(fields: [topicId], references: [id], onDelete: SetNull)
-  studentMessage       Message?              @relation("TutorTurnStudentMessage", fields: [studentMessageId], references: [id], onDelete: SetNull)
-  approvedTutorMessage Message?              @relation("TutorTurnApprovedTutorMessage", fields: [approvedTutorMessageId], references: [id], onDelete: SetNull)
-  messages             Message[]             @relation("MessageTurn")
+  session              ChatSession             @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  topic                Topic?                  @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  studentMessage       Message?                @relation("TutorTurnStudentMessage", fields: [studentMessageId], references: [id], onDelete: SetNull)
+  approvedTutorMessage Message?                @relation("TutorTurnApprovedTutorMessage", fields: [approvedTutorMessageId], references: [id], onDelete: SetNull)
+  messages             Message[]               @relation("MessageTurn")
   educationalAnalyses  EducationalAnalysis[]
   teachingDecision     TeachingDecision?
+  candidateAttempts    TutorCandidateAttempt[]
 
   @@unique([sessionId, idempotencyKey], map: "tutor_turns_session_id_idempotency_key_key")
   @@index([topicId], map: "idx_tutor_turns_topic")
   @@index([studentMessageId], map: "idx_tutor_turns_student_message")
   @@map("tutor_turns")
+}
+
+model TutorCandidateAttempt {
+  id                       String                          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  turnId                   String                          @map("turn_id") @db.Uuid
+  candidateAttempt         Int                             @map("candidate_attempt") @db.SmallInt
+  generationOutcome        TutorCandidateGenerationOutcome @map("generation_outcome")
+  generationFailureCode    String?                         @map("generation_failure_code") @db.VarChar(80)
+  contentHash              String?                         @map("content_hash") @db.VarChar(64)
+  provider                 String?                         @db.VarChar(80)
+  model                    String?                         @db.VarChar(200)
+  promptVersion            String?                         @map("prompt_version") @db.VarChar(80)
+  inputTokens              Int?                            @map("input_tokens")
+  outputTokens             Int?                            @map("output_tokens")
+  infrastructureRetryCount Int                             @default(0) @map("infrastructure_retry_count")
+  startedAt                DateTime                        @map("started_at") @db.Timestamptz(6)
+  completedAt              DateTime                        @map("completed_at") @db.Timestamptz(6)
+  createdAt                DateTime                        @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  turn         TutorTurn     @relation(fields: [turnId], references: [id], onDelete: Restrict)
+  guardResults GuardResult[]
+
+  @@unique([turnId, candidateAttempt], map: "tutor_candidate_attempts_turn_attempt_key")
+  @@index([turnId], map: "idx_tutor_candidate_attempts_turn")
+  @@map("tutor_candidate_attempts")
+}
+
+model GuardResult {
+  id                      String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  turnId                  String                 @map("turn_id") @db.Uuid
+  candidateAttempt        Int                    @map("candidate_attempt") @db.SmallInt
+  validationStage         GuardValidationStage   @map("validation_stage")
+  approved                Boolean
+  violations              Json
+  maximumSeverity         String?                @map("maximum_severity") @db.VarChar(16)
+  recommendedAction       GuardRecommendedAction @map("recommended_action")
+  provider                String?                @db.VarChar(80)
+  model                   String?                @db.VarChar(200)
+  promptVersion           String?                @map("prompt_version") @db.VarChar(80)
+  validationPolicyVersion String                 @map("validation_policy_version") @db.VarChar(80)
+  teachingPolicyVersion   String                 @map("teaching_policy_version") @db.VarChar(80)
+  disclosurePolicyVersion String                 @map("disclosure_policy_version") @db.VarChar(80)
+  createdAt               DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  candidate TutorCandidateAttempt @relation(fields: [turnId, candidateAttempt], references: [turnId, candidateAttempt], onDelete: Restrict)
+
+  @@unique([turnId, candidateAttempt, validationStage], map: "guard_results_turn_attempt_stage_key")
+  @@index([turnId], map: "idx_guard_results_turn")
+  @@map("guard_results")
 }
 
 model Message {

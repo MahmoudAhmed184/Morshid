@@ -60,6 +60,32 @@ describe('SemanticGuardService', () => {
     })
   })
 
+  it.each(['CODE_LEAKAGE', 'MISSING_STUDENT_REASONING'] as const)(
+    'preserves canonical %s semantic violation typing',
+    async (type) => {
+      const result = await new SemanticGuardService(
+        new FakeSemanticGuardPort({
+          approved: false,
+          violations: [
+            {
+              type,
+              severity: 'HIGH',
+              field: 'message',
+              evidence: 'The protected reasoning was supplied.',
+              regenerationInstruction:
+                'Preserve the protected reasoning for the student.',
+            },
+          ],
+        }),
+      ).evaluate(input())
+
+      expect(result).toMatchObject({
+        kind: 'validated',
+        result: { approved: false, violations: [{ type }] },
+      })
+    },
+  )
+
   it('supplies the reasoning target and rejects low-guidance correction disclosure', async () => {
     const guard = new FakeSemanticGuardPort({
       approved: false,
@@ -99,6 +125,12 @@ describe('SemanticGuardService', () => {
     expect(payload).toMatchObject({
       trustedPolicy: {
         disclosureContract: { directTargetInferenceAllowed: false },
+        functionalResponseRequirements: {
+          requestKind: 'CONCEPTUAL',
+          strategyAndTechniqueMustNotReduceGuidanceShape: true,
+          supportedConceptualExplanation: true,
+          evaluateSemanticallyWithoutPhraseMatching: true,
+        },
       },
       educationalContext: {
         currentStudentMessage: {
@@ -106,20 +138,60 @@ describe('SemanticGuardService', () => {
             'I think iteration begins at the final item and moves backward.',
         },
         acceptedAnalysis: {
+          id: 'analysis-1',
           studentState: 'MISCONCEPTION',
+          evidenceReferences: ['message-1'],
           misconceptions: [
             {
               code: 'REVERSE_ITERATION',
             },
           ],
         },
+        currentTeachingDecision: {
+          id: 'decision-1',
+          policyVersion: 'policy-test.v1',
+        },
+        recentConversation: [
+          {
+            id: 'assistant-previous',
+            topicId: 'topic-1',
+          },
+        ],
       },
     })
+    expect(payload).toMatchObject({
+      trustedPolicy: {
+        disclosurePolicyVersion: 'socratic-disclosure-policy.v2',
+      },
+    })
+    expect(Reflect.get(payload, 'requiredChecks')).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('cumulative disclosure'),
+      ]),
+    )
     expect(Reflect.get(payload, 'violationTypingRules')).toEqual(
       expect.arrayContaining([
         expect.stringContaining(
           'the violation type MUST be DIRECT_ANSWER_DISCLOSURE',
         ),
+      ]),
+    )
+    expect(Reflect.get(payload, 'adjudicationRules')).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('For GUIDED_DECOMPOSITION'),
+        expect.stringContaining('For STRONG_GUIDANCE'),
+      ]),
+    )
+    expect(Reflect.get(payload, 'semanticCalibrationExamples')).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          policyCondition: 'guidanceShape.mode is GUIDED_DECOMPOSITION',
+          verdict: 'REJECT as GUIDANCE_LEVEL_VIOLATION',
+        }),
+        expect.objectContaining({
+          policyCondition: 'guidanceShape.mode is STRONG_GUIDANCE',
+          verdict: 'REJECT as GUIDANCE_LEVEL_VIOLATION',
+        }),
       ]),
     )
   })
@@ -227,8 +299,22 @@ function input(
           'I think iteration begins at the final item and moves backward.',
       },
       acceptedAnalysis: {
+        id: 'analysis-1',
         requestKind: 'CONCEPTUAL',
         studentState: 'MISCONCEPTION',
+        effortEvidence: {
+          present: false,
+          quality: 'NONE',
+          type: null,
+          addressesPreviousTutorAction: false,
+          isRepeated: false,
+          evidenceMessageIds: [],
+        },
+        learningEvidence: {
+          present: false,
+          strength: 'NONE',
+          evidenceMessageIds: [],
+        },
         misconceptions: [
           {
             code: 'REVERSE_ITERATION',
@@ -238,10 +324,27 @@ function input(
             evidenceMessageId: 'message-1',
           },
         ],
+        evidenceReferences: ['message-1'],
+        confidence: 0.95,
+        analysisSource: 'model',
+        promptVersion: 'analysis-test.v1',
+        schemaVersion: 'analysis-schema.v1',
+      },
+      topicState: null,
+      previousTeachingDecision: null,
+      currentTeachingDecision: {
+        id: 'decision-1',
+        policyVersion: 'policy-test.v1',
+        guidanceLevel: 1,
+        revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
       },
       recentConversation: [
         {
+          id: 'assistant-previous',
+          sequence: 1,
           role: 'ASSISTANT',
+          turnId: 'turn-previous',
+          topicId: 'topic-1',
           content: 'Trace the collection and predict the next value.',
         },
       ],
@@ -261,6 +364,7 @@ function input(
       preventFinalResult: true,
       preventCompleteSolution: true,
       preventSubmissionReadyCode: true,
+      preventProtectedCodeLeakage: true,
       requireStudentReasoning: true,
       requireGrounding: true,
       enforceCitationSupport: true,
@@ -288,7 +392,7 @@ function candidate(patch: Partial<CandidateResponse> = {}): CandidateResponse {
     },
     provider: 'deterministic',
     model: 'deterministic-tutor',
-    promptVersion: 'tutor-generation.mvp.v2',
+    promptVersion: 'tutor-generation.mvp.v4',
     tokenUsage: { input: 0, output: 0 },
     ...patch,
   }
