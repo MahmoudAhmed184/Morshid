@@ -60,6 +60,92 @@ describe('SemanticGuardService', () => {
     })
   })
 
+  it('supplies the reasoning target and rejects low-guidance correction disclosure', async () => {
+    const guard = new FakeSemanticGuardPort({
+      approved: false,
+      violations: [
+        {
+          type: 'DIRECT_ANSWER_DISCLOSURE',
+          severity: 'HIGH',
+          field: 'message',
+          evidence:
+            'The candidate states the misconception correction before asking for trivial application.',
+          regenerationInstruction:
+            'Preserve the target inference and ask one focused inspection question.',
+        },
+      ],
+    })
+    const evaluation = input({
+      candidate: candidate({
+        message:
+          'The iteration begins at the leading list item. Which item is at the beginning?',
+      }),
+    })
+
+    const result = await new SemanticGuardService(guard).evaluate(evaluation)
+
+    expect(result).toMatchObject({
+      kind: 'validated',
+      result: {
+        approved: false,
+        maximumSeverity: 'HIGH',
+        recommendedAction: RESPONSE_VALIDATION_ACTION.REGENERATE,
+        violations: [{ type: 'DIRECT_ANSWER_DISCLOSURE' }],
+      },
+    })
+    const payload = JSON.parse(
+      guard.requests[0]?.messages[1].content ?? '{}',
+    ) as Record<string, unknown>
+    expect(payload).toMatchObject({
+      trustedPolicy: {
+        disclosureContract: { directTargetInferenceAllowed: false },
+      },
+      educationalContext: {
+        currentStudentMessage: {
+          content:
+            'I think iteration begins at the final item and moves backward.',
+        },
+        acceptedAnalysis: {
+          studentState: 'MISCONCEPTION',
+          misconceptions: [
+            {
+              code: 'REVERSE_ITERATION',
+            },
+          ],
+        },
+      },
+    })
+    expect(Reflect.get(payload, 'violationTypingRules')).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining(
+          'the violation type MUST be DIRECT_ANSWER_DISCLOSURE',
+        ),
+      ]),
+    )
+  })
+
+  it('approves a bounded question that preserves the target inference', async () => {
+    const guard = new FakeSemanticGuardPort({ approved: true, violations: [] })
+    const result = await new SemanticGuardService(guard).evaluate(
+      input({
+        candidate: candidate({
+          message:
+            'Inspect the two ends of the collection. Which position should you trace first?',
+        }),
+      }),
+    )
+
+    expect(result).toMatchObject({
+      kind: 'validated',
+      result: {
+        approved: true,
+        maximumSeverity: null,
+        recommendedAction: RESPONSE_VALIDATION_ACTION.APPROVE,
+        violations: [],
+      },
+    })
+  })
+
   it.each([
     [
       'malformed output',
@@ -125,13 +211,41 @@ class FakeSemanticGuardPort implements SemanticGuardPort {
   }
 }
 
-function input(): SemanticGuardEvaluationInput {
+function input(
+  patch: Partial<SemanticGuardEvaluationInput> = {},
+): SemanticGuardEvaluationInput {
   return {
     turnId: 'turn-1',
     topicId: 'topic-1',
     courseId: 'course-1',
     candidateAttempt: 1,
     candidate: candidate(),
+    educationalContext: {
+      currentStudentMessage: {
+        id: 'message-1',
+        content:
+          'I think iteration begins at the final item and moves backward.',
+      },
+      acceptedAnalysis: {
+        requestKind: 'CONCEPTUAL',
+        studentState: 'MISCONCEPTION',
+        misconceptions: [
+          {
+            code: 'REVERSE_ITERATION',
+            description:
+              'The student believes normal collection iteration moves from the final item backward.',
+            confidence: 0.95,
+            evidenceMessageId: 'message-1',
+          },
+        ],
+      },
+      recentConversation: [
+        {
+          role: 'ASSISTANT',
+          content: 'Trace the collection and predict the next value.',
+        },
+      ],
+    },
     validationContext: {
       allowedCitationIds: new Set(['retrieval.rank.1']),
       requireStudentAction: true,
@@ -153,10 +267,11 @@ function input(): SemanticGuardEvaluationInput {
       maximumDisclosedSteps: 1,
     },
     allowedCitationSummaries: [],
+    ...patch,
   }
 }
 
-function candidate(): CandidateResponse {
+function candidate(patch: Partial<CandidateResponse> = {}): CandidateResponse {
   return {
     message: 'What changes first in the loop?',
     responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
@@ -173,7 +288,8 @@ function candidate(): CandidateResponse {
     },
     provider: 'deterministic',
     model: 'deterministic-tutor',
-    promptVersion: 'tutor-generation.mvp.v1',
+    promptVersion: 'tutor-generation.mvp.v2',
     tokenUsage: { input: 0, output: 0 },
+    ...patch,
   }
 }

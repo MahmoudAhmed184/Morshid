@@ -63,6 +63,7 @@ import {
   OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER,
 } from './semantic-guard.configuration'
 import { createSemanticGuardPort } from './semantic-guard.adapter'
+import { RetrievalQueryBuilder } from './retrieval-query.builder'
 
 @Module({
   imports: [ConfigModule, PrismaModule],
@@ -80,6 +81,7 @@ import { createSemanticGuardPort } from './semantic-guard.adapter'
     SemanticGuardService,
     SafeFallbackService,
     ResponseApprovalService,
+    RetrievalQueryBuilder,
     {
       provide: TopicStateRepository,
       useClass: PrismaTopicStateRepository,
@@ -268,6 +270,7 @@ import { createSemanticGuardPort } from './semantic-guard.adapter'
     SemanticGuardService,
     SafeFallbackService,
     ResponseApprovalService,
+    RetrievalQueryBuilder,
     TUTOR_MODEL_PORT,
     ANALYSIS_MODEL_PORT,
     SEMANTIC_GUARD_PORT,

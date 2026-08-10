@@ -30,7 +30,7 @@ describe('tutor prompt registry', () => {
   })
 
   it('fails safely for unknown tutor prompt versions', () => {
-    expect(() => getTutorPromptDefinition('tutor-generation.mvp.v2')).toThrow(
+    expect(() => getTutorPromptDefinition('tutor-generation.mvp.v3')).toThrow(
       TutorPromptDefinitionNotFoundError,
     )
   })

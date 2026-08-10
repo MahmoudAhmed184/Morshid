@@ -1,6 +1,7 @@
 import type { TeachingGuardPolicy } from './teaching-policy.types'
 import type {
   CandidateResponse,
+  TutorGuardEducationalContext,
   TutorEvidenceContext,
 } from './tutor-generation.types'
 import type {
@@ -10,7 +11,7 @@ import type {
 } from './response-validation.types'
 
 export const SEMANTIC_GUARD_PORT = Symbol('SemanticGuardPort')
-export const SEMANTIC_GUARD_PROMPT_VERSION = 'semantic-guard.mvp.v1'
+export const SEMANTIC_GUARD_PROMPT_VERSION = 'semantic-guard.mvp.v3'
 
 export const SEMANTIC_GUARD_ERROR_CODE = {
   TIMEOUT: 'SEMANTIC_GUARD_TIMEOUT',
@@ -69,6 +70,7 @@ export interface SemanticGuardEvaluationInput {
   readonly courseId: string
   readonly candidateAttempt: number
   readonly candidate: CandidateResponse
+  readonly educationalContext: TutorGuardEducationalContext
   readonly validationContext: CandidateValidationContext
   readonly guardPolicy: TeachingGuardPolicy
   readonly allowedCitationSummaries: readonly TutorEvidenceContext[]

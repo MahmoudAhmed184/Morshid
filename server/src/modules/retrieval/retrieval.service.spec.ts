@@ -40,7 +40,7 @@ describe('RetrievalService', () => {
     } as unknown as CourseRetrievalRepository
     const configService = {
       get: (key: 'RETRIEVAL_TOP_K' | 'RETRIEVAL_MIN_SIMILARITY') =>
-        key === 'RETRIEVAL_TOP_K' ? 5 : 0.7,
+        key === 'RETRIEVAL_TOP_K' ? 5 : 0.62,
     } as unknown as ConfigService<AppEnvironment, true>
 
     const storage = { exists } as unknown as PdfStorage
@@ -63,7 +63,7 @@ describe('RetrievalService', () => {
       queryEmbedding,
       embeddingModel,
       topK: 5,
-      minSimilarity: 0.7,
+      minSimilarity: 0.62,
       offset: 0,
     })
   })

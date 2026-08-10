@@ -176,6 +176,7 @@ export class ResponseApprovalService {
         courseId: input.courseId,
         candidateAttempt: attempt,
         candidate: generation.candidate,
+        educationalContext: generation.educationalContext,
         validationContext: context,
         guardPolicy: decision.guardPolicy,
         allowedCitationSummaries: input.retrievalResult.map((chunk) => ({

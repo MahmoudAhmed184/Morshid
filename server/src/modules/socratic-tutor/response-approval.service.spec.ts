@@ -42,6 +42,9 @@ describe('ResponseApprovalService', () => {
     }
     expect(harness.generation.calls).toHaveLength(1)
     expect(harness.semantic.calls).toHaveLength(1)
+    expect(harness.semantic.calls[0]?.educationalContext).toMatchObject({
+      currentStudentMessage: { content: 'Inspect the loop state.' },
+    })
   })
 
   it('regenerates once after first rejection and reruns the full pipeline', async () => {
@@ -284,7 +287,7 @@ function validCandidate(
     },
     provider: 'deterministic',
     model: 'deterministic-tutor',
-    promptVersion: 'tutor-generation.mvp.v1',
+    promptVersion: 'tutor-generation.mvp.v2',
     tokenUsage: { input: 10, output: 5 },
     ...patch,
   }
@@ -296,6 +299,18 @@ function generationSuccess(
   return {
     success: true,
     candidate,
+    educationalContext: {
+      currentStudentMessage: {
+        id: 'message-1',
+        content: 'Inspect the loop state.',
+      },
+      acceptedAnalysis: {
+        requestKind: 'CONCEPTUAL',
+        studentState: 'PARTIAL_UNDERSTANDING',
+        misconceptions: [],
+      },
+      recentConversation: [],
+    },
   }
 }
 
@@ -320,7 +335,7 @@ function approvedSemanticResult(): ValidationResult {
     recommendedAction: 'APPROVE',
     provider: 'deterministic',
     model: 'semantic-guard',
-    promptVersion: 'semantic-guard.mvp.v1',
+    promptVersion: 'semantic-guard.mvp.v3',
     policyVersion: 'response-validation.mvp.v1',
   }
 }
@@ -334,7 +349,7 @@ function semanticFailureResult(): ValidationResult {
     recommendedAction: 'USE_SAFE_FALLBACK',
     provider: null,
     model: null,
-    promptVersion: 'semantic-guard.mvp.v1',
+    promptVersion: 'semantic-guard.mvp.v3',
     policyVersion: 'response-validation.mvp.v1',
   }
 }

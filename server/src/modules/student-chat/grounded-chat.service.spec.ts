@@ -13,14 +13,8 @@ import {
   UserStatus,
 } from '../../generated/prisma/client'
 import type { AuthenticatedRequestUser } from '../auth/auth.dto'
-import type { CompletionProvider } from '../completion/completion-provider'
-import type {
-  RetrievedChunk,
-  RetrievalService,
-} from '../retrieval/retrieval.service'
 import type {
   BeginGroundedChatTurnResult,
-  CompleteGroundedChatTurnInput,
   FinalizeGroundedChatTurnInput,
   FinalizeGroundedChatTurnResult,
   GroundedChatTurnRepository,
@@ -34,6 +28,8 @@ import {
 import { StudentChatMessagePresenter } from './student-chat-message.presenter'
 import type { ChatMessageRecord } from './student-chat.repository.types'
 import type { StudentChatService } from './student-chat.service'
+import type { SocraticChatOrchestrator } from './socratic-chat.orchestrator'
+import type { SocraticOrchestrationResult } from './socratic-chat.types'
 
 const courseId = '17d1a78d-60be-4f5f-a03d-e3ee326ec796'
 const sessionId = 'eff4bf27-cce3-45d9-b245-4f1d913f0a27'
@@ -53,11 +49,9 @@ describe('GroundedChatService', () => {
   let recordGroundedTurnDenied: jest.Mock
   let beginTurn: jest.Mock
   let retryTurn: jest.Mock
-  let completeTurn: jest.Mock
   let blockTurn: jest.Mock
   let failTurn: jest.Mock
-  let retrieveCourseEvidence: jest.Mock
-  let complete: jest.MockedFunction<CompletionProvider['complete']>
+  let socraticOrchestrate: jest.Mock
   let service: GroundedChatService
 
   beforeEach(() => {
@@ -65,19 +59,6 @@ describe('GroundedChatService', () => {
     recordGroundedTurnDenied = jest.fn().mockResolvedValue(undefined)
     beginTurn = jest.fn().mockResolvedValue(beginOk())
     retryTurn = jest.fn().mockResolvedValue(retryOk())
-    completeTurn = jest
-      .fn()
-      .mockImplementation((input: CompleteGroundedChatTurnInput) =>
-        Promise.resolve({
-          kind: 'ok',
-          message: assistantMessage({
-            status: MessageStatus.COMPLETED,
-            content: input.content,
-            guidanceLabel: MessageGuidanceLabel.COURSE_GROUNDED,
-            completedAt: new Date('2026-07-21T12:01:00.000Z'),
-          }),
-        } satisfies FinalizeGroundedChatTurnResult),
-      )
     blockTurn = jest
       .fn()
       .mockImplementation((input: FinalizeGroundedChatTurnInput) =>
@@ -105,19 +86,6 @@ describe('GroundedChatService', () => {
           }),
         } satisfies FinalizeGroundedChatTurnResult),
       )
-    retrieveCourseEvidence = jest.fn().mockResolvedValue({
-      kind: 'evidence',
-      chunks: evidenceChunks(),
-    })
-    complete = jest.fn() as jest.MockedFunction<CompletionProvider['complete']>
-    complete.mockResolvedValue({
-      content: 'Grounded answer',
-      provider: 'deterministic',
-      model: 'deterministic-completion-v1',
-      promptVersion: 'grounded-completion-v1',
-      inputTokens: 10,
-      outputTokens: 5,
-    })
 
     const studentChatService = {
       getSession,
@@ -126,28 +94,34 @@ describe('GroundedChatService', () => {
     const turnRepository = {
       beginTurn,
       retryTurn,
-      completeTurn,
       blockTurn,
       failTurn,
     } as unknown as GroundedChatTurnRepository
-    const retrievalService = {
-      retrieveCourseEvidence,
-    } as unknown as RetrievalService
-    const completionProvider = { complete } as unknown as CompletionProvider
     const presenter = new StudentChatMessagePresenter({
       exists: jest.fn().mockResolvedValue(true),
     } as never)
+    socraticOrchestrate = jest.fn().mockResolvedValue({
+      kind: 'completed',
+      assistantMessage: assistantMessage({
+        status: MessageStatus.COMPLETED,
+        content: 'Socratic grounded answer',
+        guidanceLabel: MessageGuidanceLabel.COURSE_GROUNDED,
+        completedAt: new Date('2026-07-21T12:01:00.000Z'),
+      }),
+    } satisfies SocraticOrchestrationResult)
+    const socraticOrchestrator = {
+      orchestrate: socraticOrchestrate,
+    } as unknown as SocraticChatOrchestrator
 
     service = new GroundedChatService(
       studentChatService,
       turnRepository,
-      retrievalService,
-      completionProvider,
       presenter,
+      socraticOrchestrator,
     )
   })
 
-  it('sends the exact persisted question and ranked eligible context to completion without orchestration controls', async () => {
+  it('delegates to the Socratic orchestrator for new messages', async () => {
     const response = await service.send(
       courseId,
       sessionId,
@@ -167,45 +141,16 @@ describe('GroundedChatService', () => {
       studentId: user.id,
       content: 'Explain list iteration',
     })
-    expect(retrieveCourseEvidence).toHaveBeenCalledWith(
-      courseId,
-      'Explain list iteration',
+    expect(socraticOrchestrate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        courseId,
+        sessionId,
+        studentId: user.id,
+        studentMessageId,
+        assistantMessageId,
+        studentMessageContent: 'Explain list iteration',
+      }),
     )
-    const completionRequest = complete.mock.calls[0][0]
-    expect(completionRequest).toEqual({
-      studentQuestion: 'Explain list iteration',
-      context: [
-        {
-          sourceTitle: 'Python lists',
-          chunkIndex: 0,
-          content: 'First ranked evidence',
-        },
-        {
-          sourceTitle: 'Python loops',
-          chunkIndex: 3,
-          content: 'Second ranked evidence',
-        },
-      ],
-    })
-    expect(Object.keys(completionRequest).sort()).toEqual([
-      'context',
-      'studentQuestion',
-    ])
-    expect(completeTurn).toHaveBeenCalledWith({
-      courseId,
-      sessionId,
-      studentId: user.id,
-      attemptId,
-      studentMessageId,
-      assistantMessageId,
-      content: 'Grounded answer',
-      provider: 'deterministic',
-      model: 'deterministic-completion-v1',
-      promptVersion: 'grounded-completion-v1',
-      inputTokens: 10,
-      outputTokens: 5,
-      evidence: evidenceChunks(),
-    })
     expect(response).toMatchObject({
       studentMessage: {
         id: studentMessageId,
@@ -214,7 +159,7 @@ describe('GroundedChatService', () => {
       assistantMessage: {
         id: assistantMessageId,
         status: MessageStatus.COMPLETED,
-        content: 'Grounded answer',
+        content: 'Socratic grounded answer',
       },
     })
   })
@@ -247,12 +192,14 @@ describe('GroundedChatService', () => {
       studentId: user.id,
       content: 'Explain list iteration',
     })
-    expect(retrieveCourseEvidence).not.toHaveBeenCalled()
-    expect(complete).not.toHaveBeenCalled()
+    expect(socraticOrchestrate).not.toHaveBeenCalled()
   })
 
-  it('blocks insufficient evidence without calling completion or retaining evidence', async () => {
-    retrieveCourseEvidence.mockResolvedValue({ kind: 'insufficient_evidence' })
+  it('blocks when orchestrator returns blocked result', async () => {
+    socraticOrchestrate.mockResolvedValue({
+      kind: 'blocked',
+      reason: 'insufficient_evidence',
+    } satisfies SocraticOrchestrationResult)
 
     const response = await service.send(
       courseId,
@@ -261,8 +208,6 @@ describe('GroundedChatService', () => {
       user,
     )
 
-    expect(complete).not.toHaveBeenCalled()
-    expect(completeTurn).not.toHaveBeenCalled()
     expect(blockTurn).toHaveBeenCalledWith({
       courseId,
       sessionId,
@@ -282,55 +227,39 @@ describe('GroundedChatService', () => {
     })
   })
 
-  it.each([
-    [
-      'retrieval',
-      () =>
-        retrieveCourseEvidence.mockRejectedValue(
-          new Error('raw retrieval failure'),
-        ),
-    ],
-    [
-      'completion',
-      () => complete.mockRejectedValue(new Error('raw provider failure')),
-    ],
-    [
-      'finalization',
-      () => completeTurn.mockRejectedValue(new Error('raw database failure')),
-    ],
-  ])(
-    'returns a durable safe failure for a %s failure',
-    async (_label, arrange) => {
-      arrange()
+  it('returns a durable safe failure when orchestrator fails', async () => {
+    socraticOrchestrate.mockResolvedValue({
+      kind: 'failed',
+      errorCode: 'SOCRATIC_ORCHESTRATION_FAILED',
+    } satisfies SocraticOrchestrationResult)
 
-      const response = await service.send(
-        courseId,
-        sessionId,
-        { content: 'Question text must not become an error' },
-        user,
-      )
+    const response = await service.send(
+      courseId,
+      sessionId,
+      { content: 'Question text must not become an error' },
+      user,
+    )
 
-      expect(failTurn).toHaveBeenCalledWith({
-        courseId,
-        sessionId,
-        studentId: user.id,
-        attemptId,
-        studentMessageId,
-        assistantMessageId,
-        content: GROUNDING_FAILED_CONTENT,
-        errorCode: 'GROUNDING_RESPONSE_FAILED',
-      })
-      expect(response.assistantMessage).toMatchObject({
-        status: MessageStatus.FAILED,
-        content: GROUNDING_FAILED_CONTENT,
-        errorCode: 'GROUNDING_RESPONSE_FAILED',
-        citations: [],
-      })
-    },
-  )
+    expect(failTurn).toHaveBeenCalledWith({
+      courseId,
+      sessionId,
+      studentId: user.id,
+      attemptId,
+      studentMessageId,
+      assistantMessageId,
+      content: GROUNDING_FAILED_CONTENT,
+      errorCode: 'GROUNDING_RESPONSE_FAILED',
+    })
+    expect(response.assistantMessage).toMatchObject({
+      status: MessageStatus.FAILED,
+      content: GROUNDING_FAILED_CONTENT,
+      errorCode: 'GROUNDING_RESPONSE_FAILED',
+      citations: [],
+    })
+  })
 
   it('returns 503 only when the safe terminal failure cannot be persisted', async () => {
-    retrieveCourseEvidence.mockRejectedValue(new Error('retrieval down'))
+    socraticOrchestrate.mockRejectedValue(new Error('orchestration down'))
     failTurn.mockRejectedValue(new Error('database down'))
 
     await expect(
@@ -338,8 +267,11 @@ describe('GroundedChatService', () => {
     ).rejects.toBeInstanceOf(ServiceUnavailableException)
   })
 
-  it('uses trusted exact failure cleanup when authorization disappears before completion', async () => {
-    completeTurn.mockResolvedValue({ kind: 'membership_missing' })
+  it('returns safe failure when orchestrator fails and cleanup succeeds', async () => {
+    socraticOrchestrate.mockResolvedValue({
+      kind: 'failed',
+      errorCode: 'SOCRATIC_APPROVAL_FAILED:MISSING_TEACHING_DECISION',
+    } satisfies SocraticOrchestrationResult)
 
     const response = await service.send(
       courseId,
@@ -358,9 +290,9 @@ describe('GroundedChatService', () => {
     expect(response.assistantMessage.status).toBe(MessageStatus.FAILED)
   })
 
-  it('returns an exact completed turn recovered by failure cleanup instead of reporting 503', async () => {
-    completeTurn.mockRejectedValue(
-      new Error('completion acknowledgement and reconciliation unavailable'),
+  it('returns the already-persisted completed message when failTurn recovers it', async () => {
+    socraticOrchestrate.mockRejectedValue(
+      new Error('orchestration acknowledgement unavailable'),
     )
     failTurn.mockResolvedValue({
       kind: 'ok',
@@ -375,7 +307,7 @@ describe('GroundedChatService', () => {
     const response = await service.send(
       courseId,
       sessionId,
-      { content: 'Question with an ambiguous completion acknowledgement' },
+      { content: 'Question with an ambiguous orchestration acknowledgement' },
       user,
     )
 
@@ -403,33 +335,11 @@ describe('GroundedChatService', () => {
       () => service.retry(courseId, sessionId, studentMessageId, user),
     ],
     [
-      'retrieval',
+      'socratic_orchestration',
       () =>
-        retrieveCourseEvidence.mockRejectedValue(
-          new Error('PRIVATE-RETRIEVAL-ERROR'),
+        socraticOrchestrate.mockRejectedValue(
+          new Error('PRIVATE-ORCHESTRATION-ERROR'),
         ),
-      () =>
-        service.send(
-          courseId,
-          sessionId,
-          { content: 'PRIVATE-QUESTION' },
-          user,
-        ),
-    ],
-    [
-      'completion',
-      () => complete.mockRejectedValue(new Error('PRIVATE-PROVIDER-PAYLOAD')),
-      () =>
-        service.send(
-          courseId,
-          sessionId,
-          { content: 'PRIVATE-QUESTION' },
-          user,
-        ),
-    ],
-    [
-      'finalization',
-      () => completeTurn.mockRejectedValue(new Error('PRIVATE-DATABASE-ERROR')),
       () =>
         service.send(
           courseId,
@@ -441,8 +351,9 @@ describe('GroundedChatService', () => {
     [
       'blocked_persistence',
       () => {
-        retrieveCourseEvidence.mockResolvedValue({
-          kind: 'insufficient_evidence',
+        socraticOrchestrate.mockResolvedValue({
+          kind: 'blocked',
+          reason: 'insufficient_evidence',
         })
         blockTurn.mockRejectedValue(new Error('PRIVATE-BLOCK-ERROR'))
       },
@@ -457,8 +368,8 @@ describe('GroundedChatService', () => {
     [
       'failed_persistence',
       () => {
-        retrieveCourseEvidence.mockRejectedValue(
-          new Error('PRIVATE-RETRIEVAL-ERROR'),
+        socraticOrchestrate.mockRejectedValue(
+          new Error('PRIVATE-ORCHESTRATION-ERROR'),
         )
         failTurn.mockRejectedValue(new Error('PRIVATE-FAILURE-ERROR'))
       },
@@ -496,14 +407,10 @@ describe('GroundedChatService', () => {
       for (const secret of [
         'PRIVATE-BEGIN-ERROR',
         'PRIVATE-RETRY-ERROR',
-        'PRIVATE-RETRIEVAL-ERROR',
-        'PRIVATE-PROVIDER-PAYLOAD',
-        'PRIVATE-DATABASE-ERROR',
+        'PRIVATE-ORCHESTRATION-ERROR',
         'PRIVATE-BLOCK-ERROR',
         'PRIVATE-FAILURE-ERROR',
         'PRIVATE-QUESTION',
-        'First ranked evidence',
-        'Second ranked evidence',
       ]) {
         expect(serializedLogs).not.toContain(secret)
       }
@@ -511,7 +418,7 @@ describe('GroundedChatService', () => {
     },
   )
 
-  it('retries with the original persisted Student row and assistant row', async () => {
+  it('retries through the Socratic orchestrator with the persisted student message', async () => {
     const response = await service.retry(
       courseId,
       sessionId,
@@ -525,9 +432,14 @@ describe('GroundedChatService', () => {
       studentId: user.id,
       studentMessageId,
     })
-    expect(retrieveCourseEvidence).toHaveBeenCalledWith(
-      courseId,
-      'Explain list iteration',
+    expect(socraticOrchestrate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        courseId,
+        sessionId,
+        studentId: user.id,
+        studentMessageId,
+        studentMessageContent: 'Explain list iteration',
+      }),
     )
     expect(response).toMatchObject({
       studentMessage: { id: studentMessageId, sequence: 1 },
@@ -630,29 +542,6 @@ function message(overrides: Partial<ChatMessageRecord>): ChatMessageRecord {
     retrievals: [],
     ...overrides,
   }
-}
-
-function evidenceChunks(): RetrievedChunk[] {
-  return [
-    {
-      chunkId: 'chunk-1',
-      materialId: 'material-1',
-      materialTitle: 'Python lists',
-      chunkIndex: 0,
-      content: 'First ranked evidence',
-      rank: 1,
-      similarityScore: 0.95,
-    },
-    {
-      chunkId: 'chunk-2',
-      materialId: 'material-2',
-      materialTitle: 'Python loops',
-      chunkIndex: 3,
-      content: 'Second ranked evidence',
-      rank: 2,
-      similarityScore: 0.85,
-    },
-  ]
 }
 
 function isTelemetryEventFor(

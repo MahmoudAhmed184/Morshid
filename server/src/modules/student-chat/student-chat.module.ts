@@ -5,7 +5,9 @@ import { AuthModule } from '../auth/auth.module'
 import { PrismaModule } from '../prisma/prisma.module'
 import { PdfStorageModule } from '../pdf-storage/pdf-storage.module'
 import { RetrievalModule } from '../retrieval/retrieval.module'
-import { CompletionModule } from '../completion/completion.module'
+
+import { SocraticTutorModule } from '../socratic-tutor/socratic-tutor.module'
+import { SocraticChatOrchestrator } from './socratic-chat.orchestrator'
 import { StudentChatAuditService } from './student-chat.audit.service'
 import { StudentChatController } from './student-chat.controller'
 import { StudentChatCourseBoundaryAuditFilter } from './student-chat-course-boundary-audit.filter'
@@ -29,10 +31,10 @@ import { GroundedChatService } from './grounded-chat.service'
   imports: [
     AuditModule,
     AuthModule,
-    CompletionModule,
     PdfStorageModule,
     PrismaModule,
     RetrievalModule,
+    SocraticTutorModule,
   ],
   controllers: [StudentChatController],
   providers: [
@@ -53,6 +55,7 @@ import { GroundedChatService } from './grounded-chat.service'
       useClass: PrismaGroundedChatTurnRepository,
     },
     GroundedChatService,
+    SocraticChatOrchestrator,
   ],
   exports: [StudentChatAuditService, StudentChatService],
 })

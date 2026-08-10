@@ -148,6 +148,7 @@ export type TutorGenerationServiceResult =
   | {
       readonly success: true
       readonly candidate: CandidateResponse
+      readonly educationalContext: TutorGuardEducationalContext
     }
   | {
       readonly success: false
@@ -162,6 +163,22 @@ export interface TutorModelRequest {
   readonly promptVersion: typeof TUTOR_GENERATION_PROMPT_VERSION
   readonly responseSchemaName: 'CandidateResponse'
   readonly signal?: AbortSignal
+}
+
+export interface TutorGuardEducationalContext {
+  readonly currentStudentMessage: {
+    readonly id: string
+    readonly content: string
+  }
+  readonly acceptedAnalysis: {
+    readonly requestKind: PersistedEducationalAnalysisRecord['result']['requestKind']
+    readonly studentState: PersistedEducationalAnalysisRecord['result']['studentState']
+    readonly misconceptions: PersistedEducationalAnalysisRecord['result']['misconceptions']
+  }
+  readonly recentConversation: readonly {
+    readonly role: AnalysisContextMessage['role']
+    readonly content: string
+  }[]
 }
 
 export interface TutorModelResponse {

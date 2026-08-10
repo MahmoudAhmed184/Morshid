@@ -579,16 +579,37 @@ flowchart TD
 
 ```text
 RetrievalRequest
-courseId
-topicId
-problemId
-conceptId
-studentQuery
-resolvedConcepts
-misconceptionCodes
-maximumChunks
-tokenBudget
+query
+queryVersion
+contextMessageIds
 ```
+
+`RetrievalQueryBuilder` deterministically projects this request from the
+bounded same-Topic Analysis Context and the accepted Educational Analysis. A
+continued, resumed, or reopened Topic may contribute its title, maintained
+summary, misconception descriptions, analysis-referenced messages, previous
+student attempt, previous tutor question, and latest tutor context. The builder
+deduplicates these anchors and does not concatenate the full selected history.
+
+`CREATE_NEW_TOPIC` analyses use only the normalized current student message so
+prior instructional context cannot contaminate a standalone subject. An
+`UNRESOLVED` analysis may use context only when the authoritative same-Topic
+package contains a previous tutor question, previous student attempt, or
+bounded selected-history anchor; without such an anchor it also remains
+current-message-only.
+
+The query is non-empty, whitespace-normalized, capped at 2,000 characters, and
+versioned as `retrieval-query.v1`. Construction reserves the required current
+student message first, then admits per-segment bounded context in priority
+order: active Topic, previous tutor question, unresolved-history fallback,
+previous student attempt, misconceptions, analysis-referenced history, latest
+tutor context, and maintained summary. Lower-priority segments are compressed
+or dropped before required current-turn information, and only admitted message
+segments contribute IDs to `contextMessageIds`.
+
+Trusted `courseId` remains a separate application-owned argument to
+`RetrievalService`; it is intentionally neither accepted from nor returned by
+`RetrievalQueryBuilder`.
 
 ### RetrievalResult
 
@@ -1222,6 +1243,15 @@ Potential changes:
 
 Do not duplicate message content inside new tutoring tables.
 
+Current implementation follow-up gaps, intentionally separate from retrieval
+query construction:
+
+- a newly persisted student Message starts with `requestKind: CONCEPTUAL`, but
+  the field is not yet reconciled with the accepted Educational Analysis;
+- the runtime loads Topic State with `TopicStateService.getOrCreate`, but does
+  not yet apply the post-response Topic State transition, so summary,
+  `lastTutorQuestion`, and `lastStudentAction` can remain default or stale.
+
 ### Transaction Boundary
 
 Do not hold a database transaction open across model calls. Recommended pattern:
@@ -1253,6 +1283,7 @@ Version 1 should use explicit logical services inside the backend. These service
 | ContextManager | Selects relevant history and builds context packages. |
 | EducationalAnalysisService | Produces and validates structured Educational Analysis. |
 | TeachingPolicyEngine | Produces the authoritative Teaching Decision. |
+| RetrievalQueryBuilder | Deterministically projects a bounded standalone retrieval subject from accepted same-Topic context. |
 | RetrievalService | Retrieves course-scoped evidence and citations. |
 | TutorPromptBuilder | Builds trusted bounded generation prompts. |
 | TutorGenerationService | Produces Candidate Responses. |

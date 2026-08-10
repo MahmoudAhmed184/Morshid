@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
 import {
+  CourseMembershipRole,
   MaterialStatus,
   MessageGuidanceLabel,
   MessageRole,
@@ -237,13 +238,18 @@ export class PrismaTurnRepository extends TurnRepository {
         return { kind: 'linkage_conflict' }
       }
       if (message.turnId !== null && message.turnId !== turn.id) {
-        return { kind: 'linkage_conflict' }
+        const existingTurn = await tx.tutorTurn.findUnique({
+          where: { id: message.turnId },
+          select: { status: true },
+        })
+        if (existingTurn?.status !== TutorTurnStatus.FAILED) {
+          return { kind: 'linkage_conflict' }
+        }
       }
 
       const updatedMessage = await tx.message.updateManyAndReturn({
         where: {
           id: message.id,
-          OR: [{ turnId: null }, { turnId: turn.id }],
         },
         data: { turnId: turn.id },
         select: { id: true },
@@ -337,7 +343,13 @@ export class PrismaTurnRepository extends TurnRepository {
         return { kind: 'linkage_conflict' }
       }
       if (message.turnId !== null && message.turnId !== turn.id) {
-        return { kind: 'linkage_conflict' }
+        const existingTurn = await tx.tutorTurn.findUnique({
+          where: { id: message.turnId },
+          select: { status: true },
+        })
+        if (existingTurn?.status !== TutorTurnStatus.FAILED) {
+          return { kind: 'linkage_conflict' }
+        }
       }
       if (turn.topicId !== null && turn.topicId !== topic.id) {
         return { kind: 'linkage_conflict' }
@@ -349,7 +361,6 @@ export class PrismaTurnRepository extends TurnRepository {
       const updatedMessage = await tx.message.updateManyAndReturn({
         where: {
           id: message.id,
-          OR: [{ turnId: null }, { turnId: turn.id }],
           AND: [{ OR: [{ topicId: null }, { topicId: topic.id }] }],
         },
         data: {
@@ -444,6 +455,26 @@ export class PrismaTurnRepository extends TurnRepository {
           })
           return { kind: 'ok', turn: snapshot }
         }
+        return { kind: 'relationship_mismatch' }
+      }
+
+      // Re-check membership at finalization — mirrors the lockAuthorizedSession()
+      // contract from PrismaGroundedChatTurnRepository.completeTurn(). If membership
+      // was revoked while the pipeline was in flight, the approved response must
+      // not be persisted or delivered to the student.
+      const membership = await tx.courseMembership.findUnique({
+        where: {
+          courseId_userId: {
+            courseId: input.courseId,
+            userId: input.studentId,
+          },
+        },
+        select: { role: true, removedAt: true },
+      })
+      if (
+        membership?.role !== CourseMembershipRole.STUDENT ||
+        membership.removedAt !== null
+      ) {
         return { kind: 'relationship_mismatch' }
       }
 

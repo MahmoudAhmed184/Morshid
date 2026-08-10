@@ -626,7 +626,7 @@ function approvedResponse(input: {
       promptVersion:
         input.source === 'SAFE_FALLBACK'
           ? 'safe-fallback.mvp.v1'
-          : 'tutor-generation.mvp.v1',
+          : 'tutor-generation.mvp.v2',
       inputTokens: 0,
       outputTokens: 0,
       validationPolicyVersion: 'response-validation.mvp.v1',

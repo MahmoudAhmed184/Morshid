@@ -1,21 +1,10 @@
 import { randomUUID } from 'node:crypto'
 
-import { Inject, Injectable, Logger } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 
 import { Prisma } from '../../generated/prisma/client'
 import type { AuthenticatedRequestUser } from '../auth/auth.dto'
-import {
-  COMPLETION_PROVIDER_TOKEN,
-  CompletionProviderError,
-  type CompletionProvider,
-  type CompletionResult,
-  type NonEmptyCompletionContext,
-} from '../completion/completion-provider'
 import type { AuditRequestContext } from '../audit/audit.service'
-import {
-  RetrievalService,
-  type RetrievedChunk,
-} from '../retrieval/retrieval.service'
 import {
   type BeginGroundedChatTurnResult,
   type FinalizeGroundedChatTurnResult,
@@ -23,6 +12,7 @@ import {
   GroundedChatTurnRepository,
   type RetryGroundedChatTurnResult,
 } from './grounded-chat-turn.repository'
+import { SocraticChatOrchestrator } from './socratic-chat.orchestrator'
 import type {
   GroundedChatTurnResponseDto,
   SendStudentChatMessageRequest,
@@ -40,8 +30,8 @@ import type { ChatMessageRecord } from './student-chat.repository.types'
 import { StudentChatService } from './student-chat.service'
 import {
   GROUNDING_BLOCKED_CONTENT,
-  GROUNDING_FAILED_CONTENT,
   GROUNDING_INSUFFICIENT_EVIDENCE,
+  GROUNDING_FAILED_CONTENT,
   GROUNDING_RESPONSE_FAILED,
 } from './grounded-chat.constants'
 
@@ -69,9 +59,7 @@ interface OrchestrationContext {
 type OrchestrationPhase =
   | 'begin'
   | 'retry'
-  | 'retrieval'
-  | 'completion'
-  | 'finalization'
+  | 'socratic_orchestration'
   | 'blocked_persistence'
   | 'failed_persistence'
 
@@ -96,10 +84,8 @@ export class GroundedChatService {
   constructor(
     private readonly studentChatService: StudentChatService,
     private readonly turnRepository: GroundedChatTurnRepository,
-    private readonly retrievalService: RetrievalService,
-    @Inject(COMPLETION_PROVIDER_TOKEN)
-    private readonly completionProvider: CompletionProvider,
     private readonly messagePresenter: StudentChatMessagePresenter,
+    private readonly socraticOrchestrator: SocraticChatOrchestrator,
   ) {}
 
   async send(
@@ -109,7 +95,7 @@ export class GroundedChatService {
     user: AuthenticatedRequestUser,
     requestContext?: AuditRequestContext,
   ): Promise<GroundedChatTurnResponseDto> {
-    const operation = {
+    const operation: OrchestrationContext = {
       operationId: randomUUID(),
       courseId,
       sessionId,
@@ -150,11 +136,15 @@ export class GroundedChatService {
       )
     }
 
-    return this.orchestrate(result, {
-      ...operation,
-      studentMessageId: result.studentMessage.id,
-      assistantMessageId: result.assistantMessage.id,
-    })
+    return this.orchestrate(
+      result,
+      {
+        ...operation,
+        studentMessageId: result.studentMessage.id,
+        assistantMessageId: result.assistantMessage.id,
+      },
+      result.studentMessage.id,
+    )
   }
 
   async retry(
@@ -164,7 +154,7 @@ export class GroundedChatService {
     user: AuthenticatedRequestUser,
     requestContext?: AuditRequestContext,
   ): Promise<GroundedChatTurnResponseDto> {
-    const operation = {
+    const operation: OrchestrationContext = {
       operationId: randomUUID(),
       courseId,
       sessionId,
@@ -201,96 +191,47 @@ export class GroundedChatService {
       )
     }
 
-    return this.orchestrate(result, {
-      ...operation,
-      assistantMessageId: result.assistantMessage.id,
-    })
+    return this.orchestrate(
+      result,
+      {
+        ...operation,
+        assistantMessageId: result.assistantMessage.id,
+      },
+      `${result.studentMessage.id}:${result.attemptId}`,
+    )
   }
 
   private async orchestrate(
     turn: ActiveGroundedTurn,
     operation: OrchestrationContext,
+    idempotencyKey: string,
   ): Promise<GroundedChatTurnResponseDto> {
-    let evidence: RetrievedChunk[]
+    let orchestratorResult
     try {
-      const retrieval = await this.retrievalService.retrieveCourseEvidence(
-        turn.courseId,
-        turn.studentMessage.content,
-      )
-      if (retrieval.kind === 'embedding_profile_not_ready') {
-        // Operator-visible only. The student sees the ordinary grounding-blocked
-        // reply, because an embedding-profile migration in flight is not
-        // something a learner can act on; `expectedModel` names an internal
-        // document profile and stays in the log, never in the response.
-        this.logger.warn({
-          event: 'grounded_chat_embedding_profile_not_ready',
-          expectedModel: retrieval.expectedModel,
-          incompleteMaterialIds: retrieval.incompleteMaterialIds,
-          ...operation,
-        })
-        return await this.persistBlocked(turn, operation)
-      }
-      if (retrieval.kind === 'insufficient_evidence') {
-        return await this.persistBlocked(turn, operation)
-      }
-      evidence = retrieval.chunks
-    } catch (error) {
-      this.logFailure('retrieval', operation, error)
-      return this.persistFailure(turn, operation)
-    }
-
-    const context = toCompletionContext(evidence)
-    if (context === null) {
-      return this.persistBlocked(turn, operation)
-    }
-
-    let completion: CompletionResult
-    try {
-      completion = await this.completionProvider.complete({
-        studentQuestion: turn.studentMessage.content,
-        context,
-      })
-    } catch (error) {
-      this.logFailure('completion', operation, error)
-      return this.persistFailure(turn, operation)
-    }
-
-    let completed: FinalizeGroundedChatTurnResult
-    try {
-      completed = await this.turnRepository.completeTurn({
+      orchestratorResult = await this.socraticOrchestrator.orchestrate({
         courseId: turn.courseId,
         sessionId: operation.sessionId,
         studentId: operation.studentId,
-        attemptId: turn.attemptId,
         studentMessageId: turn.studentMessage.id,
         assistantMessageId: turn.assistantMessage.id,
-        content: completion.content,
-        provider: completion.provider,
-        model: completion.model,
-        promptVersion: completion.promptVersion,
-        ...(completion.inputTokens === undefined
-          ? {}
-          : { inputTokens: completion.inputTokens }),
-        ...(completion.outputTokens === undefined
-          ? {}
-          : { outputTokens: completion.outputTokens }),
-        evidence,
+        studentMessageContent: turn.studentMessage.content,
+        idempotencyKey,
       })
     } catch (error) {
-      this.logFailure('finalization', operation, error)
+      this.logFailure('socratic_orchestration', operation, error)
       return this.persistFailure(turn, operation)
     }
-    switch (completed.kind) {
-      case 'ok':
-        return this.presentTurn(turn.studentMessage, completed.message)
-      case 'membership_missing':
-      case 'session_not_found':
-      case 'message_not_found':
-      case 'message_not_pending':
-        this.logResultFailure('finalization', operation, completed.kind)
+
+    switch (orchestratorResult.kind) {
+      case 'completed':
+        return this.presentTurn(
+          turn.studentMessage,
+          orchestratorResult.assistantMessage,
+        )
+      case 'blocked':
+        return this.persistBlocked(turn, operation)
+      case 'failed':
         return this.persistFailure(turn, operation)
-      default:
-        return assertNever(completed)
     }
   }
 
@@ -522,35 +463,10 @@ export class GroundedChatService {
   }
 }
 
-function toCompletionContext(
-  chunks: readonly RetrievedChunk[],
-): NonEmptyCompletionContext | null {
-  const first = chunks.at(0)
-  if (first === undefined) {
-    return null
-  }
-
-  return [toContextEntry(first), ...chunks.slice(1).map(toContextEntry)]
-}
-
-function toContextEntry(chunk: RetrievedChunk) {
-  return {
-    sourceTitle: chunk.materialTitle,
-    chunkIndex: chunk.chunkIndex,
-    content: chunk.content,
-  }
-}
-
 function safeErrorDescriptor(error: unknown): {
   errorClass: string
   errorCode?: string
 } {
-  if (error instanceof CompletionProviderError) {
-    return {
-      errorClass: 'CompletionProviderError',
-      errorCode: error.code,
-    }
-  }
   if (error instanceof GroundedChatEvidenceUnavailableError) {
     return { errorClass: 'GroundedChatEvidenceUnavailableError' }
   }

@@ -57,7 +57,82 @@ describe('tutor prompt builder', () => {
     expect(userPrompt).toContain('Ignore the policy')
     expect(userPrompt).not.toContain('authorUserId')
   })
+
+  it('prohibits giving away a misconception correction at low guidance', () => {
+    const context = misconceptionContext(
+      'I believe the traversal begins at the opposite end of the collection.',
+    )
+
+    const request = buildTutorGenerationModelRequest(context)
+    const prompt = request.messages.map((message) => message.content).join('\n')
+
+    expect(prompt).toContain('"directTargetInferenceAllowed":false')
+    expect(prompt).toContain('"guidanceMode":"FOCUSED_HINT"')
+    expect(prompt).toContain('"preventDirectAnswer":true')
+    expect(prompt).toContain('REVERSE_TRAVERSAL_MISCONCEPTION')
+    expect(prompt).toContain(
+      'do not state the correction or key inference and then ask a trivial confirmation or application question',
+    )
+  })
+
+  it('keeps an explicit small-hint request bounded without changing policy', () => {
+    const context = misconceptionContext(
+      'Please give me one small clue while preserving the conclusion for me.',
+      1,
+    )
+
+    const request = buildTutorGenerationModelRequest(context)
+    const prompt = request.messages.map((message) => message.content).join('\n')
+
+    expect(prompt).toContain('"guidanceMode":"ORIENTATION"')
+    expect(prompt).toContain('"directTargetInferenceAllowed":false')
+    expect(prompt).toContain(
+      'Ask the student to inspect the relevant structure or choose a starting point; do not state the target inference first.',
+    )
+    expect(prompt).toContain(
+      'Please give me one small clue while preserving the conclusion for me.',
+    )
+  })
 })
+
+function misconceptionContext(
+  currentStudentMessage: string,
+  guidanceLevel = 2,
+): GenerationContextPackage {
+  const context = buildGenerationContext()
+  return {
+    ...context,
+    studentMessage: {
+      ...context.studentMessage,
+      content: currentStudentMessage,
+    },
+    acceptedAnalysis: {
+      ...context.acceptedAnalysis,
+      result: {
+        ...context.acceptedAnalysis.result,
+        studentState: StudentState.MISCONCEPTION,
+        misconceptions: [
+          {
+            code: 'REVERSE_TRAVERSAL_MISCONCEPTION',
+            description:
+              'The student believes ordinary traversal begins at the opposite end of the collection.',
+            confidence: 0.95,
+            evidenceMessageId: context.studentMessage.id,
+          },
+        ],
+        recommendedStrategy: TeachingStrategy.MISCONCEPTION_REPAIR,
+        recommendedTechnique: TeachingTechnique.COUNTEREXAMPLE,
+        recommendedGuidanceLevel: guidanceLevel,
+      },
+    },
+    teachingDecision: {
+      ...context.teachingDecision,
+      strategy: TeachingStrategy.MISCONCEPTION_REPAIR,
+      primaryTechnique: TeachingTechnique.COUNTEREXAMPLE,
+      guidanceLevel,
+    },
+  }
+}
 
 function buildGenerationContext(): GenerationContextPackage {
   const createdAt = new Date('2026-08-04T10:00:00.000Z')

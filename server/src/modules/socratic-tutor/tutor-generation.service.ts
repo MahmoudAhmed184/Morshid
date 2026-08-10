@@ -6,6 +6,7 @@ import { TeachingDecisionRepository } from './teaching-decision.repository'
 import {
   buildGenerationContextPackage,
   citationIdForChunk,
+  guardEducationalContextFromGenerationContext,
   withRegenerationContext,
 } from './tutor-generation-context'
 import {
@@ -18,6 +19,7 @@ import {
   type TutorModelResponse,
 } from './tutor-generation.types'
 import { buildTutorGenerationModelRequest } from './tutor-prompt.builder'
+import { TUTOR_GENERATION_PROMPT_VERSION } from './tutor-prompt.registry'
 import { validateCandidateResponse } from './tutor-candidate.schema'
 import { tutorFailureFromModelError } from './tutor-model.adapter'
 
@@ -141,6 +143,7 @@ export class TutorGenerationService {
     return {
       success: true,
       candidate: validation.data,
+      educationalContext: guardEducationalContextFromGenerationContext(context),
     }
   }
 
@@ -172,7 +175,7 @@ export class TutorGenerationService {
       providerRole: 'tutor',
       provider: input.provider,
       model: input.model,
-      promptVersion: 'tutor-generation.mvp.v1',
+      promptVersion: TUTOR_GENERATION_PROMPT_VERSION,
       latencyMs: input.latencyMs,
       inputTokens: input.inputTokens,
       outputTokens: input.outputTokens,
