@@ -27,6 +27,7 @@ import {
   TutorModelError,
   type TutorModelPort,
   type TutorModelRequest,
+  type TutorGenerationInput,
 } from './tutor-generation.types'
 
 describe('TutorGenerationService', () => {
@@ -148,6 +149,36 @@ describe('TutorGenerationService', () => {
     ).resolves.toEqual({
       success: false,
       errorCode: 'RETRIEVAL_SCOPE_VIOLATION',
+    })
+    expect(harness.model.requests).toHaveLength(0)
+  })
+
+  it('rejects regeneration that changes the authoritative policy snapshot', async () => {
+    const harness = buildHarness()
+    const decision = buildDecision()
+    const input = {
+      ...defaultInput(),
+      regeneration: {
+        promptVersion: 'tutor-regeneration.mvp.v1',
+        candidateAttempt: 2,
+        previousValidation: {
+          stage: 'SEMANTIC',
+          violations: [],
+          maximumSeverity: null,
+        },
+        authoritativePolicy: {
+          teachingDecisionId: decision.id,
+          policyVersion: decision.policyVersion,
+          guidanceLevel: 2,
+          revealPolicy: decision.revealPolicy,
+          guardPolicy: decision.guardPolicy,
+        },
+      },
+    } satisfies TutorGenerationInput
+
+    await expect(harness.service.generate(input)).resolves.toEqual({
+      success: false,
+      errorCode: 'INVALID_GENERATION_CONTEXT',
     })
     expect(harness.model.requests).toHaveLength(0)
   })
@@ -435,6 +466,7 @@ function buildDecision(): PersistedTeachingDecisionRecord {
       preventFinalResult: true,
       preventCompleteSolution: true,
       preventSubmissionReadyCode: true,
+      preventProtectedCodeLeakage: true,
       requireStudentReasoning: true,
       requireGrounding: true,
       enforceCitationSupport: true,

@@ -131,6 +131,7 @@ function misconceptionContext(
       primaryTechnique: TeachingTechnique.COUNTEREXAMPLE,
       guidanceLevel,
     },
+    previousTeachingDecision: null,
   }
 }
 
@@ -221,6 +222,7 @@ function buildGenerationContext(): GenerationContextPackage {
         preventFinalResult: true,
         preventCompleteSolution: true,
         preventSubmissionReadyCode: true,
+        preventProtectedCodeLeakage: true,
         requireStudentReasoning: true,
         requireGrounding: true,
         enforceCitationSupport: true,
@@ -230,6 +232,7 @@ function buildGenerationContext(): GenerationContextPackage {
       policyVersion: 'socratic-policy.mvp.v1',
       createdAt,
     },
+    previousTeachingDecision: null,
     activeTopic: {
       id: 'topic-1',
       sessionId: 'session-1',

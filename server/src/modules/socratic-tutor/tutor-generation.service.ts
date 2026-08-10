@@ -7,6 +7,7 @@ import {
   buildGenerationContextPackage,
   citationIdForChunk,
   guardEducationalContextFromGenerationContext,
+  regenerationMatchesTeachingDecision,
   withRegenerationContext,
 } from './tutor-generation-context'
 import {
@@ -58,14 +59,18 @@ export class TutorGenerationService {
       return failure(TUTOR_GENERATION_FAILURE_CODE.INVALID_GENERATION_CONTEXT)
     }
 
-    const [acceptedAnalysis, teachingDecision] = await Promise.all([
-      this.educationalAnalysisRepository.findLatestAccepted({
-        turnId: input.turnId,
-        topicId: input.topicId,
-        studentMessageId: input.studentMessageId,
-      }),
-      this.teachingDecisionRepository.findByTurnId(input.turnId),
-    ])
+    const [acceptedAnalysis, teachingDecision, previousTeachingDecision] =
+      await Promise.all([
+        this.educationalAnalysisRepository.findLatestAccepted({
+          turnId: input.turnId,
+          topicId: input.topicId,
+          studentMessageId: input.studentMessageId,
+        }),
+        this.teachingDecisionRepository.findByTurnId(input.turnId),
+        this.teachingDecisionRepository.findLatestCompletedForSameTopicBeforeTurn(
+          { turnId: input.turnId, topicId: input.topicId },
+        ),
+      ])
     if (teachingDecision === null) {
       return failure(TUTOR_GENERATION_FAILURE_CODE.MISSING_TEACHING_DECISION)
     }
@@ -81,6 +86,7 @@ export class TutorGenerationService {
       analysisContext,
       acceptedAnalysis,
       teachingDecision,
+      previousTeachingDecision,
       retrievedChunks: input.retrievalResult,
     })
     if (!generationContext.success) {
@@ -90,6 +96,9 @@ export class TutorGenerationService {
       input.regeneration === undefined
         ? generationContext.context
         : withRegenerationContext(generationContext.context, input.regeneration)
+    if (!regenerationMatchesTeachingDecision(context)) {
+      return failure(TUTOR_GENERATION_FAILURE_CODE.INVALID_GENERATION_CONTEXT)
+    }
 
     const request = buildTutorGenerationModelRequest(context, input.signal)
     const startedAt = Date.now()

@@ -97,6 +97,7 @@ export interface GenerationContextPackage {
   readonly studentMessage: AnalysisContextMessage
   readonly acceptedAnalysis: PersistedEducationalAnalysisRecord
   readonly teachingDecision: PersistedTeachingDecisionRecord
+  readonly previousTeachingDecision: PersistedTeachingDecisionRecord | null
   readonly activeTopic: TopicRecord
   readonly topicState: TopicStateSnapshot | null
   readonly selectedHistory: readonly AnalysisContextMessage[]
@@ -113,6 +114,13 @@ export interface TutorRegenerationContext {
     ValidationResult,
     'stage' | 'violations' | 'maximumSeverity'
   >
+  readonly authoritativePolicy: {
+    readonly teachingDecisionId: string
+    readonly policyVersion: string
+    readonly guidanceLevel: number
+    readonly revealPolicy: RevealPolicy
+    readonly guardPolicy: PersistedTeachingDecisionRecord['guardPolicy']
+  }
 }
 
 export interface TutorGenerationInput {
@@ -171,12 +179,32 @@ export interface TutorGuardEducationalContext {
     readonly content: string
   }
   readonly acceptedAnalysis: {
+    readonly id: string
     readonly requestKind: PersistedEducationalAnalysisRecord['result']['requestKind']
     readonly studentState: PersistedEducationalAnalysisRecord['result']['studentState']
+    readonly effortEvidence: PersistedEducationalAnalysisRecord['result']['effortEvidence']
+    readonly learningEvidence: PersistedEducationalAnalysisRecord['result']['learningEvidence']
     readonly misconceptions: PersistedEducationalAnalysisRecord['result']['misconceptions']
+    readonly evidenceReferences: PersistedEducationalAnalysisRecord['result']['evidenceReferences']
+    readonly confidence: number
+    readonly analysisSource: PersistedEducationalAnalysisRecord['analysisSource']
+    readonly promptVersion: string
+    readonly schemaVersion: string
+  }
+  readonly topicState: TopicStateSnapshot | null
+  readonly previousTeachingDecision: PersistedTeachingDecisionRecord | null
+  readonly currentTeachingDecision: {
+    readonly id: string
+    readonly policyVersion: string
+    readonly guidanceLevel: number
+    readonly revealPolicy: RevealPolicy
   }
   readonly recentConversation: readonly {
+    readonly id: string
+    readonly sequence: number
     readonly role: AnalysisContextMessage['role']
+    readonly turnId: string | null
+    readonly topicId: string | null
     readonly content: string
   }[]
 }

@@ -520,14 +520,14 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
       identifiers: { candidateAttempt: 1 },
       trustedPolicy: {
         responseIntent: 'MISCONCEPTION_REPAIR',
-        guidanceLevel: 2,
+        guidanceLevel: 1,
         revealPolicy: 'NO_FINAL_ANSWER',
         guardPolicy: {
           preventDirectAnswer: true,
           requireStudentReasoning: true,
         },
         disclosureContract: {
-          guidanceMode: 'FOCUSED_HINT',
+          guidanceMode: 'ORIENTATION',
           directTargetInferenceAllowed: false,
         },
       },
@@ -569,7 +569,7 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
     expect(persistedDecision).toMatchObject({
       strategy: 'MISCONCEPTION_REPAIR',
       primaryTechnique: 'COUNTEREXAMPLE',
-      guidanceLevel: 2,
+      guidanceLevel: 1,
       revealPolicy: 'NO_FINAL_ANSWER',
     })
     expect(persistedDecision.guardPolicy).toMatchObject({

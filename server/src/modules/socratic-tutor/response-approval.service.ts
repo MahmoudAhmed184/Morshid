@@ -100,6 +100,13 @@ export class ResponseApprovalService {
                 promptVersion: 'tutor-regeneration.mvp.v1',
                 candidateAttempt: attempt,
                 previousValidation,
+                authoritativePolicy: {
+                  teachingDecisionId: decision.id,
+                  policyVersion: decision.policyVersion,
+                  guidanceLevel: decision.guidanceLevel,
+                  revealPolicy: decision.revealPolicy,
+                  guardPolicy: decision.guardPolicy,
+                },
               },
             }),
       })
