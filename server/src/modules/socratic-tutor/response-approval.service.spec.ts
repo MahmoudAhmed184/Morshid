@@ -3,6 +3,7 @@ import {
   RevealPolicy,
   TeachingStrategy,
   TeachingTechnique,
+  TutorTurnStatus,
 } from '../../generated/prisma/client'
 import {
   RESPONSE_VALIDATION_STAGE,
@@ -72,11 +73,11 @@ describe('ResponseApprovalService', () => {
     expect(harness.semantic.calls).toHaveLength(1)
   })
 
-  it('uses fallback after two validation rejections and does not request a third candidate', async () => {
+  it('uses fallback only after exactly three validation rejections', async () => {
     const harness = buildHarness([
       generationSuccess(validCandidate({ message: 'The answer is 42.' })),
       generationSuccess(validCandidate({ message: 'Final answer: 43.' })),
-      generationSuccess(validCandidate()),
+      generationSuccess(validCandidate({ message: 'The final answer is 44.' })),
     ])
 
     const result = await harness.service.approve(input())
@@ -86,9 +87,10 @@ describe('ResponseApprovalService', () => {
       expect(result.approvedResponse.source).toBe('SAFE_FALLBACK')
       expect(result.approvedResponse.safeFallbackUsed).toBe(true)
       expect(result.approvedResponse.approvedCandidateAttempt).toBeNull()
-      expect(result.candidateAttempts).toBe(2)
+      expect(result.candidateAttempts).toBe(3)
+      expect(result.safeFallbackReason).toBe('VALIDATION_EXHAUSTED')
     }
-    expect(harness.generation.calls).toHaveLength(2)
+    expect(harness.generation.calls).toHaveLength(3)
     expect(harness.semantic.calls).toHaveLength(0)
   })
 
@@ -117,10 +119,17 @@ describe('ResponseApprovalService', () => {
       {
         success: false,
         errorCode: TUTOR_GENERATION_FAILURE_CODE.TUTOR_INVALID_OUTPUT,
+        infrastructureRetryCount: 0,
       },
       {
         success: false,
         errorCode: TUTOR_GENERATION_FAILURE_CODE.TUTOR_INVALID_OUTPUT,
+        infrastructureRetryCount: 0,
+      },
+      {
+        success: false,
+        errorCode: TUTOR_GENERATION_FAILURE_CODE.TUTOR_INVALID_OUTPUT,
+        infrastructureRetryCount: 0,
       },
     ])
 
@@ -130,7 +139,7 @@ describe('ResponseApprovalService', () => {
     if (result.success) {
       expect(result.approvedResponse.source).toBe('SAFE_FALLBACK')
     }
-    expect(harness.generation.calls).toHaveLength(2)
+    expect(harness.generation.calls).toHaveLength(3)
     expect(harness.semantic.calls).toHaveLength(0)
   })
 
@@ -139,10 +148,12 @@ describe('ResponseApprovalService', () => {
       {
         success: false,
         errorCode: TUTOR_GENERATION_FAILURE_CODE.TUTOR_INVALID_OUTPUT,
+        infrastructureRetryCount: 0,
       },
       {
         success: false,
         errorCode: TUTOR_GENERATION_FAILURE_CODE.TUTOR_PROVIDER_TRANSPORT,
+        infrastructureRetryCount: 1,
       },
     ])
 
@@ -154,6 +165,36 @@ describe('ResponseApprovalService', () => {
       expect(result.candidateAttempts).toBe(2)
     }
     expect(harness.generation.calls).toHaveLength(2)
+  })
+
+  it('persists the canonical lifecycle while approving the third candidate', async () => {
+    const harness = buildHarness([
+      generationSuccess(validCandidate({ message: 'The answer is 42.' })),
+      generationSuccess(validCandidate({ message: 'Final answer: 43.' })),
+      generationSuccess(validCandidate()),
+    ])
+
+    const result = await harness.service.approveAndPersist({
+      ...input(),
+      assistantMessageId: 'assistant-message-1',
+    })
+
+    expect(result.success).toBe(true)
+    expect(harness.transitions).toEqual([
+      [TutorTurnStatus.GENERATING, TutorTurnStatus.VALIDATING],
+      [TutorTurnStatus.VALIDATING, TutorTurnStatus.REGENERATING],
+      [TutorTurnStatus.REGENERATING, TutorTurnStatus.GENERATING],
+      [TutorTurnStatus.GENERATING, TutorTurnStatus.VALIDATING],
+      [TutorTurnStatus.VALIDATING, TutorTurnStatus.REGENERATING],
+      [TutorTurnStatus.REGENERATING, TutorTurnStatus.GENERATING],
+      [TutorTurnStatus.GENERATING, TutorTurnStatus.VALIDATING],
+    ])
+    expect(harness.completeApprovedResponse).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expectedTurnStatus: TutorTurnStatus.VALIDATING,
+        safeFallbackReason: null,
+      }),
+    )
   })
 })
 
@@ -170,6 +211,10 @@ function buildHarness(
       result: approvedSemanticResult(),
     },
   )
+  const transitions: [TutorTurnStatus, TutorTurnStatus][] = []
+  const completeApprovedResponse = jest.fn(() =>
+    Promise.resolve({ kind: 'ok', turn: {} }),
+  )
   const service = new ResponseApprovalService(
     generation as never,
     new FakeTeachingDecisionRepository(decision()),
@@ -177,10 +222,26 @@ function buildHarness(
     new DeterministicGuardService(),
     semantic as never,
     new SafeFallbackService(),
-    { completeApprovedResponse: jest.fn() } as never,
+    { completeApprovedResponse } as never,
+    {
+      transitionStatus: (
+        _turnId: string,
+        expectedStatus: TutorTurnStatus,
+        nextStatus: TutorTurnStatus,
+      ) => {
+        transitions.push([expectedStatus, nextStatus])
+        return Promise.resolve({})
+      },
+    } as never,
   )
 
-  return { service, generation, semantic }
+  return {
+    service,
+    generation,
+    semantic,
+    transitions,
+    completeApprovedResponse,
+  }
 }
 
 class FakeGenerationService {
@@ -304,6 +365,7 @@ function generationSuccess(
   return {
     success: true,
     candidate,
+    infrastructureRetryCount: 0,
     educationalContext: {
       currentStudentMessage: {
         id: 'message-1',

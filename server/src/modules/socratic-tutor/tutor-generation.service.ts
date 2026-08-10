@@ -23,6 +23,10 @@ import { buildTutorGenerationModelRequest } from './tutor-prompt.builder'
 import { TUTOR_GENERATION_PROMPT_VERSION } from './tutor-prompt.registry'
 import { validateCandidateResponse } from './tutor-candidate.schema'
 import { tutorFailureFromModelError } from './tutor-model.adapter'
+import {
+  TUTOR_INFRASTRUCTURE_RETRY_POLICY,
+  type TutorInfrastructureRetryPolicy,
+} from './tutor-infrastructure-retry.policy'
 
 @Injectable()
 export class TutorGenerationService {
@@ -34,6 +38,8 @@ export class TutorGenerationService {
     private readonly teachingDecisionRepository: TeachingDecisionRepository,
     @Inject(TUTOR_MODEL_PORT)
     private readonly tutorModelPort: TutorModelPort,
+    @Inject(TUTOR_INFRASTRUCTURE_RETRY_POLICY)
+    private readonly retryPolicy: TutorInfrastructureRetryPolicy,
   ) {}
 
   async generate(
@@ -102,18 +108,31 @@ export class TutorGenerationService {
 
     const request = buildTutorGenerationModelRequest(context, input.signal)
     const startedAt = Date.now()
+    let infrastructureRetryCount = 0
     let modelResponse: TutorModelResponse
-    try {
-      modelResponse = await this.tutorModelPort.generate(request)
-    } catch (error) {
-      const errorCode = tutorFailureFromModelError(error)
-      this.logGenerationOutcome({
-        context,
-        status: 'failed',
-        errorCode,
-        latencyMs: Date.now() - startedAt,
-      })
-      return failure(errorCode)
+    for (;;) {
+      try {
+        modelResponse = await this.tutorModelPort.generate(request)
+        break
+      } catch (error) {
+        const errorCode = tutorFailureFromModelError(error)
+        const willRetry = this.retryPolicy.canRetry(
+          error,
+          infrastructureRetryCount,
+        )
+        this.logGenerationOutcome({
+          context,
+          status: 'failed',
+          errorCode,
+          latencyMs: Date.now() - startedAt,
+          infrastructureRetryCount,
+          willRetry,
+        })
+        if (!willRetry) {
+          return failure(errorCode, infrastructureRetryCount)
+        }
+        infrastructureRetryCount += 1
+      }
     }
 
     const validation = validateCandidateResponse(
@@ -135,7 +154,10 @@ export class TutorGenerationService {
       },
     )
     if (!validation.success) {
-      return failure(TUTOR_GENERATION_FAILURE_CODE[validation.errorCode])
+      return failure(
+        TUTOR_GENERATION_FAILURE_CODE[validation.errorCode],
+        infrastructureRetryCount,
+      )
     }
 
     this.logGenerationOutcome({
@@ -147,12 +169,14 @@ export class TutorGenerationService {
       inputTokens: validation.data.tokenUsage.input,
       outputTokens: validation.data.tokenUsage.output,
       usedCitationCount: validation.data.usedCitationIds.length,
+      infrastructureRetryCount,
     })
 
     return {
       success: true,
       candidate: validation.data,
       educationalContext: guardEducationalContextFromGenerationContext(context),
+      infrastructureRetryCount,
     }
   }
 
@@ -172,6 +196,8 @@ export class TutorGenerationService {
     inputTokens?: number
     outputTokens?: number
     usedCitationCount?: number
+    infrastructureRetryCount: number
+    willRetry?: boolean
   }): void {
     this.logger.log({
       stage: 'tutor_generation',
@@ -188,7 +214,8 @@ export class TutorGenerationService {
       latencyMs: input.latencyMs,
       inputTokens: input.inputTokens,
       outputTokens: input.outputTokens,
-      infrastructureRetryCount: 0,
+      infrastructureRetryCount: input.infrastructureRetryCount,
+      willRetry: input.willRetry,
       errorCategory: input.errorCode,
       usedCitationCount: input.usedCitationCount,
     })
@@ -206,9 +233,11 @@ function hasStableDenseCitationIds(
 
 function failure(
   errorCode: TutorGenerationFailureCode,
+  infrastructureRetryCount = 0,
 ): TutorGenerationServiceResult {
   return {
     success: false,
     errorCode,
+    infrastructureRetryCount,
   }
 }

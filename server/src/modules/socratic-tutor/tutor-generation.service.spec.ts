@@ -22,6 +22,7 @@ import {
   type PersistedTeachingDecisionRecord,
 } from './teaching-decision.repository'
 import { TutorGenerationService } from './tutor-generation.service'
+import { TutorInfrastructureRetryPolicy } from './tutor-infrastructure-retry.policy'
 import {
   TUTOR_MODEL_ERROR_CODE,
   TutorModelError,
@@ -46,6 +47,7 @@ describe('TutorGenerationService', () => {
         tokenUsage: { input: 15, output: 9 },
         usedCitationIds: ['retrieval.rank.1'],
       })
+      expect(result.infrastructureRetryCount).toBe(0)
     }
     expect(harness.model.requests).toHaveLength(1)
     expect(harness.context.topicState).toEqual(buildTopicState())
@@ -131,6 +133,7 @@ describe('TutorGenerationService', () => {
     await expect(harness.service.generate(defaultInput())).resolves.toEqual({
       success: false,
       errorCode,
+      infrastructureRetryCount: 0,
     })
     expect(harness.model.requests).toHaveLength(0)
   })
@@ -149,6 +152,7 @@ describe('TutorGenerationService', () => {
     ).resolves.toEqual({
       success: false,
       errorCode: 'RETRIEVAL_SCOPE_VIOLATION',
+      infrastructureRetryCount: 0,
     })
     expect(harness.model.requests).toHaveLength(0)
   })
@@ -179,6 +183,7 @@ describe('TutorGenerationService', () => {
     await expect(harness.service.generate(input)).resolves.toEqual({
       success: false,
       errorCode: 'INVALID_GENERATION_CONTEXT',
+      infrastructureRetryCount: 0,
     })
     expect(harness.model.requests).toHaveLength(0)
   })
@@ -204,25 +209,57 @@ describe('TutorGenerationService', () => {
       await expect(harness.service.generate(defaultInput())).resolves.toEqual({
         success: false,
         errorCode,
+        infrastructureRetryCount: 0,
       })
       expect(harness.model.requests).toHaveLength(1)
     },
   )
 
   it.each([
-    [TUTOR_MODEL_ERROR_CODE.TIMEOUT, 'TUTOR_PROVIDER_TIMEOUT'],
-    [TUTOR_MODEL_ERROR_CODE.RATE_LIMITED, 'TUTOR_PROVIDER_RATE_LIMIT'],
-    [TUTOR_MODEL_ERROR_CODE.PROVIDER_UNAVAILABLE, 'TUTOR_PROVIDER_UNAVAILABLE'],
-    [TUTOR_MODEL_ERROR_CODE.TRANSPORT_FAILURE, 'TUTOR_PROVIDER_TRANSPORT'],
-  ])('maps provider %s safely', async (providerCode, errorCode) => {
-    const harness = buildHarness()
-    harness.model.error = new TutorModelError(providerCode)
+    [TUTOR_MODEL_ERROR_CODE.TIMEOUT, 'TUTOR_PROVIDER_TIMEOUT', 1, 2],
+    [TUTOR_MODEL_ERROR_CODE.RATE_LIMITED, 'TUTOR_PROVIDER_RATE_LIMIT', 0, 1],
+    [
+      TUTOR_MODEL_ERROR_CODE.PROVIDER_UNAVAILABLE,
+      'TUTOR_PROVIDER_UNAVAILABLE',
+      1,
+      2,
+    ],
+    [
+      TUTOR_MODEL_ERROR_CODE.TRANSPORT_FAILURE,
+      'TUTOR_PROVIDER_TRANSPORT',
+      1,
+      2,
+    ],
+  ])(
+    'maps provider %s safely after its bounded retry policy',
+    async (providerCode, errorCode, infrastructureRetryCount, requestCount) => {
+      const harness = buildHarness()
+      harness.model.error = new TutorModelError(providerCode)
 
-    await expect(harness.service.generate(defaultInput())).resolves.toEqual({
-      success: false,
-      errorCode,
+      await expect(harness.service.generate(defaultInput())).resolves.toEqual({
+        success: false,
+        errorCode,
+        infrastructureRetryCount,
+      })
+      expect(harness.model.requests).toHaveLength(requestCount)
+    },
+  )
+
+  it('reuses the same pedagogical request after a transient failure', async () => {
+    const harness = buildHarness()
+    harness.model.errorSequence = [
+      new TutorModelError(TUTOR_MODEL_ERROR_CODE.TIMEOUT),
+      null,
+    ]
+
+    const result = await harness.service.generate(defaultInput())
+
+    expect(result).toMatchObject({
+      success: true,
+      infrastructureRetryCount: 1,
     })
-    expect(harness.model.requests).toHaveLength(1)
+    expect(harness.model.requests).toHaveLength(2)
+    expect(harness.model.requests[1]).toEqual(harness.model.requests[0])
   })
 })
 
@@ -246,6 +283,7 @@ function buildHarness(): Harness {
     analysis,
     decision,
     model,
+    new TutorInfrastructureRetryPolicy(),
   )
 
   return { service, context, analysis, decision, model }
@@ -287,9 +325,14 @@ class FakeTutorModel implements TutorModelPort {
   readonly requests: TutorModelRequest[] = []
   rawOutput: unknown = validCandidate()
   error: Error | null = null
+  errorSequence: (Error | null)[] = []
 
   generate(request: TutorModelRequest) {
     this.requests.push(request)
+    const scheduledError = this.errorSequence[this.requests.length - 1]
+    if (scheduledError !== undefined && scheduledError !== null) {
+      return Promise.reject(scheduledError)
+    }
     if (this.error !== null) {
       return Promise.reject(this.error)
     }

@@ -157,10 +157,12 @@ export type TutorGenerationServiceResult =
       readonly success: true
       readonly candidate: CandidateResponse
       readonly educationalContext: TutorGuardEducationalContext
+      readonly infrastructureRetryCount: number
     }
   | {
       readonly success: false
       readonly errorCode: TutorGenerationFailureCode
+      readonly infrastructureRetryCount: number
     }
 
 export interface TutorModelRequest {

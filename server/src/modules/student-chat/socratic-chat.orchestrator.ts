@@ -249,7 +249,7 @@ export class SocraticChatOrchestrator {
     if (!approval.success) {
       return this.failTurn(
         turnId,
-        TutorTurnStatus.GENERATING,
+        approval.turnStatus,
         TutorTurnFailureCode.GENERATION_FAILED,
         `SOCRATIC_APPROVAL_FAILED:${approval.errorCode}`,
       )

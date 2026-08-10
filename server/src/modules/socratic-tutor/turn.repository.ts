@@ -81,6 +81,7 @@ export interface CompleteApprovedTutorResponseInput {
   readonly retrievalResult: readonly RetrievedChunk[]
   readonly auditGraph: ResponseAuditGraph
   readonly safeFallbackReason: SafeFallbackReason | null
+  readonly expectedTurnStatus: TutorTurnStatus
 }
 
 export type CompleteApprovedTutorResponseResult =
@@ -468,6 +469,10 @@ export class PrismaTurnRepository extends TurnRepository {
         return { kind: 'relationship_mismatch' }
       }
 
+      if (turn.status !== input.expectedTurnStatus) {
+        return { kind: 'relationship_mismatch' }
+      }
+
       if (!auditGraphMatchesApproval(input)) {
         return { kind: 'relationship_mismatch' }
       }
@@ -615,9 +620,7 @@ export class PrismaTurnRepository extends TurnRepository {
       const updated = await tx.tutorTurn.updateManyAndReturn({
         where: {
           id: input.turnId,
-          status: {
-            notIn: [TutorTurnStatus.COMPLETED, TutorTurnStatus.FAILED],
-          },
+          status: input.expectedTurnStatus,
           approvedTutorMessageId: null,
         },
         data: {

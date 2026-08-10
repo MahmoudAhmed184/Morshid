@@ -65,6 +65,10 @@ import {
   normalizeOpenAICompatibleBaseUrl,
 } from '../socratic-tutor/analysis-model.configuration'
 import {
+  DEFAULT_TUTOR_MODEL_MAX_INFRASTRUCTURE_RETRIES,
+  MAX_TUTOR_MODEL_MAX_INFRASTRUCTURE_RETRIES,
+} from '../socratic-tutor/tutor-infrastructure-retry.policy'
+import {
   DEFAULT_TUTOR_MODEL_BASE_URL,
   DEFAULT_TUTOR_MODEL_NAME,
   DEFAULT_TUTOR_MODEL_TIMEOUT_MS,
@@ -273,6 +277,12 @@ export const envSchema = z
       .positive()
       .max(MAX_TUTOR_MODEL_TIMEOUT_MS)
       .default(DEFAULT_TUTOR_MODEL_TIMEOUT_MS),
+    TUTOR_MODEL_MAX_INFRASTRUCTURE_RETRIES: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .max(MAX_TUTOR_MODEL_MAX_INFRASTRUCTURE_RETRIES)
+      .default(DEFAULT_TUTOR_MODEL_MAX_INFRASTRUCTURE_RETRIES),
     SEMANTIC_GUARD_PROVIDER: z
       .enum([
         DETERMINISTIC_SEMANTIC_GUARD_PROVIDER,

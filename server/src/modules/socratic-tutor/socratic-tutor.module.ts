@@ -45,6 +45,10 @@ import {
 } from './tutor-model.configuration'
 import { createTutorModelPort } from './tutor-model.adapter'
 import { TutorGenerationService } from './tutor-generation.service'
+import {
+  TUTOR_INFRASTRUCTURE_RETRY_POLICY,
+  TutorInfrastructureRetryPolicy,
+} from './tutor-infrastructure-retry.policy'
 import { PrismaTurnRepository, TurnRepository } from './turn.repository'
 import { TurnService } from './turn.service'
 import { PrismaTopicRepository, TopicRepository } from './topic.repository'
@@ -160,6 +164,16 @@ import { RetrievalQueryBuilder } from './retrieval-query.builder'
           timeoutMs,
         })
       },
+    },
+    {
+      provide: TUTOR_INFRASTRUCTURE_RETRY_POLICY,
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService<AppEnvironment, true>) =>
+        new TutorInfrastructureRetryPolicy(
+          configService.get('TUTOR_MODEL_MAX_INFRASTRUCTURE_RETRIES', {
+            infer: true,
+          }),
+        ),
     },
     {
       provide: TUTOR_MODEL_PORT,

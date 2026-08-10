@@ -76,6 +76,7 @@ describe('validateEnv', () => {
       TUTOR_MODEL_NAME: DEFAULT_TUTOR_MODEL_NAME,
       TUTOR_MODEL_API_KEY: '',
       TUTOR_MODEL_TIMEOUT_MS: 30_000,
+      TUTOR_MODEL_MAX_INFRASTRUCTURE_RETRIES: 1,
       SEMANTIC_GUARD_PROVIDER: 'deterministic',
       SEMANTIC_GUARD_BASE_URL: DEFAULT_SEMANTIC_GUARD_BASE_URL,
       SEMANTIC_GUARD_MODEL_NAME: DEFAULT_SEMANTIC_GUARD_MODEL_NAME,
@@ -328,6 +329,18 @@ describe('validateEnv', () => {
           TUTOR_MODEL_API_KEY: 'replace-with-tutor-key',
         }),
       ).toThrow(/TUTOR_MODEL_API_KEY/)
+      expect(() =>
+        validateEnv({
+          ...validEnv,
+          TUTOR_MODEL_MAX_INFRASTRUCTURE_RETRIES: '-1',
+        }),
+      ).toThrow(/TUTOR_MODEL_MAX_INFRASTRUCTURE_RETRIES/)
+      expect(() =>
+        validateEnv({
+          ...validEnv,
+          TUTOR_MODEL_MAX_INFRASTRUCTURE_RETRIES: '3',
+        }),
+      ).toThrow(/TUTOR_MODEL_MAX_INFRASTRUCTURE_RETRIES/)
     })
 
     it('rejects non-deterministic tutor and analysis model aliasing', () => {

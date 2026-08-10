@@ -8,7 +8,7 @@ import type { CandidateResponse } from './tutor-generation.types'
 
 export const MVP_RESPONSE_VALIDATION_POLICY_VERSION =
   'response-validation.mvp.v1'
-export const MAX_MVP_CANDIDATE_ATTEMPTS = 2
+export const MAX_MVP_CANDIDATE_ATTEMPTS = 3
 
 export const RESPONSE_VALIDATION_STAGE = {
   STRUCTURAL: 'STRUCTURAL',

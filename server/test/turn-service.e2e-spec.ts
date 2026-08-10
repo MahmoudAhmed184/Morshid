@@ -307,6 +307,7 @@ describe('TurnService persistence (e2e)', () => {
         }),
       ),
       safeFallbackReason: null,
+      expectedTurnStatus: TutorTurnStatus.VALIDATING,
     }
 
     await expect(
@@ -381,6 +382,7 @@ describe('TurnService persistence (e2e)', () => {
           }),
         ),
         safeFallbackReason: SAFE_FALLBACK_REASON.GUARD_UNAVAILABLE,
+        expectedTurnStatus: TutorTurnStatus.VALIDATING,
       }),
     ).resolves.toMatchObject({
       kind: 'ok',

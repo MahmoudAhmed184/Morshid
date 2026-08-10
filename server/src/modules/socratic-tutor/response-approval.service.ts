@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
+import { TutorTurnStatus } from '../../generated/prisma/client'
+
 import { citationIdForChunk } from './tutor-generation-context'
 import { TutorGenerationService } from './tutor-generation.service'
 import {
@@ -27,6 +29,7 @@ import {
 import type { PersistedTeachingDecisionRecord } from './teaching-decision.repository'
 import { TeachingDecisionRepository } from './teaching-decision.repository'
 import { TurnRepository } from './turn.repository'
+import { TurnService } from './turn.service'
 import {
   type GuardResultAudit,
   type ResponseAuditGraph,
@@ -61,6 +64,7 @@ export type PersistedResponseApprovalResult =
       readonly success: false
       readonly errorCode:
         'MISSING_TEACHING_DECISION' | 'RESPONSE_APPROVAL_PERSISTENCE_FAILED'
+      readonly turnStatus: TutorTurnStatus
     }
 
 @Injectable()
@@ -73,9 +77,17 @@ export class ResponseApprovalService {
     private readonly semanticGuard: SemanticGuardService,
     private readonly safeFallbackService: SafeFallbackService,
     private readonly turnRepository: TurnRepository,
+    private readonly turnService: TurnService,
   ) {}
 
-  async approve(input: ResponseApprovalInput): Promise<ResponseApprovalResult> {
+  approve(input: ResponseApprovalInput): Promise<ResponseApprovalResult> {
+    return this.approveWithLifecycle(input, NOOP_APPROVAL_LIFECYCLE)
+  }
+
+  private async approveWithLifecycle(
+    input: ResponseApprovalInput,
+    lifecycle: ApprovalLifecycle,
+  ): Promise<ResponseApprovalResult> {
     const decision = await this.teachingDecisionRepository.findByTurnId(
       input.turnId,
     )
@@ -136,9 +148,11 @@ export class ResponseApprovalService {
             invalidOutput: structuralFailure,
             startedAt: generationStartedAt,
             completedAt: generationCompletedAt,
+            infrastructureRetryCount: generation.infrastructureRetryCount,
           }),
         )
         if (structuralFailure) {
+          await lifecycle.beginValidation()
           const structural = structuralRejectionFromGenerationFailure(
             generation.errorCode,
           )
@@ -158,6 +172,7 @@ export class ResponseApprovalService {
             )
           }
           previousValidation = structural
+          await lifecycle.prepareRegeneration()
           continue
         }
 
@@ -178,8 +193,11 @@ export class ResponseApprovalService {
           candidate: generation.candidate,
           startedAt: generationStartedAt,
           completedAt: generationCompletedAt,
+          infrastructureRetryCount: generation.infrastructureRetryCount,
         }),
       )
+
+      await lifecycle.beginValidation()
 
       const structural = this.structuralValidator.validate(
         generation.candidate,
@@ -200,6 +218,7 @@ export class ResponseApprovalService {
           )
         }
         previousValidation = structural
+        await lifecycle.prepareRegeneration()
         continue
       }
 
@@ -222,6 +241,7 @@ export class ResponseApprovalService {
           )
         }
         previousValidation = deterministic
+        await lifecycle.prepareRegeneration()
         continue
       }
 
@@ -273,6 +293,7 @@ export class ResponseApprovalService {
           )
         }
         previousValidation = semantic.result
+        await lifecycle.prepareRegeneration()
         continue
       }
 
@@ -304,16 +325,24 @@ export class ResponseApprovalService {
   async approveAndPersist(
     input: ResponseApprovalInput & { readonly assistantMessageId: string },
   ): Promise<PersistedResponseApprovalResult> {
-    const approval = await this.approve(input)
+    const lifecycle = new PersistedApprovalLifecycle(
+      this.turnService,
+      input.turnId,
+    )
+    const approval = await this.approveWithLifecycle(input, lifecycle)
     if (!approval.success) {
-      return approval
+      return { ...approval, turnStatus: lifecycle.status }
     }
 
     const decision = await this.teachingDecisionRepository.findByTurnId(
       input.turnId,
     )
     if (decision === null) {
-      return { success: false, errorCode: 'MISSING_TEACHING_DECISION' }
+      return {
+        success: false,
+        errorCode: 'MISSING_TEACHING_DECISION',
+        turnStatus: lifecycle.status,
+      }
     }
 
     const persisted = await this.turnRepository.completeApprovedResponse({
@@ -329,12 +358,14 @@ export class ResponseApprovalService {
       retrievalResult: input.retrievalResult,
       auditGraph: approval.auditGraph,
       safeFallbackReason: approval.safeFallbackReason,
+      expectedTurnStatus: lifecycle.status,
     })
 
     if (persisted.kind !== 'ok') {
       return {
         success: false,
         errorCode: 'RESPONSE_APPROVAL_PERSISTENCE_FAILED',
+        turnStatus: lifecycle.status,
       }
     }
 
@@ -377,4 +408,43 @@ function isStructuralGenerationFailure(errorCode: string): boolean {
     errorCode === TUTOR_GENERATION_FAILURE_CODE.TUTOR_INVALID_OUTPUT ||
     errorCode === TUTOR_GENERATION_FAILURE_CODE.TUTOR_INVALID_CITATION
   )
+}
+
+interface ApprovalLifecycle {
+  readonly status: TutorTurnStatus
+  beginValidation(): Promise<void>
+  prepareRegeneration(): Promise<void>
+}
+
+const NOOP_APPROVAL_LIFECYCLE: ApprovalLifecycle = Object.freeze({
+  status: TutorTurnStatus.GENERATING,
+  beginValidation: () => Promise.resolve(),
+  prepareRegeneration: () => Promise.resolve(),
+})
+
+class PersistedApprovalLifecycle implements ApprovalLifecycle {
+  status: TutorTurnStatus = TutorTurnStatus.GENERATING
+
+  constructor(
+    private readonly turnService: TurnService,
+    private readonly turnId: string,
+  ) {}
+
+  async beginValidation(): Promise<void> {
+    await this.transition(TutorTurnStatus.VALIDATING)
+  }
+
+  async prepareRegeneration(): Promise<void> {
+    await this.transition(TutorTurnStatus.REGENERATING)
+    await this.transition(TutorTurnStatus.GENERATING)
+  }
+
+  private async transition(nextStatus: TutorTurnStatus): Promise<void> {
+    await this.turnService.transitionStatus(
+      this.turnId,
+      this.status,
+      nextStatus,
+    )
+    this.status = nextStatus
+  }
 }

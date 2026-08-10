@@ -40,7 +40,11 @@ import type {
 } from '../src/modules/student-chat/student-chat.dto'
 import { STUDENT_CHAT_ERROR_CODES } from '../src/modules/student-chat/student-chat.errors'
 import { ANALYSIS_MODEL_PORT } from '../src/modules/socratic-tutor/analysis-model.port'
-import { TUTOR_MODEL_PORT } from '../src/modules/socratic-tutor/tutor-generation.types'
+import {
+  TUTOR_MODEL_ERROR_CODE,
+  TUTOR_MODEL_PORT,
+  TutorModelError,
+} from '../src/modules/socratic-tutor/tutor-generation.types'
 import { SEMANTIC_GUARD_PORT } from '../src/modules/socratic-tutor/semantic-guard.types'
 import {
   P0_DEMO_PASSWORD,
@@ -488,6 +492,138 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
     expect(persistedTurn.candidateAttempts[1].contentHash).toMatch(
       /^[a-f0-9]{64}$/,
     )
+  })
+
+  it('uses SafeFallback only after three rejected pedagogical candidates', async () => {
+    await createEvidenceMaterial({
+      title: 'Three rejection source',
+      content: 'Content for the three-candidate rejection scenario.',
+    })
+    const session = await createSession()
+    tutorModel.behavior = (modelRequest) =>
+      Promise.resolve(
+        Object.freeze({
+          rawOutput: Object.freeze(rejectedCandidateRawOutput()),
+          provider: 'e2e-controllable-tutor',
+          model: 'e2e-controllable-tutor-v1',
+          promptVersion: modelRequest.promptVersion,
+          inputTokens: 100,
+          outputTokens: 50,
+        }),
+      )
+
+    const response = await request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${studentToken}`)
+      .send({ content: QUESTION })
+      .expect(201)
+    const turn = response.body as GroundedChatTurnResponseDto
+
+    expect(tutorModel.callCount).toBe(3)
+    expect(turn.assistantMessage.content).not.toContain('42')
+    const persistedTurn = await prisma.tutorTurn.findFirstOrThrow({
+      where: { sessionId: session.id },
+      include: {
+        candidateAttempts: {
+          orderBy: { candidateAttempt: 'asc' },
+          include: { guardResults: true },
+        },
+      },
+    })
+    expect(persistedTurn).toMatchObject({
+      status: TutorTurnStatus.COMPLETED,
+      approvalSource: 'SAFE_FALLBACK',
+      approvedCandidateAttempt: null,
+      safeFallbackReason: 'VALIDATION_EXHAUSTED',
+    })
+    expect(persistedTurn.candidateAttempts).toHaveLength(3)
+    expect(
+      persistedTurn.candidateAttempts.map((attempt) =>
+        attempt.guardResults.map((result) => result.validationStage).sort(),
+      ),
+    ).toEqual([
+      ['DETERMINISTIC', 'STRUCTURAL'],
+      ['DETERMINISTIC', 'STRUCTURAL'],
+      ['DETERMINISTIC', 'STRUCTURAL'],
+    ])
+  })
+
+  it('retries a timeout without consuming another pedagogical candidate', async () => {
+    await createEvidenceMaterial({
+      title: 'Timeout retry source',
+      content: 'Content for the transient provider timeout scenario.',
+    })
+    const session = await createSession()
+    tutorModel.behavior = (modelRequest) => {
+      if (tutorModel.callCount === 1) {
+        return Promise.reject(
+          new TutorModelError(TUTOR_MODEL_ERROR_CODE.TIMEOUT),
+        )
+      }
+      const citationIds = tutorModel.extractAllowedCitationIds(modelRequest)
+      return Promise.resolve({
+        rawOutput: validCandidateRawOutput(citationIds),
+        provider: 'e2e-controllable-tutor',
+        model: 'e2e-controllable-tutor-v1',
+        promptVersion: modelRequest.promptVersion,
+        inputTokens: 100,
+        outputTokens: 50,
+      })
+    }
+
+    await request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${studentToken}`)
+      .send({ content: QUESTION })
+      .expect(201)
+
+    expect(tutorModel.callCount).toBe(2)
+    const attempts = await prisma.tutorCandidateAttempt.findMany({
+      where: { turn: { sessionId: session.id } },
+    })
+    expect(attempts).toHaveLength(1)
+    expect(attempts[0]).toMatchObject({
+      candidateAttempt: 1,
+      generationOutcome: 'GENERATED',
+      infrastructureRetryCount: 1,
+    })
+  })
+
+  it('does not immediately retry quota failure or advance candidate policy', async () => {
+    await createEvidenceMaterial({
+      title: 'Rate limit source',
+      content: 'Content for the provider quota scenario.',
+    })
+    const session = await createSession()
+    tutorModel.behavior = () =>
+      Promise.reject(new TutorModelError(TUTOR_MODEL_ERROR_CODE.RATE_LIMITED))
+
+    await request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${studentToken}`)
+      .send({ content: QUESTION })
+      .expect(201)
+
+    expect(tutorModel.callCount).toBe(1)
+    const persistedTurn = await prisma.tutorTurn.findFirstOrThrow({
+      where: { sessionId: session.id },
+      include: { candidateAttempts: true },
+    })
+    expect(persistedTurn).toMatchObject({
+      status: TutorTurnStatus.COMPLETED,
+      approvalSource: 'SAFE_FALLBACK',
+      safeFallbackReason: 'GENERATION_RETRY_FAILED',
+    })
+    expect(persistedTurn.candidateAttempts).toHaveLength(1)
+    expect(persistedTurn.candidateAttempts[0]).toMatchObject({
+      candidateAttempt: 1,
+      generationOutcome: 'INFRASTRUCTURE_EXHAUSTED',
+      generationFailureCode: 'TUTOR_PROVIDER_RATE_LIMIT',
+      infrastructureRetryCount: 0,
+    })
+    await expect(
+      prisma.guardResult.count({ where: { turnId: persistedTurn.id } }),
+    ).resolves.toBe(0)
   })
 
   it('rejects semantic over-reveal, regenerates, and persists only the bounded candidate', async () => {
