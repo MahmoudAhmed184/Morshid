@@ -322,6 +322,143 @@ describe('teaching policy selector', () => {
     expect(draft.guidanceLevel).toBe(4)
     expect(draft.revealPolicy).toBe(RevealPolicy.NO_FINAL_ANSWER)
   })
+
+  describe('decision reasons', () => {
+    it('describes supported escalation', () => {
+      const draft = selectTeachingDecisionDraft({
+        analysis: analysis(),
+        topicState: topicState({ guidanceLevel: 2 }),
+        previousTeachingDecision: previousDecision({ guidanceLevel: 2 }),
+      })
+
+      expect(draft.guidanceLevel).toBe(3)
+      expect(draft.decisionReason).toContain(
+        'Escalated guidance by one after meaningful, relevant, non-repeated effort addressing the prior tutor action.',
+      )
+    })
+
+    it('describes verified-learning de-escalation', () => {
+      const draft = selectTeachingDecisionDraft({
+        analysis: analysis({
+          effortPresent: false,
+          effortQuality: EFFORT_QUALITY.NONE,
+          effortType: null,
+          effortEvidenceMessageIds: [],
+          learningPresent: true,
+          learningStrength: LEARNING_EVIDENCE_STRENGTH.STRONG,
+          learningEvidenceMessageIds: ['message-1'],
+        }),
+        topicState: topicState({ guidanceLevel: 3 }),
+        previousTeachingDecision: previousDecision({ guidanceLevel: 3 }),
+      })
+
+      expect(draft.guidanceLevel).toBe(2)
+      expect(draft.decisionReason).toContain(
+        'De-escalated guidance after current-message-supported learning evidence.',
+      )
+    })
+
+    it.each([
+      [
+        'fallback analysis',
+        {
+          analysisSource: EDUCATIONAL_ANALYSIS_SOURCE.FALLBACK,
+          studentState: StudentState.PARTIAL_UNDERSTANDING,
+        },
+        'Applied conservative Level 1 guidance because fallback analysis cannot support stateful recalibration.',
+      ],
+      [
+        'unknown student state',
+        {
+          analysisSource: EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
+          studentState: StudentState.UNKNOWN,
+        },
+        'Applied conservative Level 1 guidance because an unknown student state cannot support stateful recalibration.',
+      ],
+    ] as const)(
+      'describes %s conservative behavior without claiming learning evidence',
+      (_label, conservativeInput, expectedReason) => {
+        const draft = selectTeachingDecisionDraft({
+          analysis: analysis({
+            ...conservativeInput,
+            effortPresent: false,
+            effortQuality: EFFORT_QUALITY.NONE,
+            effortType: null,
+            effortEvidenceMessageIds: [],
+          }),
+          topicState: topicState({ guidanceLevel: 2 }),
+          previousTeachingDecision: previousDecision({ guidanceLevel: 2 }),
+        })
+
+        expect(draft.guidanceLevel).toBe(1)
+        expect(draft.decisionReason).toContain(expectedReason)
+        expect(draft.decisionReason).not.toContain('learning evidence')
+      },
+    )
+
+    it('distinguishes authoritative topic conflict from a normal topic reset', () => {
+      const conflict = selectTeachingDecisionDraft({
+        analysis: analysis({
+          topicRelation: TOPIC_RESOLUTION_OUTCOME.CREATE_NEW_TOPIC,
+        }),
+        topicState: topicState({ guidanceLevel: 3 }),
+        previousTeachingDecision: previousDecision({ guidanceLevel: 3 }),
+        topicResolutionOutcome: TOPIC_RESOLUTION_OUTCOME.CONTINUE_CURRENT_TOPIC,
+      })
+      const reset = selectTeachingDecisionDraft({
+        analysis: analysis({
+          topicRelation: TOPIC_RESOLUTION_OUTCOME.CREATE_NEW_TOPIC,
+        }),
+        topicState: topicState({ guidanceLevel: 3 }),
+        previousTeachingDecision: previousDecision({ guidanceLevel: 3 }),
+        topicResolutionOutcome: TOPIC_RESOLUTION_OUTCOME.CREATE_NEW_TOPIC,
+      })
+
+      expect(conflict.decisionReason).toContain(
+        'authoritative TopicResolution conflicts',
+      )
+      expect(reset.guidanceLevel).toBe(1)
+      expect(reset.decisionReason).toContain(
+        'Reset guidance to Level 1 for the authoritative new or switched topic.',
+      )
+      expect(reset.decisionReason).not.toContain('learning evidence')
+    })
+
+    it('describes preserved same-topic guidance', () => {
+      const draft = selectTeachingDecisionDraft({
+        analysis: analysis({
+          effortPresent: false,
+          effortQuality: EFFORT_QUALITY.NONE,
+          effortType: null,
+          effortEvidenceMessageIds: [],
+        }),
+        topicState: topicState({ guidanceLevel: 2 }),
+        previousTeachingDecision: previousDecision({ guidanceLevel: 2 }),
+      })
+
+      expect(draft.guidanceLevel).toBe(2)
+      expect(draft.decisionReason).toContain(
+        'Preserved the latest completed same-topic guidance.',
+      )
+    })
+
+    it.each([
+      TOPIC_RESOLUTION_OUTCOME.RESUME_PREVIOUS_TOPIC,
+      TOPIC_RESOLUTION_OUTCOME.REOPEN_EXISTING_TOPIC,
+    ])('describes guidance restoration for %s', (outcome) => {
+      const draft = selectTeachingDecisionDraft({
+        analysis: analysis(),
+        topicState: topicState({ guidanceLevel: 1 }),
+        previousTeachingDecision: previousDecision({ guidanceLevel: 3 }),
+        topicResolutionOutcome: outcome,
+      })
+
+      expect(draft.guidanceLevel).toBe(3)
+      expect(draft.decisionReason).toContain(
+        'Restored the latest completed same-topic guidance without recalibration.',
+      )
+    })
+  })
 })
 
 function guidance(input: {

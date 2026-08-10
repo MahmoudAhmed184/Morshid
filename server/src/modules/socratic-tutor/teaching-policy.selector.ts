@@ -328,29 +328,61 @@ function decisionReasonFor(
     return 'Selected conservative Level 1 Socratic guidance because authoritative TopicResolution conflicts with the accepted analysis topic relation.'
   }
 
-  const previousLevel = input.previousTeachingDecision?.guidanceLevel ?? null
-  const transitionReason =
-    previousLevel === null
-      ? 'Initialized authoritative guidance at Level 1.'
-      : guidanceLevel > previousLevel
-        ? 'Escalated guidance by one after meaningful, relevant, non-repeated effort addressing the prior tutor action.'
-        : guidanceLevel < previousLevel
-          ? 'De-escalated guidance by one after current-message-supported learning evidence.'
-          : isRestoredTopic(input)
-            ? 'Restored the latest completed same-topic guidance without recalibration.'
-            : 'Preserved the latest completed same-topic guidance.'
   const reason =
-    state === StudentState.UNKNOWN
-      ? 'Selected conservative Socratic questioning because the accepted analysis uses an unknown student state.'
-      : strategy === TeachingStrategy.GUIDED_EXPLANATION
-        ? 'Selected guided explanation because the accepted analysis indicates no prior knowledge.'
-        : strategy === TeachingStrategy.MISCONCEPTION_REPAIR
-          ? 'Selected misconception repair because the accepted analysis contains a supported misconception.'
-          : strategy === TeachingStrategy.DEBUGGING_GUIDANCE
-            ? 'Selected debugging guidance because the accepted analysis indicates a debugging issue.'
-            : state === StudentState.NEAR_SOLUTION
-              ? 'Selected Socratic questioning because the accepted analysis indicates the student is near a solution.'
-              : 'Selected Socratic questioning because the accepted analysis indicates partial understanding.'
+    analysis.analysisSource === EDUCATIONAL_ANALYSIS_SOURCE.FALLBACK
+      ? 'Selected conservative Socratic questioning because the accepted analysis is a fallback.'
+      : state === StudentState.UNKNOWN
+        ? 'Selected conservative Socratic questioning because the accepted analysis uses an unknown student state.'
+        : strategy === TeachingStrategy.GUIDED_EXPLANATION
+          ? 'Selected guided explanation because the accepted analysis indicates no prior knowledge.'
+          : strategy === TeachingStrategy.MISCONCEPTION_REPAIR
+            ? 'Selected misconception repair because the accepted analysis contains a supported misconception.'
+            : strategy === TeachingStrategy.DEBUGGING_GUIDANCE
+              ? 'Selected debugging guidance because the accepted analysis indicates a debugging issue.'
+              : state === StudentState.NEAR_SOLUTION
+                ? 'Selected Socratic questioning because the accepted analysis indicates the student is near a solution.'
+                : 'Selected Socratic questioning because the accepted analysis indicates partial understanding.'
 
-  return `${reason} ${transitionReason}`.slice(0, 240)
+  return `${reason} ${guidanceTransitionReasonFor(input, guidanceLevel)}`.slice(
+    0,
+    240,
+  )
+}
+
+function guidanceTransitionReasonFor(
+  input: SelectTeachingDecisionInput,
+  guidanceLevel: number,
+): string {
+  if (isNewOrSwitchedTopic(input)) {
+    return 'Reset guidance to Level 1 for the authoritative new or switched topic.'
+  }
+  if (input.analysis.analysisSource === EDUCATIONAL_ANALYSIS_SOURCE.FALLBACK) {
+    return 'Applied conservative Level 1 guidance because fallback analysis cannot support stateful recalibration.'
+  }
+  if (input.analysis.result.studentState === StudentState.UNKNOWN) {
+    return 'Applied conservative Level 1 guidance because an unknown student state cannot support stateful recalibration.'
+  }
+
+  const previousLevel = input.previousTeachingDecision?.guidanceLevel ?? null
+  if (previousLevel === null) {
+    return 'Initialized authoritative guidance at Level 1.'
+  }
+  if (isRestoredTopic(input)) {
+    return 'Restored the latest completed same-topic guidance without recalibration.'
+  }
+  if (hasEscalationEvidence(input)) {
+    return guidanceLevel > previousLevel
+      ? 'Escalated guidance by one after meaningful, relevant, non-repeated effort addressing the prior tutor action.'
+      : 'Preserved guidance at the configured maximum despite supported escalation evidence.'
+  }
+  if (hasVerifiedLearningEvidence(input.analysis)) {
+    return guidanceLevel < previousLevel
+      ? 'De-escalated guidance after current-message-supported learning evidence.'
+      : 'Preserved Level 1 because verified learning evidence cannot de-escalate below the minimum.'
+  }
+  if (guidanceLevel !== previousLevel) {
+    return 'Adjusted guidance to the configured maximum.'
+  }
+
+  return 'Preserved the latest completed same-topic guidance.'
 }
