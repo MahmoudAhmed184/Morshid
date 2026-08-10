@@ -189,6 +189,8 @@ describe('Gemini Socratic runtime HTTP live verification', () => {
     await prisma.educationalAnalysisEvidenceLink.deleteMany()
     await prisma.teachingDecision.deleteMany()
     await prisma.educationalAnalysis.deleteMany()
+    await prisma.guardResult.deleteMany()
+    await prisma.tutorCandidateAttempt.deleteMany()
     await prisma.tutorTurn.deleteMany()
     await prisma.topicState.deleteMany()
     await prisma.topic.deleteMany()

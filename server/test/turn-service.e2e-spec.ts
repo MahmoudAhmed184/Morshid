@@ -15,11 +15,15 @@ import {
 import { TurnService } from '../src/modules/socratic-tutor/turn.service'
 import { TURN_ACQUISITION_OUTCOME } from '../src/modules/socratic-tutor/turn.types'
 import {
+  TutorApprovalSource,
+  TutorCandidateGenerationOutcome,
   TutorTurnFailureCode,
   TutorTurnStatus,
 } from '../src/generated/prisma/client'
 import type { RetrievedChunk } from '../src/modules/retrieval/retrieval.service'
 import type { ApprovedResponse } from '../src/modules/socratic-tutor/response-validation.types'
+import type { ResponseAuditGraph } from '../src/modules/socratic-tutor/response-audit.types'
+import { SAFE_FALLBACK_REASON } from '../src/modules/socratic-tutor/safe-fallback.service'
 import {
   setUpDisposableDatabase,
   type DisposableDatabase,
@@ -296,6 +300,13 @@ describe('TurnService persistence (e2e)', () => {
       }),
       guidanceLevel: 1,
       retrievalResult: [evidence],
+      auditGraph: auditGraphForApprovedResponse(
+        approvedResponse({
+          source: 'VALIDATED_CANDIDATE',
+          usedCitationIds: ['retrieval.rank.1'],
+        }),
+      ),
+      safeFallbackReason: null,
     }
 
     await expect(
@@ -362,6 +373,14 @@ describe('TurnService persistence (e2e)', () => {
         }),
         guidanceLevel: 1,
         retrievalResult: [],
+        auditGraph: auditGraphForApprovedResponse(
+          approvedResponse({
+            source: 'SAFE_FALLBACK',
+            usedCitationIds: [],
+            safeFallbackUsed: true,
+          }),
+        ),
+        safeFallbackReason: SAFE_FALLBACK_REASON.GUARD_UNAVAILABLE,
       }),
     ).resolves.toMatchObject({
       kind: 'ok',
@@ -453,6 +472,13 @@ async function createTurn(
       failureCode: input.failureCode,
       approvedTutorMessageId: input.approvedTutorMessageId,
       completedAt: input.completedAt,
+      ...(input.status === TutorTurnStatus.COMPLETED
+        ? {
+            approvalSource: TutorApprovalSource.VALIDATED_CANDIDATE,
+            approvedCandidateAttempt: 1,
+            validationPolicyVersion: 'response-validation.mvp.v1',
+          }
+        : {}),
     },
     select: {
       id: true,
@@ -634,6 +660,37 @@ function approvedResponse(input: {
       deterministicApproved: input.source !== 'SAFE_FALLBACK',
       semanticApproved: input.source === 'SAFE_FALLBACK' ? null : true,
     },
+  }
+}
+
+function auditGraphForApprovedResponse(
+  response: ApprovedResponse,
+): ResponseAuditGraph {
+  const timestamp = new Date()
+
+  return {
+    candidateAttempts: [
+      {
+        candidateAttempt: 1,
+        generationOutcome:
+          response.source === 'SAFE_FALLBACK'
+            ? TutorCandidateGenerationOutcome.INFRASTRUCTURE_EXHAUSTED
+            : TutorCandidateGenerationOutcome.GENERATED,
+        generationFailureCode:
+          response.source === 'SAFE_FALLBACK' ? 'GUARD_UNAVAILABLE' : null,
+        contentHash:
+          response.source === 'SAFE_FALLBACK' ? null : 'a'.repeat(64),
+        provider: response.approvalMetadata.provider,
+        model: response.approvalMetadata.model,
+        promptVersion: response.approvalMetadata.promptVersion,
+        inputTokens: response.approvalMetadata.inputTokens,
+        outputTokens: response.approvalMetadata.outputTokens,
+        infrastructureRetryCount: 0,
+        startedAt: timestamp,
+        completedAt: timestamp,
+      },
+    ],
+    guardResults: [],
   }
 }
 

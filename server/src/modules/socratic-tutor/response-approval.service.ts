@@ -27,6 +27,14 @@ import {
 import type { PersistedTeachingDecisionRecord } from './teaching-decision.repository'
 import { TeachingDecisionRepository } from './teaching-decision.repository'
 import { TurnRepository } from './turn.repository'
+import {
+  type GuardResultAudit,
+  type ResponseAuditGraph,
+  type TutorCandidateAttemptAudit,
+  failedCandidateAttemptAudit,
+  generatedCandidateAttemptAudit,
+  guardResultAudit,
+} from './response-audit.types'
 
 export interface ResponseApprovalInput extends TutorGenerationInput {
   readonly assistantMessageId?: string
@@ -38,6 +46,8 @@ export type ResponseApprovalResult =
       readonly approvedResponse: ApprovedResponse
       readonly validationResults: readonly ValidationResult[]
       readonly candidateAttempts: number
+      readonly safeFallbackReason: SafeFallbackReason | null
+      readonly auditGraph: ResponseAuditGraph
     }
   | {
       readonly success: false
@@ -74,6 +84,8 @@ export class ResponseApprovalService {
     }
 
     const validationResults: ValidationResult[] = []
+    const candidateAttemptAudits: TutorCandidateAttemptAudit[] = []
+    const guardResultAudits: GuardResultAudit[] = []
     const context = buildCandidateValidationContext({
       allowedCitationIds: new Set(
         input.retrievalResult.map(citationIdForChunk),
@@ -91,6 +103,7 @@ export class ResponseApprovalService {
     let candidateAttempts = 0
     for (let attempt = 1; attempt <= MAX_MVP_CANDIDATE_ATTEMPTS; attempt += 1) {
       candidateAttempts = attempt
+      const generationStartedAt = new Date()
       const generation = await this.tutorGenerationService.generate({
         ...input,
         ...(previousValidation === null
@@ -110,13 +123,29 @@ export class ResponseApprovalService {
               },
             }),
       })
+      const generationCompletedAt = new Date()
 
       if (!generation.success) {
-        if (isStructuralGenerationFailure(generation.errorCode)) {
+        const structuralFailure = isStructuralGenerationFailure(
+          generation.errorCode,
+        )
+        candidateAttemptAudits.push(
+          failedCandidateAttemptAudit({
+            candidateAttempt: attempt,
+            errorCode: generation.errorCode,
+            invalidOutput: structuralFailure,
+            startedAt: generationStartedAt,
+            completedAt: generationCompletedAt,
+          }),
+        )
+        if (structuralFailure) {
           const structural = structuralRejectionFromGenerationFailure(
             generation.errorCode,
           )
           validationResults.push(structural)
+          guardResultAudits.push(
+            guardResultAudit(attempt, structural, decision),
+          )
           if (attempt === MAX_MVP_CANDIDATE_ATTEMPTS) {
             return approvalWithFallback(
               this.safeFallbackService,
@@ -124,6 +153,8 @@ export class ResponseApprovalService {
               validationResults,
               candidateAttempts,
               SAFE_FALLBACK_REASON.VALIDATION_EXHAUSTED,
+              candidateAttemptAudits,
+              guardResultAudits,
             )
           }
           previousValidation = structural
@@ -136,14 +167,26 @@ export class ResponseApprovalService {
           validationResults,
           candidateAttempts,
           SAFE_FALLBACK_REASON.GENERATION_RETRY_FAILED,
+          candidateAttemptAudits,
+          guardResultAudits,
         )
       }
+
+      candidateAttemptAudits.push(
+        generatedCandidateAttemptAudit({
+          candidateAttempt: attempt,
+          candidate: generation.candidate,
+          startedAt: generationStartedAt,
+          completedAt: generationCompletedAt,
+        }),
+      )
 
       const structural = this.structuralValidator.validate(
         generation.candidate,
         context,
       )
       validationResults.push(structural)
+      guardResultAudits.push(guardResultAudit(attempt, structural, decision))
       if (!structural.approved) {
         if (attempt === MAX_MVP_CANDIDATE_ATTEMPTS) {
           return approvalWithFallback(
@@ -152,6 +195,8 @@ export class ResponseApprovalService {
             validationResults,
             candidateAttempts,
             SAFE_FALLBACK_REASON.VALIDATION_EXHAUSTED,
+            candidateAttemptAudits,
+            guardResultAudits,
           )
         }
         previousValidation = structural
@@ -163,6 +208,7 @@ export class ResponseApprovalService {
         context,
       )
       validationResults.push(deterministic)
+      guardResultAudits.push(guardResultAudit(attempt, deterministic, decision))
       if (!deterministic.approved) {
         if (attempt === MAX_MVP_CANDIDATE_ATTEMPTS) {
           return approvalWithFallback(
@@ -171,6 +217,8 @@ export class ResponseApprovalService {
             validationResults,
             candidateAttempts,
             SAFE_FALLBACK_REASON.VALIDATION_EXHAUSTED,
+            candidateAttemptAudits,
+            guardResultAudits,
           )
         }
         previousValidation = deterministic
@@ -198,6 +246,9 @@ export class ResponseApprovalService {
         ...(input.signal === undefined ? {} : { signal: input.signal }),
       })
       validationResults.push(semantic.result)
+      guardResultAudits.push(
+        guardResultAudit(attempt, semantic.result, decision),
+      )
       if (semantic.kind === 'infrastructure_failure') {
         return approvalWithFallback(
           this.safeFallbackService,
@@ -205,6 +256,8 @@ export class ResponseApprovalService {
           validationResults,
           candidateAttempts,
           SAFE_FALLBACK_REASON.GUARD_UNAVAILABLE,
+          candidateAttemptAudits,
+          guardResultAudits,
         )
       }
       if (!semantic.result.approved) {
@@ -215,6 +268,8 @@ export class ResponseApprovalService {
             validationResults,
             candidateAttempts,
             SAFE_FALLBACK_REASON.VALIDATION_EXHAUSTED,
+            candidateAttemptAudits,
+            guardResultAudits,
           )
         }
         previousValidation = semantic.result
@@ -230,6 +285,8 @@ export class ResponseApprovalService {
         }),
         validationResults: Object.freeze(validationResults),
         candidateAttempts,
+        safeFallbackReason: null,
+        auditGraph: freezeAuditGraph(candidateAttemptAudits, guardResultAudits),
       }
     }
 
@@ -239,6 +296,8 @@ export class ResponseApprovalService {
       validationResults,
       candidateAttempts,
       SAFE_FALLBACK_REASON.VALIDATION_EXHAUSTED,
+      candidateAttemptAudits,
+      guardResultAudits,
     )
   }
 
@@ -268,6 +327,8 @@ export class ResponseApprovalService {
       approvedResponse: approval.approvedResponse,
       guidanceLevel: decision.guidanceLevel,
       retrievalResult: input.retrievalResult,
+      auditGraph: approval.auditGraph,
+      safeFallbackReason: approval.safeFallbackReason,
     })
 
     if (persisted.kind !== 'ok') {
@@ -287,13 +348,27 @@ function approvalWithFallback(
   validationResults: readonly ValidationResult[],
   candidateAttempts: number,
   reason: SafeFallbackReason,
+  candidateAttemptAudits: readonly TutorCandidateAttemptAudit[],
+  guardResultAudits: readonly GuardResultAudit[],
 ): Extract<ResponseApprovalResult, { success: true }> {
   return {
     success: true,
     approvedResponse: fallbackService.create(decision, reason),
     validationResults: Object.freeze([...validationResults]),
     candidateAttempts,
+    safeFallbackReason: reason,
+    auditGraph: freezeAuditGraph(candidateAttemptAudits, guardResultAudits),
   }
+}
+
+function freezeAuditGraph(
+  candidateAttempts: readonly TutorCandidateAttemptAudit[],
+  guardResults: readonly GuardResultAudit[],
+): ResponseAuditGraph {
+  return Object.freeze({
+    candidateAttempts: Object.freeze([...candidateAttempts]),
+    guardResults: Object.freeze([...guardResults]),
+  })
 }
 
 function isStructuralGenerationFailure(errorCode: string): boolean {

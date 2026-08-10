@@ -209,6 +209,8 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
     await prisma.educationalAnalysisEvidenceLink.deleteMany()
     await prisma.teachingDecision.deleteMany()
     await prisma.educationalAnalysis.deleteMany()
+    await prisma.guardResult.deleteMany()
+    await prisma.tutorCandidateAttempt.deleteMany()
     await prisma.tutorTurn.deleteMany()
     await prisma.topicState.deleteMany()
     await prisma.topic.deleteMany()
@@ -365,6 +367,20 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
     })
     expect(tutorTurns).toHaveLength(1)
     expect(tutorTurns[0].status).toBe(TutorTurnStatus.COMPLETED)
+    expect(tutorTurns[0]).toMatchObject({
+      approvalSource: 'VALIDATED_CANDIDATE',
+      approvedCandidateAttempt: 1,
+      safeFallbackReason: null,
+      validationPolicyVersion: 'response-validation.mvp.v1',
+    })
+    await expect(
+      prisma.tutorCandidateAttempt.count({
+        where: { turnId: tutorTurns[0].id },
+      }),
+    ).resolves.toBe(1)
+    await expect(
+      prisma.guardResult.count({ where: { turnId: tutorTurns[0].id } }),
+    ).resolves.toBe(3)
 
     // Persisted message has correct metadata
     const stored = await prisma.message.findUniqueOrThrow({
@@ -445,6 +461,33 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
     })
     expect(stored.content).toBe(EXPECTED_HAPPY_PATH_MESSAGE)
     expect(stored.status).toBe('COMPLETED')
+
+    const persistedTurn = await prisma.tutorTurn.findFirstOrThrow({
+      where: { sessionId: session.id },
+      include: {
+        candidateAttempts: {
+          orderBy: { candidateAttempt: 'asc' },
+          include: {
+            guardResults: { orderBy: { validationStage: 'asc' } },
+          },
+        },
+      },
+    })
+    expect(persistedTurn).toMatchObject({
+      approvalSource: 'VALIDATED_CANDIDATE',
+      approvedCandidateAttempt: 2,
+      safeFallbackReason: null,
+      validationPolicyVersion: 'response-validation.mvp.v1',
+    })
+    expect(persistedTurn.candidateAttempts).toHaveLength(2)
+    expect(persistedTurn.candidateAttempts[0].guardResults).toHaveLength(2)
+    expect(persistedTurn.candidateAttempts[1].guardResults).toHaveLength(3)
+    expect(persistedTurn.candidateAttempts[0].contentHash).toMatch(
+      /^[a-f0-9]{64}$/,
+    )
+    expect(persistedTurn.candidateAttempts[1].contentHash).toMatch(
+      /^[a-f0-9]{64}$/,
+    )
   })
 
   it('rejects semantic over-reveal, regenerates, and persists only the bounded candidate', async () => {
@@ -628,6 +671,20 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
     })
     expect(tutorTurns).toHaveLength(1)
     expect(tutorTurns[0].status).toBe(TutorTurnStatus.COMPLETED)
+    expect(tutorTurns[0]).toMatchObject({
+      approvalSource: 'SAFE_FALLBACK',
+      approvedCandidateAttempt: null,
+      safeFallbackReason: 'GUARD_UNAVAILABLE',
+      validationPolicyVersion: 'response-validation.mvp.v1',
+    })
+    await expect(
+      prisma.tutorCandidateAttempt.count({
+        where: { turnId: tutorTurns[0].id },
+      }),
+    ).resolves.toBe(1)
+    await expect(
+      prisma.guardResult.count({ where: { turnId: tutorTurns[0].id } }),
+    ).resolves.toBe(3)
   })
 
   // ── 4. Insufficient evidence → BLOCKED ──────────────────────────────
