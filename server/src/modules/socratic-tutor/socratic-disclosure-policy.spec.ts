@@ -116,6 +116,7 @@ function restrictiveGuardPolicy(): TeachingGuardPolicy {
     preventFinalResult: true,
     preventCompleteSolution: true,
     preventSubmissionReadyCode: true,
+    preventProtectedCodeLeakage: true,
     requireStudentReasoning: true,
     requireGrounding: true,
     enforceCitationSupport: true,
@@ -130,5 +131,6 @@ function permissiveGuardPolicy(): TeachingGuardPolicy {
     preventFinalResult: false,
     preventCompleteSolution: false,
     preventSubmissionReadyCode: false,
+    preventProtectedCodeLeakage: false,
   }
 }

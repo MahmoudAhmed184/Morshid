@@ -2,6 +2,9 @@ import { RevealPolicy } from '../../generated/prisma/client'
 
 import type { TeachingGuardPolicy } from './teaching-policy.types'
 
+export const SOCRATIC_DISCLOSURE_POLICY_VERSION =
+  'socratic-disclosure-policy.v2'
+
 export interface SocraticDisclosureContract {
   readonly guidanceLevel: number
   readonly guidanceMode:

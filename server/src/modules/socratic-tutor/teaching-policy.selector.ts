@@ -58,6 +58,7 @@ const fixedGuardPolicy: TeachingGuardPolicy = {
   preventFinalResult: true,
   preventCompleteSolution: true,
   preventSubmissionReadyCode: true,
+  preventProtectedCodeLeakage: true,
   requireStudentReasoning: true,
   requireGrounding: true,
   enforceCitationSupport: true,
@@ -119,9 +120,7 @@ export function selectTeachingDecisionDraft(
 export function selectTeachingStrategy(
   input: Pick<
     SelectTeachingDecisionInput,
-    | 'analysis'
-    | 'previousTeachingDecision'
-    | 'topicResolutionOutcome'
+    'analysis' | 'previousTeachingDecision' | 'topicResolutionOutcome'
   >,
 ): TeachingStrategy {
   const state = input.analysis.result.studentState

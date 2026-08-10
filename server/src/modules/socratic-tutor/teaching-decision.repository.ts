@@ -3,10 +3,8 @@ import { Injectable } from '@nestjs/common'
 import { Prisma } from '../../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import type { TeachingDecisionPolicyDraft } from './teaching-policy.selector'
-import type {
-  PreviousTeachingDecisionSnapshot,
-  TeachingGuardPolicy,
-} from './teaching-policy.types'
+import type { PreviousTeachingDecisionSnapshot } from './teaching-policy.types'
+import { normalizeTeachingGuardPolicy } from './teaching-policy.types'
 
 export type PersistedTeachingDecisionRecord = PreviousTeachingDecisionSnapshot
 
@@ -238,7 +236,7 @@ function mapTeachingDecision(
 ): PersistedTeachingDecisionRecord {
   return {
     ...decision,
-    guardPolicy: decision.guardPolicy as unknown as TeachingGuardPolicy,
+    guardPolicy: normalizeTeachingGuardPolicy(decision.guardPolicy),
   }
 }
 
