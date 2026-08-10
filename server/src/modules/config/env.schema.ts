@@ -612,6 +612,18 @@ export const envSchema = z
     }
 
     if (
+      env.NODE_ENV === 'production' &&
+      env.SEMANTIC_GUARD_PROVIDER === DETERMINISTIC_SEMANTIC_GUARD_PROVIDER
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['SEMANTIC_GUARD_PROVIDER'],
+        message:
+          'deterministic is restricted to tests and local development; production requires an independent semantic guard model',
+      })
+    }
+
+    if (
       env.ANALYSIS_MODEL_PROVIDER ===
         OPENAI_COMPATIBLE_ANALYSIS_MODEL_PROVIDER &&
       env.TUTOR_MODEL_PROVIDER === OPENAI_COMPATIBLE_TUTOR_MODEL_PROVIDER &&

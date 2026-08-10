@@ -438,6 +438,34 @@ describe('validateEnv', () => {
       ).not.toThrow()
     })
 
+    it('rejects a deterministic Semantic Guard in production', () => {
+      expect(() =>
+        validateEnv({
+          ...validEnv,
+          NODE_ENV: 'production',
+          PDF_STORAGE_PATH: '/workspace/storage/pdfs',
+          SEMANTIC_GUARD_PROVIDER: 'deterministic',
+        }),
+      ).toThrow(/SEMANTIC_GUARD_PROVIDER/)
+    })
+
+    it('accepts an independently configured production Semantic Guard', () => {
+      expect(
+        validateEnv({
+          ...validEnv,
+          NODE_ENV: 'production',
+          PDF_STORAGE_PATH: '/workspace/storage/pdfs',
+          SEMANTIC_GUARD_PROVIDER: 'openai-compatible',
+          SEMANTIC_GUARD_BASE_URL: 'https://guard.morshid.test/v1',
+          SEMANTIC_GUARD_MODEL_NAME: 'morshid-semantic-guard-v1',
+          SEMANTIC_GUARD_API_KEY: 'test-only-production-guard-key',
+        }),
+      ).toMatchObject({
+        SEMANTIC_GUARD_PROVIDER: 'openai-compatible',
+        SEMANTIC_GUARD_MODEL_NAME: 'morshid-semantic-guard-v1',
+      })
+    })
+
     it('accepts distinct Gemini role model identifiers without aliasing', () => {
       expect(
         validateEnv({
@@ -1307,6 +1335,10 @@ describe('validateEnv', () => {
         ...validEnv,
         NODE_ENV: 'production',
         PDF_STORAGE_PATH: '/workspace/storage/pdfs',
+        SEMANTIC_GUARD_PROVIDER: 'openai-compatible',
+        SEMANTIC_GUARD_BASE_URL: 'https://guard.morshid.test/v1',
+        SEMANTIC_GUARD_MODEL_NAME: 'morshid-semantic-guard-v1',
+        SEMANTIC_GUARD_API_KEY: 'test-only-production-guard-key',
       }),
     ).toMatchObject({ PDF_STORAGE_PATH: '/workspace/storage/pdfs' })
   })
