@@ -35,6 +35,13 @@ import { PrismaService } from '../src/modules/prisma/prisma.service'
 import { RagPersistenceRepository } from '../src/modules/rag-persistence/rag-persistence.repository'
 import { RedisService } from '../src/modules/redis/redis.service'
 import {
+  TUTOR_MODEL_PORT,
+  type TutorModelPort,
+  type TutorModelRequest,
+  type TutorModelResponse,
+} from '../src/modules/socratic-tutor/tutor-generation.types'
+import { SEMANTIC_GUARD_PORT } from '../src/modules/socratic-tutor/semantic-guard.types'
+import {
   type CourseRetrievalResult,
   RetrievalService,
 } from '../src/modules/retrieval/retrieval.service'
@@ -65,6 +72,10 @@ import {
   setUpDisposableDatabase,
   type DisposableDatabase,
 } from './support/disposable-database'
+import {
+  ControllableSemanticGuardPort,
+  ControllableTutorModelPort,
+} from './support/socratic-e2e-providers'
 
 const GATE_2_TIMEOUT_MS = 10_000
 
@@ -80,6 +91,21 @@ class CapturingCompletionProvider implements CompletionProvider {
   complete(input: CompletionRequest): Promise<CompletionResult> {
     this.requests.push(input)
     return this.delegate.complete(input)
+  }
+
+  clear(): void {
+    this.requests.length = 0
+  }
+}
+
+class CapturingTutorModelPort implements TutorModelPort {
+  readonly requests: TutorModelRequest[] = []
+
+  constructor(private readonly delegate: TutorModelPort) {}
+
+  generate(request: TutorModelRequest): Promise<TutorModelResponse> {
+    this.requests.push(request)
+    return this.delegate.generate(request)
   }
 
   clear(): void {
@@ -117,6 +143,7 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
   let processingService: MaterialProcessingService
   let processingScheduler: CapturingProcessingScheduler
   let completionProvider: CapturingCompletionProvider
+  let tutorModel: CapturingTutorModelPort
 
   beforeAll(async () => {
     database = await setUpDisposableDatabase('morshid_gate_2')
@@ -130,6 +157,7 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
         timeoutMs: 30_000,
       }),
     )
+    tutorModel = new CapturingTutorModelPort(new ControllableTutorModelPort())
     processingScheduler = new CapturingProcessingScheduler(prisma)
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -149,6 +177,10 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
       )
       .overrideProvider(COMPLETION_PROVIDER_TOKEN)
       .useValue(completionProvider)
+      .overrideProvider(TUTOR_MODEL_PORT)
+      .useValue(tutorModel)
+      .overrideProvider(SEMANTIC_GUARD_PORT)
+      .useValue(new ControllableSemanticGuardPort())
       .overrideProvider(MaterialProcessingScheduler)
       .useValue(processingScheduler)
       .compile()
@@ -178,6 +210,7 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
 
   beforeEach(() => {
     completionProvider.clear()
+    tutorModel.clear()
   })
 
   afterAll(async () => {
@@ -446,20 +479,18 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
     await gate2Stage(
       'prove hidden content never reaches provider, persistence, or response',
       async () => {
-        expect(completionProvider.requests).toHaveLength(1)
-        const providerInput = completionProvider.requests[0]
-        expect(Object.keys(providerInput).sort()).toEqual([
-          'context',
-          'studentQuestion',
-        ])
-        expect(providerInput.studentQuestion).toBe(GATE_2_FIXTURE.question)
-        expect(providerInput.context).toHaveLength(1)
-        expect(providerInput.context[0]).toMatchObject({
-          sourceTitle: GATE_2_FIXTURE.sourceTitle,
-          chunkIndex: 0,
+        expect(completionProvider.requests).toHaveLength(0)
+        expect(tutorModel.requests).toHaveLength(1)
+        const providerInput = tutorModel.requests[0]
+        expect(providerInput).toMatchObject({
+          promptVersion: 'tutor-generation.mvp.v3',
+          responseSchemaName: 'CandidateResponse',
         })
-        expect(providerInput.context[0].content).toBe(
+        expect(providerInput.messages[1].content).toContain(
           GATE_2_FIXTURE.visibleEvidenceChunk,
+        )
+        expect(providerInput.messages[1].content).toContain(
+          GATE_2_FIXTURE.sourceTitle,
         )
 
         const persistedAssistant = await prisma.message.findUniqueOrThrow({
@@ -475,9 +506,9 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
         expect(persistedAssistant).toMatchObject({
           content: expectedAssistantContent,
           status: 'COMPLETED',
-          provider: 'deterministic',
-          model: 'deterministic-completion-v1',
-          promptVersion: 'grounded-completion-v1',
+          provider: 'e2e-controllable-tutor',
+          model: 'e2e-controllable-tutor-v1',
+          promptVersion: 'tutor-generation.mvp.v3',
         })
         expect(persistedAssistant.content).not.toContain(
           GATE_2_FIXTURE.hiddenSentinel,
@@ -726,10 +757,7 @@ function expectNoHiddenState(
 }
 
 function expectedGate2AssistantContent(): string {
-  return [
-    'Grounded guidance based only on the supplied authorized context:',
-    `1. ${JSON.stringify(GATE_2_FIXTURE.visibleEvidenceChunk)} — ${JSON.stringify(GATE_2_FIXTURE.sourceTitle)}, chunk 0`,
-  ].join('\n')
+  return 'What part of the list comprehension syntax are you most unsure about? Try writing just the expression part first.'
 }
 
 function cosineSimilarity(

@@ -148,6 +148,68 @@ export function progressionAnalysisResponse(
   })
 }
 
+export function functionalStoryAnalysisResponse(
+  request: AnalysisModelRequest,
+  input: {
+    readonly requestKind: MessageRequestKind
+    readonly studentState: StudentState
+    readonly recommendedStrategy: TeachingStrategy
+    readonly recommendedTechnique: TeachingTechnique
+    readonly meaningfulEffort?: boolean
+    readonly repeatedEffort?: boolean
+    readonly misconception?: {
+      readonly code: string
+      readonly description: string
+    }
+  },
+): AnalysisModelResponse {
+  const evidenceMessageId = extractCurrentMessageId(request)
+  const meaningfulEffort = input.meaningfulEffort ?? false
+
+  return analysisResponse(request, {
+    requestKind: input.requestKind,
+    studentState: input.studentState,
+    effortEvidence: meaningfulEffort
+      ? {
+          present: true,
+          quality: 'MEANINGFUL',
+          type: 'REASONING_ATTEMPT',
+          addressesPreviousTutorAction: true,
+          isRepeated: input.repeatedEffort ?? false,
+          evidenceMessageIds: [evidenceMessageId],
+        }
+      : {
+          present: false,
+          quality: 'NONE',
+          type: null,
+          addressesPreviousTutorAction: false,
+          isRepeated: false,
+          evidenceMessageIds: [],
+        },
+    learningEvidence: {
+      present: false,
+      strength: 'NONE',
+      evidenceMessageIds: [],
+    },
+    misconceptions:
+      input.misconception === undefined
+        ? []
+        : [
+            {
+              ...input.misconception,
+              confidence: 0.96,
+              evidenceMessageId,
+            },
+          ],
+    topicRelation: 'CONTINUE_CURRENT_TOPIC',
+    recommendedStrategy: input.recommendedStrategy,
+    recommendedTechnique: input.recommendedTechnique,
+    recommendedGuidanceLevel: 1,
+    confidence: 0.96,
+    evidenceReferences: [evidenceMessageId],
+  })
+}
+
 function defaultAnalysisResponse(
   request: AnalysisModelRequest,
 ): AnalysisModelResponse {

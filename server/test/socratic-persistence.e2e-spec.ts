@@ -16,7 +16,8 @@ interface ChatFixture {
   sessionId: string
 }
 
-const PRE_SOCRATIC_MIGRATION = '20260726093640'
+const PRE_SOCRATIC_MIGRATION =
+  '20260722015955_enforce_grounded_chat_response_identity'
 const SOCRATIC_MIGRATION = '20260803125913_add_socratic_tutor_persistence'
 
 describe('Socratic persistence schema (e2e)', () => {

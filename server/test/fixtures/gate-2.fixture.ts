@@ -69,7 +69,10 @@ export class Gate2DeterministicEmbeddingProvider implements EmbeddingProvider {
   private embedText(text: string): Promise<Embedding> {
     const normalized = text.trim()
 
-    if (normalized === GATE_2_FIXTURE.question) {
+    if (
+      normalized === GATE_2_FIXTURE.question ||
+      normalized.includes(`Current student message: ${GATE_2_FIXTURE.question}`)
+    ) {
       return Promise.resolve([...QUERY_VECTOR])
     }
     if (normalized === GATE_2_FIXTURE.unsupportedQuestion) {

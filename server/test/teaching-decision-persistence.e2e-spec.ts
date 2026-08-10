@@ -209,6 +209,9 @@ describe('TeachingDecisionRepository (e2e)', () => {
       data: {
         status: 'COMPLETED',
         approvedTutorMessageId: assistant.id,
+        approvalSource: 'VALIDATED_CANDIDATE',
+        approvedCandidateAttempt: 1,
+        validationPolicyVersion: 'response-validation.mvp.v1',
         completedAt: new Date('2026-08-05T00:01:00.000Z'),
       },
     })

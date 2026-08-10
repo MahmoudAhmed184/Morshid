@@ -10,7 +10,11 @@ import { AppModule } from '../src/app.module'
 import {
   MaterialStatus,
   MessageGuidanceLabel,
+  MessageRequestKind,
   Prisma,
+  StudentState,
+  TeachingStrategy,
+  TeachingTechnique,
   TutorTurnStatus,
 } from '../src/generated/prisma/client'
 import type { AuthSessionResponse } from '../src/modules/auth/auth.dto'
@@ -35,6 +39,7 @@ import {
   GROUNDING_FAILED_CONTENT,
 } from '../src/modules/student-chat/grounded-chat.service'
 import type {
+  ChatMessageHistoryResponseDto,
   GroundedChatTurnResponseDto,
   ChatSessionResponseDto,
 } from '../src/modules/student-chat/student-chat.dto'
@@ -44,6 +49,8 @@ import {
   TUTOR_MODEL_ERROR_CODE,
   TUTOR_MODEL_PORT,
   TutorModelError,
+  type TutorModelRequest,
+  type TutorModelResponse,
 } from '../src/modules/socratic-tutor/tutor-generation.types'
 import { SEMANTIC_GUARD_PORT } from '../src/modules/socratic-tutor/semantic-guard.types'
 import {
@@ -68,6 +75,7 @@ import {
   failingSemanticGuardBehavior,
   createDeferredPromise,
   progressionAnalysisResponse,
+  functionalStoryAnalysisResponse,
 } from './support/socratic-e2e-providers'
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -95,6 +103,48 @@ const OVER_REVEAL_CANDIDATE =
   'In Python, standard sequence iteration starts at the very beginning (index 0) and moves forward to the end. If you have [10, 20, 30], which value sits at index 0?'
 const BOUNDED_REGENERATED_CANDIDATE =
   'Look at [10, 20, 30]. Which value is at index 0?'
+
+function storyCandidateResponse(
+  request: TutorModelRequest,
+  input: {
+    readonly message: string
+    readonly responseIntent: TeachingStrategy
+    readonly studentActionType: TeachingTechnique
+  },
+): TutorModelResponse {
+  const match = /"allowedCitationIds":\[(?<ids>(?:"[^"]*"(?:,)?)*)\]/u.exec(
+    request.messages[1].content,
+  )
+  const citationIds =
+    match?.groups?.ids === undefined || match.groups.ids.trim() === ''
+      ? []
+      : (JSON.parse(`[${match.groups.ids}]`) as unknown[]).filter(
+          (value): value is string => typeof value === 'string',
+        )
+
+  return Object.freeze({
+    rawOutput: Object.freeze({
+      message: input.message,
+      responseIntent: input.responseIntent,
+      usedCitationIds: citationIds,
+      requiresStudentAction: true,
+      studentAction: {
+        type: input.studentActionType,
+        description: 'Ask for the one reasoning action stated in the message.',
+      },
+      reflectionIncluded: false,
+      selfReportedCompliance: {
+        finalAnswerRevealed: false,
+        completeSolutionRevealed: false,
+      },
+    }),
+    provider: 'e2e-story-124-tutor',
+    model: 'e2e-story-124-tutor-v1',
+    promptVersion: request.promptVersion,
+    inputTokens: 100,
+    outputTokens: 50,
+  })
+}
 
 // ────────────────────────────────────────────────────────────────────────────
 // Test suite
@@ -418,6 +468,196 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
     expect(stored.completedAt).not.toBeNull()
   })
 
+  it('keeps a supported conceptual turn classified, course-grounded, cited, and unchanged after reload', async () => {
+    await createEvidenceMaterial({
+      title: 'Python list comprehension concepts',
+      content:
+        'A list comprehension creates a list from an expression and an iteration clause.',
+    })
+    const session = await createSession()
+    analysisModel.behavior = (modelRequest) =>
+      Promise.resolve(
+        functionalStoryAnalysisResponse(modelRequest, {
+          requestKind: MessageRequestKind.CONCEPTUAL,
+          studentState: StudentState.NO_PRIOR_KNOWLEDGE,
+          recommendedStrategy: TeachingStrategy.GUIDED_EXPLANATION,
+          recommendedTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+        }),
+      )
+    tutorModel.behavior = (modelRequest) =>
+      Promise.resolve(
+        storyCandidateResponse(modelRequest, {
+          message:
+            'A list comprehension creates a new list by evaluating an expression for each item in an iterable. Which of those two parts would you like to inspect in the cited example?',
+          responseIntent: TeachingStrategy.GUIDED_EXPLANATION,
+          studentActionType: TeachingTechnique.ORIENTATION_QUESTION,
+        }),
+      )
+
+    const response = await request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${studentToken}`)
+      .send({ content: 'What is a Python list comprehension?' })
+      .expect(201)
+    const turn = response.body as GroundedChatTurnResponseDto
+
+    expect(turn.studentMessage.requestKind).toBe(MessageRequestKind.CONCEPTUAL)
+    expect(turn.assistantMessage).toMatchObject({
+      guidanceLabel: MessageGuidanceLabel.COURSE_GROUNDED,
+      hintLevel: 1,
+    })
+    expect(turn.assistantMessage.citations).toHaveLength(1)
+
+    const promptVersion = Reflect.get(turn.assistantMessage, 'promptVersion')
+    expect(promptVersion).toBe('tutor-generation.mvp.v3')
+
+    const reloadResponse = await request(requireApp().getHttpServer())
+      .get(messagesPath(session.id))
+      .query({ page: 'latest' })
+      .set('Authorization', `Bearer ${studentToken}`)
+      .expect(200)
+    const reloaded = reloadResponse.body as ChatMessageHistoryResponseDto
+    const reloadedStudent = reloaded.messages.find(
+      ({ id }) => id === turn.studentMessage.id,
+    )
+    const reloadedAssistant = reloaded.messages.find(
+      ({ id }) => id === turn.assistantMessage.id,
+    )
+
+    expect(reloadedStudent).toMatchObject({
+      requestKind: MessageRequestKind.CONCEPTUAL,
+      content: turn.studentMessage.content,
+    })
+    expect(reloadedAssistant).toEqual(turn.assistantMessage)
+  })
+
+  it('fulfills the Story 124 no-attempt → weak attempt → partial attempt → repeatedly stuck journey', async () => {
+    await createEvidenceMaterial({
+      title: 'Python loop tracing practice',
+      content:
+        'Trace a loop by recording the condition and state before each update.',
+    })
+    const session = await createSession()
+    const analysisPlan = [
+      {
+        requestKind: MessageRequestKind.PROBLEM_LIKE,
+        studentState: StudentState.NO_PRIOR_KNOWLEDGE,
+        recommendedStrategy: TeachingStrategy.GUIDED_EXPLANATION,
+        recommendedTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+      },
+      {
+        requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+        studentState: StudentState.MISCONCEPTION,
+        recommendedStrategy: TeachingStrategy.MISCONCEPTION_REPAIR,
+        recommendedTechnique: TeachingTechnique.COUNTEREXAMPLE,
+        meaningfulEffort: true,
+        misconception: {
+          code: 'UPDATE_BEFORE_CONDITION',
+          description:
+            'The student believes the loop update happens before its condition is checked.',
+        },
+      },
+      {
+        requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+        studentState: StudentState.PARTIAL_UNDERSTANDING,
+        recommendedStrategy: TeachingStrategy.SOCRATIC_QUESTIONING,
+        recommendedTechnique: TeachingTechnique.FOCUSED_QUESTION,
+        meaningfulEffort: true,
+      },
+      {
+        requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+        studentState: StudentState.PARTIAL_UNDERSTANDING,
+        recommendedStrategy: TeachingStrategy.SOCRATIC_QUESTIONING,
+        recommendedTechnique: TeachingTechnique.FOCUSED_QUESTION,
+        meaningfulEffort: true,
+      },
+    ] as const
+    let analysisIndex = 0
+    analysisModel.behavior = (modelRequest) => {
+      const planned = analysisPlan[analysisIndex]
+      analysisIndex += 1
+      return Promise.resolve(
+        functionalStoryAnalysisResponse(modelRequest, planned),
+      )
+    }
+
+    const candidatePlan = [
+      {
+        message:
+          'What have you tried so far? As one small starting hint, write down the loop state before its first condition check.',
+        responseIntent: TeachingStrategy.GUIDED_EXPLANATION,
+        studentActionType: TeachingTechnique.ORIENTATION_QUESTION,
+      },
+      {
+        message:
+          'Your trace suggests the likely misconception is that the update occurs before the condition check. In your first row, which event does the loop syntax place first?',
+        responseIntent: TeachingStrategy.MISCONCEPTION_REPAIR,
+        studentActionType: TeachingTechnique.COUNTEREXAMPLE,
+      },
+      {
+        message:
+          'You correctly placed the condition check before the update. The next reasoning step is to record the state immediately after that update; what belongs in that next row?',
+        responseIntent: TeachingStrategy.MISCONCEPTION_REPAIR,
+        studentActionType: TeachingTechnique.COUNTEREXAMPLE,
+      },
+      {
+        message:
+          'For an analogous loop that begins with a different state, make a two-column table headed condition and state, then trace one iteration. Apply that same table pattern to your original loop without stating its final output.',
+        responseIntent: TeachingStrategy.MISCONCEPTION_REPAIR,
+        studentActionType: TeachingTechnique.COUNTEREXAMPLE,
+      },
+    ] as const
+    let candidateIndex = 0
+    tutorModel.behavior = (modelRequest) => {
+      const planned = candidatePlan[candidateIndex]
+      candidateIndex += 1
+      return Promise.resolve(storyCandidateResponse(modelRequest, planned))
+    }
+
+    const prompts = [
+      'For my loop exercise, determine the exact final output for me.',
+      'I tried updating the state first and then checking the condition.',
+      'I now put the condition first, but I only traced the first row.',
+      'I am still stuck applying that trace to the remaining iterations.',
+    ]
+    const turns: GroundedChatTurnResponseDto[] = []
+    for (const content of prompts) {
+      const response = await request(requireApp().getHttpServer())
+        .post(messagesPath(session.id))
+        .set('Authorization', `Bearer ${studentToken}`)
+        .send({ content })
+        .expect(201)
+      turns.push(response.body as GroundedChatTurnResponseDto)
+    }
+
+    expect(
+      turns.map(({ studentMessage }) => studentMessage.requestKind),
+    ).toEqual([
+      MessageRequestKind.PROBLEM_LIKE,
+      MessageRequestKind.ATTEMPT_DIAGNOSIS,
+      MessageRequestKind.ATTEMPT_DIAGNOSIS,
+      MessageRequestKind.ATTEMPT_DIAGNOSIS,
+    ])
+    expect(
+      turns.map(({ assistantMessage }) => assistantMessage.hintLevel),
+    ).toEqual([1, 2, 3, 4])
+    expect(turns[0].assistantMessage.content).toContain('What have you tried')
+    expect(turns[0].assistantMessage.content).toContain('small starting hint')
+    expect(turns[1].assistantMessage.content).toContain('likely misconception')
+    expect(turns[1].assistantMessage.content).toMatch(/\?$/u)
+    expect(turns[2].assistantMessage.content).toContain('correctly')
+    expect(turns[2].assistantMessage.content).toContain('next reasoning step')
+    expect(turns[3].assistantMessage.content).toContain('analogous loop')
+    for (const { assistantMessage } of turns) {
+      expect(assistantMessage.content).not.toContain('exact final output is')
+      expect(assistantMessage.citations.length).toBeGreaterThan(0)
+    }
+
+    await expect(guidanceLevelsForSession(prisma, session.id)).resolves.toEqual(
+      [1, 2, 3, 4],
+    )
+  })
+
   // ── 2. Regeneration: candidate #1 rejected, #2 approved ─────────────
 
   it('regenerates after first candidate rejection and approves the second', async () => {
@@ -592,11 +832,12 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
       })
     }
 
-    await request(requireApp().getHttpServer())
+    const response = await request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
       .set('Authorization', `Bearer ${studentToken}`)
       .send({ content: QUESTION })
       .expect(201)
+    const completed = response.body as GroundedChatTurnResponseDto
 
     expect(tutorModel.callCount).toBe(2)
     const attempts = await prisma.tutorCandidateAttempt.findMany({
@@ -608,6 +849,14 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
       generationOutcome: 'GENERATED',
       infrastructureRetryCount: 1,
     })
+    const persistedTurn = await prisma.tutorTurn.findFirstOrThrow({
+      where: { sessionId: session.id },
+    })
+    expect(persistedTurn.studentMessageId).toBe(completed.studentMessage.id)
+    expect(persistedTurn.approvedTutorMessageId).toBe(
+      completed.assistantMessage.id,
+    )
+    expect(completed.assistantMessage.hintLevel).toBe(1)
     await expect(
       prisma.teachingDecision.count({
         where: { turn: { sessionId: session.id } },
@@ -1145,6 +1394,24 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
       content: 'Retry test evidence',
     })
     const session = await createSession()
+    analysisModel.behavior = (modelRequest) =>
+      Promise.resolve(
+        functionalStoryAnalysisResponse(modelRequest, {
+          requestKind: MessageRequestKind.PROBLEM_LIKE,
+          studentState: StudentState.NO_PRIOR_KNOWLEDGE,
+          recommendedStrategy: TeachingStrategy.GUIDED_EXPLANATION,
+          recommendedTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+        }),
+      )
+    tutorModel.behavior = (modelRequest) =>
+      Promise.resolve(
+        storyCandidateResponse(modelRequest, {
+          message:
+            'What have you tried? Start by identifying one relevant value.',
+          responseIntent: TeachingStrategy.GUIDED_EXPLANATION,
+          studentActionType: TeachingTechnique.ORIENTATION_QUESTION,
+        }),
+      )
 
     embeddingFailure = true
     const failedResponse = await request(requireApp().getHttpServer())
@@ -1154,6 +1421,9 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
       .expect(201)
     const failedTurn = failedResponse.body as GroundedChatTurnResponseDto
     expect(failedTurn.assistantMessage.status).toBe('FAILED')
+    expect(failedTurn.studentMessage.requestKind).toBe(
+      MessageRequestKind.PROBLEM_LIKE,
+    )
     const failedAttemptQuery = embedQuery.mock.calls.at(-1)?.[0]
     expect(failedAttemptQuery).toBeDefined()
 

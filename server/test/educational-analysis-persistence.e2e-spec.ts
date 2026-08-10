@@ -122,6 +122,12 @@ describe('EducationalAnalysisRepository (e2e)', () => {
       confidencePolicyVersion: 'educational-analysis-confidence-policy.v1',
       infrastructureRetryCount: 0,
     })
+    await expect(
+      prisma.message.findUniqueOrThrow({
+        where: { id: fixture.studentMessageId },
+        select: { requestKind: true },
+      }),
+    ).resolves.toEqual({ requestKind: MessageRequestKind.CODE_DIAGNOSIS })
   })
 
   it('persists fallback metadata and reuses it idempotently', async () => {
