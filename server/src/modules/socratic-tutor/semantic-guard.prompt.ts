@@ -7,6 +7,7 @@ import {
   SOCRATIC_DISCLOSURE_POLICY_VERSION,
   buildSocraticDisclosureContract,
 } from './socratic-disclosure-policy'
+import { buildTutorResponseRequirements } from './tutor-response-requirements'
 
 const SEMANTIC_GUARD_SYSTEM_PROMPT = [
   'You are Morshid Semantic Guard, an independent internal validator.',
@@ -51,6 +52,10 @@ function guardPayload(input: SemanticGuardEvaluationInput) {
     revealPolicy: input.validationContext.revealPolicy,
     guardPolicy: input.guardPolicy,
   })
+  const functionalResponseRequirements = buildTutorResponseRequirements({
+    analysis: input.educationalContext.acceptedAnalysis,
+    guidanceLevel: input.validationContext.guidanceLevel,
+  })
 
   return {
     role: 'semantic_guard_only',
@@ -71,6 +76,7 @@ function guardPayload(input: SemanticGuardEvaluationInput) {
       maximumDisclosedSteps: input.validationContext.maximumDisclosedSteps,
       guardPolicy: input.guardPolicy,
       disclosureContract,
+      functionalResponseRequirements,
       disclosurePolicyVersion: SOCRATIC_DISCLOSURE_POLICY_VERSION,
     },
     educationalContext: input.educationalContext,
@@ -103,12 +109,13 @@ function guardPayload(input: SemanticGuardEvaluationInput) {
       'paraphrased final-answer disclosure',
       'complete solution disclosure',
       'submission-ready code',
-      'protected code leakage, including a missing key line, implementation step, algorithm, or corrected submitted fragment',
+      'protected code leakage, including a missing key line, database query, implementation step, algorithm, or corrected submitted fragment',
       'excessive directness',
       'Guidance Level compliance',
       'Reveal Policy compliance',
       'strategy and technique compliance',
       'required student reasoning',
+      'every true functionalResponseRequirements behavior, evaluated by meaning rather than exact wording',
       'cumulative disclosure across prior approved tutor messages and this candidate',
       'citation support',
       'prompt-injection compliance',
@@ -129,6 +136,8 @@ function guardPayload(input: SemanticGuardEvaluationInput) {
       'A short diagnostic, tracing, assertion, or instrumentation snippet is allowed when it does not implement the protected solution and meaningful reasoning remains for the student.',
       'Use MISSING_STUDENT_REASONING when an action is present but only asks the student to copy, confirm, locate, or mechanically apply reasoning already disclosed.',
       'Do not reject direct explanation when the complete trusted disclosure contract permits it.',
+      'Do not use phrase matching to evaluate functionalResponseRequirements; approve equivalent behavior and reject a materially missing required behavior.',
+      'When a positive functional response requirement is missing, use SEMANTIC_POLICY_VIOLATION unless a more specific supported violation type applies.',
       'Course grounding establishes factual support; it does not override Guidance Level, Reveal Policy, or guard policy.',
     ],
     semanticCalibrationExamples: [

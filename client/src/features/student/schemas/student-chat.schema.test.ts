@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   chatMessageHistoryResponseSchema,
+  chatMessageSchema,
   chatSessionListResponseSchema,
   chatSessionResponseSchema,
   createChatSessionRequestSchema,
@@ -17,6 +18,7 @@ import {
   chatSessionListResponseFixture,
   groundedChatTurnResponseFixture,
   malformedChatSessionResponseFixture,
+  orderedChatMessagesFixture,
   primaryChatSessionFixture,
   studentChatIds,
 } from '../testing/student-chat.fixtures'
@@ -29,6 +31,25 @@ describe('Student chat contract schemas', () => {
     expect(
       chatMessageHistoryResponseSchema.parse(chatMessageHistoryResponseFixture),
     ).toEqual(chatMessageHistoryResponseFixture)
+  })
+
+  it('requires reloadable prompt metadata and bounds persisted hint levels to 1–4', () => {
+    const assistant = orderedChatMessagesFixture[1]
+
+    expect(chatMessageSchema.parse(assistant)).toMatchObject({
+      hintLevel: 1,
+      promptVersion: 'tutor-generation.mvp.v3',
+    })
+    expect(
+      chatMessageSchema.safeParse({ ...assistant, hintLevel: 0 }).success,
+    ).toBe(false)
+    expect(
+      chatMessageSchema.safeParse({ ...assistant, hintLevel: 5 }).success,
+    ).toBe(false)
+    const { promptVersion: _promptVersion, ...withoutPromptVersion } = assistant
+    expect(chatMessageSchema.safeParse(withoutPromptVersion).success).toBe(
+      false,
+    )
   })
 
   it('rejects missing and incorrectly typed session fields', () => {

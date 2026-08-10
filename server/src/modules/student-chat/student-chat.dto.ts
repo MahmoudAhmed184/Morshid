@@ -237,6 +237,10 @@ export class ChatMessageDto {
 
   @Expose()
   @ApiProperty({ nullable: true })
+  promptVersion!: string | null
+
+  @Expose()
+  @ApiProperty({ nullable: true })
   errorCode!: string | null
 
   @Expose()

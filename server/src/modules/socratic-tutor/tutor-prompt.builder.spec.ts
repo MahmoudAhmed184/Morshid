@@ -1,4 +1,5 @@
 import {
+  MessageRequestKind,
   MessageRole,
   MessageStatus,
   ReflectionMode,
@@ -93,6 +94,67 @@ describe('tutor prompt builder', () => {
       'Please give me one small clue while preserving the conclusion for me.',
     )
   })
+
+  it.each([
+    {
+      requestKind: MessageRequestKind.PROBLEM_LIKE,
+      studentState: StudentState.NO_PRIOR_KNOWLEDGE,
+      guidanceLevel: 1,
+      expected: ['"askWhatStudentTried":true', '"smallStartingHintCount":1'],
+    },
+    {
+      requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+      studentState: StudentState.MISCONCEPTION,
+      guidanceLevel: 2,
+      expected: [
+        '"identifyLikelyMisconception":true',
+        '"meaningfulGuidingQuestionCount":1',
+      ],
+    },
+    {
+      requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+      studentState: StudentState.PARTIAL_UNDERSTANDING,
+      guidanceLevel: 3,
+      expected: [
+        '"acknowledgeStudentSupportedCorrectWork":true',
+        '"identifyNextReasoningStepWithoutSolving":true',
+      ],
+    },
+    {
+      requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+      studentState: StudentState.PARTIAL_UNDERSTANDING,
+      guidanceLevel: 4,
+      expected: [
+        '"analogousWorkedExampleOrBoundedStrongGuidance":true',
+        '"protectExactOriginalSolution":true',
+      ],
+    },
+  ])(
+    'encodes functional response requirements for $requestKind at level $guidanceLevel',
+    ({ requestKind, studentState, guidanceLevel, expected }) => {
+      const base = buildGenerationContext()
+      const request = buildTutorGenerationModelRequest({
+        ...base,
+        acceptedAnalysis: {
+          ...base.acceptedAnalysis,
+          result: {
+            ...base.acceptedAnalysis.result,
+            requestKind,
+            studentState,
+          },
+        },
+        teachingDecision: {
+          ...base.teachingDecision,
+          guidanceLevel,
+        },
+      })
+      const prompt = request.messages[1].content
+
+      for (const requirement of expected) {
+        expect(prompt).toContain(requirement)
+      }
+    },
+  )
 })
 
 function misconceptionContext(

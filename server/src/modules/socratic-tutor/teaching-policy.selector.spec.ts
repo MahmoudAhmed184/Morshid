@@ -142,8 +142,14 @@ describe('teaching policy selector', () => {
 
   it.each([
     ['repeated effort', { effortIsRepeated: true }],
-    ['effort unrelated to the prior tutor action', { effortAddressesPreviousTutorAction: false }],
-    ['effort without current-message evidence', { effortEvidenceMessageIds: ['older-message'] }],
+    [
+      'effort unrelated to the prior tutor action',
+      { effortAddressesPreviousTutorAction: false },
+    ],
+    [
+      'effort without current-message evidence',
+      { effortEvidenceMessageIds: ['older-message'] },
+    ],
     ['effort without a supported type', { effortType: null }],
   ])('does not escalate for %s', (_label, analysisInput) => {
     expect(
@@ -221,8 +227,7 @@ describe('teaching policy selector', () => {
         analysis: analysis(),
         topicState: topicState({ guidanceLevel: 4 }),
         previousTeachingDecision: null,
-        topicResolutionOutcome:
-          TOPIC_RESOLUTION_OUTCOME.CONTINUE_CURRENT_TOPIC,
+        topicResolutionOutcome: TOPIC_RESOLUTION_OUTCOME.CONTINUE_CURRENT_TOPIC,
       }),
     ).toBe(1)
   })
@@ -234,8 +239,7 @@ describe('teaching policy selector', () => {
       }),
       topicState: topicState({ guidanceLevel: 4 }),
       previousTeachingDecision: previousDecision({ guidanceLevel: 4 }),
-      topicResolutionOutcome:
-        TOPIC_RESOLUTION_OUTCOME.CONTINUE_CURRENT_TOPIC,
+      topicResolutionOutcome: TOPIC_RESOLUTION_OUTCOME.CONTINUE_CURRENT_TOPIC,
     })
 
     expect(draft).toMatchObject({
@@ -256,8 +260,7 @@ describe('teaching policy selector', () => {
         previousTeachingDecision: previousDecision({
           strategy: TeachingStrategy.GUIDED_EXPLANATION,
         }),
-        topicResolutionOutcome:
-          TOPIC_RESOLUTION_OUTCOME.CONTINUE_CURRENT_TOPIC,
+        topicResolutionOutcome: TOPIC_RESOLUTION_OUTCOME.CONTINUE_CURRENT_TOPIC,
       }),
     ).toBe(TeachingStrategy.GUIDED_EXPLANATION)
   })
@@ -361,8 +364,7 @@ function analysis(
       },
       learningEvidence: {
         present: input.learningPresent ?? false,
-        strength:
-          input.learningStrength ?? LEARNING_EVIDENCE_STRENGTH.NONE,
+        strength: input.learningStrength ?? LEARNING_EVIDENCE_STRENGTH.NONE,
         evidenceMessageIds: input.learningEvidenceMessageIds ?? [],
       },
       misconceptions: [],

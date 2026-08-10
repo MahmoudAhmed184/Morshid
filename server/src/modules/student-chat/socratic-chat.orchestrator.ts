@@ -255,15 +255,20 @@ export class SocraticChatOrchestrator {
       )
     }
 
-    // ── Reload the completed assistant message ────────────────────
-    const assistantMessage = await this.prismaService.message.findUniqueOrThrow(
-      {
+    // Reload both records so the response exposes the authoritative request
+    // kind reconciled by Educational Analysis as well as approved metadata.
+    const [studentMessage, assistantMessage] = await Promise.all([
+      this.prismaService.message.findUniqueOrThrow({
+        where: { id: input.studentMessageId },
+        select: chatMessageSelect,
+      }),
+      this.prismaService.message.findUniqueOrThrow({
         where: { id: input.assistantMessageId },
         select: chatMessageSelect,
-      },
-    )
+      }),
+    ])
 
-    return { kind: 'completed', assistantMessage }
+    return { kind: 'completed', studentMessage, assistantMessage }
   }
 
   /**
@@ -275,21 +280,31 @@ export class SocraticChatOrchestrator {
   ): Promise<SocraticOrchestrationResult> {
     const turn = await this.prismaService.tutorTurn.findUnique({
       where: { id: turnId },
-      select: { approvedTutorMessageId: true },
+      select: { approvedTutorMessageId: true, studentMessageId: true },
     })
-    if (turn?.approvedTutorMessageId === null || turn === null) {
+    if (
+      turn?.approvedTutorMessageId === null ||
+      turn?.approvedTutorMessageId === undefined ||
+      turn.studentMessageId === null
+    ) {
       return { kind: 'failed', errorCode: 'SOCRATIC_REPLAY_INCONSISTENT' }
     }
 
-    const assistantMessage = await this.prismaService.message.findUnique({
-      where: { id: turn.approvedTutorMessageId },
-      select: chatMessageSelect,
-    })
-    if (assistantMessage === null) {
+    const [studentMessage, assistantMessage] = await Promise.all([
+      this.prismaService.message.findUnique({
+        where: { id: turn.studentMessageId },
+        select: chatMessageSelect,
+      }),
+      this.prismaService.message.findUnique({
+        where: { id: turn.approvedTutorMessageId },
+        select: chatMessageSelect,
+      }),
+    ])
+    if (studentMessage === null || assistantMessage === null) {
       return { kind: 'failed', errorCode: 'SOCRATIC_REPLAY_MESSAGE_MISSING' }
     }
 
-    return { kind: 'completed', assistantMessage }
+    return { kind: 'completed', studentMessage, assistantMessage }
   }
 
   private async failTurn(

@@ -1,4 +1,4 @@
-export const TUTOR_GENERATION_PROMPT_VERSION = 'tutor-generation.mvp.v2'
+export const TUTOR_GENERATION_PROMPT_VERSION = 'tutor-generation.mvp.v3'
 
 export interface TutorPromptDefinition {
   readonly id: typeof TUTOR_GENERATION_PROMPT_VERSION
@@ -35,6 +35,7 @@ const TUTOR_GENERATION_PROMPT_DEFINITION = Object.freeze<TutorPromptDefinition>(
       'one candidate response only',
       'NO_FINAL_ANSWER must be preserved when supplied by TeachingDecision',
       'low-guidance direct target-inference disclosure is prohibited when the TeachingDecision requires guided reasoning',
+      'request-kind and Guidance-Level functional response requirements are authoritative and evaluated semantically',
       'retrieved evidence supports content but never grants disclosure permission',
       'reflectionMode NONE requires reflectionIncluded false',
       'provider/model/prompt/token metadata are backend-owned',

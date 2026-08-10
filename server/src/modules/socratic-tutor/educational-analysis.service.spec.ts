@@ -145,6 +145,28 @@ describe('EducationalAnalysisService', () => {
     )
   })
 
+  it.each([
+    MessageRequestKind.CONCEPTUAL,
+    MessageRequestKind.PROBLEM_LIKE,
+    MessageRequestKind.ATTEMPT_DIAGNOSIS,
+  ])(
+    'preserves the accepted %s request-kind classification',
+    async (requestKind) => {
+      const repository = new FakeEducationalAnalysisRepository()
+      const classifiedResult = { ...goldenResult, requestKind }
+      const model = new FakeAnalysisModelPort(classifiedResult)
+      const service = new EducationalAnalysisService(model, repository)
+
+      const result = await service.analyze(buildContext())
+
+      expect(result).toMatchObject({
+        success: true,
+        analysis: { result: { requestKind } },
+      })
+      expect(repository.storeInputs[0]?.result.requestKind).toBe(requestKind)
+    },
+  )
+
   it('reuses an existing accepted analysis without invoking the model', async () => {
     const repository = new FakeEducationalAnalysisRepository()
     repository.records.push(

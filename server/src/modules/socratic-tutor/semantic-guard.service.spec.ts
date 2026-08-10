@@ -125,6 +125,11 @@ describe('SemanticGuardService', () => {
     expect(payload).toMatchObject({
       trustedPolicy: {
         disclosureContract: { directTargetInferenceAllowed: false },
+        functionalResponseRequirements: {
+          requestKind: 'CONCEPTUAL',
+          supportedConceptualExplanation: true,
+          evaluateSemanticallyWithoutPhraseMatching: true,
+        },
       },
       educationalContext: {
         currentStudentMessage: {
@@ -368,7 +373,7 @@ function candidate(patch: Partial<CandidateResponse> = {}): CandidateResponse {
     },
     provider: 'deterministic',
     model: 'deterministic-tutor',
-    promptVersion: 'tutor-generation.mvp.v2',
+    promptVersion: 'tutor-generation.mvp.v3',
     tokenUsage: { input: 0, output: 0 },
     ...patch,
   }

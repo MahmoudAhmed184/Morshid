@@ -142,6 +142,7 @@ function makeMessage(
     citations: [],
     retrievals: [],
     ...overrides,
+    promptVersion: overrides.promptVersion ?? null,
   }
 }
 

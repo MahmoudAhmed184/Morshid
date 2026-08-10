@@ -13,6 +13,7 @@ import {
   UserStatus,
 } from '../../generated/prisma/client'
 import type { AuthenticatedRequestUser } from '../auth/auth.dto'
+import type { PrismaService } from '../prisma/prisma.service'
 import type {
   BeginGroundedChatTurnResult,
   FinalizeGroundedChatTurnInput,
@@ -102,6 +103,7 @@ describe('GroundedChatService', () => {
     } as never)
     socraticOrchestrate = jest.fn().mockResolvedValue({
       kind: 'completed',
+      studentMessage: studentMessage(),
       assistantMessage: assistantMessage({
         status: MessageStatus.COMPLETED,
         content: 'Socratic grounded answer',
@@ -118,6 +120,16 @@ describe('GroundedChatService', () => {
       turnRepository,
       presenter,
       socraticOrchestrator,
+      {
+        message: {
+          findUnique: jest.fn().mockImplementation(({ where }) =>
+            Promise.resolve({
+              ...studentMessage(),
+              id: (where as { id: string }).id,
+            }),
+          ),
+        },
+      } as unknown as PrismaService,
     )
   })
 
@@ -541,6 +553,7 @@ function message(overrides: Partial<ChatMessageRecord>): ChatMessageRecord {
     citations: [],
     retrievals: [],
     ...overrides,
+    promptVersion: overrides.promptVersion ?? null,
   }
 }
 

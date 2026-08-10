@@ -8,6 +8,7 @@ import {
   getTutorPromptDefinition,
 } from './tutor-prompt.registry'
 import { buildSocraticDisclosureContract } from './socratic-disclosure-policy'
+import { buildTutorResponseRequirements } from './tutor-response-requirements'
 
 export const TRUSTED_BACKEND_POLICY_BEGIN_MARKER =
   '<<<TRUSTED_BACKEND_POLICY>>>'
@@ -70,6 +71,10 @@ function buildTutorUserPrompt(context: GenerationContextPackage): string {
     revealPolicy: context.teachingDecision.revealPolicy,
     guardPolicy: context.teachingDecision.guardPolicy,
   })
+  const functionalResponseRequirements = buildTutorResponseRequirements({
+    analysis: context.acceptedAnalysis.result,
+    guidanceLevel: context.teachingDecision.guidanceLevel,
+  })
 
   return [
     section('1. Stable Tutor Role', {
@@ -110,6 +115,7 @@ function buildTutorUserPrompt(context: GenerationContextPackage): string {
       reflectionMode: context.teachingDecision.reflectionMode,
       mvpReflectionIncluded: context.teachingDecision.reflectionMode !== 'NONE',
       disclosureContract,
+      functionalResponseRequirements,
     }),
     TRUSTED_BACKEND_POLICY_END_MARKER,
     section('5. StudentState and relevant TopicState', {
