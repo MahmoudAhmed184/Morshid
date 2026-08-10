@@ -23,7 +23,7 @@ export interface DisposableDatabase {
 // dropped before the error propagates so failed runs cannot orphan databases.
 export async function setUpDisposableDatabase(
   namePrefix: string,
-  options: { throughMigration?: string } = {},
+  options: { throughMigration?: string; applyMigrations?: boolean } = {},
 ): Promise<DisposableDatabase> {
   const originalDatabaseUrl = requireDatabaseUrl()
   const databaseName = `${namePrefix}_${randomUUID().replaceAll('-', '')}`
@@ -46,7 +46,9 @@ export async function setUpDisposableDatabase(
 
   try {
     const databaseUrl = databaseUrlFor(originalDatabaseUrl, databaseName)
-    await applyMigrations(databaseUrl, options.throughMigration)
+    if (options.applyMigrations !== false) {
+      await applyMigrations(databaseUrl, options.throughMigration)
+    }
 
     const configService = {
       get: () => databaseUrl,

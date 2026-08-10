@@ -531,6 +531,7 @@ function retrievedChunk(patch: Partial<RetrievedChunk> = {}): RetrievedChunk {
     rank: 1,
     similarityScore: 0.92,
     ...patch,
+    embeddingModel: patch.embeddingModel ?? 'deterministic-embedding-v1',
   }
 }
 

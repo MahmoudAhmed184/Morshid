@@ -14,6 +14,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service'
 import {
   chatMessageSelect,
+  chatMessageSelectForStudent,
   chatMessageScalarSelect,
   currentDatabaseTime,
 } from './student-chat.repository.support'
@@ -35,6 +36,7 @@ interface AuthorizedTurnInput {
 export interface BeginGroundedChatTurnInput extends AuthorizedTurnInput {
   clientMessageId?: string
   content: string
+  requestKind?: MessageRequestKind
 }
 
 export interface RetryGroundedChatTurnInput extends AuthorizedTurnInput {
@@ -62,6 +64,19 @@ export interface CompleteGroundedChatTurnInput extends AuthorizedTurnInput {
   inputTokens?: number
   outputTokens?: number
   evidence: readonly GroundedChatEvidenceInput[]
+  citationContextIndexes?: readonly number[]
+  guidanceLabel?: MessageGuidanceLabel
+  errorCode?: string
+}
+
+export interface CompletePolicyGroundedChatTurnInput extends AuthorizedTurnInput {
+  attemptId: string
+  studentMessageId: string
+  assistantMessageId: string
+  content: string
+  evidence: readonly GroundedChatEvidenceInput[]
+  guidanceLabel: MessageGuidanceLabel
+  errorCode: string
 }
 
 export interface FinalizeGroundedChatTurnInput extends AuthorizedTurnInput {
@@ -70,6 +85,16 @@ export interface FinalizeGroundedChatTurnInput extends AuthorizedTurnInput {
   assistantMessageId: string
   content: string
   errorCode: string
+  guidanceLabel?: MessageGuidanceLabel
+}
+
+export interface CompleteSafetyGroundedChatTurnInput extends FinalizeGroundedChatTurnInput {
+  guidanceLabel: MessageGuidanceLabel
+}
+
+export interface ReadGroundedChatTurnInput extends AuthorizedTurnInput {
+  studentMessageId: string
+  assistantMessageId: string
 }
 
 export type BeginGroundedChatTurnResult =
@@ -110,6 +135,16 @@ export type FinalizeGroundedChatTurnResult =
   | { kind: 'message_not_found'; messageId: string }
   | { kind: 'message_not_pending'; messageId: string }
 
+export type ReadGroundedChatTurnResult =
+  | {
+      kind: 'ok'
+      studentMessage: ChatMessageRecord
+      assistantMessage: ChatMessageRecord
+    }
+  | { kind: 'membership_missing' }
+  | { kind: 'session_not_found' }
+  | { kind: 'message_not_found'; messageId: string }
+
 interface LockedSession {
   id: string
   courseId: string
@@ -147,6 +182,10 @@ export abstract class GroundedChatTurnRepository {
     input: CompleteGroundedChatTurnInput,
   ): Promise<FinalizeGroundedChatTurnResult>
 
+  abstract completePolicyTurn(
+    input: CompletePolicyGroundedChatTurnInput,
+  ): Promise<FinalizeGroundedChatTurnResult>
+
   abstract failTurn(
     input: FinalizeGroundedChatTurnInput,
   ): Promise<FinalizeGroundedChatTurnResult>
@@ -154,6 +193,18 @@ export abstract class GroundedChatTurnRepository {
   abstract blockTurn(
     input: FinalizeGroundedChatTurnInput,
   ): Promise<FinalizeGroundedChatTurnResult>
+
+  abstract completeUnsupportedTurn(
+    input: FinalizeGroundedChatTurnInput,
+  ): Promise<FinalizeGroundedChatTurnResult>
+
+  abstract completeSafetyTurn(
+    input: CompleteSafetyGroundedChatTurnInput,
+  ): Promise<FinalizeGroundedChatTurnResult>
+
+  abstract readTurnForStudent(
+    input: ReadGroundedChatTurnInput,
+  ): Promise<ReadGroundedChatTurnResult>
 }
 
 @Injectable()
@@ -254,7 +305,7 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
             responseToMessageId: studentMessage.id,
             content: '',
             status: MessageStatus.PENDING,
-            requestKind: MessageRequestKind.CONCEPTUAL,
+            requestKind: input.requestKind ?? MessageRequestKind.CONCEPTUAL,
             guidanceLabel: null,
             hintLevel: null,
             groundingAttemptId: identity.attemptId,
@@ -397,6 +448,44 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
   async completeTurn(
     input: CompleteGroundedChatTurnInput,
   ): Promise<FinalizeGroundedChatTurnResult> {
+    return this.completeWithEvidence(input, {
+      guidanceLabel:
+        input.guidanceLabel ?? MessageGuidanceLabel.COURSE_GROUNDED,
+      provider: input.provider,
+      model: input.model,
+      promptVersion: input.promptVersion,
+      inputTokens: input.inputTokens ?? null,
+      outputTokens: input.outputTokens ?? null,
+      errorCode: input.errorCode ?? null,
+    })
+  }
+
+  completePolicyTurn(
+    input: CompletePolicyGroundedChatTurnInput,
+  ): Promise<FinalizeGroundedChatTurnResult> {
+    return this.completeWithEvidence(input, {
+      guidanceLabel: input.guidanceLabel,
+      provider: null,
+      model: null,
+      promptVersion: null,
+      inputTokens: null,
+      outputTokens: null,
+      errorCode: input.errorCode,
+    })
+  }
+
+  private async completeWithEvidence(
+    input: CompleteGroundedChatTurnInput | CompletePolicyGroundedChatTurnInput,
+    terminal: {
+      guidanceLabel: MessageGuidanceLabel
+      provider: string | null
+      model: string | null
+      promptVersion: string | null
+      inputTokens: number | null
+      outputTokens: number | null
+      errorCode: string | null
+    },
+  ): Promise<FinalizeGroundedChatTurnResult> {
     try {
       return await this.runTransaction(async (tx) => {
         const authorization = await this.lockAuthorizedSession(tx, input)
@@ -410,13 +499,7 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
         const updated = await this.transitionPendingAssistant(tx, input, {
           status: MessageStatus.COMPLETED,
           content: input.content,
-          guidanceLabel: MessageGuidanceLabel.COURSE_GROUNDED,
-          provider: input.provider,
-          model: input.model,
-          promptVersion: input.promptVersion,
-          inputTokens: input.inputTokens ?? null,
-          outputTokens: input.outputTokens ?? null,
-          errorCode: null,
+          ...terminal,
           errorMessage: null,
           groundingLeaseExpiresAt: null,
           completedAt: now,
@@ -440,13 +523,11 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
           })),
         })
         await tx.messageCitation.createMany({
-          data: orderedCitationMaterialIds(input.evidence).map(
-            (materialId, index) => ({
-              messageId: input.assistantMessageId,
-              materialId,
-              citationOrder: index + 1,
-            }),
-          ),
+          data: citationRows(input).map(({ materialId, citationOrder }) => ({
+            messageId: input.assistantMessageId,
+            materialId,
+            citationOrder,
+          })),
         })
 
         const message = await tx.message.findUniqueOrThrow({
@@ -463,7 +544,7 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
   failTurn(
     input: FinalizeGroundedChatTurnInput,
   ): Promise<FinalizeGroundedChatTurnResult> {
-    return this.finalizeWithoutEvidence(input, {
+    return this.persistTerminalWithoutEvidence(input, {
       status: MessageStatus.FAILED,
       content: input.content,
       guidanceLabel: null,
@@ -474,32 +555,88 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
   blockTurn(
     input: FinalizeGroundedChatTurnInput,
   ): Promise<FinalizeGroundedChatTurnResult> {
-    return this.finalizeWithoutEvidence(input, {
+    return this.persistTerminalWithoutEvidence(input, {
       status: MessageStatus.BLOCKED,
       content: input.content,
-      guidanceLabel: MessageGuidanceLabel.GENERAL_NOT_FOUND,
+      guidanceLabel:
+        input.guidanceLabel ?? MessageGuidanceLabel.GENERAL_NOT_FOUND,
       errorCode: input.errorCode,
     })
   }
 
-  private finalizeWithoutEvidence(
+  completeUnsupportedTurn(
     input: FinalizeGroundedChatTurnInput,
-    terminal: {
-      status: typeof MessageStatus.FAILED | typeof MessageStatus.BLOCKED
-      content: string
-      guidanceLabel: typeof MessageGuidanceLabel.GENERAL_NOT_FOUND | null
-      errorCode: string
-    },
   ): Promise<FinalizeGroundedChatTurnResult> {
-    return this.persistTerminalWithoutEvidence(input, terminal)
+    return this.persistTerminalWithoutEvidence(input, {
+      status: MessageStatus.COMPLETED,
+      content: input.content,
+      guidanceLabel: MessageGuidanceLabel.UNCERTAIN_AWAITING_REVIEW,
+      errorCode: input.errorCode,
+    })
+  }
+
+  completeSafetyTurn(
+    input: CompleteSafetyGroundedChatTurnInput,
+  ): Promise<FinalizeGroundedChatTurnResult> {
+    return this.persistTerminalWithoutEvidence(input, {
+      status: MessageStatus.COMPLETED,
+      content: input.content,
+      guidanceLabel: input.guidanceLabel,
+      errorCode: input.errorCode,
+    })
+  }
+
+  readTurnForStudent(
+    input: ReadGroundedChatTurnInput,
+  ): Promise<ReadGroundedChatTurnResult> {
+    return this.runTransaction(async (tx) => {
+      const authorization = await this.lockAuthorizedSession(tx, input)
+      if (authorization.kind !== 'ok') {
+        return authorization
+      }
+
+      const studentMessage = await tx.message.findFirst({
+        where: {
+          id: input.studentMessageId,
+          sessionId: input.sessionId,
+          role: MessageRole.STUDENT,
+          authorUserId: input.studentId,
+        },
+        select: chatMessageSelectForStudent(input.studentId),
+      })
+      if (studentMessage === null) {
+        return { kind: 'message_not_found', messageId: input.studentMessageId }
+      }
+
+      const assistantMessage = await tx.message.findFirst({
+        where: {
+          id: input.assistantMessageId,
+          sessionId: input.sessionId,
+          role: MessageRole.ASSISTANT,
+          responseToMessageId: input.studentMessageId,
+        },
+        select: chatMessageSelectForStudent(input.studentId),
+      })
+      if (assistantMessage === null) {
+        return {
+          kind: 'message_not_found',
+          messageId: input.assistantMessageId,
+        }
+      }
+
+      return { kind: 'ok', studentMessage, assistantMessage }
+    })
   }
 
   private async persistTerminalWithoutEvidence(
     input: FinalizeGroundedChatTurnInput,
     terminal: {
-      status: typeof MessageStatus.FAILED | typeof MessageStatus.BLOCKED
+      status:
+        | typeof MessageStatus.COMPLETED
+        | typeof MessageStatus.FAILED
+        | typeof MessageStatus.BLOCKED
       content: string
-      guidanceLabel: typeof MessageGuidanceLabel.GENERAL_NOT_FOUND | null
+      guidanceLabel: MessageGuidanceLabel | null
       errorCode: string
     },
   ): Promise<FinalizeGroundedChatTurnResult> {
@@ -827,7 +964,10 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
   }
 
   private async reconcileTerminalTurn(
-    input: CompleteGroundedChatTurnInput | FinalizeGroundedChatTurnInput,
+    input:
+      | CompleteGroundedChatTurnInput
+      | CompletePolicyGroundedChatTurnInput
+      | FinalizeGroundedChatTurnInput,
     expectedStatus:
       | typeof MessageStatus.COMPLETED
       | typeof MessageStatus.FAILED
@@ -900,6 +1040,29 @@ function orderedCitationMaterialIds(
     }
   }
   return ordered
+}
+
+function citationRows(
+  input: CompleteGroundedChatTurnInput | CompletePolicyGroundedChatTurnInput,
+): readonly { readonly materialId: string; readonly citationOrder: number }[] {
+  if (
+    !('citationContextIndexes' in input) ||
+    input.citationContextIndexes === undefined
+  ) {
+    return orderedCitationMaterialIds(input.evidence).map(
+      (materialId, index) => ({ materialId, citationOrder: index + 1 }),
+    )
+  }
+
+  return [...new Set(input.citationContextIndexes)]
+    .sort((left, right) => left - right)
+    .map((citationOrder) => {
+      const citedEvidence = input.evidence.at(citationOrder - 1)
+      if (citedEvidence === undefined) {
+        throw new GroundedChatEvidenceUnavailableError()
+      }
+      return { materialId: citedEvidence.materialId, citationOrder }
+    })
 }
 
 function leaseExpiry(now: Date): Date {

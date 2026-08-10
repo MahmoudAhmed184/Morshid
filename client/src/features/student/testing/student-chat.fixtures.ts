@@ -67,6 +67,7 @@ export const orderedChatMessagesFixture = [
     createdAt: '2026-07-17T09:01:00.000Z',
     completedAt: '2026-07-17T09:01:00.000Z',
     citations: [] as ChatMessage['citations'],
+    reviewSummary: null,
   },
   {
     id: studentChatIds.assistantMessage,
@@ -101,6 +102,7 @@ export const orderedChatMessagesFixture = [
         ],
       },
     ] as ChatMessage['citations'],
+    reviewSummary: null,
   },
 ] as const
 

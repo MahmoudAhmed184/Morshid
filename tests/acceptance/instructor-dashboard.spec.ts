@@ -51,6 +51,7 @@ test.describe('Instructor workspace', () => {
         page.getByRole('heading', {
           name: destination.heading,
           exact: true,
+          level: 1,
         }),
       ).toBeVisible()
     }

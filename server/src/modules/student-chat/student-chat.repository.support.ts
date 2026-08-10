@@ -61,6 +61,7 @@ export const chatMessageSelect = {
           materialId: true,
           chunkIndex: true,
           content: true,
+          embeddingModel: true,
         },
       },
     },
@@ -69,6 +70,34 @@ export const chatMessageSelect = {
     },
   },
 } satisfies Prisma.MessageSelect
+
+export function chatMessageSelectForStudent(studentId: string) {
+  return {
+    ...chatMessageSelect,
+    reviewCase: {
+      select: {
+        id: true,
+        status: true,
+        outcome: true,
+        resolvedAt: true,
+        triggers: {
+          where: {
+            OR: [
+              { type: { not: 'STUDENT_REQUEST' as const } },
+              { type: 'STUDENT_REQUEST' as const, actorUserId: studentId },
+            ],
+          },
+          select: { id: true },
+        },
+        _count: {
+          select: {
+            notifications: { where: { recipientUserId: studentId } },
+          },
+        },
+      },
+    },
+  } satisfies Prisma.MessageSelect
+}
 
 export function ownedActiveSessionWhere(
   courseId: string,

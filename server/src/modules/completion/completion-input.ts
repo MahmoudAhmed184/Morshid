@@ -1,8 +1,13 @@
 import type {
+  CompletionStrategy,
   CompletionContextEntry,
   NonEmptyCompletionContext,
+  StaticCodeDiagnosis,
 } from './completion-provider'
-import { CompletionProviderError } from './completion-provider'
+import {
+  COMPLETION_STRATEGIES,
+  CompletionProviderError,
+} from './completion-provider'
 
 export const MAX_COMPLETION_QUESTION_CODE_POINTS = 4_000
 export const MAX_COMPLETION_CONTEXT_ENTRIES = 50
@@ -10,14 +15,34 @@ export const MAX_COMPLETION_SOURCE_TITLE_CODE_POINTS = 300
 export const MAX_COMPLETION_CONTEXT_ENTRY_CODE_POINTS = 8_000
 export const MAX_COMPLETION_CONTEXT_CODE_POINTS = 32_000
 
-const COMPLETION_INPUT_KEYS = ['studentQuestion', 'context'] as const
+const GROUNDED_COMPLETION_INPUT_KEYS = ['studentQuestion', 'context'] as const
+const DIAGNOSIS_COMPLETION_INPUT_KEYS = [
+  'studentQuestion',
+  'context',
+  'diagnosis',
+] as const
 const CONTEXT_ENTRY_KEYS = ['sourceTitle', 'chunkIndex', 'content'] as const
-export interface GroundedCompletionInput {
+const DIAGNOSIS_KEYS = [
+  'likelyDefect',
+  'location',
+  'conceptExplanation',
+  'nextInspectionStep',
+] as const
+
+export interface GroundedExplanationCompletionInput {
   readonly studentQuestion: string
   readonly context: NonEmptyCompletionContext
 }
 
-export interface SnapshottedCompletionRequest extends GroundedCompletionInput {
+export interface CodeDiagnosisCompletionInput extends GroundedExplanationCompletionInput {
+  readonly diagnosis: StaticCodeDiagnosis
+}
+
+export type GroundedCompletionInput =
+  GroundedExplanationCompletionInput | CodeDiagnosisCompletionInput
+
+export type SnapshottedCompletionRequest = GroundedCompletionInput & {
+  readonly strategy: CompletionStrategy
   readonly signal?: AbortSignal
 }
 
@@ -34,13 +59,18 @@ export function snapshotCompletionRequest(
     const record = requireRecord(value)
     const studentQuestion = Reflect.get(record, 'studentQuestion')
     const context = Reflect.get(record, 'context')
+    const strategy = Reflect.get(record, 'strategy')
+    const diagnosis = Reflect.get(record, 'diagnosis')
     const signal = Reflect.get(record, 'signal')
+    const resolvedStrategy = snapshotCompletionStrategy(strategy)
     const snapshot = snapshotCompletionInputValues(
       studentQuestion,
       context,
       () => {
         errorCode = 'COMPLETION_EMPTY_CONTEXT'
       },
+      resolvedStrategy,
+      diagnosis,
     )
 
     if (signal !== undefined && !isGenuineAbortSignal(signal)) {
@@ -49,6 +79,7 @@ export function snapshotCompletionRequest(
 
     return Object.freeze({
       ...snapshot,
+      strategy: resolvedStrategy,
       ...(signal === undefined ? {} : { signal }),
     })
   } catch {
@@ -60,13 +91,27 @@ export function snapshotGroundedCompletionInput(
   value: unknown,
 ): GroundedCompletionInput {
   try {
-    const record = requireExactRecord(value, COMPLETION_INPUT_KEYS)
+    const record = requireRecord(value)
+    const codeDiagnosis = Object.hasOwn(record, 'diagnosis')
+    requireExactKeys(
+      record,
+      codeDiagnosis
+        ? DIAGNOSIS_COMPLETION_INPUT_KEYS
+        : GROUNDED_COMPLETION_INPUT_KEYS,
+    )
     const studentQuestion = Reflect.get(record, 'studentQuestion')
     const context = Reflect.get(record, 'context')
+    const diagnosis = Reflect.get(record, 'diagnosis')
 
-    return snapshotCompletionInputValues(studentQuestion, context, () => {
-      throw new TypeError('Empty context')
-    })
+    return snapshotCompletionInputValues(
+      studentQuestion,
+      context,
+      () => {
+        throw new TypeError('Empty context')
+      },
+      codeDiagnosis ? 'PYTHON_CODE_DIAGNOSIS' : 'GROUNDED_EXPLANATION',
+      diagnosis,
+    )
   } catch {
     throw new CompletionProviderError('COMPLETION_INVALID_REQUEST')
   }
@@ -116,6 +161,8 @@ function snapshotCompletionInputValues(
   studentQuestionValue: unknown,
   contextValue: unknown,
   onEmptyContext: () => void,
+  strategy: CompletionStrategy,
+  diagnosisValue: unknown,
 ): GroundedCompletionInput {
   if (
     !isNonBlankStringWithin(
@@ -161,9 +208,58 @@ function snapshotCompletionInputValues(
     entries.push(entry)
   }
 
-  return Object.freeze({
+  const base = Object.freeze({
     studentQuestion: studentQuestionValue,
     context: Object.freeze(entries) as NonEmptyCompletionContext,
+  })
+
+  if (strategy === 'GROUNDED_EXPLANATION') {
+    if (diagnosisValue !== undefined) {
+      throw new TypeError('Unexpected diagnosis')
+    }
+    return base
+  }
+
+  return Object.freeze({
+    ...base,
+    diagnosis: snapshotStaticCodeDiagnosis(diagnosisValue),
+  })
+}
+
+function snapshotCompletionStrategy(value: unknown): CompletionStrategy {
+  if (value === undefined) {
+    return 'GROUNDED_EXPLANATION'
+  }
+  if (
+    typeof value !== 'string' ||
+    !COMPLETION_STRATEGIES.includes(value as CompletionStrategy)
+  ) {
+    throw new TypeError('Invalid strategy')
+  }
+  return value as CompletionStrategy
+}
+
+function snapshotStaticCodeDiagnosis(value: unknown): StaticCodeDiagnosis {
+  const record = requireExactRecord(value, DIAGNOSIS_KEYS)
+  const likelyDefect = Reflect.get(record, 'likelyDefect')
+  const location = Reflect.get(record, 'location')
+  const conceptExplanation = Reflect.get(record, 'conceptExplanation')
+  const nextInspectionStep = Reflect.get(record, 'nextInspectionStep')
+
+  if (
+    !isNonBlankStringWithin(likelyDefect, 1_000) ||
+    !isNonBlankStringWithin(location, 500) ||
+    !isNonBlankStringWithin(conceptExplanation, 2_000) ||
+    !isNonBlankStringWithin(nextInspectionStep, 1_000)
+  ) {
+    throw new TypeError('Invalid diagnosis')
+  }
+
+  return Object.freeze({
+    likelyDefect,
+    location,
+    conceptExplanation,
+    nextInspectionStep,
   })
 }
 
@@ -206,17 +302,24 @@ function requireExactRecord<const Key extends string>(
   allowedKeys: readonly Key[],
 ): Record<Key, unknown> {
   const record = requireRecord(value)
+  requireExactKeys(record, allowedKeys)
+
+  return record
+}
+
+function requireExactKeys(
+  record: Record<PropertyKey, unknown>,
+  allowedKeys: readonly string[],
+): void {
   const ownKeys = Reflect.ownKeys(record)
   if (
     ownKeys.length !== allowedKeys.length ||
     !ownKeys.every(
-      (key) => typeof key === 'string' && allowedKeys.includes(key as Key),
+      (key) => typeof key === 'string' && allowedKeys.includes(key),
     )
   ) {
     throw new TypeError('Unexpected record keys')
   }
-
-  return record
 }
 
 function requireDenseArrayKeys(

@@ -5,6 +5,8 @@ import { z } from 'zod'
 import {
   MessageRole,
   MessageStatus,
+  ReviewOutcome,
+  ReviewStatus,
   type MessageGuidanceLabel,
   type MessageRequestKind,
 } from '../../generated/prisma/client'
@@ -255,6 +257,37 @@ export class ChatMessageDto {
   @Type(() => ChatCitationDto)
   @ApiProperty({ type: [ChatCitationDto] })
   citations!: ChatCitationDto[]
+
+  @Expose()
+  @Type(() => ChatMessageReviewSummaryDto)
+  @ApiProperty({ type: () => ChatMessageReviewSummaryDto, nullable: true })
+  reviewSummary!: ChatMessageReviewSummaryDto | null
+}
+
+export class ChatMessageReviewSummaryDto {
+  @Expose()
+  @ApiProperty({ format: 'uuid' })
+  reviewCaseId!: string
+
+  @Expose()
+  @ApiProperty({ enum: ReviewStatus, enumName: 'ReviewStatus' })
+  status!: ReviewStatus
+
+  @Expose()
+  @ApiProperty({
+    enum: ReviewOutcome,
+    enumName: 'ReviewOutcome',
+    nullable: true,
+  })
+  outcome!: ReviewOutcome | null
+
+  @Expose()
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  resolvedAt!: string | null
+
+  @Expose()
+  @ApiProperty({ type: Boolean })
+  hasNotification!: boolean
 }
 
 export class ChatMessageHistoryResponseDto {

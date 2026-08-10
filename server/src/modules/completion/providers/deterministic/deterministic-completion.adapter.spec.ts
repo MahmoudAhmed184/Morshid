@@ -10,7 +10,9 @@ import { DETERMINISTIC_COMPLETION_PROVIDER } from '../../completion-configuratio
 import type { GroundedCompletionMessage } from '../../grounded-completion-envelope'
 import {
   GROUNDED_COMPLETION_PROMPT_VERSION,
+  PYTHON_CODE_DIAGNOSIS_PROMPT_VERSION,
   buildGroundedCompletionMessages,
+  completionPromptVersionForStrategy,
 } from '../../grounded-completion-envelope'
 
 function completionInput(
@@ -42,6 +44,10 @@ function request(
   return {
     messages: buildGroundedCompletionMessages(input),
     signal: input.signal ?? new AbortController().signal,
+    strategy: input.strategy,
+    promptVersion: completionPromptVersionForStrategy(
+      input.strategy ?? 'GROUNDED_EXPLANATION',
+    ),
   }
 }
 
@@ -91,6 +97,34 @@ describe('DeterministicCompletionAdapter', () => {
 
     expect(second).toEqual(first)
     expect(second.content).not.toContain(privateQuestion)
+  })
+
+  it('formats a static diagnosis with one next step and no corrected program', async () => {
+    const result = await new DeterministicCompletionAdapter().complete(
+      request({
+        studentQuestion: 'def average(nums):\n    return sum(nums) / len(num)',
+        strategy: 'PYTHON_CODE_DIAGNOSIS',
+        diagnosis: {
+          likelyDefect: 'The name `num` does not match `nums`.',
+          location: 'The `len(num)` expression on the return line.',
+          conceptExplanation:
+            'Python name lookup uses the active function scope.',
+          nextInspectionStep:
+            'Compare the name passed to `len` with the function parameter.',
+        },
+      }),
+    )
+
+    expect(result).toMatchObject({
+      provider: DETERMINISTIC_COMPLETION_PROVIDER,
+      model: DETERMINISTIC_COMPLETION_MODEL,
+      promptVersion: PYTHON_CODE_DIAGNOSIS_PROMPT_VERSION,
+    })
+    expect(result.content).toContain('`num`')
+    expect(result.content).toContain('name lookup')
+    expect(result.content.match(/Next inspection step/gu)).toHaveLength(1)
+    expect(result.content).not.toContain('def average')
+    expect(result.content).not.toContain('return sum(nums)')
   })
 
   it('contains no variable knowledge absent from supplied context', async () => {

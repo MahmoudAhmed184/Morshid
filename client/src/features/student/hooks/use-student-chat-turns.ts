@@ -134,6 +134,7 @@ export function useSendStudentChatMessage({
             createdAt: now,
             completedAt: null,
             citations: [],
+            reviewSummary: null,
           }
 
           return appendOptimisticStudentMessage(

@@ -59,16 +59,34 @@ vi.mock('@tanstack/react-router', () => ({
     ...props
   }: {
     children?: React.ReactNode
-    search?: Record<string, string>
+    search?: Record<string, string | undefined>
     to: string
-  }) => (
-    <a
-      href={search ? `${to}?${new URLSearchParams(search).toString()}` : to}
-      {...props}
-    >
-      {children}
-    </a>
-  ),
+  }) => {
+    const serializedSearch = Object.fromEntries(
+      Object.entries(search ?? {}).filter((entry): entry is [string, string] =>
+        Boolean(entry[1]),
+      ),
+    )
+
+    return (
+      <a
+        href={
+          search
+            ? `${to}?${new URLSearchParams(serializedSearch).toString()}`
+            : to
+        }
+        data-clears-session={
+          Object.hasOwn(search ?? {}, 'sessionId') &&
+          search?.sessionId === undefined
+            ? 'true'
+            : undefined
+        }
+        {...props}
+      >
+        {children}
+      </a>
+    )
+  },
   ScriptOnce: () => null,
   useNavigate: () => navigateMock,
   useRouterState: <T,>({
@@ -315,11 +333,14 @@ describe('StudentSidebarContent', () => {
     })
     fireEvent.click(switcher)
 
-    expect(
-      await screen.findByRole('menuitem', {
-        name: new RegExp(primaryCourse.title),
-      }),
-    ).toHaveAttribute('href', `/chat?courseId=${primaryCourse.id}`)
+    const courseLink = await screen.findByRole('menuitem', {
+      name: new RegExp(primaryCourse.title),
+    })
+    expect(courseLink).toHaveAttribute(
+      'href',
+      `/chat?courseId=${primaryCourse.id}`,
+    )
+    expect(courseLink).toHaveAttribute('data-clears-session', 'true')
     expect(
       screen.queryByRole('menuitem', { name: 'All courses' }),
     ).not.toBeInTheDocument()
@@ -405,7 +426,7 @@ describe('StudentSidebarContent', () => {
     await waitFor(() =>
       expect(navigateMock).toHaveBeenCalledWith({
         to: '/chat',
-        search: { courseId: primaryCourse.id },
+        search: { courseId: primaryCourse.id, sessionId: undefined },
       }),
     )
     expect(createStudentSessionMock).not.toHaveBeenCalled()
@@ -445,7 +466,7 @@ describe('StudentSidebarContent', () => {
     await waitFor(() =>
       expect(navigateMock).toHaveBeenCalledWith({
         to: '/chat',
-        search: { courseId: primaryCourse.id },
+        search: { courseId: primaryCourse.id, sessionId: undefined },
       }),
     )
     expect(createStudentSessionMock).not.toHaveBeenCalled()
@@ -468,7 +489,7 @@ describe('StudentSidebarContent', () => {
     await waitFor(() =>
       expect(navigateMock).toHaveBeenCalledWith({
         to: '/chat',
-        search: { courseId: primaryCourse.id },
+        search: { courseId: primaryCourse.id, sessionId: undefined },
       }),
     )
     expect(focusSpy).toHaveBeenCalled()
@@ -655,7 +676,7 @@ describe('StudentSidebarContent', () => {
     )
     expect(navigateMock).toHaveBeenCalledWith({
       to: '/chat',
-      search: { courseId: primaryCourse.id },
+      search: { courseId: primaryCourse.id, sessionId: undefined },
     })
   })
 

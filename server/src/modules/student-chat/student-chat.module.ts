@@ -5,7 +5,6 @@ import { AuthModule } from '../auth/auth.module'
 import { PrismaModule } from '../prisma/prisma.module'
 import { PdfStorageModule } from '../pdf-storage/pdf-storage.module'
 import { RetrievalModule } from '../retrieval/retrieval.module'
-
 import { SocraticTutorModule } from '../socratic-tutor/socratic-tutor.module'
 import { SocraticChatOrchestrator } from './socratic-chat.orchestrator'
 import { StudentChatAuditService } from './student-chat.audit.service'
@@ -26,6 +25,7 @@ import {
   PrismaGroundedChatTurnRepository,
 } from './grounded-chat-turn.repository'
 import { GroundedChatService } from './grounded-chat.service'
+import { CorrectnessSensitiveRequestClassifier } from './correctness-sensitive-request.classifier'
 
 @Module({
   imports: [
@@ -42,6 +42,7 @@ import { GroundedChatService } from './grounded-chat.service'
     StudentChatService,
     StudentChatCourseBoundaryAuditFilter,
     StudentChatMessagePresenter,
+    CorrectnessSensitiveRequestClassifier,
     {
       provide: StudentChatSessionRepository,
       useClass: PrismaStudentChatSessionRepository,

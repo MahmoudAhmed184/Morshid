@@ -25,8 +25,12 @@ client/dist/
 
 # Server
 server/dist/
+server/.dist-root/
 server/coverage/
 server/src/generated/prisma/
+
+# Scratch logs (never commit)
+*.log
 
 # Local storage (runtime uploads only; committed source fixtures live in fixtures/sources/)
 storage/pdfs/*

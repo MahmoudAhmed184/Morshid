@@ -11,6 +11,7 @@ import {
   GROUNDED_COMPLETION_PROMPT_VERSION,
   parseGroundedCompletionInputEnvelope,
 } from '../../grounded-completion-envelope'
+import { preparedCompletionStrategy } from '../../completion-adapter'
 
 export const DETERMINISTIC_COMPLETION_MODEL = 'deterministic-completion-v1'
 export const DETERMINISTIC_EVIDENCE_EXCERPT_CODE_POINTS = 240
@@ -37,6 +38,20 @@ export class DeterministicCompletionAdapter implements CompletionAdapter {
       const input = parseGroundedCompletionInputEnvelope(
         request.messages[1].content,
       )
+      if (
+        preparedCompletionStrategy(request) === 'PYTHON_CODE_DIAGNOSIS' &&
+        'diagnosis' in input
+      ) {
+        resolve({
+          content: formatStaticCodeDiagnosis(input.diagnosis),
+          provider: DETERMINISTIC_COMPLETION_PROVIDER,
+          model: DETERMINISTIC_COMPLETION_MODEL,
+          promptVersion:
+            request.promptVersion ?? GROUNDED_COMPLETION_PROMPT_VERSION,
+        })
+        return
+      }
+
       const evidence = input.context.map((entry, index) => {
         const excerpt = takeCodePoints(
           normalizeDeterministicText(entry.content),
@@ -51,10 +66,32 @@ export class DeterministicCompletionAdapter implements CompletionAdapter {
         content: [DETERMINISTIC_HEADER, ...evidence].join('\n'),
         provider: DETERMINISTIC_COMPLETION_PROVIDER,
         model: DETERMINISTIC_COMPLETION_MODEL,
-        promptVersion: GROUNDED_COMPLETION_PROMPT_VERSION,
+        promptVersion:
+          request.promptVersion ?? GROUNDED_COMPLETION_PROMPT_VERSION,
       })
     })
   }
+}
+
+function formatStaticCodeDiagnosis(diagnosis: {
+  readonly likelyDefect: string
+  readonly location: string
+  readonly conceptExplanation: string
+  readonly nextInspectionStep: string
+}): string {
+  return [
+    'Likely defect',
+    diagnosis.likelyDefect,
+    '',
+    'Relevant location',
+    diagnosis.location,
+    '',
+    'Python concept',
+    `${diagnosis.conceptExplanation} [1]`,
+    '',
+    'Next inspection step',
+    diagnosis.nextInspectionStep,
+  ].join('\n')
 }
 
 function takeCodePoints(text: string, limit: number): string {

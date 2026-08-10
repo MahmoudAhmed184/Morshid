@@ -417,6 +417,7 @@ function retrievedChunk(): RetrievedChunk {
     content: 'Loop variables change during iteration.',
     rank: 1,
     similarityScore: 0.9,
+    embeddingModel: 'deterministic-embedding-v1',
   }
 }
 

@@ -115,6 +115,7 @@ export const GEMINI_SOCRATIC_RETRIEVED_CHUNKS: readonly RetrievedChunk[] = [
     chunkIndex: 0,
     rank: 1,
     similarityScore: 0.99,
+    embeddingModel: 'gemini-embedding-004',
     content:
       'To evaluate 3x + 4 for x = 2, substitute 2 for x, multiply 3 by 2, then add 4. The check is that multiplication is completed before addition.',
   },

@@ -16,6 +16,8 @@ import { EmbeddingModule } from './modules/embedding/embedding.module'
 import { MaterialsModule } from './modules/materials/materials.module'
 import { RetrievalModule } from './modules/retrieval/retrieval.module'
 import { SocraticTutorModule } from './modules/socratic-tutor/socratic-tutor.module'
+import { ReviewsModule } from './modules/reviews/reviews.module'
+import { NotificationsModule } from './modules/notifications/notifications.module'
 
 @Module({
   imports: [
@@ -38,6 +40,8 @@ import { SocraticTutorModule } from './modules/socratic-tutor/socratic-tutor.mod
     MaterialsModule,
     CompletionModule,
     SocraticTutorModule,
+    ReviewsModule,
+    NotificationsModule,
   ],
 })
 export class AppModule {}

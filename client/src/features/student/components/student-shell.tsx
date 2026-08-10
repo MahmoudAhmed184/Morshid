@@ -4,6 +4,7 @@ import { BookMarked } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ModeToggle } from '@/components/ui/mode-toggle'
 import { SidebarInset, useSidebar } from '@/components/ui/sidebar'
+import { StudentNotificationBell } from '@/features/notifications/components/student-notification-bell'
 import { useStudentChromeSources } from '@/features/student/components/student-chrome-context'
 import { cn } from '@/lib/utils'
 
@@ -52,6 +53,7 @@ function ClusterButtons() {
           </Button>
         </>
       ) : null}
+      <StudentNotificationBell />
       <ModeToggle />
     </>
   )

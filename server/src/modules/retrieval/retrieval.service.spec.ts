@@ -146,6 +146,7 @@ describe('RetrievalService', () => {
           content: 'closest chunk',
           rank: 1,
           similarityScore: 0.95,
+          embeddingModel,
         },
         {
           chunkId: 'chunk-b',
@@ -155,6 +156,7 @@ describe('RetrievalService', () => {
           content: 'second chunk',
           rank: 2,
           similarityScore: 0.8,
+          embeddingModel,
         },
       ],
     })
