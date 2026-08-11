@@ -6,22 +6,24 @@ const assistantMessageId = '25587e6e-4e6a-4533-9d4f-97be9e63bd96'
 const caseId = '15587e6e-4e6a-4533-9d4f-97be9e63bd96'
 
 describe('OutputPolicyReviewAdapter', () => {
-  let createAutomatic: jest.MockedFunction<ReviewCaseCreator['createAutomatic']>
+  let createAutomaticBatch: jest.MockedFunction<
+    ReviewCaseCreator['createAutomaticBatch']
+  >
   let adapter: OutputPolicyReviewAdapter
   const policy = new OutputPolicyService()
 
   beforeEach(() => {
-    createAutomatic = jest.fn() as jest.MockedFunction<
-      ReviewCaseCreator['createAutomatic']
+    createAutomaticBatch = jest.fn() as jest.MockedFunction<
+      ReviewCaseCreator['createAutomaticBatch']
     >
-    createAutomatic.mockResolvedValue({
+    createAutomaticBatch.mockResolvedValue({
       caseId,
       messageId: assistantMessageId,
       status: 'PENDING',
       replayed: false,
     })
     adapter = new OutputPolicyReviewAdapter({
-      createAutomatic,
+      createAutomaticBatch,
     } as unknown as ReviewCaseCreator)
   })
 
@@ -39,23 +41,16 @@ describe('OutputPolicyReviewAdapter', () => {
     await expect(
       adapter.createRequiredReview({ assistantMessageId, decision }),
     ).resolves.toBeNull()
-    expect(createAutomatic).not.toHaveBeenCalled()
+    expect(createAutomaticBatch).not.toHaveBeenCalled()
   })
 
   it('aggregates every reason through one message-scoped shared creator seam', async () => {
-    createAutomatic
-      .mockResolvedValueOnce({
-        caseId,
-        messageId: assistantMessageId,
-        status: 'PENDING',
-        replayed: false,
-      })
-      .mockResolvedValue({
-        caseId,
-        messageId: assistantMessageId,
-        status: 'PENDING',
-        replayed: true,
-      })
+    createAutomaticBatch.mockResolvedValue({
+      caseId,
+      messageId: assistantMessageId,
+      status: 'PENDING',
+      replayed: true,
+    })
     const decision = policy.evaluate({
       proposedContent: 'A complete unsupported answer without a citation',
       assessment: {
@@ -77,21 +72,24 @@ describe('OutputPolicyReviewAdapter', () => {
       status: 'PENDING',
       replayed: true,
     })
-    expect(createAutomatic).toHaveBeenCalledTimes(3)
-    expect(
-      createAutomatic.mock.calls.map(([request]) => request.trigger),
-    ).toEqual(['GENERAL_NOT_FOUND', 'FINAL_ANSWER_RISK', 'CITATION_MISSING'])
-    for (const [request] of createAutomatic.mock.calls) {
-      expect(request).toMatchObject({
-        messageId: assistantMessageId,
-        evidence: decision.reviewEvidence,
-        detectorMetadata: {
-          policyVersion: 'output-policy-v1',
-          reasonCount: 3,
-        },
+    expect(createAutomaticBatch).toHaveBeenCalledTimes(1)
+    const request = createAutomaticBatch.mock.calls[0][0]
+    expect(request.triggers.map(({ trigger }) => trigger)).toEqual([
+      'GENERAL_NOT_FOUND',
+      'FINAL_ANSWER_RISK',
+      'CITATION_MISSING',
+    ])
+    expect(request).toMatchObject({
+      messageId: assistantMessageId,
+      evidence: decision.reviewEvidence,
+    })
+    for (const trigger of request.triggers) {
+      expect(trigger.detectorMetadata).toMatchObject({
+        policyVersion: 'output-policy-v1',
+        reasonCount: 3,
       })
-      expect(request.sourceEventKey).not.toContain(assistantMessageId)
-      expect(request.sourceEventKey.length).toBeLessThanOrEqual(200)
+      expect(trigger.sourceEventKey).not.toContain(assistantMessageId)
+      expect(trigger.sourceEventKey.length).toBeLessThanOrEqual(200)
     }
   })
 
@@ -107,21 +105,21 @@ describe('OutputPolicyReviewAdapter', () => {
     })
 
     await adapter.createRequiredReview({ assistantMessageId, decision })
-    createAutomatic.mockResolvedValue({
-      caseId,
-      messageId: assistantMessageId,
-      status: 'PENDING',
-      replayed: true,
-    })
     await adapter.createRequiredReview({ assistantMessageId, decision })
 
-    expect(createAutomatic).toHaveBeenCalledTimes(2)
-    expect(createAutomatic.mock.calls[0][0].sourceEventKey).toBe(
-      createAutomatic.mock.calls[1][0].sourceEventKey,
+    expect(createAutomaticBatch).toHaveBeenCalledTimes(2)
+    expect(
+      createAutomaticBatch.mock.calls[0]?.[0].triggers.map(
+        ({ sourceEventKey }) => sourceEventKey,
+      ),
+    ).toEqual(
+      createAutomaticBatch.mock.calls[1]?.[0].triggers.map(
+        ({ sourceEventKey }) => sourceEventKey,
+      ),
     )
   })
 
-  it('copies allowlisted detector facts into immutable trigger metadata', async () => {
+  it('copies allowlisted detector facts into every immutable trigger metadata record', async () => {
     const decision = policy.evaluate({
       proposedContent: 'Conflicting guidance',
       assessment: {
@@ -138,45 +136,24 @@ describe('OutputPolicyReviewAdapter', () => {
 
     await adapter.createRequiredReview({ assistantMessageId, decision })
 
-    expect(createAutomatic).toHaveBeenCalledWith(
+    expect(createAutomaticBatch).toHaveBeenCalledWith(
       expect.objectContaining({
-        detectorMetadata: {
-          policyVersion: 'output-policy-v1',
-          reasonCount: 1,
-          detectorVersion: 'conflict-v1',
-          embeddingModel: 'embedding-v1',
-        },
+        triggers: [
+          expect.objectContaining({
+            detectorMetadata: {
+              policyVersion: 'output-policy-v1',
+              reasonCount: 1,
+              detectorVersion: 'conflict-v1',
+              embeddingModel: 'embedding-v1',
+            },
+          }),
+        ],
       }),
-      undefined,
-    )
-    expect(
-      Object.keys(
-        createAutomatic.mock.calls[0][0].detectorMetadata ?? {},
-      ).sort(),
-    ).toEqual(
-      [
-        'detectorVersion',
-        'embeddingModel',
-        'policyVersion',
-        'reasonCount',
-      ].sort(),
     )
   })
 
-  it('fails closed if the shared creator returns different cases for one message', async () => {
-    createAutomatic
-      .mockResolvedValueOnce({
-        caseId,
-        messageId: assistantMessageId,
-        status: 'PENDING',
-        replayed: false,
-      })
-      .mockResolvedValueOnce({
-        caseId: '35587e6e-4e6a-4533-9d4f-97be9e63bd96',
-        messageId: assistantMessageId,
-        status: 'PENDING',
-        replayed: false,
-      })
+  it('fails closed when the shared creator rejects the atomic batch', async () => {
+    createAutomaticBatch.mockRejectedValue(new Error('automatic batch failed'))
     const decision = policy.evaluate({
       proposedContent: 'Risky output',
       assessment: {
@@ -189,28 +166,6 @@ describe('OutputPolicyReviewAdapter', () => {
 
     await expect(
       adapter.createRequiredReview({ assistantMessageId, decision }),
-    ).rejects.toThrow('Automatic output-policy review could not be created')
-  })
-
-  it('fails closed if the shared creator returns a case for another message', async () => {
-    createAutomatic.mockResolvedValue({
-      caseId,
-      messageId: '35587e6e-4e6a-4533-9d4f-97be9e63bd96',
-      status: 'PENDING',
-      replayed: false,
-    })
-    const decision = policy.evaluate({
-      proposedContent: 'Risky output',
-      assessment: {
-        support: 'SUPPORTED',
-        policyCheck: 'FAILED',
-        answerRisk: 'NONE',
-        citations: 'PRESENT',
-      },
-    })
-
-    await expect(
-      adapter.createRequiredReview({ assistantMessageId, decision }),
-    ).rejects.toThrow('Automatic output-policy review could not be created')
+    ).rejects.toThrow('automatic batch failed')
   })
 })

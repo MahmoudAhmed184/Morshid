@@ -89,11 +89,6 @@ export function chatMessageSelectForStudent(studentId: string) {
           },
           select: { id: true },
         },
-        _count: {
-          select: {
-            notifications: { where: { recipientUserId: studentId } },
-          },
-        },
       },
     },
   } satisfies Prisma.MessageSelect

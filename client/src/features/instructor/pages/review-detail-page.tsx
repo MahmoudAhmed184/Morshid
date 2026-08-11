@@ -16,9 +16,9 @@ import { PageHeader } from '@/components/ui/custom/page-header'
 import { StatusBadge } from '@/components/ui/custom/status-badge/status-badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { InstructorReviewActionPanel } from '@/features/instructor/components/instructor-review-action-panel'
-import { useInstructorReviewDetail } from '@/features/instructor/hooks/use-instructor-reviews'
-import type { InstructorReviewExchange } from '@/features/instructor/schemas/instructor-review.schema'
-import { studentFlagReasonLabel } from '@/features/instructor/student-flag-reason'
+import { useInstructorReviewDetail } from '@/features/reviews/instructor-queue/use-instructor-reviews'
+import type { InstructorReviewExchange } from '@/features/reviews/interface/instructor-review.schema'
+import { studentFlagReasonLabel } from '@/features/reviews/interface/student-flag-reason'
 import { cn } from '@/lib/utils'
 
 export function ReviewDetailPage({

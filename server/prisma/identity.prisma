@@ -45,7 +45,7 @@ model User {
   reviewTriggers     ReviewTrigger[]     @relation("ReviewTriggerActor")
   reviewActions      ReviewAction[]      @relation("ReviewActionActor")
   idempotencyRecords IdempotencyRecord[]
-  notifications      Notification[]      @relation("NotificationRecipient")
+  inboxItems         ReviewInboxItem[]   @relation("ReviewInboxRecipient")
 
   @@index([disabledById], map: "idx_users_disabled_by")
   @@map("users")

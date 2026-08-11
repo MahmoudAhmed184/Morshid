@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common'
-import { z } from 'zod'
 
 import {
   CourseMembershipRole,
@@ -11,75 +10,13 @@ import {
   type StudentFlagReason,
 } from '../../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
-import { reviewEvidenceContentHash } from './review-evidence-integrity'
+import {
+  parseReviewEvidence,
+  type ReviewEvidenceSnapshot,
+} from './evidence/review-evidence'
+import { reviewEvidenceContentHash } from './evidence/review-evidence-integrity'
 
 const MAX_CITATIONS = 20
-const MAX_SNIPPETS = 20
-
-const evidenceMessageSchema = z.object({
-  id: z.string(),
-  role: z.enum(MessageRole),
-  content: z.string(),
-  createdAt: z.string(),
-})
-
-const reviewEvidenceSchema = z.object({
-  target: z.object({
-    id: z.string(),
-    role: z.enum(MessageRole).optional(),
-    content: z.string(),
-    createdAt: z.string().optional(),
-    completedAt: z.string().nullable(),
-  }),
-  studentPrompt: z
-    .object({
-      id: z.string(),
-      content: z.string(),
-      createdAt: z.string(),
-    })
-    .nullable(),
-  context: z.object({
-    previousMessages: z.array(evidenceMessageSchema).optional(),
-    followingMessages: z.array(evidenceMessageSchema).optional(),
-    previous: evidenceMessageSchema.nullable().optional(),
-    next: evidenceMessageSchema.nullable().optional(),
-  }),
-  citations: z
-    .array(
-      z.object({
-        order: z.number().int().positive(),
-        materialId: z.string(),
-        title: z.string(),
-      }),
-    )
-    .max(MAX_CITATIONS),
-  retrievals: z
-    .array(
-      z.object({
-        rank: z.number().int().positive(),
-        materialId: z.string().nullable().optional(),
-        chunkNumber: z.number().int().positive().nullable().optional(),
-        excerpt: z.string().nullable(),
-      }),
-    )
-    .max(MAX_SNIPPETS),
-  automaticEvidence: z
-    .object({
-      sources: z
-        .array(
-          z.object({
-            materialId: z.string().optional(),
-            materialTitle: z.string().optional(),
-            chunkIndex: z.number().int().nonnegative().optional(),
-            excerpt: z.string(),
-            rank: z.number().int().positive().optional(),
-          }),
-        )
-        .max(MAX_SNIPPETS),
-    })
-    .nullable()
-    .optional(),
-})
 
 export interface ReviewDetailMessageRecord {
   role: MessageRole
@@ -112,7 +49,6 @@ export interface InstructorReviewDetailRecord {
   }
   previousMessages: ReviewDetailMessageRecord[]
   followingMessages: ReviewDetailMessageRecord[]
-  notificationCount: number
   actions: {
     type: ReviewActionType
     actorDisplayName: string | null
@@ -124,6 +60,8 @@ export interface InstructorReviewDetailRecord {
 }
 
 export abstract class InstructorReviewDetailRepository {
+  abstract findCourseId(reviewCaseId: string): Promise<string | null>
+
   abstract findAuthorized(
     instructorId: string,
     reviewCaseId: string,
@@ -134,6 +72,15 @@ export abstract class InstructorReviewDetailRepository {
 export class PrismaInstructorReviewDetailRepository extends InstructorReviewDetailRepository {
   constructor(private readonly prisma: PrismaService) {
     super()
+  }
+
+  findCourseId(reviewCaseId: string): Promise<string | null> {
+    return this.prisma.reviewCase
+      .findUnique({
+        where: { id: reviewCaseId },
+        select: { courseId: true },
+      })
+      .then((reviewCase) => reviewCase?.courseId ?? null)
   }
 
   async findAuthorized(
@@ -194,7 +141,6 @@ export class PrismaInstructorReviewDetailRepository extends InstructorReviewDeta
             actor: { select: { displayName: true } },
           },
         },
-        _count: { select: { notifications: true } },
       },
     })
 
@@ -203,38 +149,33 @@ export class PrismaInstructorReviewDetailRepository extends InstructorReviewDeta
       ({ type }) => type === ReviewTriggerType.STUDENT_REQUEST,
     )
     const evidenceRecord = reviewCase?.evidence
-    const evidence = reviewEvidenceSchema.safeParse(
+    const evidence = parseReviewEvidence(
       evidenceRecord?.schemaVersion === 1 ? evidenceRecord.evidence : undefined,
     )
     const evidenceHashMatches =
-      evidence.success &&
+      evidence !== null &&
       evidenceRecord?.contentHash !== undefined &&
       reviewEvidenceContentHash(evidenceRecord.evidence) ===
         evidenceRecord.contentHash
-    const assistantCreatedAt = evidence.success
-      ? (evidence.data.target.createdAt ?? evidence.data.target.completedAt)
-      : null
-    const studentPrompt = evidence.success ? evidence.data.studentPrompt : null
+    const assistantCreatedAt =
+      evidence !== null ? evidence.target.createdAt : null
+    const studentPrompt = evidence?.studentPrompt ?? null
     if (
       reviewCase === null ||
       trigger === undefined ||
-      !evidence.success ||
+      evidence === null ||
       !evidenceHashMatches ||
       studentPrompt === null ||
       assistantCreatedAt === null
     ) {
       return null
     }
-    const snapshot = evidence.data
+    const snapshot = evidence
     const automaticCitations = citationsFromAutomaticEvidence(
       snapshot.automaticEvidence,
     )
-    const previousMessages = snapshot.context.previousMessages ?? []
-    const followingMessages =
-      snapshot.context.followingMessages ??
-      (snapshot.context.next === null || snapshot.context.next === undefined
-        ? []
-        : [snapshot.context.next])
+    const previousMessages = snapshot.context.previousMessages
+    const followingMessages = snapshot.context.followingMessages
 
     return {
       id: reviewCase.id,
@@ -265,7 +206,7 @@ export class PrismaInstructorReviewDetailRepository extends InstructorReviewDeta
         createdAt: parseSnapshotDate(studentPrompt.createdAt),
       },
       assistantResponse: {
-        role: snapshot.target.role ?? MessageRole.ASSISTANT,
+        role: snapshot.target.role,
         content: snapshot.target.content,
         createdAt: parseSnapshotDate(assistantCreatedAt),
         citations:
@@ -278,7 +219,6 @@ export class PrismaInstructorReviewDetailRepository extends InstructorReviewDeta
                 snippets: snapshot.retrievals.flatMap((retrieval) =>
                   retrieval.materialId === citation.materialId &&
                   retrieval.chunkNumber !== null &&
-                  retrieval.chunkNumber !== undefined &&
                   retrieval.excerpt !== null
                     ? [
                         {
@@ -292,7 +232,6 @@ export class PrismaInstructorReviewDetailRepository extends InstructorReviewDeta
       },
       previousMessages: previousMessages.map(mapEvidenceMessage),
       followingMessages: followingMessages.map(mapEvidenceMessage),
-      notificationCount: reviewCase._count.notifications,
       actions: reviewCase.actions.map((action) => ({
         type: action.actionType,
         actorDisplayName: action.actor?.displayName ?? null,
@@ -306,7 +245,7 @@ export class PrismaInstructorReviewDetailRepository extends InstructorReviewDeta
 }
 
 function citationsFromAutomaticEvidence(
-  evidence: z.infer<typeof reviewEvidenceSchema>['automaticEvidence'],
+  evidence: ReviewEvidenceSnapshot['automaticEvidence'],
 ): InstructorReviewDetailRecord['assistantResponse']['citations'] {
   const citations = new Map<
     string,
@@ -337,7 +276,7 @@ function citationsFromAutomaticEvidence(
 }
 
 function mapEvidenceMessage(
-  message: z.infer<typeof evidenceMessageSchema>,
+  message: ReviewEvidenceSnapshot['context']['previousMessages'][number],
 ): ReviewDetailMessageRecord {
   return {
     role: message.role,

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
 import { MessageRole } from '../../generated/prisma/client'
+import { CourseAccessService } from '../courses/course-access.public'
 import type { AuthenticatedUser } from '../identity/identity.types'
 import { reviewNotFoundException } from './review-case.errors'
 import type {
@@ -16,12 +17,23 @@ const MAX_EXCERPT_CODE_POINTS = 500
 
 @Injectable()
 export class InstructorReviewDetailService {
-  constructor(private readonly repository: InstructorReviewDetailRepository) {}
+  constructor(
+    private readonly repository: InstructorReviewDetailRepository,
+    private readonly courseAccessService: CourseAccessService,
+  ) {}
 
   async get(
     user: AuthenticatedUser,
     reviewCaseId: string,
   ): Promise<InstructorReviewDetailDto> {
+    const courseId = await this.repository.findCourseId(reviewCaseId)
+    if (
+      courseId === null ||
+      !(await this.courseAccessService.canManageCourse(user, courseId))
+    ) {
+      throw reviewNotFoundException()
+    }
+
     const record = await this.repository.findAuthorized(user.id, reviewCaseId)
     if (record === null) {
       throw reviewNotFoundException()
@@ -64,7 +76,6 @@ export class InstructorReviewDetailService {
         status: record.status,
         outcome: record.outcome,
         resolvedAt: record.resolvedAt?.toISOString() ?? null,
-        hasNotification: record.notificationCount > 0,
       },
     }
   }

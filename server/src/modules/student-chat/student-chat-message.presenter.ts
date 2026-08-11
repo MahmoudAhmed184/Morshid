@@ -69,7 +69,6 @@ export class StudentChatMessagePresenter {
               status: record.reviewCase.status,
               outcome: record.reviewCase.outcome,
               resolvedAt: record.reviewCase.resolvedAt?.toISOString() ?? null,
-              hasNotification: record.reviewCase._count.notifications > 0,
             }
           : null,
     }

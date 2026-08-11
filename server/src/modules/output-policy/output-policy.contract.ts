@@ -2,7 +2,7 @@ import type {
   MessageGuidanceLabel,
   ReviewTriggerType,
 } from '../../generated/prisma/client'
-import type { AutomaticReviewEvidenceContribution } from '../reviews/automatic-review-evidence'
+import type { AutomaticReviewEvidenceContribution } from '../reviews/reviews.public'
 
 export const OUTPUT_POLICY_VERSION = 'output-policy-v1'
 

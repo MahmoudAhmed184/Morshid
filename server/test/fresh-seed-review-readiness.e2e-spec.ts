@@ -68,17 +68,17 @@ describe('Fresh migration and seed manual review readiness (e2e)', () => {
           'review_triggers',
           'review_evidence_snapshots',
           'review_actions',
-          'notifications',
+          'review_inbox_items',
           'idempotency_records'
         )
       ORDER BY table_name
     `
     expect(tables.map(({ table_name }) => table_name)).toEqual([
       'idempotency_records',
-      'notifications',
       'review_actions',
       'review_cases',
       'review_evidence_snapshots',
+      'review_inbox_items',
       'review_triggers',
     ])
 
@@ -111,7 +111,7 @@ describe('Fresh migration and seed manual review readiness (e2e)', () => {
           'review_cases_target_message_id_key',
           'review_triggers_manual_actor_case_key',
           'review_actions_case_version_key',
-          'notifications_terminal_review_key',
+          'review_inbox_items_recipient_review_case_key',
           'idempotency_records_actor_scope_key_key'
         )
       ORDER BY indexname
@@ -191,7 +191,7 @@ describe('Fresh migration and seed manual review readiness (e2e)', () => {
     })
     await expect(prisma.reviewCase.count()).resolves.toBe(0)
     await expect(prisma.reviewTrigger.count()).resolves.toBe(0)
-    await expect(prisma.notification.count()).resolves.toBe(0)
+    await expect(prisma.reviewInboxItem.count()).resolves.toBe(0)
     await expect(prisma.idempotencyRecord.count()).resolves.toBe(0)
 
     const repository = new PrismaReviewCaseRepository(
@@ -230,7 +230,7 @@ describe('Fresh migration and seed manual review readiness (e2e)', () => {
     await expect(
       prisma.reviewCase.count({ where: { requestedByUserId: student.id } }),
     ).resolves.toBe(1)
-    await expect(prisma.notification.count()).resolves.toBe(0)
+    await expect(prisma.reviewInboxItem.count()).resolves.toBe(0)
   })
 
   async function runServerCommand(script: string): Promise<void> {

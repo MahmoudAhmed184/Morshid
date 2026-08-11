@@ -46,7 +46,7 @@ The net-live enum set is the enum set represented by the current Prisma model:
 identity and membership status/role enums; material status; message role,
 status, request kind, and guidance label; topic, tutor, guard, teaching,
 learning, and educational-analysis enums; review, student-flag, action,
-outcome, and notification enums. Enum labels and order are generated from the
+outcome, and Review Inbox enums. Enum labels and order are generated from the
 authored schema and checked by catalog assertions.
 
 ## Retained relational objects
@@ -63,13 +63,13 @@ foreign keys, and Prisma-declared indexes for:
   `educational_analysis_evidence_links`,
   `educational_analysis_misconceptions`;
 - `review_cases`, `review_triggers`, `review_evidence_snapshots`,
-  `review_actions`, `idempotency_records`, `notifications`;
+  `review_actions`, `idempotency_records`, `review_inbox_items`;
 - `audit_logs`.
 
 The migration must retain the exact mapped uniqueness and lookup indexes,
 including response identity, session sequence, active membership lookup,
 material processing lease, course-scoped material status, review queue/action
-indexes, notification partial indexes, idempotency expiry, tutoring attempt
+indexes, Review Inbox lookup indexes, idempotency expiry, tutoring attempt
 and candidate/guard identity, and retrieval/citation identity.
 
 ## Handwritten SQL reconciliation
@@ -84,7 +84,7 @@ database contracts. The initial SQL must therefore add and catalog-assert:
 - retrieval rank/similarity and citation order bounds;
 - review case version, resolution shape, target uniqueness, trigger shape,
   evidence JSON/hash/size, action version/reason/metadata, idempotency key/
-  fingerprint/status, and notification metadata/state checks;
+  fingerprint/status, and Review Inbox read-state checks;
 - tutoring topic/state/turn, candidate, guard, educational-analysis, and
   teaching-decision checks recorded in the historical SQL;
 - audit action/target/metadata checks;

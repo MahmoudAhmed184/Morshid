@@ -19,7 +19,7 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   useRejectInstructorReview,
   useResolveInstructorReview,
-} from '@/features/instructor/hooks/use-instructor-reviews'
+} from '@/features/reviews/instructor-queue/use-instructor-reviews'
 import { isApiError } from '@/lib/api/http'
 
 type EditorMode = 'EDITED' | 'REPLACED' | 'REJECT'

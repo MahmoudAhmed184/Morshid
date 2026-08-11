@@ -128,7 +128,6 @@ describe('StudentChatMessagePresenter', () => {
           outcome: null,
           resolvedAt: null,
           triggers: [{ id: 'manual-trigger-id' }],
-          _count: { notifications: 0 },
         },
       }),
     )
@@ -138,7 +137,6 @@ describe('StudentChatMessagePresenter', () => {
       status: 'PENDING',
       outcome: null,
       resolvedAt: null,
-      hasNotification: false,
     })
     expect(result.reviewSummary).not.toHaveProperty('triggers')
     expect(result.reviewSummary).not.toHaveProperty('requestedByUserId')
@@ -161,7 +159,6 @@ describe('StudentChatMessagePresenter', () => {
             outcome,
             resolvedAt,
             triggers: [{ id: 'manual-trigger-id' }],
-            _count: { notifications: 1 },
           },
         }),
       )
@@ -171,7 +168,6 @@ describe('StudentChatMessagePresenter', () => {
         status,
         outcome,
         resolvedAt: resolvedAt.toISOString(),
-        hasNotification: true,
       })
     },
   )
@@ -185,7 +181,6 @@ describe('StudentChatMessagePresenter', () => {
           outcome: null,
           resolvedAt: null,
           triggers: [{ id: 'manual-trigger-id' }],
-          _count: { notifications: 0 },
         },
       }),
     )
@@ -195,7 +190,6 @@ describe('StudentChatMessagePresenter', () => {
       status: 'IN_REVIEW',
       outcome: null,
       resolvedAt: null,
-      hasNotification: false,
     })
   })
 })

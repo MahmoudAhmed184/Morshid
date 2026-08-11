@@ -17,14 +17,23 @@ describe('InstructorReviewDetailService', () => {
     role: UserRole.INSTRUCTOR,
     status: UserStatus.ACTIVE,
   }
+  const findCourseId = jest.fn()
   const findAuthorized = jest.fn()
-  const service = new InstructorReviewDetailService({ findAuthorized })
+  const canManageCourse = jest.fn()
+  const service = new InstructorReviewDetailService(
+    { findCourseId, findAuthorized },
+    { canManageCourse } as never,
+  )
 
-  beforeEach(() => jest.clearAllMocks())
+  beforeEach(() => {
+    jest.clearAllMocks()
+    canManageCourse.mockResolvedValue(true)
+  })
 
   it.each(['unauthorized', 'guessed', 'nonexistent', 'deleted'])(
     'returns the same concealed error for a %s review',
     async () => {
+      findCourseId.mockResolvedValue(null)
       findAuthorized.mockResolvedValue(null)
       await expect(service.get(user, 'review-x')).rejects.toMatchObject({
         status: 404,
@@ -34,11 +43,13 @@ describe('InstructorReviewDetailService', () => {
   )
 
   it('returns only the allowlisted fields for an authorized Instructor', async () => {
+    findCourseId.mockResolvedValue('course-1')
     findAuthorized.mockResolvedValue(record())
 
     const result = await service.get(user, 'review-1')
 
     expect(findAuthorized).toHaveBeenCalledWith(user.id, 'review-1')
+    expect(canManageCourse).toHaveBeenCalledWith(user, 'course-1')
     expect(Object.keys(result)).toEqual([
       'reviewCaseId',
       'status',
@@ -112,7 +123,6 @@ describe('InstructorReviewDetailService', () => {
       ],
       followingMessages: [],
       actions: [],
-      notificationCount: 0,
     }
   }
 

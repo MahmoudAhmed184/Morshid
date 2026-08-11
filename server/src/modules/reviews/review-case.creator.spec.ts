@@ -25,7 +25,10 @@ describe('ReviewCaseCreator', () => {
   let creator: ReviewCaseCreator
 
   beforeEach(() => {
-    repository = { create: jest.fn() }
+    repository = {
+      create: jest.fn(),
+      createAutomaticBatch: jest.fn(),
+    }
     creator = new ReviewCaseCreator(repository)
   })
 
@@ -56,7 +59,6 @@ describe('ReviewCaseCreator', () => {
         reviewCaseId: caseId,
         status: 'PENDING',
         outcome: null,
-        hasNotification: false,
       },
     })
     expect(response).not.toHaveProperty('courseId')
@@ -78,38 +80,46 @@ describe('ReviewCaseCreator', () => {
   })
 
   it('provides automatic safety with the shared contract without exposing persistence records', async () => {
-    repository.create.mockResolvedValue({
-      kind: 'ok',
-      record: {
-        ...ok(false).record,
-        trigger: 'POLICY_CHECK_FAILED',
+    repository.createAutomaticBatch.mockResolvedValue([
+      {
+        kind: 'ok',
+        record: {
+          ...ok(false).record,
+          trigger: 'POLICY_CHECK_FAILED',
+        },
       },
-    })
+    ])
 
-    const result = await creator.createAutomatic({
+    const result = await creator.createAutomaticBatch({
       messageId,
-      trigger: 'POLICY_CHECK_FAILED',
-      sourceEventKey: 'detector-event-1',
+      triggers: [
+        {
+          trigger: 'POLICY_CHECK_FAILED',
+          sourceEventKey: 'detector-event-1',
+          detectorMetadata: { detectorVersion: 'v1' },
+        },
+      ],
       evidence: {
         summary: '  confidence threshold was not met  ',
         facts: [{ code: 'confidence', value: 0.3 }],
       },
-      detectorMetadata: { detectorVersion: 'v1' },
     })
 
-    expect(repository.create.mock.calls[0]?.[0]).toEqual({
-      kind: 'automatic',
-      messageId,
-      trigger: 'POLICY_CHECK_FAILED',
-      sourceEventKey: 'detector-event-1',
-      evidence: {
-        summary: 'confidence threshold was not met',
-        sources: [],
-        facts: [{ code: 'confidence', value: 0.3 }],
+    expect(repository.createAutomaticBatch.mock.calls[0]?.[0]).toEqual([
+      {
+        kind: 'automatic',
+        messageId,
+        trigger: 'POLICY_CHECK_FAILED',
+        sourceEventKey: 'detector-event-1',
+        evidence: {
+          summary: 'confidence threshold was not met',
+          sources: [],
+          facts: [{ code: 'confidence', value: 0.3 }],
+        },
+        detectorMetadata: { detectorVersion: 'v1' },
+        requestContext: undefined,
       },
-      detectorMetadata: { detectorVersion: 'v1' },
-      requestContext: undefined,
-    })
+    ])
     expect(result).toEqual({
       caseId,
       messageId,
@@ -120,14 +130,18 @@ describe('ReviewCaseCreator', () => {
 
   it('rejects an automatic evidence contribution outside its bounds', async () => {
     await expect(
-      creator.createAutomatic({
+      creator.createAutomaticBatch({
         messageId,
-        trigger: 'POLICY_CHECK_FAILED',
-        sourceEventKey: 'detector-event-2',
+        triggers: [
+          {
+            trigger: 'POLICY_CHECK_FAILED',
+            sourceEventKey: 'detector-event-2',
+          },
+        ],
         evidence: { summary: 'x'.repeat(1_001) },
       }),
     ).rejects.toThrow('summary must contain between 1 and 1000 characters')
-    expect(repository.create.mock.calls).toHaveLength(0)
+    expect(repository.createAutomaticBatch.mock.calls).toHaveLength(0)
   })
 
   it('serializes only the Student-facing review contract', () => {
@@ -145,7 +159,6 @@ describe('ReviewCaseCreator', () => {
             status: 'PENDING',
             outcome: null,
             resolvedAt: null,
-            hasNotification: false,
             reviewCaseId: caseId,
             evidence: { secret: true },
           },
@@ -168,7 +181,6 @@ describe('ReviewCaseCreator', () => {
         status: 'PENDING',
         outcome: null,
         resolvedAt: null,
-        hasNotification: false,
         reviewCaseId: caseId,
       },
     })

@@ -328,6 +328,36 @@ migration and repeat the M2 catalog/drift gate.
   Compose credentials.
 - Next safe task: Milestone 5.1 Reviews and Student inbox vertical slice.
 
+## Milestone 5 migration inventory
+
+Reviews becomes the owner of review intake, evidence, Instructor resolution,
+and the Student Review Inbox in this slice. The generic Notifications
+capability is deleted; no compatibility route, alias, or forwarding module is
+introduced.
+
+| Current surface | Target surface | Disposition |
+| --- | --- | --- |
+| `server/src/modules/reviews/review-case.creator.ts`, `review-case.repository.ts`, and automatic review callers | Reviews intake interface and evidence implementation | Add one batch automatic-intake operation that accepts all trigger reasons in one transaction, preserves replay/idempotency, and returns one case result; update every caller directly. |
+| `server/src/modules/reviews/automatic-review-evidence.ts`, `review-evidence-integrity.ts`, output-policy evidence builder, and detail-parser schema | `server/src/modules/reviews/evidence/**` | Colocate one bounded evidence schema, builder, parser, canonical serializer, and content-hash implementation; remove optional/duplicate evidence shapes and import the named implementation directly. |
+| `server/src/modules/notifications/**` and all notification callers/tests | `server/src/modules/reviews/student-inbox/**` | Move list, unread count, read transition, safe presentation, controller, and focused persistence tests into Reviews; delete the generic module, routes, DTOs, and tests. |
+| Prisma `Notification`, `NotificationType`, `NotificationStatus`, JSON metadata, dismissed state, and notification indexes/constraints | Reviews-owned inbox model in `server/prisma/reviews.prisma` and the rolling initial migration | Replace the generic schema with direct course/session/message/review identifiers, retain only current resolved/rejected and unread/read behavior, and remove unused fields/states. Reconcile the same initial migration, regenerate, reset a disposable database, seed explicitly, assert the catalog, and prove no drift. |
+| Review detail/summary notification counts and `hasNotification` fields | Review-owned terminal/inbox contracts | Remove notification-specific fields and duplicate contract enums; retain only current review state and direct review identifiers. |
+| `client/src/features/notifications/**` and notification course resolver | `client/src/features/reviews/student-inbox/**` plus Student workspace control | Move transport, schemas, queries, hooks, and bell presentation into the Reviews feature and Student workspace; navigate directly with `courseId`, `sessionId`, and `messageId` without course probing or preflight fetches. |
+| `client/src/features/instructor/{data,instructor-review.schema.ts,hooks}` and `client/src/features/student/data/student-reviews*` | `client/src/features/reviews/{interface,instructor-queue,student-inbox}` | Move Review contracts and query/mutation behavior to the named Review feature; update Instructor and Student presentation callers directly and delete old feature-owned Review transport paths. |
+| Review, inbox, manual/automatic journey, atomicity, replay, concurrency, navigation, and OpenAPI tests | Adjacent Reviews capability tests and journey E2E coverage | Update assertions and fixtures to the Reviews-owned inbox schema/API; add batch trigger, direct navigation, removed-membership authorization, atomic audit/inbox rollback, and idempotent read coverage. |
+| `dependency-cruiser.config.mjs` | Reviews boundary rule | Enable a production `reviews-interface-only` rule after all cross-capability callers use `reviews.module.ts` or a named Reviews interface; no baselines or temporary exceptions. |
+| `server/prisma/assert-catalog.mts`, fresh-schema/readiness tests, schema inventory, plan, and this ledger | current Reviews schema documentation | Replace generic notification catalog assertions with the final Reviews inbox objects and record every deliberate deletion and verification result. |
+
+### M5 handoff fields
+
+The M5 handoff must record the starting and final SHAs, every moved/deleted
+server and client path, the batch intake and evidence contract, the final
+Reviews inbox schema and endpoint paths, all focused test commands/results,
+the schema regeneration/catalog/drift commands when applicable, the enabled
+dependency rule, repository searches proving generic Notifications and legacy
+evidence entry points are absent, known baseline limitations, and the next
+safe task (Milestone 6A).
+
 ## Milestone 1 migration inventory
 
 Milestone 1 establishes the durable guidance and enforcement inputs that every

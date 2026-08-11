@@ -63,10 +63,6 @@ export class StudentReviewSummaryDto {
   resolvedAt!: string | null
 
   @Expose()
-  @ApiProperty({ type: Boolean })
-  hasNotification!: boolean
-
-  @Expose()
   @ApiProperty({ format: 'uuid' })
   reviewCaseId!: string
 }

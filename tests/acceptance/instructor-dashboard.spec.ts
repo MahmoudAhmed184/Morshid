@@ -57,7 +57,7 @@ test.describe('Instructor workspace', () => {
     }
 
     await expect(
-      page.getByRole('link', { name: /Students|Notifications|Analytics/ }),
+      page.getByRole('link', { name: /Students|Review inbox|Analytics/ }),
     ).toHaveCount(0)
     await expect(
       page.getByRole('link', { name: /Users|Audit Logs/ }),

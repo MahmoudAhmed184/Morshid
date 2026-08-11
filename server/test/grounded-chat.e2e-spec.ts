@@ -317,7 +317,7 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
       data: { removedAt: null },
     })
     await prisma.auditLog.deleteMany()
-    await prisma.notification.deleteMany()
+    await prisma.reviewInboxItem.deleteMany()
     await prisma.reviewCase.deleteMany()
     await prisma.educationalAnalysisMisconception.deleteMany()
     await prisma.educationalAnalysisEvidenceLink.deleteMany()
@@ -816,7 +816,6 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
         status: 'PENDING',
         outcome: null,
         resolvedAt: null,
-        hasNotification: false,
       },
     })
 
@@ -935,7 +934,7 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
       .expect(404)
 
     await expect(
-      prisma.notification.count({ where: { reviewCaseId: reviewCase.id } }),
+      prisma.reviewInboxItem.count({ where: { reviewCaseId: reviewCase.id } }),
     ).resolves.toBe(1)
     const refreshed = await request(requireApp().getHttpServer())
       .get(messagesPath(session.id))
@@ -951,7 +950,6 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
         reviewCaseId: reviewCase.id,
         status: 'RESOLVED',
         outcome: 'APPROVED',
-        hasNotification: true,
       },
     })
     expect(refreshedAssistant?.reviewSummary?.resolvedAt).not.toBeNull()
@@ -1208,7 +1206,9 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
         })
       })
     await expect(
-      prisma.notification.count({ where: { reviewCaseId: repairedCase.id } }),
+      prisma.reviewInboxItem.count({
+        where: { reviewCaseId: repairedCase.id },
+      }),
     ).resolves.toBe(1)
   })
 
@@ -1408,7 +1408,9 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
           })
         })
       await expect(
-        prisma.notification.count({ where: { reviewCaseId: reviewCase.id } }),
+        prisma.reviewInboxItem.count({
+          where: { reviewCaseId: reviewCase.id },
+        }),
       ).resolves.toBe(1)
     },
   )

@@ -95,7 +95,7 @@ describe('OutputPolicyService', () => {
       evidence: [{ excerpt: `  ${'x'.repeat(2_000)}  ` }],
     })
 
-    const excerpt = decision.reviewEvidence?.sources?.[0]?.excerpt
+    const excerpt = decision.reviewEvidence?.sources[0]?.excerpt
     expect(Array.from(excerpt ?? '')).toHaveLength(500)
   })
 
@@ -153,7 +153,7 @@ describe('OutputPolicyService', () => {
           excerpt: `Synthetic source ${String(index + 1)}`,
         })),
       }),
-    ).toThrow('Output-policy evidence contains too many sources')
+    ).toThrow('evidence.sources must contain at most 20 items')
   })
 
   it('treats instruction-like retrieved text as bounded evidence, never policy', () => {

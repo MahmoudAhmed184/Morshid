@@ -132,7 +132,7 @@ test.describe('Instructor review queue and bounded detail', () => {
     await expect(page.getByText('Other private answer')).toHaveCount(0)
   })
 
-  test('resolves the review and exposes one unread Student notification', async ({
+  test('resolves the review and exposes one unread Student review update', async ({
     browser,
   }) => {
     const instructorContext = await browser.newContext()
@@ -162,16 +162,16 @@ test.describe('Instructor review queue and bounded detail', () => {
     const studentContext = await browser.newContext()
     const studentPage = await studentContext.newPage()
     await signInThroughUi(studentPage, { email: fixture.secrets.studentEmail })
-    const notifications = studentPage.getByRole('button', {
-      name: 'Notifications, 1 unread',
+    const inbox = studentPage.getByRole('button', {
+      name: 'Review inbox, 1 unread',
     })
-    await expect(notifications).toBeVisible()
-    await notifications.click()
+    await expect(inbox).toBeVisible()
+    await inbox.click()
     const completed = studentPage.getByText('Instructor review completed')
     await expect(completed).toBeVisible()
     await completed.click()
     await expect(
-      studentPage.getByRole('button', { name: 'Notifications', exact: true }),
+      studentPage.getByRole('button', { name: 'Review inbox', exact: true }),
     ).toBeVisible()
     await studentContext.close()
   })

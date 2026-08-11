@@ -6,7 +6,7 @@ import {
 } from '../../generated/prisma/client'
 import type { PrismaService } from '../prisma/prisma.service'
 import { PrismaInstructorReviewDetailRepository } from './instructor-review-detail.repository'
-import { reviewEvidenceContentHash } from './review-evidence-integrity'
+import { reviewEvidenceContentHash } from './evidence/review-evidence-integrity'
 
 describe('PrismaInstructorReviewDetailRepository', () => {
   const findReview = jest.fn()
@@ -163,6 +163,7 @@ describe('PrismaInstructorReviewDetailRepository', () => {
       },
       context: { previousMessages: [], followingMessages: [] },
       automaticEvidence: {
+        summary: 'automatic evidence',
         sources: [
           {
             materialId: 'material-1',
@@ -172,6 +173,13 @@ describe('PrismaInstructorReviewDetailRepository', () => {
             rank: 1,
           },
         ],
+        facts: [],
+      },
+      integrity: {
+        courseId: 'course-1',
+        studentId: 'student-1',
+        sessionId: 'session-1',
+        trigger: ReviewTriggerType.GENERAL_NOT_FOUND,
       },
     }
     findReview.mockResolvedValue({
@@ -233,7 +241,6 @@ describe('PrismaInstructorReviewDetailRepository', () => {
       'targetMessage',
       'evidence',
       'actions',
-      '_count',
     ])
     expect(JSON.stringify(query.select.targetMessage)).not.toMatch(
       /content|responseToMessage|citations|retrievals/,
@@ -251,6 +258,11 @@ describe('PrismaInstructorReviewDetailRepository', () => {
         content: 'flagged answer',
         createdAt: '2026-07-29T09:59:00.000Z',
         completedAt: '2026-07-29T09:59:01.000Z',
+        guidanceLabel: null,
+        requestKind: null,
+        provider: null,
+        model: null,
+        promptVersion: null,
       },
       studentPrompt: {
         id: 'message-0',
@@ -269,6 +281,13 @@ describe('PrismaInstructorReviewDetailRepository', () => {
       },
       citations: [],
       retrievals: [],
+      automaticEvidence: null,
+      integrity: {
+        courseId: 'course-1',
+        studentId: 'student-1',
+        sessionId: 'session-1',
+        trigger: ReviewTriggerType.STUDENT_REQUEST,
+      },
     }
     return {
       id: 'review-1',
@@ -297,7 +316,6 @@ describe('PrismaInstructorReviewDetailRepository', () => {
         contentHash: reviewEvidenceContentHash(evidence),
       },
       actions: [],
-      _count: { notifications: 0 },
       ...overrides,
     }
   }

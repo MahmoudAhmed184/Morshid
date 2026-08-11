@@ -537,7 +537,7 @@ async function proveScenario(
     }),
   ).resolves.toBe(2)
   await expect(
-    harness.prisma.notification.count({
+    harness.prisma.reviewInboxItem.count({
       where: { reviewCaseId: reviewCase.id },
     }),
   ).resolves.toBe(1)
@@ -564,7 +564,7 @@ async function resetScenarioState(harness: MatrixHarness): Promise<void> {
   await harness.prisma.topicState.deleteMany()
   await harness.prisma.topic.deleteMany()
   await harness.prisma.auditLog.deleteMany()
-  await harness.prisma.notification.deleteMany()
+  await harness.prisma.reviewInboxItem.deleteMany()
   await harness.prisma.reviewCase.deleteMany()
   await harness.prisma.message.deleteMany()
   await harness.prisma.chatSession.deleteMany()

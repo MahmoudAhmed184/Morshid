@@ -46,10 +46,10 @@ CREATE TYPE "review_action_type" AS ENUM ('CREATED', 'TRIGGER_ADDED', 'CLAIMED',
 CREATE TYPE "review_outcome" AS ENUM ('APPROVED', 'EDITED', 'REPLACED', 'REQUEST_REJECTED');
 
 -- CreateEnum
-CREATE TYPE "notification_type" AS ENUM ('REVIEW_RESOLVED', 'REVIEW_REJECTED', 'USAGE_LIMIT_REACHED');
+CREATE TYPE "review_inbox_item_type" AS ENUM ('REVIEW_RESOLVED', 'REVIEW_REJECTED');
 
 -- CreateEnum
-CREATE TYPE "notification_status" AS ENUM ('UNREAD', 'READ', 'DISMISSED');
+CREATE TYPE "review_inbox_item_status" AS ENUM ('UNREAD', 'READ');
 
 -- CreateEnum
 CREATE TYPE "topic_status" AS ENUM ('ACTIVE', 'PAUSED', 'RESOLVED', 'ABANDONED');
@@ -373,19 +373,19 @@ CREATE TABLE "idempotency_records" (
 );
 
 -- CreateTable
-CREATE TABLE "notifications" (
+CREATE TABLE "review_inbox_items" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "recipient_user_id" UUID NOT NULL,
-    "review_case_id" UUID,
-    "type" "notification_type" NOT NULL,
-    "status" "notification_status" NOT NULL DEFAULT 'UNREAD',
-    "metadata" JSONB NOT NULL DEFAULT '{}',
+    "review_case_id" UUID NOT NULL,
+    "course_id" UUID NOT NULL,
+    "session_id" UUID NOT NULL,
+    "message_id" UUID NOT NULL,
+    "type" "review_inbox_item_type" NOT NULL,
+    "status" "review_inbox_item_status" NOT NULL DEFAULT 'UNREAD',
     "read_at" TIMESTAMPTZ(6),
-    "dismissed_at" TIMESTAMPTZ(6),
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "notifications_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "review_inbox_items_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -874,10 +874,19 @@ ALTER TABLE "review_actions" ADD CONSTRAINT "review_actions_actor_user_id_fkey" 
 ALTER TABLE "idempotency_records" ADD CONSTRAINT "idempotency_records_actor_user_id_fkey" FOREIGN KEY ("actor_user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "notifications" ADD CONSTRAINT "notifications_recipient_user_id_fkey" FOREIGN KEY ("recipient_user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "review_inbox_items" ADD CONSTRAINT "review_inbox_items_recipient_user_id_fkey" FOREIGN KEY ("recipient_user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "notifications" ADD CONSTRAINT "notifications_review_case_id_fkey" FOREIGN KEY ("review_case_id") REFERENCES "review_cases"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "review_inbox_items" ADD CONSTRAINT "review_inbox_items_review_case_id_fkey" FOREIGN KEY ("review_case_id") REFERENCES "review_cases"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "review_inbox_items" ADD CONSTRAINT "review_inbox_items_course_id_fkey" FOREIGN KEY ("course_id") REFERENCES "courses"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "review_inbox_items" ADD CONSTRAINT "review_inbox_items_session_id_fkey" FOREIGN KEY ("session_id") REFERENCES "chat_sessions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "review_inbox_items" ADD CONSTRAINT "review_inbox_items_message_id_fkey" FOREIGN KEY ("message_id") REFERENCES "messages"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "topics" ADD CONSTRAINT "topics_session_id_fkey" FOREIGN KEY ("session_id") REFERENCES "chat_sessions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -1046,16 +1055,12 @@ ALTER TABLE "idempotency_records"
   ADD CONSTRAINT "idempotency_records_response_status_check"
   CHECK ("response_status" BETWEEN 200 AND 599);
 
-ALTER TABLE "notifications"
-  ADD CONSTRAINT "notifications_metadata_object_check"
-  CHECK (jsonb_typeof("metadata") = 'object'),
-  ADD CONSTRAINT "notifications_state_shape_check"
+ALTER TABLE "review_inbox_items"
+  ADD CONSTRAINT "review_inbox_items_state_shape_check"
   CHECK (
-    ("status" = 'UNREAD' AND "read_at" IS NULL AND "dismissed_at" IS NULL)
+    ("status" = 'UNREAD' AND "read_at" IS NULL)
     OR
-    ("status" = 'READ' AND "read_at" IS NOT NULL AND "dismissed_at" IS NULL)
-    OR
-    ("status" = 'DISMISSED' AND "dismissed_at" IS NOT NULL)
+    ("status" = 'READ' AND "read_at" IS NOT NULL)
   );
 
 CREATE UNIQUE INDEX "review_triggers_manual_actor_case_key"
@@ -1066,18 +1071,11 @@ CREATE UNIQUE INDEX "review_triggers_source_event_key_key"
   ON "review_triggers"("source_event_key")
   WHERE "source_event_key" IS NOT NULL;
 
-CREATE UNIQUE INDEX "notifications_terminal_review_key"
-  ON "notifications"("recipient_user_id", "review_case_id")
-  WHERE "review_case_id" IS NOT NULL
-    AND "type" IN ('REVIEW_RESOLVED', 'REVIEW_REJECTED');
+CREATE UNIQUE INDEX "review_inbox_items_recipient_review_case_key"
+  ON "review_inbox_items"("recipient_user_id", "review_case_id");
 
-CREATE INDEX "idx_notifications_recipient_active"
-  ON "notifications"("recipient_user_id", "created_at" DESC, "id" DESC)
-  WHERE "dismissed_at" IS NULL;
-
-CREATE INDEX "idx_notifications_recipient_unread"
-  ON "notifications"("recipient_user_id")
-  WHERE "status" = 'UNREAD';
+CREATE INDEX "idx_review_inbox_items_recipient_created"
+  ON "review_inbox_items"("recipient_user_id", "created_at" DESC, "id" DESC);
 
 ALTER TABLE "topic_states"
   ADD CONSTRAINT "topic_states_version_check"

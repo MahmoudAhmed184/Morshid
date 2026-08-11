@@ -1,19 +1,14 @@
 import { Injectable } from '@nestjs/common'
 
 import { MessageGuidanceLabel } from '../../generated/prisma/client'
-import {
-  normalizeAutomaticReviewEvidence,
-  type AutomaticReviewEvidenceContribution,
-} from '../reviews/automatic-review-evidence'
+import { buildAutomaticReviewEvidence } from '../reviews/reviews.public'
 import {
   AUTOMATIC_POLICY_REASONS,
   OUTPUT_POLICY_VERSION,
   type AutomaticPolicyReason,
   type OutputPolicyDecision,
-  type OutputPolicyEvidenceSource,
   type OutputPolicyConflictKind,
   type OutputPolicyInput,
-  type OutputPolicyReviewFact,
 } from './output-policy.contract'
 
 export const OUTPUT_POLICY_GENERAL_NOT_FOUND_CONTENT =
@@ -28,7 +23,6 @@ export const OUTPUT_POLICY_CITATION_MISSING_CONTENT =
   'I could not verify the required course citation, so I am withholding the proposed guidance while an Instructor reviews it.'
 
 const MAX_PROPOSED_CONTENT_CODE_POINTS = 16_000
-const MAX_REVIEW_SOURCE_COUNT = 20
 const MAX_REVIEW_SOURCE_EXCERPT_CODE_POINTS = 500
 const REVIEW_EVIDENCE_SUMMARIES = {
   GENERAL_NOT_FOUND: 'Course support was not found for the proposed guidance.',
@@ -75,11 +69,34 @@ export class OutputPolicyService {
       safeRefusal,
       createReview: true,
       reasons: Object.freeze(reasons),
-      reviewEvidence: buildReviewEvidence(
-        reasons,
-        input.evidence ?? [],
-        input.reviewFacts ?? [],
-      ),
+      reviewEvidence: buildAutomaticReviewEvidence({
+        summary: reasons
+          .map((reason) => REVIEW_EVIDENCE_SUMMARIES[reason])
+          .join(' '),
+        sources: (input.evidence ?? []).map((source) => ({
+          ...(source.materialId === undefined
+            ? {}
+            : { materialId: source.materialId }),
+          ...(source.materialTitle === undefined
+            ? {}
+            : { materialTitle: source.materialTitle }),
+          ...(source.chunkId === undefined ? {} : { chunkId: source.chunkId }),
+          ...(source.chunkIndex === undefined
+            ? {}
+            : { chunkIndex: source.chunkIndex }),
+          excerpt: takeCodePoints(
+            normalizeWhitespace(source.excerpt),
+            MAX_REVIEW_SOURCE_EXCERPT_CODE_POINTS,
+          ),
+          ...(source.rank === undefined ? {} : { rank: source.rank }),
+          ...(source.score === undefined ? {} : { score: source.score }),
+        })),
+        facts: [
+          { code: 'policy_version', value: OUTPUT_POLICY_VERSION },
+          { code: 'reason_count', value: reasons.length },
+          ...(input.reviewFacts ?? []),
+        ],
+      }),
       studentStatus: Object.freeze({
         guidanceLabel: safeRefusal
           ? MessageGuidanceLabel.REFUSAL
@@ -160,51 +177,6 @@ function replacementFor(
     return OUTPUT_POLICY_GENERAL_NOT_FOUND_CONTENT
   }
   return OUTPUT_POLICY_CITATION_MISSING_CONTENT
-}
-
-function buildReviewEvidence(
-  reasons: readonly AutomaticPolicyReason[],
-  sources: readonly OutputPolicyEvidenceSource[],
-  facts: readonly OutputPolicyReviewFact[],
-): AutomaticReviewEvidenceContribution {
-  if (sources.length > MAX_REVIEW_SOURCE_COUNT) {
-    throw new TypeError('Output-policy evidence contains too many sources')
-  }
-
-  const normalized = normalizeAutomaticReviewEvidence({
-    summary: reasons
-      .map((reason) => REVIEW_EVIDENCE_SUMMARIES[reason])
-      .join(' '),
-    sources: sources.map((source) => ({
-      ...(source.materialId === undefined
-        ? {}
-        : { materialId: source.materialId }),
-      ...(source.materialTitle === undefined
-        ? {}
-        : { materialTitle: source.materialTitle }),
-      ...(source.chunkId === undefined ? {} : { chunkId: source.chunkId }),
-      ...(source.chunkIndex === undefined
-        ? {}
-        : { chunkIndex: source.chunkIndex }),
-      excerpt: takeCodePoints(
-        normalizeWhitespace(source.excerpt),
-        MAX_REVIEW_SOURCE_EXCERPT_CODE_POINTS,
-      ),
-      ...(source.rank === undefined ? {} : { rank: source.rank }),
-      ...(source.score === undefined ? {} : { score: source.score }),
-    })),
-    facts: [
-      { code: 'policy_version', value: OUTPUT_POLICY_VERSION },
-      { code: 'reason_count', value: reasons.length },
-      ...facts,
-    ],
-  })
-
-  return Object.freeze({
-    summary: normalized.summary,
-    sources: Object.freeze(normalized.sources ?? []),
-    facts: Object.freeze(normalized.facts ?? []),
-  })
 }
 
 function requireBoundedContent(value: string): string {

@@ -6,7 +6,7 @@ import type { AuditRequestContext } from '../audit/audit.public'
 import {
   ReviewCaseCreator,
   type AutomaticReviewCaseResult,
-} from '../reviews/review-case.creator'
+} from '../reviews/reviews.public'
 import {
   OUTPUT_POLICY_VERSION,
   type OutputPolicyDecision,
@@ -49,43 +49,27 @@ export class OutputPolicyReviewAdapter {
       throw new OutputPolicyReviewIntegrationError()
     }
 
-    let aggregate: AutomaticReviewCaseResult | undefined
-    for (const reason of request.decision.reasons) {
-      const result = await this.reviewCaseCreator.createAutomatic(
-        {
-          messageId: request.assistantMessageId,
+    const result: AutomaticReviewCaseResult =
+      await this.reviewCaseCreator.createAutomaticBatch({
+        messageId: request.assistantMessageId,
+        triggers: request.decision.reasons.map((reason) => ({
           trigger: reason,
           sourceEventKey: sourceEventKey(request.assistantMessageId, reason),
-          evidence: request.decision.reviewEvidence,
           detectorMetadata: {
             policyVersion: OUTPUT_POLICY_VERSION,
             reasonCount: request.decision.reasons.length,
             ...metadataFrom(request.decision),
           },
-        },
-        request.requestContext,
-      )
-
-      if (
-        result.messageId !== request.assistantMessageId ||
-        (aggregate !== undefined &&
-          (aggregate.caseId !== result.caseId ||
-            aggregate.messageId !== result.messageId))
-      ) {
-        throw new OutputPolicyReviewIntegrationError()
-      }
-      aggregate = result
-    }
-
-    if (aggregate === undefined) {
-      throw new OutputPolicyReviewIntegrationError()
-    }
+        })),
+        evidence: request.decision.reviewEvidence,
+        requestContext: request.requestContext,
+      })
 
     return Object.freeze({
-      caseId: aggregate.caseId,
-      messageId: aggregate.messageId,
-      status: aggregate.status,
-      replayed: aggregate.replayed,
+      caseId: result.caseId,
+      messageId: result.messageId,
+      status: result.status,
+      replayed: result.replayed,
     })
   }
 }

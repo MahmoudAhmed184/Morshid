@@ -6,7 +6,6 @@ import {
   chatSessionListResponseSchema,
   chatSessionResponseSchema,
   createChatSessionRequestSchema,
-  createStudentReviewRequestSchema,
   deleteChatSessionResponseSchema,
   listChatMessagesInputSchema,
   renameChatSessionRequestSchema,
@@ -14,6 +13,7 @@ import {
   groundedChatTurnResponseSchema,
   sendStudentChatMessageRequestSchema,
 } from './student-chat.schema'
+import { createStudentReviewRequestSchema } from '@/features/reviews/interface/student-review.schema'
 import {
   chatMessageHistoryResponseFixture,
   chatSessionListResponseFixture,
@@ -101,19 +101,16 @@ describe('Student chat contract schemas', () => {
       status: 'PENDING',
       outcome: null,
       resolvedAt: null,
-      hasNotification: false,
     },
     {
       status: 'RESOLVED',
       outcome: 'EDITED',
       resolvedAt: '2026-07-31T10:00:00.000Z',
-      hasNotification: true,
     },
     {
       status: 'REJECTED',
       outcome: 'REQUEST_REJECTED',
       resolvedAt: '2026-07-31T10:00:00.000Z',
-      hasNotification: true,
     },
   ] as const)(
     'loads saved chat history with a $status review summary',
@@ -151,7 +148,6 @@ describe('Student chat contract schemas', () => {
               status: 'RESOLVED',
               outcome: 'APPROVED',
               resolvedAt: '2026-07-31T10:00:00.000Z',
-              hasNotification: true,
               instructorId: 'must-not-be-accepted',
             },
           },

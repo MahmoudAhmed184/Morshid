@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
 import { ReviewStatus } from '../../generated/prisma/client'
+import { CourseAccessService } from '../courses/course-access.public'
 import type { AuthenticatedUser } from '../identity/identity.types'
 import { reviewNotFoundException } from './review-case.errors'
 import type {
@@ -11,7 +12,10 @@ import { InstructorReviewQueueRepository } from './instructor-review-queue.repos
 
 @Injectable()
 export class InstructorReviewQueueService {
-  constructor(private readonly repository: InstructorReviewQueueRepository) {}
+  constructor(
+    private readonly repository: InstructorReviewQueueRepository,
+    private readonly courseAccessService: CourseAccessService,
+  ) {}
 
   async list(
     user: AuthenticatedUser,
@@ -20,7 +24,7 @@ export class InstructorReviewQueueService {
   ): Promise<InstructorReviewQueueResponseDto> {
     if (
       query.courseId !== undefined &&
-      !(await this.repository.isOwnedCourse(user.id, query.courseId))
+      !(await this.courseAccessService.canManageCourse(user, query.courseId))
     ) {
       throw reviewNotFoundException()
     }

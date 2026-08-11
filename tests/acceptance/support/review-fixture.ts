@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import { Client } from 'pg'
 
-import { reviewEvidenceContentHash } from '../../../server/src/modules/reviews/review-evidence-integrity.ts'
+import { reviewEvidenceContentHash } from '../../../server/src/modules/reviews/evidence/review-evidence-integrity.ts'
 
 const databaseUrl =
   process.env.DATABASE_URL ??
@@ -38,7 +38,7 @@ export interface InstructorReviewAcceptanceFixture {
 
 export interface ReviewCleanupResult {
   removed: {
-    notifications: number
+    inboxItems: number
     auditLogs: number
     idempotencyRecords: number
     evidenceSnapshots: number
@@ -47,7 +47,7 @@ export interface ReviewCleanupResult {
     cases: number
   }
   remaining: {
-    notifications: number
+    inboxItems: number
     triggers: number
     cases: number
   }
@@ -58,8 +58,8 @@ export async function clearAllReviewData(
 ): Promise<ReviewCleanupResult> {
   await client.query('BEGIN')
   try {
-    const notifications = await client.query(
-      'DELETE FROM notifications WHERE review_case_id IS NOT NULL',
+    const inboxItems = await client.query(
+      'DELETE FROM review_inbox_items WHERE review_case_id IS NOT NULL',
     )
     const auditLogs = await client.query(
       `DELETE FROM audit_logs
@@ -80,19 +80,19 @@ export async function clearAllReviewData(
     const verification = await client.query<{
       cases: string
       triggers: string
-      notifications: string
+      inboxItems: string
     }>(
       `SELECT
          (SELECT COUNT(*) FROM review_cases)::text AS cases,
          (SELECT COUNT(*) FROM review_triggers)::text AS triggers,
-         (SELECT COUNT(*) FROM notifications
-          WHERE review_case_id IS NOT NULL)::text AS notifications`,
+         (SELECT COUNT(*) FROM review_inbox_items
+          WHERE review_case_id IS NOT NULL)::text AS "inboxItems"`,
     )
     const row = verification.rows[0]
     const remaining = {
       cases: Number(row.cases),
       triggers: Number(row.triggers),
-      notifications: Number(row.notifications),
+      inboxItems: Number(row.inboxItems),
     }
     if (Object.values(remaining).some((count) => count !== 0)) {
       throw new Error(
@@ -103,7 +103,7 @@ export async function clearAllReviewData(
     await client.query('COMMIT')
     return {
       removed: {
-        notifications: notifications.rowCount ?? 0,
+        inboxItems: inboxItems.rowCount ?? 0,
         auditLogs: auditLogs.rowCount ?? 0,
         idempotencyRecords: idempotencyRecords.rowCount ?? 0,
         evidenceSnapshots: evidenceSnapshots.rowCount ?? 0,
@@ -344,6 +344,11 @@ export async function createInstructorReviewAcceptanceFixture(): Promise<Instruc
           : 'Other private answer',
         createdAt: capturedAt,
         completedAt: capturedAt,
+        guidanceLabel: null,
+        requestKind: null,
+        provider: null,
+        model: null,
+        promptVersion: null,
       },
       studentPrompt: {
         id: isOwnedReview ? ownedMessageIds[2] : otherStudentMessage,
@@ -405,6 +410,13 @@ export async function createInstructorReviewAcceptanceFixture(): Promise<Instruc
             },
           ]
         : [],
+      automaticEvidence: null,
+      integrity: {
+        courseId: isOwnedReview ? ids.ownedCourse : ids.otherCourse,
+        studentId: ids.student,
+        sessionId: isOwnedReview ? ids.ownedSession : ids.otherSession,
+        trigger: 'STUDENT_REQUEST',
+      },
     }
     await client.query(
       `INSERT INTO review_evidence_snapshots
@@ -442,7 +454,7 @@ export async function createInstructorReviewAcceptanceFixture(): Promise<Instruc
     },
     async dispose() {
       await client.query(
-        'DELETE FROM notifications WHERE review_case_id = ANY($1::uuid[])',
+        'DELETE FROM review_inbox_items WHERE review_case_id = ANY($1::uuid[])',
         [[ids.reviewCase, ids.otherReviewCase]],
       )
       await client.query(
@@ -571,7 +583,7 @@ export async function createReviewBrowserFixture(
 
 async function clearStudentReviews(client: Client, studentId: string) {
   await client.query(
-    `DELETE FROM notifications
+    `DELETE FROM review_inbox_items
      WHERE review_case_id IN (
        SELECT id FROM review_cases WHERE requested_by_user_id = $1
      )`,

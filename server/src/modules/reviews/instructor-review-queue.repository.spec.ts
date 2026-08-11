@@ -10,13 +10,11 @@ import { PrismaInstructorReviewQueueRepository } from './instructor-review-queue
 describe('PrismaInstructorReviewQueueRepository', () => {
   const findMany = jest.fn()
   const count = jest.fn()
-  const findFirst = jest.fn()
   const transaction = jest.fn((operations: unknown[]) =>
     Promise.all(operations),
   )
   const repository = new PrismaInstructorReviewQueueRepository({
     reviewCase: { findMany, count },
-    course: { findFirst },
     $transaction: transaction,
   } as unknown as PrismaService)
 
@@ -164,25 +162,4 @@ describe('PrismaInstructorReviewQueueRepository', () => {
       })
     },
   )
-
-  it('authorizes a requested course only through an active Instructor assignment', async () => {
-    findFirst.mockResolvedValue(null)
-
-    await expect(
-      repository.isOwnedCourse('instructor-1', 'unavailable-course'),
-    ).resolves.toBe(false)
-    expect(findFirst).toHaveBeenCalledWith({
-      where: {
-        id: 'unavailable-course',
-        memberships: {
-          some: {
-            userId: 'instructor-1',
-            role: CourseMembershipRole.INSTRUCTOR,
-            removedAt: null,
-          },
-        },
-      },
-      select: { id: true },
-    })
-  })
 })

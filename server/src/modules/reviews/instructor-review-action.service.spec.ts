@@ -15,10 +15,18 @@ describe('InstructorReviewActionService', () => {
     role: UserRole.INSTRUCTOR,
     status: UserStatus.ACTIVE,
   }
+  const findCourseId = jest.fn()
   const apply = jest.fn()
-  const service = new InstructorReviewActionService({ apply })
+  const canManageCourse = jest.fn()
+  const service = new InstructorReviewActionService({ findCourseId, apply }, {
+    canManageCourse,
+  } as never)
 
-  beforeEach(() => apply.mockReset())
+  beforeEach(() => {
+    jest.clearAllMocks()
+    findCourseId.mockResolvedValue('course-1')
+    canManageCourse.mockResolvedValue(true)
+  })
 
   it('passes trusted Instructor identity to an approved resolution', async () => {
     apply.mockResolvedValue({ kind: 'ok', record: record(false) })

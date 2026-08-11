@@ -304,10 +304,6 @@ export class ChatMessageReviewSummaryDto {
   @Expose()
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   resolvedAt!: string | null
-
-  @Expose()
-  @ApiProperty({ type: Boolean })
-  hasNotification!: boolean
 }
 
 export class ChatMessageHistoryResponseDto {

@@ -102,7 +102,6 @@ describe('ReviewCaseController', () => {
         status: 'PENDING' as const,
         outcome: null,
         resolvedAt: null,
-        hasNotification: false,
         reviewCaseId: caseId,
       },
     }

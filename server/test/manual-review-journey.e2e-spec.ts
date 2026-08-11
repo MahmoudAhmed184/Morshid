@@ -33,7 +33,7 @@ describe('Complete manual review journey (e2e)', () => {
   let otherStudentToken: string
   let instructorToken: string
   let reviewCaseId: string
-  let notificationId: string
+  let inboxItemId: string
 
   beforeAll(async () => {
     database = await setUpDisposableDatabase('morshid_issue140_full_journey')
@@ -163,7 +163,7 @@ describe('Complete manual review journey (e2e)', () => {
     expect(serialized).not.toContain(UNRELATED_ASSISTANT_CONTENT)
   })
 
-  it('resolves idempotently, preserves the original response, and emits one audit and notification', async () => {
+  it('resolves idempotently, preserves the original response, and emits one audit and inbox item', async () => {
     const original = await prisma.message.findUniqueOrThrow({
       where: { id: P0_REVIEW_READINESS_FIXTURE.owned.assistantMessageId },
     })
@@ -229,11 +229,11 @@ describe('Complete manual review journey (e2e)', () => {
       { actionType: 'APPROVED', caseVersion: 2 },
     ])
     await expect(
-      prisma.notification.count({ where: { reviewCaseId } }),
+      prisma.reviewInboxItem.count({ where: { reviewCaseId } }),
     ).resolves.toBe(1)
   })
 
-  it('shows the Student outcome and supports the unread-to-read notification flow', async () => {
+  it('shows the Student outcome and supports the unread-to-read review inbox flow', async () => {
     const detail = await request(requireApp().getHttpServer())
       .get(`/api/v1/student/reviews/${reviewCaseId}`)
       .set('Authorization', `Bearer ${studentToken}`)
@@ -246,28 +246,43 @@ describe('Complete manual review journey (e2e)', () => {
       messageId: P0_REVIEW_READINESS_FIXTURE.owned.assistantMessageId,
     })
 
-    const notifications = await request(requireApp().getHttpServer())
-      .get('/api/v1/notifications')
+    const inbox = await request(requireApp().getHttpServer())
+      .get('/api/v1/reviews/inbox')
       .set('Authorization', `Bearer ${studentToken}`)
       .expect(200)
-    expect(notifications.body).toMatchObject({
+    const inboxBody = inbox.body as unknown as {
+      items: {
+        id: string
+        courseId: string
+        reviewCaseId: string
+        sessionId: string
+        messageId: string
+        status: string
+        type: string
+      }[]
+    }
+    const inboxItem = inboxBody.items[0]
+    expect(typeof inboxItem.id).toBe('string')
+    expect(typeof inboxItem.courseId).toBe('string')
+    expect(inbox.body).toMatchObject({
       items: [
         {
           reviewCaseId,
+          sessionId: P0_REVIEW_READINESS_FIXTURE.owned.sessionId,
+          messageId: P0_REVIEW_READINESS_FIXTURE.owned.assistantMessageId,
           status: 'UNREAD',
           type: 'REVIEW_RESOLVED',
         },
       ],
     })
-    notificationId = (notifications.body as { items: { id: string }[] })
-      .items[0].id
+    inboxItemId = inboxItem.id
     await request(requireApp().getHttpServer())
-      .get('/api/v1/notifications/unread-count')
+      .get('/api/v1/reviews/inbox/unread-count')
       .set('Authorization', `Bearer ${studentToken}`)
       .expect(200)
       .expect({ unreadCount: 1 })
     await request(requireApp().getHttpServer())
-      .post(`/api/v1/notifications/${notificationId}/read`)
+      .post(`/api/v1/reviews/inbox/${inboxItemId}/read`)
       .set('Authorization', `Bearer ${studentToken}`)
       .expect(200)
       .expect((response) => {
@@ -277,13 +292,13 @@ describe('Complete manual review journey (e2e)', () => {
           readAt: string | null
         }
         expect(body).toMatchObject({
-          id: notificationId,
+          id: inboxItemId,
           status: 'READ',
         })
         expect(body.readAt).not.toBeNull()
       })
     await request(requireApp().getHttpServer())
-      .get('/api/v1/notifications/unread-count')
+      .get('/api/v1/reviews/inbox/unread-count')
       .set('Authorization', `Bearer ${studentToken}`)
       .expect(200)
       .expect({ unreadCount: 0 })
@@ -300,11 +315,11 @@ describe('Complete manual review journey (e2e)', () => {
           message: 'Review target was not found',
         })
     }
-    const otherNotifications = await request(requireApp().getHttpServer())
-      .get('/api/v1/notifications')
+    const otherInbox = await request(requireApp().getHttpServer())
+      .get('/api/v1/reviews/inbox')
       .set('Authorization', `Bearer ${otherStudentToken}`)
       .expect(200)
-    expect(otherNotifications.body).toEqual({ items: [], nextCursor: null })
+    expect(otherInbox.body).toEqual({ items: [], nextCursor: null })
   })
 
   function requireApp(): INestApplication<App> {

@@ -359,7 +359,7 @@ describe('OpenAPI contract (e2e)', () => {
     }
   })
 
-  it('documents authenticated notification reads', async () => {
+  it('documents authenticated Student Review Inbox reads', async () => {
     const app = await createApp('test')
 
     try {
@@ -368,33 +368,41 @@ describe('OpenAPI contract (e2e)', () => {
         .expect(200)
       const document = response.body as OpenAPIObject
       const list = expectProtectedOperation(document, {
-        path: '/api/v1/notifications',
+        path: '/api/v1/reviews/inbox',
         method: 'get',
-        tag: 'notifications',
-        summary: 'List notifications for the authenticated user',
+        tag: 'student-reviews',
+        summary: 'List the Student Review Inbox',
         statuses: ['200', '400', '401', '403'],
       })
-      expectResponseSchemaReference(list, '200', 'NotificationListResponseDto')
+      expectResponseSchemaReference(
+        list,
+        '200',
+        'StudentReviewInboxListResponseDto',
+      )
 
       const count = expectProtectedOperation(document, {
-        path: '/api/v1/notifications/unread-count',
+        path: '/api/v1/reviews/inbox/unread-count',
         method: 'get',
-        tag: 'notifications',
-        summary: 'Count unread notifications',
+        tag: 'student-reviews',
+        summary: 'Count unread Student Review Inbox items',
         statuses: ['200', '401', '403'],
       })
-      expectResponseSchemaReference(count, '200', 'NotificationUnreadCountDto')
+      expectResponseSchemaReference(
+        count,
+        '200',
+        'StudentReviewInboxUnreadCountDto',
+      )
 
       const read = expectProtectedOperation(document, {
-        path: '/api/v1/notifications/{notificationId}/read',
+        path: '/api/v1/reviews/inbox/{inboxItemId}/read',
         method: 'post',
-        tag: 'notifications',
-        summary: 'Mark a notification as read',
+        tag: 'student-reviews',
+        summary: 'Mark a Student Review Inbox item as read',
         statuses: ['200', '400', '401', '403', '404'],
       })
-      expectResponseSchemaReference(read, '200', 'StudentNotificationDto')
+      expectResponseSchemaReference(read, '200', 'StudentReviewInboxItemDto')
       expectResponseSchemaReference(read, '400', 'NestBadRequestErrorDto')
-      expect(getParameter(read, 'notificationId')).toMatchObject({
+      expect(getParameter(read, 'inboxItemId')).toMatchObject({
         in: 'path',
         required: true,
         schema: { type: 'string', format: 'uuid' },
@@ -1295,7 +1303,9 @@ describe('OpenAPI contract (e2e)', () => {
         'ReviewDetailContractDto',
         'ReviewActionContractDto',
         'PublishedReviewContractDto',
-        'NotificationContractDto',
+        'StudentReviewInboxItemDto',
+        'StudentReviewInboxListResponseDto',
+        'StudentReviewInboxUnreadCountDto',
       ]) {
         expect(schemas).toHaveProperty(schemaName)
       }
@@ -1316,16 +1326,11 @@ describe('OpenAPI contract (e2e)', () => {
         'REPLACED',
         'REQUEST_REJECTED',
       ])
-      expect(schemas.NotificationType.enum).toEqual([
+      expect(schemas.ReviewInboxItemType.enum).toEqual([
         'REVIEW_RESOLVED',
         'REVIEW_REJECTED',
-        'USAGE_LIMIT_REACHED',
       ])
-      expect(schemas.NotificationStatus.enum).toEqual([
-        'UNREAD',
-        'READ',
-        'DISMISSED',
-      ])
+      expect(schemas.ReviewInboxItemStatus.enum).toEqual(['UNREAD', 'READ'])
     } finally {
       await app.close()
     }

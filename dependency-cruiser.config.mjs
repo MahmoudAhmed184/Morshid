@@ -84,6 +84,19 @@ export default {
         path: '^server/src/modules/audit/(?!audit\\.module\\.ts$|audit\\.public\\.ts$)',
       },
     },
+    {
+      name: 'reviews-interface-only',
+      comment:
+        'Product modules may consume Reviews only through its module or named public Reviews interface.',
+      severity: 'error',
+      from: {
+        path: '^server/src/(?:app\\.module\\.ts|common/|modules/(?!reviews(?:/|$)))',
+        pathNot: testPath,
+      },
+      to: {
+        path: '^server/src/modules/reviews/(?!reviews\\.module\\.ts$|reviews\\.public\\.ts$)',
+      },
+    },
   ],
   options: {
     tsConfig: { fileName: tsConfigFileName },

@@ -53,20 +53,18 @@ enum ReviewOutcome {
   @@map("review_outcome")
 }
 
-enum NotificationType {
+enum ReviewInboxItemType {
   REVIEW_RESOLVED
   REVIEW_REJECTED
-  USAGE_LIMIT_REACHED
 
-  @@map("notification_type")
+  @@map("review_inbox_item_type")
 }
 
-enum NotificationStatus {
+enum ReviewInboxItemStatus {
   UNREAD
   READ
-  DISMISSED
 
-  @@map("notification_status")
+  @@map("review_inbox_item_status")
 }
 
 model ReviewCase {
@@ -95,7 +93,7 @@ model ReviewCase {
   triggers           ReviewTrigger[]
   evidence           ReviewEvidenceSnapshot?
   actions            ReviewAction[]
-  notifications      Notification[]
+  inboxItems         ReviewInboxItem[]
 
   @@index([courseId, status, createdAt(sort: Desc), id(sort: Desc)], map: "idx_review_cases_course_status_created")
   @@index([assignedInstructorId, status, updatedAt(sort: Desc)], map: "idx_review_cases_assignee_status_updated")
@@ -174,20 +172,25 @@ model IdempotencyRecord {
   @@map("idempotency_records")
 }
 
-model Notification {
-  id              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  recipientUserId String             @map("recipient_user_id") @db.Uuid
-  reviewCaseId    String?            @map("review_case_id") @db.Uuid
-  type            NotificationType
-  status          NotificationStatus @default(UNREAD)
-  metadata        Json               @default("{}") @db.JsonB
-  readAt          DateTime?          @map("read_at") @db.Timestamptz(6)
-  dismissedAt     DateTime?          @map("dismissed_at") @db.Timestamptz(6)
-  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+model ReviewInboxItem {
+  id              String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recipientUserId String                 @map("recipient_user_id") @db.Uuid
+  reviewCaseId    String                 @map("review_case_id") @db.Uuid
+  courseId        String                 @map("course_id") @db.Uuid
+  sessionId       String                 @map("session_id") @db.Uuid
+  messageId       String                 @map("message_id") @db.Uuid
+  type            ReviewInboxItemType
+  status          ReviewInboxItemStatus @default(UNREAD)
+  readAt          DateTime?              @map("read_at") @db.Timestamptz(6)
+  createdAt       DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  recipient  User        @relation("NotificationRecipient", fields: [recipientUserId], references: [id], onDelete: Restrict)
-  reviewCase ReviewCase? @relation(fields: [reviewCaseId], references: [id], onDelete: Restrict)
+  recipient  User        @relation("ReviewInboxRecipient", fields: [recipientUserId], references: [id], onDelete: Restrict)
+  reviewCase ReviewCase  @relation(fields: [reviewCaseId], references: [id], onDelete: Restrict)
+  course     Course      @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  session    ChatSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  message    Message     @relation(fields: [messageId], references: [id], onDelete: Restrict)
 
-  @@map("notifications")
+  @@unique([recipientUserId, reviewCaseId], map: "review_inbox_items_recipient_review_case_key")
+  @@index([recipientUserId, createdAt(sort: Desc), id(sort: Desc)], map: "idx_review_inbox_items_recipient_created")
+  @@map("review_inbox_items")
 }

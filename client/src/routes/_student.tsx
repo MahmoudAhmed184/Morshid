@@ -5,7 +5,7 @@ import { AuthLoader } from '@/features/auth/routing/auth-loader'
 import { useAuthStore } from '@/features/auth/session/session.store'
 import { requireRole } from '@/features/auth/routing/auth-redirect'
 import { studentCoursesQueryOptions } from '@/features/student/data/student-courses.queries'
-import { StudentLayout } from '@/features/student/pages/student-layout'
+import { StudentLayout } from '@/workspaces/student/student-layout'
 import { getAppQueryClient } from '@/lib/query/query-client'
 
 export const Route = createFileRoute('/_student')({

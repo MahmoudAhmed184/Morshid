@@ -4,7 +4,7 @@ import { Injectable } from '@nestjs/common'
 
 import {
   CourseMembershipRole,
-  NotificationType,
+  ReviewInboxItemType,
   Prisma,
   ReviewActionType,
   ReviewOutcome,
@@ -62,6 +62,8 @@ export type InstructorReviewActionOutcome =
   | { kind: 'automatic_not_rejectable' }
 
 export abstract class InstructorReviewActionRepository {
+  abstract findCourseId(reviewCaseId: string): Promise<string | null>
+
   abstract apply(
     input: InstructorReviewActionInput,
   ): Promise<InstructorReviewActionOutcome>
@@ -74,6 +76,15 @@ export class PrismaInstructorReviewActionRepository extends InstructorReviewActi
     private readonly auditService: AuditService,
   ) {
     super()
+  }
+
+  findCourseId(reviewCaseId: string): Promise<string | null> {
+    return this.prisma.reviewCase
+      .findUnique({
+        where: { id: reviewCaseId },
+        select: { courseId: true },
+      })
+      .then((reviewCase) => reviewCase?.courseId ?? null)
   }
 
   apply(
@@ -203,18 +214,17 @@ export class PrismaInstructorReviewActionRepository extends InstructorReviewActi
             operationId,
           },
         })
-        await tx.notification.create({
+        await tx.reviewInboxItem.create({
           data: {
             recipientUserId: reviewCase.targetMessage.session.studentId,
             reviewCaseId: reviewCase.id,
+            courseId: reviewCase.courseId,
+            sessionId: reviewCase.targetMessage.session.id,
+            messageId: reviewCase.targetMessage.id,
             type:
               publication.status === ReviewStatus.REJECTED
-                ? NotificationType.REVIEW_REJECTED
-                : NotificationType.REVIEW_RESOLVED,
-            metadata: {
-              messageId: reviewCase.targetMessage.id,
-              sessionId: reviewCase.targetMessage.session.id,
-            },
+                ? ReviewInboxItemType.REVIEW_REJECTED
+                : ReviewInboxItemType.REVIEW_RESOLVED,
           },
         })
         await tx.idempotencyRecord.create({

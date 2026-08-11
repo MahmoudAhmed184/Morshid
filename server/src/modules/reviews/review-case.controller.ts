@@ -44,7 +44,6 @@ import {
 import { invalidReviewRequestException } from './review-case.errors'
 import { ReviewCaseCreator } from './review-case.creator'
 import {
-  NotificationContractDto,
   PublishedReviewContractDto,
   ReviewActionContractDto,
   ReviewDetailContractDto,
@@ -60,7 +59,6 @@ import {
   ReviewDetailContractDto,
   ReviewActionContractDto,
   PublishedReviewContractDto,
-  NotificationContractDto,
 )
 @UseInterceptors(ClassSerializerInterceptor)
 export class ReviewCaseController {

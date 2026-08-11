@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAuthStore } from '@/features/auth/session/session.store'
 import type { AuthSession } from '@/features/auth/session/session.schema'
-import { instructorReviewQueueQueryOptions } from '@/features/instructor/data/instructor-reviews.queries'
+import { instructorReviewQueueQueryOptions } from '@/features/reviews/instructor-queue/instructor-reviews.queries'
 
 import { ReviewQueuePage } from './review-queue-page'
 

@@ -19,15 +19,15 @@ import { PageHeader } from '@/components/ui/custom/page-header'
 import { StatusBadge } from '@/components/ui/custom/status-badge/status-badge'
 import { Input } from '@/components/ui/input'
 import { InstructorListSkeleton } from '@/features/instructor/components/instructor-list-skeleton'
-import { useInstructorReviewQueue } from '@/features/instructor/hooks/use-instructor-reviews'
+import { useInstructorReviewQueue } from '@/features/reviews/instructor-queue/use-instructor-reviews'
 import type {
   InstructorReviewQueueItem,
   StudentFlagReason,
-} from '@/features/instructor/schemas/instructor-review.schema'
+} from '@/features/reviews/interface/instructor-review.schema'
 import {
   studentFlagReasonLabel,
   studentFlagReasons,
-} from '@/features/instructor/student-flag-reason'
+} from '@/features/reviews/interface/student-flag-reason'
 import { cn } from '@/lib/utils'
 
 type QueueStatus = 'ALL' | InstructorReviewQueueItem['status']

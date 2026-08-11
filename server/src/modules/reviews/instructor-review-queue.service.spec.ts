@@ -16,19 +16,21 @@ describe('InstructorReviewQueueService', () => {
     role: UserRole.INSTRUCTOR,
     status: UserStatus.ACTIVE,
   }
-  const isOwnedCourse = jest.fn()
+  const canManageCourse = jest.fn()
   const list = jest.fn()
-  const service = new InstructorReviewQueueService({
-    isOwnedCourse,
-    list,
-  })
+  const service = new InstructorReviewQueueService(
+    {
+      list,
+    },
+    { canManageCourse } as never,
+  )
 
   beforeEach(() => {
     jest.clearAllMocks()
   })
 
   it('conceals missing and other-Instructor courses with the same not-found error', async () => {
-    isOwnedCourse.mockResolvedValue(false)
+    canManageCourse.mockResolvedValue(false)
 
     await expect(
       service.list(user, { courseId: 'course-x', limit: 25 }),
@@ -40,6 +42,7 @@ describe('InstructorReviewQueueService', () => {
   })
 
   it('returns a stable page, safe queue fields, age, pending state, and count', async () => {
+    canManageCourse.mockResolvedValue(true)
     list.mockResolvedValue({
       pendingCount: 7,
       records: [

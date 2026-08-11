@@ -8,9 +8,9 @@ import type {
 import type { AuthenticatedUser } from '../identity/identity.types'
 import type { AuditRequestContext } from '../audit/audit.public'
 import {
-  normalizeAutomaticReviewEvidence,
-  type AutomaticReviewEvidenceContribution,
-} from './automatic-review-evidence'
+  buildAutomaticReviewEvidence,
+  type AutomaticReviewEvidenceInput,
+} from './evidence/automatic-review-evidence'
 import type {
   CreateReviewRequest,
   CreateReviewRequestResponseDto,
@@ -23,15 +23,22 @@ import {
   targetNotReviewableException,
 } from './review-case.errors'
 import {
+  AutomaticReviewBatchError,
   ReviewCaseRepository,
+  type ReviewCaseCreationOutcome,
   type ReviewCaseCreationRecord,
 } from './review-case.repository'
 
 export interface AutomaticReviewCaseRequest {
   messageId: string
+  triggers: readonly AutomaticReviewTriggerRequest[]
+  evidence: AutomaticReviewEvidenceInput
+  requestContext?: AuditRequestContext
+}
+
+export interface AutomaticReviewTriggerRequest {
   trigger: Exclude<ReviewTriggerType, 'STUDENT_REQUEST'>
   sourceEventKey: string
-  evidence: AutomaticReviewEvidenceContribution
   detectorMetadata?: Prisma.InputJsonObject
 }
 
@@ -74,34 +81,65 @@ export class ReviewCaseCreator {
         status: record.status,
         outcome: record.outcome,
         resolvedAt: record.resolvedAt?.toISOString() ?? null,
-        hasNotification: false,
         reviewCaseId: record.caseId,
       },
     }
   }
 
-  async createAutomatic(
+  async createAutomaticBatch(
     request: AutomaticReviewCaseRequest,
-    requestContext?: AuditRequestContext,
   ): Promise<AutomaticReviewCaseResult> {
-    const record = await this.createOrThrow({
-      kind: 'automatic',
-      ...request,
-      evidence: normalizeAutomaticReviewEvidence(request.evidence),
-      requestContext,
-    })
+    if (request.triggers.length === 0) {
+      throw new TypeError('At least one automatic review trigger is required')
+    }
+    const evidence = buildAutomaticReviewEvidence(request.evidence)
+    let records: ReviewCaseCreationOutcome[]
+    try {
+      records = await this.repository.createAutomaticBatch(
+        request.triggers.map((trigger) => ({
+          kind: 'automatic' as const,
+          messageId: request.messageId,
+          ...trigger,
+          evidence,
+          requestContext: request.requestContext,
+        })),
+      )
+    } catch (error) {
+      if (error instanceof AutomaticReviewBatchError) {
+        this.recordOrThrow(error.outcome)
+      }
+      throw error
+    }
+    const mappedRecords = records.map((outcome) => this.recordOrThrow(outcome))
+    const first = mappedRecords[0]
+    if (
+      mappedRecords.some(
+        (record) =>
+          record.caseId !== first.caseId ||
+          record.messageId !== request.messageId,
+      )
+    ) {
+      throw new Error(
+        'Automatic review triggers must resolve to one message-scoped case',
+      )
+    }
     return {
-      caseId: record.caseId,
-      messageId: record.messageId,
-      status: record.status,
-      replayed: record.replayed,
+      caseId: first.caseId,
+      messageId: first.messageId,
+      status: first.status,
+      replayed: mappedRecords.every((record) => record.replayed),
     }
   }
 
   private async createOrThrow(
     input: Parameters<ReviewCaseRepository['create']>[0],
   ): Promise<ReviewCaseCreationRecord> {
-    const outcome = await this.repository.create(input)
+    return this.recordOrThrow(await this.repository.create(input))
+  }
+
+  private recordOrThrow(
+    outcome: ReviewCaseCreationOutcome,
+  ): ReviewCaseCreationRecord {
     switch (outcome.kind) {
       case 'ok':
         return outcome.record

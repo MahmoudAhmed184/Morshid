@@ -2,8 +2,6 @@ import { ApiProperty } from '@nestjs/swagger'
 import { Expose } from 'class-transformer'
 
 import {
-  NotificationStatus,
-  NotificationType,
   ReviewActionType,
   ReviewOutcome,
   ReviewStatus,
@@ -88,30 +86,4 @@ export class PublishedReviewContractDto {
   @Expose()
   @ApiProperty({ format: 'date-time' })
   resolvedAt!: string
-}
-
-export class NotificationContractDto {
-  @Expose()
-  @ApiProperty({ format: 'uuid' })
-  id!: string
-
-  @Expose()
-  @ApiProperty({ enum: NotificationType, enumName: 'NotificationType' })
-  type!: NotificationType
-
-  @Expose()
-  @ApiProperty({ enum: NotificationStatus, enumName: 'NotificationStatus' })
-  status!: NotificationStatus
-
-  @Expose()
-  @ApiProperty({ format: 'uuid', nullable: true })
-  reviewCaseId!: string | null
-
-  @Expose()
-  @ApiProperty({ type: 'object', additionalProperties: true })
-  metadata!: Record<string, unknown>
-
-  @Expose()
-  @ApiProperty({ format: 'date-time' })
-  createdAt!: string
 }

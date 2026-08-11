@@ -60,7 +60,7 @@ describe('Instructor terminal review actions (e2e)', () => {
         }),
       ).toBe(2)
       expect(
-        await requireDatabase().prisma.notification.findMany({
+        await requireDatabase().prisma.reviewInboxItem.findMany({
           where: { reviewCaseId: fixture.reviewCaseId },
           select: { recipientUserId: true, type: true, status: true },
         }),
@@ -103,7 +103,7 @@ describe('Instructor terminal review actions (e2e)', () => {
       },
     })
     expect(
-      await requireDatabase().prisma.notification.findMany({
+      await requireDatabase().prisma.reviewInboxItem.findMany({
         where: { reviewCaseId: fixture.reviewCaseId },
         select: { recipientUserId: true, type: true },
       }),
@@ -240,7 +240,7 @@ describe('Instructor terminal review actions (e2e)', () => {
       }),
     ).toBe(2)
     expect(
-      await requireDatabase().prisma.notification.count({
+      await requireDatabase().prisma.reviewInboxItem.count({
         where: { reviewCaseId: fixture.reviewCaseId },
       }),
     ).toBe(1)
@@ -305,7 +305,7 @@ describe('Instructor terminal review actions (e2e)', () => {
     }
   })
 
-  it('rolls back notification creation when the terminal transaction fails', async () => {
+  it('rolls back review inbox creation when the terminal transaction fails', async () => {
     const fixture = await createCase()
 
     await expect(
@@ -323,7 +323,7 @@ describe('Instructor terminal review actions (e2e)', () => {
       }),
     ).rejects.toBeDefined()
     expect(
-      await requireDatabase().prisma.notification.count({
+      await requireDatabase().prisma.reviewInboxItem.count({
         where: { reviewCaseId: fixture.reviewCaseId },
       }),
     ).toBe(0)

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common'
 
 import { AuditModule } from '../audit/audit.module'
+import { CoursesModule } from '../courses/courses.module'
 import { IdentityModule } from '../identity/identity.module'
 import { PrismaModule } from '../prisma/prisma.module'
 import { ReviewCaseController } from './review-case.controller'
@@ -31,13 +32,20 @@ import {
   StudentReviewDetailRepository,
 } from './student-review-detail.repository'
 import { StudentReviewDetailService } from './student-review-detail.service'
+import { StudentReviewInboxController } from './student-inbox/student-review-inbox.controller'
+import { StudentReviewInboxService } from './student-inbox/student-review-inbox.service'
+import {
+  PrismaStudentReviewInboxRepository,
+  StudentReviewInboxRepository,
+} from './student-inbox/student-review-inbox.repository'
 
 @Module({
-  imports: [AuditModule, IdentityModule, PrismaModule],
+  imports: [AuditModule, CoursesModule, IdentityModule, PrismaModule],
   controllers: [
     ReviewCaseController,
     InstructorReviewQueueController,
     StudentReviewDetailController,
+    StudentReviewInboxController,
   ],
   providers: [
     ReviewCaseCreator,
@@ -45,6 +53,7 @@ import { StudentReviewDetailService } from './student-review-detail.service'
     InstructorReviewDetailService,
     InstructorReviewActionService,
     StudentReviewDetailService,
+    StudentReviewInboxService,
     {
       provide: ReviewCaseRepository,
       useClass: PrismaReviewCaseRepository,
@@ -64,6 +73,10 @@ import { StudentReviewDetailService } from './student-review-detail.service'
     {
       provide: StudentReviewDetailRepository,
       useClass: PrismaStudentReviewDetailRepository,
+    },
+    {
+      provide: StudentReviewInboxRepository,
+      useClass: PrismaStudentReviewInboxRepository,
     },
   ],
   exports: [ReviewCaseCreator],

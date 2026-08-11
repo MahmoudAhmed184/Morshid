@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import type { StudentFlagReason } from '@/features/student/schemas/student-chat.schema'
+import type { StudentFlagReason } from '@/features/reviews/interface/student-review.schema'
 import { isApiError } from '@/lib/api/http'
 
 interface StudentReviewRequestDialogProps {

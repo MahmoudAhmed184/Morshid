@@ -4,10 +4,8 @@ import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type {
-  ChatMessage,
-  StudentFlagReason,
-} from '@/features/student/schemas/student-chat.schema'
+import type { ChatMessage } from '@/features/student/schemas/student-chat.schema'
+import type { StudentFlagReason } from '@/features/reviews/interface/student-review.schema'
 import {
   orderedChatMessagesFixture,
   studentChatIds,
@@ -450,7 +448,6 @@ describe('StudentChatMessage', () => {
         status: 'PENDING',
         outcome: null,
         resolvedAt: null,
-        hasNotification: false,
       },
     })
     expect(screen.getByText('Pending review')).toBeVisible()
@@ -607,7 +604,6 @@ function ReviewHarness() {
         status: 'PENDING',
         outcome: null,
         resolvedAt: null,
-        hasNotification: false,
       },
     })
     return Promise.resolve()
@@ -632,7 +628,6 @@ function messageWithReview(
         status === 'RESOLVED' || status === 'REJECTED'
           ? '2026-07-15T10:00:00.000Z'
           : null,
-      hasNotification: status === 'RESOLVED' || status === 'REJECTED',
     },
   }
 }

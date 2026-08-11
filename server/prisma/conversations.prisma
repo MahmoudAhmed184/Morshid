@@ -57,6 +57,7 @@ model ChatSession {
   messages   Message[]
   topics     Topic[]
   tutorTurns TutorTurn[]
+  inboxItems ReviewInboxItem[]
 
   @@index([courseId], map: "idx_sessions_course")
   @@index([courseId, studentId], map: "idx_sessions_course_student")
@@ -104,6 +105,7 @@ model Message {
   educationalAnalysisEvidenceLinks EducationalAnalysisEvidenceLink[]
   misconceptionAnalysisEvidence    EducationalAnalysisMisconception[] @relation("EducationalAnalysisMisconceptionEvidence")
   reviewCase                       ReviewCase?
+  inboxItems                       ReviewInboxItem[]
 
   @@unique([sessionId, sequence], map: "messages_session_id_sequence_key")
   @@index([turnId], map: "idx_messages_turn")

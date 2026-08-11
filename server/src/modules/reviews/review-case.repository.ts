@@ -15,17 +15,18 @@ import {
 import { AuditService } from '../audit/audit.public'
 import type { AuditRequestContext } from '../audit/audit.public'
 import { PrismaService } from '../prisma/prisma.service'
-import type { AutomaticReviewEvidenceContribution } from './automatic-review-evidence'
+import type { AutomaticReviewEvidenceContribution } from './evidence/automatic-review-evidence'
 import {
   reviewEvidenceContentHash,
   serializeReviewEvidence,
-} from './review-evidence-integrity'
+} from './evidence/review-evidence-integrity'
+import {
+  buildReviewEvidenceSnapshot,
+  REVIEW_EVIDENCE_SNAPSHOT_LIMIT_BYTES,
+} from './evidence/review-evidence'
 
 const IDEMPOTENCY_SCOPE = 'review.create.manual'
 const MANUAL_REVIEW_DAILY_LIMIT = 3
-const SNAPSHOT_LIMIT_BYTES = 128 * 1024
-const EXCERPT_CODE_POINTS = 500
-const ADJACENT_CONTENT_CODE_POINTS = 2_000
 const MAX_SNAPSHOT_CITATIONS = 20
 const MAX_SNAPSHOT_RETRIEVALS = 20
 
@@ -68,10 +69,23 @@ export type ReviewCaseCreationOutcome =
   | { kind: 'quota_exceeded' }
   | { kind: 'snapshot_too_large' }
 
+export class AutomaticReviewBatchError extends Error {
+  constructor(
+    readonly outcome: Exclude<ReviewCaseCreationOutcome, { kind: 'ok' }>,
+  ) {
+    super(`Automatic review batch failed: ${outcome.kind}`)
+    this.name = 'AutomaticReviewBatchError'
+  }
+}
+
 export abstract class ReviewCaseRepository {
   abstract create(
-    input: CreateReviewCaseInput,
+    input: Extract<CreateReviewCaseInput, { kind: 'manual' }>,
   ): Promise<ReviewCaseCreationOutcome>
+
+  abstract createAutomaticBatch(
+    inputs: Extract<CreateReviewCaseInput, { kind: 'automatic' }>[],
+  ): Promise<ReviewCaseCreationOutcome[]>
 }
 
 @Injectable()
@@ -84,280 +98,288 @@ export class PrismaReviewCaseRepository extends ReviewCaseRepository {
   }
 
   async create(
-    rawInput: CreateReviewCaseInput,
+    rawInput: Extract<CreateReviewCaseInput, { kind: 'manual' }>,
   ): Promise<ReviewCaseCreationOutcome> {
     const input = normalizeCreateReviewCaseInput(rawInput)
     return await this.prisma.$transaction(
+      (tx) => this.createInTransaction(input, tx),
+      { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
+    )
+  }
+
+  async createAutomaticBatch(
+    rawInputs: Extract<CreateReviewCaseInput, { kind: 'automatic' }>[],
+  ): Promise<ReviewCaseCreationOutcome[]> {
+    const inputs = rawInputs.map(normalizeCreateReviewCaseInput)
+    return await this.prisma.$transaction(
       async (tx) => {
-        const fingerprint = requestFingerprint(input)
-
-        // Serialize delivery identity before the message aggregate. This makes
-        // same-key retries deterministic even when two requests arrive before
-        // either transaction has inserted its dedupe row.
-        const deliveryKey =
-          input.kind === 'manual'
-            ? `${input.actorUserId}:${IDEMPOTENCY_SCOPE}:${input.idempotencyKey}`
-            : `automatic:${input.sourceEventKey}`
-        await tx.$queryRaw`
-          SELECT pg_advisory_xact_lock(hashtextextended(${deliveryKey}, 0)) IS NULL AS locked
-        `
-
-        if (input.kind === 'manual') {
-          await tx.idempotencyRecord.deleteMany({
-            where: {
-              actorUserId: input.actorUserId,
-              operationScope: IDEMPOTENCY_SCOPE,
-              key: input.idempotencyKey,
-              expiresAt: { lte: new Date() },
-            },
-          })
-          const replay = await tx.idempotencyRecord.findUnique({
-            where: {
-              actorUserId_operationScope_key: {
-                actorUserId: input.actorUserId,
-                operationScope: IDEMPOTENCY_SCOPE,
-                key: input.idempotencyKey,
-              },
-            },
-          })
-
-          if (replay !== null) {
-            if (replay.requestFingerprint !== fingerprint) {
-              return { kind: 'idempotency_conflict' }
-            }
-            const reviewCase = await tx.reviewCase.findUnique({
-              where: { id: replay.resourceId },
-            })
-            if (reviewCase === null) {
-              throw new Error(
-                'Idempotency record references a missing review case',
-              )
-            }
-            const trigger = await tx.reviewTrigger.findFirst({
-              where: {
-                reviewCaseId: reviewCase.id,
-                type: ReviewTriggerType.STUDENT_REQUEST,
-                actorUserId: input.actorUserId,
-              },
-              select: { createdAt: true },
-            })
-            if (trigger === null) {
-              throw new Error(
-                'Idempotency record references a review case without its manual trigger',
-              )
-            }
-            return {
-              kind: 'ok',
-              record: mapRecord(
-                reviewCase,
-                ReviewTriggerType.STUDENT_REQUEST,
-                true,
-                trigger.createdAt,
-              ),
-            }
+        const outcomes: ReviewCaseCreationOutcome[] = []
+        for (const input of inputs) {
+          const outcome = await this.createInTransaction(input, tx)
+          if (outcome.kind !== 'ok') {
+            throw new AutomaticReviewBatchError(outcome)
           }
+          outcomes.push(outcome)
         }
+        return outcomes
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
+    )
+  }
 
-        if (input.kind === 'automatic') {
-          const replay = await tx.reviewTrigger.findFirst({
-            where: { sourceEventKey: input.sourceEventKey },
-            include: { reviewCase: true },
-          })
-          if (replay !== null) {
-            return {
-              kind: 'ok',
-              record: mapRecord(replay.reviewCase, input.trigger, true),
-            }
-          }
+  private async createInTransaction(
+    input: CreateReviewCaseInput,
+    tx: Prisma.TransactionClient,
+  ): Promise<ReviewCaseCreationOutcome> {
+    const fingerprint = requestFingerprint(input)
+
+    // Serialize delivery identity before the message aggregate. This makes
+    // same-key retries deterministic even when two requests arrive before
+    // either transaction has inserted its dedupe row.
+    const deliveryKey =
+      input.kind === 'manual'
+        ? `${input.actorUserId}:${IDEMPOTENCY_SCOPE}:${input.idempotencyKey}`
+        : `automatic:${input.sourceEventKey}`
+    await tx.$queryRaw`
+      SELECT pg_advisory_xact_lock(hashtextextended(${deliveryKey}, 0)) IS NULL AS locked
+    `
+
+    if (input.kind === 'manual') {
+      await tx.idempotencyRecord.deleteMany({
+        where: {
+          actorUserId: input.actorUserId,
+          operationScope: IDEMPOTENCY_SCOPE,
+          key: input.idempotencyKey,
+          expiresAt: { lte: new Date() },
+        },
+      })
+      const replay = await tx.idempotencyRecord.findUnique({
+        where: {
+          actorUserId_operationScope_key: {
+            actorUserId: input.actorUserId,
+            operationScope: IDEMPOTENCY_SCOPE,
+            key: input.idempotencyKey,
+          },
+        },
+      })
+
+      if (replay !== null) {
+        if (replay.requestFingerprint !== fingerprint) {
+          return { kind: 'idempotency_conflict' }
         }
-
-        await tx.$queryRaw`
-          SELECT pg_advisory_xact_lock(hashtextextended(${input.messageId}, 0)) IS NULL AS locked
-        `
-
-        const target = await tx.message.findFirst({
+        const reviewCase = await tx.reviewCase.findUnique({
+          where: { id: replay.resourceId },
+        })
+        if (reviewCase === null) {
+          throw new Error('Idempotency record references a missing review case')
+        }
+        const trigger = await tx.reviewTrigger.findFirst({
           where: {
-            id: input.messageId,
-            ...(input.kind === 'manual'
-              ? { session: { studentId: input.actorUserId } }
-              : {}),
+            reviewCaseId: reviewCase.id,
+            type: ReviewTriggerType.STUDENT_REQUEST,
+            actorUserId: input.actorUserId,
           },
-          select: targetSelect,
+          select: { createdAt: true },
         })
-
-        if (target?.session.deletedAt !== null) {
-          return { kind: 'not_found' }
-        }
-        if (
-          target.session.membership.removedAt !== null ||
-          target.session.membership.role !== 'STUDENT'
-        ) {
-          return { kind: 'not_found' }
-        }
-        if (
-          target.role !== MessageRole.ASSISTANT ||
-          target.status !== MessageStatus.COMPLETED ||
-          target.completedAt === null
-        ) {
-          return { kind: 'not_reviewable' }
-        }
-
-        const existing = await tx.reviewCase.findUnique({
-          where: { targetMessageId: target.id },
-          include: { triggers: true },
-        })
-        if (existing !== null) {
-          const matchingTrigger = existing.triggers.find((trigger) =>
-            input.kind === 'manual'
-              ? trigger.type === ReviewTriggerType.STUDENT_REQUEST &&
-                trigger.actorUserId === input.actorUserId
-              : trigger.sourceEventKey === input.sourceEventKey,
-          )
-          if (matchingTrigger === undefined && input.kind === 'manual') {
-            if (!(await hasManualReviewQuota(tx, input.actorUserId))) {
-              return { kind: 'quota_exceeded' }
-            }
-          }
-          const triggerCreatedAt = matchingTrigger?.createdAt ?? new Date()
-          if (matchingTrigger === undefined) {
-            const version = existing.version + 1
-            await tx.reviewCase.update({
-              where: { id: existing.id },
-              data: {
-                version,
-                triggers: { create: triggerData(input, triggerCreatedAt) },
-                actions: {
-                  create: actionData(
-                    input,
-                    ReviewActionType.TRIGGER_ADDED,
-                    version,
-                    existing.status,
-                    existing.status,
-                  ),
-                },
-              },
-            })
-            await this.recordAudit(
-              input,
-              tx,
-              existing.id,
-              target.session.courseId,
-              'added',
-            )
-          }
-          if (input.kind === 'manual') {
-            await createIdempotencyRecord(
-              tx,
-              input,
-              fingerprint,
-              existing.id,
-              200,
-            )
-          }
-          return {
-            kind: 'ok',
-            record: mapRecord(
-              existing,
-              triggerType(input),
-              true,
-              triggerCreatedAt,
-            ),
-          }
-        }
-
-        if (input.kind === 'manual') {
-          if (!(await hasManualReviewQuota(tx, input.actorUserId))) {
-            return { kind: 'quota_exceeded' }
-          }
-        }
-
-        const previousMessages =
-          input.kind === 'automatic'
-            ? []
-            : await tx.message.findMany({
-                where: {
-                  sessionId: target.session.id,
-                  sequence: {
-                    lt: target.responseToMessage?.sequence ?? target.sequence,
-                  },
-                },
-                orderBy: { sequence: 'desc' },
-                take: 2,
-                select: adjacentMessageSelect,
-              })
-        const followingMessages =
-          input.kind === 'automatic'
-            ? []
-            : await tx.message.findMany({
-                where: {
-                  sessionId: target.session.id,
-                  sequence: { gt: target.sequence },
-                },
-                orderBy: { sequence: 'asc' },
-                take: 2,
-                select: adjacentMessageSelect,
-              })
-        const snapshot = buildSnapshot(
-          target,
-          previousMessages.reverse(),
-          followingMessages,
-          input,
-        )
-        const serialized = serializeReviewEvidence(snapshot)
-        if (Buffer.byteLength(serialized, 'utf8') > SNAPSHOT_LIMIT_BYTES) {
-          return { kind: 'snapshot_too_large' }
-        }
-
-        const triggerCreatedAt = new Date()
-        const reviewCase = await tx.reviewCase.create({
-          data: {
-            targetMessageId: target.id,
-            courseId: target.session.courseId,
-            requestedByUserId:
-              input.kind === 'manual' ? input.actorUserId : null,
-            triggers: { create: triggerData(input, triggerCreatedAt) },
-            evidence: {
-              create: {
-                schemaVersion: 1,
-                evidence: snapshot,
-                contentHash: reviewEvidenceContentHash(snapshot),
-              },
-            },
-            actions: {
-              create: actionData(input, ReviewActionType.CREATED, 1),
-            },
-          },
-        })
-
-        if (input.kind === 'manual') {
-          await createIdempotencyRecord(
-            tx,
-            input,
-            fingerprint,
-            reviewCase.id,
-            201,
+        if (trigger === null) {
+          throw new Error(
+            'Idempotency record references a review case without its manual trigger',
           )
         }
-        await this.recordAudit(
-          input,
-          tx,
-          reviewCase.id,
-          target.session.courseId,
-          'created',
-        )
-
         return {
           kind: 'ok',
           record: mapRecord(
             reviewCase,
-            triggerType(input),
-            false,
-            triggerCreatedAt,
+            ReviewTriggerType.STUDENT_REQUEST,
+            true,
+            trigger.createdAt,
           ),
         }
+      }
+    }
+
+    if (input.kind === 'automatic') {
+      const replay = await tx.reviewTrigger.findFirst({
+        where: { sourceEventKey: input.sourceEventKey },
+        include: { reviewCase: true },
+      })
+      if (replay !== null) {
+        return {
+          kind: 'ok',
+          record: mapRecord(replay.reviewCase, input.trigger, true),
+        }
+      }
+    }
+
+    await tx.$queryRaw`
+      SELECT pg_advisory_xact_lock(hashtextextended(${input.messageId}, 0)) IS NULL AS locked
+    `
+
+    const target = await tx.message.findFirst({
+      where: {
+        id: input.messageId,
+        ...(input.kind === 'manual'
+          ? { session: { studentId: input.actorUserId } }
+          : {}),
       },
-      { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
+      select: targetSelect,
+    })
+
+    if (target?.session.deletedAt !== null) {
+      return { kind: 'not_found' }
+    }
+    if (
+      target.session.membership.removedAt !== null ||
+      target.session.membership.role !== 'STUDENT'
+    ) {
+      return { kind: 'not_found' }
+    }
+    if (
+      target.role !== MessageRole.ASSISTANT ||
+      target.status !== MessageStatus.COMPLETED ||
+      target.completedAt === null
+    ) {
+      return { kind: 'not_reviewable' }
+    }
+
+    const existing = await tx.reviewCase.findUnique({
+      where: { targetMessageId: target.id },
+      include: { triggers: true },
+    })
+    if (existing !== null) {
+      const matchingTrigger = existing.triggers.find((trigger) =>
+        input.kind === 'manual'
+          ? trigger.type === ReviewTriggerType.STUDENT_REQUEST &&
+            trigger.actorUserId === input.actorUserId
+          : trigger.sourceEventKey === input.sourceEventKey,
+      )
+      if (matchingTrigger === undefined && input.kind === 'manual') {
+        if (!(await hasManualReviewQuota(tx, input.actorUserId))) {
+          return { kind: 'quota_exceeded' }
+        }
+      }
+      const triggerCreatedAt = matchingTrigger?.createdAt ?? new Date()
+      if (matchingTrigger === undefined) {
+        const version = existing.version + 1
+        await tx.reviewCase.update({
+          where: { id: existing.id },
+          data: {
+            version,
+            triggers: { create: triggerData(input, triggerCreatedAt) },
+            actions: {
+              create: actionData(
+                input,
+                ReviewActionType.TRIGGER_ADDED,
+                version,
+                existing.status,
+                existing.status,
+              ),
+            },
+          },
+        })
+        await this.recordAudit(
+          input,
+          tx,
+          existing.id,
+          target.session.courseId,
+          'added',
+        )
+      }
+      if (input.kind === 'manual') {
+        await createIdempotencyRecord(tx, input, fingerprint, existing.id, 200)
+      }
+      return {
+        kind: 'ok',
+        record: mapRecord(existing, triggerType(input), true, triggerCreatedAt),
+      }
+    }
+
+    if (input.kind === 'manual') {
+      if (!(await hasManualReviewQuota(tx, input.actorUserId))) {
+        return { kind: 'quota_exceeded' }
+      }
+    }
+
+    const previousMessages =
+      input.kind === 'automatic'
+        ? []
+        : await tx.message.findMany({
+            where: {
+              sessionId: target.session.id,
+              sequence: {
+                lt: target.responseToMessage?.sequence ?? target.sequence,
+              },
+            },
+            orderBy: { sequence: 'desc' },
+            take: 2,
+            select: adjacentMessageSelect,
+          })
+    const followingMessages =
+      input.kind === 'automatic'
+        ? []
+        : await tx.message.findMany({
+            where: {
+              sessionId: target.session.id,
+              sequence: { gt: target.sequence },
+            },
+            orderBy: { sequence: 'asc' },
+            take: 2,
+            select: adjacentMessageSelect,
+          })
+    const snapshot = buildReviewEvidenceSnapshot(
+      target,
+      previousMessages.reverse(),
+      followingMessages,
+      input,
     )
+    const serialized = serializeReviewEvidence(snapshot)
+    if (
+      Buffer.byteLength(serialized, 'utf8') >
+      REVIEW_EVIDENCE_SNAPSHOT_LIMIT_BYTES
+    ) {
+      return { kind: 'snapshot_too_large' }
+    }
+
+    const triggerCreatedAt = new Date()
+    const reviewCase = await tx.reviewCase.create({
+      data: {
+        targetMessageId: target.id,
+        courseId: target.session.courseId,
+        requestedByUserId: input.kind === 'manual' ? input.actorUserId : null,
+        triggers: { create: triggerData(input, triggerCreatedAt) },
+        evidence: {
+          create: {
+            schemaVersion: 1,
+            evidence: snapshot,
+            contentHash: reviewEvidenceContentHash(snapshot),
+          },
+        },
+        actions: {
+          create: actionData(input, ReviewActionType.CREATED, 1),
+        },
+      },
+    })
+
+    if (input.kind === 'manual') {
+      await createIdempotencyRecord(tx, input, fingerprint, reviewCase.id, 201)
+    }
+    await this.recordAudit(
+      input,
+      tx,
+      reviewCase.id,
+      target.session.courseId,
+      'created',
+    )
+
+    return {
+      kind: 'ok',
+      record: mapRecord(
+        reviewCase,
+        triggerType(input),
+        false,
+        triggerCreatedAt,
+      ),
+    }
   }
 
   private async recordAudit(
@@ -460,8 +482,6 @@ const targetSelect = {
   },
 } satisfies Prisma.MessageSelect
 
-type TargetRecord = Prisma.MessageGetPayload<{ select: typeof targetSelect }>
-
 const adjacentMessageSelect = {
   id: true,
   role: true,
@@ -469,116 +489,6 @@ const adjacentMessageSelect = {
   createdAt: true,
   sequence: true,
 } satisfies Prisma.MessageSelect
-
-type AdjacentMessageRecord = Prisma.MessageGetPayload<{
-  select: typeof adjacentMessageSelect
-}>
-
-function buildSnapshot(
-  target: TargetRecord,
-  previousMessages: AdjacentMessageRecord[],
-  followingMessages: AdjacentMessageRecord[],
-  input: CreateReviewCaseInput,
-): Prisma.InputJsonObject {
-  return {
-    target: {
-      id: target.id,
-      role: target.role,
-      content: target.content,
-      createdAt: target.createdAt.toISOString(),
-      completedAt: target.completedAt?.toISOString() ?? null,
-      guidanceLabel: target.guidanceLabel,
-      requestKind: target.requestKind,
-      provider: target.provider,
-      model: target.model,
-      promptVersion: target.promptVersion,
-    },
-    studentPrompt: target.responseToMessage
-      ? {
-          id: target.responseToMessage.id,
-          content:
-            input.kind === 'automatic' &&
-            input.trigger === ReviewTriggerType.POLICY_CHECK_FAILED
-              ? '[Redacted policy-review prompt]'
-              : truncate(
-                  target.responseToMessage.content,
-                  ADJACENT_CONTENT_CODE_POINTS,
-                ),
-          createdAt: target.responseToMessage.createdAt.toISOString(),
-        }
-      : null,
-    context: {
-      previousMessages: previousMessages.map(snapshotMessage),
-      followingMessages: followingMessages.map(snapshotMessage),
-    },
-    citations: target.citations.map((citation) => ({
-      order: citation.citationOrder,
-      materialId: citation.material.id,
-      title: citation.material.title,
-    })),
-    retrievals: target.retrievals.map((retrieval) => ({
-      rank: retrieval.rank,
-      score: retrieval.similarityScore?.toString() ?? null,
-      chunkId: retrieval.chunk?.id ?? null,
-      materialId: retrieval.chunk?.materialId ?? null,
-      chunkNumber:
-        retrieval.chunk === null ? null : retrieval.chunk.chunkIndex + 1,
-      excerpt:
-        retrieval.chunk === null
-          ? null
-          : truncate(
-              retrieval.chunk.content.replace(/\s+/gu, ' ').trim(),
-              EXCERPT_CODE_POINTS,
-            ),
-    })),
-    automaticEvidence:
-      input.kind === 'automatic'
-        ? automaticEvidenceSnapshot(input.evidence)
-        : null,
-    integrity: {
-      courseId: target.session.courseId,
-      studentId: target.session.studentId,
-      sessionId: target.session.id,
-      trigger: triggerType(input),
-    },
-  }
-}
-
-function snapshotMessage(message: AdjacentMessageRecord) {
-  return {
-    id: message.id,
-    role: message.role,
-    content: truncate(message.content, ADJACENT_CONTENT_CODE_POINTS),
-    createdAt: message.createdAt.toISOString(),
-  }
-}
-
-function automaticEvidenceSnapshot(
-  evidence: AutomaticReviewEvidenceContribution,
-): Prisma.InputJsonObject {
-  return {
-    summary: evidence.summary,
-    sources: (evidence.sources ?? []).map((source) => ({
-      ...(source.materialId === undefined
-        ? {}
-        : { materialId: source.materialId }),
-      ...(source.materialTitle === undefined
-        ? {}
-        : { materialTitle: source.materialTitle }),
-      ...(source.chunkId === undefined ? {} : { chunkId: source.chunkId }),
-      ...(source.chunkIndex === undefined
-        ? {}
-        : { chunkIndex: source.chunkIndex }),
-      excerpt: source.excerpt,
-      ...(source.rank === undefined ? {} : { rank: source.rank }),
-      ...(source.score === undefined ? {} : { score: source.score }),
-    })),
-    facts: (evidence.facts ?? []).map((fact) => ({
-      code: fact.code,
-      value: fact.value,
-    })),
-  }
-}
 
 function triggerType(input: CreateReviewCaseInput): ReviewTriggerType {
   return input.kind === 'manual'
@@ -711,8 +621,4 @@ async function hasManualReviewQuota(
 
 function sha256(value: string): string {
   return createHash('sha256').update(value).digest('hex')
-}
-
-function truncate(value: string, limit: number): string {
-  return Array.from(value).slice(0, limit).join('')
 }

@@ -10,9 +10,9 @@ import {
   useInstructorReviewQueue,
   useRejectInstructorReview,
   useResolveInstructorReview,
-} from '@/features/instructor/hooks/use-instructor-reviews'
-import type { InstructorReviewQueueItem } from '@/features/instructor/schemas/instructor-review.schema'
-import { instructorReviewDetailSchema } from '@/features/instructor/schemas/instructor-review.schema'
+} from '@/features/reviews/instructor-queue/use-instructor-reviews'
+import type { InstructorReviewQueueItem } from '@/features/reviews/interface/instructor-review.schema'
+import { instructorReviewDetailSchema } from '@/features/reviews/interface/instructor-review.schema'
 
 import { ReviewDetailPage } from './review-detail-page'
 import { ReviewQueuePage } from './review-queue-page'
@@ -36,7 +36,7 @@ vi.mock('@tanstack/react-router', async (importOriginal) => {
   }
 })
 
-vi.mock('@/features/instructor/hooks/use-instructor-reviews')
+vi.mock('@/features/reviews/instructor-queue/use-instructor-reviews')
 
 const useQueueMock = vi.mocked(useInstructorReviewQueue)
 const useDetailMock = vi.mocked(useInstructorReviewDetail)
@@ -699,7 +699,6 @@ function detail() {
       status: 'PENDING' as const,
       outcome: null,
       resolvedAt: null,
-      hasNotification: false,
     },
   }
 }

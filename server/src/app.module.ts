@@ -15,7 +15,6 @@ import { MaterialsModule } from './modules/materials/materials.module'
 import { RetrievalModule } from './modules/retrieval/retrieval.module'
 import { SocraticTutorModule } from './modules/socratic-tutor/socratic-tutor.module'
 import { ReviewsModule } from './modules/reviews/reviews.module'
-import { NotificationsModule } from './modules/notifications/notifications.module'
 
 @Module({
   imports: [
@@ -37,7 +36,6 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     CompletionModule,
     SocraticTutorModule,
     ReviewsModule,
-    NotificationsModule,
   ],
 })
 export class AppModule {}

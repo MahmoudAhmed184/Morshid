@@ -64,11 +64,6 @@ const queueWhere = (
 })
 
 export abstract class InstructorReviewQueueRepository {
-  abstract isOwnedCourse(
-    instructorId: string,
-    courseId: string,
-  ): Promise<boolean>
-
   abstract list(
     input: ListInstructorReviewQueueInput,
   ): Promise<InstructorReviewQueuePage>
@@ -78,26 +73,6 @@ export abstract class InstructorReviewQueueRepository {
 export class PrismaInstructorReviewQueueRepository extends InstructorReviewQueueRepository {
   constructor(private readonly prisma: PrismaService) {
     super()
-  }
-
-  async isOwnedCourse(
-    instructorId: string,
-    courseId: string,
-  ): Promise<boolean> {
-    const course = await this.prisma.course.findFirst({
-      where: {
-        id: courseId,
-        memberships: {
-          some: {
-            userId: instructorId,
-            role: CourseMembershipRole.INSTRUCTOR,
-            removedAt: null,
-          },
-        },
-      },
-      select: { id: true },
-    })
-    return course !== null
   }
 
   async list(

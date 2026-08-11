@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
 import type { AuthenticatedUser } from '../identity/identity.types'
+import { CourseAccessService } from '../courses/course-access.public'
 import type { AuditRequestContext } from '../audit/audit.public'
 import type {
   InstructorReviewActionResponseDto,
@@ -22,7 +23,10 @@ import {
 
 @Injectable()
 export class InstructorReviewActionService {
-  constructor(private readonly repository: InstructorReviewActionRepository) {}
+  constructor(
+    private readonly repository: InstructorReviewActionRepository,
+    private readonly courseAccessService: CourseAccessService,
+  ) {}
 
   resolve(
     reviewCaseId: string,
@@ -31,14 +35,17 @@ export class InstructorReviewActionService {
     user: AuthenticatedUser,
     requestContext?: AuditRequestContext,
   ): Promise<InstructorReviewActionResponseDto> {
-    return this.apply({
-      kind: 'resolve',
-      reviewCaseId,
-      instructorId: user.id,
-      idempotencyKey,
-      request,
-      requestContext,
-    })
+    return this.apply(
+      {
+        kind: 'resolve',
+        reviewCaseId,
+        instructorId: user.id,
+        idempotencyKey,
+        request,
+        requestContext,
+      },
+      user,
+    )
   }
 
   reject(
@@ -48,19 +55,31 @@ export class InstructorReviewActionService {
     user: AuthenticatedUser,
     requestContext?: AuditRequestContext,
   ): Promise<InstructorReviewActionResponseDto> {
-    return this.apply({
-      kind: 'reject',
-      reviewCaseId,
-      instructorId: user.id,
-      idempotencyKey,
-      request,
-      requestContext,
-    })
+    return this.apply(
+      {
+        kind: 'reject',
+        reviewCaseId,
+        instructorId: user.id,
+        idempotencyKey,
+        request,
+        requestContext,
+      },
+      user,
+    )
   }
 
   private async apply(
     input: InstructorReviewActionInput,
+    user: AuthenticatedUser,
   ): Promise<InstructorReviewActionResponseDto> {
+    const courseId = await this.repository.findCourseId(input.reviewCaseId)
+    if (
+      courseId === null ||
+      !(await this.courseAccessService.canManageCourse(user, courseId))
+    ) {
+      throw reviewNotFoundException()
+    }
+
     const outcome = await this.repository.apply(input)
     switch (outcome.kind) {
       case 'ok':

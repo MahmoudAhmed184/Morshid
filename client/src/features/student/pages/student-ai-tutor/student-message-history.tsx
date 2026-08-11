@@ -8,10 +8,8 @@ import {
   isStudentChatApiError,
   STUDENT_CHAT_ERROR_CODES,
 } from '@/features/student/data/student-chat.errors'
-import type {
-  ChatMessage,
-  StudentFlagReason,
-} from '@/features/student/schemas/student-chat.schema'
+import type { ChatMessage } from '@/features/student/schemas/student-chat.schema'
+import type { StudentFlagReason } from '@/features/reviews/interface/student-review.schema'
 
 import { StudentChatMessage } from './student-chat-message'
 import { StudentSuggestionRows } from './student-suggestion-rows'

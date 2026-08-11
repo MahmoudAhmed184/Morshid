@@ -38,7 +38,6 @@ describe('Student chat review summary cache', () => {
       status: 'PENDING',
       outcome: null,
       resolvedAt: null,
-      hasNotification: false,
     })
     expect(() =>
       chatMessageHistoryResponseSchema.parse(updated.pages[0]),

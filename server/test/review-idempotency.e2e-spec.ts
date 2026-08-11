@@ -276,10 +276,14 @@ describe('Manual review request idempotency (e2e)', () => {
 
   it('counts manual triggers attached to automatic cases against quota', async () => {
     for (const [index, messageId] of ASSISTANT_MESSAGE_IDS.entries()) {
-      await reviewCaseCreator.createAutomatic({
+      await reviewCaseCreator.createAutomaticBatch({
         messageId,
-        trigger: 'POLICY_CHECK_FAILED',
-        sourceEventKey: `automatic-case-${String(index)}`,
+        triggers: [
+          {
+            trigger: 'POLICY_CHECK_FAILED',
+            sourceEventKey: `automatic-case-${String(index)}`,
+          },
+        ],
         evidence: { summary: 'Automatic review fixture' },
       })
     }

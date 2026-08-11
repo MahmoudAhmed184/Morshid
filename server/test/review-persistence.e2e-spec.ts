@@ -37,17 +37,17 @@ describe('Review persistence seam (e2e)', () => {
           'review_triggers',
           'review_evidence_snapshots',
           'review_actions',
-          'notifications',
+          'review_inbox_items',
           'idempotency_records'
         )
       ORDER BY table_name
     `
     expect(tables.map(({ table_name }) => table_name)).toEqual([
       'idempotency_records',
-      'notifications',
       'review_actions',
       'review_cases',
       'review_evidence_snapshots',
+      'review_inbox_items',
       'review_triggers',
     ])
 
@@ -61,13 +61,12 @@ describe('Review persistence seam (e2e)', () => {
           'review_triggers_manual_actor_case_key',
           'review_triggers_source_event_key_key',
           'review_actions_case_version_key',
-          'notifications_terminal_review_key',
-          'idx_notifications_recipient_active',
-          'idx_notifications_recipient_unread'
+          'review_inbox_items_recipient_review_case_key',
+          'idx_review_inbox_items_recipient_created'
         )
       ORDER BY indexname
     `
-    expect(indexes.map(({ indexname }) => indexname)).toHaveLength(8)
+    expect(indexes.map(({ indexname }) => indexname)).toHaveLength(7)
 
     const reviewStatuses = await prisma.$queryRaw<{ enumlabel: string }[]>`
       SELECT enumlabel
@@ -254,13 +253,21 @@ describe('Review persistence seam (e2e)', () => {
 
   it('enforces Student flag reason trigger shape in the database', async () => {
     const fixture = await createReviewableMessage('trigger-shape')
-    const automatic = await repository.create({
-      kind: 'automatic',
-      messageId: fixture.assistantMessageId,
-      trigger: 'POLICY_CHECK_FAILED',
-      sourceEventKey: 'trigger-shape-automatic',
-      evidence: { summary: 'Policy threshold was not met' },
-    })
+    const automatic = (
+      await repository.createAutomaticBatch([
+        {
+          kind: 'automatic',
+          messageId: fixture.assistantMessageId,
+          trigger: 'POLICY_CHECK_FAILED',
+          sourceEventKey: 'trigger-shape-automatic',
+          evidence: {
+            summary: 'Policy threshold was not met',
+            sources: [],
+            facts: [],
+          },
+        },
+      ])
+    )[0]
     expect(automatic.kind).toBe('ok')
     if (automatic.kind !== 'ok') {
       throw new Error('Expected automatic review case creation to succeed')
@@ -297,13 +304,21 @@ describe('Review persistence seam (e2e)', () => {
 
   it('keeps the first evidence snapshot immutable when automatic reasons aggregate', async () => {
     const fixture = await createReviewableMessage('immutable-automatic')
-    const first = await repository.create({
-      kind: 'automatic',
-      messageId: fixture.assistantMessageId,
-      trigger: 'POLICY_CHECK_FAILED',
-      sourceEventKey: 'immutable-automatic-policy',
-      evidence: { summary: 'Initial bounded policy evidence' },
-    })
+    const first = (
+      await repository.createAutomaticBatch([
+        {
+          kind: 'automatic',
+          messageId: fixture.assistantMessageId,
+          trigger: 'POLICY_CHECK_FAILED',
+          sourceEventKey: 'immutable-automatic-policy',
+          evidence: {
+            summary: 'Initial bounded policy evidence',
+            sources: [],
+            facts: [],
+          },
+        },
+      ])
+    )[0]
     expect(first.kind).toBe('ok')
     if (first.kind !== 'ok') {
       throw new Error('Expected initial automatic case creation to succeed')
@@ -314,14 +329,20 @@ describe('Review persistence seam (e2e)', () => {
       })
 
     await expect(
-      repository.create({
-        kind: 'automatic',
-        messageId: fixture.assistantMessageId,
-        trigger: 'FINAL_ANSWER_RISK',
-        sourceEventKey: 'immutable-automatic-final-answer',
-        evidence: { summary: 'Later contribution must not replace evidence' },
-      }),
-    ).resolves.toMatchObject({ kind: 'ok' })
+      repository.createAutomaticBatch([
+        {
+          kind: 'automatic',
+          messageId: fixture.assistantMessageId,
+          trigger: 'FINAL_ANSWER_RISK',
+          sourceEventKey: 'immutable-automatic-final-answer',
+          evidence: {
+            summary: 'Later contribution must not replace evidence',
+            sources: [],
+            facts: [],
+          },
+        },
+      ]),
+    ).resolves.toEqual([expect.objectContaining({ kind: 'ok' })])
 
     const aggregated =
       await requireDatabase().prisma.reviewCase.findUniqueOrThrow({
@@ -450,20 +471,72 @@ describe('Review persistence seam (e2e)', () => {
       'x'.repeat(129 * 1024),
     )
     await expect(
-      repository.create({
-        kind: 'automatic',
-        messageId: oversized.assistantMessageId,
-        trigger: 'POLICY_CHECK_FAILED',
-        sourceEventKey: 'oversized-event',
-        evidence: { summary: 'Policy threshold was not met' },
-        detectorMetadata: { detector: 'test' },
-      }),
-    ).resolves.toEqual({ kind: 'snapshot_too_large' })
+      repository.createAutomaticBatch([
+        {
+          kind: 'automatic',
+          messageId: oversized.assistantMessageId,
+          trigger: 'POLICY_CHECK_FAILED',
+          sourceEventKey: 'oversized-event',
+          evidence: {
+            summary: 'Policy threshold was not met',
+            sources: [],
+            facts: [],
+          },
+          detectorMetadata: { detector: 'test' },
+        },
+      ]),
+    ).rejects.toThrow('Automatic review batch failed: snapshot_too_large')
     expect(
       await requireDatabase().prisma.reviewCase.count({
         where: { targetMessageId: oversized.assistantMessageId },
       }),
     ).toBe(0)
+  })
+
+  it('rolls back every automatic trigger when one batch input fails', async () => {
+    const fixture = await createReviewableMessages('atomic-automatic-batch', 2)
+    const firstMessageId = fixture.assistantMessageIds.at(0)
+    if (firstMessageId === undefined) {
+      throw new Error('Expected an automatic batch fixture message')
+    }
+
+    await expect(
+      repository.createAutomaticBatch([
+        {
+          kind: 'automatic',
+          messageId: firstMessageId,
+          trigger: 'POLICY_CHECK_FAILED',
+          sourceEventKey: 'atomic-batch-valid',
+          evidence: {
+            summary: 'First batch input',
+            sources: [],
+            facts: [],
+          },
+        },
+        {
+          kind: 'automatic',
+          messageId: randomUUID(),
+          trigger: 'FINAL_ANSWER_RISK',
+          sourceEventKey: 'atomic-batch-invalid',
+          evidence: {
+            summary: 'Second batch input must fail',
+            sources: [],
+            facts: [],
+          },
+        },
+      ]),
+    ).rejects.toThrow('Automatic review batch failed: not_found')
+
+    await expect(
+      requireDatabase().prisma.reviewCase.count({
+        where: { targetMessageId: firstMessageId },
+      }),
+    ).resolves.toBe(0)
+    await expect(
+      requireDatabase().prisma.reviewTrigger.count({
+        where: { sourceEventKey: 'atomic-batch-valid' },
+      }),
+    ).resolves.toBe(0)
   })
 
   async function createReviewableMessage(label: string, content = 'Answer') {

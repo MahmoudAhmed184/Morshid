@@ -1,11 +1,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 
 import { useAuthStore } from '@/features/auth/session/session.store'
-import { requestStudentReview } from '@/features/student/data/student-reviews.api'
+import { requestStudentReview } from '@/features/reviews/student-inbox/student-reviews.api'
 import { studentSessionKeys } from '@/features/student/data/student-sessions.queries'
 import { markMessageReviewPending } from '@/features/student/hooks/student-chat-history'
 import type { MessageHistoryData } from '@/features/student/hooks/student-chat-history'
-import type { StudentFlagReason } from '@/features/student/schemas/student-chat.schema'
+import type { StudentFlagReason } from '@/features/reviews/interface/student-review.schema'
 
 interface UseStudentReviewRequestInput {
   courseId: string

@@ -20,17 +20,17 @@ describe('automatic safety SCN-01–SCN-08 matrix', () => {
   it.each(AUTOMATIC_SAFETY_FIXTURES)(
     '$id proves response, ordered reasons, bounded evidence, and delivery uniqueness',
     async (fixture) => {
-      const createAutomatic = jest.fn() as jest.MockedFunction<
-        ReviewCaseCreator['createAutomatic']
+      const createAutomaticBatch = jest.fn() as jest.MockedFunction<
+        ReviewCaseCreator['createAutomaticBatch']
       >
-      createAutomatic.mockResolvedValue({
+      createAutomaticBatch.mockResolvedValue({
         caseId: reviewCaseId,
         messageId: assistantMessageId,
         status: 'PENDING',
         replayed: false,
       })
       const adapter = new OutputPolicyReviewAdapter({
-        createAutomatic,
+        createAutomaticBatch,
       } as unknown as ReviewCaseCreator)
       const decision = policy.evaluate(fixture.input)
 
@@ -54,11 +54,13 @@ describe('automatic safety SCN-01–SCN-08 matrix', () => {
         )
       }
 
-      expect(createAutomatic).toHaveBeenCalledTimes(
-        fixture.expectedReasons.length * fixture.attempts,
+      expect(createAutomaticBatch).toHaveBeenCalledTimes(
+        fixture.expectedReasons.length === 0 ? 0 : fixture.attempts,
       )
       expect(
-        createAutomatic.mock.calls.map(([request]) => request.trigger),
+        createAutomaticBatch.mock.calls.flatMap(([request]) =>
+          request.triggers.map(({ trigger }) => trigger),
+        ),
       ).toEqual(
         Array.from({ length: fixture.attempts }, () => [
           ...fixture.expectedReasons,
@@ -66,7 +68,9 @@ describe('automatic safety SCN-01–SCN-08 matrix', () => {
       )
       expect(
         new Set(
-          createAutomatic.mock.calls.map(([request]) => request.sourceEventKey),
+          createAutomaticBatch.mock.calls.flatMap(([request]) =>
+            request.triggers.map(({ sourceEventKey }) => sourceEventKey),
+          ),
         ).size,
       ).toBe(fixture.expectedReasons.length)
       for (const result of results) {
