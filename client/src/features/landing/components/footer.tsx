@@ -1,4 +1,4 @@
-import { Logo } from '@/components/logo'
+import { Logo } from '@/components/branding/logo'
 
 const productLinks = ['Features', 'Pricing', 'Use Cases', 'Changelog'] as const
 const companyLinks = ['About Us', 'Careers', 'Blog', 'Contact'] as const

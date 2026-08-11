@@ -2,7 +2,7 @@ import { Link } from '@tanstack/react-router'
 import { Menu, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
-import { Logo } from '@/components/logo'
+import { Logo } from '@/components/branding/logo'
 import { Button } from '@/components/ui/button'
 import { ModeToggle } from '@/components/ui/mode-toggle'
 import { useAuthStore } from '@/features/auth/session/session.store'

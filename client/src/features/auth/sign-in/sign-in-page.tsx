@@ -1,4 +1,4 @@
-import { Logo } from '@/components/logo'
+import { Logo } from '@/components/branding/logo'
 
 import { AuthLayout } from './auth-layout'
 import { SignInForm } from './sign-in-form'

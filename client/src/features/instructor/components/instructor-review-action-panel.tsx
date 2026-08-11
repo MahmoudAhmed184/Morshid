@@ -20,7 +20,7 @@ import {
   useRejectInstructorReview,
   useResolveInstructorReview,
 } from '@/features/reviews/instructor-queue/use-instructor-reviews'
-import { isApiError } from '@/lib/api/http'
+import { isApiError } from '@/lib/http/http'
 
 type EditorMode = 'EDITED' | 'REPLACED' | 'REJECT'
 type ReviewDrafts = Record<EditorMode, string>

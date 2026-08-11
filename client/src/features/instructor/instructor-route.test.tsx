@@ -20,7 +20,7 @@ import type {
 } from '@/features/auth/session/session.schema'
 import { InstructorRoutePending } from '@/features/instructor/components/instructor-route-pending'
 import { routeTree } from '@/routeTree.gen'
-import { getAppQueryClient } from '@/lib/query/query-client'
+import { createAppQueryClient } from '@/lib/query/query-client'
 
 vi.mock('@tanstack/react-devtools', () => ({ TanStackDevtools: () => null }))
 vi.mock('@tanstack/react-router-devtools', () => ({
@@ -126,7 +126,11 @@ function renderAtInstructorRoute(
   )
 
   const history = createMemoryHistory({ initialEntries: ['/instructor'] })
-  const router = createRouter({ routeTree, history })
+  const router = createRouter({
+    routeTree,
+    history,
+    context: { queryClient: createAppQueryClient() },
+  })
 
   render(<RouterProvider router={router} />)
 
@@ -145,7 +149,11 @@ function renderUnauthenticatedAtInstructorRoute() {
   )
 
   const history = createMemoryHistory({ initialEntries: ['/instructor'] })
-  const router = createRouter({ routeTree, history })
+  const router = createRouter({
+    routeTree,
+    history,
+    context: { queryClient: createAppQueryClient() },
+  })
 
   render(<RouterProvider router={router} />)
 
@@ -174,7 +182,6 @@ describe('/instructor', () => {
 
   afterEach(() => {
     cleanup()
-    getAppQueryClient().clear()
     useAuthStore.getState().clearSession()
     window.localStorage.clear()
     vi.unstubAllGlobals()
@@ -343,7 +350,11 @@ describe('/instructor', () => {
     )
 
     const history = createMemoryHistory({ initialEntries: ['/'] })
-    const router = createRouter({ routeTree, history })
+    const router = createRouter({
+      routeTree,
+      history,
+      context: { queryClient: createAppQueryClient() },
+    })
     render(<RouterProvider router={router} />)
 
     fireEvent.click(

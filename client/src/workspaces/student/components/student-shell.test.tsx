@@ -3,9 +3,9 @@ import { cleanup, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { SidebarProvider } from '@/components/ui/sidebar'
-import { StudentChromeProvider } from '@/features/student/components/student-chrome-context'
+import { StudentChromeProvider } from '@/workspaces/student/navigation/student-chrome-context'
 import { StudentShell } from '@/workspaces/student/components/student-shell'
-import { ThemeProvider } from '@/providers/theme-provider'
+import { ThemeProvider } from '@/components/theme/theme-provider'
 
 vi.mock('@tanstack/react-router', () => ({
   Outlet: () => <div data-testid="outlet-content">Settings</div>,
@@ -34,7 +34,7 @@ vi.mock('@/features/reviews/student-inbox/use-student-review-inbox', () => ({
   }),
 }))
 
-vi.mock('@/features/student/components/student-course-context', () => ({
+vi.mock('@/workspaces/student/navigation/student-course-context', () => ({
   useStudentCourseContext: () => ({ courses: [], activeCourse: null }),
 }))
 

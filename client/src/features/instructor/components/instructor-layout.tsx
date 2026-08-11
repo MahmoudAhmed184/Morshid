@@ -6,8 +6,8 @@ import {
   Settings2,
 } from 'lucide-react'
 
-import { AppSidebar } from '@/components/layout/app-sidebar'
-import type { AppSidebarNavItem } from '@/components/layout/app-sidebar'
+import { AuthenticatedSidebar } from '@/workspaces/_shared/authenticated-sidebar/authenticated-sidebar'
+import type { AuthenticatedSidebarNavItem } from '@/workspaces/_shared/authenticated-sidebar/authenticated-sidebar'
 import {
   SidebarInset,
   SidebarProvider,
@@ -17,7 +17,7 @@ import { InstructorShellContentFallback } from '@/features/instructor/components
 
 const instructorLayoutRouteId = '/instructor'
 
-const navItems: readonly AppSidebarNavItem[] = [
+const navItems: readonly AuthenticatedSidebarNavItem[] = [
   { icon: LayoutDashboard, to: '/instructor', label: 'Dashboard', exact: true },
   {
     icon: ClipboardCheck,
@@ -44,7 +44,7 @@ function InstructorOutlet() {
 export function InstructorLayout() {
   return (
     <SidebarProvider className="h-svh overflow-hidden">
-      <AppSidebar
+      <AuthenticatedSidebar
         role="instructor"
         navigation={navItems}
         ariaLabel="Instructor navigation"

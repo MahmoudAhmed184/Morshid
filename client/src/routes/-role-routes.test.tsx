@@ -7,6 +7,7 @@ import type {
   AuthSession,
 } from '@/features/auth/session/session.schema'
 import { routeTree } from '@/routeTree.gen'
+import { createAppQueryClient } from '@/lib/query/query-client'
 
 function createSession(role: AuthRole): AuthSession {
   return {
@@ -25,7 +26,11 @@ function createSession(role: AuthRole): AuthSession {
 
 async function loadRoute(path: string) {
   const history = createMemoryHistory({ initialEntries: [path] })
-  const router = createRouter({ routeTree, history })
+  const router = createRouter({
+    routeTree,
+    history,
+    context: { queryClient: createAppQueryClient() },
+  })
 
   await router.load()
 

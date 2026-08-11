@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AuthSession } from '@/features/auth/session/session.schema'
 import { useAuthStore } from '@/features/auth/session/session.store'
-import { getAppQueryClient } from '@/lib/query/query-client'
+import { createAppQueryClient } from '@/lib/query/query-client'
 import { routeTree } from '@/routeTree.gen'
 
 vi.mock('@tanstack/react-devtools', () => ({ TanStackDevtools: () => null }))
@@ -30,6 +30,8 @@ const adminSession: AuthSession = {
   accessToken: 'admin-access-token',
   accessTokenExpiresAt: '2027-07-11T12:15:00.000Z',
 }
+
+let testQueryClient: ReturnType<typeof createAppQueryClient> | undefined
 
 function deferredResponse() {
   let resolve!: (response: Response) => void
@@ -62,7 +64,13 @@ function emptyAdminResponse(url: string) {
 
 function renderAdminRoute(path: string) {
   const history = createMemoryHistory({ initialEntries: [path] })
-  const router = createRouter({ routeTree, history })
+  const queryClient = createAppQueryClient()
+  testQueryClient = queryClient
+  const router = createRouter({
+    routeTree,
+    history,
+    context: { queryClient },
+  })
   render(<RouterProvider router={router} />)
 
   return { history }
@@ -89,7 +97,8 @@ describe('Admin routes', () => {
 
   afterEach(() => {
     cleanup()
-    getAppQueryClient().clear()
+    testQueryClient?.clear()
+    testQueryClient = undefined
     useAuthStore.getState().clearSession()
     vi.unstubAllGlobals()
     vi.restoreAllMocks()

@@ -2,10 +2,10 @@ import { useHydrated } from '@tanstack/react-router'
 
 import { SidebarProvider } from '@/components/ui/sidebar'
 import { AuthLoader } from '@/features/auth/routing/auth-loader'
-import { StudentChromeProvider } from '@/features/student/components/student-chrome-context'
-import { StudentCourseProvider } from '@/features/student/components/student-course-context'
-import { StudentAppSidebar } from '@/features/student/components/student-app-sidebar'
-import { StudentSearchPalette } from '@/features/student/components/student-search-palette'
+import { StudentChromeProvider } from '@/workspaces/student/navigation/student-chrome-context'
+import { StudentCourseProvider } from '@/workspaces/student/navigation/student-course-context'
+import { StudentSidebar } from '@/workspaces/student/navigation/student-sidebar'
+import { StudentSearchPalette } from '@/workspaces/student/navigation/student-search-palette'
 import { StudentShell } from '@/workspaces/student/components/student-shell'
 
 export function StudentLayout() {
@@ -19,7 +19,7 @@ export function StudentLayout() {
     <SidebarProvider className="h-svh overflow-hidden">
       <StudentChromeProvider>
         <StudentCourseProvider>
-          <StudentAppSidebar />
+          <StudentSidebar />
           <StudentShell />
           <StudentSearchPalette />
         </StudentCourseProvider>

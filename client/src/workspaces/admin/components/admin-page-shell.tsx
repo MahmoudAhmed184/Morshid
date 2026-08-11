@@ -9,15 +9,15 @@ import {
   UsersIcon,
 } from 'lucide-react'
 
-import { AppSidebar } from '@/components/layout/app-sidebar'
-import type { AppSidebarNavItem } from '@/components/layout/app-sidebar'
+import { AuthenticatedSidebar } from '@/workspaces/_shared/authenticated-sidebar/authenticated-sidebar'
+import type { AuthenticatedSidebarNavItem } from '@/workspaces/_shared/authenticated-sidebar/authenticated-sidebar'
 import {
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
 } from '@/components/ui/sidebar'
 
-const navItems: readonly AppSidebarNavItem[] = [
+const navItems: readonly AuthenticatedSidebarNavItem[] = [
   { label: 'Dashboard', to: '/admin', icon: LayoutDashboardIcon, exact: true },
   { label: 'Assignments', to: '/admin/assignments', icon: ClipboardCheckIcon },
   { label: 'Users', to: '/admin/users', icon: UsersIcon },
@@ -30,7 +30,7 @@ const navItems: readonly AppSidebarNavItem[] = [
 export function AdminPageShell() {
   return (
     <SidebarProvider className="h-svh overflow-hidden">
-      <AppSidebar
+      <AuthenticatedSidebar
         role="admin"
         navigation={navItems}
         ariaLabel="Admin navigation"

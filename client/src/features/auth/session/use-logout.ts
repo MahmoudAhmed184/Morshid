@@ -1,11 +1,12 @@
 import { useNavigate } from '@tanstack/react-router'
+import { useQueryClient } from '@tanstack/react-query'
 
 import { logoutApi } from '@/features/auth/session/session.api'
 import { useAuthStore } from '@/features/auth/session/session.store'
-import { getAppQueryClient } from '@/lib/query/query-client'
 
 export function useLogout() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const clearSession = useAuthStore((state) => state.clearSession)
 
   return async function logout() {
@@ -20,7 +21,7 @@ export function useLogout() {
       await navigate({ to: '/login', replace: true })
       // Drop cached user-scoped data after leaving protected UI so the next
       // session cannot read it, without thrashing in-flight student queries.
-      getAppQueryClient().clear()
+      queryClient.clear()
     }
   }
 }

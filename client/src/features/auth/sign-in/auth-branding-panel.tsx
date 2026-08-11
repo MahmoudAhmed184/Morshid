@@ -1,4 +1,4 @@
-import { Logo } from '@/components/logo'
+import { Logo } from '@/components/branding/logo'
 import { cn } from '@/lib/utils'
 
 type AuthBrandingPanelProps = {

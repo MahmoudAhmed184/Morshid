@@ -898,3 +898,32 @@ migration and seed remain unchanged.
 - Next safe task: Milestone 7 — complete frontend ownership/workspace
   separation, thin routes, contract consolidation, router-context query
   access, and strict client boundary enforcement.
+
+## Milestone 7 migration inventory
+
+Milestone 7 completes the client ownership cutover that was started by the
+earlier domain slices. The current worktree is clean at `78774b3` before this
+packet. The implementation is client-only and schema-neutral; the rolling
+initial migration, seed, generated Prisma output, and server contracts remain
+unchanged.
+
+| Current surface | Target surface | Disposition and invariants |
+| --- | --- | --- |
+| `client/src/providers/app-provider.tsx`, `router.tsx`, `styles.css`, route-load error | `client/src/app/{app-providers,router,styles,route-load-error}` | Move application composition into `app`; root route imports only the app-owned composition. |
+| `client/src/providers/theme-provider.tsx`, `client/src/components/logo.tsx` | `client/src/components/theme/` and `client/src/components/branding/` | Move shared theme and branding primitives; update every caller directly. |
+| `client/src/components/layout/app-sidebar.tsx` | `client/src/workspaces/_shared/authenticated-sidebar/` | Keep one role-aware authenticated sidebar in shared workspace composition; it may not import a role workspace. |
+| `client/src/components/layout/dashboard-settings-page.tsx`, role settings wrappers | `client/src/features/account-settings/` | Keep one cross-role account settings page; delete Admin, Instructor, and Student pass-through wrappers. |
+| `client/src/features/status`, `client/src/lib/api/health.ts` | `client/src/features/system-status/` | Move health transport, validation, page, and tests into the named feature. |
+| `client/src/features/student/data/{student-courses,student-sessions}*`, hooks, schemas, errors, testing | `client/src/features/courses/course-access/` and `client/src/features/chat/{sessions,messages,testing}` | Split course access from chat transport and split the monolithic chat schema into session and message contracts; preserve API behavior and cache invariants. |
+| `client/src/features/student/components/*`, student tutor pages, and student settings | `client/src/workspaces/student/` and `client/src/workspaces/student/tutor-workspace/` | Move Student shell, navigation, chrome, tutor presentation, orchestration, and tests out of the feature bucket. |
+| `client/src/features/instructor/**` | `client/src/features/courses`, `client/src/features/materials`, `client/src/features/reviews`, and `client/src/workspaces/instructor/` | Move transport/contracts to capability features and all Instructor presentation/orchestration to its role workspace; remove duplicate Instructor contract types. |
+| `client/src/workspaces/admin/routing/admin-route-loader.ts` | route-only loader helpers under `client/src/routes/-admin-loaders.ts` | Route preloading receives QueryClient through TanStack Router context and starts independent work concurrently. |
+| `client/src/lib/query/query-client.ts`, auth logout callers | `client/src/app` router context plus feature-independent query infrastructure | Remove global loader access; retain only the configured QueryClient factory/provider seam. |
+| `client/src/features/admin`, `client/src/features/notifications`, `client/src/hooks`, and empty legacy directories | direct target owners or delete | No broad role buckets, unused wrappers, aliases, or empty legacy paths remain. |
+| `dependency-cruiser.config.mjs` | strict client ownership rules | Enable no-cycle/unresolved/test, shared independence, feature composition, feature interface, workspace direction, and app/route boundary rules with no baseline or exception list. |
+
+Focused M7 gates are the client architecture command, all client tests,
+format/lint/type checks, production build, route generation through
+`npm run generate-routes --workspace client`, and the affected acceptance
+journeys. The final canonical check, full E2E, acceptance, clean-install,
+schema, and independent review gates remain Milestones 9–10.

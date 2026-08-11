@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { studentChatIds } from '@/features/student/testing/student-chat.fixtures'
+import { studentChatIds } from '@/features/chat/testing/chat.fixtures'
 
 import {
   getStudentReviewDetail,

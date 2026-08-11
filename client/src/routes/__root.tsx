@@ -1,12 +1,17 @@
-import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
+import {
+  HeadContent,
+  Scripts,
+  createRootRouteWithContext,
+} from '@tanstack/react-router'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 
-import appCss from '../styles.css?url'
+import appCss from '../app/styles.css?url'
 
-import { AppProviders } from '@/providers/app-provider'
+import { AppProviders } from '@/app/app-providers'
+import type { AppRouterContext } from '@/app/router'
 
-export const Route = createRootRoute({
+export const Route = createRootRouteWithContext<AppRouterContext>()({
   head: () => ({
     meta: [
       {
@@ -27,9 +32,15 @@ export const Route = createRootRoute({
       },
     ],
   }),
-  component: AppProviders,
+  component: RootApp,
   shellComponent: RootDocument,
 })
+
+function RootApp() {
+  const { queryClient } = Route.useRouteContext()
+
+  return <AppProviders queryClient={queryClient} />
+}
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (

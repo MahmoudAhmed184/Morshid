@@ -2,7 +2,7 @@ import type { FC } from 'react'
 
 import { Outlet, redirect } from '@tanstack/react-router'
 
-import { RouteLoadError } from '@/components/route-load-error'
+import { RouteLoadError } from '@/app/route-load-error'
 import { AuthLoader } from '@/features/auth/routing/auth-loader'
 import type { AuthRole } from '@/features/auth/session/session.schema'
 import { requireRole } from '@/features/auth/routing/auth-redirect'
