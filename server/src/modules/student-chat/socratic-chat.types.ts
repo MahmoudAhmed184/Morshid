@@ -11,28 +11,21 @@ export interface SocraticTopicSelection {
 }
 
 /**
- * Input from {@link GroundedChatService} to the Socratic orchestrator.
+ * Input from the Tutoring runtime adapter to the private Socratic workflow.
  *
- * All identifiers are already persisted by `beginTurn` / `retryTurn`
- * before the orchestrator is invoked.
+ * Admission has already persisted the Attempt and its Student/Assistant
+ * message pair before the workflow is invoked.
  */
 export interface SocraticOrchestrationInput {
   readonly courseId: string
   readonly sessionId: string
   readonly studentId: string
+  readonly attemptId: string
   readonly studentMessageId: string
   readonly assistantMessageId: string
   readonly studentMessageContent: string
   readonly topicSelection?: SocraticTopicSelection
   readonly requestBudget?: RequestBudget
-  /**
-   * Deterministic idempotency key for the TutoringAttempt.
-   *
-   * - **send path**: equals the persisted `studentMessageId`.
-   * - **retry path**: `${studentMessageId}:${attemptId}` where both values
-   *   are already persisted by `retryTurn`.
-   */
-  readonly clientMessageId: string
 }
 
 export type SocraticOrchestrationResult =

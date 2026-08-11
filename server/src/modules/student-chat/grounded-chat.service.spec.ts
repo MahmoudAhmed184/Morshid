@@ -198,6 +198,30 @@ describe('GroundedChatService', () => {
     })
   })
 
+  it('routes new-turn commands through the TutoringRuntime entry point', async () => {
+    const response = await service.run({
+      kind: 'new',
+      courseId,
+      sessionId,
+      studentId: user.id,
+      content: 'Explain list iteration',
+      clientMessageId: 'client-message-1',
+      problemId: '2c4d4f3a-7e37-4c6c-8d8b-9c6a3f9a6e11',
+      conceptId: '8e8a2e4a-f2f5-4d63-9dc8-4f7f5c02b2a6',
+      title: 'Binary search boundaries',
+    })
+
+    expect(beginTurn).toHaveBeenCalledWith({
+      courseId,
+      sessionId,
+      studentId: user.id,
+      clientMessageId: 'client-message-1',
+      content: 'Explain list iteration',
+      requestKind: MessageRequestKind.CONCEPTUAL,
+    })
+    expect(response.assistantMessage.content).toBe('Socratic grounded answer')
+  })
+
   it('passes stable topic identity from the HTTP request to orchestration', async () => {
     await service.send(
       courseId,
@@ -512,6 +536,24 @@ describe('GroundedChatService', () => {
       studentMessage: { id: studentMessageId, sequence: 1 },
       assistantMessage: { id: assistantMessageId, sequence: 2 },
     })
+  })
+
+  it('routes retry commands through the same TutoringRuntime entry point', async () => {
+    const response = await service.run({
+      kind: 'retry',
+      courseId,
+      sessionId,
+      studentId: user.id,
+      studentMessageId,
+    })
+
+    expect(retryTurn).toHaveBeenCalledWith({
+      courseId,
+      sessionId,
+      studentId: user.id,
+      studentMessageId,
+    })
+    expect(response.studentMessage.id).toBe(studentMessageId)
   })
 
   it('maps active work and non-failed retry targets to distinct audited conflicts', async () => {

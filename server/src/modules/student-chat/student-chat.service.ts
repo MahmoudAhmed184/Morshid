@@ -116,7 +116,7 @@ export class StudentChatService {
   async getSession(
     courseId: string,
     sessionId: string,
-    user: AuthenticatedUser,
+    user: Pick<AuthenticatedUser, 'id'>,
     requestContext?: AuditRequestContext,
   ): Promise<ChatSessionResponseDto> {
     const session = await this.requireOwnedActiveSession(

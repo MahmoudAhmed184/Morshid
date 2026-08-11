@@ -520,6 +520,29 @@ and the former TutorTurn model are deleted.
 - Next safe task: Milestone 6B — introduce `TutoringRuntime.run` and switch
   the chat HTTP/application adapter to the single runtime interface.
 
+## Milestone 6B migration inventory
+
+Milestone 6B places the chat application path behind the final Tutoring
+runtime boundary and removes the workflow's second attempt admission lookup.
+The existing implementation remains private behind that interface only until
+the later Tutoring workflow and ownership cutovers.
+
+| Area | Files/paths to add, change, or delete | Disposition and verification |
+| --- | --- | --- |
+| Runtime interface | `server/src/modules/tutoring/interface/**`, `server/src/modules/tutoring/tutoring.module.ts` | Add the discriminated new-turn/retry command, caller-safe receipt, and one `TutoringRuntime.run` interface without Prisma or HTTP DTO imports. |
+| HTTP/application adapter | `server/src/modules/student-chat/student-chat.controller.ts`, `student-chat.module.ts`, `grounded-chat.service.ts`, `student-chat.service.ts`, `app.module.ts` | Inject the runtime at the chat boundary; retain session/transcript operations in their current slice; bind the existing pipeline as the private implementation and pass only Student identity plus request context/budget. |
+| Workflow cutover | `server/src/modules/student-chat/socratic-chat.types.ts`, `socratic-chat.orchestrator.ts`, `grounded-chat-turn.repository.ts`, `server/src/modules/socratic-tutor/turn.repository.ts` | Use the already-admitted Attempt identifier, remove the second `getOrCreate`/replay branch and redundant message-link admission, and make approved/classified finalization match the pre-linked Assistant identity. |
+| Regression coverage | `server/src/modules/student-chat/grounded-chat.service.spec.ts`, `socratic-chat.orchestrator.spec.ts`, Socratic capability E2E | Prove both command variants route through `TutoringRuntime`, the workflow does not reacquire an Attempt, and all happy-path, retry, fallback, policy, and replay branches still use one Attempt. |
+| Architecture/search | `dependency-cruiser.config.mjs`, this ledger, authored current paths | Keep the graph green; search for direct controller-to-legacy runtime coupling and duplicate workflow admission before the 6B commit. |
+
+### M6B handoff fields
+
+The handoff must record the implementation SHA, exact runtime interface and
+command/receipt paths, the private implementation binding, removal of the
+second attempt admission path, finalization predicate correction, focused unit
+and capability E2E outcomes, architecture graph counts, and the next safe task
+(Milestone 6C).
+
 ## Milestone 1 migration inventory
 
 Milestone 1 establishes the durable guidance and enforcement inputs that every

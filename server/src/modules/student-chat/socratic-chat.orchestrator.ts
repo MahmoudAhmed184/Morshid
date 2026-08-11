@@ -19,7 +19,6 @@ import {
   PersistedResponseApprovalResult,
   ResponseApprovalService,
 } from '../socratic-tutor/response-approval.service'
-import { TURN_ACQUISITION_OUTCOME } from '../socratic-tutor/turn.types'
 import { TOPIC_RESOLUTION_OUTCOME } from '../socratic-tutor/topic.types'
 import {
   RetrievalQueryBuilder,
@@ -34,15 +33,14 @@ import type {
 } from './socratic-chat.types'
 
 /**
- * Bridge between the student chat module and the Phase 1–5 Socratic pipeline.
+ * Private workflow implementation behind the TutoringRuntime boundary.
  *
  * Owns the full lifecycle:
  *   TutoringAttempt → Topic → TopicState → EducationalAnalysis → TeachingDecision
  *   → RetrievalQueryBuilder → course-scoped Retrieval
  *   → TutorGeneration + Validation → Approval
  *
- * Returns a result that {@link GroundedChatService} maps to the existing
- * response DTO without changing the HTTP contract.
+ * Admission and terminal HTTP mapping remain outside this workflow.
  */
 @Injectable()
 export class SocraticChatOrchestrator {
@@ -67,23 +65,7 @@ export class SocraticChatOrchestrator {
     input: SocraticOrchestrationInput,
   ): Promise<SocraticOrchestrationResult> {
     assertRequestBudget(input.requestBudget)
-    // ── Phase 0: TutoringAttempt acquisition ──────────────────────────────
-    const acquisition = await this.turnService.getOrCreate(
-      input.sessionId,
-      input.clientMessageId,
-    )
-
-    if (acquisition.outcome === TURN_ACQUISITION_OUTCOME.COMPLETED) {
-      return this.replayCompletedTurn(acquisition.turn.id)
-    }
-    if (acquisition.outcome === TURN_ACQUISITION_OUTCOME.ALREADY_PROCESSING) {
-      return { kind: 'failed', errorCode: 'SOCRATIC_TURN_ALREADY_PROCESSING' }
-    }
-    if (acquisition.outcome === TURN_ACQUISITION_OUTCOME.FAILED) {
-      return { kind: 'failed', errorCode: 'SOCRATIC_TURN_PREVIOUSLY_FAILED' }
-    }
-
-    const attemptId = acquisition.turn.id
+    const attemptId = input.attemptId
     assertRequestBudget(input.requestBudget)
 
     const inputRisk = this.safetyRiskDetector.detectStudentInput(
@@ -127,9 +109,6 @@ export class SocraticChatOrchestrator {
     attemptId: string,
   ): Promise<SocraticOrchestrationResult> {
     assertRequestBudget(input.requestBudget)
-    // ── Link student message to TutoringAttempt ─────────────────────────
-    await this.turnService.linkStudentMessage(attemptId, input.studentMessageId)
-
     // ── Phase 1: Topic resolution ─────────────────────────────────
     const resolution = await this.topicService.resolveTopic({
       sessionId: input.sessionId,
@@ -428,42 +407,6 @@ export class SocraticChatOrchestrator {
         select: chatMessageSelect,
       }),
     ])
-
-    return { kind: 'completed', studentMessage, assistantMessage }
-  }
-
-  /**
-   * Replay an idempotent TutoringAttempt that was already COMPLETED.
-   * Returns the persisted approved tutor message.
-   */
-  private async replayCompletedTurn(
-    attemptId: string,
-  ): Promise<SocraticOrchestrationResult> {
-    const turn = await this.prismaService.tutoringAttempt.findUnique({
-      where: { id: attemptId },
-      select: { assistantMessageId: true, studentMessageId: true },
-    })
-    if (
-      turn?.assistantMessageId === null ||
-      turn?.assistantMessageId === undefined ||
-      turn.studentMessageId === null
-    ) {
-      return { kind: 'failed', errorCode: 'SOCRATIC_REPLAY_INCONSISTENT' }
-    }
-
-    const [studentMessage, assistantMessage] = await Promise.all([
-      this.prismaService.message.findUnique({
-        where: { id: turn.studentMessageId },
-        select: chatMessageSelect,
-      }),
-      this.prismaService.message.findUnique({
-        where: { id: turn.assistantMessageId },
-        select: chatMessageSelect,
-      }),
-    ])
-    if (studentMessage === null || assistantMessage === null) {
-      return { kind: 'failed', errorCode: 'SOCRATIC_REPLAY_MESSAGE_MISSING' }
-    }
 
     return { kind: 'completed', studentMessage, assistantMessage }
   }

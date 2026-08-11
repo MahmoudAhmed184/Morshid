@@ -48,6 +48,8 @@ import { UserRole } from '../../generated/prisma/client'
 import type { AuthenticatedHttpRequest } from '../identity/identity.guard'
 import type { AppEnvironment } from '../config/env.schema'
 import { Roles } from '../identity/identity.roles'
+import { TutoringRuntime } from '../tutoring/interface/tutoring-runtime'
+import type { TutoringTurnReceipt } from '../tutoring/interface/tutoring-turn-receipt'
 import { StudentChatCourseBoundaryAuditFilter } from './student-chat-course-boundary-audit.filter'
 import {
   ChatMessageHistoryResponseDto,
@@ -73,7 +75,6 @@ import {
   type StudentChatValidationIssue,
 } from './student-chat.errors'
 import { StudentChatService } from './student-chat.service'
-import { GroundedChatService } from './grounded-chat.service'
 
 const uuidParam = () => new ParseUUIDPipe({ version: '4' })
 
@@ -129,7 +130,7 @@ const groundedChatUnavailable = () =>
 export class StudentChatController {
   constructor(
     private readonly studentChatService: StudentChatService,
-    private readonly groundedChatService: GroundedChatService,
+    private readonly tutoringRuntime: TutoringRuntime,
     private readonly configService: ConfigService<AppEnvironment, true>,
   ) {}
 
@@ -333,7 +334,7 @@ export class StudentChatController {
     body: SendStudentChatMessageRequest,
     @Req() request: AuthenticatedHttpRequest,
     @Res({ passthrough: true }) response?: Response,
-  ): Promise<GroundedChatTurnResponseDto> {
+  ): Promise<TutoringTurnReceipt> {
     const budget = createRequestBudget(
       this.configService.get('SOCRATIC_CHAT_REQUEST_TIMEOUT_MS', {
         infer: true,
@@ -341,15 +342,22 @@ export class StudentChatController {
       { request, response },
     )
 
-    return this.groundedChatService
-      .send(
+    return this.tutoringRuntime
+      .run({
+        kind: 'new',
         courseId,
         sessionId,
-        body,
-        request.user,
-        getRequestContext(request),
-        budget,
-      )
+        studentId: request.user.id,
+        content: body.content,
+        ...(body.clientMessageId === undefined
+          ? {}
+          : { clientMessageId: body.clientMessageId }),
+        ...(body.problemId === undefined ? {} : { problemId: body.problemId }),
+        ...(body.conceptId === undefined ? {} : { conceptId: body.conceptId }),
+        ...(body.title === undefined ? {} : { title: body.title }),
+        requestContext: getRequestContext(request),
+        requestBudget: budget,
+      })
       .finally(() => {
         budget.dispose()
       })
@@ -376,7 +384,7 @@ export class StudentChatController {
     @Param('studentMessageId', uuidParam()) studentMessageId: string,
     @Req() request: AuthenticatedHttpRequest,
     @Res({ passthrough: true }) response?: Response,
-  ): Promise<GroundedChatTurnResponseDto> {
+  ): Promise<TutoringTurnReceipt> {
     if (request.body !== undefined) {
       throw invalidStudentChatRequestException([
         { field: 'body', message: 'Retry requests must not include a body' },
@@ -390,15 +398,16 @@ export class StudentChatController {
       { request, response },
     )
 
-    return this.groundedChatService
-      .retry(
+    return this.tutoringRuntime
+      .run({
+        kind: 'retry',
         courseId,
         sessionId,
+        studentId: request.user.id,
         studentMessageId,
-        request.user,
-        getRequestContext(request),
-        budget,
-      )
+        requestContext: getRequestContext(request),
+        requestBudget: budget,
+      })
       .finally(() => {
         budget.dispose()
       })

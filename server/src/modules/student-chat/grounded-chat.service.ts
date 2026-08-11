@@ -8,6 +8,9 @@ import {
   Prisma,
 } from '../../generated/prisma/client'
 import type { AuthenticatedUser } from '../identity/identity.types'
+import { TutoringRuntime } from '../tutoring/interface/tutoring-runtime'
+import type { RunTutoringTurnCommand } from '../tutoring/interface/run-tutoring-turn-command'
+import type { TutoringTurnReceipt } from '../tutoring/interface/tutoring-turn-receipt'
 import type { AuditRequestContext } from '../audit/audit.public'
 import { PrismaService } from '../prisma/prisma.service'
 import {
@@ -152,7 +155,7 @@ type TerminalPersistence =
     }
 
 @Injectable()
-export class GroundedChatService {
+export class GroundedChatService extends TutoringRuntime {
   private readonly logger = new Logger(GroundedChatService.name)
 
   constructor(
@@ -169,13 +172,49 @@ export class GroundedChatService {
     private readonly retrievalService: RetrievalService,
     @Inject(COMPLETION_PROVIDER_TOKEN)
     private readonly completionProvider: CompletionProvider,
-  ) {}
+  ) {
+    super()
+  }
+
+  run(command: RunTutoringTurnCommand): Promise<TutoringTurnReceipt> {
+    if (command.kind === 'new') {
+      return this.send(
+        command.courseId,
+        command.sessionId,
+        {
+          content: command.content,
+          ...(command.clientMessageId === undefined
+            ? {}
+            : { clientMessageId: command.clientMessageId }),
+          ...(command.problemId === undefined
+            ? {}
+            : { problemId: command.problemId }),
+          ...(command.conceptId === undefined
+            ? {}
+            : { conceptId: command.conceptId }),
+          ...(command.title === undefined ? {} : { title: command.title }),
+        },
+        { id: command.studentId },
+        command.requestContext,
+        command.requestBudget,
+      )
+    }
+
+    return this.retry(
+      command.courseId,
+      command.sessionId,
+      command.studentMessageId,
+      { id: command.studentId },
+      command.requestContext,
+      command.requestBudget,
+    )
+  }
 
   async send(
     courseId: string,
     sessionId: string,
     body: SendStudentChatMessageRequest,
-    user: AuthenticatedUser,
+    user: Pick<AuthenticatedUser, 'id'>,
     requestContext?: AuditRequestContext,
     requestBudget?: RequestBudget,
   ): Promise<GroundedChatTurnResponseDto> {
@@ -241,7 +280,6 @@ export class GroundedChatService {
       },
       requestContext,
       selection,
-      false,
       {
         problemId: body.problemId,
         conceptId: body.conceptId,
@@ -255,7 +293,7 @@ export class GroundedChatService {
     courseId: string,
     sessionId: string,
     studentMessageId: string,
-    user: AuthenticatedUser,
+    user: Pick<AuthenticatedUser, 'id'>,
     requestContext?: AuditRequestContext,
     requestBudget?: RequestBudget,
   ): Promise<GroundedChatTurnResponseDto> {
@@ -305,7 +343,6 @@ export class GroundedChatService {
       },
       requestContext,
       undefined,
-      true,
       {
         topicId: result.studentMessage.topicId,
       },
@@ -318,7 +355,6 @@ export class GroundedChatService {
     operation: OrchestrationContext,
     requestContext?: AuditRequestContext,
     preparedSelection?: TutorStrategySelection,
-    isRetry = false,
     topicSelection?: SocraticTopicSelection,
     requestBudget?: RequestBudget,
   ): Promise<GroundedChatTurnResponseDto> {
@@ -368,21 +404,17 @@ export class GroundedChatService {
       )
     }
 
-    const clientMessageId = isRetry
-      ? `${turn.studentMessage.id}:${turn.attemptId}`
-      : turn.studentMessage.id
-
     let orchestratorResult
     try {
       orchestratorResult = await this.socraticOrchestrator.orchestrate({
         courseId: turn.courseId,
         sessionId: operation.sessionId,
         studentId: operation.studentId,
+        attemptId: turn.attemptId,
         studentMessageId: turn.studentMessage.id,
         assistantMessageId: turn.assistantMessage.id,
         studentMessageContent: turn.studentMessage.content,
         topicSelection,
-        clientMessageId,
         requestBudget,
       })
     } catch (error) {

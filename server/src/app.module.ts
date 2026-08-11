@@ -15,6 +15,7 @@ import { MaterialsModule } from './modules/materials/materials.module'
 import { RetrievalModule } from './modules/retrieval/retrieval.module'
 import { SocraticTutorModule } from './modules/socratic-tutor/socratic-tutor.module'
 import { ReviewsModule } from './modules/reviews/reviews.module'
+import { TutoringModule } from './modules/tutoring/tutoring.module'
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { ReviewsModule } from './modules/reviews/reviews.module'
     MaterialsModule,
     CompletionModule,
     SocraticTutorModule,
+    TutoringModule,
     ReviewsModule,
   ],
 })

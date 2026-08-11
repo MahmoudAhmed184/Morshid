@@ -706,7 +706,7 @@ export class PrismaTurnRepository extends TurnRepository {
         where: {
           id: input.attemptId,
           status: input.expectedTurnStatus,
-          assistantMessageId: null,
+          assistantMessageId: input.assistantMessageId,
         },
         data: {
           status: TutoringAttemptStatus.COMPLETED,
@@ -778,7 +778,7 @@ export class PrismaTurnRepository extends TurnRepository {
         turn.session.deletedAt !== null ||
         turn.topicId !== input.topicId ||
         turn.studentMessageId !== input.studentMessageId ||
-        turn.assistantMessageId !== null
+        turn.assistantMessageId !== input.assistantMessageId
       ) {
         return { kind: 'relationship_mismatch' }
       }
@@ -901,7 +901,7 @@ export class PrismaTurnRepository extends TurnRepository {
         where: {
           id: input.attemptId,
           status: input.expectedTurnStatus,
-          assistantMessageId: null,
+          assistantMessageId: input.assistantMessageId,
         },
         data: {
           status: TutoringAttemptStatus.COMPLETED,

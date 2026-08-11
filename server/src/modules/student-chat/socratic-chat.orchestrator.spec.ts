@@ -7,7 +7,6 @@ import {
 } from '../../generated/prisma/client'
 import type { ChatMessageRecord } from './student-chat.repository.types'
 import { SocraticChatOrchestrator } from './socratic-chat.orchestrator'
-import { TURN_ACQUISITION_OUTCOME } from '../socratic-tutor/turn.types'
 import { TOPIC_RESOLUTION_OUTCOME } from '../socratic-tutor/topic.types'
 
 const attemptId = 'turn-1'
@@ -76,11 +75,6 @@ describe('SocraticChatOrchestrator classified responses', () => {
       })
       const orchestrator = new SocraticChatOrchestrator(
         {
-          getOrCreate: jest.fn().mockResolvedValue({
-            outcome: TURN_ACQUISITION_OUTCOME.CREATED,
-            turn: { id: attemptId },
-          }),
-          linkStudentMessage: jest.fn().mockResolvedValue(undefined),
           attachResolvedTopic: jest.fn().mockResolvedValue(undefined),
           transitionStatus,
           completeClassifiedResponse,
@@ -129,6 +123,7 @@ describe('SocraticChatOrchestrator classified responses', () => {
         courseId,
         sessionId,
         studentId,
+        attemptId,
         studentMessageId,
         assistantMessageId,
         studentMessageContent: 'classified request',
@@ -136,7 +131,6 @@ describe('SocraticChatOrchestrator classified responses', () => {
           problemId: 'problem-1',
           title: 'Problem topic',
         },
-        clientMessageId: 'idempotency-key',
       })
 
       expect(result).toMatchObject({

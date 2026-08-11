@@ -9,6 +9,7 @@ import { OutputPolicyModule } from '../output-policy/output-policy.module'
 import { PdfStorageModule } from '../pdf-storage/pdf-storage.module'
 import { RetrievalModule } from '../retrieval/retrieval.module'
 import { SocraticTutorModule } from '../socratic-tutor/socratic-tutor.module'
+import { TutoringRuntime } from '../tutoring/interface/tutoring-runtime'
 import { SocraticChatOrchestrator } from './socratic-chat.orchestrator'
 import { StudentChatAuditService } from './student-chat.audit.service'
 import { StudentChatController } from './student-chat.controller'
@@ -62,6 +63,10 @@ import { CorrectnessSensitiveRequestClassifier } from './correctness-sensitive-r
       useClass: PrismaGroundedChatTurnRepository,
     },
     GroundedChatService,
+    {
+      provide: TutoringRuntime,
+      useExisting: GroundedChatService,
+    },
     SocraticChatOrchestrator,
   ],
   exports: [StudentChatAuditService, StudentChatService],
