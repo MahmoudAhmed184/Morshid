@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 
-import { TutoringCandidateGenerationOutcome } from '../../../generated/prisma/client'
+import { TutoringCandidateGenerationOutcome } from '../tutoring-values'
 import { SOCRATIC_DISCLOSURE_POLICY_VERSION } from './socratic-disclosure-policy'
 import type { PersistedTeachingDecisionRecord } from './teaching-decision.repository'
 import type { CandidateResponse } from './tutor-generation.types'

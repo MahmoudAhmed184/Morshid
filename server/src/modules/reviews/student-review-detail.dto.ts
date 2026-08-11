@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger'
 import { Expose } from 'class-transformer'
 
-import { ReviewOutcome, ReviewStatus } from '../../generated/prisma/client'
+import { ReviewOutcome, ReviewStatus } from './review-values'
 
 export class StudentReviewDetailDto {
   @Expose()

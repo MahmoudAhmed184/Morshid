@@ -1,4 +1,4 @@
-import { MessageGuidanceLabel } from '../../../../generated/prisma/client'
+import { MessageGuidanceLabel } from '../../tutoring-values'
 
 import type { RejectedDebuggingGuidanceBoundaryAssessment } from './debugging-guidance.boundary'
 import { DEBUGGING_GUIDANCE_MAX_LINES } from './debugging-guidance.contract'

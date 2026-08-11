@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
-import { MessageGuidanceLabel } from '../../../generated/prisma/client'
+import { MessageGuidanceLabel } from '../tutoring-values'
 import { buildAutomaticReviewEvidence } from '../../reviews/reviews.public'
 import {
   AUTOMATIC_POLICY_REASONS,

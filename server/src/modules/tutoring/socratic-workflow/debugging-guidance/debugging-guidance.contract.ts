@@ -3,7 +3,7 @@ import { z } from 'zod'
 import {
   MessageGuidanceLabel,
   MessageRequestKind,
-} from '../../../../generated/prisma/client'
+} from '../../tutoring-values'
 import {
   parseTutorDecision,
   type TutorDecision,

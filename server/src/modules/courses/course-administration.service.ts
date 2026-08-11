@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
-import { CourseMembershipRole } from '../../generated/prisma/client'
+import { CourseMembershipRole } from './course-membership.types'
 import type { AuthenticatedUser } from '../identity/identity.types'
 import type { AuditRequestContext } from '../audit/audit.public'
 import type {

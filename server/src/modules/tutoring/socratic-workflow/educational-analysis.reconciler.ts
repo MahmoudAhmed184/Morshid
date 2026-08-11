@@ -1,7 +1,7 @@
 import {
   MessageRequestKind,
   StudentState,
-} from '../../../generated/prisma/client'
+} from '../tutoring-values'
 import type { AnalysisContextPackage } from './analysis-context.types'
 import type { EducationalAnalysisResult } from './educational-analysis.types'
 

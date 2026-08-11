@@ -1,10 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common'
 
-import type { UserRole } from '../../generated/prisma/client'
 import { AUDIT_EVENT_ACTIONS, AUDIT_TARGET_TYPES } from './audit.constants'
 import type { AuditRequestContext } from './audit.service'
 import { AuditService } from './audit.service'
 import type { RoleDenialAuditMetadata } from './role-denial-audit.decorator'
+import type { UserRole } from '../identity/identity.roles'
 
 export interface AccessAuditActor {
   id: string

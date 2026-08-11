@@ -6,7 +6,7 @@ import {
   ReviewStatus,
   ReviewTriggerType,
   StudentFlagReason,
-} from '../../generated/prisma/client'
+} from './review-values'
 
 export const instructorReviewQueueQuerySchema = z
   .object({

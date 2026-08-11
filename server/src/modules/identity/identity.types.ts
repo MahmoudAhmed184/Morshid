@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger'
 import { z } from 'zod'
 
-import { UserRole, UserStatus } from '../../generated/prisma/client'
+import { UserRole, UserStatus } from './identity.roles'
 
 export const IDENTITY_ERROR_CODES = {
   INVALID_CREDENTIALS: 'INVALID_CREDENTIALS',
@@ -26,6 +26,37 @@ export interface AuthenticatedUser {
   displayName: string
   role: UserRole
   status: UserStatus
+}
+
+export interface IdentityUserRecord {
+  id: string
+  email: string
+  displayName: string
+  role: UserRole
+  status: UserStatus
+  passwordHash: string
+  passwordChangedAt: Date
+  createdAt: Date
+  updatedAt: Date
+  disabledAt: Date | null
+  disabledById: string | null
+  lastLoginAt: Date | null
+}
+
+export interface RefreshTokenRecord {
+  id: string
+  userId: string
+  tokenHash: string
+  expiresAt: Date
+  revokedAt: Date | null
+  replacedByTokenId: string | null
+  ip: string | null
+  userAgent: string | null
+  createdAt: Date
+}
+
+export interface RefreshTokenWithUserRecord extends RefreshTokenRecord {
+  user: IdentityUserRecord
 }
 
 export class SignInRequestDto {

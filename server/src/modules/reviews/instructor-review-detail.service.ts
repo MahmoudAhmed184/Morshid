@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
-import { MessageRole } from '../../generated/prisma/client'
+import { MessageRole } from '../conversations/conversations.public'
+import { ReviewMessageRole } from './review-values'
 import { CourseAccessService } from '../courses/course-access.public'
 import type { AuthenticatedUser } from '../identity/identity.types'
 import { reviewNotFoundException } from './review-case.errors'
@@ -83,7 +84,7 @@ export class InstructorReviewDetailService {
 
 function presentMessage(message: ReviewDetailMessageRecord) {
   return {
-    role: message.role,
+    role: message.role as ReviewMessageRole,
     content: message.content,
     createdAt: message.createdAt.toISOString(),
   }

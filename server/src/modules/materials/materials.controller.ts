@@ -32,11 +32,10 @@ import {
 } from '../../common/http/openapi-error.dto'
 import { ApiAccessTokenAuth } from '../../common/http/openapi.decorators'
 import { getRequestContext } from '../../common/http/request-context'
-import { UserRole } from '../../generated/prisma/client'
 import { AUDIT_EVENT_ACTIONS, AUDIT_TARGET_TYPES } from '../audit/audit.public'
 import { AuditRoleDenial } from '../audit/audit.public'
 import type { AuthenticatedHttpRequest } from '../identity/identity.guard'
-import { Roles } from '../identity/identity.roles'
+import { Roles, UserRole } from '../identity/identity.roles'
 import {
   MaterialListResponseDto,
   MaterialResponseDto,

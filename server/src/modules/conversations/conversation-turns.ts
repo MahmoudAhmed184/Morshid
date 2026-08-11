@@ -1,5 +1,6 @@
 import type { DatabaseTransaction } from '../../platform/database/database-transaction'
 import type { ChatMessageRecord } from './conversation-records'
+import type { ConversationMessageStatus } from './conversation-message-reader'
 
 export type ConversationRequestKind =
   | 'CONCEPTUAL'
@@ -17,43 +18,7 @@ export type ConversationGuidanceLabel =
   | 'INSTRUCTOR_REVIEWED'
   | 'REFUSAL'
 
-export type ConversationMessageRole = 'STUDENT' | 'ASSISTANT'
-export type ConversationMessageStatus =
-  'PENDING' | 'STREAMING' | 'COMPLETED' | 'FAILED' | 'BLOCKED'
-
 export type ConversationMessage = ChatMessageRecord
-
-export interface ConversationMessageLookup {
-  readonly id?: string
-  readonly sessionId?: string
-  readonly attemptId?: string
-  readonly responseToMessageId?: string
-  readonly authorUserId?: string
-  readonly role?: ConversationMessageRole
-  readonly status?: ConversationMessageStatus
-  readonly statuses?: readonly ConversationMessageStatus[]
-  readonly excludeId?: string
-  readonly content?: string
-}
-
-export interface ConversationAuthorizationInput {
-  readonly courseId: string
-  readonly sessionId: string
-  readonly studentId: string
-}
-
-export interface LockedConversationSession {
-  readonly id: string
-  readonly courseId: string
-  readonly studentId: string
-  readonly lastSequence: number
-  readonly deletedAt: Date | null
-}
-
-export type ConversationAuthorizationResult =
-  | { readonly kind: 'ok'; readonly session: LockedConversationSession }
-  | { readonly kind: 'membership_missing' }
-  | { readonly kind: 'session_not_found' }
 
 interface NewConversationTurnInput {
   readonly kind: 'new'
@@ -123,21 +88,6 @@ export type FinalizedMessage =
   | { readonly kind: 'message_not_pending' }
 
 export abstract class ConversationTurns {
-  abstract authorizeStudent(
-    input: ConversationAuthorizationInput,
-    transaction: DatabaseTransaction,
-  ): Promise<ConversationAuthorizationResult>
-
-  abstract authorizeSessionOwner(
-    input: ConversationAuthorizationInput,
-    transaction: DatabaseTransaction,
-  ): Promise<
-    Extract<
-      ConversationAuthorizationResult,
-      { kind: 'ok' | 'session_not_found' }
-    >
-  >
-
   abstract admit(
     input: AdmitConversationTurnInput,
     transaction: DatabaseTransaction,
@@ -147,9 +97,4 @@ export abstract class ConversationTurns {
     input: FinalizeConversationMessageInput,
     transaction: DatabaseTransaction,
   ): Promise<FinalizedMessage>
-
-  abstract find(
-    input: ConversationMessageLookup & { readonly studentId?: string },
-    transaction?: DatabaseTransaction,
-  ): Promise<ConversationMessage | null>
 }

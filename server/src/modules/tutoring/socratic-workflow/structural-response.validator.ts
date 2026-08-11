@@ -4,7 +4,7 @@ import {
   ReflectionMode,
   TeachingStrategy,
   TeachingTechnique,
-} from '../../../generated/prisma/client'
+} from '../tutoring-values'
 import {
   CandidateResponseContentSchema,
   validateCandidateResponse,

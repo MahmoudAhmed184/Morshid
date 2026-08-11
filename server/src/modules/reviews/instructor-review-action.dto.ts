@@ -2,7 +2,7 @@ import { ApiProperty } from '@nestjs/swagger'
 import { Expose } from 'class-transformer'
 import { z } from 'zod'
 
-import { ReviewOutcome, ReviewStatus } from '../../generated/prisma/client'
+import { ReviewOutcome, ReviewStatus } from './review-values'
 
 const MAX_PUBLISHED_CONTENT_CODE_POINTS = 4_000
 

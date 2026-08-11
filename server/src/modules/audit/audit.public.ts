@@ -13,6 +13,7 @@ export {
   AuditService,
   type AuditMetadata,
   type AuditMetadataValue,
+  type AuditLogRecord,
   type AuditRequestContext,
   type AuditTargetInput,
   type RecordAuditEventInput,

@@ -1,4 +1,4 @@
-import type { TopicStatus, TopicType } from '../../../generated/prisma/client'
+import type { TopicStatus, TopicType } from '../tutoring-values'
 
 export const TOPIC_RESOLUTION_OUTCOME = {
   CONTINUE_CURRENT_TOPIC: 'CONTINUE_CURRENT_TOPIC',

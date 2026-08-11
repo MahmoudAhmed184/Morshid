@@ -37,7 +37,7 @@ import {
 import { ApiAccessTokenAuth } from '../../../common/http/openapi.decorators'
 import { getRequestContext } from '../../../common/http/request-context'
 import { ZodValidationPipe } from '../../../common/http/zod-validation.pipe'
-import { UserRole } from '../../../generated/prisma/client'
+import { UserRole } from '../identity.roles'
 import type { AuthenticatedHttpRequest } from '../../identity/identity.guard'
 import { Roles } from '../../identity/identity.roles'
 import {

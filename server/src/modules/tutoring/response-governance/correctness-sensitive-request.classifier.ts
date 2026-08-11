@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
-import { MessageRequestKind } from '../../../generated/prisma/client'
+import { MessageRequestKind } from '../tutoring-values'
 import {
   isSafetyDiscussion,
   requestsObfuscatedDeliverable,

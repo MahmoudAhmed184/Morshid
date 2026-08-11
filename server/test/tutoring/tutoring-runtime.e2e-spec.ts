@@ -277,6 +277,8 @@ describe('Authorized tutoring runtime (e2e)', () => {
       new PrismaTutoringTurnRepository(
         prisma,
         new PrismaConversationTurns(prisma),
+        new PrismaConversationTurns(prisma),
+        new PrismaConversationTurns(prisma),
         new PrismaReviewCaseIntake(
           new PrismaReviewCaseRepository(prisma, new AuditService(prisma)),
         ),

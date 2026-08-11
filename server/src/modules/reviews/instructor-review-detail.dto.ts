@@ -2,12 +2,12 @@ import { ApiProperty } from '@nestjs/swagger'
 import { Expose, Type } from 'class-transformer'
 
 import {
-  MessageRole,
+  type ReviewMessageRole,
   ReviewActionType,
   ReviewStatus,
   ReviewTriggerType,
   StudentFlagReason,
-} from '../../generated/prisma/client'
+} from './review-values'
 import { StudentReviewSummaryDto } from './review-case.dto'
 import {
   ReviewQueueCourseDto,
@@ -16,8 +16,8 @@ import {
 
 export class InstructorReviewMessageDto {
   @Expose()
-  @ApiProperty({ enum: MessageRole, enumName: 'MessageRole' })
-  role!: MessageRole
+  @ApiProperty({ enum: ['STUDENT', 'ASSISTANT'], enumName: 'ReviewMessageRole' })
+  role!: ReviewMessageRole
 
   @Expose()
   @ApiProperty()

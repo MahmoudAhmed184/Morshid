@@ -31,9 +31,9 @@ import { OpenApiErrorDto } from '../../common/http/openapi-error.dto'
 import { getRequestContext } from '../../common/http/request-context'
 import { ApiAccessTokenAuth } from '../../common/http/openapi.decorators'
 import { ZodValidationPipe } from '../../common/http/zod-validation.pipe'
-import { StudentFlagReason, UserRole } from '../../generated/prisma/client'
 import type { AuthenticatedHttpRequest } from '../identity/identity.guard'
-import { Roles } from '../identity/identity.roles'
+import { Roles, UserRole } from '../identity/identity.roles'
+import { StudentFlagReason } from './review-values'
 import { invalidReviewRequestException } from './review-case.errors'
 import {
   InstructorReviewActionResponseDto,

@@ -31,7 +31,7 @@ import {
   StudentState,
   TeachingStrategy,
   TeachingTechnique,
-} from '../../../generated/prisma/client'
+} from '../tutoring-values'
 import { TOPIC_RESOLUTION_OUTCOME } from './topic.types'
 
 const MAX_ANALYSIS_PROVIDER_LENGTH = 80

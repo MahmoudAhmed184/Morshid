@@ -3,10 +3,10 @@ import { Expose, Type } from 'class-transformer'
 import { z } from 'zod'
 
 import {
-  CourseMembershipRole,
   UserRole,
   UserStatus,
-} from '../../../generated/prisma/client'
+} from '../identity.roles'
+import { CourseMembershipRole } from '../../courses/course-access.public'
 
 const USER_PASSWORD_PATTERN =
   '^(?=.*[A-Za-z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,50}$'

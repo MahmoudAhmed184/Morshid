@@ -28,7 +28,10 @@ import {
 import {
   buildReviewEvidenceSnapshot,
   REVIEW_EVIDENCE_SNAPSHOT_LIMIT_BYTES,
+  type ReviewEvidenceAdjacentMessage,
+  type ReviewEvidenceTarget,
 } from './evidence/review-evidence'
+import type { ReviewMessageRole } from './review-values'
 
 const IDEMPOTENCY_SCOPE = 'review.create.manual'
 const MANUAL_REVIEW_DAILY_LIMIT = 3
@@ -236,6 +239,11 @@ export class PrismaReviewCaseRepository extends ReviewCaseRepository {
       return { kind: 'not_reviewable' }
     }
 
+    const evidenceTarget = toReviewEvidenceTarget(target)
+    if (evidenceTarget === null) {
+      return { kind: 'not_reviewable' }
+    }
+
     const existing = await tx.reviewCase.findUnique({
       where: { targetMessageId: target.id },
       include: { triggers: true },
@@ -320,10 +328,22 @@ export class PrismaReviewCaseRepository extends ReviewCaseRepository {
             take: 2,
             select: adjacentMessageSelect,
           })
+    const previousEvidenceMessages = previousMessages
+      .reverse()
+      .map((message) => toReviewEvidenceAdjacentMessage(message))
+    const followingEvidenceMessages = followingMessages.map((message) =>
+      toReviewEvidenceAdjacentMessage(message),
+    )
+    if (
+      previousEvidenceMessages.some((message) => message === null) ||
+      followingEvidenceMessages.some((message) => message === null)
+    ) {
+      return { kind: 'not_reviewable' }
+    }
     const snapshot = buildReviewEvidenceSnapshot(
-      target,
-      previousMessages.reverse(),
-      followingMessages,
+      evidenceTarget,
+      previousEvidenceMessages.filter(isReviewEvidenceAdjacentMessage),
+      followingEvidenceMessages.filter(isReviewEvidenceAdjacentMessage),
       input,
     )
     const serialized = serializeReviewEvidence(snapshot)
@@ -417,6 +437,85 @@ function normalizeCreateReviewCaseInput(
   }
 
   return { ...input, reason }
+}
+
+function toReviewMessageRole(role: MessageRole): ReviewMessageRole | null {
+  return role === MessageRole.STUDENT || role === MessageRole.ASSISTANT
+    ? role
+    : null
+}
+
+function toReviewEvidenceTarget(
+  target: Prisma.MessageGetPayload<{ select: typeof targetSelect }>,
+): ReviewEvidenceTarget | null {
+  const role = toReviewMessageRole(target.role)
+  const responseToMessage =
+    target.responseToMessage === null
+      ? null
+      : (() => {
+          const responseRole = toReviewMessageRole(
+            target.responseToMessage.role,
+          )
+          return responseRole === null
+            ? null
+            : {
+                id: target.responseToMessage.id,
+                sequence: target.responseToMessage.sequence,
+                role: responseRole,
+                content: target.responseToMessage.content,
+                createdAt: target.responseToMessage.createdAt,
+              }
+        })()
+  if (
+    role === null ||
+    (target.responseToMessage !== null && responseToMessage === null)
+  ) {
+    return null
+  }
+
+  return {
+    id: target.id,
+    role,
+    content: target.content,
+    createdAt: target.createdAt,
+    completedAt: target.completedAt,
+    guidanceLabel: target.guidanceLabel,
+    requestKind: target.requestKind,
+    provider: target.provider,
+    model: target.model,
+    promptVersion: target.promptVersion,
+    responseToMessage,
+    session: {
+      id: target.session.id,
+      courseId: target.session.courseId,
+      studentId: target.session.studentId,
+    },
+    citations: target.citations,
+    retrievals: target.retrievals,
+  }
+}
+
+function toReviewEvidenceAdjacentMessage(
+  message: Prisma.MessageGetPayload<{
+    select: typeof adjacentMessageSelect
+  }>,
+): ReviewEvidenceAdjacentMessage | null {
+  const role = toReviewMessageRole(message.role)
+  return role === null
+    ? null
+    : {
+        id: message.id,
+        role,
+        content: message.content,
+        createdAt: message.createdAt,
+        sequence: message.sequence,
+      }
+}
+
+function isReviewEvidenceAdjacentMessage(
+  message: ReviewEvidenceAdjacentMessage | null,
+): message is ReviewEvidenceAdjacentMessage {
+  return message !== null
 }
 
 const targetSelect = {

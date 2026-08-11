@@ -3,7 +3,7 @@ import type {
   StudentState,
   TeachingStrategy,
   TeachingTechnique,
-} from '../../../generated/prisma/client'
+} from '../tutoring-values'
 import type { TopicResolutionOutcome } from './topic.types'
 
 export const EDUCATIONAL_ANALYSIS_SCHEMA_VERSION = 'educational-analysis.v1'

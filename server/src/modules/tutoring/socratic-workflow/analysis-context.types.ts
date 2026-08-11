@@ -6,7 +6,7 @@ import type {
   RevealPolicy,
   TeachingStrategy,
   TeachingTechnique,
-} from '../../../generated/prisma/client'
+} from '../tutoring-values'
 import type { TopicStateSnapshot } from './topic-state.types'
 import type { TopicRecord } from './topic.types'
 

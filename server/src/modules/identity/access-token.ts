@@ -2,9 +2,9 @@ import { Injectable } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { JwtService } from '@nestjs/jwt'
 
-import type { User } from '../../generated/prisma/client'
 import type { AppEnvironment } from '../../platform/config/env.schema'
 import { invalidAccessTokenException } from './identity.errors'
+import type { IdentityUserRecord } from './identity.types'
 
 @Injectable()
 export class AccessToken {
@@ -26,7 +26,10 @@ export class AccessToken {
     )
   }
 
-  async create(user: Pick<User, 'id' | 'passwordChangedAt'>, now: Date) {
+  async create(
+    user: Pick<IdentityUserRecord, 'id' | 'passwordChangedAt'>,
+    now: Date,
+  ) {
     const expiresAt = addSeconds(now, this.accessTokenTtlSeconds)
     const token = await this.jwtService.signAsync(
       {

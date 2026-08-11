@@ -2,9 +2,9 @@ import { Injectable } from '@nestjs/common'
 
 import {
   CourseMembershipRole,
-  UserRole,
   type CourseMembershipRole as CourseMembershipRoleType,
-} from '../../generated/prisma/client'
+} from './course-membership.types'
+import { UserRole } from '../identity/identity.roles'
 import type { AuthenticatedUser } from '../identity/identity.types'
 import { getCourseRolePolicy } from './course-access.policy'
 import { CoursesRepository } from './courses.repository'

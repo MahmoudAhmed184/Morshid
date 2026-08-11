@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common'
 
 import {
-  CourseMembershipRole,
   UserRole,
   UserStatus,
-} from '../../../generated/prisma/client'
+} from '../identity.roles'
+import { CourseMembershipRole } from '../../courses/course-access.public'
 import type { AuthenticatedUser } from '../../identity/identity.types'
 import { IdentityUser } from '../../identity/identity-user'
 import { PasswordHasher } from '../../identity/password-hasher'

@@ -1,8 +1,11 @@
 import type { Request } from 'express'
 
-import type { AuditRequestContext } from '../../modules/audit/audit.public'
+export interface RequestContext {
+  ip?: string | null
+  userAgent?: string | null
+}
 
-export function getRequestContext(request: Request): AuditRequestContext {
+export function getRequestContext(request: Request): RequestContext {
   return {
     ip: request.ip ?? null,
     userAgent: request.get('user-agent') ?? null,

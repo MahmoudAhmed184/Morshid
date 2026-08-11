@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
-import type { AuditLog } from '../../generated/prisma/client'
+import type { RequestContext } from '../../common/http/request-context'
 import { PrismaService } from '../../platform/database/prisma.service'
 import {
   asPrismaTransaction,
@@ -18,15 +18,32 @@ export type AuditMetadataValue =
 
 export type AuditMetadata = Readonly<Record<string, AuditMetadataValue>>
 
+export interface AuditLogRecord {
+  id: string
+  actorUserId: string | null
+  action: AuditEventAction
+  targetType: AuditTargetType
+  targetId: string | null
+  courseId: string | null
+  ip: string | null
+  userAgent: string | null
+  metadata: AuditMetadata
+  createdAt: Date
+  actor: AuditActorRecord | null
+}
+
+export interface AuditActorRecord {
+  id: string
+  email: string
+  displayName: string
+}
+
 export interface AuditTargetInput {
   type: AuditTargetType
   id?: string | null
 }
 
-export interface AuditRequestContext {
-  ip?: string | null
-  userAgent?: string | null
-}
+export type AuditRequestContext = RequestContext
 
 export interface RecordAuditEventInput {
   actorUserId?: string | null
@@ -44,13 +61,13 @@ export class AuditService {
   async recordEvent(
     input: RecordAuditEventInput,
     transaction?: DatabaseTransaction,
-  ): Promise<AuditLog> {
+  ): Promise<AuditLogRecord> {
     const auditLog =
       transaction === undefined
         ? this.prismaService.auditLog
         : asPrismaTransaction(transaction).auditLog
 
-    return auditLog.create({
+    const record = await auditLog.create({
       data: {
         actorUserId: input.actorUserId ?? null,
         action: input.action,
@@ -62,18 +79,20 @@ export class AuditService {
         metadata: input.metadata ?? {},
       },
     })
+    return toAuditLogRecord(record)
   }
 
-  async findEventById(id: string): Promise<AuditLog | null> {
-    return this.prismaService.auditLog.findUnique({
+  async findEventById(id: string): Promise<AuditLogRecord | null> {
+    const record = await this.prismaService.auditLog.findUnique({
       where: {
         id,
       },
     })
+    return record === null ? null : toAuditLogRecord(record)
   }
 
-  listRecentEvents(limit: number) {
-    return this.prismaService.auditLog.findMany({
+  async listRecentEvents(limit: number): Promise<AuditLogRecord[]> {
+    const records = await this.prismaService.auditLog.findMany({
       orderBy: { createdAt: 'desc' },
       take: limit,
       include: {
@@ -86,5 +105,32 @@ export class AuditService {
         },
       },
     })
+    return records.map(toAuditLogRecord)
   }
+}
+
+function toAuditLogRecord(record: {
+  id: string
+  actorUserId: string | null
+  action: string
+  targetType: string
+  targetId: string | null
+  courseId: string | null
+  ip: string | null
+  userAgent: string | null
+  metadata: unknown
+  createdAt: Date
+  actor?: AuditActorRecord | null
+}): AuditLogRecord {
+  return {
+    ...record,
+    action: record.action as AuditEventAction,
+    targetType: record.targetType as AuditTargetType,
+    metadata: isAuditMetadata(record.metadata) ? record.metadata : {},
+    actor: record.actor ?? null,
+  }
+}
+
+function isAuditMetadata(value: unknown): value is AuditMetadata {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

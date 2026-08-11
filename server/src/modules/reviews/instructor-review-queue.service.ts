@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
-import { ReviewStatus } from '../../generated/prisma/client'
+import { ReviewStatus } from './review-values'
 import { CourseAccessService } from '../courses/course-access.public'
 import type { AuthenticatedUser } from '../identity/identity.types'
 import { reviewNotFoundException } from './review-case.errors'

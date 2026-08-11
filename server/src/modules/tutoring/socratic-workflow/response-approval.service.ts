@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
 import { assertRequestBudget } from '../../../common/http/request-deadline'
-import { TeachingStrategy } from '../../../generated/prisma/client'
+import { TeachingStrategy } from '../tutoring-values'
 
 import { citationIdForChunk } from './tutor-generation-context'
 import { TutorGenerationService } from './tutor-generation.service'

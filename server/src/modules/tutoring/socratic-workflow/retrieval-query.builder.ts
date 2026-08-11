@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
-import { MessageRole } from '../../../generated/prisma/client'
+import { MessageRole } from '../tutoring-values'
 import type {
   AnalysisContextMessage,
   AnalysisContextPackage,

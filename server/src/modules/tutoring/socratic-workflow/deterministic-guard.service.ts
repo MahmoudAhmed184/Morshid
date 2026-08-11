@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
-import { RevealPolicy } from '../../../generated/prisma/client'
+import { RevealPolicy } from '../tutoring-values'
 import { normalizeDeterministicText } from '../../../common/text/normalize-deterministic-text'
 import type { CandidateResponse } from './tutor-generation.types'
 import { validateDebuggingGuidanceOutput } from './debugging-guidance.contract'

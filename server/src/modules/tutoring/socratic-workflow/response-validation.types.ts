@@ -3,7 +3,7 @@ import type {
   RevealPolicy,
   TeachingStrategy,
   TeachingTechnique,
-} from '../../../generated/prisma/client'
+} from '../tutoring-values'
 import type { CandidateResponse } from './tutor-generation.types'
 import type { DebuggingGuidanceContext } from './debugging-guidance.contract'
 

@@ -6,7 +6,7 @@ import {
   ReviewOutcome,
   ReviewStatus,
   ReviewTriggerType,
-} from '../../generated/prisma/client'
+} from './review-values'
 
 export class ReviewQueueItemContractDto {
   @Expose()

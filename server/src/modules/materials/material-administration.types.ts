@@ -2,7 +2,7 @@ import { ApiProperty } from '@nestjs/swagger'
 import { Expose, Type } from 'class-transformer'
 import { z } from 'zod'
 
-import { MaterialStatus } from '../../generated/prisma/client'
+import { MaterialStatus } from './material-status'
 import { MATERIAL_TITLE_MAX_LENGTH } from './materials.constants'
 
 export const updateMaterialAdministrationRequestSchema = z

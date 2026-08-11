@@ -3,7 +3,7 @@ import type {
   RevealPolicy,
   TeachingStrategy,
   TeachingTechnique,
-} from '../../../generated/prisma/client'
+} from '../tutoring-values'
 
 export const TEACHING_POLICY_VERSION = 'socratic-policy.mvp.v2'
 

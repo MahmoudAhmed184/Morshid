@@ -3,7 +3,7 @@ import type {
   RevealPolicy,
   TeachingStrategy,
   TeachingTechnique,
-} from '../../../generated/prisma/client'
+} from '../tutoring-values'
 import type { AnalysisContextMessage } from './analysis-context.types'
 import type { PersistedEducationalAnalysisRecord } from './educational-analysis.repository'
 import type { CourseEvidenceChunk } from '../../materials/materials.public'

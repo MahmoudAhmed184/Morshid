@@ -5,7 +5,7 @@ import {
   StudentState,
   TeachingStrategy,
   TeachingTechnique,
-} from '../../../generated/prisma/client'
+} from '../tutoring-values'
 import {
   EFFORT_QUALITY,
   EFFORT_TYPE,

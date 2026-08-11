@@ -2,11 +2,8 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
 import { Expose, Type } from 'class-transformer'
 import { z } from 'zod'
 
-import {
-  CourseMembershipRole,
-  UserRole,
-  UserStatus,
-} from '../../generated/prisma/client'
+import { CourseMembershipRole } from './course-membership.types'
+import { UserRole, UserStatus } from '../identity/identity.roles'
 
 // ---------------------------------------------------------------------------
 // Zod request schemas

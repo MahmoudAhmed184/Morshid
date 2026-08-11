@@ -1,4 +1,4 @@
-import { RevealPolicy } from '../../../generated/prisma/client'
+import { RevealPolicy } from '../tutoring-values'
 
 import type { TeachingGuardPolicy } from './teaching-policy.types'
 

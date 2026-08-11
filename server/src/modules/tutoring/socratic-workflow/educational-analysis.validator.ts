@@ -1,4 +1,4 @@
-import { MessageRole, MessageStatus } from '../../../generated/prisma/client'
+import { MessageRole, MessageStatus } from '../tutoring-values'
 import type {
   AnalysisContextMessage,
   AnalysisContextPackage,

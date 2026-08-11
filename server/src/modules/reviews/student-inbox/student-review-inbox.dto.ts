@@ -5,7 +5,7 @@ import { z } from 'zod'
 import {
   ReviewInboxItemStatus,
   ReviewInboxItemType,
-} from '../../../generated/prisma/client'
+} from '../review-values'
 
 export const studentReviewInboxListQuerySchema = z
   .object({

@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common'
 
-import type { RefreshToken, User } from '../../generated/prisma/client'
 import type {
   AuthenticatedUser,
   IdentityRequestContext,
   IdentitySession,
+  IdentityUserRecord,
+  RefreshTokenRecord,
   LogoutRequest,
   MeResponse,
   RefreshRequest,
@@ -158,7 +159,7 @@ export class IdentityService {
   }
 
   private async createSession(
-    user: User,
+    user: IdentityUserRecord,
     now: Date,
     requestContext: IdentityRequestContext,
   ): Promise<CreatedIdentitySession> {
@@ -179,7 +180,7 @@ export class IdentityService {
   private buildSession(
     accessToken: Awaited<ReturnType<AccessToken['create']>>,
     refreshToken: Awaited<ReturnType<RefreshSession['create']>>,
-    user: User,
+    user: IdentityUserRecord,
   ): IdentitySession {
     return {
       response: {
@@ -195,5 +196,5 @@ export class IdentityService {
 }
 
 type CreatedIdentitySession = IdentitySession & {
-  refreshTokenRecord: RefreshToken
+  refreshTokenRecord: RefreshTokenRecord
 }

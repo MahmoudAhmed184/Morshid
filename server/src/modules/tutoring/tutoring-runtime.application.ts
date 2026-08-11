@@ -5,9 +5,9 @@ import { Injectable, Logger } from '@nestjs/common'
 import {
   MessageGuidanceLabel,
   MessageRequestKind,
-  Prisma,
   TutoringApprovalSource,
-} from '../../generated/prisma/client'
+} from './tutoring-values'
+import { isPrismaKnownRequestError } from '../../platform/database/prisma-errors'
 import { TutoringRuntime } from './interface/tutoring-runtime'
 import type { RunTutoringTurnCommand } from './interface/run-tutoring-turn-command'
 import type { TutoringTurnReceipt } from './interface/tutoring-turn-receipt'
@@ -17,7 +17,7 @@ import {
   AuditService,
   type AuditRequestContext,
 } from '../audit/audit.public'
-import { ConversationTurns } from '../conversations/conversation-turns'
+import { ConversationMessageReader } from '../conversations/conversation-message-reader'
 import {
   AutomaticSafetyRiskDetector,
   AUTOMATIC_SAFETY_RISK_DETECTOR_VERSION,
@@ -151,7 +151,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
     private readonly turnRepository: TutoringTurnRepository,
     private readonly messagePresenter: ConversationMessagePresenter,
     private readonly socraticWorkflow: SocraticWorkflow,
-    private readonly conversationTurns: ConversationTurns,
+    private readonly conversationMessageReader: ConversationMessageReader,
     private readonly safetyRiskDetector: AutomaticSafetyRiskDetector,
     private readonly conflictDetector: ControlledSourceConflictDetector,
     private readonly responseGovernance: ResponseGovernance,
@@ -797,11 +797,11 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
     operation: OrchestrationContext,
   ): Promise<TutoringTurnReceipt> {
     const [refreshedStudent, refreshedAssistant] = await Promise.all([
-      this.conversationTurns.find({
+      this.conversationMessageReader.find({
         id: studentMessage.id,
         studentId: operation.studentId,
       }),
-      this.conversationTurns.find({
+      this.conversationMessageReader.find({
         id: assistantMessage.id,
         studentId: operation.studentId,
       }),
@@ -913,7 +913,8 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
   ): Promise<ChatMessageRecord> {
     try {
       return (
-        (await this.conversationTurns.find({ id: fallback.id })) ?? fallback
+        (await this.conversationMessageReader.find({ id: fallback.id })) ??
+        fallback
       )
     } catch (error) {
       this.logger.warn({
@@ -1088,7 +1089,7 @@ function safeErrorDescriptor(error: unknown): {
   errorClass: string
   errorCode?: string
 } {
-  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+  if (isPrismaKnownRequestError(error)) {
     return {
       errorClass: 'PrismaClientKnownRequestError',
       ...(isSafePrismaCode(error.code) ? { errorCode: error.code } : {}),

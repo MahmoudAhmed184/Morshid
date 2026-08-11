@@ -1,7 +1,7 @@
 import {
   MessageGuidanceLabel,
   MessageRequestKind,
-} from '../../../generated/prisma/client'
+} from '../tutoring-values'
 
 export const CLASSIFIED_RESPONSE_POLICY_VERSION = 'socratic-classification.v1'
 

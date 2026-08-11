@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common'
 
-import { MaterialStatus } from '../../generated/prisma/client'
+import { MaterialStatus } from '../materials/materials.public'
 import {
   PDF_STORAGE,
   type PdfStorage,

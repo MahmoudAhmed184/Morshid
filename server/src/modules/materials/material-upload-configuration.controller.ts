@@ -8,8 +8,7 @@ import {
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger'
 
 import { ApiAccessTokenAuth } from '../../common/http/openapi.decorators'
-import { UserRole } from '../../generated/prisma/client'
-import { Roles } from '../identity/identity.roles'
+import { Roles, UserRole } from '../identity/identity.roles'
 import { MaterialUploadConfigurationService } from './material-upload-configuration.service'
 import { MaterialUploadConfigurationDto } from './materials.dto'
 

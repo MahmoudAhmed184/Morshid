@@ -10,7 +10,7 @@ import type { TopicStateTransition } from './topic-state-transition'
 import type {
   MessageGuidanceLabel,
   MessageRequestKind,
-} from '../../../generated/prisma/client'
+} from '../tutoring-values'
 
 export interface SocraticTopicSelection {
   readonly topicId?: string | null

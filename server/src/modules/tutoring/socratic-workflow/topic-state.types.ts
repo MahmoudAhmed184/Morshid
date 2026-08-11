@@ -7,7 +7,7 @@ import type {
   StudentState,
   TeachingStrategy,
   TeachingTechnique,
-} from '../../../generated/prisma/client'
+} from '../tutoring-values'
 
 export interface TopicStateSnapshot {
   id: string

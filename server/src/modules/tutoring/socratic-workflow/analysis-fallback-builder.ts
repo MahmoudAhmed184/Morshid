@@ -5,7 +5,7 @@ import {
   StudentState,
   TeachingStrategy,
   TeachingTechnique,
-} from '../../../generated/prisma/client'
+} from '../tutoring-values'
 import type { AnalysisContextPackage } from './analysis-context.types'
 import {
   SUPPORTED_EDUCATIONAL_ANALYSIS_REQUEST_KINDS,

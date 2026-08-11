@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
-import { TeachingTechnique } from '../../../generated/prisma/client'
+import { TeachingTechnique } from '../tutoring-values'
 import {
   APPROVED_RESPONSE_SOURCE,
   MVP_RESPONSE_VALIDATION_POLICY_VERSION,

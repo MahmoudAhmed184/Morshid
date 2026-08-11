@@ -1,6 +1,7 @@
 import { ForbiddenException, Injectable } from '@nestjs/common'
 
-import { CourseMembershipRole, UserRole } from '../../generated/prisma/client'
+import { CourseMembershipRole } from './course-membership.types'
+import { UserRole } from '../identity/identity.roles'
 import type { AuthenticatedUser } from '../identity/identity.types'
 import { getCourseRolePolicy } from './course-access.policy'
 import type {

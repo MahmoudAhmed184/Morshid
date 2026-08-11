@@ -1,11 +1,11 @@
 import type {
-  MaterialStatus,
+  DecimalLike,
   MessageGuidanceLabel,
   MessageRequestKind,
   MessageRole,
   MessageStatus,
-  Prisma,
-} from '../../generated/prisma/client'
+} from './conversation-values'
+import type { MaterialStatus } from '../materials/materials.public'
 import type { AuditRequestContext } from '../audit/audit.public'
 
 export interface ChatSessionRecord {
@@ -68,7 +68,7 @@ export interface ChatMessageCitationRecord {
 
 export interface ChatMessageRetrievalRecord {
   rank: number
-  similarityScore: Prisma.Decimal | null
+  similarityScore: DecimalLike | null
   chunk: {
     id: string
     materialId: string

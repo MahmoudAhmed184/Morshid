@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 
 import { assertRequestBudget } from '../../../common/http/request-deadline'
-import { TutoringAttemptStatus } from '../../../generated/prisma/client'
+import { TutoringAttemptStatus } from '../tutoring-values'
 import { CourseEvidence } from '../../materials/materials.public'
 import { TutoringTurnRepository } from '../attempt/tutoring-turn.repository'
 import { TopicService } from './topic.service'

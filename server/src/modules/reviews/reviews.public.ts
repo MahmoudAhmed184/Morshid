@@ -10,3 +10,12 @@ export type {
   AutomaticReviewIntakeResult,
   AutomaticReviewIntakeTrigger,
 } from './review-case-intake'
+export {
+  ReviewActionType,
+  ReviewInboxItemStatus,
+  ReviewInboxItemType,
+  ReviewOutcome,
+  ReviewStatus,
+  ReviewTriggerType,
+  StudentFlagReason,
+} from './review-values'

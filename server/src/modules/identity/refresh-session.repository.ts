@@ -1,7 +1,15 @@
 import { Injectable } from '@nestjs/common'
 
-import type { RefreshToken, User } from '../../generated/prisma/client'
+import type {
+  RefreshToken as PrismaRefreshToken,
+  User as PrismaUser,
+} from '../../generated/prisma/client'
 import { PrismaService } from '../../platform/database/prisma.service'
+import type {
+  IdentityUserRecord,
+  RefreshTokenRecord,
+  RefreshTokenWithUserRecord,
+} from './identity.types'
 
 const refreshTokenTransactionOptions = {
   maxWait: 10_000,
@@ -16,19 +24,17 @@ export interface CreateRefreshTokenRecordInput {
   userAgent: string | null
 }
 
-export type RefreshTokenWithUser = RefreshToken & {
-  user: User
-}
+export type RefreshTokenWithUser = RefreshTokenWithUserRecord
 
 export interface RefreshTokenRecordStore {
-  create(input: CreateRefreshTokenRecordInput): Promise<RefreshToken>
+  create(input: CreateRefreshTokenRecordInput): Promise<RefreshTokenRecord>
   findByTokenHashWithUser(
     tokenHash: string,
   ): Promise<RefreshTokenWithUser | null>
   markReplaced(
     refreshTokenId: string,
     replacementRefreshTokenId: string,
-  ): Promise<RefreshToken>
+  ): Promise<RefreshTokenRecord>
   revokeActiveByHash(tokenHash: string, now: Date): Promise<{ count: number }>
   revokeActiveByIdAndHash(
     refreshTokenId: string,
@@ -40,7 +46,7 @@ export interface RefreshTokenRecordStore {
 class PrismaRefreshTokenRecordStore implements RefreshTokenRecordStore {
   constructor(private readonly client: RefreshTokenClient) {}
 
-  create(input: CreateRefreshTokenRecordInput): Promise<RefreshToken> {
+  create(input: CreateRefreshTokenRecordInput): Promise<RefreshTokenRecord> {
     return createRefreshToken(this.client, input)
   }
 
@@ -53,7 +59,7 @@ class PrismaRefreshTokenRecordStore implements RefreshTokenRecordStore {
   markReplaced(
     refreshTokenId: string,
     replacementRefreshTokenId: string,
-  ): Promise<RefreshToken> {
+  ): Promise<RefreshTokenRecord> {
     return markRefreshTokenReplaced(
       this.client,
       refreshTokenId,
@@ -101,45 +107,56 @@ type RefreshTokenClient = Pick<PrismaService, 'refreshToken'>
 function createRefreshToken(
   client: RefreshTokenClient,
   input: CreateRefreshTokenRecordInput,
-) {
-  return client.refreshToken.create({
-    data: {
-      userId: input.userId,
-      tokenHash: input.tokenHash,
-      expiresAt: input.expiresAt,
-      ip: input.ip,
-      userAgent: input.userAgent,
-    },
-  })
+): Promise<RefreshTokenRecord> {
+  return client.refreshToken
+    .create({
+      data: {
+        userId: input.userId,
+        tokenHash: input.tokenHash,
+        expiresAt: input.expiresAt,
+        ip: input.ip,
+        userAgent: input.userAgent,
+      },
+    })
+    .then(toRefreshTokenRecord)
 }
 
-function findRefreshTokenByHashWithUser(
+async function findRefreshTokenByHashWithUser(
   client: RefreshTokenClient,
   tokenHash: string,
-) {
-  return client.refreshToken.findUnique({
+): Promise<RefreshTokenWithUser | null> {
+  const record = await client.refreshToken.findUnique({
     where: {
       tokenHash,
     },
     include: {
       user: true,
     },
-  }) as Promise<RefreshTokenWithUser | null>
+  })
+
+  return record === null
+    ? null
+    : {
+        ...toRefreshTokenRecord(record),
+        user: toIdentityUserRecord(record.user),
+      }
 }
 
 function markRefreshTokenReplaced(
   client: RefreshTokenClient,
   refreshTokenId: string,
   replacementRefreshTokenId: string,
-) {
-  return client.refreshToken.update({
-    where: {
-      id: refreshTokenId,
-    },
-    data: {
-      replacedByTokenId: replacementRefreshTokenId,
-    },
-  })
+): Promise<RefreshTokenRecord> {
+  return client.refreshToken
+    .update({
+      where: {
+        id: refreshTokenId,
+      },
+      data: {
+        replacedByTokenId: replacementRefreshTokenId,
+      },
+    })
+    .then(toRefreshTokenRecord)
 }
 
 function revokeActiveRefreshTokenByHash(
@@ -180,4 +197,35 @@ function revokeActiveRefreshTokenByIdAndHash(
       revokedAt: now,
     },
   })
+}
+
+function toRefreshTokenRecord(record: PrismaRefreshToken): RefreshTokenRecord {
+  return {
+    id: record.id,
+    userId: record.userId,
+    tokenHash: record.tokenHash,
+    expiresAt: record.expiresAt,
+    revokedAt: record.revokedAt,
+    replacedByTokenId: record.replacedByTokenId,
+    ip: record.ip,
+    userAgent: record.userAgent,
+    createdAt: record.createdAt,
+  }
+}
+
+function toIdentityUserRecord(user: PrismaUser): IdentityUserRecord {
+  return {
+    id: user.id,
+    email: user.email,
+    displayName: user.displayName,
+    role: user.role,
+    status: user.status,
+    passwordHash: user.passwordHash,
+    passwordChangedAt: user.passwordChangedAt,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+    disabledAt: user.disabledAt,
+    disabledById: user.disabledById,
+    lastLoginAt: user.lastLoginAt,
+  }
 }

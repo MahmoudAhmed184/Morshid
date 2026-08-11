@@ -7,7 +7,7 @@ import {
   getRequestContext,
   getRouteContext,
 } from '../../common/http/request-context'
-import type { UserRole } from '../../generated/prisma/client'
+import type { UserRole } from './identity.roles'
 import { AccessAuditService } from '../audit/audit.public'
 import {
   ROLE_DENIAL_AUDIT_KEY,

@@ -5,11 +5,10 @@ import { z } from 'zod'
 import {
   MessageRole,
   MessageStatus,
-  ReviewOutcome,
-  ReviewStatus,
   type MessageGuidanceLabel,
   type MessageRequestKind,
-} from '../../generated/prisma/client'
+} from './conversation-values'
+import { ReviewOutcome, ReviewStatus } from '../reviews/reviews.public'
 
 const titleSchema = z.string().trim().min(1).max(160)
 const messageContentSchema = z

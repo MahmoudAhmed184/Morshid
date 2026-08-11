@@ -24,7 +24,6 @@ import { TutoringRuntimeApplication } from './tutoring-runtime.application'
 import type { SocraticWorkflow } from './socratic-workflow/socratic-workflow'
 import { ConversationMessagePresenter } from '../conversations/conversation-message.presenter'
 import type { ChatMessageRecord } from '../conversations/conversation-records'
-import type { ConversationTurns } from '../conversations/conversation-turns'
 
 const courseId = 'diagnosis-failure-course'
 const sessionId = 'diagnosis-failure-session'
@@ -85,7 +84,7 @@ describe('TutoringRuntimeApplication diagnosis failure paths', () => {
       { run: orchestrate } as unknown as SocraticWorkflow,
       {
         find: jest.fn().mockResolvedValue(null),
-      } as unknown as ConversationTurns,
+      },
       new AutomaticSafetyRiskDetector(),
       new ControlledSourceConflictDetector(),
       new ResponseGovernance(),

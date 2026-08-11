@@ -1,7 +1,5 @@
-import type {
-  MessageGuidanceLabel,
-  ReviewTriggerType,
-} from '../../../generated/prisma/client'
+import type { MessageGuidanceLabel } from '../tutoring-values'
+import type { ReviewTriggerType } from '../../reviews/reviews.public'
 import type { AutomaticReviewEvidenceContribution } from '../../reviews/reviews.public'
 
 export const RESPONSE_GOVERNANCE_VERSION = 'response-governance-v1'

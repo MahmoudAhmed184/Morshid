@@ -32,7 +32,6 @@ import { ResponseGovernance } from './response-governance/response-governance'
 import { CorrectnessSensitiveRequestClassifier } from './response-governance/correctness-sensitive-request.classifier'
 import { ConversationMessagePresenter } from '../conversations/conversation-message.presenter'
 import type { ChatMessageRecord } from '../conversations/conversation-records'
-import type { ConversationTurns } from '../conversations/conversation-turns'
 import type { SocraticWorkflow } from './socratic-workflow/socratic-workflow'
 import type { SocraticWorkflowResult } from './socratic-workflow/socratic-workflow.types'
 
@@ -141,7 +140,7 @@ describe('TutoringRuntimeApplication', () => {
           }
           return Promise.resolve(null)
         }),
-      } as unknown as ConversationTurns,
+      },
       new AutomaticSafetyRiskDetector(),
       new ControlledSourceConflictDetector(),
       new ResponseGovernance(),

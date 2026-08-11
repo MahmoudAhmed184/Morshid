@@ -28,7 +28,7 @@ import { TUTOR_GENERATION_PROMPT_VERSION } from './tutor-prompt.registry'
 import {
   TeachingStrategy,
   TeachingTechnique,
-} from '../../../generated/prisma/client'
+} from '../tutoring-values'
 import {
   DEBUGGING_GUIDANCE_FULL_REWRITE_REFUSAL,
   type DebuggingGuidanceContext,

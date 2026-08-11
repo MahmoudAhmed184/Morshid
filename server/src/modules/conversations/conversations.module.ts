@@ -5,6 +5,8 @@ import { IdentityModule } from '../identity/identity.module'
 import { PdfStorageModule } from '../../platform/document-storage/pdf-storage.module'
 import { PrismaModule } from '../../platform/database/prisma.module'
 import { ConversationTurns } from './conversation-turns'
+import { ConversationAuthorization } from './conversation-authorization'
+import { ConversationMessageReader } from './conversation-message-reader'
 import { PrismaConversationTurns } from './prisma-conversation-turns'
 import { ConversationAuditService } from './conversation-audit.service'
 import {
@@ -21,9 +23,18 @@ import { ConversationsService } from './conversations.service'
 @Module({
   imports: [AuditModule, IdentityModule, PdfStorageModule, PrismaModule],
   providers: [
+    PrismaConversationTurns,
     {
       provide: ConversationTurns,
-      useClass: PrismaConversationTurns,
+      useExisting: PrismaConversationTurns,
+    },
+    {
+      provide: ConversationAuthorization,
+      useExisting: PrismaConversationTurns,
+    },
+    {
+      provide: ConversationMessageReader,
+      useExisting: PrismaConversationTurns,
     },
     ConversationAuditService,
     ConversationMessagePresenter,
@@ -39,6 +50,8 @@ import { ConversationsService } from './conversations.service'
   ],
   exports: [
     ConversationTurns,
+    ConversationAuthorization,
+    ConversationMessageReader,
     ConversationAuditService,
     ConversationMessagePresenter,
     ConversationsService,

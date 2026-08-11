@@ -8,7 +8,7 @@ import {
 import {
   lockAuthorizedConversation,
   lockConversationSessionOwner,
-} from './conversation-authorization'
+} from './prisma-conversation-authorization'
 import {
   asPrismaTransaction,
   type DatabaseTransaction,
@@ -18,10 +18,17 @@ import {
   type AdmitConversationTurnInput,
   type AdmittedTurn,
   type ConversationMessage,
-  type ConversationMessageLookup,
   type FinalizeConversationMessageInput,
   type FinalizedMessage,
 } from './conversation-turns'
+import type {
+  ConversationAuthorization,
+  ConversationAuthorizationInput,
+} from './conversation-authorization'
+import type {
+  ConversationMessageReader,
+  ConversationMessageLookup,
+} from './conversation-message-reader'
 import { PrismaService } from '../../platform/database/prisma.service'
 import {
   chatMessageScalarSelect,
@@ -30,20 +37,23 @@ import {
 } from './conversation-repository.support'
 
 @Injectable()
-export class PrismaConversationTurns extends ConversationTurns {
+export class PrismaConversationTurns
+  extends ConversationTurns
+  implements ConversationAuthorization, ConversationMessageReader
+{
   constructor(private readonly prismaService: PrismaService) {
     super()
   }
 
   authorizeStudent(
-    input: Parameters<ConversationTurns['authorizeStudent']>[0],
+    input: ConversationAuthorizationInput,
     transaction: DatabaseTransaction,
   ) {
     return lockAuthorizedConversation(asPrismaTransaction(transaction), input)
   }
 
   authorizeSessionOwner(
-    input: Parameters<ConversationTurns['authorizeSessionOwner']>[0],
+    input: ConversationAuthorizationInput,
     transaction: DatabaseTransaction,
   ) {
     return lockConversationSessionOwner(asPrismaTransaction(transaction), input)

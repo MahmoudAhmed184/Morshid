@@ -1,4 +1,4 @@
-import { MessageRole, MessageStatus } from '../../../generated/prisma/client'
+import { MessageRole, MessageStatus } from '../tutoring-values'
 import {
   DEFAULT_ANALYSIS_CONTEXT_HISTORY_MESSAGE_LIMIT,
   DEFAULT_ANALYSIS_CONTEXT_HISTORY_TOKEN_BUDGET,

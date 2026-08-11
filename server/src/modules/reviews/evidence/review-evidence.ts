@@ -1,8 +1,5 @@
-import {
-  MessageRole,
-  type Prisma,
-  ReviewTriggerType,
-} from '../../../generated/prisma/client'
+import type { ReviewMessageRole } from '../review-values'
+import { ReviewTriggerType } from '../review-values'
 import { z } from 'zod'
 
 import type { AutomaticReviewEvidenceContribution } from './automatic-review-evidence'
@@ -13,11 +10,18 @@ const MAX_CITATIONS = 20
 const MAX_RETRIEVALS = 20
 const MAX_FACT_COUNT = 20
 
+export type ReviewJsonPrimitive = string | number | boolean | null
+export type ReviewJsonValue =
+  | ReviewJsonPrimitive
+  | { readonly [key: string]: ReviewJsonValue }
+  | readonly ReviewJsonValue[]
+export type ReviewJsonObject = Record<string, ReviewJsonValue>
+
 export const REVIEW_EVIDENCE_SNAPSHOT_LIMIT_BYTES = 128 * 1024
 
 export interface ReviewEvidenceTarget {
   id: string
-  role: MessageRole
+  role: ReviewMessageRole
   content: string
   createdAt: Date
   completedAt: Date | null
@@ -29,7 +33,7 @@ export interface ReviewEvidenceTarget {
   responseToMessage: {
     id: string
     sequence: number
-    role: MessageRole
+    role: ReviewMessageRole
     content: string
     createdAt: Date
   } | null
@@ -56,7 +60,7 @@ export interface ReviewEvidenceTarget {
 
 export interface ReviewEvidenceAdjacentMessage {
   id: string
-  role: MessageRole
+  role: ReviewMessageRole
   content: string
   createdAt: Date
   sequence: number
@@ -75,7 +79,7 @@ export function buildReviewEvidenceSnapshot(
   previousMessages: ReviewEvidenceAdjacentMessage[],
   followingMessages: ReviewEvidenceAdjacentMessage[],
   input: ReviewEvidenceRequest,
-): Prisma.InputJsonObject {
+): ReviewJsonObject {
   return {
     target: {
       id: target.id,
@@ -145,7 +149,7 @@ export function buildReviewEvidenceSnapshot(
 
 export function automaticEvidenceSnapshot(
   evidence: AutomaticReviewEvidenceContribution,
-): Prisma.InputJsonObject {
+): ReviewJsonObject {
   return {
     summary: evidence.summary,
     sources: evidence.sources.map((source) => ({
@@ -173,7 +177,7 @@ export function automaticEvidenceSnapshot(
 const evidenceMessageSchema = z
   .object({
     id: z.string(),
-    role: z.enum(MessageRole),
+    role: z.enum(['STUDENT', 'ASSISTANT']),
     content: z.string(),
     createdAt: z.iso.datetime(),
   })
@@ -215,7 +219,7 @@ export const reviewEvidenceSchema = z
     target: z
       .object({
         id: z.string(),
-        role: z.enum(MessageRole),
+        role: z.enum(['STUDENT', 'ASSISTANT']),
         content: z.string(),
         createdAt: z.iso.datetime(),
         completedAt: z.iso.datetime().nullable(),

@@ -37,10 +37,9 @@ import {
   OpenApiValidationErrorDto,
 } from '../../common/http/openapi-error.dto'
 import { ApiAccessTokenAuth } from '../../common/http/openapi.decorators'
-import { UserRole } from '../../generated/prisma/client'
 import { getRequestContext } from '../../common/http/request-context'
 import type { AuthenticatedHttpRequest } from '../identity/identity.guard'
-import { Roles } from '../identity/identity.roles'
+import { Roles, UserRole } from '../identity/identity.roles'
 import {
   AddCourseMemberRequestDto,
   CourseAdministrationDetailResponseDto,

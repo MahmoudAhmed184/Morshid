@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
-import { TopicStatus, TopicType } from '../../../generated/prisma/client'
+import { TopicStatus, TopicType } from '../tutoring-values'
 import {
   ambiguousActiveTopicException,
   invalidTopicLifecycleTransitionException,

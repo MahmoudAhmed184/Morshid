@@ -1,7 +1,7 @@
 import {
   MessageGuidanceLabel,
   MessageRequestKind,
-} from '../../../generated/prisma/client'
+} from '../tutoring-values'
 import {
   assessDebuggingGuidanceBoundary,
   isRejectedDebuggingGuidanceBoundaryAssessment,

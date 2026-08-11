@@ -1,8 +1,26 @@
 import { Injectable } from '@nestjs/common'
 
-import type { User } from '../../generated/prisma/client'
 import { PrismaService } from '../../platform/database/prisma.service'
-import type { AuthenticatedUser, IdentityUserSummary } from './identity.types'
+import type {
+  AuthenticatedUser,
+  IdentityUserRecord,
+  IdentityUserSummary,
+} from './identity.types'
+
+const identityUserSelect = {
+  id: true,
+  email: true,
+  displayName: true,
+  role: true,
+  status: true,
+  passwordHash: true,
+  passwordChangedAt: true,
+  createdAt: true,
+  updatedAt: true,
+  disabledAt: true,
+  disabledById: true,
+  lastLoginAt: true,
+} as const
 
 @Injectable()
 export class IdentityUser {
@@ -12,20 +30,24 @@ export class IdentityUser {
     return email.trim().toLowerCase()
   }
 
-  findByEmail(email: string): Promise<User | null> {
-    return this.prismaService.user.findUnique({
+  async findByEmail(email: string): Promise<IdentityUserRecord | null> {
+    const user = await this.prismaService.user.findUnique({
       where: {
         email: this.normalizeEmail(email),
       },
+      select: identityUserSelect,
     })
+    return user === null ? null : toIdentityUserRecord(user)
   }
 
-  findById(userId: string): Promise<User | null> {
-    return this.prismaService.user.findUnique({
+  async findById(userId: string): Promise<IdentityUserRecord | null> {
+    const user = await this.prismaService.user.findUnique({
       where: {
         id: userId,
       },
+      select: identityUserSelect,
     })
+    return user === null ? null : toIdentityUserRecord(user)
   }
 
   async findActiveUserById(userId: string): Promise<AuthenticatedUser | null> {
@@ -38,11 +60,14 @@ export class IdentityUser {
     return this.pickAuthenticatedUser(user)
   }
 
-  isDisabled(user: Pick<User, 'status'>) {
+  isDisabled(user: Pick<IdentityUserRecord, 'status'>) {
     return user.status === 'DISABLED'
   }
 
-  async recordLastLogin(user: Pick<User, 'id'>, now: Date): Promise<void> {
+  async recordLastLogin(
+    user: Pick<IdentityUserRecord, 'id'>,
+    now: Date,
+  ): Promise<void> {
     await this.prismaService.user.update({
       where: {
         id: user.id,
@@ -53,7 +78,7 @@ export class IdentityUser {
     })
   }
 
-  pickAuthenticatedUser(user: User): AuthenticatedUser {
+  pickAuthenticatedUser(user: IdentityUserRecord): AuthenticatedUser {
     return {
       id: user.id,
       email: user.email,
@@ -64,7 +89,7 @@ export class IdentityUser {
   }
 
   buildIdentityUserSummary(
-    user: AuthenticatedUser | User,
+    user: AuthenticatedUser | IdentityUserRecord,
   ): IdentityUserSummary {
     return {
       id: user.id,
@@ -73,5 +98,26 @@ export class IdentityUser {
       role: user.role,
       status: user.status,
     }
+  }
+}
+
+function toIdentityUserRecord(user: {
+  id: string
+  email: string
+  displayName: string
+  role: string
+  status: string
+  passwordHash: string
+  passwordChangedAt: Date
+  createdAt: Date
+  updatedAt: Date
+  disabledAt: Date | null
+  disabledById: string | null
+  lastLoginAt: Date | null
+}): IdentityUserRecord {
+  return {
+    ...user,
+    role: user.role as IdentityUserRecord['role'],
+    status: user.status as IdentityUserRecord['status'],
   }
 }

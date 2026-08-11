@@ -16,9 +16,13 @@ import {
 } from '../../../generated/prisma/client'
 import {
   ConversationTurns,
-  type ConversationAuthorizationResult,
-  type ConversationMessageLookup,
 } from '../../conversations/conversation-turns'
+import { ConversationAuthorization } from '../../conversations/conversation-authorization'
+import {
+  ConversationMessageReader,
+  type ConversationMessageLookup,
+} from '../../conversations/conversation-message-reader'
+import type { ConversationAuthorizationResult } from '../../conversations/conversation-authorization'
 import {
   AUDIT_EVENT_ACTIONS,
   AUDIT_TARGET_TYPES,
@@ -279,6 +283,8 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly conversationTurns: ConversationTurns,
+    private readonly conversationAuthorization: ConversationAuthorization,
+    private readonly conversationMessageReader: ConversationMessageReader,
     private readonly reviewCaseIntake: ReviewCaseIntake,
     private readonly auditService: AuditService,
   ) {
@@ -296,7 +302,7 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
 
     try {
       return await this.runTransaction(async (tx) => {
-        const authorization = await this.conversationTurns.authorizeStudent(
+        const authorization = await this.conversationAuthorization.authorizeStudent(
           input,
           asDatabaseTransaction(tx),
         )
@@ -418,7 +424,7 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
 
     try {
       return await this.runTransaction(async (tx) => {
-        const authorization = await this.conversationTurns.authorizeStudent(
+        const authorization = await this.conversationAuthorization.authorizeStudent(
           input,
           asDatabaseTransaction(tx),
         )
@@ -667,7 +673,7 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
     input: RepairTutoringReviewInput,
   ): Promise<RepairTutoringReviewResult> {
     return this.runTransaction(async (tx) => {
-      const authorization = await this.conversationTurns.authorizeStudent(
+      const authorization = await this.conversationAuthorization.authorizeStudent(
         input,
         asDatabaseTransaction(tx),
       )
@@ -753,7 +759,7 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
   ): Promise<FinalizeTutoringTurnResult> {
     try {
       return await this.runTransaction(async (tx) => {
-        const authorization = await this.conversationTurns.authorizeStudent(
+        const authorization = await this.conversationAuthorization.authorizeStudent(
           input,
           asDatabaseTransaction(tx),
         )
@@ -923,7 +929,7 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
     input: ReadTutoringTurnInput,
   ): Promise<ReadTutoringTurnResult> {
     return this.runTransaction(async (tx) => {
-      const authorization = await this.conversationTurns.authorizeStudent(
+      const authorization = await this.conversationAuthorization.authorizeStudent(
         input,
         asDatabaseTransaction(tx),
       )
@@ -984,7 +990,7 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
           terminal.status === MessageStatus.FAILED ||
           terminal.status === MessageStatus.BLOCKED
             ? await this.lockExactTurnSession(tx, input)
-            : await this.conversationTurns.authorizeStudent(
+            : await this.conversationAuthorization.authorizeStudent(
                 input,
                 asDatabaseTransaction(tx),
               )
@@ -1264,7 +1270,7 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
     tx: Prisma.TransactionClient,
     input: AuthorizedTurnInput,
   ): Promise<AuthorizationResult> {
-    return this.conversationTurns.authorizeSessionOwner(
+    return this.conversationAuthorization.authorizeSessionOwner(
       input,
       asDatabaseTransaction(tx),
     )
@@ -1462,7 +1468,7 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
     input: ConversationMessageLookup & { readonly studentId?: string },
     tx: Prisma.TransactionClient,
   ): Promise<ChatMessageRecord | null> {
-    return this.conversationTurns.find(input, asDatabaseTransaction(tx))
+    return this.conversationMessageReader.find(input, asDatabaseTransaction(tx))
   }
 
   private async findMessageOrThrow(

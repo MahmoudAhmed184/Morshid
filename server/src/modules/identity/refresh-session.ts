@@ -3,9 +3,12 @@ import { createHmac, randomBytes } from 'node:crypto'
 import { Injectable } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 
-import type { RefreshToken, User } from '../../generated/prisma/client'
 import type { AppEnvironment } from '../../platform/config/env.schema'
-import type { IdentityRequestContext } from './identity.types'
+import type {
+  IdentityRequestContext,
+  IdentityUserRecord,
+  RefreshTokenRecord,
+} from './identity.types'
 import { invalidRefreshTokenException } from './identity.errors'
 import {
   RefreshSessionRepository,
@@ -39,7 +42,7 @@ export class RefreshSession {
   }
 
   create(
-    user: Pick<User, 'id'>,
+    user: Pick<IdentityUserRecord, 'id'>,
     now: Date,
     requestContext: IdentityRequestContext,
   ): Promise<CreatedRefreshToken> {
@@ -140,7 +143,7 @@ export class RefreshSession {
 
   private async createWithRepository(
     repository: RefreshTokenRecordStore,
-    user: Pick<User, 'id'>,
+    user: Pick<IdentityUserRecord, 'id'>,
     now: Date,
     requestContext: IdentityRequestContext,
   ): Promise<CreatedRefreshToken> {
@@ -167,7 +170,7 @@ export class RefreshSession {
 }
 
 export interface CreatedRefreshToken {
-  record: RefreshToken
+  record: RefreshTokenRecord
   token: string
 }
 
@@ -179,11 +182,11 @@ export type RefreshTokenRotation =
   | {
       kind: 'rotated'
       nextRefreshToken: CreatedRefreshToken
-      previousToken: RefreshToken
-      user: User
+      previousToken: RefreshTokenRecord
+      user: IdentityUserRecord
     }
 
-function isActiveRefreshToken(refreshToken: RefreshToken, now: Date) {
+function isActiveRefreshToken(refreshToken: RefreshTokenRecord, now: Date) {
   return refreshToken.revokedAt === null && refreshToken.expiresAt > now
 }
 

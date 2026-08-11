@@ -2,8 +2,8 @@ import {
   LearningStatus,
   MisconceptionStatus,
   ResolutionEvidenceStrength,
-} from '../../../generated/prisma/client'
-import type { MessageRequestKind } from '../../../generated/prisma/client'
+} from '../tutoring-values'
+import type { MessageRequestKind } from '../tutoring-values'
 import {
   EFFORT_QUALITY,
   LEARNING_EVIDENCE_STRENGTH,
