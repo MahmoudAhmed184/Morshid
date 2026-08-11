@@ -34,6 +34,11 @@ import {
   PdfJsTextExtractor,
 } from './pdf-text-extractor'
 import { PdfUploadInterceptor } from './pdf-upload.interceptor'
+import { CourseEvidence, MaterialsCourseEvidence } from './course-evidence'
+import {
+  CourseEvidenceRepository,
+  PrismaCourseEvidenceRepository,
+} from './course-evidence.repository'
 
 @Module({
   imports: [
@@ -77,7 +82,15 @@ import { PdfUploadInterceptor } from './pdf-upload.interceptor'
       provide: MaterialChunkRepository,
       useClass: PrismaMaterialChunkRepository,
     },
+    {
+      provide: CourseEvidenceRepository,
+      useClass: PrismaCourseEvidenceRepository,
+    },
+    {
+      provide: CourseEvidence,
+      useClass: MaterialsCourseEvidence,
+    },
   ],
-  exports: [MaterialProcessingService, PDF_TEXT_EXTRACTOR],
+  exports: [MaterialProcessingService, PDF_TEXT_EXTRACTOR, CourseEvidence],
 })
 export class MaterialsModule {}

@@ -4,12 +4,12 @@ import type { AppEnvironment } from '../config/env.schema'
 import type { EmbeddingProvider } from '../embedding/embedding-provider'
 import type { PdfStorage } from '../pdf-storage/pdf-storage'
 import type {
-  CourseRetrievalRepository,
+  CourseEvidenceRepository,
   RankedChunkRow,
-} from './course-retrieval.repository'
-import { RetrievalService } from './retrieval.service'
+} from './course-evidence.repository'
+import { MaterialsCourseEvidence } from './course-evidence'
 
-describe('RetrievalService', () => {
+describe('MaterialsCourseEvidence', () => {
   const courseId = '9d1a7c2e-3b4f-4a5d-8e6f-0a1b2c3d4e5f'
   const queryEmbedding = [0.25, 0.5]
 
@@ -17,14 +17,14 @@ describe('RetrievalService', () => {
 
   let embedQuery: jest.Mock
   let findTopChunksForCourse: jest.Mock
-  let findEmbeddingProfileReadiness: jest.Mock
-  let service: RetrievalService
+  let findCourseEvidenceReadiness: jest.Mock
+  let service: MaterialsCourseEvidence
   let exists: jest.Mock
 
   beforeEach(() => {
     embedQuery = jest.fn().mockResolvedValue(queryEmbedding)
     findTopChunksForCourse = jest.fn().mockResolvedValue([])
-    findEmbeddingProfileReadiness = jest.fn().mockResolvedValue({
+    findCourseEvidenceReadiness = jest.fn().mockResolvedValue({
       kind: 'ready',
     })
     exists = jest.fn().mockResolvedValue(true)
@@ -36,15 +36,15 @@ describe('RetrievalService', () => {
     } as unknown as EmbeddingProvider
     const repository = {
       findTopChunksForCourse,
-      findEmbeddingProfileReadiness,
-    } as unknown as CourseRetrievalRepository
+      findCourseEvidenceReadiness,
+    } as unknown as CourseEvidenceRepository
     const configService = {
       get: (key: 'RETRIEVAL_TOP_K' | 'RETRIEVAL_MIN_SIMILARITY') =>
         key === 'RETRIEVAL_TOP_K' ? 5 : 0.62,
     } as unknown as ConfigService<AppEnvironment, true>
 
     const storage = { exists } as unknown as PdfStorage
-    service = new RetrievalService(
+    service = new MaterialsCourseEvidence(
       embeddingProvider,
       repository,
       configService,
@@ -53,7 +53,7 @@ describe('RetrievalService', () => {
   })
 
   it('embeds the query once and forwards only configured limits with the course id', async () => {
-    await service.retrieveCourseEvidence(courseId, 'what is a variable?')
+    await service.search(courseId, 'what is a variable?')
 
     expect(embedQuery).toHaveBeenCalledTimes(1)
     expect(embedQuery).toHaveBeenCalledWith('what is a variable?')
@@ -69,27 +69,25 @@ describe('RetrievalService', () => {
   })
 
   it('checks profile readiness for the active model before embedding the query', async () => {
-    await service.retrieveCourseEvidence(courseId, 'what is a variable?')
+    await service.search(courseId, 'what is a variable?')
 
-    expect(findEmbeddingProfileReadiness).toHaveBeenCalledWith({
+    expect(findCourseEvidenceReadiness).toHaveBeenCalledWith({
       courseId,
       embeddingModel,
     })
     expect(
-      findEmbeddingProfileReadiness.mock.invocationCallOrder[0],
+      findCourseEvidenceReadiness.mock.invocationCallOrder[0],
     ).toBeLessThan(embedQuery.mock.invocationCallOrder[0])
   })
 
   it('reports the profile as not ready without spending provider quota', async () => {
-    findEmbeddingProfileReadiness.mockResolvedValue({
+    findCourseEvidenceReadiness.mockResolvedValue({
       kind: 'not_ready',
       incompleteMaterialCount: 2,
       incompleteMaterialIds: ['material-a', 'material-b'],
     })
 
-    await expect(
-      service.retrieveCourseEvidence(courseId, 'query'),
-    ).resolves.toEqual({
+    await expect(service.search(courseId, 'query')).resolves.toEqual({
       kind: 'embedding_profile_not_ready',
       expectedModel: embeddingModel,
       incompleteMaterialIds: ['material-a', 'material-b'],
@@ -99,13 +97,13 @@ describe('RetrievalService', () => {
   })
 
   it('reports insufficient evidence when the course has no candidate materials', async () => {
-    findEmbeddingProfileReadiness.mockResolvedValue({
+    findCourseEvidenceReadiness.mockResolvedValue({
       kind: 'no_candidate_materials',
     })
 
-    await expect(
-      service.retrieveCourseEvidence(courseId, 'query'),
-    ).resolves.toEqual({ kind: 'insufficient_evidence' })
+    await expect(service.search(courseId, 'query')).resolves.toEqual({
+      kind: 'insufficient_evidence',
+    })
     expect(embedQuery).not.toHaveBeenCalled()
     expect(findTopChunksForCourse).not.toHaveBeenCalled()
   })
@@ -133,7 +131,7 @@ describe('RetrievalService', () => {
     ]
     findTopChunksForCourse.mockResolvedValue(rows)
 
-    const result = await service.retrieveCourseEvidence(courseId, 'query')
+    const result = await service.search(courseId, 'query')
 
     expect(result).toEqual({
       kind: 'evidence',
@@ -165,16 +163,16 @@ describe('RetrievalService', () => {
   it.each(['', '   ', '\n\t'])(
     'reports insufficient evidence for blank query %j without embedding or querying',
     async (blankQuery) => {
-      await expect(
-        service.retrieveCourseEvidence(courseId, blankQuery),
-      ).resolves.toEqual({ kind: 'insufficient_evidence' })
+      await expect(service.search(courseId, blankQuery)).resolves.toEqual({
+        kind: 'insufficient_evidence',
+      })
       expect(embedQuery).not.toHaveBeenCalled()
       expect(findTopChunksForCourse).not.toHaveBeenCalled()
     },
   )
 
   it('embeds the trimmed query text', async () => {
-    await service.retrieveCourseEvidence(courseId, '  what is a variable?  ')
+    await service.search(courseId, '  what is a variable?  ')
 
     expect(embedQuery).toHaveBeenCalledWith('what is a variable?')
   })
@@ -183,7 +181,7 @@ describe('RetrievalService', () => {
     findTopChunksForCourse.mockResolvedValue([])
 
     await expect(
-      service.retrieveCourseEvidence(courseId, 'unrelated question'),
+      service.search(courseId, 'unrelated question'),
     ).resolves.toEqual({ kind: 'insufficient_evidence' })
   })
 
@@ -212,9 +210,7 @@ describe('RetrievalService', () => {
       Promise.resolve(storagePath.endsWith('2.pdf')),
     )
 
-    await expect(
-      service.retrieveCourseEvidence(courseId, 'query'),
-    ).resolves.toEqual({
+    await expect(service.search(courseId, 'query')).resolves.toEqual({
       kind: 'evidence',
       chunks: [
         expect.objectContaining({
@@ -251,9 +247,7 @@ describe('RetrievalService', () => {
       Promise.resolve(storagePath === 'available.pdf'),
     )
 
-    await expect(
-      service.retrieveCourseEvidence(courseId, 'query'),
-    ).resolves.toEqual({
+    await expect(service.search(courseId, 'query')).resolves.toEqual({
       kind: 'evidence',
       chunks: [expect.objectContaining({ chunkId: 'rank-six', rank: 1 })],
     })
@@ -278,9 +272,9 @@ describe('RetrievalService', () => {
     )
     exists.mockResolvedValue(false)
 
-    await expect(
-      service.retrieveCourseEvidence(courseId, 'query'),
-    ).resolves.toEqual({ kind: 'insufficient_evidence' })
+    await expect(service.search(courseId, 'query')).resolves.toEqual({
+      kind: 'insufficient_evidence',
+    })
     expect(findTopChunksForCourse).toHaveBeenCalledTimes(5)
     expect(exists).toHaveBeenCalledTimes(1)
   })
@@ -288,9 +282,9 @@ describe('RetrievalService', () => {
   it('propagates provider failures without querying the repository', async () => {
     embedQuery.mockRejectedValue(new Error('embedding failed'))
 
-    await expect(
-      service.retrieveCourseEvidence(courseId, 'query'),
-    ).rejects.toThrow('embedding failed')
+    await expect(service.search(courseId, 'query')).rejects.toThrow(
+      'embedding failed',
+    )
     expect(findTopChunksForCourse).not.toHaveBeenCalled()
   })
 })

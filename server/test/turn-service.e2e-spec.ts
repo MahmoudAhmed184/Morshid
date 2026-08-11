@@ -24,7 +24,7 @@ import {
   TutoringAttemptFailureCode,
   TutoringAttemptStatus,
 } from '../src/generated/prisma/client'
-import type { RetrievedChunk } from '../src/modules/retrieval/retrieval.service'
+import type { CourseEvidenceChunk } from '../src/modules/materials/course-evidence'
 import type { ApprovedResponse } from '../src/modules/socratic-tutor/response-validation.types'
 import type { ResponseAuditGraph } from '../src/modules/socratic-tutor/response-audit.types'
 import { SAFE_FALLBACK_REASON } from '../src/modules/socratic-tutor/safe-fallback.service'
@@ -297,7 +297,7 @@ describe('TurnService persistence (e2e)', () => {
   it('persists one approved tutor response and replays idempotently', async () => {
     const fixture = await createChatFixture(prisma)
     const graph = await createPendingTutoringAttemptGraph(prisma, fixture)
-    const evidence = await createRetrievedChunk(prisma, fixture)
+    const evidence = await createCourseEvidenceChunk(prisma, fixture)
     const topicState = await prisma.topicState.create({
       data: { topicId: graph.topicId },
       select: { version: true, updatedAt: true },
@@ -770,10 +770,10 @@ async function expectPending<T>(promise: Promise<T>): Promise<void> {
   expect(state).toBe('pending')
 }
 
-async function createRetrievedChunk(
+async function createCourseEvidenceChunk(
   prisma: PrismaService,
   fixture: ChatFixture,
-): Promise<RetrievedChunk> {
+): Promise<CourseEvidenceChunk> {
   const material = await prisma.material.create({
     data: {
       courseId: fixture.courseId,

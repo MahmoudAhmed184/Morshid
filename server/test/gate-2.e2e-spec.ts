@@ -42,9 +42,9 @@ import {
 } from '../src/modules/socratic-tutor/tutor-generation.types'
 import { SEMANTIC_GUARD_PORT } from '../src/modules/socratic-tutor/semantic-guard.types'
 import {
-  type CourseRetrievalResult,
-  RetrievalService,
-} from '../src/modules/retrieval/retrieval.service'
+  CourseEvidence,
+  type CourseEvidenceResult,
+} from '../src/modules/materials/course-evidence'
 import { GROUNDING_BLOCKED_CONTENT } from '../src/modules/student-chat/grounded-chat.service'
 import type {
   ChatMessageHistoryResponseDto,
@@ -138,7 +138,7 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
   let storageRoot: string | undefined
   let storage: LocalPdfStorageAdapter
   let persistence: MaterialChunkRepository
-  let retrievalService: RetrievalService
+  let retrievalService: CourseEvidence
   let embeddingProvider: EmbeddingProvider
   let processingService: MaterialProcessingService
   let processingScheduler: CapturingProcessingScheduler
@@ -189,7 +189,7 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
     configureApp(app)
     await app.init()
     persistence = moduleFixture.get(MaterialChunkRepository)
-    retrievalService = moduleFixture.get(RetrievalService)
+    retrievalService = moduleFixture.get(CourseEvidence)
     embeddingProvider = moduleFixture.get(EMBEDDING_PROVIDER_TOKEN)
     processingService = moduleFixture.get(MaterialProcessingService)
 
@@ -413,7 +413,7 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
     const retrieval = await gate2Stage(
       'query production retrieval with mandatory Python course scope',
       () =>
-        retrievalService.retrieveCourseEvidence(
+        retrievalService.search(
           seed.courses.pythonProgramming.id,
           GATE_2_FIXTURE.question,
         ),
@@ -604,7 +604,7 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
       'insufficient evidence: prove the locked threshold rejects retrieval',
       () =>
         expect(
-          retrievalService.retrieveCourseEvidence(
+          retrievalService.search(
             seed.courses.pythonProgramming.id,
             GATE_2_FIXTURE.unsupportedQuestion,
           ),
@@ -728,7 +728,7 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
   }
 })
 
-function requireEvidence(result: CourseRetrievalResult) {
+function requireEvidence(result: CourseEvidenceResult) {
   expect(result.kind).toBe('evidence')
   if (result.kind !== 'evidence') {
     throw new Error('Gate 2 expected retrievable Python course evidence')

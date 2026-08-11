@@ -7,7 +7,7 @@ import { PrismaModule } from '../prisma/prisma.module'
 import { CompletionModule } from '../completion/completion.module'
 import { OutputPolicyModule } from '../output-policy/output-policy.module'
 import { PdfStorageModule } from '../pdf-storage/pdf-storage.module'
-import { RetrievalModule } from '../retrieval/retrieval.module'
+import { MaterialsModule } from '../materials/materials.module'
 import { SocraticTutorModule } from '../socratic-tutor/socratic-tutor.module'
 import { TutoringRuntime } from '../tutoring/interface/tutoring-runtime'
 import { SocraticChatOrchestrator } from './socratic-chat.orchestrator'
@@ -40,7 +40,7 @@ import { CorrectnessSensitiveRequestClassifier } from './correctness-sensitive-r
     OutputPolicyModule,
     PdfStorageModule,
     PrismaModule,
-    RetrievalModule,
+    MaterialsModule,
     SocraticTutorModule,
   ],
   controllers: [StudentChatController],

@@ -19,7 +19,7 @@ const MAX_EMBEDDING_MODEL_LENGTH = 120
 
 // Course ids are UUIDs; rejecting other shapes here keeps a malformed id from
 // surfacing as a raw Postgres ::uuid cast error instead of the typed
-// InvalidRetrievalQueryError the rest of the boundary throws.
+// InvalidCourseEvidenceQueryError the rest of the boundary throws.
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -32,7 +32,7 @@ const CANDIDATE_MATERIAL_PREDICATE = Prisma.sql`
   AND material.extracted_text_length > 0
 `
 
-export interface CourseChunkQuery {
+export interface CourseEvidenceChunkQuery {
   courseId: string
   queryEmbedding: readonly number[]
   // The active provider's document profile. Vectors from different profiles
@@ -57,7 +57,7 @@ export interface RankedChunkRow {
   distance: number
 }
 
-export interface EmbeddingProfileCoverageQuery {
+export interface CourseEvidenceCoverageQuery {
   courseId: string
   embeddingModel: string
 }
@@ -66,7 +66,7 @@ export interface EmbeddingProfileCoverageQuery {
 // grounded retrieval for that entire course. Partial coverage would answer from
 // whichever materials happened to be migrated first, which is worse than
 // declining — the student cannot tell a thin answer from a complete one.
-export type EmbeddingProfileReadiness =
+export type CourseEvidenceReadiness =
   | { kind: 'no_candidate_materials' }
   | {
       kind: 'not_ready'
@@ -75,7 +75,7 @@ export type EmbeddingProfileReadiness =
     }
   | { kind: 'ready' }
 
-export class InvalidRetrievalQueryError extends Error {
+export class InvalidCourseEvidenceQueryError extends Error {
   constructor(
     reason:
       | 'course-id'
@@ -86,36 +86,36 @@ export class InvalidRetrievalQueryError extends Error {
       | 'offset',
   ) {
     super(`Retrieval query rejected: invalid ${reason}`)
-    this.name = 'InvalidRetrievalQueryError'
+    this.name = 'InvalidCourseEvidenceQueryError'
   }
 }
 
-export abstract class CourseRetrievalRepository {
+export abstract class CourseEvidenceRepository {
   // Returns at most topK rows after offset from the given course only, ordered by
   // ascending cosine distance (descending similarity), already filtered to
   // READY/WARNING, non-deleted materials and thresholded in SQL. The course
   // predicate is part of the signature; there is no unscoped variant.
   abstract findTopChunksForCourse(
-    query: CourseChunkQuery,
+    query: CourseEvidenceChunkQuery,
   ): Promise<RankedChunkRow[]>
 
   // Reports whether every candidate material in the course is completely
   // covered by the given document profile. Callers run this *before* embedding
   // a query, so a course with no compatible vectors never spends provider
   // quota building a query vector it could not use.
-  abstract findEmbeddingProfileReadiness(
-    query: EmbeddingProfileCoverageQuery,
-  ): Promise<EmbeddingProfileReadiness>
+  abstract findCourseEvidenceReadiness(
+    query: CourseEvidenceCoverageQuery,
+  ): Promise<CourseEvidenceReadiness>
 }
 
 @Injectable()
-export class PrismaCourseRetrievalRepository extends CourseRetrievalRepository {
+export class PrismaCourseEvidenceRepository extends CourseEvidenceRepository {
   constructor(private readonly prismaService: PrismaService) {
     super()
   }
 
   async findTopChunksForCourse(
-    query: CourseChunkQuery,
+    query: CourseEvidenceChunkQuery,
   ): Promise<RankedChunkRow[]> {
     assertValidQuery(query)
 
@@ -159,9 +159,9 @@ export class PrismaCourseRetrievalRepository extends CourseRetrievalRepository {
     `)
   }
 
-  async findEmbeddingProfileReadiness(
-    query: EmbeddingProfileCoverageQuery,
-  ): Promise<EmbeddingProfileReadiness> {
+  async findCourseEvidenceReadiness(
+    query: CourseEvidenceCoverageQuery,
+  ): Promise<CourseEvidenceReadiness> {
     assertValidCoverageQuery(query)
 
     // `candidate_materials` is the shared base scope — deliberately *without*
@@ -214,7 +214,7 @@ export class PrismaCourseRetrievalRepository extends CourseRetrievalRepository {
     // missing row means the query shape changed, not an empty course. Failing
     // closed here keeps a silently reshaped query from reading as "ready".
     if (rows.length === 0) {
-      throw new InvalidRetrievalQueryError('embedding-model')
+      throw new InvalidCourseEvidenceQueryError('embedding-model')
     }
 
     const [row] = rows
@@ -240,14 +240,14 @@ interface EmbeddingProfileCoverageRow {
   incompleteMaterialIds: string[]
 }
 
-function assertValidQuery(query: CourseChunkQuery): void {
+function assertValidQuery(query: CourseEvidenceChunkQuery): void {
   assertValidCoverageQuery(query)
 
   if (
     query.queryEmbedding.length !== EMBEDDING_DIMENSIONS ||
     !query.queryEmbedding.every((component) => Number.isFinite(component))
   ) {
-    throw new InvalidRetrievalQueryError('embedding')
+    throw new InvalidCourseEvidenceQueryError('embedding')
   }
 
   if (
@@ -255,7 +255,7 @@ function assertValidQuery(query: CourseChunkQuery): void {
     query.topK < 1 ||
     query.topK > MAX_TOP_K
   ) {
-    throw new InvalidRetrievalQueryError('top-k')
+    throw new InvalidCourseEvidenceQueryError('top-k')
   }
 
   if (
@@ -263,7 +263,7 @@ function assertValidQuery(query: CourseChunkQuery): void {
     query.offset < 0 ||
     query.offset > MAX_CANDIDATE_OFFSET
   ) {
-    throw new InvalidRetrievalQueryError('offset')
+    throw new InvalidCourseEvidenceQueryError('offset')
   }
 
   if (
@@ -271,20 +271,20 @@ function assertValidQuery(query: CourseChunkQuery): void {
     query.minSimilarity < 0 ||
     query.minSimilarity > 1
   ) {
-    throw new InvalidRetrievalQueryError('min-similarity')
+    throw new InvalidCourseEvidenceQueryError('min-similarity')
   }
 }
 
-function assertValidCoverageQuery(query: EmbeddingProfileCoverageQuery): void {
+function assertValidCoverageQuery(query: CourseEvidenceCoverageQuery): void {
   if (!UUID_PATTERN.test(query.courseId)) {
-    throw new InvalidRetrievalQueryError('course-id')
+    throw new InvalidCourseEvidenceQueryError('course-id')
   }
 
   if (
     query.embeddingModel.trim() === '' ||
     query.embeddingModel.length > MAX_EMBEDDING_MODEL_LENGTH
   ) {
-    throw new InvalidRetrievalQueryError('embedding-model')
+    throw new InvalidCourseEvidenceQueryError('embedding-model')
   }
 }
 

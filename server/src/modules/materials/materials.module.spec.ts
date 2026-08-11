@@ -14,6 +14,7 @@ import {
 } from './materials.repository'
 import { PDF_TEXT_EXTRACTOR, PdfJsTextExtractor } from './pdf-text-extractor'
 import { MaterialsModule } from './materials.module'
+import { CourseEvidence } from './course-evidence'
 
 describe('MaterialsModule processing graph', () => {
   it('resolves the one registered production implementation for every seam', async () => {
@@ -58,5 +59,6 @@ describe('MaterialsModule processing graph', () => {
     expect(moduleRef.get(MaterialProcessingScheduler)).toBeInstanceOf(
       DurableMaterialProcessingScheduler,
     )
+    expect(moduleRef.get(CourseEvidence)).toBeInstanceOf(CourseEvidence)
   })
 })

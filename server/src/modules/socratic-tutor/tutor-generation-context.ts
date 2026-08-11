@@ -5,10 +5,11 @@ import {
   type TutorEvidenceContext,
   type TutorGuardEducationalContext,
 } from './tutor-generation.types'
-import type { RetrievedChunk } from '../retrieval/retrieval.service'
+import type { CourseEvidenceChunk } from '../materials/materials.public'
 import type { PersistedEducationalAnalysisRecord } from './educational-analysis.repository'
 import type { PersistedTeachingDecisionRecord } from './teaching-decision.repository'
 import type { TeachingGuardPolicy } from './teaching-policy.types'
+import type { DebuggingGuidanceContext } from './debugging-guidance.contract'
 
 export type BuildGenerationContextResult =
   | {
@@ -25,7 +26,8 @@ export function buildGenerationContextPackage(input: {
   readonly acceptedAnalysis: PersistedEducationalAnalysisRecord
   readonly teachingDecision: PersistedTeachingDecisionRecord
   readonly previousTeachingDecision: PersistedTeachingDecisionRecord | null
-  readonly retrievedChunks: readonly RetrievedChunk[]
+  readonly retrievedChunks: readonly CourseEvidenceChunk[]
+  readonly debuggingGuidance?: DebuggingGuidanceContext
 }): BuildGenerationContextResult {
   const attemptId = input.analysisContext.studentMessage.attemptId
   if (
@@ -74,6 +76,7 @@ export function buildGenerationContextPackage(input: {
       allowedCitationIds: Object.freeze(allowedCitationIds),
       conversationLanguage: input.analysisContext.conversationLanguage,
       regeneration: null,
+      debuggingGuidance: input.debuggingGuidance ?? null,
     }),
   }
 }
@@ -166,7 +169,7 @@ export function guardEducationalContextFromGenerationContext(
 }
 
 function toEvidenceContext(
-  chunk: RetrievedChunk,
+  chunk: CourseEvidenceChunk,
   index: number,
 ): TutorEvidenceContext {
   return Object.freeze({
@@ -184,7 +187,7 @@ function toEvidenceContext(
 }
 
 export function citationIdForChunk(
-  chunk: Pick<RetrievedChunk, 'rank'>,
+  chunk: Pick<CourseEvidenceChunk, 'rank'>,
 ): string {
   return `retrieval.rank.${String(chunk.rank)}`
 }

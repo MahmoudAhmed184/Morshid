@@ -32,6 +32,10 @@ import {
   TeachingStrategy,
   TeachingTechnique,
 } from '../../generated/prisma/client'
+import {
+  DEBUGGING_GUIDANCE_FULL_REWRITE_REFUSAL,
+  type DebuggingGuidanceContext,
+} from './debugging-guidance.contract'
 
 const MAX_TUTOR_PROVIDER_LENGTH = 80
 const MAX_TUTOR_MODEL_LENGTH = 200
@@ -157,30 +161,140 @@ export class DeterministicTutorModelAdapter implements TutorModelPort {
       throw new TutorModelError(TUTOR_MODEL_ERROR_CODE.CANCELLED)
     }
 
+    const allowedCitationIds = extractAllowedCitationIds(request)
+    const debuggingGuidance = extractDebuggingGuidance(request)
+    const debugging = request.messages[1].content.includes(
+      '"strategy":"DEBUGGING_GUIDANCE"',
+    )
+
     return Promise.resolve(
       Object.freeze({
-        rawOutput: Object.freeze({
-          message:
-            'What is one small step you can try next using the cited course evidence?',
-          responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
-          usedCitationIds: Object.freeze(extractAllowedCitationIds(request)),
-          requiresStudentAction: true,
-          studentAction: Object.freeze({
-            type: TeachingTechnique.ORIENTATION_QUESTION,
-            description: 'Ask the student to identify the next reasoning step.',
-          }),
-          reflectionIncluded: false,
-          selfReportedCompliance: Object.freeze({
-            finalAnswerRevealed: false,
-            completeSolutionRevealed: false,
-          }),
-        }),
+        rawOutput: Object.freeze(
+          debugging
+            ? debuggingCandidate(
+                debuggingGuidance ?? defaultDebuggingGuidance(),
+                allowedCitationIds,
+              )
+            : {
+                message:
+                  'What is one small step you can try next using the cited course evidence?',
+                responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
+                usedCitationIds: Object.freeze(allowedCitationIds),
+                requiresStudentAction: true,
+                studentAction: Object.freeze({
+                  type: TeachingTechnique.ORIENTATION_QUESTION,
+                  description:
+                    'Ask the student to identify the next reasoning step.',
+                }),
+                reflectionIncluded: false,
+                selfReportedCompliance: Object.freeze({
+                  finalAnswerRevealed: false,
+                  completeSolutionRevealed: false,
+                }),
+              },
+        ),
         provider: DETERMINISTIC_TUTOR_MODEL_PROVIDER,
         model: 'deterministic-tutor-generation-v1',
         promptVersion: request.promptVersion,
       }),
     )
   }
+}
+
+function defaultDebuggingGuidance(): DebuggingGuidanceContext {
+  return {
+    likelyIssue: 'The submitted code needs one focused trace of its state.',
+    relevantLocation:
+      'The first expression whose value differs from expectation.',
+    concept:
+      'Trace each value through the relevant operation before changing the code.',
+    nextInspectionStep:
+      'Trace the first relevant value and write down what it becomes.',
+    evidenceQuery: '',
+    rewriteRequested: false,
+  }
+}
+
+function debuggingCandidate(
+  guidance: DebuggingGuidanceContext,
+  allowedCitationIds: readonly string[],
+): Record<string, unknown> {
+  const citation = allowedCitationIds.at(0)
+  const concept =
+    citation === undefined
+      ? guidance.concept
+      : `${guidance.concept} [${citation}]`
+  const message = [
+    ...(guidance.rewriteRequested
+      ? [DEBUGGING_GUIDANCE_FULL_REWRITE_REFUSAL, '']
+      : []),
+    'Likely defect',
+    guidance.likelyIssue,
+    '',
+    'Relevant location',
+    guidance.relevantLocation,
+    '',
+    'Concept',
+    concept,
+    '',
+    'Next inspection step',
+    guidance.nextInspectionStep,
+  ].join('\n')
+
+  return {
+    message,
+    responseIntent: TeachingStrategy.DEBUGGING_GUIDANCE,
+    usedCitationIds:
+      citation === undefined ? Object.freeze([]) : Object.freeze([citation]),
+    requiresStudentAction: true,
+    studentAction: Object.freeze({
+      type: TeachingTechnique.TRACE_EXECUTION,
+      description: guidance.nextInspectionStep,
+    }),
+    reflectionIncluded: false,
+    selfReportedCompliance: Object.freeze({
+      finalAnswerRevealed: false,
+      completeSolutionRevealed: false,
+    }),
+  }
+}
+
+function extractDebuggingGuidance(
+  request: TutorModelRequest,
+): DebuggingGuidanceContext | null {
+  const match = /debuggingGuidance\n(?<json>\{[^\n]+\})/u.exec(
+    request.messages[1].content,
+  )
+  if (match?.groups?.json === undefined) {
+    return null
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(match.groups.json)
+    if (!isDebuggingGuidanceContext(parsed)) {
+      return null
+    }
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function isDebuggingGuidanceContext(
+  value: unknown,
+): value is DebuggingGuidanceContext {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false
+  }
+  const record = value as Record<string, unknown>
+  return (
+    typeof record.likelyIssue === 'string' &&
+    typeof record.relevantLocation === 'string' &&
+    typeof record.concept === 'string' &&
+    typeof record.nextInspectionStep === 'string' &&
+    typeof record.evidenceQuery === 'string' &&
+    typeof record.rewriteRequested === 'boolean'
+  )
 }
 
 export function tutorFailureFromModelError(

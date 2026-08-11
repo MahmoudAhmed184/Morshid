@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
-import type { RetrievedChunk } from '../retrieval/retrieval.service'
+import type { CourseEvidenceChunk } from '../materials/materials.public'
 
 export const CONTROLLED_SOURCE_CONFLICT_DETECTOR_VERSION =
   'controlled-source-conflict-v2'
@@ -8,7 +8,7 @@ export const CONTROLLED_SOURCE_CONFLICT_DETECTOR_VERSION =
 export interface ControlledSourceConflict {
   readonly detectorVersion: typeof CONTROLLED_SOURCE_CONFLICT_DETECTOR_VERSION
   readonly kind: ControlledConflictScenario
-  readonly sources: readonly [RetrievedChunk, RetrievedChunk]
+  readonly sources: readonly [CourseEvidenceChunk, CourseEvidenceChunk]
 }
 
 export type ControlledConflictScenario =
@@ -30,7 +30,7 @@ const TUESDAY_CLAIM = /\bquestion\s+x\s+is\s+scheduled\s+for\s+tuesday\b/iu
 export class ControlledSourceConflictDetector {
   detect(
     studentQuestion: string,
-    chunks: readonly RetrievedChunk[],
+    chunks: readonly CourseEvidenceChunk[],
   ): ControlledSourceConflict | null {
     const scenario = scenarioFrom(studentQuestion)
     if (scenario === null) return null
@@ -52,7 +52,10 @@ export class ControlledSourceConflictDetector {
       return null
     }
 
-    const sources: readonly [RetrievedChunk, RetrievedChunk] = [first, second]
+    const sources: readonly [CourseEvidenceChunk, CourseEvidenceChunk] = [
+      first,
+      second,
+    ]
     return Object.freeze({
       detectorVersion: CONTROLLED_SOURCE_CONFLICT_DETECTOR_VERSION,
       kind: scenario,

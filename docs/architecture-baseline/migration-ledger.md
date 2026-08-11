@@ -653,3 +653,26 @@ contracts and therefore updates every server/client caller directly.
 M3 may delete only the superseded Auth/Admin-user paths and their compatibility
 exports/tests. Courses, Materials, Audit, and later Admin presentation remain
 owned by their current slices until their approved milestones.
+
+## Milestone 6C migration inventory
+
+Starting SHA: `decde741ae2e30e95023b6c2544f66795d1676d8`.
+
+Milestone 6C moves course-scoped evidence acquisition into Materials and routes
+code diagnosis through the existing Socratic workflow. The slice is schema
+neutral; the audited rolling initial migration and seed remain unchanged.
+
+| Area | Files/paths to add, change, or delete | Disposition and invariants |
+| --- | --- | --- |
+| Materials evidence boundary | `server/src/modules/materials/course-evidence.ts`, `course-evidence.repository.ts`, adjacent specs; `server/src/modules/retrieval/**` | Move and rename the retrieval implementation into Materials. Export only `CourseEvidence.search(courseId, query, requestBudget?)` and sanitized evidence/result types; keep vectors, chunks, Prisma, readiness, and storage details behind the Materials implementation. Delete the Retrieval module and its old paths. |
+| Module composition | `server/src/modules/materials/materials.module.ts`, `materials.module.spec.ts`, `server/src/app.module.ts`, `server/src/modules/student-chat/student-chat.module.ts` | Bind and export the Materials-owned CourseEvidence token; remove RetrievalModule composition and update direct consumers. |
+| Socratic workflow | `server/src/modules/student-chat/socratic-chat.orchestrator.ts`, `socratic-chat.types.ts`, adjacent spec | Consume CourseEvidence for the one course-scoped search. Carry a generic debugging context through analysis, teaching, generation, validation, and approval; use the debugging evidence query when present. |
+| Debugging contract | `server/src/modules/socratic-tutor/debugging-guidance.contract.ts`, `.spec.ts`, `tutor-prompt.builder.ts`, `tutor-model.adapter.ts`, `deterministic-guard.service.ts`, response-validation/context/generation files | Add language-neutral `DEBUGGING_GUIDANCE` and `TRACE_EXECUTION` contracts with four required sections, one inspection action, authorized citations, prompt-disclosure protection, no execution claims, and no complete-program rewrite. |
+| Analysis and approval propagation | `analysis-model.provider.ts`, `response-approval.service.ts`, `structural-response.validator.ts`, `tutor-generation.service.ts`, `turn.repository.ts`, focused specs | Classify deterministic code-diagnosis requests as a generic debugging strategy, pass the context into prompt/generation/approval, and enforce the contract in deterministic validation while preserving Safe Fallback metadata on the authoritative Attempt. |
+| Student application path | `server/src/modules/student-chat/grounded-chat.service.ts`, its focused specs and diagnosis-failure specs | Remove the dedicated diagnosis retrieval/completion path. Send diagnosis through the single Socratic orchestrator with a generic debugging context; retain only the runtime-private application adapter pending 6D/6E. |
+| Capability and live/E2E callers | `server/test/grounded-chat.e2e-spec.ts`, `socratic-chat.e2e-spec.ts` support callers, `gate-2.e2e-spec.ts`, `material-processing.e2e-spec.ts`, retrieval-readiness and turn E2E callers, Gemini fixture | Update module injection and evidence types/names directly, prove generic diagnosis headings/citations and no execution/full rewrite, and prove provider failure returns a replayable Safe Fallback on one Attempt. |
+| Residual documentation/search | this ledger and current authored imports | Prove no source/test import or module path targets `server/src/modules/retrieval`; historical plan/ledger evidence may retain labeled old names until the final 6E/8 cleanup. |
+
+The next 6C implementation pass must run the focused unit suites, isolated
+Socratic and Grounded capability E2E suites, typecheck/lint, architecture,
+formatting, and the full repository gate before the implementation commit.

@@ -12,7 +12,6 @@ import { StudentChatModule } from './modules/student-chat/student-chat.module'
 import { PdfStorageModule } from './modules/pdf-storage/pdf-storage.module'
 import { EmbeddingModule } from './modules/embedding/embedding.module'
 import { MaterialsModule } from './modules/materials/materials.module'
-import { RetrievalModule } from './modules/retrieval/retrieval.module'
 import { SocraticTutorModule } from './modules/socratic-tutor/socratic-tutor.module'
 import { ReviewsModule } from './modules/reviews/reviews.module'
 import { TutoringModule } from './modules/tutoring/tutoring.module'
@@ -32,7 +31,6 @@ import { TutoringModule } from './modules/tutoring/tutoring.module'
     StudentChatModule,
     PdfStorageModule,
     EmbeddingModule,
-    RetrievalModule,
     MaterialsModule,
     CompletionModule,
     SocraticTutorModule,

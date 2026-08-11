@@ -1,4 +1,4 @@
-import type { RetrievedChunk } from '../retrieval/retrieval.service'
+import type { CourseEvidenceChunk } from '../materials/materials.public'
 import {
   AUTOMATIC_SAFETY_RISK_DETECTOR_VERSION,
   AutomaticSafetyRiskDetector,
@@ -180,7 +180,7 @@ describe('AutomaticSafetyRiskDetector', () => {
   })
 })
 
-function chunk(content: string): RetrievedChunk {
+function chunk(content: string): CourseEvidenceChunk {
   return {
     chunkId: 'chunk-id',
     materialId: 'material-id',

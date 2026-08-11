@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common'
 import { RevealPolicy } from '../../generated/prisma/client'
 import { normalizeDeterministicText } from '../../common/text/normalize-deterministic-text'
 import type { CandidateResponse } from './tutor-generation.types'
+import { validateDebuggingGuidanceOutput } from './debugging-guidance.contract'
 import {
   RESPONSE_VALIDATION_ACTION,
   RESPONSE_VALIDATION_SEVERITY,
@@ -48,6 +49,27 @@ export class DeterministicGuardService {
           'Use the primary TeachingDecision technique for studentAction.type.',
         ),
       )
+    }
+
+    if (
+      context.debuggingGuidance !== undefined ||
+      context.debuggingGuidanceRequired === true
+    ) {
+      const debuggingResult = validateDebuggingGuidanceOutput({
+        content: candidate.message,
+        authorizedCitationCount: context.allowedCitationIds.size,
+      })
+      if (debuggingResult !== 'ALLOWED_DEBUGGING_GUIDANCE') {
+        violations.push(
+          violation(
+            RESPONSE_VIOLATION_TYPE.DEBUGGING_GUIDANCE_CONTRACT,
+            RESPONSE_VALIDATION_SEVERITY.HIGH,
+            'message',
+            `Debugging guidance failed the ${debuggingResult} contract.`,
+            'Return the four debugging guidance sections, cite authorized course evidence in Concept, and give exactly one inspection step without executing or rewriting the code.',
+          ),
+        )
+      }
     }
 
     if (hasGroundingViolation(candidate, context)) {

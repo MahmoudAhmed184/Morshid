@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common'
 
 import { assertRequestBudget } from '../../common/http/request-deadline'
-import { TutoringAttemptStatus } from '../../generated/prisma/client'
+import {
+  TeachingStrategy,
+  TutoringAttemptStatus,
+} from '../../generated/prisma/client'
 
 import { citationIdForChunk } from './tutor-generation-context'
 import { TutorGenerationService } from './tutor-generation.service'
@@ -131,6 +134,10 @@ export class ResponseApprovalService {
       guidanceLevel: decision.guidanceLevel,
       revealPolicy: decision.revealPolicy,
       maximumDisclosedSteps: decision.guardPolicy.maximumDisclosedSteps,
+      debuggingGuidance: input.debuggingGuidance,
+      debuggingGuidanceRequired:
+        input.debuggingGuidance !== undefined ||
+        decision.strategy === TeachingStrategy.DEBUGGING_GUIDANCE,
     })
 
     let previousValidation: ValidationResult | null = null

@@ -28,8 +28,8 @@ describe('SocraticChatOrchestrator classified responses', () => {
         findPreviousDecision: jest.fn(),
         selectDecision: jest.fn(),
       }
-      const retrievalService = {
-        retrieveCourseEvidence: jest.fn(),
+      const courseEvidence = {
+        search: jest.fn(),
       }
       const responseApprovalService = {
         approveAndPersist: jest.fn(),
@@ -98,7 +98,7 @@ describe('SocraticChatOrchestrator classified responses', () => {
         teachingPolicyEngine as never,
         responseApprovalService as never,
         { build: jest.fn() },
-        retrievalService as never,
+        courseEvidence,
         {
           message: {
             updateMany: jest.fn().mockResolvedValue({ count: 2 }),
@@ -169,7 +169,7 @@ describe('SocraticChatOrchestrator classified responses', () => {
       )
       expect(teachingPolicyEngine.findPreviousDecision).not.toHaveBeenCalled()
       expect(teachingPolicyEngine.selectDecision).not.toHaveBeenCalled()
-      expect(retrievalService.retrieveCourseEvidence).not.toHaveBeenCalled()
+      expect(courseEvidence.search).not.toHaveBeenCalled()
       expect(responseApprovalService.approveAndPersist).not.toHaveBeenCalled()
       expect(semanticGuard.evaluate).not.toHaveBeenCalled()
       expect(transitionStatus).not.toHaveBeenCalledWith(

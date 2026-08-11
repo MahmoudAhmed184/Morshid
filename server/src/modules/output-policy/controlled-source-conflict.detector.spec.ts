@@ -1,4 +1,4 @@
-import type { RetrievedChunk } from '../retrieval/retrieval.service'
+import type { CourseEvidenceChunk } from '../materials/materials.public'
 import {
   CONTROLLED_SOURCE_CONFLICT_DETECTOR_VERSION,
   ControlledSourceConflictDetector,
@@ -155,7 +155,7 @@ describe('ControlledSourceConflictDetector', () => {
   })
 })
 
-function conflictPair(): RetrievedChunk[] {
+function conflictPair(): CourseEvidenceChunk[] {
   return [
     chunk({ content: 'The / operator returns a float result.', rank: 1 }),
     chunk({
@@ -166,7 +166,7 @@ function conflictPair(): RetrievedChunk[] {
   ]
 }
 
-function chunk(overrides: Partial<RetrievedChunk>): RetrievedChunk {
+function chunk(overrides: Partial<CourseEvidenceChunk>): CourseEvidenceChunk {
   return {
     chunkId: `chunk-${String(overrides.rank ?? 1)}`,
     materialId: 'material-a',

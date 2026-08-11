@@ -61,14 +61,14 @@ export default {
     {
       name: 'materials-interface-only',
       comment:
-        'Product modules may consume Materials only through its capability module.',
+        'Product modules may consume Materials only through its capability module or named public interface.',
       severity: 'error',
       from: {
         path: '^server/src/(?:app\\.module\\.ts|common/|modules/(?!materials(?:/|$)))',
         pathNot: testPath,
       },
       to: {
-        path: '^server/src/modules/materials/(?!materials\\.module\\.ts$)',
+        path: '^server/src/modules/materials/(?!materials\\.module\\.ts$|materials\\.public\\.ts$)',
       },
     },
     {

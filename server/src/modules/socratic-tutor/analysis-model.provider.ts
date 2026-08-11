@@ -168,18 +168,27 @@ export class DeterministicAnalysisModelAdapter implements AnalysisModelPort {
     }
 
     const evidenceMessageId = extractCurrentMessageId(request)
+    const codeDiagnosis = isDeterministicCodeDiagnosisRequest(request)
     return Promise.resolve(
       Object.freeze({
         rawOutput: Object.freeze({
-          requestKind: MessageRequestKind.AMBIGUOUS,
-          studentState: StudentState.UNKNOWN,
+          requestKind: codeDiagnosis
+            ? MessageRequestKind.CODE_DIAGNOSIS
+            : MessageRequestKind.AMBIGUOUS,
+          studentState: codeDiagnosis
+            ? StudentState.DEBUGGING_ISSUE
+            : StudentState.UNKNOWN,
           effortEvidence: Object.freeze({
-            present: false,
-            quality: EFFORT_QUALITY.NONE,
-            type: null,
+            present: codeDiagnosis,
+            quality: codeDiagnosis
+              ? EFFORT_QUALITY.MEANINGFUL
+              : EFFORT_QUALITY.NONE,
+            type: codeDiagnosis ? 'CODE_ATTEMPT' : null,
             addressesPreviousTutorAction: false,
             isRepeated: false,
-            evidenceMessageIds: Object.freeze([]),
+            evidenceMessageIds: codeDiagnosis
+              ? Object.freeze([evidenceMessageId])
+              : Object.freeze([]),
           }),
           learningEvidence: Object.freeze({
             present: false,
@@ -188,10 +197,14 @@ export class DeterministicAnalysisModelAdapter implements AnalysisModelPort {
           }),
           misconceptions: Object.freeze([]),
           topicRelation: TOPIC_RESOLUTION_OUTCOME.CONTINUE_CURRENT_TOPIC,
-          recommendedStrategy: TeachingStrategy.SOCRATIC_QUESTIONING,
-          recommendedTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+          recommendedStrategy: codeDiagnosis
+            ? TeachingStrategy.DEBUGGING_GUIDANCE
+            : TeachingStrategy.SOCRATIC_QUESTIONING,
+          recommendedTechnique: codeDiagnosis
+            ? TeachingTechnique.TRACE_EXECUTION
+            : TeachingTechnique.ORIENTATION_QUESTION,
           recommendedGuidanceLevel: 1,
-          confidence: 0.2,
+          confidence: codeDiagnosis ? 0.9 : 0.2,
           evidenceReferences: Object.freeze([evidenceMessageId]),
         }),
         provider: DETERMINISTIC_ANALYSIS_MODEL_PROVIDER,
@@ -359,6 +372,19 @@ function extractCurrentMessageId(request: AnalysisModelRequest): string {
     userContent,
   )
   return match?.groups?.messageId ?? 'analysis-context-message'
+}
+
+function isDeterministicCodeDiagnosisRequest(
+  request: AnalysisModelRequest,
+): boolean {
+  const content = request.messages[1].content
+  const containsCode =
+    /```|\b(?:def|class|function)\s+[A-Za-z_][A-Za-z0-9_]*/u.test(content)
+  const containsDiagnosisIntent =
+    /\b(?:bug|crash|debug|diagnos|error|fail(?:s|ed|ure)?|fix|issue|wrong|rewrite)\w*\b/iu.test(
+      content,
+    )
+  return containsCode && containsDiagnosisIntent
 }
 
 function isBoundedMetadata(value: unknown, maximum: number): value is string {

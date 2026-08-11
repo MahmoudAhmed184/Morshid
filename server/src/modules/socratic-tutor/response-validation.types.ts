@@ -5,6 +5,7 @@ import type {
   TeachingTechnique,
 } from '../../generated/prisma/client'
 import type { CandidateResponse } from './tutor-generation.types'
+import type { DebuggingGuidanceContext } from './debugging-guidance.contract'
 
 export const MVP_RESPONSE_VALIDATION_POLICY_VERSION =
   'response-validation.mvp.v1'
@@ -58,6 +59,7 @@ export const RESPONSE_VIOLATION_TYPE = {
   MISSING_STUDENT_REASONING: 'MISSING_STUDENT_REASONING',
   RESPONSE_INTENT_MISMATCH: 'RESPONSE_INTENT_MISMATCH',
   TECHNIQUE_MISMATCH: 'TECHNIQUE_MISMATCH',
+  DEBUGGING_GUIDANCE_CONTRACT: 'DEBUGGING_GUIDANCE_CONTRACT',
   GROUNDING_VIOLATION: 'GROUNDING_VIOLATION',
   SEMANTIC_POLICY_VIOLATION: 'SEMANTIC_POLICY_VIOLATION',
   GUARD_MALFORMED_OUTPUT: 'GUARD_MALFORMED_OUTPUT',
@@ -98,6 +100,8 @@ export interface CandidateValidationContext {
   readonly guidanceLevel: number
   readonly revealPolicy: RevealPolicy
   readonly maximumDisclosedSteps: number
+  readonly debuggingGuidance?: DebuggingGuidanceContext
+  readonly debuggingGuidanceRequired?: boolean
 }
 
 export const APPROVED_RESPONSE_SOURCE = {

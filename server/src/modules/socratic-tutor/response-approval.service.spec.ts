@@ -29,7 +29,7 @@ import type {
   TutorGenerationServiceResult,
 } from './tutor-generation.types'
 import { TUTOR_GENERATION_FAILURE_CODE } from './tutor-generation.types'
-import type { RetrievedChunk } from '../retrieval/retrieval.service'
+import type { CourseEvidenceChunk } from '../materials/materials.public'
 import { AutomaticSafetyRiskDetector } from '../output-policy/automatic-safety-risk.detector'
 
 describe('ResponseApprovalService', () => {
@@ -490,7 +490,7 @@ function generationSuccess(
   }
 }
 
-function retrievedChunk(): RetrievedChunk {
+function retrievedChunk(): CourseEvidenceChunk {
   return {
     chunkId: 'chunk-1',
     materialId: 'material-1',

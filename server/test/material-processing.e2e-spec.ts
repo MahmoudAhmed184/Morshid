@@ -49,7 +49,7 @@ import { PrismaService } from '../src/modules/prisma/prisma.service'
 import { MaterialChunkEmbeddingService } from '../src/modules/materials/material-chunk-embedding.service'
 import { MaterialChunkRepository } from '../src/modules/materials/material-chunk.repository'
 import { RedisService } from '../src/modules/redis/redis.service'
-import { RetrievalService } from '../src/modules/retrieval/retrieval.service'
+import { CourseEvidence } from '../src/modules/materials/course-evidence'
 import { P0_DEMO_PASSWORD, seedP0DemoData } from '../src/seeds/p0-demo.seed'
 import {
   TASK_80_SENTINEL,
@@ -219,7 +219,7 @@ describe('Material processing truthfulness (e2e)', () => {
   let app: INestApplication<App>
   let processingService: MaterialProcessingService
   let materialsRepository: MaterialsRepository
-  let retrievalService: RetrievalService
+  let retrievalService: CourseEvidence
   let chunkEmbeddingService: MaterialChunkEmbeddingService
   let persistence: MaterialChunkRepository
   let storage: IsolatedFaultInjectingStorage
@@ -274,7 +274,7 @@ describe('Material processing truthfulness (e2e)', () => {
 
     processingService = moduleFixture.get(MaterialProcessingService)
     materialsRepository = moduleFixture.get(MaterialsRepository)
-    retrievalService = moduleFixture.get(RetrievalService)
+    retrievalService = moduleFixture.get(CourseEvidence)
     chunkEmbeddingService = moduleFixture.get(MaterialChunkEmbeddingService)
     persistence = moduleFixture.get(MaterialChunkRepository)
 
@@ -320,7 +320,7 @@ describe('Material processing truthfulness (e2e)', () => {
     expect(chunks).toHaveLength(material.chunkCount ?? 0)
     expect(chunks.length).toBeGreaterThan(0)
     await expect(
-      retrievalService.retrieveCourseEvidence(courseId, chunks[0].content),
+      retrievalService.search(courseId, chunks[0].content),
     ).resolves.toMatchObject({
       kind: 'evidence',
       chunks: [expect.objectContaining({ materialId })],
@@ -344,7 +344,7 @@ describe('Material processing truthfulness (e2e)', () => {
     const chunks = await persistence.findMaterialChunks(materialId)
     expect(chunks).toHaveLength(material.chunkCount ?? 0)
     await expect(
-      retrievalService.retrieveCourseEvidence(courseId, chunks[0].content),
+      retrievalService.search(courseId, chunks[0].content),
     ).resolves.toMatchObject({
       kind: 'evidence',
       chunks: [expect.objectContaining({ materialId })],
@@ -663,7 +663,7 @@ describe('Material processing truthfulness (e2e)', () => {
       [],
     )
     await expect(
-      retrievalService.retrieveCourseEvidence(courseId, 'stale partial chunk'),
+      retrievalService.search(courseId, 'stale partial chunk'),
     ).resolves.toEqual({ kind: 'insufficient_evidence' })
     await expectSafeTerminalAudit(
       materialId,

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import { Inject, Injectable, Logger } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 
 import {
   MessageGuidanceLabel,
@@ -19,27 +19,9 @@ import {
   type AutomaticSafetyRiskDetection,
 } from '../output-policy/automatic-safety-risk.detector'
 import {
-  COMPLETION_PROVIDER_TOKEN,
-  CompletionProviderError,
-  type CompletionProvider,
-  type CompletionResult,
-  type NonEmptyCompletionContext,
-} from '../completion/completion-provider'
-import {
-  RetrievalService,
-  type RetrievedChunk,
-} from '../retrieval/retrieval.service'
-import {
   selectTutorStrategy,
   type TutorStrategySelection,
 } from '../tutor/tutor-decision'
-import {
-  addFullRewriteRefusal,
-  buildSafePythonCodeDiagnosisFallback,
-  pythonCodeDiagnosisOutputErrorCode,
-  readPythonCodeDiagnosisCitationIndexes,
-  validatePythonCodeDiagnosisOutput,
-} from '../tutor/code-diagnosis/python-code-diagnosis.output-guard'
 import { PYTHON_CODE_DIAGNOSIS_BOUNDARY_ERROR_CODES } from '../tutor/code-diagnosis/python-code-diagnosis.boundary-response'
 import {
   OutputPolicyReviewAdapter,
@@ -65,7 +47,6 @@ import {
 import {
   type BeginGroundedChatTurnResult,
   type FinalizeGroundedChatTurnResult,
-  GroundedChatEvidenceUnavailableError,
   GroundedChatTurnRepository,
   type RetryGroundedChatTurnResult,
 } from './grounded-chat-turn.repository'
@@ -169,9 +150,6 @@ export class GroundedChatService extends TutoringRuntime {
     private readonly outputPolicy: OutputPolicyService,
     private readonly outputPolicyReviewAdapter: OutputPolicyReviewAdapter,
     private readonly requestClassifier: CorrectnessSensitiveRequestClassifier,
-    private readonly retrievalService: RetrievalService,
-    @Inject(COMPLETION_PROVIDER_TOKEN)
-    private readonly completionProvider: CompletionProvider,
   ) {
     super()
   }
@@ -393,17 +371,6 @@ export class GroundedChatService extends TutoringRuntime {
       })
     }
 
-    if (selection.diagnosis !== null) {
-      return this.orchestrateDiagnosis(
-        turn,
-        operation,
-        selection,
-        classification.correctnessSensitive,
-        requestContext,
-        requestBudget,
-      )
-    }
-
     let orchestratorResult
     try {
       orchestratorResult = await this.socraticOrchestrator.orchestrate({
@@ -414,6 +381,18 @@ export class GroundedChatService extends TutoringRuntime {
         studentMessageId: turn.studentMessage.id,
         assistantMessageId: turn.assistantMessage.id,
         studentMessageContent: turn.studentMessage.content,
+        ...(selection.diagnosis === null
+          ? {}
+          : {
+              debuggingGuidance: {
+                likelyIssue: selection.diagnosis.likelyDefect,
+                relevantLocation: selection.diagnosis.location,
+                concept: selection.diagnosis.conceptExplanation,
+                nextInspectionStep: selection.diagnosis.nextInspectionStep,
+                evidenceQuery: selection.retrievalQuery,
+                rewriteRequested: selection.fullRewriteRequested,
+              },
+            }),
         topicSelection,
         requestBudget,
       })
@@ -451,222 +430,6 @@ export class GroundedChatService extends TutoringRuntime {
         )
       case 'failed':
         return this.persistFailure(turn, operation)
-    }
-  }
-
-  private async orchestrateDiagnosis(
-    turn: ActiveGroundedTurn,
-    operation: OrchestrationContext,
-    selection: TutorStrategySelection & {
-      diagnosis: NonNullable<TutorStrategySelection['diagnosis']>
-    },
-    correctnessSensitive: boolean,
-    requestContext?: AuditRequestContext,
-    requestBudget?: RequestBudget,
-  ): Promise<GroundedChatTurnResponseDto> {
-    assertRequestBudget(requestBudget)
-    let evidence: RetrievedChunk[]
-    try {
-      const retrieval = await this.retrievalService.retrieveCourseEvidence(
-        turn.courseId,
-        selection.retrievalQuery,
-        requestBudget,
-      )
-      if (retrieval.kind === 'embedding_profile_not_ready') {
-        this.logger.warn({
-          event: 'grounded_chat_embedding_profile_not_ready',
-          expectedModel: retrieval.expectedModel,
-          incompleteMaterialIds: retrieval.incompleteMaterialIds,
-          ...operation,
-        })
-        return await this.persistInsufficientEvidence(
-          turn,
-          correctnessSensitive,
-          operation,
-          requestContext,
-        )
-      }
-      if (retrieval.kind === 'insufficient_evidence') {
-        return await this.persistInsufficientEvidence(
-          turn,
-          correctnessSensitive,
-          operation,
-          requestContext,
-        )
-      }
-      evidence = retrieval.chunks
-    } catch (error) {
-      this.logFailure('retrieval', operation, error)
-      return this.persistFailure(turn, operation)
-    }
-
-    const documentRisk =
-      this.safetyRiskDetector.detectRetrievedDocuments(evidence)
-    if (documentRisk !== null) {
-      return this.persistSafetyRefusal(
-        turn,
-        documentRisk,
-        operation,
-        requestContext,
-      )
-    }
-
-    const conflict = this.conflictDetector.detect(
-      turn.studentMessage.content,
-      evidence,
-    )
-    if (conflict !== null) {
-      return this.persistControlledConflict(
-        turn,
-        conflict,
-        operation,
-        requestContext,
-      )
-    }
-
-    const context = toCompletionContext(evidence)
-    if (context === null) {
-      return this.persistInsufficientEvidence(
-        turn,
-        correctnessSensitive,
-        operation,
-        requestContext,
-      )
-    }
-
-    let completion: CompletionResult
-    try {
-      assertRequestBudget(requestBudget)
-      completion = await this.completionProvider.complete({
-        studentQuestion: turn.studentMessage.content,
-        context,
-        strategy: 'PYTHON_CODE_DIAGNOSIS',
-        diagnosis: selection.diagnosis,
-        ...(requestBudget === undefined
-          ? {}
-          : { signal: requestBudget.signal }),
-      })
-    } catch (error) {
-      this.logFailure('completion', operation, error)
-      return this.persistFailure(turn, operation)
-    }
-
-    let completionContent = completion.content
-    const outputPolicyResult = validatePythonCodeDiagnosisOutput({
-      content: completion.content,
-      authorizedCitationCount: evidence.length,
-    })
-    if (outputPolicyResult !== 'ALLOWED_DIAGNOSIS') {
-      this.logger.warn({
-        event: 'python_code_diagnosis_output_blocked',
-        outputPolicyResult,
-        ...operation,
-      })
-      return this.persistTerminal(turn, operation, {
-        kind: 'blocked',
-        phase: 'blocked_persistence',
-        content: buildSafePythonCodeDiagnosisFallback(selection.diagnosis),
-        errorCode: pythonCodeDiagnosisOutputErrorCode(outputPolicyResult),
-        guidanceLabel: MessageGuidanceLabel.REFUSAL,
-      })
-    }
-    const citationContextIndexes =
-      readPythonCodeDiagnosisCitationIndexes(
-        completion.content,
-        evidence.length,
-      ) ?? undefined
-    if (selection.fullRewriteRequested) {
-      completionContent = addFullRewriteRefusal(completion.content)
-    }
-
-    const outputRisk = this.safetyRiskDetector.detectOutput(
-      completionContent,
-      correctnessSensitive,
-    )
-    if (outputRisk !== null) {
-      return this.persistSafetyRefusal(
-        turn,
-        outputRisk,
-        operation,
-        requestContext,
-      )
-    }
-
-    let policyDecision: OutputPolicyDecision
-    try {
-      policyDecision = this.outputPolicy.evaluate({
-        proposedContent: completionContent,
-        assessment: {
-          support: 'SUPPORTED',
-          policyCheck: 'PASSED',
-          answerRisk: 'NONE',
-          citations: hasDistinctCitation(evidence) ? 'PRESENT' : 'MISSING',
-        },
-        evidence: evidence.map((chunk) => ({
-          materialId: chunk.materialId,
-          chunkId: chunk.chunkId,
-          excerpt: chunk.content,
-          rank: chunk.rank,
-          score: chunk.similarityScore,
-        })),
-      })
-    } catch (error) {
-      this.logFailure('policy_evaluation', operation, error)
-      return this.persistFailure(turn, operation)
-    }
-
-    let completed: FinalizeGroundedChatTurnResult
-    try {
-      completed = await this.turnRepository.completeTurn({
-        courseId: turn.courseId,
-        sessionId: operation.sessionId,
-        studentId: operation.studentId,
-        attemptId: turn.attemptId,
-        studentMessageId: turn.studentMessage.id,
-        assistantMessageId: turn.assistantMessage.id,
-        content: policyDecision.content,
-        guidanceLabel: policyDecision.studentStatus.guidanceLabel,
-        provider: completion.provider,
-        model: completion.model,
-        promptVersion: completion.promptVersion,
-        ...(completion.inputTokens === undefined
-          ? {}
-          : { inputTokens: completion.inputTokens }),
-        ...(completion.outputTokens === undefined
-          ? {}
-          : { outputTokens: completion.outputTokens }),
-        ...(policyDecision.createReview
-          ? { errorCode: encodeAutomaticPolicyReasons(policyDecision.reasons) }
-          : {}),
-        evidence,
-        ...(citationContextIndexes === undefined
-          ? {}
-          : { citationContextIndexes }),
-      })
-    } catch (error) {
-      this.logFailure('finalization', operation, error)
-      return this.persistFailure(turn, operation)
-    }
-    switch (completed.kind) {
-      case 'ok':
-        if (policyDecision.createReview) {
-          return this.createPolicyReviewAndPresent(
-            turn.studentMessage,
-            completed.message,
-            policyDecision,
-            operation,
-            requestContext,
-          )
-        }
-        return this.presentTurn(turn.studentMessage, completed.message)
-      case 'membership_missing':
-      case 'session_not_found':
-      case 'message_not_found':
-      case 'message_not_pending':
-        this.logResultFailure('finalization', operation, completed.kind)
-        return this.persistFailure(turn, operation)
-      default:
-        return assertNever(completed)
     }
   }
 
@@ -1242,38 +1005,10 @@ export class GroundedChatService extends TutoringRuntime {
   }
 }
 
-function toCompletionContext(
-  chunks: readonly RetrievedChunk[],
-): NonEmptyCompletionContext | null {
-  const first = chunks.at(0)
-  if (first === undefined) {
-    return null
-  }
-
-  return [toContextEntry(first), ...chunks.slice(1).map(toContextEntry)]
-}
-
-function toContextEntry(chunk: RetrievedChunk) {
-  return {
-    sourceTitle: chunk.materialTitle,
-    chunkIndex: chunk.chunkIndex,
-    content: chunk.content,
-  }
-}
-
 function safeErrorDescriptor(error: unknown): {
   errorClass: string
   errorCode?: string
 } {
-  if (error instanceof CompletionProviderError) {
-    return {
-      errorClass: 'CompletionProviderError',
-      errorCode: error.code,
-    }
-  }
-  if (error instanceof GroundedChatEvidenceUnavailableError) {
-    return { errorClass: 'GroundedChatEvidenceUnavailableError' }
-  }
   if (error instanceof OutputPolicyReviewIntegrationError) {
     return { errorClass: 'OutputPolicyReviewIntegrationError' }
   }
@@ -1291,10 +1026,6 @@ function safeErrorDescriptor(error: unknown): {
   }
 
   return { errorClass: 'UnknownError' }
-}
-
-function hasDistinctCitation(evidence: readonly RetrievedChunk[]): boolean {
-  return evidence.some((chunk) => chunk.materialId.trim() !== '')
 }
 
 function policyEvidenceFrom(

@@ -1,26 +1,26 @@
 import type { Prisma } from '../../generated/prisma/client'
 import type { PrismaService } from '../prisma/prisma.service'
 import {
-  InvalidRetrievalQueryError,
-  PrismaCourseRetrievalRepository,
-  type CourseChunkQuery,
-} from './course-retrieval.repository'
+  InvalidCourseEvidenceQueryError,
+  PrismaCourseEvidenceRepository,
+  type CourseEvidenceChunkQuery,
+} from './course-evidence.repository'
 
-describe('PrismaCourseRetrievalRepository', () => {
+describe('PrismaCourseEvidenceRepository', () => {
   const courseId = '0f0a3f39-2f6a-4a0e-9a8e-5b9a3a1c2d4e'
   const embeddingModel = 'deterministic-embedding-v1'
 
   let queryRaw: jest.Mock
-  let repository: PrismaCourseRetrievalRepository
+  let repository: PrismaCourseEvidenceRepository
 
   beforeEach(() => {
     queryRaw = jest.fn().mockResolvedValue([])
-    repository = new PrismaCourseRetrievalRepository({
+    repository = new PrismaCourseEvidenceRepository({
       $queryRaw: queryRaw,
     } as unknown as PrismaService)
   })
 
-  function buildQuery(overrides: Partial<CourseChunkQuery> = {}) {
+  function buildQuery(overrides: Partial<CourseEvidenceChunkQuery> = {}) {
     return {
       courseId,
       queryEmbedding: buildEmbedding(),
@@ -77,7 +77,7 @@ describe('PrismaCourseRetrievalRepository', () => {
   ])('rejects course id %j without touching the database', async (badId) => {
     await expect(
       repository.findTopChunksForCourse(buildQuery({ courseId: badId })),
-    ).rejects.toThrow(InvalidRetrievalQueryError)
+    ).rejects.toThrow(InvalidCourseEvidenceQueryError)
     expect(queryRaw).not.toHaveBeenCalled()
   })
 
@@ -86,7 +86,7 @@ describe('PrismaCourseRetrievalRepository', () => {
     async (topK) => {
       await expect(
         repository.findTopChunksForCourse(buildQuery({ topK })),
-      ).rejects.toThrow(InvalidRetrievalQueryError)
+      ).rejects.toThrow(InvalidCourseEvidenceQueryError)
       expect(queryRaw).not.toHaveBeenCalled()
     },
   )
@@ -96,7 +96,7 @@ describe('PrismaCourseRetrievalRepository', () => {
     async (offset) => {
       await expect(
         repository.findTopChunksForCourse(buildQuery({ offset })),
-      ).rejects.toThrow(InvalidRetrievalQueryError)
+      ).rejects.toThrow(InvalidCourseEvidenceQueryError)
       expect(queryRaw).not.toHaveBeenCalled()
     },
   )
@@ -106,7 +106,7 @@ describe('PrismaCourseRetrievalRepository', () => {
     async (minSimilarity) => {
       await expect(
         repository.findTopChunksForCourse(buildQuery({ minSimilarity })),
-      ).rejects.toThrow(InvalidRetrievalQueryError)
+      ).rejects.toThrow(InvalidCourseEvidenceQueryError)
       expect(queryRaw).not.toHaveBeenCalled()
     },
   )
@@ -116,7 +116,7 @@ describe('PrismaCourseRetrievalRepository', () => {
       repository.findTopChunksForCourse(
         buildQuery({ queryEmbedding: buildEmbedding().slice(0, 1_535) }),
       ),
-    ).rejects.toThrow(InvalidRetrievalQueryError)
+    ).rejects.toThrow(InvalidCourseEvidenceQueryError)
     expect(queryRaw).not.toHaveBeenCalled()
   })
 
@@ -128,7 +128,7 @@ describe('PrismaCourseRetrievalRepository', () => {
       repository.findTopChunksForCourse(
         buildQuery({ queryEmbedding: embedding }),
       ),
-    ).rejects.toThrow(InvalidRetrievalQueryError)
+    ).rejects.toThrow(InvalidCourseEvidenceQueryError)
     expect(queryRaw).not.toHaveBeenCalled()
   })
 
@@ -139,12 +139,12 @@ describe('PrismaCourseRetrievalRepository', () => {
         repository.findTopChunksForCourse(
           buildQuery({ embeddingModel: embeddingModelValue }),
         ),
-      ).rejects.toThrow(InvalidRetrievalQueryError)
+      ).rejects.toThrow(InvalidCourseEvidenceQueryError)
       expect(queryRaw).not.toHaveBeenCalled()
     },
   )
 
-  describe('findEmbeddingProfileReadiness', () => {
+  describe('findCourseEvidenceReadiness', () => {
     it('binds the course id and profile and keeps the base scope static', async () => {
       queryRaw.mockResolvedValue([
         {
@@ -154,7 +154,7 @@ describe('PrismaCourseRetrievalRepository', () => {
         },
       ])
 
-      await repository.findEmbeddingProfileReadiness({
+      await repository.findCourseEvidenceReadiness({
         courseId,
         embeddingModel,
       })
@@ -185,7 +185,7 @@ describe('PrismaCourseRetrievalRepository', () => {
       ])
 
       await expect(
-        repository.findEmbeddingProfileReadiness({ courseId, embeddingModel }),
+        repository.findCourseEvidenceReadiness({ courseId, embeddingModel }),
       ).resolves.toEqual({ kind: 'no_candidate_materials' })
     })
 
@@ -199,7 +199,7 @@ describe('PrismaCourseRetrievalRepository', () => {
       ])
 
       await expect(
-        repository.findEmbeddingProfileReadiness({ courseId, embeddingModel }),
+        repository.findCourseEvidenceReadiness({ courseId, embeddingModel }),
       ).resolves.toEqual({
         kind: 'not_ready',
         incompleteMaterialCount: 1,
@@ -217,7 +217,7 @@ describe('PrismaCourseRetrievalRepository', () => {
       ])
 
       await expect(
-        repository.findEmbeddingProfileReadiness({ courseId, embeddingModel }),
+        repository.findCourseEvidenceReadiness({ courseId, embeddingModel }),
       ).resolves.toEqual({ kind: 'ready' })
     })
 
@@ -225,11 +225,11 @@ describe('PrismaCourseRetrievalRepository', () => {
       'rejects course id %j without touching the database',
       async (badId) => {
         await expect(
-          repository.findEmbeddingProfileReadiness({
+          repository.findCourseEvidenceReadiness({
             courseId: badId,
             embeddingModel,
           }),
-        ).rejects.toThrow(InvalidRetrievalQueryError)
+        ).rejects.toThrow(InvalidCourseEvidenceQueryError)
         expect(queryRaw).not.toHaveBeenCalled()
       },
     )
@@ -238,11 +238,11 @@ describe('PrismaCourseRetrievalRepository', () => {
       'rejects embedding model %j without touching the database',
       async (embeddingModelValue) => {
         await expect(
-          repository.findEmbeddingProfileReadiness({
+          repository.findCourseEvidenceReadiness({
             courseId,
             embeddingModel: embeddingModelValue,
           }),
-        ).rejects.toThrow(InvalidRetrievalQueryError)
+        ).rejects.toThrow(InvalidCourseEvidenceQueryError)
         expect(queryRaw).not.toHaveBeenCalled()
       },
     )

@@ -9,7 +9,7 @@ import {
   TopicStatus,
   TopicType,
 } from '../../generated/prisma/client'
-import type { RetrievedChunk } from '../retrieval/retrieval.service'
+import type { CourseEvidenceChunk } from '../materials/materials.public'
 import type { AnalysisContextPackage } from './analysis-context.types'
 import type { AnalysisModelPort } from './analysis-model.port'
 import type { ContextManager } from './context-manager.service'
@@ -536,7 +536,9 @@ function buildDecision(): PersistedTeachingDecisionRecord {
   }
 }
 
-function retrievedChunk(patch: Partial<RetrievedChunk> = {}): RetrievedChunk {
+function retrievedChunk(
+  patch: Partial<CourseEvidenceChunk> = {},
+): CourseEvidenceChunk {
   return {
     chunkId: 'chunk-1',
     materialId: 'material-1',

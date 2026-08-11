@@ -17,7 +17,7 @@ import {
   EDUCATIONAL_ANALYSIS_SOURCE,
 } from '../../src/modules/socratic-tutor/educational-analysis.types'
 import type { PersistedTeachingDecisionRecord } from '../../src/modules/socratic-tutor/teaching-decision.repository'
-import type { RetrievedChunk } from '../../src/modules/retrieval/retrieval.service'
+import type { CourseEvidenceChunk } from '../../src/modules/materials/course-evidence'
 import { TEACHING_POLICY_VERSION } from '../../src/modules/socratic-tutor/teaching-policy.types'
 
 export const GEMINI_SOCRATIC_LIVE_IDS = {
@@ -107,19 +107,20 @@ export const GEMINI_SOCRATIC_ANALYSIS_CONTEXT: AnalysisContextPackage = {
   },
 }
 
-export const GEMINI_SOCRATIC_RETRIEVED_CHUNKS: readonly RetrievedChunk[] = [
-  {
-    chunkId: 'gemini-live-chunk-1',
-    materialId: 'gemini-live-material-1',
-    materialTitle: 'Synthetic linear expressions guide',
-    chunkIndex: 0,
-    rank: 1,
-    similarityScore: 0.99,
-    embeddingModel: 'gemini-embedding-004',
-    content:
-      'To evaluate 3x + 4 for x = 2, substitute 2 for x, multiply 3 by 2, then add 4. The check is that multiplication is completed before addition.',
-  },
-]
+export const GEMINI_SOCRATIC_RETRIEVED_CHUNKS: readonly CourseEvidenceChunk[] =
+  [
+    {
+      chunkId: 'gemini-live-chunk-1',
+      materialId: 'gemini-live-material-1',
+      materialTitle: 'Synthetic linear expressions guide',
+      chunkIndex: 0,
+      rank: 1,
+      similarityScore: 0.99,
+      embeddingModel: 'gemini-embedding-004',
+      content:
+        'To evaluate 3x + 4 for x = 2, substitute 2 for x, multiply 3 by 2, then add 4. The check is that multiplication is completed before addition.',
+    },
+  ]
 
 export function buildLivePersistedAnalysis(
   result: EducationalAnalysisResult,

@@ -4,12 +4,12 @@ import type { AppEnvironment } from '../src/modules/config/env.schema'
 import type { EmbeddingProvider } from '../src/modules/embedding/embedding-provider'
 import type { PdfStorage } from '../src/modules/pdf-storage/pdf-storage'
 import type { PrismaService } from '../src/modules/prisma/prisma.service'
-import { PrismaCourseRetrievalRepository } from '../src/modules/retrieval/course-retrieval.repository'
+import { PrismaCourseEvidenceRepository } from '../src/modules/materials/course-evidence.repository'
 import {
-  RetrievalService,
-  type CourseRetrievalResult,
-  type RetrievedChunk,
-} from '../src/modules/retrieval/retrieval.service'
+  MaterialsCourseEvidence,
+  type CourseEvidenceResult,
+  type CourseEvidenceChunk,
+} from '../src/modules/materials/course-evidence'
 import {
   RETRIEVAL_TASK_83,
   RETRIEVAL_TASK_83_EMBEDDING_MODEL,
@@ -28,12 +28,12 @@ const EXACT_THRESHOLD = 0.8
 describe('Retrieval threshold readiness and cross-course isolation (e2e)', () => {
   let database: DisposableDatabase | undefined
   let prisma: PrismaService
-  let retrievalRepository: PrismaCourseRetrievalRepository
+  let retrievalRepository: PrismaCourseEvidenceRepository
 
   beforeAll(async () => {
     database = await setUpDisposableDatabase('morshid_issue83')
     prisma = database.prisma
-    retrievalRepository = new PrismaCourseRetrievalRepository(prisma)
+    retrievalRepository = new PrismaCourseEvidenceRepository(prisma)
     await seedRetrievalTask83Fixture(prisma)
   })
 
@@ -42,7 +42,7 @@ describe('Retrieval threshold readiness and cross-course isolation (e2e)', () =>
   })
 
   it('returns relevant active Python chunks in relevance order and limits them by top-k', async () => {
-    const result = await buildService().retrieveCourseEvidence(
+    const result = await buildService().search(
       RETRIEVAL_TASK_83.pythonCourseId,
       'synthetic Python retrieval question',
     )
@@ -73,10 +73,7 @@ describe('Retrieval threshold readiness and cross-course isolation (e2e)', () =>
     const result = await buildService({
       topK: 10,
       minSimilarity: EXACT_THRESHOLD,
-    }).retrieveCourseEvidence(
-      RETRIEVAL_TASK_83.pythonCourseId,
-      'synthetic threshold question',
-    )
+    }).search(RETRIEVAL_TASK_83.pythonCourseId, 'synthetic threshold question')
     const chunks = requireEvidence(result)
 
     expect(chunks.map(({ chunkId }) => chunkId)).toEqual([
@@ -100,7 +97,7 @@ describe('Retrieval threshold readiness and cross-course isolation (e2e)', () =>
 
   it('returns insufficient evidence when no active-course chunk qualifies', async () => {
     await expect(
-      buildService({ minSimilarity: 0.96 }).retrieveCourseEvidence(
+      buildService({ minSimilarity: 0.96 }).search(
         RETRIEVAL_TASK_83.pythonCourseId,
         'synthetic unsupported question',
       ),
@@ -148,7 +145,7 @@ describe('Retrieval threshold readiness and cross-course isolation (e2e)', () =>
       },
     ])
 
-    const result = await buildService({ topK: 50 }).retrieveCourseEvidence(
+    const result = await buildService({ topK: 50 }).search(
       RETRIEVAL_TASK_83.pythonCourseId,
       'synthetic material readiness question',
     )
@@ -181,7 +178,7 @@ describe('Retrieval threshold readiness and cross-course isolation (e2e)', () =>
   })
 
   it('returns zero hidden-course rows at the production retrieval service boundary', async () => {
-    const result = await buildService({ topK: 50 }).retrieveCourseEvidence(
+    const result = await buildService({ topK: 50 }).search(
       RETRIEVAL_TASK_83.pythonCourseId,
       'synthetic course-isolation question',
     )
@@ -211,7 +208,7 @@ describe('Retrieval threshold readiness and cross-course isolation (e2e)', () =>
     await expect(
       buildService({
         embeddingModel: 'gemini/gemini-embedding-2/1536/document-v1',
-      }).retrieveCourseEvidence(
+      }).search(
         RETRIEVAL_TASK_83.pythonCourseId,
         'synthetic profile-mismatch question',
       ),
@@ -233,7 +230,7 @@ describe('Retrieval threshold readiness and cross-course isolation (e2e)', () =>
       minSimilarity?: number
       embeddingModel?: string
     } = {},
-  ): RetrievalService {
+  ): MaterialsCourseEvidence {
     const topK = overrides.topK ?? DEFAULT_TOP_K
     const minSimilarity = overrides.minSimilarity ?? DEFAULT_MIN_SIMILARITY
     const embeddingProvider = {
@@ -258,7 +255,7 @@ describe('Retrieval threshold readiness and cross-course isolation (e2e)', () =>
       },
     } as unknown as PdfStorage
 
-    return new RetrievalService(
+    return new MaterialsCourseEvidence(
       embeddingProvider,
       retrievalRepository,
       configService,
@@ -267,7 +264,7 @@ describe('Retrieval threshold readiness and cross-course isolation (e2e)', () =>
   }
 })
 
-function requireEvidence(result: CourseRetrievalResult): RetrievedChunk[] {
+function requireEvidence(result: CourseEvidenceResult): CourseEvidenceChunk[] {
   expect(result.kind).toBe('evidence')
   if (result.kind !== 'evidence') {
     throw new Error('Expected Task 83 fixture to produce retrieval evidence')

@@ -14,7 +14,7 @@ import {
 } from '../../generated/prisma/client'
 import { lockAuthorizedStudentChat } from '../../common/authorization/locked-student-chat-session'
 import { PrismaService } from '../prisma/prisma.service'
-import type { RetrievedChunk } from '../retrieval/retrieval.service'
+import type { CourseEvidenceChunk } from '../materials/materials.public'
 import { CLASSIFIED_RESPONSE_POLICY_VERSION } from './classified-response'
 import type { ApprovedResponse } from './response-validation.types'
 import type { ResponseAuditGraph } from './response-audit.types'
@@ -90,7 +90,7 @@ export interface CompleteApprovedTutorResponseInput {
   readonly requestKind: MessageRequestKind
   readonly approvedResponse: ApprovedResponse
   readonly guidanceLevel: number
-  readonly retrievalResult: readonly RetrievedChunk[]
+  readonly retrievalResult: readonly CourseEvidenceChunk[]
   readonly auditGraph: ResponseAuditGraph
   readonly safeFallbackReason: SafeFallbackReason | null
   readonly expectedTurnStatus: TutoringAttemptStatus
@@ -994,7 +994,7 @@ async function applyTopicStateTransition(
 async function selectedEvidenceIsCourseScoped(
   tx: Prisma.TransactionClient,
   courseId: string,
-  evidence: readonly RetrievedChunk[],
+  evidence: readonly CourseEvidenceChunk[],
 ): Promise<boolean> {
   if (evidence.length === 0) {
     return true
@@ -1072,7 +1072,7 @@ function auditGraphMatchesApproval(
 
 function orderedCitationMaterialIds(
   usedCitationIds: readonly string[],
-  evidence: readonly RetrievedChunk[],
+  evidence: readonly CourseEvidenceChunk[],
 ): readonly string[] {
   const chunkByCitationId = new Map(
     evidence.map((chunk) => [`retrieval.rank.${String(chunk.rank)}`, chunk]),

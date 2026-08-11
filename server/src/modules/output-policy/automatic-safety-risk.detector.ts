@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
-import type { RetrievedChunk } from '../retrieval/retrieval.service'
+import type { CourseEvidenceChunk } from '../materials/materials.public'
 import {
   GROUNDED_COMPLETION_DISCLOSURE_MARKERS,
   UNTRUSTED_INPUT_BEGIN_MARKER,
@@ -93,7 +93,7 @@ export class AutomaticSafetyRiskDetector {
   }
 
   detectRetrievedDocuments(
-    chunks: readonly RetrievedChunk[],
+    chunks: readonly CourseEvidenceChunk[],
   ): AutomaticSafetyRiskDetection | null {
     const unsafe = chunks.some(({ content }) => {
       const normalized = normalize(removeNonAuthorizationDisclaimers(content))

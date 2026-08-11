@@ -12,8 +12,8 @@ import {
   PrismaMaterialChunkRepository,
   type MaterialChunkRepository,
 } from '../src/modules/materials/material-chunk.repository'
-import { PrismaCourseRetrievalRepository } from '../src/modules/retrieval/course-retrieval.repository'
-import { RetrievalService } from '../src/modules/retrieval/retrieval.service'
+import { PrismaCourseEvidenceRepository } from '../src/modules/materials/course-evidence.repository'
+import { MaterialsCourseEvidence } from '../src/modules/materials/course-evidence'
 import {
   setUpDisposableDatabase,
   type DisposableDatabase,
@@ -35,13 +35,13 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
   let database: DisposableDatabase | undefined
   let prisma: PrismaService
   let persistence: MaterialChunkRepository
-  let retrievalRepository: PrismaCourseRetrievalRepository
+  let retrievalRepository: PrismaCourseEvidenceRepository
 
   beforeAll(async () => {
     database = await setUpDisposableDatabase('morshid_issue82')
     prisma = database.prisma
     persistence = new PrismaMaterialChunkRepository(prisma)
-    retrievalRepository = new PrismaCourseRetrievalRepository(prisma)
+    retrievalRepository = new PrismaCourseEvidenceRepository(prisma)
   })
 
   afterAll(async () => {
@@ -66,7 +66,7 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
     )
 
     const service = buildService(queryVectorProvider())
-    const result = await service.retrieveCourseEvidence(courseId, 'query')
+    const result = await service.search(courseId, 'query')
 
     expect(result.kind).toBe('evidence')
     if (result.kind !== 'evidence') {
@@ -111,9 +111,10 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
       },
     ])
 
-    const result = await buildService(
-      queryVectorProvider(),
-    ).retrieveCourseEvidence(courseId, 'query')
+    const result = await buildService(queryVectorProvider()).search(
+      courseId,
+      'query',
+    )
 
     expect(result.kind).toBe('evidence')
     if (result.kind !== 'evidence') {
@@ -146,7 +147,7 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
 
     const service = buildService(queryVectorProvider())
     await expect(
-      service.retrieveCourseEvidence(courseId, 'unrelated question'),
+      service.search(courseId, 'unrelated question'),
     ).resolves.toEqual({ kind: 'insufficient_evidence' })
   })
 
@@ -228,7 +229,7 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
     }
 
     const service = buildService(queryVectorProvider())
-    const result = await service.retrieveCourseEvidence(courseId, 'query')
+    const result = await service.search(courseId, 'query')
 
     expect(result.kind).toBe('evidence')
     if (result.kind !== 'evidence') {
@@ -260,10 +261,10 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
     } as unknown as PdfStorage
 
     await expect(
-      buildService(
-        queryVectorProvider(),
-        unavailableStorage,
-      ).retrieveCourseEvidence(courseId, 'query'),
+      buildService(queryVectorProvider(), unavailableStorage).search(
+        courseId,
+        'query',
+      ),
     ).resolves.toEqual({ kind: 'insufficient_evidence' })
   })
 
@@ -313,10 +314,7 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
     } as unknown as PdfStorage
 
     await expect(
-      buildService(queryVectorProvider(), storage).retrieveCourseEvidence(
-        courseId,
-        'query',
-      ),
+      buildService(queryVectorProvider(), storage).search(courseId, 'query'),
     ).resolves.toEqual({
       kind: 'evidence',
       chunks: [
@@ -383,7 +381,7 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
     ])
 
     const service = buildService(queryVectorProvider())
-    const result = await service.retrieveCourseEvidence(pythonCourseId, 'query')
+    const result = await service.search(pythonCourseId, 'query')
 
     expect(result.kind).toBe('evidence')
     if (result.kind !== 'evidence') {
@@ -421,7 +419,7 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
     await expect(
       buildService(
         queryVectorProvider('gemini/gemini-embedding-2/1536/document-v1'),
-      ).retrieveCourseEvidence(courseId, 'query'),
+      ).search(courseId, 'query'),
     ).resolves.toEqual({
       kind: 'embedding_profile_not_ready',
       expectedModel: 'gemini/gemini-embedding-2/1536/document-v1',
@@ -448,9 +446,10 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
       },
     ])
 
-    const result = await buildService(
-      queryVectorProvider(),
-    ).retrieveCourseEvidence(courseId, 'query')
+    const result = await buildService(queryVectorProvider()).search(
+      courseId,
+      'query',
+    )
 
     expect(result).toEqual({
       kind: 'evidence',
@@ -491,10 +490,7 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
     )
 
     const service = buildService(provider)
-    const sameTextResult = await service.retrieveCourseEvidence(
-      courseId,
-      chunkText,
-    )
+    const sameTextResult = await service.search(courseId, chunkText)
     expect(sameTextResult.kind).toBe('evidence')
     if (sameTextResult.kind !== 'evidence') {
       return
@@ -507,7 +503,7 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
     // Deterministic embeddings of unrelated texts are nearly orthogonal, so an
     // off-topic query must fall below the calibrated similarity floor.
     await expect(
-      service.retrieveCourseEvidence(
+      service.search(
         courseId,
         'How do medieval trade routes explain spice prices?',
       ),
@@ -517,7 +513,7 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
   function buildService(
     provider: EmbeddingProvider,
     storageOverride?: PdfStorage,
-  ): RetrievalService {
+  ): MaterialsCourseEvidence {
     const configService = {
       get: (key: 'RETRIEVAL_TOP_K' | 'RETRIEVAL_MIN_SIMILARITY') =>
         key === 'RETRIEVAL_TOP_K' ? TOP_K : MIN_SIMILARITY,
@@ -529,7 +525,7 @@ describe('Course-filtered top-k retrieval (e2e)', () => {
         exists: () => Promise.resolve(true),
       } as unknown as PdfStorage)
 
-    return new RetrievalService(
+    return new MaterialsCourseEvidence(
       provider,
       retrievalRepository,
       configService,

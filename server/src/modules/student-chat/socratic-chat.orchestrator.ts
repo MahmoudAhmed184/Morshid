@@ -6,7 +6,7 @@ import {
   TutoringAttemptStatus,
 } from '../../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
-import { RetrievalService } from '../retrieval/retrieval.service'
+import { CourseEvidence } from '../materials/materials.public'
 import { TurnService } from '../socratic-tutor/turn.service'
 import { TopicService } from '../socratic-tutor/topic.service'
 import { TopicStateService } from '../socratic-tutor/topic-state.service'
@@ -55,7 +55,7 @@ export class SocraticChatOrchestrator {
     private readonly teachingPolicyEngine: TeachingPolicyEngine,
     private readonly responseApprovalService: ResponseApprovalService,
     private readonly retrievalQueryBuilder: RetrievalQueryBuilder,
-    private readonly retrievalService: RetrievalService,
+    private readonly courseEvidence: CourseEvidence,
     private readonly prismaService: PrismaService,
     private readonly safetyRiskDetector: AutomaticSafetyRiskDetector,
     private readonly conflictDetector: ControlledSourceConflictDetector,
@@ -270,12 +270,19 @@ export class SocraticChatOrchestrator {
       TutoringAttemptStatus.RETRIEVING,
     )
 
-    const retrievalRequest = this.retrievalQueryBuilder.build(
-      retrievalQueryContextFromAnalysis(
-        analysisContext,
-        analysisResult.analysis,
-      ),
-    )
+    const retrievalRequest =
+      input.debuggingGuidance === undefined
+        ? this.retrievalQueryBuilder.build(
+            retrievalQueryContextFromAnalysis(
+              analysisContext,
+              analysisResult.analysis,
+            ),
+          )
+        : {
+            query: input.debuggingGuidance.evidenceQuery,
+            queryVersion: 'debugging-guidance.v1',
+            contextMessageIds: [input.studentMessageId],
+          }
     this.logger.debug({
       event: 'socratic_retrieval_query_built',
       attemptId,
@@ -285,11 +292,11 @@ export class SocraticChatOrchestrator {
     })
     const retrieval =
       input.requestBudget === undefined
-        ? await this.retrievalService.retrieveCourseEvidence(
+        ? await this.courseEvidence.search(
             input.courseId,
             retrievalRequest.query,
           )
-        : await this.retrievalService.retrieveCourseEvidence(
+        : await this.courseEvidence.search(
             input.courseId,
             retrievalRequest.query,
             input.requestBudget,
@@ -354,6 +361,7 @@ export class SocraticChatOrchestrator {
         retrievalResult: retrieval.chunks,
         topicState,
         analysis: analysisResult.analysis,
+        debuggingGuidance: input.debuggingGuidance,
         ...(input.requestBudget === undefined
           ? {}
           : {

@@ -12,11 +12,11 @@ import {
 } from '../embedding/embedding-provider'
 import { PDF_STORAGE, type PdfStorage } from '../pdf-storage/pdf-storage'
 import {
-  CourseRetrievalRepository,
+  CourseEvidenceRepository,
   type RankedChunkRow,
-} from './course-retrieval.repository'
+} from './course-evidence.repository'
 
-export interface RetrievedChunk {
+export interface CourseEvidenceChunk {
   chunkId: string
   materialId: string
   materialTitle: string
@@ -30,8 +30,8 @@ export interface RetrievedChunk {
   embeddingModel: string
 }
 
-export type CourseRetrievalResult =
-  | { kind: 'evidence'; chunks: RetrievedChunk[] }
+export type CourseEvidenceResult =
+  | { kind: 'evidence'; chunks: CourseEvidenceChunk[] }
   | { kind: 'insufficient_evidence' }
   // `expectedModel` is an operator diagnostic and must never be serialized to
   // a student: it names the internal document profile, not anything a learner
@@ -44,19 +44,28 @@ export type CourseRetrievalResult =
 
 const AVAILABILITY_SCAN_MULTIPLIER = 5
 
+export abstract class CourseEvidence {
+  abstract search(
+    courseId: string,
+    query: string,
+    requestBudget?: RequestBudget,
+  ): Promise<CourseEvidenceResult>
+}
+
 @Injectable()
-export class RetrievalService {
-  private readonly logger = new Logger(RetrievalService.name)
+export class MaterialsCourseEvidence extends CourseEvidence {
+  private readonly logger = new Logger(MaterialsCourseEvidence.name)
   private readonly topK: number
   private readonly minSimilarity: number
 
   constructor(
     @Inject(EMBEDDING_PROVIDER_TOKEN)
     private readonly embeddingProvider: EmbeddingProvider,
-    private readonly courseRetrievalRepository: CourseRetrievalRepository,
+    private readonly courseRetrievalRepository: CourseEvidenceRepository,
     configService: ConfigService<AppEnvironment, true>,
     @Inject(PDF_STORAGE) private readonly pdfStorage: PdfStorage,
   ) {
+    super()
     this.topK = configService.get('RETRIEVAL_TOP_K', { infer: true })
     this.minSimilarity = configService.get('RETRIEVAL_MIN_SIMILARITY', {
       infer: true,
@@ -70,11 +79,11 @@ export class RetrievalService {
   // (no request context), so cross-course denial auditing stays at the
   // authorizing access layer (access.course_boundary_denied). Chunk text is
   // never logged.
-  async retrieveCourseEvidence(
+  async search(
     courseId: string,
     query: string,
     requestBudget?: RequestBudget,
-  ): Promise<CourseRetrievalResult> {
+  ): Promise<CourseEvidenceResult> {
     assertRequestBudget(requestBudget)
     // A blank query can never match evidence; short-circuit before the
     // provider, whose contract rejects whitespace-only texts, so callers see
@@ -96,7 +105,7 @@ export class RetrievalService {
     // matters; the transient answer resolves on the next turn.
     const embeddingModel = this.embeddingProvider.model
     const readiness =
-      await this.courseRetrievalRepository.findEmbeddingProfileReadiness({
+      await this.courseRetrievalRepository.findCourseEvidenceReadiness({
         courseId,
         embeddingModel,
       })

@@ -25,8 +25,6 @@ import type { SocraticChatOrchestrator } from './socratic-chat.orchestrator'
 import { StudentChatMessagePresenter } from './student-chat-message.presenter'
 import type { ChatMessageRecord } from './student-chat.repository.types'
 import type { StudentChatService } from './student-chat.service'
-import type { RetrievalService } from '../retrieval/retrieval.service'
-import type { CompletionProvider } from '../completion/completion-provider'
 
 const courseId = 'diagnosis-failure-course'
 const sessionId = 'diagnosis-failure-session'
@@ -65,13 +63,6 @@ describe('GroundedChatService diagnosis failure paths', () => {
     failTurn = jest.fn().mockImplementation(terminalResult)
     orchestrate = jest.fn().mockResolvedValue({ kind: 'failed' })
 
-    const retrievalService = {
-      retrieveCourseEvidence: jest.fn(),
-    } as unknown as RetrievalService
-    const completionProvider = {
-      complete: jest.fn(),
-    } as unknown as CompletionProvider
-
     service = new GroundedChatService(
       {
         getSession: jest.fn().mockResolvedValue({ session: { id: sessionId } }),
@@ -100,8 +91,6 @@ describe('GroundedChatService diagnosis failure paths', () => {
       new OutputPolicyService(),
       { createRequiredReview: jest.fn().mockResolvedValue(null) } as never,
       new CorrectnessSensitiveRequestClassifier(),
-      retrievalService,
-      completionProvider,
     )
   })
 

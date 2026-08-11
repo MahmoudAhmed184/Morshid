@@ -6,12 +6,13 @@ import type {
 } from '../../generated/prisma/client'
 import type { AnalysisContextMessage } from './analysis-context.types'
 import type { PersistedEducationalAnalysisRecord } from './educational-analysis.repository'
-import type { RetrievedChunk } from '../retrieval/retrieval.service'
+import type { CourseEvidenceChunk } from '../materials/materials.public'
 import type { PersistedTeachingDecisionRecord } from './teaching-decision.repository'
 import type { TopicRecord } from './topic.types'
 import type { TopicStateSnapshot } from './topic-state.types'
 import type { TUTOR_GENERATION_PROMPT_VERSION } from './tutor-prompt.registry'
 import type { ValidationResult } from './response-validation.types'
+import type { DebuggingGuidanceContext } from './debugging-guidance.contract'
 
 export const TUTOR_RESPONSE_INTENTS = [
   'GUIDED_EXPLANATION',
@@ -107,6 +108,7 @@ export interface GenerationContextPackage {
   readonly allowedCitationIds: readonly string[]
   readonly conversationLanguage: string | null
   readonly regeneration: TutorRegenerationContext | null
+  readonly debuggingGuidance: DebuggingGuidanceContext | null
 }
 
 export interface TutorRegenerationContext {
@@ -132,7 +134,8 @@ export interface TutorGenerationInput {
   readonly attemptId: string
   readonly studentMessageId: string
   readonly topicId: string
-  readonly retrievalResult: readonly RetrievedChunk[]
+  readonly retrievalResult: readonly CourseEvidenceChunk[]
+  readonly debuggingGuidance?: DebuggingGuidanceContext
   readonly regeneration?: TutorRegenerationContext
   readonly signal?: AbortSignal
   readonly deadlineAt?: number

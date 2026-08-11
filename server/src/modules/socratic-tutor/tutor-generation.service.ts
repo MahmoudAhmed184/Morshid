@@ -105,6 +105,7 @@ export class TutorGenerationService {
       teachingDecision,
       previousTeachingDecision,
       retrievedChunks: input.retrievalResult,
+      debuggingGuidance: input.debuggingGuidance,
     })
     if (!generationContext.success) {
       return failure(TUTOR_GENERATION_FAILURE_CODE.INVALID_GENERATION_CONTEXT)

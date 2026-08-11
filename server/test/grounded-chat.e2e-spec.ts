@@ -80,6 +80,7 @@ import {
   ControllableTutorModelPort,
   ControllableSemanticGuardPort,
   ControllableAnalysisModelPort,
+  functionalStoryAnalysisResponse,
   validCandidateRawOutput,
   createDeferredPromise,
 } from './support/socratic-e2e-providers'
@@ -634,30 +635,44 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
       'Relevant location',
       'The `len(num)` expression on the return line.',
       '',
-      'Python concept',
+      'Concept',
       'Python name lookup searches the active function scope, where `nums` exists but `num` does not. [1]',
       '',
       'Next inspection step',
       'Compare every name on the return line with the function parameter and loop variables.',
     ].join('\n')
-    completionBehavior = (completionRequest) => {
-      expect(completionRequest).toMatchObject({
-        studentQuestion: question,
-        strategy: 'PYTHON_CODE_DIAGNOSIS',
-        diagnosis: {
-          likelyDefect:
-            'The name `num` does not match the visible `nums` name.',
-        },
-      })
-      expect(completionRequest.diagnosis?.conceptExplanation).toMatch(
-        /name lookup.*scope/iu,
+    analysisModel.behavior = (analysisRequest) =>
+      Promise.resolve(
+        functionalStoryAnalysisResponse(analysisRequest, {
+          requestKind: 'CODE_DIAGNOSIS',
+          studentState: 'DEBUGGING_ISSUE',
+          recommendedStrategy: TeachingStrategy.DEBUGGING_GUIDANCE,
+          recommendedTechnique: TeachingTechnique.TRACE_EXECUTION,
+          meaningfulEffort: true,
+        }),
       )
-      expect(completionRequest.diagnosis?.nextInspectionStep).not.toBe('')
+    tutorModel.behavior = (modelRequest) => {
+      const citationIds = tutorModel.extractAllowedCitationIds(modelRequest)
       return Promise.resolve({
-        content: diagnosis,
-        provider: 'issue-133-test-provider',
-        model: 'issue-133-static-model',
-        promptVersion: 'python-code-diagnosis-prompt-v1',
+        rawOutput: {
+          message: diagnosis,
+          responseIntent: TeachingStrategy.DEBUGGING_GUIDANCE,
+          usedCitationIds: citationIds.slice(0, 1),
+          requiresStudentAction: true,
+          studentAction: {
+            type: TeachingTechnique.TRACE_EXECUTION,
+            description:
+              'Compare every name on the return line with the function parameter and loop variables.',
+          },
+          reflectionIncluded: false,
+          selfReportedCompliance: {
+            finalAnswerRevealed: false,
+            completeSolutionRevealed: false,
+          },
+        },
+        provider: 'issue-133-socratic-tutor',
+        model: 'issue-133-socratic-model',
+        promptVersion: modelRequest.promptVersion,
         inputTokens: 63,
         outputTokens: 42,
       })
@@ -721,13 +736,13 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
       content: diagnosis,
       requestKind: 'CODE_DIAGNOSIS',
       guidanceLabel: 'COURSE_GROUNDED',
-      provider: 'issue-133-test-provider',
-      model: 'issue-133-static-model',
-      promptVersion: 'python-code-diagnosis-prompt-v1',
+      provider: 'issue-133-socratic-tutor',
+      model: 'issue-133-socratic-model',
       inputTokens: 63,
       outputTokens: 42,
       status: 'COMPLETED',
     })
+    expect(typeof stored[1].promptVersion).toBe('string')
     expect(stored[1].retrievals).toHaveLength(1)
     expect(stored[1].citations).toHaveLength(1)
 
@@ -1741,66 +1756,69 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
     })
   })
 
-  it('reclassifies a legacy null-kind retry and blocks a full solution before persistence', async () => {
+  it('uses Safe Fallback after a tutor provider failure and replays it idempotently', async () => {
     await createEvidenceMaterial({
       title: 'Legacy retry safety source',
       content: 'Use a small hint to practice the graded exercise safely.',
     })
     const session = await createSession()
-    turnRepository.failNextCompletion = true
-    completionBehavior = () => Promise.reject(new Error(PROVIDER_SECRET))
+    analysisModel.behavior = (analysisRequest) =>
+      Promise.resolve(
+        functionalStoryAnalysisResponse(analysisRequest, {
+          requestKind: 'CODE_DIAGNOSIS',
+          studentState: 'DEBUGGING_ISSUE',
+          recommendedStrategy: TeachingStrategy.DEBUGGING_GUIDANCE,
+          recommendedTechnique: TeachingTechnique.TRACE_EXECUTION,
+          meaningfulEffort: true,
+        }),
+      )
+    tutorModel.behavior = () => Promise.reject(new Error(PROVIDER_SECRET))
     const initialResponse = await request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
       .set('Authorization', `Bearer ${student1Token}`)
       .send({
+        clientMessageId: 'f4c7d9ea-2e7a-4bb9-8c35-91dd8c6c0b11',
         content: 'Solve my graded homework:\n```python\ndef solve(): pass\n```',
       })
       .expect(201)
     const initialTurn = initialResponse.body as GroundedChatTurnResponseDto
-    expect(initialTurn.assistantMessage.status).toBe('FAILED')
-    await prisma.message.updateMany({
-      where: {
-        id: {
-          in: [initialTurn.studentMessage.id, initialTurn.assistantMessage.id],
-        },
-      },
-      data: { requestKind: null },
+    expect(initialTurn.assistantMessage).toMatchObject({
+      status: 'COMPLETED',
+      requestKind: 'CODE_DIAGNOSIS',
     })
+    expect(JSON.stringify(initialTurn)).not.toContain(PROVIDER_SECRET)
 
-    const unsafeOutput =
-      'Here is the complete solution:\n```python\ndef solve(values):\n    total = sum(values)\n    count = len(values)\n    if count == 0:\n        return 0\n    return total / count\n```'
-    completionBehavior = () =>
-      Promise.resolve({
-        ...successfulCompletion(),
-        content: unsafeOutput,
-        provider: 'legacy-unsafe-provider',
-        model: 'legacy-unsafe-model',
-        promptVersion: 'legacy-unsafe-prompt',
-      })
-    const retry = await request(requireApp().getHttpServer())
-      .post(
-        `${messagesPath(session.id)}/${initialTurn.studentMessage.id}/retry`,
-      )
+    const replay = await request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
       .set('Authorization', `Bearer ${student1Token}`)
-      .expect(200)
+      .send({
+        clientMessageId: 'f4c7d9ea-2e7a-4bb9-8c35-91dd8c6c0b11',
+        content: 'Solve my graded homework:\n```python\ndef solve(): pass\n```',
+      })
+      .expect(201)
 
-    expect(retry.body).toMatchObject({
-      assistantMessage: {
-        guidanceLabel: 'REFUSAL',
-      },
-    })
+    const replayTurn = replay.body as GroundedChatTurnResponseDto
+    expect(replayTurn.studentMessage.id).toBe(initialTurn.studentMessage.id)
+    expect(replayTurn.assistantMessage.id).toBe(initialTurn.assistantMessage.id)
     const stored = await prisma.message.findUniqueOrThrow({
       where: { id: initialTurn.assistantMessage.id },
       include: { citations: true, retrievals: true },
     })
-    expect(JSON.stringify(stored)).not.toContain(unsafeOutput)
+    const storedAttempt = await prisma.tutoringAttempt.findFirstOrThrow({
+      where: { assistantMessageId: initialTurn.assistantMessage.id },
+    })
+    expect(storedAttempt).toMatchObject({
+      status: 'COMPLETED',
+      approvalSource: 'SAFE_FALLBACK',
+      safeFallbackReason: 'GENERATION_RETRY_FAILED',
+    })
     expect(stored).toMatchObject({
       provider: null,
       model: null,
-      promptVersion: null,
+      promptVersion: 'safe-fallback.mvp.v1',
       citations: [],
-      retrievals: [],
     })
+    expect(stored.retrievals).toHaveLength(1)
   })
 
   it('returns one conflict for concurrent sends without creating an orphan Student message', async () => {

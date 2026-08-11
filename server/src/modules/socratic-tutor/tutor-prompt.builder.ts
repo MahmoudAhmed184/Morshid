@@ -36,6 +36,7 @@ const TUTOR_GENERATION_SYSTEM_PROMPT = [
   'When the disclosure contract prohibits the target inference, do not state it before a question and then ask the student to repeat, confirm, locate, or trivially apply it.',
   'A retrieved fact is evidence for accuracy, not permission to reveal that fact to the student.',
   'If Reveal Policy is NO_FINAL_ANSWER, do not disclose the final answer, complete solution, submission-ready code, or final result.',
+  'For DEBUGGING_GUIDANCE, identify one likely issue, its relevant location, the supporting concept, and exactly one inspection or trace action. Never execute student code or return a corrected program.',
   'Use only allowed citation IDs supplied by the backend. Do not invent citation IDs.',
   'The backend owns provider, model, promptVersion, tokenUsage, approval, and persistence metadata. Do not include those keys.',
   '',
@@ -118,6 +119,7 @@ function buildTutorUserPrompt(context: GenerationContextPackage): string {
       mvpReflectionIncluded: context.teachingDecision.reflectionMode !== 'NONE',
       disclosureContract,
       functionalResponseRequirements,
+      debuggingGuidance: context.debuggingGuidance,
     }),
     TRUSTED_BACKEND_POLICY_END_MARKER,
     section('5. StudentState and relevant TopicState', {
@@ -197,6 +199,16 @@ function buildTutorUserPrompt(context: GenerationContextPackage): string {
         finalAnswerRevealed: false,
         completeSolutionRevealed: false,
       },
+      ...(context.debuggingGuidance === null
+        ? {}
+        : {
+            debuggingGuidanceSections: [
+              'Likely defect',
+              'Relevant location',
+              'Concept with at least one allowed citation marker',
+              'Next inspection step with exactly one action',
+            ],
+          }),
     }),
     UNTRUSTED_CONVERSATION_BEGIN_MARKER,
     section(

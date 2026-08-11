@@ -35,8 +35,6 @@ import type { ChatMessageRecord } from './student-chat.repository.types'
 import type { StudentChatService } from './student-chat.service'
 import type { SocraticChatOrchestrator } from './socratic-chat.orchestrator'
 import type { SocraticOrchestrationResult } from './socratic-chat.types'
-import type { RetrievalService } from '../retrieval/retrieval.service'
-import type { CompletionProvider } from '../completion/completion-provider'
 
 const courseId = '17d1a78d-60be-4f5f-a03d-e3ee326ec796'
 const sessionId = 'eff4bf27-cce3-45d9-b245-4f1d913f0a27'
@@ -121,13 +119,6 @@ describe('GroundedChatService', () => {
       orchestrate: socraticOrchestrate,
     } as unknown as SocraticChatOrchestrator
 
-    const retrievalService = {
-      retrieveCourseEvidence: jest.fn(),
-    } as unknown as RetrievalService
-    const completionProvider = {
-      complete: jest.fn(),
-    } as unknown as CompletionProvider
-
     service = new GroundedChatService(
       studentChatService,
       turnRepository,
@@ -149,8 +140,6 @@ describe('GroundedChatService', () => {
       new OutputPolicyService(),
       { createRequiredReview: jest.fn().mockResolvedValue(null) } as never,
       new CorrectnessSensitiveRequestClassifier(),
-      retrievalService,
-      completionProvider,
     )
   })
 
