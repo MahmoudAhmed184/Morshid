@@ -1111,3 +1111,24 @@ proof that no intermediate or compatibility migration remains.
 - Next safe task: Milestone 10 final verification against the exact candidate
   SHA, including clean install/build, server E2E, acceptance journeys,
   disposable Compose readiness, and independent full diff review.
+
+## Milestone 10 verification inventory
+
+Starting SHA: `46faaa6a12a9301cfc609198afbe5bdab357dfd6`.
+
+M10 is the final candidate verification and review slice. It does not authorize
+new architecture or compatibility work; any failure must be diagnosed against
+the completed plan and fixed at its root before the candidate is accepted.
+
+| Verification surface | Exact target | Required evidence |
+| --- | --- | --- |
+| Canonical repository gate | `npm run check` | Formatting, lint, typechecks, architecture rules, tests, and production builds all pass. |
+| Server and browser suites | `npm run test:e2e`, `npm run test:acceptance` | Full capability and actor journeys pass against the supported local stack; unavailable external dependencies are recorded precisely. |
+| Live capability suites | documented `*.live-spec.ts` and live scripts | Run only when the documented provider credentials are actually available; otherwise record the credential-based skip. |
+| Clean install/build | supported Node 24 / npm 11 environment | Fresh dependency installation, generated outputs, check, and production builds pass without relying on stale artifacts. |
+| Fresh runtime environment | unique guarded Compose project with new PostgreSQL, Redis, and document-storage volumes | Blank migration, explicit seed, server boot, client boot, readiness, and Student/Instructor/Admin/cross-role Playwright journeys pass without touching developer volumes. |
+| Architecture and schema review | repository searches plus independent full diff review | No obsolete architecture or stale current contract remains; Standards and Spec review has no unresolved findings. |
+
+The M10 handoff must record every command and exact result, the candidate and
+final SHAs, live/external availability, any fixes made during verification,
+independent-review findings and resolutions, and a Section 17 checklist.
