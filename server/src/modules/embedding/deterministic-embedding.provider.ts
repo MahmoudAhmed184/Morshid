@@ -5,6 +5,7 @@ import type {
   Embedding,
   EmbeddingDocument,
   EmbeddingProvider,
+  EmbeddingRequestOptions,
 } from './embedding-provider'
 import { EMBEDDING_DIMENSIONS } from './embedding-provider'
 
@@ -34,7 +35,10 @@ export class DeterministicEmbeddingProvider implements EmbeddingProvider {
    * impossible, so the invariant `embedQuery(t) === embedDocuments([{text:
    * t}])[0]` is load-bearing rather than incidental.
    */
-  embedQuery(query: string): Promise<Embedding> {
+  embedQuery(
+    query: string,
+    _options?: EmbeddingRequestOptions,
+  ): Promise<Embedding> {
     return Promise.resolve(this.embedText(query))
   }
 
@@ -43,6 +47,7 @@ export class DeterministicEmbeddingProvider implements EmbeddingProvider {
   // batches grow to thousands of chunks, split them upstream.
   embedDocuments(
     documents: readonly EmbeddingDocument[],
+    _options?: EmbeddingRequestOptions,
   ): Promise<readonly Embedding[]> {
     return Promise.resolve(
       documents.map((document) => this.embedText(document.text)),

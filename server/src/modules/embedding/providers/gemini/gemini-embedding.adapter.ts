@@ -9,6 +9,7 @@ import type {
   Embedding,
   EmbeddingDocument,
   EmbeddingProvider,
+  EmbeddingRequestOptions,
 } from '../../embedding-provider'
 import {
   EMBEDDING_DIMENSIONS,
@@ -179,17 +180,22 @@ export class GeminiEmbeddingAdapter implements EmbeddingProvider {
       ((timeoutMs) => AbortSignal.timeout(timeoutMs))
   }
 
-  async embedQuery(query: string): Promise<Embedding> {
+  async embedQuery(
+    query: string,
+    options: EmbeddingRequestOptions = {},
+  ): Promise<Embedding> {
     const deadlineMs = this.clock() + this.options.queryTimeoutMs
     const [vector] = await this.requestBatch(
       [buildGeminiQueryInput(query)],
       deadlineMs,
+      options.signal,
     )
     return vector
   }
 
   async embedDocuments(
     documents: readonly EmbeddingDocument[],
+    options: EmbeddingRequestOptions = {},
   ): Promise<readonly Embedding[]> {
     const deadlineMs = this.clock() + this.options.documentTimeoutMs
     const inputs = documents.map((document) =>
@@ -211,6 +217,7 @@ export class GeminiEmbeddingAdapter implements EmbeddingProvider {
               deadlineMs,
               signal,
             ),
+      options.signal,
     )
 
     return batches.flat()

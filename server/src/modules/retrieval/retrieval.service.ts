@@ -1,6 +1,10 @@
 import { Inject, Injectable, Logger } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 
+import {
+  assertRequestBudget,
+  type RequestBudget,
+} from '../../common/http/request-deadline'
 import type { AppEnvironment } from '../config/env.schema'
 import {
   EMBEDDING_PROVIDER_TOKEN,
@@ -69,7 +73,9 @@ export class RetrievalService {
   async retrieveCourseEvidence(
     courseId: string,
     query: string,
+    requestBudget?: RequestBudget,
   ): Promise<CourseRetrievalResult> {
+    assertRequestBudget(requestBudget)
     // A blank query can never match evidence; short-circuit before the
     // provider, whose contract rejects whitespace-only texts, so callers see
     // the retrieval result type instead of an embedding-module error.
@@ -94,6 +100,7 @@ export class RetrievalService {
         courseId,
         embeddingModel,
       })
+    assertRequestBudget(requestBudget)
     this.logger.debug({
       event: 'retrieval_embedding_protocol',
       embeddingModel,
@@ -122,7 +129,13 @@ export class RetrievalService {
       }
     }
 
-    const queryEmbedding = await this.embeddingProvider.embedQuery(trimmedQuery)
+    const queryEmbedding =
+      requestBudget === undefined
+        ? await this.embeddingProvider.embedQuery(trimmedQuery)
+        : await this.embeddingProvider.embedQuery(trimmedQuery, {
+            signal: requestBudget.signal,
+          })
+    assertRequestBudget(requestBudget)
 
     const availableRows: RankedChunkRow[] = []
     const availabilityByStoragePath = new Map<string, Promise<boolean>>()
@@ -130,6 +143,7 @@ export class RetrievalService {
     let offset = 0
 
     while (offset < maxCandidates && availableRows.length < this.topK) {
+      assertRequestBudget(requestBudget)
       const pageSize = Math.min(this.topK, maxCandidates - offset)
       const rows = await this.courseRetrievalRepository.findTopChunksForCourse({
         courseId,
@@ -149,6 +163,7 @@ export class RetrievalService {
           ),
         })),
       )
+      assertRequestBudget(requestBudget)
       for (const checked of checkedRows) {
         if (checked.available) {
           availableRows.push(checked.row)

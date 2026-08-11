@@ -693,9 +693,13 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
     expect(diagnosis.match(/Next inspection step/gu)).toHaveLength(1)
     expect(diagnosis).not.toContain('def average')
     expect(diagnosis).not.toContain('return total / len(nums)')
-    expect(embedQuery).toHaveBeenCalledWith(
-      'Python a possible variable-name mismatch or unresolved name near the loop body; study name lookup and local scope. Diagnostic signals: singular and plural identifiers may not match. Relevant identifiers: num, nums.',
+    const diagnosisEmbeddingCall = embedQuery.mock.calls.find(
+      ([query]) =>
+        query ===
+        'Python a possible variable-name mismatch or unresolved name near the loop body; study name lookup and local scope. Diagnostic signals: singular and plural identifiers may not match. Relevant identifiers: num, nums.',
     )
+    expect(diagnosisEmbeddingCall).toBeDefined()
+    expect(diagnosisEmbeddingCall?.[1]?.signal).toBeInstanceOf(AbortSignal)
 
     const stored = await prisma.message.findMany({
       where: { sessionId: session.id },

@@ -20,6 +20,7 @@ import {
   MAX_EMBEDDING_INPUT_CODE_POINTS,
   MAX_EMBEDDING_MODEL_LENGTH,
   MAX_EMBEDDING_TITLE_CODE_POINTS,
+  type EmbeddingRequestOptions,
 } from './embedding-provider'
 
 // Enforces the provider contract around any inner provider so no result can
@@ -45,7 +46,10 @@ export class ValidatedEmbeddingProvider implements EmbeddingProvider {
     return this.inner.queryProtocol
   }
 
-  async embedQuery(query: string): Promise<Embedding> {
+  async embedQuery(
+    query: string,
+    options?: EmbeddingRequestOptions,
+  ): Promise<Embedding> {
     if (query.trim() === '') {
       throw new BlankEmbeddingQueryError()
     }
@@ -53,7 +57,10 @@ export class ValidatedEmbeddingProvider implements EmbeddingProvider {
       throw new EmbeddingQueryTooLongError()
     }
 
-    const vector = await this.inner.embedQuery(query)
+    const vector =
+      options === undefined
+        ? await this.inner.embedQuery(query)
+        : await this.inner.embedQuery(query, options)
 
     const reason = readVectorRejection(vector)
     if (reason !== undefined) {
@@ -65,6 +72,7 @@ export class ValidatedEmbeddingProvider implements EmbeddingProvider {
 
   async embedDocuments(
     documents: readonly EmbeddingDocument[],
+    options?: EmbeddingRequestOptions,
   ): Promise<readonly Embedding[]> {
     if (documents.length === 0) {
       throw new EmptyEmbeddingDocumentsError()
@@ -94,7 +102,10 @@ export class ValidatedEmbeddingProvider implements EmbeddingProvider {
       }
     })
 
-    const vectors = await this.inner.embedDocuments(documents)
+    const vectors =
+      options === undefined
+        ? await this.inner.embedDocuments(documents)
+        : await this.inner.embedDocuments(documents, options)
 
     if (!isArray(vectors)) {
       throw new InvalidEmbeddingDocumentVectorError(0, 'shape')

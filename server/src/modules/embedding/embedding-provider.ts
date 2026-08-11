@@ -42,6 +42,10 @@ export interface EmbeddingDocument {
 
 export type Embedding = readonly number[]
 
+export interface EmbeddingRequestOptions {
+  readonly signal?: AbortSignal
+}
+
 /**
  * The embedding port.
  *
@@ -81,11 +85,15 @@ export interface EmbeddingProvider {
    */
   readonly queryProtocol: string
 
-  embedQuery(query: string): Promise<Embedding>
+  embedQuery(
+    query: string,
+    options?: EmbeddingRequestOptions,
+  ): Promise<Embedding>
 
   /** Returns one vector per document, in input order. */
   embedDocuments(
     documents: readonly EmbeddingDocument[],
+    options?: EmbeddingRequestOptions,
   ): Promise<readonly Embedding[]>
 }
 
