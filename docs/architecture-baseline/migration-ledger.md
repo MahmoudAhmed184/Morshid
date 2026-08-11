@@ -927,3 +927,44 @@ format/lint/type checks, production build, route generation through
 `npm run generate-routes --workspace client`, and the affected acceptance
 journeys. The final canonical check, full E2E, acceptance, clean-install,
 schema, and independent review gates remain Milestones 9–10.
+
+### Milestone 7 completion and handoff
+
+- Starting SHA: `78774b3`.
+- Completed commits: `46c6fb9` (`refactor(client): establish app and student
+  workspace boundaries`) and `04911bf` (`refactor(client): complete workspace
+  ownership boundaries`).
+- Application composition now lives under `client/src/app`; TanStack Start is
+  configured with the supported `router.entry: './app/router'` option. The root
+  route creates the provider boundary from router context, and loaders no
+  longer reach for a global QueryClient.
+- Student and Instructor role presentation, navigation, tutor/review/material
+  orchestration, and tests now live under their role workspaces. Course
+  membership, Material ingestion/catalog, Chat contracts, and Reviews transport
+  remain capability-owned. Admin orchestration hooks moved into the Admin
+  workspace. Auth session store, authenticated transport, sign-out control,
+  and route redirect contracts expose explicit `interface/` paths for
+  cross-feature consumers.
+- The old `features/student`, `features/instructor`, `features/admin`, and
+  `features/notifications` authored paths are absent. Role settings wrappers,
+  the old sidebar/layout/provider/http paths, and the global QueryClient getter
+  are absent. Route files contain declarations, route state mapping, and
+  metadata only; review overlay presentation is workspace-owned.
+- `dependency-cruiser.config.mjs` now enforces client feature interfaces,
+  shared independence, feature/composition boundaries, route/app boundaries,
+  and role-workspace isolation. Client ESLint rejects the removed buckets,
+  legacy aliases, and superseded broad paths.
+- No database, schema, migration, seed, Prisma generated output, or server
+  contract changed in M7.
+- Verification passed: `npm run generate-routes --workspace client`;
+  `npm run test:architecture:client` (333 modules, 1,333 dependencies, zero
+  violations); `npm run typecheck --workspace client -- --pretty false`;
+  `npm run lint:ci --workspace client`; `npm run format:check --workspace
+  client`; `npm run build --workspace client`; and `npm test --workspace client`
+  (60 files, 468 tests). A focused moved-workspace gate also passed (15 files,
+  114 tests). The first full client run found two isolated RolePlaceholderPage
+  tests missing the application QueryClient provider; the tests were corrected
+  to model the production provider boundary and the full suite then passed.
+- Next safe task: Milestone 8 — relocate platform/configuration ownership,
+  reorganize capability and journey tests/fixtures/scripts, update current
+  documentation, and regenerate owned outputs before the final schema freeze.
