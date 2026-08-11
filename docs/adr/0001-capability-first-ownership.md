@@ -15,11 +15,12 @@ cutovers.
 
 Organize product behavior by named capability. Server capabilities are
 Identity, Courses, Materials, Conversations, Tutoring, Reviews, Audit, and
-Health. Shared framework primitives live in `common`; technical adapters and
-configuration live in `platform`. Platform and common code do not depend on
-product modules. Each capability exposes a small intentional interface and
-keeps its implementation private. Client domain features and role workspaces
-follow the same ownership vocabulary.
+Health. Shared framework primitives live in `server/src/common`; technical
+adapters, configuration, database, cache, AI, and document storage live in
+`server/src/platform`. Platform and common code do not depend on product
+modules. Each capability exposes a small intentional interface and keeps its
+implementation private. Client domain features, role workspaces, and app
+composition follow the same ownership vocabulary.
 
 ## Rejected alternatives
 

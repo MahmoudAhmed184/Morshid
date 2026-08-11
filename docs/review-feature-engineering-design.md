@@ -9,6 +9,12 @@
 | Out of scope | Implementation code, reviewed-answer retrieval, email/push delivery, WebSockets, general Instructor chat browsing |
 | Source of truth | Current repository Prisma schema and the P0 decisions in `docs/morshid-decisions.md` |
 
+> Historical specification: this document predates the approved whole-workspace
+> refactor and is retained as design evidence. Its generic Notification model
+> and route examples are superseded by the Reviews-owned `ReviewInboxItem`
+> capability documented in the approved architecture plan and implemented in
+> `server/src/modules/reviews/student-inbox/`.
+
 > This specification extends the existing `User`, `Course`, `CourseMembership`, `ChatSession`, `Message`, `MessageRetrieval`, `MessageCitation`, and `AuditLog` entities. It does not redesign them. All requirements and invariants in this document are mandatory for the Sprint 3 implementation.
 
 ## 1. Overview

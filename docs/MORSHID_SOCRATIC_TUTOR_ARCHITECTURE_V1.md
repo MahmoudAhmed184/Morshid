@@ -10,6 +10,11 @@
 | Last normalized | 2026-07-30 |
 | Intended reviewers | Architecture reviewers, technical leads, project supervisors, backend engineers, AI engineers, QA engineers |
 
+> Historical document: this is the pre-implementation architecture baseline
+> from 2026-07-30. It is retained as dated evidence only. The approved
+> workspace architecture and current ownership are defined by
+> `docs/architecture-refactor-plan-2026-08-11.md` and the accepted ADRs.
+
 ## Table of Contents
 
 - [Executive Summary](#executive-summary)

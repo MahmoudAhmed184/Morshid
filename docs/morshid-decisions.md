@@ -184,24 +184,29 @@ Instructor actions:
 After resolution:
 
 - reviewed outcome is attached to the original flagged response
-- Student sees status/update in chat and notification
+- Student sees status/update in chat and the Reviews-owned Student inbox
 - original AI response is retained
 - Instructor-reviewed answer, timestamp, Instructor identity, and reason/action are retained
 - reviewed answers are not automatically reused in P0
 
-## 10. Notifications
+## 10. Review inbox and status updates
 
-P0 uses simple in-app notifications/status updates.
+Reviews owns the only student-facing inbox in P0. A review resolution or
+rejection creates one `ReviewInboxItem` in the same transaction as the review
+history, audit participation, and terminal outcome. The Student can also see
+the status directly beside the original assistant message.
 
-Required notifications/status:
+Required status and inbox behavior:
 
-- Student sees when review is completed.
-- Student sees when manual review request is rejected.
-- Student sees when usage limit is reached.
-- Instructor sees review queue count when opening dashboard.
-- Source upload status is visible on the materials page.
+- Student sees when review is completed or rejected.
+- Instructor sees the review queue count when opening the dashboard.
+- Source upload status is visible on the Materials page.
+- Usage-limit and provider-outage states remain inline chat/system status; they
+  do not create a generic notification record.
 
-Implementation may use polling or page refresh. No email, push notifications, WebSocket notifications, or notification preferences in P0.
+The Student inbox uses ordinary REST reads and polling/page refresh. There is
+no generic Notifications capability, email, push delivery, WebSocket
+notification channel, or notification-preference system in P0.
 
 ## 11. Authentication and Accounts
 

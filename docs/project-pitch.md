@@ -73,7 +73,7 @@ This makes Morshid a guided course assistant rather than another answer-generati
 | 1-2 | Project setup, Docker, DB, CI, auth, RBAC, user/course CRUD, landing page |
 | 3-4 | Document ingestion, RAG pipeline, basic chat with retrieval, SSE streaming |
 | 5-6 | Socratic tutor, citations, code diagnosis, review/flagging, golden demo evaluation |
-| 7 | Notifications/status updates, usage limits, simple dashboards, UI polish, security tests |
+| 7 | Review inbox/status updates, usage limits, simple dashboards, UI polish, security tests |
 | 8 | Evaluation, security testing, bug fixes, demo prep |
 
 The protected P0 demo loop is: one course, one source set, Student chat, course-grounded citations, Socratic hints, code diagnosis, flagging, Instructor review, Student correction/status, and course-isolation tests. CSV import, second-tier reviewed-answer RAG, rich analytics, full retention automation, and advanced retrieval should be cut first if schedule pressure appears.

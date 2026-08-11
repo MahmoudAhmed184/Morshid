@@ -288,15 +288,12 @@ Role-based access control is enforced using NestJS Guards with custom role decor
 
 Students may create, rename, archive, and delete their own sessions. Admins may delete any chat under the retention and audit policy. Instructors manage only flagged exchanges and their resulting review records.
 
-### 7.8 Notifications
+### 7.8 Review inbox and status updates
 
-In-app notifications are sufficient for the MVP.
-
-Students are notified when:
-
-- A review is completed
-- A manual review request is accepted or rejected
-- An AI usage limit is reached
+Reviews owns the MVP's student-facing inbox. Students see review completion
+or rejection in the Reviews inbox and beside the original assistant response;
+the original response remains unchanged. Usage-limit and provider-outage
+states are shown inline and are not modeled as generic notifications.
 
 ### 7.9 Language
 
@@ -525,11 +522,11 @@ The following decisions have identified options but require further team discuss
 
 Note: GitHub Student Pack is available and may provide additional CI/CD minutes or hosting credits.
 
-#### 10.2.7 Notification Delivery
+#### 10.2.7 Review inbox delivery
 
 | Option | Description |
 |---|---|
-| **Polling + notification center** | Frontend periodically checks for new notifications via TanStack Query. Bell icon with unread count + dropdown. |
+| **Polling + Review inbox** | Frontend periodically checks the Reviews-owned Student inbox via TanStack Query. Bell control with unread count + direct navigation to the reviewed response. |
 | **SSE for real-time** | Push notifications instantly via SSE (infrastructure already exists for chat streaming). |
 | **WebSocket-based** | Full-duplex push. Instant but adds complexity alongside SSE. |
 | **Email (stretch)** | Listed as stretch scope; not primary for MVP. |
@@ -622,7 +619,7 @@ To prevent architecture work from stalling, the recommended defaults for the 8-w
 | Repository | Simple monorepo with `frontend/`, `backend/`, `ai-service/`, and `infra/` | Easier for a 5-person team to navigate |
 | Branching | Practical GitFlow | Keeps `main` release-only while preserving a simple integration branch for a small team |
 | CI/CD | Lightweight CI + manual deploy | Gives reviewer confidence without over-investing in deployment automation |
-| Notifications | Polling + notification center | Enough for review completion and limits; avoids WebSocket complexity |
+| Review inbox | Polling + Reviews-owned Student inbox | Enough for review completion; avoids WebSocket complexity |
 | Logging and audit | Structured logs + focused DB audit table for security and policy events | Keeps traceability without a full observability stack |
 | Prompt management | Versioned prompt templates in the backend codebase | Easy to review, test, and change through Git |
 | Dashboards | Simple CRUD pages with polished critical states | Prefer reliable workflows over analytics-heavy dashboards |
@@ -709,7 +706,7 @@ P0 must prove the product's core claim with one controlled pilot course and one 
 - Real-time or near-real-time AI response experience, preferably SSE streaming
 - Automatic and Student-created review flags
 - Instructor review of a flagged exchange with approve/edit/reject/replace outcome
-- Student notification or visible status update after review completion
+- Student Review inbox item or visible status update after review completion
 - Usage-limit and provider-outage messages that preserve the Student's submitted message
 - Explicit tests for cross-course retrieval, unauthorized access, and final-answer leakage
 - Curated evaluation set for the demo scenarios
@@ -981,7 +978,7 @@ The graduation demonstration must show:
 - Code diagnosis that identifies a bug and guides the student without fixing the code
 - Clear handling and flagging of unsupported or conflicting guidance
 - Instructor resolution of a flag
-- Student notification of the review completion
+- Student Review inbox item for review completion
 - Successful source upload with visible processing status and retrieval sanity result
 - Prevention of cross-course retrieval
 - Prevention of unauthorized course and private-chat access
@@ -997,7 +994,7 @@ The graduation demonstration must show:
 | 1-2 | Project setup and infrastructure | Docker-compose, database schema, CI pipeline, auth system, RBAC, user/course CRUD, landing page |
 | 3-4 | Document and AI pipeline | Document upload/ingestion pipeline, RAG pipeline, basic chat with retrieval, SSE streaming |
 | 5-6 | Core tutoring and review | Socratic tutor behavior, citations, code diagnosis, review/flagging workflow, golden demo dataset |
-| 7 | Polish and features | Notifications/status updates, usage limits, simple dashboards, UI polish, theme toggle, security tests |
+| 7 | Polish and features | Review inbox/status updates, usage limits, simple dashboards, UI polish, theme toggle, security tests |
 | 8 | Evaluation and demo prep | Evaluation dataset execution, security testing, bug fixes, demo preparation |
 
 ### 17.2 Testing Strategy

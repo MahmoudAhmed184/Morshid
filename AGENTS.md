@@ -2,7 +2,19 @@
 
 ## Project Structure & Module Organization
 
-Morshid is an npm workspace. `client/` contains the TanStack Start/React frontend; organize product code by domain under `client/src/features/`, shared UI under `client/src/components/`, routes under `client/src/routes/`, and static assets under `client/public/`. `server/` contains the NestJS API; feature modules live in `server/src/modules/`, shared infrastructure in `server/src/common/`, and Prisma schema, migrations, and seeds in `server/prisma/`. Root `tests/acceptance/` holds Playwright scenarios, while `server/test/` holds API E2E tests. Project notes belong in `docs/`. Do not hand-edit generated Prisma code or `client/src/routeTree.gen.ts`.
+Morshid is an npm workspace. `client/` contains the TanStack Start/React
+frontend: reusable domain behavior lives under `client/src/features/`, role
+composition under `client/src/workspaces/`, application composition under
+`client/src/app/`, shared UI under `client/src/components/`, routes under
+`client/src/routes/`, and static assets under `client/public/`. `server/`
+contains the NestJS API: product capabilities live under
+`server/src/modules/`, framework primitives under `server/src/common/`, and
+technical adapters/configuration under `server/src/platform/`. Prisma schema,
+migrations, and seeds live in `server/prisma/`. Unit specs stay beside their
+owners; API E2E specs are grouped under `server/test/` by capability, and
+Playwright journeys under `tests/acceptance/` by actor. Project notes belong in
+`docs/`. Do not hand-edit generated Prisma code or
+`client/src/routeTree.gen.ts`.
 
 ## Build, Test, and Development Commands
 
@@ -12,15 +24,30 @@ Morshid is an npm workspace. `client/` contains the TanStack Start/React fronten
 - `npm run dev`: run client on port 3000 and API on port 4000.
 - `npm run check`: run formatting checks, strict linting, type checks, tests, and production builds; this is the canonical pre-PR gate.
 - `npm run test:acceptance`: run browser acceptance tests against the local stack.
-- `npm run test:e2e`: run server E2E tests; start infrastructure and deploy migrations first.
+- `npm run test:e2e`: run recursively discovered server E2E tests; start
+  infrastructure and deploy migrations first.
+- `npm run test:architecture`: enforce dependency direction and ownership.
 
 ## Coding Style & Naming Conventions
 
-Use two-space indentation, single quotes, no semicolons, and trailing commas; Prettier enforces these rules. ESLint applies strict, type-aware TypeScript checks. Prefer type-only imports, avoid `any`, and explicitly handle promises. Use kebab-case filenames (`course-access.service.ts`), PascalCase for React components and NestJS classes, and camelCase for functions and variables. Keep frontend logic within its feature and preserve NestJS controller/service/repository boundaries.
+Use two-space indentation, single quotes, no semicolons, and trailing commas;
+Prettier enforces these rules. ESLint applies strict, type-aware TypeScript
+checks. Prefer type-only imports, avoid `any`, and explicitly handle
+promises. Use kebab-case filenames (`course-access.service.ts`), PascalCase
+for React components and NestJS classes, and camelCase for functions and
+variables. Keep frontend logic within its feature/workspace owner and preserve
+NestJS capability boundaries. Platform code must not import product modules.
 
 ## Testing Guidelines
 
-Use Vitest and Testing Library for client tests, Jest for server unit/E2E tests, and Playwright for acceptance coverage. Name unit tests `*.test.ts(x)` or `*.spec.ts`; name server E2E files `*.e2e-spec.ts`. Co-locate unit tests with implementation code. There is no numeric coverage threshold, but every behavior change should add focused regression coverage. Run `npm test` during development and `npm run check` before submission.
+Use Vitest and Testing Library for client tests, Jest for server unit/E2E/live
+tests, and Playwright for acceptance coverage. Name unit tests `*.test.ts(x)`
+or `*.spec.ts`; name server E2E files `*.e2e-spec.ts` and live files
+`*.live-spec.ts`. Server Jest discovery is recursive from `server/test/` and
+Playwright discovery is recursive from `tests/acceptance/`. Co-locate unit
+tests with implementation code. There is no numeric coverage threshold, but
+every behavior change should add focused regression coverage. Run `npm test`
+during development and `npm run check` before submission.
 
 ## Commit & Pull Request Guidelines
 

@@ -4,6 +4,10 @@
 **Scope:** Light-mode theme direction and student-chat typography only
 **Recommendation status:** Ready for design review; implementation intentionally not included
 
+> Historical research note: the source paths below were captured before the
+> workspace ownership refactor. They are evidence for visual decisions, not
+> current module locations.
+
 ## Executive recommendation
 
 Keep the current **Guided Ink** identity, but sharpen its light mode into a calm **Reading Desk**:
@@ -59,8 +63,8 @@ The most important comfort change is not a new typeface. It is removing the curr
 
 - [`client/src/styles.css`](../client/src/styles.css) already has a warm light canvas, dark ink, white cards, mineral teal primary, blue information color, amber learning color, coral destructive color, and semantic CSS variables. That is the right foundation for the Reading Desk direction.
 - The client already imports `@fontsource-variable/geist`, `@fontsource-variable/geist-mono`, and `@fontsource-variable/fraunces` in [`client/src/styles.css`](../client/src/styles.css). No new Latin family is needed for this recommendation.
-- Fraunces is already separated into display utilities, and assistant markdown headings use sans styling in [`student-assistant-markdown.tsx`](../client/src/features/student/pages/student-ai-tutor/student-assistant-markdown.tsx). That separation should remain.
-- Assistant turns already use a calm card surface and student turns already use a distinct tinted surface in [`student-chat-message.tsx`](../client/src/features/student/pages/student-ai-tutor/student-chat-message.tsx). That is preferable to adding more color or a different font to every role.
+- Fraunces is already separated into display utilities, and assistant markdown headings use sans styling in the student tutor workspace. That separation should remain.
+- Assistant turns already use a calm card surface and student turns already use a distinct tinted surface in the student tutor workspace. That is preferable to adding more color or a different font to every role.
 
 ### Gaps to resolve in a later implementation pass
 

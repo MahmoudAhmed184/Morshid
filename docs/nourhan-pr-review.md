@@ -2,6 +2,11 @@
 
 Review date: 2026-08-10 (Africa/Cairo)
 
+> Historical review record: this document evaluates the pre-refactor PR head
+> and intentionally preserves the paths and architecture names that existed
+> in that reviewed commit. It is not a current implementation map. Use the
+> approved architecture plan and accepted ADRs for the current workspace.
+
 ## PR identification and scope
 
 - Repository: `MahmoudAhmed184/Morshid`.

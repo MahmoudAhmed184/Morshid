@@ -5,10 +5,10 @@
 
 ## Context
 
-The current workspace contains overlapping Student chat, grounded-chat,
-Socratic, completion, and Python diagnosis paths. They duplicate execution
-state and make it unclear which path owns a submitted turn, terminal status,
-or response. The product has one supported tutoring workflow.
+The approved architecture requires one supported tutoring workflow and one
+authoritative attempt state. Before the cutover, the workspace had multiple
+execution paths and duplicate ownership of submitted turns, terminal status,
+and responses.
 
 ## Decision
 

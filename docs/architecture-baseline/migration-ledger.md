@@ -968,3 +968,84 @@ schema, and independent review gates remain Milestones 9–10.
 - Next safe task: Milestone 8 — relocate platform/configuration ownership,
   reorganize capability and journey tests/fixtures/scripts, update current
   documentation, and regenerate owned outputs before the final schema freeze.
+
+## Milestone 8 migration inventory
+
+Starting SHA: `636972a6efa6a6ddf75980a2c420b2bcb81d152b`.
+
+Milestone 8 completes the workspace path cutover after the domain and client
+vertical slices. It is schema-neutral, but it must regenerate Prisma and
+TanStack outputs through their official commands and prove that all authored
+callers, scripts, fixtures, tests, environment contracts, and current
+documentation use the final ownership map.
+
+| Area | Files/paths to add, move, change, or delete | Disposition and invariants |
+| --- | --- | --- |
+| Platform ownership | `server/src/platform/{config,database,cache,ai,document-storage}/`, `server/src/common/http/`, old module/common paths | Move infrastructure adapters out of product modules; platform/common code must not import product code; keep Materials-owned embedding migration code in Materials. |
+| Conversations/Tutoring HTTP | `server/src/modules/conversations/**`, `server/src/modules/tutoring/tutoring.controller.ts`, `app.module.ts`, `app.setup.ts` | Keep session/transcript HTTP in Conversations and new-turn/retry HTTP in Tutoring; expose transaction-aware `ConversationTurns`; use final Swagger tags and no student-chat compatibility alias. |
+| Configuration | platform env schema/spec, Materials/Tutoring configuration, `.env.example`, `server/.env.example`, Compose/CI | Platform validates infrastructure and embedding concerns only; Materials and Tutoring validate their own policy/configuration values. |
+| Capability and journey tests | `server/test/{support,conversations,courses,materials,reviews,tutoring}/`, `tests/acceptance/{student,instructor,support}/`, Jest/package paths | Move specs by capability/journey, update relative imports directly, retain recursive discovery, and delete obsolete migration/legacy filenames. |
+| Fixtures and scripts | `fixtures/evaluations/code-diagnosis/`, `fixtures/course-materials/`, `server/scripts/**`, `scripts/clear-local-review-data.mts` | Move evaluation/course fixtures to owning paths; runtime PDFs/storage stay outside source fixture ownership; update all script and test consumers. |
+| Client/generated ownership | affected `client/src/features/chat/**`, auth/workspace callers, `client/src/routeTree.gen.ts`, `client/components.json` | Remove residual student-chat vocabulary and React ref-forwarding workaround; regenerate the route tree; never hand-edit generated output. |
+| Documentation/enforcement | `AGENTS.md`, ADRs, current product docs, `dependency-cruiser.config.mjs`, this ledger | Describe only the final current architecture; label dated historical evidence; keep strict graph rules without exception lists. |
+
+The M8 implementation pass must run server/client typecheck, lint,
+formatting, architecture, unit tests, route generation, `git diff --check`,
+and repository searches for obsolete paths before its handoff commits. The
+rolling initial migration and seed are unchanged here; Milestone 9 performs
+the final schema regeneration and audit.
+
+### M8 handoff
+
+- Starting SHA: `636972a6efa6a6ddf75980a2c420b2bcb81d152b`. Implementation
+  commits: `db50d56` (`refactor(server): relocate platform ownership`),
+  `f3ba41a` (`refactor(client): remove residual ownership aliases`), and
+  `d8a1889` (`test(architecture): reorganize capability verification`). The
+  documentation handoff is the commit containing this ledger entry.
+- Applicable authority: the approved architecture plan; ADR 0001 (capability
+  ownership and platform separation), ADR 0002 (one Tutoring Runtime), ADR
+  0003 (Reviews-owned Student inbox), ADR 0006 (enforced dependency graph),
+  ADR 0007 (opaque database transaction), and the approved NestJS/Prisma,
+  frontend-file-architecture, pre-deployment, and broad-refactor research
+  notes.
+- Moved server infrastructure into `server/src/platform/{config,database,
+  cache,ai,document-storage}` and common HTTP validation into
+  `server/src/common/http`. Materials now owns its retrieval/upload
+  configuration and embedding migration corpus; Tutoring owns model/request
+  configuration and turn HTTP. Conversations owns session/transcript HTTP,
+  while Tutoring owns turn execution and retry HTTP. The platform environment
+  schema now validates infrastructure and embedding concerns while passing
+  unopinionated product values to their owning capability validators.
+- Reorganized all retained server E2E specs into support or capability folders,
+  all acceptance journeys into actor folders, and moved fixtures to
+  `fixtures/evaluations/code-diagnosis` and `fixtures/course-materials`.
+  Updated every relative import, script path, Jest path, package command,
+  fixture consumer, Compose/CI environment comment, OpenAPI expectation, and
+  current documentation path directly. The route tree was regenerated with
+  `npm run generate-routes --workspace client`; Prisma was regenerated through
+  `npm run db:generate --workspace server`. No generated file was hand-edited.
+- The direct HTTP error contract now uses the final Conversations wire codes,
+  and client chat contracts use the final `chat` vocabulary. The remaining
+  React ref-forwarding workarounds were removed from production client code;
+  `forwardRef` and `useImperativeHandle` searches are empty in `client/src`
+  and `server/src`.
+- Verification passed: server typecheck, CI lint, formatting, and
+  dependency-cruiser (`380` modules / `1,347` dependencies, zero violations);
+  client typecheck, CI lint, formatting, and all `60` test files / `468`
+  tests; root typecheck; `npm run generate-routes --workspace client`; the
+  focused tutoring configuration suite (`1` suite / `4` tests); and the full
+  server unit suite (`106` suites / `1,239` tests). `git diff --check` passed.
+- Obsolete-path searches found no current `server/src/modules/{config,prisma,
+  redis,embedding,pdf-storage,student-chat,socratic-tutor,completion,
+  output-policy,tutor,retrieval,notifications}` paths, no old common platform
+  paths, no `fixtures/{golden-dataset,sources}` paths, no migration E2E files,
+  no `CompletionProvider`/`GroundedChat`/`SocraticChatOrchestrator` symbols,
+  and no old current client role/notification feature buckets. Dated review,
+  research, and baseline documents that mention superseded paths are now
+  explicitly labeled as historical evidence.
+- The schema, rolling initial migration, migration lock, seed, catalog
+  assertions, extensions, constraints, indexes, triggers, and HNSW deletion
+  are unchanged in M8. The existing `prisma.config.ts` and Prisma README were
+  rechecked and already describe the final directory-loaded schema and one
+  clean-slate migration. M9 is the next safe task: regenerate and audit the
+  final single initial migration from an empty database.
