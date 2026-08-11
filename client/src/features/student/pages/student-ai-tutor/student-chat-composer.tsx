@@ -136,14 +136,14 @@ export const StudentChatComposer = forwardRef<
       className="shrink-0"
       onSubmit={(event) => void handleSubmit(event)}
     >
-      <div className="glass-paper mx-auto max-w-3xl rounded-t-2xl shadow-md focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/40">
+      <div className="glass-paper mx-auto max-w-3xl rounded-t-2xl border-border-strong shadow-md focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/40">
         <Textarea
           ref={textareaRef}
           aria-describedby="chat-composer-hint chat-composer-error"
           aria-invalid={Boolean(sendError)}
           aria-label="Message"
           autoComplete="off"
-          className="max-h-40 min-h-12 resize-none border-0 bg-transparent px-4 pt-3.5 pb-1 shadow-none focus-visible:ring-0"
+          className="max-h-40 min-h-12 resize-none border-0 bg-transparent px-4 pt-3.5 pb-1 text-base! leading-[1.6] shadow-none focus-visible:ring-0 md:text-base!"
           disabled={isGenerating}
           name="chat-message"
           onChange={(event) => {
@@ -161,7 +161,7 @@ export const StudentChatComposer = forwardRef<
         <div className="flex items-center justify-between gap-2 px-3 pt-1 pb-2.5">
           <p
             id="chat-composer-hint"
-            className="footnote text-[0.68rem] leading-tight text-muted-foreground sm:text-xs"
+            className="text-xs leading-[1.4] text-muted-foreground"
           >
             AI responses can be inaccurate. Check important course information.
           </p>

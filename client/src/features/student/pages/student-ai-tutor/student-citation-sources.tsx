@@ -28,7 +28,7 @@ export function StudentCitationSources({
         {citations.map((citation) => (
           <li key={`${citation.order}:${citation.materialId}`}>
             <Badge
-              className="h-auto max-w-full whitespace-normal border-info/25 bg-info/5 font-mono text-xs text-info"
+              className="h-auto max-w-full whitespace-normal border-chat-citation-foreground/25 bg-chat-citation text-xs text-chat-citation-foreground"
               variant="outline"
             >
               [{citation.order}] {citation.materialTitle}
@@ -69,7 +69,7 @@ function CitationSource({ citation }: { citation: ChatCitation }) {
   return (
     <li className="min-w-0 rounded-xl border border-border bg-secondary/40 p-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <p className="min-w-0 break-words font-medium text-foreground">
+        <p className="min-w-0 break-words text-sm font-medium text-foreground">
           {citation.materialTitle}
         </p>
         <Badge variant={citation.sourceAvailable ? 'secondary' : 'outline'}>
@@ -84,10 +84,10 @@ function CitationSource({ citation }: { citation: ChatCitation }) {
               key={evidence.chunkId}
               className="border-l-2 border-info/30 pl-3"
             >
-              <blockquote className="break-words text-xs leading-5 text-muted-foreground">
+              <blockquote className="break-words text-sm leading-[1.6] text-muted-foreground">
                 {evidence.excerpt}
               </blockquote>
-              <figcaption className="footnote mt-1 font-mono">
+              <figcaption className="mt-1 text-xs text-muted-foreground">
                 Source passage {evidence.chunkNumber}
               </figcaption>
             </figure>

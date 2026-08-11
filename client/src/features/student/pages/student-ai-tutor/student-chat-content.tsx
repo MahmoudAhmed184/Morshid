@@ -25,7 +25,7 @@ export function StudentChatContent({ message }: StudentChatContentProps) {
   }
 
   return (
-    <div className="space-y-3 break-words">
+    <div className="space-y-4 break-words">
       {parts.map((part, index) =>
         part.kind === 'code' ? (
           <CodeBlock
@@ -59,7 +59,8 @@ function CodeBlock({
   return (
     <pre
       aria-label={label}
-      className="max-w-full overflow-x-auto rounded-lg border border-border bg-secondary/70 p-3 font-mono text-xs leading-5 text-foreground"
+      className="max-w-full overflow-x-auto rounded-lg border border-border bg-chat-code p-3 font-mono text-[0.8125rem] leading-[1.6] text-foreground"
+      dir="ltr"
       tabIndex={0}
     >
       <code>{content.replace(/\n$/u, '')}</code>
@@ -72,7 +73,7 @@ function renderInlineCode(content: string): ReactNode[] {
     part.startsWith('`') && part.endsWith('`') ? (
       <code
         key={`code:${index.toString()}`}
-        className="rounded border border-border bg-secondary px-1 py-0.5 font-mono text-[0.85em] text-foreground"
+        className="rounded border border-border bg-chat-code px-1 py-0.5 font-mono text-[0.9em] text-foreground"
       >
         {part.slice(1, -1)}
       </code>

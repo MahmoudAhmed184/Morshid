@@ -233,9 +233,9 @@ export function StudentChatMessage({
       <div className="max-w-[min(90%,44rem)]">
         <div
           className={cn(
-            'px-4 py-3 text-sm leading-7 transition-colors',
+            'px-4 py-3 text-base leading-[1.6] transition-colors',
             isStudent
-              ? 'rounded-2xl rounded-br-lg bg-accent text-foreground'
+              ? 'rounded-2xl rounded-br-lg bg-chat-student text-foreground'
               : 'rounded-2xl rounded-bl-lg border bg-card text-card-foreground shadow-xs',
             (reviewSummary?.status === 'PENDING' ||
               reviewSummary?.status === 'IN_REVIEW') &&

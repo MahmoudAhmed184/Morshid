@@ -27,14 +27,14 @@ const markdownComponents: Components = {
   h6: ({ children }) => (
     <MarkdownSubheading level={6}>{children}</MarkdownSubheading>
   ),
-  p: ({ children }) => <p className="my-3 first:mt-0 last:mb-0">{children}</p>,
+  p: ({ children }) => <p className="my-4 first:mt-0 last:mb-0">{children}</p>,
   ul: ({ children }) => (
-    <ul className="my-3 list-disc space-y-1 pl-6 marker:text-muted-foreground">
+    <ul className="my-4 list-disc space-y-1 pl-6 marker:text-muted-foreground">
       {children}
     </ul>
   ),
   ol: ({ children }) => (
-    <ol className="my-3 list-decimal space-y-1 pl-6 marker:font-medium marker:text-muted-foreground">
+    <ol className="my-4 list-decimal space-y-1 pl-6 marker:font-medium marker:text-muted-foreground">
       {children}
     </ol>
   ),
@@ -58,7 +58,7 @@ const markdownComponents: Components = {
   code: ({ children, className }) => (
     <code
       className={cn(
-        'rounded-md bg-muted px-1.5 py-0.5 font-mono text-[0.85em] font-medium text-foreground',
+        'rounded-md bg-chat-code px-1.5 py-0.5 font-mono text-[0.9em] font-medium text-foreground',
         className,
       )}
     >
@@ -66,7 +66,10 @@ const markdownComponents: Components = {
     </code>
   ),
   pre: ({ children }) => (
-    <pre className="my-4 max-w-full overflow-x-auto rounded-xl border border-border/80 bg-muted/65 p-4 font-mono text-xs leading-6 shadow-inner [&_code]:bg-transparent [&_code]:p-0 [&_code]:font-normal">
+    <pre
+      className="my-4 max-w-full overflow-x-auto rounded-xl border border-border/80 bg-chat-code p-4 font-mono text-[0.8125rem] leading-[1.6] shadow-inner [&_code]:bg-transparent [&_code]:p-0 [&_code]:font-normal"
+      dir="ltr"
+    >
       {children}
     </pre>
   ),
@@ -77,7 +80,7 @@ const markdownComponents: Components = {
       role="region"
       tabIndex={0}
     >
-      <table className="w-full border-collapse text-left text-xs">
+      <table className="w-full border-collapse text-left text-[0.8125rem] leading-[1.5]">
         {children}
       </table>
     </div>
@@ -106,7 +109,12 @@ export function StudentAssistantMarkdown({
   className,
 }: StudentAssistantMarkdownProps) {
   return (
-    <div className={cn('min-w-0 break-words', className)}>
+    <div
+      className={cn(
+        'min-w-0 wrap-break-word text-base leading-[1.6]',
+        className,
+      )}
+    >
       <ReactMarkdown
         components={markdownComponents}
         remarkPlugins={remarkPlugins}
@@ -126,7 +134,7 @@ function MarkdownHeading({
   level: 3 | 4
 }) {
   const className =
-    'mt-5 mb-2 font-serif text-lg font-semibold leading-snug text-foreground first:mt-0'
+    'mt-5 mb-2 font-sans text-lg font-semibold leading-[1.35] text-foreground first:mt-0'
   return level === 3 ? (
     <h3 className={className}>{children}</h3>
   ) : (
@@ -142,7 +150,7 @@ function MarkdownSubheading({
   level: 5 | 6
 }) {
   const className =
-    'mt-4 mb-2 text-sm font-semibold tracking-tight text-foreground first:mt-0'
+    'mt-4 mb-2 text-[0.9375rem] font-semibold leading-[1.4] tracking-tight text-foreground first:mt-0'
   return level === 5 ? (
     <h5 className={className}>{children}</h5>
   ) : (

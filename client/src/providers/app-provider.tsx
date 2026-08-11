@@ -7,7 +7,7 @@ import { AuthRefreshSync } from '#/features/auth/components/auth-refresh-sync'
 export function AppProviders() {
   return (
     <QueryClientProvider client={getAppQueryClient()}>
-      <ThemeProvider defaultTheme="system" storageKey="theme">
+      <ThemeProvider defaultTheme="dark" storageKey="theme">
         <AuthRefreshSync />
         <Outlet />
       </ThemeProvider>

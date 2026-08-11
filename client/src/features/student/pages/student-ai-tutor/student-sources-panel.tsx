@@ -95,10 +95,10 @@ export function StudentSourcesPanel({
                           key={evidence.chunkId}
                           className="border-l-2 border-info/30 pl-3"
                         >
-                          <blockquote className="text-xs leading-5 text-muted-foreground">
+                          <blockquote className="text-sm leading-[1.6] text-muted-foreground">
                             {evidence.excerpt}
                           </blockquote>
-                          <figcaption className="footnote mt-1 font-mono">
+                          <figcaption className="mt-1 text-xs text-muted-foreground">
                             Source passage {evidence.chunkNumber}
                           </figcaption>
                         </figure>
