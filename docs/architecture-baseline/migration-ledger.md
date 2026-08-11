@@ -159,6 +159,40 @@ not inferred from the final aggregate diff.
 | M0.2 safety baseline and characterization | `1c88713195ec35e42e2c218ead57d08112ab85f5` | `6009895` | `docs(architecture): record refactor baseline` | `npm run check` passed; `npm run test:e2e` recorded the local PostgreSQL credential blocker; `npm run test:acceptance` recorded 28 passed / 2 existing diagnosis-render failures; OpenAPI snapshot and characterization index added | None intentionally removed | M0.3 handoff and Milestone 1 |
 | M0.3 handoff/CI | `6009895` | `6009895` | draft PR #205 | Authenticated GitHub access was available; branch pushed and draft PR opened against `dev` so both existing CI jobs can observe pushed SHAs. | None intentionally removed | Milestone 1.1 |
 | M1.1 architecture foundation | `a70a8b2` | `ad81143` | `chore(tooling): establish architecture guardrails` | `npm run check` passed: format, lint, root/client/server typecheck, client/server architecture gates, 9 root tests, 476 client tests, 1,723 server tests, and both production builds | `#/*` package/tsconfig alias removed; all authored `#/` imports absent; no dependency-cruiser baseline or exception file added | Milestone 2.1 |
+| M2.1 clean Prisma foundation | `229b0ce` | `3e5252a` | `refactor(prisma): establish clean schema baseline` | Multi-file schema validated and generated; isolated Compose PostgreSQL reached one applied initial migration, explicit seed, catalog assertions, second deploy with no pending migrations, `prisma migrate status` up to date, and `prisma migrate diff --from-migrations ... --exit-code` reported `No difference detected`; `npm run check` passed with 9 root tests, 476 client tests, 1,723 server tests, both builds, and architecture gates | The 18 historical migration directories, upgrade-only migration tests, and `throughMigration` support were removed; `idx_chunks_embedding_hnsw`, `idx_messages_response_to`, and duplicate-response/backfill upgrade SQL are absent; generated Prisma output remains ignored | Milestone 3.1 |
+
+### M2.1 handoff
+
+- Starting SHA: `229b0ce`; implementation SHA: `3e5252a`; commit:
+  `3e5252a`.
+- Applicable authority: the approved architecture plan, ADR 0004, the
+  research note `docs/research/predeployment-contract-and-prisma-clean-slate-2026-08-11.md`,
+  and the M2 inventory `prisma-net-live-inventory.md`.
+- Added `identity.prisma`, `courses-and-materials.prisma`,
+  `conversations.prisma`, `tutoring.prisma`, `reviews.prisma`, `audit.prisma`,
+  `assert-catalog.mts`, the rolling initial migration, and the net-live
+  inventory. Changed the Prisma config/README, root and server scripts, and
+  disposable schema tests. Deleted the single-file model body, all 18
+  historical migration SQL files, and the two upgrade-only migration tests.
+- The Prisma interface is now the directory-loaded domain schema with one
+  generated client. No product interface gained a Prisma transaction type;
+  no runtime dependency direction changed in this foundation slice.
+- Retained extensions are `pgcrypto`, `citext`, and `vector`; the vector column
+  remains `vector(1536)` with exact course-scoped retrieval and no access-method
+  index. The initial SQL retains inventoried checks, FKs, indexes, partial
+  indexes, function, and deferred review constraint trigger.
+- Focused commands: `npm run db:generate --workspace server`, Prisma validate,
+  isolated `docker compose -p morshid-m2-20260811 config --quiet` and
+  `up -d --wait postgres`, explicit `db:migrate:deploy`, `db:seed`,
+  `db:assert-catalog`, `prisma migrate status`, and drift diff all passed;
+  `npm run check` passed. `git check-ignore` proved generated Prisma output is
+  ignored, and repository searches found no deleted migration names or
+  compatibility support in server tests/scripts.
+- Known external baseline failures remain those recorded in M0: the normal
+  local PostgreSQL credential mismatch blocks the full E2E suite, and two
+  static-diagnosis acceptance assertions remain. The isolated M2 database
+  itself passed all schema/seed/catalog gates.
+- Next safe task: Milestone 3.1 Identity ownership cutover.
 
 ## Milestone 1 migration inventory
 
