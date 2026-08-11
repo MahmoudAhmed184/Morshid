@@ -348,15 +348,97 @@ introduced.
 | `dependency-cruiser.config.mjs` | Reviews boundary rule | Enable a production `reviews-interface-only` rule after all cross-capability callers use `reviews.module.ts` or a named Reviews interface; no baselines or temporary exceptions. |
 | `server/prisma/assert-catalog.mts`, fresh-schema/readiness tests, schema inventory, plan, and this ledger | current Reviews schema documentation | Replace generic notification catalog assertions with the final Reviews inbox objects and record every deliberate deletion and verification result. |
 
-### M5 handoff fields
+### M5 handoff
 
-The M5 handoff must record the starting and final SHAs, every moved/deleted
-server and client path, the batch intake and evidence contract, the final
-Reviews inbox schema and endpoint paths, all focused test commands/results,
-the schema regeneration/catalog/drift commands when applicable, the enabled
-dependency rule, repository searches proving generic Notifications and legacy
-evidence entry points are absent, known baseline limitations, and the next
-safe task (Milestone 6A).
+- Starting SHA: `1b58167`; implementation SHA: `581b8d9`; commit:
+  `refactor(reviews): consolidate intake and student inbox`.
+- The automatic intake contract is one `ReviewCaseCreator.createAutomaticBatch`
+  call containing the message identifier, all trigger/source-event-key and
+  detector-metadata records, one canonical evidence contribution, and the
+  optional audit request context. Reviews canonicalizes the contribution once,
+  creates/replays all triggers in one transaction, and rolls the entire batch
+  back when any trigger cannot be created. The output-policy adapter now sends
+  one batch for all detected reasons.
+- Evidence is owned by `server/src/modules/reviews/evidence/**`. The shared
+  implementation now contains the builder, strict versioned parser, bounded
+  canonical snapshot, automatic contribution serializer, and content-hash
+  inputs. The snapshot limit remains 128 KiB; source, citation, retrieval, and
+  fact bounds are enforced by the canonical implementation. The former
+  `server/src/modules/reviews/automatic-review-evidence.ts` and
+  `review-evidence-integrity.ts` entry points were moved into that directory;
+  the old output-policy evidence mapping was deleted.
+- Reviews owns the Student Review Inbox. The old backend
+  `server/src/modules/notifications/{notifications.controller.ts,notifications.dto.ts,notifications.errors.ts,notifications.module.ts,notifications.repository.ts,notifications.service.ts}`
+  was deleted. Its current controller, DTO, errors, repository, service, and
+  unit tests now live under `server/src/modules/reviews/student-inbox/`; the
+  persistence E2E moved to
+  `server/test/reviews/student-review-inbox.persistence.e2e-spec.ts`. The
+  client notification bell, transport/schema/query/hook files, and
+  `resolve-notification-course.{ts,test.ts}` were deleted or moved into
+  `client/src/features/reviews/student-inbox/`, with the control presented by
+  the Student workspace.
+- The final inbox table is `review_inbox_items` with direct
+  `recipient_user_id`, `review_case_id`, `course_id`, `session_id`, and
+  `message_id` identifiers, `REVIEW_RESOLVED`/`REVIEW_REJECTED` types, and
+  `UNREAD`/`READ` status. It has the recipient/review unique constraint and
+  recipient-created lookup index. The API is:
+  `GET /api/v1/reviews/inbox`,
+  `GET /api/v1/reviews/inbox/unread-count`, and
+  `POST /api/v1/reviews/inbox/:inboxItemId/read`.
+  Student controls navigate directly with course, session, and message IDs;
+  no course-probing resolver or discarded preflight request remains. Inbox
+  creation stays in the same transaction as terminal review state, action
+  history, idempotency, and audit.
+- Instructor queue/detail/action authorization now calls the named Courses
+  `CourseAccessService` active-membership interface. The queue's final list
+  predicate and terminal action transaction retain active-membership conditions
+  as race-safe defense-in-depth. Removed memberships therefore cannot list,
+  view, or resolve a review.
+- Client Review contracts moved from Instructor/Student ownership into
+  `client/src/features/reviews/{interface,instructor-queue,student-inbox}`;
+  Student chat now consumes the Review-owned summary contract. Student shell
+  and layout moved to `client/src/workspaces/student/`. Instructor and Student
+  pages, hooks, fixtures, and acceptance journeys were updated directly; no
+  compatibility aliases were added.
+- Prisma verification for the changed rolling initial migration:
+  `node --input-type=module -e "..."` combined the seven authored schema
+  files into `/tmp/morshid-m5-schema.prisma`; `npx prisma migrate diff
+  --from-empty --to-schema /tmp/morshid-m5-schema.prisma --script -o
+  /tmp/morshid-m5-generated.sql` regenerated the complete schema and was
+  reconciled by hand in `20260811150000_initial/migration.sql`. The isolated
+  `morshid-m2-20260811` Compose database was dropped/recreated, then
+  `DATABASE_URL=... SHADOW_DATABASE_URL=... npm run db:migrate:deploy
+  --workspace server`, explicit `npm run db:seed --workspace server`, and
+  `npm run db:assert-catalog --workspace server` all passed. The catalog
+  asserts the inbox table, enums, indexes, check, and five foreign keys. The
+  final `npx prisma migrate diff --from-migrations prisma/migrations
+  --to-config-datasource --exit-code --config prisma.config.ts` returned
+  `No difference detected.` The removed HNSW and response-identity indexes
+  remain absent.
+- Focused verification passed: Reviews/client selection (13 client files,
+  151 tests); server Reviews unit selection (7 suites, 51 tests, with the
+  later authorization selection also green); isolated persistence/readiness
+  E2E (4 suites, 25 tests); isolated review journey/safety/OpenAPI E2E (4
+  suites, 28 tests); `npm run test:architecture` (334 client modules/1,332
+  dependencies and 394 server modules/1,431 dependencies, no violations);
+  `npm run check` (9 root tests, 60 client files/468 tests, 117 server
+  suites/1,703 tests, architecture checks, and production builds); and the
+  standalone `npm run build`.
+- The production `reviews-interface-only` dependency-cruiser rule is enabled
+  without a baseline or exception list. Searches across `server/src`,
+  `server/test`, `client/src`, and `tests/acceptance` found no generic
+  Notifications module/path/import, `hasNotification`, notification resolver,
+  duplicate evidence entry point, or legacy notification endpoint. Historical
+  baseline/ledger references are retained only as migration history.
+- Known baseline limitations remain unchanged: the unisolated full server E2E
+  path uses the local PostgreSQL credential mismatch, and the acceptance suite
+  retains its two pre-existing static-diagnosis presentation failures. The
+  isolated disposable database path is green with its explicit Compose
+  credentials. No live model check was required for this deterministic M5
+  slice.
+- Next safe task: Milestone 6A — introduce the final Tutoring Attempt and
+  admission transaction, delete duplicate attempt state, and prove the
+  duplicate persistence path absent before commit.
 
 ## Milestone 1 migration inventory
 
