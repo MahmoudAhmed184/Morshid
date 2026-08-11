@@ -178,3 +178,26 @@ export const TutoringApprovalSource = {
 
 export type TutoringApprovalSource =
   (typeof TutoringApprovalSource)[keyof typeof TutoringApprovalSource]
+
+export const TutoringAttemptFailureCode = {
+  ANALYSIS_FAILED: 'ANALYSIS_FAILED',
+  RETRIEVAL_FAILED: 'RETRIEVAL_FAILED',
+  GENERATION_FAILED: 'GENERATION_FAILED',
+  STRUCTURAL_VALIDATION_FAILED: 'STRUCTURAL_VALIDATION_FAILED',
+  DETERMINISTIC_GUARD_REJECTED: 'DETERMINISTIC_GUARD_REJECTED',
+  SEMANTIC_GUARD_REJECTED: 'SEMANTIC_GUARD_REJECTED',
+  REGENERATION_EXHAUSTED: 'REGENERATION_EXHAUSTED',
+  PERSISTENCE_FAILED: 'PERSISTENCE_FAILED',
+} as const
+
+export type TutoringAttemptFailureCode =
+  (typeof TutoringAttemptFailureCode)[keyof typeof TutoringAttemptFailureCode]
+
+export const TutoringSafeFallbackReason = {
+  VALIDATION_EXHAUSTED: 'VALIDATION_EXHAUSTED',
+  GUARD_UNAVAILABLE: 'GUARD_UNAVAILABLE',
+  GENERATION_RETRY_FAILED: 'GENERATION_RETRY_FAILED',
+} as const
+
+export type TutoringSafeFallbackReason =
+  (typeof TutoringSafeFallbackReason)[keyof typeof TutoringSafeFallbackReason]

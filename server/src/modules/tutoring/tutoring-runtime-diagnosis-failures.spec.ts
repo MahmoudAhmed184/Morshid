@@ -68,7 +68,6 @@ describe('TutoringRuntimeApplication diagnosis failure paths', () => {
         retryTurn: jest.fn(),
         transitionAttempt: jest.fn().mockResolvedValue(true),
         failAttempt: jest.fn().mockResolvedValue(true),
-        attachTopic: jest.fn().mockResolvedValue(true),
         repairAutomaticReview: jest.fn(),
         completeTurn: jest.fn(),
         completePolicyTurn: jest.fn(),
@@ -84,6 +83,9 @@ describe('TutoringRuntimeApplication diagnosis failure paths', () => {
       { run: orchestrate } as unknown as SocraticWorkflow,
       {
         find: jest.fn().mockResolvedValue(null),
+        loadAnalysisContext: jest.fn(),
+        listAnalysisHistoryCandidates: jest.fn(),
+        countStudentMessages: jest.fn(),
       },
       new AutomaticSafetyRiskDetector(),
       new ControlledSourceConflictDetector(),

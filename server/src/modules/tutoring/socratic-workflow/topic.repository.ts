@@ -1,12 +1,9 @@
 import { Injectable } from '@nestjs/common'
 
-import {
-  MessageRole,
-  Prisma,
-  TopicStatus,
-  TopicType,
-} from '../../../generated/prisma/client'
+import { Prisma } from '../../../generated/prisma/client'
+import { ConversationMessageReader } from '../../conversations/conversation-message-reader'
 import { PrismaService } from '../../../platform/database/prisma.service'
+import { TopicStatus, TopicType } from '../tutoring-values'
 import type {
   ActiveTopicReplacementResult,
   TopicRecord,
@@ -90,7 +87,10 @@ const topicSelect = {
 
 @Injectable()
 export class PrismaTopicRepository extends TopicRepository {
-  constructor(private readonly prismaService: PrismaService) {
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly conversationMessageReader: ConversationMessageReader,
+  ) {
     super()
   }
 
@@ -340,12 +340,9 @@ export class PrismaTopicRepository extends TopicRepository {
   }
 
   countMessagesByIds(scope: TopicScope, messageIds: string[]): Promise<number> {
-    return this.prismaService.message.count({
-      where: {
-        id: { in: messageIds },
-        sessionId: scope.sessionId,
-        role: MessageRole.STUDENT,
-      },
+    return this.conversationMessageReader.countStudentMessages({
+      sessionId: scope.sessionId,
+      messageIds,
     })
   }
 

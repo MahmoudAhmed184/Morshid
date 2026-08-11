@@ -2,16 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 
 import { Injectable } from '@nestjs/common'
 
-import {
-  MessageRole,
-  MessageStatus,
-  Prisma,
-  ReviewActionType,
-  ReviewOutcome,
-  ReviewStatus,
-  ReviewTriggerType,
-  StudentFlagReason,
-} from '../../generated/prisma/client'
+import { Prisma } from '../../generated/prisma/client'
 import { AuditService } from '../audit/audit.public'
 import type { AuditRequestContext } from '../audit/audit.public'
 import { PrismaService } from '../../platform/database/prisma.service'
@@ -31,7 +22,14 @@ import {
   type ReviewEvidenceAdjacentMessage,
   type ReviewEvidenceTarget,
 } from './evidence/review-evidence'
-import type { ReviewMessageRole } from './review-values'
+import {
+  ReviewActionType,
+  ReviewOutcome,
+  ReviewStatus,
+  ReviewTriggerType,
+  StudentFlagReason,
+  type ReviewMessageRole,
+} from './review-values'
 
 const IDEMPOTENCY_SCOPE = 'review.create.manual'
 const MANUAL_REVIEW_DAILY_LIMIT = 3
@@ -232,8 +230,8 @@ export class PrismaReviewCaseRepository extends ReviewCaseRepository {
       return { kind: 'not_found' }
     }
     if (
-      target.role !== MessageRole.ASSISTANT ||
-      target.status !== MessageStatus.COMPLETED ||
+      target.role !== 'ASSISTANT' ||
+      target.status !== 'COMPLETED' ||
       target.completedAt === null
     ) {
       return { kind: 'not_reviewable' }
@@ -439,8 +437,8 @@ function normalizeCreateReviewCaseInput(
   return { ...input, reason }
 }
 
-function toReviewMessageRole(role: MessageRole): ReviewMessageRole | null {
-  return role === MessageRole.STUDENT || role === MessageRole.ASSISTANT
+function toReviewMessageRole(role: string): ReviewMessageRole | null {
+  return role === 'STUDENT' || role === 'ASSISTANT'
     ? role
     : null
 }

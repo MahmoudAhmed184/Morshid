@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common'
 
 import {
+  CourseMembershipRole,
   MessageRequestKind,
   MessageRole,
   MessageStatus,
+  Prisma,
 } from '../../generated/prisma/client'
 import {
   lockAuthorizedConversation,
@@ -26,9 +28,15 @@ import type {
   ConversationAuthorizationInput,
 } from './conversation-authorization'
 import type {
+  ConversationAnalysisContext,
+  ConversationAnalysisContextInput,
+  ConversationAnalysisHistoryInput,
+  ConversationAnalysisMessage,
+  ConversationStudentMessageCountInput,
   ConversationMessageReader,
   ConversationMessageLookup,
 } from './conversation-message-reader'
+import { CONVERSATION_ANALYSIS_HISTORY_LIMIT } from './conversation-message-reader'
 import { PrismaService } from '../../platform/database/prisma.service'
 import {
   chatMessageScalarSelect,
@@ -199,9 +207,11 @@ export class PrismaConversationTurns
         id: input.assistantMessageId,
         sessionId: input.sessionId,
         attemptId: input.attemptId,
-        ...(input.topicId === undefined ? {} : { topicId: input.topicId }),
+        ...(input.topicId === undefined || input.topicId === null
+          ? {}
+          : { OR: [{ topicId: null }, { topicId: input.topicId }] }),
         role: MessageRole.ASSISTANT,
-        status: MessageStatus.PENDING,
+        status: { in: [MessageStatus.PENDING, MessageStatus.STREAMING] },
         responseToMessageId: input.studentMessageId,
       },
       data: {
@@ -222,7 +232,7 @@ export class PrismaConversationTurns
           input.inputTokens === undefined ? undefined : input.inputTokens,
         outputTokens:
           input.outputTokens === undefined ? undefined : input.outputTokens,
-        topicId: input.topicId === undefined ? undefined : input.topicId,
+        topicId: input.topicId ?? undefined,
         completedAt: input.completedAt,
       },
       select: chatMessageScalarSelect,
@@ -239,10 +249,36 @@ export class PrismaConversationTurns
         : { kind: 'message_not_pending' }
     }
 
-    if (input.requestKind !== undefined) {
-      await tx.message.update({
-        where: { id: input.studentMessageId },
-        data: { requestKind: input.requestKind },
+    if (input.requestKind !== undefined || input.topicId != null) {
+      const updatedStudent = await tx.message.updateMany({
+        where: {
+          id: input.studentMessageId,
+          sessionId: input.sessionId,
+          attemptId: input.attemptId,
+          role: MessageRole.STUDENT,
+          ...(input.topicId == null
+            ? {}
+            : { OR: [{ topicId: null }, { topicId: input.topicId }] }),
+        },
+        data: {
+          requestKind:
+            input.requestKind === undefined ? undefined : input.requestKind,
+          topicId: input.topicId ?? undefined,
+        },
+      })
+      if (updatedStudent.count !== 1) {
+        throw new Error(
+          'Conversation Student message changed during Assistant finalization',
+        )
+      }
+    }
+
+    if (input.clearEvidence === true) {
+      await tx.messageRetrieval.deleteMany({
+        where: { messageId: input.assistantMessageId },
+      })
+      await tx.messageCitation.deleteMany({
+        where: { messageId: input.assistantMessageId },
       })
     }
 
@@ -285,4 +321,107 @@ export class PrismaConversationTurns
 
     return message
   }
+
+  async loadAnalysisContext(
+    input: ConversationAnalysisContextInput,
+  ): Promise<ConversationAnalysisContext | null> {
+    const session = await this.prismaService.chatSession.findFirst({
+      where: {
+        id: input.sessionId,
+        courseId: input.courseId,
+        studentId: input.studentId,
+        deletedAt: null,
+        membership: {
+          role: CourseMembershipRole.STUDENT,
+          removedAt: null,
+        },
+      },
+      select: {
+        course: {
+          select: {
+            id: true,
+            code: true,
+            title: true,
+          },
+        },
+        messages: {
+          where: {
+            id: input.studentMessageId,
+            role: MessageRole.STUDENT,
+            authorUserId: input.studentId,
+            status: MessageStatus.COMPLETED,
+          },
+          select: conversationAnalysisMessageSelect,
+          take: 1,
+        },
+      },
+    })
+
+    const studentMessage = session?.messages[0]
+    if (session === null || studentMessage === undefined) {
+      return null
+    }
+
+    return {
+      courseMetadata: session.course,
+      studentMessage,
+    }
+  }
+
+  async listAnalysisHistoryCandidates(
+    input: ConversationAnalysisHistoryInput,
+  ): Promise<ConversationAnalysisMessage[]> {
+    const messages = await this.prismaService.message.findMany({
+      where: {
+        sessionId: input.sessionId,
+        session: {
+          courseId: input.courseId,
+          studentId: input.studentId,
+          deletedAt: null,
+          membership: {
+            role: CourseMembershipRole.STUDENT,
+            removedAt: null,
+          },
+        },
+        topicId: input.topicId,
+        sequence: { lt: input.beforeSequence },
+        status: MessageStatus.COMPLETED,
+        role: { in: [MessageRole.STUDENT, MessageRole.ASSISTANT] },
+      },
+      select: conversationAnalysisMessageSelect,
+      orderBy: [{ sequence: 'desc' }, { id: 'desc' }],
+      take: CONVERSATION_ANALYSIS_HISTORY_LIMIT,
+    })
+
+    return messages.reverse()
+  }
+
+  countStudentMessages(
+    input: ConversationStudentMessageCountInput,
+  ): Promise<number> {
+    return this.prismaService.message.count({
+      where: {
+        id: { in: [...input.messageIds] },
+        sessionId: input.sessionId,
+        role: MessageRole.STUDENT,
+      },
+    })
+  }
 }
+
+const conversationAnalysisMessageSelect = {
+  id: true,
+  sequence: true,
+  role: true,
+  attemptId: true,
+  topicId: true,
+  authorUserId: true,
+  responseToMessageId: true,
+  content: true,
+  status: true,
+  requestKind: true,
+  guidanceLabel: true,
+  hintLevel: true,
+  createdAt: true,
+  completedAt: true,
+} satisfies Prisma.MessageSelect

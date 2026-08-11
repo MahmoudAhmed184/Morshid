@@ -75,7 +75,7 @@ export class SocraticWorkflow {
       ) ?? false
 
     if (hasInputRisk && inputRisk !== null) {
-      return { kind: 'safety_refusal', detection: inputRisk }
+      return { kind: 'safety_refusal', detection: inputRisk, topicId: null }
     }
 
     try {
@@ -116,19 +116,6 @@ export class SocraticWorkflow {
     }
     const topicId = resolution.topicId
 
-    const topicAttached = await this.turnRepository.attachTopic({
-      courseId: input.courseId,
-      sessionId: input.sessionId,
-      studentId: input.studentId,
-      attemptId,
-      studentMessageId: input.studentMessageId,
-      assistantMessageId: input.assistantMessageId,
-      topicId,
-    })
-    if (!topicAttached) {
-      return this.failTurn('SOCRATIC_TOPIC_LINK_FAILED')
-    }
-
     // ── TopicState loading ────────────────────────────────────────
     const topicState = await this.topicStateService.getOrCreate(topicId)
     assertRequestBudget(input.requestBudget)
@@ -148,7 +135,7 @@ export class SocraticWorkflow {
       activeTopicId: topicId,
     })
     if (analysisContext === null) {
-      return this.failTurn('SOCRATIC_ANALYSIS_CONTEXT_UNAVAILABLE')
+      return this.failTurn('SOCRATIC_ANALYSIS_CONTEXT_UNAVAILABLE', topicId)
     }
 
     const analysisResult =
@@ -161,6 +148,7 @@ export class SocraticWorkflow {
     if (!analysisResult.success) {
       return this.failTurn(
         `SOCRATIC_ANALYSIS_FAILED:${analysisResult.errorCode}`,
+        topicId,
       )
     }
 
@@ -211,6 +199,7 @@ export class SocraticWorkflow {
     if (!decisionResult.success) {
       return this.failTurn(
         `SOCRATIC_DECISION_FAILED:${decisionResult.errorCode}`,
+        topicId,
       )
     }
 
@@ -266,14 +255,14 @@ export class SocraticWorkflow {
         retrieval.kind === 'embedding_profile_not_ready'
           ? 'embedding_profile_not_ready'
           : 'insufficient_evidence'
-      return { kind: 'blocked', reason }
+      return { kind: 'blocked', reason, topicId }
     }
 
     const documentRisk = this.safetyRiskDetector.detectRetrievedDocuments(
       retrieval.chunks,
     )
     if (documentRisk !== null) {
-      return { kind: 'safety_refusal', detection: documentRisk }
+      return { kind: 'safety_refusal', detection: documentRisk, topicId }
     }
 
     const conflict = this.conflictDetector.detect(
@@ -281,7 +270,7 @@ export class SocraticWorkflow {
       retrieval.chunks,
     )
     if (conflict !== null) {
-      return { kind: 'source_conflict', conflict }
+      return { kind: 'source_conflict', conflict, topicId }
     }
 
     // ── Phase 4 + 5: Generation, Validation, Approval ─────────────
@@ -315,9 +304,16 @@ export class SocraticWorkflow {
     })
     if (!approval.success) {
       if ('outputRisk' in approval && approval.outputRisk !== undefined) {
-        return { kind: 'safety_refusal', detection: approval.outputRisk }
+        return {
+          kind: 'safety_refusal',
+          detection: approval.outputRisk,
+          topicId,
+        }
       }
-      return this.failTurn(`SOCRATIC_APPROVAL_FAILED:${approval.errorCode}`)
+      return this.failTurn(
+        `SOCRATIC_APPROVAL_FAILED:${approval.errorCode}`,
+        topicId,
+      )
     }
 
     const outputRisk = this.safetyRiskDetector.detectOutput(
@@ -325,7 +321,7 @@ export class SocraticWorkflow {
       true,
     )
     if (outputRisk !== null) {
-      return { kind: 'safety_refusal', detection: outputRisk }
+      return { kind: 'safety_refusal', detection: outputRisk, topicId }
     }
 
     const decision = decisionResult.decision
@@ -350,8 +346,11 @@ export class SocraticWorkflow {
     }
   }
 
-  private failTurn(errorCode: string): SocraticWorkflowResult {
-    return { kind: 'failed', errorCode }
+  private failTurn(
+    errorCode: string,
+    topicId: string | null = null,
+  ): SocraticWorkflowResult {
+    return { kind: 'failed', errorCode, topicId }
   }
 
   private async advance(

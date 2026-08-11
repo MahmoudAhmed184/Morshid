@@ -76,6 +76,7 @@ export interface FinalizeConversationMessageInput {
   readonly promptVersion?: string | null
   readonly inputTokens?: number | null
   readonly outputTokens?: number | null
+  readonly clearEvidence?: boolean
   readonly authorization?: 'active_membership' | 'session_owner'
   readonly completedAt: Date
 }

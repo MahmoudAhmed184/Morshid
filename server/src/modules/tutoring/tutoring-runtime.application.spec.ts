@@ -140,6 +140,9 @@ describe('TutoringRuntimeApplication', () => {
           }
           return Promise.resolve(null)
         }),
+        loadAnalysisContext: jest.fn(),
+        listAnalysisHistoryCandidates: jest.fn(),
+        countStudentMessages: jest.fn(),
       },
       new AutomaticSafetyRiskDetector(),
       new ControlledSourceConflictDetector(),
@@ -278,6 +281,7 @@ describe('TutoringRuntimeApplication', () => {
     socraticOrchestrate.mockResolvedValue({
       kind: 'blocked',
       reason: 'insufficient_evidence',
+      topicId: null,
     } satisfies SocraticWorkflowResult)
 
     const response = await runNew('Unknown topic')
@@ -291,6 +295,7 @@ describe('TutoringRuntimeApplication', () => {
       assistantMessageId,
       content: GROUNDING_BLOCKED_CONTENT,
       errorCode: 'GROUNDING_INSUFFICIENT_EVIDENCE',
+      topicId: null,
     })
     expect(response.assistantMessage).toMatchObject({
       status: MessageStatus.BLOCKED,
@@ -305,6 +310,7 @@ describe('TutoringRuntimeApplication', () => {
     socraticOrchestrate.mockResolvedValue({
       kind: 'failed',
       errorCode: 'SOCRATIC_ORCHESTRATION_FAILED',
+      topicId: null,
     } satisfies SocraticWorkflowResult)
 
     const response = await runNew('Explain list iteration safely')
@@ -318,6 +324,7 @@ describe('TutoringRuntimeApplication', () => {
       assistantMessageId,
       content: GROUNDING_FAILED_CONTENT,
       errorCode: 'GROUNDING_RESPONSE_FAILED',
+      topicId: null,
     })
     expect(response.assistantMessage).toMatchObject({
       status: MessageStatus.FAILED,
@@ -340,6 +347,7 @@ describe('TutoringRuntimeApplication', () => {
     socraticOrchestrate.mockResolvedValue({
       kind: 'failed',
       errorCode: 'SOCRATIC_APPROVAL_FAILED:MISSING_TEACHING_DECISION',
+      topicId: null,
     } satisfies SocraticWorkflowResult)
 
     const response = await runNew('Question before membership removal')

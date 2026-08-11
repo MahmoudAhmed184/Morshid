@@ -44,7 +44,6 @@ describe('SocraticWorkflow classified responses', () => {
       })
       const orchestrator = new SocraticWorkflow(
         {
-          attachTopic: jest.fn().mockResolvedValue(true),
           transitionAttempt,
         } as never,
         {

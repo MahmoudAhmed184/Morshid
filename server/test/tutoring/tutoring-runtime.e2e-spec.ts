@@ -143,12 +143,6 @@ class ControllableTutoringTurnRepository extends TutoringTurnRepository {
     return this.delegate.failAttempt(input)
   }
 
-  override attachTopic(
-    input: Parameters<TutoringTurnRepository['attachTopic']>[0],
-  ): ReturnType<TutoringTurnRepository['attachTopic']> {
-    return this.delegate.attachTopic(input)
-  }
-
   override repairAutomaticReview(
     input: RepairTutoringReviewInput,
   ): Promise<RepairTutoringReviewResult> {

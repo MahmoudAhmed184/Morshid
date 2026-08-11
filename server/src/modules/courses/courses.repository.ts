@@ -1,15 +1,12 @@
 import { Injectable } from '@nestjs/common'
 
-import {
-  CourseMembershipRole,
-  Prisma,
-  type UserRole,
-  type UserStatus,
-} from '../../generated/prisma/client'
+import { Prisma } from '../../generated/prisma/client'
 import { PrismaService } from '../../platform/database/prisma.service'
 import { asDatabaseTransaction } from '../../platform/database/database-transaction'
 import type { AuditRequestContext } from '../audit/audit.public'
+import type { UserRole, UserStatus } from '../identity/identity.roles'
 import { CourseAudit } from './course-audit'
+import { CourseMembershipRole } from './course-membership.types'
 import {
   CourseCodeAlreadyExistsError,
   CourseMemberAlreadyExistsError,

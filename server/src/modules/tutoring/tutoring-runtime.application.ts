@@ -133,6 +133,7 @@ type TerminalPersistence =
       phase: 'blocked_persistence'
       content: string
       errorCode: string
+      topicId?: string | null
       guidanceLabel?: MessageGuidanceLabel
     }
   | {
@@ -140,6 +141,7 @@ type TerminalPersistence =
       phase: 'failed_persistence'
       content: string
       errorCode: string
+      topicId?: string | null
       guidanceLabel?: MessageGuidanceLabel
     }
 
@@ -323,6 +325,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
         inputRisk,
         operation,
         requestContext,
+        turn.studentMessage.topicId,
       )
     }
 
@@ -341,6 +344,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
         phase: 'blocked_persistence',
         content: selection.boundaryResponse.content,
         errorCode: selection.boundaryResponse.errorCode,
+        topicId: turn.studentMessage.topicId,
         guidanceLabel: selection.boundaryResponse.guidanceLabel,
       })
     }
@@ -388,6 +392,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
           orchestratorResult.detection,
           operation,
           requestContext,
+          orchestratorResult.topicId,
         )
       case 'source_conflict':
         return this.persistControlledConflict(
@@ -395,6 +400,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
           orchestratorResult.conflict,
           operation,
           requestContext,
+          orchestratorResult.topicId,
         )
       case 'blocked':
         return this.persistInsufficientEvidence(
@@ -402,9 +408,10 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
           classification.correctnessSensitive,
           operation,
           requestContext,
+          orchestratorResult.topicId,
         )
       case 'failed':
-        return this.persistFailure(turn, operation)
+        return this.persistFailure(turn, operation, orchestratorResult.topicId)
     }
   }
 
@@ -492,7 +499,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
       }
     } catch (error) {
       this.logFailure('finalization', operation, error)
-      return this.persistFailure(turn, operation)
+      return this.persistFailure(turn, operation, completion.topicId)
     }
 
     switch (completed.kind) {
@@ -506,7 +513,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
       case 'message_not_found':
       case 'message_not_pending':
         this.logResultFailure('finalization', operation, completed.kind)
-        return this.persistFailure(turn, operation)
+        return this.persistFailure(turn, operation, completion.topicId)
       default:
         return assertNever(completed)
     }
@@ -517,12 +524,14 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
     correctnessSensitive: boolean,
     operation: OrchestrationContext,
     requestContext?: AuditRequestContext,
+    topicId?: string | null,
   ): Promise<TutoringTurnReceipt> {
     if (correctnessSensitive) {
       return this.persistUnsupportedCorrectnessSensitive(
         turn,
         operation,
         requestContext,
+        topicId,
       )
     }
 
@@ -537,10 +546,11 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
         assistantMessageId: turn.assistantMessage.id,
         content: GROUNDING_BLOCKED_CONTENT,
         errorCode: GROUNDING_INSUFFICIENT_EVIDENCE,
+        ...(topicId === undefined ? {} : { topicId }),
       })
     } catch (error) {
       this.logFailure('blocked_persistence', operation, error)
-      return this.persistFailure(turn, operation)
+      return this.persistFailure(turn, operation, topicId)
     }
 
     switch (completed.kind) {
@@ -551,7 +561,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
       case 'message_not_found':
       case 'message_not_pending':
         this.logResultFailure('blocked_persistence', operation, completed.kind)
-        return this.persistFailure(turn, operation)
+        return this.persistFailure(turn, operation, topicId)
       default:
         return assertNever(completed)
     }
@@ -562,6 +572,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
     conflict: ControlledSourceConflict,
     operation: OrchestrationContext,
     requestContext?: AuditRequestContext,
+    topicId?: string | null,
   ): Promise<TutoringTurnReceipt> {
     const decision = this.responseGovernance.evaluate({
       proposedContent: GROUNDING_BLOCKED_CONTENT,
@@ -590,24 +601,30 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
       ],
     })
 
-    return this.persistAutomaticPolicyTurn(turn, operation, () =>
-      this.turnRepository.completePolicyTurn({
-        courseId: turn.courseId,
-        sessionId: operation.sessionId,
-        studentId: operation.studentId,
-        attemptId: turn.attemptId,
-        studentMessageId: turn.studentMessage.id,
-        assistantMessageId: turn.assistantMessage.id,
-        content: decision.content,
-        guidanceLabel: decision.studentStatus.guidanceLabel,
-        errorCode: encodeAutomaticPolicyReasons(decision.reasons),
-        evidence: conflict.sources,
-        automaticReview: policyReviewInput(
-          turn.assistantMessage.id,
-          decision,
-          requestContext,
-        ),
-      }),
+    return this.persistAutomaticPolicyTurn(
+      turn,
+      operation,
+      () =>
+        this.turnRepository.completePolicyTurn({
+          courseId: turn.courseId,
+          sessionId: operation.sessionId,
+          studentId: operation.studentId,
+          attemptId: turn.attemptId,
+          studentMessageId: turn.studentMessage.id,
+          assistantMessageId: turn.assistantMessage.id,
+          content: decision.content,
+          ...(topicId === undefined ? {} : { topicId }),
+          guidanceLabel: decision.studentStatus.guidanceLabel,
+          errorCode: encodeAutomaticPolicyReasons(decision.reasons),
+          evidence: conflict.sources,
+          automaticReview: policyReviewInput(
+            turn.assistantMessage.id,
+            decision,
+            requestContext,
+          ),
+        }),
+      'finalization',
+      topicId,
     )
   }
 
@@ -615,6 +632,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
     turn: ActiveTutoringTurn,
     operation: OrchestrationContext,
     requestContext?: AuditRequestContext,
+    topicId?: string | null,
   ): Promise<TutoringTurnReceipt> {
     const decision = this.responseGovernance.evaluate({
       proposedContent: GROUNDING_BLOCKED_CONTENT,
@@ -638,6 +656,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
           studentMessageId: turn.studentMessage.id,
           assistantMessageId: turn.assistantMessage.id,
           content: decision.content,
+          ...(topicId === undefined ? {} : { topicId }),
           errorCode: encodeAutomaticPolicyReasons(decision.reasons),
           automaticReview: policyReviewInput(
             turn.assistantMessage.id,
@@ -646,6 +665,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
           ),
         }),
       'unsupported_persistence',
+      topicId,
     )
   }
 
@@ -654,6 +674,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
     detection: AutomaticSafetyRiskDetection,
     operation: OrchestrationContext,
     requestContext?: AuditRequestContext,
+    topicId?: string | null,
   ): Promise<TutoringTurnReceipt> {
     const decision = this.responseGovernance.evaluate({
       proposedContent: GROUNDING_BLOCKED_CONTENT,
@@ -674,23 +695,29 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
       ],
     })
 
-    return this.persistAutomaticPolicyTurn(turn, operation, () =>
-      this.turnRepository.completeSafetyTurn({
-        courseId: turn.courseId,
-        sessionId: operation.sessionId,
-        studentId: operation.studentId,
-        attemptId: turn.attemptId,
-        studentMessageId: turn.studentMessage.id,
-        assistantMessageId: turn.assistantMessage.id,
-        content: decision.content,
-        guidanceLabel: decision.studentStatus.guidanceLabel,
-        errorCode: encodeAutomaticPolicyReasons(decision.reasons),
-        automaticReview: policyReviewInput(
-          turn.assistantMessage.id,
-          decision,
-          requestContext,
-        ),
-      }),
+    return this.persistAutomaticPolicyTurn(
+      turn,
+      operation,
+      () =>
+        this.turnRepository.completeSafetyTurn({
+          courseId: turn.courseId,
+          sessionId: operation.sessionId,
+          studentId: operation.studentId,
+          attemptId: turn.attemptId,
+          studentMessageId: turn.studentMessage.id,
+          assistantMessageId: turn.assistantMessage.id,
+          content: decision.content,
+          ...(topicId === undefined ? {} : { topicId }),
+          guidanceLabel: decision.studentStatus.guidanceLabel,
+          errorCode: encodeAutomaticPolicyReasons(decision.reasons),
+          automaticReview: policyReviewInput(
+            turn.assistantMessage.id,
+            decision,
+            requestContext,
+          ),
+        }),
+      'finalization',
+      topicId,
     )
   }
 
@@ -699,13 +726,14 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
     operation: OrchestrationContext,
     finalize: () => Promise<FinalizeTutoringTurnResult>,
     phase: OrchestrationPhase = 'finalization',
+    topicId?: string | null,
   ): Promise<TutoringTurnReceipt> {
     let completed: FinalizeTutoringTurnResult
     try {
       completed = await finalize()
     } catch (error) {
       this.logFailure(phase, operation, error)
-      return this.persistFailure(turn, operation)
+      return this.persistFailure(turn, operation, topicId)
     }
 
     switch (completed.kind) {
@@ -720,7 +748,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
       case 'message_not_found':
       case 'message_not_pending':
         this.logResultFailure('finalization', operation, completed.kind)
-        return this.persistFailure(turn, operation)
+        return this.persistFailure(turn, operation, topicId)
       default:
         return assertNever(completed)
     }
@@ -827,12 +855,14 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
   private async persistFailure(
     turn: ActiveTutoringTurn,
     operation: OrchestrationContext,
+    topicId?: string | null,
   ): Promise<TutoringTurnReceipt> {
     return this.persistTerminal(turn, operation, {
       kind: 'failed',
       phase: 'failed_persistence',
       content: GROUNDING_FAILED_CONTENT,
       errorCode: GROUNDING_RESPONSE_FAILED,
+      topicId,
     })
   }
 
@@ -851,6 +881,9 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
         assistantMessageId: turn.assistantMessage.id,
         content: terminal.content,
         errorCode: terminal.errorCode,
+        ...(terminal.topicId === undefined
+          ? {}
+          : { topicId: terminal.topicId }),
         ...(terminal.guidanceLabel === undefined
           ? {}
           : { guidanceLabel: terminal.guidanceLabel }),
@@ -887,7 +920,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
     }
 
     if (terminal.kind === 'blocked') {
-      return this.persistFailure(turn, operation)
+      return this.persistFailure(turn, operation, terminal.topicId)
     }
 
     throw tutoringTerminalStateUnavailableException()

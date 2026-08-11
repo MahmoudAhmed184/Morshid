@@ -1,33 +1,22 @@
 import { Injectable } from '@nestjs/common'
 
 import {
-  CourseMembershipRole,
-  MessageRole,
-  MessageStatus,
-  Prisma,
-} from '../../../generated/prisma/client'
-import { PrismaService } from '../../../platform/database/prisma.service'
+  CONVERSATION_ANALYSIS_HISTORY_LIMIT,
+  ConversationMessageReader,
+  type ConversationAnalysisContextInput,
+  type ConversationAnalysisHistoryInput,
+} from '../../conversations/conversation-message-reader'
 import type {
   AnalysisContextMessage,
   CourseMetadataContext,
 } from './analysis-context.types'
 
-export const ANALYSIS_CONTEXT_CANDIDATE_HISTORY_LIMIT = 80
+export const ANALYSIS_CONTEXT_CANDIDATE_HISTORY_LIMIT =
+  CONVERSATION_ANALYSIS_HISTORY_LIMIT
 
-export interface AnalysisContextBaseInput {
-  courseId: string
-  sessionId: string
-  studentId: string
-  studentMessageId: string
-}
+export type AnalysisContextBaseInput = ConversationAnalysisContextInput
 
-export interface AnalysisHistoryCandidateInput {
-  courseId: string
-  sessionId: string
-  studentId: string
-  topicId: string
-  beforeSequence: number
-}
+export type AnalysisHistoryCandidateInput = ConversationAnalysisHistoryInput
 
 export interface AnalysisContextBaseRecord {
   courseMetadata: CourseMetadataContext
@@ -44,104 +33,30 @@ export abstract class AnalysisContextRepository {
   ): Promise<AnalysisContextMessage[]>
 }
 
-const analysisContextMessageSelect = {
-  id: true,
-  sequence: true,
-  role: true,
-  attemptId: true,
-  topicId: true,
-  authorUserId: true,
-  responseToMessageId: true,
-  content: true,
-  status: true,
-  requestKind: true,
-  guidanceLabel: true,
-  hintLevel: true,
-  createdAt: true,
-  completedAt: true,
-} satisfies Prisma.MessageSelect
-
 @Injectable()
 export class PrismaAnalysisContextRepository extends AnalysisContextRepository {
-  constructor(private readonly prismaService: PrismaService) {
+  constructor(
+    private readonly conversationMessageReader: ConversationMessageReader,
+  ) {
     super()
   }
 
   async loadBaseContext(
     input: AnalysisContextBaseInput,
   ): Promise<AnalysisContextBaseRecord | null> {
-    const session = await this.prismaService.chatSession.findFirst({
-      where: {
-        id: input.sessionId,
-        courseId: input.courseId,
-        studentId: input.studentId,
-        deletedAt: null,
-        membership: {
-          role: CourseMembershipRole.STUDENT,
-          removedAt: null,
-        },
-      },
-      select: {
-        course: {
-          select: {
-            id: true,
-            code: true,
-            title: true,
-          },
-        },
-        messages: {
-          where: {
-            id: input.studentMessageId,
-            role: MessageRole.STUDENT,
-            authorUserId: input.studentId,
-            status: MessageStatus.COMPLETED,
-          },
-          select: analysisContextMessageSelect,
-          take: 1,
-        },
-      },
-    })
-
-    const studentMessage = session?.messages[0]
-    if (session === null || studentMessage === undefined) {
-      return null
-    }
-
-    return {
-      courseMetadata: session.course,
-      studentMessage,
-    }
+    const context =
+      await this.conversationMessageReader.loadAnalysisContext(input)
+    return context === null
+      ? null
+      : {
+          courseMetadata: context.courseMetadata,
+          studentMessage: context.studentMessage,
+        }
   }
 
-  async listHistoryCandidates(
+  listHistoryCandidates(
     input: AnalysisHistoryCandidateInput,
   ): Promise<AnalysisContextMessage[]> {
-    const messages = await this.prismaService.message.findMany({
-      where: {
-        sessionId: input.sessionId,
-        session: {
-          courseId: input.courseId,
-          studentId: input.studentId,
-          deletedAt: null,
-          membership: {
-            role: CourseMembershipRole.STUDENT,
-            removedAt: null,
-          },
-        },
-        topicId: input.topicId,
-        sequence: { lt: input.beforeSequence },
-        // The message table is the only persisted student-visible transcript
-        // source today. Restricting to COMPLETED excludes pending, failed, and
-        // blocked candidate output; later approved-response tables can tighten
-        // this without widening the ContextManager contract.
-        status: MessageStatus.COMPLETED,
-        role: { in: [MessageRole.STUDENT, MessageRole.ASSISTANT] },
-      },
-      select: analysisContextMessageSelect,
-      orderBy: [{ sequence: 'desc' }, { id: 'desc' }],
-      take: ANALYSIS_CONTEXT_CANDIDATE_HISTORY_LIMIT,
-    })
-
-    return messages.reverse()
+    return this.conversationMessageReader.listAnalysisHistoryCandidates(input)
   }
 }

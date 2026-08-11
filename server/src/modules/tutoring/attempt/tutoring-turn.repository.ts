@@ -2,18 +2,18 @@ import { randomUUID } from 'node:crypto'
 
 import { Injectable } from '@nestjs/common'
 
+import { Prisma } from '../../../generated/prisma/client'
+import { MaterialStatus } from '../../materials/materials.public'
 import {
-  MaterialStatus,
   MessageGuidanceLabel,
   MessageRequestKind,
   MessageRole,
   MessageStatus,
-  Prisma,
   TutoringApprovalSource,
   TutoringAttemptFailureCode,
   TutoringAttemptStatus,
   TutoringSafeFallbackReason,
-} from '../../../generated/prisma/client'
+} from '../tutoring-values'
 import { ConversationTurns } from '../../conversations/conversation-turns'
 import { ConversationAuthorization } from '../../conversations/conversation-authorization'
 import {
@@ -93,13 +93,6 @@ export interface FailTutoringAttemptInput extends AuthorizedTurnInput {
   failureCode: TutoringAttemptFailureCode
 }
 
-export interface AttachTutoringTopicInput extends AuthorizedTurnInput {
-  attemptId: string
-  studentMessageId: string
-  assistantMessageId: string
-  topicId: string
-}
-
 export interface CompleteTutoringTurnInput extends AuthorizedTurnInput {
   attemptId: string
   studentMessageId: string
@@ -150,6 +143,7 @@ export interface FinalizeTutoringTurnInput extends AuthorizedTurnInput {
   assistantMessageId: string
   content: string
   errorCode: string
+  topicId?: string | null
   guidanceLabel?: MessageGuidanceLabel
   automaticReview?: Omit<AutomaticReviewIntakeInput, 'messageId'>
 }
@@ -233,8 +227,6 @@ export abstract class TutoringTurnRepository {
 
   abstract failAttempt(input: FailTutoringAttemptInput): Promise<boolean>
 
-  abstract attachTopic(input: AttachTutoringTopicInput): Promise<boolean>
-
   abstract beginTurn(
     input: BeginTutoringTurnInput,
   ): Promise<BeginTutoringTurnResult>
@@ -310,7 +302,15 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
         }
         const { session } = authorization
         const now = await currentDatabaseTime(tx)
-        await this.failExpiredActiveTurns(tx, session.id, now)
+        await this.failExpiredActiveTurns(
+          tx,
+          {
+            courseId: session.courseId,
+            sessionId: session.id,
+            studentId: input.studentId,
+          },
+          now,
+        )
 
         if (input.clientMessageId !== undefined) {
           const replayedAttempt = await tx.tutoringAttempt.findUnique({
@@ -433,7 +433,15 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
         }
         const { session } = authorization
         const now = await currentDatabaseTime(tx)
-        await this.failExpiredActiveTurns(tx, session.id, now)
+        await this.failExpiredActiveTurns(
+          tx,
+          {
+            courseId: session.courseId,
+            sessionId: session.id,
+            studentId: input.studentId,
+          },
+          now,
+        )
         const studentMessage = await this.findMessage(
           {
             id: input.studentMessageId,
@@ -594,81 +602,6 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
     })
   }
 
-  async attachTopic(input: AttachTutoringTopicInput): Promise<boolean> {
-    return this.runTransaction(async (tx) => {
-      const attempt = await tx.tutoringAttempt.findUnique({
-        where: { id: input.attemptId },
-        select: {
-          sessionId: true,
-          topicId: true,
-          studentMessageId: true,
-          assistantMessageId: true,
-          session: { select: { courseId: true } },
-        },
-      })
-      if (
-        attempt?.sessionId !== input.sessionId ||
-        attempt.session.courseId !== input.courseId ||
-        (attempt.studentMessageId !== null &&
-          attempt.studentMessageId !== input.studentMessageId) ||
-        (attempt.assistantMessageId !== null &&
-          attempt.assistantMessageId !== input.assistantMessageId) ||
-        (attempt.topicId !== null && attempt.topicId !== input.topicId)
-      ) {
-        return false
-      }
-
-      const topic = await tx.topic.findUnique({
-        where: { id: input.topicId },
-        select: { id: true, sessionId: true, courseId: true },
-      })
-      if (
-        topic?.sessionId !== input.sessionId ||
-        topic.courseId !== input.courseId
-      ) {
-        return false
-      }
-
-      const student = await tx.message.updateMany({
-        where: {
-          id: input.studentMessageId,
-          sessionId: input.sessionId,
-          attemptId: input.attemptId,
-          role: MessageRole.STUDENT,
-          OR: [{ topicId: null }, { topicId: input.topicId }],
-        },
-        data: { topicId: input.topicId },
-      })
-      const assistant = await tx.message.updateMany({
-        where: {
-          id: input.assistantMessageId,
-          sessionId: input.sessionId,
-          attemptId: input.attemptId,
-          role: MessageRole.ASSISTANT,
-          responseToMessageId: input.studentMessageId,
-          OR: [{ topicId: null }, { topicId: input.topicId }],
-        },
-        data: { topicId: input.topicId },
-      })
-      if (student.count !== 1 || assistant.count !== 1) {
-        return false
-      }
-
-      const updatedAttempt = await tx.tutoringAttempt.updateMany({
-        where: {
-          id: input.attemptId,
-          OR: [{ topicId: null }, { topicId: input.topicId }],
-        },
-        data: {
-          topicId: input.topicId,
-          studentMessageId: input.studentMessageId,
-          assistantMessageId: input.assistantMessageId,
-        },
-      })
-      return updatedAttempt.count === 1
-    })
-  }
-
   async repairAutomaticReview(
     input: RepairTutoringReviewInput,
   ): Promise<RepairTutoringReviewResult> {
@@ -799,6 +732,7 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
               : {}),
             authorization: 'active_membership',
             completedAt: now,
+            clearEvidence: true,
           },
         )
         if (updated.kind !== 'ok') {
@@ -830,12 +764,6 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
           }
         }
 
-        await tx.messageRetrieval.deleteMany({
-          where: { messageId: input.assistantMessageId },
-        })
-        await tx.messageCitation.deleteMany({
-          where: { messageId: input.assistantMessageId },
-        })
         if (input.evidence.length > 0) {
           await tx.messageRetrieval.createMany({
             data: input.evidence.map((entry) => ({
@@ -1014,17 +942,12 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
           inputTokens: null,
           outputTokens: null,
           completedAt: now,
+          clearEvidence: true,
         })
         if (updated.kind !== 'ok') {
           return updated
         }
 
-        await tx.messageRetrieval.deleteMany({
-          where: { messageId: input.assistantMessageId },
-        })
-        await tx.messageCitation.deleteMany({
-          where: { messageId: input.assistantMessageId },
-        })
         return updated
       })
     } catch (error) {
@@ -1073,6 +996,7 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
         promptVersion: data.promptVersion,
         inputTokens: data.inputTokens,
         outputTokens: data.outputTokens,
+        clearEvidence: data.clearEvidence,
         authorization: data.authorization,
         completedAt: data.completedAt,
       },
@@ -1090,6 +1014,7 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
         },
         data: {
           status: attemptStatus,
+          topicId: data.topicId ?? undefined,
           failureCode:
             attemptStatus === TutoringAttemptStatus.FAILED
               ? TutoringAttemptFailureCode.PERSISTENCE_FAILED
@@ -1281,12 +1206,12 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
 
   private async failExpiredActiveTurns(
     tx: Prisma.TransactionClient,
-    sessionId: string,
+    scope: AuthorizedTurnInput,
     now: Date,
   ): Promise<void> {
     const expired = await tx.tutoringAttempt.findMany({
       where: {
-        sessionId,
+        sessionId: scope.sessionId,
         status: {
           in: [
             TutoringAttemptStatus.RECEIVED,
@@ -1300,35 +1225,57 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
         },
         OR: [{ leaseExpiresAt: null }, { leaseExpiresAt: { lte: now } }],
       },
-      select: { id: true, assistantMessageId: true },
+      select: {
+        id: true,
+        studentMessageId: true,
+        assistantMessageId: true,
+      },
     })
     if (expired.length === 0) {
       return
     }
 
     const attemptIds = expired.map(({ id }) => id)
-    const messageIds = expired.flatMap(({ assistantMessageId }) =>
-      assistantMessageId === null ? [] : [assistantMessageId],
-    )
-    await tx.message.updateMany({
-      where: {
-        id: { in: messageIds },
-        status: { in: [MessageStatus.PENDING, MessageStatus.STREAMING] },
-      },
-      data: {
-        status: MessageStatus.FAILED,
-        content: GROUNDING_FAILED_CONTENT,
-        guidanceLabel: null,
-        provider: null,
-        model: null,
-        promptVersion: null,
-        inputTokens: null,
-        outputTokens: null,
-        errorCode: GROUNDING_ATTEMPT_EXPIRED,
-        errorMessage: null,
-        completedAt: now,
-      },
-    })
+    for (const attempt of expired) {
+      if (
+        attempt.studentMessageId === null ||
+        attempt.assistantMessageId === null
+      ) {
+        continue
+      }
+
+      const finalized = await this.conversationTurns.finalize(
+        {
+          courseId: scope.courseId,
+          sessionId: scope.sessionId,
+          studentId: scope.studentId,
+          attemptId: attempt.id,
+          studentMessageId: attempt.studentMessageId,
+          assistantMessageId: attempt.assistantMessageId,
+          status: MessageStatus.FAILED,
+          content: GROUNDING_FAILED_CONTENT,
+          errorCode: GROUNDING_ATTEMPT_EXPIRED,
+          provider: null,
+          model: null,
+          promptVersion: null,
+          inputTokens: null,
+          outputTokens: null,
+          authorization: 'session_owner',
+          completedAt: now,
+          clearEvidence: true,
+        },
+        asDatabaseTransaction(tx),
+      )
+      if (
+        finalized.kind === 'membership_missing' ||
+        finalized.kind === 'session_not_found'
+      ) {
+        throw new Error(
+          `Expired Tutoring Attempt ${attempt.id} lost its Conversation authorization`,
+        )
+      }
+    }
+
     await tx.tutoringAttempt.updateMany({
       where: { id: { in: attemptIds } },
       data: {
@@ -1338,12 +1285,6 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
         completedAt: now,
         version: { increment: 1 },
       },
-    })
-    await tx.messageRetrieval.deleteMany({
-      where: { messageId: { in: messageIds } },
-    })
-    await tx.messageCitation.deleteMany({
-      where: { messageId: { in: messageIds } },
     })
   }
 
@@ -1526,6 +1467,7 @@ interface TerminalConversationMessageData {
   safeFallbackUsed?: boolean
   safeFallbackReason?: TutoringSafeFallbackReason | null
   validationPolicyVersion?: string | null
+  clearEvidence?: boolean
   authorization: 'active_membership' | 'session_owner'
   completedAt: Date
 }

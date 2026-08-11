@@ -67,16 +67,20 @@ export type SocraticWorkflowResult =
   | {
       readonly kind: 'safety_refusal'
       readonly detection: AutomaticSafetyRiskDetection
+      readonly topicId: string | null
     }
   | {
       readonly kind: 'source_conflict'
       readonly conflict: ControlledSourceConflict
+      readonly topicId: string | null
     }
   | {
       readonly kind: 'blocked'
       readonly reason: 'insufficient_evidence' | 'embedding_profile_not_ready'
+      readonly topicId: string | null
     }
   | {
       readonly kind: 'failed'
       readonly errorCode: string
+      readonly topicId: string | null
     }

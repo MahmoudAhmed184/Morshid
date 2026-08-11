@@ -151,6 +151,15 @@ describe('Tutoring turn repository (e2e)', () => {
 
   it('commits completion metadata, exact retrieval ranks, and deduplicated citation order together', async () => {
     const fixture = await createFixture(prisma)
+    const topic = await prisma.topic.create({
+      data: {
+        sessionId: fixture.sessionId,
+        courseId: fixture.courseId,
+        title: 'List iteration',
+        topicType: 'CONCEPT',
+        status: 'ACTIVE',
+      },
+    })
     const first = await createEvidence(prisma, fixture, 'Lists', 0)
     const second = await createEvidence(prisma, fixture, 'Loops', 3)
     const third = await createChunk(prisma, first.materialId, 1)
@@ -173,6 +182,7 @@ describe('Tutoring turn repository (e2e)', () => {
       promptVersion: 'grounded-explanation-v1',
       inputTokens: 12,
       outputTokens: 8,
+      topicId: topic.id,
       evidence: [
         evidence(first, 1, 0.95, 'Lists', 0, 'first excerpt'),
         evidence(second, 2, 0.9, 'Loops', 3, 'second excerpt'),
@@ -211,7 +221,23 @@ describe('Tutoring turn repository (e2e)', () => {
       promptVersion: 'grounded-explanation-v1',
       inputTokens: 12,
       outputTokens: 8,
+      topicId: topic.id,
     })
+    await expect(
+      prisma.message.findMany({
+        where: {
+          id: { in: [turn.studentMessage.id, turn.assistantMessage.id] },
+        },
+        select: { topicId: true },
+        orderBy: { sequence: 'asc' },
+      }),
+    ).resolves.toEqual([{ topicId: topic.id }, { topicId: topic.id }])
+    await expect(
+      prisma.tutoringAttempt.findUniqueOrThrow({
+        where: { id: turn.attemptId },
+        select: { topicId: true },
+      }),
+    ).resolves.toEqual({ topicId: topic.id })
     expect(
       stored.retrievals.map(({ rank, chunkId }) => ({ rank, chunkId })),
     ).toEqual([
@@ -493,6 +519,22 @@ describe('Tutoring turn repository (e2e)', () => {
       where: { id: abandoned.attemptId },
       data: { leaseExpiresAt: new Date(0) },
     })
+    const source = await createEvidence(prisma, fixture, 'Expired evidence', 0)
+    await prisma.messageRetrieval.create({
+      data: {
+        messageId: abandoned.assistantMessage.id,
+        chunkId: source.chunkId,
+        rank: 1,
+        similarityScore: 0.9,
+      },
+    })
+    await prisma.messageCitation.create({
+      data: {
+        messageId: abandoned.assistantMessage.id,
+        materialId: source.materialId,
+        citationOrder: 1,
+      },
+    })
 
     const next = await repository.beginTurn({
       ...fixture,
@@ -508,6 +550,16 @@ describe('Tutoring turn repository (e2e)', () => {
       status: 'FAILED',
       errorCode: 'GROUNDING_ATTEMPT_EXPIRED',
     })
+    await expect(
+      prisma.messageRetrieval.count({
+        where: { messageId: abandoned.assistantMessage.id },
+      }),
+    ).resolves.toBe(0)
+    await expect(
+      prisma.messageCitation.count({
+        where: { messageId: abandoned.assistantMessage.id },
+      }),
+    ).resolves.toBe(0)
     await expect(
       prisma.message.count({ where: { sessionId: fixture.sessionId } }),
     ).resolves.toBe(4)
