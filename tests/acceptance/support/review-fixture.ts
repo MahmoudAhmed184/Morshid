@@ -405,7 +405,9 @@ export async function createInstructorReviewAcceptanceFixture(): Promise<Instruc
             {
               rank: 1,
               materialId: ids.material,
+              chunkId: ids.chunk,
               chunkNumber: 1,
+              score: '0.91',
               excerpt: `Bounded citation snippet ${'x'.repeat(475)}`,
             },
           ]

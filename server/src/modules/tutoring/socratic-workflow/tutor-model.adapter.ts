@@ -218,9 +218,7 @@ function debuggingCandidate(
 ): Record<string, unknown> {
   const citation = allowedCitationIds.at(0)
   const concept =
-    citation === undefined
-      ? guidance.concept
-      : `${guidance.concept} [${citation}]`
+    citation === undefined ? guidance.concept : `${guidance.concept} [1]`
   const message = [
     ...(guidance.rewriteRequested
       ? [DEBUGGING_GUIDANCE_FULL_REWRITE_REFUSAL, '']
@@ -259,19 +257,24 @@ function debuggingCandidate(
 function extractDebuggingGuidance(
   request: TutorModelRequest,
 ): DebuggingGuidanceContext | null {
-  const match = /debuggingGuidance\n(?<json>\{[^\n]+\})/u.exec(
-    request.messages[1].content,
-  )
+  const match =
+    /^4\. Guidance Level and Reveal Policy Constraints\n(?<json>\{[^\n]+\})/mu.exec(
+      request.messages[1].content,
+    )
   if (match?.groups?.json === undefined) {
     return null
   }
 
   try {
     const parsed: unknown = JSON.parse(match.groups.json)
-    if (!isDebuggingGuidanceContext(parsed)) {
+    const guidance =
+      typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+        ? Reflect.get(parsed, 'debuggingGuidance')
+        : null
+    if (!isDebuggingGuidanceContext(guidance)) {
       return null
     }
-    return parsed
+    return guidance
   } catch {
     return null
   }

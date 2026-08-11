@@ -16,7 +16,7 @@ const sourceTitle =
 const sourceFixturePath = resolve(
   process.cwd(),
   'fixtures',
-  'sources',
+  'course-materials',
   'Python_Part_2.pdf',
 )
 

@@ -42,6 +42,33 @@ const validCandidate = Object.freeze({
   }),
 })
 
+const debuggingRequest = Object.freeze<TutorModelRequest>({
+  ...request,
+  messages: Object.freeze([
+    request.messages[0],
+    Object.freeze({
+      role: 'user',
+      content: [
+        '3. Authoritative TeachingDecision',
+        JSON.stringify({ strategy: 'DEBUGGING_GUIDANCE' }),
+        '4. Guidance Level and Reveal Policy Constraints',
+        JSON.stringify({
+          strategy: 'DEBUGGING_GUIDANCE',
+          allowedCitationIds: ['retrieval.rank.1'],
+          debuggingGuidance: {
+            likelyIssue: 'The name `num` does not match `nums`.',
+            relevantLocation: 'The return expression.',
+            concept: 'Name lookup resolves names in the active scope.',
+            nextInspectionStep: 'Compare the returned name with the parameter.',
+            evidenceQuery: 'name lookup scope',
+            rewriteRequested: true,
+          },
+        }),
+      ].join('\n'),
+    }),
+  ]),
+})
+
 describe('OpenAICompatibleTutorModelAdapter', () => {
   it('maps a valid chat-completions response into a tutor response with tutor metadata', async () => {
     const fetchImplementation = jest.fn<
@@ -153,6 +180,32 @@ describe('DeterministicTutorModelAdapter', () => {
       provider: DETERMINISTIC_TUTOR_MODEL_PROVIDER,
       model: 'deterministic-tutor-generation-v1',
       promptVersion: TUTOR_GENERATION_PROMPT_VERSION,
+    })
+  })
+
+  it('renders the backend debugging context as a bounded diagnosis', async () => {
+    const adapter = new DeterministicTutorModelAdapter()
+
+    await expect(adapter.generate(debuggingRequest)).resolves.toMatchObject({
+      rawOutput: {
+        responseIntent: 'DEBUGGING_GUIDANCE',
+        message: expect.stringContaining(
+          'I cannot provide a complete corrected program',
+        ),
+        usedCitationIds: ['retrieval.rank.1'],
+      },
+    })
+    await expect(adapter.generate(debuggingRequest)).resolves.toMatchObject({
+      rawOutput: {
+        message: expect.stringContaining(
+          'The name `num` does not match `nums`.',
+        ),
+      },
+    })
+    await expect(adapter.generate(debuggingRequest)).resolves.toMatchObject({
+      rawOutput: {
+        message: expect.stringContaining('active scope. [1]'),
+      },
     })
   })
 })
