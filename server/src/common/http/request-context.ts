@@ -1,6 +1,6 @@
 import type { Request } from 'express'
 
-import type { AuditRequestContext } from '../../modules/audit/audit.service'
+import type { AuditRequestContext } from '../../modules/audit/audit.public'
 
 export function getRequestContext(request: Request): AuditRequestContext {
   return {

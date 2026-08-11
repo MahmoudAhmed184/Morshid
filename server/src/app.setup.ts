@@ -19,21 +19,14 @@ export function configureApp(app: INestApplication) {
     .setVersion('0.1.0')
     .setOpenAPIVersion('3.0.4')
     .addTag('auth', 'Authentication and session management.')
-    .addTag('courses', 'Course access for authenticated users.')
-    .addTag(
-      'materials',
-      'Instructor and admin course material upload and status operations.',
-    )
+    .addTag('courses', 'Course access and administration operations.')
+    .addTag('materials', 'Course material upload, processing, and indexing.')
     .addTag(
       'student-chat-sessions',
       'Private Student chat session and message persistence.',
     )
     .addTag('user-administration', 'Administrative user account operations.')
-    .addTag(
-      'admin-courses',
-      'Administrative course, membership, and material operations.',
-    )
-    .addTag('admin-audit', 'Administrative audit event access.')
+    .addTag('audit', 'Audit event access.')
     .addTag('health', 'Service health checks.')
     .addBearerAuth(
       {

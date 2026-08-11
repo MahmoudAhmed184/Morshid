@@ -9,7 +9,14 @@ import type { IdentitySessionResponse } from '../src/modules/identity/identity.t
 import type { CourseListResponseDto } from '../src/modules/courses/courses.dto'
 import {
   CoursesRepository,
-  type AdminCourseRecord,
+  type CourseAdministrationRecord,
+  type CourseAccessRecord,
+  type CourseMembershipRecord,
+  type AddCourseMemberInput,
+  type CreateCourseInput,
+  type RemoveCourseMemberInput,
+  type UpdateCourseInput,
+  type UpdateMemberRoleInput,
 } from '../src/modules/courses/courses.repository'
 import { MaterialProcessingScheduler } from '../src/modules/materials/material-processing.scheduler'
 import { PrismaService } from '../src/modules/prisma/prisma.service'
@@ -67,23 +74,83 @@ const adminCourses = [
     materials: [],
     internalOnly: 'must not be serialized',
   },
-] satisfies (AdminCourseRecord & { internalOnly: string })[]
+] satisfies (CourseAdministrationRecord & { internalOnly: string })[]
 
 class CoursesTestRepository extends CoursesRepository {
-  findMembershipRole() {
-    return Promise.resolve(null)
+  findCourseAccess(
+    _userId: string,
+    courseId: string,
+  ): Promise<CourseAccessRecord | null> {
+    const course = adminCourses.find((candidate) => candidate.id === courseId)
+
+    return Promise.resolve(
+      course === undefined ? null : { id: course.id, membershipRole: null },
+    )
   }
 
-  isCourseOwner() {
-    return Promise.resolve(false)
+  findMembershipRole() {
+    return Promise.resolve(null)
   }
 
   hasActiveCourseMembership() {
     return Promise.resolve(false)
   }
 
-  listAdminCourses(): Promise<AdminCourseRecord[]> {
+  listCourseAdministration(): Promise<CourseAdministrationRecord[]> {
     return Promise.resolve(adminCourses)
+  }
+
+  findCourseAdministrationById(
+    courseId: string,
+  ): Promise<CourseAdministrationRecord | null> {
+    return Promise.resolve(
+      adminCourses.find((course) => course.id === courseId) ?? null,
+    )
+  }
+
+  findCourseAdministrationByCode(
+    code: string,
+  ): Promise<CourseAdministrationRecord | null> {
+    return Promise.resolve(
+      adminCourses.find((course) => course.code === code) ?? null,
+    )
+  }
+
+  createCourse(_input: CreateCourseInput): Promise<CourseAdministrationRecord> {
+    return Promise.reject(new Error('not used by Courses e2e'))
+  }
+
+  updateCourse(_input: UpdateCourseInput): Promise<CourseAdministrationRecord> {
+    return Promise.reject(new Error('not used by Courses e2e'))
+  }
+
+  findUserById(_userId: string): Promise<{ id: string } | null> {
+    return Promise.resolve(null)
+  }
+
+  findMembership(
+    _courseId: string,
+    _userId: string,
+  ): Promise<CourseMembershipRecord | null> {
+    return Promise.resolve(null)
+  }
+
+  addMember(_input: AddCourseMemberInput): Promise<CourseMembershipRecord> {
+    return Promise.reject(new Error('not used by Courses e2e'))
+  }
+
+  removeMember(_input: RemoveCourseMemberInput): Promise<void> {
+    return Promise.reject(new Error('not used by Courses e2e'))
+  }
+
+  listMembers(_courseId: string): Promise<CourseMembershipRecord[]> {
+    return Promise.resolve([])
+  }
+
+  updateMemberRole(
+    _input: UpdateMemberRoleInput,
+  ): Promise<CourseMembershipRecord> {
+    return Promise.reject(new Error('not used by Courses e2e'))
   }
 
   listMemberCourses(_userId: string, _role: CourseMembershipRole) {
@@ -104,17 +171,6 @@ class CoursesTestRepository extends CoursesRepository {
         code: 'PYTHON-PROG-P0',
         title: 'Python Programming',
         membershipRole: CourseMembershipRole.STUDENT,
-      },
-    ])
-  }
-
-  listOwnedCourses() {
-    return Promise.resolve([
-      {
-        id: 'owned-course',
-        code: 'OWNED-P0',
-        title: 'Owned without membership',
-        membershipRole: null,
       },
     ])
   }

@@ -1,10 +1,7 @@
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common'
 
 import { buildIdentityServiceTestHarness } from '../../../test/support/identity-service-test-harness'
-import {
-  AUDIT_EVENT_ACTIONS,
-  AUDIT_TARGET_TYPES,
-} from '../audit/audit.constants'
+import { AUDIT_EVENT_ACTIONS, AUDIT_TARGET_TYPES } from '../audit/audit.public'
 import { P0_DEMO_PASSWORD } from '../../seeds/p0-demo.seed'
 import { IDENTITY_ERROR_CODES } from './identity.types'
 

@@ -9,6 +9,13 @@ import type { AuthenticatedUser } from '../identity/identity.types'
 import { getCourseRolePolicy } from './course-access.policy'
 import { CoursesRepository } from './courses.repository'
 
+export type CourseMaterialManagementAccess =
+  | { allowed: true }
+  | {
+      allowed: false
+      reason: 'COURSE_NOT_FOUND' | 'COURSE_MANAGEMENT_REQUIRED'
+    }
+
 @Injectable()
 export class CourseAccessService {
   constructor(private readonly coursesRepository: CoursesRepository) {}
@@ -21,10 +28,6 @@ export class CourseAccessService {
 
     if (policy.scope === 'all') {
       return true
-    }
-
-    if (policy.scope === 'ownership') {
-      return this.coursesRepository.isCourseOwner(user.id, courseId)
     }
 
     return this.hasCourseMembership(user.id, courseId, policy.membershipRole)
@@ -43,23 +46,31 @@ export class CourseAccessService {
     return this.canViewCourse(user, courseId)
   }
 
-  async canManageCourseMaterials(
+  async authorizeCourseMaterialManagement(
     user: AuthenticatedUser,
     courseId: string,
-  ): Promise<boolean> {
-    if (user.role === UserRole.ADMIN) {
-      return true
-    }
-
-    if (user.role !== UserRole.INSTRUCTOR) {
-      return false
-    }
-
-    return this.coursesRepository.hasActiveCourseMembership(
+  ): Promise<CourseMaterialManagementAccess> {
+    const course = await this.coursesRepository.findCourseAccess(
       user.id,
       courseId,
-      CourseMembershipRole.INSTRUCTOR,
     )
+
+    if (course === null) {
+      return { allowed: false, reason: 'COURSE_NOT_FOUND' }
+    }
+
+    if (user.role === UserRole.ADMIN) {
+      return { allowed: true }
+    }
+
+    if (
+      user.role === UserRole.INSTRUCTOR &&
+      course.membershipRole === CourseMembershipRole.INSTRUCTOR
+    ) {
+      return { allowed: true }
+    }
+
+    return { allowed: false, reason: 'COURSE_MANAGEMENT_REQUIRED' }
   }
 
   private async hasCourseMembership(

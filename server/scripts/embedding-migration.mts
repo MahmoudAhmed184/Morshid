@@ -11,7 +11,7 @@ import type { EmbeddingProvider } from '../src/modules/embedding/embedding-provi
 import { composeGeminiEmbeddingConfiguration } from '../src/modules/embedding/gemini-embedding-runtime.js'
 import { PrismaEmbeddingMigrationCorpus } from '../src/modules/embedding/prisma-embedding-migration.corpus.js'
 import { PrismaService } from '../src/modules/prisma/prisma.service.js'
-import { PrismaRagPersistenceRepository } from '../src/modules/rag-persistence/rag-persistence.repository.js'
+import { PrismaMaterialChunkRepository } from '../src/modules/materials/material-chunk.repository.js'
 
 loadEnv({
   path: ['server/.env', '.env', '../.env'],
@@ -60,7 +60,7 @@ async function main(): Promise<void> {
   try {
     const provider = await buildTarget(target, env, teardown)
     const corpus = new PrismaEmbeddingMigrationCorpus(prismaService)
-    const persistence = new PrismaRagPersistenceRepository(prismaService)
+    const persistence = new PrismaMaterialChunkRepository(prismaService)
 
     const summary = await migrateEmbeddings({
       target: provider,

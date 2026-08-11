@@ -5,8 +5,8 @@ import {
   AccessAuditService,
   type AccessAuditActor,
   type AccessAuditRouteContext,
-} from '../audit/access-audit.service'
-import type { AuditRequestContext } from '../audit/audit.service'
+} from '../audit/audit.public'
+import type { AuditRequestContext } from '../audit/audit.public'
 import {
   StudentChatAuditService,
   type RecordAccessDeniedInput,

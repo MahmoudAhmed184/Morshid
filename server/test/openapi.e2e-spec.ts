@@ -454,12 +454,11 @@ describe('OpenAPI contract (e2e)', () => {
         { name: 'auth', description: 'Authentication and session management.' },
         {
           name: 'courses',
-          description: 'Course access for authenticated users.',
+          description: 'Course access and administration operations.',
         },
         {
           name: 'materials',
-          description:
-            'Instructor and admin course material upload and status operations.',
+          description: 'Course material upload, processing, and indexing.',
         },
         {
           name: 'student-chat-sessions',
@@ -469,15 +468,7 @@ describe('OpenAPI contract (e2e)', () => {
           name: 'user-administration',
           description: 'Administrative user account operations.',
         },
-        {
-          name: 'admin-courses',
-          description:
-            'Administrative course, membership, and material operations.',
-        },
-        {
-          name: 'admin-audit',
-          description: 'Administrative audit event access.',
-        },
+        { name: 'audit', description: 'Audit event access.' },
         { name: 'health', description: 'Service health checks.' },
       ])
       expect(document.components?.securitySchemes).toMatchObject({
@@ -1352,84 +1343,84 @@ describe('OpenAPI contract (e2e)', () => {
         {
           path: '/api/v1/admin/courses',
           method: 'get',
-          tag: 'admin-courses',
+          tag: 'courses',
           summary: 'List courses for administration',
           statuses: ['200', '401', '403'],
         },
         {
           path: '/api/v1/admin/courses',
           method: 'post',
-          tag: 'admin-courses',
+          tag: 'courses',
           summary: 'Create course',
           statuses: ['201', '400', '401', '403', '409'],
         },
         {
           path: '/api/v1/admin/courses/{courseId}',
           method: 'get',
-          tag: 'admin-courses',
+          tag: 'courses',
           summary: 'Get course details',
           statuses: ['200', '400', '401', '403', '404'],
         },
         {
           path: '/api/v1/admin/courses/{courseId}',
           method: 'patch',
-          tag: 'admin-courses',
+          tag: 'courses',
           summary: 'Update course',
           statuses: ['200', '400', '401', '403', '404', '409'],
         },
         {
           path: '/api/v1/admin/courses/{courseId}/members',
           method: 'post',
-          tag: 'admin-courses',
+          tag: 'courses',
           summary: 'Add course member',
           statuses: ['201', '400', '401', '403', '404', '409'],
         },
         {
           path: '/api/v1/admin/courses/{courseId}/members/{userId}',
           method: 'delete',
-          tag: 'admin-courses',
+          tag: 'courses',
           summary: 'Remove course member',
           statuses: ['204', '400', '401', '403', '404'],
         },
         {
           path: '/api/v1/admin/courses/{courseId}/members',
           method: 'get',
-          tag: 'admin-courses',
+          tag: 'courses',
           summary: 'List course members',
           statuses: ['200', '400', '401', '403', '404'],
         },
         {
           path: '/api/v1/admin/courses/{courseId}/members/{userId}',
           method: 'patch',
-          tag: 'admin-courses',
+          tag: 'courses',
           summary: 'Update course member role',
           statuses: ['200', '400', '401', '403', '404'],
         },
         {
           path: '/api/v1/admin/courses/{courseId}/materials',
           method: 'get',
-          tag: 'admin-courses',
-          summary: 'List course materials',
+          tag: 'materials',
+          summary: 'List course materials for administration',
           statuses: ['200', '400', '401', '403', '404'],
         },
         {
           path: '/api/v1/admin/courses/{courseId}/materials/{materialId}',
           method: 'get',
-          tag: 'admin-courses',
-          summary: 'Get course material',
+          tag: 'materials',
+          summary: 'Get a course material for administration',
           statuses: ['200', '400', '401', '403', '404'],
         },
         {
           path: '/api/v1/admin/courses/{courseId}/materials/{materialId}',
           method: 'patch',
-          tag: 'admin-courses',
-          summary: 'Update course material',
+          tag: 'materials',
+          summary: 'Update a course material for administration',
           statuses: ['200', '400', '401', '403', '404'],
         },
         {
           path: '/api/v1/admin/audit',
           method: 'get',
-          tag: 'admin-audit',
+          tag: 'audit',
           summary: 'List recent audit events',
           statuses: ['200', '400', '401', '403'],
         },
@@ -1479,7 +1470,7 @@ describe('OpenAPI contract (e2e)', () => {
         '/api/v1/admin/courses/{courseId}/members',
         'post',
       )
-      expectRequestSchemaReference(addMember, 'AdminAddCourseMemberRequestDto')
+      expectRequestSchemaReference(addMember, 'AddCourseMemberRequestDto')
       expectBodyOrRouteParamBadRequest(addMember)
       expectResponseSchemaReference(addMember, '409', 'OpenApiErrorDto')
 
@@ -1488,7 +1479,7 @@ describe('OpenAPI contract (e2e)', () => {
         '/api/v1/admin/courses',
         'post',
       )
-      expectRequestSchemaReference(createCourse, 'AdminCreateCourseRequestDto')
+      expectRequestSchemaReference(createCourse, 'CreateCourseRequestDto')
       expectResponseSchemaReference(
         createCourse,
         '400',
@@ -1501,7 +1492,7 @@ describe('OpenAPI contract (e2e)', () => {
         '/api/v1/admin/courses/{courseId}',
         'patch',
       )
-      expectRequestSchemaReference(updateCourse, 'AdminUpdateCourseRequestDto')
+      expectRequestSchemaReference(updateCourse, 'UpdateCourseRequestDto')
       expectBodyOrRouteParamBadRequest(updateCourse)
       expectResponseSchemaReference(updateCourse, '409', 'OpenApiErrorDto')
 
@@ -1510,10 +1501,7 @@ describe('OpenAPI contract (e2e)', () => {
         '/api/v1/admin/courses/{courseId}/members/{userId}',
         'patch',
       )
-      expectRequestSchemaReference(
-        updateMember,
-        'AdminUpdateMemberRoleRequestDto',
-      )
+      expectRequestSchemaReference(updateMember, 'UpdateMemberRoleRequestDto')
       expectBodyOrRouteParamBadRequest(updateMember)
 
       const updateMaterial = getOperation(
@@ -1523,9 +1511,13 @@ describe('OpenAPI contract (e2e)', () => {
       )
       expectRequestSchemaReference(
         updateMaterial,
-        'AdminUpdateMaterialRequestDto',
+        'UpdateMaterialAdministrationRequestDto',
       )
-      expectBodyOrRouteParamBadRequest(updateMaterial)
+      expectResponseSchemaReference(
+        updateMaterial,
+        '400',
+        'NestBadRequestErrorDto',
+      )
 
       const audit = getOperation(document, '/api/v1/admin/audit', 'get')
       expect(getParameter(audit, 'limit')).toMatchObject({
@@ -1545,67 +1537,67 @@ describe('OpenAPI contract (e2e)', () => {
           path: '/api/v1/admin/courses',
           method: 'get',
           status: '200',
-          schema: 'AdminCourseListResponseDto',
+          schema: 'CourseAdministrationListResponseDto',
         },
         {
           path: '/api/v1/admin/courses',
           method: 'post',
           status: '201',
-          schema: 'AdminCourseDetailResponseDto',
+          schema: 'CourseAdministrationDetailResponseDto',
         },
         {
           path: '/api/v1/admin/courses/{courseId}',
           method: 'get',
           status: '200',
-          schema: 'AdminCourseDetailResponseDto',
+          schema: 'CourseAdministrationDetailResponseDto',
         },
         {
           path: '/api/v1/admin/courses/{courseId}',
           method: 'patch',
           status: '200',
-          schema: 'AdminCourseDetailResponseDto',
+          schema: 'CourseAdministrationDetailResponseDto',
         },
         {
           path: '/api/v1/admin/courses/{courseId}/members',
           method: 'post',
           status: '201',
-          schema: 'AdminCourseMemberResponseDto',
+          schema: 'CourseAdministrationMemberResponseDto',
         },
         {
           path: '/api/v1/admin/courses/{courseId}/members',
           method: 'get',
           status: '200',
-          schema: 'AdminCourseMemberListResponseDto',
+          schema: 'CourseAdministrationMemberListResponseDto',
         },
         {
           path: '/api/v1/admin/courses/{courseId}/members/{userId}',
           method: 'patch',
           status: '200',
-          schema: 'AdminCourseMemberResponseDto',
+          schema: 'CourseAdministrationMemberResponseDto',
         },
         {
           path: '/api/v1/admin/courses/{courseId}/materials',
           method: 'get',
           status: '200',
-          schema: 'AdminMaterialListResponseDto',
+          schema: 'MaterialAdministrationListResponseDto',
         },
         {
           path: '/api/v1/admin/courses/{courseId}/materials/{materialId}',
           method: 'get',
           status: '200',
-          schema: 'AdminMaterialResponseDto',
+          schema: 'MaterialAdministrationResponseDto',
         },
         {
           path: '/api/v1/admin/courses/{courseId}/materials/{materialId}',
           method: 'patch',
           status: '200',
-          schema: 'AdminMaterialResponseDto',
+          schema: 'MaterialAdministrationResponseDto',
         },
         {
           path: '/api/v1/admin/audit',
           method: 'get',
           status: '200',
-          schema: 'AdminAuditEventListResponseDto',
+          schema: 'AuditEventListResponseDto',
         },
       ] as const
 

@@ -22,13 +22,7 @@ export class CoursesService {
 
     if (policy.scope === 'all') {
       return {
-        courses: await this.listAdminCourses(),
-      }
-    }
-
-    if (policy.scope === 'ownership') {
-      return {
-        courses: await this.listOwnedCourses(user.id),
+        courses: await this.listAllCourses(),
       }
     }
 
@@ -62,8 +56,8 @@ export class CoursesService {
     }
   }
 
-  private async listAdminCourses(): Promise<CourseListItemDto[]> {
-    const courses = await this.coursesRepository.listAdminCourses()
+  private async listAllCourses(): Promise<CourseListItemDto[]> {
+    const courses = await this.coursesRepository.listCourseAdministration()
 
     return courses
       .map((course) => {
@@ -113,12 +107,6 @@ export class CoursesService {
     role: CourseMembershipRole,
   ): Promise<CourseListItemDto[]> {
     const courses = await this.coursesRepository.listMemberCourses(userId, role)
-
-    return courses.sort(compareCourseListItems)
-  }
-
-  private async listOwnedCourses(userId: string): Promise<CourseListItemDto[]> {
-    const courses = await this.coursesRepository.listOwnedCourses(userId)
 
     return courses.sort(compareCourseListItems)
   }

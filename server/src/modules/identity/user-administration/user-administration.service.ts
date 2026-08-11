@@ -8,7 +8,7 @@ import {
 import type { AuthenticatedUser } from '../../identity/identity.types'
 import { IdentityUser } from '../../identity/identity-user'
 import { PasswordHasher } from '../../identity/password-hasher'
-import type { AuditRequestContext } from '../../audit/audit.service'
+import type { AuditRequestContext } from '../../audit/audit.public'
 import type {
   CreateUserRequest,
   CreateUserResponseDto,

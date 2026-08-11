@@ -1,10 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
-import {
-  AUDIT_EVENT_ACTIONS,
-  AUDIT_TARGET_TYPES,
-} from '../audit/audit.constants'
-import { AuditService } from '../audit/audit.service'
+import { AUDIT_EVENT_ACTIONS, AUDIT_TARGET_TYPES } from '../audit/audit.public'
+import { AuditService } from '../audit/audit.public'
 import type { IdentityRequestContext } from './identity.types'
 
 @Injectable()

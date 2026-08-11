@@ -8,7 +8,7 @@ import {
 } from '../../src/modules/embedding/embedding-provider'
 import type { PdfStorage } from '../../src/modules/pdf-storage/pdf-storage'
 import type { PrismaService } from '../../src/modules/prisma/prisma.service'
-import type { RagPersistenceRepository } from '../../src/modules/rag-persistence/rag-persistence.repository'
+import type { MaterialChunkRepository } from '../../src/modules/materials/material-chunk.repository'
 import { cleanTextPdf } from './pdf-fixtures'
 
 export const GATE_2_FIXTURE = {
@@ -100,7 +100,7 @@ export interface Gate2HiddenAdversary {
 
 export interface Gate2MaterialFixtureContext {
   courseId: string
-  persistence: RagPersistenceRepository
+  persistence: MaterialChunkRepository
   prisma: PrismaService
   storage: PdfStorage
   uploadedById: string

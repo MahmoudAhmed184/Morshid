@@ -1,7 +1,7 @@
 import type {
   MaterialChunkInput,
-  RagPersistenceRepository,
-} from '../rag-persistence/rag-persistence.repository'
+  MaterialChunkRepository,
+} from '../materials/material-chunk.repository'
 import type { EmbeddingProvider } from './embedding-provider'
 
 /**
@@ -44,7 +44,7 @@ export interface EmbeddingMigrationOptions {
   readonly target: EmbeddingProvider
   readonly corpus: EmbeddingMigrationCorpus
   readonly persistence: Pick<
-    RagPersistenceRepository,
+    MaterialChunkRepository,
     'findMaterialChunks' | 'replaceMaterialChunks'
   >
   /** Progress reporting only. It must never decide what to skip. */

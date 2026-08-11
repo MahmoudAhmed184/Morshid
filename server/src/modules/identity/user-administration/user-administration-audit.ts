@@ -3,14 +3,14 @@ import { Injectable } from '@nestjs/common'
 import {
   AUDIT_EVENT_ACTIONS,
   AUDIT_TARGET_TYPES,
-} from '../../audit/audit.constants'
+} from '../../audit/audit.public'
 import {
   AuditService,
   type AuditDatabase,
   type AuditMetadata,
   type AuditRequestContext,
-} from '../../audit/audit.service'
-import type { AuditEventAction } from '../../audit/audit.constants'
+} from '../../audit/audit.public'
+import type { AuditEventAction } from '../../audit/audit.public'
 import type { UserRole } from '../../../generated/prisma/client'
 
 interface ManagedUserAuditInput {

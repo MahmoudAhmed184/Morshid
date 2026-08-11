@@ -3,17 +3,17 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import type { AdminCourse } from '@/features/admin/schemas/admin-course.schema'
+import type { CourseAdministration } from '@/features/courses/course-administration.schema'
 import type { ManagedUser } from '@/features/user-management/managed-user.schema'
 
-import { AddCourseMemberDialog } from '@/features/admin/components/add-course-member-dialog'
-import { AdminAssignmentsTable } from '@/features/admin/components/admin-assignments-table'
-import { EditAdminMaterialDialog } from '@/features/admin/components/edit-admin-material-dialog'
+import { AddCourseMemberDialog } from '@/workspaces/admin/components/add-course-member-dialog'
+import { AdminAssignmentsTable } from '@/workspaces/admin/components/admin-assignments-table'
+import { EditAdminMaterialDialog } from '@/workspaces/admin/components/edit-admin-material-dialog'
 import { UserActions } from './user-actions'
 import {
   CreateAdminCourseDialog,
   EditAdminCourseDialog,
-} from '@/features/admin/components/course-dialogs'
+} from '@/workspaces/admin/components/course-dialogs'
 
 const member = {
   id: '4c530c42-67bf-4cbe-a6f3-2c662564ddd1',
@@ -32,27 +32,18 @@ const member = {
 const material = {
   id: '4c530c42-67bf-4cbe-a6f3-2c662564ddd1',
   courseId: 'acace6a5-7430-4dbf-b327-d76f3d51542a',
-  uploadedById: '9e011f19-1197-42f4-9f7a-6c753cf9e82d',
   uploadedBy: {
-    id: '9e011f19-1197-42f4-9f7a-6c753cf9e82d',
     email: 'instructor@morshid.demo',
     displayName: 'Demo Instructor',
-    role: 'INSTRUCTOR',
-    status: 'ACTIVE',
   },
   title: 'Python Basics',
   originalFilename: 'python-basics.pdf',
-  storagePath: '/materials/python-basics.pdf',
-  sha256Hash: null,
   status: 'READY',
-  extractedTextLength: 1200,
-  chunkCount: 8,
-  errorMessage: null,
   createdAt: '2026-07-01T10:00:00.000Z',
   updatedAt: '2026-07-11T10:00:00.000Z',
 } as const
 
-const course: AdminCourse = {
+const course: CourseAdministration = {
   id: 'b3d1cf10-6f27-4f16-8b1b-8b4c5f4c1d9a',
   code: 'CS-201',
   title: 'Data Structures',

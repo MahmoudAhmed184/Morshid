@@ -7,11 +7,11 @@ import { DeterministicEmbeddingProvider } from '../src/modules/embedding/determi
 import type { EmbeddingProvider } from '../src/modules/embedding/embedding-provider'
 import type { PrismaService } from '../src/modules/prisma/prisma.service'
 import type { PdfStorage } from '../src/modules/pdf-storage/pdf-storage'
-import { MaterialChunkEmbeddingService } from '../src/modules/rag-persistence/material-chunk-embedding.service'
+import { MaterialChunkEmbeddingService } from '../src/modules/materials/material-chunk-embedding.service'
 import {
-  PrismaRagPersistenceRepository,
-  type RagPersistenceRepository,
-} from '../src/modules/rag-persistence/rag-persistence.repository'
+  PrismaMaterialChunkRepository,
+  type MaterialChunkRepository,
+} from '../src/modules/materials/material-chunk.repository'
 import { PrismaCourseRetrievalRepository } from '../src/modules/retrieval/course-retrieval.repository'
 import { RetrievalService } from '../src/modules/retrieval/retrieval.service'
 import {
@@ -34,13 +34,13 @@ const TEST_EMBEDDING_MODEL = 'test-embedding-1536'
 describe('Course-filtered top-k retrieval (e2e)', () => {
   let database: DisposableDatabase | undefined
   let prisma: PrismaService
-  let persistence: RagPersistenceRepository
+  let persistence: MaterialChunkRepository
   let retrievalRepository: PrismaCourseRetrievalRepository
 
   beforeAll(async () => {
     database = await setUpDisposableDatabase('morshid_issue82')
     prisma = database.prisma
-    persistence = new PrismaRagPersistenceRepository(prisma)
+    persistence = new PrismaMaterialChunkRepository(prisma)
     retrievalRepository = new PrismaCourseRetrievalRepository(prisma)
   })
 

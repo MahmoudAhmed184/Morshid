@@ -6,7 +6,7 @@ import type {
   ReviewTriggerType,
 } from '../../generated/prisma/client'
 import type { AuthenticatedUser } from '../identity/identity.types'
-import type { AuditRequestContext } from '../audit/audit.service'
+import type { AuditRequestContext } from '../audit/audit.public'
 import {
   normalizeAutomaticReviewEvidence,
   type AutomaticReviewEvidenceContribution,

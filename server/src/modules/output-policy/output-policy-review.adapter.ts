@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 
 import { Injectable } from '@nestjs/common'
 
-import type { AuditRequestContext } from '../audit/audit.service'
+import type { AuditRequestContext } from '../audit/audit.public'
 import {
   ReviewCaseCreator,
   type AutomaticReviewCaseResult,

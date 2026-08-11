@@ -1,13 +1,7 @@
 import { Test } from '@nestjs/testing'
 
-import {
-  AUDIT_EVENT_ACTIONS,
-  AUDIT_TARGET_TYPES,
-} from '../audit/audit.constants'
-import {
-  AuditService,
-  type RecordAuditEventInput,
-} from '../audit/audit.service'
+import { AUDIT_EVENT_ACTIONS, AUDIT_TARGET_TYPES } from '../audit/audit.public'
+import { AuditService, type RecordAuditEventInput } from '../audit/audit.public'
 import { PrismaService } from '../prisma/prisma.service'
 import { PrismaMaterialsRepository } from './materials.repository'
 

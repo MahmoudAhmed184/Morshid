@@ -33,11 +33,8 @@ import {
 import { ApiAccessTokenAuth } from '../../common/http/openapi.decorators'
 import { getRequestContext } from '../../common/http/request-context'
 import { UserRole } from '../../generated/prisma/client'
-import {
-  AUDIT_EVENT_ACTIONS,
-  AUDIT_TARGET_TYPES,
-} from '../audit/audit.constants'
-import { AuditRoleDenial } from '../audit/role-denial-audit.decorator'
+import { AUDIT_EVENT_ACTIONS, AUDIT_TARGET_TYPES } from '../audit/audit.public'
+import { AuditRoleDenial } from '../audit/audit.public'
 import type { AuthenticatedHttpRequest } from '../identity/identity.guard'
 import { Roles } from '../identity/identity.roles'
 import {

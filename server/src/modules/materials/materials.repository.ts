@@ -5,12 +5,14 @@ import {
   type Material,
   Prisma,
 } from '../../generated/prisma/client'
+import { AUDIT_EVENT_ACTIONS, AUDIT_TARGET_TYPES } from '../audit/audit.public'
 import {
   AuditService,
+  type AuditRequestContext,
   type RecordAuditEventInput,
-} from '../audit/audit.service'
+} from '../audit/audit.public'
 import { PrismaService } from '../prisma/prisma.service'
-import type { MaterialChunkInput } from '../rag-persistence/rag-persistence.repository'
+import type { MaterialChunkInput } from './material-chunk.repository'
 import { MATERIAL_PROCESSING_LEASE_MS } from './material-processing.constants'
 
 export type SafeMaterialRecord = Pick<
@@ -37,10 +39,24 @@ export type MaterialStatusRecord = Pick<
   | 'updatedAt'
 >
 
+export interface MaterialAdministrationUserRecord {
+  email: string
+  displayName: string
+}
+
+export interface MaterialAdministrationRecord {
+  id: string
+  courseId: string
+  uploadedBy: MaterialAdministrationUserRecord
+  title: string
+  originalFilename: string
+  status: MaterialStatus
+  updatedAt: Date
+  createdAt: Date
+}
+
 export abstract class MaterialsRepository {
   protected abstract readonly repositoryName: string
-
-  abstract courseExists(courseId: string): Promise<boolean>
 
   abstract createProcessingMaterial(
     input: CreateProcessingMaterialInput,
@@ -57,6 +73,19 @@ export abstract class MaterialsRepository {
     courseId: string,
     materialId: string,
   ): Promise<MaterialStatusRecord | null>
+
+  abstract listMaterialsForAdministration(
+    courseId: string,
+  ): Promise<MaterialAdministrationRecord[]>
+
+  abstract findMaterialForAdministration(
+    courseId: string,
+    materialId: string,
+  ): Promise<MaterialAdministrationRecord | null>
+
+  abstract updateMaterialForAdministration(
+    input: UpdateMaterialForAdministrationInput,
+  ): Promise<MaterialAdministrationRecord | null>
 
   abstract claimMaterialProcessing(
     materialId: string,
@@ -102,6 +131,14 @@ export interface MaterialProcessingRecord {
   title: string
 }
 
+export interface UpdateMaterialForAdministrationInput {
+  courseId: string
+  materialId: string
+  title: string
+  actorUserId: string
+  requestContext?: AuditRequestContext
+}
+
 export interface CompleteMaterialProcessingInput {
   status: 'READY' | 'WARNING'
   extractedTextLength: number
@@ -139,6 +176,22 @@ const materialStatusSelect = {
   updatedAt: true,
 } satisfies Prisma.MaterialSelect
 
+const materialAdministrationUserSelect = {
+  email: true,
+  displayName: true,
+} satisfies Prisma.UserSelect
+
+const materialAdministrationSelect = {
+  id: true,
+  courseId: true,
+  uploadedBy: { select: materialAdministrationUserSelect },
+  title: true,
+  originalFilename: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.MaterialSelect
+
 @Injectable()
 export class PrismaMaterialsRepository extends MaterialsRepository {
   protected readonly repositoryName = PrismaMaterialsRepository.name
@@ -149,15 +202,6 @@ export class PrismaMaterialsRepository extends MaterialsRepository {
   ) {
     super()
     void this.prismaService
-  }
-
-  async courseExists(courseId: string): Promise<boolean> {
-    const course = await this.prismaService.course.findUnique({
-      where: { id: courseId },
-      select: { id: true },
-    })
-
-    return course !== null
   }
 
   createProcessingMaterial(
@@ -215,6 +259,75 @@ export class PrismaMaterialsRepository extends MaterialsRepository {
         deletedAt: null,
       },
       select: materialStatusSelect,
+    })
+  }
+
+  listMaterialsForAdministration(
+    courseId: string,
+  ): Promise<MaterialAdministrationRecord[]> {
+    return this.prismaService.material.findMany({
+      where: { courseId, deletedAt: null },
+      select: materialAdministrationSelect,
+      orderBy: { createdAt: 'desc' },
+    })
+  }
+
+  findMaterialForAdministration(
+    courseId: string,
+    materialId: string,
+  ): Promise<MaterialAdministrationRecord | null> {
+    return this.prismaService.material.findFirst({
+      where: { id: materialId, courseId, deletedAt: null },
+      select: materialAdministrationSelect,
+    })
+  }
+
+  async updateMaterialForAdministration(
+    input: UpdateMaterialForAdministrationInput,
+  ): Promise<MaterialAdministrationRecord | null> {
+    return this.prismaService.$transaction(async (tx) => {
+      const result = await tx.material.updateMany({
+        where: {
+          id: input.materialId,
+          courseId: input.courseId,
+          deletedAt: null,
+        },
+        data: { title: input.title },
+      })
+
+      if (result.count !== 1) {
+        return null
+      }
+
+      const material = await tx.material.findFirst({
+        where: {
+          id: input.materialId,
+          courseId: input.courseId,
+          deletedAt: null,
+        },
+        select: materialAdministrationSelect,
+      })
+
+      if (material === null) {
+        return null
+      }
+
+      await this.auditService.recordEvent(
+        {
+          actorUserId: input.actorUserId,
+          action: AUDIT_EVENT_ACTIONS.MATERIAL_UPDATED,
+          target: {
+            type: AUDIT_TARGET_TYPES.MATERIAL,
+            id: material.id,
+          },
+          courseId: material.courseId,
+          metadata: { title: material.title },
+          requestContext: input.requestContext,
+        },
+        tx,
+      )
+
+      return material
     })
   }
 

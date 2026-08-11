@@ -249,6 +249,33 @@ not inferred from the final aggregate diff.
   database verification remains green.
 - Next safe task: Milestone 4.1, beginning the Courses ownership cutover.
 
+## Milestone 4 migration inventory
+
+Courses, Materials, and Audit become the owners of their current Admin
+operations in this slice. The `/api/v1/admin/*` URLs remain presentation
+routes, but no server module named Admin owns product behavior after the
+cutover.
+
+| Current surface | Target surface | Disposition |
+| --- | --- | --- |
+| `server/src/modules/admin/courses/**` | `server/src/modules/courses/**` and `server/src/modules/materials/**` | Move course catalog/membership commands and contracts into Courses; move material metadata commands and contracts into Materials; retain one repository per owner. |
+| `server/src/modules/admin/courses/admin-courses.audit.service.ts` | `server/src/modules/courses/course-audit.ts` | Move course/membership audit composition to Courses and make Audit the query owner. |
+| `server/src/modules/admin/audit/**` | `server/src/modules/audit/**` | Move the recent-event controller and response contract to Audit; keep `/api/v1/admin/audit` as the role workspace route. |
+| `server/src/modules/courses/{courses.repository,courses.service,courses.dto}.ts` | consolidated Courses capability | Merge existing accessible-course behavior with catalog/membership administration; active `removedAt IS NULL` membership is the single access/count rule. |
+| `server/src/modules/materials/**`, `server/src/modules/rag-persistence/**` | consolidated Materials capability | Keep upload/processing/indexing behavior together; fold chunk/embedding persistence into Materials and delete the duplicate RAG module. |
+| `server/src/modules/retrieval/**` | Materials-owned course evidence seam | Preserve current exact course-scoped retrieval behavior behind the Materials owner for the later Tutoring interface; delete duplicate ownership where no caller remains. |
+| `client/src/features/admin/{data,hooks,schemas}` course/material transport | `client/src/features/courses`, `client/src/features/materials` | Move contracts, queries, and mutations to domain features; update Admin and role callers directly. |
+| `client/src/features/admin/{data,hooks,schemas}` audit transport | `client/src/features/audit` | Move audit query/contract to Audit ownership. |
+| `client/src/features/admin/{components,pages}` course/material UI | Admin workspace presentation using domain features | Keep role-specific presentation under Admin workspace paths without backend Admin ownership. |
+| course/membership/material/audit unit and E2E tests | adjacent Courses/Materials/Audit tests | Move and update tests to assert active-membership filtering, atomic commands, ingestion ownership, audit reads, and removed-membership non-authorization. |
+| `dependency-cruiser.config.mjs` | incremental Courses/Materials/Audit rules | Enable named ownership rules only after the moved callers and duplicate repositories are gone; no baseline or exception list. |
+
+M4 may delete only the superseded Admin course/material/audit paths, the
+duplicate RAG persistence path, and duplicate retrieval ownership after direct
+callers and focused tests pass. No Prisma schema change is expected in this
+slice; any discovered schema change must regenerate the same rolling initial
+migration and repeat the M2 catalog/drift gate.
+
 ## Milestone 1 migration inventory
 
 Milestone 1 establishes the durable guidance and enforcement inputs that every

@@ -45,6 +45,45 @@ export default {
         path: '^server/src/modules/identity/(?!identity\\.module\\.ts$|identity\\.guard\\.ts$|identity\\.roles\\.ts$|identity\\.public\\.ts$|identity\\.types\\.ts$)',
       },
     },
+    {
+      name: 'courses-interface-only',
+      comment:
+        'Product modules may consume Courses only through its module or course-access interface.',
+      severity: 'error',
+      from: {
+        path: '^server/src/(?:app\\.module\\.ts|common/|modules/(?!courses(?:/|$)))',
+        pathNot: testPath,
+      },
+      to: {
+        path: '^server/src/modules/courses/(?!courses\\.module\\.ts$|course-access\\.public\\.ts$)',
+      },
+    },
+    {
+      name: 'materials-interface-only',
+      comment:
+        'Product modules may consume Materials only through its capability module.',
+      severity: 'error',
+      from: {
+        path: '^server/src/(?:app\\.module\\.ts|common/|modules/(?!materials(?:/|$)))',
+        pathNot: testPath,
+      },
+      to: {
+        path: '^server/src/modules/materials/(?!materials\\.module\\.ts$)',
+      },
+    },
+    {
+      name: 'audit-interface-only',
+      comment:
+        'Product modules may consume Audit only through its module or public audit interface.',
+      severity: 'error',
+      from: {
+        path: '^server/src/(?:app\\.module\\.ts|common/|modules/(?!audit(?:/|$)))',
+        pathNot: testPath,
+      },
+      to: {
+        path: '^server/src/modules/audit/(?!audit\\.module\\.ts$|audit\\.public\\.ts$)',
+      },
+    },
   ],
   options: {
     tsConfig: { fileName: tsConfigFileName },

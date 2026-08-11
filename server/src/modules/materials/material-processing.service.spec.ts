@@ -1,5 +1,5 @@
 import type { PdfStorage } from '../pdf-storage/pdf-storage'
-import type { MaterialChunkEmbeddingService } from '../rag-persistence/material-chunk-embedding.service'
+import type { MaterialChunkEmbeddingService } from '../materials/material-chunk-embedding.service'
 import type {
   CompleteMaterialProcessingInput,
   FailMaterialProcessingInput,

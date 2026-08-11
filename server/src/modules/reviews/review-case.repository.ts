@@ -12,8 +12,8 @@ import {
   ReviewTriggerType,
   StudentFlagReason,
 } from '../../generated/prisma/client'
-import { AuditService } from '../audit/audit.service'
-import type { AuditRequestContext } from '../audit/audit.service'
+import { AuditService } from '../audit/audit.public'
+import type { AuditRequestContext } from '../audit/audit.public'
 import { PrismaService } from '../prisma/prisma.service'
 import type { AutomaticReviewEvidenceContribution } from './automatic-review-evidence'
 import {

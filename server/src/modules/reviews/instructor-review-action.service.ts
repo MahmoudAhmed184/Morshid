@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
 import type { AuthenticatedUser } from '../identity/identity.types'
-import type { AuditRequestContext } from '../audit/audit.service'
+import type { AuditRequestContext } from '../audit/audit.public'
 import type {
   InstructorReviewActionResponseDto,
   RejectReviewRequest,

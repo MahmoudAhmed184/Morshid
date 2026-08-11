@@ -8,11 +8,11 @@ import {
   getRouteContext,
 } from '../../common/http/request-context'
 import type { UserRole } from '../../generated/prisma/client'
-import { AccessAuditService } from '../audit/access-audit.service'
+import { AccessAuditService } from '../audit/audit.public'
 import {
   ROLE_DENIAL_AUDIT_KEY,
   type RoleDenialAuditMetadata,
-} from '../audit/role-denial-audit.decorator'
+} from '../audit/audit.public'
 import type { AuthenticatedUser } from './identity.types'
 import { insufficientRoleException } from './identity.errors'
 import { ROLES_KEY } from './identity.roles'

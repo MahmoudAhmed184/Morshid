@@ -7,7 +7,7 @@ import {
   UserStatus,
 } from '../../../generated/prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
-import type { AuditRequestContext } from '../../audit/audit.service'
+import type { AuditRequestContext } from '../../audit/audit.public'
 import type { CreatableUserRole } from './user-administration.types'
 import { UserAdministrationAuditService } from './user-administration-audit'
 import {

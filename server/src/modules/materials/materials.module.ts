@@ -2,14 +2,16 @@ import { Module } from '@nestjs/common'
 
 import { AuditModule } from '../audit/audit.module'
 import { CoursesModule } from '../courses/courses.module'
+import { EmbeddingModule } from '../embedding/embedding.module'
 import { PdfStorageModule } from '../pdf-storage/pdf-storage.module'
 import { PrismaModule } from '../prisma/prisma.module'
-import { RagPersistenceModule } from '../rag-persistence/rag-persistence.module'
 import {
   DurableMaterialProcessingScheduler,
   MaterialProcessingScheduler,
 } from './material-processing.scheduler'
 import { MaterialProcessingService } from './material-processing.service'
+import { MaterialChunkEmbeddingService } from './material-chunk-embedding.service'
+import { MaterialAdministrationController } from './material-administration.controller'
 import { MaterialTextChunker } from './material-text-chunker'
 import { MaterialUploadConfigurationController } from './material-upload-configuration.controller'
 import { MaterialUploadConfigurationService } from './material-upload-configuration.service'
@@ -19,6 +21,10 @@ import {
   MaterialsRepository,
   PrismaMaterialsRepository,
 } from './materials.repository'
+import {
+  MaterialChunkRepository,
+  PrismaMaterialChunkRepository,
+} from './material-chunk.repository'
 import { MaterialsService } from './materials.service'
 import { PdfUploadValidator } from './pdf-upload.validator'
 import {
@@ -35,15 +41,20 @@ import { PdfUploadInterceptor } from './pdf-upload.interceptor'
     CoursesModule,
     PdfStorageModule,
     AuditModule,
-    RagPersistenceModule,
+    EmbeddingModule,
   ],
-  controllers: [MaterialsController, MaterialUploadConfigurationController],
+  controllers: [
+    MaterialsController,
+    MaterialAdministrationController,
+    MaterialUploadConfigurationController,
+  ],
   providers: [
     MaterialsService,
     PdfUploadValidator,
     PdfUploadInterceptor,
     MaterialsAuditService,
     MaterialProcessingService,
+    MaterialChunkEmbeddingService,
     MaterialTextChunker,
     MaterialUploadConfigurationService,
     {
@@ -61,6 +72,10 @@ import { PdfUploadInterceptor } from './pdf-upload.interceptor'
     {
       provide: MaterialsRepository,
       useClass: PrismaMaterialsRepository,
+    },
+    {
+      provide: MaterialChunkRepository,
+      useClass: PrismaMaterialChunkRepository,
     },
   ],
   exports: [MaterialProcessingService, PDF_TEXT_EXTRACTOR],

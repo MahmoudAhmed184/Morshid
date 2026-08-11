@@ -4,7 +4,7 @@ import { act, cleanup, renderHook } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { adminAuditQueryOptions } from '@/features/admin/data/admin-audit.queries'
+import { auditQueryOptions } from '@/features/audit/audit.queries'
 import type { AuthSession } from '@/features/auth/session/session.schema'
 import { useAuthStore } from '@/features/auth/session/session.store'
 
@@ -50,7 +50,7 @@ describe('useManagedUserMutations', () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     })
-    const auditQueryKey = adminAuditQueryOptions(adminId).queryKey
+    const auditQueryKey = auditQueryOptions(adminId).queryKey
     queryClient.setQueryData(auditQueryKey, [])
     vi.stubGlobal(
       'fetch',

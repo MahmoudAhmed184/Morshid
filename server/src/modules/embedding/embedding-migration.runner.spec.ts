@@ -1,4 +1,4 @@
-import type { MaterialChunkRecord } from '../rag-persistence/rag-persistence.repository'
+import type { MaterialChunkRecord } from '../materials/material-chunk.repository'
 import {
   migrateEmbeddings,
   type EmbeddingMigrationCorpus,

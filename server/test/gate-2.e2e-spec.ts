@@ -32,7 +32,7 @@ import type { MaterialStatusDto } from '../src/modules/materials/materials.dto'
 import { LocalPdfStorageAdapter } from '../src/modules/pdf-storage/local-pdf-storage.adapter'
 import { PDF_STORAGE } from '../src/modules/pdf-storage/pdf-storage'
 import { PrismaService } from '../src/modules/prisma/prisma.service'
-import { RagPersistenceRepository } from '../src/modules/rag-persistence/rag-persistence.repository'
+import { MaterialChunkRepository } from '../src/modules/materials/material-chunk.repository'
 import { RedisService } from '../src/modules/redis/redis.service'
 import {
   TUTOR_MODEL_PORT,
@@ -137,7 +137,7 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
   let seed: P0DemoSeedResult
   let storageRoot: string | undefined
   let storage: LocalPdfStorageAdapter
-  let persistence: RagPersistenceRepository
+  let persistence: MaterialChunkRepository
   let retrievalService: RetrievalService
   let embeddingProvider: EmbeddingProvider
   let processingService: MaterialProcessingService
@@ -188,7 +188,7 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
     app = moduleFixture.createNestApplication()
     configureApp(app)
     await app.init()
-    persistence = moduleFixture.get(RagPersistenceRepository)
+    persistence = moduleFixture.get(MaterialChunkRepository)
     retrievalService = moduleFixture.get(RetrievalService)
     embeddingProvider = moduleFixture.get(EMBEDDING_PROVIDER_TOKEN)
     processingService = moduleFixture.get(MaterialProcessingService)

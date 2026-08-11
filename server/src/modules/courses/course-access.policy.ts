@@ -11,13 +11,7 @@ interface MembershipCoursesPolicy {
   canManage: boolean
 }
 
-interface OwnedCoursesPolicy {
-  scope: 'ownership'
-  canManage: true
-}
-
-export type CourseRolePolicy =
-  AllCoursesPolicy | OwnedCoursesPolicy | MembershipCoursesPolicy
+export type CourseRolePolicy = AllCoursesPolicy | MembershipCoursesPolicy
 
 const COURSE_ROLE_POLICIES: Record<UserRole, CourseRolePolicy> = {
   [UserRole.ADMIN]: {
@@ -25,7 +19,8 @@ const COURSE_ROLE_POLICIES: Record<UserRole, CourseRolePolicy> = {
     canManage: true,
   },
   [UserRole.INSTRUCTOR]: {
-    scope: 'ownership',
+    scope: 'membership',
+    membershipRole: CourseMembershipRole.INSTRUCTOR,
     canManage: true,
   },
   [UserRole.STUDENT]: {

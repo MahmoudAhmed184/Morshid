@@ -3,7 +3,7 @@ import type { ExecutionContext, Type } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
 
 import type { UserRole } from '../../generated/prisma/client'
-import type { AccessAuditService } from '../audit/access-audit.service'
+import type { AccessAuditService } from '../audit/audit.public'
 import { IDENTITY_ERROR_CODES, type AuthenticatedUser } from './identity.types'
 import { Roles, ROLES_KEY } from './identity.roles'
 import { RolesGuard } from './identity.roles.guard'

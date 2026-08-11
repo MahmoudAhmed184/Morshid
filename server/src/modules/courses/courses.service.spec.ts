@@ -10,7 +10,15 @@ import {
 import type { AuthenticatedUser } from '../identity/identity.types'
 import {
   CoursesRepository,
+  type AddCourseMemberInput,
+  type CourseAdministrationRecord as RepositoryCourseAdministrationRecord,
+  type CourseAccessRecord,
+  type CourseMembershipRecord as RepositoryCourseMembershipRecord,
+  type CreateCourseInput,
   type MemberCourseRecord as RepositoryMemberCourseRecord,
+  type RemoveCourseMemberInput,
+  type UpdateCourseInput,
+  type UpdateMemberRoleInput,
 } from './courses.repository'
 import type { CourseListResponseDto } from './courses.dto'
 import { CoursesService } from './courses.service'
@@ -30,7 +38,7 @@ interface AdminMembershipRecord extends MembershipRecord {
   user: UserRecord
 }
 
-interface AdminCourseRecord extends CourseRecord {
+interface CourseAdministrationRecord extends CourseRecord {
   createdBy: UserRecord | null
   memberships: AdminMembershipRecord[]
   materials: Pick<MaterialRecord, 'deletedAt'>[]
@@ -42,7 +50,7 @@ class CoursesServiceTestRepository extends CoursesRepository {
   private readonly memberships: MembershipRecord[] = []
   private readonly materials: MaterialRecord[] = []
 
-  readonly listAdminCourses = jest.fn(() =>
+  readonly listCourseAdministration = jest.fn(() =>
     Promise.resolve(this.findAdminCourses()),
   )
 
@@ -60,9 +68,23 @@ class CoursesServiceTestRepository extends CoursesRepository {
     ),
   )
 
-  readonly isCourseOwner = jest.fn((userId: string, courseId: string) =>
-    Promise.resolve(this.courses.get(courseId)?.createdById === userId),
-  )
+  findCourseAccess(
+    userId: string,
+    courseId: string,
+  ): Promise<CourseAccessRecord | null> {
+    if (!this.courses.has(courseId)) {
+      return Promise.resolve(null)
+    }
+
+    return Promise.resolve({
+      id: courseId,
+      membershipRole:
+        this.memberships.find(
+          (membership) =>
+            membership.userId === userId && membership.courseId === courseId,
+        )?.role ?? null,
+    })
+  }
 
   readonly hasActiveCourseMembership = jest.fn(
     (userId: string, courseId: string, role: CourseMembershipRole) =>
@@ -76,9 +98,64 @@ class CoursesServiceTestRepository extends CoursesRepository {
       ),
   )
 
-  readonly listOwnedCourses = jest.fn((userId: string) =>
-    Promise.resolve(this.findOwnedCourses(userId)),
-  )
+  findCourseAdministrationById(
+    courseId: string,
+  ): Promise<RepositoryCourseAdministrationRecord | null> {
+    return Promise.resolve(
+      this.findAdminCourses().find((course) => course.id === courseId) ?? null,
+    )
+  }
+
+  findCourseAdministrationByCode(
+    code: string,
+  ): Promise<RepositoryCourseAdministrationRecord | null> {
+    return Promise.resolve(
+      this.findAdminCourses().find((course) => course.code === code) ?? null,
+    )
+  }
+
+  createCourse(
+    _input: CreateCourseInput,
+  ): Promise<RepositoryCourseAdministrationRecord> {
+    return Promise.reject(new Error('not used by CoursesService tests'))
+  }
+
+  updateCourse(
+    _input: UpdateCourseInput,
+  ): Promise<RepositoryCourseAdministrationRecord> {
+    return Promise.reject(new Error('not used by CoursesService tests'))
+  }
+
+  findUserById(_userId: string): Promise<{ id: string } | null> {
+    return Promise.resolve(null)
+  }
+
+  findMembership(
+    _courseId: string,
+    _userId: string,
+  ): Promise<RepositoryCourseMembershipRecord | null> {
+    return Promise.resolve(null)
+  }
+
+  addMember(
+    _input: AddCourseMemberInput,
+  ): Promise<RepositoryCourseMembershipRecord> {
+    return Promise.reject(new Error('not used by CoursesService tests'))
+  }
+
+  removeMember(_input: RemoveCourseMemberInput): Promise<void> {
+    return Promise.reject(new Error('not used by CoursesService tests'))
+  }
+
+  listMembers(_courseId: string): Promise<RepositoryCourseMembershipRecord[]> {
+    return Promise.resolve([])
+  }
+
+  updateMemberRole(
+    _input: UpdateMemberRoleInput,
+  ): Promise<RepositoryCourseMembershipRecord> {
+    return Promise.reject(new Error('not used by CoursesService tests'))
+  }
 
   constructor() {
     super()
@@ -207,7 +284,7 @@ class CoursesServiceTestRepository extends CoursesRepository {
     this.memberships.push(membership)
   }
 
-  private findAdminCourses(): AdminCourseRecord[] {
+  private findAdminCourses(): CourseAdministrationRecord[] {
     return [...this.courses.values()]
       .map((course) => ({
         ...course,
@@ -249,22 +326,6 @@ class CoursesServiceTestRepository extends CoursesRepository {
           membershipRole: membership.role,
         }
       })
-      .sort(compareCourseRecords)
-  }
-
-  private findOwnedCourses(userId: string): RepositoryMemberCourseRecord[] {
-    return [...this.courses.values()]
-      .filter((course) => course.createdById === userId)
-      .map((course) => ({
-        id: course.id,
-        code: course.code,
-        title: course.title,
-        membershipRole:
-          this.memberships.find(
-            (membership) =>
-              membership.courseId === course.id && membership.userId === userId,
-          )?.role ?? null,
-      }))
       .sort(compareCourseRecords)
   }
 
@@ -353,7 +414,6 @@ describe('CoursesService', () => {
         instructor.id,
         CourseMembershipRole.INSTRUCTOR,
       )
-      expect(repository.listOwnedCourses).not.toHaveBeenCalled()
     })
 
     it('does not grant material capability to an owner without membership', async () => {
@@ -426,16 +486,22 @@ describe('CoursesService', () => {
       materialCount: 0,
       activeMaterialCount: 0,
     })
-    expect(repository.listAdminCourses).toHaveBeenCalledWith()
+    expect(repository.listCourseAdministration).toHaveBeenCalledWith()
   })
 
-  it('returns only courses owned by the instructor', async () => {
+  it('returns only courses with an active instructor membership', async () => {
     const { service, repository } = buildService()
     const instructor = buildUser('instructor-user', UserRole.INSTRUCTOR)
 
     const response = await service.listCoursesForUser(instructor)
 
     expect(response.courses).toEqual([
+      {
+        id: 'database-course',
+        code: 'DB-P0',
+        title: 'Database Systems',
+        membershipRole: CourseMembershipRole.INSTRUCTOR,
+      },
       {
         id: 'python-course',
         code: 'PYTHON-PROG-P0',
@@ -444,7 +510,10 @@ describe('CoursesService', () => {
       },
     ])
     expect(response.courses[0].adminMetadata).toBeUndefined()
-    expect(repository.listOwnedCourses).toHaveBeenCalledWith('instructor-user')
+    expect(repository.listMemberCourses).toHaveBeenCalledWith(
+      'instructor-user',
+      CourseMembershipRole.INSTRUCTOR,
+    )
   })
 
   it('returns only student membership courses for students', async () => {

@@ -11,7 +11,7 @@ import {
   UserStatus,
 } from '../../generated/prisma/client'
 import type { AuthenticatedUser } from '../identity/identity.types'
-import type { AccessAuditService } from '../audit/access-audit.service'
+import type { AccessAuditService } from '../audit/audit.public'
 import type { StudentChatAuditService } from './student-chat.audit.service'
 import {
   createChatSessionRequestSchema,

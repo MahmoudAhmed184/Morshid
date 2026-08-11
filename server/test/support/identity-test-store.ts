@@ -139,6 +139,14 @@ interface FindManyCourseArgs {
       }
     }
   }
+  select?: {
+    memberships?: {
+      where?: {
+        userId?: string
+        removedAt?: Date | null
+      }
+    }
+  }
 }
 
 interface CreateAuditLogArgs {
@@ -183,6 +191,15 @@ interface UpdateCourseMembershipArgs {
   data: Partial<Pick<CourseMembership, 'role' | 'removedAt' | 'createdById'>>
 }
 
+interface UpdateManyCourseMembershipArgs {
+  where: {
+    courseId?: string
+    userId?: string
+    removedAt?: Date | null
+  }
+  data: Partial<Pick<CourseMembership, 'role' | 'removedAt' | 'createdById'>>
+}
+
 interface FindUniqueMembershipArgs {
   where: {
     courseId_userId: {
@@ -196,6 +213,14 @@ interface FindUniqueCourseArgs {
   where: {
     id?: string
     code?: string
+  }
+  select?: {
+    memberships?: {
+      where?: {
+        userId?: string
+        removedAt?: Date | null
+      }
+    }
   }
 }
 
@@ -231,6 +256,15 @@ interface FindFirstMaterialArgs {
 interface UpdateMaterialArgs {
   where: {
     id: string
+  }
+  data: Partial<Pick<Material, 'title'>>
+}
+
+interface UpdateManyMaterialArgs {
+  where: {
+    id?: string
+    courseId?: string
+    deletedAt?: Date | null
   }
   data: Partial<Pick<Material, 'title'>>
 }
@@ -321,6 +355,9 @@ export class IdentityTestStore {
       update: jest.fn((args: UpdateCourseMembershipArgs) =>
         Promise.resolve(this.updateMembership(args)),
       ),
+      updateMany: jest.fn((args: UpdateManyCourseMembershipArgs) =>
+        Promise.resolve(this.updateManyMemberships(args)),
+      ),
     },
     course: {
       findUnique: jest.fn((args: FindUniqueCourseArgs) =>
@@ -348,6 +385,9 @@ export class IdentityTestStore {
       ),
       update: jest.fn((args: UpdateMaterialArgs) =>
         Promise.resolve(this.updateMaterial(args)),
+      ),
+      updateMany: jest.fn((args: UpdateManyMaterialArgs) =>
+        Promise.resolve(this.updateManyMaterials(args)),
       ),
       delete: jest.fn((args: DeleteMaterialArgs) =>
         Promise.resolve(this.deleteMaterial(args)),
@@ -778,9 +818,19 @@ export class IdentityTestStore {
         (membership) => membership.courseId === course.id,
       )
 
-      if (membershipUserId !== undefined) {
+      const selectedMemberships = args?.select?.memberships?.where
+      const selectedUserId = selectedMemberships?.userId ?? membershipUserId
+
+      if (selectedUserId !== undefined) {
         courseMemberships = courseMemberships.filter(
-          (membership) => membership.userId === membershipUserId,
+          (membership) => membership.userId === selectedUserId,
+        )
+      }
+
+      if (selectedMemberships?.removedAt !== undefined) {
+        courseMemberships = courseMemberships.filter(
+          (membership) =>
+            membership.removedAt === selectedMemberships.removedAt,
         )
       }
 
@@ -810,8 +860,19 @@ export class IdentityTestStore {
     }
 
     const courseId = course.id
+    const selectedMemberships = args.select?.memberships?.where
     const memberships = this.memberships
       .filter((m) => m.courseId === courseId)
+      .filter(
+        (m) =>
+          selectedMemberships?.userId === undefined ||
+          m.userId === selectedMemberships.userId,
+      )
+      .filter(
+        (m) =>
+          selectedMemberships?.removedAt === undefined ||
+          m.removedAt === selectedMemberships.removedAt,
+      )
       .map((m) => ({
         ...m,
         user: this.users.get(m.userId),
@@ -883,7 +944,7 @@ export class IdentityTestStore {
 
   private findFirstMembership(
     args: FindFirstMembershipArgs | undefined,
-  ): { id: string } | null {
+  ): (StoredCourseMembership & { user?: User }) | null {
     const where = args?.where
     const membership = this.memberships.find(
       (m) =>
@@ -893,7 +954,9 @@ export class IdentityTestStore {
         (where?.removedAt === undefined || m.removedAt === where.removedAt),
     )
 
-    return membership ? { id: membership.id } : null
+    return membership
+      ? { ...membership, user: this.users.get(membership.userId) }
+      : null
   }
 
   private findUniqueMembership(args: FindUniqueMembershipArgs) {
@@ -986,6 +1049,34 @@ export class IdentityTestStore {
     }
   }
 
+  private updateManyMemberships(args: UpdateManyCourseMembershipArgs) {
+    const matches = this.memberships.filter((membership) => {
+      const matchesCourse =
+        args.where.courseId === undefined ||
+        membership.courseId === args.where.courseId
+      const matchesUser =
+        args.where.userId === undefined ||
+        membership.userId === args.where.userId
+      const matchesRemovedAt =
+        args.where.removedAt === undefined ||
+        (args.where.removedAt === null
+          ? membership.removedAt === null
+          : membership.removedAt?.getTime() === args.where.removedAt.getTime())
+
+      return matchesCourse && matchesUser && matchesRemovedAt
+    })
+
+    for (const membership of matches) {
+      const index = this.memberships.indexOf(membership)
+      this.memberships[index] = {
+        ...membership,
+        ...args.data,
+      }
+    }
+
+    return { count: matches.length }
+  }
+
   private findMaterials(
     args: FindManyMaterialArgs | undefined,
   ): StoredMaterial[] {
@@ -1042,6 +1133,33 @@ export class IdentityTestStore {
     }
     this.materials.set(args.where.id, updated)
     return updated
+  }
+
+  private updateManyMaterials(args: UpdateManyMaterialArgs) {
+    const matches = [...this.materials.values()].filter((material) => {
+      const matchesId =
+        args.where.id === undefined || material.id === args.where.id
+      const matchesCourse =
+        args.where.courseId === undefined ||
+        material.courseId === args.where.courseId
+      const matchesDeletedAt =
+        args.where.deletedAt === undefined ||
+        (args.where.deletedAt === null
+          ? material.deletedAt === null
+          : material.deletedAt?.getTime() === args.where.deletedAt.getTime())
+
+      return matchesId && matchesCourse && matchesDeletedAt
+    })
+
+    for (const material of matches) {
+      this.materials.set(material.id, {
+        ...material,
+        ...args.data,
+        updatedAt: new Date('2026-07-06T12:00:00.000Z'),
+      })
+    }
+
+    return { count: matches.length }
   }
 
   private createMaterial(args: CreateMaterialArgs): StoredMaterial {

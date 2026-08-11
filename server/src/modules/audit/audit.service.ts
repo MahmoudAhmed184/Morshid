@@ -4,7 +4,10 @@ import type { AuditLog, Prisma } from '../../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import type { AuditEventAction, AuditTargetType } from './audit.constants'
 
-export type AuditDatabase = Pick<Prisma.TransactionClient, 'auditLog'>
+// Product modules receive this as an opaque participation token. The Prisma
+// transaction client is deliberately unnameable outside this persistence
+// adapter; AuditService unwraps it only at the write boundary below.
+export type AuditDatabase = object
 
 export type AuditMetadata = Prisma.InputJsonObject
 
@@ -35,7 +38,9 @@ export class AuditService {
     input: RecordAuditEventInput,
     database: AuditDatabase = this.prismaService,
   ): Promise<AuditLog> {
-    return database.auditLog.create({
+    const auditDatabase = database as Pick<Prisma.TransactionClient, 'auditLog'>
+
+    return auditDatabase.auditLog.create({
       data: {
         actorUserId: input.actorUserId ?? null,
         action: input.action,

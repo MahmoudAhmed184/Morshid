@@ -1,10 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 
-import {
-  AUDIT_EVENT_ACTIONS,
-  AUDIT_TARGET_TYPES,
-} from '../audit/audit.constants'
-import { AuditService, type AuditRequestContext } from '../audit/audit.service'
+import { AUDIT_EVENT_ACTIONS, AUDIT_TARGET_TYPES } from '../audit/audit.public'
+import { AuditService, type AuditRequestContext } from '../audit/audit.public'
 import type { AuthenticatedUser } from '../identity/identity.types'
 
 interface MaterialAuditUploadInput {

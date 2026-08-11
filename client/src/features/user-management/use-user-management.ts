@@ -12,7 +12,7 @@ import {
   updateManagedUser,
 } from '@/features/user-management/user-management.api'
 import type { CreateManagedUserInput } from '@/features/user-management/user-management.api'
-import { adminAuditKeys } from '@/features/admin/data/admin-audit.queries'
+import { auditKeys } from '@/features/audit/audit.queries'
 import {
   managedUsersInfiniteQueryOptions,
   managedUsersQueryKey,
@@ -38,7 +38,7 @@ export function useManagedUserMutations() {
         queryKey: managedUsersQueryKey(currentActorId),
       }),
       queryClient.invalidateQueries({
-        queryKey: adminAuditKeys.all(currentActorId),
+        queryKey: auditKeys.all(currentActorId),
       }),
     ])
   }

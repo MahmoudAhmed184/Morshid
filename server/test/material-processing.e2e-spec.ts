@@ -46,8 +46,8 @@ import {
   type PdfStorage,
 } from '../src/modules/pdf-storage/pdf-storage'
 import { PrismaService } from '../src/modules/prisma/prisma.service'
-import { MaterialChunkEmbeddingService } from '../src/modules/rag-persistence/material-chunk-embedding.service'
-import { RagPersistenceRepository } from '../src/modules/rag-persistence/rag-persistence.repository'
+import { MaterialChunkEmbeddingService } from '../src/modules/materials/material-chunk-embedding.service'
+import { MaterialChunkRepository } from '../src/modules/materials/material-chunk.repository'
 import { RedisService } from '../src/modules/redis/redis.service'
 import { RetrievalService } from '../src/modules/retrieval/retrieval.service'
 import { P0_DEMO_PASSWORD, seedP0DemoData } from '../src/seeds/p0-demo.seed'
@@ -221,7 +221,7 @@ describe('Material processing truthfulness (e2e)', () => {
   let materialsRepository: MaterialsRepository
   let retrievalService: RetrievalService
   let chunkEmbeddingService: MaterialChunkEmbeddingService
-  let persistence: RagPersistenceRepository
+  let persistence: MaterialChunkRepository
   let storage: IsolatedFaultInjectingStorage
   let extractor: FaultInjectingExtractor
   let provider: FaultInjectingEmbeddingProvider
@@ -276,7 +276,7 @@ describe('Material processing truthfulness (e2e)', () => {
     materialsRepository = moduleFixture.get(MaterialsRepository)
     retrievalService = moduleFixture.get(RetrievalService)
     chunkEmbeddingService = moduleFixture.get(MaterialChunkEmbeddingService)
-    persistence = moduleFixture.get(RagPersistenceRepository)
+    persistence = moduleFixture.get(MaterialChunkRepository)
 
     const signIn = await request(app.getHttpServer())
       .post('/api/v1/auth/sign-in')

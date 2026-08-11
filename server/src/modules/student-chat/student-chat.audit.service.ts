@@ -1,14 +1,11 @@
 import { Injectable } from '@nestjs/common'
 
-import {
-  AUDIT_EVENT_ACTIONS,
-  AUDIT_TARGET_TYPES,
-} from '../audit/audit.constants'
+import { AUDIT_EVENT_ACTIONS, AUDIT_TARGET_TYPES } from '../audit/audit.public'
 import {
   AuditService,
   type AuditDatabase,
   type AuditRequestContext,
-} from '../audit/audit.service'
+} from '../audit/audit.public'
 
 interface RecordSessionDeletedInput {
   actorUserId: string

@@ -5,7 +5,7 @@ import type { App } from 'supertest/types'
 
 import { configureApp } from '../src/app.setup'
 import { AppModule } from '../src/app.module'
-import { AUDIT_EVENT_ACTIONS } from '../src/modules/audit/audit.constants'
+import { AUDIT_EVENT_ACTIONS } from '../src/modules/audit/audit.public'
 import type { IdentitySessionResponse } from '../src/modules/identity/identity.types'
 import { IDENTITY_ERROR_CODES } from '../src/modules/identity/identity.types'
 import { DEFAULT_PDF_MAX_UPLOAD_BYTES } from '../src/modules/config/env.schema'
@@ -21,7 +21,7 @@ import {
   type PdfStorage,
 } from '../src/modules/pdf-storage/pdf-storage'
 import { PrismaService } from '../src/modules/prisma/prisma.service'
-import { RagPersistenceRepository } from '../src/modules/rag-persistence/rag-persistence.repository'
+import { MaterialChunkRepository } from '../src/modules/materials/material-chunk.repository'
 import { RedisService } from '../src/modules/redis/redis.service'
 import { P0_DEMO_COURSE, P0_DEMO_PASSWORD } from '../src/seeds/p0-demo.seed'
 import {
@@ -121,7 +121,7 @@ describe('Materials upload (e2e)', () => {
           Promise.reject(new Error('queries are not embedded in this spec')),
         embedDocuments,
       } satisfies EmbeddingProvider)
-      .overrideProvider(RagPersistenceRepository)
+      .overrideProvider(MaterialChunkRepository)
       .useValue({ replaceMaterialChunks })
       .compile()
 
@@ -837,6 +837,28 @@ describe('Materials upload (e2e)', () => {
         code: MATERIALS_ERROR_CODES.COURSE_MANAGEMENT_REQUIRED,
         message: 'Active instructor course membership is required',
       })
+  })
+
+  it('does not authorize a removed instructor membership', async () => {
+    const instructor = store.findUserByEmail('instructor@morshid.demo')
+    const membership = store.memberships.find(
+      (candidate) =>
+        candidate.userId === instructor?.id &&
+        candidate.courseId === pythonCourseId(),
+    )
+
+    if (membership === undefined) {
+      throw new Error('Expected the instructor membership to exist')
+    }
+
+    membership.removedAt = new Date('2026-07-08T00:00:00.000Z')
+
+    const token = await signInAs('instructor@morshid.demo')
+
+    await listMaterials({ token }).expect(403).expect({
+      code: MATERIALS_ERROR_CODES.COURSE_MANAGEMENT_REQUIRED,
+      message: 'Active instructor course membership is required',
+    })
   })
 
   it('returns safe detail for a course material', async () => {

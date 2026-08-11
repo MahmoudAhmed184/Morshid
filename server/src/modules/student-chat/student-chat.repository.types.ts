@@ -6,7 +6,7 @@ import type {
   MessageStatus,
   Prisma,
 } from '../../generated/prisma/client'
-import type { AuditRequestContext } from '../audit/audit.service'
+import type { AuditRequestContext } from '../audit/audit.public'
 
 export interface ChatSessionRecord {
   id: string

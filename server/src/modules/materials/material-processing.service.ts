@@ -2,17 +2,14 @@ import { randomUUID } from 'node:crypto'
 
 import { Inject, Injectable, Logger } from '@nestjs/common'
 
-import type { RecordAuditEventInput } from '../audit/audit.service'
-import {
-  AUDIT_EVENT_ACTIONS,
-  AUDIT_TARGET_TYPES,
-} from '../audit/audit.constants'
+import type { RecordAuditEventInput } from '../audit/audit.public'
+import { AUDIT_EVENT_ACTIONS, AUDIT_TARGET_TYPES } from '../audit/audit.public'
 import {
   PDF_STORAGE,
   PdfStorageNotFoundError,
   type PdfStorage,
 } from '../pdf-storage/pdf-storage'
-import { MaterialChunkEmbeddingService } from '../rag-persistence/material-chunk-embedding.service'
+import { MaterialChunkEmbeddingService } from '../materials/material-chunk-embedding.service'
 import { MaterialTextChunker } from './material-text-chunker'
 import {
   MaterialsRepository,

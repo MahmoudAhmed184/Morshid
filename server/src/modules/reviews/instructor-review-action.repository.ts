@@ -12,8 +12,8 @@ import {
   ReviewTriggerType,
 } from '../../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
-import { AuditService } from '../audit/audit.service'
-import type { AuditRequestContext } from '../audit/audit.service'
+import { AuditService } from '../audit/audit.public'
+import type { AuditRequestContext } from '../audit/audit.public'
 import type {
   RejectReviewRequest,
   ResolveReviewRequest,

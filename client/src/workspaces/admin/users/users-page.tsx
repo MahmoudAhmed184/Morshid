@@ -15,7 +15,7 @@ import {
   useManagedUsers,
 } from '@/features/user-management/use-user-management'
 import { useAuthStore } from '@/features/auth/session/session.store'
-import { AdminPanel } from '@/features/admin/components/admin-panel'
+import { AdminPanel } from '@/workspaces/admin/components/admin-panel'
 import { UsersTable } from './users-table'
 import { CreateUserDialog } from './create-user-dialog'
 

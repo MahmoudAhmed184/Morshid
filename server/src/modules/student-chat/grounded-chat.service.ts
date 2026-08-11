@@ -8,7 +8,7 @@ import {
   Prisma,
 } from '../../generated/prisma/client'
 import type { AuthenticatedUser } from '../identity/identity.types'
-import type { AuditRequestContext } from '../audit/audit.service'
+import type { AuditRequestContext } from '../audit/audit.public'
 import { PrismaService } from '../prisma/prisma.service'
 import {
   AUTOMATIC_SAFETY_RISK_DETECTOR_VERSION,

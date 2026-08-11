@@ -7,7 +7,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
-import { AdminStatusBadge } from '@/features/admin/components/admin-status-badge'
+import { AdminStatusBadge } from '@/workspaces/admin/components/admin-status-badge'
 import { UserActions } from './user-actions'
 import type { ManagedUser } from '@/features/user-management/managed-user.schema'
 

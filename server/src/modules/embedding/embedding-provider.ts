@@ -1,6 +1,6 @@
 // P0 locks the embedding contract to exactly 1,536 dimensions; the database
 // column is `vector(1536)` and changing this requires a migration plus a full
-// re-embedding, never a runtime toggle. `rag-persistence` keeps its own
+// re-embedding, never a runtime toggle. Materials indexing keeps its own
 // private copy of this constant as an intentional consumer-side guard.
 export const EMBEDDING_DIMENSIONS = 1_536
 

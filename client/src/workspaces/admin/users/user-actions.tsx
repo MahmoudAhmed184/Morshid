@@ -20,7 +20,7 @@ import type {
   CreateUserFormValues,
   ManagedUser,
 } from '@/features/user-management/managed-user.schema'
-import { AdminStatusBadge } from '@/features/admin/components/admin-status-badge'
+import { AdminStatusBadge } from '@/workspaces/admin/components/admin-status-badge'
 import { UserForm } from './user-form'
 import { ResetUserPasswordDialog } from './reset-user-password-dialog'
 
