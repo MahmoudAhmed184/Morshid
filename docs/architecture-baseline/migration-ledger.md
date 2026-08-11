@@ -160,6 +160,7 @@ not inferred from the final aggregate diff.
 | M0.3 handoff/CI | `6009895` | `6009895` | draft PR #205 | Authenticated GitHub access was available; branch pushed and draft PR opened against `dev` so both existing CI jobs can observe pushed SHAs. | None intentionally removed | Milestone 1.1 |
 | M1.1 architecture foundation | `a70a8b2` | `ad81143` | `chore(tooling): establish architecture guardrails` | `npm run check` passed: format, lint, root/client/server typecheck, client/server architecture gates, 9 root tests, 476 client tests, 1,723 server tests, and both production builds | `#/*` package/tsconfig alias removed; all authored `#/` imports absent; no dependency-cruiser baseline or exception file added | Milestone 2.1 |
 | M2.1 clean Prisma foundation | `229b0ce` | `3e5252a` | `refactor(prisma): establish clean schema baseline` | Multi-file schema validated and generated; isolated Compose PostgreSQL reached one applied initial migration, explicit seed, catalog assertions, second deploy with no pending migrations, `prisma migrate status` up to date, and `prisma migrate diff --from-migrations ... --exit-code` reported `No difference detected`; `npm run check` passed with 9 root tests, 476 client tests, 1,723 server tests, both builds, and architecture gates | The 18 historical migration directories, upgrade-only migration tests, and `throughMigration` support were removed; `idx_chunks_embedding_hnsw`, `idx_messages_response_to`, and duplicate-response/backfill upgrade SQL are absent; generated Prisma output remains ignored | Milestone 3.1 |
+| M3.1 Identity vertical slice | `4ab478b4635c10235232e01c1f5ac046b3c767f5` | `eef0ca1e5604fdae932f6bdefcf2c045811ffb96` | `refactor(identity): consolidate account ownership` | OpenAPI 13/13; Identity unit suites 28/28; Identity role/auth/user-administration E2E 73/73; client Identity suites 96/96; `npm run check` passed with 9 root tests, 476 client tests, 1,723 server tests, architecture gates, and both builds | `server/src/modules/auth`, `server/src/modules/admin/users`, old auth test-support names, old root auth/admin-user E2E paths, old client auth taxonomy folders, and client Admin-user transport/UI paths are absent; Identity boundary rule passes without exceptions | Milestone 4.1 |
 
 ### M2.1 handoff
 
@@ -193,6 +194,60 @@ not inferred from the final aggregate diff.
   static-diagnosis acceptance assertions remain. The isolated M2 database
   itself passed all schema/seed/catalog gates.
 - Next safe task: Milestone 3.1 Identity ownership cutover.
+
+### M3.1 handoff
+
+- Starting SHA: `4ab478b4635c10235232e01c1f5ac046b3c767f5`; implementation SHA:
+  `eef0ca1e5604fdae932f6bdefcf2c045811ffb96`; commit:
+  `refactor(identity): consolidate account ownership`.
+- Applicable authority: the approved architecture plan sections 4, 5, 8.5,
+  9, 15, and 17; ADR 0001, ADR 0005, ADR 0006, and ADR 0007; the Identity
+  migration inventory above; and the approved pre-deployment contract
+  research note.
+- Moved server authentication and user administration into
+  `server/src/modules/identity/`, including the flat Identity controller,
+  service, access-token/session implementations, guards/decorators, identity
+  user projection, and `user-administration/` capability. Moved client session,
+  sign-in, and routing behavior into `client/src/features/auth/`, moved user
+  management contracts into `client/src/features/user-management/`, and moved
+  Admin user presentation into `client/src/workspaces/admin/users/`. Updated
+  every in-repository caller directly and removed the unused session type
+  forwarding file.
+- Identity responses now contain identity fields only: course summaries were
+  removed from sign-in/current-user responses, refresh and logout accept only
+  the parsed HttpOnly cookie at the HTTP boundary, and JSON refresh-token
+  response fields are absent. Rotation, hashed storage, password-change
+  invalidation, cookie path/SameSite/production Secure behavior, disable and
+  password-reset revocation, last-active-admin protection, and audit writes
+  remain covered by the existing transaction-aware implementation and tests.
+- The backend Admin module no longer owns user administration. Its remaining
+  composition imports Identity only for the narrow module-level integration;
+  Identity internals such as PasswordHasher and repositories are not exported.
+  The server dependency graph now enforces `identity-interface-only`: other
+  product modules may consume only the Identity module, request guard, role and
+  public decorators, and identity types.
+- Removed `server/src/modules/auth/**`,
+  `server/src/modules/admin/users/**`, `server/test/support/auth-test-store.ts`,
+  `server/test/support/auth-service-test-harness.ts`, the old root auth/admin
+  user E2E paths, `client/src/features/auth/{api,components,hooks,schemas,stores,types,utils}`
+  as authored paths, and the old Admin-user client transport/UI locations.
+  Repository searches found no old module paths/classes or JSON refresh fields;
+  `/api/v1/auth/*`, `/api/v1/admin/users`, and generated route-tree names remain
+  intentional product URLs/route identifiers.
+- Focused commands and exact outcomes: `npm run typecheck` passed;
+  `npm run test:architecture` passed (331 client modules / 1,331
+  dependencies, 392 server modules / 1,421 dependencies); the client Identity
+  test selection passed 10 files / 96 tests; the Identity unit selection
+  passed 3 suites / 28 tests; the OpenAPI E2E passed 1 suite / 13 tests; the
+  moved Identity E2E selection passed 4 suites / 73 tests; and `npm run check`
+  passed formatting, strict lint, typecheck, architecture, 9 root tests, 476
+  client tests, 1,723 server tests, and both production builds.
+- No schema, migration, seed, or generated Prisma source was changed in M3.
+  Known external baseline failures remain those recorded in M0: the normal
+  local PostgreSQL credential mismatch blocks the unisolated full E2E suite,
+  and two static-diagnosis acceptance assertions remain. The isolated M2
+  database verification remains green.
+- Next safe task: Milestone 4.1, beginning the Courses ownership cutover.
 
 ## Milestone 1 migration inventory
 
