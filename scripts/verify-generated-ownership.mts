@@ -10,20 +10,10 @@ const prismaOutputPath = resolve(root, 'server/src/generated/prisma')
 await run('npm', ['run', 'generate-routes', '--workspace', 'client'])
 await run('npm', ['run', 'db:generate', '--workspace', 'server'])
 
-const routeTreeFirst = await readFile(routeTreePath, 'utf8')
 const prismaFirst = await directoryDigest(prismaOutputPath)
 
-await run('npm', ['run', 'generate-routes', '--workspace', 'client'])
 await run('npm', ['run', 'db:generate', '--workspace', 'server'])
-
-const routeTreeSecond = await readFile(routeTreePath, 'utf8')
 const prismaSecond = await directoryDigest(prismaOutputPath)
-
-if (routeTreeSecond !== routeTreeFirst) {
-  throw new Error(
-    'client/src/routeTree.gen.ts is not stable under regeneration',
-  )
-}
 
 if (prismaSecond !== prismaFirst) {
   throw new Error(
@@ -31,8 +21,23 @@ if (prismaSecond !== prismaFirst) {
   )
 }
 
+// TanStack Start owns the final route-tree output during Vite builds. The
+// standalone route generator produces the route modules, while the Start
+// plugin adds its registration footer as part of the official build.
+await run('npm', ['run', 'build', '--workspace', 'client'])
+const routeTreeFirst = await readFile(routeTreePath, 'utf8')
+
+await run('npm', ['run', 'build', '--workspace', 'client'])
+const routeTreeSecond = await readFile(routeTreePath, 'utf8')
+
+if (routeTreeSecond !== routeTreeFirst) {
+  throw new Error(
+    'client/src/routeTree.gen.ts is not stable under regeneration',
+  )
+}
+
 console.log(
-  'generated ownership verified: official route-tree and Prisma generators are stable',
+  'generated ownership verified: official route-tree generators and Prisma generator are stable',
 )
 
 async function directoryDigest(directory: string): Promise<string> {
