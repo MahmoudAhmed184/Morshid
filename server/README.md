@@ -52,11 +52,11 @@ accounts use the local-only password `MorshidDemoP0!`.
 
 ## P0 auth sessions
 
-The P0 auth API returns both the access token and refresh token in JSON and sets
-the refresh token in the HttpOnly `morshid_refresh` cookie. Clients send the
-access token as a `Bearer` token. Browser clients use the refresh cookie for the
-refresh/logout endpoints; non-browser clients can use the optional
-`refreshToken` JSON field as a fallback.
+The P0 auth API returns the access token in JSON and sets the rotating refresh
+token only in the HttpOnly `morshid_refresh` cookie. Clients send the access
+token as a `Bearer` token and preserve the cookie for refresh/logout. The JSON
+responses and request bodies do not carry refresh tokens; non-browser clients
+must use a cookie jar.
 
 Passwords are stored as Argon2id hashes with per-password salt material encoded
 in the stored hash string. The current hash format records the algorithm,
@@ -218,8 +218,9 @@ integration bundle documents `/student/embed` and the
 HTTP 403. The model approval, successful response envelope, preserved
 1,536-dimensional output, input echo behavior, and practical batch capacity
 therefore remain unverified. Implementing against an invented success envelope
-would hide contract drift rather than expose it. See "Embedding endpoint — live
-probe denied" in `docs/aws-bedrock-iti-gateway-research.md`.
+would hide contract drift rather than expose it. No Bedrock/Cohere adapter is
+part of the current supported provider set; the probe is an opt-in contract
+check only and its external result is not a production integration.
 
 After the ITI dashboard shows `us.cohere.embed-v4:0` as approved, rerun the
 single-request structural probe with:
@@ -293,8 +294,8 @@ authorization schemes:
 - `access-token`: enter the JWT returned by sign-in or refresh. Swagger sends it
   as an HTTP bearer token to protected operations.
 - `refresh-session`: the browser sends the HttpOnly `morshid_refresh` cookie to
-  refresh and logout. Those operations also document the optional
-  `refreshToken` JSON fallback for clients that do not use cookies.
+  refresh and logout. Those operations do not accept a JSON refresh-token
+  fallback.
 
 ## Compile and run the project
 

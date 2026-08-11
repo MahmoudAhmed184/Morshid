@@ -4,6 +4,12 @@ Date: 2026-08-10
 Branch: `feature/socratic-runtime-v1-hardening`
 Story: [#124 — Student receives progressive Socratic hints for problems and attempts](https://github.com/MahmoudAhmed184/Morshid/issues/124)
 
+> Historical/superseded audit: this closure was written before the approved
+> whole-workspace architecture refactor. It records behavior-level evidence,
+> but references to `TutorTurn` and the prior implementation are not current
+> architecture. Use the approved [refactor plan](../architecture-refactor-plan-2026-08-11.md)
+> and ADRs for current ownership and contracts.
+
 ## Verdict
 
 **DONE — functionally complete under the current TeachingDecision, RevealPolicy,

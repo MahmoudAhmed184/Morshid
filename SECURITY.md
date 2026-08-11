@@ -21,7 +21,6 @@ The server also issues the rotating refresh token as an `HttpOnly`, `SameSite`
 cookie scoped to `/api/v1/auth`; production cookies additionally use `Secure`.
 Browser API requests include credentials so a page refresh can restore the
 in-memory access session without reading the HttpOnly cookie from JavaScript.
-For backward compatibility with non-browser API clients, auth responses still
-include the rotated refresh token; the SPA keeps that response value in memory
-only. Server endpoints remain the authorization boundary for roles and course
-ownership.
+Auth responses and request bodies do not expose a refresh token. Non-browser
+clients must preserve and send the cookie through a cookie jar. Server
+endpoints remain the authorization boundary for roles and course ownership.
