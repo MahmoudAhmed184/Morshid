@@ -17,6 +17,7 @@ const config = defineConfig({
       },
     },
     fileParallelism: false,
+    include: ['src/**/*.{test,spec}.?(c|m)[jt]s?(x)'],
     setupFiles: ['./src/test/setup.ts'],
   },
 })

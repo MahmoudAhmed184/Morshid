@@ -1,4 +1,4 @@
-import { SearchInput } from '#/components/ui/custom/search-input'
+import { SearchInput } from '@/components/ui/custom/search-input'
 import { cn } from '@/lib/utils'
 
 type DataToolbarProps = {

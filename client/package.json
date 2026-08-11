@@ -6,9 +6,6 @@
     "node": ">=24.7 <25",
     "npm": ">=11"
   },
-  "imports": {
-    "#/*": "./src/*"
-  },
   "scripts": {
     "dev": "vite dev --port 3000",
     "generate-routes": "tsr generate",

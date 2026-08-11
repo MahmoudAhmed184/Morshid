@@ -158,3 +158,20 @@ not inferred from the final aggregate diff.
 | M0.1 branch and approval | `22fc7fbdce59fb2248db39a1bfd7b4d0b86f0480` | `1c88713195ec35e42e2c218ead57d08112ab85f5` | `docs(architecture): approve workspace refactor plan` | Branch created from exact SHA; plan/research committed | n/a | M0.2 ledger/characterization |
 | M0.2 safety baseline and characterization | `1c88713195ec35e42e2c218ead57d08112ab85f5` | `6009895` | `docs(architecture): record refactor baseline` | `npm run check` passed; `npm run test:e2e` recorded the local PostgreSQL credential blocker; `npm run test:acceptance` recorded 28 passed / 2 existing diagnosis-render failures; OpenAPI snapshot and characterization index added | None intentionally removed | M0.3 handoff and Milestone 1 |
 | M0.3 handoff/CI | `6009895` | `6009895` | draft PR #205 | Authenticated GitHub access was available; branch pushed and draft PR opened against `dev` so both existing CI jobs can observe pushed SHAs. | None intentionally removed | Milestone 1.1 |
+
+## Milestone 1 migration inventory
+
+Milestone 1 establishes the durable guidance and enforcement inputs that every
+later migration depends on. The affected surface is intentionally limited to
+repository guidance, domain vocabulary, accepted architectural decisions,
+test discovery, dependency-cruiser configuration/scripts, client alias
+resolution, and the migration ledger itself.
+
+| Area | Files/paths to add or change | Ownership and disposition |
+| --- | --- | --- |
+| Repository guidance | `AGENTS.md`, `CONTEXT.md` | Record the approved architecture authority, non-negotiable ownership/dependency rules, and canonical domain terms. |
+| Architecture decisions | `docs/adr/0001-*.md` through `0007-*.md` | Add the seven accepted ADRs required by the plan; these are decision records, not migration checklists. |
+| Dependency enforcement | `dependency-cruiser.config.mjs`, root `package.json`, `package-lock.json` | Add the initial no-cycle, unresolved-import, and production-to-test gate; generated files are not followed. |
+| Test discovery | `client/vite.config.ts`, `server/package.json`, `server/test/jest-e2e.json`, `server/test/jest-live-e2e.json` | Make unit, E2E, live, and client test patterns explicit and independent of regex defaults. |
+| Import resolution | `client/package.json`, `client/tsconfig.json`, `client/tsconfig.architecture.json`, current `#/` callers | Remove the redundant `#/*` alias, update all direct callers to the canonical `@/*` alias, and keep resolver-only `baseUrl` configuration out of the product compiler contract. |
+| Focused verification | `npm run test:architecture:client`, `npm run test:architecture:server`, `npm run test:architecture` | The gate must pass without known-violation baselines or temporary exceptions before the milestone commit. |
