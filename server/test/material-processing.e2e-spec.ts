@@ -12,9 +12,9 @@ import { AppModule } from '../src/app.module'
 import { AUDIT_EVENT_ACTIONS } from '../src/modules/audit/audit.constants'
 import {
   AuditService,
-  type AuditDatabase,
   type RecordAuditEventInput,
 } from '../src/modules/audit/audit.service'
+import type { DatabaseTransaction } from '../src/modules/prisma/database-transaction'
 import type { IdentitySessionResponse } from '../src/modules/identity/identity.types'
 import { DeterministicEmbeddingProvider } from '../src/modules/embedding/deterministic-embedding.provider'
 import {
@@ -85,7 +85,10 @@ class FaultInjectingAuditService extends AuditService {
     this.remainingTerminalFailures = 0
   }
 
-  override recordEvent(input: RecordAuditEventInput, database?: AuditDatabase) {
+  override recordEvent(
+    input: RecordAuditEventInput,
+    transaction?: DatabaseTransaction,
+  ) {
     if (
       TERMINAL_PROCESSING_ACTIONS.has(input.action) &&
       this.remainingTerminalFailures > 0
@@ -94,7 +97,7 @@ class FaultInjectingAuditService extends AuditService {
       return Promise.reject(new Error(`audit failed ${FAILURE_SENTINEL}`))
     }
 
-    return super.recordEvent(input, database)
+    return super.recordEvent(input, transaction)
   }
 }
 

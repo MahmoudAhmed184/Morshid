@@ -5,6 +5,8 @@ import {
   MessageRequestKind,
 } from '../src/generated/prisma/client'
 import type { PrismaService } from '../src/modules/prisma/prisma.service'
+import { AuditService } from '../src/modules/audit/audit.service'
+import { PrismaConversationTurns } from '../src/modules/conversations/prisma-conversation-turns'
 import { PrismaStudentChatMessageRepository } from '../src/modules/student-chat/student-chat-message.repository'
 import {
   PrismaTurnRepository,
@@ -30,7 +32,11 @@ describe('Message turn and topic linkage persistence (e2e)', () => {
   beforeAll(async () => {
     database = await setUpDisposableDatabase('morshid_issue167')
     prisma = database.prisma
-    turnRepository = new PrismaTurnRepository(prisma)
+    turnRepository = new PrismaTurnRepository(
+      prisma,
+      new PrismaConversationTurns(),
+      new AuditService(prisma),
+    )
     messageRepository = new PrismaStudentChatMessageRepository(prisma)
   })
 

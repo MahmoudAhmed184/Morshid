@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto'
 import { Client } from 'pg'
 
 import type { PrismaService } from '../src/modules/prisma/prisma.service'
+import { AuditService } from '../src/modules/audit/audit.service'
+import { PrismaConversationTurns } from '../src/modules/conversations/prisma-conversation-turns'
 import { TOPIC_STATE_ERROR_CODES } from '../src/modules/socratic-tutor/topic-state.errors'
 import {
   PrismaTopicStateRepository,
@@ -55,7 +57,11 @@ describe('TurnService persistence (e2e)', () => {
   beforeAll(async () => {
     database = await setUpDisposableDatabase('morshid_issue165')
     prisma = database.prisma
-    repository = new PrismaTurnRepository(prisma)
+    repository = new PrismaTurnRepository(
+      prisma,
+      new PrismaConversationTurns(),
+      new AuditService(prisma),
+    )
     service = new TurnService(repository)
   })
 

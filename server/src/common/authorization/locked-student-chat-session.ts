@@ -64,3 +64,31 @@ export async function lockAuthorizedStudentChat(
 
   return { kind: 'ok', session }
 }
+
+export async function lockStudentOwnedChat(
+  tx: Prisma.TransactionClient,
+  input: AuthorizedStudentChatInput,
+): Promise<
+  Extract<
+    LockedStudentChatAuthorizationResult,
+    { kind: 'ok' | 'session_not_found' }
+  >
+> {
+  const sessions = await tx.$queryRaw<LockedStudentChatSession[]>(Prisma.sql`
+    SELECT
+      id,
+      course_id AS "courseId",
+      last_sequence AS "lastSequence",
+      deleted_at AS "deletedAt"
+    FROM chat_sessions
+    WHERE id = ${input.sessionId}::uuid
+      AND course_id = ${input.courseId}::uuid
+      AND student_id = ${input.studentId}::uuid
+    FOR UPDATE
+  `)
+  const session = sessions.at(0)
+  if (session === undefined) {
+    return { kind: 'session_not_found' }
+  }
+  return { kind: 'ok', session }
+}

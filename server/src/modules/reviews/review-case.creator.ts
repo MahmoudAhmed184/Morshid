@@ -1,16 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
-import type {
-  Prisma,
-  ReviewStatus,
-  ReviewTriggerType,
-} from '../../generated/prisma/client'
 import type { AuthenticatedUser } from '../identity/identity.types'
 import type { AuditRequestContext } from '../audit/audit.public'
-import {
-  buildAutomaticReviewEvidence,
-  type AutomaticReviewEvidenceInput,
-} from './evidence/automatic-review-evidence'
 import type {
   CreateReviewRequest,
   CreateReviewRequestResponseDto,
@@ -23,31 +14,10 @@ import {
   targetNotReviewableException,
 } from './review-case.errors'
 import {
-  AutomaticReviewBatchError,
   ReviewCaseRepository,
   type ReviewCaseCreationOutcome,
   type ReviewCaseCreationRecord,
 } from './review-case.repository'
-
-export interface AutomaticReviewCaseRequest {
-  messageId: string
-  triggers: readonly AutomaticReviewTriggerRequest[]
-  evidence: AutomaticReviewEvidenceInput
-  requestContext?: AuditRequestContext
-}
-
-export interface AutomaticReviewTriggerRequest {
-  trigger: Exclude<ReviewTriggerType, 'STUDENT_REQUEST'>
-  sourceEventKey: string
-  detectorMetadata?: Prisma.InputJsonObject
-}
-
-export interface AutomaticReviewCaseResult {
-  caseId: string
-  messageId: string
-  status: ReviewStatus
-  replayed: boolean
-}
 
 @Injectable()
 export class ReviewCaseCreator {
@@ -83,51 +53,6 @@ export class ReviewCaseCreator {
         resolvedAt: record.resolvedAt?.toISOString() ?? null,
         reviewCaseId: record.caseId,
       },
-    }
-  }
-
-  async createAutomaticBatch(
-    request: AutomaticReviewCaseRequest,
-  ): Promise<AutomaticReviewCaseResult> {
-    if (request.triggers.length === 0) {
-      throw new TypeError('At least one automatic review trigger is required')
-    }
-    const evidence = buildAutomaticReviewEvidence(request.evidence)
-    let records: ReviewCaseCreationOutcome[]
-    try {
-      records = await this.repository.createAutomaticBatch(
-        request.triggers.map((trigger) => ({
-          kind: 'automatic' as const,
-          messageId: request.messageId,
-          ...trigger,
-          evidence,
-          requestContext: request.requestContext,
-        })),
-      )
-    } catch (error) {
-      if (error instanceof AutomaticReviewBatchError) {
-        this.recordOrThrow(error.outcome)
-      }
-      throw error
-    }
-    const mappedRecords = records.map((outcome) => this.recordOrThrow(outcome))
-    const first = mappedRecords[0]
-    if (
-      mappedRecords.some(
-        (record) =>
-          record.caseId !== first.caseId ||
-          record.messageId !== request.messageId,
-      )
-    ) {
-      throw new Error(
-        'Automatic review triggers must resolve to one message-scoped case',
-      )
-    }
-    return {
-      caseId: first.caseId,
-      messageId: first.messageId,
-      status: first.status,
-      replayed: mappedRecords.every((record) => record.replayed),
     }
   }
 

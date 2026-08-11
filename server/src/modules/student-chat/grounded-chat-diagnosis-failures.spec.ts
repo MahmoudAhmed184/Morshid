@@ -71,6 +71,7 @@ describe('GroundedChatService diagnosis failure paths', () => {
       {
         beginTurn,
         retryTurn: jest.fn(),
+        repairAutomaticReview: jest.fn(),
         completeTurn: jest.fn(),
         completePolicyTurn: jest.fn(),
         completeUnsupportedTurn: jest.fn(),
@@ -89,7 +90,6 @@ describe('GroundedChatService diagnosis failure paths', () => {
       new AutomaticSafetyRiskDetector(),
       new ControlledSourceConflictDetector(),
       new OutputPolicyService(),
-      { createRequiredReview: jest.fn().mockResolvedValue(null) } as never,
       new CorrectnessSensitiveRequestClassifier(),
     )
   })

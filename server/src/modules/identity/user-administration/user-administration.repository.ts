@@ -7,6 +7,7 @@ import {
   UserStatus,
 } from '../../../generated/prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
+import { asDatabaseTransaction } from '../../prisma/database-transaction'
 import type { AuditRequestContext } from '../../audit/audit.public'
 import type { CreatableUserRole } from './user-administration.types'
 import { UserAdministrationAuditService } from './user-administration-audit'
@@ -218,7 +219,7 @@ export class PrismaUserAdministrationRepository extends UserAdministrationReposi
             targetUser: user,
             requestContext: input.requestContext,
           },
-          tx,
+          asDatabaseTransaction(tx),
         )
 
         return user
@@ -280,7 +281,7 @@ export class PrismaUserAdministrationRepository extends UserAdministrationReposi
               targetUser: user,
               requestContext: input.requestContext,
             },
-            tx,
+            asDatabaseTransaction(tx),
           )
 
           return user
@@ -369,7 +370,7 @@ export class PrismaUserAdministrationRepository extends UserAdministrationReposi
             revokedRefreshTokenCount: revokedRefreshTokens.count,
             requestContext: input.requestContext,
           },
-          tx,
+          asDatabaseTransaction(tx),
         )
 
         return user
@@ -400,7 +401,7 @@ export class PrismaUserAdministrationRepository extends UserAdministrationReposi
           targetUser: user,
           requestContext: input.requestContext,
         },
-        tx,
+        asDatabaseTransaction(tx),
       )
 
       return user
@@ -442,7 +443,7 @@ export class PrismaUserAdministrationRepository extends UserAdministrationReposi
           revokedRefreshTokenCount: revokedRefreshTokens.count,
           requestContext: input.requestContext,
         },
-        tx,
+        asDatabaseTransaction(tx),
       )
 
       return user

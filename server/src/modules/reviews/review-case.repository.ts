@@ -15,6 +15,11 @@ import {
 import { AuditService } from '../audit/audit.public'
 import type { AuditRequestContext } from '../audit/audit.public'
 import { PrismaService } from '../prisma/prisma.service'
+import {
+  asDatabaseTransaction,
+  asPrismaTransaction,
+  type DatabaseTransaction,
+} from '../prisma/database-transaction'
 import type { AutomaticReviewEvidenceContribution } from './evidence/automatic-review-evidence'
 import {
   reviewEvidenceContentHash,
@@ -46,9 +51,13 @@ export type CreateReviewCaseInput =
       trigger: Exclude<ReviewTriggerType, 'STUDENT_REQUEST'>
       sourceEventKey: string
       evidence: AutomaticReviewEvidenceContribution
-      detectorMetadata?: Prisma.InputJsonObject
+      detectorMetadata?: ReviewCaseDetectorMetadata
       requestContext?: AuditRequestContext
     }
+
+export type ReviewCaseDetectorMetadata = Readonly<
+  Record<string, string | number | boolean | null>
+>
 
 export interface ReviewCaseCreationRecord {
   caseId: string
@@ -69,22 +78,14 @@ export type ReviewCaseCreationOutcome =
   | { kind: 'quota_exceeded' }
   | { kind: 'snapshot_too_large' }
 
-export class AutomaticReviewBatchError extends Error {
-  constructor(
-    readonly outcome: Exclude<ReviewCaseCreationOutcome, { kind: 'ok' }>,
-  ) {
-    super(`Automatic review batch failed: ${outcome.kind}`)
-    this.name = 'AutomaticReviewBatchError'
-  }
-}
-
 export abstract class ReviewCaseRepository {
   abstract create(
     input: Extract<CreateReviewCaseInput, { kind: 'manual' }>,
   ): Promise<ReviewCaseCreationOutcome>
 
-  abstract createAutomaticBatch(
+  abstract createAutomaticInTransaction(
     inputs: Extract<CreateReviewCaseInput, { kind: 'automatic' }>[],
+    transaction: DatabaseTransaction,
   ): Promise<ReviewCaseCreationOutcome[]>
 }
 
@@ -107,24 +108,17 @@ export class PrismaReviewCaseRepository extends ReviewCaseRepository {
     )
   }
 
-  async createAutomaticBatch(
+  async createAutomaticInTransaction(
     rawInputs: Extract<CreateReviewCaseInput, { kind: 'automatic' }>[],
+    transaction: DatabaseTransaction,
   ): Promise<ReviewCaseCreationOutcome[]> {
     const inputs = rawInputs.map(normalizeCreateReviewCaseInput)
-    return await this.prisma.$transaction(
-      async (tx) => {
-        const outcomes: ReviewCaseCreationOutcome[] = []
-        for (const input of inputs) {
-          const outcome = await this.createInTransaction(input, tx)
-          if (outcome.kind !== 'ok') {
-            throw new AutomaticReviewBatchError(outcome)
-          }
-          outcomes.push(outcome)
-        }
-        return outcomes
-      },
-      { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
-    )
+    const tx = asPrismaTransaction(transaction)
+    const outcomes: ReviewCaseCreationOutcome[] = []
+    for (const input of inputs) {
+      outcomes.push(await this.createInTransaction(input, tx))
+    }
+    return outcomes
   }
 
   private async createInTransaction(
@@ -401,7 +395,7 @@ export class PrismaReviewCaseRepository extends ReviewCaseRepository {
         metadata: { trigger: triggerType(input) },
         requestContext: input.requestContext,
       },
-      tx,
+      asDatabaseTransaction(tx),
     )
   }
 }

@@ -6,7 +6,10 @@ import {
   MessageStatus,
   Prisma,
 } from '../../generated/prisma/client'
-import { lockAuthorizedStudentChat } from '../../common/authorization/locked-student-chat-session'
+import {
+  lockAuthorizedStudentChat,
+  lockStudentOwnedChat,
+} from '../../common/authorization/locked-student-chat-session'
 import {
   asPrismaTransaction,
   type DatabaseTransaction,
@@ -114,7 +117,10 @@ export class PrismaConversationTurns extends ConversationTurns {
     transaction: DatabaseTransaction,
   ): Promise<FinalizedMessage> {
     const tx = asPrismaTransaction(transaction)
-    const authorization = await lockAuthorizedStudentChat(tx, input)
+    const authorization =
+      input.authorization === 'session_owner'
+        ? await lockStudentOwnedChat(tx, input)
+        : await lockAuthorizedStudentChat(tx, input)
     if (authorization.kind !== 'ok') {
       return authorization
     }
@@ -124,6 +130,7 @@ export class PrismaConversationTurns extends ConversationTurns {
         id: input.assistantMessageId,
         sessionId: input.sessionId,
         attemptId: input.attemptId,
+        ...(input.topicId === undefined ? {} : { topicId: input.topicId }),
         role: MessageRole.ASSISTANT,
         status: MessageStatus.PENDING,
         responseToMessageId: input.studentMessageId,
@@ -133,6 +140,20 @@ export class PrismaConversationTurns extends ConversationTurns {
         content: input.content,
         errorCode: input.errorCode ?? null,
         errorMessage: null,
+        requestKind:
+          input.requestKind === undefined ? undefined : input.requestKind,
+        guidanceLabel:
+          input.guidanceLabel === undefined ? undefined : input.guidanceLabel,
+        hintLevel: input.hintLevel === undefined ? undefined : input.hintLevel,
+        provider: input.provider === undefined ? undefined : input.provider,
+        model: input.model === undefined ? undefined : input.model,
+        promptVersion:
+          input.promptVersion === undefined ? undefined : input.promptVersion,
+        inputTokens:
+          input.inputTokens === undefined ? undefined : input.inputTokens,
+        outputTokens:
+          input.outputTokens === undefined ? undefined : input.outputTokens,
+        topicId: input.topicId === undefined ? undefined : input.topicId,
         completedAt: input.completedAt,
       },
       select: messageSelect,
@@ -147,6 +168,13 @@ export class PrismaConversationTurns extends ConversationTurns {
       return existing === null
         ? { kind: 'message_not_found' }
         : { kind: 'message_not_pending' }
+    }
+
+    if (input.requestKind !== undefined) {
+      await tx.message.update({
+        where: { id: input.studentMessageId },
+        data: { requestKind: input.requestKind },
+      })
     }
 
     return { kind: 'finalized', message: toConversationMessage(message) }

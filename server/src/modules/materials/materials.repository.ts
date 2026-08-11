@@ -12,6 +12,7 @@ import {
   type RecordAuditEventInput,
 } from '../audit/audit.public'
 import { PrismaService } from '../prisma/prisma.service'
+import { asDatabaseTransaction } from '../prisma/database-transaction'
 import type { MaterialChunkInput } from './material-chunk.repository'
 import { MATERIAL_PROCESSING_LEASE_MS } from './material-processing.constants'
 
@@ -324,7 +325,7 @@ export class PrismaMaterialsRepository extends MaterialsRepository {
           metadata: { title: material.title },
           requestContext: input.requestContext,
         },
-        tx,
+        asDatabaseTransaction(tx),
       )
 
       return material
@@ -425,7 +426,10 @@ export class PrismaMaterialsRepository extends MaterialsRepository {
 
         await tx.materialChunk.deleteMany({ where: { materialId } })
         await insertMaterialChunkBatches(tx, materialId, chunks)
-        await this.auditService.recordEvent(input.auditEvent, tx)
+        await this.auditService.recordEvent(
+          input.auditEvent,
+          asDatabaseTransaction(tx),
+        )
 
         return true
       })
@@ -473,7 +477,10 @@ export class PrismaMaterialsRepository extends MaterialsRepository {
         }
 
         await tx.materialChunk.deleteMany({ where: { materialId } })
-        await this.auditService.recordEvent(input.auditEvent, tx)
+        await this.auditService.recordEvent(
+          input.auditEvent,
+          asDatabaseTransaction(tx),
+        )
         return true
       })
     } catch (error) {

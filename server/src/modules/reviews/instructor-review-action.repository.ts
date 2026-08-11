@@ -12,6 +12,7 @@ import {
   ReviewTriggerType,
 } from '../../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { asDatabaseTransaction } from '../prisma/database-transaction'
 import { AuditService } from '../audit/audit.public'
 import type { AuditRequestContext } from '../audit/audit.public'
 import type {
@@ -252,7 +253,7 @@ export class PrismaInstructorReviewActionRepository extends InstructorReviewActi
             metadata: { outcome: publication.outcome },
             requestContext: input.requestContext,
           },
-          tx,
+          asDatabaseTransaction(tx),
         )
 
         return {

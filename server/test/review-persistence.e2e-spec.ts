@@ -2,7 +2,10 @@ import { randomUUID } from 'node:crypto'
 
 import { StudentFlagReason } from '../src/generated/prisma/client'
 import { AuditService } from '../src/modules/audit/audit.service'
+import { PrismaDatabaseTransactionRunner } from '../src/modules/prisma/database-transaction'
+import { PrismaReviewCaseIntake } from '../src/modules/reviews/review-case-intake'
 import { PrismaReviewCaseRepository } from '../src/modules/reviews/review-case.repository'
+import type { AutomaticReviewIntakeInput } from '../src/modules/reviews/review-case-intake'
 import { seedP0DemoData } from '../src/seeds/p0-demo.seed'
 import {
   setUpDisposableDatabase,
@@ -12,6 +15,8 @@ import {
 describe('Review persistence seam (e2e)', () => {
   let database: DisposableDatabase | undefined
   let repository: PrismaReviewCaseRepository
+  let reviewCaseIntake: PrismaReviewCaseIntake
+  let transactionRunner: PrismaDatabaseTransactionRunner
 
   beforeAll(async () => {
     database = await setUpDisposableDatabase('morshid_issue136_review')
@@ -20,6 +25,8 @@ describe('Review persistence seam (e2e)', () => {
       database.prisma,
       new AuditService(database.prisma),
     )
+    reviewCaseIntake = new PrismaReviewCaseIntake(repository)
+    transactionRunner = new PrismaDatabaseTransactionRunner(database.prisma)
   })
 
   afterAll(async () => {
@@ -253,25 +260,16 @@ describe('Review persistence seam (e2e)', () => {
 
   it('enforces Student flag reason trigger shape in the database', async () => {
     const fixture = await createReviewableMessage('trigger-shape')
-    const automatic = (
-      await repository.createAutomaticBatch([
+    const automatic = await openAutomatic({
+      messageId: fixture.assistantMessageId,
+      triggers: [
         {
-          kind: 'automatic',
-          messageId: fixture.assistantMessageId,
           trigger: 'POLICY_CHECK_FAILED',
           sourceEventKey: 'trigger-shape-automatic',
-          evidence: {
-            summary: 'Policy threshold was not met',
-            sources: [],
-            facts: [],
-          },
         },
-      ])
-    )[0]
-    expect(automatic.kind).toBe('ok')
-    if (automatic.kind !== 'ok') {
-      throw new Error('Expected automatic review case creation to succeed')
-    }
+      ],
+      evidence: { summary: 'Policy threshold was not met' },
+    })
 
     await expect(
       requireDatabase().prisma.$executeRaw`
@@ -281,7 +279,7 @@ describe('Review persistence seam (e2e)', () => {
           "student_flag_reason",
           "source_event_key"
         ) VALUES (
-          ${automatic.record.caseId}::uuid,
+          ${automatic.caseId}::uuid,
           'CITATION_MISSING',
           'INCORRECT',
           'trigger-shape-invalid'
@@ -304,49 +302,37 @@ describe('Review persistence seam (e2e)', () => {
 
   it('keeps the first evidence snapshot immutable when automatic reasons aggregate', async () => {
     const fixture = await createReviewableMessage('immutable-automatic')
-    const first = (
-      await repository.createAutomaticBatch([
+    const first = await openAutomatic({
+      messageId: fixture.assistantMessageId,
+      triggers: [
         {
-          kind: 'automatic',
-          messageId: fixture.assistantMessageId,
           trigger: 'POLICY_CHECK_FAILED',
           sourceEventKey: 'immutable-automatic-policy',
-          evidence: {
-            summary: 'Initial bounded policy evidence',
-            sources: [],
-            facts: [],
-          },
         },
-      ])
-    )[0]
-    expect(first.kind).toBe('ok')
-    if (first.kind !== 'ok') {
-      throw new Error('Expected initial automatic case creation to succeed')
-    }
+      ],
+      evidence: { summary: 'Initial bounded policy evidence' },
+    })
     const original =
       await requireDatabase().prisma.reviewEvidenceSnapshot.findUniqueOrThrow({
-        where: { reviewCaseId: first.record.caseId },
+        where: { reviewCaseId: first.caseId },
       })
 
     await expect(
-      repository.createAutomaticBatch([
-        {
-          kind: 'automatic',
-          messageId: fixture.assistantMessageId,
-          trigger: 'FINAL_ANSWER_RISK',
-          sourceEventKey: 'immutable-automatic-final-answer',
-          evidence: {
-            summary: 'Later contribution must not replace evidence',
-            sources: [],
-            facts: [],
+      openAutomatic({
+        messageId: fixture.assistantMessageId,
+        triggers: [
+          {
+            trigger: 'FINAL_ANSWER_RISK',
+            sourceEventKey: 'immutable-automatic-final-answer',
           },
-        },
-      ]),
-    ).resolves.toEqual([expect.objectContaining({ kind: 'ok' })])
+        ],
+        evidence: { summary: 'Later contribution must not replace evidence' },
+      }),
+    ).resolves.toMatchObject({ caseId: first.caseId })
 
     const aggregated =
       await requireDatabase().prisma.reviewCase.findUniqueOrThrow({
-        where: { id: first.record.caseId },
+        where: { id: first.caseId },
         include: {
           evidence: true,
           triggers: { orderBy: { createdAt: 'asc' } },
@@ -471,21 +457,18 @@ describe('Review persistence seam (e2e)', () => {
       'x'.repeat(129 * 1024),
     )
     await expect(
-      repository.createAutomaticBatch([
-        {
-          kind: 'automatic',
-          messageId: oversized.assistantMessageId,
-          trigger: 'POLICY_CHECK_FAILED',
-          sourceEventKey: 'oversized-event',
-          evidence: {
-            summary: 'Policy threshold was not met',
-            sources: [],
-            facts: [],
+      openAutomatic({
+        messageId: oversized.assistantMessageId,
+        triggers: [
+          {
+            trigger: 'POLICY_CHECK_FAILED',
+            sourceEventKey: 'oversized-event',
+            detectorMetadata: { detector: 'test' },
           },
-          detectorMetadata: { detector: 'test' },
-        },
-      ]),
-    ).rejects.toThrow('Automatic review batch failed: snapshot_too_large')
+        ],
+        evidence: { summary: 'Policy threshold was not met' },
+      }),
+    ).rejects.toMatchObject({ response: { code: 'REVIEW_SNAPSHOT_TOO_LARGE' } })
     expect(
       await requireDatabase().prisma.reviewCase.count({
         where: { targetMessageId: oversized.assistantMessageId },
@@ -493,43 +476,35 @@ describe('Review persistence seam (e2e)', () => {
     ).toBe(0)
   })
 
-  it('rolls back every automatic trigger when one batch input fails', async () => {
-    const fixture = await createReviewableMessages('atomic-automatic-batch', 2)
-    const firstMessageId = fixture.assistantMessageIds.at(0)
-    if (firstMessageId === undefined) {
-      throw new Error('Expected an automatic batch fixture message')
-    }
+  it('rolls back automatic review intake with the caller-owned transaction', async () => {
+    const fixture = await createReviewableMessage('atomic-automatic-batch')
 
     await expect(
-      repository.createAutomaticBatch([
-        {
-          kind: 'automatic',
-          messageId: firstMessageId,
-          trigger: 'POLICY_CHECK_FAILED',
-          sourceEventKey: 'atomic-batch-valid',
-          evidence: {
-            summary: 'First batch input',
-            sources: [],
-            facts: [],
+      transactionRunner.run(async (transaction) => {
+        await reviewCaseIntake.openAutomatic(
+          {
+            messageId: fixture.assistantMessageId,
+            triggers: [
+              {
+                trigger: 'POLICY_CHECK_FAILED',
+                sourceEventKey: 'atomic-batch-valid',
+              },
+              {
+                trigger: 'FINAL_ANSWER_RISK',
+                sourceEventKey: 'atomic-batch-second',
+              },
+            ],
+            evidence: { summary: 'Atomic review intake' },
           },
-        },
-        {
-          kind: 'automatic',
-          messageId: randomUUID(),
-          trigger: 'FINAL_ANSWER_RISK',
-          sourceEventKey: 'atomic-batch-invalid',
-          evidence: {
-            summary: 'Second batch input must fail',
-            sources: [],
-            facts: [],
-          },
-        },
-      ]),
-    ).rejects.toThrow('Automatic review batch failed: not_found')
+          transaction,
+        )
+        throw new Error('force finalization rollback')
+      }),
+    ).rejects.toThrow('force finalization rollback')
 
     await expect(
       requireDatabase().prisma.reviewCase.count({
-        where: { targetMessageId: firstMessageId },
+        where: { targetMessageId: fixture.assistantMessageId },
       }),
     ).resolves.toBe(0)
     await expect(
@@ -538,6 +513,12 @@ describe('Review persistence seam (e2e)', () => {
       }),
     ).resolves.toBe(0)
   })
+
+  async function openAutomatic(input: AutomaticReviewIntakeInput) {
+    return transactionRunner.run((transaction) =>
+      reviewCaseIntake.openAutomatic(input, transaction),
+    )
+  }
 
   async function createReviewableMessage(label: string, content = 'Answer') {
     const fixture = await createReviewableMessages(label, 1, content)

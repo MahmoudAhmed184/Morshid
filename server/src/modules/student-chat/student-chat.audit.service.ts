@@ -1,11 +1,8 @@
 import { Injectable } from '@nestjs/common'
 
 import { AUDIT_EVENT_ACTIONS, AUDIT_TARGET_TYPES } from '../audit/audit.public'
-import {
-  AuditService,
-  type AuditDatabase,
-  type AuditRequestContext,
-} from '../audit/audit.public'
+import { AuditService, type AuditRequestContext } from '../audit/audit.public'
+import type { DatabaseTransaction } from '../prisma/database-transaction'
 
 interface RecordSessionDeletedInput {
   actorUserId: string
@@ -48,7 +45,7 @@ export class StudentChatAuditService {
 
   async recordSessionDeleted(
     input: RecordSessionDeletedInput,
-    database?: AuditDatabase,
+    transaction?: DatabaseTransaction,
   ): Promise<void> {
     await this.auditService.recordEvent(
       {
@@ -62,13 +59,13 @@ export class StudentChatAuditService {
         metadata: {},
         requestContext: input.requestContext,
       },
-      database,
+      transaction,
     )
   }
 
   async recordAccessDenied(
     input: RecordAccessDeniedInput,
-    database?: AuditDatabase,
+    transaction?: DatabaseTransaction,
   ): Promise<void> {
     await this.auditService.recordEvent(
       {
@@ -91,7 +88,7 @@ export class StudentChatAuditService {
         },
         requestContext: input.requestContext,
       },
-      database,
+      transaction,
     )
   }
 }

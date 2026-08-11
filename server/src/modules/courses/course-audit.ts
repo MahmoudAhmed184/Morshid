@@ -1,11 +1,8 @@
 import { Injectable } from '@nestjs/common'
 
 import { AUDIT_EVENT_ACTIONS, AUDIT_TARGET_TYPES } from '../audit/audit.public'
-import {
-  AuditService,
-  type AuditDatabase,
-  type AuditRequestContext,
-} from '../audit/audit.public'
+import { AuditService, type AuditRequestContext } from '../audit/audit.public'
+import type { DatabaseTransaction } from '../prisma/database-transaction'
 import type { CourseMembershipRole } from '../../generated/prisma/client'
 
 interface RecordCourseCreatedInput {
@@ -83,7 +80,7 @@ export class CourseAudit {
 
   async recordCourseCreated(
     input: RecordCourseCreatedInput,
-    database?: AuditDatabase,
+    transaction?: DatabaseTransaction,
   ): Promise<void> {
     await this.auditService.recordEvent(
       {
@@ -100,13 +97,13 @@ export class CourseAudit {
         },
         requestContext: input.requestContext,
       },
-      database,
+      transaction,
     )
   }
 
   async recordCourseUpdated(
     input: RecordCourseUpdatedInput,
-    database?: AuditDatabase,
+    transaction?: DatabaseTransaction,
   ): Promise<void> {
     await this.auditService.recordEvent(
       {
@@ -135,13 +132,13 @@ export class CourseAudit {
         },
         requestContext: input.requestContext,
       },
-      database,
+      transaction,
     )
   }
 
   async recordMemberAdded(
     input: RecordMemberAddedInput,
-    database?: AuditDatabase,
+    transaction?: DatabaseTransaction,
   ): Promise<void> {
     await this.auditService.recordEvent(
       {
@@ -160,13 +157,13 @@ export class CourseAudit {
         },
         requestContext: input.requestContext,
       },
-      database,
+      transaction,
     )
   }
 
   async recordMemberRemoved(
     input: RecordMemberRemovedInput,
-    database?: AuditDatabase,
+    transaction?: DatabaseTransaction,
   ): Promise<void> {
     await this.auditService.recordEvent(
       {
@@ -185,13 +182,13 @@ export class CourseAudit {
         },
         requestContext: input.requestContext,
       },
-      database,
+      transaction,
     )
   }
 
   async recordMemberRoleChanged(
     input: RecordMemberRoleChangedInput,
-    database?: AuditDatabase,
+    transaction?: DatabaseTransaction,
   ): Promise<void> {
     await this.auditService.recordEvent(
       {
@@ -210,7 +207,7 @@ export class CourseAudit {
         },
         requestContext: input.requestContext,
       },
-      database,
+      transaction,
     )
   }
 }

@@ -6,10 +6,10 @@ import {
 } from '../../audit/audit.public'
 import {
   AuditService,
-  type AuditDatabase,
   type AuditMetadata,
   type AuditRequestContext,
 } from '../../audit/audit.public'
+import type { DatabaseTransaction } from '../../prisma/database-transaction'
 import type { AuditEventAction } from '../../audit/audit.public'
 import type { UserRole } from '../../../generated/prisma/client'
 
@@ -46,19 +46,19 @@ export class UserAdministrationAuditService {
 
   async recordUserCreated(
     input: RecordManagedUserCreatedInput,
-    database?: AuditDatabase,
+    transaction?: DatabaseTransaction,
   ): Promise<void> {
     await this.recordUserEvent(
       AUDIT_EVENT_ACTIONS.ADMIN_ACCOUNT_CREATED,
       input,
       {},
-      database,
+      transaction,
     )
   }
 
   async recordUserUpdated(
     input: RecordManagedUserUpdatedInput,
-    database?: AuditDatabase,
+    transaction?: DatabaseTransaction,
   ): Promise<void> {
     const before = userAuditSnapshot(input.previousUser)
     const after = userAuditSnapshot(input.targetUser)
@@ -82,37 +82,37 @@ export class UserAdministrationAuditService {
         },
         requestContext: input.requestContext,
       },
-      database,
+      transaction,
     )
   }
 
   async recordUserDisabled(
     input: RecordManagedUserDisabledInput,
-    database?: AuditDatabase,
+    transaction?: DatabaseTransaction,
   ): Promise<void> {
     await this.recordUserEvent(
       AUDIT_EVENT_ACTIONS.ADMIN_ACCOUNT_DISABLED,
       input,
       { revokedRefreshTokenCount: input.revokedRefreshTokenCount },
-      database,
+      transaction,
     )
   }
 
   async recordUserReactivated(
     input: RecordManagedUserReactivatedInput,
-    database?: AuditDatabase,
+    transaction?: DatabaseTransaction,
   ): Promise<void> {
     await this.recordUserEvent(
       AUDIT_EVENT_ACTIONS.ADMIN_ACCOUNT_ENABLED,
       input,
       {},
-      database,
+      transaction,
     )
   }
 
   async recordUserPasswordReset(
     input: RecordManagedUserPasswordResetInput,
-    database?: AuditDatabase,
+    transaction?: DatabaseTransaction,
   ): Promise<void> {
     await this.recordUserEvent(
       AUDIT_EVENT_ACTIONS.ADMIN_USER_PASSWORD_RESET,
@@ -121,7 +121,7 @@ export class UserAdministrationAuditService {
         refreshTokensRevoked: input.revokedRefreshTokenCount > 0,
         revokedRefreshTokenCount: input.revokedRefreshTokenCount,
       },
-      database,
+      transaction,
     )
   }
 
@@ -129,7 +129,7 @@ export class UserAdministrationAuditService {
     action: AuditEventAction,
     input: ManagedUserAuditInput,
     metadata: AuditMetadata,
-    database?: AuditDatabase,
+    transaction?: DatabaseTransaction,
   ): Promise<void> {
     await this.auditService.recordEvent(
       {
@@ -147,7 +147,7 @@ export class UserAdministrationAuditService {
         },
         requestContext: input.requestContext,
       },
-      database,
+      transaction,
     )
   }
 }

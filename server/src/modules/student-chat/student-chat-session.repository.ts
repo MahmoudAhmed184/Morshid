@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 
 import { CourseMembershipRole, Prisma } from '../../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { asDatabaseTransaction } from '../prisma/database-transaction'
 import { StudentChatAuditService } from './student-chat.audit.service'
 import {
   chatSessionSelect,
@@ -223,7 +224,7 @@ export class PrismaStudentChatSessionRepository extends StudentChatSessionReposi
           sessionId: input.sessionId,
           requestContext: input.requestContext,
         },
-        tx,
+        asDatabaseTransaction(tx),
       )
 
       return 'deleted'

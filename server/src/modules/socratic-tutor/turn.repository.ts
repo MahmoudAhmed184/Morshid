@@ -13,6 +13,13 @@ import {
   TutoringSafeFallbackReason,
 } from '../../generated/prisma/client'
 import { lockAuthorizedStudentChat } from '../../common/authorization/locked-student-chat-session'
+import { ConversationTurns } from '../conversations/conversation-turns'
+import {
+  AUDIT_EVENT_ACTIONS,
+  AUDIT_TARGET_TYPES,
+  AuditService,
+} from '../audit/audit.public'
+import { asDatabaseTransaction } from '../prisma/database-transaction'
 import { PrismaService } from '../prisma/prisma.service'
 import type { CourseEvidenceChunk } from '../materials/materials.public'
 import { CLASSIFIED_RESPONSE_POLICY_VERSION } from './classified-response'
@@ -156,7 +163,11 @@ export const tutoringAttemptSelect = {
 
 @Injectable()
 export class PrismaTurnRepository extends TurnRepository {
-  constructor(private readonly prismaService: PrismaService) {
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly conversationTurns: ConversationTurns,
+    private readonly auditService: AuditService,
+  ) {
     super()
   }
 
@@ -579,38 +590,20 @@ export class PrismaTurnRepository extends TurnRepository {
         return { kind: 'topic_state_conflict' }
       }
 
-      const updatedStudentMessage = await tx.message.updateManyAndReturn({
-        where: {
-          id: input.studentMessageId,
+      const now = await currentDatabaseTime(tx)
+      const finalized = await this.conversationTurns.finalize(
+        {
+          courseId: input.courseId,
           sessionId: input.sessionId,
-          role: MessageRole.STUDENT,
+          studentId: input.studentId,
           attemptId: input.attemptId,
           topicId: input.topicId,
-        },
-        data: { requestKind: input.requestKind },
-        select: { id: true },
-        limit: 1,
-      })
-      if (updatedStudentMessage.length === 0) {
-        throw new Error('Student message changed during response finalization')
-      }
-
-      const now = await currentDatabaseTime(tx)
-      const messages = await tx.message.updateManyAndReturn({
-        where: {
-          id: input.assistantMessageId,
-          sessionId: input.sessionId,
-          role: MessageRole.ASSISTANT,
-          status: MessageStatus.PENDING,
-          responseToMessageId: input.studentMessageId,
-          OR: [{ attemptId: null }, { attemptId: input.attemptId }],
-          AND: [{ OR: [{ topicId: null }, { topicId: input.topicId }] }],
-        },
-        data: {
+          studentMessageId: input.studentMessageId,
+          assistantMessageId: input.assistantMessageId,
           status: MessageStatus.COMPLETED,
           content: input.approvedResponse.message,
-          attemptId: input.attemptId,
-          topicId: input.topicId,
+          errorCode: null,
+          requestKind: input.requestKind,
           guidanceLabel: MessageGuidanceLabel.COURSE_GROUNDED,
           hintLevel:
             input.approvedResponse.source === 'SAFE_FALLBACK'
@@ -621,17 +614,18 @@ export class PrismaTurnRepository extends TurnRepository {
           promptVersion: input.approvedResponse.approvalMetadata.promptVersion,
           inputTokens: input.approvedResponse.approvalMetadata.inputTokens,
           outputTokens: input.approvedResponse.approvalMetadata.outputTokens,
-          errorCode: null,
-          errorMessage: null,
           completedAt: now,
         },
-        select: { id: true },
-        limit: 1,
-      })
-      if (messages.length === 0) {
-        throw new Error(
-          'Assistant message changed during response finalization',
-        )
+        asDatabaseTransaction(tx),
+      )
+      if (finalized.kind === 'message_not_found') {
+        return { kind: 'message_not_found' }
+      }
+      if (finalized.kind === 'message_not_pending') {
+        return { kind: 'message_not_pending' }
+      }
+      if (finalized.kind !== 'finalized') {
+        return { kind: 'relationship_mismatch' }
       }
 
       await tx.messageRetrieval.deleteMany({
@@ -706,7 +700,10 @@ export class PrismaTurnRepository extends TurnRepository {
         where: {
           id: input.attemptId,
           status: input.expectedTurnStatus,
-          assistantMessageId: input.assistantMessageId,
+          OR: [
+            { assistantMessageId: null },
+            { assistantMessageId: input.assistantMessageId },
+          ],
         },
         data: {
           status: TutoringAttemptStatus.COMPLETED,
@@ -735,6 +732,26 @@ export class PrismaTurnRepository extends TurnRepository {
           'TutoringAttempt changed during approved response finalization',
         )
       }
+
+      await this.auditService.recordEvent(
+        {
+          actorUserId: input.studentId,
+          action: AUDIT_EVENT_ACTIONS.CHAT_TURN_COMPLETED,
+          target: {
+            type: AUDIT_TARGET_TYPES.MESSAGE,
+            id: input.assistantMessageId,
+          },
+          courseId: input.courseId,
+          metadata: {
+            attemptId: input.attemptId,
+            approvalSource:
+              input.approvedResponse.source === 'SAFE_FALLBACK'
+                ? 'SAFE_FALLBACK'
+                : 'VALIDATED_CANDIDATE',
+          },
+        },
+        asDatabaseTransaction(tx),
+      )
 
       return { kind: 'ok', turn: snapshot }
     })
@@ -844,38 +861,19 @@ export class PrismaTurnRepository extends TurnRepository {
         return { kind: 'topic_state_conflict' }
       }
 
-      const updatedStudentMessage = await tx.message.updateManyAndReturn({
-        where: {
-          id: input.studentMessageId,
-          sessionId: input.sessionId,
-          role: MessageRole.STUDENT,
-          attemptId: input.attemptId,
-          topicId: input.topicId,
-        },
-        data: { requestKind: input.requestKind },
-        select: { id: true },
-        limit: 1,
-      })
-      if (updatedStudentMessage.length === 0) {
-        throw new Error(
-          'Student message changed during classified response finalization',
-        )
-      }
-
       const now = await currentDatabaseTime(tx)
-      const updatedMessages = await tx.message.updateManyAndReturn({
-        where: {
-          id: input.assistantMessageId,
+      const finalized = await this.conversationTurns.finalize(
+        {
+          courseId: input.courseId,
           sessionId: input.sessionId,
-          role: MessageRole.ASSISTANT,
-          status: MessageStatus.PENDING,
-          responseToMessageId: input.studentMessageId,
+          studentId: input.studentId,
           attemptId: input.attemptId,
           topicId: input.topicId,
-        },
-        data: {
+          studentMessageId: input.studentMessageId,
+          assistantMessageId: input.assistantMessageId,
           status: MessageStatus.COMPLETED,
           content: input.content,
+          errorCode: input.errorCode,
           requestKind: input.requestKind,
           guidanceLabel: input.guidanceLabel,
           hintLevel: null,
@@ -884,24 +882,28 @@ export class PrismaTurnRepository extends TurnRepository {
           promptVersion: CLASSIFIED_RESPONSE_POLICY_VERSION,
           inputTokens: null,
           outputTokens: null,
-          errorCode: input.errorCode,
-          errorMessage: null,
           completedAt: now,
         },
-        select: { id: true },
-        limit: 1,
-      })
-      if (updatedMessages.length === 0) {
-        throw new Error(
-          'Assistant message changed during classified response finalization',
-        )
+        asDatabaseTransaction(tx),
+      )
+      if (finalized.kind === 'message_not_found') {
+        return { kind: 'message_not_found' }
+      }
+      if (finalized.kind === 'message_not_pending') {
+        return { kind: 'message_not_pending' }
+      }
+      if (finalized.kind !== 'finalized') {
+        return { kind: 'relationship_mismatch' }
       }
 
       const updatedTurns = await tx.tutoringAttempt.updateManyAndReturn({
         where: {
           id: input.attemptId,
           status: input.expectedTurnStatus,
-          assistantMessageId: input.assistantMessageId,
+          OR: [
+            { assistantMessageId: null },
+            { assistantMessageId: input.assistantMessageId },
+          ],
         },
         data: {
           status: TutoringAttemptStatus.COMPLETED,
@@ -922,6 +924,23 @@ export class PrismaTurnRepository extends TurnRepository {
           'TutoringAttempt changed during classified response finalization',
         )
       }
+
+      await this.auditService.recordEvent(
+        {
+          actorUserId: input.studentId,
+          action: AUDIT_EVENT_ACTIONS.CHAT_TURN_COMPLETED,
+          target: {
+            type: AUDIT_TARGET_TYPES.MESSAGE,
+            id: input.assistantMessageId,
+          },
+          courseId: input.courseId,
+          metadata: {
+            attemptId: input.attemptId,
+            approvalSource: 'CLASSIFIED_RESPONSE',
+          },
+        },
+        asDatabaseTransaction(tx),
+      )
 
       return { kind: 'ok', turn: snapshot }
     })

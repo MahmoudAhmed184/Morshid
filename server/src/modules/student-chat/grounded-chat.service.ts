@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 
 import { Injectable, Logger } from '@nestjs/common'
 
@@ -14,8 +14,8 @@ import type { TutoringTurnReceipt } from '../tutoring/interface/tutoring-turn-re
 import type { AuditRequestContext } from '../audit/audit.public'
 import { PrismaService } from '../prisma/prisma.service'
 import {
-  AUTOMATIC_SAFETY_RISK_DETECTOR_VERSION,
   AutomaticSafetyRiskDetector,
+  AUTOMATIC_SAFETY_RISK_DETECTOR_VERSION,
   type AutomaticSafetyRiskDetection,
 } from '../output-policy/automatic-safety-risk.detector'
 import {
@@ -24,26 +24,21 @@ import {
 } from '../tutor/tutor-decision'
 import { PYTHON_CODE_DIAGNOSIS_BOUNDARY_ERROR_CODES } from '../tutor/code-diagnosis/python-code-diagnosis.boundary-response'
 import {
-  OutputPolicyReviewAdapter,
-  OutputPolicyReviewIntegrationError,
-} from '../output-policy/output-policy-review.adapter'
-import {
-  CONTROLLED_SOURCE_CONFLICT_DETECTOR_VERSION,
   ControlledSourceConflictDetector,
+  CONTROLLED_SOURCE_CONFLICT_DETECTOR_VERSION,
   type ControlledSourceConflict,
 } from '../output-policy/controlled-source-conflict.detector'
 import {
   decodeAutomaticPolicyReasons,
+  OUTPUT_POLICY_VERSION,
   encodeAutomaticPolicyReasons,
   type AutomaticPolicyReason,
   type OutputPolicyDecision,
   type OutputPolicyEvidenceSource,
   type OutputPolicyReviewFact,
 } from '../output-policy/output-policy.contract'
-import {
-  OUTPUT_POLICY_QUESTION_X_SCHEDULE_CONFLICT_CONTENT,
-  OutputPolicyService,
-} from '../output-policy/output-policy.service'
+import { OutputPolicyService } from '../output-policy/output-policy.service'
+import type { AutomaticReviewIntakeInput } from '../reviews/reviews.public'
 import {
   type BeginGroundedChatTurnResult,
   type FinalizeGroundedChatTurnResult,
@@ -111,7 +106,6 @@ type OrchestrationPhase =
   | 'completion'
   | 'policy_evaluation'
   | 'finalization'
-  | 'review_creation'
   | 'unsupported_persistence'
   | 'safety_refusal_persistence'
   | 'conflict_persistence'
@@ -148,7 +142,6 @@ export class GroundedChatService extends TutoringRuntime {
     private readonly safetyRiskDetector: AutomaticSafetyRiskDetector,
     private readonly conflictDetector: ControlledSourceConflictDetector,
     private readonly outputPolicy: OutputPolicyService,
-    private readonly outputPolicyReviewAdapter: OutputPolicyReviewAdapter,
     private readonly requestClassifier: CorrectnessSensitiveRequestClassifier,
   ) {
     super()
@@ -236,7 +229,6 @@ export class GroundedChatService extends TutoringRuntime {
         result.studentMessage,
         result.assistantMessage,
         operation,
-        requestContext,
       )
     }
     if (result.kind !== 'ok') {
@@ -511,24 +503,24 @@ export class GroundedChatService extends TutoringRuntime {
       ],
     })
 
-    return this.persistAutomaticPolicyTurn(
-      turn,
-      decision,
-      operation,
-      requestContext,
-      () =>
-        this.turnRepository.completePolicyTurn({
-          courseId: turn.courseId,
-          sessionId: operation.sessionId,
-          studentId: operation.studentId,
-          attemptId: turn.attemptId,
-          studentMessageId: turn.studentMessage.id,
-          assistantMessageId: turn.assistantMessage.id,
-          content: decision.content,
-          guidanceLabel: decision.studentStatus.guidanceLabel,
-          errorCode: encodeAutomaticPolicyReasons(decision.reasons),
-          evidence: conflict.sources,
-        }),
+    return this.persistAutomaticPolicyTurn(turn, operation, () =>
+      this.turnRepository.completePolicyTurn({
+        courseId: turn.courseId,
+        sessionId: operation.sessionId,
+        studentId: operation.studentId,
+        attemptId: turn.attemptId,
+        studentMessageId: turn.studentMessage.id,
+        assistantMessageId: turn.assistantMessage.id,
+        content: decision.content,
+        guidanceLabel: decision.studentStatus.guidanceLabel,
+        errorCode: encodeAutomaticPolicyReasons(decision.reasons),
+        evidence: conflict.sources,
+        automaticReview: policyReviewInput(
+          turn.assistantMessage.id,
+          decision,
+          requestContext,
+        ),
+      }),
     )
   }
 
@@ -549,9 +541,7 @@ export class GroundedChatService extends TutoringRuntime {
 
     return this.persistAutomaticPolicyTurn(
       turn,
-      decision,
       operation,
-      requestContext,
       () =>
         this.turnRepository.completeUnsupportedTurn({
           courseId: turn.courseId,
@@ -562,6 +552,11 @@ export class GroundedChatService extends TutoringRuntime {
           assistantMessageId: turn.assistantMessage.id,
           content: decision.content,
           errorCode: encodeAutomaticPolicyReasons(decision.reasons),
+          automaticReview: policyReviewInput(
+            turn.assistantMessage.id,
+            decision,
+            requestContext,
+          ),
         }),
       'unsupported_persistence',
     )
@@ -592,31 +587,29 @@ export class GroundedChatService extends TutoringRuntime {
       ],
     })
 
-    return this.persistAutomaticPolicyTurn(
-      turn,
-      decision,
-      operation,
-      requestContext,
-      () =>
-        this.turnRepository.completeSafetyTurn({
-          courseId: turn.courseId,
-          sessionId: operation.sessionId,
-          studentId: operation.studentId,
-          attemptId: turn.attemptId,
-          studentMessageId: turn.studentMessage.id,
-          assistantMessageId: turn.assistantMessage.id,
-          content: decision.content,
-          guidanceLabel: decision.studentStatus.guidanceLabel,
-          errorCode: encodeAutomaticPolicyReasons(decision.reasons),
-        }),
+    return this.persistAutomaticPolicyTurn(turn, operation, () =>
+      this.turnRepository.completeSafetyTurn({
+        courseId: turn.courseId,
+        sessionId: operation.sessionId,
+        studentId: operation.studentId,
+        attemptId: turn.attemptId,
+        studentMessageId: turn.studentMessage.id,
+        assistantMessageId: turn.assistantMessage.id,
+        content: decision.content,
+        guidanceLabel: decision.studentStatus.guidanceLabel,
+        errorCode: encodeAutomaticPolicyReasons(decision.reasons),
+        automaticReview: policyReviewInput(
+          turn.assistantMessage.id,
+          decision,
+          requestContext,
+        ),
+      }),
     )
   }
 
   private async persistAutomaticPolicyTurn(
     turn: ActiveGroundedTurn,
-    decision: OutputPolicyDecision,
     operation: OrchestrationContext,
-    requestContext: AuditRequestContext | undefined,
     finalize: () => Promise<FinalizeGroundedChatTurnResult>,
     phase: OrchestrationPhase = 'finalization',
   ): Promise<GroundedChatTurnResponseDto> {
@@ -630,12 +623,10 @@ export class GroundedChatService extends TutoringRuntime {
 
     switch (completed.kind) {
       case 'ok':
-        return this.createPolicyReviewAndPresent(
+        return this.presentFinalizedPolicyTurn(
           turn.studentMessage,
           completed.message,
-          decision,
           operation,
-          requestContext,
         )
       case 'membership_missing':
       case 'session_not_found':
@@ -653,20 +644,35 @@ export class GroundedChatService extends TutoringRuntime {
     studentMessage: ChatMessageRecord,
     assistantMessage: ChatMessageRecord,
     operation: OrchestrationContext,
-    requestContext?: AuditRequestContext,
   ): Promise<GroundedChatTurnResponseDto> {
     const reasons = decodeAutomaticPolicyReasons(assistantMessage.errorCode)
-    if (reasons !== null) {
+    if (reasons !== null && assistantMessage.attemptId !== null) {
       const decision = this.recreatePolicyDecision(assistantMessage, reasons)
-      return this.createPolicyReviewAndPresent(
-        studentMessage,
-        assistantMessage,
+      const automaticReview = policyReviewInput(
+        assistantMessage.id,
         decision,
-        operation,
-        requestContext,
+        undefined,
       )
+      if (automaticReview !== undefined) {
+        const repaired = await this.turnRepository.repairAutomaticReview({
+          courseId: operation.courseId,
+          sessionId: operation.sessionId,
+          studentId: operation.studentId,
+          attemptId: assistantMessage.attemptId,
+          studentMessageId: studentMessage.id,
+          assistantMessageId: assistantMessage.id,
+          automaticReview,
+        })
+        if (repaired.kind !== 'ok') {
+          throw studentChatTerminalStateUnavailableException()
+        }
+      }
     }
-    return this.presentTurn(studentMessage, assistantMessage)
+    return this.presentFinalizedPolicyTurn(
+      studentMessage,
+      assistantMessage,
+      operation,
+    )
   }
 
   private recreatePolicyDecision(
@@ -676,9 +682,6 @@ export class GroundedChatService extends TutoringRuntime {
     const evidence = policyEvidenceFrom(message)
     return this.outputPolicy.evaluate({
       proposedContent: message.content,
-      ...(message.content === OUTPUT_POLICY_QUESTION_X_SCHEDULE_CONFLICT_CONTENT
-        ? { controlledConflictKind: 'QUESTION_X_SCHEDULE' }
-        : {}),
       assessment: {
         support: reasons.includes('GENERAL_NOT_FOUND')
           ? 'NOT_FOUND'
@@ -702,39 +705,11 @@ export class GroundedChatService extends TutoringRuntime {
     })
   }
 
-  private async createPolicyReview(
-    message: ChatMessageRecord,
-    decision: OutputPolicyDecision,
-    operation: OrchestrationContext,
-    requestContext?: AuditRequestContext,
-  ): Promise<void> {
-    try {
-      await this.outputPolicyReviewAdapter.createRequiredReview({
-        assistantMessageId: message.id,
-        decision,
-        requestContext,
-      })
-    } catch (error) {
-      this.logFailure('review_creation', operation, error)
-      throw studentChatTerminalStateUnavailableException()
-    }
-  }
-
-  private async createPolicyReviewAndPresent(
+  private async presentFinalizedPolicyTurn(
     studentMessage: ChatMessageRecord,
     assistantMessage: ChatMessageRecord,
-    decision: OutputPolicyDecision,
     operation: OrchestrationContext,
-    requestContext?: AuditRequestContext,
   ): Promise<GroundedChatTurnResponseDto> {
-    if (decision.createReview) {
-      await this.createPolicyReview(
-        assistantMessage,
-        decision,
-        operation,
-        requestContext,
-      )
-    }
     const [refreshedStudent, refreshedAssistant] = await Promise.all([
       this.prismaService.message.findUnique({
         where: { id: studentMessage.id },
@@ -1009,9 +984,6 @@ function safeErrorDescriptor(error: unknown): {
   errorClass: string
   errorCode?: string
 } {
-  if (error instanceof OutputPolicyReviewIntegrationError) {
-    return { errorClass: 'OutputPolicyReviewIntegrationError' }
-  }
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     return {
       errorClass: 'PrismaClientKnownRequestError',
@@ -1026,6 +998,16 @@ function safeErrorDescriptor(error: unknown): {
   }
 
   return { errorClass: 'UnknownError' }
+}
+
+function requireSingleEmbeddingModel(
+  sources: ControlledSourceConflict['sources'],
+): string {
+  const models = new Set(sources.map(({ embeddingModel }) => embeddingModel))
+  if (models.size !== 1) {
+    throw new TypeError('Conflict sources must share one embedding profile')
+  }
+  return sources[0].embeddingModel
 }
 
 function policyEvidenceFrom(
@@ -1096,14 +1078,56 @@ function replayReviewFacts(
   return []
 }
 
-function requireSingleEmbeddingModel(
-  sources: ControlledSourceConflict['sources'],
-): string {
-  const models = new Set(sources.map(({ embeddingModel }) => embeddingModel))
-  if (models.size !== 1) {
-    throw new TypeError('Conflict sources must share one embedding profile')
+function policyReviewInput(
+  assistantMessageId: string,
+  decision: OutputPolicyDecision,
+  requestContext: AuditRequestContext | undefined,
+): Omit<AutomaticReviewIntakeInput, 'messageId'> | undefined {
+  if (!decision.createReview) {
+    return undefined
   }
-  return sources[0].embeddingModel
+  if (decision.reasons.length === 0 || decision.reviewEvidence === null) {
+    throw new Error('Automatic response review input is incomplete')
+  }
+
+  return {
+    triggers: decision.reasons.map((reason) => ({
+      trigger: reason,
+      sourceEventKey: sourceEventKey(assistantMessageId, reason),
+      detectorMetadata: {
+        policyVersion: OUTPUT_POLICY_VERSION,
+        reasonCount: decision.reasons.length,
+        ...metadataFrom(decision),
+      },
+    })),
+    evidence: decision.reviewEvidence,
+    requestContext,
+  }
+}
+
+function metadataFrom(
+  decision: OutputPolicyDecision,
+): Record<string, string | number | boolean> {
+  const metadata: Record<string, string | number | boolean> = {}
+  for (const fact of decision.reviewEvidence?.facts ?? []) {
+    switch (fact.code) {
+      case 'detector_version':
+        metadata.detectorVersion = fact.value
+        break
+      case 'embedding_model':
+        metadata.embeddingModel = fact.value
+        break
+    }
+  }
+  return metadata
+}
+
+function sourceEventKey(messageId: string, reason: string): string {
+  const messageDigest = createHash('sha256')
+    .update(messageId, 'utf8')
+    .digest('hex')
+    .slice(0, 32)
+  return `${OUTPUT_POLICY_VERSION}:${messageDigest}:${reason}`
 }
 
 function isSafePrismaCode(code: string): boolean {

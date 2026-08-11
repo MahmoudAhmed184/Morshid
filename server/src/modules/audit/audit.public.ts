@@ -11,8 +11,8 @@ export {
 } from './access-audit.service'
 export {
   AuditService,
-  type AuditDatabase,
   type AuditMetadata,
+  type AuditMetadataValue,
   type AuditRequestContext,
   type AuditTargetInput,
   type RecordAuditEventInput,

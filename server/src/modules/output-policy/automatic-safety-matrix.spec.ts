@@ -1,9 +1,7 @@
-import type { ReviewCaseCreator } from '../reviews/review-case.creator'
 import {
   AUTOMATIC_SAFETY_FIXTURES,
   type AutomaticSafetyFixture,
 } from './automatic-safety.fixtures'
-import { OutputPolicyReviewAdapter } from './output-policy-review.adapter'
 import {
   OUTPUT_POLICY_GENERAL_NOT_FOUND_CONTENT,
   OUTPUT_POLICY_REFUSAL_CONTENT,
@@ -11,27 +9,12 @@ import {
   OutputPolicyService,
 } from './output-policy.service'
 
-const assistantMessageId = '70000000-0000-4000-8000-000000000001'
-const reviewCaseId = '70000000-0000-4000-8000-000000000002'
-
 describe('automatic safety SCN-01–SCN-08 matrix', () => {
   const policy = new OutputPolicyService()
 
   it.each(AUTOMATIC_SAFETY_FIXTURES)(
-    '$id proves response, ordered reasons, bounded evidence, and delivery uniqueness',
-    async (fixture) => {
-      const createAutomaticBatch = jest.fn() as jest.MockedFunction<
-        ReviewCaseCreator['createAutomaticBatch']
-      >
-      createAutomaticBatch.mockResolvedValue({
-        caseId: reviewCaseId,
-        messageId: assistantMessageId,
-        status: 'PENDING',
-        replayed: false,
-      })
-      const adapter = new OutputPolicyReviewAdapter({
-        createAutomaticBatch,
-      } as unknown as ReviewCaseCreator)
+    '$id proves response, ordered reasons, and bounded evidence',
+    (fixture) => {
       const decision = policy.evaluate(fixture.input)
 
       expect(decision.reasons).toEqual(fixture.expectedReasons)
@@ -42,47 +25,6 @@ describe('automatic safety SCN-01–SCN-08 matrix', () => {
       )
       for (const source of decision.reviewEvidence?.sources ?? []) {
         expect(Array.from(source.excerpt).length).toBeLessThanOrEqual(500)
-      }
-
-      const results = []
-      for (let attempt = 0; attempt < fixture.attempts; attempt += 1) {
-        results.push(
-          await adapter.createRequiredReview({
-            assistantMessageId,
-            decision,
-          }),
-        )
-      }
-
-      expect(createAutomaticBatch).toHaveBeenCalledTimes(
-        fixture.expectedReasons.length === 0 ? 0 : fixture.attempts,
-      )
-      expect(
-        createAutomaticBatch.mock.calls.flatMap(([request]) =>
-          request.triggers.map(({ trigger }) => trigger),
-        ),
-      ).toEqual(
-        Array.from({ length: fixture.attempts }, () => [
-          ...fixture.expectedReasons,
-        ]).flat(),
-      )
-      expect(
-        new Set(
-          createAutomaticBatch.mock.calls.flatMap(([request]) =>
-            request.triggers.map(({ sourceEventKey }) => sourceEventKey),
-          ),
-        ).size,
-      ).toBe(fixture.expectedReasons.length)
-      for (const result of results) {
-        if (fixture.expectedReasons.length === 0) {
-          expect(result).toBeNull()
-        } else {
-          expect(result).toMatchObject({
-            caseId: reviewCaseId,
-            messageId: assistantMessageId,
-            status: 'PENDING',
-          })
-        }
       }
     },
   )

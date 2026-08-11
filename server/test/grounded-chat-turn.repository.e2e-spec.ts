@@ -4,6 +4,9 @@ import { Client } from 'pg'
 
 import { Prisma } from '../src/generated/prisma/client'
 import { PrismaConversationTurns } from '../src/modules/conversations/prisma-conversation-turns'
+import { AuditService } from '../src/modules/audit/audit.service'
+import { PrismaReviewCaseIntake } from '../src/modules/reviews/review-case-intake'
+import { PrismaReviewCaseRepository } from '../src/modules/reviews/review-case.repository'
 import type { PrismaService } from '../src/modules/prisma/prisma.service'
 import { PrismaStudentChatMessageRepository } from '../src/modules/student-chat/student-chat-message.repository'
 import { StudentChatMessagePresenter } from '../src/modules/student-chat/student-chat-message.presenter'
@@ -32,12 +35,21 @@ describe('Grounded chat turn repository (e2e)', () => {
   let prisma: PrismaService
   let repository: PrismaGroundedChatTurnRepository
   let conversationTurns: PrismaConversationTurns
+  let reviewCaseIntake: PrismaReviewCaseIntake
 
   beforeAll(async () => {
     database = await setUpDisposableDatabase('morshid_issue88_turns')
     prisma = database.prisma
     conversationTurns = new PrismaConversationTurns()
-    repository = new PrismaGroundedChatTurnRepository(prisma, conversationTurns)
+    reviewCaseIntake = new PrismaReviewCaseIntake(
+      new PrismaReviewCaseRepository(prisma, new AuditService(prisma)),
+    )
+    repository = new PrismaGroundedChatTurnRepository(
+      prisma,
+      conversationTurns,
+      reviewCaseIntake,
+      new AuditService(prisma),
+    )
   })
 
   afterAll(async () => {
@@ -639,6 +651,8 @@ describe('Grounded chat turn repository (e2e)', () => {
     const ambiguousBegin = new PrismaGroundedChatTurnRepository(
       loseNextTransactionAcknowledgement(prisma),
       conversationTurns,
+      reviewCaseIntake,
+      new AuditService(prisma),
     )
     const begun = await ambiguousBegin.beginTurn({
       ...beginFixture,
@@ -663,6 +677,8 @@ describe('Grounded chat turn repository (e2e)', () => {
     const ambiguousRetry = new PrismaGroundedChatTurnRepository(
       loseNextTransactionAcknowledgement(prisma),
       conversationTurns,
+      reviewCaseIntake,
+      new AuditService(prisma),
     )
     const retried = await ambiguousRetry.retryTurn({
       ...beginFixture,
@@ -682,6 +698,8 @@ describe('Grounded chat turn repository (e2e)', () => {
     const ambiguousComplete = new PrismaGroundedChatTurnRepository(
       loseNextTransactionAcknowledgement(prisma),
       conversationTurns,
+      reviewCaseIntake,
+      new AuditService(prisma),
     )
     const completed = await ambiguousComplete.completeTurn({
       ...beginFixture,
@@ -720,6 +738,8 @@ describe('Grounded chat turn repository (e2e)', () => {
     const intermittentlyUnavailable = new PrismaGroundedChatTurnRepository(
       loseAcknowledgementAndFirstReconciliation(prisma),
       conversationTurns,
+      reviewCaseIntake,
+      new AuditService(prisma),
     )
 
     await expect(

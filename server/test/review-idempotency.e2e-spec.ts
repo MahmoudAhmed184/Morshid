@@ -8,9 +8,13 @@ import { AppModule } from '../src/app.module'
 import type { IdentitySessionResponse } from '../src/modules/identity/identity.types'
 import { MaterialProcessingScheduler } from '../src/modules/materials/material-processing.scheduler'
 import { PrismaService } from '../src/modules/prisma/prisma.service'
+import { DatabaseTransactionRunner } from '../src/modules/prisma/database-transaction'
 import { RedisService } from '../src/modules/redis/redis.service'
 import type { CreateReviewRequestResponseDto } from '../src/modules/reviews/review-case.dto'
-import { ReviewCaseCreator } from '../src/modules/reviews/review-case.creator'
+import {
+  ReviewCaseIntake,
+  type AutomaticReviewIntakeInput,
+} from '../src/modules/reviews/reviews.public'
 import { REVIEW_ERROR_CODES } from '../src/modules/reviews/review-case.errors'
 import {
   P0_DEMO_PASSWORD,
@@ -58,7 +62,8 @@ describe('Manual review request idempotency (e2e)', () => {
   let studentId: string
   let courseId: string
   let studentToken: string
-  let reviewCaseCreator: ReviewCaseCreator
+  let reviewCaseIntake: ReviewCaseIntake
+  let transactionRunner: DatabaseTransactionRunner
 
   beforeAll(async () => {
     database = await setUpDisposableDatabase(
@@ -83,7 +88,8 @@ describe('Manual review request idempotency (e2e)', () => {
     app = moduleFixture.createNestApplication()
     configureApp(app)
     await app.init()
-    reviewCaseCreator = moduleFixture.get(ReviewCaseCreator)
+    reviewCaseIntake = moduleFixture.get(ReviewCaseIntake)
+    transactionRunner = moduleFixture.get(DatabaseTransactionRunner)
     studentToken = await signInAs(STUDENT_EMAIL)
   })
 
@@ -276,7 +282,7 @@ describe('Manual review request idempotency (e2e)', () => {
 
   it('counts manual triggers attached to automatic cases against quota', async () => {
     for (const [index, messageId] of ASSISTANT_MESSAGE_IDS.entries()) {
-      await reviewCaseCreator.createAutomaticBatch({
+      await openAutomatic({
         messageId,
         triggers: [
           {
@@ -310,6 +316,12 @@ describe('Manual review request idempotency (e2e)', () => {
       throw new Error('Expected the test application to be initialized')
     }
     return app
+  }
+
+  function openAutomatic(input: AutomaticReviewIntakeInput) {
+    return transactionRunner.run((transaction) =>
+      reviewCaseIntake.openAutomatic(input, transaction),
+    )
   }
 
   function seededUserId(email: string): string {

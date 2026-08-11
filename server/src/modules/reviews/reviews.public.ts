@@ -4,8 +4,9 @@ export type {
   AutomaticReviewEvidenceInput,
 } from './evidence/automatic-review-evidence'
 export { ReviewCaseCreator } from './review-case.creator'
+export { ReviewCaseIntake, PrismaReviewCaseIntake } from './review-case-intake'
 export type {
-  AutomaticReviewCaseRequest,
-  AutomaticReviewCaseResult,
-  AutomaticReviewTriggerRequest,
-} from './review-case.creator'
+  AutomaticReviewIntakeInput,
+  AutomaticReviewIntakeResult,
+  AutomaticReviewIntakeTrigger,
+} from './review-case-intake'

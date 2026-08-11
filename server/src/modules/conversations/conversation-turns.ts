@@ -9,6 +9,13 @@ export type ConversationRequestKind =
   | 'OFF_TOPIC'
   | 'AMBIGUOUS'
 
+export type ConversationGuidanceLabel =
+  | 'COURSE_GROUNDED'
+  | 'GENERAL_NOT_FOUND'
+  | 'UNCERTAIN_AWAITING_REVIEW'
+  | 'INSTRUCTOR_REVIEWED'
+  | 'REFUSAL'
+
 export type ConversationMessageRole = 'STUDENT' | 'ASSISTANT'
 export type ConversationMessageStatus =
   'PENDING' | 'STREAMING' | 'COMPLETED' | 'FAILED' | 'BLOCKED'
@@ -51,11 +58,21 @@ export interface FinalizeConversationMessageInput {
   readonly sessionId: string
   readonly studentId: string
   readonly attemptId: string
+  readonly topicId?: string | null
   readonly studentMessageId: string
   readonly assistantMessageId: string
   readonly status: Exclude<ConversationMessageStatus, 'PENDING' | 'STREAMING'>
   readonly content: string
   readonly errorCode?: string | null
+  readonly requestKind?: ConversationRequestKind | null
+  readonly guidanceLabel?: ConversationGuidanceLabel | null
+  readonly hintLevel?: number | null
+  readonly provider?: string | null
+  readonly model?: string | null
+  readonly promptVersion?: string | null
+  readonly inputTokens?: number | null
+  readonly outputTokens?: number | null
+  readonly authorization?: 'active_membership' | 'session_owner'
   readonly completedAt: Date
 }
 

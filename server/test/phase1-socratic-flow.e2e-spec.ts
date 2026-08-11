@@ -11,6 +11,8 @@ import {
   TopicType,
 } from '../src/generated/prisma/client'
 import type { PrismaService } from '../src/modules/prisma/prisma.service'
+import { AuditService } from '../src/modules/audit/audit.service'
+import { PrismaConversationTurns } from '../src/modules/conversations/prisma-conversation-turns'
 import { PrismaStudentChatMessageRepository } from '../src/modules/student-chat/student-chat-message.repository'
 import { TOPIC_STATE_ERROR_CODES } from '../src/modules/socratic-tutor/topic-state.errors'
 import { PrismaTopicStateRepository } from '../src/modules/socratic-tutor/topic-state.repository'
@@ -218,7 +220,13 @@ describe('Phase 1 Socratic persistence flow (e2e)', () => {
   beforeAll(async () => {
     database = await setUpDisposableDatabase('morshid_issue169_phase1')
     prisma = database.prisma
-    turnService = new TurnService(new PrismaTurnRepository(prisma))
+    turnService = new TurnService(
+      new PrismaTurnRepository(
+        prisma,
+        new PrismaConversationTurns(),
+        new AuditService(prisma),
+      ),
+    )
     topicService = new TopicService(new PrismaTopicRepository(prisma))
     topicStateService = new TopicStateService(
       new PrismaTopicStateRepository(prisma),

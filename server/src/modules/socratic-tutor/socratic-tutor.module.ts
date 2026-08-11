@@ -3,6 +3,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config'
 
 import type { AppEnvironment } from '../config/env.schema'
 import { PrismaModule } from '../prisma/prisma.module'
+import { ConversationsModule } from '../conversations/conversations.module'
+import { AuditModule } from '../audit/audit.module'
 import {
   ANALYSIS_CONFIDENCE_POLICY,
   AnalysisConfidencePolicy,
@@ -68,7 +70,13 @@ import { RetrievalQueryBuilder } from './retrieval-query.builder'
 import { OutputPolicyModule } from '../output-policy/output-policy.module'
 
 @Module({
-  imports: [ConfigModule, PrismaModule, OutputPolicyModule],
+  imports: [
+    ConfigModule,
+    PrismaModule,
+    ConversationsModule,
+    AuditModule,
+    OutputPolicyModule,
+  ],
   providers: [
     TopicStateService,
     TopicService,

@@ -8,6 +8,7 @@ import { CompletionModule } from '../completion/completion.module'
 import { OutputPolicyModule } from '../output-policy/output-policy.module'
 import { PdfStorageModule } from '../pdf-storage/pdf-storage.module'
 import { MaterialsModule } from '../materials/materials.module'
+import { ReviewsModule } from '../reviews/reviews.module'
 import { SocraticTutorModule } from '../socratic-tutor/socratic-tutor.module'
 import { TutoringRuntime } from '../tutoring/interface/tutoring-runtime'
 import { SocraticChatOrchestrator } from './socratic-chat.orchestrator'
@@ -41,6 +42,7 @@ import { CorrectnessSensitiveRequestClassifier } from './correctness-sensitive-r
     PdfStorageModule,
     PrismaModule,
     MaterialsModule,
+    ReviewsModule,
     SocraticTutorModule,
   ],
   controllers: [StudentChatController],

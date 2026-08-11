@@ -138,7 +138,6 @@ describe('GroundedChatService', () => {
       new AutomaticSafetyRiskDetector(),
       new ControlledSourceConflictDetector(),
       new OutputPolicyService(),
-      { createRequiredReview: jest.fn().mockResolvedValue(null) } as never,
       new CorrectnessSensitiveRequestClassifier(),
     )
   })

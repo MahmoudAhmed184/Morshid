@@ -7,6 +7,7 @@ import { PrismaModule } from '../prisma/prisma.module'
 import { ReviewCaseController } from './review-case.controller'
 import { StudentReviewDetailController } from './student-review-detail.controller'
 import { ReviewCaseCreator } from './review-case.creator'
+import { PrismaReviewCaseIntake, ReviewCaseIntake } from './review-case-intake'
 import { InstructorReviewQueueController } from './instructor-review-queue.controller'
 import {
   InstructorReviewDetailRepository,
@@ -49,6 +50,10 @@ import {
   ],
   providers: [
     ReviewCaseCreator,
+    {
+      provide: ReviewCaseIntake,
+      useClass: PrismaReviewCaseIntake,
+    },
     InstructorReviewQueueService,
     InstructorReviewDetailService,
     InstructorReviewActionService,
@@ -79,6 +84,6 @@ import {
       useClass: PrismaStudentReviewInboxRepository,
     },
   ],
-  exports: [ReviewCaseCreator],
+  exports: [ReviewCaseCreator, ReviewCaseIntake],
 })
 export class ReviewsModule {}

@@ -7,6 +7,7 @@ import {
   type UserStatus,
 } from '../../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { asDatabaseTransaction } from '../prisma/database-transaction'
 import type { AuditRequestContext } from '../audit/audit.public'
 import { CourseAudit } from './course-audit'
 import {
@@ -272,7 +273,7 @@ export class PrismaCoursesRepository extends CoursesRepository {
             course,
             requestContext: input.requestContext,
           },
-          tx,
+          asDatabaseTransaction(tx),
         )
 
         return course
@@ -319,7 +320,7 @@ export class PrismaCoursesRepository extends CoursesRepository {
             previousCourse,
             requestContext: input.requestContext,
           },
-          tx,
+          asDatabaseTransaction(tx),
         )
 
         return course
@@ -449,7 +450,7 @@ export class PrismaCoursesRepository extends CoursesRepository {
             membership,
             requestContext: input.requestContext,
           },
-          tx,
+          asDatabaseTransaction(tx),
         )
 
         return membership
@@ -585,7 +586,7 @@ export class PrismaCoursesRepository extends CoursesRepository {
           membership,
           requestContext: input.requestContext,
         },
-        tx,
+        asDatabaseTransaction(tx),
       )
     })
   }
@@ -654,7 +655,7 @@ export class PrismaCoursesRepository extends CoursesRepository {
           membership: updatedMembership,
           requestContext: input.requestContext,
         },
-        tx,
+        asDatabaseTransaction(tx),
       )
 
       return updatedMembership

@@ -18,12 +18,20 @@ import {
   type LockedStudentChatSession,
 } from '../../common/authorization/locked-student-chat-session'
 import { ConversationTurns } from '../conversations/conversation-turns'
+import {
+  AUDIT_EVENT_ACTIONS,
+  AUDIT_TARGET_TYPES,
+  AuditService,
+} from '../audit/audit.public'
 import { asDatabaseTransaction } from '../prisma/database-transaction'
 import { PrismaService } from '../prisma/prisma.service'
 import {
+  ReviewCaseIntake,
+  type AutomaticReviewIntakeInput,
+} from '../reviews/reviews.public'
+import {
   chatMessageSelect,
   chatMessageSelectForStudent,
-  chatMessageScalarSelect,
   currentDatabaseTime,
 } from './student-chat.repository.support'
 import type { ChatMessageRecord } from './student-chat.repository.types'
@@ -51,6 +59,13 @@ export interface RetryGroundedChatTurnInput extends AuthorizedTurnInput {
   studentMessageId: string
 }
 
+export interface RepairGroundedChatReviewInput extends AuthorizedTurnInput {
+  attemptId: string
+  studentMessageId: string
+  assistantMessageId: string
+  automaticReview: Omit<AutomaticReviewIntakeInput, 'messageId'>
+}
+
 export interface GroundedChatEvidenceInput {
   chunkId: string
   materialId: string
@@ -75,6 +90,7 @@ export interface CompleteGroundedChatTurnInput extends AuthorizedTurnInput {
   citationContextIndexes?: readonly number[]
   guidanceLabel?: MessageGuidanceLabel
   errorCode?: string
+  automaticReview?: Omit<AutomaticReviewIntakeInput, 'messageId'>
 }
 
 export interface CompletePolicyGroundedChatTurnInput extends AuthorizedTurnInput {
@@ -85,6 +101,7 @@ export interface CompletePolicyGroundedChatTurnInput extends AuthorizedTurnInput
   evidence: readonly GroundedChatEvidenceInput[]
   guidanceLabel: MessageGuidanceLabel
   errorCode: string
+  automaticReview?: Omit<AutomaticReviewIntakeInput, 'messageId'>
 }
 
 export interface FinalizeGroundedChatTurnInput extends AuthorizedTurnInput {
@@ -94,6 +111,7 @@ export interface FinalizeGroundedChatTurnInput extends AuthorizedTurnInput {
   content: string
   errorCode: string
   guidanceLabel?: MessageGuidanceLabel
+  automaticReview?: Omit<AutomaticReviewIntakeInput, 'messageId'>
 }
 
 export interface CompleteSafetyGroundedChatTurnInput extends FinalizeGroundedChatTurnInput {
@@ -136,6 +154,12 @@ export type RetryGroundedChatTurnResult =
   | { kind: 'retry_not_allowed'; messageId: string }
   | { kind: 'turn_in_progress' }
 
+export type RepairGroundedChatReviewResult =
+  | { kind: 'ok' }
+  | { kind: 'membership_missing' }
+  | { kind: 'session_not_found' }
+  | { kind: 'message_not_found' }
+
 export type FinalizeGroundedChatTurnResult =
   | { kind: 'ok'; message: ChatMessageRecord }
   | { kind: 'membership_missing' }
@@ -171,6 +195,10 @@ export abstract class GroundedChatTurnRepository {
     input: RetryGroundedChatTurnInput,
   ): Promise<RetryGroundedChatTurnResult>
 
+  abstract repairAutomaticReview(
+    input: RepairGroundedChatReviewInput,
+  ): Promise<RepairGroundedChatReviewResult>
+
   abstract completeTurn(
     input: CompleteGroundedChatTurnInput,
   ): Promise<FinalizeGroundedChatTurnResult>
@@ -205,6 +233,8 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
   constructor(
     private readonly prismaService: PrismaService,
     private readonly conversationTurns: ConversationTurns,
+    private readonly reviewCaseIntake: ReviewCaseIntake,
+    private readonly auditService: AuditService,
   ) {
     super()
   }
@@ -472,6 +502,41 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
     }
   }
 
+  async repairAutomaticReview(
+    input: RepairGroundedChatReviewInput,
+  ): Promise<RepairGroundedChatReviewResult> {
+    return this.runTransaction(async (tx) => {
+      const authorization = await lockAuthorizedStudentChat(tx, input)
+      if (authorization.kind !== 'ok') {
+        return authorization
+      }
+
+      const assistant = await tx.message.findFirst({
+        where: {
+          id: input.assistantMessageId,
+          sessionId: input.sessionId,
+          role: MessageRole.ASSISTANT,
+          status: MessageStatus.COMPLETED,
+          responseToMessageId: input.studentMessageId,
+          attemptId: input.attemptId,
+        },
+        select: { id: true },
+      })
+      if (assistant === null) {
+        return { kind: 'message_not_found' }
+      }
+
+      await this.reviewCaseIntake.openAutomatic(
+        {
+          messageId: input.assistantMessageId,
+          ...input.automaticReview,
+        },
+        asDatabaseTransaction(tx),
+      )
+      return { kind: 'ok' }
+    })
+  }
+
   async completeTurn(
     input: CompleteGroundedChatTurnInput,
   ): Promise<FinalizeGroundedChatTurnResult> {
@@ -523,13 +588,17 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
         await this.requireEligibleEvidence(tx, session.courseId, input.evidence)
 
         const now = await currentDatabaseTime(tx)
-        const updated = await this.transitionPendingAssistant(tx, input, {
-          status: MessageStatus.COMPLETED,
-          content: input.content,
-          ...terminal,
-          errorMessage: null,
-          completedAt: now,
-        })
+        const updated = await this.transitionPendingAssistant(
+          tx,
+          { ...input, automaticReview: undefined },
+          {
+            status: MessageStatus.COMPLETED,
+            content: input.content,
+            ...terminal,
+            authorization: 'active_membership',
+            completedAt: now,
+          },
+        )
         if (updated.kind !== 'ok') {
           return updated
         }
@@ -555,6 +624,16 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
             citationOrder,
           })),
         })
+
+        if (input.automaticReview !== undefined) {
+          await this.reviewCaseIntake.openAutomatic(
+            {
+              messageId: input.assistantMessageId,
+              ...input.automaticReview,
+            },
+            asDatabaseTransaction(tx),
+          )
+        }
 
         const message = await tx.message.findUniqueOrThrow({
           where: { id: input.assistantMessageId },
@@ -679,12 +758,16 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
         const now = await currentDatabaseTime(tx)
         const updated = await this.transitionPendingAssistant(tx, input, {
           ...terminal,
+          authorization:
+            terminal.status === MessageStatus.FAILED ||
+            terminal.status === MessageStatus.BLOCKED
+              ? 'session_owner'
+              : 'active_membership',
           provider: null,
           model: null,
           promptVersion: null,
           inputTokens: null,
           outputTokens: null,
-          errorMessage: null,
           completedAt: now,
         })
         if (updated.kind !== 'ok') {
@@ -706,29 +789,42 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
 
   private async transitionPendingAssistant(
     tx: Prisma.TransactionClient,
-    input: Pick<
-      CompleteGroundedChatTurnInput,
-      'sessionId' | 'studentMessageId' | 'assistantMessageId' | 'attemptId'
-    >,
-    data: Prisma.MessageUpdateManyMutationInput,
+    input: {
+      courseId: string
+      sessionId: string
+      studentId: string
+      studentMessageId: string
+      assistantMessageId: string
+      attemptId: string
+      automaticReview?: Omit<AutomaticReviewIntakeInput, 'messageId'>
+    },
+    data: TerminalConversationMessageData,
   ): Promise<FinalizeGroundedChatTurnResult> {
-    const messages = await tx.message.updateManyAndReturn({
-      where: {
-        id: input.assistantMessageId,
+    const finalized = await this.conversationTurns.finalize(
+      {
+        courseId: input.courseId,
         sessionId: input.sessionId,
-        role: MessageRole.ASSISTANT,
-        status: MessageStatus.PENDING,
-        responseToMessageId: input.studentMessageId,
+        studentId: input.studentId,
         attemptId: input.attemptId,
+        studentMessageId: input.studentMessageId,
+        assistantMessageId: input.assistantMessageId,
+        status: data.status,
+        content: data.content,
+        errorCode: data.errorCode,
+        guidanceLabel: data.guidanceLabel,
+        provider: data.provider,
+        model: data.model,
+        promptVersion: data.promptVersion,
+        inputTokens: data.inputTokens,
+        outputTokens: data.outputTokens,
+        authorization: data.authorization,
+        completedAt: data.completedAt,
       },
-      data,
-      select: chatMessageScalarSelect,
-      limit: 1,
-    })
-    const updated = messages.at(0)
-    if (updated !== undefined) {
+      asDatabaseTransaction(tx),
+    )
+    if (finalized.kind === 'finalized') {
       const attemptStatus =
-        updated.status === MessageStatus.COMPLETED
+        data.status === MessageStatus.COMPLETED
           ? TutoringAttemptStatus.COMPLETED
           : TutoringAttemptStatus.FAILED
       const updatedAttempts = await tx.tutoringAttempt.updateMany({
@@ -758,11 +854,46 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
       if (updatedAttempts.count !== 1) {
         throw new Error('Tutoring Attempt changed during message finalization')
       }
+      if (input.automaticReview !== undefined) {
+        await this.reviewCaseIntake.openAutomatic(
+          {
+            messageId: input.assistantMessageId,
+            ...input.automaticReview,
+          },
+          asDatabaseTransaction(tx),
+        )
+      }
+      await this.auditService.recordEvent(
+        {
+          actorUserId: input.studentId,
+          action:
+            data.status === MessageStatus.COMPLETED
+              ? AUDIT_EVENT_ACTIONS.CHAT_TURN_COMPLETED
+              : AUDIT_EVENT_ACTIONS.CHAT_TURN_FAILED,
+          target: {
+            type: AUDIT_TARGET_TYPES.MESSAGE,
+            id: input.assistantMessageId,
+          },
+          courseId: input.courseId,
+          metadata: {
+            attemptId: input.attemptId,
+            status: data.status,
+          },
+        },
+        asDatabaseTransaction(tx),
+      )
       const message = await tx.message.findUniqueOrThrow({
-        where: { id: updated.id },
+        where: { id: input.assistantMessageId },
         select: chatMessageSelect,
       })
       return { kind: 'ok', message }
+    }
+
+    if (
+      finalized.kind !== 'message_not_found' &&
+      finalized.kind !== 'message_not_pending'
+    ) {
+      return finalized
     }
 
     // The previous terminal write may have committed even when its caller lost
@@ -1059,6 +1190,23 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
 
     throw new Error('Unreachable transaction retry state')
   }
+}
+
+interface TerminalConversationMessageData {
+  status:
+    | typeof MessageStatus.COMPLETED
+    | typeof MessageStatus.FAILED
+    | typeof MessageStatus.BLOCKED
+  content: string
+  guidanceLabel: MessageGuidanceLabel | null
+  provider: string | null
+  model: string | null
+  promptVersion: string | null
+  inputTokens: number | null
+  outputTokens: number | null
+  errorCode: string | null
+  authorization: 'active_membership' | 'session_owner'
+  completedAt: Date
 }
 
 function orderedCitationMaterialIds(

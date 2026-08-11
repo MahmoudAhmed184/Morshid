@@ -8,6 +8,9 @@ import type { App } from 'supertest/types'
 import { configureApp } from '../src/app.setup'
 import { AppModule } from '../src/app.module'
 import { PrismaConversationTurns } from '../src/modules/conversations/prisma-conversation-turns'
+import { AuditService } from '../src/modules/audit/audit.service'
+import { PrismaReviewCaseIntake } from '../src/modules/reviews/review-case-intake'
+import { PrismaReviewCaseRepository } from '../src/modules/reviews/review-case.repository'
 import {
   CourseMembershipRole,
   MaterialStatus,
@@ -52,6 +55,8 @@ import {
   PrismaGroundedChatTurnRepository,
   type RetryGroundedChatTurnInput,
   type RetryGroundedChatTurnResult,
+  type RepairGroundedChatReviewInput,
+  type RepairGroundedChatReviewResult,
 } from '../src/modules/student-chat/grounded-chat-turn.repository'
 import {
   GROUNDING_BLOCKED_CONTENT,
@@ -132,6 +137,12 @@ class ControllableGroundedChatTurnRepository extends GroundedChatTurnRepository 
     input: RetryGroundedChatTurnInput,
   ): Promise<RetryGroundedChatTurnResult> {
     return this.delegate.retryTurn(input)
+  }
+
+  override repairAutomaticReview(
+    input: RepairGroundedChatReviewInput,
+  ): Promise<RepairGroundedChatReviewResult> {
+    return this.delegate.repairAutomaticReview(input)
   }
 
   override completeTurn(
@@ -262,6 +273,10 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
       new PrismaGroundedChatTurnRepository(
         prisma,
         new PrismaConversationTurns(),
+        new PrismaReviewCaseIntake(
+          new PrismaReviewCaseRepository(prisma, new AuditService(prisma)),
+        ),
+        new AuditService(prisma),
       ),
     )
     const moduleFixture: TestingModule = await Test.createTestingModule({

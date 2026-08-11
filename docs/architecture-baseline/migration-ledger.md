@@ -750,3 +750,30 @@ formatting, and the full repository gate before the implementation commit.
   Reviews intake, Audit joining, and one private response-governance path with
   rollback, replay, concurrency, retry, lease-expiry, provider-failure, Safe
   Fallback, and repair coverage.
+
+## Milestone 6D migration inventory
+
+Starting SHA: `8a5346c` (`8a5346c` is expanded in the per-task handoff after
+the slice is committed).
+
+Milestone 6D makes terminal tutoring writes and automatic review intake
+participate in the same opaque database transaction. Remote model work remains
+outside that transaction. The slice is schema neutral unless an existing audit
+action or persistence constraint proves that a catalog change is required; any
+such change must update the rolling initial migration and repeat the disposable
+schema gates.
+
+| Area | Files/paths to add, change, or delete | Disposition and invariants |
+| --- | --- | --- |
+| Transaction participation | `server/src/modules/prisma/database-transaction.ts`, `prisma.module.ts`, transaction tests | Add the platform-owned opaque transaction runner. Product interfaces receive only `DatabaseTransaction`; Prisma transaction types remain inside persistence adapters. |
+| Conversations finalization | `server/src/modules/conversations/conversation-turns.ts`, `prisma-conversation-turns.ts`, module/specs, tutoring turn repositories | Extend the transaction-aware Conversations interface to own terminal message writes and request metadata. Admission and finalization must be replay-safe and remain inside the caller-owned transaction. |
+| Audit joining | `server/src/modules/audit/audit.service.ts`, `audit.public.ts`, transaction-aware callers/specs | Replace the public `object`/Prisma JSON seam with the opaque transaction token and domain metadata. Audit writes supplied by a finalization transaction must join that transaction and roll back with it. |
+| Reviews intake | `server/src/modules/reviews/review-case-intake.ts`, `review-case.repository.ts`, `review-case.creator.ts`, `reviews.public.ts`, module/specs/E2E | Add `ReviewCaseIntake.openAutomatic(input, transaction)`. It atomically creates or replays the case, triggers, actions, evidence, and audit rows in the supplied transaction. Remove the separate automatic batch path and update all callers directly. |
+| Private response governance | current `output-policy/**`, tutoring/student-chat composition, governance specs | Move response safety/conflict/not-found review decisions behind one Tutoring-private governance boundary. It must invoke Reviews intake during finalization, not after a committed response in a second transaction. Remove competing public/late review paths. |
+| Tutoring finalization | `PrismaGroundedChatTurnRepository`, `TurnRepository`, response approval and grounded service specs | Route terminal Conversations writes through `ConversationTurns.finalize`; write Attempt, evidence, response metadata, audit, and any automatic review in one transaction. Keep model/embedding/semantic provider calls before admission or after admission and before finalization. |
+| Reliability coverage | tutoring/reviews/audit unit and E2E suites, fixtures, repair scripts/docs | Add focused rollback, replay/idempotency, concurrency, retry, lease-expiry, provider-failure, Safe Fallback, and repair assertions without weakening existing authorization or privacy coverage. |
+| Documentation and handoff | this ledger, applicable ADRs/current architecture docs | Record the exact changed contracts, transaction boundary, tests, obsolete paths, and next 6E cutover. No compatibility aliases or temporary exceptions are permitted. |
+
+The 6D implementation pass must run focused transaction/review/tutoring
+coverage, architecture and type gates, the isolated capability E2E suites, and
+the canonical repository check before the handoff commit.

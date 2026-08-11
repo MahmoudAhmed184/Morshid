@@ -1,15 +1,22 @@
 import { Injectable } from '@nestjs/common'
 
-import type { AuditLog, Prisma } from '../../generated/prisma/client'
+import type { AuditLog } from '../../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import {
+  asPrismaTransaction,
+  type DatabaseTransaction,
+} from '../prisma/database-transaction'
 import type { AuditEventAction, AuditTargetType } from './audit.constants'
 
-// Product modules receive this as an opaque participation token. The Prisma
-// transaction client is deliberately unnameable outside this persistence
-// adapter; AuditService unwraps it only at the write boundary below.
-export type AuditDatabase = object
+export type AuditMetadataValue =
+  | string
+  | number
+  | boolean
+  | null
+  | { readonly [key: string]: AuditMetadataValue }
+  | readonly AuditMetadataValue[]
 
-export type AuditMetadata = Prisma.InputJsonObject
+export type AuditMetadata = Readonly<Record<string, AuditMetadataValue>>
 
 export interface AuditTargetInput {
   type: AuditTargetType
@@ -36,11 +43,14 @@ export class AuditService {
 
   async recordEvent(
     input: RecordAuditEventInput,
-    database: AuditDatabase = this.prismaService,
+    transaction?: DatabaseTransaction,
   ): Promise<AuditLog> {
-    const auditDatabase = database as Pick<Prisma.TransactionClient, 'auditLog'>
+    const auditLog =
+      transaction === undefined
+        ? this.prismaService.auditLog
+        : asPrismaTransaction(transaction).auditLog
 
-    return auditDatabase.auditLog.create({
+    return auditLog.create({
       data: {
         actorUserId: input.actorUserId ?? null,
         action: input.action,
