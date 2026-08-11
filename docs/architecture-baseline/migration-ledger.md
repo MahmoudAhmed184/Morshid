@@ -676,3 +676,77 @@ neutral; the audited rolling initial migration and seed remain unchanged.
 The next 6C implementation pass must run the focused unit suites, isolated
 Socratic and Grounded capability E2E suites, typecheck/lint, architecture,
 formatting, and the full repository gate before the implementation commit.
+
+### M6C handoff
+
+- Starting SHA: `decde741ae2e30e95023b6c2544f66795d1676d8`; implementation SHA:
+  `2c21611b58a9416ce11de1a9b057dbb12eeebcc0`; commit:
+  `refactor(tutoring): route code diagnosis through socratic workflow`.
+- Applicable authority: the approved architecture refactor plan; ADR 0002
+  (one Tutoring Runtime and one Tutoring Attempt); ADR 0006 (enforced
+  dependency graph with explicit named interfaces); ADR 0007 (opaque database
+  transaction participation); and the approved NestJS/Prisma, predeployment
+  contract, and broad-refactor safety research notes.
+- Moved retrieval persistence and service implementation into Materials as
+  `CourseEvidenceRepository`, `PrismaCourseEvidenceRepository`,
+  `MaterialsCourseEvidence`, and the narrow `CourseEvidence` contract. Added
+  `materials.public.ts` and enabled the Materials named-public-interface
+  dependency rule. Deleted `server/src/modules/retrieval/retrieval.module.ts`
+  and the old Retrieval-owned paths. No Prisma schema, migration, seed, or
+  catalog object changed in 6C.
+- Added the generic `DebuggingGuidanceContext` and output contract. Code
+  diagnosis now uses the same Educational Analysis, Teaching Decision,
+  CourseEvidence search, Tutor Generation, deterministic validation, semantic
+  approval, and Tutoring Attempt finalization pipeline as other supported
+  requests. The contract requires Likely defect, Relevant location, Concept,
+  and Next inspection step; exactly one inspection action; authorized course
+  evidence; and no execution claim, prompt disclosure, or complete program.
+- Removed the dedicated Grounded diagnosis retrieval/completion branch and
+  passed diagnosis context through the private Socratic workflow behind
+  `TutoringRuntime`. Updated all current callers, adapters, fixtures, and
+  focused contracts directly; no compatibility wrapper or alternate endpoint
+  was added.
+- Tests added or replaced: generic debugging contract unit coverage,
+  Materials CourseEvidence ownership and readiness coverage, deterministic
+  diagnosis/provider fixtures, Socratic propagation, generic diagnosis E2E,
+  and provider-failure Safe Fallback/replay coverage. The focused unit command
+  passed 8 suites and 100 tests. The isolated capability command passed 2
+  suites and 51 tests.
+- Exact focused verification passed:
+  `npm run test --workspace server -- --runInBand
+  src/modules/materials/course-evidence.spec.ts
+  src/modules/materials/course-evidence.repository.spec.ts
+  src/modules/socratic-tutor/debugging-guidance.contract.spec.ts
+  src/modules/student-chat/grounded-chat.service.spec.ts
+  src/modules/student-chat/grounded-chat-diagnosis-failures.spec.ts
+  src/modules/student-chat/socratic-chat.orchestrator.spec.ts
+  src/modules/socratic-tutor/tutor-model.adapter.spec.ts
+  src/modules/socratic-tutor/deterministic-guard.service.spec.ts` (8/100);
+  `npm run typecheck --workspace server`; `npm run lint --workspace server
+  -- --no-cache`; `npm run test:architecture`; `git diff --check`; and
+  `DATABASE_URL=postgresql://m2_owner:m2_disposable_password_20260811@127.0.0.1:55433/m2_schema
+  SHADOW_DATABASE_URL=postgresql://m2_owner:m2_disposable_password_20260811@127.0.0.1:55433/m2_schema_shadow
+  REDIS_URL=redis://127.0.0.1:56379 npm run test:e2e --workspace server -- --runInBand
+  --runTestsByPath ./test/socratic-chat.e2e-spec.ts
+  ./test/grounded-chat.e2e-spec.ts --silent` (2/51).
+- The canonical `npm run check` passed on the implementation tree: root 9
+  tests, client 60 files/468 tests, server 118 suites/1,712 tests, formatting,
+  root/server lint, typechecks, architecture, and client/server production
+  builds. Architecture reported 334 client modules/1,332 dependencies and
+  404 server modules/1,442 dependencies.
+- Obsolete-entry verification passed: `rg --files
+  server/src/modules/retrieval` returned no files, and the exact symbol search
+  for `RetrievalModule|RetrievalService|RetrievedChunk|CourseRetrieval|
+  retrieveCourseEvidence` across current source/tests/client/acceptance
+  returned no matches. Broader historical Retrieval/Completion/Python names
+  remain only in still-active pre-6E paths and will be removed in 6E/8.
+- Known limitations remain unchanged: the unisolated full server E2E command
+  still requires the local PostgreSQL credentials that are mismatched in the
+  developer environment; the baseline acceptance run still has its two
+  static-diagnosis presentation failures; and live model checks remain
+  unavailable without the documented external credentials. The disposable
+  isolated PostgreSQL/Redis capability path is green.
+- Next safe task: Milestone 6D — establish transaction-aware finalization,
+  Reviews intake, Audit joining, and one private response-governance path with
+  rollback, replay, concurrency, retry, lease-expiry, provider-failure, Safe
+  Fallback, and repair coverage.
