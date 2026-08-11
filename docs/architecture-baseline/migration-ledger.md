@@ -777,3 +777,56 @@ schema gates.
 The 6D implementation pass must run focused transaction/review/tutoring
 coverage, architecture and type gates, the isolated capability E2E suites, and
 the canonical repository check before the handoff commit.
+
+### M6D handoff
+
+- Starting SHA: `8a5346c`; implementation commit: `42c795e1ae9ceddb415f273fe24dc02ecb09881f`
+  (`refactor(tutoring): finalize transactions and review intake`). The handoff
+  documentation is recorded in the follow-up documentation commit.
+- Applicable authority: the approved architecture refactor plan; ADR 0002
+  (one Tutoring Runtime and one Tutoring Attempt); ADR 0006 (enforced
+  dependency graph with explicit named interfaces); ADR 0007 (opaque database
+  transaction participation); and the approved NestJS/Prisma and
+  predeployment transaction research notes.
+- Added the platform-owned opaque `DatabaseTransactionRunner` and kept Prisma
+  transaction unwrapping inside the platform/persistence boundary. Extended
+  `ConversationTurns.finalize`, Audit, and Reviews automatic intake to join a
+  caller-owned transaction. Product interfaces expose domain-owned metadata and
+  outcomes only; no Prisma transaction type crosses a product boundary.
+- Replaced the automatic review batch loop with one `ReviewCaseIntake.openAutomatic`
+  call that creates or replays the case, triggers, action history, evidence,
+  and audit in the supplied transaction. Grounded and Socratic finalization now
+  terminal-write Conversations, Attempt state, evidence/response metadata,
+  review escalation, and sanitized audit atomically. Remote model and embedding
+  calls remain outside database transactions.
+- Added rollback, review-intake normalization/error mapping, replay repair,
+  concurrent repair, retry, lease-expiry, provider-failure, Safe Fallback,
+  membership-revocation/session-owner failure, evidence privacy, and audit
+  participation coverage. Updated persistence fixtures and direct repository
+  construction to the new interfaces. Deleted the late public
+  `OutputPolicyReviewAdapter` path and the automatic `createAutomaticBatch`
+  path; no compatibility aliases were added.
+- No schema, migration, seed, extension, catalog, or generated Prisma change
+  was required. Audit actions use the existing varchar column, so the rolling
+  initial migration remains unchanged and the disposable schema baseline stays
+  valid.
+- Exact focused verification passed: server unit coverage (8 suites, 99
+  tests); isolated disposable PostgreSQL/Redis E2E coverage (5 suites, 71
+  tests); `npm run typecheck --workspace server`; `npm run lint --workspace
+  server -- --no-cache`; `npm run test:architecture`; `git diff --check`; and
+  the canonical `npm run check` (root 9 tests, client 60 files/468 tests,
+  server 118 suites/1,708 tests, architecture, typechecks, lint, formatting,
+  and client/server production builds all passed).
+- Obsolete-entry verification passed for
+  `createAutomaticBatch|AutomaticReviewBatchError|OutputPolicyReviewAdapter|
+  output-policy-review.adapter`: no current source or test matches remain.
+  The broader OutputPolicy/Completion/Socratic legacy paths are intentionally
+  still inventoried for the directly following 6E cutover.
+- Remaining risks: the ordinary full E2E environment still has the known local
+  PostgreSQL credential mismatch; the baseline acceptance run still has its two
+  static-diagnosis presentation failures; and live provider checks remain
+  unavailable without documented external credentials. The isolated 6D
+  transaction path is green.
+- Next safe task: Milestone 6E — direct-cutover deletion and relocation of all
+  competing tutoring, Completion, OutputPolicy, Python runtime, and obsolete
+  execution paths, with the final one-runtime/one-workflow architecture rules.
