@@ -1,6 +1,7 @@
 import { config as loadEnv } from 'dotenv'
 
-import { validateEnv } from '../src/modules/config/env.schema.js'
+import { validateEnv } from '../src/platform/config/env.schema.js'
+import { parseTutoringConfiguration } from '../src/modules/tutoring/tutoring.configuration.js'
 import { OPENAI_COMPATIBLE_ANALYSIS_MODEL_PROVIDER } from '../src/modules/tutoring/socratic-workflow/analysis-model.configuration.js'
 import { createAnalysisModelPort } from '../src/modules/tutoring/socratic-workflow/analysis-model.provider.js'
 import { buildEducationalAnalysisModelRequest } from '../src/modules/tutoring/socratic-workflow/educational-analysis.prompt.js'
@@ -61,7 +62,7 @@ class SmokeFailure extends Error {
 }
 
 async function main(): Promise<void> {
-  const env = validateEnv(process.env)
+  const env = parseTutoringConfiguration(validateEnv(process.env))
   assertLiveRoleConfiguration(env)
 
   const analysisPort = createAnalysisModelPort({
@@ -258,7 +259,7 @@ async function main(): Promise<void> {
 }
 
 function assertLiveRoleConfiguration(
-  env: ReturnType<typeof validateEnv>,
+  env: ReturnType<typeof parseTutoringConfiguration>,
 ): void {
   if (
     env.ANALYSIS_MODEL_PROVIDER !== OPENAI_COMPATIBLE_ANALYSIS_MODEL_PROVIDER

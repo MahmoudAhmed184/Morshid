@@ -4,7 +4,7 @@ import {
   ReviewTriggerType,
   StudentFlagReason,
 } from '../../generated/prisma/client'
-import type { PrismaService } from '../prisma/prisma.service'
+import type { PrismaService } from '../../platform/database/prisma.service'
 import { PrismaInstructorReviewQueueRepository } from './instructor-review-queue.repository'
 
 describe('PrismaInstructorReviewQueueRepository', () => {

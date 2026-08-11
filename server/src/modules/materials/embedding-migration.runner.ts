@@ -1,8 +1,8 @@
 import type {
   MaterialChunkInput,
   MaterialChunkRepository,
-} from '../materials/material-chunk.repository'
-import type { EmbeddingProvider } from './embedding-provider'
+} from './material-chunk.repository'
+import type { EmbeddingProvider } from '../../platform/ai/embedding/embedding-provider'
 
 /**
  * One material the migration may have to re-embed.

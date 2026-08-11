@@ -9,7 +9,7 @@ import {
   ReviewTriggerType,
   type StudentFlagReason,
 } from '../../generated/prisma/client'
-import { PrismaService } from '../prisma/prisma.service'
+import { PrismaService } from '../../platform/database/prisma.service'
 import {
   parseReviewEvidence,
   type ReviewEvidenceSnapshot,

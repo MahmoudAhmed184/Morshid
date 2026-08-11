@@ -1,4 +1,4 @@
-import type { PdfStorage } from '../pdf-storage/pdf-storage'
+import type { PdfStorage } from '../../platform/document-storage/pdf-storage'
 import type { MaterialChunkEmbeddingService } from '../materials/material-chunk-embedding.service'
 import type {
   CompleteMaterialProcessingInput,

@@ -4,7 +4,7 @@ import type { EmbedContentConfig, EmbedContentParameters } from '@google/genai'
 import {
   type RetryClock,
   readUpstreamFailure,
-} from '../../../../common/upstream/upstream-retry-policy'
+} from '../../../upstream/upstream-retry-policy'
 import type {
   Embedding,
   EmbeddingDocument,

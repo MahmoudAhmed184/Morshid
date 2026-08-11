@@ -15,12 +15,8 @@ import {
   TutoringSafeFallbackReason,
 } from '../../../generated/prisma/client'
 import {
-  lockAuthorizedStudentChat,
-  type LockedStudentChatAuthorizationResult,
-  type LockedStudentChatSession,
-} from '../../../common/authorization/locked-student-chat-session'
-import {
   ConversationTurns,
+  type ConversationAuthorizationResult,
   type ConversationMessageLookup,
 } from '../../conversations/conversation-turns'
 import {
@@ -28,13 +24,13 @@ import {
   AUDIT_TARGET_TYPES,
   AuditService,
 } from '../../audit/audit.public'
-import { asDatabaseTransaction } from '../../prisma/database-transaction'
-import { PrismaService } from '../../prisma/prisma.service'
+import { asDatabaseTransaction } from '../../../platform/database/database-transaction'
+import { PrismaService } from '../../../platform/database/prisma.service'
 import {
   ReviewCaseIntake,
   type AutomaticReviewIntakeInput,
 } from '../../reviews/reviews.public'
-import { currentDatabaseTime } from '../../prisma/database-clock'
+import { currentDatabaseTime } from '../../../platform/database/database-clock'
 import type { ChatMessageRecord } from '../../conversations/conversation-records'
 import {
   validateTopicStateTransition,
@@ -219,7 +215,7 @@ export type ReadTutoringTurnResult =
   | { kind: 'session_not_found' }
   | { kind: 'message_not_found'; messageId: string }
 
-type AuthorizationResult = LockedStudentChatAuthorizationResult
+type AuthorizationResult = ConversationAuthorizationResult
 
 export class TutoringEvidenceUnavailableError extends Error {
   constructor() {
@@ -300,7 +296,10 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
 
     try {
       return await this.runTransaction(async (tx) => {
-        const authorization = await lockAuthorizedStudentChat(tx, input)
+        const authorization = await this.conversationTurns.authorizeStudent(
+          input,
+          asDatabaseTransaction(tx),
+        )
         if (authorization.kind !== 'ok') {
           return authorization
         }
@@ -419,7 +418,10 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
 
     try {
       return await this.runTransaction(async (tx) => {
-        const authorization = await lockAuthorizedStudentChat(tx, input)
+        const authorization = await this.conversationTurns.authorizeStudent(
+          input,
+          asDatabaseTransaction(tx),
+        )
         if (authorization.kind !== 'ok') {
           return authorization
         }
@@ -665,7 +667,10 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
     input: RepairTutoringReviewInput,
   ): Promise<RepairTutoringReviewResult> {
     return this.runTransaction(async (tx) => {
-      const authorization = await lockAuthorizedStudentChat(tx, input)
+      const authorization = await this.conversationTurns.authorizeStudent(
+        input,
+        asDatabaseTransaction(tx),
+      )
       if (authorization.kind !== 'ok') {
         return authorization
       }
@@ -748,7 +753,10 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
   ): Promise<FinalizeTutoringTurnResult> {
     try {
       return await this.runTransaction(async (tx) => {
-        const authorization = await lockAuthorizedStudentChat(tx, input)
+        const authorization = await this.conversationTurns.authorizeStudent(
+          input,
+          asDatabaseTransaction(tx),
+        )
         if (authorization.kind !== 'ok') {
           return authorization
         }
@@ -915,7 +923,10 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
     input: ReadTutoringTurnInput,
   ): Promise<ReadTutoringTurnResult> {
     return this.runTransaction(async (tx) => {
-      const authorization = await lockAuthorizedStudentChat(tx, input)
+      const authorization = await this.conversationTurns.authorizeStudent(
+        input,
+        asDatabaseTransaction(tx),
+      )
       if (authorization.kind !== 'ok') {
         return authorization
       }
@@ -973,7 +984,10 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
           terminal.status === MessageStatus.FAILED ||
           terminal.status === MessageStatus.BLOCKED
             ? await this.lockExactTurnSession(tx, input)
-            : await lockAuthorizedStudentChat(tx, input)
+            : await this.conversationTurns.authorizeStudent(
+                input,
+                asDatabaseTransaction(tx),
+              )
         if (authorization.kind !== 'ok') {
           return authorization
         }
@@ -1250,23 +1264,10 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
     tx: Prisma.TransactionClient,
     input: AuthorizedTurnInput,
   ): Promise<AuthorizationResult> {
-    const sessions = await tx.$queryRaw<LockedStudentChatSession[]>(Prisma.sql`
-      SELECT
-        id,
-        course_id AS "courseId",
-        last_sequence AS "lastSequence",
-        deleted_at AS "deletedAt"
-      FROM chat_sessions
-      WHERE id = ${input.sessionId}::uuid
-        AND student_id = ${input.studentId}::uuid
-      FOR UPDATE
-    `)
-    const session = sessions.at(0)
-    if (session?.courseId !== input.courseId) {
-      return { kind: 'session_not_found' }
-    }
-
-    return { kind: 'ok', session }
+    return this.conversationTurns.authorizeSessionOwner(
+      input,
+      asDatabaseTransaction(tx),
+    )
   }
 
   private async failExpiredActiveTurns(

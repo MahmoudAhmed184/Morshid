@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
 import { Prisma } from '../../generated/prisma/client'
-import { PrismaService } from '../prisma/prisma.service'
+import { PrismaService } from '../../platform/database/prisma.service'
 
 // Intentional consumer-side guard, duplicated from the embedding module so a
 // contract drift there cannot silently send a mismatched vector to Postgres.

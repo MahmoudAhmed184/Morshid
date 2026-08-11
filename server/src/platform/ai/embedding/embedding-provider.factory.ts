@@ -1,4 +1,4 @@
-import type { AppEnvironment } from '../config/env.schema'
+import type { AppEnvironment } from '../../config/env.schema'
 import { DeterministicEmbeddingProvider } from './deterministic-embedding.provider'
 import {
   DETERMINISTIC_EMBEDDING_PROVIDER,

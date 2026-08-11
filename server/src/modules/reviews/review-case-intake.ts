@@ -5,7 +5,7 @@ import type {
   ReviewTriggerType,
 } from '../../generated/prisma/client'
 import type { AuditRequestContext } from '../audit/audit.public'
-import type { DatabaseTransaction } from '../prisma/database-transaction'
+import type { DatabaseTransaction } from '../../platform/database/database-transaction'
 import {
   buildAutomaticReviewEvidence,
   type AutomaticReviewEvidenceInput,

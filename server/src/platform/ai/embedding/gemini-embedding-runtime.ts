@@ -4,7 +4,7 @@ import {
   GeminiQuotaService,
   type GeminiQuotaCaps,
   type GeminiQuotaRedisClient,
-} from '../../common/gemini/gemini-quota.service'
+} from '../gemini/gemini-quota.service'
 import type {
   GeminiEmbeddingAdapterOptions,
   GeminiEmbeddingConfiguration,

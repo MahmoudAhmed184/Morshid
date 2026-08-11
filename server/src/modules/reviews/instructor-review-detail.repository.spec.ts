@@ -4,7 +4,7 @@ import {
   ReviewStatus,
   ReviewTriggerType,
 } from '../../generated/prisma/client'
-import type { PrismaService } from '../prisma/prisma.service'
+import type { PrismaService } from '../../platform/database/prisma.service'
 import { PrismaInstructorReviewDetailRepository } from './instructor-review-detail.repository'
 import { reviewEvidenceContentHash } from './evidence/review-evidence-integrity'
 

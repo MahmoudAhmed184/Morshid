@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
 import { Prisma } from '../../generated/prisma/client'
-import { PrismaService } from '../prisma/prisma.service'
+import { PrismaService } from '../../platform/database/prisma.service'
 
 const EMBEDDING_DIMENSIONS = 1_536
 

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
 import { Prisma } from '../../../generated/prisma/client'
-import { PrismaService } from '../../prisma/prisma.service'
+import { PrismaService } from '../../../platform/database/prisma.service'
 import type { TopicStatePatch, TopicStateSnapshot } from './topic-state.types'
 
 export abstract class TopicStateRepository {

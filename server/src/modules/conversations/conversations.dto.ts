@@ -61,7 +61,7 @@ export const listChatMessagesQuerySchema = z
     },
   )
 
-export const sendStudentChatMessageRequestSchema = z
+export const sendTutoringMessageRequestSchema = z
   .object({
     clientMessageId: z.uuid().optional(),
     content: messageContentSchema,
@@ -79,8 +79,8 @@ export type RenameChatSessionRequest = z.infer<
 >
 export type ListChatSessionsQuery = z.infer<typeof listChatSessionsQuerySchema>
 export type ListChatMessagesQuery = z.infer<typeof listChatMessagesQuerySchema>
-export type SendStudentChatMessageRequest = z.infer<
-  typeof sendStudentChatMessageRequestSchema
+export type SendTutoringMessageRequest = z.infer<
+  typeof sendTutoringMessageRequestSchema
 >
 
 export class CreateChatSessionRequestDto {
@@ -93,7 +93,7 @@ export class RenameChatSessionRequestDto {
   title!: string
 }
 
-export class SendStudentChatMessageRequestDto {
+export class SendTutoringMessageRequestDto {
   @ApiProperty({ format: 'uuid', required: false })
   clientMessageId?: string
 

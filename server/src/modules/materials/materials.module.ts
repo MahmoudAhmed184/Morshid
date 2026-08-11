@@ -2,9 +2,9 @@ import { Module } from '@nestjs/common'
 
 import { AuditModule } from '../audit/audit.module'
 import { CoursesModule } from '../courses/courses.module'
-import { EmbeddingModule } from '../embedding/embedding.module'
-import { PdfStorageModule } from '../pdf-storage/pdf-storage.module'
-import { PrismaModule } from '../prisma/prisma.module'
+import { EmbeddingModule } from '../../platform/ai/embedding/embedding.module'
+import { PdfStorageModule } from '../../platform/document-storage/pdf-storage.module'
+import { PrismaModule } from '../../platform/database/prisma.module'
 import {
   DurableMaterialProcessingScheduler,
   MaterialProcessingScheduler,

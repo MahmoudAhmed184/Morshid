@@ -10,11 +10,11 @@ import type { Request, Response } from 'express'
 import {
   getRequestContext,
   getRouteContext,
-} from '../../common/http/request-context'
-import type { AccessAuditActor } from '../audit/audit.public'
-import type { AuthenticatedUser } from '../identity/identity.types'
-import { STUDENT_CHAT_ERROR_CODES } from '../conversations/conversation.errors'
-import { ConversationsService } from '../conversations/conversations.service'
+} from '../../../common/http/request-context'
+import type { AccessAuditActor } from '../../audit/audit.public'
+import type { AuthenticatedUser } from '../../identity/identity.types'
+import { CONVERSATION_ERROR_CODES } from '../conversation.errors'
+import { ConversationsService } from '../conversations.service'
 
 interface CourseScopedHttpRequest extends Request {
   user?: AuthenticatedUser
@@ -41,7 +41,7 @@ export class ConversationCourseBoundaryAuditFilter implements ExceptionFilter {
     ConversationCourseBoundaryAuditFilter.name,
   )
 
-  constructor(private readonly studentChatService: ConversationsService) {}
+  constructor(private readonly conversationsService: ConversationsService) {}
 
   async catch(
     exception: ForbiddenException,
@@ -53,7 +53,7 @@ export class ConversationCourseBoundaryAuditFilter implements ExceptionFilter {
 
     if (isCourseBoundaryDenial(exception)) {
       try {
-        await this.studentChatService.recordCourseBoundaryDenied(
+        await this.conversationsService.recordCourseBoundaryDenied(
           readCourseIdParam(request),
           readActor(request),
           getRouteContext(request),
@@ -81,7 +81,7 @@ function isCourseBoundaryDenial(exception: ForbiddenException): boolean {
     typeof body === 'object' &&
     'code' in body &&
     (body as { code?: unknown }).code ===
-      STUDENT_CHAT_ERROR_CODES.ACTIVE_STUDENT_MEMBERSHIP_REQUIRED
+      CONVERSATION_ERROR_CODES.ACTIVE_STUDENT_MEMBERSHIP_REQUIRED
   )
 }
 

@@ -5,7 +5,7 @@ import {
   MessageRole,
   Prisma,
 } from '../../../generated/prisma/client'
-import { PrismaService } from '../../prisma/prisma.service'
+import { PrismaService } from '../../../platform/database/prisma.service'
 import type { AnalysisModelResponse } from './analysis-model.port'
 import {
   EDUCATIONAL_ANALYSIS_SOURCE,

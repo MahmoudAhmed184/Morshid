@@ -1,7 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common'
 
 import { MaterialStatus } from '../../generated/prisma/client'
-import { PDF_STORAGE, type PdfStorage } from '../pdf-storage/pdf-storage'
+import {
+  PDF_STORAGE,
+  type PdfStorage,
+} from '../../platform/document-storage/pdf-storage'
 import type {
   ChatCitationDto,
   ChatCitationEvidenceDto,

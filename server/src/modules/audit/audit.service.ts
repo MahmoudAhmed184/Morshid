@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common'
 
 import type { AuditLog } from '../../generated/prisma/client'
-import { PrismaService } from '../prisma/prisma.service'
+import { PrismaService } from '../../platform/database/prisma.service'
 import {
   asPrismaTransaction,
   type DatabaseTransaction,
-} from '../prisma/database-transaction'
+} from '../../platform/database/database-transaction'
 import type { AuditEventAction, AuditTargetType } from './audit.constants'
 
 export type AuditMetadataValue =

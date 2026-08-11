@@ -11,8 +11,8 @@ import {
   ReviewStatus,
   ReviewTriggerType,
 } from '../../generated/prisma/client'
-import { PrismaService } from '../prisma/prisma.service'
-import { asDatabaseTransaction } from '../prisma/database-transaction'
+import { PrismaService } from '../../platform/database/prisma.service'
+import { asDatabaseTransaction } from '../../platform/database/database-transaction'
 import { AuditService } from '../audit/audit.public'
 import type { AuditRequestContext } from '../audit/audit.public'
 import type {

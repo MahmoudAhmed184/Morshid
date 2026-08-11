@@ -1,11 +1,11 @@
 import { Test } from '@nestjs/testing'
 
 import type { AuditLog, Prisma } from '../../generated/prisma/client'
-import { PrismaService } from '../prisma/prisma.service'
+import { PrismaService } from '../../platform/database/prisma.service'
 import { AUDIT_EVENT_ACTIONS, AUDIT_TARGET_TYPES } from './audit.constants'
 import { AuditService } from './audit.service'
 
-jest.mock('../prisma/prisma.service', () => ({
+jest.mock('../../platform/database/prisma.service', () => ({
   PrismaService: jest.fn(),
 }))
 

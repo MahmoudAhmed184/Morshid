@@ -1,11 +1,11 @@
 import { config as loadEnv } from 'dotenv'
 
-import { readBoundedResponseBody } from '../src/common/upstream/bounded-response-body.js'
+import { readBoundedResponseBody } from '../src/platform/ai/upstream/bounded-response-body.js'
 import {
   isValidItiGatewayApiKey,
   validateItiGatewayBaseUrl,
   type UpstreamEnvironment,
-} from '../src/common/upstream/iti-gateway-transport.js'
+} from '../src/platform/ai/upstream/iti-gateway-transport.js'
 
 loadEnv({
   path: ['server/.env', '.env', '../.env'],

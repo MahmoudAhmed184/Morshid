@@ -38,7 +38,7 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:tutoring:live": "tsx scripts/tutoring-role-chain-live-smoke.mts",
-    "test:tutoring:e2e-live": "node --experimental-vm-modules ../node_modules/jest/bin/jest.js --config ./test/jest-live-e2e.json --runInBand --runTestsByPath ./test/tutoring-runtime.live-spec.ts",
+    "test:tutoring:e2e-live": "node --experimental-vm-modules ../node_modules/jest/bin/jest.js --config ./test/jest-live-e2e.json --runInBand --runTestsByPath ./test/tutoring/tutoring-runtime.live-spec.ts",
     "test:gemini-embedding:smoke": "tsx scripts/gemini-embedding-live-smoke.mts",
     "test:gemini-embedding:task-selection": "tsx scripts/gemini-embedding-task-selection.mts",
     "test:iti-bedrock-embedding:probe": "tsx scripts/iti-bedrock-embedding-contract-probe.mts",
@@ -47,7 +47,7 @@
     "pretest:e2e": "npm run db:generate",
     "test:e2e": "node --experimental-vm-modules ../node_modules/jest/bin/jest.js --config ./test/jest-e2e.json",
     "db:migrate:deploy": "prisma migrate deploy --config prisma.config.ts",
-    "test:e2e:gate-2": "node --experimental-vm-modules ../node_modules/jest/bin/jest.js --config ./test/jest-e2e.json --runInBand --runTestsByPath ./test/gate-2.e2e-spec.ts",
+    "test:e2e:gate-2": "node --experimental-vm-modules ../node_modules/jest/bin/jest.js --config ./test/jest-e2e.json --runInBand --runTestsByPath ./test/materials/gate-2.e2e-spec.ts",
     "pretest:e2e:gate-2": "npm run db:generate"
   },
   "dependencies": {

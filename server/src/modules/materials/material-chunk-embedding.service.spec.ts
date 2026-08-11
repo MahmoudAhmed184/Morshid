@@ -1,4 +1,4 @@
-import type { EmbeddingProvider } from '../embedding/embedding-provider'
+import type { EmbeddingProvider } from '../../platform/ai/embedding/embedding-provider'
 import { MaterialChunkEmbeddingService } from './material-chunk-embedding.service'
 import type { MaterialChunkRepository } from './material-chunk.repository'
 

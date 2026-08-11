@@ -6,13 +6,13 @@ import {
   MessageStatus,
 } from '../../generated/prisma/client'
 import {
-  lockAuthorizedStudentChat,
-  lockStudentOwnedChat,
-} from '../../common/authorization/locked-student-chat-session'
+  lockAuthorizedConversation,
+  lockConversationSessionOwner,
+} from './conversation-authorization'
 import {
   asPrismaTransaction,
   type DatabaseTransaction,
-} from '../prisma/database-transaction'
+} from '../../platform/database/database-transaction'
 import {
   ConversationTurns,
   type AdmitConversationTurnInput,
@@ -22,7 +22,7 @@ import {
   type FinalizeConversationMessageInput,
   type FinalizedMessage,
 } from './conversation-turns'
-import { PrismaService } from '../prisma/prisma.service'
+import { PrismaService } from '../../platform/database/prisma.service'
 import {
   chatMessageScalarSelect,
   chatMessageSelect,
@@ -35,12 +35,26 @@ export class PrismaConversationTurns extends ConversationTurns {
     super()
   }
 
+  authorizeStudent(
+    input: Parameters<ConversationTurns['authorizeStudent']>[0],
+    transaction: DatabaseTransaction,
+  ) {
+    return lockAuthorizedConversation(asPrismaTransaction(transaction), input)
+  }
+
+  authorizeSessionOwner(
+    input: Parameters<ConversationTurns['authorizeSessionOwner']>[0],
+    transaction: DatabaseTransaction,
+  ) {
+    return lockConversationSessionOwner(asPrismaTransaction(transaction), input)
+  }
+
   async admit(
     input: AdmitConversationTurnInput,
     transaction: DatabaseTransaction,
   ): Promise<AdmittedTurn> {
     const tx = asPrismaTransaction(transaction)
-    const authorization = await lockAuthorizedStudentChat(tx, input)
+    const authorization = await this.authorizeStudent(input, transaction)
     if (authorization.kind !== 'ok') {
       return authorization
     }
@@ -164,8 +178,8 @@ export class PrismaConversationTurns extends ConversationTurns {
     const tx = asPrismaTransaction(transaction)
     const authorization =
       input.authorization === 'session_owner'
-        ? await lockStudentOwnedChat(tx, input)
-        : await lockAuthorizedStudentChat(tx, input)
+        ? await this.authorizeSessionOwner(input, transaction)
+        : await this.authorizeStudent(input, transaction)
     if (authorization.kind !== 'ok') {
       return authorization
     }

@@ -15,7 +15,7 @@ import type { Request, Response } from 'express'
 import { ApiAccessTokenAuth } from '../../common/http/openapi.decorators'
 import { OpenApiErrorDto } from '../../common/http/openapi-error.dto'
 import { getRequestContext } from '../../common/http/request-context'
-import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe'
+import { ZodValidationPipe } from '../../common/http/zod-validation.pipe'
 import {
   signInRequestSchema,
   IdentitySessionResponseDto,

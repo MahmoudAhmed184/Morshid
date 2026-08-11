@@ -5,12 +5,16 @@ import {
   assertRequestBudget,
   type RequestBudget,
 } from '../../common/http/request-deadline'
-import type { AppEnvironment } from '../config/env.schema'
 import {
   EMBEDDING_PROVIDER_TOKEN,
   type EmbeddingProvider,
-} from '../embedding/embedding-provider'
-import { PDF_STORAGE, type PdfStorage } from '../pdf-storage/pdf-storage'
+} from '../../platform/ai/embedding/embedding-provider'
+import type { AppEnvironment } from '../../platform/config/env.schema'
+import {
+  PDF_STORAGE,
+  type PdfStorage,
+} from '../../platform/document-storage/pdf-storage'
+import { readMaterialsConfiguration } from './materials.configuration'
 import {
   CourseEvidenceRepository,
   type RankedChunkRow,
@@ -66,10 +70,9 @@ export class MaterialsCourseEvidence extends CourseEvidence {
     @Inject(PDF_STORAGE) private readonly pdfStorage: PdfStorage,
   ) {
     super()
-    this.topK = configService.get('RETRIEVAL_TOP_K', { infer: true })
-    this.minSimilarity = configService.get('RETRIEVAL_MIN_SIMILARITY', {
-      infer: true,
-    })
+    const configuration = readMaterialsConfiguration(configService)
+    this.topK = configuration.RETRIEVAL_TOP_K
+    this.minSimilarity = configuration.RETRIEVAL_MIN_SIMILARITY
   }
 
   // courseId must already be authorized by the caller (CourseAccessService at

@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config'
 import { JwtService } from '@nestjs/jwt'
 
 import type { User } from '../../generated/prisma/client'
-import type { AppEnvironment } from '../config/env.schema'
+import type { AppEnvironment } from '../../platform/config/env.schema'
 import { invalidAccessTokenException } from './identity.errors'
 
 @Injectable()

@@ -1,8 +1,7 @@
 import { Module } from '@nestjs/common'
 import { ConfigModule, ConfigService } from '@nestjs/config'
 
-import type { AppEnvironment } from '../../config/env.schema'
-import { PrismaModule } from '../../prisma/prisma.module'
+import { PrismaModule } from '../../../platform/database/prisma.module'
 import { ConversationsModule } from '../../conversations/conversations.module'
 import { AuditModule } from '../../audit/audit.module'
 import { MaterialsModule } from '../../materials/materials.module'
@@ -17,10 +16,7 @@ import {
 } from './analysis-confidence-policy'
 import { AnalysisFallbackBuilder } from './analysis-fallback-builder'
 import { ANALYSIS_MODEL_PORT } from './analysis-model.port'
-import {
-  DETERMINISTIC_ANALYSIS_MODEL_PROVIDER,
-  OPENAI_COMPATIBLE_ANALYSIS_MODEL_PROVIDER,
-} from './analysis-model.configuration'
+import { OPENAI_COMPATIBLE_ANALYSIS_MODEL_PROVIDER } from './analysis-model.configuration'
 import { createAnalysisModelPort } from './analysis-model.provider'
 import {
   ANALYSIS_RETRY_POLICY,
@@ -47,10 +43,7 @@ import {
 } from './topic-state.repository'
 import { TopicStateService } from './topic-state.service'
 import { TUTOR_MODEL_PORT } from './tutor-generation.types'
-import {
-  DETERMINISTIC_TUTOR_MODEL_PROVIDER,
-  OPENAI_COMPATIBLE_TUTOR_MODEL_PROVIDER,
-} from './tutor-model.configuration'
+import { OPENAI_COMPATIBLE_TUTOR_MODEL_PROVIDER } from './tutor-model.configuration'
 import { createTutorModelPort } from './tutor-model.adapter'
 import { TutorGenerationService } from './tutor-generation.service'
 import {
@@ -65,14 +58,16 @@ import { SemanticGuardService } from './semantic-guard.service'
 import { SafeFallbackService } from './safe-fallback.service'
 import { ResponseApprovalService } from './response-approval.service'
 import { SEMANTIC_GUARD_PORT } from './semantic-guard.types'
-import {
-  DETERMINISTIC_SEMANTIC_GUARD_PROVIDER,
-  OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER,
-} from './semantic-guard.configuration'
+import { OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER } from './semantic-guard.configuration'
 import { createSemanticGuardPort } from './semantic-guard.adapter'
 import { RetrievalQueryBuilder } from './retrieval-query.builder'
 import { ResponseGovernanceModule } from '../response-governance/response-governance.module'
 import { SocraticWorkflow } from './socratic-workflow'
+import {
+  readTutoringConfiguration,
+  TUTORING_CONFIGURATION,
+  type TutoringConfiguration,
+} from '../tutoring.configuration'
 
 @Module({
   imports: [
@@ -124,165 +119,114 @@ import { SocraticWorkflow } from './socratic-workflow'
       useClass: PrismaTeachingDecisionRepository,
     },
     {
-      provide: ANALYSIS_CONFIDENCE_POLICY,
+      provide: TUTORING_CONFIGURATION,
       inject: [ConfigService],
-      useFactory: (configService: ConfigService<AppEnvironment, true>) =>
+      useFactory: readTutoringConfiguration,
+    },
+    {
+      provide: ANALYSIS_CONFIDENCE_POLICY,
+      inject: [TUTORING_CONFIGURATION],
+      useFactory: (configuration: TutoringConfiguration) =>
         new AnalysisConfidencePolicy({
-          threshold: configService.get('ANALYSIS_CONFIDENCE_THRESHOLD', {
-            infer: true,
-          }),
+          threshold: configuration.ANALYSIS_CONFIDENCE_THRESHOLD,
         }),
     },
     {
       provide: ANALYSIS_RETRY_POLICY,
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService<AppEnvironment, true>) =>
-        new AnalysisRetryPolicy(
-          configService.get('ANALYSIS_MODEL_MAX_RETRIES', {
-            infer: true,
-          }),
-        ),
+      inject: [TUTORING_CONFIGURATION],
+      useFactory: (configuration: TutoringConfiguration) =>
+        new AnalysisRetryPolicy(configuration.ANALYSIS_MODEL_MAX_RETRIES),
     },
     {
       provide: ANALYSIS_MODEL_PORT,
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService<AppEnvironment, true>) => {
-        const provider: unknown = configService.get('ANALYSIS_MODEL_PROVIDER', {
-          infer: true,
-        })
-        const timeoutMs = configService.get('ANALYSIS_MODEL_TIMEOUT_MS', {
-          infer: true,
-        })
-        const maxCompletionTokens = configService.get(
-          'ANALYSIS_MODEL_MAX_COMPLETION_TOKENS',
-          { infer: true },
-        )
+      inject: [TUTORING_CONFIGURATION],
+      useFactory: (configuration: TutoringConfiguration) => {
+        const provider = configuration.ANALYSIS_MODEL_PROVIDER
+        const timeoutMs = configuration.ANALYSIS_MODEL_TIMEOUT_MS
+        const maxCompletionTokens =
+          configuration.ANALYSIS_MODEL_MAX_COMPLETION_TOKENS
 
         if (provider === OPENAI_COMPATIBLE_ANALYSIS_MODEL_PROVIDER) {
           return createAnalysisModelPort({
             provider,
             timeoutMs,
             openAICompatible: {
-              baseUrl: configService.get('ANALYSIS_MODEL_BASE_URL', {
-                infer: true,
-              }),
-              modelName: configService.get('ANALYSIS_MODEL_NAME', {
-                infer: true,
-              }),
-              apiKey: configService.get('ANALYSIS_MODEL_API_KEY', {
-                infer: true,
-              }),
+              baseUrl: configuration.ANALYSIS_MODEL_BASE_URL,
+              modelName: configuration.ANALYSIS_MODEL_NAME,
+              apiKey: configuration.ANALYSIS_MODEL_API_KEY,
               maxCompletionTokens,
             },
           })
         }
 
-        if (provider === DETERMINISTIC_ANALYSIS_MODEL_PROVIDER) {
-          return createAnalysisModelPort({
-            provider,
-            timeoutMs,
-          })
-        }
-
-        throw new Error('Unsupported analysis model provider')
+        return createAnalysisModelPort({
+          provider: 'deterministic',
+          timeoutMs,
+        })
       },
     },
     {
       provide: TUTOR_INFRASTRUCTURE_RETRY_POLICY,
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService<AppEnvironment, true>) =>
+      inject: [TUTORING_CONFIGURATION],
+      useFactory: (configuration: TutoringConfiguration) =>
         new TutorInfrastructureRetryPolicy(
-          configService.get('TUTOR_MODEL_MAX_INFRASTRUCTURE_RETRIES', {
-            infer: true,
-          }),
+          configuration.TUTOR_MODEL_MAX_INFRASTRUCTURE_RETRIES,
         ),
     },
     {
       provide: TUTOR_MODEL_PORT,
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService<AppEnvironment, true>) => {
-        const provider: unknown = configService.get('TUTOR_MODEL_PROVIDER', {
-          infer: true,
-        })
-        const timeoutMs = configService.get('TUTOR_MODEL_TIMEOUT_MS', {
-          infer: true,
-        })
-        const maxCompletionTokens = configService.get(
-          'TUTOR_MODEL_MAX_COMPLETION_TOKENS',
-          { infer: true },
-        )
+      inject: [TUTORING_CONFIGURATION],
+      useFactory: (configuration: TutoringConfiguration) => {
+        const provider = configuration.TUTOR_MODEL_PROVIDER
+        const timeoutMs = configuration.TUTOR_MODEL_TIMEOUT_MS
+        const maxCompletionTokens =
+          configuration.TUTOR_MODEL_MAX_COMPLETION_TOKENS
 
         if (provider === OPENAI_COMPATIBLE_TUTOR_MODEL_PROVIDER) {
           return createTutorModelPort({
             provider,
             timeoutMs,
             openAICompatible: {
-              baseUrl: configService.get('TUTOR_MODEL_BASE_URL', {
-                infer: true,
-              }),
-              modelName: configService.get('TUTOR_MODEL_NAME', {
-                infer: true,
-              }),
-              apiKey: configService.get('TUTOR_MODEL_API_KEY', {
-                infer: true,
-              }),
+              baseUrl: configuration.TUTOR_MODEL_BASE_URL,
+              modelName: configuration.TUTOR_MODEL_NAME,
+              apiKey: configuration.TUTOR_MODEL_API_KEY,
               maxCompletionTokens,
             },
           })
         }
 
-        if (provider === DETERMINISTIC_TUTOR_MODEL_PROVIDER) {
-          return createTutorModelPort({
-            provider,
-            timeoutMs,
-          })
-        }
-
-        throw new Error('Unsupported tutor model provider')
+        return createTutorModelPort({
+          provider: 'deterministic',
+          timeoutMs,
+        })
       },
     },
     {
       provide: SEMANTIC_GUARD_PORT,
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService<AppEnvironment, true>) => {
-        const provider: unknown = configService.get('SEMANTIC_GUARD_PROVIDER', {
-          infer: true,
-        })
-        const timeoutMs = configService.get('SEMANTIC_GUARD_TIMEOUT_MS', {
-          infer: true,
-        })
-        const maxCompletionTokens = configService.get(
-          'SEMANTIC_GUARD_MAX_COMPLETION_TOKENS',
-          { infer: true },
-        )
+      inject: [TUTORING_CONFIGURATION],
+      useFactory: (configuration: TutoringConfiguration) => {
+        const provider = configuration.SEMANTIC_GUARD_PROVIDER
+        const timeoutMs = configuration.SEMANTIC_GUARD_TIMEOUT_MS
+        const maxCompletionTokens =
+          configuration.SEMANTIC_GUARD_MAX_COMPLETION_TOKENS
 
         if (provider === OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER) {
           return createSemanticGuardPort({
             provider,
             timeoutMs,
             openAICompatible: {
-              baseUrl: configService.get('SEMANTIC_GUARD_BASE_URL', {
-                infer: true,
-              }),
-              modelName: configService.get('SEMANTIC_GUARD_MODEL_NAME', {
-                infer: true,
-              }),
-              apiKey: configService.get('SEMANTIC_GUARD_API_KEY', {
-                infer: true,
-              }),
+              baseUrl: configuration.SEMANTIC_GUARD_BASE_URL,
+              modelName: configuration.SEMANTIC_GUARD_MODEL_NAME,
+              apiKey: configuration.SEMANTIC_GUARD_API_KEY,
               maxCompletionTokens,
             },
           })
         }
 
-        if (provider === DETERMINISTIC_SEMANTIC_GUARD_PROVIDER) {
-          return createSemanticGuardPort({
-            provider,
-            timeoutMs,
-          })
-        }
-
-        throw new Error('Unsupported semantic guard provider')
+        return createSemanticGuardPort({
+          provider: 'deterministic',
+          timeoutMs,
+        })
       },
     },
   ],
@@ -305,6 +249,7 @@ import { SocraticWorkflow } from './socratic-workflow'
     TUTOR_MODEL_PORT,
     ANALYSIS_MODEL_PORT,
     SEMANTIC_GUARD_PORT,
+    TUTORING_CONFIGURATION,
     SocraticWorkflow,
   ],
 })

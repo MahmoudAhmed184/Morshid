@@ -3,7 +3,7 @@ import {
   MessageRole,
   MessageStatus,
 } from '../../../generated/prisma/client'
-import type { PrismaService } from '../../prisma/prisma.service'
+import type { PrismaService } from '../../../platform/database/prisma.service'
 import {
   ANALYSIS_CONTEXT_CANDIDATE_HISTORY_LIMIT,
   PrismaAnalysisContextRepository,

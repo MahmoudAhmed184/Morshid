@@ -1,10 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 
-import {
-  DEFAULT_PDF_MAX_UPLOAD_BYTES,
-  type AppEnvironment,
-} from '../config/env.schema'
+import type { AppEnvironment } from '../../platform/config/env.schema'
 import {
   invalidMaterialsRequestException,
   pdfTooLargeException,
@@ -15,6 +12,10 @@ import {
   PDF_UPLOAD_FILE_EXTENSION,
   PDF_UPLOAD_MIME_TYPE,
 } from './materials.constants'
+import {
+  DEFAULT_PDF_MAX_UPLOAD_BYTES,
+  readMaterialsConfiguration,
+} from './materials.configuration'
 
 const PDF_SIGNATURE = Buffer.from('%PDF-')
 const MAX_DISPLAY_FILENAME_LENGTH = 255
@@ -68,9 +69,9 @@ export class PdfUploadValidator {
       throw invalidMaterialsRequestException(issues)
     }
 
-    const maxBytes = this.configService.get('PDF_MAX_UPLOAD_BYTES', {
-      infer: true,
-    })
+    const maxBytes = readMaterialsConfiguration(
+      this.configService,
+    ).PDF_MAX_UPLOAD_BYTES
     const file = input.file
     const originalFilename = sanitizeOriginalFilename(file.originalname)
 

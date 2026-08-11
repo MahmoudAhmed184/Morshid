@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 
-import { normalizeDeterministicText } from '../../common/text/normalize-deterministic-text'
+import { normalizeDeterministicText } from '../../../common/text/normalize-deterministic-text'
 import type {
   Embedding,
   EmbeddingDocument,

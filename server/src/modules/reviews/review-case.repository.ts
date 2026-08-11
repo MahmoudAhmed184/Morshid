@@ -14,12 +14,12 @@ import {
 } from '../../generated/prisma/client'
 import { AuditService } from '../audit/audit.public'
 import type { AuditRequestContext } from '../audit/audit.public'
-import { PrismaService } from '../prisma/prisma.service'
+import { PrismaService } from '../../platform/database/prisma.service'
 import {
   asDatabaseTransaction,
   asPrismaTransaction,
   type DatabaseTransaction,
-} from '../prisma/database-transaction'
+} from '../../platform/database/database-transaction'
 import type { AutomaticReviewEvidenceContribution } from './evidence/automatic-review-evidence'
 import {
   reviewEvidenceContentHash,

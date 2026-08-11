@@ -2,14 +2,14 @@ import { GoogleGenAI } from '@google/genai'
 import { Logger } from '@nestjs/common'
 import { config as loadEnv } from 'dotenv'
 
-import { validateEnv } from '../src/modules/config/env.schema.js'
+import { validateEnv } from '../src/platform/config/env.schema.js'
 import {
   GEMINI_EMBEDDING_API_VERSION,
   GEMINI_EMBEDDING_BATCH_SIZE,
   type GeminiEmbeddingRequest,
-} from '../src/modules/embedding/embedding-configuration.js'
-import { createEmbeddingProvider } from '../src/modules/embedding/embedding-provider.factory.js'
-import { EMBEDDING_DIMENSIONS } from '../src/modules/embedding/embedding-provider.js'
+} from '../src/platform/ai/embedding/embedding-configuration.js'
+import { createEmbeddingProvider } from '../src/platform/ai/embedding/embedding-provider.factory.js'
+import { EMBEDDING_DIMENSIONS } from '../src/platform/ai/embedding/embedding-provider.js'
 import {
   GEMINI_EMBEDDING_LIVE_SMOKE_FIXTURE,
   buildGeminiSmokeBatch,

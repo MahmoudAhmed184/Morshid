@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
 import { Prisma } from '../../../generated/prisma/client'
-import { PrismaService } from '../../prisma/prisma.service'
+import { PrismaService } from '../../../platform/database/prisma.service'
 import { EDUCATIONAL_ANALYSIS_SOURCE } from './educational-analysis.types'
 import type { TeachingDecisionPolicyDraft } from './teaching-policy.selector'
 import type { PreviousTeachingDecisionSnapshot } from './teaching-policy.types'

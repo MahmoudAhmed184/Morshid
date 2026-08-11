@@ -1,6 +1,6 @@
 import { Logger } from '@nestjs/common'
 
-import type { PrismaService } from '../prisma/prisma.service'
+import type { PrismaService } from '../../platform/database/prisma.service'
 import type { MaterialProcessingService } from './material-processing.service'
 import { DurableMaterialProcessingScheduler } from './material-processing.scheduler'
 

@@ -3,7 +3,7 @@ import { Inject, Injectable } from '@nestjs/common'
 import {
   EMBEDDING_PROVIDER_TOKEN,
   type EmbeddingProvider,
-} from '../embedding/embedding-provider'
+} from '../../platform/ai/embedding/embedding-provider'
 import {
   type MaterialChunkInput,
   MaterialChunkRepository,

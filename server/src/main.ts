@@ -1,7 +1,7 @@
 import { NestFactory } from '@nestjs/core'
 import { ConfigService } from '@nestjs/config'
 
-import type { AppEnvironment } from './modules/config/env.schema'
+import type { AppEnvironment } from './platform/config/env.schema'
 import { configureApp } from './app.setup'
 import { AppModule } from './app.module'
 

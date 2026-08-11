@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
 import type { User } from '../../generated/prisma/client'
-import { PrismaService } from '../prisma/prisma.service'
+import { PrismaService } from '../../platform/database/prisma.service'
 import type { AuthenticatedUser, IdentityUserSummary } from './identity.types'
 
 @Injectable()

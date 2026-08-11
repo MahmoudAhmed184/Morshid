@@ -1,4 +1,4 @@
-import type { MaterialChunkRecord } from '../materials/material-chunk.repository'
+import type { MaterialChunkRecord } from './material-chunk.repository'
 import {
   migrateEmbeddings,
   type EmbeddingMigrationCorpus,
@@ -8,8 +8,8 @@ import {
 import {
   EMBEDDING_DIMENSIONS,
   type EmbeddingProvider,
-} from './embedding-provider'
-import { GeminiEmbeddingAdapter } from './providers/gemini/gemini-embedding.adapter'
+} from '../../platform/ai/embedding/embedding-provider'
+import { GeminiEmbeddingAdapter } from '../../platform/ai/embedding/providers/gemini/gemini-embedding.adapter'
 
 function buildVector(): number[] {
   return new Array<number>(EMBEDDING_DIMENSIONS).fill(0.25)

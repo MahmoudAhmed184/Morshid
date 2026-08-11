@@ -13,7 +13,7 @@ import {
   createChatSessionRequestSchema,
   listChatMessagesQuerySchema,
   renameChatSessionRequestSchema,
-  sendStudentChatMessageRequestSchema,
+  sendTutoringMessageRequestSchema,
 } from './conversations.dto'
 import type { ConversationMessageRepository } from './conversation-message.repository'
 import { ConversationMessagePresenter } from '../conversations/conversation-message.presenter'
@@ -331,7 +331,7 @@ describe('ConversationsService', () => {
 
   it('accepts only trimmed nonblank tutoring content within 4,000 Unicode code points', () => {
     expect(
-      sendStudentChatMessageRequestSchema.parse({
+      sendTutoringMessageRequestSchema.parse({
         clientMessageId: 'c139776a-0c68-44fe-97f8-e9128aa40458',
         content: '  How do lists work?  ',
         problemId: '2c4d4f3a-7e37-4c6c-8d8b-9c6a3f9a6e11',
@@ -346,7 +346,7 @@ describe('ConversationsService', () => {
       title: 'List iteration',
     })
     expect(
-      sendStudentChatMessageRequestSchema.safeParse({
+      sendTutoringMessageRequestSchema.safeParse({
         content: '😀'.repeat(4_000),
       }).success,
     ).toBe(true)
@@ -372,7 +372,7 @@ describe('ConversationsService', () => {
         title: '   ',
       },
     ]) {
-      expect(sendStudentChatMessageRequestSchema.safeParse(input).success).toBe(
+      expect(sendTutoringMessageRequestSchema.safeParse(input).success).toBe(
         false,
       )
     }

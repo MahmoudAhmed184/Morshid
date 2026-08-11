@@ -4,7 +4,7 @@ import {
   STRUCTURED_CHAT_ERROR_CODE,
   StructuredChatTransport,
   StructuredChatTransportError,
-} from '../../../common/upstream/structured-chat.transport'
+} from '../../../platform/ai/upstream/structured-chat.transport'
 import { hasAtMostCodePoints, readAbortSignalAborted } from './model-boundary'
 import {
   ANALYSIS_MODEL_ERROR_CODE,

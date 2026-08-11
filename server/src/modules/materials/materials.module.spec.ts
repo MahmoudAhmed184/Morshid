@@ -1,7 +1,7 @@
 import { Test } from '@nestjs/testing'
 import { ConfigModule } from '@nestjs/config'
 
-import { PrismaService } from '../prisma/prisma.service'
+import { PrismaService } from '../../platform/database/prisma.service'
 import {
   DurableMaterialProcessingScheduler,
   MaterialProcessingScheduler,

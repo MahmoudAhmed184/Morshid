@@ -22,9 +22,10 @@ export function configureApp(app: INestApplication) {
     .addTag('courses', 'Course access and administration operations.')
     .addTag('materials', 'Course material upload, processing, and indexing.')
     .addTag(
-      'student-chat-sessions',
-      'Private Student chat session and message persistence.',
+      'conversations',
+      'Private conversation session and message persistence.',
     )
+    .addTag('tutoring', 'Tutoring turn execution and response governance.')
     .addTag('user-administration', 'Administrative user account operations.')
     .addTag('audit', 'Audit event access.')
     .addTag('health', 'Service health checks.')

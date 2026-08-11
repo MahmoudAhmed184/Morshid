@@ -2,7 +2,7 @@ import { Test } from '@nestjs/testing'
 
 import { AUDIT_EVENT_ACTIONS, AUDIT_TARGET_TYPES } from '../audit/audit.public'
 import { AuditService, type RecordAuditEventInput } from '../audit/audit.public'
-import { PrismaService } from '../prisma/prisma.service'
+import { PrismaService } from '../../platform/database/prisma.service'
 import { PrismaMaterialsRepository } from './materials.repository'
 
 const materialId = '00000000-0000-4000-8000-000000000701'

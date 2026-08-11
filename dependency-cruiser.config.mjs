@@ -199,7 +199,7 @@ export default {
         pathNot: testPath,
       },
       to: {
-        path: '^server/src/modules/conversations/(?!conversations\\.module\\.ts$|conversations\\.service\\.ts$|conversations\\.dto\\.ts$|conversation\\.errors\\.ts$|conversation-turns\\.ts$|conversation-records\\.ts$|conversation-message\\.presenter\\.ts$)',
+        path: '^server/src/modules/conversations/(?!conversations\\.module\\.ts$|conversations-http\\.module\\.ts$|conversations\\.service\\.ts$|conversations\\.dto\\.ts$|conversation\\.errors\\.ts$|conversation-turns\\.ts$|conversation-records\\.ts$|conversation-message\\.presenter\\.ts$|interface/conversation-course-boundary-audit\\.filter\\.ts$)',
       },
     },
     {
@@ -229,7 +229,7 @@ export default {
       },
     },
     {
-      name: 'tutoring-not-to-student-chat',
+      name: 'tutoring-not-to-conversations-http',
       comment:
         'Tutoring owns turn admission and execution; it must not depend on the legacy session HTTP adapter.',
       severity: 'error',
@@ -238,7 +238,7 @@ export default {
         pathNot: testPath,
       },
       to: {
-        path: '^server/src/modules/student-chat(?:/|$)',
+        path: '^server/src/modules/conversations/conversations-http\.module\.ts$',
       },
     },
   ],

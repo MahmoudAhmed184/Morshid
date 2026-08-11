@@ -9,7 +9,7 @@ import {
   type AuditMetadata,
   type AuditRequestContext,
 } from '../../audit/audit.public'
-import type { DatabaseTransaction } from '../../prisma/database-transaction'
+import type { DatabaseTransaction } from '../../../platform/database/database-transaction'
 import type { AuditEventAction } from '../../audit/audit.public'
 import type { UserRole } from '../../../generated/prisma/client'
 

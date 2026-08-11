@@ -11,8 +11,8 @@ import {
   type AuditRequestContext,
   type RecordAuditEventInput,
 } from '../audit/audit.public'
-import { PrismaService } from '../prisma/prisma.service'
-import { asDatabaseTransaction } from '../prisma/database-transaction'
+import { PrismaService } from '../../platform/database/prisma.service'
+import { asDatabaseTransaction } from '../../platform/database/database-transaction'
 import type { MaterialChunkInput } from './material-chunk.repository'
 import { MATERIAL_PROCESSING_LEASE_MS } from './material-processing.constants'
 

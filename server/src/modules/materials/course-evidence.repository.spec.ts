@@ -1,5 +1,5 @@
 import type { Prisma } from '../../generated/prisma/client'
-import type { PrismaService } from '../prisma/prisma.service'
+import type { PrismaService } from '../../platform/database/prisma.service'
 import {
   InvalidCourseEvidenceQueryError,
   PrismaCourseEvidenceRepository,

@@ -122,9 +122,8 @@ describe('Gemini embedding quota namespacing', () => {
     await quota.reserveGeneration(100)
 
     expect(redis.keys).toEqual([quota.quotaKey])
-    expect(redis.hashes.get(quota.quotaKey)).toMatchObject({
-      requests_day_used: '1',
-      input_tokens_minute_tokens: '400',
-    })
+    const hash = redis.hashes.get(quota.quotaKey)
+    expect(hash?.get('requests_day:used')).toBe('1')
+    expect(hash?.get('input_tokens_minute:tokens')).toBe('400')
   })
 })

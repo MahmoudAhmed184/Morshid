@@ -6,7 +6,7 @@ import {
   type ReviewStatus,
   ReviewTriggerType,
 } from '../../generated/prisma/client'
-import { PrismaService } from '../prisma/prisma.service'
+import { PrismaService } from '../../platform/database/prisma.service'
 
 export interface StudentReviewDetailRecord {
   id: string

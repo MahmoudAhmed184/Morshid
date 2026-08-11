@@ -8,7 +8,7 @@ import {
   PDF_STORAGE,
   PdfStorageNotFoundError,
   type PdfStorage,
-} from '../pdf-storage/pdf-storage'
+} from '../../platform/document-storage/pdf-storage'
 import { MaterialChunkEmbeddingService } from '../materials/material-chunk-embedding.service'
 import { MaterialTextChunker } from './material-text-chunker'
 import {

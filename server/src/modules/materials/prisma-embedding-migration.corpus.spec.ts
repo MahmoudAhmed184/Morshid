@@ -1,4 +1,4 @@
-import type { PrismaService } from '../prisma/prisma.service'
+import type { PrismaService } from '../../platform/database/prisma.service'
 import { PrismaEmbeddingMigrationCorpus } from './prisma-embedding-migration.corpus'
 
 describe('PrismaEmbeddingMigrationCorpus', () => {

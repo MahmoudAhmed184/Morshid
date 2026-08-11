@@ -8,7 +8,7 @@ import {
 import {
   readUpstreamFailure,
   waitForRetry,
-} from '../../../common/upstream/upstream-retry-policy'
+} from '../../../platform/ai/upstream/upstream-retry-policy'
 import type { AnalysisContextPackage } from './analysis-context.types'
 import {
   ANALYSIS_CONFIDENCE_POLICY,

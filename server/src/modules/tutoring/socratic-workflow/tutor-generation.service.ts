@@ -7,7 +7,7 @@ import {
 import {
   readUpstreamFailure,
   waitForRetry,
-} from '../../../common/upstream/upstream-retry-policy'
+} from '../../../platform/ai/upstream/upstream-retry-policy'
 import { ContextManager } from './context-manager.service'
 import { EducationalAnalysisRepository } from './educational-analysis.repository'
 import { TeachingDecisionRepository } from './teaching-decision.repository'

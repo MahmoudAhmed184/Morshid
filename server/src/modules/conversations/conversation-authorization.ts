@@ -1,34 +1,20 @@
 import { CourseMembershipRole, Prisma } from '../../generated/prisma/client'
-
-export interface AuthorizedStudentChatInput {
-  courseId: string
-  sessionId: string
-  studentId: string
-}
-
-export interface LockedStudentChatSession {
-  id: string
-  courseId: string
-  studentId: string
-  lastSequence: number
-  deletedAt: Date | null
-}
-
-export type LockedStudentChatAuthorizationResult =
-  | { kind: 'ok'; session: LockedStudentChatSession }
-  | { kind: 'membership_missing' }
-  | { kind: 'session_not_found' }
+import type {
+  ConversationAuthorizationInput,
+  ConversationAuthorizationResult,
+  LockedConversationSession,
+} from './conversation-turns'
 
 /**
  * Locks the authoritative session before its student membership. Every
- * student-chat write that re-checks authorization must use this order so
+ * conversation write that re-checks authorization must use this order so
  * membership removal and session deletion cannot race a response commit.
  */
-export async function lockAuthorizedStudentChat(
+export async function lockAuthorizedConversation(
   tx: Prisma.TransactionClient,
-  input: AuthorizedStudentChatInput,
-): Promise<LockedStudentChatAuthorizationResult> {
-  const sessions = await tx.$queryRaw<LockedStudentChatSession[]>(Prisma.sql`
+  input: ConversationAuthorizationInput,
+): Promise<ConversationAuthorizationResult> {
+  const sessions = await tx.$queryRaw<LockedConversationSession[]>(Prisma.sql`
     SELECT
       id,
       course_id AS "courseId",
@@ -70,16 +56,13 @@ export async function lockAuthorizedStudentChat(
   return { kind: 'ok', session }
 }
 
-export async function lockStudentOwnedChat(
+export async function lockConversationSessionOwner(
   tx: Prisma.TransactionClient,
-  input: AuthorizedStudentChatInput,
+  input: ConversationAuthorizationInput,
 ): Promise<
-  Extract<
-    LockedStudentChatAuthorizationResult,
-    { kind: 'ok' | 'session_not_found' }
-  >
+  Extract<ConversationAuthorizationResult, { kind: 'ok' | 'session_not_found' }>
 > {
-  const sessions = await tx.$queryRaw<LockedStudentChatSession[]>(Prisma.sql`
+  const sessions = await tx.$queryRaw<LockedConversationSession[]>(Prisma.sql`
     SELECT
       id,
       course_id AS "courseId",

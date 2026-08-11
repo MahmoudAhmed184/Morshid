@@ -4,7 +4,7 @@ import { Injectable } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 
 import type { RefreshToken, User } from '../../generated/prisma/client'
-import type { AppEnvironment } from '../config/env.schema'
+import type { AppEnvironment } from '../../platform/config/env.schema'
 import type { IdentityRequestContext } from './identity.types'
 import { invalidRefreshTokenException } from './identity.errors'
 import {

@@ -6,8 +6,8 @@ import {
   UserRole,
   UserStatus,
 } from '../../../generated/prisma/client'
-import { PrismaService } from '../../prisma/prisma.service'
-import { asDatabaseTransaction } from '../../prisma/database-transaction'
+import { PrismaService } from '../../../platform/database/prisma.service'
+import { asDatabaseTransaction } from '../../../platform/database/database-transaction'
 import type { AuditRequestContext } from '../../audit/audit.public'
 import type { CreatableUserRole } from './user-administration.types'
 import { UserAdministrationAuditService } from './user-administration-audit'

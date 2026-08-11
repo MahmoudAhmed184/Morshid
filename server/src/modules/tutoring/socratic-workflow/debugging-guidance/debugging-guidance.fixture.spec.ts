@@ -14,7 +14,8 @@ const fixturePath = resolve(
   process.cwd(),
   '..',
   'fixtures',
-  'golden-dataset',
+  'evaluations',
+  'code-diagnosis',
   'debugging-guidance-p0.json',
 )
 

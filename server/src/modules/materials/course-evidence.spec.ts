@@ -1,8 +1,8 @@
 import type { ConfigService } from '@nestjs/config'
 
-import type { AppEnvironment } from '../config/env.schema'
-import type { EmbeddingProvider } from '../embedding/embedding-provider'
-import type { PdfStorage } from '../pdf-storage/pdf-storage'
+import type { AppEnvironment } from '../../platform/config/env.schema'
+import type { EmbeddingProvider } from '../../platform/ai/embedding/embedding-provider'
+import type { PdfStorage } from '../../platform/document-storage/pdf-storage'
 import type {
   CourseEvidenceRepository,
   RankedChunkRow,
@@ -39,8 +39,18 @@ describe('MaterialsCourseEvidence', () => {
       findCourseEvidenceReadiness,
     } as unknown as CourseEvidenceRepository
     const configService = {
-      get: (key: 'RETRIEVAL_TOP_K' | 'RETRIEVAL_MIN_SIMILARITY') =>
-        key === 'RETRIEVAL_TOP_K' ? 5 : 0.62,
+      get: (key: string) => {
+        switch (key) {
+          case 'PDF_MAX_UPLOAD_BYTES':
+            return 10 * 1024 * 1024
+          case 'RETRIEVAL_TOP_K':
+            return 5
+          case 'RETRIEVAL_MIN_SIMILARITY':
+            return 0.62
+          default:
+            return undefined
+        }
+      },
     } as unknown as ConfigService<AppEnvironment, true>
 
     const storage = { exists } as unknown as PdfStorage

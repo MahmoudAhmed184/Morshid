@@ -1,7 +1,7 @@
 import { BadRequestException, PayloadTooLargeException } from '@nestjs/common'
 import type { ConfigService } from '@nestjs/config'
 
-import type { AppEnvironment } from '../config/env.schema'
+import type { AppEnvironment } from '../../platform/config/env.schema'
 import { MATERIAL_TITLE_MAX_LENGTH } from './materials.constants'
 import {
   PdfUploadValidator,
@@ -13,7 +13,18 @@ const validPdf = Buffer.from('%PDF-1.7\nminimal test pdf')
 
 function buildValidator() {
   const configService = {
-    get: jest.fn(() => maxBytes),
+    get: jest.fn((key: string) => {
+      switch (key) {
+        case 'PDF_MAX_UPLOAD_BYTES':
+          return maxBytes
+        case 'RETRIEVAL_TOP_K':
+          return 5
+        case 'RETRIEVAL_MIN_SIMILARITY':
+          return 0.62
+        default:
+          return undefined
+      }
+    }),
   } as unknown as ConfigService<AppEnvironment, true>
 
   return new PdfUploadValidator(configService)

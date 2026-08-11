@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common'
 
 import { IdentityModule } from '../identity/identity.module'
-import { PrismaModule } from '../prisma/prisma.module'
+import { PrismaModule } from '../../platform/database/prisma.module'
 import { AuditModule } from '../audit/audit.module'
 import { CourseAccessService } from './course-access.service'
 import { CourseAudit } from './course-audit'

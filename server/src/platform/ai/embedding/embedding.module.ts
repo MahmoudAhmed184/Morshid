@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 
-import type { AppEnvironment } from '../config/env.schema'
-import { RedisModule } from '../redis/redis.module'
-import { RedisService } from '../redis/redis.service'
+import type { AppEnvironment } from '../../config/env.schema'
+import { RedisModule } from '../../cache/redis.module'
+import { RedisService } from '../../cache/redis.service'
 import { GEMINI_EMBEDDING_PROVIDER } from './embedding-configuration'
 import {
   createEmbeddingProviderFrom,

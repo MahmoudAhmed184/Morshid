@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common'
 
 import { CourseMembershipRole, Prisma } from '../../generated/prisma/client'
-import { PrismaService } from '../prisma/prisma.service'
-import { asDatabaseTransaction } from '../prisma/database-transaction'
+import { PrismaService } from '../../platform/database/prisma.service'
+import { asDatabaseTransaction } from '../../platform/database/database-transaction'
 import { ConversationAuditService } from './conversation-audit.service'
 import {
   chatSessionSelect,
@@ -57,7 +57,7 @@ export abstract class ConversationSessionRepository {
 export class PrismaConversationSessionRepository extends ConversationSessionRepository {
   constructor(
     private readonly prismaService: PrismaService,
-    private readonly studentChatAuditService: ConversationAuditService,
+    private readonly conversationAuditService: ConversationAuditService,
   ) {
     super()
   }
@@ -217,7 +217,7 @@ export class PrismaConversationSessionRepository extends ConversationSessionRepo
         return 'not_found'
       }
 
-      await this.studentChatAuditService.recordSessionDeleted(
+      await this.conversationAuditService.recordSessionDeleted(
         {
           actorUserId: input.studentId,
           courseId: input.courseId,

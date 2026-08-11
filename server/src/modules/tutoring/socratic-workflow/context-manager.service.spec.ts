@@ -16,7 +16,7 @@ import {
 } from './analysis-context.repository'
 import type { AnalysisContextMessage } from './analysis-context.types'
 import { ContextManager } from './context-manager.service'
-import { PrismaService } from '../../prisma/prisma.service'
+import { PrismaService } from '../../../platform/database/prisma.service'
 import { SocraticWorkflowModule } from './socratic-workflow.module'
 import { TopicStateRepository } from './topic-state.repository'
 import type { TopicStatePatch, TopicStateSnapshot } from './topic-state.types'
@@ -258,10 +258,26 @@ describe('ContextManager', () => {
       .useValue({
         get: (key: string) => {
           switch (key) {
+            case 'NODE_ENV':
+              return 'test'
+            case 'REDIS_URL':
+              return 'redis://localhost:6379'
+            case 'PDF_STORAGE_PATH':
+              return '../storage/pdfs'
+            case 'PDF_MAX_UPLOAD_BYTES':
+              return 10 * 1024 * 1024
+            case 'RETRIEVAL_TOP_K':
+              return 5
+            case 'RETRIEVAL_MIN_SIMILARITY':
+              return 0.62
+            case 'TUTORING_REQUEST_TIMEOUT_MS':
+              return 120_000
             case 'ANALYSIS_MODEL_PROVIDER':
               return 'deterministic'
             case 'ANALYSIS_MODEL_TIMEOUT_MS':
               return 30_000
+            case 'ANALYSIS_MODEL_MAX_COMPLETION_TOKENS':
+              return 768
             case 'ANALYSIS_MODEL_MAX_RETRIES':
               return 0
             case 'ANALYSIS_CONFIDENCE_THRESHOLD':
@@ -270,12 +286,16 @@ describe('ContextManager', () => {
               return 'deterministic'
             case 'TUTOR_MODEL_TIMEOUT_MS':
               return 30_000
+            case 'TUTOR_MODEL_MAX_COMPLETION_TOKENS':
+              return 768
             case 'TUTOR_MODEL_MAX_INFRASTRUCTURE_RETRIES':
               return 1
             case 'SEMANTIC_GUARD_PROVIDER':
               return 'deterministic'
             case 'SEMANTIC_GUARD_TIMEOUT_MS':
               return 30_000
+            case 'SEMANTIC_GUARD_MAX_COMPLETION_TOKENS':
+              return 256
             default:
               return 'deterministic'
           }

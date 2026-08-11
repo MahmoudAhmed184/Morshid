@@ -6,7 +6,7 @@ import {
   MessageStatus,
   Prisma,
 } from '../../generated/prisma/client'
-import type { PdfStorage } from '../pdf-storage/pdf-storage'
+import type { PdfStorage } from '../../platform/document-storage/pdf-storage'
 import type { ChatMessageRecord } from './conversation-records'
 import { ConversationMessagePresenter } from './conversation-message.presenter'
 

@@ -17,7 +17,7 @@ import {
 
 import { ApiAccessTokenAuth } from '../../common/http/openapi.decorators'
 import { OpenApiIssuesErrorDto } from '../../common/http/openapi-error.dto'
-import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe'
+import { ZodValidationPipe } from '../../common/http/zod-validation.pipe'
 import { UserRole } from '../../generated/prisma/client'
 import { AuditService } from './audit.service'
 import { Roles } from '../identity/identity.roles'

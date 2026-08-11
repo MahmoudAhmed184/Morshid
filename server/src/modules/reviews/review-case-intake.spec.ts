@@ -1,4 +1,4 @@
-import type { DatabaseTransaction } from '../prisma/database-transaction'
+import type { DatabaseTransaction } from '../../platform/database/database-transaction'
 import {
   PrismaReviewCaseIntake,
   type AutomaticReviewIntakeInput,

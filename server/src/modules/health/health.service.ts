@@ -4,8 +4,8 @@ import {
   type HealthIndicatorResult,
 } from '@nestjs/terminus'
 
-import { PrismaService } from '../prisma/prisma.service'
-import { RedisService } from '../redis/redis.service'
+import { PrismaService } from '../../platform/database/prisma.service'
+import { RedisService } from '../../platform/cache/redis.service'
 
 class ReadinessHealthCheckError extends Error {
   // Terminus checks this structural flag instead of requiring HealthCheckError.

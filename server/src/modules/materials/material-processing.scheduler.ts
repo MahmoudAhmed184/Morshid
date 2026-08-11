@@ -5,7 +5,7 @@ import {
   type OnModuleInit,
 } from '@nestjs/common'
 
-import { PrismaService } from '../prisma/prisma.service'
+import { PrismaService } from '../../platform/database/prisma.service'
 import {
   MATERIAL_PROCESSING_DRAIN_BATCH_SIZE,
   MATERIAL_PROCESSING_POLL_MS,

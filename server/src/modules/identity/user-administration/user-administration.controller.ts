@@ -36,7 +36,7 @@ import {
 } from '../../../common/http/openapi-error.dto'
 import { ApiAccessTokenAuth } from '../../../common/http/openapi.decorators'
 import { getRequestContext } from '../../../common/http/request-context'
-import { ZodValidationPipe } from '../../../common/pipes/zod-validation.pipe'
+import { ZodValidationPipe } from '../../../common/http/zod-validation.pipe'
 import { UserRole } from '../../../generated/prisma/client'
 import type { AuthenticatedHttpRequest } from '../../identity/identity.guard'
 import { Roles } from '../../identity/identity.roles'

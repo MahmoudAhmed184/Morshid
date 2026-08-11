@@ -12,8 +12,9 @@ import { catchError, from, throwError, type Observable } from 'rxjs'
 
 import { getRequestContext } from '../../common/http/request-context'
 import type { AuthenticatedHttpRequest } from '../identity/identity.guard'
-import type { AppEnvironment } from '../config/env.schema'
+import type { AppEnvironment } from '../../platform/config/env.schema'
 import { MaterialsAuditService } from './materials.audit.service'
+import { readMaterialsConfiguration } from './materials.configuration'
 import {
   invalidMaterialsRequestException,
   pdfTooLargeException,
@@ -30,7 +31,8 @@ export class PdfUploadInterceptor implements NestInterceptor {
   ) {
     const multerInterceptor = FileInterceptor('file', {
       limits: {
-        fileSize: configService.get('PDF_MAX_UPLOAD_BYTES', { infer: true }),
+        fileSize:
+          readMaterialsConfiguration(configService).PDF_MAX_UPLOAD_BYTES,
         files: 1,
         fields: 1,
       },

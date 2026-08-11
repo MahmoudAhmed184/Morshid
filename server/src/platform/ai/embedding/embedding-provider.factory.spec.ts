@@ -1,4 +1,4 @@
-import type { AppEnvironment } from '../config/env.schema'
+import type { AppEnvironment } from '../../config/env.schema'
 import {
   createEmbeddingProvider,
   snapshotEmbeddingConfiguration,

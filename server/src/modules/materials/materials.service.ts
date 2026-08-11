@@ -10,7 +10,10 @@ import {
 import type { AuditRequestContext } from '../audit/audit.public'
 import type { AuthenticatedUser } from '../identity/identity.types'
 import { CourseAccessService } from '../courses/course-access.public'
-import { PDF_STORAGE, type PdfStorage } from '../pdf-storage/pdf-storage'
+import {
+  PDF_STORAGE,
+  type PdfStorage,
+} from '../../platform/document-storage/pdf-storage'
 import { MaterialProcessingScheduler } from './material-processing.scheduler'
 import {
   mapMaterialStatusRecord,

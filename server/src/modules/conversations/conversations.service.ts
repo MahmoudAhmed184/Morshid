@@ -29,7 +29,7 @@ import {
 } from './conversations.dto'
 import {
   activeStudentMembershipRequiredException,
-  chatSessionNotFoundException,
+  conversationSessionNotFoundException,
 } from './conversation.errors'
 import { ConversationMessageRepository } from './conversation-message.repository'
 import { ConversationMessagePresenter } from './conversation-message.presenter'
@@ -45,7 +45,7 @@ export class ConversationsService {
   constructor(
     private readonly sessionRepository: ConversationSessionRepository,
     private readonly messageRepository: ConversationMessageRepository,
-    private readonly studentChatAuditService: ConversationAuditService,
+    private readonly conversationAuditService: ConversationAuditService,
     private readonly accessAuditService: AccessAuditService,
     private readonly messagePresenter: ConversationMessagePresenter,
   ) {}
@@ -141,7 +141,7 @@ export class ConversationsService {
         sessionId,
         requestContext,
       )
-      throw chatSessionNotFoundException()
+      throw conversationSessionNotFoundException()
     }
 
     return { session: mapSession(session) }
@@ -171,7 +171,7 @@ export class ConversationsService {
         sessionId,
         requestContext,
       )
-      throw chatSessionNotFoundException()
+      throw conversationSessionNotFoundException()
     }
   }
 
@@ -209,7 +209,7 @@ export class ConversationsService {
         sessionId,
         requestContext,
       )
-      throw chatSessionNotFoundException()
+      throw conversationSessionNotFoundException()
     }
 
     const hasMore = messagesWithLookahead.length > limit
@@ -317,7 +317,7 @@ export class ConversationsService {
     input: RecordAccessDeniedInput,
   ): Promise<void> {
     try {
-      await this.studentChatAuditService.recordAccessDenied(input)
+      await this.conversationAuditService.recordAccessDenied(input)
     } catch (error) {
       // Deny-path audit writes must never turn a correct 403/404 into a 500.
       this.logger.error(
@@ -352,7 +352,7 @@ export class ConversationsService {
         sessionId,
         requestContext,
       )
-      throw chatSessionNotFoundException()
+      throw conversationSessionNotFoundException()
     }
 
     return session
