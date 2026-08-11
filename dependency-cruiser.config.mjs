@@ -22,8 +22,7 @@ const clientFeatureNames = [
 
 const clientFeatureInterfaceRules = clientFeatureNames.map((feature) => ({
   name: `client-${feature}-interface-only`,
-  comment:
-    `Client features may consume ${feature} only through its explicit interface files.`,
+  comment: `Client features may consume ${feature} only through its explicit interface files.`,
   severity: 'error',
   from: {
     path: `^client/src/features/(?!${feature}(?:/|$))`,
@@ -96,7 +95,8 @@ export default {
     },
     {
       name: 'client-admin-not-to-other-workspaces',
-      comment: 'Admin workspace code must not depend on another role workspace.',
+      comment:
+        'Admin workspace code must not depend on another role workspace.',
       severity: 'error',
       from: { path: '^client/src/workspaces/admin(?:/|$)' },
       to: { path: '^client/src/workspaces/(?:instructor|student)(?:/|$)' },
@@ -123,7 +123,9 @@ export default {
         'The shared authenticated workspace seam is role-independent and must not import role workspaces.',
       severity: 'error',
       from: { path: '^client/src/workspaces/_shared(?:/|$)' },
-      to: { path: '^client/src/workspaces/(?:admin|instructor|student)(?:/|$)' },
+      to: {
+        path: '^client/src/workspaces/(?:admin|instructor|student)(?:/|$)',
+      },
     },
     {
       name: 'identity-interface-only',

@@ -131,9 +131,7 @@ test.describe('Student debugging guidance', () => {
     await expect(history.getByText('Likely defect')).not.toBeVisible()
   })
 
-  test('shows reduction request for over-limit code', async ({
-    page,
-  }) => {
+  test('shows reduction request for over-limit code', async ({ page }) => {
     await signInThroughUi(page, demoAccounts.student2)
 
     const longPython = [
