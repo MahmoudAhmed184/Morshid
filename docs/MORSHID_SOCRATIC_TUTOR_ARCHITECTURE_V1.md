@@ -1243,14 +1243,12 @@ Potential changes:
 
 Do not duplicate message content inside new tutoring tables.
 
-Current implementation follow-up gaps, intentionally separate from retrieval
-query construction:
+Current implementation behavior:
 
-- a newly persisted student Message starts with `requestKind: CONCEPTUAL`, but
-  the field is not yet reconciled with the accepted Educational Analysis;
-- the runtime loads Topic State with `TopicStateService.getOrCreate`, but does
-  not yet apply the post-response Topic State transition, so summary,
-  `lastTutorQuestion`, and `lastStudentAction` can remain default or stale.
+- the accepted Educational Analysis reconciles the student Message
+  `requestKind` before a completed response is returned;
+- the approved response and its validated Topic State transition are committed
+  together with the turn completion under the Topic State version check.
 
 ### Transaction Boundary
 
