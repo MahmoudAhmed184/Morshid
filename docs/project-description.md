@@ -1,5 +1,11 @@
 # Morshid — Project Description
 
+> Historical product description: this July 2026 requirements document
+> predates the approved whole-workspace refactor. Conditional Django,
+> notification, and other superseded architecture references are retained as
+> product-history evidence; the approved plan and ADRs define the current
+> implementation.
+
 **Date:** July 1, 2026  
 **Product name:** Morshid (مرشد)  
 **Initial context:** ITI Graduation project  

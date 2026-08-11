@@ -1,5 +1,10 @@
 # Python Code Diagnosis: Value and Scope
 
+> Historical research evidence: this note describes the pre-refactor
+> completion/GroundedChat/Python diagnosis paths. Those paths were removed by
+> the approved architecture; the current generic debugging-guidance workflow
+> is documented by the plan and tutoring ADRs.
+
 ## Question
 
 M10 retained the legacy completion/output-policy runtime because the supported

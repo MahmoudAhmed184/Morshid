@@ -1,5 +1,10 @@
 # Morshid — Project Pitch
 
+> Historical project pitch: this July 2026 document predates the approved
+> whole-workspace refactor. Conditional Django and other superseded architecture
+> references are retained as context only; the approved plan and ADRs define
+> the current implementation.
+
 **Project Title:** Morshid (مرشد)  
 **Team Name:** ThinkFirst
 **Target Industry:** EdTech — ITI and higher education  

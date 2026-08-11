@@ -1,10 +1,11 @@
 # Response governance contract
 
-Issue #141 establishes one decision point between a proposed Tutor response
-and persistence or Student display. The decision is made before
-`TutoringTurnRepository.finalizeTurn` receives content. A proposed response
-therefore either passes unchanged or is replaced with fixed, Student-safe text;
-the proposed unsafe text is neither persisted nor presented.
+The Tutoring Runtime has one private response-governance decision point between
+a proposed Tutor response and persistence or Student display. The decision is
+made before the Tutoring Attempt persistence boundary calls the transaction-
+aware Conversations finalization seam. A proposed response therefore either
+passes unchanged or is replaced with fixed, Student-safe text; the proposed
+unsafe text is neither persisted nor presented.
 
 ## Decision surface
 
@@ -57,11 +58,11 @@ system prompt text.
 
 ## Provider boundary
 
-The deterministic tutor-model and embedding providers remain mandatory for CI
-assertions. A live qualification run may use the approved
-`TUTOR_MODEL_PROVIDER=aws-bedrock` tutor-model path with the already guarded
-`EMBEDDING_PROVIDER=gemini` profile. Gemini embedding additionally requires
-`GEMINI_EMBEDDING_DEMO_ACKNOWLEDGED` and its separate key/project/quota
+The deterministic model and embedding providers remain mandatory for CI
+assertions. A live qualification run uses the documented OpenAI-compatible
+analysis, tutor, and semantic-guard adapters. A Gemini embedding run is a
+separate opt-in synthetic smoke and additionally requires
+`GEMINI_EMBEDDING_DEMO_ACKNOWLEDGED` plus its separate key/project/quota
 configuration. Live runs use synthetic, permission-safe fixtures; they never
 replace deterministic policy assertions.
 
@@ -157,7 +158,9 @@ SCN-01–SCN-08 fixtures. A provider-boundary smoke remains opt-in:
 
 ```sh
 AUTOMATIC_SAFETY_LIVE_SMOKE_ACKNOWLEDGED=true \
-TUTOR_MODEL_PROVIDER=aws-bedrock \
+ANALYSIS_MODEL_PROVIDER=openai-compatible \
+TUTOR_MODEL_PROVIDER=openai-compatible \
+SEMANTIC_GUARD_PROVIDER=openai-compatible \
 EMBEDDING_PROVIDER=gemini \
 GEMINI_EMBEDDING_DEMO_ACKNOWLEDGED=true \
 npm run test:tutoring:live

@@ -1,5 +1,11 @@
 # Morshid Decisions
 
+> Historical planning record: this July 2026 product-decision document
+> predates the approved whole-workspace refactor. Conditional Django,
+> generic-notification, and superseded tutoring-runtime references are
+> retained as evidence only; the approved plan and ADRs define the current
+> implementation.
+
 **Date:** July 2, 2026
 **Purpose:** This file captures the concrete P0 app decisions that were missing or underdefined. It should guide the SRS, architecture, implementation plan, and demo preparation.
 
