@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
+import { Client } from 'pg'
+
 import type { PrismaService } from '../src/modules/prisma/prisma.service'
 import { TOPIC_STATE_ERROR_CODES } from '../src/modules/socratic-tutor/topic-state.errors'
 import {
@@ -10,11 +12,13 @@ import { TopicStateService } from '../src/modules/socratic-tutor/topic-state.ser
 import { TURN_ERROR_CODES } from '../src/modules/socratic-tutor/turn.errors'
 import {
   PrismaTurnRepository,
+  type CompleteApprovedTutorResponseInput,
   type TurnRepository,
 } from '../src/modules/socratic-tutor/turn.repository'
 import { TurnService } from '../src/modules/socratic-tutor/turn.service'
 import { TURN_ACQUISITION_OUTCOME } from '../src/modules/socratic-tutor/turn.types'
 import {
+  MessageRequestKind,
   TutorApprovalSource,
   TutorCandidateGenerationOutcome,
   TutorTurnFailureCode,
@@ -33,6 +37,13 @@ interface ChatFixture {
   courseId: string
   studentId: string
   sessionId: string
+}
+
+interface PendingTutorTurnGraph {
+  turnId: string
+  topicId: string
+  studentMessageId: string
+  assistantMessageId: string
 }
 
 describe('TurnService persistence (e2e)', () => {
@@ -283,7 +294,7 @@ describe('TurnService persistence (e2e)', () => {
     const evidence = await createRetrievedChunk(prisma, fixture)
     const topicState = await prisma.topicState.create({
       data: { topicId: graph.topicId },
-      select: { updatedAt: true },
+      select: { version: true, updatedAt: true },
     })
 
     const input = {
@@ -294,6 +305,7 @@ describe('TurnService persistence (e2e)', () => {
       topicId: graph.topicId,
       studentMessageId: graph.studentMessageId,
       assistantMessageId: graph.assistantMessageId,
+      requestKind: MessageRequestKind.CONCEPTUAL,
       approvedResponse: approvedResponse({
         source: 'VALIDATED_CANDIDATE',
         usedCitationIds: ['retrieval.rank.1'],
@@ -308,6 +320,10 @@ describe('TurnService persistence (e2e)', () => {
       ),
       safeFallbackReason: null,
       expectedTurnStatus: TutorTurnStatus.VALIDATING,
+      topicStateTransition: {
+        expectedVersion: topicState.version,
+        patch: { attemptCount: 1, summary: 'Approved tutor response' },
+      },
     }
 
     await expect(
@@ -346,17 +362,23 @@ describe('TurnService persistence (e2e)', () => {
         where: { messageId: graph.assistantMessageId },
       }),
     ).resolves.toBe(1)
-    await expect(
-      prisma.topicState.findUniqueOrThrow({
-        where: { topicId: graph.topicId },
-        select: { updatedAt: true },
-      }),
-    ).resolves.toEqual(topicState)
+    const updatedTopicState = await prisma.topicState.findUniqueOrThrow({
+      where: { topicId: graph.topicId },
+      select: { version: true, updatedAt: true },
+    })
+    expect(updatedTopicState.version).toBe(topicState.version + 1)
+    expect(updatedTopicState.updatedAt.getTime()).toBeGreaterThanOrEqual(
+      topicState.updatedAt.getTime(),
+    )
   })
 
   it('persists deterministic safe fallback without citations', async () => {
     const fixture = await createChatFixture(prisma)
     const graph = await createPendingTutorTurnGraph(prisma, fixture)
+    const topicState = await prisma.topicState.create({
+      data: { topicId: graph.topicId },
+      select: { version: true },
+    })
 
     await expect(
       repository.completeApprovedResponse({
@@ -367,6 +389,7 @@ describe('TurnService persistence (e2e)', () => {
         topicId: graph.topicId,
         studentMessageId: graph.studentMessageId,
         assistantMessageId: graph.assistantMessageId,
+        requestKind: MessageRequestKind.CONCEPTUAL,
         approvedResponse: approvedResponse({
           source: 'SAFE_FALLBACK',
           usedCitationIds: [],
@@ -383,6 +406,10 @@ describe('TurnService persistence (e2e)', () => {
         ),
         safeFallbackReason: SAFE_FALLBACK_REASON.GUARD_UNAVAILABLE,
         expectedTurnStatus: TutorTurnStatus.VALIDATING,
+        topicStateTransition: {
+          expectedVersion: topicState.version,
+          patch: { attemptCount: 1 },
+        },
       }),
     ).resolves.toMatchObject({
       kind: 'ok',
@@ -397,6 +424,113 @@ describe('TurnService persistence (e2e)', () => {
         where: { messageId: graph.assistantMessageId },
       }),
     ).resolves.toBe(0)
+  })
+
+  it('blocks finalization behind membership removal and rejects the response', async () => {
+    const fixture = await createChatFixture(prisma)
+    const graph = await createPendingTutorTurnGraph(prisma, fixture)
+    const topicState = await prisma.topicState.create({
+      data: { topicId: graph.topicId },
+      select: { version: true },
+    })
+    const input = safeFallbackCompletionInput(
+      fixture,
+      graph,
+      topicState.version,
+    )
+    const admin = await openDatabaseClient(database)
+
+    await admin.query('BEGIN')
+    await admin.query(
+      `
+        UPDATE course_memberships
+        SET removed_at = now()
+        WHERE course_id = $1::uuid
+          AND user_id = $2::uuid
+      `,
+      [fixture.courseId, fixture.studentId],
+    )
+
+    try {
+      const completing = repository.completeApprovedResponse(input)
+      await expectPending(completing)
+      await admin.query('COMMIT')
+
+      await expect(completing).resolves.toEqual({
+        kind: 'relationship_mismatch',
+      })
+      await expect(
+        prisma.message.findUniqueOrThrow({
+          where: { id: graph.assistantMessageId },
+          select: { status: true },
+        }),
+      ).resolves.toEqual({ status: 'PENDING' })
+      await expect(
+        prisma.tutorTurn.findUniqueOrThrow({
+          where: { id: graph.turnId },
+          select: { status: true, approvedTutorMessageId: true },
+        }),
+      ).resolves.toEqual({
+        status: TutorTurnStatus.VALIDATING,
+        approvedTutorMessageId: null,
+      })
+    } finally {
+      await admin.query('ROLLBACK')
+      await admin.end()
+    }
+  })
+
+  it('blocks finalization behind session deletion and rejects the response', async () => {
+    const fixture = await createChatFixture(prisma)
+    const graph = await createPendingTutorTurnGraph(prisma, fixture)
+    const topicState = await prisma.topicState.create({
+      data: { topicId: graph.topicId },
+      select: { version: true },
+    })
+    const input = safeFallbackCompletionInput(
+      fixture,
+      graph,
+      topicState.version,
+    )
+    const admin = await openDatabaseClient(database)
+
+    await admin.query('BEGIN')
+    await admin.query(
+      `
+        UPDATE chat_sessions
+        SET deleted_at = now()
+        WHERE id = $1::uuid
+      `,
+      [fixture.sessionId],
+    )
+
+    try {
+      const completing = repository.completeApprovedResponse(input)
+      await expectPending(completing)
+      await admin.query('COMMIT')
+
+      await expect(completing).resolves.toEqual({
+        kind: 'relationship_mismatch',
+      })
+      await expect(
+        prisma.message.findUniqueOrThrow({
+          where: { id: graph.assistantMessageId },
+          select: { status: true },
+        }),
+      ).resolves.toEqual({ status: 'PENDING' })
+      await expect(
+        prisma.tutorTurn.findUniqueOrThrow({
+          where: { id: graph.turnId },
+          select: { status: true, approvedTutorMessageId: true },
+        }),
+      ).resolves.toEqual({
+        status: TutorTurnStatus.VALIDATING,
+        approvedTutorMessageId: null,
+      })
+    } finally {
+      await admin.query('ROLLBACK')
+      await admin.end()
+    }
   })
 })
 
@@ -522,12 +656,7 @@ async function createStudentAndAssistantMessages(
 async function createPendingTutorTurnGraph(
   prisma: PrismaService,
   fixture: ChatFixture,
-): Promise<{
-  turnId: string
-  topicId: string
-  studentMessageId: string
-  assistantMessageId: string
-}> {
+): Promise<PendingTutorTurnGraph> {
   const topic = await createTopic(prisma, fixture)
   const turn = await prisma.tutorTurn.create({
     data: {
@@ -576,6 +705,63 @@ async function createPendingTutorTurnGraph(
     studentMessageId: studentMessage.id,
     assistantMessageId: assistantMessage.id,
   }
+}
+
+function safeFallbackCompletionInput(
+  fixture: ChatFixture,
+  graph: PendingTutorTurnGraph,
+  topicStateVersion: number,
+): CompleteApprovedTutorResponseInput {
+  const response = approvedResponse({
+    source: 'SAFE_FALLBACK',
+    usedCitationIds: [],
+    safeFallbackUsed: true,
+  })
+
+  return {
+    courseId: fixture.courseId,
+    sessionId: fixture.sessionId,
+    studentId: fixture.studentId,
+    turnId: graph.turnId,
+    topicId: graph.topicId,
+    studentMessageId: graph.studentMessageId,
+    assistantMessageId: graph.assistantMessageId,
+    requestKind: MessageRequestKind.CONCEPTUAL,
+    approvedResponse: response,
+    guidanceLevel: 1,
+    retrievalResult: [],
+    auditGraph: auditGraphForApprovedResponse(response),
+    safeFallbackReason: SAFE_FALLBACK_REASON.GUARD_UNAVAILABLE,
+    expectedTurnStatus: TutorTurnStatus.VALIDATING,
+    topicStateTransition: {
+      expectedVersion: topicStateVersion,
+      patch: { attemptCount: 1 },
+    },
+  }
+}
+
+async function openDatabaseClient(
+  database: DisposableDatabase | undefined,
+): Promise<Client> {
+  if (database === undefined) {
+    throw new Error('Expected the disposable database to be initialized')
+  }
+
+  const client = new Client({ connectionString: database.databaseUrl })
+  await client.connect()
+  return client
+}
+
+async function expectPending<T>(promise: Promise<T>): Promise<void> {
+  const state = await Promise.race([
+    promise.then(() => 'settled' as const),
+    new Promise<'pending'>((resolve) => {
+      setTimeout(() => {
+        resolve('pending')
+      }, 50)
+    }),
+  ])
+  expect(state).toBe('pending')
 }
 
 async function createRetrievedChunk(

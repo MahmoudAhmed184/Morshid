@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common'
 
 import {
-  CourseMembershipRole,
   MaterialStatus,
   MessageGuidanceLabel,
+  MessageRequestKind,
   MessageRole,
   MessageStatus,
   Prisma,
@@ -12,11 +12,18 @@ import {
   TutorApprovalSource,
   TutorSafeFallbackReason,
 } from '../../generated/prisma/client'
+import { lockAuthorizedStudentChat } from '../../common/authorization/locked-student-chat-session'
 import { PrismaService } from '../prisma/prisma.service'
 import type { RetrievedChunk } from '../retrieval/retrieval.service'
+import { CLASSIFIED_RESPONSE_POLICY_VERSION } from './classified-response'
 import type { ApprovedResponse } from './response-validation.types'
 import type { ResponseAuditGraph } from './response-audit.types'
 import type { SafeFallbackReason } from './safe-fallback.service'
+import { topicStatePatchAssignments } from './topic-state.repository'
+import {
+  validateTopicStateTransition,
+  type TopicStateTransition,
+} from './topic-state-transition'
 import type {
   AttachResolvedTopicInput,
   AttachResolvedTopicResult,
@@ -66,6 +73,10 @@ export abstract class TurnRepository {
   abstract completeApprovedResponse(
     input: CompleteApprovedTutorResponseInput,
   ): Promise<CompleteApprovedTutorResponseResult>
+
+  abstract completeClassifiedResponse(
+    input: CompleteClassifiedTutorResponseInput,
+  ): Promise<CompleteClassifiedTutorResponseResult>
 }
 
 export interface CompleteApprovedTutorResponseInput {
@@ -76,12 +87,30 @@ export interface CompleteApprovedTutorResponseInput {
   readonly topicId: string
   readonly studentMessageId: string
   readonly assistantMessageId: string
+  readonly requestKind: MessageRequestKind
   readonly approvedResponse: ApprovedResponse
   readonly guidanceLevel: number
   readonly retrievalResult: readonly RetrievedChunk[]
   readonly auditGraph: ResponseAuditGraph
   readonly safeFallbackReason: SafeFallbackReason | null
   readonly expectedTurnStatus: TutorTurnStatus
+  readonly topicStateTransition: TopicStateTransition
+}
+
+export interface CompleteClassifiedTutorResponseInput {
+  readonly courseId: string
+  readonly sessionId: string
+  readonly studentId: string
+  readonly turnId: string
+  readonly topicId: string
+  readonly studentMessageId: string
+  readonly assistantMessageId: string
+  readonly requestKind: MessageRequestKind
+  readonly content: string
+  readonly guidanceLabel: MessageGuidanceLabel
+  readonly errorCode: string
+  readonly expectedTurnStatus: TutorTurnStatus
+  readonly topicStateTransition: TopicStateTransition
 }
 
 export type CompleteApprovedTutorResponseResult =
@@ -89,6 +118,15 @@ export type CompleteApprovedTutorResponseResult =
   | { readonly kind: 'turn_not_found' }
   | { readonly kind: 'message_not_found' }
   | { readonly kind: 'message_not_pending' }
+  | { readonly kind: 'topic_state_conflict' }
+  | { readonly kind: 'relationship_mismatch' }
+
+export type CompleteClassifiedTutorResponseResult =
+  | { readonly kind: 'ok'; readonly turn: TutorTurnSnapshot }
+  | { readonly kind: 'turn_not_found' }
+  | { readonly kind: 'message_not_found' }
+  | { readonly kind: 'message_not_pending' }
+  | { readonly kind: 'topic_state_conflict' }
   | { readonly kind: 'relationship_mismatch' }
 
 export const tutorTurnSelect = {
@@ -433,6 +471,12 @@ export class PrismaTurnRepository extends TurnRepository {
       if (turn === null) {
         return { kind: 'turn_not_found' }
       }
+
+      const authorization = await lockAuthorizedStudentChat(tx, input)
+      if (authorization.kind !== 'ok') {
+        return { kind: 'relationship_mismatch' }
+      }
+
       if (
         turn.sessionId !== input.sessionId ||
         turn.session.courseId !== input.courseId ||
@@ -477,26 +521,6 @@ export class PrismaTurnRepository extends TurnRepository {
         return { kind: 'relationship_mismatch' }
       }
 
-      // Re-check membership at finalization — mirrors the lockAuthorizedSession()
-      // contract from PrismaGroundedChatTurnRepository.completeTurn(). If membership
-      // was revoked while the pipeline was in flight, the approved response must
-      // not be persisted or delivered to the student.
-      const membership = await tx.courseMembership.findUnique({
-        where: {
-          courseId_userId: {
-            courseId: input.courseId,
-            userId: input.studentId,
-          },
-        },
-        select: { role: true, removedAt: true },
-      })
-      if (
-        membership?.role !== CourseMembershipRole.STUDENT ||
-        membership.removedAt !== null
-      ) {
-        return { kind: 'relationship_mismatch' }
-      }
-
       const evidenceOk = await selectedEvidenceIsCourseScoped(
         tx,
         input.courseId,
@@ -504,6 +528,60 @@ export class PrismaTurnRepository extends TurnRepository {
       )
       if (!evidenceOk) {
         return { kind: 'relationship_mismatch' }
+      }
+
+      const pendingAssistantMessage = await tx.message.findUnique({
+        where: { id: input.assistantMessageId },
+        select: {
+          id: true,
+          sessionId: true,
+          role: true,
+          status: true,
+          responseToMessageId: true,
+          turnId: true,
+          topicId: true,
+        },
+      })
+      if (pendingAssistantMessage === null) {
+        return { kind: 'message_not_found' }
+      }
+      if (
+        pendingAssistantMessage.sessionId !== input.sessionId ||
+        pendingAssistantMessage.role !== MessageRole.ASSISTANT ||
+        pendingAssistantMessage.status !== MessageStatus.PENDING ||
+        pendingAssistantMessage.responseToMessageId !==
+          input.studentMessageId ||
+        (pendingAssistantMessage.turnId !== null &&
+          pendingAssistantMessage.turnId !== input.turnId) ||
+        (pendingAssistantMessage.topicId !== null &&
+          pendingAssistantMessage.topicId !== input.topicId)
+      ) {
+        return { kind: 'message_not_pending' }
+      }
+
+      const topicStateApplied = await applyTopicStateTransition(
+        tx,
+        input.topicId,
+        input.topicStateTransition,
+      )
+      if (!topicStateApplied) {
+        return { kind: 'topic_state_conflict' }
+      }
+
+      const updatedStudentMessage = await tx.message.updateManyAndReturn({
+        where: {
+          id: input.studentMessageId,
+          sessionId: input.sessionId,
+          role: MessageRole.STUDENT,
+          turnId: input.turnId,
+          topicId: input.topicId,
+        },
+        data: { requestKind: input.requestKind },
+        select: { id: true },
+        limit: 1,
+      })
+      if (updatedStudentMessage.length === 0) {
+        throw new Error('Student message changed during response finalization')
       }
 
       const now = await currentDatabaseTime(tx)
@@ -540,13 +618,9 @@ export class PrismaTurnRepository extends TurnRepository {
         limit: 1,
       })
       if (messages.length === 0) {
-        const existing = await tx.message.findUnique({
-          where: { id: input.assistantMessageId },
-          select: { id: true, status: true },
-        })
-        return existing === null
-          ? { kind: 'message_not_found' }
-          : { kind: 'message_not_pending' }
+        throw new Error(
+          'Assistant message changed during response finalization',
+        )
       }
 
       await tx.messageRetrieval.deleteMany({
@@ -646,7 +720,197 @@ export class PrismaTurnRepository extends TurnRepository {
       })
       const snapshot = updated.at(0)
       if (snapshot === undefined) {
+        throw new Error(
+          'TutorTurn changed during approved response finalization',
+        )
+      }
+
+      return { kind: 'ok', turn: snapshot }
+    })
+  }
+
+  completeClassifiedResponse(
+    input: CompleteClassifiedTutorResponseInput,
+  ): Promise<CompleteClassifiedTutorResponseResult> {
+    return this.prismaService.$transaction(async (tx) => {
+      const turn = await tx.tutorTurn.findUnique({
+        where: { id: input.turnId },
+        select: {
+          id: true,
+          sessionId: true,
+          topicId: true,
+          studentMessageId: true,
+          approvedTutorMessageId: true,
+          status: true,
+          session: {
+            select: {
+              courseId: true,
+              studentId: true,
+              deletedAt: true,
+            },
+          },
+        },
+      })
+      if (turn === null) {
+        return { kind: 'turn_not_found' }
+      }
+
+      const authorization = await lockAuthorizedStudentChat(tx, input)
+      if (authorization.kind !== 'ok') {
         return { kind: 'relationship_mismatch' }
+      }
+
+      if (
+        turn.sessionId !== input.sessionId ||
+        turn.session.courseId !== input.courseId ||
+        turn.session.studentId !== input.studentId ||
+        turn.session.deletedAt !== null ||
+        turn.topicId !== input.topicId ||
+        turn.studentMessageId !== input.studentMessageId ||
+        turn.approvedTutorMessageId !== null
+      ) {
+        return { kind: 'relationship_mismatch' }
+      }
+      if (turn.status !== input.expectedTurnStatus) {
+        return { kind: 'relationship_mismatch' }
+      }
+
+      const studentMessage = await tx.message.findUnique({
+        where: { id: input.studentMessageId },
+        select: {
+          id: true,
+          sessionId: true,
+          role: true,
+          turnId: true,
+          topicId: true,
+        },
+      })
+      if (studentMessage === null) {
+        return { kind: 'relationship_mismatch' }
+      }
+      if (
+        studentMessage.role !== MessageRole.STUDENT ||
+        studentMessage.sessionId !== input.sessionId ||
+        studentMessage.turnId !== input.turnId ||
+        studentMessage.topicId !== input.topicId
+      ) {
+        return { kind: 'relationship_mismatch' }
+      }
+
+      const pendingAssistantMessage = await tx.message.findUnique({
+        where: { id: input.assistantMessageId },
+        select: {
+          id: true,
+          sessionId: true,
+          role: true,
+          status: true,
+          responseToMessageId: true,
+          turnId: true,
+          topicId: true,
+        },
+      })
+      if (pendingAssistantMessage === null) {
+        return { kind: 'message_not_found' }
+      }
+      if (
+        pendingAssistantMessage.sessionId !== input.sessionId ||
+        pendingAssistantMessage.role !== MessageRole.ASSISTANT ||
+        pendingAssistantMessage.status !== MessageStatus.PENDING ||
+        pendingAssistantMessage.responseToMessageId !==
+          input.studentMessageId ||
+        pendingAssistantMessage.turnId !== input.turnId ||
+        pendingAssistantMessage.topicId !== input.topicId
+      ) {
+        return { kind: 'message_not_pending' }
+      }
+
+      const topicStateApplied = await applyTopicStateTransition(
+        tx,
+        input.topicId,
+        input.topicStateTransition,
+      )
+      if (!topicStateApplied) {
+        return { kind: 'topic_state_conflict' }
+      }
+
+      const updatedStudentMessage = await tx.message.updateManyAndReturn({
+        where: {
+          id: input.studentMessageId,
+          sessionId: input.sessionId,
+          role: MessageRole.STUDENT,
+          turnId: input.turnId,
+          topicId: input.topicId,
+        },
+        data: { requestKind: input.requestKind },
+        select: { id: true },
+        limit: 1,
+      })
+      if (updatedStudentMessage.length === 0) {
+        throw new Error(
+          'Student message changed during classified response finalization',
+        )
+      }
+
+      const now = await currentDatabaseTime(tx)
+      const updatedMessages = await tx.message.updateManyAndReturn({
+        where: {
+          id: input.assistantMessageId,
+          sessionId: input.sessionId,
+          role: MessageRole.ASSISTANT,
+          status: MessageStatus.PENDING,
+          responseToMessageId: input.studentMessageId,
+          turnId: input.turnId,
+          topicId: input.topicId,
+        },
+        data: {
+          status: MessageStatus.COMPLETED,
+          content: input.content,
+          requestKind: input.requestKind,
+          guidanceLabel: input.guidanceLabel,
+          hintLevel: null,
+          provider: null,
+          model: null,
+          promptVersion: CLASSIFIED_RESPONSE_POLICY_VERSION,
+          inputTokens: null,
+          outputTokens: null,
+          errorCode: input.errorCode,
+          errorMessage: null,
+          groundingLeaseExpiresAt: null,
+          completedAt: now,
+        },
+        select: { id: true },
+        limit: 1,
+      })
+      if (updatedMessages.length === 0) {
+        throw new Error(
+          'Assistant message changed during classified response finalization',
+        )
+      }
+
+      const updatedTurns = await tx.tutorTurn.updateManyAndReturn({
+        where: {
+          id: input.turnId,
+          status: input.expectedTurnStatus,
+          approvedTutorMessageId: null,
+        },
+        data: {
+          status: TutorTurnStatus.COMPLETED,
+          approvedTutorMessageId: input.assistantMessageId,
+          safeFallbackUsed: false,
+          approvalSource: TutorApprovalSource.CLASSIFIED_RESPONSE,
+          approvedCandidateAttempt: null,
+          safeFallbackReason: null,
+          validationPolicyVersion: CLASSIFIED_RESPONSE_POLICY_VERSION,
+          completedAt: now,
+        },
+        select: tutorTurnSelect,
+        limit: 1,
+      })
+      const snapshot = updatedTurns.at(0)
+      if (snapshot === undefined) {
+        throw new Error(
+          'TutorTurn changed during classified response finalization',
+        )
       }
 
       return { kind: 'ok', turn: snapshot }
@@ -690,6 +954,24 @@ function currentDatabaseTime(tx: Prisma.TransactionClient): Promise<Date> {
   return tx
     .$queryRaw<{ now: Date }[]>(Prisma.sql`SELECT CURRENT_TIMESTAMP AS now`)
     .then((rows) => rows[0]?.now ?? new Date())
+}
+
+async function applyTopicStateTransition(
+  tx: Prisma.TransactionClient,
+  topicId: string,
+  transition: TopicStateTransition,
+): Promise<boolean> {
+  validateTopicStateTransition(transition)
+
+  const updated = await tx.$queryRaw<{ topicId: string }[]>(Prisma.sql`
+    UPDATE "topic_states"
+    SET ${Prisma.join(topicStatePatchAssignments(transition.patch), ', ')}
+    WHERE "topic_id" = ${topicId}::uuid
+      AND "version" = ${transition.expectedVersion}
+    RETURNING "topic_id"::text AS "topicId"
+  `)
+
+  return updated.length === 1
 }
 
 async function selectedEvidenceIsCourseScoped(

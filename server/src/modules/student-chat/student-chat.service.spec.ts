@@ -478,10 +478,16 @@ describe('StudentChatService', () => {
       sendStudentChatMessageRequestSchema.parse({
         clientMessageId: 'c139776a-0c68-44fe-97f8-e9128aa40458',
         content: '  How do lists work?  ',
+        problemId: '2c4d4f3a-7e37-4c6c-8d8b-9c6a3f9a6e11',
+        conceptId: '8e8a2e4a-f2f5-4d63-9dc8-4f7f5c02b2a6',
+        title: '  List iteration  ',
       }),
     ).toEqual({
       clientMessageId: 'c139776a-0c68-44fe-97f8-e9128aa40458',
       content: 'How do lists work?',
+      problemId: '2c4d4f3a-7e37-4c6c-8d8b-9c6a3f9a6e11',
+      conceptId: '8e8a2e4a-f2f5-4d63-9dc8-4f7f5c02b2a6',
+      title: 'List iteration',
     })
     expect(
       sendStudentChatMessageRequestSchema.safeParse({
@@ -499,6 +505,16 @@ describe('StudentChatService', () => {
       { content: 'Question', chunks: [] },
       { content: 'Question', rank: 1, similarityScore: 1 },
       { clientMessageId: 'not-a-uuid', content: 'Question' },
+      {
+        clientMessageId: 'c139776a-0c68-44fe-97f8-e9128aa40458',
+        content: 'Question',
+        problemId: 'not-a-uuid',
+      },
+      {
+        clientMessageId: 'c139776a-0c68-44fe-97f8-e9128aa40458',
+        content: 'Question',
+        title: '   ',
+      },
     ]) {
       expect(sendStudentChatMessageRequestSchema.safeParse(input).success).toBe(
         false,

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Inject, Injectable, Optional } from '@nestjs/common'
 
 import {
   TutorTurnFailureCode,
@@ -18,6 +18,10 @@ import {
   TURN_ERROR_CODES,
 } from './turn.errors'
 import { TurnRepository } from './turn.repository'
+import type {
+  CompleteClassifiedTutorResponseInput,
+  CompleteClassifiedTutorResponseResult,
+} from './turn.repository'
 import {
   TURN_ACQUISITION_OUTCOME,
   type AttachResolvedTopicResult,
@@ -27,6 +31,9 @@ import {
 } from './turn.types'
 
 const MAX_IDEMPOTENCY_KEY_LENGTH = 160
+
+export const TURN_PROCESSING_STALE_AFTER_MS = 5 * 60 * 1000
+export const TURN_CLOCK = Symbol('TurnClock')
 
 const NON_TERMINAL_PROCESSING_STATUSES = new Set<TutorTurnStatus>([
   TutorTurnStatus.RECEIVED,
@@ -55,7 +62,12 @@ const STATUS_ORDER = new Map<TutorTurnStatus, number>([
 
 @Injectable()
 export class TurnService {
-  constructor(private readonly turnRepository: TurnRepository) {}
+  constructor(
+    private readonly turnRepository: TurnRepository,
+    @Optional()
+    @Inject(TURN_CLOCK)
+    private readonly clock: () => number = () => Date.now(),
+  ) {}
 
   async getOrCreate(
     sessionId: string,
@@ -86,7 +98,8 @@ export class TurnService {
     )
 
     if (existing !== null) {
-      return acquisitionResultForExistingTurn(existing)
+      const recovered = await this.recoverStaleTurn(existing)
+      return acquisitionResultForExistingTurn(recovered ?? existing)
     }
 
     await this.assertSessionExists(normalizedSessionId)
@@ -139,6 +152,12 @@ export class TurnService {
     return await this.rejectStaleOrMissingTurn(normalizedTurnId)
   }
 
+  completeClassifiedResponse(
+    input: CompleteClassifiedTutorResponseInput,
+  ): Promise<CompleteClassifiedTutorResponseResult> {
+    return this.turnRepository.completeClassifiedResponse(input)
+  }
+
   async linkStudentMessage(
     turnId: string,
     studentMessageId: string,
@@ -182,6 +201,23 @@ export class TurnService {
     if (session?.deletedAt !== null) {
       throw turnSessionNotFoundException()
     }
+  }
+
+  private async recoverStaleTurn(
+    turn: TutorTurnSnapshot,
+  ): Promise<TutorTurnSnapshot | null> {
+    if (
+      !NON_TERMINAL_PROCESSING_STATUSES.has(turn.status) ||
+      this.clock() - turn.createdAt.getTime() < TURN_PROCESSING_STALE_AFTER_MS
+    ) {
+      return null
+    }
+
+    return this.turnRepository.markFailedAtomically({
+      turnId: turn.id,
+      expectedStatus: turn.status,
+      failureCode: TutorTurnFailureCode.PERSISTENCE_FAILED,
+    })
   }
 
   private async rejectStaleOrMissingTurn(turnId: string): Promise<never> {

@@ -64,6 +64,7 @@ export interface TopicResolutionEvidenceInput {
 export interface ResolveTopicInput {
   sessionId: string
   courseId?: string | null
+  topicId?: string | null
   problemId?: string | null
   conceptId?: string | null
   title?: string | null

@@ -93,6 +93,11 @@ import {
   GROUNDING_RESPONSE_FAILED,
 } from './grounded-chat.constants'
 import { CorrectnessSensitiveRequestClassifier } from './correctness-sensitive-request.classifier'
+import type { SocraticTopicSelection } from './socratic-chat.types'
+import {
+  assertRequestBudget,
+  type RequestBudget,
+} from '../../common/http/request-deadline'
 
 export {
   GROUNDING_BLOCKED_CONTENT,
@@ -172,7 +177,9 @@ export class GroundedChatService {
     body: SendStudentChatMessageRequest,
     user: AuthenticatedRequestUser,
     requestContext?: AuditRequestContext,
+    requestBudget?: RequestBudget,
   ): Promise<GroundedChatTurnResponseDto> {
+    assertRequestBudget(requestBudget)
     const selection = selectTutorStrategy(body.content)
     const operation: OrchestrationContext = {
       operationId: randomUUID(),
@@ -235,6 +242,12 @@ export class GroundedChatService {
       requestContext,
       selection,
       false,
+      {
+        problemId: body.problemId,
+        conceptId: body.conceptId,
+        title: body.title,
+      },
+      requestBudget,
     )
   }
 
@@ -244,7 +257,9 @@ export class GroundedChatService {
     studentMessageId: string,
     user: AuthenticatedRequestUser,
     requestContext?: AuditRequestContext,
+    requestBudget?: RequestBudget,
   ): Promise<GroundedChatTurnResponseDto> {
+    assertRequestBudget(requestBudget)
     const operation: OrchestrationContext = {
       operationId: randomUUID(),
       courseId,
@@ -291,6 +306,10 @@ export class GroundedChatService {
       requestContext,
       undefined,
       true,
+      {
+        topicId: result.studentMessage.topicId,
+      },
+      requestBudget,
     )
   }
 
@@ -300,7 +319,10 @@ export class GroundedChatService {
     requestContext?: AuditRequestContext,
     preparedSelection?: TutorStrategySelection,
     isRetry = false,
+    topicSelection?: SocraticTopicSelection,
+    requestBudget?: RequestBudget,
   ): Promise<GroundedChatTurnResponseDto> {
+    assertRequestBudget(requestBudget)
     const classification = this.requestClassifier.classify(
       turn.studentMessage.content,
     )
@@ -342,6 +364,7 @@ export class GroundedChatService {
         selection,
         classification.correctnessSensitive,
         requestContext,
+        requestBudget,
       )
     }
 
@@ -358,7 +381,9 @@ export class GroundedChatService {
         studentMessageId: turn.studentMessage.id,
         assistantMessageId: turn.assistantMessage.id,
         studentMessageContent: turn.studentMessage.content,
+        topicSelection,
         idempotencyKey,
+        requestBudget,
       })
     } catch (error) {
       this.logFailure('socratic_orchestration', operation, error)
@@ -405,12 +430,15 @@ export class GroundedChatService {
     },
     correctnessSensitive: boolean,
     requestContext?: AuditRequestContext,
+    requestBudget?: RequestBudget,
   ): Promise<GroundedChatTurnResponseDto> {
+    assertRequestBudget(requestBudget)
     let evidence: RetrievedChunk[]
     try {
       const retrieval = await this.retrievalService.retrieveCourseEvidence(
         turn.courseId,
         selection.retrievalQuery,
+        requestBudget,
       )
       if (retrieval.kind === 'embedding_profile_not_ready') {
         this.logger.warn({
@@ -476,11 +504,15 @@ export class GroundedChatService {
 
     let completion: CompletionResult
     try {
+      assertRequestBudget(requestBudget)
       completion = await this.completionProvider.complete({
         studentQuestion: turn.studentMessage.content,
         context,
         strategy: 'PYTHON_CODE_DIAGNOSIS',
         diagnosis: selection.diagnosis,
+        ...(requestBudget === undefined
+          ? {}
+          : { signal: requestBudget.signal }),
       })
     } catch (error) {
       this.logFailure('completion', operation, error)

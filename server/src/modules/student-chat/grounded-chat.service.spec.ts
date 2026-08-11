@@ -198,6 +198,30 @@ describe('GroundedChatService', () => {
     })
   })
 
+  it('passes stable topic identity from the HTTP request to orchestration', async () => {
+    await service.send(
+      courseId,
+      sessionId,
+      {
+        content: 'Explain this problem',
+        problemId: '2c4d4f3a-7e37-4c6c-8d8b-9c6a3f9a6e11',
+        conceptId: '8e8a2e4a-f2f5-4d63-9dc8-4f7f5c02b2a6',
+        title: 'Binary search boundaries',
+      },
+      user,
+    )
+
+    expect(socraticOrchestrate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        topicSelection: {
+          problemId: '2c4d4f3a-7e37-4c6c-8d8b-9c6a3f9a6e11',
+          conceptId: '8e8a2e4a-f2f5-4d63-9dc8-4f7f5c02b2a6',
+          title: 'Binary search boundaries',
+        },
+      }),
+    )
+  })
+
   it('returns a terminal idempotent replay without generating again', async () => {
     beginTurn.mockResolvedValue({
       kind: 'replayed',
@@ -454,6 +478,13 @@ describe('GroundedChatService', () => {
   )
 
   it('retries through the Socratic orchestrator with the persisted student message', async () => {
+    retryTurn.mockResolvedValue({
+      ...retryOk(),
+      studentMessage: studentMessage({
+        topicId: 'topic-that-must-be-resumed',
+      }),
+    })
+
     const response = await service.retry(
       courseId,
       sessionId,
@@ -474,6 +505,7 @@ describe('GroundedChatService', () => {
         studentId: user.id,
         studentMessageId,
         studentMessageContent: 'Explain list iteration',
+        topicSelection: { topicId: 'topic-that-must-be-resumed' },
       }),
     )
     expect(response).toMatchObject({
@@ -527,7 +559,9 @@ function retryOk(): RetryGroundedChatTurnResult {
   return beginOk()
 }
 
-function studentMessage(): ChatMessageRecord {
+function studentMessage(
+  overrides: Partial<ChatMessageRecord> = {},
+): ChatMessageRecord {
   return message({
     id: studentMessageId,
     sequence: 1,
@@ -537,6 +571,7 @@ function studentMessage(): ChatMessageRecord {
     content: 'Explain list iteration',
     status: MessageStatus.COMPLETED,
     completedAt: new Date('2026-07-21T12:00:00.000Z'),
+    ...overrides,
   })
 }
 

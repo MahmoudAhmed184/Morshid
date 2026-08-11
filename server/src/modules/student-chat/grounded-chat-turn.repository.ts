@@ -3,7 +3,6 @@ import { randomUUID } from 'node:crypto'
 import { Injectable } from '@nestjs/common'
 
 import {
-  CourseMembershipRole,
   MaterialStatus,
   MessageGuidanceLabel,
   MessageRequestKind,
@@ -11,6 +10,11 @@ import {
   MessageStatus,
   Prisma,
 } from '../../generated/prisma/client'
+import {
+  lockAuthorizedStudentChat,
+  type LockedStudentChatAuthorizationResult,
+  type LockedStudentChatSession,
+} from '../../common/authorization/locked-student-chat-session'
 import { PrismaService } from '../prisma/prisma.service'
 import {
   chatMessageSelect,
@@ -145,22 +149,7 @@ export type ReadGroundedChatTurnResult =
   | { kind: 'session_not_found' }
   | { kind: 'message_not_found'; messageId: string }
 
-interface LockedSession {
-  id: string
-  courseId: string
-  lastSequence: number
-  deletedAt: Date | null
-}
-
-interface LockedMembership {
-  role: CourseMembershipRole
-  removedAt: Date | null
-}
-
-type AuthorizationResult =
-  | { kind: 'ok'; session: LockedSession }
-  | { kind: 'membership_missing' }
-  | { kind: 'session_not_found' }
+type AuthorizationResult = LockedStudentChatAuthorizationResult
 
 export class GroundedChatEvidenceUnavailableError extends Error {
   constructor() {
@@ -224,7 +213,7 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
 
     try {
       return await this.runTransaction(async (tx) => {
-        const authorization = await this.lockAuthorizedSession(tx, input)
+        const authorization = await lockAuthorizedStudentChat(tx, input)
         if (authorization.kind !== 'ok') {
           return authorization
         }
@@ -343,7 +332,7 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
 
     try {
       return await this.runTransaction(async (tx) => {
-        const authorization = await this.lockAuthorizedSession(tx, input)
+        const authorization = await lockAuthorizedStudentChat(tx, input)
         if (authorization.kind !== 'ok') {
           return authorization
         }
@@ -488,7 +477,7 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
   ): Promise<FinalizeGroundedChatTurnResult> {
     try {
       return await this.runTransaction(async (tx) => {
-        const authorization = await this.lockAuthorizedSession(tx, input)
+        const authorization = await lockAuthorizedStudentChat(tx, input)
         if (authorization.kind !== 'ok') {
           return authorization
         }
@@ -590,7 +579,7 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
     input: ReadGroundedChatTurnInput,
   ): Promise<ReadGroundedChatTurnResult> {
     return this.runTransaction(async (tx) => {
-      const authorization = await this.lockAuthorizedSession(tx, input)
+      const authorization = await lockAuthorizedStudentChat(tx, input)
       if (authorization.kind !== 'ok') {
         return authorization
       }
@@ -646,7 +635,7 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
           terminal.status === MessageStatus.FAILED ||
           terminal.status === MessageStatus.BLOCKED
             ? await this.lockExactTurnSession(tx, input)
-            : await this.lockAuthorizedSession(tx, input)
+            : await lockAuthorizedStudentChat(tx, input)
         if (authorization.kind !== 'ok') {
           return authorization
         }
@@ -785,51 +774,11 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
     }
   }
 
-  private async lockAuthorizedSession(
-    tx: Prisma.TransactionClient,
-    input: AuthorizedTurnInput,
-  ): Promise<AuthorizationResult> {
-    const sessions = await tx.$queryRaw<LockedSession[]>(Prisma.sql`
-      SELECT
-        id,
-        course_id AS "courseId",
-        last_sequence AS "lastSequence",
-        deleted_at AS "deletedAt"
-      FROM chat_sessions
-      WHERE id = ${input.sessionId}::uuid
-        AND student_id = ${input.studentId}::uuid
-      FOR UPDATE
-    `)
-    const session = sessions.at(0)
-    if (session?.courseId !== input.courseId || session.deletedAt !== null) {
-      return { kind: 'session_not_found' }
-    }
-
-    const memberships = await tx.$queryRaw<LockedMembership[]>(Prisma.sql`
-      SELECT
-        role,
-        removed_at AS "removedAt"
-      FROM course_memberships
-      WHERE course_id = ${session.courseId}::uuid
-        AND user_id = ${input.studentId}::uuid
-      FOR UPDATE
-    `)
-    const membership = memberships.at(0)
-    if (
-      membership?.role !== CourseMembershipRole.STUDENT ||
-      membership.removedAt !== null
-    ) {
-      return { kind: 'membership_missing' }
-    }
-
-    return { kind: 'ok', session }
-  }
-
   private async lockExactTurnSession(
     tx: Prisma.TransactionClient,
     input: AuthorizedTurnInput,
   ): Promise<AuthorizationResult> {
-    const sessions = await tx.$queryRaw<LockedSession[]>(Prisma.sql`
+    const sessions = await tx.$queryRaw<LockedStudentChatSession[]>(Prisma.sql`
       SELECT
         id,
         course_id AS "courseId",

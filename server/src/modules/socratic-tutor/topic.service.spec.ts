@@ -416,6 +416,47 @@ describe('TopicService resolution', () => {
     expect(repository.topics.get(resolved.id)?.resolvedAt).toBeNull()
   })
 
+  it('resumes a paused Topic selected by its persisted topic id', async () => {
+    const { service, repository } = buildService()
+    const active = repository.addTopic({})
+    const paused = repository.addTopic({ status: TopicStatus.PAUSED })
+
+    const resolution = await service.resolveTopic({
+      sessionId: session.id,
+      topicId: paused.id,
+    })
+
+    expect(resolution).toMatchObject({
+      outcome: TOPIC_RESOLUTION_OUTCOME.RESUME_PREVIOUS_TOPIC,
+      topicId: paused.id,
+      previousTopicId: active.id,
+    })
+    expect(repository.topics.get(active.id)?.status).toBe(TopicStatus.PAUSED)
+    expect(repository.topics.get(paused.id)?.status).toBe(TopicStatus.ACTIVE)
+  })
+
+  it('reopens a resolved Topic selected by its persisted topic id', async () => {
+    const { service, repository } = buildService()
+    const resolved = repository.addTopic({
+      status: TopicStatus.RESOLVED,
+      resolvedAt: new Date(),
+    })
+
+    const resolution = await service.resolveTopic({
+      sessionId: session.id,
+      topicId: resolved.id,
+    })
+
+    expect(resolution).toMatchObject({
+      outcome: TOPIC_RESOLUTION_OUTCOME.REOPEN_EXISTING_TOPIC,
+      topicId: resolved.id,
+    })
+    expect(repository.topics.get(resolved.id)).toMatchObject({
+      status: TopicStatus.ACTIVE,
+      resolvedAt: null,
+    })
+  })
+
   it('does not silently reactivate a matching abandoned Topic', async () => {
     const { service, repository } = buildService()
     const abandoned = repository.addTopic({

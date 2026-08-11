@@ -115,7 +115,9 @@ export class PrismaTopicStateRepository extends TopicStateRepository {
   }
 }
 
-function topicStatePatchAssignments(patch: TopicStatePatch): Prisma.Sql[] {
+export function topicStatePatchAssignments(
+  patch: TopicStatePatch,
+): Prisma.Sql[] {
   const assignments = [
     Prisma.sql`"version" = "version" + 1`,
     Prisma.sql`"updated_at" = CURRENT_TIMESTAMP`,

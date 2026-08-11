@@ -36,12 +36,17 @@ export class TopicService {
 
   async resolveTopic(input: ResolveTopicInput): Promise<TopicResolution> {
     const sessionId = normalizeRequiredIdentifier(input.sessionId, 'sessionId')
+    const topicId = normalizeOptionalIdentifier(input.topicId)
     const problemId = normalizeOptionalIdentifier(input.problemId)
     const conceptId = normalizeOptionalIdentifier(input.conceptId)
     const scope = await this.resolveAuthoritativeScope({
       sessionId,
       callerCourseId: normalizeOptionalIdentifier(input.courseId),
     })
+
+    if (topicId !== null) {
+      return this.resolveByTopicId(scope, topicId)
+    }
 
     if (problemId !== null) {
       return this.resolveByStableIdentity({
@@ -318,6 +323,51 @@ export class TopicService {
     return unresolvedTopicResolution(
       input.stableIdentitySource,
       'matching topic cannot be safely selected',
+    )
+  }
+
+  private async resolveByTopicId(
+    scope: TopicScope,
+    topicId: string,
+  ): Promise<TopicResolution> {
+    const topic = await this.topicRepository.findTopicById(scope, topicId)
+
+    if (topic === null) {
+      throw topicNotFoundException()
+    }
+
+    if (topic.status === TopicStatus.ACTIVE) {
+      await this.assertOnlyActiveTopicIs(scope, topic.id)
+
+      return topicResolution({
+        outcome: TOPIC_RESOLUTION_OUTCOME.CONTINUE_CURRENT_TOPIC,
+        topicId: topic.id,
+        previousTopicId: null,
+        confidence: 1,
+        stableIdentitySource: identitySourceForTopic(topic),
+        reason: 'continued explicitly selected active topic',
+      })
+    }
+
+    if (topic.status === TopicStatus.PAUSED) {
+      return this.resumeTopic({
+        sessionId: scope.sessionId,
+        courseId: scope.courseId,
+        topicId: topic.id,
+      })
+    }
+
+    if (topic.status === TopicStatus.RESOLVED) {
+      return this.reopenTopic({
+        sessionId: scope.sessionId,
+        courseId: scope.courseId,
+        topicId: topic.id,
+      })
+    }
+
+    return unresolvedTopicResolution(
+      identitySourceForTopic(topic),
+      'explicitly selected topic cannot be safely resumed',
     )
   }
 

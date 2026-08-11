@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 
+import { assertRequestBudget } from '../../common/http/request-deadline'
 import {
   TutorTurnFailureCode,
   TutorTurnStatus,
@@ -10,6 +11,8 @@ import { TurnService } from '../socratic-tutor/turn.service'
 import { TopicService } from '../socratic-tutor/topic.service'
 import { TopicStateService } from '../socratic-tutor/topic-state.service'
 import { ContextManager } from '../socratic-tutor/context-manager.service'
+import { classifiedResponseFor } from '../socratic-tutor/classified-response'
+import { buildClassifiedTopicStateTransition } from '../socratic-tutor/topic-state-transition'
 import { EducationalAnalysisService } from '../socratic-tutor/educational-analysis.service'
 import { TeachingPolicyEngine } from '../socratic-tutor/teaching-policy.engine'
 import {
@@ -63,6 +66,7 @@ export class SocraticChatOrchestrator {
   async orchestrate(
     input: SocraticOrchestrationInput,
   ): Promise<SocraticOrchestrationResult> {
+    assertRequestBudget(input.requestBudget)
     // ── Phase 0: TutorTurn acquisition ──────────────────────────────
     const acquisition = await this.turnService.getOrCreate(
       input.sessionId,
@@ -80,6 +84,7 @@ export class SocraticChatOrchestrator {
     }
 
     const turnId = acquisition.turn.id
+    assertRequestBudget(input.requestBudget)
 
     const inputRisk = this.safetyRiskDetector.detectStudentInput(
       input.studentMessageContent,
@@ -121,6 +126,7 @@ export class SocraticChatOrchestrator {
     input: SocraticOrchestrationInput,
     turnId: string,
   ): Promise<SocraticOrchestrationResult> {
+    assertRequestBudget(input.requestBudget)
     // ── Link student message to TutorTurn ─────────────────────────
     await this.turnService.linkStudentMessage(turnId, input.studentMessageId)
 
@@ -128,6 +134,10 @@ export class SocraticChatOrchestrator {
     const resolution = await this.topicService.resolveTopic({
       sessionId: input.sessionId,
       courseId: input.courseId,
+      topicId: input.topicSelection?.topicId,
+      problemId: input.topicSelection?.problemId,
+      conceptId: input.topicSelection?.conceptId,
+      title: input.topicSelection?.title,
     })
     if (
       resolution.outcome === TOPIC_RESOLUTION_OUTCOME.UNRESOLVED ||
@@ -154,6 +164,7 @@ export class SocraticChatOrchestrator {
 
     // ── TopicState loading ────────────────────────────────────────
     const topicState = await this.topicStateService.getOrCreate(topicId)
+    assertRequestBudget(input.requestBudget)
 
     // ── Phase 2: Educational Analysis ─────────────────────────────
     await this.turnService.transitionStatus(
@@ -179,7 +190,12 @@ export class SocraticChatOrchestrator {
     }
 
     const analysisResult =
-      await this.educationalAnalysisService.analyze(analysisContext)
+      input.requestBudget === undefined
+        ? await this.educationalAnalysisService.analyze(analysisContext)
+        : await this.educationalAnalysisService.analyze(analysisContext, {
+            signal: input.requestBudget.signal,
+            deadlineAt: input.requestBudget.deadlineAt,
+          })
     if (!analysisResult.success) {
       return this.failTurn(
         turnId,
@@ -187,6 +203,53 @@ export class SocraticChatOrchestrator {
         TutorTurnFailureCode.ANALYSIS_FAILED,
         `SOCRATIC_ANALYSIS_FAILED:${analysisResult.errorCode}`,
       )
+    }
+
+    assertRequestBudget(input.requestBudget)
+
+    const classifiedResponse = classifiedResponseFor(
+      analysisResult.analysis.result.requestKind,
+    )
+    if (classifiedResponse !== null) {
+      const completion = await this.turnService.completeClassifiedResponse({
+        courseId: input.courseId,
+        sessionId: input.sessionId,
+        studentId: input.studentId,
+        turnId,
+        topicId,
+        studentMessageId: input.studentMessageId,
+        assistantMessageId: input.assistantMessageId,
+        requestKind: classifiedResponse.requestKind,
+        content: classifiedResponse.content,
+        guidanceLabel: classifiedResponse.guidanceLabel,
+        errorCode: classifiedResponse.errorCode,
+        expectedTurnStatus: TutorTurnStatus.ANALYZING,
+        topicStateTransition: buildClassifiedTopicStateTransition({
+          topicState,
+          requestKind: classifiedResponse.requestKind,
+        }),
+      })
+      if (completion.kind !== 'ok') {
+        return this.failTurn(
+          turnId,
+          TutorTurnStatus.ANALYZING,
+          TutorTurnFailureCode.PERSISTENCE_FAILED,
+          `SOCRATIC_CLASSIFIED_RESPONSE_FAILED:${completion.kind}`,
+        )
+      }
+
+      const [studentMessage, assistantMessage] = await Promise.all([
+        this.prismaService.message.findUniqueOrThrow({
+          where: { id: input.studentMessageId },
+          select: chatMessageSelect,
+        }),
+        this.prismaService.message.findUniqueOrThrow({
+          where: { id: input.assistantMessageId },
+          select: chatMessageSelect,
+        }),
+      ])
+
+      return { kind: 'completed', studentMessage, assistantMessage }
     }
 
     // ── Phase 3: Teaching Decision ────────────────────────────────
@@ -219,6 +282,8 @@ export class SocraticChatOrchestrator {
       )
     }
 
+    assertRequestBudget(input.requestBudget)
+
     // ── Course-scoped RAG Retrieval ───────────────────────────────
     await this.turnService.transitionStatus(
       turnId,
@@ -239,10 +304,19 @@ export class SocraticChatOrchestrator {
       queryLength: retrievalRequest.query.length,
       contextualMessageCount: retrievalRequest.contextMessageIds.length,
     })
-    const retrieval = await this.retrievalService.retrieveCourseEvidence(
-      input.courseId,
-      retrievalRequest.query,
-    )
+    const retrieval =
+      input.requestBudget === undefined
+        ? await this.retrievalService.retrieveCourseEvidence(
+            input.courseId,
+            retrievalRequest.query,
+          )
+        : await this.retrievalService.retrieveCourseEvidence(
+            input.courseId,
+            retrievalRequest.query,
+            input.requestBudget,
+          )
+
+    assertRequestBudget(input.requestBudget)
 
     if (
       retrieval.kind === 'embedding_profile_not_ready' ||
@@ -288,6 +362,7 @@ export class SocraticChatOrchestrator {
       TutorTurnStatus.GENERATING,
     )
 
+    assertRequestBudget(input.requestBudget)
     const approval: PersistedResponseApprovalResult =
       await this.responseApprovalService.approveAndPersist({
         courseId: input.courseId,
@@ -298,6 +373,14 @@ export class SocraticChatOrchestrator {
         topicId,
         assistantMessageId: input.assistantMessageId,
         retrievalResult: retrieval.chunks,
+        topicState,
+        analysis: analysisResult.analysis,
+        ...(input.requestBudget === undefined
+          ? {}
+          : {
+              signal: input.requestBudget.signal,
+              deadlineAt: input.requestBudget.deadlineAt,
+            }),
       })
     if (!approval.success) {
       if ('outputRisk' in approval && approval.outputRisk !== undefined) {

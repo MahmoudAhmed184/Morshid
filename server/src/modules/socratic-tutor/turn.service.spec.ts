@@ -4,7 +4,7 @@ import {
 } from '../../generated/prisma/client'
 import { TURN_ERROR_CODES } from './turn.errors'
 import { TurnRepository } from './turn.repository'
-import { TurnService } from './turn.service'
+import { TURN_PROCESSING_STALE_AFTER_MS, TurnService } from './turn.service'
 import {
   TURN_ACQUISITION_OUTCOME,
   type AttachResolvedTopicInput,
@@ -48,6 +48,10 @@ class FakeTurnRepository extends TurnRepository {
   )
 
   readonly completeApprovedResponse = jest.fn(() =>
+    Promise.resolve({ kind: 'relationship_mismatch' as const }),
+  )
+
+  readonly completeClassifiedResponse = jest.fn(() =>
     Promise.resolve({ kind: 'relationship_mismatch' as const }),
   )
 
@@ -134,14 +138,14 @@ class FakeTurnRepository extends TurnRepository {
   }
 }
 
-function buildService() {
+function buildService(clock: () => number = () => now.getTime()) {
   const repository = new FakeTurnRepository()
   repository.addSession()
   repository.addSession({ id: 'session-2', deletedAt: null })
 
   return {
     repository,
-    service: new TurnService(repository),
+    service: new TurnService(repository, clock),
   }
 }
 
@@ -249,6 +253,43 @@ describe('TurnService', () => {
       code: TURN_ERROR_CODES.ALREADY_PROCESSING,
       turn: existing,
     })
+  })
+
+  it('reclaims a stale non-terminal turn as failed', async () => {
+    const { repository, service } = buildService()
+    const stale = repository.addTurn({
+      status: TutorTurnStatus.GENERATING,
+      createdAt: new Date(now.getTime() - TURN_PROCESSING_STALE_AFTER_MS - 1),
+    })
+
+    const result = await service.getOrCreate('session-1', 'key-1')
+
+    expect(result.outcome).toBe(TURN_ACQUISITION_OUTCOME.FAILED)
+    expect(result.turn).toMatchObject({
+      id: stale.id,
+      status: TutorTurnStatus.FAILED,
+      failureCode: TutorTurnFailureCode.PERSISTENCE_FAILED,
+    })
+    expect(repository.markFailedAtomically).toHaveBeenCalledWith({
+      turnId: stale.id,
+      expectedStatus: TutorTurnStatus.GENERATING,
+      failureCode: TutorTurnFailureCode.PERSISTENCE_FAILED,
+    })
+  })
+
+  it('keeps a fresh non-terminal turn processing', async () => {
+    const { repository, service } = buildService()
+    const fresh = repository.addTurn({
+      status: TutorTurnStatus.GENERATING,
+      createdAt: new Date(now.getTime() - TURN_PROCESSING_STALE_AFTER_MS + 1),
+    })
+
+    await expect(service.getOrCreate('session-1', 'key-1')).resolves.toEqual({
+      outcome: TURN_ACQUISITION_OUTCOME.ALREADY_PROCESSING,
+      code: TURN_ERROR_CODES.ALREADY_PROCESSING,
+      turn: fresh,
+    })
+    expect(repository.markFailedAtomically).not.toHaveBeenCalled()
   })
 
   it('maps already-processing acquisition to TURN_ALREADY_PROCESSING', async () => {
