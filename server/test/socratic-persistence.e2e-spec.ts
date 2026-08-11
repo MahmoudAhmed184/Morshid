@@ -160,7 +160,6 @@ describe('Socratic persistence schema (e2e)', () => {
 
       try {
         const extensionsBefore = await readExtensionNames(client)
-        const hnswIndexesBefore = await readHnswIndexDefinitions(client)
         const migrationSql = await readFile(
           join(
             process.cwd(),
@@ -175,7 +174,6 @@ describe('Socratic persistence schema (e2e)', () => {
         await client.query(migrationSql)
 
         const extensionsAfter = await readExtensionNames(client)
-        const hnswIndexesAfter = await readHnswIndexDefinitions(client)
         const messageLinkColumns = await client.query<{ column_name: string }>(`
           SELECT column_name
           FROM information_schema.columns
@@ -195,7 +193,6 @@ describe('Socratic persistence schema (e2e)', () => {
 
         expect(extensionsAfter).toEqual(extensionsBefore)
         expect(extensionsAfter).toEqual(['citext', 'pgcrypto', 'vector'])
-        expect(hnswIndexesAfter).toEqual(hnswIndexesBefore)
         expect(messageLinkColumns.rows).toEqual([])
         expect(checkConstraints.rows.map(({ conname }) => conname)).toEqual([
           'topic_states_guidance_level_check',
@@ -304,16 +301,4 @@ async function readExtensionNames(client: Client): Promise<string[]> {
   `)
 
   return extensions.rows.map(({ extname }) => extname)
-}
-
-async function readHnswIndexDefinitions(client: Client): Promise<string[]> {
-  const indexes = await client.query<{ indexdef: string }>(`
-    SELECT indexdef
-    FROM pg_indexes
-    WHERE schemaname = current_schema()
-      AND indexname = 'idx_chunks_embedding_hnsw'
-    ORDER BY indexdef
-  `)
-
-  return indexes.rows.map(({ indexdef }) => indexdef)
 }

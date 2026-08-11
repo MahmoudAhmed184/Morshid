@@ -1,25 +1,17 @@
 # Prisma migration notes
 
-## Custom pgvector indexes
+## Course-scoped vector retrieval
 
 `MaterialChunk.embedding` uses Prisma's `Unsupported("vector(1536)")` type.
-Prisma cannot faithfully model the HNSW access method or its
-`vector_cosine_ops` operator class, so the schema intentionally has no
-`@@index` declaration for `idx_chunks_embedding_hnsw`.
-
-The index is owned by
-`20260716224018_add_rag_persistence/migration.sql`, which creates:
-
-```sql
-CREATE INDEX "idx_chunks_embedding_hnsw"
-ON "material_chunks"
-USING hnsw ("embedding" vector_cosine_ops);
-```
+Course retrieval intentionally uses a materialized, course-scoped exact cosine
+scan. This keeps the course boundary and similarity ordering authoritative for
+the V1 corpus size, so no vector access-method index is part of the supported
+schema contract.
 
 Before accepting a generated migration that touches `material_chunks`, inspect
-its SQL. Do not accept a plain B-tree `CREATE INDEX` for `embedding`, and do not
-drop/rebuild the HNSW index unless an explicit, reviewed operational migration
-requires it.
+its SQL. Do not add a plain B-tree index for `embedding`; a future ANN path
+requires an explicit migration and a retrieval query that preserves the same
+course-scoping guarantees.
 
 ## Rollback convention
 

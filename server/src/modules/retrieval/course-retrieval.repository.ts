@@ -126,9 +126,8 @@ export class PrismaCourseRetrievalRepository extends CourseRetrievalRepository {
     return this.prismaService.$queryRaw<RankedChunkRow[]>(Prisma.sql`
       WITH eligible_chunks AS MATERIALIZED (
         -- MATERIALIZED forces an exact scan over the course-scoped rows
-        -- instead of the global HNSW index, which post-filters ANN candidates
-        -- and can under-return k (see the 20260716224018 migration comment).
-        -- Revisit hnsw.iterative_scan if per-course corpora outgrow P0.
+        -- so the course predicate is applied before ranking and limiting.
+        -- Revisit an ANN strategy only with a course-scoped correctness proof.
         SELECT
           chunk.id,
           chunk.material_id,

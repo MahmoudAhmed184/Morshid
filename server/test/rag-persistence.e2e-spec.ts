@@ -168,7 +168,7 @@ describe('RAG persistence (e2e)', () => {
     ).rejects.toThrow()
   })
 
-  it('supports cosine distance with the documented HNSW operator class', async () => {
+  it('supports cosine distance ordering for exact retrieval', async () => {
     const firstBasisVector = makeBasisEmbedding(0)
     const secondBasisVector = makeBasisEmbedding(1)
     await repository.insertMaterialChunks(materialId, [
@@ -198,18 +198,9 @@ describe('RAG persistence (e2e)', () => {
       ORDER BY embedding <=> ${queryVector}::vector, chunk_index
       LIMIT 2
     `
-    const indexes = await prisma.$queryRaw<{ indexdef: string }[]>`
-      SELECT indexdef
-      FROM pg_indexes
-      WHERE schemaname = current_schema()
-        AND indexname = 'idx_chunks_embedding_hnsw'
-    `
-
     expect(rankedChunks.map(({ chunkIndex }) => chunkIndex)).toEqual([0, 1])
     expect(rankedChunks[0].distance).toBeCloseTo(0)
     expect(rankedChunks[1].distance).toBeCloseTo(1)
-    expect(indexes[0].indexdef).toContain('USING hnsw')
-    expect(indexes[0].indexdef).toContain('vector_cosine_ops')
   })
 
   it('enforces retrieval and citation ordering constraints and ranges', async () => {

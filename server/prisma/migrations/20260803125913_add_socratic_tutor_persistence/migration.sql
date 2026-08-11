@@ -8,6 +8,20 @@ CREATE TYPE "tutor_turn_status" AS ENUM ('RECEIVED', 'ANALYZING', 'RETRIEVING', 
 CREATE TYPE "tutor_turn_failure_code" AS ENUM ('ANALYSIS_FAILED', 'RETRIEVAL_FAILED', 'GENERATION_FAILED', 'STRUCTURAL_VALIDATION_FAILED', 'DETERMINISTIC_GUARD_REJECTED', 'SEMANTIC_GUARD_REJECTED', 'REGENERATION_EXHAUSTED', 'PERSISTENCE_FAILED');
 
 -- CreateEnum
+CREATE TYPE "tutor_approval_source" AS ENUM (
+  'VALIDATED_CANDIDATE',
+  'SAFE_FALLBACK',
+  'CLASSIFIED_RESPONSE'
+);
+
+-- CreateEnum
+CREATE TYPE "tutor_safe_fallback_reason" AS ENUM (
+  'VALIDATION_EXHAUSTED',
+  'GUARD_UNAVAILABLE',
+  'GENERATION_RETRY_FAILED'
+);
+
+-- CreateEnum
 CREATE TYPE "student_state" AS ENUM ('UNKNOWN', 'NO_PRIOR_KNOWLEDGE', 'PARTIAL_UNDERSTANDING', 'MISCONCEPTION', 'DEBUGGING_ISSUE', 'NEAR_SOLUTION');
 
 -- CreateEnum
@@ -87,10 +101,42 @@ CREATE TABLE "tutor_turns" (
     "status" "tutor_turn_status" NOT NULL DEFAULT 'RECEIVED',
     "failure_code" "tutor_turn_failure_code",
     "safe_fallback_used" BOOLEAN NOT NULL DEFAULT false,
+    "approval_source" "tutor_approval_source",
+    "approved_candidate_attempt" SMALLINT,
+    "safe_fallback_reason" "tutor_safe_fallback_reason",
+    "validation_policy_version" VARCHAR(80),
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "completed_at" TIMESTAMPTZ(6),
 
-    CONSTRAINT "tutor_turns_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "tutor_turns_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "tutor_turns_approval_metadata_check"
+      CHECK (
+        "status" <> 'COMPLETED' OR
+        (
+          "approval_source" IS NOT NULL AND
+          "validation_policy_version" IS NOT NULL AND
+          (
+            (
+              "approval_source" = 'VALIDATED_CANDIDATE' AND
+              NOT "safe_fallback_used" AND
+              "approved_candidate_attempt" BETWEEN 1 AND 3 AND
+              "safe_fallback_reason" IS NULL
+            ) OR
+            (
+              "approval_source" = 'SAFE_FALLBACK' AND
+              "safe_fallback_used" AND
+              "approved_candidate_attempt" IS NULL AND
+              "safe_fallback_reason" IS NOT NULL
+            ) OR
+            (
+              "approval_source" = 'CLASSIFIED_RESPONSE' AND
+              NOT "safe_fallback_used" AND
+              "approved_candidate_attempt" IS NULL AND
+              "safe_fallback_reason" IS NULL
+            )
+          )
+        )
+      )
 );
 
 -- CreateIndex

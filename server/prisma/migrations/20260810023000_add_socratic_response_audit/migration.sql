@@ -19,43 +19,6 @@ CREATE TYPE "guard_recommended_action" AS ENUM (
   'USE_SAFE_FALLBACK'
 );
 
--- CreateEnum
-CREATE TYPE "tutor_approval_source" AS ENUM (
-  'VALIDATED_CANDIDATE',
-  'SAFE_FALLBACK'
-);
-
--- CreateEnum
-CREATE TYPE "tutor_safe_fallback_reason" AS ENUM (
-  'VALIDATION_EXHAUSTED',
-  'GUARD_UNAVAILABLE',
-  'GENERATION_RETRY_FAILED',
-  'GROUNDING_UNAVAILABLE',
-  'LEGACY_UNCLASSIFIED'
-);
-
--- AlterTable
-ALTER TABLE "tutor_turns"
-  ADD COLUMN "approval_source" "tutor_approval_source",
-  ADD COLUMN "approved_candidate_attempt" SMALLINT,
-  ADD COLUMN "safe_fallback_reason" "tutor_safe_fallback_reason",
-  ADD COLUMN "validation_policy_version" VARCHAR(80);
-
--- Historical rows predate candidate and Guard audit records. Preserve that
--- distinction instead of inventing an approved attempt or fallback cause.
-UPDATE "tutor_turns"
-SET
-  "approval_source" = CASE
-    WHEN "safe_fallback_used" THEN 'SAFE_FALLBACK'::"tutor_approval_source"
-    ELSE 'VALIDATED_CANDIDATE'::"tutor_approval_source"
-  END,
-  "safe_fallback_reason" = CASE
-    WHEN "safe_fallback_used" THEN 'LEGACY_UNCLASSIFIED'::"tutor_safe_fallback_reason"
-    ELSE NULL
-  END,
-  "validation_policy_version" = 'legacy-unversioned'
-WHERE "status" = 'COMPLETED';
-
 -- CreateTable
 CREATE TABLE "tutor_candidate_attempts" (
   "id" UUID NOT NULL DEFAULT gen_random_uuid(),
@@ -127,16 +90,8 @@ CREATE UNIQUE INDEX "tutor_candidate_attempts_turn_attempt_key"
   ON "tutor_candidate_attempts"("turn_id", "candidate_attempt");
 
 -- CreateIndex
-CREATE INDEX "idx_tutor_candidate_attempts_turn"
-  ON "tutor_candidate_attempts"("turn_id");
-
--- CreateIndex
 CREATE UNIQUE INDEX "guard_results_turn_attempt_stage_key"
   ON "guard_results"("turn_id", "candidate_attempt", "validation_stage");
-
--- CreateIndex
-CREATE INDEX "idx_guard_results_turn"
-  ON "guard_results"("turn_id");
 
 -- AddForeignKey
 ALTER TABLE "tutor_candidate_attempts"
@@ -149,30 +104,3 @@ ALTER TABLE "guard_results"
   FOREIGN KEY ("turn_id", "candidate_attempt")
   REFERENCES "tutor_candidate_attempts"("turn_id", "candidate_attempt")
   ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- New completions must describe their approval source consistently. The
--- legacy marker intentionally permits missing historical candidate numbers.
-ALTER TABLE "tutor_turns"
-  ADD CONSTRAINT "tutor_turns_approval_metadata_check"
-  CHECK (
-    "status" <> 'COMPLETED' OR
-    (
-      "approval_source" IS NOT NULL AND
-      "validation_policy_version" IS NOT NULL AND
-      (
-        "validation_policy_version" = 'legacy-unversioned' OR
-        (
-          "approval_source" = 'VALIDATED_CANDIDATE' AND
-          NOT "safe_fallback_used" AND
-          "approved_candidate_attempt" BETWEEN 1 AND 3 AND
-          "safe_fallback_reason" IS NULL
-        ) OR
-        (
-          "approval_source" = 'SAFE_FALLBACK' AND
-          "safe_fallback_used" AND
-          "approved_candidate_attempt" IS NULL AND
-          "safe_fallback_reason" IS NOT NULL
-        )
-      )
-    )
-  );

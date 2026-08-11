@@ -86,12 +86,9 @@ These are behavior-level results against the category contracts in
 
 ## Exhaustive-suite observations outside Story #124
 
-The exhaustive server E2E command was also run. It retains three failures that
+The exhaustive server E2E command was also run. It retains two failures that
 are outside the H-09 functional closure scope:
 
-- `rag-persistence.e2e-spec.ts` has one stale assertion expecting the HNSW index
-  that migration `20260808133701` intentionally removed. The other 13 tests in
-  that suite pass.
 - `materials-persistence.e2e-spec.ts` has two five-second timeouts while the
   local Gemini embedding provider is quota-denied. The other two tests in that
   suite pass.

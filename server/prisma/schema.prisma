@@ -142,6 +142,7 @@ enum GuardRecommendedAction {
 enum TutorApprovalSource {
   VALIDATED_CANDIDATE
   SAFE_FALLBACK
+  CLASSIFIED_RESPONSE
 
   @@map("tutor_approval_source")
 }
@@ -150,8 +151,6 @@ enum TutorSafeFallbackReason {
   VALIDATION_EXHAUSTED
   GUARD_UNAVAILABLE
   GENERATION_RETRY_FAILED
-  GROUNDING_UNAVAILABLE
-  LEGACY_UNCLASSIFIED
 
   @@map("tutor_safe_fallback_reason")
 }
@@ -589,12 +588,9 @@ model MaterialChunk {
   materialId     String                      @map("material_id") @db.Uuid
   chunkIndex     Int                         @map("chunk_index")
   content        String                      @db.Text
-  /// Indexed by idx_chunks_embedding_hnsw, created in the
-  /// 20260716224018_add_rag_persistence migration as
-  /// `USING hnsw ("embedding" vector_cosine_ops)`. Prisma cannot express the
-  /// HNSW access method or its operator class, so this field intentionally has
-  /// no `@@index` declaration; adding one emits a plain B-tree CREATE INDEX and
-  /// drops/rebuilds the vector index. See server/prisma/README.md.
+  /// Course retrieval uses a materialized, course-scoped exact cosine scan in
+  /// V1. This field intentionally has no Prisma index declaration; see
+  /// server/prisma/README.md before changing the retrieval strategy.
   embedding      Unsupported("vector(1536)")
   embeddingModel String                      @map("embedding_model") @db.VarChar(120)
   createdAt      DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -737,7 +733,6 @@ model TutorCandidateAttempt {
   guardResults GuardResult[]
 
   @@unique([turnId, candidateAttempt], map: "tutor_candidate_attempts_turn_attempt_key")
-  @@index([turnId], map: "idx_tutor_candidate_attempts_turn")
   @@map("tutor_candidate_attempts")
 }
 
@@ -761,7 +756,6 @@ model GuardResult {
   candidate TutorCandidateAttempt @relation(fields: [turnId, candidateAttempt], references: [turnId, candidateAttempt], onDelete: Restrict)
 
   @@unique([turnId, candidateAttempt, validationStage], map: "guard_results_turn_attempt_stage_key")
-  @@index([turnId], map: "idx_guard_results_turn")
   @@map("guard_results")
 }
 
