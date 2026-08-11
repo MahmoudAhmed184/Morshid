@@ -1,76 +1,14 @@
 import { Module } from '@nestjs/common'
 
-import { AuditModule } from '../audit/audit.module'
 import { ConversationsModule } from '../conversations/conversations.module'
 import { IdentityModule } from '../identity/identity.module'
-import { PrismaModule } from '../prisma/prisma.module'
-import { CompletionModule } from '../completion/completion.module'
-import { OutputPolicyModule } from '../output-policy/output-policy.module'
-import { PdfStorageModule } from '../pdf-storage/pdf-storage.module'
-import { MaterialsModule } from '../materials/materials.module'
-import { ReviewsModule } from '../reviews/reviews.module'
-import { SocraticTutorModule } from '../socratic-tutor/socratic-tutor.module'
-import { TutoringRuntime } from '../tutoring/interface/tutoring-runtime'
-import { SocraticChatOrchestrator } from './socratic-chat.orchestrator'
-import { StudentChatAuditService } from './student-chat.audit.service'
-import { StudentChatController } from './student-chat.controller'
-import { StudentChatCourseBoundaryAuditFilter } from './student-chat-course-boundary-audit.filter'
-import {
-  PrismaStudentChatMessageRepository,
-  StudentChatMessageRepository,
-} from './student-chat-message.repository'
-import {
-  PrismaStudentChatSessionRepository,
-  StudentChatSessionRepository,
-} from './student-chat-session.repository'
-import { StudentChatService } from './student-chat.service'
-import { StudentChatMessagePresenter } from './student-chat-message.presenter'
-import {
-  GroundedChatTurnRepository,
-  PrismaGroundedChatTurnRepository,
-} from './grounded-chat-turn.repository'
-import { GroundedChatService } from './grounded-chat.service'
-import { CorrectnessSensitiveRequestClassifier } from './correctness-sensitive-request.classifier'
+import { TutoringModule } from '../tutoring/tutoring.module'
+import { ConversationsController } from './conversations.controller'
+import { ConversationCourseBoundaryAuditFilter } from './conversation-course-boundary-audit.filter'
 
 @Module({
-  imports: [
-    AuditModule,
-    ConversationsModule,
-    IdentityModule,
-    CompletionModule,
-    OutputPolicyModule,
-    PdfStorageModule,
-    PrismaModule,
-    MaterialsModule,
-    ReviewsModule,
-    SocraticTutorModule,
-  ],
-  controllers: [StudentChatController],
-  providers: [
-    StudentChatAuditService,
-    StudentChatService,
-    StudentChatCourseBoundaryAuditFilter,
-    StudentChatMessagePresenter,
-    CorrectnessSensitiveRequestClassifier,
-    {
-      provide: StudentChatSessionRepository,
-      useClass: PrismaStudentChatSessionRepository,
-    },
-    {
-      provide: StudentChatMessageRepository,
-      useClass: PrismaStudentChatMessageRepository,
-    },
-    {
-      provide: GroundedChatTurnRepository,
-      useClass: PrismaGroundedChatTurnRepository,
-    },
-    GroundedChatService,
-    {
-      provide: TutoringRuntime,
-      useExisting: GroundedChatService,
-    },
-    SocraticChatOrchestrator,
-  ],
-  exports: [StudentChatAuditService, StudentChatService],
+  imports: [ConversationsModule, IdentityModule, TutoringModule],
+  controllers: [ConversationsController],
+  providers: [ConversationCourseBoundaryAuditFilter],
 })
 export class StudentChatModule {}

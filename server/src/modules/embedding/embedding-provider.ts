@@ -240,7 +240,7 @@ export class EmbeddingConfigurationError extends EmbeddingProviderError {
 /**
  * The closed vocabulary for anything an upstream provider does to us.
  *
- * Modelled on `CompletionProviderError`: fixed messages, no `cause`. An
+ * Modelled on the TutorModel error boundary: fixed messages, no `cause`. An
  * upstream error is the one place a provider's own text, status body, or
  * credential could leak into a log, so nothing from it is retained beyond the
  * code.

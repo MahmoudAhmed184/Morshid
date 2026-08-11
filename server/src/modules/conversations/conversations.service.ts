@@ -1,0 +1,388 @@
+import { Injectable, Logger } from '@nestjs/common'
+
+import type { AuthenticatedUser } from '../identity/identity.types'
+import {
+  AccessAuditService,
+  type AccessAuditActor,
+  type AccessAuditRouteContext,
+} from '../audit/audit.public'
+import type { AuditRequestContext } from '../audit/audit.public'
+import {
+  ConversationAuditService,
+  type RecordAccessDeniedInput,
+} from './conversation-audit.service'
+import type {
+  ChatMessageHistoryResponseDto,
+  ChatSessionDto,
+  ChatSessionListResponseDto,
+  ChatSessionResponseDto,
+  CreateChatSessionRequest,
+  ListChatMessagesQuery,
+  ListChatSessionsQuery,
+  RenameChatSessionRequest,
+} from './conversations.dto'
+import {
+  DEFAULT_MESSAGE_PAGE_SIZE,
+  DEFAULT_SESSION_PAGE_SIZE,
+  MAX_MESSAGE_PAGE_SIZE,
+  MAX_SESSION_PAGE_SIZE,
+} from './conversations.dto'
+import {
+  activeStudentMembershipRequiredException,
+  chatSessionNotFoundException,
+} from './conversation.errors'
+import { ConversationMessageRepository } from './conversation-message.repository'
+import { ConversationMessagePresenter } from './conversation-message.presenter'
+import { ConversationSessionRepository } from './conversation-session.repository'
+import type { ChatSessionRecord } from './conversation-records'
+
+const DEFAULT_CHAT_TITLE = 'New chat'
+
+@Injectable()
+export class ConversationsService {
+  private readonly logger = new Logger(ConversationsService.name)
+
+  constructor(
+    private readonly sessionRepository: ConversationSessionRepository,
+    private readonly messageRepository: ConversationMessageRepository,
+    private readonly studentChatAuditService: ConversationAuditService,
+    private readonly accessAuditService: AccessAuditService,
+    private readonly messagePresenter: ConversationMessagePresenter,
+  ) {}
+
+  async createSession(
+    courseId: string,
+    body: CreateChatSessionRequest,
+    user: AuthenticatedUser,
+    requestContext?: AuditRequestContext,
+  ): Promise<ChatSessionResponseDto> {
+    await this.requireActiveStudentMembership(courseId, user.id, requestContext)
+
+    const session = await this.sessionRepository.createSession(
+      courseId,
+      user.id,
+      body.title ?? DEFAULT_CHAT_TITLE,
+    )
+
+    // A null result means the membership was removed between the guard and the
+    // insert (composite FK violation) — treat it as a membership denial, not a
+    // 500.
+    if (session === null) {
+      await this.recordMembershipDenied(courseId, user.id, requestContext)
+      throw activeStudentMembershipRequiredException()
+    }
+
+    return { session: mapSession(session) }
+  }
+
+  async listSessions(
+    courseId: string,
+    user: AuthenticatedUser,
+    query: ListChatSessionsQuery,
+    requestContext?: AuditRequestContext,
+  ): Promise<ChatSessionListResponseDto> {
+    await this.requireActiveStudentMembership(courseId, user.id, requestContext)
+
+    const limit = Math.min(
+      query.limit ?? DEFAULT_SESSION_PAGE_SIZE,
+      MAX_SESSION_PAGE_SIZE,
+    )
+    const sessions = await this.sessionRepository.listSessions(
+      courseId,
+      user.id,
+      { limit, cursor: query.cursor ?? null },
+    )
+
+    return {
+      sessions: sessions.map(mapSession),
+      nextCursor:
+        sessions.length === limit
+          ? (sessions[sessions.length - 1]?.id ?? null)
+          : null,
+    }
+  }
+
+  async getSession(
+    courseId: string,
+    sessionId: string,
+    user: Pick<AuthenticatedUser, 'id'>,
+    requestContext?: AuditRequestContext,
+  ): Promise<ChatSessionResponseDto> {
+    const session = await this.requireOwnedActiveSession(
+      courseId,
+      sessionId,
+      user.id,
+      requestContext,
+    )
+
+    return { session: mapSession(session) }
+  }
+
+  async renameSession(
+    courseId: string,
+    sessionId: string,
+    body: RenameChatSessionRequest,
+    user: AuthenticatedUser,
+    requestContext?: AuditRequestContext,
+  ): Promise<ChatSessionResponseDto> {
+    await this.requireActiveStudentMembership(courseId, user.id, requestContext)
+
+    const session = await this.sessionRepository.renameSession(
+      courseId,
+      sessionId,
+      user.id,
+      body.title,
+    )
+
+    if (session === null) {
+      await this.recordSessionAccessDenied(
+        courseId,
+        user.id,
+        sessionId,
+        requestContext,
+      )
+      throw chatSessionNotFoundException()
+    }
+
+    return { session: mapSession(session) }
+  }
+
+  async softDeleteSession(
+    courseId: string,
+    sessionId: string,
+    user: AuthenticatedUser,
+    requestContext?: AuditRequestContext,
+  ): Promise<void> {
+    await this.requireActiveStudentMembership(courseId, user.id, requestContext)
+
+    const outcome = await this.sessionRepository.softDeleteSession({
+      courseId,
+      sessionId,
+      studentId: user.id,
+      requestContext,
+    })
+
+    // Deleting a session you own that is already deleted is idempotent success
+    // (204) — it must not emit a spurious access-denied audit row nor a 404.
+    if (outcome === 'not_found') {
+      await this.recordSessionAccessDenied(
+        courseId,
+        user.id,
+        sessionId,
+        requestContext,
+      )
+      throw chatSessionNotFoundException()
+    }
+  }
+
+  async listMessages(
+    courseId: string,
+    sessionId: string,
+    user: AuthenticatedUser,
+    query: ListChatMessagesQuery,
+    requestContext?: AuditRequestContext,
+  ): Promise<ChatMessageHistoryResponseDto> {
+    await this.requireActiveStudentMembership(courseId, user.id, requestContext)
+
+    const limit = Math.min(
+      query.limit ?? DEFAULT_MESSAGE_PAGE_SIZE,
+      MAX_MESSAGE_PAGE_SIZE,
+    )
+    const isLoadingLatestOrEarlier =
+      query.page === 'latest' || query.before !== undefined
+    const messagesWithLookahead = await this.messageRepository.listMessages(
+      courseId,
+      sessionId,
+      user.id,
+      {
+        limit: limit + 1,
+        after: query.after ?? null,
+        before: query.before ?? null,
+        latest: query.page === 'latest',
+      },
+    )
+
+    if (messagesWithLookahead === null) {
+      await this.recordSessionAccessDenied(
+        courseId,
+        user.id,
+        sessionId,
+        requestContext,
+      )
+      throw chatSessionNotFoundException()
+    }
+
+    const hasMore = messagesWithLookahead.length > limit
+    const messages = isLoadingLatestOrEarlier
+      ? messagesWithLookahead.slice(-limit)
+      : messagesWithLookahead.slice(0, limit)
+
+    return {
+      messages: await this.messagePresenter.presentMany(messages),
+      nextCursor: hasMore
+        ? isLoadingLatestOrEarlier
+          ? (messages[0]?.sequence ?? null)
+          : (messages[messages.length - 1]?.sequence ?? null)
+        : null,
+    }
+  }
+
+  /**
+   * Records a course-boundary denial (a Student reaching a course-scoped chat
+   * endpoint for a course they are not an active member of). The membership
+   * check lives inside the service, so the 403 is thrown from deep in the call
+   * stack; this is invoked from a controller-scoped exception filter where the
+   * attempted operation (method/path) and request context are still available.
+   * Emits the generic `ACCESS_COURSE_BOUNDARY_DENIED` audit event (Issue #15)
+   * in addition to the chat-scoped membership event. Like every deny path here
+   * it is best-effort and FK-safe: it never converts the 403 into a 500 and
+   * never stores an unverified course id in the FK column.
+   */
+  async recordCourseBoundaryDenied(
+    courseId: string | null,
+    actor: AccessAuditActor | null,
+    route: AccessAuditRouteContext,
+    requestContext: AuditRequestContext,
+  ): Promise<void> {
+    const courseExists =
+      courseId !== null && (await this.courseExistsSafe(courseId))
+
+    await this.accessAuditService.recordCourseBoundaryDenied({
+      actor,
+      courseId: courseExists ? courseId : null,
+      unverifiedCourseId: courseExists ? null : courseId,
+      route,
+      requestContext,
+    })
+  }
+
+  private async requireActiveStudentMembership(
+    courseId: string,
+    studentId: string,
+    requestContext?: AuditRequestContext,
+  ): Promise<void> {
+    const hasMembership =
+      await this.sessionRepository.hasActiveStudentMembership(
+        courseId,
+        studentId,
+      )
+
+    if (!hasMembership) {
+      await this.recordMembershipDenied(courseId, studentId, requestContext)
+      throw activeStudentMembershipRequiredException()
+    }
+  }
+
+  /**
+   * Records a membership access-denied audit event without ever converting the
+   * intended 403 into a 500:
+   *  - the raw `courseId` may reference a non-existent course, which would
+   *    violate the `audit_logs.course_id` FK, so it is only stored in the FK
+   *    column when the course is confirmed to exist (otherwise kept in
+   *    unconstrained JSONB metadata); this also removes a course-existence
+   *    oracle for students.
+   *  - the write itself is best-effort so a transient audit failure never
+   *    replaces the domain response.
+   */
+  private async recordMembershipDenied(
+    courseId: string,
+    studentId: string,
+    requestContext?: AuditRequestContext,
+  ): Promise<void> {
+    const courseExists = await this.courseExistsSafe(courseId)
+
+    await this.recordAccessDenied({
+      actorUserId: studentId,
+      courseId: courseExists ? courseId : null,
+      unverifiedCourseId: courseExists ? null : courseId,
+      reason: 'ACTIVE_STUDENT_MEMBERSHIP_REQUIRED',
+      requestContext,
+    })
+  }
+
+  private async courseExistsSafe(courseId: string): Promise<boolean> {
+    try {
+      return await this.sessionRepository.courseExists(courseId)
+    } catch (error) {
+      this.logger.error(
+        'Failed to resolve course existence for student chat audit',
+        error instanceof Error ? error.stack : undefined,
+      )
+
+      return false
+    }
+  }
+
+  private async recordAccessDenied(
+    input: RecordAccessDeniedInput,
+  ): Promise<void> {
+    try {
+      await this.studentChatAuditService.recordAccessDenied(input)
+    } catch (error) {
+      // Deny-path audit writes must never turn a correct 403/404 into a 500.
+      this.logger.error(
+        'Failed to record student chat access-denied audit event',
+        error instanceof Error ? error.stack : undefined,
+      )
+    }
+  }
+
+  private async requireOwnedActiveSession(
+    courseId: string,
+    sessionId: string,
+    studentId: string,
+    requestContext?: AuditRequestContext,
+  ): Promise<ChatSessionRecord> {
+    await this.requireActiveStudentMembership(
+      courseId,
+      studentId,
+      requestContext,
+    )
+
+    const session = await this.sessionRepository.findOwnedActiveSession(
+      courseId,
+      sessionId,
+      studentId,
+    )
+
+    if (session === null) {
+      await this.recordSessionAccessDenied(
+        courseId,
+        studentId,
+        sessionId,
+        requestContext,
+      )
+      throw chatSessionNotFoundException()
+    }
+
+    return session
+  }
+
+  private recordSessionAccessDenied(
+    courseId: string,
+    studentId: string,
+    sessionId: string,
+    requestContext?: AuditRequestContext,
+  ): Promise<void> {
+    // Reached only after an active membership was confirmed, so the course is
+    // known to exist and `courseId` is safe for the FK column.
+    return this.recordAccessDenied({
+      actorUserId: studentId,
+      courseId,
+      sessionId,
+      reason: 'DELETED_OR_UNOWNED',
+      requestContext,
+    })
+  }
+}
+
+function mapSession(record: ChatSessionRecord): ChatSessionDto {
+  return {
+    id: record.id,
+    courseId: record.courseId,
+    title: record.title,
+    lastMessageAt: record.lastMessageAt?.toISOString() ?? null,
+    createdAt: record.createdAt.toISOString(),
+    updatedAt: record.updatedAt.toISOString(),
+  }
+}

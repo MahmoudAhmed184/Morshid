@@ -13,8 +13,8 @@ import {
 import {
   PrismaEducationalAnalysisRepository,
   type PersistEducationalAnalysisInput,
-} from '../src/modules/socratic-tutor/educational-analysis.repository'
-import { EDUCATIONAL_ANALYSIS_PROMPT_VERSION } from '../src/modules/socratic-tutor/educational-analysis.prompt'
+} from '../src/modules/tutoring/socratic-workflow/educational-analysis.repository'
+import { EDUCATIONAL_ANALYSIS_PROMPT_VERSION } from '../src/modules/tutoring/socratic-workflow/educational-analysis.prompt'
 import {
   EDUCATIONAL_ANALYSIS_FALLBACK_REASON,
   EDUCATIONAL_ANALYSIS_SOURCE,
@@ -23,8 +23,8 @@ import {
   EFFORT_TYPE,
   LEARNING_EVIDENCE_STRENGTH,
   type EducationalAnalysisResult,
-} from '../src/modules/socratic-tutor/educational-analysis.types'
-import { TOPIC_RESOLUTION_OUTCOME } from '../src/modules/socratic-tutor/topic.types'
+} from '../src/modules/tutoring/socratic-workflow/educational-analysis.types'
+import { TOPIC_RESOLUTION_OUTCOME } from '../src/modules/tutoring/socratic-workflow/topic.types'
 import type { PrismaService } from '../src/modules/prisma/prisma.service'
 import {
   setUpDisposableDatabase,

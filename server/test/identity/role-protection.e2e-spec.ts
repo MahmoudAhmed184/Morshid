@@ -11,7 +11,7 @@ import type { MeResponse } from '../../src/modules/identity/identity.types'
 import { MaterialProcessingScheduler } from '../../src/modules/materials/material-processing.scheduler'
 import { PrismaService } from '../../src/modules/prisma/prisma.service'
 import { RedisService } from '../../src/modules/redis/redis.service'
-import { STUDENT_CHAT_ERROR_CODES } from '../../src/modules/student-chat/student-chat.errors'
+import { STUDENT_CHAT_ERROR_CODES } from '../../src/modules/conversations/conversation.errors'
 import {
   P0_DEMO_COURSE,
   P0_DEMO_PASSWORD,

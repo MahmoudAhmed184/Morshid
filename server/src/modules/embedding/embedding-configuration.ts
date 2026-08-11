@@ -5,9 +5,10 @@ import {
 } from './embedding-provider'
 import type { GeminiEmbeddingConfiguration } from './providers/gemini/gemini-embedding.adapter'
 
-// The single embedding vocabulary surface, mirroring `completion-configuration`:
+// The single embedding vocabulary surface, mirroring the TutorModel
+// configuration:
 // nothing outside `embedding/` reaches into `embedding/providers/`, and nothing
-// inside `embedding/` imports from `completion/`. Provider-specific constants
+// inside `embedding/` imports from tutoring workflow internals. Provider-specific constants
 // are declared next to their adapters and re-exported here.
 export {
   MAX_EMBEDDING_INPUT_CODE_POINTS,

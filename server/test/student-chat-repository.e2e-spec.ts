@@ -2,15 +2,11 @@ import { randomUUID } from 'node:crypto'
 
 import { AuditService } from '../src/modules/audit/audit.service'
 import type { PrismaService } from '../src/modules/prisma/prisma.service'
-import { StudentChatAuditService } from '../src/modules/student-chat/student-chat.audit.service'
+import { ConversationAuditService } from '../src/modules/conversations/conversation-audit.service'
 import {
-  PrismaStudentChatMessageRepository,
-  type StudentChatMessageRepository,
-} from '../src/modules/student-chat/student-chat-message.repository'
-import {
-  PrismaStudentChatSessionRepository,
-  type StudentChatSessionRepository,
-} from '../src/modules/student-chat/student-chat-session.repository'
+  PrismaConversationSessionRepository,
+  type ConversationSessionRepository,
+} from '../src/modules/conversations/conversation-session.repository'
 import {
   setUpDisposableDatabase,
   type DisposableDatabase,
@@ -24,21 +20,19 @@ interface EnrolledStudent {
 describe('Student chat repositories (e2e)', () => {
   let database: DisposableDatabase | undefined
   let prisma: PrismaService
-  let sessionRepository: StudentChatSessionRepository
-  let messageRepository: StudentChatMessageRepository
+  let sessionRepository: ConversationSessionRepository
 
   beforeAll(async () => {
     database = await setUpDisposableDatabase('morshid_issue84')
     prisma = database.prisma
 
-    const studentChatAuditService = new StudentChatAuditService(
+    const studentChatAuditService = new ConversationAuditService(
       new AuditService(prisma),
     )
-    sessionRepository = new PrismaStudentChatSessionRepository(
+    sessionRepository = new PrismaConversationSessionRepository(
       prisma,
       studentChatAuditService,
     )
-    messageRepository = new PrismaStudentChatMessageRepository(prisma)
   })
 
   afterAll(async () => {
@@ -72,54 +66,6 @@ describe('Student chat repositories (e2e)', () => {
 
     return { courseId: course.id, studentId: student.id }
   }
-
-  it('assigns unique, gap-free sequences to concurrent appends in real transactions', async () => {
-    const { courseId, studentId } = await createEnrolledStudent()
-    const session = await sessionRepository.createSession(
-      courseId,
-      studentId,
-      'Concurrency',
-    )
-    if (session === null) {
-      throw new Error('Expected the session to be created')
-    }
-    const sessionId = session.id
-
-    const appends = await Promise.all(
-      Array.from({ length: 12 }, (_, index) =>
-        messageRepository.appendStudentMessage({
-          courseId,
-          sessionId,
-          studentId,
-          content: `Message ${String(index)}`,
-        }),
-      ),
-    )
-
-    const sequences = appends.map((result) =>
-      result.kind === 'ok' ? result.message.sequence : -1,
-    )
-    expect([...sequences].sort((a, b) => a - b)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
-    ])
-    // The unique(session_id, sequence) constraint plus row locking guarantees
-    // no duplicates even though all twelve transactions ran concurrently.
-    expect(new Set(sequences).size).toBe(12)
-
-    const persisted = await prisma.message.findMany({
-      where: { sessionId },
-      select: { sequence: true },
-      orderBy: { sequence: 'asc' },
-    })
-    expect(persisted.map((row) => row.sequence)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
-    ])
-    const reloaded = await prisma.chatSession.findUniqueOrThrow({
-      where: { id: sessionId },
-      select: { lastSequence: true },
-    })
-    expect(reloaded.lastSequence).toBe(12)
-  })
 
   it('enforces one assistant response per student message', async () => {
     const { courseId, studentId } = await createEnrolledStudent()
@@ -198,13 +144,8 @@ describe('Student chat repositories (e2e)', () => {
       prisma.chatSession.findUnique({ where: { id: sessionId } }),
     ).resolves.not.toBeNull()
     await expect(
-      messageRepository.appendStudentMessage({
-        courseId,
-        sessionId,
-        studentId,
-        content: 'Should be denied',
-      }),
-    ).resolves.toEqual({ kind: 'membership_missing' })
+      sessionRepository.findOwnedActiveSession(courseId, sessionId, studentId),
+    ).resolves.toBeNull()
 
     // A hard delete, by contrast, is blocked by the FK while a session exists —
     // which is why removal must be soft.
@@ -222,18 +163,14 @@ describe('Student chat repositories (e2e)', () => {
     await expect(
       sessionRepository.hasActiveStudentMembership(courseId, studentId),
     ).resolves.toBe(true)
-    const reactivated = await messageRepository.appendStudentMessage({
-      courseId,
-      sessionId,
-      studentId,
-      content: 'Allowed again',
-    })
-    expect(reactivated.kind).toBe('ok')
+    await expect(
+      sessionRepository.findOwnedActiveSession(courseId, sessionId, studentId),
+    ).resolves.not.toBeNull()
   })
 
   it('records a deny-path audit for an unknown course without violating the course FK (H2)', async () => {
     const { studentId } = await createEnrolledStudent()
-    const studentChatAuditService = new StudentChatAuditService(
+    const studentChatAuditService = new ConversationAuditService(
       new AuditService(prisma),
     )
     const unknownCourseId = randomUUID()

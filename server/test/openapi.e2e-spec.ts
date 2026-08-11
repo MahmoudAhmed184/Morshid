@@ -1064,14 +1064,14 @@ describe('OpenAPI contract (e2e)', () => {
           path: `${base}/{sessionId}/messages`,
           method: 'post',
           tag: 'student-chat-sessions',
-          summary: 'Send grounded chat message',
+          summary: 'Send tutoring message',
           statuses: ['201', '400', '401', '403', '404', '409', '503'],
         },
         {
           path: `${base}/{sessionId}/messages/{studentMessageId}/retry`,
           method: 'post',
           tag: 'student-chat-sessions',
-          summary: 'Retry failed grounded chat response',
+          summary: 'Retry failed tutoring response',
           statuses: ['200', '400', '401', '403', '404', '409', '503'],
         },
       ] as const
@@ -1181,7 +1181,7 @@ describe('OpenAPI contract (e2e)', () => {
       expectResponseSchemaReference(
         getOperation(document, `${base}/{sessionId}/messages`, 'post'),
         '201',
-        'GroundedChatTurnResponseDto',
+        'TutoringTurnResponseDto',
       )
       const retry = getOperation(
         document,
@@ -1189,7 +1189,7 @@ describe('OpenAPI contract (e2e)', () => {
         'post',
       )
       expect(retry.requestBody).toBeUndefined()
-      expectResponseSchemaReference(retry, '200', 'GroundedChatTurnResponseDto')
+      expectResponseSchemaReference(retry, '200', 'TutoringTurnResponseDto')
 
       const schemas = document.components?.schemas as Record<
         string,

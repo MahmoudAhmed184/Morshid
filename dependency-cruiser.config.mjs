@@ -97,6 +97,58 @@ export default {
         path: '^server/src/modules/reviews/(?!reviews\\.module\\.ts$|reviews\\.public\\.ts$)',
       },
     },
+    {
+      name: 'conversations-interface-only',
+      comment:
+        'Product modules may consume Conversations only through its module or transaction-aware ConversationTurns interface.',
+      severity: 'error',
+      from: {
+        path: '^server/src/(?:app\\.module\\.ts|common/|modules/(?!conversations(?:/|$)))',
+        pathNot: testPath,
+      },
+      to: {
+        path: '^server/src/modules/conversations/(?!conversations\\.module\\.ts$|conversations\\.service\\.ts$|conversations\\.dto\\.ts$|conversation\\.errors\\.ts$|conversation-turns\\.ts$|conversation-records\\.ts$|conversation-message\\.presenter\\.ts$)',
+      },
+    },
+    {
+      name: 'tutoring-interface-only',
+      comment:
+        'Product modules may consume Tutoring only through its composition module and the runtime command/receipt interface.',
+      severity: 'error',
+      from: {
+        path: '^server/src/(?:app\\.module\\.ts|common/|modules/(?!tutoring(?:/|$)|config/env\\.schema\\.ts$))',
+        pathNot: testPath,
+      },
+      to: {
+        path: '^server/src/modules/tutoring/(?!tutoring\\.module\\.ts$|interface/(?:tutoring-runtime\\.ts|run-tutoring-turn-command\\.ts|tutoring-turn-receipt\\.ts)$)',
+      },
+    },
+    {
+      name: 'conversations-not-to-tutoring',
+      comment:
+        'Conversations owns ordered messages and must not depend on Tutoring attempt or workflow internals.',
+      severity: 'error',
+      from: {
+        path: '^server/src/modules/conversations(?:/|$)',
+        pathNot: testPath,
+      },
+      to: {
+        path: '^server/src/modules/tutoring(?:/|$)',
+      },
+    },
+    {
+      name: 'tutoring-not-to-student-chat',
+      comment:
+        'Tutoring owns turn admission and execution; it must not depend on the legacy session HTTP adapter.',
+      severity: 'error',
+      from: {
+        path: '^server/src/modules/tutoring(?:/|$)',
+        pathNot: testPath,
+      },
+      to: {
+        path: '^server/src/modules/student-chat(?:/|$)',
+      },
+    },
   ],
   options: {
     tsConfig: { fileName: tsConfigFileName },

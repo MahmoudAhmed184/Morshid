@@ -9,6 +9,7 @@ export interface AuthorizedStudentChatInput {
 export interface LockedStudentChatSession {
   id: string
   courseId: string
+  studentId: string
   lastSequence: number
   deletedAt: Date | null
 }
@@ -31,11 +32,11 @@ export async function lockAuthorizedStudentChat(
     SELECT
       id,
       course_id AS "courseId",
+      student_id AS "studentId",
       last_sequence AS "lastSequence",
       deleted_at AS "deletedAt"
     FROM chat_sessions
     WHERE id = ${input.sessionId}::uuid
-      AND student_id = ${input.studentId}::uuid
     FOR UPDATE
   `)
   const session = sessions.at(0)
@@ -62,6 +63,10 @@ export async function lockAuthorizedStudentChat(
     return { kind: 'membership_missing' }
   }
 
+  if (session.studentId !== input.studentId) {
+    return { kind: 'session_not_found' }
+  }
+
   return { kind: 'ok', session }
 }
 
@@ -78,6 +83,7 @@ export async function lockStudentOwnedChat(
     SELECT
       id,
       course_id AS "courseId",
+      student_id AS "studentId",
       last_sequence AS "lastSequence",
       deleted_at AS "deletedAt"
     FROM chat_sessions

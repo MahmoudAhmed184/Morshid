@@ -29,7 +29,7 @@ export class DeterministicEmbeddingProvider implements EmbeddingProvider {
    *
    * Every live provider is asymmetric, but this one must not be. Offline
    * retrieval only works because a query and an identical chunk hash to the
-   * same vector — `server/test/retrieval.e2e-spec.ts` asserts a similarity of
+   * same vector — `server/test/course-evidence.e2e-spec.ts` asserts a similarity of
    * ~1 for a verbatim match. Adding prefixes here would put the two sides in
    * different vector spaces and make offline retrieval structurally
    * impossible, so the invariant `embedQuery(t) === embedDocuments([{text:

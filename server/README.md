@@ -93,249 +93,31 @@ record is revoked, a new refresh token record is created, and the old record is
 linked to the new one. Reusing the prior token after rotation is rejected as an
 invalid refresh token.
 
-## Restricted Gemini completion demo
+## Tutoring model roles
 
-`COMPLETION_PROVIDER` accepts `deterministic`, `aws-bedrock`, and `gemini`. It
-defaults to `deterministic`, which is keyless and offline in production, CI, and
-normal tests; `aws-bedrock` is documented in the next section. Gemini's adapter,
-quota guard, and constants live under
-`src/modules/completion/providers/gemini/`. Each provider's startup rules are
-gated on that provider being selected, so a Gemini deployment is never asked for
-gateway configuration and a gateway deployment is never asked for Gemini caps.
-The free tier must receive only synthetic, permission-safe content; do not send
-real student activity, private course materials, assessments, PII, data from
-minors, or any content that has not been approved for this use.
+Tutoring has three explicit model roles: educational analysis, tutor response
+generation, and semantic guarding. Each role is configured independently so
+model identity and failure policy cannot be confused across stages:
 
-`COMPLETION_PROVIDER=gemini` is accepted only under two independent conditions:
+- ANALYSIS_MODEL_* selects educational analysis.
+- TUTOR_MODEL_* selects the Socratic tutor response model.
+- SEMANTIC_GUARD_* selects semantic response validation.
 
-- `NODE_ENV` must not be `production`. Free-tier inputs and outputs may be used
-  to improve Google's products, so this provider must never serve real users.
-  This is the load-bearing restriction; it is _not_ expressed as
-  "`development` only", because forcing `NODE_ENV` would also change unrelated
-  security behaviour (the refresh cookie's `Secure` flag, unauthenticated
-  Swagger at `/docs`, and the absolute-`PDF_STORAGE_PATH` requirement) and would
-  make the provider unusable from the `NODE_ENV=test` end-to-end suite.
-- `GEMINI_DEMO_ACKNOWLEDGED=true` must be set explicitly. It is an operator
-  acknowledgement, not a feature switch: setting it states that you accept that
-  free-tier prompts and completions may be reviewed and used to improve Google's
-  products, and that only synthetic, permission-safe data will be sent. The
-  variable defaults to false and reads a blank value as false, so a Gemini
-  deployment can never be reached by inheriting an ambient environment.
+The committed deterministic provider is keyless and offline, so it is the
+default for local development, CI, and deterministic tests. An
+openai-compatible provider may be selected for a configured deployment
+gateway. Remote model and embedding calls always occur outside database
+transactions; terminal conversation, attempt, audit, and review writes join
+one caller-owned transaction.
 
-Before enabling the demo:
+The role-chain smoke is opt-in and requires the documented external model
+configuration:
 
-1. Revoke the exposed credential without making a test request with it. Review
-   its usage in AI Studio, then create a new **authorization key**. Google plans
-   to reject standard keys starting in September 2026; see the
-   [API-key guidance](https://ai.google.dev/gemini-api/docs/api-key).
-2. Copy the commented Gemini variables from `.env.example` into the ignored
-   `server/.env`. Never commit the replacement key.
-3. Keep the stable `gemini-3.5-flash-lite` model ID unless an approved stable,
-   non-preview override is required. Do not use a moving `-latest` alias; see
-   the [model guidance](https://ai.google.dev/gemini-api/docs/latest-model).
-4. In the signed-in AI Studio quota view, read the project/model RPM, input
-   TPM, and RPD values. Configure effective caps no higher than 90% of those
-   values, plus explicit Morshid hour and month budgets. Limits vary by project,
-   model, and tier and are not guaranteed; see the
-   [rate-limit guidance](https://ai.google.dev/gemini-api/docs/rate-limits).
-   **The five request caps must satisfy
-   `GEMINI_REQUESTS_PER_MINUTE <= GEMINI_REQUESTS_PER_HOUR <= GEMINI_REQUESTS_PER_DAY <= GEMINI_REQUESTS_PER_MONTH`,
-   or the server refuses to boot.** Copying the AI Studio RPM/RPD at 90% and
-   then picking hour and month budgets independently can easily violate it — for
-   example an RPD of 1500 with a 1000/month internal budget is rejected. Choose
-   the hour and month budgets after the provider-derived values, not before.
-   (`GEMINI_INPUT_TOKENS_PER_MINUTE` is a separate token dimension and is not
-   part of that ordering.)
-5. Set `GEMINI_DEMO_ACKNOWLEDGED=true`.
-6. Start Redis through `npm run infra:up`. Compose enables Redis AOF on the
-   `morshid-redis-data` volume so long-window local budgets survive restarts.
+bash command: npm run test:tutoring:live
 
-### How each cap is metered
-
-The guard does not meter every dimension the same way, and the units are not
-interchangeable with the AI Studio dashboard's:
-
-| Variable                         | Window                                                                                          |
-| -------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `GEMINI_REQUESTS_PER_MINUTE`     | Continuously refilling token bucket over 60s                                                    |
-| `GEMINI_INPUT_TOKENS_PER_MINUTE` | Continuously refilling token bucket over 60s                                                    |
-| `GEMINI_REQUESTS_PER_HOUR`       | Continuously refilling token bucket over 1h                                                     |
-| `GEMINI_REQUESTS_PER_DAY`        | **Fixed window**, resets at 00:00 UTC                                                           |
-| `GEMINI_REQUESTS_PER_MONTH`      | **Fixed window**, epoch-aligned 30 days — not a calendar month, so it does not reset on the 1st |
-
-The two long budgets are fixed windows rather than rolling ones on purpose: a
-rolling budget drained just after a reset and again just before the next one
-yields roughly twice the configured cap inside one accounting day.
-
-Google resets requests-per-day at midnight **Pacific** (07:00 UTC under PDT,
-08:00 UTC under PST), while this guard rolls over at midnight UTC, so the Morshid
-day boundary leads Google's by 7-8 hours. UTC alignment is deliberate — it needs
-no timezone database inside the Lua script and no application clock — but it
-means an operator comparing the local counter against the AI Studio daily figure
-is looking at two different accounting days. Size `GEMINI_REQUESTS_PER_DAY`
-against the AI Studio RPD number, then expect the local counter to roll over
-earlier in the day than the dashboard's.
-
-The budget is keyed on the configured `GEMINI_API_KEY` (as a salted, truncated
-digest; the key itself never reaches Redis), because Gemini limits are applied
-per Google project rather than per model. Changing `GEMINI_MODEL` therefore keeps
-the existing day and month spend, and two deployments sharing one Redis with
-different API keys keep separate budgets.
-
-Gemini configuration is intentionally absent from the production Compose
-server profile, which also pins `NODE_ENV: production` and so cannot accept
-`COMPLETION_PROVIDER=gemini` at all. `store: false` prevents Interactions
-storage, but free-tier
-inputs and outputs may still be reviewed or used to improve Google products.
-Real pilot or production data requires a separately approved paid/no-training
-arrangement. Review the
-[Gemini terms](https://ai.google.dev/gemini-api/terms) and
-[Interactions retention guidance](https://ai.google.dev/gemini-api/docs/interactions-overview)
-before changing this boundary.
-
-After the key has been rotated and the local caps are configured, run the
-opt-in synthetic smoke once:
-
-```bash
-npm run test:gemini:smoke
-```
-
-The command is deliberately excluded from `npm run check`. It prints only the
-provider, model, prompt version, and token counts, and it consumes the same
-Redis quota guard as the application.
-
-## AWS Bedrock completion through ITI
-
-Morshid defaults to the deterministic completion provider, which is keyless,
-offline, and used by CI. Selecting `aws-bedrock` preserves the same public
-completion contract and sends one request through the
-[ITI Student Bedrock Gateway](https://apiaccess.iti.net.eg/student/integration).
-ITI remains the credential authority and owns AWS access, budgets, account
-policy, and usage accounting. Morshid has no direct AWS credentials and uses
-neither the AWS SDK nor LangChain.
-
-The primary-source basis for this design — the published ITI contract, the
-one-`POST`-no-retry rule, the bounded response read, `redirect: 'error'`, the
-plaintext exception, and the dated model-qualification record — is written up in
-[`docs/aws-bedrock-iti-gateway-research.md`](../docs/aws-bedrock-iti-gateway-research.md).
-
-Before a live test, rotate the ITI gateway key. Store the replacement only in
-the git-ignored `server/.env`, set that file to mode `0600`, and never place the
-key in a command line, test fixture, example file, or log. Start from
-`server/.env.example` and set:
-
-```dotenv
-COMPLETION_PROVIDER=aws-bedrock
-COMPLETION_TIMEOUT_MS=60000
-ITI_BEDROCK_GATEWAY_BASE_URL=https://apiaccess.iti.net.eg/api/v1
-ITI_BEDROCK_GATEWAY_API_KEY=<rotated key in server/.env only>
-ITI_BEDROCK_ALLOW_INSECURE_HTTP=false
-AWS_BEDROCK_MODEL_ID=<exact approved model ID>
-AWS_BEDROCK_ALLOWED_MODEL_IDS=<comma-separated approved model IDs>
-AWS_BEDROCK_MAX_TOKENS=1024
-```
-
-There is deliberately no committed model ID. The selected model must be in the
-bounded, duplicate-free local allow-list of at most 50 IDs. Copy exact IDs from
-the portal's **Approved models** list; a model or allow-list change requires a
-server restart.
-
-With `aws-bedrock` selected, startup fails when any of the following holds:
-`ITI_BEDROCK_GATEWAY_API_KEY` is unset, empty, or contains anything outside
-printable ASCII (`U+0021`–`U+007E`); `AWS_BEDROCK_MODEL_ID` is empty;
-`AWS_BEDROCK_ALLOWED_MODEL_IDS` is empty, holds duplicates, or omits the
-selected model; or `ITI_BEDROCK_GATEWAY_BASE_URL` fails transport policy. The
-key is sent as an `Authorization` header value, where a non-ASCII character
-would throw on every request, so it is rejected once at boot instead.
-
-Transport policy requires HTTPS (or the explicit exception below), no userinfo,
-query, or fragment — including a bare trailing `?` or `#`, which would otherwise
-corrupt the request path — and a host that is not `localhost`, loopback,
-link-local, or a private IP range, so a stale value cannot ship the bearer key
-to a metadata service.
-
-`ITI_BEDROCK_GATEWAY_BASE_URL` and `AWS_BEDROCK_MAX_TOKENS` both have committed
-defaults and can never be "missing". Two consequences are worth knowing:
-
-- Transport policy is applied only when `aws-bedrock` is selected, so a
-  `COMPLETION_PROVIDER=deterministic` deployment boots whatever
-  `ITI_BEDROCK_GATEWAY_BASE_URL` holds, as long as the value still parses as a
-  URL.
-- `AWS_BEDROCK_MAX_TOKENS` is bounded to 256–4096 for every provider. The 256
-  floor is not cosmetic: the research note records a probe where a very small
-  budget returned HTTP 200 with blank output while still billing a usage event.
-
-`ITI_BEDROCK_ALLOW_INSECURE_HTTP` accepts only `true`, `false`, or blank, and a
-blank value means `false`, so the blank-valued committed examples and Compose's
-`${VAR:-}` pass-through cannot block startup.
-
-The adapter sends exactly one non-retried `POST` to
-`${ITI_BEDROCK_GATEWAY_BASE_URL}/student/chat` with `redirect: 'error'`, so a
-bearer-authenticated request is never resent to a redirect target. It has no
-model, transport, retry, or protocol fallback, so failures cannot silently
-consume budget through a second attempt. The response body is read
-incrementally and rejected past 256 KiB — the larger of a fixed floor and the
-byte width of a maximum-length UTF-8 answer, so a long Arabic or emoji reply is
-not mistaken for an oversized response.
-
-Every distinguishable upstream failure collapses into the same public error, so
-the adapter writes one server-side diagnostic before rethrowing: the failure
-category (`http_status`, `transport`, `oversized_response`,
-`malformed_response`, `invalid_output`, `blank_output`, or `cancelled`), the
-HTTP status when there was one, and the allow-listed model ID. The key, the
-endpoint, the prompt, the student content, and every byte of the gateway
-response are excluded by construction. Cancellation logs at `warn`; every other
-category logs at `error`.
-
-### Why the environment variables are split
-
-`ITI_BEDROCK_*` names the transport Morshid actually speaks to: the
-ITI-operated gateway, its base URL, its key, and the plaintext exception.
-`AWS_BEDROCK_*` names model policy that originates at AWS and is enforced
-locally: the model ID, the local allow-list, and the output token budget. The
-adapter lives at
-`src/modules/completion/providers/aws-bedrock/iti-bedrock-gateway.adapter.ts`
-for the same reason — the provider selector is the model family, while the
-implementation is the ITI gateway. `server/.env.example` groups the variables
-along the same line.
-
-### Temporary local HTTP exception
-
-Bearer credentials and prompts should travel over HTTPS. If ITI's HTTPS
-endpoint is temporarily unavailable, development may opt into the known
-plaintext endpoint only with all three settings below:
-
-```dotenv
-NODE_ENV=development
-ITI_BEDROCK_GATEWAY_BASE_URL=http://apiaccess.iti.net.eg/api/v1
-ITI_BEDROCK_ALLOW_INSECURE_HTTP=true
-```
-
-This knowingly insecure exception is accepted only outside production — the
-check rejects `NODE_ENV=production`, not everything other than `development` —
-and only for that exact host, default port, and base path. Enabling it emits one
-fixed, credential-free startup warning and still performs a single request to
-the configured URL. The scheme is read from the parsed URL rather than from the
-raw string, so an `HTTP://` spelling behaves identically and is warned about
-identically. It never tries HTTPS before HTTP. Production and Compose reject the
-exception. Return to HTTPS as soon as ITI restores it.
-
-For one opt-in local verification:
-
-1. Record the current ITI usage-event count.
-2. Start infrastructure, migrate and seed the database, then start Morshid with
-   the live settings.
-3. Complete one database-backed student chat turn.
-4. Confirm exactly one additional portal usage event.
-5. Confirm the assistant message persisted provider `aws-bedrock`, the selected
-   model ID, and prompt version `grounded-completion-v1`.
-6. Inspect Git changes and application logs for keys, authorization values,
-   prompts, output, or upstream response bodies.
-7. Restore `COMPLETION_PROVIDER=deterministic`, clear the diagnostic key, and
-   revoke it in the ITI portal.
-
-Key rotation never requires a code change: revoke the old key, replace only
-`ITI_BEDROCK_GATEWAY_API_KEY` in the ignored file, and restart the server.
+It reports only bounded provider/model metadata and outcome information. It is
+excluded from npm run check; deterministic workflow and governance tests
+remain the required local verification.
 
 ## Embedding profiles and strict course readiness
 

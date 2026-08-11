@@ -1,4 +1,5 @@
 import type { DatabaseTransaction } from '../prisma/database-transaction'
+import type { ChatMessageRecord } from './conversation-records'
 
 export type ConversationRequestKind =
   | 'CONCEPTUAL'
@@ -20,18 +21,23 @@ export type ConversationMessageRole = 'STUDENT' | 'ASSISTANT'
 export type ConversationMessageStatus =
   'PENDING' | 'STREAMING' | 'COMPLETED' | 'FAILED' | 'BLOCKED'
 
-export interface ConversationMessage {
-  readonly id: string
-  readonly sessionId: string
-  readonly attemptId: string | null
-  readonly sequence: number
-  readonly role: ConversationMessageRole
-  readonly status: ConversationMessageStatus
-  readonly content: string
-  readonly completedAt: Date | null
+export type ConversationMessage = ChatMessageRecord
+
+export interface ConversationMessageLookup {
+  readonly id?: string
+  readonly sessionId?: string
+  readonly attemptId?: string
+  readonly responseToMessageId?: string
+  readonly authorUserId?: string
+  readonly role?: ConversationMessageRole
+  readonly status?: ConversationMessageStatus
+  readonly statuses?: readonly ConversationMessageStatus[]
+  readonly excludeId?: string
+  readonly content?: string
 }
 
-export interface AdmitConversationTurnInput {
+interface NewConversationTurnInput {
+  readonly kind: 'new'
   readonly courseId: string
   readonly sessionId: string
   readonly studentId: string
@@ -42,6 +48,20 @@ export interface AdmitConversationTurnInput {
   readonly requestKind: ConversationRequestKind | null
   readonly now: Date
 }
+
+interface RetryConversationTurnInput {
+  readonly kind: 'retry'
+  readonly courseId: string
+  readonly sessionId: string
+  readonly studentId: string
+  readonly attemptId: string
+  readonly studentMessageId: string
+  readonly assistantMessageId: string
+  readonly now: Date
+}
+
+export type AdmitConversationTurnInput =
+  NewConversationTurnInput | RetryConversationTurnInput
 
 export type AdmittedTurn =
   | {
@@ -93,4 +113,9 @@ export abstract class ConversationTurns {
     input: FinalizeConversationMessageInput,
     transaction: DatabaseTransaction,
   ): Promise<FinalizedMessage>
+
+  abstract find(
+    input: ConversationMessageLookup & { readonly studentId?: string },
+    transaction?: DatabaseTransaction,
+  ): Promise<ConversationMessage | null>
 }

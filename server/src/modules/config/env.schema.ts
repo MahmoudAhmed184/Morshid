@@ -3,32 +3,6 @@ import { isAbsolute } from 'node:path'
 import { z } from 'zod'
 
 import {
-  AWS_BEDROCK_COMPLETION_PROVIDER,
-  DEFAULT_AWS_BEDROCK_MAX_TOKENS,
-  DEFAULT_GEMINI_MODEL,
-  DEFAULT_ITI_BEDROCK_GATEWAY_BASE_URL,
-  DETERMINISTIC_COMPLETION_PROVIDER,
-  GEMINI_COMPLETION_PROVIDER,
-  MAX_AWS_BEDROCK_ALLOWED_MODEL_IDS,
-  MAX_AWS_BEDROCK_ALLOWED_MODEL_IDS_LENGTH,
-  MAX_AWS_BEDROCK_MAX_TOKENS,
-  MAX_AWS_BEDROCK_MODEL_ID_LENGTH,
-  MAX_GEMINI_API_KEY_LENGTH,
-  MAX_GEMINI_MODEL_ID_LENGTH,
-  MAX_ITI_BEDROCK_API_KEY_LENGTH,
-  MAX_ITI_BEDROCK_BASE_URL_LENGTH,
-  MIN_AWS_BEDROCK_MAX_TOKENS,
-  isValidAwsBedrockModelId,
-  isValidGeminiModelId,
-  isValidItiBedrockApiKey,
-  parseAwsBedrockAllowedModelIds,
-  validateItiBedrockBaseUrl,
-} from '../completion/completion-configuration'
-import {
-  DEFAULT_COMPLETION_TIMEOUT_MS,
-  MAX_COMPLETION_TIMEOUT_MS,
-} from '../completion/validated-completion.provider'
-import {
   DEFAULT_EMBEDDING_DOCUMENT_TIMEOUT_MS,
   DEFAULT_EMBEDDING_QUERY_TIMEOUT_MS,
   DEFAULT_EMBEDDING_REQUEST_TIMEOUT_MS,
@@ -43,17 +17,17 @@ import {
 } from '../embedding/embedding-configuration'
 import { MAX_PDF_OBJECT_BYTES } from '../pdf-storage/pdf-storage'
 import {
-  DEFAULT_SOCRATIC_CHAT_REQUEST_TIMEOUT_MS,
-  MAX_SOCRATIC_CHAT_REQUEST_TIMEOUT_MS,
+  DEFAULT_TUTORING_REQUEST_TIMEOUT_MS,
+  MAX_TUTORING_REQUEST_TIMEOUT_MS,
 } from '../../common/http/request-deadline'
 import {
   DEFAULT_ANALYSIS_CONFIDENCE_THRESHOLD,
   isValidConfidenceThreshold,
-} from '../socratic-tutor/analysis-confidence-policy'
+} from '../tutoring/socratic-workflow/analysis-confidence-policy'
 import {
   DEFAULT_ANALYSIS_MODEL_MAX_RETRIES,
   MAX_ANALYSIS_MODEL_MAX_RETRIES,
-} from '../socratic-tutor/analysis-retry-policy'
+} from '../tutoring/socratic-workflow/analysis-retry-policy'
 import {
   DEFAULT_ANALYSIS_MODEL_BASE_URL,
   DEFAULT_ANALYSIS_MODEL_MAX_COMPLETION_TOKENS,
@@ -70,11 +44,11 @@ import {
   isValidAnalysisModelName,
   isValidOptionalAnalysisApiKey,
   normalizeOpenAICompatibleBaseUrl,
-} from '../socratic-tutor/analysis-model.configuration'
+} from '../tutoring/socratic-workflow/analysis-model.configuration'
 import {
   DEFAULT_TUTOR_MODEL_MAX_INFRASTRUCTURE_RETRIES,
   MAX_TUTOR_MODEL_MAX_INFRASTRUCTURE_RETRIES,
-} from '../socratic-tutor/tutor-infrastructure-retry.policy'
+} from '../tutoring/socratic-workflow/tutor-infrastructure-retry.policy'
 import {
   DEFAULT_TUTOR_MODEL_BASE_URL,
   DEFAULT_TUTOR_MODEL_MAX_COMPLETION_TOKENS,
@@ -90,7 +64,7 @@ import {
   OPENAI_COMPATIBLE_TUTOR_MODEL_PROVIDER,
   isValidOptionalTutorApiKey,
   isValidTutorModelName,
-} from '../socratic-tutor/tutor-model.configuration'
+} from '../tutoring/socratic-workflow/tutor-model.configuration'
 import {
   DEFAULT_SEMANTIC_GUARD_BASE_URL,
   DEFAULT_SEMANTIC_GUARD_MAX_COMPLETION_TOKENS,
@@ -106,7 +80,7 @@ import {
   OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER,
   isValidOptionalSemanticGuardApiKey,
   isValidSemanticGuardModelName,
-} from '../socratic-tutor/semantic-guard.configuration'
+} from '../tutoring/socratic-workflow/semantic-guard.configuration'
 
 // The one placeholder policy for every secret this schema accepts, so a fresh
 // checkout cannot boot with a publicly known value. It is exactly the prefix the
@@ -120,13 +94,6 @@ const GEMINI_EMBEDDING_QUOTA_KEYS = [
   'GEMINI_EMBEDDING_REQUESTS_PER_DAY',
   'GEMINI_EMBEDDING_LOCAL_REQUESTS_PER_HOUR',
   'GEMINI_EMBEDDING_LOCAL_REQUESTS_PER_30_DAYS',
-] as const
-const GEMINI_QUOTA_KEYS = [
-  'GEMINI_REQUESTS_PER_MINUTE',
-  'GEMINI_INPUT_TOKENS_PER_MINUTE',
-  'GEMINI_REQUESTS_PER_HOUR',
-  'GEMINI_REQUESTS_PER_DAY',
-  'GEMINI_REQUESTS_PER_MONTH',
 ] as const
 // `.env.example` ships these blank and Compose passes an unset variable through
 // as `${VAR:-}`, so a blank value must mean "not configured" rather than
@@ -161,12 +128,12 @@ export const envSchema = z
       .positive()
       .max(MAX_PDF_UPLOAD_BYTES)
       .default(DEFAULT_PDF_MAX_UPLOAD_BYTES),
-    SOCRATIC_CHAT_REQUEST_TIMEOUT_MS: z.coerce
+    TUTORING_REQUEST_TIMEOUT_MS: z.coerce
       .number()
       .int()
       .positive()
-      .max(MAX_SOCRATIC_CHAT_REQUEST_TIMEOUT_MS)
-      .default(DEFAULT_SOCRATIC_CHAT_REQUEST_TIMEOUT_MS),
+      .max(MAX_TUTORING_REQUEST_TIMEOUT_MS)
+      .default(DEFAULT_TUTORING_REQUEST_TIMEOUT_MS),
     // Only providers with a wired implementation are accepted so the factory
     // never has to reject a configured-but-unimplemented provider at runtime.
     // The deterministic default keeps CI and local work keyless and offline.
@@ -198,23 +165,6 @@ export const envSchema = z
       .positive()
       .max(MAX_EMBEDDING_REQUEST_TIMEOUT_MS)
       .default(DEFAULT_EMBEDDING_REQUEST_TIMEOUT_MS),
-    // Deterministic remains the committed keyless/offline default. `aws-bedrock`
-    // is the explicitly selected live path and always goes through ITI's
-    // gateway; `gemini` is barred from production and additionally requires the
-    // explicit `GEMINI_DEMO_ACKNOWLEDGED` opt-in below.
-    COMPLETION_PROVIDER: z
-      .enum([
-        DETERMINISTIC_COMPLETION_PROVIDER,
-        AWS_BEDROCK_COMPLETION_PROVIDER,
-        GEMINI_COMPLETION_PROVIDER,
-      ])
-      .default(DETERMINISTIC_COMPLETION_PROVIDER),
-    COMPLETION_TIMEOUT_MS: z.coerce
-      .number()
-      .int()
-      .positive()
-      .max(MAX_COMPLETION_TIMEOUT_MS)
-      .default(DEFAULT_COMPLETION_TIMEOUT_MS),
     ANALYSIS_MODEL_PROVIDER: z
       .enum([
         DETERMINISTIC_ANALYSIS_MODEL_PROVIDER,
@@ -354,44 +304,9 @@ export const envSchema = z
       .min(MIN_SEMANTIC_GUARD_MAX_COMPLETION_TOKENS)
       .max(MAX_SEMANTIC_GUARD_MAX_COMPLETION_TOKENS)
       .default(DEFAULT_SEMANTIC_GUARD_MAX_COMPLETION_TOKENS),
-    GEMINI_API_KEY: z
-      .string()
-      .trim()
-      .min(20)
-      .max(MAX_GEMINI_API_KEY_LENGTH)
-      .optional(),
-    // Parsed through the completion module's shared predicate rather than a
-    // second copy of the pattern, so startup and the adapter's runtime check
-    // cannot drift apart.
-    GEMINI_MODEL: z
-      .string()
-      .trim()
-      .max(MAX_GEMINI_MODEL_ID_LENGTH)
-      .refine(isValidGeminiModelId, 'must be a valid Gemini model ID')
-      .default(DEFAULT_GEMINI_MODEL),
-    // An operator acknowledgement, not a feature flag: the Gemini free tier
-    // lets Google use submitted inputs and outputs to improve its products
-    // (docs/research/gemini-free-tier-quotas-2026-07-23.md), so selecting the
-    // provider must always be a deliberate act. Accepts blank as false for the
-    // same reason as the gateway flags: Compose passes unset values through as
-    // `${VAR:-}`.
-    GEMINI_DEMO_ACKNOWLEDGED: z
-      .union([z.boolean(), z.enum(['true', 'false', ''])])
-      .default(false)
-      .transform((value) => value === true || value === 'true'),
-    GEMINI_REQUESTS_PER_MINUTE: z.coerce.number().int().positive().optional(),
-    GEMINI_INPUT_TOKENS_PER_MINUTE: z.coerce
-      .number()
-      .int()
-      .positive()
-      .optional(),
-    GEMINI_REQUESTS_PER_HOUR: z.coerce.number().int().positive().optional(),
-    GEMINI_REQUESTS_PER_DAY: z.coerce.number().int().positive().optional(),
-    GEMINI_REQUESTS_PER_MONTH: z.coerce.number().int().positive().optional(),
-    // A dedicated key under a SEPARATE Google Cloud project, never the
-    // completion key. Gemini rate limits are per project, so a shared key would
-    // let one PDF ingest starve student chat. No GEMINI_EMBEDDING_MODEL: the
-    // model is part of the persisted document profile and is pinned in code.
+    // A dedicated key under a separate Google Cloud project. Gemini rate limits
+    // are per project, so a shared key would let one PDF ingest starve student
+    // chat. The embedding model is part of the persisted document profile.
     GEMINI_EMBEDDING_API_KEY: z.preprocess(
       blankAsUndefined,
       z
@@ -439,40 +354,6 @@ export const envSchema = z
       blankAsUndefined,
       z.coerce.number().int().positive().optional(),
     ),
-    ITI_BEDROCK_GATEWAY_BASE_URL: z
-      .url()
-      .max(MAX_ITI_BEDROCK_BASE_URL_LENGTH)
-      .default(DEFAULT_ITI_BEDROCK_GATEWAY_BASE_URL),
-    ITI_BEDROCK_GATEWAY_API_KEY: z
-      .string()
-      .max(MAX_ITI_BEDROCK_API_KEY_LENGTH)
-      .optional(),
-    // The sibling gateway keys ship blank in `.env.example` and compose passes
-    // them through as `${VAR:-}`, so a blank value must mean "off" rather than
-    // a boot failure.
-    ITI_BEDROCK_ALLOW_INSECURE_HTTP: z
-      .union([z.boolean(), z.enum(['true', 'false', ''])])
-      .default(false)
-      .transform((value) => value === true || value === 'true'),
-    AWS_BEDROCK_MODEL_ID: z
-      .string()
-      .max(MAX_AWS_BEDROCK_MODEL_ID_LENGTH)
-      .refine(
-        (value) => value === '' || isValidAwsBedrockModelId(value),
-        'must be empty or a valid model ID',
-      )
-      .default(''),
-    AWS_BEDROCK_ALLOWED_MODEL_IDS: z
-      .string()
-      .max(MAX_AWS_BEDROCK_ALLOWED_MODEL_IDS_LENGTH)
-      .default('')
-      .transform((value, ctx) => parseAllowedModelIds(value, ctx)),
-    AWS_BEDROCK_MAX_TOKENS: z.coerce
-      .number()
-      .int()
-      .min(MIN_AWS_BEDROCK_MAX_TOKENS)
-      .max(MAX_AWS_BEDROCK_MAX_TOKENS)
-      .default(DEFAULT_AWS_BEDROCK_MAX_TOKENS),
     // Retrieval knobs are validated configuration, never caller input: the
     // repository/service signatures expose no limit or threshold parameters.
     // Calibrated against the Python MVP corpus after the retrieval-threshold
@@ -510,66 +391,6 @@ export const envSchema = z
         message:
           'must differ from AUTH_ACCESS_TOKEN_SECRET so the access and refresh secrets are independent',
       })
-    }
-
-    if (env.COMPLETION_PROVIDER === AWS_BEDROCK_COMPLETION_PROVIDER) {
-      // Gated with every other gateway rule: a keyless offline deployment must
-      // not be blocked from booting by a stale value it never reads.
-      try {
-        validateItiBedrockBaseUrl(
-          env.ITI_BEDROCK_GATEWAY_BASE_URL,
-          env.NODE_ENV,
-          env.ITI_BEDROCK_ALLOW_INSECURE_HTTP,
-        )
-      } catch {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['ITI_BEDROCK_GATEWAY_BASE_URL'],
-          message:
-            'must use HTTPS to a public host without credentials, query, or fragment; HTTP is limited to the explicitly enabled ITI development endpoint',
-        })
-      }
-
-      if (!isValidItiBedrockApiKey(env.ITI_BEDROCK_GATEWAY_API_KEY)) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['ITI_BEDROCK_GATEWAY_API_KEY'],
-          message:
-            'is required for aws-bedrock and must contain only printable ASCII characters, without whitespace',
-        })
-      } else if (isPlaceholderSecret(env.ITI_BEDROCK_GATEWAY_API_KEY)) {
-        // Same policy as the auth secrets and the Gemini key: no committed
-        // example value may be what a live deployment authenticates with.
-        ctx.addIssue({
-          code: 'custom',
-          path: ['ITI_BEDROCK_GATEWAY_API_KEY'],
-          message: 'must not use the placeholder gateway key',
-        })
-      }
-
-      if (env.AWS_BEDROCK_MODEL_ID === '') {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['AWS_BEDROCK_MODEL_ID'],
-          message: 'must be an explicit valid model ID for aws-bedrock',
-        })
-      }
-
-      if (env.AWS_BEDROCK_ALLOWED_MODEL_IDS.length === 0) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['AWS_BEDROCK_ALLOWED_MODEL_IDS'],
-          message: 'must contain at least one model ID for aws-bedrock',
-        })
-      } else if (
-        !env.AWS_BEDROCK_ALLOWED_MODEL_IDS.includes(env.AWS_BEDROCK_MODEL_ID)
-      ) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['AWS_BEDROCK_MODEL_ID'],
-          message: 'must be present in AWS_BEDROCK_ALLOWED_MODEL_IDS',
-        })
-      }
     }
 
     if (
@@ -734,8 +555,8 @@ export const envSchema = z
       })
     }
 
-    // Gated exactly like the completion providers: selecting one live provider
-    // must never demand another's configuration.
+    // Selecting one live provider must never demand another provider's
+    // configuration.
     if (env.EMBEDDING_PROVIDER === GEMINI_EMBEDDING_PROVIDER) {
       // Morshid's free-tier data-governance policy, not an API constraint: the
       // Gemini free tier lets Google use submitted inputs to improve its
@@ -771,17 +592,6 @@ export const envSchema = z
           code: 'custom',
           path: ['GEMINI_EMBEDDING_API_KEY'],
           message: 'must be a non-placeholder authorization key',
-        })
-      } else if (env.GEMINI_EMBEDDING_API_KEY === env.GEMINI_API_KEY) {
-        // Distinctness only. No local check can prove the two keys belong to
-        // separate Google projects, which is the property that actually keeps a
-        // PDF ingest from starving student chat — this rejects the one case
-        // that is provably wrong.
-        ctx.addIssue({
-          code: 'custom',
-          path: ['GEMINI_EMBEDDING_API_KEY'],
-          message:
-            'must differ from GEMINI_API_KEY; embedding requires its own key under a separate Google Cloud project, because Gemini rate limits are per project',
         })
       }
 
@@ -838,83 +648,6 @@ export const envSchema = z
           'must be an absolute path in production so PDFs do not depend on the process working directory',
       })
     }
-
-    // Gated exactly like the gateway rules above: selecting one live provider
-    // must never demand the other provider's configuration.
-    if (env.COMPLETION_PROVIDER === GEMINI_COMPLETION_PROVIDER) {
-      // The load-bearing rule, and the only one keyed on the environment: the
-      // free tier lets Google use submitted inputs and outputs to improve its
-      // products, so gemini must never serve real users. It is deliberately NOT
-      // expressed as "development only" — that would force `NODE_ENV` away from
-      // `production` for its side effects (a non-`Secure` refresh cookie,
-      // unauthenticated Swagger, a relative PDF root) and would break every
-      // AppModule-booting e2e spec, which runs under `NODE_ENV=test`.
-      if (env.NODE_ENV === 'production') {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['COMPLETION_PROVIDER'],
-          message:
-            'gemini must not serve production traffic: free-tier inputs and outputs may be used to improve Google products',
-        })
-      }
-
-      // Deliberateness is carried by an explicit acknowledgement instead, so
-      // gemini can never be reached by inheriting an ambient environment value.
-      if (!env.GEMINI_DEMO_ACKNOWLEDGED) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['GEMINI_DEMO_ACKNOWLEDGED'],
-          message:
-            'must be true to select gemini, acknowledging that free-tier inputs and outputs may be used to improve Google products and that only synthetic, permission-safe data may be sent',
-        })
-      }
-
-      if (env.GEMINI_API_KEY === undefined) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['GEMINI_API_KEY'],
-          message: 'is required when COMPLETION_PROVIDER is gemini',
-        })
-      } else if (isPlaceholderSecret(env.GEMINI_API_KEY)) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['GEMINI_API_KEY'],
-          message: 'must be a non-placeholder authorization key',
-        })
-      }
-
-      for (const key of GEMINI_QUOTA_KEYS) {
-        if (env[key] === undefined) {
-          ctx.addIssue({
-            code: 'custom',
-            path: [key],
-            message: 'is required when COMPLETION_PROVIDER is gemini',
-          })
-        }
-      }
-
-      const requestsPerMinute = env.GEMINI_REQUESTS_PER_MINUTE
-      const requestsPerHour = env.GEMINI_REQUESTS_PER_HOUR
-      const requestsPerDay = env.GEMINI_REQUESTS_PER_DAY
-      const requestsPerMonth = env.GEMINI_REQUESTS_PER_MONTH
-      if (
-        requestsPerMinute !== undefined &&
-        requestsPerHour !== undefined &&
-        requestsPerDay !== undefined &&
-        requestsPerMonth !== undefined &&
-        !(
-          requestsPerMinute <= requestsPerHour &&
-          requestsPerHour <= requestsPerDay &&
-          requestsPerDay <= requestsPerMonth
-        )
-      ) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['GEMINI_REQUESTS_PER_MONTH'],
-          message: 'request caps must satisfy minute <= hour <= day <= month',
-        })
-      }
-    }
   })
 
 export type AppEnvironment = z.infer<typeof envSchema>
@@ -923,37 +656,6 @@ export type AppEnvironment = z.infer<typeof envSchema>
 // recognized as the placeholder it is.
 function isPlaceholderSecret(value: string): boolean {
   return value.toLowerCase().startsWith(SECRET_PLACEHOLDER_PREFIX)
-}
-
-const ALLOWED_MODEL_IDS_REJECTION_MESSAGES = {
-  'invalid-model-id': 'must be a comma-separated list of valid model IDs',
-  'duplicate-model-id': 'must not contain duplicate model IDs',
-  'too-many-model-ids': `must contain at most ${String(MAX_AWS_BEDROCK_ALLOWED_MODEL_IDS)} model IDs`,
-} as const
-
-// The environment carries the allow-list as one comma-separated string; the
-// entries themselves are validated by the completion module, which owns this
-// vocabulary for both startup and runtime.
-function parseAllowedModelIds(
-  value: string,
-  ctx: z.RefinementCtx,
-): readonly string[] {
-  if (value === '') {
-    return Object.freeze([])
-  }
-
-  const result = parseAwsBedrockAllowedModelIds(
-    value.split(',').map((modelId) => modelId.trim()),
-  )
-  if (!result.ok) {
-    ctx.addIssue({
-      code: 'custom',
-      message: ALLOWED_MODEL_IDS_REJECTION_MESSAGES[result.rejection],
-    })
-    return z.NEVER
-  }
-
-  return result.modelIds
 }
 
 export function formatEnvIssues(error: z.ZodError) {

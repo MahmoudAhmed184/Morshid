@@ -4,7 +4,6 @@ import {
   MessageRequestKind,
   MessageRole,
   MessageStatus,
-  Prisma,
 } from '../../generated/prisma/client'
 import {
   lockAuthorizedStudentChat,
@@ -19,23 +18,23 @@ import {
   type AdmitConversationTurnInput,
   type AdmittedTurn,
   type ConversationMessage,
+  type ConversationMessageLookup,
   type FinalizeConversationMessageInput,
   type FinalizedMessage,
 } from './conversation-turns'
-
-const messageSelect = {
-  id: true,
-  sessionId: true,
-  attemptId: true,
-  sequence: true,
-  role: true,
-  status: true,
-  content: true,
-  completedAt: true,
-} satisfies Prisma.MessageSelect
+import { PrismaService } from '../prisma/prisma.service'
+import {
+  chatMessageScalarSelect,
+  chatMessageSelect,
+  chatMessageSelectForStudent,
+} from './conversation-repository.support'
 
 @Injectable()
 export class PrismaConversationTurns extends ConversationTurns {
+  constructor(private readonly prismaService: PrismaService) {
+    super()
+  }
+
   async admit(
     input: AdmitConversationTurnInput,
     transaction: DatabaseTransaction,
@@ -58,6 +57,52 @@ export class PrismaConversationTurns extends ConversationTurns {
       return { kind: 'turn_in_progress' }
     }
 
+    if (input.kind === 'retry') {
+      await tx.messageRetrieval.deleteMany({
+        where: { messageId: input.assistantMessageId },
+      })
+      await tx.messageCitation.deleteMany({
+        where: { messageId: input.assistantMessageId },
+      })
+      await tx.message.update({
+        where: { id: input.studentMessageId },
+        data: { attemptId: input.attemptId },
+      })
+      const assistantMessage = await tx.message.update({
+        where: {
+          id: input.assistantMessageId,
+          sessionId: input.sessionId,
+          role: MessageRole.ASSISTANT,
+          responseToMessageId: input.studentMessageId,
+        },
+        data: {
+          status: MessageStatus.PENDING,
+          content: '',
+          guidanceLabel: null,
+          provider: null,
+          model: null,
+          promptVersion: null,
+          inputTokens: null,
+          outputTokens: null,
+          errorCode: null,
+          errorMessage: null,
+          attemptId: input.attemptId,
+          completedAt: null,
+        },
+        select: chatMessageSelect,
+      })
+      const studentMessage = await tx.message.findUniqueOrThrow({
+        where: { id: input.studentMessageId },
+        select: chatMessageSelect,
+      })
+
+      return {
+        kind: 'admitted',
+        studentMessage,
+        assistantMessage,
+      }
+    }
+
     const studentSequence = authorization.session.lastSequence + 1
     const assistantSequence = studentSequence + 1
     const studentMessage = await tx.message.create({
@@ -76,7 +121,7 @@ export class PrismaConversationTurns extends ConversationTurns {
         createdAt: input.now,
         completedAt: input.now,
       },
-      select: messageSelect,
+      select: chatMessageSelect,
     })
     const assistantMessage = await tx.message.create({
       data: {
@@ -95,7 +140,7 @@ export class PrismaConversationTurns extends ConversationTurns {
         createdAt: input.now,
         completedAt: null,
       },
-      select: messageSelect,
+      select: chatMessageSelect,
     })
     await tx.chatSession.update({
       where: { id: input.sessionId },
@@ -107,8 +152,8 @@ export class PrismaConversationTurns extends ConversationTurns {
 
     return {
       kind: 'admitted',
-      studentMessage: toConversationMessage(studentMessage),
-      assistantMessage: toConversationMessage(assistantMessage),
+      studentMessage,
+      assistantMessage,
     }
   }
 
@@ -156,11 +201,11 @@ export class PrismaConversationTurns extends ConversationTurns {
         topicId: input.topicId === undefined ? undefined : input.topicId,
         completedAt: input.completedAt,
       },
-      select: messageSelect,
+      select: chatMessageScalarSelect,
       limit: 1,
     })
-    const message = updated.at(0)
-    if (message === undefined) {
+    const updatedMessage = updated.at(0)
+    if (updatedMessage === undefined) {
       const existing = await tx.message.findUnique({
         where: { id: input.assistantMessageId },
         select: { id: true, status: true },
@@ -177,31 +222,43 @@ export class PrismaConversationTurns extends ConversationTurns {
       })
     }
 
-    return { kind: 'finalized', message: toConversationMessage(message) }
+    const message = await tx.message.findUnique({
+      where: { id: updatedMessage.id },
+      select: chatMessageSelect,
+    })
+    if (message === null) {
+      return { kind: 'message_not_found' }
+    }
+
+    return { kind: 'finalized', message }
   }
-}
 
-function toConversationMessage(
-  message: Prisma.MessageGetPayload<{ select: typeof messageSelect }>,
-): ConversationMessage {
-  const role =
-    message.role === MessageRole.STUDENT ||
-    message.role === MessageRole.ASSISTANT
-      ? message.role
-      : (() => {
-          throw new Error(
-            `Unsupported conversation message role: ${message.role}`,
-          )
-        })()
+  async find(
+    input: ConversationMessageLookup & { readonly studentId?: string },
+    transaction?: DatabaseTransaction,
+  ): Promise<ConversationMessage | null> {
+    const database =
+      transaction === undefined
+        ? this.prismaService
+        : asPrismaTransaction(transaction)
+    const { studentId, statuses, excludeId, ...lookup } = input
 
-  return {
-    id: message.id,
-    sessionId: message.sessionId,
-    attemptId: message.attemptId,
-    sequence: message.sequence,
-    role,
-    status: message.status,
-    content: message.content,
-    completedAt: message.completedAt,
+    const where = {
+      ...lookup,
+      ...(statuses === undefined ? {} : { status: { in: [...statuses] } }),
+      ...(excludeId === undefined ? {} : { id: { not: excludeId } }),
+    }
+    const message =
+      studentId === undefined
+        ? await database.message.findFirst({
+            where,
+            select: chatMessageSelect,
+          })
+        : await database.message.findFirst({
+            where,
+            select: chatMessageSelectForStudent(studentId),
+          })
+
+    return message
   }
 }

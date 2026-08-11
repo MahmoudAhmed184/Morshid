@@ -216,7 +216,7 @@ describe('Student session API', () => {
     ).resolves.toEqual(chatMessageHistoryResponseFixture)
   })
 
-  it('sends only validated message content to the grounded-chat endpoint', async () => {
+  it('sends only validated message content to the tutoring endpoint', async () => {
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         expect(String(input)).toBe(

@@ -8,18 +8,11 @@ import { Test, type TestingModule } from '@nestjs/testing'
 import request from 'supertest'
 import type { App } from 'supertest/types'
 
-import { restoreGate2RetrievalEnvironment } from './support/gate-2-retrieval-environment'
+import { restoreGate2CourseEvidenceEnvironment } from './support/gate-2-course-evidence-environment'
 import { configureApp } from '../src/app.setup'
 import { AppModule } from '../src/app.module'
 import { AUDIT_EVENT_ACTIONS } from '../src/modules/audit/audit.constants'
 import type { IdentitySessionResponse } from '../src/modules/identity/identity.types'
-import { createCompletionProvider } from '../src/modules/completion/completion-provider.factory'
-import {
-  COMPLETION_PROVIDER_TOKEN,
-  type CompletionProvider,
-  type CompletionRequest,
-  type CompletionResult,
-} from '../src/modules/completion/completion-provider'
 import {
   EMBEDDING_DIMENSIONS,
   EMBEDDING_PROVIDER_TOKEN,
@@ -39,18 +32,18 @@ import {
   type TutorModelPort,
   type TutorModelRequest,
   type TutorModelResponse,
-} from '../src/modules/socratic-tutor/tutor-generation.types'
-import { SEMANTIC_GUARD_PORT } from '../src/modules/socratic-tutor/semantic-guard.types'
+} from '../src/modules/tutoring/socratic-workflow/tutor-generation.types'
+import { SEMANTIC_GUARD_PORT } from '../src/modules/tutoring/socratic-workflow/semantic-guard.types'
 import {
   CourseEvidence,
   type CourseEvidenceResult,
 } from '../src/modules/materials/course-evidence'
-import { GROUNDING_BLOCKED_CONTENT } from '../src/modules/student-chat/grounded-chat.service'
+import { GROUNDING_BLOCKED_CONTENT } from '../src/modules/tutoring/tutoring-runtime.application'
 import type {
   ChatMessageHistoryResponseDto,
   ChatSessionResponseDto,
-  GroundedChatTurnResponseDto,
-} from '../src/modules/student-chat/student-chat.dto'
+  TutoringTurnResponseDto,
+} from '../src/modules/conversations/conversations.dto'
 import {
   P0_DEMO_PASSWORD,
   seedP0DemoData,
@@ -79,24 +72,9 @@ import {
 
 const GATE_2_TIMEOUT_MS = 10_000
 
-restoreGate2RetrievalEnvironment()
+restoreGate2CourseEvidenceEnvironment()
 
 jest.setTimeout(30_000)
-
-class CapturingCompletionProvider implements CompletionProvider {
-  readonly requests: CompletionRequest[] = []
-
-  constructor(private readonly delegate: CompletionProvider) {}
-
-  complete(input: CompletionRequest): Promise<CompletionResult> {
-    this.requests.push(input)
-    return this.delegate.complete(input)
-  }
-
-  clear(): void {
-    this.requests.length = 0
-  }
-}
 
 class CapturingTutorModelPort implements TutorModelPort {
   readonly requests: TutorModelRequest[] = []
@@ -142,7 +120,6 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
   let embeddingProvider: EmbeddingProvider
   let processingService: MaterialProcessingService
   let processingScheduler: CapturingProcessingScheduler
-  let completionProvider: CapturingCompletionProvider
   let tutorModel: CapturingTutorModelPort
 
   beforeAll(async () => {
@@ -151,12 +128,6 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
     seed = await seedP0DemoData(prisma)
     storageRoot = await mkdtemp(join(tmpdir(), 'morshid-gate-2-'))
     storage = new LocalPdfStorageAdapter(storageRoot)
-    completionProvider = new CapturingCompletionProvider(
-      createCompletionProvider({
-        provider: 'deterministic',
-        timeoutMs: 30_000,
-      }),
-    )
     tutorModel = new CapturingTutorModelPort(new ControllableTutorModelPort())
     processingScheduler = new CapturingProcessingScheduler(prisma)
 
@@ -175,8 +146,6 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
           new Gate2DeterministicEmbeddingProvider(),
         ),
       )
-      .overrideProvider(COMPLETION_PROVIDER_TOKEN)
-      .useValue(completionProvider)
       .overrideProvider(TUTOR_MODEL_PORT)
       .useValue(tutorModel)
       .overrideProvider(SEMANTIC_GUARD_PORT)
@@ -209,7 +178,6 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
   })
 
   beforeEach(() => {
-    completionProvider.clear()
     tutorModel.clear()
   })
 
@@ -443,7 +411,7 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
       () => createGate2Session('Gate 2 conceptual question', studentToken),
     )
     const turn = await gate2Stage(
-      'retrieve, complete, persist, and cite the locked question',
+      'retrieve, generate, persist, and cite the locked question',
       () => sendGate2Message(sessionId, GATE_2_FIXTURE.question, studentToken),
     )
     const expectedAssistantContent = expectedGate2AssistantContent()
@@ -479,7 +447,6 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
     await gate2Stage(
       'prove hidden content never reaches provider, persistence, or response',
       async () => {
-        expect(completionProvider.requests).toHaveLength(0)
         expect(tutorModel.requests).toHaveLength(1)
         const providerInput = tutorModel.requests[0]
         expect(providerInput).toMatchObject({
@@ -584,7 +551,7 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
     )
   })
 
-  it('blocks insufficient evidence without an ungrounded completion call', async () => {
+  it('blocks insufficient evidence before model generation', async () => {
     await gate2Stage(
       'insufficient evidence: install an eligible below-threshold row',
       async () => {
@@ -620,7 +587,7 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
       () => createGate2Session('Gate 2 insufficient evidence', studentToken),
     )
     const turn = await gate2Stage(
-      'insufficient evidence: enforce threshold before completion',
+      'insufficient evidence: enforce threshold before model generation',
       () =>
         sendGate2Message(
           sessionId,
@@ -632,7 +599,7 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
     await gate2Stage(
       'insufficient evidence: verify blocked response and empty evidence sinks',
       async () => {
-        expect(completionProvider.requests).toHaveLength(0)
+        expect(tutorModel.requests).toHaveLength(0)
         expect(turn.assistantMessage).toMatchObject({
           status: 'BLOCKED',
           guidanceLabel: 'GENERAL_NOT_FOUND',
@@ -688,14 +655,14 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
     sessionId: string,
     content: string,
     token: string,
-  ): Promise<GroundedChatTurnResponseDto> {
+  ): Promise<TutoringTurnResponseDto> {
     const response = await request(requireApp().getHttpServer())
       .post(messagesPath(sessionId))
       .set('Authorization', `Bearer ${token}`)
       .send({ content })
       .expect(201)
 
-    return response.body as GroundedChatTurnResponseDto
+    return response.body as TutoringTurnResponseDto
   }
 
   function messagesPath(sessionId: string): string {

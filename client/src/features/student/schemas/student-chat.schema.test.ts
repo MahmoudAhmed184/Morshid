@@ -328,7 +328,7 @@ describe('Student chat contract schemas', () => {
     ).toThrow()
   })
 
-  it('accepts only trimmed grounded-chat content within 4,000 Unicode code points', () => {
+  it('accepts only trimmed tutoring content within 4,000 Unicode code points', () => {
     expect(
       sendStudentChatMessageRequestSchema.parse({
         clientMessageId: studentChatIds.studentMessage,

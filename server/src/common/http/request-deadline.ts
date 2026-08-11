@@ -1,5 +1,5 @@
-export const DEFAULT_SOCRATIC_CHAT_REQUEST_TIMEOUT_MS = 120_000
-export const MAX_SOCRATIC_CHAT_REQUEST_TIMEOUT_MS = 300_000
+export const DEFAULT_TUTORING_REQUEST_TIMEOUT_MS = 120_000
+export const MAX_TUTORING_REQUEST_TIMEOUT_MS = 300_000
 export const MIN_REQUEST_BUDGET_TO_START_WORK_MS = 100
 
 export interface RequestBudgetOptions {
@@ -40,7 +40,7 @@ export function createRequestBudget(
   if (
     !Number.isSafeInteger(timeoutMs) ||
     timeoutMs < 1 ||
-    timeoutMs > MAX_SOCRATIC_CHAT_REQUEST_TIMEOUT_MS
+    timeoutMs > MAX_TUTORING_REQUEST_TIMEOUT_MS
   ) {
     throw new TypeError('Invalid request timeout')
   }

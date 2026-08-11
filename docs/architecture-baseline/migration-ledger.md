@@ -830,3 +830,25 @@ the canonical repository check before the handoff commit.
 - Next safe task: Milestone 6E — direct-cutover deletion and relocation of all
   competing tutoring, Completion, OutputPolicy, Python runtime, and obsolete
   execution paths, with the final one-runtime/one-workflow architecture rules.
+
+## Milestone 6E migration inventory
+
+Starting SHA: `1eec00d` (`1eec00d` is expanded in the per-task handoff after
+the slice is committed).
+
+Milestone 6E is the final backend tutoring direct cutover. It removes the
+legacy module names and paths, moves retained workflow behavior under Tutoring,
+and leaves one exported runtime with one Socratic workflow. The slice is
+schema-neutral: it changes ownership and names only, so the rolling initial
+migration and seed remain unchanged.
+
+| Area | Files/paths to add, move, change, or delete | Disposition and invariants |
+| --- | --- | --- |
+| Tutoring runtime | `student-chat/grounded-chat.service.ts`, `student-chat/grounded-chat-turn.repository.ts`, `student-chat/socratic-chat.orchestrator.ts`, `tutoring/**`, their specs and callers | Move the application runtime, attempt persistence, and private workflow under Tutoring; rename domain types directly; expose only `TutoringRuntime.run`. No GroundedChatService or SocraticChatOrchestrator remains. |
+| Socratic workflow | `socratic-tutor/**` and module wiring | Move retained analysis, teaching, generation, validation, fallback, topic, and turn behavior into `tutoring/socratic-workflow/**`; fold module composition into Tutoring; delete the SocraticTutor module/path and surplus exports. |
+| Response governance | `output-policy/**`, private runtime imports, governance specs | Move safety/conflict detection, request intent, decision contract, and replacement policy into `tutoring/response-governance/**`; keep one private governance path and no public OutputPolicy module or adapter. |
+| Legacy completion | `completion/**`, configuration/schema references, completion-only tests and fixtures | Delete the unused CompletionProvider/CompletionModule implementation and direct callers. Retain only the already-authoritative private TutorModel path and consumer-neutral transport code needed by the current workflow. |
+| Python diagnosis | `tutor/**`, diagnosis-only runtime/configuration/scripts/fixtures | Preserve generic debugging guidance, trace-action, and no-execution contracts in the moved workflow; delete Python-only boundary/strategy/retrieval framework and obsolete Python runtime paths. |
+| Student chat composition | `student-chat.module.ts`, controller/service/repository/presenter imports, direct test constructors | Keep Conversations session/transcript application behavior in Student Chat while Tutoring owns new-turn/retry execution; update all callers directly with no aliases. |
+| Architecture enforcement | dependency-cruiser rules and current imports | Enable final Conversations/Tutoring ownership rules once the moved graph is green; prove deleted module names and imports are absent by repository search. |
+| Documentation and handoff | this ledger, applicable ADRs, current architecture notes | Record final ownership, deleted paths, exact searches, focused gates, schema neutrality, and next Milestone 7 task. |

@@ -1,0 +1,134 @@
+import type { Prisma } from '../../generated/prisma/client'
+import { CourseMembershipRole } from '../../generated/prisma/client'
+
+export const chatSessionSelect = {
+  id: true,
+  courseId: true,
+  title: true,
+  lastSequence: true,
+  lastMessageAt: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.ChatSessionSelect
+
+export const chatMessageScalarSelect = {
+  id: true,
+  sequence: true,
+  role: true,
+  attemptId: true,
+  topicId: true,
+  authorUserId: true,
+  responseToMessageId: true,
+  content: true,
+  status: true,
+  requestKind: true,
+  guidanceLabel: true,
+  hintLevel: true,
+  promptVersion: true,
+  errorCode: true,
+  createdAt: true,
+  completedAt: true,
+} satisfies Prisma.MessageSelect
+
+export const chatMessageSelect = {
+  ...chatMessageScalarSelect,
+  citations: {
+    select: {
+      citationOrder: true,
+      material: {
+        select: {
+          id: true,
+          title: true,
+          storagePath: true,
+          status: true,
+          deletedAt: true,
+          extractedTextLength: true,
+          chunkCount: true,
+        },
+      },
+    },
+    orderBy: {
+      citationOrder: 'asc',
+    },
+  },
+  retrievals: {
+    select: {
+      rank: true,
+      similarityScore: true,
+      chunk: {
+        select: {
+          id: true,
+          materialId: true,
+          chunkIndex: true,
+          content: true,
+          embeddingModel: true,
+        },
+      },
+    },
+    orderBy: {
+      rank: 'asc',
+    },
+  },
+} satisfies Prisma.MessageSelect
+
+export function chatMessageSelectForStudent(studentId: string) {
+  return {
+    ...chatMessageSelect,
+    reviewCase: {
+      select: {
+        id: true,
+        status: true,
+        outcome: true,
+        resolvedAt: true,
+        triggers: {
+          where: {
+            OR: [
+              { type: { not: 'STUDENT_REQUEST' as const } },
+              { type: 'STUDENT_REQUEST' as const, actorUserId: studentId },
+            ],
+          },
+          select: { id: true },
+        },
+      },
+    },
+  } satisfies Prisma.MessageSelect
+}
+
+export function ownedActiveSessionWhere(
+  courseId: string,
+  sessionId: string,
+  studentId: string,
+): Prisma.ChatSessionWhereInput {
+  return {
+    id: sessionId,
+    courseId,
+    studentId,
+    deletedAt: null,
+    membership: {
+      is: {
+        role: CourseMembershipRole.STUDENT,
+        removedAt: null,
+      },
+    },
+  }
+}
+
+export function hasActiveStudentMembershipInTransaction(
+  database: Pick<Prisma.TransactionClient, 'courseMembership'>,
+  courseId: string,
+  studentId: string,
+): Promise<boolean> {
+  return database.courseMembership
+    .findFirst({
+      where: {
+        courseId,
+        userId: studentId,
+        role: CourseMembershipRole.STUDENT,
+        removedAt: null,
+      },
+      select: {
+        id: true,
+      },
+    })
+    .then((membership) => membership !== null)
+}
