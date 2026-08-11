@@ -1,18 +1,12 @@
 import { ArrowUp, CircleAlert } from 'lucide-react'
-import {
-  forwardRef,
-  useEffect,
-  useImperativeHandle,
-  useRef,
-  useState,
-} from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, KeyboardEvent } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import {
-  isStudentChatApiError,
-  STUDENT_CHAT_ERROR_CODES,
+  isChatApiError,
+  CHAT_ERROR_CODES,
 } from '@/features/chat/messages/chat.errors'
 import {
   sendChatMessageRequestSchema,
@@ -21,7 +15,7 @@ import {
 
 const maximumMessageCodePoints = 4_000
 
-export interface StudentChatComposerHandle {
+export interface StudentChatComposerActions {
   prefill: (text: string) => void
   submitWith: (text: string, clientMessageId: string) => void
   focus: () => void
@@ -32,15 +26,16 @@ interface StudentChatComposerProps {
   sendError: unknown
   onDismissError: () => void
   onSend: (content: string, clientMessageId: string) => Promise<boolean>
+  onActionsReady: (actions: StudentChatComposerActions | null) => void
 }
 
-export const StudentChatComposer = forwardRef<
-  StudentChatComposerHandle,
-  StudentChatComposerProps
->(function StudentChatComposerImpl(
-  { isGenerating, sendError, onDismissError, onSend },
-  ref,
-) {
+export function StudentChatComposer({
+  isGenerating,
+  sendError,
+  onDismissError,
+  onSend,
+  onActionsReady,
+}: StudentChatComposerProps) {
   const [draft, setDraft] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
@@ -50,27 +45,33 @@ export const StudentChatComposer = forwardRef<
   const canSend =
     !isGenerating && chatMessageContentSchema.safeParse(draft).success
 
-  useImperativeHandle(ref, () => ({
-    prefill: (text: string) => {
-      setDraft(limitMessageDraft(text))
-      clientMessageIdRef.current = null
-      textareaRef.current?.focus()
-    },
-    // T15.2 — hand the draft's first message to the freshly-created session so
-    // the send runs through the normal composer submit path (optimistic append,
-    // and, on failure, the message stays in this composer with the same
-    // clientMessageId ready to retry).
-    submitWith: (text: string, clientMessageId: string) => {
-      setDraft(limitMessageDraft(text))
-      clientMessageIdRef.current = clientMessageId
-      autoSubmitRef.current = true
-    },
-    // T15.7 — the sidebar's New chat / collapsed `+` focus the draft composer
-    // through the chrome context after entering the draft state.
-    focus: () => {
-      textareaRef.current?.focus()
-    },
-  }))
+  useEffect(() => {
+    onActionsReady({
+      prefill: (text: string) => {
+        setDraft(limitMessageDraft(text))
+        clientMessageIdRef.current = null
+        textareaRef.current?.focus()
+      },
+      // T15.2 — hand the draft's first message to the freshly-created session so
+      // the send runs through the normal composer submit path (optimistic append,
+      // and, on failure, the message stays in this composer with the same
+      // clientMessageId ready to retry).
+      submitWith: (text: string, clientMessageId: string) => {
+        setDraft(limitMessageDraft(text))
+        clientMessageIdRef.current = clientMessageId
+        autoSubmitRef.current = true
+      },
+      // T15.7 — the sidebar's New chat / collapsed `+` focus the draft composer
+      // through the chrome context after entering the draft state.
+      focus: () => {
+        textareaRef.current?.focus()
+      },
+    })
+
+    return () => {
+      onActionsReady(null)
+    }
+  }, [onActionsReady])
 
   useEffect(() => {
     const generationFinished = wasGeneratingRef.current && !isGenerating
@@ -194,7 +195,7 @@ export const StudentChatComposer = forwardRef<
       )}
     </form>
   )
-})
+}
 
 function limitMessageDraft(value: string) {
   const trimmed = value.trim()
@@ -211,20 +212,13 @@ function limitMessageDraft(value: string) {
 }
 
 function sendErrorMessage(error: unknown) {
-  if (isStudentChatApiError(error, STUDENT_CHAT_ERROR_CODES.TURN_IN_PROGRESS)) {
+  if (isChatApiError(error, CHAT_ERROR_CODES.TURN_IN_PROGRESS)) {
     return 'This conversation is already generating a response. Refresh the history before trying again.'
   }
-  if (
-    isStudentChatApiError(error, STUDENT_CHAT_ERROR_CODES.SESSION_NOT_FOUND)
-  ) {
+  if (isChatApiError(error, CHAT_ERROR_CODES.SESSION_NOT_FOUND)) {
     return 'This conversation is no longer available.'
   }
-  if (
-    isStudentChatApiError(
-      error,
-      STUDENT_CHAT_ERROR_CODES.TERMINAL_STATE_UNAVAILABLE,
-    )
-  ) {
+  if (isChatApiError(error, CHAT_ERROR_CODES.TERMINAL_STATE_UNAVAILABLE)) {
     return 'Your message may have been saved, but its final state could not be confirmed. Refresh the history before retrying.'
   }
 

@@ -42,14 +42,11 @@ import {
   chatTurnResponseFixture,
   orderedChatMessagesFixture,
   primaryChatSessionFixture,
-  studentChatIds,
+  chatIds,
 } from '@/features/chat/testing/chat.fixtures'
 
 import { TutorPage } from './tutor-page'
-import {
-  STUDENT_CHAT_COMPLETION_STATUS,
-  STUDENT_CHAT_GENERATION_STATUS,
-} from './chat-status'
+import { CHAT_COMPLETION_STATUS, CHAT_GENERATION_STATUS } from './chat-status'
 
 vi.mock('@/features/chat/sessions/chat-sessions.api')
 
@@ -104,26 +101,26 @@ const createStudentSessionMock = vi.mocked(createChatSession)
 const getStudentSessionMock = vi.mocked(getChatSession)
 const getStudentSessionMessagesMock = vi.mocked(getChatMessages)
 const listStudentSessionsMock = vi.mocked(listChatSessions)
-const retryStudentChatMessageMock = vi.mocked(retryChatMessage)
+const retryChatMessageMock = vi.mocked(retryChatMessage)
 const sendChatMessageMock = vi.mocked(sendChatMessage)
 const scrollIntoViewMock = vi.fn()
 
 const studentId = 'student-user'
 const primaryCourse: StudentCourseAccess = {
-  id: studentChatIds.primaryCourse,
+  id: chatIds.primaryCourse,
   code: 'PYTHON-PROG-P0',
   title: 'Python Programming',
   membershipRole: 'STUDENT',
 }
 const otherCourse: StudentCourseAccess = {
-  id: studentChatIds.otherCourse,
+  id: chatIds.otherCourse,
   code: 'JAVASCRIPT-P0',
   title: 'JavaScript Programming',
   membershipRole: 'STUDENT',
 }
 const secondSession = {
   ...primaryChatSessionFixture,
-  id: studentChatIds.otherSession,
+  id: chatIds.otherSession,
   title: 'Functions practice',
 }
 const thirdMessage = {
@@ -323,7 +320,7 @@ describe('TutorPage workspace', () => {
         ? secondSession
         : primaryChatSessionFixture,
     )
-    retryStudentChatMessageMock.mockResolvedValue(chatTurnResponseFixture)
+    retryChatMessageMock.mockResolvedValue(chatTurnResponseFixture)
     sendChatMessageMock.mockResolvedValue(chatTurnResponseFixture)
     window.localStorage.clear()
     window.sessionStorage.clear()
@@ -727,11 +724,11 @@ describe('TutorPage workspace', () => {
 
   it('removes a stale routed session automatically without refetching it', async () => {
     getStudentSessionMock.mockRejectedValueOnce(
-      new ApiError('Session not found', 404, 'STUDENT_CHAT_SESSION_NOT_FOUND'),
+      new ApiError('Session not found', 404, 'CONVERSATION_SESSION_NOT_FOUND'),
     )
     renderWorkspace({
       courseId: primaryCourse.id,
-      sessionId: studentChatIds.otherSession,
+      sessionId: chatIds.otherSession,
       sessions: {
         sessions: [primaryChatSessionFixture],
         nextCursor: null,
@@ -1110,7 +1107,7 @@ describe('TutorPage workspace', () => {
     expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled()
     expect(
       await screen.findByRole('status', {
-        name: STUDENT_CHAT_GENERATION_STATUS,
+        name: CHAT_GENERATION_STATUS,
       }),
     ).toBeInTheDocument()
     expect(sendChatMessageMock).not.toHaveBeenCalled()
@@ -1139,7 +1136,7 @@ describe('TutorPage workspace', () => {
 
     expect(
       await screen.findByRole('status', {
-        name: STUDENT_CHAT_COMPLETION_STATUS,
+        name: CHAT_COMPLETION_STATUS,
       }),
     ).toBeInTheDocument()
     expect(screen.getByLabelText('Message')).toBeEnabled()
@@ -1192,7 +1189,7 @@ describe('TutorPage workspace', () => {
 
   it('recovers safely when selected history belongs to a deleted session', async () => {
     getStudentSessionMessagesMock.mockRejectedValueOnce(
-      new ApiError('Session not found', 404, 'STUDENT_CHAT_SESSION_NOT_FOUND'),
+      new ApiError('Session not found', 404, 'CONVERSATION_SESSION_NOT_FOUND'),
     )
     renderWorkspace({
       courseId: primaryCourse.id,
@@ -1257,7 +1254,7 @@ describe('TutorPage workspace', () => {
     expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled()
     expect(
       screen.getByRole('status', {
-        name: STUDENT_CHAT_GENERATION_STATUS,
+        name: CHAT_GENERATION_STATUS,
       }),
     ).toBeInTheDocument()
     expect(sendChatMessageMock).toHaveBeenCalledWith({
@@ -1361,7 +1358,7 @@ describe('TutorPage workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
     expect(
       await screen.findByRole('status', {
-        name: STUDENT_CHAT_GENERATION_STATUS,
+        name: CHAT_GENERATION_STATUS,
       }),
     ).toBeInTheDocument()
 
@@ -1399,7 +1396,7 @@ describe('TutorPage workspace', () => {
     expect(screen.getByRole('textbox', { name: 'Message' })).toBeEnabled()
     expect(
       screen.queryByRole('status', {
-        name: STUDENT_CHAT_GENERATION_STATUS,
+        name: CHAT_GENERATION_STATUS,
       }),
     ).not.toBeInTheDocument()
     expect(
@@ -1720,7 +1717,7 @@ describe('TutorPage workspace', () => {
   it('retries a failed persisted response without duplicating either message', async () => {
     const failedTurn = failedGroundedTurn()
     let resolveRetry: ((turn: ChatTurnResponse) => void) | undefined
-    retryStudentChatMessageMock.mockImplementationOnce(
+    retryChatMessageMock.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
           resolveRetry = resolve
@@ -1750,7 +1747,7 @@ describe('TutorPage workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry response' }))
 
     expect(await screen.findByLabelText('Message')).toBeDisabled()
-    expect(retryStudentChatMessageMock).toHaveBeenCalledWith({
+    expect(retryChatMessageMock).toHaveBeenCalledWith({
       courseId: primaryCourse.id,
       sessionId: primaryChatSessionFixture.id,
       studentMessageId: failedTurn.studentMessage.id,

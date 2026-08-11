@@ -31,7 +31,7 @@ import {
   chatTurnResponseFixture,
   otherChatSessionFixture,
   primaryChatSessionFixture,
-  studentChatIds,
+  chatIds,
 } from '@/features/chat/testing/chat.fixtures'
 
 import {
@@ -55,7 +55,7 @@ const getStudentSessionMock = vi.mocked(getChatSession)
 const getStudentSessionMessagesMock = vi.mocked(getChatMessages)
 const listStudentSessionsMock = vi.mocked(listChatSessions)
 const renameStudentSessionMock = vi.mocked(renameChatSession)
-const retryStudentChatMessageMock = vi.mocked(retryChatMessage)
+const retryChatMessageMock = vi.mocked(retryChatMessage)
 const sendChatMessageMock = vi.mocked(sendChatMessage)
 
 interface CourseScope {
@@ -64,23 +64,23 @@ interface CourseScope {
 }
 
 const primaryScope = {
-  studentId: studentChatIds.primaryStudent,
-  courseId: studentChatIds.primaryCourse,
+  studentId: chatIds.primaryStudent,
+  courseId: chatIds.primaryCourse,
 } satisfies CourseScope
 
 const otherStudentScope = {
-  studentId: studentChatIds.otherStudent,
-  courseId: studentChatIds.primaryCourse,
+  studentId: chatIds.otherStudent,
+  courseId: chatIds.primaryCourse,
 } satisfies CourseScope
 
 const otherCourseScope = {
-  studentId: studentChatIds.otherStudent,
-  courseId: studentChatIds.otherCourse,
+  studentId: chatIds.otherStudent,
+  courseId: chatIds.otherCourse,
 } satisfies CourseScope
 
 const otherStudentSession: ChatSession = {
   ...primaryChatSessionFixture,
-  id: studentChatIds.otherSession,
+  id: chatIds.otherSession,
   title: 'Other Student private session',
 }
 
@@ -99,7 +99,7 @@ function createStudentAuthSession(studentId: string): AuthSession {
   }
 }
 
-function authenticate(studentId: string = studentChatIds.primaryStudent) {
+function authenticate(studentId: string = chatIds.primaryStudent) {
   useAuthStore.getState().setSession(createStudentAuthSession(studentId))
 }
 
@@ -157,7 +157,7 @@ function seedSessionList(
 function seedHistory(
   queryClient: QueryClient,
   scope: CourseScope,
-  sessionId: string = studentChatIds.primarySession,
+  sessionId: string = chatIds.primarySession,
   firstMessageContent?: string,
 ) {
   const key = chatSessionKeys.messageList({ ...scope, sessionId })
@@ -184,25 +184,25 @@ describe('Student session hooks', () => {
   it('does not query or mutate without authenticated course/session scope', async () => {
     const wrapper = createWrapper(createQueryClient())
     const sessions = renderHook(
-      () => useChatSessions({ courseId: studentChatIds.primaryCourse }),
+      () => useChatSessions({ courseId: chatIds.primaryCourse }),
       { wrapper },
     )
     const messages = renderHook(
       () =>
         useChatMessages({
-          courseId: studentChatIds.primaryCourse,
+          courseId: chatIds.primaryCourse,
         }),
       { wrapper },
     )
     const session = renderHook(
       () =>
         useChatSession({
-          courseId: studentChatIds.primaryCourse,
+          courseId: chatIds.primaryCourse,
         }),
       { wrapper },
     )
     const createSession = renderHook(
-      () => useCreateChatSession({ courseId: studentChatIds.primaryCourse }),
+      () => useCreateChatSession({ courseId: chatIds.primaryCourse }),
       { wrapper },
     )
 
@@ -229,7 +229,7 @@ describe('Student session hooks', () => {
       () =>
         useChatSession({
           courseId: primaryScope.courseId,
-          sessionId: studentChatIds.primarySession,
+          sessionId: chatIds.primarySession,
         }),
       { wrapper: createWrapper(queryClient) },
     )
@@ -239,13 +239,13 @@ describe('Student session hooks', () => {
     )
     expect(getStudentSessionMock).toHaveBeenCalledWith({
       courseId: primaryScope.courseId,
-      sessionId: studentChatIds.primarySession,
+      sessionId: chatIds.primarySession,
     })
     expect(
       queryClient.getQueryData(
         chatSessionKeys.detail({
           ...primaryScope,
-          sessionId: studentChatIds.primarySession,
+          sessionId: chatIds.primarySession,
         }),
       ),
     ).toEqual(primaryChatSessionFixture)
@@ -253,7 +253,7 @@ describe('Student session hooks', () => {
       queryClient.getQueryData(
         chatSessionKeys.detail({
           ...otherStudentScope,
-          sessionId: studentChatIds.primarySession,
+          sessionId: chatIds.primarySession,
         }),
       ),
     ).toBeUndefined()
@@ -267,19 +267,19 @@ describe('Student session hooks', () => {
     seedHistory(
       queryClient,
       primaryScope,
-      studentChatIds.primarySession,
+      chatIds.primarySession,
       'Primary Student history',
     )
     seedHistory(
       queryClient,
       otherStudentScope,
-      studentChatIds.otherSession,
+      chatIds.otherSession,
       'Other Student history',
     )
     seedHistory(
       queryClient,
       otherCourseScope,
-      studentChatIds.otherSession,
+      chatIds.otherSession,
       'Other course history',
     )
     getStudentSessionMessagesMock.mockRejectedValue(new Error('Denied scope'))
@@ -293,14 +293,14 @@ describe('Student session hooks', () => {
       {
         initialProps: {
           courseId: String(primaryScope.courseId),
-          sessionId: String(studentChatIds.primarySession),
+          sessionId: String(chatIds.primarySession),
         },
         wrapper: createWrapper(queryClient),
       },
     )
 
     expect(result.current.sessions.data?.pages[0]?.sessions[0]?.id).toBe(
-      studentChatIds.primarySession,
+      chatIds.primarySession,
     )
     expect(result.current.history.data?.pages[0]?.messages[0]?.content).toBe(
       'Primary Student history',
@@ -310,15 +310,15 @@ describe('Student session hooks', () => {
     await waitFor(() => expect(result.current.sessions.data).toBeUndefined())
     expect(result.current.history.data).toBeUndefined()
 
-    act(() => authenticate(studentChatIds.otherStudent))
+    act(() => authenticate(chatIds.otherStudent))
     expect(result.current.history.data).toBeUndefined()
     rerender({
-      courseId: studentChatIds.primaryCourse,
-      sessionId: studentChatIds.otherSession,
+      courseId: chatIds.primaryCourse,
+      sessionId: chatIds.otherSession,
     })
     await waitFor(() =>
       expect(result.current.sessions.data?.pages[0]?.sessions[0]?.id).toBe(
-        studentChatIds.otherSession,
+        chatIds.otherSession,
       ),
     )
     expect(result.current.history.data?.pages[0]?.messages[0]?.content).toBe(
@@ -326,13 +326,13 @@ describe('Student session hooks', () => {
     )
 
     rerender({
-      courseId: studentChatIds.otherCourse,
-      sessionId: studentChatIds.otherSession,
+      courseId: chatIds.otherCourse,
+      sessionId: chatIds.otherSession,
     })
     await waitFor(() =>
       expect(
         result.current.sessions.data?.pages[0]?.sessions[0]?.courseId,
-      ).toBe(studentChatIds.otherCourse),
+      ).toBe(chatIds.otherCourse),
     )
     expect(result.current.history.data?.pages[0]?.messages[0]?.content).toBe(
       'Other course history',
@@ -365,7 +365,7 @@ describe('Student session hooks', () => {
       mutation = result.current.mutateAsync({ title: 'Python lists' })
     })
     await waitFor(() => expect(resolveSession).toBeTypeOf('function'))
-    act(() => authenticate(studentChatIds.otherStudent))
+    act(() => authenticate(chatIds.otherStudent))
 
     if (!resolveSession || !mutation) {
       throw new Error('Expected the create request to be pending')
@@ -432,7 +432,7 @@ describe('Student session hooks', () => {
 
     await act(() =>
       result.current.mutateAsync({
-        sessionId: studentChatIds.primarySession,
+        sessionId: chatIds.primarySession,
         input: { title: 'Renamed session' },
       }),
     )
@@ -462,7 +462,7 @@ describe('Student session hooks', () => {
     const primaryKey = chatSessionKeys.sessionList(primaryScope)
     const firstPageSession = {
       ...primaryChatSessionFixture,
-      id: studentChatIds.otherSession,
+      id: chatIds.otherSession,
       title: 'Earlier session page',
     }
     queryClient.setQueryData(primaryKey, {
@@ -485,7 +485,7 @@ describe('Student session hooks', () => {
 
     await act(() =>
       result.current.mutateAsync({
-        sessionId: studentChatIds.primarySession,
+        sessionId: chatIds.primarySession,
         input: { title: renamedSession.title },
       }),
     )
@@ -509,13 +509,13 @@ describe('Student session hooks', () => {
     const primaryHistoryKey = seedHistory(queryClient, primaryScope)
     const primaryDetailKey = chatSessionKeys.detail({
       ...primaryScope,
-      sessionId: studentChatIds.primarySession,
+      sessionId: chatIds.primarySession,
     })
     queryClient.setQueryData(primaryDetailKey, primaryChatSessionFixture)
     const otherHistoryKey = seedHistory(
       queryClient,
       otherStudentScope,
-      studentChatIds.otherSession,
+      chatIds.otherSession,
     )
     deleteStudentSessionMock.mockResolvedValue(undefined)
     authenticate()
@@ -524,7 +524,7 @@ describe('Student session hooks', () => {
       { wrapper: createWrapper(queryClient) },
     )
 
-    await act(() => result.current.mutateAsync(studentChatIds.primarySession))
+    await act(() => result.current.mutateAsync(chatIds.primarySession))
 
     expect(
       queryClient.getQueryData<
@@ -557,7 +557,7 @@ describe('Student session hooks', () => {
     await act(async () => {
       await expect(
         result.current.mutateAsync({
-          sessionId: studentChatIds.primarySession,
+          sessionId: chatIds.primarySession,
           input: { title: 'Should not be cached' },
         }),
       ).rejects.toThrow('Server unavailable')
@@ -575,11 +575,11 @@ describe('Student session hooks', () => {
     const otherHistoryKey = seedHistory(
       queryClient,
       otherStudentScope,
-      studentChatIds.otherSession,
+      chatIds.otherSession,
       'Other Student history',
     )
-    const clientMessageId = studentChatIds.primaryMaterial
-    const assistantMessageId = studentChatIds.primaryChunk
+    const clientMessageId = chatIds.primaryMaterial
+    const assistantMessageId = chatIds.primaryChunk
     const persistedTurn: ChatTurnResponse = {
       studentMessage: {
         ...chatTurnResponseFixture.studentMessage,
@@ -605,7 +605,7 @@ describe('Student session hooks', () => {
       () =>
         useSendChatMessage({
           courseId: primaryScope.courseId,
-          sessionId: studentChatIds.primarySession,
+          sessionId: chatIds.primarySession,
         }),
       { wrapper: createWrapper(queryClient) },
     )
@@ -666,7 +666,7 @@ describe('Student session hooks', () => {
       () =>
         useSendChatMessage({
           courseId: primaryScope.courseId,
-          sessionId: studentChatIds.primarySession,
+          sessionId: chatIds.primarySession,
         }),
       { wrapper: createWrapper(queryClient) },
     )
@@ -674,7 +674,7 @@ describe('Student session hooks', () => {
     await act(async () => {
       await expect(
         result.current.mutateAsync({
-          clientMessageId: studentChatIds.studentMessage,
+          clientMessageId: chatIds.studentMessage,
           content: 'Keep this draft',
         }),
       ).rejects.toThrow('Failed to fetch')
@@ -701,7 +701,7 @@ describe('Student session hooks', () => {
     }
     const historyKey = chatSessionKeys.messageList({
       ...primaryScope,
-      sessionId: studentChatIds.primarySession,
+      sessionId: chatIds.primarySession,
     })
     queryClient.setQueryData(historyKey, {
       pages: [failedHistory],
@@ -709,7 +709,7 @@ describe('Student session hooks', () => {
     })
     let resolveTurn:
       ((turn: typeof chatTurnResponseFixture) => void) | undefined
-    retryStudentChatMessageMock.mockImplementation(
+    retryChatMessageMock.mockImplementation(
       () =>
         new Promise((resolve) => {
           resolveTurn = resolve
@@ -720,14 +720,14 @@ describe('Student session hooks', () => {
       () =>
         useRetryChatMessage({
           courseId: primaryScope.courseId,
-          sessionId: studentChatIds.primarySession,
+          sessionId: chatIds.primarySession,
         }),
       { wrapper: createWrapper(queryClient) },
     )
 
     let mutation: Promise<unknown> | undefined
     act(() => {
-      mutation = result.current.mutateAsync(studentChatIds.studentMessage)
+      mutation = result.current.mutateAsync(chatIds.studentMessage)
     })
     await waitFor(() => expect(resolveTurn).toBeTypeOf('function'))
     expect(
@@ -749,14 +749,14 @@ describe('Student session hooks', () => {
       >(historyKey)?.pages[0]?.messages
     expect(retried).toHaveLength(2)
     expect(retried?.map(({ id }) => id)).toEqual([
-      studentChatIds.studentMessage,
-      studentChatIds.assistantMessage,
+      chatIds.studentMessage,
+      chatIds.assistantMessage,
     ])
     expect(retried?.[1]?.status).toBe('COMPLETED')
-    expect(retryStudentChatMessageMock).toHaveBeenCalledWith({
+    expect(retryChatMessageMock).toHaveBeenCalledWith({
       courseId: primaryScope.courseId,
-      sessionId: studentChatIds.primarySession,
-      studentMessageId: studentChatIds.studentMessage,
+      sessionId: chatIds.primarySession,
+      studentMessageId: chatIds.studentMessage,
     })
   })
 })

@@ -1,6 +1,6 @@
 import type { ChatMessage } from '@/features/chat/messages/chat-message.schema'
 
-export const studentChatIds = {
+export const chatIds = {
   primaryStudent: '8f9c19d1-eed5-43de-8bd9-995919825f9f',
   otherStudent: '96f2fa84-7cd0-4488-8b18-439b0ce7a0f8',
   primaryCourse: '17d1a78d-60be-4f5f-a03d-e3ee326ec796',
@@ -16,7 +16,7 @@ export const studentChatIds = {
 } as const
 
 export const primaryStudentFixture = {
-  id: studentChatIds.primaryStudent,
+  id: chatIds.primaryStudent,
   email: 'student.one@morshid.test',
   displayName: 'Student One',
   role: 'STUDENT',
@@ -24,7 +24,7 @@ export const primaryStudentFixture = {
 } as const
 
 export const otherStudentFixture = {
-  id: studentChatIds.otherStudent,
+  id: chatIds.otherStudent,
   email: 'student.two@morshid.test',
   displayName: 'Student Two',
   role: 'STUDENT',
@@ -32,8 +32,8 @@ export const otherStudentFixture = {
 } as const
 
 export const primaryChatSessionFixture = {
-  id: studentChatIds.primarySession,
-  courseId: studentChatIds.primaryCourse,
+  id: chatIds.primarySession,
+  courseId: chatIds.primaryCourse,
   title: 'Python lists',
   lastMessageAt: '2026-07-17T09:02:00.000Z',
   createdAt: '2026-07-17T09:00:00.000Z',
@@ -41,8 +41,8 @@ export const primaryChatSessionFixture = {
 } as const
 
 export const otherChatSessionFixture = {
-  id: studentChatIds.otherSession,
-  courseId: studentChatIds.otherCourse,
+  id: chatIds.otherSession,
+  courseId: chatIds.otherCourse,
   title: 'Private session from another scope',
   lastMessageAt: null,
   createdAt: '2026-07-17T10:00:00.000Z',
@@ -51,11 +51,11 @@ export const otherChatSessionFixture = {
 
 export const orderedChatMessagesFixture = [
   {
-    id: studentChatIds.studentMessage,
+    id: chatIds.studentMessage,
     sequence: 1,
     role: 'STUDENT',
-    attemptId: studentChatIds.primaryTurn,
-    topicId: studentChatIds.primaryTopic,
+    attemptId: chatIds.primaryTurn,
+    topicId: chatIds.primaryTopic,
     responseToMessageId: null,
     content: 'How do Python lists work?',
     status: 'COMPLETED',
@@ -70,12 +70,12 @@ export const orderedChatMessagesFixture = [
     reviewSummary: null,
   },
   {
-    id: studentChatIds.assistantMessage,
+    id: chatIds.assistantMessage,
     sequence: 2,
     role: 'ASSISTANT',
-    attemptId: studentChatIds.primaryTurn,
-    topicId: studentChatIds.primaryTopic,
-    responseToMessageId: studentChatIds.studentMessage,
+    attemptId: chatIds.primaryTurn,
+    topicId: chatIds.primaryTopic,
+    responseToMessageId: chatIds.studentMessage,
     content: 'A list is an ordered, mutable collection.',
     status: 'COMPLETED',
     requestKind: 'CONCEPTUAL',
@@ -88,14 +88,14 @@ export const orderedChatMessagesFixture = [
     citations: [
       {
         order: 1,
-        materialId: studentChatIds.primaryMaterial,
+        materialId: chatIds.primaryMaterial,
         materialTitle: 'Python lists',
         sourceAvailable: true,
         evidence: [
           {
             rank: 1,
             similarityScore: 0.94,
-            chunkId: studentChatIds.primaryChunk,
+            chunkId: chatIds.primaryChunk,
             chunkNumber: 1,
             excerpt: 'Python lists are ordered and mutable collections.',
           },
@@ -134,6 +134,6 @@ export const emptyChatMessageHistoryResponseFixture = {
 export const malformedChatSessionResponseFixture = {
   session: {
     ...primaryChatSessionFixture,
-    studentId: studentChatIds.primaryStudent,
+    studentId: chatIds.primaryStudent,
   },
 } as const

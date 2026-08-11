@@ -6,7 +6,7 @@ import {
   chatSessionListResponseFixture,
   chatTurnResponseFixture,
   primaryChatSessionFixture,
-  studentChatIds,
+  chatIds,
 } from '@/features/chat/testing/chat.fixtures'
 
 import {
@@ -25,7 +25,7 @@ describe('Student session API', () => {
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         expect(String(input)).toBe(
-          `http://localhost:4000/api/v1/courses/${studentChatIds.primaryCourse}/chat-sessions?limit=25&cursor=${studentChatIds.primarySession}`,
+          `http://localhost:4000/api/v1/courses/${chatIds.primaryCourse}/chat-sessions?limit=25&cursor=${chatIds.primarySession}`,
         )
         expect(init?.method).toBe('GET')
 
@@ -35,8 +35,8 @@ describe('Student session API', () => {
 
     await expect(
       listChatSessions({
-        courseId: studentChatIds.primaryCourse,
-        input: { limit: 25, cursor: studentChatIds.primarySession },
+        courseId: chatIds.primaryCourse,
+        input: { limit: 25, cursor: chatIds.primarySession },
         options: { fetchImpl: fetchMock },
       }),
     ).resolves.toEqual(chatSessionListResponseFixture)
@@ -47,7 +47,7 @@ describe('Student session API', () => {
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         expect(String(input)).toBe(
-          `http://localhost:4000/api/v1/courses/${studentChatIds.primaryCourse}/chat-sessions`,
+          `http://localhost:4000/api/v1/courses/${chatIds.primaryCourse}/chat-sessions`,
         )
         expect(init?.method).toBe('POST')
         expect(new Headers(init?.headers).get('Content-Type')).toBe(
@@ -66,7 +66,7 @@ describe('Student session API', () => {
 
     await expect(
       createChatSession({
-        courseId: studentChatIds.primaryCourse,
+        courseId: chatIds.primaryCourse,
         input: { title: 'Python lists' },
         options: { fetchImpl: fetchMock },
       }),
@@ -77,12 +77,12 @@ describe('Student session API', () => {
     const fetchMock = vi.fn<typeof fetch>()
     const unsafeInput: unknown = {
       title: 'Python lists',
-      ownerId: studentChatIds.otherStudent,
+      ownerId: chatIds.otherStudent,
     }
 
     await expect(
       createChatSession({
-        courseId: studentChatIds.primaryCourse,
+        courseId: chatIds.primaryCourse,
         input: unsafeInput as { title: string },
         options: { fetchImpl: fetchMock },
       }),
@@ -98,7 +98,7 @@ describe('Student session API', () => {
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         expect(String(input)).toBe(
-          `http://localhost:4000/api/v1/courses/${studentChatIds.primaryCourse}/chat-sessions/${studentChatIds.primarySession}`,
+          `http://localhost:4000/api/v1/courses/${chatIds.primaryCourse}/chat-sessions/${chatIds.primarySession}`,
         )
         expect(init?.method).toBe('PATCH')
         expect(JSON.parse(String(init?.body))).toEqual({
@@ -111,8 +111,8 @@ describe('Student session API', () => {
 
     await expect(
       renameChatSession({
-        courseId: studentChatIds.primaryCourse,
-        sessionId: studentChatIds.primarySession,
+        courseId: chatIds.primaryCourse,
+        sessionId: chatIds.primarySession,
         input: { title: 'Renamed session' },
         options: { fetchImpl: fetchMock },
       }),
@@ -123,7 +123,7 @@ describe('Student session API', () => {
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         expect(String(input)).toBe(
-          `http://localhost:4000/api/v1/courses/${studentChatIds.primaryCourse}/chat-sessions/${studentChatIds.primarySession}`,
+          `http://localhost:4000/api/v1/courses/${chatIds.primaryCourse}/chat-sessions/${chatIds.primarySession}`,
         )
         expect(init?.method).toBe('GET')
 
@@ -133,8 +133,8 @@ describe('Student session API', () => {
 
     await expect(
       getChatSession({
-        courseId: studentChatIds.primaryCourse,
-        sessionId: studentChatIds.primarySession,
+        courseId: chatIds.primaryCourse,
+        sessionId: chatIds.primarySession,
         options: { fetchImpl: fetchMock },
       }),
     ).resolves.toEqual(primaryChatSessionFixture)
@@ -144,7 +144,7 @@ describe('Student session API', () => {
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         expect(String(input)).toBe(
-          `http://localhost:4000/api/v1/courses/${studentChatIds.primaryCourse}/chat-sessions/${studentChatIds.primarySession}`,
+          `http://localhost:4000/api/v1/courses/${chatIds.primaryCourse}/chat-sessions/${chatIds.primarySession}`,
         )
         expect(init?.method).toBe('DELETE')
 
@@ -154,8 +154,8 @@ describe('Student session API', () => {
 
     await expect(
       deleteChatSession({
-        courseId: studentChatIds.primaryCourse,
-        sessionId: studentChatIds.primarySession,
+        courseId: chatIds.primaryCourse,
+        sessionId: chatIds.primarySession,
         options: { fetchImpl: fetchMock },
       }),
     ).resolves.toBeUndefined()
@@ -168,8 +168,8 @@ describe('Student session API', () => {
 
     await expect(
       deleteChatSession({
-        courseId: studentChatIds.primaryCourse,
-        sessionId: studentChatIds.primarySession,
+        courseId: chatIds.primaryCourse,
+        sessionId: chatIds.primarySession,
         options: { fetchImpl: wrongStatusFetch },
       }),
     ).rejects.toThrow('Expected DELETE chat session to return 204 No Content')
@@ -179,7 +179,7 @@ describe('Student session API', () => {
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         expect(String(input)).toBe(
-          `http://localhost:4000/api/v1/courses/${studentChatIds.primaryCourse}/chat-sessions/${studentChatIds.primarySession}/messages?limit=50&after=0`,
+          `http://localhost:4000/api/v1/courses/${chatIds.primaryCourse}/chat-sessions/${chatIds.primarySession}/messages?limit=50&after=0`,
         )
         expect(init?.method).toBe('GET')
 
@@ -189,8 +189,8 @@ describe('Student session API', () => {
 
     await expect(
       getChatMessages({
-        courseId: studentChatIds.primaryCourse,
-        sessionId: studentChatIds.primarySession,
+        courseId: chatIds.primaryCourse,
+        sessionId: chatIds.primarySession,
         input: { limit: 50, after: 0 },
         options: { fetchImpl: fetchMock },
       }),
@@ -200,7 +200,7 @@ describe('Student session API', () => {
   it('requests the newest message page through the explicit latest contract', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       expect(String(input)).toBe(
-        `http://localhost:4000/api/v1/courses/${studentChatIds.primaryCourse}/chat-sessions/${studentChatIds.primarySession}/messages?limit=50&page=latest`,
+        `http://localhost:4000/api/v1/courses/${chatIds.primaryCourse}/chat-sessions/${chatIds.primarySession}/messages?limit=50&page=latest`,
       )
 
       return Response.json(chatMessageHistoryResponseFixture)
@@ -208,8 +208,8 @@ describe('Student session API', () => {
 
     await expect(
       getChatMessages({
-        courseId: studentChatIds.primaryCourse,
-        sessionId: studentChatIds.primarySession,
+        courseId: chatIds.primaryCourse,
+        sessionId: chatIds.primarySession,
         input: { limit: 50, page: 'latest' },
         options: { fetchImpl: fetchMock },
       }),
@@ -220,11 +220,11 @@ describe('Student session API', () => {
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         expect(String(input)).toBe(
-          `http://localhost:4000/api/v1/courses/${studentChatIds.primaryCourse}/chat-sessions/${studentChatIds.primarySession}/messages`,
+          `http://localhost:4000/api/v1/courses/${chatIds.primaryCourse}/chat-sessions/${chatIds.primarySession}/messages`,
         )
         expect(init?.method).toBe('POST')
         expect(JSON.parse(String(init?.body))).toEqual({
-          clientMessageId: studentChatIds.studentMessage,
+          clientMessageId: chatIds.studentMessage,
           content: 'Explain Python lists',
         })
 
@@ -234,10 +234,10 @@ describe('Student session API', () => {
 
     await expect(
       sendChatMessage({
-        courseId: studentChatIds.primaryCourse,
-        sessionId: studentChatIds.primarySession,
+        courseId: chatIds.primaryCourse,
+        sessionId: chatIds.primarySession,
         input: {
-          clientMessageId: studentChatIds.studentMessage,
+          clientMessageId: chatIds.studentMessage,
           content: '  Explain Python lists  ',
         },
         options: { fetchImpl: fetchMock },
@@ -255,8 +255,8 @@ describe('Student session API', () => {
 
     await expect(
       sendChatMessage({
-        courseId: studentChatIds.primaryCourse,
-        sessionId: studentChatIds.primarySession,
+        courseId: chatIds.primaryCourse,
+        sessionId: chatIds.primarySession,
         input: unsafeInput as {
           clientMessageId: string
           content: string
@@ -271,7 +271,7 @@ describe('Student session API', () => {
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         expect(String(input)).toBe(
-          `http://localhost:4000/api/v1/courses/${studentChatIds.primaryCourse}/chat-sessions/${studentChatIds.primarySession}/messages/${studentChatIds.studentMessage}/retry`,
+          `http://localhost:4000/api/v1/courses/${chatIds.primaryCourse}/chat-sessions/${chatIds.primarySession}/messages/${chatIds.studentMessage}/retry`,
         )
         expect(init?.method).toBe('POST')
         expect(init?.body).toBeUndefined()
@@ -283,9 +283,9 @@ describe('Student session API', () => {
 
     await expect(
       retryChatMessage({
-        courseId: studentChatIds.primaryCourse,
-        sessionId: studentChatIds.primarySession,
-        studentMessageId: studentChatIds.studentMessage,
+        courseId: chatIds.primaryCourse,
+        sessionId: chatIds.primarySession,
+        studentMessageId: chatIds.studentMessage,
         options: { fetchImpl: fetchMock },
       }),
     ).resolves.toEqual(chatTurnResponseFixture)
@@ -298,7 +298,7 @@ describe('Student session API', () => {
 
     await expect(
       listChatSessions({
-        courseId: studentChatIds.primaryCourse,
+        courseId: chatIds.primaryCourse,
         options: { fetchImpl: malformedFetch },
       }),
     ).rejects.toThrow()
@@ -308,7 +308,7 @@ describe('Student session API', () => {
     const deniedFetch = vi.fn(async () =>
       Response.json(
         {
-          code: 'STUDENT_CHAT_ACTIVE_STUDENT_MEMBERSHIP_REQUIRED',
+          code: 'CONVERSATION_ACTIVE_STUDENT_MEMBERSHIP_REQUIRED',
           message: 'Active student course membership is required',
         },
         { status: 403 },
@@ -317,13 +317,13 @@ describe('Student session API', () => {
 
     await expect(
       listChatSessions({
-        courseId: studentChatIds.primaryCourse,
+        courseId: chatIds.primaryCourse,
         options: { fetchImpl: deniedFetch },
       }),
     ).rejects.toEqual(
       expect.objectContaining<Partial<ApiError>>({
         status: 403,
-        code: 'STUDENT_CHAT_ACTIVE_STUDENT_MEMBERSHIP_REQUIRED',
+        code: 'CONVERSATION_ACTIVE_STUDENT_MEMBERSHIP_REQUIRED',
       }),
     )
   })

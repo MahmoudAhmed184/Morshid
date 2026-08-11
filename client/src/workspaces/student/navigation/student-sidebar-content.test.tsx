@@ -35,7 +35,7 @@ import type {
 import type { StudentCourseAccess } from '@/features/courses/course-access/course-access.schema'
 import {
   primaryChatSessionFixture,
-  studentChatIds,
+  chatIds,
 } from '@/features/chat/testing/chat.fixtures'
 
 import { StudentSidebarContent } from './student-sidebar-content'
@@ -131,20 +131,20 @@ class TestIntersectionObserver {
 
 const studentId = 'student-user'
 const primaryCourse: StudentCourseAccess = {
-  id: studentChatIds.primaryCourse,
+  id: chatIds.primaryCourse,
   code: 'PYTHON-PROG-P0',
   title: 'Python Programming',
   membershipRole: 'STUDENT',
 }
 const otherCourse: StudentCourseAccess = {
-  id: studentChatIds.otherCourse,
+  id: chatIds.otherCourse,
   code: 'JAVASCRIPT-P0',
   title: 'JavaScript Programming',
   membershipRole: 'STUDENT',
 }
 const secondSession: ChatSession = {
   ...primaryChatSessionFixture,
-  id: studentChatIds.otherSession,
+  id: chatIds.otherSession,
   title: 'Functions practice',
 }
 

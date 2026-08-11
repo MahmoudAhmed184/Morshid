@@ -5,15 +5,15 @@ import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/custom/empty-state'
 import { ErrorState } from '@/components/ui/custom/error-state'
 import {
-  isStudentChatApiError,
-  STUDENT_CHAT_ERROR_CODES,
+  isChatApiError,
+  CHAT_ERROR_CODES,
 } from '@/features/chat/messages/chat.errors'
 import type { ChatMessage } from '@/features/chat/messages/chat-message.schema'
 import type { StudentFlagReason } from '@/features/reviews/interface/student-review.schema'
 
 import { StudentChatMessage } from './chat-message'
 import { StudentSuggestionRows } from './suggestion-rows'
-import { STUDENT_CHAT_GENERATION_STATUS } from './chat-status'
+import { CHAT_GENERATION_STATUS } from './chat-status'
 
 interface StudentMessageHistoryProps {
   messages: ChatMessage[]
@@ -71,10 +71,7 @@ export function StudentMessageHistory({
     )
   }
 
-  if (
-    isError &&
-    isStudentChatApiError(error, STUDENT_CHAT_ERROR_CODES.SESSION_NOT_FOUND)
-  ) {
+  if (isError && isChatApiError(error, CHAT_ERROR_CODES.SESSION_NOT_FOUND)) {
     return (
       <EmptyState
         icon={<MessageSquareText className="size-6" aria-hidden />}
@@ -147,7 +144,7 @@ export function StudentMessageHistory({
         ))}
         {isGenerationActive && !hasPendingAssistant ? (
           <li
-            aria-label={STUDENT_CHAT_GENERATION_STATUS}
+            aria-label={CHAT_GENERATION_STATUS}
             aria-live="polite"
             className="flex gap-3 py-2"
             role="status"
@@ -157,7 +154,7 @@ export function StudentMessageHistory({
             </div>
             <div className="flex items-center gap-2 px-1 py-1 text-sm text-muted-foreground">
               <LoaderCircle className="size-4 animate-spin" aria-hidden />
-              {STUDENT_CHAT_GENERATION_STATUS}…
+              {CHAT_GENERATION_STATUS}…
             </div>
           </li>
         ) : null}

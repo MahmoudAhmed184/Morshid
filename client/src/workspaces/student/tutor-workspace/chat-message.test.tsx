@@ -8,7 +8,7 @@ import type { ChatMessage } from '@/features/chat/messages/chat-message.schema'
 import type { StudentFlagReason } from '@/features/reviews/interface/student-review.schema'
 import {
   orderedChatMessagesFixture,
-  studentChatIds,
+  chatIds,
 } from '@/features/chat/testing/chat.fixtures'
 import { ApiError } from '@/lib/http/http'
 
@@ -444,7 +444,7 @@ describe('StudentChatMessage', () => {
     renderMessage({
       ...assistantMessage,
       reviewSummary: {
-        reviewCaseId: studentChatIds.primarySession,
+        reviewCaseId: chatIds.primarySession,
         status: 'PENDING',
         outcome: null,
         resolvedAt: null,
@@ -621,7 +621,7 @@ function messageWithReview(
   return {
     ...assistantMessage,
     reviewSummary: {
-      reviewCaseId: studentChatIds.primarySession,
+      reviewCaseId: chatIds.primarySession,
       status,
       outcome,
       resolvedAt:
@@ -640,7 +640,7 @@ function reviewDetail({
   publishedContent: string | null
 }) {
   return {
-    reviewCaseId: studentChatIds.primarySession,
+    reviewCaseId: chatIds.primarySession,
     status: 'RESOLVED' as const,
     outcome,
     publishedContent,
@@ -648,6 +648,6 @@ function reviewDetail({
     requestedAt: '2026-07-14T10:00:00.000Z',
     resolvedAt: '2026-07-15T10:00:00.000Z',
     messageId: assistantMessage.id,
-    sessionId: studentChatIds.primarySession,
+    sessionId: chatIds.primarySession,
   }
 }

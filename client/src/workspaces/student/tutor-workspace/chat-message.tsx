@@ -33,9 +33,9 @@ import { StudentCitationSources } from './citation-sources'
 import { StudentChatContent } from './chat-content'
 import { StudentReviewRequestDialog } from './review-request-dialog'
 import {
-  STUDENT_CHAT_COMPLETION_STATUS,
-  STUDENT_CHAT_FAILURE_STATUS,
-  STUDENT_CHAT_GENERATION_STATUS,
+  CHAT_COMPLETION_STATUS,
+  CHAT_FAILURE_STATUS,
+  CHAT_GENERATION_STATUS,
 } from './chat-status'
 import { StudentAssistantMarkdown } from './assistant-markdown'
 
@@ -177,9 +177,7 @@ export function StudentChatMessage({
     }
 
     const announcement =
-      message.status === 'FAILED'
-        ? STUDENT_CHAT_FAILURE_STATUS
-        : STUDENT_CHAT_COMPLETION_STATUS
+      message.status === 'FAILED' ? CHAT_FAILURE_STATUS : CHAT_COMPLETION_STATUS
     terminalAnnouncementRef.current?.setAttribute('aria-label', announcement)
     if (terminalAnnouncementRef.current) {
       terminalAnnouncementRef.current.textContent = announcement
@@ -257,13 +255,13 @@ export function StudentChatMessage({
 
           {isAssistantPending ? (
             <p
-              aria-label={STUDENT_CHAT_GENERATION_STATUS}
+              aria-label={CHAT_GENERATION_STATUS}
               aria-live="polite"
               className="flex items-center gap-2 text-muted-foreground"
               role="status"
             >
               <LoaderCircle className="size-4 animate-spin" aria-hidden />
-              {STUDENT_CHAT_GENERATION_STATUS}…
+              {CHAT_GENERATION_STATUS}…
             </p>
           ) : isStudent ? (
             <StudentChatContent message={message} />

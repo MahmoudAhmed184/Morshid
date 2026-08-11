@@ -1,6 +1,6 @@
 import { Eye, EyeOff } from 'lucide-react'
-import * as React from 'react'
 import { useState } from 'react'
+import type { ComponentProps } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 
 type PasswordFieldProps = Omit<
-  React.ComponentProps<'input'>,
+  ComponentProps<'input'>,
   'id' | 'type' | 'placeholder'
 > & {
   id?: string
@@ -19,21 +19,15 @@ type PasswordFieldProps = Omit<
   className?: string
 }
 
-export const PasswordField = React.forwardRef<
-  HTMLInputElement,
-  PasswordFieldProps
->(function PasswordFieldInput(
-  {
-    id = 'password',
-    label = 'Password',
-    placeholder = '••••••••',
-    forgotPasswordHref = '#',
-    showForgotPassword = true,
-    className,
-    ...inputProps
-  },
-  ref,
-) {
+export function PasswordField({
+  id = 'password',
+  label = 'Password',
+  placeholder = '••••••••',
+  forgotPasswordHref = '#',
+  showForgotPassword = true,
+  className,
+  ...inputProps
+}: PasswordFieldProps) {
   const [visible, setVisible] = useState(false)
 
   return (
@@ -53,7 +47,6 @@ export const PasswordField = React.forwardRef<
       </div>
       <div className="relative">
         <Input
-          ref={ref}
           id={id}
           type={visible ? 'text' : 'password'}
           placeholder={placeholder}
@@ -74,4 +67,4 @@ export const PasswordField = React.forwardRef<
       </div>
     </div>
   )
-})
+}

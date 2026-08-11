@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { studentChatIds } from '@/features/chat/testing/chat.fixtures'
+import { chatIds } from '@/features/chat/testing/chat.fixtures'
 
 import {
   getStudentReviewDetail,
@@ -10,20 +10,20 @@ import {
 describe('Student review API', () => {
   it('loads and validates the Student-safe review detail', async () => {
     const response = {
-      reviewCaseId: studentChatIds.primarySession,
+      reviewCaseId: chatIds.primarySession,
       status: 'RESOLVED',
       outcome: 'EDITED',
       publishedContent: 'Reviewed guidance',
       rejectionReason: null,
       requestedAt: '2026-07-28T12:00:00.000Z',
       resolvedAt: '2026-07-28T13:00:00.000Z',
-      messageId: studentChatIds.assistantMessage,
-      sessionId: studentChatIds.primarySession,
+      messageId: chatIds.assistantMessage,
+      sessionId: chatIds.primarySession,
     }
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         expect(String(input)).toBe(
-          `http://localhost:4000/api/v1/student/reviews/${studentChatIds.primarySession}`,
+          `http://localhost:4000/api/v1/student/reviews/${chatIds.primarySession}`,
         )
         expect(init?.method).toBe('GET')
         return Response.json(response)
@@ -32,7 +32,7 @@ describe('Student review API', () => {
 
     await expect(
       getStudentReviewDetail({
-        reviewCaseId: studentChatIds.primarySession,
+        reviewCaseId: chatIds.primarySession,
         options: { fetchImpl: fetchMock },
       }),
     ).resolves.toEqual(response)
@@ -42,7 +42,7 @@ describe('Student review API', () => {
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         expect(String(input)).toBe(
-          `http://localhost:4000/api/v1/messages/${studentChatIds.assistantMessage}/review-requests`,
+          `http://localhost:4000/api/v1/messages/${chatIds.assistantMessage}/review-requests`,
         )
         expect(init?.method).toBe('POST')
         expect(new Headers(init?.headers).get('Idempotency-Key')).toBe(
@@ -54,8 +54,8 @@ describe('Student review API', () => {
         })
         return Response.json(
           {
-            caseId: studentChatIds.primarySession,
-            messageId: studentChatIds.assistantMessage,
+            caseId: chatIds.primarySession,
+            messageId: chatIds.assistantMessage,
             status: 'PENDING',
             trigger: 'STUDENT_REQUEST',
             requestedAt: '2026-07-28T12:00:00.000Z',
@@ -64,7 +64,7 @@ describe('Student review API', () => {
               status: 'PENDING',
               outcome: null,
               resolvedAt: null,
-              reviewCaseId: studentChatIds.primarySession,
+              reviewCaseId: chatIds.primarySession,
             },
           },
           { status: 201 },
@@ -73,7 +73,7 @@ describe('Student review API', () => {
     )
 
     await requestStudentReview({
-      messageId: studentChatIds.assistantMessage,
+      messageId: chatIds.assistantMessage,
       flagReason: 'CONFUSING',
       note: '  Please clarify  ',
       idempotencyKey: 'review-key',

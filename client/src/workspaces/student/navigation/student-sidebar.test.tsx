@@ -26,7 +26,7 @@ import { StudentSidebar } from '@/workspaces/student/navigation/student-sidebar'
 import { StudentSearchPalette } from '@/workspaces/student/navigation/student-search-palette'
 import {
   primaryChatSessionFixture,
-  studentChatIds,
+  chatIds,
 } from '@/features/chat/testing/chat.fixtures'
 
 const navigateMock = vi.hoisted(() => vi.fn())
@@ -72,13 +72,13 @@ vi.mock('@tanstack/react-router', () => ({
 
 const studentId = 'student-user'
 const primaryCourse: StudentCourseAccess = {
-  id: studentChatIds.primaryCourse,
+  id: chatIds.primaryCourse,
   code: 'PYTHON-PROG-P0',
   title: 'Python Programming',
   membershipRole: 'STUDENT',
 }
 const otherCourse: StudentCourseAccess = {
-  id: studentChatIds.otherCourse,
+  id: chatIds.otherCourse,
   code: 'JAVASCRIPT-P0',
   title: 'JavaScript Programming',
   membershipRole: 'STUDENT',

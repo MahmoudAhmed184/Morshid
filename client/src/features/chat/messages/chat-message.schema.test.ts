@@ -23,7 +23,7 @@ import {
   malformedChatSessionResponseFixture,
   orderedChatMessagesFixture,
   primaryChatSessionFixture,
-  studentChatIds,
+  chatIds,
 } from '../testing/chat.fixtures'
 
 describe('Student chat contract schemas', () => {
@@ -125,7 +125,7 @@ describe('Student chat contract schemas', () => {
           {
             ...assistantMessage,
             reviewSummary: {
-              reviewCaseId: studentChatIds.primarySession,
+              reviewCaseId: chatIds.primarySession,
               ...summary,
             },
           },
@@ -146,7 +146,7 @@ describe('Student chat contract schemas', () => {
           {
             ...assistantMessage,
             reviewSummary: {
-              reviewCaseId: studentChatIds.primarySession,
+              reviewCaseId: chatIds.primarySession,
               status: 'RESOLVED',
               outcome: 'APPROVED',
               resolvedAt: '2026-07-31T10:00:00.000Z',
@@ -329,76 +329,76 @@ describe('Student chat contract schemas', () => {
   it('accepts only trimmed tutoring content within 4,000 Unicode code points', () => {
     expect(
       sendChatMessageRequestSchema.parse({
-        clientMessageId: studentChatIds.studentMessage,
+        clientMessageId: chatIds.studentMessage,
         content: '  Explain lists  ',
-        problemId: studentChatIds.primaryTopic,
+        problemId: chatIds.primaryTopic,
         conceptId: '8e8a2e4a-f2f5-4d63-9dc8-4f7f5c02b2a6',
         title: '  List iteration  ',
       }),
     ).toEqual({
-      clientMessageId: studentChatIds.studentMessage,
+      clientMessageId: chatIds.studentMessage,
       content: 'Explain lists',
-      problemId: studentChatIds.primaryTopic,
+      problemId: chatIds.primaryTopic,
       conceptId: '8e8a2e4a-f2f5-4d63-9dc8-4f7f5c02b2a6',
       title: 'List iteration',
     })
     expect(
       sendChatMessageRequestSchema.safeParse({
-        clientMessageId: studentChatIds.studentMessage,
+        clientMessageId: chatIds.studentMessage,
         content: '😀'.repeat(4_000),
       }).success,
     ).toBe(true)
 
     for (const input of [
-      { clientMessageId: studentChatIds.studentMessage, content: ' ' },
+      { clientMessageId: chatIds.studentMessage, content: ' ' },
       {
-        clientMessageId: studentChatIds.studentMessage,
+        clientMessageId: chatIds.studentMessage,
         content: '😀'.repeat(4_001),
       },
       {
-        clientMessageId: studentChatIds.studentMessage,
+        clientMessageId: chatIds.studentMessage,
         content: 'Question',
         courseId: 'client-course',
       },
       {
-        clientMessageId: studentChatIds.studentMessage,
+        clientMessageId: chatIds.studentMessage,
         content: 'Question',
         studentId: 'client-student',
       },
       {
-        clientMessageId: studentChatIds.studentMessage,
+        clientMessageId: chatIds.studentMessage,
         content: 'Question',
         chunks: [],
       },
       {
-        clientMessageId: studentChatIds.studentMessage,
+        clientMessageId: chatIds.studentMessage,
         content: 'Question',
         ranks: [1],
       },
       {
-        clientMessageId: studentChatIds.studentMessage,
+        clientMessageId: chatIds.studentMessage,
         content: 'Question',
         citations: [],
       },
       {
-        clientMessageId: studentChatIds.studentMessage,
+        clientMessageId: chatIds.studentMessage,
         content: 'Question',
         provider: 'client-provider',
       },
       {
-        clientMessageId: studentChatIds.studentMessage,
+        clientMessageId: chatIds.studentMessage,
         content: 'Question',
         model: 'client-model',
       },
       { clientMessageId: 'not-a-uuid', content: 'Question' },
       { content: 'Question' },
       {
-        clientMessageId: studentChatIds.studentMessage,
+        clientMessageId: chatIds.studentMessage,
         content: 'Question',
         problemId: 'not-a-uuid',
       },
       {
-        clientMessageId: studentChatIds.studentMessage,
+        clientMessageId: chatIds.studentMessage,
         content: 'Question',
         title: '   ',
       },

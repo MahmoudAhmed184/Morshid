@@ -26,7 +26,7 @@ import {
 import { StudentCourseProvider } from '@/workspaces/student/navigation/student-course-context'
 import {
   primaryChatSessionFixture,
-  studentChatIds,
+  chatIds,
 } from '@/features/chat/testing/chat.fixtures'
 
 import { StudentSearchPalette } from './student-search-palette'
@@ -48,14 +48,14 @@ vi.mock('@tanstack/react-router', () => ({
 
 const studentId = 'student-user'
 const primaryCourse: StudentCourseAccess = {
-  id: studentChatIds.primaryCourse,
+  id: chatIds.primaryCourse,
   code: 'PYTHON-PROG-P0',
   title: 'Python Programming',
   membershipRole: 'STUDENT',
 }
 const secondSession: ChatSession = {
   ...primaryChatSessionFixture,
-  id: studentChatIds.otherSession,
+  id: chatIds.otherSession,
   title: 'Functions practice',
 }
 

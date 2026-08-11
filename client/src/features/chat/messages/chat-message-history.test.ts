@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { chatMessageHistoryResponseSchema } from '@/features/chat/messages/chat-message.schema'
 import {
   chatMessageHistoryResponseFixture,
-  studentChatIds,
+  chatIds,
 } from '@/features/chat/testing/chat.fixtures'
 
 import { markMessageReviewPending } from './chat-message-history'
@@ -26,15 +26,15 @@ describe('Student chat review summary cache', () => {
 
     const updated = markMessageReviewPending(
       cached,
-      studentChatIds.assistantMessage,
-      studentChatIds.primarySession,
+      chatIds.assistantMessage,
+      chatIds.primarySession,
     )
     const assistantMessage = updated.pages[0].messages.find(
-      ({ id }) => id === studentChatIds.assistantMessage,
+      ({ id }) => id === chatIds.assistantMessage,
     )
 
     expect(assistantMessage?.reviewSummary).toEqual({
-      reviewCaseId: studentChatIds.primarySession,
+      reviewCaseId: chatIds.primarySession,
       status: 'PENDING',
       outcome: null,
       resolvedAt: null,

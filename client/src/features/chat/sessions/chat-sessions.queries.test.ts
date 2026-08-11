@@ -21,7 +21,7 @@ describe('Student session query options', () => {
     }).queryKey
 
     expect(primary).toEqual([
-      'student-chat',
+      'chat',
       studentId,
       'courses',
       courseId,
@@ -50,7 +50,7 @@ describe('Student session query options', () => {
     }).queryKey
 
     expect(primary).toEqual([
-      'student-chat',
+      'chat',
       studentId,
       'courses',
       courseId,
@@ -82,7 +82,7 @@ describe('Student session query options', () => {
     }).queryKey
 
     expect(primary).toEqual([
-      'student-chat',
+      'chat',
       studentId,
       'courses',
       courseId,
@@ -108,7 +108,7 @@ describe('Student session query options', () => {
 
   it('keeps list and message prefixes separate for scoped cache updates', () => {
     expect(chatSessionKeys.sessionLists({ studentId, courseId })).toEqual([
-      'student-chat',
+      'chat',
       studentId,
       'courses',
       courseId,
@@ -118,7 +118,7 @@ describe('Student session query options', () => {
     expect(
       chatSessionKeys.messages({ studentId, courseId, sessionId }),
     ).toEqual([
-      'student-chat',
+      'chat',
       studentId,
       'courses',
       courseId,
@@ -127,7 +127,7 @@ describe('Student session query options', () => {
       'messages',
     ])
     expect(chatSessionKeys.detail({ studentId, courseId, sessionId })).toEqual([
-      'student-chat',
+      'chat',
       studentId,
       'courses',
       courseId,

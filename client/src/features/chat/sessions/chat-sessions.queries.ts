@@ -20,19 +20,12 @@ const messagePageSize = 50
 
 export const chatSessionKeys = {
   sessionLists: ({ studentId, courseId }: StudentCourseScope) =>
-    [
-      'student-chat',
-      studentId,
-      'courses',
-      courseId,
-      'sessions',
-      'list',
-    ] as const,
+    ['chat', studentId, 'courses', courseId, 'sessions', 'list'] as const,
   sessionList: (scope: StudentCourseScope) =>
     [...chatSessionKeys.sessionLists(scope)] as const,
   detail: ({ studentId, courseId, sessionId }: ChatSessionScope) =>
     [
-      'student-chat',
+      'chat',
       studentId,
       'courses',
       courseId,
@@ -42,7 +35,7 @@ export const chatSessionKeys = {
     ] as const,
   messages: ({ studentId, courseId, sessionId }: ChatSessionScope) =>
     [
-      'student-chat',
+      'chat',
       studentId,
       'courses',
       courseId,

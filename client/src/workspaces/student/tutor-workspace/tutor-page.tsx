@@ -25,8 +25,8 @@ import {
 } from '@/workspaces/student/navigation/student-chrome-context'
 import { useStudentCourseContext } from '@/workspaces/student/navigation/student-course-context'
 import {
-  isStudentChatApiError,
-  STUDENT_CHAT_ERROR_CODES,
+  isChatApiError,
+  CHAT_ERROR_CODES,
 } from '@/features/chat/messages/chat.errors'
 import {
   useCreateChatSession,
@@ -46,7 +46,7 @@ import { firstNameFromDisplayName } from '@/workspaces/student/tutor-workspace/g
 import { cn } from '@/lib/utils'
 
 import { StudentChatComposer } from './chat-composer'
-import type { StudentChatComposerHandle } from './chat-composer'
+import type { StudentChatComposerActions } from './chat-composer'
 import { StudentMessageHistory } from './message-history'
 import { StudentSourcesPanel } from './sources-panel'
 import { StudentSuggestionRows } from './suggestion-rows'
@@ -81,9 +81,9 @@ export function TutorPage({ sessionId }: TutorPageProps) {
   const [pendingFirstMessage, setPendingFirstMessage] =
     useState<PendingFirstMessage | null>(null)
   const recoveredSessionRef = useRef<string | null>(null)
-  const routedSessionMissing = isStudentChatApiError(
+  const routedSessionMissing = isChatApiError(
     routedSessionQuery.error,
-    STUDENT_CHAT_ERROR_CODES.SESSION_NOT_FOUND,
+    CHAT_ERROR_CODES.SESSION_NOT_FOUND,
   )
 
   useEffect(() => {
@@ -290,10 +290,7 @@ function StudentSessionPlaceholder({
 }: StudentSessionPlaceholderProps) {
   const hasBlockingSessionError =
     sessionError !== null &&
-    !isStudentChatApiError(
-      sessionError,
-      STUDENT_CHAT_ERROR_CODES.SESSION_NOT_FOUND,
-    )
+    !isChatApiError(sessionError, CHAT_ERROR_CODES.SESSION_NOT_FOUND)
 
   let body: ReactNode
 
@@ -350,12 +347,18 @@ function StudentDraftState({
   firstName,
   onFirstMessageCreated,
 }: StudentDraftStateProps) {
-  const composerRef = useRef<StudentChatComposerHandle>(null)
+  const composerActionsRef = useRef<StudentChatComposerActions | null>(null)
+  const registerComposerActions = useCallback(
+    (actions: StudentChatComposerActions | null) => {
+      composerActionsRef.current = actions
+    },
+    [],
+  )
   const createSession = useCreateChatSession({ courseId: course.id })
 
   // T15.7 — publish the draft composer's focus so the sidebar's New chat and the
   // collapsed `+` can focus it on entry, even from a different route subtree.
-  useRegisterComposerFocus(() => composerRef.current?.focus())
+  useRegisterComposerFocus(() => composerActionsRef.current?.focus())
 
   // T15.2 first-send chain — create the session, then hand the message to the
   // freshly-created session (the page navigates there and the destination
@@ -390,17 +393,17 @@ function StudentDraftState({
                 : 'How can I help you?'}
             </h1>
             <StudentSuggestionRows
-              onSelect={(text) => composerRef.current?.prefill(text)}
+              onSelect={(text) => composerActionsRef.current?.prefill(text)}
             />
           </div>
         </div>
       </div>
       <StudentChatComposer
-        ref={composerRef}
         isGenerating={createSession.isPending}
         sendError={createSession.error}
         onDismissError={createSession.reset}
         onSend={handleDraftSend}
+        onActionsReady={registerComposerActions}
       />
     </>
   )
@@ -427,7 +430,13 @@ function StudentConversation({
     select: (state) => state.location.hash,
   })
   const deepLinkedMessageId = parseMessageHash(messageHash)
-  const composerRef = useRef<StudentChatComposerHandle>(null)
+  const composerActionsRef = useRef<StudentChatComposerActions | null>(null)
+  const registerComposerActions = useCallback(
+    (actions: StudentChatComposerActions | null) => {
+      composerActionsRef.current = actions
+    },
+    [],
+  )
   const messagesQuery = useChatMessages({
     courseId: course.id,
     sessionId: session.id,
@@ -477,7 +486,7 @@ function StudentConversation({
     }
 
     pendingFirstMessageHandledRef.current = true
-    composerRef.current?.submitWith(
+    composerActionsRef.current?.submitWith(
       pendingFirstMessage.content,
       pendingFirstMessage.clientMessageId,
     )
@@ -573,16 +582,18 @@ function StudentConversation({
               void handleRetryMessage(studentMessageId)
             }
             onRequestReview={(input) => requestReview.mutateAsync(input)}
-            onSuggestionSelect={(text) => composerRef.current?.prefill(text)}
+            onSuggestionSelect={(text) =>
+              composerActionsRef.current?.prefill(text)
+            }
           />
         </div>
       </div>
       <StudentChatComposer
-        ref={composerRef}
         isGenerating={isGenerationActive}
         sendError={sendMessage.error}
         onDismissError={sendMessage.reset}
         onSend={handleSend}
+        onActionsReady={registerComposerActions}
       />
     </StudentWorkspaceSources>
   )
