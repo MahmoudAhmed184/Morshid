@@ -55,7 +55,7 @@ export interface TeachingPolicyDefaults {
 
 export interface PreviousTeachingDecisionSnapshot {
   id: string
-  turnId: string
+  attemptId: string
   topicId: string
   analysisId: string
   strategy: TeachingStrategy

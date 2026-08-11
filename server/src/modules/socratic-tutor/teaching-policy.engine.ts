@@ -53,7 +53,7 @@ export class TeachingPolicyEngine {
   ) {}
 
   findPreviousDecision(input: {
-    turnId: string
+    attemptId: string
     topicId: string
   }): Promise<PersistedTeachingDecisionRecord | null> {
     return this.teachingDecisionRepository.findLatestCompletedForSameTopicBeforeTurn(

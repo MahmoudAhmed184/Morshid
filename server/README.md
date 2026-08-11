@@ -110,7 +110,7 @@ minors, or any content that has not been approved for this use.
 
 - `NODE_ENV` must not be `production`. Free-tier inputs and outputs may be used
   to improve Google's products, so this provider must never serve real users.
-  This is the load-bearing restriction; it is *not* expressed as
+  This is the load-bearing restriction; it is _not_ expressed as
   "`development` only", because forcing `NODE_ENV` would also change unrelated
   security behaviour (the refresh cookie's `Secure` flag, unauthenticated
   Swagger at `/docs`, and the absolute-`PDF_STORAGE_PATH` requirement) and would
@@ -155,13 +155,13 @@ Before enabling the demo:
 The guard does not meter every dimension the same way, and the units are not
 interchangeable with the AI Studio dashboard's:
 
-| Variable | Window |
-| --- | --- |
-| `GEMINI_REQUESTS_PER_MINUTE` | Continuously refilling token bucket over 60s |
-| `GEMINI_INPUT_TOKENS_PER_MINUTE` | Continuously refilling token bucket over 60s |
-| `GEMINI_REQUESTS_PER_HOUR` | Continuously refilling token bucket over 1h |
-| `GEMINI_REQUESTS_PER_DAY` | **Fixed window**, resets at 00:00 UTC |
-| `GEMINI_REQUESTS_PER_MONTH` | **Fixed window**, epoch-aligned 30 days — not a calendar month, so it does not reset on the 1st |
+| Variable                         | Window                                                                                          |
+| -------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `GEMINI_REQUESTS_PER_MINUTE`     | Continuously refilling token bucket over 60s                                                    |
+| `GEMINI_INPUT_TOKENS_PER_MINUTE` | Continuously refilling token bucket over 60s                                                    |
+| `GEMINI_REQUESTS_PER_HOUR`       | Continuously refilling token bucket over 1h                                                     |
+| `GEMINI_REQUESTS_PER_DAY`        | **Fixed window**, resets at 00:00 UTC                                                           |
+| `GEMINI_REQUESTS_PER_MONTH`      | **Fixed window**, epoch-aligned 30 days — not a calendar month, so it does not reset on the 1st |
 
 The two long budgets are fixed windows rather than rolling ones on purpose: a
 rolling budget drained just after a reset and again just before the next one
@@ -381,7 +381,7 @@ a shared key would let one PDF ingest starve student chat. The schema can only
 prove the two keys differ; project separation is an operator responsibility.
 
 There is no `GEMINI_EMBEDDING_MODEL`. The model, its dimensions, and the
-document formatting together *are* the persisted document profile
+document formatting together _are_ the persisted document profile
 (`gemini/gemini-embedding-2/1536/document-v1`), so the model is pinned in code —
 an environment variable would let an operator split the corpus across two vector
 spaces under one `embedding_model` value.
@@ -455,7 +455,7 @@ credential, header, URL, source string, body, or vector component.
 The schema stores one vector and one model id per chunk, and replacement is
 transactional only per material — there is no corpus-wide transaction, so a
 transition is necessarily mixed while it runs. Normal material processing also
-uses the *configured* provider, so a migration cannot run alongside it.
+uses the _configured_ provider, so a migration cannot run alongside it.
 
 The exclusion mechanism is **operational maintenance mode, not a lock**. A
 migration lock would only provide mutual exclusion if the normal workers
@@ -477,7 +477,7 @@ npm run embedding:migrate -- gemini      # or: deterministic
 ```
 
 The target is an **explicit argument**, and its configuration is validated
-independently of `EMBEDDING_PROVIDER` — the whole point is to migrate *before*
+independently of `EMBEDDING_PROVIDER` — the whole point is to migrate _before_
 switching, so the target is deliberately not the configured provider. For a
 Gemini target this means `GEMINI_EMBEDDING_*` must be set while
 `EMBEDDING_PROVIDER` is still `deterministic`; the command forces the target

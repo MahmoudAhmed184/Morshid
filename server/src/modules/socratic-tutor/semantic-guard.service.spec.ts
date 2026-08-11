@@ -287,7 +287,7 @@ function input(
   patch: Partial<SemanticGuardEvaluationInput> = {},
 ): SemanticGuardEvaluationInput {
   return {
-    turnId: 'turn-1',
+    attemptId: 'turn-1',
     topicId: 'topic-1',
     courseId: 'course-1',
     candidateAttempt: 1,
@@ -343,7 +343,7 @@ function input(
           id: 'assistant-previous',
           sequence: 1,
           role: 'ASSISTANT',
-          turnId: 'turn-previous',
+          attemptId: 'turn-previous',
           topicId: 'topic-1',
           content: 'Trace the collection and predict the next value.',
         },

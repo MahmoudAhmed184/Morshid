@@ -3,14 +3,14 @@ import {
   MessageRequestKind,
   MessageRole,
   MessageStatus,
-  TutorTurnStatus,
+  TutoringAttemptStatus,
 } from '../../generated/prisma/client'
 import type { ChatMessageRecord } from './student-chat.repository.types'
 import { SocraticChatOrchestrator } from './socratic-chat.orchestrator'
 import { TURN_ACQUISITION_OUTCOME } from '../socratic-tutor/turn.types'
 import { TOPIC_RESOLUTION_OUTCOME } from '../socratic-tutor/topic.types'
 
-const turnId = 'turn-1'
+const attemptId = 'turn-1'
 const courseId = 'course-1'
 const sessionId = 'session-1'
 const studentId = 'student-1'
@@ -41,8 +41,8 @@ describe('SocraticChatOrchestrator classified responses', () => {
       const completeClassifiedResponse = jest.fn().mockResolvedValue({
         kind: 'ok',
         turn: {
-          id: turnId,
-          status: TutorTurnStatus.COMPLETED,
+          id: attemptId,
+          status: TutoringAttemptStatus.COMPLETED,
         },
       })
       const studentMessage = buildMessage({
@@ -78,7 +78,7 @@ describe('SocraticChatOrchestrator classified responses', () => {
         {
           getOrCreate: jest.fn().mockResolvedValue({
             outcome: TURN_ACQUISITION_OUTCOME.CREATED,
-            turn: { id: turnId },
+            turn: { id: attemptId },
           }),
           linkStudentMessage: jest.fn().mockResolvedValue(undefined),
           attachResolvedTopic: jest.fn().mockResolvedValue(undefined),
@@ -136,7 +136,7 @@ describe('SocraticChatOrchestrator classified responses', () => {
           problemId: 'problem-1',
           title: 'Problem topic',
         },
-        idempotencyKey: 'idempotency-key',
+        clientMessageId: 'idempotency-key',
       })
 
       expect(result).toMatchObject({
@@ -151,13 +151,13 @@ describe('SocraticChatOrchestrator classified responses', () => {
           courseId,
           sessionId,
           studentId,
-          turnId,
+          attemptId,
           topicId,
           studentMessageId,
           assistantMessageId,
           requestKind,
           errorCode,
-          expectedTurnStatus: TutorTurnStatus.ANALYZING,
+          expectedTurnStatus: TutoringAttemptStatus.ANALYZING,
         }),
       )
       expect(resolveTopic).toHaveBeenCalledWith({
@@ -169,9 +169,9 @@ describe('SocraticChatOrchestrator classified responses', () => {
         title: 'Problem topic',
       })
       expect(transitionStatus).toHaveBeenCalledWith(
-        turnId,
-        TutorTurnStatus.RECEIVED,
-        TutorTurnStatus.ANALYZING,
+        attemptId,
+        TutoringAttemptStatus.RECEIVED,
+        TutoringAttemptStatus.ANALYZING,
       )
       expect(teachingPolicyEngine.findPreviousDecision).not.toHaveBeenCalled()
       expect(teachingPolicyEngine.selectDecision).not.toHaveBeenCalled()
@@ -179,9 +179,9 @@ describe('SocraticChatOrchestrator classified responses', () => {
       expect(responseApprovalService.approveAndPersist).not.toHaveBeenCalled()
       expect(semanticGuard.evaluate).not.toHaveBeenCalled()
       expect(transitionStatus).not.toHaveBeenCalledWith(
-        turnId,
-        TutorTurnStatus.ANALYZING,
-        TutorTurnStatus.DECIDING,
+        attemptId,
+        TutoringAttemptStatus.ANALYZING,
+        TutoringAttemptStatus.DECIDING,
       )
     },
   )
@@ -194,7 +194,7 @@ function buildMessage(
     id: 'message-1',
     sequence: 1,
     role: MessageRole.STUDENT,
-    turnId,
+    attemptId,
     topicId,
     authorUserId: studentId,
     responseToMessageId: null,

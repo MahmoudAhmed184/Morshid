@@ -355,7 +355,7 @@ function message(
     id: input.id ?? 'message-1',
     sequence: input.sequence ?? 1,
     role: input.role ?? MessageRole.STUDENT,
-    turnId: input.turnId ?? null,
+    attemptId: input.attemptId ?? null,
     topicId: input.topicId === undefined ? 'topic-1' : input.topicId,
     authorUserId: input.authorUserId ?? 'student-1',
     responseToMessageId: input.responseToMessageId ?? null,

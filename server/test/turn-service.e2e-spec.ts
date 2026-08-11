@@ -19,10 +19,10 @@ import { TurnService } from '../src/modules/socratic-tutor/turn.service'
 import { TURN_ACQUISITION_OUTCOME } from '../src/modules/socratic-tutor/turn.types'
 import {
   MessageRequestKind,
-  TutorApprovalSource,
-  TutorCandidateGenerationOutcome,
-  TutorTurnFailureCode,
-  TutorTurnStatus,
+  TutoringApprovalSource,
+  TutoringCandidateGenerationOutcome,
+  TutoringAttemptFailureCode,
+  TutoringAttemptStatus,
 } from '../src/generated/prisma/client'
 import type { RetrievedChunk } from '../src/modules/retrieval/retrieval.service'
 import type { ApprovedResponse } from '../src/modules/socratic-tutor/response-validation.types'
@@ -39,8 +39,8 @@ interface ChatFixture {
   sessionId: string
 }
 
-interface PendingTutorTurnGraph {
-  turnId: string
+interface PendingTutoringAttemptGraph {
+  attemptId: string
   topicId: string
   studentMessageId: string
   assistantMessageId: string
@@ -65,11 +65,11 @@ describe('TurnService persistence (e2e)', () => {
 
   it('recovers concurrent acquisition with one created row and one processing result', async () => {
     const fixture = await createChatFixture(prisma)
-    const idempotencyKey = `same-${randomUUID()}`
+    const clientMessageId = `same-${randomUUID()}`
 
     const [first, second] = await Promise.all([
-      service.getOrCreate(fixture.sessionId, idempotencyKey),
-      service.getOrCreate(fixture.sessionId, idempotencyKey),
+      service.getOrCreate(fixture.sessionId, clientMessageId),
+      service.getOrCreate(fixture.sessionId, clientMessageId),
     ])
 
     expect([first.outcome, second.outcome].sort()).toEqual([
@@ -86,10 +86,10 @@ describe('TurnService persistence (e2e)', () => {
     })
     expect(first.turn.id).toBe(second.turn.id)
     await expect(
-      prisma.tutorTurn.count({
+      prisma.tutoringAttempt.count({
         where: {
           sessionId: fixture.sessionId,
-          idempotencyKey,
+          clientMessageId,
         },
       }),
     ).resolves.toBe(1)
@@ -109,7 +109,7 @@ describe('TurnService persistence (e2e)', () => {
 
     expect(new Set([first.turn.id, second.turn.id, third.turn.id]).size).toBe(3)
     await expect(
-      prisma.tutorTurn.count({
+      prisma.tutoringAttempt.count({
         where: {
           id: {
             in: [first.turn.id, second.turn.id, third.turn.id],
@@ -122,19 +122,19 @@ describe('TurnService persistence (e2e)', () => {
   it('allows one concurrent transition winner and reports the stale loser', async () => {
     const fixture = await createChatFixture(prisma)
     const turn = await createTurn(prisma, fixture, {
-      status: TutorTurnStatus.ANALYZING,
+      status: TutoringAttemptStatus.ANALYZING,
     })
 
     const results = await Promise.allSettled([
       service.transitionStatus(
         turn.id,
-        TutorTurnStatus.ANALYZING,
-        TutorTurnStatus.RETRIEVING,
+        TutoringAttemptStatus.ANALYZING,
+        TutoringAttemptStatus.RETRIEVING,
       ),
       service.transitionStatus(
         turn.id,
-        TutorTurnStatus.ANALYZING,
-        TutorTurnStatus.DECIDING,
+        TutoringAttemptStatus.ANALYZING,
+        TutoringAttemptStatus.DECIDING,
       ),
     ])
     const fulfilled = results.filter(isFulfilled)
@@ -147,7 +147,7 @@ describe('TurnService persistence (e2e)', () => {
       TURN_ERROR_CODES.STALE_STATUS,
     )
 
-    const persisted = await prisma.tutorTurn.findUniqueOrThrow({
+    const persisted = await prisma.tutoringAttempt.findUniqueOrThrow({
       where: { id: turn.id },
       select: { status: true, failureCode: true, completedAt: true },
     })
@@ -162,19 +162,19 @@ describe('TurnService persistence (e2e)', () => {
   it('prevents two expected-state lifecycle operations from both mutating', async () => {
     const fixture = await createChatFixture(prisma)
     const turn = await createTurn(prisma, fixture, {
-      status: TutorTurnStatus.GENERATING,
+      status: TutoringAttemptStatus.GENERATING,
     })
 
     const results = await Promise.allSettled([
       service.markFailed(
         turn.id,
-        TutorTurnStatus.GENERATING,
-        TutorTurnFailureCode.GENERATION_FAILED,
+        TutoringAttemptStatus.GENERATING,
+        TutoringAttemptFailureCode.GENERATION_FAILED,
       ),
       service.transitionStatus(
         turn.id,
-        TutorTurnStatus.GENERATING,
-        TutorTurnStatus.VALIDATING,
+        TutoringAttemptStatus.GENERATING,
+        TutoringAttemptStatus.VALIDATING,
       ),
     ])
     const fulfilled = results.filter(isFulfilled)
@@ -183,18 +183,20 @@ describe('TurnService persistence (e2e)', () => {
     expect(fulfilled).toHaveLength(1)
     expect(rejected).toHaveLength(1)
 
-    const persisted = await prisma.tutorTurn.findUniqueOrThrow({
+    const persisted = await prisma.tutoringAttempt.findUniqueOrThrow({
       where: { id: turn.id },
       select: { status: true, failureCode: true, completedAt: true },
     })
 
     expect(persisted.status).toBe(fulfilled[0].value.status)
-    if (persisted.status === TutorTurnStatus.FAILED) {
-      expect(persisted.failureCode).toBe(TutorTurnFailureCode.GENERATION_FAILED)
+    if (persisted.status === TutoringAttemptStatus.FAILED) {
+      expect(persisted.failureCode).toBe(
+        TutoringAttemptFailureCode.GENERATION_FAILED,
+      )
       expect(persisted.completedAt).not.toBeNull()
     } else {
       expect(persisted).toEqual({
-        status: TutorTurnStatus.VALIDATING,
+        status: TutoringAttemptStatus.VALIDATING,
         failureCode: null,
         completedAt: null,
       })
@@ -204,20 +206,20 @@ describe('TurnService persistence (e2e)', () => {
   it('enforces terminal guardrails', async () => {
     const fixture = await createChatFixture(prisma)
     const completed = await createTurn(prisma, fixture, {
-      status: TutorTurnStatus.COMPLETED,
+      status: TutoringAttemptStatus.COMPLETED,
       completedAt: new Date(),
     })
     const failed = await createTurn(prisma, fixture, {
-      status: TutorTurnStatus.FAILED,
-      failureCode: TutorTurnFailureCode.RETRIEVAL_FAILED,
+      status: TutoringAttemptStatus.FAILED,
+      failureCode: TutoringAttemptFailureCode.RETRIEVAL_FAILED,
       completedAt: new Date(),
     })
 
     await expect(
       service.transitionStatus(
         completed.id,
-        TutorTurnStatus.COMPLETED,
-        TutorTurnStatus.ANALYZING,
+        TutoringAttemptStatus.COMPLETED,
+        TutoringAttemptStatus.ANALYZING,
       ),
     ).rejects.toHaveProperty(
       'response.code',
@@ -226,8 +228,8 @@ describe('TurnService persistence (e2e)', () => {
     await expect(
       service.markFailed(
         failed.id,
-        TutorTurnStatus.FAILED,
-        TutorTurnFailureCode.PERSISTENCE_FAILED,
+        TutoringAttemptStatus.FAILED,
+        TutoringAttemptFailureCode.PERSISTENCE_FAILED,
       ),
     ).rejects.toHaveProperty(
       'response.code',
@@ -237,35 +239,39 @@ describe('TurnService persistence (e2e)', () => {
 
   it('keeps existing Task 1.1 and TopicState constraints effective', async () => {
     const fixture = await createChatFixture(prisma)
-    const idempotencyKey = `constraint-${randomUUID()}`
-    await createTurn(prisma, fixture, { idempotencyKey })
+    const clientMessageId = `constraint-${randomUUID()}`
+    await createTurn(prisma, fixture, { clientMessageId })
 
     await expect(
-      prisma.tutorTurn.create({
+      prisma.tutoringAttempt.create({
         data: {
           sessionId: fixture.sessionId,
-          idempotencyKey,
+          clientMessageId,
         },
       }),
     ).rejects.toThrow()
 
-    const { approvedTutorMessageId } = await createStudentAndAssistantMessages(
+    const { assistantMessageId } = await createStudentAndAssistantMessages(
       prisma,
       fixture,
     )
-    await createTurn(prisma, fixture, {
-      idempotencyKey: `approved-${randomUUID()}`,
-      approvedTutorMessageId,
+    const firstAttempt = await createTurn(prisma, fixture, {
+      clientMessageId: `approved-${randomUUID()}`,
+      assistantMessageId,
     })
     await expect(
-      prisma.tutorTurn.create({
+      prisma.tutoringAttempt.create({
         data: {
           sessionId: fixture.sessionId,
-          idempotencyKey: `approved-${randomUUID()}`,
-          approvedTutorMessageId,
+          clientMessageId: `approved-${randomUUID()}`,
+          assistantMessageId,
+          retryOfAttemptId: firstAttempt.id,
         },
       }),
-    ).rejects.toThrow()
+    ).resolves.toMatchObject({
+      assistantMessageId,
+      retryOfAttemptId: firstAttempt.id,
+    })
 
     const topic = await createTopic(prisma, fixture)
     const topicStateRepository: TopicStateRepository =
@@ -290,7 +296,7 @@ describe('TurnService persistence (e2e)', () => {
 
   it('persists one approved tutor response and replays idempotently', async () => {
     const fixture = await createChatFixture(prisma)
-    const graph = await createPendingTutorTurnGraph(prisma, fixture)
+    const graph = await createPendingTutoringAttemptGraph(prisma, fixture)
     const evidence = await createRetrievedChunk(prisma, fixture)
     const topicState = await prisma.topicState.create({
       data: { topicId: graph.topicId },
@@ -301,7 +307,7 @@ describe('TurnService persistence (e2e)', () => {
       courseId: fixture.courseId,
       sessionId: fixture.sessionId,
       studentId: fixture.studentId,
-      turnId: graph.turnId,
+      attemptId: graph.attemptId,
       topicId: graph.topicId,
       studentMessageId: graph.studentMessageId,
       assistantMessageId: graph.assistantMessageId,
@@ -319,7 +325,7 @@ describe('TurnService persistence (e2e)', () => {
         }),
       ),
       safeFallbackReason: null,
-      expectedTurnStatus: TutorTurnStatus.VALIDATING,
+      expectedTurnStatus: TutoringAttemptStatus.VALIDATING,
       topicStateTransition: {
         expectedVersion: topicState.version,
         patch: { attemptCount: 1, summary: 'Approved tutor response' },
@@ -331,8 +337,8 @@ describe('TurnService persistence (e2e)', () => {
     ).resolves.toMatchObject({
       kind: 'ok',
       turn: {
-        status: TutorTurnStatus.COMPLETED,
-        approvedTutorMessageId: graph.assistantMessageId,
+        status: TutoringAttemptStatus.COMPLETED,
+        assistantMessageId: graph.assistantMessageId,
         safeFallbackUsed: false,
       },
     })
@@ -374,7 +380,7 @@ describe('TurnService persistence (e2e)', () => {
 
   it('persists deterministic safe fallback without citations', async () => {
     const fixture = await createChatFixture(prisma)
-    const graph = await createPendingTutorTurnGraph(prisma, fixture)
+    const graph = await createPendingTutoringAttemptGraph(prisma, fixture)
     const topicState = await prisma.topicState.create({
       data: { topicId: graph.topicId },
       select: { version: true },
@@ -385,7 +391,7 @@ describe('TurnService persistence (e2e)', () => {
         courseId: fixture.courseId,
         sessionId: fixture.sessionId,
         studentId: fixture.studentId,
-        turnId: graph.turnId,
+        attemptId: graph.attemptId,
         topicId: graph.topicId,
         studentMessageId: graph.studentMessageId,
         assistantMessageId: graph.assistantMessageId,
@@ -405,7 +411,7 @@ describe('TurnService persistence (e2e)', () => {
           }),
         ),
         safeFallbackReason: SAFE_FALLBACK_REASON.GUARD_UNAVAILABLE,
-        expectedTurnStatus: TutorTurnStatus.VALIDATING,
+        expectedTurnStatus: TutoringAttemptStatus.VALIDATING,
         topicStateTransition: {
           expectedVersion: topicState.version,
           patch: { attemptCount: 1 },
@@ -414,8 +420,8 @@ describe('TurnService persistence (e2e)', () => {
     ).resolves.toMatchObject({
       kind: 'ok',
       turn: {
-        status: TutorTurnStatus.COMPLETED,
-        approvedTutorMessageId: graph.assistantMessageId,
+        status: TutoringAttemptStatus.COMPLETED,
+        assistantMessageId: graph.assistantMessageId,
         safeFallbackUsed: true,
       },
     })
@@ -428,7 +434,7 @@ describe('TurnService persistence (e2e)', () => {
 
   it('blocks finalization behind membership removal and rejects the response', async () => {
     const fixture = await createChatFixture(prisma)
-    const graph = await createPendingTutorTurnGraph(prisma, fixture)
+    const graph = await createPendingTutoringAttemptGraph(prisma, fixture)
     const topicState = await prisma.topicState.create({
       data: { topicId: graph.topicId },
       select: { version: true },
@@ -466,13 +472,13 @@ describe('TurnService persistence (e2e)', () => {
         }),
       ).resolves.toEqual({ status: 'PENDING' })
       await expect(
-        prisma.tutorTurn.findUniqueOrThrow({
-          where: { id: graph.turnId },
-          select: { status: true, approvedTutorMessageId: true },
+        prisma.tutoringAttempt.findUniqueOrThrow({
+          where: { id: graph.attemptId },
+          select: { status: true, assistantMessageId: true },
         }),
       ).resolves.toEqual({
-        status: TutorTurnStatus.VALIDATING,
-        approvedTutorMessageId: null,
+        status: TutoringAttemptStatus.VALIDATING,
+        assistantMessageId: null,
       })
     } finally {
       await admin.query('ROLLBACK')
@@ -482,7 +488,7 @@ describe('TurnService persistence (e2e)', () => {
 
   it('blocks finalization behind session deletion and rejects the response', async () => {
     const fixture = await createChatFixture(prisma)
-    const graph = await createPendingTutorTurnGraph(prisma, fixture)
+    const graph = await createPendingTutoringAttemptGraph(prisma, fixture)
     const topicState = await prisma.topicState.create({
       data: { topicId: graph.topicId },
       select: { version: true },
@@ -519,13 +525,13 @@ describe('TurnService persistence (e2e)', () => {
         }),
       ).resolves.toEqual({ status: 'PENDING' })
       await expect(
-        prisma.tutorTurn.findUniqueOrThrow({
-          where: { id: graph.turnId },
-          select: { status: true, approvedTutorMessageId: true },
+        prisma.tutoringAttempt.findUniqueOrThrow({
+          where: { id: graph.attemptId },
+          select: { status: true, assistantMessageId: true },
         }),
       ).resolves.toEqual({
-        status: TutorTurnStatus.VALIDATING,
-        approvedTutorMessageId: null,
+        status: TutoringAttemptStatus.VALIDATING,
+        assistantMessageId: null,
       })
     } finally {
       await admin.query('ROLLBACK')
@@ -593,24 +599,24 @@ async function createTurn(
   prisma: PrismaService,
   fixture: ChatFixture,
   input: {
-    idempotencyKey?: string
-    status?: TutorTurnStatus
-    failureCode?: TutorTurnFailureCode | null
-    approvedTutorMessageId?: string
+    clientMessageId?: string
+    status?: TutoringAttemptStatus
+    failureCode?: TutoringAttemptFailureCode | null
+    assistantMessageId?: string
     completedAt?: Date | null
   } = {},
 ): Promise<{ id: string }> {
-  return prisma.tutorTurn.create({
+  return prisma.tutoringAttempt.create({
     data: {
       sessionId: fixture.sessionId,
-      idempotencyKey: input.idempotencyKey ?? `turn-${randomUUID()}`,
+      clientMessageId: input.clientMessageId ?? `turn-${randomUUID()}`,
       status: input.status,
       failureCode: input.failureCode,
-      approvedTutorMessageId: input.approvedTutorMessageId,
+      assistantMessageId: input.assistantMessageId,
       completedAt: input.completedAt,
-      ...(input.status === TutorTurnStatus.COMPLETED
+      ...(input.status === TutoringAttemptStatus.COMPLETED
         ? {
-            approvalSource: TutorApprovalSource.VALIDATED_CANDIDATE,
+            approvalSource: TutoringApprovalSource.VALIDATED_CANDIDATE,
             approvedCandidateAttempt: 1,
             validationPolicyVersion: 'response-validation.mvp.v1',
           }
@@ -625,7 +631,7 @@ async function createTurn(
 async function createStudentAndAssistantMessages(
   prisma: PrismaService,
   fixture: ChatFixture,
-): Promise<{ approvedTutorMessageId: string }> {
+): Promise<{ assistantMessageId: string }> {
   const sequenceBase = Math.floor(Math.random() * 100_000) + 1
   const studentMessage = await prisma.message.create({
     data: {
@@ -649,21 +655,21 @@ async function createStudentAndAssistantMessages(
   })
 
   return {
-    approvedTutorMessageId: assistantMessage.id,
+    assistantMessageId: assistantMessage.id,
   }
 }
 
-async function createPendingTutorTurnGraph(
+async function createPendingTutoringAttemptGraph(
   prisma: PrismaService,
   fixture: ChatFixture,
-): Promise<PendingTutorTurnGraph> {
+): Promise<PendingTutoringAttemptGraph> {
   const topic = await createTopic(prisma, fixture)
-  const turn = await prisma.tutorTurn.create({
+  const turn = await prisma.tutoringAttempt.create({
     data: {
       sessionId: fixture.sessionId,
       topicId: topic.id,
-      idempotencyKey: `approval-${randomUUID()}`,
-      status: TutorTurnStatus.VALIDATING,
+      clientMessageId: `approval-${randomUUID()}`,
+      status: TutoringAttemptStatus.VALIDATING,
     },
     select: { id: true },
   })
@@ -671,7 +677,7 @@ async function createPendingTutorTurnGraph(
   const studentMessage = await prisma.message.create({
     data: {
       sessionId: fixture.sessionId,
-      turnId: turn.id,
+      attemptId: turn.id,
       topicId: topic.id,
       sequence: sequenceBase,
       role: 'STUDENT',
@@ -684,7 +690,7 @@ async function createPendingTutorTurnGraph(
   const assistantMessage = await prisma.message.create({
     data: {
       sessionId: fixture.sessionId,
-      turnId: turn.id,
+      attemptId: turn.id,
       topicId: topic.id,
       sequence: sequenceBase + 1,
       role: 'ASSISTANT',
@@ -694,13 +700,13 @@ async function createPendingTutorTurnGraph(
     },
     select: { id: true },
   })
-  await prisma.tutorTurn.update({
+  await prisma.tutoringAttempt.update({
     where: { id: turn.id },
     data: { studentMessageId: studentMessage.id },
   })
 
   return {
-    turnId: turn.id,
+    attemptId: turn.id,
     topicId: topic.id,
     studentMessageId: studentMessage.id,
     assistantMessageId: assistantMessage.id,
@@ -709,7 +715,7 @@ async function createPendingTutorTurnGraph(
 
 function safeFallbackCompletionInput(
   fixture: ChatFixture,
-  graph: PendingTutorTurnGraph,
+  graph: PendingTutoringAttemptGraph,
   topicStateVersion: number,
 ): CompleteApprovedTutorResponseInput {
   const response = approvedResponse({
@@ -722,7 +728,7 @@ function safeFallbackCompletionInput(
     courseId: fixture.courseId,
     sessionId: fixture.sessionId,
     studentId: fixture.studentId,
-    turnId: graph.turnId,
+    attemptId: graph.attemptId,
     topicId: graph.topicId,
     studentMessageId: graph.studentMessageId,
     assistantMessageId: graph.assistantMessageId,
@@ -732,7 +738,7 @@ function safeFallbackCompletionInput(
     retrievalResult: [],
     auditGraph: auditGraphForApprovedResponse(response),
     safeFallbackReason: SAFE_FALLBACK_REASON.GUARD_UNAVAILABLE,
-    expectedTurnStatus: TutorTurnStatus.VALIDATING,
+    expectedTurnStatus: TutoringAttemptStatus.VALIDATING,
     topicStateTransition: {
       expectedVersion: topicStateVersion,
       patch: { attemptCount: 1 },
@@ -863,8 +869,8 @@ function auditGraphForApprovedResponse(
         candidateAttempt: 1,
         generationOutcome:
           response.source === 'SAFE_FALLBACK'
-            ? TutorCandidateGenerationOutcome.INFRASTRUCTURE_EXHAUSTED
-            : TutorCandidateGenerationOutcome.GENERATED,
+            ? TutoringCandidateGenerationOutcome.INFRASTRUCTURE_EXHAUSTED
+            : TutoringCandidateGenerationOutcome.GENERATED,
         generationFailureCode:
           response.source === 'SAFE_FALLBACK' ? 'GUARD_UNAVAILABLE' : null,
         contentHash:

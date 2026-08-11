@@ -72,7 +72,7 @@ export interface SemanticGuardPort {
 }
 
 export interface SemanticGuardEvaluationInput {
-  readonly turnId: string
+  readonly attemptId: string
   readonly topicId: string
   readonly courseId: string
   readonly candidateAttempt: number

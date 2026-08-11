@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { Client } from 'pg'
 
 import { Prisma } from '../src/generated/prisma/client'
+import { PrismaConversationTurns } from '../src/modules/conversations/prisma-conversation-turns'
 import type { PrismaService } from '../src/modules/prisma/prisma.service'
 import { PrismaStudentChatMessageRepository } from '../src/modules/student-chat/student-chat-message.repository'
 import { StudentChatMessagePresenter } from '../src/modules/student-chat/student-chat-message.presenter'
@@ -30,11 +31,13 @@ describe('Grounded chat turn repository (e2e)', () => {
   let database: DisposableDatabase | undefined
   let prisma: PrismaService
   let repository: PrismaGroundedChatTurnRepository
+  let conversationTurns: PrismaConversationTurns
 
   beforeAll(async () => {
     database = await setUpDisposableDatabase('morshid_issue88_turns')
     prisma = database.prisma
-    repository = new PrismaGroundedChatTurnRepository(prisma)
+    conversationTurns = new PrismaConversationTurns()
+    repository = new PrismaGroundedChatTurnRepository(prisma, conversationTurns)
   })
 
   afterAll(async () => {
@@ -412,9 +415,9 @@ describe('Grounded chat turn repository (e2e)', () => {
     if (turn.kind !== 'ok') {
       throw new Error('Expected the turn to begin')
     }
-    await prisma.message.update({
-      where: { id: turn.assistantMessage.id },
-      data: { groundingLeaseExpiresAt: new Date(0) },
+    await prisma.tutoringAttempt.update({
+      where: { id: turn.attemptId },
+      data: { leaseExpiresAt: new Date(0) },
     })
 
     const retried = await repository.retryTurn({
@@ -472,9 +475,9 @@ describe('Grounded chat turn repository (e2e)', () => {
     if (abandoned.kind !== 'ok') {
       throw new Error('Expected the turn to begin')
     }
-    await prisma.message.update({
-      where: { id: abandoned.assistantMessage.id },
-      data: { groundingLeaseExpiresAt: new Date(0) },
+    await prisma.tutoringAttempt.update({
+      where: { id: abandoned.attemptId },
+      data: { leaseExpiresAt: new Date(0) },
     })
 
     const next = await repository.beginTurn({
@@ -635,6 +638,7 @@ describe('Grounded chat turn repository (e2e)', () => {
     const beginFixture = await createFixture(prisma)
     const ambiguousBegin = new PrismaGroundedChatTurnRepository(
       loseNextTransactionAcknowledgement(prisma),
+      conversationTurns,
     )
     const begun = await ambiguousBegin.beginTurn({
       ...beginFixture,
@@ -658,6 +662,7 @@ describe('Grounded chat turn repository (e2e)', () => {
     })
     const ambiguousRetry = new PrismaGroundedChatTurnRepository(
       loseNextTransactionAcknowledgement(prisma),
+      conversationTurns,
     )
     const retried = await ambiguousRetry.retryTurn({
       ...beginFixture,
@@ -676,6 +681,7 @@ describe('Grounded chat turn repository (e2e)', () => {
     )
     const ambiguousComplete = new PrismaGroundedChatTurnRepository(
       loseNextTransactionAcknowledgement(prisma),
+      conversationTurns,
     )
     const completed = await ambiguousComplete.completeTurn({
       ...beginFixture,
@@ -713,6 +719,7 @@ describe('Grounded chat turn repository (e2e)', () => {
     }
     const intermittentlyUnavailable = new PrismaGroundedChatTurnRepository(
       loseAcknowledgementAndFirstReconciliation(prisma),
+      conversationTurns,
     )
 
     await expect(

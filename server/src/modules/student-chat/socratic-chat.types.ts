@@ -26,13 +26,13 @@ export interface SocraticOrchestrationInput {
   readonly topicSelection?: SocraticTopicSelection
   readonly requestBudget?: RequestBudget
   /**
-   * Deterministic idempotency key for the TutorTurn.
+   * Deterministic idempotency key for the TutoringAttempt.
    *
    * - **send path**: equals the persisted `studentMessageId`.
    * - **retry path**: `${studentMessageId}:${attemptId}` where both values
    *   are already persisted by `retryTurn`.
    */
-  readonly idempotencyKey: string
+  readonly clientMessageId: string
 }
 
 export type SocraticOrchestrationResult =

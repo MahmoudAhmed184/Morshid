@@ -1,8 +1,10 @@
 import type {
-  TutorTurnFailureCode,
-  TutorTurnStatus,
-  TutorApprovalSource,
-  TutorSafeFallbackReason,
+  MessageRequestKind,
+  TutoringAttemptFailureCode,
+  TutoringAttemptStatus,
+  TutoringApprovalSource,
+  TutoringSafeFallbackReason,
+  TeachingStrategy,
 } from '../../generated/prisma/client'
 import type { TURN_ERROR_CODES } from './turn.errors'
 
@@ -16,32 +18,39 @@ export const TURN_ACQUISITION_OUTCOME = {
 export type TurnAcquisitionOutcome =
   (typeof TURN_ACQUISITION_OUTCOME)[keyof typeof TURN_ACQUISITION_OUTCOME]
 
-export interface TutorTurnSessionRecord {
+export interface TutoringAttemptSessionRecord {
   id: string
   deletedAt: Date | null
 }
 
-export interface TutorTurnSnapshot {
+export interface TutoringAttemptSnapshot {
   id: string
   sessionId: string
   topicId: string | null
   studentMessageId: string | null
-  approvedTutorMessageId: string | null
-  idempotencyKey: string
-  status: TutorTurnStatus
-  failureCode: TutorTurnFailureCode | null
+  assistantMessageId: string | null
+  retryOfAttemptId: string | null
+  clientMessageId: string
+  requestKind: MessageRequestKind | null
+  teachingStrategy: TeachingStrategy | null
+  status: TutoringAttemptStatus
+  failureCode: TutoringAttemptFailureCode | null
+  leaseExpiresAt: Date | null
+  claimedAt: Date | null
+  version: number
   safeFallbackUsed: boolean
-  approvalSource: TutorApprovalSource | null
+  approvalSource: TutoringApprovalSource | null
   approvedCandidateAttempt: number | null
-  safeFallbackReason: TutorSafeFallbackReason | null
+  safeFallbackReason: TutoringSafeFallbackReason | null
   validationPolicyVersion: string | null
+  reviewRequired: boolean
   createdAt: Date
   // Terminal processing timestamp; successful completion is status COMPLETED.
   completedAt: Date | null
 }
 
 export interface LinkStudentMessageInput {
-  turnId: string
+  attemptId: string
   studentMessageId: string
 }
 
@@ -50,7 +59,7 @@ export interface AttachResolvedTopicInput extends LinkStudentMessageInput {
 }
 
 export type LinkStudentMessageResult =
-  | { kind: 'ok'; turn: TutorTurnSnapshot }
+  | { kind: 'ok'; turn: TutoringAttemptSnapshot }
   | { kind: 'turn_not_found' }
   | { kind: 'message_not_found' }
   | { kind: 'message_role_mismatch' }
@@ -58,7 +67,7 @@ export type LinkStudentMessageResult =
   | { kind: 'linkage_conflict' }
 
 export type AttachResolvedTopicResult =
-  | { kind: 'ok'; turn: TutorTurnSnapshot }
+  | { kind: 'ok'; turn: TutoringAttemptSnapshot }
   | { kind: 'turn_not_found' }
   | { kind: 'message_not_found' }
   | { kind: 'topic_not_found' }
@@ -70,18 +79,18 @@ export type AttachResolvedTopicResult =
 export type TurnAcquisitionResult =
   | {
       outcome: typeof TURN_ACQUISITION_OUTCOME.CREATED
-      turn: TutorTurnSnapshot
+      turn: TutoringAttemptSnapshot
     }
   | {
       outcome: typeof TURN_ACQUISITION_OUTCOME.COMPLETED
-      turn: TutorTurnSnapshot
+      turn: TutoringAttemptSnapshot
     }
   | {
       outcome: typeof TURN_ACQUISITION_OUTCOME.ALREADY_PROCESSING
       code: typeof TURN_ERROR_CODES.ALREADY_PROCESSING
-      turn: TutorTurnSnapshot
+      turn: TutoringAttemptSnapshot
     }
   | {
       outcome: typeof TURN_ACQUISITION_OUTCOME.FAILED
-      turn: TutorTurnSnapshot
+      turn: TutoringAttemptSnapshot
     }

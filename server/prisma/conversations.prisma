@@ -56,7 +56,7 @@ model ChatSession {
   membership CourseMembership @relation("ChatSessionMembership", fields: [courseId, studentId], references: [courseId, userId], onDelete: Restrict)
   messages   Message[]
   topics     Topic[]
-  tutorTurns TutorTurn[]
+  tutoringAttempts TutoringAttempt[]
   inboxItems ReviewInboxItem[]
 
   @@index([courseId], map: "idx_sessions_course")
@@ -68,7 +68,7 @@ model ChatSession {
 model Message {
   id                      String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   sessionId               String                @map("session_id") @db.Uuid
-  turnId                  String?               @map("turn_id") @db.Uuid
+  attemptId                  String?               @map("attempt_id") @db.Uuid
   topicId                 String?               @map("topic_id") @db.Uuid
   sequence                Int
   role                    MessageRole
@@ -86,21 +86,19 @@ model Message {
   outputTokens            Int?                  @map("output_tokens")
   errorCode               String?               @map("error_code") @db.VarChar(80)
   errorMessage            String?               @map("error_message") @db.Text
-  groundingAttemptId      String?               @map("grounding_attempt_id") @db.Uuid
-  groundingLeaseExpiresAt DateTime?             @map("grounding_lease_expires_at") @db.Timestamptz(6)
   createdAt               DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
   completedAt             DateTime?             @map("completed_at") @db.Timestamptz(6)
 
   session                          ChatSession                        @relation(fields: [sessionId], references: [id], onDelete: Restrict)
-  turn                             TutorTurn?                         @relation("MessageTurn", fields: [turnId], references: [id], onDelete: SetNull)
+  attempt                         TutoringAttempt?                         @relation("MessageAttempt", fields: [attemptId], references: [id], onDelete: SetNull)
   topic                            Topic?                             @relation("MessageTopic", fields: [topicId], references: [id], onDelete: SetNull)
   author                           User?                              @relation("MessageAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
   responseToMessage                Message?                           @relation("MessageResponse", fields: [responseToMessageId], references: [id], onDelete: SetNull)
   response                         Message?                           @relation("MessageResponse")
   retrievals                       MessageRetrieval[]
   citations                        MessageCitation[]
-  studentTutorTurns                TutorTurn[]                        @relation("TutorTurnStudentMessage")
-  approvedTutorTurn                TutorTurn?                         @relation("TutorTurnApprovedTutorMessage")
+  studentTutoringAttempts          TutoringAttempt[]                        @relation("TutoringAttemptStudentMessage")
+  assistantTutoringAttempts         TutoringAttempt[]                        @relation("TutoringAttemptAssistantMessage")
   educationalAnalyses              EducationalAnalysis[]              @relation("EducationalAnalysisStudentMessage")
   educationalAnalysisEvidenceLinks EducationalAnalysisEvidenceLink[]
   misconceptionAnalysisEvidence    EducationalAnalysisMisconception[] @relation("EducationalAnalysisMisconceptionEvidence")
@@ -108,10 +106,9 @@ model Message {
   inboxItems                       ReviewInboxItem[]
 
   @@unique([sessionId, sequence], map: "messages_session_id_sequence_key")
-  @@index([turnId], map: "idx_messages_turn")
+  @@index([attemptId], map: "idx_messages_attempt")
   @@index([topicId], map: "idx_messages_topic")
   @@index([authorUserId], map: "idx_messages_author")
-  @@index([sessionId, status, groundingLeaseExpiresAt], map: "idx_messages_grounding_lease")
   @@map("messages")
 }
 

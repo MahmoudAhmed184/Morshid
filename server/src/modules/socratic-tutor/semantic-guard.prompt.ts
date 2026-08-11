@@ -61,7 +61,7 @@ function guardPayload(input: SemanticGuardEvaluationInput) {
     role: 'semantic_guard_only',
     promptVersion: SEMANTIC_GUARD_PROMPT_VERSION,
     identifiers: {
-      turnId: input.turnId,
+      attemptId: input.attemptId,
       topicId: input.topicId,
       courseId: input.courseId,
       candidateAttempt: input.candidateAttempt,

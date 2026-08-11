@@ -500,7 +500,7 @@ function analysis(input: {
 }): PersistedEducationalAnalysisRecord {
   return {
     id: 'analysis-1',
-    turnId: 'turn-current',
+    attemptId: 'turn-current',
     topicId: 'topic-1',
     studentMessageId: 'current',
     attempt: 1,
@@ -556,7 +556,7 @@ function message(
     id: 'student-message',
     sequence: 1,
     role: MessageRole.STUDENT,
-    turnId: 'turn-1',
+    attemptId: 'turn-1',
     topicId: 'topic-1',
     authorUserId: 'student-1',
     responseToMessageId: null,

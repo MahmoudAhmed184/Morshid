@@ -19,7 +19,7 @@ import {
   StudentState,
   TeachingStrategy,
   TeachingTechnique,
-  TutorTurnStatus,
+  TutoringAttemptStatus,
 } from '../src/generated/prisma/client'
 import type { IdentitySessionResponse } from '../src/modules/identity/identity.types'
 import { COMPLETION_PROVIDER_TOKEN } from '../src/modules/completion/completion-provider'
@@ -190,8 +190,8 @@ describe('Gemini Socratic runtime HTTP live verification', () => {
     await prisma.teachingDecision.deleteMany()
     await prisma.educationalAnalysis.deleteMany()
     await prisma.guardResult.deleteMany()
-    await prisma.tutorCandidateAttempt.deleteMany()
-    await prisma.tutorTurn.deleteMany()
+    await prisma.tutoringCandidateAttempt.deleteMany()
+    await prisma.tutoringAttempt.deleteMany()
     await prisma.topicState.deleteMany()
     await prisma.topic.deleteMany()
     await prisma.messageRetrieval.deleteMany()
@@ -256,20 +256,20 @@ describe('Gemini Socratic runtime HTTP live verification', () => {
       ]),
     )
 
-    const tutorTurns = await prisma.tutorTurn.findMany({
+    const tutoringAttempts = await prisma.tutoringAttempt.findMany({
       where: { sessionId: session.id },
     })
-    expect(tutorTurns).toHaveLength(1)
-    const tutorTurn = tutorTurns[0]
-    expect(tutorTurn.status).toBe(TutorTurnStatus.COMPLETED)
-    expect(tutorTurn.failureCode).toBeNull()
-    expect(tutorTurn.completedAt).not.toBeNull()
-    expect(tutorTurn.studentMessageId).toBe(turn.studentMessage.id)
-    expect(tutorTurn.approvedTutorMessageId).toBe(turn.assistantMessage.id)
-    expect(tutorTurn.topicId).not.toBeNull()
+    expect(tutoringAttempts).toHaveLength(1)
+    const tutoringAttempt = tutoringAttempts[0]
+    expect(tutoringAttempt.status).toBe(TutoringAttemptStatus.COMPLETED)
+    expect(tutoringAttempt.failureCode).toBeNull()
+    expect(tutoringAttempt.completedAt).not.toBeNull()
+    expect(tutoringAttempt.studentMessageId).toBe(turn.studentMessage.id)
+    expect(tutoringAttempt.assistantMessageId).toBe(turn.assistantMessage.id)
+    expect(tutoringAttempt.topicId).not.toBeNull()
 
     const analyses = await prisma.educationalAnalysis.findMany({
-      where: { turnId: tutorTurn.id },
+      where: { attemptId: tutoringAttempt.id },
       include: {
         evidenceLinks: true,
         misconceptions: true,
@@ -283,16 +283,16 @@ describe('Gemini Socratic runtime HTTP live verification', () => {
     expect(analysis.provider).toBe(OPENAI_COMPATIBLE_ANALYSIS_MODEL_PROVIDER)
     expect(analysis.model).toBe(env.ANALYSIS_MODEL_NAME)
     expect(analysis.studentMessageId).toBe(turn.studentMessage.id)
-    expect(analysis.topicId).toBe(tutorTurn.topicId)
+    expect(analysis.topicId).toBe(tutoringAttempt.topicId)
     expect(analysis.confidence).toBeGreaterThanOrEqual(
       env.ANALYSIS_CONFIDENCE_THRESHOLD,
     )
 
     const teachingDecision = await prisma.teachingDecision.findUniqueOrThrow({
-      where: { turnId: tutorTurn.id },
+      where: { attemptId: tutoringAttempt.id },
     })
     expect(teachingDecision.analysisId).toBe(analysis.id)
-    expect(teachingDecision.topicId).toBe(tutorTurn.topicId)
+    expect(teachingDecision.topicId).toBe(tutoringAttempt.topicId)
     expect(teachingDecision.requireStudentAction).toBe(true)
 
     const storedAssistant = await prisma.message.findUniqueOrThrow({
@@ -305,15 +305,15 @@ describe('Gemini Socratic runtime HTTP live verification', () => {
     expect(storedAssistant.status).toBe('COMPLETED')
     expect(storedAssistant.content).toBe(turn.assistantMessage.content)
     expect(storedAssistant.responseToMessageId).toBe(turn.studentMessage.id)
-    expect(storedAssistant.turnId).toBe(tutorTurn.id)
-    expect(storedAssistant.topicId).toBe(tutorTurn.topicId)
+    expect(storedAssistant.attemptId).toBe(tutoringAttempt.id)
+    expect(storedAssistant.topicId).toBe(tutoringAttempt.topicId)
     expect(storedAssistant.guidanceLabel).toBe(
       MessageGuidanceLabel.COURSE_GROUNDED,
     )
     expect(storedAssistant.retrievals.length).toBeGreaterThanOrEqual(1)
     expect(storedAssistant.retrievals[0]?.rank).toBe(1)
 
-    if (tutorTurn.safeFallbackUsed) {
+    if (tutoringAttempt.safeFallbackUsed) {
       expect(storedAssistant.provider).toBeNull()
       expect(storedAssistant.model).toBeNull()
       expect(storedAssistant.promptVersion).toBe(SAFE_FALLBACK_PROMPT_VERSION)
@@ -350,13 +350,13 @@ describe('Gemini Socratic runtime HTTP live verification', () => {
         outcome: 'success',
         scope: 'live-gemini-socratic-runtime-e2e',
         httpStatus: 201,
-        tutorTurnStatus: tutorTurn.status,
-        approvedResponseSource: tutorTurn.safeFallbackUsed
+        tutoringAttemptStatus: tutoringAttempt.status,
+        approvedResponseSource: tutoringAttempt.safeFallbackUsed
           ? 'SAFE_FALLBACK'
           : 'VALIDATED_CANDIDATE',
         persistedRecords: {
           messages: 2,
-          tutorTurns: 1,
+          tutoringAttempts: 1,
           educationalAnalyses: analyses.length,
           teachingDecisions: 1,
           retrievals: storedAssistant.retrievals.length,
@@ -649,7 +649,7 @@ const overRevealEducationalContext: TutorGuardEducationalContext =
         id: 'live-over-reveal-previous-assistant',
         sequence: 1,
         role: MessageRole.ASSISTANT,
-        turnId: 'live-over-reveal-previous-turn',
+        attemptId: 'live-over-reveal-previous-turn',
         topicId: 'live-over-reveal-topic',
         content:
           'For x in [5, 10, 15], which value will x hold on the first iteration?',
@@ -680,7 +680,7 @@ function overRevealEvaluation(
   expect(disclosureContract.directTargetInferenceAllowed).toBe(false)
 
   return {
-    turnId: 'live-over-reveal-turn',
+    attemptId: 'live-over-reveal-turn',
     topicId: 'live-over-reveal-topic',
     courseId: 'live-over-reveal-course',
     candidateAttempt: 1,

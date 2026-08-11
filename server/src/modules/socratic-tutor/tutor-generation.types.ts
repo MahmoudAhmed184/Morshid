@@ -92,7 +92,7 @@ export interface TutorEvidenceContext {
 }
 
 export interface GenerationContextPackage {
-  readonly turnId: string
+  readonly attemptId: string
   readonly sessionId: string
   readonly courseId: string
   readonly topicId: string
@@ -129,7 +129,7 @@ export interface TutorGenerationInput {
   readonly courseId: string
   readonly sessionId: string
   readonly studentId: string
-  readonly turnId: string
+  readonly attemptId: string
   readonly studentMessageId: string
   readonly topicId: string
   readonly retrievalResult: readonly RetrievedChunk[]
@@ -208,7 +208,7 @@ export interface TutorGuardEducationalContext {
     readonly id: string
     readonly sequence: number
     readonly role: AnalysisContextMessage['role']
-    readonly turnId: string | null
+    readonly attemptId: string | null
     readonly topicId: string | null
     readonly content: string
   }[]

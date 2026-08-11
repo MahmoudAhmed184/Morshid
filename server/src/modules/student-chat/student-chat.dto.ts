@@ -227,7 +227,7 @@ export class ChatMessageDto {
 
   @Expose()
   @ApiProperty({ type: String, format: 'uuid', nullable: true })
-  turnId!: string | null
+  attemptId!: string | null
 
   @Expose()
   @ApiProperty({ type: String, format: 'uuid', nullable: true })

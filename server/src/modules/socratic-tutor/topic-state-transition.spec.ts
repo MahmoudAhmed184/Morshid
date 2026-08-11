@@ -131,7 +131,7 @@ function analysisResult(): EducationalAnalysisResult {
 function decision(): PersistedTeachingDecisionRecord {
   return {
     id: 'decision-1',
-    turnId: 'turn-1',
+    attemptId: 'turn-1',
     topicId: 'topic-1',
     analysisId: 'analysis-1',
     strategy: TeachingStrategy.DEBUGGING_GUIDANCE,

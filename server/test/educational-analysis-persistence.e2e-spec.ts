@@ -36,7 +36,7 @@ interface Fixture {
   studentId: string
   sessionId: string
   topicId: string
-  turnId: string
+  attemptId: string
   studentMessageId: string
 }
 
@@ -64,7 +64,7 @@ describe('EducationalAnalysisRepository (e2e)', () => {
 
     expect(stored.kind).toBe('created')
     expect(stored.analysis).toMatchObject({
-      turnId: fixture.turnId,
+      attemptId: fixture.attemptId,
       topicId: fixture.topicId,
       studentMessageId: fixture.studentMessageId,
       attempt: 1,
@@ -164,7 +164,7 @@ describe('EducationalAnalysisRepository (e2e)', () => {
     })
     await expect(
       prisma.educationalAnalysis.count({
-        where: { turnId: fixture.turnId },
+        where: { attemptId: fixture.attemptId },
       }),
     ).resolves.toBe(1)
   })
@@ -184,7 +184,7 @@ describe('EducationalAnalysisRepository (e2e)', () => {
     expect(second.analysis.id).toBe(first.analysis.id)
     await expect(
       prisma.educationalAnalysis.count({
-        where: { turnId: fixture.turnId },
+        where: { attemptId: fixture.attemptId },
       }),
     ).resolves.toBe(1)
   })
@@ -247,17 +247,17 @@ async function createFixture(prisma: PrismaService): Promise<Fixture> {
       topicType: TopicType.DEBUGGING_TASK,
     },
   })
-  const turn = await prisma.tutorTurn.create({
+  const turn = await prisma.tutoringAttempt.create({
     data: {
       sessionId: session.id,
       topicId: topic.id,
-      idempotencyKey: `analysis-${suffix}`,
+      clientMessageId: `analysis-${suffix}`,
     },
   })
   const studentMessage = await prisma.message.create({
     data: {
       sessionId: session.id,
-      turnId: turn.id,
+      attemptId: turn.id,
       topicId: topic.id,
       sequence: 1,
       role: MessageRole.STUDENT,
@@ -267,7 +267,7 @@ async function createFixture(prisma: PrismaService): Promise<Fixture> {
       completedAt: new Date('2026-08-05T00:00:00.000Z'),
     },
   })
-  await prisma.tutorTurn.update({
+  await prisma.tutoringAttempt.update({
     where: { id: turn.id },
     data: {
       studentMessageId: studentMessage.id,
@@ -279,7 +279,7 @@ async function createFixture(prisma: PrismaService): Promise<Fixture> {
     studentId: student.id,
     sessionId: session.id,
     topicId: topic.id,
-    turnId: turn.id,
+    attemptId: turn.id,
     studentMessageId: studentMessage.id,
   }
 }
@@ -296,7 +296,7 @@ function persistInput(
   },
 ): PersistEducationalAnalysisInput {
   return {
-    turnId: fixture.turnId,
+    attemptId: fixture.attemptId,
     topicId: fixture.topicId,
     studentMessageId: fixture.studentMessageId,
     result,

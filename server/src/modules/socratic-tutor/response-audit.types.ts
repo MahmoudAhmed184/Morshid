@@ -1,14 +1,14 @@
 import { createHash } from 'node:crypto'
 
-import { TutorCandidateGenerationOutcome } from '../../generated/prisma/client'
+import { TutoringCandidateGenerationOutcome } from '../../generated/prisma/client'
 import { SOCRATIC_DISCLOSURE_POLICY_VERSION } from './socratic-disclosure-policy'
 import type { PersistedTeachingDecisionRecord } from './teaching-decision.repository'
 import type { CandidateResponse } from './tutor-generation.types'
 import type { ValidationResult } from './response-validation.types'
 
-export interface TutorCandidateAttemptAudit {
+export interface TutoringCandidateAttemptAudit {
   readonly candidateAttempt: number
-  readonly generationOutcome: TutorCandidateGenerationOutcome
+  readonly generationOutcome: TutoringCandidateGenerationOutcome
   readonly generationFailureCode: string | null
   readonly contentHash: string | null
   readonly provider: string | null
@@ -29,7 +29,7 @@ export interface GuardResultAudit {
 }
 
 export interface ResponseAuditGraph {
-  readonly candidateAttempts: readonly TutorCandidateAttemptAudit[]
+  readonly candidateAttempts: readonly TutoringCandidateAttemptAudit[]
   readonly guardResults: readonly GuardResultAudit[]
 }
 
@@ -39,10 +39,10 @@ export function generatedCandidateAttemptAudit(input: {
   startedAt: Date
   completedAt: Date
   infrastructureRetryCount?: number
-}): TutorCandidateAttemptAudit {
+}): TutoringCandidateAttemptAudit {
   return Object.freeze({
     candidateAttempt: input.candidateAttempt,
-    generationOutcome: TutorCandidateGenerationOutcome.GENERATED,
+    generationOutcome: TutoringCandidateGenerationOutcome.GENERATED,
     generationFailureCode: null,
     contentHash: hashCandidate(input.candidate),
     provider: input.candidate.provider,
@@ -63,12 +63,12 @@ export function failedCandidateAttemptAudit(input: {
   startedAt: Date
   completedAt: Date
   infrastructureRetryCount?: number
-}): TutorCandidateAttemptAudit {
+}): TutoringCandidateAttemptAudit {
   return Object.freeze({
     candidateAttempt: input.candidateAttempt,
     generationOutcome: input.invalidOutput
-      ? TutorCandidateGenerationOutcome.INVALID_OUTPUT
-      : TutorCandidateGenerationOutcome.INFRASTRUCTURE_EXHAUSTED,
+      ? TutoringCandidateGenerationOutcome.INVALID_OUTPUT
+      : TutoringCandidateGenerationOutcome.INFRASTRUCTURE_EXHAUSTED,
     generationFailureCode: input.errorCode,
     contentHash: null,
     provider: null,

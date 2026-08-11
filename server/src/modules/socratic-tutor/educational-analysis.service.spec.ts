@@ -89,7 +89,7 @@ describe('EducationalAnalysisService', () => {
       fallbackReason: null,
       reused: false,
       analysis: {
-        turnId: 'turn-1',
+        attemptId: 'turn-1',
         topicId: 'topic-1',
         studentMessageId: 'message-22',
         attempt: 1,
@@ -107,7 +107,7 @@ describe('EducationalAnalysisService', () => {
     })
     expect(model.requests[0]?.messages[1].content).toContain('"message-22"')
     expect(repository.storeInputs[0]).toMatchObject({
-      turnId: 'turn-1',
+      attemptId: 'turn-1',
       topicId: 'topic-1',
       studentMessageId: 'message-22',
       result: goldenResult,
@@ -579,7 +579,7 @@ class FakeEducationalAnalysisRepository extends EducationalAnalysisRepository {
       [...this.records]
         .filter(
           (record) =>
-            record.turnId === input.turnId &&
+            record.attemptId === input.attemptId &&
             record.topicId === input.topicId &&
             record.studentMessageId === input.studentMessageId,
         )
@@ -595,7 +595,7 @@ class FakeEducationalAnalysisRepository extends EducationalAnalysisRepository {
     if (!input.forceReanalysis) {
       const existing = this.records.find(
         (record) =>
-          record.turnId === input.turnId &&
+          record.attemptId === input.attemptId &&
           record.topicId === input.topicId &&
           record.studentMessageId === input.studentMessageId,
       )
@@ -607,7 +607,7 @@ class FakeEducationalAnalysisRepository extends EducationalAnalysisRepository {
     const latestAttempt = Math.max(
       0,
       ...this.records
-        .filter((record) => record.turnId === input.turnId)
+        .filter((record) => record.attemptId === input.attemptId)
         .map((record) => record.attempt),
     )
     const analysis = buildPersistedRecord({
@@ -631,7 +631,7 @@ function buildContext(
       id: 'message-22',
       sequence: 22,
       role: MessageRole.STUDENT,
-      turnId: 'turn-1',
+      attemptId: 'turn-1',
       topicId: 'topic-1',
       authorUserId: 'student-1',
       responseToMessageId: null,
@@ -664,7 +664,7 @@ function buildContext(
         id: 'message-21',
         sequence: 21,
         role: MessageRole.ASSISTANT,
-        turnId: 'turn-0',
+        attemptId: 'turn-0',
         topicId: 'topic-1',
         authorUserId: null,
         responseToMessageId: 'message-20',
@@ -740,7 +740,7 @@ function buildPersistedRecord(input: {
 }): PersistedEducationalAnalysisRecord {
   return {
     id: input.id,
-    turnId: 'turn-1',
+    attemptId: 'turn-1',
     topicId: 'topic-1',
     studentMessageId: 'message-22',
     attempt: input.attempt,

@@ -25,7 +25,7 @@ import {
 } from './teaching-policy.types'
 
 export interface TeachingDecisionPolicyDraft {
-  turnId: string
+  attemptId: string
   topicId: string
   analysisId: string
   strategy: TeachingStrategy
@@ -101,7 +101,7 @@ export function selectTeachingDecisionDraft(
   const guidanceLevel = calculateGuidanceLevel(input, defaults)
 
   return {
-    turnId: input.analysis.turnId,
+    attemptId: input.analysis.attemptId,
     topicId: input.analysis.topicId,
     analysisId: input.analysis.id,
     strategy,

@@ -7,7 +7,7 @@ import {
   StudentState,
   TeachingStrategy,
   TeachingTechnique,
-  TutorTurnStatus,
+  TutoringAttemptStatus,
 } from '../../generated/prisma/client'
 import {
   RESPONSE_VALIDATION_STAGE,
@@ -207,17 +207,17 @@ describe('ResponseApprovalService', () => {
 
     expect(result.success).toBe(true)
     expect(harness.transitions).toEqual([
-      [TutorTurnStatus.GENERATING, TutorTurnStatus.VALIDATING],
-      [TutorTurnStatus.VALIDATING, TutorTurnStatus.REGENERATING],
-      [TutorTurnStatus.REGENERATING, TutorTurnStatus.GENERATING],
-      [TutorTurnStatus.GENERATING, TutorTurnStatus.VALIDATING],
-      [TutorTurnStatus.VALIDATING, TutorTurnStatus.REGENERATING],
-      [TutorTurnStatus.REGENERATING, TutorTurnStatus.GENERATING],
-      [TutorTurnStatus.GENERATING, TutorTurnStatus.VALIDATING],
+      [TutoringAttemptStatus.GENERATING, TutoringAttemptStatus.VALIDATING],
+      [TutoringAttemptStatus.VALIDATING, TutoringAttemptStatus.REGENERATING],
+      [TutoringAttemptStatus.REGENERATING, TutoringAttemptStatus.GENERATING],
+      [TutoringAttemptStatus.GENERATING, TutoringAttemptStatus.VALIDATING],
+      [TutoringAttemptStatus.VALIDATING, TutoringAttemptStatus.REGENERATING],
+      [TutoringAttemptStatus.REGENERATING, TutoringAttemptStatus.GENERATING],
+      [TutoringAttemptStatus.GENERATING, TutoringAttemptStatus.VALIDATING],
     ])
     expect(harness.completeApprovedResponse).toHaveBeenCalledWith(
       expect.objectContaining({
-        expectedTurnStatus: TutorTurnStatus.VALIDATING,
+        expectedTurnStatus: TutoringAttemptStatus.VALIDATING,
         safeFallbackReason: null,
       }),
     )
@@ -237,7 +237,7 @@ function buildHarness(
       result: approvedSemanticResult(),
     },
   )
-  const transitions: [TutorTurnStatus, TutorTurnStatus][] = []
+  const transitions: [TutoringAttemptStatus, TutoringAttemptStatus][] = []
   const completeApprovedResponse = jest.fn(() =>
     Promise.resolve({ kind: 'ok', turn: {} }),
   )
@@ -251,9 +251,9 @@ function buildHarness(
     { completeApprovedResponse } as never,
     {
       transitionStatus: (
-        _turnId: string,
-        expectedStatus: TutorTurnStatus,
-        nextStatus: TutorTurnStatus,
+        _attemptId: string,
+        expectedStatus: TutoringAttemptStatus,
+        nextStatus: TutoringAttemptStatus,
       ) => {
         transitions.push([expectedStatus, nextStatus])
         return Promise.resolve({})
@@ -323,7 +323,7 @@ function input(): TutorGenerationInput {
     courseId: 'course-1',
     sessionId: 'session-1',
     studentId: 'student-1',
-    turnId: 'turn-1',
+    attemptId: 'turn-1',
     studentMessageId: 'student-message-1',
     topicId: 'topic-1',
     retrievalResult: [retrievedChunk()],
@@ -388,7 +388,7 @@ function analysisForState(): TopicStateTransitionAnalysis {
 function decision(): PersistedTeachingDecisionRecord {
   return {
     id: 'decision-1',
-    turnId: 'turn-1',
+    attemptId: 'turn-1',
     topicId: 'topic-1',
     analysisId: 'analysis-1',
     strategy: TeachingStrategy.SOCRATIC_QUESTIONING,

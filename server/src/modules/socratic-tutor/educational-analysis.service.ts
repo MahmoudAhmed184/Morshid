@@ -238,7 +238,7 @@ export class EducationalAnalysisService {
         })
 
         this.logAnalysisOutcome({
-          turnId: identity.turnId,
+          attemptId: identity.attemptId,
           topicId: identity.topicId,
           status: stored.kind,
           analysisSource: stored.analysis.analysisSource,
@@ -304,7 +304,7 @@ export class EducationalAnalysisService {
       })
 
       this.logAnalysisOutcome({
-        turnId: input.identity.turnId,
+        attemptId: input.identity.attemptId,
         topicId: input.identity.topicId,
         status: stored.kind,
         analysisSource: stored.analysis.analysisSource,
@@ -329,7 +329,7 @@ export class EducationalAnalysisService {
   }
 
   private logAnalysisOutcome(input: {
-    turnId: string
+    attemptId: string
     topicId: string
     status: 'created' | 'reused'
     analysisSource: string
@@ -338,7 +338,7 @@ export class EducationalAnalysisService {
   }): void {
     this.logger.log({
       stage: 'educational_analysis',
-      turnId: input.turnId,
+      attemptId: input.attemptId,
       topicId: input.topicId,
       status: input.status,
       confidencePolicyVersion: this.confidencePolicy.version,
@@ -350,12 +350,12 @@ export class EducationalAnalysisService {
 }
 
 function analysisIdentityFromContext(context: AnalysisContextPackage) {
-  if (context.studentMessage.turnId === null) {
+  if (context.studentMessage.attemptId === null) {
     return null
   }
 
   return {
-    turnId: context.studentMessage.turnId,
+    attemptId: context.studentMessage.attemptId,
     topicId: context.activeTopic.id,
     studentMessageId: context.studentMessage.id,
   }

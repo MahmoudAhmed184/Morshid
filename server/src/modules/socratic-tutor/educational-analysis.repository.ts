@@ -16,7 +16,7 @@ import {
 } from './educational-analysis.types'
 
 export interface EducationalAnalysisIdentity {
-  turnId: string
+  attemptId: string
   topicId: string
   studentMessageId: string
 }
@@ -155,7 +155,7 @@ export class PrismaEducationalAnalysisRepository extends EducationalAnalysisRepo
 
         const latest = await tx.educationalAnalysis.aggregate({
           where: {
-            turnId: input.turnId,
+            attemptId: input.attemptId,
           },
           _max: {
             attempt: true,
@@ -164,7 +164,7 @@ export class PrismaEducationalAnalysisRepository extends EducationalAnalysisRepo
         const attempt = (latest._max.attempt ?? 0) + 1
         const created = await tx.educationalAnalysis.create({
           data: {
-            turnId: input.turnId,
+            attemptId: input.attemptId,
             topicId: input.topicId,
             studentMessageId: input.studentMessageId,
             attempt,
@@ -257,7 +257,7 @@ async function reconcileStudentRequestKind(
 
 function identityWhere(input: EducationalAnalysisIdentity) {
   return {
-    turnId: input.turnId,
+    attemptId: input.attemptId,
     topicId: input.topicId,
     studentMessageId: input.studentMessageId,
   } satisfies Prisma.EducationalAnalysisWhereInput
@@ -288,7 +288,7 @@ function mapEducationalAnalysis(
 ): PersistedEducationalAnalysisRecord {
   return {
     id: record.id,
-    turnId: record.turnId,
+    attemptId: record.attemptId,
     topicId: record.topicId,
     studentMessageId: record.studentMessageId,
     attempt: record.attempt,

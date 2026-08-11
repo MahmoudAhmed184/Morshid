@@ -33,7 +33,7 @@ import { TurnService } from '../src/modules/socratic-tutor/turn.service'
 import {
   TURN_ACQUISITION_OUTCOME,
   type TurnAcquisitionResult,
-  type TutorTurnSnapshot,
+  type TutoringAttemptSnapshot,
 } from '../src/modules/socratic-tutor/turn.types'
 import {
   setUpDisposableDatabase,
@@ -50,7 +50,7 @@ interface PersistedGraph {
   message: {
     id: string
     sessionId: string
-    turnId: string | null
+    attemptId: string | null
     topicId: string | null
     role: MessageRole
     content: string
@@ -58,7 +58,7 @@ interface PersistedGraph {
     requestKind: MessageRequestKind | null
     hintLevel: number | null
   }
-  turn: TutorTurnSnapshot
+  turn: TutoringAttemptSnapshot
   topic: {
     id: string
     sessionId: string
@@ -97,7 +97,7 @@ type Phase1WorkflowResult =
 
 interface SubmitStudentTurnInput {
   fixture: ChatFixture
-  idempotencyKey: string
+  clientMessageId: string
   content: string
   problemId?: string | null
   conceptId?: string | null
@@ -117,7 +117,7 @@ class Phase1TestWorkflow {
   async submit(input: SubmitStudentTurnInput): Promise<Phase1WorkflowResult> {
     const acquisition = await this.turnService.getOrCreate(
       input.fixture.sessionId,
-      input.idempotencyKey,
+      input.clientMessageId,
     )
 
     if (acquisition.outcome !== TURN_ACQUISITION_OUTCOME.CREATED) {
@@ -151,7 +151,7 @@ class Phase1TestWorkflow {
       sessionId: input.fixture.sessionId,
       studentId: input.fixture.studentId,
       content: input.content,
-      turnId: acquisition.turn.id,
+      attemptId: acquisition.turn.id,
       topicId: topicResolution.topicId,
     })
 
@@ -190,10 +190,10 @@ class Phase1TestWorkflow {
   }
 
   private async readGraphForTurnIfLinked(
-    turnId: string,
+    attemptId: string,
   ): Promise<PersistedGraph | null> {
-    const turn = await this.prisma.tutorTurn.findUniqueOrThrow({
-      where: { id: turnId },
+    const turn = await this.prisma.tutoringAttempt.findUniqueOrThrow({
+      where: { id: attemptId },
       select: {
         studentMessageId: true,
       },
@@ -238,14 +238,14 @@ describe('Phase 1 Socratic persistence flow (e2e)', () => {
 
   it('reuses one stable turn, message, topic, and state for duplicate requests', async () => {
     const fixture = await createChatFixture(prisma)
-    const idempotencyKey = phase1Key('duplicate')
+    const clientMessageId = phase1Key('duplicate')
     const problemId = randomUUID()
     const content = phase1Content('duplicate logical request')
 
     const first = await expectCreatedGraphResult(
       workflow.submit({
         fixture,
-        idempotencyKey,
+        clientMessageId,
         problemId,
         title: 'Duplicate request problem',
         content,
@@ -254,7 +254,7 @@ describe('Phase 1 Socratic persistence flow (e2e)', () => {
     const second = await expectGraphResult(
       workflow.submit({
         fixture,
-        idempotencyKey,
+        clientMessageId,
         problemId,
         title: 'Duplicate request problem',
         content,
@@ -275,8 +275,8 @@ describe('Phase 1 Socratic persistence flow (e2e)', () => {
     await expectGraphInvariants(prisma, fixture, first.graph)
     await expectGraphInvariants(prisma, fixture, second.graph)
     await expect(
-      prisma.tutorTurn.count({
-        where: { sessionId: fixture.sessionId, idempotencyKey },
+      prisma.tutoringAttempt.count({
+        where: { sessionId: fixture.sessionId, clientMessageId },
       }),
     ).resolves.toBe(1)
     await expect(
@@ -297,20 +297,20 @@ describe('Phase 1 Socratic persistence flow (e2e)', () => {
 
   it('handles concurrent same-key requests and keeps different keys distinct', async () => {
     const fixture = await createChatFixture(prisma)
-    const idempotencyKey = phase1Key('concurrent-same')
+    const clientMessageId = phase1Key('concurrent-same')
     const problemId = randomUUID()
 
     const sameKeyResults = await Promise.allSettled([
       workflow.submit({
         fixture,
-        idempotencyKey,
+        clientMessageId,
         problemId,
         title: 'Concurrent ownership',
         content: phase1Content('concurrent owner'),
       }),
       workflow.submit({
         fixture,
-        idempotencyKey,
+        clientMessageId,
         problemId,
         title: 'Concurrent ownership',
         content: phase1Content('concurrent duplicate'),
@@ -339,15 +339,15 @@ describe('Phase 1 Socratic persistence flow (e2e)', () => {
       code: TURN_ERROR_CODES.ALREADY_PROCESSING,
     })
     await expect(
-      prisma.tutorTurn.count({
-        where: { sessionId: fixture.sessionId, idempotencyKey },
+      prisma.tutoringAttempt.count({
+        where: { sessionId: fixture.sessionId, clientMessageId },
       }),
     ).resolves.toBe(1)
     await expect(
       prisma.message.count({
         where: {
           sessionId: fixture.sessionId,
-          turnId: sameKeyValues[0].acquisition.turn.id,
+          attemptId: sameKeyValues[0].acquisition.turn.id,
           role: MessageRole.STUDENT,
         },
       }),
@@ -371,12 +371,12 @@ describe('Phase 1 Socratic persistence flow (e2e)', () => {
     const distinctKeyResults = await Promise.all([
       workflow.submit({
         fixture,
-        idempotencyKey: phase1Key('concurrent-distinct-a'),
+        clientMessageId: phase1Key('concurrent-distinct-a'),
         content: phase1Content('concurrent distinct a'),
       }),
       workflow.submit({
         fixture,
-        idempotencyKey: phase1Key('concurrent-distinct-b'),
+        clientMessageId: phase1Key('concurrent-distinct-b'),
         content: phase1Content('concurrent distinct b'),
       }),
     ])
@@ -406,7 +406,7 @@ describe('Phase 1 Socratic persistence flow (e2e)', () => {
     const first = await expectCreatedGraphResult(
       workflow.submit({
         fixture,
-        idempotencyKey: phase1Key('continuation-first'),
+        clientMessageId: phase1Key('continuation-first'),
         problemId,
         title: 'Loop invariant continuation',
         content: phase1Content('first continuation turn'),
@@ -420,7 +420,7 @@ describe('Phase 1 Socratic persistence flow (e2e)', () => {
     const second = await expectCreatedGraphResult(
       workflow.submit({
         fixture,
-        idempotencyKey: phase1Key('continuation-second'),
+        clientMessageId: phase1Key('continuation-second'),
         problemId,
         title: 'Loop invariant continuation',
         content: phase1Content('second continuation turn'),
@@ -459,7 +459,7 @@ describe('Phase 1 Socratic persistence flow (e2e)', () => {
     const first = await expectCreatedGraphResult(
       workflow.submit({
         fixture,
-        idempotencyKey: phase1Key('switch-a'),
+        clientMessageId: phase1Key('switch-a'),
         problemId: topicAProblemId,
         title: 'Topic A',
         content: phase1Content('topic switch a'),
@@ -477,7 +477,7 @@ describe('Phase 1 Socratic persistence flow (e2e)', () => {
     const second = await expectCreatedGraphResult(
       workflow.submit({
         fixture,
-        idempotencyKey: phase1Key('switch-b'),
+        clientMessageId: phase1Key('switch-b'),
         problemId: topicBProblemId,
         title: 'Topic B',
         content: phase1Content('topic switch b'),
@@ -512,7 +512,7 @@ describe('Phase 1 Socratic persistence flow (e2e)', () => {
     const topicA = await expectCreatedGraphResult(
       workflow.submit({
         fixture,
-        idempotencyKey: phase1Key('resume-a'),
+        clientMessageId: phase1Key('resume-a'),
         problemId: topicAProblemId,
         title: 'Resume Topic A',
         content: phase1Content('resume topic a first'),
@@ -526,7 +526,7 @@ describe('Phase 1 Socratic persistence flow (e2e)', () => {
     const topicB = await expectCreatedGraphResult(
       workflow.submit({
         fixture,
-        idempotencyKey: phase1Key('resume-b'),
+        clientMessageId: phase1Key('resume-b'),
         problemId: topicBProblemId,
         title: 'Resume Topic B',
         content: phase1Content('resume topic b'),
@@ -543,7 +543,7 @@ describe('Phase 1 Socratic persistence flow (e2e)', () => {
     const resumed = await expectCreatedGraphResult(
       workflow.submit({
         fixture,
-        idempotencyKey: phase1Key('resume-a-again'),
+        clientMessageId: phase1Key('resume-a-again'),
         problemId: topicAProblemId,
         title: 'Resume Topic A',
         content: phase1Content('resume topic a again'),
@@ -581,7 +581,7 @@ describe('Phase 1 Socratic persistence flow (e2e)', () => {
     const first = await expectCreatedGraphResult(
       workflow.submit({
         fixture,
-        idempotencyKey: phase1Key('reopen-first'),
+        clientMessageId: phase1Key('reopen-first'),
         conceptId,
         title: 'Resolved concept',
         content: phase1Content('reopen initial evidence'),
@@ -609,7 +609,7 @@ describe('Phase 1 Socratic persistence flow (e2e)', () => {
     const reopened = await expectCreatedGraphResult(
       workflow.submit({
         fixture,
-        idempotencyKey: phase1Key('reopen-second'),
+        clientMessageId: phase1Key('reopen-second'),
         conceptId,
         title: 'Resolved concept',
         content: phase1Content('reopen follow-up'),
@@ -643,7 +643,7 @@ describe('Phase 1 Socratic persistence flow (e2e)', () => {
     const graphResult = await expectCreatedGraphResult(
       workflow.submit({
         fixture,
-        idempotencyKey: phase1Key('stale-state'),
+        clientMessageId: phase1Key('stale-state'),
         problemId: randomUUID(),
         title: 'Stale state',
         content: phase1Content('stale state request'),
@@ -733,7 +733,7 @@ describe('Phase 1 Socratic persistence flow (e2e)', () => {
     const first = await expectCreatedGraphResult(
       workflow.submit({
         fixture,
-        idempotencyKey: phase1Key('fallback-first'),
+        clientMessageId: phase1Key('fallback-first'),
         content: phase1Content('fallback first'),
       }),
     )
@@ -759,7 +759,7 @@ describe('Phase 1 Socratic persistence flow (e2e)', () => {
     const second = await expectCreatedGraphResult(
       workflow.submit({
         fixture,
-        idempotencyKey: phase1Key('fallback-second'),
+        clientMessageId: phase1Key('fallback-second'),
         content: phase1Content('fallback second'),
       }),
     )
@@ -838,28 +838,35 @@ async function readGraphForMessage(
     select: {
       id: true,
       sessionId: true,
-      turnId: true,
+      attemptId: true,
       topicId: true,
       role: true,
       content: true,
       status: true,
       requestKind: true,
       hintLevel: true,
-      turn: {
+      attempt: {
         select: {
           id: true,
           sessionId: true,
           topicId: true,
           studentMessageId: true,
-          approvedTutorMessageId: true,
-          idempotencyKey: true,
+          assistantMessageId: true,
+          retryOfAttemptId: true,
+          clientMessageId: true,
+          requestKind: true,
+          teachingStrategy: true,
           status: true,
           failureCode: true,
+          leaseExpiresAt: true,
+          claimedAt: true,
+          version: true,
           safeFallbackUsed: true,
           approvalSource: true,
           approvedCandidateAttempt: true,
           safeFallbackReason: true,
           validationPolicyVersion: true,
+          reviewRequired: true,
           createdAt: true,
           completedAt: true,
         },
@@ -910,7 +917,7 @@ async function readGraphForMessage(
     },
   })
 
-  if (message.turn === null || message.topic === null) {
+  if (message.attempt === null || message.topic === null) {
     throw new Error(`Message ${message.id} is missing Phase 1 linkage`)
   }
   if (message.topic.state === null) {
@@ -925,7 +932,7 @@ async function readGraphForMessage(
     message: {
       id: message.id,
       sessionId: message.sessionId,
-      turnId: message.turnId,
+      attemptId: message.attemptId,
       topicId: message.topicId,
       role: message.role,
       content: message.content,
@@ -933,7 +940,7 @@ async function readGraphForMessage(
       requestKind: message.requestKind,
       hintLevel: message.hintLevel,
     },
-    turn: message.turn,
+    turn: message.attempt,
     topic: {
       id: message.topic.id,
       sessionId: message.topic.sessionId,
@@ -962,7 +969,7 @@ async function expectGraphInvariants(
     requestKind: null,
     hintLevel: null,
   })
-  expect(graph.message.turnId).toBe(graph.turn.id)
+  expect(graph.message.attemptId).toBe(graph.turn.id)
   expect(graph.message.topicId).toBe(graph.topic.id)
   expect(graph.turn.studentMessageId).toBe(graph.message.id)
   expect(graph.turn.topicId).toBe(graph.topic.id)
@@ -975,14 +982,14 @@ async function expectGraphInvariants(
   expect(graph.stateCount).toBe(1)
   expect(graph.turn.status).not.toBe('COMPLETED')
   expect(graph.turn.completedAt).toBeNull()
-  expect(graph.turn.approvedTutorMessageId).toBeNull()
+  expect(graph.turn.assistantMessageId).toBeNull()
   expect(graph.turn).not.toHaveProperty('content')
   expect(graph.state.summary).not.toBe(graph.message.content)
   expect(graph.state.lastStudentAction).not.toBe(graph.message.content)
   expect(graph.state.lastTutorQuestion).not.toBe(graph.message.content)
 
   await expect(
-    prisma.tutorTurn.count({
+    prisma.tutoringAttempt.count({
       where: {
         id: graph.turn.id,
         sessionId: { not: graph.message.sessionId },
@@ -1012,15 +1019,15 @@ async function expectNoPartialPhase1Rows(
         sessionId: fixture.sessionId,
         role: MessageRole.STUDENT,
         content: { startsWith: '[phase1-flow]' },
-        OR: [{ turnId: null }, { topicId: null }],
+        OR: [{ attemptId: null }, { topicId: null }],
       },
     }),
   ).resolves.toBe(0)
   await expect(
-    prisma.tutorTurn.count({
+    prisma.tutoringAttempt.count({
       where: {
         sessionId: fixture.sessionId,
-        idempotencyKey: { startsWith: 'p1-' },
+        clientMessageId: { startsWith: 'p1-' },
         OR: [{ studentMessageId: null }, { topicId: null }],
       },
     }),

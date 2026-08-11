@@ -1,13 +1,13 @@
 import { Inject, Injectable, Optional } from '@nestjs/common'
 
 import {
-  TutorTurnFailureCode,
-  TutorTurnStatus,
+  TutoringAttemptFailureCode,
+  TutoringAttemptStatus,
 } from '../../generated/prisma/client'
 import {
-  invalidTutorTurnLifecycleTransitionException,
+  invalidTutoringAttemptLifecycleTransitionException,
   invalidTurnRequestException,
-  staleTutorTurnStatusException,
+  staleTutoringAttemptStatusException,
   turnLinkageConflictException,
   turnMessageNotFoundException,
   turnMessageRoleMismatchException,
@@ -27,7 +27,7 @@ import {
   type AttachResolvedTopicResult,
   type LinkStudentMessageResult,
   type TurnAcquisitionResult,
-  type TutorTurnSnapshot,
+  type TutoringAttemptSnapshot,
 } from './turn.types'
 
 const MAX_IDEMPOTENCY_KEY_LENGTH = 160
@@ -35,29 +35,29 @@ const MAX_IDEMPOTENCY_KEY_LENGTH = 160
 export const TURN_PROCESSING_STALE_AFTER_MS = 5 * 60 * 1000
 export const TURN_CLOCK = Symbol('TurnClock')
 
-const NON_TERMINAL_PROCESSING_STATUSES = new Set<TutorTurnStatus>([
-  TutorTurnStatus.RECEIVED,
-  TutorTurnStatus.ANALYZING,
-  TutorTurnStatus.RETRIEVING,
-  TutorTurnStatus.DECIDING,
-  TutorTurnStatus.GENERATING,
-  TutorTurnStatus.VALIDATING,
-  TutorTurnStatus.REGENERATING,
+const NON_TERMINAL_PROCESSING_STATUSES = new Set<TutoringAttemptStatus>([
+  TutoringAttemptStatus.RECEIVED,
+  TutoringAttemptStatus.ANALYZING,
+  TutoringAttemptStatus.RETRIEVING,
+  TutoringAttemptStatus.DECIDING,
+  TutoringAttemptStatus.GENERATING,
+  TutoringAttemptStatus.VALIDATING,
+  TutoringAttemptStatus.REGENERATING,
 ])
 
-const TERMINAL_STATUSES = new Set<TutorTurnStatus>([
-  TutorTurnStatus.COMPLETED,
-  TutorTurnStatus.FAILED,
+const TERMINAL_STATUSES = new Set<TutoringAttemptStatus>([
+  TutoringAttemptStatus.COMPLETED,
+  TutoringAttemptStatus.FAILED,
 ])
 
-const STATUS_ORDER = new Map<TutorTurnStatus, number>([
-  [TutorTurnStatus.RECEIVED, 0],
-  [TutorTurnStatus.ANALYZING, 1],
-  [TutorTurnStatus.DECIDING, 2],
-  [TutorTurnStatus.RETRIEVING, 3],
-  [TutorTurnStatus.GENERATING, 4],
-  [TutorTurnStatus.VALIDATING, 5],
-  [TutorTurnStatus.REGENERATING, 6],
+const STATUS_ORDER = new Map<TutoringAttemptStatus, number>([
+  [TutoringAttemptStatus.RECEIVED, 0],
+  [TutoringAttemptStatus.ANALYZING, 1],
+  [TutoringAttemptStatus.DECIDING, 2],
+  [TutoringAttemptStatus.RETRIEVING, 3],
+  [TutoringAttemptStatus.GENERATING, 4],
+  [TutoringAttemptStatus.VALIDATING, 5],
+  [TutoringAttemptStatus.REGENERATING, 6],
 ])
 
 @Injectable()
@@ -71,18 +71,18 @@ export class TurnService {
 
   async getOrCreate(
     sessionId: string,
-    idempotencyKey: string,
+    clientMessageId: string,
   ): Promise<TurnAcquisitionResult> {
     const normalizedSessionId = normalizeRequiredIdentifier(
       sessionId,
       'sessionId',
     )
-    validateIdempotencyKey(idempotencyKey)
+    validateIdempotencyKey(clientMessageId)
     await this.assertSessionExists(normalizedSessionId)
 
     const created = await this.turnRepository.createTurn(
       normalizedSessionId,
-      idempotencyKey,
+      clientMessageId,
     )
 
     if (created !== null) {
@@ -92,9 +92,9 @@ export class TurnService {
       }
     }
 
-    const existing = await this.turnRepository.findBySessionAndIdempotencyKey(
+    const existing = await this.turnRepository.findBySessionAndClientMessageId(
       normalizedSessionId,
-      idempotencyKey,
+      clientMessageId,
     )
 
     if (existing !== null) {
@@ -107,15 +107,15 @@ export class TurnService {
   }
 
   async transitionStatus(
-    turnId: string,
-    expectedStatus: TutorTurnStatus,
-    nextStatus: TutorTurnStatus,
-  ): Promise<TutorTurnSnapshot> {
-    const normalizedTurnId = normalizeRequiredIdentifier(turnId, 'turnId')
+    attemptId: string,
+    expectedStatus: TutoringAttemptStatus,
+    nextStatus: TutoringAttemptStatus,
+  ): Promise<TutoringAttemptSnapshot> {
+    const normalizedTurnId = normalizeRequiredIdentifier(attemptId, 'attemptId')
     validateTransition(expectedStatus, nextStatus)
 
     const updated = await this.turnRepository.transitionStatusAtomically({
-      turnId: normalizedTurnId,
+      attemptId: normalizedTurnId,
       expectedStatus,
       nextStatus,
     })
@@ -128,19 +128,19 @@ export class TurnService {
   }
 
   async markFailed(
-    turnId: string,
-    expectedStatus: TutorTurnStatus,
-    failureCode: TutorTurnFailureCode,
-  ): Promise<TutorTurnSnapshot> {
-    const normalizedTurnId = normalizeRequiredIdentifier(turnId, 'turnId')
+    attemptId: string,
+    expectedStatus: TutoringAttemptStatus,
+    failureCode: TutoringAttemptFailureCode,
+  ): Promise<TutoringAttemptSnapshot> {
+    const normalizedTurnId = normalizeRequiredIdentifier(attemptId, 'attemptId')
     validateFailureCode(failureCode)
 
     if (TERMINAL_STATUSES.has(expectedStatus)) {
-      throw invalidTutorTurnLifecycleTransitionException()
+      throw invalidTutoringAttemptLifecycleTransitionException()
     }
 
     const updated = await this.turnRepository.markFailedAtomically({
-      turnId: normalizedTurnId,
+      attemptId: normalizedTurnId,
       expectedStatus,
       failureCode,
     })
@@ -159,11 +159,11 @@ export class TurnService {
   }
 
   async linkStudentMessage(
-    turnId: string,
+    attemptId: string,
     studentMessageId: string,
-  ): Promise<TutorTurnSnapshot> {
+  ): Promise<TutoringAttemptSnapshot> {
     const input = {
-      turnId: normalizeRequiredIdentifier(turnId, 'turnId'),
+      attemptId: normalizeRequiredIdentifier(attemptId, 'attemptId'),
       studentMessageId: normalizeRequiredIdentifier(
         studentMessageId,
         'studentMessageId',
@@ -176,12 +176,12 @@ export class TurnService {
   }
 
   async attachResolvedTopic(
-    turnId: string,
+    attemptId: string,
     studentMessageId: string,
     topicId: string,
-  ): Promise<TutorTurnSnapshot> {
+  ): Promise<TutoringAttemptSnapshot> {
     const input = {
-      turnId: normalizeRequiredIdentifier(turnId, 'turnId'),
+      attemptId: normalizeRequiredIdentifier(attemptId, 'attemptId'),
       studentMessageId: normalizeRequiredIdentifier(
         studentMessageId,
         'studentMessageId',
@@ -204,8 +204,8 @@ export class TurnService {
   }
 
   private async recoverStaleTurn(
-    turn: TutorTurnSnapshot,
-  ): Promise<TutorTurnSnapshot | null> {
+    turn: TutoringAttemptSnapshot,
+  ): Promise<TutoringAttemptSnapshot | null> {
     if (
       !NON_TERMINAL_PROCESSING_STATUSES.has(turn.status) ||
       this.clock() - turn.createdAt.getTime() < TURN_PROCESSING_STALE_AFTER_MS
@@ -214,38 +214,38 @@ export class TurnService {
     }
 
     return this.turnRepository.markFailedAtomically({
-      turnId: turn.id,
+      attemptId: turn.id,
       expectedStatus: turn.status,
-      failureCode: TutorTurnFailureCode.PERSISTENCE_FAILED,
+      failureCode: TutoringAttemptFailureCode.PERSISTENCE_FAILED,
     })
   }
 
-  private async rejectStaleOrMissingTurn(turnId: string): Promise<never> {
-    const turn = await this.turnRepository.findById(turnId)
+  private async rejectStaleOrMissingTurn(attemptId: string): Promise<never> {
+    const turn = await this.turnRepository.findById(attemptId)
 
     if (turn === null) {
       throw turnNotFoundException()
     }
 
     if (TERMINAL_STATUSES.has(turn.status)) {
-      throw invalidTutorTurnLifecycleTransitionException()
+      throw invalidTutoringAttemptLifecycleTransitionException()
     }
 
-    throw staleTutorTurnStatusException()
+    throw staleTutoringAttemptStatusException()
   }
 }
 
 function acquisitionResultForExistingTurn(
-  turn: TutorTurnSnapshot,
+  turn: TutoringAttemptSnapshot,
 ): TurnAcquisitionResult {
-  if (turn.status === TutorTurnStatus.COMPLETED) {
+  if (turn.status === TutoringAttemptStatus.COMPLETED) {
     return {
       outcome: TURN_ACQUISITION_OUTCOME.COMPLETED,
       turn,
     }
   }
 
-  if (turn.status === TutorTurnStatus.FAILED) {
+  if (turn.status === TutoringAttemptStatus.FAILED) {
     return {
       outcome: TURN_ACQUISITION_OUTCOME.FAILED,
       turn,
@@ -274,15 +274,15 @@ function normalizeRequiredIdentifier(value: string, field: string): string {
   return normalized
 }
 
-function validateIdempotencyKey(idempotencyKey: string): void {
+function validateIdempotencyKey(clientMessageId: string): void {
   if (
-    idempotencyKey.length === 0 ||
-    idempotencyKey.trim().length === 0 ||
-    idempotencyKey.length > MAX_IDEMPOTENCY_KEY_LENGTH
+    clientMessageId.length === 0 ||
+    clientMessageId.trim().length === 0 ||
+    clientMessageId.length > MAX_IDEMPOTENCY_KEY_LENGTH
   ) {
     throw invalidTurnRequestException([
       {
-        field: 'idempotencyKey',
+        field: 'clientMessageId',
         message: `Idempotency key must be between 1 and ${String(
           MAX_IDEMPOTENCY_KEY_LENGTH,
         )} characters`,
@@ -292,22 +292,22 @@ function validateIdempotencyKey(idempotencyKey: string): void {
 }
 
 function validateTransition(
-  expectedStatus: TutorTurnStatus,
-  nextStatus: TutorTurnStatus,
+  expectedStatus: TutoringAttemptStatus,
+  nextStatus: TutoringAttemptStatus,
 ): void {
   if (
     TERMINAL_STATUSES.has(expectedStatus) ||
-    nextStatus === TutorTurnStatus.RECEIVED ||
-    nextStatus === TutorTurnStatus.COMPLETED ||
-    nextStatus === TutorTurnStatus.FAILED ||
+    nextStatus === TutoringAttemptStatus.RECEIVED ||
+    nextStatus === TutoringAttemptStatus.COMPLETED ||
+    nextStatus === TutoringAttemptStatus.FAILED ||
     expectedStatus === nextStatus
   ) {
-    throw invalidTutorTurnLifecycleTransitionException()
+    throw invalidTutoringAttemptLifecycleTransitionException()
   }
 
-  if (expectedStatus === TutorTurnStatus.REGENERATING) {
-    if (nextStatus !== TutorTurnStatus.GENERATING) {
-      throw invalidTutorTurnLifecycleTransitionException()
+  if (expectedStatus === TutoringAttemptStatus.REGENERATING) {
+    if (nextStatus !== TutoringAttemptStatus.GENERATING) {
+      throw invalidTutoringAttemptLifecycleTransitionException()
     }
 
     return
@@ -317,20 +317,20 @@ function validateTransition(
   const nextOrder = STATUS_ORDER.get(nextStatus)
 
   if (expectedOrder === undefined || nextOrder === undefined) {
-    throw invalidTutorTurnLifecycleTransitionException()
+    throw invalidTutoringAttemptLifecycleTransitionException()
   }
 
   if (nextOrder <= expectedOrder) {
-    throw invalidTutorTurnLifecycleTransitionException()
+    throw invalidTutoringAttemptLifecycleTransitionException()
   }
 
   if (!NON_TERMINAL_PROCESSING_STATUSES.has(nextStatus)) {
-    throw invalidTutorTurnLifecycleTransitionException()
+    throw invalidTutoringAttemptLifecycleTransitionException()
   }
 }
 
-function validateFailureCode(failureCode: TutorTurnFailureCode): void {
-  if (!Object.values(TutorTurnFailureCode).includes(failureCode)) {
+function validateFailureCode(failureCode: TutoringAttemptFailureCode): void {
+  if (!Object.values(TutoringAttemptFailureCode).includes(failureCode)) {
     throw invalidTurnRequestException([
       {
         field: 'failureCode',
@@ -342,7 +342,7 @@ function validateFailureCode(failureCode: TutorTurnFailureCode): void {
 
 function mapLinkStudentMessageResult(
   result: LinkStudentMessageResult,
-): TutorTurnSnapshot {
+): TutoringAttemptSnapshot {
   switch (result.kind) {
     case 'ok':
       return result.turn
@@ -361,7 +361,7 @@ function mapLinkStudentMessageResult(
 
 function mapAttachResolvedTopicResult(
   result: AttachResolvedTopicResult,
-): TutorTurnSnapshot {
+): TutoringAttemptSnapshot {
   switch (result.kind) {
     case 'ok':
       return result.turn

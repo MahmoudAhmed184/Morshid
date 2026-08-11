@@ -24,7 +24,7 @@ export const GEMINI_SOCRATIC_LIVE_IDS = {
   courseId: 'gemini-live-course',
   sessionId: 'gemini-live-session',
   topicId: 'gemini-live-topic',
-  turnId: 'gemini-live-turn',
+  attemptId: 'gemini-live-turn',
   studentMessageId: 'gemini-live-message-student-current',
   previousTutorMessageId: 'gemini-live-message-tutor-previous',
 } as const
@@ -36,7 +36,7 @@ export const GEMINI_SOCRATIC_ANALYSIS_CONTEXT: AnalysisContextPackage = {
     id: GEMINI_SOCRATIC_LIVE_IDS.studentMessageId,
     sequence: 2,
     role: MessageRole.STUDENT,
-    turnId: GEMINI_SOCRATIC_LIVE_IDS.turnId,
+    attemptId: GEMINI_SOCRATIC_LIVE_IDS.attemptId,
     topicId: GEMINI_SOCRATIC_LIVE_IDS.topicId,
     authorUserId: 'gemini-live-student',
     responseToMessageId: GEMINI_SOCRATIC_LIVE_IDS.previousTutorMessageId,
@@ -68,7 +68,7 @@ export const GEMINI_SOCRATIC_ANALYSIS_CONTEXT: AnalysisContextPackage = {
       id: GEMINI_SOCRATIC_LIVE_IDS.previousTutorMessageId,
       sequence: 1,
       role: MessageRole.ASSISTANT,
-      turnId: null,
+      attemptId: null,
       topicId: GEMINI_SOCRATIC_LIVE_IDS.topicId,
       authorUserId: null,
       responseToMessageId: null,
@@ -135,7 +135,7 @@ export function buildLivePersistedAnalysis(
 ): PersistedEducationalAnalysisRecord {
   return {
     id: 'gemini-live-analysis',
-    turnId: GEMINI_SOCRATIC_LIVE_IDS.turnId,
+    attemptId: GEMINI_SOCRATIC_LIVE_IDS.attemptId,
     topicId: GEMINI_SOCRATIC_LIVE_IDS.topicId,
     studentMessageId: GEMINI_SOCRATIC_LIVE_IDS.studentMessageId,
     attempt: 1,
@@ -164,7 +164,7 @@ export function buildLiveTeachingDecision(
 ): PersistedTeachingDecisionRecord {
   return {
     id: 'gemini-live-teaching-decision',
-    turnId: GEMINI_SOCRATIC_LIVE_IDS.turnId,
+    attemptId: GEMINI_SOCRATIC_LIVE_IDS.attemptId,
     topicId: GEMINI_SOCRATIC_LIVE_IDS.topicId,
     analysisId,
     strategy: TeachingStrategy.SOCRATIC_QUESTIONING,

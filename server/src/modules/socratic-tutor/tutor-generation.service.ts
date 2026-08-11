@@ -67,7 +67,7 @@ export class TutorGenerationService {
     assertRequestBudget(input)
 
     if (
-      analysisContext.studentMessage.turnId !== input.turnId ||
+      analysisContext.studentMessage.attemptId !== input.attemptId ||
       analysisContext.activeTopic.id !== input.topicId ||
       analysisContext.activeTopic.courseId !== input.courseId ||
       analysisContext.activeTopic.sessionId !== input.sessionId
@@ -78,13 +78,13 @@ export class TutorGenerationService {
     const [acceptedAnalysis, teachingDecision, previousTeachingDecision] =
       await Promise.all([
         this.educationalAnalysisRepository.findLatestAccepted({
-          turnId: input.turnId,
+          attemptId: input.attemptId,
           topicId: input.topicId,
           studentMessageId: input.studentMessageId,
         }),
-        this.teachingDecisionRepository.findByTurnId(input.turnId),
+        this.teachingDecisionRepository.findByTurnId(input.attemptId),
         this.teachingDecisionRepository.findLatestCompletedForSameTopicBeforeTurn(
-          { turnId: input.turnId, topicId: input.topicId },
+          { attemptId: input.attemptId, topicId: input.topicId },
         ),
       ])
     assertRequestBudget(input)
@@ -204,7 +204,7 @@ export class TutorGenerationService {
 
   private logGenerationOutcome(input: {
     context: {
-      turnId: string
+      attemptId: string
       sessionId: string
       topicId: string
       acceptedAnalysis: { id: string }
@@ -223,7 +223,7 @@ export class TutorGenerationService {
   }): void {
     this.logger.log({
       stage: 'tutor_generation',
-      turnId: input.context.turnId,
+      attemptId: input.context.attemptId,
       sessionId: input.context.sessionId,
       topicId: input.context.topicId,
       analysisId: input.context.acceptedAnalysis.id,

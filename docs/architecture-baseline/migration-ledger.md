@@ -440,6 +440,24 @@ introduced.
   admission transaction, delete duplicate attempt state, and prove the
   duplicate persistence path absent before commit.
 
+## Milestone 6A migration inventory
+
+Milestone 6A establishes the single persisted Tutoring Attempt and the atomic
+admission seam that later Tutoring runtime work will consume. The cutover is
+deliberately direct: all authored callers, persistence adapters, fixtures, and
+contract tests move together, while the message-owned grounding lease fields
+and the former TutorTurn model are deleted.
+
+| Area | Files/paths to add, change, or delete | Disposition and verification |
+| --- | --- | --- |
+| Authored schema | `server/prisma/tutoring.prisma`, `server/prisma/conversations.prisma` | Rename the authoritative aggregate and its related persistence records to Tutoring Attempt terminology; add attempt claim/lease/version, request/strategy, retry, and Student/Assistant relationship state; remove message-owned grounding state. |
+| Rolling migration | `server/prisma/migrations/20260811150000_initial/migration.sql`, `server/prisma/assert-catalog.mts` | Reconcile the same initial migration from an empty schema; remove grounding columns/indexes and old TutorTurn objects; assert the final attempt tables, enums, constraints, indexes, and foreign keys. |
+| Attempt persistence | `server/src/modules/socratic-tutor/turn.repository.ts`, `turn.service.ts`, `turn.types.ts`, related Socratic callers/tests | Directly migrate the current state machine to Tutoring Attempt persistence and names; no second aggregate or compatibility repository remains. |
+| Conversation admission | `server/src/modules/conversations/**`, `server/src/modules/student-chat/**`, `server/src/modules/student-chat/grounded-chat-turn.repository.ts` | Introduce the transaction-aware ConversationTurns admission boundary; create/replay the Student message, pending Assistant message, and RECEIVED Attempt atomically; move lease/expiry decisions to Attempt state. |
+| API/client contracts | Student chat DTOs, presenter/repository types, client chat schemas/fixtures, OpenAPI and acceptance fixtures | Replace the public turn identifier with the authoritative attempt identifier and update every caller directly; do not retain aliases. |
+| Regression coverage | Attempt admission/replay/concurrency/lease tests, message linkage and Socratic persistence tests | Prove one attempt per client key, replay identity, transaction rollback, concurrent admission serialization, retry relationship, lease expiry, and absence of grounding/TutorTurn state. |
+| Documentation/search | This ledger, ADR 0002/0007 references, architecture scans | Record the exact schema and focused verification; repository searches must find no authored `TutorTurn` or `groundingAttemptId` entry point before the 6A commit. |
+
 ## Milestone 1 migration inventory
 
 Milestone 1 establishes the durable guidance and enforcement inputs that every

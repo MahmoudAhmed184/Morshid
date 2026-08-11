@@ -25,7 +25,7 @@ describe('Socratic persistence schema (e2e)', () => {
     await database?.dispose()
   })
 
-  it('stores default Topic, TopicState, and nullable received TutorTurn fields', async () => {
+  it('stores default Topic, TopicState, and nullable received TutoringAttempt fields', async () => {
     const fixture = await createChatFixture(prisma)
     const topic = await prisma.topic.create({
       data: {
@@ -39,16 +39,16 @@ describe('Socratic persistence schema (e2e)', () => {
         topicId: topic.id,
       },
     })
-    const firstTurn = await prisma.tutorTurn.create({
+    const firstTurn = await prisma.tutoringAttempt.create({
       data: {
         sessionId: fixture.sessionId,
-        idempotencyKey: `turn-${randomUUID()}`,
+        clientMessageId: `turn-${randomUUID()}`,
       },
     })
-    const secondTurn = await prisma.tutorTurn.create({
+    const secondTurn = await prisma.tutoringAttempt.create({
       data: {
         sessionId: fixture.sessionId,
-        idempotencyKey: `turn-${randomUUID()}`,
+        clientMessageId: `turn-${randomUUID()}`,
       },
     })
 
@@ -64,8 +64,8 @@ describe('Socratic persistence schema (e2e)', () => {
     expect(firstTurn.safeFallbackUsed).toBe(false)
     expect(firstTurn.topicId).toBeNull()
     expect(firstTurn.studentMessageId).toBeNull()
-    expect(firstTurn.approvedTutorMessageId).toBeNull()
-    expect(secondTurn.approvedTutorMessageId).toBeNull()
+    expect(firstTurn.assistantMessageId).toBeNull()
+    expect(secondTurn.assistantMessageId).toBeNull()
   })
 
   it('enforces TopicState uniqueness and bounded numeric state fields', async () => {
@@ -98,44 +98,48 @@ describe('Socratic persistence schema (e2e)', () => {
     ).rejects.toThrow()
   })
 
-  it('enforces TutorTurn idempotency and approved-response identity', async () => {
+  it('enforces TutoringAttempt idempotency and retry relationships', async () => {
     const fixture = await createChatFixture(prisma)
-    await prisma.tutorTurn.create({
+    await prisma.tutoringAttempt.create({
       data: {
         sessionId: fixture.sessionId,
-        idempotencyKey: 'same-key',
+        clientMessageId: 'same-key',
       },
     })
 
     await expect(
-      prisma.tutorTurn.create({
+      prisma.tutoringAttempt.create({
         data: {
           sessionId: fixture.sessionId,
-          idempotencyKey: 'same-key',
+          clientMessageId: 'same-key',
         },
       }),
     ).rejects.toThrow()
 
-    const { approvedTutorMessageId } = await createStudentAndAssistantMessages(
+    const { assistantMessageId } = await createStudentAndAssistantMessages(
       prisma,
       fixture,
     )
-    await prisma.tutorTurn.create({
+    const firstAttempt = await prisma.tutoringAttempt.create({
       data: {
         sessionId: fixture.sessionId,
-        idempotencyKey: `approved-${randomUUID()}`,
-        approvedTutorMessageId,
+        clientMessageId: `approved-${randomUUID()}`,
+        assistantMessageId,
       },
     })
     await expect(
-      prisma.tutorTurn.create({
+      prisma.tutoringAttempt.create({
         data: {
           sessionId: fixture.sessionId,
-          idempotencyKey: `approved-${randomUUID()}`,
-          approvedTutorMessageId,
+          clientMessageId: `approved-${randomUUID()}`,
+          assistantMessageId,
+          retryOfAttemptId: firstAttempt.id,
         },
       }),
-    ).rejects.toThrow()
+    ).resolves.toMatchObject({
+      assistantMessageId,
+      retryOfAttemptId: firstAttempt.id,
+    })
   })
 })
 
@@ -197,7 +201,7 @@ async function createTopic(
 async function createStudentAndAssistantMessages(
   prisma: PrismaService,
   fixture: ChatFixture,
-): Promise<{ approvedTutorMessageId: string }> {
+): Promise<{ assistantMessageId: string }> {
   const studentMessage = await prisma.message.create({
     data: {
       sessionId: fixture.sessionId,
@@ -220,6 +224,6 @@ async function createStudentAndAssistantMessages(
   })
 
   return {
-    approvedTutorMessageId: assistantMessage.id,
+    assistantMessageId: assistantMessage.id,
   }
 }

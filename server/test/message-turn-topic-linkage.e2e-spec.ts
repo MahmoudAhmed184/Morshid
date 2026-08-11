@@ -52,14 +52,14 @@ describe('Message turn and topic linkage persistence (e2e)', () => {
     }
     expect(result.message).toMatchObject({
       content: 'Legacy-compatible question',
-      turnId: null,
+      attemptId: null,
       topicId: null,
       requestKind: null,
       hintLevel: null,
     })
   })
 
-  it('links a student message to its authoritative TutorTurn idempotently', async () => {
+  it('links a student message to its authoritative TutoringAttempt idempotently', async () => {
     const fixture = await createChatFixture(prisma)
     const turn = await createTurn(prisma, fixture)
     const message = await createMessage(prisma, fixture, {
@@ -68,11 +68,11 @@ describe('Message turn and topic linkage persistence (e2e)', () => {
     })
 
     const first = await turnRepository.linkStudentMessage({
-      turnId: turn.id,
+      attemptId: turn.id,
       studentMessageId: message.id,
     })
     const second = await turnRepository.linkStudentMessage({
-      turnId: turn.id,
+      attemptId: turn.id,
       studentMessageId: message.id,
     })
 
@@ -116,19 +116,19 @@ describe('Message turn and topic linkage persistence (e2e)', () => {
 
     await expect(
       turnRepository.linkStudentMessage({
-        turnId: turn.id,
+        attemptId: turn.id,
         studentMessageId: student.id,
       }),
     ).resolves.toMatchObject({ kind: 'ok' })
     await expect(
       turnRepository.linkStudentMessage({
-        turnId: turn.id,
+        attemptId: turn.id,
         studentMessageId: replacement.id,
       }),
     ).resolves.toEqual({ kind: 'linkage_conflict' })
     await expect(
       turnRepository.linkStudentMessage({
-        turnId: turn.id,
+        attemptId: turn.id,
         studentMessageId: assistant.id,
       }),
     ).resolves.toEqual({ kind: 'message_role_mismatch' })
@@ -136,7 +136,7 @@ describe('Message turn and topic linkage persistence (e2e)', () => {
     const crossSessionTurn = await createTurn(prisma, fixture)
     await expect(
       turnRepository.linkStudentMessage({
-        turnId: crossSessionTurn.id,
+        attemptId: crossSessionTurn.id,
         studentMessageId: otherStudent.id,
       }),
     ).resolves.toEqual({ kind: 'session_mismatch' })
@@ -160,12 +160,12 @@ describe('Message turn and topic linkage persistence (e2e)', () => {
     const topic = await createTopic(prisma, fixture)
 
     const first = await turnRepository.attachResolvedTopic({
-      turnId: turn.id,
+      attemptId: turn.id,
       studentMessageId: message.id,
       topicId: topic.id,
     })
     const second = await turnRepository.attachResolvedTopic({
-      turnId: turn.id,
+      attemptId: turn.id,
       studentMessageId: message.id,
       topicId: topic.id,
     })
@@ -205,21 +205,21 @@ describe('Message turn and topic linkage persistence (e2e)', () => {
 
     await expect(
       turnRepository.attachResolvedTopic({
-        turnId: turn.id,
+        attemptId: turn.id,
         studentMessageId: message.id,
         topicId: topic.id,
       }),
     ).resolves.toMatchObject({ kind: 'ok' })
     await expect(
       turnRepository.attachResolvedTopic({
-        turnId: turn.id,
+        attemptId: turn.id,
         studentMessageId: message.id,
         topicId: conflictingTopic.id,
       }),
     ).resolves.toEqual({ kind: 'linkage_conflict' })
     await expect(
       turnRepository.attachResolvedTopic({
-        turnId: turn.id,
+        attemptId: turn.id,
         studentMessageId: message.id,
         topicId: crossSessionTopic.id,
       }),
@@ -232,7 +232,7 @@ describe('Message turn and topic linkage persistence (e2e)', () => {
     })
     await expect(
       turnRepository.attachResolvedTopic({
-        turnId: unlinkedTurn.id,
+        attemptId: unlinkedTurn.id,
         studentMessageId: unlinkedMessage.id,
         topicId: crossCourseTopic.id,
       }),
@@ -368,7 +368,7 @@ describe('Message turn and topic linkage persistence (e2e)', () => {
 
     await expect(
       turnRepository.attachResolvedTopic({
-        turnId: turn.id,
+        attemptId: turn.id,
         studentMessageId: student.id,
         topicId: topic.id,
       }),
@@ -378,7 +378,7 @@ describe('Message turn and topic linkage persistence (e2e)', () => {
       where: { id: assistant.id },
       include: { citations: true },
     })
-    const storedTurn = await prisma.tutorTurn.findUniqueOrThrow({
+    const storedTurn = await prisma.tutoringAttempt.findUniqueOrThrow({
       where: { id: turn.id },
       select: { id: true, studentMessageId: true, topicId: true },
     })
@@ -394,7 +394,7 @@ describe('Message turn and topic linkage persistence (e2e)', () => {
     expect(storedAssistant).toMatchObject({
       provider: 'deterministic',
       model: 'deterministic-completion-v1',
-      turnId: null,
+      attemptId: null,
       topicId: null,
     })
     expect(
@@ -459,10 +459,10 @@ function createTurn(
   prisma: PrismaService,
   fixture: ChatFixture,
 ): Promise<{ id: string }> {
-  return prisma.tutorTurn.create({
+  return prisma.tutoringAttempt.create({
     data: {
       sessionId: fixture.sessionId,
-      idempotencyKey: `turn-${randomUUID()}`,
+      clientMessageId: `turn-${randomUUID()}`,
     },
     select: { id: true },
   })
@@ -533,7 +533,7 @@ async function createMaterial(
 
 async function readLinkage(
   prisma: PrismaService,
-  turnId: string,
+  attemptId: string,
   messageId: string,
 ): Promise<{
   turnStudentMessageId: string | null
@@ -542,8 +542,8 @@ async function readLinkage(
   messageTopicId: string | null
 }> {
   const [turn, message] = await Promise.all([
-    prisma.tutorTurn.findUniqueOrThrow({
-      where: { id: turnId },
+    prisma.tutoringAttempt.findUniqueOrThrow({
+      where: { id: attemptId },
       select: {
         studentMessageId: true,
         topicId: true,
@@ -552,7 +552,7 @@ async function readLinkage(
     prisma.message.findUniqueOrThrow({
       where: { id: messageId },
       select: {
-        turnId: true,
+        attemptId: true,
         topicId: true,
       },
     }),
@@ -561,7 +561,7 @@ async function readLinkage(
   return {
     turnStudentMessageId: turn.studentMessageId,
     turnTopicId: turn.topicId,
-    messageTurnId: message.turnId,
+    messageTurnId: message.attemptId,
     messageTopicId: message.topicId,
   }
 }

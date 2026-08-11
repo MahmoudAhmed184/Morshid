@@ -15,7 +15,7 @@ import {
   StudentState,
   TeachingStrategy,
   TeachingTechnique,
-  TutorTurnStatus,
+  TutoringAttemptStatus,
 } from '../src/generated/prisma/client'
 import type { IdentitySessionResponse } from '../src/modules/identity/identity.types'
 import {
@@ -274,8 +274,8 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
     await prisma.teachingDecision.deleteMany()
     await prisma.educationalAnalysis.deleteMany()
     await prisma.guardResult.deleteMany()
-    await prisma.tutorCandidateAttempt.deleteMany()
-    await prisma.tutorTurn.deleteMany()
+    await prisma.tutoringCandidateAttempt.deleteMany()
+    await prisma.tutoringAttempt.deleteMany()
     await prisma.topicState.deleteMany()
     await prisma.topic.deleteMany()
     await prisma.messageRetrieval.deleteMany()
@@ -445,25 +445,27 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
     // Tutor generation was invoked exactly once
     expect(tutorModel.callCount).toBe(1)
 
-    // TutorTurn persisted as COMPLETED
-    const tutorTurns = await prisma.tutorTurn.findMany({
+    // TutoringAttempt persisted as COMPLETED
+    const tutoringAttempts = await prisma.tutoringAttempt.findMany({
       where: { sessionId: session.id },
     })
-    expect(tutorTurns).toHaveLength(1)
-    expect(tutorTurns[0].status).toBe(TutorTurnStatus.COMPLETED)
-    expect(tutorTurns[0]).toMatchObject({
+    expect(tutoringAttempts).toHaveLength(1)
+    expect(tutoringAttempts[0].status).toBe(TutoringAttemptStatus.COMPLETED)
+    expect(tutoringAttempts[0]).toMatchObject({
       approvalSource: 'VALIDATED_CANDIDATE',
       approvedCandidateAttempt: 1,
       safeFallbackReason: null,
       validationPolicyVersion: 'response-validation.mvp.v1',
     })
     await expect(
-      prisma.tutorCandidateAttempt.count({
-        where: { turnId: tutorTurns[0].id },
+      prisma.tutoringCandidateAttempt.count({
+        where: { attemptId: tutoringAttempts[0].id },
       }),
     ).resolves.toBe(1)
     await expect(
-      prisma.guardResult.count({ where: { turnId: tutorTurns[0].id } }),
+      prisma.guardResult.count({
+        where: { attemptId: tutoringAttempts[0].id },
+      }),
     ).resolves.toBe(3)
 
     // Persisted message has correct metadata
@@ -913,7 +915,7 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
     expect(stored.content).toBe(EXPECTED_HAPPY_PATH_MESSAGE)
     expect(stored.status).toBe('COMPLETED')
 
-    const persistedTurn = await prisma.tutorTurn.findFirstOrThrow({
+    const persistedTurn = await prisma.tutoringAttempt.findFirstOrThrow({
       where: { sessionId: session.id },
       include: {
         candidateAttempts: {
@@ -972,7 +974,7 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
 
     expect(tutorModel.callCount).toBe(3)
     expect(turn.assistantMessage.content).not.toContain('42')
-    const persistedTurn = await prisma.tutorTurn.findFirstOrThrow({
+    const persistedTurn = await prisma.tutoringAttempt.findFirstOrThrow({
       where: { sessionId: session.id },
       include: {
         candidateAttempts: {
@@ -982,7 +984,7 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
       },
     })
     expect(persistedTurn).toMatchObject({
-      status: TutorTurnStatus.COMPLETED,
+      status: TutoringAttemptStatus.COMPLETED,
       approvalSource: 'SAFE_FALLBACK',
       approvedCandidateAttempt: null,
       safeFallbackReason: 'VALIDATION_EXHAUSTED',
@@ -1030,7 +1032,7 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
     const completed = response.body as GroundedChatTurnResponseDto
 
     expect(tutorModel.callCount).toBe(2)
-    const attempts = await prisma.tutorCandidateAttempt.findMany({
+    const attempts = await prisma.tutoringCandidateAttempt.findMany({
       where: { turn: { sessionId: session.id } },
     })
     expect(attempts).toHaveLength(1)
@@ -1039,13 +1041,11 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
       generationOutcome: 'GENERATED',
       infrastructureRetryCount: 1,
     })
-    const persistedTurn = await prisma.tutorTurn.findFirstOrThrow({
+    const persistedTurn = await prisma.tutoringAttempt.findFirstOrThrow({
       where: { sessionId: session.id },
     })
     expect(persistedTurn.studentMessageId).toBe(completed.studentMessage.id)
-    expect(persistedTurn.approvedTutorMessageId).toBe(
-      completed.assistantMessage.id,
-    )
+    expect(persistedTurn.assistantMessageId).toBe(completed.assistantMessage.id)
     expect(completed.assistantMessage.hintLevel).toBe(1)
     await expect(
       prisma.teachingDecision.count({
@@ -1070,12 +1070,12 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
       .expect(201)
 
     expect(tutorModel.callCount).toBe(1)
-    const persistedTurn = await prisma.tutorTurn.findFirstOrThrow({
+    const persistedTurn = await prisma.tutoringAttempt.findFirstOrThrow({
       where: { sessionId: session.id },
       include: { candidateAttempts: true },
     })
     expect(persistedTurn).toMatchObject({
-      status: TutorTurnStatus.COMPLETED,
+      status: TutoringAttemptStatus.COMPLETED,
       approvalSource: 'SAFE_FALLBACK',
       safeFallbackReason: 'GENERATION_RETRY_FAILED',
     })
@@ -1087,7 +1087,7 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
       infrastructureRetryCount: 0,
     })
     await expect(
-      prisma.guardResult.count({ where: { turnId: persistedTurn.id } }),
+      prisma.guardResult.count({ where: { attemptId: persistedTurn.id } }),
     ).resolves.toBe(0)
   })
 
@@ -1266,25 +1266,27 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
     // Tutor generation was invoked exactly once
     expect(tutorModel.callCount).toBe(1)
 
-    // TutorTurn is COMPLETED (safe fallback is still a completed turn)
-    const tutorTurns = await prisma.tutorTurn.findMany({
+    // TutoringAttempt is COMPLETED (safe fallback is still a completed turn)
+    const tutoringAttempts = await prisma.tutoringAttempt.findMany({
       where: { sessionId: session.id },
     })
-    expect(tutorTurns).toHaveLength(1)
-    expect(tutorTurns[0].status).toBe(TutorTurnStatus.COMPLETED)
-    expect(tutorTurns[0]).toMatchObject({
+    expect(tutoringAttempts).toHaveLength(1)
+    expect(tutoringAttempts[0].status).toBe(TutoringAttemptStatus.COMPLETED)
+    expect(tutoringAttempts[0]).toMatchObject({
       approvalSource: 'SAFE_FALLBACK',
       approvedCandidateAttempt: null,
       safeFallbackReason: 'GUARD_UNAVAILABLE',
       validationPolicyVersion: 'response-validation.mvp.v1',
     })
     await expect(
-      prisma.tutorCandidateAttempt.count({
-        where: { turnId: tutorTurns[0].id },
+      prisma.tutoringCandidateAttempt.count({
+        where: { attemptId: tutoringAttempts[0].id },
       }),
     ).resolves.toBe(1)
     await expect(
-      prisma.guardResult.count({ where: { turnId: tutorTurns[0].id } }),
+      prisma.guardResult.count({
+        where: { attemptId: tutoringAttempts[0].id },
+      }),
     ).resolves.toBe(3)
   })
 
@@ -1586,11 +1588,11 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
       citations: [],
     })
 
-    const tutorTurns = await prisma.tutorTurn.findMany({
+    const tutoringAttempts = await prisma.tutoringAttempt.findMany({
       where: { sessionId: session.id },
     })
-    expect(tutorTurns).toHaveLength(1)
-    expect(tutorTurns[0].status).toBe(TutorTurnStatus.FAILED)
+    expect(tutoringAttempts).toHaveLength(1)
+    expect(tutoringAttempts[0].status).toBe(TutoringAttemptStatus.FAILED)
   })
 
   // ── 6. Idempotent replay ────────────────────────────────────────────
@@ -1626,7 +1628,7 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
       prisma.message.count({ where: { sessionId: session.id } }),
     ).resolves.toBe(2)
     await expect(
-      prisma.tutorTurn.count({ where: { sessionId: session.id } }),
+      prisma.tutoringAttempt.count({ where: { sessionId: session.id } }),
     ).resolves.toBe(1)
   })
 

@@ -9,12 +9,16 @@ import {
   MessageRole,
   MessageStatus,
   Prisma,
+  TutoringAttemptFailureCode,
+  TutoringAttemptStatus,
 } from '../../generated/prisma/client'
 import {
   lockAuthorizedStudentChat,
   type LockedStudentChatAuthorizationResult,
   type LockedStudentChatSession,
 } from '../../common/authorization/locked-student-chat-session'
+import { ConversationTurns } from '../conversations/conversation-turns'
+import { asDatabaseTransaction } from '../prisma/database-transaction'
 import { PrismaService } from '../prisma/prisma.service'
 import {
   chatMessageSelect,
@@ -198,7 +202,10 @@ export abstract class GroundedChatTurnRepository {
 
 @Injectable()
 export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository {
-  constructor(private readonly prismaService: PrismaService) {
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly conversationTurns: ConversationTurns,
+  ) {
     super()
   }
 
@@ -222,22 +229,36 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
         await this.failExpiredActiveTurns(tx, session.id, now)
 
         if (input.clientMessageId !== undefined) {
-          const replayedStudent = await tx.message.findFirst({
+          const replayedAttempt = await tx.tutoringAttempt.findUnique({
             where: {
-              id: input.clientMessageId,
-              sessionId: session.id,
-              role: MessageRole.STUDENT,
-              authorUserId: input.studentId,
-              content: input.content,
+              sessionId_clientMessageId: {
+                sessionId: session.id,
+                clientMessageId: input.clientMessageId,
+              },
             },
-            select: chatMessageSelect,
+            select: {
+              studentMessageId: true,
+              assistantMessageId: true,
+            },
           })
-          if (replayedStudent !== null) {
-            const replayedAssistant = await tx.message.findUnique({
-              where: { responseToMessageId: replayedStudent.id },
-              select: chatMessageSelect,
-            })
+          if (replayedAttempt !== null) {
+            const replayedStudent =
+              replayedAttempt.studentMessageId === null
+                ? null
+                : await tx.message.findUnique({
+                    where: { id: replayedAttempt.studentMessageId },
+                    select: chatMessageSelect,
+                  })
+            const replayedAssistant =
+              replayedAttempt.assistantMessageId === null
+                ? null
+                : await tx.message.findUnique({
+                    where: { id: replayedAttempt.assistantMessageId },
+                    select: chatMessageSelect,
+                  })
             if (
+              replayedStudent !== null &&
+              replayedStudent.content === input.content &&
               replayedAssistant !== null &&
               replayedAssistant.role === MessageRole.ASSISTANT &&
               isTerminalMessageStatus(replayedAssistant.status)
@@ -253,65 +274,50 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
           }
         }
 
-        const activeAssistant = await tx.message.findFirst({
-          where: {
-            sessionId: session.id,
-            role: MessageRole.ASSISTANT,
-            status: { in: [MessageStatus.PENDING, MessageStatus.STREAMING] },
-          },
-          select: { id: true },
-        })
-        if (activeAssistant !== null) {
-          return { kind: 'turn_in_progress' }
-        }
-
-        const studentSequence = session.lastSequence + 1
-        const assistantSequence = studentSequence + 1
-        const studentMessage = await tx.message.create({
+        await tx.tutoringAttempt.create({
           data: {
-            id: identity.studentMessageId,
+            id: identity.attemptId,
             sessionId: session.id,
-            sequence: studentSequence,
-            role: MessageRole.STUDENT,
-            authorUserId: input.studentId,
-            content: input.content,
-            status: MessageStatus.COMPLETED,
+            clientMessageId: input.clientMessageId ?? identity.studentMessageId,
             requestKind: input.requestKind ?? null,
-            guidanceLabel: null,
-            hintLevel: null,
-            createdAt: now,
-            completedAt: now,
+            status: TutoringAttemptStatus.RECEIVED,
+            leaseExpiresAt: leaseExpiry(now),
+            claimToken: identity.attemptId,
+            claimedAt: now,
           },
-          select: chatMessageSelect,
         })
-        const assistantMessage = await tx.message.create({
-          data: {
-            id: identity.assistantMessageId,
+        const admitted = await this.conversationTurns.admit(
+          {
+            courseId: session.courseId,
             sessionId: session.id,
-            sequence: assistantSequence,
-            role: MessageRole.ASSISTANT,
-            authorUserId: null,
-            responseToMessageId: studentMessage.id,
-            content: '',
-            status: MessageStatus.PENDING,
-            requestKind: input.requestKind ?? MessageRequestKind.CONCEPTUAL,
-            guidanceLabel: null,
-            hintLevel: null,
-            groundingAttemptId: identity.attemptId,
-            groundingLeaseExpiresAt: leaseExpiry(now),
-            createdAt: now,
-            completedAt: null,
+            studentId: input.studentId,
+            attemptId: identity.attemptId,
+            studentMessageId: identity.studentMessageId,
+            assistantMessageId: identity.assistantMessageId,
+            content: input.content,
+            requestKind: input.requestKind ?? null,
+            now,
           },
+          asDatabaseTransaction(tx),
+        )
+        if (admitted.kind !== 'admitted') {
+          return admitted
+        }
+        const studentMessage = await tx.message.findUniqueOrThrow({
+          where: { id: admitted.studentMessage.id },
           select: chatMessageSelect,
         })
-        await tx.chatSession.update({
-          where: { id: session.id },
+        const assistantMessage = await tx.message.findUniqueOrThrow({
+          where: { id: admitted.assistantMessage.id },
+          select: chatMessageSelect,
+        })
+        await tx.tutoringAttempt.update({
+          where: { id: identity.attemptId },
           data: {
-            lastSequence: assistantSequence,
-            lastMessageAt: now,
+            studentMessageId: studentMessage.id,
+            assistantMessageId: assistantMessage.id,
           },
         })
-
         return {
           kind: 'ok',
           courseId: session.courseId,
@@ -357,10 +363,7 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
 
         const assistantMessage = await tx.message.findUnique({
           where: { responseToMessageId: studentMessage.id },
-          select: {
-            ...chatMessageSelect,
-            groundingLeaseExpiresAt: true,
-          },
+          select: chatMessageSelect,
         })
         if (assistantMessage?.role !== MessageRole.ASSISTANT) {
           return {
@@ -368,7 +371,22 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
             messageId: input.studentMessageId,
           }
         }
-        if (!isRetryableAssistant(assistantMessage, now)) {
+        const previousAttemptId = assistantMessage.attemptId
+        const previousAttempt =
+          previousAttemptId === null
+            ? null
+            : await tx.tutoringAttempt.findUnique({
+                where: { id: previousAttemptId },
+                select: {
+                  id: true,
+                  leaseExpiresAt: true,
+                  status: true,
+                },
+              })
+        if (
+          previousAttempt === null ||
+          !isRetryableAttempt(previousAttempt, now)
+        ) {
           return {
             kind: 'retry_not_allowed',
             messageId: input.studentMessageId,
@@ -388,11 +406,32 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
           return { kind: 'turn_in_progress' }
         }
 
+        await tx.tutoringAttempt.create({
+          data: {
+            id: attemptId,
+            sessionId: session.id,
+            studentMessageId: studentMessage.id,
+            assistantMessageId: assistantMessage.id,
+            retryOfAttemptId: previousAttempt.id,
+            clientMessageId: `${studentMessage.id}:${attemptId}`,
+            requestKind:
+              studentMessage.requestKind ?? MessageRequestKind.CONCEPTUAL,
+            status: TutoringAttemptStatus.RECEIVED,
+            leaseExpiresAt: leaseExpiry(now),
+            claimToken: attemptId,
+            claimedAt: now,
+          },
+        })
+
         await tx.messageRetrieval.deleteMany({
           where: { messageId: assistantMessage.id },
         })
         await tx.messageCitation.deleteMany({
           where: { messageId: assistantMessage.id },
+        })
+        await tx.message.update({
+          where: { id: studentMessage.id },
+          data: { attemptId },
         })
         const resetAssistant = await tx.message.update({
           where: { id: assistantMessage.id },
@@ -407,8 +446,7 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
             outputTokens: null,
             errorCode: null,
             errorMessage: null,
-            groundingAttemptId: attemptId,
-            groundingLeaseExpiresAt: leaseExpiry(now),
+            attemptId,
             completedAt: null,
           },
           select: chatMessageSelect,
@@ -490,7 +528,6 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
           content: input.content,
           ...terminal,
           errorMessage: null,
-          groundingLeaseExpiresAt: null,
           completedAt: now,
         })
         if (updated.kind !== 'ok') {
@@ -648,7 +685,6 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
           inputTokens: null,
           outputTokens: null,
           errorMessage: null,
-          groundingLeaseExpiresAt: null,
           completedAt: now,
         })
         if (updated.kind !== 'ok') {
@@ -683,7 +719,7 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
         role: MessageRole.ASSISTANT,
         status: MessageStatus.PENDING,
         responseToMessageId: input.studentMessageId,
-        groundingAttemptId: input.attemptId,
+        attemptId: input.attemptId,
       },
       data,
       select: chatMessageScalarSelect,
@@ -691,6 +727,37 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
     })
     const updated = messages.at(0)
     if (updated !== undefined) {
+      const attemptStatus =
+        updated.status === MessageStatus.COMPLETED
+          ? TutoringAttemptStatus.COMPLETED
+          : TutoringAttemptStatus.FAILED
+      const updatedAttempts = await tx.tutoringAttempt.updateMany({
+        where: {
+          id: input.attemptId,
+          assistantMessageId: input.assistantMessageId,
+        },
+        data: {
+          status: attemptStatus,
+          failureCode:
+            attemptStatus === TutoringAttemptStatus.FAILED
+              ? TutoringAttemptFailureCode.PERSISTENCE_FAILED
+              : null,
+          approvalSource:
+            attemptStatus === TutoringAttemptStatus.COMPLETED
+              ? 'CLASSIFIED_RESPONSE'
+              : null,
+          validationPolicyVersion:
+            attemptStatus === TutoringAttemptStatus.COMPLETED
+              ? 'tutoring-attempt-admission-v1'
+              : null,
+          leaseExpiresAt: null,
+          completedAt: new Date(),
+          version: { increment: 1 },
+        },
+      })
+      if (updatedAttempts.count !== 1) {
+        throw new Error('Tutoring Attempt changed during message finalization')
+      }
       const message = await tx.message.findUniqueOrThrow({
         where: { id: updated.id },
         select: chatMessageSelect,
@@ -711,15 +778,8 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
       },
       select: {
         ...chatMessageSelect,
-        groundingAttemptId: true,
       },
     })
-    console.log(
-      'transitionPendingAssistant input.attemptId:',
-      input.attemptId,
-      'existing:',
-      JSON.stringify(existing),
-    )
     if (existing === null) {
       return {
         kind: 'message_not_found',
@@ -727,11 +787,10 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
       }
     }
     if (
-      existing.groundingAttemptId === input.attemptId &&
+      existing.attemptId === input.attemptId &&
       isTerminalMessageStatus(existing.status)
     ) {
-      const { groundingAttemptId: _groundingAttemptId, ...message } = existing
-      return { kind: 'ok', message }
+      return { kind: 'ok', message: existing }
     }
 
     return {
@@ -802,23 +861,32 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
     sessionId: string,
     now: Date,
   ): Promise<void> {
-    const expired = await tx.message.findMany({
+    const expired = await tx.tutoringAttempt.findMany({
       where: {
         sessionId,
-        role: MessageRole.ASSISTANT,
-        status: { in: [MessageStatus.PENDING, MessageStatus.STREAMING] },
-        OR: [
-          { groundingLeaseExpiresAt: null },
-          { groundingLeaseExpiresAt: { lte: now } },
-        ],
+        status: {
+          in: [
+            TutoringAttemptStatus.RECEIVED,
+            TutoringAttemptStatus.ANALYZING,
+            TutoringAttemptStatus.RETRIEVING,
+            TutoringAttemptStatus.DECIDING,
+            TutoringAttemptStatus.GENERATING,
+            TutoringAttemptStatus.VALIDATING,
+            TutoringAttemptStatus.REGENERATING,
+          ],
+        },
+        OR: [{ leaseExpiresAt: null }, { leaseExpiresAt: { lte: now } }],
       },
-      select: { id: true },
+      select: { id: true, assistantMessageId: true },
     })
     if (expired.length === 0) {
       return
     }
 
-    const messageIds = expired.map(({ id }) => id)
+    const attemptIds = expired.map(({ id }) => id)
+    const messageIds = expired.flatMap(({ assistantMessageId }) =>
+      assistantMessageId === null ? [] : [assistantMessageId],
+    )
     await tx.message.updateMany({
       where: {
         id: { in: messageIds },
@@ -835,8 +903,17 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
         outputTokens: null,
         errorCode: GROUNDING_ATTEMPT_EXPIRED,
         errorMessage: null,
-        groundingLeaseExpiresAt: null,
         completedAt: now,
+      },
+    })
+    await tx.tutoringAttempt.updateMany({
+      where: { id: { in: attemptIds } },
+      data: {
+        status: TutoringAttemptStatus.FAILED,
+        failureCode: TutoringAttemptFailureCode.PERSISTENCE_FAILED,
+        leaseExpiresAt: null,
+        completedAt: now,
+        version: { increment: 1 },
       },
     })
     await tx.messageRetrieval.deleteMany({
@@ -892,7 +969,7 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
             role: MessageRole.ASSISTANT,
             responseToMessageId: studentMessage.id,
             status: MessageStatus.PENDING,
-            groundingAttemptId: identity.attemptId,
+            attemptId: identity.attemptId,
           },
           select: chatMessageSelect,
         })
@@ -938,7 +1015,7 @@ export class PrismaGroundedChatTurnRepository extends GroundedChatTurnRepository
             sessionId: input.sessionId,
             role: MessageRole.ASSISTANT,
             responseToMessageId: input.studentMessageId,
-            groundingAttemptId: input.attemptId,
+            attemptId: input.attemptId,
             status: expectedStatus,
           },
           select: chatMessageSelect,
@@ -1025,22 +1102,20 @@ function leaseExpiry(now: Date): Date {
   return new Date(now.getTime() + GROUNDING_ATTEMPT_LEASE_MS)
 }
 
-function isRetryableAssistant(
+function isRetryableAttempt(
   assistant: {
-    status: MessageStatus
-    groundingLeaseExpiresAt: Date | null
+    status: TutoringAttemptStatus
+    leaseExpiresAt: Date | null
   },
   now: Date,
 ): boolean {
-  if (assistant.status === MessageStatus.FAILED) {
+  if (assistant.status === TutoringAttemptStatus.FAILED) {
     return true
   }
 
   return (
-    (assistant.status === MessageStatus.PENDING ||
-      assistant.status === MessageStatus.STREAMING) &&
-    (assistant.groundingLeaseExpiresAt === null ||
-      assistant.groundingLeaseExpiresAt <= now)
+    assistant.status !== TutoringAttemptStatus.COMPLETED &&
+    (assistant.leaseExpiresAt === null || assistant.leaseExpiresAt <= now)
   )
 }
 

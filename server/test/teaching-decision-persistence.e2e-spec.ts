@@ -46,7 +46,7 @@ interface Fixture {
   studentId: string
   sessionId: string
   topicId: string
-  turnId: string
+  attemptId: string
   studentMessageId: string
 }
 
@@ -86,7 +86,7 @@ describe('TeachingDecisionRepository (e2e)', () => {
       success: true,
       reused: false,
       decision: {
-        turnId: fixture.turnId,
+        attemptId: fixture.attemptId,
         topicId: fixture.topicId,
         analysisId: analysis.id,
         strategy: TeachingStrategy.DEBUGGING_GUIDANCE,
@@ -102,7 +102,7 @@ describe('TeachingDecisionRepository (e2e)', () => {
     })
 
     const persisted = await prisma.teachingDecision.findUniqueOrThrow({
-      where: { turnId: fixture.turnId },
+      where: { attemptId: fixture.attemptId },
     })
     expect(persisted.decisionReason.length).toBeLessThanOrEqual(240)
     expect(persisted.analysisId).toBe(analysis.id)
@@ -155,7 +155,9 @@ describe('TeachingDecisionRepository (e2e)', () => {
     expect(first.success).toBe(true)
     expect(second.success).toBe(true)
     await expect(
-      prisma.teachingDecision.count({ where: { turnId: fixture.turnId } }),
+      prisma.teachingDecision.count({
+        where: { attemptId: fixture.attemptId },
+      }),
     ).resolves.toBe(1)
 
     const third = await engine.selectDecision(input)
@@ -203,12 +205,12 @@ describe('TeachingDecisionRepository (e2e)', () => {
     const current = await createFollowingTurn(prisma, first)
     await expect(
       decisionRepository.findLatestCompletedForSameTopicBeforeTurn({
-        turnId: current.turnId,
+        attemptId: current.attemptId,
         topicId: current.topicId,
       }),
     ).resolves.toMatchObject({
       id: firstDecision.success ? firstDecision.decision.id : '',
-      turnId: first.turnId,
+      attemptId: first.attemptId,
       topicId: first.topicId,
     })
   })
@@ -232,7 +234,7 @@ describe('TeachingDecisionRepository (e2e)', () => {
       analysis: secondAnalysis,
       topicState: topicState(second.topicId),
       previousTeachingDecision: await engine.findPreviousDecision({
-        turnId: second.turnId,
+        attemptId: second.attemptId,
         topicId: second.topicId,
       }),
     })
@@ -258,7 +260,7 @@ describe('TeachingDecisionRepository (e2e)', () => {
         analysis: fallbackAnalysis,
         topicState: topicState(fallback.topicId),
         previousTeachingDecision: await engine.findPreviousDecision({
-          turnId: fallback.turnId,
+          attemptId: fallback.attemptId,
           topicId: fallback.topicId,
         }),
       })
@@ -276,7 +278,7 @@ describe('TeachingDecisionRepository (e2e)', () => {
 
     const recovered = await createFollowingTurn(prisma, preceding)
     const recoveredPrevious = await engine.findPreviousDecision({
-      turnId: recovered.turnId,
+      attemptId: recovered.attemptId,
       topicId: recovered.topicId,
     })
     expect(recoveredPrevious).toMatchObject({
@@ -297,7 +299,7 @@ describe('TeachingDecisionRepository (e2e)', () => {
 
     for (const fallbackDecision of fallbackDecisions) {
       await expect(
-        decisionRepository.findByTurnId(fallbackDecision.turnId),
+        decisionRepository.findByTurnId(fallbackDecision.attemptId),
       ).resolves.toMatchObject({
         id: fallbackDecision.id,
         guidanceLevel: 1,
@@ -324,7 +326,7 @@ describe('TeachingDecisionRepository (e2e)', () => {
 
     const recovered = await createFollowingTurn(prisma, fallback)
     const recoveredPrevious = await engine.findPreviousDecision({
-      turnId: recovered.turnId,
+      attemptId: recovered.attemptId,
       topicId: recovered.topicId,
     })
     expect(recoveredPrevious).toBeNull()
@@ -375,7 +377,7 @@ describe('TeachingDecisionRepository (e2e)', () => {
     source: PersistedEducationalAnalysisRecord['analysisSource'] = EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
   ): Promise<PersistedEducationalAnalysisRecord> {
     const stored = await analysisRepository.storeAccepted({
-      turnId: fixture.turnId,
+      attemptId: fixture.attemptId,
       topicId: fixture.topicId,
       studentMessageId: fixture.studentMessageId,
       result,
@@ -440,17 +442,17 @@ async function createFixture(prisma: PrismaService): Promise<Fixture> {
       topicType: TopicType.DEBUGGING_TASK,
     },
   })
-  const turn = await prisma.tutorTurn.create({
+  const turn = await prisma.tutoringAttempt.create({
     data: {
       sessionId: session.id,
       topicId: topic.id,
-      idempotencyKey: `decision-${suffix}`,
+      clientMessageId: `decision-${suffix}`,
     },
   })
   const studentMessage = await prisma.message.create({
     data: {
       sessionId: session.id,
-      turnId: turn.id,
+      attemptId: turn.id,
       topicId: topic.id,
       sequence: 1,
       role: MessageRole.STUDENT,
@@ -460,7 +462,7 @@ async function createFixture(prisma: PrismaService): Promise<Fixture> {
       completedAt: new Date('2026-08-05T00:00:00.000Z'),
     },
   })
-  await prisma.tutorTurn.update({
+  await prisma.tutoringAttempt.update({
     where: { id: turn.id },
     data: {
       studentMessageId: studentMessage.id,
@@ -472,7 +474,7 @@ async function createFixture(prisma: PrismaService): Promise<Fixture> {
     studentId: student.id,
     sessionId: session.id,
     topicId: topic.id,
-    turnId: turn.id,
+    attemptId: turn.id,
     studentMessageId: studentMessage.id,
   }
 }
@@ -485,17 +487,17 @@ async function createFollowingTurn(
     where: { sessionId: first.sessionId },
     _max: { sequence: true },
   })
-  const turn = await prisma.tutorTurn.create({
+  const turn = await prisma.tutoringAttempt.create({
     data: {
       sessionId: first.sessionId,
       topicId: first.topicId,
-      idempotencyKey: `decision-following-${randomUUID()}`,
+      clientMessageId: `decision-following-${randomUUID()}`,
     },
   })
   const studentMessage = await prisma.message.create({
     data: {
       sessionId: first.sessionId,
-      turnId: turn.id,
+      attemptId: turn.id,
       topicId: first.topicId,
       sequence: (latestSequence._max.sequence ?? 0) + 1,
       role: MessageRole.STUDENT,
@@ -505,14 +507,14 @@ async function createFollowingTurn(
       completedAt: new Date('2026-08-05T00:02:00.000Z'),
     },
   })
-  await prisma.tutorTurn.update({
+  await prisma.tutoringAttempt.update({
     where: { id: turn.id },
     data: { studentMessageId: studentMessage.id },
   })
 
   return {
     ...first,
-    turnId: turn.id,
+    attemptId: turn.id,
     studentMessageId: studentMessage.id,
   }
 }
@@ -531,7 +533,7 @@ async function completeTurn(
   const assistant = await prisma.message.create({
     data: {
       sessionId: fixture.sessionId,
-      turnId: fixture.turnId,
+      attemptId: fixture.attemptId,
       topicId: fixture.topicId,
       sequence: studentMessage.sequence + 1,
       role: MessageRole.ASSISTANT,
@@ -541,11 +543,11 @@ async function completeTurn(
       completedAt,
     },
   })
-  await prisma.tutorTurn.update({
-    where: { id: fixture.turnId },
+  await prisma.tutoringAttempt.update({
+    where: { id: fixture.attemptId },
     data: {
       status: 'COMPLETED',
-      approvedTutorMessageId: assistant.id,
+      assistantMessageId: assistant.id,
       approvalSource: 'VALIDATED_CANDIDATE',
       approvedCandidateAttempt: 1,
       validationPolicyVersion: 'response-validation.mvp.v1',
@@ -635,7 +637,7 @@ function previousDecision(
 ): PersistedTeachingDecisionRecord {
   return {
     id: 'decision-previous',
-    turnId: 'turn-previous',
+    attemptId: 'turn-previous',
     topicId,
     analysisId: 'analysis-previous',
     strategy: TeachingStrategy.SOCRATIC_QUESTIONING,

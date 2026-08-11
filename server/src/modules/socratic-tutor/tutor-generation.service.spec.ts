@@ -101,7 +101,7 @@ describe('TutorGenerationService', () => {
       (harness: Harness) => {
         harness.context.studentMessage = {
           ...harness.context.studentMessage,
-          turnId: 'turn-other',
+          attemptId: 'turn-other',
         }
       },
       'INVALID_GENERATION_CONTEXT',
@@ -368,7 +368,7 @@ function defaultInput() {
     courseId: 'course-1',
     sessionId: 'session-1',
     studentId: 'student-1',
-    turnId: 'turn-1',
+    attemptId: 'turn-1',
     studentMessageId: 'message-2',
     topicId: 'topic-1',
     retrievalResult: [retrievedChunk({ rank: 1 })],
@@ -382,7 +382,7 @@ function buildAnalysisContext(): AnalysisContextPackage {
       id: 'message-2',
       sequence: 2,
       role: MessageRole.STUDENT,
-      turnId: 'turn-1',
+      attemptId: 'turn-1',
       topicId: 'topic-1',
       authorUserId: null,
       responseToMessageId: null,
@@ -459,7 +459,7 @@ function buildAnalysis(): PersistedEducationalAnalysisRecord {
   const createdAt = new Date('2026-08-04T10:00:00.000Z')
   return {
     id: 'analysis-1',
-    turnId: 'turn-1',
+    attemptId: 'turn-1',
     topicId: 'topic-1',
     studentMessageId: 'message-2',
     attempt: 1,
@@ -509,7 +509,7 @@ function buildAnalysis(): PersistedEducationalAnalysisRecord {
 function buildDecision(): PersistedTeachingDecisionRecord {
   return {
     id: 'decision-1',
-    turnId: 'turn-1',
+    attemptId: 'turn-1',
     topicId: 'topic-1',
     analysisId: 'analysis-1',
     strategy: TeachingStrategy.SOCRATIC_QUESTIONING,

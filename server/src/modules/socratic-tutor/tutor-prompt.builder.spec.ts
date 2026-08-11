@@ -211,7 +211,7 @@ function misconceptionContext(
 function buildGenerationContext(): GenerationContextPackage {
   const createdAt = new Date('2026-08-04T10:00:00.000Z')
   return {
-    turnId: 'turn-1',
+    attemptId: 'turn-1',
     sessionId: 'session-1',
     courseId: 'course-1',
     topicId: 'topic-1',
@@ -219,7 +219,7 @@ function buildGenerationContext(): GenerationContextPackage {
       id: 'message-2',
       sequence: 2,
       role: MessageRole.STUDENT,
-      turnId: 'turn-1',
+      attemptId: 'turn-1',
       topicId: 'topic-1',
       authorUserId: 'student-secret',
       responseToMessageId: null,
@@ -233,7 +233,7 @@ function buildGenerationContext(): GenerationContextPackage {
     },
     acceptedAnalysis: {
       id: 'analysis-1',
-      turnId: 'turn-1',
+      attemptId: 'turn-1',
       topicId: 'topic-1',
       studentMessageId: 'message-2',
       attempt: 1,
@@ -280,7 +280,7 @@ function buildGenerationContext(): GenerationContextPackage {
     },
     teachingDecision: {
       id: 'decision-1',
-      turnId: 'turn-1',
+      attemptId: 'turn-1',
       topicId: 'topic-1',
       analysisId: 'analysis-1',
       strategy: TeachingStrategy.SOCRATIC_QUESTIONING,

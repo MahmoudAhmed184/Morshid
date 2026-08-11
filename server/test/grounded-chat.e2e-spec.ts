@@ -7,6 +7,7 @@ import type { App } from 'supertest/types'
 
 import { configureApp } from '../src/app.setup'
 import { AppModule } from '../src/app.module'
+import { PrismaConversationTurns } from '../src/modules/conversations/prisma-conversation-turns'
 import {
   CourseMembershipRole,
   MaterialStatus,
@@ -257,7 +258,10 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
     )
 
     turnRepository = new ControllableGroundedChatTurnRepository(
-      new PrismaGroundedChatTurnRepository(prisma),
+      new PrismaGroundedChatTurnRepository(
+        prisma,
+        new PrismaConversationTurns(),
+      ),
     )
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -324,8 +328,8 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
     await prisma.teachingDecision.deleteMany()
     await prisma.educationalAnalysis.deleteMany()
     await prisma.guardResult.deleteMany()
-    await prisma.tutorCandidateAttempt.deleteMany()
-    await prisma.tutorTurn.deleteMany()
+    await prisma.tutoringCandidateAttempt.deleteMany()
+    await prisma.tutoringAttempt.deleteMany()
     await prisma.topicState.deleteMany()
     await prisma.topic.deleteMany()
     await prisma.messageRetrieval.deleteMany()
@@ -1562,10 +1566,10 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
     })
 
     await prisma.guardResult.deleteMany()
-    await prisma.tutorCandidateAttempt.deleteMany()
+    await prisma.tutoringCandidateAttempt.deleteMany()
     await prisma.teachingDecision.deleteMany()
     await prisma.educationalAnalysis.deleteMany()
-    await prisma.tutorTurn.deleteMany()
+    await prisma.tutoringAttempt.deleteMany()
     await prisma.topicState.deleteMany()
     await prisma.topic.deleteMany()
     await prisma.reviewCase.deleteMany()
@@ -1966,9 +1970,9 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
       orderBy: { sequence: 'asc' },
     })
     expect(assistantMessage.status).toBe('PENDING')
-    await prisma.message.update({
-      where: { id: assistantMessage.id },
-      data: { groundingLeaseExpiresAt: new Date(0) },
+    await prisma.tutoringAttempt.update({
+      where: { id: assistantMessage.attemptId ?? '' },
+      data: { leaseExpiresAt: new Date(0) },
     })
 
     turnRepository.failFailurePersistence = false

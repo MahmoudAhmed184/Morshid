@@ -368,7 +368,7 @@ export class GroundedChatService {
       )
     }
 
-    const idempotencyKey = isRetry
+    const clientMessageId = isRetry
       ? `${turn.studentMessage.id}:${turn.attemptId}`
       : turn.studentMessage.id
 
@@ -382,7 +382,7 @@ export class GroundedChatService {
         assistantMessageId: turn.assistantMessage.id,
         studentMessageContent: turn.studentMessage.content,
         topicSelection,
-        idempotencyKey,
+        clientMessageId,
         requestBudget,
       })
     } catch (error) {

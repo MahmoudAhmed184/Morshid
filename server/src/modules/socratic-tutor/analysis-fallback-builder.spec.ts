@@ -76,7 +76,7 @@ function analysisContext(
       id: 'current-message',
       sequence: 1,
       role: MessageRole.STUDENT,
-      turnId: 'turn-1',
+      attemptId: 'turn-1',
       topicId: 'topic-1',
       authorUserId: 'student-1',
       responseToMessageId: null,

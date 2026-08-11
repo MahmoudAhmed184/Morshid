@@ -1227,7 +1227,7 @@ describe('OpenAPI contract (e2e)', () => {
         type: 'array',
         items: { $ref: '#/components/schemas/ChatCitationDto' },
       })
-      expect(schemas.ChatMessageDto.properties?.turnId).toEqual({
+      expect(schemas.ChatMessageDto.properties?.attemptId).toEqual({
         type: 'string',
         format: 'uuid',
         nullable: true,

@@ -27,11 +27,11 @@ export function buildGenerationContextPackage(input: {
   readonly previousTeachingDecision: PersistedTeachingDecisionRecord | null
   readonly retrievedChunks: readonly RetrievedChunk[]
 }): BuildGenerationContextResult {
-  const turnId = input.analysisContext.studentMessage.turnId
+  const attemptId = input.analysisContext.studentMessage.attemptId
   if (
-    turnId === null ||
-    input.acceptedAnalysis.turnId !== turnId ||
-    input.teachingDecision.turnId !== turnId ||
+    attemptId === null ||
+    input.acceptedAnalysis.attemptId !== attemptId ||
+    input.teachingDecision.attemptId !== attemptId ||
     input.acceptedAnalysis.topicId !== input.analysisContext.activeTopic.id ||
     input.teachingDecision.topicId !== input.analysisContext.activeTopic.id ||
     input.teachingDecision.analysisId !== input.acceptedAnalysis.id ||
@@ -54,7 +54,7 @@ export function buildGenerationContextPackage(input: {
   return {
     success: true,
     context: Object.freeze({
-      turnId,
+      attemptId,
       sessionId: input.analysisContext.activeTopic.sessionId,
       courseId: input.analysisContext.activeTopic.courseId,
       topicId: input.analysisContext.activeTopic.id,
@@ -156,7 +156,7 @@ export function guardEducationalContextFromGenerationContext(
           id: message.id,
           sequence: message.sequence,
           role: message.role,
-          turnId: message.turnId,
+          attemptId: message.attemptId,
           topicId: message.topicId,
           content: message.content,
         }),

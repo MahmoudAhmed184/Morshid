@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common'
 
 import { AuditModule } from '../audit/audit.module'
+import { ConversationsModule } from '../conversations/conversations.module'
 import { IdentityModule } from '../identity/identity.module'
 import { PrismaModule } from '../prisma/prisma.module'
 import { CompletionModule } from '../completion/completion.module'
@@ -32,6 +33,7 @@ import { CorrectnessSensitiveRequestClassifier } from './correctness-sensitive-r
 @Module({
   imports: [
     AuditModule,
+    ConversationsModule,
     IdentityModule,
     CompletionModule,
     OutputPolicyModule,

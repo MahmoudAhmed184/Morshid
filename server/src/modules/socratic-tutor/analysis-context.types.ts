@@ -45,7 +45,7 @@ export interface AnalysisContextMessage {
   id: string
   sequence: number
   role: MessageRole
-  turnId: string | null
+  attemptId: string | null
   topicId: string | null
   authorUserId: string | null
   responseToMessageId: string | null

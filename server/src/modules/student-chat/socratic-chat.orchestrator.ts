@@ -2,8 +2,8 @@ import { Injectable, Logger } from '@nestjs/common'
 
 import { assertRequestBudget } from '../../common/http/request-deadline'
 import {
-  TutorTurnFailureCode,
-  TutorTurnStatus,
+  TutoringAttemptFailureCode,
+  TutoringAttemptStatus,
 } from '../../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { RetrievalService } from '../retrieval/retrieval.service'
@@ -37,7 +37,7 @@ import type {
  * Bridge between the student chat module and the Phase 1–5 Socratic pipeline.
  *
  * Owns the full lifecycle:
- *   TutorTurn → Topic → TopicState → EducationalAnalysis → TeachingDecision
+ *   TutoringAttempt → Topic → TopicState → EducationalAnalysis → TeachingDecision
  *   → RetrievalQueryBuilder → course-scoped Retrieval
  *   → TutorGeneration + Validation → Approval
  *
@@ -67,10 +67,10 @@ export class SocraticChatOrchestrator {
     input: SocraticOrchestrationInput,
   ): Promise<SocraticOrchestrationResult> {
     assertRequestBudget(input.requestBudget)
-    // ── Phase 0: TutorTurn acquisition ──────────────────────────────
+    // ── Phase 0: TutoringAttempt acquisition ──────────────────────────────
     const acquisition = await this.turnService.getOrCreate(
       input.sessionId,
-      input.idempotencyKey,
+      input.clientMessageId,
     )
 
     if (acquisition.outcome === TURN_ACQUISITION_OUTCOME.COMPLETED) {
@@ -83,7 +83,7 @@ export class SocraticChatOrchestrator {
       return { kind: 'failed', errorCode: 'SOCRATIC_TURN_PREVIOUSLY_FAILED' }
     }
 
-    const turnId = acquisition.turn.id
+    const attemptId = acquisition.turn.id
     assertRequestBudget(input.requestBudget)
 
     const inputRisk = this.safetyRiskDetector.detectStudentInput(
@@ -98,37 +98,37 @@ export class SocraticChatOrchestrator {
 
     if (hasInputRisk && inputRisk !== null) {
       await this.markTurnFailed(
-        turnId,
-        TutorTurnStatus.RECEIVED,
-        TutorTurnFailureCode.GENERATION_FAILED,
+        attemptId,
+        TutoringAttemptStatus.RECEIVED,
+        TutoringAttemptFailureCode.GENERATION_FAILED,
       )
       return { kind: 'safety_refusal', detection: inputRisk }
     }
 
     try {
-      return await this.runPipeline(input, turnId)
+      return await this.runPipeline(input, attemptId)
     } catch (error) {
       this.logger.warn({
         event: 'socratic_chat_orchestration_failed',
-        turnId,
+        attemptId,
         error: error instanceof Error ? error.message : 'UnknownError',
       })
-      await this.safeMarkTurnFailed(turnId)
+      await this.safeMarkTurnFailed(attemptId)
       throw error
     }
   }
 
   /**
    * Execute the full Socratic pipeline within a structured try/catch so that
-   * failures always mark the TutorTurn as FAILED before returning.
+   * failures always mark the TutoringAttempt as FAILED before returning.
    */
   private async runPipeline(
     input: SocraticOrchestrationInput,
-    turnId: string,
+    attemptId: string,
   ): Promise<SocraticOrchestrationResult> {
     assertRequestBudget(input.requestBudget)
-    // ── Link student message to TutorTurn ─────────────────────────
-    await this.turnService.linkStudentMessage(turnId, input.studentMessageId)
+    // ── Link student message to TutoringAttempt ─────────────────────────
+    await this.turnService.linkStudentMessage(attemptId, input.studentMessageId)
 
     // ── Phase 1: Topic resolution ─────────────────────────────────
     const resolution = await this.topicService.resolveTopic({
@@ -144,22 +144,22 @@ export class SocraticChatOrchestrator {
       resolution.topicId === null
     ) {
       return this.failTurn(
-        turnId,
-        TutorTurnStatus.RECEIVED,
-        TutorTurnFailureCode.ANALYSIS_FAILED,
+        attemptId,
+        TutoringAttemptStatus.RECEIVED,
+        TutoringAttemptFailureCode.ANALYSIS_FAILED,
         'SOCRATIC_TOPIC_UNRESOLVED',
       )
     }
     const topicId = resolution.topicId
 
     await this.turnService.attachResolvedTopic(
-      turnId,
+      attemptId,
       input.studentMessageId,
       topicId,
     )
     await this.prismaService.message.updateMany({
       where: { id: { in: [input.studentMessageId, input.assistantMessageId] } },
-      data: { turnId, topicId },
+      data: { attemptId, topicId },
     })
 
     // ── TopicState loading ────────────────────────────────────────
@@ -168,9 +168,9 @@ export class SocraticChatOrchestrator {
 
     // ── Phase 2: Educational Analysis ─────────────────────────────
     await this.turnService.transitionStatus(
-      turnId,
-      TutorTurnStatus.RECEIVED,
-      TutorTurnStatus.ANALYZING,
+      attemptId,
+      TutoringAttemptStatus.RECEIVED,
+      TutoringAttemptStatus.ANALYZING,
     )
 
     const analysisContext = await this.contextManager.buildAnalysisContext({
@@ -182,9 +182,9 @@ export class SocraticChatOrchestrator {
     })
     if (analysisContext === null) {
       return this.failTurn(
-        turnId,
-        TutorTurnStatus.ANALYZING,
-        TutorTurnFailureCode.ANALYSIS_FAILED,
+        attemptId,
+        TutoringAttemptStatus.ANALYZING,
+        TutoringAttemptFailureCode.ANALYSIS_FAILED,
         'SOCRATIC_ANALYSIS_CONTEXT_UNAVAILABLE',
       )
     }
@@ -198,9 +198,9 @@ export class SocraticChatOrchestrator {
           })
     if (!analysisResult.success) {
       return this.failTurn(
-        turnId,
-        TutorTurnStatus.ANALYZING,
-        TutorTurnFailureCode.ANALYSIS_FAILED,
+        attemptId,
+        TutoringAttemptStatus.ANALYZING,
+        TutoringAttemptFailureCode.ANALYSIS_FAILED,
         `SOCRATIC_ANALYSIS_FAILED:${analysisResult.errorCode}`,
       )
     }
@@ -215,7 +215,7 @@ export class SocraticChatOrchestrator {
         courseId: input.courseId,
         sessionId: input.sessionId,
         studentId: input.studentId,
-        turnId,
+        attemptId,
         topicId,
         studentMessageId: input.studentMessageId,
         assistantMessageId: input.assistantMessageId,
@@ -223,7 +223,7 @@ export class SocraticChatOrchestrator {
         content: classifiedResponse.content,
         guidanceLabel: classifiedResponse.guidanceLabel,
         errorCode: classifiedResponse.errorCode,
-        expectedTurnStatus: TutorTurnStatus.ANALYZING,
+        expectedTurnStatus: TutoringAttemptStatus.ANALYZING,
         topicStateTransition: buildClassifiedTopicStateTransition({
           topicState,
           requestKind: classifiedResponse.requestKind,
@@ -231,9 +231,9 @@ export class SocraticChatOrchestrator {
       })
       if (completion.kind !== 'ok') {
         return this.failTurn(
-          turnId,
-          TutorTurnStatus.ANALYZING,
-          TutorTurnFailureCode.PERSISTENCE_FAILED,
+          attemptId,
+          TutoringAttemptStatus.ANALYZING,
+          TutoringAttemptFailureCode.PERSISTENCE_FAILED,
           `SOCRATIC_CLASSIFIED_RESPONSE_FAILED:${completion.kind}`,
         )
       }
@@ -254,14 +254,14 @@ export class SocraticChatOrchestrator {
 
     // ── Phase 3: Teaching Decision ────────────────────────────────
     await this.turnService.transitionStatus(
-      turnId,
-      TutorTurnStatus.ANALYZING,
-      TutorTurnStatus.DECIDING,
+      attemptId,
+      TutoringAttemptStatus.ANALYZING,
+      TutoringAttemptStatus.DECIDING,
     )
 
     const previousTeachingDecision =
       await this.teachingPolicyEngine.findPreviousDecision({
-        turnId,
+        attemptId,
         topicId,
       })
 
@@ -275,9 +275,9 @@ export class SocraticChatOrchestrator {
     if (!decisionResult.success) {
       console.log('decisionResult failed:', decisionResult)
       return this.failTurn(
-        turnId,
-        TutorTurnStatus.DECIDING,
-        TutorTurnFailureCode.GENERATION_FAILED,
+        attemptId,
+        TutoringAttemptStatus.DECIDING,
+        TutoringAttemptFailureCode.GENERATION_FAILED,
         `SOCRATIC_DECISION_FAILED:${decisionResult.errorCode}`,
       )
     }
@@ -286,9 +286,9 @@ export class SocraticChatOrchestrator {
 
     // ── Course-scoped RAG Retrieval ───────────────────────────────
     await this.turnService.transitionStatus(
-      turnId,
-      TutorTurnStatus.DECIDING,
-      TutorTurnStatus.RETRIEVING,
+      attemptId,
+      TutoringAttemptStatus.DECIDING,
+      TutoringAttemptStatus.RETRIEVING,
     )
 
     const retrievalRequest = this.retrievalQueryBuilder.build(
@@ -299,7 +299,7 @@ export class SocraticChatOrchestrator {
     )
     this.logger.debug({
       event: 'socratic_retrieval_query_built',
-      turnId,
+      attemptId,
       queryVersion: retrievalRequest.queryVersion,
       queryLength: retrievalRequest.query.length,
       contextualMessageCount: retrievalRequest.contextMessageIds.length,
@@ -335,9 +335,9 @@ export class SocraticChatOrchestrator {
     )
     if (documentRisk !== null) {
       await this.markTurnFailed(
-        turnId,
-        TutorTurnStatus.RETRIEVING,
-        TutorTurnFailureCode.RETRIEVAL_FAILED,
+        attemptId,
+        TutoringAttemptStatus.RETRIEVING,
+        TutoringAttemptFailureCode.RETRIEVAL_FAILED,
       )
       return { kind: 'safety_refusal', detection: documentRisk }
     }
@@ -348,18 +348,18 @@ export class SocraticChatOrchestrator {
     )
     if (conflict !== null) {
       await this.markTurnFailed(
-        turnId,
-        TutorTurnStatus.RETRIEVING,
-        TutorTurnFailureCode.RETRIEVAL_FAILED,
+        attemptId,
+        TutoringAttemptStatus.RETRIEVING,
+        TutoringAttemptFailureCode.RETRIEVAL_FAILED,
       )
       return { kind: 'source_conflict', conflict }
     }
 
     // ── Phase 4 + 5: Generation, Validation, Approval ─────────────
     await this.turnService.transitionStatus(
-      turnId,
-      TutorTurnStatus.RETRIEVING,
-      TutorTurnStatus.GENERATING,
+      attemptId,
+      TutoringAttemptStatus.RETRIEVING,
+      TutoringAttemptStatus.GENERATING,
     )
 
     assertRequestBudget(input.requestBudget)
@@ -368,7 +368,7 @@ export class SocraticChatOrchestrator {
         courseId: input.courseId,
         sessionId: input.sessionId,
         studentId: input.studentId,
-        turnId,
+        attemptId,
         studentMessageId: input.studentMessageId,
         topicId,
         assistantMessageId: input.assistantMessageId,
@@ -385,20 +385,20 @@ export class SocraticChatOrchestrator {
     if (!approval.success) {
       if ('outputRisk' in approval && approval.outputRisk !== undefined) {
         await this.markTurnFailed(
-          turnId,
-          TutorTurnStatus.GENERATING,
-          TutorTurnFailureCode.GENERATION_FAILED,
+          attemptId,
+          TutoringAttemptStatus.GENERATING,
+          TutoringAttemptFailureCode.GENERATION_FAILED,
         )
         return { kind: 'safety_refusal', detection: approval.outputRisk }
       }
       const turnStatus =
         'turnStatus' in approval
           ? approval.turnStatus
-          : TutorTurnStatus.GENERATING
+          : TutoringAttemptStatus.GENERATING
       return this.failTurn(
-        turnId,
+        attemptId,
         turnStatus,
-        TutorTurnFailureCode.GENERATION_FAILED,
+        TutoringAttemptFailureCode.GENERATION_FAILED,
         `SOCRATIC_APPROVAL_FAILED:${approval.errorCode}`,
       )
     }
@@ -409,9 +409,9 @@ export class SocraticChatOrchestrator {
     )
     if (outputRisk !== null) {
       await this.markTurnFailed(
-        turnId,
-        TutorTurnStatus.GENERATING,
-        TutorTurnFailureCode.GENERATION_FAILED,
+        attemptId,
+        TutoringAttemptStatus.GENERATING,
+        TutoringAttemptFailureCode.GENERATION_FAILED,
       )
       return { kind: 'safety_refusal', detection: outputRisk }
     }
@@ -433,19 +433,19 @@ export class SocraticChatOrchestrator {
   }
 
   /**
-   * Replay an idempotent TutorTurn that was already COMPLETED.
+   * Replay an idempotent TutoringAttempt that was already COMPLETED.
    * Returns the persisted approved tutor message.
    */
   private async replayCompletedTurn(
-    turnId: string,
+    attemptId: string,
   ): Promise<SocraticOrchestrationResult> {
-    const turn = await this.prismaService.tutorTurn.findUnique({
-      where: { id: turnId },
-      select: { approvedTutorMessageId: true, studentMessageId: true },
+    const turn = await this.prismaService.tutoringAttempt.findUnique({
+      where: { id: attemptId },
+      select: { assistantMessageId: true, studentMessageId: true },
     })
     if (
-      turn?.approvedTutorMessageId === null ||
-      turn?.approvedTutorMessageId === undefined ||
+      turn?.assistantMessageId === null ||
+      turn?.assistantMessageId === undefined ||
       turn.studentMessageId === null
     ) {
       return { kind: 'failed', errorCode: 'SOCRATIC_REPLAY_INCONSISTENT' }
@@ -457,7 +457,7 @@ export class SocraticChatOrchestrator {
         select: chatMessageSelect,
       }),
       this.prismaService.message.findUnique({
-        where: { id: turn.approvedTutorMessageId },
+        where: { id: turn.assistantMessageId },
         select: chatMessageSelect,
       }),
     ])
@@ -469,26 +469,26 @@ export class SocraticChatOrchestrator {
   }
 
   private async failTurn(
-    turnId: string,
-    expectedStatus: TutorTurnStatus,
-    failureCode: TutorTurnFailureCode,
+    attemptId: string,
+    expectedStatus: TutoringAttemptStatus,
+    failureCode: TutoringAttemptFailureCode,
     errorCode: string,
   ): Promise<SocraticOrchestrationResult> {
-    await this.markTurnFailed(turnId, expectedStatus, failureCode)
+    await this.markTurnFailed(attemptId, expectedStatus, failureCode)
     return { kind: 'failed', errorCode }
   }
 
   private async markTurnFailed(
-    turnId: string,
-    expectedStatus: TutorTurnStatus,
-    failureCode: TutorTurnFailureCode,
+    attemptId: string,
+    expectedStatus: TutoringAttemptStatus,
+    failureCode: TutoringAttemptFailureCode,
   ): Promise<void> {
     try {
-      await this.turnService.markFailed(turnId, expectedStatus, failureCode)
+      await this.turnService.markFailed(attemptId, expectedStatus, failureCode)
     } catch {
       this.logger.warn({
         event: 'socratic_chat_mark_failed_error',
-        turnId,
+        attemptId,
         expectedStatus,
         failureCode,
       })
@@ -496,25 +496,25 @@ export class SocraticChatOrchestrator {
   }
 
   /**
-   * Best-effort failure marking when the current TutorTurn status is unknown.
+   * Best-effort failure marking when the current TutoringAttempt status is unknown.
    * Tries each non-terminal status until one succeeds or all are exhausted.
    */
-  private async safeMarkTurnFailed(turnId: string): Promise<void> {
+  private async safeMarkTurnFailed(attemptId: string): Promise<void> {
     const statuses = [
-      TutorTurnStatus.RECEIVED,
-      TutorTurnStatus.ANALYZING,
-      TutorTurnStatus.DECIDING,
-      TutorTurnStatus.RETRIEVING,
-      TutorTurnStatus.GENERATING,
-      TutorTurnStatus.VALIDATING,
-      TutorTurnStatus.REGENERATING,
+      TutoringAttemptStatus.RECEIVED,
+      TutoringAttemptStatus.ANALYZING,
+      TutoringAttemptStatus.DECIDING,
+      TutoringAttemptStatus.RETRIEVING,
+      TutoringAttemptStatus.GENERATING,
+      TutoringAttemptStatus.VALIDATING,
+      TutoringAttemptStatus.REGENERATING,
     ] as const
     for (const status of statuses) {
       try {
         await this.turnService.markFailed(
-          turnId,
+          attemptId,
           status,
-          TutorTurnFailureCode.PERSISTENCE_FAILED,
+          TutoringAttemptFailureCode.PERSISTENCE_FAILED,
         )
         return
       } catch {

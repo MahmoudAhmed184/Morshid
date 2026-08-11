@@ -83,14 +83,14 @@ export function turnLinkageConflictException(): HttpException {
   })
 }
 
-export function staleTutorTurnStatusException(): HttpException {
+export function staleTutoringAttemptStatusException(): HttpException {
   return new ConflictException({
     code: TURN_ERROR_CODES.STALE_STATUS,
     message: 'Tutor turn status is stale',
   })
 }
 
-export function invalidTutorTurnLifecycleTransitionException(): HttpException {
+export function invalidTutoringAttemptLifecycleTransitionException(): HttpException {
   return new ConflictException({
     code: TURN_ERROR_CODES.INVALID_LIFECYCLE_TRANSITION,
     message: 'Tutor turn lifecycle transition is not allowed',

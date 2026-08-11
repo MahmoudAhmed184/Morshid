@@ -116,7 +116,7 @@ export const chatMessageSchema = z
     id: z.uuid(),
     sequence: z.number().int().positive(),
     role: chatMessageRoleSchema,
-    turnId: z.uuid().nullable(),
+    attemptId: z.uuid().nullable(),
     topicId: z.uuid().nullable(),
     responseToMessageId: z.uuid().nullable(),
     content: z.string(),

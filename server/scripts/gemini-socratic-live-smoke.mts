@@ -150,7 +150,7 @@ async function main(): Promise<void> {
 
   const semanticGuardService = new SemanticGuardService(semanticGuardPort)
   const semanticResult = await semanticGuardService.evaluate({
-    turnId: GEMINI_SOCRATIC_LIVE_IDS.turnId,
+    attemptId: GEMINI_SOCRATIC_LIVE_IDS.attemptId,
     topicId: GEMINI_SOCRATIC_LIVE_IDS.topicId,
     courseId: GEMINI_SOCRATIC_LIVE_IDS.courseId,
     candidateAttempt: 1,
@@ -184,7 +184,7 @@ async function main(): Promise<void> {
   const fallback = await new SemanticGuardService(
     failingSemanticGuardPort(),
   ).evaluate({
-    turnId: GEMINI_SOCRATIC_LIVE_IDS.turnId,
+    attemptId: GEMINI_SOCRATIC_LIVE_IDS.attemptId,
     topicId: GEMINI_SOCRATIC_LIVE_IDS.topicId,
     courseId: GEMINI_SOCRATIC_LIVE_IDS.courseId,
     candidateAttempt: 1,

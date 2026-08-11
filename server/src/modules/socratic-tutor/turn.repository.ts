@@ -7,10 +7,10 @@ import {
   MessageRole,
   MessageStatus,
   Prisma,
-  TutorTurnFailureCode,
-  TutorTurnStatus,
-  TutorApprovalSource,
-  TutorSafeFallbackReason,
+  TutoringAttemptFailureCode,
+  TutoringAttemptStatus,
+  TutoringApprovalSource,
+  TutoringSafeFallbackReason,
 } from '../../generated/prisma/client'
 import { lockAuthorizedStudentChat } from '../../common/authorization/locked-student-chat-session'
 import { PrismaService } from '../prisma/prisma.service'
@@ -29,38 +29,38 @@ import type {
   AttachResolvedTopicResult,
   LinkStudentMessageInput,
   LinkStudentMessageResult,
-  TutorTurnSessionRecord,
-  TutorTurnSnapshot,
+  TutoringAttemptSessionRecord,
+  TutoringAttemptSnapshot,
 } from './turn.types'
 
 export abstract class TurnRepository {
   abstract findAuthoritativeSession(
     sessionId: string,
-  ): Promise<TutorTurnSessionRecord | null>
+  ): Promise<TutoringAttemptSessionRecord | null>
 
   abstract createTurn(
     sessionId: string,
-    idempotencyKey: string,
-  ): Promise<TutorTurnSnapshot | null>
+    clientMessageId: string,
+  ): Promise<TutoringAttemptSnapshot | null>
 
-  abstract findBySessionAndIdempotencyKey(
+  abstract findBySessionAndClientMessageId(
     sessionId: string,
-    idempotencyKey: string,
-  ): Promise<TutorTurnSnapshot | null>
+    clientMessageId: string,
+  ): Promise<TutoringAttemptSnapshot | null>
 
-  abstract findById(turnId: string): Promise<TutorTurnSnapshot | null>
+  abstract findById(attemptId: string): Promise<TutoringAttemptSnapshot | null>
 
   abstract transitionStatusAtomically(input: {
-    turnId: string
-    expectedStatus: TutorTurnStatus
-    nextStatus: TutorTurnStatus
-  }): Promise<TutorTurnSnapshot | null>
+    attemptId: string
+    expectedStatus: TutoringAttemptStatus
+    nextStatus: TutoringAttemptStatus
+  }): Promise<TutoringAttemptSnapshot | null>
 
   abstract markFailedAtomically(input: {
-    turnId: string
-    expectedStatus: TutorTurnStatus
-    failureCode: TutorTurnFailureCode
-  }): Promise<TutorTurnSnapshot | null>
+    attemptId: string
+    expectedStatus: TutoringAttemptStatus
+    failureCode: TutoringAttemptFailureCode
+  }): Promise<TutoringAttemptSnapshot | null>
 
   abstract linkStudentMessage(
     input: LinkStudentMessageInput,
@@ -83,7 +83,7 @@ export interface CompleteApprovedTutorResponseInput {
   readonly courseId: string
   readonly sessionId: string
   readonly studentId: string
-  readonly turnId: string
+  readonly attemptId: string
   readonly topicId: string
   readonly studentMessageId: string
   readonly assistantMessageId: string
@@ -93,7 +93,7 @@ export interface CompleteApprovedTutorResponseInput {
   readonly retrievalResult: readonly RetrievedChunk[]
   readonly auditGraph: ResponseAuditGraph
   readonly safeFallbackReason: SafeFallbackReason | null
-  readonly expectedTurnStatus: TutorTurnStatus
+  readonly expectedTurnStatus: TutoringAttemptStatus
   readonly topicStateTransition: TopicStateTransition
 }
 
@@ -101,7 +101,7 @@ export interface CompleteClassifiedTutorResponseInput {
   readonly courseId: string
   readonly sessionId: string
   readonly studentId: string
-  readonly turnId: string
+  readonly attemptId: string
   readonly topicId: string
   readonly studentMessageId: string
   readonly assistantMessageId: string
@@ -109,12 +109,12 @@ export interface CompleteClassifiedTutorResponseInput {
   readonly content: string
   readonly guidanceLabel: MessageGuidanceLabel
   readonly errorCode: string
-  readonly expectedTurnStatus: TutorTurnStatus
+  readonly expectedTurnStatus: TutoringAttemptStatus
   readonly topicStateTransition: TopicStateTransition
 }
 
 export type CompleteApprovedTutorResponseResult =
-  | { readonly kind: 'ok'; readonly turn: TutorTurnSnapshot }
+  | { readonly kind: 'ok'; readonly turn: TutoringAttemptSnapshot }
   | { readonly kind: 'turn_not_found' }
   | { readonly kind: 'message_not_found' }
   | { readonly kind: 'message_not_pending' }
@@ -122,30 +122,37 @@ export type CompleteApprovedTutorResponseResult =
   | { readonly kind: 'relationship_mismatch' }
 
 export type CompleteClassifiedTutorResponseResult =
-  | { readonly kind: 'ok'; readonly turn: TutorTurnSnapshot }
+  | { readonly kind: 'ok'; readonly turn: TutoringAttemptSnapshot }
   | { readonly kind: 'turn_not_found' }
   | { readonly kind: 'message_not_found' }
   | { readonly kind: 'message_not_pending' }
   | { readonly kind: 'topic_state_conflict' }
   | { readonly kind: 'relationship_mismatch' }
 
-export const tutorTurnSelect = {
+export const tutoringAttemptSelect = {
   id: true,
   sessionId: true,
   topicId: true,
   studentMessageId: true,
-  approvedTutorMessageId: true,
-  idempotencyKey: true,
+  assistantMessageId: true,
+  retryOfAttemptId: true,
+  clientMessageId: true,
+  requestKind: true,
+  teachingStrategy: true,
   status: true,
   failureCode: true,
+  leaseExpiresAt: true,
+  claimedAt: true,
+  version: true,
   safeFallbackUsed: true,
   approvalSource: true,
   approvedCandidateAttempt: true,
   safeFallbackReason: true,
   validationPolicyVersion: true,
+  reviewRequired: true,
   createdAt: true,
   completedAt: true,
-} satisfies Prisma.TutorTurnSelect
+} satisfies Prisma.TutoringAttemptSelect
 
 @Injectable()
 export class PrismaTurnRepository extends TurnRepository {
@@ -155,7 +162,7 @@ export class PrismaTurnRepository extends TurnRepository {
 
   findAuthoritativeSession(
     sessionId: string,
-  ): Promise<TutorTurnSessionRecord | null> {
+  ): Promise<TutoringAttemptSessionRecord | null> {
     return this.prismaService.chatSession.findUnique({
       where: { id: sessionId },
       select: {
@@ -167,15 +174,15 @@ export class PrismaTurnRepository extends TurnRepository {
 
   async createTurn(
     sessionId: string,
-    idempotencyKey: string,
-  ): Promise<TutorTurnSnapshot | null> {
-    return this.prismaService.tutorTurn
+    clientMessageId: string,
+  ): Promise<TutoringAttemptSnapshot | null> {
+    return this.prismaService.tutoringAttempt
       .create({
         data: {
           sessionId,
-          idempotencyKey,
+          clientMessageId,
         },
-        select: tutorTurnSelect,
+        select: tutoringAttemptSelect,
       })
       .catch((error: unknown) => {
         if (
@@ -189,58 +196,62 @@ export class PrismaTurnRepository extends TurnRepository {
       })
   }
 
-  findBySessionAndIdempotencyKey(
+  findBySessionAndClientMessageId(
     sessionId: string,
-    idempotencyKey: string,
-  ): Promise<TutorTurnSnapshot | null> {
-    return this.prismaService.tutorTurn.findUnique({
+    clientMessageId: string,
+  ): Promise<TutoringAttemptSnapshot | null> {
+    return this.prismaService.tutoringAttempt.findUnique({
       where: {
-        sessionId_idempotencyKey: {
+        sessionId_clientMessageId: {
           sessionId,
-          idempotencyKey,
+          clientMessageId,
         },
       },
-      select: tutorTurnSelect,
+      select: tutoringAttemptSelect,
     })
   }
 
-  findById(turnId: string): Promise<TutorTurnSnapshot | null> {
-    return this.prismaService.tutorTurn.findUnique({
-      where: { id: turnId },
-      select: tutorTurnSelect,
+  findById(attemptId: string): Promise<TutoringAttemptSnapshot | null> {
+    return this.prismaService.tutoringAttempt.findUnique({
+      where: { id: attemptId },
+      select: tutoringAttemptSelect,
     })
   }
 
   async transitionStatusAtomically(input: {
-    turnId: string
-    expectedStatus: TutorTurnStatus
-    nextStatus: TutorTurnStatus
-  }): Promise<TutorTurnSnapshot | null> {
-    const updated = await this.prismaService.$queryRaw<TutorTurnSnapshot[]>`
-      UPDATE "tutor_turns"
-      SET "status" = ${input.nextStatus}::tutor_turn_status
-      WHERE "id" = ${input.turnId}::uuid
-        AND "status" = ${input.expectedStatus}::tutor_turn_status
-      RETURNING ${tutorTurnReturningSql}
+    attemptId: string
+    expectedStatus: TutoringAttemptStatus
+    nextStatus: TutoringAttemptStatus
+  }): Promise<TutoringAttemptSnapshot | null> {
+    const updated = await this.prismaService.$queryRaw<
+      TutoringAttemptSnapshot[]
+    >`
+      UPDATE "tutoring_attempts"
+      SET "status" = ${input.nextStatus}::tutoring_attempt_status
+      WHERE "id" = ${input.attemptId}::uuid
+        AND "status" = ${input.expectedStatus}::tutoring_attempt_status
+      RETURNING ${tutoringAttemptReturningSql}
     `
 
     return updated[0] ?? null
   }
 
   async markFailedAtomically(input: {
-    turnId: string
-    expectedStatus: TutorTurnStatus
-    failureCode: TutorTurnFailureCode
-  }): Promise<TutorTurnSnapshot | null> {
-    const updated = await this.prismaService.$queryRaw<TutorTurnSnapshot[]>`
-      UPDATE "tutor_turns"
+    attemptId: string
+    expectedStatus: TutoringAttemptStatus
+    failureCode: TutoringAttemptFailureCode
+  }): Promise<TutoringAttemptSnapshot | null> {
+    const updated = await this.prismaService.$queryRaw<
+      TutoringAttemptSnapshot[]
+    >`
+      UPDATE "tutoring_attempts"
       SET
-        "status" = ${TutorTurnStatus.FAILED}::tutor_turn_status,
-        "failure_code" = ${input.failureCode}::tutor_turn_failure_code,
+        "status" = ${TutoringAttemptStatus.FAILED}::tutoring_attempt_status,
+        "failure_code" = ${input.failureCode}::tutoring_attempt_failure_code,
         "completed_at" = CURRENT_TIMESTAMP
-      WHERE "id" = ${input.turnId}::uuid
-        AND "status" = ${input.expectedStatus}::tutor_turn_status
-      RETURNING ${tutorTurnReturningSql}
+      WHERE "id" = ${input.attemptId}::uuid
+        AND "status" = ${input.expectedStatus}::tutoring_attempt_status
+      RETURNING ${tutoringAttemptReturningSql}
     `
 
     return updated[0] ?? null
@@ -250,8 +261,8 @@ export class PrismaTurnRepository extends TurnRepository {
     input: LinkStudentMessageInput,
   ): Promise<LinkStudentMessageResult> {
     return this.prismaService.$transaction(async (tx) => {
-      const turn = await tx.tutorTurn.findUnique({
-        where: { id: input.turnId },
+      const turn = await tx.tutoringAttempt.findUnique({
+        where: { id: input.attemptId },
         select: {
           id: true,
           sessionId: true,
@@ -268,7 +279,7 @@ export class PrismaTurnRepository extends TurnRepository {
           id: true,
           sessionId: true,
           role: true,
-          turnId: true,
+          attemptId: true,
         },
       })
       if (message === null) {
@@ -286,12 +297,12 @@ export class PrismaTurnRepository extends TurnRepository {
       ) {
         return { kind: 'linkage_conflict' }
       }
-      if (message.turnId !== null && message.turnId !== turn.id) {
-        const existingTurn = await tx.tutorTurn.findUnique({
-          where: { id: message.turnId },
+      if (message.attemptId !== null && message.attemptId !== turn.id) {
+        const existingTurn = await tx.tutoringAttempt.findUnique({
+          where: { id: message.attemptId },
           select: { status: true },
         })
-        if (existingTurn?.status !== TutorTurnStatus.FAILED) {
+        if (existingTurn?.status !== TutoringAttemptStatus.FAILED) {
           return { kind: 'linkage_conflict' }
         }
       }
@@ -300,7 +311,7 @@ export class PrismaTurnRepository extends TurnRepository {
         where: {
           id: message.id,
         },
-        data: { turnId: turn.id },
+        data: { attemptId: turn.id },
         select: { id: true },
         limit: 1,
       })
@@ -308,13 +319,13 @@ export class PrismaTurnRepository extends TurnRepository {
         return { kind: 'linkage_conflict' }
       }
 
-      const updatedTurn = await tx.tutorTurn.updateManyAndReturn({
+      const updatedTurn = await tx.tutoringAttempt.updateManyAndReturn({
         where: {
           id: turn.id,
           OR: [{ studentMessageId: null }, { studentMessageId: message.id }],
         },
         data: { studentMessageId: message.id },
-        select: tutorTurnSelect,
+        select: tutoringAttemptSelect,
         limit: 1,
       })
       const snapshot = updatedTurn.at(0)
@@ -330,8 +341,8 @@ export class PrismaTurnRepository extends TurnRepository {
     input: AttachResolvedTopicInput,
   ): Promise<AttachResolvedTopicResult> {
     return this.prismaService.$transaction(async (tx) => {
-      const turn = await tx.tutorTurn.findUnique({
-        where: { id: input.turnId },
+      const turn = await tx.tutoringAttempt.findUnique({
+        where: { id: input.attemptId },
         select: {
           id: true,
           sessionId: true,
@@ -354,7 +365,7 @@ export class PrismaTurnRepository extends TurnRepository {
           id: true,
           sessionId: true,
           role: true,
-          turnId: true,
+          attemptId: true,
           topicId: true,
         },
       })
@@ -391,12 +402,12 @@ export class PrismaTurnRepository extends TurnRepository {
       ) {
         return { kind: 'linkage_conflict' }
       }
-      if (message.turnId !== null && message.turnId !== turn.id) {
-        const existingTurn = await tx.tutorTurn.findUnique({
-          where: { id: message.turnId },
+      if (message.attemptId !== null && message.attemptId !== turn.id) {
+        const existingTurn = await tx.tutoringAttempt.findUnique({
+          where: { id: message.attemptId },
           select: { status: true },
         })
-        if (existingTurn?.status !== TutorTurnStatus.FAILED) {
+        if (existingTurn?.status !== TutoringAttemptStatus.FAILED) {
           return { kind: 'linkage_conflict' }
         }
       }
@@ -413,7 +424,7 @@ export class PrismaTurnRepository extends TurnRepository {
           AND: [{ OR: [{ topicId: null }, { topicId: topic.id }] }],
         },
         data: {
-          turnId: turn.id,
+          attemptId: turn.id,
           topicId: topic.id,
         },
         select: { id: true },
@@ -423,7 +434,7 @@ export class PrismaTurnRepository extends TurnRepository {
         return { kind: 'linkage_conflict' }
       }
 
-      const updatedTurn = await tx.tutorTurn.updateManyAndReturn({
+      const updatedTurn = await tx.tutoringAttempt.updateManyAndReturn({
         where: {
           id: turn.id,
           OR: [{ studentMessageId: null }, { studentMessageId: message.id }],
@@ -433,7 +444,7 @@ export class PrismaTurnRepository extends TurnRepository {
           studentMessageId: message.id,
           topicId: topic.id,
         },
-        select: tutorTurnSelect,
+        select: tutoringAttemptSelect,
         limit: 1,
       })
       const snapshot = updatedTurn.at(0)
@@ -449,14 +460,14 @@ export class PrismaTurnRepository extends TurnRepository {
     input: CompleteApprovedTutorResponseInput,
   ): Promise<CompleteApprovedTutorResponseResult> {
     return this.prismaService.$transaction(async (tx) => {
-      const turn = await tx.tutorTurn.findUnique({
-        where: { id: input.turnId },
+      const turn = await tx.tutoringAttempt.findUnique({
+        where: { id: input.attemptId },
         select: {
           id: true,
           sessionId: true,
           topicId: true,
           studentMessageId: true,
-          approvedTutorMessageId: true,
+          assistantMessageId: true,
           status: true,
           session: {
             select: {
@@ -489,24 +500,24 @@ export class PrismaTurnRepository extends TurnRepository {
       }
 
       if (
-        turn.approvedTutorMessageId !== null &&
-        turn.approvedTutorMessageId !== input.assistantMessageId
+        turn.assistantMessageId !== null &&
+        turn.assistantMessageId !== input.assistantMessageId
       ) {
         return { kind: 'relationship_mismatch' }
       }
 
-      if (turn.status === TutorTurnStatus.COMPLETED) {
+      if (turn.status === TutoringAttemptStatus.COMPLETED) {
         const existing = await tx.message.findUnique({
           where: { id: input.assistantMessageId },
           select: { id: true, status: true },
         })
         if (
-          existing?.id === turn.approvedTutorMessageId &&
+          existing?.id === turn.assistantMessageId &&
           existing.status === MessageStatus.COMPLETED
         ) {
-          const snapshot = await tx.tutorTurn.findUniqueOrThrow({
+          const snapshot = await tx.tutoringAttempt.findUniqueOrThrow({
             where: { id: turn.id },
-            select: tutorTurnSelect,
+            select: tutoringAttemptSelect,
           })
           return { kind: 'ok', turn: snapshot }
         }
@@ -538,7 +549,7 @@ export class PrismaTurnRepository extends TurnRepository {
           role: true,
           status: true,
           responseToMessageId: true,
-          turnId: true,
+          attemptId: true,
           topicId: true,
         },
       })
@@ -551,8 +562,8 @@ export class PrismaTurnRepository extends TurnRepository {
         pendingAssistantMessage.status !== MessageStatus.PENDING ||
         pendingAssistantMessage.responseToMessageId !==
           input.studentMessageId ||
-        (pendingAssistantMessage.turnId !== null &&
-          pendingAssistantMessage.turnId !== input.turnId) ||
+        (pendingAssistantMessage.attemptId !== null &&
+          pendingAssistantMessage.attemptId !== input.attemptId) ||
         (pendingAssistantMessage.topicId !== null &&
           pendingAssistantMessage.topicId !== input.topicId)
       ) {
@@ -573,7 +584,7 @@ export class PrismaTurnRepository extends TurnRepository {
           id: input.studentMessageId,
           sessionId: input.sessionId,
           role: MessageRole.STUDENT,
-          turnId: input.turnId,
+          attemptId: input.attemptId,
           topicId: input.topicId,
         },
         data: { requestKind: input.requestKind },
@@ -592,13 +603,13 @@ export class PrismaTurnRepository extends TurnRepository {
           role: MessageRole.ASSISTANT,
           status: MessageStatus.PENDING,
           responseToMessageId: input.studentMessageId,
-          OR: [{ turnId: null }, { turnId: input.turnId }],
+          OR: [{ attemptId: null }, { attemptId: input.attemptId }],
           AND: [{ OR: [{ topicId: null }, { topicId: input.topicId }] }],
         },
         data: {
           status: MessageStatus.COMPLETED,
           content: input.approvedResponse.message,
-          turnId: input.turnId,
+          attemptId: input.attemptId,
           topicId: input.topicId,
           guidanceLabel: MessageGuidanceLabel.COURSE_GROUNDED,
           hintLevel:
@@ -653,9 +664,9 @@ export class PrismaTurnRepository extends TurnRepository {
         })
       }
 
-      await tx.tutorCandidateAttempt.createMany({
+      await tx.tutoringCandidateAttempt.createMany({
         data: input.auditGraph.candidateAttempts.map((attempt) => ({
-          turnId: input.turnId,
+          attemptId: input.attemptId,
           candidateAttempt: attempt.candidateAttempt,
           generationOutcome: attempt.generationOutcome,
           generationFailureCode: attempt.generationFailureCode,
@@ -673,7 +684,7 @@ export class PrismaTurnRepository extends TurnRepository {
       if (input.auditGraph.guardResults.length > 0) {
         await tx.guardResult.createMany({
           data: input.auditGraph.guardResults.map((guard) => ({
-            turnId: input.turnId,
+            attemptId: input.attemptId,
             candidateAttempt: guard.candidateAttempt,
             validationStage: guard.result.stage,
             approved: guard.result.approved,
@@ -691,37 +702,37 @@ export class PrismaTurnRepository extends TurnRepository {
         })
       }
 
-      const updated = await tx.tutorTurn.updateManyAndReturn({
+      const updated = await tx.tutoringAttempt.updateManyAndReturn({
         where: {
-          id: input.turnId,
+          id: input.attemptId,
           status: input.expectedTurnStatus,
-          approvedTutorMessageId: null,
+          assistantMessageId: null,
         },
         data: {
-          status: TutorTurnStatus.COMPLETED,
-          approvedTutorMessageId: input.assistantMessageId,
+          status: TutoringAttemptStatus.COMPLETED,
+          assistantMessageId: input.assistantMessageId,
           safeFallbackUsed: input.approvedResponse.safeFallbackUsed,
           approvalSource:
             input.approvedResponse.source === 'SAFE_FALLBACK'
-              ? TutorApprovalSource.SAFE_FALLBACK
-              : TutorApprovalSource.VALIDATED_CANDIDATE,
+              ? TutoringApprovalSource.SAFE_FALLBACK
+              : TutoringApprovalSource.VALIDATED_CANDIDATE,
           approvedCandidateAttempt:
             input.approvedResponse.approvedCandidateAttempt,
           safeFallbackReason:
             input.safeFallbackReason === null
               ? null
-              : TutorSafeFallbackReason[input.safeFallbackReason],
+              : TutoringSafeFallbackReason[input.safeFallbackReason],
           validationPolicyVersion:
             input.approvedResponse.approvalMetadata.validationPolicyVersion,
           completedAt: now,
         },
-        select: tutorTurnSelect,
+        select: tutoringAttemptSelect,
         limit: 1,
       })
       const snapshot = updated.at(0)
       if (snapshot === undefined) {
         throw new Error(
-          'TutorTurn changed during approved response finalization',
+          'TutoringAttempt changed during approved response finalization',
         )
       }
 
@@ -733,14 +744,14 @@ export class PrismaTurnRepository extends TurnRepository {
     input: CompleteClassifiedTutorResponseInput,
   ): Promise<CompleteClassifiedTutorResponseResult> {
     return this.prismaService.$transaction(async (tx) => {
-      const turn = await tx.tutorTurn.findUnique({
-        where: { id: input.turnId },
+      const turn = await tx.tutoringAttempt.findUnique({
+        where: { id: input.attemptId },
         select: {
           id: true,
           sessionId: true,
           topicId: true,
           studentMessageId: true,
-          approvedTutorMessageId: true,
+          assistantMessageId: true,
           status: true,
           session: {
             select: {
@@ -767,7 +778,7 @@ export class PrismaTurnRepository extends TurnRepository {
         turn.session.deletedAt !== null ||
         turn.topicId !== input.topicId ||
         turn.studentMessageId !== input.studentMessageId ||
-        turn.approvedTutorMessageId !== null
+        turn.assistantMessageId !== null
       ) {
         return { kind: 'relationship_mismatch' }
       }
@@ -781,7 +792,7 @@ export class PrismaTurnRepository extends TurnRepository {
           id: true,
           sessionId: true,
           role: true,
-          turnId: true,
+          attemptId: true,
           topicId: true,
         },
       })
@@ -791,7 +802,7 @@ export class PrismaTurnRepository extends TurnRepository {
       if (
         studentMessage.role !== MessageRole.STUDENT ||
         studentMessage.sessionId !== input.sessionId ||
-        studentMessage.turnId !== input.turnId ||
+        studentMessage.attemptId !== input.attemptId ||
         studentMessage.topicId !== input.topicId
       ) {
         return { kind: 'relationship_mismatch' }
@@ -805,7 +816,7 @@ export class PrismaTurnRepository extends TurnRepository {
           role: true,
           status: true,
           responseToMessageId: true,
-          turnId: true,
+          attemptId: true,
           topicId: true,
         },
       })
@@ -818,7 +829,7 @@ export class PrismaTurnRepository extends TurnRepository {
         pendingAssistantMessage.status !== MessageStatus.PENDING ||
         pendingAssistantMessage.responseToMessageId !==
           input.studentMessageId ||
-        pendingAssistantMessage.turnId !== input.turnId ||
+        pendingAssistantMessage.attemptId !== input.attemptId ||
         pendingAssistantMessage.topicId !== input.topicId
       ) {
         return { kind: 'message_not_pending' }
@@ -838,7 +849,7 @@ export class PrismaTurnRepository extends TurnRepository {
           id: input.studentMessageId,
           sessionId: input.sessionId,
           role: MessageRole.STUDENT,
-          turnId: input.turnId,
+          attemptId: input.attemptId,
           topicId: input.topicId,
         },
         data: { requestKind: input.requestKind },
@@ -859,7 +870,7 @@ export class PrismaTurnRepository extends TurnRepository {
           role: MessageRole.ASSISTANT,
           status: MessageStatus.PENDING,
           responseToMessageId: input.studentMessageId,
-          turnId: input.turnId,
+          attemptId: input.attemptId,
           topicId: input.topicId,
         },
         data: {
@@ -875,7 +886,6 @@ export class PrismaTurnRepository extends TurnRepository {
           outputTokens: null,
           errorCode: input.errorCode,
           errorMessage: null,
-          groundingLeaseExpiresAt: null,
           completedAt: now,
         },
         select: { id: true },
@@ -887,29 +897,29 @@ export class PrismaTurnRepository extends TurnRepository {
         )
       }
 
-      const updatedTurns = await tx.tutorTurn.updateManyAndReturn({
+      const updatedTurns = await tx.tutoringAttempt.updateManyAndReturn({
         where: {
-          id: input.turnId,
+          id: input.attemptId,
           status: input.expectedTurnStatus,
-          approvedTutorMessageId: null,
+          assistantMessageId: null,
         },
         data: {
-          status: TutorTurnStatus.COMPLETED,
-          approvedTutorMessageId: input.assistantMessageId,
+          status: TutoringAttemptStatus.COMPLETED,
+          assistantMessageId: input.assistantMessageId,
           safeFallbackUsed: false,
-          approvalSource: TutorApprovalSource.CLASSIFIED_RESPONSE,
+          approvalSource: TutoringApprovalSource.CLASSIFIED_RESPONSE,
           approvedCandidateAttempt: null,
           safeFallbackReason: null,
           validationPolicyVersion: CLASSIFIED_RESPONSE_POLICY_VERSION,
           completedAt: now,
         },
-        select: tutorTurnSelect,
+        select: tutoringAttemptSelect,
         limit: 1,
       })
       const snapshot = updatedTurns.at(0)
       if (snapshot === undefined) {
         throw new Error(
-          'TutorTurn changed during classified response finalization',
+          'TutoringAttempt changed during classified response finalization',
         )
       }
 
@@ -918,20 +928,27 @@ export class PrismaTurnRepository extends TurnRepository {
   }
 }
 
-const tutorTurnReturningSql = Prisma.sql`
+const tutoringAttemptReturningSql = Prisma.sql`
   "id"::text AS "id",
   "session_id"::text AS "sessionId",
   "topic_id"::text AS "topicId",
   "student_message_id"::text AS "studentMessageId",
-  "approved_tutor_message_id"::text AS "approvedTutorMessageId",
-  "idempotency_key" AS "idempotencyKey",
+  "assistant_message_id"::text AS "assistantMessageId",
+  "retry_of_attempt_id"::text AS "retryOfAttemptId",
+  "client_message_id" AS "clientMessageId",
+  "request_kind" AS "requestKind",
+  "teaching_strategy" AS "teachingStrategy",
   "status",
   "failure_code" AS "failureCode",
+  "lease_expires_at" AS "leaseExpiresAt",
+  "claimed_at" AS "claimedAt",
+  "version",
   "safe_fallback_used" AS "safeFallbackUsed",
   "approval_source" AS "approvalSource",
   "approved_candidate_attempt" AS "approvedCandidateAttempt",
   "safe_fallback_reason" AS "safeFallbackReason",
   "validation_policy_version" AS "validationPolicyVersion",
+  "review_required" AS "reviewRequired",
   "created_at" AS "createdAt",
   "completed_at" AS "completedAt"
 `

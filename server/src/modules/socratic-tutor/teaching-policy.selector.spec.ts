@@ -497,7 +497,7 @@ function analysis(
 ): PersistedEducationalAnalysisRecord {
   return {
     id: 'analysis-1',
-    turnId: 'turn-1',
+    attemptId: 'turn-1',
     topicId: 'topic-1',
     studentMessageId: 'message-1',
     attempt: 1,
@@ -582,7 +582,7 @@ function previousDecision(
 ): PreviousTeachingDecisionSnapshot {
   return {
     id: 'decision-1',
-    turnId: 'turn-previous',
+    attemptId: 'turn-previous',
     topicId: 'topic-1',
     analysisId: 'analysis-previous',
     strategy: TeachingStrategy.SOCRATIC_QUESTIONING,

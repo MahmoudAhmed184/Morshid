@@ -201,7 +201,7 @@ function makeMessage(
     id: 'message-id',
     sequence: 2,
     role: MessageRole.ASSISTANT,
-    turnId: null,
+    attemptId: null,
     topicId: null,
     authorUserId: null,
     responseToMessageId: 'student-message-id',

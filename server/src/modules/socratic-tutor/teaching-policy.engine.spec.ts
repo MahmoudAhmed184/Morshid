@@ -42,7 +42,7 @@ describe('TeachingPolicyEngine', () => {
       success: true,
       reused: false,
       decision: {
-        turnId: 'turn-1',
+        attemptId: 'turn-1',
         topicId: 'topic-1',
         analysisId: 'analysis-1',
         strategy: TeachingStrategy.DEBUGGING_GUIDANCE,
@@ -152,13 +152,13 @@ describe('TeachingPolicyEngine', () => {
     await engine.selectDecision({
       analysis: analysis({
         id: 'analysis-2',
-        turnId: 'turn-2',
+        attemptId: 'turn-2',
         studentMessageId: 'message-2',
       }),
       topicState: topicState(),
     })
 
-    expect(repository.decisions.map((decision) => decision.turnId)).toEqual([
+    expect(repository.decisions.map((decision) => decision.attemptId)).toEqual([
       'turn-1',
       'turn-2',
     ])
@@ -211,10 +211,11 @@ class FakeTeachingDecisionRepository extends TeachingDecisionRepository {
   }
 
   findByTurnId(
-    turnId: string,
+    attemptId: string,
   ): Promise<PersistedTeachingDecisionRecord | null> {
     return Promise.resolve(
-      this.decisions.find((decision) => decision.turnId === turnId) ?? null,
+      this.decisions.find((decision) => decision.attemptId === attemptId) ??
+        null,
     )
   }
 
@@ -230,7 +231,7 @@ class FakeTeachingDecisionRepository extends TeachingDecisionRepository {
     }
 
     const existing = this.decisions.find(
-      (decision) => decision.turnId === draft.turnId,
+      (decision) => decision.attemptId === draft.attemptId,
     )
     if (existing !== undefined) {
       return Promise.resolve({ kind: 'reused', decision: existing })
@@ -250,7 +251,7 @@ class FakeTeachingDecisionRepository extends TeachingDecisionRepository {
 function analysis(
   input: Partial<{
     id: string
-    turnId: string
+    attemptId: string
     topicId: string
     studentMessageId: string
     analysisSource: PersistedEducationalAnalysisRecord['analysisSource']
@@ -261,7 +262,7 @@ function analysis(
 ): PersistedEducationalAnalysisRecord {
   return {
     id: input.id ?? 'analysis-1',
-    turnId: input.turnId ?? 'turn-1',
+    attemptId: input.attemptId ?? 'turn-1',
     topicId: input.topicId ?? 'topic-1',
     studentMessageId: input.studentMessageId ?? 'message-1',
     attempt: 1,
@@ -341,7 +342,7 @@ function previousDecision(
 ): PersistedTeachingDecisionRecord {
   return {
     id: 'decision-previous',
-    turnId: 'turn-previous',
+    attemptId: 'turn-previous',
     topicId: 'topic-1',
     analysisId: 'analysis-previous',
     strategy: TeachingStrategy.SOCRATIC_QUESTIONING,

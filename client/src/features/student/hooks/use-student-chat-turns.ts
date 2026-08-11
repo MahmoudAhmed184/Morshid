@@ -121,7 +121,7 @@ export function useSendStudentChatMessage({
             id: optimisticMessageId,
             sequence: highestCachedSequence(previousMessages) + 1,
             role: 'STUDENT',
-            turnId: null,
+            attemptId: null,
             topicId: null,
             responseToMessageId: null,
             content: input.content.trim(),

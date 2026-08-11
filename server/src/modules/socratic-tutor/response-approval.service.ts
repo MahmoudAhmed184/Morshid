@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
 import { assertRequestBudget } from '../../common/http/request-deadline'
-import { TutorTurnStatus } from '../../generated/prisma/client'
+import { TutoringAttemptStatus } from '../../generated/prisma/client'
 
 import { citationIdForChunk } from './tutor-generation-context'
 import { TutorGenerationService } from './tutor-generation.service'
@@ -40,7 +40,7 @@ import { TurnService } from './turn.service'
 import {
   type GuardResultAudit,
   type ResponseAuditGraph,
-  type TutorCandidateAttemptAudit,
+  type TutoringCandidateAttemptAudit,
   failedCandidateAttemptAudit,
   generatedCandidateAttemptAudit,
   guardResultAudit,
@@ -82,7 +82,7 @@ export type PersistedResponseApprovalResult =
         | 'MISSING_TEACHING_DECISION'
         | 'RESPONSE_APPROVAL_PERSISTENCE_FAILED'
         | 'SAFETY_RISK_DETECTED'
-      readonly turnStatus: TutorTurnStatus
+      readonly turnStatus: TutoringAttemptStatus
     }
 
 @Injectable()
@@ -109,14 +109,14 @@ export class ResponseApprovalService {
   ): Promise<ResponseApprovalResult> {
     assertRequestBudget(input)
     const decision = await this.teachingDecisionRepository.findByTurnId(
-      input.turnId,
+      input.attemptId,
     )
     if (decision === null) {
       return { success: false, errorCode: 'MISSING_TEACHING_DECISION' }
     }
 
     const validationResults: ValidationResult[] = []
-    const candidateAttemptAudits: TutorCandidateAttemptAudit[] = []
+    const candidateAttemptAudits: TutoringCandidateAttemptAudit[] = []
     const guardResultAudits: GuardResultAudit[] = []
     const context = buildCandidateValidationContext({
       allowedCitationIds: new Set(
@@ -282,7 +282,7 @@ export class ResponseApprovalService {
       }
 
       const semantic = await this.semanticGuard.evaluate({
-        turnId: input.turnId,
+        attemptId: input.attemptId,
         topicId: input.topicId,
         courseId: input.courseId,
         candidateAttempt: attempt,
@@ -371,7 +371,7 @@ export class ResponseApprovalService {
   ): Promise<PersistedResponseApprovalResult> {
     const lifecycle = new PersistedApprovalLifecycle(
       this.turnService,
-      input.turnId,
+      input.attemptId,
     )
     const approval = await this.approveWithLifecycle(input, lifecycle)
     if (!approval.success) {
@@ -379,7 +379,7 @@ export class ResponseApprovalService {
     }
 
     const decision = await this.teachingDecisionRepository.findByTurnId(
-      input.turnId,
+      input.attemptId,
     )
     if (decision === null) {
       return {
@@ -400,7 +400,7 @@ export class ResponseApprovalService {
       courseId: input.courseId,
       sessionId: input.sessionId,
       studentId: input.studentId,
-      turnId: input.turnId,
+      attemptId: input.attemptId,
       topicId: input.topicId,
       studentMessageId: input.studentMessageId,
       assistantMessageId: input.assistantMessageId,
@@ -432,7 +432,7 @@ function approvalWithFallback(
   validationResults: readonly ValidationResult[],
   candidateAttempts: number,
   reason: SafeFallbackReason,
-  candidateAttemptAudits: readonly TutorCandidateAttemptAudit[],
+  candidateAttemptAudits: readonly TutoringCandidateAttemptAudit[],
   guardResultAudits: readonly GuardResultAudit[],
 ): ResponseApprovalResult {
   const hasFinalAnswerRisk = validationResults.some((result) =>
@@ -465,7 +465,7 @@ function approvalWithFallback(
 }
 
 function freezeAuditGraph(
-  candidateAttempts: readonly TutorCandidateAttemptAudit[],
+  candidateAttempts: readonly TutoringCandidateAttemptAudit[],
   guardResults: readonly GuardResultAudit[],
 ): ResponseAuditGraph {
   return Object.freeze({
@@ -483,37 +483,37 @@ function isStructuralGenerationFailure(errorCode: string): boolean {
 }
 
 interface ApprovalLifecycle {
-  readonly status: TutorTurnStatus
+  readonly status: TutoringAttemptStatus
   beginValidation(): Promise<void>
   prepareRegeneration(): Promise<void>
 }
 
 const NOOP_APPROVAL_LIFECYCLE: ApprovalLifecycle = Object.freeze({
-  status: TutorTurnStatus.GENERATING,
+  status: TutoringAttemptStatus.GENERATING,
   beginValidation: () => Promise.resolve(),
   prepareRegeneration: () => Promise.resolve(),
 })
 
 class PersistedApprovalLifecycle implements ApprovalLifecycle {
-  status: TutorTurnStatus = TutorTurnStatus.GENERATING
+  status: TutoringAttemptStatus = TutoringAttemptStatus.GENERATING
 
   constructor(
     private readonly turnService: TurnService,
-    private readonly turnId: string,
+    private readonly attemptId: string,
   ) {}
 
   async beginValidation(): Promise<void> {
-    await this.transition(TutorTurnStatus.VALIDATING)
+    await this.transition(TutoringAttemptStatus.VALIDATING)
   }
 
   async prepareRegeneration(): Promise<void> {
-    await this.transition(TutorTurnStatus.REGENERATING)
-    await this.transition(TutorTurnStatus.GENERATING)
+    await this.transition(TutoringAttemptStatus.REGENERATING)
+    await this.transition(TutoringAttemptStatus.GENERATING)
   }
 
-  private async transition(nextStatus: TutorTurnStatus): Promise<void> {
+  private async transition(nextStatus: TutoringAttemptStatus): Promise<void> {
     await this.turnService.transitionStatus(
-      this.turnId,
+      this.attemptId,
       this.status,
       nextStatus,
     )

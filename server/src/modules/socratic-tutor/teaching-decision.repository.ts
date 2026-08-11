@@ -27,11 +27,11 @@ export type StoreTeachingDecisionResult =
 
 export abstract class TeachingDecisionRepository {
   abstract findByTurnId(
-    turnId: string,
+    attemptId: string,
   ): Promise<PersistedTeachingDecisionRecord | null>
 
   abstract findLatestCompletedForSameTopicBeforeTurn(input: {
-    turnId: string
+    attemptId: string
     topicId: string
   }): Promise<PersistedTeachingDecisionRecord | null>
 
@@ -42,7 +42,7 @@ export abstract class TeachingDecisionRepository {
 
 const teachingDecisionSelect = {
   id: true,
-  turnId: true,
+  attemptId: true,
   topicId: true,
   analysisId: true,
   strategy: true,
@@ -69,11 +69,11 @@ export class PrismaTeachingDecisionRepository extends TeachingDecisionRepository
   }
 
   findByTurnId(
-    turnId: string,
+    attemptId: string,
   ): Promise<PersistedTeachingDecisionRecord | null> {
     return this.prismaService.teachingDecision
       .findUnique({
-        where: { turnId },
+        where: { attemptId },
         select: teachingDecisionSelect,
       })
       .then((decision) =>
@@ -82,11 +82,11 @@ export class PrismaTeachingDecisionRepository extends TeachingDecisionRepository
   }
 
   async findLatestCompletedForSameTopicBeforeTurn(input: {
-    turnId: string
+    attemptId: string
     topicId: string
   }): Promise<PersistedTeachingDecisionRecord | null> {
-    const currentTurn = await this.prismaService.tutorTurn.findUnique({
-      where: { id: input.turnId },
+    const currentTurn = await this.prismaService.tutoringAttempt.findUnique({
+      where: { id: input.attemptId },
       select: {
         sessionId: true,
         topicId: true,
@@ -111,7 +111,7 @@ export class PrismaTeachingDecisionRepository extends TeachingDecisionRepository
         turn: {
           sessionId: currentTurn.sessionId,
           status: 'COMPLETED',
-          approvedTutorMessageId: { not: null },
+          assistantMessageId: { not: null },
           studentMessage: {
             sequence: { lt: currentTurn.studentMessage.sequence },
           },
@@ -137,7 +137,7 @@ export class PrismaTeachingDecisionRepository extends TeachingDecisionRepository
           where: { id: draft.analysisId },
           select: {
             id: true,
-            turnId: true,
+            attemptId: true,
             topicId: true,
             studentMessageId: true,
             turn: {
@@ -165,7 +165,7 @@ export class PrismaTeachingDecisionRepository extends TeachingDecisionRepository
         }
 
         const existing = await tx.teachingDecision.findUnique({
-          where: { turnId: draft.turnId },
+          where: { attemptId: draft.attemptId },
           select: teachingDecisionSelect,
         })
         if (existing !== null) {
@@ -177,7 +177,7 @@ export class PrismaTeachingDecisionRepository extends TeachingDecisionRepository
 
         const created = await tx.teachingDecision.create({
           data: {
-            turnId: draft.turnId,
+            attemptId: draft.attemptId,
             topicId: draft.topicId,
             analysisId: draft.analysisId,
             strategy: draft.strategy,
@@ -201,7 +201,7 @@ export class PrismaTeachingDecisionRepository extends TeachingDecisionRepository
       })
     } catch (error) {
       if (isUniqueConstraintError(error)) {
-        const existing = await this.findByTurnId(draft.turnId)
+        const existing = await this.findByTurnId(draft.attemptId)
         if (existing !== null) {
           return { kind: 'reused', decision: existing }
         }
@@ -214,7 +214,7 @@ export class PrismaTeachingDecisionRepository extends TeachingDecisionRepository
 
 function analysisMatchesDraft(
   analysis: {
-    turnId: string
+    attemptId: string
     topicId: string
     studentMessageId: string
     turn: {
@@ -229,7 +229,7 @@ function analysisMatchesDraft(
   draft: TeachingDecisionPolicyDraft,
 ): boolean {
   return (
-    analysis.turnId === draft.turnId &&
+    analysis.attemptId === draft.attemptId &&
     analysis.topicId === draft.topicId &&
     analysis.turn.topicId === draft.topicId &&
     analysis.turn.studentMessageId === analysis.studentMessageId &&

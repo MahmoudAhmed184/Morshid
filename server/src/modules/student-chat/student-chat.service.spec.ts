@@ -1124,7 +1124,7 @@ function makeMessage(
     id,
     sequence,
     role: values.role ?? MessageRole.STUDENT,
-    turnId: values.turnId ?? null,
+    attemptId: values.attemptId ?? null,
     topicId: values.topicId ?? null,
     authorUserId: values.authorUserId ?? null,
     responseToMessageId: values.responseToMessageId ?? null,

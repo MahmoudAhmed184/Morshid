@@ -48,7 +48,7 @@ const analysisContextMessageSelect = {
   id: true,
   sequence: true,
   role: true,
-  turnId: true,
+  attemptId: true,
   topicId: true,
   authorUserId: true,
   responseToMessageId: true,

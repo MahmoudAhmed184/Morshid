@@ -135,7 +135,7 @@ function snapshotMessage(message: AnalysisContextMessage) {
     id: message.id,
     sequence: message.sequence,
     role: message.role,
-    turnId: message.turnId,
+    attemptId: message.attemptId,
     topicId: message.topicId,
     responseToMessageId: message.responseToMessageId,
     content: message.content,
