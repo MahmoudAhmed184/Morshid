@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-import { MaterialsPage } from '@/features/instructor/pages/materials-page'
+import { MaterialsPage } from '@/workspaces/instructor/materials/materials-page'
 
 export const Route = createFileRoute('/instructor/materials/')({
   component: MaterialsPage,

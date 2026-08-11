@@ -13,7 +13,7 @@ vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => vi.fn(),
 }))
 
-vi.mock('@/features/reviews/student-inbox/use-student-review-inbox', () => ({
+vi.mock('@/workspaces/student/navigation/use-student-review-inbox', () => ({
   useStudentReviewInbox: () => ({
     data: { pages: [{ items: [], nextCursor: null }] },
     fetchNextPage: vi.fn(),

@@ -15,9 +15,9 @@ import {
 } from '@/features/auth/session/session.api'
 import { signInSchema } from '@/features/auth/sign-in/sign-in.schema'
 import type { SignInFormValues } from '@/features/auth/sign-in/sign-in.schema'
-import { useAuthStore } from '@/features/auth/session/session.store'
-import { getDashboardPath } from '@/features/auth/routing/auth-redirect'
-import { isApiError } from '@/features/auth/session/authenticated-api-client'
+import { useAuthStore } from '@/features/auth/session/interface/session-store'
+import { getDashboardPath } from '@/features/auth/routing/interface/auth-redirect'
+import { isApiError } from '@/features/auth/session/interface/authenticated-api-client'
 
 import { PasswordField } from './password-field'
 

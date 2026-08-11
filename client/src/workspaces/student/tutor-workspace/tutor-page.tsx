@@ -18,7 +18,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import { useAuthStore } from '@/features/auth/session/session.store'
+import { useAuthStore } from '@/features/auth/session/interface/session-store'
 import {
   useRegisterComposerFocus,
   useRegisterSourcesControl,
@@ -33,11 +33,11 @@ import {
   useRenameChatSession,
   useChatSession,
   useChatMessages,
-} from '@/features/chat/sessions/use-chat-sessions'
+} from '@/workspaces/student/tutor-workspace/use-chat-sessions'
 import {
   useRetryChatMessage,
   useSendChatMessage,
-} from '@/features/chat/messages/use-chat-messages'
+} from '@/workspaces/student/tutor-workspace/use-chat-messages'
 import { useStudentReviewRequest } from '@/workspaces/student/tutor-workspace/use-review-request'
 import type { ChatMessage } from '@/features/chat/messages/chat-message.schema'
 import type { ChatSession } from '@/features/chat/sessions/chat-session.schema'

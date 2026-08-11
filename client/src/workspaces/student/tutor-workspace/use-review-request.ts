@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 
-import { useAuthStore } from '@/features/auth/session/session.store'
+import { useAuthStore } from '@/features/auth/session/interface/session-store'
 import { requestStudentReview } from '@/features/reviews/student-inbox/student-reviews.api'
 import { chatSessionKeys } from '@/features/chat/sessions/chat-sessions.queries'
 import { markMessageReviewPending } from '@/features/chat/messages/chat-message-history'

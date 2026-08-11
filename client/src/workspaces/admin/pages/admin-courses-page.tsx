@@ -7,7 +7,7 @@ import { CreateAdminCourseDialog } from '@/workspaces/admin/components/course-di
 import {
   useCourseAdministrationMutations,
   useCourseAdministration,
-} from '@/features/courses/use-course-administration'
+} from '@/workspaces/admin/use-course-administration'
 
 export function AdminCoursesPage() {
   const coursesQuery = useCourseAdministration()

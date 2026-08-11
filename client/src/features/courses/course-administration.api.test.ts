@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { ApiError } from '@/features/auth/session/authenticated-api-client'
+import type { ApiError } from '@/features/auth/session/interface/authenticated-api-client'
 
 import {
   addCourseMember,

@@ -33,7 +33,7 @@ import {
   useMaterialAdministration,
   useCourseAdministrationMutations,
   useCourseAdministration,
-} from '@/features/courses/use-course-administration'
+} from '@/workspaces/admin/use-course-administration'
 import type { MaterialAdministration } from '@/features/materials/material-administration.schema'
 
 const materialDateFormatter = new Intl.DateTimeFormat(undefined, {

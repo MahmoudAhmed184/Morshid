@@ -1,5 +1,5 @@
-import { apiJson } from '@/features/auth/session/authenticated-api-client'
-import type { ApiFetchOptions } from '@/features/auth/session/authenticated-api-client'
+import { apiJson } from '@/features/auth/session/interface/authenticated-api-client'
+import type { ApiFetchOptions } from '@/features/auth/session/interface/authenticated-api-client'
 import {
   managedUserResponseSchema,
   managedUsersPageSchema,

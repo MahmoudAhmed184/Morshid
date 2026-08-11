@@ -10,7 +10,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { useManagedUserMutations } from '@/features/user-management/use-user-management'
+import { useManagedUserMutations } from '@/workspaces/admin/users/use-user-management'
 import { UserForm } from './user-form'
 import type { CreateUserFormValues } from '@/features/user-management/managed-user.schema'
 

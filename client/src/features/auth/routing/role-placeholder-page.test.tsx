@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
   cleanup,
   fireEvent,
@@ -9,7 +10,7 @@ import {
 } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useAuthStore } from '@/features/auth/session/session.store'
+import { useAuthStore } from '@/features/auth/session/interface/session-store'
 import type { AuthSession } from '@/features/auth/session/session.schema'
 
 import { RolePlaceholderPage } from './role-placeholder-page'
@@ -31,6 +32,18 @@ const mockSession: AuthSession = {
   tokenType: 'Bearer',
   accessToken: 'mock-access-token:mock-admin',
   accessTokenExpiresAt: '2026-07-11T12:15:00.000Z',
+}
+
+function renderRolePlaceholderPage() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <RolePlaceholderPage roleName="Admin" />
+    </QueryClientProvider>,
+  )
 }
 
 describe('RolePlaceholderPage', () => {
@@ -55,7 +68,7 @@ describe('RolePlaceholderPage', () => {
   })
 
   it('shows the role name and logs out to the login route', async () => {
-    render(<RolePlaceholderPage roleName="Admin" />)
+    renderRolePlaceholderPage()
 
     expect(screen.getByRole('heading', { name: 'Admin' })).toBeDefined()
     expect(useAuthStore.getState().isAuthenticated).toBe(true)
@@ -101,7 +114,7 @@ describe('RolePlaceholderPage', () => {
       }),
     )
 
-    render(<RolePlaceholderPage roleName="Admin" />)
+    renderRolePlaceholderPage()
 
     fireEvent.click(screen.getByRole('button', { name: /sign out/i }))
     const confirmation = screen

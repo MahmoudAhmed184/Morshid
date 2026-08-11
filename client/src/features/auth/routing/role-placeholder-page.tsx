@@ -1,4 +1,4 @@
-import { SignOutButton } from '@/features/auth/session/sign-out-button'
+import { SignOutButton } from '@/features/auth/session/interface/sign-out-button'
 
 type RolePlaceholderPageProps = {
   roleName: string

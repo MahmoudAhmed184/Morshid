@@ -10,7 +10,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ThemeProvider } from '@/components/theme/theme-provider'
-import { useAuthStore } from '@/features/auth/session/session.store'
+import { useAuthStore } from '@/features/auth/session/interface/session-store'
 import type { AuthSession } from '@/features/auth/session/session.schema'
 import { studentCourseAccessQueryOptions } from '@/features/courses/course-access/course-access.queries'
 import { chatSessionKeys } from '@/features/chat/sessions/chat-sessions.queries'

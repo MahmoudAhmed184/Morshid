@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ApiError } from '@/lib/http/http'
 import type { AuthSession } from '@/features/auth/session/session.schema'
-import { useAuthStore } from '@/features/auth/session/session.store'
+import { useAuthStore } from '@/features/auth/session/interface/session-store'
 import { ThemeProvider } from '@/components/theme/theme-provider'
 import { SidebarProvider } from '@/components/ui/sidebar'
 import {

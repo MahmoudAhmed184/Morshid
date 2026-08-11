@@ -11,8 +11,8 @@ import {
   apiFetch,
   apiJson,
   isApiError,
-} from '@/features/auth/session/authenticated-api-client'
-import type { ApiFetchOptions } from '@/features/auth/session/authenticated-api-client'
+} from '@/features/auth/session/interface/authenticated-api-client'
+import type { ApiFetchOptions } from '@/features/auth/session/interface/authenticated-api-client'
 import { clientEnv } from '@/lib/env'
 
 export const INVALID_CREDENTIALS_MESSAGE = 'Invalid email or password.'

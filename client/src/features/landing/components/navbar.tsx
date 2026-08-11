@@ -5,8 +5,8 @@ import { useEffect, useState } from 'react'
 import { Logo } from '@/components/branding/logo'
 import { Button } from '@/components/ui/button'
 import { ModeToggle } from '@/components/ui/mode-toggle'
-import { useAuthStore } from '@/features/auth/session/session.store'
-import { getDashboardPath } from '@/features/auth/routing/auth-redirect'
+import { useAuthStore } from '@/features/auth/session/interface/session-store'
+import { getDashboardPath } from '@/features/auth/routing/interface/auth-redirect'
 import { cn } from '@/lib/utils'
 
 const marketingNavLinks = [

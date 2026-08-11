@@ -13,7 +13,7 @@ import {
   DISABLED_ACCOUNT_MESSAGE,
   INVALID_CREDENTIALS_MESSAGE,
 } from '@/features/auth/session/session.api'
-import { useAuthStore } from '@/features/auth/session/session.store'
+import { useAuthStore } from '@/features/auth/session/interface/session-store'
 
 import { SignInForm } from './sign-in-form'
 

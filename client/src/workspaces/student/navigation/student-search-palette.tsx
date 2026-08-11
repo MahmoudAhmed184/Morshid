@@ -18,7 +18,7 @@ import {
 import { useStudentSearchPalette } from '@/workspaces/student/navigation/student-chrome-context'
 import { useStudentNewChat } from '@/workspaces/student/navigation/student-sidebar-content'
 import { useStudentCourseContext } from '@/workspaces/student/navigation/student-course-context'
-import { useChatSessions } from '@/features/chat/sessions/use-chat-sessions'
+import { useChatSessions } from '@/workspaces/student/tutor-workspace/use-chat-sessions'
 import type { ChatSession } from '@/features/chat/sessions/chat-session.schema'
 
 /**

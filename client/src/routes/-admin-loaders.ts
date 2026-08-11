@@ -7,7 +7,7 @@ import {
 } from '@/features/courses/course-administration.queries'
 import { materialAdministrationQueryOptions } from '@/features/materials/material-administration.queries'
 import { managedUsersInfiniteQueryOptions } from '@/features/user-management/user-management.queries'
-import { useAuthStore } from '@/features/auth/session/session.store'
+import { useAuthStore } from '@/features/auth/session/interface/session-store'
 
 type AdminLoaderArgs = {
   context: {

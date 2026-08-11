@@ -16,9 +16,9 @@ import { PageHeader } from '@/components/ui/custom/page-header'
 import { StatCard } from '@/components/ui/custom/stat-card'
 import { cn } from '@/lib/utils'
 import { AdminPanel } from '../components/admin-panel'
-import { useAudit } from '@/features/audit/use-audit'
-import { useCourseAdministration } from '@/features/courses/use-course-administration'
-import { useManagedUsers } from '@/features/user-management/use-user-management'
+import { useAudit } from '@/workspaces/admin/audit/use-audit'
+import { useCourseAdministration } from '@/workspaces/admin/use-course-administration'
+import { useManagedUsers } from '@/workspaces/admin/users/use-user-management'
 
 type QuickNavTone = 'neutral' | 'gold' | 'success'
 

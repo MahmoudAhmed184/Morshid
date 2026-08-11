@@ -1,8 +1,14 @@
 import { createFileRoute } from '@tanstack/react-router'
 
+import { RouteLoadError } from '@/app/route-load-error'
 import { AdminPageShell } from '@/workspaces/admin/components/admin-page-shell'
 import { createProtectedRoleRouteOptions } from '@/features/auth/routing/protected-role-route'
 
 export const Route = createFileRoute('/admin')(
-  createProtectedRoleRouteOptions('ADMIN', 'Admin', AdminPageShell),
+  createProtectedRoleRouteOptions(
+    'ADMIN',
+    'Admin',
+    AdminPageShell,
+    RouteLoadError,
+  ),
 )

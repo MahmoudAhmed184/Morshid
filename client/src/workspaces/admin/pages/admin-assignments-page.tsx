@@ -18,8 +18,8 @@ import {
   useCourseMembers,
   useCourseAdministrationMutations,
   useCourseAdministration,
-} from '@/features/courses/use-course-administration'
-import { useManagedUsers } from '@/features/user-management/use-user-management'
+} from '@/workspaces/admin/use-course-administration'
+import { useManagedUsers } from '@/workspaces/admin/users/use-user-management'
 
 export function AdminAssignmentsPage() {
   const [selectedCourseId, setSelectedCourseId] = useState('')

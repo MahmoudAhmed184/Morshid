@@ -2,15 +2,15 @@ import type { FC } from 'react'
 
 import { Outlet, redirect } from '@tanstack/react-router'
 
-import { RouteLoadError } from '@/app/route-load-error'
 import { AuthLoader } from '@/features/auth/routing/auth-loader'
 import type { AuthRole } from '@/features/auth/session/session.schema'
-import { requireRole } from '@/features/auth/routing/auth-redirect'
+import { requireRole } from '@/features/auth/routing/interface/auth-redirect'
 
 export function createProtectedRoleRouteOptions(
   role: AuthRole,
   title: string,
   component: FC = Outlet,
+  errorComponent: FC,
 ) {
   return {
     ssr: false as const,
@@ -22,7 +22,7 @@ export function createProtectedRoleRouteOptions(
       }
     },
     component,
-    errorComponent: RouteLoadError,
+    errorComponent,
     pendingComponent: AuthLoader,
     pendingMs: 200,
     pendingMinMs: 400,

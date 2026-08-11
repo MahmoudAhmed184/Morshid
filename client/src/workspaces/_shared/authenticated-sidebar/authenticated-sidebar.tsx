@@ -31,7 +31,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { useLogout } from '@/features/auth/session/use-logout'
-import { useAuthStore } from '@/features/auth/session/session.store'
+import { useAuthStore } from '@/features/auth/session/interface/session-store'
 import { useTheme } from '@/components/theme/theme-provider'
 import { cn } from '@/lib/utils'
 

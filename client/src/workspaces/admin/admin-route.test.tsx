@@ -9,7 +9,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AuthSession } from '@/features/auth/session/session.schema'
-import { useAuthStore } from '@/features/auth/session/session.store'
+import { useAuthStore } from '@/features/auth/session/interface/session-store'
 import { createAppQueryClient } from '@/lib/query/query-client'
 import { routeTree } from '@/routeTree.gen'
 

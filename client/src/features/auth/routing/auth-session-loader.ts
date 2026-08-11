@@ -1,10 +1,10 @@
 import { getCurrentUser } from '@/features/auth/session/session.api'
-import { useAuthStore } from '@/features/auth/session/session.store'
+import { useAuthStore } from '@/features/auth/session/interface/session-store'
 import type { AuthUser } from '@/features/auth/session/session.schema'
 import {
   isTerminalAuthError,
   restoreAuthSession,
-} from '@/features/auth/session/authenticated-api-client'
+} from '@/features/auth/session/interface/authenticated-api-client'
 
 const authValidationCacheMs = 5_000
 

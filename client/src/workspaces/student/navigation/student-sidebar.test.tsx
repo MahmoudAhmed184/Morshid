@@ -11,7 +11,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { SidebarProvider, useSidebar } from '@/components/ui/sidebar'
-import { useAuthStore } from '@/features/auth/session/session.store'
+import { useAuthStore } from '@/features/auth/session/interface/session-store'
 import type { AuthSession } from '@/features/auth/session/session.schema'
 import { ThemeProvider } from '@/components/theme/theme-provider'
 import { studentCourseAccessQueryOptions } from '@/features/courses/course-access/course-access.queries'

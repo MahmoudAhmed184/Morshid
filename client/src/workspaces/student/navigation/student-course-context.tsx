@@ -2,8 +2,8 @@ import { useRouterState } from '@tanstack/react-router'
 import { createContext, useContext, useEffect, useMemo } from 'react'
 import type { ReactNode } from 'react'
 
-import { useAuthStore } from '@/features/auth/session/session.store'
-import { useStudentCourses } from '@/features/courses/course-access/use-course-access'
+import { useAuthStore } from '@/features/auth/session/interface/session-store'
+import { useStudentCourses } from '@/workspaces/student/navigation/use-course-access'
 import type { StudentCourseAccess } from '@/features/courses/course-access/course-access.schema'
 
 type StudentCourseContextValue = {

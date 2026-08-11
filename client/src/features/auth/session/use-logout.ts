@@ -2,7 +2,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 
 import { logoutApi } from '@/features/auth/session/session.api'
-import { useAuthStore } from '@/features/auth/session/session.store'
+import { useAuthStore } from '@/features/auth/session/interface/session-store'
 
 export function useLogout() {
   const navigate = useNavigate()

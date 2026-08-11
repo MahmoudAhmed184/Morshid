@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/table'
 import { AdminPanel } from '../components/admin-panel'
 import { PageHeader } from '@/components/ui/custom/page-header'
-import { useAudit } from '@/features/audit/use-audit'
+import { useAudit } from '@/workspaces/admin/audit/use-audit'
 import type { AuditEvent } from '@/features/audit/audit.schema'
 
 const dateFormatter = new Intl.DateTimeFormat(undefined, {

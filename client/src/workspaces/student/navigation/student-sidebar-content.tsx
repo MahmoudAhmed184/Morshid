@@ -21,7 +21,7 @@ import {
   useRenameChatSession,
   useChatSession,
   useChatSessions,
-} from '@/features/chat/sessions/use-chat-sessions'
+} from '@/workspaces/student/tutor-workspace/use-chat-sessions'
 import type { ChatSession } from '@/features/chat/sessions/chat-session.schema'
 import { StudentSessionInfiniteScroll } from '@/workspaces/student/tutor-workspace/session-infinite-scroll'
 import { StudentSessionListItem } from '@/workspaces/student/tutor-workspace/session-list-item'

@@ -4,7 +4,7 @@ import { BookMarked } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ModeToggle } from '@/components/ui/mode-toggle'
 import { SidebarInset, useSidebar } from '@/components/ui/sidebar'
-import { StudentReviewInboxControl } from '@/features/reviews/student-inbox/student-review-inbox-control'
+import { StudentReviewInboxControl } from '@/workspaces/student/navigation/student-review-inbox-control'
 import { useStudentChromeSources } from '@/workspaces/student/navigation/student-chrome-context'
 import { cn } from '@/lib/utils'
 

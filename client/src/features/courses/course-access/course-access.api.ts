@@ -1,5 +1,5 @@
-import { apiJson } from '@/features/auth/session/authenticated-api-client'
-import type { ApiFetchOptions } from '@/features/auth/session/authenticated-api-client'
+import { apiJson } from '@/features/auth/session/interface/authenticated-api-client'
+import type { ApiFetchOptions } from '@/features/auth/session/interface/authenticated-api-client'
 import { courseAccessResponseSchema } from '@/features/courses/course-access/course-access.schema'
 
 export type { StudentCourseAccess } from '@/features/courses/course-access/course-access.schema'

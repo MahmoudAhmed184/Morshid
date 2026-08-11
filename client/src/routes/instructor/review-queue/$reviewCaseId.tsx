@@ -4,14 +4,7 @@ import {
   useRouterState,
 } from '@tanstack/react-router'
 
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { ReviewDetailPage } from '@/features/instructor/pages/review-detail-page'
-import { ReviewQueuePage } from '@/features/instructor/pages/review-queue-page'
+import { InstructorReviewDetailRoute } from '@/workspaces/instructor/reviews/review-detail-route'
 
 export const Route = createFileRoute('/instructor/review-queue/$reviewCaseId')({
   component: ReviewDetailRoute,
@@ -24,27 +17,11 @@ function ReviewDetailRoute() {
     select: (state) => state.location.state.reviewQueueOverlay === true,
   })
 
-  if (!isQueueOverlay) {
-    return <ReviewDetailPage reviewCaseId={reviewCaseId} />
-  }
-
-  const closeDialog = () => router.history.back()
-
   return (
-    <>
-      <ReviewQueuePage />
-      <Dialog open onOpenChange={(open) => !open && closeDialog()}>
-        <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto p-5 sm:w-[calc(100vw-3rem)] sm:max-w-[calc(100vw-3rem)] sm:p-7 xl:max-w-7xl">
-          <DialogTitle className="sr-only">
-            Instructor review detail
-          </DialogTitle>
-          <DialogDescription className="sr-only">
-            Review the flagged exchange, supporting evidence, and nearby
-            conversation context.
-          </DialogDescription>
-          <ReviewDetailPage reviewCaseId={reviewCaseId} presentation="dialog" />
-        </DialogContent>
-      </Dialog>
-    </>
+    <InstructorReviewDetailRoute
+      reviewCaseId={reviewCaseId}
+      isQueueOverlay={isQueueOverlay}
+      onClose={() => router.history.back()}
+    />
   )
 }

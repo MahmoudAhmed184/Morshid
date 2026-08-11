@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 
-import { restoreAuthSession } from '@/features/auth/session/authenticated-api-client'
+import { restoreAuthSession } from '@/features/auth/session/interface/authenticated-api-client'
 
 export function AuthRefreshSync() {
   useEffect(() => {
