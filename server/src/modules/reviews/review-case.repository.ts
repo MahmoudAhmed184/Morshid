@@ -438,9 +438,7 @@ function normalizeCreateReviewCaseInput(
 }
 
 function toReviewMessageRole(role: string): ReviewMessageRole | null {
-  return role === 'STUDENT' || role === 'ASSISTANT'
-    ? role
-    : null
+  return role === 'STUDENT' || role === 'ASSISTANT' ? role : null
 }
 
 function toReviewEvidenceTarget(
