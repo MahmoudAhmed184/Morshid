@@ -1049,3 +1049,65 @@ the final schema regeneration and audit.
   rechecked and already describe the final directory-loaded schema and one
   clean-slate migration. M9 is the next safe task: regenerate and audit the
   final single initial migration from an empty database.
+
+## Milestone 9 migration inventory
+
+Starting SHA: `ce1c918`.
+
+Milestone 9 freezes the final database contract after the application ownership
+cutover. The migration source of truth is every authored file under
+`server/prisma/*.prisma`; the generated candidate is produced from an empty
+schema with Prisma, then reconciled with the deliberate handwritten SQL in
+`server/prisma/migrations/20260811150000_initial/migration.sql`.
+
+| Area | Files/paths to add, move, change, or verify | Disposition and invariants |
+| --- | --- | --- |
+| Final Prisma schema | `server/prisma/*.prisma`, `server/prisma.config.ts`, `server/prisma/migrations/migration_lock.toml` | Load the final multi-file schema, validate it, regenerate the client, and retain one PostgreSQL migration history with a valid lock file. |
+| Initial migration | `server/prisma/migrations/20260811150000_initial/migration.sql` | Replace any intermediate history with the audited from-empty result; retain required extensions, triggers, checks, indexes, foreign keys, and deliberate deletions, with the HNSW index absent. |
+| Fresh database proof | `server/prisma/assert-catalog.mts`, `server/prisma/seed.ts`, disposable Compose PostgreSQL/Redis project | Reset only an isolated disposable database, apply the single migration, seed explicitly, assert catalog objects and HNSW absence, and prove Prisma reports no schema drift. |
+| Ledger and handoff | This ledger plus the M9 handoff section | Record the candidate comparison, migration/lock audit, exact disposable verification commands and results, final SHA, and the M10 verification boundary. |
+
+Before the M9 handoff, the focused schema gate must include Prisma validation
+and generation, migration-file and lock inspection, a fresh migration/deploy/
+seed/catalog/drift run against unique disposable resources, and repository
+proof that no intermediate or compatibility migration remains.
+
+### M9 handoff
+
+- Starting SHA: `ce1c918`. The final schema-freeze implementation is the
+  migration and ledger change committed after this handoff entry; the next
+  milestone starts from that commit.
+- Prisma loaded all seven authored schema files from `server/prisma/` and
+  `npx prisma migrate diff --from-empty --to-schema` generated a candidate
+  containing 27 tables, 33 enums, 64 Prisma indexes, and 61 foreign keys. The
+  final `20260811150000_initial/migration.sql` uses that generated ordering,
+  prepends the required `pgcrypto`, `citext`, and `vector` extensions, and
+  reconciles the inventoried 3 partial/conditional indexes, 42 checks, review
+  target function, and deferred review constraint trigger. The HNSW index is
+  absent. The resulting file contains 27 tables, 33 enums, 67 total indexes,
+  and 61 foreign keys.
+- `server/prisma/migrations/migration_lock.toml` remains present and valid
+  with `provider = "postgresql"`. `server/prisma/migrations/` contains exactly
+  one directory, `20260811150000_initial`; no intermediate or compatibility
+  migration remains. Prisma generated output stayed ignored and was produced
+  by `npm run db:generate --workspace server`, never hand-edited.
+- Prisma validation and generation passed, followed by a blank deployment and
+  explicit seed against the isolated Compose project
+  `morshid-m9-20260812` (PostgreSQL `55439`, Redis `56439`, uniquely named
+  volumes). `npm run db:assert-catalog --workspace server` passed all table,
+  extension, enum-derived index, check, foreign-key, vector-dimension,
+  function, deferred-trigger, and HNSW-absence assertions. `prisma migrate
+  status` reported the database up to date, and
+  `prisma migrate diff --from-migrations ... --to-config-datasource --exit-code`
+  returned `No difference detected.`
+- The first disposable invocation was rejected because its shadow URL was
+  deliberately detected as equal to the main URL; that isolated database was
+  recreated empty before the successful run. No normal repository database or
+  volume was touched. The successful run seeded 5 P0 demo users and both
+  expected courses. `git diff --check` passed.
+- Applicable authority: the approved plan Sections 8.4, 9.2, 15, and 17;
+  ADR 0004; the M2 net-live Prisma inventory; and the pre-deployment Prisma
+  research note. No application ownership or product behavior changed in M9.
+- Next safe task: Milestone 10 final verification against the exact candidate
+  SHA, including clean install/build, server E2E, acceptance journeys,
+  disposable Compose readiness, and independent full diff review.
