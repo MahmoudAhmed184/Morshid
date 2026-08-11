@@ -662,6 +662,8 @@ function overRevealEvaluation(
 ): SemanticGuardEvaluationInput {
   const validationContext = {
     allowedCitationIds: new Set([OVER_REVEAL_CITATION_ID]),
+    requireGrounding: true,
+    enforceCitationSupport: true,
     requireStudentAction: true,
     reflectionMode: ReflectionMode.NONE,
     responseIntent: TeachingStrategy.MISCONCEPTION_REPAIR,

@@ -59,6 +59,8 @@ describe('OpenAICompatibleSemanticGuardAdapter', () => {
     )
     const adapter = new OpenAICompatibleSemanticGuardAdapter(
       buildOpenAICompatibleConfiguration(),
+      30_000,
+      undefined,
       fetchImplementation,
     )
 
@@ -86,6 +88,7 @@ describe('OpenAICompatibleSemanticGuardAdapter', () => {
         ],
         temperature: 0,
         top_p: 1,
+        max_completion_tokens: 256,
         response_format: { type: 'json_object' },
       }),
     )
@@ -112,6 +115,8 @@ describe('OpenAICompatibleSemanticGuardAdapter', () => {
         ...buildOpenAICompatibleConfiguration(),
         apiKey: 'secret-test-key',
       },
+      30_000,
+      undefined,
       fetchImplementation,
     )
 
@@ -130,6 +135,8 @@ describe('OpenAICompatibleSemanticGuardAdapter', () => {
   ])('maps HTTP %s to %s', async (status, code) => {
     const adapter = new OpenAICompatibleSemanticGuardAdapter(
       buildOpenAICompatibleConfiguration(),
+      30_000,
+      undefined,
       () => Promise.resolve(new Response('{}', { status })),
     )
 
@@ -144,6 +151,8 @@ describe('OpenAICompatibleSemanticGuardAdapter', () => {
   ])('rejects malformed provider output %#', async (body) => {
     const adapter = new OpenAICompatibleSemanticGuardAdapter(
       buildOpenAICompatibleConfiguration(),
+      30_000,
+      undefined,
       () => Promise.resolve(new Response(body, { status: 200 })),
     )
 
@@ -176,6 +185,7 @@ function buildOpenAICompatibleConfiguration(): OpenAICompatibleSemanticGuardConf
     endpoint: 'http://localhost:8000/v1/chat/completions',
     modelName: 'Qwen/Qwen2.5-7B-Instruct-Guard',
     apiKey: null,
+    maxCompletionTokens: 256,
   }
 }
 

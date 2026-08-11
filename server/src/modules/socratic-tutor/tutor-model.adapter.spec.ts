@@ -6,13 +6,11 @@ import {
 import {
   DeterministicTutorModelAdapter,
   OpenAICompatibleTutorModelAdapter,
-  ValidatedTutorModelPort,
 } from './tutor-model.adapter'
 import {
   TUTOR_MODEL_ERROR_CODE,
   TutorModelError,
   type TutorModelRequest,
-  type TutorModelResponse,
 } from './tutor-generation.types'
 import { TUTOR_GENERATION_PROMPT_VERSION } from './tutor-prompt.registry'
 
@@ -73,6 +71,8 @@ describe('OpenAICompatibleTutorModelAdapter', () => {
     )
     const adapter = new OpenAICompatibleTutorModelAdapter(
       buildOpenAICompatibleConfiguration(),
+      30_000,
+      undefined,
       fetchImplementation,
     )
 
@@ -96,6 +96,7 @@ describe('OpenAICompatibleTutorModelAdapter', () => {
         ],
         temperature: 0,
         top_p: 1,
+        max_completion_tokens: 768,
         response_format: {
           type: 'json_object',
         },
@@ -110,6 +111,8 @@ describe('OpenAICompatibleTutorModelAdapter', () => {
   ])('maps HTTP %s to %s', async (status, code) => {
     const adapter = new OpenAICompatibleTutorModelAdapter(
       buildOpenAICompatibleConfiguration(),
+      30_000,
+      undefined,
       () => Promise.resolve(new Response('{}', { status })),
     )
 
@@ -125,6 +128,8 @@ describe('OpenAICompatibleTutorModelAdapter', () => {
   ])('rejects malformed provider output %#', async (body) => {
     const adapter = new OpenAICompatibleTutorModelAdapter(
       buildOpenAICompatibleConfiguration(),
+      30_000,
+      undefined,
       () => Promise.resolve(new Response(body, { status: 200 })),
     )
 
@@ -132,24 +137,6 @@ describe('OpenAICompatibleTutorModelAdapter', () => {
       adapter.generate(request),
       TUTOR_MODEL_ERROR_CODE.MALFORMED_OUTPUT,
     )
-  })
-})
-
-describe('ValidatedTutorModelPort', () => {
-  it('maps timeout to a typed tutor failure', async () => {
-    const timeoutController = new AbortController()
-    const provider = new ValidatedTutorModelPort(
-      {
-        generate: () => new Promise<TutorModelResponse>(() => undefined),
-      },
-      1,
-      () => timeoutController.signal,
-    )
-
-    const promise = provider.generate(request)
-    timeoutController.abort()
-
-    await expectRejectCode(promise, TUTOR_MODEL_ERROR_CODE.TIMEOUT)
   })
 })
 
@@ -176,6 +163,7 @@ function buildOpenAICompatibleConfiguration(): OpenAICompatibleTutorConfiguratio
     endpoint: 'http://localhost:8000/v1/chat/completions',
     modelName: 'Qwen/Qwen2.5-7B-Instruct',
     apiKey: null,
+    maxCompletionTokens: 768,
   }
 }
 

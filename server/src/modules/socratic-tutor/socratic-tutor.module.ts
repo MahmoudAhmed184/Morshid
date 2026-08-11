@@ -60,9 +60,6 @@ import { SafeFallbackService } from './safe-fallback.service'
 import { ResponseApprovalService } from './response-approval.service'
 import { SEMANTIC_GUARD_PORT } from './semantic-guard.types'
 import {
-  DEFAULT_SEMANTIC_GUARD_BASE_URL,
-  DEFAULT_SEMANTIC_GUARD_MODEL_NAME,
-  DEFAULT_SEMANTIC_GUARD_TIMEOUT_MS,
   DETERMINISTIC_SEMANTIC_GUARD_PROVIDER,
   OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER,
 } from './semantic-guard.configuration'
@@ -135,12 +132,16 @@ import { OutputPolicyModule } from '../output-policy/output-policy.module'
       provide: ANALYSIS_MODEL_PORT,
       inject: [ConfigService],
       useFactory: (configService: ConfigService<AppEnvironment, true>) => {
-        const provider = configService.get('ANALYSIS_MODEL_PROVIDER', {
+        const provider: unknown = configService.get('ANALYSIS_MODEL_PROVIDER', {
           infer: true,
         })
         const timeoutMs = configService.get('ANALYSIS_MODEL_TIMEOUT_MS', {
           infer: true,
         })
+        const maxCompletionTokens = configService.get(
+          'ANALYSIS_MODEL_MAX_COMPLETION_TOKENS',
+          { infer: true },
+        )
 
         if (provider === OPENAI_COMPATIBLE_ANALYSIS_MODEL_PROVIDER) {
           return createAnalysisModelPort({
@@ -156,14 +157,19 @@ import { OutputPolicyModule } from '../output-policy/output-policy.module'
               apiKey: configService.get('ANALYSIS_MODEL_API_KEY', {
                 infer: true,
               }),
+              maxCompletionTokens,
             },
           })
         }
 
-        return createAnalysisModelPort({
-          provider: DETERMINISTIC_ANALYSIS_MODEL_PROVIDER,
-          timeoutMs,
-        })
+        if (provider === DETERMINISTIC_ANALYSIS_MODEL_PROVIDER) {
+          return createAnalysisModelPort({
+            provider,
+            timeoutMs,
+          })
+        }
+
+        throw new Error('Unsupported analysis model provider')
       },
     },
     {
@@ -180,12 +186,16 @@ import { OutputPolicyModule } from '../output-policy/output-policy.module'
       provide: TUTOR_MODEL_PORT,
       inject: [ConfigService],
       useFactory: (configService: ConfigService<AppEnvironment, true>) => {
-        const provider = configService.get('TUTOR_MODEL_PROVIDER', {
+        const provider: unknown = configService.get('TUTOR_MODEL_PROVIDER', {
           infer: true,
         })
         const timeoutMs = configService.get('TUTOR_MODEL_TIMEOUT_MS', {
           infer: true,
         })
+        const maxCompletionTokens = configService.get(
+          'TUTOR_MODEL_MAX_COMPLETION_TOKENS',
+          { infer: true },
+        )
 
         if (provider === OPENAI_COMPATIBLE_TUTOR_MODEL_PROVIDER) {
           return createTutorModelPort({
@@ -201,72 +211,63 @@ import { OutputPolicyModule } from '../output-policy/output-policy.module'
               apiKey: configService.get('TUTOR_MODEL_API_KEY', {
                 infer: true,
               }),
+              maxCompletionTokens,
             },
           })
         }
 
-        return createTutorModelPort({
-          provider: DETERMINISTIC_TUTOR_MODEL_PROVIDER,
-          timeoutMs,
-        })
+        if (provider === DETERMINISTIC_TUTOR_MODEL_PROVIDER) {
+          return createTutorModelPort({
+            provider,
+            timeoutMs,
+          })
+        }
+
+        throw new Error('Unsupported tutor model provider')
       },
     },
     {
       provide: SEMANTIC_GUARD_PORT,
       inject: [ConfigService],
       useFactory: (configService: ConfigService<AppEnvironment, true>) => {
-        const configuredProvider: unknown = configService.get(
-          'SEMANTIC_GUARD_PROVIDER',
-          {
-            infer: true,
-          },
+        const provider: unknown = configService.get('SEMANTIC_GUARD_PROVIDER', {
+          infer: true,
+        })
+        const timeoutMs = configService.get('SEMANTIC_GUARD_TIMEOUT_MS', {
+          infer: true,
+        })
+        const maxCompletionTokens = configService.get(
+          'SEMANTIC_GUARD_MAX_COMPLETION_TOKENS',
+          { infer: true },
         )
-        const provider =
-          configuredProvider === OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER
-            ? OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER
-            : DETERMINISTIC_SEMANTIC_GUARD_PROVIDER
-        const configuredTimeoutMs: unknown = configService.get(
-          'SEMANTIC_GUARD_TIMEOUT_MS',
-          {
-            infer: true,
-          },
-        )
-        const timeoutMs =
-          typeof configuredTimeoutMs === 'number'
-            ? configuredTimeoutMs
-            : DEFAULT_SEMANTIC_GUARD_TIMEOUT_MS
 
         if (provider === OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER) {
           return createSemanticGuardPort({
             provider,
             timeoutMs,
             openAICompatible: {
-              baseUrl: stringConfigValue(
-                configService.get('SEMANTIC_GUARD_BASE_URL', {
-                  infer: true,
-                }),
-                DEFAULT_SEMANTIC_GUARD_BASE_URL,
-              ),
-              modelName: stringConfigValue(
-                configService.get('SEMANTIC_GUARD_MODEL_NAME', {
-                  infer: true,
-                }),
-                DEFAULT_SEMANTIC_GUARD_MODEL_NAME,
-              ),
-              apiKey: stringConfigValue(
-                configService.get('SEMANTIC_GUARD_API_KEY', {
-                  infer: true,
-                }),
-                '',
-              ),
+              baseUrl: configService.get('SEMANTIC_GUARD_BASE_URL', {
+                infer: true,
+              }),
+              modelName: configService.get('SEMANTIC_GUARD_MODEL_NAME', {
+                infer: true,
+              }),
+              apiKey: configService.get('SEMANTIC_GUARD_API_KEY', {
+                infer: true,
+              }),
+              maxCompletionTokens,
             },
           })
         }
 
-        return createSemanticGuardPort({
-          provider: DETERMINISTIC_SEMANTIC_GUARD_PROVIDER,
-          timeoutMs,
-        })
+        if (provider === DETERMINISTIC_SEMANTIC_GUARD_PROVIDER) {
+          return createSemanticGuardPort({
+            provider,
+            timeoutMs,
+          })
+        }
+
+        throw new Error('Unsupported semantic guard provider')
       },
     },
   ],
@@ -292,7 +293,3 @@ import { OutputPolicyModule } from '../output-policy/output-policy.module'
   ],
 })
 export class SocraticTutorModule {}
-
-function stringConfigValue(value: unknown, fallback: string): string {
-  return typeof value === 'string' ? value : fallback
-}

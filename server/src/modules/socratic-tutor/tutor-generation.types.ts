@@ -75,6 +75,8 @@ export interface CandidateResponse {
 
 export interface CandidateResponsePolicyContext {
   readonly allowedCitationIds: ReadonlySet<string>
+  readonly requireGrounding: boolean
+  readonly enforceCitationSupport: boolean
   readonly requireStudentAction: boolean
   readonly reflectionMode: ReflectionMode
 }
@@ -133,6 +135,7 @@ export interface TutorGenerationInput {
   readonly retrievalResult: readonly RetrievedChunk[]
   readonly regeneration?: TutorRegenerationContext
   readonly signal?: AbortSignal
+  readonly deadlineAt?: number
 }
 
 export const TUTOR_GENERATION_FAILURE_CODE = {
@@ -258,14 +261,21 @@ const TUTOR_MODEL_SAFE_ERROR_MESSAGES = {
 
 export class TutorModelError extends Error {
   readonly code: TutorModelErrorCode
+  readonly status: number | undefined
+  readonly headers: Headers | undefined
 
-  constructor(code: TutorModelErrorCode) {
+  constructor(
+    code: TutorModelErrorCode,
+    metadata: { readonly status?: number; readonly headers?: Headers } = {},
+  ) {
     super(TUTOR_MODEL_SAFE_ERROR_MESSAGES[code])
     Object.defineProperty(this, 'name', {
       configurable: true,
       value: 'TutorModelError',
     })
     this.code = code
+    this.status = metadata.status
+    this.headers = metadata.headers
   }
 }
 

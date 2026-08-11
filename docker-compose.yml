@@ -60,9 +60,8 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-morshid}:${POSTGRES_PASSWORD:-morshid_local_password}@postgres:5432/${POSTGRES_DB:-morshid}
       REDIS_URL: redis://redis:6379
       PDF_STORAGE_PATH: /workspace/storage/pdfs
-      # Deterministic remains the keyless/offline default. The production
-      # environment gate below refuses Gemini even if an ambient variable tries
-      # to select it.
+      # Production requires live Socratic model roles. Override the endpoint,
+      # model, and key values for the deployment's OpenAI-compatible gateway.
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-deterministic}
       EMBEDDING_QUERY_TIMEOUT_MS: ${EMBEDDING_QUERY_TIMEOUT_MS:-10000}
       EMBEDDING_DOCUMENT_TIMEOUT_MS: ${EMBEDDING_DOCUMENT_TIMEOUT_MS:-120000}
@@ -70,26 +69,28 @@ services:
       COMPLETION_PROVIDER: ${COMPLETION_PROVIDER:-deterministic}
       COMPLETION_TIMEOUT_MS: ${COMPLETION_TIMEOUT_MS:-30000}
       # Socratic runtime roles are deliberately independent. Production boot
-      # rejects a deterministic Semantic Guard, while deterministic analysis
-      # and tutor providers remain available for explicit offline diagnostics.
-      ANALYSIS_MODEL_PROVIDER: ${ANALYSIS_MODEL_PROVIDER:-deterministic}
+      # rejects deterministic configuration for any of the three roles.
+      ANALYSIS_MODEL_PROVIDER: ${ANALYSIS_MODEL_PROVIDER:-openai-compatible}
       ANALYSIS_MODEL_BASE_URL: ${ANALYSIS_MODEL_BASE_URL:-http://localhost:8000/v1}
       ANALYSIS_MODEL_NAME: ${ANALYSIS_MODEL_NAME:-Qwen/Qwen2.5-14B-Instruct}
       ANALYSIS_MODEL_API_KEY: ${ANALYSIS_MODEL_API_KEY:-}
       ANALYSIS_MODEL_TIMEOUT_MS: ${ANALYSIS_MODEL_TIMEOUT_MS:-30000}
+      ANALYSIS_MODEL_MAX_COMPLETION_TOKENS: ${ANALYSIS_MODEL_MAX_COMPLETION_TOKENS:-768}
       ANALYSIS_CONFIDENCE_THRESHOLD: ${ANALYSIS_CONFIDENCE_THRESHOLD:-0.6}
       ANALYSIS_MODEL_MAX_RETRIES: ${ANALYSIS_MODEL_MAX_RETRIES:-1}
-      TUTOR_MODEL_PROVIDER: ${TUTOR_MODEL_PROVIDER:-deterministic}
+      TUTOR_MODEL_PROVIDER: ${TUTOR_MODEL_PROVIDER:-openai-compatible}
       TUTOR_MODEL_BASE_URL: ${TUTOR_MODEL_BASE_URL:-http://localhost:8000/v1}
       TUTOR_MODEL_NAME: ${TUTOR_MODEL_NAME:-Qwen/Qwen2.5-7B-Instruct}
       TUTOR_MODEL_API_KEY: ${TUTOR_MODEL_API_KEY:-}
       TUTOR_MODEL_TIMEOUT_MS: ${TUTOR_MODEL_TIMEOUT_MS:-30000}
+      TUTOR_MODEL_MAX_COMPLETION_TOKENS: ${TUTOR_MODEL_MAX_COMPLETION_TOKENS:-768}
       TUTOR_MODEL_MAX_INFRASTRUCTURE_RETRIES: ${TUTOR_MODEL_MAX_INFRASTRUCTURE_RETRIES:-1}
-      SEMANTIC_GUARD_PROVIDER: ${SEMANTIC_GUARD_PROVIDER:-deterministic}
+      SEMANTIC_GUARD_PROVIDER: ${SEMANTIC_GUARD_PROVIDER:-openai-compatible}
       SEMANTIC_GUARD_BASE_URL: ${SEMANTIC_GUARD_BASE_URL:-http://localhost:8000/v1}
       SEMANTIC_GUARD_MODEL_NAME: ${SEMANTIC_GUARD_MODEL_NAME:-Qwen/Qwen2.5-7B-Instruct-Guard}
       SEMANTIC_GUARD_API_KEY: ${SEMANTIC_GUARD_API_KEY:-}
       SEMANTIC_GUARD_TIMEOUT_MS: ${SEMANTIC_GUARD_TIMEOUT_MS:-30000}
+      SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: ${SEMANTIC_GUARD_MAX_COMPLETION_TOKENS:-256}
       ITI_BEDROCK_GATEWAY_BASE_URL: ${ITI_BEDROCK_GATEWAY_BASE_URL:-https://apiaccess.iti.net.eg/api/v1}
       ITI_BEDROCK_GATEWAY_API_KEY: ${ITI_BEDROCK_GATEWAY_API_KEY:-}
       # Production never permits the temporary plaintext development transport.

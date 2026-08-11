@@ -39,6 +39,11 @@ export interface AnalysisModelResponse {
   readonly latencyMs?: number
 }
 
+export interface AnalysisModelErrorMetadata {
+  readonly status?: number
+  readonly headers?: Headers
+}
+
 export interface AnalysisModelPort {
   analyze(request: AnalysisModelRequest): Promise<AnalysisModelResponse>
 }
@@ -61,13 +66,20 @@ const SAFE_ERROR_MESSAGES = {
 
 export class AnalysisModelError extends Error {
   readonly code: AnalysisModelErrorCode
+  readonly status: number | undefined
+  readonly headers: Headers | undefined
 
-  constructor(code: AnalysisModelErrorCode) {
+  constructor(
+    code: AnalysisModelErrorCode,
+    metadata: AnalysisModelErrorMetadata = {},
+  ) {
     super(SAFE_ERROR_MESSAGES[code])
     Object.defineProperty(this, 'name', {
       configurable: true,
       value: 'AnalysisModelError',
     })
     this.code = code
+    this.status = metadata.status
+    this.headers = metadata.headers
   }
 }

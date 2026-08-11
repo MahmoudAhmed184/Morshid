@@ -22,6 +22,9 @@ export const MAX_SEMANTIC_GUARD_TIMEOUT_MS = MAX_TUTOR_MODEL_TIMEOUT_MS
 export const DEFAULT_SEMANTIC_GUARD_BASE_URL = DEFAULT_TUTOR_MODEL_BASE_URL
 export const DEFAULT_SEMANTIC_GUARD_MODEL_NAME =
   'Qwen/Qwen2.5-7B-Instruct-Guard'
+export const DEFAULT_SEMANTIC_GUARD_MAX_COMPLETION_TOKENS = 256
+export const MIN_SEMANTIC_GUARD_MAX_COMPLETION_TOKENS = 64
+export const MAX_SEMANTIC_GUARD_MAX_COMPLETION_TOKENS = 1_024
 export const MAX_SEMANTIC_GUARD_BASE_URL_LENGTH =
   MAX_TUTOR_MODEL_BASE_URL_LENGTH
 export const MAX_SEMANTIC_GUARD_MODEL_NAME_LENGTH = MAX_TUTOR_MODEL_NAME_LENGTH
@@ -36,6 +39,7 @@ export interface OpenAICompatibleSemanticGuardConfiguration {
   readonly endpoint?: string
   readonly modelName: string
   readonly apiKey: string | null
+  readonly maxCompletionTokens: number
 }
 
 export type SemanticGuardConfiguration =
@@ -99,11 +103,13 @@ export function validateOpenAICompatibleSemanticGuardConfiguration(
   const baseUrl = Reflect.get(record, 'baseUrl')
   const modelName = Reflect.get(record, 'modelName')
   const apiKey = Reflect.get(record, 'apiKey')
+  const maxCompletionTokens = Reflect.get(record, 'maxCompletionTokens')
 
   if (
     typeof baseUrl !== 'string' ||
     !isValidSemanticGuardModelName(modelName) ||
-    !isValidOptionalSemanticGuardApiKey(apiKey)
+    !isValidOptionalSemanticGuardApiKey(apiKey) ||
+    !isValidSemanticGuardMaxCompletionTokens(maxCompletionTokens)
   ) {
     throw new TypeError(
       'Invalid OpenAI-compatible semantic guard configuration',
@@ -117,7 +123,19 @@ export function validateOpenAICompatibleSemanticGuardConfiguration(
     endpoint: `${normalizedBaseUrl}/chat/completions`,
     modelName,
     apiKey: apiKey === null || apiKey.trim() === '' ? null : apiKey,
+    maxCompletionTokens,
   })
+}
+
+export function isValidSemanticGuardMaxCompletionTokens(
+  value: unknown,
+): value is number {
+  return (
+    typeof value === 'number' &&
+    Number.isSafeInteger(value) &&
+    value >= MIN_SEMANTIC_GUARD_MAX_COMPLETION_TOKENS &&
+    value <= MAX_SEMANTIC_GUARD_MAX_COMPLETION_TOKENS
+  )
 }
 
 export function isValidSemanticGuardModelName(value: unknown): value is string {

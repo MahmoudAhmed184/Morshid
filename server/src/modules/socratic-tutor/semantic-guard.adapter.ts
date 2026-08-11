@@ -1,10 +1,10 @@
 import { Logger } from '@nestjs/common'
 
 import {
-  discardResponseBody,
-  readBoundedResponseBody,
-  type BoundedResponseBodyRejection,
-} from '../../common/upstream/bounded-response-body'
+  STRUCTURED_CHAT_ERROR_CODE,
+  StructuredChatTransport,
+  StructuredChatTransportError,
+} from '../../common/upstream/structured-chat.transport'
 import {
   hasAtMostCodePoints,
   readAbortSignalAborted,
@@ -29,13 +29,6 @@ import {
 const MAX_GUARD_PROVIDER_LENGTH = 80
 const MAX_GUARD_MODEL_LENGTH = 200
 const MAX_GUARD_RESPONSE_BYTES = 512 * 1_024
-const STRUCTURED_OUTPUT_TEMPERATURE = 0
-const STRUCTURED_OUTPUT_TOP_P = 1
-
-type FetchImplementation = (
-  input: string | URL | Request,
-  init?: RequestInit,
-) => Promise<Response>
 
 type GuardTimeoutSignalFactory = (timeoutMs: number) => AbortSignal
 
@@ -48,76 +41,15 @@ export function createSemanticGuardPort(
   timeoutSignalFactory: GuardTimeoutSignalFactory = defaultGuardTimeoutSignalFactory,
 ): SemanticGuardPort {
   const snapshot = validateSemanticGuardConfiguration(configuration)
-  const adapter =
-    snapshot.provider === DETERMINISTIC_SEMANTIC_GUARD_PROVIDER
-      ? new DeterministicSemanticGuardAdapter()
-      : new OpenAICompatibleSemanticGuardAdapter(snapshot.openAICompatible)
+  if (snapshot.provider === DETERMINISTIC_SEMANTIC_GUARD_PROVIDER) {
+    return new DeterministicSemanticGuardAdapter()
+  }
 
-  return new ValidatedSemanticGuardPort(
-    adapter,
+  return new OpenAICompatibleSemanticGuardAdapter(
+    snapshot.openAICompatible,
     snapshot.timeoutMs,
     timeoutSignalFactory,
   )
-}
-
-export class ValidatedSemanticGuardPort implements SemanticGuardPort {
-  constructor(
-    private readonly inner: SemanticGuardPort,
-    private readonly timeoutMs: number,
-    private readonly timeoutSignalFactory: GuardTimeoutSignalFactory = defaultGuardTimeoutSignalFactory,
-  ) {}
-
-  async evaluate(
-    request: SemanticGuardRequest,
-  ): Promise<SemanticGuardModelResponse> {
-    assertSemanticGuardRequest(request)
-    if (
-      request.signal !== undefined &&
-      readAbortSignalAborted(request.signal)
-    ) {
-      throw new SemanticGuardModelError(SEMANTIC_GUARD_ERROR_CODE.CANCELLED)
-    }
-
-    let timeoutSignal: AbortSignal
-    try {
-      timeoutSignal = this.timeoutSignalFactory(this.timeoutMs)
-      if (!(timeoutSignal instanceof AbortSignal)) {
-        throw new TypeError('Invalid timeout signal')
-      }
-    } catch {
-      throw new SemanticGuardModelError(
-        SEMANTIC_GUARD_ERROR_CODE.PROVIDER_UNAVAILABLE,
-      )
-    }
-
-    const signal =
-      request.signal === undefined
-        ? timeoutSignal
-        : AbortSignal.any([request.signal, timeoutSignal])
-    const startedAt = Date.now()
-
-    try {
-      const response = await this.inner.evaluate({ ...request, signal })
-      if (readAbortSignalAborted(timeoutSignal)) {
-        throw new SemanticGuardModelError(SEMANTIC_GUARD_ERROR_CODE.TIMEOUT)
-      }
-      return validateSemanticGuardResponse({
-        ...response,
-        latencyMs: response.latencyMs ?? Date.now() - startedAt,
-      })
-    } catch (error) {
-      if (readAbortSignalAborted(timeoutSignal)) {
-        throw new SemanticGuardModelError(SEMANTIC_GUARD_ERROR_CODE.TIMEOUT)
-      }
-      if (
-        request.signal !== undefined &&
-        readAbortSignalAborted(request.signal)
-      ) {
-        throw new SemanticGuardModelError(SEMANTIC_GUARD_ERROR_CODE.CANCELLED)
-      }
-      throw normalizeSemanticGuardError(error)
-    }
-  }
 }
 
 export class DeterministicSemanticGuardAdapter implements SemanticGuardPort {
@@ -169,17 +101,31 @@ export class OpenAICompatibleSemanticGuardAdapter implements SemanticGuardPort {
   private readonly endpoint: string
   private readonly modelName: string
   private readonly authorization: string | null
+  private readonly maxCompletionTokens: number
+  private readonly timeoutMs: number
+  private readonly transport: StructuredChatTransport
 
   constructor(
     configuration: OpenAICompatibleSemanticGuardConfiguration,
-    private readonly fetchImplementation: FetchImplementation = globalThis.fetch,
+    timeoutMs: number,
+    timeoutSignalFactory: GuardTimeoutSignalFactory = defaultGuardTimeoutSignalFactory,
+    fetchImplementation: (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ) => Promise<Response> = globalThis.fetch,
   ) {
     const snapshot =
       validateOpenAICompatibleSemanticGuardConfiguration(configuration)
     this.endpoint = snapshot.endpoint
     this.modelName = snapshot.modelName
+    this.maxCompletionTokens = snapshot.maxCompletionTokens
+    this.timeoutMs = timeoutMs
     this.authorization =
       snapshot.apiKey === null ? null : `Bearer ${snapshot.apiKey}`
+    this.transport = new StructuredChatTransport(
+      fetchImplementation,
+      timeoutSignalFactory,
+    )
   }
 
   async evaluate(
@@ -194,36 +140,20 @@ export class OpenAICompatibleSemanticGuardAdapter implements SemanticGuardPort {
     }
 
     try {
-      const response = await this.fetchImplementation(this.endpoint, {
-        method: 'POST',
-        headers: requestHeaders(this.authorization),
-        body: JSON.stringify({
-          model: this.modelName,
-          messages: request.messages.map((message) => ({
-            role: message.role,
-            content: message.content,
-          })),
-          temperature: STRUCTURED_OUTPUT_TEMPERATURE,
-          top_p: STRUCTURED_OUTPUT_TOP_P,
-          response_format: { type: 'json_object' },
-        }),
-        redirect: 'error',
+      const parsed = await this.transport.complete({
+        endpoint: this.endpoint,
+        authorization: this.authorization,
+        model: this.modelName,
+        messages: request.messages,
+        temperature: 0,
+        topP: 1,
+        maxCompletionTokens: this.maxCompletionTokens,
+        timeoutMs: this.timeoutMs,
+        maxResponseBytes: MAX_GUARD_RESPONSE_BYTES,
         signal: request.signal,
       })
 
-      if (!response.ok) {
-        await discardResponseBody(response)
-        throw httpStatusFailure(response.status)
-      }
-
-      const responseBody = await readBoundedResponseBody(
-        response,
-        MAX_GUARD_RESPONSE_BYTES,
-        toProviderFailure,
-      )
-      const parsed = parseChatCompletionResponse(responseBody)
-
-      return Object.freeze({
+      return validateSemanticGuardResponse({
         rawOutput: parseStructuredOutput(parsed.content),
         provider: OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER,
         model: parsed.model ?? this.modelName,
@@ -240,7 +170,7 @@ export class OpenAICompatibleSemanticGuardAdapter implements SemanticGuardPort {
         event: 'semantic_guard_provider_failed',
         errorClass: error instanceof Error ? error.name : 'UnknownError',
       })
-      throw normalizeSemanticGuardError(error)
+      throw mapStructuredChatError(error)
     }
   }
 }
@@ -319,76 +249,6 @@ function validateSemanticGuardResponse(
   })
 }
 
-function normalizeSemanticGuardError(error: unknown): SemanticGuardModelError {
-  if (error instanceof SemanticGuardModelError) {
-    return new SemanticGuardModelError(error.code)
-  }
-  return new SemanticGuardModelError(
-    SEMANTIC_GUARD_ERROR_CODE.TRANSPORT_FAILURE,
-  )
-}
-
-function requestHeaders(authorization: string | null): HeadersInit {
-  return authorization === null
-    ? {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      }
-    : {
-        Accept: 'application/json',
-        Authorization: authorization,
-        'Content-Type': 'application/json',
-      }
-}
-
-function parseChatCompletionResponse(body: string) {
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(body)
-  } catch {
-    throw new SemanticGuardModelError(
-      SEMANTIC_GUARD_ERROR_CODE.MALFORMED_OUTPUT,
-    )
-  }
-
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    throw new SemanticGuardModelError(
-      SEMANTIC_GUARD_ERROR_CODE.MALFORMED_OUTPUT,
-    )
-  }
-
-  const choices: unknown = Reflect.get(parsed, 'choices')
-  const choiceList: readonly unknown[] = Array.isArray(choices) ? choices : []
-  const firstChoice: unknown = choiceList[0] ?? null
-  const message: unknown =
-    typeof firstChoice === 'object' && firstChoice !== null
-      ? Reflect.get(firstChoice, 'message')
-      : null
-  const content: unknown =
-    typeof message === 'object' && message !== null
-      ? Reflect.get(message, 'content')
-      : null
-  if (typeof content !== 'string' || content.trim() === '') {
-    throw new SemanticGuardModelError(
-      SEMANTIC_GUARD_ERROR_CODE.MALFORMED_OUTPUT,
-    )
-  }
-
-  const usage: unknown = Reflect.get(parsed, 'usage')
-  return {
-    content,
-    model: optionalString(Reflect.get(parsed, 'model')),
-    inputTokens:
-      typeof usage === 'object' && usage !== null
-        ? optionalTokenCount(Reflect.get(usage, 'prompt_tokens'))
-        : undefined,
-    outputTokens:
-      typeof usage === 'object' && usage !== null
-        ? optionalTokenCount(Reflect.get(usage, 'completion_tokens'))
-        : undefined,
-  }
-}
-
 function parseStructuredOutput(outputText: string): unknown {
   try {
     return JSON.parse(outputText)
@@ -399,38 +259,55 @@ function parseStructuredOutput(outputText: string): unknown {
   }
 }
 
-function httpStatusFailure(status: number): SemanticGuardModelError {
-  if (status === 429) {
-    return new SemanticGuardModelError(SEMANTIC_GUARD_ERROR_CODE.RATE_LIMITED)
+function mapStructuredChatError(error: unknown): SemanticGuardModelError {
+  if (error instanceof SemanticGuardModelError) {
+    return error
   }
-  if (status === 502 || status === 503 || status === 504) {
-    return new SemanticGuardModelError(
-      SEMANTIC_GUARD_ERROR_CODE.PROVIDER_UNAVAILABLE,
-    )
+
+  if (error instanceof StructuredChatTransportError) {
+    const metadata = {
+      ...(error.status === undefined ? {} : { status: error.status }),
+      ...(error.headers === undefined ? {} : { headers: error.headers }),
+    }
+    switch (error.code) {
+      case STRUCTURED_CHAT_ERROR_CODE.TIMEOUT:
+        return new SemanticGuardModelError(
+          SEMANTIC_GUARD_ERROR_CODE.TIMEOUT,
+          metadata,
+        )
+      case STRUCTURED_CHAT_ERROR_CODE.CANCELLED:
+        return new SemanticGuardModelError(
+          SEMANTIC_GUARD_ERROR_CODE.CANCELLED,
+          metadata,
+        )
+      case STRUCTURED_CHAT_ERROR_CODE.RATE_LIMITED:
+        return new SemanticGuardModelError(
+          SEMANTIC_GUARD_ERROR_CODE.RATE_LIMITED,
+          metadata,
+        )
+      case STRUCTURED_CHAT_ERROR_CODE.PROVIDER_UNAVAILABLE:
+        return new SemanticGuardModelError(
+          SEMANTIC_GUARD_ERROR_CODE.PROVIDER_UNAVAILABLE,
+          metadata,
+        )
+      case STRUCTURED_CHAT_ERROR_CODE.MALFORMED_RESPONSE:
+      case STRUCTURED_CHAT_ERROR_CODE.OVERSIZED_RESPONSE:
+        return new SemanticGuardModelError(
+          SEMANTIC_GUARD_ERROR_CODE.MALFORMED_OUTPUT,
+          metadata,
+        )
+      case STRUCTURED_CHAT_ERROR_CODE.HTTP_STATUS:
+      case STRUCTURED_CHAT_ERROR_CODE.TRANSPORT_FAILURE:
+        return new SemanticGuardModelError(
+          SEMANTIC_GUARD_ERROR_CODE.TRANSPORT_FAILURE,
+          metadata,
+        )
+    }
   }
+
   return new SemanticGuardModelError(
     SEMANTIC_GUARD_ERROR_CODE.TRANSPORT_FAILURE,
   )
-}
-
-function toProviderFailure(
-  rejection: BoundedResponseBodyRejection,
-): SemanticGuardModelError {
-  return new SemanticGuardModelError(
-    rejection === 'oversized_body'
-      ? SEMANTIC_GUARD_ERROR_CODE.MALFORMED_OUTPUT
-      : SEMANTIC_GUARD_ERROR_CODE.TRANSPORT_FAILURE,
-  )
-}
-
-function optionalString(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim() !== '' ? value : undefined
-}
-
-function optionalTokenCount(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
-    ? value
-    : undefined
 }
 
 function isBoundedMetadata(value: unknown, maximum: number): value is string {

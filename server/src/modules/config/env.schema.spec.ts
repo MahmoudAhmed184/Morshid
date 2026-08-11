@@ -29,11 +29,27 @@ describe('validateEnv', () => {
       'postgresql://morshid:morshid_local_password@localhost:5432/morshid',
     REDIS_URL: 'redis://localhost:6379',
     PDF_STORAGE_PATH: ' ../storage/pdfs ',
+    SOCRATIC_CHAT_REQUEST_TIMEOUT_MS: 120_000,
     AUTH_ACCESS_TOKEN_SECRET:
       'test-access-token-secret-with-at-least-32-characters',
     AUTH_REFRESH_TOKEN_HASH_SECRET:
       'test-refresh-token-hash-secret-with-at-least-32-characters',
   }
+
+  const composeProductionSocraticRoles = {
+    ANALYSIS_MODEL_PROVIDER: 'openai-compatible',
+    ANALYSIS_MODEL_BASE_URL: 'http://localhost:8000/v1',
+    ANALYSIS_MODEL_NAME: 'Qwen/Qwen2.5-14B-Instruct',
+    ANALYSIS_MODEL_API_KEY: '',
+    TUTOR_MODEL_PROVIDER: 'openai-compatible',
+    TUTOR_MODEL_BASE_URL: 'http://localhost:8000/v1',
+    TUTOR_MODEL_NAME: 'Qwen/Qwen2.5-7B-Instruct',
+    TUTOR_MODEL_API_KEY: '',
+    SEMANTIC_GUARD_PROVIDER: 'openai-compatible',
+    SEMANTIC_GUARD_BASE_URL: 'http://localhost:8000/v1',
+    SEMANTIC_GUARD_MODEL_NAME: 'Qwen/Qwen2.5-7B-Instruct-Guard',
+    SEMANTIC_GUARD_API_KEY: '',
+  } as const
 
   // Every gateway rule is provider-gated, so gateway assertions start from a
   // fully configured aws-bedrock environment.
@@ -69,6 +85,7 @@ describe('validateEnv', () => {
       ANALYSIS_MODEL_NAME: DEFAULT_ANALYSIS_MODEL_NAME,
       ANALYSIS_MODEL_API_KEY: '',
       ANALYSIS_MODEL_TIMEOUT_MS: 30_000,
+      ANALYSIS_MODEL_MAX_COMPLETION_TOKENS: 768,
       ANALYSIS_CONFIDENCE_THRESHOLD: 0.6,
       ANALYSIS_MODEL_MAX_RETRIES: 1,
       TUTOR_MODEL_PROVIDER: 'deterministic',
@@ -76,12 +93,14 @@ describe('validateEnv', () => {
       TUTOR_MODEL_NAME: DEFAULT_TUTOR_MODEL_NAME,
       TUTOR_MODEL_API_KEY: '',
       TUTOR_MODEL_TIMEOUT_MS: 30_000,
+      TUTOR_MODEL_MAX_COMPLETION_TOKENS: 768,
       TUTOR_MODEL_MAX_INFRASTRUCTURE_RETRIES: 1,
       SEMANTIC_GUARD_PROVIDER: 'deterministic',
       SEMANTIC_GUARD_BASE_URL: DEFAULT_SEMANTIC_GUARD_BASE_URL,
       SEMANTIC_GUARD_MODEL_NAME: DEFAULT_SEMANTIC_GUARD_MODEL_NAME,
       SEMANTIC_GUARD_API_KEY: '',
       SEMANTIC_GUARD_TIMEOUT_MS: 30_000,
+      SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: 256,
       GEMINI_MODEL: 'gemini-3.5-flash-lite',
       ITI_BEDROCK_GATEWAY_BASE_URL: DEFAULT_ITI_BEDROCK_GATEWAY_BASE_URL,
       ITI_BEDROCK_ALLOW_INSECURE_HTTP: false,
@@ -91,6 +110,34 @@ describe('validateEnv', () => {
       RETRIEVAL_TOP_K: 5,
       RETRIEVAL_MIN_SIMILARITY: 0.62,
     })
+  })
+
+  it('validates independent output-token budgets for all Socratic roles', () => {
+    expect(
+      validateEnv({
+        ...validEnv,
+        ANALYSIS_MODEL_MAX_COMPLETION_TOKENS: '1024',
+        TUTOR_MODEL_MAX_COMPLETION_TOKENS: '1024',
+        SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: '512',
+      }),
+    ).toMatchObject({
+      ANALYSIS_MODEL_MAX_COMPLETION_TOKENS: 1024,
+      TUTOR_MODEL_MAX_COMPLETION_TOKENS: 1024,
+      SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: 512,
+    })
+
+    expect(() =>
+      validateEnv({ ...validEnv, ANALYSIS_MODEL_MAX_COMPLETION_TOKENS: '63' }),
+    ).toThrow(/ANALYSIS_MODEL_MAX_COMPLETION_TOKENS/)
+    expect(() =>
+      validateEnv({ ...validEnv, TUTOR_MODEL_MAX_COMPLETION_TOKENS: '2049' }),
+    ).toThrow(/TUTOR_MODEL_MAX_COMPLETION_TOKENS/)
+    expect(() =>
+      validateEnv({
+        ...validEnv,
+        SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: '1025',
+      }),
+    ).toThrow(/SEMANTIC_GUARD_MAX_COMPLETION_TOKENS/)
   })
 
   it('coerces and bounds the retrieval top-k value', () => {
@@ -449,10 +496,39 @@ describe('validateEnv', () => {
       ).toThrow(/SEMANTIC_GUARD_PROVIDER/)
     })
 
+    it('rejects deterministic analysis and tutor providers in production', () => {
+      for (const provider of [
+        'ANALYSIS_MODEL_PROVIDER',
+        'TUTOR_MODEL_PROVIDER',
+      ] as const) {
+        expect(() =>
+          validateEnv({
+            ...validEnv,
+            ...composeProductionSocraticRoles,
+            NODE_ENV: 'production',
+            PDF_STORAGE_PATH: '/workspace/storage/pdfs',
+            [provider]: 'deterministic',
+          }),
+        ).toThrow(new RegExp(provider))
+      }
+    })
+
+    it('accepts the Compose production defaults for all live Socratic roles', () => {
+      expect(
+        validateEnv({
+          ...validEnv,
+          ...composeProductionSocraticRoles,
+          NODE_ENV: 'production',
+          PDF_STORAGE_PATH: '/workspace/storage/pdfs',
+        }),
+      ).toMatchObject(composeProductionSocraticRoles)
+    })
+
     it('accepts an independently configured production Semantic Guard', () => {
       expect(
         validateEnv({
           ...validEnv,
+          ...composeProductionSocraticRoles,
           NODE_ENV: 'production',
           PDF_STORAGE_PATH: '/workspace/storage/pdfs',
           SEMANTIC_GUARD_PROVIDER: 'openai-compatible',
@@ -1333,6 +1409,7 @@ describe('validateEnv', () => {
     expect(
       validateEnv({
         ...validEnv,
+        ...composeProductionSocraticRoles,
         NODE_ENV: 'production',
         PDF_STORAGE_PATH: '/workspace/storage/pdfs',
         SEMANTIC_GUARD_PROVIDER: 'openai-compatible',

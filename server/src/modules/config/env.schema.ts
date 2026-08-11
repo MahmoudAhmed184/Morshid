@@ -43,6 +43,10 @@ import {
 } from '../embedding/embedding-configuration'
 import { MAX_PDF_OBJECT_BYTES } from '../pdf-storage/pdf-storage'
 import {
+  DEFAULT_SOCRATIC_CHAT_REQUEST_TIMEOUT_MS,
+  MAX_SOCRATIC_CHAT_REQUEST_TIMEOUT_MS,
+} from '../../common/http/request-deadline'
+import {
   DEFAULT_ANALYSIS_CONFIDENCE_THRESHOLD,
   isValidConfidenceThreshold,
 } from '../socratic-tutor/analysis-confidence-policy'
@@ -52,13 +56,16 @@ import {
 } from '../socratic-tutor/analysis-retry-policy'
 import {
   DEFAULT_ANALYSIS_MODEL_BASE_URL,
+  DEFAULT_ANALYSIS_MODEL_MAX_COMPLETION_TOKENS,
   DEFAULT_ANALYSIS_MODEL_NAME,
   DEFAULT_ANALYSIS_MODEL_TIMEOUT_MS,
   DETERMINISTIC_ANALYSIS_MODEL_PROVIDER,
   MAX_ANALYSIS_MODEL_API_KEY_LENGTH,
   MAX_ANALYSIS_MODEL_BASE_URL_LENGTH,
+  MAX_ANALYSIS_MODEL_MAX_COMPLETION_TOKENS,
   MAX_ANALYSIS_MODEL_NAME_LENGTH,
   MAX_ANALYSIS_MODEL_TIMEOUT_MS,
+  MIN_ANALYSIS_MODEL_MAX_COMPLETION_TOKENS,
   OPENAI_COMPATIBLE_ANALYSIS_MODEL_PROVIDER,
   isValidAnalysisModelName,
   isValidOptionalAnalysisApiKey,
@@ -70,26 +77,32 @@ import {
 } from '../socratic-tutor/tutor-infrastructure-retry.policy'
 import {
   DEFAULT_TUTOR_MODEL_BASE_URL,
+  DEFAULT_TUTOR_MODEL_MAX_COMPLETION_TOKENS,
   DEFAULT_TUTOR_MODEL_NAME,
   DEFAULT_TUTOR_MODEL_TIMEOUT_MS,
   DETERMINISTIC_TUTOR_MODEL_PROVIDER,
   MAX_TUTOR_MODEL_API_KEY_LENGTH,
   MAX_TUTOR_MODEL_BASE_URL_LENGTH,
+  MAX_TUTOR_MODEL_MAX_COMPLETION_TOKENS,
   MAX_TUTOR_MODEL_NAME_LENGTH,
   MAX_TUTOR_MODEL_TIMEOUT_MS,
+  MIN_TUTOR_MODEL_MAX_COMPLETION_TOKENS,
   OPENAI_COMPATIBLE_TUTOR_MODEL_PROVIDER,
   isValidOptionalTutorApiKey,
   isValidTutorModelName,
 } from '../socratic-tutor/tutor-model.configuration'
 import {
   DEFAULT_SEMANTIC_GUARD_BASE_URL,
+  DEFAULT_SEMANTIC_GUARD_MAX_COMPLETION_TOKENS,
   DEFAULT_SEMANTIC_GUARD_MODEL_NAME,
   DEFAULT_SEMANTIC_GUARD_TIMEOUT_MS,
   DETERMINISTIC_SEMANTIC_GUARD_PROVIDER,
   MAX_SEMANTIC_GUARD_API_KEY_LENGTH,
   MAX_SEMANTIC_GUARD_BASE_URL_LENGTH,
+  MAX_SEMANTIC_GUARD_MAX_COMPLETION_TOKENS,
   MAX_SEMANTIC_GUARD_MODEL_NAME_LENGTH,
   MAX_SEMANTIC_GUARD_TIMEOUT_MS,
+  MIN_SEMANTIC_GUARD_MAX_COMPLETION_TOKENS,
   OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER,
   isValidOptionalSemanticGuardApiKey,
   isValidSemanticGuardModelName,
@@ -148,6 +161,12 @@ export const envSchema = z
       .positive()
       .max(MAX_PDF_UPLOAD_BYTES)
       .default(DEFAULT_PDF_MAX_UPLOAD_BYTES),
+    SOCRATIC_CHAT_REQUEST_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .max(MAX_SOCRATIC_CHAT_REQUEST_TIMEOUT_MS)
+      .default(DEFAULT_SOCRATIC_CHAT_REQUEST_TIMEOUT_MS),
     // Only providers with a wired implementation are accepted so the factory
     // never has to reject a configured-but-unimplemented provider at runtime.
     // The deterministic default keeps CI and local work keyless and offline.
@@ -230,6 +249,12 @@ export const envSchema = z
       .positive()
       .max(MAX_ANALYSIS_MODEL_TIMEOUT_MS)
       .default(DEFAULT_ANALYSIS_MODEL_TIMEOUT_MS),
+    ANALYSIS_MODEL_MAX_COMPLETION_TOKENS: z.coerce
+      .number()
+      .int()
+      .min(MIN_ANALYSIS_MODEL_MAX_COMPLETION_TOKENS)
+      .max(MAX_ANALYSIS_MODEL_MAX_COMPLETION_TOKENS)
+      .default(DEFAULT_ANALYSIS_MODEL_MAX_COMPLETION_TOKENS),
     ANALYSIS_CONFIDENCE_THRESHOLD: z.coerce
       .number()
       .refine(
@@ -277,6 +302,12 @@ export const envSchema = z
       .positive()
       .max(MAX_TUTOR_MODEL_TIMEOUT_MS)
       .default(DEFAULT_TUTOR_MODEL_TIMEOUT_MS),
+    TUTOR_MODEL_MAX_COMPLETION_TOKENS: z.coerce
+      .number()
+      .int()
+      .min(MIN_TUTOR_MODEL_MAX_COMPLETION_TOKENS)
+      .max(MAX_TUTOR_MODEL_MAX_COMPLETION_TOKENS)
+      .default(DEFAULT_TUTOR_MODEL_MAX_COMPLETION_TOKENS),
     TUTOR_MODEL_MAX_INFRASTRUCTURE_RETRIES: z.coerce
       .number()
       .int()
@@ -317,6 +348,12 @@ export const envSchema = z
       .positive()
       .max(MAX_SEMANTIC_GUARD_TIMEOUT_MS)
       .default(DEFAULT_SEMANTIC_GUARD_TIMEOUT_MS),
+    SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: z.coerce
+      .number()
+      .int()
+      .min(MIN_SEMANTIC_GUARD_MAX_COMPLETION_TOKENS)
+      .max(MAX_SEMANTIC_GUARD_MAX_COMPLETION_TOKENS)
+      .default(DEFAULT_SEMANTIC_GUARD_MAX_COMPLETION_TOKENS),
     GEMINI_API_KEY: z
       .string()
       .trim()
@@ -621,6 +658,37 @@ export const envSchema = z
         message:
           'deterministic is restricted to tests and local development; production requires an independent semantic guard model',
       })
+    }
+
+    const productionDeterministicProviders = [
+      [
+        'ANALYSIS_MODEL_PROVIDER',
+        env.ANALYSIS_MODEL_PROVIDER,
+        DETERMINISTIC_ANALYSIS_MODEL_PROVIDER,
+        'analysis model',
+      ],
+      [
+        'TUTOR_MODEL_PROVIDER',
+        env.TUTOR_MODEL_PROVIDER,
+        DETERMINISTIC_TUTOR_MODEL_PROVIDER,
+        'tutor model',
+      ],
+    ] as const
+    if (env.NODE_ENV === 'production') {
+      for (const [
+        path,
+        provider,
+        deterministicProvider,
+        role,
+      ] of productionDeterministicProviders) {
+        if (provider === deterministicProvider) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [path],
+            message: `deterministic is restricted to tests and local development; production requires a live ${role} provider`,
+          })
+        }
+      }
     }
 
     if (

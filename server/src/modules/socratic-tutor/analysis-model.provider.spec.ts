@@ -1,8 +1,6 @@
 import {
   ANALYSIS_MODEL_ERROR_CODE,
-  type AnalysisModelPort,
   type AnalysisModelRequest,
-  type AnalysisModelResponse,
   AnalysisModelError,
 } from './analysis-model.port'
 import {
@@ -13,7 +11,6 @@ import {
 import {
   DeterministicAnalysisModelAdapter,
   OpenAICompatibleAnalysisModelAdapter,
-  ValidatedAnalysisModelPort,
 } from './analysis-model.provider'
 import { EDUCATIONAL_ANALYSIS_PROMPT_VERSION } from './educational-analysis.prompt'
 
@@ -84,6 +81,8 @@ describe('OpenAICompatibleAnalysisModelAdapter', () => {
     )
     const adapter = new OpenAICompatibleAnalysisModelAdapter(
       buildOpenAICompatibleConfiguration(),
+      30_000,
+      undefined,
       fetchImplementation,
     )
 
@@ -113,6 +112,7 @@ describe('OpenAICompatibleAnalysisModelAdapter', () => {
         ],
         temperature: 0,
         top_p: 1,
+        max_completion_tokens: 768,
         response_format: {
           type: 'json_object',
         },
@@ -139,6 +139,8 @@ describe('OpenAICompatibleAnalysisModelAdapter', () => {
         ...buildOpenAICompatibleConfiguration(),
         apiKey: 'secret-test-key',
       },
+      30_000,
+      undefined,
       fetchImplementation,
     )
 
@@ -157,10 +159,33 @@ describe('OpenAICompatibleAnalysisModelAdapter', () => {
   ])('maps HTTP %s to %s', async (status, code) => {
     const adapter = new OpenAICompatibleAnalysisModelAdapter(
       buildOpenAICompatibleConfiguration(),
+      30_000,
+      undefined,
       () => Promise.resolve(new Response('{}', { status })),
     )
 
     await expectRejectCode(adapter.analyze(request), code)
+  })
+
+  it('preserves retry metadata from a rate-limited response', async () => {
+    const adapter = new OpenAICompatibleAnalysisModelAdapter(
+      buildOpenAICompatibleConfiguration(),
+      30_000,
+      undefined,
+      () =>
+        Promise.resolve(
+          new Response('{}', {
+            status: 429,
+            headers: { 'retry-after-ms': '75' },
+          }),
+        ),
+    )
+
+    await expect(adapter.analyze(request)).rejects.toMatchObject({
+      code: ANALYSIS_MODEL_ERROR_CODE.RATE_LIMITED,
+      status: 429,
+      headers: expect.any(Headers) as Headers,
+    })
   })
 
   it.each([
@@ -172,6 +197,8 @@ describe('OpenAICompatibleAnalysisModelAdapter', () => {
   ])('rejects malformed provider output %#', async (body) => {
     const adapter = new OpenAICompatibleAnalysisModelAdapter(
       buildOpenAICompatibleConfiguration(),
+      30_000,
+      undefined,
       () => Promise.resolve(new Response(body, { status: 200 })),
     )
 
@@ -179,48 +206,6 @@ describe('OpenAICompatibleAnalysisModelAdapter', () => {
       adapter.analyze(request),
       ANALYSIS_MODEL_ERROR_CODE.MALFORMED_OUTPUT,
     )
-  })
-})
-
-describe('ValidatedAnalysisModelPort', () => {
-  it('maps timeout to a typed failure', async () => {
-    const timeoutController = new AbortController()
-    const provider = new ValidatedAnalysisModelPort(
-      {
-        analyze: () => new Promise<AnalysisModelResponse>(() => undefined),
-      },
-      1,
-      () => timeoutController.signal,
-    )
-
-    const promise = provider.analyze(request)
-    timeoutController.abort()
-
-    await expectRejectCode(promise, ANALYSIS_MODEL_ERROR_CODE.TIMEOUT)
-  })
-
-  it('does not expose provider SDK objects in the validated response', async () => {
-    const provider = new ValidatedAnalysisModelPort(
-      new FakeProvider({
-        rawOutput: validOutput,
-        provider: 'fake-provider',
-        model: 'fake-model',
-        promptVersion: EDUCATIONAL_ANALYSIS_PROMPT_VERSION,
-        inputTokens: 10,
-        outputTokens: 20,
-      }),
-      30_000,
-    )
-
-    await expect(provider.analyze(request)).resolves.toEqual({
-      rawOutput: validOutput,
-      provider: 'fake-provider',
-      model: 'fake-model',
-      promptVersion: EDUCATIONAL_ANALYSIS_PROMPT_VERSION,
-      inputTokens: 10,
-      outputTokens: 20,
-      latencyMs: expect.any(Number) as number,
-    })
   })
 })
 
@@ -249,20 +234,13 @@ describe('DeterministicAnalysisModelAdapter', () => {
   })
 })
 
-class FakeProvider implements AnalysisModelPort {
-  constructor(private readonly response: AnalysisModelResponse) {}
-
-  analyze(_request: AnalysisModelRequest): Promise<AnalysisModelResponse> {
-    return Promise.resolve(this.response)
-  }
-}
-
 function buildOpenAICompatibleConfiguration(): OpenAICompatibleAnalysisConfiguration {
   return {
     baseUrl: 'http://localhost:8000/v1',
     endpoint: 'http://localhost:8000/v1/chat/completions',
     modelName: 'Qwen/Qwen2.5-14B-Instruct',
     apiKey: null,
+    maxCompletionTokens: 768,
   }
 }
 

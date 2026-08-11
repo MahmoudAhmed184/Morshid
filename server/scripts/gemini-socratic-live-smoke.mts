@@ -71,6 +71,7 @@ async function main(): Promise<void> {
       baseUrl: env.ANALYSIS_MODEL_BASE_URL,
       modelName: env.ANALYSIS_MODEL_NAME,
       apiKey: env.ANALYSIS_MODEL_API_KEY,
+      maxCompletionTokens: env.ANALYSIS_MODEL_MAX_COMPLETION_TOKENS,
     },
   })
   const tutorPort = createTutorModelPort({
@@ -80,6 +81,7 @@ async function main(): Promise<void> {
       baseUrl: env.TUTOR_MODEL_BASE_URL,
       modelName: env.TUTOR_MODEL_NAME,
       apiKey: env.TUTOR_MODEL_API_KEY,
+      maxCompletionTokens: env.TUTOR_MODEL_MAX_COMPLETION_TOKENS,
     },
   })
   const semanticGuardPort = createSemanticGuardPort({
@@ -89,6 +91,7 @@ async function main(): Promise<void> {
       baseUrl: env.SEMANTIC_GUARD_BASE_URL,
       modelName: env.SEMANTIC_GUARD_MODEL_NAME,
       apiKey: env.SEMANTIC_GUARD_API_KEY,
+      maxCompletionTokens: env.SEMANTIC_GUARD_MAX_COMPLETION_TOKENS,
     },
   })
 
@@ -126,6 +129,9 @@ async function main(): Promise<void> {
     tutorResponse.rawOutput,
     {
       allowedCitationIds: new Set(generationContext.context.allowedCitationIds),
+      requireGrounding: teachingDecision.guardPolicy.requireGrounding,
+      enforceCitationSupport:
+        teachingDecision.guardPolicy.enforceCitationSupport,
       requireStudentAction: teachingDecision.requireStudentAction,
       reflectionMode: teachingDecision.reflectionMode,
     },
@@ -154,6 +160,9 @@ async function main(): Promise<void> {
     ),
     validationContext: {
       allowedCitationIds: new Set(generationContext.context.allowedCitationIds),
+      requireGrounding: teachingDecision.guardPolicy.requireGrounding,
+      enforceCitationSupport:
+        teachingDecision.guardPolicy.enforceCitationSupport,
       requireStudentAction: teachingDecision.requireStudentAction,
       reflectionMode: teachingDecision.reflectionMode,
       responseIntent: teachingDecision.strategy,
@@ -185,6 +194,9 @@ async function main(): Promise<void> {
     ),
     validationContext: {
       allowedCitationIds: new Set(generationContext.context.allowedCitationIds),
+      requireGrounding: teachingDecision.guardPolicy.requireGrounding,
+      enforceCitationSupport:
+        teachingDecision.guardPolicy.enforceCitationSupport,
       requireStudentAction: teachingDecision.requireStudentAction,
       reflectionMode: teachingDecision.reflectionMode,
       responseIntent: teachingDecision.strategy,

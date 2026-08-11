@@ -29,14 +29,21 @@ export type SemanticGuardErrorCode =
 
 export class SemanticGuardModelError extends Error {
   readonly code: SemanticGuardErrorCode
+  readonly status: number | undefined
+  readonly headers: Headers | undefined
 
-  constructor(code: SemanticGuardErrorCode) {
+  constructor(
+    code: SemanticGuardErrorCode,
+    metadata: { readonly status?: number; readonly headers?: Headers } = {},
+  ) {
     super('Semantic guard model failure')
     Object.defineProperty(this, 'name', {
       configurable: true,
       value: 'SemanticGuardModelError',
     })
     this.code = code
+    this.status = metadata.status
+    this.headers = metadata.headers
   }
 }
 
@@ -75,6 +82,7 @@ export interface SemanticGuardEvaluationInput {
   readonly guardPolicy: TeachingGuardPolicy
   readonly allowedCitationSummaries: readonly TutorEvidenceContext[]
   readonly signal?: AbortSignal
+  readonly deadlineAt?: number
 }
 
 export type SemanticGuardServiceResult =

@@ -14,6 +14,9 @@ export const DEFAULT_ANALYSIS_MODEL_TIMEOUT_MS = DEFAULT_COMPLETION_TIMEOUT_MS
 export const MAX_ANALYSIS_MODEL_TIMEOUT_MS = MAX_COMPLETION_TIMEOUT_MS
 export const DEFAULT_ANALYSIS_MODEL_BASE_URL = 'http://localhost:8000/v1'
 export const DEFAULT_ANALYSIS_MODEL_NAME = 'Qwen/Qwen2.5-14B-Instruct'
+export const DEFAULT_ANALYSIS_MODEL_MAX_COMPLETION_TOKENS = 768
+export const MIN_ANALYSIS_MODEL_MAX_COMPLETION_TOKENS = 64
+export const MAX_ANALYSIS_MODEL_MAX_COMPLETION_TOKENS = 2_048
 export const MAX_ANALYSIS_MODEL_BASE_URL_LENGTH = 2_048
 export const MAX_ANALYSIS_MODEL_NAME_LENGTH = 200
 export const MAX_ANALYSIS_MODEL_API_KEY_LENGTH = 4_096
@@ -29,6 +32,7 @@ export interface OpenAICompatibleAnalysisConfiguration {
   readonly endpoint?: string
   readonly modelName: string
   readonly apiKey: string | null
+  readonly maxCompletionTokens: number
 }
 
 export type AnalysisModelConfiguration =
@@ -90,11 +94,13 @@ export function validateOpenAICompatibleAnalysisConfiguration(
   const baseUrl = Reflect.get(record, 'baseUrl')
   const modelName = Reflect.get(record, 'modelName')
   const apiKey = Reflect.get(record, 'apiKey')
+  const maxCompletionTokens = Reflect.get(record, 'maxCompletionTokens')
 
   if (
     typeof baseUrl !== 'string' ||
     !isValidAnalysisModelName(modelName) ||
-    !isValidOptionalAnalysisApiKey(apiKey)
+    !isValidOptionalAnalysisApiKey(apiKey) ||
+    !isValidAnalysisModelMaxCompletionTokens(maxCompletionTokens)
   ) {
     throw new TypeError('Invalid OpenAI-compatible analysis configuration')
   }
@@ -106,7 +112,19 @@ export function validateOpenAICompatibleAnalysisConfiguration(
     endpoint: `${normalizedBaseUrl}/chat/completions`,
     modelName,
     apiKey: apiKey === null || apiKey.trim() === '' ? null : apiKey,
+    maxCompletionTokens,
   })
+}
+
+export function isValidAnalysisModelMaxCompletionTokens(
+  value: unknown,
+): value is number {
+  return (
+    typeof value === 'number' &&
+    Number.isSafeInteger(value) &&
+    value >= MIN_ANALYSIS_MODEL_MAX_COMPLETION_TOKENS &&
+    value <= MAX_ANALYSIS_MODEL_MAX_COMPLETION_TOKENS
+  )
 }
 
 export function isValidAnalysisModelName(value: unknown): value is string {
