@@ -2,8 +2,8 @@
 
 - **Status:** Approved
 - **Decision date:** 11 August 2026
-- **Implementation state:** Not started
-- **Self-grill:** Complete; owner validation pending
+- **Implementation state:** Complete
+- **Self-grill:** Complete; owner approval recorded
 - **Recorded source branch:** feature/socratic-tutor-v1-phase2
 - **Recorded source SHA:** 22fc7fbdce59fb2248db39a1bfd7b4d0b86f0480
 - **Target implementer:** One GPT-5.6 Luna Max writer

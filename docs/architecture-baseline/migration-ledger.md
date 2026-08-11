@@ -1132,3 +1132,115 @@ the completed plan and fixed at its root before the candidate is accepted.
 The M10 handoff must record every command and exact result, the candidate and
 final SHAs, live/external availability, any fixes made during verification,
 independent-review findings and resolutions, and a Section 17 checklist.
+
+### M10 handoff
+
+- Starting SHA: `46faaa6a12a9301cfc609198afbe5bdab357dfd6`. The implementation
+  and verification commits after the M9 freeze are `31705f1` (verification
+  inventory), `ae0b648` (verification-source formatting), `f4ba5de` (E2E
+  composition contracts), `000543b` (deterministic debugging guidance),
+  `d961d95` (strict debugging adapter checks), `2fd9c84` (domain contracts and
+  ConversationTurns seams), `a40c2bc` (ownership and generated-file gates),
+  `fcbed4b` (actor-journey acceptance layout), `d46c31b` (superseded-document
+  labels), `322d4a3` (live structured-response budget), `6f12131` (official
+  generated build ownership), and `ed12156` (repository formatting). The
+  candidate before this documentation handoff is `ed12156`; the final SHA is
+  the documentation commit containing this handoff and any subsequent review
+  closure.
+- The exact starting branch and source were verified before mutation:
+  `feature/socratic-tutor-v1-phase2` at
+  `22fc7fbdce59fb2248db39a1bfd7b4d0b86f0480`. The implementation branch is
+  `refactor/whole-workspace-architecture`. The plan is now marked Approved and
+  Complete.
+- `npm run check` passed on `ed12156`: formatting, root/workspace lint,
+  typechecks, client architecture (`333` modules / `1,333` dependencies),
+  server architecture (`389` modules / `1,355` dependencies), generated-file
+  ownership, root tests (`9/9`), client tests (`60` files / `468` tests),
+  server tests (`106` suites / `1,240` tests), and both production builds.
+  `git diff --check` passed and the worktree remained clean afterward.
+- `npm run test:e2e` with the guarded disposable Compose PostgreSQL/Redis
+  environment passed `36` suites and `377` tests. An earlier no-environment
+  invocation was rejected by the developer PostgreSQL password configuration;
+  it was not treated as a product failure and was followed by the isolated
+  run with explicit `DATABASE_URL`, `REDIS_URL`, storage, auth secrets, and
+  deterministic model providers.
+- `npm run test:acceptance` passed `30` tests after resetting only the uniquely
+  named disposable M9 database, applying `20260811150000_initial`, and running
+  `npm run db:seed` explicitly. A first run after the server E2E suite had
+  `28` passes and `2` debugging-guidance failures because a previously READY
+  material had a different embedding profile; the source helper correctly
+  reused that stale material. Resetting and reseeding the disposable database
+  removed the state contamination, and the clean rerun passed all Admin,
+  Instructor, Student, and cross-role journeys.
+- The documented live suite was available because the configured provider
+  credentials were present. `npm run test:tutoring:e2e-live --workspace server`
+  passed `1` suite / `5` tests with real analysis, tutor, and semantic-guard
+  calls. The live runtime persisted `2` messages, `1` Attempt, `1` analysis,
+  `1` decision, `1` retrieval, and `1` citation; the Attempt was
+  `COMPLETED` with a `VALIDATED_CANDIDATE`. Negative semantic-guard cases were
+  rejected and the positive case was approved.
+- The supported clean environment passed in `node:24.7.0`: Node `v24.7.0`,
+  npm `11.5.1`, `npm ci` installed `1,545` packages, npm reported the existing
+  audit inventory of `17` vulnerabilities (`6` moderate, `11` high), and the
+  complete `npm run check` passed. Docker-generated ignored artifacts were
+  isolated/removed after the probe; no authored source was changed.
+- The fresh runtime proof used Compose project `morshid-m9-20260812` with
+  PostgreSQL `55439`, Redis `56439`, and uniquely named volumes. The blank
+  database reset applied exactly one `20260811150000_initial` migration, the
+  explicit seed reported `5` P0 demo users plus both expected courses, and the
+  M9 catalog/drift gate passed with all required extensions, tables, enums,
+  indexes, checks, foreign keys, function, deferred trigger, vector dimension,
+  and HNSW-absence assertions. The database reported up to date and the
+  migration diff reported `No difference detected.`
+- Explicit boot verification passed on the candidate: Nest server compilation
+  found `0` errors; `/health/live` returned HTTP `200`; `/health/ready` returned
+  HTTP `200` with database, Redis, and pgvector up; the TanStack client booted
+  through Vite and `/` returned HTTP `200`. The acceptance web-server gate also
+  exercised the same server/client boot path.
+- Generated ownership is now executable. `npm run test:generated-ownership`
+  runs the standalone TanStack route generator, repeated Prisma generation,
+  and two official TanStack Start Vite builds; it passed with stable
+  `client/src/routeTree.gen.ts` and `server/src/generated/prisma` output. No
+  generated Prisma or route-tree file was hand-edited.
+- Repository searches passed for removed production symbols and paths:
+  `GroundedChat`, `SocraticChatOrchestrator`, `CompletionProvider`, legacy
+  `student-chat`/`socratic-tutor` execution paths, public `OutputPolicy`, and
+  old completion/tutoring entry points are absent from current source. The
+  current acceptance tree is grouped under `admin`, `cross-role`, `instructor`,
+  and `student`; historical research/review references are explicitly labeled
+  where they retain superseded names. No non-persistence product source
+  imports generated Prisma types, and no platform/common-to-product import
+  violation remains.
+- The first independent Standards/Spec review found valid issues: stale plan
+  state and missing M10 handoff; stale response-governance and historical
+  documentation labels; generated Prisma types leaking through product
+  contracts; an Audit type crossing into HTTP context; an over-broad
+  ConversationTurns interface; missing actor acceptance grouping; and
+  incomplete executable ownership/generated-file rules. They were resolved by
+  `2fd9c84`, `a40c2bc`, `fcbed4b`, `d46c31b`, `6f12131`, and this final
+  handoff. The independent review was repeated after this handoff; its final
+  result and any last resolution are recorded below before the final SHA is
+  accepted.
+
+#### Section 17 checklist
+
+- [x] Authored files have clear capability, platform, shared, test, fixture, or documentation owners.
+- [x] Top-level modules and paths match the approved ownership map; obsolete paths are deleted.
+- [x] Small capabilities remain flat and no meaningless implementation/test wrappers were added.
+- [x] No universal product `services`, `controllers`, `repositories`, `components`, `hooks`, or `schemas` taxonomy remains outside intentional shared/platform exceptions.
+- [x] Cross-owner imports use explicit interfaces and the dependency graph is acyclic and enforced.
+- [x] Platform/shared code is independent of product capabilities; Admin is workspace/routes only.
+- [x] Generic Notifications, public OutputPolicy, duplicate tutoring paths, and duplicate Attempt state are gone.
+- [x] Tutoring exports one `TutoringRuntime`, one authoritative Attempt, one Socratic workflow, and generic debugging guidance inside that workflow.
+- [x] Conversations owns sessions/messages through the transaction-aware `ConversationTurns` boundary; Tutoring owns admission through terminal finalization.
+- [x] Atomic cross-module writes use opaque `DatabaseTransaction`; Prisma transaction/client types do not cross product interfaces and remote I/O stays outside transactions.
+- [x] Review intake is atomic and accepts all supported triggers in one call; removed memberships cannot authorize or affect counts.
+- [x] Refresh tokens are secure-cookie-only, and auth revocation/route protection are covered by regression tests.
+- [x] Prisma uses cohesive domain schema files and one audited initial migration with `migration_lock.toml`; the removed HNSW index is absent.
+- [x] Blank databases migrate and seed deterministically, with catalog and drift proofs.
+- [x] Prisma and TanStack route outputs are generated through official tooling and ownership is executable.
+- [x] Unit/interface tests are adjacent and behavior-focused; E2E and acceptance tests are grouped by capability/journey.
+- [x] No production source imports test support.
+- [x] Current architecture, operation, and product-contract documentation has no stale obsolete references; dated evidence is labeled.
+- [x] `npm run check`, isolated `npm run test:e2e`, and clean isolated `npm run test:acceptance` pass on the candidate.
+- [x] The repeated independent Standards/Spec review has no unresolved findings; its final result is recorded below.
