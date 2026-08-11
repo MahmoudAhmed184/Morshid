@@ -185,30 +185,27 @@ describe('DeterministicTutorModelAdapter', () => {
 
   it('renders the backend debugging context as a bounded diagnosis', async () => {
     const adapter = new DeterministicTutorModelAdapter()
+    const response = await adapter.generate(debuggingRequest)
+    const output = asRecord(response.rawOutput)
 
-    await expect(adapter.generate(debuggingRequest)).resolves.toMatchObject({
-      rawOutput: {
-        responseIntent: 'DEBUGGING_GUIDANCE',
-        message: expect.stringContaining(
-          'I cannot provide a complete corrected program',
-        ),
-        usedCitationIds: ['retrieval.rank.1'],
-      },
-    })
-    await expect(adapter.generate(debuggingRequest)).resolves.toMatchObject({
-      rawOutput: {
-        message: expect.stringContaining(
-          'The name `num` does not match `nums`.',
-        ),
-      },
-    })
-    await expect(adapter.generate(debuggingRequest)).resolves.toMatchObject({
-      rawOutput: {
-        message: expect.stringContaining('active scope. [1]'),
-      },
-    })
+    expect(output.responseIntent).toBe('DEBUGGING_GUIDANCE')
+    expect(output.usedCitationIds).toEqual(['retrieval.rank.1'])
+    expect(output.message).toEqual(
+      expect.stringContaining('I cannot provide a complete corrected program'),
+    )
+    expect(output.message).toEqual(
+      expect.stringContaining('The name `num` does not match `nums`.'),
+    )
+    expect(output.message).toEqual(expect.stringContaining('active scope. [1]'))
   })
 })
+
+function asRecord(value: unknown): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new TypeError('Expected a tutor response object')
+  }
+  return value as Record<string, unknown>
+}
 
 function buildOpenAICompatibleConfiguration(): OpenAICompatibleTutorConfiguration {
   return {

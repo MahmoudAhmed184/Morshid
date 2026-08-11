@@ -267,10 +267,7 @@ function extractDebuggingGuidance(
 
   try {
     const parsed: unknown = JSON.parse(match.groups.json)
-    const guidance =
-      typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
-        ? Reflect.get(parsed, 'debuggingGuidance')
-        : null
+    const guidance = isRecord(parsed) ? parsed.debuggingGuidance : null
     if (!isDebuggingGuidanceContext(guidance)) {
       return null
     }
@@ -278,6 +275,10 @@ function extractDebuggingGuidance(
   } catch {
     return null
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function isDebuggingGuidanceContext(
