@@ -5,10 +5,10 @@ import {
   AUDIT_TARGET_TYPES,
 } from '../audit/audit.constants'
 import { AuditService, type AuditRequestContext } from '../audit/audit.service'
-import type { AuthenticatedRequestUser } from '../auth/auth.dto'
+import type { AuthenticatedUser } from '../identity/identity.types'
 
 interface MaterialAuditUploadInput {
-  actor: AuthenticatedRequestUser
+  actor: AuthenticatedUser
   courseId: string | null
   unverifiedCourseId?: string | null
   originalFilename?: string | null

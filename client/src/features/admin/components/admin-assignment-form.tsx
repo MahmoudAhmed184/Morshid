@@ -11,10 +11,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import type { CourseMembershipRole } from '@/features/admin/schemas/admin-course.schema'
-import type { AdminManagedUser } from '@/features/admin/schemas/admin-managed-user.schema'
+import type { ManagedUser } from '@/features/user-management/managed-user.schema'
 
 type AdminAssignmentFormProps = {
-  users?: AdminManagedUser[]
+  users?: ManagedUser[]
   assignedUserIds?: Set<string>
   initialValues?: {
     userId?: string

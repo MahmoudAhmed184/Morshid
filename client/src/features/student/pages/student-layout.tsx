@@ -1,7 +1,7 @@
 import { useHydrated } from '@tanstack/react-router'
 
 import { SidebarProvider } from '@/components/ui/sidebar'
-import { AuthLoader } from '@/features/auth/components/auth-loader'
+import { AuthLoader } from '@/features/auth/routing/auth-loader'
 import { StudentChromeProvider } from '@/features/student/components/student-chrome-context'
 import { StudentCourseProvider } from '@/features/student/components/student-course-context'
 import { StudentAppSidebar } from '@/features/student/components/student-app-sidebar'

@@ -11,7 +11,7 @@ import userEvent from '@testing-library/user-event'
 import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ApiError } from '@/features/auth/api/authenticated-api-client'
+import { ApiError } from '@/features/auth/session/authenticated-api-client'
 import { useInstructorCourses } from '@/features/instructor/hooks/use-instructor-courses'
 import {
   useInstructorMaterials,

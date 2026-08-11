@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common'
 
 import { AuditModule } from '../audit/audit.module'
-import { AuthModule } from '../auth/auth.module'
+import { IdentityModule } from '../identity/identity.module'
 import { PrismaModule } from '../prisma/prisma.module'
 import { AdminCoursesAuditService } from './courses/admin-courses.audit.service'
 import { AdminCoursesController } from './courses/admin-courses.controller'
@@ -11,28 +11,11 @@ import {
 } from './courses/admin-courses.repository'
 import { AdminCoursesService } from './courses/admin-courses.service'
 import { AdminAuditController } from './audit/admin-audit.controller'
-import { AdminUsersAuditService } from './users/admin-users.audit.service'
-import { AdminUsersController } from './users/admin-users.controller'
-import {
-  AdminUsersRepository,
-  PrismaAdminUsersRepository,
-} from './users/admin-users.repository'
-import { AdminUsersService } from './users/admin-users.service'
 
 @Module({
-  imports: [PrismaModule, AuditModule, AuthModule],
-  controllers: [
-    AdminUsersController,
-    AdminCoursesController,
-    AdminAuditController,
-  ],
+  imports: [PrismaModule, AuditModule, IdentityModule],
+  controllers: [AdminCoursesController, AdminAuditController],
   providers: [
-    AdminUsersService,
-    AdminUsersAuditService,
-    {
-      provide: AdminUsersRepository,
-      useClass: PrismaAdminUsersRepository,
-    },
     AdminCoursesService,
     AdminCoursesAuditService,
     {

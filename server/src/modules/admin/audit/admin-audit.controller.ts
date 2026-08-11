@@ -20,7 +20,7 @@ import { OpenApiIssuesErrorDto } from '../../../common/http/openapi-error.dto'
 import { ZodValidationPipe } from '../../../common/pipes/zod-validation.pipe'
 import { UserRole } from '../../../generated/prisma/client'
 import { AuditService } from '../../audit/audit.service'
-import { Roles } from '../../auth/roles.decorator'
+import { Roles } from '../../identity/identity.roles'
 import {
   AdminAuditEventListResponseDto,
   adminAuditListQuerySchema,

@@ -6,11 +6,11 @@ import {
   UserRole,
   UserStatus,
 } from '../../generated/prisma/client'
-import type { AuthenticatedRequestUser } from '../auth/auth.dto'
+import type { AuthenticatedUser } from '../identity/identity.types'
 import { InstructorReviewDetailService } from './instructor-review-detail.service'
 
 describe('InstructorReviewDetailService', () => {
-  const user: AuthenticatedRequestUser = {
+  const user: AuthenticatedUser = {
     id: 'instructor-1',
     email: 'instructor@example.test',
     displayName: 'Instructor',

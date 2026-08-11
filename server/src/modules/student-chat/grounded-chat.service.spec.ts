@@ -12,7 +12,7 @@ import {
   UserRole,
   UserStatus,
 } from '../../generated/prisma/client'
-import type { AuthenticatedRequestUser } from '../auth/auth.dto'
+import type { AuthenticatedUser } from '../identity/identity.types'
 import type { PrismaService } from '../prisma/prisma.service'
 import type {
   BeginGroundedChatTurnResult,
@@ -43,7 +43,7 @@ const sessionId = 'eff4bf27-cce3-45d9-b245-4f1d913f0a27'
 const studentMessageId = 'c139776a-0c68-44fe-97f8-e9128aa40458'
 const assistantMessageId = '25587e6e-4e6a-4533-9d4f-97be9e63bd96'
 const attemptId = '95dbec62-d6d5-4544-9fa7-6e265739cb80'
-const user: AuthenticatedRequestUser = {
+const user: AuthenticatedUser = {
   id: '8f9c19d1-eed5-43de-8bd9-995919825f9f',
   email: 'student@morshid.test',
   displayName: 'Student',

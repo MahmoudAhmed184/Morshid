@@ -21,7 +21,7 @@ import {
   TeachingTechnique,
   TutorTurnStatus,
 } from '../src/generated/prisma/client'
-import type { AuthSessionResponse } from '../src/modules/auth/auth.dto'
+import type { IdentitySessionResponse } from '../src/modules/identity/identity.types'
 import { COMPLETION_PROVIDER_TOKEN } from '../src/modules/completion/completion-provider'
 import {
   EMBEDDING_DIMENSIONS,
@@ -524,7 +524,7 @@ describe('Gemini Socratic runtime HTTP live verification', () => {
       .post('/api/v1/auth/sign-in')
       .send({ email, password: P0_DEMO_PASSWORD })
       .expect(200)
-    return (response.body as AuthSessionResponse).accessToken
+    return (response.body as IdentitySessionResponse).accessToken
   }
 
   function sessionsPath(): string {

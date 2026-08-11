@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common'
 
 import type { AuditRequestContext } from '../audit/audit.service'
-import type { AuthenticatedRequestUser } from '../auth/auth.dto'
+import type { AuthenticatedUser } from '../identity/identity.types'
 import { CourseAccessService } from '../courses/course-access.service'
 import { PDF_STORAGE, type PdfStorage } from '../pdf-storage/pdf-storage'
 import { MaterialProcessingScheduler } from './material-processing.scheduler'
@@ -41,7 +41,7 @@ export class MaterialsService {
   async uploadMaterial(
     courseId: string,
     input: { title: unknown; file?: UploadedPdfFile },
-    actor: AuthenticatedRequestUser,
+    actor: AuthenticatedUser,
     requestContext?: AuditRequestContext,
   ): Promise<MaterialResponseDto> {
     const canManage = await this.courseAccessService.canManageCourseMaterials(
@@ -158,7 +158,7 @@ export class MaterialsService {
 
   async listMaterials(
     courseId: string,
-    actor: AuthenticatedRequestUser,
+    actor: AuthenticatedUser,
   ): Promise<MaterialListResponseDto> {
     await this.assertCanManageMaterialsCourse(courseId, actor)
 
@@ -173,7 +173,7 @@ export class MaterialsService {
   async getMaterial(
     courseId: string,
     materialId: string,
-    actor: AuthenticatedRequestUser,
+    actor: AuthenticatedUser,
   ): Promise<MaterialResponseDto> {
     await this.assertCanManageMaterialsCourse(courseId, actor)
 
@@ -194,7 +194,7 @@ export class MaterialsService {
   async getMaterialStatus(
     courseId: string,
     materialId: string,
-    actor: AuthenticatedRequestUser,
+    actor: AuthenticatedUser,
   ): Promise<MaterialStatusDto> {
     await this.assertCanManageMaterialsCourse(courseId, actor)
 
@@ -212,7 +212,7 @@ export class MaterialsService {
 
   private async assertCanManageMaterialsCourse(
     courseId: string,
-    actor: AuthenticatedRequestUser,
+    actor: AuthenticatedUser,
   ): Promise<void> {
     const canManage = await this.courseAccessService.canManageCourseMaterials(
       actor,

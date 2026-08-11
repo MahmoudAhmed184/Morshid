@@ -5,7 +5,7 @@ import type {
   ReviewStatus,
   ReviewTriggerType,
 } from '../../generated/prisma/client'
-import type { AuthenticatedRequestUser } from '../auth/auth.dto'
+import type { AuthenticatedUser } from '../identity/identity.types'
 import type { AuditRequestContext } from '../audit/audit.service'
 import {
   normalizeAutomaticReviewEvidence,
@@ -50,7 +50,7 @@ export class ReviewCaseCreator {
     messageId: string,
     body: CreateReviewRequest,
     idempotencyKey: string,
-    user: AuthenticatedRequestUser,
+    user: AuthenticatedUser,
     requestContext?: AuditRequestContext,
   ): Promise<CreateReviewRequestResponseDto> {
     const record = await this.createOrThrow({

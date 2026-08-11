@@ -9,7 +9,7 @@ import {
   AUDIT_EVENT_ACTIONS,
   AUDIT_TARGET_TYPES,
 } from '../src/modules/audit/audit.constants'
-import type { AuthSessionResponse } from '../src/modules/auth/auth.dto'
+import type { IdentitySessionResponse } from '../src/modules/identity/identity.types'
 import { ADMIN_COURSES_ERROR_CODES } from '../src/modules/admin/courses/admin-courses.errors'
 import type {
   AdminCourseDetailResponseDto,
@@ -24,7 +24,7 @@ import { PrismaService } from '../src/modules/prisma/prisma.service'
 import { RedisService } from '../src/modules/redis/redis.service'
 import { P0_DEMO_PASSWORD } from '../src/seeds/p0-demo.seed'
 import { CourseMembershipRole } from '../src/generated/prisma/client'
-import { AuthTestStore } from './support/auth-test-store'
+import { IdentityTestStore } from './support/identity-test-store'
 import { NoopMaterialProcessingScheduler } from './support/noop-material-processing-scheduler'
 
 const auditUserAgent = 'Morshid admin courses e2e'
@@ -32,7 +32,7 @@ const anyString = expect.any(String) as unknown as string
 
 describe('Admin courses (e2e)', () => {
   let app: INestApplication<App>
-  let store: AuthTestStore
+  let store: IdentityTestStore
 
   function requireUserByEmail(email: string) {
     const user = store.findUserByEmail(email)
@@ -61,7 +61,7 @@ describe('Admin courses (e2e)', () => {
   })
 
   beforeEach(async () => {
-    store = new AuthTestStore()
+    store = new IdentityTestStore()
     jest.clearAllMocks()
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -91,7 +91,7 @@ describe('Admin courses (e2e)', () => {
       .send({ email, password: P0_DEMO_PASSWORD })
       .expect(200)
 
-    return (response.body as AuthSessionResponse).accessToken
+    return (response.body as IdentitySessionResponse).accessToken
   }
 
   const pythonCourseId = '00000000-0000-4000-8000-000000000101'

@@ -1,5 +1,8 @@
-import { apiFetch, apiJson } from '@/features/auth/api/authenticated-api-client'
-import type { ApiFetchOptions } from '@/features/auth/api/authenticated-api-client'
+import {
+  apiFetch,
+  apiJson,
+} from '@/features/auth/session/authenticated-api-client'
+import type { ApiFetchOptions } from '@/features/auth/session/authenticated-api-client'
 import {
   chatMessageHistoryResponseSchema,
   groundedChatTurnResponseSchema,

@@ -13,8 +13,11 @@ import {
 } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useAuthStore } from '@/features/auth/stores/auth.store'
-import type { AuthSession, AuthUser } from '@/features/auth/schemas/auth.schema'
+import { useAuthStore } from '@/features/auth/session/session.store'
+import type {
+  AuthSession,
+  AuthUser,
+} from '@/features/auth/session/session.schema'
 import { InstructorRoutePending } from '@/features/instructor/components/instructor-route-pending'
 import { routeTree } from '@/routeTree.gen'
 import { getAppQueryClient } from '@/lib/query/query-client'
@@ -34,25 +37,21 @@ function createSession(role: AuthUser['role']): AuthSession {
       displayName: `Demo ${role}`,
       role,
       status: 'ACTIVE',
-      courses:
-        role === 'INSTRUCTOR'
-          ? [
-              {
-                id: 'f5bb713c-09b7-42d3-acf3-02f39a902e5a',
-                code: 'PYTHON-PROG-P0',
-                title: 'Python Programming',
-                membershipRole: 'INSTRUCTOR',
-              },
-            ]
-          : [],
     },
     tokenType: 'Bearer',
     accessToken: `${roleSlug}-access-token`,
     accessTokenExpiresAt: '2027-07-11T12:15:00.000Z',
-    refreshToken: `${roleSlug}-refresh-token`,
-    refreshTokenExpiresAt: '2027-07-18T12:00:00.000Z',
   }
 }
+
+const instructorCourses = [
+  {
+    id: 'f5bb713c-09b7-42d3-acf3-02f39a902e5a',
+    code: 'PYTHON-PROG-P0',
+    title: 'Python Programming',
+    membershipRole: 'INSTRUCTOR',
+  },
+]
 
 function renderAtInstructorRoute(
   session: AuthSession,
@@ -84,7 +83,7 @@ function renderAtInstructorRoute(
         return (
           coursesResponse ??
           Response.json({
-            courses: session.user.courses.map(({ id, code, title }) => ({
+            courses: instructorCourses.map(({ id, code, title }) => ({
               id,
               code,
               title,
@@ -96,7 +95,7 @@ function renderAtInstructorRoute(
       }
 
       if (url.endsWith('/api/v1/courses')) {
-        return Response.json({ courses: session.user.courses })
+        return Response.json({ courses: instructorCourses })
       }
 
       if (
@@ -208,9 +207,11 @@ describe('/instructor', () => {
 
   it('shows the route empty state when the Instructor has no manageable course', async () => {
     const session = createSession('INSTRUCTOR')
-    session.user.courses = []
 
-    renderAtInstructorRoute(session)
+    renderAtInstructorRoute(
+      session,
+      Promise.resolve(Response.json({ courses: [] })),
+    )
 
     expect(
       await screen.findByRole('heading', { name: 'No assigned course' }),
@@ -334,7 +335,7 @@ describe('/instructor', () => {
         }
 
         if (url.endsWith('/api/v1/courses')) {
-          return Response.json({ courses: session.user.courses })
+          return Response.json({ courses: instructorCourses })
         }
 
         throw new Error(`Unexpected request: ${url}`)

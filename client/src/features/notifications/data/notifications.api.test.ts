@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import type { ApiError } from '@/features/auth/api/authenticated-api-client'
+import type { ApiError } from '@/features/auth/session/authenticated-api-client'
 
 import {
   getNotifications,

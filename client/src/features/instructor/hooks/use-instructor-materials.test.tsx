@@ -4,8 +4,8 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { AuthSession } from '@/features/auth/schemas/auth.schema'
-import { useAuthStore } from '@/features/auth/stores/auth.store'
+import type { AuthSession } from '@/features/auth/session/session.schema'
+import { useAuthStore } from '@/features/auth/session/session.store'
 import {
   getInstructorMaterialUploadConfiguration,
   listInstructorMaterials,
@@ -56,13 +56,10 @@ const instructorSession: AuthSession = {
     displayName: 'Demo Instructor',
     role: 'INSTRUCTOR',
     status: 'ACTIVE',
-    courses: [],
   },
   tokenType: 'Bearer',
   accessToken: 'instructor-access-token',
   accessTokenExpiresAt: '2027-07-21T12:00:00.000Z',
-  refreshToken: 'instructor-refresh-token',
-  refreshTokenExpiresAt: '2027-07-28T12:00:00.000Z',
 }
 
 function createQueryClient() {

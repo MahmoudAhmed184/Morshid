@@ -9,7 +9,7 @@ import type { App } from 'supertest/types'
 
 import { configureApp } from '../src/app.setup'
 import { AppModule } from '../src/app.module'
-import type { AuthSessionResponse } from '../src/modules/auth/auth.dto'
+import type { IdentitySessionResponse } from '../src/modules/identity/identity.types'
 import {
   DurableMaterialProcessingScheduler,
   MaterialProcessingScheduler,
@@ -100,7 +100,7 @@ describe('Materials persistence and local storage (e2e)', () => {
       .send({ email, password: P0_DEMO_PASSWORD })
       .expect(200)
 
-    return (response.body as AuthSessionResponse).accessToken
+    return (response.body as IdentitySessionResponse).accessToken
   }
 
   function uploadPdf(input: {

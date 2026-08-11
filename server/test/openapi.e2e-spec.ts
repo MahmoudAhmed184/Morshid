@@ -466,7 +466,7 @@ describe('OpenAPI contract (e2e)', () => {
           description: 'Private Student chat session and message persistence.',
         },
         {
-          name: 'admin-users',
+          name: 'user-administration',
           description: 'Administrative user account operations.',
         },
         {
@@ -520,7 +520,7 @@ describe('OpenAPI contract (e2e)', () => {
       const me = getOperation(document, '/api/v1/me', 'get')
 
       expect(signIn).toMatchObject({
-        tags: ['auth'],
+        tags: ['identity'],
         summary: 'Sign in',
         requestBody: {
           content: {
@@ -534,7 +534,7 @@ describe('OpenAPI contract (e2e)', () => {
         content: {
           'application/json': {
             schema: {
-              $ref: '#/components/schemas/AuthSessionResponseDto',
+              $ref: '#/components/schemas/IdentitySessionResponseDto',
             },
           },
         },
@@ -549,21 +549,14 @@ describe('OpenAPI contract (e2e)', () => {
       expect(signIn.security).toBeUndefined()
 
       expect(refresh).toMatchObject({
-        tags: ['auth'],
+        tags: ['identity'],
         summary: 'Refresh authentication session',
-        requestBody: {
-          content: {
-            'application/json': {
-              schema: { $ref: '#/components/schemas/RefreshRequestDto' },
-            },
-          },
-        },
       })
       expect(refresh.responses['200']).toMatchObject({
         content: {
           'application/json': {
             schema: {
-              $ref: '#/components/schemas/AuthSessionResponseDto',
+              $ref: '#/components/schemas/IdentitySessionResponseDto',
             },
           },
         },
@@ -571,19 +564,15 @@ describe('OpenAPI contract (e2e)', () => {
       expect(refresh.responses['200']).toHaveProperty('headers.Set-Cookie')
       expect(Object.keys(refresh.responses).sort()).toEqual([
         '200',
-        '400',
         '401',
         '403',
       ])
-      expect(refresh.security).toEqual(
-        expect.arrayContaining([{}, { 'refresh-session': [] }]),
-      )
+      expect(refresh.security).toEqual([{ 'refresh-session': [] }])
 
       expect(logout).toMatchObject({
-        tags: ['auth'],
+        tags: ['identity'],
         summary: 'Log out',
       })
-      expectRequestSchemaReference(logout, 'RefreshRequestDto')
       expect(logout.responses['204']).toMatchObject({
         headers: {
           'Set-Cookie': {
@@ -599,13 +588,11 @@ describe('OpenAPI contract (e2e)', () => {
         'headers.Set-Cookie.schema.example',
         expect.stringContaining('morshid_refresh=;'),
       )
-      expect(Object.keys(logout.responses).sort()).toEqual(['204', '400'])
-      expect(logout.security).toEqual(
-        expect.arrayContaining([{}, { 'refresh-session': [] }]),
-      )
+      expect(Object.keys(logout.responses).sort()).toEqual(['204'])
+      expect(logout.security).toEqual([{ 'refresh-session': [] }])
 
       expect(me).toMatchObject({
-        tags: ['auth'],
+        tags: ['identity'],
         summary: 'Get current user',
         security: [{ 'access-token': [] }],
       })
@@ -642,18 +629,19 @@ describe('OpenAPI contract (e2e)', () => {
         email: { type: 'string', format: 'email' },
         password: { type: 'string', minLength: 1 },
       })
-      expect(schemas.RefreshRequestDto.required ?? []).not.toContain(
-        'refreshToken',
-      )
-      expect(schemas.AuthCourseSummaryDto.properties).toMatchObject({
-        id: { type: 'string', format: 'uuid' },
-        membershipRole: { nullable: true },
-      })
-      expect(schemas.AuthSessionResponseDto.properties).toMatchObject({
+      expect(schemas.IdentitySessionResponseDto.properties).toMatchObject({
         tokenType: { type: 'string', enum: ['Bearer'] },
         accessTokenExpiresAt: { type: 'string', format: 'date-time' },
-        refreshTokenExpiresAt: { type: 'string', format: 'date-time' },
       })
+      expect(schemas.IdentitySessionResponseDto.properties).not.toHaveProperty(
+        'refreshToken',
+      )
+      expect(schemas.IdentitySessionResponseDto.properties).not.toHaveProperty(
+        'refreshTokenExpiresAt',
+      )
+      expect(schemas.IdentityUserSummaryDto.properties).not.toHaveProperty(
+        'courses',
+      )
     } finally {
       await app.close()
     }
@@ -678,42 +666,42 @@ describe('OpenAPI contract (e2e)', () => {
         {
           path: '/api/v1/admin/users',
           method: 'get',
-          tag: 'admin-users',
+          tag: 'user-administration',
           summary: 'List users',
           statuses: ['200', '400', '401', '403'],
         },
         {
           path: '/api/v1/admin/users',
           method: 'post',
-          tag: 'admin-users',
+          tag: 'user-administration',
           summary: 'Create user',
           statuses: ['201', '400', '401', '403', '409'],
         },
         {
           path: '/api/v1/admin/users/{userId}',
           method: 'patch',
-          tag: 'admin-users',
+          tag: 'user-administration',
           summary: 'Update user',
           statuses: ['200', '400', '401', '403', '404', '409'],
         },
         {
           path: '/api/v1/admin/users/{userId}/disable',
           method: 'patch',
-          tag: 'admin-users',
+          tag: 'user-administration',
           summary: 'Disable user',
           statuses: ['200', '400', '401', '403', '404', '409'],
         },
         {
           path: '/api/v1/admin/users/{userId}/reactivate',
           method: 'patch',
-          tag: 'admin-users',
+          tag: 'user-administration',
           summary: 'Reactivate user',
           statuses: ['200', '400', '401', '403', '404'],
         },
         {
           path: '/api/v1/admin/users/{userId}/reset-password',
           method: 'patch',
-          tag: 'admin-users',
+          tag: 'user-administration',
           summary: 'Reset user password',
           statuses: ['200', '400', '401', '403', '404'],
         },
@@ -742,7 +730,7 @@ describe('OpenAPI contract (e2e)', () => {
       expectResponseSchemaReference(
         listUsers,
         '200',
-        'AdminUserListResponseDto',
+        'ManagedUserListResponseDto',
       )
       expectResponseSchemaReference(
         listUsers,
@@ -757,12 +745,8 @@ describe('OpenAPI contract (e2e)', () => {
       )
 
       const createUser = getOperation(document, '/api/v1/admin/users', 'post')
-      expectRequestSchemaReference(createUser, 'AdminCreateUserRequestDto')
-      expectResponseSchemaReference(
-        createUser,
-        '201',
-        'AdminCreateUserResponseDto',
-      )
+      expectRequestSchemaReference(createUser, 'CreateUserRequestDto')
+      expectResponseSchemaReference(createUser, '201', 'CreateUserResponseDto')
       expectResponseSchemaReference(
         createUser,
         '400',
@@ -775,17 +759,13 @@ describe('OpenAPI contract (e2e)', () => {
         '/api/v1/admin/users/{userId}',
         'patch',
       )
-      expectRequestSchemaReference(updateUser, 'AdminUpdateUserRequestDto')
+      expectRequestSchemaReference(updateUser, 'UpdateUserRequestDto')
       expect(getParameter(updateUser, 'userId')).toMatchObject({
         in: 'path',
         required: true,
         schema: { type: 'string', format: 'uuid' },
       })
-      expectResponseSchemaReference(
-        updateUser,
-        '200',
-        'AdminUpdateUserResponseDto',
-      )
+      expectResponseSchemaReference(updateUser, '200', 'UpdateUserResponseDto')
       expectResponseSchemaReference(updateUser, '409', 'OpenApiErrorDto')
 
       for (const action of ['disable', 'reactivate', 'reset-password']) {
@@ -816,7 +796,7 @@ describe('OpenAPI contract (e2e)', () => {
       expectResponseSchemaReference(
         disableUser,
         '200',
-        'AdminDisableUserResponseDto',
+        'DisableUserResponseDto',
       )
 
       const reactivateUser = getOperation(
@@ -832,7 +812,7 @@ describe('OpenAPI contract (e2e)', () => {
       expectResponseSchemaReference(
         reactivateUser,
         '200',
-        'AdminReactivateUserResponseDto',
+        'ReactivateUserResponseDto',
       )
 
       const resetPassword = getOperation(
@@ -840,14 +820,11 @@ describe('OpenAPI contract (e2e)', () => {
         '/api/v1/admin/users/{userId}/reset-password',
         'patch',
       )
-      expectRequestSchemaReference(
-        resetPassword,
-        'AdminResetUserPasswordRequestDto',
-      )
+      expectRequestSchemaReference(resetPassword, 'ResetUserPasswordRequestDto')
       expectResponseSchemaReference(
         resetPassword,
         '200',
-        'AdminResetUserPasswordResponseDto',
+        'ResetUserPasswordResponseDto',
       )
       expect(resetPassword.responses['400']).toMatchObject({
         content: {
@@ -873,11 +850,11 @@ describe('OpenAPI contract (e2e)', () => {
         maxLength: 50,
         pattern: '^(?=.*[A-Za-z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,50}$',
       }
+      expect(schemas.CreateUserRequestDto.properties.password).toMatchObject(
+        passwordPolicy,
+      )
       expect(
-        schemas.AdminCreateUserRequestDto.properties.password,
-      ).toMatchObject(passwordPolicy)
-      expect(
-        schemas.AdminResetUserPasswordRequestDto.properties.newPassword,
+        schemas.ResetUserPasswordRequestDto.properties.newPassword,
       ).toMatchObject(passwordPolicy)
     } finally {
       await app.close()

@@ -8,7 +8,7 @@ import {
   UserRole,
   UserStatus,
 } from '../../generated/prisma/client'
-import type { AuthenticatedRequestUser } from '../auth/auth.dto'
+import type { AuthenticatedUser } from '../identity/identity.types'
 import type {
   BeginGroundedChatTurnInput,
   BeginGroundedChatTurnResult,
@@ -40,7 +40,7 @@ const codeQuestion = [
   '    return total / len(num)',
   '```',
 ].join('\n')
-const user: AuthenticatedRequestUser = {
+const user: AuthenticatedUser = {
   id: 'diagnosis-failure-user',
   email: 'student@morshid.test',
   displayName: 'Student',

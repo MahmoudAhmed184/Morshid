@@ -5,8 +5,8 @@ import type { App } from 'supertest/types'
 
 import { configureApp } from '../src/app.setup'
 import { AppModule } from '../src/app.module'
-import { AUTH_ERROR_CODES } from '../src/modules/auth/auth.dto'
-import type { AuthSessionResponse } from '../src/modules/auth/auth.dto'
+import { IDENTITY_ERROR_CODES } from '../src/modules/identity/identity.types'
+import type { IdentitySessionResponse } from '../src/modules/identity/identity.types'
 import {
   AUDIT_EVENT_ACTIONS,
   AUDIT_TARGET_TYPES,
@@ -15,16 +15,16 @@ import { MaterialProcessingScheduler } from '../src/modules/materials/material-p
 import { PrismaService } from '../src/modules/prisma/prisma.service'
 import { RedisService } from '../src/modules/redis/redis.service'
 import { P0_DEMO_PASSWORD } from '../src/seeds/p0-demo.seed'
-import { AuthTestStore } from './support/auth-test-store'
+import { IdentityTestStore } from './support/identity-test-store'
 import { NoopMaterialProcessingScheduler } from './support/noop-material-processing-scheduler'
 
-// The Python demo course id seeded by AuthTestStore.
+// The Python demo course id seeded by IdentityTestStore.
 const DEMO_COURSE_ID = '00000000-0000-4000-8000-000000000101'
 const UNKNOWN_COURSE_ID = '11111111-1111-4111-8111-111111111111'
 
 describe('Student chat role-denial auditing (e2e)', () => {
   let app: INestApplication<App>
-  let store: AuthTestStore
+  let store: IdentityTestStore
 
   const redisService = {
     ping: jest.fn().mockResolvedValue('PONG'),
@@ -43,7 +43,7 @@ describe('Student chat role-denial auditing (e2e)', () => {
   })
 
   beforeEach(async () => {
-    store = new AuthTestStore()
+    store = new IdentityTestStore()
     jest.clearAllMocks()
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -72,7 +72,7 @@ describe('Student chat role-denial auditing (e2e)', () => {
       .send({ email, password: P0_DEMO_PASSWORD })
       .expect(200)
 
-    return (response.body as AuthSessionResponse).accessToken
+    return (response.body as IdentitySessionResponse).accessToken
   }
 
   function rbacDeniedAudits() {
@@ -96,7 +96,7 @@ describe('Student chat role-denial auditing (e2e)', () => {
       .set('Authorization', `Bearer ${token}`)
       .expect(403)
       .expect({
-        code: AUTH_ERROR_CODES.INSUFFICIENT_ROLE,
+        code: IDENTITY_ERROR_CODES.INSUFFICIENT_ROLE,
         message: 'Insufficient role',
       })
 

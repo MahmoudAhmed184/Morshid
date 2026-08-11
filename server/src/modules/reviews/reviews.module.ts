@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common'
 
 import { AuditModule } from '../audit/audit.module'
-import { AuthModule } from '../auth/auth.module'
+import { IdentityModule } from '../identity/identity.module'
 import { PrismaModule } from '../prisma/prisma.module'
 import { ReviewCaseController } from './review-case.controller'
 import { StudentReviewDetailController } from './student-review-detail.controller'
@@ -33,7 +33,7 @@ import {
 import { StudentReviewDetailService } from './student-review-detail.service'
 
 @Module({
-  imports: [AuditModule, AuthModule, PrismaModule],
+  imports: [AuditModule, IdentityModule, PrismaModule],
   controllers: [
     ReviewCaseController,
     InstructorReviewQueueController,

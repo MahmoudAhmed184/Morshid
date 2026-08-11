@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
-import type { AuthenticatedRequestUser } from '../auth/auth.dto'
+import type { AuthenticatedUser } from '../identity/identity.types'
 import { reviewNotFoundException } from './review-case.errors'
 import type { StudentReviewDetailDto } from './student-review-detail.dto'
 import { StudentReviewDetailRepository } from './student-review-detail.repository'
@@ -10,7 +10,7 @@ export class StudentReviewDetailService {
   constructor(private readonly repository: StudentReviewDetailRepository) {}
 
   async get(
-    user: AuthenticatedRequestUser,
+    user: AuthenticatedUser,
     reviewCaseId: string,
   ): Promise<StudentReviewDetailDto> {
     const record = await this.repository.findOwned(user.id, reviewCaseId)

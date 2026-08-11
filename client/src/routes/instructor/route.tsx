@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-import { createProtectedRoleRouteOptions } from '@/features/auth/utils/protected-role-route'
+import { createProtectedRoleRouteOptions } from '@/features/auth/routing/protected-role-route'
 import { InstructorLayout } from '@/features/instructor/components/instructor-layout'
 import { InstructorRoutePending } from '@/features/instructor/components/instructor-route-pending'
 

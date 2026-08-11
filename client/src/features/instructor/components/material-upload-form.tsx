@@ -23,7 +23,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { isApiError } from '@/features/auth/api/authenticated-api-client'
+import { isApiError } from '@/features/auth/session/authenticated-api-client'
 import { useUploadInstructorMaterial } from '@/features/instructor/hooks/use-instructor-materials'
 import {
   createInstructorMaterialUploadSchema,

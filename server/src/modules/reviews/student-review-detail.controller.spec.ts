@@ -11,7 +11,7 @@ import {
   UserRole,
   UserStatus,
 } from '../../generated/prisma/client'
-import type { AuthenticatedHttpRequest } from '../auth/auth.guard'
+import type { AuthenticatedHttpRequest } from '../identity/identity.guard'
 import { reviewNotFoundException } from './review-case.errors'
 import { StudentReviewDetailController } from './student-review-detail.controller'
 import { StudentReviewDetailService } from './student-review-detail.service'

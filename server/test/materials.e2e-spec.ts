@@ -6,8 +6,8 @@ import type { App } from 'supertest/types'
 import { configureApp } from '../src/app.setup'
 import { AppModule } from '../src/app.module'
 import { AUDIT_EVENT_ACTIONS } from '../src/modules/audit/audit.constants'
-import type { AuthSessionResponse } from '../src/modules/auth/auth.dto'
-import { AUTH_ERROR_CODES } from '../src/modules/auth/auth.dto'
+import type { IdentitySessionResponse } from '../src/modules/identity/identity.types'
+import { IDENTITY_ERROR_CODES } from '../src/modules/identity/identity.types'
 import { DEFAULT_PDF_MAX_UPLOAD_BYTES } from '../src/modules/config/env.schema'
 import {
   EMBEDDING_PROVIDER_TOKEN,
@@ -30,7 +30,7 @@ import {
   invalidPdfSignature,
   oversizedPdf,
 } from './fixtures/pdf-fixtures'
-import { AuthTestStore } from './support/auth-test-store'
+import { IdentityTestStore } from './support/identity-test-store'
 
 const validPdf = cleanTextPdf('minimal upload test pdf')
 const userAgent = 'Morshid materials e2e'
@@ -84,7 +84,7 @@ class FakeMaterialProcessingScheduler extends MaterialProcessingScheduler {
 
 describe('Materials upload (e2e)', () => {
   let app: INestApplication<App>
-  let store: AuthTestStore
+  let store: IdentityTestStore
   let storage: FakePdfStorage
   let scheduler: FakeMaterialProcessingScheduler
   let embedDocuments: jest.Mock
@@ -95,7 +95,7 @@ describe('Materials upload (e2e)', () => {
   }
 
   beforeEach(async () => {
-    store = new AuthTestStore()
+    store = new IdentityTestStore()
     storage = new FakePdfStorage()
     scheduler = new FakeMaterialProcessingScheduler()
     embedDocuments = jest.fn().mockResolvedValue([])
@@ -141,7 +141,7 @@ describe('Materials upload (e2e)', () => {
       .send({ email, password: P0_DEMO_PASSWORD })
       .expect(200)
 
-    return (response.body as AuthSessionResponse).accessToken
+    return (response.body as IdentitySessionResponse).accessToken
   }
 
   function uploadWithoutFile(input: { token: string; title: string }) {
@@ -310,7 +310,7 @@ describe('Materials upload (e2e)', () => {
     const materialCountBefore = store.materials.size
 
     await uploadPdf({ token, title: 'Student upload' }).expect(403).expect({
-      code: AUTH_ERROR_CODES.INSUFFICIENT_ROLE,
+      code: IDENTITY_ERROR_CODES.INSUFFICIENT_ROLE,
       message: 'Insufficient role',
     })
 

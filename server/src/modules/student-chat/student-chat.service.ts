@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 
-import type { AuthenticatedRequestUser } from '../auth/auth.dto'
+import type { AuthenticatedUser } from '../identity/identity.types'
 import {
   AccessAuditService,
   type AccessAuditActor,
@@ -64,7 +64,7 @@ export class StudentChatService {
   async createSession(
     courseId: string,
     body: CreateChatSessionRequest,
-    user: AuthenticatedRequestUser,
+    user: AuthenticatedUser,
     requestContext?: AuditRequestContext,
   ): Promise<ChatSessionResponseDto> {
     await this.requireActiveStudentMembership(courseId, user.id, requestContext)
@@ -88,7 +88,7 @@ export class StudentChatService {
 
   async listSessions(
     courseId: string,
-    user: AuthenticatedRequestUser,
+    user: AuthenticatedUser,
     query: ListChatSessionsQuery,
     requestContext?: AuditRequestContext,
   ): Promise<ChatSessionListResponseDto> {
@@ -116,7 +116,7 @@ export class StudentChatService {
   async getSession(
     courseId: string,
     sessionId: string,
-    user: AuthenticatedRequestUser,
+    user: AuthenticatedUser,
     requestContext?: AuditRequestContext,
   ): Promise<ChatSessionResponseDto> {
     const session = await this.requireOwnedActiveSession(
@@ -133,7 +133,7 @@ export class StudentChatService {
     courseId: string,
     sessionId: string,
     body: RenameChatSessionRequest,
-    user: AuthenticatedRequestUser,
+    user: AuthenticatedUser,
     requestContext?: AuditRequestContext,
   ): Promise<ChatSessionResponseDto> {
     await this.requireActiveStudentMembership(courseId, user.id, requestContext)
@@ -161,7 +161,7 @@ export class StudentChatService {
   async softDeleteSession(
     courseId: string,
     sessionId: string,
-    user: AuthenticatedRequestUser,
+    user: AuthenticatedUser,
     requestContext?: AuditRequestContext,
   ): Promise<void> {
     await this.requireActiveStudentMembership(courseId, user.id, requestContext)
@@ -189,7 +189,7 @@ export class StudentChatService {
   async listMessages(
     courseId: string,
     sessionId: string,
-    user: AuthenticatedRequestUser,
+    user: AuthenticatedUser,
     query: ListChatMessagesQuery,
     requestContext?: AuditRequestContext,
   ): Promise<ChatMessageHistoryResponseDto> {

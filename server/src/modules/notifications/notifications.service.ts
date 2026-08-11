@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
 import { NotificationType } from '../../generated/prisma/client'
-import type { AuthenticatedRequestUser } from '../auth/auth.dto'
+import type { AuthenticatedUser } from '../identity/identity.types'
 import type {
   NotificationListQuery,
   NotificationListResponseDto,
@@ -19,7 +19,7 @@ export class NotificationsService {
   constructor(private readonly repository: NotificationsRepository) {}
 
   async list(
-    user: AuthenticatedRequestUser,
+    user: AuthenticatedUser,
     query: NotificationListQuery,
   ): Promise<NotificationListResponseDto> {
     const page = await this.repository.list(user.id, query.cursor, query.limit)
@@ -30,13 +30,13 @@ export class NotificationsService {
   }
 
   async unreadCount(
-    user: AuthenticatedRequestUser,
+    user: AuthenticatedUser,
   ): Promise<NotificationUnreadCountDto> {
     return { unreadCount: await this.repository.countUnread(user.id) }
   }
 
   async markRead(
-    user: AuthenticatedRequestUser,
+    user: AuthenticatedUser,
     notificationId: string,
   ): Promise<StudentNotificationDto> {
     const notification = await this.repository.markRead(user.id, notificationId)

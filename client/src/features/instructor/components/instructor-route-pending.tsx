@@ -1,5 +1,5 @@
-import { AuthLoader } from '@/features/auth/components/auth-loader'
-import { useAuthStore } from '@/features/auth/stores/auth.store'
+import { AuthLoader } from '@/features/auth/routing/auth-loader'
+import { useAuthStore } from '@/features/auth/session/session.store'
 import { InstructorLayout } from '@/features/instructor/components/instructor-layout'
 
 /**

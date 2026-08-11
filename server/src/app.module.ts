@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
 
 import { AuditModule } from './modules/audit/audit.module'
-import { AuthModule } from './modules/auth/auth.module'
+import { IdentityModule } from './modules/identity/identity.module'
 import { CompletionModule } from './modules/completion/completion.module'
 import { CONFIG_ENV_FILE_PATHS } from './modules/config/configuration'
 import { validateEnv } from './modules/config/env.schema'
@@ -29,7 +29,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     }),
     AuditModule,
     HealthModule,
-    AuthModule,
+    IdentityModule,
     CoursesModule,
     AdminModule,
     StudentChatModule,

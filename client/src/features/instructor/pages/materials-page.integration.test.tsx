@@ -4,8 +4,8 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { AuthSession } from '@/features/auth/schemas/auth.schema'
-import { useAuthStore } from '@/features/auth/stores/auth.store'
+import type { AuthSession } from '@/features/auth/session/session.schema'
+import { useAuthStore } from '@/features/auth/session/session.store'
 import { instructorCoursesQueryOptions } from '@/features/instructor/data/instructor-dashboard.queries'
 import { listInstructorMaterials } from '@/features/instructor/data/instructor-materials.api'
 import type * as InstructorMaterialsApi from '@/features/instructor/data/instructor-materials.api'
@@ -52,13 +52,10 @@ const session: AuthSession = {
     displayName: 'Demo Instructor',
     role: 'INSTRUCTOR',
     status: 'ACTIVE',
-    courses: [],
   },
   tokenType: 'Bearer',
   accessToken: 'instructor-access-token',
   accessTokenExpiresAt: '2027-07-21T12:00:00.000Z',
-  refreshToken: 'instructor-refresh-token',
-  refreshTokenExpiresAt: '2027-07-28T12:00:00.000Z',
 }
 
 const listInstructorMaterialsMock = vi.mocked(listInstructorMaterials)

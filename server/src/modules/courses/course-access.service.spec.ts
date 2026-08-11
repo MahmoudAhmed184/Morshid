@@ -3,7 +3,7 @@ import {
   UserRole,
   UserStatus,
 } from '../../generated/prisma/client'
-import type { AuthenticatedRequestUser } from '../auth/auth.dto'
+import type { AuthenticatedUser } from '../identity/identity.types'
 import { CourseAccessService } from './course-access.service'
 import { CoursesRepository } from './courses.repository'
 
@@ -53,7 +53,7 @@ class CourseAccessTestRepository extends CoursesRepository {
   }
 }
 
-function buildUser(id: string, role: UserRole): AuthenticatedRequestUser {
+function buildUser(id: string, role: UserRole): AuthenticatedUser {
   return {
     id,
     email: `${id}@morshid.demo`,

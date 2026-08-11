@@ -3,8 +3,8 @@ import { act, cleanup, renderHook } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { AuthSession } from '@/features/auth/schemas/auth.schema'
-import { useAuthStore } from '@/features/auth/stores/auth.store'
+import type { AuthSession } from '@/features/auth/session/session.schema'
+import { useAuthStore } from '@/features/auth/session/session.store'
 import {
   rejectReviewCase,
   resolveReviewCase,
@@ -30,13 +30,10 @@ const session: AuthSession = {
     displayName: 'Instructor',
     role: 'INSTRUCTOR',
     status: 'ACTIVE',
-    courses: [],
   },
   tokenType: 'Bearer',
   accessToken: 'access-token',
   accessTokenExpiresAt: '2027-07-31T10:00:00.000Z',
-  refreshToken: 'refresh-token',
-  refreshTokenExpiresAt: '2027-08-07T10:00:00.000Z',
 }
 
 describe('Instructor review action hooks', () => {

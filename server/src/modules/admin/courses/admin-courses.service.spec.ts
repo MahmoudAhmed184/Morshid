@@ -6,7 +6,7 @@ import {
   UserRole,
   UserStatus,
 } from '../../../generated/prisma/client'
-import type { AuthenticatedRequestUser } from '../../auth/auth.dto'
+import type { AuthenticatedUser } from '../../identity/identity.types'
 import { ADMIN_COURSES_ERROR_CODES } from './admin-courses.errors'
 import {
   AdminCoursesRepository,
@@ -227,7 +227,7 @@ class AdminCoursesServiceTestRepository extends AdminCoursesRepository {
 }
 
 describe('AdminCoursesService', () => {
-  const actor: AuthenticatedRequestUser = {
+  const actor: AuthenticatedUser = {
     id: 'admin-user',
     email: 'admin@morshid.demo',
     displayName: 'Demo Admin',

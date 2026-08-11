@@ -1,6 +1,6 @@
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 
-import { useAuthStore } from '@/features/auth/stores/auth.store'
+import { useAuthStore } from '@/features/auth/session/session.store'
 import { studentCoursesQueryOptions } from '@/features/student/data/student-courses.queries'
 import type { StudentCourse } from '@/features/student/schemas/student-course.schema'
 

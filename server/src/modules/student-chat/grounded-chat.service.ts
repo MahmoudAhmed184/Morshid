@@ -7,7 +7,7 @@ import {
   MessageRequestKind,
   Prisma,
 } from '../../generated/prisma/client'
-import type { AuthenticatedRequestUser } from '../auth/auth.dto'
+import type { AuthenticatedUser } from '../identity/identity.types'
 import type { AuditRequestContext } from '../audit/audit.service'
 import { PrismaService } from '../prisma/prisma.service'
 import {
@@ -175,7 +175,7 @@ export class GroundedChatService {
     courseId: string,
     sessionId: string,
     body: SendStudentChatMessageRequest,
-    user: AuthenticatedRequestUser,
+    user: AuthenticatedUser,
     requestContext?: AuditRequestContext,
     requestBudget?: RequestBudget,
   ): Promise<GroundedChatTurnResponseDto> {
@@ -255,7 +255,7 @@ export class GroundedChatService {
     courseId: string,
     sessionId: string,
     studentMessageId: string,
-    user: AuthenticatedRequestUser,
+    user: AuthenticatedUser,
     requestContext?: AuditRequestContext,
     requestBudget?: RequestBudget,
   ): Promise<GroundedChatTurnResponseDto> {

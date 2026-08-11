@@ -14,7 +14,7 @@ import {
   TeachingStrategy,
   TeachingTechnique,
 } from '../src/generated/prisma/client'
-import type { AuthSessionResponse } from '../src/modules/auth/auth.dto'
+import type { IdentitySessionResponse } from '../src/modules/identity/identity.types'
 import {
   COMPLETION_PROVIDER_TOKEN,
   type CompletionProvider,
@@ -437,7 +437,7 @@ describe('Authorized grounded chat orchestration (e2e)', () => {
       .send({ email, password: P0_DEMO_PASSWORD })
       .expect(200)
 
-    return (response.body as AuthSessionResponse).accessToken
+    return (response.body as IdentitySessionResponse).accessToken
   }
 
   function sessionsPath(courseId = pythonCourseId): string {

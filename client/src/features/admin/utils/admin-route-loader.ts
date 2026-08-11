@@ -4,8 +4,8 @@ import {
   adminCourseMembersQueryOptions,
   adminCoursesQueryOptions,
 } from '@/features/admin/data/admin-courses.queries'
-import { adminUsersInfiniteQueryOptions } from '@/features/admin/data/admin-users.queries'
-import { useAuthStore } from '@/features/auth/stores/auth.store'
+import { managedUsersInfiniteQueryOptions } from '@/features/user-management/user-management.queries'
+import { useAuthStore } from '@/features/auth/session/session.store'
 import { getAppQueryClient } from '@/lib/query/query-client'
 
 function getAdminLoaderContext() {
@@ -21,7 +21,7 @@ function getAdminLoaderContext() {
 export async function loadAdminUsersRoute() {
   const { adminId, queryClient } = getAdminLoaderContext()
   await queryClient.ensureInfiniteQueryData(
-    adminUsersInfiniteQueryOptions(adminId),
+    managedUsersInfiniteQueryOptions(adminId),
   )
 }
 
@@ -35,7 +35,7 @@ export async function loadAdminAssignmentsRoute() {
   const [courses] = await Promise.all([
     queryClient.ensureQueryData(adminCoursesQueryOptions(adminId)),
     queryClient.ensureInfiniteQueryData(
-      adminUsersInfiniteQueryOptions(adminId),
+      managedUsersInfiniteQueryOptions(adminId),
     ),
   ])
   const firstCourse = courses.at(0)
@@ -71,7 +71,7 @@ export async function loadAdminDashboardRoute() {
 
   await Promise.all([
     queryClient.ensureInfiniteQueryData(
-      adminUsersInfiniteQueryOptions(adminId),
+      managedUsersInfiniteQueryOptions(adminId),
     ),
     queryClient.ensureQueryData(adminCoursesQueryOptions(adminId)),
     queryClient.ensureQueryData(adminAuditQueryOptions(adminId, 5)),

@@ -10,7 +10,7 @@ import {
   UserRole,
   UserStatus,
 } from '../../generated/prisma/client'
-import type { AuthenticatedRequestUser } from '../auth/auth.dto'
+import type { AuthenticatedUser } from '../identity/identity.types'
 import type { AccessAuditService } from '../audit/access-audit.service'
 import type { StudentChatAuditService } from './student-chat.audit.service'
 import {
@@ -1087,7 +1087,7 @@ describe('StudentChatService', () => {
   })
 })
 
-function buildUser(id: string, role: UserRole): AuthenticatedRequestUser {
+function buildUser(id: string, role: UserRole): AuthenticatedUser {
   return {
     id,
     email: `${id}@morshid.demo`,

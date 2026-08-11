@@ -2,7 +2,7 @@ import { useRouterState } from '@tanstack/react-router'
 import { createContext, useContext, useEffect, useMemo } from 'react'
 import type { ReactNode } from 'react'
 
-import { useAuthStore } from '@/features/auth/stores/auth.store'
+import { useAuthStore } from '@/features/auth/session/session.store'
 import { useStudentCourses } from '@/features/student/hooks/use-student-courses'
 import type { StudentCourse } from '@/features/student/schemas/student-course.schema'
 

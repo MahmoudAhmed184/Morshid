@@ -5,7 +5,7 @@ import {
   UserRole,
   UserStatus,
 } from '../../generated/prisma/client'
-import type { AuthenticatedHttpRequest } from '../auth/auth.guard'
+import type { AuthenticatedHttpRequest } from '../identity/identity.guard'
 import { ReviewCaseController } from './review-case.controller'
 import type { ReviewCaseCreator } from './review-case.creator'
 

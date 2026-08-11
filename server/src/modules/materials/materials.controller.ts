@@ -38,8 +38,8 @@ import {
   AUDIT_TARGET_TYPES,
 } from '../audit/audit.constants'
 import { AuditRoleDenial } from '../audit/role-denial-audit.decorator'
-import type { AuthenticatedHttpRequest } from '../auth/auth.guard'
-import { Roles } from '../auth/roles.decorator'
+import type { AuthenticatedHttpRequest } from '../identity/identity.guard'
+import { Roles } from '../identity/identity.roles'
 import {
   MaterialListResponseDto,
   MaterialResponseDto,

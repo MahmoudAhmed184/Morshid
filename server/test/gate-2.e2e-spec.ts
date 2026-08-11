@@ -12,7 +12,7 @@ import { restoreGate2RetrievalEnvironment } from './support/gate-2-retrieval-env
 import { configureApp } from '../src/app.setup'
 import { AppModule } from '../src/app.module'
 import { AUDIT_EVENT_ACTIONS } from '../src/modules/audit/audit.constants'
-import type { AuthSessionResponse } from '../src/modules/auth/auth.dto'
+import type { IdentitySessionResponse } from '../src/modules/identity/identity.types'
 import { createCompletionProvider } from '../src/modules/completion/completion-provider.factory'
 import {
   COMPLETION_PROVIDER_TOKEN,
@@ -666,7 +666,7 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
       .post('/api/v1/auth/sign-in')
       .send({ email, password: P0_DEMO_PASSWORD })
       .expect(200)
-    return (response.body as AuthSessionResponse).accessToken
+    return (response.body as IdentitySessionResponse).accessToken
   }
 
   async function createGate2Session(

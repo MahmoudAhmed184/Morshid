@@ -6,7 +6,7 @@ import {
   instructorMaterialUploadConfigurationQueryOptions,
   instructorMaterialsQueryOptions,
 } from '@/features/instructor/data/instructor-materials.queries'
-import { useAuthStore } from '@/features/auth/stores/auth.store'
+import { useAuthStore } from '@/features/auth/session/session.store'
 
 interface UploadInstructorMaterialVariables {
   courseId: string

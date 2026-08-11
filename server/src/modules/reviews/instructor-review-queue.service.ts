@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
 import { ReviewStatus } from '../../generated/prisma/client'
-import type { AuthenticatedRequestUser } from '../auth/auth.dto'
+import type { AuthenticatedUser } from '../identity/identity.types'
 import { reviewNotFoundException } from './review-case.errors'
 import type {
   InstructorReviewQueueQuery,
@@ -14,7 +14,7 @@ export class InstructorReviewQueueService {
   constructor(private readonly repository: InstructorReviewQueueRepository) {}
 
   async list(
-    user: AuthenticatedRequestUser,
+    user: AuthenticatedUser,
     query: InstructorReviewQueueQuery,
     now = new Date(),
   ): Promise<InstructorReviewQueueResponseDto> {

@@ -11,8 +11,8 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { PageHeader } from '@/components/ui/custom/page-header'
-import { SignOutButton } from '@/features/auth/components/sign-out-button'
-import { useAuthStore } from '@/features/auth/stores/auth.store'
+import { SignOutButton } from '@/features/auth/session/sign-out-button'
+import { useAuthStore } from '@/features/auth/session/session.store'
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/providers/theme-provider'
 

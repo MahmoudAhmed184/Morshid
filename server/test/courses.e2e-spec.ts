@@ -5,7 +5,7 @@ import type { App } from 'supertest/types'
 
 import { configureApp } from '../src/app.setup'
 import { AppModule } from '../src/app.module'
-import type { AuthSessionResponse } from '../src/modules/auth/auth.dto'
+import type { IdentitySessionResponse } from '../src/modules/identity/identity.types'
 import type { CourseListResponseDto } from '../src/modules/courses/courses.dto'
 import {
   CoursesRepository,
@@ -20,7 +20,7 @@ import {
   UserStatus,
 } from '../src/generated/prisma/client'
 import { P0_DEMO_PASSWORD } from '../src/seeds/p0-demo.seed'
-import { AuthTestStore } from './support/auth-test-store'
+import { IdentityTestStore } from './support/identity-test-store'
 import { NoopMaterialProcessingScheduler } from './support/noop-material-processing-scheduler'
 
 const createdAt = new Date('2026-07-06T00:00:00.000Z')
@@ -140,7 +140,7 @@ describe('Courses (e2e)', () => {
   })
 
   beforeEach(async () => {
-    const store = new AuthTestStore()
+    const store = new IdentityTestStore()
     jest.clearAllMocks()
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -171,7 +171,7 @@ describe('Courses (e2e)', () => {
       .send({ email, password: P0_DEMO_PASSWORD })
       .expect(200)
 
-    return (response.body as AuthSessionResponse).accessToken
+    return (response.body as IdentitySessionResponse).accessToken
   }
 
   async function listCoursesAs(email: string) {

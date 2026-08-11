@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common'
 
-import { AuthModule } from '../auth/auth.module'
+import { IdentityModule } from '../identity/identity.module'
 import { PrismaModule } from '../prisma/prisma.module'
 import { NotificationsController } from './notifications.controller'
 import {
@@ -10,7 +10,7 @@ import {
 import { NotificationsService } from './notifications.service'
 
 @Module({
-  imports: [AuthModule, PrismaModule],
+  imports: [IdentityModule, PrismaModule],
   controllers: [NotificationsController],
   providers: [
     NotificationsService,

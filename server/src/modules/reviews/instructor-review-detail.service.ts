@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
 import { MessageRole } from '../../generated/prisma/client'
-import type { AuthenticatedRequestUser } from '../auth/auth.dto'
+import type { AuthenticatedUser } from '../identity/identity.types'
 import { reviewNotFoundException } from './review-case.errors'
 import type {
   InstructorReviewDetailDto,
@@ -19,7 +19,7 @@ export class InstructorReviewDetailService {
   constructor(private readonly repository: InstructorReviewDetailRepository) {}
 
   async get(
-    user: AuthenticatedRequestUser,
+    user: AuthenticatedUser,
     reviewCaseId: string,
   ): Promise<InstructorReviewDetailDto> {
     const record = await this.repository.findAuthorized(user.id, reviewCaseId)

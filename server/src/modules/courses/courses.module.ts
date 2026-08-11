@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common'
 
-import { AuthModule } from '../auth/auth.module'
+import { IdentityModule } from '../identity/identity.module'
 import { PrismaModule } from '../prisma/prisma.module'
 import { CourseAccessService } from './course-access.service'
 import { CoursesController } from './courses.controller'
@@ -11,7 +11,7 @@ import {
 import { CoursesService } from './courses.service'
 
 @Module({
-  imports: [PrismaModule, AuthModule],
+  imports: [PrismaModule, IdentityModule],
   controllers: [CoursesController],
   providers: [
     CoursesService,

@@ -30,8 +30,8 @@ import {
   SidebarTrigger,
   useSidebar,
 } from '@/components/ui/sidebar'
-import { useLogout } from '@/features/auth/hooks/use-logout'
-import { useAuthStore } from '@/features/auth/stores/auth.store'
+import { useLogout } from '@/features/auth/session/use-logout'
+import { useAuthStore } from '@/features/auth/session/session.store'
 import { useTheme } from '@/providers/theme-provider'
 import { cn } from '@/lib/utils'
 

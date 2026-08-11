@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 
-import { useAuthStore } from '@/features/auth/stores/auth.store'
+import { useAuthStore } from '@/features/auth/session/session.store'
 import { studentReviewDetailQueryOptions } from '@/features/student/data/student-reviews.queries'
 
 interface UseStudentReviewDetailInput {

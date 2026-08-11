@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
 import { CourseMembershipRole } from '../../../generated/prisma/client'
-import type { AuthenticatedRequestUser } from '../../auth/auth.dto'
+import type { AuthenticatedUser } from '../../identity/identity.types'
 import type { AuditRequestContext } from '../../audit/audit.service'
 import type {
   AdminAddCourseMemberRequest,
@@ -61,7 +61,7 @@ export class AdminCoursesService {
 
   async createCourse(
     input: AdminCreateCourseRequest,
-    actor: AuthenticatedRequestUser,
+    actor: AuthenticatedUser,
     requestContext?: AuditRequestContext,
   ): Promise<AdminCourseDetailResponseDto> {
     const existingCourse = await this.adminCoursesRepository.findCourseByCode(
@@ -95,7 +95,7 @@ export class AdminCoursesService {
   async updateCourse(
     courseId: string,
     input: AdminUpdateCourseRequest,
-    actor: AuthenticatedRequestUser,
+    actor: AuthenticatedUser,
     requestContext?: AuditRequestContext,
   ): Promise<AdminCourseDetailResponseDto> {
     const existingCourse =
@@ -139,7 +139,7 @@ export class AdminCoursesService {
   async addMember(
     courseId: string,
     input: AdminAddCourseMemberRequest,
-    actor: AuthenticatedRequestUser,
+    actor: AuthenticatedUser,
     requestContext?: AuditRequestContext,
   ): Promise<AdminCourseMemberResponseDto> {
     const course = await this.adminCoursesRepository.findCourseById(courseId)
@@ -190,7 +190,7 @@ export class AdminCoursesService {
   async removeMember(
     courseId: string,
     userId: string,
-    actor: AuthenticatedRequestUser,
+    actor: AuthenticatedUser,
     requestContext?: AuditRequestContext,
   ): Promise<void> {
     const course = await this.adminCoursesRepository.findCourseById(courseId)
@@ -236,7 +236,7 @@ export class AdminCoursesService {
     courseId: string,
     userId: string,
     input: AdminUpdateMemberRoleRequest,
-    actor: AuthenticatedRequestUser,
+    actor: AuthenticatedUser,
     requestContext?: AuditRequestContext,
   ): Promise<AdminCourseMemberResponseDto> {
     const course = await this.adminCoursesRepository.findCourseById(courseId)
@@ -309,7 +309,7 @@ export class AdminCoursesService {
     courseId: string,
     materialId: string,
     input: AdminUpdateMaterialRequest,
-    actor: AuthenticatedRequestUser,
+    actor: AuthenticatedUser,
     requestContext?: AuditRequestContext,
   ): Promise<AdminMaterialResponseDto> {
     const course = await this.adminCoursesRepository.findCourseById(courseId)

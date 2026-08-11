@@ -45,9 +45,9 @@ import { createRequestBudget } from '../../common/http/request-deadline'
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe'
 import { getRequestContext } from '../../common/http/request-context'
 import { UserRole } from '../../generated/prisma/client'
-import type { AuthenticatedHttpRequest } from '../auth/auth.guard'
+import type { AuthenticatedHttpRequest } from '../identity/identity.guard'
 import type { AppEnvironment } from '../config/env.schema'
-import { Roles } from '../auth/roles.decorator'
+import { Roles } from '../identity/identity.roles'
 import { StudentChatCourseBoundaryAuditFilter } from './student-chat-course-boundary-audit.filter'
 import {
   ChatMessageHistoryResponseDto,

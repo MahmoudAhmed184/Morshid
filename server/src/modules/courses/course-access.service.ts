@@ -5,7 +5,7 @@ import {
   UserRole,
   type CourseMembershipRole as CourseMembershipRoleType,
 } from '../../generated/prisma/client'
-import type { AuthenticatedRequestUser } from '../auth/auth.dto'
+import type { AuthenticatedUser } from '../identity/identity.types'
 import { getCourseRolePolicy } from './course-access.policy'
 import { CoursesRepository } from './courses.repository'
 
@@ -14,7 +14,7 @@ export class CourseAccessService {
   constructor(private readonly coursesRepository: CoursesRepository) {}
 
   async canViewCourse(
-    user: AuthenticatedRequestUser,
+    user: AuthenticatedUser,
     courseId: string,
   ): Promise<boolean> {
     const policy = getCourseRolePolicy(user.role)
@@ -31,7 +31,7 @@ export class CourseAccessService {
   }
 
   async canManageCourse(
-    user: AuthenticatedRequestUser,
+    user: AuthenticatedUser,
     courseId: string,
   ): Promise<boolean> {
     const policy = getCourseRolePolicy(user.role)
@@ -44,7 +44,7 @@ export class CourseAccessService {
   }
 
   async canManageCourseMaterials(
-    user: AuthenticatedRequestUser,
+    user: AuthenticatedUser,
     courseId: string,
   ): Promise<boolean> {
     if (user.role === UserRole.ADMIN) {

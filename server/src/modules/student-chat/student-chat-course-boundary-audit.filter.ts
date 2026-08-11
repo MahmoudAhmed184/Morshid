@@ -12,12 +12,12 @@ import {
   getRouteContext,
 } from '../../common/http/request-context'
 import type { AccessAuditActor } from '../audit/access-audit.service'
-import type { AuthenticatedRequestUser } from '../auth/auth.dto'
+import type { AuthenticatedUser } from '../identity/identity.types'
 import { STUDENT_CHAT_ERROR_CODES } from './student-chat.errors'
 import { StudentChatService } from './student-chat.service'
 
 interface CourseScopedHttpRequest extends Request {
-  user?: AuthenticatedRequestUser
+  user?: AuthenticatedUser
 }
 
 /**

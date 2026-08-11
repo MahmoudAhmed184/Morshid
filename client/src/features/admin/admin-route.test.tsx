@@ -8,8 +8,8 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { AuthSession } from '@/features/auth/schemas/auth.schema'
-import { useAuthStore } from '@/features/auth/stores/auth.store'
+import type { AuthSession } from '@/features/auth/session/session.schema'
+import { useAuthStore } from '@/features/auth/session/session.store'
 import { getAppQueryClient } from '@/lib/query/query-client'
 import { routeTree } from '@/routeTree.gen'
 
@@ -25,13 +25,10 @@ const adminSession: AuthSession = {
     displayName: 'Demo Admin',
     role: 'ADMIN',
     status: 'ACTIVE',
-    courses: [],
   },
   tokenType: 'Bearer',
   accessToken: 'admin-access-token',
   accessTokenExpiresAt: '2027-07-11T12:15:00.000Z',
-  refreshToken: 'admin-refresh-token',
-  refreshTokenExpiresAt: '2027-07-18T12:00:00.000Z',
 }
 
 function deferredResponse() {

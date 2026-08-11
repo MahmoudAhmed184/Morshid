@@ -28,7 +28,7 @@ export function configureApp(app: INestApplication) {
       'student-chat-sessions',
       'Private Student chat session and message persistence.',
     )
-    .addTag('admin-users', 'Administrative user account operations.')
+    .addTag('user-administration', 'Administrative user account operations.')
     .addTag(
       'admin-courses',
       'Administrative course, membership, and material operations.',

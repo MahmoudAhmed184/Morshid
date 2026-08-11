@@ -1,9 +1,9 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
 
 import { RouteLoadError } from '@/components/route-load-error'
-import { AuthLoader } from '@/features/auth/components/auth-loader'
-import { useAuthStore } from '@/features/auth/stores/auth.store'
-import { requireRole } from '@/features/auth/utils/auth-redirect'
+import { AuthLoader } from '@/features/auth/routing/auth-loader'
+import { useAuthStore } from '@/features/auth/session/session.store'
+import { requireRole } from '@/features/auth/routing/auth-redirect'
 import { studentCoursesQueryOptions } from '@/features/student/data/student-courses.queries'
 import { StudentLayout } from '@/features/student/pages/student-layout'
 import { getAppQueryClient } from '@/lib/query/query-client'

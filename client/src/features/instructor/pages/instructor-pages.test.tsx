@@ -3,8 +3,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useAuthStore } from '@/features/auth/stores/auth.store'
-import type { AuthSession } from '@/features/auth/types/auth.types'
+import { useAuthStore } from '@/features/auth/session/session.store'
+import type { AuthSession } from '@/features/auth/session/session.schema'
 import { instructorReviewQueueQueryOptions } from '@/features/instructor/data/instructor-reviews.queries'
 
 import { ReviewQueuePage } from './review-queue-page'
@@ -32,20 +32,10 @@ const instructorSession: AuthSession = {
     displayName: 'P0 Demo Instructor',
     role: 'INSTRUCTOR',
     status: 'ACTIVE',
-    courses: [
-      {
-        id: 'python-course',
-        code: 'PYTHON-PROG-P0',
-        title: 'Python Programming',
-        membershipRole: 'INSTRUCTOR',
-      },
-    ],
   },
   tokenType: 'Bearer',
   accessToken: 'mock-access-token:instructor-user',
   accessTokenExpiresAt: '2026-07-11T12:15:00.000Z',
-  refreshToken: 'mock-refresh-token:instructor-user',
-  refreshTokenExpiresAt: '2026-07-18T12:00:00.000Z',
 }
 
 function renderReviewQueue({ deferReviews = false } = {}) {

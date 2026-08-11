@@ -11,7 +11,7 @@ import {
   UserRole,
   UserStatus,
 } from '../../generated/prisma/client'
-import type { AuthenticatedHttpRequest } from '../auth/auth.guard'
+import type { AuthenticatedHttpRequest } from '../identity/identity.guard'
 import { NotificationsController } from './notifications.controller'
 import { notificationNotFoundException } from './notifications.errors'
 import { NotificationsService } from './notifications.service'

@@ -1,7 +1,7 @@
 import { ForbiddenException, Injectable } from '@nestjs/common'
 
 import { CourseMembershipRole, UserRole } from '../../generated/prisma/client'
-import type { AuthenticatedRequestUser } from '../auth/auth.dto'
+import type { AuthenticatedUser } from '../identity/identity.types'
 import { getCourseRolePolicy } from './course-access.policy'
 import type {
   CourseListItemDto,
@@ -16,7 +16,7 @@ export class CoursesService {
   constructor(private readonly coursesRepository: CoursesRepository) {}
 
   async listCoursesForUser(
-    user: AuthenticatedRequestUser,
+    user: AuthenticatedUser,
   ): Promise<CourseListResponseDto> {
     const policy = getCourseRolePolicy(user.role)
 
@@ -38,7 +38,7 @@ export class CoursesService {
   }
 
   async listMaterialManageableCourses(
-    user: AuthenticatedRequestUser,
+    user: AuthenticatedUser,
   ): Promise<MaterialManageableCourseListResponseDto> {
     if (user.role !== UserRole.INSTRUCTOR) {
       throw new ForbiddenException(

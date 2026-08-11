@@ -11,7 +11,7 @@ import { FileInterceptor } from '@nestjs/platform-express'
 import { catchError, from, throwError, type Observable } from 'rxjs'
 
 import { getRequestContext } from '../../common/http/request-context'
-import type { AuthenticatedHttpRequest } from '../auth/auth.guard'
+import type { AuthenticatedHttpRequest } from '../identity/identity.guard'
 import type { AppEnvironment } from '../config/env.schema'
 import { MaterialsAuditService } from './materials.audit.service'
 import {

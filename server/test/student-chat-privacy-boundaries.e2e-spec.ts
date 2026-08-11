@@ -9,9 +9,9 @@ import { configureApp } from '../src/app.setup'
 import { AppModule } from '../src/app.module'
 import { CourseMembershipRole } from '../src/generated/prisma/client'
 import {
-  AUTH_ERROR_CODES,
-  type AuthSessionResponse,
-} from '../src/modules/auth/auth.dto'
+  IDENTITY_ERROR_CODES,
+  type IdentitySessionResponse,
+} from '../src/modules/identity/identity.types'
 import {
   AUDIT_EVENT_ACTIONS,
   AUDIT_TARGET_TYPES,
@@ -93,7 +93,7 @@ const MEMBERSHIP_REQUIRED_ERROR = {
 } as const
 
 const INSUFFICIENT_ROLE_ERROR = {
-  code: AUTH_ERROR_CODES.INSUFFICIENT_ROLE,
+  code: IDENTITY_ERROR_CODES.INSUFFICIENT_ROLE,
   message: 'Insufficient role',
 } as const
 
@@ -242,7 +242,7 @@ describe('Student chat ownership and privacy boundaries (e2e)', () => {
       .send({ email, password: P0_DEMO_PASSWORD })
       .expect(200)
 
-    return (response.body as AuthSessionResponse).accessToken
+    return (response.body as IdentitySessionResponse).accessToken
   }
 
   function sessionPath(courseId = pythonCourseId): string {

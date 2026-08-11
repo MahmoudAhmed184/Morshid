@@ -15,7 +15,7 @@ import {
   type AuditDatabase,
   type RecordAuditEventInput,
 } from '../src/modules/audit/audit.service'
-import type { AuthSessionResponse } from '../src/modules/auth/auth.dto'
+import type { IdentitySessionResponse } from '../src/modules/identity/identity.types'
 import { DeterministicEmbeddingProvider } from '../src/modules/embedding/deterministic-embedding.provider'
 import {
   EMBEDDING_PROVIDER_TOKEN,
@@ -285,7 +285,7 @@ describe('Material processing truthfulness (e2e)', () => {
         password: P0_DEMO_PASSWORD,
       })
       .expect(200)
-    accessToken = (signIn.body as AuthSessionResponse).accessToken
+    accessToken = (signIn.body as IdentitySessionResponse).accessToken
   })
 
   beforeEach(async () => {

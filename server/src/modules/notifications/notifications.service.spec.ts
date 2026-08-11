@@ -4,11 +4,11 @@ import {
   UserRole,
   UserStatus,
 } from '../../generated/prisma/client'
-import type { AuthenticatedRequestUser } from '../auth/auth.dto'
+import type { AuthenticatedUser } from '../identity/identity.types'
 import { NotificationsService } from './notifications.service'
 
 describe('NotificationsService', () => {
-  const user: AuthenticatedRequestUser = {
+  const user: AuthenticatedUser = {
     id: 'student-1',
     email: 'student@example.test',
     displayName: 'Student',

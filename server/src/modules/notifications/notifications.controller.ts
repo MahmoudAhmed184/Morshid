@@ -30,7 +30,7 @@ import {
   OpenApiErrorDto,
 } from '../../common/http/openapi-error.dto'
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe'
-import type { AuthenticatedHttpRequest } from '../auth/auth.guard'
+import type { AuthenticatedHttpRequest } from '../identity/identity.guard'
 import {
   NotificationListResponseDto,
   notificationListQuerySchema,

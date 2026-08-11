@@ -10,8 +10,8 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ThemeProvider } from '@/providers/theme-provider'
-import { useAuthStore } from '@/features/auth/stores/auth.store'
-import type { AuthSession } from '@/features/auth/schemas/auth.schema'
+import { useAuthStore } from '@/features/auth/session/session.store'
+import type { AuthSession } from '@/features/auth/session/session.schema'
 import { studentCoursesQueryOptions } from '@/features/student/data/student-courses.queries'
 import { studentSessionKeys } from '@/features/student/data/student-sessions.queries'
 import type {
@@ -68,12 +68,9 @@ function createStudentAuthSession(id: string = studentId): AuthSession {
       displayName: 'Test Student',
       role: 'STUDENT',
       status: 'ACTIVE',
-      courses: [],
     },
     accessToken: 'student-access-token',
     accessTokenExpiresAt: '2027-07-17T12:00:00.000Z',
-    refreshToken: 'student-refresh-token',
-    refreshTokenExpiresAt: '2027-07-24T12:00:00.000Z',
   }
 }
 

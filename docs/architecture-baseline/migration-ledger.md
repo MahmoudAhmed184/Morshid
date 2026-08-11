@@ -236,3 +236,27 @@ drift commands, generated-output ownership proof, disposable database result,
 remaining baseline failures, and the next safe task (Milestone 3). The exact
 historical migration names and their net-live objects must remain available in
 the inventory document as labeled historical evidence.
+
+## Milestone 3 migration inventory
+
+Identity is the owner of authentication, credentials, refresh sessions, access
+guards, users, and user administration. This slice changes public response
+contracts and therefore updates every server/client caller directly.
+
+| Current surface | Target surface | Disposition |
+| --- | --- | --- |
+| `server/src/modules/auth/**` | `server/src/modules/identity/**` | Move and flatten into named Identity files; delete the `auth` module and exports. |
+| `server/src/modules/admin/users/**` | `server/src/modules/identity/user-administration/**` | Move controller, contracts, repository, audit, service, errors, and focused unit tests under Identity ownership. |
+| `server/src/modules/admin/admin.module.ts` | Identity/Courses/Materials composition | Remove user providers/controllers/imports from the Admin composition; Admin user behavior is no longer a backend Admin domain. |
+| `server/src/app.module.ts`, capability imports, guards, decorators | `identity.module.ts` and named Identity interfaces | Update all callers to direct Identity ownership without compatibility re-exports. |
+| `server/test/auth*.e2e-spec.ts`, `roles-guard.e2e-spec.ts`, `rbac.e2e-spec.ts`, `admin-users*.e2e-spec.ts` | `server/test/identity/` | Move/update tests for cookie-only refresh, user-only auth responses, revocation, role protection, user administration, and atomic audit behavior. |
+| `client/src/features/auth/**` | `client/src/features/auth/session`, `sign-in`, `routing` | Move session transport/store/refresh, sign-in contract/UI, and protected-route behavior into named slices. |
+| `client/src/features/admin` user transport/contracts and user UI | `client/src/features/user-management`, `client/src/workspaces/admin/users` | Move owned contracts to the feature and presentation to the Admin workspace; delete old user paths. |
+| `client/src/routes`, route loaders, auth callers | thin route adapters + named Identity feature interfaces | Update route/session callers directly; no aliases or redirect compatibility layer. |
+| Auth DTO/schema/OpenAPI tests and characterization | Identity contract tests | Remove course summaries and JSON refresh fields; assert only the secure HttpOnly cookie carries refresh tokens. |
+| `server/prisma/identity.prisma`, refresh-session persistence | keep | No schema change in M3; preserve hashed rotation/revocation/password-change invariants. |
+| `docs/architecture-baseline/migration-ledger.md` | this entry and M3 handoff | Record exact moved/deleted paths, focused commands, boundary rules, and final SHA. |
+
+M3 may delete only the superseded Auth/Admin-user paths and their compatibility
+exports/tests. Courses, Materials, Audit, and later Admin presentation remain
+owned by their current slices until their approved milestones.

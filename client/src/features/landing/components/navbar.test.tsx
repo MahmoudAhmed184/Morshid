@@ -2,8 +2,8 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useAuthStore } from '@/features/auth/stores/auth.store'
-import type { AuthSession } from '@/features/auth/schemas/auth.schema'
+import { useAuthStore } from '@/features/auth/session/session.store'
+import type { AuthSession } from '@/features/auth/session/session.schema'
 
 import { Navbar } from './navbar'
 
@@ -15,12 +15,9 @@ const mockSession: AuthSession = {
     displayName: 'P0 Demo Admin',
     role: 'ADMIN',
     status: 'ACTIVE',
-    courses: [],
   },
   accessToken: 'access-token',
   accessTokenExpiresAt: '2026-07-11T12:15:00.000Z',
-  refreshToken: 'refresh-token',
-  refreshTokenExpiresAt: '2026-07-18T12:00:00.000Z',
 }
 
 vi.mock('@tanstack/react-router', () => ({

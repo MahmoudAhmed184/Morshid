@@ -33,6 +33,18 @@ export default {
       from: { pathNot: testPath },
       to: { path: testPath },
     },
+    {
+      name: 'identity-interface-only',
+      comment:
+        'Product modules may consume Identity only through its module, request guard, role/public decorators, and identity types.',
+      severity: 'error',
+      from: {
+        path: '^server/src/modules/(?!identity(?:/|$))',
+      },
+      to: {
+        path: '^server/src/modules/identity/(?!identity\\.module\\.ts$|identity\\.guard\\.ts$|identity\\.roles\\.ts$|identity\\.public\\.ts$|identity\\.types\\.ts$)',
+      },
+    },
   ],
   options: {
     tsConfig: { fileName: tsConfigFileName },

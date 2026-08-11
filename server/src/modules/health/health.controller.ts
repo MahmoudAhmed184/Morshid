@@ -2,7 +2,7 @@ import { Controller, Get } from '@nestjs/common'
 import { ApiOperation, ApiTags } from '@nestjs/swagger'
 import { HealthCheck, HealthCheckService } from '@nestjs/terminus'
 
-import { Public } from '../auth/public.decorator'
+import { Public } from '../identity/identity.public'
 import { HealthService } from './health.service'
 
 @Public()

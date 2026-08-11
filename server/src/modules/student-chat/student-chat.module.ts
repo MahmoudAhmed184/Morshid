@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common'
 
 import { AuditModule } from '../audit/audit.module'
-import { AuthModule } from '../auth/auth.module'
+import { IdentityModule } from '../identity/identity.module'
 import { PrismaModule } from '../prisma/prisma.module'
 import { CompletionModule } from '../completion/completion.module'
 import { OutputPolicyModule } from '../output-policy/output-policy.module'
@@ -32,7 +32,7 @@ import { CorrectnessSensitiveRequestClassifier } from './correctness-sensitive-r
 @Module({
   imports: [
     AuditModule,
-    AuthModule,
+    IdentityModule,
     CompletionModule,
     OutputPolicyModule,
     PdfStorageModule,

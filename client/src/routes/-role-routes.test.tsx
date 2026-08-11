@@ -1,8 +1,11 @@
 import { createMemoryHistory, createRouter } from '@tanstack/react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useAuthStore } from '@/features/auth/stores/auth.store'
-import type { AuthRole, AuthSession } from '@/features/auth/types/auth.types'
+import { useAuthStore } from '@/features/auth/session/session.store'
+import type {
+  AuthRole,
+  AuthSession,
+} from '@/features/auth/session/session.schema'
 import { routeTree } from '@/routeTree.gen'
 
 function createSession(role: AuthRole): AuthSession {
@@ -14,12 +17,9 @@ function createSession(role: AuthRole): AuthSession {
       displayName: `${role} User`,
       role,
       status: 'ACTIVE',
-      courses: [],
     },
     accessToken: `${role.toLowerCase()}-access-token`,
     accessTokenExpiresAt: '2026-07-11T12:15:00.000Z',
-    refreshToken: `${role.toLowerCase()}-refresh-token`,
-    refreshTokenExpiresAt: '2026-07-18T12:00:00.000Z',
   }
 }
 

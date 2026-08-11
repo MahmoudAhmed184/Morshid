@@ -18,7 +18,7 @@ import { cn } from '@/lib/utils'
 import { AdminPanel } from '../components/admin-panel'
 import { useAdminAudit } from '../hooks/use-admin-audit'
 import { useAdminCourses } from '../hooks/use-admin-courses'
-import { useAdminUsers } from '../hooks/use-admin-users'
+import { useManagedUsers } from '@/features/user-management/use-user-management'
 
 type QuickNavTone = 'neutral' | 'gold' | 'success'
 
@@ -61,7 +61,7 @@ const auditDateFormatter = new Intl.DateTimeFormat(undefined, {
 })
 
 export function AdminDashboardPage() {
-  const usersQuery = useAdminUsers()
+  const usersQuery = useManagedUsers()
   const coursesQuery = useAdminCourses()
   const auditQuery = useAdminAudit(5)
   const users = usersQuery.data?.pages.flatMap((page) => page.users) ?? []

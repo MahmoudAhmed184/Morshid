@@ -5,8 +5,8 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { AuthSession } from '@/features/auth/schemas/auth.schema'
-import { useAuthStore } from '@/features/auth/stores/auth.store'
+import type { AuthSession } from '@/features/auth/session/session.schema'
+import { useAuthStore } from '@/features/auth/session/session.store'
 import {
   createStudentSession,
   deleteStudentSession,
@@ -91,12 +91,9 @@ function createStudentAuthSession(studentId: string): AuthSession {
       displayName: 'Test Student',
       role: 'STUDENT',
       status: 'ACTIVE',
-      courses: [],
     },
     accessToken: `access-${studentId}`,
     accessTokenExpiresAt: '2027-07-17T12:00:00.000Z',
-    refreshToken: `refresh-${studentId}`,
-    refreshTokenExpiresAt: '2027-07-24T12:00:00.000Z',
   }
 }
 

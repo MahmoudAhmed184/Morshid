@@ -1,5 +1,5 @@
-import { apiJson } from '@/features/auth/api/authenticated-api-client'
-import type { ApiFetchOptions } from '@/features/auth/api/authenticated-api-client'
+import { apiJson } from '@/features/auth/session/authenticated-api-client'
+import type { ApiFetchOptions } from '@/features/auth/session/authenticated-api-client'
 import { instructorCourseListSchema } from '@/features/instructor/schemas/instructor-course.schema'
 
 export async function getInstructorCourses(options: ApiFetchOptions = {}) {

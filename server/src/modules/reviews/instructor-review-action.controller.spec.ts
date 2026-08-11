@@ -11,7 +11,7 @@ import {
   UserRole,
   UserStatus,
 } from '../../generated/prisma/client'
-import type { AuthenticatedHttpRequest } from '../auth/auth.guard'
+import type { AuthenticatedHttpRequest } from '../identity/identity.guard'
 import { InstructorReviewActionService } from './instructor-review-action.service'
 import { InstructorReviewDetailService } from './instructor-review-detail.service'
 import { InstructorReviewQueueController } from './instructor-review-queue.controller'

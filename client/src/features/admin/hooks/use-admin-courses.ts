@@ -16,7 +16,7 @@ import {
 } from '@/features/admin/data/admin-courses.queries'
 import { adminAuditKeys } from '@/features/admin/data/admin-audit.queries'
 import type { CourseMembershipRole } from '@/features/admin/schemas/admin-course.schema'
-import { useAuthStore } from '@/features/auth/stores/auth.store'
+import { useAuthStore } from '@/features/auth/session/session.store'
 
 function useAdminId() {
   return useAuthStore((state) => state.user?.id)

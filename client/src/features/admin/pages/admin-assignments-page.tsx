@@ -19,12 +19,12 @@ import {
   useAdminCourseMutations,
   useAdminCourses,
 } from '@/features/admin/hooks/use-admin-courses'
-import { useAdminUsers } from '@/features/admin/hooks/use-admin-users'
+import { useManagedUsers } from '@/features/user-management/use-user-management'
 
 export function AdminAssignmentsPage() {
   const [selectedCourseId, setSelectedCourseId] = useState('')
   const coursesQuery = useAdminCourses()
-  const usersQuery = useAdminUsers()
+  const usersQuery = useManagedUsers()
   const courseId = selectedCourseId || coursesQuery.data?.[0]?.id
   const membersQuery = useAdminCourseMembers(courseId)
   const mutations = useAdminCourseMutations(courseId)
