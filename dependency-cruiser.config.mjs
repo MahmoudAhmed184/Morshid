@@ -65,6 +65,54 @@ export default {
       from: { pathNot: testPath },
       to: { path: testPath },
     },
+    {
+      name: 'server-common-independent',
+      comment:
+        'Server common primitives are product-independent and must not import capability modules.',
+      severity: 'error',
+      from: { path: '^server/src/common(?:/|$)' },
+      to: { path: '^server/src/modules(?:/|$)' },
+    },
+    {
+      name: 'server-platform-independent',
+      comment:
+        'Server platform adapters are product-independent and must not import capability modules.',
+      severity: 'error',
+      from: { path: '^server/src/platform(?:/|$)' },
+      to: { path: '^server/src/modules(?:/|$)' },
+    },
+    {
+      name: 'server-generated-prisma-ownership',
+      comment:
+        'Generated Prisma types stay at platform, persistence, seed, and persistence-test boundaries; product contracts own domain types.',
+      severity: 'error',
+      from: {
+        path: '^server/src/(?!platform/database(?:/|$)|seeds(?:/|$)|.*(?:\\.repository|repository\\.support|/prisma-)[^/]*\\.ts$|.*\\.spec\\.ts$)',
+      },
+      to: { path: '^server/src/generated/prisma(?:/|$)' },
+    },
+    {
+      name: 'server-controller-not-to-persistence-or-controller',
+      comment:
+        'Controllers depend on application interfaces and DTOs, never persistence adapters or other HTTP adapters.',
+      severity: 'error',
+      from: {
+        path: '^server/src/modules/.+\\.controller\\.ts$',
+      },
+      to: {
+        path: '^server/src/modules/.+(?:\\.repository|\\.controller)\\.ts$',
+      },
+    },
+    {
+      name: 'server-persistence-not-to-http-or-application',
+      comment:
+        'Persistence adapters do not depend on HTTP adapters or application orchestrators.',
+      severity: 'error',
+      from: { path: '^server/src/modules/.+\\.repository\\.ts$' },
+      to: {
+        path: '^server/src/modules/.+(?:\\.controller|\\.application|\\.orchestrator)\\.ts$',
+      },
+    },
     ...clientFeatureInterfaceRules,
     {
       name: 'client-shared-independent',
@@ -201,7 +249,7 @@ export default {
         pathNot: testPath,
       },
       to: {
-        path: '^server/src/modules/conversations/(?!conversations\\.module\\.ts$|conversations-http\\.module\\.ts$|conversations\\.service\\.ts$|conversations\\.dto\\.ts$|conversation\\.errors\\.ts$|conversation-turns\\.ts$|conversation-records\\.ts$|conversation-message\\.presenter\\.ts$|interface/conversation-course-boundary-audit\\.filter\\.ts$)',
+        path: '^server/src/modules/conversations/(?!conversations\\.module\\.ts$|conversations-http\\.module\\.ts$|conversations\\.service\\.ts$|conversations\\.dto\\.ts$|conversations\\.public\\.ts$|conversation\\.errors\\.ts$|conversation-turns\\.ts$|conversation-authorization\\.ts$|conversation-message-reader\\.ts$|conversation-records\\.ts$|conversation-message\\.presenter\\.ts$|interface/conversation-course-boundary-audit\\.filter\\.ts$)',
       },
     },
     {
