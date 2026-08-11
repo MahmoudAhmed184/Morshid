@@ -161,6 +161,7 @@ not inferred from the final aggregate diff.
 | M1.1 architecture foundation | `a70a8b2` | `ad81143` | `chore(tooling): establish architecture guardrails` | `npm run check` passed: format, lint, root/client/server typecheck, client/server architecture gates, 9 root tests, 476 client tests, 1,723 server tests, and both production builds | `#/*` package/tsconfig alias removed; all authored `#/` imports absent; no dependency-cruiser baseline or exception file added | Milestone 2.1 |
 | M2.1 clean Prisma foundation | `229b0ce` | `3e5252a` | `refactor(prisma): establish clean schema baseline` | Multi-file schema validated and generated; isolated Compose PostgreSQL reached one applied initial migration, explicit seed, catalog assertions, second deploy with no pending migrations, `prisma migrate status` up to date, and `prisma migrate diff --from-migrations ... --exit-code` reported `No difference detected`; `npm run check` passed with 9 root tests, 476 client tests, 1,723 server tests, both builds, and architecture gates | The 18 historical migration directories, upgrade-only migration tests, and `throughMigration` support were removed; `idx_chunks_embedding_hnsw`, `idx_messages_response_to`, and duplicate-response/backfill upgrade SQL are absent; generated Prisma output remains ignored | Milestone 3.1 |
 | M3.1 Identity vertical slice | `4ab478b4635c10235232e01c1f5ac046b3c767f5` | `eef0ca1e5604fdae932f6bdefcf2c045811ffb96` | `refactor(identity): consolidate account ownership` | OpenAPI 13/13; Identity unit suites 28/28; Identity role/auth/user-administration E2E 73/73; client Identity suites 96/96; `npm run check` passed with 9 root tests, 476 client tests, 1,723 server tests, architecture gates, and both builds | `server/src/modules/auth`, `server/src/modules/admin/users`, old auth test-support names, old root auth/admin-user E2E paths, old client auth taxonomy folders, and client Admin-user transport/UI paths are absent; Identity boundary rule passes without exceptions | Milestone 4.1 |
+| M4.1 Courses, Materials, and Audit vertical slices | `d9cde9f6697d075c47af4a666ab766e21263e9ff` | `050f40d` | `refactor(domains): consolidate course material and audit ownership` | Focused domain/workspace tests 9 suites / 44 tests; Courses/Materials E2E 3 suites / 67 tests; isolated chunk persistence 14/14; `npm run check` passed with 9 root tests, 476 client tests, 1,705 server tests, architecture gates, and both builds | `server/src/modules/admin`, `server/src/modules/rag-persistence`, duplicate course-access repository, old Admin/RAG production imports, and superseded client Admin feature transport paths are absent; Courses/Materials/Audit rules pass without exceptions | Milestone 5.1 |
 
 ### M2.1 handoff
 
@@ -275,6 +276,57 @@ duplicate RAG persistence path, and duplicate retrieval ownership after direct
 callers and focused tests pass. No Prisma schema change is expected in this
 slice; any discovered schema change must regenerate the same rolling initial
 migration and repeat the M2 catalog/drift gate.
+
+### M4 handoff
+
+- Starting SHA: `d9cde9f6697d075c47af4a666ab766e21263e9ff`; implementation SHA:
+  `050f40d`; commit: `refactor(domains): consolidate course material and audit
+  ownership`.
+- Courses now owns catalog administration, active memberships, course access,
+  material-management authorization, and course/membership audit composition.
+  The single `CoursesRepository` owns the administration and access records;
+  membership listing, counting, authorization, removal, and role changes all
+  apply `removedAt IS NULL`, with removal and role changes conditionally
+  updating the active row inside their audit transaction.
+- Materials now owns Admin material listing/detail/title updates and the
+  moved chunk/vector repository and embedding service. Material title updates
+  and their `material.updated` audit event share one transaction. The Admin
+  material contract contains only fields used by the current workspace; storage
+  paths, hashes, extraction counts, chunk counts, and extraction errors are
+  not exposed. Materials receives one Courses authorization decision per
+  course-scoped request and no longer performs a duplicate course-existence
+  preflight.
+- Audit now owns the recent-event controller and contract. The old backend
+  Admin composition, Admin course/material/audit implementation paths, and
+  `rag-persistence` module are deleted. Client course, material, and audit
+  contracts/queries/mutations live under their named features; Admin UI remains
+  role presentation under `workspaces/admin`, and browser `/admin/*` routes
+  remain unchanged.
+- Added the named `audit.public.ts` and `course-access.public.ts` seams and
+  enabled `courses-interface-only`, `materials-interface-only`, and
+  `audit-interface-only` dependency-cruiser errors without baselines or
+  exceptions. Production callers no longer reach through those capability
+  boundaries.
+- Focused results: Courses/Materials/Audit unit selection 5 suites / 22 tests;
+  client domain/workspace selection 4 files / 22 tests; Courses, Materials,
+  and course-administration E2E selection 3 suites / 67 tests; course
+  administration plus OpenAPI E2E 2 suites / 42 tests; isolated Materials
+  chunk persistence 1 suite / 14 tests; and the removed-membership regressions
+  passed. `npm run check` passed formatting, lint, typecheck, architecture,
+  9 root tests, 476 client tests, 1,705 server tests, and both production
+  builds. Architecture reported 335 client modules / 1,341 dependencies and
+  393 server modules / 1,424 dependencies with no violations.
+- Repository searches found no authored `server/src/modules/admin` or
+  `server/src/modules/rag-persistence` files, no old Admin/RAG controller or
+  repository imports, and no duplicate course-access repository. No Prisma
+  schema or migration changed in M4, so the audited rolling initial migration
+  remains the M2 artifact.
+- Known external baseline limitations remain: the unisolated full server E2E
+  command uses the existing local PostgreSQL credential mismatch, and the
+  acceptance suite retains its two pre-existing static-diagnosis presentation
+  failures. The disposable database path is green when run with its isolated
+  Compose credentials.
+- Next safe task: Milestone 5.1 Reviews and Student inbox vertical slice.
 
 ## Milestone 1 migration inventory
 
