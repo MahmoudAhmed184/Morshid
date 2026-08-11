@@ -1,6 +1,14 @@
 import type { AutomaticSafetyRiskDetection } from '../output-policy/automatic-safety-risk.detector'
 import type { ControlledSourceConflict } from '../output-policy/controlled-source-conflict.detector'
+import type { RequestBudget } from '../../common/http/request-deadline'
 import type { ChatMessageRecord } from './student-chat.repository.types'
+
+export interface SocraticTopicSelection {
+  readonly topicId?: string | null
+  readonly problemId?: string
+  readonly conceptId?: string
+  readonly title?: string
+}
 
 /**
  * Input from {@link GroundedChatService} to the Socratic orchestrator.
@@ -15,6 +23,8 @@ export interface SocraticOrchestrationInput {
   readonly studentMessageId: string
   readonly assistantMessageId: string
   readonly studentMessageContent: string
+  readonly topicSelection?: SocraticTopicSelection
+  readonly requestBudget?: RequestBudget
   /**
    * Deterministic idempotency key for the TutorTurn.
    *

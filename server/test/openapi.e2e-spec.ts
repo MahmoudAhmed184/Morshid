@@ -1229,10 +1229,43 @@ describe('OpenAPI contract (e2e)', () => {
           minLength: 1,
           maxLength: 4000,
         },
+        problemId: {
+          description:
+            'Stable visible problem identity used to select the topic.',
+          type: 'string',
+          format: 'uuid',
+        },
+        conceptId: {
+          description:
+            'Stable visible concept identity used to select the topic.',
+          type: 'string',
+          format: 'uuid',
+        },
+        title: {
+          type: 'string',
+          minLength: 1,
+          maxLength: 160,
+        },
       })
       expect(schemas.ChatMessageDto.properties?.citations).toEqual({
         type: 'array',
         items: { $ref: '#/components/schemas/ChatCitationDto' },
+      })
+      expect(schemas.ChatMessageDto.properties?.turnId).toEqual({
+        type: 'string',
+        format: 'uuid',
+        nullable: true,
+      })
+      expect(schemas.ChatMessageDto.properties?.topicId).toEqual({
+        type: 'string',
+        format: 'uuid',
+        nullable: true,
+      })
+      expect(schemas.ChatMessageDto.properties?.hintLevel).toEqual({
+        type: 'number',
+        minimum: 1,
+        maximum: 4,
+        nullable: true,
       })
       expect(schemas.ChatCitationDto.properties?.evidence).toEqual({
         type: 'array',

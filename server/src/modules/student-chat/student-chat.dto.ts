@@ -65,6 +65,9 @@ export const sendStudentChatMessageRequestSchema = z
   .object({
     clientMessageId: z.uuid().optional(),
     content: messageContentSchema,
+    problemId: z.uuid().optional(),
+    conceptId: z.uuid().optional(),
+    title: titleSchema.optional(),
   })
   .strict()
 
@@ -96,6 +99,23 @@ export class SendStudentChatMessageRequestDto {
 
   @ApiProperty({ minLength: 1, maxLength: 4_000 })
   content!: string
+
+  @ApiProperty({
+    format: 'uuid',
+    required: false,
+    description: 'Stable visible problem identity used to select the topic.',
+  })
+  problemId?: string
+
+  @ApiProperty({
+    format: 'uuid',
+    required: false,
+    description: 'Stable visible concept identity used to select the topic.',
+  })
+  conceptId?: string
+
+  @ApiProperty({ minLength: 1, maxLength: 160, required: false })
+  title?: string
 }
 
 export class ChatSessionDto {
@@ -206,11 +226,11 @@ export class ChatMessageDto {
   role!: MessageRole
 
   @Expose()
-  @ApiProperty({ format: 'uuid', nullable: true, required: false })
+  @ApiProperty({ type: String, format: 'uuid', nullable: true })
   turnId!: string | null
 
   @Expose()
-  @ApiProperty({ format: 'uuid', nullable: true, required: false })
+  @ApiProperty({ type: String, format: 'uuid', nullable: true })
   topicId!: string | null
 
   @Expose()
@@ -234,7 +254,7 @@ export class ChatMessageDto {
   guidanceLabel!: MessageGuidanceLabel | null
 
   @Expose()
-  @ApiProperty({ nullable: true })
+  @ApiProperty({ type: Number, minimum: 1, maximum: 4, nullable: true })
   hintLevel!: number | null
 
   @Expose()

@@ -337,10 +337,16 @@ describe('Student chat contract schemas', () => {
       sendStudentChatMessageRequestSchema.parse({
         clientMessageId: studentChatIds.studentMessage,
         content: '  Explain lists  ',
+        problemId: studentChatIds.primaryTopic,
+        conceptId: '8e8a2e4a-f2f5-4d63-9dc8-4f7f5c02b2a6',
+        title: '  List iteration  ',
       }),
     ).toEqual({
       clientMessageId: studentChatIds.studentMessage,
       content: 'Explain lists',
+      problemId: studentChatIds.primaryTopic,
+      conceptId: '8e8a2e4a-f2f5-4d63-9dc8-4f7f5c02b2a6',
+      title: 'List iteration',
     })
     expect(
       sendStudentChatMessageRequestSchema.safeParse({
@@ -392,6 +398,16 @@ describe('Student chat contract schemas', () => {
       },
       { clientMessageId: 'not-a-uuid', content: 'Question' },
       { content: 'Question' },
+      {
+        clientMessageId: studentChatIds.studentMessage,
+        content: 'Question',
+        problemId: 'not-a-uuid',
+      },
+      {
+        clientMessageId: studentChatIds.studentMessage,
+        content: 'Question',
+        title: '   ',
+      },
     ]) {
       expect(sendStudentChatMessageRequestSchema.safeParse(input).success).toBe(
         false,

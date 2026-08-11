@@ -11,10 +11,13 @@ import {
   Post,
   Query,
   Req,
+  Res,
   SerializeOptions,
   UseFilters,
   UseInterceptors,
 } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
+import type { Response } from 'express'
 import {
   ApiBadRequestResponse,
   ApiBody,
@@ -38,10 +41,12 @@ import {
   OpenApiValidationErrorDto,
 } from '../../common/http/openapi-error.dto'
 import { ApiAccessTokenAuth } from '../../common/http/openapi.decorators'
+import { createRequestBudget } from '../../common/http/request-deadline'
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe'
 import { getRequestContext } from '../../common/http/request-context'
 import { UserRole } from '../../generated/prisma/client'
 import type { AuthenticatedHttpRequest } from '../auth/auth.guard'
+import type { AppEnvironment } from '../config/env.schema'
 import { Roles } from '../auth/roles.decorator'
 import { StudentChatCourseBoundaryAuditFilter } from './student-chat-course-boundary-audit.filter'
 import {
@@ -125,6 +130,7 @@ export class StudentChatController {
   constructor(
     private readonly studentChatService: StudentChatService,
     private readonly groundedChatService: GroundedChatService,
+    private readonly configService: ConfigService<AppEnvironment, true>,
   ) {}
 
   @Post()
@@ -326,14 +332,27 @@ export class StudentChatController {
     )
     body: SendStudentChatMessageRequest,
     @Req() request: AuthenticatedHttpRequest,
+    @Res({ passthrough: true }) response?: Response,
   ): Promise<GroundedChatTurnResponseDto> {
-    return this.groundedChatService.send(
-      courseId,
-      sessionId,
-      body,
-      request.user,
-      getRequestContext(request),
+    const budget = createRequestBudget(
+      this.configService.get('SOCRATIC_CHAT_REQUEST_TIMEOUT_MS', {
+        infer: true,
+      }),
+      { request, response },
     )
+
+    return this.groundedChatService
+      .send(
+        courseId,
+        sessionId,
+        body,
+        request.user,
+        getRequestContext(request),
+        budget,
+      )
+      .finally(() => {
+        budget.dispose()
+      })
   }
 
   @Post(':sessionId/messages/:studentMessageId/retry')
@@ -356,6 +375,7 @@ export class StudentChatController {
     @Param('sessionId', uuidParam()) sessionId: string,
     @Param('studentMessageId', uuidParam()) studentMessageId: string,
     @Req() request: AuthenticatedHttpRequest,
+    @Res({ passthrough: true }) response?: Response,
   ): Promise<GroundedChatTurnResponseDto> {
     if (request.body !== undefined) {
       throw invalidStudentChatRequestException([
@@ -363,13 +383,25 @@ export class StudentChatController {
       ])
     }
 
-    return this.groundedChatService.retry(
-      courseId,
-      sessionId,
-      studentMessageId,
-      request.user,
-      getRequestContext(request),
+    const budget = createRequestBudget(
+      this.configService.get('SOCRATIC_CHAT_REQUEST_TIMEOUT_MS', {
+        infer: true,
+      }),
+      { request, response },
     )
+
+    return this.groundedChatService
+      .retry(
+        courseId,
+        sessionId,
+        studentMessageId,
+        request.user,
+        getRequestContext(request),
+        budget,
+      )
+      .finally(() => {
+        budget.dispose()
+      })
   }
 }
 

@@ -313,6 +313,9 @@ export const sendStudentChatMessageRequestSchema = z
   .object({
     clientMessageId: z.uuid(),
     content: studentChatMessageContentSchema,
+    problemId: z.uuid().optional(),
+    conceptId: z.uuid().optional(),
+    title: chatTitleSchema.optional(),
   })
   .strict()
 
