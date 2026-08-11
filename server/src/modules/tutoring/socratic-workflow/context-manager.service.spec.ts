@@ -277,7 +277,7 @@ describe('ContextManager', () => {
             case 'ANALYSIS_MODEL_TIMEOUT_MS':
               return 30_000
             case 'ANALYSIS_MODEL_MAX_COMPLETION_TOKENS':
-              return 768
+              return 2048
             case 'ANALYSIS_MODEL_MAX_RETRIES':
               return 0
             case 'ANALYSIS_CONFIDENCE_THRESHOLD':
@@ -287,7 +287,7 @@ describe('ContextManager', () => {
             case 'TUTOR_MODEL_TIMEOUT_MS':
               return 30_000
             case 'TUTOR_MODEL_MAX_COMPLETION_TOKENS':
-              return 768
+              return 2048
             case 'TUTOR_MODEL_MAX_INFRASTRUCTURE_RETRIES':
               return 1
             case 'SEMANTIC_GUARD_PROVIDER':

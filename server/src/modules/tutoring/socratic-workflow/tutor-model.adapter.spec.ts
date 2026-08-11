@@ -123,7 +123,7 @@ describe('OpenAICompatibleTutorModelAdapter', () => {
         ],
         temperature: 0,
         top_p: 1,
-        max_completion_tokens: 768,
+        max_completion_tokens: 2048,
         response_format: {
           type: 'json_object',
         },
@@ -213,7 +213,7 @@ function buildOpenAICompatibleConfiguration(): OpenAICompatibleTutorConfiguratio
     endpoint: 'http://localhost:8000/v1/chat/completions',
     modelName: 'Qwen/Qwen2.5-7B-Instruct',
     apiKey: null,
-    maxCompletionTokens: 768,
+    maxCompletionTokens: 2048,
   }
 }
 
