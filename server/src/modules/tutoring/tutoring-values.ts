@@ -84,7 +84,8 @@ export const ReflectionMode = {
   TRANSFER: 'TRANSFER',
 } as const
 
-export type ReflectionMode = (typeof ReflectionMode)[keyof typeof ReflectionMode]
+export type ReflectionMode =
+  (typeof ReflectionMode)[keyof typeof ReflectionMode]
 
 export const RevealPolicy = {
   NO_FINAL_ANSWER: 'NO_FINAL_ANSWER',
@@ -147,7 +148,8 @@ export const LearningStatus = {
   VERIFIED: 'VERIFIED',
 } as const
 
-export type LearningStatus = (typeof LearningStatus)[keyof typeof LearningStatus]
+export type LearningStatus =
+  (typeof LearningStatus)[keyof typeof LearningStatus]
 
 export const ResolutionEvidenceStrength = {
   NONE: 'NONE',

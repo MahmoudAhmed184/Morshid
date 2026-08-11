@@ -2,10 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
 import { Expose, Type } from 'class-transformer'
 import { z } from 'zod'
 
-import {
-  UserRole,
-  UserStatus,
-} from '../identity.roles'
+import { UserRole, UserStatus } from '../identity.roles'
 import { CourseMembershipRole } from '../../courses/course-access.public'
 
 const USER_PASSWORD_PATTERN =

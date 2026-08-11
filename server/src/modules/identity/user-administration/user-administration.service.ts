@@ -1,9 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
-import {
-  UserRole,
-  UserStatus,
-} from '../identity.roles'
+import { UserRole, UserStatus } from '../identity.roles'
 import { CourseMembershipRole } from '../../courses/course-access.public'
 import type { AuthenticatedUser } from '../../identity/identity.types'
 import { IdentityUser } from '../../identity/identity-user'

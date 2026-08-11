@@ -1,7 +1,4 @@
-import {
-  MessageGuidanceLabel,
-  MessageRequestKind,
-} from '../tutoring-values'
+import { MessageGuidanceLabel, MessageRequestKind } from '../tutoring-values'
 
 export const CLASSIFIED_RESPONSE_POLICY_VERSION = 'socratic-classification.v1'
 

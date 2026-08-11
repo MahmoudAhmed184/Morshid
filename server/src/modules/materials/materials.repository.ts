@@ -1,9 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
-import {
-  type Material,
-  Prisma,
-} from '../../generated/prisma/client'
+import { type Material, Prisma } from '../../generated/prisma/client'
 import { MaterialStatus } from './material-status'
 import { AUDIT_EVENT_ACTIONS, AUDIT_TARGET_TYPES } from '../audit/audit.public'
 import {

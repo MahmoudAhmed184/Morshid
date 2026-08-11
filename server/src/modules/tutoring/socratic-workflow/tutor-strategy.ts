@@ -1,7 +1,4 @@
-import {
-  MessageGuidanceLabel,
-  MessageRequestKind,
-} from '../tutoring-values'
+import { MessageGuidanceLabel, MessageRequestKind } from '../tutoring-values'
 import {
   assessDebuggingGuidanceBoundary,
   isRejectedDebuggingGuidanceBoundaryAssessment,

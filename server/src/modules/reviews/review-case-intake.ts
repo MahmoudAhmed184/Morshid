@@ -1,9 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
-import type {
-  ReviewStatus,
-  ReviewTriggerType,
-} from './review-values'
+import type { ReviewStatus, ReviewTriggerType } from './review-values'
 import type { AuditRequestContext } from '../audit/audit.public'
 import type { DatabaseTransaction } from '../../platform/database/database-transaction'
 import {

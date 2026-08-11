@@ -2,10 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
 import { Expose, Type } from 'class-transformer'
 import { z } from 'zod'
 
-import {
-  ReviewInboxItemStatus,
-  ReviewInboxItemType,
-} from '../review-values'
+import { ReviewInboxItemStatus, ReviewInboxItemType } from '../review-values'
 
 export const studentReviewInboxListQuerySchema = z
   .object({

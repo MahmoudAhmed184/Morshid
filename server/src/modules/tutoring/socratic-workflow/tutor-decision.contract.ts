@@ -1,9 +1,6 @@
 import { z } from 'zod'
 
-import {
-  MessageGuidanceLabel,
-  MessageRequestKind,
-} from '../tutoring-values'
+import { MessageGuidanceLabel, MessageRequestKind } from '../tutoring-values'
 
 export const TUTOR_STRATEGIES = [
   'GROUNDED_EXPLANATION',

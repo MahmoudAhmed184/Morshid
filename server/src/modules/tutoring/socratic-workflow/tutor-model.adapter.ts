@@ -25,10 +25,7 @@ import {
   type TutorModelResponse,
 } from './tutor-generation.types'
 import { TUTOR_GENERATION_PROMPT_VERSION } from './tutor-prompt.registry'
-import {
-  TeachingStrategy,
-  TeachingTechnique,
-} from '../tutoring-values'
+import { TeachingStrategy, TeachingTechnique } from '../tutoring-values'
 import {
   DEBUGGING_GUIDANCE_FULL_REWRITE_REFUSAL,
   type DebuggingGuidanceContext,

@@ -14,9 +14,7 @@ import {
   TutoringAttemptStatus,
   TutoringSafeFallbackReason,
 } from '../../../generated/prisma/client'
-import {
-  ConversationTurns,
-} from '../../conversations/conversation-turns'
+import { ConversationTurns } from '../../conversations/conversation-turns'
 import { ConversationAuthorization } from '../../conversations/conversation-authorization'
 import {
   ConversationMessageReader,
@@ -302,10 +300,11 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
 
     try {
       return await this.runTransaction(async (tx) => {
-        const authorization = await this.conversationAuthorization.authorizeStudent(
-          input,
-          asDatabaseTransaction(tx),
-        )
+        const authorization =
+          await this.conversationAuthorization.authorizeStudent(
+            input,
+            asDatabaseTransaction(tx),
+          )
         if (authorization.kind !== 'ok') {
           return authorization
         }
@@ -424,10 +423,11 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
 
     try {
       return await this.runTransaction(async (tx) => {
-        const authorization = await this.conversationAuthorization.authorizeStudent(
-          input,
-          asDatabaseTransaction(tx),
-        )
+        const authorization =
+          await this.conversationAuthorization.authorizeStudent(
+            input,
+            asDatabaseTransaction(tx),
+          )
         if (authorization.kind !== 'ok') {
           return authorization
         }
@@ -673,10 +673,11 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
     input: RepairTutoringReviewInput,
   ): Promise<RepairTutoringReviewResult> {
     return this.runTransaction(async (tx) => {
-      const authorization = await this.conversationAuthorization.authorizeStudent(
-        input,
-        asDatabaseTransaction(tx),
-      )
+      const authorization =
+        await this.conversationAuthorization.authorizeStudent(
+          input,
+          asDatabaseTransaction(tx),
+        )
       if (authorization.kind !== 'ok') {
         return authorization
       }
@@ -759,10 +760,11 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
   ): Promise<FinalizeTutoringTurnResult> {
     try {
       return await this.runTransaction(async (tx) => {
-        const authorization = await this.conversationAuthorization.authorizeStudent(
-          input,
-          asDatabaseTransaction(tx),
-        )
+        const authorization =
+          await this.conversationAuthorization.authorizeStudent(
+            input,
+            asDatabaseTransaction(tx),
+          )
         if (authorization.kind !== 'ok') {
           return authorization
         }
@@ -929,10 +931,11 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
     input: ReadTutoringTurnInput,
   ): Promise<ReadTutoringTurnResult> {
     return this.runTransaction(async (tx) => {
-      const authorization = await this.conversationAuthorization.authorizeStudent(
-        input,
-        asDatabaseTransaction(tx),
-      )
+      const authorization =
+        await this.conversationAuthorization.authorizeStudent(
+          input,
+          asDatabaseTransaction(tx),
+        )
       if (authorization.kind !== 'ok') {
         return authorization
       }

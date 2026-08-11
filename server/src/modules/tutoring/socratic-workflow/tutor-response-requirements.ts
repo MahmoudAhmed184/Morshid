@@ -1,7 +1,4 @@
-import {
-  MessageRequestKind,
-  StudentState,
-} from '../tutoring-values'
+import { MessageRequestKind, StudentState } from '../tutoring-values'
 
 import type { EducationalAnalysisResult } from './educational-analysis.types'
 

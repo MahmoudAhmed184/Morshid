@@ -16,7 +16,10 @@ import {
 
 export class InstructorReviewMessageDto {
   @Expose()
-  @ApiProperty({ enum: ['STUDENT', 'ASSISTANT'], enumName: 'ReviewMessageRole' })
+  @ApiProperty({
+    enum: ['STUDENT', 'ASSISTANT'],
+    enumName: 'ReviewMessageRole',
+  })
   role!: ReviewMessageRole
 
   @Expose()

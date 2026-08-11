@@ -1,9 +1,6 @@
 import { z } from 'zod'
 
-import {
-  MessageGuidanceLabel,
-  MessageRequestKind,
-} from '../../tutoring-values'
+import { MessageGuidanceLabel, MessageRequestKind } from '../../tutoring-values'
 import { DEBUGGING_GUIDANCE_BOUNDARY_STATES } from './debugging-guidance.boundary'
 import {
   DEBUGGING_GUIDANCE_CATEGORIES,

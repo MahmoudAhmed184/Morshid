@@ -5,4 +5,5 @@ export const MaterialStatus = {
   FAILED: 'FAILED',
 } as const
 
-export type MaterialStatus = (typeof MaterialStatus)[keyof typeof MaterialStatus]
+export type MaterialStatus =
+  (typeof MaterialStatus)[keyof typeof MaterialStatus]
