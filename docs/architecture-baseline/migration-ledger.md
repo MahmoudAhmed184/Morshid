@@ -458,6 +458,68 @@ and the former TutorTurn model are deleted.
 | Regression coverage | Attempt admission/replay/concurrency/lease tests, message linkage and Socratic persistence tests | Prove one attempt per client key, replay identity, transaction rollback, concurrent admission serialization, retry relationship, lease expiry, and absence of grounding/TutorTurn state. |
 | Documentation/search | This ledger, ADR 0002/0007 references, architecture scans | Record the exact schema and focused verification; repository searches must find no authored `TutorTurn` or `groundingAttemptId` entry point before the 6A commit. |
 
+### M6A handoff
+
+- Starting SHA: `15a76dd076402cb61c1f1e02c9f98e8170568b7d`; implementation SHA:
+  `6f0ae3d`; commit: `refactor(tutoring): establish authoritative attempt
+  admission`.
+- Applicable authority: the approved architecture refactor plan; ADR 0002
+  (one Tutoring Runtime and one Tutoring Attempt); ADR 0007 (opaque database
+  transaction participation); and the approved research notes on NestJS/Prisma
+  organization, clean-slate Prisma migration, and broad-refactor safety.
+- `TutoringAttempt` is now the persisted aggregate name and owns client-message
+  replay identity, claim/lease/version state, request kind, teaching strategy,
+  Student/Assistant message relationships, terminal outcome, retry lineage,
+  approval/fallback metadata, and review-required state. The former
+  `TutorTurn`/`TutorCandidateAttempt` names and `Message.groundingAttemptId`
+  plus grounding lease fields are removed from the authored schema, migration,
+  repositories, tests, client contracts, and scripts. Retry attempts reuse the
+  authoritative Student/Assistant records through `retryOfAttemptId`; the
+  composite `(sessionId, clientMessageId)` constraint remains the replay key.
+- Added `server/src/modules/conversations/{conversation-turns.ts,
+  conversations.module.ts,prisma-conversation-turns.ts}` and
+  `server/src/modules/prisma/database-transaction.ts`. The product-facing
+  `ConversationTurns` interface accepts only the opaque `DatabaseTransaction`
+  marker; Prisma transaction types remain inside the platform adapter. Student
+  chat admission now creates/replays the message pair and attempt in the
+  caller-owned transaction, and lease expiry/retry decisions read Attempt
+  state rather than Message grounding columns.
+- Changed the rolling `20260811150000_initial/migration.sql` from an empty
+  schema diff, reconciled the generated output and retained handwritten
+  extensions/constraints/triggers, removed duplicate custom inbox indexes, and
+  updated `server/prisma/assert-catalog.mts`. The isolated disposable database
+  was reset, migrated, explicitly seeded, catalog-asserted, and checked for
+  drift. The catalog passed and
+  `npx prisma migrate diff --from-migrations prisma/migrations
+  --to-config-datasource --exit-code --config prisma.config.ts` returned
+  `No difference detected.`; the HNSW and grounding indexes remain absent.
+- Added/updated persistence, retry, replay, lease, message-linkage, Socratic,
+  OpenAPI, client fixture, and acceptance callers directly. No compatibility
+  aliases or forwarding modules were added. No product path was deleted in
+  this slice; the superseded state was removed in-place and the new
+  Conversations adapter was introduced for the next Tutoring Runtime slice.
+- Verification: `npm run check` passed (root 9 tests, client 60 files/468
+  tests, server 117 suites/1,703 tests, architecture checks, and client/server
+  production builds); server/client formatting and typechecks passed; server
+  CI lint passed; architecture passed with 334 client modules/1,332
+  dependencies and 398 server modules/1,443 dependencies; focused isolated
+  E2E passed (5 suites, 44 tests); `npx prisma validate` passed; catalog and
+  drift checks passed; `git diff --check` passed.
+- Obsolete-entry searches across `server/src`, `server/test`, `client/src`,
+  `tests/acceptance`, and authored `server/prisma` found zero matches for
+  `TutorTurn`, `tutor_turn`, `TutorCandidateAttempt`,
+  `tutor_candidate_attempt`, `groundingAttemptId`, `grounding_attempt_id`,
+  `groundingLeaseExpiresAt`, and `grounding_lease_expires_at`. The remaining
+  generic UI `forwardRef` calls are React ref forwarding, not NestJS DI
+  `forwardRef` architecture.
+- Known baseline limitations remain unchanged: the unisolated full server E2E
+  path uses the local PostgreSQL credential mismatch, acceptance retains the
+  two pre-existing static-diagnosis presentation failures, and live model
+  checks were not run without their documented credentials. The isolated
+  deterministic path is green.
+- Next safe task: Milestone 6B — introduce `TutoringRuntime.run` and switch
+  the chat HTTP/application adapter to the single runtime interface.
+
 ## Milestone 1 migration inventory
 
 Milestone 1 establishes the durable guidance and enforcement inputs that every
