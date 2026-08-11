@@ -250,8 +250,18 @@ describe('Course evidence readiness and cross-course isolation (e2e)', () => {
         Promise.resolve(documents.map(() => retrievalTask83QueryEmbedding())),
     } satisfies EmbeddingProvider
     const configService = {
-      get: (key: 'RETRIEVAL_TOP_K' | 'RETRIEVAL_MIN_SIMILARITY') =>
-        key === 'RETRIEVAL_TOP_K' ? topK : minSimilarity,
+      get: (
+        key:
+          | 'PDF_MAX_UPLOAD_BYTES'
+          | 'RETRIEVAL_TOP_K'
+          | 'RETRIEVAL_MIN_SIMILARITY',
+      ) => {
+        if (key === 'PDF_MAX_UPLOAD_BYTES') {
+          return 10 * 1024 * 1024
+        }
+
+        return key === 'RETRIEVAL_TOP_K' ? topK : minSimilarity
+      },
     } as unknown as ConfigService<AppEnvironment, true>
     const pdfStorage = {
       exists: (storagePath: string) => {

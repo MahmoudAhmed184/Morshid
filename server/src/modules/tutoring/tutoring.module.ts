@@ -11,7 +11,6 @@ import { TutoringRuntime } from './interface/tutoring-runtime'
 import { TutoringRuntimeApplication } from './tutoring-runtime.application'
 import { TutoringController } from './tutoring.controller'
 import { ConversationCourseBoundaryAuditFilter } from '../conversations/interface/conversation-course-boundary-audit.filter'
-import { TUTORING_CONFIGURATION } from './tutoring.configuration'
 
 @Module({
   imports: [
@@ -32,6 +31,6 @@ import { TUTORING_CONFIGURATION } from './tutoring.configuration'
     },
   ],
   controllers: [TutoringController],
-  exports: [TutoringRuntime, TUTORING_CONFIGURATION],
+  exports: [TutoringRuntime],
 })
 export class TutoringModule {}

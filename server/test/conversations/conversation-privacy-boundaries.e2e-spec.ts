@@ -65,7 +65,7 @@ const AUDIT_FORBIDDEN_VALUES = [
 
 const SESSION_NOT_FOUND_ERROR = {
   code: CONVERSATION_ERROR_CODES.SESSION_NOT_FOUND,
-  message: 'Chat session was not found',
+  message: 'Conversation session was not found',
 } as const
 
 const MEMBERSHIP_REQUIRED_ERROR = {
@@ -537,7 +537,7 @@ describe('Student chat ownership and privacy boundaries (e2e)', () => {
 
     expect(response.body).toMatchObject({
       code: CONVERSATION_ERROR_CODES.INVALID_REQUEST,
-      message: 'Invalid student chat request',
+      message: 'Invalid conversation request',
     })
     const validationErrors = (response.body as { errors?: unknown }).errors
     expect(Array.isArray(validationErrors)).toBe(true)

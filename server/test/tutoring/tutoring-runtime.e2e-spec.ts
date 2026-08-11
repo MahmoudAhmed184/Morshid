@@ -1844,7 +1844,7 @@ describe('Authorized tutoring runtime (e2e)', () => {
       .expect(400)
     expect(overrideResponse.body).toMatchObject({
       code: CONVERSATION_ERROR_CODES.INVALID_REQUEST,
-      message: 'Invalid student chat request',
+      message: 'Invalid conversation request',
     })
     await expect(prisma.message.count()).resolves.toBe(beforeOverride)
 
@@ -1855,7 +1855,7 @@ describe('Authorized tutoring runtime (e2e)', () => {
       .expect(404)
     expect(foreignResponse.body).toEqual({
       code: CONVERSATION_ERROR_CODES.SESSION_NOT_FOUND,
-      message: 'Chat session was not found',
+      message: 'Conversation session was not found',
     })
 
     await request(requireApp().getHttpServer())
@@ -1904,7 +1904,7 @@ describe('Authorized tutoring runtime (e2e)', () => {
       .expect(404)
     expect(foreignRetry.body).toEqual({
       code: CONVERSATION_ERROR_CODES.RETRY_TARGET_NOT_FOUND,
-      message: 'Chat message was not found',
+      message: 'Conversation message was not found',
     })
     await request(requireApp().getHttpServer())
       .post(
@@ -1937,7 +1937,7 @@ describe('Authorized tutoring runtime (e2e)', () => {
 
     expect(response.body).toEqual({
       code: CONVERSATION_ERROR_CODES.TERMINAL_STATE_UNAVAILABLE,
-      message: 'The student chat turn could not be safely persisted',
+      message: 'The tutoring turn could not be safely persisted',
     })
   })
 

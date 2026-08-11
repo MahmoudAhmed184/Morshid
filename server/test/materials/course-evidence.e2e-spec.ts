@@ -515,8 +515,18 @@ describe('Course-filtered top-k evidence (e2e)', () => {
     storageOverride?: PdfStorage,
   ): MaterialsCourseEvidence {
     const configService = {
-      get: (key: 'RETRIEVAL_TOP_K' | 'RETRIEVAL_MIN_SIMILARITY') =>
-        key === 'RETRIEVAL_TOP_K' ? TOP_K : MIN_SIMILARITY,
+      get: (
+        key:
+          | 'PDF_MAX_UPLOAD_BYTES'
+          | 'RETRIEVAL_TOP_K'
+          | 'RETRIEVAL_MIN_SIMILARITY',
+      ) => {
+        if (key === 'PDF_MAX_UPLOAD_BYTES') {
+          return 10 * 1024 * 1024
+        }
+
+        return key === 'RETRIEVAL_TOP_K' ? TOP_K : MIN_SIMILARITY
+      },
     } as unknown as ConfigService<AppEnvironment, true>
 
     const storage =

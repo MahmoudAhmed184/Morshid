@@ -1726,7 +1726,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       .expect(409)
     expect(conflict.body).toEqual({
       code: CONVERSATION_ERROR_CODES.TURN_IN_PROGRESS,
-      message: 'A student chat turn is already in progress',
+      message: 'A tutoring turn is already in progress',
     })
 
     // Release the gate and let the first request complete
@@ -1765,7 +1765,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       .expect(404)
     expect(crossRetry.body).toEqual({
       code: CONVERSATION_ERROR_CODES.RETRY_TARGET_NOT_FOUND,
-      message: 'Chat message was not found',
+      message: 'Conversation message was not found',
     })
   })
 })
