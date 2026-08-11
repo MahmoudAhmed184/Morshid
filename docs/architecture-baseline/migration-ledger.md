@@ -535,13 +535,57 @@ the later Tutoring workflow and ownership cutovers.
 | Regression coverage | `server/src/modules/student-chat/grounded-chat.service.spec.ts`, `socratic-chat.orchestrator.spec.ts`, Socratic capability E2E | Prove both command variants route through `TutoringRuntime`, the workflow does not reacquire an Attempt, and all happy-path, retry, fallback, policy, and replay branches still use one Attempt. |
 | Architecture/search | `dependency-cruiser.config.mjs`, this ledger, authored current paths | Keep the graph green; search for direct controller-to-legacy runtime coupling and duplicate workflow admission before the 6B commit. |
 
-### M6B handoff fields
+### M6B handoff
 
-The handoff must record the implementation SHA, exact runtime interface and
-command/receipt paths, the private implementation binding, removal of the
-second attempt admission path, finalization predicate correction, focused unit
-and capability E2E outcomes, architecture graph counts, and the next safe task
-(Milestone 6C).
+- Starting SHA: `d795ff114670f215b5ad4a513b285682c05fbcc9`; implementation SHA:
+  `ba4c63b6d607c4228713d9b0dedd57f1d8cf3516`; commit:
+  `refactor(tutoring): introduce runtime boundary`.
+- Applicable authority: the approved architecture refactor plan; ADR 0002
+  (one Tutoring Runtime and one Tutoring Attempt); ADR 0007 (opaque database
+  transaction participation); and the approved research notes on NestJS/Prisma
+  organization, clean-slate contracts, and broad-refactor safety.
+- Added the final interface paths
+  `server/src/modules/tutoring/interface/{run-tutoring-turn-command.ts,
+  tutoring-runtime.ts,tutoring-turn-receipt.ts}` plus the composition module.
+  The command is a discriminated new/retry union, and the receipt is a
+  caller-safe domain contract with no Prisma or HTTP DTO imports. `TutoringRuntime.run`
+  is the only runtime entry point exposed to the Student Chat controller.
+- Student Chat now binds `GroundedChatService` behind the runtime token and
+  the controller supplies only the authenticated Student identifier, chat
+  scope, submitted content/identity, audit context, and request budget. The
+  existing pipeline remains private behind that interface for the next direct
+  Tutoring ownership cutover; no compatibility runtime or forwarding endpoint
+  was added.
+- The Socratic workflow now consumes the Attempt created by 6A. Its second
+  `TurnService.getOrCreate`/completed-replay branch and redundant student
+  message-link admission were deleted. Approved and classified response
+  finalization now matches the already-linked Assistant record instead of
+  requiring an absent Assistant relationship. This keeps one admission and
+  one Attempt state machine while preserving terminal replay in the admission
+  repository.
+- Tests added/updated: runtime new/retry dispatch unit coverage and workflow
+  admission-boundary coverage. The focused runtime unit selection passed (2
+  suites, 19 tests); the isolated Socratic capability E2E passed (1 suite, 21
+  tests); and the full repository gate passed: `npm run check` with root 9
+  tests, client 60 files/468 tests, server 117 suites/1,705 tests, architecture
+  checks, and production builds. Architecture passed with 334 client
+  modules/1,332 dependencies and 402 server modules/1,445 dependencies.
+- `npm run typecheck --workspace server`, serial server CI lint,
+  `npm run test:architecture`, `git diff --check`, and formatting checks passed.
+  The schema was unchanged in 6B, so no new migration or catalog reset was
+  required; the 6A audited initial migration remains the database source.
+- Searches show no controller import of `GroundedChatService`, no production
+  workflow `getOrCreate` admission call, and no direct runtime alias. The
+  legacy implementation symbols remain only in their private implementation
+  files and focused tests until 6E deletes those paths.
+- Known baseline limitations remain unchanged: unisolated full server E2E
+  still has the local PostgreSQL credential mismatch, acceptance retains two
+  pre-existing static-diagnosis presentation failures, and live model checks
+  were not run without their documented credentials. The deterministic isolated
+  capability path is green.
+- Next safe task: Milestone 6C — move course-scoped evidence behind Materials'
+  `CourseEvidence` and route code diagnosis through the generic Socratic
+  workflow.
 
 ## Milestone 1 migration inventory
 
