@@ -1,6 +1,6 @@
 # Pre-deployment contracts and a clean Prisma history
 
-**Research date:** 11 August 2026  
+**Research date:** 11 August 2026
 **Scope:** Morshid before its first deployment, with no database or external API consumer whose state or compatibility must be preserved.
 
 ## Executive decision

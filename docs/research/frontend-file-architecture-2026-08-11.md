@@ -1,7 +1,7 @@
 # Frontend file architecture research (2026-08-11)
 
-**Research date:** 2026-08-11  
-**Scope:** `client/` and root Playwright acceptance tests  
+**Research date:** 2026-08-11
+**Scope:** `client/` and root Playwright acceptance tests
 **Status:** Planning evidence only; no refactor is included
 
 ## Executive recommendation
@@ -358,4 +358,3 @@ Directly relevant practitioner sources:
 
 - [Kent C. Dodds: Colocation](https://kentcdodds.com/blog/colocation)
 - [Vercel Engineering: How we optimized package imports in Next.js](https://vercel.com/blog/how-we-optimized-package-imports-in-next-js)
-

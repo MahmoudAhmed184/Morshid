@@ -1,12 +1,12 @@
 # Whole-workspace refactor migration ledger
 
-**Initiative:** Morshid whole-workspace architecture refactor  
-**Plan:** `docs/architecture-refactor-plan-2026-08-11.md`  
-**Ledger opened:** 11 August 2026  
-**Starting branch:** `feature/socratic-tutor-v1-phase2`  
-**Starting SHA:** `22fc7fbdce59fb2248db39a1bfd7b4d0b86f0480`  
-**Implementation branch:** `refactor/whole-workspace-architecture`  
-**First branch commit:** `1c88713195ec35e42e2c218ead57d08112ab85f5`  
+**Initiative:** Morshid whole-workspace architecture refactor
+**Plan:** `docs/architecture-refactor-plan-2026-08-11.md`
+**Ledger opened:** 11 August 2026
+**Starting branch:** `feature/socratic-tutor-v1-phase2`
+**Starting SHA:** `22fc7fbdce59fb2248db39a1bfd7b4d0b86f0480`
+**Implementation branch:** `refactor/whole-workspace-architecture`
+**First branch commit:** `1c88713195ec35e42e2c218ead57d08112ab85f5`
 
 This ledger is the working inventory for the approved plan. It records
 ownership decisions before moves and names the focused verification and

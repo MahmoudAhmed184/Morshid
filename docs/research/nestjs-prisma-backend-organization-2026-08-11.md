@@ -1,8 +1,8 @@
 # NestJS and Prisma backend organization research
 
-**Research date:** 11 August 2026  
+**Research date:** 11 August 2026
 **Scope:** Morshid's NestJS 11.1 / Prisma 7.8 / TypeScript 6 backend in the
-existing npm workspace  
+existing npm workspace
 **Status:** Planning evidence only; no source files were moved
 
 ## Executive recommendation

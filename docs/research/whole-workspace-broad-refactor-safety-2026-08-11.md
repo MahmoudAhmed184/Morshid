@@ -1,8 +1,8 @@
 # Whole-workspace broad refactor safety research (2026-08-11)
 
-**Research date:** 11 August 2026  
+**Research date:** 11 August 2026
 **Scope:** Safe execution of a broad architecture and file-organization refactor
-across Morshid's client, server, database, tests, scripts, and documentation  
+across Morshid's client, server, database, tests, scripts, and documentation
 **Status:** Planning evidence only; no application code was changed
 
 ## Executive recommendation

@@ -1,8 +1,8 @@
 # Solo AI-agent workflow for a long-lived refactor branch (2026-08-11)
 
-**Research date:** 11 August 2026  
+**Research date:** 11 August 2026
 **Scope:** A solo developer coordinating AI coding agents for Morshid's broad,
-whole-workspace architecture refactor on one long-lived branch  
+whole-workspace architecture refactor on one long-lived branch
 **Status:** Planning evidence only; no application code was changed
 
 ## Executive recommendation
