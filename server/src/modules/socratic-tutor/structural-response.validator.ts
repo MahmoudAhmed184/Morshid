@@ -57,6 +57,8 @@ export class StructuralResponseValidator {
 
     const policy: CandidateResponsePolicyContext = {
       allowedCitationIds: context.allowedCitationIds,
+      requireGrounding: context.requireGrounding,
+      enforceCitationSupport: context.enforceCitationSupport,
       requireStudentAction: context.requireStudentAction,
       reflectionMode: context.reflectionMode,
     }
@@ -116,8 +118,8 @@ function violationForGenerationFailure(
         RESPONSE_VIOLATION_TYPE.INVALID_CITATION,
         RESPONSE_VALIDATION_SEVERITY.HIGH,
         'usedCitationIds',
-        'Candidate used a citation ID outside the backend allow-list.',
-        'Use only backend-supplied citation IDs, or use no citations.',
+        'Candidate did not satisfy the backend citation grounding requirement.',
+        'Use an allowed citation when grounding and citation support are required.',
       )
     default:
       return violation(
@@ -132,6 +134,8 @@ function violationForGenerationFailure(
 
 export function buildCandidateValidationContext(input: {
   readonly allowedCitationIds: ReadonlySet<string>
+  readonly requireGrounding: boolean
+  readonly enforceCitationSupport: boolean
   readonly requireStudentAction: boolean
   readonly reflectionMode: ReflectionMode
   readonly responseIntent: TeachingStrategy

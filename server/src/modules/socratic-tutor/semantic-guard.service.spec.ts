@@ -351,6 +351,8 @@ function input(
     },
     validationContext: {
       allowedCitationIds: new Set(['retrieval.rank.1']),
+      requireGrounding: true,
+      enforceCitationSupport: true,
       requireStudentAction: true,
       reflectionMode: ReflectionMode.NONE,
       responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,

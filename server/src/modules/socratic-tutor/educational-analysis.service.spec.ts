@@ -406,6 +406,24 @@ describe('EducationalAnalysisService', () => {
     expect(model.requests).toHaveLength(1)
   })
 
+  it('does not retry a non-retryable upstream HTTP status', async () => {
+    const repository = new FakeEducationalAnalysisRepository()
+    const model = new FakeAnalysisModelPort(
+      new AnalysisModelError(ANALYSIS_MODEL_ERROR_CODE.TRANSPORT_FAILURE, {
+        status: 400,
+        headers: new Headers({ 'retry-after-ms': '30_000' }),
+      }),
+    )
+    const service = new EducationalAnalysisService(model, repository)
+
+    await expect(service.analyze(buildContext())).resolves.toMatchObject({
+      success: true,
+      source: EDUCATIONAL_ANALYSIS_SOURCE.FALLBACK,
+      analysis: { infrastructureRetryCount: 0 },
+    })
+    expect(model.requests).toHaveLength(1)
+  })
+
   it('persists malformed-output fallback after bounded retry exhaustion', async () => {
     const repository = new FakeEducationalAnalysisRepository()
     const model = new FakeAnalysisModelPort(

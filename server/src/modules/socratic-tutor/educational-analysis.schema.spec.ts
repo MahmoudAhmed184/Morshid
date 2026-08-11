@@ -143,6 +143,71 @@ describe('educational analysis schema validation', () => {
     },
   )
 
+  it.each([
+    [
+      'absent effort evidence IDs',
+      {
+        effortEvidence: {
+          ...validEducationalAnalysisResult().effortEvidence,
+          present: false,
+          quality: EFFORT_QUALITY.NONE,
+          type: null,
+          evidenceMessageIds: ['current-message'],
+        },
+      },
+      'effortEvidence.evidenceMessageIds',
+    ],
+    [
+      'absent effort addressed-action flag',
+      {
+        effortEvidence: {
+          ...validEducationalAnalysisResult().effortEvidence,
+          present: false,
+          quality: EFFORT_QUALITY.NONE,
+          type: null,
+          addressesPreviousTutorAction: true,
+          evidenceMessageIds: [],
+        },
+      },
+      'effortEvidence.addressesPreviousTutorAction',
+    ],
+    [
+      'absent effort repeated flag',
+      {
+        effortEvidence: {
+          ...validEducationalAnalysisResult().effortEvidence,
+          present: false,
+          quality: EFFORT_QUALITY.NONE,
+          type: null,
+          isRepeated: true,
+          evidenceMessageIds: [],
+        },
+      },
+      'effortEvidence.isRepeated',
+    ],
+    [
+      'absent learning evidence IDs',
+      {
+        learningEvidence: {
+          ...validEducationalAnalysisResult().learningEvidence,
+          present: false,
+          strength: LEARNING_EVIDENCE_STRENGTH.NONE,
+          evidenceMessageIds: ['current-message'],
+        },
+      },
+      'learningEvidence.evidenceMessageIds',
+    ],
+  ])('rejects %s', (_name, patch, path) => {
+    const issues = expectInvalid({
+      ...validEducationalAnalysisResult(),
+      ...patch,
+    })
+
+    expect(issues).toEqual(
+      expect.arrayContaining([expect.objectContaining({ path })]),
+    )
+  })
+
   it.each(SUPPORTED_TOPIC_RELATIONS)(
     'accepts TopicRelation %s',
     (topicRelation) => {

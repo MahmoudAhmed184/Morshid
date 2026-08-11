@@ -251,6 +251,40 @@ describe('RetrievalQueryBuilder', () => {
     expect(result.query).toContain('controls the order of loop iteration')
   })
 
+  it('ignores nested evidence IDs when the evidence is absent', () => {
+    const result = builder.build(
+      context({
+        history: [
+          message({
+            id: 'forged-effort-reference',
+            content: 'FORGED_EFFORT_REFERENCE must not enter retrieval',
+          }),
+          message({
+            id: 'forged-learning-reference',
+            content: 'FORGED_LEARNING_REFERENCE must not enter retrieval',
+          }),
+        ],
+        effortEvidence: {
+          present: false,
+          quality: EFFORT_QUALITY.NONE,
+          type: null,
+          addressesPreviousTutorAction: false,
+          isRepeated: false,
+          evidenceMessageIds: ['forged-effort-reference'],
+        },
+        learningEvidence: {
+          present: false,
+          strength: LEARNING_EVIDENCE_STRENGTH.NONE,
+          evidenceMessageIds: ['forged-learning-reference'],
+        },
+      }),
+    )
+
+    expect(result.query).not.toContain('FORGED_EFFORT_REFERENCE')
+    expect(result.query).not.toContain('FORGED_LEARNING_REFERENCE')
+    expect(result.contextMessageIds).toEqual([])
+  })
+
   it('bounds oversized context by priority while preserving current-turn content and accurate provenance', () => {
     const currentContent = 'CURRENT_TURN_REQUIRED_ANCHOR'
     const result = builder.build(
@@ -341,6 +375,8 @@ interface ContextOptions {
   previousQuestionId?: string
   previousAttemptId?: string
   evidenceReferences?: string[]
+  effortEvidence?: PersistedEducationalAnalysisRecord['result']['effortEvidence']
+  learningEvidence?: PersistedEducationalAnalysisRecord['result']['learningEvidence']
   misconception?: PersistedEducationalAnalysisRecord['result']['misconceptions'][number]
 }
 
@@ -370,6 +406,8 @@ function context(options: ContextOptions = {}): RetrievalQueryContext {
     acceptedAnalysis: analysis({
       topicRelation: options.topicRelation,
       evidenceReferences: options.evidenceReferences,
+      effortEvidence: options.effortEvidence,
+      learningEvidence: options.learningEvidence,
       misconception: options.misconception,
     }),
   }
@@ -456,6 +494,8 @@ function analysisContextPackage(input: {
 function analysis(input: {
   topicRelation?: PersistedEducationalAnalysisRecord['result']['topicRelation']
   evidenceReferences?: string[]
+  effortEvidence?: PersistedEducationalAnalysisRecord['result']['effortEvidence']
+  learningEvidence?: PersistedEducationalAnalysisRecord['result']['learningEvidence']
   misconception?: PersistedEducationalAnalysisRecord['result']['misconceptions'][number]
 }): PersistedEducationalAnalysisRecord {
   return {
@@ -467,7 +507,7 @@ function analysis(input: {
     result: {
       requestKind: MessageRequestKind.AMBIGUOUS,
       studentState: StudentState.PARTIAL_UNDERSTANDING,
-      effortEvidence: {
+      effortEvidence: input.effortEvidence ?? {
         present: false,
         quality: EFFORT_QUALITY.NONE,
         type: null,
@@ -475,7 +515,7 @@ function analysis(input: {
         isRepeated: false,
         evidenceMessageIds: [],
       },
-      learningEvidence: {
+      learningEvidence: input.learningEvidence ?? {
         present: false,
         strength: LEARNING_EVIDENCE_STRENGTH.NONE,
         evidenceMessageIds: [],

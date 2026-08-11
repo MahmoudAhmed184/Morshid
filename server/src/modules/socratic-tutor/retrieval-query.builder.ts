@@ -187,8 +187,12 @@ function relevantAnalysisMessageIds(input: RetrievalQueryContext): string[] {
   const result = input.acceptedAnalysis.result
   const ids = [
     ...result.evidenceReferences,
-    ...result.effortEvidence.evidenceMessageIds,
-    ...result.learningEvidence.evidenceMessageIds,
+    ...(result.effortEvidence.present
+      ? result.effortEvidence.evidenceMessageIds
+      : []),
+    ...(result.learningEvidence.present
+      ? result.learningEvidence.evidenceMessageIds
+      : []),
     ...result.misconceptions.map(
       (misconception) => misconception.evidenceMessageId,
     ),

@@ -50,14 +50,37 @@ export class DeterministicGuardService {
       )
     }
 
-    if (hasGroundingViolation(candidate, context.allowedCitationIds)) {
+    if (hasGroundingViolation(candidate, context)) {
       violations.push(
         violation(
           RESPONSE_VIOLATION_TYPE.GROUNDING_VIOLATION,
           RESPONSE_VALIDATION_SEVERITY.HIGH,
           'usedCitationIds',
-          'Candidate cites evidence outside the backend citation allow-list.',
-          'Use only backend-allowed citation IDs.',
+          'Candidate is missing required grounding or cites outside the backend allow-list.',
+          'Use one or more backend-allowed citation IDs when grounding is required.',
+        ),
+      )
+    }
+
+    if (candidate.selfReportedCompliance.finalAnswerRevealed) {
+      violations.push(
+        violation(
+          RESPONSE_VIOLATION_TYPE.FINAL_ANSWER_DISCLOSURE,
+          RESPONSE_VALIDATION_SEVERITY.CRITICAL,
+          'selfReportedCompliance.finalAnswerRevealed',
+          'Candidate explicitly reports that it revealed a prohibited final answer.',
+          'Set finalAnswerRevealed to false and remove any final-answer disclosure.',
+        ),
+      )
+    }
+    if (candidate.selfReportedCompliance.completeSolutionRevealed) {
+      violations.push(
+        violation(
+          RESPONSE_VIOLATION_TYPE.COMPLETE_SOLUTION_DISCLOSURE,
+          RESPONSE_VALIDATION_SEVERITY.CRITICAL,
+          'selfReportedCompliance.completeSolutionRevealed',
+          'Candidate explicitly reports that it revealed a prohibited complete solution.',
+          'Set completeSolutionRevealed to false and remove complete-solution disclosure.',
         ),
       )
     }
@@ -235,9 +258,17 @@ function requestsMeaningfulStudentAction(
 
 function hasGroundingViolation(
   candidate: CandidateResponse,
-  allowedCitationIds: ReadonlySet<string>,
+  context: CandidateValidationContext,
 ): boolean {
-  return candidate.usedCitationIds.some((id) => !allowedCitationIds.has(id))
+  return (
+    candidate.usedCitationIds.some(
+      (id) => !context.allowedCitationIds.has(id),
+    ) ||
+    (context.requireGrounding &&
+      context.enforceCitationSupport &&
+      context.allowedCitationIds.size > 0 &&
+      candidate.usedCitationIds.length === 0)
+  )
 }
 
 function violation(

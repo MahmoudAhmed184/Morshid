@@ -8,6 +8,7 @@ import {
 import type { RetrievedChunk } from '../retrieval/retrieval.service'
 import type { PersistedEducationalAnalysisRecord } from './educational-analysis.repository'
 import type { PersistedTeachingDecisionRecord } from './teaching-decision.repository'
+import type { TeachingGuardPolicy } from './teaching-policy.types'
 
 export type BuildGenerationContextResult =
   | {
@@ -100,8 +101,23 @@ export function regenerationMatchesTeachingDecision(
     policy.policyVersion === context.teachingDecision.policyVersion &&
     policy.guidanceLevel === context.teachingDecision.guidanceLevel &&
     policy.revealPolicy === context.teachingDecision.revealPolicy &&
-    JSON.stringify(policy.guardPolicy) ===
-      JSON.stringify(context.teachingDecision.guardPolicy)
+    guardPoliciesMatch(policy.guardPolicy, context.teachingDecision.guardPolicy)
+  )
+}
+
+function guardPoliciesMatch(
+  left: TeachingGuardPolicy,
+  right: TeachingGuardPolicy,
+): boolean {
+  return (
+    left.preventDirectAnswer === right.preventDirectAnswer &&
+    left.preventFinalResult === right.preventFinalResult &&
+    left.preventCompleteSolution === right.preventCompleteSolution &&
+    left.preventSubmissionReadyCode === right.preventSubmissionReadyCode &&
+    left.preventProtectedCodeLeakage === right.preventProtectedCodeLeakage &&
+    left.requireStudentReasoning === right.requireStudentReasoning &&
+    left.requireGrounding === right.requireGrounding &&
+    left.enforceCitationSupport === right.enforceCitationSupport
   )
 }
 

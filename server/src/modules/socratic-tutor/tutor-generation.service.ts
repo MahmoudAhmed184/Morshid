@@ -1,5 +1,13 @@
 import { Inject, Injectable, Logger } from '@nestjs/common'
 
+import {
+  assertRequestBudget,
+  RequestBudgetExceededError,
+} from '../../common/http/request-deadline'
+import {
+  readUpstreamFailure,
+  waitForRetry,
+} from '../../common/upstream/upstream-retry-policy'
 import { ContextManager } from './context-manager.service'
 import { EducationalAnalysisRepository } from './educational-analysis.repository'
 import { TeachingDecisionRepository } from './teaching-decision.repository'
@@ -45,6 +53,7 @@ export class TutorGenerationService {
   async generate(
     input: TutorGenerationInput,
   ): Promise<TutorGenerationServiceResult> {
+    assertRequestBudget(input)
     const analysisContext = await this.contextManager.buildAnalysisContext({
       courseId: input.courseId,
       sessionId: input.sessionId,
@@ -55,6 +64,7 @@ export class TutorGenerationService {
     if (analysisContext === null) {
       return failure(TUTOR_GENERATION_FAILURE_CODE.INVALID_GENERATION_CONTEXT)
     }
+    assertRequestBudget(input)
 
     if (
       analysisContext.studentMessage.turnId !== input.turnId ||
@@ -77,6 +87,7 @@ export class TutorGenerationService {
           { turnId: input.turnId, topicId: input.topicId },
         ),
       ])
+    assertRequestBudget(input)
     if (teachingDecision === null) {
       return failure(TUTOR_GENERATION_FAILURE_CODE.MISSING_TEACHING_DECISION)
     }
@@ -111,15 +122,17 @@ export class TutorGenerationService {
     let infrastructureRetryCount = 0
     let modelResponse: TutorModelResponse
     for (;;) {
+      assertRequestBudget(input)
       try {
         modelResponse = await this.tutorModelPort.generate(request)
         break
       } catch (error) {
+        assertRequestBudget(input)
         const errorCode = tutorFailureFromModelError(error)
-        const willRetry = this.retryPolicy.canRetry(
-          error,
-          infrastructureRetryCount,
-        )
+        const upstreamFailure = readUpstreamFailure(error, Date.now())
+        const willRetry =
+          this.retryPolicy.canRetry(error, infrastructureRetryCount) &&
+          upstreamFailure.retryable
         this.logGenerationOutcome({
           context,
           status: 'failed',
@@ -132,6 +145,12 @@ export class TutorGenerationService {
           return failure(errorCode, infrastructureRetryCount)
         }
         infrastructureRetryCount += 1
+        await waitForRetry(
+          upstreamFailure.retryDelayMs,
+          input.signal ?? new AbortController().signal,
+          () => new RequestBudgetExceededError(),
+        )
+        assertRequestBudget(input)
       }
     }
 
@@ -141,6 +160,9 @@ export class TutorGenerationService {
         allowedCitationIds: new Set(
           generationContext.context.allowedCitationIds,
         ),
+        requireGrounding: teachingDecision.guardPolicy.requireGrounding,
+        enforceCitationSupport:
+          teachingDecision.guardPolicy.enforceCitationSupport,
         requireStudentAction: teachingDecision.requireStudentAction,
         reflectionMode: teachingDecision.reflectionMode,
       },

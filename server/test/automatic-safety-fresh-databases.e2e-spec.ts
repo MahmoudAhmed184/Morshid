@@ -95,7 +95,8 @@ interface MatrixScenario {
   readonly expectedReason: ExpectedReason | null
   readonly expectedContent: string
   readonly completionContent?: string
-  readonly expectedRequestKind?: 'CONCEPTUAL' | 'CODE_DIAGNOSIS'
+  readonly expectedRequestKind?:
+    'CONCEPTUAL' | 'PROBLEM_LIKE' | 'CODE_DIAGNOSIS'
   readonly materials: readonly { title: string; content: string }[]
 }
 
@@ -105,7 +106,11 @@ function toMatrixScenario(fixture: AutomaticSafetyFixture): MatrixScenario {
   if (fixture.expectedReasons.length > 1) {
     throw new TypeError(`${fixture.id} must have at most one matrix reason`)
   }
-  const expectedReason = fixture.expectedReasons.at(0)
+  // SCN-04 is covered by the output-policy matrix with the legacy completion
+  // contract. The HTTP path now uses the Socratic pipeline, which safely turns
+  // the same request into a bounded question instead of invoking completion.
+  const expectedReason =
+    fixture.id === 'SCN-04' ? undefined : fixture.expectedReasons.at(0)
   if (expectedReason === 'CITATION_MISSING') {
     throw new TypeError(`${fixture.id} has no bounded matrix mapping`)
   }
@@ -115,6 +120,9 @@ function toMatrixScenario(fixture: AutomaticSafetyFixture): MatrixScenario {
     question: fixture.studentQuestion,
     expectedReason: expectedReason ?? null,
     expectedContent: expectedContentFor(expectedReason),
+    ...(fixture.id === 'SCN-04'
+      ? { expectedRequestKind: 'PROBLEM_LIKE' as const }
+      : {}),
     ...(fixture.id === 'SCN-04'
       ? { completionContent: FULL_CODE_COMPLETION }
       : {}),

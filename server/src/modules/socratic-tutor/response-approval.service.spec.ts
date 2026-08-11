@@ -1,6 +1,10 @@
 import {
+  LearningStatus,
+  MessageRequestKind,
+  ResolutionEvidenceStrength,
   ReflectionMode,
   RevealPolicy,
+  StudentState,
   TeachingStrategy,
   TeachingTechnique,
   TutorTurnStatus,
@@ -13,6 +17,8 @@ import { ResponseApprovalService } from './response-approval.service'
 import { SafeFallbackService } from './safe-fallback.service'
 import type { PersistedTeachingDecisionRecord } from './teaching-decision.repository'
 import { TeachingDecisionRepository } from './teaching-decision.repository'
+import type { TopicStateTransitionAnalysis } from './topic-state-transition'
+import type { TopicStateSnapshot } from './topic-state.types'
 import { DeterministicGuardService } from './deterministic-guard.service'
 import type { SemanticGuardService } from './semantic-guard.service'
 import { StructuralResponseValidator } from './structural-response.validator'
@@ -71,6 +77,23 @@ describe('ResponseApprovalService', () => {
         stage: RESPONSE_VALIDATION_STAGE.DETERMINISTIC,
       },
     })
+    expect(harness.semantic.calls).toHaveLength(1)
+  })
+
+  it('regenerates an ungrounded candidate when evidence is available', async () => {
+    const harness = buildHarness([
+      generationSuccess(validCandidate({ usedCitationIds: [] })),
+      generationSuccess(validCandidate()),
+    ])
+
+    const result = await harness.service.approve(input())
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.approvedResponse.source).toBe('VALIDATED_CANDIDATE')
+      expect(result.approvedResponse.approvedCandidateAttempt).toBe(2)
+    }
+    expect(harness.generation.calls).toHaveLength(2)
     expect(harness.semantic.calls).toHaveLength(1)
   })
 
@@ -178,6 +201,8 @@ describe('ResponseApprovalService', () => {
     const result = await harness.service.approveAndPersist({
       ...input(),
       assistantMessageId: 'assistant-message-1',
+      topicState: topicState(),
+      analysis: analysisForState(),
     })
 
     expect(result.success).toBe(true)
@@ -302,6 +327,61 @@ function input(): TutorGenerationInput {
     studentMessageId: 'student-message-1',
     topicId: 'topic-1',
     retrievalResult: [retrievedChunk()],
+  }
+}
+
+function topicState(): TopicStateSnapshot {
+  return {
+    id: 'topic-state-1',
+    topicId: 'topic-1',
+    version: 1,
+    requestKind: null,
+    studentState: StudentState.UNKNOWN,
+    activeStrategy: null,
+    primaryTechnique: null,
+    supportingTechnique: null,
+    guidanceLevel: 1,
+    revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
+    attemptCount: 0,
+    meaningfulAttemptCount: 0,
+    misconceptionStatus: null,
+    learningStatus: LearningStatus.UNKNOWN,
+    resolutionEvidenceStrength: ResolutionEvidenceStrength.NONE,
+    summary: null,
+    lastTutorQuestion: null,
+    lastStudentAction: null,
+    resolved: false,
+    updatedAt: new Date('2026-08-06T00:00:00.000Z'),
+  }
+}
+
+function analysisForState(): TopicStateTransitionAnalysis {
+  return {
+    studentMessageId: 'student-message-1',
+    result: {
+      requestKind: MessageRequestKind.CONCEPTUAL,
+      studentState: StudentState.PARTIAL_UNDERSTANDING,
+      effortEvidence: {
+        present: false,
+        quality: 'NONE',
+        type: null,
+        addressesPreviousTutorAction: false,
+        isRepeated: false,
+        evidenceMessageIds: [],
+      },
+      learningEvidence: {
+        present: false,
+        strength: 'NONE',
+        evidenceMessageIds: [],
+      },
+      misconceptions: [],
+      topicRelation: 'CONTINUE_CURRENT_TOPIC',
+      recommendedStrategy: TeachingStrategy.SOCRATIC_QUESTIONING,
+      recommendedTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+      recommendedGuidanceLevel: 1,
+      confidence: 0.9,
+      evidenceReferences: ['student-message-1'],
+    },
   }
 }
 

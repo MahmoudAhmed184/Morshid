@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
+import { assertRequestBudget } from '../../common/http/request-deadline'
 import { TutorTurnStatus } from '../../generated/prisma/client'
 
 import { citationIdForChunk } from './tutor-generation-context'
@@ -29,6 +30,11 @@ import {
 } from './safe-fallback.service'
 import type { PersistedTeachingDecisionRecord } from './teaching-decision.repository'
 import { TeachingDecisionRepository } from './teaching-decision.repository'
+import {
+  buildCompletedTopicStateTransition,
+  type TopicStateTransitionAnalysis,
+} from './topic-state-transition'
+import type { TopicStateSnapshot } from './topic-state.types'
 import { TurnRepository } from './turn.repository'
 import { TurnService } from './turn.service'
 import {
@@ -101,6 +107,7 @@ export class ResponseApprovalService {
     input: ResponseApprovalInput,
     lifecycle: ApprovalLifecycle,
   ): Promise<ResponseApprovalResult> {
+    assertRequestBudget(input)
     const decision = await this.teachingDecisionRepository.findByTurnId(
       input.turnId,
     )
@@ -115,6 +122,8 @@ export class ResponseApprovalService {
       allowedCitationIds: new Set(
         input.retrievalResult.map(citationIdForChunk),
       ),
+      requireGrounding: decision.guardPolicy.requireGrounding,
+      enforceCitationSupport: decision.guardPolicy.enforceCitationSupport,
       requireStudentAction: decision.requireStudentAction,
       reflectionMode: decision.reflectionMode,
       responseIntent: decision.strategy,
@@ -127,6 +136,7 @@ export class ResponseApprovalService {
     let previousValidation: ValidationResult | null = null
     let candidateAttempts = 0
     for (let attempt = 1; attempt <= MAX_MVP_CANDIDATE_ATTEMPTS; attempt += 1) {
+      assertRequestBudget(input)
       candidateAttempts = attempt
       const generationStartedAt = new Date()
       const generation = await this.tutorGenerationService.generate({
@@ -148,6 +158,7 @@ export class ResponseApprovalService {
               },
             }),
       })
+      assertRequestBudget(input)
       const generationCompletedAt = new Date()
 
       if (!generation.success) {
@@ -289,7 +300,11 @@ export class ResponseApprovalService {
           content: chunk.content,
         })),
         ...(input.signal === undefined ? {} : { signal: input.signal }),
+        ...(input.deadlineAt === undefined
+          ? {}
+          : { deadlineAt: input.deadlineAt }),
       })
+      assertRequestBudget(input)
       validationResults.push(semantic.result)
       guardResultAudits.push(
         guardResultAudit(attempt, semantic.result, decision),
@@ -348,7 +363,11 @@ export class ResponseApprovalService {
   }
 
   async approveAndPersist(
-    input: ResponseApprovalInput & { readonly assistantMessageId: string },
+    input: ResponseApprovalInput & {
+      readonly assistantMessageId: string
+      readonly topicState: TopicStateSnapshot
+      readonly analysis: TopicStateTransitionAnalysis
+    },
   ): Promise<PersistedResponseApprovalResult> {
     const lifecycle = new PersistedApprovalLifecycle(
       this.turnService,
@@ -370,6 +389,13 @@ export class ResponseApprovalService {
       }
     }
 
+    const topicStateTransition = buildCompletedTopicStateTransition({
+      topicState: input.topicState,
+      analysis: input.analysis,
+      decision,
+      approvedResponse: approval.approvedResponse,
+    })
+
     const persisted = await this.turnRepository.completeApprovedResponse({
       courseId: input.courseId,
       sessionId: input.sessionId,
@@ -378,12 +404,14 @@ export class ResponseApprovalService {
       topicId: input.topicId,
       studentMessageId: input.studentMessageId,
       assistantMessageId: input.assistantMessageId,
+      requestKind: input.analysis.result.requestKind,
       approvedResponse: approval.approvedResponse,
       guidanceLevel: decision.guidanceLevel,
       retrievalResult: input.retrievalResult,
       auditGraph: approval.auditGraph,
       safeFallbackReason: approval.safeFallbackReason,
       expectedTurnStatus: lifecycle.status,
+      topicStateTransition,
     })
 
     if (persisted.kind !== 'ok') {
@@ -428,7 +456,7 @@ function approvalWithFallback(
 
   return {
     success: true,
-    approvedResponse: fallbackService.create(decision, reason),
+    approvedResponse: fallbackService.create(decision),
     validationResults: Object.freeze([...validationResults]),
     candidateAttempts,
     safeFallbackReason: reason,

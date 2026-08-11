@@ -96,6 +96,16 @@ describe('candidate response validation', () => {
       'TUTOR_INVALID_OUTPUT',
     ],
     [
+      'prohibited final-answer admission',
+      validCandidate({
+        selfReportedCompliance: {
+          finalAnswerRevealed: true,
+          completeSolutionRevealed: false,
+        },
+      }),
+      'TUTOR_INVALID_OUTPUT',
+    ],
+    [
       'too many citations',
       validCandidate({
         usedCitationIds: Array.from(
@@ -134,6 +144,29 @@ describe('candidate response validation', () => {
       errorCode: 'TUTOR_INVALID_CITATION',
     })
   })
+
+  it('rejects an ungrounded candidate when evidence is available', () => {
+    expect(
+      validateCandidateResponse(
+        validCandidate({ usedCitationIds: [] }),
+        policy(),
+        metadata(),
+      ),
+    ).toEqual({
+      success: false,
+      errorCode: 'TUTOR_INVALID_CITATION',
+    })
+  })
+
+  it('allows a citation-free candidate when no evidence is available', () => {
+    expect(
+      validateCandidateResponse(
+        validCandidate({ usedCitationIds: [] }),
+        { ...policy(), allowedCitationIds: new Set() },
+        metadata(),
+      ).success,
+    ).toBe(true)
+  })
 })
 
 function validCandidate(patch: Record<string, unknown> = {}) {
@@ -158,6 +191,8 @@ function validCandidate(patch: Record<string, unknown> = {}) {
 function policy(): CandidateResponsePolicyContext {
   return {
     allowedCitationIds: new Set(['retrieval.rank.1']),
+    requireGrounding: true,
+    enforceCitationSupport: true,
     requireStudentAction: true,
     reflectionMode: ReflectionMode.NONE,
   }

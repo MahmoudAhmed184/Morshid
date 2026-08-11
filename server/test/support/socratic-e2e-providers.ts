@@ -311,14 +311,16 @@ export function validCandidateRawOutput(
  * A raw candidate that will FAIL the deterministic guard (responseIntent
  * mismatch), triggering regeneration when used as attempt #1.
  */
-export function rejectedCandidateRawOutput(): Record<string, unknown> {
+export function rejectedCandidateRawOutput(
+  allowedCitationIds: readonly string[] = [],
+): Record<string, unknown> {
   return {
     message: 'Can you trace through the code and predict the output?',
     // Mismatched intent: the deterministic analysis model always
     // chooses SOCRATIC_QUESTIONING; using DEBUGGING_GUIDANCE will
     // trigger a RESPONSE_INTENT_MISMATCH violation.
     responseIntent: TeachingStrategy.DEBUGGING_GUIDANCE,
-    usedCitationIds: [],
+    usedCitationIds: [...allowedCitationIds],
     requiresStudentAction: true,
     studentAction: {
       // Also mismatched technique

@@ -47,8 +47,8 @@ export const CandidateResponseContentSchema = z
     reflectionIncluded: z.boolean(),
     selfReportedCompliance: z
       .object({
-        finalAnswerRevealed: z.boolean(),
-        completeSolutionRevealed: z.boolean(),
+        finalAnswerRevealed: z.literal(false),
+        completeSolutionRevealed: z.literal(false),
       })
       .strict(),
   })
@@ -123,6 +123,17 @@ export function validateCandidateResponse(
   }
   if (
     content.usedCitationIds.some((id) => !policy.allowedCitationIds.has(id))
+  ) {
+    return {
+      success: false,
+      errorCode: 'TUTOR_INVALID_CITATION',
+    }
+  }
+  if (
+    policy.requireGrounding &&
+    policy.enforceCitationSupport &&
+    policy.allowedCitationIds.size > 0 &&
+    content.usedCitationIds.length === 0
   ) {
     return {
       success: false,

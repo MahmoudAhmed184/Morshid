@@ -104,6 +104,23 @@ describe('DeterministicGuardService', () => {
       context(),
       RESPONSE_VIOLATION_TYPE.GROUNDING_VIOLATION,
     ],
+    [
+      'missing required citation',
+      validCandidate({ usedCitationIds: [] }),
+      context(),
+      RESPONSE_VIOLATION_TYPE.GROUNDING_VIOLATION,
+    ],
+    [
+      'self-reported final answer',
+      validCandidate({
+        selfReportedCompliance: {
+          finalAnswerRevealed: true,
+          completeSolutionRevealed: false,
+        },
+      }),
+      context(),
+      RESPONSE_VIOLATION_TYPE.FINAL_ANSWER_DISCLOSURE,
+    ],
   ])('rejects %s', (_name, candidate, validationContext, violationType) => {
     const result = service().evaluate(candidate, validationContext)
 
@@ -161,6 +178,8 @@ function context(
 ): CandidateValidationContext {
   return {
     allowedCitationIds: new Set(['retrieval.rank.1']),
+    requireGrounding: true,
+    enforceCitationSupport: true,
     requireStudentAction: true,
     reflectionMode: ReflectionMode.NONE,
     responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,

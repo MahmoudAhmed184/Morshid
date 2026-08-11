@@ -15,7 +15,6 @@ export const SAFE_FALLBACK_REASON = {
   VALIDATION_EXHAUSTED: 'VALIDATION_EXHAUSTED',
   GUARD_UNAVAILABLE: 'GUARD_UNAVAILABLE',
   GENERATION_RETRY_FAILED: 'GENERATION_RETRY_FAILED',
-  GROUNDING_UNAVAILABLE: 'GROUNDING_UNAVAILABLE',
 } as const
 
 export type SafeFallbackReason =
@@ -23,12 +22,9 @@ export type SafeFallbackReason =
 
 @Injectable()
 export class SafeFallbackService {
-  create(
-    decision: PersistedTeachingDecisionRecord,
-    reason: SafeFallbackReason,
-  ): ApprovedResponse {
+  create(decision: PersistedTeachingDecisionRecord): ApprovedResponse {
     return Object.freeze({
-      message: fallbackMessage(decision.primaryTechnique, reason),
+      message: fallbackMessage(decision.primaryTechnique),
       responseIntent: decision.strategy,
       usedCitationIds: Object.freeze([]),
       requiresStudentAction: true,
@@ -55,14 +51,7 @@ export class SafeFallbackService {
   }
 }
 
-function fallbackMessage(
-  technique: TeachingTechnique,
-  reason: SafeFallbackReason,
-): string {
-  if (reason === SAFE_FALLBACK_REASON.GROUNDING_UNAVAILABLE) {
-    return 'Let us keep this grounded. What exact concept or line from the material should we inspect first?'
-  }
-
+function fallbackMessage(technique: TeachingTechnique): string {
   if (technique === TeachingTechnique.TRACE_EXECUTION) {
     return 'Let us narrow it to one trace step. What value changes first, and what did you expect it to become?'
   }

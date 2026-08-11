@@ -713,7 +713,6 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
         studentState: StudentState.NO_PRIOR_KNOWLEDGE,
         recommendedStrategy: TeachingStrategy.GUIDED_EXPLANATION,
         recommendedTechnique: TeachingTechnique.ORIENTATION_QUESTION,
-        repeatedEffort: true,
       },
       {
         // Reproduce the live provider inconsistency: the structured effort,
@@ -857,7 +856,11 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
         // First attempt: return a candidate that will fail deterministic guard
         return Promise.resolve(
           Object.freeze({
-            rawOutput: Object.freeze(rejectedCandidateRawOutput()),
+            rawOutput: Object.freeze(
+              rejectedCandidateRawOutput(
+                tutorModel.extractAllowedCitationIds(modelRequest),
+              ),
+            ),
             provider: 'e2e-controllable-tutor',
             model: 'e2e-controllable-tutor-v1',
             promptVersion: modelRequest.promptVersion,
@@ -947,7 +950,11 @@ describe('Socratic chat HTTP vertical-slice (e2e)', () => {
     tutorModel.behavior = (modelRequest) =>
       Promise.resolve(
         Object.freeze({
-          rawOutput: Object.freeze(rejectedCandidateRawOutput()),
+          rawOutput: Object.freeze(
+            rejectedCandidateRawOutput(
+              tutorModel.extractAllowedCitationIds(modelRequest),
+            ),
+          ),
           provider: 'e2e-controllable-tutor',
           model: 'e2e-controllable-tutor-v1',
           promptVersion: modelRequest.promptVersion,

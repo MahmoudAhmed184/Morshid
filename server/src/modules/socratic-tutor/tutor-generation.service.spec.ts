@@ -261,6 +261,21 @@ describe('TutorGenerationService', () => {
     expect(harness.model.requests).toHaveLength(2)
     expect(harness.model.requests[1]).toEqual(harness.model.requests[0])
   })
+
+  it('does not retry a non-retryable upstream HTTP status', async () => {
+    const harness = buildHarness()
+    harness.model.error = new TutorModelError(
+      TUTOR_MODEL_ERROR_CODE.TRANSPORT_FAILURE,
+      { status: 400, headers: new Headers({ 'retry-after-ms': '30_000' }) },
+    )
+
+    await expect(harness.service.generate(defaultInput())).resolves.toEqual({
+      success: false,
+      errorCode: 'TUTOR_PROVIDER_TRANSPORT',
+      infrastructureRetryCount: 0,
+    })
+    expect(harness.model.requests).toHaveLength(1)
+  })
 })
 
 interface Harness {

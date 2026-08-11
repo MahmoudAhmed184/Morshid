@@ -1,5 +1,14 @@
 import { Inject, Injectable, Logger } from '@nestjs/common'
 
+import {
+  assertRequestBudget,
+  RequestBudgetExceededError,
+  type RequestBudgetOptions,
+} from '../../common/http/request-deadline'
+import {
+  readUpstreamFailure,
+  waitForRetry,
+} from '../../common/upstream/upstream-retry-policy'
 import type { AnalysisContextPackage } from './analysis-context.types'
 import {
   ANALYSIS_CONFIDENCE_POLICY,
@@ -13,6 +22,8 @@ import {
 import {
   ANALYSIS_MODEL_ERROR_CODE,
   ANALYSIS_MODEL_PORT,
+  type AnalysisModelMessage,
+  type AnalysisModelRequest,
   type AnalysisModelErrorCode,
   type AnalysisModelResponse,
   type AnalysisModelPort,
@@ -80,6 +91,7 @@ export type EducationalAnalysisServiceResult =
 export interface AnalyzeEducationalContextOptions {
   readonly forceReanalysis?: boolean
   readonly signal?: AbortSignal
+  readonly deadlineAt?: number
 }
 
 @Injectable()
@@ -101,6 +113,7 @@ export class EducationalAnalysisService {
     context: AnalysisContextPackage,
     options: AnalyzeEducationalContextOptions = {},
   ): Promise<EducationalAnalysisServiceResult> {
+    assertRequestBudget(options)
     const identity = analysisIdentityFromContext(context)
     if (identity === null) {
       return {
@@ -114,6 +127,7 @@ export class EducationalAnalysisService {
     if (!forceReanalysis) {
       const existing =
         await this.educationalAnalysisRepository.findLatestAccepted(identity)
+      assertRequestBudget(options)
       if (existing !== null) {
         return {
           success: true,
@@ -125,20 +139,32 @@ export class EducationalAnalysisService {
       }
     }
 
-    const modelRequest = buildEducationalAnalysisModelRequest(
+    let modelRequest = buildEducationalAnalysisModelRequest(
       context,
       options.signal,
     )
 
     let retriesUsed = 0
     for (;;) {
+      assertRequestBudget(options)
       let modelResponse: AnalysisModelResponse
       try {
         modelResponse = await this.analysisModelPort.analyze(modelRequest)
       } catch (error) {
+        assertRequestBudget(options)
         const errorCode = providerFailureCode(error)
-        if (this.retryPolicy.canRetryProviderError(errorCode, retriesUsed)) {
+        const upstreamFailure = readUpstreamFailure(error, Date.now())
+        if (
+          upstreamFailure.retryable &&
+          this.retryPolicy.canRetryProviderError(errorCode, retriesUsed)
+        ) {
           retriesUsed += 1
+          await waitForRetry(
+            upstreamFailure.retryDelayMs,
+            options.signal ?? new AbortController().signal,
+            () => new RequestBudgetExceededError(),
+          )
+          assertRequestBudget(options)
           continue
         }
 
@@ -148,8 +174,11 @@ export class EducationalAnalysisService {
           fallbackReason: fallbackReasonFromProviderError(errorCode),
           failureCategory: errorCode,
           infrastructureRetryCount: retriesUsed,
+          budget: options,
         })
       }
+
+      assertRequestBudget(options)
 
       const validation = validateEducationalAnalysisResult(
         modelResponse.rawOutput,
@@ -158,6 +187,11 @@ export class EducationalAnalysisService {
       if (!validation.success) {
         if (this.retryPolicy.canRetryInvalidStructuredOutput(retriesUsed)) {
           retriesUsed += 1
+          modelRequest = analysisRequestWithValidationCorrection(
+            modelRequest,
+            validation.issues,
+          )
+          assertRequestBudget(options)
           continue
         }
 
@@ -167,6 +201,7 @@ export class EducationalAnalysisService {
           fallbackReason: fallbackReasonFromValidation(validation),
           failureCategory: 'analysis_validation_failed',
           infrastructureRetryCount: retriesUsed,
+          budget: options,
         })
       }
 
@@ -177,6 +212,7 @@ export class EducationalAnalysisService {
           fallbackReason: EDUCATIONAL_ANALYSIS_FALLBACK_REASON.LOW_CONFIDENCE,
           failureCategory: 'analysis_confidence_below_threshold',
           infrastructureRetryCount: retriesUsed,
+          budget: options,
         })
       }
 
@@ -186,6 +222,7 @@ export class EducationalAnalysisService {
       )
 
       try {
+        assertRequestBudget(options)
         const stored = await this.educationalAnalysisRepository.storeAccepted({
           ...identity,
           result: acceptedResult,
@@ -234,8 +271,10 @@ export class EducationalAnalysisService {
       fallbackReason: EducationalAnalysisFallbackReason
       failureCategory: string
       infrastructureRetryCount: number
+      budget: RequestBudgetOptions
     },
   ): Promise<EducationalAnalysisServiceResult> {
+    assertRequestBudget(input.budget)
     const fallback = this.fallbackBuilder.build(context)
     const validation = validateEducationalAnalysisResult(fallback, context)
     if (!validation.success) {
@@ -243,6 +282,7 @@ export class EducationalAnalysisService {
     }
 
     try {
+      assertRequestBudget(input.budget)
       const stored = await this.educationalAnalysisRepository.storeAccepted({
         ...input.identity,
         result: validation.data,
@@ -319,6 +359,33 @@ function analysisIdentityFromContext(context: AnalysisContextPackage) {
     topicId: context.activeTopic.id,
     studentMessageId: context.studentMessage.id,
   }
+}
+
+function analysisRequestWithValidationCorrection(
+  request: AnalysisModelRequest,
+  issues: readonly EducationalAnalysisValidationIssue[],
+): AnalysisModelRequest {
+  const issueSummary = issues
+    .slice(0, 8)
+    .map((issue) => `${issue.path}: ${issue.message}`)
+    .join('; ')
+    .slice(0, 1_000)
+  const correction = [
+    request.messages[0].content,
+    '',
+    'Backend validation feedback for the previous response:',
+    issueSummary,
+    'Return a new JSON object that satisfies the complete contract. Do not repeat the invalid shape.',
+  ].join('\n')
+  const messages: readonly [AnalysisModelMessage, AnalysisModelMessage] = [
+    Object.freeze({ role: 'system', content: correction }),
+    request.messages[1],
+  ]
+
+  return Object.freeze({
+    ...request,
+    messages,
+  })
 }
 
 function providerFailureCode(error: unknown): AnalysisModelErrorCode {

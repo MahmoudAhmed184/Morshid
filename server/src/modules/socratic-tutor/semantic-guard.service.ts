@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common'
 import { z } from 'zod'
 
+import { assertRequestBudget } from '../../common/http/request-deadline'
 import {
   RESPONSE_VALIDATION_ACTION,
   RESPONSE_VALIDATION_SEVERITY,
@@ -55,10 +56,12 @@ export class SemanticGuardService {
   async evaluate(
     input: SemanticGuardEvaluationInput,
   ): Promise<SemanticGuardServiceResult> {
+    assertRequestBudget(input)
     const request = buildSemanticGuardRequest(input)
 
     try {
       const response = await this.semanticGuardPort.evaluate(request)
+      assertRequestBudget(input)
       const parsed = parseGuardOutput(response.rawOutput)
       if (parsed === null) {
         return infrastructureFailure(SEMANTIC_GUARD_ERROR_CODE.MALFORMED_OUTPUT)
@@ -89,6 +92,7 @@ export class SemanticGuardService {
         ),
       }
     } catch (error) {
+      assertRequestBudget(input)
       return infrastructureFailure(semanticFailureCode(error))
     }
   }

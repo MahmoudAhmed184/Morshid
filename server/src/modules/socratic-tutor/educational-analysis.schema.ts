@@ -142,6 +142,31 @@ export const EffortEvidenceSchema = z
       })
     }
 
+    if (!value.present && value.addressesPreviousTutorAction) {
+      context.addIssue({
+        code: 'custom',
+        path: ['addressesPreviousTutorAction'],
+        message:
+          'Absent effort evidence must not claim a previous tutor action was addressed',
+      })
+    }
+
+    if (!value.present && value.isRepeated) {
+      context.addIssue({
+        code: 'custom',
+        path: ['isRepeated'],
+        message: 'Absent effort evidence must not claim a repeated attempt',
+      })
+    }
+
+    if (!value.present && value.evidenceMessageIds.length > 0) {
+      context.addIssue({
+        code: 'custom',
+        path: ['evidenceMessageIds'],
+        message: 'Absent effort evidence must not include evidence IDs',
+      })
+    }
+
     if (value.present && value.type === null) {
       context.addIssue({
         code: 'custom',
@@ -180,6 +205,14 @@ export const LearningEvidenceSchema = z
         code: 'custom',
         path: ['strength'],
         message: 'Absent learning evidence must use NONE strength',
+      })
+    }
+
+    if (!value.present && value.evidenceMessageIds.length > 0) {
+      context.addIssue({
+        code: 'custom',
+        path: ['evidenceMessageIds'],
+        message: 'Absent learning evidence must not include evidence IDs',
       })
     }
 

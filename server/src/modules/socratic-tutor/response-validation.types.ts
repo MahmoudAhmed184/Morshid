@@ -89,6 +89,8 @@ export interface ValidationResult {
 
 export interface CandidateValidationContext {
   readonly allowedCitationIds: ReadonlySet<string>
+  readonly requireGrounding: boolean
+  readonly enforceCitationSupport: boolean
   readonly requireStudentAction: boolean
   readonly reflectionMode: ReflectionMode
   readonly responseIntent: TeachingStrategy
