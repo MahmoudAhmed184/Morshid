@@ -176,3 +176,29 @@ resolution, and the migration ledger itself.
 | Test discovery | `client/vite.config.ts`, `server/package.json`, `server/test/jest-e2e.json`, `server/test/jest-live-e2e.json` | Make unit, E2E, live, and client test patterns explicit and independent of regex defaults. |
 | Import resolution | `client/package.json`, `client/tsconfig.json`, `client/tsconfig.architecture.json`, current `#/` callers | Remove the redundant `#/*` alias, update all direct callers to the canonical `@/*` alias, and keep resolver-only `baseUrl` configuration out of the product compiler contract. |
 | Focused verification | `npm run test:architecture:client`, `npm run test:architecture:server`, `npm run test:architecture` | The gate must pass without known-violation baselines or temporary exceptions before the milestone commit. |
+
+## Milestone 2 migration inventory
+
+Milestone 2 is the first schema cutover. The historical migration chain is
+evidence only and is replaced after this inventory is committed to the working
+tree. The complete object-level reconciliation is recorded in
+`docs/architecture-baseline/prisma-net-live-inventory.md`.
+
+| Area | Files/paths to add, change, or delete | Disposition and verification |
+| --- | --- | --- |
+| Prisma configuration | `server/prisma.config.ts`, `server/prisma/README.md` | Load the `server/prisma/` directory and document the rolling initial history, explicit seed, exact vector scan, and absent HNSW index. |
+| Authored schema | `server/prisma/schema.prisma`, `identity.prisma`, `courses-and-materials.prisma`, `conversations.prisma`, `tutoring.prisma`, `reviews.prisma`, `audit.prisma` | Keep the entry file to generator/datasource configuration and split the current semantic model into cohesive domain files. |
+| Migration history | The 18 historical directories under `server/prisma/migrations/` | Delete the exact historical directories after the net-live inventory is captured; create one generated `*_initial/migration.sql`; retain `migration_lock.toml`. Data-upgrade backfills and duplicate-data guards are not reproduced in blank history. |
+| Seed and generated output | `server/prisma/seed.ts`, `server/src/generated/prisma/` | Keep explicit seed behavior; regenerate Prisma output through `npm run db:generate`; generated output remains ignored and is never hand-edited. |
+| Catalog assertions | New `server/prisma/assert-catalog.mts` and focused schema E2E coverage | Assert extensions, enum/table/index/check/FK/trigger contracts, vector dimensions, and HNSW absence against a blank migrated database. |
+| Disposable verification | `server/test/support/disposable-database.ts`, `server/test/fresh-seed-review-readiness.e2e-spec.ts`, migration-history tests | Replace upgrade-path assumptions with initial-history count, explicit seed, catalog, and drift assertions. Historical upgrade tests are deleted in Milestone 7 after the replacement gate is established. |
+| Operational documentation | `docs/architecture-baseline/prisma-net-live-inventory.md`, this ledger | Record every retained, omitted, and deliberately dropped database object and the exact M2 commands/results. |
+
+### M2 handoff fields
+
+The M2 handoff must record the starting and final SHAs, all schema/config/test
+files added or deleted, the exact initial migration directory, catalog and
+drift commands, generated-output ownership proof, disposable database result,
+remaining baseline failures, and the next safe task (Milestone 3). The exact
+historical migration names and their net-live objects must remain available in
+the inventory document as labeled historical evidence.

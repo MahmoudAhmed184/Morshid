@@ -1,0 +1,147 @@
+// Domain-grouped Prisma schema. Cross-file relations are intentional.
+
+enum MessageRole {
+  STUDENT
+  ASSISTANT
+  SYSTEM
+
+  @@map("message_role")
+}
+
+enum MessageStatus {
+  PENDING
+  STREAMING
+  COMPLETED
+  FAILED
+  BLOCKED
+
+  @@map("message_status")
+}
+
+enum MessageRequestKind {
+  CONCEPTUAL
+  PROBLEM_LIKE
+  ATTEMPT_DIAGNOSIS
+  CODE_DIAGNOSIS
+  UNSAFE
+  OFF_TOPIC
+  AMBIGUOUS
+
+  @@map("message_request_kind")
+}
+
+enum MessageGuidanceLabel {
+  COURSE_GROUNDED
+  GENERAL_NOT_FOUND
+  UNCERTAIN_AWAITING_REVIEW
+  INSTRUCTOR_REVIEWED
+  REFUSAL
+
+  @@map("message_guidance_label")
+}
+
+model ChatSession {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  courseId      String    @map("course_id") @db.Uuid
+  studentId     String    @map("student_id") @db.Uuid
+  title         String    @db.VarChar(160)
+  lastMessageAt DateTime? @map("last_message_at") @db.Timestamptz(6)
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  lastSequence  Int       @default(0) @map("last_sequence")
+
+  course     Course           @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  student    User             @relation("ChatSessionStudent", fields: [studentId], references: [id], onDelete: Restrict)
+  membership CourseMembership @relation("ChatSessionMembership", fields: [courseId, studentId], references: [courseId, userId], onDelete: Restrict)
+  messages   Message[]
+  topics     Topic[]
+  tutorTurns TutorTurn[]
+
+  @@index([courseId], map: "idx_sessions_course")
+  @@index([courseId, studentId], map: "idx_sessions_course_student")
+  @@index([studentId, courseId, deletedAt, lastMessageAt], map: "idx_sessions_student_course")
+  @@map("chat_sessions")
+}
+
+model Message {
+  id                      String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId               String                @map("session_id") @db.Uuid
+  turnId                  String?               @map("turn_id") @db.Uuid
+  topicId                 String?               @map("topic_id") @db.Uuid
+  sequence                Int
+  role                    MessageRole
+  authorUserId            String?               @map("author_user_id") @db.Uuid
+  responseToMessageId     String?               @unique(map: "messages_response_to_message_id_key") @map("response_to_message_id") @db.Uuid
+  content                 String                @db.Text
+  status                  MessageStatus
+  requestKind             MessageRequestKind?   @map("request_kind")
+  guidanceLabel           MessageGuidanceLabel? @map("guidance_label")
+  hintLevel               Int?                  @map("hint_level") @db.SmallInt
+  provider                String?               @db.VarChar(80)
+  model                   String?               @db.VarChar(120)
+  promptVersion           String?               @map("prompt_version") @db.VarChar(80)
+  inputTokens             Int?                  @map("input_tokens")
+  outputTokens            Int?                  @map("output_tokens")
+  errorCode               String?               @map("error_code") @db.VarChar(80)
+  errorMessage            String?               @map("error_message") @db.Text
+  groundingAttemptId      String?               @map("grounding_attempt_id") @db.Uuid
+  groundingLeaseExpiresAt DateTime?             @map("grounding_lease_expires_at") @db.Timestamptz(6)
+  createdAt               DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt             DateTime?             @map("completed_at") @db.Timestamptz(6)
+
+  session                          ChatSession                        @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  turn                             TutorTurn?                         @relation("MessageTurn", fields: [turnId], references: [id], onDelete: SetNull)
+  topic                            Topic?                             @relation("MessageTopic", fields: [topicId], references: [id], onDelete: SetNull)
+  author                           User?                              @relation("MessageAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
+  responseToMessage                Message?                           @relation("MessageResponse", fields: [responseToMessageId], references: [id], onDelete: SetNull)
+  response                         Message?                           @relation("MessageResponse")
+  retrievals                       MessageRetrieval[]
+  citations                        MessageCitation[]
+  studentTutorTurns                TutorTurn[]                        @relation("TutorTurnStudentMessage")
+  approvedTutorTurn                TutorTurn?                         @relation("TutorTurnApprovedTutorMessage")
+  educationalAnalyses              EducationalAnalysis[]              @relation("EducationalAnalysisStudentMessage")
+  educationalAnalysisEvidenceLinks EducationalAnalysisEvidenceLink[]
+  misconceptionAnalysisEvidence    EducationalAnalysisMisconception[] @relation("EducationalAnalysisMisconceptionEvidence")
+  reviewCase                       ReviewCase?
+
+  @@unique([sessionId, sequence], map: "messages_session_id_sequence_key")
+  @@index([turnId], map: "idx_messages_turn")
+  @@index([topicId], map: "idx_messages_topic")
+  @@index([authorUserId], map: "idx_messages_author")
+  @@index([sessionId, status, groundingLeaseExpiresAt], map: "idx_messages_grounding_lease")
+  @@map("messages")
+}
+
+model MessageRetrieval {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  messageId       String   @map("message_id") @db.Uuid
+  chunkId         String?  @map("chunk_id") @db.Uuid
+  rank            Int
+  /// Raw cosine similarity (1 - cosine distance); range [-1, 1]. Enforced by the
+  /// message_retrievals_similarity_score_check constraint in the migration.
+  similarityScore Decimal? @map("similarity_score") @db.Decimal(8, 6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  message Message        @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  chunk   MaterialChunk? @relation(fields: [chunkId], references: [id], onDelete: SetNull)
+
+  @@unique([messageId, rank], map: "message_retrievals_message_id_rank_key")
+  @@index([chunkId], map: "idx_retrievals_chunk")
+  @@map("message_retrievals")
+}
+
+model MessageCitation {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  messageId     String   @map("message_id") @db.Uuid
+  materialId    String   @map("material_id") @db.Uuid
+  citationOrder Int      @map("citation_order")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  message  Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  material Material @relation(fields: [materialId], references: [id], onDelete: Restrict)
+
+  @@unique([messageId, citationOrder], map: "message_citations_message_id_citation_order_key")
+  @@index([materialId], map: "idx_citations_material")
+  @@map("message_citations")
+}

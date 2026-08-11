@@ -1,4 +1,15 @@
-# Prisma migration notes
+# Prisma schema and migration notes
+
+The authored schema is grouped by capability across the `.prisma` files in
+this directory. `schema.prisma` is only the Prisma generator and datasource
+entry point. Prisma is configured to load this directory as one schema.
+
+The repository uses one rolling clean-slate initial migration. Every
+schema-changing slice regenerates that same initial SQL from an empty schema,
+reconciles the handwritten database contracts, resets a disposable database,
+applies the initial migration, runs the explicit seed command, checks the
+catalog, and proves there is no schema drift. `migration_lock.toml` is part of
+the committed history.
 
 ## Course-scoped vector retrieval
 
@@ -13,9 +24,9 @@ its SQL. Do not add a plain B-tree index for `embedding`; a future ANN path
 requires an explicit migration and a retrieval query that preserves the same
 course-scoping guarantees.
 
-## Rollback convention
+## Migration contract
 
-Prisma migrations in this repository are forward-only. To roll back a migration
-after it has been applied outside disposable development data, create and review
-a new forward migration that reverses the intended schema change instead of
-editing or deleting an existing migration directory.
+This is a clean-slate pre-deployment history. Do not append compatibility
+migrations or preserve upgrade-only backfills and duplicate-data guards in the
+blank initial migration. The final history contains exactly one migration
+directory and the lock file.

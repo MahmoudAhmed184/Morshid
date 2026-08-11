@@ -9,12 +9,13 @@ for (const path of ['server/.env', '.env', '../.env']) {
 }
 
 export default defineConfig({
-  schema: 'prisma/schema.prisma',
+  schema: 'prisma',
   migrations: {
     path: 'prisma/migrations',
     seed: 'tsx prisma/seed.ts',
   },
   datasource: {
     url: process.env.DATABASE_URL ?? localDatabaseUrl,
+    shadowDatabaseUrl: process.env.SHADOW_DATABASE_URL,
   },
 })

@@ -1,0 +1,416 @@
+// Domain-grouped Prisma schema. Cross-file relations are intentional.
+
+enum TopicStatus {
+  ACTIVE
+  PAUSED
+  RESOLVED
+  ABANDONED
+
+  @@map("topic_status")
+}
+
+enum TutorTurnStatus {
+  RECEIVED
+  ANALYZING
+  RETRIEVING
+  DECIDING
+  GENERATING
+  VALIDATING
+  REGENERATING
+  COMPLETED
+  FAILED
+
+  @@map("tutor_turn_status")
+}
+
+enum TutorTurnFailureCode {
+  ANALYSIS_FAILED
+  RETRIEVAL_FAILED
+  GENERATION_FAILED
+  STRUCTURAL_VALIDATION_FAILED
+  DETERMINISTIC_GUARD_REJECTED
+  SEMANTIC_GUARD_REJECTED
+  REGENERATION_EXHAUSTED
+  PERSISTENCE_FAILED
+
+  @@map("tutor_turn_failure_code")
+}
+
+enum TutorCandidateGenerationOutcome {
+  GENERATED
+  INVALID_OUTPUT
+  INFRASTRUCTURE_EXHAUSTED
+
+  @@map("tutor_candidate_generation_outcome")
+}
+
+enum GuardValidationStage {
+  STRUCTURAL
+  DETERMINISTIC
+  SEMANTIC
+
+  @@map("guard_validation_stage")
+}
+
+enum GuardRecommendedAction {
+  APPROVE
+  REGENERATE
+  USE_SAFE_FALLBACK
+
+  @@map("guard_recommended_action")
+}
+
+enum TutorApprovalSource {
+  VALIDATED_CANDIDATE
+  SAFE_FALLBACK
+  CLASSIFIED_RESPONSE
+
+  @@map("tutor_approval_source")
+}
+
+enum TutorSafeFallbackReason {
+  VALIDATION_EXHAUSTED
+  GUARD_UNAVAILABLE
+  GENERATION_RETRY_FAILED
+
+  @@map("tutor_safe_fallback_reason")
+}
+
+enum StudentState {
+  UNKNOWN
+  NO_PRIOR_KNOWLEDGE
+  PARTIAL_UNDERSTANDING
+  MISCONCEPTION
+  DEBUGGING_ISSUE
+  NEAR_SOLUTION
+
+  @@map("student_state")
+}
+
+enum TeachingStrategy {
+  GUIDED_EXPLANATION
+  SOCRATIC_QUESTIONING
+  MISCONCEPTION_REPAIR
+  DEBUGGING_GUIDANCE
+
+  @@map("teaching_strategy")
+}
+
+enum TeachingTechnique {
+  ORIENTATION_QUESTION
+  FOCUSED_QUESTION
+  DECOMPOSITION
+  ANALOGY
+  COMPARISON
+  COUNTEREXAMPLE
+  TRACE_EXECUTION
+  BOUNDARY_CHECK
+  SELF_EXPLANATION
+  VERIFICATION
+
+  @@map("teaching_technique")
+}
+
+enum RevealPolicy {
+  NO_FINAL_ANSWER
+  PARTIAL_RESULT_ALLOWED
+  FINAL_REASONING_ALLOWED
+  COMPLETE_SOLUTION_ALLOWED
+
+  @@map("reveal_policy")
+}
+
+enum ReflectionMode {
+  NONE
+  SELF_EXPLANATION
+  VERIFICATION
+  TRANSFER
+
+  @@map("reflection_mode")
+}
+
+enum MisconceptionStatus {
+  SUSPECTED
+  ACTIVE
+  CORRECTED
+  DISMISSED
+
+  @@map("misconception_status")
+}
+
+enum TopicType {
+  PROBLEM
+  CONCEPT
+  DEBUGGING_TASK
+  ASSIGNMENT_ITEM
+  MISCONCEPTION_REPAIR
+  UNCLASSIFIED
+
+  @@map("topic_type")
+}
+
+enum LearningStatus {
+  UNKNOWN
+  IN_PROGRESS
+  DEMONSTRATED
+  VERIFIED
+
+  @@map("learning_status")
+}
+
+enum ResolutionEvidenceStrength {
+  NONE
+  WEAK
+  MODERATE
+  STRONG
+
+  @@map("resolution_evidence_strength")
+}
+
+enum EducationalAnalysisEvidenceKind {
+  TOP_LEVEL
+  EFFORT
+  LEARNING
+
+  @@map("educational_analysis_evidence_kind")
+}
+
+model Topic {
+  id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId  String      @map("session_id") @db.Uuid
+  courseId   String      @map("course_id") @db.Uuid
+  problemId  String?     @map("problem_id") @db.Uuid
+  conceptId  String?     @map("concept_id") @db.Uuid
+  title      String      @db.VarChar(160)
+  topicType  TopicType   @default(UNCLASSIFIED) @map("topic_type")
+  status     TopicStatus @default(ACTIVE)
+  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  resolvedAt DateTime?   @map("resolved_at") @db.Timestamptz(6)
+
+  session             ChatSession           @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  course              Course                @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  state               TopicState?
+  turns               TutorTurn[]
+  messages            Message[]             @relation("MessageTopic")
+  educationalAnalyses EducationalAnalysis[]
+  teachingDecisions   TeachingDecision[]
+
+  @@index([sessionId, status], map: "idx_topics_session_status")
+  @@index([courseId, problemId], map: "idx_topics_course_problem")
+  @@index([courseId, conceptId], map: "idx_topics_course_concept")
+  @@map("topics")
+}
+
+model TopicState {
+  id                         String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  topicId                    String                     @unique(map: "topic_states_topic_id_key") @map("topic_id") @db.Uuid
+  version                    Int                        @default(1)
+  requestKind                MessageRequestKind?        @map("request_kind")
+  studentState               StudentState               @default(UNKNOWN) @map("student_state")
+  activeStrategy             TeachingStrategy?          @map("active_strategy")
+  primaryTechnique           TeachingTechnique?         @map("primary_technique")
+  supportingTechnique        TeachingTechnique?         @map("supporting_technique")
+  guidanceLevel              Int                        @default(1) @map("guidance_level") @db.SmallInt
+  revealPolicy               RevealPolicy               @default(NO_FINAL_ANSWER) @map("reveal_policy")
+  attemptCount               Int                        @default(0) @map("attempt_count")
+  meaningfulAttemptCount     Int                        @default(0) @map("meaningful_attempt_count")
+  misconceptionStatus        MisconceptionStatus?       @map("misconception_status")
+  learningStatus             LearningStatus             @default(UNKNOWN) @map("learning_status")
+  resolutionEvidenceStrength ResolutionEvidenceStrength @default(NONE) @map("resolution_evidence_strength")
+  summary                    String?                    @db.Text
+  lastTutorQuestion          String?                    @map("last_tutor_question") @db.Text
+  lastStudentAction          String?                    @map("last_student_action") @db.Text
+  resolved                   Boolean                    @default(false)
+  updatedAt                  DateTime                   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  topic Topic @relation(fields: [topicId], references: [id], onDelete: Restrict)
+
+  @@map("topic_states")
+}
+
+model TutorTurn {
+  id                       String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId                String                   @map("session_id") @db.Uuid
+  topicId                  String?                  @map("topic_id") @db.Uuid
+  studentMessageId         String?                  @map("student_message_id") @db.Uuid
+  approvedTutorMessageId   String?                  @unique(map: "tutor_turns_approved_tutor_message_id_key") @map("approved_tutor_message_id") @db.Uuid
+  idempotencyKey           String                   @map("idempotency_key") @db.VarChar(160)
+  status                   TutorTurnStatus          @default(RECEIVED)
+  failureCode              TutorTurnFailureCode?    @map("failure_code")
+  safeFallbackUsed         Boolean                  @default(false) @map("safe_fallback_used")
+  approvalSource           TutorApprovalSource?     @map("approval_source")
+  approvedCandidateAttempt Int?                     @map("approved_candidate_attempt") @db.SmallInt
+  safeFallbackReason       TutorSafeFallbackReason? @map("safe_fallback_reason")
+  validationPolicyVersion  String?                  @map("validation_policy_version") @db.VarChar(80)
+  createdAt                DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt              DateTime?                @map("completed_at") @db.Timestamptz(6)
+
+  session              ChatSession             @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  topic                Topic?                  @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  studentMessage       Message?                @relation("TutorTurnStudentMessage", fields: [studentMessageId], references: [id], onDelete: SetNull)
+  approvedTutorMessage Message?                @relation("TutorTurnApprovedTutorMessage", fields: [approvedTutorMessageId], references: [id], onDelete: SetNull)
+  messages             Message[]               @relation("MessageTurn")
+  educationalAnalyses  EducationalAnalysis[]
+  teachingDecision     TeachingDecision?
+  candidateAttempts    TutorCandidateAttempt[]
+
+  @@unique([sessionId, idempotencyKey], map: "tutor_turns_session_id_idempotency_key_key")
+  @@index([topicId], map: "idx_tutor_turns_topic")
+  @@index([studentMessageId], map: "idx_tutor_turns_student_message")
+  @@map("tutor_turns")
+}
+
+model TutorCandidateAttempt {
+  id                       String                          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  turnId                   String                          @map("turn_id") @db.Uuid
+  candidateAttempt         Int                             @map("candidate_attempt") @db.SmallInt
+  generationOutcome        TutorCandidateGenerationOutcome @map("generation_outcome")
+  generationFailureCode    String?                         @map("generation_failure_code") @db.VarChar(80)
+  contentHash              String?                         @map("content_hash") @db.VarChar(64)
+  provider                 String?                         @db.VarChar(80)
+  model                    String?                         @db.VarChar(200)
+  promptVersion            String?                         @map("prompt_version") @db.VarChar(80)
+  inputTokens              Int?                            @map("input_tokens")
+  outputTokens             Int?                            @map("output_tokens")
+  infrastructureRetryCount Int                             @default(0) @map("infrastructure_retry_count")
+  startedAt                DateTime                        @map("started_at") @db.Timestamptz(6)
+  completedAt              DateTime                        @map("completed_at") @db.Timestamptz(6)
+  createdAt                DateTime                        @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  turn         TutorTurn     @relation(fields: [turnId], references: [id], onDelete: Restrict)
+  guardResults GuardResult[]
+
+  @@unique([turnId, candidateAttempt], map: "tutor_candidate_attempts_turn_attempt_key")
+  @@map("tutor_candidate_attempts")
+}
+
+model GuardResult {
+  id                      String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  turnId                  String                 @map("turn_id") @db.Uuid
+  candidateAttempt        Int                    @map("candidate_attempt") @db.SmallInt
+  validationStage         GuardValidationStage   @map("validation_stage")
+  approved                Boolean
+  violations              Json
+  maximumSeverity         String?                @map("maximum_severity") @db.VarChar(16)
+  recommendedAction       GuardRecommendedAction @map("recommended_action")
+  provider                String?                @db.VarChar(80)
+  model                   String?                @db.VarChar(200)
+  promptVersion           String?                @map("prompt_version") @db.VarChar(80)
+  validationPolicyVersion String                 @map("validation_policy_version") @db.VarChar(80)
+  teachingPolicyVersion   String                 @map("teaching_policy_version") @db.VarChar(80)
+  disclosurePolicyVersion String                 @map("disclosure_policy_version") @db.VarChar(80)
+  createdAt               DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  candidate TutorCandidateAttempt @relation(fields: [turnId, candidateAttempt], references: [turnId, candidateAttempt], onDelete: Restrict)
+
+  @@unique([turnId, candidateAttempt, validationStage], map: "guard_results_turn_attempt_stage_key")
+  @@map("guard_results")
+}
+
+model EducationalAnalysis {
+  id                                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  turnId                             String             @map("turn_id") @db.Uuid
+  topicId                            String             @map("topic_id") @db.Uuid
+  studentMessageId                   String             @map("student_message_id") @db.Uuid
+  attempt                            Int                @default(1)
+  requestKind                        MessageRequestKind @map("request_kind")
+  studentState                       StudentState       @map("student_state")
+  effortPresent                      Boolean            @map("effort_present")
+  effortQuality                      String             @map("effort_quality") @db.VarChar(20)
+  effortType                         String?            @map("effort_type") @db.VarChar(40)
+  effortAddressesPreviousTutorAction Boolean            @map("effort_addresses_previous_tutor_action")
+  effortIsRepeated                   Boolean            @map("effort_is_repeated")
+  learningEvidencePresent            Boolean            @map("learning_evidence_present")
+  learningEvidenceStrength           String             @map("learning_evidence_strength") @db.VarChar(20)
+  topicRelation                      String             @map("topic_relation") @db.VarChar(40)
+  recommendedStrategy                TeachingStrategy   @map("recommended_strategy")
+  recommendedTechnique               TeachingTechnique  @map("recommended_technique")
+  recommendedGuidanceLevel           Int                @map("recommended_guidance_level") @db.SmallInt
+  confidence                         Float
+  provider                           String             @db.VarChar(80)
+  model                              String             @db.VarChar(200)
+  modelVersion                       String?            @map("model_version") @db.VarChar(200)
+  promptVersion                      String             @map("prompt_version") @db.VarChar(80)
+  schemaVersion                      String             @map("schema_version") @db.VarChar(80)
+  inputTokens                        Int?               @map("input_tokens")
+  outputTokens                       Int?               @map("output_tokens")
+  latencyMs                          Int?               @map("latency_ms")
+  analysisSource                     String             @default("model") @map("analysis_source") @db.VarChar(40)
+  fallbackReason                     String?            @map("fallback_reason") @db.VarChar(80)
+  failureCategory                    String?            @map("failure_category") @db.VarChar(120)
+  confidencePolicyVersion            String?            @map("confidence_policy_version") @db.VarChar(120)
+  infrastructureRetryCount           Int                @default(0) @map("infrastructure_retry_count")
+  createdAt                          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  turn             TutorTurn                          @relation(fields: [turnId], references: [id], onDelete: Restrict)
+  topic            Topic                              @relation(fields: [topicId], references: [id], onDelete: Restrict)
+  studentMessage   Message                            @relation("EducationalAnalysisStudentMessage", fields: [studentMessageId], references: [id], onDelete: Restrict)
+  evidenceLinks    EducationalAnalysisEvidenceLink[]
+  misconceptions   EducationalAnalysisMisconception[]
+  teachingDecision TeachingDecision?
+
+  @@unique([turnId, attempt], map: "educational_analyses_turn_id_attempt_key")
+  @@index([topicId, createdAt], map: "idx_educational_analyses_topic_created")
+  @@index([studentMessageId], map: "idx_educational_analyses_student_message")
+  @@map("educational_analyses")
+}
+
+model TeachingDecision {
+  id                   String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  turnId               String             @unique(map: "teaching_decisions_turn_id_key") @map("turn_id") @db.Uuid
+  topicId              String             @map("topic_id") @db.Uuid
+  analysisId           String             @unique(map: "teaching_decisions_analysis_id_key") @map("analysis_id") @db.Uuid
+  strategy             TeachingStrategy
+  primaryTechnique     TeachingTechnique  @map("primary_technique")
+  supportingTechnique  TeachingTechnique? @map("supporting_technique")
+  guidanceLevel        Int                @map("guidance_level") @db.SmallInt
+  revealPolicy         RevealPolicy       @map("reveal_policy")
+  reflectionMode       ReflectionMode     @map("reflection_mode")
+  requireStudentAction Boolean            @map("require_student_action")
+  guardPolicy          Json               @map("guard_policy")
+  decisionReason       String             @map("decision_reason") @db.VarChar(240)
+  policyVersion        String             @map("policy_version") @db.VarChar(80)
+  createdAt            DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  turn     TutorTurn           @relation(fields: [turnId], references: [id], onDelete: Restrict)
+  topic    Topic               @relation(fields: [topicId], references: [id], onDelete: Restrict)
+  analysis EducationalAnalysis @relation(fields: [analysisId], references: [id], onDelete: Restrict)
+
+  @@index([topicId, createdAt], map: "idx_teaching_decisions_topic_created")
+  @@index([policyVersion], map: "idx_teaching_decisions_policy_version")
+  @@map("teaching_decisions")
+}
+
+model EducationalAnalysisEvidenceLink {
+  id         String                          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  analysisId String                          @map("analysis_id") @db.Uuid
+  messageId  String                          @map("message_id") @db.Uuid
+  kind       EducationalAnalysisEvidenceKind
+  ordinal    Int
+  createdAt  DateTime                        @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  analysis EducationalAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  message  Message             @relation(fields: [messageId], references: [id], onDelete: Restrict)
+
+  @@unique([analysisId, kind, ordinal], map: "educational_analysis_evidence_links_analysis_kind_ordinal_key")
+  @@index([messageId], map: "idx_educational_analysis_evidence_links_message")
+  @@map("educational_analysis_evidence_links")
+}
+
+model EducationalAnalysisMisconception {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  analysisId        String   @map("analysis_id") @db.Uuid
+  code              String   @db.VarChar(64)
+  description       String   @db.Text
+  confidence        Float
+  evidenceMessageId String   @map("evidence_message_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  analysis        EducationalAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  evidenceMessage Message             @relation("EducationalAnalysisMisconceptionEvidence", fields: [evidenceMessageId], references: [id], onDelete: Restrict)
+
+  @@index([analysisId], map: "idx_educational_analysis_misconceptions_analysis")
+  @@index([evidenceMessageId], map: "idx_educational_analysis_misconceptions_evidence")
+  @@map("educational_analysis_misconceptions")
+}

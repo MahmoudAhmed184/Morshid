@@ -1,6 +1,4 @@
 import { randomUUID } from 'node:crypto'
-import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
 
 import { AuditService } from '../src/modules/audit/audit.service'
 import type { PrismaService } from '../src/modules/prisma/prisma.service'
@@ -279,85 +277,4 @@ describe('Student chat repositories (e2e)', () => {
       unverifiedCourseId: unknownCourseId,
     })
   })
-
-  it('backfills last_sequence from existing messages so later appends do not collide', async () => {
-    const { courseId, studentId } = await createEnrolledStudent()
-    const withHistory = await prisma.chatSession.create({
-      data: { courseId, studentId, title: 'Pre-backfill history' },
-      select: { id: true, lastSequence: true },
-    })
-    const empty = await prisma.chatSession.create({
-      data: { courseId, studentId, title: 'Pre-backfill empty' },
-      select: { id: true },
-    })
-    // Simulate the pre-backfill state: messages exist but last_sequence is still
-    // the column default of 0 (the migration added the column before this).
-    for (const sequence of [1, 2, 3]) {
-      await prisma.message.create({
-        data: {
-          sessionId: withHistory.id,
-          sequence,
-          role: 'STUDENT',
-          authorUserId: studentId,
-          content: `History ${String(sequence)}`,
-          status: 'COMPLETED',
-        },
-      })
-    }
-    expect(withHistory.lastSequence).toBe(0)
-
-    // Without the backfill, the next append reuses sequence 1 and violates the
-    // unique constraint.
-    await expect(
-      messageRepository.appendStudentMessage({
-        courseId,
-        sessionId: withHistory.id,
-        studentId,
-        content: 'Colliding append',
-      }),
-    ).rejects.toThrow()
-
-    // Run the exact backfill statement shipped in the migration.
-    await prisma.$executeRawUnsafe(await readBackfillStatement())
-
-    const [historyAfter, emptyAfter] = await Promise.all([
-      prisma.chatSession.findUniqueOrThrow({
-        where: { id: withHistory.id },
-        select: { lastSequence: true },
-      }),
-      prisma.chatSession.findUniqueOrThrow({
-        where: { id: empty.id },
-        select: { lastSequence: true },
-      }),
-    ])
-    expect(historyAfter.lastSequence).toBe(3)
-    expect(emptyAfter.lastSequence).toBe(0)
-
-    // After the backfill the next append continues the sequence cleanly.
-    const appended = await messageRepository.appendStudentMessage({
-      courseId,
-      sessionId: withHistory.id,
-      studentId,
-      content: 'Post-backfill append',
-    })
-    expect(appended.kind === 'ok' ? appended.message.sequence : -1).toBe(4)
-  })
 })
-
-async function readBackfillStatement(): Promise<string> {
-  const migrationPath = join(
-    process.cwd(),
-    'prisma',
-    'migrations',
-    '20260714114707_add_chat_sequence_and_membership_removed_at',
-    'migration.sql',
-  )
-  const sql = await readFile(migrationPath, 'utf8')
-  const match = /UPDATE "chat_sessions"[\s\S]*?;/.exec(sql)
-
-  if (match === null) {
-    throw new Error('Could not find the last_sequence backfill statement')
-  }
-
-  return match[0]
-}

@@ -16,6 +16,7 @@
     "db:migrate": "prisma migrate dev --config prisma.config.ts",
     "db:reset": "prisma migrate reset --config prisma.config.ts --force",
     "db:seed": "prisma db seed --config prisma.config.ts",
+    "db:assert-catalog": "tsx prisma/assert-catalog.mts",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "prestart": "node scripts/clean-build-cache.mts",

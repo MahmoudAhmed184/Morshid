@@ -18,12 +18,13 @@ export interface DisposableDatabase {
 }
 
 // Creates a uniquely named database on the server DATABASE_URL points at,
-// applies every committed migration to it from empty, and returns a connected
-// PrismaService. If any step after CREATE DATABASE fails, the database is
-// dropped before the error propagates so failed runs cannot orphan databases.
+// applies the committed initial migration to it from empty, and returns a
+// connected PrismaService. If any step after CREATE DATABASE fails, the
+// database is dropped before the error propagates so failed runs cannot orphan
+// databases.
 export async function setUpDisposableDatabase(
   namePrefix: string,
-  options: { throughMigration?: string; applyMigrations?: boolean } = {},
+  options: { applyMigrations?: boolean } = {},
 ): Promise<DisposableDatabase> {
   const originalDatabaseUrl = requireDatabaseUrl()
   const databaseName = `${namePrefix}_${randomUUID().replaceAll('-', '')}`
@@ -47,7 +48,7 @@ export async function setUpDisposableDatabase(
   try {
     const databaseUrl = databaseUrlFor(originalDatabaseUrl, databaseName)
     if (options.applyMigrations !== false) {
-      await applyMigrations(databaseUrl, options.throughMigration)
+      await applyMigrations(databaseUrl)
     }
 
     const configService = {
@@ -96,10 +97,7 @@ async function runDatabaseAdminStatement(
   }
 }
 
-async function applyMigrations(
-  databaseUrl: string,
-  throughMigration?: string,
-): Promise<void> {
+async function applyMigrations(databaseUrl: string): Promise<void> {
   const migrationsDirectory = resolve(__dirname, '../../prisma/migrations')
   const migrationDirectories = (
     await readdir(migrationsDirectory, { withFileTypes: true })
@@ -111,20 +109,12 @@ async function applyMigrations(
   await client.connect()
 
   try {
-    let reachedRequestedMigration = throughMigration === undefined
     for (const migrationDirectory of migrationDirectories) {
       const sql = await readFile(
         join(migrationsDirectory, migrationDirectory, 'migration.sql'),
         'utf8',
       )
       await client.query(sql)
-      if (migrationDirectory === throughMigration) {
-        reachedRequestedMigration = true
-        break
-      }
-    }
-    if (!reachedRequestedMigration && throughMigration !== undefined) {
-      throw new Error(`Migration not found: ${throughMigration}`)
     }
   } finally {
     await client.end()
