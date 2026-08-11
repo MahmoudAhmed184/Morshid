@@ -849,6 +849,52 @@ migration and seed remain unchanged.
 | Response governance | `output-policy/**`, private runtime imports, governance specs | Move safety/conflict detection, request intent, decision contract, and replacement policy into `tutoring/response-governance/**`; keep one private governance path and no public OutputPolicy module or adapter. |
 | Legacy completion | `completion/**`, configuration/schema references, completion-only tests and fixtures | Delete the unused CompletionProvider/CompletionModule implementation and direct callers. Retain only the already-authoritative private TutorModel path and consumer-neutral transport code needed by the current workflow. |
 | Python diagnosis | `tutor/**`, diagnosis-only runtime/configuration/scripts/fixtures | Preserve generic debugging guidance, trace-action, and no-execution contracts in the moved workflow; delete Python-only boundary/strategy/retrieval framework and obsolete Python runtime paths. |
-| Student chat composition | `student-chat.module.ts`, controller/service/repository/presenter imports, direct test constructors | Keep Conversations session/transcript application behavior in Student Chat while Tutoring owns new-turn/retry execution; update all callers directly with no aliases. |
+| Student chat composition | `student-chat.module.ts`, the chat HTTP controller/filter, direct test constructors, and moved session/transcript implementation | Keep the thin chat HTTP composition adapter while moving session, transcript, audit, DTO/error, repository, and presentation ownership into Conversations; Tutoring owns new-turn/retry execution. Update all callers directly with no aliases. |
 | Architecture enforcement | dependency-cruiser rules and current imports | Enable final Conversations/Tutoring ownership rules once the moved graph is green; prove deleted module names and imports are absent by repository search. |
 | Documentation and handoff | this ledger, applicable ADRs, current architecture notes | Record final ownership, deleted paths, exact searches, focused gates, schema neutrality, and next Milestone 7 task. |
+
+### M6E handoff
+
+- Starting SHA: `1eec00df617d9b6c7a2e72794fa71ff75f7eea73`; implementation commit:
+  `6b53957` (`refactor(tutoring): remove legacy execution paths`). This handoff
+  is the follow-up documentation commit.
+- Moved the session/transcript application, audit, DTO/error contracts,
+  repositories, record types, and message presenter into Conversations. The
+  remaining `student-chat` module is only the HTTP composition adapter joining
+  the Conversations and Tutoring modules; it owns no persistence or tutoring
+  implementation. Tutoring now reads message records through the
+  transaction-aware `ConversationTurns` interface, and its request budget is
+  named for Tutoring rather than the removed Socratic Chat adapter.
+- Deleted the legacy Completion module/provider tree, late completion-only
+  scripts and fixtures, Socratic Tutor and Tutor module paths, public
+  OutputPolicy module, duplicate turn service/orchestrator paths, Python-only
+  runtime/scripts, grounded/retrieval migration E2Es, and duplicate message
+  write methods from the old Student Chat repository/service. Retained generic
+  debugging guidance, trace-action, no-code-execution, Safe Fallback, and
+  response-governance contracts under Tutoring.
+- Added strict current Conversations/Tutoring ownership rules. Current
+  production imports contain no `GroundedChatService`,
+  `SocraticChatOrchestrator`, `CompletionProvider`, `CompletionModule`,
+  `OutputPolicyModule`, Python diagnosis runtime, old module paths, or
+  `SOCRATIC_CHAT_REQUEST_TIMEOUT_MS`; no `forwardRef` or Prisma transaction
+  type crosses a product interface.
+- The slice is schema-neutral. The rolling initial migration, migration lock,
+  seed, extensions, constraints, indexes, triggers, and catalog remain the
+  audited M2 baseline; no generated Prisma source was hand-edited and no
+  migration was appended.
+- Exact focused verification passed after the implementation commit: server
+  unit gate (5 suites, 55 tests); isolated disposable PostgreSQL/Redis E2E
+  gate (4 suites, 75 tests); `npm run typecheck --workspace server --
+  --pretty false`; `npm run lint:ci --workspace server`; `npm run
+  format:check --workspace server`; `npm run test:architecture:server` (376
+  modules, 1,327 dependencies, zero violations); and `git diff --check`.
+  The obsolete-entry search over current source, tests, scripts, client,
+  acceptance, environment examples, package scripts, and Playwright config
+  returned no matches.
+- Live provider checks remain unavailable because no documented external live
+  credentials were available. Full canonical and browser gates remain final
+  Milestone 10 work; the known baseline local PostgreSQL credential mismatch
+  is not treated as a passing result.
+- Next safe task: Milestone 7 — complete frontend ownership/workspace
+  separation, thin routes, contract consolidation, router-context query
+  access, and strict client boundary enforcement.
