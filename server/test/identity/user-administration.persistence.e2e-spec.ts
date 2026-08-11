@@ -15,7 +15,7 @@ import {
 import { PrismaUserAdministrationRepository } from '../../src/modules/identity/user-administration/user-administration.repository'
 import type { UserAdministrationRepository } from '../../src/modules/identity/user-administration/user-administration.repository'
 import { AuditService } from '../../src/modules/audit/audit.service'
-import type { PrismaService } from '../../src/modules/prisma/prisma.service'
+import type { PrismaService } from '../../src/platform/database/prisma.service'
 import {
   setUpDisposableDatabase,
   type DisposableDatabase,

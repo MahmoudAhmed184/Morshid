@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import type { PrismaService } from '../../src/modules/prisma/prisma.service'
+import type { PrismaService } from '../../src/platform/database/prisma.service'
 import {
   InvalidMaterialChunkEmbeddingError,
   MAX_INSERT_BATCH_ROWS,

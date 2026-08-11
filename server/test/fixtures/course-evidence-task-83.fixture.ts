@@ -1,5 +1,5 @@
 import { Prisma, type MaterialStatus } from '../../src/generated/prisma/client'
-import type { PrismaService } from '../../src/modules/prisma/prisma.service'
+import type { PrismaService } from '../../src/platform/database/prisma.service'
 
 const EMBEDDING_DIMENSIONS = 1_536
 export const COURSE_EVIDENCE_TASK_83_EMBEDDING_MODEL =

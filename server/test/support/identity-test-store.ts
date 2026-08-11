@@ -14,7 +14,7 @@ import {
   P0_DEMO_USERS,
   P0_HIDDEN_ISOLATION_COURSE,
 } from '../../src/seeds/p0-demo.seed'
-import type { PrismaService } from '../../src/modules/prisma/prisma.service'
+import type { PrismaService } from '../../src/platform/database/prisma.service'
 
 type StoredCourseMembership = CourseMembership & { course?: Course }
 type StoredCourse = Course & {

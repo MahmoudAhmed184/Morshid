@@ -1,13 +1,13 @@
 import type { Material } from '../../src/generated/prisma/client'
-import { DeterministicEmbeddingProvider } from '../../src/modules/embedding/deterministic-embedding.provider'
+import { DeterministicEmbeddingProvider } from '../../src/platform/ai/embedding/deterministic-embedding.provider'
 import {
   EMBEDDING_DIMENSIONS,
   type Embedding,
   type EmbeddingDocument,
   type EmbeddingProvider,
-} from '../../src/modules/embedding/embedding-provider'
-import type { PdfStorage } from '../../src/modules/pdf-storage/pdf-storage'
-import type { PrismaService } from '../../src/modules/prisma/prisma.service'
+} from '../../src/platform/ai/embedding/embedding-provider'
+import type { PdfStorage } from '../../src/platform/document-storage/pdf-storage'
+import type { PrismaService } from '../../src/platform/database/prisma.service'
 import type { MaterialChunkRepository } from '../../src/modules/materials/material-chunk.repository'
 import { cleanTextPdf } from './pdf-fixtures'
 

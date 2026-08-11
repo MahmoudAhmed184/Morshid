@@ -5,8 +5,8 @@ import { join, resolve } from 'node:path'
 import type { ConfigService } from '@nestjs/config'
 import { Client } from 'pg'
 
-import type { AppEnvironment } from '../../src/modules/config/env.schema'
-import { PrismaService } from '../../src/modules/prisma/prisma.service'
+import type { AppEnvironment } from '../../src/platform/config/env.schema'
+import { PrismaService } from '../../src/platform/database/prisma.service'
 
 export interface DisposableDatabase {
   prisma: PrismaService

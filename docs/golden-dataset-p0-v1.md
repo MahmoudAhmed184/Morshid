@@ -10,7 +10,7 @@ Version: `p0-v1-2026-07-09-part-sources`
 
 > [!IMPORTANT]
 > **Prerequisite:** This dataset references the P0 source catalog defined in
-> `docs/python-pdf-source-plan.md` and the PDFs under `fixtures/sources/` (source
+> `docs/python-pdf-source-plan.md` and the PDFs under `fixtures/course-materials/` (source
 > IDs `p0-npt-part-01`–`05`). Those files are added by the source plan PR for
 > issue #33 and do not yet exist on `dev`. The issue #33 source plan PR must
 > merge before — or together with — this PR;
@@ -206,7 +206,7 @@ notes.
 | SCN-002 (unsupported assignment-like) | `gd-p0-v1-060` | Gradebook-CLI prompt with intentionally missing coverage. |
 | SCN-003 (conflicting-source) | deferred | See Versioning Notes; the conflicting-source fixture is deferred to a later dataset version. |
 | SCN-004 (manual Student review) | `gd-p0-v1-037` | Reuses a course-grounded dictionary response that the Student manually flags. |
-| SCN-005 (code diagnosis) | `gd-p0-v1-058` | The `num`/`nums` `NameError` snippet in an `average` function; its machine-readable contract is in `fixtures/golden-dataset/debugging-guidance-p0.json`. |
+| SCN-005 (code diagnosis) | `gd-p0-v1-058` | The `num`/`nums` `NameError` snippet in an `average` function; its machine-readable contract is in `fixtures/evaluations/code-diagnosis/debugging-guidance-p0.json`. |
 | SCN-006 (course isolation) | `gd-p0-v1-065` | `student3@morshid.demo` denied access to `HIDDEN-ISOLATION`. |
 
 ## Versioning Notes

@@ -15,8 +15,8 @@ import type {
   MeResponse,
 } from '../../src/modules/identity/identity.types'
 import { MaterialProcessingScheduler } from '../../src/modules/materials/material-processing.scheduler'
-import { PrismaService } from '../../src/modules/prisma/prisma.service'
-import { RedisService } from '../../src/modules/redis/redis.service'
+import { PrismaService } from '../../src/platform/database/prisma.service'
+import { RedisService } from '../../src/platform/cache/redis.service'
 import { P0_DEMO_PASSWORD } from '../../src/seeds/p0-demo.seed'
 import { IdentityTestStore } from '../support/identity-test-store'
 import { NoopMaterialProcessingScheduler } from '../support/noop-material-processing-scheduler'

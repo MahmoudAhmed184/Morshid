@@ -22,8 +22,8 @@ import type {
   MaterialAdministrationResponseDto,
 } from '../../src/modules/materials/material-administration.types'
 import { MaterialProcessingScheduler } from '../../src/modules/materials/material-processing.scheduler'
-import { PrismaService } from '../../src/modules/prisma/prisma.service'
-import { RedisService } from '../../src/modules/redis/redis.service'
+import { PrismaService } from '../../src/platform/database/prisma.service'
+import { RedisService } from '../../src/platform/cache/redis.service'
 import { P0_DEMO_PASSWORD } from '../../src/seeds/p0-demo.seed'
 import { CourseMembershipRole } from '../../src/generated/prisma/client'
 import { IdentityTestStore } from '../support/identity-test-store'

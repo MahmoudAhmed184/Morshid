@@ -3,7 +3,7 @@ import { JwtService } from '@nestjs/jwt'
 
 import { IdentityTestStore } from './identity-test-store'
 import { AuditService } from '../../src/modules/audit/audit.service'
-import type { AppEnvironment } from '../../src/modules/config/env.schema'
+import type { AppEnvironment } from '../../src/platform/config/env.schema'
 import { IdentityService } from '../../src/modules/identity/identity.service'
 import { RefreshSessionRepository } from '../../src/modules/identity/refresh-session.repository'
 import { AccessToken } from '../../src/modules/identity/access-token'

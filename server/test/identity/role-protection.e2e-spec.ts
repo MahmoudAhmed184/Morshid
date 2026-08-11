@@ -9,9 +9,9 @@ import { AuditService } from '../../src/modules/audit/audit.service'
 import { IDENTITY_ERROR_CODES } from '../../src/modules/identity/identity.types'
 import type { MeResponse } from '../../src/modules/identity/identity.types'
 import { MaterialProcessingScheduler } from '../../src/modules/materials/material-processing.scheduler'
-import { PrismaService } from '../../src/modules/prisma/prisma.service'
-import { RedisService } from '../../src/modules/redis/redis.service'
-import { STUDENT_CHAT_ERROR_CODES } from '../../src/modules/conversations/conversation.errors'
+import { PrismaService } from '../../src/platform/database/prisma.service'
+import { RedisService } from '../../src/platform/cache/redis.service'
+import { CONVERSATION_ERROR_CODES } from '../../src/modules/conversations/conversation.errors'
 import {
   P0_DEMO_COURSE,
   P0_DEMO_PASSWORD,
@@ -173,7 +173,7 @@ describe('RBAC (e2e)', () => {
         .expect(403)
         .expect((res) => {
           expect(res.body).toMatchObject({
-            code: STUDENT_CHAT_ERROR_CODES.ACTIVE_STUDENT_MEMBERSHIP_REQUIRED,
+            code: CONVERSATION_ERROR_CODES.ACTIVE_STUDENT_MEMBERSHIP_REQUIRED,
           })
         })
     })
