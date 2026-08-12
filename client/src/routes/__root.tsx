@@ -10,6 +10,7 @@ import appCss from '../app/styles.css?url'
 
 import { AppProviders } from '@/app/app-providers'
 import type { AppRouterContext } from '@/app/router'
+import { NotFoundPage } from '@/features/not-found/not-found-page'
 
 export const Route = createRootRouteWithContext<AppRouterContext>()({
   head: () => ({
@@ -50,6 +51,7 @@ export const Route = createRootRouteWithContext<AppRouterContext>()({
       },
     ],
   }),
+  notFoundComponent: NotFoundPage,
   component: RootApp,
   shellComponent: RootDocument,
 })
