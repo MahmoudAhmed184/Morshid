@@ -1244,3 +1244,77 @@ independent-review findings and resolutions, and a Section 17 checklist.
 - [x] Current architecture, operation, and product-contract documentation has no stale obsolete references; dated evidence is labeled.
 - [x] `npm run check`, isolated `npm run test:e2e`, and clean isolated `npm run test:acceptance` pass on the candidate.
 - [x] The repeated independent Standards/Spec review has no unresolved findings; its final result is recorded below.
+
+### M10 final closure update — candidate `81539b1`
+
+This closure supersedes the provisional candidate and command inventory above.
+The final implementation branch is `refactor/whole-workspace-architecture` at
+`81539b10620e8be1bb718ebe994e058c46e87ce3`. The recorded source remains
+`feature/socratic-tutor-v1-phase2` at
+`22fc7fbdce59fb2248db39a1bfd7b4d0b86f0480`.
+
+The post-provisional review and verification commits are:
+
+- `398559a` `docs(architecture): close final verification handoff`
+- `66ec9d8` `style(docs): remove diff whitespace noise`
+- `ed62b3c` `refactor(conversations): centralize tutoring message lifecycle`
+- `d8ef526` `style(server): format review repository`
+- `b955418` `docs(architecture): close review findings`
+- `2383e03` `fix(tutoring): preserve topic and request metadata`
+- `81539b1` `fix(tutoring): remove redundant metadata assertion`
+
+The final E2E rerun initially exposed a genuine relationship regression after
+the Conversations lifecycle cutover: the workflow reached TeachingDecision
+selection before the Attempt carried the resolved Topic. The root fix records
+Topic and analyzed request-kind metadata through Tutoring's Attempt transition;
+terminal failure persistence then carries the Attempt request kind into the
+Conversations finalization boundary. EducationalAnalysisRepository remains
+analysis-only, and its persistence E2E assertion now verifies that it does not
+mutate Conversation message state. The focused workflow and persistence suites
+passed, followed by the complete `npm run test:e2e` result of `36` suites and
+`377` tests passed.
+
+Final verification against `81539b1`:
+
+- Supported clean environment: `docker run --rm --user 1000:1000
+  --network host -v /home/mahmoud-ahmed/Projects/Morshid:/workspace -w
+  /workspace node:24.7.0 sh -lc 'node --version && npm --version && npm ci
+  && npm run check'` passed with Node `v24.7.0`, npm `11.5.1`, `npm ci`
+  installing `1,545` packages, and the complete canonical check green:
+  formatting, strict lint, typechecks, client/server dependency-cruiser
+  (`333/1,333` and `389/1,359`), generated ownership, root `9/9`, client
+  `60` files/`468` tests, server `106` suites/`1,240` tests, and all builds.
+- Isolated server E2E: explicit deterministic model/auth/database/storage
+  environment, `npm run test:e2e`, `36` suites and `377` tests passed.
+- Fresh acceptance: only the named `morshid_m9_schema` and
+  `morshid_m9_shadow_final` databases were recreated in Compose project
+  `morshid-m9-20260812`; the sole `20260811150000_initial` migration was
+  deployed, `npm run db:seed --workspace server` was run explicitly, and
+  `npm run test:acceptance` on isolated ports `3010/4010` passed `30/30`
+  Admin, Instructor, Student, and cross-role journeys.
+- Live capability: `npm run test:tutoring:e2e-live --workspace server` passed
+  `1` suite/`5` tests with documented provider credentials. Real analysis,
+  tutor, and semantic-guard calls succeeded; negative guard cases were
+  rejected and the positive case was approved.
+- Schema: `npm run db:assert-catalog --workspace server` passed;
+  `prisma migrate status` reported up to date; and
+  `npx prisma migrate diff --from-migrations prisma/migrations
+  --to-config-datasource --exit-code --config prisma.config.ts` returned
+  `No difference detected.` The single initial migration, required catalog
+  objects, and HNSW absence were verified.
+- Boot: a production Nest process returned HTTP `200` from `/health/live` and
+  `/health/ready`, with database/Redis/pgvector all up; a Vite client returned
+  HTTP `200` from `/`.
+- Repository safety: `git diff --check`, generated ownership, architecture
+  scans, and obsolete-entry-point searches passed; the worktree was clean
+  after each committed slice and is clean at the final candidate.
+
+The known npm audit inventory from the clean install remains `17` findings
+(`6` moderate, `11` high) in the existing dependency tree; no dependency
+upgrade was introduced as an architectural workaround. No documented live or
+external check was unavailable during final verification.
+
+The fresh independent Standards and Spec reviews of the complete diff from
+`22fc7fbdce59fb2248db39a1bfd7b4d0b86f0480` through `81539b1` are required to
+append their final findings and resolutions here before the candidate is
+accepted as the final SHA.
