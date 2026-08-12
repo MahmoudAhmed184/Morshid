@@ -122,12 +122,15 @@ describe('EducationalAnalysisRepository (e2e)', () => {
       confidencePolicyVersion: 'educational-analysis-confidence-policy.v1',
       infrastructureRetryCount: 0,
     })
+    // EducationalAnalysisRepository owns only the analysis aggregate. The
+    // workflow records the authoritative request kind through Tutoring's
+    // Attempt transition and Conversations' terminal message finalization.
     await expect(
       prisma.message.findUniqueOrThrow({
         where: { id: fixture.studentMessageId },
         select: { requestKind: true },
       }),
-    ).resolves.toEqual({ requestKind: MessageRequestKind.CODE_DIAGNOSIS })
+    ).resolves.toEqual({ requestKind: null })
   })
 
   it('persists fallback metadata and reuses it idempotently', async () => {

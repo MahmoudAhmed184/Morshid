@@ -85,6 +85,8 @@ export interface TransitionTutoringAttemptInput extends AuthorizedTurnInput {
   attemptId: string
   expectedStatus: TutoringAttemptStatus
   nextStatus: TutoringAttemptStatus
+  topicId?: string | null
+  requestKind?: MessageRequestKind | null
 }
 
 export interface FailTutoringAttemptInput extends AuthorizedTurnInput {
@@ -144,6 +146,7 @@ export interface FinalizeTutoringTurnInput extends AuthorizedTurnInput {
   content: string
   errorCode: string
   topicId?: string | null
+  requestKind?: MessageRequestKind | null
   guidanceLabel?: MessageGuidanceLabel
   automaticReview?: Omit<AutomaticReviewIntakeInput, 'messageId'>
 }
@@ -576,7 +579,11 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
         status: input.expectedStatus,
         sessionId: input.sessionId,
       },
-      data: { status: input.nextStatus },
+      data: {
+        status: input.nextStatus,
+        topicId: input.topicId ?? undefined,
+        requestKind: input.requestKind ?? undefined,
+      },
     })
     return updated.count === 1
   }
@@ -929,8 +936,18 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
           return authorization
         }
         const now = await currentDatabaseTime(tx)
+        const requestKind =
+          input.requestKind !== undefined
+            ? input.requestKind
+            : (
+                await tx.tutoringAttempt.findUnique({
+                  where: { id: input.attemptId },
+                  select: { requestKind: true },
+                })
+              )?.requestKind
         const updated = await this.transitionPendingAssistant(tx, input, {
           ...terminal,
+          requestKind: requestKind as MessageRequestKind | null | undefined,
           authorization:
             terminal.status === MessageStatus.FAILED ||
             terminal.status === MessageStatus.BLOCKED

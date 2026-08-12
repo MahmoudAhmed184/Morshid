@@ -1,7 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common'
 
 import { assertRequestBudget } from '../../../common/http/request-deadline'
-import { TutoringAttemptStatus } from '../tutoring-values'
+import {
+  TutoringAttemptStatus,
+  type MessageRequestKind,
+} from '../tutoring-values'
 import { CourseEvidence } from '../../materials/materials.public'
 import { TutoringTurnRepository } from '../attempt/tutoring-turn.repository'
 import { TopicService } from './topic.service'
@@ -125,6 +128,7 @@ export class SocraticWorkflow {
       input,
       TutoringAttemptStatus.RECEIVED,
       TutoringAttemptStatus.ANALYZING,
+      topicId,
     )
 
     const analysisContext = await this.contextManager.buildAnalysisContext({
@@ -181,6 +185,8 @@ export class SocraticWorkflow {
       input,
       TutoringAttemptStatus.ANALYZING,
       TutoringAttemptStatus.DECIDING,
+      undefined,
+      analysisResult.analysis.result.requestKind,
     )
 
     const previousTeachingDecision =
@@ -357,6 +363,8 @@ export class SocraticWorkflow {
     input: SocraticWorkflowInput,
     expectedStatus: TutoringAttemptStatus,
     nextStatus: TutoringAttemptStatus,
+    topicId?: string | null,
+    requestKind?: MessageRequestKind | null,
   ): Promise<void> {
     const advanced = await this.turnRepository.transitionAttempt({
       courseId: input.courseId,
@@ -365,6 +373,8 @@ export class SocraticWorkflow {
       attemptId: input.attemptId,
       expectedStatus,
       nextStatus,
+      ...(topicId === undefined ? {} : { topicId }),
+      ...(requestKind === undefined ? {} : { requestKind }),
     })
     if (!advanced) {
       throw new Error(

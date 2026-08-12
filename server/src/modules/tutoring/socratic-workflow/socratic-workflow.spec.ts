@@ -102,6 +102,7 @@ describe('SocraticWorkflow classified responses', () => {
         attemptId,
         expectedStatus: TutoringAttemptStatus.RECEIVED,
         nextStatus: TutoringAttemptStatus.ANALYZING,
+        topicId,
       })
       expect(resolveTopic).toHaveBeenCalledWith({
         sessionId,
