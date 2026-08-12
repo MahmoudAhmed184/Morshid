@@ -157,6 +157,9 @@
 }
 
 html {
+  /* Reserve classic scrollbar space so modal/menu scroll-lock and theme
+     swaps do not shift the page sideways (especially Firefox on Linux). */
+  scrollbar-gutter: stable;
   scroll-behavior: smooth;
 }
 
@@ -599,15 +602,52 @@ html {
   }
 }
 
-/* Circular View Transition Sunrise/Sunset Effect */
+/* Circular View Transition sunrise/sunset reveal.
+   Origin/radius come from --theme-transition-* set by ThemeProvider. */
+::view-transition-group(root) {
+  animation-duration: 480ms;
+  animation-timing-function: var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+
 ::view-transition-old(root),
 ::view-transition-new(root) {
   animation: none;
   mix-blend-mode: normal;
+  /* Full-bleed snapshots avoid subpixel jitter while the circle expands. */
+  height: 100%;
+  width: 100%;
+  backface-visibility: hidden;
 }
+
 ::view-transition-old(root) {
   z-index: 1;
 }
+
 ::view-transition-new(root) {
   z-index: 9999;
+}
+
+html[data-theme-transition='running']::view-transition-new(root) {
+  animation: theme-circle-in 480ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1))
+    both;
+}
+
+@keyframes theme-circle-in {
+  from {
+    clip-path: circle(
+      0px at var(--theme-transition-x, 50%) var(--theme-transition-y, 50%)
+    );
+  }
+  to {
+    clip-path: circle(
+      var(--theme-transition-r, 100vmax) at var(--theme-transition-x, 50%)
+        var(--theme-transition-y, 50%)
+    );
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme-transition='running']::view-transition-new(root) {
+    animation: none;
+  }
 }

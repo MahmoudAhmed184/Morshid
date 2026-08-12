@@ -28,7 +28,9 @@ export function ModeToggle() {
   }
 
   return (
-    <DropdownMenu>
+    // Non-modal avoids body scroll-lock, which removes the classic scrollbar
+    // in Firefox and shifts the whole page when the menu opens.
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger
         render={
           <Button

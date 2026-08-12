@@ -1,8 +1,10 @@
 import { createContext, useContext, useEffect, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { ScriptOnce } from '@tanstack/react-router'
 
 export type ThemeMode = 'dark' | 'light' | 'system'
 export type ThemeTransitionOrigin = { x: number; y: number }
+type ResolvedTheme = 'dark' | 'light'
 
 type ThemeProviderProps = {
   children: React.ReactNode
@@ -13,6 +15,11 @@ type ThemeProviderProps = {
 type ThemeProviderState = {
   theme: ThemeMode
   setTheme: (theme: ThemeMode, origin?: ThemeTransitionOrigin) => void
+}
+
+type ViewTransition = {
+  ready: Promise<void>
+  finished: Promise<void>
 }
 
 function isThemeMode(value: unknown): value is ThemeMode {
@@ -29,6 +36,14 @@ function getStoredTheme(
   return isThemeMode(stored) ? stored : defaultTheme
 }
 
+function resolveTheme(theme: ThemeMode): ResolvedTheme {
+  if (theme !== 'system') return theme
+
+  return window.matchMedia('(prefers-color-scheme: dark)').matches
+    ? 'dark'
+    : 'light'
+}
+
 function getThemeScript(storageKey: string, defaultTheme: ThemeMode) {
   const key = JSON.stringify(storageKey)
   const fallback = JSON.stringify(defaultTheme)
@@ -42,15 +57,9 @@ const ThemeProviderContext = createContext<ThemeProviderState | undefined>(
 
 function applyTheme(theme: ThemeMode) {
   const root = document.documentElement
+  const resolved = resolveTheme(theme)
+
   root.classList.remove('light', 'dark')
-
-  const resolved =
-    theme === 'system'
-      ? window.matchMedia('(prefers-color-scheme: dark)').matches
-        ? 'dark'
-        : 'light'
-      : theme
-
   root.classList.add(resolved)
   root.style.colorScheme = resolved
 }
@@ -71,6 +80,7 @@ function runThemeTransition(
     return
   }
 
+  const root = document.documentElement
   const x =
     origin?.x ?? (typeof window !== 'undefined' ? window.innerWidth - 60 : 0)
   const y = origin?.y ?? (typeof window !== 'undefined' ? 40 : 0)
@@ -82,31 +92,31 @@ function runThemeTransition(
         )
       : 1000
 
+  // Drive the reveal from CSS custom properties so the compositor path stays
+  // stable across Chromium and Firefox View Transitions implementations.
+  root.style.setProperty('--theme-transition-x', `${x}px`)
+  root.style.setProperty('--theme-transition-y', `${y}px`)
+  root.style.setProperty('--theme-transition-r', `${endRadius}px`)
+  root.dataset.themeTransition = 'running'
+
   const transition = (
-    document as unknown as {
-      startViewTransition: (cb: () => void) => { ready: Promise<void> }
+    document as Document & {
+      startViewTransition: (cb: () => void) => ViewTransition
     }
   ).startViewTransition(() => {
-    updateTheme()
+    flushSync(() => {
+      updateTheme()
+    })
   })
 
-  transition.ready
-    .then(() => {
-      document.documentElement.animate(
-        {
-          clipPath: [
-            `circle(0px at ${x}px ${y}px)`,
-            `circle(${endRadius}px at ${x}px ${y}px)`,
-          ],
-        },
-        {
-          duration: 700,
-          easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
-          pseudoElement: '::view-transition-new(root)',
-        },
-      )
-    })
+  void transition.finished
     .catch(() => {})
+    .finally(() => {
+      delete root.dataset.themeTransition
+      root.style.removeProperty('--theme-transition-x')
+      root.style.removeProperty('--theme-transition-y')
+      root.style.removeProperty('--theme-transition-r')
+    })
 }
 
 export function ThemeProvider({
@@ -133,7 +143,20 @@ export function ThemeProvider({
   }, [theme])
 
   const setTheme = (nextTheme: ThemeMode, origin?: ThemeTransitionOrigin) => {
+    if (nextTheme === theme) return
+
     localStorage.setItem(storageKey, nextTheme)
+
+    const currentResolved = resolveTheme(theme)
+    const nextResolved = resolveTheme(nextTheme)
+
+    // Preference-only change (e.g. light → system while OS is light): update
+    // state without a full-page reveal that would look like a stutter.
+    if (currentResolved === nextResolved) {
+      setThemeState(nextTheme)
+      return
+    }
+
     runThemeTransition(() => {
       applyTheme(nextTheme)
       setThemeState(nextTheme)
