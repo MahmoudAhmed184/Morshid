@@ -606,7 +606,10 @@ html {
    Origin/radius come from --theme-transition-* set by ThemeProvider. */
 ::view-transition-group(root) {
   animation-duration: 480ms;
-  animation-timing-function: var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+  animation-timing-function: var(
+    --ease-out-expo,
+    cubic-bezier(0.16, 1, 0.3, 1)
+  );
 }
 
 ::view-transition-old(root),
@@ -628,8 +631,8 @@ html {
 }
 
 html[data-theme-transition='running']::view-transition-new(root) {
-  animation: theme-circle-in 480ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1))
-    both;
+  animation: theme-circle-in 480ms
+    var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) both;
 }
 
 @keyframes theme-circle-in {
