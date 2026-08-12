@@ -1,9 +1,13 @@
 @import 'tailwindcss';
 @import 'shadcn/tailwind.css';
-@import '@fontsource-variable/geist';
-@import '@fontsource-variable/geist-mono';
-@import '@fontsource-variable/fraunces/opsz.css';
-@import '@fontsource-variable/fraunces/opsz-italic.css';
+@import '@fontsource-variable/ibm-plex-sans';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+@import '@fontsource/ibm-plex-mono/600.css';
+@import '@fontsource/ibm-plex-sans-arabic/400.css';
+@import '@fontsource/ibm-plex-sans-arabic/500.css';
+@import '@fontsource/ibm-plex-sans-arabic/600.css';
+@import '@fontsource/ibm-plex-sans-arabic/700.css';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -58,15 +62,19 @@
   --chat-citation-foreground: oklch(0.4353 0.1404 256);
   --border-strong: oklch(0.5457 0.0184 172.1);
   --font-sans:
-    'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
-    Roboto, sans-serif;
-  --font-serif: 'Fraunces Variable', Georgia, 'Times New Roman', serif;
-  --font-display: 'Fraunces Variable', Georgia, serif;
-  --font-mono:
-    'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  --font-arabic-ui:
-    'Noto Sans Arabic UI', 'Noto Sans Arabic', 'Geist Variable', ui-sans-serif,
+    'IBM Plex Sans Variable', 'IBM Plex Sans', ui-sans-serif, system-ui,
+    -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-serif:
+    'IBM Plex Sans Variable', 'IBM Plex Sans', ui-sans-serif, system-ui,
     sans-serif;
+  --font-display:
+    'IBM Plex Sans Variable', 'IBM Plex Sans', ui-sans-serif, system-ui,
+    -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono:
+    'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --font-arabic-ui:
+    'IBM Plex Sans Arabic', 'Noto Sans Arabic UI', 'Noto Sans Arabic',
+    ui-sans-serif, sans-serif;
   --radius: 1rem;
   --tracking-normal: 0em;
   --spacing: 0.25rem;
@@ -323,49 +331,34 @@ html {
   border-top: 1px solid var(--border);
 }
 
-/* Display scale — Fraunces is the brand voice, not the reading face. */
+/* Display scale — IBM Plex Sans with computing brand authority. */
 @utility display-1 {
   font-family: var(--font-display);
-  font-variation-settings:
-    'opsz' 144,
-    'SOFT' 0,
-    'WONK' 0;
-  font-weight: 600;
+  font-weight: 700;
   font-size: clamp(2.75rem, 7vw, 5.5rem);
-  line-height: 1.02;
-  letter-spacing: -0.015em;
+  line-height: 1.05;
+  letter-spacing: -0.025em;
 }
 
 @utility display-2 {
   font-family: var(--font-display);
-  font-variation-settings:
-    'opsz' 144,
-    'SOFT' 0,
-    'WONK' 0;
   font-weight: 600;
   font-size: clamp(2rem, 4vw, 3.5rem);
-  line-height: 1.05;
-  letter-spacing: -0.015em;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
 }
 
 @utility display-3 {
   font-family: var(--font-display);
-  font-variation-settings:
-    'opsz' 144,
-    'SOFT' 0,
-    'WONK' 0;
   font-weight: 600;
   font-size: 1.75rem;
-  line-height: 1.15;
+  line-height: 1.2;
   letter-spacing: -0.015em;
 }
 
 @utility display-index {
   font-family: var(--font-display);
-  font-variation-settings:
-    'opsz' 144,
-    'SOFT' 0,
-    'WONK' 0;
+  font-weight: 600;
   font-size: 1.5rem;
   color: var(--muted-foreground);
   font-variant-numeric: tabular-nums;
@@ -519,18 +512,12 @@ html {
     @apply bg-background text-foreground;
   }
 
-  /* Display type: Fraunces at max optical size, no soft/wonk. */
+  /* Display type: IBM Plex Sans */
   .font-display {
-    font-variation-settings:
-      'opsz' 144,
-      'SOFT' 0,
-      'WONK' 0;
-    letter-spacing: -0.015em;
+    letter-spacing: -0.02em;
   }
 
-  /* Deliberate serif moments: Fraunces with automatic optical sizing. */
   .font-serif {
-    font-optical-sizing: auto;
     letter-spacing: -0.01em;
   }
 
