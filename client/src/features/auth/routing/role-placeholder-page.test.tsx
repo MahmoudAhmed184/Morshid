@@ -1,5 +1,4 @@
 import '@testing-library/jest-dom/vitest'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
   cleanup,
   fireEvent,
@@ -15,10 +14,12 @@ import type { AuthSession } from '@/features/auth/session/session.schema'
 
 import { RolePlaceholderPage } from './role-placeholder-page'
 
-const navigateMock = vi.fn()
+const { replaceDocumentMock } = vi.hoisted(() => ({
+  replaceDocumentMock: vi.fn(),
+}))
 
-vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => navigateMock,
+vi.mock('@/lib/browser/document-navigation', () => ({
+  replaceDocument: replaceDocumentMock,
 }))
 
 const mockSession: AuthSession = {
@@ -35,15 +36,7 @@ const mockSession: AuthSession = {
 }
 
 function renderRolePlaceholderPage() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  })
-
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <RolePlaceholderPage roleName="Admin" />
-    </QueryClientProvider>,
-  )
+  return render(<RolePlaceholderPage roleName="Admin" />)
 }
 
 describe('RolePlaceholderPage', () => {
@@ -51,7 +44,6 @@ describe('RolePlaceholderPage', () => {
     window.localStorage.clear()
     useAuthStore.getState().clearSession()
     useAuthStore.getState().setSession(mockSession)
-    navigateMock.mockResolvedValue(undefined)
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => new Response(null, { status: 204 })),
@@ -62,12 +54,12 @@ describe('RolePlaceholderPage', () => {
     cleanup()
     useAuthStore.getState().clearSession()
     window.localStorage.clear()
-    navigateMock.mockReset()
+    replaceDocumentMock.mockReset()
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })
 
-  it('shows the role name and logs out to the login route', async () => {
+  it('ends the browser session after logout succeeds', async () => {
     renderRolePlaceholderPage()
 
     expect(screen.getByRole('heading', { name: 'Admin' })).toBeDefined()
@@ -86,10 +78,7 @@ describe('RolePlaceholderPage', () => {
     )
 
     await waitFor(() => {
-      expect(navigateMock).toHaveBeenCalledWith({
-        to: '/login',
-        replace: true,
-      })
+      expect(replaceDocumentMock).toHaveBeenCalledWith('/login')
     })
     expect(fetch).toHaveBeenCalledOnce()
     const [requestUrl, requestInit] = vi.mocked(fetch).mock.calls[0]
@@ -106,7 +95,7 @@ describe('RolePlaceholderPage', () => {
     expect(window.localStorage).toHaveLength(0)
   })
 
-  it('clears local auth state even when logout revocation fails', async () => {
+  it('ends the browser session even when logout revocation fails', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => {
@@ -128,10 +117,7 @@ describe('RolePlaceholderPage', () => {
     )
 
     await waitFor(() => {
-      expect(navigateMock).toHaveBeenCalledWith({
-        to: '/login',
-        replace: true,
-      })
+      expect(replaceDocumentMock).toHaveBeenCalledWith('/login')
     })
     expect(useAuthStore.getState().isAuthenticated).toBe(false)
     expect(window.localStorage).toHaveLength(0)
