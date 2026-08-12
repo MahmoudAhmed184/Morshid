@@ -235,7 +235,7 @@ export function StudentChatMessage({
               : 'rounded-2xl rounded-bl-lg border bg-card text-card-foreground shadow-xs',
             (reviewSummary?.status === 'PENDING' ||
               reviewSummary?.status === 'IN_REVIEW') &&
-              'border-warning/35 bg-warning/[0.04] shadow-[inset_3px_0_0_hsl(var(--warning)/0.45)]',
+              'border-l-4 border-warning/60 bg-warning/5',
           )}
         >
           <span className="sr-only">{isStudent ? 'You' : 'AI Tutor'}: </span>

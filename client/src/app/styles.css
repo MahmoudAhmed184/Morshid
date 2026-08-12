@@ -12,55 +12,55 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Morshid — Guided Ink / Reading Room. Warm paper, midnight ink, mineral teal. */
-  --background: oklch(0.9755 0.0067 97.4);
-  --foreground: oklch(0.2396 0.0233 251.4);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.2396 0.0233 251.4);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.2396 0.0233 251.4);
-  --primary: oklch(0.4748 0.0833 185.9);
-  --primary-foreground: oklch(1 0 89.9);
-  --secondary: oklch(0.9618 0.0045 134.8);
-  --secondary-foreground: oklch(0.2396 0.0233 251.4);
-  --muted: oklch(0.9618 0.0045 134.8);
-  --muted-foreground: oklch(0.457 0.0309 248.5);
-  --accent: oklch(0.933 0.025 185.9);
-  --accent-foreground: oklch(0.2396 0.0233 251.4);
-  --destructive: oklch(0.5567 0.167 28.8);
-  --destructive-foreground: oklch(1 0 89.9);
-  --rubric: oklch(0.5567 0.167 28.8);
-  --rubric-foreground: oklch(1 0 89.9);
-  --success: oklch(0.5 0.1 155);
-  --success-foreground: oklch(1 0 89.9);
-  --warning: oklch(0.5172 0.1085 76.3);
-  --warning-foreground: oklch(1 0 89.9);
-  --info: oklch(0.5516 0.2479 262.2);
-  --info-foreground: oklch(1 0 89.9);
-  --gold: oklch(0.5172 0.1085 76.3);
-  --gold-foreground: oklch(1 0 89.9);
-  --border: oklch(0.88 0.016 170);
-  --input: oklch(0.5822 0.0198 178.9);
-  --ring: oklch(0.5516 0.2479 262.2);
-  --chart-1: oklch(0.4748 0.0833 185.9);
-  --chart-2: oklch(0.5516 0.2479 262.2);
-  --chart-3: oklch(0.5172 0.1085 76.3);
-  --chart-4: oklch(0.5 0.1 155);
-  --chart-5: oklch(0.5567 0.167 28.8);
-  --sidebar: oklch(0.9618 0.0045 134.8);
-  --sidebar-foreground: oklch(0.2396 0.0233 251.4);
-  --sidebar-primary: oklch(0.4748 0.0833 185.9);
-  --sidebar-primary-foreground: oklch(1 0 89.9);
-  --sidebar-accent: oklch(0.933 0.025 185.9);
-  --sidebar-accent-foreground: oklch(0.2396 0.0233 251.4);
-  --sidebar-border: oklch(0.88 0.016 170);
-  --sidebar-ring: oklch(0.5516 0.2479 262.2);
-  /* Student chat reading surfaces — semantic tints, not decorative accents. */
-  --chat-student: oklch(0.9576 0.013 185.1);
-  --chat-code: oklch(0.9564 0.0042 236.5);
-  --chat-citation: oklch(0.9624 0.0178 261.3);
-  --chat-citation-foreground: oklch(0.4353 0.1404 256);
-  --border-strong: oklch(0.5457 0.0184 172.1);
+  /* Morshid — Cerulean Petrol (#04677F). Deep, calm, high-focus engineering palette. */
+  --background: #f4f6f8;
+  --foreground: #111827;
+  --card: #ffffff;
+  --card-foreground: #111827;
+  --popover: #ffffff;
+  --popover-foreground: #111827;
+  --primary: #04677f;
+  --primary-foreground: #ffffff;
+  --secondary: #edf2f7;
+  --secondary-foreground: #111827;
+  --muted: #f1f5f9;
+  --muted-foreground: #475569;
+  --accent: #eaf5f8;
+  --accent-foreground: #04677f;
+  --destructive: #da1e28;
+  --destructive-foreground: #ffffff;
+  --rubric: #da1e28;
+  --rubric-foreground: #ffffff;
+  --success: #198038;
+  --success-foreground: #ffffff;
+  --warning: #b28600;
+  --warning-foreground: #ffffff;
+  --info: #04677f;
+  --info-foreground: #ffffff;
+  --gold: #b28600;
+  --gold-foreground: #ffffff;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #04677f;
+  --chart-1: #04677f;
+  --chart-2: #198038;
+  --chart-3: #b28600;
+  --chart-4: #035064;
+  --chart-5: #da1e28;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #111827;
+  --sidebar-primary: #04677f;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eaf5f8;
+  --sidebar-accent-foreground: #04677f;
+  --sidebar-border: #e2e8f0;
+  --sidebar-ring: #04677f;
+  /* Student chat reading surfaces — calm cerulean tints. */
+  --chat-student: #eef7fa;
+  --chat-code: #f8fafc;
+  --chat-citation: #eaf5f8;
+  --chat-citation-foreground: #035064;
+  --border-strong: #94a3b8;
   --font-sans:
     'IBM Plex Sans Variable', 'IBM Plex Sans', ui-sans-serif, system-ui,
     -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -527,12 +527,12 @@ html {
   }
 
   ::selection {
-    background-color: color-mix(in oklab, var(--gold) 30%, transparent);
+    background-color: color-mix(in oklab, var(--primary) 22%, transparent);
     color: var(--foreground);
   }
 
   .dark ::selection {
-    background-color: color-mix(in oklab, var(--gold) 25%, transparent);
+    background-color: color-mix(in oklab, var(--primary) 25%, transparent);
     color: var(--foreground);
   }
 
