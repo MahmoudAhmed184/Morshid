@@ -1315,9 +1315,8 @@ upgrade was introduced as an architectural workaround. No documented live or
 external check was unavailable during final verification.
 
 The fresh independent Standards and Spec reviews of the complete diff from
-`22fc7fbdce59fb2248db39a1bfd7b4d0b86f0480` through `81539b1` are required to
-append their final findings and resolutions here before the candidate is
-accepted as the final SHA.
+`22fc7fbdce59fb2248db39a1bfd7b4d0b86f0480` through `81539b1` are recorded in
+the independent final review section below.
 
 ### M10 independent final review — closure recorded at `92b772b`
 
