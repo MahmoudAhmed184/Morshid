@@ -27,7 +27,7 @@ function CoursePanelFrame({
   return (
     <Card aria-label={ariaLabel} role={role} className="relative">
       <span
-        className="absolute inset-y-4 left-0 w-0.5 rounded-full bg-rubric"
+        className="absolute inset-y-4 left-0 w-0.5 rounded-full bg-primary"
         aria-hidden
       />
       <CardContent>{children}</CardContent>

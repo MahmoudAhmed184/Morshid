@@ -58,7 +58,7 @@ export function StudentSessionListItem({
         >
           <span
             className={cn(
-              'absolute top-1/2 left-0 h-5 w-0.5 -translate-y-1/2 rounded-full bg-rubric transition-opacity',
+              'absolute top-1/2 left-0 h-5 w-0.5 -translate-y-1/2 rounded-full bg-primary transition-opacity',
               isSelected ? 'opacity-100' : 'opacity-0',
             )}
             aria-hidden

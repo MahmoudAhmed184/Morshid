@@ -387,7 +387,7 @@ function StudentDraftState({
       >
         <div className="mx-auto flex min-h-full max-w-3xl items-center justify-center">
           <div className="flex min-h-full w-full flex-col items-center justify-center gap-8">
-            <h1 className="display-2 text-center text-foreground">
+            <h1 className="text-balance text-center font-sans text-[clamp(2rem,4vw,3.5rem)] leading-[1.08] font-semibold tracking-[-0.03em] text-foreground">
               {firstName
                 ? `How can I help you, ${firstName}?`
                 : 'How can I help you?'}

@@ -96,21 +96,21 @@ export function StudentReviewRequestDialog({
       </Button>
 
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="sm:max-w-md" showCloseButton={!isPending}>
-          <DialogHeader>
+        <DialogContent className="sm:max-w-sm" showCloseButton={!isPending}>
+          <DialogHeader className="gap-1">
             <DialogTitle>Request Instructor review</DialogTitle>
             <DialogDescription>
               Ask an Instructor to review this response. You may include a short
               note.
             </DialogDescription>
           </DialogHeader>
-          <form className="space-y-4" noValidate onSubmit={handleSubmit}>
-            <fieldset className="space-y-2" disabled={isPending}>
+          <form className="space-y-3" noValidate onSubmit={handleSubmit}>
+            <fieldset className="space-y-1.5" disabled={isPending}>
               <legend id={reasonLegendId} className="text-sm font-medium">
                 Reason
               </legend>
               <div
-                className="grid gap-2"
+                className="grid gap-1.5"
                 role="radiogroup"
                 aria-labelledby={reasonLegendId}
               >
@@ -120,7 +120,7 @@ export function StudentReviewRequestDialog({
                     <Label
                       key={option.value}
                       htmlFor={id}
-                      className="flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2 font-normal has-checked:border-primary has-checked:bg-primary/5"
+                      className="flex cursor-pointer items-center gap-2.5 rounded-md border px-3 py-2 font-normal has-checked:border-primary has-checked:bg-primary/5 sm:py-1.5"
                     >
                       <input
                         id={id}
@@ -145,7 +145,7 @@ export function StudentReviewRequestDialog({
                 </p>
               ) : null}
             </fieldset>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor={`review-note-${messageId}`}>
                 Note {flagReason === 'OTHER' ? '(required)' : '(optional)'}
               </Label>
@@ -162,6 +162,7 @@ export function StudentReviewRequestDialog({
                 maxLength={NOTE_LIMIT}
                 onChange={(event) => setNote(event.target.value)}
                 placeholder="What would you like the Instructor to check?"
+                className="min-h-14"
               />
               <p id={noteCountId} className="text-xs text-muted-foreground">
                 {remaining} characters remaining
@@ -177,7 +178,7 @@ export function StudentReviewRequestDialog({
               ) : null}
             </div>
             {error ? <ReviewRequestError error={error} /> : null}
-            <DialogFooter>
+            <DialogFooter className="p-3">
               <Button
                 type="button"
                 variant="outline"
