@@ -947,7 +947,7 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
               )?.requestKind
         const updated = await this.transitionPendingAssistant(tx, input, {
           ...terminal,
-          requestKind: requestKind as MessageRequestKind | null | undefined,
+          requestKind,
           authorization:
             terminal.status === MessageStatus.FAILED ||
             terminal.status === MessageStatus.BLOCKED
