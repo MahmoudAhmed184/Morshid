@@ -13,6 +13,8 @@ import {
   type CourseAccessRecord,
   type CourseMembershipRecord,
   type AddCourseMemberInput,
+  type ArchiveCourseInput,
+  type BulkAddCourseMembersInput,
   type CreateCourseInput,
   type RemoveCourseMemberInput,
   type UpdateCourseInput,
@@ -124,6 +126,10 @@ class CoursesTestRepository extends CoursesRepository {
     return Promise.reject(new Error('not used by Courses e2e'))
   }
 
+  archiveCourse(_input: ArchiveCourseInput): Promise<void> {
+    return Promise.reject(new Error('not used by Courses e2e'))
+  }
+
   findUserById(_userId: string): Promise<{ id: string } | null> {
     return Promise.resolve(null)
   }
@@ -136,6 +142,12 @@ class CoursesTestRepository extends CoursesRepository {
   }
 
   addMember(_input: AddCourseMemberInput): Promise<CourseMembershipRecord> {
+    return Promise.reject(new Error('not used by Courses e2e'))
+  }
+
+  addMembers(
+    _input: BulkAddCourseMembersInput,
+  ): Promise<{ assignedCount: number; skippedCount: number }> {
     return Promise.reject(new Error('not used by Courses e2e'))
   }
 

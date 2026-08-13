@@ -1,8 +1,15 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 
 import {
   addCourseMember,
+  bulkAddCourseMembers,
   createCourse as createCourseRequest,
+  deleteCourse as deleteCourseRequest,
   removeCourseMember,
   updateCourse as updateCourseRequest,
   updateCourseMemberRole,
@@ -25,19 +32,30 @@ function useAdminId() {
   return useAuthStore((state) => state.user?.id)
 }
 
-export function useCourseAdministration() {
+export function useCourseAdministration(search = '') {
   const adminId = useAdminId()
-  return useQuery({
-    ...courseAdministrationQueryOptions(adminId ?? 'anonymous'),
+  return useInfiniteQuery({
+    ...courseAdministrationQueryOptions(adminId ?? 'anonymous', search),
     enabled: adminId !== undefined,
+    select: (data) => data.pages.flatMap((page) => page.courses),
   })
 }
 
-export function useCourseMembers(courseId: string | undefined) {
+export function useCourseMembers(
+  courseId: string | undefined,
+  search = '',
+  role?: CourseMembershipRole,
+) {
   const adminId = useAdminId()
-  return useQuery({
-    ...courseMembersQueryOptions(adminId ?? 'anonymous', courseId ?? 'unknown'),
+  return useInfiniteQuery({
+    ...courseMembersQueryOptions(
+      adminId ?? 'anonymous',
+      courseId ?? 'unknown',
+      search,
+      role,
+    ),
     enabled: adminId !== undefined && courseId !== undefined,
+    select: (data) => data.pages.flatMap((page) => page.members),
   })
 }
 
@@ -90,12 +108,25 @@ export function useCourseAdministrationMutations(
     }) => updateCourseRequest(id, input),
     onSuccess: invalidateCourseData,
   })
+  const deleteCourse = useMutation({
+    mutationFn: (courseIdToDelete: string) =>
+      deleteCourseRequest(courseIdToDelete),
+    onSuccess: invalidateCourseData,
+  })
 
   const addMember = useMutation({
     mutationFn: (input: { userId: string; role: CourseMembershipRole }) => {
       if (!courseId) throw new Error('Choose a course first.')
       return addCourseMember(courseId, input)
     },
+    onSuccess: invalidateCourseData,
+  })
+  const addMembers = useMutation({
+    mutationFn: (input: {
+      courseIds: string[]
+      userIds: string[]
+      role: CourseMembershipRole
+    }) => bulkAddCourseMembers(input),
     onSuccess: invalidateCourseData,
   })
   const updateMemberRole = useMutation({
@@ -140,7 +171,9 @@ export function useCourseAdministrationMutations(
   return {
     createCourse,
     updateCourse,
+    deleteCourse,
     addMember,
+    addMembers,
     updateMemberRole,
     removeMember,
     editMaterial,

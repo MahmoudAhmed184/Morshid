@@ -10,13 +10,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
   Table,
   TableBody,
   TableCell,
@@ -37,11 +30,6 @@ type AdminAssignmentsTableProps = {
   onRoleChange: (userId: string, role: CourseMembershipRole) => void
   onRemove: (userId: string) => Promise<unknown>
 }
-
-const roleSelectItems = [
-  { value: 'STUDENT' as const, label: 'Student' },
-  { value: 'INSTRUCTOR' as const, label: 'Instructor' },
-]
 
 export function AdminAssignmentsTable({
   courseId,
@@ -71,10 +59,6 @@ export function AdminAssignmentsTable({
                 {member.user.email}
               </p>
               <div className="flex items-center gap-2 text-xs text-muted-foreground pt-0.5">
-                <span className="capitalize font-medium text-foreground">
-                  {member.role.toLowerCase()}
-                </span>
-                <span>•</span>
                 <span className="capitalize">
                   {member.user.role.toLowerCase()}
                 </span>
@@ -121,7 +105,7 @@ export function AdminAssignmentsTable({
 
       {/* Desktop Table (>= md) */}
       <div className="hidden md:block">
-        <Table className="w-full min-w-[680px]">
+        <Table className="w-full min-w-[600px]">
           <TableHeader className="bg-secondary/40">
             <TableRow>
               <TableHead className="smallcaps-label h-11 px-4 pl-6">
@@ -129,9 +113,6 @@ export function AdminAssignmentsTable({
               </TableHead>
               <TableHead className="smallcaps-label h-11 px-4">
                 Account role
-              </TableHead>
-              <TableHead className="smallcaps-label h-11 px-4">
-                Course role
               </TableHead>
               <TableHead className="smallcaps-label h-11 px-4 pr-6 text-right">
                 Actions
@@ -145,38 +126,15 @@ export function AdminAssignmentsTable({
                 className="h-[52px] hover:bg-secondary/40"
               >
                 <TableCell className="px-4 py-3.5 pl-6 min-w-0">
-                  <p className="font-medium text-foreground truncate max-w-[240px]">
+                  <p className="font-medium text-foreground truncate max-w-[280px]">
                     {member.user.displayName}
                   </p>
-                  <p className="text-xs text-muted-foreground truncate max-w-[240px]">
+                  <p className="text-xs text-muted-foreground truncate max-w-[280px]">
                     {member.user.email}
                   </p>
                 </TableCell>
                 <TableCell className="px-4 py-3.5 capitalize">
                   {member.user.role.toLowerCase()}
-                </TableCell>
-                <TableCell className="px-4 py-3.5">
-                  <Select
-                    value={member.role}
-                    onValueChange={(value) =>
-                      onRoleChange(member.userId, value as CourseMembershipRole)
-                    }
-                    items={roleSelectItems}
-                  >
-                    <SelectTrigger
-                      className="h-8 text-xs font-medium border-border/80 w-[130px]"
-                      aria-label={`Course role for ${member.user.displayName}`}
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {roleSelectItems.map((item) => (
-                        <SelectItem key={item.value} value={item.value}>
-                          {item.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
                 </TableCell>
                 <TableCell className="px-4 py-3.5 pr-6 text-right">
                   <div className="flex items-center justify-end gap-1">

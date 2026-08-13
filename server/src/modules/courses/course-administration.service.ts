@@ -5,6 +5,8 @@ import type { AuthenticatedUser } from '../identity/identity.types'
 import type { AuditRequestContext } from '../audit/audit.public'
 import type {
   AddCourseMemberRequest,
+  BulkAddCourseMembersRequest,
+  BulkAddCourseMembersResponseDto,
   CourseAdministrationDetailResponseDto,
   CourseAdministrationListResponseDto,
   CourseAdministrationMemberListResponseDto,
@@ -12,6 +14,8 @@ import type {
   CreateCourseRequest,
   UpdateCourseRequest,
   UpdateMemberRoleRequest,
+  ListCourseAdministrationQuery,
+  ListCourseMembersQuery,
 } from './course-administration.types'
 import {
   CourseCodeAlreadyExistsError,
@@ -33,11 +37,15 @@ import {
 export class CourseAdministrationService {
   constructor(private readonly coursesRepository: CoursesRepository) {}
 
-  async listCourses(): Promise<CourseAdministrationListResponseDto> {
-    const courses = await this.coursesRepository.listCourseAdministration()
+  async listCourses(
+    query: ListCourseAdministrationQuery = { limit: 25 },
+  ): Promise<CourseAdministrationListResponseDto> {
+    const page =
+      await this.coursesRepository.listCourseAdministrationPage(query)
 
     return {
-      courses: courses.map(mapCourseAdministrationRecord),
+      courses: page.courses.map(mapCourseAdministrationRecord),
+      ...(page.nextCursor !== undefined ? { nextCursor: page.nextCursor } : {}),
     }
   }
 
@@ -131,6 +139,22 @@ export class CourseAdministrationService {
     }
   }
 
+  async archiveCourse(
+    courseId: string,
+    actor: AuthenticatedUser,
+    requestContext?: AuditRequestContext,
+  ): Promise<void> {
+    const course =
+      await this.coursesRepository.findCourseAdministrationById(courseId)
+    if (course === null) throw courseNotFoundException(courseId)
+
+    await this.coursesRepository.archiveCourse({
+      courseId,
+      actorUserId: actor.id,
+      requestContext,
+    })
+  }
+
   async addMember(
     courseId: string,
     input: AddCourseMemberRequest,
@@ -180,6 +204,38 @@ export class CourseAdministrationService {
     }
   }
 
+  async addMembers(
+    input: BulkAddCourseMembersRequest,
+    actor: AuthenticatedUser,
+    requestContext?: AuditRequestContext,
+  ): Promise<BulkAddCourseMembersResponseDto> {
+    const courseIds = [...new Set(input.courseIds)]
+    const userIds = [...new Set(input.userIds)]
+
+    for (const courseId of courseIds) {
+      if (
+        (await this.coursesRepository.findCourseAdministrationById(
+          courseId,
+        )) === null
+      ) {
+        throw courseNotFoundException(courseId)
+      }
+    }
+    for (const userId of userIds) {
+      if ((await this.coursesRepository.findUserById(userId)) === null) {
+        throw courseUserNotFoundException(userId)
+      }
+    }
+
+    return this.coursesRepository.addMembers({
+      courseIds,
+      userIds,
+      role: input.role,
+      actorUserId: actor.id,
+      requestContext,
+    })
+  }
+
   async removeMember(
     courseId: string,
     userId: string,
@@ -220,6 +276,7 @@ export class CourseAdministrationService {
 
   async listMembers(
     courseId: string,
+    query: ListCourseMembersQuery = { limit: 25 },
   ): Promise<CourseAdministrationMemberListResponseDto> {
     const course =
       await this.coursesRepository.findCourseAdministrationById(courseId)
@@ -228,10 +285,11 @@ export class CourseAdministrationService {
       throw courseNotFoundException(courseId)
     }
 
-    const members = await this.coursesRepository.listMembers(courseId)
+    const page = await this.coursesRepository.listMembersPage(courseId, query)
 
     return {
-      members: members.map(mapMembershipRecord),
+      members: page.members.map(mapMembershipRecord),
+      ...(page.nextCursor !== undefined ? { nextCursor: page.nextCursor } : {}),
     }
   }
 

@@ -27,6 +27,7 @@ export const AUDIT_EVENT_ACTIONS = {
   MATERIAL_UPLOAD_DENIED: 'material.upload_denied',
   MATERIAL_UPLOAD_FAILED: 'material.upload_failed',
   MATERIAL_UPDATED: 'material.updated',
+  MATERIAL_DELETED: 'material.deleted',
   MATERIAL_PROCESSING_READY: 'material.processing_ready',
   MATERIAL_PROCESSING_WARNING: 'material.processing_warning',
   MATERIAL_PROCESSING_FAILED: 'material.processing_failed',

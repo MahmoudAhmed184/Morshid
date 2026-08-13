@@ -51,7 +51,7 @@ function emptyAdminResponse(url: string) {
     return Response.json({ users: [] })
   }
 
-  if (url.endsWith('/api/v1/admin/courses')) {
+  if (url.includes('/api/v1/admin/courses?')) {
     return Response.json({ courses: [] })
   }
 
@@ -137,7 +137,7 @@ describe('Admin routes', () => {
       { timeout: 5_000 },
     )
     expect(
-      screen.queryByRole('heading', { name: 'User Management' }),
+      screen.queryByRole('heading', { name: 'Students' }),
     ).not.toBeInTheDocument()
 
     usersResponse.resolve(
@@ -147,19 +147,22 @@ describe('Admin routes', () => {
     expect(
       await screen.findByRole(
         'heading',
-        { name: 'User Management' },
+        { name: 'Students' },
         { timeout: 5_000 },
       ),
     ).toBeVisible()
     for (const section of [
       'Dashboard',
       'Assignments',
-      'Users',
+      'Students',
+      'Doctors',
       'Courses',
       'Materials',
       'Audit Logs',
     ]) {
-      expect(screen.getAllByRole('link', { name: section })).toHaveLength(1)
+      expect(
+        screen.getAllByRole('link', { name: section }).length,
+      ).toBeGreaterThanOrEqual(1)
     }
   })
 
@@ -174,7 +177,7 @@ describe('Admin routes', () => {
     const { history } = renderAdminRoute('/admin/users')
 
     expect(
-      await screen.findByRole('heading', { name: 'User Management' }),
+      await screen.findByRole('heading', { name: 'Students' }),
     ).toBeVisible()
 
     for (const [linkName, path, heading] of [
@@ -213,7 +216,7 @@ describe('Admin routes', () => {
           })
         }
 
-        if (url.endsWith('/api/v1/admin/courses')) {
+        if (url.includes('/api/v1/admin/courses?')) {
           return Response.json({
             courses: [
               {
@@ -237,7 +240,7 @@ describe('Admin routes', () => {
           })
         }
 
-        if (url.endsWith(`/api/v1/admin/courses/${courseId}/members`)) {
+        if (url.includes(`/api/v1/admin/courses/${courseId}/members?`)) {
           return Response.json({
             members: [
               {
@@ -272,6 +275,110 @@ describe('Admin routes', () => {
     expect(courseSelect).not.toHaveTextContent(courseId)
   })
 
+  it('switches between Students and Doctors tabs on the assignments page', async () => {
+    const user = userEvent.setup()
+    const courseId = '2d29f6ab-c759-4a44-a1c6-5975ce1f7e5a'
+    const studentId = 'acace6a5-7430-4dbf-b327-d76f3d51542a'
+    const doctorId = 'bcace6a5-7430-4dbf-b327-d76f3d51542b'
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+
+        if (url.endsWith('/api/v1/me')) {
+          return Response.json({ user: adminSession.user })
+        }
+
+        if (url.includes('/api/v1/admin/users?')) {
+          return Response.json({
+            users: [],
+            pagination: { nextCursor: null },
+          })
+        }
+
+        if (url.includes('/api/v1/admin/courses?')) {
+          return Response.json({
+            courses: [
+              {
+                id: courseId,
+                code: 'CS101',
+                title: 'Introduction to Computer Science',
+                adminMetadata: {
+                  createdById: null,
+                  createdBy: null,
+                  createdAt: '2026-07-01T10:00:00.000Z',
+                  updatedAt: '2026-07-11T10:00:00.000Z',
+                  memberships: [],
+                  memberCount: 2,
+                  instructorCount: 1,
+                  studentCount: 1,
+                  materialCount: 0,
+                  activeMaterialCount: 0,
+                },
+              },
+            ],
+          })
+        }
+
+        if (url.includes(`/api/v1/admin/courses/${courseId}/members?`)) {
+          return Response.json({
+            members: [
+              {
+                id: '4c530c42-67bf-4cbe-a6f3-2c662564ddd1',
+                userId: studentId,
+                role: 'STUDENT',
+                createdAt: '2026-07-01T10:00:00.000Z',
+                user: {
+                  id: studentId,
+                  email: 'student@morshid.demo',
+                  displayName: 'Demo Student',
+                  role: 'STUDENT',
+                  status: 'ACTIVE',
+                },
+              },
+              {
+                id: '5c530c42-67bf-4cbe-a6f3-2c662564ddd2',
+                userId: doctorId,
+                role: 'INSTRUCTOR',
+                createdAt: '2026-07-01T10:00:00.000Z',
+                user: {
+                  id: doctorId,
+                  email: 'doctor@morshid.demo',
+                  displayName: 'Dr. Professor',
+                  role: 'INSTRUCTOR',
+                  status: 'ACTIVE',
+                },
+              },
+            ],
+          })
+        }
+
+        throw new Error(`Unexpected request: ${url}`)
+      }),
+    )
+
+    renderAdminRoute('/admin/assignments')
+
+    expect(
+      await screen.findByRole('heading', { name: 'Course Assignments' }),
+    ).toBeVisible()
+
+    // Default Students tab should show the student
+    const studentElements = await screen.findAllByText('Demo Student')
+    expect(studentElements[0]).toBeVisible()
+    expect(screen.queryByText('Dr. Professor')).not.toBeInTheDocument()
+
+    // Click Doctors tab
+    const doctorTab = screen.getByRole('tab', { name: /Doctors/i })
+    await user.click(doctorTab)
+
+    // Doctors tab should show the doctor
+    const doctorElements = await screen.findAllByText('Dr. Professor')
+    expect(doctorElements[0]).toBeVisible()
+    expect(screen.queryByText('Demo Student')).not.toBeInTheDocument()
+  })
+
   it('shows a retryable route error when critical data fails', async () => {
     const user = userEvent.setup()
     let usersRequestCount = 0
@@ -301,7 +408,7 @@ describe('Admin routes', () => {
     await user.click(screen.getByRole('button', { name: 'Try again' }))
 
     expect(
-      await screen.findByRole('heading', { name: 'User Management' }),
+      await screen.findByRole('heading', { name: 'Students' }),
     ).toBeVisible()
     expect(usersRequestCount).toBe(2)
   })

@@ -6,7 +6,8 @@ import {
   LayoutDashboardIcon,
   ScrollTextIcon,
   SettingsIcon,
-  UsersIcon,
+  GraduationCapIcon,
+  StethoscopeIcon,
 } from 'lucide-react'
 
 import { AuthenticatedSidebar } from '@/workspaces/_shared/authenticated-sidebar/authenticated-sidebar'
@@ -20,7 +21,8 @@ import {
 const navItems: readonly AuthenticatedSidebarNavItem[] = [
   { label: 'Dashboard', to: '/admin', icon: LayoutDashboardIcon, exact: true },
   { label: 'Assignments', to: '/admin/assignments', icon: ClipboardCheckIcon },
-  { label: 'Users', to: '/admin/users', icon: UsersIcon },
+  { label: 'Students', to: '/admin/users/students', icon: GraduationCapIcon },
+  { label: 'Doctors', to: '/admin/users/doctors', icon: StethoscopeIcon },
   { label: 'Courses', to: '/admin/courses', icon: BookOpenIcon },
   { label: 'Materials', to: '/admin/materials', icon: FileTextIcon },
   { label: 'Audit Logs', to: '/admin/audit', icon: ScrollTextIcon },

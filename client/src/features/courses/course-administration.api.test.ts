@@ -50,7 +50,9 @@ const course = {
 describe('admin course API', () => {
   it('loads and validates the P0 course list', async () => {
     const fetchMock = async (input: RequestInfo | URL, init?: RequestInit) => {
-      expect(String(input)).toBe('http://localhost:4000/api/v1/admin/courses')
+      expect(String(input)).toBe(
+        'http://localhost:4000/api/v1/admin/courses?limit=25',
+      )
       expect(init?.method).toBe('GET')
       return Response.json({
         courses: [
@@ -77,7 +79,9 @@ describe('admin course API', () => {
 
     await expect(
       getCourseAdministration({ fetchImpl: fetchMock }),
-    ).resolves.toEqual([expect.objectContaining({ code: 'PYTHON-PROG-P0' })])
+    ).resolves.toEqual({
+      courses: [expect.objectContaining({ code: 'PYTHON-PROG-P0' })],
+    })
   })
 
   it('adds a course membership through POST', async () => {
@@ -224,5 +228,6 @@ it('partitions course data by authenticated admin', () => {
     'admin',
     'admin-1',
     'courses',
+    { search: '' },
   ])
 })

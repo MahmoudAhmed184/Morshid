@@ -1,6 +1,9 @@
 import { DataTableState } from '@/components/ui/custom/data-table-state'
 import { DataToolbar } from '@/components/ui/custom/data-toolbar'
 import { PageHeader } from '@/components/ui/custom/page-header'
+import { LoadMoreButton } from '@/components/ui/custom/load-more-button'
+import { useState } from 'react'
+import { useDebouncedValue } from '@/lib/hooks/use-debounced-value'
 import { AdminCoursesTable } from '@/workspaces/admin/components/admin-courses-table'
 import { AdminPanel } from '@/workspaces/admin/components/admin-panel'
 import { CreateAdminCourseDialog } from '@/workspaces/admin/components/course-dialogs'
@@ -10,7 +13,9 @@ import {
 } from '@/workspaces/admin/use-course-administration'
 
 export function AdminCoursesPage() {
-  const coursesQuery = useCourseAdministration()
+  const [search, setSearch] = useState('')
+  const debouncedSearch = useDebouncedValue(search.trim(), 250)
+  const coursesQuery = useCourseAdministration(debouncedSearch)
   const courseMutations = useCourseAdministrationMutations()
 
   return (
@@ -25,6 +30,9 @@ export function AdminCoursesPage() {
       <AdminPanel>
         <DataToolbar
           className="border-b px-4 py-3"
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search courses by code or title..."
           actions={
             <CreateAdminCourseDialog
               onCreateCourse={(values) =>
@@ -47,6 +55,15 @@ export function AdminCoursesPage() {
             onUpdateCourse={(id, input) =>
               courseMutations.updateCourse.mutateAsync({ id, input })
             }
+            onDeleteCourse={(id) =>
+              courseMutations.deleteCourse.mutateAsync(id)
+            }
+          />
+          <LoadMoreButton
+            hasNextPage={coursesQuery.hasNextPage}
+            isFetchingNextPage={coursesQuery.isFetchingNextPage}
+            onLoadMore={() => void coursesQuery.fetchNextPage()}
+            label="Load more courses"
           />
         </DataTableState>
       </AdminPanel>

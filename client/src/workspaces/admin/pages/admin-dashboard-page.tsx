@@ -28,7 +28,12 @@ const quickNav: {
   icon: LucideIcon
   tone: QuickNavTone
 }[] = [
-  { title: 'Users', to: '/admin/users', icon: UsersIcon, tone: 'neutral' },
+  {
+    title: 'Students',
+    to: '/admin/users/students',
+    icon: GraduationCapIcon,
+    tone: 'neutral',
+  },
   {
     title: 'Courses',
     to: '/admin/courses',
@@ -86,11 +91,11 @@ export function AdminDashboardPage() {
       description: 'Managed student accounts loaded',
     },
     {
-      label: 'Instructors',
+      label: 'Doctors',
       value: instructorCount,
       icon: <UsersIcon aria-hidden />,
       tone: 'default',
-      description: 'Managed instructor accounts loaded',
+      description: 'Managed doctor accounts loaded',
     },
     {
       label: 'Courses',

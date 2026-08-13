@@ -75,9 +75,23 @@ export interface UpdateCourseInput {
   requestContext?: AuditRequestContext
 }
 
+export interface ArchiveCourseInput {
+  courseId: string
+  actorUserId: string
+  requestContext?: AuditRequestContext
+}
+
 export interface AddCourseMemberInput {
   courseId: string
   userId: string
+  role: CourseMembershipRole
+  actorUserId: string
+  requestContext?: AuditRequestContext
+}
+
+export interface BulkAddCourseMembersInput {
+  courseIds: string[]
+  userIds: string[]
   role: CourseMembershipRole
   actorUserId: string
   requestContext?: AuditRequestContext
@@ -96,6 +110,23 @@ export interface UpdateMemberRoleInput {
   role: CourseMembershipRole
   actorUserId: string
   requestContext?: AuditRequestContext
+}
+
+export interface CoursePageInput {
+  limit: number
+  cursor?: string
+  search?: string
+  role?: CourseMembershipRole
+}
+
+export interface CourseAdministrationPage {
+  courses: CourseAdministrationRecord[]
+  nextCursor?: string
+}
+
+export interface CourseMembershipPage {
+  members: CourseMembershipRecord[]
+  nextCursor?: string
 }
 
 export class CourseMemberNotFoundError extends Error {
@@ -153,6 +184,34 @@ const courseAdministrationSelect = {
 export abstract class CoursesRepository {
   abstract listCourseAdministration(): Promise<CourseAdministrationRecord[]>
 
+  async listCourseAdministrationPage(
+    input: CoursePageInput,
+  ): Promise<CourseAdministrationPage> {
+    const normalizedSearch = input.search?.toLocaleLowerCase()
+    const courses = (await this.listCourseAdministration()).filter(
+      (course) =>
+        normalizedSearch === undefined ||
+        course.code.toLocaleLowerCase().includes(normalizedSearch) ||
+        course.title.toLocaleLowerCase().includes(normalizedSearch),
+    )
+    const start =
+      input.cursor !== undefined
+        ? Math.max(
+            courses.findIndex((course) => course.id === input.cursor) + 1,
+            0,
+          )
+        : 0
+    const pageCourses = courses.slice(start, start + input.limit)
+    const hasNextPage = start + input.limit < courses.length
+
+    return {
+      courses: pageCourses,
+      ...(hasNextPage
+        ? { nextCursor: pageCourses[pageCourses.length - 1]?.id }
+        : {}),
+    }
+  }
+
   abstract findCourseAdministrationById(
     courseId: string,
   ): Promise<CourseAdministrationRecord | null>
@@ -169,6 +228,8 @@ export abstract class CoursesRepository {
     input: UpdateCourseInput,
   ): Promise<CourseAdministrationRecord>
 
+  abstract archiveCourse(input: ArchiveCourseInput): Promise<void>
+
   abstract findUserById(userId: string): Promise<{ id: string } | null>
 
   abstract findMembership(
@@ -180,9 +241,45 @@ export abstract class CoursesRepository {
     input: AddCourseMemberInput,
   ): Promise<CourseMembershipRecord>
 
+  abstract addMembers(
+    input: BulkAddCourseMembersInput,
+  ): Promise<{ assignedCount: number; skippedCount: number }>
+
   abstract removeMember(input: RemoveCourseMemberInput): Promise<void>
 
   abstract listMembers(courseId: string): Promise<CourseMembershipRecord[]>
+
+  async listMembersPage(
+    courseId: string,
+    input: CoursePageInput,
+  ): Promise<CourseMembershipPage> {
+    const normalizedSearch = input.search?.toLocaleLowerCase()
+    const members = (await this.listMembers(courseId)).filter(
+      (member) =>
+        (input.role === undefined || member.role === input.role) &&
+        (normalizedSearch === undefined ||
+          member.user.displayName
+            .toLocaleLowerCase()
+            .includes(normalizedSearch) ||
+          member.user.email.toLocaleLowerCase().includes(normalizedSearch)),
+    )
+    const start =
+      input.cursor !== undefined
+        ? Math.max(
+            members.findIndex((member) => member.id === input.cursor) + 1,
+            0,
+          )
+        : 0
+    const pageMembers = members.slice(start, start + input.limit)
+    const hasNextPage = start + input.limit < members.length
+
+    return {
+      members: pageMembers,
+      ...(hasNextPage
+        ? { nextCursor: pageMembers[pageMembers.length - 1]?.id }
+        : {}),
+    }
+  }
 
   abstract updateMemberRole(
     input: UpdateMemberRoleInput,
@@ -225,6 +322,7 @@ export class PrismaCoursesRepository extends CoursesRepository {
 
   listCourseAdministration(): Promise<CourseAdministrationRecord[]> {
     return this.prismaService.course.findMany({
+      where: { archivedAt: null },
       select: courseAdministrationSelect,
       orderBy: {
         code: 'asc',
@@ -232,11 +330,44 @@ export class PrismaCoursesRepository extends CoursesRepository {
     })
   }
 
+  async listCourseAdministrationPage(
+    input: CoursePageInput,
+  ): Promise<CourseAdministrationPage> {
+    const courses = await this.prismaService.course.findMany({
+      where: {
+        archivedAt: null,
+        ...(input.search !== undefined
+          ? {
+              OR: [
+                { code: { contains: input.search, mode: 'insensitive' } },
+                { title: { contains: input.search, mode: 'insensitive' } },
+              ],
+            }
+          : {}),
+      },
+      select: courseAdministrationSelect,
+      orderBy: [{ code: 'asc' }, { id: 'asc' }],
+      take: input.limit + 1,
+      ...(input.cursor !== undefined
+        ? { cursor: { id: input.cursor }, skip: 1 }
+        : {}),
+    })
+    const hasNextPage = courses.length > input.limit
+    const pageCourses = hasNextPage ? courses.slice(0, input.limit) : courses
+
+    return {
+      courses: pageCourses,
+      ...(hasNextPage
+        ? { nextCursor: pageCourses[pageCourses.length - 1]?.id }
+        : {}),
+    }
+  }
+
   findCourseAdministrationById(
     courseId: string,
   ): Promise<CourseAdministrationRecord | null> {
-    return this.prismaService.course.findUnique({
-      where: { id: courseId },
+    return this.prismaService.course.findFirst({
+      where: { id: courseId, archivedAt: null },
       select: courseAdministrationSelect,
     })
   }
@@ -244,8 +375,8 @@ export class PrismaCoursesRepository extends CoursesRepository {
   findCourseAdministrationByCode(
     code: string,
   ): Promise<CourseAdministrationRecord | null> {
-    return this.prismaService.course.findUnique({
-      where: { code },
+    return this.prismaService.course.findFirst({
+      where: { code, archivedAt: null },
       select: courseAdministrationSelect,
     })
   }
@@ -329,6 +460,38 @@ export class PrismaCoursesRepository extends CoursesRepository {
 
       throw error
     }
+  }
+
+  async archiveCourse(input: ArchiveCourseInput): Promise<void> {
+    await this.prismaService.$transaction(async (tx) => {
+      const course = await tx.course.findFirst({
+        where: { id: input.courseId, archivedAt: null },
+        select: { id: true, code: true, title: true },
+      })
+      if (course === null) return
+
+      const archivedAt = new Date()
+      await tx.course.update({
+        where: { id: input.courseId },
+        data: { archivedAt },
+      })
+      await tx.courseMembership.updateMany({
+        where: { courseId: input.courseId, removedAt: null },
+        data: { removedAt: archivedAt },
+      })
+      await tx.material.updateMany({
+        where: { courseId: input.courseId, deletedAt: null },
+        data: { deletedAt: archivedAt },
+      })
+      await this.courseAudit.recordCourseArchived(
+        {
+          actorUserId: input.actorUserId,
+          course,
+          requestContext: input.requestContext,
+        },
+        asDatabaseTransaction(tx),
+      )
+    })
   }
 
   findUserById(userId: string): Promise<{ id: string } | null> {
@@ -465,13 +628,96 @@ export class PrismaCoursesRepository extends CoursesRepository {
     }
   }
 
+  async addMembers(
+    input: BulkAddCourseMembersInput,
+  ): Promise<{ assignedCount: number; skippedCount: number }> {
+    return this.prismaService.$transaction(async (tx) => {
+      const existingMemberships = await tx.courseMembership.findMany({
+        where: {
+          courseId: { in: input.courseIds },
+          userId: { in: input.userIds },
+        },
+        select: { id: true, courseId: true, userId: true, removedAt: true },
+      })
+      const existingByPair = new Map(
+        existingMemberships.map((membership) => [
+          `${membership.courseId}:${membership.userId}`,
+          membership,
+        ]),
+      )
+      let assignedCount = 0
+      let skippedCount = 0
+
+      for (const courseId of input.courseIds) {
+        for (const userId of input.userIds) {
+          const existing = existingByPair.get(`${courseId}:${userId}`)
+          if (existing?.removedAt === null) {
+            skippedCount += 1
+            continue
+          }
+
+          const membership =
+            existing === undefined
+              ? await tx.courseMembership.create({
+                  data: {
+                    courseId,
+                    userId,
+                    role: input.role,
+                    createdById: input.actorUserId,
+                  },
+                  select: {
+                    id: true,
+                    userId: true,
+                    role: true,
+                    createdAt: true,
+                    user: { select: courseUserSelect },
+                  },
+                })
+              : await tx.courseMembership.update({
+                  where: { id: existing.id },
+                  data: {
+                    role: input.role,
+                    removedAt: null,
+                    createdById: input.actorUserId,
+                  },
+                  select: {
+                    id: true,
+                    userId: true,
+                    role: true,
+                    createdAt: true,
+                    user: { select: courseUserSelect },
+                  },
+                })
+
+          await this.courseAudit.recordMemberAdded(
+            {
+              actorUserId: input.actorUserId,
+              courseId,
+              membership,
+              requestContext: input.requestContext,
+            },
+            asDatabaseTransaction(tx),
+          )
+          assignedCount += 1
+        }
+      }
+
+      return { assignedCount, skippedCount }
+    })
+  }
+
   findMembershipRole(
     userId: string,
     courseId: string,
   ): Promise<CourseMembershipRole | null> {
     return this.prismaService.courseMembership
       .findFirst({
-        where: { userId, courseId, removedAt: null },
+        where: {
+          userId,
+          courseId,
+          removedAt: null,
+          course: { archivedAt: null },
+        },
         select: { role: true },
       })
       .then((membership) => membership?.role ?? null)
@@ -481,8 +727,8 @@ export class PrismaCoursesRepository extends CoursesRepository {
     userId: string,
     courseId: string,
   ): Promise<CourseAccessRecord | null> {
-    const course = await this.prismaService.course.findUnique({
-      where: { id: courseId },
+    const course = await this.prismaService.course.findFirst({
+      where: { id: courseId, archivedAt: null },
       select: {
         id: true,
         memberships: {
@@ -507,7 +753,13 @@ export class PrismaCoursesRepository extends CoursesRepository {
     role: CourseMembershipRole,
   ): Promise<boolean> {
     const membership = await this.prismaService.courseMembership.findFirst({
-      where: { userId, courseId, role, removedAt: null },
+      where: {
+        userId,
+        courseId,
+        role,
+        removedAt: null,
+        course: { archivedAt: null },
+      },
       select: { id: true },
     })
 
@@ -519,7 +771,12 @@ export class PrismaCoursesRepository extends CoursesRepository {
     role: CourseMembershipRole,
   ): Promise<MemberCourseRecord[]> {
     const memberships = await this.prismaService.courseMembership.findMany({
-      where: { userId, role, removedAt: null },
+      where: {
+        userId,
+        role,
+        removedAt: null,
+        course: { archivedAt: null },
+      },
       select: {
         role: true,
         course: {
@@ -607,6 +864,57 @@ export class PrismaCoursesRepository extends CoursesRepository {
       },
       orderBy: [{ role: 'asc' }, { user: { email: 'asc' } }],
     })
+  }
+
+  async listMembersPage(
+    courseId: string,
+    input: CoursePageInput,
+  ): Promise<CourseMembershipPage> {
+    const members = await this.prismaService.courseMembership.findMany({
+      where: {
+        courseId,
+        removedAt: null,
+        ...(input.role !== undefined ? { role: input.role } : {}),
+        ...(input.search !== undefined
+          ? {
+              user: {
+                OR: [
+                  {
+                    displayName: {
+                      contains: input.search,
+                      mode: 'insensitive',
+                    },
+                  },
+                  {
+                    email: { contains: input.search, mode: 'insensitive' },
+                  },
+                ],
+              },
+            }
+          : {}),
+      },
+      select: {
+        id: true,
+        userId: true,
+        role: true,
+        createdAt: true,
+        user: { select: courseUserSelect },
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: input.limit + 1,
+      ...(input.cursor !== undefined
+        ? { cursor: { id: input.cursor }, skip: 1 }
+        : {}),
+    })
+    const hasNextPage = members.length > input.limit
+    const pageMembers = hasNextPage ? members.slice(0, input.limit) : members
+
+    return {
+      members: pageMembers,
+      ...(hasNextPage
+        ? { nextCursor: pageMembers[pageMembers.length - 1]?.id }
+        : {}),
+    }
   }
 
   updateMemberRole(
