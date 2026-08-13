@@ -7,16 +7,16 @@ import {
   StudentState,
   TopicStatus,
   TopicType,
-} from '../../../generated/prisma/client'
+} from '../tutoring-values'
 import {
-  AnalysisContextRepository,
-  type AnalysisContextBaseInput,
-  type AnalysisContextBaseRecord,
-  type AnalysisHistoryCandidateInput,
-} from './analysis-context.repository'
+  type ConversationAnalysisContextInput,
+  type ConversationAnalysisContext,
+  type ConversationAnalysisHistoryInput,
+} from '../../conversations/interface/conversation-message-reader'
 import type { AnalysisContextMessage } from './analysis-context.types'
 import { ContextManager } from './context-manager.service'
 import { PrismaService } from '../../../platform/database/prisma.service'
+import { ConversationPresentationModule } from '../../../application/conversation-presentation.module'
 import { SocraticWorkflowModule } from './socratic-workflow.module'
 import { TopicStateRepository } from './topic-state.repository'
 import type { TopicStatePatch, TopicStateSnapshot } from './topic-state.types'
@@ -31,8 +31,8 @@ import type {
 
 const now = new Date('2026-08-03T12:00:00.000Z')
 
-class FakeAnalysisContextRepository extends AnalysisContextRepository {
-  base: AnalysisContextBaseRecord | null = {
+class FakeConversationMessages {
+  base: ConversationAnalysisContext | null = {
     courseMetadata: {
       id: 'course-1',
       code: 'CS101',
@@ -42,12 +42,16 @@ class FakeAnalysisContextRepository extends AnalysisContextRepository {
   }
   candidates: AnalysisContextMessage[] = []
 
-  readonly loadBaseContext = jest.fn((_input: AnalysisContextBaseInput) =>
-    Promise.resolve(this.base),
+  readonly find = jest.fn().mockResolvedValue(null)
+  readonly countStudentMessages = jest.fn().mockResolvedValue(0)
+
+  readonly loadAnalysisContext = jest.fn(
+    (_input: ConversationAnalysisContextInput) => Promise.resolve(this.base),
   )
 
-  readonly listHistoryCandidates = jest.fn(
-    (_input: AnalysisHistoryCandidateInput) => Promise.resolve(this.candidates),
+  readonly listAnalysisHistoryCandidates = jest.fn(
+    (_input: ConversationAnalysisHistoryInput) =>
+      Promise.resolve(this.candidates),
   )
 }
 
@@ -129,8 +133,8 @@ class FakeTopicStateRepository extends TopicStateRepository {
 
 describe('ContextManager', () => {
   it('builds an analysis context without including unrelated topic history', async () => {
-    const { analysisContextRepository, contextManager } = buildHarness()
-    analysisContextRepository.candidates = [
+    const { conversationMessages, contextManager } = buildHarness()
+    conversationMessages.candidates = [
       message({ id: 'topic-history', sequence: 2 }),
       message({
         id: 'question',
@@ -172,7 +176,7 @@ describe('ContextManager', () => {
       expect.objectContaining({ id: 'current' }),
     )
     expect(
-      analysisContextRepository.listHistoryCandidates,
+      conversationMessages.listAnalysisHistoryCandidates,
     ).toHaveBeenCalledWith({
       courseId: 'course-1',
       sessionId: 'session-1',
@@ -183,8 +187,8 @@ describe('ContextManager', () => {
   })
 
   it('returns null when the current student message is outside the active topic', async () => {
-    const { analysisContextRepository, contextManager } = buildHarness()
-    analysisContextRepository.base = {
+    const { conversationMessages, contextManager } = buildHarness()
+    conversationMessages.base = {
       courseMetadata: {
         id: 'course-1',
         code: 'CS101',
@@ -249,6 +253,7 @@ describe('ContextManager', () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
       imports: [
         ConfigModule.forRoot({ isGlobal: true }),
+        ConversationPresentationModule,
         SocraticWorkflowModule,
       ],
     })
@@ -310,16 +315,16 @@ describe('ContextManager', () => {
 })
 
 function buildHarness() {
-  const analysisContextRepository = new FakeAnalysisContextRepository()
+  const conversationMessages = new FakeConversationMessages()
   const topicRepository = new FakeTopicRepository()
   const topicStateRepository = new FakeTopicStateRepository()
 
   return {
-    analysisContextRepository,
+    conversationMessages,
     topicRepository,
     topicStateRepository,
     contextManager: new ContextManager(
-      analysisContextRepository,
+      conversationMessages as never,
       topicRepository,
       topicStateRepository,
     ),

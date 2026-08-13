@@ -1,4 +1,4 @@
-import { MessageGuidanceLabel } from '../../../generated/prisma/client'
+import { MessageGuidanceLabel } from '../tutoring-values'
 import {
   AUTOMATIC_SAFETY_FIXTURES,
   AUTOMATIC_SAFETY_PROVIDER_PROFILES,

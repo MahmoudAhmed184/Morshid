@@ -31,6 +31,7 @@ export interface RefreshTokenRecordStore {
   findByTokenHashWithUser(
     tokenHash: string,
   ): Promise<RefreshTokenWithUser | null>
+  lockUserById(userId: string): Promise<IdentityUserRecord | null>
   markReplaced(
     refreshTokenId: string,
     replacementRefreshTokenId: string,
@@ -54,6 +55,10 @@ class PrismaRefreshTokenRecordStore implements RefreshTokenRecordStore {
     tokenHash: string,
   ): Promise<RefreshTokenWithUser | null> {
     return findRefreshTokenByHashWithUser(this.client, tokenHash)
+  }
+
+  lockUserById(userId: string): Promise<IdentityUserRecord | null> {
+    return lockIdentityUserById(this.client, userId)
   }
 
   markReplaced(
@@ -102,7 +107,22 @@ export class RefreshSessionRepository extends PrismaRefreshTokenRecordStore {
   }
 }
 
-type RefreshTokenClient = Pick<PrismaService, 'refreshToken'>
+type RefreshTokenClient = Pick<PrismaService, 'refreshToken' | '$queryRaw'>
+
+interface LockedIdentityUserRow {
+  id: string
+  email: string
+  displayName: string
+  role: string
+  status: string
+  passwordHash: string
+  passwordChangedAt: Date
+  createdAt: Date
+  updatedAt: Date
+  disabledAt: Date | null
+  disabledById: string | null
+  lastLoginAt: Date | null
+}
 
 function createRefreshToken(
   client: RefreshTokenClient,
@@ -140,6 +160,40 @@ async function findRefreshTokenByHashWithUser(
         ...toRefreshTokenRecord(record),
         user: toIdentityUserRecord(record.user),
       }
+}
+
+async function lockIdentityUserById(
+  client: RefreshTokenClient,
+  userId: string,
+): Promise<IdentityUserRecord | null> {
+  const rows = await client.$queryRaw<LockedIdentityUserRow[]>`
+    SELECT
+      id,
+      email,
+      display_name AS "displayName",
+      role,
+      status,
+      password_hash AS "passwordHash",
+      password_changed_at AS "passwordChangedAt",
+      created_at AS "createdAt",
+      updated_at AS "updatedAt",
+      disabled_at AS "disabledAt",
+      disabled_by AS "disabledById",
+      last_login_at AS "lastLoginAt"
+    FROM users
+    WHERE id = ${userId}::uuid
+    FOR UPDATE
+  `
+  if (rows.length === 0) {
+    return null
+  }
+
+  const user = rows[0]
+  return {
+    ...user,
+    role: user.role as IdentityUserRecord['role'],
+    status: user.status as IdentityUserRecord['status'],
+  }
 }
 
 function markRefreshTokenReplaced(

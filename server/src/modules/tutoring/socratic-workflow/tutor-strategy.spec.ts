@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-import { MessageRequestKind } from '../../../generated/prisma/client'
+import { MessageRequestKind } from '../tutoring-values'
 import {
   type DebuggingGuidanceFixtureDataset,
   materializeDebuggingGuidanceFixtureInput,
@@ -156,31 +156,44 @@ describe('shared Tutor strategy selection', () => {
     )
   })
 
-  it('returns a no-evidence refusal for unsupported-language code', () => {
-    const input = [
-      'function countItems(nums) {',
-      '  return nums.length;',
-      '}',
-    ].join('\n')
+  it.each([
+    [
+      'JavaScript',
+      'javascript',
+      'function countItems(nums) {\n  return nums.length;\n}',
+    ],
+    ['TypeScript', 'typescript', 'const value: number = 1\nconsole.log(value)'],
+    [
+      'Java',
+      'java',
+      'public class Main {\n  public static void main(String[] args) {}\n}',
+    ],
+    ['C', 'c', '#include <stdio.h>\nint main(void) { printf("hi"); }'],
+  ])(
+    'routes %s debugging through the Socratic strategy',
+    (_, language, code) => {
+      const input = [
+        'Please diagnose the defect and give me one inspection step.',
+        `\`\`\`${language}`,
+        code,
+        '```',
+      ].join('\n')
 
-    const result = selectTutorStrategy(input)
+      const result = selectTutorStrategy(input)
 
-    expect(result).toMatchObject({
-      decision: {
-        requestKind: MessageRequestKind.OFF_TOPIC,
-        strategy: 'SAFE_REFUSAL',
-        evidenceRequirement: 'NO_EVIDENCE',
-        guidanceLabel: 'REFUSAL',
-      },
-      retrievalQuery: null,
-      diagnosis: null,
-    })
-    expect(result.boundaryResponse).not.toBeNull()
-    expect(result.boundaryResponse?.errorCode).toBe(
-      'DEBUGGING_GUIDANCE_UNSUPPORTED_LANGUAGE',
-    )
-    expect(result.boundaryResponse?.content).toMatch(/supported code snippet/iu)
-  })
+      expect(result).toMatchObject({
+        decision: {
+          requestKind: MessageRequestKind.CODE_DIAGNOSIS,
+          strategy: 'DEBUGGING_GUIDANCE',
+          evidenceRequirement: 'COURSE_EVIDENCE_REQUIRED',
+        },
+        boundaryResponse: null,
+        fullRewriteRequested: false,
+      })
+      expect(result.retrievalQuery).not.toBeNull()
+      expect(result.diagnosis).not.toBeNull()
+    },
+  )
 
   it('returns a no-evidence reduction request for 101 Python lines', () => {
     const input = [

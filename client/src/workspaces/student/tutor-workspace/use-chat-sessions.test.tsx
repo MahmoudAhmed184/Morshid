@@ -727,7 +727,10 @@ describe('Student session hooks', () => {
 
     let mutation: Promise<unknown> | undefined
     act(() => {
-      mutation = result.current.mutateAsync(chatIds.studentMessage)
+      mutation = result.current.mutateAsync({
+        attemptId: chatIds.primaryTurn,
+        studentMessageId: chatIds.studentMessage,
+      })
     })
     await waitFor(() => expect(resolveTurn).toBeTypeOf('function'))
     expect(
@@ -756,7 +759,7 @@ describe('Student session hooks', () => {
     expect(retryChatMessageMock).toHaveBeenCalledWith({
       courseId: primaryScope.courseId,
       sessionId: chatIds.primarySession,
-      studentMessageId: chatIds.studentMessage,
+      attemptId: chatIds.primaryTurn,
     })
   })
 })

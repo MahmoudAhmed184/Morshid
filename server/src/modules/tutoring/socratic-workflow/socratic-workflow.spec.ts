@@ -1,7 +1,4 @@
-import {
-  MessageRequestKind,
-  TutoringAttemptStatus,
-} from '../../../generated/prisma/client'
+import { MessageRequestKind, TutoringAttemptStatus } from '../tutoring-values'
 import { SocraticWorkflow } from './socratic-workflow'
 import { TOPIC_RESOLUTION_OUTCOME } from './topic.types'
 

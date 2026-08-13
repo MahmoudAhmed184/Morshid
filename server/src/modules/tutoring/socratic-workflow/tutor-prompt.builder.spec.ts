@@ -9,7 +9,7 @@ import {
   TeachingTechnique,
   TopicStatus,
   TopicType,
-} from '../../../generated/prisma/client'
+} from '../tutoring-values'
 import type { GenerationContextPackage } from './tutor-generation.types'
 import {
   TRUSTED_BACKEND_POLICY_BEGIN_MARKER,
@@ -18,7 +18,7 @@ import {
   UNTRUSTED_RETRIEVED_BEGIN_MARKER,
   buildTutorGenerationModelRequest,
 } from './tutor-prompt.builder'
-import { TUTOR_GENERATION_PROMPT_VERSION } from './tutor-prompt.registry'
+import { TUTOR_GENERATION_PROMPT_VERSION } from './tutor-prompt.definition'
 
 describe('tutor prompt builder', () => {
   it('builds the required deterministic tutor generation prompt sections', () => {

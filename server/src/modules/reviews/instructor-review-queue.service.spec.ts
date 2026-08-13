@@ -1,10 +1,9 @@
+import { UserRole, UserStatus } from '../identity/identity.roles'
 import {
   ReviewStatus,
   ReviewTriggerType,
   StudentFlagReason,
-  UserRole,
-  UserStatus,
-} from '../../generated/prisma/client'
+} from './review-values'
 import type { AuthenticatedUser } from '../identity/identity.types'
 import { InstructorReviewQueueService } from './instructor-review-queue.service'
 

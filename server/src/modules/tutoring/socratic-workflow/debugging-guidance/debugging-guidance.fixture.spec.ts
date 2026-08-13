@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-import { MessageRequestKind } from '../../../../generated/prisma/client'
+import { MessageRequestKind } from '../../tutoring-values'
 import { assessDebuggingGuidanceBoundary } from './debugging-guidance.boundary'
 import { DEBUGGING_GUIDANCE_CATEGORIES } from './debugging-guidance.contract'
 import {
@@ -41,7 +41,7 @@ describe('Debugging guidance golden fixtures', () => {
   it('uses unique stable IDs and validates every fixture through one schema', () => {
     expect(dataset.datasetId).toBe('debugging-guidance-p0-v1')
     expect(dataset.policyVersion).toBe('debugging-guidance-policy-v1')
-    expect(dataset.fixtures).toHaveLength(19)
+    expect(dataset.fixtures).toHaveLength(20)
     expect(new Set(dataset.fixtures.map(({ id }) => id)).size).toBe(
       dataset.fixtures.length,
     )
@@ -199,22 +199,20 @@ describe('Debugging guidance golden fixtures', () => {
     },
   )
 
-  it('distinguishes unsupported languages from insufficient information', () => {
-    const unsupportedLanguageFixtures = dataset.fixtures.filter(
-      ({ expectedBoundary }) => expectedBoundary === 'UNSUPPORTED_LANGUAGE',
-    )
-    const ambiguous = findFixture(
-      dataset.fixtures,
-      'code-diagnosis-ambiguous-001',
-    )
+  it('keeps representative languages inside the unified diagnosis path', () => {
+    for (const fixtureId of [
+      'code-diagnosis-javascript-001',
+      'code-diagnosis-typescript-001',
+      'code-diagnosis-java-001',
+      'code-diagnosis-c-001',
+    ]) {
+      const fixture = findFixture(dataset.fixtures, fixtureId)
 
-    expect(unsupportedLanguageFixtures).toHaveLength(3)
-    expect(
-      unsupportedLanguageFixtures.every(
-        ({ safeExpectedState }) =>
-          safeExpectedState === 'DEBUGGING_GUIDANCE_EXPLANATION',
-      ),
-    ).toBe(true)
-    expect(ambiguous.safeExpectedState).toBe('REQUEST_MORE_INFORMATION')
+      expect(fixture).toMatchObject({
+        expectedBoundary: 'SUPPORTED',
+        expectedClassification: MessageRequestKind.CODE_DIAGNOSIS,
+        safeExpectedState: 'DIAGNOSIS_READY',
+      })
+    }
   })
 })

@@ -1,7 +1,4 @@
-import {
-  MessageGuidanceLabel,
-  MessageRequestKind,
-} from '../../../../generated/prisma/client'
+import { MessageGuidanceLabel, MessageRequestKind } from '../../tutoring-values'
 import {
   DEBUGGING_GUIDANCE_RESPONSE_GOVERNANCE_RESULTS,
   DEBUGGING_GUIDANCE_TUTOR_DECISION,

@@ -1,10 +1,7 @@
+import { UserRole, UserStatus } from '../identity/identity.roles'
 import type { Response } from 'express'
 
-import {
-  StudentFlagReason,
-  UserRole,
-  UserStatus,
-} from '../../generated/prisma/client'
+import { StudentFlagReason } from './review-values'
 import type { AuthenticatedHttpRequest } from '../identity/identity.guard'
 import { ReviewCaseController } from './review-case.controller'
 import type { ReviewCaseCreator } from './review-case.creator'

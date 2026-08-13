@@ -1,12 +1,10 @@
 import type {
-  DecimalLike,
   MessageGuidanceLabel,
   MessageRequestKind,
   MessageRole,
   MessageStatus,
 } from './conversation-values'
-import type { MaterialStatus } from '../materials/materials.public'
-import type { AuditRequestContext } from '../audit/audit.public'
+import type { AuditRequestContext } from '../../audit/audit.public'
 
 export interface ChatSessionRecord {
   id: string
@@ -42,40 +40,6 @@ export interface ChatMessageRecord {
   errorCode: string | null
   createdAt: Date
   completedAt: Date | null
-  reviewCase?: {
-    id: string
-    status: 'PENDING' | 'IN_REVIEW' | 'RESOLVED' | 'REJECTED'
-    outcome: 'APPROVED' | 'EDITED' | 'REPLACED' | 'REQUEST_REJECTED' | null
-    resolvedAt: Date | null
-    triggers: { id: string }[]
-  } | null
-  citations: ChatMessageCitationRecord[]
-  retrievals: ChatMessageRetrievalRecord[]
-}
-
-export interface ChatMessageCitationRecord {
-  citationOrder: number
-  material: {
-    id: string
-    title: string
-    storagePath: string
-    status: MaterialStatus
-    deletedAt: Date | null
-    extractedTextLength: number | null
-    chunkCount: number | null
-  }
-}
-
-export interface ChatMessageRetrievalRecord {
-  rank: number
-  similarityScore: DecimalLike | null
-  chunk: {
-    id: string
-    materialId: string
-    chunkIndex: number
-    content: string
-    embeddingModel: string
-  } | null
 }
 
 export interface SessionListPagination {

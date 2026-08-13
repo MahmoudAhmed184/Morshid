@@ -46,7 +46,7 @@ import type { InstructorReviewQueueResponseDto } from '../../src/modules/reviews
 import type {
   ChatSessionResponseDto,
   TutoringTurnResponseDto,
-} from '../../src/modules/conversations/conversations.dto'
+} from '../../src/modules/conversations/interface/conversation-dto'
 import {
   P0_DEMO_PASSWORD,
   seedP0DemoData,

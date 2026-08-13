@@ -1,9 +1,5 @@
-import {
-  ReviewOutcome,
-  ReviewStatus,
-  UserRole,
-  UserStatus,
-} from '../../generated/prisma/client'
+import { UserRole, UserStatus } from '../identity/identity.roles'
+import { ReviewOutcome, ReviewStatus } from './review-values'
 import type { AuthenticatedUser } from '../identity/identity.types'
 import { InstructorReviewActionService } from './instructor-review-action.service'
 

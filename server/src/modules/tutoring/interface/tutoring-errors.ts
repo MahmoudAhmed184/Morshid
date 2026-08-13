@@ -5,7 +5,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common'
-import { CONVERSATION_ERROR_CODES } from '../../conversations/conversation.errors'
+import { CONVERSATION_ERROR_CODES } from '../../conversations/interface/conversation-errors'
 
 export function tutoringActiveStudentMembershipRequiredException(): HttpException {
   return new ForbiddenException({
@@ -28,6 +28,13 @@ export function tutoringTurnInProgressException(): HttpException {
   })
 }
 
+export function tutoringIdempotencyKeyReusedException(): HttpException {
+  return new ConflictException({
+    code: CONVERSATION_ERROR_CODES.IDEMPOTENCY_KEY_REUSED,
+    message: 'The client message ID was already used for different content',
+  })
+}
+
 export function tutoringRetryNotAllowedException(): HttpException {
   return new ConflictException({
     code: CONVERSATION_ERROR_CODES.RETRY_NOT_ALLOWED,
@@ -38,7 +45,7 @@ export function tutoringRetryNotAllowedException(): HttpException {
 export function tutoringRetryTargetNotFoundException(): HttpException {
   return new NotFoundException({
     code: CONVERSATION_ERROR_CODES.RETRY_TARGET_NOT_FOUND,
-    message: 'Conversation message was not found',
+    message: 'Tutoring attempt was not found',
   })
 }
 

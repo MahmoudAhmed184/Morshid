@@ -7,7 +7,7 @@ import {
   type CandidateResponse,
   type CandidateResponsePolicyContext,
 } from './tutor-generation.types'
-import { TUTOR_GENERATION_PROMPT_VERSION } from './tutor-prompt.registry'
+import { TUTOR_GENERATION_PROMPT_VERSION } from './tutor-prompt.definition'
 
 const BACKEND_OWNED_METADATA_KEYS = [
   'provider',

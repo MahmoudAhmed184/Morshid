@@ -37,7 +37,7 @@ import { RedisService } from '../../src/platform/cache/redis.service'
 import type {
   ChatSessionResponseDto,
   TutoringTurnResponseDto,
-} from '../../src/modules/conversations/conversations.dto'
+} from '../../src/modules/conversations/interface/conversation-dto'
 import { validateEnv } from '../../src/platform/config/env.schema'
 import { parseTutoringConfiguration } from '../../src/modules/tutoring/tutoring.configuration'
 import { CONFIG_ENV_FILE_PATHS } from '../../src/platform/config/configuration'
@@ -48,7 +48,7 @@ import {
 import { OPENAI_COMPATIBLE_TUTOR_MODEL_PROVIDER } from '../../src/modules/tutoring/socratic-workflow/tutor-model.configuration'
 import { OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER } from '../../src/modules/tutoring/socratic-workflow/semantic-guard.configuration'
 import { EDUCATIONAL_ANALYSIS_SOURCE } from '../../src/modules/tutoring/socratic-workflow/educational-analysis.types'
-import { TUTOR_GENERATION_PROMPT_VERSION } from '../../src/modules/tutoring/socratic-workflow/tutor-prompt.registry'
+import { TUTOR_GENERATION_PROMPT_VERSION } from '../../src/modules/tutoring/socratic-workflow/tutor-prompt.definition'
 import { SAFE_FALLBACK_PROMPT_VERSION } from '../../src/modules/tutoring/socratic-workflow/safe-fallback.service'
 import { SemanticGuardService } from '../../src/modules/tutoring/socratic-workflow/semantic-guard.service'
 import {

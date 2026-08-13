@@ -5,6 +5,7 @@ import { Injectable } from '@nestjs/common'
 import { Prisma } from '../../generated/prisma/client'
 import { AuditService } from '../audit/audit.public'
 import type { AuditRequestContext } from '../audit/audit.public'
+import { ActiveCourseMembership } from '../courses/interface/active-course-membership'
 import { PrismaService } from '../../platform/database/prisma.service'
 import {
   asDatabaseTransaction,
@@ -95,6 +96,7 @@ export class PrismaReviewCaseRepository extends ReviewCaseRepository {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
+    private readonly activeCourseMembership: ActiveCourseMembership,
   ) {
     super()
   }
@@ -168,6 +170,17 @@ export class PrismaReviewCaseRepository extends ReviewCaseRepository {
         if (reviewCase === null) {
           throw new Error('Idempotency record references a missing review case')
         }
+        if (
+          !(await this.activeCourseMembership.lockStudent(
+            {
+              courseId: reviewCase.courseId,
+              userId: input.actorUserId,
+            },
+            asDatabaseTransaction(tx),
+          ))
+        ) {
+          return { kind: 'not_found' }
+        }
         const trigger = await tx.reviewTrigger.findFirst({
           where: {
             reviewCaseId: reviewCase.id,
@@ -221,6 +234,18 @@ export class PrismaReviewCaseRepository extends ReviewCaseRepository {
     })
 
     if (target?.session.deletedAt !== null) {
+      return { kind: 'not_found' }
+    }
+    if (
+      input.kind === 'manual' &&
+      !(await this.activeCourseMembership.lockStudent(
+        {
+          courseId: target.session.courseId,
+          userId: input.actorUserId,
+        },
+        asDatabaseTransaction(tx),
+      ))
+    ) {
       return { kind: 'not_found' }
     }
     if (

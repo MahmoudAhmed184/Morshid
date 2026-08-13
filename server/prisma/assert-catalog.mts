@@ -2,7 +2,15 @@ import assert from 'node:assert/strict'
 
 import { Client } from 'pg'
 
+import { assertCatalogSemanticFingerprint } from '../../scripts/catalog-semantics.mts'
+
 const databaseUrl = process.env.DATABASE_URL
+
+// Reviewed from a clean application of the sole initial migration. This covers
+// enum label order plus every public index, CHECK/FK definition and action,
+// application trigger definition, and application function body queried below.
+const expectedCatalogSemanticFingerprint =
+  'd39d2f5969aaa0f5658e51124531454c74a7c38faba210a1de34837e0d372079'
 
 if (databaseUrl === undefined) {
   throw new Error('DATABASE_URL is required for Prisma catalog assertions')
@@ -128,7 +136,6 @@ const expectedIndexes = [
   'topics_pkey',
   'tutoring_candidate_attempts_pkey',
   'tutoring_candidate_attempts_attempt_key',
-  'tutoring_attempts_claim_token_key',
   'tutoring_attempts_pkey',
   'tutoring_attempts_session_id_client_message_id_key',
   'users_email_key',
@@ -350,6 +357,91 @@ try {
       AND p.proname = 'enforce_review_case_target'
   `)
   assert.deepEqual(functions.rows, [{ proname: 'enforce_review_case_target' }])
+
+  const enumSemantics = await client.query<{
+    enum_name: string
+    label: string
+    sort_order: string
+  }>(`
+    SELECT
+      t.typname AS enum_name,
+      e.enumlabel AS label,
+      e.enumsortorder::text AS sort_order
+    FROM pg_type t
+    JOIN pg_namespace n ON n.oid = t.typnamespace
+    JOIN pg_enum e ON e.enumtypid = t.oid
+    WHERE n.nspname = 'public'
+    ORDER BY t.typname, e.enumsortorder
+  `)
+  const indexSemantics = await client.query<{
+    name: string
+    definition: string
+  }>(`
+    SELECT indexname AS name, indexdef AS definition
+    FROM pg_indexes
+    WHERE schemaname = 'public'
+      AND tablename <> '_prisma_migrations'
+    ORDER BY indexname
+  `)
+  const constraintSemantics = await client.query<{
+    name: string
+    type: string
+    definition: string
+    foreign_key_update_action: string
+    foreign_key_delete_action: string
+  }>(`
+    SELECT
+      conname AS name,
+      contype AS type,
+      pg_get_constraintdef(oid, false) AS definition,
+      confupdtype::text AS foreign_key_update_action,
+      confdeltype::text AS foreign_key_delete_action
+    FROM pg_constraint
+    WHERE connamespace = 'public'::regnamespace
+      AND contype IN ('c', 'f')
+    ORDER BY conname
+  `)
+  const triggerSemantics = await client.query<{
+    table_name: string
+    name: string
+    enabled: string
+    deferrable: boolean
+    initially_deferred: boolean
+    definition: string
+  }>(`
+    SELECT
+      c.relname AS table_name,
+      t.tgname AS name,
+      t.tgenabled AS enabled,
+      t.tgdeferrable AS deferrable,
+      t.tginitdeferred AS initially_deferred,
+      pg_get_triggerdef(t.oid, true) AS definition
+    FROM pg_trigger t
+    JOIN pg_class c ON c.oid = t.tgrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public'
+      AND NOT t.tgisinternal
+    ORDER BY c.relname, t.tgname
+  `)
+  const functionSemantics = await client.query<{
+    name: string
+    definition: string
+  }>(`
+    SELECT p.proname AS name, pg_get_functiondef(p.oid) AS definition
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'enforce_review_case_target'
+    ORDER BY p.proname
+  `)
+
+  assertCatalogSemanticFingerprint(expectedCatalogSemanticFingerprint, {
+    enums: enumSemantics.rows,
+    indexes: indexSemantics.rows,
+    constraints: constraintSemantics.rows,
+    triggers: triggerSemantics.rows,
+    functions: functionSemantics.rows,
+  })
 
   const hnswIndexes = await client.query<{ indexname: string }>(`
     SELECT indexname

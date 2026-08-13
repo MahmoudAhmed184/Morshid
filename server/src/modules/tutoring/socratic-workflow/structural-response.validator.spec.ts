@@ -2,7 +2,7 @@ import {
   ReflectionMode,
   TeachingStrategy,
   TeachingTechnique,
-} from '../../../generated/prisma/client'
+} from '../tutoring-values'
 import {
   RESPONSE_VALIDATION_STAGE,
   RESPONSE_VIOLATION_TYPE,

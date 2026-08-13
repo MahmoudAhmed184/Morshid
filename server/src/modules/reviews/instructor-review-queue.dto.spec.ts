@@ -1,4 +1,4 @@
-import { StudentFlagReason } from '../../generated/prisma/client'
+import { StudentFlagReason } from './review-values'
 import { instructorReviewQueueQuerySchema } from './instructor-review-queue.dto'
 
 describe('Instructor review queue query', () => {

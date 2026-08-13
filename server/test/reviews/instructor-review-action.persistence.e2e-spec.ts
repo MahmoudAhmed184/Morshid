@@ -1,6 +1,11 @@
 import { randomUUID } from 'node:crypto'
 
+import { Client } from 'pg'
+
 import { ReviewOutcome } from '../../src/generated/prisma/client'
+import { CourseAudit } from '../../src/modules/courses/course-audit'
+import { PrismaActiveCourseMembership } from '../../src/modules/courses/active-course-membership'
+import { PrismaCoursesRepository } from '../../src/modules/courses/courses.repository'
 import { PrismaInstructorReviewActionRepository } from '../../src/modules/reviews/instructor-review-action.repository'
 import { AuditService } from '../../src/modules/audit/audit.service'
 import {
@@ -17,6 +22,7 @@ describe('Instructor terminal review actions (e2e)', () => {
     repository = new PrismaInstructorReviewActionRepository(
       requireDatabase().prisma,
       new AuditService(requireDatabase().prisma),
+      new PrismaActiveCourseMembership(),
     )
   })
 
@@ -246,6 +252,146 @@ describe('Instructor terminal review actions (e2e)', () => {
     ).toBe(1)
   })
 
+  it.each(['resolve', 'reject'] as const)(
+    'holds instructor authorization through a concurrent %s commit',
+    async (kind) => {
+      const fixture = await createCase()
+      const prisma = requireDatabase().prisma
+      const auditService = new AuditService(prisma)
+      const courses = new PrismaCoursesRepository(
+        prisma,
+        new CourseAudit(auditService),
+      )
+      const blocker = new Client({
+        connectionString: requireDatabase().databaseUrl,
+      })
+      await blocker.connect()
+      await prisma.$executeRawUnsafe(`
+      CREATE FUNCTION block_review_resolution_for_test() RETURNS trigger AS $$
+      BEGIN
+        IF OLD.status IN ('PENDING', 'IN_REVIEW') AND NEW.status IN ('RESOLVED', 'REJECTED') THEN
+          PERFORM pg_advisory_xact_lock(20502);
+        END IF;
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+      CREATE TRIGGER block_review_resolution_for_test
+      AFTER UPDATE OF status ON review_cases
+      FOR EACH ROW EXECUTE FUNCTION block_review_resolution_for_test();
+    `)
+      await blocker.query('BEGIN')
+      await blocker.query('SELECT pg_advisory_lock(20502)')
+
+      try {
+        const action =
+          kind === 'resolve'
+            ? repository.apply({
+                kind,
+                reviewCaseId: fixture.reviewCaseId,
+                instructorId: fixture.instructorId,
+                idempotencyKey: `concurrent-membership-${kind}`,
+                request: {
+                  expectedVersion: 1,
+                  outcome: ReviewOutcome.APPROVED,
+                  content: null,
+                  reason: null,
+                },
+              })
+            : repository.apply({
+                kind,
+                reviewCaseId: fixture.reviewCaseId,
+                instructorId: fixture.instructorId,
+                idempotencyKey: `concurrent-membership-${kind}`,
+                request: {
+                  expectedVersion: 1,
+                  reason: 'Concurrent rejection',
+                },
+              })
+        await waitForBlockedQueryCount(prisma, 1)
+
+        const removal = courses.removeMember({
+          courseId: fixture.courseId,
+          userId: fixture.instructorId,
+          actorUserId: fixture.instructorId,
+        })
+        const ordering = await Promise.race([
+          removal.then(() => 'removal-committed' as const),
+          waitForBlockedQueryCount(prisma, 2).then(
+            () => 'authorization-lock-held' as const,
+          ),
+        ])
+
+        await blocker.query('SELECT pg_advisory_unlock(20502)')
+        await Promise.all([action, removal])
+
+        expect(ordering).toBe('authorization-lock-held')
+      } finally {
+        await blocker.query('ROLLBACK')
+        await blocker.end()
+        await prisma.$executeRawUnsafe(`
+        DROP TRIGGER IF EXISTS block_review_resolution_for_test ON review_cases;
+        DROP FUNCTION IF EXISTS block_review_resolution_for_test();
+      `)
+      }
+    },
+  )
+
+  it('holds instructor authorization while replaying a terminal action', async () => {
+    const fixture = await createCase()
+    const prisma = requireDatabase().prisma
+    const input = {
+      kind: 'resolve' as const,
+      reviewCaseId: fixture.reviewCaseId,
+      instructorId: fixture.instructorId,
+      idempotencyKey: 'membership-locked-replay',
+      request: {
+        expectedVersion: 1,
+        outcome: ReviewOutcome.APPROVED,
+        content: null,
+        reason: null,
+      },
+    }
+    await repository.apply(input)
+    const courses = new PrismaCoursesRepository(
+      prisma,
+      new CourseAudit(new AuditService(prisma)),
+    )
+    const blocker = new Client({
+      connectionString: requireDatabase().databaseUrl,
+    })
+    await blocker.connect()
+    await blocker.query('BEGIN')
+    await blocker.query(
+      'LOCK TABLE idempotency_records IN ACCESS EXCLUSIVE MODE',
+    )
+    let blockerReleased = false
+
+    try {
+      const replay = repository.apply(input)
+      await waitForBlockedQueryCount(prisma, 1)
+      const removal = courses.removeMember({
+        courseId: fixture.courseId,
+        userId: fixture.instructorId,
+        actorUserId: fixture.instructorId,
+      })
+      await waitForBlockedQueryCount(prisma, 2)
+
+      await blocker.query('ROLLBACK')
+      blockerReleased = true
+      const [replayResult] = await Promise.all([replay, removal])
+
+      expect(replayResult).toMatchObject({
+        kind: 'ok',
+        record: { replayed: true },
+      })
+    } finally {
+      if (!blockerReleased) {
+        await blocker.query('ROLLBACK')
+      }
+      await blocker.end()
+    }
+  })
+
   it('rejects reuse of an idempotency key with a different fingerprint', async () => {
     const fixture = await createCase()
     const input = {
@@ -439,6 +585,7 @@ describe('Instructor terminal review actions (e2e)', () => {
     })
     return {
       reviewCaseId: reviewCase.id,
+      courseId,
       instructorId,
       studentId,
       assistantMessageId,
@@ -464,3 +611,25 @@ describe('Instructor terminal review actions (e2e)', () => {
     return database
   }
 })
+
+async function waitForBlockedQueryCount(
+  prisma: DisposableDatabase['prisma'],
+  expectedCount: number,
+): Promise<void> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const blocked = await prisma.$queryRaw<{ count: bigint }[]>`
+      SELECT COUNT(*) AS count
+      FROM pg_stat_activity
+      WHERE datname = current_database()
+        AND wait_event_type = 'Lock'
+    `
+    if (Number(blocked[0]?.count ?? 0) >= expectedCount) {
+      return
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+
+  throw new Error(
+    `Timed out waiting for ${String(expectedCount)} blocked database queries`,
+  )
+}

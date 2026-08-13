@@ -8,7 +8,7 @@ import {
   TeachingTechnique,
   TopicStatus,
   TopicType,
-} from '../../../generated/prisma/client'
+} from '../tutoring-values'
 import type { AnalysisContextPackage } from './analysis-context.types'
 import { EDUCATIONAL_ANALYSIS_CONFIDENCE_POLICY_VERSION } from './analysis-confidence-policy'
 import { AnalysisFallbackBuilder } from './analysis-fallback-builder'

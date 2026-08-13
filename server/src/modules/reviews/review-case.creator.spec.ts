@@ -1,11 +1,8 @@
+import { UserRole, UserStatus } from '../identity/identity.roles'
 import { HttpException } from '@nestjs/common'
 import { instanceToPlain, plainToInstance } from 'class-transformer'
 
-import {
-  StudentFlagReason,
-  UserRole,
-  UserStatus,
-} from '../../generated/prisma/client'
+import { StudentFlagReason } from './review-values'
 import { ReviewCaseCreator } from './review-case.creator'
 import { createReviewRequestSchema } from './review-case.dto'
 import { CreateReviewRequestResponseDto } from './review-case.dto'

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Inject, Injectable } from '@nestjs/common'
 
 import {
   previousTeachingDecisionFromTopicState,
@@ -9,14 +9,15 @@ import {
   type AnalysisContextPackage,
   type BuildAnalysisContextInput,
 } from './analysis-context.types'
-import { AnalysisContextRepository } from './analysis-context.repository'
+import { ConversationTurns } from '../../conversations/interface/conversation-turns'
 import { TopicStateRepository } from './topic-state.repository'
 import { TopicRepository } from './topic.repository'
 
 @Injectable()
 export class ContextManager {
   constructor(
-    private readonly analysisContextRepository: AnalysisContextRepository,
+    @Inject(ConversationTurns)
+    private readonly conversationTurns: ConversationTurns,
     private readonly topicRepository: TopicRepository,
     private readonly topicStateRepository: TopicStateRepository,
   ) {}
@@ -24,7 +25,7 @@ export class ContextManager {
   async buildAnalysisContext(
     input: BuildAnalysisContextInput,
   ): Promise<AnalysisContextPackage | null> {
-    const base = await this.analysisContextRepository.loadBaseContext(input)
+    const base = await this.conversationTurns.loadAnalysisContext(input)
     if (base === null) {
       return null
     }
@@ -46,7 +47,7 @@ export class ContextManager {
 
     const [topicState, candidates] = await Promise.all([
       this.topicStateRepository.findByTopicId(activeTopic.id),
-      this.analysisContextRepository.listHistoryCandidates({
+      this.conversationTurns.listAnalysisHistoryCandidates({
         courseId: input.courseId,
         sessionId: input.sessionId,
         studentId: input.studentId,

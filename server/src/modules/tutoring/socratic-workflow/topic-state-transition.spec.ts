@@ -6,7 +6,7 @@ import {
   StudentState,
   TeachingStrategy,
   TeachingTechnique,
-} from '../../../generated/prisma/client'
+} from '../tutoring-values'
 import type { EducationalAnalysisResult } from './educational-analysis.types'
 import type { PersistedTeachingDecisionRecord } from './teaching-decision.repository'
 import type { ApprovedResponse } from './response-validation.types'

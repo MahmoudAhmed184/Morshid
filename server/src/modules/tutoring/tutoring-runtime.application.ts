@@ -17,7 +17,7 @@ import {
   AuditService,
   type AuditRequestContext,
 } from '../audit/audit.public'
-import { ConversationMessageReader } from '../conversations/conversation-message-reader'
+import { ConversationTurns } from '../conversations/interface/conversation-turns'
 import {
   AutomaticSafetyRiskDetector,
   AUTOMATIC_SAFETY_RISK_DETECTOR_VERSION,
@@ -27,7 +27,6 @@ import {
   selectTutorStrategy,
   type TutorStrategySelection,
 } from './socratic-workflow/tutor-strategy'
-import { DEBUGGING_GUIDANCE_BOUNDARY_ERROR_CODES } from './socratic-workflow/debugging-guidance/debugging-guidance.boundary-response'
 import {
   ControlledSourceConflictDetector,
   CONTROLLED_SOURCE_CONFLICT_DETECTOR_VERSION,
@@ -39,7 +38,6 @@ import {
   encodeAutomaticPolicyReasons,
   type AutomaticPolicyReason,
   type ResponseGovernanceDecision,
-  type ResponseGovernanceEvidenceSource,
   type ResponseGovernanceReviewFact,
 } from './response-governance/response-governance.contract'
 import { ResponseGovernance } from './response-governance/response-governance'
@@ -53,14 +51,15 @@ import {
 import { SocraticWorkflow } from './socratic-workflow/socratic-workflow'
 import {
   tutoringActiveStudentMembershipRequiredException,
+  tutoringIdempotencyKeyReusedException,
   tutoringRetryNotAllowedException,
   tutoringRetryTargetNotFoundException,
   tutoringSessionNotFoundException,
   tutoringTerminalStateUnavailableException,
   tutoringTurnInProgressException,
 } from './interface/tutoring-errors'
-import { ConversationMessagePresenter } from '../conversations/conversation-message.presenter'
-import type { ChatMessageRecord } from '../conversations/conversation-records'
+import { ConversationMessagePresenter } from '../conversations/interface/conversation-message-presenter'
+import type { ChatMessageRecord } from '../conversations/interface/conversation-records'
 import {
   GROUNDING_BLOCKED_CONTENT,
   GROUNDING_INSUFFICIENT_EVIDENCE,
@@ -77,6 +76,7 @@ import {
   assertRequestBudget,
   type RequestBudget,
 } from '../../common/http/request-deadline'
+import { StudentCitationSources } from '../materials/interface/student-citation-sources'
 
 export {
   GROUNDING_BLOCKED_CONTENT,
@@ -97,10 +97,12 @@ interface TutoringTurnDenialInput {
   reason:
     | 'ACTIVE_STUDENT_MEMBERSHIP_REQUIRED'
     | 'DELETED_OR_UNOWNED'
+    | 'IDEMPOTENCY_KEY_REUSED'
     | 'RETRY_TARGET_NOT_FOUND'
     | 'TURN_IN_PROGRESS'
     | 'RETRY_NOT_ALLOWED'
   messageId?: string
+  attemptId?: string
   requestContext?: AuditRequestContext
 }
 
@@ -111,6 +113,7 @@ interface OrchestrationContext {
   studentId: string
   studentMessageId?: string
   assistantMessageId?: string
+  attemptId?: string
 }
 
 type OrchestrationPhase =
@@ -153,12 +156,13 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
     private readonly turnRepository: TutoringTurnRepository,
     private readonly messagePresenter: ConversationMessagePresenter,
     private readonly socraticWorkflow: SocraticWorkflow,
-    private readonly conversationMessageReader: ConversationMessageReader,
+    private readonly conversationTurns: ConversationTurns,
     private readonly safetyRiskDetector: AutomaticSafetyRiskDetector,
     private readonly conflictDetector: ControlledSourceConflictDetector,
     private readonly responseGovernance: ResponseGovernance,
     private readonly requestClassifier: CorrectnessSensitiveRequestClassifier,
     private readonly auditService: AuditService,
+    private readonly citationSources: StudentCitationSources,
   ) {
     super()
   }
@@ -201,7 +205,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
         courseId,
         sessionId,
         studentId,
-        ...(clientMessageId === undefined ? {} : { clientMessageId }),
+        clientMessageId,
         content,
         requestKind:
           selection.decision.requestKind === MessageRequestKind.CODE_DIAGNOSIS
@@ -254,7 +258,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
       courseId,
       sessionId,
       studentId,
-      studentMessageId,
+      attemptId,
       requestContext,
       requestBudget,
     } = command
@@ -264,7 +268,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
       courseId,
       sessionId,
       studentId,
-      studentMessageId,
+      attemptId,
     }
     let result: RetryTutoringTurnResult
     try {
@@ -272,7 +276,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
         courseId,
         sessionId,
         studentId,
-        studentMessageId,
+        attemptId,
       })
     } catch (error) {
       this.logFailure('retry', operation, error)
@@ -284,7 +288,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
         courseId,
         sessionId,
         studentId,
-        studentMessageId,
+        attemptId,
         requestContext,
       )
     }
@@ -331,14 +335,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
 
     const selection =
       preparedSelection ?? selectTutorStrategy(turn.studentMessage.content)
-    const shouldContinueThroughSafetyPipeline =
-      classification.correctnessSensitive &&
-      selection.boundaryResponse?.errorCode ===
-        DEBUGGING_GUIDANCE_BOUNDARY_ERROR_CODES.INSUFFICIENT_INFORMATION
-    if (
-      selection.boundaryResponse !== null &&
-      !shouldContinueThroughSafetyPipeline
-    ) {
+    if (selection.boundaryResponse !== null) {
       return this.persistTerminal(turn, operation, {
         kind: 'blocked',
         phase: 'blocked_persistence',
@@ -507,6 +504,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
         return this.presentTurn(
           await this.reloadStudentMessage(turn.studentMessage),
           completed.message,
+          operation.studentId,
         )
       case 'membership_missing':
       case 'session_not_found':
@@ -555,7 +553,11 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
 
     switch (completed.kind) {
       case 'ok':
-        return this.presentTurn(turn.studentMessage, completed.message)
+        return this.presentTurn(
+          turn.studentMessage,
+          completed.message,
+          operation.studentId,
+        )
       case 'membership_missing':
       case 'session_not_found':
       case 'message_not_found':
@@ -761,7 +763,14 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
   ): Promise<TutoringTurnReceipt> {
     const reasons = decodeAutomaticPolicyReasons(assistantMessage.errorCode)
     if (reasons !== null && assistantMessage.attemptId !== null) {
-      const decision = this.recreatePolicyDecision(assistantMessage, reasons)
+      const evidence = await this.citationSources.loadPolicyEvidence(
+        assistantMessage.id,
+      )
+      const decision = this.recreatePolicyDecision(
+        assistantMessage,
+        reasons,
+        evidence,
+      )
       const automaticReview = policyReviewInput(
         assistantMessage.id,
         decision,
@@ -792,8 +801,20 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
   private recreatePolicyDecision(
     message: ChatMessageRecord,
     reasons: readonly AutomaticPolicyReason[],
+    evidenceSources: readonly {
+      materialId: string
+      materialTitle?: string
+      chunkId: string
+      chunkIndex: number
+      excerpt: string
+      rank: number
+      score?: number
+      embeddingModel: string
+    }[],
   ): ResponseGovernanceDecision {
-    const evidence = policyEvidenceFrom(message)
+    const evidence = evidenceSources.map(
+      ({ embeddingModel: _embeddingModel, ...source }) => source,
+    )
     return this.responseGovernance.evaluate({
       proposedContent: message.content,
       assessment: {
@@ -815,7 +836,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
             : 'PRESENT',
       },
       evidence,
-      reviewFacts: replayReviewFacts(message, reasons),
+      reviewFacts: replayReviewFacts(evidenceSources, reasons),
     })
   }
 
@@ -825,11 +846,11 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
     operation: OrchestrationContext,
   ): Promise<TutoringTurnReceipt> {
     const [refreshedStudent, refreshedAssistant] = await Promise.all([
-      this.conversationMessageReader.find({
+      this.conversationTurns.find({
         id: studentMessage.id,
         studentId: operation.studentId,
       }),
-      this.conversationMessageReader.find({
+      this.conversationTurns.find({
         id: assistantMessage.id,
         studentId: operation.studentId,
       }),
@@ -837,6 +858,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
     return this.presentTurn(
       refreshedStudent ?? studentMessage,
       refreshedAssistant ?? assistantMessage,
+      operation.studentId,
     )
   }
 
@@ -905,6 +927,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
           return await this.presentTurn(
             await this.reloadStudentMessage(turn.studentMessage),
             result.message,
+            operation.studentId,
           )
         case 'membership_missing':
         case 'session_not_found':
@@ -929,12 +952,13 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
   private async presentTurn(
     studentMessage: ChatMessageRecord,
     assistantMessage: ChatMessageRecord,
+    studentId: string,
   ): Promise<TutoringTurnReceipt> {
     const [presentedStudent, presentedAssistant] =
-      await this.messagePresenter.presentMany([
-        studentMessage,
-        assistantMessage,
-      ])
+      await this.messagePresenter.presentMany(
+        [studentMessage, assistantMessage],
+        studentId,
+      )
     return {
       studentMessage: presentedStudent,
       assistantMessage: presentedAssistant,
@@ -946,8 +970,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
   ): Promise<ChatMessageRecord> {
     try {
       return (
-        (await this.conversationMessageReader.find({ id: fallback.id })) ??
-        fallback
+        (await this.conversationTurns.find({ id: fallback.id })) ?? fallback
       )
     } catch (error) {
       this.logger.warn({
@@ -997,6 +1020,15 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
           requestContext,
         })
         throw tutoringTurnInProgressException()
+      case 'idempotency_conflict':
+        await this.recordDenial({
+          courseId,
+          sessionId,
+          studentId,
+          reason: 'IDEMPOTENCY_KEY_REUSED',
+          requestContext,
+        })
+        throw tutoringIdempotencyKeyReusedException()
       default:
         return assertNever(result)
     }
@@ -1007,7 +1039,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
     courseId: string,
     sessionId: string,
     studentId: string,
-    studentMessageId: string,
+    attemptId: string,
     requestContext?: AuditRequestContext,
   ): Promise<never> {
     switch (result.kind) {
@@ -1029,12 +1061,12 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
           requestContext,
         })
         throw tutoringSessionNotFoundException()
-      case 'message_not_found':
+      case 'attempt_not_found':
         await this.recordDenial({
           courseId,
           sessionId,
           studentId,
-          messageId: studentMessageId,
+          attemptId,
           reason: 'RETRY_TARGET_NOT_FOUND',
           requestContext,
         })
@@ -1044,7 +1076,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
           courseId,
           sessionId,
           studentId,
-          messageId: studentMessageId,
+          attemptId,
           reason: 'RETRY_NOT_ALLOWED',
           requestContext,
         })
@@ -1105,6 +1137,9 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
           ...(input.messageId === undefined
             ? {}
             : { messageId: input.messageId }),
+          ...(input.attemptId === undefined
+            ? {}
+            : { attemptId: input.attemptId }),
         },
         requestContext: input.requestContext,
       })
@@ -1148,45 +1183,13 @@ function requireSingleEmbeddingModel(
   return sources[0].embeddingModel
 }
 
-function policyEvidenceFrom(
-  message: ChatMessageRecord,
-): ResponseGovernanceEvidenceSource[] {
-  const titleByMaterialId = new Map(
-    message.citations.map(({ material }) => [material.id, material.title]),
-  )
-  return message.retrievals.flatMap((retrieval) => {
-    if (retrieval.chunk === null) {
-      return []
-    }
-    return [
-      {
-        materialId: retrieval.chunk.materialId,
-        ...(titleByMaterialId.get(retrieval.chunk.materialId) === undefined
-          ? {}
-          : {
-              materialTitle: titleByMaterialId.get(retrieval.chunk.materialId),
-            }),
-        chunkId: retrieval.chunk.id,
-        chunkIndex: retrieval.chunk.chunkIndex,
-        excerpt: retrieval.chunk.content,
-        rank: retrieval.rank,
-        ...(retrieval.similarityScore === null
-          ? {}
-          : { score: retrieval.similarityScore.toNumber() }),
-      },
-    ]
-  })
-}
-
 function replayReviewFacts(
-  message: ChatMessageRecord,
+  evidence: readonly { embeddingModel: string }[],
   reasons: readonly AutomaticPolicyReason[],
 ): ResponseGovernanceReviewFact[] {
   if (reasons.includes('SOURCE_CONFLICT')) {
     const embeddingModels = new Set(
-      message.retrievals.flatMap(({ chunk }) =>
-        chunk === null ? [] : [chunk.embeddingModel],
-      ),
+      evidence.map(({ embeddingModel }) => embeddingModel),
     )
     const facts: ResponseGovernanceReviewFact[] = [
       {

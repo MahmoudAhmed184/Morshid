@@ -3,14 +3,24 @@ import { readFile, readdir } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { spawn } from 'node:child_process'
 
+import { assertGeneratedOutputMatches } from './generated-ownership.mts'
+
 const root = resolve(import.meta.dirname, '..')
 const routeTreePath = resolve(root, 'client/src/routeTree.gen.ts')
 const prismaOutputPath = resolve(root, 'server/src/generated/prisma')
+const routeTreeBaseline = await readFile(routeTreePath, 'utf8')
+const prismaBaseline = await directoryDigest(prismaOutputPath)
 
 await run('npm', ['run', 'generate-routes', '--workspace', 'client'])
 await run('npm', ['run', 'db:generate', '--workspace', 'server'])
 
 const prismaFirst = await directoryDigest(prismaOutputPath)
+
+assertGeneratedOutputMatches(
+  'server/src/generated/prisma',
+  prismaBaseline,
+  prismaFirst,
+)
 
 await run('npm', ['run', 'db:generate', '--workspace', 'server'])
 const prismaSecond = await directoryDigest(prismaOutputPath)
@@ -26,6 +36,12 @@ if (prismaSecond !== prismaFirst) {
 // plugin adds its registration footer as part of the official build.
 await run('npm', ['run', 'build', '--workspace', 'client'])
 const routeTreeFirst = await readFile(routeTreePath, 'utf8')
+
+assertGeneratedOutputMatches(
+  'client/src/routeTree.gen.ts',
+  routeTreeBaseline,
+  routeTreeFirst,
+)
 
 await run('npm', ['run', 'build', '--workspace', 'client'])
 const routeTreeSecond = await readFile(routeTreePath, 'utf8')

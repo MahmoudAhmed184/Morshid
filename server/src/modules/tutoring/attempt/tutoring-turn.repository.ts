@@ -14,13 +14,9 @@ import {
   TutoringAttemptStatus,
   TutoringSafeFallbackReason,
 } from '../tutoring-values'
-import { ConversationTurns } from '../../conversations/conversation-turns'
-import { ConversationAuthorization } from '../../conversations/conversation-authorization'
-import {
-  ConversationMessageReader,
-  type ConversationMessageLookup,
-} from '../../conversations/conversation-message-reader'
-import type { ConversationAuthorizationResult } from '../../conversations/conversation-authorization'
+import { ConversationTurns } from '../../conversations/interface/conversation-turns'
+import type { ConversationMessageLookup } from '../../conversations/interface/conversation-message-reader'
+import type { ConversationAuthorizationResult } from '../../conversations/interface/conversation-authorization'
 import {
   AUDIT_EVENT_ACTIONS,
   AUDIT_TARGET_TYPES,
@@ -33,7 +29,7 @@ import {
   type AutomaticReviewIntakeInput,
 } from '../../reviews/reviews.public'
 import { currentDatabaseTime } from '../../../platform/database/database-clock'
-import type { ChatMessageRecord } from '../../conversations/conversation-records'
+import type { ChatMessageRecord } from '../../conversations/interface/conversation-records'
 import {
   validateTopicStateTransition,
   type TopicStateTransition,
@@ -55,13 +51,13 @@ interface AuthorizedTurnInput {
 }
 
 export interface BeginTutoringTurnInput extends AuthorizedTurnInput {
-  clientMessageId?: string
+  clientMessageId: string
   content: string
   requestKind?: MessageRequestKind
 }
 
 export interface RetryTutoringTurnInput extends AuthorizedTurnInput {
-  studentMessageId: string
+  attemptId: string
 }
 
 export interface RepairTutoringReviewInput extends AuthorizedTurnInput {
@@ -87,12 +83,6 @@ export interface TransitionTutoringAttemptInput extends AuthorizedTurnInput {
   nextStatus: TutoringAttemptStatus
   topicId?: string | null
   requestKind?: MessageRequestKind | null
-}
-
-export interface FailTutoringAttemptInput extends AuthorizedTurnInput {
-  attemptId: string
-  expectedStatus: TutoringAttemptStatus
-  failureCode: TutoringAttemptFailureCode
 }
 
 export interface CompleteTutoringTurnInput extends AuthorizedTurnInput {
@@ -175,6 +165,7 @@ export type BeginTutoringTurnResult =
     }
   | { kind: 'membership_missing' }
   | { kind: 'session_not_found' }
+  | { kind: 'idempotency_conflict' }
   | { kind: 'turn_in_progress' }
 
 export type RetryTutoringTurnResult =
@@ -187,8 +178,8 @@ export type RetryTutoringTurnResult =
     }
   | { kind: 'membership_missing' }
   | { kind: 'session_not_found' }
-  | { kind: 'message_not_found'; messageId: string }
-  | { kind: 'retry_not_allowed'; messageId: string }
+  | { kind: 'attempt_not_found'; attemptId: string }
+  | { kind: 'retry_not_allowed'; attemptId: string }
   | { kind: 'turn_in_progress' }
 
 export type RepairTutoringReviewResult =
@@ -227,8 +218,6 @@ export abstract class TutoringTurnRepository {
   abstract transitionAttempt(
     input: TransitionTutoringAttemptInput,
   ): Promise<boolean>
-
-  abstract failAttempt(input: FailTutoringAttemptInput): Promise<boolean>
 
   abstract beginTurn(
     input: BeginTutoringTurnInput,
@@ -276,8 +265,6 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly conversationTurns: ConversationTurns,
-    private readonly conversationAuthorization: ConversationAuthorization,
-    private readonly conversationMessageReader: ConversationMessageReader,
     private readonly reviewCaseIntake: ReviewCaseIntake,
     private readonly auditService: AuditService,
   ) {
@@ -288,18 +275,17 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
     input: BeginTutoringTurnInput,
   ): Promise<BeginTutoringTurnResult> {
     const identity = {
-      studentMessageId: input.clientMessageId ?? randomUUID(),
+      studentMessageId: input.clientMessageId,
       assistantMessageId: randomUUID(),
       attemptId: randomUUID(),
     }
 
     try {
       return await this.runTransaction(async (tx) => {
-        const authorization =
-          await this.conversationAuthorization.authorizeStudent(
-            input,
-            asDatabaseTransaction(tx),
-          )
+        const authorization = await this.conversationTurns.authorizeStudent(
+          input,
+          asDatabaseTransaction(tx),
+        )
         if (authorization.kind !== 'ok') {
           return authorization
         }
@@ -315,62 +301,61 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
           now,
         )
 
-        if (input.clientMessageId !== undefined) {
-          const replayedAttempt = await tx.tutoringAttempt.findUnique({
-            where: {
-              sessionId_clientMessageId: {
-                sessionId: session.id,
-                clientMessageId: input.clientMessageId,
-              },
+        const replayedAttempt = await tx.tutoringAttempt.findUnique({
+          where: {
+            sessionId_clientMessageId: {
+              sessionId: session.id,
+              clientMessageId: input.clientMessageId,
             },
-            select: {
-              studentMessageId: true,
-              assistantMessageId: true,
-            },
-          })
-          if (replayedAttempt !== null) {
-            const replayedStudent =
-              replayedAttempt.studentMessageId === null
-                ? null
-                : await this.findMessage(
-                    { id: replayedAttempt.studentMessageId },
-                    tx,
-                  )
-            const replayedAssistant =
-              replayedAttempt.assistantMessageId === null
-                ? null
-                : await this.findMessage(
-                    { id: replayedAttempt.assistantMessageId },
-                    tx,
-                  )
-            if (
-              replayedStudent !== null &&
-              replayedStudent.content === input.content &&
-              replayedAssistant !== null &&
-              replayedAssistant.role === MessageRole.ASSISTANT &&
-              isTerminalMessageStatus(replayedAssistant.status)
-            ) {
-              return {
-                kind: 'replayed' as const,
-                studentMessage: replayedStudent,
-                assistantMessage: replayedAssistant,
-              }
+          },
+          select: {
+            studentMessageId: true,
+            assistantMessageId: true,
+          },
+        })
+        if (replayedAttempt !== null) {
+          const replayedStudent =
+            replayedAttempt.studentMessageId === null
+              ? null
+              : await this.findMessage(
+                  { id: replayedAttempt.studentMessageId },
+                  tx,
+                )
+          const replayedAssistant =
+            replayedAttempt.assistantMessageId === null
+              ? null
+              : await this.findMessage(
+                  { id: replayedAttempt.assistantMessageId },
+                  tx,
+                )
+          if (
+            replayedStudent !== null &&
+            replayedStudent.content === input.content &&
+            replayedAssistant !== null &&
+            replayedAssistant.role === MessageRole.ASSISTANT &&
+            isTerminalMessageStatus(replayedAssistant.status)
+          ) {
+            return {
+              kind: 'replayed' as const,
+              studentMessage: replayedStudent,
+              assistantMessage: replayedAssistant,
             }
-
-            return { kind: 'turn_in_progress' as const }
           }
+
+          return replayedStudent !== null &&
+            replayedStudent.content !== input.content
+            ? { kind: 'idempotency_conflict' as const }
+            : { kind: 'turn_in_progress' as const }
         }
 
         await tx.tutoringAttempt.create({
           data: {
             id: identity.attemptId,
             sessionId: session.id,
-            clientMessageId: input.clientMessageId ?? identity.studentMessageId,
+            clientMessageId: input.clientMessageId,
             requestKind: input.requestKind ?? null,
             status: TutoringAttemptStatus.RECEIVED,
             leaseExpiresAt: leaseExpiry(now),
-            claimToken: identity.attemptId,
-            claimedAt: now,
           },
         })
         const admitted = await this.conversationTurns.admit(
@@ -426,11 +411,10 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
 
     try {
       return await this.runTransaction(async (tx) => {
-        const authorization =
-          await this.conversationAuthorization.authorizeStudent(
-            input,
-            asDatabaseTransaction(tx),
-          )
+        const authorization = await this.conversationTurns.authorizeStudent(
+          input,
+          asDatabaseTransaction(tx),
+        )
         if (authorization.kind !== 'ok') {
           return authorization
         }
@@ -445,51 +429,58 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
           },
           now,
         )
-        const studentMessage = await this.findMessage(
-          {
-            id: input.studentMessageId,
-            sessionId: session.id,
-            role: MessageRole.STUDENT,
-            authorUserId: input.studentId,
+        const previousAttempt = await tx.tutoringAttempt.findFirst({
+          where: { id: input.attemptId, sessionId: session.id },
+          select: {
+            id: true,
+            studentMessageId: true,
+            assistantMessageId: true,
+            leaseExpiresAt: true,
+            status: true,
           },
-          tx,
-        )
-        if (studentMessage === null) {
+        })
+        if (
+          previousAttempt?.studentMessageId === null ||
+          previousAttempt?.studentMessageId === undefined ||
+          previousAttempt.assistantMessageId === null
+        ) {
           return {
-            kind: 'message_not_found',
-            messageId: input.studentMessageId,
+            kind: 'attempt_not_found',
+            attemptId: input.attemptId,
           }
         }
 
-        const assistantMessage = await this.findMessage(
-          { responseToMessageId: studentMessage.id },
+        const studentMessage = await this.findMessage(
+          {
+            id: previousAttempt.studentMessageId,
+            sessionId: session.id,
+            role: MessageRole.STUDENT,
+            authorUserId: input.studentId,
+            attemptId: previousAttempt.id,
+          },
           tx,
         )
-        if (assistantMessage?.role !== MessageRole.ASSISTANT) {
-          return {
-            kind: 'message_not_found',
-            messageId: input.studentMessageId,
-          }
-        }
-        const previousAttemptId = assistantMessage.attemptId
-        const previousAttempt =
-          previousAttemptId === null
-            ? null
-            : await tx.tutoringAttempt.findUnique({
-                where: { id: previousAttemptId },
-                select: {
-                  id: true,
-                  leaseExpiresAt: true,
-                  status: true,
-                },
-              })
+        const assistantMessage = await this.findMessage(
+          {
+            id: previousAttempt.assistantMessageId,
+            responseToMessageId: previousAttempt.studentMessageId,
+            attemptId: previousAttempt.id,
+          },
+          tx,
+        )
         if (
-          previousAttempt === null ||
-          !isRetryableAttempt(previousAttempt, now)
+          studentMessage === null ||
+          assistantMessage?.role !== MessageRole.ASSISTANT
         ) {
           return {
             kind: 'retry_not_allowed',
-            messageId: input.studentMessageId,
+            attemptId: input.attemptId,
+          }
+        }
+        if (!isRetryableAttempt(previousAttempt, now)) {
+          return {
+            kind: 'retry_not_allowed',
+            attemptId: input.attemptId,
           }
         }
 
@@ -518,8 +509,6 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
               studentMessage.requestKind ?? MessageRequestKind.CONCEPTUAL,
             status: TutoringAttemptStatus.RECEIVED,
             leaseExpiresAt: leaseExpiry(now),
-            claimToken: attemptId,
-            claimedAt: now,
           },
         })
 
@@ -532,6 +521,7 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
             attemptId,
             studentMessageId: studentMessage.id,
             assistantMessageId: assistantMessage.id,
+            previousAttemptId: previousAttempt.id,
             now,
           },
           asDatabaseTransaction(tx),
@@ -539,7 +529,7 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
         if (admitted.kind !== 'admitted') {
           return admitted.kind === 'turn_in_progress'
             ? admitted
-            : { kind: 'message_not_found', messageId: input.studentMessageId }
+            : { kind: 'attempt_not_found', attemptId: input.attemptId }
         }
         const resetAssistant = await this.findMessageOrThrow(
           { id: admitted.assistantMessage.id },
@@ -562,7 +552,6 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
       return this.reconcileStartedTurn(
         input,
         {
-          studentMessageId: input.studentMessageId,
           attemptId,
         },
         error,
@@ -588,36 +577,14 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
     return updated.count === 1
   }
 
-  async failAttempt(input: FailTutoringAttemptInput): Promise<boolean> {
-    return this.runTransaction(async (tx) => {
-      const now = await currentDatabaseTime(tx)
-      const updated = await tx.tutoringAttempt.updateMany({
-        where: {
-          id: input.attemptId,
-          status: input.expectedStatus,
-          sessionId: input.sessionId,
-        },
-        data: {
-          status: TutoringAttemptStatus.FAILED,
-          failureCode: input.failureCode,
-          leaseExpiresAt: null,
-          completedAt: now,
-          version: { increment: 1 },
-        },
-      })
-      return updated.count === 1
-    })
-  }
-
   async repairAutomaticReview(
     input: RepairTutoringReviewInput,
   ): Promise<RepairTutoringReviewResult> {
     return this.runTransaction(async (tx) => {
-      const authorization =
-        await this.conversationAuthorization.authorizeStudent(
-          input,
-          asDatabaseTransaction(tx),
-        )
+      const authorization = await this.conversationTurns.authorizeStudent(
+        input,
+        asDatabaseTransaction(tx),
+      )
       if (authorization.kind !== 'ok') {
         return authorization
       }
@@ -700,11 +667,10 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
   ): Promise<FinalizeTutoringTurnResult> {
     try {
       return await this.runTransaction(async (tx) => {
-        const authorization =
-          await this.conversationAuthorization.authorizeStudent(
-            input,
-            asDatabaseTransaction(tx),
-          )
+        const authorization = await this.conversationTurns.authorizeStudent(
+          input,
+          asDatabaseTransaction(tx),
+        )
         if (authorization.kind !== 'ok') {
           return authorization
         }
@@ -866,11 +832,10 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
     input: ReadTutoringTurnInput,
   ): Promise<ReadTutoringTurnResult> {
     return this.runTransaction(async (tx) => {
-      const authorization =
-        await this.conversationAuthorization.authorizeStudent(
-          input,
-          asDatabaseTransaction(tx),
-        )
+      const authorization = await this.conversationTurns.authorizeStudent(
+        input,
+        asDatabaseTransaction(tx),
+      )
       if (authorization.kind !== 'ok') {
         return authorization
       }
@@ -928,7 +893,7 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
           terminal.status === MessageStatus.FAILED ||
           terminal.status === MessageStatus.BLOCKED
             ? await this.lockExactTurnSession(tx, input)
-            : await this.conversationAuthorization.authorizeStudent(
+            : await this.conversationTurns.authorizeStudent(
                 input,
                 asDatabaseTransaction(tx),
               )
@@ -1051,7 +1016,6 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
               : null),
           leaseExpiresAt: null,
           completedAt: new Date(),
-          version: { increment: 1 },
         },
       })
       if (updatedAttempts.count !== 1) {
@@ -1215,7 +1179,7 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
     tx: Prisma.TransactionClient,
     input: AuthorizedTurnInput,
   ): Promise<AuthorizationResult> {
-    return this.conversationAuthorization.authorizeSessionOwner(
+    return this.conversationTurns.authorizeSessionOwner(
       input,
       asDatabaseTransaction(tx),
     )
@@ -1300,7 +1264,6 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
         failureCode: TutoringAttemptFailureCode.PERSISTENCE_FAILED,
         leaseExpiresAt: null,
         completedAt: now,
-        version: { increment: 1 },
       },
     })
   }
@@ -1308,7 +1271,7 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
   private async reconcileStartedTurn(
     input: AuthorizedTurnInput,
     identity: {
-      studentMessageId: string
+      studentMessageId?: string
       assistantMessageId?: string
       attemptId: string
     },
@@ -1328,9 +1291,21 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
           return null
         }
 
+        const attempt = await tx.tutoringAttempt.findUnique({
+          where: { id: identity.attemptId },
+          select: { studentMessageId: true, assistantMessageId: true },
+        })
+        const studentMessageId =
+          identity.studentMessageId ?? attempt?.studentMessageId
+        const assistantMessageId =
+          identity.assistantMessageId ?? attempt?.assistantMessageId
+        if (studentMessageId === null || studentMessageId === undefined) {
+          return null
+        }
+
         const studentMessage = await this.findMessage(
           {
-            id: identity.studentMessageId,
+            id: studentMessageId,
             sessionId: input.sessionId,
             role: MessageRole.STUDENT,
             authorUserId: input.studentId,
@@ -1343,9 +1318,9 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
 
         const assistantMessage = await this.findMessage(
           {
-            ...(identity.assistantMessageId === undefined
+            ...(assistantMessageId === null || assistantMessageId === undefined
               ? {}
-              : { id: identity.assistantMessageId }),
+              : { id: assistantMessageId }),
             sessionId: input.sessionId,
             role: MessageRole.ASSISTANT,
             responseToMessageId: studentMessage.id,
@@ -1429,7 +1404,7 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
     input: ConversationMessageLookup & { readonly studentId?: string },
     tx: Prisma.TransactionClient,
   ): Promise<ChatMessageRecord | null> {
-    return this.conversationMessageReader.find(input, asDatabaseTransaction(tx))
+    return this.conversationTurns.find(input, asDatabaseTransaction(tx))
   }
 
   private async findMessageOrThrow(

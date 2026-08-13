@@ -2,12 +2,12 @@ import {
   ReflectionMode,
   TeachingStrategy,
   TeachingTechnique,
-} from '../../../generated/prisma/client'
+} from '../tutoring-values'
 import {
   TUTOR_CANDIDATE_LIMITS,
   type CandidateResponsePolicyContext,
 } from './tutor-generation.types'
-import { TUTOR_GENERATION_PROMPT_VERSION } from './tutor-prompt.registry'
+import { TUTOR_GENERATION_PROMPT_VERSION } from './tutor-prompt.definition'
 import { validateCandidateResponse } from './tutor-candidate.schema'
 
 describe('candidate response validation', () => {

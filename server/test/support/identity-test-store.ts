@@ -209,6 +209,10 @@ interface FindUniqueMembershipArgs {
   }
 }
 
+interface FindUniqueMembershipByIdArgs {
+  where: { id: string }
+}
+
 interface FindUniqueCourseArgs {
   where: {
     id?: string
@@ -340,6 +344,9 @@ export class IdentityTestStore {
       findUnique: jest.fn((args: FindUniqueMembershipArgs) =>
         Promise.resolve(this.findUniqueMembership(args)),
       ),
+      findUniqueOrThrow: jest.fn((args: FindUniqueMembershipByIdArgs) =>
+        Promise.resolve(this.findUniqueMembershipById(args)),
+      ),
       findFirst: jest.fn((args?: FindFirstMembershipArgs) =>
         Promise.resolve(this.findFirstMembership(args)),
       ),
@@ -401,6 +408,23 @@ export class IdentityTestStore {
         Promise.resolve(this.findAuditLog(args)),
       ),
     },
+    $queryRaw: jest.fn((query: TemplateStringsArray, ...values: string[]) => {
+      const sql = query.join(' ')
+      if (sql.includes('FROM course_memberships')) {
+        const [courseId, userId] = values
+        const membership = this.memberships.find(
+          (candidate) =>
+            candidate.courseId === courseId &&
+            candidate.userId === userId &&
+            candidate.removedAt === null,
+        )
+        return Promise.resolve(membership ? [{ id: membership.id }] : [])
+      }
+
+      const [userId] = values
+      const user = this.users.get(userId)
+      return Promise.resolve(user ? [{ ...user }] : [])
+    }),
     $transaction: jest.fn(
       async <T>(fn: (tx: IdentityTestStore['prisma']) => Promise<T>) =>
         fn(this.prisma),
@@ -965,6 +989,20 @@ export class IdentityTestStore {
       (m) => m.courseId === courseId && m.userId === userId,
     )
     if (!membership) return null
+
+    return {
+      ...membership,
+      user: this.users.get(membership.userId),
+    }
+  }
+
+  private findUniqueMembershipById(args: FindUniqueMembershipByIdArgs) {
+    const membership = this.memberships.find(
+      (candidate) => candidate.id === args.where.id,
+    )
+    if (!membership) {
+      throw new Error(`Missing course membership ${args.where.id}`)
+    }
 
     return {
       ...membership,

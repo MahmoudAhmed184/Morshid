@@ -111,10 +111,6 @@ export function selectTutorStrategy(
   ) {
     const decision = (() => {
       switch (assessment.state) {
-        case 'UNSUPPORTED_LANGUAGE':
-          return DEBUGGING_GUIDANCE_BOUNDARY_DECISIONS.OFF_TOPIC
-        case 'INSUFFICIENT_INFORMATION':
-          return DEBUGGING_GUIDANCE_BOUNDARY_DECISIONS.AMBIGUOUS
         case 'TOO_MANY_LINES':
         case 'UNSUPPORTED_SCOPE':
           return DEBUGGING_GUIDANCE_BOUNDARY_DECISIONS.CODE_DIAGNOSIS
@@ -159,11 +155,5 @@ function shouldApplyCodeDiagnosisBoundary(
   studentMessage: string,
   assessment: RejectedDebuggingGuidanceBoundaryAssessment,
 ): boolean {
-  if (assessment.state === 'UNSUPPORTED_LANGUAGE') {
-    return hasDebuggingGuidanceIntent(studentMessage, assessment)
-  }
-  return (
-    assessment.state !== 'INSUFFICIENT_INFORMATION' ||
-    hasDebuggingGuidanceIntent(studentMessage, assessment)
-  )
+  return hasDebuggingGuidanceIntent(studentMessage, assessment)
 }

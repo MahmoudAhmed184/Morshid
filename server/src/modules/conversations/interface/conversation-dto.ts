@@ -8,7 +8,7 @@ import {
   type MessageGuidanceLabel,
   type MessageRequestKind,
 } from './conversation-values'
-import { ReviewOutcome, ReviewStatus } from '../reviews/reviews.public'
+import { ReviewOutcome, ReviewStatus } from '../../reviews/reviews.public'
 
 const titleSchema = z.string().trim().min(1).max(160)
 const messageContentSchema = z
@@ -62,7 +62,7 @@ export const listChatMessagesQuerySchema = z
 
 export const sendTutoringMessageRequestSchema = z
   .object({
-    clientMessageId: z.uuid().optional(),
+    clientMessageId: z.uuid(),
     content: messageContentSchema,
     problemId: z.uuid().optional(),
     conceptId: z.uuid().optional(),
@@ -93,8 +93,8 @@ export class RenameChatSessionRequestDto {
 }
 
 export class SendTutoringMessageRequestDto {
-  @ApiProperty({ format: 'uuid', required: false })
-  clientMessageId?: string
+  @ApiProperty({ format: 'uuid' })
+  clientMessageId!: string
 
   @ApiProperty({ minLength: 1, maxLength: 4_000 })
   content!: string

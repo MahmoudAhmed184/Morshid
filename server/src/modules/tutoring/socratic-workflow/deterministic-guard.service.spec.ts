@@ -3,7 +3,7 @@ import {
   RevealPolicy,
   TeachingStrategy,
   TeachingTechnique,
-} from '../../../generated/prisma/client'
+} from '../tutoring-values'
 import { DeterministicGuardService } from './deterministic-guard.service'
 import {
   RESPONSE_VALIDATION_STAGE,

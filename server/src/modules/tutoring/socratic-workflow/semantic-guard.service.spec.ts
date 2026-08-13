@@ -3,7 +3,7 @@ import {
   RevealPolicy,
   TeachingStrategy,
   TeachingTechnique,
-} from '../../../generated/prisma/client'
+} from '../tutoring-values'
 import { RESPONSE_VALIDATION_ACTION } from './response-validation.types'
 import { SemanticGuardService } from './semantic-guard.service'
 import {

@@ -39,6 +39,8 @@ import {
   CourseEvidenceRepository,
   PrismaCourseEvidenceRepository,
 } from './course-evidence.repository'
+import { StudentCitationSources } from './interface/student-citation-sources'
+import { PrismaStudentCitationSources } from './student-citation-sources'
 
 @Module({
   imports: [
@@ -90,7 +92,16 @@ import {
       provide: CourseEvidence,
       useClass: MaterialsCourseEvidence,
     },
+    {
+      provide: StudentCitationSources,
+      useClass: PrismaStudentCitationSources,
+    },
   ],
-  exports: [MaterialProcessingService, PDF_TEXT_EXTRACTOR, CourseEvidence],
+  exports: [
+    MaterialProcessingService,
+    PDF_TEXT_EXTRACTOR,
+    CourseEvidence,
+    StudentCitationSources,
+  ],
 })
 export class MaterialsModule {}

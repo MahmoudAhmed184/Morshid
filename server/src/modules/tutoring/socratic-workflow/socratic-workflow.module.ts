@@ -22,10 +22,6 @@ import {
   ANALYSIS_RETRY_POLICY,
   AnalysisRetryPolicy,
 } from './analysis-retry-policy'
-import {
-  AnalysisContextRepository,
-  PrismaAnalysisContextRepository,
-} from './analysis-context.repository'
 import { ContextManager } from './context-manager.service'
 import {
   EducationalAnalysisRepository,
@@ -101,10 +97,6 @@ import {
     {
       provide: TopicStateRepository,
       useClass: PrismaTopicStateRepository,
-    },
-    {
-      provide: AnalysisContextRepository,
-      useClass: PrismaAnalysisContextRepository,
     },
     {
       provide: TopicRepository,

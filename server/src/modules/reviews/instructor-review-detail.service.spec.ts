@@ -1,11 +1,10 @@
+import { MessageRole } from '../conversations/interface/conversation-values'
+import { UserRole, UserStatus } from '../identity/identity.roles'
 import {
-  MessageRole,
   ReviewStatus,
   ReviewTriggerType,
   StudentFlagReason,
-  UserRole,
-  UserStatus,
-} from '../../generated/prisma/client'
+} from './review-values'
 import type { AuthenticatedUser } from '../identity/identity.types'
 import { InstructorReviewDetailService } from './instructor-review-detail.service'
 

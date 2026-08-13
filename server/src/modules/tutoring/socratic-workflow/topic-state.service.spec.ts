@@ -11,7 +11,7 @@ import {
   StudentState,
   TeachingStrategy,
   TeachingTechnique,
-} from '../../../generated/prisma/client'
+} from '../tutoring-values'
 
 const now = new Date('2026-08-03T12:00:00.000Z')
 

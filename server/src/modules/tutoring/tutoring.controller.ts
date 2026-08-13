@@ -52,17 +52,16 @@ import {
   SendTutoringMessageRequestDto,
   sendTutoringMessageRequestSchema,
   type SendTutoringMessageRequest,
-} from '../conversations/conversations.dto'
+} from '../conversations/interface/conversation-dto'
 import {
   invalidConversationRequestException,
   type ConversationValidationIssue,
-} from '../conversations/conversation.errors'
+} from '../conversations/interface/conversation-errors'
 
 const uuidParam = () => new ParseUUIDPipe({ version: '4' })
 const courseIdParam = () => ApiParam({ name: 'courseId', format: 'uuid' })
 const sessionIdParam = () => ApiParam({ name: 'sessionId', format: 'uuid' })
-const studentMessageIdParam = () =>
-  ApiParam({ name: 'studentMessageId', format: 'uuid' })
+const attemptIdParam = () => ApiParam({ name: 'attemptId', format: 'uuid' })
 
 const invalidRequestOrUuidBadRequest = () =>
   ApiBadRequestResponse({
@@ -148,9 +147,7 @@ export class TutoringController {
         sessionId,
         studentId: request.user.id,
         content: body.content,
-        ...(body.clientMessageId === undefined
-          ? {}
-          : { clientMessageId: body.clientMessageId }),
+        clientMessageId: body.clientMessageId,
         ...(body.problemId === undefined ? {} : { problemId: body.problemId }),
         ...(body.conceptId === undefined ? {} : { conceptId: body.conceptId }),
         ...(body.title === undefined ? {} : { title: body.title }),
@@ -162,7 +159,7 @@ export class TutoringController {
       })
   }
 
-  @Post(':sessionId/messages/:studentMessageId/retry')
+  @Post(':sessionId/tutoring-attempts/:attemptId/retry')
   @HttpCode(200)
   @SerializeOptions({
     type: TutoringTurnResponseDto,
@@ -171,7 +168,7 @@ export class TutoringController {
   @ApiOperation({ summary: 'Retry failed tutoring response' })
   @courseIdParam()
   @sessionIdParam()
-  @studentMessageIdParam()
+  @attemptIdParam()
   @ApiOkResponse({ type: TutoringTurnResponseDto })
   @invalidRequestOrUuidBadRequest()
   @notFound()
@@ -180,7 +177,7 @@ export class TutoringController {
   retryMessage(
     @Param('courseId', uuidParam()) courseId: string,
     @Param('sessionId', uuidParam()) sessionId: string,
-    @Param('studentMessageId', uuidParam()) studentMessageId: string,
+    @Param('attemptId', uuidParam()) attemptId: string,
     @Req() request: AuthenticatedHttpRequest,
     @Res({ passthrough: true }) response?: Response,
   ): Promise<TutoringTurnReceipt> {
@@ -201,7 +198,7 @@ export class TutoringController {
         courseId,
         sessionId,
         studentId: request.user.id,
-        studentMessageId,
+        attemptId,
         requestContext: getRequestContext(request),
         requestBudget: budget,
       })

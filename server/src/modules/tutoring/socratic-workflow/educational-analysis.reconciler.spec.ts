@@ -1,7 +1,4 @@
-import {
-  MessageRequestKind,
-  StudentState,
-} from '../../../generated/prisma/client'
+import { MessageRequestKind, StudentState } from '../tutoring-values'
 import type { AnalysisContextPackage } from './analysis-context.types'
 import { reconcileEducationalAnalysisRequestKind } from './educational-analysis.reconciler'
 import type { EducationalAnalysisResult } from './educational-analysis.types'

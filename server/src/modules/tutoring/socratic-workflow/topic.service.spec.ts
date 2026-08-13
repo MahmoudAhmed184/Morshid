@@ -5,11 +5,7 @@ import {
   type CreateTopicRecordInput,
 } from './topic.repository'
 import { TopicService } from './topic.service'
-import {
-  MessageRole,
-  TopicStatus,
-  TopicType,
-} from '../../../generated/prisma/client'
+import { MessageRole, TopicStatus, TopicType } from '../tutoring-values'
 import {
   TOPIC_RESOLUTION_EVIDENCE_TYPE,
   TOPIC_RESOLUTION_OUTCOME,

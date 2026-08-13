@@ -39,8 +39,8 @@ import type {
   ChatMessageHistoryResponseDto,
   TutoringTurnResponseDto,
   ChatSessionResponseDto,
-} from '../../src/modules/conversations/conversations.dto'
-import { CONVERSATION_ERROR_CODES } from '../../src/modules/conversations/conversation.errors'
+} from '../../src/modules/conversations/interface/conversation-dto'
+import { CONVERSATION_ERROR_CODES } from '../../src/modules/conversations/interface/conversation-errors'
 import {
   ANALYSIS_MODEL_ERROR_CODE,
   ANALYSIS_MODEL_PORT,
@@ -311,6 +311,13 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     return `${sessionsPath()}/${sessionId}/messages`
   }
 
+  function retryPath(sessionId: string, attemptId: string | null): string {
+    if (attemptId === null) {
+      throw new Error('Expected a persisted tutoring attempt')
+    }
+    return `${sessionsPath()}/${sessionId}/tutoring-attempts/${attemptId}/retry`
+  }
+
   async function createSession(): Promise<ChatSessionResponseDto['session']> {
     const response = await request(requireApp().getHttpServer())
       .post(sessionsPath())
@@ -403,7 +410,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     const response = await request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
       .set('Authorization', `Bearer ${studentToken}`)
-      .send({ content: QUESTION })
+      .send({ content: QUESTION, clientMessageId: randomUUID() })
       .expect(201)
     const turn = response.body as TutoringTurnResponseDto
 
@@ -488,7 +495,10 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     const response = await request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
       .set('Authorization', `Bearer ${studentToken}`)
-      .send({ content: 'What is a Python list comprehension?' })
+      .send({
+        content: 'What is a Python list comprehension?',
+        clientMessageId: randomUUID(),
+      })
       .expect(201)
     const turn = response.body as TutoringTurnResponseDto
 
@@ -616,7 +626,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       const response = await request(requireApp().getHttpServer())
         .post(messagesPath(session.id))
         .set('Authorization', `Bearer ${studentToken}`)
-        .send({ content })
+        .send({ content, clientMessageId: randomUUID() })
         .expect(201)
       turns.push(response.body as TutoringTurnResponseDto)
     }
@@ -766,7 +776,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
         const response = await request(requireApp().getHttpServer())
           .post(messagesPath(session.id))
           .set('Authorization', `Bearer ${studentToken}`)
-          .send({ content })
+          .send({ content, clientMessageId: randomUUID() })
           .expect(201)
         turns.push(response.body as TutoringTurnResponseDto)
       }
@@ -868,7 +878,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     const response = await request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
       .set('Authorization', `Bearer ${studentToken}`)
-      .send({ content: QUESTION })
+      .send({ content: QUESTION, clientMessageId: randomUUID() })
       .expect(201)
     const turn = response.body as TutoringTurnResponseDto
 
@@ -948,7 +958,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     const response = await request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
       .set('Authorization', `Bearer ${studentToken}`)
-      .send({ content: QUESTION })
+      .send({ content: QUESTION, clientMessageId: randomUUID() })
       .expect(201)
     const turn = response.body as TutoringTurnResponseDto
 
@@ -1007,7 +1017,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     const response = await request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
       .set('Authorization', `Bearer ${studentToken}`)
-      .send({ content: QUESTION })
+      .send({ content: QUESTION, clientMessageId: randomUUID() })
       .expect(201)
     const completed = response.body as TutoringTurnResponseDto
 
@@ -1046,7 +1056,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     await request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
       .set('Authorization', `Bearer ${studentToken}`)
-      .send({ content: QUESTION })
+      .send({ content: QUESTION, clientMessageId: randomUUID() })
       .expect(201)
 
     expect(tutorModel.callCount).toBe(1)
@@ -1124,7 +1134,10 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     const response = await request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
       .set('Authorization', `Bearer ${studentToken}`)
-      .send({ content: OVER_REVEAL_STUDENT_MESSAGE })
+      .send({
+        content: OVER_REVEAL_STUDENT_MESSAGE,
+        clientMessageId: randomUUID(),
+      })
       .expect(201)
     const turn = response.body as TutoringTurnResponseDto
 
@@ -1228,7 +1241,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     const response = await request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
       .set('Authorization', `Bearer ${studentToken}`)
-      .send({ content: QUESTION })
+      .send({ content: QUESTION, clientMessageId: randomUUID() })
       .expect(201)
     const turn = response.body as TutoringTurnResponseDto
 
@@ -1295,7 +1308,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       const response = await request(requireApp().getHttpServer())
         .post(messagesPath(session.id))
         .set('Authorization', `Bearer ${studentToken}`)
-        .send({ content })
+        .send({ content, clientMessageId: randomUUID() })
         .expect(201)
       const turn = response.body as TutoringTurnResponseDto
       hintLevels.push(turn.assistantMessage.hintLevel)
@@ -1355,7 +1368,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       const response = await request(requireApp().getHttpServer())
         .post(messagesPath(session.id))
         .set('Authorization', `Bearer ${studentToken}`)
-        .send({ content })
+        .send({ content, clientMessageId: randomUUID() })
         .expect(201)
       const turn = response.body as TutoringTurnResponseDto
       hintLevels.push(turn.assistantMessage.hintLevel)
@@ -1415,13 +1428,16 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       await request(requireApp().getHttpServer())
         .post(messagesPath(firstSession.id))
         .set('Authorization', `Bearer ${studentToken}`)
-        .send({ content })
+        .send({ content, clientMessageId: randomUUID() })
         .expect(201)
     }
     const secondResponse = await request(requireApp().getHttpServer())
       .post(messagesPath(secondSession.id))
       .set('Authorization', `Bearer ${studentToken}`)
-      .send({ content: 'I tried a detailed step in this separate chat.' })
+      .send({
+        content: 'I tried a detailed step in this separate chat.',
+        clientMessageId: randomUUID(),
+      })
       .expect(201)
     const secondTurn = secondResponse.body as TutoringTurnResponseDto
 
@@ -1448,7 +1464,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     const response = await request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
       .set('Authorization', `Bearer ${studentToken}`)
-      .send({ content: injection })
+      .send({ content: injection, clientMessageId: randomUUID() })
       .expect(201)
     const turn = response.body as TutoringTurnResponseDto
     expect(turn.assistantMessage).toMatchObject({
@@ -1467,7 +1483,10 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     const response = await request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
       .set('Authorization', `Bearer ${studentToken}`)
-      .send({ content: 'No course material covers this topic' })
+      .send({
+        content: 'No course material covers this topic',
+        clientMessageId: randomUUID(),
+      })
       .expect(201)
     const turn = response.body as TutoringTurnResponseDto
 
@@ -1526,7 +1545,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       const response = await request(requireApp().getHttpServer())
         .post(messagesPath(session.id))
         .set('Authorization', `Bearer ${studentToken}`)
-        .send({ content })
+        .send({ content, clientMessageId: randomUUID() })
         .expect(201)
       finalTurn = response.body as TutoringTurnResponseDto
       expect(finalTurn.assistantMessage.status).toBe('COMPLETED')
@@ -1553,7 +1572,10 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     const response = await request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
       .set('Authorization', `Bearer ${studentToken}`)
-      .send({ content: 'Question with embedding failure' })
+      .send({
+        content: 'Question with embedding failure',
+        clientMessageId: randomUUID(),
+      })
       .expect(201)
     const turn = response.body as TutoringTurnResponseDto
 
@@ -1606,6 +1628,19 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     await expect(
       prisma.tutoringAttempt.count({ where: { sessionId: session.id } }),
     ).resolves.toBe(1)
+
+    const mismatched = await request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${studentToken}`)
+      .send({ content: 'Different payload', clientMessageId })
+      .expect(409)
+    expect(mismatched.body).toEqual({
+      code: CONVERSATION_ERROR_CODES.IDEMPOTENCY_KEY_REUSED,
+      message: 'The client message ID was already used for different content',
+    })
+    await expect(
+      prisma.tutoringAttempt.count({ where: { sessionId: session.id } }),
+    ).resolves.toBe(1)
   })
 
   // ── 7. Retry: failed → COMPLETED ──────────────────────────────────
@@ -1639,7 +1674,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     const failedResponse = await request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
       .set('Authorization', `Bearer ${studentToken}`)
-      .send({ content: 'Retry this question' })
+      .send({ content: 'Retry this question', clientMessageId: randomUUID() })
       .expect(201)
     const failedTurn = failedResponse.body as TutoringTurnResponseDto
     expect(failedTurn.assistantMessage.status).toBe('FAILED')
@@ -1650,9 +1685,12 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     expect(failedAttemptQuery).toBeDefined()
 
     embeddingFailure = false
-    const retryPath = `${messagesPath(session.id)}/${failedTurn.studentMessage.id}/retry`
+    const retryAttemptPath = retryPath(
+      session.id,
+      failedTurn.assistantMessage.attemptId,
+    )
     const retryResponse = await request(requireApp().getHttpServer())
-      .post(retryPath)
+      .post(retryAttemptPath)
       .set('Authorization', `Bearer ${studentToken}`)
       .expect(200)
     const retriedTurn = retryResponse.body as TutoringTurnResponseDto
@@ -1668,7 +1706,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     ).resolves.toBe(2)
 
     const disallowedRetry = await request(requireApp().getHttpServer())
-      .post(retryPath)
+      .post(retryAttemptPath)
       .set('Authorization', `Bearer ${studentToken}`)
       .expect(409)
     expect(disallowedRetry.body).toEqual({
@@ -1711,7 +1749,10 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     const firstResponsePromise = request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
       .set('Authorization', `Bearer ${studentToken}`)
-      .send({ content: 'First concurrent question' })
+      .send({
+        content: 'First concurrent question',
+        clientMessageId: randomUUID(),
+      })
       .then((response) => response)
 
     // Wait for the first request to enter the tutor model gate
@@ -1722,7 +1763,10 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     const conflict = await request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
       .set('Authorization', `Bearer ${studentToken}`)
-      .send({ content: 'Second concurrent question' })
+      .send({
+        content: 'Second concurrent question',
+        clientMessageId: randomUUID(),
+      })
       .expect(409)
     expect(conflict.body).toEqual({
       code: CONVERSATION_ERROR_CODES.TURN_IN_PROGRESS,
@@ -1753,19 +1797,17 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     const failedResponse = await request(requireApp().getHttpServer())
       .post(messagesPath(session1.id))
       .set('Authorization', `Bearer ${studentToken}`)
-      .send({ content: 'Private question' })
+      .send({ content: 'Private question', clientMessageId: randomUUID() })
       .expect(201)
     const failedTurn = failedResponse.body as TutoringTurnResponseDto
 
     const crossRetry = await request(requireApp().getHttpServer())
-      .post(
-        `${messagesPath(session2.id)}/${failedTurn.studentMessage.id}/retry`,
-      )
+      .post(retryPath(session2.id, failedTurn.assistantMessage.attemptId))
       .set('Authorization', `Bearer ${studentToken}`)
       .expect(404)
     expect(crossRetry.body).toEqual({
       code: CONVERSATION_ERROR_CODES.RETRY_TARGET_NOT_FOUND,
-      message: 'Conversation message was not found',
+      message: 'Tutoring attempt was not found',
     })
   })
 })

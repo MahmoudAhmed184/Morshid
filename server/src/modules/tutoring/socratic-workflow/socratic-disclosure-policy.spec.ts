@@ -1,4 +1,4 @@
-import { RevealPolicy } from '../../../generated/prisma/client'
+import { RevealPolicy } from '../tutoring-values'
 
 import { buildSocraticDisclosureContract } from './socratic-disclosure-policy'
 import type { TeachingGuardPolicy } from './teaching-policy.types'

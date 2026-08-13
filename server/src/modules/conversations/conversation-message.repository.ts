@@ -2,13 +2,13 @@ import { Injectable } from '@nestjs/common'
 
 import { PrismaService } from '../../platform/database/prisma.service'
 import {
-  chatMessageSelectForStudent,
+  chatMessageSelect,
   ownedActiveSessionWhere,
 } from './conversation-repository.support'
 import type {
   ChatMessageRecord,
   MessageListPagination,
-} from './conversation-records'
+} from './interface/conversation-records'
 
 export abstract class ConversationMessageRepository {
   abstract listMessages(
@@ -56,7 +56,7 @@ export class PrismaConversationMessageRepository extends ConversationMessageRepo
         sessionId: session.id,
         ...(sequenceFilter === undefined ? {} : { sequence: sequenceFilter }),
       },
-      select: chatMessageSelectForStudent(studentId),
+      select: chatMessageSelect,
       orderBy: {
         sequence: isLoadingLatestOrEarlier ? 'desc' : 'asc',
       },

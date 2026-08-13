@@ -8,7 +8,7 @@ import {
   TeachingTechnique,
   TopicStatus,
   TopicType,
-} from '../../../generated/prisma/client'
+} from '../tutoring-values'
 import type { CourseEvidenceChunk } from '../../materials/materials.public'
 import type { AnalysisContextPackage } from './analysis-context.types'
 import type { AnalysisModelPort } from './analysis-model.port'

@@ -23,8 +23,8 @@ import type {
   ChatMessageHistoryResponseDto,
   ChatSessionListResponseDto,
   ChatSessionResponseDto,
-} from '../../src/modules/conversations/conversations.dto'
-import { CONVERSATION_ERROR_CODES } from '../../src/modules/conversations/conversation.errors'
+} from '../../src/modules/conversations/interface/conversation-dto'
+import { CONVERSATION_ERROR_CODES } from '../../src/modules/conversations/interface/conversation-errors'
 import {
   P0_DEMO_PASSWORD,
   P0_HIDDEN_ISOLATION_COURSE,

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
-import { MessageRole } from '../conversations/conversations.public'
+import { MessageRole } from '../conversations/interface/conversation-values'
 import { ReviewMessageRole } from './review-values'
 import { CourseAccessService } from '../courses/course-access.public'
 import type { AuthenticatedUser } from '../identity/identity.types'

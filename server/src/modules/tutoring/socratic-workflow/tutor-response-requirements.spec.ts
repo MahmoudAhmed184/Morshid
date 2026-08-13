@@ -1,7 +1,4 @@
-import {
-  MessageRequestKind,
-  StudentState,
-} from '../../../generated/prisma/client'
+import { MessageRequestKind, StudentState } from '../tutoring-values'
 
 import { EFFORT_QUALITY } from './educational-analysis.types'
 import { buildTutorResponseRequirements } from './tutor-response-requirements'

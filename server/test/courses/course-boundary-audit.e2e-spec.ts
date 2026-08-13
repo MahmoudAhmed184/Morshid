@@ -13,7 +13,7 @@ import type { IdentitySessionResponse } from '../../src/modules/identity/identit
 import { MaterialProcessingScheduler } from '../../src/modules/materials/material-processing.scheduler'
 import { PrismaService } from '../../src/platform/database/prisma.service'
 import { RedisService } from '../../src/platform/cache/redis.service'
-import { CONVERSATION_ERROR_CODES } from '../../src/modules/conversations/conversation.errors'
+import { CONVERSATION_ERROR_CODES } from '../../src/modules/conversations/interface/conversation-errors'
 import { P0_DEMO_PASSWORD } from '../../src/seeds/p0-demo.seed'
 import { IdentityTestStore } from '../support/identity-test-store'
 import { NoopMaterialProcessingScheduler } from '../support/noop-material-processing-scheduler'

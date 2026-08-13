@@ -39,6 +39,8 @@ import {
   PrismaStudentReviewInboxRepository,
   StudentReviewInboxRepository,
 } from './student-inbox/student-review-inbox.repository'
+import { StudentReviewSummaries } from './interface/student-review-summaries'
+import { PrismaStudentReviewSummaries } from './student-review-summaries'
 
 @Module({
   imports: [AuditModule, CoursesModule, IdentityModule, PrismaModule],
@@ -83,7 +85,11 @@ import {
       provide: StudentReviewInboxRepository,
       useClass: PrismaStudentReviewInboxRepository,
     },
+    {
+      provide: StudentReviewSummaries,
+      useClass: PrismaStudentReviewSummaries,
+    },
   ],
-  exports: [ReviewCaseCreator, ReviewCaseIntake],
+  exports: [ReviewCaseCreator, ReviewCaseIntake, StudentReviewSummaries],
 })
 export class ReviewsModule {}

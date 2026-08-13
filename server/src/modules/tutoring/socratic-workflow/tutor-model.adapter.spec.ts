@@ -12,7 +12,7 @@ import {
   TutorModelError,
   type TutorModelRequest,
 } from './tutor-generation.types'
-import { TUTOR_GENERATION_PROMPT_VERSION } from './tutor-prompt.registry'
+import { TUTOR_GENERATION_PROMPT_VERSION } from './tutor-prompt.definition'
 
 const request = Object.freeze<TutorModelRequest>({
   messages: Object.freeze([

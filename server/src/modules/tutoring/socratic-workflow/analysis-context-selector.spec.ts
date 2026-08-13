@@ -3,7 +3,7 @@ import {
   MessageStatus,
   RevealPolicy,
   StudentState,
-} from '../../../generated/prisma/client'
+} from '../tutoring-values'
 import {
   approximateAnalysisTokens,
   previousTeachingDecisionFromTopicState,

@@ -1,7 +1,4 @@
-import {
-  MessageGuidanceLabel,
-  MessageRequestKind,
-} from '../../../generated/prisma/client'
+import { MessageGuidanceLabel, MessageRequestKind } from '../tutoring-values'
 import { parseTutorDecision } from './tutor-decision.contract'
 
 const validCodeDiagnosisDecision = () => ({

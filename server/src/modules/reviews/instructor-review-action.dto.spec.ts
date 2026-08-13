@@ -1,4 +1,4 @@
-import { ReviewOutcome } from '../../generated/prisma/client'
+import { ReviewOutcome } from './review-values'
 import {
   rejectReviewRequestSchema,
   resolveReviewRequestSchema,

@@ -28,7 +28,7 @@ import {
   type TutorModelResponse,
 } from './tutor-generation.types'
 import { buildTutorGenerationModelRequest } from './tutor-prompt.builder'
-import { TUTOR_GENERATION_PROMPT_VERSION } from './tutor-prompt.registry'
+import { TUTOR_GENERATION_PROMPT_VERSION } from './tutor-prompt.definition'
 import { validateCandidateResponse } from './tutor-candidate.schema'
 import { tutorFailureFromModelError } from './tutor-model.adapter'
 import {

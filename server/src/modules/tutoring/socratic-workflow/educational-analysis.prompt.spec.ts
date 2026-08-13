@@ -3,7 +3,7 @@ import {
   MessageStatus,
   TopicStatus,
   TopicType,
-} from '../../../generated/prisma/client'
+} from '../tutoring-values'
 import type { AnalysisContextPackage } from './analysis-context.types'
 import {
   ANALYSIS_UNTRUSTED_CONTEXT_BEGIN_MARKER,

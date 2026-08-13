@@ -3,10 +3,7 @@ import type {
   GenerationContextPackage,
   TutorModelRequest,
 } from './tutor-generation.types'
-import {
-  TUTOR_GENERATION_PROMPT_VERSION,
-  getTutorPromptDefinition,
-} from './tutor-prompt.registry'
+import { TUTOR_GENERATION_PROMPT_VERSION } from './tutor-prompt.definition'
 import { buildSocraticDisclosureContract } from './socratic-disclosure-policy'
 import { buildTutorResponseRequirements } from './tutor-response-requirements'
 
@@ -47,7 +44,6 @@ export function buildTutorGenerationModelRequest(
   context: GenerationContextPackage,
   signal?: AbortSignal,
 ): TutorModelRequest {
-  getTutorPromptDefinition(TUTOR_GENERATION_PROMPT_VERSION)
   const messages: TutorModelRequest['messages'] = Object.freeze([
     Object.freeze({
       role: 'system',

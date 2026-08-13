@@ -1,9 +1,9 @@
+import { CourseMembershipRole } from '../courses/course-membership.types'
 import {
-  CourseMembershipRole,
   ReviewStatus,
   ReviewTriggerType,
   StudentFlagReason,
-} from '../../generated/prisma/client'
+} from './review-values'
 import type { PrismaService } from '../../platform/database/prisma.service'
 import { PrismaInstructorReviewQueueRepository } from './instructor-review-queue.repository'
 

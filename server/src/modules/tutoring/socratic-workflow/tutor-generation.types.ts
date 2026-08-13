@@ -10,7 +10,7 @@ import type { CourseEvidenceChunk } from '../../materials/materials.public'
 import type { PersistedTeachingDecisionRecord } from './teaching-decision.repository'
 import type { TopicRecord } from './topic.types'
 import type { TopicStateSnapshot } from './topic-state.types'
-import type { TUTOR_GENERATION_PROMPT_VERSION } from './tutor-prompt.registry'
+import type { TUTOR_GENERATION_PROMPT_VERSION } from './tutor-prompt.definition'
 import type { ValidationResult } from './response-validation.types'
 import type { DebuggingGuidanceContext } from './debugging-guidance.contract'
 

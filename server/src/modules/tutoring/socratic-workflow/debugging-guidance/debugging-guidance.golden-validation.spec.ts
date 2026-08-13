@@ -1,10 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-import {
-  MessageGuidanceLabel,
-  MessageRequestKind,
-} from '../../../../generated/prisma/client'
+import { MessageGuidanceLabel, MessageRequestKind } from '../../tutoring-values'
 import { selectTutorStrategy } from '../tutor-strategy'
 import {
   type DebuggingGuidanceFixture,
@@ -72,10 +69,6 @@ function evaluateFixture(fixture: DebuggingGuidanceFixture): GoldenResult {
     selection.boundaryResponse !== null
       ? (() => {
           const errorCode = selection.boundaryResponse.errorCode
-          if (errorCode.includes('UNSUPPORTED_LANGUAGE'))
-            return 'UNSUPPORTED_LANGUAGE'
-          if (errorCode.includes('MORE_INFORMATION'))
-            return 'INSUFFICIENT_INFORMATION'
           if (errorCode.includes('LINE_LIMIT')) return 'TOO_MANY_LINES'
           if (errorCode.includes('UNSUPPORTED_SCOPE'))
             return 'UNSUPPORTED_SCOPE'
@@ -400,12 +393,13 @@ describe('Debugging guidance golden validation', () => {
     })
   })
 
-  describe('unsupported-language boundary', () => {
+  describe('language-neutral diagnosis boundary', () => {
     it.each([
-      'code-diagnosis-unsupported-javascript-001',
-      'code-diagnosis-unsupported-java-001',
-      'code-diagnosis-unsupported-c-001',
-    ])('rejects %s with zero provider calls', (fixtureId) => {
+      'code-diagnosis-javascript-001',
+      'code-diagnosis-typescript-001',
+      'code-diagnosis-java-001',
+      'code-diagnosis-c-001',
+    ])('routes %s through one structured diagnosis', (fixtureId) => {
       const fixture = findFixture(dataset.fixtures, fixtureId)
       const input = materializeDebuggingGuidanceFixtureInput(fixture)
       const selection = selectTutorStrategy(input)
@@ -413,11 +407,11 @@ describe('Debugging guidance golden validation', () => {
       results.push(result)
 
       expect(result.pass).toBe(true)
-      expect(result.expectedBoundary).toBe('UNSUPPORTED_LANGUAGE')
-      expect(selection.boundaryResponse).not.toBeNull()
-      expect(selection.retrievalQuery).toBeNull()
-      expect(selection.diagnosis).toBeNull()
-      expect(fixture.expectedProviderCalls).toBe(0)
+      expect(result.expectedBoundary).toBe('SUPPORTED')
+      expect(selection.boundaryResponse).toBeNull()
+      expect(selection.retrievalQuery).not.toBeNull()
+      expect(selection.diagnosis).not.toBeNull()
+      expect(fixture.expectedProviderCalls).toBeNull()
     })
   })
 
@@ -560,19 +554,18 @@ describe('Debugging guidance golden validation', () => {
       expect(first.fullRewriteRequested).toBe(second.fullRewriteRequested)
     })
 
-    it('produces stable boundary response for boundary inputs', () => {
+    it('produces stable language-neutral diagnosis for boundary fixtures', () => {
       const fixture = findFixture(
         dataset.fixtures,
-        'code-diagnosis-unsupported-javascript-001',
+        'code-diagnosis-javascript-001',
       )
       const input = materializeDebuggingGuidanceFixtureInput(fixture)
 
       const first = selectTutorStrategy(input)
       const second = selectTutorStrategy(input)
 
-      expect(first.boundaryResponse).toEqual(second.boundaryResponse)
-      expect(first.diagnosis).toBeNull()
-      expect(second.diagnosis).toBeNull()
+      expect(first.boundaryResponse).toBeNull()
+      expect(first.diagnosis).toEqual(second.diagnosis)
     })
   })
 

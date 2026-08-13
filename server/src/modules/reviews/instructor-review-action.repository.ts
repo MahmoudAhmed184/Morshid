@@ -3,7 +3,6 @@ import { createHash, randomUUID } from 'node:crypto'
 import { Injectable } from '@nestjs/common'
 
 import {
-  CourseMembershipRole,
   ReviewInboxItemType,
   Prisma,
   ReviewActionType,
@@ -15,6 +14,7 @@ import { PrismaService } from '../../platform/database/prisma.service'
 import { asDatabaseTransaction } from '../../platform/database/database-transaction'
 import { AuditService } from '../audit/audit.public'
 import type { AuditRequestContext } from '../audit/audit.public'
+import { ActiveCourseMembership } from '../courses/interface/active-course-membership'
 import type {
   RejectReviewRequest,
   ResolveReviewRequest,
@@ -75,6 +75,7 @@ export class PrismaInstructorReviewActionRepository extends InstructorReviewActi
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
+    private readonly activeCourseMembership: ActiveCourseMembership,
   ) {
     super()
   }
@@ -99,6 +100,23 @@ export class PrismaInstructorReviewActionRepository extends InstructorReviewActi
         await tx.$queryRaw`
           SELECT pg_advisory_xact_lock(hashtextextended(${deliveryKey}, 0)) IS NULL AS locked
         `
+
+        const visibleCase = await tx.reviewCase.findFirst({
+          where: visibleCaseWhere(input.reviewCaseId),
+          select: { courseId: true },
+        })
+        if (
+          visibleCase === null ||
+          !(await this.activeCourseMembership.lockInstructor(
+            {
+              courseId: visibleCase.courseId,
+              userId: input.instructorId,
+            },
+            asDatabaseTransaction(tx),
+          ))
+        ) {
+          return { kind: 'not_found' }
+        }
 
         await tx.idempotencyRecord.deleteMany({
           where: {
@@ -126,7 +144,7 @@ export class PrismaInstructorReviewActionRepository extends InstructorReviewActi
             return { kind: 'idempotency_conflict' }
           }
           const reviewCase = await tx.reviewCase.findFirst({
-            where: authorizedCaseWhere(input),
+            where: visibleCaseWhere(input.reviewCaseId),
             select: terminalCaseSelect,
           })
           return reviewCase === null || !isTerminalRecord(reviewCase)
@@ -138,7 +156,7 @@ export class PrismaInstructorReviewActionRepository extends InstructorReviewActi
           SELECT pg_advisory_xact_lock(hashtextextended(${input.reviewCaseId}, 0)) IS NULL AS locked
         `
         const reviewCase = await tx.reviewCase.findFirst({
-          where: authorizedCaseWhere(input),
+          where: visibleCaseWhere(input.reviewCaseId),
           select: {
             ...terminalCaseSelect,
             targetMessage: {
@@ -286,21 +304,10 @@ const terminalCaseSelect = {
   resolvedAt: true,
 } satisfies Prisma.ReviewCaseSelect
 
-function authorizedCaseWhere(
-  input: InstructorReviewActionInput,
-): Prisma.ReviewCaseWhereInput {
+function visibleCaseWhere(reviewCaseId: string): Prisma.ReviewCaseWhereInput {
   return {
-    id: input.reviewCaseId,
+    id: reviewCaseId,
     targetMessage: { session: { deletedAt: null } },
-    course: {
-      memberships: {
-        some: {
-          userId: input.instructorId,
-          role: CourseMembershipRole.INSTRUCTOR,
-          removedAt: null,
-        },
-      },
-    },
   }
 }
 

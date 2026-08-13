@@ -110,9 +110,11 @@ test.describe('Student debugging guidance', () => {
     ).toBe(diagnosisBeforeReload)
   })
 
-  test('shows an unsupported-language boundary for clearly unsupported code', async ({
+  test('routes JavaScript through the unified workflow without language rejection', async ({
     page,
+    request,
   }) => {
+    await ensureFunctionsAndScopeSource(request)
     await signInThroughUi(page, demoAccounts.student2)
 
     const jsCode = [
@@ -127,8 +129,16 @@ test.describe('Student debugging guidance', () => {
     await page.getByRole('button', { name: 'Send message' }).click()
 
     const history = page.getByRole('list', { name: 'Conversation history' })
-    await expect(history.getByText(/supported code snippet/iu)).toBeVisible()
-    await expect(history.getByText('Likely defect')).not.toBeVisible()
+    await expect(history.getByLabel('javascript code')).toBeVisible()
+    await expect(
+      history.getByText(/show the last step you were confident about/iu),
+    ).toBeVisible()
+    await expect(
+      history.getByText(/supported code snippet/iu),
+    ).not.toBeVisible()
+    await expect(
+      history.getByRole('button', { name: 'Request review' }),
+    ).toBeVisible()
   })
 
   test('shows reduction request for over-limit code', async ({ page }) => {

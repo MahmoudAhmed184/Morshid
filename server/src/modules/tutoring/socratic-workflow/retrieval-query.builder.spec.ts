@@ -7,7 +7,7 @@ import {
   TeachingTechnique,
   TopicStatus,
   TopicType,
-} from '../../../generated/prisma/client'
+} from '../tutoring-values'
 import type {
   AnalysisContextMessage,
   AnalysisContextPackage,

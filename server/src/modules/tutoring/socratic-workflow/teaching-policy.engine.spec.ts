@@ -5,7 +5,7 @@ import {
   StudentState,
   TeachingStrategy,
   TeachingTechnique,
-} from '../../../generated/prisma/client'
+} from '../tutoring-values'
 import type { PersistedEducationalAnalysisRecord } from './educational-analysis.repository'
 import {
   EDUCATIONAL_ANALYSIS_SOURCE,
