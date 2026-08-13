@@ -7,21 +7,21 @@ import {
   ANALYSIS_MODEL_PORT,
   type AnalysisModelPort,
   type AnalysisModelRequest,
-} from './analysis-model.port'
-import { EDUCATIONAL_ANALYSIS_PROMPT_VERSION } from './educational-analysis.prompt'
+} from './analysis/analysis-model.port'
+import { EDUCATIONAL_ANALYSIS_PROMPT_VERSION } from './analysis/educational-analysis.prompt'
 import {
   SEMANTIC_GUARD_PORT,
   SEMANTIC_GUARD_PROMPT_VERSION,
   type SemanticGuardPort,
   type SemanticGuardRequest,
-} from './semantic-guard.types'
+} from './response-approval/semantic-guard.types'
 import { SocraticWorkflowModule } from './socratic-workflow.module'
 import {
   TUTOR_MODEL_PORT,
   type TutorModelPort,
   type TutorModelRequest,
-} from './tutor-generation.types'
-import { TUTOR_GENERATION_PROMPT_VERSION } from './tutor-prompt.registry'
+} from './generation/tutor-generation.types'
+import { TUTOR_GENERATION_PROMPT_VERSION } from './generation/tutor-prompt.definition'
 
 const pooledApiKey = 'first-secret-api-key-value'
 const geminiBaseUrl = 'https://generativelanguage.googleapis.com/v1beta/openai'

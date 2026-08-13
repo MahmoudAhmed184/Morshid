@@ -9,27 +9,27 @@ import {
 } from '../src/platform/ai/upstream/gemini-pooled-fetch.js'
 import type { FetchImplementation } from '../src/platform/ai/upstream/structured-chat.transport.js'
 import { parseTutoringConfiguration } from '../src/modules/tutoring/tutoring.configuration.js'
-import { OPENAI_COMPATIBLE_ANALYSIS_MODEL_PROVIDER } from '../src/modules/tutoring/socratic-workflow/analysis-model.configuration.js'
-import { createAnalysisModelPort } from '../src/modules/tutoring/socratic-workflow/analysis-model.provider.js'
-import { buildEducationalAnalysisModelRequest } from '../src/modules/tutoring/socratic-workflow/educational-analysis.prompt.js'
-import { validateEducationalAnalysisResult } from '../src/modules/tutoring/socratic-workflow/educational-analysis.validator.js'
-import { OPENAI_COMPATIBLE_TUTOR_MODEL_PROVIDER } from '../src/modules/tutoring/socratic-workflow/tutor-model.configuration.js'
-import { createTutorModelPort } from '../src/modules/tutoring/socratic-workflow/tutor-model.adapter.js'
+import { OPENAI_COMPATIBLE_ANALYSIS_MODEL_PROVIDER } from '../src/modules/tutoring/infrastructure/analysis-model.configuration.js'
+import { createAnalysisModelPort } from '../src/modules/tutoring/infrastructure/analysis-model.provider.js'
+import { buildEducationalAnalysisModelRequest } from '../src/modules/tutoring/socratic-workflow/analysis/educational-analysis.prompt.js'
+import { validateEducationalAnalysisResult } from '../src/modules/tutoring/socratic-workflow/analysis/educational-analysis.validator.js'
+import { OPENAI_COMPATIBLE_TUTOR_MODEL_PROVIDER } from '../src/modules/tutoring/infrastructure/tutor-model.configuration.js'
+import { createTutorModelPort } from '../src/modules/tutoring/infrastructure/tutor-model.adapter.js'
 import {
   buildGenerationContextPackage,
   guardEducationalContextFromGenerationContext,
-} from '../src/modules/tutoring/socratic-workflow/tutor-generation-context.js'
-import { buildTutorGenerationModelRequest } from '../src/modules/tutoring/socratic-workflow/tutor-prompt.builder.js'
-import { validateCandidateResponse } from '../src/modules/tutoring/socratic-workflow/tutor-candidate.schema.js'
-import { OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER } from '../src/modules/tutoring/socratic-workflow/semantic-guard.configuration.js'
-import { createSemanticGuardPort } from '../src/modules/tutoring/socratic-workflow/semantic-guard.adapter.js'
-import { SemanticGuardService } from '../src/modules/tutoring/socratic-workflow/semantic-guard.service.js'
+} from '../src/modules/tutoring/socratic-workflow/generation/tutor-generation-context.js'
+import { buildTutorGenerationModelRequest } from '../src/modules/tutoring/socratic-workflow/generation/tutor-prompt.builder.js'
+import { validateCandidateResponse } from '../src/modules/tutoring/socratic-workflow/generation/tutor-candidate.schema.js'
+import { OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER } from '../src/modules/tutoring/infrastructure/semantic-guard.configuration.js'
+import { createSemanticGuardPort } from '../src/modules/tutoring/infrastructure/semantic-guard.adapter.js'
+import { SemanticGuardService } from '../src/modules/tutoring/socratic-workflow/response-approval/semantic-guard.service.js'
 import {
   SEMANTIC_GUARD_ERROR_CODE,
   SemanticGuardModelError,
   type SemanticGuardPort,
-} from '../src/modules/tutoring/socratic-workflow/semantic-guard.types.js'
-import { RESPONSE_VALIDATION_ACTION } from '../src/modules/tutoring/socratic-workflow/response-validation.types.js'
+} from '../src/modules/tutoring/socratic-workflow/response-approval/semantic-guard.types.js'
+import { RESPONSE_VALIDATION_ACTION } from '../src/modules/tutoring/socratic-workflow/response-approval/response-validation.types.js'
 import {
   TUTORING_ROLE_CHAIN_ANALYSIS_CONTEXT,
   TUTORING_ROLE_CHAIN_LIVE_IDS,

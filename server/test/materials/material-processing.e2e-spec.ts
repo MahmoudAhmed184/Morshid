@@ -24,32 +24,32 @@ import {
   type EmbeddingProvider,
 } from '../../src/platform/ai/embedding/embedding-provider'
 import { ValidatedEmbeddingProvider } from '../../src/platform/ai/embedding/validated-embedding.provider'
-import { MaterialProcessingScheduler } from '../../src/modules/materials/material-processing.scheduler'
+import { MaterialProcessingScheduler } from '../../src/modules/materials/processing/material-processing.scheduler'
 import {
   MATERIAL_PROCESSING_FAILURES,
   MATERIAL_PROCESSING_SAFE_MESSAGES,
   MATERIAL_PROCESSING_WARNING_MESSAGES,
   MaterialProcessingService,
   type MaterialProcessingFailure,
-} from '../../src/modules/materials/material-processing.service'
-import { MaterialsRepository } from '../../src/modules/materials/materials.repository'
+} from '../../src/modules/materials/processing/material-processing.service'
+import { MaterialsRepository } from '../../src/modules/materials/catalog/materials.repository'
 import {
   PDF_TEXT_EXTRACTOR,
   PdfJsDocumentLoader,
   PdfJsTextExtractor,
   type PdfTextExtractionResult,
   type PdfTextExtractor,
-} from '../../src/modules/materials/pdf-text-extractor'
+} from '../../src/modules/materials/processing/pdf-text-extractor'
 import { LocalPdfStorageAdapter } from '../../src/platform/document-storage/local-pdf-storage.adapter'
 import {
   PDF_STORAGE,
   type PdfStorage,
 } from '../../src/platform/document-storage/pdf-storage'
 import { PrismaService } from '../../src/platform/database/prisma.service'
-import { MaterialChunkEmbeddingService } from '../../src/modules/materials/material-chunk-embedding.service'
-import { MaterialChunkRepository } from '../../src/modules/materials/material-chunk.repository'
+import { MaterialChunkEmbeddingService } from '../../src/modules/materials/processing/material-chunk-embedding.service'
+import { MaterialChunkRepository } from '../../src/modules/materials/processing/material-chunk.repository'
 import { RedisService } from '../../src/platform/cache/redis.service'
-import { CourseEvidence } from '../../src/modules/materials/course-evidence'
+import { CourseEvidence } from '../../src/modules/materials/interface/course-evidence'
 import { P0_DEMO_PASSWORD, seedP0DemoData } from '../../src/seeds/p0-demo.seed'
 import {
   TASK_80_SENTINEL,

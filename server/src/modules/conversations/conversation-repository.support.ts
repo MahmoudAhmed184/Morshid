@@ -32,67 +32,7 @@ export const chatMessageScalarSelect = {
 
 export const chatMessageSelect = {
   ...chatMessageScalarSelect,
-  citations: {
-    select: {
-      citationOrder: true,
-      material: {
-        select: {
-          id: true,
-          title: true,
-          storagePath: true,
-          status: true,
-          deletedAt: true,
-          extractedTextLength: true,
-          chunkCount: true,
-        },
-      },
-    },
-    orderBy: {
-      citationOrder: 'asc',
-    },
-  },
-  retrievals: {
-    select: {
-      rank: true,
-      similarityScore: true,
-      chunk: {
-        select: {
-          id: true,
-          materialId: true,
-          chunkIndex: true,
-          content: true,
-          embeddingModel: true,
-        },
-      },
-    },
-    orderBy: {
-      rank: 'asc',
-    },
-  },
 } satisfies Prisma.MessageSelect
-
-export function chatMessageSelectForStudent(studentId: string) {
-  return {
-    ...chatMessageSelect,
-    reviewCase: {
-      select: {
-        id: true,
-        status: true,
-        outcome: true,
-        resolvedAt: true,
-        triggers: {
-          where: {
-            OR: [
-              { type: { not: 'STUDENT_REQUEST' as const } },
-              { type: 'STUDENT_REQUEST' as const, actorUserId: studentId },
-            ],
-          },
-          select: { id: true },
-        },
-      },
-    },
-  } satisfies Prisma.MessageSelect
-}
 
 export function ownedActiveSessionWhere(
   courseId: string,

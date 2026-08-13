@@ -13,8 +13,8 @@ import {
 } from '../../../common/http/request-context'
 import type { AccessAuditActor } from '../../audit/audit.public'
 import type { AuthenticatedUser } from '../../identity/identity.types'
-import { CONVERSATION_ERROR_CODES } from '../conversation.errors'
-import { ConversationsService } from '../conversations.service'
+import { CONVERSATION_ERROR_CODES } from './conversation-errors'
+import { ConversationCourseBoundaryAudit } from './conversation-course-boundary-audit'
 
 interface CourseScopedHttpRequest extends Request {
   user?: AuthenticatedUser
@@ -41,7 +41,9 @@ export class ConversationCourseBoundaryAuditFilter implements ExceptionFilter {
     ConversationCourseBoundaryAuditFilter.name,
   )
 
-  constructor(private readonly conversationsService: ConversationsService) {}
+  constructor(
+    private readonly boundaryAudit: ConversationCourseBoundaryAudit,
+  ) {}
 
   async catch(
     exception: ForbiddenException,
@@ -53,7 +55,7 @@ export class ConversationCourseBoundaryAuditFilter implements ExceptionFilter {
 
     if (isCourseBoundaryDenial(exception)) {
       try {
-        await this.conversationsService.recordCourseBoundaryDenied(
+        await this.boundaryAudit.recordCourseBoundaryDenied(
           readCourseIdParam(request),
           readActor(request),
           getRouteContext(request),

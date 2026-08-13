@@ -5,7 +5,8 @@ import { promisify } from 'node:util'
 
 import { StudentFlagReason } from '../../src/generated/prisma/client'
 import { AuditService } from '../../src/modules/audit/audit.service'
-import { PrismaReviewCaseRepository } from '../../src/modules/reviews/review-case.repository'
+import { PrismaReviewCaseRepository } from '../../src/modules/reviews/intake/review-case.repository'
+import { PrismaActiveCourseMembership } from '../../src/modules/courses/active-course-membership'
 import {
   P0_DEMO_COURSE,
   P0_HIDDEN_ISOLATION_COURSE,
@@ -197,6 +198,7 @@ describe('Fresh migration and seed manual review readiness (e2e)', () => {
     const repository = new PrismaReviewCaseRepository(
       prisma,
       new AuditService(prisma),
+      new PrismaActiveCourseMembership(),
     )
     await expect(
       repository.create({

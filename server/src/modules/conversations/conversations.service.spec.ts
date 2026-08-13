@@ -1,12 +1,7 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common'
 
-import {
-  MessageRole,
-  MessageStatus,
-  UserRole,
-  UserStatus,
-} from '../../generated/prisma/client'
 import type { AuthenticatedUser } from '../identity/identity.types'
+import { UserRole, UserStatus } from '../identity/identity.roles'
 import type { AccessAuditService } from '../audit/audit.public'
 import type { ConversationAuditService } from './conversation-audit.service'
 import {
@@ -14,9 +9,10 @@ import {
   listChatMessagesQuerySchema,
   renameChatSessionRequestSchema,
   sendTutoringMessageRequestSchema,
-} from './conversations.dto'
+} from './interface/conversation-dto'
+import { MessageRole, MessageStatus } from './interface/conversation-values'
 import type { ConversationMessageRepository } from './conversation-message.repository'
-import { ConversationMessagePresenter } from '../conversations/conversation-message.presenter'
+import { ApplicationConversationMessagePresenter } from '../../application/conversation-message.presenter'
 import { ConversationSessionRepository } from './conversation-session.repository'
 import type {
   ChatMessageRecord,
@@ -25,7 +21,7 @@ import type {
   SessionListPagination,
   SoftDeleteChatSessionInput,
   SoftDeleteSessionOutcome,
-} from '../conversations/conversation-records'
+} from '../conversations/interface/conversation-records'
 import { ConversationsService } from './conversations.service'
 
 const createdAt = new Date('2026-07-14T10:00:00.000Z')
@@ -286,9 +282,15 @@ describe('ConversationsService', () => {
         repository,
         auditService as unknown as ConversationAuditService,
         accessAuditService as unknown as AccessAuditService,
-        new ConversationMessagePresenter({
-          exists: jest.fn().mockResolvedValue(true),
-        } as never),
+        new ApplicationConversationMessagePresenter(
+          {
+            loadForMessages: jest.fn().mockResolvedValue([]),
+            loadPolicyEvidence: jest.fn().mockResolvedValue([]),
+          },
+          {
+            loadForMessages: jest.fn().mockResolvedValue([]),
+          },
+        ),
       ),
     }
   }
@@ -349,7 +351,7 @@ describe('ConversationsService', () => {
       sendTutoringMessageRequestSchema.safeParse({
         content: '😀'.repeat(4_000),
       }).success,
-    ).toBe(true)
+    ).toBe(false)
 
     for (const input of [
       { content: '   ' },
@@ -843,8 +845,6 @@ function makeMessage(
     errorCode: values.errorCode ?? null,
     createdAt,
     completedAt: values.completedAt ?? null,
-    citations: values.citations ?? [],
-    retrievals: values.retrievals ?? [],
   }
 }
 

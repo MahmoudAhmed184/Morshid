@@ -86,7 +86,7 @@ interface SendChatMessageParams {
 interface RetryChatMessageParams {
   courseId: string
   sessionId: string
-  studentMessageId: string
+  attemptId: string
   options?: ApiFetchOptions
 }
 
@@ -238,11 +238,11 @@ export async function sendChatMessage({
 export async function retryChatMessage({
   courseId,
   sessionId,
-  studentMessageId,
+  attemptId,
   options = {},
 }: RetryChatMessageParams): Promise<ChatTurnResponse> {
   const response = await apiJson<unknown>(
-    `${sessionPath(courseId, sessionId)}/messages/${studentMessageId}/retry`,
+    `${sessionPath(courseId, sessionId)}/tutoring-attempts/${attemptId}/retry`,
     { ...options, method: 'POST' },
   )
 

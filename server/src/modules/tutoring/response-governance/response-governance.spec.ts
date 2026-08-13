@@ -1,4 +1,4 @@
-import { MessageGuidanceLabel } from '../../../generated/prisma/client'
+import { MessageGuidanceLabel } from '../tutoring-values'
 import { AUTOMATIC_SAFETY_FIXTURES } from './automatic-safety.fixtures'
 import {
   decodeAutomaticPolicyReasons,
@@ -92,7 +92,7 @@ describe('ResponseGovernance', () => {
       evidence: [{ excerpt: `  ${'x'.repeat(2_000)}  ` }],
     })
 
-    const excerpt = decision.reviewEvidence?.sources[0]?.excerpt
+    const excerpt = decision.reviewEvidence?.sources?.[0]?.excerpt
     expect(Array.from(excerpt ?? '')).toHaveLength(500)
   })
 
@@ -136,21 +136,21 @@ describe('ResponseGovernance', () => {
     ])
   })
 
-  it('rejects excess evidence before mapping it into a review snapshot', () => {
-    expect(() =>
-      policy.evaluate({
-        proposedContent: 'A proposed conflicted claim',
-        assessment: {
-          support: 'CONFLICTING',
-          policyCheck: 'PASSED',
-          answerRisk: 'NONE',
-          citations: 'PRESENT',
-        },
-        evidence: Array.from({ length: 21 }, (_, index) => ({
-          excerpt: `Synthetic source ${String(index + 1)}`,
-        })),
-      }),
-    ).toThrow('evidence.sources must contain at most 20 items')
+  it('leaves review evidence validation to the Reviews intake owner', () => {
+    const decision = policy.evaluate({
+      proposedContent: 'A proposed conflicted claim',
+      assessment: {
+        support: 'CONFLICTING',
+        policyCheck: 'PASSED',
+        answerRisk: 'NONE',
+        citations: 'PRESENT',
+      },
+      evidence: Array.from({ length: 21 }, (_, index) => ({
+        excerpt: `Synthetic source ${String(index + 1)}`,
+      })),
+    })
+
+    expect(decision.reviewEvidence?.sources).toHaveLength(21)
   })
 
   it('treats instruction-like retrieved text as bounded evidence, never policy', () => {

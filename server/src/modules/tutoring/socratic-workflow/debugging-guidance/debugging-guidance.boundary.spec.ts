@@ -28,8 +28,7 @@ describe('Debugging guidance boundary', () => {
   ])('accepts %s without claiming perfect language detection', (_, input) => {
     expect(assessDebuggingGuidanceBoundary(input)).toMatchObject({
       state: 'SUPPORTED',
-      detectedLanguage: 'SUPPORTED',
-      reason: 'SUPPORTED_LANGUAGE_SIGNALS',
+      reason: 'CODE_ACCEPTED',
     })
   })
 
@@ -56,23 +55,21 @@ describe('Debugging guidance boundary', () => {
     ['SQL', 'SELECT student_id\nFROM submissions;'],
     ['HTML', '<html><body><div>Hello</div></body></html>'],
     ['Shell', '#!/bin/bash\necho "$COURSE"'],
-  ])('identifies unsupported-language %s', (_, input) => {
+  ])('accepts language-neutral %s input', (_, input) => {
     expect(assessDebuggingGuidanceBoundary(input)).toMatchObject({
-      state: 'UNSUPPORTED_LANGUAGE',
-      detectedLanguage: 'UNSUPPORTED',
-      reason: 'UNSUPPORTED_LANGUAGE_SIGNALS',
+      state: 'SUPPORTED',
+      reason: 'CODE_ACCEPTED',
     })
   })
 
-  it('does not reject ambiguous plain text merely for lacking code signals', () => {
+  it('leaves ambiguous plain text to the Socratic analysis', () => {
     expect(
       assessDebuggingGuidanceBoundary(
         'My counter changes unexpectedly near the end.',
       ),
     ).toMatchObject({
-      state: 'INSUFFICIENT_INFORMATION',
-      detectedLanguage: 'UNKNOWN',
-      reason: 'LANGUAGE_UNCLEAR',
+      state: 'SUPPORTED',
+      reason: 'CODE_ACCEPTED',
     })
   })
 
@@ -84,7 +81,6 @@ describe('Debugging guidance boundary', () => {
     expect(assessDebuggingGuidanceBoundary(codeLines(lineCount))).toMatchObject(
       {
         state,
-        detectedLanguage: 'SUPPORTED',
         lineCount,
       },
     )
@@ -144,7 +140,6 @@ describe('Debugging guidance boundary', () => {
   ])('keeps %s inside an otherwise supported request', (_, input) => {
     expect(assessDebuggingGuidanceBoundary(input)).toMatchObject({
       state: 'SUPPORTED',
-      detectedLanguage: 'SUPPORTED',
     })
   })
 

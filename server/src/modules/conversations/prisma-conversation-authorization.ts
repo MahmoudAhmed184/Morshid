@@ -4,7 +4,7 @@ import type {
   ConversationAuthorizationInput,
   ConversationAuthorizationResult,
   LockedConversationSession,
-} from './conversation-authorization'
+} from './interface/conversation-authorization'
 
 /**
  * Locks the authoritative session before its student membership. Every

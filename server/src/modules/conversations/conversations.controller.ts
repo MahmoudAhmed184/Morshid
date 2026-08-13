@@ -55,11 +55,11 @@ import {
   type ListChatMessagesQuery,
   type ListChatSessionsQuery,
   type RenameChatSessionRequest,
-} from '../conversations/conversations.dto'
+} from '../conversations/interface/conversation-dto'
 import {
   invalidConversationRequestException,
   type ConversationValidationIssue,
-} from '../conversations/conversation.errors'
+} from '../conversations/interface/conversation-errors'
 import { ConversationsService } from '../conversations/conversations.service'
 
 const uuidParam = () => new ParseUUIDPipe({ version: '4' })

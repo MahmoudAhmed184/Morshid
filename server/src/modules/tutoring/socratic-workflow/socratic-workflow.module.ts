@@ -21,54 +21,53 @@ import {
 import {
   ANALYSIS_CONFIDENCE_POLICY,
   AnalysisConfidencePolicy,
-} from './analysis-confidence-policy'
-import { AnalysisFallbackBuilder } from './analysis-fallback-builder'
-import { ANALYSIS_MODEL_PORT } from './analysis-model.port'
-import { OPENAI_COMPATIBLE_ANALYSIS_MODEL_PROVIDER } from './analysis-model.configuration'
-import { createAnalysisModelPort } from './analysis-model.provider'
+} from './analysis/analysis-confidence-policy'
+import { AnalysisFallbackBuilder } from './analysis/analysis-fallback-builder'
+import { ANALYSIS_MODEL_PORT } from './analysis/analysis-model.port'
+import { OPENAI_COMPATIBLE_ANALYSIS_MODEL_PROVIDER } from '../infrastructure/analysis-model.configuration'
+import { createAnalysisModelPort } from '../infrastructure/analysis-model.provider'
 import {
   ANALYSIS_RETRY_POLICY,
   AnalysisRetryPolicy,
-} from './analysis-retry-policy'
-import {
-  AnalysisContextRepository,
-  PrismaAnalysisContextRepository,
-} from './analysis-context.repository'
-import { ContextManager } from './context-manager.service'
+} from './analysis/analysis-retry-policy'
+import { ContextManager } from './analysis/context-manager.service'
 import {
   EducationalAnalysisRepository,
   PrismaEducationalAnalysisRepository,
-} from './educational-analysis.repository'
+} from './analysis/educational-analysis.repository'
 import {
   PrismaTeachingDecisionRepository,
   TeachingDecisionRepository,
-} from './teaching-decision.repository'
-import { TeachingPolicyEngine } from './teaching-policy.engine'
-import { EducationalAnalysisService } from './educational-analysis.service'
+} from './teaching-decision/teaching-decision.repository'
+import { TeachingPolicyEngine } from './teaching-decision/teaching-policy.engine'
+import { EducationalAnalysisService } from './analysis/educational-analysis.service'
 import {
   PrismaTopicStateRepository,
   TopicStateRepository,
-} from './topic-state.repository'
-import { TopicStateService } from './topic-state.service'
-import { TUTOR_MODEL_PORT } from './tutor-generation.types'
-import { OPENAI_COMPATIBLE_TUTOR_MODEL_PROVIDER } from './tutor-model.configuration'
-import { createTutorModelPort } from './tutor-model.adapter'
-import { TutorGenerationService } from './tutor-generation.service'
+} from './topic/topic-state.repository'
+import { TopicStateService } from './topic/topic-state.service'
+import { TUTOR_MODEL_PORT } from './generation/tutor-generation.types'
+import { OPENAI_COMPATIBLE_TUTOR_MODEL_PROVIDER } from '../infrastructure/tutor-model.configuration'
+import { createTutorModelPort } from '../infrastructure/tutor-model.adapter'
+import { TutorGenerationService } from './generation/tutor-generation.service'
 import {
   TUTOR_INFRASTRUCTURE_RETRY_POLICY,
   TutorInfrastructureRetryPolicy,
-} from './tutor-infrastructure-retry.policy'
-import { PrismaTopicRepository, TopicRepository } from './topic.repository'
-import { TopicService } from './topic.service'
-import { StructuralResponseValidator } from './structural-response.validator'
-import { DeterministicGuardService } from './deterministic-guard.service'
-import { SemanticGuardService } from './semantic-guard.service'
-import { SafeFallbackService } from './safe-fallback.service'
-import { ResponseApprovalService } from './response-approval.service'
-import { SEMANTIC_GUARD_PORT } from './semantic-guard.types'
-import { OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER } from './semantic-guard.configuration'
-import { createSemanticGuardPort } from './semantic-guard.adapter'
-import { RetrievalQueryBuilder } from './retrieval-query.builder'
+} from './generation/tutor-infrastructure-retry.policy'
+import {
+  PrismaTopicRepository,
+  TopicRepository,
+} from './topic/topic.repository'
+import { TopicService } from './topic/topic.service'
+import { StructuralResponseValidator } from './response-approval/structural-response.validator'
+import { DeterministicGuardService } from './response-approval/deterministic-guard.service'
+import { SemanticGuardService } from './response-approval/semantic-guard.service'
+import { SafeFallbackService } from './response-approval/safe-fallback.service'
+import { ResponseApprovalService } from './response-approval/response-approval.service'
+import { SEMANTIC_GUARD_PORT } from './response-approval/semantic-guard.types'
+import { OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER } from '../infrastructure/semantic-guard.configuration'
+import { createSemanticGuardPort } from '../infrastructure/semantic-guard.adapter'
+import { RetrievalQueryBuilder } from './evidence-query/retrieval-query.builder'
 import { ResponseGovernanceModule } from '../response-governance/response-governance.module'
 import { SocraticWorkflow } from './socratic-workflow'
 import {
@@ -113,10 +112,6 @@ type GeminiChatFetch = FetchImplementation | null
     {
       provide: TopicStateRepository,
       useClass: PrismaTopicStateRepository,
-    },
-    {
-      provide: AnalysisContextRepository,
-      useClass: PrismaAnalysisContextRepository,
     },
     {
       provide: TopicRepository,
@@ -302,27 +297,6 @@ type GeminiChatFetch = FetchImplementation | null
       },
     },
   ],
-  exports: [
-    TopicService,
-    TopicStateService,
-    TutoringTurnRepository,
-    ContextManager,
-    EducationalAnalysisService,
-    EducationalAnalysisRepository,
-    TeachingPolicyEngine,
-    TeachingDecisionRepository,
-    TutorGenerationService,
-    StructuralResponseValidator,
-    DeterministicGuardService,
-    SemanticGuardService,
-    SafeFallbackService,
-    ResponseApprovalService,
-    RetrievalQueryBuilder,
-    TUTOR_MODEL_PORT,
-    ANALYSIS_MODEL_PORT,
-    SEMANTIC_GUARD_PORT,
-    TUTORING_CONFIGURATION,
-    SocraticWorkflow,
-  ],
+  exports: [TutoringTurnRepository, TUTORING_CONFIGURATION, SocraticWorkflow],
 })
 export class SocraticWorkflowModule {}

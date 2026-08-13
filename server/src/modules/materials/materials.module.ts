@@ -8,37 +8,40 @@ import { PrismaModule } from '../../platform/database/prisma.module'
 import {
   DurableMaterialProcessingScheduler,
   MaterialProcessingScheduler,
-} from './material-processing.scheduler'
-import { MaterialProcessingService } from './material-processing.service'
-import { MaterialChunkEmbeddingService } from './material-chunk-embedding.service'
-import { MaterialAdministrationController } from './material-administration.controller'
-import { MaterialTextChunker } from './material-text-chunker'
-import { MaterialUploadConfigurationController } from './material-upload-configuration.controller'
-import { MaterialUploadConfigurationService } from './material-upload-configuration.service'
-import { MaterialsAuditService } from './materials.audit.service'
-import { MaterialsController } from './materials.controller'
+} from './processing/material-processing.scheduler'
+import { MaterialProcessingService } from './processing/material-processing.service'
+import { MaterialChunkEmbeddingService } from './processing/material-chunk-embedding.service'
+import { MaterialAdministrationController } from './catalog/material-administration.controller'
+import { MaterialTextChunker } from './processing/material-text-chunker'
+import { MaterialUploadConfigurationController } from './upload/material-upload-configuration.controller'
+import { MaterialUploadConfigurationService } from './upload/material-upload-configuration.service'
+import { MaterialsAuditService } from './catalog/materials.audit.service'
+import { MaterialsController } from './catalog/materials.controller'
 import {
   MaterialsRepository,
   PrismaMaterialsRepository,
-} from './materials.repository'
+} from './catalog/materials.repository'
 import {
   MaterialChunkRepository,
   PrismaMaterialChunkRepository,
-} from './material-chunk.repository'
-import { MaterialsService } from './materials.service'
-import { PdfUploadValidator } from './pdf-upload.validator'
+} from './processing/material-chunk.repository'
+import { MaterialsService } from './catalog/materials.service'
+import { PdfUploadValidator } from './upload/pdf-upload.validator'
 import {
   PDF_DOCUMENT_LOADER,
   PDF_TEXT_EXTRACTOR,
   PdfJsDocumentLoader,
   PdfJsTextExtractor,
-} from './pdf-text-extractor'
-import { PdfUploadInterceptor } from './pdf-upload.interceptor'
-import { CourseEvidence, MaterialsCourseEvidence } from './course-evidence'
+} from './processing/pdf-text-extractor'
+import { PdfUploadInterceptor } from './upload/pdf-upload.interceptor'
+import { CourseEvidence } from './interface/course-evidence'
+import { MaterialsCourseEvidence } from './evidence/materials-course-evidence'
 import {
   CourseEvidenceRepository,
   PrismaCourseEvidenceRepository,
-} from './course-evidence.repository'
+} from './evidence/course-evidence.repository'
+import { StudentCitationSources } from './interface/student-citation-sources'
+import { PrismaStudentCitationSources } from './evidence/student-citation-sources'
 
 @Module({
   imports: [
@@ -90,7 +93,11 @@ import {
       provide: CourseEvidence,
       useClass: MaterialsCourseEvidence,
     },
+    {
+      provide: StudentCitationSources,
+      useClass: PrismaStudentCitationSources,
+    },
   ],
-  exports: [MaterialProcessingService, PDF_TEXT_EXTRACTOR, CourseEvidence],
+  exports: [CourseEvidence, StudentCitationSources],
 })
 export class MaterialsModule {}

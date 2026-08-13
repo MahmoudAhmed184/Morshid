@@ -238,19 +238,14 @@ model TutoringAttempt {
   retryOfAttemptId         String?                  @map("retry_of_attempt_id") @db.Uuid
   clientMessageId          String                   @map("client_message_id") @db.VarChar(160)
   requestKind              MessageRequestKind?     @map("request_kind")
-  teachingStrategy         TeachingStrategy?       @map("teaching_strategy")
   status                   TutoringAttemptStatus   @default(RECEIVED)
   failureCode              TutoringAttemptFailureCode? @map("failure_code")
   leaseExpiresAt           DateTime?                @map("lease_expires_at") @db.Timestamptz(6)
-  claimToken               String?                  @unique(map: "tutoring_attempts_claim_token_key") @map("claim_token") @db.VarChar(160)
-  claimedAt                DateTime?                @map("claimed_at") @db.Timestamptz(6)
-  version                  Int                      @default(1)
   safeFallbackUsed         Boolean                  @default(false) @map("safe_fallback_used")
   approvalSource           TutoringApprovalSource?  @map("approval_source")
   approvedCandidateAttempt Int?                     @map("approved_candidate_attempt") @db.SmallInt
   safeFallbackReason       TutoringSafeFallbackReason? @map("safe_fallback_reason")
   validationPolicyVersion  String?                  @map("validation_policy_version") @db.VarChar(80)
-  reviewRequired           Boolean                  @default(false) @map("review_required")
   createdAt                DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
   completedAt              DateTime?                @map("completed_at") @db.Timestamptz(6)
 

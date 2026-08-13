@@ -1,9 +1,5 @@
+import { MessageGuidanceLabel, MessageRequestKind } from '../../tutoring-values'
 import {
-  MessageGuidanceLabel,
-  MessageRequestKind,
-} from '../../../../generated/prisma/client'
-import {
-  DEBUGGING_GUIDANCE_RESPONSE_GOVERNANCE_RESULTS,
   DEBUGGING_GUIDANCE_TUTOR_DECISION,
   DEBUGGING_GUIDANCE_UNTRUSTED_FIELDS,
   parseDebuggingGuidance,
@@ -69,19 +65,6 @@ describe('Debugging guidance contract', () => {
     ],
   ])('rejects %s', (_, value) => {
     expect(() => parseDebuggingGuidance(value)).toThrow()
-  })
-
-  it('locks the later output-guard policy result vocabulary', () => {
-    expect(DEBUGGING_GUIDANCE_RESPONSE_GOVERNANCE_RESULTS).toEqual([
-      'ALLOWED_DIAGNOSIS',
-      'INVALID_RESPONSE_SHAPE',
-      'FULL_REWRITE_SUSPECTED',
-      'CODE_BLOCK_TOO_LARGE',
-      'PROMPT_DISCLOSURE',
-      'EXECUTION_CLAIM',
-      'INVALID_CITATION',
-      'UNSUPPORTED_SCOPE',
-    ])
   })
 
   it('marks every dynamic strategy field as untrusted data', () => {

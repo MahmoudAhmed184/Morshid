@@ -1,13 +1,10 @@
 import { ConflictException, NotFoundException } from '@nestjs/common'
 
-import {
-  CourseMembershipRole,
-  UserRole,
-  UserStatus,
-} from '../../generated/prisma/client'
 import type { AuthenticatedUser } from '../identity/identity.types'
+import { UserRole, UserStatus } from '../identity/identity.roles'
 import { COURSE_ADMINISTRATION_ERROR_CODES } from './course-administration.errors'
 import { CourseAdministrationService } from './course-administration.service'
+import { CourseMembershipRole } from './course-membership.types'
 import {
   CoursesRepository,
   CourseMemberNotFoundError,

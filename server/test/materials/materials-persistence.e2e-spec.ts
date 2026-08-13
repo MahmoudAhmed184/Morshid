@@ -13,9 +13,9 @@ import type { IdentitySessionResponse } from '../../src/modules/identity/identit
 import {
   DurableMaterialProcessingScheduler,
   MaterialProcessingScheduler,
-} from '../../src/modules/materials/material-processing.scheduler'
-import { MaterialProcessingService } from '../../src/modules/materials/material-processing.service'
-import { MATERIALS_ERROR_CODES } from '../../src/modules/materials/materials.errors'
+} from '../../src/modules/materials/processing/material-processing.scheduler'
+import { MaterialProcessingService } from '../../src/modules/materials/processing/material-processing.service'
+import { MATERIALS_ERROR_CODES } from '../../src/modules/materials/catalog/materials.errors'
 import { LocalPdfStorageAdapter } from '../../src/platform/document-storage/local-pdf-storage.adapter'
 import { PDF_STORAGE } from '../../src/platform/document-storage/pdf-storage'
 import { PrismaService } from '../../src/platform/database/prisma.service'

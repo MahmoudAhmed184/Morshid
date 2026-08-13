@@ -6,15 +6,15 @@ import type { App } from 'supertest/types'
 import { configureApp } from '../../src/app.setup'
 import { AppModule } from '../../src/app.module'
 import type { IdentitySessionResponse } from '../../src/modules/identity/identity.types'
-import { MaterialProcessingScheduler } from '../../src/modules/materials/material-processing.scheduler'
+import { MaterialProcessingScheduler } from '../../src/modules/materials/processing/material-processing.scheduler'
 import { PrismaService } from '../../src/platform/database/prisma.service'
 import { DatabaseTransactionRunner } from '../../src/platform/database/database-transaction'
 import { RedisService } from '../../src/platform/cache/redis.service'
-import type { CreateReviewRequestResponseDto } from '../../src/modules/reviews/review-case.dto'
+import type { CreateReviewRequestResponseDto } from '../../src/modules/reviews/intake/review-case.dto'
 import {
   ReviewCaseIntake,
   type AutomaticReviewIntakeInput,
-} from '../../src/modules/reviews/reviews.public'
+} from '../../src/modules/reviews/interface/review-case-intake'
 import { REVIEW_ERROR_CODES } from '../../src/modules/reviews/review-case.errors'
 import {
   P0_DEMO_PASSWORD,

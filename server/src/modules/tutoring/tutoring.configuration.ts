@@ -13,11 +13,11 @@ import type { AppEnvironment } from '../../platform/config/env.schema'
 import {
   DEFAULT_ANALYSIS_CONFIDENCE_THRESHOLD,
   isValidConfidenceThreshold,
-} from './socratic-workflow/analysis-confidence-policy'
+} from './socratic-workflow/analysis/analysis-confidence-policy'
 import {
   DEFAULT_ANALYSIS_MODEL_MAX_RETRIES,
   MAX_ANALYSIS_MODEL_MAX_RETRIES,
-} from './socratic-workflow/analysis-retry-policy'
+} from './socratic-workflow/analysis/analysis-retry-policy'
 import {
   DEFAULT_ANALYSIS_MODEL_BASE_URL,
   DEFAULT_ANALYSIS_MODEL_MAX_COMPLETION_TOKENS,
@@ -34,11 +34,11 @@ import {
   isValidAnalysisModelName,
   isValidOptionalAnalysisApiKey,
   normalizeOpenAICompatibleBaseUrl,
-} from './socratic-workflow/analysis-model.configuration'
+} from './infrastructure/analysis-model.configuration'
 import {
   DEFAULT_TUTOR_MODEL_MAX_INFRASTRUCTURE_RETRIES,
   MAX_TUTOR_MODEL_MAX_INFRASTRUCTURE_RETRIES,
-} from './socratic-workflow/tutor-infrastructure-retry.policy'
+} from './socratic-workflow/generation/tutor-infrastructure-retry.policy'
 import {
   DEFAULT_TUTOR_MODEL_BASE_URL,
   DEFAULT_TUTOR_MODEL_MAX_COMPLETION_TOKENS,
@@ -54,7 +54,7 @@ import {
   OPENAI_COMPATIBLE_TUTOR_MODEL_PROVIDER,
   isValidOptionalTutorApiKey,
   isValidTutorModelName,
-} from './socratic-workflow/tutor-model.configuration'
+} from './infrastructure/tutor-model.configuration'
 import {
   DEFAULT_SEMANTIC_GUARD_BASE_URL,
   DEFAULT_SEMANTIC_GUARD_MAX_COMPLETION_TOKENS,
@@ -70,7 +70,7 @@ import {
   OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER,
   isValidOptionalSemanticGuardApiKey,
   isValidSemanticGuardModelName,
-} from './socratic-workflow/semantic-guard.configuration'
+} from './infrastructure/semantic-guard.configuration'
 
 const SECRET_PLACEHOLDER_PREFIX = 'replace-with'
 

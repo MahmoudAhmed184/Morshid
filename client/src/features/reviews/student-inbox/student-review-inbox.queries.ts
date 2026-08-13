@@ -22,8 +22,6 @@ export function studentReviewInboxListQueryOptions(userId: string) {
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     staleTime: 30_000,
-    refetchInterval: () => visibilityAwarePollingInterval(),
-    refetchIntervalInBackground: true,
   })
 }
 
