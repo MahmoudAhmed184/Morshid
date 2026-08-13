@@ -7,12 +7,13 @@ import { CONFIG_ENV_FILE_PATHS } from './platform/config/configuration'
 import { validateEnv } from './platform/config/env.schema'
 import { CoursesModule } from './modules/courses/courses.module'
 import { HealthModule } from './modules/health/health.module'
-import { ConversationsHttpModule } from './modules/conversations/conversations-http.module'
+import { ConversationsModule } from './modules/conversations/conversations.module'
 import { PdfStorageModule } from './platform/document-storage/pdf-storage.module'
 import { EmbeddingModule } from './platform/ai/embedding/embedding.module'
 import { MaterialsModule } from './modules/materials/materials.module'
 import { ReviewsModule } from './modules/reviews/reviews.module'
 import { TutoringModule } from './modules/tutoring/tutoring.module'
+import { ConversationPresentationModule } from './application/conversation-presentation.module'
 
 @Module({
   imports: [
@@ -26,12 +27,13 @@ import { TutoringModule } from './modules/tutoring/tutoring.module'
     HealthModule,
     IdentityModule,
     CoursesModule,
-    ConversationsHttpModule,
+    ConversationsModule,
     PdfStorageModule,
     EmbeddingModule,
     MaterialsModule,
     TutoringModule,
     ReviewsModule,
+    ConversationPresentationModule,
   ],
 })
 export class AppModule {}

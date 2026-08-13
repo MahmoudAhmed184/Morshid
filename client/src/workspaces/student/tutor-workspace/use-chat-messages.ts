@@ -33,6 +33,11 @@ interface ChatMutationContext {
   scope: RequiredChatScope
 }
 
+export interface RetryChatMessageInput {
+  attemptId: string
+  studentMessageId: string
+}
+
 function useStudentId() {
   return useAuthStore((state) => state.user?.id)
 }
@@ -168,18 +173,18 @@ export function useRetryChatMessage({
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (studentMessageId: string) => {
+    mutationFn: (input: RetryChatMessageInput) => {
       const scope = requireChatScope(studentId, courseId, sessionId)
       return retryChatMessage({
         courseId: scope.courseId,
         sessionId: scope.sessionId,
-        studentMessageId,
+        attemptId: input.attemptId,
       })
     },
-    onMutate: (studentMessageId) => {
+    onMutate: (input) => {
       const scope = requireChatScope(studentId, courseId, sessionId)
       return beginChatMutation(queryClient, scope, (previousMessages) =>
-        markAssistantPending(previousMessages, studentMessageId),
+        markAssistantPending(previousMessages, input.studentMessageId),
       )
     },
     onError: (_error, _studentMessageId, context) => {

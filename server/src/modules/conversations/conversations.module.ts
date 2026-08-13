@@ -2,26 +2,27 @@ import { Module } from '@nestjs/common'
 
 import { AuditModule } from '../audit/audit.module'
 import { IdentityModule } from '../identity/identity.module'
-import { PdfStorageModule } from '../../platform/document-storage/pdf-storage.module'
 import { PrismaModule } from '../../platform/database/prisma.module'
-import { ConversationTurns } from './conversation-turns'
-import { ConversationAuthorization } from './conversation-authorization'
-import { ConversationMessageReader } from './conversation-message-reader'
+import { ConversationTurns } from './interface/conversation-turns'
+import { ConversationAuthorization } from './interface/conversation-authorization'
+import { ConversationMessageReader } from './interface/conversation-message-reader'
 import { PrismaConversationTurns } from './prisma-conversation-turns'
 import { ConversationAuditService } from './conversation-audit.service'
 import {
   PrismaConversationMessageRepository,
   ConversationMessageRepository,
 } from './conversation-message.repository'
-import { ConversationMessagePresenter } from './conversation-message.presenter'
 import {
   PrismaConversationSessionRepository,
   ConversationSessionRepository,
 } from './conversation-session.repository'
 import { ConversationsService } from './conversations.service'
+import { ConversationCourseBoundaryAudit } from './interface/conversation-course-boundary-audit'
+import { ConversationsController } from './conversations.controller'
 
 @Module({
-  imports: [AuditModule, IdentityModule, PdfStorageModule, PrismaModule],
+  imports: [AuditModule, IdentityModule, PrismaModule],
+  controllers: [ConversationsController],
   providers: [
     PrismaConversationTurns,
     {
@@ -37,8 +38,11 @@ import { ConversationsService } from './conversations.service'
       useExisting: PrismaConversationTurns,
     },
     ConversationAuditService,
-    ConversationMessagePresenter,
     ConversationsService,
+    {
+      provide: ConversationCourseBoundaryAudit,
+      useExisting: ConversationsService,
+    },
     {
       provide: ConversationSessionRepository,
       useClass: PrismaConversationSessionRepository,
@@ -49,14 +53,10 @@ import { ConversationsService } from './conversations.service'
     },
   ],
   exports: [
-    ConversationTurns,
     ConversationAuthorization,
     ConversationMessageReader,
-    ConversationAuditService,
-    ConversationMessagePresenter,
-    ConversationsService,
-    ConversationSessionRepository,
-    ConversationMessageRepository,
+    ConversationTurns,
+    ConversationCourseBoundaryAudit,
   ],
 })
 export class ConversationsModule {}

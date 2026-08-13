@@ -1,3 +1,4 @@
+import { UserRole, UserStatus } from '../../identity/identity.roles'
 import type { INestApplication } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
 import type { NextFunction, Request, Response } from 'express'
@@ -8,9 +9,7 @@ import { configureApp } from '../../../app.setup'
 import {
   ReviewInboxItemStatus,
   ReviewInboxItemType,
-  UserRole,
-  UserStatus,
-} from '../../../generated/prisma/client'
+} from '../interface/review-values'
 import type { AuthenticatedHttpRequest } from '../../identity/identity.guard'
 import { StudentReviewInboxController } from './student-review-inbox.controller'
 import { reviewInboxItemNotFoundException } from './student-review-inbox.errors'

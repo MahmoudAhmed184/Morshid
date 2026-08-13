@@ -5,9 +5,8 @@ import {
   MessageRequestKind,
   MessageRole,
   MessageStatus,
-  UserRole,
-  UserStatus,
-} from '../../generated/prisma/client'
+} from './tutoring-values'
+import { UserRole, UserStatus } from '../identity/identity.roles'
 import type { AuthenticatedUser } from '../identity/identity.types'
 import type {
   BeginTutoringTurnInput,
@@ -22,8 +21,8 @@ import { CorrectnessSensitiveRequestClassifier } from './response-governance/cor
 import { GROUNDING_FAILED_CONTENT } from './attempt/tutoring.constants'
 import { TutoringRuntimeApplication } from './tutoring-runtime.application'
 import type { SocraticWorkflow } from './socratic-workflow/socratic-workflow'
-import { ConversationMessagePresenter } from '../conversations/conversation-message.presenter'
-import type { ChatMessageRecord } from '../conversations/conversation-records'
+import { ApplicationConversationMessagePresenter } from '../../application/conversation-message.presenter'
+import type { ChatMessageRecord } from '../conversations/interface/conversation-records'
 
 const courseId = 'diagnosis-failure-course'
 const sessionId = 'diagnosis-failure-session'
@@ -67,7 +66,6 @@ describe('TutoringRuntimeApplication diagnosis failure paths', () => {
         beginTurn,
         retryTurn: jest.fn(),
         transitionAttempt: jest.fn().mockResolvedValue(true),
-        failAttempt: jest.fn().mockResolvedValue(true),
         repairAutomaticReview: jest.fn(),
         completeTurn: jest.fn(),
         completePolicyTurn: jest.fn(),
@@ -77,9 +75,13 @@ describe('TutoringRuntimeApplication diagnosis failure paths', () => {
         blockTurn,
         failTurn,
       },
-      new ConversationMessagePresenter({
-        exists: jest.fn().mockResolvedValue(true),
-      } as never),
+      new ApplicationConversationMessagePresenter(
+        {
+          loadForMessages: jest.fn().mockResolvedValue([]),
+          loadPolicyEvidence: jest.fn().mockResolvedValue([]),
+        },
+        { loadForMessages: jest.fn().mockResolvedValue([]) },
+      ),
       { run: orchestrate } as unknown as SocraticWorkflow,
       {
         find: jest.fn().mockResolvedValue(null),
@@ -92,17 +94,18 @@ describe('TutoringRuntimeApplication diagnosis failure paths', () => {
       new ResponseGovernance(),
       new CorrectnessSensitiveRequestClassifier(),
       { recordEvent: jest.fn().mockResolvedValue(undefined) } as never,
+      { loadPolicyEvidence: jest.fn().mockResolvedValue([]) } as never,
     )
   })
 
-  const runNew = (content: string, clientMessageId?: string) =>
+  const runNew = (content: string, clientMessageId = studentMessageId) =>
     service.run({
       kind: 'new',
       courseId,
       sessionId,
       studentId: user.id,
       content,
-      ...(clientMessageId === undefined ? {} : { clientMessageId }),
+      clientMessageId,
     })
 
   it('persists a safe failure when Socratic diagnosis orchestration fails', async () => {
@@ -237,8 +240,6 @@ function message(overrides: Partial<ChatMessageRecord>): ChatMessageRecord {
     errorCode: null,
     createdAt: new Date(),
     completedAt: null,
-    citations: [],
-    retrievals: [],
     ...overrides,
   }
 }

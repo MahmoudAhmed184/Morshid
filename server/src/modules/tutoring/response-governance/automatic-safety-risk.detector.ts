@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
-import type { CourseEvidenceChunk } from '../../materials/materials.public'
+import type { CourseEvidenceChunk } from '../../materials/interface/course-evidence'
 import {
   TUTORING_DISCLOSURE_MARKERS,
   TUTORING_UNTRUSTED_INPUT_BEGIN_MARKER,

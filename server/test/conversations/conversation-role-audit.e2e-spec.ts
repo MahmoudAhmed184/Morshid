@@ -11,7 +11,7 @@ import {
   AUDIT_EVENT_ACTIONS,
   AUDIT_TARGET_TYPES,
 } from '../../src/modules/audit/audit.constants'
-import { MaterialProcessingScheduler } from '../../src/modules/materials/material-processing.scheduler'
+import { MaterialProcessingScheduler } from '../../src/modules/materials/processing/material-processing.scheduler'
 import { PrismaService } from '../../src/platform/database/prisma.service'
 import { RedisService } from '../../src/platform/cache/redis.service'
 import { P0_DEMO_PASSWORD } from '../../src/seeds/p0-demo.seed'

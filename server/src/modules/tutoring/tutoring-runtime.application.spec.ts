@@ -9,9 +9,8 @@ import {
   MessageRequestKind,
   MessageRole,
   MessageStatus,
-  UserRole,
-  UserStatus,
-} from '../../generated/prisma/client'
+} from './tutoring-values'
+import { UserRole, UserStatus } from '../identity/identity.roles'
 import type { AuthenticatedUser } from '../identity/identity.types'
 import type {
   BeginTutoringTurnResult,
@@ -30,8 +29,8 @@ import { AutomaticSafetyRiskDetector } from './response-governance/automatic-saf
 import { ControlledSourceConflictDetector } from './response-governance/controlled-source-conflict.detector'
 import { ResponseGovernance } from './response-governance/response-governance'
 import { CorrectnessSensitiveRequestClassifier } from './response-governance/correctness-sensitive-request.classifier'
-import { ConversationMessagePresenter } from '../conversations/conversation-message.presenter'
-import type { ChatMessageRecord } from '../conversations/conversation-records'
+import { ApplicationConversationMessagePresenter } from '../../application/conversation-message.presenter'
+import type { ChatMessageRecord } from '../conversations/interface/conversation-records'
 import type { SocraticWorkflow } from './socratic-workflow/socratic-workflow'
 import type { SocraticWorkflowResult } from './socratic-workflow/socratic-workflow.types'
 
@@ -106,9 +105,13 @@ describe('TutoringRuntimeApplication', () => {
       blockTurn,
       failTurn,
     } as unknown as TutoringTurnRepository
-    const presenter = new ConversationMessagePresenter({
-      exists: jest.fn().mockResolvedValue(true),
-    } as never)
+    const presenter = new ApplicationConversationMessagePresenter(
+      {
+        loadForMessages: jest.fn().mockResolvedValue([]),
+        loadPolicyEvidence: jest.fn().mockResolvedValue([]),
+      },
+      { loadForMessages: jest.fn().mockResolvedValue([]) },
+    )
     socraticOrchestrate = jest.fn().mockResolvedValue({
       kind: 'completed',
       completion: {
@@ -149,14 +152,17 @@ describe('TutoringRuntimeApplication', () => {
       new ResponseGovernance(),
       new CorrectnessSensitiveRequestClassifier(),
       { recordEvent } as never,
+      { loadPolicyEvidence: jest.fn().mockResolvedValue([]) } as never,
     )
   })
 
   const runNew = (
     content: string,
-    options: Pick<
-      Extract<RunTutoringTurnCommand, { kind: 'new' }>,
-      'clientMessageId' | 'problemId' | 'conceptId' | 'title'
+    options: Partial<
+      Pick<
+        Extract<RunTutoringTurnCommand, { kind: 'new' }>,
+        'clientMessageId' | 'problemId' | 'conceptId' | 'title'
+      >
     > = {},
   ) =>
     service.run({
@@ -164,17 +170,18 @@ describe('TutoringRuntimeApplication', () => {
       courseId,
       sessionId,
       studentId: user.id,
+      clientMessageId: studentMessageId,
       content,
       ...options,
     })
 
-  const runRetry = (messageId = studentMessageId) =>
+  const runRetry = (targetAttemptId = attemptId) =>
     service.run({
       kind: 'retry',
       courseId,
       sessionId,
       studentId: user.id,
-      studentMessageId: messageId,
+      attemptId: targetAttemptId,
     })
 
   it('delegates to the Socratic orchestrator for new messages', async () => {
@@ -183,6 +190,7 @@ describe('TutoringRuntimeApplication', () => {
       courseId,
       sessionId,
       studentId: user.id,
+      clientMessageId: studentMessageId,
       content: 'Explain list iteration',
       requestKind: MessageRequestKind.CONCEPTUAL,
     })
@@ -477,7 +485,7 @@ describe('TutoringRuntimeApplication', () => {
       courseId,
       sessionId,
       studentId: user.id,
-      studentMessageId,
+      attemptId,
     })
     expect(socraticOrchestrate).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -501,14 +509,14 @@ describe('TutoringRuntimeApplication', () => {
       courseId,
       sessionId,
       studentId: user.id,
-      studentMessageId,
+      attemptId,
     })
 
     expect(retryTurn).toHaveBeenCalledWith({
       courseId,
       sessionId,
       studentId: user.id,
-      studentMessageId,
+      attemptId,
     })
     expect(response.studentMessage.id).toBe(studentMessageId)
   })
@@ -526,7 +534,7 @@ describe('TutoringRuntimeApplication', () => {
 
     retryTurn.mockResolvedValue({
       kind: 'retry_not_allowed',
-      messageId: studentMessageId,
+      attemptId,
     })
     await expect(runRetry()).rejects.toBeInstanceOf(ConflictException)
     expect(recordEvent).toHaveBeenCalledWith(
@@ -534,7 +542,7 @@ describe('TutoringRuntimeApplication', () => {
         actorUserId: user.id,
         courseId,
         metadata: {
-          messageId: studentMessageId,
+          attemptId,
           reason: 'RETRY_NOT_ALLOWED',
         },
       }),
@@ -605,8 +613,6 @@ function message(overrides: Partial<ChatMessageRecord>): ChatMessageRecord {
     errorCode: null,
     createdAt: new Date('2026-07-21T12:00:00.000Z'),
     completedAt: null,
-    citations: [],
-    retrievals: [],
     ...overrides,
     promptVersion: overrides.promptVersion ?? null,
   }

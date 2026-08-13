@@ -1,4 +1,4 @@
-import type { CourseEvidenceChunk } from '../../materials/materials.public'
+import type { CourseEvidenceChunk } from '../../materials/interface/course-evidence'
 import {
   AUTOMATIC_SAFETY_RISK_DETECTOR_VERSION,
   AutomaticSafetyRiskDetector,

@@ -1,3 +1,9 @@
+import type {
+  AutomaticReviewEvidenceFact,
+  AutomaticReviewEvidenceInput,
+  AutomaticReviewEvidenceSource,
+} from '../interface/review-case-intake'
+
 const MAX_SUMMARY_CODE_POINTS = 1_000
 const MAX_SOURCE_COUNT = 20
 const MAX_SOURCE_EXCERPT_CODE_POINTS = 1_000
@@ -6,31 +12,10 @@ const MAX_FACT_CODE_CODE_POINTS = 80
 const MAX_FACT_STRING_CODE_POINTS = 500
 const MAX_IDENTIFIER_CODE_POINTS = 200
 
-export interface AutomaticReviewEvidenceSource {
-  materialId?: string
-  materialTitle?: string
-  chunkId?: string
-  chunkIndex?: number
-  excerpt: string
-  rank?: number
-  score?: number
-}
-
-export interface AutomaticReviewEvidenceFact {
-  code: string
-  value: string | number | boolean
-}
-
 export interface AutomaticReviewEvidenceContribution {
   summary: string
   sources: readonly AutomaticReviewEvidenceSource[]
   facts: readonly AutomaticReviewEvidenceFact[]
-}
-
-export interface AutomaticReviewEvidenceInput {
-  summary: string
-  sources?: readonly AutomaticReviewEvidenceSource[]
-  facts?: readonly AutomaticReviewEvidenceFact[]
 }
 
 export function buildAutomaticReviewEvidence(

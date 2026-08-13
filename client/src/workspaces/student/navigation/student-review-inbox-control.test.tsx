@@ -55,13 +55,17 @@ describe('StudentReviewInboxControl', () => {
 
   afterEach(cleanup)
 
-  it('renders the accessible Review Inbox control and consumes its hooks', () => {
+  it('polls only the unread count while the inbox is closed', async () => {
+    const user = userEvent.setup()
     render(<StudentReviewInboxControl />)
 
     expect(screen.getByRole('button', { name: 'Review inbox' })).toBeVisible()
     expect(useUnreadCountMock).toHaveBeenCalledOnce()
-    expect(useInboxMock).toHaveBeenCalledOnce()
+    expect(useInboxMock).toHaveBeenLastCalledWith(false)
     expect(useMarkReadMock).toHaveBeenCalledOnce()
+
+    await openInbox(user)
+    expect(useInboxMock).toHaveBeenLastCalledWith(true)
   })
 
   it('shows the unread count badge only when the count is positive', () => {

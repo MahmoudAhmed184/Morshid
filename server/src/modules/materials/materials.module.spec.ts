@@ -5,16 +5,19 @@ import { PrismaService } from '../../platform/database/prisma.service'
 import {
   DurableMaterialProcessingScheduler,
   MaterialProcessingScheduler,
-} from './material-processing.scheduler'
-import { MaterialProcessingService } from './material-processing.service'
-import { MaterialTextChunker } from './material-text-chunker'
+} from './processing/material-processing.scheduler'
+import { MaterialProcessingService } from './processing/material-processing.service'
+import { MaterialTextChunker } from './processing/material-text-chunker'
 import {
   MaterialsRepository,
   PrismaMaterialsRepository,
-} from './materials.repository'
-import { PDF_TEXT_EXTRACTOR, PdfJsTextExtractor } from './pdf-text-extractor'
+} from './catalog/materials.repository'
+import {
+  PDF_TEXT_EXTRACTOR,
+  PdfJsTextExtractor,
+} from './processing/pdf-text-extractor'
 import { MaterialsModule } from './materials.module'
-import { CourseEvidence } from './course-evidence'
+import { CourseEvidence } from './interface/course-evidence'
 
 describe('MaterialsModule processing graph', () => {
   it('resolves the one registered production implementation for every seam', async () => {

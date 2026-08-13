@@ -58,9 +58,20 @@ interface TutorPageProps {
 // A first message handed from the draft to the freshly-created session so the
 // send runs through the destination composer (T15.2).
 interface PendingFirstMessage {
-  sessionId: string
+  session: ChatSession
   content: string
   clientMessageId: string
+}
+
+export function submitPendingFirstMessage(
+  pending: PendingFirstMessage | null,
+  actions: StudentChatComposerActions | null,
+): boolean {
+  if (!pending || !actions) {
+    return false
+  }
+  actions.submitWith(pending.content, pending.clientMessageId)
+  return true
 }
 
 export function TutorPage({ sessionId }: TutorPageProps) {
@@ -71,8 +82,11 @@ export function TutorPage({ sessionId }: TutorPageProps) {
   // The one active-course model for the whole student shell (it already reads
   // `?courseId`), so the workspace, the sidebar switcher, New chat and the ⌘K
   // palette can never disagree about which notebook is open.
-  const { courses: assignedCourses, activeCourse: selectedCourse } =
-    useStudentCourseContext()
+  const {
+    courses: assignedCourses,
+    activeCourse: selectedCourse,
+    unavailableCourseId,
+  } = useStudentCourseContext()
   const routedSessionQuery = useChatSession({
     courseId: selectedCourse?.id,
     sessionId,
@@ -115,21 +129,30 @@ export function TutorPage({ sessionId }: TutorPageProps) {
   }
 
   const handleFirstMessageCreated = useCallback(
-    (session: ChatSession, content: string, clientMessageId: string) => {
+    async (
+      session: ChatSession,
+      content: string,
+      clientMessageId: string,
+    ): Promise<boolean> => {
       if (!selectedCourse) {
-        return
+        return false
       }
 
       setPendingFirstMessage({
-        sessionId: session.id,
+        session,
         content,
         clientMessageId,
       })
-      void navigate({
-        to: '/chat',
-        search: { courseId: selectedCourse.id, sessionId: session.id },
-        replace: true,
-      })
+      try {
+        await navigate({
+          to: '/chat',
+          search: { courseId: selectedCourse.id, sessionId: session.id },
+          replace: true,
+        })
+        return true
+      } catch {
+        return false
+      }
     },
     [navigate, selectedCourse],
   )
@@ -145,14 +168,18 @@ export function TutorPage({ sessionId }: TutorPageProps) {
         <EmptyState
           icon={<BookOpen className="size-6" aria-hidden />}
           title={
-            assignedCourses.length === 0
-              ? 'No assigned course'
-              : 'Choose a course'
+            unavailableCourseId !== null
+              ? 'Course unavailable'
+              : assignedCourses.length === 0
+                ? 'No assigned course'
+                : 'Choose a course'
           }
           description={
-            assignedCourses.length === 0
-              ? 'An active Student course membership is required before you can open a private workspace.'
-              : 'Select one of your assigned courses to load its private conversations.'
+            unavailableCourseId !== null
+              ? 'This course is no longer available to your account. Choose one of your assigned courses from the course switcher.'
+              : assignedCourses.length === 0
+                ? 'An active Student course membership is required before you can open a private workspace.'
+                : 'Select one of your assigned courses to load its private conversations.'
           }
           className="w-full max-w-md border-0 bg-transparent"
         />
@@ -178,7 +205,7 @@ export function TutorPage({ sessionId }: TutorPageProps) {
           firstName={firstName}
           onRecover={() => void handleStaleSession()}
           pendingFirstMessage={
-            pendingFirstMessage?.sessionId === selectedSession.id
+            pendingFirstMessage?.session.id === selectedSession.id
               ? pendingFirstMessage
               : null
           }
@@ -200,6 +227,7 @@ export function TutorPage({ sessionId }: TutorPageProps) {
           key={`${studentId ?? 'anonymous'}:${selectedCourse.id}:draft`}
           course={selectedCourse}
           firstName={firstName}
+          pendingFirstMessage={pendingFirstMessage}
           onFirstMessageCreated={handleFirstMessageCreated}
         />
       )}
@@ -332,11 +360,12 @@ function StudentSessionPlaceholder({
 interface StudentDraftStateProps {
   course: StudentCourseAccess
   firstName?: string
+  pendingFirstMessage: PendingFirstMessage | null
   onFirstMessageCreated: (
     session: ChatSession,
     content: string,
     clientMessageId: string,
-  ) => void
+  ) => Promise<boolean>
 }
 
 // T15.1 — the DRAFT state at `/chat?courseId` (no sessionId): greeting +
@@ -345,9 +374,11 @@ interface StudentDraftStateProps {
 function StudentDraftState({
   course,
   firstName,
+  pendingFirstMessage,
   onFirstMessageCreated,
 }: StudentDraftStateProps) {
   const composerActionsRef = useRef<StudentChatComposerActions | null>(null)
+  const [handoffError, setHandoffError] = useState<Error | null>(null)
   const registerComposerActions = useCallback(
     (actions: StudentChatComposerActions | null) => {
       composerActionsRef.current = actions
@@ -365,14 +396,36 @@ function StudentDraftState({
   // composer performs the send). Create failure keeps the draft and surfaces
   // through the composer's error affordance.
   const handleDraftSend = async (content: string, clientMessageId: string) => {
+    setHandoffError(null)
     try {
+      if (
+        pendingFirstMessage?.clientMessageId === clientMessageId &&
+        pendingFirstMessage.content === content
+      ) {
+        const accepted = await onFirstMessageCreated(
+          pendingFirstMessage.session,
+          content,
+          clientMessageId,
+        )
+        if (!accepted) {
+          setHandoffError(new Error('Conversation navigation failed'))
+        }
+        return accepted
+      }
       const generatedTitle =
         content.trim().length > 0 ? content.trim().slice(0, 60) : undefined
       const session = await createSession.mutateAsync({
         title: generatedTitle,
       })
-      onFirstMessageCreated(session, content, clientMessageId)
-      return true
+      const accepted = await onFirstMessageCreated(
+        session,
+        content,
+        clientMessageId,
+      )
+      if (!accepted) {
+        setHandoffError(new Error('Conversation navigation failed'))
+      }
+      return accepted
     } catch {
       return false
     }
@@ -400,8 +453,11 @@ function StudentDraftState({
       </div>
       <StudentChatComposer
         isGenerating={createSession.isPending}
-        sendError={createSession.error}
-        onDismissError={createSession.reset}
+        sendError={handoffError ?? createSession.error}
+        onDismissError={() => {
+          setHandoffError(null)
+          createSession.reset()
+        }}
         onSend={handleDraftSend}
         onActionsReady={registerComposerActions}
       />
@@ -431,9 +487,12 @@ function StudentConversation({
   })
   const deepLinkedMessageId = parseMessageHash(messageHash)
   const composerActionsRef = useRef<StudentChatComposerActions | null>(null)
+  const [composerActions, setComposerActions] =
+    useState<StudentChatComposerActions | null>(null)
   const registerComposerActions = useCallback(
     (actions: StudentChatComposerActions | null) => {
       composerActionsRef.current = actions
+      setComposerActions(actions)
     },
     [],
   )
@@ -464,6 +523,8 @@ function StudentConversation({
   const isGenerationActive =
     sendMessage.isPending || retryMessage.isPending || hasPersistedGeneration
   const historyScrollRef = useRef<HTMLDivElement>(null)
+  const followsLatestRef = useRef(true)
+  const didInitialScrollRef = useRef(false)
   const previousLatestMessageRef = useRef<string | undefined>(undefined)
   const latestMessage = messages.at(-1)
   const latestMessageKey = latestMessage
@@ -481,17 +542,16 @@ function StudentConversation({
   // the same clientMessageId to retry) both apply.
   const pendingFirstMessageHandledRef = useRef(false)
   useEffect(() => {
-    if (!pendingFirstMessage || pendingFirstMessageHandledRef.current) {
+    if (pendingFirstMessageHandledRef.current) {
       return
     }
 
+    if (!submitPendingFirstMessage(pendingFirstMessage, composerActions)) {
+      return
+    }
     pendingFirstMessageHandledRef.current = true
-    composerActionsRef.current?.submitWith(
-      pendingFirstMessage.content,
-      pendingFirstMessage.clientMessageId,
-    )
     onConsumePendingFirstMessage()
-  }, [pendingFirstMessage, onConsumePendingFirstMessage])
+  }, [composerActions, pendingFirstMessage, onConsumePendingFirstMessage])
 
   useLayoutEffect(() => {
     if (messagesQuery.isPending) {
@@ -501,14 +561,28 @@ function StudentConversation({
     const latestMessageChanged =
       previousLatestMessageRef.current !== latestMessageKey
     previousLatestMessageRef.current = latestMessageKey
+    const initialScroll = !didInitialScrollRef.current
+    didInitialScrollRef.current = true
 
-    if (latestMessageChanged) {
+    if (latestMessageChanged && (initialScroll || followsLatestRef.current)) {
       const scrollContainer = historyScrollRef.current
       if (scrollContainer) {
         scrollContainer.scrollTop = scrollContainer.scrollHeight
       }
     }
   }, [latestMessageKey, messagesQuery.isPending])
+
+  const handleHistoryScroll = () => {
+    const scrollContainer = historyScrollRef.current
+    if (!scrollContainer) {
+      return
+    }
+    followsLatestRef.current =
+      scrollContainer.scrollHeight -
+        scrollContainer.scrollTop -
+        scrollContainer.clientHeight <=
+      80
+  }
 
   useMessageDeepLink({
     messageId: deepLinkedMessageId,
@@ -524,6 +598,7 @@ function StudentConversation({
 
   const handleSend = async (content: string, clientMessageId: string) => {
     retryMessage.reset()
+    followsLatestRef.current = true
 
     if (session.title === 'New chat' && content.trim().length > 0) {
       const newTitle = content.trim().slice(0, 60)
@@ -543,11 +618,15 @@ function StudentConversation({
     }
   }
 
-  const handleRetryMessage = async (studentMessageId: string) => {
+  const handleRetryMessage = async (input: {
+    attemptId: string
+    studentMessageId: string
+  }) => {
     sendMessage.reset()
+    followsLatestRef.current = true
 
     try {
-      await retryMessage.mutateAsync(studentMessageId)
+      await retryMessage.mutateAsync(input)
     } catch {
       // Mutation state renders the scoped retry failure next to the response.
     }
@@ -557,6 +636,7 @@ function StudentConversation({
     <StudentWorkspaceSources course={course} messages={messages}>
       <div
         ref={historyScrollRef}
+        onScroll={handleHistoryScroll}
         aria-label="Conversation messages"
         className="scrollbar-themed min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-16 pb-8 sm:px-6 sm:py-8"
         role="region"
@@ -573,14 +653,12 @@ function StudentConversation({
             isFetchNextPageError={messagesQuery.isFetchNextPageError}
             isGenerationActive={isGenerationActive}
             retryError={retryMessage.error}
-            retryMessageId={retryMessage.variables}
+            retryMessageId={retryMessage.variables?.studentMessageId}
             firstName={firstName}
             onRetry={() => void messagesQuery.refetch()}
             onLoadMore={() => void messagesQuery.fetchNextPage()}
             onRecover={onRecover}
-            onRetryResponse={(studentMessageId) =>
-              void handleRetryMessage(studentMessageId)
-            }
+            onRetryResponse={(input) => void handleRetryMessage(input)}
             onRequestReview={(input) => requestReview.mutateAsync(input)}
             onSuggestionSelect={(text) =>
               composerActionsRef.current?.prefill(text)

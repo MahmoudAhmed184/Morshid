@@ -1,4 +1,5 @@
 import { resolve } from 'node:path'
+import { readdirSync } from 'node:fs'
 
 const testPath =
   '(^|/)(?:test|tests|fixtures|testing)(?:/|$)|\\.(?:test|spec)\\.[^.]+$'
@@ -7,18 +8,12 @@ const tsConfigFileName = resolve(
   process.env.DEPCRUISE_TSCONFIG ?? 'client/tsconfig.json',
 )
 
-const clientFeatureNames = [
-  'account-settings',
-  'audit',
-  'auth',
-  'chat',
-  'courses',
-  'landing',
-  'materials',
-  'reviews',
-  'system-status',
-  'user-management',
-]
+const clientFeatureNames = readdirSync(resolve('client/src/features'), {
+  withFileTypes: true,
+})
+  .filter((entry) => entry.isDirectory())
+  .map((entry) => entry.name)
+  .sort()
 
 const clientFeatureInterfaceRules = clientFeatureNames.map((feature) => ({
   name: `client-${feature}-interface-only`,
@@ -87,7 +82,7 @@ export default {
         'Generated Prisma types stay at platform, persistence, seed, and persistence-test boundaries; product contracts own domain types.',
       severity: 'error',
       from: {
-        path: '^server/src/(?!platform/database(?:/|$)|seeds(?:/|$)|.*(?:\\.repository|repository\\.support|/prisma-)[^/]*\\.ts$|.*\\.spec\\.ts$)',
+        path: '^server/src/(?!platform/database(?:/|$)|seeds(?:/|$)|.*(?:\\.repository|repository\\.support|/prisma-)[^/]*\\.ts$)',
       },
       to: { path: '^server/src/generated/prisma(?:/|$)' },
     },
@@ -190,14 +185,14 @@ export default {
     {
       name: 'courses-interface-only',
       comment:
-        'Product modules may consume Courses only through its module or course-access interface.',
+        'Product modules may consume Courses only through its module or named interfaces.',
       severity: 'error',
       from: {
         path: '^server/src/(?:app\\.module\\.ts|common/|modules/(?!courses(?:/|$)))',
         pathNot: testPath,
       },
       to: {
-        path: '^server/src/modules/courses/(?!courses\\.module\\.ts$|course-access\\.public\\.ts$)',
+        path: '^server/src/modules/courses/(?!courses\\.module\\.ts$|interface/)',
       },
     },
     {
@@ -210,7 +205,7 @@ export default {
         pathNot: testPath,
       },
       to: {
-        path: '^server/src/modules/materials/(?!materials\\.module\\.ts$|materials\\.public\\.ts$)',
+        path: '^server/src/modules/materials/(?!materials\\.module\\.ts$|interface/)',
       },
     },
     {
@@ -236,20 +231,20 @@ export default {
         pathNot: testPath,
       },
       to: {
-        path: '^server/src/modules/reviews/(?!reviews\\.module\\.ts$|reviews\\.public\\.ts$)',
+        path: '^server/src/modules/reviews/(?!reviews\\.module\\.ts$|interface/)',
       },
     },
     {
       name: 'conversations-interface-only',
       comment:
-        'Product modules may consume Conversations only through its module or transaction-aware ConversationTurns interface.',
+        'Product modules may consume Conversations only through its module or named interfaces.',
       severity: 'error',
       from: {
         path: '^server/src/(?:app\\.module\\.ts|common/|modules/(?!conversations(?:/|$)))',
         pathNot: testPath,
       },
       to: {
-        path: '^server/src/modules/conversations/(?!conversations\\.module\\.ts$|conversations-http\\.module\\.ts$|conversations\\.service\\.ts$|conversations\\.dto\\.ts$|conversations\\.public\\.ts$|conversation\\.errors\\.ts$|conversation-turns\\.ts$|conversation-authorization\\.ts$|conversation-message-reader\\.ts$|conversation-records\\.ts$|conversation-message\\.presenter\\.ts$|interface/conversation-course-boundary-audit\\.filter\\.ts$)',
+        path: '^server/src/modules/conversations/(?!conversations\\.module\\.ts$|interface/)',
       },
     },
     {

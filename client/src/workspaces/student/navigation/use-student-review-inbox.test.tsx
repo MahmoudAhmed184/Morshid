@@ -66,7 +66,7 @@ describe('Student review inbox query hooks', () => {
   it('loads the review inbox for the authenticated Student', async () => {
     getInboxMock.mockResolvedValue({ items: [inboxItem], nextCursor: null })
     const queryClient = createQueryClient()
-    const { result } = renderHook(() => useStudentReviewInbox(), {
+    const { result } = renderHook(() => useStudentReviewInbox(true), {
       wrapper: createWrapper(queryClient),
     })
 
@@ -75,6 +75,16 @@ describe('Student review inbox query hooks', () => {
     expect(getInboxMock).toHaveBeenCalledWith(
       expect.objectContaining({ cursor: null }),
     )
+  })
+
+  it('does not load the inbox list while the control is closed', () => {
+    const queryClient = createQueryClient()
+    const { result } = renderHook(() => useStudentReviewInbox(false), {
+      wrapper: createWrapper(queryClient),
+    })
+
+    expect(result.current.fetchStatus).toBe('idle')
+    expect(getInboxMock).not.toHaveBeenCalled()
   })
 
   it('loads the unread review inbox count', async () => {
