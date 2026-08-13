@@ -29,6 +29,7 @@ import { summarizeMaterials } from '@/features/materials/material-catalog/summar
 import { useCourseMembership } from '@/workspaces/instructor/use-course-membership'
 import {
   useCourseMaterials,
+  useDeleteCourseMaterial,
   useMaterialUploadConfiguration,
 } from '@/workspaces/instructor/materials/use-materials'
 import type { Material } from '@/features/materials/material-ingestion/material.schema'
@@ -47,6 +48,7 @@ export function MaterialsPage() {
     courses.find((course) => course.id === selectedCourseId) ?? courses.at(0)
   const activeCourseId = selectedCourse?.id
   const materialsQuery = useCourseMaterials(activeCourseId)
+  const deleteMaterial = useDeleteCourseMaterial()
   const materials = materialsQuery.data ?? []
   const normalizedSearch = search.trim().toLowerCase()
   const filteredMaterials = normalizedSearch
@@ -157,6 +159,13 @@ export function MaterialsPage() {
               }
 
               void materialsQuery.refetch()
+            }}
+            onDelete={async (materialId) => {
+              if (!activeCourseId) return
+              await deleteMaterial.mutateAsync({
+                courseId: activeCourseId,
+                materialId,
+              })
             }}
           />
         </CardContent>
@@ -271,6 +280,7 @@ function MaterialsContent({
   isRetrying,
   hasRefreshError,
   onRetry,
+  onDelete,
 }: {
   isLoading: boolean
   isError: boolean
@@ -280,6 +290,7 @@ function MaterialsContent({
   isRetrying: boolean
   hasRefreshError: boolean
   onRetry: () => void
+  onDelete: (materialId: string) => Promise<void>
 }) {
   if (isLoading) {
     return <InstructorListSkeleton aria-label="Loading materials" rows={5} />
@@ -346,7 +357,11 @@ function MaterialsContent({
       ) : null}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {materials.map((material) => (
-          <MaterialCard key={material.id} material={material} />
+          <MaterialCard
+            key={material.id}
+            material={material}
+            onDelete={() => onDelete(material.id)}
+          />
         ))}
       </div>
     </>

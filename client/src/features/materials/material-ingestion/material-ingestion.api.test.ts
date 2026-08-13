@@ -4,6 +4,7 @@ import type { ApiError } from '@/features/auth/session/interface/authenticated-a
 
 import {
   getMaterialUploadConfiguration,
+  deleteCourseMaterial,
   listCourseMaterials,
   uploadCourseMaterial,
 } from './material-ingestion.api'
@@ -117,6 +118,23 @@ describe('Instructor materials API', () => {
         { fetchImpl: fetchMock },
       ),
     ).resolves.toEqual(response)
+  })
+
+  it('deletes the exact course material and accepts an empty 204 response', async () => {
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        expect(String(input)).toBe(
+          `http://localhost:4000/api/v1/courses/${courseId}/materials/${materialId}`,
+        )
+        expect(init?.method).toBe('DELETE')
+        return new Response(null, { status: 204 })
+      },
+    )
+
+    await expect(
+      deleteCourseMaterial(courseId, materialId, { fetchImpl: fetchMock }),
+    ).resolves.toBeUndefined()
+    expect(fetchMock).toHaveBeenCalledOnce()
   })
 
   it('rejects an invalid successful API response through schema parsing', async () => {

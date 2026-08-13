@@ -91,6 +91,7 @@ export const orderedChatMessagesFixture = [
         materialId: chatIds.primaryMaterial,
         materialTitle: 'Python lists',
         sourceAvailable: true,
+        sourceStatus: 'AVAILABLE',
         evidence: [
           {
             rank: 1,

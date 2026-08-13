@@ -1,4 +1,7 @@
-import { apiJson } from '@/features/auth/session/interface/authenticated-api-client'
+import {
+  apiFetch,
+  apiJson,
+} from '@/features/auth/session/interface/authenticated-api-client'
 import type { ApiFetchOptions } from '@/features/auth/session/interface/authenticated-api-client'
 import {
   materialAdministrationListResponseSchema,
@@ -35,4 +38,15 @@ export async function updateMaterialAdministration(
     },
   )
   return materialAdministrationResponseSchema.parse(response).material
+}
+
+export async function deleteMaterialAdministration(
+  courseId: string,
+  materialId: string,
+  options: ApiFetchOptions = {},
+): Promise<void> {
+  await apiFetch(`/api/v1/courses/${courseId}/materials/${materialId}`, {
+    ...options,
+    method: 'DELETE',
+  })
 }

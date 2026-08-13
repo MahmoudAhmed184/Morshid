@@ -48,6 +48,7 @@ describe('ConversationMessagePresenter', () => {
     expect(result.citations[0]).toMatchObject({
       materialTitle: 'Lists',
       sourceAvailable: true,
+      sourceStatus: 'AVAILABLE',
       evidence: [
         {
           rank: 1,
@@ -106,6 +107,7 @@ describe('ConversationMessagePresenter', () => {
         materialId: 'material-a',
         materialTitle: 'Retained title',
         sourceAvailable: false,
+        sourceStatus: 'UNAVAILABLE',
         evidence: [],
       },
       {
@@ -113,10 +115,40 @@ describe('ConversationMessagePresenter', () => {
         materialId: 'material-b',
         materialTitle: 'Still titled',
         sourceAvailable: false,
+        sourceStatus: 'UNAVAILABLE',
         evidence: [],
       },
     ])
     expect(exists).toHaveBeenCalledTimes(1)
+  })
+
+  it('marks a deleted historical citation without checking its removed PDF', async () => {
+    const deletedCitation = citation(
+      1,
+      'material-deleted',
+      'Python Basics.pdf',
+      'deleted.pdf',
+    )
+    deletedCitation.material.deletedAt = new Date('2026-08-13T12:00:00.000Z')
+
+    const result = await presenter.present(
+      makeMessage({
+        citations: [deletedCitation],
+        retrievals: [],
+      }),
+    )
+
+    expect(result.citations).toEqual([
+      {
+        order: 1,
+        materialId: 'material-deleted',
+        materialTitle: 'Python Basics.pdf',
+        sourceAvailable: false,
+        sourceStatus: 'DELETED',
+        evidence: [],
+      },
+    ])
+    expect(exists).not.toHaveBeenCalled()
   })
 
   it('exposes the pending Student review summary allow-list', async () => {

@@ -1644,6 +1644,7 @@ describe('TutorPage workspace', () => {
         {
           ...chatTurnResponseFixture.assistantMessage.citations[0],
           sourceAvailable: false,
+          sourceStatus: 'DELETED' as const,
           evidence: [],
         },
       ],
@@ -1671,10 +1672,8 @@ describe('TutorPage workspace', () => {
     )
     expect(await screen.findByText('Unavailable')).toBeInTheDocument()
     expect(
-      screen.getByText(
-        'This source is no longer available. No excerpt is shown.',
-      ),
-    ).toBeInTheDocument()
+      screen.getAllByText('Python lists was deleted by the instructor.'),
+    ).toHaveLength(2)
     expect(screen.queryByText(/page \d/i)).not.toBeInTheDocument()
 
     const blockedAssistant = {

@@ -16,7 +16,11 @@ import {
   materialAdministrationKeys,
   materialAdministrationQueryOptions,
 } from '@/features/materials/material-administration.queries'
-import { updateMaterialAdministration } from '@/features/materials/material-administration.api'
+import type { MaterialAdministration } from '@/features/materials/material-administration.schema'
+import {
+  deleteMaterialAdministration,
+  updateMaterialAdministration,
+} from '@/features/materials/material-administration.api'
 import { auditKeys } from '@/features/audit/audit.queries'
 import type { CourseMembershipRole } from '@/features/courses/course-administration.schema'
 import { useAuthStore } from '@/features/auth/session/interface/session-store'
@@ -136,6 +140,33 @@ export function useCourseAdministrationMutations(
       ])
     },
   })
+  const deleteMaterial = useMutation({
+    mutationFn: (materialId: string) => {
+      if (!courseId) throw new Error('Choose a course first.')
+      return deleteMaterialAdministration(courseId, materialId)
+    },
+    onSuccess: async (_response, materialId) => {
+      if (!adminId || !courseId) return
+      const materialListKey = materialAdministrationKeys.all(adminId, courseId)
+      queryClient.setQueryData<MaterialAdministration[]>(
+        materialListKey,
+        (materials) =>
+          materials?.filter((material) => material.id !== materialId),
+      )
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: materialListKey,
+          exact: true,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: courseAdministrationKeys.all(adminId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: auditKeys.all(adminId),
+        }),
+      ])
+    },
+  })
 
   return {
     createCourse,
@@ -144,5 +175,6 @@ export function useCourseAdministrationMutations(
     updateMemberRole,
     removeMember,
     editMaterial,
+    deleteMaterial,
   }
 }

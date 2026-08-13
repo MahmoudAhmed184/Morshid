@@ -1,4 +1,7 @@
-import { apiJson } from '@/features/auth/session/interface/authenticated-api-client'
+import {
+  apiFetch,
+  apiJson,
+} from '@/features/auth/session/interface/authenticated-api-client'
 import type { ApiFetchOptions } from '@/features/auth/session/interface/authenticated-api-client'
 import {
   materialResponseSchema,
@@ -54,4 +57,15 @@ export async function uploadCourseMaterial(
   )
 
   return materialResponseSchema.parse(response)
+}
+
+export async function deleteCourseMaterial(
+  courseId: string,
+  materialId: string,
+  options: ApiFetchOptions = {},
+): Promise<void> {
+  await apiFetch(`/api/v1/courses/${courseId}/materials/${materialId}`, {
+    ...options,
+    method: 'DELETE',
+  })
 }

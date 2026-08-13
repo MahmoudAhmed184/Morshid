@@ -8,6 +8,7 @@ import type { AuthSession } from '@/features/auth/session/session.schema'
 import { useAuthStore } from '@/features/auth/session/interface/session-store'
 import {
   getMaterialUploadConfiguration,
+  deleteCourseMaterial,
   listCourseMaterials,
   uploadCourseMaterial,
 } from '@/features/materials/material-ingestion/material-ingestion.api'
@@ -15,6 +16,7 @@ import { materialKeys } from '@/features/materials/material-ingestion/material-i
 
 import {
   useCourseMaterials,
+  useDeleteCourseMaterial,
   useMaterialUploadConfiguration,
   useUploadCourseMaterial,
 } from './use-materials'
@@ -26,6 +28,7 @@ const getMaterialUploadConfigurationMock = vi.mocked(
   getMaterialUploadConfiguration,
 )
 const uploadCourseMaterialMock = vi.mocked(uploadCourseMaterial)
+const deleteCourseMaterialMock = vi.mocked(deleteCourseMaterial)
 
 const instructorId = 'd005dfdb-aabe-4f65-a2dc-61e75ba203a6'
 const courseId = 'f5bb713c-09b7-42d3-acf3-02f39a902e5a'
@@ -267,6 +270,41 @@ describe('Instructor material hooks', () => {
       file,
     })
     expect(queryClient.getQueryState(selectedListKey)?.isInvalidated).toBe(true)
+    expect(queryClient.getQueryState(unrelatedListKey)?.isInvalidated).toBe(
+      false,
+    )
+  })
+
+  it('deletes a material, removes it immediately, and invalidates only its exact list', async () => {
+    const queryClient = createQueryClient()
+    const selectedListKey = materialKeys.list({ instructorId, courseId })
+    const unrelatedListKey = materialKeys.list({
+      instructorId,
+      courseId: '55b55350-4cc4-4cf4-9e00-689c13359c8f',
+    })
+    const deletedMaterial = {
+      ...processingMaterial,
+      id: 'c67f1d84-012a-477b-af9e-a4b98ad1072c',
+    }
+    queryClient.setQueryData(selectedListKey, [deletedMaterial, material])
+    queryClient.setQueryData(unrelatedListKey, [material])
+    deleteCourseMaterialMock.mockResolvedValue()
+
+    const { result } = renderHook(() => useDeleteCourseMaterial(), {
+      wrapper: createWrapper(queryClient),
+    })
+    await act(() =>
+      result.current.mutateAsync({ courseId, materialId: deletedMaterial.id }),
+    )
+
+    expect(deleteCourseMaterialMock).toHaveBeenCalledOnce()
+    expect(deleteCourseMaterialMock).toHaveBeenCalledWith(
+      courseId,
+      deletedMaterial.id,
+    )
+    expect(queryClient.getQueryData(selectedListKey)).toEqual([material])
+    expect(queryClient.getQueryState(selectedListKey)?.isInvalidated).toBe(true)
+    expect(queryClient.getQueryData(unrelatedListKey)).toEqual([material])
     expect(queryClient.getQueryState(unrelatedListKey)?.isInvalidated).toBe(
       false,
     )

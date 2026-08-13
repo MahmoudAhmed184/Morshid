@@ -96,7 +96,9 @@ function CitationSource({ citation }: { citation: ChatCitation }) {
       ) : (
         <p className="mt-2 flex items-start gap-1.5 text-sm text-muted-foreground">
           <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
-          This source is no longer available. No excerpt is shown.
+          {citation.sourceStatus === 'DELETED'
+            ? `${citation.materialTitle} was deleted by the instructor.`
+            : 'This source is no longer available. No excerpt is shown.'}
         </p>
       )}
     </li>

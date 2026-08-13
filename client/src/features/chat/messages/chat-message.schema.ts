@@ -49,15 +49,24 @@ export const chatCitationSchema = z
     materialId: z.uuid(),
     materialTitle: z.string().trim().min(1),
     sourceAvailable: z.boolean(),
+    sourceStatus: z.enum(['AVAILABLE', 'DELETED', 'UNAVAILABLE']),
     evidence: z.array(chatCitationEvidenceSchema),
   })
   .strict()
-  .superRefine(({ sourceAvailable, evidence }, context) => {
+  .superRefine(({ sourceAvailable, sourceStatus, evidence }, context) => {
     if (sourceAvailable !== evidence.length > 0) {
       context.addIssue({
         code: 'custom',
         message: 'Citation availability must match its evidence',
         path: ['evidence'],
+      })
+    }
+
+    if (sourceAvailable !== (sourceStatus === 'AVAILABLE')) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Citation status must match its availability',
+        path: ['sourceStatus'],
       })
     }
 

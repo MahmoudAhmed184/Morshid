@@ -1,7 +1,10 @@
 import {
   ClassSerializerInterceptor,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Post,
@@ -17,10 +20,12 @@ import {
   ApiCreatedResponse,
   ApiExtraModels,
   ApiNotFoundResponse,
+  ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
   ApiPayloadTooLargeResponse,
+  ApiServiceUnavailableResponse,
   ApiTags,
   getSchemaPath,
 } from '@nestjs/swagger'
@@ -184,5 +189,28 @@ export class MaterialsController {
     @Req() request: AuthenticatedHttpRequest,
   ): Promise<MaterialResponseDto> {
     return this.materialsService.getMaterial(courseId, materialId, request.user)
+  }
+
+  @Delete(':materialId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete a course material knowledge source' })
+  @ApiParam({ name: 'courseId', format: 'uuid' })
+  @ApiParam({ name: 'materialId', format: 'uuid' })
+  @ApiNoContentResponse({ description: 'Material deleted.' })
+  @ApiBadRequestResponse({ type: NestBadRequestErrorDto })
+  @ApiNotFoundResponse({ type: OpenApiErrorDto })
+  @ApiServiceUnavailableResponse({ type: OpenApiErrorDto })
+  async deleteMaterial(
+    @Param('courseId', new ParseUUIDPipe({ version: '4' })) courseId: string,
+    @Param('materialId', new ParseUUIDPipe({ version: '4' }))
+    materialId: string,
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<void> {
+    await this.materialsService.deleteMaterial(
+      courseId,
+      materialId,
+      request.user,
+      getRequestContext(request),
+    )
   }
 }

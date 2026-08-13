@@ -15,6 +15,7 @@ import { ApiError } from '@/features/auth/session/interface/authenticated-api-cl
 import { useCourseMembership } from '@/workspaces/instructor/use-course-membership'
 import {
   useCourseMaterials,
+  useDeleteCourseMaterial,
   useMaterialUploadConfiguration,
   useUploadCourseMaterial,
 } from '@/workspaces/instructor/materials/use-materials'
@@ -30,6 +31,7 @@ const useMaterialUploadConfigurationMock = vi.mocked(
   useMaterialUploadConfiguration,
 )
 const useUploadCourseMaterialMock = vi.mocked(useUploadCourseMaterial)
+const useDeleteCourseMaterialMock = vi.mocked(useDeleteCourseMaterial)
 
 const course = {
   id: 'f5bb713c-09b7-42d3-acf3-02f39a902e5a',
@@ -104,6 +106,7 @@ const statusMaterials = [
 const refetchCourses = vi.fn()
 const refetchMaterials = vi.fn()
 const uploadCourseMaterial = vi.fn()
+const deleteCourseMaterial = vi.fn()
 
 function queryResult<T>(data: T, overrides: Record<string, unknown> = {}) {
   return {
@@ -162,6 +165,11 @@ describe('MaterialsPage', () => {
       isPending: false,
       error: null,
     } as unknown as ReturnType<typeof useUploadCourseMaterial>)
+    useDeleteCourseMaterialMock.mockReturnValue({
+      mutateAsync: deleteCourseMaterial,
+      isPending: false,
+      error: null,
+    } as unknown as ReturnType<typeof useDeleteCourseMaterial>)
   })
 
   afterEach(() => {
@@ -278,6 +286,86 @@ describe('MaterialsPage', () => {
     expect(
       screen.getByRole('button', { name: 'Upload Material' }),
     ).toBeVisible()
+  })
+
+  it('confirms deletion and submits the selected material once', async () => {
+    const user = userEvent.setup()
+    deleteCourseMaterial.mockResolvedValue(undefined)
+    useCourseMaterialsMock.mockReturnValue(
+      queryResult([material], {
+        refetch: refetchMaterials,
+      }) as unknown as ReturnType<typeof useCourseMaterials>,
+    )
+    renderMaterialsPage()
+
+    await user.click(screen.getByRole('button', { name: /open actions/i }))
+    await user.click(
+      await screen.findByRole('menuitem', { name: 'Delete material' }),
+    )
+    expect(
+      screen.getByRole('heading', { name: `Delete “${material.title}”?` }),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/Historical answers will remain/)).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+    await waitFor(() =>
+      expect(deleteCourseMaterial).toHaveBeenCalledWith({
+        courseId: course.id,
+        materialId: material.id,
+      }),
+    )
+    expect(deleteCourseMaterial).toHaveBeenCalledOnce()
+  })
+
+  it('cancels deletion without issuing a request', async () => {
+    const user = userEvent.setup()
+    useCourseMaterialsMock.mockReturnValue(
+      queryResult([material]) as unknown as ReturnType<
+        typeof useCourseMaterials
+      >,
+    )
+    renderMaterialsPage()
+
+    await user.click(screen.getByRole('button', { name: /open actions/i }))
+    await user.click(
+      await screen.findByRole('menuitem', { name: 'Delete material' }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(deleteCourseMaterial).not.toHaveBeenCalled()
+  })
+
+  it('prevents duplicate deletion while pending and keeps the card on failure', async () => {
+    const user = userEvent.setup()
+    let rejectDelete: (error: Error) => void = () => undefined
+    deleteCourseMaterial.mockImplementation(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectDelete = reject
+        }),
+    )
+    useCourseMaterialsMock.mockReturnValue(
+      queryResult([material]) as unknown as ReturnType<
+        typeof useCourseMaterials
+      >,
+    )
+    renderMaterialsPage()
+
+    await user.click(screen.getByRole('button', { name: /open actions/i }))
+    await user.click(
+      await screen.findByRole('menuitem', { name: 'Delete material' }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+
+    const pendingButton = screen.getByRole('button', { name: 'Working...' })
+    expect(pendingButton).toBeDisabled()
+    expect(deleteCourseMaterial).toHaveBeenCalledOnce()
+    rejectDelete(new Error('PDF cleanup failed. Retry deletion.'))
+    expect(
+      await screen.findByText('PDF cleanup failed. Retry deletion.'),
+    ).toBeVisible()
+    expect(screen.getAllByText(material.title).length).toBeGreaterThan(0)
+    expect(deleteCourseMaterial).toHaveBeenCalledOnce()
   })
 
   it('renders consistent status badges and safe messages on desktop and mobile', () => {

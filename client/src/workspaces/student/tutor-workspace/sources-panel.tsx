@@ -105,9 +105,16 @@ export function StudentSourcesPanel({
                       ))}
                     </div>
                   ) : (
-                    <p className="footnote mt-2">
-                      This source is no longer available.
-                    </p>
+                    <div className="footnote mt-2">
+                      <p className="font-medium text-warning">
+                        Source no longer available
+                      </p>
+                      <p>
+                        {citation.sourceStatus === 'DELETED'
+                          ? `${citation.materialTitle} was deleted by the instructor.`
+                          : 'This source cannot currently be opened.'}
+                      </p>
+                    </div>
                   )}
                 </li>
               ))}

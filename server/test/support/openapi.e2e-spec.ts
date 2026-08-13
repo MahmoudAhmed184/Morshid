@@ -896,6 +896,13 @@ describe('OpenAPI contract (e2e)', () => {
           statuses: ['200', '400', '401', '403', '404'],
         },
         {
+          path: `${base}/{materialId}`,
+          method: 'delete',
+          tag: 'materials',
+          summary: 'Delete a course material knowledge source',
+          statuses: ['204', '400', '401', '403', '404', '503'],
+        },
+        {
           path: `${base}/{materialId}/status`,
           method: 'get',
           tag: 'materials',
@@ -1250,6 +1257,10 @@ describe('OpenAPI contract (e2e)', () => {
       expect(schemas.ChatCitationDto.properties?.evidence).toEqual({
         type: 'array',
         items: { $ref: '#/components/schemas/ChatCitationEvidenceDto' },
+      })
+      expect(schemas.ChatCitationDto.properties?.sourceStatus).toEqual({
+        type: 'string',
+        enum: ['AVAILABLE', 'DELETED', 'UNAVAILABLE'],
       })
     } finally {
       await app.close()

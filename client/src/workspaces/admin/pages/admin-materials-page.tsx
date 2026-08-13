@@ -29,6 +29,7 @@ import {
 import { AdminPanel } from '../components/admin-panel'
 import { AdminStatusBadge } from '../components/admin-status-badge'
 import { EditAdminMaterialDialog } from '../components/edit-admin-material-dialog'
+import { DeleteAdminMaterialDialog } from '../components/delete-admin-material-dialog'
 import {
   useMaterialAdministration,
   useCourseAdministrationMutations,
@@ -47,7 +48,8 @@ export function AdminMaterialsPage() {
   const coursesQuery = useCourseAdministration()
   const courseId = selectedCourseId || coursesQuery.data?.[0]?.id
   const materialsQuery = useMaterialAdministration(courseId)
-  const { editMaterial } = useCourseAdministrationMutations(courseId)
+  const { editMaterial, deleteMaterial } =
+    useCourseAdministrationMutations(courseId)
   const selectedCourse = coursesQuery.data?.find(
     (course) => course.id === courseId,
   )
@@ -157,6 +159,10 @@ export function AdminMaterialsPage() {
                       })
                     }
                   />
+                  <DeleteAdminMaterialDialog
+                    material={material}
+                    onDelete={() => deleteMaterial.mutateAsync(material.id)}
+                  />
                 </div>
               </div>
             ))}
@@ -246,6 +252,12 @@ export function AdminMaterialsPage() {
                               materialId: material.id,
                               title,
                             })
+                          }
+                        />
+                        <DeleteAdminMaterialDialog
+                          material={material}
+                          onDelete={() =>
+                            deleteMaterial.mutateAsync(material.id)
                           }
                         />
                       </div>

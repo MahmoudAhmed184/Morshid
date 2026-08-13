@@ -1,6 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { uploadCourseMaterial } from '@/features/materials/material-ingestion/material-ingestion.api'
+import {
+  deleteCourseMaterial,
+  uploadCourseMaterial,
+} from '@/features/materials/material-ingestion/material-ingestion.api'
+import type { Material } from '@/features/materials/material-ingestion/material.schema'
 import {
   materialKeys,
   materialUploadConfigurationQueryOptions,
@@ -60,6 +64,29 @@ export function useUploadCourseMaterial() {
         queryKey: materialKeys.list({ instructorId, courseId }),
         exact: true,
       })
+    },
+  })
+}
+
+export function useDeleteCourseMaterial() {
+  const instructorId = useInstructorId()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      courseId,
+      materialId,
+    }: {
+      courseId: string
+      materialId: string
+    }) => deleteCourseMaterial(courseId, materialId),
+    onSuccess: async (_response, { courseId, materialId }) => {
+      if (!instructorId) return
+      const queryKey = materialKeys.list({ instructorId, courseId })
+      queryClient.setQueryData<Material[]>(queryKey, (materials) =>
+        materials?.filter((material) => material.id !== materialId),
+      )
+      await queryClient.invalidateQueries({ queryKey, exact: true })
     },
   })
 }

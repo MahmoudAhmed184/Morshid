@@ -53,6 +53,13 @@ export interface MaterialAdministrationRecord {
   createdAt: Date
 }
 
+export interface DeletedMaterialRecord {
+  id: string
+  courseId: string
+  storagePath: string
+  alreadyDeleted: boolean
+}
+
 export abstract class MaterialsRepository {
   protected abstract readonly repositoryName: string
 
@@ -106,6 +113,13 @@ export abstract class MaterialsRepository {
   abstract markUploadCleanupRequired(materialId: string): Promise<void>
 
   abstract deleteMaterial(materialId: string): Promise<void>
+
+  abstract quarantineMaterialForDeletion(
+    courseId: string,
+    materialId: string,
+    actorUserId: string,
+    requestContext?: AuditRequestContext,
+  ): Promise<DeletedMaterialRecord | null>
 }
 
 export interface CreateProcessingMaterialInput {
@@ -334,6 +348,12 @@ export class PrismaMaterialsRepository extends MaterialsRepository {
     processingAttemptId: string,
   ): Promise<MaterialProcessingRecord | null> {
     return this.prismaService.$transaction(async (tx) => {
+      const materialState = await lockProcessingMaterial(tx, materialId)
+      if (!isLiveProcessingMaterial(materialState)) {
+        await tx.materialProcessingCommand.deleteMany({ where: { materialId } })
+        return null
+      }
+
       const claimedAt = new Date()
       const leaseExpiresAt = new Date(
         claimedAt.getTime() + MATERIAL_PROCESSING_LEASE_MS,
@@ -393,6 +413,11 @@ export class PrismaMaterialsRepository extends MaterialsRepository {
   ): Promise<boolean> {
     try {
       return await this.prismaService.$transaction(async (tx) => {
+        const materialState = await lockProcessingMaterial(tx, materialId)
+        if (!isOwnedProcessingMaterial(materialState, processingAttemptId)) {
+          return false
+        }
+
         const command = await tx.materialProcessingCommand.deleteMany({
           where: { materialId, processingAttemptId },
         })
@@ -445,6 +470,11 @@ export class PrismaMaterialsRepository extends MaterialsRepository {
   ): Promise<boolean> {
     try {
       return await this.prismaService.$transaction(async (tx) => {
+        const materialState = await lockProcessingMaterial(tx, materialId)
+        if (!isOwnedProcessingMaterial(materialState, processingAttemptId)) {
+          return false
+        }
+
         const command = await tx.materialProcessingCommand.deleteMany({
           where: { materialId, processingAttemptId },
         })
@@ -506,6 +536,60 @@ export class PrismaMaterialsRepository extends MaterialsRepository {
       select: { id: true } satisfies Prisma.MaterialSelect,
     } satisfies Prisma.MaterialDeleteArgs)
   }
+
+  async quarantineMaterialForDeletion(
+    courseId: string,
+    materialId: string,
+    actorUserId: string,
+    requestContext?: AuditRequestContext,
+  ): Promise<DeletedMaterialRecord | null> {
+    return this.prismaService.$transaction(async (tx) => {
+      // The conditional UPDATE takes the material row lock. Concurrent delete
+      // requests serialize here, and only the winner performs derived cleanup
+      // and records the audit event.
+      const deletedAt = new Date()
+      const update = await tx.material.updateMany({
+        where: { id: materialId, courseId, deletedAt: null },
+        data: { deletedAt, processingAttemptId: null },
+      })
+
+      const material = await tx.material.findFirst({
+        where: { id: materialId, courseId },
+        select: {
+          id: true,
+          courseId: true,
+          storagePath: true,
+          deletedAt: true,
+        },
+      })
+
+      if (material === null) {
+        return null
+      }
+
+      if (update.count === 0) {
+        return material.deletedAt === null
+          ? null
+          : { ...material, alreadyDeleted: true }
+      }
+
+      await tx.materialProcessingCommand.deleteMany({ where: { materialId } })
+      await tx.materialChunk.deleteMany({ where: { materialId } })
+      await this.auditService.recordEvent(
+        {
+          actorUserId,
+          action: AUDIT_EVENT_ACTIONS.MATERIAL_DELETED,
+          target: { type: AUDIT_TARGET_TYPES.MATERIAL, id: materialId },
+          courseId,
+          metadata: { materialId },
+          requestContext,
+        },
+        asDatabaseTransaction(tx),
+      )
+
+      return { ...material, alreadyDeleted: false }
+    })
+  }
 }
 
 class ProcessingAttemptOwnershipError extends Error {}
@@ -513,6 +597,54 @@ class ProcessingAttemptOwnershipError extends Error {}
 type PrismaTransactionClient = Parameters<
   Parameters<PrismaService['$transaction']>[0]
 >[0]
+
+interface LockedProcessingMaterial {
+  id: string
+  status: MaterialStatus
+  deletedAt: Date | null
+  processingAttemptId: string | null
+}
+
+function isLiveProcessingMaterial(
+  material: LockedProcessingMaterial | null,
+): material is LockedProcessingMaterial {
+  return (
+    material !== null &&
+    material.deletedAt === null &&
+    material.status === MaterialStatus.PROCESSING
+  )
+}
+
+function isOwnedProcessingMaterial(
+  material: LockedProcessingMaterial | null,
+  processingAttemptId: string,
+): material is LockedProcessingMaterial {
+  return (
+    isLiveProcessingMaterial(material) &&
+    material.processingAttemptId === processingAttemptId
+  )
+}
+
+async function lockProcessingMaterial(
+  tx: PrismaTransactionClient,
+  materialId: string,
+): Promise<LockedProcessingMaterial | null> {
+  // Material is the parent lock for every delete/processing/embedding write.
+  // Always acquire it before command or chunk rows to avoid lock inversion.
+  const rows = await tx.$queryRaw<readonly LockedProcessingMaterial[]>(
+    Prisma.sql`
+      SELECT
+        id,
+        status,
+        deleted_at AS "deletedAt",
+        processing_attempt_id AS "processingAttemptId"
+      FROM materials
+      WHERE id = ${materialId}::uuid
+      FOR NO KEY UPDATE
+    `,
+  )
+  return rows[0] ?? null
+}
 
 const MAX_INSERT_BATCH_ROWS = 1_000
 

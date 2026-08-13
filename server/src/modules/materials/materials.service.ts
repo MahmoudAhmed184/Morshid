@@ -5,6 +5,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common'
 
 import type { AuditRequestContext } from '../audit/audit.public'
@@ -274,6 +275,43 @@ export class MaterialsService {
 
     return {
       material: mapMaterialAdministrationRecord(material),
+    }
+  }
+
+  async deleteMaterial(
+    courseId: string,
+    materialId: string,
+    actor: AuthenticatedUser,
+    requestContext?: AuditRequestContext,
+  ): Promise<void> {
+    await this.requireCourseMaterialManagement(courseId, actor)
+
+    const material =
+      await this.materialsRepository.quarantineMaterialForDeletion(
+        courseId,
+        materialId,
+        actor.id,
+        requestContext,
+      )
+
+    if (material === null) {
+      throw materialNotFoundException()
+    }
+
+    try {
+      // Storage deletion is deliberately after database quarantine. The local
+      // adapter treats an already-missing object as success, so a repeated
+      // DELETE safely retries cleanup for a tombstone.
+      await this.pdfStorage.delete(material.storagePath)
+    } catch (error) {
+      throw new ServiceUnavailableException(
+        {
+          code: MATERIALS_ERROR_CODES.STORAGE_CLEANUP_FAILED,
+          message:
+            'The material is unavailable, but its stored PDF could not be removed. Retry deletion.',
+        },
+        { cause: error },
+      )
     }
   }
 

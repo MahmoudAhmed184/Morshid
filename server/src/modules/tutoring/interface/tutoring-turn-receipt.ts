@@ -38,6 +38,7 @@ export interface TutoringCitationReceipt {
   readonly materialId: string
   readonly materialTitle: string
   readonly sourceAvailable: boolean
+  readonly sourceStatus: 'AVAILABLE' | 'DELETED' | 'UNAVAILABLE'
   readonly evidence: readonly TutoringCitationEvidenceReceipt[]
 }
 
