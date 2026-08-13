@@ -31,6 +31,7 @@ const editUserFormSchema = createUserFormSchema.extend({
 type UserFormProps = {
   initialValues?: Partial<CreateUserFormValues>
   isEditing?: boolean
+  lockedRole?: CreateUserFormValues['role']
   onSubmit: (values: CreateUserFormValues) => void | Promise<void>
   onCancel?: () => void
 }
@@ -38,6 +39,7 @@ type UserFormProps = {
 export function UserForm({
   initialValues,
   isEditing = false,
+  lockedRole,
   onSubmit,
   onCancel,
 }: UserFormProps) {
@@ -51,7 +53,7 @@ export function UserForm({
       name: initialValues?.name ?? '',
       email: initialValues?.email ?? '',
       password: '',
-      role: initialValues?.role ?? 'STUDENT',
+      role: lockedRole ?? initialValues?.role ?? 'STUDENT',
     },
   })
   const isSubmitting = form.formState.isSubmitting
@@ -129,27 +131,29 @@ export function UserForm({
             />
           )}
 
-          <FormField
-            control={form.control}
-            name="role"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Role</FormLabel>
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <FormControl>
-                    <SelectTrigger className="h-9 w-full">
-                      <SelectValue placeholder="Choose role" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="STUDENT">Student</SelectItem>
-                    <SelectItem value="INSTRUCTOR">Instructor</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          {lockedRole ? null : (
+            <FormField
+              control={form.control}
+              name="role"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Role</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger className="h-9 w-full">
+                        <SelectValue placeholder="Choose role" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="STUDENT">Student</SelectItem>
+                      <SelectItem value="INSTRUCTOR">Instructor</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
         </div>
 
         <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end">

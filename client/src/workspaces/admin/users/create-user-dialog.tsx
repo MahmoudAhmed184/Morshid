@@ -14,7 +14,15 @@ import { useManagedUserMutations } from '@/workspaces/admin/users/use-user-manag
 import { UserForm } from './user-form'
 import type { CreateUserFormValues } from '@/features/user-management/managed-user.schema'
 
-export function CreateUserDialog() {
+type CreateUserDialogProps = {
+  role?: CreateUserFormValues['role']
+  userLabel?: string
+}
+
+export function CreateUserDialog({
+  role,
+  userLabel = 'User',
+}: CreateUserDialogProps) {
   const [open, setOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const { createUser } = useManagedUserMutations()
@@ -46,16 +54,16 @@ export function CreateUserDialog() {
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger render={<Button />}>
         <UserPlusIcon />
-        Create User
+        Create {userLabel}
       </DialogTrigger>
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <span className="mb-1 flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
             <UserPlusIcon className="size-5" aria-hidden />
           </span>
-          <DialogTitle>Create User</DialogTitle>
+          <DialogTitle>Create {userLabel}</DialogTitle>
           <DialogDescription>
-            Create a student or instructor account.
+            Create a {userLabel.toLowerCase()} account.
           </DialogDescription>
         </DialogHeader>
         {errorMessage ? (
@@ -64,6 +72,7 @@ export function CreateUserDialog() {
           </p>
         ) : null}
         <UserForm
+          lockedRole={role}
           onSubmit={handleSubmit}
           onCancel={() => handleOpenChange(false)}
         />

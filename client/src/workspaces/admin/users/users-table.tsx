@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 import { AdminStatusBadge } from '@/workspaces/admin/components/admin-status-badge'
+import { Checkbox } from '@/components/ui/checkbox'
 import { UserActions } from './user-actions'
 import type { ManagedUser } from '@/features/user-management/managed-user.schema'
 
@@ -17,6 +18,9 @@ type UsersTableProps = {
   isUpdatingStatus: boolean
   onResetPassword: (userId: string, newPassword: string) => Promise<unknown>
   onStatusChange: (user: ManagedUser) => Promise<unknown>
+  selectedUserIds: ReadonlySet<string>
+  onSelectionChange: (userId: string, selected: boolean) => void
+  onSelectAllChange: (selected: boolean) => void
   onUpdateUser?: (
     userId: string,
     values: {
@@ -29,6 +33,7 @@ type UsersTableProps = {
 }
 
 const tableHeaders = [
+  'Selection',
   'User',
   'Role',
   'Course assignments',
@@ -47,8 +52,17 @@ export function UsersTable({
   isUpdatingStatus,
   onResetPassword,
   onStatusChange,
+  selectedUserIds,
+  onSelectionChange,
+  onSelectAllChange,
   onUpdateUser,
 }: UsersTableProps) {
+  const selectedCount = users.filter((user) =>
+    selectedUserIds.has(user.id),
+  ).length
+  const allSelected = users.length > 0 && selectedCount === users.length
+  const someSelected = selectedCount > 0 && !allSelected
+
   return (
     <>
       {/* Mobile Card List (< md) */}
@@ -63,6 +77,11 @@ export function UsersTable({
                 : 'hover:bg-secondary/20',
             )}
           >
+            <Checkbox
+              checked={selectedUserIds.has(user.id)}
+              onCheckedChange={(checked) => onSelectionChange(user.id, checked)}
+              aria-label={`Select ${user.displayName}`}
+            />
             <div className="min-w-0 flex-1 space-y-1">
               <div className="flex items-center gap-2">
                 <p className="font-semibold text-foreground truncate text-sm">
@@ -112,7 +131,18 @@ export function UsersTable({
                   key={header}
                   className="smallcaps-label h-11 px-4 first:pl-6 last:pr-6"
                 >
-                  {header}
+                  {header === 'Selection' ? (
+                    <Checkbox
+                      checked={allSelected}
+                      indeterminate={someSelected}
+                      onCheckedChange={onSelectAllChange}
+                      aria-label={
+                        allSelected ? 'Unselect all users' : 'Select all users'
+                      }
+                    />
+                  ) : (
+                    header
+                  )}
                 </TableHead>
               ))}
             </TableRow>
@@ -124,10 +154,19 @@ export function UsersTable({
                 className={cn(
                   'h-[52px]',
                   user.status === 'DISABLED'
-                    ? 'bg-destructive/[0.04] hover:bg-destructive/[0.07] [&_td:not(:nth-child(4))]:text-muted-foreground'
+                    ? 'bg-destructive/[0.04] hover:bg-destructive/[0.07] [&_td:not(:nth-child(5))]:text-muted-foreground'
                     : 'hover:bg-secondary/40',
                 )}
               >
+                <TableCell className="px-4 py-3.5 first:pl-6">
+                  <Checkbox
+                    checked={selectedUserIds.has(user.id)}
+                    onCheckedChange={(checked) =>
+                      onSelectionChange(user.id, checked)
+                    }
+                    aria-label={`Select ${user.displayName}`}
+                  />
+                </TableCell>
                 <TableCell className="px-4 py-3.5 first:pl-6">
                   <p className="font-medium text-foreground">
                     {user.displayName}

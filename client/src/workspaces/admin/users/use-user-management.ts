@@ -6,12 +6,16 @@ import {
 
 import {
   createManagedUser,
+  bulkCreateManagedUsers,
   disableManagedUser,
   reactivateManagedUser,
   resetManagedUserPassword,
   updateManagedUser,
 } from '@/features/user-management/user-management.api'
-import type { CreateManagedUserInput } from '@/features/user-management/user-management.api'
+import type {
+  CreateManagedUserInput,
+  ListManagedUsersInput,
+} from '@/features/user-management/user-management.api'
 import { auditKeys } from '@/features/audit/audit.queries'
 import {
   managedUsersInfiniteQueryOptions,
@@ -19,12 +23,15 @@ import {
 } from '@/features/user-management/user-management.queries'
 import { useAuthStore } from '@/features/auth/session/interface/session-store'
 
-export function useManagedUsers() {
+export function useManagedUsers(
+  filters: Omit<ListManagedUsersInput, 'cursor' | 'limit'> = {},
+  enabled = true,
+) {
   const adminId = useAuthStore((state) => state.user?.id)
 
   return useInfiniteQuery({
-    ...managedUsersInfiniteQueryOptions(adminId ?? 'anonymous'),
-    enabled: adminId !== undefined,
+    ...managedUsersInfiniteQueryOptions(adminId ?? 'anonymous', filters),
+    enabled: adminId !== undefined && enabled,
   })
 }
 
@@ -57,6 +64,11 @@ export function useManagedUserMutations() {
     mutationFn: (input: CreateManagedUserInput) => createManagedUser(input),
     onSuccess: invalidateUserManagementData,
   })
+  const bulkCreateUsers = useMutation({
+    mutationFn: (input: CreateManagedUserInput[]) =>
+      bulkCreateManagedUsers(input),
+    onSuccess: invalidateUserManagementData,
+  })
   const disableUser = useMutation({
     mutationFn: (userId: string) => disableManagedUser(userId),
     onSuccess: invalidateUserManagementData,
@@ -82,6 +94,7 @@ export function useManagedUserMutations() {
 
   return {
     createUser,
+    bulkCreateUsers,
     updateUser,
     resetPassword,
     disableUser,

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { ApiError } from '@/features/auth/session/interface/authenticated-api-client'
 
 import {
+  bulkCreateManagedUsers,
   createManagedUser,
   disableManagedUser,
   getManagedUsers,
@@ -88,6 +89,54 @@ describe('admin users API', () => {
     await expect(
       getManagedUsers({ cursor: userId, limit: 1 }, { fetchImpl: fetchMock }),
     ).resolves.toEqual({ users: [managedUser] })
+  })
+
+  it('sends role, status, course, and search filters to the list endpoint', async () => {
+    const fetchMock = async (input: RequestInfo | URL) => {
+      const url = new URL(String(input))
+      expect(Object.fromEntries(url.searchParams)).toEqual({
+        limit: '50',
+        role: 'STUDENT',
+        status: 'ACTIVE',
+        courseId,
+        search: 'demo student',
+      })
+      return Response.json({ users: [managedUser] })
+    }
+
+    await getManagedUsers(
+      {
+        role: 'STUDENT',
+        status: 'ACTIVE',
+        courseId,
+        search: 'demo student',
+      },
+      { fetchImpl: fetchMock },
+    )
+  })
+
+  it('creates multiple users through one bulk request', async () => {
+    const input = {
+      email: userResponse.email,
+      displayName: userResponse.displayName,
+      password: 'StrongPassword123!',
+      role: 'STUDENT' as const,
+    }
+    const fetchMock = async (
+      request: RequestInfo | URL,
+      init?: RequestInit,
+    ) => {
+      expect(String(request)).toBe(
+        'http://localhost:4000/api/v1/admin/users/bulk',
+      )
+      expect(init?.method).toBe('POST')
+      expect(JSON.parse(String(init?.body))).toEqual({ users: [input] })
+      return Response.json({ users: [userResponse] })
+    }
+
+    await expect(
+      bulkCreateManagedUsers([input], { fetchImpl: fetchMock }),
+    ).resolves.toEqual([userResponse])
   })
 
   it('resets a user password through the PATCH endpoint', async () => {

@@ -1,6 +1,7 @@
+import { Link } from '@tanstack/react-router'
 import { useMemo, useState } from 'react'
 
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { DataTableState } from '@/components/ui/custom/data-table-state'
 import { DataToolbar } from '@/components/ui/custom/data-toolbar'
 import { PageHeader } from '@/components/ui/custom/page-header'
@@ -10,103 +11,172 @@ import {
   SelectItem,
   SelectTrigger,
 } from '@/components/ui/select'
-import {
-  useManagedUserMutations,
-  useManagedUsers,
-} from '@/workspaces/admin/users/use-user-management'
 import { useAuthStore } from '@/features/auth/session/interface/session-store'
+import { useDebouncedValue } from '@/lib/hooks/use-debounced-value'
 import { AdminPanel } from '@/workspaces/admin/components/admin-panel'
-import { UsersTable } from './users-table'
+import { useCourseAdministration } from '@/workspaces/admin/use-course-administration'
 import { CreateUserDialog } from './create-user-dialog'
+import { ImportUsersDialog } from './import-users-dialog'
+import { useManagedUserMutations, useManagedUsers } from './use-user-management'
+import { UsersTable } from './users-table'
+import type { ManagedUser } from '@/features/user-management/managed-user.schema'
 
-type RoleFilter = 'ALL' | 'STUDENT' | 'INSTRUCTOR'
+type DirectoryRole = Extract<ManagedUser['role'], 'STUDENT' | 'INSTRUCTOR'>
 type StatusFilter = 'ALL' | 'ACTIVE' | 'DISABLED'
 
-export function UsersPage() {
-  const [roleFilter, setRoleFilter] = useState<RoleFilter>('ALL')
+type UsersPageProps = {
+  role: DirectoryRole
+}
+
+const directoryCopy = {
+  STUDENT: {
+    eyebrow: 'Student Accounts',
+    title: 'Students',
+    singular: 'Student',
+    plural: 'students',
+  },
+  INSTRUCTOR: {
+    eyebrow: 'Doctor Accounts',
+    title: 'Doctors',
+    singular: 'Doctor',
+    plural: 'doctors',
+  },
+} as const
+
+export function UsersPage({ role }: UsersPageProps) {
+  const copy = directoryCopy[role]
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL')
+  const [courseId, setCourseId] = useState('ALL')
+  const [search, setSearch] = useState('')
+  const debouncedSearch = useDebouncedValue(search.trim(), 250)
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(
+    () => new Set(),
+  )
   const currentUserId = useAuthStore((state) => state.user?.id)
-  const usersQuery = useManagedUsers()
+  const usersQuery = useManagedUsers({
+    role,
+    ...(statusFilter === 'ALL' ? {} : { status: statusFilter }),
+    ...(courseId === 'ALL' ? {} : { courseId }),
+    ...(debouncedSearch ? { search: debouncedSearch } : {}),
+  })
+  const coursesQuery = useCourseAdministration()
   const userMutations = useManagedUserMutations()
   const users = useMemo(
     () =>
       (usersQuery.data?.pages.flatMap((page) => page.users) ?? []).filter(
-        (user) => {
-          if (user.id === currentUserId || user.role === 'ADMIN') {
-            return false
-          }
-
-          if (roleFilter !== 'ALL' && user.role !== roleFilter) {
-            return false
-          }
-
-          return statusFilter === 'ALL' || user.status === statusFilter
-        },
+        (user) => user.id !== currentUserId && user.role === role,
       ),
-    [currentUserId, roleFilter, statusFilter, usersQuery.data],
+    [currentUserId, role, usersQuery.data],
   )
 
   const isUpdatingStatus =
     userMutations.disableUser.isPending ||
     userMutations.reactivateUser.isPending
+  const allLoadedSelected =
+    users.length > 0 && users.every((user) => selectedUserIds.has(user.id))
 
-  const roleFilterText =
-    roleFilter === 'STUDENT'
-      ? 'Students'
-      : roleFilter === 'INSTRUCTOR'
-        ? 'Instructors'
-        : 'All roles'
+  const setUserSelected = (userId: string, selected: boolean) => {
+    setSelectedUserIds((current) => {
+      const next = new Set(current)
+      if (selected) next.add(userId)
+      else next.delete(userId)
+      return next
+    })
+  }
 
-  const statusFilterText =
-    statusFilter === 'ACTIVE'
-      ? 'Active'
-      : statusFilter === 'DISABLED'
-        ? 'Disabled'
-        : 'All statuses'
+  const setAllLoadedSelected = (selected: boolean) => {
+    setSelectedUserIds(
+      selected ? new Set(users.map((user) => user.id)) : new Set(),
+    )
+  }
 
   return (
     <div>
       <PageHeader
-        className="mb-8"
-        eyebrow="Identity Operations"
-        title="User Management"
-        description="Create users, review core identity fields, disable or reactivate accounts, and reset passwords."
+        className="mb-5"
+        eyebrow={copy.eyebrow}
+        title={copy.title}
+        description={`Create ${copy.plural}, find accounts by name or email, filter by course, and manage account access.`}
       />
+
+      <div className="mb-5 flex gap-2" aria-label="User directories">
+        <Link
+          to="/admin/users/students"
+          className={buttonVariants({
+            variant: role === 'STUDENT' ? 'secondary' : 'ghost',
+          })}
+        >
+          Students
+        </Link>
+        <Link
+          to="/admin/users/doctors"
+          className={buttonVariants({
+            variant: role === 'INSTRUCTOR' ? 'secondary' : 'ghost',
+          })}
+        >
+          Doctors
+        </Link>
+      </div>
 
       <AdminPanel>
         <DataToolbar
           className="border-b px-4 py-3"
+          search={search}
+          onSearchChange={(value) => {
+            setSearch(value)
+            setSelectedUserIds(new Set())
+          }}
+          searchPlaceholder={`Search ${copy.plural}...`}
           filters={
             <div className="flex flex-row items-center gap-2 overflow-x-auto no-scrollbar">
               <Select
-                value={roleFilter}
+                value={courseId}
                 onValueChange={(value) => {
-                  if (value) setRoleFilter(value)
+                  if (!value) return
+                  setCourseId(value)
+                  setSelectedUserIds(new Set())
                 }}
               >
                 <SelectTrigger
-                  className="h-9 px-2.5 text-xs rounded-lg border-border/80 w-auto min-w-[105px]"
-                  aria-label="Filter users by role"
+                  className="h-9 w-auto min-w-[150px] rounded-lg border-border/80 px-2.5 text-xs"
+                  aria-label={`Filter ${copy.plural} by course`}
                 >
-                  <span className="truncate">{roleFilterText}</span>
+                  <span className="truncate">
+                    {courseId === 'ALL'
+                      ? 'All courses'
+                      : (coursesQuery.data?.find(
+                          (course) => course.id === courseId,
+                        )?.title ?? 'Selected course')}
+                  </span>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL">All roles</SelectItem>
-                  <SelectItem value="STUDENT">Students</SelectItem>
-                  <SelectItem value="INSTRUCTOR">Instructors</SelectItem>
+                  <SelectItem value="ALL">All courses</SelectItem>
+                  {(coursesQuery.data ?? []).map((course) => (
+                    <SelectItem key={course.id} value={course.id}>
+                      {course.code} — {course.title}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <Select
                 value={statusFilter}
                 onValueChange={(value) => {
-                  if (value) setStatusFilter(value)
+                  if (!value) return
+                  setStatusFilter(value)
+                  setSelectedUserIds(new Set())
                 }}
               >
                 <SelectTrigger
-                  className="h-9 px-2.5 text-xs rounded-lg border-border/80 w-auto min-w-[105px]"
-                  aria-label="Filter users by status"
+                  className="h-9 w-auto min-w-[105px] rounded-lg border-border/80 px-2.5 text-xs"
+                  aria-label={`Filter ${copy.plural} by status`}
                 >
-                  <span className="truncate">{statusFilterText}</span>
+                  <span className="truncate">
+                    {statusFilter === 'ALL'
+                      ? 'All statuses'
+                      : statusFilter === 'ACTIVE'
+                        ? 'Active'
+                        : 'Disabled'}
+                  </span>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ALL">All statuses</SelectItem>
@@ -116,27 +186,50 @@ export function UsersPage() {
               </Select>
             </div>
           }
-          actions={<CreateUserDialog />}
+          actions={
+            <div className="flex flex-wrap items-center gap-2">
+              <ImportUsersDialog role={role} userLabel={copy.plural} />
+              <CreateUserDialog role={role} userLabel={copy.singular} />
+            </div>
+          }
         />
+
+        {users.length > 0 ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2 text-xs text-muted-foreground">
+            <span>{selectedUserIds.size} selected</span>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => setAllLoadedSelected(!allLoadedSelected)}
+            >
+              {allLoadedSelected ? 'Unselect all' : 'Select all'}
+            </Button>
+          </div>
+        ) : null}
+
         <DataTableState
           isLoading={usersQuery.isPending}
-          isError={usersQuery.isError}
+          isError={usersQuery.isError || coursesQuery.isError}
           isEmpty={users.length === 0}
-          onRetry={() => void usersQuery.refetch()}
-          isRetrying={usersQuery.isFetching}
-          emptyTitle="No users found"
-          emptyDescription="No users match the selected filters."
+          onRetry={() => {
+            void usersQuery.refetch()
+            void coursesQuery.refetch()
+          }}
+          isRetrying={usersQuery.isFetching || coursesQuery.isFetching}
+          emptyTitle={`No ${copy.plural} found`}
+          emptyDescription={`No ${copy.plural} match the selected filters.`}
         >
           <>
             <UsersTable
               users={users}
+              selectedUserIds={selectedUserIds}
               isResettingPassword={userMutations.resetPassword.isPending}
               isUpdatingStatus={isUpdatingStatus}
+              onSelectionChange={setUserSelected}
+              onSelectAllChange={setAllLoadedSelected}
               onResetPassword={(userId, newPassword) =>
-                userMutations.resetPassword.mutateAsync({
-                  userId,
-                  newPassword,
-                })
+                userMutations.resetPassword.mutateAsync({ userId, newPassword })
               }
               onStatusChange={(user) =>
                 user.status === 'DISABLED'
@@ -170,4 +263,12 @@ export function UsersPage() {
       </AdminPanel>
     </div>
   )
+}
+
+export function StudentsPage() {
+  return <UsersPage role="STUDENT" />
+}
+
+export function DoctorsPage() {
+  return <UsersPage role="INSTRUCTOR" />
 }

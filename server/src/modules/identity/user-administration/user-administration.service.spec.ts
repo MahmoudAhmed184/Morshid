@@ -58,6 +58,15 @@ class UserAdministrationServiceTestRepository extends UserAdministrationReposito
     return Promise.resolve(this.users.get(email) ?? null)
   }
 
+  findByEmails(emails: string[]): Promise<ManagedUserRecord[]> {
+    return Promise.resolve(
+      emails.flatMap((email) => {
+        const user = this.users.get(email)
+        return user ? [user] : []
+      }),
+    )
+  }
+
   findById(userId: string): Promise<ManagedUserRecord | null> {
     return Promise.resolve(
       [...this.users.values()].find((user) => user.id === userId) ?? null,
@@ -88,6 +97,12 @@ class UserAdministrationServiceTestRepository extends UserAdministrationReposito
       users: pageUsers,
       ...(nextCursor === undefined ? {} : { nextCursor }),
     })
+  }
+
+  createUsers(
+    inputs: CreateManagedUserRepositoryInput[],
+  ): Promise<ManagedUserRecord[]> {
+    return Promise.resolve(inputs.map((input) => this.insertUser(input)))
   }
 
   addUser(
@@ -306,6 +321,45 @@ describe('UserAdministrationService', () => {
       expect(response.user).not.toHaveProperty('refreshTokens')
     },
   )
+
+  it('bulk creates normalized users with hashed passwords', async () => {
+    const { createHash, repository, service } = buildService()
+
+    const response = await service.bulkCreateUsers(
+      {
+        users: [
+          {
+            email: ' First@Morshid.Demo ',
+            displayName: ' First Student ',
+            role: UserRole.STUDENT,
+            password: 'FirstPassword1!',
+          },
+          {
+            email: 'Doctor@Morshid.Demo',
+            displayName: ' Demo Doctor ',
+            role: UserRole.INSTRUCTOR,
+            password: 'SecondPassword2!',
+          },
+        ],
+      },
+      actor,
+      requestContext,
+    )
+
+    expect(createHash.mock.calls).toEqual([
+      ['FirstPassword1!'],
+      ['SecondPassword2!'],
+    ])
+    expect([...repository.users.keys()]).toEqual([
+      'first@morshid.demo',
+      'doctor@morshid.demo',
+    ])
+    expect(response.users).toHaveLength(2)
+    expect(response.users[1]).toMatchObject({
+      displayName: 'Demo Doctor',
+      role: UserRole.INSTRUCTOR,
+    })
+  })
 
   it('rejects duplicate emails before hashing', async () => {
     const { createHash, repository, service } = buildService()

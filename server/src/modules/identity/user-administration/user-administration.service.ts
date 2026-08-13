@@ -9,6 +9,8 @@ import type { AuditRequestContext } from '../../audit/audit.public'
 import type {
   CreateUserRequest,
   CreateUserResponseDto,
+  BulkCreateUsersRequest,
+  BulkCreateUsersResponseDto,
   DisableUserResponseDto,
   ReactivateUserResponseDto,
   ResetUserPasswordRequest,
@@ -72,6 +74,46 @@ export class UserAdministrationService {
       return {
         user: mapManagedUserRecord(user),
       }
+    } catch (error) {
+      if (error instanceof ManagedUserEmailAlreadyExistsError) {
+        throw duplicateManagedUserEmailException(error.email)
+      }
+
+      throw error
+    }
+  }
+
+  async bulkCreateUsers(
+    input: BulkCreateUsersRequest,
+    actor: AuthenticatedUser,
+    requestContext?: AuditRequestContext,
+  ): Promise<BulkCreateUsersResponseDto> {
+    const normalizedUsers = input.users.map((user) => ({
+      ...user,
+      email: this.authUserService.normalizeEmail(user.email),
+    }))
+    const existingUsers = await this.userAdministrationRepository.findByEmails(
+      normalizedUsers.map((user) => user.email),
+    )
+
+    if (existingUsers.length > 0) {
+      throw duplicateManagedUserEmailException(existingUsers[0].email)
+    }
+
+    const users = normalizedUsers.map((user) => ({
+      email: user.email,
+      displayName: user.displayName.trim(),
+      role: user.role,
+      passwordHash: this.passwordHasherService.createHash(user.password),
+      actorUserId: actor.id,
+      requestContext,
+    }))
+
+    try {
+      const createdUsers =
+        await this.userAdministrationRepository.createUsers(users)
+
+      return { users: createdUsers.map(mapManagedUserRecord) }
     } catch (error) {
       if (error instanceof ManagedUserEmailAlreadyExistsError) {
         throw duplicateManagedUserEmailException(error.email)

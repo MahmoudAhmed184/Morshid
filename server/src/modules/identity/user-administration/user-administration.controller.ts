@@ -43,6 +43,8 @@ import { Roles } from '../../identity/identity.roles'
 import {
   CreateUserRequestDto,
   CreateUserResponseDto,
+  BulkCreateUsersRequestDto,
+  BulkCreateUsersResponseDto,
   DisableUserResponseDto,
   ReactivateUserResponseDto,
   ResetUserPasswordRequestDto,
@@ -52,9 +54,11 @@ import {
   ManagedUserListResponseDto,
   listUsersQuerySchema,
   createUserRequestSchema,
+  bulkCreateUsersRequestSchema,
   resetUserPasswordRequestSchema,
   updateUserRequestSchema,
   type CreateUserRequest,
+  type BulkCreateUsersRequest,
   type ListUsersQuery,
   type ResetUserPasswordRequest,
   type UpdateUserRequest,
@@ -148,6 +152,35 @@ export class UserAdministrationController {
     @Req() request: AuthenticatedHttpRequest,
   ): Promise<CreateUserResponseDto> {
     return this.userAdministrationService.createUser(
+      body,
+      request.user,
+      getRequestContext(request),
+    )
+  }
+
+  @Post('bulk')
+  @SerializeOptions({
+    type: BulkCreateUsersResponseDto,
+    strategy: 'excludeAll',
+  })
+  @ApiOperation({ summary: 'Create users in one atomic import' })
+  @ApiBody({ type: BulkCreateUsersRequestDto })
+  @ApiCreatedResponse({
+    type: BulkCreateUsersResponseDto,
+    description: 'The imported student or instructor accounts.',
+  })
+  @ApiBadRequestResponse({ type: OpenApiValidationErrorDto })
+  @ApiConflictResponse({ type: OpenApiErrorDto })
+  bulkCreateUsers(
+    @Body(
+      new ZodValidationPipe(bulkCreateUsersRequestSchema, (issues) =>
+        invalidCreateUserRequestException(issues.map(mapZodIssue)),
+      ),
+    )
+    body: BulkCreateUsersRequest,
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<BulkCreateUsersResponseDto> {
+    return this.userAdministrationService.bulkCreateUsers(
       body,
       request.user,
       getRequestContext(request),
