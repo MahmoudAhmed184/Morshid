@@ -73,9 +73,9 @@ import {
   type DisposableDatabase,
 } from '../support/disposable-database'
 import { NoopMaterialProcessingScheduler } from '../support/noop-material-processing-scheduler'
-import { TUTOR_MODEL_PORT } from '../../src/modules/tutoring/socratic-workflow/tutor-generation.types'
-import { ANALYSIS_MODEL_PORT } from '../../src/modules/tutoring/socratic-workflow/analysis-model.port'
-import { SEMANTIC_GUARD_PORT } from '../../src/modules/tutoring/socratic-workflow/semantic-guard.types'
+import { TUTOR_MODEL_PORT } from '../../src/modules/tutoring/socratic-workflow/generation/tutor-generation.types'
+import { ANALYSIS_MODEL_PORT } from '../../src/modules/tutoring/socratic-workflow/analysis/analysis-model.port'
+import { SEMANTIC_GUARD_PORT } from '../../src/modules/tutoring/socratic-workflow/response-approval/semantic-guard.types'
 import {
   ControllableTutorModelPort,
   ControllableSemanticGuardPort,

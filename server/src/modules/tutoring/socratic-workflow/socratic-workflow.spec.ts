@@ -1,6 +1,6 @@
 import { MessageRequestKind, TutoringAttemptStatus } from '../tutoring-values'
 import { SocraticWorkflow } from './socratic-workflow'
-import { TOPIC_RESOLUTION_OUTCOME } from './topic.types'
+import { TOPIC_RESOLUTION_OUTCOME } from './topic/topic.types'
 
 const attemptId = 'turn-1'
 const courseId = 'course-1'

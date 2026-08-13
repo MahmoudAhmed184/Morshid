@@ -4,10 +4,10 @@ import type { PrismaService } from '../../src/platform/database/prisma.service'
 import {
   PrismaTopicStateRepository,
   type TopicStateRepository,
-} from '../../src/modules/tutoring/socratic-workflow/topic-state.repository'
-import { TopicStateService } from '../../src/modules/tutoring/socratic-workflow/topic-state.service'
-import type { TopicStateSnapshot } from '../../src/modules/tutoring/socratic-workflow/topic-state.types'
-import { TOPIC_STATE_ERROR_CODES } from '../../src/modules/tutoring/socratic-workflow/topic-state.errors'
+} from '../../src/modules/tutoring/socratic-workflow/topic/topic-state.repository'
+import { TopicStateService } from '../../src/modules/tutoring/socratic-workflow/topic/topic-state.service'
+import type { TopicStateSnapshot } from '../../src/modules/tutoring/socratic-workflow/topic/topic-state.types'
+import { TOPIC_STATE_ERROR_CODES } from '../../src/modules/tutoring/socratic-workflow/topic/topic-state.errors'
 import {
   LearningStatus,
   MessageRequestKind,

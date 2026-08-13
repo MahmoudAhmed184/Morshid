@@ -33,9 +33,9 @@ import type { ChatMessageRecord } from '../../conversations/interface/conversati
 import {
   validateTopicStateTransition,
   type TopicStateTransition,
-} from '../socratic-workflow/topic-state-transition'
-import { topicStatePatchAssignments } from '../socratic-workflow/topic-state.repository'
-import type { ResponseAuditGraph } from '../socratic-workflow/response-audit.types'
+} from '../socratic-workflow/topic/topic-state-transition'
+import { topicStatePatchAssignments } from '../socratic-workflow/topic/topic-state.repository'
+import type { ResponseAuditGraph } from '../socratic-workflow/response-approval/response-audit.types'
 import {
   GROUNDING_ATTEMPT_EXPIRED,
   GROUNDING_ATTEMPT_LEASE_MS,

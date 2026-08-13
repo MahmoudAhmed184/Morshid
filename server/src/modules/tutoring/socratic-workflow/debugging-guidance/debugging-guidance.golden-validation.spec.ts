@@ -2,17 +2,14 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import { MessageGuidanceLabel, MessageRequestKind } from '../../tutoring-values'
-import { selectTutorStrategy } from '../tutor-strategy'
+import { selectTutorStrategy } from '../teaching-decision/tutor-strategy'
 import {
   type DebuggingGuidanceFixture,
   type DebuggingGuidanceFixtureDataset,
   materializeDebuggingGuidanceFixtureInput,
   parseDebuggingGuidanceFixtureDataset,
 } from './debugging-guidance.fixture'
-import {
-  buildSafeDebuggingGuidanceFallback,
-  validateDebuggingGuidanceOutput,
-} from './debugging-guidance.output-guard'
+import { validateDebuggingGuidanceOutput } from './debugging-guidance.output-validator'
 
 const fixturePath = resolve(
   process.cwd(),
@@ -129,8 +126,10 @@ function evaluateFixture(fixture: DebuggingGuidanceFixture): GoldenResult {
 
   const noFullCode = (() => {
     if (selection.diagnosis === null) return true
-    const fallback = buildSafeDebuggingGuidanceFallback(selection.diagnosis)
-    return !/```|(?:^|\n)\s*(?:async\s+)?(?:def|class)\s+/iu.test(fallback)
+    const diagnosis = Object.values(selection.diagnosis).join('\n')
+    return !/```|~~~|(?:^|\n)\s*(?:async\s+)?(?:def|class|function)\s+/iu.test(
+      diagnosis,
+    )
   })()
 
   const pass =
@@ -485,7 +484,7 @@ describe('Debugging guidance golden validation', () => {
       expect(policyResult).toBe('FULL_REWRITE_SUSPECTED')
     })
 
-    it('produces a safe fallback that omits the corrected code', () => {
+    it('keeps the deterministic diagnosis free of corrected code', () => {
       const fixture = findFixture(dataset.fixtures, 'gd-p0-v1-058')
       const input = materializeDebuggingGuidanceFixtureInput(fixture)
       const selection = selectTutorStrategy(input)
@@ -494,13 +493,10 @@ describe('Debugging guidance golden validation', () => {
       if (selection.diagnosis === null) {
         throw new Error('Expected diagnosis to be non-null')
       }
-      const fallback = buildSafeDebuggingGuidanceFallback(selection.diagnosis)
+      const diagnosis = Object.values(selection.diagnosis).join('\n')
 
-      expect(fallback).toMatch(/cannot provide a complete corrected program/iu)
-      expect(fallback).toMatch(/Likely defect/u)
-      expect(fallback).toMatch(/Next inspection step/u)
-      expect(fallback).not.toContain('def average(nums)')
-      expect(fallback).not.toContain('return sum(nums) / len(nums)')
+      expect(diagnosis).not.toContain('def average(nums)')
+      expect(diagnosis).not.toContain('return sum(nums) / len(nums)')
     })
   })
 
@@ -513,7 +509,7 @@ describe('Debugging guidance golden validation', () => {
         authorizedCitationCount: 1,
       })
 
-      expect(policyResult).not.toBe('ALLOWED_DIAGNOSIS')
+      expect(policyResult).not.toBe('ALLOWED_DEBUGGING_GUIDANCE')
     })
 
     it('validates that a shaped response without citations is rejected', () => {
@@ -627,9 +623,9 @@ describe('Debugging guidance golden validation', () => {
       expect(selection.retrievalQuery).toMatch(/name/iu)
 
       // does not provide a complete corrected program
-      const fallback = buildSafeDebuggingGuidanceFallback(selection.diagnosis)
-      expect(fallback).not.toContain('def average(nums)')
-      expect(fallback).not.toContain('return sum(nums) / len(nums)')
+      const diagnosis = Object.values(selection.diagnosis).join('\n')
+      expect(diagnosis).not.toContain('def average(nums)')
+      expect(diagnosis).not.toContain('return sum(nums) / len(nums)')
 
       // remains linked to SCN-005
       expect(fixture.linkedDemoScenarioId).toBe('SCN-005')

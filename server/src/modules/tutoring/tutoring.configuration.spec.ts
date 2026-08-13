@@ -2,17 +2,17 @@ import {
   DEFAULT_ANALYSIS_MODEL_BASE_URL,
   DEFAULT_ANALYSIS_MODEL_MAX_COMPLETION_TOKENS,
   DEFAULT_ANALYSIS_MODEL_NAME,
-} from './socratic-workflow/analysis-model.configuration'
+} from './infrastructure/analysis-model.configuration'
 import {
   DEFAULT_SEMANTIC_GUARD_BASE_URL,
   DEFAULT_SEMANTIC_GUARD_MAX_COMPLETION_TOKENS,
   DEFAULT_SEMANTIC_GUARD_MODEL_NAME,
-} from './socratic-workflow/semantic-guard.configuration'
+} from './infrastructure/semantic-guard.configuration'
 import {
   DEFAULT_TUTOR_MODEL_BASE_URL,
   DEFAULT_TUTOR_MODEL_MAX_COMPLETION_TOKENS,
   DEFAULT_TUTOR_MODEL_NAME,
-} from './socratic-workflow/tutor-model.configuration'
+} from './infrastructure/tutor-model.configuration'
 import { parseTutoringConfiguration } from './tutoring.configuration'
 
 describe('parseTutoringConfiguration', () => {

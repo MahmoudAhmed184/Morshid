@@ -45,17 +45,17 @@ import {
   ANALYSIS_MODEL_ERROR_CODE,
   ANALYSIS_MODEL_PORT,
   AnalysisModelError,
-} from '../../src/modules/tutoring/socratic-workflow/analysis-model.port'
-import { TopicService } from '../../src/modules/tutoring/socratic-workflow/topic.service'
-import { TOPIC_RESOLUTION_OUTCOME } from '../../src/modules/tutoring/socratic-workflow/topic.types'
+} from '../../src/modules/tutoring/socratic-workflow/analysis/analysis-model.port'
+import { TopicService } from '../../src/modules/tutoring/socratic-workflow/topic/topic.service'
+import { TOPIC_RESOLUTION_OUTCOME } from '../../src/modules/tutoring/socratic-workflow/topic/topic.types'
 import {
   TUTOR_MODEL_ERROR_CODE,
   TUTOR_MODEL_PORT,
   TutorModelError,
   type TutorModelRequest,
   type TutorModelResponse,
-} from '../../src/modules/tutoring/socratic-workflow/tutor-generation.types'
-import { SEMANTIC_GUARD_PORT } from '../../src/modules/tutoring/socratic-workflow/semantic-guard.types'
+} from '../../src/modules/tutoring/socratic-workflow/generation/tutor-generation.types'
+import { SEMANTIC_GUARD_PORT } from '../../src/modules/tutoring/socratic-workflow/response-approval/semantic-guard.types'
 import {
   P0_DEMO_PASSWORD,
   seedP0DemoData,

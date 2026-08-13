@@ -15,10 +15,10 @@ import {
   type EmbeddingProvider,
 } from '../../src/platform/ai/embedding/embedding-provider'
 import { MaterialProcessingScheduler } from '../../src/modules/materials/material-processing.scheduler'
-import { ANALYSIS_MODEL_PORT } from '../../src/modules/tutoring/socratic-workflow/analysis-model.port'
-import { DeterministicAnalysisModelAdapter } from '../../src/modules/tutoring/socratic-workflow/analysis-model.provider'
-import { DeterministicSemanticGuardAdapter } from '../../src/modules/tutoring/socratic-workflow/semantic-guard.adapter'
-import { SEMANTIC_GUARD_PORT } from '../../src/modules/tutoring/socratic-workflow/semantic-guard.types'
+import { ANALYSIS_MODEL_PORT } from '../../src/modules/tutoring/socratic-workflow/analysis/analysis-model.port'
+import { DeterministicAnalysisModelAdapter } from '../../src/modules/tutoring/infrastructure/analysis-model.provider'
+import { DeterministicSemanticGuardAdapter } from '../../src/modules/tutoring/infrastructure/semantic-guard.adapter'
+import { SEMANTIC_GUARD_PORT } from '../../src/modules/tutoring/socratic-workflow/response-approval/semantic-guard.types'
 import {
   AUTOMATIC_SAFETY_FIXTURES,
   type AutomaticSafetyFixture,
@@ -40,7 +40,7 @@ import { RedisService } from '../../src/platform/cache/redis.service'
 import {
   TUTOR_MODEL_PORT,
   type TutorModelRequest,
-} from '../../src/modules/tutoring/socratic-workflow/tutor-generation.types'
+} from '../../src/modules/tutoring/socratic-workflow/generation/tutor-generation.types'
 import type { InstructorReviewActionResponseDto } from '../../src/modules/reviews/instructor-review-action.dto'
 import type { InstructorReviewQueueResponseDto } from '../../src/modules/reviews/instructor-review-queue.dto'
 import type {

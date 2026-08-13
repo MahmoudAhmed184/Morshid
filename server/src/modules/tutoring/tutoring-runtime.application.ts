@@ -26,7 +26,7 @@ import {
 import {
   selectTutorStrategy,
   type TutorStrategySelection,
-} from './socratic-workflow/tutor-strategy'
+} from './socratic-workflow/teaching-decision/tutor-strategy'
 import {
   ControlledSourceConflictDetector,
   CONTROLLED_SOURCE_CONFLICT_DETECTOR_VERSION,
@@ -71,7 +71,7 @@ import type {
   SocraticTopicSelection,
   SocraticWorkflowResult,
 } from './socratic-workflow/socratic-workflow.types'
-import { citationIdForChunk } from './socratic-workflow/tutor-generation-context'
+import { citationIdForChunk } from './socratic-workflow/generation/tutor-generation-context'
 import {
   assertRequestBudget,
   type RequestBudget,

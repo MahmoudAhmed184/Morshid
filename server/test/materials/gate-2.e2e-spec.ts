@@ -33,14 +33,14 @@ import {
   type TutorModelPort,
   type TutorModelRequest,
   type TutorModelResponse,
-} from '../../src/modules/tutoring/socratic-workflow/tutor-generation.types'
-import { SEMANTIC_GUARD_PORT } from '../../src/modules/tutoring/socratic-workflow/semantic-guard.types'
+} from '../../src/modules/tutoring/socratic-workflow/generation/tutor-generation.types'
+import { SEMANTIC_GUARD_PORT } from '../../src/modules/tutoring/socratic-workflow/response-approval/semantic-guard.types'
 import {
   CourseEvidence,
   type CourseEvidenceResult,
 } from '../../src/modules/materials/course-evidence'
 import { GROUNDING_BLOCKED_CONTENT } from '../../src/modules/tutoring/tutoring-runtime.application'
-import { ANALYSIS_MODEL_PORT } from '../../src/modules/tutoring/socratic-workflow/analysis-model.port'
+import { ANALYSIS_MODEL_PORT } from '../../src/modules/tutoring/socratic-workflow/analysis/analysis-model.port'
 import type {
   ChatMessageHistoryResponseDto,
   ChatSessionResponseDto,
