@@ -1,72 +1,80 @@
 @import 'tailwindcss';
 @import 'shadcn/tailwind.css';
-@import '@fontsource-variable/geist';
-@import '@fontsource-variable/geist-mono';
-@import '@fontsource-variable/fraunces/opsz.css';
-@import '@fontsource-variable/fraunces/opsz-italic.css';
+@import '@fontsource-variable/ibm-plex-sans';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+@import '@fontsource/ibm-plex-mono/600.css';
+@import '@fontsource/ibm-plex-sans-arabic/400.css';
+@import '@fontsource/ibm-plex-sans-arabic/500.css';
+@import '@fontsource/ibm-plex-sans-arabic/600.css';
+@import '@fontsource/ibm-plex-sans-arabic/700.css';
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Morshid — Guided Ink / Reading Room. Warm paper, midnight ink, mineral teal. */
-  --background: oklch(0.9755 0.0067 97.4);
-  --foreground: oklch(0.2396 0.0233 251.4);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.2396 0.0233 251.4);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.2396 0.0233 251.4);
-  --primary: oklch(0.4748 0.0833 185.9);
-  --primary-foreground: oklch(1 0 89.9);
-  --secondary: oklch(0.9618 0.0045 134.8);
-  --secondary-foreground: oklch(0.2396 0.0233 251.4);
-  --muted: oklch(0.9618 0.0045 134.8);
-  --muted-foreground: oklch(0.457 0.0309 248.5);
-  --accent: oklch(0.933 0.025 185.9);
-  --accent-foreground: oklch(0.2396 0.0233 251.4);
-  --destructive: oklch(0.5567 0.167 28.8);
-  --destructive-foreground: oklch(1 0 89.9);
-  --rubric: oklch(0.5567 0.167 28.8);
-  --rubric-foreground: oklch(1 0 89.9);
-  --success: oklch(0.5 0.1 155);
-  --success-foreground: oklch(1 0 89.9);
-  --warning: oklch(0.5172 0.1085 76.3);
-  --warning-foreground: oklch(1 0 89.9);
-  --info: oklch(0.5516 0.2479 262.2);
-  --info-foreground: oklch(1 0 89.9);
-  --gold: oklch(0.5172 0.1085 76.3);
-  --gold-foreground: oklch(1 0 89.9);
-  --border: oklch(0.88 0.016 170);
-  --input: oklch(0.5822 0.0198 178.9);
-  --ring: oklch(0.5516 0.2479 262.2);
-  --chart-1: oklch(0.4748 0.0833 185.9);
-  --chart-2: oklch(0.5516 0.2479 262.2);
-  --chart-3: oklch(0.5172 0.1085 76.3);
-  --chart-4: oklch(0.5 0.1 155);
-  --chart-5: oklch(0.5567 0.167 28.8);
-  --sidebar: oklch(0.9618 0.0045 134.8);
-  --sidebar-foreground: oklch(0.2396 0.0233 251.4);
-  --sidebar-primary: oklch(0.4748 0.0833 185.9);
-  --sidebar-primary-foreground: oklch(1 0 89.9);
-  --sidebar-accent: oklch(0.933 0.025 185.9);
-  --sidebar-accent-foreground: oklch(0.2396 0.0233 251.4);
-  --sidebar-border: oklch(0.88 0.016 170);
-  --sidebar-ring: oklch(0.5516 0.2479 262.2);
-  /* Student chat reading surfaces — semantic tints, not decorative accents. */
-  --chat-student: oklch(0.9576 0.013 185.1);
-  --chat-code: oklch(0.9564 0.0042 236.5);
-  --chat-citation: oklch(0.9624 0.0178 261.3);
-  --chat-citation-foreground: oklch(0.4353 0.1404 256);
-  --border-strong: oklch(0.5457 0.0184 172.1);
+  /* Morshid — Cerulean Petrol (#04677F). Deep, calm, high-focus engineering palette. */
+  --background: #f4f6f8;
+  --foreground: #111827;
+  --card: #ffffff;
+  --card-foreground: #111827;
+  --popover: #ffffff;
+  --popover-foreground: #111827;
+  --primary: #04677f;
+  --primary-foreground: #ffffff;
+  --secondary: #edf2f7;
+  --secondary-foreground: #111827;
+  --muted: #f1f5f9;
+  --muted-foreground: #475569;
+  --accent: #eaf5f8;
+  --accent-foreground: #04677f;
+  --destructive: #da1e28;
+  --destructive-foreground: #ffffff;
+  --rubric: #da1e28;
+  --rubric-foreground: #ffffff;
+  --success: #198038;
+  --success-foreground: #ffffff;
+  --warning: #b28600;
+  --warning-foreground: #ffffff;
+  --info: #04677f;
+  --info-foreground: #ffffff;
+  --gold: #b28600;
+  --gold-foreground: #ffffff;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #04677f;
+  --chart-1: #04677f;
+  --chart-2: #198038;
+  --chart-3: #b28600;
+  --chart-4: #035064;
+  --chart-5: #da1e28;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #111827;
+  --sidebar-primary: #04677f;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eaf5f8;
+  --sidebar-accent-foreground: #04677f;
+  --sidebar-border: #b9d7de;
+  --sidebar-ring: #04677f;
+  /* Student chat reading surfaces — calm cerulean tints. */
+  --chat-student: #eef7fa;
+  --chat-code: #f8fafc;
+  --chat-citation: #eaf5f8;
+  --chat-citation-foreground: #035064;
+  --border-strong: #94a3b8;
   --font-sans:
-    'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
-    Roboto, sans-serif;
-  --font-serif: 'Fraunces Variable', Georgia, 'Times New Roman', serif;
-  --font-display: 'Fraunces Variable', Georgia, serif;
-  --font-mono:
-    'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  --font-arabic-ui:
-    'Noto Sans Arabic UI', 'Noto Sans Arabic', 'Geist Variable', ui-sans-serif,
+    'IBM Plex Sans Variable', 'IBM Plex Sans', ui-sans-serif, system-ui,
+    -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-serif:
+    'IBM Plex Sans Variable', 'IBM Plex Sans', ui-sans-serif, system-ui,
     sans-serif;
+  --font-display:
+    'IBM Plex Sans Variable', 'IBM Plex Sans', ui-sans-serif, system-ui,
+    -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono:
+    'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --font-arabic-ui:
+    'IBM Plex Sans Arabic', 'Noto Sans Arabic UI', 'Noto Sans Arabic',
+    ui-sans-serif, sans-serif;
   --radius: 1rem;
   --tracking-normal: 0em;
   --spacing: 0.25rem;
@@ -134,7 +142,7 @@
   --sidebar-primary-foreground: oklch(0.18 0.02 190);
   --sidebar-accent: oklch(0.2973 0.0505 254.9);
   --sidebar-accent-foreground: oklch(0.966 0.0093 100);
-  --sidebar-border: oklch(0.5557 0.0457 254.2);
+  --sidebar-border: oklch(0.52 0.075 190);
   --sidebar-ring: oklch(0.8559 0.0916 227.9);
   /* Student chat reading surfaces — quiet separation on dark paper. */
   --chat-student: oklch(0.3316 0.0372 190.1);
@@ -154,6 +162,268 @@
     0 24px 64px 0 oklch(0 0 0 / 0.36), 0 6px 16px 0 oklch(0 0 0 / 0.18);
   --shadow-2xl:
     0 24px 64px 0 oklch(0 0 0 / 0.36), 0 6px 16px 0 oklch(0 0 0 / 0.18);
+}
+
+/* Named color palettes layer over the light/dark mode tokens. Morshid uses the
+   root palette above, so it remains the stable default and design baseline. */
+:root:not(.dark)[data-theme-palette='ocean-mist'] {
+  --background: #f2f8f9;
+  --primary: #147f91;
+  --secondary: #e7f2f4;
+  --muted: #eaf3f5;
+  --accent: #dceff2;
+  --accent-foreground: #0d6f80;
+  --border: #cfe2e6;
+  --input: #cfe2e6;
+  --ring: #147f91;
+  --info: #147f91;
+  --sidebar: #edf7f8;
+  --sidebar-accent: #dceff2;
+  --sidebar-accent-foreground: #0d6f80;
+  --sidebar-border: #a9d5dc;
+  --sidebar-primary: #147f91;
+  --sidebar-ring: #147f91;
+  --chat-student: #e4f3f5;
+  --chat-citation: #dceff2;
+  --chat-citation-foreground: #0d6f80;
+}
+
+:root:not(.dark)[data-theme-palette='slate-blue'] {
+  --background: #f3f6fb;
+  --primary: #456da9;
+  --secondary: #e8edf6;
+  --muted: #edf1f7;
+  --accent: #e2e9f5;
+  --accent-foreground: #365d98;
+  --border: #d6deeb;
+  --input: #d6deeb;
+  --ring: #456da9;
+  --info: #456da9;
+  --sidebar: #edf2f9;
+  --sidebar-accent: #e2e9f5;
+  --sidebar-accent-foreground: #365d98;
+  --sidebar-border: #b7c9e6;
+  --sidebar-primary: #456da9;
+  --sidebar-ring: #456da9;
+  --chat-student: #e7edf7;
+  --chat-citation: #e2e9f5;
+  --chat-citation-foreground: #365d98;
+}
+
+:root:not(.dark)[data-theme-palette='lavender-gray'] {
+  --background: #f7f5fa;
+  --primary: #6f5a9d;
+  --secondary: #eeeaf4;
+  --muted: #f1eef5;
+  --accent: #eae5f2;
+  --accent-foreground: #604d8d;
+  --border: #dfd8e9;
+  --input: #dfd8e9;
+  --ring: #6f5a9d;
+  --info: #6f5a9d;
+  --sidebar: #f0edf5;
+  --sidebar-accent: #eae5f2;
+  --sidebar-accent-foreground: #604d8d;
+  --sidebar-border: #cabde0;
+  --sidebar-primary: #6f5a9d;
+  --sidebar-ring: #6f5a9d;
+  --chat-student: #eee9f5;
+  --chat-citation: #eae5f2;
+  --chat-citation-foreground: #604d8d;
+}
+
+:root:not(.dark)[data-theme-palette='soft-mint'] {
+  --background: #f3f8f5;
+  --primary: #347e66;
+  --secondary: #e6f1eb;
+  --muted: #eaf3ee;
+  --accent: #dff0e7;
+  --accent-foreground: #286c56;
+  --border: #d3e4da;
+  --input: #d3e4da;
+  --ring: #347e66;
+  --info: #347e66;
+  --sidebar: #edf6f1;
+  --sidebar-accent: #dff0e7;
+  --sidebar-accent-foreground: #286c56;
+  --sidebar-border: #b6d9c8;
+  --sidebar-primary: #347e66;
+  --sidebar-ring: #347e66;
+  --chat-student: #e3f1e9;
+  --chat-citation: #dff0e7;
+  --chat-citation-foreground: #286c56;
+}
+
+:root:not(.dark)[data-theme-palette='dusk'] {
+  --background: #f2f4f8;
+  --primary: #53689d;
+  --secondary: #e6e9f0;
+  --muted: #e9ecf2;
+  --accent: #e1e5ef;
+  --accent-foreground: #435783;
+  --border: #d3d8e3;
+  --input: #d3d8e3;
+  --ring: #53689d;
+  --info: #53689d;
+  --sidebar: #e9edf4;
+  --sidebar-accent: #e1e5ef;
+  --sidebar-accent-foreground: #435783;
+  --sidebar-border: #b8c1d5;
+  --sidebar-primary: #53689d;
+  --sidebar-ring: #53689d;
+  --chat-student: #e4e8f0;
+  --chat-citation: #e1e5ef;
+  --chat-citation-foreground: #435783;
+}
+
+.dark[data-theme-palette='ocean-mist'] {
+  --background: #152a31;
+  --card: #1b343c;
+  --popover: #1b343c;
+  --primary: #7bd4dc;
+  --primary-foreground: #10272d;
+  --secondary: #24434b;
+  --secondary-foreground: #f1f7f7;
+  --muted: #24434b;
+  --muted-foreground: #b8cbce;
+  --accent: #28535c;
+  --accent-foreground: #f1f7f7;
+  --border: #41616a;
+  --input: #41616a;
+  --ring: #7bd4dc;
+  --info: #8edce2;
+  --info-foreground: #10272d;
+  --sidebar: #152a31;
+  --sidebar-foreground: #f1f7f7;
+  --sidebar-primary: #7bd4dc;
+  --sidebar-primary-foreground: #10272d;
+  --sidebar-accent: #24434b;
+  --sidebar-accent-foreground: #f1f7f7;
+  --sidebar-border: #3e6f78;
+  --sidebar-ring: #7bd4dc;
+  --chat-student: #274950;
+  --chat-citation: #24434b;
+  --chat-citation-foreground: #8edce2;
+}
+
+.dark[data-theme-palette='slate-blue'] {
+  --background: #192335;
+  --card: #202c42;
+  --popover: #202c42;
+  --primary: #9dbcf0;
+  --primary-foreground: #172236;
+  --secondary: #2a3852;
+  --secondary-foreground: #f2f5fa;
+  --muted: #2a3852;
+  --muted-foreground: #bbc6d8;
+  --accent: #304566;
+  --accent-foreground: #f2f5fa;
+  --border: #485b78;
+  --input: #485b78;
+  --ring: #9dbcf0;
+  --info: #aec7ef;
+  --info-foreground: #172236;
+  --sidebar: #192335;
+  --sidebar-foreground: #f2f5fa;
+  --sidebar-primary: #9dbcf0;
+  --sidebar-primary-foreground: #172236;
+  --sidebar-accent: #2a3852;
+  --sidebar-accent-foreground: #f2f5fa;
+  --sidebar-border: #536b91;
+  --sidebar-ring: #9dbcf0;
+  --chat-student: #2d405d;
+  --chat-citation: #2a3852;
+  --chat-citation-foreground: #aec7ef;
+}
+
+.dark[data-theme-palette='lavender-gray'] {
+  --background: #262331;
+  --card: #302c3c;
+  --popover: #302c3c;
+  --primary: #c2afe8;
+  --primary-foreground: #251f31;
+  --secondary: #3a3548;
+  --secondary-foreground: #f6f3f8;
+  --muted: #3a3548;
+  --muted-foreground: #cbc3d3;
+  --accent: #493e5e;
+  --accent-foreground: #f6f3f8;
+  --border: #5f566f;
+  --input: #5f566f;
+  --ring: #c2afe8;
+  --info: #ccbced;
+  --info-foreground: #251f31;
+  --sidebar: #262331;
+  --sidebar-foreground: #f6f3f8;
+  --sidebar-primary: #c2afe8;
+  --sidebar-primary-foreground: #251f31;
+  --sidebar-accent: #3a3548;
+  --sidebar-accent-foreground: #f6f3f8;
+  --sidebar-border: #6f6087;
+  --sidebar-ring: #c2afe8;
+  --chat-student: #40394e;
+  --chat-citation: #3a3548;
+  --chat-citation-foreground: #ccbced;
+}
+
+.dark[data-theme-palette='soft-mint'] {
+  --background: #192923;
+  --card: #20332c;
+  --popover: #20332c;
+  --primary: #89d5b7;
+  --primary-foreground: #14271f;
+  --secondary: #2a4037;
+  --secondary-foreground: #f1f7f4;
+  --muted: #2a4037;
+  --muted-foreground: #bdcec6;
+  --accent: #305044;
+  --accent-foreground: #f1f7f4;
+  --border: #496258;
+  --input: #496258;
+  --ring: #89d5b7;
+  --info: #9adcc1;
+  --info-foreground: #14271f;
+  --sidebar: #192923;
+  --sidebar-foreground: #f1f7f4;
+  --sidebar-primary: #89d5b7;
+  --sidebar-primary-foreground: #14271f;
+  --sidebar-accent: #2a4037;
+  --sidebar-accent-foreground: #f1f7f4;
+  --sidebar-border: #527967;
+  --sidebar-ring: #89d5b7;
+  --chat-student: #2c483d;
+  --chat-citation: #2a4037;
+  --chat-citation-foreground: #9adcc1;
+}
+
+.dark[data-theme-palette='dusk'] {
+  --background: #171d2b;
+  --card: #20283a;
+  --popover: #20283a;
+  --primary: #a9bbff;
+  --primary-foreground: #171d2b;
+  --secondary: #2b354b;
+  --secondary-foreground: #f2f4fa;
+  --muted: #2b354b;
+  --muted-foreground: #bec5d5;
+  --accent: #37435e;
+  --accent-foreground: #f2f4fa;
+  --border: #4c5872;
+  --input: #4c5872;
+  --ring: #a9bbff;
+  --info: #bac7ff;
+  --info-foreground: #171d2b;
+  --sidebar: #171d2b;
+  --sidebar-foreground: #f2f4fa;
+  --sidebar-primary: #a9bbff;
+  --sidebar-primary-foreground: #171d2b;
+  --sidebar-accent: #2b354b;
+  --sidebar-accent-foreground: #f2f4fa;
+  --sidebar-border: #5c6b91;
+  --sidebar-ring: #a9bbff;
+  --chat-student: #313c54;
+  --chat-citation: #2b354b;
+  --chat-citation-foreground: #bac7ff;
 }
 
 html {
@@ -323,49 +593,34 @@ html {
   border-top: 1px solid var(--border);
 }
 
-/* Display scale — Fraunces is the brand voice, not the reading face. */
+/* Display scale — IBM Plex Sans with computing brand authority. */
 @utility display-1 {
   font-family: var(--font-display);
-  font-variation-settings:
-    'opsz' 144,
-    'SOFT' 0,
-    'WONK' 0;
-  font-weight: 600;
+  font-weight: 700;
   font-size: clamp(2.75rem, 7vw, 5.5rem);
-  line-height: 1.02;
-  letter-spacing: -0.015em;
+  line-height: 1.05;
+  letter-spacing: -0.025em;
 }
 
 @utility display-2 {
   font-family: var(--font-display);
-  font-variation-settings:
-    'opsz' 144,
-    'SOFT' 0,
-    'WONK' 0;
   font-weight: 600;
   font-size: clamp(2rem, 4vw, 3.5rem);
-  line-height: 1.05;
-  letter-spacing: -0.015em;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
 }
 
 @utility display-3 {
   font-family: var(--font-display);
-  font-variation-settings:
-    'opsz' 144,
-    'SOFT' 0,
-    'WONK' 0;
   font-weight: 600;
   font-size: 1.75rem;
-  line-height: 1.15;
+  line-height: 1.2;
   letter-spacing: -0.015em;
 }
 
 @utility display-index {
   font-family: var(--font-display);
-  font-variation-settings:
-    'opsz' 144,
-    'SOFT' 0,
-    'WONK' 0;
+  font-weight: 600;
   font-size: 1.5rem;
   color: var(--muted-foreground);
   font-variant-numeric: tabular-nums;
@@ -519,18 +774,12 @@ html {
     @apply bg-background text-foreground;
   }
 
-  /* Display type: Fraunces at max optical size, no soft/wonk. */
+  /* Display type: IBM Plex Sans */
   .font-display {
-    font-variation-settings:
-      'opsz' 144,
-      'SOFT' 0,
-      'WONK' 0;
-    letter-spacing: -0.015em;
+    letter-spacing: -0.02em;
   }
 
-  /* Deliberate serif moments: Fraunces with automatic optical sizing. */
   .font-serif {
-    font-optical-sizing: auto;
     letter-spacing: -0.01em;
   }
 
@@ -540,12 +789,12 @@ html {
   }
 
   ::selection {
-    background-color: color-mix(in oklab, var(--gold) 30%, transparent);
+    background-color: color-mix(in oklab, var(--primary) 22%, transparent);
     color: var(--foreground);
   }
 
   .dark ::selection {
-    background-color: color-mix(in oklab, var(--gold) 25%, transparent);
+    background-color: color-mix(in oklab, var(--primary) 25%, transparent);
     color: var(--foreground);
   }
 

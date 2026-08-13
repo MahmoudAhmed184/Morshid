@@ -9,12 +9,12 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
-  AlertDialogMedia,
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { cn } from '@/lib/utils'
 
 type ConfirmInput = {
   value: string
@@ -105,25 +105,28 @@ export function ConfirmDialog({
   return (
     <AlertDialog open={isOpen} onOpenChange={setOpen}>
       {trigger ? <AlertDialogTrigger render={trigger} /> : null}
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogMedia
-            className={
-              destructive
-                ? 'bg-destructive/10 text-destructive'
-                : 'text-muted-foreground'
-            }
-          >
-            <TriangleAlertIcon />
-          </AlertDialogMedia>
-          <AlertDialogTitle>{title}</AlertDialogTitle>
+      <AlertDialogContent className="max-w-[calc(100%-2rem)] rounded-2xl p-6 shadow-2xl sm:max-w-[460px] sm:p-7">
+        <AlertDialogHeader className="flex flex-col gap-3 text-left">
+          <div className="flex items-center gap-3">
+            <TriangleAlertIcon
+              className={cn(
+                'size-6 shrink-0 stroke-[2]',
+                destructive ? 'text-[#c52222]' : 'text-primary',
+              )}
+            />
+            <AlertDialogTitle className="text-xl font-bold tracking-tight text-foreground">
+              {title}
+            </AlertDialogTitle>
+          </div>
           {description ? (
-            <AlertDialogDescription>{description}</AlertDialogDescription>
+            <AlertDialogDescription className="text-[0.95rem] leading-relaxed text-muted-foreground">
+              {description}
+            </AlertDialogDescription>
           ) : null}
         </AlertDialogHeader>
 
         {confirmInput ? (
-          <div className="grid gap-2">
+          <div className="mt-3 grid gap-2">
             <Label htmlFor={inputId}>
               {confirmInput.label ?? `Type "${confirmInput.value}" to confirm`}
             </Label>
@@ -138,18 +141,28 @@ export function ConfirmDialog({
         ) : null}
 
         {errorMessage ? (
-          <p role="alert" className="text-sm text-destructive">
+          <p role="alert" className="mt-2 text-sm text-destructive">
             {errorMessage}
           </p>
         ) : null}
 
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={isConfirming}>
+        <div className="my-5 border-t border-border/70" />
+
+        <AlertDialogFooter className="flex flex-row items-center justify-end gap-3 pt-0">
+          <AlertDialogCancel
+            disabled={isConfirming}
+            className="h-10 rounded-xl border border-input bg-background px-5 text-sm font-medium text-foreground shadow-2xs hover:bg-muted focus-visible:ring-1 focus-visible:ring-ring/30"
+          >
             {cancelLabel}
           </AlertDialogCancel>
           <AlertDialogAction
             variant={destructive ? 'destructive' : 'default'}
             disabled={confirmIsDisabled}
+            className={cn(
+              'h-10 rounded-xl px-5 text-sm font-medium shadow-2xs',
+              destructive &&
+                'bg-[#c52222] text-white hover:bg-[#a81c1c] focus-visible:ring-destructive/30',
+            )}
             onClick={() => void handleConfirm()}
           >
             {isConfirming ? 'Working...' : confirmLabel}

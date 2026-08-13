@@ -10,7 +10,11 @@ export function SignOutButton() {
   return (
     <ConfirmDialog
       trigger={
-        <Button type="button" variant="outline">
+        <Button
+          type="button"
+          variant="outline"
+          className="border-destructive/70 text-destructive hover:bg-destructive/10 hover:text-destructive"
+        >
           <LogOut aria-hidden />
           Sign out
         </Button>

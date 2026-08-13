@@ -231,11 +231,11 @@ export function StudentChatMessage({
           className={cn(
             'px-4 py-3 text-base leading-[1.6] transition-colors',
             isStudent
-              ? 'rounded-2xl rounded-br-lg bg-chat-student text-foreground'
+              ? 'rounded-2xl rounded-br-lg border border-border/80 bg-chat-student text-foreground shadow-2xs'
               : 'rounded-2xl rounded-bl-lg border bg-card text-card-foreground shadow-xs',
             (reviewSummary?.status === 'PENDING' ||
               reviewSummary?.status === 'IN_REVIEW') &&
-              'border-warning/35 bg-warning/[0.04] shadow-[inset_3px_0_0_hsl(var(--warning)/0.45)]',
+              'border-l-4 border-warning/60 bg-warning/5',
           )}
         >
           <span className="sr-only">{isStudent ? 'You' : 'AI Tutor'}: </span>
@@ -576,7 +576,7 @@ function GuidanceBadge({ guidanceLabel }: { guidanceLabel: GuidanceLabel }) {
   const Icon = presentation.icon
 
   return (
-    <div className="flex max-w-full flex-wrap items-center gap-2">
+    <div className="mt-2 flex max-w-full flex-wrap items-center gap-2">
       <Badge
         variant="outline"
         className={cn(

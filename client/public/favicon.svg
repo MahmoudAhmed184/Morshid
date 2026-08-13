@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <style>
+    .bg { fill: #04677F; }
+    .mark { fill: #FFFFFF; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #14243A; }
+      .mark { fill: #38BDF8; }
+    }
+  </style>
+  <rect class="bg" width="32" height="32" rx="7" />
+  <g class="mark" transform="translate(4, 4)">
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M4.8 4.8h14.4v14.4H4.8zM12 1.5l10.5 10.5L12 22.5 1.5 12z" />
+    <circle cx="12" cy="12" r="2.4" />
+  </g>
+</svg>

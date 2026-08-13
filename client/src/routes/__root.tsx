@@ -10,6 +10,7 @@ import appCss from '../app/styles.css?url'
 
 import { AppProviders } from '@/app/app-providers'
 import type { AppRouterContext } from '@/app/router'
+import { NotFoundPage } from '@/features/not-found/not-found-page'
 
 export const Route = createRootRouteWithContext<AppRouterContext>()({
   head: () => ({
@@ -27,11 +28,30 @@ export const Route = createRootRouteWithContext<AppRouterContext>()({
     ],
     links: [
       {
+        rel: 'icon',
+        type: 'image/svg+xml',
+        href: '/favicon.svg',
+      },
+      {
+        rel: 'icon',
+        type: 'image/x-icon',
+        href: '/favicon.ico',
+      },
+      {
+        rel: 'apple-touch-icon',
+        href: '/apple-touch-icon.png',
+      },
+      {
+        rel: 'manifest',
+        href: '/manifest.json',
+      },
+      {
         rel: 'stylesheet',
         href: appCss,
       },
     ],
   }),
+  notFoundComponent: NotFoundPage,
   component: RootApp,
   shellComponent: RootDocument,
 })
