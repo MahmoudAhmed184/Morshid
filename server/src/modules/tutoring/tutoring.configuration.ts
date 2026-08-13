@@ -5,6 +5,10 @@ import {
   DEFAULT_TUTORING_REQUEST_TIMEOUT_MS,
   MAX_TUTORING_REQUEST_TIMEOUT_MS,
 } from '../../common/http/request-deadline'
+import {
+  inspectGeminiChatProjectsJson,
+  isGeminiOpenAICompatibleBaseUrl,
+} from '../../platform/ai/upstream/gemini-chat-project-pool'
 import type { AppEnvironment } from '../../platform/config/env.schema'
 import {
   DEFAULT_ANALYSIS_CONFIDENCE_THRESHOLD,
@@ -74,6 +78,26 @@ function blankAsUndefined(value: unknown): unknown {
   return typeof value === 'string' && value.trim() === '' ? undefined : value
 }
 
+const geminiChatProjectsSchema = z
+  .unknown()
+  .default('')
+  .transform((value, ctx) => {
+    const validation = inspectGeminiChatProjectsJson(value, {
+      allowEmpty: true,
+    })
+    if (!validation.success) {
+      for (const issue of validation.issues) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [...issue.path],
+          message: issue.message,
+        })
+      }
+      return z.NEVER
+    }
+    return validation.projects
+  })
+
 const tutoringConfigurationSchema = z
   .object({
     NODE_ENV: z
@@ -85,6 +109,7 @@ const tutoringConfigurationSchema = z
       .positive()
       .max(MAX_TUTORING_REQUEST_TIMEOUT_MS)
       .default(DEFAULT_TUTORING_REQUEST_TIMEOUT_MS),
+    GEMINI_CHAT_PROJECTS_JSON: geminiChatProjectsSchema,
     ANALYSIS_MODEL_PROVIDER: z
       .enum([
         DETERMINISTIC_ANALYSIS_MODEL_PROVIDER,
@@ -226,6 +251,19 @@ const tutoringConfigurationSchema = z
       .default(DEFAULT_SEMANTIC_GUARD_MAX_COMPLETION_TOKENS),
   })
   .superRefine((configuration, ctx) => {
+    for (const [
+      index,
+      project,
+    ] of configuration.GEMINI_CHAT_PROJECTS_JSON.entries()) {
+      if (isPlaceholderSecret(project.apiKey)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['GEMINI_CHAT_PROJECTS_JSON', index, 'apiKey'],
+          message: 'must not use a placeholder Gemini API key',
+        })
+      }
+    }
+
     for (const [key, value, label] of [
       [
         'ANALYSIS_MODEL_API_KEY',
@@ -281,6 +319,66 @@ const tutoringConfigurationSchema = z
               'must be HTTP localhost or HTTPS without credentials, query, or fragment',
           })
         }
+      }
+    }
+
+    const geminiRoles = [
+      {
+        provider: configuration.ANALYSIS_MODEL_PROVIDER,
+        liveProvider: OPENAI_COMPATIBLE_ANALYSIS_MODEL_PROVIDER,
+        baseUrl: configuration.ANALYSIS_MODEL_BASE_URL,
+        apiKey: configuration.ANALYSIS_MODEL_API_KEY,
+        apiKeyPath: 'ANALYSIS_MODEL_API_KEY',
+      },
+      {
+        provider: configuration.TUTOR_MODEL_PROVIDER,
+        liveProvider: OPENAI_COMPATIBLE_TUTOR_MODEL_PROVIDER,
+        baseUrl: configuration.TUTOR_MODEL_BASE_URL,
+        apiKey: configuration.TUTOR_MODEL_API_KEY,
+        apiKeyPath: 'TUTOR_MODEL_API_KEY',
+      },
+      {
+        provider: configuration.SEMANTIC_GUARD_PROVIDER,
+        liveProvider: OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER,
+        baseUrl: configuration.SEMANTIC_GUARD_BASE_URL,
+        apiKey: configuration.SEMANTIC_GUARD_API_KEY,
+        apiKeyPath: 'SEMANTIC_GUARD_API_KEY',
+      },
+    ] as const
+    const selectedGeminiRoles = geminiRoles.filter(
+      (role) =>
+        role.provider === role.liveProvider &&
+        isGeminiOpenAICompatibleBaseUrl(role.baseUrl),
+    )
+    if (
+      selectedGeminiRoles.length > 0 &&
+      configuration.GEMINI_CHAT_PROJECTS_JSON.length === 0
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['GEMINI_CHAT_PROJECTS_JSON'],
+        message:
+          'must contain at least one project when a role uses the Gemini OpenAI-compatible endpoint',
+      })
+    }
+    if (
+      selectedGeminiRoles.length === 0 &&
+      configuration.GEMINI_CHAT_PROJECTS_JSON.length > 0
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['GEMINI_CHAT_PROJECTS_JSON'],
+        message:
+          'must be empty unless an openai-compatible role uses the Gemini endpoint',
+      })
+    }
+    for (const role of selectedGeminiRoles) {
+      if (role.apiKey !== '') {
+        ctx.addIssue({
+          code: 'custom',
+          path: [role.apiKeyPath],
+          message: 'must be blank when the role uses GEMINI_CHAT_PROJECTS_JSON',
+        })
       }
     }
 
@@ -394,6 +492,9 @@ export function readTutoringConfiguration(
         infer: true,
       },
     ),
+    GEMINI_CHAT_PROJECTS_JSON: configService.get('GEMINI_CHAT_PROJECTS_JSON', {
+      infer: true,
+    }),
     ANALYSIS_MODEL_PROVIDER: configService.get('ANALYSIS_MODEL_PROVIDER', {
       infer: true,
     }),

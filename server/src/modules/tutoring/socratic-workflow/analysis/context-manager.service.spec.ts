@@ -280,6 +280,8 @@ describe('ContextManager', () => {
               return 0.62
             case 'TUTORING_REQUEST_TIMEOUT_MS':
               return 120_000
+            case 'GEMINI_CHAT_PROJECTS_JSON':
+              return '[]'
             case 'ANALYSIS_MODEL_PROVIDER':
               return 'deterministic'
             case 'ANALYSIS_MODEL_TIMEOUT_MS':

@@ -186,7 +186,7 @@ export function buildLiveTeachingDecision(
       enforceCitationSupport: true,
       maximumDisclosedSteps: 1,
     },
-    decisionReason: 'Live Socratic Gemini verification fixture.',
+    decisionReason: 'Live Socratic role-chain verification fixture.',
     policyVersion: TEACHING_POLICY_VERSION,
     createdAt,
   }

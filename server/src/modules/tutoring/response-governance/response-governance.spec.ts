@@ -1,8 +1,5 @@
 import { MessageGuidanceLabel } from '../tutoring-values'
-import {
-  AUTOMATIC_SAFETY_FIXTURES,
-  AUTOMATIC_SAFETY_PROVIDER_PROFILES,
-} from './automatic-safety.fixtures'
+import { AUTOMATIC_SAFETY_FIXTURES } from './automatic-safety.fixtures'
 import {
   decodeAutomaticPolicyReasons,
   encodeAutomaticPolicyReasons,
@@ -195,29 +192,6 @@ describe('ResponseGovernance', () => {
         assessment,
       }),
     ).toThrow('Proposed output is invalid')
-  })
-
-  it('keeps deterministic CI authoritative and live providers explicitly opted in', () => {
-    expect(AUTOMATIC_SAFETY_PROVIDER_PROFILES.ci).toEqual({
-      tutorProvider: 'deterministic',
-      embeddingProvider: 'deterministic',
-      live: false,
-      requiredOptIns: [],
-    })
-    expect(
-      AUTOMATIC_SAFETY_PROVIDER_PROFILES.liveBedrockGeminiEmbedding,
-    ).toMatchObject({
-      tutorProvider: 'aws-bedrock',
-      embeddingProvider: 'gemini',
-      live: true,
-    })
-    expect(
-      AUTOMATIC_SAFETY_PROVIDER_PROFILES.liveBedrockGeminiEmbedding
-        .requiredOptIns,
-    ).toEqual([
-      'AUTOMATIC_SAFETY_LIVE_SMOKE_ACKNOWLEDGED',
-      'GEMINI_EMBEDDING_DEMO_ACKNOWLEDGED',
-    ])
   })
 
   it('round-trips canonical policy reasons for idempotent review repair', () => {

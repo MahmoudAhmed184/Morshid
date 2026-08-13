@@ -2,6 +2,7 @@ import { Logger } from '@nestjs/common'
 
 import {
   STRUCTURED_CHAT_ERROR_CODE,
+  type FetchImplementation,
   StructuredChatTransport,
   StructuredChatTransportError,
 } from '../../../platform/ai/upstream/structured-chat.transport'
@@ -36,6 +37,7 @@ const defaultGuardTimeoutSignalFactory: GuardTimeoutSignalFactory = (
 export function createSemanticGuardPort(
   configuration: SemanticGuardConfiguration,
   timeoutSignalFactory: GuardTimeoutSignalFactory = defaultGuardTimeoutSignalFactory,
+  fetchImplementation: FetchImplementation = globalThis.fetch,
 ): SemanticGuardPort {
   const snapshot = validateSemanticGuardConfiguration(configuration)
   if (snapshot.provider === DETERMINISTIC_SEMANTIC_GUARD_PROVIDER) {
@@ -46,6 +48,7 @@ export function createSemanticGuardPort(
     snapshot.openAICompatible,
     snapshot.timeoutMs,
     timeoutSignalFactory,
+    fetchImplementation,
   )
 }
 
@@ -131,10 +134,7 @@ export class OpenAICompatibleSemanticGuardAdapter implements SemanticGuardPort {
     configuration: OpenAICompatibleSemanticGuardConfiguration,
     timeoutMs: number,
     timeoutSignalFactory: GuardTimeoutSignalFactory = defaultGuardTimeoutSignalFactory,
-    fetchImplementation: (
-      input: string | URL | Request,
-      init?: RequestInit,
-    ) => Promise<Response> = globalThis.fetch,
+    fetchImplementation: FetchImplementation = globalThis.fetch,
   ) {
     const snapshot =
       validateOpenAICompatibleSemanticGuardConfiguration(configuration)
