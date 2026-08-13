@@ -1,18 +1,6 @@
 import type { DatabaseTransaction } from '../../../platform/database/database-transaction'
 import type { ChatMessageRecord } from './conversation-records'
 import type { ConversationMessageStatus } from './conversation-message-reader'
-import type {
-  ConversationAnalysisContext,
-  ConversationAnalysisContextInput,
-  ConversationAnalysisHistoryInput,
-  ConversationAnalysisMessage,
-  ConversationMessageLookup,
-  ConversationStudentMessageCountInput,
-} from './conversation-message-reader'
-import type {
-  ConversationAuthorizationInput,
-  ConversationAuthorizationResult,
-} from './conversation-authorization'
 
 export type ConversationRequestKind =
   | 'CONCEPTUAL'
@@ -102,38 +90,6 @@ export type FinalizedMessage =
   | { readonly kind: 'message_not_pending' }
 
 export abstract class ConversationTurns {
-  abstract authorizeStudent(
-    input: ConversationAuthorizationInput,
-    transaction: DatabaseTransaction,
-  ): Promise<ConversationAuthorizationResult>
-
-  abstract authorizeSessionOwner(
-    input: ConversationAuthorizationInput,
-    transaction: DatabaseTransaction,
-  ): Promise<
-    Extract<
-      ConversationAuthorizationResult,
-      { kind: 'ok' | 'session_not_found' }
-    >
-  >
-
-  abstract find(
-    input: ConversationMessageLookup & { readonly studentId?: string },
-    transaction?: DatabaseTransaction,
-  ): Promise<ChatMessageRecord | null>
-
-  abstract loadAnalysisContext(
-    input: ConversationAnalysisContextInput,
-  ): Promise<ConversationAnalysisContext | null>
-
-  abstract listAnalysisHistoryCandidates(
-    input: ConversationAnalysisHistoryInput,
-  ): Promise<ConversationAnalysisMessage[]>
-
-  abstract countStudentMessages(
-    input: ConversationStudentMessageCountInput,
-  ): Promise<number>
-
   abstract admit(
     input: AdmitConversationTurnInput,
     transaction: DatabaseTransaction,

@@ -6,7 +6,7 @@ import { asDatabaseTransaction } from '../../platform/database/database-transact
 import type { AuditRequestContext } from '../audit/audit.public'
 import type { UserRole, UserStatus } from '../identity/identity.roles'
 import { CourseAudit } from './course-audit'
-import { CourseMembershipRole } from './course-membership.types'
+import { CourseMembershipRole } from './interface/course-membership-role'
 import {
   CourseCodeAlreadyExistsError,
   CourseMemberAlreadyExistsError,

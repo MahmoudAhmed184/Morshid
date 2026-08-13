@@ -329,7 +329,7 @@ function buildHarness() {
     topicRepository,
     topicStateRepository,
     contextManager: new ContextManager(
-      conversationMessages as never,
+      conversationMessages,
       topicRepository,
       topicStateRepository,
     ),

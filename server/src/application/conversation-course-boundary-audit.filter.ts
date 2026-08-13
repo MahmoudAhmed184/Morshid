@@ -10,11 +10,11 @@ import type { Request, Response } from 'express'
 import {
   getRequestContext,
   getRouteContext,
-} from '../../../common/http/request-context'
-import type { AccessAuditActor } from '../../audit/audit.public'
-import type { AuthenticatedUser } from '../../identity/identity.types'
-import { CONVERSATION_ERROR_CODES } from './conversation-errors'
-import { ConversationCourseBoundaryAudit } from './conversation-course-boundary-audit'
+} from '../common/http/request-context'
+import type { AccessAuditActor } from '../modules/audit/audit.public'
+import type { AuthenticatedUser } from '../modules/identity/identity.types'
+import { CONVERSATION_ERROR_CODES } from '../modules/conversations/interface/conversation-errors'
+import { ConversationCourseBoundaryAudit } from '../modules/conversations/interface/conversation-course-boundary-audit'
 
 interface CourseScopedHttpRequest extends Request {
   user?: AuthenticatedUser
@@ -24,7 +24,7 @@ interface CourseScopedHttpRequest extends Request {
  * Audits course-boundary denials on the course-scoped chat endpoints.
  *
  * A Student who is not an active member of `:courseId` is rejected with a 403
- * thrown from deep inside `ConversationsService`. This controller-scoped filter
+ * thrown from deep inside Conversations or Tutoring. This application filter
  * still sees that exception with the full request context (actor, route, ip,
  * user-agent, course id), so it emits the generic
  * `ACCESS_COURSE_BOUNDARY_DENIED` audit event (Issue #15) without changing the

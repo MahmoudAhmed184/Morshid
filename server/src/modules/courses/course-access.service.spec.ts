@@ -1,7 +1,7 @@
 import type { AuthenticatedUser } from '../identity/identity.types'
 import { UserRole, UserStatus } from '../identity/identity.roles'
 import { CourseAccessService } from './course-access.service'
-import { CourseMembershipRole } from './course-membership.types'
+import { CourseMembershipRole } from './interface/course-membership-role'
 import {
   CoursesRepository,
   type AddCourseMemberInput,

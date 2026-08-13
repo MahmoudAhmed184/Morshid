@@ -17,7 +17,7 @@ import {
   AuditService,
   type AuditRequestContext,
 } from '../audit/audit.public'
-import { ConversationTurns } from '../conversations/interface/conversation-turns'
+import { ConversationMessageReader } from '../conversations/interface/conversation-message-reader'
 import {
   AutomaticSafetyRiskDetector,
   AUTOMATIC_SAFETY_RISK_DETECTOR_VERSION,
@@ -156,7 +156,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
     private readonly turnRepository: TutoringTurnRepository,
     private readonly messagePresenter: ConversationMessagePresenter,
     private readonly socraticWorkflow: SocraticWorkflow,
-    private readonly conversationTurns: ConversationTurns,
+    private readonly conversationMessages: ConversationMessageReader,
     private readonly safetyRiskDetector: AutomaticSafetyRiskDetector,
     private readonly conflictDetector: ControlledSourceConflictDetector,
     private readonly responseGovernance: ResponseGovernance,
@@ -846,11 +846,11 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
     operation: OrchestrationContext,
   ): Promise<TutoringTurnReceipt> {
     const [refreshedStudent, refreshedAssistant] = await Promise.all([
-      this.conversationTurns.find({
+      this.conversationMessages.find({
         id: studentMessage.id,
         studentId: operation.studentId,
       }),
-      this.conversationTurns.find({
+      this.conversationMessages.find({
         id: assistantMessage.id,
         studentId: operation.studentId,
       }),
@@ -970,7 +970,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
   ): Promise<ChatMessageRecord> {
     try {
       return (
-        (await this.conversationTurns.find({ id: fallback.id })) ?? fallback
+        (await this.conversationMessages.find({ id: fallback.id })) ?? fallback
       )
     } catch (error) {
       this.logger.warn({

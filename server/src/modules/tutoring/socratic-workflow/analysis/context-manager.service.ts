@@ -9,15 +9,15 @@ import {
   type AnalysisContextPackage,
   type BuildAnalysisContextInput,
 } from './analysis-context.types'
-import { ConversationTurns } from '../../../conversations/interface/conversation-turns'
+import { ConversationMessageReader } from '../../../conversations/interface/conversation-message-reader'
 import { TopicStateRepository } from '../topic/topic-state.repository'
 import { TopicRepository } from '../topic/topic.repository'
 
 @Injectable()
 export class ContextManager {
   constructor(
-    @Inject(ConversationTurns)
-    private readonly conversationTurns: ConversationTurns,
+    @Inject(ConversationMessageReader)
+    private readonly conversationMessages: ConversationMessageReader,
     private readonly topicRepository: TopicRepository,
     private readonly topicStateRepository: TopicStateRepository,
   ) {}
@@ -25,7 +25,7 @@ export class ContextManager {
   async buildAnalysisContext(
     input: BuildAnalysisContextInput,
   ): Promise<AnalysisContextPackage | null> {
-    const base = await this.conversationTurns.loadAnalysisContext(input)
+    const base = await this.conversationMessages.loadAnalysisContext(input)
     if (base === null) {
       return null
     }
@@ -47,7 +47,7 @@ export class ContextManager {
 
     const [topicState, candidates] = await Promise.all([
       this.topicStateRepository.findByTopicId(activeTopic.id),
-      this.conversationTurns.listAnalysisHistoryCandidates({
+      this.conversationMessages.listAnalysisHistoryCandidates({
         courseId: input.courseId,
         sessionId: input.sessionId,
         studentId: input.studentId,

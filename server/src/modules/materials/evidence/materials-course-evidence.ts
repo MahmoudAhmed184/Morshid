@@ -45,7 +45,7 @@ export class MaterialsCourseEvidence extends CourseEvidence {
     this.minSimilarity = configuration.RETRIEVAL_MIN_SIMILARITY
   }
 
-  // courseId must already be authorized by the caller (CourseAccessService at
+  // courseId must already be authorized by the caller (CourseAccess at
   // the route layer). Enforcement here is structural: the course predicate is
   // a mandatory part of the signature and the SQL, so there is no unscoped
   // variant to call. An unauthorized courseId is not observable at this layer

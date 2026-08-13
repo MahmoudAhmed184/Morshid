@@ -9,7 +9,6 @@ import {
   Req,
   Res,
   SerializeOptions,
-  UseFilters,
   UseInterceptors,
   Inject,
 } from '@nestjs/common'
@@ -46,7 +45,6 @@ import {
   TUTORING_CONFIGURATION,
   type TutoringConfiguration,
 } from './tutoring.configuration'
-import { ConversationCourseBoundaryAuditFilter } from '../conversations/interface/conversation-course-boundary-audit.filter'
 import {
   TutoringTurnResponseDto,
   SendTutoringMessageRequestDto,
@@ -100,7 +98,6 @@ const tutoringTurnUnavailable = () =>
 @Roles(UserRole.STUDENT)
 @ApiAccessTokenAuth()
 @ApiExtraModels(OpenApiValidationErrorDto, NestBadRequestErrorDto)
-@UseFilters(ConversationCourseBoundaryAuditFilter)
 @UseInterceptors(ClassSerializerInterceptor)
 export class TutoringController {
   constructor(
