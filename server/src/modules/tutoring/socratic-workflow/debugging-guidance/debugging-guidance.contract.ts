@@ -4,7 +4,7 @@ import { MessageGuidanceLabel, MessageRequestKind } from '../../tutoring-values'
 import {
   parseTutorDecision,
   type TutorDecision,
-} from '../tutor-decision.contract'
+} from '../teaching-decision/tutor-decision.contract'
 export const DEBUGGING_GUIDANCE_PROMPT_VERSION = 'debugging-guidance-prompt-v1'
 
 export const DEBUGGING_GUIDANCE_MAX_LINES = 100
@@ -33,17 +33,6 @@ export const DEBUGGING_GUIDANCE_UNTRUSTED_FIELDS = [
   'RETRIEVED_COURSE_CONTENT',
 ] as const
 
-export const DEBUGGING_GUIDANCE_RESPONSE_GOVERNANCE_RESULTS = [
-  'ALLOWED_DIAGNOSIS',
-  'INVALID_RESPONSE_SHAPE',
-  'FULL_REWRITE_SUSPECTED',
-  'CODE_BLOCK_TOO_LARGE',
-  'PROMPT_DISCLOSURE',
-  'EXECUTION_CLAIM',
-  'INVALID_CITATION',
-  'UNSUPPORTED_SCOPE',
-] as const
-
 export const debuggingGuidanceCitationSchema = z
   .object({
     materialId: z.uuid(),
@@ -62,8 +51,6 @@ export const debuggingGuidanceSchema = z
   .strict()
 
 export type DebuggingGuidance = z.infer<typeof debuggingGuidanceSchema>
-export type DebuggingGuidanceResponseGovernanceResult =
-  (typeof DEBUGGING_GUIDANCE_RESPONSE_GOVERNANCE_RESULTS)[number]
 
 const parsedDecision = parseTutorDecision({
   requestKind: MessageRequestKind.CODE_DIAGNOSIS,

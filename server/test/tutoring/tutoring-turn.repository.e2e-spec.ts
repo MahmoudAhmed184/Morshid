@@ -5,11 +5,14 @@ import { Client } from 'pg'
 import { Prisma } from '../../src/generated/prisma/client'
 import { PrismaConversationTurns } from '../../src/modules/conversations/prisma-conversation-turns'
 import { AuditService } from '../../src/modules/audit/audit.service'
-import { PrismaReviewCaseIntake } from '../../src/modules/reviews/review-case-intake'
-import { PrismaReviewCaseRepository } from '../../src/modules/reviews/review-case.repository'
+import { PrismaReviewCaseIntake } from '../../src/modules/reviews/intake/prisma-review-case-intake'
+import { PrismaReviewCaseRepository } from '../../src/modules/reviews/intake/review-case.repository'
+import { PrismaActiveCourseMembership } from '../../src/modules/courses/active-course-membership'
 import type { PrismaService } from '../../src/platform/database/prisma.service'
 import { PrismaConversationMessageRepository } from '../../src/modules/conversations/conversation-message.repository'
-import { ConversationMessagePresenter } from '../../src/modules/conversations/conversation-message.presenter'
+import { ApplicationConversationMessagePresenter } from '../../src/application/conversation-message.presenter'
+import { PrismaStudentCitationSources } from '../../src/modules/materials/evidence/student-citation-sources'
+import { PrismaStudentReviewSummaries } from '../../src/modules/reviews/student-detail/prisma-student-review-summaries'
 import {
   TutoringEvidenceUnavailableError,
   PrismaTutoringTurnRepository,
@@ -42,7 +45,11 @@ describe('Tutoring turn repository (e2e)', () => {
     prisma = database.prisma
     conversationTurns = new PrismaConversationTurns(prisma)
     reviewCaseIntake = new PrismaReviewCaseIntake(
-      new PrismaReviewCaseRepository(prisma, new AuditService(prisma)),
+      new PrismaReviewCaseRepository(
+        prisma,
+        new AuditService(prisma),
+        new PrismaActiveCourseMembership(),
+      ),
     )
     repository = new PrismaTutoringTurnRepository(
       prisma,
@@ -63,6 +70,7 @@ describe('Tutoring turn repository (e2e)', () => {
 
     const result = await repository.beginTurn({
       ...fixture,
+      clientMessageId: randomUUID(),
       content: 'How do Python lists work?',
     })
 
@@ -99,8 +107,16 @@ describe('Tutoring turn repository (e2e)', () => {
     const fixture = await createFixture(prisma)
 
     const results = await Promise.all([
-      repository.beginTurn({ ...fixture, content: 'First question' }),
-      repository.beginTurn({ ...fixture, content: 'Second question' }),
+      repository.beginTurn({
+        ...fixture,
+        clientMessageId: randomUUID(),
+        content: 'First question',
+      }),
+      repository.beginTurn({
+        ...fixture,
+        clientMessageId: randomUUID(),
+        content: 'Second question',
+      }),
     ])
 
     expect(results.map((result) => result.kind).sort()).toEqual([
@@ -149,6 +165,38 @@ describe('Tutoring turn repository (e2e)', () => {
     ).resolves.toBe(2)
   })
 
+  it('rejects a client message id reused with different content', async () => {
+    const fixture = await createFixture(prisma)
+    const clientMessageId = randomUUID()
+    const turn = await repository.beginTurn({
+      ...fixture,
+      clientMessageId,
+      content: 'Original question',
+    })
+    if (turn.kind !== 'ok') {
+      throw new Error('Expected the turn to begin')
+    }
+    await repository.failTurn({
+      ...fixture,
+      attemptId: turn.attemptId,
+      studentMessageId: turn.studentMessage.id,
+      assistantMessageId: turn.assistantMessage.id,
+      content: 'Safe failure',
+      errorCode: 'GROUNDING_RESPONSE_FAILED',
+    })
+
+    await expect(
+      repository.beginTurn({
+        ...fixture,
+        clientMessageId,
+        content: 'Different question',
+      }),
+    ).resolves.toEqual({ kind: 'idempotency_conflict' })
+    await expect(
+      prisma.tutoringAttempt.count({ where: { sessionId: fixture.sessionId } }),
+    ).resolves.toBe(1)
+  })
+
   it('commits completion metadata, exact retrieval ranks, and deduplicated citation order together', async () => {
     const fixture = await createFixture(prisma)
     const topic = await prisma.topic.create({
@@ -165,6 +213,7 @@ describe('Tutoring turn repository (e2e)', () => {
     const third = await createChunk(prisma, first.materialId, 1)
     const turn = await repository.beginTurn({
       ...fixture,
+      clientMessageId: randomUUID(),
       content: 'Explain list iteration',
     })
     if (turn.kind !== 'ok') {
@@ -262,6 +311,7 @@ describe('Tutoring turn repository (e2e)', () => {
     const second = await createEvidence(prisma, fixture, 'Loops', 3)
     const turn = await repository.beginTurn({
       ...fixture,
+      clientMessageId: randomUUID(),
       content: 'Diagnose list iteration',
     })
     if (turn.kind !== 'ok') {
@@ -302,6 +352,7 @@ describe('Tutoring turn repository (e2e)', () => {
     const source = await createEvidence(prisma, fixture, 'Transient source', 0)
     const turn = await repository.beginTurn({
       ...fixture,
+      clientMessageId: randomUUID(),
       content: 'Explain this source',
     })
     if (turn.kind !== 'ok') {
@@ -350,6 +401,7 @@ describe('Tutoring turn repository (e2e)', () => {
     const second = await createEvidence(prisma, fixture, 'Second source', 0)
     const turn = await repository.beginTurn({
       ...fixture,
+      clientMessageId: randomUUID(),
       content: 'Trigger a ranked-write conflict',
     })
     if (turn.kind !== 'ok') {
@@ -395,6 +447,7 @@ describe('Tutoring turn repository (e2e)', () => {
     const fixture = await createFixture(prisma)
     const turn = await repository.beginTurn({
       ...fixture,
+      clientMessageId: randomUUID(),
       content: 'Please retry this',
     })
     if (turn.kind !== 'ok') {
@@ -412,7 +465,7 @@ describe('Tutoring turn repository (e2e)', () => {
 
     const retried = await repository.retryTurn({
       ...fixture,
-      studentMessageId: turn.studentMessage.id,
+      attemptId: turn.attemptId,
     })
 
     expect(retried.kind).toBe('ok')
@@ -434,14 +487,68 @@ describe('Tutoring turn repository (e2e)', () => {
     await expect(
       repository.retryTurn({
         ...fixture,
-        studentMessageId: turn.studentMessage.id,
+        attemptId: turn.attemptId,
       }),
     ).resolves.toEqual({
       kind: 'retry_not_allowed',
-      messageId: turn.studentMessage.id,
+      attemptId: turn.attemptId,
     })
     await expect(
       prisma.message.count({ where: { sessionId: fixture.sessionId } }),
+    ).resolves.toBe(2)
+  })
+
+  it('admits only one simultaneous retry of an exact attempt', async () => {
+    const fixture = await createFixture(prisma)
+    const turn = await repository.beginTurn({
+      ...fixture,
+      clientMessageId: randomUUID(),
+      content: 'Retry exactly this attempt',
+    })
+    if (turn.kind !== 'ok') {
+      throw new Error('Expected the turn to begin')
+    }
+    await repository.failTurn({
+      ...fixture,
+      attemptId: turn.attemptId,
+      studentMessageId: turn.studentMessage.id,
+      assistantMessageId: turn.assistantMessage.id,
+      content: 'Safe failure',
+      errorCode: 'GROUNDING_RESPONSE_FAILED',
+    })
+
+    const retries = await Promise.all([
+      repository.retryTurn({ ...fixture, attemptId: turn.attemptId }),
+      repository.retryTurn({ ...fixture, attemptId: turn.attemptId }),
+    ])
+    expect(retries.map(({ kind }) => kind).sort()).toEqual([
+      'ok',
+      'retry_not_allowed',
+    ])
+    const admitted = retries.find((result) => result.kind === 'ok')
+    if (admitted?.kind !== 'ok') {
+      throw new Error('Expected exactly one retry admission')
+    }
+    await expect(
+      prisma.tutoringAttempt.count({ where: { sessionId: fixture.sessionId } }),
+    ).resolves.toBe(2)
+
+    await repository.failTurn({
+      ...fixture,
+      attemptId: admitted.attemptId,
+      studentMessageId: admitted.studentMessage.id,
+      assistantMessageId: admitted.assistantMessage.id,
+      content: 'Second safe failure',
+      errorCode: 'GROUNDING_RESPONSE_FAILED',
+    })
+    await expect(
+      repository.retryTurn({ ...fixture, attemptId: turn.attemptId }),
+    ).resolves.toEqual({
+      kind: 'retry_not_allowed',
+      attemptId: turn.attemptId,
+    })
+    await expect(
+      prisma.tutoringAttempt.count({ where: { sessionId: fixture.sessionId } }),
     ).resolves.toBe(2)
   })
 
@@ -450,6 +557,7 @@ describe('Tutoring turn repository (e2e)', () => {
     const source = await createEvidence(prisma, fixture, 'Lease source', 0)
     const turn = await repository.beginTurn({
       ...fixture,
+      clientMessageId: randomUUID(),
       content: 'Recover this abandoned attempt',
     })
     if (turn.kind !== 'ok') {
@@ -462,7 +570,7 @@ describe('Tutoring turn repository (e2e)', () => {
 
     const retried = await repository.retryTurn({
       ...fixture,
-      studentMessageId: turn.studentMessage.id,
+      attemptId: turn.attemptId,
     })
     expect(retried.kind).toBe('ok')
     if (retried.kind !== 'ok') {
@@ -510,6 +618,7 @@ describe('Tutoring turn repository (e2e)', () => {
     const fixture = await createFixture(prisma)
     const abandoned = await repository.beginTurn({
       ...fixture,
+      clientMessageId: randomUUID(),
       content: 'Abandoned question',
     })
     if (abandoned.kind !== 'ok') {
@@ -538,6 +647,7 @@ describe('Tutoring turn repository (e2e)', () => {
 
     const next = await repository.beginTurn({
       ...fixture,
+      clientMessageId: randomUUID(),
       content: 'Question after restart',
     })
     expect(next.kind).toBe('ok')
@@ -582,6 +692,7 @@ describe('Tutoring turn repository (e2e)', () => {
     try {
       const beginning = repository.beginTurn({
         ...fixture,
+        clientMessageId: randomUUID(),
         content: 'Must not pass a revocation race',
       })
       await expectPending(beginning)
@@ -604,6 +715,7 @@ describe('Tutoring turn repository (e2e)', () => {
     const source = await createEvidence(prisma, fixture, 'Revoked source', 0)
     const turn = await repository.beginTurn({
       ...fixture,
+      clientMessageId: randomUUID(),
       content: 'Question before revocation',
     })
     if (turn.kind !== 'ok') {
@@ -665,6 +777,7 @@ describe('Tutoring turn repository (e2e)', () => {
     const source = await createEvidence(prisma, fixture, 'Deleted source', 0)
     const turn = await repository.beginTurn({
       ...fixture,
+      clientMessageId: randomUUID(),
       content: 'Question before deletion',
     })
     if (turn.kind !== 'ok') {
@@ -712,6 +825,7 @@ describe('Tutoring turn repository (e2e)', () => {
     )
     const begun = await ambiguousBegin.beginTurn({
       ...beginFixture,
+      clientMessageId: randomUUID(),
       content: 'Committed begin with lost acknowledgement',
     })
     expect(begun.kind).toBe('ok')
@@ -740,7 +854,7 @@ describe('Tutoring turn repository (e2e)', () => {
     )
     const retried = await ambiguousRetry.retryTurn({
       ...beginFixture,
-      studentMessageId: begun.studentMessage.id,
+      attemptId: begun.attemptId,
     })
     expect(retried.kind).toBe('ok')
     if (retried.kind !== 'ok') {
@@ -790,6 +904,7 @@ describe('Tutoring turn repository (e2e)', () => {
     )
     const turn = await repository.beginTurn({
       ...fixture,
+      clientMessageId: randomUUID(),
       content: 'Reconcile this committed terminal state',
     })
     if (turn.kind !== 'ok') {
@@ -849,6 +964,7 @@ describe('Tutoring turn repository (e2e)', () => {
     const source = await createEvidence(prisma, fixture, 'Durable title', 0)
     const turn = await repository.beginTurn({
       ...fixture,
+      clientMessageId: randomUUID(),
       content: 'Show durable provenance',
     })
     if (turn.kind !== 'ok') {
@@ -870,9 +986,12 @@ describe('Tutoring turn repository (e2e)', () => {
     expect(completed.kind).toBe('ok')
 
     const messageRepository = new PrismaConversationMessageRepository(prisma)
-    const presenter = new ConversationMessagePresenter({
-      exists: jest.fn().mockResolvedValue(true),
-    } as never)
+    const presenter = new ApplicationConversationMessagePresenter(
+      new PrismaStudentCitationSources(prisma, {
+        exists: jest.fn().mockResolvedValue(true),
+      } as never),
+      new PrismaStudentReviewSummaries(prisma),
+    )
     const before = await messageRepository.listMessages(
       fixture.courseId,
       fixture.sessionId,
@@ -882,7 +1001,10 @@ describe('Tutoring turn repository (e2e)', () => {
     if (before === null) {
       throw new Error('Expected history to be readable')
     }
-    const presentedBefore = await presenter.presentMany(before)
+    const presentedBefore = await presenter.presentMany(
+      before,
+      fixture.studentId,
+    )
     expect(presentedBefore[1].citations).toEqual([
       expect.objectContaining({
         materialTitle: 'Durable title',
@@ -908,7 +1030,7 @@ describe('Tutoring turn repository (e2e)', () => {
     if (after === null) {
       throw new Error('Expected history to remain readable')
     }
-    const presentedAfter = await presenter.presentMany(after)
+    const presentedAfter = await presenter.presentMany(after, fixture.studentId)
     expect(presentedAfter[1].citations).toEqual([
       {
         order: 1,

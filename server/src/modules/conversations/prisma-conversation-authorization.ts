@@ -1,10 +1,10 @@
 import { Prisma } from '../../generated/prisma/client'
-import { CourseMembershipRole } from '../courses/course-access.public'
+import { CourseMembershipRole } from '../courses/interface/course-membership-role'
 import type {
   ConversationAuthorizationInput,
   ConversationAuthorizationResult,
   LockedConversationSession,
-} from './conversation-authorization'
+} from './interface/conversation-authorization'
 
 /**
  * Locks the authoritative session before its student membership. Every

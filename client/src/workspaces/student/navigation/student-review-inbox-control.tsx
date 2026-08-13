@@ -1,6 +1,6 @@
 import { useNavigate } from '@tanstack/react-router'
 import { Bell, CircleAlert, Inbox, LoaderCircle } from 'lucide-react'
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -20,8 +20,9 @@ import type { StudentReviewInboxItem } from '@/features/reviews/student-inbox/st
 
 export function StudentReviewInboxControl() {
   const navigate = useNavigate()
+  const [isOpen, setIsOpen] = useState(false)
   const unreadCountQuery = useUnreadStudentReviewInboxCount()
-  const inboxQuery = useStudentReviewInbox()
+  const inboxQuery = useStudentReviewInbox(isOpen)
   const markReadMutation = useMarkStudentReviewInboxItemRead()
   const selectionsInFlightRef = useRef(new Set<string>())
   const unreadCount = unreadCountQuery.data?.unreadCount ?? 0
@@ -52,7 +53,7 @@ export function StudentReviewInboxControl() {
   }
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
       <DropdownMenuTrigger
         render={
           <Button

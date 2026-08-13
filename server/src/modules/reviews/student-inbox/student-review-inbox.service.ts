@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
-import { ReviewInboxItemType } from '../review-values'
+import { ReviewInboxItemType } from '../interface/review-values'
 import type { AuthenticatedUser } from '../../identity/identity.types'
 import type {
   StudentReviewInboxItemDto,

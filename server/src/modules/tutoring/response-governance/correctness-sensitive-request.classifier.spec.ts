@@ -1,4 +1,4 @@
-import { MessageRequestKind } from '../../../generated/prisma/client'
+import { MessageRequestKind } from '../tutoring-values'
 import { CorrectnessSensitiveRequestClassifier } from './correctness-sensitive-request.classifier'
 
 describe('CorrectnessSensitiveRequestClassifier', () => {

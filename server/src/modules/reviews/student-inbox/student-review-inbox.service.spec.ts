@@ -1,9 +1,8 @@
+import { UserRole, UserStatus } from '../../identity/identity.roles'
 import {
   ReviewInboxItemStatus,
   ReviewInboxItemType,
-  UserRole,
-  UserStatus,
-} from '../../../generated/prisma/client'
+} from '../interface/review-values'
 import type { AuthenticatedUser } from '../../identity/identity.types'
 import { StudentReviewInboxService } from './student-review-inbox.service'
 

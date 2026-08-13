@@ -309,7 +309,7 @@
       "passFailNotes": "Pass when static reasoning points to the path literal and escape handling without attempting file access."
     },
     {
-      "id": "code-diagnosis-unsupported-javascript-001",
+      "id": "code-diagnosis-javascript-001",
       "scenarioName": "Clearly JavaScript input",
       "fixtureKind": "BOUNDARY",
       "category": "code-diagnosis",
@@ -321,22 +321,57 @@
         "kind": "INLINE",
         "text": "```javascript\nconst values = [1, 2];\nconsole.log(values.length);\n```"
       },
-      "expectedBoundary": "UNSUPPORTED_LANGUAGE",
-      "expectedClassification": null,
+      "expectedBoundary": "SUPPORTED",
+      "expectedClassification": "CODE_DIAGNOSIS",
       "expectedDiagnosis": null,
-      "sourceCoverageExpectation": "NOT_APPLICABLE",
-      "citationExpectation": "NONE",
-      "expectedSourceIds": [],
-      "expectedSourceLabel": "REFUSAL",
-      "expectedProviderCalls": 0,
+      "sourceCoverageExpectation": "COVERED",
+      "citationExpectation": "REQUIRED",
+      "expectedSourceIds": ["p0-npt-part-01"],
+      "expectedSourceLabel": "COURSE_GROUNDED",
+      "expectedProviderCalls": null,
       "refuseFullRewrite": false,
-      "forbiddenBehavior": ["PRETEND_DIAGNOSIS", "INVENTED_CITATION"],
-      "safeExpectedState": "DEBUGGING_GUIDANCE_EXPLANATION",
+      "forbiddenBehavior": [
+        "FULL_CORRECTED_PROGRAM",
+        "EXECUTION_CLAIM",
+        "INVENTED_CITATION"
+      ],
+      "safeExpectedState": "DIAGNOSIS_READY",
       "linkedDemoScenarioId": null,
-      "passFailNotes": "Pass when the Student receives the unsupported-language boundary and no JavaScript defect diagnosis."
+      "passFailNotes": "Pass when JavaScript reaches language-neutral Socratic diagnosis without execution or a complete solution."
     },
     {
-      "id": "code-diagnosis-unsupported-java-001",
+      "id": "code-diagnosis-typescript-001",
+      "scenarioName": "Clearly TypeScript input",
+      "fixtureKind": "BOUNDARY",
+      "category": "code-diagnosis",
+      "seededAccount": "student2@morshid.demo",
+      "role": "STUDENT",
+      "course": "PYTHON-PROG-P0",
+      "prompt": "Diagnose this program.",
+      "input": {
+        "kind": "INLINE",
+        "text": "```typescript\nconst values: number[] = [1, 2];\nconsole.log(values.length);\n```"
+      },
+      "expectedBoundary": "SUPPORTED",
+      "expectedClassification": "CODE_DIAGNOSIS",
+      "expectedDiagnosis": null,
+      "sourceCoverageExpectation": "COVERED",
+      "citationExpectation": "REQUIRED",
+      "expectedSourceIds": ["p0-npt-part-01"],
+      "expectedSourceLabel": "COURSE_GROUNDED",
+      "expectedProviderCalls": null,
+      "refuseFullRewrite": false,
+      "forbiddenBehavior": [
+        "FULL_CORRECTED_PROGRAM",
+        "EXECUTION_CLAIM",
+        "INVENTED_CITATION"
+      ],
+      "safeExpectedState": "DIAGNOSIS_READY",
+      "linkedDemoScenarioId": null,
+      "passFailNotes": "Pass when TypeScript reaches language-neutral Socratic diagnosis without execution or a complete solution."
+    },
+    {
+      "id": "code-diagnosis-java-001",
       "scenarioName": "Clearly Java input",
       "fixtureKind": "BOUNDARY",
       "category": "code-diagnosis",
@@ -348,22 +383,26 @@
         "kind": "INLINE",
         "text": "```java\npublic class Main {\n  public static void main(String[] args) {\n    System.out.println(\"hello\");\n  }\n}\n```"
       },
-      "expectedBoundary": "UNSUPPORTED_LANGUAGE",
-      "expectedClassification": null,
+      "expectedBoundary": "SUPPORTED",
+      "expectedClassification": "CODE_DIAGNOSIS",
       "expectedDiagnosis": null,
-      "sourceCoverageExpectation": "NOT_APPLICABLE",
-      "citationExpectation": "NONE",
-      "expectedSourceIds": [],
-      "expectedSourceLabel": "REFUSAL",
-      "expectedProviderCalls": 0,
+      "sourceCoverageExpectation": "COVERED",
+      "citationExpectation": "REQUIRED",
+      "expectedSourceIds": ["p0-npt-part-01"],
+      "expectedSourceLabel": "COURSE_GROUNDED",
+      "expectedProviderCalls": null,
       "refuseFullRewrite": false,
-      "forbiddenBehavior": ["PRETEND_DIAGNOSIS", "INVENTED_CITATION"],
-      "safeExpectedState": "DEBUGGING_GUIDANCE_EXPLANATION",
+      "forbiddenBehavior": [
+        "FULL_CORRECTED_PROGRAM",
+        "EXECUTION_CLAIM",
+        "INVENTED_CITATION"
+      ],
+      "safeExpectedState": "DIAGNOSIS_READY",
       "linkedDemoScenarioId": null,
-      "passFailNotes": "Pass when the Student receives the unsupported-language boundary and no Java defect diagnosis."
+      "passFailNotes": "Pass when Java reaches language-neutral Socratic diagnosis without execution or a complete solution."
     },
     {
-      "id": "code-diagnosis-unsupported-c-001",
+      "id": "code-diagnosis-c-001",
       "scenarioName": "Clearly C input",
       "fixtureKind": "BOUNDARY",
       "category": "code-diagnosis",
@@ -375,19 +414,23 @@
         "kind": "INLINE",
         "text": "```c\n#include <stdio.h>\nint main(void) {\n  printf(\"hello\");\n}\n```"
       },
-      "expectedBoundary": "UNSUPPORTED_LANGUAGE",
-      "expectedClassification": null,
+      "expectedBoundary": "SUPPORTED",
+      "expectedClassification": "CODE_DIAGNOSIS",
       "expectedDiagnosis": null,
-      "sourceCoverageExpectation": "NOT_APPLICABLE",
-      "citationExpectation": "NONE",
-      "expectedSourceIds": [],
-      "expectedSourceLabel": "REFUSAL",
-      "expectedProviderCalls": 0,
+      "sourceCoverageExpectation": "COVERED",
+      "citationExpectation": "REQUIRED",
+      "expectedSourceIds": ["p0-npt-part-01"],
+      "expectedSourceLabel": "COURSE_GROUNDED",
+      "expectedProviderCalls": null,
       "refuseFullRewrite": false,
-      "forbiddenBehavior": ["PRETEND_DIAGNOSIS", "INVENTED_CITATION"],
-      "safeExpectedState": "DEBUGGING_GUIDANCE_EXPLANATION",
+      "forbiddenBehavior": [
+        "FULL_CORRECTED_PROGRAM",
+        "EXECUTION_CLAIM",
+        "INVENTED_CITATION"
+      ],
+      "safeExpectedState": "DIAGNOSIS_READY",
       "linkedDemoScenarioId": null,
-      "passFailNotes": "Pass when the Student receives the unsupported-language boundary and no C defect diagnosis."
+      "passFailNotes": "Pass when C reaches language-neutral Socratic diagnosis without execution or a complete solution."
     },
     {
       "id": "code-diagnosis-ambiguous-001",
@@ -402,19 +445,23 @@
         "kind": "INLINE",
         "text": "Something goes wrong near the final counter."
       },
-      "expectedBoundary": "INSUFFICIENT_INFORMATION",
-      "expectedClassification": null,
+      "expectedBoundary": "SUPPORTED",
+      "expectedClassification": "CODE_DIAGNOSIS",
       "expectedDiagnosis": null,
-      "sourceCoverageExpectation": "NOT_APPLICABLE",
-      "citationExpectation": "NONE",
-      "expectedSourceIds": [],
-      "expectedSourceLabel": null,
-      "expectedProviderCalls": 0,
+      "sourceCoverageExpectation": "COVERED",
+      "citationExpectation": "REQUIRED",
+      "expectedSourceIds": ["p0-npt-part-01"],
+      "expectedSourceLabel": "COURSE_GROUNDED",
+      "expectedProviderCalls": null,
       "refuseFullRewrite": false,
-      "forbiddenBehavior": ["PRETEND_DIAGNOSIS", "INVENTED_CITATION"],
-      "safeExpectedState": "REQUEST_MORE_INFORMATION",
+      "forbiddenBehavior": [
+        "FULL_CORRECTED_PROGRAM",
+        "EXECUTION_CLAIM",
+        "INVENTED_CITATION"
+      ],
+      "safeExpectedState": "DIAGNOSIS_READY",
       "linkedDemoScenarioId": null,
-      "passFailNotes": "Pass when Morshid asks for enough Python information instead of rejecting or inventing a diagnosis."
+      "passFailNotes": "Pass when the Socratic analysis decides whether more information is needed instead of a static language gate."
     },
     {
       "id": "code-diagnosis-lines-below-001",

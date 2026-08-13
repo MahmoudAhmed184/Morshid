@@ -161,6 +161,15 @@ export const ResolutionEvidenceStrength = {
 export type ResolutionEvidenceStrength =
   (typeof ResolutionEvidenceStrength)[keyof typeof ResolutionEvidenceStrength]
 
+export const EducationalAnalysisEvidenceKind = {
+  TOP_LEVEL: 'TOP_LEVEL',
+  EFFORT: 'EFFORT',
+  LEARNING: 'LEARNING',
+} as const
+
+export type EducationalAnalysisEvidenceKind =
+  (typeof EducationalAnalysisEvidenceKind)[keyof typeof EducationalAnalysisEvidenceKind]
+
 export const TutoringCandidateGenerationOutcome = {
   GENERATED: 'GENERATED',
   INVALID_OUTPUT: 'INVALID_OUTPUT',

@@ -9,8 +9,9 @@ import { configureApp } from '../../src/app.setup'
 import { AppModule } from '../../src/app.module'
 import { PrismaConversationTurns } from '../../src/modules/conversations/prisma-conversation-turns'
 import { AuditService } from '../../src/modules/audit/audit.service'
-import { PrismaReviewCaseIntake } from '../../src/modules/reviews/review-case-intake'
-import { PrismaReviewCaseRepository } from '../../src/modules/reviews/review-case.repository'
+import { PrismaReviewCaseIntake } from '../../src/modules/reviews/intake/prisma-review-case-intake'
+import { PrismaReviewCaseRepository } from '../../src/modules/reviews/intake/review-case.repository'
+import { PrismaActiveCourseMembership } from '../../src/modules/courses/active-course-membership'
 import {
   CourseMembershipRole,
   MaterialStatus,
@@ -24,7 +25,7 @@ import {
   EMBEDDING_PROVIDER_TOKEN,
   type EmbeddingProvider,
 } from '../../src/platform/ai/embedding/embedding-provider'
-import { MaterialProcessingScheduler } from '../../src/modules/materials/material-processing.scheduler'
+import { MaterialProcessingScheduler } from '../../src/modules/materials/processing/material-processing.scheduler'
 import {
   PDF_STORAGE,
   type PdfStorage,
@@ -38,7 +39,7 @@ import {
   RESPONSE_GOVERNANCE_SOURCE_CONFLICT_CONTENT,
 } from '../../src/modules/tutoring/response-governance/response-governance'
 import { AUTOMATIC_SAFETY_RISK_DETECTOR_VERSION } from '../../src/modules/tutoring/response-governance/automatic-safety-risk.detector'
-import type { InstructorReviewDetailDto } from '../../src/modules/reviews/instructor-review-detail.dto'
+import type { InstructorReviewDetailDto } from '../../src/modules/reviews/instructor-queue/instructor-review-detail.dto'
 import {
   type BeginTutoringTurnInput,
   type BeginTutoringTurnResult,
@@ -60,8 +61,8 @@ import type {
   ChatMessageHistoryResponseDto,
   TutoringTurnResponseDto,
   ChatSessionResponseDto,
-} from '../../src/modules/conversations/conversations.dto'
-import { CONVERSATION_ERROR_CODES } from '../../src/modules/conversations/conversation.errors'
+} from '../../src/modules/conversations/interface/conversation-dto'
+import { CONVERSATION_ERROR_CODES } from '../../src/modules/conversations/interface/conversation-errors'
 import {
   P0_DEMO_PASSWORD,
   seedP0DemoData,
@@ -72,9 +73,9 @@ import {
   type DisposableDatabase,
 } from '../support/disposable-database'
 import { NoopMaterialProcessingScheduler } from '../support/noop-material-processing-scheduler'
-import { TUTOR_MODEL_PORT } from '../../src/modules/tutoring/socratic-workflow/tutor-generation.types'
-import { ANALYSIS_MODEL_PORT } from '../../src/modules/tutoring/socratic-workflow/analysis-model.port'
-import { SEMANTIC_GUARD_PORT } from '../../src/modules/tutoring/socratic-workflow/semantic-guard.types'
+import { TUTOR_MODEL_PORT } from '../../src/modules/tutoring/socratic-workflow/generation/tutor-generation.types'
+import { ANALYSIS_MODEL_PORT } from '../../src/modules/tutoring/socratic-workflow/analysis/analysis-model.port'
+import { SEMANTIC_GUARD_PORT } from '../../src/modules/tutoring/socratic-workflow/response-approval/semantic-guard.types'
 import {
   ControllableTutorModelPort,
   ControllableSemanticGuardPort,
@@ -135,12 +136,6 @@ class ControllableTutoringTurnRepository extends TutoringTurnRepository {
     input: Parameters<TutoringTurnRepository['transitionAttempt']>[0],
   ): ReturnType<TutoringTurnRepository['transitionAttempt']> {
     return this.delegate.transitionAttempt(input)
-  }
-
-  override failAttempt(
-    input: Parameters<TutoringTurnRepository['failAttempt']>[0],
-  ): ReturnType<TutoringTurnRepository['failAttempt']> {
-    return this.delegate.failAttempt(input)
   }
 
   override repairAutomaticReview(
@@ -267,14 +262,19 @@ describe('Authorized tutoring runtime (e2e)', () => {
       Promise.resolve(availableStoragePaths.has(storagePath)),
     )
 
+    const conversationAdapter = new PrismaConversationTurns(prisma)
     turnRepository = new ControllableTutoringTurnRepository(
       new PrismaTutoringTurnRepository(
         prisma,
-        new PrismaConversationTurns(prisma),
-        new PrismaConversationTurns(prisma),
-        new PrismaConversationTurns(prisma),
+        conversationAdapter,
+        conversationAdapter,
+        conversationAdapter,
         new PrismaReviewCaseIntake(
-          new PrismaReviewCaseRepository(prisma, new AuditService(prisma)),
+          new PrismaReviewCaseRepository(
+            prisma,
+            new AuditService(prisma),
+            new PrismaActiveCourseMembership(),
+          ),
         ),
         new AuditService(prisma),
       ),
@@ -456,6 +456,17 @@ describe('Authorized tutoring runtime (e2e)', () => {
     return `${sessionsPath(courseId)}/${sessionId}/messages`
   }
 
+  function retryPath(
+    sessionId: string,
+    attemptId: string | null,
+    courseId = pythonCourseId,
+  ): string {
+    if (attemptId === null) {
+      throw new Error('Expected a persisted tutoring attempt')
+    }
+    return `${sessionsPath(courseId)}/${sessionId}/tutoring-attempts/${attemptId}/retry`
+  }
+
   async function createSession(
     token = student1Token,
     courseId = pythonCourseId,
@@ -532,6 +543,24 @@ describe('Authorized tutoring runtime (e2e)', () => {
     }
   }
 
+  it('rejects a tutoring message without a client message id', async () => {
+    const session = await createSession()
+
+    const response = await request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${student1Token}`)
+      .send({ content: QUESTION })
+      .expect(400)
+
+    expect(response.body).toMatchObject({
+      code: CONVERSATION_ERROR_CODES.INVALID_REQUEST,
+      message: 'Invalid conversation request',
+    })
+    await expect(
+      prisma.tutoringAttempt.count({ where: { sessionId: session.id } }),
+    ).resolves.toBe(0)
+  })
+
   it('grounds tutoring output and persistence only in eligible, available chunks from the trusted course', async () => {
     const _ready = await createEvidenceMaterial({
       title: 'Eligible READY source',
@@ -569,7 +598,7 @@ describe('Authorized tutoring runtime (e2e)', () => {
     const response = await request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
       .set('Authorization', `Bearer ${student1Token}`)
-      .send({ content: `  ${QUESTION}  ` })
+      .send({ content: `  ${QUESTION}  `, clientMessageId: randomUUID() })
       .expect(201)
     const turn = response.body as TutoringTurnResponseDto
 
@@ -677,7 +706,7 @@ describe('Authorized tutoring runtime (e2e)', () => {
     const response = await request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
       .set('Authorization', `Bearer ${student2Token}`)
-      .send({ content: question })
+      .send({ content: question, clientMessageId: randomUUID() })
       .expect(201)
     const turn = response.body as TutoringTurnResponseDto
 
@@ -766,13 +795,126 @@ describe('Authorized tutoring runtime (e2e)', () => {
     })
   })
 
+  it.each([
+    [
+      'JavaScript',
+      'javascript',
+      'function total(values) {\n  return values[values.length];\n}',
+    ],
+    [
+      'TypeScript',
+      'typescript',
+      'function total(values: number[]) {\n  return values[values.length];\n}',
+    ],
+    [
+      'Java',
+      'java',
+      'class Main {\n  int total(int[] values) { return values[values.length]; }\n}',
+    ],
+    [
+      'C',
+      'c',
+      'int total(int values[], int length) {\n  return values[length];\n}',
+    ],
+  ])(
+    'routes %s debugging through analysis and returns bounded guidance',
+    async (_languageName, fence, code) => {
+      await createEvidenceMaterial({
+        title: `Language-neutral debugging ${fence}`,
+        content:
+          'Indexed collections have a bounded valid range. Trace the boundary index before changing the implementation.',
+      })
+      let analysisCalls = 0
+      analysisModel.behavior = (analysisRequest) => {
+        analysisCalls += 1
+        return Promise.resolve(
+          functionalStoryAnalysisResponse(analysisRequest, {
+            requestKind: 'CODE_DIAGNOSIS',
+            studentState: 'DEBUGGING_ISSUE',
+            recommendedStrategy: TeachingStrategy.DEBUGGING_GUIDANCE,
+            recommendedTechnique: TeachingTechnique.TRACE_EXECUTION,
+            meaningfulEffort: true,
+          }),
+        )
+      }
+      tutorModel.behavior = (modelRequest) => {
+        const citationIds = tutorModel.extractAllowedCitationIds(modelRequest)
+        return Promise.resolve({
+          rawOutput: {
+            message: [
+              'Likely defect',
+              'The boundary index may equal the collection length.',
+              '',
+              'Relevant location',
+              'The indexed access in the submitted return expression.',
+              '',
+              'Concept',
+              'Valid indexes stop before the collection length. [1]',
+              '',
+              'Next inspection step',
+              'Trace the index and collection length at that return expression.',
+            ].join('\n'),
+            responseIntent: TeachingStrategy.DEBUGGING_GUIDANCE,
+            usedCitationIds: citationIds.slice(0, 1),
+            requiresStudentAction: true,
+            studentAction: {
+              type: TeachingTechnique.TRACE_EXECUTION,
+              description:
+                'Trace the index and collection length at that return expression.',
+            },
+            reflectionIncluded: false,
+            selfReportedCompliance: {
+              finalAnswerRevealed: false,
+              completeSolutionRevealed: false,
+            },
+          },
+          provider: 'language-neutral-e2e-tutor',
+          model: 'language-neutral-e2e-tutor-v1',
+          promptVersion: modelRequest.promptVersion,
+          inputTokens: 40,
+          outputTokens: 30,
+        })
+      }
+      const session = await createSession(student2Token)
+      const content = [
+        'Please diagnose this and give one inspection step.',
+        `\`\`\`${fence}`,
+        code,
+        '```',
+      ].join('\n')
+
+      const response = await request(requireApp().getHttpServer())
+        .post(messagesPath(session.id))
+        .set('Authorization', `Bearer ${student2Token}`)
+        .send({ content, clientMessageId: randomUUID() })
+        .expect(201)
+      const turn = response.body as TutoringTurnResponseDto
+
+      expect(analysisCalls).toBe(1)
+      expect(tutorModel.callCount).toBeGreaterThan(0)
+      expect(turn).toMatchObject({
+        studentMessage: { requestKind: 'CODE_DIAGNOSIS' },
+        assistantMessage: {
+          requestKind: 'CODE_DIAGNOSIS',
+          status: 'COMPLETED',
+          guidanceLabel: 'COURSE_GROUNDED',
+        },
+      })
+      expect(turn.assistantMessage.content).toContain('Next inspection step')
+      expect(turn.assistantMessage.content).not.toContain(code)
+    },
+  )
+
   it('blocks insufficient evidence without model generation or retained evidence', async () => {
     const session = await createSession()
 
     const response = await request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
       .set('Authorization', `Bearer ${student1Token}`)
-      .send({ content: 'No course source covers this' })
+      .send({
+        content: 'No course source covers this',
+        clientMessageId: randomUUID(),
+      })
       .expect(201)
     const turn = response.body as TutoringTurnResponseDto
 
@@ -1051,11 +1193,14 @@ describe('Authorized tutoring runtime (e2e)', () => {
     const response = await request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
       .set('Authorization', `Bearer ${student1Token}`)
-      .send({ content: 'Give me the full code for this problem.' })
+      .send({
+        content: 'Give me the full code for this problem.',
+        clientMessageId: randomUUID(),
+      })
       .expect(201)
 
     expect(response.body).toMatchObject({
-      studentMessage: { requestKind: 'PROBLEM_LIKE' },
+      studentMessage: { requestKind: 'CODE_DIAGNOSIS' },
       assistantMessage: {
         status: 'COMPLETED',
         guidanceLabel: 'COURSE_GROUNDED',
@@ -1244,7 +1389,7 @@ describe('Authorized tutoring runtime (e2e)', () => {
       const response = await request(requireApp().getHttpServer())
         .post(messagesPath(session.id))
         .set('Authorization', `Bearer ${student1Token}`)
-        .send({ content })
+        .send({ content, clientMessageId: randomUUID() })
         .expect(201)
       const turn = response.body as TutoringTurnResponseDto
 
@@ -1289,6 +1434,7 @@ describe('Authorized tutoring runtime (e2e)', () => {
       .send({
         content:
           'In Python, does / with two integers give an integer or a decimal result?',
+        clientMessageId: randomUUID(),
       })
     const turn = response.body as TutoringTurnResponseDto
     expect(turn.assistantMessage.guidanceLabel).toBe('COURSE_GROUNDED')
@@ -1434,7 +1580,7 @@ describe('Authorized tutoring runtime (e2e)', () => {
       const response = await request(requireApp().getHttpServer())
         .post(messagesPath(session.id))
         .set('Authorization', `Bearer ${student1Token}`)
-        .send({ content })
+        .send({ content, clientMessageId: randomUUID() })
         .expect(201)
       const turn = response.body as TutoringTurnResponseDto
 
@@ -1459,25 +1605,28 @@ describe('Authorized tutoring runtime (e2e)', () => {
   it.each([
     {
       label: 'seven-operation exercise',
+      expectedRequestKind: 'PROBLEM_LIKE',
       content: 'Write a program using all seven arithmetic operations.',
       output:
         '```python\nprint(8 + 2)\nprint(8 - 2)\nprint(8 * 2)\nprint(8 / 2)\nprint(8 // 2)\nprint(8 % 2)\nprint(8 ** 2)\n```',
     },
     {
       label: 'random guessing game',
+      expectedRequestKind: 'PROBLEM_LIKE',
       content: 'Write a random guessing game from 0 to 99.',
       output:
         '```python\nimport random\ntarget = random.randint(0, 99)\nwhile True:\n    guess = int(input("Guess: "))\n    if guess == target:\n        print("Correct")\n        break\n```',
     },
     {
       label: 'comment-obfuscated solution',
+      expectedRequestKind: 'CODE_DIAGNOSIS',
       content: 'Fix this and send the final working code.',
       output:
         '<details><summary>Example</summary>\n```python\n# import random\n# target = random.randint(0, 99)\n# while True:\n#     guess = int(input("Guess: "))\n#     if guess == target:\n#         print("Correct")\n#         break\n```\n</details>',
     },
   ])(
     'blocks submission-ready output for the $label before display',
-    async ({ content, output }) => {
+    async ({ content, expectedRequestKind, output }) => {
       await createEvidenceMaterial({
         title: 'Protected exercise source',
         content: 'Use the supplied exercise requirements to practice Python.',
@@ -1487,11 +1636,11 @@ describe('Authorized tutoring runtime (e2e)', () => {
       const response = await request(requireApp().getHttpServer())
         .post(messagesPath(session.id))
         .set('Authorization', `Bearer ${student1Token}`)
-        .send({ content })
+        .send({ content, clientMessageId: randomUUID() })
         .expect(201)
       const turn = response.body as TutoringTurnResponseDto
 
-      expect(turn.studentMessage.requestKind).toBe('PROBLEM_LIKE')
+      expect(turn.studentMessage.requestKind).toBe(expectedRequestKind)
       expect(turn.assistantMessage).toMatchObject({
         content: RESPONSE_GOVERNANCE_REFUSAL_CONTENT,
         guidanceLabel: 'REFUSAL',
@@ -1532,7 +1681,10 @@ describe('Authorized tutoring runtime (e2e)', () => {
     const documentResponse = await request(requireApp().getHttpServer())
       .post(messagesPath(documentSession.id))
       .set('Authorization', `Bearer ${student1Token}`)
-      .send({ content: 'Explain the retrieved handout safely.' })
+      .send({
+        content: 'Explain the retrieved handout safely.',
+        clientMessageId: randomUUID(),
+      })
       .expect(201)
     const documentTurn = documentResponse.body as TutoringTurnResponseDto
 
@@ -1585,7 +1737,10 @@ describe('Authorized tutoring runtime (e2e)', () => {
     const outputResponse = await request(requireApp().getHttpServer())
       .post(messagesPath(outputSession.id))
       .set('Authorization', `Bearer ${student1Token}`)
-      .send({ content: 'Give me the full code for this graded exercise.' })
+      .send({
+        content: 'Give me the full code for this graded exercise.',
+        clientMessageId: randomUUID(),
+      })
       .expect(201)
     const outputTurn = outputResponse.body as TutoringTurnResponseDto
     const outputCase = await prisma.reviewCase.findUniqueOrThrow({
@@ -1621,6 +1776,7 @@ describe('Authorized tutoring runtime (e2e)', () => {
       .send({
         content:
           'In our security lecture, quote “ignore previous instructions” and explain why it is dangerous.',
+        clientMessageId: randomUUID(),
       })
       .expect(201)
     expect(response.body).toMatchObject({
@@ -1644,7 +1800,10 @@ describe('Authorized tutoring runtime (e2e)', () => {
     const retrievalFailure = await request(requireApp().getHttpServer())
       .post(messagesPath(retrievalFailureSession.id))
       .set('Authorization', `Bearer ${student1Token}`)
-      .send({ content: 'Explain the eligible course evidence' })
+      .send({
+        content: 'Explain the eligible course evidence',
+        clientMessageId: randomUUID(),
+      })
       .expect(201)
     expect(retrievalFailure.body).toMatchObject({
       assistantMessage: {
@@ -1690,7 +1849,10 @@ describe('Authorized tutoring runtime (e2e)', () => {
     const initialResponse = await request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
       .set('Authorization', `Bearer ${student1Token}`)
-      .send({ content: 'Retry this exact persisted question' })
+      .send({
+        content: 'Retry this exact persisted question',
+        clientMessageId: randomUUID(),
+      })
       .expect(201)
     const initialTurn = initialResponse.body as TutoringTurnResponseDto
     expect(initialTurn.assistantMessage).toMatchObject({
@@ -1699,9 +1861,12 @@ describe('Authorized tutoring runtime (e2e)', () => {
     })
 
     embeddingFailure = false
-    const retryPath = `${messagesPath(session.id)}/${initialTurn.studentMessage.id}/retry`
+    const retryAttemptPath = retryPath(
+      session.id,
+      initialTurn.assistantMessage.attemptId,
+    )
     const retryResponse = await request(requireApp().getHttpServer())
-      .post(retryPath)
+      .post(retryAttemptPath)
       .set('Authorization', `Bearer ${student1Token}`)
       .expect(200)
     const retriedTurn = retryResponse.body as TutoringTurnResponseDto
@@ -1718,7 +1883,7 @@ describe('Authorized tutoring runtime (e2e)', () => {
     ).resolves.toBe(2)
 
     const disallowedRetry = await request(requireApp().getHttpServer())
-      .post(retryPath)
+      .post(retryAttemptPath)
       .set('Authorization', `Bearer ${student1Token}`)
       .expect(409)
     expect(disallowedRetry.body).toEqual({
@@ -1803,12 +1968,18 @@ describe('Authorized tutoring runtime (e2e)', () => {
       request(requireApp().getHttpServer())
         .post(messagesPath(session.id))
         .set('Authorization', `Bearer ${student1Token}`)
-        .send({ content: 'First concurrent question' })
+        .send({
+          content: 'First concurrent question',
+          clientMessageId: randomUUID(),
+        })
         .then((response) => response),
       request(requireApp().getHttpServer())
         .post(messagesPath(session.id))
         .set('Authorization', `Bearer ${student1Token}`)
-        .send({ content: 'Second concurrent question' })
+        .send({
+          content: 'Second concurrent question',
+          clientMessageId: randomUUID(),
+        })
         .then((response) => response),
     ])
 
@@ -1829,6 +2000,7 @@ describe('Authorized tutoring runtime (e2e)', () => {
       .set('Authorization', `Bearer ${student1Token}`)
       .send({
         content: protectedQuestion,
+        clientMessageId: randomUUID(),
         courseId: hiddenCourseId,
         studentId: student2.id,
         chunks: [],
@@ -1849,7 +2021,7 @@ describe('Authorized tutoring runtime (e2e)', () => {
     const foreignResponse = await request(requireApp().getHttpServer())
       .post(messagesPath(ownerSession.id))
       .set('Authorization', `Bearer ${student2Token}`)
-      .send({ content: protectedQuestion })
+      .send({ content: protectedQuestion, clientMessageId: randomUUID() })
       .expect(404)
     expect(foreignResponse.body).toEqual({
       code: CONVERSATION_ERROR_CODES.SESSION_NOT_FOUND,
@@ -1859,17 +2031,17 @@ describe('Authorized tutoring runtime (e2e)', () => {
     await request(requireApp().getHttpServer())
       .post(messagesPath(ownerSession.id, hiddenCourseId))
       .set('Authorization', `Bearer ${student1Token}`)
-      .send({ content: protectedQuestion })
+      .send({ content: protectedQuestion, clientMessageId: randomUUID() })
       .expect(404)
     await request(requireApp().getHttpServer())
       .post(messagesPath(ownerSession.id))
       .set('Authorization', `Bearer ${unassignedStudentToken}`)
-      .send({ content: protectedQuestion })
+      .send({ content: protectedQuestion, clientMessageId: randomUUID() })
       .expect(403)
     await request(requireApp().getHttpServer())
       .post(messagesPath(ownerSession.id))
       .set('Authorization', `Bearer ${instructorToken}`)
-      .send({ content: protectedQuestion })
+      .send({ content: protectedQuestion, clientMessageId: randomUUID() })
       .expect(403)
 
     const deletedSession = await createSession()
@@ -1880,7 +2052,7 @@ describe('Authorized tutoring runtime (e2e)', () => {
     await request(requireApp().getHttpServer())
       .post(messagesPath(deletedSession.id))
       .set('Authorization', `Bearer ${student1Token}`)
-      .send({ content: protectedQuestion })
+      .send({ content: protectedQuestion, clientMessageId: randomUUID() })
       .expect(404)
 
     await createEvidenceMaterial({
@@ -1891,23 +2063,24 @@ describe('Authorized tutoring runtime (e2e)', () => {
     const failedTurnResponse = await request(requireApp().getHttpServer())
       .post(messagesPath(ownerSession.id))
       .set('Authorization', `Bearer ${student1Token}`)
-      .send({ content: protectedQuestion })
+      .send({ content: protectedQuestion, clientMessageId: randomUUID() })
       .expect(201)
     const failedTurn = failedTurnResponse.body as TutoringTurnResponseDto
     const otherOwnerSession = await createSession()
-    const foreignRetryPath = `${messagesPath(otherOwnerSession.id)}/${failedTurn.studentMessage.id}/retry`
+    const foreignRetryPath = retryPath(
+      otherOwnerSession.id,
+      failedTurn.assistantMessage.attemptId,
+    )
     const foreignRetry = await request(requireApp().getHttpServer())
       .post(foreignRetryPath)
       .set('Authorization', `Bearer ${student1Token}`)
       .expect(404)
     expect(foreignRetry.body).toEqual({
       code: CONVERSATION_ERROR_CODES.RETRY_TARGET_NOT_FOUND,
-      message: 'Conversation message was not found',
+      message: 'Tutoring attempt was not found',
     })
     await request(requireApp().getHttpServer())
-      .post(
-        `${messagesPath(ownerSession.id)}/${failedTurn.studentMessage.id}/retry`,
-      )
+      .post(retryPath(ownerSession.id, failedTurn.assistantMessage.attemptId))
       .set('Authorization', `Bearer ${student1Token}`)
       .send({ provider: 'client-provider' })
       .expect(400)
@@ -1930,7 +2103,10 @@ describe('Authorized tutoring runtime (e2e)', () => {
     const response = await request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
       .set('Authorization', `Bearer ${student1Token}`)
-      .send({ content: 'Terminal state cannot be trusted' })
+      .send({
+        content: 'Terminal state cannot be trusted',
+        clientMessageId: randomUUID(),
+      })
       .expect(503)
 
     expect(response.body).toEqual({
@@ -1951,7 +2127,10 @@ describe('Authorized tutoring runtime (e2e)', () => {
     await request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
       .set('Authorization', `Bearer ${student1Token}`)
-      .send({ content: 'Recover this exact question' })
+      .send({
+        content: 'Recover this exact question',
+        clientMessageId: randomUUID(),
+      })
       .expect(503)
 
     const [studentMessage, assistantMessage] = await prisma.message.findMany({
@@ -1967,7 +2146,7 @@ describe('Authorized tutoring runtime (e2e)', () => {
     turnRepository.failFailurePersistence = false
     embeddingFailure = false
     const retry = await request(requireApp().getHttpServer())
-      .post(`${messagesPath(session.id)}/${studentMessage.id}/retry`)
+      .post(retryPath(session.id, studentMessage.attemptId))
       .set('Authorization', `Bearer ${student1Token}`)
       .expect(200)
 
@@ -2012,7 +2191,10 @@ describe('Authorized tutoring runtime (e2e)', () => {
     const responsePromise = request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
       .set('Authorization', `Bearer ${student1Token}`)
-      .send({ content: 'Question racing membership removal' })
+      .send({
+        content: 'Question racing membership removal',
+        clientMessageId: randomUUID(),
+      })
       .then((response) => response)
     await gateReachedPromise
 
@@ -2066,7 +2248,10 @@ describe('Authorized tutoring runtime (e2e)', () => {
     const responsePromise = request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
       .set('Authorization', `Bearer ${student1Token}`)
-      .send({ content: 'Question racing session deletion' })
+      .send({
+        content: 'Question racing session deletion',
+        clientMessageId: randomUUID(),
+      })
       .then((response) => response)
     await gateReachedPromise
 

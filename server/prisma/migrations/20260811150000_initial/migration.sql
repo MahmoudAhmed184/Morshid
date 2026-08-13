@@ -440,19 +440,14 @@ CREATE TABLE "tutoring_attempts" (
     "retry_of_attempt_id" UUID,
     "client_message_id" VARCHAR(160) NOT NULL,
     "request_kind" "message_request_kind",
-    "teaching_strategy" "teaching_strategy",
     "status" "tutoring_attempt_status" NOT NULL DEFAULT 'RECEIVED',
     "failure_code" "tutoring_attempt_failure_code",
     "lease_expires_at" TIMESTAMPTZ(6),
-    "claim_token" VARCHAR(160),
-    "claimed_at" TIMESTAMPTZ(6),
-    "version" INTEGER NOT NULL DEFAULT 1,
     "safe_fallback_used" BOOLEAN NOT NULL DEFAULT false,
     "approval_source" "tutoring_approval_source",
     "approved_candidate_attempt" SMALLINT,
     "safe_fallback_reason" "tutoring_safe_fallback_reason",
     "validation_policy_version" VARCHAR(80),
-    "review_required" BOOLEAN NOT NULL DEFAULT false,
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "completed_at" TIMESTAMPTZ(6),
 
@@ -725,8 +720,6 @@ CREATE INDEX "idx_topics_course_concept" ON "topics"("course_id", "concept_id");
 CREATE UNIQUE INDEX "topic_states_topic_id_key" ON "topic_states"("topic_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "tutoring_attempts_claim_token_key" ON "tutoring_attempts"("claim_token");
-
 -- CreateIndex
 CREATE INDEX "idx_tutoring_attempts_topic" ON "tutoring_attempts"("topic_id");
 

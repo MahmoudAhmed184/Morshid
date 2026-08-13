@@ -14,27 +14,27 @@ import {
 import {
   PrismaEducationalAnalysisRepository,
   type PersistedEducationalAnalysisRecord,
-} from '../../src/modules/tutoring/socratic-workflow/educational-analysis.repository'
-import { EDUCATIONAL_ANALYSIS_PROMPT_VERSION } from '../../src/modules/tutoring/socratic-workflow/educational-analysis.prompt'
+} from '../../src/modules/tutoring/socratic-workflow/analysis/educational-analysis.repository'
+import { EDUCATIONAL_ANALYSIS_PROMPT_VERSION } from '../../src/modules/tutoring/socratic-workflow/analysis/educational-analysis.prompt'
 import {
   EDUCATIONAL_ANALYSIS_SOURCE,
   EFFORT_QUALITY,
   EFFORT_TYPE,
   LEARNING_EVIDENCE_STRENGTH,
   type EducationalAnalysisResult,
-} from '../../src/modules/tutoring/socratic-workflow/educational-analysis.types'
+} from '../../src/modules/tutoring/socratic-workflow/analysis/educational-analysis.types'
 import {
   PrismaTeachingDecisionRepository,
   type PersistedTeachingDecisionRecord,
-} from '../../src/modules/tutoring/socratic-workflow/teaching-decision.repository'
-import { TeachingPolicyEngine } from '../../src/modules/tutoring/socratic-workflow/teaching-policy.engine'
+} from '../../src/modules/tutoring/socratic-workflow/teaching-decision/teaching-decision.repository'
+import { TeachingPolicyEngine } from '../../src/modules/tutoring/socratic-workflow/teaching-decision/teaching-policy.engine'
 import {
   fixedTeachingGuardPolicy,
   teachingPolicyDefaults,
-} from '../../src/modules/tutoring/socratic-workflow/teaching-policy.selector'
-import { TEACHING_POLICY_VERSION } from '../../src/modules/tutoring/socratic-workflow/teaching-policy.types'
-import type { TopicStateSnapshot } from '../../src/modules/tutoring/socratic-workflow/topic-state.types'
-import { TOPIC_RESOLUTION_OUTCOME } from '../../src/modules/tutoring/socratic-workflow/topic.types'
+} from '../../src/modules/tutoring/socratic-workflow/teaching-decision/teaching-policy.selector'
+import { TEACHING_POLICY_VERSION } from '../../src/modules/tutoring/socratic-workflow/teaching-decision/teaching-policy.types'
+import type { TopicStateSnapshot } from '../../src/modules/tutoring/socratic-workflow/topic/topic-state.types'
+import { TOPIC_RESOLUTION_OUTCOME } from '../../src/modules/tutoring/socratic-workflow/topic/topic.types'
 import type { PrismaService } from '../../src/platform/database/prisma.service'
 import {
   setUpDisposableDatabase,

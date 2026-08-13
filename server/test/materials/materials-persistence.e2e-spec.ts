@@ -17,12 +17,12 @@ import {
 import {
   DurableMaterialProcessingScheduler,
   MaterialProcessingScheduler,
-} from '../../src/modules/materials/material-processing.scheduler'
-import { MaterialProcessingService } from '../../src/modules/materials/material-processing.service'
-import { CourseEvidenceRepository } from '../../src/modules/materials/course-evidence.repository'
-import { MaterialChunkRepository } from '../../src/modules/materials/material-chunk.repository'
-import { MaterialsRepository } from '../../src/modules/materials/materials.repository'
-import { MATERIALS_ERROR_CODES } from '../../src/modules/materials/materials.errors'
+} from '../../src/modules/materials/processing/material-processing.scheduler'
+import { MATERIALS_ERROR_CODES } from '../../src/modules/materials/catalog/materials.errors'
+import { MaterialsRepository } from '../../src/modules/materials/catalog/materials.repository'
+import { CourseEvidenceRepository } from '../../src/modules/materials/evidence/course-evidence.repository'
+import { MaterialChunkRepository } from '../../src/modules/materials/processing/material-chunk.repository'
+import { MaterialProcessingService } from '../../src/modules/materials/processing/material-processing.service'
 import { LocalPdfStorageAdapter } from '../../src/platform/document-storage/local-pdf-storage.adapter'
 import { PDF_STORAGE } from '../../src/platform/document-storage/pdf-storage'
 import { PrismaService } from '../../src/platform/database/prisma.service'

@@ -45,7 +45,7 @@ import {
   chatIds,
 } from '@/features/chat/testing/chat.fixtures'
 
-import { TutorPage } from './tutor-page'
+import { submitPendingFirstMessage, TutorPage } from './tutor-page'
 import { CHAT_COMPLETION_STATUS, CHAT_GENERATION_STATUS } from './chat-status'
 
 vi.mock('@/features/chat/sessions/chat-sessions.api')
@@ -345,6 +345,19 @@ describe('TutorPage workspace', () => {
     expect(listStudentSessionsMock).not.toHaveBeenCalled()
   })
 
+  it('does not substitute another course for an unavailable explicit URL', () => {
+    renderWorkspace({
+      courses: [primaryCourse],
+      courseId: chatIds.otherCourse,
+    })
+
+    expect(
+      screen.getByRole('heading', { name: 'Course unavailable' }),
+    ).toBeInTheDocument()
+    expect(createStudentSessionMock).not.toHaveBeenCalled()
+    expect(listStudentSessionsMock).not.toHaveBeenCalled()
+  })
+
   // T15.1 — landing at /chat?courseId (no sessionId) is the live draft: an
   // enabled composer, greeting, and suggestions, with no session created.
   it('renders the draft state with an enabled composer and suggestions', async () => {
@@ -431,6 +444,67 @@ describe('TutorPage workspace', () => {
     expect(composer).toHaveValue('Draft that survives')
     expect(navigateMock).not.toHaveBeenCalled()
     expect(sendChatMessageMock).not.toHaveBeenCalled()
+  })
+
+  it('preserves the first message identity and reuses its session when navigation fails', async () => {
+    createStudentSessionMock.mockResolvedValueOnce(primaryChatSessionFixture)
+    navigateMock
+      .mockRejectedValueOnce(new Error('Navigation failed'))
+      .mockResolvedValueOnce(undefined)
+    const { rerender, queryClient } = renderWorkspace({
+      courseId: primaryCourse.id,
+    })
+
+    const composer = await screen.findByRole('textbox', { name: 'Message' })
+    fireEvent.change(composer, { target: { value: 'Keep this exact draft' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    expect(
+      await screen.findByText(/message could not be sent/i),
+    ).toBeInTheDocument()
+    expect(composer).toHaveValue('Keep this exact draft')
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledTimes(2))
+    expect(createStudentSessionMock).toHaveBeenCalledTimes(1)
+
+    rerender(
+      workspaceTree(queryClient, {
+        courseId: primaryCourse.id,
+        sessionId: primaryChatSessionFixture.id,
+      }),
+    )
+    await waitFor(() => expect(sendChatMessageMock).toHaveBeenCalledOnce())
+    expect(sendChatMessageMock).toHaveBeenCalledWith({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      input: {
+        clientMessageId: expect.any(String),
+        content: 'Keep this exact draft',
+      },
+    })
+  })
+
+  it('retains a pending first message until the destination composer mounts', () => {
+    const pending = {
+      session: primaryChatSessionFixture,
+      content: 'Wait for the composer',
+      clientMessageId: chatIds.studentMessage,
+    }
+    const submitWith = vi.fn()
+
+    expect(submitPendingFirstMessage(pending, null)).toBe(false)
+    expect(submitWith).not.toHaveBeenCalled()
+    expect(
+      submitPendingFirstMessage(pending, {
+        submitWith,
+        prefill: vi.fn(),
+        focus: vi.fn(),
+      }),
+    ).toBe(true)
+    expect(submitWith).toHaveBeenCalledWith(
+      pending.content,
+      pending.clientMessageId,
+    )
   })
 
   // T15.6 — the draft has no sources chrome at all (nothing to cite yet).
@@ -1076,6 +1150,71 @@ describe('TutorPage workspace', () => {
       ).toBe(900),
     )
     scrollHeightSpy.mockRestore()
+  })
+
+  it('does not force a reader back to the bottom during polled updates', async () => {
+    const pendingHistory: ChatMessageHistoryResponse = {
+      messages: [
+        chatTurnResponseFixture.studentMessage,
+        {
+          ...chatTurnResponseFixture.assistantMessage,
+          status: 'STREAMING',
+          content: 'First partial response',
+          completedAt: null,
+        },
+      ],
+      nextCursor: null,
+    }
+    const { queryClient } = renderWorkspace({
+      courseId: primaryCourse.id,
+      sessionId: primaryChatSessionFixture.id,
+      sessions: {
+        sessions: [primaryChatSessionFixture],
+        nextCursor: null,
+      },
+      messages: pendingHistory,
+    })
+    const history = await screen.findByRole('region', {
+      name: 'Conversation messages',
+    })
+    Object.defineProperties(history, {
+      scrollHeight: { configurable: true, value: 1_000 },
+      clientHeight: { configurable: true, value: 400 },
+    })
+    history.scrollTop = 100
+    fireEvent.scroll(history)
+
+    queryClient.setQueryData(
+      chatSessionKeys.messageList({
+        studentId,
+        courseId: primaryCourse.id,
+        sessionId: primaryChatSessionFixture.id,
+      }),
+      {
+        pages: [
+          {
+            ...pendingHistory,
+            messages: [
+              pendingHistory.messages[0],
+              {
+                ...pendingHistory.messages[1],
+                status: 'COMPLETED',
+                content: 'Completed response from polling',
+                completedAt: '2026-07-17T12:00:05.000Z',
+              },
+            ],
+          },
+        ],
+        pageParams: [undefined],
+      },
+    )
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('Completed response from polling'),
+      ).toBeInTheDocument(),
+    )
+    expect(history.scrollTop).toBe(100)
   })
 
   it('keeps the composer disabled for a persisted active response after refresh', async () => {
@@ -1749,7 +1888,7 @@ describe('TutorPage workspace', () => {
     expect(retryChatMessageMock).toHaveBeenCalledWith({
       courseId: primaryCourse.id,
       sessionId: primaryChatSessionFixture.id,
-      studentMessageId: failedTurn.studentMessage.id,
+      attemptId: failedTurn.assistantMessage.attemptId,
     })
 
     const completeRetry = resolveRetry

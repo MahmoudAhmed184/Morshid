@@ -27,7 +27,7 @@ import {
   EMBEDDING_PROVIDER_TOKEN,
   type EmbeddingProvider,
 } from '../../src/platform/ai/embedding/embedding-provider'
-import { MaterialProcessingScheduler } from '../../src/modules/materials/material-processing.scheduler'
+import { MaterialProcessingScheduler } from '../../src/modules/materials/processing/material-processing.scheduler'
 import {
   PDF_STORAGE,
   type PdfStorage,
@@ -37,34 +37,34 @@ import { RedisService } from '../../src/platform/cache/redis.service'
 import type {
   ChatSessionResponseDto,
   TutoringTurnResponseDto,
-} from '../../src/modules/conversations/conversations.dto'
+} from '../../src/modules/conversations/interface/conversation-dto'
 import { validateEnv } from '../../src/platform/config/env.schema'
 import { parseTutoringConfiguration } from '../../src/modules/tutoring/tutoring.configuration'
 import { CONFIG_ENV_FILE_PATHS } from '../../src/platform/config/configuration'
 import {
   OPENAI_COMPATIBLE_ANALYSIS_MODEL_PROVIDER,
   normalizeOpenAICompatibleBaseUrl,
-} from '../../src/modules/tutoring/socratic-workflow/analysis-model.configuration'
-import { OPENAI_COMPATIBLE_TUTOR_MODEL_PROVIDER } from '../../src/modules/tutoring/socratic-workflow/tutor-model.configuration'
-import { OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER } from '../../src/modules/tutoring/socratic-workflow/semantic-guard.configuration'
-import { EDUCATIONAL_ANALYSIS_SOURCE } from '../../src/modules/tutoring/socratic-workflow/educational-analysis.types'
-import { TUTOR_GENERATION_PROMPT_VERSION } from '../../src/modules/tutoring/socratic-workflow/tutor-prompt.registry'
-import { SAFE_FALLBACK_PROMPT_VERSION } from '../../src/modules/tutoring/socratic-workflow/safe-fallback.service'
-import { SemanticGuardService } from '../../src/modules/tutoring/socratic-workflow/semantic-guard.service'
+} from '../../src/modules/tutoring/infrastructure/analysis-model.configuration'
+import { OPENAI_COMPATIBLE_TUTOR_MODEL_PROVIDER } from '../../src/modules/tutoring/infrastructure/tutor-model.configuration'
+import { OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER } from '../../src/modules/tutoring/infrastructure/semantic-guard.configuration'
+import { EDUCATIONAL_ANALYSIS_SOURCE } from '../../src/modules/tutoring/socratic-workflow/analysis/educational-analysis.types'
+import { TUTOR_GENERATION_PROMPT_VERSION } from '../../src/modules/tutoring/socratic-workflow/generation/tutor-prompt.definition'
+import { SAFE_FALLBACK_PROMPT_VERSION } from '../../src/modules/tutoring/socratic-workflow/response-approval/safe-fallback.service'
+import { SemanticGuardService } from '../../src/modules/tutoring/socratic-workflow/response-approval/semantic-guard.service'
 import {
   SEMANTIC_GUARD_PROMPT_VERSION,
   type SemanticGuardEvaluationInput,
-} from '../../src/modules/tutoring/socratic-workflow/semantic-guard.types'
+} from '../../src/modules/tutoring/socratic-workflow/response-approval/semantic-guard.types'
 import {
   RESPONSE_VALIDATION_ACTION,
   RESPONSE_VIOLATION_TYPE,
-} from '../../src/modules/tutoring/socratic-workflow/response-validation.types'
-import { buildSocraticDisclosureContract } from '../../src/modules/tutoring/socratic-workflow/socratic-disclosure-policy'
-import type { TeachingGuardPolicy } from '../../src/modules/tutoring/socratic-workflow/teaching-policy.types'
+} from '../../src/modules/tutoring/socratic-workflow/response-approval/response-validation.types'
+import { buildSocraticDisclosureContract } from '../../src/modules/tutoring/socratic-workflow/teaching-decision/socratic-disclosure-policy'
+import type { TeachingGuardPolicy } from '../../src/modules/tutoring/socratic-workflow/teaching-decision/teaching-policy.types'
 import type {
   CandidateResponse,
   TutorGuardEducationalContext,
-} from '../../src/modules/tutoring/socratic-workflow/tutor-generation.types'
+} from '../../src/modules/tutoring/socratic-workflow/generation/tutor-generation.types'
 import {
   P0_DEMO_PASSWORD,
   seedP0DemoData,

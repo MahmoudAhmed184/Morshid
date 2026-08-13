@@ -18,7 +18,7 @@ import {
   type UpdateCourseInput,
   type UpdateMemberRoleInput,
 } from '../../src/modules/courses/courses.repository'
-import { MaterialProcessingScheduler } from '../../src/modules/materials/material-processing.scheduler'
+import { MaterialProcessingScheduler } from '../../src/modules/materials/processing/material-processing.scheduler'
 import { PrismaService } from '../../src/platform/database/prisma.service'
 import { RedisService } from '../../src/platform/cache/redis.service'
 import {

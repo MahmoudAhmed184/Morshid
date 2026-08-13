@@ -145,7 +145,6 @@ function collectSensitiveStrings(): readonly string[] {
   const fixture = GEMINI_EMBEDDING_LIVE_SMOKE_FIXTURE
   return [
     process.env.GEMINI_EMBEDDING_API_KEY,
-    process.env.GEMINI_API_KEY,
     fixture.query,
     fixture.relevant,
     fixture.unrelated,

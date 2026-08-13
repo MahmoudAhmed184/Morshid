@@ -3,7 +3,7 @@ import type { UserRole as UserRoleType } from '../identity/identity.roles'
 import {
   CourseMembershipRole,
   type CourseMembershipRole as CourseMembershipRoleType,
-} from './course-membership.types'
+} from './interface/course-membership-role'
 
 interface AllCoursesPolicy {
   scope: 'all'

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
-import { CourseMembershipRole } from './course-membership.types'
+import { CourseMembershipRole } from './interface/course-membership-role'
 import type { AuthenticatedUser } from '../identity/identity.types'
 import type { AuditRequestContext } from '../audit/audit.public'
 import type {

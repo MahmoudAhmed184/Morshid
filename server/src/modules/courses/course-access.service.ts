@@ -3,22 +3,21 @@ import { Injectable } from '@nestjs/common'
 import {
   CourseMembershipRole,
   type CourseMembershipRole as CourseMembershipRoleType,
-} from './course-membership.types'
+} from './interface/course-membership-role'
 import { UserRole } from '../identity/identity.roles'
 import type { AuthenticatedUser } from '../identity/identity.types'
 import { getCourseRolePolicy } from './course-access.policy'
 import { CoursesRepository } from './courses.repository'
-
-export type CourseMaterialManagementAccess =
-  | { allowed: true }
-  | {
-      allowed: false
-      reason: 'COURSE_NOT_FOUND' | 'COURSE_MANAGEMENT_REQUIRED'
-    }
+import {
+  CourseAccess,
+  type CourseMaterialManagementAccess,
+} from './interface/course-access'
 
 @Injectable()
-export class CourseAccessService {
-  constructor(private readonly coursesRepository: CoursesRepository) {}
+export class CourseAccessService extends CourseAccess {
+  constructor(private readonly coursesRepository: CoursesRepository) {
+    super()
+  }
 
   async canViewCourse(
     user: AuthenticatedUser,

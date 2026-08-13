@@ -1,10 +1,7 @@
-import {
-  CourseMembershipRole,
-  UserRole,
-  UserStatus,
-} from '../../generated/prisma/client'
 import type { AuthenticatedUser } from '../identity/identity.types'
+import { UserRole, UserStatus } from '../identity/identity.roles'
 import { CourseAccessService } from './course-access.service'
+import { CourseMembershipRole } from './interface/course-membership-role'
 import {
   CoursesRepository,
   type AddCourseMemberInput,

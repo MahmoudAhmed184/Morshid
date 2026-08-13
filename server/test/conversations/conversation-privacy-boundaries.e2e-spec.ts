@@ -16,15 +16,15 @@ import {
   AUDIT_EVENT_ACTIONS,
   AUDIT_TARGET_TYPES,
 } from '../../src/modules/audit/audit.constants'
-import { MaterialProcessingScheduler } from '../../src/modules/materials/material-processing.scheduler'
+import { MaterialProcessingScheduler } from '../../src/modules/materials/processing/material-processing.scheduler'
 import { PrismaService } from '../../src/platform/database/prisma.service'
 import { RedisService } from '../../src/platform/cache/redis.service'
 import type {
   ChatMessageHistoryResponseDto,
   ChatSessionListResponseDto,
   ChatSessionResponseDto,
-} from '../../src/modules/conversations/conversations.dto'
-import { CONVERSATION_ERROR_CODES } from '../../src/modules/conversations/conversation.errors'
+} from '../../src/modules/conversations/interface/conversation-dto'
+import { CONVERSATION_ERROR_CODES } from '../../src/modules/conversations/interface/conversation-errors'
 import {
   P0_DEMO_PASSWORD,
   P0_HIDDEN_ISOLATION_COURSE,

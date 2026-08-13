@@ -15,12 +15,12 @@ import {
   type AnalysisModelPort,
   type AnalysisModelRequest,
   type AnalysisModelResponse,
-} from '../../src/modules/tutoring/socratic-workflow/analysis-model.port'
+} from '../../src/modules/tutoring/socratic-workflow/analysis/analysis-model.port'
 import {
   type TutorModelPort,
   type TutorModelRequest,
   type TutorModelResponse,
-} from '../../src/modules/tutoring/socratic-workflow/tutor-generation.types'
+} from '../../src/modules/tutoring/socratic-workflow/generation/tutor-generation.types'
 import {
   SEMANTIC_GUARD_PROMPT_VERSION,
   type SemanticGuardPort,
@@ -28,7 +28,7 @@ import {
   type SemanticGuardModelResponse,
   SemanticGuardModelError,
   SEMANTIC_GUARD_ERROR_CODE,
-} from '../../src/modules/tutoring/socratic-workflow/semantic-guard.types'
+} from '../../src/modules/tutoring/socratic-workflow/response-approval/semantic-guard.types'
 
 // ────────────────────────────────────────────────────────────────────────────
 // Analysis Model Port — controllable educational analysis

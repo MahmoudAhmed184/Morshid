@@ -7,13 +7,13 @@ import { DeterministicEmbeddingProvider } from '../../src/platform/ai/embedding/
 import type { EmbeddingProvider } from '../../src/platform/ai/embedding/embedding-provider'
 import type { PrismaService } from '../../src/platform/database/prisma.service'
 import type { PdfStorage } from '../../src/platform/document-storage/pdf-storage'
-import { MaterialChunkEmbeddingService } from '../../src/modules/materials/material-chunk-embedding.service'
+import { MaterialChunkEmbeddingService } from '../../src/modules/materials/processing/material-chunk-embedding.service'
 import {
   PrismaMaterialChunkRepository,
   type MaterialChunkRepository,
-} from '../../src/modules/materials/material-chunk.repository'
-import { PrismaCourseEvidenceRepository } from '../../src/modules/materials/course-evidence.repository'
-import { MaterialsCourseEvidence } from '../../src/modules/materials/course-evidence'
+} from '../../src/modules/materials/processing/material-chunk.repository'
+import { PrismaCourseEvidenceRepository } from '../../src/modules/materials/evidence/course-evidence.repository'
+import { MaterialsCourseEvidence } from '../../src/modules/materials/evidence/materials-course-evidence'
 import {
   setUpDisposableDatabase,
   type DisposableDatabase,

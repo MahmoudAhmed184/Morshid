@@ -10,7 +10,6 @@ import { SocraticWorkflowModule } from './socratic-workflow/socratic-workflow.mo
 import { TutoringRuntime } from './interface/tutoring-runtime'
 import { TutoringRuntimeApplication } from './tutoring-runtime.application'
 import { TutoringController } from './tutoring.controller'
-import { ConversationCourseBoundaryAuditFilter } from '../conversations/interface/conversation-course-boundary-audit.filter'
 
 @Module({
   imports: [
@@ -23,7 +22,6 @@ import { ConversationCourseBoundaryAuditFilter } from '../conversations/interfac
     SocraticWorkflowModule,
   ],
   providers: [
-    ConversationCourseBoundaryAuditFilter,
     TutoringRuntimeApplication,
     {
       provide: TutoringRuntime,

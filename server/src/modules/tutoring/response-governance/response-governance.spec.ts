@@ -1,8 +1,5 @@
-import { MessageGuidanceLabel } from '../../../generated/prisma/client'
-import {
-  AUTOMATIC_SAFETY_FIXTURES,
-  AUTOMATIC_SAFETY_PROVIDER_PROFILES,
-} from './automatic-safety.fixtures'
+import { MessageGuidanceLabel } from '../tutoring-values'
+import { AUTOMATIC_SAFETY_FIXTURES } from './automatic-safety.fixtures'
 import {
   decodeAutomaticPolicyReasons,
   encodeAutomaticPolicyReasons,
@@ -95,7 +92,7 @@ describe('ResponseGovernance', () => {
       evidence: [{ excerpt: `  ${'x'.repeat(2_000)}  ` }],
     })
 
-    const excerpt = decision.reviewEvidence?.sources[0]?.excerpt
+    const excerpt = decision.reviewEvidence?.sources?.[0]?.excerpt
     expect(Array.from(excerpt ?? '')).toHaveLength(500)
   })
 
@@ -139,21 +136,21 @@ describe('ResponseGovernance', () => {
     ])
   })
 
-  it('rejects excess evidence before mapping it into a review snapshot', () => {
-    expect(() =>
-      policy.evaluate({
-        proposedContent: 'A proposed conflicted claim',
-        assessment: {
-          support: 'CONFLICTING',
-          policyCheck: 'PASSED',
-          answerRisk: 'NONE',
-          citations: 'PRESENT',
-        },
-        evidence: Array.from({ length: 21 }, (_, index) => ({
-          excerpt: `Synthetic source ${String(index + 1)}`,
-        })),
-      }),
-    ).toThrow('evidence.sources must contain at most 20 items')
+  it('leaves review evidence validation to the Reviews intake owner', () => {
+    const decision = policy.evaluate({
+      proposedContent: 'A proposed conflicted claim',
+      assessment: {
+        support: 'CONFLICTING',
+        policyCheck: 'PASSED',
+        answerRisk: 'NONE',
+        citations: 'PRESENT',
+      },
+      evidence: Array.from({ length: 21 }, (_, index) => ({
+        excerpt: `Synthetic source ${String(index + 1)}`,
+      })),
+    })
+
+    expect(decision.reviewEvidence?.sources).toHaveLength(21)
   })
 
   it('treats instruction-like retrieved text as bounded evidence, never policy', () => {
@@ -195,29 +192,6 @@ describe('ResponseGovernance', () => {
         assessment,
       }),
     ).toThrow('Proposed output is invalid')
-  })
-
-  it('keeps deterministic CI authoritative and live providers explicitly opted in', () => {
-    expect(AUTOMATIC_SAFETY_PROVIDER_PROFILES.ci).toEqual({
-      tutorProvider: 'deterministic',
-      embeddingProvider: 'deterministic',
-      live: false,
-      requiredOptIns: [],
-    })
-    expect(
-      AUTOMATIC_SAFETY_PROVIDER_PROFILES.liveBedrockGeminiEmbedding,
-    ).toMatchObject({
-      tutorProvider: 'aws-bedrock',
-      embeddingProvider: 'gemini',
-      live: true,
-    })
-    expect(
-      AUTOMATIC_SAFETY_PROVIDER_PROFILES.liveBedrockGeminiEmbedding
-        .requiredOptIns,
-    ).toEqual([
-      'AUTOMATIC_SAFETY_LIVE_SMOKE_ACKNOWLEDGED',
-      'GEMINI_EMBEDDING_DEMO_ACKNOWLEDGED',
-    ])
   })
 
   it('round-trips canonical policy reasons for idempotent review repair', () => {

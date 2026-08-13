@@ -4,12 +4,12 @@ import type { AppEnvironment } from '../../src/platform/config/env.schema'
 import type { EmbeddingProvider } from '../../src/platform/ai/embedding/embedding-provider'
 import type { PdfStorage } from '../../src/platform/document-storage/pdf-storage'
 import type { PrismaService } from '../../src/platform/database/prisma.service'
-import { PrismaCourseEvidenceRepository } from '../../src/modules/materials/course-evidence.repository'
-import {
-  MaterialsCourseEvidence,
-  type CourseEvidenceResult,
-  type CourseEvidenceChunk,
-} from '../../src/modules/materials/course-evidence'
+import { PrismaCourseEvidenceRepository } from '../../src/modules/materials/evidence/course-evidence.repository'
+import { MaterialsCourseEvidence } from '../../src/modules/materials/evidence/materials-course-evidence'
+import type {
+  CourseEvidenceResult,
+  CourseEvidenceChunk,
+} from '../../src/modules/materials/interface/course-evidence'
 import {
   COURSE_EVIDENCE_TASK_83,
   COURSE_EVIDENCE_TASK_83_EMBEDDING_MODEL,

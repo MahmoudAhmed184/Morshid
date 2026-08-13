@@ -20,26 +20,27 @@ import type {
   ListChatMessagesQuery,
   ListChatSessionsQuery,
   RenameChatSessionRequest,
-} from './conversations.dto'
+} from './interface/conversation-dto'
 import {
   DEFAULT_MESSAGE_PAGE_SIZE,
   DEFAULT_SESSION_PAGE_SIZE,
   MAX_MESSAGE_PAGE_SIZE,
   MAX_SESSION_PAGE_SIZE,
-} from './conversations.dto'
+} from './interface/conversation-dto'
 import {
   activeStudentMembershipRequiredException,
   conversationSessionNotFoundException,
-} from './conversation.errors'
+} from './interface/conversation-errors'
 import { ConversationMessageRepository } from './conversation-message.repository'
-import { ConversationMessagePresenter } from './conversation-message.presenter'
+import { ConversationMessagePresenter } from './interface/conversation-message-presenter'
 import { ConversationSessionRepository } from './conversation-session.repository'
-import type { ChatSessionRecord } from './conversation-records'
+import type { ChatSessionRecord } from './interface/conversation-records'
+import { ConversationCourseBoundaryAudit } from './interface/conversation-course-boundary-audit'
 
 const DEFAULT_CHAT_TITLE = 'New chat'
 
 @Injectable()
-export class ConversationsService {
+export class ConversationsService extends ConversationCourseBoundaryAudit {
   private readonly logger = new Logger(ConversationsService.name)
 
   constructor(
@@ -48,7 +49,9 @@ export class ConversationsService {
     private readonly conversationAuditService: ConversationAuditService,
     private readonly accessAuditService: AccessAuditService,
     private readonly messagePresenter: ConversationMessagePresenter,
-  ) {}
+  ) {
+    super()
+  }
 
   async createSession(
     courseId: string,
@@ -218,7 +221,7 @@ export class ConversationsService {
       : messagesWithLookahead.slice(0, limit)
 
     return {
-      messages: await this.messagePresenter.presentMany(messages),
+      messages: await this.messagePresenter.presentMany(messages, user.id),
       nextCursor: hasMore
         ? isLoadingLatestOrEarlier
           ? (messages[0]?.sequence ?? null)

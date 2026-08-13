@@ -1,13 +1,14 @@
+import type { AuthenticatedUser } from '../identity/identity.types'
 import {
-  CourseMembershipRole,
   UserRole,
   UserStatus,
-  type Course,
-  type CourseMembership,
-  type Material,
-  type User,
-} from '../../generated/prisma/client'
-import type { AuthenticatedUser } from '../identity/identity.types'
+  type UserRole as UserRoleValue,
+  type UserStatus as UserStatusValue,
+} from '../identity/identity.roles'
+import {
+  CourseMembershipRole,
+  type CourseMembershipRole as CourseMembershipRoleValue,
+} from './interface/course-membership-role'
 import {
   CoursesRepository,
   type AddCourseMemberInput,
@@ -23,16 +24,35 @@ import {
 import type { CourseListResponseDto } from './courses.dto'
 import { CoursesService } from './courses.service'
 
-type CourseRecord = Pick<
-  Course,
-  'id' | 'code' | 'title' | 'createdById' | 'createdAt' | 'updatedAt'
->
-type MembershipRecord = Pick<
-  CourseMembership,
-  'id' | 'courseId' | 'userId' | 'role' | 'createdAt'
->
-type MaterialRecord = Pick<Material, 'courseId' | 'deletedAt'>
-type UserRecord = Pick<User, 'id' | 'email' | 'displayName' | 'role' | 'status'>
+interface CourseRecord {
+  id: string
+  code: string
+  title: string
+  createdById: string | null
+  createdAt: Date
+  updatedAt: Date
+}
+
+interface MembershipRecord {
+  id: string
+  courseId: string
+  userId: string
+  role: CourseMembershipRoleValue
+  createdAt: Date
+}
+
+interface MaterialRecord {
+  courseId: string
+  deletedAt: Date | null
+}
+
+interface UserRecord {
+  id: string
+  email: string
+  displayName: string
+  role: UserRoleValue
+  status: UserStatusValue
+}
 
 interface AdminMembershipRecord extends MembershipRecord {
   user: UserRecord

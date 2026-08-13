@@ -1,11 +1,16 @@
 import { randomUUID } from 'node:crypto'
 
+import { Client } from 'pg'
+
 import { StudentFlagReason } from '../../src/generated/prisma/client'
 import { AuditService } from '../../src/modules/audit/audit.service'
+import { PrismaActiveCourseMembership } from '../../src/modules/courses/active-course-membership'
+import { CourseAudit } from '../../src/modules/courses/course-audit'
+import { PrismaCoursesRepository } from '../../src/modules/courses/courses.repository'
 import { PrismaDatabaseTransactionRunner } from '../../src/platform/database/database-transaction'
-import { PrismaReviewCaseIntake } from '../../src/modules/reviews/review-case-intake'
-import { PrismaReviewCaseRepository } from '../../src/modules/reviews/review-case.repository'
-import type { AutomaticReviewIntakeInput } from '../../src/modules/reviews/review-case-intake'
+import { PrismaReviewCaseIntake } from '../../src/modules/reviews/intake/prisma-review-case-intake'
+import { PrismaReviewCaseRepository } from '../../src/modules/reviews/intake/review-case.repository'
+import type { AutomaticReviewIntakeInput } from '../../src/modules/reviews/interface/review-case-intake'
 import { seedP0DemoData } from '../../src/seeds/p0-demo.seed'
 import {
   setUpDisposableDatabase,
@@ -24,6 +29,7 @@ describe('Review persistence seam (e2e)', () => {
     repository = new PrismaReviewCaseRepository(
       database.prisma,
       new AuditService(database.prisma),
+      new PrismaActiveCourseMembership(),
     )
     reviewCaseIntake = new PrismaReviewCaseIntake(repository)
     transactionRunner = new PrismaDatabaseTransactionRunner(database.prisma)
@@ -256,6 +262,63 @@ describe('Review persistence seam (e2e)', () => {
         where: { actorUserId: fixture.studentId, key: 'stable-key' },
       }),
     ).toBe(1)
+  })
+
+  it('holds Student membership authorization through manual intake commit', async () => {
+    const fixture = await createReviewableMessage('membership-lock')
+    const currentDatabase = requireDatabase()
+    const prisma = currentDatabase.prisma
+    const courses = new PrismaCoursesRepository(
+      prisma,
+      new CourseAudit(new AuditService(prisma)),
+    )
+    const blocker = new Client({
+      connectionString: currentDatabase.databaseUrl,
+    })
+    await blocker.connect()
+    await prisma.$executeRawUnsafe(`
+      CREATE FUNCTION block_manual_review_intake_for_test() RETURNS trigger AS $$
+      BEGIN
+        PERFORM pg_advisory_xact_lock(20503);
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+      CREATE TRIGGER block_manual_review_intake_for_test
+      AFTER INSERT ON review_cases
+      FOR EACH ROW EXECUTE FUNCTION block_manual_review_intake_for_test();
+    `)
+    await blocker.query('BEGIN')
+    await blocker.query('SELECT pg_advisory_lock(20503)')
+
+    try {
+      const intake = repository.create({
+        kind: 'manual',
+        messageId: fixture.assistantMessageId,
+        actorUserId: fixture.studentId,
+        flagReason: StudentFlagReason.CONFUSING,
+        reason: null,
+        idempotencyKey: 'concurrent-membership-intake',
+      })
+      await waitForBlockedQueryCount(prisma, 1)
+      const removal = courses.removeMember({
+        courseId: fixture.courseId,
+        userId: fixture.studentId,
+        actorUserId: fixture.studentId,
+      })
+      await waitForBlockedQueryCount(prisma, 2)
+
+      await blocker.query('SELECT pg_advisory_unlock(20503)')
+      const [intakeResult] = await Promise.all([intake, removal])
+
+      expect(intakeResult).toMatchObject({ kind: 'ok' })
+    } finally {
+      await blocker.query('ROLLBACK')
+      await blocker.end()
+      await prisma.$executeRawUnsafe(`
+        DROP TRIGGER IF EXISTS block_manual_review_intake_for_test ON review_cases;
+        DROP FUNCTION IF EXISTS block_manual_review_intake_for_test();
+      `)
+    }
   })
 
   it('enforces Student flag reason trigger shape in the database', async () => {
@@ -615,3 +678,23 @@ describe('Review persistence seam (e2e)', () => {
     return database
   }
 })
+
+async function waitForBlockedQueryCount(
+  prisma: DisposableDatabase['prisma'],
+  expectedCount: number,
+): Promise<void> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const blocked = await prisma.$queryRaw<{ count: bigint }[]>`
+      SELECT COUNT(*) AS count
+      FROM pg_stat_activity
+      WHERE datname = current_database()
+        AND wait_event_type = 'Lock'
+    `
+    if (Number(blocked[0]?.count ?? 0) >= expectedCount) return
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+
+  throw new Error(
+    `Timed out waiting for ${String(expectedCount)} blocked database queries`,
+  )
+}

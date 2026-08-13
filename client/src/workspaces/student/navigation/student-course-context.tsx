@@ -9,6 +9,7 @@ import type { StudentCourseAccess } from '@/features/courses/course-access/cours
 type StudentCourseContextValue = {
   courses: StudentCourseAccess[]
   activeCourse: StudentCourseAccess | null
+  unavailableCourseId: string | null
 }
 
 const StudentCourseContext = createContext<StudentCourseContextValue | null>(
@@ -41,10 +42,16 @@ export function StudentCourseProvider({ children }: { children: ReactNode }) {
     ? (window.sessionStorage.getItem(storageKey(studentId)) ?? undefined)
     : undefined
 
+  const explicitCourse = validCourse(courses, routeCourseId)
+  const unavailableCourseId =
+    routeCourseId !== undefined && explicitCourse === null
+      ? routeCourseId
+      : null
   const activeCourse =
-    validCourse(courses, routeCourseId) ??
-    validCourse(courses, rememberedCourseId) ??
-    (courses.length === 1 ? (courses[0] ?? null) : null)
+    routeCourseId !== undefined
+      ? explicitCourse
+      : (validCourse(courses, rememberedCourseId) ??
+        (courses.length === 1 ? (courses[0] ?? null) : null))
 
   useEffect(() => {
     if (!studentId || !activeCourse) {
@@ -55,8 +62,8 @@ export function StudentCourseProvider({ children }: { children: ReactNode }) {
   }, [activeCourse, studentId])
 
   const value = useMemo(
-    () => ({ courses, activeCourse }),
-    [courses, activeCourse],
+    () => ({ courses, activeCourse, unavailableCourseId }),
+    [courses, activeCourse, unavailableCourseId],
   )
 
   return (

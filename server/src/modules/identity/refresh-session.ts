@@ -62,10 +62,24 @@ export class RefreshSession {
     const refreshTokenHash = this.hash(refreshToken)
     const result = await this.refreshTokenRepository.transaction(
       async (repository) => {
+        const discoveredToken =
+          await repository.findByTokenHashWithUser(refreshTokenHash)
+
+        if (!discoveredToken) {
+          throw invalidRefreshTokenException()
+        }
+
+        const lockedUser = await repository.lockUserById(
+          discoveredToken.user.id,
+        )
         const storedToken =
           await repository.findByTokenHashWithUser(refreshTokenHash)
 
-        if (!storedToken || !isActiveRefreshToken(storedToken, now)) {
+        if (
+          !lockedUser ||
+          !storedToken ||
+          !isActiveRefreshToken(storedToken, lockedUser, now)
+        ) {
           throw invalidRefreshTokenException()
         }
 
@@ -79,16 +93,16 @@ export class RefreshSession {
           throw invalidRefreshTokenException()
         }
 
-        if (this.identityUser.isDisabled(storedToken.user)) {
+        if (this.identityUser.isDisabled(lockedUser)) {
           return {
             kind: 'disabled' as const,
-            userId: storedToken.user.id,
+            userId: lockedUser.id,
           }
         }
 
         const nextRefreshToken = await this.createWithRepository(
           repository,
-          storedToken.user,
+          lockedUser,
           now,
           requestContext,
         )
@@ -102,7 +116,7 @@ export class RefreshSession {
           kind: 'rotated' as const,
           nextRefreshToken,
           previousToken: storedToken,
-          user: storedToken.user,
+          user: lockedUser,
         }
       },
     )
@@ -120,7 +134,7 @@ export class RefreshSession {
       const storedToken =
         await repository.findByTokenHashWithUser(refreshTokenHash)
 
-      if (!storedToken || !isActiveRefreshToken(storedToken, now)) {
+      if (!storedToken || !isUnrevokedAndUnexpired(storedToken, now)) {
         return null
       }
 
@@ -186,7 +200,18 @@ export type RefreshTokenRotation =
       user: IdentityUserRecord
     }
 
-function isActiveRefreshToken(refreshToken: RefreshTokenRecord, now: Date) {
+function isActiveRefreshToken(
+  refreshToken: RefreshTokenRecord,
+  user: Pick<IdentityUserRecord, 'passwordChangedAt'>,
+  now: Date,
+) {
+  return (
+    isUnrevokedAndUnexpired(refreshToken, now) &&
+    refreshToken.createdAt >= user.passwordChangedAt
+  )
+}
+
+function isUnrevokedAndUnexpired(refreshToken: RefreshTokenRecord, now: Date) {
   return refreshToken.revokedAt === null && refreshToken.expiresAt > now
 }
 

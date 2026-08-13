@@ -1,12 +1,12 @@
 import type { AutomaticSafetyRiskDetection } from '../response-governance/automatic-safety-risk.detector'
 import type { ControlledSourceConflict } from '../response-governance/controlled-source-conflict.detector'
 import type { RequestBudget } from '../../../common/http/request-deadline'
-import type { CourseEvidenceChunk } from '../../materials/materials.public'
-import type { DebuggingGuidanceContext } from './debugging-guidance.contract'
-import type { ApprovedResponse } from './response-validation.types'
-import type { ResponseAuditGraph } from './response-audit.types'
-import type { SafeFallbackReason } from './safe-fallback.service'
-import type { TopicStateTransition } from './topic-state-transition'
+import type { CourseEvidenceChunk } from '../../materials/interface/course-evidence'
+import type { DebuggingGuidanceContext } from './debugging-guidance/debugging-guidance.output-validator'
+import type { ApprovedResponse } from './response-approval/response-validation.types'
+import type { ResponseAuditGraph } from './response-approval/response-audit.types'
+import type { SafeFallbackReason } from './response-approval/safe-fallback.service'
+import type { TopicStateTransition } from './topic/topic-state-transition'
 import type {
   MessageGuidanceLabel,
   MessageRequestKind,

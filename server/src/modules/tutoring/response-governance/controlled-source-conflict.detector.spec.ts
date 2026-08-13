@@ -1,4 +1,4 @@
-import type { CourseEvidenceChunk } from '../../materials/materials.public'
+import type { CourseEvidenceChunk } from '../../materials/interface/course-evidence'
 import {
   CONTROLLED_SOURCE_CONFLICT_DETECTOR_VERSION,
   ControlledSourceConflictDetector,
