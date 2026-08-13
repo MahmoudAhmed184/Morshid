@@ -2,12 +2,17 @@ import { apiJson } from '@/features/auth/session/interface/authenticated-api-cli
 import type { ApiFetchOptions } from '@/features/auth/session/interface/authenticated-api-client'
 import {
   managedUserResponseSchema,
+  bulkManagedUsersResponseSchema,
   managedUsersPageSchema,
 } from '@/features/user-management/managed-user.schema'
 
 export type ListManagedUsersInput = {
   cursor?: string
   limit?: number
+  role?: 'STUDENT' | 'INSTRUCTOR'
+  status?: 'ACTIVE' | 'DISABLED'
+  courseId?: string
+  search?: string
 }
 
 export type CreateManagedUserInput = {
@@ -17,12 +22,24 @@ export type CreateManagedUserInput = {
   password: string
 }
 
-function createManagedUsersPath({ cursor, limit = 50 }: ListManagedUsersInput) {
+function createManagedUsersPath({
+  cursor,
+  limit = 50,
+  role,
+  status,
+  courseId,
+  search,
+}: ListManagedUsersInput) {
   const searchParams = new URLSearchParams({ limit: String(limit) })
 
   if (cursor) {
     searchParams.set('cursor', cursor)
   }
+
+  if (role) searchParams.set('role', role)
+  if (status) searchParams.set('status', status)
+  if (courseId) searchParams.set('courseId', courseId)
+  if (search) searchParams.set('search', search)
 
   return `/api/v1/admin/users?${searchParams.toString()}`
 }
@@ -54,6 +71,23 @@ export async function createManagedUser(
   })
 
   return managedUserResponseSchema.parse(response).user
+}
+
+export async function bulkCreateManagedUsers(
+  users: CreateManagedUserInput[],
+  options: ApiFetchOptions = {},
+) {
+  const response = await apiJson<unknown>('/api/v1/admin/users/bulk', {
+    ...options,
+    body: JSON.stringify({ users }),
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+    method: 'POST',
+  })
+
+  return bulkManagedUsersResponseSchema.parse(response).users
 }
 
 export async function resetManagedUserPassword(

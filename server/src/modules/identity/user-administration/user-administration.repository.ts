@@ -45,6 +45,10 @@ export interface ListedUserRecord extends ManagedUserRecord {
 export interface ListUserAdministrationRepositoryInput {
   limit: number
   cursor?: string
+  role?: CreatableUserRole
+  status?: UserStatus
+  courseId?: string
+  search?: string
 }
 
 export interface ListedUsersPage {
@@ -104,6 +108,7 @@ const userRecordSelect = {
 const listedUserRecordSelect = {
   ...userRecordSelect,
   memberships: {
+    where: { removedAt: null },
     select: {
       courseId: true,
       role: true,
@@ -121,6 +126,8 @@ const listedUserRecordSelect = {
 export abstract class UserAdministrationRepository {
   abstract findByEmail(email: string): Promise<ManagedUserRecord | null>
 
+  abstract findByEmails(emails: string[]): Promise<ManagedUserRecord[]>
+
   abstract findById(userId: string): Promise<ManagedUserRecord | null>
 
   abstract listUsers(
@@ -130,6 +137,10 @@ export abstract class UserAdministrationRepository {
   abstract createUser(
     input: CreateManagedUserRepositoryInput,
   ): Promise<ManagedUserRecord>
+
+  abstract createUsers(
+    input: CreateManagedUserRepositoryInput[],
+  ): Promise<ManagedUserRecord[]>
 
   abstract updateUser(
     input: UpdateManagedUserRepositoryInput,
@@ -166,6 +177,13 @@ export class PrismaUserAdministrationRepository extends UserAdministrationReposi
     })
   }
 
+  findByEmails(emails: string[]): Promise<ManagedUserRecord[]> {
+    return this.prismaService.user.findMany({
+      where: { email: { in: emails } },
+      select: userRecordSelect,
+    })
+  }
+
   findById(userId: string): Promise<ManagedUserRecord | null> {
     return this.prismaService.user.findUnique({
       where: {
@@ -179,6 +197,35 @@ export class PrismaUserAdministrationRepository extends UserAdministrationReposi
     input: ListUserAdministrationRepositoryInput,
   ): Promise<ListedUsersPage> {
     const users = await this.prismaService.user.findMany({
+      where: {
+        role: input.role,
+        status: input.status,
+        ...(input.courseId === undefined
+          ? {}
+          : {
+              memberships: {
+                some: { courseId: input.courseId, removedAt: null },
+              },
+            }),
+        ...(input.search === undefined
+          ? {}
+          : {
+              OR: [
+                {
+                  displayName: {
+                    contains: input.search,
+                    mode: Prisma.QueryMode.insensitive,
+                  },
+                },
+                {
+                  email: {
+                    contains: input.search,
+                    mode: Prisma.QueryMode.insensitive,
+                  },
+                },
+              ],
+            }),
+      },
       select: listedUserRecordSelect,
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: input.limit + 1,
@@ -227,6 +274,47 @@ export class PrismaUserAdministrationRepository extends UserAdministrationReposi
     } catch (error) {
       if (isUniqueConstraintViolation(error)) {
         throw new ManagedUserEmailAlreadyExistsError(input.email)
+      }
+
+      throw error
+    }
+  }
+
+  async createUsers(
+    inputs: CreateManagedUserRepositoryInput[],
+  ): Promise<ManagedUserRecord[]> {
+    try {
+      return await this.prismaService.$transaction(async (tx) => {
+        const users: ManagedUserRecord[] = []
+
+        for (const input of inputs) {
+          const user = await tx.user.create({
+            data: {
+              email: input.email,
+              displayName: input.displayName,
+              role: input.role,
+              status: UserStatus.ACTIVE,
+              passwordHash: input.passwordHash,
+            },
+            select: userRecordSelect,
+          })
+
+          await this.userAdministrationAuditService.recordUserCreated(
+            {
+              actorUserId: input.actorUserId,
+              targetUser: user,
+              requestContext: input.requestContext,
+            },
+            asDatabaseTransaction(tx),
+          )
+          users.push(user)
+        }
+
+        return users
+      })
+    } catch (error) {
+      if (isUniqueConstraintViolation(error)) {
+        throw new ManagedUserEmailAlreadyExistsError('imported email')
       }
 
       throw error

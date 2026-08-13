@@ -492,6 +492,7 @@ export class IdentityTestStore {
       code: P0_DEMO_COURSE.code,
       title: P0_DEMO_COURSE.title,
       createdById: instructorId,
+      archivedAt: null,
       createdAt: now,
       updatedAt: now,
     })
@@ -500,6 +501,7 @@ export class IdentityTestStore {
       code: P0_HIDDEN_ISOLATION_COURSE.code,
       title: P0_HIDDEN_ISOLATION_COURSE.title,
       createdById: null,
+      archivedAt: null,
       createdAt: now,
       updatedAt: now,
     })
@@ -934,6 +936,7 @@ export class IdentityTestStore {
       code: args.data.code,
       title: args.data.title,
       createdById: args.data.createdById,
+      archivedAt: null,
       createdAt: now,
       updatedAt: now,
     }

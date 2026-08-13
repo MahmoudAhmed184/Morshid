@@ -29,6 +29,27 @@ export const createUserRequestSchema = z
   })
   .strict()
 
+export const bulkCreateUsersRequestSchema = z
+  .object({
+    users: z.array(createUserRequestSchema).min(1).max(200),
+  })
+  .strict()
+  .superRefine(({ users }, context) => {
+    const seenEmails = new Set<string>()
+
+    users.forEach((user, index) => {
+      if (seenEmails.has(user.email)) {
+        context.addIssue({
+          code: 'custom',
+          path: ['users', index, 'email'],
+          message: 'Email appears more than once in this import',
+        })
+      }
+
+      seenEmails.add(user.email)
+    })
+  })
+
 export const updateUserRequestSchema = z
   .object({
     email: z
@@ -56,10 +77,17 @@ export const listUsersQuerySchema = z
   .object({
     limit: z.coerce.number().int().min(1).max(100).default(50),
     cursor: z.uuid().optional(),
+    role: z.enum([UserRole.STUDENT, UserRole.INSTRUCTOR]).optional(),
+    status: z.enum([UserStatus.ACTIVE, UserStatus.DISABLED]).optional(),
+    courseId: z.uuid().optional(),
+    search: z.string().trim().min(1).max(120).optional(),
   })
   .strict()
 
 export type CreateUserRequest = z.infer<typeof createUserRequestSchema>
+export type BulkCreateUsersRequest = z.infer<
+  typeof bulkCreateUsersRequestSchema
+>
 export type UpdateUserRequest = z.infer<typeof updateUserRequestSchema>
 export type ResetUserPasswordRequest = z.infer<
   typeof resetUserPasswordRequestSchema
@@ -86,6 +114,11 @@ export class CreateUserRequestDto {
     pattern: USER_PASSWORD_PATTERN,
   })
   password!: string
+}
+
+export class BulkCreateUsersRequestDto {
+  @ApiProperty({ type: [CreateUserRequestDto], minItems: 1, maxItems: 200 })
+  users!: CreateUserRequestDto[]
 }
 
 export class UpdateUserRequestDto {
@@ -117,6 +150,21 @@ export class ListUsersQueryDto {
 
   @ApiPropertyOptional({ format: 'uuid' })
   cursor?: string
+
+  @ApiPropertyOptional({
+    enum: [UserRole.STUDENT, UserRole.INSTRUCTOR],
+    enumName: 'CreatableUserRole',
+  })
+  role?: CreatableUserRole
+
+  @ApiPropertyOptional({ enum: UserStatus, enumName: 'UserStatus' })
+  status?: UserStatus
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  courseId?: string
+
+  @ApiPropertyOptional({ maxLength: 120 })
+  search?: string
 }
 
 export class ManagedUserDto {
@@ -154,6 +202,13 @@ export class CreateUserResponseDto {
   @Type(() => ManagedUserDto)
   @ApiProperty({ type: ManagedUserDto })
   user!: ManagedUserDto
+}
+
+export class BulkCreateUsersResponseDto {
+  @Expose()
+  @Type(() => ManagedUserDto)
+  @ApiProperty({ type: [ManagedUserDto] })
+  users!: ManagedUserDto[]
 }
 
 export class UpdateUserResponseDto {

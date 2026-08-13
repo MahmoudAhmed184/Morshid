@@ -142,13 +142,10 @@ describe('Admin operation controls', () => {
     )
 
     await user.click(screen.getByRole('button', { name: 'Add assignment' }))
-    const userSelect = await screen.findByRole('combobox', { name: 'User' })
-    await user.click(userSelect)
-    await user.click(
-      await screen.findByRole('option', {
-        name: 'Demo Student (student@morshid.demo)',
-      }),
-    )
+    const userCheckbox = await screen.findByRole('checkbox', {
+      name: /Demo Student/i,
+    })
+    await user.click(userCheckbox)
     await user.click(screen.getByRole('button', { name: 'Add assignment' }))
 
     await waitFor(() =>
@@ -159,7 +156,116 @@ describe('Admin operation controls', () => {
     )
   })
 
-  it('changes the course role through the assignment table', async () => {
+  it('assigns a doctor without showing a redundant role tab', async () => {
+    const user = userEvent.setup()
+    const onAdd = vi.fn().mockResolvedValue(undefined)
+
+    const doctorUser: ManagedUser = {
+      ...managedUser,
+      id: 'd0c70000-0000-0000-0000-000000000001',
+      displayName: 'Dr. Test Instructor',
+      email: 'doctor@morshid.demo',
+      role: 'INSTRUCTOR',
+    }
+
+    render(
+      <AddCourseMemberDialog
+        users={[doctorUser]}
+        assignedUserIds={new Set()}
+        isPending={false}
+        defaultRole="INSTRUCTOR"
+        onAdd={onAdd}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Add assignment' }))
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument()
+
+    const userCheckbox = await screen.findByRole('checkbox', {
+      name: /Dr\. Test Instructor/i,
+    })
+    await user.click(userCheckbox)
+    await user.click(screen.getByRole('button', { name: 'Add assignment' }))
+
+    await waitFor(() =>
+      expect(onAdd).toHaveBeenCalledWith({
+        userId: doctorUser.id,
+        role: 'INSTRUCTOR',
+      }),
+    )
+  })
+
+  it('searches and assigns multiple users at the same time', async () => {
+    const user = userEvent.setup()
+    const onAdd = vi.fn().mockResolvedValue(undefined)
+
+    const student1: ManagedUser = {
+      ...managedUser,
+      id: '11111111-1111-1111-1111-111111111111',
+      displayName: 'Alice Johnson',
+      email: 'alice@morshid.demo',
+      role: 'STUDENT',
+    }
+    const student2: ManagedUser = {
+      ...managedUser,
+      id: '22222222-2222-2222-2222-222222222222',
+      displayName: 'Bob Smith',
+      email: 'bob@morshid.demo',
+      role: 'STUDENT',
+    }
+    const student3: ManagedUser = {
+      ...managedUser,
+      id: '33333333-3333-3333-3333-333333333333',
+      displayName: 'Charlie Davis',
+      email: 'charlie@morshid.demo',
+      role: 'STUDENT',
+    }
+
+    render(
+      <AddCourseMemberDialog
+        users={[student1, student2, student3]}
+        assignedUserIds={new Set()}
+        isPending={false}
+        defaultRole="STUDENT"
+        onAdd={onAdd}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Add assignment' }))
+
+    // Test search filter
+    const searchInput = screen.getByRole('textbox', { name: 'Search users' })
+    await user.type(searchInput, 'Alice')
+    expect(screen.getByText('Alice Johnson')).toBeVisible()
+    expect(screen.queryByText('Bob Smith')).not.toBeInTheDocument()
+
+    // Select Alice
+    await user.click(screen.getByRole('checkbox', { name: /Alice Johnson/i }))
+
+    // Clear search and select Bob
+    await user.clear(searchInput)
+    expect(screen.getByText('Bob Smith')).toBeVisible()
+    await user.click(screen.getByRole('checkbox', { name: /Bob Smith/i }))
+
+    // Selected count indicator should show 2 selected
+    expect(screen.getByText('2 selected')).toBeVisible()
+
+    // Submit multi-user assignment
+    await user.click(screen.getByRole('button', { name: 'Add assignment' }))
+
+    await waitFor(() => {
+      expect(onAdd).toHaveBeenCalledWith({
+        userId: student1.id,
+        role: 'STUDENT',
+      })
+      expect(onAdd).toHaveBeenCalledWith({
+        userId: student2.id,
+        role: 'STUDENT',
+      })
+    })
+  })
+
+  it('changes the course role through the assignment edit dialog', async () => {
     const user = userEvent.setup()
     const onRoleChange = vi.fn()
 
@@ -172,11 +278,25 @@ describe('Admin operation controls', () => {
       />,
     )
 
-    const roleSelect = screen.getByRole('combobox', {
-      name: 'Course role for Demo Student',
+    // Open edit dialog
+    const editButton = screen.getAllByRole('button', {
+      name: `Edit assignment for ${member.user.displayName}`,
+    })[0]
+    await user.click(editButton)
+
+    // Switch role to Doctor without adding another tab set to the dialog.
+    await user.click(
+      await screen.findByRole('combobox', { name: 'Assignment role' }),
+    )
+    await user.click(
+      await screen.findByRole('option', { name: 'Doctor (Instructor)' }),
+    )
+
+    // Submit update
+    const submitButton = screen.getByRole('button', {
+      name: 'Update assignment',
     })
-    await user.click(roleSelect)
-    await user.click(await screen.findByRole('option', { name: 'Instructor' }))
+    await user.click(submitButton)
 
     expect(onRoleChange).toHaveBeenCalledWith(member.userId, 'INSTRUCTOR')
   })

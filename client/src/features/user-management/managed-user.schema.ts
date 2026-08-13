@@ -38,6 +38,10 @@ export const managedUserResponseSchema = z.object({
   user: userRecordSchema,
 })
 
+export const bulkManagedUsersResponseSchema = z.object({
+  users: z.array(userRecordSchema),
+})
+
 export const passwordSchema = z
   .string()
   .min(8, 'Password must be at least 8 characters.')
