@@ -27,7 +27,7 @@ import { PrismaService } from '../../../platform/database/prisma.service'
 import {
   ReviewCaseIntake,
   type AutomaticReviewIntakeInput,
-} from '../../reviews/reviews.public'
+} from '../../reviews/interface/review-case-intake'
 import { currentDatabaseTime } from '../../../platform/database/database-clock'
 import type { ChatMessageRecord } from '../../conversations/interface/conversation-records'
 import {

@@ -8,9 +8,9 @@ import { PrismaActiveCourseMembership } from '../../src/modules/courses/active-c
 import { CourseAudit } from '../../src/modules/courses/course-audit'
 import { PrismaCoursesRepository } from '../../src/modules/courses/courses.repository'
 import { PrismaDatabaseTransactionRunner } from '../../src/platform/database/database-transaction'
-import { PrismaReviewCaseIntake } from '../../src/modules/reviews/review-case-intake'
-import { PrismaReviewCaseRepository } from '../../src/modules/reviews/review-case.repository'
-import type { AutomaticReviewIntakeInput } from '../../src/modules/reviews/review-case-intake'
+import { PrismaReviewCaseIntake } from '../../src/modules/reviews/intake/prisma-review-case-intake'
+import { PrismaReviewCaseRepository } from '../../src/modules/reviews/intake/review-case.repository'
+import type { AutomaticReviewIntakeInput } from '../../src/modules/reviews/interface/review-case-intake'
 import { seedP0DemoData } from '../../src/seeds/p0-demo.seed'
 import {
   setUpDisposableDatabase,

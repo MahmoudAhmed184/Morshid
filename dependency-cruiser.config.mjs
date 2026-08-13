@@ -231,7 +231,7 @@ export default {
         pathNot: testPath,
       },
       to: {
-        path: '^server/src/modules/reviews/(?!reviews\\.module\\.ts$|reviews\\.public\\.ts$|interface/)',
+        path: '^server/src/modules/reviews/(?!reviews\\.module\\.ts$|interface/)',
       },
     },
     {

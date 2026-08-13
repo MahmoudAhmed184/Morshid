@@ -1,5 +1,8 @@
 import { UserRole, UserStatus } from '../../identity/identity.roles'
-import { ReviewInboxItemStatus, ReviewInboxItemType } from '../review-values'
+import {
+  ReviewInboxItemStatus,
+  ReviewInboxItemType,
+} from '../interface/review-values'
 import type { AuthenticatedUser } from '../../identity/identity.types'
 import { StudentReviewInboxService } from './student-review-inbox.service'
 

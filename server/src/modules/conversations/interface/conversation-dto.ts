@@ -8,7 +8,10 @@ import {
   type MessageGuidanceLabel,
   type MessageRequestKind,
 } from './conversation-values'
-import { ReviewOutcome, ReviewStatus } from '../../reviews/reviews.public'
+import {
+  ReviewOutcome,
+  ReviewStatus,
+} from '../../reviews/interface/review-values'
 
 const titleSchema = z.string().trim().min(1).max(160)
 const messageContentSchema = z

@@ -4,35 +4,37 @@ import { AuditModule } from '../audit/audit.module'
 import { CoursesModule } from '../courses/courses.module'
 import { IdentityModule } from '../identity/identity.module'
 import { PrismaModule } from '../../platform/database/prisma.module'
-import { ReviewCaseController } from './review-case.controller'
-import { StudentReviewDetailController } from './student-review-detail.controller'
-import { ReviewCaseCreator } from './review-case.creator'
-import { PrismaReviewCaseIntake, ReviewCaseIntake } from './review-case-intake'
-import { InstructorReviewQueueController } from './instructor-review-queue.controller'
+import { ReviewCaseController } from './intake/review-case.controller'
+import { StudentReviewDetailController } from './student-detail/student-review-detail.controller'
+import { ReviewCaseCreator } from './intake/review-case.creator'
+import { PrismaReviewCaseIntake } from './intake/prisma-review-case-intake'
+import { ReviewCaseIntake } from './interface/review-case-intake'
+import { InstructorReviewQueueController } from './instructor-queue/instructor-review-queue.controller'
 import {
   InstructorReviewDetailRepository,
   PrismaInstructorReviewDetailRepository,
-} from './instructor-review-detail.repository'
-import { InstructorReviewDetailService } from './instructor-review-detail.service'
+} from './instructor-queue/instructor-review-detail.repository'
+import { InstructorReviewDetailService } from './instructor-queue/instructor-review-detail.service'
 import {
   InstructorReviewActionRepository,
   PrismaInstructorReviewActionRepository,
-} from './instructor-review-action.repository'
-import { InstructorReviewActionService } from './instructor-review-action.service'
+} from './instructor-resolution/instructor-review-action.repository'
+import { InstructorReviewActionService } from './instructor-resolution/instructor-review-action.service'
+import { InstructorReviewResolutionController } from './instructor-resolution/instructor-review-resolution.controller'
 import {
   InstructorReviewQueueRepository,
   PrismaInstructorReviewQueueRepository,
-} from './instructor-review-queue.repository'
-import { InstructorReviewQueueService } from './instructor-review-queue.service'
+} from './instructor-queue/instructor-review-queue.repository'
+import { InstructorReviewQueueService } from './instructor-queue/instructor-review-queue.service'
 import {
   PrismaReviewCaseRepository,
   ReviewCaseRepository,
-} from './review-case.repository'
+} from './intake/review-case.repository'
 import {
   PrismaStudentReviewDetailRepository,
   StudentReviewDetailRepository,
-} from './student-review-detail.repository'
-import { StudentReviewDetailService } from './student-review-detail.service'
+} from './student-detail/student-review-detail.repository'
+import { StudentReviewDetailService } from './student-detail/student-review-detail.service'
 import { StudentReviewInboxController } from './student-inbox/student-review-inbox.controller'
 import { StudentReviewInboxService } from './student-inbox/student-review-inbox.service'
 import {
@@ -40,13 +42,14 @@ import {
   StudentReviewInboxRepository,
 } from './student-inbox/student-review-inbox.repository'
 import { StudentReviewSummaries } from './interface/student-review-summaries'
-import { PrismaStudentReviewSummaries } from './student-review-summaries'
+import { PrismaStudentReviewSummaries } from './student-detail/prisma-student-review-summaries'
 
 @Module({
   imports: [AuditModule, CoursesModule, IdentityModule, PrismaModule],
   controllers: [
     ReviewCaseController,
     InstructorReviewQueueController,
+    InstructorReviewResolutionController,
     StudentReviewDetailController,
     StudentReviewInboxController,
   ],
@@ -90,6 +93,6 @@ import { PrismaStudentReviewSummaries } from './student-review-summaries'
       useClass: PrismaStudentReviewSummaries,
     },
   ],
-  exports: [ReviewCaseCreator, ReviewCaseIntake, StudentReviewSummaries],
+  exports: [ReviewCaseIntake, StudentReviewSummaries],
 })
 export class ReviewsModule {}

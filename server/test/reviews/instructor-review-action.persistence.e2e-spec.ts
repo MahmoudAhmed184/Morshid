@@ -6,7 +6,7 @@ import { ReviewOutcome } from '../../src/generated/prisma/client'
 import { CourseAudit } from '../../src/modules/courses/course-audit'
 import { PrismaActiveCourseMembership } from '../../src/modules/courses/active-course-membership'
 import { PrismaCoursesRepository } from '../../src/modules/courses/courses.repository'
-import { PrismaInstructorReviewActionRepository } from '../../src/modules/reviews/instructor-review-action.repository'
+import { PrismaInstructorReviewActionRepository } from '../../src/modules/reviews/instructor-resolution/instructor-review-action.repository'
 import { AuditService } from '../../src/modules/audit/audit.service'
 import {
   setUpDisposableDatabase,

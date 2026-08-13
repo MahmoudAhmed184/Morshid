@@ -6,7 +6,10 @@ import request from 'supertest'
 import type { App } from 'supertest/types'
 
 import { configureApp } from '../../../app.setup'
-import { ReviewInboxItemStatus, ReviewInboxItemType } from '../review-values'
+import {
+  ReviewInboxItemStatus,
+  ReviewInboxItemType,
+} from '../interface/review-values'
 import type { AuthenticatedHttpRequest } from '../../identity/identity.guard'
 import { StudentReviewInboxController } from './student-review-inbox.controller'
 import { reviewInboxItemNotFoundException } from './student-review-inbox.errors'

@@ -9,8 +9,8 @@ import { configureApp } from '../../src/app.setup'
 import { AppModule } from '../../src/app.module'
 import { PrismaConversationTurns } from '../../src/modules/conversations/prisma-conversation-turns'
 import { AuditService } from '../../src/modules/audit/audit.service'
-import { PrismaReviewCaseIntake } from '../../src/modules/reviews/review-case-intake'
-import { PrismaReviewCaseRepository } from '../../src/modules/reviews/review-case.repository'
+import { PrismaReviewCaseIntake } from '../../src/modules/reviews/intake/prisma-review-case-intake'
+import { PrismaReviewCaseRepository } from '../../src/modules/reviews/intake/review-case.repository'
 import { PrismaActiveCourseMembership } from '../../src/modules/courses/active-course-membership'
 import {
   CourseMembershipRole,
@@ -39,7 +39,7 @@ import {
   RESPONSE_GOVERNANCE_SOURCE_CONFLICT_CONTENT,
 } from '../../src/modules/tutoring/response-governance/response-governance'
 import { AUTOMATIC_SAFETY_RISK_DETECTOR_VERSION } from '../../src/modules/tutoring/response-governance/automatic-safety-risk.detector'
-import type { InstructorReviewDetailDto } from '../../src/modules/reviews/instructor-review-detail.dto'
+import type { InstructorReviewDetailDto } from '../../src/modules/reviews/instructor-queue/instructor-review-detail.dto'
 import {
   type BeginTutoringTurnInput,
   type BeginTutoringTurnResult,

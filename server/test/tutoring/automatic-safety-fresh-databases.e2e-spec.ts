@@ -41,8 +41,8 @@ import {
   TUTOR_MODEL_PORT,
   type TutorModelRequest,
 } from '../../src/modules/tutoring/socratic-workflow/generation/tutor-generation.types'
-import type { InstructorReviewActionResponseDto } from '../../src/modules/reviews/instructor-review-action.dto'
-import type { InstructorReviewQueueResponseDto } from '../../src/modules/reviews/instructor-review-queue.dto'
+import type { InstructorReviewActionResponseDto } from '../../src/modules/reviews/instructor-resolution/instructor-review-action.dto'
+import type { InstructorReviewQueueResponseDto } from '../../src/modules/reviews/instructor-queue/instructor-review-queue.dto'
 import type {
   ChatSessionResponseDto,
   TutoringTurnResponseDto,

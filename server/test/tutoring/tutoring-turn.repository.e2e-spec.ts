@@ -5,14 +5,14 @@ import { Client } from 'pg'
 import { Prisma } from '../../src/generated/prisma/client'
 import { PrismaConversationTurns } from '../../src/modules/conversations/prisma-conversation-turns'
 import { AuditService } from '../../src/modules/audit/audit.service'
-import { PrismaReviewCaseIntake } from '../../src/modules/reviews/review-case-intake'
-import { PrismaReviewCaseRepository } from '../../src/modules/reviews/review-case.repository'
+import { PrismaReviewCaseIntake } from '../../src/modules/reviews/intake/prisma-review-case-intake'
+import { PrismaReviewCaseRepository } from '../../src/modules/reviews/intake/review-case.repository'
 import { PrismaActiveCourseMembership } from '../../src/modules/courses/active-course-membership'
 import type { PrismaService } from '../../src/platform/database/prisma.service'
 import { PrismaConversationMessageRepository } from '../../src/modules/conversations/conversation-message.repository'
 import { ApplicationConversationMessagePresenter } from '../../src/application/conversation-message.presenter'
 import { PrismaStudentCitationSources } from '../../src/modules/materials/student-citation-sources'
-import { PrismaStudentReviewSummaries } from '../../src/modules/reviews/student-review-summaries'
+import { PrismaStudentReviewSummaries } from '../../src/modules/reviews/student-detail/prisma-student-review-summaries'
 import {
   TutoringEvidenceUnavailableError,
   PrismaTutoringTurnRepository,

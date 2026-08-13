@@ -41,7 +41,7 @@ import {
   type ResponseGovernanceReviewFact,
 } from './response-governance/response-governance.contract'
 import { ResponseGovernance } from './response-governance/response-governance'
-import type { AutomaticReviewIntakeInput } from '../reviews/reviews.public'
+import type { AutomaticReviewIntakeInput } from '../reviews/interface/review-case-intake'
 import {
   type BeginTutoringTurnResult,
   type FinalizeTutoringTurnResult,

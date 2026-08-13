@@ -5,7 +5,7 @@ import { promisify } from 'node:util'
 
 import { StudentFlagReason } from '../../src/generated/prisma/client'
 import { AuditService } from '../../src/modules/audit/audit.service'
-import { PrismaReviewCaseRepository } from '../../src/modules/reviews/review-case.repository'
+import { PrismaReviewCaseRepository } from '../../src/modules/reviews/intake/review-case.repository'
 import { PrismaActiveCourseMembership } from '../../src/modules/courses/active-course-membership'
 import {
   P0_DEMO_COURSE,
