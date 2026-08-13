@@ -23,9 +23,34 @@ const student = {
   },
 } as const
 
+const assignedStudent = {
+  id: '10000000-0000-4000-8000-000000000002',
+  email: 'assigned@morshid.demo',
+  displayName: 'Already Assigned Student',
+  role: 'STUDENT',
+  status: 'ACTIVE',
+  createdAt: '2026-08-13T10:00:00.000Z',
+  updatedAt: '2026-08-13T10:00:00.000Z',
+  courseAssignments: {
+    courseCount: 1,
+    instructorCourseCount: 0,
+    studentCourseCount: 1,
+    courses: [
+      {
+        courseId: '20000000-0000-4000-8000-000000000001',
+        code: 'CS-201',
+        title: 'Data Structures',
+        role: 'STUDENT',
+      },
+    ],
+  },
+} as const
+
 vi.mock('@/workspaces/admin/users/use-user-management', () => ({
   useManagedUsers: () => ({
-    data: { pages: [{ users: [student], nextCursor: null }] },
+    data: {
+      pages: [{ users: [student, assignedStudent], nextCursor: null }],
+    },
     isPending: false,
     isError: false,
     hasNextPage: false,
@@ -90,5 +115,32 @@ describe('BulkCourseAssignmentDialog', () => {
         role: 'STUDENT',
       }),
     )
+  })
+
+  it('filters out students already assigned to any of the selected courses', async () => {
+    const user = userEvent.setup()
+    const onAssign = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <BulkCourseAssignmentDialog
+        courses={[course]}
+        role="STUDENT"
+        isPending={false}
+        onAssign={onAssign}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Assign students' }))
+    await user.click(
+      screen.getByRole('checkbox', { name: 'Data Structures — CS-201' }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Choose students' }))
+
+    // Demo Student is not assigned, so should appear
+    expect(await screen.findByText('Demo Student')).toBeInTheDocument()
+    // Already Assigned Student is already in CS-201, so should NOT appear
+    expect(
+      screen.queryByText('Already Assigned Student'),
+    ).not.toBeInTheDocument()
   })
 })

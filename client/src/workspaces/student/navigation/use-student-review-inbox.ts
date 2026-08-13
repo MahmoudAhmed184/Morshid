@@ -13,11 +13,11 @@ import {
   unreadStudentReviewInboxCountQueryOptions,
 } from '@/features/reviews/student-inbox/student-review-inbox.queries'
 
-export function useStudentReviewInbox() {
+export function useStudentReviewInbox(enabled: boolean) {
   const userId = useAuthStore((state) => state.user?.id)
   return useInfiniteQuery({
     ...studentReviewInboxListQueryOptions(userId ?? 'anonymous'),
-    enabled: userId !== undefined,
+    enabled: userId !== undefined && enabled,
   })
 }
 

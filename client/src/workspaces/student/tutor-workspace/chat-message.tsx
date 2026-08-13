@@ -44,7 +44,7 @@ interface StudentChatMessageProps {
   isGenerationActive: boolean
   retryError: unknown
   retryMessageId?: string
-  onRetry: (studentMessageId: string) => void
+  onRetry: (input: { attemptId: string; studentMessageId: string }) => void
   onRequestReview: (input: {
     messageId: string
     flagReason: StudentFlagReason
@@ -138,7 +138,8 @@ export function StudentChatMessage({
   const canRetry =
     message.role === 'ASSISTANT' &&
     message.status === 'FAILED' &&
-    message.responseToMessageId !== null
+    message.responseToMessageId !== null &&
+    message.attemptId !== null
   const hasRetryError =
     Boolean(retryError) && message.responseToMessageId === retryMessageId
   const canRequestReview =
@@ -300,7 +301,12 @@ export function StudentChatMessage({
               <Button
                 className="mt-2"
                 disabled={isGenerationActive}
-                onClick={() => onRetry(message.responseToMessageId!)}
+                onClick={() =>
+                  onRetry({
+                    attemptId: message.attemptId!,
+                    studentMessageId: message.responseToMessageId!,
+                  })
+                }
                 size="sm"
                 type="button"
                 variant="outline"

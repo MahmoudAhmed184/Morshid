@@ -1,6 +1,14 @@
 import { Module } from '@nestjs/common'
 import { ConfigModule, ConfigService } from '@nestjs/config'
 
+import { GeminiChatProjectPool } from '../../../platform/ai/upstream/gemini-chat-project-pool'
+import {
+  createGeminiPooledFetch,
+  resolveChatTransport,
+} from '../../../platform/ai/upstream/gemini-pooled-fetch'
+import type { FetchImplementation } from '../../../platform/ai/upstream/structured-chat.transport'
+import { RedisModule } from '../../../platform/cache/redis.module'
+import { RedisService } from '../../../platform/cache/redis.service'
 import { PrismaModule } from '../../../platform/database/prisma.module'
 import { ConversationsModule } from '../../conversations/conversations.module'
 import { AuditModule } from '../../audit/audit.module'
@@ -13,54 +21,53 @@ import {
 import {
   ANALYSIS_CONFIDENCE_POLICY,
   AnalysisConfidencePolicy,
-} from './analysis-confidence-policy'
-import { AnalysisFallbackBuilder } from './analysis-fallback-builder'
-import { ANALYSIS_MODEL_PORT } from './analysis-model.port'
-import { OPENAI_COMPATIBLE_ANALYSIS_MODEL_PROVIDER } from './analysis-model.configuration'
-import { createAnalysisModelPort } from './analysis-model.provider'
+} from './analysis/analysis-confidence-policy'
+import { AnalysisFallbackBuilder } from './analysis/analysis-fallback-builder'
+import { ANALYSIS_MODEL_PORT } from './analysis/analysis-model.port'
+import { OPENAI_COMPATIBLE_ANALYSIS_MODEL_PROVIDER } from '../infrastructure/analysis-model.configuration'
+import { createAnalysisModelPort } from '../infrastructure/analysis-model.provider'
 import {
   ANALYSIS_RETRY_POLICY,
   AnalysisRetryPolicy,
-} from './analysis-retry-policy'
-import {
-  AnalysisContextRepository,
-  PrismaAnalysisContextRepository,
-} from './analysis-context.repository'
-import { ContextManager } from './context-manager.service'
+} from './analysis/analysis-retry-policy'
+import { ContextManager } from './analysis/context-manager.service'
 import {
   EducationalAnalysisRepository,
   PrismaEducationalAnalysisRepository,
-} from './educational-analysis.repository'
+} from './analysis/educational-analysis.repository'
 import {
   PrismaTeachingDecisionRepository,
   TeachingDecisionRepository,
-} from './teaching-decision.repository'
-import { TeachingPolicyEngine } from './teaching-policy.engine'
-import { EducationalAnalysisService } from './educational-analysis.service'
+} from './teaching-decision/teaching-decision.repository'
+import { TeachingPolicyEngine } from './teaching-decision/teaching-policy.engine'
+import { EducationalAnalysisService } from './analysis/educational-analysis.service'
 import {
   PrismaTopicStateRepository,
   TopicStateRepository,
-} from './topic-state.repository'
-import { TopicStateService } from './topic-state.service'
-import { TUTOR_MODEL_PORT } from './tutor-generation.types'
-import { OPENAI_COMPATIBLE_TUTOR_MODEL_PROVIDER } from './tutor-model.configuration'
-import { createTutorModelPort } from './tutor-model.adapter'
-import { TutorGenerationService } from './tutor-generation.service'
+} from './topic/topic-state.repository'
+import { TopicStateService } from './topic/topic-state.service'
+import { TUTOR_MODEL_PORT } from './generation/tutor-generation.types'
+import { OPENAI_COMPATIBLE_TUTOR_MODEL_PROVIDER } from '../infrastructure/tutor-model.configuration'
+import { createTutorModelPort } from '../infrastructure/tutor-model.adapter'
+import { TutorGenerationService } from './generation/tutor-generation.service'
 import {
   TUTOR_INFRASTRUCTURE_RETRY_POLICY,
   TutorInfrastructureRetryPolicy,
-} from './tutor-infrastructure-retry.policy'
-import { PrismaTopicRepository, TopicRepository } from './topic.repository'
-import { TopicService } from './topic.service'
-import { StructuralResponseValidator } from './structural-response.validator'
-import { DeterministicGuardService } from './deterministic-guard.service'
-import { SemanticGuardService } from './semantic-guard.service'
-import { SafeFallbackService } from './safe-fallback.service'
-import { ResponseApprovalService } from './response-approval.service'
-import { SEMANTIC_GUARD_PORT } from './semantic-guard.types'
-import { OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER } from './semantic-guard.configuration'
-import { createSemanticGuardPort } from './semantic-guard.adapter'
-import { RetrievalQueryBuilder } from './retrieval-query.builder'
+} from './generation/tutor-infrastructure-retry.policy'
+import {
+  PrismaTopicRepository,
+  TopicRepository,
+} from './topic/topic.repository'
+import { TopicService } from './topic/topic.service'
+import { StructuralResponseValidator } from './response-approval/structural-response.validator'
+import { DeterministicGuardService } from './response-approval/deterministic-guard.service'
+import { SemanticGuardService } from './response-approval/semantic-guard.service'
+import { SafeFallbackService } from './response-approval/safe-fallback.service'
+import { ResponseApprovalService } from './response-approval/response-approval.service'
+import { SEMANTIC_GUARD_PORT } from './response-approval/semantic-guard.types'
+import { OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER } from '../infrastructure/semantic-guard.configuration'
+import { createSemanticGuardPort } from '../infrastructure/semantic-guard.adapter'
+import { RetrievalQueryBuilder } from './evidence-query/retrieval-query.builder'
 import { ResponseGovernanceModule } from '../response-governance/response-governance.module'
 import { SocraticWorkflow } from './socratic-workflow'
 import {
@@ -69,9 +76,13 @@ import {
   type TutoringConfiguration,
 } from '../tutoring.configuration'
 
+const GEMINI_CHAT_FETCH = Symbol('GeminiChatFetch')
+type GeminiChatFetch = FetchImplementation | null
+
 @Module({
   imports: [
     ConfigModule,
+    RedisModule,
     PrismaModule,
     ConversationsModule,
     AuditModule,
@@ -103,10 +114,6 @@ import {
       useClass: PrismaTopicStateRepository,
     },
     {
-      provide: AnalysisContextRepository,
-      useClass: PrismaAnalysisContextRepository,
-    },
-    {
       provide: TopicRepository,
       useClass: PrismaTopicRepository,
     },
@@ -124,6 +131,30 @@ import {
       useFactory: readTutoringConfiguration,
     },
     {
+      provide: GEMINI_CHAT_FETCH,
+      inject: [TUTORING_CONFIGURATION, RedisService],
+      useFactory: (
+        configuration: TutoringConfiguration,
+        redisService: RedisService,
+      ): GeminiChatFetch => {
+        if (configuration.GEMINI_CHAT_PROJECTS_JSON.length === 0) {
+          return null
+        }
+
+        const pool = new GeminiChatProjectPool(
+          {
+            eval: (script, options) =>
+              redisService.getClient().eval(script, {
+                keys: [...options.keys],
+                arguments: [...options.arguments],
+              }),
+          },
+          configuration.GEMINI_CHAT_PROJECTS_JSON,
+        )
+        return createGeminiPooledFetch(pool)
+      },
+    },
+    {
       provide: ANALYSIS_CONFIDENCE_POLICY,
       inject: [TUTORING_CONFIGURATION],
       useFactory: (configuration: TutoringConfiguration) =>
@@ -139,24 +170,36 @@ import {
     },
     {
       provide: ANALYSIS_MODEL_PORT,
-      inject: [TUTORING_CONFIGURATION],
-      useFactory: (configuration: TutoringConfiguration) => {
+      inject: [TUTORING_CONFIGURATION, GEMINI_CHAT_FETCH],
+      useFactory: (
+        configuration: TutoringConfiguration,
+        geminiChatFetch: GeminiChatFetch,
+      ) => {
         const provider = configuration.ANALYSIS_MODEL_PROVIDER
         const timeoutMs = configuration.ANALYSIS_MODEL_TIMEOUT_MS
         const maxCompletionTokens =
           configuration.ANALYSIS_MODEL_MAX_COMPLETION_TOKENS
 
         if (provider === OPENAI_COMPATIBLE_ANALYSIS_MODEL_PROVIDER) {
-          return createAnalysisModelPort({
-            provider,
-            timeoutMs,
-            openAICompatible: {
-              baseUrl: configuration.ANALYSIS_MODEL_BASE_URL,
-              modelName: configuration.ANALYSIS_MODEL_NAME,
-              apiKey: configuration.ANALYSIS_MODEL_API_KEY,
-              maxCompletionTokens,
+          const transport = resolveChatTransport(
+            configuration.ANALYSIS_MODEL_BASE_URL,
+            configuration.ANALYSIS_MODEL_API_KEY,
+            geminiChatFetch,
+          )
+          return createAnalysisModelPort(
+            {
+              provider,
+              timeoutMs,
+              openAICompatible: {
+                baseUrl: configuration.ANALYSIS_MODEL_BASE_URL,
+                modelName: configuration.ANALYSIS_MODEL_NAME,
+                apiKey: transport.apiKey,
+                maxCompletionTokens,
+              },
             },
-          })
+            undefined,
+            transport.fetchImplementation,
+          )
         }
 
         return createAnalysisModelPort({
@@ -175,24 +218,36 @@ import {
     },
     {
       provide: TUTOR_MODEL_PORT,
-      inject: [TUTORING_CONFIGURATION],
-      useFactory: (configuration: TutoringConfiguration) => {
+      inject: [TUTORING_CONFIGURATION, GEMINI_CHAT_FETCH],
+      useFactory: (
+        configuration: TutoringConfiguration,
+        geminiChatFetch: GeminiChatFetch,
+      ) => {
         const provider = configuration.TUTOR_MODEL_PROVIDER
         const timeoutMs = configuration.TUTOR_MODEL_TIMEOUT_MS
         const maxCompletionTokens =
           configuration.TUTOR_MODEL_MAX_COMPLETION_TOKENS
 
         if (provider === OPENAI_COMPATIBLE_TUTOR_MODEL_PROVIDER) {
-          return createTutorModelPort({
-            provider,
-            timeoutMs,
-            openAICompatible: {
-              baseUrl: configuration.TUTOR_MODEL_BASE_URL,
-              modelName: configuration.TUTOR_MODEL_NAME,
-              apiKey: configuration.TUTOR_MODEL_API_KEY,
-              maxCompletionTokens,
+          const transport = resolveChatTransport(
+            configuration.TUTOR_MODEL_BASE_URL,
+            configuration.TUTOR_MODEL_API_KEY,
+            geminiChatFetch,
+          )
+          return createTutorModelPort(
+            {
+              provider,
+              timeoutMs,
+              openAICompatible: {
+                baseUrl: configuration.TUTOR_MODEL_BASE_URL,
+                modelName: configuration.TUTOR_MODEL_NAME,
+                apiKey: transport.apiKey,
+                maxCompletionTokens,
+              },
             },
-          })
+            undefined,
+            transport.fetchImplementation,
+          )
         }
 
         return createTutorModelPort({
@@ -203,24 +258,36 @@ import {
     },
     {
       provide: SEMANTIC_GUARD_PORT,
-      inject: [TUTORING_CONFIGURATION],
-      useFactory: (configuration: TutoringConfiguration) => {
+      inject: [TUTORING_CONFIGURATION, GEMINI_CHAT_FETCH],
+      useFactory: (
+        configuration: TutoringConfiguration,
+        geminiChatFetch: GeminiChatFetch,
+      ) => {
         const provider = configuration.SEMANTIC_GUARD_PROVIDER
         const timeoutMs = configuration.SEMANTIC_GUARD_TIMEOUT_MS
         const maxCompletionTokens =
           configuration.SEMANTIC_GUARD_MAX_COMPLETION_TOKENS
 
         if (provider === OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER) {
-          return createSemanticGuardPort({
-            provider,
-            timeoutMs,
-            openAICompatible: {
-              baseUrl: configuration.SEMANTIC_GUARD_BASE_URL,
-              modelName: configuration.SEMANTIC_GUARD_MODEL_NAME,
-              apiKey: configuration.SEMANTIC_GUARD_API_KEY,
-              maxCompletionTokens,
+          const transport = resolveChatTransport(
+            configuration.SEMANTIC_GUARD_BASE_URL,
+            configuration.SEMANTIC_GUARD_API_KEY,
+            geminiChatFetch,
+          )
+          return createSemanticGuardPort(
+            {
+              provider,
+              timeoutMs,
+              openAICompatible: {
+                baseUrl: configuration.SEMANTIC_GUARD_BASE_URL,
+                modelName: configuration.SEMANTIC_GUARD_MODEL_NAME,
+                apiKey: transport.apiKey,
+                maxCompletionTokens,
+              },
             },
-          })
+            undefined,
+            transport.fetchImplementation,
+          )
         }
 
         return createSemanticGuardPort({
@@ -230,27 +297,6 @@ import {
       },
     },
   ],
-  exports: [
-    TopicService,
-    TopicStateService,
-    TutoringTurnRepository,
-    ContextManager,
-    EducationalAnalysisService,
-    EducationalAnalysisRepository,
-    TeachingPolicyEngine,
-    TeachingDecisionRepository,
-    TutorGenerationService,
-    StructuralResponseValidator,
-    DeterministicGuardService,
-    SemanticGuardService,
-    SafeFallbackService,
-    ResponseApprovalService,
-    RetrievalQueryBuilder,
-    TUTOR_MODEL_PORT,
-    ANALYSIS_MODEL_PORT,
-    SEMANTIC_GUARD_PORT,
-    TUTORING_CONFIGURATION,
-    SocraticWorkflow,
-  ],
+  exports: [TutoringTurnRepository, TUTORING_CONFIGURATION, SocraticWorkflow],
 })
 export class SocraticWorkflowModule {}

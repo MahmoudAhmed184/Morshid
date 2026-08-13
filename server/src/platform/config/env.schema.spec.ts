@@ -66,6 +66,28 @@ describe('validateEnv', () => {
     ).toThrow(/GEMINI_EMBEDDING_DEMO_ACKNOWLEDGED/)
   })
 
+  it('keeps the Gemini embedding credential outside the chat project pool', () => {
+    const sharedKey = 'shared-gemini-api-key-that-is-long-enough'
+
+    expect(() =>
+      validateEnv({
+        ...validEnv,
+        EMBEDDING_PROVIDER: 'gemini',
+        GEMINI_EMBEDDING_API_KEY: sharedKey,
+        GEMINI_EMBEDDING_QUOTA_PROJECT_ID: 'embedding-project-01',
+        GEMINI_EMBEDDING_DEMO_ACKNOWLEDGED: 'true',
+        GEMINI_EMBEDDING_REQUESTS_PER_MINUTE: '10',
+        GEMINI_EMBEDDING_INPUT_TOKENS_PER_MINUTE: '100000',
+        GEMINI_EMBEDDING_REQUESTS_PER_DAY: '500',
+        GEMINI_EMBEDDING_LOCAL_REQUESTS_PER_HOUR: '200',
+        GEMINI_EMBEDDING_LOCAL_REQUESTS_PER_30_DAYS: '5000',
+        GEMINI_CHAT_PROJECTS_JSON: JSON.stringify([
+          { id: 'chat-project-01', apiKey: sharedKey },
+        ]),
+      }),
+    ).toThrow(/GEMINI_EMBEDDING_API_KEY/)
+  })
+
   it('requires an absolute PDF storage path in production', () => {
     expect(() =>
       validateEnv({

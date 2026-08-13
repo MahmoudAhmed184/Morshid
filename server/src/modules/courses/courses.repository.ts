@@ -6,7 +6,7 @@ import { asDatabaseTransaction } from '../../platform/database/database-transact
 import type { AuditRequestContext } from '../audit/audit.public'
 import type { UserRole, UserStatus } from '../identity/identity.roles'
 import { CourseAudit } from './course-audit'
-import { CourseMembershipRole } from './course-membership.types'
+import { CourseMembershipRole } from './interface/course-membership-role'
 import {
   CourseCodeAlreadyExistsError,
   CourseMemberAlreadyExistsError,
@@ -801,12 +801,21 @@ export class PrismaCoursesRepository extends CoursesRepository {
       // membership, so a hard delete would 500 once the student has any chat
       // session. Setting removed_at preserves referential integrity and keeps
       // the audit trail intact.
-      const membership = await tx.courseMembership.findFirst({
-        where: {
-          courseId: input.courseId,
-          userId: input.userId,
-          removedAt: null,
-        },
+      const lockedMembership = await tx.$queryRaw<{ id: string }[]>`
+        SELECT id
+        FROM course_memberships
+        WHERE course_id = ${input.courseId}::uuid
+          AND user_id = ${input.userId}::uuid
+          AND removed_at IS NULL
+        FOR UPDATE
+      `
+
+      if (lockedMembership.length !== 1) {
+        throw new CourseMemberNotFoundError(input.courseId, input.userId)
+      }
+
+      const membership = await tx.courseMembership.findUniqueOrThrow({
+        where: { id: lockedMembership[0].id },
         select: {
           id: true,
           userId: true,
@@ -815,10 +824,6 @@ export class PrismaCoursesRepository extends CoursesRepository {
           user: { select: courseUserSelect },
         },
       })
-
-      if (membership === null) {
-        throw new CourseMemberNotFoundError(input.courseId, input.userId)
-      }
 
       const result = await tx.courseMembership.updateMany({
         where: {

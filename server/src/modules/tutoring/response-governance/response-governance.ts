@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
 import { MessageGuidanceLabel } from '../tutoring-values'
-import { buildAutomaticReviewEvidence } from '../../reviews/reviews.public'
 import {
   AUTOMATIC_POLICY_REASONS,
   RESPONSE_GOVERNANCE_VERSION,
@@ -69,7 +68,7 @@ export class ResponseGovernance {
       safeRefusal,
       createReview: true,
       reasons: Object.freeze(reasons),
-      reviewEvidence: buildAutomaticReviewEvidence({
+      reviewEvidence: {
         summary: reasons
           .map((reason) => REVIEW_EVIDENCE_SUMMARIES[reason])
           .join(' '),
@@ -96,7 +95,7 @@ export class ResponseGovernance {
           { code: 'reason_count', value: reasons.length },
           ...(input.reviewFacts ?? []),
         ],
-      }),
+      },
       studentStatus: Object.freeze({
         guidanceLabel: safeRefusal
           ? MessageGuidanceLabel.REFUSAL

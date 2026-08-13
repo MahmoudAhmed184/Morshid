@@ -1,11 +1,17 @@
 import { randomUUID } from 'node:crypto'
 
+import type { ConfigService } from '@nestjs/config'
+import { Client } from 'pg'
+
 import {
   CourseMembershipRole,
   UserRole,
   UserStatus,
 } from '../../src/generated/prisma/client'
 import { AUDIT_EVENT_ACTIONS } from '../../src/modules/audit/audit.constants'
+import { IdentityUser } from '../../src/modules/identity/identity-user'
+import { RefreshSessionRepository } from '../../src/modules/identity/refresh-session.repository'
+import { RefreshSession } from '../../src/modules/identity/refresh-session'
 import { UserAdministrationAuditService } from '../../src/modules/identity/user-administration/user-administration-audit'
 import {
   ManagedUserEmailAlreadyExistsError,
@@ -15,6 +21,7 @@ import {
 import { PrismaUserAdministrationRepository } from '../../src/modules/identity/user-administration/user-administration.repository'
 import type { UserAdministrationRepository } from '../../src/modules/identity/user-administration/user-administration.repository'
 import { AuditService } from '../../src/modules/audit/audit.service'
+import type { AppEnvironment } from '../../src/platform/config/env.schema'
 import type { PrismaService } from '../../src/platform/database/prisma.service'
 import {
   setUpDisposableDatabase,
@@ -109,6 +116,84 @@ describe('Admin users persistence (e2e)', () => {
     expect(
       storedUsers.filter((user) => user.status === UserStatus.ACTIVE),
     ).toHaveLength(1)
+  })
+
+  it('revokes a replacement token created concurrently with a password reset', async () => {
+    const actor = await createUser(UserRole.ADMIN)
+    const target = await createUser(UserRole.STUDENT)
+    const refreshSession = new RefreshSession(
+      refreshSessionConfig,
+      new RefreshSessionRepository(prisma),
+      new IdentityUser(prisma),
+    )
+    const issuedAt = new Date()
+    const created = await refreshSession.create(target, issuedAt, {})
+    const resetAt = new Date(issuedAt.getTime() + 1_000)
+    if (database === undefined) {
+      throw new Error('Expected the disposable database to be initialized')
+    }
+    const blocker = new Client({ connectionString: database.databaseUrl })
+
+    await blocker.connect()
+    await prisma.$executeRawUnsafe(`
+      CREATE FUNCTION block_refresh_rotation_for_test() RETURNS trigger AS $$
+      BEGIN
+        IF OLD.revoked_at IS NULL AND NEW.revoked_at IS NOT NULL THEN
+          PERFORM pg_advisory_xact_lock(20501);
+        END IF;
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+      CREATE TRIGGER block_refresh_rotation_for_test
+      AFTER UPDATE OF revoked_at ON refresh_tokens
+      FOR EACH ROW EXECUTE FUNCTION block_refresh_rotation_for_test();
+    `)
+    await blocker.query('BEGIN')
+    await blocker.query('SELECT pg_advisory_lock(20501)')
+
+    try {
+      const rotation = refreshSession.rotate(created.token, resetAt, {})
+      await waitForBlockedQueryCount(prisma, 1)
+      const reset = repository.resetUserPassword({
+        userId: target.id,
+        passwordHash: 'new-test-password-hash',
+        passwordChangedAt: resetAt,
+        actorUserId: actor.id,
+      })
+      await waitForBlockedQueryCount(prisma, 2)
+
+      await blocker.query('SELECT pg_advisory_unlock(20501)')
+      const [rotationResult] = await Promise.all([rotation, reset])
+
+      expect(rotationResult.kind).toBe('rotated')
+      await expect(
+        prisma.refreshToken.count({
+          where: {
+            userId: target.id,
+            revokedAt: null,
+            expiresAt: { gt: resetAt },
+          },
+        }),
+      ).resolves.toBe(0)
+      await expect(
+        refreshSession.rotate(
+          rotationResult.kind === 'rotated'
+            ? rotationResult.nextRefreshToken.token
+            : '',
+          new Date(resetAt.getTime() + 1),
+          {},
+        ),
+      ).rejects.toMatchObject({
+        response: { code: 'INVALID_REFRESH_TOKEN' },
+      })
+    } finally {
+      await blocker.query('ROLLBACK')
+      await blocker.end()
+      await prisma.$executeRawUnsafe(`
+        DROP TRIGGER IF EXISTS block_refresh_rotation_for_test ON refresh_tokens;
+        DROP FUNCTION IF EXISTS block_refresh_rotation_for_test();
+      `)
+    }
   })
 
   it('rolls back the user mutation when audit persistence fails', async () => {
@@ -282,3 +367,37 @@ describe('Admin users persistence (e2e)', () => {
     return user
   }
 })
+
+const refreshSessionConfig = {
+  get: (key: keyof AppEnvironment) => {
+    if (key === 'AUTH_REFRESH_TOKEN_HASH_SECRET') {
+      return 'test-refresh-token-hash-secret-with-at-least-32-characters'
+    }
+    if (key === 'AUTH_REFRESH_TOKEN_TTL_DAYS') {
+      return 7
+    }
+    throw new Error(`Unexpected refresh-session configuration key: ${key}`)
+  },
+} as ConfigService<AppEnvironment, true>
+
+async function waitForBlockedQueryCount(
+  prisma: PrismaService,
+  expectedCount: number,
+): Promise<void> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const blocked = await prisma.$queryRaw<{ count: bigint }[]>`
+      SELECT COUNT(*) AS count
+      FROM pg_stat_activity
+      WHERE datname = current_database()
+        AND wait_event_type = 'Lock'
+    `
+    if (Number(blocked[0]?.count ?? 0) >= expectedCount) {
+      return
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+
+  throw new Error(
+    `Timed out waiting for ${String(expectedCount)} blocked database queries`,
+  )
+}

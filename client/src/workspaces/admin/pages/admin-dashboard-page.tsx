@@ -91,11 +91,11 @@ export function AdminDashboardPage() {
       description: 'Managed student accounts loaded',
     },
     {
-      label: 'Doctors',
+      label: 'Instructors',
       value: instructorCount,
       icon: <UsersIcon aria-hidden />,
       tone: 'default',
-      description: 'Managed doctor accounts loaded',
+      description: 'Managed instructor accounts loaded',
     },
     {
       label: 'Courses',

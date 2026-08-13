@@ -31,7 +31,10 @@ interface StudentMessageHistoryProps {
   onRetry: () => void
   onLoadMore: () => void
   onRecover: () => void
-  onRetryResponse: (studentMessageId: string) => void
+  onRetryResponse: (input: {
+    attemptId: string
+    studentMessageId: string
+  }) => void
   onRequestReview: (input: {
     messageId: string
     flagReason: StudentFlagReason

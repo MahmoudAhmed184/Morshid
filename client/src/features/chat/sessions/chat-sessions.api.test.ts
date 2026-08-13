@@ -271,7 +271,7 @@ describe('Student session API', () => {
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         expect(String(input)).toBe(
-          `http://localhost:4000/api/v1/courses/${chatIds.primaryCourse}/chat-sessions/${chatIds.primarySession}/messages/${chatIds.studentMessage}/retry`,
+          `http://localhost:4000/api/v1/courses/${chatIds.primaryCourse}/chat-sessions/${chatIds.primarySession}/tutoring-attempts/${chatIds.primaryTurn}/retry`,
         )
         expect(init?.method).toBe('POST')
         expect(init?.body).toBeUndefined()
@@ -285,7 +285,7 @@ describe('Student session API', () => {
       retryChatMessage({
         courseId: chatIds.primaryCourse,
         sessionId: chatIds.primarySession,
-        studentMessageId: chatIds.studentMessage,
+        attemptId: chatIds.primaryTurn,
         options: { fetchImpl: fetchMock },
       }),
     ).resolves.toEqual(chatTurnResponseFixture)

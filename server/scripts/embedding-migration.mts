@@ -5,13 +5,13 @@ import { config as loadEnv } from 'dotenv'
 import type { AppEnvironment } from '../src/platform/config/env.schema.js'
 import { validateEnv } from '../src/platform/config/env.schema.js'
 import { createEmbeddingProvider } from '../src/platform/ai/embedding/embedding-provider.factory.js'
-import { migrateEmbeddings } from '../src/modules/materials/embedding-migration.runner.js'
-import type { EmbeddingMigrationEvent } from '../src/modules/materials/embedding-migration.runner.js'
+import { migrateEmbeddings } from '../src/modules/materials/embedding-migration/embedding-migration.runner.js'
+import type { EmbeddingMigrationEvent } from '../src/modules/materials/embedding-migration/embedding-migration.runner.js'
 import type { EmbeddingProvider } from '../src/platform/ai/embedding/embedding-provider.js'
 import { composeGeminiEmbeddingConfiguration } from '../src/platform/ai/embedding/gemini-embedding-runtime.js'
-import { PrismaEmbeddingMigrationCorpus } from '../src/modules/materials/prisma-embedding-migration.corpus.js'
+import { PrismaEmbeddingMigrationCorpus } from '../src/modules/materials/embedding-migration/prisma-embedding-migration.corpus.js'
 import { PrismaService } from '../src/platform/database/prisma.service.js'
-import { PrismaMaterialChunkRepository } from '../src/modules/materials/material-chunk.repository.js'
+import { PrismaMaterialChunkRepository } from '../src/modules/materials/processing/material-chunk.repository.js'
 
 loadEnv({
   path: ['server/.env', '.env', '../.env'],

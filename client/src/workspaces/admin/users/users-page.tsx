@@ -36,10 +36,10 @@ const directoryCopy = {
     plural: 'students',
   },
   INSTRUCTOR: {
-    eyebrow: 'Doctor Accounts',
-    title: 'Doctors',
-    singular: 'Doctor',
-    plural: 'doctors',
+    eyebrow: 'Instructor Accounts',
+    title: 'Instructors',
+    singular: 'Instructor',
+    plural: 'instructors',
   },
 } as const
 
@@ -99,26 +99,26 @@ export function UsersPage({ role }: UsersPageProps) {
         description={`Create ${copy.plural}, find accounts by name or email, filter by course, and manage account access.`}
       />
 
-      <div className="mb-5 flex gap-2" aria-label="User directories">
-        <Link
-          to="/admin/users/students"
-          className={buttonVariants({
-            variant: role === 'STUDENT' ? 'secondary' : 'ghost',
-          })}
-        >
-          Students
-        </Link>
-        <Link
-          to="/admin/users/doctors"
-          className={buttonVariants({
-            variant: role === 'INSTRUCTOR' ? 'secondary' : 'ghost',
-          })}
-        >
-          Doctors
-        </Link>
-      </div>
-
       <AdminPanel>
+        <div className="flex gap-2 px-4 pt-3" aria-label="User directories">
+          <Link
+            to="/admin/users/students"
+            className={buttonVariants({
+              variant: role === 'STUDENT' ? 'secondary' : 'ghost',
+            })}
+          >
+            Students
+          </Link>
+          <Link
+            to="/admin/users/doctors"
+            className={buttonVariants({
+              variant: role === 'INSTRUCTOR' ? 'secondary' : 'ghost',
+            })}
+          >
+            Instructors
+          </Link>
+        </div>
+
         <DataToolbar
           className="border-b px-4 py-3"
           search={search}
@@ -272,3 +272,5 @@ export function StudentsPage() {
 export function DoctorsPage() {
   return <UsersPage role="INSTRUCTOR" />
 }
+
+export const InstructorsPage = DoctorsPage

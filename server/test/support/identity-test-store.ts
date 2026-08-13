@@ -132,6 +132,13 @@ interface FindFirstMembershipArgs {
 }
 
 interface FindManyCourseArgs {
+  where?: {
+    archivedAt?: Date | null
+    OR?: {
+      code?: { contains: string; mode?: 'insensitive' }
+      title?: { contains: string; mode?: 'insensitive' }
+    }[]
+  }
   include?: {
     memberships?: {
       where?: {
@@ -147,6 +154,9 @@ interface FindManyCourseArgs {
       }
     }
   }
+  cursor?: { id: string }
+  skip?: number
+  take?: number
 }
 
 interface CreateAuditLogArgs {
@@ -209,10 +219,15 @@ interface FindUniqueMembershipArgs {
   }
 }
 
+interface FindUniqueMembershipByIdArgs {
+  where: { id: string }
+}
+
 interface FindUniqueCourseArgs {
   where: {
     id?: string
     code?: string
+    archivedAt?: Date | null
   }
   select?: {
     memberships?: {
@@ -240,9 +255,9 @@ interface FindManyMaterialArgs {
     courseId?: string
     deletedAt?: null | Date
   }
-  orderBy?: {
-    createdAt?: 'asc' | 'desc'
-  }
+  orderBy?:
+    | { createdAt?: 'asc' | 'desc' }
+    | { createdAt?: 'asc' | 'desc'; id?: 'asc' | 'desc' }[]
 }
 
 interface FindFirstMaterialArgs {
@@ -340,6 +355,9 @@ export class IdentityTestStore {
       findUnique: jest.fn((args: FindUniqueMembershipArgs) =>
         Promise.resolve(this.findUniqueMembership(args)),
       ),
+      findUniqueOrThrow: jest.fn((args: FindUniqueMembershipByIdArgs) =>
+        Promise.resolve(this.findUniqueMembershipById(args)),
+      ),
       findFirst: jest.fn((args?: FindFirstMembershipArgs) =>
         Promise.resolve(this.findFirstMembership(args)),
       ),
@@ -361,6 +379,9 @@ export class IdentityTestStore {
     },
     course: {
       findUnique: jest.fn((args: FindUniqueCourseArgs) =>
+        Promise.resolve(this.findCourse(args)),
+      ),
+      findFirst: jest.fn((args: FindUniqueCourseArgs) =>
         Promise.resolve(this.findCourse(args)),
       ),
       findMany: jest.fn((args?: FindManyCourseArgs) =>
@@ -401,6 +422,23 @@ export class IdentityTestStore {
         Promise.resolve(this.findAuditLog(args)),
       ),
     },
+    $queryRaw: jest.fn((query: TemplateStringsArray, ...values: string[]) => {
+      const sql = query.join(' ')
+      if (sql.includes('FROM course_memberships')) {
+        const [courseId, userId] = values
+        const membership = this.memberships.find(
+          (candidate) =>
+            candidate.courseId === courseId &&
+            candidate.userId === userId &&
+            candidate.removedAt === null,
+        )
+        return Promise.resolve(membership ? [{ id: membership.id }] : [])
+      }
+
+      const [userId] = values
+      const user = this.users.get(userId)
+      return Promise.resolve(user ? [{ ...user }] : [])
+    }),
     $transaction: jest.fn(
       async <T>(fn: (tx: IdentityTestStore['prisma']) => Promise<T>) =>
         fn(this.prisma),
@@ -811,8 +849,43 @@ export class IdentityTestStore {
   }
 
   private findCourses(args: FindManyCourseArgs | undefined): StoredCourse[] {
-    const courses = [...this.courses.values()]
+    let courses = [...this.courses.values()]
+
+    if (args?.where?.archivedAt === null) {
+      courses = courses.filter((course) => course.archivedAt === null)
+    }
+
+    const searchConditions = args?.where?.OR
+    if (searchConditions !== undefined) {
+      courses = courses.filter((course) =>
+        searchConditions.some((condition) => {
+          const codeSearch = condition.code?.contains.toLocaleLowerCase()
+          const titleSearch = condition.title?.contains.toLocaleLowerCase()
+
+          return (
+            (codeSearch !== undefined &&
+              course.code.toLocaleLowerCase().includes(codeSearch)) ||
+            (titleSearch !== undefined &&
+              course.title.toLocaleLowerCase().includes(titleSearch))
+          )
+        }),
+      )
+    }
+
     courses.sort((a, b) => a.code.localeCompare(b.code))
+
+    if (args?.cursor !== undefined) {
+      const cursorIndex = courses.findIndex(
+        (course) => course.id === args.cursor?.id,
+      )
+      courses =
+        cursorIndex < 0 ? [] : courses.slice(cursorIndex + (args.skip ?? 0))
+    }
+
+    if (args?.take !== undefined) {
+      courses = courses.slice(0, args.take)
+    }
+
     return courses.map((course) => {
       const membershipUserId = args?.include?.memberships?.where?.userId
 
@@ -858,6 +931,10 @@ export class IdentityTestStore {
           )
 
     if (!course) {
+      return null
+    }
+
+    if (args.where.archivedAt === null && course.archivedAt !== null) {
       return null
     }
 
@@ -968,6 +1045,20 @@ export class IdentityTestStore {
       (m) => m.courseId === courseId && m.userId === userId,
     )
     if (!membership) return null
+
+    return {
+      ...membership,
+      user: this.users.get(membership.userId),
+    }
+  }
+
+  private findUniqueMembershipById(args: FindUniqueMembershipByIdArgs) {
+    const membership = this.memberships.find(
+      (candidate) => candidate.id === args.where.id,
+    )
+    if (!membership) {
+      throw new Error(`Missing course membership ${args.where.id}`)
+    }
 
     return {
       ...membership,
@@ -1094,7 +1185,11 @@ export class IdentityTestStore {
       materials = materials.filter((m) => m.deletedAt === null)
     }
 
-    if (args?.orderBy?.createdAt === 'desc') {
+    const createdAtOrder = Array.isArray(args?.orderBy)
+      ? args.orderBy.find((order) => order.createdAt !== undefined)?.createdAt
+      : args?.orderBy?.createdAt
+
+    if (createdAtOrder === 'desc') {
       materials.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
     }
 

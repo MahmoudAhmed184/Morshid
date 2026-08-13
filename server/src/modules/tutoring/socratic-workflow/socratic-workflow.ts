@@ -5,28 +5,28 @@ import {
   TutoringAttemptStatus,
   type MessageRequestKind,
 } from '../tutoring-values'
-import { CourseEvidence } from '../../materials/materials.public'
+import { CourseEvidence } from '../../materials/interface/course-evidence'
 import { TutoringTurnRepository } from '../attempt/tutoring-turn.repository'
-import { TopicService } from './topic.service'
-import { TopicStateService } from './topic-state.service'
-import { ContextManager } from './context-manager.service'
-import { classifiedResponseFor } from './classified-response'
+import { TopicService } from './topic/topic.service'
+import { TopicStateService } from './topic/topic-state.service'
+import { ContextManager } from './analysis/context-manager.service'
+import { classifiedResponseFor } from './analysis/classified-response'
 import {
   buildClassifiedTopicStateTransition,
   buildCompletedTopicStateTransition,
-} from './topic-state-transition'
-import { EducationalAnalysisService } from './educational-analysis.service'
-import { TeachingPolicyEngine } from './teaching-policy.engine'
+} from './topic/topic-state-transition'
+import { EducationalAnalysisService } from './analysis/educational-analysis.service'
+import { TeachingPolicyEngine } from './teaching-decision/teaching-policy.engine'
 import {
   ResponseApprovalService,
   type ResponseApprovalLifecycle,
-} from './response-approval.service'
-import { CLASSIFIED_RESPONSE_POLICY_VERSION } from './classified-response'
-import { TOPIC_RESOLUTION_OUTCOME } from './topic.types'
+} from './response-approval/response-approval.service'
+import { CLASSIFIED_RESPONSE_POLICY_VERSION } from './analysis/classified-response'
+import { TOPIC_RESOLUTION_OUTCOME } from './topic/topic.types'
 import {
   RetrievalQueryBuilder,
   retrievalQueryContextFromAnalysis,
-} from './retrieval-query.builder'
+} from './evidence-query/retrieval-query.builder'
 import { AutomaticSafetyRiskDetector } from '../response-governance/automatic-safety-risk.detector'
 import { ControlledSourceConflictDetector } from '../response-governance/controlled-source-conflict.detector'
 import type {

@@ -5,7 +5,7 @@ import {
   ReviewTriggerType,
   StudentFlagReason,
 } from '../../src/generated/prisma/client'
-import { PrismaStudentReviewDetailRepository } from '../../src/modules/reviews/student-review-detail.repository'
+import { PrismaStudentReviewDetailRepository } from '../../src/modules/reviews/student-detail/student-review-detail.repository'
 import { seedP0DemoData } from '../../src/seeds/p0-demo.seed'
 import {
   setUpDisposableDatabase,

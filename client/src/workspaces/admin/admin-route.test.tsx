@@ -155,7 +155,7 @@ describe('Admin routes', () => {
       'Dashboard',
       'Assignments',
       'Students',
-      'Instructor',
+      'Instructors',
       'Courses',
       'Materials',
       'Audit Logs',
@@ -275,7 +275,7 @@ describe('Admin routes', () => {
     expect(courseSelect).not.toHaveTextContent(courseId)
   })
 
-  it('switches between Students and Doctors tabs on the assignments page', async () => {
+  it('switches between Students and Instructors tabs on the assignments page', async () => {
     const user = userEvent.setup()
     const courseId = '2d29f6ab-c759-4a44-a1c6-5975ce1f7e5a'
     const studentId = 'acace6a5-7430-4dbf-b327-d76f3d51542a'
@@ -344,7 +344,7 @@ describe('Admin routes', () => {
                 createdAt: '2026-07-01T10:00:00.000Z',
                 user: {
                   id: doctorId,
-                  email: 'doctor@morshid.demo',
+                  email: 'instructor@morshid.demo',
                   displayName: 'Dr. Professor',
                   role: 'INSTRUCTOR',
                   status: 'ACTIVE',
@@ -369,11 +369,11 @@ describe('Admin routes', () => {
     expect(studentElements[0]).toBeVisible()
     expect(screen.queryByText('Dr. Professor')).not.toBeInTheDocument()
 
-    // Click Doctors tab
-    const doctorTab = screen.getByRole('tab', { name: /Doctors/i })
-    await user.click(doctorTab)
+    // Click Instructors tab
+    const instructorTab = screen.getByRole('tab', { name: /Instructors/i })
+    await user.click(instructorTab)
 
-    // Doctors tab should show the doctor
+    // Instructors tab should show the instructor
     const doctorElements = await screen.findAllByText('Dr. Professor')
     expect(doctorElements[0]).toBeVisible()
     expect(screen.queryByText('Demo Student')).not.toBeInTheDocument()

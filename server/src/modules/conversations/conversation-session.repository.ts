@@ -13,7 +13,7 @@ import type {
   SessionListPagination,
   SoftDeleteChatSessionInput,
   SoftDeleteSessionOutcome,
-} from './conversation-records'
+} from './interface/conversation-records'
 
 export abstract class ConversationSessionRepository {
   abstract hasActiveStudentMembership(

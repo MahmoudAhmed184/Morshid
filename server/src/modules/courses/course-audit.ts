@@ -3,7 +3,7 @@ import { Injectable } from '@nestjs/common'
 import { AUDIT_EVENT_ACTIONS, AUDIT_TARGET_TYPES } from '../audit/audit.public'
 import { AuditService, type AuditRequestContext } from '../audit/audit.public'
 import type { DatabaseTransaction } from '../../platform/database/database-transaction'
-import type { CourseMembershipRole } from './course-membership.types'
+import type { CourseMembershipRole } from './interface/course-membership-role'
 
 interface RecordCourseCreatedInput {
   actorUserId: string

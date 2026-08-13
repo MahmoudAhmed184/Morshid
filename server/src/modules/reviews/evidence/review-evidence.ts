@@ -1,5 +1,5 @@
-import type { ReviewMessageRole } from '../review-values'
-import { ReviewTriggerType } from '../review-values'
+import type { ReviewMessageRole } from '../interface/review-values'
+import { ReviewTriggerType } from '../interface/review-values'
 import { z } from 'zod'
 
 import type { AutomaticReviewEvidenceContribution } from './automatic-review-evidence'

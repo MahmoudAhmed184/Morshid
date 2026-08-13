@@ -72,6 +72,7 @@ services:
       RETRIEVAL_MIN_SIMILARITY: ${RETRIEVAL_MIN_SIMILARITY:-0.62}
       # Tutoring owns request and model policy.
       TUTORING_REQUEST_TIMEOUT_MS: ${TUTORING_REQUEST_TIMEOUT_MS:-120000}
+      GEMINI_CHAT_PROJECTS_JSON: '${GEMINI_CHAT_PROJECTS_JSON:-[]}'
       # Socratic runtime roles are deliberately independent. Production boot
       # rejects deterministic configuration for any of the three roles.
       ANALYSIS_MODEL_PROVIDER: ${ANALYSIS_MODEL_PROVIDER:-openai-compatible}

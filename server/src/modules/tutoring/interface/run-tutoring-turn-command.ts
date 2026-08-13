@@ -7,7 +7,7 @@ export type RunTutoringTurnCommand =
       readonly courseId: string
       readonly sessionId: string
       readonly studentId: string
-      readonly clientMessageId?: string
+      readonly clientMessageId: string
       readonly content: string
       readonly problemId?: string
       readonly conceptId?: string
@@ -20,7 +20,7 @@ export type RunTutoringTurnCommand =
       readonly courseId: string
       readonly sessionId: string
       readonly studentId: string
-      readonly studentMessageId: string
+      readonly attemptId: string
       readonly requestContext?: AuditRequestContext
       readonly requestBudget?: RequestBudget
     }

@@ -156,7 +156,7 @@ export function AdminAssignmentForm({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="STUDENT">Student</SelectItem>
-              <SelectItem value="INSTRUCTOR">Doctor (Instructor)</SelectItem>
+              <SelectItem value="INSTRUCTOR">Instructor</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -214,7 +214,7 @@ export function AdminAssignmentForm({
                 placeholder={
                   role === 'STUDENT'
                     ? 'Search students by name or email...'
-                    : 'Search doctors by name or email...'
+                    : 'Search instructors by name or email...'
                 }
                 className="pl-9 pr-8 h-9 text-xs"
                 aria-label="Search users"
@@ -276,8 +276,8 @@ export function AdminAssignmentForm({
                   {searchQuery ? (
                     <div className="space-y-1">
                       <p>
-                        No {role === 'STUDENT' ? 'students' : 'doctors'} found
-                        matching &quot;{searchQuery}&quot;
+                        No {role === 'STUDENT' ? 'students' : 'instructors'}{' '}
+                        found matching &quot;{searchQuery}&quot;
                       </p>
                       <button
                         type="button"
@@ -289,8 +289,9 @@ export function AdminAssignmentForm({
                     </div>
                   ) : (
                     <p>
-                      All eligible {role === 'STUDENT' ? 'students' : 'doctors'}{' '}
-                      are already assigned to this course.
+                      All eligible{' '}
+                      {role === 'STUDENT' ? 'students' : 'instructors'} are
+                      already assigned to this course.
                     </p>
                   )}
                 </div>
@@ -341,7 +342,7 @@ export function AdminAssignmentForm({
                         }
                         className="shrink-0 text-[10px] px-1.5 py-0 h-4 uppercase tracking-wider"
                       >
-                        {user.role === 'INSTRUCTOR' ? 'Doctor' : 'Student'}
+                        {user.role === 'INSTRUCTOR' ? 'Instructor' : 'Student'}
                       </Badge>
                     </div>
                   )
@@ -384,11 +385,11 @@ export function AdminAssignmentForm({
               ? 'Update assignment'
               : selectedUserIds.size > 1
                 ? `Add ${selectedUserIds.size} ${
-                    role === 'STUDENT' ? 'students' : 'doctors'
+                    role === 'STUDENT' ? 'students' : 'instructors'
                   }`
                 : role === 'STUDENT'
                   ? 'Add student'
-                  : 'Add doctor'}
+                  : 'Add instructor'}
         </Button>
       </div>
     </form>

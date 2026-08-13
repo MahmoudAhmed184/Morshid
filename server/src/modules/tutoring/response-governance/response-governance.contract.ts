@@ -1,6 +1,6 @@
 import type { MessageGuidanceLabel } from '../tutoring-values'
-import type { ReviewTriggerType } from '../../reviews/reviews.public'
-import type { AutomaticReviewEvidenceContribution } from '../../reviews/reviews.public'
+import type { ReviewTriggerType } from '../../reviews/interface/review-values'
+import type { AutomaticReviewEvidenceInput } from '../../reviews/interface/review-case-intake'
 
 export const RESPONSE_GOVERNANCE_VERSION = 'response-governance-v1'
 
@@ -102,6 +102,6 @@ export interface ResponseGovernanceDecision {
   readonly safeRefusal: boolean
   readonly createReview: boolean
   readonly reasons: readonly AutomaticPolicyReason[]
-  readonly reviewEvidence: AutomaticReviewEvidenceContribution | null
+  readonly reviewEvidence: AutomaticReviewEvidenceInput | null
   readonly studentStatus: ResponseGovernanceStudentStatus
 }

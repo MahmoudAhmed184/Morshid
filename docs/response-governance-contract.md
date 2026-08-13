@@ -151,36 +151,28 @@ Quoted security discussion, ordinary uses of “ignore”, conceptual explanatio
 hints, and partial debugging guidance are negative controls and do not trigger
 the refusal path.
 
-## Automatic safety live smoke
+## Socratic role-chain live smoke
 
-The deterministic governance suite is mandatory and uses only the synthetic
-SCN-01–SCN-08 fixtures. A provider-boundary smoke remains opt-in:
+The deterministic governance suite remains mandatory and uses only the
+synthetic SCN-01–SCN-08 fixtures. The separate analysis, tutor, and semantic
+guard role-chain smoke is opt-in:
 
 ```sh
-AUTOMATIC_SAFETY_LIVE_SMOKE_ACKNOWLEDGED=true \
 ANALYSIS_MODEL_PROVIDER=openai-compatible \
 TUTOR_MODEL_PROVIDER=openai-compatible \
 SEMANTIC_GUARD_PROVIDER=openai-compatible \
-EMBEDDING_PROVIDER=gemini \
-GEMINI_EMBEDDING_DEMO_ACKNOWLEDGED=true \
 npm run test:tutoring:live
 ```
 
-The ordinary provider credentials and model/profile configuration must also be
-present. Standard output is one JSON object explicitly labeled
-`provider-boundary-only`. It separately records the eight scenarios validated
-by deterministic policy checks, the smaller set sent to live model generation, and
-the set sent to live query embedding (including SCN-07's declared retry
-attempt). It also contains provider/model/prompt identifiers, embedding
-profile/protocol, the fixture hash, and per-boundary call counts. It must not be
-represented as an end-to-end live execution of SCN-01–SCN-08. Failure output
-contains only `outcome` and the failed stage.
-Neither path prints prompts, responses, excerpts, vectors, URLs, credentials,
-raw errors, or stack traces.
+The corresponding endpoint, model, and credential configuration must also be
+present. A role using Gemini's exact OpenAI-compatible endpoint obtains its
+credential from `GEMINI_CHAT_PROJECTS_JSON` and keeps its role-specific
+`*_API_KEY` blank; other OpenAI-compatible gateways retain their role keys.
 
-A provider evidence record may be committed only after an explicitly approved
-successful live run. It must contain the tested commit SHA, timestamp, outcome,
-the `provider-boundary-only` qualification mode, provider/model/prompt version,
-embedding profile/protocol, fixture identifier and hash, the separate
-deterministic/live boundary scenario ID sets, and counts—never copied provider
-payloads or content.
+The smoke performs one validated analysis, generation, and semantic-guard
+chain, then verifies the semantic-guard infrastructure-failure fallback. It
+does not run SCN-01–SCN-08 or call an embedding provider. Standard output is one
+bounded JSON object labeled `live-socratic-role-chain-integration-smoke` with
+provider/model/prompt metadata and outcome facts. Failure output contains only
+the sanitized error class and code. Neither path prints prompts, responses,
+excerpts, URLs, credentials, raw errors, or stack traces.

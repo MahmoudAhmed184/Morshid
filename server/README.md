@@ -110,6 +110,23 @@ gateway. Remote model and embedding calls always occur outside database
 transactions; terminal conversation, attempt, audit, and review writes join
 one caller-owned transaction.
 
+When any role uses Google's exact Gemini OpenAI-compatible base URL, Tutoring
+requires `GEMINI_CHAT_PROJECTS_JSON` and requires that role's `*_API_KEY` to be
+blank. The JSON array contains `{id,apiKey}` entries, where `id` is an opaque
+deployment label and every entry represents a distinct Google Cloud quota
+project. Gemini quotas are project-scoped, so multiple keys from one project do
+not add capacity. Redis selects healthy projects round-robin across API replicas.
+An upstream 429 cools that project with bounded exponential backoff and jitter
+and attempts every remaining eligible project at most once; timeouts, 5xx
+responses, and other failures stay under the existing bounded retry and fallback
+policies. If every project is cooling down, the transport returns one
+rate-limited failure with the earliest shared retry delay. Pool state stores only
+salted project-label digests and never credentials. A Redis failure fails the
+pool closed.
+
+This pool is chat-only. `GEMINI_EMBEDDING_API_KEY` and its existing quota guard
+remain separate and unchanged.
+
 The role-chain smoke is opt-in and requires the documented external model
 configuration:
 
@@ -157,10 +174,11 @@ free tier lets Google use submitted inputs to improve its products, and course
 material is not ours to donate. Only synthetic, permission-safe material may be
 embedded through it.
 
-`GEMINI_EMBEDDING_API_KEY` must be distinct from `GEMINI_API_KEY` **and live
-under a separate Google Cloud project**. Gemini rate limits are per project, so
-a shared key would let one PDF ingest starve student chat. The schema can only
-prove the two keys differ; project separation is an operator responsibility.
+`GEMINI_EMBEDDING_API_KEY` must be distinct from every key in
+`GEMINI_CHAT_PROJECTS_JSON` **and live under a separate Google Cloud project**.
+Gemini rate limits are per project, so sharing a project would let one PDF
+ingest starve student chat. Project separation is an operator responsibility
+because chat-pool ids are deliberately opaque deployment labels.
 
 There is no `GEMINI_EMBEDDING_MODEL`. The model, its dimensions, and the
 document formatting together _are_ the persisted document profile

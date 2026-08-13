@@ -9,16 +9,16 @@ import {
   TopicStatus,
   TopicType,
 } from '../../src/generated/prisma/client'
-import type { AnalysisContextPackage } from '../../src/modules/tutoring/socratic-workflow/analysis-context.types'
-import type { PersistedEducationalAnalysisRecord } from '../../src/modules/tutoring/socratic-workflow/educational-analysis.repository'
-import type { EducationalAnalysisResult } from '../../src/modules/tutoring/socratic-workflow/educational-analysis.types'
+import type { AnalysisContextPackage } from '../../src/modules/tutoring/socratic-workflow/analysis/analysis-context.types'
+import type { PersistedEducationalAnalysisRecord } from '../../src/modules/tutoring/socratic-workflow/analysis/educational-analysis.repository'
+import type { EducationalAnalysisResult } from '../../src/modules/tutoring/socratic-workflow/analysis/educational-analysis.types'
 import {
   EDUCATIONAL_ANALYSIS_SCHEMA_VERSION,
   EDUCATIONAL_ANALYSIS_SOURCE,
-} from '../../src/modules/tutoring/socratic-workflow/educational-analysis.types'
-import type { PersistedTeachingDecisionRecord } from '../../src/modules/tutoring/socratic-workflow/teaching-decision.repository'
-import type { CourseEvidenceChunk } from '../../src/modules/materials/course-evidence'
-import { TEACHING_POLICY_VERSION } from '../../src/modules/tutoring/socratic-workflow/teaching-policy.types'
+} from '../../src/modules/tutoring/socratic-workflow/analysis/educational-analysis.types'
+import type { PersistedTeachingDecisionRecord } from '../../src/modules/tutoring/socratic-workflow/teaching-decision/teaching-decision.repository'
+import type { CourseEvidenceChunk } from '../../src/modules/materials/interface/course-evidence'
+import { TEACHING_POLICY_VERSION } from '../../src/modules/tutoring/socratic-workflow/teaching-decision/teaching-policy.types'
 
 export const TUTORING_ROLE_CHAIN_LIVE_IDS = {
   courseId: 'gemini-live-course',
@@ -186,7 +186,7 @@ export function buildLiveTeachingDecision(
       enforceCitationSupport: true,
       maximumDisclosedSteps: 1,
     },
-    decisionReason: 'Live Socratic Gemini verification fixture.',
+    decisionReason: 'Live Socratic role-chain verification fixture.',
     policyVersion: TEACHING_POLICY_VERSION,
     createdAt,
   }

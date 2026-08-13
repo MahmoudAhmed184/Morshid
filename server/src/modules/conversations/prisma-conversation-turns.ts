@@ -22,26 +22,27 @@ import {
   type ConversationMessage,
   type FinalizeConversationMessageInput,
   type FinalizedMessage,
-} from './conversation-turns'
-import type {
+} from './interface/conversation-turns'
+import {
   ConversationAuthorization,
-  ConversationAuthorizationInput,
-} from './conversation-authorization'
+  type ConversationAuthorizationInput,
+} from './interface/conversation-authorization'
 import type {
   ConversationAnalysisContext,
   ConversationAnalysisContextInput,
   ConversationAnalysisHistoryInput,
   ConversationAnalysisMessage,
   ConversationStudentMessageCountInput,
-  ConversationMessageReader,
   ConversationMessageLookup,
-} from './conversation-message-reader'
-import { CONVERSATION_ANALYSIS_HISTORY_LIMIT } from './conversation-message-reader'
+} from './interface/conversation-message-reader'
+import {
+  CONVERSATION_ANALYSIS_HISTORY_LIMIT,
+  ConversationMessageReader,
+} from './interface/conversation-message-reader'
 import { PrismaService } from '../../platform/database/prisma.service'
 import {
   chatMessageScalarSelect,
   chatMessageSelect,
-  chatMessageSelectForStudent,
 } from './conversation-repository.support'
 
 @Injectable()
@@ -96,16 +97,20 @@ export class PrismaConversationTurns
       await tx.messageCitation.deleteMany({
         where: { messageId: input.assistantMessageId },
       })
-      await tx.message.update({
-        where: { id: input.studentMessageId },
+      const studentUpdate = await tx.message.updateMany({
+        where: {
+          id: input.studentMessageId,
+          attemptId: input.previousAttemptId,
+        },
         data: { attemptId: input.attemptId },
       })
-      const assistantMessage = await tx.message.update({
+      const assistantUpdate = await tx.message.updateMany({
         where: {
           id: input.assistantMessageId,
           sessionId: input.sessionId,
           role: MessageRole.ASSISTANT,
           responseToMessageId: input.studentMessageId,
+          attemptId: input.previousAttemptId,
         },
         data: {
           status: MessageStatus.PENDING,
@@ -121,6 +126,12 @@ export class PrismaConversationTurns
           attemptId: input.attemptId,
           completedAt: null,
         },
+      })
+      if (studentUpdate.count !== 1 || assistantUpdate.count !== 1) {
+        throw new Error('Tutoring Attempt changed during retry admission')
+      }
+      const assistantMessage = await tx.message.findUniqueOrThrow({
+        where: { id: input.assistantMessageId },
         select: chatMessageSelect,
       })
       const studentMessage = await tx.message.findUniqueOrThrow({
@@ -308,16 +319,10 @@ export class PrismaConversationTurns
       ...(statuses === undefined ? {} : { status: { in: [...statuses] } }),
       ...(excludeId === undefined ? {} : { id: { not: excludeId } }),
     }
-    const message =
-      studentId === undefined
-        ? await database.message.findFirst({
-            where,
-            select: chatMessageSelect,
-          })
-        : await database.message.findFirst({
-            where,
-            select: chatMessageSelectForStudent(studentId),
-          })
+    const message = await database.message.findFirst({
+      where,
+      select: chatMessageSelect,
+    })
 
     return message
   }

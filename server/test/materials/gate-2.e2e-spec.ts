@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -19,31 +20,32 @@ import {
   type EmbeddingProvider,
 } from '../../src/platform/ai/embedding/embedding-provider'
 import { ValidatedEmbeddingProvider } from '../../src/platform/ai/embedding/validated-embedding.provider'
-import { MaterialProcessingScheduler } from '../../src/modules/materials/material-processing.scheduler'
-import { MaterialProcessingService } from '../../src/modules/materials/material-processing.service'
-import type { MaterialStatusDto } from '../../src/modules/materials/materials.dto'
+import { MaterialProcessingScheduler } from '../../src/modules/materials/processing/material-processing.scheduler'
+import { MaterialProcessingService } from '../../src/modules/materials/processing/material-processing.service'
+import type { MaterialStatusDto } from '../../src/modules/materials/catalog/materials.dto'
 import { LocalPdfStorageAdapter } from '../../src/platform/document-storage/local-pdf-storage.adapter'
 import { PDF_STORAGE } from '../../src/platform/document-storage/pdf-storage'
 import { PrismaService } from '../../src/platform/database/prisma.service'
-import { MaterialChunkRepository } from '../../src/modules/materials/material-chunk.repository'
+import { MaterialChunkRepository } from '../../src/modules/materials/processing/material-chunk.repository'
 import { RedisService } from '../../src/platform/cache/redis.service'
 import {
   TUTOR_MODEL_PORT,
   type TutorModelPort,
   type TutorModelRequest,
   type TutorModelResponse,
-} from '../../src/modules/tutoring/socratic-workflow/tutor-generation.types'
-import { SEMANTIC_GUARD_PORT } from '../../src/modules/tutoring/socratic-workflow/semantic-guard.types'
+} from '../../src/modules/tutoring/socratic-workflow/generation/tutor-generation.types'
+import { SEMANTIC_GUARD_PORT } from '../../src/modules/tutoring/socratic-workflow/response-approval/semantic-guard.types'
 import {
   CourseEvidence,
   type CourseEvidenceResult,
-} from '../../src/modules/materials/course-evidence'
+} from '../../src/modules/materials/interface/course-evidence'
 import { GROUNDING_BLOCKED_CONTENT } from '../../src/modules/tutoring/tutoring-runtime.application'
+import { ANALYSIS_MODEL_PORT } from '../../src/modules/tutoring/socratic-workflow/analysis/analysis-model.port'
 import type {
   ChatMessageHistoryResponseDto,
   ChatSessionResponseDto,
   TutoringTurnResponseDto,
-} from '../../src/modules/conversations/conversations.dto'
+} from '../../src/modules/conversations/interface/conversation-dto'
 import {
   P0_DEMO_PASSWORD,
   seedP0DemoData,
@@ -66,6 +68,7 @@ import {
   type DisposableDatabase,
 } from '../support/disposable-database'
 import {
+  ControllableAnalysisModelPort,
   ControllableSemanticGuardPort,
   ControllableTutorModelPort,
 } from '../support/socratic-e2e-providers'
@@ -120,6 +123,7 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
   let embeddingProvider: EmbeddingProvider
   let processingService: MaterialProcessingService
   let processingScheduler: CapturingProcessingScheduler
+  let analysisModel: ControllableAnalysisModelPort
   let tutorModel: CapturingTutorModelPort
 
   beforeAll(async () => {
@@ -128,6 +132,7 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
     seed = await seedP0DemoData(prisma)
     storageRoot = await mkdtemp(join(tmpdir(), 'morshid-gate-2-'))
     storage = new LocalPdfStorageAdapter(storageRoot)
+    analysisModel = new ControllableAnalysisModelPort()
     tutorModel = new CapturingTutorModelPort(new ControllableTutorModelPort())
     processingScheduler = new CapturingProcessingScheduler(prisma)
 
@@ -146,6 +151,8 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
           new Gate2DeterministicEmbeddingProvider(),
         ),
       )
+      .overrideProvider(ANALYSIS_MODEL_PORT)
+      .useValue(analysisModel)
       .overrideProvider(TUTOR_MODEL_PORT)
       .useValue(tutorModel)
       .overrideProvider(SEMANTIC_GUARD_PORT)
@@ -161,6 +168,8 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
     retrievalService = moduleFixture.get(CourseEvidence)
     embeddingProvider = moduleFixture.get(EMBEDDING_PROVIDER_TOKEN)
     processingService = moduleFixture.get(MaterialProcessingService)
+
+    expect(moduleFixture.get(ANALYSIS_MODEL_PORT)).toBe(analysisModel)
 
     await gate2Stage('lock deterministic retrieval configuration', () => {
       const config = moduleFixture.get(ConfigService)
@@ -659,7 +668,7 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
     const response = await request(requireApp().getHttpServer())
       .post(messagesPath(sessionId))
       .set('Authorization', `Bearer ${token}`)
-      .send({ content })
+      .send({ content, clientMessageId: randomUUID() })
       .expect(201)
 
     return response.body as TutoringTurnResponseDto

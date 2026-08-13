@@ -6,7 +6,7 @@ import type { App } from 'supertest/types'
 
 import { configureApp } from '../../src/app.setup'
 import { AppModule } from '../../src/app.module'
-import { MaterialProcessingScheduler } from '../../src/modules/materials/material-processing.scheduler'
+import { MaterialProcessingScheduler } from '../../src/modules/materials/processing/material-processing.scheduler'
 import { PrismaService } from '../../src/platform/database/prisma.service'
 import { RedisService } from '../../src/platform/cache/redis.service'
 import { NoopMaterialProcessingScheduler } from './noop-material-processing-scheduler'
@@ -998,6 +998,7 @@ describe('OpenAPI contract (e2e)', () => {
         'errorMessage',
         'createdAt',
         'updatedAt',
+        'canDelete',
       ])
       expect(Object.keys(schemas.MaterialStatusDto.properties ?? {})).toEqual([
         'id',
@@ -1072,7 +1073,7 @@ describe('OpenAPI contract (e2e)', () => {
           statuses: ['201', '400', '401', '403', '404', '409', '503'],
         },
         {
-          path: `${base}/{sessionId}/messages/{studentMessageId}/retry`,
+          path: `${base}/{sessionId}/tutoring-attempts/{attemptId}/retry`,
           method: 'post',
           tag: 'tutoring',
           summary: 'Retry failed tutoring response',
@@ -1097,8 +1098,8 @@ describe('OpenAPI contract (e2e)', () => {
           })
         }
 
-        if (expected.path.includes('{studentMessageId}')) {
-          expect(getParameter(operation, 'studentMessageId')).toMatchObject({
+        if (expected.path.includes('{attemptId}')) {
+          expect(getParameter(operation, 'attemptId')).toMatchObject({
             in: 'path',
             required: true,
             schema: { type: 'string', format: 'uuid' },
@@ -1125,7 +1126,7 @@ describe('OpenAPI contract (e2e)', () => {
         { path: `${base}/{sessionId}/messages`, method: 'get' },
         { path: `${base}/{sessionId}/messages`, method: 'post' },
         {
-          path: `${base}/{sessionId}/messages/{studentMessageId}/retry`,
+          path: `${base}/{sessionId}/tutoring-attempts/{attemptId}/retry`,
           method: 'post',
         },
       ] as const) {
@@ -1189,7 +1190,7 @@ describe('OpenAPI contract (e2e)', () => {
       )
       const retry = getOperation(
         document,
-        `${base}/{sessionId}/messages/{studentMessageId}/retry`,
+        `${base}/{sessionId}/tutoring-attempts/{attemptId}/retry`,
         'post',
       )
       expect(retry.requestBody).toBeUndefined()
@@ -1227,6 +1228,9 @@ describe('OpenAPI contract (e2e)', () => {
           maxLength: 160,
         },
       })
+      expect(schemas.SendTutoringMessageRequestDto.required).toEqual(
+        expect.arrayContaining(['clientMessageId', 'content']),
+      )
       expect(schemas.ChatMessageDto.properties?.citations).toEqual({
         type: 'array',
         items: { $ref: '#/components/schemas/ChatCitationDto' },

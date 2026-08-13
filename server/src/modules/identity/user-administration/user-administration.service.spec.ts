@@ -4,13 +4,10 @@ import {
   NotFoundException,
 } from '@nestjs/common'
 
-import {
-  CourseMembershipRole,
-  UserRole,
-  UserStatus,
-} from '../../../generated/prisma/client'
+import { CourseMembershipRole } from '../../courses/interface/course-membership-role'
 import type { AuthenticatedUser } from '../../identity/identity.types'
 import type { IdentityUser } from '../../identity/identity-user'
+import { UserRole, UserStatus } from '../../identity/identity.roles'
 import type { PasswordHasher } from '../../identity/password-hasher'
 import {
   USER_ADMINISTRATION_ERROR_CODES,

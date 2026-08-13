@@ -8,7 +8,7 @@ import {
 } from '../../src/platform/ai/embedding/embedding-provider'
 import type { PdfStorage } from '../../src/platform/document-storage/pdf-storage'
 import type { PrismaService } from '../../src/platform/database/prisma.service'
-import type { MaterialChunkRepository } from '../../src/modules/materials/material-chunk.repository'
+import type { MaterialChunkRepository } from '../../src/modules/materials/processing/material-chunk.repository'
 import { cleanTextPdf } from './pdf-fixtures'
 
 export const GATE_2_FIXTURE = {

@@ -156,7 +156,7 @@ describe('Admin operation controls', () => {
     )
   })
 
-  it('assigns a doctor without showing a redundant role tab', async () => {
+  it('assigns an instructor without showing a redundant role tab', async () => {
     const user = userEvent.setup()
     const onAdd = vi.fn().mockResolvedValue(undefined)
 
@@ -284,13 +284,11 @@ describe('Admin operation controls', () => {
     })[0]
     await user.click(editButton)
 
-    // Switch role to Doctor without adding another tab set to the dialog.
+    // Switch role to Instructor without adding another tab set to the dialog.
     await user.click(
       await screen.findByRole('combobox', { name: 'Assignment role' }),
     )
-    await user.click(
-      await screen.findByRole('option', { name: 'Doctor (Instructor)' }),
-    )
+    await user.click(await screen.findByRole('option', { name: 'Instructor' }))
 
     // Submit update
     const submitButton = screen.getByRole('button', {
