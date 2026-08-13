@@ -6,7 +6,7 @@ import {
   MAX_TUTORING_REQUEST_TIMEOUT_MS,
 } from '../../common/http/request-deadline'
 import {
-  inspectGeminiChatProjects,
+  inspectGeminiChatProjectsJson,
   isGeminiOpenAICompatibleBaseUrl,
 } from '../../platform/ai/upstream/gemini-chat-project-pool'
 import type { AppEnvironment } from '../../platform/config/env.schema'
@@ -78,37 +78,25 @@ function blankAsUndefined(value: unknown): unknown {
   return typeof value === 'string' && value.trim() === '' ? undefined : value
 }
 
-function parseGeminiChatProjectsJson(value: unknown): unknown {
-  if (
-    value === undefined ||
-    (typeof value === 'string' && value.trim() === '')
-  ) {
-    return []
-  }
-  if (typeof value !== 'string') {
-    return value
-  }
-  try {
-    return JSON.parse(value) as unknown
-  } catch {
-    return value
-  }
-}
-
-const geminiChatProjectsSchema = z.unknown().transform((value, ctx) => {
-  const validation = inspectGeminiChatProjects(value, { allowEmpty: true })
-  if (!validation.success) {
-    for (const issue of validation.issues) {
-      ctx.addIssue({
-        code: 'custom',
-        path: [...issue.path],
-        message: issue.message,
-      })
+const geminiChatProjectsSchema = z
+  .unknown()
+  .default('')
+  .transform((value, ctx) => {
+    const validation = inspectGeminiChatProjectsJson(value, {
+      allowEmpty: true,
+    })
+    if (!validation.success) {
+      for (const issue of validation.issues) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [...issue.path],
+          message: issue.message,
+        })
+      }
+      return z.NEVER
     }
-    return z.NEVER
-  }
-  return validation.projects
-})
+    return validation.projects
+  })
 
 const tutoringConfigurationSchema = z
   .object({
@@ -121,10 +109,7 @@ const tutoringConfigurationSchema = z
       .positive()
       .max(MAX_TUTORING_REQUEST_TIMEOUT_MS)
       .default(DEFAULT_TUTORING_REQUEST_TIMEOUT_MS),
-    GEMINI_CHAT_PROJECTS_JSON: z.preprocess(
-      parseGeminiChatProjectsJson,
-      geminiChatProjectsSchema,
-    ),
+    GEMINI_CHAT_PROJECTS_JSON: geminiChatProjectsSchema,
     ANALYSIS_MODEL_PROVIDER: z
       .enum([
         DETERMINISTIC_ANALYSIS_MODEL_PROVIDER,

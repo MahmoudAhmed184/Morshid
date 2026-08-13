@@ -15,6 +15,7 @@ import {
   MAX_GEMINI_EMBEDDING_QUOTA_PROJECT_ID_LENGTH,
   isValidGeminiEmbeddingQuotaProjectId,
 } from '../ai/embedding/embedding-configuration'
+import { inspectGeminiChatProjectsJson } from '../ai/upstream/gemini-chat-project-pool'
 
 const GEMINI_EMBEDDING_QUOTA_KEYS = [
   'GEMINI_EMBEDDING_REQUESTS_PER_MINUTE',
@@ -219,6 +220,24 @@ const environmentSchema = z
           code: 'custom',
           path: ['GEMINI_EMBEDDING_API_KEY'],
           message: 'must be a non-placeholder authorization key',
+        })
+      }
+
+      const chatProjects = inspectGeminiChatProjectsJson(
+        env.GEMINI_CHAT_PROJECTS_JSON,
+        { allowEmpty: true },
+      )
+      if (
+        chatProjects.success &&
+        env.GEMINI_EMBEDDING_API_KEY !== undefined &&
+        chatProjects.projects.some(
+          (project) => project.apiKey === env.GEMINI_EMBEDDING_API_KEY,
+        )
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['GEMINI_EMBEDDING_API_KEY'],
+          message: 'must differ from every Gemini chat project API key',
         })
       }
 

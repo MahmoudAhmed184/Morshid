@@ -1,6 +1,7 @@
 import {
   GeminiChatProjectPool,
   GeminiChatProjectPoolUnavailableError,
+  inspectGeminiChatProjectsJson,
   isGeminiOpenAICompatibleBaseUrl,
   type GeminiChatProjectPoolRedisClient,
 } from './gemini-chat-project-pool'
@@ -105,6 +106,15 @@ describe('Gemini chat project configuration', () => {
     expect(() => new GeminiChatProjectPool(new RecordingRedis([]), [])).toThrow(
       TypeError,
     )
+  })
+
+  it('parses JSON through the same strict project validation', () => {
+    expect(
+      inspectGeminiChatProjectsJson(JSON.stringify(projects)),
+    ).toMatchObject({ success: true, projects })
+    expect(inspectGeminiChatProjectsJson('{invalid')).toMatchObject({
+      success: false,
+    })
   })
 })
 

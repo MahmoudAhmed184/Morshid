@@ -1,6 +1,7 @@
 import { ConfigModule, ConfigService } from '@nestjs/config'
 import { Test, type TestingModule } from '@nestjs/testing'
 
+import { ConversationPresentationModule } from '../../../application/conversation-presentation.module'
 import { RedisService } from '../../../platform/cache/redis.service'
 import { PrismaService } from '../../../platform/database/prisma.service'
 import {
@@ -40,6 +41,7 @@ describe('SocraticWorkflowModule Gemini composition', () => {
       moduleRef = await Test.createTestingModule({
         imports: [
           ConfigModule.forRoot({ isGlobal: true }),
+          ConversationPresentationModule,
           SocraticWorkflowModule,
         ],
       })

@@ -110,7 +110,7 @@ for offset = 0, #request.members - 1 do
     local cooldown_until_ms = 0
     if raw_cooldown ~= false then
       cooldown_until_ms = tonumber(raw_cooldown)
-      if cooldown_until_ms == nil then
+      if cooldown_until_ms == nil or cooldown_until_ms < 0 or cooldown_until_ms ~= math.floor(cooldown_until_ms) then
         return { -1, 'corrupt_state' }
       end
     end
@@ -157,7 +157,14 @@ local raw_failures = redis.call('HGET', KEYS[1], failures_field)
 local raw_last_failure = redis.call('HGET', KEYS[1], last_failure_field)
 local failures = raw_failures == false and 0 or tonumber(raw_failures)
 local last_failure_ms = raw_last_failure == false and nil or tonumber(raw_last_failure)
-if failures == nil or (raw_last_failure ~= false and last_failure_ms == nil) then
+if failures == nil
+  or failures < 0
+  or failures ~= math.floor(failures)
+  or (raw_last_failure ~= false and (
+    last_failure_ms == nil
+    or last_failure_ms < 0
+    or last_failure_ms ~= math.floor(last_failure_ms)
+  )) then
   return { -1, 'corrupt_state' }
 end
 
@@ -179,7 +186,7 @@ local cooldown_field = 'cooldown:' .. request.member
 local raw_existing = redis.call('HGET', KEYS[1], cooldown_field)
 if raw_existing ~= false then
   local existing = tonumber(raw_existing)
-  if existing == nil then
+  if existing == nil or existing < 0 or existing ~= math.floor(existing) then
     return { -1, 'corrupt_state' }
   end
   cooldown_until_ms = math.max(cooldown_until_ms, existing)
@@ -442,6 +449,26 @@ export function inspectGeminiChatProjects(
   return issues.length === 0
     ? { success: true, projects: Object.freeze(projects) }
     : { success: false, issues: Object.freeze(issues) }
+}
+
+export function inspectGeminiChatProjectsJson(
+  value: unknown,
+  options: { readonly allowEmpty?: boolean } = {},
+): GeminiChatProjectValidationResult {
+  if (
+    value === undefined ||
+    (typeof value === 'string' && value.trim() === '')
+  ) {
+    return inspectGeminiChatProjects([], options)
+  }
+  if (typeof value !== 'string') {
+    return inspectGeminiChatProjects(value, options)
+  }
+  try {
+    return inspectGeminiChatProjects(JSON.parse(value) as unknown, options)
+  } catch {
+    return invalidProjects([], 'must be valid JSON containing a project array')
+  }
 }
 
 function invalidProjects(
