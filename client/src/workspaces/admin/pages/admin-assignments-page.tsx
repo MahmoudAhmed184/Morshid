@@ -110,8 +110,48 @@ export function AdminAssignmentsPage() {
       />
 
       <AdminPanel>
+        <div className="px-4 pt-3">
+          <Tabs
+            className="w-full sm:w-fit"
+            value={selectedRoleTab}
+            onValueChange={(value) => {
+              setSelectedRoleTab(value as CourseMembershipRole)
+              setSearch('')
+            }}
+          >
+            <TabsList
+              className="h-9 w-full p-1 sm:w-auto"
+              aria-label="Assignment type"
+            >
+              <TabsTrigger
+                value="STUDENT"
+                className="min-w-0 flex-1 gap-2 px-3 sm:flex-none"
+              >
+                <GraduationCapIcon className="size-4" />
+                Students
+                <Badge variant="secondary" className="h-4 min-w-5 px-1">
+                  {selectedCourse?.adminMetadata.studentCount ?? 0}
+                </Badge>
+              </TabsTrigger>
+              <TabsTrigger
+                value="INSTRUCTOR"
+                className="min-w-0 flex-1 gap-2 px-3 sm:flex-none"
+              >
+                <UserCheckIcon className="size-4" />
+                Doctors
+                <Badge variant="secondary" className="h-4 min-w-5 px-1">
+                  {selectedCourse?.adminMetadata.instructorCount ?? 0}
+                </Badge>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
         <DataToolbar
           className="border-b px-4 py-3"
+          contentClassName="md:flex-row md:items-center"
+          controlsClassName="md:flex md:flex-nowrap md:items-center"
+          searchClassName="md:min-w-48 md:flex-1 md:max-w-none xl:max-w-none"
+          actionsClassName="md:w-auto"
           search={search}
           onSearchChange={setSearch}
           searchPlaceholder={
@@ -121,37 +161,13 @@ export function AdminAssignmentsPage() {
           }
           filters={
             <>
-              <Tabs
-                value={selectedRoleTab}
-                onValueChange={(value) => {
-                  setSelectedRoleTab(value as CourseMembershipRole)
-                  setSearch('')
-                }}
-              >
-                <TabsList className="h-9 p-1" aria-label="Assignment type">
-                  <TabsTrigger value="STUDENT" className="gap-2 px-3">
-                    <GraduationCapIcon className="size-4" />
-                    Students
-                    <Badge variant="secondary" className="h-4 min-w-5 px-1">
-                      {selectedCourse?.adminMetadata.studentCount ?? 0}
-                    </Badge>
-                  </TabsTrigger>
-                  <TabsTrigger value="INSTRUCTOR" className="gap-2 px-3">
-                    <UserCheckIcon className="size-4" />
-                    Doctors
-                    <Badge variant="secondary" className="h-4 min-w-5 px-1">
-                      {selectedCourse?.adminMetadata.instructorCount ?? 0}
-                    </Badge>
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
               <Select
                 value={courseId ?? null}
                 onValueChange={(value) => setSelectedCourseId(value ?? '')}
                 items={courseSelectItems}
               >
                 <SelectTrigger
-                  className="h-9 w-full max-w-full rounded-lg border-border/80 px-3 text-xs sm:w-80"
+                  className="h-9 w-full max-w-full rounded-lg border-border/80 px-3 text-xs md:w-72 lg:w-80"
                   aria-label="Course"
                 >
                   <SelectValue placeholder="Choose a course" />
@@ -173,6 +189,7 @@ export function AdminAssignmentsPage() {
                   type="button"
                   variant="outline"
                   size="sm"
+                  className="w-full sm:w-auto"
                   disabled={coursesQuery.isFetchingNextPage}
                   onClick={() => void coursesQuery.fetchNextPage()}
                 >

@@ -7,7 +7,7 @@ import {
   ScrollTextIcon,
   SettingsIcon,
   GraduationCapIcon,
-  StethoscopeIcon,
+  PresentationIcon,
 } from 'lucide-react'
 
 import { AuthenticatedSidebar } from '@/workspaces/_shared/authenticated-sidebar/authenticated-sidebar'
@@ -22,7 +22,7 @@ const navItems: readonly AuthenticatedSidebarNavItem[] = [
   { label: 'Dashboard', to: '/admin', icon: LayoutDashboardIcon, exact: true },
   { label: 'Assignments', to: '/admin/assignments', icon: ClipboardCheckIcon },
   { label: 'Students', to: '/admin/users/students', icon: GraduationCapIcon },
-  { label: 'Doctors', to: '/admin/users/doctors', icon: StethoscopeIcon },
+  { label: 'Instructor', to: '/admin/users/doctors', icon: PresentationIcon },
   { label: 'Courses', to: '/admin/courses', icon: BookOpenIcon },
   { label: 'Materials', to: '/admin/materials', icon: FileTextIcon },
   { label: 'Audit Logs', to: '/admin/audit', icon: ScrollTextIcon },
