@@ -97,7 +97,7 @@ export function StudentShell() {
           // gutters clear the left cluster. Framed mode reserves the same room
           // with its own `h-12` band instead.
           !framed && 'pt-16',
-          framed && 'md:rounded-t-2xl',
+          framed && 'md:rounded-t-2xl md:border-t md:border-sidebar-border',
         )}
       >
         <Outlet />

@@ -8,7 +8,11 @@ import { ThemeProvider } from '@/components/theme/theme-provider'
 export function AppProviders({ queryClient }: { queryClient: QueryClient }) {
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider defaultTheme="dark" storageKey="theme">
+      <ThemeProvider
+        defaultTheme="light"
+        defaultPalette="morshid"
+        storageKey="theme"
+      >
         <AuthRefreshSync />
         <Outlet />
       </ThemeProvider>

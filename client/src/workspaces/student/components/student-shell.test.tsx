@@ -120,6 +120,7 @@ describe('StudentShell top inset', () => {
 
     expect(floatingCluster).toBeNull()
     expect(outlet).not.toHaveClass('pt-16')
+    expect(outlet).toHaveClass('md:border-sidebar-border')
   })
 
   it('includes the Student Review Inbox control in the Student chrome', () => {

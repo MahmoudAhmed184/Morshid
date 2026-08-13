@@ -3,18 +3,28 @@ import { flushSync } from 'react-dom'
 import { ScriptOnce } from '@tanstack/react-router'
 
 export type ThemeMode = 'dark' | 'light' | 'system'
+export type ThemePalette =
+  | 'morshid'
+  | 'ocean-mist'
+  | 'slate-blue'
+  | 'lavender-gray'
+  | 'soft-mint'
+  | 'dusk'
 export type ThemeTransitionOrigin = { x: number; y: number }
 type ResolvedTheme = 'dark' | 'light'
 
 type ThemeProviderProps = {
   children: React.ReactNode
   defaultTheme?: ThemeMode
+  defaultPalette?: ThemePalette
   storageKey?: string
 }
 
 type ThemeProviderState = {
   theme: ThemeMode
+  palette: ThemePalette
   setTheme: (theme: ThemeMode, origin?: ThemeTransitionOrigin) => void
+  setPalette: (palette: ThemePalette, origin?: ThemeTransitionOrigin) => void
 }
 
 type ViewTransition = {
@@ -24,6 +34,17 @@ type ViewTransition = {
 
 function isThemeMode(value: unknown): value is ThemeMode {
   return value === 'light' || value === 'dark' || value === 'system'
+}
+
+function isThemePalette(value: unknown): value is ThemePalette {
+  return (
+    value === 'morshid' ||
+    value === 'ocean-mist' ||
+    value === 'slate-blue' ||
+    value === 'lavender-gray' ||
+    value === 'soft-mint' ||
+    value === 'dusk'
+  )
 }
 
 function getStoredTheme(
@@ -44,23 +65,40 @@ function resolveTheme(theme: ThemeMode): ResolvedTheme {
     : 'light'
 }
 
-function getThemeScript(storageKey: string, defaultTheme: ThemeMode) {
-  const key = JSON.stringify(storageKey)
-  const fallback = JSON.stringify(defaultTheme)
+function getStoredPalette(
+  storageKey: string,
+  defaultPalette: ThemePalette,
+): ThemePalette {
+  if (typeof window === 'undefined') return defaultPalette
 
-  return `(function(){try{var t=localStorage.getItem(${key});if(t!=='light'&&t!=='dark'&&t!=='system'){t=${fallback}}var d=matchMedia('(prefers-color-scheme: dark)').matches;var r=t==='system'?(d?'dark':'light'):t;var e=document.documentElement;e.classList.add(r);e.style.colorScheme=r}catch(e){}})();`
+  const stored = localStorage.getItem(`${storageKey}-palette`)
+  return isThemePalette(stored) ? stored : defaultPalette
+}
+
+function getThemeScript(
+  storageKey: string,
+  defaultTheme: ThemeMode,
+  defaultPalette: ThemePalette,
+) {
+  const key = JSON.stringify(storageKey)
+  const paletteKey = JSON.stringify(`${storageKey}-palette`)
+  const fallback = JSON.stringify(defaultTheme)
+  const paletteFallback = JSON.stringify(defaultPalette)
+
+  return `(function(){try{var t=localStorage.getItem(${key});if(t!=='light'&&t!=='dark'&&t!=='system'){t=${fallback}}var p=localStorage.getItem(${paletteKey});if(p!=='morshid'&&p!=='ocean-mist'&&p!=='slate-blue'&&p!=='lavender-gray'&&p!=='soft-mint'&&p!=='dusk'){p=${paletteFallback}}var d=matchMedia('(prefers-color-scheme: dark)').matches;var r=t==='system'?(d?'dark':'light'):t;var e=document.documentElement;e.classList.add(r);e.dataset.themePalette=p;e.style.colorScheme=r}catch(e){}})();`
 }
 
 const ThemeProviderContext = createContext<ThemeProviderState | undefined>(
   undefined,
 )
 
-function applyTheme(theme: ThemeMode) {
+function applyTheme(theme: ThemeMode, palette: ThemePalette) {
   const root = document.documentElement
   const resolved = resolveTheme(theme)
 
   root.classList.remove('light', 'dark')
   root.classList.add(resolved)
+  root.dataset.themePalette = palette
   root.style.colorScheme = resolved
 }
 
@@ -121,26 +159,30 @@ function runThemeTransition(
 
 export function ThemeProvider({
   children,
-  defaultTheme = 'system',
+  defaultTheme = 'light',
+  defaultPalette = 'morshid',
   storageKey = 'theme',
 }: ThemeProviderProps) {
   const [theme, setThemeState] = useState<ThemeMode>(() =>
     getStoredTheme(storageKey, defaultTheme),
   )
+  const [palette, setPaletteState] = useState<ThemePalette>(() =>
+    getStoredPalette(storageKey, defaultPalette),
+  )
 
   useEffect(() => {
-    applyTheme(theme)
-  }, [theme])
+    applyTheme(theme, palette)
+  }, [palette, theme])
 
   useEffect(() => {
     if (theme !== 'system') return
 
     const media = window.matchMedia('(prefers-color-scheme: dark)')
-    const onChange = () => applyTheme('system')
+    const onChange = () => applyTheme('system', palette)
 
     media.addEventListener('change', onChange)
     return () => media.removeEventListener('change', onChange)
-  }, [theme])
+  }, [palette, theme])
 
   const setTheme = (nextTheme: ThemeMode, origin?: ThemeTransitionOrigin) => {
     if (nextTheme === theme) return
@@ -158,14 +200,29 @@ export function ThemeProvider({
     }
 
     runThemeTransition(() => {
-      applyTheme(nextTheme)
+      applyTheme(nextTheme, palette)
       setThemeState(nextTheme)
     }, origin)
   }
 
+  const setPalette = (
+    nextPalette: ThemePalette,
+    origin?: ThemeTransitionOrigin,
+  ) => {
+    if (nextPalette === palette) return
+
+    localStorage.setItem(`${storageKey}-palette`, nextPalette)
+    runThemeTransition(() => {
+      applyTheme(theme, nextPalette)
+      setPaletteState(nextPalette)
+    }, origin)
+  }
+
   return (
-    <ThemeProviderContext value={{ theme, setTheme }}>
-      <ScriptOnce>{getThemeScript(storageKey, defaultTheme)}</ScriptOnce>
+    <ThemeProviderContext value={{ theme, palette, setTheme, setPalette }}>
+      <ScriptOnce>
+        {getThemeScript(storageKey, defaultTheme, defaultPalette)}
+      </ScriptOnce>
       {children}
     </ThemeProviderContext>
   )
