@@ -88,7 +88,7 @@ describe('TutoringRuntimeApplication diagnosis failure paths', () => {
         loadAnalysisContext: jest.fn(),
         listAnalysisHistoryCandidates: jest.fn(),
         countStudentMessages: jest.fn(),
-      } as never,
+      },
       new AutomaticSafetyRiskDetector(),
       new ControlledSourceConflictDetector(),
       new ResponseGovernance(),

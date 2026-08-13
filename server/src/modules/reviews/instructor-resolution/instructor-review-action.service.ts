@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
 import type { AuthenticatedUser } from '../../identity/identity.types'
-import { CourseAccessService } from '../../courses/course-access.public'
+import { CourseAccess } from '../../courses/interface/course-access'
 import type { AuditRequestContext } from '../../audit/audit.public'
 import type {
   InstructorReviewActionResponseDto,
@@ -25,7 +25,7 @@ import {
 export class InstructorReviewActionService {
   constructor(
     private readonly repository: InstructorReviewActionRepository,
-    private readonly courseAccessService: CourseAccessService,
+    private readonly courseAccess: CourseAccess,
   ) {}
 
   resolve(
@@ -75,7 +75,7 @@ export class InstructorReviewActionService {
     const courseId = await this.repository.findCourseId(input.reviewCaseId)
     if (
       courseId === null ||
-      !(await this.courseAccessService.canManageCourse(user, courseId))
+      !(await this.courseAccess.canManageCourse(user, courseId))
     ) {
       throw reviewNotFoundException()
     }

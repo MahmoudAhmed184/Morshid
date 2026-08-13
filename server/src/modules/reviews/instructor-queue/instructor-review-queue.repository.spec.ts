@@ -1,4 +1,4 @@
-import { CourseMembershipRole } from '../../courses/course-membership.types'
+import { CourseMembershipRole } from '../../courses/interface/course-membership-role'
 import {
   ReviewStatus,
   ReviewTriggerType,

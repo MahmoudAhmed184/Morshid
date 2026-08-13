@@ -1,5 +1,5 @@
 import { Prisma } from '../../generated/prisma/client'
-import { CourseMembershipRole } from '../courses/course-access.public'
+import { CourseMembershipRole } from '../courses/interface/course-membership-role'
 import type {
   ConversationAuthorizationInput,
   ConversationAuthorizationResult,

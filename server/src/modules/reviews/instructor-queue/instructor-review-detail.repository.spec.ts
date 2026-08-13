@@ -1,5 +1,5 @@
 import { MessageRole } from '../../conversations/interface/conversation-values'
-import { CourseMembershipRole } from '../../courses/course-membership.types'
+import { CourseMembershipRole } from '../../courses/interface/course-membership-role'
 import { ReviewStatus, ReviewTriggerType } from '../interface/review-values'
 import type { PrismaService } from '../../../platform/database/prisma.service'
 import { PrismaInstructorReviewDetailRepository } from './instructor-review-detail.repository'

@@ -1,3 +1,4 @@
+import type { DatabaseTransaction } from '../../../platform/database/database-transaction'
 import type { ChatMessageRecord } from './conversation-records'
 
 export type ConversationMessageRole = 'STUDENT' | 'ASSISTANT'
@@ -65,3 +66,22 @@ export interface ConversationStudentMessageCountInput {
 }
 
 export const CONVERSATION_ANALYSIS_HISTORY_LIMIT = 80
+
+export abstract class ConversationMessageReader {
+  abstract find(
+    input: ConversationMessageLookup & { readonly studentId?: string },
+    transaction?: DatabaseTransaction,
+  ): Promise<ChatMessageRecord | null>
+
+  abstract loadAnalysisContext(
+    input: ConversationAnalysisContextInput,
+  ): Promise<ConversationAnalysisContext | null>
+
+  abstract listAnalysisHistoryCandidates(
+    input: ConversationAnalysisHistoryInput,
+  ): Promise<ConversationAnalysisMessage[]>
+
+  abstract countStudentMessages(
+    input: ConversationStudentMessageCountInput,
+  ): Promise<number>
+}

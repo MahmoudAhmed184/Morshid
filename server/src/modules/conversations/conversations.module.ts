@@ -4,6 +4,8 @@ import { AuditModule } from '../audit/audit.module'
 import { IdentityModule } from '../identity/identity.module'
 import { PrismaModule } from '../../platform/database/prisma.module'
 import { ConversationTurns } from './interface/conversation-turns'
+import { ConversationAuthorization } from './interface/conversation-authorization'
+import { ConversationMessageReader } from './interface/conversation-message-reader'
 import { PrismaConversationTurns } from './prisma-conversation-turns'
 import { ConversationAuditService } from './conversation-audit.service'
 import {
@@ -17,7 +19,6 @@ import {
 import { ConversationsService } from './conversations.service'
 import { ConversationCourseBoundaryAudit } from './interface/conversation-course-boundary-audit'
 import { ConversationsController } from './conversations.controller'
-import { ConversationCourseBoundaryAuditFilter } from './interface/conversation-course-boundary-audit.filter'
 
 @Module({
   imports: [AuditModule, IdentityModule, PrismaModule],
@@ -28,9 +29,16 @@ import { ConversationCourseBoundaryAuditFilter } from './interface/conversation-
       provide: ConversationTurns,
       useExisting: PrismaConversationTurns,
     },
+    {
+      provide: ConversationAuthorization,
+      useExisting: PrismaConversationTurns,
+    },
+    {
+      provide: ConversationMessageReader,
+      useExisting: PrismaConversationTurns,
+    },
     ConversationAuditService,
     ConversationsService,
-    ConversationCourseBoundaryAuditFilter,
     {
       provide: ConversationCourseBoundaryAudit,
       useExisting: ConversationsService,
@@ -44,6 +52,11 @@ import { ConversationCourseBoundaryAuditFilter } from './interface/conversation-
       useClass: PrismaConversationMessageRepository,
     },
   ],
-  exports: [ConversationTurns, ConversationCourseBoundaryAudit],
+  exports: [
+    ConversationAuthorization,
+    ConversationMessageReader,
+    ConversationTurns,
+    ConversationCourseBoundaryAudit,
+  ],
 })
 export class ConversationsModule {}

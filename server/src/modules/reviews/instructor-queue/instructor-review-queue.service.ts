@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
 import { ReviewStatus } from '../interface/review-values'
-import { CourseAccessService } from '../../courses/course-access.public'
+import { CourseAccess } from '../../courses/interface/course-access'
 import type { AuthenticatedUser } from '../../identity/identity.types'
 import { reviewNotFoundException } from '../review-case.errors'
 import type {
@@ -14,7 +14,7 @@ import { InstructorReviewQueueRepository } from './instructor-review-queue.repos
 export class InstructorReviewQueueService {
   constructor(
     private readonly repository: InstructorReviewQueueRepository,
-    private readonly courseAccessService: CourseAccessService,
+    private readonly courseAccess: CourseAccess,
   ) {}
 
   async list(
@@ -24,7 +24,7 @@ export class InstructorReviewQueueService {
   ): Promise<InstructorReviewQueueResponseDto> {
     if (
       query.courseId !== undefined &&
-      !(await this.courseAccessService.canManageCourse(user, query.courseId))
+      !(await this.courseAccess.canManageCourse(user, query.courseId))
     ) {
       throw reviewNotFoundException()
     }

@@ -4,6 +4,7 @@ import { IdentityModule } from '../identity/identity.module'
 import { PrismaModule } from '../../platform/database/prisma.module'
 import { AuditModule } from '../audit/audit.module'
 import { CourseAccessService } from './course-access.service'
+import { CourseAccess } from './interface/course-access'
 import { PrismaActiveCourseMembership } from './active-course-membership'
 import { ActiveCourseMembership } from './interface/active-course-membership'
 import { CourseAudit } from './course-audit'
@@ -25,6 +26,10 @@ import { CoursesService } from './courses.service'
     CourseAdministrationService,
     CourseAudit,
     {
+      provide: CourseAccess,
+      useExisting: CourseAccessService,
+    },
+    {
       provide: ActiveCourseMembership,
       useClass: PrismaActiveCourseMembership,
     },
@@ -33,6 +38,6 @@ import { CoursesService } from './courses.service'
       useClass: PrismaCoursesRepository,
     },
   ],
-  exports: [ActiveCourseMembership, CourseAccessService, CoursesRepository],
+  exports: [ActiveCourseMembership, CourseAccess],
 })
 export class CoursesModule {}

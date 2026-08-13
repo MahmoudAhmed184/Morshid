@@ -8,7 +8,7 @@ import {
 import {
   CourseMembershipRole,
   type CourseMembershipRole as CourseMembershipRoleValue,
-} from './course-membership.types'
+} from './interface/course-membership-role'
 import {
   CoursesRepository,
   type AddCourseMemberInput,

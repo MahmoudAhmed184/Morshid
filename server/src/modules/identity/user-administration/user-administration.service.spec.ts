@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common'
 
-import { CourseMembershipRole } from '../../courses/course-membership.types'
+import { CourseMembershipRole } from '../../courses/interface/course-membership-role'
 import type { AuthenticatedUser } from '../../identity/identity.types'
 import type { IdentityUser } from '../../identity/identity-user'
 import { UserRole, UserStatus } from '../../identity/identity.roles'

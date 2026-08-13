@@ -23,7 +23,10 @@ import {
   type FinalizeConversationMessageInput,
   type FinalizedMessage,
 } from './interface/conversation-turns'
-import type { ConversationAuthorizationInput } from './interface/conversation-authorization'
+import {
+  ConversationAuthorization,
+  type ConversationAuthorizationInput,
+} from './interface/conversation-authorization'
 import type {
   ConversationAnalysisContext,
   ConversationAnalysisContextInput,
@@ -32,7 +35,10 @@ import type {
   ConversationStudentMessageCountInput,
   ConversationMessageLookup,
 } from './interface/conversation-message-reader'
-import { CONVERSATION_ANALYSIS_HISTORY_LIMIT } from './interface/conversation-message-reader'
+import {
+  CONVERSATION_ANALYSIS_HISTORY_LIMIT,
+  ConversationMessageReader,
+} from './interface/conversation-message-reader'
 import { PrismaService } from '../../platform/database/prisma.service'
 import {
   chatMessageScalarSelect,
@@ -40,7 +46,10 @@ import {
 } from './conversation-repository.support'
 
 @Injectable()
-export class PrismaConversationTurns extends ConversationTurns {
+export class PrismaConversationTurns
+  extends ConversationTurns
+  implements ConversationAuthorization, ConversationMessageReader
+{
   constructor(private readonly prismaService: PrismaService) {
     super()
   }

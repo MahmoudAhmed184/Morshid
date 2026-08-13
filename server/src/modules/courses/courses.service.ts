@@ -1,6 +1,6 @@
 import { ForbiddenException, Injectable } from '@nestjs/common'
 
-import { CourseMembershipRole } from './course-membership.types'
+import { CourseMembershipRole } from './interface/course-membership-role'
 import { UserRole } from '../identity/identity.roles'
 import type { AuthenticatedUser } from '../identity/identity.types'
 import { getCourseRolePolicy } from './course-access.policy'

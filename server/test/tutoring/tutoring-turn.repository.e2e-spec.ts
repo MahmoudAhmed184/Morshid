@@ -54,6 +54,8 @@ describe('Tutoring turn repository (e2e)', () => {
     repository = new PrismaTutoringTurnRepository(
       prisma,
       conversationTurns,
+      conversationTurns,
+      conversationTurns,
       reviewCaseIntake,
       new AuditService(prisma),
     )
@@ -816,6 +818,8 @@ describe('Tutoring turn repository (e2e)', () => {
     const ambiguousBegin = new PrismaTutoringTurnRepository(
       loseNextTransactionAcknowledgement(prisma),
       conversationTurns,
+      conversationTurns,
+      conversationTurns,
       reviewCaseIntake,
       new AuditService(prisma),
     )
@@ -843,6 +847,8 @@ describe('Tutoring turn repository (e2e)', () => {
     const ambiguousRetry = new PrismaTutoringTurnRepository(
       loseNextTransactionAcknowledgement(prisma),
       conversationTurns,
+      conversationTurns,
+      conversationTurns,
       reviewCaseIntake,
       new AuditService(prisma),
     )
@@ -863,6 +869,8 @@ describe('Tutoring turn repository (e2e)', () => {
     )
     const ambiguousComplete = new PrismaTutoringTurnRepository(
       loseNextTransactionAcknowledgement(prisma),
+      conversationTurns,
+      conversationTurns,
       conversationTurns,
       reviewCaseIntake,
       new AuditService(prisma),
@@ -904,6 +912,8 @@ describe('Tutoring turn repository (e2e)', () => {
     }
     const intermittentlyUnavailable = new PrismaTutoringTurnRepository(
       loseAcknowledgementAndFirstReconciliation(prisma),
+      conversationTurns,
+      conversationTurns,
       conversationTurns,
       reviewCaseIntake,
       new AuditService(prisma),

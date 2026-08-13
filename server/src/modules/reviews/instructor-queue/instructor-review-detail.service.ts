@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common'
 
 import { MessageRole } from '../../conversations/interface/conversation-values'
 import { ReviewMessageRole } from '../interface/review-values'
-import { CourseAccessService } from '../../courses/course-access.public'
+import { CourseAccess } from '../../courses/interface/course-access'
 import type { AuthenticatedUser } from '../../identity/identity.types'
 import { reviewNotFoundException } from '../review-case.errors'
 import type {
@@ -20,7 +20,7 @@ const MAX_EXCERPT_CODE_POINTS = 500
 export class InstructorReviewDetailService {
   constructor(
     private readonly repository: InstructorReviewDetailRepository,
-    private readonly courseAccessService: CourseAccessService,
+    private readonly courseAccess: CourseAccess,
   ) {}
 
   async get(
@@ -30,7 +30,7 @@ export class InstructorReviewDetailService {
     const courseId = await this.repository.findCourseId(reviewCaseId)
     if (
       courseId === null ||
-      !(await this.courseAccessService.canManageCourse(user, courseId))
+      !(await this.courseAccess.canManageCourse(user, courseId))
     ) {
       throw reviewNotFoundException()
     }

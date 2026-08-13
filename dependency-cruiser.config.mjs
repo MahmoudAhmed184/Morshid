@@ -185,14 +185,14 @@ export default {
     {
       name: 'courses-interface-only',
       comment:
-        'Product modules may consume Courses only through its module or course-access interface.',
+        'Product modules may consume Courses only through its module or named interfaces.',
       severity: 'error',
       from: {
         path: '^server/src/(?:app\\.module\\.ts|common/|modules/(?!courses(?:/|$)))',
         pathNot: testPath,
       },
       to: {
-        path: '^server/src/modules/courses/(?!courses\\.module\\.ts$|course-access\\.public\\.ts$|interface/)',
+        path: '^server/src/modules/courses/(?!courses\\.module\\.ts$|interface/)',
       },
     },
     {

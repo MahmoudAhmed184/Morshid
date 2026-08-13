@@ -9,7 +9,7 @@ import {
 
 import type { AuditRequestContext } from '../../audit/audit.public'
 import type { AuthenticatedUser } from '../../identity/identity.types'
-import { CourseAccessService } from '../../courses/course-access.public'
+import { CourseAccess } from '../../courses/interface/course-access'
 import {
   PDF_STORAGE,
   type PdfStorage,
@@ -40,7 +40,7 @@ import {
 export class MaterialsService {
   constructor(
     private readonly materialsRepository: MaterialsRepository,
-    private readonly courseAccessService: CourseAccessService,
+    private readonly courseAccess: CourseAccess,
     private readonly pdfUploadValidator: PdfUploadValidator,
     private readonly materialsAuditService: MaterialsAuditService,
     private readonly materialProcessingScheduler: MaterialProcessingScheduler,
@@ -281,11 +281,10 @@ export class MaterialsService {
     courseId: string,
     actor: AuthenticatedUser,
   ): Promise<'ALLOWED' | 'COURSE_NOT_FOUND' | 'COURSE_MANAGEMENT_REQUIRED'> {
-    const access =
-      await this.courseAccessService.authorizeCourseMaterialManagement(
-        actor,
-        courseId,
-      )
+    const access = await this.courseAccess.authorizeCourseMaterialManagement(
+      actor,
+      courseId,
+    )
 
     if (access.allowed) {
       return 'ALLOWED'

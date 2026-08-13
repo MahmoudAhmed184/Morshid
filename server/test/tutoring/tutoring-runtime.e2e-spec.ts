@@ -262,10 +262,13 @@ describe('Authorized tutoring runtime (e2e)', () => {
       Promise.resolve(availableStoragePaths.has(storagePath)),
     )
 
+    const conversationAdapter = new PrismaConversationTurns(prisma)
     turnRepository = new ControllableTutoringTurnRepository(
       new PrismaTutoringTurnRepository(
         prisma,
-        new PrismaConversationTurns(prisma),
+        conversationAdapter,
+        conversationAdapter,
+        conversationAdapter,
         new PrismaReviewCaseIntake(
           new PrismaReviewCaseRepository(
             prisma,

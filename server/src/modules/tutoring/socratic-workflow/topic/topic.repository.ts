@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
 import { Prisma } from '../../../../generated/prisma/client'
-import { ConversationTurns } from '../../../conversations/interface/conversation-turns'
+import { ConversationMessageReader } from '../../../conversations/interface/conversation-message-reader'
 import { PrismaService } from '../../../../platform/database/prisma.service'
 import { TopicStatus, TopicType } from '../../tutoring-values'
 import type {
@@ -89,7 +89,7 @@ const topicSelect = {
 export class PrismaTopicRepository extends TopicRepository {
   constructor(
     private readonly prismaService: PrismaService,
-    private readonly conversationTurns: ConversationTurns,
+    private readonly conversationMessages: ConversationMessageReader,
   ) {
     super()
   }
@@ -340,7 +340,7 @@ export class PrismaTopicRepository extends TopicRepository {
   }
 
   countMessagesByIds(scope: TopicScope, messageIds: string[]): Promise<number> {
-    return this.conversationTurns.countStudentMessages({
+    return this.conversationMessages.countStudentMessages({
       sessionId: scope.sessionId,
       messageIds,
     })

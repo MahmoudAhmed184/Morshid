@@ -12,7 +12,6 @@ import {
   Query,
   Req,
   SerializeOptions,
-  UseFilters,
   UseInterceptors,
 } from '@nestjs/common'
 import {
@@ -40,7 +39,6 @@ import { ZodValidationPipe } from '../../common/http/zod-validation.pipe'
 import { getRequestContext } from '../../common/http/request-context'
 import type { AuthenticatedHttpRequest } from '../identity/identity.guard'
 import { Roles, UserRole } from '../identity/identity.roles'
-import { ConversationCourseBoundaryAuditFilter } from './interface/conversation-course-boundary-audit.filter'
 import {
   ChatMessageHistoryResponseDto,
   ChatSessionListResponseDto,
@@ -95,7 +93,6 @@ const sessionIdParam = () => ApiParam({ name: 'sessionId', format: 'uuid' })
 @Roles(UserRole.STUDENT)
 @ApiAccessTokenAuth()
 @ApiExtraModels(OpenApiValidationErrorDto, NestBadRequestErrorDto)
-@UseFilters(ConversationCourseBoundaryAuditFilter)
 @UseInterceptors(ClassSerializerInterceptor)
 export class ConversationsController {
   constructor(private readonly conversationsService: ConversationsService) {}
