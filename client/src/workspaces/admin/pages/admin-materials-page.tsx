@@ -1,9 +1,11 @@
-import { EyeIcon, FileTextIcon } from 'lucide-react'
+import { EyeIcon, FileTextIcon, Trash2Icon } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { DataTableState } from '@/components/ui/custom/data-table-state'
+import { ConfirmDialog } from '@/components/ui/custom/confirm-dialog'
 import { DataToolbar } from '@/components/ui/custom/data-toolbar'
+import { LoadMoreButton } from '@/components/ui/custom/load-more-button'
 import {
   Dialog,
   DialogContent,
@@ -47,7 +49,8 @@ export function AdminMaterialsPage() {
   const coursesQuery = useCourseAdministration()
   const courseId = selectedCourseId || coursesQuery.data?.[0]?.id
   const materialsQuery = useMaterialAdministration(courseId)
-  const { editMaterial } = useCourseAdministrationMutations(courseId)
+  const { deleteMaterial, editMaterial } =
+    useCourseAdministrationMutations(courseId)
   const selectedCourse = coursesQuery.data?.find(
     (course) => course.id === courseId,
   )
@@ -77,29 +80,44 @@ export function AdminMaterialsPage() {
         <DataToolbar
           className="border-b px-4 py-3"
           filters={
-            <Select
-              value={courseId ?? null}
-              onValueChange={(value) => setSelectedCourseId(value ?? '')}
-              items={courseSelectItems}
-            >
-              <SelectTrigger
-                className="h-9 px-3 text-xs rounded-lg border-border/80 w-full sm:w-80 max-w-full"
-                aria-label="Course"
+            <>
+              <Select
+                value={courseId ?? null}
+                onValueChange={(value) => setSelectedCourseId(value ?? '')}
+                items={courseSelectItems}
               >
-                <SelectValue placeholder="Choose a course" />
-              </SelectTrigger>
-              <SelectContent>
-                {courseSelectItems.map((course) => (
-                  <SelectItem
-                    key={course.value}
-                    value={course.value}
-                    className="text-xs py-1.5"
-                  >
-                    {course.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <SelectTrigger
+                  className="h-9 px-3 text-xs rounded-lg border-border/80 w-full sm:w-80 max-w-full"
+                  aria-label="Course"
+                >
+                  <SelectValue placeholder="Choose a course" />
+                </SelectTrigger>
+                <SelectContent>
+                  {courseSelectItems.map((course) => (
+                    <SelectItem
+                      key={course.value}
+                      value={course.value}
+                      className="text-xs py-1.5"
+                    >
+                      {course.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {coursesQuery.hasNextPage ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={coursesQuery.isFetchingNextPage}
+                  onClick={() => void coursesQuery.fetchNextPage()}
+                >
+                  {coursesQuery.isFetchingNextPage
+                    ? 'Loading…'
+                    : 'More courses'}
+                </Button>
+              ) : null}
+            </>
           }
         />
         <DataTableState
@@ -156,6 +174,11 @@ export function AdminMaterialsPage() {
                         title,
                       })
                     }
+                  />
+                  <MaterialDeleteAction
+                    material={material}
+                    isPending={deleteMaterial.isPending}
+                    onDelete={() => deleteMaterial.mutateAsync(material.id)}
                   />
                 </div>
               </div>
@@ -228,6 +251,13 @@ export function AdminMaterialsPage() {
                     </TableCell>
                     <TableCell className="px-4 py-3.5 last:pr-6">
                       <div className="flex items-center gap-1">
+                        <MaterialDeleteAction
+                          material={material}
+                          isPending={deleteMaterial.isPending}
+                          onDelete={() =>
+                            deleteMaterial.mutateAsync(material.id)
+                          }
+                        />
                         <Button
                           type="button"
                           variant="ghost"
@@ -255,6 +285,12 @@ export function AdminMaterialsPage() {
               </TableBody>
             </Table>
           </div>
+          <LoadMoreButton
+            hasNextPage={materialsQuery.hasNextPage}
+            isFetchingNextPage={materialsQuery.isFetchingNextPage}
+            onLoadMore={() => void materialsQuery.fetchNextPage()}
+            label="Load more materials"
+          />
         </DataTableState>
       </AdminPanel>
 
@@ -340,5 +376,38 @@ export function AdminMaterialsPage() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+function MaterialDeleteAction({
+  material,
+  isPending,
+  onDelete,
+}: {
+  material: MaterialAdministration
+  isPending: boolean
+  onDelete: () => Promise<unknown>
+}) {
+  return (
+    <ConfirmDialog
+      trigger={
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          disabled={isPending}
+          aria-label={`Delete ${material.title}`}
+          className="text-muted-foreground hover:text-destructive"
+        >
+          <Trash2Icon className="size-4" />
+        </Button>
+      }
+      title={`Delete ${material.title}?`}
+      description="This material will no longer be available in the course."
+      confirmLabel="Delete material"
+      onConfirm={async () => {
+        await onDelete()
+      }}
+    />
   )
 }

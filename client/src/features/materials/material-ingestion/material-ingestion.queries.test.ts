@@ -39,8 +39,14 @@ function listPollingIntervalFor(
   }
 
   return refetchInterval({
-    state: { data: [material(status)], error },
-  } as Parameters<typeof refetchInterval>[0])
+    state: {
+      data: {
+        pages: [{ materials: [material(status)] }],
+        pageParams: [undefined],
+      },
+      error,
+    },
+  } as unknown as Parameters<typeof refetchInterval>[0])
 }
 
 describe('Instructor material query options', () => {

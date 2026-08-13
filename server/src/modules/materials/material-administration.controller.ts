@@ -7,6 +7,7 @@ import {
   Patch,
   Body,
   Req,
+  Query,
   SerializeOptions,
   UseInterceptors,
 } from '@nestjs/common'
@@ -36,6 +37,10 @@ import {
   type UpdateMaterialAdministrationRequest,
 } from './material-administration.types'
 import { invalidMaterialsRequestException } from './materials.errors'
+import {
+  listMaterialsQuerySchema,
+  type ListMaterialsQuery,
+} from './materials.dto'
 import { MaterialsService } from './materials.service'
 
 @Controller('admin/courses/:courseId/materials')
@@ -59,10 +64,22 @@ export class MaterialAdministrationController {
   listMaterials(
     @Param('courseId', new ParseUUIDPipe({ version: '4' })) courseId: string,
     @Req() request: AuthenticatedHttpRequest,
+    @Query(
+      new ZodValidationPipe(listMaterialsQuerySchema, (issues) =>
+        invalidMaterialsRequestException(
+          issues.map((issue) => ({
+            field: issue.path.join('.') || 'query',
+            message: issue.message,
+          })),
+        ),
+      ),
+    )
+    query: ListMaterialsQuery,
   ): Promise<MaterialAdministrationListResponseDto> {
     return this.materialsService.listMaterialsForAdministration(
       courseId,
       request.user,
+      query,
     )
   }
 

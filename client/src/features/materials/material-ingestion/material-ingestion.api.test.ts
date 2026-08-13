@@ -29,7 +29,7 @@ describe('Instructor materials API', () => {
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         expect(String(input)).toBe(
-          `http://localhost:4000/api/v1/courses/${courseId}/materials`,
+          `http://localhost:4000/api/v1/courses/${courseId}/materials?limit=25`,
         )
         expect(init?.method).toBe('GET')
 

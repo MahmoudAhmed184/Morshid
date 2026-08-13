@@ -1,4 +1,7 @@
-import { apiJson } from '@/features/auth/session/interface/authenticated-api-client'
+import {
+  apiFetch,
+  apiJson,
+} from '@/features/auth/session/interface/authenticated-api-client'
 import type { ApiFetchOptions } from '@/features/auth/session/interface/authenticated-api-client'
 import {
   materialResponseSchema,
@@ -15,9 +18,13 @@ import type {
 export async function listCourseMaterials(
   courseId: string,
   options: ApiFetchOptions = {},
+  input: { cursor?: string; search?: string } = {},
 ): Promise<MaterialsResponse> {
+  const parameters = new URLSearchParams({ limit: '25' })
+  if (input.cursor) parameters.set('cursor', input.cursor)
+  if (input.search) parameters.set('search', input.search)
   const response = await apiJson<unknown>(
-    `/api/v1/courses/${courseId}/materials`,
+    `/api/v1/courses/${courseId}/materials?${parameters}`,
     { ...options, method: 'GET' },
   )
 
@@ -54,4 +61,15 @@ export async function uploadCourseMaterial(
   )
 
   return materialResponseSchema.parse(response)
+}
+
+export async function deleteCourseMaterial(
+  courseId: string,
+  materialId: string,
+  options: ApiFetchOptions = {},
+) {
+  await apiFetch(`/api/v1/courses/${courseId}/materials/${materialId}`, {
+    ...options,
+    method: 'DELETE',
+  })
 }

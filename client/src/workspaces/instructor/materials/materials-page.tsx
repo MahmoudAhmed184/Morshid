@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/custom/empty-state'
 import { ErrorState } from '@/components/ui/custom/error-state'
 import { PageHeader } from '@/components/ui/custom/page-header'
+import { LoadMoreButton } from '@/components/ui/custom/load-more-button'
 import { SearchInput } from '@/components/ui/custom/search-input'
 import { StatCard } from '@/components/ui/custom/stat-card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -29,6 +30,7 @@ import { summarizeMaterials } from '@/features/materials/material-catalog/summar
 import { useCourseMembership } from '@/workspaces/instructor/use-course-membership'
 import {
   useCourseMaterials,
+  useDeleteCourseMaterial,
   useMaterialUploadConfiguration,
 } from '@/workspaces/instructor/materials/use-materials'
 import type { Material } from '@/features/materials/material-ingestion/material.schema'
@@ -47,6 +49,7 @@ export function MaterialsPage() {
     courses.find((course) => course.id === selectedCourseId) ?? courses.at(0)
   const activeCourseId = selectedCourse?.id
   const materialsQuery = useCourseMaterials(activeCourseId)
+  const deleteMaterial = useDeleteCourseMaterial()
   const materials = materialsQuery.data ?? []
   const normalizedSearch = search.trim().toLowerCase()
   const filteredMaterials = normalizedSearch
@@ -158,6 +161,16 @@ export function MaterialsPage() {
 
               void materialsQuery.refetch()
             }}
+            onDelete={(materialId) => {
+              if (!activeCourseId) return Promise.resolve()
+              return deleteMaterial.mutateAsync({
+                courseId: activeCourseId,
+                materialId,
+              })
+            }}
+            hasNextPage={materialsQuery.hasNextPage}
+            isFetchingNextPage={materialsQuery.isFetchingNextPage}
+            onLoadMore={() => void materialsQuery.fetchNextPage()}
           />
         </CardContent>
       </Card>
@@ -271,6 +284,10 @@ function MaterialsContent({
   isRetrying,
   hasRefreshError,
   onRetry,
+  onDelete,
+  hasNextPage,
+  isFetchingNextPage,
+  onLoadMore,
 }: {
   isLoading: boolean
   isError: boolean
@@ -280,6 +297,10 @@ function MaterialsContent({
   isRetrying: boolean
   hasRefreshError: boolean
   onRetry: () => void
+  onDelete: (materialId: string) => Promise<unknown>
+  hasNextPage: boolean
+  isFetchingNextPage: boolean
+  onLoadMore: () => void
 }) {
   if (isLoading) {
     return <InstructorListSkeleton aria-label="Loading materials" rows={5} />
@@ -346,9 +367,19 @@ function MaterialsContent({
       ) : null}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {materials.map((material) => (
-          <MaterialCard key={material.id} material={material} />
+          <MaterialCard
+            key={material.id}
+            material={material}
+            onDelete={() => onDelete(material.id)}
+          />
         ))}
       </div>
+      <LoadMoreButton
+        hasNextPage={hasNextPage}
+        isFetchingNextPage={isFetchingNextPage}
+        onLoadMore={onLoadMore}
+        label="Load more materials"
+      />
     </>
   )
 }

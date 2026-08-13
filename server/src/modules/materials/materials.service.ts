@@ -9,6 +9,7 @@ import {
 
 import type { AuditRequestContext } from '../audit/audit.public'
 import type { AuthenticatedUser } from '../identity/identity.types'
+import { UserRole } from '../identity/identity.roles'
 import { CourseAccessService } from '../courses/course-access.public'
 import {
   PDF_STORAGE,
@@ -19,6 +20,7 @@ import {
   mapMaterialStatusRecord,
   mapMaterialRecord,
   type MaterialListResponseDto,
+  type ListMaterialsQuery,
   type MaterialResponseDto,
   type MaterialStatusDto,
 } from './materials.dto'
@@ -125,7 +127,7 @@ export class MaterialsService {
       })
 
       return {
-        material: mapMaterialRecord(material),
+        material: mapMaterialRecord(material, true),
       }
     } catch (error) {
       const cleanupErrors = await this.cleanupPartialUpload(
@@ -163,14 +165,23 @@ export class MaterialsService {
   async listMaterials(
     courseId: string,
     actor: AuthenticatedUser,
+    query: ListMaterialsQuery = { limit: 25 },
   ): Promise<MaterialListResponseDto> {
     await this.requireCourseMaterialManagement(courseId, actor)
 
-    const materials =
-      await this.materialsRepository.listCourseMaterials(courseId)
+    const page = await this.materialsRepository.listCourseMaterialsPage(
+      courseId,
+      query,
+    )
 
     return {
-      materials: materials.map(mapMaterialRecord),
+      materials: page.materials.map((material) =>
+        mapMaterialRecord(
+          material,
+          actor.role === UserRole.ADMIN || material.uploadedById === actor.id,
+        ),
+      ),
+      ...(page.nextCursor !== undefined ? { nextCursor: page.nextCursor } : {}),
     }
   }
 
@@ -191,7 +202,10 @@ export class MaterialsService {
     }
 
     return {
-      material: mapMaterialRecord(material),
+      material: mapMaterialRecord(
+        material,
+        actor.role === UserRole.ADMIN || material.uploadedById === actor.id,
+      ),
     }
   }
 
@@ -217,14 +231,19 @@ export class MaterialsService {
   async listMaterialsForAdministration(
     courseId: string,
     actor: AuthenticatedUser,
+    query: ListMaterialsQuery = { limit: 25 },
   ): Promise<MaterialAdministrationListResponseDto> {
     await this.requireCourseMaterialManagement(courseId, actor)
 
-    const materials =
-      await this.materialsRepository.listMaterialsForAdministration(courseId)
+    const page =
+      await this.materialsRepository.listMaterialsForAdministrationPage(
+        courseId,
+        query,
+      )
 
     return {
-      materials: materials.map(mapMaterialAdministrationRecord),
+      materials: page.materials.map(mapMaterialAdministrationRecord),
+      ...(page.nextCursor !== undefined ? { nextCursor: page.nextCursor } : {}),
     }
   }
 
@@ -275,6 +294,31 @@ export class MaterialsService {
     return {
       material: mapMaterialAdministrationRecord(material),
     }
+  }
+
+  async deleteMaterial(
+    courseId: string,
+    materialId: string,
+    actor: AuthenticatedUser,
+    requestContext?: AuditRequestContext,
+  ): Promise<void> {
+    await this.requireCourseMaterialManagement(courseId, actor)
+    const material = await this.materialsRepository.findCourseMaterial(
+      courseId,
+      materialId,
+    )
+    if (material === null) throw materialNotFoundException()
+    if (actor.role !== UserRole.ADMIN && material.uploadedById !== actor.id) {
+      throw materialDeleteForbiddenException()
+    }
+
+    const deleted = await this.materialsRepository.softDeleteMaterial({
+      courseId,
+      materialId,
+      actorUserId: actor.id,
+      requestContext,
+    })
+    if (deleted === null) throw materialNotFoundException()
   }
 
   private async getCourseMaterialManagementAccess(
@@ -397,5 +441,13 @@ function materialNotFoundException() {
   return new NotFoundException({
     code: MATERIALS_ERROR_CODES.MATERIAL_NOT_FOUND,
     message: 'Material was not found',
+  })
+}
+
+function materialDeleteForbiddenException() {
+  return new ForbiddenException({
+    code: MATERIALS_ERROR_CODES.MATERIAL_DELETE_FORBIDDEN,
+    message:
+      'Only an administrator or the doctor who uploaded this material may delete it',
   })
 }

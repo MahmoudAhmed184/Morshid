@@ -112,7 +112,13 @@ describe('Instructor material hooks', () => {
     })
 
     await waitFor(() => expect(result.current.data).toEqual([material]))
-    expect(listCourseMaterialsMock).toHaveBeenCalledWith(courseId)
+    expect(listCourseMaterialsMock).toHaveBeenCalledWith(
+      courseId,
+      {},
+      {
+        cursor: undefined,
+      },
+    )
   })
 
   it('loads the server-derived PDF upload configuration once', async () => {
@@ -208,7 +214,9 @@ describe('Instructor material hooks', () => {
       expect(listCourseMaterialsMock).toHaveBeenCalledTimes(2),
     )
     await vi.waitFor(() => expect(result.current.isRefetchError).toBe(true))
-    expect(result.current.error?.message).toBe('polling unavailable')
+    expect((result.current.error as Error | null)?.message).toBe(
+      'polling unavailable',
+    )
 
     await act(async () => {
       await result.current.refetch()

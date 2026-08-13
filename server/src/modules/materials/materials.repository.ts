@@ -25,6 +25,7 @@ export type SafeMaterialRecord = Pick<
   | 'errorMessage'
   | 'createdAt'
   | 'updatedAt'
+  | 'uploadedById'
 >
 
 export type MaterialStatusRecord = Pick<
@@ -53,6 +54,58 @@ export interface MaterialAdministrationRecord {
   createdAt: Date
 }
 
+export interface MaterialPageInput {
+  limit: number
+  cursor?: string
+  search?: string
+}
+
+export interface MaterialPage<T> {
+  materials: T[]
+  nextCursor?: string
+}
+
+function paginateMaterials<T extends { id: string; title: string }>(
+  materials: T[],
+  input: MaterialPageInput,
+): MaterialPage<T> {
+  const normalizedSearch = input.search?.toLocaleLowerCase()
+  const filtered = materials.filter(
+    (material) =>
+      normalizedSearch === undefined ||
+      material.title.toLocaleLowerCase().includes(normalizedSearch),
+  )
+  const start =
+    input.cursor !== undefined
+      ? Math.max(
+          filtered.findIndex((material) => material.id === input.cursor) + 1,
+          0,
+        )
+      : 0
+  const pageMaterials = filtered.slice(start, start + input.limit)
+  const hasNextPage = start + input.limit < filtered.length
+
+  return {
+    materials: pageMaterials,
+    ...(hasNextPage
+      ? { nextCursor: pageMaterials[pageMaterials.length - 1]?.id }
+      : {}),
+  }
+}
+
+function materialPageFromRows<T extends { id: string }>(
+  rows: T[],
+  limit: number,
+): MaterialPage<T> {
+  const hasNextPage = rows.length > limit
+  const materials = hasNextPage ? rows.slice(0, limit) : rows
+
+  return {
+    materials,
+    ...(hasNextPage ? { nextCursor: materials[materials.length - 1]?.id } : {}),
+  }
+}
+
 export abstract class MaterialsRepository {
   protected abstract readonly repositoryName: string
 
@@ -61,6 +114,13 @@ export abstract class MaterialsRepository {
   ): Promise<SafeMaterialRecord>
 
   abstract listCourseMaterials(courseId: string): Promise<SafeMaterialRecord[]>
+
+  async listCourseMaterialsPage(
+    courseId: string,
+    input: MaterialPageInput,
+  ): Promise<MaterialPage<SafeMaterialRecord>> {
+    return paginateMaterials(await this.listCourseMaterials(courseId), input)
+  }
 
   abstract findCourseMaterial(
     courseId: string,
@@ -75,6 +135,16 @@ export abstract class MaterialsRepository {
   abstract listMaterialsForAdministration(
     courseId: string,
   ): Promise<MaterialAdministrationRecord[]>
+
+  async listMaterialsForAdministrationPage(
+    courseId: string,
+    input: MaterialPageInput,
+  ): Promise<MaterialPage<MaterialAdministrationRecord>> {
+    return paginateMaterials(
+      await this.listMaterialsForAdministration(courseId),
+      input,
+    )
+  }
 
   abstract findMaterialForAdministration(
     courseId: string,
@@ -106,6 +176,10 @@ export abstract class MaterialsRepository {
   abstract markUploadCleanupRequired(materialId: string): Promise<void>
 
   abstract deleteMaterial(materialId: string): Promise<void>
+
+  abstract softDeleteMaterial(
+    input: DeleteMaterialInput,
+  ): Promise<SafeMaterialRecord | null>
 }
 
 export interface CreateProcessingMaterialInput {
@@ -137,6 +211,13 @@ export interface UpdateMaterialForAdministrationInput {
   requestContext?: AuditRequestContext
 }
 
+export interface DeleteMaterialInput {
+  courseId: string
+  materialId: string
+  actorUserId: string
+  requestContext?: AuditRequestContext
+}
+
 export interface CompleteMaterialProcessingInput {
   status: 'READY' | 'WARNING'
   extractedTextLength: number
@@ -163,6 +244,7 @@ const safeMaterialSelect = {
   errorMessage: true,
   createdAt: true,
   updatedAt: true,
+  uploadedById: true,
 } satisfies Prisma.MaterialSelect
 
 const materialStatusSelect = {
@@ -232,6 +314,30 @@ export class PrismaMaterialsRepository extends MaterialsRepository {
     })
   }
 
+  async listCourseMaterialsPage(
+    courseId: string,
+    input: MaterialPageInput,
+  ): Promise<MaterialPage<SafeMaterialRecord>> {
+    const materials = await this.prismaService.material.findMany({
+      where: {
+        courseId,
+        deletedAt: null,
+        ...(input.search !== undefined
+          ? {
+              title: { contains: input.search, mode: 'insensitive' },
+            }
+          : {}),
+      },
+      select: safeMaterialSelect,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: input.limit + 1,
+      ...(input.cursor !== undefined
+        ? { cursor: { id: input.cursor }, skip: 1 }
+        : {}),
+    })
+    return materialPageFromRows(materials, input.limit)
+  }
+
   findCourseMaterial(
     courseId: string,
     materialId: string,
@@ -268,6 +374,28 @@ export class PrismaMaterialsRepository extends MaterialsRepository {
       select: materialAdministrationSelect,
       orderBy: { createdAt: 'desc' },
     })
+  }
+
+  async listMaterialsForAdministrationPage(
+    courseId: string,
+    input: MaterialPageInput,
+  ): Promise<MaterialPage<MaterialAdministrationRecord>> {
+    const materials = await this.prismaService.material.findMany({
+      where: {
+        courseId,
+        deletedAt: null,
+        ...(input.search !== undefined
+          ? { title: { contains: input.search, mode: 'insensitive' } }
+          : {}),
+      },
+      select: materialAdministrationSelect,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: input.limit + 1,
+      ...(input.cursor !== undefined
+        ? { cursor: { id: input.cursor }, skip: 1 }
+        : {}),
+    })
+    return materialPageFromRows(materials, input.limit)
   }
 
   findMaterialForAdministration(
@@ -325,6 +453,45 @@ export class PrismaMaterialsRepository extends MaterialsRepository {
         asDatabaseTransaction(tx),
       )
 
+      return material
+    })
+  }
+
+  async softDeleteMaterial(
+    input: DeleteMaterialInput,
+  ): Promise<SafeMaterialRecord | null> {
+    return this.prismaService.$transaction(async (tx) => {
+      const material = await tx.material.findFirst({
+        where: {
+          id: input.materialId,
+          courseId: input.courseId,
+          deletedAt: null,
+        },
+        select: safeMaterialSelect,
+      })
+      if (material === null) return null
+
+      const result = await tx.material.updateMany({
+        where: {
+          id: input.materialId,
+          courseId: input.courseId,
+          deletedAt: null,
+        },
+        data: { deletedAt: new Date() },
+      })
+      if (result.count !== 1) return null
+
+      await this.auditService.recordEvent(
+        {
+          actorUserId: input.actorUserId,
+          action: AUDIT_EVENT_ACTIONS.MATERIAL_DELETED,
+          target: { type: AUDIT_TARGET_TYPES.MATERIAL, id: material.id },
+          courseId: material.courseId,
+          metadata: { title: material.title },
+          requestContext: input.requestContext,
+        },
+        asDatabaseTransaction(tx),
+      )
       return material
     })
   }

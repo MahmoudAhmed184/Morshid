@@ -25,6 +25,7 @@ export const materialAdministrationSchema = z.object({
 
 export const materialAdministrationListResponseSchema = z.object({
   materials: z.array(materialAdministrationSchema),
+  nextCursor: z.uuid().optional(),
 })
 
 export const materialAdministrationResponseSchema = z.object({

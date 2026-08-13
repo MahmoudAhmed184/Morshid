@@ -1,5 +1,6 @@
-import { ApiProperty } from '@nestjs/swagger'
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
 import { Expose, Type } from 'class-transformer'
+import { z } from 'zod'
 
 import { MaterialStatus } from './material-status'
 import { MATERIAL_TITLE_MAX_LENGTH } from './materials.constants'
@@ -11,6 +12,16 @@ import type {
 export interface UploadMaterialRequest {
   title?: string
 }
+
+export const listMaterialsQuerySchema = z
+  .object({
+    limit: z.coerce.number().int().min(1).max(100).default(25),
+    cursor: z.uuid().optional(),
+    search: z.string().trim().min(1).max(180).optional(),
+  })
+  .strict()
+
+export type ListMaterialsQuery = z.infer<typeof listMaterialsQuerySchema>
 
 export class MaterialUploadConfigurationDto {
   @Expose()
@@ -78,6 +89,10 @@ export class MaterialDto {
   @Expose()
   @ApiProperty({ format: 'date-time' })
   updatedAt!: string
+
+  @Expose()
+  @ApiProperty()
+  canDelete!: boolean
 }
 
 export class MaterialResponseDto {
@@ -92,6 +107,10 @@ export class MaterialListResponseDto {
   @Type(() => MaterialDto)
   @ApiProperty({ type: [MaterialDto] })
   materials!: MaterialDto[]
+
+  @Expose()
+  @ApiPropertyOptional({ format: 'uuid' })
+  nextCursor?: string
 }
 
 export class MaterialStatusDto {
@@ -120,7 +139,10 @@ export class MaterialStatusDto {
   updatedAt!: string
 }
 
-export function mapMaterialRecord(material: SafeMaterialRecord): MaterialDto {
+export function mapMaterialRecord(
+  material: SafeMaterialRecord,
+  canDelete = false,
+): MaterialDto {
   return {
     id: material.id,
     courseId: material.courseId,
@@ -132,6 +154,7 @@ export function mapMaterialRecord(material: SafeMaterialRecord): MaterialDto {
     errorMessage: material.errorMessage,
     createdAt: material.createdAt.toISOString(),
     updatedAt: material.updatedAt.toISOString(),
+    canDelete,
   }
 }
 

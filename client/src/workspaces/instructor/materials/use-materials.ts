@@ -1,6 +1,14 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 
-import { uploadCourseMaterial } from '@/features/materials/material-ingestion/material-ingestion.api'
+import {
+  deleteCourseMaterial,
+  uploadCourseMaterial,
+} from '@/features/materials/material-ingestion/material-ingestion.api'
 import {
   materialKeys,
   materialUploadConfigurationQueryOptions,
@@ -21,12 +29,13 @@ function useInstructorId() {
 export function useCourseMaterials(courseId?: string) {
   const instructorId = useInstructorId()
 
-  return useQuery({
+  return useInfiniteQuery({
     ...materialsQueryOptions({
       instructorId: instructorId ?? 'anonymous',
       courseId: courseId ?? 'unknown',
     }),
     enabled: instructorId !== undefined && courseId !== undefined,
+    select: (data) => data.pages.flatMap((page) => page.materials),
   })
 }
 
@@ -56,6 +65,28 @@ export function useUploadCourseMaterial() {
         return
       }
 
+      await queryClient.invalidateQueries({
+        queryKey: materialKeys.list({ instructorId, courseId }),
+        exact: true,
+      })
+    },
+  })
+}
+
+export function useDeleteCourseMaterial() {
+  const instructorId = useInstructorId()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      courseId,
+      materialId,
+    }: {
+      courseId: string
+      materialId: string
+    }) => deleteCourseMaterial(courseId, materialId),
+    onSuccess: async (_response, { courseId }) => {
+      if (!instructorId) return
       await queryClient.invalidateQueries({
         queryKey: materialKeys.list({ instructorId, courseId }),
         exact: true,

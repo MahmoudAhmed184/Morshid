@@ -70,6 +70,10 @@ export class MaterialAdministrationListResponseDto {
   @Type(() => MaterialAdministrationDto)
   @ApiProperty({ type: [MaterialAdministrationDto] })
   materials!: MaterialAdministrationDto[]
+
+  @Expose()
+  @ApiProperty({ format: 'uuid', required: false })
+  nextCursor?: string
 }
 
 export class MaterialAdministrationResponseDto {
