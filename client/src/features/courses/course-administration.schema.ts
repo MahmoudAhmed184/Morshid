@@ -40,12 +40,18 @@ export const courseAdministrationSchema = z.object({
 
 export const courseAdministrationListResponseSchema = z.object({
   courses: z.array(courseAdministrationSchema),
+  nextCursor: z.uuid().optional(),
 })
 export const courseMembersResponseSchema = z.object({
   members: z.array(courseMemberSchema),
+  nextCursor: z.uuid().optional(),
 })
 export const courseMemberResponseSchema = z.object({
   member: courseMemberSchema,
+})
+export const bulkCourseAssignmentResponseSchema = z.object({
+  assignedCount: z.number().int().nonnegative(),
+  skippedCount: z.number().int().nonnegative(),
 })
 
 export type CourseAdministration = z.infer<typeof courseAdministrationSchema>

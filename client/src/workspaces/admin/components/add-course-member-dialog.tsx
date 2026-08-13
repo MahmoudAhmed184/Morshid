@@ -21,6 +21,7 @@ type AddCourseMemberDialogProps = {
   users: ManagedUser[]
   assignedUserIds: Set<string>
   isPending: boolean
+  defaultRole?: CourseMembershipRole
   onAdd: (input: {
     userId: string
     role: CourseMembershipRole
@@ -31,6 +32,7 @@ export function AddCourseMemberDialog({
   users,
   assignedUserIds,
   isPending,
+  defaultRole = 'STUDENT',
   onAdd,
 }: AddCourseMemberDialogProps) {
   const [open, setOpen] = useState(false)
@@ -51,33 +53,49 @@ export function AddCourseMemberDialog({
   }
 
   const handleSubmit = async (values: {
-    userId: string
+    userIds: string[]
     role: CourseMembershipRole
   }) => {
     try {
       setErrorMessage(null)
-      await onAdd(values)
+      await Promise.all(
+        values.userIds.map((userId) => onAdd({ userId, role: values.role })),
+      )
       handleOpenChange(false)
     } catch (error) {
       setErrorMessage(
         error instanceof Error
           ? error.message
-          : 'Unable to add this course assignment.',
+          : 'Unable to add course assignment(s).',
       )
     }
   }
 
+  const buttonLabel =
+    defaultRole === 'INSTRUCTOR' ? 'Add doctor' : 'Add student'
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger render={<Button disabled={eligibleUsers.length === 0} />}>
-        <UserPlusIcon />
-        Add assignment
+      <DialogTrigger
+        render={
+          <Button
+            disabled={eligibleUsers.length === 0}
+            aria-label="Add assignment"
+          />
+        }
+      >
+        <UserPlusIcon className="size-4" />
+        {buttonLabel}
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-w-lg w-full">
         <DialogHeader>
-          <DialogTitle>Add course assignment</DialogTitle>
+          <DialogTitle>
+            {defaultRole === 'INSTRUCTOR'
+              ? 'Add doctor assignments'
+              : 'Add student assignments'}
+          </DialogTitle>
           <DialogDescription>
-            Assign a student or instructor to the selected course.
+            Search and select one or more users to assign to this course.
           </DialogDescription>
         </DialogHeader>
         {errorMessage ? (
@@ -88,6 +106,7 @@ export function AddCourseMemberDialog({
         <AdminAssignmentForm
           users={users}
           assignedUserIds={assignedUserIds}
+          defaultRole={defaultRole}
           isPending={isPending}
           onSubmit={handleSubmit}
           onCancel={() => handleOpenChange(false)}

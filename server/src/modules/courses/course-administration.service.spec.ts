@@ -12,6 +12,8 @@ import {
   CoursesRepository,
   CourseMemberNotFoundError,
   type AddCourseMemberInput,
+  type ArchiveCourseInput,
+  type BulkAddCourseMembersInput,
   type CourseAdministrationRecord,
   type CourseAccessRecord,
   type CourseMembershipRecord,
@@ -86,6 +88,9 @@ class FakeCoursesRepository extends CoursesRepository {
       title: input.title ?? course.title,
     }),
   )
+  readonly archiveCourse = jest.fn((_input: ArchiveCourseInput) =>
+    Promise.resolve(),
+  )
   readonly findUserById = jest.fn(() => Promise.resolve({ id: user.id }))
   readonly findCourseAccess = jest.fn(() =>
     Promise.resolve<CourseAccessRecord>({
@@ -96,6 +101,9 @@ class FakeCoursesRepository extends CoursesRepository {
   readonly findMembership = jest.fn(() => Promise.resolve(membership))
   readonly addMember = jest.fn((input: AddCourseMemberInput) =>
     Promise.resolve({ ...membership, role: input.role }),
+  )
+  readonly addMembers = jest.fn((_input: BulkAddCourseMembersInput) =>
+    Promise.resolve({ assignedCount: 0, skippedCount: 0 }),
   )
   readonly removeMember = jest.fn((_input: RemoveCourseMemberInput) =>
     Promise.resolve(),
@@ -145,6 +153,44 @@ describe('CourseAdministrationService', () => {
     expect(repository.findCourseAdministrationByCode).toHaveBeenCalled()
     expect(repository.createCourse).toHaveBeenCalled()
     expect(repository.updateCourse).toHaveBeenCalled()
+  })
+
+  it('assigns several users to several courses through one repository command', async () => {
+    const { repository, service } = buildService()
+    repository.findCourseAdministrationById.mockResolvedValue(course)
+    repository.findUserById.mockResolvedValue({ id: user.id })
+    repository.addMembers.mockResolvedValue({
+      assignedCount: 4,
+      skippedCount: 0,
+    })
+
+    await expect(
+      service.addMembers(
+        {
+          courseIds: ['course-1', 'course-2'],
+          userIds: ['user-1', 'user-2'],
+          role: CourseMembershipRole.STUDENT,
+        },
+        actor,
+      ),
+    ).resolves.toEqual({ assignedCount: 4, skippedCount: 0 })
+    expect(repository.addMembers).toHaveBeenCalledTimes(1)
+    expect(repository.addMembers).toHaveBeenCalledWith(
+      expect.objectContaining({
+        courseIds: ['course-1', 'course-2'],
+        userIds: ['user-1', 'user-2'],
+      }),
+    )
+  })
+
+  it('archives a course through the repository command', async () => {
+    const { repository, service } = buildService()
+
+    await service.archiveCourse(course.id, actor)
+
+    expect(repository.archiveCourse).toHaveBeenCalledWith(
+      expect.objectContaining({ courseId: course.id, actorUserId: actor.id }),
+    )
   })
 
   it('maps missing courses to the Courses error contract', async () => {

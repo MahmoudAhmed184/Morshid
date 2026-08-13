@@ -8,6 +8,8 @@ import { CourseAccessService } from './course-access.service'
 import {
   CoursesRepository,
   type AddCourseMemberInput,
+  type ArchiveCourseInput,
+  type BulkAddCourseMembersInput,
   type CourseAdministrationRecord,
   type CourseAccessRecord,
   type CourseMembershipRecord,
@@ -78,6 +80,10 @@ class CourseAccessTestRepository extends CoursesRepository {
     return Promise.reject(new Error('not used by CourseAccessService tests'))
   }
 
+  archiveCourse(_input: ArchiveCourseInput): Promise<void> {
+    return Promise.reject(new Error('not used by CourseAccessService tests'))
+  }
+
   findUserById(_userId: string): Promise<{ id: string } | null> {
     return Promise.resolve(null)
   }
@@ -90,6 +96,12 @@ class CourseAccessTestRepository extends CoursesRepository {
   }
 
   addMember(_input: AddCourseMemberInput): Promise<CourseMembershipRecord> {
+    return Promise.reject(new Error('not used by CourseAccessService tests'))
+  }
+
+  addMembers(
+    _input: BulkAddCourseMembersInput,
+  ): Promise<{ assignedCount: number; skippedCount: number }> {
     return Promise.reject(new Error('not used by CourseAccessService tests'))
   }
 

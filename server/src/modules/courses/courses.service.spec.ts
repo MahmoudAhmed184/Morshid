@@ -11,6 +11,8 @@ import type { AuthenticatedUser } from '../identity/identity.types'
 import {
   CoursesRepository,
   type AddCourseMemberInput,
+  type ArchiveCourseInput,
+  type BulkAddCourseMembersInput,
   type CourseAdministrationRecord as RepositoryCourseAdministrationRecord,
   type CourseAccessRecord,
   type CourseMembershipRecord as RepositoryCourseMembershipRecord,
@@ -126,6 +128,10 @@ class CoursesServiceTestRepository extends CoursesRepository {
     return Promise.reject(new Error('not used by CoursesService tests'))
   }
 
+  archiveCourse(_input: ArchiveCourseInput): Promise<void> {
+    return Promise.reject(new Error('not used by CoursesService tests'))
+  }
+
   findUserById(_userId: string): Promise<{ id: string } | null> {
     return Promise.resolve(null)
   }
@@ -140,6 +146,12 @@ class CoursesServiceTestRepository extends CoursesRepository {
   addMember(
     _input: AddCourseMemberInput,
   ): Promise<RepositoryCourseMembershipRecord> {
+    return Promise.reject(new Error('not used by CoursesService tests'))
+  }
+
+  addMembers(
+    _input: BulkAddCourseMembersInput,
+  ): Promise<{ assignedCount: number; skippedCount: number }> {
     return Promise.reject(new Error('not used by CoursesService tests'))
   }
 

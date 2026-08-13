@@ -21,6 +21,7 @@ model Course {
   code        String   @unique(map: "courses_code_key") @db.VarChar(40)
   title       String   @db.VarChar(160)
   createdById String?  @map("created_by") @db.Uuid
+  archivedAt DateTime? @map("archived_at") @db.Timestamptz(6)
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -34,6 +35,7 @@ model Course {
   inboxItems   ReviewInboxItem[]
 
   @@index([createdById], map: "idx_courses_created_by")
+  @@index([archivedAt], map: "idx_courses_archived_at")
   @@map("courses")
 }
 

@@ -25,30 +25,50 @@ function getAdminLoaderContext(queryClient: QueryClient) {
   return { adminId: user.id, queryClient }
 }
 
-export async function loadAdminUsersRoute({ context }: AdminLoaderArgs) {
+async function loadAdminUserDirectoryRoute(
+  context: AdminLoaderArgs['context'],
+  role: 'STUDENT' | 'INSTRUCTOR',
+) {
   const { adminId, queryClient } = getAdminLoaderContext(context.queryClient)
-  await queryClient.ensureInfiniteQueryData(
-    managedUsersInfiniteQueryOptions(adminId),
-  )
+  await Promise.all([
+    queryClient.ensureInfiniteQueryData(
+      managedUsersInfiniteQueryOptions(adminId, { role }),
+    ),
+    queryClient.ensureInfiniteQueryData(
+      courseAdministrationQueryOptions(adminId),
+    ),
+  ])
+}
+
+export async function loadAdminStudentsRoute({ context }: AdminLoaderArgs) {
+  await loadAdminUserDirectoryRoute(context, 'STUDENT')
+}
+
+export async function loadAdminDoctorsRoute({ context }: AdminLoaderArgs) {
+  await loadAdminUserDirectoryRoute(context, 'INSTRUCTOR')
 }
 
 export async function loadAdminCoursesRoute({ context }: AdminLoaderArgs) {
   const { adminId, queryClient } = getAdminLoaderContext(context.queryClient)
-  await queryClient.ensureQueryData(courseAdministrationQueryOptions(adminId))
+  await queryClient.ensureInfiniteQueryData(
+    courseAdministrationQueryOptions(adminId),
+  )
 }
 
 export async function loadAdminAssignmentsRoute({ context }: AdminLoaderArgs) {
   const { adminId, queryClient } = getAdminLoaderContext(context.queryClient)
   const [courses] = await Promise.all([
-    queryClient.ensureQueryData(courseAdministrationQueryOptions(adminId)),
+    queryClient.ensureInfiniteQueryData(
+      courseAdministrationQueryOptions(adminId),
+    ),
     queryClient.ensureInfiniteQueryData(
       managedUsersInfiniteQueryOptions(adminId),
     ),
   ])
-  const firstCourse = courses.at(0)
+  const firstCourse = courses.pages.at(0)?.courses.at(0)
 
   if (firstCourse) {
-    await queryClient.ensureQueryData(
+    await queryClient.ensureInfiniteQueryData(
       courseMembersQueryOptions(adminId, firstCourse.id),
     )
   }
@@ -56,13 +76,13 @@ export async function loadAdminAssignmentsRoute({ context }: AdminLoaderArgs) {
 
 export async function loadAdminMaterialsRoute({ context }: AdminLoaderArgs) {
   const { adminId, queryClient } = getAdminLoaderContext(context.queryClient)
-  const courses = await queryClient.ensureQueryData(
+  const courses = await queryClient.ensureInfiniteQueryData(
     courseAdministrationQueryOptions(adminId),
   )
-  const firstCourse = courses.at(0)
+  const firstCourse = courses.pages.at(0)?.courses.at(0)
 
   if (firstCourse) {
-    await queryClient.ensureQueryData(
+    await queryClient.ensureInfiniteQueryData(
       materialAdministrationQueryOptions(adminId, firstCourse.id),
     )
   }
@@ -80,7 +100,9 @@ export async function loadAdminDashboardRoute({ context }: AdminLoaderArgs) {
     queryClient.ensureInfiniteQueryData(
       managedUsersInfiniteQueryOptions(adminId),
     ),
-    queryClient.ensureQueryData(courseAdministrationQueryOptions(adminId)),
+    queryClient.ensureInfiniteQueryData(
+      courseAdministrationQueryOptions(adminId),
+    ),
     queryClient.ensureQueryData(auditQueryOptions(adminId, 5)),
   ])
 }

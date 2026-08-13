@@ -33,10 +33,34 @@ export const addCourseMemberRequestSchema = z
   })
   .strict()
 
+export const bulkAddCourseMembersRequestSchema = z
+  .object({
+    courseIds: z.array(z.uuid()).min(1).max(50),
+    userIds: z.array(z.uuid()).min(1).max(200),
+    role: z.enum(CourseMembershipRole),
+  })
+  .strict()
+  .refine(
+    ({ courseIds, userIds }) => courseIds.length * userIds.length <= 1_000,
+    { message: 'A bulk assignment may contain at most 1,000 assignments' },
+  )
+
 export const updateMemberRoleRequestSchema = z
   .object({
     role: z.enum(CourseMembershipRole),
   })
+  .strict()
+
+export const listCourseAdministrationQuerySchema = z
+  .object({
+    limit: z.coerce.number().int().min(1).max(100).default(25),
+    cursor: z.uuid().optional(),
+    search: z.string().trim().min(1).max(120).optional(),
+  })
+  .strict()
+
+export const listCourseMembersQuerySchema = listCourseAdministrationQuerySchema
+  .extend({ role: z.enum(CourseMembershipRole).optional() })
   .strict()
 
 export type CreateCourseRequest = z.infer<typeof createCourseRequestSchema>
@@ -44,8 +68,17 @@ export type UpdateCourseRequest = z.infer<typeof updateCourseRequestSchema>
 export type AddCourseMemberRequest = z.infer<
   typeof addCourseMemberRequestSchema
 >
+export type BulkAddCourseMembersRequest = z.infer<
+  typeof bulkAddCourseMembersRequestSchema
+>
 export type UpdateMemberRoleRequest = z.infer<
   typeof updateMemberRoleRequestSchema
+>
+export type ListCourseAdministrationQuery = z.infer<
+  typeof listCourseAdministrationQuerySchema
+>
+export type ListCourseMembersQuery = z.infer<
+  typeof listCourseMembersQuerySchema
 >
 // ---------------------------------------------------------------------------
 // Swagger request DTOs
@@ -76,6 +109,27 @@ export class AddCourseMemberRequestDto {
     enumName: 'CourseMembershipRole',
   })
   role!: CourseMembershipRole
+}
+
+export class BulkAddCourseMembersRequestDto {
+  @ApiProperty({ type: [String], format: 'uuid', maxItems: 50 })
+  courseIds!: string[]
+
+  @ApiProperty({ type: [String], format: 'uuid', maxItems: 200 })
+  userIds!: string[]
+
+  @ApiProperty({ enum: CourseMembershipRole, enumName: 'CourseMembershipRole' })
+  role!: CourseMembershipRole
+}
+
+export class BulkAddCourseMembersResponseDto {
+  @Expose()
+  @ApiProperty({ minimum: 0 })
+  assignedCount!: number
+
+  @Expose()
+  @ApiProperty({ minimum: 0 })
+  skippedCount!: number
 }
 
 export class UpdateMemberRoleRequestDto {
@@ -210,6 +264,10 @@ export class CourseAdministrationListResponseDto {
   @Type(() => CourseAdministrationItemDto)
   @ApiProperty({ type: [CourseAdministrationItemDto] })
   courses!: CourseAdministrationItemDto[]
+
+  @Expose()
+  @ApiPropertyOptional({ format: 'uuid' })
+  nextCursor?: string
 }
 
 export class CourseAdministrationDetailResponseDto {
@@ -235,4 +293,8 @@ export class CourseAdministrationMemberListResponseDto {
   @Type(() => CourseAdministrationMembershipDto)
   @ApiProperty({ type: [CourseAdministrationMembershipDto] })
   members!: CourseAdministrationMembershipDto[]
+
+  @Expose()
+  @ApiPropertyOptional({ format: 'uuid' })
+  nextCursor?: string
 }

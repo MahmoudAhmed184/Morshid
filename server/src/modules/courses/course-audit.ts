@@ -29,6 +29,12 @@ interface RecordCourseUpdatedInput {
   requestContext?: AuditRequestContext
 }
 
+interface RecordCourseArchivedInput {
+  actorUserId: string
+  course: { id: string; code: string; title: string }
+  requestContext?: AuditRequestContext
+}
+
 interface RecordMemberAddedInput {
   actorUserId: string
   courseId: string
@@ -130,6 +136,23 @@ export class CourseAudit {
               ] !== input.course[field as 'code' | 'title'],
           ),
         },
+        requestContext: input.requestContext,
+      },
+      transaction,
+    )
+  }
+
+  async recordCourseArchived(
+    input: RecordCourseArchivedInput,
+    transaction?: DatabaseTransaction,
+  ): Promise<void> {
+    await this.auditService.recordEvent(
+      {
+        actorUserId: input.actorUserId,
+        action: AUDIT_EVENT_ACTIONS.ADMIN_COURSE_ARCHIVED,
+        target: { type: AUDIT_TARGET_TYPES.COURSE, id: input.course.id },
+        courseId: input.course.id,
+        metadata: { code: input.course.code, title: input.course.title },
         requestContext: input.requestContext,
       },
       transaction,

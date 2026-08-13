@@ -71,7 +71,7 @@ function renderAtInstructorRoute(
         return Response.json({ users: [] })
       }
 
-      if (url.endsWith('/api/v1/admin/courses')) {
+      if (url.includes('/api/v1/admin/courses?')) {
         return Response.json({ courses: [] })
       }
 

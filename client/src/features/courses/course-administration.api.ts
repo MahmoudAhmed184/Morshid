@@ -7,6 +7,7 @@ import {
 import type { ApiFetchOptions } from '@/features/auth/session/interface/authenticated-api-client'
 import {
   courseAdministrationListResponseSchema,
+  bulkCourseAssignmentResponseSchema,
   courseAdministrationSchema,
   courseMemberResponseSchema,
   courseMembersResponseSchema,
@@ -31,12 +32,21 @@ function jsonRequestOptions(
   }
 }
 
-export async function getCourseAdministration(options: ApiFetchOptions = {}) {
-  const response = await apiJson<unknown>('/api/v1/admin/courses', {
-    ...options,
-    method: 'GET',
-  })
-  return courseAdministrationListResponseSchema.parse(response).courses
+export async function getCourseAdministration(
+  options: ApiFetchOptions = {},
+  input: { cursor?: string; search?: string } = {},
+) {
+  const parameters = new URLSearchParams({ limit: '25' })
+  if (input.cursor) parameters.set('cursor', input.cursor)
+  if (input.search) parameters.set('search', input.search)
+  const response = await apiJson<unknown>(
+    `/api/v1/admin/courses?${parameters}`,
+    {
+      ...options,
+      method: 'GET',
+    },
+  )
+  return courseAdministrationListResponseSchema.parse(response)
 }
 
 export async function createCourse(
@@ -62,15 +72,34 @@ export async function updateCourse(
   return courseResponseSchema.parse(response).course
 }
 
-export async function getCourseMembers(
+export async function deleteCourse(
   courseId: string,
   options: ApiFetchOptions = {},
 ) {
+  await apiFetch(`/api/v1/admin/courses/${courseId}`, {
+    ...options,
+    method: 'DELETE',
+  })
+}
+
+export async function getCourseMembers(
+  courseId: string,
+  options: ApiFetchOptions = {},
+  input: {
+    cursor?: string
+    search?: string
+    role?: CourseMembershipRole
+  } = {},
+) {
+  const parameters = new URLSearchParams({ limit: '25' })
+  if (input.cursor) parameters.set('cursor', input.cursor)
+  if (input.search) parameters.set('search', input.search)
+  if (input.role) parameters.set('role', input.role)
   const response = await apiJson<unknown>(
-    `/api/v1/admin/courses/${courseId}/members`,
+    `/api/v1/admin/courses/${courseId}/members?${parameters}`,
     { ...options, method: 'GET' },
   )
-  return courseMembersResponseSchema.parse(response).members
+  return courseMembersResponseSchema.parse(response)
 }
 
 export async function addCourseMember(
@@ -83,6 +112,21 @@ export async function addCourseMember(
     jsonRequestOptions('POST', input, options),
   )
   return courseMemberResponseSchema.parse(response).member
+}
+
+export async function bulkAddCourseMembers(
+  input: {
+    courseIds: string[]
+    userIds: string[]
+    role: CourseMembershipRole
+  },
+  options: ApiFetchOptions = {},
+) {
+  const response = await apiJson<unknown>(
+    '/api/v1/admin/courses/members/bulk',
+    jsonRequestOptions('POST', input, options),
+  )
+  return bulkCourseAssignmentResponseSchema.parse(response)
 }
 
 export async function updateCourseMemberRole(

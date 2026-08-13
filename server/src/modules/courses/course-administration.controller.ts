@@ -9,6 +9,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Req,
   SerializeOptions,
   UseInterceptors,
@@ -42,6 +43,8 @@ import type { AuthenticatedHttpRequest } from '../identity/identity.guard'
 import { Roles, UserRole } from '../identity/identity.roles'
 import {
   AddCourseMemberRequestDto,
+  BulkAddCourseMembersRequestDto,
+  BulkAddCourseMembersResponseDto,
   CourseAdministrationDetailResponseDto,
   CourseAdministrationListResponseDto,
   CourseAdministrationMemberListResponseDto,
@@ -50,13 +53,19 @@ import {
   UpdateCourseRequestDto,
   UpdateMemberRoleRequestDto,
   addCourseMemberRequestSchema,
+  bulkAddCourseMembersRequestSchema,
   createCourseRequestSchema,
   updateCourseRequestSchema,
   updateMemberRoleRequestSchema,
+  listCourseAdministrationQuerySchema,
+  listCourseMembersQuerySchema,
   type AddCourseMemberRequest,
+  type BulkAddCourseMembersRequest,
   type CreateCourseRequest,
   type UpdateCourseRequest,
   type UpdateMemberRoleRequest,
+  type ListCourseAdministrationQuery,
+  type ListCourseMembersQuery,
 } from './course-administration.types'
 import {
   invalidCourseAdministrationRequestException,
@@ -123,8 +132,15 @@ export class CourseAdministrationController {
     type: CourseAdministrationListResponseDto,
     description: 'All courses with administrative metadata.',
   })
-  listCourses(): Promise<CourseAdministrationListResponseDto> {
-    return this.courseAdministrationService.listCourses()
+  listCourses(
+    @Query(
+      new CourseAdministrationValidationPipe(
+        listCourseAdministrationQuerySchema,
+      ),
+    )
+    query: ListCourseAdministrationQuery,
+  ): Promise<CourseAdministrationListResponseDto> {
+    return this.courseAdministrationService.listCourses(query)
   }
 
   @Post()
@@ -146,6 +162,30 @@ export class CourseAdministrationController {
     @Req() request: AuthenticatedHttpRequest,
   ): Promise<CourseAdministrationDetailResponseDto> {
     return this.courseAdministrationService.createCourse(
+      body,
+      request.user,
+      getRequestContext(request),
+    )
+  }
+
+  @Post('members/bulk')
+  @SerializeOptions({
+    type: BulkAddCourseMembersResponseDto,
+    strategy: 'excludeAll',
+  })
+  @ApiOperation({ summary: 'Assign multiple users to multiple courses' })
+  @ApiBody({ type: BulkAddCourseMembersRequestDto })
+  @ApiCreatedResponse({ type: BulkAddCourseMembersResponseDto })
+  @ApiBadRequestResponse({ type: OpenApiValidationErrorDto })
+  @ApiNotFoundResponse({ type: OpenApiErrorDto })
+  addMembers(
+    @Body(
+      new CourseAdministrationValidationPipe(bulkAddCourseMembersRequestSchema),
+    )
+    body: BulkAddCourseMembersRequest,
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<BulkAddCourseMembersResponseDto> {
+    return this.courseAdministrationService.addMembers(
       body,
       request.user,
       getRequestContext(request),
@@ -195,6 +235,24 @@ export class CourseAdministrationController {
     return this.courseAdministrationService.updateCourse(
       courseId,
       body,
+      request.user,
+      getRequestContext(request),
+    )
+  }
+
+  @Delete(':courseId')
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Archive course' })
+  @ApiParam({ name: 'courseId', format: 'uuid' })
+  @ApiNoContentResponse({ description: 'The course was archived.' })
+  @ApiBadRequestResponse({ type: NestBadRequestErrorDto })
+  @ApiNotFoundResponse({ type: OpenApiErrorDto })
+  async archiveCourse(
+    @Param('courseId', new ParseUUIDPipe({ version: '4' })) courseId: string,
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<void> {
+    await this.courseAdministrationService.archiveCourse(
+      courseId,
       request.user,
       getRequestContext(request),
     )
@@ -265,8 +323,10 @@ export class CourseAdministrationController {
   @ApiNotFoundResponse({ type: OpenApiErrorDto })
   listMembers(
     @Param('courseId', new ParseUUIDPipe({ version: '4' })) courseId: string,
+    @Query(new CourseAdministrationValidationPipe(listCourseMembersQuerySchema))
+    query: ListCourseMembersQuery,
   ): Promise<CourseAdministrationMemberListResponseDto> {
-    return this.courseAdministrationService.listMembers(courseId)
+    return this.courseAdministrationService.listMembers(courseId, query)
   }
 
   @Patch(':courseId/members/:userId')

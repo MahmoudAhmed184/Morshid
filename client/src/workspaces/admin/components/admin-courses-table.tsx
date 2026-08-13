@@ -1,7 +1,8 @@
-import { BookOpenIcon, EyeIcon } from 'lucide-react'
+import { BookOpenIcon, EyeIcon, Trash2Icon } from 'lucide-react'
 import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { ConfirmDialog } from '@/components/ui/custom/confirm-dialog'
 import {
   Dialog,
   DialogContent,
@@ -27,12 +28,14 @@ const dateFormatter = new Intl.DateTimeFormat(undefined, {
 export function AdminCoursesTable({
   courses,
   onUpdateCourse,
+  onDeleteCourse,
 }: {
   courses: CourseAdministration[]
   onUpdateCourse?: (
     courseId: string,
     values: { code: string; title: string },
   ) => Promise<unknown>
+  onDeleteCourse?: (courseId: string) => Promise<unknown>
 }) {
   const [selectedCourse, setSelectedCourse] =
     useState<CourseAdministration | null>(null)
@@ -60,6 +63,12 @@ export function AdminCoursesTable({
                 <EditAdminCourseDialog
                   course={course}
                   onUpdateCourse={(values) => onUpdateCourse(course.id, values)}
+                />
+              ) : null}
+              {onDeleteCourse ? (
+                <CourseDeleteAction
+                  course={course}
+                  onDeleteCourse={onDeleteCourse}
                 />
               ) : null}
               <Button
@@ -151,6 +160,12 @@ export function AdminCoursesTable({
                           onUpdateCourse={(values) =>
                             onUpdateCourse(course.id, values)
                           }
+                        />
+                      ) : null}
+                      {onDeleteCourse ? (
+                        <CourseDeleteAction
+                          course={course}
+                          onDeleteCourse={onDeleteCourse}
                         />
                       ) : null}
                       <Button
@@ -254,5 +269,36 @@ export function AdminCoursesTable({
         </DialogContent>
       </Dialog>
     </>
+  )
+}
+
+function CourseDeleteAction({
+  course,
+  onDeleteCourse,
+}: {
+  course: CourseAdministration
+  onDeleteCourse: (courseId: string) => Promise<unknown>
+}) {
+  return (
+    <ConfirmDialog
+      trigger={
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`Delete ${course.title}`}
+          className="text-muted-foreground hover:text-destructive"
+        >
+          <Trash2Icon className="size-4" />
+        </Button>
+      }
+      title={`Delete ${course.title}?`}
+      description="The course, active assignments, and materials will be archived. Audit history is retained."
+      confirmLabel="Delete course"
+      confirmInput={{ value: course.code }}
+      onConfirm={async () => {
+        await onDeleteCourse(course.id)
+      }}
+    />
   )
 }
