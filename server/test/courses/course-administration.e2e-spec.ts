@@ -20,8 +20,8 @@ import type {
 import type {
   MaterialAdministrationListResponseDto,
   MaterialAdministrationResponseDto,
-} from '../../src/modules/materials/material-administration.types'
-import { MaterialProcessingScheduler } from '../../src/modules/materials/material-processing.scheduler'
+} from '../../src/modules/materials/catalog/material-administration.types'
+import { MaterialProcessingScheduler } from '../../src/modules/materials/processing/material-processing.scheduler'
 import { PrismaService } from '../../src/platform/database/prisma.service'
 import { RedisService } from '../../src/platform/cache/redis.service'
 import { P0_DEMO_PASSWORD } from '../../src/seeds/p0-demo.seed'

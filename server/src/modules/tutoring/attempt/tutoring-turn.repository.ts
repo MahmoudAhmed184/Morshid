@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { Injectable } from '@nestjs/common'
 
 import { Prisma } from '../../../generated/prisma/client'
-import { MaterialStatus } from '../../materials/materials.public'
+import { MaterialStatus } from '../../materials/interface/material-status'
 import {
   MessageGuidanceLabel,
   MessageRequestKind,

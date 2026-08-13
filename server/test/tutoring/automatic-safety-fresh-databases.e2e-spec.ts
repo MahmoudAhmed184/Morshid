@@ -14,7 +14,7 @@ import {
   EMBEDDING_PROVIDER_TOKEN,
   type EmbeddingProvider,
 } from '../../src/platform/ai/embedding/embedding-provider'
-import { MaterialProcessingScheduler } from '../../src/modules/materials/material-processing.scheduler'
+import { MaterialProcessingScheduler } from '../../src/modules/materials/processing/material-processing.scheduler'
 import { ANALYSIS_MODEL_PORT } from '../../src/modules/tutoring/socratic-workflow/analysis/analysis-model.port'
 import { DeterministicAnalysisModelAdapter } from '../../src/modules/tutoring/infrastructure/analysis-model.provider'
 import { DeterministicSemanticGuardAdapter } from '../../src/modules/tutoring/infrastructure/semantic-guard.adapter'

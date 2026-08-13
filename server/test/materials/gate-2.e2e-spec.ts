@@ -20,13 +20,13 @@ import {
   type EmbeddingProvider,
 } from '../../src/platform/ai/embedding/embedding-provider'
 import { ValidatedEmbeddingProvider } from '../../src/platform/ai/embedding/validated-embedding.provider'
-import { MaterialProcessingScheduler } from '../../src/modules/materials/material-processing.scheduler'
-import { MaterialProcessingService } from '../../src/modules/materials/material-processing.service'
-import type { MaterialStatusDto } from '../../src/modules/materials/materials.dto'
+import { MaterialProcessingScheduler } from '../../src/modules/materials/processing/material-processing.scheduler'
+import { MaterialProcessingService } from '../../src/modules/materials/processing/material-processing.service'
+import type { MaterialStatusDto } from '../../src/modules/materials/catalog/materials.dto'
 import { LocalPdfStorageAdapter } from '../../src/platform/document-storage/local-pdf-storage.adapter'
 import { PDF_STORAGE } from '../../src/platform/document-storage/pdf-storage'
 import { PrismaService } from '../../src/platform/database/prisma.service'
-import { MaterialChunkRepository } from '../../src/modules/materials/material-chunk.repository'
+import { MaterialChunkRepository } from '../../src/modules/materials/processing/material-chunk.repository'
 import { RedisService } from '../../src/platform/cache/redis.service'
 import {
   TUTOR_MODEL_PORT,
@@ -38,7 +38,7 @@ import { SEMANTIC_GUARD_PORT } from '../../src/modules/tutoring/socratic-workflo
 import {
   CourseEvidence,
   type CourseEvidenceResult,
-} from '../../src/modules/materials/course-evidence'
+} from '../../src/modules/materials/interface/course-evidence'
 import { GROUNDING_BLOCKED_CONTENT } from '../../src/modules/tutoring/tutoring-runtime.application'
 import { ANALYSIS_MODEL_PORT } from '../../src/modules/tutoring/socratic-workflow/analysis/analysis-model.port'
 import type {

@@ -6,7 +6,7 @@ import type {
 } from '../../tutoring-values'
 import type { AnalysisContextMessage } from '../analysis/analysis-context.types'
 import type { PersistedEducationalAnalysisRecord } from '../analysis/educational-analysis.repository'
-import type { CourseEvidenceChunk } from '../../../materials/materials.public'
+import type { CourseEvidenceChunk } from '../../../materials/interface/course-evidence'
 import type { PersistedTeachingDecisionRecord } from '../teaching-decision/teaching-decision.repository'
 import type { TopicRecord } from '../topic/topic.types'
 import type { TopicStateSnapshot } from '../topic/topic-state.types'

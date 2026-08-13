@@ -205,7 +205,7 @@ export default {
         pathNot: testPath,
       },
       to: {
-        path: '^server/src/modules/materials/(?!materials\\.module\\.ts$|materials\\.public\\.ts$|interface/)',
+        path: '^server/src/modules/materials/(?!materials\\.module\\.ts$|interface/)',
       },
     },
     {

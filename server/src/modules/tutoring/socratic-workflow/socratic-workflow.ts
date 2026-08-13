@@ -5,7 +5,7 @@ import {
   TutoringAttemptStatus,
   type MessageRequestKind,
 } from '../tutoring-values'
-import { CourseEvidence } from '../../materials/materials.public'
+import { CourseEvidence } from '../../materials/interface/course-evidence'
 import { TutoringTurnRepository } from '../attempt/tutoring-turn.repository'
 import { TopicService } from './topic/topic.service'
 import { TopicStateService } from './topic/topic-state.service'

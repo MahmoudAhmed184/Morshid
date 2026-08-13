@@ -6,7 +6,7 @@ import {
   MAX_INSERT_BATCH_ROWS,
   PrismaMaterialChunkRepository,
   type MaterialChunkRepository,
-} from '../../src/modules/materials/material-chunk.repository'
+} from '../../src/modules/materials/processing/material-chunk.repository'
 import {
   setUpDisposableDatabase,
   type DisposableDatabase,

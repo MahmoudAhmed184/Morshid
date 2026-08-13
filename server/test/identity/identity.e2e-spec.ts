@@ -14,7 +14,7 @@ import type {
   IdentitySessionResponse,
   MeResponse,
 } from '../../src/modules/identity/identity.types'
-import { MaterialProcessingScheduler } from '../../src/modules/materials/material-processing.scheduler'
+import { MaterialProcessingScheduler } from '../../src/modules/materials/processing/material-processing.scheduler'
 import { PrismaService } from '../../src/platform/database/prisma.service'
 import { RedisService } from '../../src/platform/cache/redis.service'
 import { P0_DEMO_PASSWORD } from '../../src/seeds/p0-demo.seed'

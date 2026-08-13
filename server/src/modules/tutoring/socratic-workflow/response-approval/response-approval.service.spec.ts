@@ -22,7 +22,7 @@ import type {
   TutorGenerationServiceResult,
 } from '../generation/tutor-generation.types'
 import { TUTOR_GENERATION_FAILURE_CODE } from '../generation/tutor-generation.types'
-import type { CourseEvidenceChunk } from '../../../materials/materials.public'
+import type { CourseEvidenceChunk } from '../../../materials/interface/course-evidence'
 import { AutomaticSafetyRiskDetector } from '../../response-governance/automatic-safety-risk.detector'
 
 describe('ResponseApprovalService', () => {

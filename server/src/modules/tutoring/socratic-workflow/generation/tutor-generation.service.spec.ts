@@ -9,7 +9,7 @@ import {
   TopicStatus,
   TopicType,
 } from '../../tutoring-values'
-import type { CourseEvidenceChunk } from '../../../materials/materials.public'
+import type { CourseEvidenceChunk } from '../../../materials/interface/course-evidence'
 import type { AnalysisContextPackage } from '../analysis/analysis-context.types'
 import type { AnalysisModelPort } from '../analysis/analysis-model.port'
 import type { ContextManager } from '../analysis/context-manager.service'

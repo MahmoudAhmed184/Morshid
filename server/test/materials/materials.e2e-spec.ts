@@ -8,20 +8,20 @@ import { AppModule } from '../../src/app.module'
 import { AUDIT_EVENT_ACTIONS } from '../../src/modules/audit/audit.public'
 import type { IdentitySessionResponse } from '../../src/modules/identity/identity.types'
 import { IDENTITY_ERROR_CODES } from '../../src/modules/identity/identity.types'
-import { DEFAULT_PDF_MAX_UPLOAD_BYTES } from '../../src/modules/materials/materials.configuration'
+import { DEFAULT_PDF_MAX_UPLOAD_BYTES } from '../../src/modules/materials/upload/materials.configuration'
 import {
   EMBEDDING_PROVIDER_TOKEN,
   type EmbeddingProvider,
 } from '../../src/platform/ai/embedding/embedding-provider'
 import type { Material } from '../../src/generated/prisma/client'
-import { MATERIALS_ERROR_CODES } from '../../src/modules/materials/materials.errors'
-import { MaterialProcessingScheduler } from '../../src/modules/materials/material-processing.scheduler'
+import { MATERIALS_ERROR_CODES } from '../../src/modules/materials/catalog/materials.errors'
+import { MaterialProcessingScheduler } from '../../src/modules/materials/processing/material-processing.scheduler'
 import {
   PDF_STORAGE,
   type PdfStorage,
 } from '../../src/platform/document-storage/pdf-storage'
 import { PrismaService } from '../../src/platform/database/prisma.service'
-import { MaterialChunkRepository } from '../../src/modules/materials/material-chunk.repository'
+import { MaterialChunkRepository } from '../../src/modules/materials/processing/material-chunk.repository'
 import { RedisService } from '../../src/platform/cache/redis.service'
 import { P0_DEMO_COURSE, P0_DEMO_PASSWORD } from '../../src/seeds/p0-demo.seed'
 import {

@@ -11,7 +11,7 @@ import { PrismaActiveCourseMembership } from '../../src/modules/courses/active-c
 import type { PrismaService } from '../../src/platform/database/prisma.service'
 import { PrismaConversationMessageRepository } from '../../src/modules/conversations/conversation-message.repository'
 import { ApplicationConversationMessagePresenter } from '../../src/application/conversation-message.presenter'
-import { PrismaStudentCitationSources } from '../../src/modules/materials/student-citation-sources'
+import { PrismaStudentCitationSources } from '../../src/modules/materials/evidence/student-citation-sources'
 import { PrismaStudentReviewSummaries } from '../../src/modules/reviews/student-detail/prisma-student-review-summaries'
 import {
   TutoringEvidenceUnavailableError,

@@ -21,7 +21,7 @@ import type {
   ManagedUserListResponseDto,
 } from '../../src/modules/identity/user-administration/user-administration.types'
 import { USER_ADMINISTRATION_ERROR_CODES } from '../../src/modules/identity/user-administration/user-administration.errors'
-import { MaterialProcessingScheduler } from '../../src/modules/materials/material-processing.scheduler'
+import { MaterialProcessingScheduler } from '../../src/modules/materials/processing/material-processing.scheduler'
 import { PrismaService } from '../../src/platform/database/prisma.service'
 import { RedisService } from '../../src/platform/cache/redis.service'
 import { P0_DEMO_COURSE, P0_DEMO_PASSWORD } from '../../src/seeds/p0-demo.seed'

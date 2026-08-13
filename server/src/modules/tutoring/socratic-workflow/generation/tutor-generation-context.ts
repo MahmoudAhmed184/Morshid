@@ -5,7 +5,7 @@ import {
   type TutorEvidenceContext,
   type TutorGuardEducationalContext,
 } from './tutor-generation.types'
-import type { CourseEvidenceChunk } from '../../../materials/materials.public'
+import type { CourseEvidenceChunk } from '../../../materials/interface/course-evidence'
 import type { PersistedEducationalAnalysisRecord } from '../analysis/educational-analysis.repository'
 import type { PersistedTeachingDecisionRecord } from '../teaching-decision/teaching-decision.repository'
 import type { TeachingGuardPolicy } from '../teaching-decision/teaching-policy.types'
