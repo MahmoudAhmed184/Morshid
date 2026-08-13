@@ -2,6 +2,7 @@ import { Logger } from '@nestjs/common'
 
 import {
   STRUCTURED_CHAT_ERROR_CODE,
+  type FetchImplementation,
   StructuredChatTransport,
   StructuredChatTransportError,
 } from '../../../platform/ai/upstream/structured-chat.transport'
@@ -47,6 +48,7 @@ export const defaultAnalysisTimeoutSignalFactory: AnalysisTimeoutSignalFactory =
 export function createAnalysisModelPort(
   configuration: AnalysisModelConfiguration,
   timeoutSignalFactory: AnalysisTimeoutSignalFactory = defaultAnalysisTimeoutSignalFactory,
+  fetchImplementation: FetchImplementation = globalThis.fetch,
 ): AnalysisModelPort {
   const snapshot = validateAnalysisModelConfiguration(configuration)
   if (snapshot.provider === DETERMINISTIC_ANALYSIS_MODEL_PROVIDER) {
@@ -57,6 +59,7 @@ export function createAnalysisModelPort(
     snapshot.openAICompatible,
     snapshot.timeoutMs,
     timeoutSignalFactory,
+    fetchImplementation,
   )
 }
 
@@ -75,10 +78,7 @@ export class OpenAICompatibleAnalysisModelAdapter implements AnalysisModelPort {
     configuration: OpenAICompatibleAnalysisConfiguration,
     timeoutMs: number,
     timeoutSignalFactory: AnalysisTimeoutSignalFactory = defaultAnalysisTimeoutSignalFactory,
-    fetchImplementation: (
-      input: string | URL | Request,
-      init?: RequestInit,
-    ) => Promise<Response> = globalThis.fetch,
+    fetchImplementation: FetchImplementation = globalThis.fetch,
   ) {
     const snapshot =
       validateOpenAICompatibleAnalysisConfiguration(configuration)

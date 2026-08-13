@@ -122,6 +122,7 @@ const environmentSchema = z
     RETRIEVAL_TOP_K: z.coerce.number().int().positive().optional(),
     RETRIEVAL_MIN_SIMILARITY: z.coerce.number().optional(),
     TUTORING_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().optional(),
+    GEMINI_CHAT_PROJECTS_JSON: z.string().optional(),
     ANALYSIS_MODEL_PROVIDER: z.string().optional(),
     ANALYSIS_MODEL_BASE_URL: z.string().optional(),
     ANALYSIS_MODEL_NAME: z.string().optional(),

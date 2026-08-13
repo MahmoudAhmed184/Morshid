@@ -2,6 +2,7 @@ import { Logger } from '@nestjs/common'
 
 import {
   STRUCTURED_CHAT_ERROR_CODE,
+  type FetchImplementation,
   StructuredChatTransport,
   StructuredChatTransportError,
 } from '../../../platform/ai/upstream/structured-chat.transport'
@@ -44,6 +45,7 @@ export const defaultTutorTimeoutSignalFactory: TutorTimeoutSignalFactory = (
 export function createTutorModelPort(
   configuration: TutorModelConfiguration,
   timeoutSignalFactory: TutorTimeoutSignalFactory = defaultTutorTimeoutSignalFactory,
+  fetchImplementation: FetchImplementation = globalThis.fetch,
 ): TutorModelPort {
   const snapshot = validateTutorModelConfiguration(configuration)
   if (snapshot.provider === DETERMINISTIC_TUTOR_MODEL_PROVIDER) {
@@ -54,6 +56,7 @@ export function createTutorModelPort(
     snapshot.openAICompatible,
     snapshot.timeoutMs,
     timeoutSignalFactory,
+    fetchImplementation,
   )
 }
 
@@ -70,10 +73,7 @@ export class OpenAICompatibleTutorModelAdapter implements TutorModelPort {
     configuration: OpenAICompatibleTutorConfiguration,
     timeoutMs: number,
     timeoutSignalFactory: TutorTimeoutSignalFactory = defaultTutorTimeoutSignalFactory,
-    fetchImplementation: (
-      input: string | URL | Request,
-      init?: RequestInit,
-    ) => Promise<Response> = globalThis.fetch,
+    fetchImplementation: FetchImplementation = globalThis.fetch,
   ) {
     const snapshot = validateOpenAICompatibleTutorConfiguration(configuration)
     this.endpoint = snapshot.endpoint

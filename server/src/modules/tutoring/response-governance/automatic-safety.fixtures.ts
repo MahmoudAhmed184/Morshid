@@ -204,21 +204,3 @@ export const AUTOMATIC_SAFETY_FIXTURES = [
     attempts: 1,
   },
 ] as const satisfies readonly AutomaticSafetyFixture[]
-
-export const AUTOMATIC_SAFETY_PROVIDER_PROFILES = {
-  ci: {
-    tutorProvider: 'deterministic',
-    embeddingProvider: 'deterministic',
-    live: false,
-    requiredOptIns: [],
-  },
-  liveBedrockGeminiEmbedding: {
-    tutorProvider: 'aws-bedrock',
-    embeddingProvider: 'gemini',
-    live: true,
-    requiredOptIns: [
-      'AUTOMATIC_SAFETY_LIVE_SMOKE_ACKNOWLEDGED',
-      'GEMINI_EMBEDDING_DEMO_ACKNOWLEDGED',
-    ],
-  },
-} as const
