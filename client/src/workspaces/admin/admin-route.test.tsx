@@ -155,7 +155,7 @@ describe('Admin routes', () => {
       'Dashboard',
       'Assignments',
       'Students',
-      'Doctors',
+      'Instructor',
       'Courses',
       'Materials',
       'Audit Logs',
