@@ -107,19 +107,19 @@ export function ConfirmDialog({
       {trigger ? <AlertDialogTrigger render={trigger} /> : null}
       <AlertDialogContent className="max-w-[calc(100%-2rem)] rounded-2xl p-6 shadow-2xl sm:max-w-[460px] sm:p-7">
         <AlertDialogHeader className="flex flex-col gap-3 text-left">
-          <div className="flex items-center gap-3">
+          <div className="flex items-start gap-3">
             <TriangleAlertIcon
               className={cn(
-                'size-6 shrink-0 stroke-[2]',
+                'size-6 shrink-0 stroke-[2] mt-0.5',
                 destructive ? 'text-[#c52222]' : 'text-primary',
               )}
             />
-            <AlertDialogTitle className="text-xl font-bold tracking-tight text-foreground">
+            <AlertDialogTitle className="min-w-0 text-xl font-bold tracking-tight text-foreground break-words [overflow-wrap:anywhere]">
               {title}
             </AlertDialogTitle>
           </div>
           {description ? (
-            <AlertDialogDescription className="text-[0.95rem] leading-relaxed text-muted-foreground">
+            <AlertDialogDescription className="text-[0.95rem] leading-relaxed text-muted-foreground break-words [overflow-wrap:anywhere]">
               {description}
             </AlertDialogDescription>
           ) : null}
