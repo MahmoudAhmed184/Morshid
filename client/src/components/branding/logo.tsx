@@ -18,23 +18,20 @@ export function Logo({ className, iconClassName }: LogoProps) {
   return (
     <div
       className={cn(
-        'flex size-10 shrink-0 items-center justify-center text-current',
+        'flex size-10 shrink-0 items-center justify-center',
         className,
       )}
     >
-      <svg
-        viewBox="0 0 24 24"
-        className={cn('size-5', iconClassName)}
-        fill="currentColor"
-        aria-hidden
-      >
-        <path
-          fillRule="evenodd"
-          clipRule="evenodd"
-          d="M4.8 4.8h14.4v14.4H4.8zM12 1.5l10.5 10.5L12 22.5 1.5 12z"
-        />
-        <circle cx="12" cy="12" r="2.4" />
-      </svg>
+      <img
+        src="/logo.png"
+        alt="Morshid Logo"
+        className={cn('size-5 object-contain dark:hidden', iconClassName)}
+      />
+      <img
+        src="/logo-white.png"
+        alt="Morshid Logo"
+        className={cn('hidden size-5 object-contain dark:block', iconClassName)}
+      />
     </div>
   )
 }
