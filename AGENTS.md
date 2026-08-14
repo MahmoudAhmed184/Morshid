@@ -1,90 +1,62 @@
-# Repository Guidelines
+# Morshid Guidelines
 
-## Project Structure & Module Organization
+## Working rules
 
-Morshid is an npm workspace. `client/` contains the TanStack Start/React
-frontend: reusable domain behavior lives under `client/src/features/`, role
-composition under `client/src/workspaces/`, application composition under
-`client/src/app/`, shared UI under `client/src/components/`, routes under
-`client/src/routes/`, and static assets under `client/public/`. `server/`
-contains the NestJS API: product capabilities live under
-`server/src/modules/`, framework primitives under `server/src/common/`, and
-technical adapters/configuration under `server/src/platform/`. Prisma schema,
-migrations, and seeds live in `server/prisma/`. Unit specs stay beside their
-owners; API E2E specs are grouped under `server/test/` by capability, and
-Playwright journeys under `tests/acceptance/` by actor. Project notes belong in
-`docs/`. Do not hand-edit generated Prisma code or
-`client/src/routeTree.gen.ts`.
+* Keep changes small, local, and easy to understand.
+* Prefer the simplest solution that fully solves the current problem. Do not build for hypothetical future requirements.
+* Follow an existing pattern before creating a new abstraction.
+* Add abstractions only for real boundaries or real variation.
+* Keep one implementation. When replacing something, remove the old path—no wrappers, aliases, duplicate flows, or dead compatibility code.
+* Prefer existing dependencies and framework conventions over custom machinery. Check official docs and types when needed.
+* Stay within the task. Preserve unrelated work and avoid drive-by cleanup.
+* Never hand-edit `client/src/routeTree.gen.ts` or `server/src/generated/prisma`.
 
-## Build, Test, and Development Commands
+## Architecture
 
-- `npm install`: install locked dependencies for all workspaces (Node 24, npm 11).
-- `npm run infra:up`: start PostgreSQL/pgvector and Redis with Docker Compose.
-- `npm run db:migrate && npm run db:seed`: prepare deterministic local data.
-- `npm run dev`: run client on port 3000 and API on port 4000.
-- `npm run check`: run formatting checks, strict linting, type checks, tests, and production builds; this is the canonical pre-PR gate.
-- `npm run test:acceptance`: run browser acceptance tests against the local stack.
-- `npm run test:e2e`: run recursively discovered server E2E tests; start
-  infrastructure and deploy migrations first.
-- `npm run test:architecture`: enforce dependency direction and ownership.
+Morshid is an npm workspace with a TanStack Start/React client and a NestJS API.
 
-## Coding Style & Naming Conventions
+Server product code belongs in `server/src/modules/`, organized by capability. Shared framework primitives belong in `server/src/common/`; technical infrastructure belongs in `server/src/platform/`. `common` and `platform` must not depend on product modules.
 
-Use two-space indentation, single quotes, no semicolons, and trailing commas;
-Prettier enforces these rules. ESLint applies strict, type-aware TypeScript
-checks. Prefer type-only imports, avoid `any`, and explicitly handle
-promises. Use kebab-case filenames (`course-access.service.ts`), PascalCase
-for React components and NestJS classes, and camelCase for functions and
-variables. Keep frontend logic within its feature/workspace owner and preserve
-NestJS capability boundaries. Platform code must not import product modules.
+Client domain behavior belongs in `client/src/features/`. Role-specific composition belongs in `client/src/workspaces/`. Keep routes thin. `client/src/app/` owns application composition. Shared `components/` and `lib/` code must remain feature-independent.
 
-## Testing Guidelines
+Use `@/*` for client source imports.
 
-Use Vitest and Testing Library for client tests, Jest for server unit/E2E/live
-tests, and Playwright for acceptance coverage. Name unit tests `*.test.ts(x)`
-or `*.spec.ts`; name server E2E files `*.e2e-spec.ts` and live files
-`*.live-spec.ts`. Server Jest discovery is recursive from `server/test/` and
-Playwright discovery is recursive from `tests/acceptance/`. Co-locate unit
-tests with implementation code. There is no numeric coverage threshold, but
-every behavior change should add focused regression coverage. Run `npm test`
-during development and `npm run check` before submission.
+Cross-owner dependencies go through small, explicit named interfaces. Avoid broad barrels, generic dumping grounds, and unnecessary directory nesting.
 
-## Commit & Pull Request Guidelines
+The current code, tests, architecture checks, and accepted ADRs define the repository architecture. Do not silently violate an ADR; supersede it explicitly when the architectural decision genuinely changes.
 
-Follow scoped Conventional Commits: `feat(server): add readiness endpoint`. Subjects should be imperative, concise, and lowercase after the scope. The `p=#N` suffix (for example, `p=#92`, where `p` refers to the PR number) belongs only in the merge commit subject when merging a PR — never add it to regular commits on a branch. Branch from `dev` and target routine PRs back to `dev`; reserve `main` for releases and hotfixes. Complete the PR template with a clear summary, validation results, and updated `.env.example` files for new configuration. Link the issue and include screenshots for visible UI changes. Never commit credentials, private course material, or student data.
+## Code
 
-## Approved architecture authority
+Use strict TypeScript.
 
-For changes to architecture, database structure, module ownership, tests,
-generated files, or product contracts, read and follow the approved
-[`docs/architecture-refactor-plan-2026-08-11.md`](docs/architecture-refactor-plan-2026-08-11.md)
-and its applicable ADRs. The plan and ADRs are the current architectural
-authority; dated research and historical documents are evidence and must be
-labeled when they describe superseded behavior.
+Prefer inference when the type is obvious and explicit types at real boundaries. Avoid `any`, use type-only imports where appropriate, and handle promises explicitly.
 
-Apply these rules to every implementation decision:
+Follow the repository style: two spaces, single quotes, no semicolons, trailing commas, kebab-case filenames, PascalCase components/classes, and camelCase functions/variables.
 
-1. Remove obsolete paths after direct cutover. Keep one implementation, not
-   forwarding wrappers, deprecated re-exports, aliases, dual schemas, dual
-   state machines, or fallback compatibility branches.
-2. Choose the simplest implementation that fully satisfies current
-   requirements. Add a seam only for genuine variation or a real
-   cross-module interface.
-3. Grow in working vertical slices. Each milestone leaves the product
-   buildable and tested end to end.
-4. Keep modules deep: substantial behavior sits behind a small interface;
-   internal implementation detail stays private.
-5. Keep concerns separate through ownership and dependency direction, not
-   uniform directory silhouettes.
-6. Prefer established, maintained libraries and existing project
-   dependencies. Check documentation and types before adding or rebuilding
-   capability.
-7. Make long-term architectural decisions. Do not add stopgaps intended for
-   later replacement.
-8. Study official framework conventions and established products before
-   inventing a local pattern. Record a new design decision in an ADR with its
-   evidence; mechanical work may cite the approved plan or research.
-9. Preserve generated-file ownership. Never hand-edit
-   `client/src/routeTree.gen.ts` or `server/src/generated/prisma`.
-10. Preserve repository style: two spaces, single quotes, no semicolons,
-    trailing commas, strict typed TypeScript, and kebab-case filenames.
+Do not introduce a service, helper, interface, event, injection token, or other abstraction just to make the code look architected.
+
+## Tests
+
+Add focused regression coverage for behavior changes. Test behavior and contracts, not implementation details. Never weaken a test just to make a change pass.
+
+Keep unit tests close to the behavior they test. Server E2E tests live in `server/test/`; browser journeys live in `tests/acceptance/`.
+
+Use focused tests while working. Before finishing, run:
+
+`npm run check`
+
+Run `npm run test:e2e` and/or `npm run test:acceptance` when the affected surface requires them.
+
+The architecture gate is part of the repository contract. Do not bypass it or add exceptions just to make a change pass.
+
+## Git
+
+Branch from `dev` and target normal PRs to `dev`. `main` is for releases and hotfixes.
+
+Use scoped Conventional Commits with concise, imperative subjects:
+
+`feat(server): add course readiness check`
+
+Use `p=#N` only on PR merge commits, never regular branch commits.
+
+Never commit credentials, private course material, or student data.
