@@ -9,9 +9,8 @@ import {
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger'
 
 import { ApiAccessTokenAuth } from '../../common/http/openapi.decorators'
-import { UserRole } from '../../generated/prisma/client'
-import type { AuthenticatedHttpRequest } from '../auth/auth.guard'
-import { Roles } from '../auth/roles.decorator'
+import type { AuthenticatedHttpRequest } from '../identity/identity.guard'
+import { Roles, UserRole } from '../identity/identity.roles'
 import {
   CourseListResponseDto,
   MaterialManageableCourseListResponseDto,

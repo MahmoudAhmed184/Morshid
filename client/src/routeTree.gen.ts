@@ -29,6 +29,8 @@ import { Route as AdminCoursesIndexRouteImport } from './routes/admin/courses/in
 import { Route as AdminAuditIndexRouteImport } from './routes/admin/audit/index'
 import { Route as AdminAssignmentsIndexRouteImport } from './routes/admin/assignments/index'
 import { Route as InstructorReviewQueueReviewCaseIdRouteImport } from './routes/instructor/review-queue/$reviewCaseId'
+import { Route as AdminUsersStudentsRouteImport } from './routes/admin/users/students'
+import { Route as AdminUsersDoctorsRouteImport } from './routes/admin/users/doctors'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -132,6 +134,16 @@ const InstructorReviewQueueReviewCaseIdRoute =
     path: '/review-queue/$reviewCaseId',
     getParentRoute: () => InstructorRouteRoute,
   } as any)
+const AdminUsersStudentsRoute = AdminUsersStudentsRouteImport.update({
+  id: '/users/students',
+  path: '/users/students',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminUsersDoctorsRoute = AdminUsersDoctorsRouteImport.update({
+  id: '/users/doctors',
+  path: '/users/doctors',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -145,6 +157,8 @@ export interface FileRoutesByFullPath {
   '/instructor/settings': typeof InstructorSettingsRoute
   '/admin/': typeof AdminIndexRoute
   '/instructor/': typeof InstructorIndexRoute
+  '/admin/users/doctors': typeof AdminUsersDoctorsRoute
+  '/admin/users/students': typeof AdminUsersStudentsRoute
   '/instructor/review-queue/$reviewCaseId': typeof InstructorReviewQueueReviewCaseIdRoute
   '/admin/assignments/': typeof AdminAssignmentsIndexRoute
   '/admin/audit/': typeof AdminAuditIndexRoute
@@ -164,6 +178,8 @@ export interface FileRoutesByTo {
   '/instructor/settings': typeof InstructorSettingsRoute
   '/admin': typeof AdminIndexRoute
   '/instructor': typeof InstructorIndexRoute
+  '/admin/users/doctors': typeof AdminUsersDoctorsRoute
+  '/admin/users/students': typeof AdminUsersStudentsRoute
   '/instructor/review-queue/$reviewCaseId': typeof InstructorReviewQueueReviewCaseIdRoute
   '/admin/assignments': typeof AdminAssignmentsIndexRoute
   '/admin/audit': typeof AdminAuditIndexRoute
@@ -187,6 +203,8 @@ export interface FileRoutesById {
   '/instructor/settings': typeof InstructorSettingsRoute
   '/admin/': typeof AdminIndexRoute
   '/instructor/': typeof InstructorIndexRoute
+  '/admin/users/doctors': typeof AdminUsersDoctorsRoute
+  '/admin/users/students': typeof AdminUsersStudentsRoute
   '/instructor/review-queue/$reviewCaseId': typeof InstructorReviewQueueReviewCaseIdRoute
   '/admin/assignments/': typeof AdminAssignmentsIndexRoute
   '/admin/audit/': typeof AdminAuditIndexRoute
@@ -210,6 +228,8 @@ export interface FileRouteTypes {
     | '/instructor/settings'
     | '/admin/'
     | '/instructor/'
+    | '/admin/users/doctors'
+    | '/admin/users/students'
     | '/instructor/review-queue/$reviewCaseId'
     | '/admin/assignments/'
     | '/admin/audit/'
@@ -229,6 +249,8 @@ export interface FileRouteTypes {
     | '/instructor/settings'
     | '/admin'
     | '/instructor'
+    | '/admin/users/doctors'
+    | '/admin/users/students'
     | '/instructor/review-queue/$reviewCaseId'
     | '/admin/assignments'
     | '/admin/audit'
@@ -251,6 +273,8 @@ export interface FileRouteTypes {
     | '/instructor/settings'
     | '/admin/'
     | '/instructor/'
+    | '/admin/users/doctors'
+    | '/admin/users/students'
     | '/instructor/review-queue/$reviewCaseId'
     | '/admin/assignments/'
     | '/admin/audit/'
@@ -412,12 +436,28 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InstructorReviewQueueReviewCaseIdRouteImport
       parentRoute: typeof InstructorRouteRoute
     }
+    '/admin/users/students': {
+      id: '/admin/users/students'
+      path: '/users/students'
+      fullPath: '/admin/users/students'
+      preLoaderRoute: typeof AdminUsersStudentsRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/users/doctors': {
+      id: '/admin/users/doctors'
+      path: '/users/doctors'
+      fullPath: '/admin/users/doctors'
+      preLoaderRoute: typeof AdminUsersDoctorsRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
   }
 }
 
 interface AdminRouteRouteChildren {
   AdminSettingsRoute: typeof AdminSettingsRoute
   AdminIndexRoute: typeof AdminIndexRoute
+  AdminUsersDoctorsRoute: typeof AdminUsersDoctorsRoute
+  AdminUsersStudentsRoute: typeof AdminUsersStudentsRoute
   AdminAssignmentsIndexRoute: typeof AdminAssignmentsIndexRoute
   AdminAuditIndexRoute: typeof AdminAuditIndexRoute
   AdminCoursesIndexRoute: typeof AdminCoursesIndexRoute
@@ -428,6 +468,8 @@ interface AdminRouteRouteChildren {
 const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminSettingsRoute: AdminSettingsRoute,
   AdminIndexRoute: AdminIndexRoute,
+  AdminUsersDoctorsRoute: AdminUsersDoctorsRoute,
+  AdminUsersStudentsRoute: AdminUsersStudentsRoute,
   AdminAssignmentsIndexRoute: AdminAssignmentsIndexRoute,
   AdminAuditIndexRoute: AdminAuditIndexRoute,
   AdminCoursesIndexRoute: AdminCoursesIndexRoute,
@@ -485,7 +527,7 @@ export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
 
-import type { getRouter } from './router.tsx'
+import type { getRouter } from './app/router.tsx'
 import type { createStart } from '@tanstack/react-start'
 declare module '@tanstack/react-start' {
   interface Register {

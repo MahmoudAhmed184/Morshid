@@ -16,13 +16,14 @@
     "db:migrate": "prisma migrate dev --config prisma.config.ts",
     "db:reset": "prisma migrate reset --config prisma.config.ts --force",
     "db:seed": "prisma db seed --config prisma.config.ts",
+    "db:assert-catalog": "tsx prisma/assert-catalog.mts",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
-    "prestart": "node scripts/clean-build-cache.mts",
+    "prestart": "node scripts/clean-build-cache.mts && npm run db:generate",
     "start": "nest start",
-    "prestart:dev": "node scripts/clean-build-cache.mts",
+    "prestart:dev": "node scripts/clean-build-cache.mts && npm run db:generate",
     "start:dev": "nest start --watch",
-    "prestart:debug": "node scripts/clean-build-cache.mts",
+    "prestart:debug": "node scripts/clean-build-cache.mts && npm run db:generate",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "prelint": "npm run db:generate",
@@ -36,19 +37,17 @@
     "test": "node --experimental-vm-modules ../node_modules/jest/bin/jest.js",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
-    "test:gemini:smoke": "tsx scripts/gemini-live-smoke.mts",
+    "test:tutoring:live": "tsx scripts/tutoring-role-chain-live-smoke.mts",
+    "test:tutoring:e2e-live": "node --experimental-vm-modules ../node_modules/jest/bin/jest.js --config ./test/jest-live-e2e.json --runInBand --runTestsByPath ./test/tutoring/tutoring-runtime.live-spec.ts",
     "test:gemini-embedding:smoke": "tsx scripts/gemini-embedding-live-smoke.mts",
     "test:gemini-embedding:task-selection": "tsx scripts/gemini-embedding-task-selection.mts",
     "test:iti-bedrock-embedding:probe": "tsx scripts/iti-bedrock-embedding-contract-probe.mts",
     "embedding:migrate": "tsx scripts/embedding-migration.mts",
-    "test:iti-bedrock:smoke": "tsx scripts/iti-bedrock-live-smoke.mts",
-    "test:live-diagnosis": "tsx scripts/live-diagnosis-validation.mts",
-    "test:automatic-safety:smoke": "tsx scripts/automatic-safety-live-smoke.mts",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "pretest:e2e": "npm run db:generate",
     "test:e2e": "node --experimental-vm-modules ../node_modules/jest/bin/jest.js --config ./test/jest-e2e.json",
     "db:migrate:deploy": "prisma migrate deploy --config prisma.config.ts",
-    "test:e2e:gate-2": "node --experimental-vm-modules ../node_modules/jest/bin/jest.js --config ./test/jest-e2e.json --runInBand --runTestsByPath ./test/gate-2.e2e-spec.ts",
+    "test:e2e:gate-2": "node --experimental-vm-modules ../node_modules/jest/bin/jest.js --config ./test/jest-e2e.json --runInBand --runTestsByPath ./test/materials/gate-2.e2e-spec.ts",
     "pretest:e2e:gate-2": "npm run db:generate"
   },
   "dependencies": {
@@ -106,7 +105,9 @@
       "ts"
     ],
     "rootDir": "src",
-    "testRegex": ".*\\.spec\\.ts$",
+    "testMatch": [
+      "<rootDir>/**/*.spec.ts"
+    ],
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },

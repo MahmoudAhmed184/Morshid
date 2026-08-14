@@ -41,5 +41,36 @@ export default defineConfig([
       'pnpm/json-enforce-catalog': 'off',
     },
   },
+  {
+    name: 'client/import-restrictions',
+    files: ['src/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['#/**'],
+              message: 'Use the canonical @/* client alias.',
+            },
+            {
+              group: [
+                '@/features/student/**',
+                '@/features/instructor/**',
+                '@/features/admin/**',
+                '@/features/notifications/**',
+                '@/providers/**',
+                '@/hooks/**',
+                '@/components/layout/**',
+                '@/lib/api/**',
+              ],
+              message:
+                'Import from the current app, feature, workspace, or shared owner.',
+            },
+          ],
+        },
+      ],
+    },
+  },
   eslintConfigPrettier,
 ])

@@ -1,0 +1,70 @@
+import { Eye, EyeOff } from 'lucide-react'
+import { useState } from 'react'
+import type { ComponentProps } from 'react'
+
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { cn } from '@/lib/utils'
+
+type PasswordFieldProps = Omit<
+  ComponentProps<'input'>,
+  'id' | 'type' | 'placeholder'
+> & {
+  id?: string
+  label?: string
+  placeholder?: string
+  forgotPasswordHref?: string
+  showForgotPassword?: boolean
+  className?: string
+}
+
+export function PasswordField({
+  id = 'password',
+  label = 'Password',
+  placeholder = '••••••••',
+  forgotPasswordHref = '#',
+  showForgotPassword = true,
+  className,
+  ...inputProps
+}: PasswordFieldProps) {
+  const [visible, setVisible] = useState(false)
+
+  return (
+    <div className={cn('space-y-2.5', className)}>
+      <div className="flex items-center justify-between gap-3">
+        <Label htmlFor={id} className="smallcaps-label">
+          {label}
+        </Label>
+        {showForgotPassword ? (
+          <a
+            href={forgotPasswordHref}
+            className="link-editorial font-mono text-xs text-muted-foreground"
+          >
+            Forgot password?
+          </a>
+        ) : null}
+      </div>
+      <div className="relative">
+        <Input
+          id={id}
+          type={visible ? 'text' : 'password'}
+          placeholder={placeholder}
+          autoComplete="current-password"
+          className="pr-10"
+          {...inputProps}
+        />
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          onClick={() => setVisible((current) => !current)}
+          aria-label={visible ? 'Hide password' : 'Show password'}
+          className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground hover:bg-transparent hover:text-foreground"
+        >
+          {visible ? <EyeOff aria-hidden /> : <Eye aria-hidden />}
+        </Button>
+      </div>
+    </div>
+  )
+}

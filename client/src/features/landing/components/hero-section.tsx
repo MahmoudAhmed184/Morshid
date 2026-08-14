@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { MotionConfig, motion, useReducedMotion } from 'motion/react'
 
-import { Logo } from '@/components/logo'
+import { Logo } from '@/components/branding/logo'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 

@@ -1,6 +1,6 @@
 import { EmptyState } from '@/components/ui/custom/empty-state'
 import { ErrorState } from '@/components/ui/custom/error-state'
-import { LoadingState } from '#/components/ui/custom/loading-state'
+import { LoadingState } from '@/components/ui/custom/loading-state'
 
 type DataTableStateProps = {
   isLoading?: boolean

@@ -157,7 +157,7 @@ Later acceptance checks:
 | Example prompt | "Why does this Python function crash? `def average(nums): total = 0; for i in range(len(nums)): total += nums[i]; return total / len(num)`" |
 | Expected source coverage | Covered by planned same-course chunks on variable names, scope, function inputs, common `NameError` causes, and debugging Python code. |
 | Suggested source topic/PDF | `Debugging Python Code` and optionally `Functions and Scope`, version label `p0-v1` or equivalent planned fixtures. |
-| Expected fixture data | `gd-p0-v1-058` in `fixtures/golden-dataset/python-code-diagnosis-p0.json`: a short Python snippet under the P0 size limit, `CODE_DIAGNOSIS`, required `p0-npt-part-02` citation support, exactly one inspection step, and forbidden full corrected code. |
+| Expected fixture data | `gd-p0-v1-058` in `fixtures/evaluations/code-diagnosis/debugging-guidance-p0.json`: a short code snippet under the P0 size limit, `CODE_DIAGNOSIS`, required `p0-npt-part-02` citation support, exactly one inspection step, and forbidden full corrected code. |
 | Expected system behavior | Identify the likely bug and suspicious expression, explain the relevant concept, suggest what to inspect next, include citations if source-grounded, and avoid rewriting the full corrected solution. |
 
 Later acceptance checks:

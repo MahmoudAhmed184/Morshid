@@ -9,13 +9,10 @@ Dataset ID: `golden-dataset-p0-v1`
 Version: `p0-v1-2026-07-09-part-sources`
 
 > [!IMPORTANT]
-> **Prerequisite:** This dataset references the P0 source catalog defined in
-> `docs/python-pdf-source-plan.md` and the PDFs under `fixtures/sources/` (source
-> IDs `p0-npt-part-01`–`05`). Those files are added by the source plan PR for
-> issue #33 and do not yet exist on `dev`. The issue #33 source plan PR must
-> merge before — or together with — this PR;
-> otherwise the source IDs, titles, and file paths referenced here resolve to
-> nothing in the repo.
+> This dataset uses the five committed P0 source PDFs under
+> `fixtures/course-materials/` (source IDs `p0-npt-part-01`–`05`). Their
+> attribution, license, and transformation notes are recorded in
+> `fixtures/course-materials/ATTRIBUTION.md`.
 
 ## Purpose
 
@@ -35,17 +32,17 @@ It checks whether Morshid can:
 
 ## Expected Source Catalog
 
-These source IDs are stable for this dataset version. They are defined in
-`docs/python-pdf-source-plan.md` (issue #33), which is the source of truth for
-source IDs, filenames, and licensing; the table below is a convenience mirror.
+These source IDs are stable for this dataset version. The table below is the
+source catalog for this dataset; licensing and source-transformation details
+are recorded in `fixtures/course-materials/ATTRIBUTION.md`.
 
 | Source ID | Selected P0 PDF title | Local filename | Coverage focus |
 |---|---|---|---|
-| `p0-npt-part-01` | Python Part 1 | `storage/pdfs/Python_Part_1.pdf` | Hello World; Input and Variables; Count to 10 |
-| `p0-npt-part-02` | Python Part 2 | `storage/pdfs/Python_Part_2.pdf` | Decisions; Debugging; Defining Functions |
-| `p0-npt-part-03` | Python Part 3 | `storage/pdfs/Python_Part_3.pdf` | Lists; For Loops; Boolean Expressions |
-| `p0-npt-part-04` | Python Part 4 | `storage/pdfs/Python_Part_4.pdf` | Dictionaries; Using Modules; More on Lists |
-| `p0-npt-part-05` | Python Part 5 | `storage/pdfs/Python_Part_5.pdf` | Strings; File I/O |
+| `p0-npt-part-01` | Python Part 1 | `fixtures/course-materials/Python_Part_1.pdf` | Hello World; Input and Variables; Count to 10 |
+| `p0-npt-part-02` | Python Part 2 | `fixtures/course-materials/Python_Part_2.pdf` | Decisions; Debugging; Defining Functions |
+| `p0-npt-part-03` | Python Part 3 | `fixtures/course-materials/Python_Part_3.pdf` | Lists; For Loops; Boolean Expressions |
+| `p0-npt-part-04` | Python Part 4 | `fixtures/course-materials/Python_Part_4.pdf` | Dictionaries; Using Modules; More on Lists |
+| `p0-npt-part-05` | Python Part 5 | `fixtures/course-materials/Python_Part_5.pdf` | Strings; File I/O |
 
 ## Scenario Types
 
@@ -206,7 +203,7 @@ notes.
 | SCN-002 (unsupported assignment-like) | `gd-p0-v1-060` | Gradebook-CLI prompt with intentionally missing coverage. |
 | SCN-003 (conflicting-source) | deferred | See Versioning Notes; the conflicting-source fixture is deferred to a later dataset version. |
 | SCN-004 (manual Student review) | `gd-p0-v1-037` | Reuses a course-grounded dictionary response that the Student manually flags. |
-| SCN-005 (code diagnosis) | `gd-p0-v1-058` | The `num`/`nums` `NameError` snippet in an `average` function; its machine-readable contract is in `fixtures/golden-dataset/python-code-diagnosis-p0.json`. |
+| SCN-005 (code diagnosis) | `gd-p0-v1-058` | The `num`/`nums` `NameError` snippet in an `average` function; its machine-readable contract is in `fixtures/evaluations/code-diagnosis/debugging-guidance-p0.json`. |
 | SCN-006 (course isolation) | `gd-p0-v1-065` | `student3@morshid.demo` denied access to `HIDDEN-ISOLATION`. |
 
 ## Versioning Notes
@@ -224,7 +221,7 @@ notes.
   ready.
 - Version strings follow `p0-v<major>-<YYYY-MM-DD>-<suffix>`, where the date is
   the lock date and the suffix names the source set (`part-sources` = the five
-  grouped part PDFs from `docs/python-pdf-source-plan.md`).
+  grouped part PDFs committed under `fixtures/course-materials/`).
 
 ## Acceptance Checklist
 

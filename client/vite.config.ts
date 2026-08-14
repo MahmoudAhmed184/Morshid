@@ -8,7 +8,12 @@ import tailwindcss from '@tailwindcss/vite'
 
 const config = defineConfig({
   resolve: { tsconfigPaths: true },
-  plugins: [devtools(), tailwindcss(), tanstackStart(), viteReact()],
+  plugins: [
+    devtools(),
+    tailwindcss(),
+    tanstackStart({ router: { entry: './app/router' } }),
+    viteReact(),
+  ],
   test: {
     environment: 'jsdom',
     environmentOptions: {
@@ -17,6 +22,7 @@ const config = defineConfig({
       },
     },
     fileParallelism: false,
+    include: ['src/**/*.{test,spec}.?(c|m)[jt]s?(x)'],
     setupFiles: ['./src/test/setup.ts'],
   },
 })

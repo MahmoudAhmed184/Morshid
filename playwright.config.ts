@@ -11,8 +11,8 @@ const serverPort = parsePort(
   4000,
   'PLAYWRIGHT_SERVER_PORT',
 )
-const clientBaseUrl = `http://localhost:${clientPort.toString()}`
-const serverBaseUrl = `http://localhost:${serverPort.toString()}`
+const clientBaseUrl = `http://127.0.0.1:${clientPort.toString()}`
+const serverBaseUrl = `http://127.0.0.1:${serverPort.toString()}`
 
 export default defineConfig({
   testDir: './tests/acceptance',
@@ -34,12 +34,13 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: `env VITE_API_BASE_URL=${serverBaseUrl} npm exec --workspace client -- vite dev --port ${clientPort.toString()} --strictPort`,
+      command: `env VITE_API_BASE_URL=${serverBaseUrl} npm exec --workspace client -- vite dev --host 127.0.0.1 --port ${clientPort.toString()} --strictPort`,
       url: clientBaseUrl,
       reuseExistingServer: !isCi,
+      timeout: 180_000,
     },
     {
-      command: `env PORT=${serverPort.toString()} CLIENT_ORIGIN=${clientBaseUrl} EMBEDDING_PROVIDER=deterministic COMPLETION_PROVIDER=deterministic RETRIEVAL_MIN_SIMILARITY=0 npm run dev:server`,
+      command: `env PORT=${serverPort.toString()} CLIENT_ORIGIN=${clientBaseUrl} ANALYSIS_MODEL_PROVIDER=deterministic TUTOR_MODEL_PROVIDER=deterministic SEMANTIC_GUARD_PROVIDER=deterministic EMBEDDING_PROVIDER=deterministic GEMINI_CHAT_PROJECTS_JSON='[]' RETRIEVAL_MIN_SIMILARITY=0 npm run dev:server`,
       url: `${serverBaseUrl}/health/live`,
       reuseExistingServer: !isCi,
       timeout: 180_000,

@@ -1,4 +1,9 @@
-import { CourseMembershipRole, UserRole } from '../../generated/prisma/client'
+import { UserRole } from '../identity/identity.roles'
+import type { UserRole as UserRoleType } from '../identity/identity.roles'
+import {
+  CourseMembershipRole,
+  type CourseMembershipRole as CourseMembershipRoleType,
+} from './interface/course-membership-role'
 
 interface AllCoursesPolicy {
   scope: 'all'
@@ -7,25 +12,20 @@ interface AllCoursesPolicy {
 
 interface MembershipCoursesPolicy {
   scope: 'membership'
-  membershipRole: CourseMembershipRole
+  membershipRole: CourseMembershipRoleType
   canManage: boolean
 }
 
-interface OwnedCoursesPolicy {
-  scope: 'ownership'
-  canManage: true
-}
+export type CourseRolePolicy = AllCoursesPolicy | MembershipCoursesPolicy
 
-export type CourseRolePolicy =
-  AllCoursesPolicy | OwnedCoursesPolicy | MembershipCoursesPolicy
-
-const COURSE_ROLE_POLICIES: Record<UserRole, CourseRolePolicy> = {
+const COURSE_ROLE_POLICIES: Record<UserRoleType, CourseRolePolicy> = {
   [UserRole.ADMIN]: {
     scope: 'all',
     canManage: true,
   },
   [UserRole.INSTRUCTOR]: {
-    scope: 'ownership',
+    scope: 'membership',
+    membershipRole: CourseMembershipRole.INSTRUCTOR,
     canManage: true,
   },
   [UserRole.STUDENT]: {
@@ -35,6 +35,6 @@ const COURSE_ROLE_POLICIES: Record<UserRole, CourseRolePolicy> = {
   },
 }
 
-export function getCourseRolePolicy(role: UserRole): CourseRolePolicy {
+export function getCourseRolePolicy(role: UserRoleType): CourseRolePolicy {
   return COURSE_ROLE_POLICIES[role]
 }

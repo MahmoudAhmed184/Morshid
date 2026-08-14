@@ -1,0 +1,1779 @@
+{
+  "info": {
+    "contact": {},
+    "description": "API for the Morshid Socratic teaching assistant.",
+    "title": "Morshid API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.0.4",
+  "paths": [
+    {
+      "operations": [
+        {
+          "method": "get",
+          "operationId": "HealthController_live",
+          "parameters": [],
+          "requestBody": null,
+          "security": [],
+          "statuses": ["200", "503"],
+          "summary": "Process liveness check",
+          "tags": ["health"]
+        }
+      ],
+      "path": "/health/live"
+    },
+    {
+      "operations": [
+        {
+          "method": "get",
+          "operationId": "HealthController_ready",
+          "parameters": [],
+          "requestBody": null,
+          "security": [],
+          "statuses": ["200", "503"],
+          "summary": "Dependency readiness check",
+          "tags": ["health"]
+        }
+      ],
+      "path": "/health/ready"
+    },
+    {
+      "operations": [
+        {
+          "method": "post",
+          "operationId": "AuthController_signIn",
+          "parameters": [],
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInRequestDto"
+                }
+              }
+            },
+            "required": true
+          },
+          "security": [],
+          "statuses": ["200", "400", "401", "403"],
+          "summary": "Sign in",
+          "tags": ["auth"]
+        }
+      ],
+      "path": "/api/v1/auth/sign-in"
+    },
+    {
+      "operations": [
+        {
+          "method": "post",
+          "operationId": "AuthController_refresh",
+          "parameters": [],
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefreshRequestDto"
+                }
+              }
+            },
+            "required": true
+          },
+          "security": [
+            {},
+            {
+              "refresh-session": []
+            }
+          ],
+          "statuses": ["200", "400", "401", "403"],
+          "summary": "Refresh authentication session",
+          "tags": ["auth"]
+        }
+      ],
+      "path": "/api/v1/auth/refresh"
+    },
+    {
+      "operations": [
+        {
+          "method": "post",
+          "operationId": "AuthController_logout",
+          "parameters": [],
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefreshRequestDto"
+                }
+              }
+            },
+            "required": true
+          },
+          "security": [
+            {},
+            {
+              "refresh-session": []
+            }
+          ],
+          "statuses": ["204", "400"],
+          "summary": "Log out",
+          "tags": ["auth"]
+        }
+      ],
+      "path": "/api/v1/auth/logout"
+    },
+    {
+      "operations": [
+        {
+          "method": "get",
+          "operationId": "AuthController_me",
+          "parameters": [],
+          "requestBody": null,
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["200", "401", "403"],
+          "summary": "Get current user",
+          "tags": ["auth"]
+        }
+      ],
+      "path": "/api/v1/me"
+    },
+    {
+      "operations": [
+        {
+          "method": "get",
+          "operationId": "CoursesController_listMaterialManageableCourses",
+          "parameters": [],
+          "requestBody": null,
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["200", "401", "403"],
+          "summary": "List courses manageable by the Instructor",
+          "tags": ["courses"]
+        }
+      ],
+      "path": "/api/v1/courses/material-management"
+    },
+    {
+      "operations": [
+        {
+          "method": "get",
+          "operationId": "CoursesController_listCourses",
+          "parameters": [],
+          "requestBody": null,
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["200", "401", "403"],
+          "summary": "List accessible courses",
+          "tags": ["courses"]
+        }
+      ],
+      "path": "/api/v1/courses"
+    },
+    {
+      "operations": [
+        {
+          "method": "get",
+          "operationId": "AdminUsersController_listUsers",
+          "parameters": [
+            {
+              "in": "query",
+              "name": "cursor",
+              "required": false,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            {
+              "in": "query",
+              "name": "limit",
+              "required": false,
+              "schema": {
+                "default": 50,
+                "maximum": 100,
+                "minimum": 1,
+                "type": "integer"
+              }
+            }
+          ],
+          "requestBody": null,
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["200", "400", "401", "403"],
+          "summary": "List users",
+          "tags": ["admin-users"]
+        },
+        {
+          "method": "post",
+          "operationId": "AdminUsersController_createUser",
+          "parameters": [],
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCreateUserRequestDto"
+                }
+              }
+            },
+            "required": true
+          },
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["201", "400", "401", "403", "409"],
+          "summary": "Create user",
+          "tags": ["admin-users"]
+        }
+      ],
+      "path": "/api/v1/admin/users"
+    },
+    {
+      "operations": [
+        {
+          "method": "patch",
+          "operationId": "AdminUsersController_updateUser",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "userId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            }
+          ],
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUpdateUserRequestDto"
+                }
+              }
+            },
+            "required": true
+          },
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["200", "400", "401", "403", "404", "409"],
+          "summary": "Update user",
+          "tags": ["admin-users"]
+        }
+      ],
+      "path": "/api/v1/admin/users/{userId}"
+    },
+    {
+      "operations": [
+        {
+          "method": "patch",
+          "operationId": "AdminUsersController_disableUser",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "userId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            }
+          ],
+          "requestBody": null,
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["200", "400", "401", "403", "404", "409"],
+          "summary": "Disable user",
+          "tags": ["admin-users"]
+        }
+      ],
+      "path": "/api/v1/admin/users/{userId}/disable"
+    },
+    {
+      "operations": [
+        {
+          "method": "patch",
+          "operationId": "AdminUsersController_reactivateUser",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "userId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            }
+          ],
+          "requestBody": null,
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["200", "400", "401", "403", "404"],
+          "summary": "Reactivate user",
+          "tags": ["admin-users"]
+        }
+      ],
+      "path": "/api/v1/admin/users/{userId}/reactivate"
+    },
+    {
+      "operations": [
+        {
+          "method": "patch",
+          "operationId": "AdminUsersController_resetUserPassword",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "userId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            }
+          ],
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminResetUserPasswordRequestDto"
+                }
+              }
+            },
+            "required": true
+          },
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["200", "400", "401", "403", "404"],
+          "summary": "Reset user password",
+          "tags": ["admin-users"]
+        }
+      ],
+      "path": "/api/v1/admin/users/{userId}/reset-password"
+    },
+    {
+      "operations": [
+        {
+          "method": "get",
+          "operationId": "AdminCoursesController_listCourses",
+          "parameters": [],
+          "requestBody": null,
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["200", "401", "403"],
+          "summary": "List courses for administration",
+          "tags": ["admin-courses"]
+        },
+        {
+          "method": "post",
+          "operationId": "AdminCoursesController_createCourse",
+          "parameters": [],
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCreateCourseRequestDto"
+                }
+              }
+            },
+            "required": true
+          },
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["201", "400", "401", "403", "409"],
+          "summary": "Create course",
+          "tags": ["admin-courses"]
+        }
+      ],
+      "path": "/api/v1/admin/courses"
+    },
+    {
+      "operations": [
+        {
+          "method": "get",
+          "operationId": "AdminCoursesController_getCourse",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "courseId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            }
+          ],
+          "requestBody": null,
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["200", "400", "401", "403", "404"],
+          "summary": "Get course details",
+          "tags": ["admin-courses"]
+        },
+        {
+          "method": "patch",
+          "operationId": "AdminCoursesController_updateCourse",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "courseId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            }
+          ],
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUpdateCourseRequestDto"
+                }
+              }
+            },
+            "required": true
+          },
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["200", "400", "401", "403", "404", "409"],
+          "summary": "Update course",
+          "tags": ["admin-courses"]
+        }
+      ],
+      "path": "/api/v1/admin/courses/{courseId}"
+    },
+    {
+      "operations": [
+        {
+          "method": "post",
+          "operationId": "AdminCoursesController_addMember",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "courseId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            }
+          ],
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAddCourseMemberRequestDto"
+                }
+              }
+            },
+            "required": true
+          },
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["201", "400", "401", "403", "404", "409"],
+          "summary": "Add course member",
+          "tags": ["admin-courses"]
+        },
+        {
+          "method": "get",
+          "operationId": "AdminCoursesController_listMembers",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "courseId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            }
+          ],
+          "requestBody": null,
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["200", "400", "401", "403", "404"],
+          "summary": "List course members",
+          "tags": ["admin-courses"]
+        }
+      ],
+      "path": "/api/v1/admin/courses/{courseId}/members"
+    },
+    {
+      "operations": [
+        {
+          "method": "delete",
+          "operationId": "AdminCoursesController_removeMember",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "courseId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            {
+              "in": "path",
+              "name": "userId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            }
+          ],
+          "requestBody": null,
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["204", "400", "401", "403", "404"],
+          "summary": "Remove course member",
+          "tags": ["admin-courses"]
+        },
+        {
+          "method": "patch",
+          "operationId": "AdminCoursesController_updateMemberRole",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "courseId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            {
+              "in": "path",
+              "name": "userId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            }
+          ],
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUpdateMemberRoleRequestDto"
+                }
+              }
+            },
+            "required": true
+          },
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["200", "400", "401", "403", "404"],
+          "summary": "Update course member role",
+          "tags": ["admin-courses"]
+        }
+      ],
+      "path": "/api/v1/admin/courses/{courseId}/members/{userId}"
+    },
+    {
+      "operations": [
+        {
+          "method": "get",
+          "operationId": "AdminCoursesController_listMaterials",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "courseId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            }
+          ],
+          "requestBody": null,
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["200", "400", "401", "403", "404"],
+          "summary": "List course materials",
+          "tags": ["admin-courses"]
+        }
+      ],
+      "path": "/api/v1/admin/courses/{courseId}/materials"
+    },
+    {
+      "operations": [
+        {
+          "method": "get",
+          "operationId": "AdminCoursesController_getMaterial",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "courseId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            {
+              "in": "path",
+              "name": "materialId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            }
+          ],
+          "requestBody": null,
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["200", "400", "401", "403", "404"],
+          "summary": "Get course material",
+          "tags": ["admin-courses"]
+        },
+        {
+          "method": "patch",
+          "operationId": "AdminCoursesController_updateMaterial",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "courseId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            {
+              "in": "path",
+              "name": "materialId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            }
+          ],
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUpdateMaterialRequestDto"
+                }
+              }
+            },
+            "required": true
+          },
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["200", "400", "401", "403", "404"],
+          "summary": "Update course material",
+          "tags": ["admin-courses"]
+        }
+      ],
+      "path": "/api/v1/admin/courses/{courseId}/materials/{materialId}"
+    },
+    {
+      "operations": [
+        {
+          "method": "get",
+          "operationId": "AdminAuditController_listRecentEvents",
+          "parameters": [
+            {
+              "in": "query",
+              "name": "limit",
+              "required": false,
+              "schema": {
+                "default": 20,
+                "maximum": 100,
+                "minimum": 1,
+                "type": "integer"
+              }
+            }
+          ],
+          "requestBody": null,
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["200", "400", "401", "403"],
+          "summary": "List recent audit events",
+          "tags": ["admin-audit"]
+        }
+      ],
+      "path": "/api/v1/admin/audit"
+    },
+    {
+      "operations": [
+        {
+          "method": "post",
+          "operationId": "StudentChatController_createSession",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "courseId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            }
+          ],
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateChatSessionRequestDto"
+                }
+              }
+            },
+            "required": true
+          },
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["201", "400", "401", "403"],
+          "summary": "Create chat session",
+          "tags": ["student-chat-sessions"]
+        },
+        {
+          "method": "get",
+          "operationId": "StudentChatController_listSessions",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "courseId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            {
+              "in": "query",
+              "name": "cursor",
+              "required": false,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            {
+              "in": "query",
+              "name": "limit",
+              "required": false,
+              "schema": {
+                "type": "number"
+              }
+            }
+          ],
+          "requestBody": null,
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["200", "400", "401", "403"],
+          "summary": "List chat sessions",
+          "tags": ["student-chat-sessions"]
+        }
+      ],
+      "path": "/api/v1/courses/{courseId}/chat-sessions"
+    },
+    {
+      "operations": [
+        {
+          "method": "get",
+          "operationId": "StudentChatController_getSession",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "courseId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            {
+              "in": "path",
+              "name": "sessionId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            }
+          ],
+          "requestBody": null,
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["200", "400", "401", "403", "404"],
+          "summary": "Get chat session",
+          "tags": ["student-chat-sessions"]
+        },
+        {
+          "method": "patch",
+          "operationId": "StudentChatController_renameSession",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "courseId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            {
+              "in": "path",
+              "name": "sessionId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            }
+          ],
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RenameChatSessionRequestDto"
+                }
+              }
+            },
+            "required": true
+          },
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["200", "400", "401", "403", "404"],
+          "summary": "Rename chat session",
+          "tags": ["student-chat-sessions"]
+        },
+        {
+          "method": "delete",
+          "operationId": "StudentChatController_softDeleteSession",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "courseId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            {
+              "in": "path",
+              "name": "sessionId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            }
+          ],
+          "requestBody": null,
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["204", "400", "401", "403", "404"],
+          "summary": "Delete chat session",
+          "tags": ["student-chat-sessions"]
+        }
+      ],
+      "path": "/api/v1/courses/{courseId}/chat-sessions/{sessionId}"
+    },
+    {
+      "operations": [
+        {
+          "method": "get",
+          "operationId": "StudentChatController_listMessages",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "courseId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            {
+              "in": "path",
+              "name": "sessionId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            {
+              "in": "query",
+              "name": "page",
+              "required": false,
+              "schema": {
+                "enum": ["latest"],
+                "type": "string"
+              }
+            },
+            {
+              "in": "query",
+              "name": "before",
+              "required": false,
+              "schema": {
+                "type": "number"
+              }
+            },
+            {
+              "in": "query",
+              "name": "after",
+              "required": false,
+              "schema": {
+                "type": "number"
+              }
+            },
+            {
+              "in": "query",
+              "name": "limit",
+              "required": false,
+              "schema": {
+                "type": "number"
+              }
+            }
+          ],
+          "requestBody": null,
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["200", "400", "401", "403", "404"],
+          "summary": "List chat session messages",
+          "tags": ["student-chat-sessions"]
+        },
+        {
+          "method": "post",
+          "operationId": "StudentChatController_sendMessage",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "courseId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            {
+              "in": "path",
+              "name": "sessionId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            }
+          ],
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SendStudentChatMessageRequestDto"
+                }
+              }
+            },
+            "required": true
+          },
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["201", "400", "401", "403", "404", "409", "503"],
+          "summary": "Send grounded chat message",
+          "tags": ["student-chat-sessions"]
+        }
+      ],
+      "path": "/api/v1/courses/{courseId}/chat-sessions/{sessionId}/messages"
+    },
+    {
+      "operations": [
+        {
+          "method": "post",
+          "operationId": "StudentChatController_retryMessage",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "courseId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            {
+              "in": "path",
+              "name": "sessionId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            {
+              "in": "path",
+              "name": "studentMessageId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            }
+          ],
+          "requestBody": null,
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["200", "400", "401", "403", "404", "409", "503"],
+          "summary": "Retry failed grounded chat response",
+          "tags": ["student-chat-sessions"]
+        }
+      ],
+      "path": "/api/v1/courses/{courseId}/chat-sessions/{sessionId}/messages/{studentMessageId}/retry"
+    },
+    {
+      "operations": [
+        {
+          "method": "post",
+          "operationId": "ReviewCaseController_create",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "messageId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            {
+              "in": "header",
+              "name": "Idempotency-Key",
+              "required": true,
+              "schema": {
+                "type": "string"
+              }
+            }
+          ],
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateReviewRequestDto"
+                }
+              }
+            },
+            "required": true
+          },
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": [
+            "200",
+            "201",
+            "400",
+            "401",
+            "403",
+            "404",
+            "409",
+            "413",
+            "429"
+          ],
+          "summary": "Request Instructor review of an assistant response",
+          "tags": ["student-reviews"]
+        }
+      ],
+      "path": "/api/v1/messages/{messageId}/review-requests"
+    },
+    {
+      "operations": [
+        {
+          "method": "get",
+          "operationId": "InstructorReviewQueueController_list",
+          "parameters": [
+            {
+              "in": "query",
+              "name": "limit",
+              "required": false,
+              "schema": {
+                "default": 25,
+                "maximum": 100,
+                "minimum": 1,
+                "type": "integer"
+              }
+            },
+            {
+              "in": "query",
+              "name": "studentFlagReason",
+              "required": false,
+              "schema": {
+                "$ref": "#/components/schemas/StudentFlagReason"
+              }
+            },
+            {
+              "in": "query",
+              "name": "cursor",
+              "required": false,
+              "schema": {
+                "format": "uuid"
+              }
+            },
+            {
+              "in": "query",
+              "name": "courseId",
+              "required": false,
+              "schema": {
+                "format": "uuid"
+              }
+            }
+          ],
+          "requestBody": null,
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["200", "400", "401", "403", "404"],
+          "summary": "List the Instructor review queue",
+          "tags": ["instructor-reviews"]
+        }
+      ],
+      "path": "/api/v1/instructor/reviews"
+    },
+    {
+      "operations": [
+        {
+          "method": "get",
+          "operationId": "InstructorReviewQueueController_get",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "reviewCaseId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            }
+          ],
+          "requestBody": null,
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["200", "400", "401", "403", "404"],
+          "summary": "Get an Instructor review case",
+          "tags": ["instructor-reviews"]
+        }
+      ],
+      "path": "/api/v1/instructor/reviews/{reviewCaseId}"
+    },
+    {
+      "operations": [
+        {
+          "method": "post",
+          "operationId": "InstructorReviewQueueController_resolve",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "reviewCaseId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            {
+              "in": "header",
+              "name": "Idempotency-Key",
+              "required": true,
+              "schema": {
+                "type": "string"
+              }
+            }
+          ],
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolveReviewRequestDto"
+                }
+              }
+            },
+            "required": true
+          },
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["200", "400", "401", "403", "404", "409"],
+          "summary": "Publish a terminal Instructor review outcome",
+          "tags": ["instructor-reviews"]
+        }
+      ],
+      "path": "/api/v1/instructor/reviews/{reviewCaseId}/resolve"
+    },
+    {
+      "operations": [
+        {
+          "method": "post",
+          "operationId": "InstructorReviewQueueController_reject",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "reviewCaseId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            {
+              "in": "header",
+              "name": "Idempotency-Key",
+              "required": true,
+              "schema": {
+                "type": "string"
+              }
+            }
+          ],
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RejectReviewRequestDto"
+                }
+              }
+            },
+            "required": true
+          },
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["200", "400", "401", "403", "404", "409"],
+          "summary": "Reject a Student review request",
+          "tags": ["instructor-reviews"]
+        }
+      ],
+      "path": "/api/v1/instructor/reviews/{reviewCaseId}/reject"
+    },
+    {
+      "operations": [
+        {
+          "method": "get",
+          "operationId": "StudentReviewDetailController_get",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "reviewCaseId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            }
+          ],
+          "requestBody": null,
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["200", "400", "401", "403", "404"],
+          "summary": "Get a Student-safe review outcome",
+          "tags": ["student-reviews"]
+        }
+      ],
+      "path": "/api/v1/student/reviews/{reviewCaseId}"
+    },
+    {
+      "operations": [
+        {
+          "method": "post",
+          "operationId": "MaterialsController_uploadMaterial",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "courseId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            }
+          ],
+          "requestBody": {
+            "content": {
+              "multipart/form-data": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadMaterialRequestDto"
+                }
+              }
+            },
+            "required": true
+          },
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["201", "400", "401", "403", "404", "413"],
+          "summary": "Upload course PDF material",
+          "tags": ["materials"]
+        },
+        {
+          "method": "get",
+          "operationId": "MaterialsController_listMaterials",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "courseId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            }
+          ],
+          "requestBody": null,
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["200", "400", "401", "403", "404"],
+          "summary": "List course materials",
+          "tags": ["materials"]
+        }
+      ],
+      "path": "/api/v1/courses/{courseId}/materials"
+    },
+    {
+      "operations": [
+        {
+          "method": "get",
+          "operationId": "MaterialsController_getMaterialStatus",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "courseId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            {
+              "in": "path",
+              "name": "materialId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            }
+          ],
+          "requestBody": null,
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["200", "400", "401", "403", "404"],
+          "summary": "Get course material processing status",
+          "tags": ["materials"]
+        }
+      ],
+      "path": "/api/v1/courses/{courseId}/materials/{materialId}/status"
+    },
+    {
+      "operations": [
+        {
+          "method": "get",
+          "operationId": "MaterialsController_getMaterial",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "courseId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            {
+              "in": "path",
+              "name": "materialId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            }
+          ],
+          "requestBody": null,
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["200", "400", "401", "403", "404"],
+          "summary": "Get course material",
+          "tags": ["materials"]
+        }
+      ],
+      "path": "/api/v1/courses/{courseId}/materials/{materialId}"
+    },
+    {
+      "operations": [
+        {
+          "method": "get",
+          "operationId": "MaterialUploadConfigurationController_getConfiguration",
+          "parameters": [],
+          "requestBody": null,
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["200", "401", "403"],
+          "summary": "Get effective PDF upload constraints",
+          "tags": ["materials"]
+        }
+      ],
+      "path": "/api/v1/materials/upload-configuration"
+    },
+    {
+      "operations": [
+        {
+          "method": "get",
+          "operationId": "NotificationsController_list",
+          "parameters": [
+            {
+              "in": "query",
+              "name": "limit",
+              "required": false,
+              "schema": {
+                "default": 25,
+                "maximum": 100,
+                "minimum": 1,
+                "type": "integer"
+              }
+            },
+            {
+              "in": "query",
+              "name": "cursor",
+              "required": false,
+              "schema": {
+                "format": "uuid"
+              }
+            }
+          ],
+          "requestBody": null,
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["200", "400", "401", "403"],
+          "summary": "List notifications for the authenticated user",
+          "tags": ["notifications"]
+        }
+      ],
+      "path": "/api/v1/notifications"
+    },
+    {
+      "operations": [
+        {
+          "method": "get",
+          "operationId": "NotificationsController_unreadCount",
+          "parameters": [],
+          "requestBody": null,
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["200", "401", "403"],
+          "summary": "Count unread notifications",
+          "tags": ["notifications"]
+        }
+      ],
+      "path": "/api/v1/notifications/unread-count"
+    },
+    {
+      "operations": [
+        {
+          "method": "post",
+          "operationId": "NotificationsController_markRead",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "notificationId",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "type": "string"
+              }
+            }
+          ],
+          "requestBody": null,
+          "security": [
+            {
+              "access-token": []
+            }
+          ],
+          "statuses": ["200", "400", "401", "403", "404"],
+          "summary": "Mark a notification as read",
+          "tags": ["notifications"]
+        }
+      ],
+      "path": "/api/v1/notifications/{notificationId}/read"
+    }
+  ],
+  "schemaNames": [
+    "AdminAddCourseMemberRequestDto",
+    "AdminAuditActorDto",
+    "AdminAuditEventDto",
+    "AdminAuditEventListResponseDto",
+    "AdminCourseDetailResponseDto",
+    "AdminCourseItemDto",
+    "AdminCourseListResponseDto",
+    "AdminCourseMemberListResponseDto",
+    "AdminCourseMemberResponseDto",
+    "AdminCourseMembershipDto",
+    "AdminCourseMetadataDto",
+    "AdminCourseUserSummaryDto",
+    "AdminCreateCourseRequestDto",
+    "AdminCreateUserRequestDto",
+    "AdminCreateUserResponseDto",
+    "AdminCreateUserRole",
+    "AdminDisableUserResponseDto",
+    "AdminMaterialDto",
+    "AdminMaterialListResponseDto",
+    "AdminMaterialResponseDto",
+    "AdminReactivateUserResponseDto",
+    "AdminResetUserPasswordRequestDto",
+    "AdminResetUserPasswordResponseDto",
+    "AdminUpdateCourseRequestDto",
+    "AdminUpdateMaterialRequestDto",
+    "AdminUpdateMemberRoleRequestDto",
+    "AdminUpdateUserRequestDto",
+    "AdminUpdateUserResponseDto",
+    "AdminUserCourseAssignmentDto",
+    "AdminUserCourseAssignmentSummaryDto",
+    "AdminUserDto",
+    "AdminUserListItemDto",
+    "AdminUserListResponseDto",
+    "AuthCourseSummaryDto",
+    "AuthSessionResponseDto",
+    "AuthUserSummaryDto",
+    "ChatCitationDto",
+    "ChatCitationEvidenceDto",
+    "ChatMessageDto",
+    "ChatMessageHistoryResponseDto",
+    "ChatMessageReviewSummaryDto",
+    "ChatSessionDto",
+    "ChatSessionListResponseDto",
+    "ChatSessionResponseDto",
+    "CourseAdminMetadataDto",
+    "CourseListItemDto",
+    "CourseListResponseDto",
+    "CourseMembershipRole",
+    "CourseMembershipSummaryDto",
+    "CourseUserSummaryDto",
+    "CreateChatSessionRequestDto",
+    "CreateReviewRequestDto",
+    "CreateReviewRequestResponseDto",
+    "GroundedChatTurnResponseDto",
+    "InstructorReviewActionHistoryDto",
+    "InstructorReviewActionResponseDto",
+    "InstructorReviewAssistantResponseDto",
+    "InstructorReviewCitationDto",
+    "InstructorReviewCitationSnippetDto",
+    "InstructorReviewDetailDto",
+    "InstructorReviewExchangeDto",
+    "InstructorReviewMessageDto",
+    "InstructorReviewQueueItemDto",
+    "InstructorReviewQueueResponseDto",
+    "MaterialDto",
+    "MaterialListResponseDto",
+    "MaterialManageableCourseDto",
+    "MaterialManageableCourseListResponseDto",
+    "MaterialResponseDto",
+    "MaterialStatus",
+    "MaterialStatusDto",
+    "MaterialUploadConfigurationDto",
+    "MeResponseDto",
+    "MessageRole",
+    "MessageStatus",
+    "NestBadRequestErrorDto",
+    "NotificationContractDto",
+    "NotificationListResponseDto",
+    "NotificationStatus",
+    "NotificationType",
+    "NotificationUnreadCountDto",
+    "OpenApiErrorDto",
+    "OpenApiIssuesErrorDto",
+    "OpenApiValidationErrorDto",
+    "OpenApiValidationIssueDto",
+    "PublishedReviewContractDto",
+    "RefreshRequestDto",
+    "RejectReviewRequestDto",
+    "RenameChatSessionRequestDto",
+    "ResolveReviewRequestDto",
+    "ReviewActionContractDto",
+    "ReviewActionType",
+    "ReviewDetailContractDto",
+    "ReviewOutcome",
+    "ReviewQueueCourseDto",
+    "ReviewQueueItemContractDto",
+    "ReviewQueueStudentDto",
+    "ReviewStatus",
+    "ReviewTriggerType",
+    "SendStudentChatMessageRequestDto",
+    "SignInRequestDto",
+    "StudentFlagReason",
+    "StudentNotificationDto",
+    "StudentReviewDetailDto",
+    "StudentReviewSummaryDto",
+    "StudentReviewTrigger",
+    "UploadMaterialRequestDto",
+    "UserRole",
+    "UserStatus"
+  ],
+  "securitySchemes": {
+    "access-token": {
+      "bearerFormat": "JWT",
+      "description": "JWT access token returned by the sign-in or refresh API.",
+      "scheme": "bearer",
+      "type": "http"
+    },
+    "refresh-session": {
+      "description": "HttpOnly browser refresh-session cookie.",
+      "in": "cookie",
+      "name": "morshid_refresh",
+      "type": "apiKey"
+    }
+  },
+  "tags": [
+    {
+      "description": "Authentication and session management.",
+      "name": "auth"
+    },
+    {
+      "description": "Course access for authenticated users.",
+      "name": "courses"
+    },
+    {
+      "description": "Instructor and admin course material upload and status operations.",
+      "name": "materials"
+    },
+    {
+      "description": "Private Student chat session and message persistence.",
+      "name": "student-chat-sessions"
+    },
+    {
+      "description": "Administrative user account operations.",
+      "name": "admin-users"
+    },
+    {
+      "description": "Administrative course, membership, and material operations.",
+      "name": "admin-courses"
+    },
+    {
+      "description": "Administrative audit event access.",
+      "name": "admin-audit"
+    },
+    {
+      "description": "Service health checks.",
+      "name": "health"
+    }
+  ]
+}

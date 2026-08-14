@@ -4,7 +4,7 @@
   "rsc": false,
   "tsx": true,
   "tailwind": {
-    "css": "src/styles.css",
+    "css": "src/app/styles.css",
     "baseColor": "neutral",
     "cssVariables": true,
     "prefix": ""
@@ -17,8 +17,7 @@
     "components": "@/components",
     "utils": "@/lib/utils",
     "ui": "@/components/ui",
-    "lib": "@/lib",
-    "hooks": "@/hooks"
+    "lib": "@/lib"
   },
   "registries": {
     "@canvas-ui": "https://canvasui.dev/r/{name}.json"

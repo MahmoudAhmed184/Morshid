@@ -1,9 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-import { StudentSettingsPage } from '@/features/student/pages/student-settings-page'
+import { AccountSettingsPage } from '@/features/account-settings/account-settings-page'
 
 export const Route = createFileRoute('/_student/settings')({
-  component: StudentSettingsPage,
+  component: AccountSettingsPage,
   head: () => ({
     meta: [{ title: 'Settings — Morshid' }],
   }),

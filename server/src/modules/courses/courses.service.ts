@@ -1,7 +1,8 @@
 import { ForbiddenException, Injectable } from '@nestjs/common'
 
-import { CourseMembershipRole, UserRole } from '../../generated/prisma/client'
-import type { AuthenticatedRequestUser } from '../auth/auth.dto'
+import { CourseMembershipRole } from './interface/course-membership-role'
+import { UserRole } from '../identity/identity.roles'
+import type { AuthenticatedUser } from '../identity/identity.types'
 import { getCourseRolePolicy } from './course-access.policy'
 import type {
   CourseListItemDto,
@@ -16,19 +17,13 @@ export class CoursesService {
   constructor(private readonly coursesRepository: CoursesRepository) {}
 
   async listCoursesForUser(
-    user: AuthenticatedRequestUser,
+    user: AuthenticatedUser,
   ): Promise<CourseListResponseDto> {
     const policy = getCourseRolePolicy(user.role)
 
     if (policy.scope === 'all') {
       return {
-        courses: await this.listAdminCourses(),
-      }
-    }
-
-    if (policy.scope === 'ownership') {
-      return {
-        courses: await this.listOwnedCourses(user.id),
+        courses: await this.listAllCourses(),
       }
     }
 
@@ -38,7 +33,7 @@ export class CoursesService {
   }
 
   async listMaterialManageableCourses(
-    user: AuthenticatedRequestUser,
+    user: AuthenticatedUser,
   ): Promise<MaterialManageableCourseListResponseDto> {
     if (user.role !== UserRole.INSTRUCTOR) {
       throw new ForbiddenException(
@@ -62,8 +57,8 @@ export class CoursesService {
     }
   }
 
-  private async listAdminCourses(): Promise<CourseListItemDto[]> {
-    const courses = await this.coursesRepository.listAdminCourses()
+  private async listAllCourses(): Promise<CourseListItemDto[]> {
+    const courses = await this.coursesRepository.listCourseAdministration()
 
     return courses
       .map((course) => {
@@ -113,12 +108,6 @@ export class CoursesService {
     role: CourseMembershipRole,
   ): Promise<CourseListItemDto[]> {
     const courses = await this.coursesRepository.listMemberCourses(userId, role)
-
-    return courses.sort(compareCourseListItems)
-  }
-
-  private async listOwnedCourses(userId: string): Promise<CourseListItemDto[]> {
-    const courses = await this.coursesRepository.listOwnedCourses(userId)
 
     return courses.sort(compareCourseListItems)
   }

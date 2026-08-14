@@ -31,7 +31,11 @@ Instructors upload course PDFs. Every response is grounded in those materials. W
 | Database | PostgreSQL + pgvector · Redis |
 | Infrastructure | Docker Compose · Caddy · GitHub Actions CI |
 
-If ITI requires a Python component, a Django service handles AI/RAG internally. NestJS stays the only public API either way.
+Tutoring runs inside NestJS through one `TutoringRuntime`, one authoritative
+Tutoring Attempt, and one Socratic workflow. Materials owns course-scoped
+evidence retrieval, Conversations owns the transaction-aware session/message
+lifecycle, and code diagnosis is generic debugging guidance within that same
+workflow.
 
 ---
 
@@ -80,9 +84,9 @@ Swagger is registered only when the server runs with `NODE_ENV=development` or
 `NODE_ENV=test`; all three documentation URLs return `404` in production while
 the API routes remain available. In Swagger UI, authorize with the
 `access-token` bearer scheme using a JWT returned by sign-in or refresh.
-Browser refresh sessions use the HttpOnly `morshid_refresh` cookie. Non-browser
-clients can instead send the optional `refreshToken` JSON field to the refresh
-and logout endpoints.
+Refresh and logout use only the HttpOnly `morshid_refresh` cookie; the JSON
+responses and request bodies do not carry refresh tokens. Non-browser clients
+must use a cookie jar when calling those endpoints.
 
 ### Fresh-seed demo acceptance workflow
 

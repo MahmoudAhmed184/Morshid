@@ -1,14 +1,14 @@
 import type { Material } from '../../src/generated/prisma/client'
-import { DeterministicEmbeddingProvider } from '../../src/modules/embedding/deterministic-embedding.provider'
+import { DeterministicEmbeddingProvider } from '../../src/platform/ai/embedding/deterministic-embedding.provider'
 import {
   EMBEDDING_DIMENSIONS,
   type Embedding,
   type EmbeddingDocument,
   type EmbeddingProvider,
-} from '../../src/modules/embedding/embedding-provider'
-import type { PdfStorage } from '../../src/modules/pdf-storage/pdf-storage'
-import type { PrismaService } from '../../src/modules/prisma/prisma.service'
-import type { RagPersistenceRepository } from '../../src/modules/rag-persistence/rag-persistence.repository'
+} from '../../src/platform/ai/embedding/embedding-provider'
+import type { PdfStorage } from '../../src/platform/document-storage/pdf-storage'
+import type { PrismaService } from '../../src/platform/database/prisma.service'
+import type { MaterialChunkRepository } from '../../src/modules/materials/processing/material-chunk.repository'
 import { cleanTextPdf } from './pdf-fixtures'
 
 export const GATE_2_FIXTURE = {
@@ -32,7 +32,7 @@ export const GATE_2_FIXTURE = {
 export const GATE_2_VISIBLE_SIMILARITY = 0.82
 export const GATE_2_HIDDEN_SIMILARITY = 0.99
 export const GATE_2_BELOW_THRESHOLD_SIMILARITY = -GATE_2_VISIBLE_SIMILARITY
-export const GATE_2_RETRIEVAL_MIN_SIMILARITY = 0.7
+export const GATE_2_RETRIEVAL_MIN_SIMILARITY = 0.62
 export const GATE_2_RETRIEVAL_TOP_K = 5
 
 const QUERY_VECTOR = unitSimilarityVector(1)
@@ -69,7 +69,10 @@ export class Gate2DeterministicEmbeddingProvider implements EmbeddingProvider {
   private embedText(text: string): Promise<Embedding> {
     const normalized = text.trim()
 
-    if (normalized === GATE_2_FIXTURE.question) {
+    if (
+      normalized === GATE_2_FIXTURE.question ||
+      normalized.includes(`Current student message: ${GATE_2_FIXTURE.question}`)
+    ) {
       return Promise.resolve([...QUERY_VECTOR])
     }
     if (normalized === GATE_2_FIXTURE.unsupportedQuestion) {
@@ -97,7 +100,7 @@ export interface Gate2HiddenAdversary {
 
 export interface Gate2MaterialFixtureContext {
   courseId: string
-  persistence: RagPersistenceRepository
+  persistence: MaterialChunkRepository
   prisma: PrismaService
   storage: PdfStorage
   uploadedById: string

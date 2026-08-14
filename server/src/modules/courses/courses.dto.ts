@@ -1,11 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger'
 import { Expose, Type } from 'class-transformer'
 
-import {
-  CourseMembershipRole,
-  UserRole,
-  UserStatus,
-} from '../../generated/prisma/client'
+import { CourseMembershipRole } from './interface/course-membership-role'
+import { UserRole, UserStatus } from '../identity/identity.roles'
 
 export class CourseUserSummaryDto {
   @Expose()

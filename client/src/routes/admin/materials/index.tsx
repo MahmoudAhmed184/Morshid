@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-import { AdminMaterialsPage } from '@/features/admin/pages/admin-materials-page'
-import { loadAdminMaterialsRoute } from '@/features/admin/utils/admin-route-loader'
+import { AdminMaterialsPage } from '@/workspaces/admin/pages/admin-materials-page'
+import { loadAdminMaterialsRoute } from '@/routes/-admin-loaders'
 
 export const Route = createFileRoute('/admin/materials/')({
   loader: loadAdminMaterialsRoute,

@@ -2,19 +2,25 @@ import { Injectable } from '@nestjs/common'
 
 import {
   CourseMembershipRole,
-  UserRole,
   type CourseMembershipRole as CourseMembershipRoleType,
-} from '../../generated/prisma/client'
-import type { AuthenticatedRequestUser } from '../auth/auth.dto'
+} from './interface/course-membership-role'
+import { UserRole } from '../identity/identity.roles'
+import type { AuthenticatedUser } from '../identity/identity.types'
 import { getCourseRolePolicy } from './course-access.policy'
 import { CoursesRepository } from './courses.repository'
+import {
+  CourseAccess,
+  type CourseMaterialManagementAccess,
+} from './interface/course-access'
 
 @Injectable()
-export class CourseAccessService {
-  constructor(private readonly coursesRepository: CoursesRepository) {}
+export class CourseAccessService extends CourseAccess {
+  constructor(private readonly coursesRepository: CoursesRepository) {
+    super()
+  }
 
   async canViewCourse(
-    user: AuthenticatedRequestUser,
+    user: AuthenticatedUser,
     courseId: string,
   ): Promise<boolean> {
     const policy = getCourseRolePolicy(user.role)
@@ -23,15 +29,11 @@ export class CourseAccessService {
       return true
     }
 
-    if (policy.scope === 'ownership') {
-      return this.coursesRepository.isCourseOwner(user.id, courseId)
-    }
-
     return this.hasCourseMembership(user.id, courseId, policy.membershipRole)
   }
 
   async canManageCourse(
-    user: AuthenticatedRequestUser,
+    user: AuthenticatedUser,
     courseId: string,
   ): Promise<boolean> {
     const policy = getCourseRolePolicy(user.role)
@@ -43,23 +45,31 @@ export class CourseAccessService {
     return this.canViewCourse(user, courseId)
   }
 
-  async canManageCourseMaterials(
-    user: AuthenticatedRequestUser,
+  async authorizeCourseMaterialManagement(
+    user: AuthenticatedUser,
     courseId: string,
-  ): Promise<boolean> {
-    if (user.role === UserRole.ADMIN) {
-      return true
-    }
-
-    if (user.role !== UserRole.INSTRUCTOR) {
-      return false
-    }
-
-    return this.coursesRepository.hasActiveCourseMembership(
+  ): Promise<CourseMaterialManagementAccess> {
+    const course = await this.coursesRepository.findCourseAccess(
       user.id,
       courseId,
-      CourseMembershipRole.INSTRUCTOR,
     )
+
+    if (course === null) {
+      return { allowed: false, reason: 'COURSE_NOT_FOUND' }
+    }
+
+    if (user.role === UserRole.ADMIN) {
+      return { allowed: true }
+    }
+
+    if (
+      user.role === UserRole.INSTRUCTOR &&
+      course.membershipRole === CourseMembershipRole.INSTRUCTOR
+    ) {
+      return { allowed: true }
+    }
+
+    return { allowed: false, reason: 'COURSE_MANAGEMENT_REQUIRED' }
   }
 
   private async hasCourseMembership(

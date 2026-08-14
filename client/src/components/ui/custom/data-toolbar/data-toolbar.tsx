@@ -1,4 +1,4 @@
-import { SearchInput } from '#/components/ui/custom/search-input'
+import { SearchInput } from '@/components/ui/custom/search-input'
 import { cn } from '@/lib/utils'
 
 type DataToolbarProps = {
@@ -10,6 +10,10 @@ type DataToolbarProps = {
   bulkActions?: React.ReactNode
   selectedCount?: number
   className?: string
+  contentClassName?: string
+  controlsClassName?: string
+  searchClassName?: string
+  actionsClassName?: string
 }
 
 /*
@@ -32,22 +36,44 @@ export function DataToolbar({
   bulkActions,
   selectedCount = 0,
   className,
+  contentClassName,
+  controlsClassName,
+  searchClassName,
+  actionsClassName,
 }: DataToolbarProps) {
   return (
     <div className={cn('flex flex-col gap-3', className)}>
-      <div className="flex flex-wrap items-center justify-between gap-2.5">
-        <div className="flex flex-1 flex-wrap items-center gap-2">
+      <div
+        className={cn(
+          'flex flex-col items-stretch gap-2.5 lg:flex-row lg:items-center lg:justify-between',
+          contentClassName,
+        )}
+      >
+        <div
+          className={cn(
+            'grid min-w-0 flex-1 grid-cols-1 gap-2 sm:grid-cols-2 xl:flex xl:flex-wrap xl:items-center',
+            controlsClassName,
+          )}
+        >
           {onSearchChange ? (
             <SearchInput
               value={search ?? ''}
               onValueChange={onSearchChange}
               placeholder={searchPlaceholder}
+              className={cn('sm:max-w-none xl:max-w-xs', searchClassName)}
             />
           ) : null}
           {filters}
         </div>
         {actions ? (
-          <div className="flex shrink-0 items-center gap-2">{actions}</div>
+          <div
+            className={cn(
+              'flex w-full shrink-0 items-center justify-end gap-2 [&>*]:w-full sm:w-auto sm:[&>*]:w-auto',
+              actionsClassName,
+            )}
+          >
+            {actions}
+          </div>
         ) : null}
       </div>
       {selectedCount > 0 && bulkActions ? (

@@ -1,0 +1,123 @@
+import { Injectable } from '@nestjs/common'
+
+import { PrismaService } from '../../platform/database/prisma.service'
+import type {
+  AuthenticatedUser,
+  IdentityUserRecord,
+  IdentityUserSummary,
+} from './identity.types'
+
+const identityUserSelect = {
+  id: true,
+  email: true,
+  displayName: true,
+  role: true,
+  status: true,
+  passwordHash: true,
+  passwordChangedAt: true,
+  createdAt: true,
+  updatedAt: true,
+  disabledAt: true,
+  disabledById: true,
+  lastLoginAt: true,
+} as const
+
+@Injectable()
+export class IdentityUser {
+  constructor(private readonly prismaService: PrismaService) {}
+
+  normalizeEmail(email: string) {
+    return email.trim().toLowerCase()
+  }
+
+  async findByEmail(email: string): Promise<IdentityUserRecord | null> {
+    const user = await this.prismaService.user.findUnique({
+      where: {
+        email: this.normalizeEmail(email),
+      },
+      select: identityUserSelect,
+    })
+    return user === null ? null : toIdentityUserRecord(user)
+  }
+
+  async findById(userId: string): Promise<IdentityUserRecord | null> {
+    const user = await this.prismaService.user.findUnique({
+      where: {
+        id: userId,
+      },
+      select: identityUserSelect,
+    })
+    return user === null ? null : toIdentityUserRecord(user)
+  }
+
+  async findActiveUserById(userId: string): Promise<AuthenticatedUser | null> {
+    const user = await this.findById(userId)
+
+    if (!user || this.isDisabled(user)) {
+      return null
+    }
+
+    return this.pickAuthenticatedUser(user)
+  }
+
+  isDisabled(user: Pick<IdentityUserRecord, 'status'>) {
+    return user.status === 'DISABLED'
+  }
+
+  async recordLastLogin(
+    user: Pick<IdentityUserRecord, 'id'>,
+    now: Date,
+  ): Promise<void> {
+    await this.prismaService.user.update({
+      where: {
+        id: user.id,
+      },
+      data: {
+        lastLoginAt: now,
+      },
+    })
+  }
+
+  pickAuthenticatedUser(user: IdentityUserRecord): AuthenticatedUser {
+    return {
+      id: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      role: user.role,
+      status: user.status,
+    }
+  }
+
+  buildIdentityUserSummary(
+    user: AuthenticatedUser | IdentityUserRecord,
+  ): IdentityUserSummary {
+    return {
+      id: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      role: user.role,
+      status: user.status,
+    }
+  }
+}
+
+function toIdentityUserRecord(user: {
+  id: string
+  email: string
+  displayName: string
+  role: string
+  status: string
+  passwordHash: string
+  passwordChangedAt: Date
+  createdAt: Date
+  updatedAt: Date
+  disabledAt: Date | null
+  disabledById: string | null
+  lastLoginAt: Date | null
+}): IdentityUserRecord {
+  return {
+    ...user,
+    role: user.role as IdentityUserRecord['role'],
+    status: user.status as IdentityUserRecord['status'],
+  }
+}

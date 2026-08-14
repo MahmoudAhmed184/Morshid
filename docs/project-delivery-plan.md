@@ -1,5 +1,10 @@
 # Morshid Project Delivery Plan
 
+> Historical delivery plan: this July 2026 planning document predates the
+> approved whole-workspace refactor. Conditional Django and other superseded
+> architecture references are evidence only; the approved plan and ADRs define
+> the current implementation.
+
 Date: July 2, 2026  
 Delivery window: 4 sprints, 10 days each, targeting P0 readiness in early August
 Team: ThinkFirst, 5 full-stack developers  

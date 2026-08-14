@@ -1,0 +1,120 @@
+// Domain-grouped Prisma schema. Cross-file relations are intentional.
+
+enum CourseMembershipRole {
+  INSTRUCTOR
+  STUDENT
+
+  @@map("course_membership_role")
+}
+
+enum MaterialStatus {
+  PROCESSING
+  READY
+  WARNING
+  FAILED
+
+  @@map("material_status")
+}
+
+model Course {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String   @unique(map: "courses_code_key") @db.VarChar(40)
+  title       String   @db.VarChar(160)
+  createdById String?  @map("created_by") @db.Uuid
+  archivedAt DateTime? @map("archived_at") @db.Timestamptz(6)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  createdBy    User?              @relation("CourseCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  memberships  CourseMembership[]
+  materials    Material[]
+  chatSessions ChatSession[]
+  topics       Topic[]
+  auditLogs    AuditLog[]
+  reviewCases  ReviewCase[]
+  inboxItems   ReviewInboxItem[]
+
+  @@index([createdById], map: "idx_courses_created_by")
+  @@index([archivedAt], map: "idx_courses_archived_at")
+  @@map("courses")
+}
+
+model CourseMembership {
+  id          String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  courseId    String               @map("course_id") @db.Uuid
+  userId      String               @map("user_id") @db.Uuid
+  role        CourseMembershipRole
+  createdById String?              @map("created_by") @db.Uuid
+  removedAt   DateTime?            @map("removed_at") @db.Timestamptz(6)
+  createdAt   DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  course       Course        @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  user         User          @relation("CourseMembershipUser", fields: [userId], references: [id], onDelete: Restrict)
+  createdBy    User?         @relation("CourseMembershipCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  chatSessions ChatSession[] @relation("ChatSessionMembership")
+
+  @@unique([courseId, userId], map: "course_memberships_course_id_user_id_key")
+  @@index([courseId, role, removedAt], map: "idx_memberships_course_role_active")
+  @@index([userId], map: "idx_memberships_user")
+  @@index([createdById], map: "idx_memberships_created_by")
+  @@map("course_memberships")
+}
+
+model Material {
+  id                  String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  courseId            String         @map("course_id") @db.Uuid
+  uploadedById        String         @map("uploaded_by") @db.Uuid
+  title               String         @db.VarChar(180)
+  originalFilename    String         @map("original_filename") @db.Text
+  storagePath         String         @map("storage_path") @db.Text
+  sha256Hash          String?        @map("sha256_hash") @db.Char(64)
+  status              MaterialStatus @default(PROCESSING)
+  processingAttemptId String?        @map("processing_attempt_id") @db.Uuid
+  extractedTextLength Int?           @map("extracted_text_length")
+  chunkCount          Int?           @map("chunk_count")
+  errorMessage        String?        @map("error_message") @db.Text
+  deletedAt           DateTime?      @map("deleted_at") @db.Timestamptz(6)
+  createdAt           DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  course            Course                     @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  uploadedBy        User                       @relation("MaterialUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
+  chunks            MaterialChunk[]
+  citations         MessageCitation[]
+  processingCommand MaterialProcessingCommand?
+
+  @@index([courseId, status, deletedAt], map: "idx_materials_course_status")
+  @@index([uploadedById], map: "idx_materials_uploaded_by")
+  @@map("materials")
+}
+
+model MaterialProcessingCommand {
+  materialId          String    @id @map("material_id") @db.Uuid
+  processingAttemptId String?   @map("processing_attempt_id") @db.Uuid
+  leaseExpiresAt      DateTime? @map("lease_expires_at") @db.Timestamptz(6)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  material Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@index([leaseExpiresAt, createdAt], map: "idx_material_processing_commands_lease")
+  @@map("material_processing_commands")
+}
+
+model MaterialChunk {
+  id             String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  materialId     String                      @map("material_id") @db.Uuid
+  chunkIndex     Int                         @map("chunk_index")
+  content        String                      @db.Text
+  /// Course retrieval uses a materialized, course-scoped exact cosine scan in
+  /// V1. This field intentionally has no Prisma index declaration; see
+  /// server/prisma/README.md before changing the retrieval strategy.
+  embedding      Unsupported("vector(1536)")
+  embeddingModel String                      @map("embedding_model") @db.VarChar(120)
+  createdAt      DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  material   Material           @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  retrievals MessageRetrieval[]
+
+  @@unique([materialId, chunkIndex], map: "material_chunks_material_id_chunk_index_key")
+  @@map("material_chunks")
+}
