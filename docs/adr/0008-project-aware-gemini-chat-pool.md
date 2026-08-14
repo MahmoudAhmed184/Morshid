@@ -50,20 +50,24 @@ and quota guard until a separately approved embedding-pool decision is made.
 
 ## Consequences
 
-Deployments using Gemini chat must configure between one and 32 distinct
+Deployments using Gemini chat must configure between one and 256 distinct
 project entries, keep the corresponding role `*_API_KEY` values blank, and
-provide Redis. Every attempted chat call performs a small atomic Redis
-selection; only a 429 performs the cooldown write. A 429 conservatively cools
-the project for all three roles because the compatibility response does not
-reliably identify a narrower enforced quota dimension. Operators remain
-responsible for ensuring labels actually refer to distinct authorized projects
-and for using provider-supported tier upgrades or quota increases for sustained
-capacity.
+provide Redis. The maximum is a Morshid-owned defensive operational bound, not
+a Gemini API constraint. Every attempted chat call performs a small atomic
+Redis selection with a linear scan over member digests; only a 429 performs the
+cooldown write. A 429 conservatively cools the project for all three roles
+because the compatibility response does not reliably identify a narrower
+enforced quota dimension. An all-429 request may try every configured project
+once within its request deadline. Operators remain responsible for ensuring
+labels actually refer to distinct authorized projects and for using
+provider-supported tier upgrades or quota increases for sustained capacity.
 
 ## References
 
 - `docs/architecture-refactor-plan-2026-08-11.md`, sections 6 and 7
 - Google Gemini API rate limits: <https://ai.google.dev/gemini-api/docs/rate-limits>
+- Google Gemini API key and project management: <https://ai.google.dev/gemini-api/docs/api-key>
+- Google Cloud project quotas: <https://cloud.google.com/resource-manager/docs/creating-managing-projects#managing_project_quotas>
 - Google Gemini API troubleshooting and retry guidance: <https://ai.google.dev/gemini-api/docs/troubleshooting>
 - Google Gemini API billing and project/key behavior: <https://ai.google.dev/gemini-api/docs/billing>
 - Google Gemini OpenAI compatibility: <https://ai.google.dev/gemini-api/docs/openai>

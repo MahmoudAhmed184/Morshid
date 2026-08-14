@@ -115,7 +115,12 @@ requires `GEMINI_CHAT_PROJECTS_JSON` and requires that role's `*_API_KEY` to be
 blank. The JSON array contains `{id,apiKey}` entries, where `id` is an opaque
 deployment label and every entry represents a distinct Google Cloud quota
 project. Gemini quotas are project-scoped, so multiple keys from one project do
-not add capacity. Redis selects healthy projects round-robin across API replicas.
+not add capacity. The pool accepts up to 256 entries; this is a Morshid
+operational bound, not a Google Gemini API limit. Google AI Studio currently
+displays at most 50 projects, but Google directs advanced project management to
+the Cloud Console and applies account/organization-specific project-creation
+quotas rather than a Gemini pool-size limit. Redis selects healthy projects
+round-robin across API replicas.
 An upstream 429 cools that project with bounded exponential backoff and jitter
 and attempts every remaining eligible project at most once; timeouts, 5xx
 responses, and other failures stay under the existing bounded retry and fallback
@@ -123,6 +128,12 @@ policies. If every project is cooling down, the transport returns one
 rate-limited failure with the earliest shared retry delay. Pool state stores only
 salted project-label digests and never credentials. A Redis failure fails the
 pool closed.
+
+Selection sends only the member digests to one Redis Lua call and scans them
+linearly. In the worst all-429 case, one chat request can attempt every pool
+entry once, bounded by the request deadline. Operators should therefore treat
+256 as supported capacity rather than a target size and prefer Gemini tier or
+quota increases when they address sustained demand.
 
 Gemini 3.6 Flash and 3.7 Flash requests omit `temperature` and `top_p` at this
 Gemini-specific boundary because those sampling parameters are unsupported by
