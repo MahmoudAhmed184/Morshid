@@ -18,10 +18,12 @@ export const materialSchema = z.object({
   errorMessage: z.string().nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
+  canDelete: z.boolean().optional(),
 })
 
 export const materialsResponseSchema = z.object({
   materials: z.array(materialSchema),
+  nextCursor: z.uuid().optional(),
 })
 
 export const materialResponseSchema = z.object({

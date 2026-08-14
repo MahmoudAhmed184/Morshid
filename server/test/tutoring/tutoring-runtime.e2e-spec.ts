@@ -729,6 +729,7 @@ describe('Authorized tutoring runtime (e2e)', () => {
         materialId: source.id,
         materialTitle: source.title,
         sourceAvailable: true,
+        sourceStatus: 'AVAILABLE',
       }),
     ])
     expect(diagnosis).toMatch(/num.*nums/iu)
@@ -788,6 +789,7 @@ describe('Authorized tutoring runtime (e2e)', () => {
           materialId: source.id,
           materialTitle: source.title,
           sourceAvailable: true,
+          sourceStatus: 'AVAILABLE',
         }),
       ],
     })

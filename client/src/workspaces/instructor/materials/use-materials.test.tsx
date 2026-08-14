@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import type { InfiniteData } from '@tanstack/react-query'
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -7,14 +8,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AuthSession } from '@/features/auth/session/session.schema'
 import { useAuthStore } from '@/features/auth/session/interface/session-store'
 import {
+  deleteCourseMaterial,
   getMaterialUploadConfiguration,
   listCourseMaterials,
   uploadCourseMaterial,
 } from '@/features/materials/material-ingestion/material-ingestion.api'
+import type { MaterialsResponse } from '@/features/materials/material-ingestion/material.schema'
 import { materialKeys } from '@/features/materials/material-ingestion/material-ingestion.queries'
 
 import {
   useCourseMaterials,
+  useDeleteCourseMaterial,
   useMaterialUploadConfiguration,
   useUploadCourseMaterial,
 } from './use-materials'
@@ -26,6 +30,7 @@ const getMaterialUploadConfigurationMock = vi.mocked(
   getMaterialUploadConfiguration,
 )
 const uploadCourseMaterialMock = vi.mocked(uploadCourseMaterial)
+const deleteCourseMaterialMock = vi.mocked(deleteCourseMaterial)
 
 const instructorId = 'd005dfdb-aabe-4f65-a2dc-61e75ba203a6'
 const courseId = 'f5bb713c-09b7-42d3-acf3-02f39a902e5a'
@@ -111,8 +116,14 @@ describe('Instructor material hooks', () => {
       wrapper: createWrapper(createQueryClient()),
     })
 
-    await waitFor(() => expect(result.current.data).toEqual([material]))
-    expect(listCourseMaterialsMock).toHaveBeenCalledWith(courseId)
+    await waitFor(() =>
+      expect(result.current.data?.pages[0]?.materials).toEqual([material]),
+    )
+    expect(listCourseMaterialsMock).toHaveBeenCalledWith(
+      courseId,
+      {},
+      { cursor: undefined },
+    )
   })
 
   it('loads the server-derived PDF upload configuration once', async () => {
@@ -154,13 +165,15 @@ describe('Instructor material hooks', () => {
     })
 
     await vi.waitFor(() =>
-      expect(result.current.data?.[0]?.status).toBe('PROCESSING'),
+      expect(result.current.data?.pages[0]?.materials[0]?.status).toBe(
+        'PROCESSING',
+      ),
     )
     expect(listCourseMaterialsMock).toHaveBeenCalledTimes(1)
 
     await act(() => vi.advanceTimersByTimeAsync(2_000))
     await vi.waitFor(() =>
-      expect(result.current.data?.[0]?.status).toBe('READY'),
+      expect(result.current.data?.pages[0]?.materials[0]?.status).toBe('READY'),
     )
 
     await act(() => vi.advanceTimersByTimeAsync(6_000))
@@ -178,7 +191,9 @@ describe('Instructor material hooks', () => {
     })
 
     await vi.waitFor(() =>
-      expect(result.current.data?.[0]?.status).toBe('PROCESSING'),
+      expect(result.current.data?.pages[0]?.materials[0]?.status).toBe(
+        'PROCESSING',
+      ),
     )
     unmount()
 
@@ -200,7 +215,9 @@ describe('Instructor material hooks', () => {
     })
 
     await vi.waitFor(() =>
-      expect(result.current.data?.[0]?.status).toBe('PROCESSING'),
+      expect(result.current.data?.pages[0]?.materials[0]?.status).toBe(
+        'PROCESSING',
+      ),
     )
     expect(result.current.isRefetchError).toBe(false)
     await act(() => vi.advanceTimersByTimeAsync(2_000))
@@ -208,19 +225,23 @@ describe('Instructor material hooks', () => {
       expect(listCourseMaterialsMock).toHaveBeenCalledTimes(2),
     )
     await vi.waitFor(() => expect(result.current.isRefetchError).toBe(true))
-    expect(result.current.error?.message).toBe('polling unavailable')
+    expect((result.current.error as Error | null)?.message).toBe(
+      'polling unavailable',
+    )
 
     await act(async () => {
       await result.current.refetch()
     })
     expect(result.current.isRefetchError).toBe(true)
-    expect(result.current.data?.[0]?.status).toBe('PROCESSING')
+    expect(result.current.data?.pages[0]?.materials[0]?.status).toBe(
+      'PROCESSING',
+    )
 
     await act(async () => {
       await result.current.refetch()
     })
     await vi.waitFor(() =>
-      expect(result.current.data?.[0]?.status).toBe('READY'),
+      expect(result.current.data?.pages[0]?.materials[0]?.status).toBe('READY'),
     )
     await vi.waitFor(() => expect(result.current.isRefetchError).toBe(false))
     expect(listCourseMaterialsMock).toHaveBeenCalledTimes(4)
@@ -236,8 +257,14 @@ describe('Instructor material hooks', () => {
       instructorId,
       courseId: '55b55350-4cc4-4cf4-9e00-689c13359c8f',
     })
-    queryClient.setQueryData(selectedListKey, [])
-    queryClient.setQueryData(unrelatedListKey, [])
+    queryClient.setQueryData(selectedListKey, {
+      pages: [{ materials: [] }],
+      pageParams: [undefined],
+    })
+    queryClient.setQueryData(unrelatedListKey, {
+      pages: [{ materials: [] }],
+      pageParams: [undefined],
+    })
     const file = new File(['%PDF-1.7'], 'python-functions.pdf', {
       type: 'application/pdf',
     })
@@ -270,5 +297,34 @@ describe('Instructor material hooks', () => {
     expect(queryClient.getQueryState(unrelatedListKey)?.isInvalidated).toBe(
       false,
     )
+  })
+
+  it('deletes a material and updates the infinite query cache', async () => {
+    deleteCourseMaterialMock.mockResolvedValue(undefined)
+    const queryClient = createQueryClient()
+    const selectedListKey = materialKeys.list({ instructorId, courseId })
+    queryClient.setQueryData(selectedListKey, {
+      pages: [{ materials: [material] }],
+      pageParams: [undefined],
+    })
+
+    const { result } = renderHook(() => useDeleteCourseMaterial(), {
+      wrapper: createWrapper(queryClient),
+    })
+
+    await act(() =>
+      result.current.mutateAsync({
+        courseId,
+        materialId,
+      }),
+    )
+
+    expect(deleteCourseMaterialMock).toHaveBeenCalledWith(courseId, materialId)
+    const cached =
+      queryClient.getQueryData<
+        InfiniteData<MaterialsResponse, string | undefined>
+      >(selectedListKey)
+    expect(cached?.pages[0]?.materials).toHaveLength(0)
+    expect(queryClient.getQueryState(selectedListKey)?.isInvalidated).toBe(true)
   })
 })

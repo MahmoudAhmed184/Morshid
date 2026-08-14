@@ -1009,6 +1009,7 @@ describe('Tutoring turn repository (e2e)', () => {
       expect.objectContaining({
         materialTitle: 'Durable title',
         sourceAvailable: true,
+        sourceStatus: 'AVAILABLE',
         evidence: [
           expect.objectContaining({
             rank: 1,
@@ -1036,6 +1037,7 @@ describe('Tutoring turn repository (e2e)', () => {
         materialId: source.materialId,
         materialTitle: 'Durable title',
         sourceAvailable: false,
+        sourceStatus: 'UNAVAILABLE',
         evidence: [],
       },
     ])

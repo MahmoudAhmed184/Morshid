@@ -194,6 +194,7 @@ CREATE TABLE "courses" (
     "code" VARCHAR(40) NOT NULL,
     "title" VARCHAR(160) NOT NULL,
     "created_by" UUID,
+    "archived_at" TIMESTAMPTZ(6),
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -628,6 +629,9 @@ CREATE UNIQUE INDEX "courses_code_key" ON "courses"("code");
 
 -- CreateIndex
 CREATE INDEX "idx_courses_created_by" ON "courses"("created_by");
+
+-- CreateIndex
+CREATE INDEX "idx_courses_archived_at" ON "courses"("archived_at");
 
 -- CreateIndex
 CREATE INDEX "idx_memberships_course_role_active" ON "course_memberships"("course_id", "role", "removed_at");

@@ -459,6 +459,38 @@ describe('Materials chunk persistence (e2e)', () => {
     await expect(repository.findMaterialChunks(materialId)).resolves.toEqual([])
   })
 
+  it('does not let a preselected embedding migration recreate deleted chunks', async () => {
+    await repository.insertMaterialChunks(materialId, [
+      {
+        chunkIndex: 0,
+        content: 'Original migration chunk',
+        embedding: makeEmbedding(0.5),
+        embeddingModel: 'old-model',
+      },
+    ])
+
+    // This material id represents a migration candidate selected before the
+    // delete committed.
+    await prisma.material.update({
+      where: { id: materialId },
+      data: { deletedAt: new Date() },
+    })
+    await prisma.materialChunk.deleteMany({ where: { materialId } })
+
+    await repository.replaceMaterialChunks(materialId, [
+      {
+        chunkIndex: 0,
+        content: 'Must not be recreated',
+        embedding: makeEmbedding(0.25),
+        embeddingModel: 'new-model',
+      },
+    ])
+
+    await expect(
+      prisma.materialChunk.count({ where: { materialId } }),
+    ).resolves.toBe(0)
+  })
+
   it('round-trips float4-quantized embeddings with tolerance, not exact equality', async () => {
     // float4 holds ~7 significant decimal digits, so a 9-digit component cannot
     // be stored exactly and reads back quantized.

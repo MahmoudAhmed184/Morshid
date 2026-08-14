@@ -119,6 +119,12 @@ export class PrismaStudentCitationSources extends StudentCitationSources {
           materialId: citation.material.id,
           materialTitle: citation.material.title,
           sourceAvailable,
+          sourceStatus:
+            citation.material.deletedAt !== null
+              ? 'DELETED'
+              : sourceAvailable
+                ? 'AVAILABLE'
+                : 'UNAVAILABLE',
           evidence: sourceAvailable ? evidence : [],
         }
       }),

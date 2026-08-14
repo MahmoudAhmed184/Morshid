@@ -6,6 +6,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Body,
+  Query,
   Req,
   SerializeOptions,
   UseInterceptors,
@@ -35,6 +36,10 @@ import {
   updateMaterialAdministrationRequestSchema,
   type UpdateMaterialAdministrationRequest,
 } from './material-administration.types'
+import {
+  listMaterialsQuerySchema,
+  type ListMaterialsQuery,
+} from './materials.dto'
 import { invalidMaterialsRequestException } from './materials.errors'
 import { MaterialsService } from './materials.service'
 
@@ -59,10 +64,22 @@ export class MaterialAdministrationController {
   listMaterials(
     @Param('courseId', new ParseUUIDPipe({ version: '4' })) courseId: string,
     @Req() request: AuthenticatedHttpRequest,
+    @Query(
+      new ZodValidationPipe(listMaterialsQuerySchema, (issues) =>
+        invalidMaterialsRequestException(
+          issues.map((issue) => ({
+            field: issue.path.join('.') || 'query',
+            message: issue.message,
+          })),
+        ),
+      ),
+    )
+    query: ListMaterialsQuery,
   ): Promise<MaterialAdministrationListResponseDto> {
     return this.materialsService.listMaterialsForAdministration(
       courseId,
       request.user,
+      query,
     )
   }
 

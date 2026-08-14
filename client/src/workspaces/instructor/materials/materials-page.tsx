@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/custom/empty-state'
 import { ErrorState } from '@/components/ui/custom/error-state'
+import { LoadMoreButton } from '@/components/ui/custom/load-more-button'
 import { PageHeader } from '@/components/ui/custom/page-header'
 import { SearchInput } from '@/components/ui/custom/search-input'
 import { StatCard } from '@/components/ui/custom/stat-card'
@@ -29,6 +30,7 @@ import { summarizeMaterials } from '@/features/materials/material-catalog/summar
 import { useCourseMembership } from '@/workspaces/instructor/use-course-membership'
 import {
   useCourseMaterials,
+  useDeleteCourseMaterial,
   useMaterialUploadConfiguration,
 } from '@/workspaces/instructor/materials/use-materials'
 import type { Material } from '@/features/materials/material-ingestion/material.schema'
@@ -47,7 +49,12 @@ export function MaterialsPage() {
     courses.find((course) => course.id === selectedCourseId) ?? courses.at(0)
   const activeCourseId = selectedCourse?.id
   const materialsQuery = useCourseMaterials(activeCourseId)
-  const materials = materialsQuery.data ?? []
+  const deleteMutation = useDeleteCourseMaterial()
+  const materials = materialsQuery.data
+    ? Array.isArray(materialsQuery.data)
+      ? (materialsQuery.data as Material[])
+      : materialsQuery.data.pages.flatMap((page) => page.materials)
+    : []
   const normalizedSearch = search.trim().toLowerCase()
   const filteredMaterials = normalizedSearch
     ? materials.filter(
@@ -90,7 +97,7 @@ export function MaterialsPage() {
           courseCode={selectedCourse.code}
           isPending={materialsQuery.isPending}
           isError={hasColdMaterialsError}
-          materials={materialsQuery.data}
+          materials={materialsQuery.data ? materials : undefined}
         />
       ) : null}
 
@@ -149,6 +156,18 @@ export function MaterialsPage() {
             isRetrying={coursesQuery.isFetching || materialsQuery.isFetching}
             hasRefreshError={
               materialsQuery.data !== undefined && materialsQuery.isRefetchError
+            }
+            hasNextPage={materialsQuery.hasNextPage}
+            isFetchingNextPage={materialsQuery.isFetchingNextPage}
+            onFetchNextPage={() => void materialsQuery.fetchNextPage()}
+            onDelete={
+              activeCourseId
+                ? (materialId) =>
+                    deleteMutation.mutateAsync({
+                      courseId: activeCourseId,
+                      materialId,
+                    })
+                : undefined
             }
             onRetry={() => {
               if (coursesQuery.isError) {
@@ -270,6 +289,10 @@ function MaterialsContent({
   hasSearch,
   isRetrying,
   hasRefreshError,
+  hasNextPage,
+  isFetchingNextPage,
+  onFetchNextPage,
+  onDelete,
   onRetry,
 }: {
   isLoading: boolean
@@ -279,6 +302,10 @@ function MaterialsContent({
   hasSearch: boolean
   isRetrying: boolean
   hasRefreshError: boolean
+  hasNextPage?: boolean
+  isFetchingNextPage?: boolean
+  onFetchNextPage?: () => void
+  onDelete?: (materialId: string) => Promise<void>
   onRetry: () => void
 }) {
   if (isLoading) {
@@ -346,9 +373,21 @@ function MaterialsContent({
       ) : null}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {materials.map((material) => (
-          <MaterialCard key={material.id} material={material} />
+          <MaterialCard
+            key={material.id}
+            material={material}
+            onDelete={onDelete ? () => onDelete(material.id) : undefined}
+          />
         ))}
       </div>
+      {hasNextPage && onFetchNextPage ? (
+        <LoadMoreButton
+          hasNextPage={hasNextPage}
+          isFetchingNextPage={isFetchingNextPage ?? false}
+          onLoadMore={onFetchNextPage}
+          label="Load more materials"
+        />
+      ) : null}
     </>
   )
 }

@@ -85,6 +85,22 @@ export class PrismaMaterialChunkRepository extends MaterialChunkRepository {
     this.assertValidEmbeddings(chunks)
 
     await this.prismaService.$transaction(async (tx) => {
+      // Serialize replacement with material deletion. A migration can select a
+      // material before it is deleted, but it may only replace chunks while
+      // the parent is still live under this row lock.
+      const liveMaterials = await tx.$queryRaw<readonly { id: string }[]>(
+        Prisma.sql`
+          SELECT id
+          FROM materials
+          WHERE id = ${materialId}::uuid
+            AND deleted_at IS NULL
+          FOR NO KEY UPDATE
+        `,
+      )
+      if (liveMaterials.length === 0) {
+        return
+      }
+
       // message_retrievals.chunk_id is ON DELETE SET NULL, so removing the old
       // chunks preserves historical retrieval provenance while allowing a
       // material to be re-ingested with a different chunker or embedding model.

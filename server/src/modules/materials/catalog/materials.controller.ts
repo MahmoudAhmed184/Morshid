@@ -1,10 +1,14 @@
 import {
   ClassSerializerInterceptor,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
   Req,
   SerializeOptions,
   UploadedFile,
@@ -16,11 +20,14 @@ import {
   ApiConsumes,
   ApiCreatedResponse,
   ApiExtraModels,
+  ApiForbiddenResponse,
+  ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
   ApiPayloadTooLargeResponse,
+  ApiServiceUnavailableResponse,
   ApiTags,
   getSchemaPath,
 } from '@nestjs/swagger'
@@ -32,6 +39,7 @@ import {
 } from '../../../common/http/openapi-error.dto'
 import { ApiAccessTokenAuth } from '../../../common/http/openapi.decorators'
 import { getRequestContext } from '../../../common/http/request-context'
+import { ZodValidationPipe } from '../../../common/http/zod-validation.pipe'
 import {
   AUDIT_EVENT_ACTIONS,
   AUDIT_TARGET_TYPES,
@@ -45,8 +53,11 @@ import {
   MaterialStatusDto,
   UploadMaterialRequestDto,
   type UploadMaterialRequest,
+  listMaterialsQuerySchema,
+  type ListMaterialsQuery,
 } from './materials.dto'
 import { MaterialsService } from './materials.service'
+import { invalidMaterialsRequestException } from './materials.errors'
 import { PdfUploadInterceptor } from '../upload/pdf-upload.interceptor'
 import type { UploadedPdfFile } from '../upload/pdf-upload.validator'
 
@@ -123,14 +134,25 @@ export class MaterialsController {
   })
   @ApiBadRequestResponse({
     type: NestBadRequestErrorDto,
-    description: 'The course ID was not a valid UUID.',
+    description: 'The course ID or query was not valid.',
   })
   @ApiNotFoundResponse({ type: OpenApiErrorDto })
   listMaterials(
     @Param('courseId', new ParseUUIDPipe({ version: '4' })) courseId: string,
     @Req() request: AuthenticatedHttpRequest,
+    @Query(
+      new ZodValidationPipe(listMaterialsQuerySchema, (issues) =>
+        invalidMaterialsRequestException(
+          issues.map((issue) => ({
+            field: issue.path.join('.') || 'query',
+            message: issue.message,
+          })),
+        ),
+      ),
+    )
+    query: ListMaterialsQuery,
   ): Promise<MaterialListResponseDto> {
-    return this.materialsService.listMaterials(courseId, request.user)
+    return this.materialsService.listMaterials(courseId, request.user, query)
   }
 
   @Get(':materialId/status')
@@ -187,5 +209,29 @@ export class MaterialsController {
     @Req() request: AuthenticatedHttpRequest,
   ): Promise<MaterialResponseDto> {
     return this.materialsService.getMaterial(courseId, materialId, request.user)
+  }
+
+  @Delete(':materialId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete a course material knowledge source' })
+  @ApiParam({ name: 'courseId', format: 'uuid' })
+  @ApiParam({ name: 'materialId', format: 'uuid' })
+  @ApiNoContentResponse({ description: 'Material deleted.' })
+  @ApiBadRequestResponse({ type: NestBadRequestErrorDto })
+  @ApiForbiddenResponse({ type: OpenApiErrorDto })
+  @ApiNotFoundResponse({ type: OpenApiErrorDto })
+  @ApiServiceUnavailableResponse({ type: OpenApiErrorDto })
+  async deleteMaterial(
+    @Param('courseId', new ParseUUIDPipe({ version: '4' })) courseId: string,
+    @Param('materialId', new ParseUUIDPipe({ version: '4' }))
+    materialId: string,
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<void> {
+    await this.materialsService.deleteMaterial(
+      courseId,
+      materialId,
+      request.user,
+      getRequestContext(request),
+    )
   }
 }

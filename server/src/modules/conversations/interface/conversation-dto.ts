@@ -209,6 +209,10 @@ export class ChatCitationDto {
   sourceAvailable!: boolean
 
   @Expose()
+  @ApiProperty({ enum: ['AVAILABLE', 'DELETED', 'UNAVAILABLE'] })
+  sourceStatus!: 'AVAILABLE' | 'DELETED' | 'UNAVAILABLE'
+
+  @Expose()
   @Type(() => ChatCitationEvidenceDto)
   @ApiProperty({ type: [ChatCitationEvidenceDto] })
   evidence!: ChatCitationEvidenceDto[]

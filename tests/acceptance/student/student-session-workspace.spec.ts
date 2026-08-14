@@ -324,6 +324,7 @@ test.describe('Student session workspace', () => {
                   materialId: '20000000-0000-4000-8000-000000000001',
                   materialTitle: 'Python 3 division',
                   sourceAvailable: true,
+                  sourceStatus: 'AVAILABLE',
                   evidence: [
                     {
                       rank: 1,
@@ -340,6 +341,7 @@ test.describe('Student session workspace', () => {
                   materialId: '20000000-0000-4000-8000-000000000002',
                   materialTitle: 'Legacy division notes',
                   sourceAvailable: true,
+                  sourceStatus: 'AVAILABLE',
                   evidence: [
                     {
                       rank: 2,
@@ -629,6 +631,7 @@ test.describe('Student session workspace', () => {
                         materialId: '20000000-0000-4000-8000-000000000001',
                         materialTitle: 'Python Data Structures',
                         sourceAvailable: true,
+                        sourceStatus: 'AVAILABLE',
                         evidence: [
                           {
                             rank: 1,
@@ -742,6 +745,7 @@ test.describe('Student session workspace', () => {
                   materialId: '20000000-0000-4000-8000-000000000001',
                   materialTitle: 'Python Data Structures',
                   sourceAvailable: true,
+                  sourceStatus: 'AVAILABLE',
                   evidence: [
                     {
                       rank: 1,

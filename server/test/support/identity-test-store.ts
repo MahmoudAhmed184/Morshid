@@ -228,6 +228,41 @@ interface FindUniqueCourseArgs {
   }
 }
 
+interface FindFirstCourseArgs {
+  where?: {
+    id?: string
+    code?: string
+    archivedAt?: Date | null
+  }
+  select?: {
+    id?: boolean
+    code?: boolean
+    title?: boolean
+    archivedAt?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+    memberships?: {
+      where?: {
+        userId?: string
+        removedAt?: Date | null
+      }
+      select?: {
+        role?: boolean
+        user?: boolean
+      }
+      take?: number
+    }
+  }
+  include?: {
+    memberships?: {
+      where?: {
+        userId?: string
+        removedAt?: Date | null
+      }
+    }
+  }
+}
+
 interface CreateCourseArgs {
   data: Pick<Course, 'code' | 'title' | 'createdById'>
 }
@@ -243,10 +278,14 @@ interface FindManyMaterialArgs {
   where?: {
     courseId?: string
     deletedAt?: null | Date
+    title?: { contains: string; mode?: 'insensitive' }
   }
-  orderBy?: {
-    createdAt?: 'asc' | 'desc'
-  }
+  orderBy?:
+    | { createdAt?: 'asc' | 'desc' }
+    | { createdAt?: 'asc' | 'desc'; id?: 'asc' | 'desc' }[]
+  cursor?: { id: string }
+  skip?: number
+  take?: number
 }
 
 interface FindFirstMaterialArgs {
@@ -369,6 +408,9 @@ export class IdentityTestStore {
     course: {
       findUnique: jest.fn((args: FindUniqueCourseArgs) =>
         Promise.resolve(this.findCourse(args)),
+      ),
+      findFirst: jest.fn((args?: FindFirstCourseArgs) =>
+        Promise.resolve(this.findFirstCourse(args)),
       ),
       findMany: jest.fn((args?: FindManyCourseArgs) =>
         Promise.resolve(this.findCourses(args)),
@@ -873,6 +915,58 @@ export class IdentityTestStore {
     })
   }
 
+  private findFirstCourse(args?: FindFirstCourseArgs): StoredCourse | null {
+    const where = args?.where
+    const course = [...this.courses.values()].find((c) => {
+      if (where?.id !== undefined && c.id !== where.id) return false
+      if (where?.code !== undefined && c.code !== where.code) return false
+      if (where?.archivedAt !== undefined) {
+        if (where.archivedAt === null && c.archivedAt !== null) return false
+        if (
+          where.archivedAt !== null &&
+          c.archivedAt?.getTime() !== where.archivedAt.getTime()
+        )
+          return false
+      }
+      return true
+    })
+
+    if (!course) {
+      return null
+    }
+
+    const membershipUserId = args?.include?.memberships?.where?.userId
+    let courseMemberships = this.memberships.filter(
+      (membership) => membership.courseId === course.id,
+    )
+
+    const selectedMemberships = args?.select?.memberships?.where
+    const selectedUserId = selectedMemberships?.userId ?? membershipUserId
+
+    if (selectedUserId !== undefined) {
+      courseMemberships = courseMemberships.filter(
+        (membership) => membership.userId === selectedUserId,
+      )
+    }
+
+    if (selectedMemberships?.removedAt !== undefined) {
+      courseMemberships = courseMemberships.filter(
+        (membership) => membership.removedAt === selectedMemberships.removedAt,
+      )
+    }
+
+    return {
+      ...course,
+      memberships: courseMemberships.map((m) => ({
+        ...m,
+        user: this.users.get(m.userId),
+      })),
+      materials: [...this.materials.values()].filter(
+        (m) => m.courseId === course.id,
+      ),
+    }
+  }
+
   private findCourse(args: FindUniqueCourseArgs): StoredCourse | null {
     const course =
       args.where.id !== undefined
@@ -1132,8 +1226,31 @@ export class IdentityTestStore {
       materials = materials.filter((m) => m.deletedAt === null)
     }
 
-    if (args?.orderBy?.createdAt === 'desc') {
+    const titleSearch = args?.where?.title?.contains.toLocaleLowerCase()
+    if (titleSearch !== undefined) {
+      materials = materials.filter((m) =>
+        m.title.toLocaleLowerCase().includes(titleSearch),
+      )
+    }
+
+    const createdAtOrder = Array.isArray(args?.orderBy)
+      ? args.orderBy.find((order) => order.createdAt !== undefined)?.createdAt
+      : args?.orderBy?.createdAt
+
+    if (createdAtOrder === 'desc') {
       materials.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    }
+
+    if (args?.cursor !== undefined) {
+      const cursorIndex = materials.findIndex(
+        (material) => material.id === args.cursor?.id,
+      )
+      materials =
+        cursorIndex < 0 ? [] : materials.slice(cursorIndex + (args.skip ?? 0))
+    }
+
+    if (args?.take !== undefined) {
+      materials = materials.slice(0, args.take)
     }
 
     return materials

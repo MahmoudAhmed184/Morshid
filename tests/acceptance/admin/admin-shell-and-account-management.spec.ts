@@ -63,10 +63,10 @@ test.describe('Admin acceptance', () => {
         name: 'Admin navigation',
       })
       await adminNavigation
-        .getByRole('link', { name: 'Users', exact: true })
+        .getByRole('link', { name: 'Students', exact: true })
         .click()
       await expect(
-        page.getByRole('heading', { name: 'User Management' }),
+        page.getByRole('heading', { name: 'Students', exact: true }),
       ).toBeVisible()
 
       const accountRow = page

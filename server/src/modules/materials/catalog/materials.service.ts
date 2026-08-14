@@ -5,10 +5,12 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common'
 
 import type { AuditRequestContext } from '../../audit/audit.public'
 import type { AuthenticatedUser } from '../../identity/identity.types'
+import { UserRole } from '../../identity/identity.roles'
 import { CourseAccess } from '../../courses/interface/course-access'
 import {
   PDF_STORAGE,
@@ -19,6 +21,7 @@ import {
   mapMaterialStatusRecord,
   mapMaterialRecord,
   type MaterialListResponseDto,
+  type ListMaterialsQuery,
   type MaterialResponseDto,
   type MaterialStatusDto,
 } from './materials.dto'
@@ -100,6 +103,7 @@ export class MaterialsService {
 
     try {
       storagePath = await this.pdfStorage.create(upload.buffer)
+
       const material = await this.materialsRepository.createProcessingMaterial({
         courseId,
         uploadedById: actor.id,
@@ -110,41 +114,44 @@ export class MaterialsService {
       })
       materialId = material.id
 
-      await this.materialProcessingScheduler.scheduleMaterialProcessing(
-        material.id,
-      )
       await this.materialsAuditService.recordUploadSucceeded({
         actor,
         courseId,
-        originalFilename: upload.originalFilename,
+        materialId: material.id,
+        originalFilename: material.originalFilename,
         fileSize: upload.size,
         mimetype: upload.mimetype,
-        materialId: material.id,
         reason: 'UPLOAD_ACCEPTED',
         requestContext,
       })
 
+      await this.materialProcessingScheduler.scheduleMaterialProcessing(
+        material.id,
+      )
+
       return {
-        material: mapMaterialRecord(material),
+        material: mapMaterialRecord(material, true),
       }
     } catch (error) {
       const cleanupErrors = await this.cleanupPartialUpload(
         materialId,
         storagePath,
       )
+
       await this.materialsAuditService.recordUploadFailed({
         actor,
         courseId,
         originalFilename: upload.originalFilename,
         fileSize: upload.size,
         mimetype: upload.mimetype,
-        materialId,
         reason:
           cleanupErrors.length > 0
             ? 'UPLOAD_CLEANUP_FAILED'
-            : materialId === null
+            : storagePath === null
               ? 'PERSISTENCE_FAILED'
-              : 'SCHEDULING_FAILED',
+              : materialId === null
+                ? 'PERSISTENCE_FAILED'
+                : 'SCHEDULING_FAILED',
         requestContext,
       })
 
@@ -163,14 +170,23 @@ export class MaterialsService {
   async listMaterials(
     courseId: string,
     actor: AuthenticatedUser,
+    query: ListMaterialsQuery = { limit: 25 },
   ): Promise<MaterialListResponseDto> {
     await this.requireCourseMaterialManagement(courseId, actor)
 
-    const materials =
-      await this.materialsRepository.listCourseMaterials(courseId)
+    const page = await this.materialsRepository.listCourseMaterialsPage(
+      courseId,
+      query,
+    )
 
     return {
-      materials: materials.map(mapMaterialRecord),
+      materials: page.materials.map((material) =>
+        mapMaterialRecord(
+          material,
+          actor.role === UserRole.ADMIN || material.uploadedById === actor.id,
+        ),
+      ),
+      ...(page.nextCursor !== undefined ? { nextCursor: page.nextCursor } : {}),
     }
   }
 
@@ -191,7 +207,10 @@ export class MaterialsService {
     }
 
     return {
-      material: mapMaterialRecord(material),
+      material: mapMaterialRecord(
+        material,
+        actor.role === UserRole.ADMIN || material.uploadedById === actor.id,
+      ),
     }
   }
 
@@ -217,14 +236,19 @@ export class MaterialsService {
   async listMaterialsForAdministration(
     courseId: string,
     actor: AuthenticatedUser,
+    query: ListMaterialsQuery = { limit: 25 },
   ): Promise<MaterialAdministrationListResponseDto> {
     await this.requireCourseMaterialManagement(courseId, actor)
 
-    const materials =
-      await this.materialsRepository.listMaterialsForAdministration(courseId)
+    const page =
+      await this.materialsRepository.listMaterialsForAdministrationPage(
+        courseId,
+        query,
+      )
 
     return {
-      materials: materials.map(mapMaterialAdministrationRecord),
+      materials: page.materials.map(mapMaterialAdministrationRecord),
+      ...(page.nextCursor !== undefined ? { nextCursor: page.nextCursor } : {}),
     }
   }
 
@@ -274,6 +298,59 @@ export class MaterialsService {
 
     return {
       material: mapMaterialAdministrationRecord(material),
+    }
+  }
+
+  async deleteMaterial(
+    courseId: string,
+    materialId: string,
+    actor: AuthenticatedUser,
+    requestContext?: AuditRequestContext,
+  ): Promise<void> {
+    await this.requireCourseMaterialManagement(courseId, actor)
+
+    const material = await this.materialsRepository.findCourseMaterial(
+      courseId,
+      materialId,
+    )
+    if (
+      material !== null &&
+      actor.role !== UserRole.ADMIN &&
+      material.uploadedById !== actor.id
+    ) {
+      throw materialDeleteForbiddenException()
+    }
+
+    const deleted =
+      await this.materialsRepository.quarantineMaterialForDeletion(
+        courseId,
+        materialId,
+        actor.id,
+        requestContext,
+      )
+
+    if (deleted === null) {
+      throw materialNotFoundException()
+    }
+
+    if (actor.role !== UserRole.ADMIN && deleted.uploadedById !== actor.id) {
+      throw materialDeleteForbiddenException()
+    }
+
+    try {
+      // Storage deletion is deliberately after database quarantine. The local
+      // adapter treats an already-missing object as success, so a repeated
+      // DELETE safely retries cleanup for a tombstone.
+      await this.pdfStorage.delete(deleted.storagePath)
+    } catch (error) {
+      throw new ServiceUnavailableException(
+        {
+          code: MATERIALS_ERROR_CODES.STORAGE_CLEANUP_FAILED,
+          message:
+            'The material is unavailable, but its stored PDF could not be removed. Retry deletion.',
+        },
+        { cause: error },
+      )
     }
   }
 
@@ -348,13 +425,13 @@ export class MaterialsService {
         await this.materialsRepository.deleteMaterial(materialId)
       } catch (error) {
         cleanupErrors.push(error)
+      }
 
-        if (!materialQuarantined) {
-          try {
-            await this.materialsRepository.markUploadCleanupRequired(materialId)
-          } catch (quarantineError) {
-            cleanupErrors.push(quarantineError)
-          }
+      if (!materialQuarantined) {
+        try {
+          await this.materialsRepository.markUploadCleanupRequired(materialId)
+        } catch (quarantineError) {
+          cleanupErrors.push(quarantineError)
         }
       }
     }
@@ -396,5 +473,13 @@ function materialNotFoundException() {
   return new NotFoundException({
     code: MATERIALS_ERROR_CODES.MATERIAL_NOT_FOUND,
     message: 'Material was not found',
+  })
+}
+
+function materialDeleteForbiddenException() {
+  return new ForbiddenException({
+    code: MATERIALS_ERROR_CODES.MATERIAL_DELETE_FORBIDDEN,
+    message:
+      'Only an administrator or the instructor who uploaded this material may delete it',
   })
 }

@@ -1,8 +1,13 @@
 import assert from 'node:assert/strict'
+import { resolve } from 'node:path'
 
+import { config as loadEnv } from 'dotenv'
 import { Client } from 'pg'
 
 import { assertCatalogSemanticFingerprint } from '../../scripts/catalog-semantics.mts'
+
+loadEnv({ path: resolve(import.meta.dirname, '../.env') })
+loadEnv({ path: resolve(import.meta.dirname, '../../.env') })
 
 const databaseUrl = process.env.DATABASE_URL
 
@@ -10,7 +15,7 @@ const databaseUrl = process.env.DATABASE_URL
 // enum label order plus every public index, CHECK/FK definition and action,
 // application trigger definition, and application function body queried below.
 const expectedCatalogSemanticFingerprint =
-  'd39d2f5969aaa0f5658e51124531454c74a7c38faba210a1de34837e0d372079'
+  '8ef054a9f721b9b7ff761b32cea6fc5fc4e09d134a641fbe097d72f9f7d15b12'
 
 if (databaseUrl === undefined) {
   throw new Error('DATABASE_URL is required for Prisma catalog assertions')
@@ -65,6 +70,7 @@ const expectedIndexes = [
   'idx_audit_actor_created',
   'idx_audit_course_created',
   'idx_citations_material',
+  'idx_courses_archived_at',
   'idx_courses_created_by',
   'idx_educational_analyses_student_message',
   'idx_educational_analyses_topic_created',

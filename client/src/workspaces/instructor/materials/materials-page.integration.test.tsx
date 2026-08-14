@@ -120,7 +120,10 @@ describe('MaterialsPage query recovery', () => {
         queryClient.getQueryData(
           materialKeys.list({ instructorId, courseId: course.id }),
         ),
-      ).toEqual([material]),
+      ).toEqual({
+        pages: [{ materials: [material] }],
+        pageParams: [undefined],
+      }),
     )
 
     expect(

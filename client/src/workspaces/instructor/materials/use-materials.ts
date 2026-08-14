@@ -1,6 +1,16 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
+import type { InfiniteData } from '@tanstack/react-query'
 
-import { uploadCourseMaterial } from '@/features/materials/material-ingestion/material-ingestion.api'
+import {
+  deleteCourseMaterial,
+  uploadCourseMaterial,
+} from '@/features/materials/material-ingestion/material-ingestion.api'
+import type { MaterialsResponse } from '@/features/materials/material-ingestion/material.schema'
 import {
   materialKeys,
   materialUploadConfigurationQueryOptions,
@@ -21,7 +31,7 @@ function useInstructorId() {
 export function useCourseMaterials(courseId?: string) {
   const instructorId = useInstructorId()
 
-  return useQuery({
+  return useInfiniteQuery({
     ...materialsQueryOptions({
       instructorId: instructorId ?? 'anonymous',
       courseId: courseId ?? 'unknown',
@@ -60,6 +70,40 @@ export function useUploadCourseMaterial() {
         queryKey: materialKeys.list({ instructorId, courseId }),
         exact: true,
       })
+    },
+  })
+}
+
+export function useDeleteCourseMaterial() {
+  const instructorId = useInstructorId()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      courseId,
+      materialId,
+    }: {
+      courseId: string
+      materialId: string
+    }) => deleteCourseMaterial(courseId, materialId),
+    onSuccess: async (_response, { courseId, materialId }) => {
+      if (!instructorId) return
+      const queryKey = materialKeys.list({ instructorId, courseId })
+      queryClient.setQueryData<
+        InfiniteData<MaterialsResponse, string | undefined>
+      >(queryKey, (data) => {
+        if (!data) return data
+        return {
+          ...data,
+          pages: data.pages.map((page) => ({
+            ...page,
+            materials: page.materials.filter(
+              (material) => material.id !== materialId,
+            ),
+          })),
+        }
+      })
+      await queryClient.invalidateQueries({ queryKey, exact: true })
     },
   })
 }

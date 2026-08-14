@@ -445,6 +445,7 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
         materialId: uploadedMaterialId,
         materialTitle: GATE_2_FIXTURE.sourceTitle,
         sourceAvailable: true,
+        sourceStatus: 'AVAILABLE',
       })
       expect(citation.evidence).toHaveLength(1)
       expect(citation.evidence[0]).toMatchObject({

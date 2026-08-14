@@ -1,7 +1,6 @@
 import {
   useInfiniteQuery,
   useMutation,
-  useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
 
@@ -23,7 +22,10 @@ import {
   materialAdministrationKeys,
   materialAdministrationQueryOptions,
 } from '@/features/materials/material-administration.queries'
-import { updateMaterialAdministration } from '@/features/materials/material-administration.api'
+import {
+  deleteMaterialAdministration,
+  updateMaterialAdministration,
+} from '@/features/materials/material-administration.api'
 import { auditKeys } from '@/features/audit/audit.queries'
 import type { CourseMembershipRole } from '@/features/courses/course-administration.schema'
 import { useAuthStore } from '@/features/auth/session/interface/session-store'
@@ -59,12 +61,16 @@ export function useCourseMembers(
   })
 }
 
-export function useMaterialAdministration(courseId: string | undefined) {
+export function useMaterialAdministration(
+  courseId: string | undefined,
+  search = '',
+) {
   const adminId = useAdminId()
-  return useQuery({
+  return useInfiniteQuery({
     ...materialAdministrationQueryOptions(
       adminId ?? 'anonymous',
       courseId ?? 'unknown',
+      search,
     ),
     enabled: adminId !== undefined && courseId !== undefined,
   })
@@ -167,6 +173,26 @@ export function useCourseAdministrationMutations(
       ])
     },
   })
+  const deleteMaterial = useMutation({
+    mutationFn: (materialId: string) => {
+      if (!courseId) throw new Error('Choose a course first.')
+      return deleteMaterialAdministration(courseId, materialId)
+    },
+    onSuccess: async () => {
+      if (!adminId || !courseId) return
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: materialAdministrationKeys.all(adminId, courseId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: courseAdministrationKeys.all(adminId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: auditKeys.all(adminId),
+        }),
+      ])
+    },
+  })
 
   return {
     createCourse,
@@ -177,5 +203,6 @@ export function useCourseAdministrationMutations(
     updateMemberRole,
     removeMember,
     editMaterial,
+    deleteMaterial,
   }
 }

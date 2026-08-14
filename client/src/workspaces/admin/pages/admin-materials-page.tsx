@@ -1,7 +1,8 @@
-import { EyeIcon, FileTextIcon } from 'lucide-react'
+import { EyeIcon, FileTextIcon, Trash2Icon } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { ConfirmDialog } from '@/components/ui/custom/confirm-dialog'
 import { DataTableState } from '@/components/ui/custom/data-table-state'
 import { DataToolbar } from '@/components/ui/custom/data-toolbar'
 import {
@@ -10,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { LoadMoreButton } from '@/components/ui/custom/load-more-button'
 import { PageHeader } from '@/components/ui/custom/page-header'
 import {
   Select,
@@ -26,6 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { useDebouncedValue } from '@/lib/hooks/use-debounced-value'
 import { AdminPanel } from '../components/admin-panel'
 import { AdminStatusBadge } from '../components/admin-status-badge'
 import { EditAdminMaterialDialog } from '../components/edit-admin-material-dialog'
@@ -42,12 +45,15 @@ const materialDateFormatter = new Intl.DateTimeFormat(undefined, {
 
 export function AdminMaterialsPage() {
   const [selectedCourseId, setSelectedCourseId] = useState('')
+  const [search, setSearch] = useState('')
+  const debouncedSearch = useDebouncedValue(search)
   const [selectedMaterial, setSelectedMaterial] =
     useState<MaterialAdministration | null>(null)
   const coursesQuery = useCourseAdministration()
   const courseId = selectedCourseId || coursesQuery.data?.[0]?.id
-  const materialsQuery = useMaterialAdministration(courseId)
-  const { editMaterial } = useCourseAdministrationMutations(courseId)
+  const materialsQuery = useMaterialAdministration(courseId, debouncedSearch)
+  const { editMaterial, deleteMaterial } =
+    useCourseAdministrationMutations(courseId)
   const selectedCourse = coursesQuery.data?.find(
     (course) => course.id === courseId,
   )
@@ -59,6 +65,8 @@ export function AdminMaterialsPage() {
       })) ?? [],
     [coursesQuery.data],
   )
+  const materials =
+    materialsQuery.data?.pages.flatMap((page) => page.materials) ?? []
   const isLoading =
     coursesQuery.isPending ||
     (courseId !== undefined && materialsQuery.isPending)
@@ -76,6 +84,9 @@ export function AdminMaterialsPage() {
       <AdminPanel>
         <DataToolbar
           className="border-b px-4 py-3"
+          searchPlaceholder="Search materials..."
+          search={search}
+          onSearchChange={setSearch}
           filters={
             <Select
               value={courseId ?? null}
@@ -105,9 +116,7 @@ export function AdminMaterialsPage() {
         <DataTableState
           isLoading={isLoading}
           isError={isError}
-          isEmpty={
-            coursesQuery.data?.length === 0 || materialsQuery.data?.length === 0
-          }
+          isEmpty={coursesQuery.data?.length === 0 || materials.length === 0}
           onRetry={() =>
             void Promise.all([coursesQuery.refetch(), materialsQuery.refetch()])
           }
@@ -117,7 +126,7 @@ export function AdminMaterialsPage() {
         >
           {/* Mobile Compact List (< md) — No Horizontal Scroll */}
           <div className="divide-y divide-border md:hidden">
-            {materialsQuery.data?.map((material) => (
+            {materials.map((material) => (
               <div
                 key={material.id}
                 className="flex items-center justify-between p-3.5 gap-3 hover:bg-secondary/20 transition-colors"
@@ -137,6 +146,11 @@ export function AdminMaterialsPage() {
                 </div>
 
                 <div className="shrink-0 flex items-center gap-1">
+                  <MaterialDeleteAction
+                    material={material}
+                    isPending={deleteMaterial.isPending}
+                    onDelete={() => deleteMaterial.mutateAsync(material.id)}
+                  />
                   <Button
                     type="button"
                     variant="ghost"
@@ -186,7 +200,7 @@ export function AdminMaterialsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {materialsQuery.data?.map((material) => (
+                {materials.map((material) => (
                   <TableRow
                     key={material.id}
                     className="h-[52px] hover:bg-secondary/40"
@@ -228,6 +242,13 @@ export function AdminMaterialsPage() {
                     </TableCell>
                     <TableCell className="px-4 py-3.5 last:pr-6">
                       <div className="flex items-center gap-1">
+                        <MaterialDeleteAction
+                          material={material}
+                          isPending={deleteMaterial.isPending}
+                          onDelete={() =>
+                            deleteMaterial.mutateAsync(material.id)
+                          }
+                        />
                         <Button
                           type="button"
                           variant="ghost"
@@ -255,6 +276,12 @@ export function AdminMaterialsPage() {
               </TableBody>
             </Table>
           </div>
+          <LoadMoreButton
+            hasNextPage={materialsQuery.hasNextPage}
+            isFetchingNextPage={materialsQuery.isFetchingNextPage}
+            onLoadMore={() => void materialsQuery.fetchNextPage()}
+            label="Load more materials"
+          />
         </DataTableState>
       </AdminPanel>
 
@@ -340,5 +367,51 @@ export function AdminMaterialsPage() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+function MaterialDeleteAction({
+  material,
+  isPending,
+  onDelete,
+}: {
+  material: MaterialAdministration
+  isPending: boolean
+  onDelete: () => Promise<unknown>
+}) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        disabled={isPending}
+        onClick={() => setOpen(true)}
+        aria-label={`Delete ${material.title}`}
+        className="text-muted-foreground hover:text-destructive"
+      >
+        <Trash2Icon className="size-4" />
+      </Button>
+      <ConfirmDialog
+        open={open}
+        onOpenChange={setOpen}
+        title={`Delete “${material.title}”?`}
+        description={
+          <>
+            This material will no longer be available in the course. Historical
+            tutor citations will remain visible with an unavailable notice.
+          </>
+        }
+        confirmLabel="Delete material"
+        destructive={true}
+        disabled={isPending}
+        onConfirm={async () => {
+          await onDelete()
+          setOpen(false)
+        }}
+      />
+    </>
   )
 }

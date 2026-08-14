@@ -12,6 +12,7 @@ export interface StudentCitationSource {
   materialId: string
   materialTitle: string
   sourceAvailable: boolean
+  sourceStatus: 'AVAILABLE' | 'DELETED' | 'UNAVAILABLE'
   evidence: readonly StudentCitationEvidence[]
 }
 

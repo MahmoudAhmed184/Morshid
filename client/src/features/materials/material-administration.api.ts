@@ -1,4 +1,7 @@
-import { apiJson } from '@/features/auth/session/interface/authenticated-api-client'
+import {
+  apiFetch,
+  apiJson,
+} from '@/features/auth/session/interface/authenticated-api-client'
 import type { ApiFetchOptions } from '@/features/auth/session/interface/authenticated-api-client'
 import {
   materialAdministrationListResponseSchema,
@@ -8,12 +11,16 @@ import {
 export async function getMaterialAdministration(
   courseId: string,
   options: ApiFetchOptions = {},
+  input: { cursor?: string; search?: string } = {},
 ) {
+  const parameters = new URLSearchParams({ limit: '25' })
+  if (input.cursor) parameters.set('cursor', input.cursor)
+  if (input.search) parameters.set('search', input.search)
   const response = await apiJson<unknown>(
-    `/api/v1/admin/courses/${courseId}/materials`,
+    `/api/v1/admin/courses/${courseId}/materials?${parameters}`,
     { ...options, method: 'GET' },
   )
-  return materialAdministrationListResponseSchema.parse(response).materials
+  return materialAdministrationListResponseSchema.parse(response)
 }
 
 export async function updateMaterialAdministration(
@@ -35,4 +42,15 @@ export async function updateMaterialAdministration(
     },
   )
   return materialAdministrationResponseSchema.parse(response).material
+}
+
+export async function deleteMaterialAdministration(
+  courseId: string,
+  materialId: string,
+  options: ApiFetchOptions = {},
+) {
+  await apiFetch(`/api/v1/courses/${courseId}/materials/${materialId}`, {
+    ...options,
+    method: 'DELETE',
+  })
 }
