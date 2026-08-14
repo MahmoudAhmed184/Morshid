@@ -72,6 +72,15 @@ describe('SocraticWorkflowModule Gemini composition', () => {
           `Bearer ${pooledApiKey}`,
         )
       }
+      expect(requestBody(fetchSpy.mock.calls[0]?.[1])).toMatchObject({
+        model: 'gemini-3.5-flash',
+        temperature: 0,
+        top_p: 1,
+      })
+      for (const call of fetchSpy.mock.calls.slice(1)) {
+        expect(requestBody(call[1])).not.toHaveProperty('temperature')
+        expect(requestBody(call[1])).not.toHaveProperty('top_p')
+      }
     } finally {
       await moduleRef?.close()
       fetchSpy.mockRestore()
@@ -133,7 +142,7 @@ function readGeminiConfiguration(key: string): unknown {
     ]),
     ANALYSIS_MODEL_PROVIDER: 'openai-compatible',
     ANALYSIS_MODEL_BASE_URL: geminiBaseUrl,
-    ANALYSIS_MODEL_NAME: 'gemini-analysis-model',
+    ANALYSIS_MODEL_NAME: 'gemini-3.5-flash',
     ANALYSIS_MODEL_API_KEY: '',
     ANALYSIS_MODEL_TIMEOUT_MS: 30_000,
     ANALYSIS_MODEL_MAX_COMPLETION_TOKENS: 2048,
@@ -141,14 +150,14 @@ function readGeminiConfiguration(key: string): unknown {
     ANALYSIS_CONFIDENCE_THRESHOLD: 0.2,
     TUTOR_MODEL_PROVIDER: 'openai-compatible',
     TUTOR_MODEL_BASE_URL: geminiBaseUrl,
-    TUTOR_MODEL_NAME: 'gemini-tutor-model',
+    TUTOR_MODEL_NAME: 'gemini-3.7-flash',
     TUTOR_MODEL_API_KEY: '',
     TUTOR_MODEL_TIMEOUT_MS: 30_000,
     TUTOR_MODEL_MAX_COMPLETION_TOKENS: 2048,
     TUTOR_MODEL_MAX_INFRASTRUCTURE_RETRIES: 1,
     SEMANTIC_GUARD_PROVIDER: 'openai-compatible',
     SEMANTIC_GUARD_BASE_URL: geminiBaseUrl,
-    SEMANTIC_GUARD_MODEL_NAME: 'gemini-guard-model',
+    SEMANTIC_GUARD_MODEL_NAME: 'gemini-3.6-flash',
     SEMANTIC_GUARD_API_KEY: '',
     SEMANTIC_GUARD_TIMEOUT_MS: 30_000,
     SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: 256,
@@ -157,13 +166,7 @@ function readGeminiConfiguration(key: string): unknown {
 }
 
 function modelFrom(init: RequestInit | undefined): string {
-  if (typeof init?.body !== 'string') {
-    throw new TypeError('Expected a JSON request body')
-  }
-  const parsed: unknown = JSON.parse(init.body)
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    throw new TypeError('Expected a JSON request object')
-  }
+  const parsed = requestBody(init)
   const model: unknown = Reflect.get(parsed, 'model')
   if (typeof model !== 'string') {
     throw new TypeError('Expected a model name')
@@ -171,11 +174,22 @@ function modelFrom(init: RequestInit | undefined): string {
   return model
 }
 
+function requestBody(init: RequestInit | undefined): Record<string, unknown> {
+  if (typeof init?.body !== 'string') {
+    throw new TypeError('Expected a JSON request body')
+  }
+  const parsed: unknown = JSON.parse(init.body)
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new TypeError('Expected a JSON request object')
+  }
+  return parsed as Record<string, unknown>
+}
+
 function chatCompletion(model: string): Response {
   const content =
-    model === 'gemini-analysis-model'
+    model === 'gemini-3.5-flash'
       ? validAnalysis
-      : model === 'gemini-tutor-model'
+      : model === 'gemini-3.7-flash'
         ? validCandidate
         : validGuard
   return new Response(
