@@ -1,40 +1,40 @@
-# 02. Repository Structure & Workspace Organization
+# 02. Repository structure and workspace organization
 
-Morshid is organized as an npm workspace monorepo containing a full-stack TypeScript codebase with strict type-checking, architectural boundary enforcement, and isolated package ownership.
+Morshid is an npm workspace monorepo with a full-stack TypeScript codebase. It enforces strict type checks, architectural boundaries, and package isolation.
 
 ---
 
-## 1. Monorepo Root Layout
+## 1. Monorepo root layout
 
 ```
 morshid/
-├── .github/                    # CI/CD GitHub Actions workflows
-│   └── workflows/ci.yml        # Continuous integration pipeline (validate & acceptance jobs)
-├── client/                     # TanStack Start / React 19 Frontend Workspace
-├── server/                     # NestJS Backend API Workspace
-├── scripts/                    # Repository maintenance, seed, verification & reset scripts
-├── tests/                      # Acceptance testing suites
-│   └── acceptance/             # Playwright browser end-to-end user journeys
-├── storage/                    # Local storage root for uploaded PDF files
-│   └── pdfs/                   # Uploaded course PDFs named by UUID (<uuid>.pdf)
-├── docs/                       # Architectural documentation & ADRs
-│   ├── adr/                    # Accepted Architectural Decision Records (0001–0008)
-│   └── developer-guide/        # Developer onboarding documentation (current guide)
-├── dependency-cruiser.config.mjs# Repository architecture & dependency graph rules
-├── docker-compose.yml          # Container configuration for PostgreSQL, Redis, and server
-├── eslint.config.mts           # Monorepo root ESLint flat configuration
-├── prettier.config.mts         # Prettier code formatting configuration
-├── playwright.config.ts        # Playwright test configuration
+├── .github/                    # GitHub Actions workflows
+│   └── workflows/ci.yml        # CI pipeline (validation and acceptance jobs)
+├── client/                     # TanStack Start and React 19 client workspace
+├── server/                     # NestJS server API workspace
+├── scripts/                    # Maintenance, seed, verification, and reset scripts
+├── tests/                      # Acceptance test suites
+│   └── acceptance/             # Playwright browser journeys
+├── storage/                    # Local storage for uploaded PDF files
+│   └── pdfs/                   # Uploaded course PDFs (<uuid>.pdf)
+├── docs/                       # Architecture documentation and ADRs
+│   ├── adr/                    # Accepted Architecture Decision Records (0001-0008)
+│   └── developer-guide/        # Developer guides
+├── dependency-cruiser.config.mjs # Architecture and dependency rules
+├── docker-compose.yml          # PostgreSQL, Redis, and server containers
+├── eslint.config.mts           # ESLint flat configuration
+├── prettier.config.mts         # Prettier configuration
+├── playwright.config.ts        # Playwright configuration
 ├── tsconfig.json               # Root TypeScript configuration
-├── package.json                # Root package manifest & canonical script runner
-└── AGENTS.md                   # Repository engineering guidelines and coding standards
+├── package.json                # Root package manifest and scripts
+└── AGENTS.md                   # Engineering guidelines and coding standards
 ```
 
 ---
 
-## 2. Workspaces Configuration
+## 2. Workspace configuration
 
-The monorepo defines two primary npm workspaces in the root [`package.json`](file:///home/mahmoud-ahmed/Projects/Morshid/package.json):
+The root [`package.json`](file:///home/mahmoud-ahmed/Projects/Morshid/package.json) defines two npm workspaces:
 
 ```json
 {
@@ -52,119 +52,120 @@ The monorepo defines two primary npm workspaces in the root [`package.json`](fil
 }
 ```
 
-### Dependency Overrides
-To ensure deterministic dependency resolution and security patching, root overrides are pinned:
-- `@nestjs/platform-express`: Pins `multer` to `2.2.0` (for memory storage and PDF stream handling).
-- `@prisma/dev`: Pins `@hono/node-server` to `1.19.14`.
+### Dependency overrides
+
+The root manifest pins two dependency overrides:
+- `@nestjs/platform-express`: pins `multer` to `2.2.0` for memory storage and PDF stream handling.
+- `@prisma/dev`: pins `@hono/node-server` to `1.19.14`.
 
 ---
 
-## 3. Server Directory Structure (`server/`)
+## 3. Server directory structure (`server/`)
 
-The server codebase follows a **capability-first** architecture ([ADR 0001](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0001-capability-first-ownership.md)):
+The server follows a capability-first architecture ([ADR 0001](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0001-capability-first-ownership.md)):
 
 ```
 server/
-├── prisma/                     # Multi-file Prisma schemas & migrations
-│   ├── schema.prisma           # Datasource & generator config
+├── prisma/                     # Multi-file Prisma schema files and migrations
+│   ├── schema.prisma           # Datasource and generator configuration
 │   ├── identity.prisma         # Users, roles, refresh tokens
 │   ├── courses-and-materials.prisma # Courses, memberships, materials, chunks
 │   ├── conversations.prisma    # Chat sessions, messages, citations
 │   ├── tutoring.prisma         # Topics, topic states, attempts, analyses, decisions, guards
 │   ├── reviews.prisma          # Review cases, actions, review inbox items
 │   ├── audit.prisma            # Audit log records
-│   ├── migrations/             # Clean-slate migration SQL (20260811150000_initial)
+│   ├── migrations/             # Baseline migration SQL
 │   ├── seed.ts                 # Database seed script
-│   └── assert-catalog.mts      # Database catalog semantic hash verification
+│   └── assert-catalog.mts      # Database catalog semantic hash check
 ├── src/
-│   ├── main.ts                 # Application entry point (NestFactory bootstrap)
+│   ├── main.ts                 # Entry point (NestFactory bootstrap)
 │   ├── app.setup.ts            # Global filters, interceptors, pipes, and OpenAPI setup
 │   ├── app.module.ts           # Root AppModule wiring
-│   ├── application/            # Cross-capability presentation adapters & filters
-│   ├── common/                 # Product-independent framework primitives (HTTP, text, validation)
-│   ├── platform/               # Infrastructure adapters (database, cache, AI, document storage)
+│   ├── application/            # Cross-capability presentation adapters and filters
+│   ├── common/                 # Shared primitives (HTTP, text, validation)
+│   ├── platform/               # Technical infrastructure (database, cache, AI, document storage)
 │   ├── modules/                # Capability-first business logic modules
 │   │   ├── identity/           # Authentication, authorization, password hashing, user admin
 │   │   ├── courses/            # Course creation, access policy, membership management
 │   │   ├── materials/          # PDF upload, text extraction, chunking, course evidence
-│   │   ├── tutoring/           # Socratic tutoring engine, 7-phase runtime, prompt building
+│   │   ├── tutoring/           # Socratic tutoring engine, seven-phase runtime, prompt building
 │   │   ├── conversations/      # Chat session persistence, ordered turns, context window
-│   │   ├── reviews/            # HITL review queue, moderation, student inbox
-│   │   ├── audit/              # Immutable audit logging service and controller
-│   │   └── health/             # Terminus liveness and readiness probes
-│   ├── generated/              # Generated code directory (Prisma Client)
-│   └── seeds/                  # Seed datasets and deterministic demo course fixtures
+│   │   ├── reviews/            # Review queue, moderation, student inbox
+│   │   ├── audit/              # Audit logging service and controller
+│   │   └── health/             # Liveness and readiness health checks
+│   ├── generated/              # Generated code (Prisma Client)
+│   └── seeds/                  # Seed datasets and demo course fixtures
 ├── test/                       # Server test suites
-│   ├── support/                # Disposable database helpers and controllable AI test doubles
+│   ├── support/                # Disposable database helpers and AI test doubles
 │   └── *.e2e-spec.ts           # Integration and E2E test suites
-├── tsconfig.json               # Server TypeScript configuration
-└── package.json                # Server package manifest and scripts
+├── tsconfig.json               # TypeScript configuration
+└── package.json                # Package manifest and scripts
 ```
 
 ---
 
-## 4. Client Directory Structure (`client/`)
+## 4. Client directory structure (`client/`)
 
-The client is a Single Page Application built on **Vite**, **TanStack Start / Router**, and **TanStack Query** ([ADR 0005](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0005-frontend-features-and-workspaces.md)):
+The client is a single-page application built with Vite, TanStack Router, and TanStack Query ([ADR 0005](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0005-frontend-features-and-workspaces.md)):
 
 ```
 client/
 ├── src/
-│   ├── app/                    # Application composition, router provider, root providers
-│   │   ├── app-providers.tsx   # QueryClientProvider, devtools, toast container
-│   │   └── router.tsx          # getRouter() helper creating TanStack Router
-│   ├── routes/                 # Thin route entry points (TanStack Router file-based tree)
-│   │   ├── __root.tsx          # App root document shell and layout
+│   ├── app/                    # App composition and root providers
+│   │   ├── app-providers.tsx   # Query client, devtools, and toast container
+│   │   └── router.tsx          # Router instance creation helper
+│   ├── routes/                 # File-based route tree
+│   │   ├── __root.tsx          # Root shell and layout
 │   │   ├── index.tsx           # Landing page
-│   │   ├── login.tsx           # Authentication view (redirects authenticated users)
-│   │   ├── health.tsx          # System diagnostic and health probe view
-│   │   ├── _student.tsx        # Student workspace layout & role guard
-│   │   ├── instructor/         # Instructor routes (materials, review-queue)
-│   │   └── admin/              # Admin routes (users, courses, audit, settings)
-│   ├── workspaces/             # Role-specific composition shells
-│   │   ├── _shared/            # Shared authenticated headers and navigation
-│   │   ├── student/            # Student chat workspace, citations drawer, review modal
-│   │   ├── instructor/         # Instructor course cards, PDF uploader, review workspace
-│   │   └── admin/              # Admin user table, audit log explorer, course manager
-│   ├── features/               # Domain features & strict public interfaces
-│   │   ├── auth/               # Session store (Zustand), authenticated API fetch, login form
-│   │   ├── chat/               # Socratic conversation view, citations, message lists
-│   │   ├── courses/            # Course listing, selectors, readiness badges
-│   │   ├── materials/          # Material upload forms, processing progress
-│   │   ├── reviews/            # Review queue, resolution panels, student inbox
-│   │   ├── user-management/    # Admin user creation, bulk import, role editor
-│   │   ├── audit/              # System audit log viewer table
-│   │   ├── system-status/      # AI providers and database health cards
-│   │   └── account-settings/   # User password change, preferences
-│   ├── components/             # Shared, feature-independent UI primitives (buttons, dialogs, inputs)
-│   ├── lib/                    # Infrastructure utilities (HTTP fetch wrapper, query client, cn())
-│   ├── routeTree.gen.ts        # Generated TanStack Router tree (DO NOT HAND EDIT)
-│   └── test/                   # Client Vitest setup and testing utilities
-├── vite.config.ts              # Vite bundler and test configuration
+│   │   ├── login.tsx           # Login page (redirects if authenticated)
+│   │   ├── health.tsx          # Health status page
+│   │   ├── _student.tsx        # Student layout and role guard
+│   │   ├── instructor/         # Instructor routes
+│   │   └── admin/              # Admin routes
+│   ├── workspaces/             # Role-specific layouts and shells
+│   │   ├── _shared/            # Shared navigation and headers
+│   │   ├── student/            # Student chat, citations drawer, and review modal
+│   │   ├── instructor/         # Instructor course cards, PDF uploader, and review queue
+│   │   └── admin/              # Admin user table, audit log explorer, and course manager
+│   ├── features/               # Domain features with explicit public interfaces
+│   │   ├── auth/               # Auth store, login form, and session management
+│   │   ├── chat/               # Chat view, citations, and message list
+│   │   ├── courses/            # Course lists, selectors, and readiness status
+│   │   ├── materials/          # Upload forms and processing status
+│   │   ├── reviews/            # Review queue, resolution views, and student inbox
+│   │   ├── user-management/    # User creation, bulk import, and role editing
+│   │   ├── audit/              # Audit log viewer table
+│   │   ├── system-status/      # AI provider and database status cards
+│   │   └── account-settings/   # Password changes and preferences
+│   ├── components/             # Shared UI components (buttons, dialogs, inputs)
+│   ├── lib/                    # Shared utilities (API client, cn helper)
+│   ├── routeTree.gen.ts        # Generated route tree (do not edit directly)
+│   └── test/                   # Vitest test setup and test utilities
+├── vite.config.ts              # Vite and test configuration
 └── package.json                # Client package manifest and dependencies
 ```
 
 ---
 
-## 5. Root Operational Scripts (`scripts/`)
+## 5. Operational scripts (`scripts/`)
 
-The `scripts/` directory contains critical verification, migration, and maintenance utilities:
+The `scripts/` directory contains database maintenance, verification, and reset scripts:
 
-| Script File | Purpose & Verification Logic | Associated Command |
+| Script | Purpose | Command |
 |---|---|---|
-| [`catalog-semantics.mts`](file:///home/mahmoud-ahmed/Projects/Morshid/scripts/catalog-semantics.mts) | Computes SHA-256 semantic fingerprint of the PostgreSQL database schema to detect weakened constraints. | `npm run db:assert-catalog` |
-| [`verify-generated-ownership.mts`](file:///home/mahmoud-ahmed/Projects/Morshid/scripts/verify-generated-ownership.mts) | Re-generates Prisma client and TanStack routes, verifying that checked-in generated files match their SHA-256 hashes without manual modification. | `npm run test:generated-ownership` |
-| [`fresh-seed-demo.mts`](file:///home/mahmoud-ahmed/Projects/Morshid/scripts/fresh-seed-demo.mts) | 5-stage automated reset, seed, lint, typecheck, architecture check, and E2E test gate. | `npm run demo:fresh-seed` |
-| [`reset-local-db.mts`](file:///home/mahmoud-ahmed/Projects/Morshid/scripts/reset-local-db.mts) | Safely resets and drops all local PostgreSQL tables with safety confirmation guards (`MORSHID_RESET_CONFIRM=reset-local`). | `npm run db:reset` |
-| [`clear-local-review-data.mts`](file:///home/mahmoud-ahmed/Projects/Morshid/scripts/clear-local-review-data.mts) | Clears review cases and inbox items for review workflow reset testing (`MORSHID_REVIEW_CLEANUP_CONFIRM=clear-local-reviews`). | `npm run reviews:clear-local` |
+| [`catalog-semantics.mts`](file:///home/mahmoud-ahmed/Projects/Morshid/scripts/catalog-semantics.mts) | Hashes PostgreSQL catalog constraints with SHA-256 to detect schema regressions. | `npm run db:assert-catalog` |
+| [`verify-generated-ownership.mts`](file:///home/mahmoud-ahmed/Projects/Morshid/scripts/verify-generated-ownership.mts) | Regenerates the Prisma client and TanStack route tree, then checks that output matches committed files. | `npm run test:generated-ownership` |
+| [`fresh-seed-demo.mts`](file:///home/mahmoud-ahmed/Projects/Morshid/scripts/fresh-seed-demo.mts) | Runs a five-stage test pipeline: reset database, seed demo data, lint, typecheck, check architecture rules, and run E2E tests. | `npm run demo:fresh-seed` |
+| [`reset-local-db.mts`](file:///home/mahmoud-ahmed/Projects/Morshid/scripts/reset-local-db.mts) | Drops and recreates local PostgreSQL tables. Requires `MORSHID_RESET_CONFIRM=reset-local`. | `npm run db:reset` |
+| [`clear-local-review-data.mts`](file:///home/mahmoud-ahmed/Projects/Morshid/scripts/clear-local-review-data.mts) | Truncates review cases and inbox items without dropping the full schema. Requires `MORSHID_REVIEW_CLEANUP_CONFIRM=clear-local-reviews`. | `npm run reviews:clear-local` |
 
 ---
 
-## 6. Generated Files Policy
+## 6. Generated files policy
 
 > [!IMPORTANT]
-> **Never hand-edit generated files:**
+> Do not edit generated files by hand:
 > - `server/src/generated/prisma/`
 > - `client/src/routeTree.gen.ts`
 
-These files are owned by their respective code generators (`prisma generate` and `@tanstack/router-cli`). The repository enforces this rule via `npm run test:generated-ownership`, which verifies that re-generating them creates byte-for-byte identical output to the committed files.
+Code generators (`prisma generate` and `@tanstack/router-cli`) own these paths. The CI pipeline runs `npm run test:generated-ownership` to regenerate them and fails if the output differs from the committed files.

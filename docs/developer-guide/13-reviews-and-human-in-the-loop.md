@@ -1,124 +1,129 @@
-# 13. Reviews & Human-in-the-Loop (HITL) Workflow
+# 13. Reviews and human-in-the-loop workflow
 
-The Reviews subsystem provides human oversight, moderation queues, automated safety escalation, and direct instructor feedback delivery. Governed by [ADR 0003](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0003-reviews-owned-student-inbox.md), the `Reviews` module owns review case intake, instructor workflows, and the **Student Review Inbox** in a single atomic domain.
+The reviews subsystem handles human oversight, moderation queues, automated safety escalation, and instructor feedback delivery. Per [ADR 0003](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0003-reviews-owned-student-inbox.md), the `reviews` module owns review case intake, instructor queue workflows, resolution actions, and the student review inbox in one domain.
 
 ---
 
-## 1. Reviews Mental Model & Architecture
+## 1. System architecture and lifecycle
 
 ```mermaid
 graph LR
-    subgraph Triggers["Review Triggers"]
-        T1["Student Flag<br/>(STUDENT_REQUEST)"]
-        T2["Semantic Guard Flag<br/>(SAFETY_GUARD_FLAG)"]
-        T3["Low Model Confidence<br/>(LOW_CONFIDENCE_FALLBACK)"]
-        T4["Repeated Struggle<br/>(UNRESOLVED_MISCONCEPTION)"]
+    subgraph Triggers["Review triggers"]
+        T1["Student flag<br/>(STUDENT_REQUEST)"]
+        T2["Policy check failed<br/>(POLICY_CHECK_FAILED)"]
+        T3["Missing citation<br/>(CITATION_MISSING)"]
+        T4["Source conflict<br/>(SOURCE_CONFLICT)"]
     end
 
-    subgraph CoreReview["Reviews Capability (server/src/modules/reviews)"]
-        Intake["Review Intake Service (Atomic DB Tx)"]
-        Queue["Instructor Review Queue (15-min Lease Locking)"]
-        Resolution["Review Resolution Engine"]
-        Inbox["Student Review Inbox (Notifications & Deep-links)"]
+    subgraph CoreReview["Reviews module (server/src/modules/reviews)"]
+        Intake["Review case intake<br/>(ReviewCaseCreator)"]
+        Queue["Instructor review queue<br/>(InstructorReviewQueueService)"]
+        Resolution["Review resolution<br/>(InstructorReviewActionService)"]
+        Inbox["Student review inbox<br/>(StudentReviewInboxService)"]
     end
 
-    subgraph Actors["Human Actors"]
+    subgraph Actors["Actors"]
         Inst[Instructor]
         Student[Student]
     end
 
     T1 & T2 & T3 & T4 --> Intake
     Intake --> Queue
-    Inst -->|Claims & Resolves| Queue
-    Queue --> Resolution
+    Inst -->|Resolves or rejects| Resolution
+    Queue -.-> Inst
     Resolution --> Inbox
-    Student -->|Reads Resolution| Inbox
+    Student -->|Reads resolution| Inbox
 ```
 
 ---
 
-## 2. Review Data Model & Enums
+## 2. Data model and enums
 
 Defined in [`server/prisma/reviews.prisma`](file:///home/mahmoud-ahmed/Projects/Morshid/server/prisma/reviews.prisma):
 
-### 2.1 Enums:
-- **`ReviewTriggerType`**:
-  - `STUDENT_REQUEST`: Student explicitly requested review on a specific chat turn.
-  - `POLICY_CHECK_FAILED`: Automated safety or teaching policy violation detected.
-  - `CITATION_MISSING`: Turn produced assertions without supporting citations.
-  - `SOURCE_CONFLICT`: Retrieved chunks contained conflicting claims.
-  - `FINAL_ANSWER_RISK`: Potential solution leak detected.
-  - `GENERAL_NOT_FOUND`: Retrieval produced no relevant course material chunks.
-- **`ReviewCaseStatus`**:
-  - `OPEN`: Waiting in the instructor moderation queue.
-  - `RESOLVED`: Instructor approved, edited, or replaced the guidance.
-  - `DISMISSED`: Review request was rejected with reason.
-- **`ReviewOutcome`**:
-  - `APPROVED`: Instructor confirmed the original Socratic response was accurate and appropriate.
-  - `EDITED`: Instructor edited the response text.
-  - `REPLACED`: Instructor provided a completely rewritten explanation.
-  - `REQUEST_REJECTED`: Instructor rejected the student's review request.
+### 2.1 Enums
+
+- `ReviewTriggerType`:
+  - `STUDENT_REQUEST`. Student requested review on a specific chat turn.
+  - `POLICY_CHECK_FAILED`. Safety or teaching policy check failed.
+  - `CITATION_MISSING`. Assistant turn produced assertions without supporting citations.
+  - `SOURCE_CONFLICT`. Retrieved chunks contained conflicting claims.
+  - `FINAL_ANSWER_RISK`. Assistant response risked leaking direct solutions.
+  - `GENERAL_NOT_FOUND`. Retrieval found no relevant course material chunks.
+- `ReviewStatus`:
+  - `PENDING`. Waiting in the instructor moderation queue.
+  - `IN_REVIEW`. Currently claimed or viewed by an instructor.
+  - `RESOLVED`. Instructor approved, edited, or replaced the guidance.
+  - `REJECTED`. Instructor rejected the student review request.
+- `StudentFlagReason`:
+  - `INCORRECT`. Student flagged the response as factually wrong.
+  - `CONFUSING`. Student flagged the explanation as unclear.
+  - `UNHELPFUL`. Student flagged the guidance as unhelpful.
+  - `COURSE_MISMATCH`. Content did not match the course syllabus.
+  - `TOO_MUCH_ANSWER`. Content gave away the solution directly.
+  - `OTHER`. Student entered a custom reason.
+- `ReviewOutcome`:
+  - `APPROVED`. Instructor confirmed the original Socratic response was accurate.
+  - `EDITED`. Instructor modified the response text.
+  - `REPLACED`. Instructor wrote a new explanation.
+  - `REQUEST_REJECTED`. Instructor rejected the review request.
 
 ---
 
-## 3. End-to-End Review Lifecycle Trace
+## 3. End-to-end review lifecycle trace
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor Student
-    participant Chat as Student Chat UI
+    participant Chat as Student chat UI
     participant Intake as ReviewCaseController
     actor Instructor
-    participant Queue as Instructor Review Workspace
+    participant Queue as Instructor review workspace
     participant ResSvc as InstructorReviewResolutionController
-    participant Inbox as Student Review Inbox
+    participant Inbox as Student review inbox
     participant DB as PostgreSQL (Tx)
 
-    Note over Student,Chat: Phase 1: Review Intake
-    Student->>Chat: Clicks "Request Instructor Review" (with reason)
+    Note over Student,Chat: Phase 1: Review intake
+    Student->>Chat: Clicks 'Request Instructor Review' with reason
     Chat->>Intake: POST /api/v1/messages/:messageId/review-requests (Idempotency-Key)
-    Intake->>DB: BEGIN Tx -> INSERT into review_cases (status=OPEN, evidence_snapshot)
-    Intake->>DB: INSERT into review_triggers (trigger_type=STUDENT_REQUEST)
-    Intake->>DB: INSERT into audit_logs (review.case_created)
+    Intake->>DB: BEGIN Tx -> INSERT INTO review_cases (status=PENDING, version=1)
+    Intake->>DB: INSERT INTO review_triggers (type=STUDENT_REQUEST)
+    Intake->>DB: INSERT INTO audit_logs (action=review.case_created)
     Intake->>DB: COMMIT Tx
-    Intake-->>Chat: 201 Created (Review Case #42)
-    Chat->>Student: Displays "Under Instructor Review" badge
+    Intake-->>Chat: 201 Created (Review Case ID)
+    Chat->>Student: Shows 'Under Instructor Review' badge
 
-    Note over Instructor,Queue: Phase 2: Moderation Queue
-    Instructor->>Queue: Visits /instructor/review-queue -> GET /api/v1/instructor/reviews
-    Queue-->>Instructor: List of pending review cases for assigned courses
+    Note over Instructor,Queue: Phase 2: Moderation queue
+    Instructor->>Queue: Opens /instructor/reviews -> GET /api/v1/instructor/reviews
+    Queue-->>Instructor: Returns pending review cases for assigned courses
     
-    Note over Instructor,ResSvc: Phase 3: Resolution Action
-    Instructor->>ResSvc: POST /api/v1/instructor/reviews/42/resolve (Idempotency-Key)
+    Note over Instructor,ResSvc: Phase 3: Resolution action
+    Instructor->>ResSvc: POST /api/v1/instructor/reviews/:id/resolve (Idempotency-Key)
     Note over ResSvc: Payload: { expectedVersion: 1, outcome: 'EDITED', content: '...', reason: '...' }
     ResSvc->>DB: BEGIN Tx (pg_advisory_xact_lock on reviewCaseId)
-    ResSvc->>DB: UPDATE review_cases SET status=RESOLVED, outcome=EDITED, published_content=..., resolved_at=NOW(), version=version+1
-    ResSvc->>DB: INSERT into review_actions (action_type=RESOLVED, outcome=EDITED)
-    ResSvc->>DB: INSERT into review_inbox_items (is_read=false, note=reason)
-    ResSvc->>DB: INSERT into audit_logs (review.case_resolved)
+    ResSvc->>DB: UPDATE review_cases SET status=RESOLVED, outcome=EDITED, version=2, resolved_at=NOW()
+    ResSvc->>DB: INSERT INTO review_actions (action_type=EDITED, case_version=2)
+    ResSvc->>DB: INSERT INTO review_inbox_items (type=REVIEW_RESOLVED, status=UNREAD)
+    ResSvc->>DB: INSERT INTO audit_logs (action=review.case_resolved)
     ResSvc->>DB: COMMIT Tx
-    ResSvc-->>Queue: 200 OK Resolution Saved
+    ResSvc-->>Queue: 200 OK resolution saved
 
-    Note over Student,Inbox: Phase 4: Student Notification & Review Consumption
-    Inbox->>Inbox: Background polling detects unread item
+    Note over Student,Inbox: Phase 4: Student notification and review consumption
+    Inbox->>Inbox: Polls unread count via GET /api/v1/reviews/inbox/unread-count
     Inbox->>Student: Unread notification badge appears in navbar
-    Student->>Inbox: Opens Inbox -> clicks resolved item
+    Student->>Inbox: Opens inbox -> clicks resolved item
     Inbox->>Chat: Deep-links to /chat with review indicator
-    Student->>Inbox: POST /api/v1/reviews/inbox/:inboxItemId/read -> Marks item read
+    Student->>Inbox: POST /api/v1/reviews/inbox/:inboxItemId/read -> marks item read
 ```
 
 ---
 
-## 4. Concurrency, Leases & Optimistic Locking
+## 4. Concurrency, locking, and draft persistence
 
-To support multiple instructors reviewing tickets concurrently without colliding:
+To support multiple instructors reviewing cases without data loss or race conditions:
 
-1. **Moderation Leases**:
-   - Claiming a ticket (`POST /reviews/:id/claim`) grants an exclusive 15-minute lease (`claimedById`, `leaseExpiresAt`).
-   - If an instructor abandons a ticket without resolving it, the lease expires and the ticket automatically returns to the `PENDING` queue for other instructors to claim.
-2. **Optimistic Version Locking**:
-   - Every mutation payload requires `expectedVersion: number`.
-   - If another instructor claims or resolves the ticket in the interim, the database mutation fails with `STALE_REVIEW_VERSION` (HTTP 409 Conflict), preventing overwrites.
-3. **Tab-Isolated Draft Persistence**:
-   - The instructor workspace persists resolution drafts in browser `sessionStorage` keyed by review case ID (`morshid:review-draft:<reviewCaseId>`), preventing cross-tab pollution when working on multiple cases simultaneously.
+1. **Transactional advisory locks.** During mutation, [`PrismaInstructorReviewActionRepository`](file:///home/mahmoud-ahmed/Projects/Morshid/server/src/modules/reviews/instructor-resolution/instructor-review-action.repository.ts) acquires a PostgreSQL transaction-level advisory lock on the idempotency scope key, then on the review case ID (`pg_advisory_xact_lock`). This serializes concurrent resolutions for the same case.
+2. **Optimistic version locking.** Every resolution or rejection payload passes `expectedVersion: number`. If another instructor resolves the case first, the version counter increments, the conditional update matches zero rows, and the API returns `STALE_REVIEW_VERSION` (HTTP 409 Conflict).
+3. **Idempotency keys.** The API requires an `Idempotency-Key` header (1 to 200 characters). Successful resolutions record a SHA-256 fingerprint in `idempotency_records` with a 7-day retention period. Retried requests with matching fingerprints return the original response without re-executing database mutations.
+4. **Tab-isolated draft persistence.** The instructor workspace saves in-progress drafts to browser `sessionStorage` keyed by case ID (`morshid:review-draft:<reviewCaseId>`). This isolates draft content across browser tabs when an instructor works on multiple review cases in parallel.

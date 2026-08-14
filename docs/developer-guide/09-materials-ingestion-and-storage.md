@@ -1,16 +1,16 @@
-# 09. Materials Ingestion, Processing & Document Storage
+# 09. Materials ingestion, processing, and document storage
 
-Morshid ingests course reference documents (PDFs), extracts and normalizes textual content, segments text into semantically cohesive overlapping chunks, generates 1,536-dimensional vector embeddings, and persists them in PostgreSQL with `pgvector`.
+Morshid ingests course reference PDFs, extracts and normalizes text, splits it into overlapping chunks, generates 1,536-dimensional vector embeddings, and stores them in PostgreSQL with `pgvector`.
 
 ---
 
-## 1. Document Storage Platform (`server/src/platform/document-storage/`)
+## 1. Document storage platform (`server/src/platform/document-storage/`)
 
-Document storage is abstracted behind the [`PdfStorage`](file:///home/mahmoud-ahmed/Projects/Morshid/server/src/platform/document-storage/pdf-storage.ts) interface:
+The [`PdfStorage`](file:///home/mahmoud-ahmed/Projects/Morshid/server/src/platform/document-storage/pdf-storage.ts) interface defines document storage operations:
 
 ```typescript
 export const PDF_STORAGE = Symbol('PdfStorage')
-export const MAX_PDF_OBJECT_BYTES = 100 * 1024 * 1024 // 100MB Hard Operational Ceiling
+export const MAX_PDF_OBJECT_BYTES = 100 * 1024 * 1024
 
 export interface PdfStorage {
   create(contents: Buffer): Promise<string>
@@ -20,20 +20,20 @@ export interface PdfStorage {
 }
 ```
 
-### Local Storage Implementation ([`LocalPdfStorageAdapter`](file:///home/mahmoud-ahmed/Projects/Morshid/server/src/platform/document-storage/local-pdf-storage.adapter.ts))
-- **Path Storage**: Files are saved in `PDF_STORAGE_PATH` (default: `storage/pdfs/`).
-- **Filename Format**: UUID v4 filenames matching `/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.pdf$/i` (e.g. `d3b07384-d113-40a2-9e29-873b8a3e9c12.pdf`).
-- **POSIX Safety & Permissions**:
-  - Opened with `O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW`.
-  - Mode set to `0o600` (read/write restricted strictly to the process owner).
-  - Explicitly invokes `handle.sync()` before returning to guarantee filesystem durability.
-  - Verifies canonical path resolution (`fs.realpath`) to prevent directory traversal attacks.
+### Local storage implementation ([`LocalPdfStorageAdapter`](file:///home/mahmoud-ahmed/Projects/Morshid/server/src/platform/document-storage/local-pdf-storage.adapter.ts))
+- **File location.** Files are saved in `PDF_STORAGE_PATH` (defaults to `storage/pdfs/`).
+- **Filename format.** UUID v4 filenames matching `/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.pdf$/i` (for example, `d3b07384-d113-40a2-9e29-873b8a3e9c12.pdf`).
+- **POSIX safety and permissions.**
+  - Opens files with `O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW`.
+  - Sets mode to `0o600` (read and write restricted to the process owner).
+  - Calls `handle.sync()` before returning to flush data to disk.
+  - Verifies canonical paths with `fs.realpath` to prevent directory traversal.
 
 ---
 
-## 2. Ingestion & Upload Validation
+## 2. Ingestion and upload validation
 
-Uploads are received at `POST /api/v1/courses/:courseId/materials` and validated through a multi-stage filter:
+The API receives uploads at `POST /api/v1/courses/:courseId/materials` and validates them through a series of checks:
 
 ```mermaid
 flowchart TD
@@ -53,14 +53,14 @@ flowchart TD
     AuthCheck -->|Unauthorized| Err403[403 Forbidden]
 ```
 
-### Validation Constraints ([`pdf-upload.validator.ts`](file:///home/mahmoud-ahmed/Projects/Morshid/server/src/modules/materials/upload/pdf-upload.validator.ts)):
-- **Supported Formats**: Single PDF documents only. (Zip archives, raw Markdown, and scanned image containers are rejected).
-- **Magic Bytes Signature**: Validates that `buffer.subarray(0, 5)` equals `Buffer.from('%PDF-')`.
-- **Payload Ceiling**: Defaults to 10 MB (`10,485,760` bytes), configurable up to 100 MB via `PDF_MAX_UPLOAD_BYTES`.
+### Validation constraints ([`pdf-upload.validator.ts`](file:///home/mahmoud-ahmed/Projects/Morshid/server/src/modules/materials/upload/pdf-upload.validator.ts))
+- **Supported formats.** Single PDF documents only. Zip archives, raw Markdown, and scanned image containers fail validation.
+- **Magic bytes signature.** Verifies that `buffer.subarray(0, 5)` matches `Buffer.from('%PDF-')`.
+- **Payload limit.** Defaults to 10 MB (`10,485,760` bytes), configurable up to 100 MB with `PDF_MAX_UPLOAD_BYTES`.
 
 ---
 
-## 3. End-to-End Processing Pipeline
+## 3. End-to-end processing pipeline
 
 The ingestion pipeline converts a stored PDF into searchable, vector-indexed chunks:
 
@@ -90,7 +90,7 @@ sequenceDiagram
     
     Svc->>Chunker: chunk(normalizedText, materialTitle)
     Note over Chunker: NFKC normalization, 1200 char window, 200 overlap
-    Chunker-->>Svc: MaterialChunkDraft[]
+    Chunker-->>Svc: MaterialTextChunk[]
     
     Svc->>Embedder: embedMaterialChunks(chunks, title)
     Embedder->>Embedder: Upstream Embedding Provider (1536 dimensions)
@@ -106,31 +106,31 @@ sequenceDiagram
 
 ---
 
-## 4. Text Extraction & Chunking Strategy
+## 4. Text extraction and chunking strategy
 
-### 4.1 Text Extraction ([`pdf-text-extractor.ts`](file:///home/mahmoud-ahmed/Projects/Morshid/server/src/modules/materials/processing/pdf-text-extractor.ts))
+### 4.1 Text extraction ([`pdf-text-extractor.ts`](file:///home/mahmoud-ahmed/Projects/Morshid/server/src/modules/materials/processing/pdf-text-extractor.ts))
 - Uses `pdfjs-dist/legacy/build/pdf.mjs`.
-- Iterates page-by-page extracting raw text items.
-- Detects empty or scanned pages: if `0 < pagesWithoutText < pageCount`, flags the material with a `PARTIAL_PAGE_TEXT` warning.
-- Throws `NO_EXTRACTABLE_TEXT` if zero text is found across all pages (scanned image PDFs without OCR are not supported).
+- Iterates page by page to extract text items.
+- Detects pages without text. If `0 < pagesWithoutText < pageCount`, it marks the material with a `PARTIAL_PAGE_TEXT` warning.
+- Throws `PdfExtractionError` when no extractable text is found on any page. Scanned PDFs without OCR are not supported.
 
-### 4.2 Text Normalization & Chunking ([`material-text-chunker.ts`](file:///home/mahmoud-ahmed/Projects/Morshid/server/src/modules/materials/processing/material-text-chunker.ts))
-- **Normalization**:
-  - Applies Unicode NFKC normalization: `text.normalize('NFKC')`.
-  - Strips NUL bytes (`\u0000`) and carriage returns (`\r\n` -> `\n`, `\r` -> `\n`).
-  - Replaces repeated inline whitespace with single spaces (`[\t\f\v ]+` -> `' '`).
-  - Collapses excessive line breaks (`\n{3,}` -> `\n\n`).
-- **Sliding Window Chunking**:
-  - **Target Chunk Size**: `1,200` characters (`MATERIAL_CHUNK_TARGET_CHARACTERS`).
-  - **Overlap Size**: `200` characters (`MATERIAL_CHUNK_OVERLAP_CHARACTERS`).
-  - **Boundary Heuristic**: Searches for natural semantic break points (`\n\n`, `\n`, or space `' '`) within the window range `[start + 600, start + 1200]`.
+### 4.2 Text normalization and chunking ([`material-text-chunker.ts`](file:///home/mahmoud-ahmed/Projects/Morshid/server/src/modules/materials/processing/material-text-chunker.ts))
+- **Normalization.**
+  - Applies Unicode NFKC normalization (`text.normalize('NFKC')`).
+  - Strips NUL bytes (`\u0000`) and carriage returns (`\r\n` and `\r` become `\n`).
+  - Replaces repeated inline whitespace with single spaces (`[\t\f\v ]+` becomes `' '`).
+  - Collapses three or more consecutive line breaks into two (`\n{3,}` becomes `\n\n`).
+- **Sliding window chunking.**
+  - **Target chunk size.** `1,200` characters (`MATERIAL_CHUNK_TARGET_CHARACTERS`).
+  - **Overlap size.** `200` characters (`MATERIAL_CHUNK_OVERLAP_CHARACTERS`).
+  - **Boundary search.** Looks for natural break points (`\n\n`, `\n`, or `' '`) within `[start + 600, start + 1200]`.
   - Advances window: `nextStart = boundaryIndex - 200`.
 
 ---
 
-## 5. Material Lifecycle States
+## 5. Material lifecycle states
 
-Materials transition through the following states in the `materials` table:
+Materials move through these states in the `materials` table:
 
 ```mermaid
 stateDiagram-v2
@@ -145,8 +145,8 @@ stateDiagram-v2
     FAILED --> [*]: Blocked from RAG
 ```
 
-### Lifecycle Enums & Meanings:
-- **`PROCESSING`**: Document is saved on disk; waiting in `material_processing_commands` queue or actively being parsed/embedded.
-- **`READY`**: Extracted text length > 0, chunks generated, embeddings persisted, zero warnings. Active for Socratic tutoring.
-- **`WARNING`**: Extracted text length > 0 and embeddings persisted, but non-fatal issues occurred (e.g. some pages contained images without extractable text). Still eligible for retrieval.
-- **`FAILED`**: Ingestion terminated. The `error_message` column contains actionable diagnostics (e.g. `"No extractable text was found. Scanned PDFs are not supported."`, `"PDF is password protected."`, or `"Storage read failed."`).
+### Lifecycle states
+- **`PROCESSING`**. The document is saved on disk and waiting in the `material_processing_commands` queue or actively being parsed and embedded.
+- **`READY`**. Text extracted, chunks generated, embeddings persisted, and zero warnings reported. The material is active for tutoring retrieval.
+- **`WARNING`**. Text extracted and embeddings persisted, but non-fatal issues occurred (such as pages containing images without extractable text). The material remains eligible for retrieval.
+- **`FAILED`**. Ingestion failed. The `error_message` column contains diagnostic details (such as `"No extractable text was found. Scanned PDFs are not supported."`, `"PDF is password protected."`, or `"Storage read failed."`).

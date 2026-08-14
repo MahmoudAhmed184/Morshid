@@ -1,12 +1,12 @@
-# 01. System Overview & Mental Model
+# 01. System overview and mental model
 
-**Morshid** (مرشد, Arabic for "Guide" or "Advisor") is an enterprise-grade, pedagogical AI tutoring platform. It is engineered specifically to deliver grounded, Socratic educational guidance to students while strictly adhering to pedagogical guardrails and instructor oversight.
+Morshid (مرشد, Arabic for "Guide" or "Advisor") is an AI tutoring platform that guides students using the Socratic method within course-specific boundaries and instructor oversight.
 
 ---
 
-## 1. Core Mental Model & Pedagogical Principles
+## 1. Core mental model and pedagogical principles
 
-Unlike standard conversational chatbots that generate direct answers or code solutions, Morshid operates as an active **Socratic Tutor**.
+Standard conversational chatbots generate direct answers or code. Morshid teaches Socratically instead.
 
 ```mermaid
 flowchart TD
@@ -26,27 +26,28 @@ flowchart TD
     end
 ```
 
-### Core Pedagogical Invariants:
-1. **Never Give the Final Answer / Code Solution**: The system enforces a strict `NO_FINAL_ANSWER` reveal policy. It will never generate copy-pasteable assignment solutions or complete function implementations.
-2. **Strict Grounding on Course Materials**: All factual teaching points must be grounded in verified, instructor-uploaded PDF materials for the student's enrolled course.
-3. **Non-Executable Debugging Guidance**: When a student submits broken code, the tutor analyzes logical or syntax misunderstandings and asks guiding questions. Student code is **never executed in a sandbox/VM**, preventing security hazards and output cheating.
-4. **Human-in-the-Loop (HITL) Fallback**: Any model low-confidence detection, potential safety violation, or student-escalated query is immediately queued for instructor review.
+### Core pedagogical invariants
+
+1. **Never give the final answer or code.** Morshid enforces a `NO_FINAL_ANSWER` reveal policy. It will not generate copy-paste assignment solutions or complete function implementations.
+2. **Ground all answers in course materials.** All factual explanations must cite verified, instructor-uploaded PDFs from the student's enrolled course.
+3. **No code execution.** When a student submits broken code, the tutor spots logical or syntax misunderstandings and asks guiding questions. Morshid never runs student code in a sandbox or virtual machine, avoiding execution security risks and automated test evasion.
+4. **Instructor fallback.** When model confidence drops below threshold, safety guardrails trigger, or a student requests help, the turn enters the instructor review queue.
 
 ---
 
-## 2. User Personas & System Roles
+## 2. User personas and system roles
 
-Morshid defines three distinct, mutually isolated roles:
+Morshid separates users into three roles:
 
 ```mermaid
 graph LR
-    subgraph Roles["System Personas"]
+    subgraph Roles["Roles"]
         S[Student]
         I[Instructor]
         A[Admin]
     end
 
-    subgraph Capabilities["Workspace Capabilities"]
+    subgraph Capabilities["Workspace capabilities"]
         S -->|Accesses| C1[Socratic Chat & Citations]
         S -->|Accesses| C2[Review Inbox & Clarifications]
         
@@ -61,31 +62,31 @@ graph LR
 ```
 
 ### 1. Student (`STUDENT`)
-- Interacts with the AI tutor through course-scoped conversational chat sessions.
-- Receives iterative hints, conceptual explanations, and source citations linked to exact PDF chunks.
-- Can flag any turn by clicking **"Request Instructor Review"**.
-- Receives direct instructor resolutions in their student inbox.
+- Chats with the AI tutor inside enrolled courses.
+- Receives hints, explanations, and citations linked to specific PDF text chunks.
+- Can flag any turn by clicking **Request Instructor Review**.
+- Receives instructor replies directly in their review inbox.
 
 ### 2. Instructor (`INSTRUCTOR`)
-- Manages assigned courses and uploads course syllabi, lecture notes, and textbooks (PDF format).
-- Monitors material processing status (`PROCESSING` -> `READY` / `WARNING` / `FAILED`).
-- Reviews course readiness reports before opening tutoring to students.
-- Moderates the **Review Queue**: reviews student-flagged or guardrail-flagged turns, providing overrides, explanations, or approvals.
+- Manages assigned courses and uploads PDFs (syllabi, lecture notes, textbooks).
+- Tracks material processing state (`PROCESSING`, `READY`, `WARNING`, `FAILED`).
+- Checks course readiness reports before opening tutoring to students.
+- Reviews flagged turns in the review queue to provide overrides, explanations, or approvals.
 
 ### 3. Administrator (`ADMIN`)
-- Governs the overall tenant: creates/updates/disables users, assigns instructor/student course memberships, and handles bulk CSV/JSON user imports.
-- Monitors system health probes (`/health/live`, `/health/ready`), PostgreSQL/Redis connectivity, and AI provider status.
-- Inspects comprehensive, tamper-evident audit logs (`audit_logs`).
+- Manages tenant accounts: creates, updates, and disables users, assigns course memberships, and runs bulk CSV or JSON user imports.
+- Monitors health check endpoints (`/health/live`, `/health/ready`), database connectivity, and AI provider status.
+- Inspects system audit logs (`audit_logs`).
 
 ---
 
-## 3. High-Level Architectural Topology
+## 3. High-level architectural topology
 
-Morshid is built as an npm workspace monorepo consisting of a modern client SPA and a structured NestJS backend supported by PostgreSQL (with `pgvector`), Redis, and external AI providers.
+Morshid is an npm workspace monorepo with a TanStack Start client SPA, a NestJS API backend, PostgreSQL with `pgvector`, Redis, and external LLM providers.
 
 ```mermaid
 flowchart TB
-    subgraph Browser["Client Application (Browser)"]
+    subgraph Browser["Client application (browser)"]
         UI["TanStack Start / React 19 SPA (Port 3000)"]
         Router["TanStack Router (Thin Routes)"]
         Workspaces["Workspaces (admin / instructor / student)"]
@@ -95,12 +96,12 @@ flowchart TB
         UI --> Router --> Workspaces --> Features --> Query
     end
 
-    subgraph Network["Network & API Boundary"]
+    subgraph Network["Network and API boundary"]
         HTTP["REST API: /api/v1/* (Port 4000)"]
         AuthCook["HttpOnly Cookies + JWT Bearer"]
     end
 
-    subgraph Backend["NestJS Application Server"]
+    subgraph Backend["NestJS application server"]
         Guards["IdentityGuard + RolesGuard"]
         Pipes["ZodValidationPipes"]
         Modules["Capability Modules (Identity, Courses, Materials, Tutoring, Reviews, Audit)"]
@@ -110,13 +111,13 @@ flowchart TB
         Guards --> Pipes --> Modules --> Runtime --> Platform
     end
 
-    subgraph Persistence["Storage & Infrastructure"]
+    subgraph Persistence["Storage and infrastructure"]
         PG[("PostgreSQL 18 + pgvector (0.8.4)")]
         Redis[("Redis 8.4 (Token Buckets & Gemini Pool)")]
         PDFStore[("Local PDF Document Storage (UUID.pdf)")]
     end
 
-    subgraph ExternalAI["External AI Services"]
+    subgraph ExternalAI["External AI services"]
         EmbedModel["Embedding Model (Deterministic / Gemini v1beta)"]
         LLMAnalysis["Analysis Model (Qwen2.5-14B / OpenAI-Compatible)"]
         LLMTutor["Tutor Model (Qwen2.5-7B / OpenAI-Compatible)"]
@@ -133,9 +134,9 @@ flowchart TB
 
 ---
 
-## 4. Key End-to-End System Invariants
+## 4. Key end-to-end system invariants
 
-1. **Strict Dependency Graph**: Production architecture enforces an acyclic dependency graph via `dependency-cruiser`. Framework platform adapters and common utilities never import business capability modules; capability modules never cross boundaries except through explicit public interfaces.
-2. **Transaction-Bounded Atomicity (ADR 0007)**: Cross-capability database operations (such as finalizing a tutoring turn, creating message retrievals, updating topic state, and inserting audit logs) execute atomically within an opaque `DatabaseTransaction` contract without leaking Prisma-specific client types across seams.
-3. **Corpus Isolation & Course Readiness**: A student query is never embedded or matched against a course until all candidate materials in that course are 100% indexed in the active vector space. Partial indexing blocks retrieval for that course to prevent hallucinations and ungrounded output.
-4. **Project-Aware Gemini Chat Pool (ADR 0008)**: High-concurrency AI chat calls are distributed round-robin across an array of distinct Google Cloud quota projects via Redis, with automatic jittered exponential backoff upon receiving HTTP 429 status codes.
+1. **Strict dependency graph.** `dependency-cruiser` enforces an acyclic module graph. Platform adapters and common utilities never import capability modules. Capability modules only interact through explicit public interfaces.
+2. **Transaction-bounded atomicity (ADR 0007).** Cross-capability database writes execute atomically inside an opaque `DatabaseTransaction` interface. Finalizing a tutoring turn, saving retrieval records, updating topic mastery, and appending audit logs run in a single transaction without exposing Prisma client types outside the platform layer.
+3. **Corpus isolation and course readiness.** The system does not embed or match student queries until every material in the course reaches `READY` status in the vector store. Partial indexing blocks tutoring for that course to prevent answers from incomplete material.
+4. **Project-aware Gemini pool (ADR 0008).** The system distributes Gemini chat calls round-robin across multiple Google Cloud projects tracked in Redis, retrying with jittered exponential backoff when encountering HTTP 429 responses.

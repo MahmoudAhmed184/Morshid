@@ -1,19 +1,19 @@
-# 17. Local Development & Operational Workflows
+# 17. Local development and operational workflows
 
-This guide provides practical instructions for setting up, running, debugging, and maintaining the Morshid platform locally.
+This guide covers how to set up, run, debug, and maintain Morshid locally.
 
 ---
 
-## 1. Prerequisites & Environment Setup
+## 1. Prerequisites and environment setup
 
-### Required Tools:
-- **Node.js**: `>=24.7 <25` (Enforced via `.node-version` and `.nvmrc`)
+### Required tools
+- **Node.js**: `>=24.7 <25` (enforced via `.node-version` and `.nvmrc`)
 - **npm**: `>=11` (`npm@11.18.0`)
-- **Docker & Docker Compose**: For local PostgreSQL (`pgvector`) and Redis instances
+- **Docker and Docker Compose**: for local PostgreSQL (`pgvector`) and Redis instances
 
-### Initial Setup Steps:
+### Initial setup
 ```bash
-# 1. Clone repository and install all monorepo dependencies
+# 1. Clone repository and install dependencies
 git clone <repo-url> morshid
 cd morshid
 npm install
@@ -23,7 +23,7 @@ cp .env.example .env
 cp server/.env.example server/.env
 cp client/.env.example client/.env
 
-# 3. Start local container infrastructure (PostgreSQL & Redis)
+# 3. Start local container infrastructure (PostgreSQL and Redis)
 npm run infra:up
 
 # 4. Deploy initial database schema migrations
@@ -32,15 +32,15 @@ npm run db:migrate:deploy
 # 5. Populate database with deterministic P0 seed data
 npm run db:seed
 
-# 6. Start full-stack local development servers (Client on :3000, Server on :4000)
+# 6. Start development servers (client on :3000, server on :4000)
 npm run dev
 ```
 
 ---
 
-## 2. Daily Development Commands Reference
+## 2. Daily development commands
 
-| Command | Action Performed | Underlying Tooling |
+| Command | Action | Details |
 |---|---|---|
 | `npm run dev` | Runs client and server concurrently with live reload | `concurrently "npm run dev:client" "npm run dev:server"` |
 | `npm run dev:client` | Starts Vite dev server on `http://localhost:3000` | `vite dev --port 3000` (workspace: `client`) |
@@ -54,67 +54,69 @@ npm run dev
 
 ---
 
-## 3. Seed Accounts & Pre-configured Data
+## 3. Seed accounts and test data
 
-Running `npm run db:seed` provisions deterministic testing accounts. The default password for **all seed accounts** is:
+Running `npm run db:seed` creates test accounts. The password for every seed account is:
 
-$$\text{\texttt{MorshidDemoP0!}}$$
+```
+MorshidDemoP0!
+```
 
-| Account Email | Role | Accessible Courses & Permissions |
+| Account email | Role | Accessible courses and permissions |
 |---|---|---|
-| `admin@morshid.demo` | `ADMIN` | Global administrator (User CRUD, System Status, Audit Logs) |
-| `instructor@morshid.demo` | `INSTRUCTOR` | Instructor for course `PYTHON-PROG-P0` (Uploads, Review Queue) |
-| `student1@morshid.demo` | `STUDENT` | Student enrolled in `PYTHON-PROG-P0` (Socratic Chat, Inbox) |
-| `student2@morshid.demo` | `STUDENT` | Student enrolled in `PYTHON-PROG-P0` (Socratic Chat, Inbox) |
-| `student3@morshid.demo` | `STUDENT` | Student enrolled in `PYTHON-PROG-P0` (Socratic Chat, Inbox) |
+| `admin@morshid.demo` | `ADMIN` | Global administrator (user CRUD, system status, audit logs) |
+| `instructor@morshid.demo` | `INSTRUCTOR` | Instructor for course `PYTHON-PROG-P0` (uploads, review queue) |
+| `student1@morshid.demo` | `STUDENT` | Student enrolled in `PYTHON-PROG-P0` (socratic chat, inbox) |
+| `student2@morshid.demo` | `STUDENT` | Student enrolled in `PYTHON-PROG-P0` (socratic chat, inbox) |
+| `student3@morshid.demo` | `STUDENT` | Student enrolled in `PYTHON-PROG-P0` (socratic chat, inbox) |
 
-### Pre-seeded Courses:
-- **`PYTHON-PROG-P0`** ("Python Programming"): Fully configured with chunked syllabus material and sample multi-turn conversations.
+### Pre-seeded courses
+- **`PYTHON-PROG-P0`** ("Python Programming"): Configured with chunked syllabus material and sample multi-turn conversations.
 - **`HIDDEN-ISOLATION`** ("Hidden Isolation Test Course"): Unassigned course used to verify authorization boundaries and 403 enforcement.
 
 ---
 
-## 4. Operational Scripts & Maintenance Tasks
+## 4. Operational scripts and maintenance tasks
 
-### 4.1 Automated 5-Stage Demo Gate (`npm run demo:fresh-seed`)
-Runs an end-to-end clean-slate verification pipeline:
+### 4.1 Automated 5-stage demo gate (`npm run demo:fresh-seed`)
+Runs an end-to-end verification pipeline from scratch:
 ```bash
 MORSHID_RESET_CONFIRM=reset-local npm run demo:fresh-seed
 ```
-1. **Stage 1**: Starts infrastructure (`npm run infra:up`).
-2. **Stage 2**: Cleans database (`npm run db:reset`).
-3. **Stage 3**: Seeds demo data (`npm run db:seed`).
-4. **Stage 4**: Executes code quality checks (`npm run check`).
-5. **Stage 5**: Executes full server E2E test suite (`npm run test:e2e`).
+1. Start infrastructure (`npm run infra:up`).
+2. Reset database (`npm run db:reset`).
+3. Seed demo data (`npm run db:seed`).
+4. Run code quality checks (`npm run check`).
+5. Run full server E2E test suite (`npm run test:e2e`).
 
-### 4.2 Database Reset (`npm run db:reset`)
-Safely drops and recreates all tables in the local development database:
+### 4.2 Database reset (`npm run db:reset`)
+Drops and recreates all tables in the local development database:
 ```bash
 MORSHID_RESET_CONFIRM=reset-local npm run db:reset
 ```
 
-### 4.3 Clearing Review Queue Data (`npm run reviews:clear-local`)
-Clears review cases, evidence snapshots, and student inbox items while keeping courses and users intact:
+### 4.3 Clearing review queue data (`npm run reviews:clear-local`)
+Clears review cases, evidence snapshots, and student inbox items while keeping courses and users:
 ```bash
 MORSHID_REVIEW_CLEANUP_CONFIRM=clear-local-reviews npm run reviews:clear-local
 ```
 
-### 4.4 Embedding Provider Migration (`npm run embedding:migrate`)
-To migrate material chunks between vector spaces (e.g. from `deterministic` to `gemini`):
+### 4.4 Embedding provider migration (`npm run embedding:migrate`)
+To migrate material chunks between vector spaces (such as from `deterministic` to `gemini`):
 ```bash
-# Resumable, zero-PDF-re-extraction migration script
+# Resumable migration script that reads existing plain text without re-extracting PDFs
 npm run embedding:migrate -- gemini # or deterministic
 ```
-1. Reads existing plain-text chunks from `material_chunks` without re-extracting PDFs.
-2. Generates new embeddings in batches using the target provider.
-3. Updates `chunk.embedding` and `chunk.embedding_model` transactionally.
-4. Verifies 100% course readiness across candidate materials.
+1. Read plain-text chunks from `material_chunks` without re-extracting PDFs.
+2. Generate new embeddings in batches with the target provider.
+3. Update `chunk.embedding` and `chunk.embedding_model` in a transaction.
+4. Verify course readiness across candidate materials.
 
 ---
 
-## 5. Troubleshooting & Diagnostics
+## 5. Troubleshooting and diagnostics
 
-### Port Conflicts
+### Port conflicts
 If local servers fail to bind:
 ```bash
 # Check occupied ports
@@ -127,10 +129,10 @@ lsof -i :6379   # Redis
 kill -9 <PID>
 ```
 
-### Generated Files Drift
+### Generated files drift
 If `npm run test:generated-ownership` fails:
 ```bash
-# Re-generate router tree and Prisma client
+# Regenerate router tree and Prisma client
 npm run generate-routes --workspace client
 npm run db:generate --workspace server
 npm run build --workspace client
@@ -139,7 +141,7 @@ npm run build --workspace client
 git status
 ```
 
-### Database Schema Verification
+### Database schema verification
 If database migrations seem out of sync:
 ```bash
 npm run db:assert-catalog

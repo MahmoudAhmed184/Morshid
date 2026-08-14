@@ -1,12 +1,12 @@
-# 07. Database & Persistence Architecture
+# 07. Database and persistence architecture
 
-Morshid's persistence tier is built on **PostgreSQL 18** with the **pgvector 0.8.4** extension, managed via a **multi-file Prisma ORM schema** ([ADR 0004](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0004-clean-slate-prisma-migration.md)) and an **opaque database transaction contract** ([ADR 0007](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0007-opaque-database-transaction.md)).
+Morshid runs on PostgreSQL 18 with the pgvector 0.8.4 extension. Schemas are organized across multiple Prisma files ([ADR 0004](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0004-clean-slate-prisma-migration.md)), and transactions use an opaque token contract ([ADR 0007](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0007-opaque-database-transaction.md)) to avoid leaking ORM types across module boundaries.
 
 ---
 
-## 1. Multi-File Prisma Schema Layout
+## 1. Multi-file Prisma schema layout
 
-Prisma's `prismaSchemaFolder` preview feature organizes models into cohesive domain capabilities under [`server/prisma/`](file:///home/mahmoud-ahmed/Projects/Morshid/server/prisma/):
+Prisma's `prismaSchemaFolder` preview feature splits schema definitions by domain under [`server/prisma/`](file:///home/mahmoud-ahmed/Projects/Morshid/server/prisma/):
 
 ```
 server/prisma/
@@ -21,7 +21,7 @@ server/prisma/
 
 ---
 
-## 2. Complete Entity-Relationship (ER) Diagram
+## 2. Entity-relationship diagram
 
 ```mermaid
 erDiagram
@@ -67,44 +67,43 @@ erDiagram
 
 ---
 
-## 3. The Clean-Slate Initial Migration
+## 3. The clean-slate initial migration
 
-In compliance with [ADR 0004](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0004-clean-slate-prisma-migration.md), Morshid maintains a single, audited initial migration located in [`server/prisma/migrations/20260811150000_initial/migration.sql`](file:///home/mahmoud-ahmed/Projects/Morshid/server/prisma/migrations/20260811150000_initial/migration.sql).
+Under [ADR 0004](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0004-clean-slate-prisma-migration.md), Morshid maintains a single audited initial migration in [`server/prisma/migrations/20260811150000_initial/migration.sql`](file:///home/mahmoud-ahmed/Projects/Morshid/server/prisma/migrations/20260811150000_initial/migration.sql).
 
-### 3.1 Custom PostgreSQL Extensions
+### 3.1 Custom PostgreSQL extensions
+
 ```sql
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE EXTENSION IF NOT EXISTS citext;
 CREATE EXTENSION IF NOT EXISTS vector;
 ```
-- **`pgcrypto`**: Cryptographic functions for hashing and random generation.
-- **`citext`**: Case-insensitive text type for unique email matching on the `users` table.
-- **`vector`**: pgvector extension providing high-performance cosine similarity distance operators (`<=>`) over 1,536-dimensional embeddings.
 
-### 3.2 Custom PL/pgSQL Triggers & Invariants
-1. **`enforce_review_case_target` (`review_cases_target_check`)**:
-   - A deferred constraint trigger executing after INSERT or UPDATE on `review_cases`.
-   - Strictly enforces that a review case's `target_message_id` references a completed `ASSISTANT` message belonging to a chat session in the identical `course_id`.
-2. **`review_cases_terminal_shape_check`**:
-   - CHECK constraint guaranteeing that resolved review cases contain non-null published content and resolved timestamps, while rejected cases contain non-null resolution reasons.
-3. **ORM Timestamp Management**:
-   - The `updated_at` column is maintained deterministically across entities by Prisma's `@updatedAt` decorator.
+- `pgcrypto`: hashing and random generation.
+- `citext`: case-insensitive text for unique email matching on `users`.
+- `vector`: pgvector extension providing the cosine distance operator (`<=>`) over 1,536-dimensional embeddings.
+
+### 3.2 Custom PL/pgSQL triggers and constraints
+
+1. `enforce_review_case_target` (`review_cases_target_check`): A deferred constraint trigger that runs after `INSERT` or `UPDATE` on `review_cases`. It checks that `target_message_id` references a completed `ASSISTANT` message from a chat session in the same course (`course_id`).
+2. `review_cases_terminal_shape_check`: A `CHECK` constraint requiring resolved review cases to have non-null published content and resolved timestamps, and rejected cases to have non-null resolution reasons.
+3. Timestamp management: Prisma's `@updatedAt` decorator updates `updated_at` columns automatically on mutation.
 
 ---
 
-## 4. Database Catalog Semantic Fingerprinting
+## 4. Database catalog semantic fingerprinting
 
-To prevent accidental drift or silent weakening of constraints (e.g. dropping a `CHECK (chunk_index >= 0)` constraint), the repository verifies the live PostgreSQL schema against a cryptographic hash:
+To catch accidental schema drift or dropped constraints, such as removing a `CHECK (chunk_index >= 0)` constraint, CI validates the live database schema against an expected catalog fingerprint.
 
-- **Script**: [`scripts/catalog-semantics.mts`](file:///home/mahmoud-ahmed/Projects/Morshid/scripts/catalog-semantics.mts) and [`server/prisma/assert-catalog.mts`](file:///home/mahmoud-ahmed/Projects/Morshid/server/prisma/assert-catalog.mts).
-- **Execution**: `npm run db:assert-catalog`.
-- **Validation**: Connects to the database and extracts tables, columns, foreign keys, CHECK constraints, unique indexes, and triggers, computing an exact SHA-256 digest (`8ef054a9f7...`). If the live catalog does not match, the CI gate immediately fails.
+- Scripts: [`scripts/catalog-semantics.mts`](file:///home/mahmoud-ahmed/Projects/Morshid/scripts/catalog-semantics.mts) and [`server/prisma/assert-catalog.mts`](file:///home/mahmoud-ahmed/Projects/Morshid/server/prisma/assert-catalog.mts)
+- Execution: `npm run db:assert-catalog`
+- Validation: Connects to PostgreSQL, extracts tables, columns, foreign keys, `CHECK` constraints, unique indexes, and triggers, and computes a SHA-256 digest (`8ef054a9f7...`). If the live catalog differs, the check fails.
 
 ---
 
-## 5. Opaque Database Transactions (ADR 0007)
+## 5. Opaque database transactions (ADR 0007)
 
-To ensure cross-capability atomicity (such as finalizing a tutoring turn, creating message citations, updating student topic state, and writing an audit log in one transaction) without leaking ORM-specific types across architectural boundaries, Morshid uses an **opaque transaction pattern**:
+When an operation spans multiple capabilities, like finishing a tutoring turn, creating message citations, updating student topic state, and writing an audit log, everything must succeed or fail together. To keep ORM types out of domain services, Morshid uses an opaque transaction token:
 
 ```mermaid
 graph LR
@@ -127,8 +126,9 @@ graph LR
     ConversationsSvc -->|Unwraps token in Repository| PrismaTx
 ```
 
-### 5.1 Opaque Transaction Contract
-Located in [`server/src/platform/database/database-transaction.ts`](file:///home/mahmoud-ahmed/Projects/Morshid/server/src/platform/database/database-transaction.ts):
+### 5.1 Opaque transaction contract
+
+Defined in [`server/src/platform/database/database-transaction.ts`](file:///home/mahmoud-ahmed/Projects/Morshid/server/src/platform/database/database-transaction.ts):
 
 ```typescript
 export type DatabaseTransaction = {
@@ -140,8 +140,9 @@ export abstract class DatabaseTransactionRunner {
 }
 ```
 
-### 5.2 Persistence Unwrapping
-Only files ending in `.repository.ts` or located in `server/src/platform/database` are permitted to unwrap `DatabaseTransaction` into the underlying Prisma client:
+### 5.2 Persistence unwrapping
+
+Only repository files (`*.repository.ts`) and platform code under `server/src/platform/database` may unwrap `DatabaseTransaction` into the underlying Prisma client:
 
 ```typescript
 // Inside a repository persistence file:
@@ -150,5 +151,5 @@ await prisma.message.create({ ... })
 ```
 
 > [!IMPORTANT]
-> **Zero Remote I/O in Transactions**:
-> Upstream AI model calls (Gemini, Qwen, etc.) and file system writes are **strictly forbidden** inside a database transaction. Transactions are reserved solely for fast, atomic database state transitions.
+> **No remote I/O inside transactions**
+> Never make LLM API calls, embedding requests, or disk writes inside a transaction callback. Run remote operations first, then open a transaction for the database writes.

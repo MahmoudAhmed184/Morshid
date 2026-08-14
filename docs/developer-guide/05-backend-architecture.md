@@ -1,12 +1,12 @@
-# 05. Backend Architecture, Modules & Request Lifecycle
+# 05. Backend architecture, modules, and request lifecycle
 
-Morshid's server is a high-performance **NestJS** application structured around **capability-first modules**, **clean platform adapters**, and a strict, unidirectional execution pipeline.
+Morshid's server is a NestJS application organized into capability modules, platform adapters, and a unidirectional execution pipeline.
 
 ---
 
-## 1. Application Bootstrap & Initialization
+## 1. Application bootstrap and initialization
 
-The server initialization is divided across three key files:
+Three files initialize and configure the application:
 
 ```mermaid
 sequenceDiagram
@@ -30,21 +30,21 @@ sequenceDiagram
 
 ### 1.1 Bootstrap (`server/src/main.ts`)
 - Calls `NestFactory.create(AppModule)`.
-- Enables graceful shutdown hooks (`app.enableShutdownHooks()`) to cleanly disconnect PostgreSQL and Redis on `SIGTERM`.
-- Reads `PORT` (default `4000`) and `CLIENT_ORIGIN` (default `http://localhost:3000`) via `ConfigService`.
-- Configures CORS on the app (`credentials: true`, `origin: clientOrigin`).
-- Invokes `configureApp(app)` from `server/src/app.setup.ts`.
-- Binds HTTP listener to `0.0.0.0:${port}`.
+- Enables shutdown hooks (`app.enableShutdownHooks()`) to disconnect PostgreSQL and Redis on `SIGTERM`.
+- Reads `PORT` (default `4000`) and `CLIENT_ORIGIN` (default `http://localhost:3000`) through `ConfigService`.
+- Configures CORS (`credentials: true`, `origin: clientOrigin`).
+- Calls `configureApp(app)` from `server/src/app.setup.ts`.
+- Binds the HTTP listener to `0.0.0.0:${port}`.
 
-### 1.2 Setup Configuration (`server/src/app.setup.ts`)
-- **Global Route Prefix**: Configures `app.setGlobalPrefix('api/v1')`, excluding `/health/live` and `/health/ready`.
-- **OpenAPI / Swagger Spec**: Mounted at `/docs`, `/docs-json`, and `/docs-yaml` (active in `development` and `test` environments). Configured with `access-token` Bearer auth and `refresh-session` cookie auth.
+### 1.2 Setup configuration (`server/src/app.setup.ts`)
+- **Global route prefix.** Sets `app.setGlobalPrefix('api/v1')`, excluding `/health/live` and `/health/ready`.
+- **OpenAPI documentation.** Mounts Swagger at `/docs`, `/docs-json`, and `/docs-yaml` in `development` and `test` environments. Configures `access-token` Bearer auth and `refresh-session` cookie auth.
 
 ---
 
-## 2. Server Module Architecture
+## 2. Server module architecture
 
-The server encapsulates all product domain behavior inside [`server/src/modules/`](file:///home/mahmoud-ahmed/Projects/Morshid/server/src/modules/):
+Product domain code lives in [`server/src/modules/`](file:///home/mahmoud-ahmed/Projects/Morshid/server/src/modules/):
 
 ```mermaid
 graph TD
@@ -75,37 +75,37 @@ graph TD
     AppRoot --> ApplicationBridge
 ```
 
-### Module Responsibilities:
+### Module responsibilities
 1. **`IdentityModule`**: Authentication (Argon2id, JWT, HMAC refresh cookies), RBAC guards (`@Roles`), account management, and user administration.
-2. **`CoursesModule`**: Course management, instructor/student course membership rosters, and course access authorization policies.
+2. **`CoursesModule`**: Course management, instructor and student rosters, and course access policies.
 3. **`MaterialsModule`**: PDF upload validation, text extraction (`pdfjs-dist`), text chunking, and course evidence querying.
-4. **`ConversationsModule`**: Chat session creation, ordered message history management, topic state tracking, and student context window aggregation.
+4. **`ConversationsModule`**: Chat session creation, ordered message history, topic state tracking, and student context window aggregation.
 5. **`TutoringModule`**: Socratic teaching runtime, 7-phase execution pipeline, prompt builders, model generation, and 3-stage response approval.
-6. **`ReviewsModule`**: Review case intake (student requests and safety triggers), instructor moderation queue, claiming/resolving workflows, and the student review inbox.
+6. **`ReviewsModule`**: Review case intake (student requests and safety triggers), instructor moderation queue, claiming and resolving workflows, and the student review inbox.
 7. **`AuditModule`**: Immutable, structured security and business audit event logger (`audit_logs` table).
-8. **`HealthModule`**: Health probes evaluating PostgreSQL (`SELECT 1`), Redis (`PING`), and `pgvector` extension readiness.
+8. **`HealthModule`**: Health probes for PostgreSQL (`SELECT 1`), Redis (`PING`), and the `pgvector` extension.
 9. **`ConversationPresentationModule`**: Cross-capability presentation bridge that joins conversation messages with citation evidence and review metadata.
 
 ---
 
-## 3. Platform & Common Layers
+## 3. Platform and common layers
 
-### Platform Layer ([`server/src/platform/`](file:///home/mahmoud-ahmed/Projects/Morshid/server/src/platform/))
-- **`database/`**: Wraps Prisma Client via `PrismaService`. Implements the opaque `DatabaseTransaction` pattern ([ADR 0007](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0007-opaque-database-transaction.md)) and connection health checks.
-- **`cache/`**: Wraps Redis via `RedisService`. Handles token-bucket rate limiting and Gemini project pool selection ([ADR 0008](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0008-project-aware-gemini-chat-pool.md)).
-- **`document-storage/`**: Pluggable storage abstraction (`PdfStorage`) backed by `LocalPdfStorageAdapter` with UUID file keys, strict mode `0o600`, and atomic syncs.
-- **`ai/`**: Upstream AI integrations: `DeterministicEmbeddingProvider`, `GeminiEmbeddingAdapter`, `StructuredChatTransport`, and `GeminiChatProjectPool`.
-- **`config/`**: Type-safe configuration management using Zod runtime validation (`env.schema.ts`).
+### Platform layer ([`server/src/platform/`](file:///home/mahmoud-ahmed/Projects/Morshid/server/src/platform/))
+- **`database/`**: Wraps Prisma Client with `PrismaService`. Implements the opaque `DatabaseTransaction` pattern ([ADR 0007](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0007-opaque-database-transaction.md)) and connection health checks.
+- **`cache/`**: Wraps Redis with `RedisService`. Handles token-bucket rate limiting and Gemini project pool selection ([ADR 0008](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0008-project-aware-gemini-chat-pool.md)).
+- **`document-storage/`**: File storage abstraction (`PdfStorage`) backed by `LocalPdfStorageAdapter` with UUID file keys, strict mode `0o600`, and atomic syncs.
+- **`ai/`**: External AI integrations with `DeterministicEmbeddingProvider`, `GeminiEmbeddingAdapter`, `StructuredChatTransport`, and `GeminiChatProjectPool`.
+- **`config/`**: Validates environment variables at boot using Zod (`env.schema.ts`).
 
-### Common Layer ([`server/src/common/`](file:///home/mahmoud-ahmed/Projects/Morshid/server/src/common/))
+### Common layer ([`server/src/common/`](file:///home/mahmoud-ahmed/Projects/Morshid/server/src/common/))
 - **`http/`**: `ZodValidationPipe`, `createRequestBudget` (deadline and cancellation tracking), request context extractors (`ip`, `userAgent`), and standard OpenAPI error DTOs.
 - **`text/`**: Text sanitization and NFKC normalization helpers.
 
 ---
 
-## 4. Complete Request Execution Lifecycle
+## 4. Request execution lifecycle
 
-Every incoming HTTP request traverses a well-defined series of guards, pipes, handlers, and filters:
+Incoming HTTP requests pass through guards, pipes, handlers, and filters in this order:
 
 ```mermaid
 flowchart TD
@@ -140,30 +140,30 @@ flowchart TD
     FilterCheck -->|Other Exception| NestException[NestJS Standard Error Response]
 ```
 
-### Pipeline Execution Order:
-1. **Express & CORS**: Validates request headers and origins against `CLIENT_ORIGIN`.
+### Request execution order
+1. **Express and CORS**: Validates request headers and origins against `CLIENT_ORIGIN`.
 2. **`IdentityGuard` (`APP_GUARD`)**:
    - If route is marked `@Public()`, allows passage.
    - Extracts Bearer token from `Authorization` header.
-   - Decodes JWT, validates signature, checks unexpired, and verifies `payload.pwd === user.passwordChangedAt`.
+   - Decodes JWT, validates signature, checks expiration, and verifies `payload.pwd === user.passwordChangedAt`.
    - Rejects disabled accounts with HTTP 403.
    - Attaches `request.user` (`AuthenticatedUser`).
 3. **`RolesGuard` (`APP_GUARD`)**:
    - Checks `@Roles(...allowedRoles)`.
    - If user lacks required role, records `ACCESS_RBAC_DENIED` in audit log and throws 403 `insufficientRoleException()`.
-4. **Validation Pipes**:
+4. **Validation pipes**:
    - `ZodValidationPipe` parses and transforms body/query/params using domain Zod schemas.
    - Throws 400 Bad Request with structured field-level error messages if validation fails.
-5. **Controller & Services**:
-   - Business logic runs. If multi-entity writes occur, opens an opaque `DatabaseTransaction`.
-6. **Exception Filters**:
+5. **Controllers and services**:
+   - Runs business logic. If multi-entity writes occur, opens an opaque `DatabaseTransaction`.
+6. **Exception filters**:
    - `ConversationCourseBoundaryAuditFilter`: Catches cross-course boundary violations (`ACTIVE_STUDENT_MEMBERSHIP_REQUIRED`) and emits security audit logs.
 
 ---
 
-## 5. Standard Error Shapes
+## 5. Standard error responses
 
-All error responses from Morshid follow a uniform JSON structure:
+Morshid returns errors in a uniform JSON format:
 
 ```json
 {

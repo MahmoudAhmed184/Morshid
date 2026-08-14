@@ -1,10 +1,10 @@
-# 06. API Structure & Client-Server Communication
+# 06. API structure and client-server communication
 
-Morshid provides a structured RESTful API under the global prefix `/api/v1/`. All endpoints are documented with OpenAPI 3.0 annotations and enforced at runtime with Zod validation schemas.
+Morshid exposes a REST API under the `/api/v1/` prefix. OpenAPI 3.0 annotations document every endpoint, and Zod schemas validate request and response payloads at runtime.
 
 ---
 
-## 1. Complete API Route Map
+## 1. Complete API route map
 
 ```
 /api/v1
@@ -69,7 +69,7 @@ Morshid provides a structured RESTful API under the global prefix `/api/v1/`. Al
 
 ---
 
-## 2. Request & Response Contracts
+## 2. Request and response contracts
 
 ### 2.1 Authentication DTOs
 ```typescript
@@ -94,7 +94,7 @@ export interface IdentitySessionResponseDto {
 }
 ```
 
-### 2.2 Socratic Tutoring Turn DTOs
+### 2.2 Socratic tutoring turn DTOs
 ```typescript
 // POST /api/v1/courses/:courseId/chat-sessions/:sessionId/messages Request
 export interface SendTutoringMessageRequestDto {
@@ -141,7 +141,7 @@ export interface ChatMessageDto {
 }
 ```
 
-### 2.3 Review Resolution DTOs
+### 2.3 Review resolution DTOs
 ```typescript
 // POST /api/v1/instructor/reviews/:reviewCaseId/resolve Request
 // Header: Idempotency-Key: <uuid>
@@ -162,29 +162,30 @@ export interface RejectReviewRequestDto {
 
 ---
 
-## 3. OpenAPI & Swagger Specification
+## 3. OpenAPI and Swagger specification
 
-- **Interactive UI**: `http://localhost:4000/docs`
-- **JSON Specification**: `http://localhost:4000/docs-json`
-- **YAML Specification**: `http://localhost:4000/docs-yaml`
+- **Interactive UI.** `http://localhost:4000/docs`
+- **JSON specification.** `http://localhost:4000/docs-json`
+- **YAML specification.** `http://localhost:4000/docs-yaml`
 
-### Security Schemes:
-- **`access-token`**: HTTP Bearer JWT token header: `Authorization: Bearer <token>`.
-- **`refresh-session`**: HTTP-only cookie named `morshid_refresh` scoped to `/api/v1/auth`.
+### Security schemes
+
+- **`access-token`.** HTTP Bearer JWT passed in the `Authorization: Bearer <token>` header.
+- **`refresh-session`.** HTTP-only cookie named `morshid_refresh`, scoped to `/api/v1/auth`.
 
 ---
 
-## 4. Error Handling & Status Code Conventions
+## 4. Error handling and status code conventions
 
-| Status Code | Meaning | Common Triggers |
+| Status code | Meaning | Common triggers |
 |---|---|---|
 | **`200 OK`** | Successful query or mutation | `GET /courses`, `PATCH /users/:id`, `POST /auth/sign-in` |
-| **`201 Created`** | Successful entity creation | `POST /tutoring/turns`, `POST /admin/courses`, `POST /materials` |
-| **`204 No Content`**| Successful action with empty body | `POST /auth/logout`, `DELETE /admin/courses/:id` |
-| **`400 Bad Request`**| Validation failure / malformed UUID | Invalid Zod request payload, invalid UUID parameter |
+| **`201 Created`** | Successful entity creation | `POST /courses/:courseId/chat-sessions/:sessionId/messages`, `POST /admin/courses`, `POST /courses/:courseId/materials` |
+| **`204 No Content`**| Successful action with empty body | `POST /auth/logout`, `DELETE /admin/courses/:courseId` |
+| **`400 Bad Request`**| Validation failure or malformed parameter | Invalid Zod request payload, invalid UUID parameter |
 | **`401 Unauthorized`**| Authentication failure | Expired JWT, invalid password, missing token |
-| **`403 Forbidden`** | Authorization / RBAC failure | Non-admin calling `/admin/*`, student not enrolled in course |
+| **`403 Forbidden`** | Authorization or RBAC failure | Non-admin calling `/admin/*`, student not enrolled in course |
 | **`404 Not Found`** | Resource missing | Course, material, or user does not exist |
-| **`409 Conflict`**  | Duplicate key / state conflict | Duplicate email, duplicate course code, role change on enrolled user |
+| **`409 Conflict`**  | Duplicate key or state conflict | Duplicate email, duplicate course code, role change on enrolled user |
 | **`422 Unprocessable`**| Domain rule violation | Uploading non-PDF file, submitting turn to unindexed course |
-| **`503 Unavailable`**| Upstream service or DB down | `/health/ready` probe failed, Redis disconnected |
+| **`503 Unavailable`**| Upstream service or database down | `/health/ready` probe failed, Redis disconnected |
