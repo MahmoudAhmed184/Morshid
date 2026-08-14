@@ -124,6 +124,11 @@ rate-limited failure with the earliest shared retry delay. Pool state stores onl
 salted project-label digests and never credentials. A Redis failure fails the
 pool closed.
 
+Gemini 3.6 Flash and 3.7 Flash requests omit `temperature` and `top_p` at this
+Gemini-specific boundary because those sampling parameters are unsupported by
+these models. Other OpenAI-compatible providers retain their existing request
+behavior, and the deterministic/local development paths remain unchanged.
+
 This pool is chat-only. `GEMINI_EMBEDDING_API_KEY` and its existing quota guard
 remain separate and unchanged.
 
