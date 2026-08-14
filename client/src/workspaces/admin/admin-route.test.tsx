@@ -155,7 +155,7 @@ describe('Admin routes', () => {
       'Dashboard',
       'Assignments',
       'Students',
-      'Instructor',
+      'Instructors',
       'Courses',
       'Materials',
       'Audit Logs',
@@ -182,6 +182,7 @@ describe('Admin routes', () => {
 
     for (const [linkName, path, heading] of [
       ['Assignments', '/admin/assignments', 'Course Assignments'],
+      ['Instructors', '/admin/users/instructors', 'Instructors'],
       ['Courses', '/admin/courses', 'Course Management'],
       ['Materials', '/admin/materials', 'Material Metadata'],
       ['Audit Logs', '/admin/audit', 'Recent Audit Activity'],
@@ -275,11 +276,11 @@ describe('Admin routes', () => {
     expect(courseSelect).not.toHaveTextContent(courseId)
   })
 
-  it('switches between Students and Doctors tabs on the assignments page', async () => {
+  it('switches between Students and Instructors tabs on the assignments page', async () => {
     const user = userEvent.setup()
     const courseId = '2d29f6ab-c759-4a44-a1c6-5975ce1f7e5a'
     const studentId = 'acace6a5-7430-4dbf-b327-d76f3d51542a'
-    const doctorId = 'bcace6a5-7430-4dbf-b327-d76f3d51542b'
+    const instructorId = 'bcace6a5-7430-4dbf-b327-d76f3d51542b'
 
     vi.stubGlobal(
       'fetch',
@@ -339,13 +340,13 @@ describe('Admin routes', () => {
               },
               {
                 id: '5c530c42-67bf-4cbe-a6f3-2c662564ddd2',
-                userId: doctorId,
+                userId: instructorId,
                 role: 'INSTRUCTOR',
                 createdAt: '2026-07-01T10:00:00.000Z',
                 user: {
-                  id: doctorId,
-                  email: 'doctor@morshid.demo',
-                  displayName: 'Dr. Professor',
+                  id: instructorId,
+                  email: 'instructor@morshid.demo',
+                  displayName: 'Demo Instructor',
                   role: 'INSTRUCTOR',
                   status: 'ACTIVE',
                 },
@@ -367,15 +368,15 @@ describe('Admin routes', () => {
     // Default Students tab should show the student
     const studentElements = await screen.findAllByText('Demo Student')
     expect(studentElements[0]).toBeVisible()
-    expect(screen.queryByText('Dr. Professor')).not.toBeInTheDocument()
+    expect(screen.queryByText('Demo Instructor')).not.toBeInTheDocument()
 
-    // Click Doctors tab
-    const doctorTab = screen.getByRole('tab', { name: /Doctors/i })
-    await user.click(doctorTab)
+    // Click Instructors tab
+    const instructorTab = screen.getByRole('tab', { name: /Instructors/i })
+    await user.click(instructorTab)
 
-    // Doctors tab should show the doctor
-    const doctorElements = await screen.findAllByText('Dr. Professor')
-    expect(doctorElements[0]).toBeVisible()
+    // Instructors tab should show the instructor
+    const instructorElements = await screen.findAllByText('Demo Instructor')
+    expect(instructorElements[0]).toBeVisible()
     expect(screen.queryByText('Demo Student')).not.toBeInTheDocument()
   })
 

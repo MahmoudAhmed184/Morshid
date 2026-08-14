@@ -88,17 +88,17 @@ export function AdminAssignmentsPage() {
         ? 'No matching members'
         : selectedRoleTab === 'STUDENT'
           ? 'No students assigned'
-          : 'No doctors assigned'
+          : 'No instructors assigned'
 
   const emptyDescription = isCoursesEmpty
     ? 'Create a course before assigning users.'
     : isOverallEmpty
       ? 'Add the first user assignment to this course.'
       : search.trim()
-        ? `No ${selectedRoleTab === 'STUDENT' ? 'students' : 'doctors'} match "${search}".`
+        ? `No ${selectedRoleTab === 'STUDENT' ? 'students' : 'instructors'} match "${search}".`
         : selectedRoleTab === 'STUDENT'
           ? 'Add the first student to this course.'
-          : 'Add the first doctor to this course.'
+          : 'Add the first instructor to this course.'
 
   return (
     <div>
@@ -138,7 +138,7 @@ export function AdminAssignmentsPage() {
                 className="min-w-0 flex-1 gap-2 px-3 sm:flex-none"
               >
                 <UserCheckIcon className="size-4" />
-                Doctors
+                Instructors
                 <Badge variant="secondary" className="h-4 min-w-5 px-1">
                   {selectedCourse?.adminMetadata.instructorCount ?? 0}
                 </Badge>
@@ -157,7 +157,7 @@ export function AdminAssignmentsPage() {
           searchPlaceholder={
             selectedRoleTab === 'STUDENT'
               ? 'Search assigned students...'
-              : 'Search assigned doctors...'
+              : 'Search assigned instructors...'
           }
           filters={
             <>

@@ -72,7 +72,7 @@ export function AddCourseMemberDialog({
   }
 
   const buttonLabel =
-    defaultRole === 'INSTRUCTOR' ? 'Add doctor' : 'Add student'
+    defaultRole === 'INSTRUCTOR' ? 'Add instructor' : 'Add student'
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -91,7 +91,7 @@ export function AddCourseMemberDialog({
         <DialogHeader>
           <DialogTitle>
             {defaultRole === 'INSTRUCTOR'
-              ? 'Add doctor assignments'
+              ? 'Add instructor assignments'
               : 'Add student assignments'}
           </DialogTitle>
           <DialogDescription>

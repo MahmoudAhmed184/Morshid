@@ -1,7 +1,6 @@
-import { Link } from '@tanstack/react-router'
 import { useMemo, useState } from 'react'
 
-import { Button, buttonVariants } from '@/components/ui/button'
+import { Button } from '@/components/ui/button'
 import { DataTableState } from '@/components/ui/custom/data-table-state'
 import { DataToolbar } from '@/components/ui/custom/data-toolbar'
 import { PageHeader } from '@/components/ui/custom/page-header'
@@ -36,10 +35,10 @@ const directoryCopy = {
     plural: 'students',
   },
   INSTRUCTOR: {
-    eyebrow: 'Doctor Accounts',
-    title: 'Doctors',
-    singular: 'Doctor',
-    plural: 'doctors',
+    eyebrow: 'Instructor Accounts',
+    title: 'Instructors',
+    singular: 'Instructor',
+    plural: 'instructors',
   },
 } as const
 
@@ -98,25 +97,6 @@ export function UsersPage({ role }: UsersPageProps) {
         title={copy.title}
         description={`Create ${copy.plural}, find accounts by name or email, filter by course, and manage account access.`}
       />
-
-      <div className="mb-5 flex gap-2" aria-label="User directories">
-        <Link
-          to="/admin/users/students"
-          className={buttonVariants({
-            variant: role === 'STUDENT' ? 'secondary' : 'ghost',
-          })}
-        >
-          Students
-        </Link>
-        <Link
-          to="/admin/users/doctors"
-          className={buttonVariants({
-            variant: role === 'INSTRUCTOR' ? 'secondary' : 'ghost',
-          })}
-        >
-          Doctors
-        </Link>
-      </div>
 
       <AdminPanel>
         <DataToolbar
@@ -269,6 +249,6 @@ export function StudentsPage() {
   return <UsersPage role="STUDENT" />
 }
 
-export function DoctorsPage() {
+export function InstructorsPage() {
   return <UsersPage role="INSTRUCTOR" />
 }

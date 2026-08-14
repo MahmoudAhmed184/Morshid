@@ -156,21 +156,21 @@ describe('Admin operation controls', () => {
     )
   })
 
-  it('assigns a doctor without showing a redundant role tab', async () => {
+  it('assigns an instructor without showing a redundant role tab', async () => {
     const user = userEvent.setup()
     const onAdd = vi.fn().mockResolvedValue(undefined)
 
-    const doctorUser: ManagedUser = {
+    const instructorUser: ManagedUser = {
       ...managedUser,
       id: 'd0c70000-0000-0000-0000-000000000001',
-      displayName: 'Dr. Test Instructor',
-      email: 'doctor@morshid.demo',
+      displayName: 'Test Instructor',
+      email: 'instructor@morshid.demo',
       role: 'INSTRUCTOR',
     }
 
     render(
       <AddCourseMemberDialog
-        users={[doctorUser]}
+        users={[instructorUser]}
         assignedUserIds={new Set()}
         isPending={false}
         defaultRole="INSTRUCTOR"
@@ -182,14 +182,14 @@ describe('Admin operation controls', () => {
     expect(screen.queryByRole('tab')).not.toBeInTheDocument()
 
     const userCheckbox = await screen.findByRole('checkbox', {
-      name: /Dr\. Test Instructor/i,
+      name: /Test Instructor/i,
     })
     await user.click(userCheckbox)
     await user.click(screen.getByRole('button', { name: 'Add assignment' }))
 
     await waitFor(() =>
       expect(onAdd).toHaveBeenCalledWith({
-        userId: doctorUser.id,
+        userId: instructorUser.id,
         role: 'INSTRUCTOR',
       }),
     )
@@ -284,13 +284,11 @@ describe('Admin operation controls', () => {
     })[0]
     await user.click(editButton)
 
-    // Switch role to Doctor without adding another tab set to the dialog.
+    // Switch role to Instructor without adding another tab set to the dialog.
     await user.click(
       await screen.findByRole('combobox', { name: 'Assignment role' }),
     )
-    await user.click(
-      await screen.findByRole('option', { name: 'Doctor (Instructor)' }),
-    )
+    await user.click(await screen.findByRole('option', { name: 'Instructor' }))
 
     // Submit update
     const submitButton = screen.getByRole('button', {

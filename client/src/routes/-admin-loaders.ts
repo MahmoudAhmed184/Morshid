@@ -44,7 +44,7 @@ export async function loadAdminStudentsRoute({ context }: AdminLoaderArgs) {
   await loadAdminUserDirectoryRoute(context, 'STUDENT')
 }
 
-export async function loadAdminDoctorsRoute({ context }: AdminLoaderArgs) {
+export async function loadAdminInstructorsRoute({ context }: AdminLoaderArgs) {
   await loadAdminUserDirectoryRoute(context, 'INSTRUCTOR')
 }
 

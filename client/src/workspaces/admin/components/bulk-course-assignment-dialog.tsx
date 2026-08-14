@@ -87,7 +87,7 @@ export function BulkCourseAssignmentDialog({
         course.title.toLowerCase().includes(query),
     )
   }, [courseSearch, courses])
-  const userLabel = role === 'STUDENT' ? 'students' : 'doctors'
+  const userLabel = role === 'STUDENT' ? 'students' : 'instructors'
   const maxUserSelections = Math.floor(
     1_000 / Math.max(selectedCourseIds.size, 1),
   )
@@ -306,7 +306,7 @@ function AssignmentSteps({
   step: AssignmentStep
   role: CourseMembershipRole
 }) {
-  const userLabel = role === 'STUDENT' ? 'Students' : 'Doctors'
+  const userLabel = role === 'STUDENT' ? 'Students' : 'Instructors'
   return (
     <ol
       className="grid shrink-0 grid-cols-2 gap-2"
@@ -449,7 +449,7 @@ function UserSelectionStep({
   onLoadMore,
   onRetry,
 }: UserSelectionStepProps) {
-  const userLabel = role === 'STUDENT' ? 'Students' : 'Doctors'
+  const userLabel = role === 'STUDENT' ? 'Students' : 'Instructors'
   return (
     <div className="flex h-full min-h-0 flex-col">
       <SelectionHeader
