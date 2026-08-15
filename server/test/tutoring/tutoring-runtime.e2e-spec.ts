@@ -91,6 +91,8 @@ const UNASSIGNED_STUDENT_EMAIL = 'student3@morshid.demo'
 const INSTRUCTOR_EMAIL = 'instructor@morshid.demo'
 const QUESTION = 'Explain the eligible course evidence exactly'
 const GROUNDED_ANSWER = 'This answer uses only eligible course evidence.'
+const SAFE_FALLBACK =
+  'Let us narrow it down to one step. Show the last step you were confident about and what you expected next.'
 const PROVIDER_SECRET = 'raw provider failure: never expose or persist this'
 const QUERY_VECTOR = Object.freeze([
   1,
@@ -1185,7 +1187,7 @@ describe('Authorized tutoring runtime (e2e)', () => {
     ).resolves.toBe(1)
   })
 
-  it('keeps a supported correctness-sensitive request on the ordinary path', async () => {
+  it('keeps a supported correctness-sensitive request out of review with ungrounded fallback provenance', async () => {
     await createEvidenceMaterial({
       title: 'Supported assignment source',
       content: 'The course source supports this bounded exercise response.',
@@ -1200,13 +1202,27 @@ describe('Authorized tutoring runtime (e2e)', () => {
       })
       .expect(201)
 
-    expect(response.body).toMatchObject({
+    const turn = response.body as TutoringTurnResponseDto
+    expect(turn).toMatchObject({
       studentMessage: { requestKind: 'CODE_DIAGNOSIS' },
       assistantMessage: {
+        content: SAFE_FALLBACK,
         status: 'COMPLETED',
-        guidanceLabel: 'COURSE_GROUNDED',
+        guidanceLabel: null,
         reviewSummary: null,
+        citations: [],
       },
+    })
+    await expect(
+      prisma.tutoringAttempt.findFirstOrThrow({
+        where: { assistantMessageId: turn.assistantMessage.id },
+      }),
+    ).resolves.toMatchObject({
+      status: 'COMPLETED',
+      approvalSource: 'SAFE_FALLBACK',
+      approvedCandidateAttempt: null,
+      safeFallbackUsed: true,
+      safeFallbackReason: 'VALIDATION_EXHAUSTED',
     })
     await expect(
       prisma.reviewCase.count({

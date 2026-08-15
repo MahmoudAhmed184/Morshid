@@ -460,7 +460,7 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
         expect(tutorModel.requests).toHaveLength(1)
         const providerInput = tutorModel.requests[0]
         expect(providerInput).toMatchObject({
-          promptVersion: 'tutor-generation.mvp.v5',
+          promptVersion: 'tutor-generation.mvp.v6',
           responseSchemaName: 'CandidateResponse',
         })
         expect(providerInput.messages[1].content).toContain(
@@ -485,7 +485,7 @@ describe('Gate 2 end-to-end and adversarial isolation', () => {
           status: 'COMPLETED',
           provider: 'e2e-controllable-tutor',
           model: 'e2e-controllable-tutor-v1',
-          promptVersion: 'tutor-generation.mvp.v5',
+          promptVersion: 'tutor-generation.mvp.v6',
         })
         expect(persistedAssistant.content).not.toContain(
           GATE_2_FIXTURE.hiddenSentinel,
@@ -734,7 +734,7 @@ function expectNoHiddenState(
 }
 
 function expectedGate2AssistantContent(): string {
-  return 'What part of the list comprehension syntax are you most unsure about? Try writing just the expression part first.'
+  return 'A list comprehension builds a new list by evaluating an expression for each item from an iterable. In [x * 2 for x in [1, 2]], which values would the expression produce?'
 }
 
 function cosineSimilarity(
