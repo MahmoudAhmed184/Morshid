@@ -37,7 +37,7 @@ test.describe('Instructor workspace', () => {
       },
       {
         link: 'Settings',
-        path: /\/instructor\/settings\/?$/,
+        path: /\/instructor\/settings(?:\/account)?\/?$/,
         heading: 'Settings',
       },
     ] as const
@@ -100,7 +100,7 @@ test.describe('Instructor workspace', () => {
 
       await page.getByRole('button', { name: 'Toggle Sidebar' }).click()
       await sidebar.getByRole('link', { name: 'Settings', exact: true }).click()
-      await expect(page).toHaveURL(/\/instructor\/settings\/?$/)
+      await expect(page).toHaveURL(/\/instructor\/settings(?:\/account)?\/?$/)
       await expect(
         page.getByRole('heading', { name: 'Settings', exact: true }),
       ).toBeVisible()

@@ -21,16 +21,35 @@ import { Route as InstructorSettingsRouteImport } from './routes/instructor/sett
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
 import { Route as StudentSettingsRouteImport } from './routes/_student.settings'
 import { Route as StudentChatRouteImport } from './routes/_student.chat'
+import { Route as InstructorSettingsIndexRouteImport } from './routes/instructor/settings/index'
 import { Route as InstructorReviewQueueIndexRouteImport } from './routes/instructor/review-queue/index'
 import { Route as InstructorMaterialsIndexRouteImport } from './routes/instructor/materials/index'
 import { Route as AdminUsersIndexRouteImport } from './routes/admin/users/index'
+import { Route as AdminSettingsIndexRouteImport } from './routes/admin/settings/index'
 import { Route as AdminMaterialsIndexRouteImport } from './routes/admin/materials/index'
 import { Route as AdminCoursesIndexRouteImport } from './routes/admin/courses/index'
 import { Route as AdminAuditIndexRouteImport } from './routes/admin/audit/index'
 import { Route as AdminAssignmentsIndexRouteImport } from './routes/admin/assignments/index'
+import { Route as StudentSettingsIndexRouteImport } from './routes/_student.settings.index'
+import { Route as InstructorSettingsWorkspaceRouteImport } from './routes/instructor/settings/workspace'
+import { Route as InstructorSettingsSecurityRouteImport } from './routes/instructor/settings/security'
+import { Route as InstructorSettingsAppearanceRouteImport } from './routes/instructor/settings/appearance'
+import { Route as InstructorSettingsAccountRouteImport } from './routes/instructor/settings/account'
 import { Route as InstructorReviewQueueReviewCaseIdRouteImport } from './routes/instructor/review-queue/$reviewCaseId'
 import { Route as AdminUsersStudentsRouteImport } from './routes/admin/users/students'
 import { Route as AdminUsersInstructorsRouteImport } from './routes/admin/users/instructors'
+import { Route as AdminSettingsUsageRouteImport } from './routes/admin/settings/usage'
+import { Route as AdminSettingsSecurityRouteImport } from './routes/admin/settings/security'
+import { Route as AdminSettingsReviewPolicyRouteImport } from './routes/admin/settings/review-policy'
+import { Route as AdminSettingsMaterialsRouteImport } from './routes/admin/settings/materials'
+import { Route as AdminSettingsAppearanceRouteImport } from './routes/admin/settings/appearance'
+import { Route as AdminSettingsAiCapacityRouteImport } from './routes/admin/settings/ai-capacity'
+import { Route as AdminSettingsAccountRouteImport } from './routes/admin/settings/account'
+import { Route as StudentSettingsUsageRouteImport } from './routes/_student.settings.usage'
+import { Route as StudentSettingsSecurityRouteImport } from './routes/_student.settings.security'
+import { Route as StudentSettingsLearningRouteImport } from './routes/_student.settings.learning'
+import { Route as StudentSettingsAppearanceRouteImport } from './routes/_student.settings.appearance'
+import { Route as StudentSettingsAccountRouteImport } from './routes/_student.settings.account'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -91,6 +110,11 @@ const StudentChatRoute = StudentChatRouteImport.update({
   path: '/chat',
   getParentRoute: () => StudentRoute,
 } as any)
+const InstructorSettingsIndexRoute = InstructorSettingsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => InstructorSettingsRoute,
+} as any)
 const InstructorReviewQueueIndexRoute =
   InstructorReviewQueueIndexRouteImport.update({
     id: '/review-queue/',
@@ -107,6 +131,11 @@ const AdminUsersIndexRoute = AdminUsersIndexRouteImport.update({
   id: '/users/',
   path: '/users/',
   getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminSettingsIndexRoute = AdminSettingsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminSettingsRoute,
 } as any)
 const AdminMaterialsIndexRoute = AdminMaterialsIndexRouteImport.update({
   id: '/materials/',
@@ -128,6 +157,35 @@ const AdminAssignmentsIndexRoute = AdminAssignmentsIndexRouteImport.update({
   path: '/assignments/',
   getParentRoute: () => AdminRouteRoute,
 } as any)
+const StudentSettingsIndexRoute = StudentSettingsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => StudentSettingsRoute,
+} as any)
+const InstructorSettingsWorkspaceRoute =
+  InstructorSettingsWorkspaceRouteImport.update({
+    id: '/workspace',
+    path: '/workspace',
+    getParentRoute: () => InstructorSettingsRoute,
+  } as any)
+const InstructorSettingsSecurityRoute =
+  InstructorSettingsSecurityRouteImport.update({
+    id: '/security',
+    path: '/security',
+    getParentRoute: () => InstructorSettingsRoute,
+  } as any)
+const InstructorSettingsAppearanceRoute =
+  InstructorSettingsAppearanceRouteImport.update({
+    id: '/appearance',
+    path: '/appearance',
+    getParentRoute: () => InstructorSettingsRoute,
+  } as any)
+const InstructorSettingsAccountRoute =
+  InstructorSettingsAccountRouteImport.update({
+    id: '/account',
+    path: '/account',
+    getParentRoute: () => InstructorSettingsRoute,
+  } as any)
 const InstructorReviewQueueReviewCaseIdRoute =
   InstructorReviewQueueReviewCaseIdRouteImport.update({
     id: '/review-queue/$reviewCaseId',
@@ -144,6 +202,68 @@ const AdminUsersInstructorsRoute = AdminUsersInstructorsRouteImport.update({
   path: '/users/instructors',
   getParentRoute: () => AdminRouteRoute,
 } as any)
+const AdminSettingsUsageRoute = AdminSettingsUsageRouteImport.update({
+  id: '/usage',
+  path: '/usage',
+  getParentRoute: () => AdminSettingsRoute,
+} as any)
+const AdminSettingsSecurityRoute = AdminSettingsSecurityRouteImport.update({
+  id: '/security',
+  path: '/security',
+  getParentRoute: () => AdminSettingsRoute,
+} as any)
+const AdminSettingsReviewPolicyRoute =
+  AdminSettingsReviewPolicyRouteImport.update({
+    id: '/review-policy',
+    path: '/review-policy',
+    getParentRoute: () => AdminSettingsRoute,
+  } as any)
+const AdminSettingsMaterialsRoute = AdminSettingsMaterialsRouteImport.update({
+  id: '/materials',
+  path: '/materials',
+  getParentRoute: () => AdminSettingsRoute,
+} as any)
+const AdminSettingsAppearanceRoute = AdminSettingsAppearanceRouteImport.update({
+  id: '/appearance',
+  path: '/appearance',
+  getParentRoute: () => AdminSettingsRoute,
+} as any)
+const AdminSettingsAiCapacityRoute = AdminSettingsAiCapacityRouteImport.update({
+  id: '/ai-capacity',
+  path: '/ai-capacity',
+  getParentRoute: () => AdminSettingsRoute,
+} as any)
+const AdminSettingsAccountRoute = AdminSettingsAccountRouteImport.update({
+  id: '/account',
+  path: '/account',
+  getParentRoute: () => AdminSettingsRoute,
+} as any)
+const StudentSettingsUsageRoute = StudentSettingsUsageRouteImport.update({
+  id: '/usage',
+  path: '/usage',
+  getParentRoute: () => StudentSettingsRoute,
+} as any)
+const StudentSettingsSecurityRoute = StudentSettingsSecurityRouteImport.update({
+  id: '/security',
+  path: '/security',
+  getParentRoute: () => StudentSettingsRoute,
+} as any)
+const StudentSettingsLearningRoute = StudentSettingsLearningRouteImport.update({
+  id: '/learning',
+  path: '/learning',
+  getParentRoute: () => StudentSettingsRoute,
+} as any)
+const StudentSettingsAppearanceRoute =
+  StudentSettingsAppearanceRouteImport.update({
+    id: '/appearance',
+    path: '/appearance',
+    getParentRoute: () => StudentSettingsRoute,
+  } as any)
+const StudentSettingsAccountRoute = StudentSettingsAccountRouteImport.update({
+  id: '/account',
+  path: '/account',
+  getParentRoute: () => StudentSettingsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -152,42 +272,77 @@ export interface FileRoutesByFullPath {
   '/health': typeof HealthRoute
   '/login': typeof LoginRoute
   '/chat': typeof StudentChatRoute
-  '/settings': typeof StudentSettingsRoute
-  '/admin/settings': typeof AdminSettingsRoute
-  '/instructor/settings': typeof InstructorSettingsRoute
+  '/settings': typeof StudentSettingsRouteWithChildren
+  '/admin/settings': typeof AdminSettingsRouteWithChildren
+  '/instructor/settings': typeof InstructorSettingsRouteWithChildren
   '/admin/': typeof AdminIndexRoute
   '/instructor/': typeof InstructorIndexRoute
+  '/settings/account': typeof StudentSettingsAccountRoute
+  '/settings/appearance': typeof StudentSettingsAppearanceRoute
+  '/settings/learning': typeof StudentSettingsLearningRoute
+  '/settings/security': typeof StudentSettingsSecurityRoute
+  '/settings/usage': typeof StudentSettingsUsageRoute
+  '/admin/settings/account': typeof AdminSettingsAccountRoute
+  '/admin/settings/ai-capacity': typeof AdminSettingsAiCapacityRoute
+  '/admin/settings/appearance': typeof AdminSettingsAppearanceRoute
+  '/admin/settings/materials': typeof AdminSettingsMaterialsRoute
+  '/admin/settings/review-policy': typeof AdminSettingsReviewPolicyRoute
+  '/admin/settings/security': typeof AdminSettingsSecurityRoute
+  '/admin/settings/usage': typeof AdminSettingsUsageRoute
   '/admin/users/instructors': typeof AdminUsersInstructorsRoute
   '/admin/users/students': typeof AdminUsersStudentsRoute
   '/instructor/review-queue/$reviewCaseId': typeof InstructorReviewQueueReviewCaseIdRoute
+  '/instructor/settings/account': typeof InstructorSettingsAccountRoute
+  '/instructor/settings/appearance': typeof InstructorSettingsAppearanceRoute
+  '/instructor/settings/security': typeof InstructorSettingsSecurityRoute
+  '/instructor/settings/workspace': typeof InstructorSettingsWorkspaceRoute
+  '/settings/': typeof StudentSettingsIndexRoute
   '/admin/assignments/': typeof AdminAssignmentsIndexRoute
   '/admin/audit/': typeof AdminAuditIndexRoute
   '/admin/courses/': typeof AdminCoursesIndexRoute
   '/admin/materials/': typeof AdminMaterialsIndexRoute
+  '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
   '/instructor/materials/': typeof InstructorMaterialsIndexRoute
   '/instructor/review-queue/': typeof InstructorReviewQueueIndexRoute
+  '/instructor/settings/': typeof InstructorSettingsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/health': typeof HealthRoute
   '/login': typeof LoginRoute
   '/chat': typeof StudentChatRoute
-  '/settings': typeof StudentSettingsRoute
-  '/admin/settings': typeof AdminSettingsRoute
-  '/instructor/settings': typeof InstructorSettingsRoute
   '/admin': typeof AdminIndexRoute
   '/instructor': typeof InstructorIndexRoute
+  '/settings/account': typeof StudentSettingsAccountRoute
+  '/settings/appearance': typeof StudentSettingsAppearanceRoute
+  '/settings/learning': typeof StudentSettingsLearningRoute
+  '/settings/security': typeof StudentSettingsSecurityRoute
+  '/settings/usage': typeof StudentSettingsUsageRoute
+  '/admin/settings/account': typeof AdminSettingsAccountRoute
+  '/admin/settings/ai-capacity': typeof AdminSettingsAiCapacityRoute
+  '/admin/settings/appearance': typeof AdminSettingsAppearanceRoute
+  '/admin/settings/materials': typeof AdminSettingsMaterialsRoute
+  '/admin/settings/review-policy': typeof AdminSettingsReviewPolicyRoute
+  '/admin/settings/security': typeof AdminSettingsSecurityRoute
+  '/admin/settings/usage': typeof AdminSettingsUsageRoute
   '/admin/users/instructors': typeof AdminUsersInstructorsRoute
   '/admin/users/students': typeof AdminUsersStudentsRoute
   '/instructor/review-queue/$reviewCaseId': typeof InstructorReviewQueueReviewCaseIdRoute
+  '/instructor/settings/account': typeof InstructorSettingsAccountRoute
+  '/instructor/settings/appearance': typeof InstructorSettingsAppearanceRoute
+  '/instructor/settings/security': typeof InstructorSettingsSecurityRoute
+  '/instructor/settings/workspace': typeof InstructorSettingsWorkspaceRoute
+  '/settings': typeof StudentSettingsIndexRoute
   '/admin/assignments': typeof AdminAssignmentsIndexRoute
   '/admin/audit': typeof AdminAuditIndexRoute
   '/admin/courses': typeof AdminCoursesIndexRoute
   '/admin/materials': typeof AdminMaterialsIndexRoute
+  '/admin/settings': typeof AdminSettingsIndexRoute
   '/admin/users': typeof AdminUsersIndexRoute
   '/instructor/materials': typeof InstructorMaterialsIndexRoute
   '/instructor/review-queue': typeof InstructorReviewQueueIndexRoute
+  '/instructor/settings': typeof InstructorSettingsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -198,21 +353,40 @@ export interface FileRoutesById {
   '/health': typeof HealthRoute
   '/login': typeof LoginRoute
   '/_student/chat': typeof StudentChatRoute
-  '/_student/settings': typeof StudentSettingsRoute
-  '/admin/settings': typeof AdminSettingsRoute
-  '/instructor/settings': typeof InstructorSettingsRoute
+  '/_student/settings': typeof StudentSettingsRouteWithChildren
+  '/admin/settings': typeof AdminSettingsRouteWithChildren
+  '/instructor/settings': typeof InstructorSettingsRouteWithChildren
   '/admin/': typeof AdminIndexRoute
   '/instructor/': typeof InstructorIndexRoute
+  '/_student/settings/account': typeof StudentSettingsAccountRoute
+  '/_student/settings/appearance': typeof StudentSettingsAppearanceRoute
+  '/_student/settings/learning': typeof StudentSettingsLearningRoute
+  '/_student/settings/security': typeof StudentSettingsSecurityRoute
+  '/_student/settings/usage': typeof StudentSettingsUsageRoute
+  '/admin/settings/account': typeof AdminSettingsAccountRoute
+  '/admin/settings/ai-capacity': typeof AdminSettingsAiCapacityRoute
+  '/admin/settings/appearance': typeof AdminSettingsAppearanceRoute
+  '/admin/settings/materials': typeof AdminSettingsMaterialsRoute
+  '/admin/settings/review-policy': typeof AdminSettingsReviewPolicyRoute
+  '/admin/settings/security': typeof AdminSettingsSecurityRoute
+  '/admin/settings/usage': typeof AdminSettingsUsageRoute
   '/admin/users/instructors': typeof AdminUsersInstructorsRoute
   '/admin/users/students': typeof AdminUsersStudentsRoute
   '/instructor/review-queue/$reviewCaseId': typeof InstructorReviewQueueReviewCaseIdRoute
+  '/instructor/settings/account': typeof InstructorSettingsAccountRoute
+  '/instructor/settings/appearance': typeof InstructorSettingsAppearanceRoute
+  '/instructor/settings/security': typeof InstructorSettingsSecurityRoute
+  '/instructor/settings/workspace': typeof InstructorSettingsWorkspaceRoute
+  '/_student/settings/': typeof StudentSettingsIndexRoute
   '/admin/assignments/': typeof AdminAssignmentsIndexRoute
   '/admin/audit/': typeof AdminAuditIndexRoute
   '/admin/courses/': typeof AdminCoursesIndexRoute
   '/admin/materials/': typeof AdminMaterialsIndexRoute
+  '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
   '/instructor/materials/': typeof InstructorMaterialsIndexRoute
   '/instructor/review-queue/': typeof InstructorReviewQueueIndexRoute
+  '/instructor/settings/': typeof InstructorSettingsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -228,37 +402,72 @@ export interface FileRouteTypes {
     | '/instructor/settings'
     | '/admin/'
     | '/instructor/'
+    | '/settings/account'
+    | '/settings/appearance'
+    | '/settings/learning'
+    | '/settings/security'
+    | '/settings/usage'
+    | '/admin/settings/account'
+    | '/admin/settings/ai-capacity'
+    | '/admin/settings/appearance'
+    | '/admin/settings/materials'
+    | '/admin/settings/review-policy'
+    | '/admin/settings/security'
+    | '/admin/settings/usage'
     | '/admin/users/instructors'
     | '/admin/users/students'
     | '/instructor/review-queue/$reviewCaseId'
+    | '/instructor/settings/account'
+    | '/instructor/settings/appearance'
+    | '/instructor/settings/security'
+    | '/instructor/settings/workspace'
+    | '/settings/'
     | '/admin/assignments/'
     | '/admin/audit/'
     | '/admin/courses/'
     | '/admin/materials/'
+    | '/admin/settings/'
     | '/admin/users/'
     | '/instructor/materials/'
     | '/instructor/review-queue/'
+    | '/instructor/settings/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/health'
     | '/login'
     | '/chat'
-    | '/settings'
-    | '/admin/settings'
-    | '/instructor/settings'
     | '/admin'
     | '/instructor'
+    | '/settings/account'
+    | '/settings/appearance'
+    | '/settings/learning'
+    | '/settings/security'
+    | '/settings/usage'
+    | '/admin/settings/account'
+    | '/admin/settings/ai-capacity'
+    | '/admin/settings/appearance'
+    | '/admin/settings/materials'
+    | '/admin/settings/review-policy'
+    | '/admin/settings/security'
+    | '/admin/settings/usage'
     | '/admin/users/instructors'
     | '/admin/users/students'
     | '/instructor/review-queue/$reviewCaseId'
+    | '/instructor/settings/account'
+    | '/instructor/settings/appearance'
+    | '/instructor/settings/security'
+    | '/instructor/settings/workspace'
+    | '/settings'
     | '/admin/assignments'
     | '/admin/audit'
     | '/admin/courses'
     | '/admin/materials'
+    | '/admin/settings'
     | '/admin/users'
     | '/instructor/materials'
     | '/instructor/review-queue'
+    | '/instructor/settings'
   id:
     | '__root__'
     | '/'
@@ -273,16 +482,35 @@ export interface FileRouteTypes {
     | '/instructor/settings'
     | '/admin/'
     | '/instructor/'
+    | '/_student/settings/account'
+    | '/_student/settings/appearance'
+    | '/_student/settings/learning'
+    | '/_student/settings/security'
+    | '/_student/settings/usage'
+    | '/admin/settings/account'
+    | '/admin/settings/ai-capacity'
+    | '/admin/settings/appearance'
+    | '/admin/settings/materials'
+    | '/admin/settings/review-policy'
+    | '/admin/settings/security'
+    | '/admin/settings/usage'
     | '/admin/users/instructors'
     | '/admin/users/students'
     | '/instructor/review-queue/$reviewCaseId'
+    | '/instructor/settings/account'
+    | '/instructor/settings/appearance'
+    | '/instructor/settings/security'
+    | '/instructor/settings/workspace'
+    | '/_student/settings/'
     | '/admin/assignments/'
     | '/admin/audit/'
     | '/admin/courses/'
     | '/admin/materials/'
+    | '/admin/settings/'
     | '/admin/users/'
     | '/instructor/materials/'
     | '/instructor/review-queue/'
+    | '/instructor/settings/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -380,6 +608,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StudentChatRouteImport
       parentRoute: typeof StudentRoute
     }
+    '/instructor/settings/': {
+      id: '/instructor/settings/'
+      path: '/'
+      fullPath: '/instructor/settings/'
+      preLoaderRoute: typeof InstructorSettingsIndexRouteImport
+      parentRoute: typeof InstructorSettingsRoute
+    }
     '/instructor/review-queue/': {
       id: '/instructor/review-queue/'
       path: '/review-queue'
@@ -400,6 +635,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/users/'
       preLoaderRoute: typeof AdminUsersIndexRouteImport
       parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/settings/': {
+      id: '/admin/settings/'
+      path: '/'
+      fullPath: '/admin/settings/'
+      preLoaderRoute: typeof AdminSettingsIndexRouteImport
+      parentRoute: typeof AdminSettingsRoute
     }
     '/admin/materials/': {
       id: '/admin/materials/'
@@ -429,6 +671,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAssignmentsIndexRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/_student/settings/': {
+      id: '/_student/settings/'
+      path: '/'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof StudentSettingsIndexRouteImport
+      parentRoute: typeof StudentSettingsRoute
+    }
+    '/instructor/settings/workspace': {
+      id: '/instructor/settings/workspace'
+      path: '/workspace'
+      fullPath: '/instructor/settings/workspace'
+      preLoaderRoute: typeof InstructorSettingsWorkspaceRouteImport
+      parentRoute: typeof InstructorSettingsRoute
+    }
+    '/instructor/settings/security': {
+      id: '/instructor/settings/security'
+      path: '/security'
+      fullPath: '/instructor/settings/security'
+      preLoaderRoute: typeof InstructorSettingsSecurityRouteImport
+      parentRoute: typeof InstructorSettingsRoute
+    }
+    '/instructor/settings/appearance': {
+      id: '/instructor/settings/appearance'
+      path: '/appearance'
+      fullPath: '/instructor/settings/appearance'
+      preLoaderRoute: typeof InstructorSettingsAppearanceRouteImport
+      parentRoute: typeof InstructorSettingsRoute
+    }
+    '/instructor/settings/account': {
+      id: '/instructor/settings/account'
+      path: '/account'
+      fullPath: '/instructor/settings/account'
+      preLoaderRoute: typeof InstructorSettingsAccountRouteImport
+      parentRoute: typeof InstructorSettingsRoute
+    }
     '/instructor/review-queue/$reviewCaseId': {
       id: '/instructor/review-queue/$reviewCaseId'
       path: '/review-queue/$reviewCaseId'
@@ -450,11 +727,121 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminUsersInstructorsRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/admin/settings/usage': {
+      id: '/admin/settings/usage'
+      path: '/usage'
+      fullPath: '/admin/settings/usage'
+      preLoaderRoute: typeof AdminSettingsUsageRouteImport
+      parentRoute: typeof AdminSettingsRoute
+    }
+    '/admin/settings/security': {
+      id: '/admin/settings/security'
+      path: '/security'
+      fullPath: '/admin/settings/security'
+      preLoaderRoute: typeof AdminSettingsSecurityRouteImport
+      parentRoute: typeof AdminSettingsRoute
+    }
+    '/admin/settings/review-policy': {
+      id: '/admin/settings/review-policy'
+      path: '/review-policy'
+      fullPath: '/admin/settings/review-policy'
+      preLoaderRoute: typeof AdminSettingsReviewPolicyRouteImport
+      parentRoute: typeof AdminSettingsRoute
+    }
+    '/admin/settings/materials': {
+      id: '/admin/settings/materials'
+      path: '/materials'
+      fullPath: '/admin/settings/materials'
+      preLoaderRoute: typeof AdminSettingsMaterialsRouteImport
+      parentRoute: typeof AdminSettingsRoute
+    }
+    '/admin/settings/appearance': {
+      id: '/admin/settings/appearance'
+      path: '/appearance'
+      fullPath: '/admin/settings/appearance'
+      preLoaderRoute: typeof AdminSettingsAppearanceRouteImport
+      parentRoute: typeof AdminSettingsRoute
+    }
+    '/admin/settings/ai-capacity': {
+      id: '/admin/settings/ai-capacity'
+      path: '/ai-capacity'
+      fullPath: '/admin/settings/ai-capacity'
+      preLoaderRoute: typeof AdminSettingsAiCapacityRouteImport
+      parentRoute: typeof AdminSettingsRoute
+    }
+    '/admin/settings/account': {
+      id: '/admin/settings/account'
+      path: '/account'
+      fullPath: '/admin/settings/account'
+      preLoaderRoute: typeof AdminSettingsAccountRouteImport
+      parentRoute: typeof AdminSettingsRoute
+    }
+    '/_student/settings/usage': {
+      id: '/_student/settings/usage'
+      path: '/usage'
+      fullPath: '/settings/usage'
+      preLoaderRoute: typeof StudentSettingsUsageRouteImport
+      parentRoute: typeof StudentSettingsRoute
+    }
+    '/_student/settings/security': {
+      id: '/_student/settings/security'
+      path: '/security'
+      fullPath: '/settings/security'
+      preLoaderRoute: typeof StudentSettingsSecurityRouteImport
+      parentRoute: typeof StudentSettingsRoute
+    }
+    '/_student/settings/learning': {
+      id: '/_student/settings/learning'
+      path: '/learning'
+      fullPath: '/settings/learning'
+      preLoaderRoute: typeof StudentSettingsLearningRouteImport
+      parentRoute: typeof StudentSettingsRoute
+    }
+    '/_student/settings/appearance': {
+      id: '/_student/settings/appearance'
+      path: '/appearance'
+      fullPath: '/settings/appearance'
+      preLoaderRoute: typeof StudentSettingsAppearanceRouteImport
+      parentRoute: typeof StudentSettingsRoute
+    }
+    '/_student/settings/account': {
+      id: '/_student/settings/account'
+      path: '/account'
+      fullPath: '/settings/account'
+      preLoaderRoute: typeof StudentSettingsAccountRouteImport
+      parentRoute: typeof StudentSettingsRoute
+    }
   }
 }
 
+interface AdminSettingsRouteChildren {
+  AdminSettingsAccountRoute: typeof AdminSettingsAccountRoute
+  AdminSettingsAiCapacityRoute: typeof AdminSettingsAiCapacityRoute
+  AdminSettingsAppearanceRoute: typeof AdminSettingsAppearanceRoute
+  AdminSettingsMaterialsRoute: typeof AdminSettingsMaterialsRoute
+  AdminSettingsReviewPolicyRoute: typeof AdminSettingsReviewPolicyRoute
+  AdminSettingsSecurityRoute: typeof AdminSettingsSecurityRoute
+  AdminSettingsUsageRoute: typeof AdminSettingsUsageRoute
+  AdminSettingsIndexRoute: typeof AdminSettingsIndexRoute
+}
+
+const AdminSettingsRouteChildren: AdminSettingsRouteChildren = {
+  AdminSettingsAccountRoute: AdminSettingsAccountRoute,
+  AdminSettingsAiCapacityRoute: AdminSettingsAiCapacityRoute,
+  AdminSettingsAppearanceRoute: AdminSettingsAppearanceRoute,
+  AdminSettingsMaterialsRoute: AdminSettingsMaterialsRoute,
+  AdminSettingsReviewPolicyRoute: AdminSettingsReviewPolicyRoute,
+  AdminSettingsSecurityRoute: AdminSettingsSecurityRoute,
+  AdminSettingsUsageRoute: AdminSettingsUsageRoute,
+  AdminSettingsIndexRoute: AdminSettingsIndexRoute,
+}
+
+const AdminSettingsRouteWithChildren = AdminSettingsRoute._addFileChildren(
+  AdminSettingsRouteChildren,
+)
+
 interface AdminRouteRouteChildren {
-  AdminSettingsRoute: typeof AdminSettingsRoute
+  AdminSettingsRoute: typeof AdminSettingsRouteWithChildren
   AdminIndexRoute: typeof AdminIndexRoute
   AdminUsersInstructorsRoute: typeof AdminUsersInstructorsRoute
   AdminUsersStudentsRoute: typeof AdminUsersStudentsRoute
@@ -466,7 +853,7 @@ interface AdminRouteRouteChildren {
 }
 
 const AdminRouteRouteChildren: AdminRouteRouteChildren = {
-  AdminSettingsRoute: AdminSettingsRoute,
+  AdminSettingsRoute: AdminSettingsRouteWithChildren,
   AdminIndexRoute: AdminIndexRoute,
   AdminUsersInstructorsRoute: AdminUsersInstructorsRoute,
   AdminUsersStudentsRoute: AdminUsersStudentsRoute,
@@ -481,8 +868,27 @@ const AdminRouteRouteWithChildren = AdminRouteRoute._addFileChildren(
   AdminRouteRouteChildren,
 )
 
+interface InstructorSettingsRouteChildren {
+  InstructorSettingsAccountRoute: typeof InstructorSettingsAccountRoute
+  InstructorSettingsAppearanceRoute: typeof InstructorSettingsAppearanceRoute
+  InstructorSettingsSecurityRoute: typeof InstructorSettingsSecurityRoute
+  InstructorSettingsWorkspaceRoute: typeof InstructorSettingsWorkspaceRoute
+  InstructorSettingsIndexRoute: typeof InstructorSettingsIndexRoute
+}
+
+const InstructorSettingsRouteChildren: InstructorSettingsRouteChildren = {
+  InstructorSettingsAccountRoute: InstructorSettingsAccountRoute,
+  InstructorSettingsAppearanceRoute: InstructorSettingsAppearanceRoute,
+  InstructorSettingsSecurityRoute: InstructorSettingsSecurityRoute,
+  InstructorSettingsWorkspaceRoute: InstructorSettingsWorkspaceRoute,
+  InstructorSettingsIndexRoute: InstructorSettingsIndexRoute,
+}
+
+const InstructorSettingsRouteWithChildren =
+  InstructorSettingsRoute._addFileChildren(InstructorSettingsRouteChildren)
+
 interface InstructorRouteRouteChildren {
-  InstructorSettingsRoute: typeof InstructorSettingsRoute
+  InstructorSettingsRoute: typeof InstructorSettingsRouteWithChildren
   InstructorIndexRoute: typeof InstructorIndexRoute
   InstructorReviewQueueReviewCaseIdRoute: typeof InstructorReviewQueueReviewCaseIdRoute
   InstructorMaterialsIndexRoute: typeof InstructorMaterialsIndexRoute
@@ -490,7 +896,7 @@ interface InstructorRouteRouteChildren {
 }
 
 const InstructorRouteRouteChildren: InstructorRouteRouteChildren = {
-  InstructorSettingsRoute: InstructorSettingsRoute,
+  InstructorSettingsRoute: InstructorSettingsRouteWithChildren,
   InstructorIndexRoute: InstructorIndexRoute,
   InstructorReviewQueueReviewCaseIdRoute:
     InstructorReviewQueueReviewCaseIdRoute,
@@ -502,14 +908,36 @@ const InstructorRouteRouteWithChildren = InstructorRouteRoute._addFileChildren(
   InstructorRouteRouteChildren,
 )
 
+interface StudentSettingsRouteChildren {
+  StudentSettingsAccountRoute: typeof StudentSettingsAccountRoute
+  StudentSettingsAppearanceRoute: typeof StudentSettingsAppearanceRoute
+  StudentSettingsLearningRoute: typeof StudentSettingsLearningRoute
+  StudentSettingsSecurityRoute: typeof StudentSettingsSecurityRoute
+  StudentSettingsUsageRoute: typeof StudentSettingsUsageRoute
+  StudentSettingsIndexRoute: typeof StudentSettingsIndexRoute
+}
+
+const StudentSettingsRouteChildren: StudentSettingsRouteChildren = {
+  StudentSettingsAccountRoute: StudentSettingsAccountRoute,
+  StudentSettingsAppearanceRoute: StudentSettingsAppearanceRoute,
+  StudentSettingsLearningRoute: StudentSettingsLearningRoute,
+  StudentSettingsSecurityRoute: StudentSettingsSecurityRoute,
+  StudentSettingsUsageRoute: StudentSettingsUsageRoute,
+  StudentSettingsIndexRoute: StudentSettingsIndexRoute,
+}
+
+const StudentSettingsRouteWithChildren = StudentSettingsRoute._addFileChildren(
+  StudentSettingsRouteChildren,
+)
+
 interface StudentRouteChildren {
   StudentChatRoute: typeof StudentChatRoute
-  StudentSettingsRoute: typeof StudentSettingsRoute
+  StudentSettingsRoute: typeof StudentSettingsRouteWithChildren
 }
 
 const StudentRouteChildren: StudentRouteChildren = {
   StudentChatRoute: StudentChatRoute,
-  StudentSettingsRoute: StudentSettingsRoute,
+  StudentSettingsRoute: StudentSettingsRouteWithChildren,
 }
 
 const StudentRouteWithChildren =
