@@ -4,6 +4,7 @@ import {
   MessageStatus,
   ReflectionMode,
   RevealPolicy,
+  StudentActionPurpose,
   TeachingStrategy,
   TeachingTechnique,
   TopicStatus,
@@ -179,6 +180,7 @@ export function buildLiveTeachingDecision(
     revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
     reflectionMode: ReflectionMode.NONE,
     requireStudentAction: true,
+    studentActionPurpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
     guardPolicy: {
       preventDirectAnswer: true,
       preventFinalResult: true,

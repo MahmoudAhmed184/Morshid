@@ -16,6 +16,7 @@ import {
   Prisma,
   ReflectionMode,
   RevealPolicy,
+  StudentActionPurpose,
   StudentState,
   TeachingStrategy,
   TeachingTechnique,
@@ -652,6 +653,15 @@ const overRevealEducationalContext: TutorGuardEducationalContext =
       policyVersion: 'socratic-policy.mvp.v3',
       guidanceLevel: 1,
       revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
+      studentActionObligation: Object.freeze({
+        version: 'student-action-obligation.v1',
+        required: true,
+        purpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
+        technique: TeachingTechnique.COUNTEREXAMPLE,
+        maximumMeaningfulActions: 1,
+        generationInstruction:
+          'Request exactly one meaningful COUNTEREXAMPLE action.',
+      }),
     }),
     recentConversation: Object.freeze([
       Object.freeze({
@@ -673,10 +683,17 @@ function overRevealEvaluation(
     allowedCitationIds: new Set([OVER_REVEAL_CITATION_ID]),
     requireGrounding: true,
     enforceCitationSupport: true,
-    requireStudentAction: true,
+    studentActionObligation: {
+      version: 'student-action-obligation.v1',
+      required: true,
+      purpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
+      technique: TeachingTechnique.COUNTEREXAMPLE,
+      maximumMeaningfulActions: 1,
+      generationInstruction:
+        'Request exactly one meaningful COUNTEREXAMPLE action.',
+    },
     reflectionMode: ReflectionMode.NONE,
     responseIntent: TeachingStrategy.MISCONCEPTION_REPAIR,
-    primaryTechnique: TeachingTechnique.COUNTEREXAMPLE,
     guidanceLevel: 1,
     revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
     maximumDisclosedSteps: 1,

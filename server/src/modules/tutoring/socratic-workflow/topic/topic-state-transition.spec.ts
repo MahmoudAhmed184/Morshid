@@ -4,6 +4,7 @@ import {
   MisconceptionStatus,
   ResolutionEvidenceStrength,
   RevealPolicy,
+  StudentActionPurpose,
   StudentState,
   TeachingStrategy,
   TeachingTechnique,
@@ -229,6 +230,7 @@ function decision(): PersistedTeachingDecisionRecord {
     revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
     reflectionMode: 'NONE',
     requireStudentAction: true,
+    studentActionPurpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
     guardPolicy: {
       preventDirectAnswer: true,
       preventFinalResult: true,

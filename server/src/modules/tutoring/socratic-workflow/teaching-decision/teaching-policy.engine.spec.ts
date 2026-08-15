@@ -2,6 +2,7 @@ import {
   MessageRequestKind,
   ReflectionMode,
   RevealPolicy,
+  StudentActionPurpose,
   StudentState,
   TeachingStrategy,
   TeachingTechnique,
@@ -357,5 +358,7 @@ function previousDecision(
     policyVersion: TEACHING_POLICY_VERSION,
     createdAt: new Date('2026-08-05T00:00:00.000Z'),
     ...input,
+    studentActionPurpose:
+      input.studentActionPurpose ?? StudentActionPurpose.PRIMARY_TECHNIQUE,
   }
 }

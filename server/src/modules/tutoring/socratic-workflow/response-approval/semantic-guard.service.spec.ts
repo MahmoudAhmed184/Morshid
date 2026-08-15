@@ -1,6 +1,7 @@
 import {
   ReflectionMode,
   RevealPolicy,
+  StudentActionPurpose,
   TeachingStrategy,
   TeachingTechnique,
 } from '../../tutoring-values'
@@ -60,6 +61,60 @@ describe('SemanticGuardService', () => {
     })
   })
 
+  it('uses the focused TeachingDecision obligation without adding a prior-attempt requirement', async () => {
+    const guard = new FakeSemanticGuardPort({ approved: true, violations: [] })
+    const base = input()
+    const focusedObligation = studentActionObligation(
+      StudentActionPurpose.PRIMARY_TECHNIQUE,
+      TeachingTechnique.FOCUSED_QUESTION,
+    )
+
+    await new SemanticGuardService(guard).evaluate({
+      ...base,
+      candidate: candidate({
+        studentAction: {
+          type: TeachingTechnique.FOCUSED_QUESTION,
+          description: 'Trace one update and identify the first mismatch.',
+        },
+      }),
+      educationalContext: {
+        ...base.educationalContext,
+        acceptedAnalysis: {
+          ...base.educationalContext.acceptedAnalysis,
+          requestKind: 'PROBLEM_LIKE',
+          studentState: 'UNKNOWN',
+          effortEvidence: {
+            present: false,
+            quality: 'NONE',
+            type: null,
+            addressesPreviousTutorAction: false,
+            isRepeated: false,
+            evidenceMessageIds: [],
+          },
+          misconceptions: [],
+        },
+        currentTeachingDecision: {
+          ...base.educationalContext.currentTeachingDecision,
+          studentActionObligation: focusedObligation,
+        },
+      },
+      validationContext: {
+        ...base.validationContext,
+        studentActionObligation: focusedObligation,
+      },
+    })
+
+    const payloadText = guard.requests[0]?.messages[1].content ?? '{}'
+    const payload = JSON.parse(payloadText) as {
+      trustedPolicy: { studentActionObligation: unknown }
+    }
+
+    expect(payload.trustedPolicy.studentActionObligation).toEqual(
+      focusedObligation,
+    )
+    expect(payloadText).not.toContain('askWhatStudentTried')
+  })
+
   it('accepts compliant supported-work affirmation followed by verification', async () => {
     const guard = new FakeSemanticGuardPort({ approved: true, violations: [] })
     const base = input()
@@ -95,7 +150,10 @@ describe('SemanticGuardService', () => {
       },
       validationContext: {
         ...base.validationContext,
-        primaryTechnique: TeachingTechnique.VERIFICATION,
+        studentActionObligation: studentActionObligation(
+          StudentActionPurpose.PRIMARY_TECHNIQUE,
+          TeachingTechnique.VERIFICATION,
+        ),
       },
     })
 
@@ -191,7 +249,6 @@ describe('SemanticGuardService', () => {
           requestKind: 'CONCEPTUAL',
           strategyAndTechniqueMustNotReduceGuidanceShape: true,
           minimumUsefulConceptualExplanationRequired: false,
-          conceptualUnderstandingCheckRequired: false,
           evaluateSemanticallyWithoutPhraseMatching: true,
         },
       },
@@ -332,7 +389,9 @@ describe('SemanticGuardService', () => {
           },
           functionalResponseRequirements: {
             minimumUsefulConceptualExplanationRequired: true,
-            conceptualUnderstandingCheckRequired: true,
+          },
+          studentActionObligation: {
+            purpose: StudentActionPurpose.CONCEPTUAL_UNDERSTANDING,
           },
         },
       })
@@ -485,6 +544,7 @@ function input(
         policyVersion: 'policy-test.v1',
         guidanceLevel: 1,
         revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
+        studentActionObligation: studentActionObligation(),
       },
       recentConversation: [
         {
@@ -501,10 +561,9 @@ function input(
       allowedCitationIds: new Set(['retrieval.rank.1']),
       requireGrounding: true,
       enforceCitationSupport: true,
-      requireStudentAction: true,
+      studentActionObligation: studentActionObligation(),
       reflectionMode: ReflectionMode.NONE,
       responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
-      primaryTechnique: TeachingTechnique.ORIENTATION_QUESTION,
       guidanceLevel: 1,
       revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
       maximumDisclosedSteps: 1,
@@ -543,7 +602,7 @@ function candidate(patch: Partial<CandidateResponse> = {}): CandidateResponse {
     },
     provider: 'deterministic',
     model: 'deterministic-tutor',
-    promptVersion: 'tutor-generation.mvp.v7',
+    promptVersion: 'tutor-generation.mvp.v8',
     tokenUsage: { input: 0, output: 0 },
     ...patch,
   }
@@ -580,18 +639,37 @@ function directConceptualInput(message: string): SemanticGuardEvaluationInput {
       currentTeachingDecision: {
         ...base.educationalContext.currentTeachingDecision,
         revealPolicy: RevealPolicy.PARTIAL_RESULT_ALLOWED,
+        studentActionObligation: studentActionObligation(
+          StudentActionPurpose.CONCEPTUAL_UNDERSTANDING,
+        ),
       },
       recentConversation: [],
     },
     validationContext: {
       ...base.validationContext,
       responseIntent: TeachingStrategy.GUIDED_EXPLANATION,
-      primaryTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+      studentActionObligation: studentActionObligation(
+        StudentActionPurpose.CONCEPTUAL_UNDERSTANDING,
+      ),
       revealPolicy: RevealPolicy.PARTIAL_RESULT_ALLOWED,
     },
     guardPolicy: {
       ...base.guardPolicy,
       preventDirectAnswer: false,
     },
+  }
+}
+
+function studentActionObligation(
+  purpose: StudentActionPurpose = StudentActionPurpose.PRIOR_ATTEMPT_ORIENTATION,
+  technique: TeachingTechnique = TeachingTechnique.ORIENTATION_QUESTION,
+) {
+  return {
+    version: 'student-action-obligation.v1' as const,
+    required: true,
+    purpose,
+    technique,
+    maximumMeaningfulActions: 1 as const,
+    generationInstruction: 'Request exactly one meaningful student action.',
   }
 }

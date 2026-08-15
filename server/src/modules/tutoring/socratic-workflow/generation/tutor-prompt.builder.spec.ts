@@ -4,6 +4,7 @@ import {
   MessageStatus,
   ReflectionMode,
   RevealPolicy,
+  StudentActionPurpose,
   StudentState,
   TeachingStrategy,
   TeachingTechnique,
@@ -117,7 +118,7 @@ describe('tutor prompt builder', () => {
       expect(prompt).toContain(
         '"minimumUsefulConceptualExplanationRequired":true',
       )
-      expect(prompt).toContain('"conceptualUnderstandingCheckRequired":true')
+      expect(prompt).toContain('"purpose":"CONCEPTUAL_UNDERSTANDING"')
       expect(prompt).toContain('State the minimum useful grounded core concept')
       expect(prompt).toContain(studentMessage)
     },
@@ -128,7 +129,10 @@ describe('tutor prompt builder', () => {
       requestKind: MessageRequestKind.PROBLEM_LIKE,
       studentState: StudentState.NO_PRIOR_KNOWLEDGE,
       guidanceLevel: 1,
-      expected: ['"askWhatStudentTried":true', '"smallStartingHintCount":1'],
+      expected: [
+        '"purpose":"PRIOR_ATTEMPT_ORIENTATION"',
+        '"smallStartingHintCount":1',
+      ],
     },
     {
       requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
@@ -136,7 +140,6 @@ describe('tutor prompt builder', () => {
       guidanceLevel: 2,
       expected: [
         '"identifyLikelyMisconception":true',
-        '"meaningfulGuidingQuestionCount":1',
         '"mode":"FOCUSED_HINT"',
         '"singleGuidingQuestionIsSufficient":true',
       ],
@@ -268,6 +271,9 @@ describe('tutor prompt builder', () => {
     expect(prompt).toContain('"conceptExplanation":')
     expect(prompt).toContain('"inspectionActions":[')
     expect(prompt).toContain('"studentAction":null')
+    expect(prompt).toContain('"purpose":"PRIMARY_TECHNIQUE"')
+    expect(prompt).toContain('"technique":"FOCUSED_QUESTION"')
+    expect(prompt).not.toContain('askWhatStudentTried')
     expect(prompt).toContain(
       'usedCitationIds must contain one or more exact values from allowedCitationIds',
     )
@@ -310,6 +316,7 @@ function misconceptionContext(
       ...context.teachingDecision,
       strategy: TeachingStrategy.MISCONCEPTION_REPAIR,
       primaryTechnique: TeachingTechnique.COUNTEREXAMPLE,
+      studentActionPurpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
       guidanceLevel,
     },
     previousTeachingDecision: null,
@@ -352,6 +359,7 @@ function directConceptualContext(
       ...context.teachingDecision,
       strategy: TeachingStrategy.GUIDED_EXPLANATION,
       primaryTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+      studentActionPurpose: StudentActionPurpose.CONCEPTUAL_UNDERSTANDING,
       guidanceLevel: 1,
       revealPolicy: RevealPolicy.PARTIAL_RESULT_ALLOWED,
       guardPolicy: {
@@ -372,7 +380,7 @@ function debuggingGenerationContext(): GenerationContextPackage {
       result: {
         ...context.acceptedAnalysis.result,
         requestKind: MessageRequestKind.PROBLEM_LIKE,
-        studentState: StudentState.PARTIAL_UNDERSTANDING,
+        studentState: StudentState.UNKNOWN,
         recommendedStrategy: TeachingStrategy.SOCRATIC_QUESTIONING,
         recommendedTechnique: TeachingTechnique.FOCUSED_QUESTION,
       },
@@ -381,6 +389,7 @@ function debuggingGenerationContext(): GenerationContextPackage {
       ...context.teachingDecision,
       strategy: TeachingStrategy.SOCRATIC_QUESTIONING,
       primaryTechnique: TeachingTechnique.FOCUSED_QUESTION,
+      studentActionPurpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
       guidanceLevel: 1,
       revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
     },
@@ -477,6 +486,7 @@ function buildGenerationContext(): GenerationContextPackage {
       revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
       reflectionMode: ReflectionMode.NONE,
       requireStudentAction: true,
+      studentActionPurpose: StudentActionPurpose.PRIOR_ATTEMPT_ORIENTATION,
       guardPolicy: {
         preventDirectAnswer: true,
         preventFinalResult: true,

@@ -1,5 +1,6 @@
 import {
   ReflectionMode,
+  StudentActionPurpose,
   TeachingStrategy,
   TeachingTechnique,
 } from '../../tutoring-values'
@@ -267,7 +268,15 @@ function policy(): CandidateResponsePolicyContext {
     allowedCitationIds: new Set(['retrieval.rank.1']),
     requireGrounding: true,
     enforceCitationSupport: true,
-    requireStudentAction: true,
+    studentActionObligation: {
+      version: 'student-action-obligation.v1',
+      required: true,
+      purpose: StudentActionPurpose.PRIOR_ATTEMPT_ORIENTATION,
+      technique: TeachingTechnique.ORIENTATION_QUESTION,
+      maximumMeaningfulActions: 1,
+      generationInstruction:
+        'Ask the student to share what they tried as the single meaningful action.',
+    },
     reflectionMode: ReflectionMode.NONE,
   }
 }
@@ -299,7 +308,13 @@ function debuggingPolicy(): CandidateResponsePolicyContext {
     ...policy(),
     debuggingGuidanceRequired: true,
     debuggingRewriteRequested: false,
-    studentActionType: TeachingTechnique.FOCUSED_QUESTION,
+    studentActionObligation: {
+      ...policy().studentActionObligation,
+      purpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
+      technique: TeachingTechnique.FOCUSED_QUESTION,
+      generationInstruction:
+        'Request exactly one meaningful FOCUSED_QUESTION action.',
+    },
   }
 }
 

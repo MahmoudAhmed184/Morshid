@@ -325,7 +325,7 @@ describe('TutoringRuntimeApplication', () => {
           approvalMetadata: {
             provider: null,
             model: null,
-            promptVersion: 'safe-fallback.mvp.v1',
+            promptVersion: 'safe-fallback.mvp.v2',
             inputTokens: 0,
             outputTokens: 0,
             validationPolicyVersion: 'response-validation.mvp.v1',

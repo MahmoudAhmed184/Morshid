@@ -1969,7 +1969,7 @@ describe('Authorized tutoring runtime (e2e)', () => {
       guidanceLabel: null,
       provider: null,
       model: null,
-      promptVersion: 'safe-fallback.mvp.v1',
+      promptVersion: 'safe-fallback.mvp.v2',
       citations: [],
     })
     expect(stored.retrievals).toHaveLength(1)

@@ -1,6 +1,7 @@
 import {
   ReflectionMode,
   RevealPolicy,
+  StudentActionPurpose,
   TeachingStrategy,
   TeachingTechnique,
 } from '../../tutoring-values'
@@ -102,6 +103,7 @@ describe('ResponseApprovalService', () => {
       {
         decision: decision({
           primaryTechnique: TeachingTechnique.FOCUSED_QUESTION,
+          studentActionPurpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
         }),
       },
     )
@@ -456,6 +458,7 @@ function decision(
     revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
     reflectionMode: ReflectionMode.NONE,
     requireStudentAction: true,
+    studentActionPurpose: StudentActionPurpose.PRIOR_ATTEMPT_ORIENTATION,
     guardPolicy: {
       preventDirectAnswer: true,
       preventFinalResult: true,
@@ -495,7 +498,7 @@ function validCandidate(
     },
     provider: 'deterministic',
     model: 'deterministic-tutor',
-    promptVersion: 'tutor-generation.mvp.v7',
+    promptVersion: 'tutor-generation.mvp.v8',
     tokenUsage: { input: 10, output: 5 },
     ...patch,
   }
@@ -588,6 +591,15 @@ function generationSuccess(
         policyVersion: 'policy-test.v1',
         guidanceLevel: 1,
         revealPolicy: 'NO_FINAL_ANSWER',
+        studentActionObligation: {
+          version: 'student-action-obligation.v1',
+          required: true,
+          purpose: StudentActionPurpose.PRIOR_ATTEMPT_ORIENTATION,
+          technique: TeachingTechnique.ORIENTATION_QUESTION,
+          maximumMeaningfulActions: 1,
+          generationInstruction:
+            'Ask the student to share what they tried as the single meaningful action.',
+        },
       },
       recentConversation: [],
     },

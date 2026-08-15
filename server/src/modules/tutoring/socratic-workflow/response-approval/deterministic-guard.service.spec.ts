@@ -1,6 +1,7 @@
 import {
   ReflectionMode,
   RevealPolicy,
+  StudentActionPurpose,
   TeachingStrategy,
   TeachingTechnique,
 } from '../../tutoring-values'
@@ -284,7 +285,7 @@ function validCandidate(
     },
     provider: 'deterministic',
     model: 'deterministic-tutor',
-    promptVersion: 'tutor-generation.mvp.v7',
+    promptVersion: 'tutor-generation.mvp.v8',
     tokenUsage: { input: 0, output: 0 },
     ...patch,
   }
@@ -297,10 +298,17 @@ function context(
     allowedCitationIds: new Set(['retrieval.rank.1']),
     requireGrounding: true,
     enforceCitationSupport: true,
-    requireStudentAction: true,
+    studentActionObligation: {
+      version: 'student-action-obligation.v1',
+      required: true,
+      purpose: StudentActionPurpose.PRIOR_ATTEMPT_ORIENTATION,
+      technique: TeachingTechnique.ORIENTATION_QUESTION,
+      maximumMeaningfulActions: 1,
+      generationInstruction:
+        'Ask the student to share what they tried as the single meaningful action.',
+    },
     reflectionMode: ReflectionMode.NONE,
     responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
-    primaryTechnique: TeachingTechnique.ORIENTATION_QUESTION,
     guidanceLevel: 1,
     revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
     maximumDisclosedSteps: 1,
@@ -334,7 +342,13 @@ function validDebuggingCandidate(): CandidateResponse {
 
 function debuggingContext(): CandidateValidationContext {
   return context({
-    primaryTechnique: TeachingTechnique.FOCUSED_QUESTION,
+    studentActionObligation: {
+      ...context().studentActionObligation,
+      purpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
+      technique: TeachingTechnique.FOCUSED_QUESTION,
+      generationInstruction:
+        'Request exactly one meaningful FOCUSED_QUESTION action.',
+    },
     debuggingGuidanceRequired: true,
     debuggingGuidance: {
       likelyIssue: 'The loop update likely uses the wrong variable.',

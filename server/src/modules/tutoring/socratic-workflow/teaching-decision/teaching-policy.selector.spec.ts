@@ -2,6 +2,7 @@ import {
   MessageRequestKind,
   ReflectionMode,
   RevealPolicy,
+  StudentActionPurpose,
   StudentState,
   TeachingStrategy,
   TeachingTechnique,
@@ -63,11 +64,54 @@ describe('teaching policy selector', () => {
       guidanceLevel: 1,
       revealPolicy: RevealPolicy.PARTIAL_RESULT_ALLOWED,
       requireStudentAction: true,
+      studentActionPurpose: StudentActionPurpose.CONCEPTUAL_UNDERSTANDING,
       guardPolicy: {
         preventDirectAnswer: false,
         preventFinalResult: true,
         preventCompleteSolution: true,
       },
+    })
+  })
+
+  it('uses prior-attempt orientation only when the resolved technique is orientation', () => {
+    const draft = selectTeachingDecisionDraft({
+      analysis: analysis({
+        requestKind: MessageRequestKind.PROBLEM_LIKE,
+        studentState: StudentState.NO_PRIOR_KNOWLEDGE,
+        effortPresent: false,
+        effortQuality: EFFORT_QUALITY.NONE,
+        effortType: null,
+        effortEvidenceMessageIds: [],
+      }),
+      topicState: topicState(),
+      previousTeachingDecision: null,
+    })
+
+    expect(draft).toMatchObject({
+      primaryTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+      studentActionPurpose: StudentActionPurpose.PRIOR_ATTEMPT_ORIENTATION,
+    })
+  })
+
+  it('keeps a focused problem-like turn on the primary-technique action', () => {
+    const draft = selectTeachingDecisionDraft({
+      analysis: analysis({
+        requestKind: MessageRequestKind.PROBLEM_LIKE,
+        studentState: StudentState.UNKNOWN,
+        effortPresent: false,
+        effortQuality: EFFORT_QUALITY.NONE,
+        effortType: null,
+        effortEvidenceMessageIds: [],
+      }),
+      topicState: topicState(),
+      previousTeachingDecision: null,
+    })
+
+    expect(draft).toMatchObject({
+      strategy: TeachingStrategy.SOCRATIC_QUESTIONING,
+      primaryTechnique: TeachingTechnique.FOCUSED_QUESTION,
+      guidanceLevel: 1,
+      studentActionPurpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
     })
   })
 
@@ -791,5 +835,7 @@ function previousDecision(
     policyVersion: 'socratic-policy.mvp.v1',
     createdAt: new Date('2026-08-05T00:00:00.000Z'),
     ...input,
+    studentActionPurpose:
+      input.studentActionPurpose ?? StudentActionPurpose.PRIMARY_TECHNIQUE,
   }
 }

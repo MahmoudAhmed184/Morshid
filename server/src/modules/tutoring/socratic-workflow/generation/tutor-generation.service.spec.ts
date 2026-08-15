@@ -3,6 +3,7 @@ import {
   MessageStatus,
   ReflectionMode,
   RevealPolicy,
+  StudentActionPurpose,
   StudentState,
   TeachingStrategy,
   TeachingTechnique,
@@ -21,6 +22,7 @@ import {
   TeachingDecisionRepository,
   type PersistedTeachingDecisionRecord,
 } from '../teaching-decision/teaching-decision.repository'
+import { studentActionObligationFromDecision } from '../teaching-decision/student-action-obligation'
 import { TutorGenerationService } from './tutor-generation.service'
 import { TutorInfrastructureRetryPolicy } from './tutor-infrastructure-retry.policy'
 import {
@@ -43,7 +45,7 @@ describe('TutorGenerationService', () => {
         message: 'What should change before the next loop iteration?',
         provider: 'deterministic',
         model: 'deterministic-tutor',
-        promptVersion: 'tutor-generation.mvp.v7',
+        promptVersion: 'tutor-generation.mvp.v8',
         tokenUsage: { input: 15, output: 9 },
         usedCitationIds: ['retrieval.rank.1'],
       })
@@ -176,6 +178,8 @@ describe('TutorGenerationService', () => {
           guidanceLevel: 2,
           revealPolicy: decision.revealPolicy,
           guardPolicy: decision.guardPolicy,
+          studentActionObligation:
+            studentActionObligationFromDecision(decision),
           outputProtection: defaultInput().outputProtection,
         },
       },
@@ -209,6 +213,8 @@ describe('TutorGenerationService', () => {
           guidanceLevel: decision.guidanceLevel,
           revealPolicy: decision.revealPolicy,
           guardPolicy: decision.guardPolicy,
+          studentActionObligation:
+            studentActionObligationFromDecision(decision),
           outputProtection: {
             ...original.outputProtection,
             protectTargetSolution: false,
@@ -394,7 +400,7 @@ class FakeTutorModel implements TutorModelPort {
       rawOutput: this.rawOutput,
       provider: 'deterministic',
       model: 'deterministic-tutor',
-      promptVersion: 'tutor-generation.mvp.v7' as const,
+      promptVersion: 'tutor-generation.mvp.v8' as const,
       inputTokens: 15,
       outputTokens: 9,
     })
@@ -567,6 +573,7 @@ function buildDecision(): PersistedTeachingDecisionRecord {
     revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
     reflectionMode: ReflectionMode.NONE,
     requireStudentAction: true,
+    studentActionPurpose: StudentActionPurpose.PRIOR_ATTEMPT_ORIENTATION,
     guardPolicy: {
       preventDirectAnswer: true,
       preventFinalResult: true,

@@ -10,7 +10,7 @@ import {
 import { buildTutorResponseRequirements } from './tutor-response-requirements'
 
 describe('Tutor response requirements', () => {
-  it('requires a minimum explanation and understanding check for a beginner conceptual request', () => {
+  it('keeps the conceptual explanation requirement separate from the student action', () => {
     const requirements = buildTutorResponseRequirements({
       analysis: {
         requestKind: MessageRequestKind.CONCEPTUAL,
@@ -27,12 +27,14 @@ describe('Tutor response requirements', () => {
 
     expect(requirements).toMatchObject({
       minimumUsefulConceptualExplanationRequired: true,
-      conceptualUnderstandingCheckRequired: true,
       protectExactOriginalSolution: false,
       guidanceShape: {
         mode: 'ORIENTATION',
       },
     })
+    expect(requirements).not.toHaveProperty(
+      'conceptualUnderstandingCheckRequired',
+    )
     expect(requirements.guidanceShape.residualStudentWork).toContain('applies')
     expect(requirements.guidanceShape.generationInstruction).toContain(
       'State the minimum useful grounded core concept',
@@ -61,10 +63,7 @@ describe('Tutor response requirements', () => {
       protectTargetSolution: false,
     })
 
-    expect(requirements).toMatchObject({
-      minimumUsefulConceptualExplanationRequired: false,
-      conceptualUnderstandingCheckRequired: false,
-    })
+    expect(requirements.minimumUsefulConceptualExplanationRequired).toBe(false)
   })
 
   it('makes Level 2 a single focused hint rather than a decomposition', () => {

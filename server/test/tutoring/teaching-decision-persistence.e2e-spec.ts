@@ -6,6 +6,7 @@ import {
   MessageStatus,
   ReflectionMode,
   RevealPolicy,
+  StudentActionPurpose,
   StudentState,
   TeachingStrategy,
   TeachingTechnique,
@@ -96,6 +97,7 @@ describe('TeachingDecisionRepository (e2e)', () => {
         revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
         reflectionMode: ReflectionMode.NONE,
         requireStudentAction: true,
+        studentActionPurpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
         guardPolicy: fixedTeachingGuardPolicy(),
         policyVersion: TEACHING_POLICY_VERSION,
       },
@@ -132,6 +134,7 @@ describe('TeachingDecisionRepository (e2e)', () => {
         guidanceLevel: 1,
         revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
         reflectionMode: ReflectionMode.NONE,
+        studentActionPurpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
       },
     })
   })
@@ -652,5 +655,7 @@ function previousDecision(
     policyVersion: TEACHING_POLICY_VERSION,
     createdAt: new Date('2026-08-05T00:00:00.000Z'),
     ...input,
+    studentActionPurpose:
+      input.studentActionPurpose ?? StudentActionPurpose.PRIMARY_TECHNIQUE,
   }
 }

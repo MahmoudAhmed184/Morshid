@@ -15,6 +15,7 @@ import {
   MisconceptionStatus,
   Prisma,
   ResolutionEvidenceStrength,
+  StudentActionPurpose,
   StudentState,
   TeachingStrategy,
   TeachingTechnique,
@@ -516,7 +517,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     expect(turn.assistantMessage.citations).toHaveLength(1)
 
     const promptVersion = Reflect.get(turn.assistantMessage, 'promptVersion')
-    expect(promptVersion).toBe('tutor-generation.mvp.v7')
+    expect(promptVersion).toBe('tutor-generation.mvp.v8')
 
     const reloadResponse = await request(requireApp().getHttpServer())
       .get(messagesPath(session.id))
@@ -622,7 +623,8 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       guidanceLevel: 1,
       revealPolicy: 'PARTIAL_RESULT_ALLOWED',
       requireStudentAction: true,
-      policyVersion: 'socratic-policy.mvp.v4',
+      studentActionPurpose: StudentActionPurpose.CONCEPTUAL_UNDERSTANDING,
+      policyVersion: 'socratic-policy.mvp.v5',
     })
     expect(teachingDecision.guardPolicy).toMatchObject({
       preventDirectAnswer: false,
@@ -631,7 +633,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     expect(persisted.candidateAttempts[0]).toMatchObject({
       candidateAttempt: 1,
       generationOutcome: 'GENERATED',
-      promptVersion: 'tutor-generation.mvp.v7',
+      promptVersion: 'tutor-generation.mvp.v8',
     })
     expect(
       persisted.candidateAttempts[0].guardResults.map((result) => ({
@@ -656,11 +658,33 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       Promise.resolve(
         functionalStoryAnalysisResponse(modelRequest, {
           requestKind: MessageRequestKind.PROBLEM_LIKE,
-          studentState: StudentState.PARTIAL_UNDERSTANDING,
+          studentState: StudentState.UNKNOWN,
           recommendedStrategy: TeachingStrategy.SOCRATIC_QUESTIONING,
           recommendedTechnique: TeachingTechnique.FOCUSED_QUESTION,
         }),
       )
+
+    semanticGuard.behavior = (guardRequest) => {
+      const payloadText = guardRequest.messages[1].content
+      const payload = JSON.parse(payloadText) as {
+        trustedPolicy: {
+          studentActionObligation: {
+            purpose: string
+            technique: string
+            maximumMeaningfulActions: number
+          }
+        }
+      }
+
+      expect(payload.trustedPolicy.studentActionObligation).toMatchObject({
+        purpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
+        technique: TeachingTechnique.FOCUSED_QUESTION,
+        maximumMeaningfulActions: 1,
+      })
+      expect(payloadText).not.toContain('askWhatStudentTried')
+
+      return Promise.resolve(approvedSemanticGuardResponse())
+    }
 
     const response = await request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
@@ -693,6 +717,9 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     })
     expect(turn.assistantMessage.content).toContain('[retrieval.rank.1]')
     expect(turn.assistantMessage.citations).toHaveLength(1)
+    expect(tutorModel.getCalls()[0]?.messages[1].content).not.toContain(
+      'askWhatStudentTried',
+    )
 
     const attemptId = turn.assistantMessage.attemptId
     if (attemptId === null) {
@@ -722,7 +749,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     expect(persisted.educationalAnalyses).toEqual([
       expect.objectContaining({
         requestKind: MessageRequestKind.PROBLEM_LIKE,
-        studentState: StudentState.PARTIAL_UNDERSTANDING,
+        studentState: StudentState.UNKNOWN,
         analysisSource: 'model',
         fallbackReason: null,
       }),
@@ -733,6 +760,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       guidanceLevel: 1,
       revealPolicy: 'NO_FINAL_ANSWER',
       requireStudentAction: true,
+      studentActionPurpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
     })
     expect(persisted.teachingDecision?.guardPolicy).toMatchObject({
       preventDirectAnswer: true,
