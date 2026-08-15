@@ -35,7 +35,7 @@ export function PasswordField({
       <div className="flex items-center justify-between gap-3">
         <Label
           htmlFor={id}
-          className="text-[0.65rem] sm:text-[0.68rem] font-bold uppercase tracking-wider text-slate-700"
+          className="text-[0.65rem] sm:text-[0.68rem] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300"
         >
           {label}
         </Label>
@@ -46,7 +46,7 @@ export function PasswordField({
           type={visible ? 'text' : 'password'}
           placeholder={placeholder}
           autoComplete="current-password"
-          className="h-10 sm:h-11 md:h-12 rounded-xl !border-slate-200 dark:!border-slate-200 !bg-slate-50/80 dark:!bg-slate-50/80 pr-11 text-sm !text-slate-900 dark:!text-slate-900 placeholder:!text-slate-400 focus-visible:!bg-white focus-visible:ring-1 focus-visible:!ring-[#0d848e]"
+          className="h-10 sm:h-11 md:h-12 rounded-xl border-slate-200 dark:border-slate-700/60 bg-slate-50/80 dark:bg-slate-900/80 pr-11 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus-visible:bg-white dark:focus-visible:bg-slate-900 focus-visible:ring-1 focus-visible:ring-[#0d848e] dark:focus-visible:ring-[#2dd4bf]"
           {...inputProps}
         />
         <Button
@@ -55,7 +55,7 @@ export function PasswordField({
           size="icon-sm"
           onClick={() => setVisible((current) => !current)}
           aria-label={visible ? 'Hide password' : 'Show password'}
-          className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:bg-transparent hover:text-slate-600"
+          className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:bg-transparent hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
         >
           {visible ? (
             <EyeOff className="size-4" aria-hidden />
