@@ -560,6 +560,7 @@ async function proveScenario(
 
 async function resetScenarioState(harness: MatrixHarness): Promise<void> {
   await harness.prisma.guardResult.deleteMany()
+  await harness.prisma.outputRiskEvent.deleteMany()
   await harness.prisma.tutoringCandidateAttempt.deleteMany()
   await harness.prisma.teachingDecision.deleteMany()
   await harness.prisma.educationalAnalysis.deleteMany()

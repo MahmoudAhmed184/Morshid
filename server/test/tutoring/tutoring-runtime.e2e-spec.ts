@@ -342,6 +342,7 @@ describe('Authorized tutoring runtime (e2e)', () => {
     await prisma.teachingDecision.deleteMany()
     await prisma.educationalAnalysis.deleteMany()
     await prisma.guardResult.deleteMany()
+    await prisma.outputRiskEvent.deleteMany()
     await prisma.tutoringCandidateAttempt.deleteMany()
     await prisma.tutoringAttempt.deleteMany()
     await prisma.topicState.deleteMany()

@@ -262,6 +262,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     await prisma.teachingDecision.deleteMany()
     await prisma.educationalAnalysis.deleteMany()
     await prisma.guardResult.deleteMany()
+    await prisma.outputRiskEvent.deleteMany()
     await prisma.tutoringCandidateAttempt.deleteMany()
     await prisma.tutoringAttempt.deleteMany()
     await prisma.topicState.deleteMany()
@@ -1009,6 +1010,10 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     for (const attempt of attempts) {
       expect(attempt).toMatchObject({
         status: TutoringAttemptStatus.COMPLETED,
+        explicitProtectedSolutionSignal: false,
+        effectiveSolutionProtection: false,
+        solutionProtectionSource: 'ACCEPTED_CONCEPT_ANALYSIS',
+        solutionProtectionPolicyVersion: 'solution-protection.v1',
         safeFallbackUsed: false,
         approvalSource: 'VALIDATED_CANDIDATE',
         approvedCandidateAttempt: 1,
@@ -1036,6 +1041,18 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       activeStrategy: TeachingStrategy.SOCRATIC_QUESTIONING,
       primaryTechnique: TeachingTechnique.VERIFICATION,
       guidanceLevel: 1,
+    })
+    await expect(
+      prisma.topic.findFirstOrThrow({
+        where: { sessionId: session.id },
+        select: {
+          solutionProtectionStatus: true,
+          solutionProtectionSource: true,
+        },
+      }),
+    ).resolves.toEqual({
+      solutionProtectionStatus: 'UNPROTECTED',
+      solutionProtectionSource: 'ACCEPTED_CONCEPT_ANALYSIS',
     })
 
     const ids = attempts.map(({ id }) => id)
@@ -1278,6 +1295,122 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     )
     await expect(guidanceLevelsForSession(prisma, session.id)).resolves.toEqual(
       [1, 1, 1, 2],
+    )
+    const protectedAttempts = await prisma.tutoringAttempt.findMany({
+      where: { sessionId: session.id },
+      orderBy: { createdAt: 'asc' },
+    })
+    expect(protectedAttempts).toHaveLength(4)
+    expect(
+      protectedAttempts.every(
+        (attempt) =>
+          attempt.effectiveSolutionProtection === true &&
+          attempt.solutionProtectionPolicyVersion === 'solution-protection.v1',
+      ),
+    ).toBe(true)
+  })
+
+  it('resets on an authoritative topic switch and restores persisted protection when the protected Topic resumes', async () => {
+    await createEvidenceMaterial({
+      title: 'Topic lifecycle source',
+      content:
+        'Accumulators retain a running value, while list iteration visits items in order.',
+    })
+    const session = await createSession()
+    const problemId = randomUUID()
+    const conceptId = randomUUID()
+    const analysisPlan = [
+      MessageRequestKind.PROBLEM_LIKE,
+      MessageRequestKind.CONCEPTUAL,
+      MessageRequestKind.ATTEMPT_DIAGNOSIS,
+    ] as const
+    let analysisIndex = 0
+    analysisModel.behavior = (modelRequest) => {
+      const requestKind = analysisPlan[analysisIndex]
+      analysisIndex += 1
+      return Promise.resolve(
+        functionalStoryAnalysisResponse(modelRequest, {
+          requestKind,
+          studentState:
+            requestKind === MessageRequestKind.ATTEMPT_DIAGNOSIS
+              ? StudentState.PARTIAL_UNDERSTANDING
+              : StudentState.UNKNOWN,
+          recommendedStrategy: TeachingStrategy.GUIDED_EXPLANATION,
+          recommendedTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+          meaningfulEffort:
+            requestKind === MessageRequestKind.ATTEMPT_DIAGNOSIS,
+        }),
+      )
+    }
+
+    for (const body of [
+      {
+        content: 'What should I inspect first in this assigned exercise?',
+        clientMessageId: randomUUID(),
+        problemId,
+        title: 'Assigned accumulator exercise',
+      },
+      {
+        content: 'What does an accumulator mean in general?',
+        clientMessageId: randomUUID(),
+        conceptId,
+        title: 'Accumulator concept',
+      },
+      {
+        content: 'How can I verify my earlier reasoning?',
+        clientMessageId: randomUUID(),
+        problemId,
+        title: 'Assigned accumulator exercise',
+      },
+    ]) {
+      await request(requireApp().getHttpServer())
+        .post(messagesPath(session.id))
+        .set('Authorization', `Bearer ${studentToken}`)
+        .send(body)
+        .expect(201)
+    }
+
+    const attempts = await prisma.tutoringAttempt.findMany({
+      where: { sessionId: session.id },
+      orderBy: { createdAt: 'asc' },
+    })
+    expect(
+      attempts.map((attempt) => ({
+        protected: attempt.effectiveSolutionProtection,
+        source: attempt.solutionProtectionSource,
+      })),
+    ).toEqual([
+      {
+        protected: true,
+        source: 'AUTHORITATIVE_TASK_METADATA',
+      },
+      {
+        protected: false,
+        source: 'ACCEPTED_CONCEPT_ANALYSIS',
+      },
+      {
+        protected: true,
+        source: 'AUTHORITATIVE_TASK_METADATA',
+      },
+    ])
+    const topics = await prisma.topic.findMany({
+      where: { sessionId: session.id },
+      orderBy: { createdAt: 'asc' },
+    })
+    expect(topics).toHaveLength(2)
+    expect(topics.find((topic) => topic.problemId === problemId)).toMatchObject(
+      {
+        status: 'ACTIVE',
+        solutionProtectionStatus: 'PROTECTED',
+        solutionProtectionSource: 'AUTHORITATIVE_TASK_METADATA',
+      },
+    )
+    expect(topics.find((topic) => topic.conceptId === conceptId)).toMatchObject(
+      {
+        status: 'PAUSED',
+        solutionProtectionStatus: 'UNPROTECTED',
+        solutionProtectionSource: 'ACCEPTED_CONCEPT_ANALYSIS',
+      },
     )
   })
 
@@ -1731,6 +1864,134 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     ).resolves.toBe(3)
   })
 
+  it('refuses protected submission-ready output and persists reconstructable hash-only audit metadata', async () => {
+    await createEvidenceMaterial({
+      title: 'Protected task source',
+      content: 'A running total can be updated once for each list item.',
+    })
+    const session = await createSession()
+    const problemId = randomUUID()
+    analysisModel.behavior = (modelRequest) =>
+      Promise.resolve(
+        functionalStoryAnalysisResponse(modelRequest, {
+          requestKind: MessageRequestKind.PROBLEM_LIKE,
+          studentState: StudentState.NO_PRIOR_KNOWLEDGE,
+          recommendedStrategy: TeachingStrategy.GUIDED_EXPLANATION,
+          recommendedTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+        }),
+      )
+    const protectedCandidate =
+      'Here is the complete final implementation:\n```python\ndef solve(values):\n    total = 0\n    for value in values:\n        total += value\n    return total\n```'
+    tutorModel.behavior = (modelRequest) =>
+      Promise.resolve(
+        storyCandidateResponse(modelRequest, {
+          message: protectedCandidate,
+          responseIntent: TeachingStrategy.GUIDED_EXPLANATION,
+          studentActionType: TeachingTechnique.ORIENTATION_QUESTION,
+        }),
+      )
+
+    const response = await request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${studentToken}`)
+      .send({
+        content: 'Help me take the first step on this assigned exercise.',
+        clientMessageId: randomUUID(),
+        problemId,
+        title: 'Assigned accumulation exercise',
+      })
+      .expect(201)
+    const turn = response.body as TutoringTurnResponseDto
+
+    expect(turn.assistantMessage).toMatchObject({
+      status: 'COMPLETED',
+      content: RESPONSE_GOVERNANCE_REFUSAL_CONTENT,
+      guidanceLabel: MessageGuidanceLabel.REFUSAL,
+    })
+    const attempt = await prisma.tutoringAttempt.findFirstOrThrow({
+      where: { sessionId: session.id },
+      include: { candidateAttempts: true, outputRiskEvents: true },
+    })
+    expect(attempt).toMatchObject({
+      effectiveSolutionProtection: true,
+      solutionProtectionSource: 'AUTHORITATIVE_TASK_METADATA',
+      solutionProtectionPolicyVersion: 'solution-protection.v1',
+    })
+    expect(attempt.candidateAttempts).toHaveLength(1)
+    expect(attempt.candidateAttempts[0]?.contentHash).toMatch(/^[a-f0-9]{64}$/u)
+    expect(attempt.outputRiskEvents).toEqual([
+      expect.objectContaining({
+        candidateAttempt: 1,
+        source: 'APPROVAL_CANDIDATE',
+        detectorVersion: 'automatic-safety-risk-v3',
+        risks: ['FINAL_ANSWER_DELIVERY'],
+        protectTargetSolution: true,
+        solutionProtectionSource: 'AUTHORITATIVE_TASK_METADATA',
+        solutionProtectionPolicyVersion: 'solution-protection.v1',
+      }),
+    ])
+    expect(JSON.stringify(attempt)).not.toContain(protectedCandidate)
+  })
+
+  it('does not turn an unprotected conceptual explanation into a final-answer refusal', async () => {
+    await createEvidenceMaterial({
+      title: 'Concept source',
+      content: 'A loop visits each item and can update an accumulator.',
+    })
+    const session = await createSession()
+    analysisModel.behavior = (modelRequest) =>
+      Promise.resolve(
+        functionalStoryAnalysisResponse(modelRequest, {
+          requestKind: MessageRequestKind.CONCEPTUAL,
+          studentState: StudentState.MISCONCEPTION,
+          recommendedStrategy: TeachingStrategy.MISCONCEPTION_REPAIR,
+          recommendedTechnique: TeachingTechnique.COUNTEREXAMPLE,
+        }),
+      )
+    tutorModel.behavior = (modelRequest) =>
+      Promise.resolve(
+        storyCandidateResponse(modelRequest, {
+          message:
+            'Here is the complete final implementation:\n```python\ndef solve(values):\n    return sum(values)\n```',
+          responseIntent: TeachingStrategy.MISCONCEPTION_REPAIR,
+          studentActionType: TeachingTechnique.COUNTEREXAMPLE,
+        }),
+      )
+
+    const response = await request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${studentToken}`)
+      .send({
+        content: 'I think an accumulator resets on every loop iteration.',
+        clientMessageId: randomUUID(),
+        conceptId: randomUUID(),
+        title: 'Loop accumulators',
+      })
+      .expect(201)
+    const turn = response.body as TutoringTurnResponseDto
+
+    expect(turn.assistantMessage).toMatchObject({
+      status: 'COMPLETED',
+    })
+    expect(turn.assistantMessage.guidanceLabel).not.toBe(
+      MessageGuidanceLabel.REFUSAL,
+    )
+    expect(turn.assistantMessage.content).not.toBe(
+      RESPONSE_GOVERNANCE_REFUSAL_CONTENT,
+    )
+    const attempt = await prisma.tutoringAttempt.findFirstOrThrow({
+      where: { sessionId: session.id },
+    })
+    expect(attempt).toMatchObject({
+      effectiveSolutionProtection: false,
+      solutionProtectionSource: 'ACCEPTED_CONCEPT_ANALYSIS',
+      safeFallbackUsed: true,
+    })
+    await expect(
+      prisma.outputRiskEvent.count({ where: { attemptId: attempt.id } }),
+    ).resolves.toBe(0)
+  })
+
   it('progresses guidance 1→2→3 and de-escalates to 2 from observed learning', async () => {
     await createEvidenceMaterial({
       title: 'Guidance progression source',
@@ -2064,6 +2325,16 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       .expect(201)
     const firstTurn = first.body as TutoringTurnResponseDto
     expect(firstTurn.assistantMessage.status).toBe('COMPLETED')
+    const originalDecision = await prisma.tutoringAttempt.findFirstOrThrow({
+      where: { sessionId: session.id },
+      select: {
+        explicitProtectedSolutionSignal: true,
+        effectiveSolutionProtection: true,
+        solutionProtectionSource: true,
+        solutionProtectionPolicyVersion: true,
+        solutionProtectionResolvedAt: true,
+      },
+    })
 
     const second = await request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
@@ -2082,6 +2353,18 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     await expect(
       prisma.tutoringAttempt.count({ where: { sessionId: session.id } }),
     ).resolves.toBe(1)
+    await expect(
+      prisma.tutoringAttempt.findFirstOrThrow({
+        where: { sessionId: session.id },
+        select: {
+          explicitProtectedSolutionSignal: true,
+          effectiveSolutionProtection: true,
+          solutionProtectionSource: true,
+          solutionProtectionPolicyVersion: true,
+          solutionProtectionResolvedAt: true,
+        },
+      }),
+    ).resolves.toEqual(originalDecision)
 
     const mismatched = await request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
@@ -2154,6 +2437,23 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     expect(retriedTurn.assistantMessage.status).toBe('COMPLETED')
     expect(retriedTurn.assistantMessage.guidanceLabel).toBe('COURSE_GROUNDED')
     expect(embedQuery.mock.calls.at(-1)?.[0]).toBe(failedAttemptQuery)
+
+    const retryAttempts = await prisma.tutoringAttempt.findMany({
+      where: { sessionId: session.id },
+      orderBy: { createdAt: 'asc' },
+    })
+    expect(retryAttempts).toHaveLength(2)
+    expect(retryAttempts[1]).toMatchObject({
+      retryOfAttemptId: retryAttempts[0].id,
+      explicitProtectedSolutionSignal:
+        retryAttempts[0].explicitProtectedSolutionSignal,
+      effectiveSolutionProtection: retryAttempts[0].effectiveSolutionProtection,
+      solutionProtectionSource: retryAttempts[0].solutionProtectionSource,
+      solutionProtectionPolicyVersion:
+        retryAttempts[0].solutionProtectionPolicyVersion,
+      solutionProtectionResolvedAt:
+        retryAttempts[0].solutionProtectionResolvedAt,
+    })
 
     await expect(
       prisma.message.count({ where: { sessionId: session.id } }),

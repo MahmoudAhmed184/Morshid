@@ -184,6 +184,7 @@ describe('Gemini Socratic runtime HTTP live verification', () => {
     await prisma.teachingDecision.deleteMany()
     await prisma.educationalAnalysis.deleteMany()
     await prisma.guardResult.deleteMany()
+    await prisma.outputRiskEvent.deleteMany()
     await prisma.tutoringCandidateAttempt.deleteMany()
     await prisma.tutoringAttempt.deleteMany()
     await prisma.topicState.deleteMany()
@@ -640,6 +641,12 @@ const overRevealEducationalContext: TutorGuardEducationalContext =
     }),
     topicState: null,
     previousTeachingDecision: null,
+    outputProtection: Object.freeze({
+      protectTargetSolution: false,
+      topicId: 'live-over-reveal-topic',
+      source: 'ACCEPTED_CONCEPT_ANALYSIS' as const,
+      policyVersion: 'solution-protection.v1',
+    }),
     currentTeachingDecision: Object.freeze({
       id: 'live-over-reveal-decision',
       policyVersion: 'socratic-policy.mvp.v3',
