@@ -325,8 +325,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
       turn.studentMessage.content,
     )
     if (
-      inputRisk !== null &&
-      inputRisk.risks.some((risk) => risk !== 'FINAL_ANSWER_DELIVERY')
+      inputRisk?.risks.some((risk) => risk !== 'FINAL_ANSWER_DELIVERY') === true
     ) {
       return this.persistSafetyRefusal(
         turn,

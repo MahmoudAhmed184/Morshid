@@ -1,9 +1,7 @@
 import { createHash } from 'node:crypto'
 
-import {
-  OutputRiskAuditSource,
-  TutoringCandidateGenerationOutcome,
-} from '../../tutoring-values'
+import { TutoringCandidateGenerationOutcome } from '../../tutoring-values'
+import type { OutputRiskAuditSource } from '../../tutoring-values'
 import { SOCRATIC_DISCLOSURE_POLICY_VERSION } from '../teaching-decision/socratic-disclosure-policy'
 import type { PersistedTeachingDecisionRecord } from '../teaching-decision/teaching-decision.repository'
 import type { CandidateResponse } from '../generation/tutor-generation.types'

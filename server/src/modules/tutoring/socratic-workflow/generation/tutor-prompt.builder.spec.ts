@@ -159,8 +159,8 @@ describe('tutor prompt builder', () => {
       studentState: StudentState.PARTIAL_UNDERSTANDING,
       guidanceLevel: 4,
       expected: [
-        '"analogousWorkedExampleOrBoundedStrongGuidance":true',
-        '"protectExactOriginalSolution":true',
+        '"analogousWorkedExampleOrBoundedStrongGuidance":false',
+        '"protectExactOriginalSolution":false',
         '"mode":"STRONG_GUIDANCE"',
         '"minimumConnectedScaffoldMoves":3',
         '"analogousExampleOrNearCompleteScaffoldRequired":true',

@@ -125,8 +125,7 @@ function outputProtectionContextsMatch(
   return (
     left.protectTargetSolution === right.protectTargetSolution &&
     left.topicId === right.topicId &&
-    left.source === right.source &&
-    left.policyVersion === right.policyVersion
+    left.source === right.source
   )
 }
 

@@ -1200,7 +1200,7 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
           candidateAttempt: event.candidateAttempt,
           source: event.source,
           detectorVersion: event.detectorVersion,
-          risks: event.risks as unknown as Prisma.InputJsonValue,
+          risks: event.risks,
           protectTargetSolution: event.outputProtection.protectTargetSolution,
           solutionProtectionSource: event.outputProtection.source,
           solutionProtectionPolicyVersion: event.outputProtection.policyVersion,
