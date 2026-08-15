@@ -60,6 +60,9 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.61.1",
+    "@swc/cli": "^0.8.1",
+    "@swc/core": "^1.16.0",
+    "@swc/helpers": "^0.5.23",
     "@types/node": "^24.13.2",
     "concurrently": "^10.0.3",
     "dependency-cruiser": "^18.2.0",
