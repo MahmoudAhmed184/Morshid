@@ -56,7 +56,7 @@ graph TD
         StorageModule["platform/document-storage/PdfStorageModule"]
     end
 
-    subgraph ProductCapabilities["Business Capability Modules"]
+    subgraph ProductCapabilities["Business capability modules"]
         Identity["modules/identity/IdentityModule"]
         Courses["modules/courses/CoursesModule"]
         Materials["modules/materials/MaterialsModule"]
@@ -143,16 +143,16 @@ flowchart TD
 ### Request execution order
 1. **Express and CORS**: Validates request headers and origins against `CLIENT_ORIGIN`.
 2. **`IdentityGuard` (`APP_GUARD`)**:
-   - If route is marked `@Public()`, allows passage.
-   - Extracts Bearer token from `Authorization` header.
-   - Decodes JWT, validates signature, checks expiration, and verifies `payload.pwd === user.passwordChangedAt`.
+   - If the route is marked `@Public()`, allows passage.
+   - Extracts the Bearer token from the `Authorization` header.
+   - Decodes the JWT, validates its signature, checks expiration, and verifies `payload.pwd === user.passwordChangedAt`.
    - Rejects disabled accounts with HTTP 403.
    - Attaches `request.user` (`AuthenticatedUser`).
 3. **`RolesGuard` (`APP_GUARD`)**:
    - Checks `@Roles(...allowedRoles)`.
-   - If user lacks required role, records `ACCESS_RBAC_DENIED` in audit log and throws 403 `insufficientRoleException()`.
+   - If the user lacks the required role, records `ACCESS_RBAC_DENIED` in the audit log and throws 403 `insufficientRoleException()`.
 4. **Validation pipes**:
-   - `ZodValidationPipe` parses and transforms body/query/params using domain Zod schemas.
+   - `ZodValidationPipe` parses and transforms the request body, query parameters, and route parameters using domain Zod schemas.
    - Throws 400 Bad Request with structured field-level error messages if validation fails.
 5. **Controllers and services**:
    - Runs business logic. If multi-entity writes occur, opens an opaque `DatabaseTransaction`.
