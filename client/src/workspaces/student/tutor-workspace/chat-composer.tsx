@@ -4,6 +4,8 @@ import type { FormEvent, KeyboardEvent } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { useAuthStore } from '@/features/auth/session/interface/session-store'
+import { useComposerDraft } from '@/features/chat/drafts/use-composer-draft'
 import {
   isChatApiError,
   CHAT_ERROR_CODES,
@@ -19,6 +21,7 @@ export interface StudentChatComposerActions {
   prefill: (text: string) => void
   submitWith: (text: string, clientMessageId: string) => void
   focus: () => void
+  discardDraft?: () => void
 }
 
 interface StudentChatComposerProps {
@@ -27,6 +30,11 @@ interface StudentChatComposerProps {
   onDismissError: () => void
   onSend: (content: string, clientMessageId: string) => Promise<boolean>
   onActionsReady: (actions: StudentChatComposerActions | null) => void
+  userId?: string
+  courseId?: string
+  sessionId?: string
+  debounceMs?: number
+  storage?: Storage
 }
 
 export function StudentChatComposer({
@@ -35,13 +43,32 @@ export function StudentChatComposer({
   onDismissError,
   onSend,
   onActionsReady,
+  userId,
+  courseId,
+  sessionId = 'new',
+  debounceMs,
+  storage,
 }: StudentChatComposerProps) {
   const [draft, setDraft] = useState('')
+  const currentStudentId = useAuthStore((state) => state.user?.id)
+  const effectiveUserId = userId ?? currentStudentId
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
   const clientMessageIdRef = useRef<string | null>(null)
   const autoSubmitRef = useRef(false)
   const wasGeneratingRef = useRef(isGenerating)
+
+  const { isRestored, storageError, discardDraft, clearSavedDraft } =
+    useComposerDraft({
+      userId: effectiveUserId,
+      courseId,
+      sessionId,
+      draft,
+      setDraft,
+      debounceMs,
+      storage,
+    })
+
   const canSend =
     !isGenerating && chatMessageContentSchema.safeParse(draft).success
 
@@ -66,12 +93,15 @@ export function StudentChatComposer({
       focus: () => {
         textareaRef.current?.focus()
       },
+      discardDraft: () => {
+        discardDraft()
+      },
     })
 
     return () => {
       onActionsReady(null)
     }
-  }, [onActionsReady])
+  }, [onActionsReady, discardDraft])
 
   useEffect(() => {
     const generationFinished = wasGeneratingRef.current && !isGenerating
@@ -110,6 +140,7 @@ export function StudentChatComposer({
       parsed.data.clientMessageId,
     )
     if (wasSent) {
+      clearSavedDraft()
       clientMessageIdRef.current = null
       setDraft('')
     }
@@ -137,6 +168,37 @@ export function StudentChatComposer({
       className="shrink-0"
       onSubmit={(event) => void handleSubmit(event)}
     >
+      {isRestored && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="mx-auto mb-2 flex max-w-3xl items-center justify-between gap-2 rounded-xl border border-border bg-secondary/60 px-3.5 py-1.5 text-xs text-muted-foreground"
+        >
+          <span>Draft restored from this device.</span>
+          <button
+            type="button"
+            onClick={discardDraft}
+            className="font-medium text-foreground underline underline-offset-2 hover:text-foreground/80 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded px-1"
+            aria-label="Discard restored draft"
+          >
+            Discard draft
+          </button>
+        </div>
+      )}
+
+      {storageError && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="mx-auto mb-2 flex max-w-3xl items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-3.5 py-1.5 text-xs text-destructive"
+        >
+          <span>
+            Draft could not be saved to this device (storage unavailable or
+            full).
+          </span>
+        </div>
+      )}
+
       <div className="glass-paper mx-auto max-w-3xl rounded-t-2xl border-border-strong shadow-md focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/40">
         <Textarea
           ref={textareaRef}
