@@ -20,6 +20,6 @@ export const Route = createFileRoute('/login')({
   pendingMs: 0,
   pendingMinMs: 400,
   head: () => ({
-    meta: [{ title: 'Sign in — Morshid' }],
+    meta: [{ title: 'Sign in to Morshid' }],
   }),
 })
