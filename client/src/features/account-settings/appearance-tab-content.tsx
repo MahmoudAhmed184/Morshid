@@ -1,8 +1,25 @@
-import { Check, Monitor, Moon, Palette, Sun } from 'lucide-react'
+import {
+  Check,
+  LayoutGrid,
+  Monitor,
+  Moon,
+  Palette,
+  RotateCcw,
+  Sun,
+  Type,
+  Zap,
+} from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
 import { useTheme } from '@/components/theme/theme-provider'
-import type { ThemeMode, ThemePalette } from '@/components/theme/theme-provider'
+import type {
+  Density,
+  MotionPreference,
+  TextScale,
+  ThemeMode,
+  ThemePalette,
+} from '@/components/theme/theme-provider'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
@@ -14,6 +31,72 @@ const modeOptions: readonly {
   { value: 'light', label: 'Light', icon: Sun },
   { value: 'dark', label: 'Dark', icon: Moon },
   { value: 'system', label: 'System', icon: Monitor },
+]
+
+const textScaleOptions: readonly {
+  value: TextScale
+  label: string
+  sublabel: string
+  ariaLabel: string
+}[] = [
+  {
+    value: '90%',
+    label: '90%',
+    sublabel: 'Compact',
+    ariaLabel: '90% text scale',
+  },
+  {
+    value: '100%',
+    label: '100%',
+    sublabel: 'Default',
+    ariaLabel: '100% text scale',
+  },
+  {
+    value: '112%',
+    label: '112%',
+    sublabel: 'Large',
+    ariaLabel: '112% text scale',
+  },
+]
+
+const densityOptions: readonly {
+  value: Density
+  label: string
+  sublabel: string
+  ariaLabel: string
+}[] = [
+  {
+    value: 'comfortable',
+    label: 'Comfortable',
+    sublabel: 'Spacious',
+    ariaLabel: 'Comfortable density',
+  },
+  {
+    value: 'compact',
+    label: 'Compact',
+    sublabel: 'Tighter',
+    ariaLabel: 'Compact density',
+  },
+]
+
+const motionOptions: readonly {
+  value: MotionPreference
+  label: string
+  sublabel: string
+  ariaLabel: string
+}[] = [
+  {
+    value: 'system',
+    label: 'Follow system',
+    sublabel: 'OS setting',
+    ariaLabel: 'Follow system motion',
+  },
+  {
+    value: 'reduce',
+    label: 'Reduce motion',
+    sublabel: 'Minimal',
+    ariaLabel: 'Reduce motion',
+  },
 ]
 
 const paletteOptions: readonly {
@@ -64,27 +147,55 @@ function getTransitionOrigin(element: HTMLElement) {
 }
 
 export function AppearanceTabContent() {
-  const { theme, palette, setTheme, setPalette } = useTheme()
+  const {
+    theme,
+    palette,
+    textScale,
+    density,
+    motion,
+    setTheme,
+    setPalette,
+    setTextScale,
+    setDensity,
+    setMotion,
+    resetAppearance,
+  } = useTheme()
 
   return (
     <Card className="-mx-4 rounded-none border-x-0 py-0 sm:mx-0 sm:rounded-xl sm:border-x">
       <CardContent className="px-5 py-5 sm:px-6 sm:py-6">
-        <div>
-          <h2 className="flex items-center gap-2 text-base font-medium text-foreground">
-            <Palette className="size-4 text-muted-foreground" aria-hidden />
-            Appearance
-          </h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Customize how Morshid looks on this device.
-          </p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="flex items-center gap-2 text-base font-medium text-foreground">
+              <Palette className="size-4 text-muted-foreground" aria-hidden />
+              Appearance & accessibility
+            </h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Customize how Morshid looks, scales, and animates on this device.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={resetAppearance}
+            className="self-start gap-1.5"
+            aria-label="Reset to defaults"
+          >
+            <RotateCcw className="size-3.5" aria-hidden />
+            Reset to defaults
+          </Button>
         </div>
 
+        {/* Display Mode */}
         <div
           data-slot="appearance-mode-row"
           className="mt-5 grid gap-4 border-b border-border/70 pb-5 xl:grid-cols-[12rem_1fr] xl:items-center"
         >
           <div>
-            <h3 className="text-sm font-medium text-foreground">Mode</h3>
+            <h3 className="text-sm font-medium text-foreground">
+              Display mode
+            </h3>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
               Choose your preferred display mode.
             </p>
@@ -112,33 +223,35 @@ export function AppearanceTabContent() {
                     index === 0 && 'rounded-l-lg',
                   )}
                 >
-                  <Icon className="size-4" aria-hidden />
-                  {option.label}
+                  <Icon className="size-4 shrink-0" aria-hidden />
+                  <span>{option.label}</span>
                 </button>
               )
             })}
           </div>
         </div>
 
+        {/* Color Palettes */}
         <div
           data-slot="appearance-palette-row"
-          className="mt-5 grid gap-4 xl:grid-cols-[12rem_1fr]"
+          className="mt-5 grid gap-4 border-b border-border/70 pb-5 xl:grid-cols-[12rem_1fr] xl:items-start"
         >
-          <div>
+          <div className="xl:pt-1">
             <h3 className="text-sm font-medium text-foreground">Color theme</h3>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              Pick the theme that inspires you.
+              Select an accent palette.
             </p>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
             {paletteOptions.map((option) => {
               const isActive = palette === option.value
-              const [canvas, surface, accent, tint] = option.colors
+              const [canvas, surface, primaryColor, accentColor] = option.colors
 
               return (
                 <button
                   key={option.value}
                   type="button"
+                  aria-label={option.label}
                   aria-pressed={isActive}
                   onClick={(event) =>
                     setPalette(
@@ -147,38 +260,181 @@ export function AppearanceTabContent() {
                     )
                   }
                   className={cn(
-                    'group cursor-pointer overflow-hidden rounded-xl border bg-background text-left shadow-xs transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
-                    isActive
-                      ? 'border-primary ring-1 ring-primary'
-                      : 'border-border',
+                    'group/palette flex cursor-pointer flex-col gap-2.5 rounded-lg border border-border bg-background p-3 text-left transition-all hover:border-foreground/30 hover:shadow-xs focus-visible:outline-2 focus-visible:outline-ring',
+                    isActive &&
+                      'border-primary ring-2 ring-primary/20 bg-accent/30 shadow-xs',
                   )}
                 >
-                  <ThemePreview
-                    canvas={canvas}
-                    surface={surface}
-                    accent={accent}
-                    tint={tint}
-                  />
-                  <span
+                  <div
                     className={cn(
-                      'flex items-center gap-2 border-t border-border/70 px-3 py-2 text-sm font-medium',
-                      option.darkPreview
-                        ? 'bg-[#f8fafc] text-[#253047]'
-                        : 'bg-background text-foreground',
+                      'relative flex h-14 w-full overflow-hidden rounded-md border border-black/10 p-2 shadow-inner transition-transform group-hover/palette:scale-[1.02]',
+                      option.darkPreview && 'border-white/10',
                     )}
+                    style={{ backgroundColor: canvas }}
                   >
-                    <span
-                      className={cn(
-                        'flex size-4 items-center justify-center rounded-full border',
-                        isActive
-                          ? 'border-primary bg-primary text-primary-foreground'
-                          : 'border-border bg-background',
-                      )}
-                      aria-hidden
+                    <div
+                      className="flex flex-1 flex-col justify-between rounded-sm p-1.5 shadow-xs"
+                      style={{ backgroundColor: surface }}
                     >
-                      {isActive ? <Check className="size-3" /> : null}
+                      <div className="flex items-center gap-1">
+                        <div
+                          className="size-2 rounded-full"
+                          style={{ backgroundColor: primaryColor }}
+                        />
+                        <div
+                          className="h-1.5 w-8 rounded-full"
+                          style={{ backgroundColor: accentColor }}
+                        />
+                      </div>
+                      <div
+                        className="h-1.5 w-12 rounded-full opacity-60"
+                        style={{ backgroundColor: primaryColor }}
+                      />
+                    </div>
+                    {isActive && (
+                      <span className="absolute top-1.5 right-1.5 flex size-4 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xs">
+                        <Check className="size-2.5 stroke-[3]" aria-hidden />
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-foreground">
+                      {option.label}
                     </span>
-                    {option.label}
+                    {isActive && (
+                      <span className="text-[0.6875rem] font-medium text-primary">
+                        Active
+                      </span>
+                    )}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Text Scale */}
+        <div
+          data-slot="appearance-text-scale-row"
+          className="mt-5 grid gap-4 border-b border-border/70 pb-5 xl:grid-cols-[12rem_1fr] xl:items-center"
+        >
+          <div>
+            <h3 className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+              <Type className="size-4 text-muted-foreground" aria-hidden />
+              Text scale
+            </h3>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              Scale text size across all views.
+            </p>
+          </div>
+          <div className="grid w-full grid-cols-3 sm:max-w-md">
+            {textScaleOptions.map((option, index) => {
+              const isActive = textScale === option.value
+
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  aria-label={option.ariaLabel}
+                  aria-pressed={isActive}
+                  onClick={() => setTextScale(option.value)}
+                  className={cn(
+                    'flex h-11 cursor-pointer flex-col items-center justify-center border border-border bg-background px-3 text-sm font-medium text-muted-foreground transition-colors first:rounded-l-lg last:rounded-r-lg not-first:-ml-px hover:z-10 hover:text-foreground focus-visible:z-20 focus-visible:outline-2 focus-visible:outline-ring',
+                    isActive &&
+                      'z-10 border-primary bg-accent text-accent-foreground shadow-xs',
+                    index === 0 && 'rounded-l-lg',
+                  )}
+                >
+                  <span>{option.label}</span>
+                  <span className="text-[0.6875rem] font-normal text-muted-foreground">
+                    {option.sublabel}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Density */}
+        <div
+          data-slot="appearance-density-row"
+          className="mt-5 grid gap-4 border-b border-border/70 pb-5 xl:grid-cols-[12rem_1fr] xl:items-center"
+        >
+          <div>
+            <h3 className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+              <LayoutGrid
+                className="size-4 text-muted-foreground"
+                aria-hidden
+              />
+              Density
+            </h3>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              Adjust spacing and layout compactness.
+            </p>
+          </div>
+          <div className="grid w-full grid-cols-2 sm:max-w-md">
+            {densityOptions.map((option, index) => {
+              const isActive = density === option.value
+
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  aria-label={option.ariaLabel}
+                  aria-pressed={isActive}
+                  onClick={() => setDensity(option.value)}
+                  className={cn(
+                    'flex h-11 cursor-pointer flex-col items-center justify-center border border-border bg-background px-3 text-sm font-medium text-muted-foreground transition-colors first:rounded-l-lg last:rounded-r-lg not-first:-ml-px hover:z-10 hover:text-foreground focus-visible:z-20 focus-visible:outline-2 focus-visible:outline-ring',
+                    isActive &&
+                      'z-10 border-primary bg-accent text-accent-foreground shadow-xs',
+                    index === 0 && 'rounded-l-lg',
+                  )}
+                >
+                  <span>{option.label}</span>
+                  <span className="text-[0.6875rem] font-normal text-muted-foreground">
+                    {option.sublabel}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Motion */}
+        <div
+          data-slot="appearance-motion-row"
+          className="mt-5 grid gap-4 xl:grid-cols-[12rem_1fr] xl:items-center"
+        >
+          <div>
+            <h3 className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+              <Zap className="size-4 text-muted-foreground" aria-hidden />
+              Motion
+            </h3>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              Control transitions and animated reveals.
+            </p>
+          </div>
+          <div className="grid w-full grid-cols-2 sm:max-w-md">
+            {motionOptions.map((option, index) => {
+              const isActive = motion === option.value
+
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  aria-label={option.ariaLabel}
+                  aria-pressed={isActive}
+                  onClick={() => setMotion(option.value)}
+                  className={cn(
+                    'flex h-11 cursor-pointer flex-col items-center justify-center border border-border bg-background px-3 text-sm font-medium text-muted-foreground transition-colors first:rounded-l-lg last:rounded-r-lg not-first:-ml-px hover:z-10 hover:text-foreground focus-visible:z-20 focus-visible:outline-2 focus-visible:outline-ring',
+                    isActive &&
+                      'z-10 border-primary bg-accent text-accent-foreground shadow-xs',
+                    index === 0 && 'rounded-l-lg',
+                  )}
+                >
+                  <span>{option.label}</span>
+                  <span className="text-[0.6875rem] font-normal text-muted-foreground">
+                    {option.sublabel}
                   </span>
                 </button>
               )
@@ -187,56 +443,5 @@ export function AppearanceTabContent() {
         </div>
       </CardContent>
     </Card>
-  )
-}
-
-function ThemePreview({
-  canvas,
-  surface,
-  accent,
-  tint,
-}: {
-  canvas: string
-  surface: string
-  accent: string
-  tint: string
-}) {
-  return (
-    <span
-      className="flex h-20 gap-2 p-2"
-      style={{ backgroundColor: canvas }}
-      aria-hidden
-    >
-      <span
-        className="flex w-1/4 flex-col gap-1 rounded-md p-1.5"
-        style={{ backgroundColor: tint }}
-      >
-        <span
-          className="h-1.5 w-3/4 rounded-full"
-          style={{ backgroundColor: accent }}
-        />
-        <span className="h-1.5 w-full rounded-full bg-white/60" />
-        <span className="h-1.5 w-2/3 rounded-full bg-white/60" />
-      </span>
-      <span
-        className="flex flex-1 flex-col justify-between rounded-md p-2 shadow-xs"
-        style={{ backgroundColor: surface }}
-      >
-        <span
-          className="h-2 w-full rounded-full"
-          style={{ backgroundColor: tint }}
-        />
-        <span className="flex gap-1.5">
-          <span
-            className="h-2 w-2/5 rounded-full"
-            style={{ backgroundColor: accent }}
-          />
-          <span
-            className="h-2 w-1/4 rounded-full"
-            style={{ backgroundColor: tint }}
-          />
-        </span>
-      </span>
-    </span>
   )
 }
