@@ -1,14 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-import { SettingsPlaceholderTab } from '@/workspaces/_shared/settings-shell'
+import { InstructorWorkspaceSettingsPage } from '@/workspaces/instructor/settings/instructor-workspace-settings-page'
 
 export const Route = createFileRoute('/instructor/settings/workspace')({
-  component: () => (
-    <SettingsPlaceholderTab
-      title="Workspace"
-      description="Manage course defaults and review queue filters."
-    />
-  ),
+  component: InstructorWorkspaceSettingsPage,
   head: () => ({
     meta: [{ title: 'Workspace Settings — Morshid' }],
   }),
