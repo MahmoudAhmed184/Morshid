@@ -7,9 +7,7 @@ type AuthLayoutProps = {
 
 export function AuthLayout({ children, className }: AuthLayoutProps) {
   return (
-    <div
-      className="relative flex min-h-svh w-full items-center justify-center overflow-x-hidden overflow-y-auto bg-[#f8f9fa] dark:bg-[#070c14] px-3 py-4 sm:px-6 sm:py-8 lg:px-8 lg:py-10 text-slate-900 dark:text-slate-100"
-    >
+    <div className="relative flex min-h-svh w-full items-center justify-center overflow-y-auto md:overflow-hidden bg-[#f8f9fa] dark:bg-[#070c14] px-4 py-4 sm:px-6 md:py-5 lg:px-8 text-slate-900 dark:text-slate-100">
       {/* Background artwork: swirling manuscripts vortex */}
       <div
         className="fixed inset-0 z-0 bg-cover bg-center bg-no-repeat opacity-100 pointer-events-none dark:hidden"
@@ -24,7 +22,7 @@ export function AuthLayout({ children, className }: AuthLayoutProps) {
 
       {/* Centered card */}
       <div
-        className={cn('relative z-10 w-full max-w-[540px] my-auto', className)}
+        className={cn('relative z-10 w-full max-w-[480px] my-auto', className)}
       >
         {children}
       </div>
