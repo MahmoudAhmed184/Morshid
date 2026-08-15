@@ -10,6 +10,7 @@ import type {
   MeResponse,
   RefreshRequest,
   SignInRequest,
+  UpdateOwnProfileRequest,
 } from './identity.types'
 import {
   accountDisabledException,
@@ -132,6 +133,42 @@ export class IdentityService {
 
     return {
       user: this.identityUser.buildIdentityUserSummary(user),
+    }
+  }
+
+  async updateOwnProfile(
+    userId: string,
+    input: UpdateOwnProfileRequest,
+    requestContext: IdentityRequestContext,
+  ): Promise<MeResponse> {
+    const user = await this.identityUser.findById(userId)
+
+    if (!user) {
+      throw invalidAccessTokenException()
+    }
+
+    if (this.identityUser.isDisabled(user)) {
+      await this.identityAudit.recordDisabledAccountBlock(user, requestContext)
+      throw accountDisabledException()
+    }
+
+    const trimmedDisplayName = input.displayName.trim()
+    const oldDisplayName = user.displayName
+
+    const updatedUser = await this.identityUser.updateDisplayName(
+      userId,
+      trimmedDisplayName,
+    )
+
+    await this.identityAudit.recordProfileUpdated(
+      updatedUser,
+      oldDisplayName,
+      trimmedDisplayName,
+      requestContext,
+    )
+
+    return {
+      user: this.identityUser.buildIdentityUserSummary(updatedUser),
     }
   }
 

@@ -78,6 +78,22 @@ export class IdentityUser {
     })
   }
 
+  async updateDisplayName(
+    userId: string,
+    displayName: string,
+  ): Promise<IdentityUserRecord> {
+    const user = await this.prismaService.user.update({
+      where: {
+        id: userId,
+      },
+      data: {
+        displayName,
+      },
+      select: identityUserSelect,
+    })
+    return toIdentityUserRecord(user)
+  }
+
   pickAuthenticatedUser(user: IdentityUserRecord): AuthenticatedUser {
     return {
       id: user.id,

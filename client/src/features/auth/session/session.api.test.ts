@@ -7,6 +7,7 @@ import {
   getCurrentUser,
   loginApi,
   logoutApi,
+  updateOwnProfile,
 } from './session.api'
 
 const mockSession = {
@@ -221,5 +222,33 @@ describe('logoutApi', () => {
     await expect(logoutApi(fetchMock)).rejects.toMatchObject({
       status: 500,
     })
+  })
+})
+
+describe('updateOwnProfile', () => {
+  it('sends PATCH /me/profile with the updated display name and returns user', async () => {
+    const updatedUser = {
+      ...mockSession.user,
+      displayName: 'Updated Name',
+    }
+
+    const fetchMock = async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe('http://localhost:4000/api/v1/me/profile')
+      expect(init?.method).toBe('PATCH')
+      expect(JSON.parse(String(init?.body))).toEqual({
+        displayName: 'Updated Name',
+      })
+
+      return Response.json({
+        user: updatedUser,
+      })
+    }
+
+    await expect(
+      updateOwnProfile(
+        { displayName: 'Updated Name' },
+        { fetchImpl: fetchMock },
+      ),
+    ).resolves.toEqual(updatedUser)
   })
 })

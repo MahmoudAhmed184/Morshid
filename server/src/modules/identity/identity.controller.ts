@@ -1,4 +1,13 @@
-import { Body, Controller, Get, HttpCode, Post, Req, Res } from '@nestjs/common'
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Patch,
+  Post,
+  Req,
+  Res,
+} from '@nestjs/common'
 import {
   ApiBadRequestResponse,
   ApiBody,
@@ -18,10 +27,13 @@ import { getRequestContext } from '../../common/http/request-context'
 import { ZodValidationPipe } from '../../common/http/zod-validation.pipe'
 import {
   signInRequestSchema,
+  updateOwnProfileRequestSchema,
   IdentitySessionResponseDto,
   MeResponseDto,
   SignInRequestDto,
+  UpdateOwnProfileRequestDto,
   type SignInRequest,
+  type UpdateOwnProfileRequest,
 } from './identity.types'
 import type { AuthenticatedHttpRequest } from './identity.guard'
 import { IdentityService } from './identity.service'
@@ -188,5 +200,42 @@ export class IdentityController {
   })
   me(@Req() request: AuthenticatedHttpRequest) {
     return this.identityService.getMe(request.user.id)
+  }
+
+  @Patch('me/profile')
+  @ApiOperation({ summary: 'Update current user profile' })
+  @ApiAccessTokenAuth()
+  @ApiBody({ type: UpdateOwnProfileRequestDto })
+  @ApiOkResponse({
+    type: MeResponseDto,
+    description: 'The updated authenticated user.',
+  })
+  @ApiBadRequestResponse({
+    type: OpenApiErrorDto,
+    description: 'The profile update body is invalid.',
+  })
+  @ApiUnauthorizedResponse({
+    type: OpenApiErrorDto,
+    description: 'The access token is missing or invalid.',
+  })
+  @ApiForbiddenResponse({
+    type: OpenApiErrorDto,
+    description: 'The account is disabled.',
+  })
+  updateProfile(
+    @Body(
+      new ZodValidationPipe(
+        updateOwnProfileRequestSchema,
+        invalidAuthRequestException,
+      ),
+    )
+    body: UpdateOwnProfileRequest,
+    @Req() request: AuthenticatedHttpRequest,
+  ) {
+    return this.identityService.updateOwnProfile(
+      request.user.id,
+      body,
+      getRequestContext(request),
+    )
   }
 }

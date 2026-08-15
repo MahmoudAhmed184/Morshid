@@ -96,6 +96,27 @@ export class IdentityAudit {
       requestContext,
     })
   }
+
+  async recordProfileUpdated(
+    user: Pick<IdentityAuditUser, 'id'>,
+    oldDisplayName: string,
+    newDisplayName: string,
+    requestContext: IdentityRequestContext,
+  ): Promise<void> {
+    await this.auditService.recordEvent({
+      actorUserId: user.id,
+      action: AUDIT_EVENT_ACTIONS.AUTH_PROFILE_UPDATED,
+      target: {
+        type: AUDIT_TARGET_TYPES.USER,
+        id: user.id,
+      },
+      metadata: {
+        oldDisplayName,
+        newDisplayName,
+      },
+      requestContext,
+    })
+  }
 }
 
 interface IdentityAuditUser {

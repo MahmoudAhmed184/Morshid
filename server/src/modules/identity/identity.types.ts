@@ -129,3 +129,26 @@ export const signInRequestSchema = z
     password: z.string().min(1),
   })
   .strict()
+
+export class UpdateOwnProfileRequestDto {
+  @ApiProperty({
+    description: 'Updated display name for the authenticated user.',
+    minLength: 2,
+    maxLength: 120,
+    example: 'Amina Al-Mansoor',
+  })
+  displayName!: string
+}
+
+export type UpdateOwnProfileRequest = UpdateOwnProfileRequestDto
+export type AccountProfile = IdentityUserSummaryDto
+export type AccountProfileResponse = MeResponseDto
+
+export const updateOwnProfileRequestSchema = z
+  .object({
+    displayName: z.preprocess(
+      (value) => (typeof value === 'string' ? value.trim() : value),
+      z.string().min(2).max(120),
+    ),
+  })
+  .strict()
