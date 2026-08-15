@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 import { restoreAuthSession } from '@/features/auth/session/interface/authenticated-api-client'
 import { useAuthStore } from '@/features/auth/session/interface/session-store'
@@ -15,6 +15,7 @@ function isPublicPath(pathname: string) {
 
 export function AuthRefreshSync() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
+  const wasAuthenticatedRef = useRef(isAuthenticated)
 
   useEffect(() => {
     void restoreAuthSession().catch(() => {
@@ -27,9 +28,15 @@ export function AuthRefreshSync() {
       return
     }
 
-    if (!isAuthenticated && !isPublicPath(window.location.pathname)) {
+    if (
+      wasAuthenticatedRef.current &&
+      !isAuthenticated &&
+      !isPublicPath(window.location.pathname)
+    ) {
       replaceDocument('/login')
     }
+
+    wasAuthenticatedRef.current = isAuthenticated
   }, [isAuthenticated])
 
   return null
