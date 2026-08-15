@@ -34,6 +34,17 @@ describe('validateEnv', () => {
     })
   })
 
+  it('accepts the Semantic Guard completion-token budget', () => {
+    expect(
+      validateEnv({
+        ...validEnv,
+        SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: '2048',
+      }),
+    ).toMatchObject({
+      SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: 2048,
+    })
+  })
+
   it('rejects placeholder or reused auth secrets', () => {
     expect(() =>
       validateEnv({

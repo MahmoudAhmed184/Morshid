@@ -77,6 +77,10 @@ describe('SocraticWorkflowModule Gemini composition', () => {
         temperature: 0,
         top_p: 1,
       })
+      expect(requestBody(fetchSpy.mock.calls[2]?.[1])).toMatchObject({
+        model: 'gemini-3.6-flash',
+        max_completion_tokens: 2048,
+      })
       for (const call of fetchSpy.mock.calls.slice(1)) {
         expect(requestBody(call[1])).not.toHaveProperty('temperature')
         expect(requestBody(call[1])).not.toHaveProperty('top_p')
@@ -160,7 +164,7 @@ function readGeminiConfiguration(key: string): unknown {
     SEMANTIC_GUARD_MODEL_NAME: 'gemini-3.6-flash',
     SEMANTIC_GUARD_API_KEY: '',
     SEMANTIC_GUARD_TIMEOUT_MS: 30_000,
-    SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: 1024,
+    SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: 2048,
   }
   return values[key]
 }

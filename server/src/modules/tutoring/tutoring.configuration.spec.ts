@@ -78,7 +78,7 @@ describe('parseTutoringConfiguration', () => {
       SEMANTIC_GUARD_BASE_URL: DEFAULT_SEMANTIC_GUARD_BASE_URL,
       SEMANTIC_GUARD_MODEL_NAME: DEFAULT_SEMANTIC_GUARD_MODEL_NAME,
       SEMANTIC_GUARD_API_KEY: '',
-      SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: 1024,
+      SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: 2048,
     })
   })
 
@@ -87,12 +87,12 @@ describe('parseTutoringConfiguration', () => {
       parseTutoringConfiguration({
         ANALYSIS_MODEL_MAX_COMPLETION_TOKENS: '1024',
         TUTOR_MODEL_MAX_COMPLETION_TOKENS: '1024',
-        SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: '512',
+        SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: '2048',
       }),
     ).toMatchObject({
       ANALYSIS_MODEL_MAX_COMPLETION_TOKENS: 1024,
       TUTOR_MODEL_MAX_COMPLETION_TOKENS: 1024,
-      SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: 512,
+      SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: 2048,
     })
 
     expect(() =>
@@ -105,7 +105,7 @@ describe('parseTutoringConfiguration', () => {
     ).toThrow(/TUTOR_MODEL_MAX_COMPLETION_TOKENS/)
     expect(() =>
       parseTutoringConfiguration({
-        SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: '1025',
+        SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: '2049',
       }),
     ).toThrow(/SEMANTIC_GUARD_MAX_COMPLETION_TOKENS/)
   })

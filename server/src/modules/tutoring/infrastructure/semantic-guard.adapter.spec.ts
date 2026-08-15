@@ -89,7 +89,7 @@ describe('OpenAICompatibleSemanticGuardAdapter', () => {
         ],
         temperature: 0,
         top_p: 1,
-        max_completion_tokens: 256,
+        max_completion_tokens: 2048,
         response_format: { type: 'json_object' },
       }),
     )
@@ -255,7 +255,7 @@ function buildOpenAICompatibleConfiguration(): OpenAICompatibleSemanticGuardConf
     endpoint: 'http://localhost:8000/v1/chat/completions',
     modelName: 'Qwen/Qwen2.5-7B-Instruct-Guard',
     apiKey: null,
-    maxCompletionTokens: 256,
+    maxCompletionTokens: 2048,
   }
 }
 
