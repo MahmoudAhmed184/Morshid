@@ -490,7 +490,10 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
           validationPolicyVersion:
             completion.approvedResponse.approvalMetadata
               .validationPolicyVersion,
-          guidanceLabel: MessageGuidanceLabel.COURSE_GROUNDED,
+          guidanceLabel:
+            completion.approvedResponse.source === 'SAFE_FALLBACK'
+              ? null
+              : MessageGuidanceLabel.COURSE_GROUNDED,
           automaticReview: undefined,
         })
       }

@@ -1949,6 +1949,7 @@ describe('Authorized tutoring runtime (e2e)', () => {
       safeFallbackReason: 'GENERATION_RETRY_FAILED',
     })
     expect(stored).toMatchObject({
+      guidanceLabel: null,
       provider: null,
       model: null,
       promptVersion: 'safe-fallback.mvp.v1',

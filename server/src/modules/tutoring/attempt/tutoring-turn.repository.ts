@@ -112,7 +112,7 @@ export interface CompleteTutoringTurnInput extends AuthorizedTurnInput {
   safeFallbackUsed?: boolean
   safeFallbackReason?: TutoringSafeFallbackReason | null
   validationPolicyVersion?: string | null
-  guidanceLabel?: MessageGuidanceLabel
+  guidanceLabel?: MessageGuidanceLabel | null
   hintLevel?: number | null
   errorCode?: string
   automaticReview?: Omit<AutomaticReviewIntakeInput, 'messageId'>
@@ -633,7 +633,9 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
       input,
       {
         guidanceLabel:
-          input.guidanceLabel ?? MessageGuidanceLabel.COURSE_GROUNDED,
+          input.guidanceLabel === undefined
+            ? MessageGuidanceLabel.COURSE_GROUNDED
+            : input.guidanceLabel,
         provider: input.provider,
         model: input.model,
         promptVersion: input.promptVersion,
@@ -666,7 +668,7 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
   private async completeWithEvidence(
     input: CompleteTutoringTurnInput | CompletePolicyTutoringTurnInput,
     terminal: {
-      guidanceLabel: MessageGuidanceLabel
+      guidanceLabel: MessageGuidanceLabel | null
       provider: string | null
       model: string | null
       promptVersion: string | null

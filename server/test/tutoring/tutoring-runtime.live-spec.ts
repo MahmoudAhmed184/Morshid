@@ -305,7 +305,9 @@ describe('Gemini Socratic runtime HTTP live verification', () => {
     expect(storedAssistant.attemptId).toBe(tutoringAttempt.id)
     expect(storedAssistant.topicId).toBe(tutoringAttempt.topicId)
     expect(storedAssistant.guidanceLabel).toBe(
-      MessageGuidanceLabel.COURSE_GROUNDED,
+      tutoringAttempt.safeFallbackUsed
+        ? null
+        : MessageGuidanceLabel.COURSE_GROUNDED,
     )
     expect(storedAssistant.retrievals.length).toBeGreaterThanOrEqual(1)
     expect(storedAssistant.retrievals[0]?.rank).toBe(1)

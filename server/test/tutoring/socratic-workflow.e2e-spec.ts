@@ -1247,7 +1247,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
 
     // The response is COMPLETED (safe fallback), not FAILED
     expect(turn.assistantMessage.status).toBe('COMPLETED')
-    expect(turn.assistantMessage.guidanceLabel).toBe('COURSE_GROUNDED')
+    expect(turn.assistantMessage.guidanceLabel).toBeNull()
 
     // The content is a SafeFallback, NOT the approved candidate
     expect(turn.assistantMessage.content).not.toBe(EXPECTED_HAPPY_PATH_MESSAGE)
