@@ -22,8 +22,16 @@ export const meResponseSchema = z.object({
   user: authUserSchema,
 })
 
+export const updateOwnProfileInputSchema = z
+  .object({
+    displayName: z.string().trim().min(2).max(120),
+  })
+  .strict()
+
 export type AuthRole = z.infer<typeof authRoleSchema>
 export type AuthStatus = z.infer<typeof authStatusSchema>
 export type AuthUser = z.infer<typeof authUserSchema>
 export type AuthSession = z.infer<typeof authSessionSchema>
 export type MeResponse = z.infer<typeof meResponseSchema>
+export type AccountProfile = AuthUser
+export type UpdateOwnProfileInput = z.infer<typeof updateOwnProfileInputSchema>

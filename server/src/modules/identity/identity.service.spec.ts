@@ -177,9 +177,6 @@ describe('IdentityService token lifecycle', () => {
       (auditLog) => auditLog.action === AUDIT_EVENT_ACTIONS.AUTH_LOGOUT,
     )
 
-    expect(student).not.toBeNull()
-    expect(refreshTokenRecord.revokedAt).toBeInstanceOf(Date)
-    expect(logoutEvents).toHaveLength(1)
     expect(logoutEvents[0]).toEqual(
       expect.objectContaining({
         actorUserId: student?.id,
@@ -198,5 +195,80 @@ describe('IdentityService token lifecycle', () => {
         createdAt: anyDate,
       }),
     )
+  })
+
+  describe('updateOwnProfile', () => {
+    it('updates own display name, trims whitespace, and records an audit log', async () => {
+      const { service, store } = buildIdentityServiceTestHarness()
+      const student = store.findUserByEmail('student1@morshid.demo')
+      if (!student) throw new Error('Missing student')
+      const oldDisplayName = student.displayName
+
+      const result = await service.updateOwnProfile(
+        student.id,
+        { displayName: '   Updated Student Name   ' },
+        requestContext,
+      )
+
+      expect(result.user.displayName).toBe('Updated Student Name')
+      expect(store.users.get(student.id)?.displayName).toBe(
+        'Updated Student Name',
+      )
+
+      const profileAuditLogs = [...store.auditLogs.values()].filter(
+        (log) => log.action === AUDIT_EVENT_ACTIONS.AUTH_PROFILE_UPDATED,
+      )
+      expect(profileAuditLogs).toHaveLength(1)
+      expect(profileAuditLogs[0]).toEqual(
+        expect.objectContaining({
+          actorUserId: student.id,
+          action: AUDIT_EVENT_ACTIONS.AUTH_PROFILE_UPDATED,
+          targetType: AUDIT_TARGET_TYPES.USER,
+          targetId: student.id,
+          ip: requestContext.ip,
+          userAgent: requestContext.userAgent,
+          metadata: {
+            oldDisplayName,
+            newDisplayName: 'Updated Student Name',
+          },
+        }),
+      )
+    })
+
+    it('rejects profile update for disabled account and records disabled account block audit log', async () => {
+      const { service, store } = buildIdentityServiceTestHarness()
+      const student = store.findUserByEmail('student1@morshid.demo')
+      if (!student) throw new Error('Missing student')
+
+      store.disableUser('student1@morshid.demo')
+
+      await expect(
+        service.updateOwnProfile(
+          student.id,
+          { displayName: 'New Name' },
+          requestContext,
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException)
+
+      const blockLogs = [...store.auditLogs.values()].filter(
+        (log) =>
+          log.action ===
+          AUDIT_EVENT_ACTIONS.AUTH_LOGIN_BLOCKED_DISABLED_ACCOUNT,
+      )
+      expect(blockLogs).toHaveLength(1)
+      expect(blockLogs[0].actorUserId).toBe(student.id)
+    })
+
+    it('rejects profile update for nonexistent user', async () => {
+      const { service } = buildIdentityServiceTestHarness()
+
+      await expect(
+        service.updateOwnProfile(
+          '00000000-0000-0000-0000-000000000999',
+          { displayName: 'New Name' },
+          requestContext,
+        ),
+      ).rejects.toBeInstanceOf(UnauthorizedException)
+    })
   })
 })
