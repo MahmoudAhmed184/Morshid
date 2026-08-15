@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&display=swap');
 @import 'tailwindcss';
 @import 'shadcn/tailwind.css';
 @import '@fontsource-variable/ibm-plex-sans';
@@ -8,7 +9,6 @@
 @import '@fontsource/ibm-plex-sans-arabic/500.css';
 @import '@fontsource/ibm-plex-sans-arabic/600.css';
 @import '@fontsource/ibm-plex-sans-arabic/700.css';
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&display=swap');
 
 @custom-variant dark (&:is(.dark *));
 
@@ -162,6 +162,24 @@
     0 24px 64px 0 oklch(0 0 0 / 0.36), 0 6px 16px 0 oklch(0 0 0 / 0.18);
   --shadow-2xl:
     0 24px 64px 0 oklch(0 0 0 / 0.36), 0 6px 16px 0 oklch(0 0 0 / 0.18);
+}
+
+/* Accessibility: Text Scale Tokens */
+:root[data-text-scale='90%'] {
+  font-size: 90%;
+}
+
+:root[data-text-scale='100%'] {
+  font-size: 100%;
+}
+
+:root[data-text-scale='112%'] {
+  font-size: 112.5%;
+}
+
+/* Accessibility: Density Tokens */
+:root[data-density='compact'] {
+  --spacing-density-multiplier: 0.85;
 }
 
 /* Named color palettes layer over the light/dark mode tokens. Morshid uses the
@@ -898,8 +916,25 @@ html[data-theme-transition='running']::view-transition-new(root) {
   }
 }
 
+html[data-reduced-motion='true'] *,
+html[data-reduced-motion='true'] *::before,
+html[data-reduced-motion='true'] *::after,
+html[data-motion='reduce'] *,
+html[data-motion='reduce'] *::before,
+html[data-motion='reduce'] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html[data-theme-transition='running']::view-transition-new(root) {
     animation: none;
   }
+}
+
+html[data-reduced-motion='true']::view-transition-new(root),
+html[data-motion='reduce']::view-transition-new(root) {
+  animation: none !important;
 }
