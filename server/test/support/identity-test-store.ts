@@ -754,7 +754,7 @@ export class IdentityTestStore {
       replacedByTokenId: null,
       ip: args.data.ip,
       userAgent: args.data.userAgent,
-      createdAt: new Date('2026-07-06T12:00:00.000Z'),
+      createdAt: new Date(),
     }
 
     this.refreshTokens.set(refreshToken.id, refreshToken)

@@ -9,7 +9,10 @@ import type {
   IdentityUserRecord,
   RefreshTokenRecord,
 } from './identity.types'
-import { invalidRefreshTokenException } from './identity.errors'
+import {
+  invalidAccessTokenException,
+  invalidRefreshTokenException,
+} from './identity.errors'
 import {
   RefreshSessionRepository,
   type RefreshTokenRecordStore,
@@ -155,6 +158,75 @@ export class RefreshSession {
     })
   }
 
+  async changePasswordAndRotate(
+    userId: string,
+    passwordHash: string,
+    currentRefreshToken: string | null,
+    now: Date,
+    requestContext: IdentityRequestContext,
+  ): Promise<PasswordChangeSessionResult> {
+    const currentTokenHash =
+      currentRefreshToken !== null && currentRefreshToken.length > 0
+        ? this.hash(currentRefreshToken)
+        : null
+
+    return this.refreshTokenRepository.transaction(async (repository) => {
+      const lockedUser = await repository.lockUserById(userId)
+
+      if (!lockedUser) {
+        throw invalidAccessTokenException()
+      }
+
+      if (this.identityUser.isDisabled(lockedUser)) {
+        return {
+          kind: 'disabled' as const,
+          user: lockedUser,
+        }
+      }
+
+      let previousToken: RefreshTokenRecord | null = null
+      if (currentTokenHash !== null) {
+        const storedToken =
+          await repository.findByTokenHashWithUser(currentTokenHash)
+        if (
+          storedToken?.user.id === userId &&
+          storedToken.revokedAt === null &&
+          storedToken.expiresAt > now
+        ) {
+          previousToken = storedToken
+        }
+      }
+
+      const updatedUser = await repository.updateUserPassword(
+        userId,
+        passwordHash,
+        now,
+      )
+
+      await repository.revokeAllActiveForUser(userId, now)
+
+      const nextRefreshToken = await this.createWithRepository(
+        repository,
+        updatedUser,
+        now,
+        requestContext,
+      )
+
+      if (previousToken) {
+        await repository.markReplaced(
+          previousToken.id,
+          nextRefreshToken.record.id,
+        )
+      }
+
+      return {
+        kind: 'success' as const,
+        nextRefreshToken,
+        user: updatedUser,
+      }
+    })
+  }
+
   private async createWithRepository(
     repository: RefreshTokenRecordStore,
     user: Pick<IdentityUserRecord, 'id'>,
@@ -197,6 +269,17 @@ export type RefreshTokenRotation =
       kind: 'rotated'
       nextRefreshToken: CreatedRefreshToken
       previousToken: RefreshTokenRecord
+      user: IdentityUserRecord
+    }
+
+export type PasswordChangeSessionResult =
+  | {
+      kind: 'disabled'
+      user: IdentityUserRecord
+    }
+  | {
+      kind: 'success'
+      nextRefreshToken: CreatedRefreshToken
       user: IdentityUserRecord
     }
 

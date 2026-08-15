@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 
 import type {
   AuthenticatedUser,
+  ChangePasswordRequest,
   IdentityRequestContext,
   IdentitySession,
   IdentityUserRecord,
@@ -15,12 +16,14 @@ import type {
 import {
   accountDisabledException,
   invalidAccessTokenException,
+  invalidAuthRequestException,
   invalidCredentialsException,
 } from './identity.errors'
 import { AccessToken } from './access-token'
 import { IdentityAudit } from './identity-audit'
 import { IdentityUser } from './identity-user'
 import { PasswordHasher } from './password-hasher'
+import { defaultPasswordPolicy } from './password-policy'
 import { RefreshSession } from './refresh-session'
 
 @Injectable()
@@ -170,6 +173,73 @@ export class IdentityService {
     return {
       user: this.identityUser.buildIdentityUserSummary(updatedUser),
     }
+  }
+
+  async changePassword(
+    userId: string,
+    input: ChangePasswordRequest,
+    requestContext: IdentityRequestContext,
+    currentRefreshToken?: string | null,
+  ): Promise<IdentitySession> {
+    const user = await this.identityUser.findById(userId)
+
+    if (!user) {
+      throw invalidAccessTokenException()
+    }
+
+    if (this.identityUser.isDisabled(user)) {
+      await this.identityAudit.recordDisabledAccountBlock(user, requestContext)
+      throw accountDisabledException()
+    }
+
+    const isCurrentPasswordValid = this.passwordHasher.verifyPassword(
+      input.currentPassword,
+      user.passwordHash,
+    )
+
+    if (!isCurrentPasswordValid) {
+      throw invalidCredentialsException()
+    }
+
+    const policyValidation = defaultPasswordPolicy.validate(input.newPassword, {
+      currentPassword: input.currentPassword,
+      email: user.email,
+      displayName: user.displayName,
+    })
+
+    if (!policyValidation.isValid) {
+      throw invalidAuthRequestException()
+    }
+
+    const now = new Date()
+    const newPasswordHash = this.passwordHasher.createHash(input.newPassword)
+
+    const result = await this.refreshSession.changePasswordAndRotate(
+      userId,
+      newPasswordHash,
+      currentRefreshToken ?? null,
+      now,
+      requestContext,
+    )
+
+    if (result.kind === 'disabled') {
+      await this.identityAudit.recordDisabledAccountBlock(
+        result.user,
+        requestContext,
+      )
+      throw accountDisabledException()
+    }
+
+    const accessToken = await this.accessToken.create(result.user, now)
+    const session = this.buildSession(
+      accessToken,
+      result.nextRefreshToken,
+      result.user,
+    )
+
+    await this.identityAudit.recordPasswordChanged(result.user, requestContext)
+
+    return session
   }
 
   async authenticateAccessToken(

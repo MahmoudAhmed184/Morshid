@@ -42,6 +42,12 @@ export interface RefreshTokenRecordStore {
     tokenHash: string,
     now: Date,
   ): Promise<{ count: number }>
+  revokeAllActiveForUser(userId: string, now: Date): Promise<{ count: number }>
+  updateUserPassword(
+    userId: string,
+    passwordHash: string,
+    passwordChangedAt: Date,
+  ): Promise<IdentityUserRecord>
 }
 
 class PrismaRefreshTokenRecordStore implements RefreshTokenRecordStore {
@@ -88,6 +94,42 @@ class PrismaRefreshTokenRecordStore implements RefreshTokenRecordStore {
       now,
     )
   }
+
+  revokeAllActiveForUser(
+    userId: string,
+    now: Date,
+  ): Promise<{ count: number }> {
+    return this.client.refreshToken.updateMany({
+      where: {
+        userId,
+        revokedAt: null,
+        expiresAt: {
+          gt: now,
+        },
+      },
+      data: {
+        revokedAt: now,
+      },
+    })
+  }
+
+  async updateUserPassword(
+    userId: string,
+    passwordHash: string,
+    passwordChangedAt: Date,
+  ): Promise<IdentityUserRecord> {
+    const updated = await this.client.user.update({
+      where: {
+        id: userId,
+      },
+      data: {
+        passwordHash,
+        passwordChangedAt,
+      },
+    })
+
+    return toIdentityUserRecord(updated)
+  }
 }
 
 @Injectable()
@@ -107,7 +149,10 @@ export class RefreshSessionRepository extends PrismaRefreshTokenRecordStore {
   }
 }
 
-type RefreshTokenClient = Pick<PrismaService, 'refreshToken' | '$queryRaw'>
+type RefreshTokenClient = Pick<
+  PrismaService,
+  'user' | 'refreshToken' | '$queryRaw'
+>
 
 interface LockedIdentityUserRow {
   id: string

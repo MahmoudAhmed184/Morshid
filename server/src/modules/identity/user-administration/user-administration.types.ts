@@ -4,17 +4,9 @@ import { z } from 'zod'
 
 import { UserRole, UserStatus } from '../identity.roles'
 import { CourseMembershipRole } from '../../courses/interface/course-membership-role'
+import { passwordSchema } from '../password-policy'
 
-const USER_PASSWORD_PATTERN =
-  '^(?=.*[A-Za-z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,50}$'
-
-export const userPasswordSchema = z
-  .string()
-  .min(8, 'Password must be at least 8 characters')
-  .max(50, 'Password must be at most 50 characters')
-  .regex(/[A-Za-z]/, 'Password must contain at least one letter')
-  .regex(/[0-9]/, 'Password must contain at least one number')
-  .regex(/[^A-Za-z0-9]/, 'Password must contain at least one symbol')
+export const userPasswordSchema = passwordSchema
 
 export const createUserRequestSchema = z
   .object({
@@ -109,9 +101,8 @@ export class CreateUserRequestDto {
   role!: CreatableUserRole
 
   @ApiProperty({
-    minLength: 8,
-    maxLength: 50,
-    pattern: USER_PASSWORD_PATTERN,
+    minLength: 15,
+    maxLength: 128,
   })
   password!: string
 }
@@ -137,9 +128,8 @@ export class UpdateUserRequestDto {
 
 export class ResetUserPasswordRequestDto {
   @ApiProperty({
-    minLength: 8,
-    maxLength: 50,
-    pattern: USER_PASSWORD_PATTERN,
+    minLength: 15,
+    maxLength: 128,
   })
   newPassword!: string
 }

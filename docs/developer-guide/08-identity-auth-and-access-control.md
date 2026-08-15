@@ -85,6 +85,20 @@ erDiagram
   4. Insert a new `RefreshToken` record linking `replacedByTokenId`.
   5. Commit the transaction, return the new token, and set the updated cookie.
 
+### 2.4 Password policy and self-service password change ([`password-policy.ts`](file:///home/mahmoud-ahmed/Projects/Morshid/server/src/modules/identity/password-policy.ts))
+- **Unified Policy**: Enforces a minimum of 15 characters and a maximum of 128 characters across user creation, admin password reset, and self-service password change.
+- **Rules**:
+  - Allows spaces (never trimmed), Unicode characters, and arbitrary character mixtures without mandatory character classes.
+  - Supports paste, autofill, and browser password managers.
+  - Uses a local server-side blocklist for common, compromised, and context-specific passwords (rejecting passwords matching email local-part, display name parts, or system name). Candidate passwords are never transmitted to third parties.
+- **Session Lifecycle & Invalidation**:
+  - On password change (`PATCH /api/v1/me/password`), user `passwordChangedAt` timestamp is updated in a transaction with row locking.
+  - Every other active refresh session is revoked.
+  - The current browser session is rotated and returned as a new access session with an updated `morshid_refresh` cookie without requiring a sign-in round trip.
+  - Old JWT access tokens are immediately rejected by `IdentityGuard` via the `pwd` claim check.
+  - Records an `auth.password_changed` audit event containing no password material.
+
+
 ---
 
 ## 3. End-to-end authentication flows
