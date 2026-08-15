@@ -5,7 +5,6 @@ import {
 } from './infrastructure/analysis-model.configuration'
 import {
   DEFAULT_SEMANTIC_GUARD_BASE_URL,
-  DEFAULT_SEMANTIC_GUARD_MAX_COMPLETION_TOKENS,
   DEFAULT_SEMANTIC_GUARD_MODEL_NAME,
 } from './infrastructure/semantic-guard.configuration'
 import {
@@ -79,8 +78,7 @@ describe('parseTutoringConfiguration', () => {
       SEMANTIC_GUARD_BASE_URL: DEFAULT_SEMANTIC_GUARD_BASE_URL,
       SEMANTIC_GUARD_MODEL_NAME: DEFAULT_SEMANTIC_GUARD_MODEL_NAME,
       SEMANTIC_GUARD_API_KEY: '',
-      SEMANTIC_GUARD_MAX_COMPLETION_TOKENS:
-        DEFAULT_SEMANTIC_GUARD_MAX_COMPLETION_TOKENS,
+      SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: 1024,
     })
   })
 

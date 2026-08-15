@@ -160,7 +160,7 @@ function readGeminiConfiguration(key: string): unknown {
     SEMANTIC_GUARD_MODEL_NAME: 'gemini-3.6-flash',
     SEMANTIC_GUARD_API_KEY: '',
     SEMANTIC_GUARD_TIMEOUT_MS: 30_000,
-    SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: 256,
+    SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: 1024,
   }
   return values[key]
 }
