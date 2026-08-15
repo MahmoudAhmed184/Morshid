@@ -5,7 +5,7 @@ import type {
   TeachingTechnique,
 } from '../../tutoring-values'
 
-export const TEACHING_POLICY_VERSION = 'socratic-policy.mvp.v3'
+export const TEACHING_POLICY_VERSION = 'socratic-policy.mvp.v4'
 
 export interface TeachingGuardPolicy {
   preventDirectAnswer: boolean

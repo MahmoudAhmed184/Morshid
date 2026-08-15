@@ -177,6 +177,75 @@ describe('teaching policy selector', () => {
     ).toBe(TeachingStrategy.DEBUGGING_GUIDANCE)
   })
 
+  it('leaves misconception repair for verification after a supported correction', () => {
+    const draft = selectTeachingDecisionDraft({
+      analysis: analysis({
+        requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+        studentState: StudentState.NEAR_SOLUTION,
+        learningPresent: true,
+        learningStrength: LEARNING_EVIDENCE_STRENGTH.STRONG,
+        learningEvidenceMessageIds: ['message-1'],
+      }),
+      topicState: topicState({ guidanceLevel: 2 }),
+      previousTeachingDecision: previousDecision({
+        strategy: TeachingStrategy.MISCONCEPTION_REPAIR,
+        primaryTechnique: TeachingTechnique.COUNTEREXAMPLE,
+        guidanceLevel: 2,
+      }),
+    })
+
+    expect(draft).toMatchObject({
+      strategy: TeachingStrategy.SOCRATIC_QUESTIONING,
+      primaryTechnique: TeachingTechnique.VERIFICATION,
+      guidanceLevel: 1,
+    })
+    expect(draft.decisionReason).toContain(
+      'strong current-message-supported learning evidence corrected the active misconception',
+    )
+  })
+
+  it('preserves misconception repair without supported current-message correction', () => {
+    const previous = previousDecision({
+      strategy: TeachingStrategy.MISCONCEPTION_REPAIR,
+      primaryTechnique: TeachingTechnique.COUNTEREXAMPLE,
+      guidanceLevel: 2,
+    })
+
+    for (const currentAnalysis of [
+      analysis({
+        requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+        studentState: StudentState.NEAR_SOLUTION,
+        learningPresent: false,
+      }),
+      analysis({
+        requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+        studentState: StudentState.MISCONCEPTION,
+        learningPresent: true,
+        learningStrength: LEARNING_EVIDENCE_STRENGTH.STRONG,
+        learningEvidenceMessageIds: ['message-1'],
+        misconceptions: [
+          {
+            code: 'BREAK_CONTINUE_REVERSAL',
+            description: 'The distinction remains reversed.',
+            confidence: 0.95,
+            evidenceMessageId: 'message-1',
+          },
+        ],
+      }),
+    ]) {
+      expect(
+        selectTeachingDecisionDraft({
+          analysis: currentAnalysis,
+          topicState: topicState({ guidanceLevel: 2 }),
+          previousTeachingDecision: previous,
+        }),
+      ).toMatchObject({
+        strategy: TeachingStrategy.MISCONCEPTION_REPAIR,
+        primaryTechnique: TeachingTechnique.COUNTEREXAMPLE,
+      })
+    }
+  })
+
   it('does not preserve an incompatible previous strategy', () => {
     expect(
       selectTeachingStrategy({

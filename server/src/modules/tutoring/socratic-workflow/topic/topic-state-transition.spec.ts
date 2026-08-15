@@ -1,13 +1,18 @@
 import {
   LearningStatus,
   MessageRequestKind,
+  MisconceptionStatus,
   ResolutionEvidenceStrength,
   RevealPolicy,
   StudentState,
   TeachingStrategy,
   TeachingTechnique,
 } from '../../tutoring-values'
-import type { EducationalAnalysisResult } from '../analysis/educational-analysis.types'
+import {
+  EDUCATIONAL_ANALYSIS_SOURCE,
+  LEARNING_EVIDENCE_STRENGTH,
+  type EducationalAnalysisResult,
+} from '../analysis/educational-analysis.types'
 import type { PersistedTeachingDecisionRecord } from '../teaching-decision/teaching-decision.repository'
 import type { ApprovedResponse } from '../response-approval/response-validation.types'
 import {
@@ -21,6 +26,7 @@ describe('TopicState transition builder', () => {
     const transition = buildCompletedTopicStateTransition({
       topicState: topicState(),
       analysis: {
+        analysisSource: EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
         studentMessageId: 'student-message-2',
         result: analysisResult(),
       },
@@ -67,9 +73,88 @@ describe('TopicState transition builder', () => {
       },
     })
   })
+
+  it('marks an active misconception corrected after strong supported recovery', () => {
+    const result = analysisResult()
+    const transition = buildCompletedTopicStateTransition({
+      topicState: topicState({
+        misconceptionStatus: MisconceptionStatus.ACTIVE,
+      }),
+      analysis: {
+        analysisSource: EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
+        studentMessageId: 'student-message-2',
+        result: {
+          ...result,
+          requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+          studentState: StudentState.NEAR_SOLUTION,
+          learningEvidence: {
+            present: true,
+            strength: LEARNING_EVIDENCE_STRENGTH.STRONG,
+            evidenceMessageIds: ['student-message-2'],
+          },
+          misconceptions: [],
+        },
+      },
+      decision: decision(),
+      approvedResponse: approvedResponse(),
+    })
+
+    expect(transition.patch.misconceptionStatus).toBe(
+      MisconceptionStatus.CORRECTED,
+    )
+  })
+
+  it('keeps an active misconception for an unsupported self-report', () => {
+    const result = analysisResult()
+    const transition = buildCompletedTopicStateTransition({
+      topicState: topicState({
+        misconceptionStatus: MisconceptionStatus.ACTIVE,
+      }),
+      analysis: {
+        analysisSource: EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
+        studentMessageId: 'student-message-2',
+        result: {
+          ...result,
+          requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+          studentState: StudentState.NEAR_SOLUTION,
+          learningEvidence: {
+            present: false,
+            strength: LEARNING_EVIDENCE_STRENGTH.NONE,
+            evidenceMessageIds: [],
+          },
+          misconceptions: [],
+        },
+      },
+      decision: decision(),
+      approvedResponse: approvedResponse(),
+    })
+
+    expect(transition.patch.misconceptionStatus).toBe(
+      MisconceptionStatus.ACTIVE,
+    )
+  })
+
+  it('keeps an active misconception for another incorrect attempt', () => {
+    const transition = buildCompletedTopicStateTransition({
+      topicState: topicState({
+        misconceptionStatus: MisconceptionStatus.ACTIVE,
+      }),
+      analysis: {
+        analysisSource: EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
+        studentMessageId: 'student-message-2',
+        result: analysisResult(),
+      },
+      decision: decision(),
+      approvedResponse: approvedResponse(),
+    })
+
+    expect(transition.patch.misconceptionStatus).toBe(
+      MisconceptionStatus.ACTIVE,
+    )
+  })
 })
 
-function topicState(): TopicStateSnapshot {
+function topicState(input: Partial<TopicStateSnapshot> = {}): TopicStateSnapshot {
   return {
     id: 'topic-state-1',
     topicId: 'topic-1',
@@ -91,6 +176,7 @@ function topicState(): TopicStateSnapshot {
     lastStudentAction: 'Previous action',
     resolved: false,
     updatedAt: new Date('2026-08-10T00:00:00.000Z'),
+    ...input,
   }
 }
 

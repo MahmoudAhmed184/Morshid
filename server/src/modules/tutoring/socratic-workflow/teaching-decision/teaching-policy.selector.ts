@@ -11,6 +11,7 @@ import {
   EFFORT_QUALITY,
   LEARNING_EVIDENCE_STRENGTH,
 } from '../analysis/educational-analysis.types'
+import { hasSupportedMisconceptionRecoveryEvidence } from '../analysis/supported-misconception-recovery'
 import type { TopicStateSnapshot } from '../topic/topic-state.types'
 import {
   TOPIC_RESOLUTION_OUTCOME,
@@ -98,6 +99,7 @@ export function selectTeachingDecisionDraft(
   input: SelectTeachingDecisionInput,
 ): TeachingDecisionPolicyDraft {
   const defaults = teachingPolicyDefaults(input.courseTutorConfiguration)
+  const misconceptionRecovered = isMisconceptionRecovery(input)
   const strategy = selectTeachingStrategy(input)
   const guidanceLevel = calculateGuidanceLevel(input, defaults)
   const directConceptual = isDirectConceptualAnalysis(input.analysis.result)
@@ -107,7 +109,9 @@ export function selectTeachingDecisionDraft(
     topicId: input.analysis.topicId,
     analysisId: input.analysis.id,
     strategy,
-    primaryTechnique: primaryTechniqueForStrategy(strategy),
+    primaryTechnique: misconceptionRecovered
+      ? TeachingTechnique.VERIFICATION
+      : primaryTechniqueForStrategy(strategy),
     supportingTechnique: null,
     guidanceLevel,
     revealPolicy: directConceptual
@@ -141,6 +145,10 @@ export function selectTeachingStrategy(
     input.analysis.analysisSource === EDUCATIONAL_ANALYSIS_SOURCE.FALLBACK ||
     state === StudentState.UNKNOWN
   ) {
+    return TeachingStrategy.SOCRATIC_QUESTIONING
+  }
+
+  if (isMisconceptionRecovery(input)) {
     return TeachingStrategy.SOCRATIC_QUESTIONING
   }
 
@@ -233,6 +241,20 @@ function canPreservePreviousStrategy(
     previous.topicId === input.analysis.topicId &&
     canonicalStrategies.has(previous.strategy) &&
     !isNewOrSwitchedTopic(input)
+  )
+}
+
+function isMisconceptionRecovery(
+  input: Pick<
+    SelectTeachingDecisionInput,
+    'analysis' | 'previousTeachingDecision' | 'topicResolutionOutcome'
+  >,
+): boolean {
+  return (
+    canPreservePreviousStrategy(input) &&
+    input.previousTeachingDecision.strategy ===
+      TeachingStrategy.MISCONCEPTION_REPAIR &&
+    hasSupportedMisconceptionRecoveryEvidence(input.analysis)
   )
 }
 
@@ -337,7 +359,9 @@ function decisionReasonFor(
     return 'Selected conservative Level 1 Socratic guidance because authoritative TopicResolution conflicts with the accepted analysis topic relation.'
   }
 
-  const reason = isDirectConceptualAnalysis(analysis.result)
+  const reason = isMisconceptionRecovery(input)
+    ? 'Selected verification-oriented Socratic questioning because strong current-message-supported learning evidence corrected the active misconception.'
+    : isDirectConceptualAnalysis(analysis.result)
     ? 'Selected guided explanation because the accepted analysis identifies a direct conceptual request without an attempt, misconception, or debugging context.'
     : analysis.analysisSource === EDUCATIONAL_ANALYSIS_SOURCE.FALLBACK
       ? 'Selected conservative Socratic questioning because the accepted analysis is a fallback.'
