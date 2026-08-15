@@ -28,7 +28,7 @@ The application separates user workflows into three role workspaces:
 | Database | PostgreSQL 18, `pgvector` (0.8.4) | Multi-file Prisma schema, initial baseline migration, and custom triggers |
 | Cache & Quota | Redis 8.4 | Token-bucket rate limits and round-robin Gemini project pools |
 | Storage | Local filesystem | PDF document storage keyed by UUID (`<uuid>.pdf`) |
-| AI Integration | OpenAI-compatible LLMs, Gemini Embeddings | Multi-model orchestration for analysis, tutor generation, embeddings, and semantic guardrails |
+| AI Integration | OpenAI-compatible LLMs, Gemini Embeddings | Multi-model pipeline for analysis, tutor generation, embeddings, and semantic guardrails |
 | Boundary Checks | `dependency-cruiser` | Enforces acyclic module boundaries and layer isolation |
 
 ## Socratic tutoring runtime
@@ -98,8 +98,8 @@ Running `npm run db:seed` provisions demo accounts. All seed accounts use the pa
 | `student3@morshid.demo` | `STUDENT` | Enrolled student in `PYTHON-PROG-P0`, Socratic chat, inbox |
 
 Seeded courses:
-- `PYTHON-PROG-P0` (Python Programming): Contains chunked syllabus material and sample conversations.
-- `HIDDEN-ISOLATION` (Hidden Isolation Test Course): Empty course for testing access policy boundaries.
+- `PYTHON-PROG-P0` (Python Programming). Contains chunked syllabus material and sample conversations.
+- `HIDDEN-ISOLATION` (Hidden Isolation Test Course). Empty course for testing access policy boundaries.
 
 ## Testing and verification
 
@@ -124,9 +124,21 @@ npm run test:architecture
 # Database catalog semantic hash verification
 npm run db:assert-catalog
 
+# Live model and embedding smoke checks (opt-in)
+npm run test:tutoring:live
+npm run test:gemini-embedding:smoke
+npm run test:iti-bedrock-embedding:probe
+
 # Five-stage clean-slate demo verification pipeline
 MORSHID_RESET_CONFIRM=reset-local npm run demo:fresh-seed
 ```
+
+## Documentation
+
+- **[Developer guide](docs/developer-guide/README.md).** Technical documentation covering architecture, persistence, Socratic runtime, RAG retrieval, review workflows, configuration, and operations.
+- **[System delivery and execution plan](docs/project-delivery-plan.md).** System plan detailing completed baseline capabilities, system gaps, future work horizons, priorities, and verification criteria.
+- **[Architecture decision records](docs/adr/).** Accepted architectural decisions (ADR 0001 through ADR 0008).
+- **[Evaluation baseline and scenarios](docs/demo-scenario-mapping.md).** Demo scenario mappings, golden dataset catalog ([docs/golden-dataset-p0-v1.md](docs/golden-dataset-p0-v1.md)), and fixture conventions ([docs/fixture-update-conventions.md](docs/fixture-update-conventions.md)).
 
 ## Common commands
 
@@ -141,6 +153,9 @@ MORSHID_RESET_CONFIRM=reset-local npm run demo:fresh-seed
 | `npm run test` | Runs unit tests across all workspaces |
 | `npm run test:e2e` | Runs server E2E test suites with disposable databases |
 | `npm run test:acceptance` | Runs Playwright browser acceptance journeys |
+| `npm run test:tutoring:live` | Runs live Socratic role-chain smoke against configured models |
+| `npm run test:gemini-embedding:smoke` | Runs live Gemini embedding smoke check |
+| `npm run test:iti-bedrock-embedding:probe` | Probes upstream ITI Bedrock embedding contract shape |
 | `npm run db:reset` | Drops and recreates local database tables (requires `MORSHID_RESET_CONFIRM=reset-local`) |
 | `npm run reviews:clear-local` | Clears review cases and inbox items (requires `MORSHID_REVIEW_CLEANUP_CONFIRM=clear-local-reviews`) |
 | `npm run embedding:migrate -- <provider>` | Migrates chunk embeddings between vector providers |
