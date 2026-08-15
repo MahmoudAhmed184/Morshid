@@ -237,10 +237,7 @@ export function SecurityTabContent() {
   }
 
   const isPasswordFormIncomplete =
-    !currentPassword ||
-    !newPassword ||
-    !confirmation ||
-    isSubmittingPassword
+    !currentPassword || !newPassword || !confirmation || isSubmittingPassword
 
   const otherSessionsCount = sessions.filter((s) => !s.isCurrent).length
 

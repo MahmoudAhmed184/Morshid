@@ -241,4 +241,3 @@ export class ActiveSessionListResponseDto {
 
 export type ActiveSession = ActiveSessionDto
 export type ActiveSessionListResponse = ActiveSessionListResponseDto
-

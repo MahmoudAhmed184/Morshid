@@ -375,7 +375,6 @@ export class IdentityService {
   }
 
   async authenticateAccessToken(
-
     accessToken: string,
     requestContext: IdentityRequestContext,
   ): Promise<AuthenticatedUser> {

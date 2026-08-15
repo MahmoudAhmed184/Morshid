@@ -71,7 +71,6 @@ export interface RefreshTokenRecordStore {
   ): Promise<IdentityUserRecord>
 }
 
-
 class PrismaRefreshTokenRecordStore implements RefreshTokenRecordStore {
   constructor(private readonly client: RefreshTokenClient) {}
 

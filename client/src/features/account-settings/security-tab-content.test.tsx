@@ -329,9 +329,9 @@ describe('SecurityTabContent', () => {
       vi.mocked(activeSessionsApi.fetchActiveSessions).mockResolvedValue(
         mockSessions,
       )
-      vi.mocked(
-        activeSessionsApi.revokeOtherActiveSessions,
-      ).mockResolvedValue(undefined)
+      vi.mocked(activeSessionsApi.revokeOtherActiveSessions).mockResolvedValue(
+        undefined,
+      )
 
       render(<SecurityTabContent />)
 

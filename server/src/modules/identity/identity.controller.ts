@@ -42,7 +42,6 @@ import {
   type UpdateOwnProfileRequest,
 } from './identity.types'
 
-
 import type { AuthenticatedHttpRequest } from './identity.guard'
 import { IdentityService } from './identity.service'
 import { invalidAuthRequestException } from './identity.errors'

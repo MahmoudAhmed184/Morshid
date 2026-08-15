@@ -302,7 +302,6 @@ export class RefreshSession {
       .digest('base64url')
   }
 
-
   private async createWithRepository(
     repository: RefreshTokenRecordStore,
     user: Pick<IdentityUserRecord, 'id'>,
