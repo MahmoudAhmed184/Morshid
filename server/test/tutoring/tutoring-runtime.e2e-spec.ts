@@ -394,6 +394,7 @@ describe('Authorized tutoring runtime (e2e)', () => {
       return Object.freeze({
         rawOutput: Object.freeze({
           message,
+          debuggingGuidance: null,
           responseIntent: intent,
           usedCitationIds,
           requiresStudentAction: true,
@@ -663,7 +664,7 @@ describe('Authorized tutoring runtime (e2e)', () => {
       'The `len(num)` expression on the return line.',
       '',
       'Concept',
-      'Name lookup searches the active scope, where `nums` exists but `num` does not. [1]',
+      'Name lookup searches the active scope, where `nums` exists but `num` does not. [retrieval.rank.1]',
       '',
       'Next inspection step',
       'Compare every name on the return line with the function parameter and loop variables.',
@@ -682,15 +683,20 @@ describe('Authorized tutoring runtime (e2e)', () => {
       const citationIds = tutorModel.extractAllowedCitationIds(modelRequest)
       return Promise.resolve({
         rawOutput: {
-          message: diagnosis,
+          message: null,
+          debuggingGuidance: {
+            diagnosis: 'The name `num` does not match the `nums` parameter.',
+            relevantLocation: 'The `len(num)` expression on the return line.',
+            conceptExplanation:
+              'Name lookup searches the active scope, where `nums` exists but `num` does not.',
+            inspectionActions: [
+              'Compare every name on the return line with the function parameter and loop variables.',
+            ],
+          },
           responseIntent: TeachingStrategy.DEBUGGING_GUIDANCE,
           usedCitationIds: citationIds.slice(0, 1),
           requiresStudentAction: true,
-          studentAction: {
-            type: TeachingTechnique.TRACE_EXECUTION,
-            description:
-              'Compare every name on the return line with the function parameter and loop variables.',
-          },
+          studentAction: null,
           reflectionIncluded: false,
           selfReportedCompliance: {
             finalAnswerRevealed: false,
@@ -844,27 +850,21 @@ describe('Authorized tutoring runtime (e2e)', () => {
         const citationIds = tutorModel.extractAllowedCitationIds(modelRequest)
         return Promise.resolve({
           rawOutput: {
-            message: [
-              'Likely defect',
-              'The boundary index may equal the collection length.',
-              '',
-              'Relevant location',
-              'The indexed access in the submitted return expression.',
-              '',
-              'Concept',
-              'Valid indexes stop before the collection length. [1]',
-              '',
-              'Next inspection step',
-              'Trace the index and collection length at that return expression.',
-            ].join('\n'),
+            message: null,
+            debuggingGuidance: {
+              diagnosis: 'The boundary index may equal the collection length.',
+              relevantLocation:
+                'The indexed access in the submitted return expression.',
+              conceptExplanation:
+                'Valid indexes stop before the collection length.',
+              inspectionActions: [
+                'Trace the index and collection length at that return expression.',
+              ],
+            },
             responseIntent: TeachingStrategy.DEBUGGING_GUIDANCE,
             usedCitationIds: citationIds.slice(0, 1),
             requiresStudentAction: true,
-            studentAction: {
-              type: TeachingTechnique.TRACE_EXECUTION,
-              description:
-                'Trace the index and collection length at that return expression.',
-            },
+            studentAction: null,
             reflectionIncluded: false,
             selfReportedCompliance: {
               finalAnswerRevealed: false,

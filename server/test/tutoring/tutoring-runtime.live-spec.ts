@@ -718,6 +718,7 @@ function candidate(input: {
 }): CandidateResponse {
   return {
     message: input.message,
+    debuggingGuidance: null,
     responseIntent: TeachingStrategy.MISCONCEPTION_REPAIR,
     usedCitationIds: [OVER_REVEAL_CITATION_ID],
     requiresStudentAction: true,

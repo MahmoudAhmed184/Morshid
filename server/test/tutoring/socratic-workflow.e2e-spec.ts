@@ -132,6 +132,7 @@ function storyCandidateResponse(
   return Object.freeze({
     rawOutput: Object.freeze({
       message: input.message,
+      debuggingGuidance: null,
       responseIntent: input.responseIntent,
       usedCitationIds: citationIds,
       requiresStudentAction: true,
@@ -515,7 +516,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     expect(turn.assistantMessage.citations).toHaveLength(1)
 
     const promptVersion = Reflect.get(turn.assistantMessage, 'promptVersion')
-    expect(promptVersion).toBe('tutor-generation.mvp.v6')
+    expect(promptVersion).toBe('tutor-generation.mvp.v7')
 
     const reloadResponse = await request(requireApp().getHttpServer())
       .get(messagesPath(session.id))
@@ -630,8 +631,116 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     expect(persisted.candidateAttempts[0]).toMatchObject({
       candidateAttempt: 1,
       generationOutcome: 'GENERATED',
-      promptVersion: 'tutor-generation.mvp.v6',
+      promptVersion: 'tutor-generation.mvp.v7',
     })
+    expect(
+      persisted.candidateAttempts[0].guardResults.map((result) => ({
+        validationStage: result.validationStage,
+        approved: result.approved,
+      })),
+    ).toEqual([
+      { validationStage: 'STRUCTURAL', approved: true },
+      { validationStage: 'DETERMINISTIC', approved: true },
+      { validationStage: 'SEMANTIC', approved: true },
+    ])
+  })
+
+  it('approves a protected PROBLEM_LIKE debugging candidate without exhausting regeneration', async () => {
+    await createEvidenceMaterial({
+      title: 'Accumulator debugging',
+      content:
+        'An accumulator keeps its prior value and is updated once with the current item during each loop iteration.',
+    })
+    const session = await createSession()
+    analysisModel.behavior = (modelRequest) =>
+      Promise.resolve(
+        functionalStoryAnalysisResponse(modelRequest, {
+          requestKind: MessageRequestKind.PROBLEM_LIKE,
+          studentState: StudentState.PARTIAL_UNDERSTANDING,
+          recommendedStrategy: TeachingStrategy.SOCRATIC_QUESTIONING,
+          recommendedTechnique: TeachingTechnique.FOCUSED_QUESTION,
+        }),
+      )
+
+    const response = await request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${studentToken}`)
+      .send({
+        content: [
+          'My assigned program gives the wrong total. Help me debug it without giving me the corrected solution.',
+          '```python',
+          'def total(values):',
+          '    result = 0',
+          '    for value in values:',
+          '        result = value',
+          '    return result',
+          '```',
+        ].join('\n'),
+        clientMessageId: randomUUID(),
+      })
+      .expect(201)
+    const turn = response.body as TutoringTurnResponseDto
+
+    expect(tutorModel.callCount).toBe(1)
+    expect(semanticGuard.callCount).toBe(1)
+    expect(turn.studentMessage.requestKind).toBe(
+      MessageRequestKind.PROBLEM_LIKE,
+    )
+    expect(turn.assistantMessage).toMatchObject({
+      status: 'COMPLETED',
+      guidanceLabel: MessageGuidanceLabel.COURSE_GROUNDED,
+      hintLevel: 1,
+    })
+    expect(turn.assistantMessage.content).toContain('[retrieval.rank.1]')
+    expect(turn.assistantMessage.citations).toHaveLength(1)
+
+    const attemptId = turn.assistantMessage.attemptId
+    if (attemptId === null) {
+      throw new Error('Expected a persisted tutoring attempt')
+    }
+    const persisted = await prisma.tutoringAttempt.findUniqueOrThrow({
+      where: { id: attemptId },
+      include: {
+        educationalAnalyses: true,
+        teachingDecision: true,
+        candidateAttempts: {
+          include: {
+            guardResults: { orderBy: { validationStage: 'asc' } },
+          },
+        },
+      },
+    })
+
+    expect(persisted).toMatchObject({
+      requestKind: MessageRequestKind.PROBLEM_LIKE,
+      effectiveSolutionProtection: true,
+      approvalSource: 'VALIDATED_CANDIDATE',
+      approvedCandidateAttempt: 1,
+      safeFallbackUsed: false,
+      safeFallbackReason: null,
+    })
+    expect(persisted.educationalAnalyses).toEqual([
+      expect.objectContaining({
+        requestKind: MessageRequestKind.PROBLEM_LIKE,
+        studentState: StudentState.PARTIAL_UNDERSTANDING,
+        analysisSource: 'model',
+        fallbackReason: null,
+      }),
+    ])
+    expect(persisted.teachingDecision).toMatchObject({
+      strategy: TeachingStrategy.SOCRATIC_QUESTIONING,
+      primaryTechnique: TeachingTechnique.FOCUSED_QUESTION,
+      guidanceLevel: 1,
+      revealPolicy: 'NO_FINAL_ANSWER',
+      requireStudentAction: true,
+    })
+    expect(persisted.teachingDecision?.guardPolicy).toMatchObject({
+      preventDirectAnswer: true,
+      preventFinalResult: true,
+      preventCompleteSolution: true,
+      preventSubmissionReadyCode: true,
+    })
+    expect(persisted.candidateAttempts).toHaveLength(1)
     expect(
       persisted.candidateAttempts[0].guardResults.map((result) => ({
         validationStage: result.validationStage,
@@ -1684,6 +1793,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
             message: firstAttempt
               ? `${OVER_REVEAL_CANDIDATE} [retrieval.rank.1]`
               : `${BOUNDED_REGENERATED_CANDIDATE} [retrieval.rank.1]`,
+            debuggingGuidance: null,
             responseIntent: 'MISCONCEPTION_REPAIR',
             usedCitationIds: [...citationIds],
             requiresStudentAction: true,

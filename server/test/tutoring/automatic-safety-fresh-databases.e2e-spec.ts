@@ -71,7 +71,7 @@ const SAFE_DEBUGGING_RESPONSE = [
   'The arithmetic operator in the return expression.',
   '',
   'Concept',
-  'Arithmetic operators determine how operands are combined: `+` adds values, while `*` multiplies them. [1]',
+  'Arithmetic operators determine how operands are combined: `+` adds values, while `*` multiplies them. [retrieval.rank.1]',
   '',
   'Next inspection step',
   'Compare the operator in the return expression with the operation described by the function name.',
@@ -325,18 +325,35 @@ async function createHarness(
 
         return Promise.resolve({
           rawOutput: {
-            message: modelContent,
+            ...(debugging
+              ? {
+                  message: null,
+                  debuggingGuidance: {
+                    diagnosis:
+                      'The return expression adds the two parameters even though the function is intended to multiply them.',
+                    relevantLocation:
+                      'The arithmetic operator in the return expression.',
+                    conceptExplanation:
+                      'Arithmetic operators determine how operands are combined: `+` adds values, while `*` multiplies them.',
+                    inspectionActions: [
+                      'Compare the operator in the return expression with the operation described by the function name.',
+                    ],
+                  },
+                  studentAction: null,
+                }
+              : {
+                  message: modelContent,
+                  debuggingGuidance: null,
+                  studentAction: {
+                    type: 'ORIENTATION_QUESTION',
+                    description: 'Reflect on this step.',
+                  },
+                }),
             responseIntent: debugging
               ? 'DEBUGGING_GUIDANCE'
               : 'SOCRATIC_QUESTIONING',
             usedCitationIds: debugging ? [allowedCitationIds[0]] : [],
             requiresStudentAction: true,
-            studentAction: {
-              type: debugging ? 'TRACE_EXECUTION' : 'ORIENTATION_QUESTION',
-              description: debugging
-                ? 'Compare the operator with the function name.'
-                : 'Reflect on this step.',
-            },
             reflectionIncluded: false,
             selfReportedCompliance: {
               finalAnswerRevealed: false,
