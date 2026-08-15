@@ -642,7 +642,7 @@ const overRevealEducationalContext: TutorGuardEducationalContext =
     previousTeachingDecision: null,
     currentTeachingDecision: Object.freeze({
       id: 'live-over-reveal-decision',
-      policyVersion: 'socratic-policy.mvp.v2',
+      policyVersion: 'socratic-policy.mvp.v3',
       guidanceLevel: 1,
       revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
     }),
@@ -675,6 +675,7 @@ function overRevealEvaluation(
     maximumDisclosedSteps: 1,
   } as const
   const disclosureContract = buildSocraticDisclosureContract({
+    requestKind: overRevealEducationalContext.acceptedAnalysis.requestKind,
     guidanceLevel: validationContext.guidanceLevel,
     revealPolicy: validationContext.revealPolicy,
     guardPolicy: restrictiveOverRevealGuardPolicy,

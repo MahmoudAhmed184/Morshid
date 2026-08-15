@@ -128,7 +128,8 @@ describe('SemanticGuardService', () => {
         functionalResponseRequirements: {
           requestKind: 'CONCEPTUAL',
           strategyAndTechniqueMustNotReduceGuidanceShape: true,
-          supportedConceptualExplanation: true,
+          minimumUsefulConceptualExplanationRequired: false,
+          conceptualUnderstandingCheckRequired: false,
           evaluateSemanticallyWithoutPhraseMatching: true,
         },
       },
@@ -161,7 +162,7 @@ describe('SemanticGuardService', () => {
     })
     expect(payload).toMatchObject({
       trustedPolicy: {
-        disclosurePolicyVersion: 'socratic-disclosure-policy.v2',
+        disclosurePolicyVersion: 'socratic-disclosure-policy.v3',
       },
     })
     expect(Reflect.get(payload, 'requiredChecks')).toEqual(
@@ -217,6 +218,85 @@ describe('SemanticGuardService', () => {
       },
     })
   })
+
+  it.each([
+    {
+      label: 'under-informative conceptual response',
+      message: 'They are different. What do you think happens?',
+      guardOutput: {
+        approved: false,
+        violations: [
+          {
+            type: 'SEMANTIC_POLICY_VIOLATION',
+            severity: 'HIGH',
+            field: 'message',
+            evidence: 'The response omits the minimum useful distinction.',
+            regenerationInstruction:
+              'State the concise grounded distinction before the understanding question.',
+          },
+        ],
+      },
+      approved: false,
+    },
+    {
+      label: 'bounded distinction with an understanding check',
+      message:
+        '`break` exits the loop, while `continue` skips the rest of the current iteration. What difference would that make on the next iteration?',
+      guardOutput: { approved: true, violations: [] },
+      approved: true,
+    },
+  ])(
+    'carries the direct conceptual golden contract for $label',
+    async ({ message, guardOutput, approved }) => {
+      const guard = new FakeSemanticGuardPort(guardOutput)
+      const result = await new SemanticGuardService(guard).evaluate(
+        directConceptualInput(message),
+      )
+
+      expect(result).toMatchObject({
+        kind: 'validated',
+        result: { approved },
+      })
+      const payload = JSON.parse(
+        guard.requests[0]?.messages[1].content ?? '{}',
+      ) as Record<string, unknown>
+      expect(payload).toMatchObject({
+        trustedPolicy: {
+          disclosureContract: {
+            boundedConceptualExplanationAllowed: true,
+            directTargetInferenceAllowed: true,
+            finalAnswerAllowed: false,
+            completeSolutionAllowed: false,
+          },
+          functionalResponseRequirements: {
+            minimumUsefulConceptualExplanationRequired: true,
+            conceptualUnderstandingCheckRequired: true,
+          },
+        },
+      })
+      const semanticCalibrationExamples = Reflect.get(
+        payload,
+        'semanticCalibrationExamples',
+      ) as readonly {
+        readonly candidateMeaning: string
+        readonly verdict: string
+      }[]
+      expect(
+        semanticCalibrationExamples.some(
+          (example) =>
+            example.candidateMeaning.includes('only says') &&
+            example.verdict === 'REJECT as SEMANTIC_POLICY_VIOLATION',
+        ),
+      ).toBe(true)
+      expect(
+        semanticCalibrationExamples.some(
+          (example) =>
+            example.candidateMeaning.includes('concise grounded distinction') &&
+            example.verdict === 'APPROVE when all other checks pass',
+        ),
+      ).toBe(true)
+    },
+  )
 
   it.each([
     [
@@ -394,8 +474,55 @@ function candidate(patch: Partial<CandidateResponse> = {}): CandidateResponse {
     },
     provider: 'deterministic',
     model: 'deterministic-tutor',
-    promptVersion: 'tutor-generation.mvp.v4',
+    promptVersion: 'tutor-generation.mvp.v5',
     tokenUsage: { input: 0, output: 0 },
     ...patch,
+  }
+}
+
+function directConceptualInput(message: string): SemanticGuardEvaluationInput {
+  const base = input()
+  return {
+    ...base,
+    candidate: candidate({
+      message,
+      responseIntent: TeachingStrategy.GUIDED_EXPLANATION,
+      studentAction: {
+        type: TeachingTechnique.ORIENTATION_QUESTION,
+        description:
+          'Ask the student to compare the effect on the next iteration.',
+      },
+    }),
+    educationalContext: {
+      ...base.educationalContext,
+      currentStudentMessage: {
+        id: 'message-1',
+        content:
+          'What is the difference between break and continue in a Python loop?',
+      },
+      acceptedAnalysis: {
+        ...base.educationalContext.acceptedAnalysis,
+        requestKind: 'CONCEPTUAL',
+        studentState: 'UNKNOWN',
+        misconceptions: [],
+        confidence: 0.1,
+        analysisSource: 'fallback',
+      },
+      currentTeachingDecision: {
+        ...base.educationalContext.currentTeachingDecision,
+        revealPolicy: RevealPolicy.PARTIAL_RESULT_ALLOWED,
+      },
+      recentConversation: [],
+    },
+    validationContext: {
+      ...base.validationContext,
+      responseIntent: TeachingStrategy.GUIDED_EXPLANATION,
+      primaryTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+      revealPolicy: RevealPolicy.PARTIAL_RESULT_ALLOWED,
+    },
+    guardPolicy: {
+      ...base.guardPolicy,
+      preventDirectAnswer: false,
+    },
   }
 }

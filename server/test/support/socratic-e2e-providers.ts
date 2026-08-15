@@ -307,6 +307,39 @@ export function validCandidateRawOutput(
   }
 }
 
+export function guidedConceptualCandidateRawOutput(
+  allowedCitationIds: readonly string[] = [],
+): Record<string, unknown> {
+  return {
+    message:
+      'A list comprehension builds a new list by evaluating an expression for each item from an iterable. In [x * 2 for x in [1, 2]], which values would the expression produce?',
+    responseIntent: TeachingStrategy.GUIDED_EXPLANATION,
+    usedCitationIds: [...allowedCitationIds],
+    requiresStudentAction: true,
+    studentAction: {
+      type: TeachingTechnique.ORIENTATION_QUESTION,
+      description:
+        'Give the minimum useful explanation, then ask the student to apply it to a small example.',
+    },
+    reflectionIncluded: false,
+    selfReportedCompliance: {
+      finalAnswerRevealed: false,
+      completeSolutionRevealed: false,
+    },
+  }
+}
+
+export function validCandidateRawOutputForRequest(
+  request: TutorModelRequest,
+  allowedCitationIds: readonly string[] = [],
+): Record<string, unknown> {
+  return request.messages[1].content.includes(
+    `"strategy":"${TeachingStrategy.GUIDED_EXPLANATION}"`,
+  )
+    ? guidedConceptualCandidateRawOutput(allowedCitationIds)
+    : validCandidateRawOutput(allowedCitationIds)
+}
+
 /**
  * A raw candidate that will FAIL the deterministic guard (responseIntent
  * mismatch), triggering regeneration when used as attempt #1.
@@ -389,7 +422,9 @@ export class ControllableTutorModelPort implements TutorModelPort {
 function defaultTutorResponse(request: TutorModelRequest): TutorModelResponse {
   const citationIds = extractAllowedCitationIdsFromPrompt(request)
   return Object.freeze({
-    rawOutput: Object.freeze(validCandidateRawOutput(citationIds)),
+    rawOutput: Object.freeze(
+      validCandidateRawOutputForRequest(request, citationIds),
+    ),
     provider: 'e2e-controllable-tutor',
     model: 'e2e-controllable-tutor-v1',
     promptVersion: request.promptVersion,

@@ -42,6 +42,130 @@ describe('teaching policy selector', () => {
     ).toBe(strategy)
   })
 
+  it('gives a direct conceptual request with unknown student state a bounded explanation decision', () => {
+    const draft = selectTeachingDecisionDraft({
+      analysis: analysis({
+        requestKind: MessageRequestKind.CONCEPTUAL,
+        studentState: StudentState.UNKNOWN,
+        effortPresent: false,
+        effortQuality: EFFORT_QUALITY.NONE,
+        effortType: null,
+        effortEvidenceMessageIds: [],
+      }),
+      topicState: topicState(),
+      previousTeachingDecision: null,
+    })
+
+    expect(draft).toMatchObject({
+      strategy: TeachingStrategy.GUIDED_EXPLANATION,
+      primaryTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+      supportingTechnique: null,
+      guidanceLevel: 1,
+      revealPolicy: RevealPolicy.PARTIAL_RESULT_ALLOWED,
+      requireStudentAction: true,
+      guardPolicy: {
+        preventDirectAnswer: false,
+        preventFinalResult: true,
+        preventCompleteSolution: true,
+      },
+    })
+  })
+
+  it('does not let fallback analysis suppress an ordinary conceptual explanation', () => {
+    const draft = selectTeachingDecisionDraft({
+      analysis: analysis({
+        analysisSource: EDUCATIONAL_ANALYSIS_SOURCE.FALLBACK,
+        requestKind: MessageRequestKind.CONCEPTUAL,
+        studentState: StudentState.UNKNOWN,
+        effortPresent: false,
+        effortQuality: EFFORT_QUALITY.NONE,
+        effortType: null,
+        effortEvidenceMessageIds: [],
+      }),
+      topicState: topicState(),
+      previousTeachingDecision: null,
+    })
+
+    expect(draft).toMatchObject({
+      strategy: TeachingStrategy.GUIDED_EXPLANATION,
+      primaryTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+      guidanceLevel: 1,
+      revealPolicy: RevealPolicy.PARTIAL_RESULT_ALLOWED,
+      guardPolicy: { preventDirectAnswer: false },
+    })
+    expect(draft.decisionReason).toContain('direct conceptual request')
+  })
+
+  it.each([
+    {
+      label: 'problem-like request',
+      input: {
+        analysisSource: EDUCATIONAL_ANALYSIS_SOURCE.FALLBACK,
+        requestKind: MessageRequestKind.PROBLEM_LIKE,
+        studentState: StudentState.UNKNOWN,
+        effortPresent: false,
+        effortQuality: EFFORT_QUALITY.NONE,
+        effortType: null,
+        effortEvidenceMessageIds: [],
+      },
+      strategy: TeachingStrategy.SOCRATIC_QUESTIONING,
+    },
+    {
+      label: 'student attempt',
+      input: {
+        requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+        studentState: StudentState.PARTIAL_UNDERSTANDING,
+      },
+      strategy: TeachingStrategy.SOCRATIC_QUESTIONING,
+    },
+    {
+      label: 'code debugging request',
+      input: {
+        requestKind: MessageRequestKind.CODE_DIAGNOSIS,
+        studentState: StudentState.DEBUGGING_ISSUE,
+      },
+      strategy: TeachingStrategy.DEBUGGING_GUIDANCE,
+    },
+  ])('preserves protected policy for $label', ({ input, strategy }) => {
+    const draft = selectTeachingDecisionDraft({
+      analysis: analysis(input),
+      topicState: topicState(),
+      previousTeachingDecision: null,
+    })
+
+    expect(draft).toMatchObject({
+      strategy,
+      revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
+      guardPolicy: { preventDirectAnswer: true },
+    })
+  })
+
+  it('preserves misconception repair for a conceptual misconception', () => {
+    const draft = selectTeachingDecisionDraft({
+      analysis: analysis({
+        requestKind: MessageRequestKind.CONCEPTUAL,
+        studentState: StudentState.MISCONCEPTION,
+        misconceptions: [
+          {
+            code: 'BREAK_CONTINUE_REVERSAL',
+            description: 'The student reverses break and continue behavior.',
+            confidence: 0.95,
+            evidenceMessageId: 'message-1',
+          },
+        ],
+      }),
+      topicState: topicState(),
+      previousTeachingDecision: null,
+    })
+
+    expect(draft).toMatchObject({
+      strategy: TeachingStrategy.MISCONCEPTION_REPAIR,
+      primaryTechnique: TeachingTechnique.COUNTEREXAMPLE,
+      revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
+      guardPolicy: { preventDirectAnswer: true },
+    })
+  })
+
   it('preserves an eligible previous strategy for a near-solution turn', () => {
     expect(
       selectTeachingStrategy({
@@ -493,6 +617,7 @@ function analysis(
     requestKind: MessageRequestKind
     studentState: StudentState
     topicRelation: PersistedEducationalAnalysisRecord['result']['topicRelation']
+    misconceptions: PersistedEducationalAnalysisRecord['result']['misconceptions']
   }> = {},
 ): PersistedEducationalAnalysisRecord {
   return {
@@ -521,7 +646,7 @@ function analysis(
         strength: input.learningStrength ?? LEARNING_EVIDENCE_STRENGTH.NONE,
         evidenceMessageIds: input.learningEvidenceMessageIds ?? [],
       },
-      misconceptions: [],
+      misconceptions: input.misconceptions ?? [],
       topicRelation:
         input.topicRelation ?? TOPIC_RESOLUTION_OUTCOME.CONTINUE_CURRENT_TOPIC,
       recommendedStrategy: TeachingStrategy.GUIDED_EXPLANATION,

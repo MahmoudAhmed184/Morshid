@@ -71,6 +71,7 @@ import {
   ControllableSemanticGuardPort,
   ControllableAnalysisModelPort,
   validCandidateRawOutput,
+  validCandidateRawOutputForRequest,
   rejectedCandidateRawOutput,
   misconceptionAnalysisResponse,
   approvedSemanticGuardResponse,
@@ -99,7 +100,7 @@ const NON_MATCHING_QUERY_VECTOR = Object.freeze([
 ])
 
 const EXPECTED_HAPPY_PATH_MESSAGE =
-  'What part of the list comprehension syntax are you most unsure about? Try writing just the expression part first.'
+  'A list comprehension builds a new list by evaluating an expression for each item from an iterable. In [x * 2 for x in [1, 2]], which values would the expression produce?'
 const OVER_REVEAL_STUDENT_MESSAGE =
   'x will be 30 first, because I think the loop starts from the last item and moves backward.'
 const OVER_REVEAL_CANDIDATE =
@@ -510,7 +511,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     expect(turn.assistantMessage.citations).toHaveLength(1)
 
     const promptVersion = Reflect.get(turn.assistantMessage, 'promptVersion')
-    expect(promptVersion).toBe('tutor-generation.mvp.v4')
+    expect(promptVersion).toBe('tutor-generation.mvp.v5')
 
     const reloadResponse = await request(requireApp().getHttpServer())
       .get(messagesPath(session.id))
@@ -530,6 +531,113 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       content: turn.studentMessage.content,
     })
     expect(reloadedAssistant).toEqual(turn.assistantMessage)
+  })
+
+  it('explains a direct conceptual comparison before eliciting when analysis falls back', async () => {
+    await createEvidenceMaterial({
+      title: 'Python loop control concepts',
+      content:
+        'The break statement exits a loop. The continue statement skips the rest of the current iteration and proceeds with the next iteration.',
+    })
+    const session = await createSession()
+    analysisModel.behavior = () =>
+      Promise.reject(
+        new AnalysisModelError(ANALYSIS_MODEL_ERROR_CODE.PROVIDER_UNAVAILABLE),
+      )
+    tutorModel.behavior = (modelRequest) =>
+      Promise.resolve(
+        storyCandidateResponse(modelRequest, {
+          message:
+            '`break` exits the loop, while `continue` skips the rest of the current iteration [retrieval.rank.1]. What difference would that make when each statement is reached at i == 3?',
+          responseIntent: TeachingStrategy.GUIDED_EXPLANATION,
+          studentActionType: TeachingTechnique.ORIENTATION_QUESTION,
+        }),
+      )
+
+    const response = await request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${studentToken}`)
+      .send({
+        content:
+          'What is the difference between break and continue in a Python loop?',
+        clientMessageId: randomUUID(),
+      })
+      .expect(201)
+    const turn = response.body as TutoringTurnResponseDto
+
+    expect(turn.studentMessage.requestKind).toBe(MessageRequestKind.CONCEPTUAL)
+    expect(turn.assistantMessage).toMatchObject({
+      status: 'COMPLETED',
+      guidanceLabel: MessageGuidanceLabel.COURSE_GROUNDED,
+      hintLevel: 1,
+    })
+    expect(turn.assistantMessage.content).toMatch(/break[^.]*exit[^.]*loop/iu)
+    expect(turn.assistantMessage.content).toMatch(
+      /continue[^.]*skip[^.]*current iteration/iu,
+    )
+    expect(turn.assistantMessage.content).toMatch(/\?$/u)
+    expect(turn.assistantMessage.citations).toHaveLength(1)
+
+    const attemptId = turn.assistantMessage.attemptId
+    if (attemptId === null) {
+      throw new Error('Expected a persisted tutoring attempt')
+    }
+    const persisted = await prisma.tutoringAttempt.findUniqueOrThrow({
+      where: { id: attemptId },
+      include: {
+        educationalAnalyses: true,
+        teachingDecision: true,
+        candidateAttempts: { include: { guardResults: true } },
+      },
+    })
+
+    expect(persisted).toMatchObject({
+      status: TutoringAttemptStatus.COMPLETED,
+      requestKind: MessageRequestKind.CONCEPTUAL,
+      safeFallbackUsed: false,
+      approvalSource: 'VALIDATED_CANDIDATE',
+      approvedCandidateAttempt: 1,
+      safeFallbackReason: null,
+    })
+    expect(persisted.educationalAnalyses).toEqual([
+      expect.objectContaining({
+        requestKind: MessageRequestKind.CONCEPTUAL,
+        studentState: StudentState.UNKNOWN,
+        analysisSource: 'fallback',
+        fallbackReason: 'provider_unavailable',
+      }),
+    ])
+    const teachingDecision = persisted.teachingDecision
+    if (teachingDecision === null) {
+      throw new Error('Expected a persisted teaching decision')
+    }
+    expect(teachingDecision).toMatchObject({
+      strategy: TeachingStrategy.GUIDED_EXPLANATION,
+      primaryTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+      guidanceLevel: 1,
+      revealPolicy: 'PARTIAL_RESULT_ALLOWED',
+      requireStudentAction: true,
+      policyVersion: 'socratic-policy.mvp.v3',
+    })
+    expect(teachingDecision.guardPolicy).toMatchObject({
+      preventDirectAnswer: false,
+    })
+    expect(persisted.candidateAttempts).toHaveLength(1)
+    expect(persisted.candidateAttempts[0]).toMatchObject({
+      candidateAttempt: 1,
+      generationOutcome: 'GENERATED',
+      promptVersion: 'tutor-generation.mvp.v5',
+    })
+    expect(
+      persisted.candidateAttempts[0].guardResults.map((result) => ({
+        validationStage: result.validationStage,
+        approved: result.approved,
+      })),
+    ).toEqual([
+      { validationStage: 'STRUCTURAL', approved: true },
+      { validationStage: 'DETERMINISTIC', approved: true },
+      { validationStage: 'SEMANTIC', approved: true },
+    ])
   })
 
   it('fulfills the Story 124 no-attempt → weak attempt → partial attempt → repeatedly stuck journey', async () => {
@@ -865,7 +973,9 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       const citationIds = tutorModel.extractAllowedCitationIds(modelRequest)
       return Promise.resolve(
         Object.freeze({
-          rawOutput: Object.freeze(validCandidateRawOutput(citationIds)),
+          rawOutput: Object.freeze(
+            validCandidateRawOutputForRequest(modelRequest, citationIds),
+          ),
           provider: 'e2e-controllable-tutor',
           model: 'e2e-controllable-tutor-v1',
           promptVersion: modelRequest.promptVersion,
@@ -1005,7 +1115,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       }
       const citationIds = tutorModel.extractAllowedCitationIds(modelRequest)
       return Promise.resolve({
-        rawOutput: validCandidateRawOutput(citationIds),
+        rawOutput: validCandidateRawOutputForRequest(modelRequest, citationIds),
         provider: 'e2e-controllable-tutor',
         model: 'e2e-controllable-tutor-v1',
         promptVersion: modelRequest.promptVersion,
@@ -1509,14 +1619,17 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     rejectUncontextualizedHint = true
 
     const tutorQuestions = [
-      'In a Python for loop, which list element would you inspect first?',
+      'A Python for loop visits list elements in their written order and assigns each one to the loop variable. Which list element would it inspect first?',
       'How does that ordering idea apply to the loop variable?',
       'For Python for-loop iteration, which element is at the very beginning of numbers = [10, 20, 30]?',
       'Which position in the written list could you inspect first?',
     ]
     tutorModel.behavior = (modelRequest) => {
       const citationIds = tutorModel.extractAllowedCitationIds(modelRequest)
-      const rawOutput = validCandidateRawOutput(citationIds)
+      const rawOutput = validCandidateRawOutputForRequest(
+        modelRequest,
+        citationIds,
+      )
       const message = tutorQuestions[tutorModel.callCount - 1]
       return Promise.resolve(
         Object.freeze({

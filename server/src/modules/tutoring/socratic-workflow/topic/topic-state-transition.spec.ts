@@ -153,7 +153,7 @@ function decision(): PersistedTeachingDecisionRecord {
       maximumDisclosedSteps: 1,
     },
     decisionReason: 'test',
-    policyVersion: 'socratic-policy.mvp.v2',
+    policyVersion: 'socratic-policy.mvp.v3',
     createdAt: new Date('2026-08-10T00:00:00.000Z'),
   }
 }

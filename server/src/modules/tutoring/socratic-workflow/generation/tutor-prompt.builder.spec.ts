@@ -96,6 +96,34 @@ describe('tutor prompt builder', () => {
   })
 
   it.each([
+    'I have never used dictionaries. What are keys and values?',
+    'What is the difference between break and continue in a Python loop?',
+  ])(
+    'requires a bounded core explanation and understanding check for: %s',
+    (studentMessage) => {
+      const request = buildTutorGenerationModelRequest(
+        directConceptualContext(studentMessage),
+      )
+      const prompt = request.messages
+        .map((message) => message.content)
+        .join('\n')
+
+      expect(prompt).toContain('"strategy":"GUIDED_EXPLANATION"')
+      expect(prompt).toContain('"primaryTechnique":"ORIENTATION_QUESTION"')
+      expect(prompt).toContain('"revealPolicy":"PARTIAL_RESULT_ALLOWED"')
+      expect(prompt).toContain('"preventDirectAnswer":false')
+      expect(prompt).toContain('"boundedConceptualExplanationAllowed":true')
+      expect(prompt).toContain('"directTargetInferenceAllowed":true')
+      expect(prompt).toContain(
+        '"minimumUsefulConceptualExplanationRequired":true',
+      )
+      expect(prompt).toContain('"conceptualUnderstandingCheckRequired":true')
+      expect(prompt).toContain('State the minimum useful grounded core concept')
+      expect(prompt).toContain(studentMessage)
+    },
+  )
+
+  it.each([
     {
       requestKind: MessageRequestKind.PROBLEM_LIKE,
       studentState: StudentState.NO_PRIOR_KNOWLEDGE,
@@ -203,6 +231,53 @@ function misconceptionContext(
       strategy: TeachingStrategy.MISCONCEPTION_REPAIR,
       primaryTechnique: TeachingTechnique.COUNTEREXAMPLE,
       guidanceLevel,
+    },
+    previousTeachingDecision: null,
+  }
+}
+
+function directConceptualContext(
+  currentStudentMessage: string,
+): GenerationContextPackage {
+  const context = buildGenerationContext()
+  return {
+    ...context,
+    studentMessage: {
+      ...context.studentMessage,
+      content: currentStudentMessage,
+      requestKind: MessageRequestKind.CONCEPTUAL,
+    },
+    acceptedAnalysis: {
+      ...context.acceptedAnalysis,
+      result: {
+        ...context.acceptedAnalysis.result,
+        requestKind: MessageRequestKind.CONCEPTUAL,
+        studentState: StudentState.UNKNOWN,
+        effortEvidence: {
+          present: false,
+          quality: 'NONE',
+          type: null,
+          addressesPreviousTutorAction: false,
+          isRepeated: false,
+          evidenceMessageIds: [],
+        },
+        misconceptions: [],
+        recommendedStrategy: TeachingStrategy.GUIDED_EXPLANATION,
+        recommendedTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+      },
+      analysisSource: 'fallback',
+      fallbackReason: 'provider_unavailable',
+    },
+    teachingDecision: {
+      ...context.teachingDecision,
+      strategy: TeachingStrategy.GUIDED_EXPLANATION,
+      primaryTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+      guidanceLevel: 1,
+      revealPolicy: RevealPolicy.PARTIAL_RESULT_ALLOWED,
+      guardPolicy: {
+        ...context.teachingDecision.guardPolicy,
+        preventDirectAnswer: false,
+      },
     },
     previousTeachingDecision: null,
   }
