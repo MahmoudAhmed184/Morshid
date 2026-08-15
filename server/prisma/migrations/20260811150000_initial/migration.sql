@@ -280,6 +280,8 @@ CREATE TABLE "users" (
 CREATE TABLE "refresh_tokens" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "user_id" UUID NOT NULL,
+    "family_id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "family_created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "token_hash" TEXT NOT NULL,
     "expires_at" TIMESTAMPTZ(6) NOT NULL,
     "revoked_at" TIMESTAMPTZ(6),
@@ -668,6 +670,12 @@ CREATE UNIQUE INDEX "refresh_tokens_token_hash_key" ON "refresh_tokens"("token_h
 
 -- CreateIndex
 CREATE INDEX "idx_refresh_tokens_user" ON "refresh_tokens"("user_id");
+
+-- CreateIndex
+CREATE INDEX "idx_refresh_tokens_user_family" ON "refresh_tokens"("user_id", "family_id");
+
+-- CreateIndex
+CREATE INDEX "idx_refresh_tokens_family" ON "refresh_tokens"("family_id");
 
 -- CreateIndex
 CREATE INDEX "idx_refresh_tokens_replaced_by" ON "refresh_tokens"("replaced_by_token_id");

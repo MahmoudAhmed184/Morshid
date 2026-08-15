@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
 import type {
+  ActiveSessionListResponse,
   AuthenticatedUser,
   IdentityRequestContext,
   IdentitySession,
@@ -14,10 +15,12 @@ import type {
 } from './identity.types'
 import {
   accountDisabledException,
+  cannotRevokeCurrentSessionException,
   invalidAccessTokenException,
   invalidCredentialsException,
 } from './identity.errors'
 import { AccessToken } from './access-token'
+import { maskIp, parseDevice } from './device-parser'
 import { IdentityAudit } from './identity-audit'
 import { IdentityUser } from './identity-user'
 import { PasswordHasher } from './password-hasher'
@@ -90,7 +93,11 @@ export class IdentityService {
       throw accountDisabledException()
     }
 
-    const accessToken = await this.accessToken.create(rotation.user, now)
+    const accessToken = await this.accessToken.create(
+      rotation.user,
+      rotation.nextRefreshToken.record.familyId,
+      now,
+    )
     const session = this.buildSession(
       accessToken,
       rotation.nextRefreshToken,
@@ -172,6 +179,127 @@ export class IdentityService {
     }
   }
 
+  async listActiveSessions(
+    userId: string,
+    currentRefreshToken?: string | null,
+  ): Promise<ActiveSessionListResponse> {
+    const now = new Date()
+    let currentFamilyId: string | null = null
+
+    if (
+      currentRefreshToken !== null &&
+      currentRefreshToken !== undefined &&
+      currentRefreshToken !== ''
+    ) {
+      const currentToken = await this.refreshSession.findFamilyByToken(
+        currentRefreshToken,
+        now,
+      )
+      if (currentToken?.user.id === userId) {
+        currentFamilyId = currentToken.familyId
+      }
+    }
+
+    const activeTokens = await this.refreshSession.findActiveSessions(
+      userId,
+      now,
+    )
+
+    const sessions = activeTokens.map((token) => ({
+      id: token.familyId,
+      device: parseDevice(token.userAgent),
+      ip: maskIp(token.ip),
+      createdAt: token.familyCreatedAt.toISOString(),
+      lastActiveAt: token.createdAt.toISOString(),
+      expiresAt: token.expiresAt.toISOString(),
+      isCurrent: currentFamilyId !== null && token.familyId === currentFamilyId,
+    }))
+
+    return { sessions }
+  }
+
+  async revokeSession(
+    userId: string,
+    familyId: string,
+    currentRefreshToken: string | null | undefined,
+    requestContext: IdentityRequestContext,
+  ): Promise<void> {
+    const now = new Date()
+
+    if (
+      currentRefreshToken !== null &&
+      currentRefreshToken !== undefined &&
+      currentRefreshToken !== ''
+    ) {
+      const currentToken = await this.refreshSession.findFamilyByToken(
+        currentRefreshToken,
+        now,
+      )
+      if (
+        currentToken?.user.id === userId &&
+        currentToken.familyId === familyId
+      ) {
+        throw cannotRevokeCurrentSessionException()
+      }
+    }
+
+    const revokedCount = await this.refreshSession.revokeFamily(
+      userId,
+      familyId,
+      now,
+    )
+
+    if (revokedCount > 0) {
+      await this.identityAudit.recordSessionRevoked(
+        { id: userId },
+        familyId,
+        requestContext,
+      )
+    }
+  }
+
+  async revokeOtherSessions(
+    userId: string,
+    currentRefreshToken: string | null | undefined,
+    requestContext: IdentityRequestContext,
+  ): Promise<void> {
+    const now = new Date()
+    let currentFamilyId: string | null = null
+
+    if (
+      currentRefreshToken !== null &&
+      currentRefreshToken !== undefined &&
+      currentRefreshToken !== ''
+    ) {
+      const currentToken = await this.refreshSession.findFamilyByToken(
+        currentRefreshToken,
+        now,
+      )
+      if (currentToken?.user.id === userId) {
+        currentFamilyId = currentToken.familyId
+      }
+    }
+
+    if (currentFamilyId === null) {
+      return
+    }
+
+    const revokedCount = await this.refreshSession.revokeOtherFamilies(
+      userId,
+      currentFamilyId,
+      now,
+    )
+
+    if (revokedCount > 0) {
+      await this.identityAudit.recordOtherSessionsRevoked(
+        { id: userId },
+        currentFamilyId,
+        revokedCount,
+        requestContext,
+      )
+    }
+  }
+
   async authenticateAccessToken(
     accessToken: string,
     requestContext: IdentityRequestContext,
@@ -183,13 +311,24 @@ export class IdentityService {
       throw invalidAccessTokenException()
     }
 
+    if (this.identityUser.isDisabled(user)) {
+      await this.identityAudit.recordDisabledAccountBlock(user, requestContext)
+      throw accountDisabledException()
+    }
+
     if (payload.passwordChangedAt !== user.passwordChangedAt.toISOString()) {
       throw invalidAccessTokenException()
     }
 
-    if (this.identityUser.isDisabled(user)) {
-      await this.identityAudit.recordDisabledAccountBlock(user, requestContext)
-      throw accountDisabledException()
+    const now = new Date()
+    const activeSession = await this.refreshSession.findActiveSessionFamily(
+      payload.sub,
+      payload.sessionId,
+      now,
+    )
+
+    if (!activeSession) {
+      throw invalidAccessTokenException()
     }
 
     return this.identityUser.pickAuthenticatedUser(user)
@@ -200,11 +339,15 @@ export class IdentityService {
     now: Date,
     requestContext: IdentityRequestContext,
   ): Promise<CreatedIdentitySession> {
-    const accessToken = await this.accessToken.create(user, now)
     const refreshToken = await this.refreshSession.create(
       user,
       now,
       requestContext,
+    )
+    const accessToken = await this.accessToken.create(
+      user,
+      refreshToken.record.familyId,
+      now,
     )
     const session = this.buildSession(accessToken, refreshToken, user)
 
