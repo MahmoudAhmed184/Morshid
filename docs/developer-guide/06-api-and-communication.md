@@ -181,11 +181,11 @@ export interface RejectReviewRequestDto {
 |---|---|---|
 | **`200 OK`** | Successful query or mutation | `GET /courses`, `PATCH /users/:id`, `POST /auth/sign-in` |
 | **`201 Created`** | Successful entity creation | `POST /courses/:courseId/chat-sessions/:sessionId/messages`, `POST /admin/courses`, `POST /courses/:courseId/materials` |
-| **`204 No Content`**| Successful action with empty body | `POST /auth/logout`, `DELETE /admin/courses/:courseId` |
-| **`400 Bad Request`**| Validation failure or malformed parameter | Invalid Zod request payload, invalid UUID parameter |
-| **`401 Unauthorized`**| Authentication failure | Expired JWT, invalid password, missing token |
+| **`204 No Content`** | Successful action with empty body | `POST /auth/logout`, `DELETE /admin/courses/:courseId` |
+| **`400 Bad Request`** | Validation failure or malformed parameter | Invalid Zod request payload, invalid UUID parameter |
+| **`401 Unauthorized`** | Authentication failure | Expired JWT, invalid password, missing token |
 | **`403 Forbidden`** | Authorization or RBAC failure | Non-admin calling `/admin/*`, student not enrolled in course |
 | **`404 Not Found`** | Resource missing | Course, material, or user does not exist |
-| **`409 Conflict`**  | Duplicate key or state conflict | Duplicate email, duplicate course code, role change on enrolled user |
-| **`422 Unprocessable`**| Domain rule violation | Uploading non-PDF file, submitting turn to unindexed course |
-| **`503 Unavailable`**| Upstream service or database down | `/health/ready` probe failed, Redis disconnected |
+| **`409 Conflict`** | Duplicate key or state conflict | Duplicate email, duplicate course code, role change on enrolled user |
+| **`422 Unprocessable`** | Domain rule violation | Uploading non-PDF file, submitting turn to unindexed course |
+| **`503 Unavailable`** | Upstream service or database down | `/health/ready` probe failed, Redis disconnected |

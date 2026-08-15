@@ -31,7 +31,7 @@ flowchart TD
 1. **Never give the final answer or code.** Morshid enforces a `NO_FINAL_ANSWER` reveal policy. It will not generate copy-paste assignment solutions or complete function implementations.
 2. **Ground all answers in course materials.** All factual explanations must cite verified, instructor-uploaded PDFs from the student's enrolled course.
 3. **No code execution.** When a student submits broken code, the tutor spots logical or syntax misunderstandings and asks guiding questions. Morshid never runs student code in a sandbox or virtual machine, avoiding execution security risks and automated test evasion.
-4. **Instructor fallback.** When model confidence drops below threshold, safety guardrails trigger, or a student requests help, the turn enters the instructor review queue.
+4. **Instructor fallback.** When model confidence drops below a threshold, safety guardrails trigger, or a student requests help, the turn enters the instructor review queue.
 
 ---
 
@@ -74,7 +74,7 @@ graph LR
 - Reviews flagged turns in the review queue to provide overrides, explanations, or approvals.
 
 ### 3. Administrator (`ADMIN`)
-- Manages tenant accounts: creates, updates, and disables users, assigns course memberships, and runs bulk CSV or JSON user imports.
+- Manages tenant accounts by creating, updating, and disabling users, assigning course memberships, and running bulk CSV or JSON user imports.
 - Monitors health check endpoints (`/health/live`, `/health/ready`), database connectivity, and AI provider status.
 - Inspects system audit logs (`audit_logs`).
 

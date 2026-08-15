@@ -1,4 +1,4 @@
-# ADR 0001: capability-first ownership and platform separation
+# ADR 0001: Capability-first ownership and platform separation
 
 - **Status:** Accepted
 - **Date:** 2026-08-11
@@ -39,6 +39,7 @@ of the migration; compatibility wrappers are not permitted.
 
 ## References
 
-- `docs/architecture-refactor-plan-2026-08-11.md`, sections 2, 3.2, 5, and 17
-- `docs/research/nestjs-prisma-backend-organization-2026-08-11.md`
-- `docs/research/frontend-file-architecture-2026-08-11.md`
+- [docs/developer-guide/03-architecture-and-boundaries.md](file:///home/mahmoud-ahmed/Projects/Morshid/docs/developer-guide/03-architecture-and-boundaries.md)
+- [docs/developer-guide/05-backend-architecture.md](file:///home/mahmoud-ahmed/Projects/Morshid/docs/developer-guide/05-backend-architecture.md)
+- [AGENTS.md](file:///home/mahmoud-ahmed/Projects/Morshid/AGENTS.md)
+- [CONTEXT.md](file:///home/mahmoud-ahmed/Projects/Morshid/CONTEXT.md)

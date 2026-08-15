@@ -63,22 +63,22 @@ TanStack Router generates the route tree into [`client/src/routeTree.gen.ts`](fi
 - **`routes/login.tsx`**. Unauthenticated login screen with email and password form. Authenticated users are redirected to their role workspace.
 - **`routes/health.tsx`**. System diagnostic and server health probe view (`DevelopmentStatusPage`).
 - **`routes/_student.tsx`**. Pathless layout protecting student routes. Enforces `user.role === 'STUDENT'` and loads the course list.
-  - `routes/_student.chat.tsx`: Socratic chat workspace and active conversation view.
-  - `routes/_student.settings.tsx`: Student account settings view.
+  - `routes/_student.chat.tsx`. Socratic chat workspace and active conversation view.
+  - `routes/_student.settings.tsx`. Student account settings view.
 - **`routes/instructor/`**. Instructor workspace layout (`routes/instructor/route.tsx`). Enforces `user.role === 'INSTRUCTOR'`.
-  - `routes/instructor/index.tsx`: Instructor dashboard shell and course roster.
-  - `routes/instructor/materials/index.tsx`: Course material manager, upload panel, and processing status.
-  - `routes/instructor/review-queue/index.tsx`: Human-in-the-loop review moderation queue.
-  - `routes/instructor/review-queue/$reviewCaseId.tsx`: Review case resolution panel.
-  - `routes/instructor/settings.tsx`: Instructor account settings.
+  - `routes/instructor/index.tsx`. Instructor dashboard shell and course roster.
+  - `routes/instructor/materials/index.tsx`. Course material manager, upload panel, and processing status.
+  - `routes/instructor/review-queue/index.tsx`. Human-in-the-loop review moderation queue.
+  - `routes/instructor/review-queue/$reviewCaseId.tsx`. Review case resolution panel.
+  - `routes/instructor/settings.tsx`. Instructor account settings.
 - **`routes/admin/`**. Admin workspace layout (`routes/admin/route.tsx`). Enforces `user.role === 'ADMIN'`.
-  - `routes/admin/index.tsx`: Admin overview dashboard (`AdminDashboardPage`).
-  - `routes/admin/users/students.tsx` and `instructors.tsx`: User management, creation dialog, and bulk CSV importer.
-  - `routes/admin/courses/index.tsx`: Course creation and management.
-  - `routes/admin/materials/index.tsx`: Admin material explorer.
-  - `routes/admin/assignments/index.tsx`: Course roster membership manager.
-  - `routes/admin/audit/index.tsx`: Tamper-evident audit log explorer.
-  - `routes/admin/settings.tsx`: Admin settings.
+  - `routes/admin/index.tsx`. Admin overview dashboard (`AdminDashboardPage`).
+  - `routes/admin/users/students.tsx` and `instructors.tsx`. User management, creation dialog, and bulk CSV importer.
+  - `routes/admin/courses/index.tsx`. Course creation and management.
+  - `routes/admin/materials/index.tsx`. Admin material explorer.
+  - `routes/admin/assignments/index.tsx`. Course roster membership manager.
+  - `routes/admin/audit/index.tsx`. Tamper-evident audit log explorer.
+  - `routes/admin/settings.tsx`. Admin settings.
 
 ---
 
@@ -187,7 +187,7 @@ export function useResolveReviewMutation() {
 
 ---
 
-## 6. End-to-end user UI journeys
+## 6. End-to-end UI journeys
 
 ### 6.1 Student Socratic tutoring journey
 

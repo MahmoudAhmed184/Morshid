@@ -67,7 +67,7 @@ erDiagram
 
 ---
 
-## 3. The clean-slate initial migration
+## 3. Clean-slate initial migration
 
 Under [ADR 0004](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0004-clean-slate-prisma-migration.md), Morshid maintains a single audited initial migration in [`server/prisma/migrations/20260811150000_initial/migration.sql`](file:///home/mahmoud-ahmed/Projects/Morshid/server/prisma/migrations/20260811150000_initial/migration.sql).
 

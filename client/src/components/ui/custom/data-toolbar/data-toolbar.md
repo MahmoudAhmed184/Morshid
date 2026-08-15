@@ -4,8 +4,8 @@ Use `DataToolbar` above tables and lists to keep search, filters, actions, and b
 
 Good places to use it:
 
-- Course lists, student lists, admin tables, invoice tables.
-- Any page with search plus filters and a create/action button.
+- Course lists, student lists, admin tables, and invoice tables.
+- Any page with search, filters, and a primary action button.
 
 Import:
 
@@ -39,5 +39,5 @@ With filters and bulk actions:
 
 Notes:
 
-- `bulkActions` only appears when `selectedCount > 0`.
-- `filters` can be any React node: selects, tabs, chips, or custom controls.
+- `bulkActions` renders only when `selectedCount > 0`.
+- `filters` accepts any React node, such as selects, tabs, chips, or custom controls.

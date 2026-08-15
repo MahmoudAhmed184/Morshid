@@ -17,8 +17,8 @@ The SPA does not persist access or refresh tokens in `localStorage` or
 `sessionStorage`. Access/session data is held in memory, and legacy stored auth
 entries are removed during startup.
 
-The server also issues the rotating refresh token as an `HttpOnly`, `SameSite`
-cookie scoped to `/api/v1/auth`; production cookies additionally use `Secure`.
+The server issues the rotating refresh token as an `HttpOnly`, `SameSite`
+cookie scoped to `/api/v1/auth`; production cookies also use `Secure`.
 Browser API requests include credentials so a page refresh can restore the
 in-memory access session without reading the HttpOnly cookie from JavaScript.
 Auth responses and request bodies do not expose a refresh token. Non-browser

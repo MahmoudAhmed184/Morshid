@@ -1,11 +1,11 @@
 # StatusBadge
 
-Use `StatusBadge` when displaying known lifecycle or health statuses.
+Use `StatusBadge` to display lifecycle or health status.
 
-Good places to use it:
+Where to use it:
 
 - Course status, student status, API readiness, payment status, moderation state.
-- Tables and detail pages where status styling should be consistent.
+- Tables and detail pages that need consistent status styling.
 
 Import:
 
@@ -34,4 +34,4 @@ Override tone:
 Notes:
 
 - Unknown statuses fall back to `outline`.
-- Current built-in mappings include `ready`, `offline`, `degraded`, `active`, `pending`, `failed`, and similar common statuses.
+- Built-in mappings include `ready`, `offline`, `degraded`, `active`, `pending`, and `failed`.

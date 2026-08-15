@@ -1,6 +1,6 @@
 # 10. AI platform, embeddings, and Gemini project pool
 
-Morshid houses embedding generation, structured LLM transport, and model delegation behind platform adapters in [`server/src/platform/ai/`](file:///home/mahmoud-ahmed/Projects/Morshid/server/src/platform/ai/).
+Morshid organizes embedding generation, structured LLM transport, and model delegation behind platform adapters in [`server/src/platform/ai/`](file:///home/mahmoud-ahmed/Projects/Morshid/server/src/platform/ai/).
 
 ---
 
@@ -66,8 +66,8 @@ graph TD
 - **API version.** Google GenAI REST API `v1beta` via `@google/genai`.
 - **Dimensions.** Fixed at `1536`.
 - **Task types.**
-  - Documents (ingestion): `retrieval document` task type with material title included in the chunk payload.
-  - Queries (runtime): `question answering` task type.
+  - **Documents (ingestion).** `retrieval document` task type with material title included in the chunk payload.
+  - **Queries (runtime).** `question answering` task type.
 - **Batching.** Groups document chunk embedding requests in batches of 32 (`GEMINI_EMBEDDING_BATCH_SIZE`).
 - **Quota guard.** [`gemini-quota.service.ts`](file:///home/mahmoud-ahmed/Projects/Morshid/server/src/platform/ai/gemini/gemini-quota.service.ts) uses a Redis token bucket to enforce rate limits per minute, hour, day, and 30-day window.
 

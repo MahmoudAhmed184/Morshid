@@ -2,7 +2,7 @@
 
 ## Workflow
 
-Use Practical GitFlow:
+Practical GitFlow rules:
 
 - `dev` is the default integration branch.
 - Create feature branches from `dev`.
@@ -23,49 +23,59 @@ Recommended repository protections for `main`:
 - Block force pushes and branch deletion.
 - Do not enable GitHub's absolute branch lock; `main` should remain releasable through reviewed release and hotfix pull requests.
 
-CODEOWNERS is deferred until GitHub users or teams are known.
-
 ## Commits
 
 Use Conventional Commits with a scope:
 
 ```txt
-feat(server): add health readiness endpoints
-build(infra): add docker compose services
-docs(readme): document local setup
+feat(server): add course readiness check
+build(infra): update redis container image
+docs(readme): clarify embedding profile migration
 ```
 
 Keep the subject imperative, concise, and lowercase after the scope.
 
-## Local Checks
+## Local checks and quality gate
 
-Before opening a PR, run the same canonical check used by CI:
+Before opening a pull request, run the checks used by CI:
 
 ```bash
 npm run check
 ```
 
-This checks formatting, strict linting, type safety, frontend and backend unit
-tests, and production builds.
+This command runs:
+1. Code formatting check (`format:check`).
+2. ESLint checks across root, client, and server (`lint:ci`).
+3. TypeScript type checking across all workspaces (`typecheck`).
+4. Architectural boundary checks via dependency-cruiser (`test:architecture`).
+5. Generated code integrity check (`test:generated-ownership`).
+6. Unit tests across all workspaces (`test`).
+7. Production builds for client and server (`build`).
 
-For changes covered by server acceptance tests, also run the complete E2E
-sequence:
+### Integration and acceptance testing
+
+For changes that touch API contracts, database migrations, or UI workflows, run the integration and acceptance suites:
 
 ```bash
+# Start local PostgreSQL (with pgvector) and Redis
 npm run infra:up
+
+# Run database migrations
 npm run db:migrate:deploy
+
+# Run server E2E integration tests
 npm run test:e2e
+
+# Run Playwright browser acceptance tests
+npm run test:acceptance
+
+# Stop infrastructure containers when done
 npm run infra:down
 ```
 
-Always run `npm run infra:down` when finished, including after a failed
-migration or test run. `infra:up` starts the required Docker Compose services:
+Always run `npm run infra:down` when finished.
 
-- PostgreSQL with pgvector at `localhost:5432`, using database and user
-  `morshid` and password `morshid_local_password` by default.
-- Redis at `redis://localhost:6379`.
-
-The acceptance-test defaults are:
+### Acceptance test environment defaults
 
 ```dotenv
 DATABASE_URL=postgresql://morshid:morshid_local_password@localhost:5432/morshid
@@ -75,9 +85,11 @@ AUTH_ACCESS_TOKEN_SECRET=test-access-token-secret-with-at-least-32-characters
 AUTH_REFRESH_TOKEN_HASH_SECRET=test-refresh-token-hash-secret-with-at-least-32-characters
 AUTH_ACCESS_TOKEN_TTL_SECONDS=900
 AUTH_REFRESH_TOKEN_TTL_DAYS=7
+ANALYSIS_MODEL_PROVIDER=deterministic
+TUTOR_MODEL_PROVIDER=deterministic
+SEMANTIC_GUARD_PROVIDER=deterministic
+EMBEDDING_PROVIDER=deterministic
+PDF_STORAGE_PATH=../storage/pdfs
 ```
 
-No GitHub Actions secrets are required for this gate. CI creates PostgreSQL
-and Redis locally with ephemeral credentials, and the E2E auth values are
-deterministic test-only secrets. Never reuse them outside automated or local
-test environments.
+Deterministic model providers and test credentials run locally and in CI without requiring external API keys. Never reuse test secrets in production environments.

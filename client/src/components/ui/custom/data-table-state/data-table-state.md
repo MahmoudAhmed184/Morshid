@@ -2,18 +2,18 @@
 
 Use `DataTableState` to centralize loading, error, empty, and content rendering for tables and lists.
 
-Good places to use it:
+## When to use
 
 - Query-backed pages using TanStack Query.
-- Any table page that currently has repeated `isPending`, `isError`, and empty checks.
+- Table pages with repeated `isPending`, `isError`, and empty checks.
 
-Import:
+## Import
 
 ```tsx
 import { DataTableState } from '@/components/ui/custom/data-table-state'
 ```
 
-Basic usage:
+## Basic usage
 
 ```tsx
 <DataTableState
@@ -28,7 +28,7 @@ Basic usage:
 </DataTableState>
 ```
 
-Custom states:
+## Custom states
 
 ```tsx
 <DataTableState
@@ -42,7 +42,7 @@ Custom states:
 </DataTableState>
 ```
 
-Notes:
+## Notes
 
 - State priority is loading, then error, then empty, then children.
-- Use this for table/list pages, not for tiny inline widgets.
+- Use this component for table and list pages, not small inline widgets.

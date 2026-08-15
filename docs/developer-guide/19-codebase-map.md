@@ -117,7 +117,7 @@ This document lists the main entry points, capability modules, services, reposit
 | `features/courses/` | `features/courses/` | Course selection, enrollment flows, and readiness diagnostic cards. |
 | `features/materials/` | `features/materials/` | Drag-and-drop PDF upload UI and material processing badges. |
 | `features/reviews/` | `features/reviews/interface/` | Instructor review panel and student resolution inbox. |
-| `features/user-management/`| `features/user-management/` | User table, CSV bulk import dialog, and password reset forms. |
+| `features/user-management/` | `features/user-management/` | User table, CSV bulk import dialog, and password reset forms. |
 | `features/audit/` | `features/audit/` | Audit log table and filter controls. |
 | `features/system-status/` | `features/system-status/` | Status cards for PostgreSQL, Redis, and AI endpoints. |
 
