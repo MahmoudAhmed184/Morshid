@@ -192,7 +192,7 @@ function candidateWithActions(actions: readonly string[]): CandidateResponse {
     debuggingGuidance: {
       ...candidate.debuggingGuidance,
       inspectionActions: actions,
-    } as TutorDebuggingGuidanceResponse,
+    },
     studentAction: {
       ...candidate.studentAction,
       description: actions[0] ?? '',
