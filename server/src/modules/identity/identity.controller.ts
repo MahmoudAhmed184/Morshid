@@ -1,8 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
+  Param,
   Patch,
   Post,
   Req,
@@ -26,18 +28,20 @@ import { OpenApiErrorDto } from '../../common/http/openapi-error.dto'
 import { getRequestContext } from '../../common/http/request-context'
 import { ZodValidationPipe } from '../../common/http/zod-validation.pipe'
 import {
-  changePasswordRequestSchema,
-  signInRequestSchema,
-  updateOwnProfileRequestSchema,
+  ActiveSessionListResponseDto,
   ChangePasswordRequestDto,
   IdentitySessionResponseDto,
   MeResponseDto,
   SignInRequestDto,
   UpdateOwnProfileRequestDto,
+  changePasswordRequestSchema,
+  signInRequestSchema,
+  updateOwnProfileRequestSchema,
   type ChangePasswordRequest,
   type SignInRequest,
   type UpdateOwnProfileRequest,
 } from './identity.types'
+
 
 import type { AuthenticatedHttpRequest } from './identity.guard'
 import { IdentityService } from './identity.service'
@@ -47,6 +51,7 @@ import {
   clearRefreshTokenCookie,
   getRefreshToken,
   setRefreshTokenCookie,
+  tryGetRefreshToken,
 } from './refresh-session-cookie'
 
 const refreshCookieSetResponseHeader = {
@@ -193,6 +198,100 @@ export class IdentityController {
     }
 
     clearRefreshTokenCookie(response)
+  }
+
+  @Get('auth/sessions')
+  @ApiOperation({
+    summary: 'List active sessions',
+    description:
+      'Lists all active session families for the authenticated user.',
+  })
+  @ApiAccessTokenAuth()
+  @ApiOkResponse({
+    type: ActiveSessionListResponseDto,
+    description: 'The list of active sessions.',
+  })
+  @ApiUnauthorizedResponse({
+    type: OpenApiErrorDto,
+    description: 'The access token is missing or invalid.',
+  })
+  @ApiForbiddenResponse({
+    type: OpenApiErrorDto,
+    description: 'The account is disabled.',
+  })
+  listSessions(
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<ActiveSessionListResponseDto> {
+    const currentRefreshToken = tryGetRefreshToken(request)
+    return this.identityService.listActiveSessions(
+      request.user.id,
+      currentRefreshToken,
+    )
+  }
+
+  @Delete('auth/sessions/:id')
+  @HttpCode(204)
+  @ApiOperation({
+    summary: 'Revoke a session',
+    description: 'Revokes a single non-current session family by ID.',
+  })
+  @ApiAccessTokenAuth()
+  @ApiNoContentResponse({
+    description: 'The session family was revoked.',
+  })
+  @ApiBadRequestResponse({
+    type: OpenApiErrorDto,
+    description: 'Cannot revoke the current active session.',
+  })
+  @ApiUnauthorizedResponse({
+    type: OpenApiErrorDto,
+    description: 'The access token is missing or invalid.',
+  })
+  @ApiForbiddenResponse({
+    type: OpenApiErrorDto,
+    description: 'The account is disabled.',
+  })
+  async revokeSession(
+    @Param('id') familyId: string,
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<void> {
+    const currentRefreshToken = tryGetRefreshToken(request)
+    await this.identityService.revokeSession(
+      request.user.id,
+      familyId,
+      currentRefreshToken,
+      getRequestContext(request),
+    )
+  }
+
+  @Delete('auth/sessions')
+  @HttpCode(204)
+  @ApiOperation({
+    summary: 'Revoke all other sessions',
+    description:
+      'Revokes all active session families other than the current session.',
+  })
+  @ApiAccessTokenAuth()
+  @ApiNoContentResponse({
+    description: 'All other session families were revoked.',
+  })
+  @ApiUnauthorizedResponse({
+    type: OpenApiErrorDto,
+    description: 'The access token is missing or invalid.',
+  })
+  @ApiForbiddenResponse({
+    type: OpenApiErrorDto,
+    description: 'The account is disabled.',
+  })
+  async revokeOtherSessions(
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<void> {
+    const currentRefreshToken = tryGetRefreshToken(request)
+    await this.identityService.revokeOtherSessions(
+      request.user.id,
+      currentRefreshToken,
+      getRequestContext(request),
+    )
   }
 
   @Get('me')

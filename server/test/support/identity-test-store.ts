@@ -33,6 +33,14 @@ interface FindUniqueArgs {
   }
   include?: {
     user?: boolean
+    refreshTokens?: {
+      where?: {
+        familyId?: string
+        revokedAt?: null | Date
+        expiresAt?: { gt: Date }
+      }
+      take?: number
+    }
   }
 }
 
@@ -78,10 +86,36 @@ interface CountUserArgs {
 }
 
 interface CreateRefreshTokenArgs {
-  data: Pick<
-    RefreshToken,
-    'userId' | 'tokenHash' | 'expiresAt' | 'ip' | 'userAgent'
-  >
+  data: {
+    userId: string
+    familyId?: string
+    familyCreatedAt?: Date
+    tokenHash: string
+    expiresAt: Date
+    ip: string | null
+    userAgent: string | null
+  }
+}
+
+interface FindFirstRefreshTokenArgs {
+  where?: {
+    userId?: string
+    familyId?: string
+    revokedAt?: null | Date
+    expiresAt?: { gt: Date }
+  }
+}
+
+interface FindManyRefreshTokenArgs {
+  where?: {
+    userId?: string
+    familyId?: string
+    revokedAt?: null | Date
+    expiresAt?: { gt: Date }
+  }
+  orderBy?: {
+    createdAt?: 'asc' | 'desc'
+  }
 }
 
 interface UpdateRefreshTokenArgs {
@@ -96,6 +130,7 @@ interface UpdateManyRefreshTokenArgs {
     id?: string
     tokenHash?: string
     userId?: string
+    familyId?: string | { not: string }
     revokedAt: null
     expiresAt: {
       gt: Date
@@ -372,6 +407,12 @@ export class IdentityTestStore {
       findUnique: jest.fn((args: FindUniqueArgs) =>
         Promise.resolve(this.findRefreshToken(args)),
       ),
+      findFirst: jest.fn((args?: FindFirstRefreshTokenArgs) =>
+        Promise.resolve(this.findFirstRefreshToken(args)),
+      ),
+      findMany: jest.fn((args?: FindManyRefreshTokenArgs) =>
+        Promise.resolve(this.findManyRefreshTokens(args)),
+      ),
       update: jest.fn((args: UpdateRefreshTokenArgs) =>
         Promise.resolve(this.updateRefreshToken(args)),
       ),
@@ -589,16 +630,46 @@ export class IdentityTestStore {
     }
   }
 
-  private findUser(args: FindUniqueArgs): User | null {
+  private findUser(
+    args: FindUniqueArgs,
+  ): (User & { refreshTokens?: RefreshToken[] }) | null {
+    let user: User | null = null
+
     if (args.where.id !== undefined) {
-      return this.users.get(args.where.id) ?? null
+      user = this.users.get(args.where.id) ?? null
+    } else if (args.where.email !== undefined) {
+      user = this.findUserByEmail(args.where.email)
     }
 
-    if (args.where.email !== undefined) {
-      return this.findUserByEmail(args.where.email)
+    if (!user) {
+      return null
     }
 
-    return null
+    if (args.include?.refreshTokens) {
+      const filter = args.include.refreshTokens.where
+      let tokens = [...this.refreshTokens.values()].filter(
+        (t) => t.userId === user.id,
+      )
+      if (filter?.familyId !== undefined) {
+        tokens = tokens.filter((t) => t.familyId === filter.familyId)
+      }
+      if (filter?.revokedAt !== undefined) {
+        tokens = tokens.filter((t) => t.revokedAt === filter.revokedAt)
+      }
+      if (filter?.expiresAt?.gt !== undefined) {
+        const minExpiry = filter.expiresAt.gt
+        tokens = tokens.filter((t) => t.expiresAt > minExpiry)
+      }
+      if (args.include.refreshTokens.take !== undefined) {
+        tokens = tokens.slice(0, args.include.refreshTokens.take)
+      }
+      return {
+        ...user,
+        refreshTokens: tokens,
+      }
+    }
+
+    return user
   }
 
   private findUsers(args: FindManyUserArgs | undefined) {
@@ -745,9 +816,17 @@ export class IdentityTestStore {
     const sequence = this.nextRefreshTokenSequence
     this.nextRefreshTokenSequence += 1
 
+    const familyId =
+      args.data.familyId ??
+      `00000000-0000-4000-8000-00000000090${sequence.toString()}`
+    const familyCreatedAt =
+      args.data.familyCreatedAt ?? new Date('2026-07-06T12:00:00.000Z')
+
     const refreshToken: RefreshToken = {
       id: `00000000-0000-4000-8000-00000000030${sequence.toString()}`,
       userId: args.data.userId,
+      familyId,
+      familyCreatedAt,
       tokenHash: args.data.tokenHash,
       expiresAt: args.data.expiresAt,
       revokedAt: null,
@@ -787,6 +866,77 @@ export class IdentityTestStore {
     return refreshToken
   }
 
+  private findFirstRefreshToken(
+    args?: FindFirstRefreshTokenArgs,
+  ): RefreshToken | null {
+    for (const token of this.refreshTokens.values()) {
+      if (
+        args?.where?.userId !== undefined &&
+        token.userId !== args.where.userId
+      ) {
+        continue
+      }
+      if (
+        args?.where?.familyId !== undefined &&
+        token.familyId !== args.where.familyId
+      ) {
+        continue
+      }
+      if (
+        args?.where?.revokedAt !== undefined &&
+        token.revokedAt !== args.where.revokedAt
+      ) {
+        continue
+      }
+      if (
+        args?.where?.expiresAt?.gt !== undefined &&
+        token.expiresAt <= args.where.expiresAt.gt
+      ) {
+        continue
+      }
+      return token
+    }
+    return null
+  }
+
+  private findManyRefreshTokens(
+    args?: FindManyRefreshTokenArgs,
+  ): RefreshToken[] {
+    const tokens = [...this.refreshTokens.values()].filter((token) => {
+      if (
+        args?.where?.userId !== undefined &&
+        token.userId !== args.where.userId
+      ) {
+        return false
+      }
+      if (
+        args?.where?.familyId !== undefined &&
+        token.familyId !== args.where.familyId
+      ) {
+        return false
+      }
+      if (
+        args?.where?.revokedAt !== undefined &&
+        token.revokedAt !== args.where.revokedAt
+      ) {
+        return false
+      }
+      if (
+        args?.where?.expiresAt?.gt !== undefined &&
+        token.expiresAt <= args.where.expiresAt.gt
+      ) {
+        return false
+      }
+      return true
+    })
+
+    if (args?.orderBy?.createdAt === 'desc') {
+      tokens.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    }
+
+    return tokens
+  }
+
   private updateRefreshToken(args: UpdateRefreshTokenArgs): RefreshToken {
     const refreshToken = this.refreshTokens.get(args.where.id)
 
@@ -812,12 +962,19 @@ export class IdentityTestStore {
     }
 
     for (const refreshToken of this.refreshTokens.values()) {
+      const matchesFamily =
+        args.where.familyId === undefined ||
+        (typeof args.where.familyId === 'string'
+          ? refreshToken.familyId === args.where.familyId
+          : refreshToken.familyId !== args.where.familyId.not)
+
       const isMatch =
         (args.where.id === undefined || refreshToken.id === args.where.id) &&
         (args.where.tokenHash === undefined ||
           refreshToken.tokenHash === args.where.tokenHash) &&
         (args.where.userId === undefined ||
           refreshToken.userId === args.where.userId) &&
+        matchesFamily &&
         refreshToken.revokedAt === args.where.revokedAt &&
         refreshToken.expiresAt > args.where.expiresAt.gt
 

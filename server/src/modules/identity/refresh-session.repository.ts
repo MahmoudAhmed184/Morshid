@@ -18,6 +18,8 @@ const refreshTokenTransactionOptions = {
 
 export interface CreateRefreshTokenRecordInput {
   userId: string
+  familyId?: string
+  familyCreatedAt?: Date
   tokenHash: string
   expiresAt: Date
   ip: string | null
@@ -31,24 +33,44 @@ export interface RefreshTokenRecordStore {
   findByTokenHashWithUser(
     tokenHash: string,
   ): Promise<RefreshTokenWithUser | null>
+  findActiveSessionFamily(
+    userId: string,
+    familyId: string,
+    now: Date,
+  ): Promise<RefreshTokenRecord | null>
+  findActiveSessionsByUserId(
+    userId: string,
+    now: Date,
+  ): Promise<RefreshTokenRecord[]>
+  findUserWithActiveSessionFamily(
+    userId: string,
+    familyId: string,
+    now: Date,
+  ): Promise<IdentityUserRecord | null>
   lockUserById(userId: string): Promise<IdentityUserRecord | null>
   markReplaced(
     refreshTokenId: string,
     replacementRefreshTokenId: string,
   ): Promise<RefreshTokenRecord>
   revokeActiveByHash(tokenHash: string, now: Date): Promise<{ count: number }>
-  revokeActiveByIdAndHash(
-    refreshTokenId: string,
-    tokenHash: string,
+  revokeActiveFamily(
+    userId: string,
+    familyId: string,
     now: Date,
   ): Promise<{ count: number }>
   revokeAllActiveForUser(userId: string, now: Date): Promise<{ count: number }>
+  revokeAllOtherActiveFamilies(
+    userId: string,
+    currentFamilyId: string,
+    now: Date,
+  ): Promise<{ count: number }>
   updateUserPassword(
     userId: string,
     passwordHash: string,
     passwordChangedAt: Date,
   ): Promise<IdentityUserRecord>
 }
+
 
 class PrismaRefreshTokenRecordStore implements RefreshTokenRecordStore {
   constructor(private readonly client: RefreshTokenClient) {}
@@ -61,6 +83,29 @@ class PrismaRefreshTokenRecordStore implements RefreshTokenRecordStore {
     tokenHash: string,
   ): Promise<RefreshTokenWithUser | null> {
     return findRefreshTokenByHashWithUser(this.client, tokenHash)
+  }
+
+  findActiveSessionFamily(
+    userId: string,
+    familyId: string,
+    now: Date,
+  ): Promise<RefreshTokenRecord | null> {
+    return findActiveSessionFamily(this.client, userId, familyId, now)
+  }
+
+  findActiveSessionsByUserId(
+    userId: string,
+    now: Date,
+  ): Promise<RefreshTokenRecord[]> {
+    return findActiveSessionsByUserId(this.client, userId, now)
+  }
+
+  findUserWithActiveSessionFamily(
+    userId: string,
+    familyId: string,
+    now: Date,
+  ): Promise<IdentityUserRecord | null> {
+    return findUserWithActiveSessionFamily(this.client, userId, familyId, now)
   }
 
   lockUserById(userId: string): Promise<IdentityUserRecord | null> {
@@ -95,6 +140,14 @@ class PrismaRefreshTokenRecordStore implements RefreshTokenRecordStore {
     )
   }
 
+  revokeActiveFamily(
+    userId: string,
+    familyId: string,
+    now: Date,
+  ): Promise<{ count: number }> {
+    return revokeActiveFamily(this.client, userId, familyId, now)
+  }
+
   revokeAllActiveForUser(
     userId: string,
     now: Date,
@@ -111,6 +164,19 @@ class PrismaRefreshTokenRecordStore implements RefreshTokenRecordStore {
         revokedAt: now,
       },
     })
+  }
+
+  revokeAllOtherActiveFamilies(
+    userId: string,
+    currentFamilyId: string,
+    now: Date,
+  ): Promise<{ count: number }> {
+    return revokeAllOtherActiveFamilies(
+      this.client,
+      userId,
+      currentFamilyId,
+      now,
+    )
   }
 
   async updateUserPassword(
@@ -151,7 +217,7 @@ export class RefreshSessionRepository extends PrismaRefreshTokenRecordStore {
 
 type RefreshTokenClient = Pick<
   PrismaService,
-  'user' | 'refreshToken' | '$queryRaw'
+  'refreshToken' | 'user' | '$queryRaw'
 >
 
 interface LockedIdentityUserRow {
@@ -177,6 +243,8 @@ function createRefreshToken(
     .create({
       data: {
         userId: input.userId,
+        familyId: input.familyId,
+        familyCreatedAt: input.familyCreatedAt,
         tokenHash: input.tokenHash,
         expiresAt: input.expiresAt,
         ip: input.ip,
@@ -205,6 +273,74 @@ async function findRefreshTokenByHashWithUser(
         ...toRefreshTokenRecord(record),
         user: toIdentityUserRecord(record.user),
       }
+}
+
+async function findActiveSessionFamily(
+  client: RefreshTokenClient,
+  userId: string,
+  familyId: string,
+  now: Date,
+): Promise<RefreshTokenRecord | null> {
+  const record = await client.refreshToken.findFirst({
+    where: {
+      userId,
+      familyId,
+      revokedAt: null,
+      expiresAt: {
+        gt: now,
+      },
+    },
+  })
+
+  return record ? toRefreshTokenRecord(record) : null
+}
+
+async function findActiveSessionsByUserId(
+  client: RefreshTokenClient,
+  userId: string,
+  now: Date,
+): Promise<RefreshTokenRecord[]> {
+  const records = await client.refreshToken.findMany({
+    where: {
+      userId,
+      revokedAt: null,
+      expiresAt: {
+        gt: now,
+      },
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+  })
+
+  return records.map(toRefreshTokenRecord)
+}
+
+async function findUserWithActiveSessionFamily(
+  client: RefreshTokenClient,
+  userId: string,
+  familyId: string,
+  now: Date,
+): Promise<IdentityUserRecord | null> {
+  const user = await client.user.findUnique({
+    where: { id: userId },
+    include: {
+      refreshTokens: {
+        where: {
+          familyId,
+          revokedAt: null,
+          expiresAt: { gt: now },
+        },
+        take: 1,
+      },
+    },
+  })
+
+  if (!user || user.refreshTokens.length === 0) {
+    return null
+  }
+
+  return toIdentityUserRecord(user)
 }
 
 async function lockIdentityUserById(
@@ -298,10 +434,56 @@ function revokeActiveRefreshTokenByIdAndHash(
   })
 }
 
+function revokeActiveFamily(
+  client: RefreshTokenClient,
+  userId: string,
+  familyId: string,
+  now: Date,
+) {
+  return client.refreshToken.updateMany({
+    where: {
+      userId,
+      familyId,
+      revokedAt: null,
+      expiresAt: {
+        gt: now,
+      },
+    },
+    data: {
+      revokedAt: now,
+    },
+  })
+}
+
+function revokeAllOtherActiveFamilies(
+  client: RefreshTokenClient,
+  userId: string,
+  currentFamilyId: string,
+  now: Date,
+) {
+  return client.refreshToken.updateMany({
+    where: {
+      userId,
+      familyId: {
+        not: currentFamilyId,
+      },
+      revokedAt: null,
+      expiresAt: {
+        gt: now,
+      },
+    },
+    data: {
+      revokedAt: now,
+    },
+  })
+}
+
 function toRefreshTokenRecord(record: PrismaRefreshToken): RefreshTokenRecord {
   return {
     id: record.id,
     userId: record.userId,
+    familyId: record.familyId,
+    familyCreatedAt: record.familyCreatedAt,
     tokenHash: record.tokenHash,
     expiresAt: record.expiresAt,
     revokedAt: record.revokedAt,

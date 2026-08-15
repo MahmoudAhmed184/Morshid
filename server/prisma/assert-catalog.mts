@@ -15,7 +15,7 @@ const databaseUrl = process.env.DATABASE_URL
 // enum label order plus every public index, CHECK/FK definition and action,
 // application trigger definition, and application function body queried below.
 const expectedCatalogSemanticFingerprint =
-  '8ef054a9f721b9b7ff761b32cea6fc5fc4e09d134a641fbe097d72f9f7d15b12'
+  '179435c5383a17bea123ea4bd99d510ba3dd6c8b329ef169061cef1e000a8a27'
 
 if (databaseUrl === undefined) {
   throw new Error('DATABASE_URL is required for Prisma catalog assertions')
@@ -88,8 +88,10 @@ const expectedIndexes = [
   'idx_messages_topic',
   'idx_messages_attempt',
   'idx_review_inbox_items_recipient_created',
+  'idx_refresh_tokens_family',
   'idx_refresh_tokens_replaced_by',
   'idx_refresh_tokens_user',
+  'idx_refresh_tokens_user_family',
   'idx_retrievals_chunk',
   'idx_review_actions_case_created',
   'idx_review_cases_assignee_status_updated',

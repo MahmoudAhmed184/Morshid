@@ -1,4 +1,4 @@
-import { createHmac, randomBytes } from 'node:crypto'
+import { createHmac, randomBytes, randomUUID } from 'node:crypto'
 
 import { Injectable } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
@@ -48,12 +48,16 @@ export class RefreshSession {
     user: Pick<IdentityUserRecord, 'id'>,
     now: Date,
     requestContext: IdentityRequestContext,
+    familyId?: string,
+    familyCreatedAt?: Date,
   ): Promise<CreatedRefreshToken> {
     return this.createWithRepository(
       this.refreshTokenRepository,
       user,
       now,
       requestContext,
+      familyId,
+      familyCreatedAt,
     )
   }
 
@@ -108,6 +112,8 @@ export class RefreshSession {
           lockedUser,
           now,
           requestContext,
+          storedToken.familyId,
+          storedToken.familyCreatedAt,
         )
 
         await repository.markReplaced(
@@ -227,15 +233,91 @@ export class RefreshSession {
     })
   }
 
+  async findFamilyByToken(
+    refreshToken: string,
+    now: Date,
+  ): Promise<RefreshTokenWithUser | null> {
+    const refreshTokenHash = this.hash(refreshToken)
+    const token =
+      await this.refreshTokenRepository.findByTokenHashWithUser(
+        refreshTokenHash,
+      )
+
+    if (!token || !isActiveRefreshToken(token, token.user, now)) {
+      return null
+    }
+
+    return token
+  }
+
+  async findActiveSessions(
+    userId: string,
+    now: Date,
+  ): Promise<RefreshTokenRecord[]> {
+    return this.refreshTokenRepository.findActiveSessionsByUserId(userId, now)
+  }
+
+  async findActiveSessionFamily(
+    userId: string,
+    familyId: string,
+    now: Date,
+  ): Promise<RefreshTokenRecord | null> {
+    return this.refreshTokenRepository.findActiveSessionFamily(
+      userId,
+      familyId,
+      now,
+    )
+  }
+
+  async revokeFamily(
+    userId: string,
+    familyId: string,
+    now: Date,
+  ): Promise<number> {
+    const result = await this.refreshTokenRepository.revokeActiveFamily(
+      userId,
+      familyId,
+      now,
+    )
+    return result.count
+  }
+
+  async revokeOtherFamilies(
+    userId: string,
+    currentFamilyId: string,
+    now: Date,
+  ): Promise<number> {
+    const result =
+      await this.refreshTokenRepository.revokeAllOtherActiveFamilies(
+        userId,
+        currentFamilyId,
+        now,
+      )
+    return result.count
+  }
+
+  hash(token: string) {
+    return createHmac('sha256', this.refreshTokenHashSecret)
+      .update(token)
+      .digest('base64url')
+  }
+
+
   private async createWithRepository(
     repository: RefreshTokenRecordStore,
     user: Pick<IdentityUserRecord, 'id'>,
     now: Date,
     requestContext: IdentityRequestContext,
+    familyId?: string,
+    familyCreatedAt?: Date,
   ): Promise<CreatedRefreshToken> {
     const token = randomBytes(32).toString('base64url')
+    const effectiveFamilyId = familyId ?? randomUUID()
+    const effectiveFamilyCreatedAt = familyCreatedAt ?? now
     const record = await repository.create({
       userId: user.id,
+      familyId: effectiveFamilyId,
+      familyCreatedAt: effectiveFamilyCreatedAt,
       tokenHash: this.hash(token),
       expiresAt: addDays(now, this.refreshTokenTtlDays),
       ip: requestContext.ip ?? null,
@@ -246,12 +328,6 @@ export class RefreshSession {
       record,
       token,
     }
-  }
-
-  private hash(token: string) {
-    return createHmac('sha256', this.refreshTokenHashSecret)
-      .update(token)
-      .digest('base64url')
   }
 }
 

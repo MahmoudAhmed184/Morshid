@@ -10,6 +10,7 @@ export const IDENTITY_ERROR_CODES = {
   INVALID_REFRESH_TOKEN: 'INVALID_REFRESH_TOKEN',
   INVALID_REQUEST: 'INVALID_REQUEST',
   INSUFFICIENT_ROLE: 'INSUFFICIENT_ROLE',
+  CANNOT_REVOKE_CURRENT_SESSION: 'CANNOT_REVOKE_CURRENT_SESSION',
 } as const
 
 export type IdentityErrorCode =
@@ -46,6 +47,8 @@ export interface IdentityUserRecord {
 export interface RefreshTokenRecord {
   id: string
   userId: string
+  familyId: string
+  familyCreatedAt: Date
   tokenHash: string
   expiresAt: Date
   revokedAt: Date | null
@@ -185,3 +188,57 @@ export const changePasswordRequestSchema = z
       })
     }
   })
+
+export class ActiveSessionDto {
+  @ApiProperty({
+    format: 'uuid',
+    description: 'Stable session family ID.',
+    example: '00000000-0000-4000-8000-000000000001',
+  })
+  id!: string
+
+  @ApiProperty({
+    description: 'Parsed browser and operating system label.',
+    example: 'Chrome on macOS',
+  })
+  device!: string
+
+  @ApiProperty({
+    description: 'Masked IP address.',
+    nullable: true,
+    example: '192.168.1.***',
+  })
+  ip!: string | null
+
+  @ApiProperty({
+    format: 'date-time',
+    description: 'When the session family was initially created.',
+  })
+  createdAt!: string
+
+  @ApiProperty({
+    format: 'date-time',
+    description: 'When the session was last active (last rotated or used).',
+  })
+  lastActiveAt!: string
+
+  @ApiProperty({
+    format: 'date-time',
+    description: 'When the active session will expire.',
+  })
+  expiresAt!: string
+
+  @ApiProperty({
+    description: 'Whether this is the session making the current request.',
+  })
+  isCurrent!: boolean
+}
+
+export class ActiveSessionListResponseDto {
+  @ApiProperty({ type: [ActiveSessionDto] })
+  sessions!: ActiveSessionDto[]
+}
+
+export type ActiveSession = ActiveSessionDto
+export type ActiveSessionListResponse = ActiveSessionListResponseDto
+
