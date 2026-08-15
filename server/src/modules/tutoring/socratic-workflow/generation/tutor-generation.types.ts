@@ -58,8 +58,16 @@ export interface TutorSelfReportedCompliance {
   readonly completeSolutionRevealed: boolean
 }
 
+export interface TutorDebuggingGuidanceResponse {
+  readonly diagnosis?: string
+  readonly relevantLocation?: string
+  readonly conceptExplanation?: string
+  readonly inspectionActions: readonly string[]
+}
+
 export interface CandidateResponse {
   readonly message: string
+  readonly debuggingGuidance: TutorDebuggingGuidanceResponse | null
   readonly responseIntent: TutorResponseIntent
   readonly usedCitationIds: readonly string[]
   readonly requiresStudentAction: boolean
@@ -81,6 +89,9 @@ export interface CandidateResponsePolicyContext {
   readonly enforceCitationSupport: boolean
   readonly requireStudentAction: boolean
   readonly reflectionMode: ReflectionMode
+  readonly debuggingGuidanceRequired?: boolean
+  readonly debuggingRewriteRequested?: boolean
+  readonly studentActionType?: TutorStudentActionType
 }
 
 export interface TutorEvidenceContext {

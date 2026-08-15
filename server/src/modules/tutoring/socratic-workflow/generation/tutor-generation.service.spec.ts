@@ -43,7 +43,7 @@ describe('TutorGenerationService', () => {
         message: 'What should change before the next loop iteration?',
         provider: 'deterministic',
         model: 'deterministic-tutor',
-        promptVersion: 'tutor-generation.mvp.v6',
+        promptVersion: 'tutor-generation.mvp.v7',
         tokenUsage: { input: 15, output: 9 },
         usedCitationIds: ['retrieval.rank.1'],
       })
@@ -394,7 +394,7 @@ class FakeTutorModel implements TutorModelPort {
       rawOutput: this.rawOutput,
       provider: 'deterministic',
       model: 'deterministic-tutor',
-      promptVersion: 'tutor-generation.mvp.v6' as const,
+      promptVersion: 'tutor-generation.mvp.v7' as const,
       inputTokens: 15,
       outputTokens: 9,
     })
@@ -603,6 +603,7 @@ function retrievedChunk(
 function validCandidate(patch: Record<string, unknown> = {}) {
   return {
     message: 'What should change before the next loop iteration?',
+    debuggingGuidance: null,
     responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
     usedCitationIds: ['retrieval.rank.1'],
     requiresStudentAction: true,

@@ -167,11 +167,85 @@ describe('candidate response validation', () => {
       ).success,
     ).toBe(true)
   })
+
+  it('accepts canonical debugging guidance and derives message and studentAction', () => {
+    const result = validateCandidateResponse(
+      validDebuggingCandidate(),
+      debuggingPolicy(),
+      metadata(),
+    )
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.debuggingGuidance).toMatchObject({
+        diagnosis: 'The loop update likely uses the wrong variable.',
+        relevantLocation: 'Inspect the assignment inside the loop body.',
+        inspectionActions: ['Trace the accumulator through one iteration.'],
+      })
+      expect(result.data.message).toContain('[retrieval.rank.1]')
+      expect(result.data.studentAction).toEqual({
+        type: TeachingTechnique.FOCUSED_QUESTION,
+        description: 'Trace the accumulator through one iteration.',
+      })
+    }
+  })
+
+  it('preserves incomplete structured debugging guidance for precise guard diagnostics', () => {
+    const candidate = validDebuggingCandidate()
+    const result = validateCandidateResponse(
+      {
+        ...candidate,
+        debuggingGuidance: {
+          relevantLocation: 'Inspect the assignment inside the loop body.',
+          conceptExplanation:
+            'An accumulator must be updated from its prior value.',
+          inspectionActions: ['Trace the accumulator through one iteration.'],
+        },
+      },
+      debuggingPolicy(),
+      metadata(),
+    )
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.debuggingGuidance?.diagnosis).toBeUndefined()
+    }
+  })
+
+  it('rejects the obsolete debuggingGuidanceSections pseudo-field', () => {
+    expect(
+      validateCandidateResponse(
+        {
+          ...validDebuggingCandidate(),
+          debuggingGuidanceSections: {},
+        },
+        debuggingPolicy(),
+        metadata(),
+      ),
+    ).toEqual({
+      success: false,
+      errorCode: 'TUTOR_INVALID_OUTPUT',
+    })
+  })
+
+  it('rejects canonical debugging guidance outside a debugging turn', () => {
+    expect(
+      validateCandidateResponse(
+        validDebuggingCandidate(),
+        policy(),
+        metadata(),
+      ),
+    ).toEqual({
+      success: false,
+      errorCode: 'TUTOR_INVALID_OUTPUT',
+    })
+  })
 })
 
 function validCandidate(patch: Record<string, unknown> = {}) {
   return {
     message: 'What value changes on each loop iteration? [retrieval.rank.1]',
+    debuggingGuidance: null,
     responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
     usedCitationIds: ['retrieval.rank.1'],
     requiresStudentAction: true,
@@ -195,6 +269,37 @@ function policy(): CandidateResponsePolicyContext {
     enforceCitationSupport: true,
     requireStudentAction: true,
     reflectionMode: ReflectionMode.NONE,
+  }
+}
+
+function validDebuggingCandidate() {
+  return {
+    message: null,
+    debuggingGuidance: {
+      diagnosis: 'The loop update likely uses the wrong variable.',
+      relevantLocation: 'Inspect the assignment inside the loop body.',
+      conceptExplanation:
+        'An accumulator must be updated from its prior value.',
+      inspectionActions: ['Trace the accumulator through one iteration.'],
+    },
+    responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
+    usedCitationIds: ['retrieval.rank.1'],
+    requiresStudentAction: true,
+    studentAction: null,
+    reflectionIncluded: false,
+    selfReportedCompliance: {
+      finalAnswerRevealed: false,
+      completeSolutionRevealed: false,
+    },
+  }
+}
+
+function debuggingPolicy(): CandidateResponsePolicyContext {
+  return {
+    ...policy(),
+    debuggingGuidanceRequired: true,
+    debuggingRewriteRequested: false,
+    studentActionType: TeachingTechnique.FOCUSED_QUESTION,
   }
 }
 

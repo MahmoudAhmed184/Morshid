@@ -528,6 +528,7 @@ function input(
 function candidate(patch: Partial<CandidateResponse> = {}): CandidateResponse {
   return {
     message: 'What changes first in the loop?',
+    debuggingGuidance: null,
     responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
     usedCitationIds: [],
     requiresStudentAction: true,
@@ -542,7 +543,7 @@ function candidate(patch: Partial<CandidateResponse> = {}): CandidateResponse {
     },
     provider: 'deterministic',
     model: 'deterministic-tutor',
-    promptVersion: 'tutor-generation.mvp.v6',
+    promptVersion: 'tutor-generation.mvp.v7',
     tokenUsage: { input: 0, output: 0 },
     ...patch,
   }

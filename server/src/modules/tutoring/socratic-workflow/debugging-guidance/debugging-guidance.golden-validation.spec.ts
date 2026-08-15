@@ -1,7 +1,13 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-import { MessageGuidanceLabel, MessageRequestKind } from '../../tutoring-values'
+import {
+  MessageGuidanceLabel,
+  MessageRequestKind,
+  TeachingStrategy,
+  TeachingTechnique,
+} from '../../tutoring-values'
+import type { CandidateResponse } from '../generation/tutor-generation.types'
 import { selectTutorStrategy } from '../teaching-decision/tutor-strategy'
 import {
   type DebuggingGuidanceFixture,
@@ -477,11 +483,15 @@ describe('Debugging guidance golden validation', () => {
       ].join('\n')
 
       const policyResult = validateDebuggingGuidanceOutput({
-        content: unsafeOutput,
-        authorizedCitationCount: 1,
+        candidate: debuggingCandidate({ message: unsafeOutput }),
+        allowedCitationIds: new Set(['retrieval.rank.1']),
+        rewriteRequested: false,
       })
 
-      expect(policyResult).toBe('FULL_REWRITE_SUSPECTED')
+      expect(policyResult).toEqual({
+        approved: false,
+        failure: 'FULL_REWRITE_SUSPECTED',
+      })
     })
 
     it('keeps the deterministic diagnosis free of corrected code', () => {
@@ -505,34 +515,28 @@ describe('Debugging guidance golden validation', () => {
       const malformedOutput = 'Internal error: connection refused at 10.0.0.1'
 
       const policyResult = validateDebuggingGuidanceOutput({
-        content: malformedOutput,
-        authorizedCitationCount: 1,
+        candidate: debuggingCandidate({
+          message: malformedOutput,
+          debuggingGuidance: null,
+        }),
+        allowedCitationIds: new Set(['retrieval.rank.1']),
+        rewriteRequested: false,
       })
 
-      expect(policyResult).not.toBe('ALLOWED_DEBUGGING_GUIDANCE')
+      expect(policyResult.approved).toBe(false)
     })
 
     it('validates that a shaped response without citations is rejected', () => {
-      const noCitationOutput = [
-        'Likely defect',
-        'The name num does not match nums.',
-        '',
-        'Relevant location',
-        'The return expression.',
-        '',
-        'Concept',
-        'Name lookup uses local scope.',
-        '',
-        'Next inspection step',
-        'Compare the names.',
-      ].join('\n')
-
       const policyResult = validateDebuggingGuidanceOutput({
-        content: noCitationOutput,
-        authorizedCitationCount: 1,
+        candidate: debuggingCandidate({ usedCitationIds: [] }),
+        allowedCitationIds: new Set(['retrieval.rank.1']),
+        rewriteRequested: false,
       })
 
-      expect(policyResult).toBe('INVALID_CITATION')
+      expect(policyResult).toEqual({
+        approved: false,
+        failure: 'MISSING_AUTHORIZED_CITATION',
+      })
     })
   })
 
@@ -670,3 +674,46 @@ describe('Debugging guidance golden validation', () => {
     })
   })
 })
+
+function debuggingCandidate(
+  patch: Partial<CandidateResponse> = {},
+): CandidateResponse {
+  return {
+    message: [
+      'Likely defect',
+      'The name num does not match nums.',
+      '',
+      'Relevant location',
+      'The return expression.',
+      '',
+      'Concept',
+      'Name lookup uses local scope. [retrieval.rank.1]',
+      '',
+      'Next inspection step',
+      'Compare the names.',
+    ].join('\n'),
+    debuggingGuidance: {
+      diagnosis: 'The name num does not match nums.',
+      relevantLocation: 'The return expression.',
+      conceptExplanation: 'Name lookup uses local scope.',
+      inspectionActions: ['Compare the names.'],
+    },
+    responseIntent: TeachingStrategy.DEBUGGING_GUIDANCE,
+    usedCitationIds: ['retrieval.rank.1'],
+    requiresStudentAction: true,
+    studentAction: {
+      type: TeachingTechnique.TRACE_EXECUTION,
+      description: 'Compare the names.',
+    },
+    reflectionIncluded: false,
+    selfReportedCompliance: {
+      finalAnswerRevealed: false,
+      completeSolutionRevealed: false,
+    },
+    provider: 'deterministic',
+    model: 'deterministic-tutor',
+    promptVersion: 'tutor-generation.mvp.v7',
+    tokenUsage: { input: 0, output: 0 },
+    ...patch,
+  }
+}

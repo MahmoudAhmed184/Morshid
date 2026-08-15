@@ -167,6 +167,12 @@ export class TutorGenerationService {
           teachingDecision.guardPolicy.enforceCitationSupport,
         requireStudentAction: teachingDecision.requireStudentAction,
         reflectionMode: teachingDecision.reflectionMode,
+        debuggingGuidanceRequired:
+          generationContext.context.debuggingGuidance !== null,
+        debuggingRewriteRequested:
+          generationContext.context.debuggingGuidance?.rewriteRequested ??
+          false,
+        studentActionType: teachingDecision.primaryTechnique,
       },
       {
         provider: modelResponse.provider,

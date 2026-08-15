@@ -6,6 +6,7 @@ import {
 } from '../../tutoring-values'
 import {
   RESPONSE_VALIDATION_STAGE,
+  RESPONSE_VIOLATION_TYPE,
   type ValidationResult,
 } from './response-validation.types'
 import { ResponseApprovalService } from './response-approval.service'
@@ -24,6 +25,7 @@ import type {
 import { TUTOR_GENERATION_FAILURE_CODE } from '../generation/tutor-generation.types'
 import type { CourseEvidenceChunk } from '../../../materials/interface/course-evidence'
 import { AutomaticSafetyRiskDetector } from '../../response-governance/automatic-safety-risk.detector'
+import { renderDebuggingGuidanceMessage } from '../debugging-guidance/debugging-guidance.output-validator'
 
 describe('ResponseApprovalService', () => {
   it('approves the initial candidate after all three stages', async () => {
@@ -87,6 +89,47 @@ describe('ResponseApprovalService', () => {
       expect(result.approvedResponse.approvedCandidateAttempt).toBe(2)
     }
     expect(harness.generation.calls).toHaveLength(2)
+    expect(harness.semantic.calls).toHaveLength(1)
+  })
+
+  it('regenerates from a specific debugging subreason and approves candidate two', async () => {
+    const invalidCandidate = validDebuggingCandidate({ diagnosis: undefined })
+    const harness = buildHarness(
+      [
+        generationSuccess(invalidCandidate),
+        generationSuccess(validDebuggingCandidate()),
+      ],
+      {
+        decision: decision({
+          primaryTechnique: TeachingTechnique.FOCUSED_QUESTION,
+        }),
+      },
+    )
+
+    const result = await harness.service.approve({
+      ...input(),
+      debuggingGuidance: debuggingGuidanceContext(),
+    })
+
+    expect(result).toMatchObject({
+      success: true,
+      approvedResponse: {
+        source: 'VALIDATED_CANDIDATE',
+        approvedCandidateAttempt: 2,
+      },
+      candidateAttempts: 2,
+    })
+    expect(
+      harness.generation.calls[1]?.regeneration?.previousValidation,
+    ).toMatchObject({
+      stage: RESPONSE_VALIDATION_STAGE.DETERMINISTIC,
+      violations: [
+        {
+          type: RESPONSE_VIOLATION_TYPE.DEBUGGING_MISSING_DIAGNOSIS,
+          field: 'debuggingGuidance.diagnosis',
+        },
+      ],
+    })
     expect(harness.semantic.calls).toHaveLength(1)
   })
 
@@ -297,6 +340,7 @@ function buildHarness(
   generationResults: TutorGenerationServiceResult[],
   options: {
     readonly semantic?: Awaited<ReturnType<SemanticGuardService['evaluate']>>
+    readonly decision?: PersistedTeachingDecisionRecord
   } = {},
 ) {
   const generation = new FakeGenerationService(generationResults)
@@ -308,7 +352,7 @@ function buildHarness(
   )
   const service = new ResponseApprovalService(
     generation as never,
-    new FakeTeachingDecisionRepository(decision()),
+    new FakeTeachingDecisionRepository(options.decision ?? decision()),
     new StructuralResponseValidator(),
     new DeterministicGuardService(),
     semantic as never,
@@ -397,7 +441,9 @@ function input(
   }
 }
 
-function decision(): PersistedTeachingDecisionRecord {
+function decision(
+  patch: Partial<PersistedTeachingDecisionRecord> = {},
+): PersistedTeachingDecisionRecord {
   return {
     id: 'decision-1',
     attemptId: 'turn-1',
@@ -424,6 +470,7 @@ function decision(): PersistedTeachingDecisionRecord {
     decisionReason: 'test',
     policyVersion: 'socratic-policy.mvp.v1',
     createdAt: new Date('2026-08-06T00:00:00.000Z'),
+    ...patch,
   }
 }
 
@@ -433,6 +480,7 @@ function validCandidate(
   return {
     message:
       'Use the cited loop update and tell me what changes first. [retrieval.rank.1]',
+    debuggingGuidance: null,
     responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
     usedCitationIds: ['retrieval.rank.1'],
     requiresStudentAction: true,
@@ -447,9 +495,52 @@ function validCandidate(
     },
     provider: 'deterministic',
     model: 'deterministic-tutor',
-    promptVersion: 'tutor-generation.mvp.v6',
+    promptVersion: 'tutor-generation.mvp.v7',
     tokenUsage: { input: 10, output: 5 },
     ...patch,
+  }
+}
+
+function validDebuggingCandidate(
+  guidancePatch: {
+    readonly diagnosis?: string | undefined
+    readonly relevantLocation?: string | undefined
+    readonly conceptExplanation?: string | undefined
+    readonly inspectionActions?: readonly string[]
+  } = {},
+): CandidateResponse {
+  const debuggingGuidance = {
+    diagnosis: 'The loop update likely uses the wrong variable.',
+    relevantLocation: 'Inspect the assignment inside the loop body.',
+    conceptExplanation: 'An accumulator must be updated from its prior value.',
+    inspectionActions: ['Trace the accumulator through one iteration.'],
+    ...guidancePatch,
+  }
+  const action = debuggingGuidance.inspectionActions[0] ?? ''
+
+  return validCandidate({
+    message: renderDebuggingGuidanceMessage({
+      guidance: debuggingGuidance,
+      usedCitationIds: ['retrieval.rank.1'],
+      action,
+      rewriteRequested: false,
+    }),
+    debuggingGuidance,
+    studentAction: {
+      type: TeachingTechnique.FOCUSED_QUESTION,
+      description: action,
+    },
+  })
+}
+
+function debuggingGuidanceContext() {
+  return {
+    likelyIssue: 'The loop update likely uses the wrong variable.',
+    relevantLocation: 'Inspect the assignment inside the loop body.',
+    concept: 'Accumulator updates',
+    nextInspectionStep: 'Trace one loop iteration.',
+    evidenceQuery: 'accumulator update loop',
+    rewriteRequested: false,
   }
 }
 

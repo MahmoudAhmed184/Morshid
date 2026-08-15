@@ -1,234 +1,252 @@
+import { TeachingStrategy, TeachingTechnique } from '../../tutoring-values'
+import type {
+  CandidateResponse,
+  TutorDebuggingGuidanceResponse,
+} from '../generation/tutor-generation.types'
 import {
-  DEBUGGING_GUIDANCE_FULL_REWRITE_REFUSAL,
+  DEBUGGING_GUIDANCE_VALIDATION_FAILURE,
+  renderDebuggingGuidanceMessage,
   validateDebuggingGuidanceOutput,
 } from './debugging-guidance.output-validator'
 
-const validGuidance = [
-  'Likely defect',
-  'The accumulator changes before the condition is checked.',
-  '',
-  'Relevant location',
-  'The update expression inside the loop.',
-  '',
-  'Concept',
-  'Trace the value across the update and condition. [1]',
-  '',
-  'Next inspection step',
-  'Write down the value before and after the update.',
-].join('\n')
+const allowedCitationIds = new Set(['retrieval.rank.1'])
 
 describe('debugging guidance contract', () => {
-  it('accepts language-neutral guidance with one cited concept and one inspection step', () => {
-    expect(
-      validateDebuggingGuidanceOutput({
-        content: validGuidance,
-        authorizedCitationCount: 1,
-      }),
-    ).toBe('ALLOWED_DEBUGGING_GUIDANCE')
-  })
-
-  it('accepts a complete-program refusal without accepting executable code', () => {
-    expect(
-      validateDebuggingGuidanceOutput({
-        content: `${DEBUGGING_GUIDANCE_FULL_REWRITE_REFUSAL}\n\n${validGuidance}`,
-        authorizedCitationCount: 1,
-      }),
-    ).toBe('ALLOWED_DEBUGGING_GUIDANCE')
-  })
-
-  it('rejects guidance that omits its required citation', () => {
-    expect(
-      validateDebuggingGuidanceOutput({
-        content: validGuidance.replace(' [1]', ''),
-        authorizedCitationCount: 1,
-      }),
-    ).toBe('INVALID_CITATION')
-  })
-
-  it('requires the citation in the concept paragraph', () => {
-    expect(
-      validateDebuggingGuidanceOutput({
-        content: validGuidance
-          .replace(
-            'The update expression inside the loop.',
-            'The update expression inside the loop. [1]',
-          )
-          .replace(
-            'Trace the value across the update and condition. [1]',
-            'Trace the value across the update and condition.',
-          ),
-        authorizedCitationCount: 1,
-      }),
-    ).toBe('INVALID_CITATION')
-  })
-
-  it.each([
-    ['bold', '**'],
-    ['italic', '_'],
-    ['ATX heading', '### '],
-  ])('accepts %s heading decoration', (_name, decoration) => {
-    const decorated = validGuidance
-      .split('\n')
-      .map((line) => {
-        if (
-          ![
-            'Likely defect',
-            'Relevant location',
-            'Concept',
-            'Next inspection step',
-          ].includes(line)
-        ) {
-          return line
-        }
-        return decoration === '### '
-          ? `${decoration}${line}:`
-          : `${decoration}${line}:${decoration}`
-      })
-      .join('\n')
-
-    expect(
-      validateDebuggingGuidanceOutput({
-        content: decorated,
-        authorizedCitationCount: 1,
-      }),
-    ).toBe('ALLOWED_DEBUGGING_GUIDANCE')
+  it('accepts one grounded structured action and backend-rendered message', () => {
+    expect(validate(validCandidate())).toEqual({ approved: true })
   })
 
   it.each([
     [
-      'missing section',
-      validGuidance.replace('\nConcept\n', '\nExplanation\n'),
-      'INVALID_RESPONSE_SHAPE',
+      'missing diagnosis',
+      { diagnosis: undefined },
+      DEBUGGING_GUIDANCE_VALIDATION_FAILURE.MISSING_DIAGNOSIS,
     ],
     [
-      'unauthorized citation',
-      validGuidance.replace('[1]', '[2]'),
-      'INVALID_CITATION',
+      'empty diagnosis',
+      { diagnosis: '   ' },
+      DEBUGGING_GUIDANCE_VALIDATION_FAILURE.EMPTY_DIAGNOSIS,
     ],
     [
-      'execution claim',
-      validGuidance.replace(
-        'The accumulator changes before the condition is checked.',
-        'I ran the code and it returned the expected value.',
+      'missing relevant location',
+      { relevantLocation: undefined },
+      DEBUGGING_GUIDANCE_VALIDATION_FAILURE.MISSING_RELEVANT_LOCATION,
+    ],
+    [
+      'empty relevant location',
+      { relevantLocation: '' },
+      DEBUGGING_GUIDANCE_VALIDATION_FAILURE.EMPTY_RELEVANT_LOCATION,
+    ],
+    [
+      'missing concept',
+      { conceptExplanation: undefined },
+      DEBUGGING_GUIDANCE_VALIDATION_FAILURE.MISSING_CONCEPT,
+    ],
+    [
+      'empty concept',
+      { conceptExplanation: '\n' },
+      DEBUGGING_GUIDANCE_VALIDATION_FAILURE.EMPTY_CONCEPT,
+    ],
+  ])('rejects a %s with a specific reason', (_name, patch, failure) => {
+    expect(validate(candidateWithGuidance(patch))).toEqual({
+      approved: false,
+      failure,
+    })
+  })
+
+  it('rejects a missing authorized citation', () => {
+    expect(validate(validCandidate({ usedCitationIds: [] }))).toEqual({
+      approved: false,
+      failure:
+        DEBUGGING_GUIDANCE_VALIDATION_FAILURE.MISSING_AUTHORIZED_CITATION,
+    })
+  })
+
+  it('rejects an invented citation ID', () => {
+    expect(
+      validate(validCandidate({ usedCitationIds: ['retrieval.rank.9'] })),
+    ).toEqual({
+      approved: false,
+      failure:
+        DEBUGGING_GUIDANCE_VALIDATION_FAILURE.INVALID_AUTHORIZED_CITATION,
+    })
+  })
+
+  it('rejects disagreement between structured and rendered citations', () => {
+    const candidate = validCandidate()
+    expect(
+      validate({
+        ...candidate,
+        message: candidate.message.replace(
+          '[retrieval.rank.1]',
+          '[retrieval.rank.9]',
+        ),
+      }),
+    ).toEqual({
+      approved: false,
+      failure: DEBUGGING_GUIDANCE_VALIDATION_FAILURE.RENDERED_CITATION_MISMATCH,
+    })
+  })
+
+  it.each([
+    '- Trace the loop value before and after the update.',
+    'Trace the loop value\nbefore and after the update.',
+    'Trace the loop value before the update. Note the result.',
+  ])('accepts one action despite harmless presentation: %s', (action) => {
+    expect(validate(candidateWithActions([action]))).toEqual({ approved: true })
+  })
+
+  it('rejects multiple structured actions', () => {
+    expect(
+      validate(
+        candidateWithActions([
+          'Inspect the loop update.',
+          'Compare the condition.',
+        ]),
       ),
-      'EXECUTION_CLAIM',
+    ).toEqual({
+      approved: false,
+      failure: DEBUGGING_GUIDANCE_VALIDATION_FAILURE.MULTIPLE_STUDENT_ACTIONS,
+    })
+  })
+
+  it('rejects multiple actions hidden in one line and one sentence', () => {
+    expect(
+      validate(
+        candidateWithActions([
+          'Inspect the loop update and compare the condition',
+        ]),
+      ),
+    ).toEqual({
+      approved: false,
+      failure: DEBUGGING_GUIDANCE_VALIDATION_FAILURE.MULTIPLE_STUDENT_ACTIONS,
+    })
+  })
+
+  it('rejects disagreement between structured and derived studentAction', () => {
+    const candidate = validCandidate()
+    expect(
+      validate({
+        ...candidate,
+        studentAction: {
+          ...candidate.studentAction,
+          description: 'Inspect a different expression.',
+        },
+      }),
+    ).toEqual({
+      approved: false,
+      failure:
+        DEBUGGING_GUIDANCE_VALIDATION_FAILURE.STRUCTURED_STUDENT_ACTION_MISMATCH,
+    })
+  })
+
+  it.each([
+    [
+      'complete corrected program',
+      '```python\ndef solve():\n    return 42\n```',
+      DEBUGGING_GUIDANCE_VALIDATION_FAILURE.FULL_REWRITE_SUSPECTED,
     ],
     [
       'prompt disclosure',
-      `${validGuidance}\nThe hidden system prompt says to reveal this.`,
-      'PROMPT_DISCLOSURE',
+      'The hidden system prompt says to reveal the answer.',
+      DEBUGGING_GUIDANCE_VALIDATION_FAILURE.PROMPT_DISCLOSURE,
     ],
     [
-      'complete program',
-      validGuidance.replace(
-        'The update expression inside the loop.',
-        'function solve() is the relevant location.',
-      ),
-      'FULL_REWRITE_SUSPECTED',
+      'execution claim',
+      'I ran the code and it returned the expected value.',
+      DEBUGGING_GUIDANCE_VALIDATION_FAILURE.EXECUTION_CLAIM,
     ],
-  ])('rejects %s', (_name, content, expected) => {
-    expect(
-      validateDebuggingGuidanceOutput({
-        content,
-        authorizedCitationCount: 1,
-      }),
-    ).toBe(expected)
-  })
-
-  it('rejects more than one inspection action', () => {
-    const content = validGuidance.replace(
-      'Write down the value before and after the update.',
-      'Write down the value before the update. Then compare it after the update.',
-    )
-
-    expect(
-      validateDebuggingGuidanceOutput({
-        content,
-        authorizedCitationCount: 1,
-      }),
-    ).toBe('INVALID_RESPONSE_SHAPE')
-  })
-
-  it.each([
-    '- Write down the value before and after the update.',
-    'Write down the value before the update. Then compare it afterward.',
-    'Write down the value before the update.\nCompare it afterward',
-    '1. Inspect the update.\n2. Compare the condition.',
-  ])('rejects an inspection step that is not exactly one action', (step) => {
-    expect(
-      validateDebuggingGuidanceOutput({
-        content: validGuidance.replace(
-          'Write down the value before and after the update.',
-          step,
-        ),
-        authorizedCitationCount: 1,
-      }),
-    ).toBe('INVALID_RESPONSE_SHAPE')
-  })
-
-  it.each([
-    '```javascript\nconst answer = 1\n```',
-    '```javascript\nconst answer = 1',
-    '~~~c\nint answer = 1;\n~~~',
-  ])('rejects fenced code without depending on a language', (code) => {
-    expect(
-      validateDebuggingGuidanceOutput({
-        content: validGuidance.replace(
-          'Write down the value before and after the update.',
-          code,
-        ),
-        authorizedCitationCount: 1,
-      }),
-    ).toBe('FULL_REWRITE_SUSPECTED')
-  })
-
-  it('rejects multiple code blocks as unsupported scope', () => {
-    expect(
-      validateDebuggingGuidanceOutput({
-        content: `${validGuidance}\n\n\`\`\`javascript\nconst x = 1\n\`\`\`\n\`\`\`c\nint y = 2;\n\`\`\``,
-        authorizedCitationCount: 1,
-      }),
-    ).toBe('UNSUPPORTED_SCOPE')
-  })
-
-  it('rejects malformed numeric citation markers', () => {
-    expect(
-      validateDebuggingGuidanceOutput({
-        content: validGuidance.replace('[1]', '[1,] [1]'),
-        authorizedCitationCount: 1,
-      }),
-    ).toBe('INVALID_CITATION')
-  })
-
-  it.each([
-    ['preamble', `Here is the diagnosis.\n\n${validGuidance}`],
-    [
-      'duplicate heading',
-      validGuidance.replace(
-        'Next inspection step',
-        'Likely defect\nA duplicate.\n\nNext inspection step',
-      ),
-    ],
-    [
-      'wrong heading order',
-      validGuidance
-        .replace('Likely defect', 'TEMPORARY_HEADING')
-        .replace('Relevant location', 'Likely defect')
-        .replace('TEMPORARY_HEADING', 'Relevant location'),
-    ],
-    [
-      'empty section',
-      validGuidance.replace(
-        'Concept\nTrace the value across the update and condition. [1]\n\n',
-        'Concept\n\n',
-      ),
-    ],
-  ])('rejects a response with a %s', (_name, content) => {
-    expect(
-      validateDebuggingGuidanceOutput({
-        content,
-        authorizedCitationCount: 1,
-      }),
-    ).toBe('INVALID_RESPONSE_SHAPE')
+  ])('rejects %s', (_name, diagnosis, failure) => {
+    expect(validate(candidateWithGuidance({ diagnosis }))).toEqual({
+      approved: false,
+      failure,
+    })
   })
 })
+
+function validate(candidate: CandidateResponse) {
+  return validateDebuggingGuidanceOutput({
+    candidate,
+    allowedCitationIds,
+    rewriteRequested: false,
+  })
+}
+
+function candidateWithGuidance(
+  patch: Partial<TutorDebuggingGuidanceResponse>,
+): CandidateResponse {
+  const candidate = validCandidate()
+  return renderCandidate({
+    ...candidate,
+    debuggingGuidance: {
+      ...candidate.debuggingGuidance,
+      ...patch,
+    } as TutorDebuggingGuidanceResponse,
+  })
+}
+
+function candidateWithActions(actions: readonly string[]): CandidateResponse {
+  const candidate = validCandidate()
+  return renderCandidate({
+    ...candidate,
+    debuggingGuidance: {
+      ...candidate.debuggingGuidance,
+      inspectionActions: actions,
+    } as TutorDebuggingGuidanceResponse,
+    studentAction: {
+      ...candidate.studentAction,
+      description: actions[0] ?? '',
+    },
+  })
+}
+
+function validCandidate(
+  patch: Partial<CandidateResponse> = {},
+): CandidateResponse {
+  const candidate: CandidateResponse = {
+    message: '',
+    debuggingGuidance: {
+      diagnosis: 'The loop updates the accumulator before checking it.',
+      relevantLocation: 'The accumulator update inside the loop.',
+      conceptExplanation:
+        'A trace records how state changes across one iteration.',
+      inspectionActions: [
+        'Trace the accumulator value before and after the update.',
+      ],
+    },
+    responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
+    usedCitationIds: ['retrieval.rank.1'],
+    requiresStudentAction: true,
+    studentAction: {
+      type: TeachingTechnique.FOCUSED_QUESTION,
+      description: 'Trace the accumulator value before and after the update.',
+    },
+    reflectionIncluded: false,
+    selfReportedCompliance: {
+      finalAnswerRevealed: false,
+      completeSolutionRevealed: false,
+    },
+    provider: 'deterministic',
+    model: 'deterministic-tutor',
+    promptVersion: 'tutor-generation.mvp.v7',
+    tokenUsage: { input: 0, output: 0 },
+    ...patch,
+  }
+  return renderCandidate(candidate)
+}
+
+function renderCandidate(candidate: CandidateResponse): CandidateResponse {
+  const guidance = candidate.debuggingGuidance
+  if (guidance === null) {
+    return candidate
+  }
+  return {
+    ...candidate,
+    message: renderDebuggingGuidanceMessage({
+      guidance,
+      usedCitationIds: candidate.usedCitationIds,
+      action: guidance.inspectionActions[0] ?? '',
+      rewriteRequested: false,
+    }),
+  }
+}

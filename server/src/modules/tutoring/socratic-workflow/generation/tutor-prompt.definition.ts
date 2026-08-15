@@ -1,4 +1,4 @@
-export const TUTOR_GENERATION_PROMPT_VERSION = 'tutor-generation.mvp.v6'
+export const TUTOR_GENERATION_PROMPT_VERSION = 'tutor-generation.mvp.v7'
 
 export const TUTOR_GENERATION_PROMPT_DEFINITION = Object.freeze({
   id: TUTOR_GENERATION_PROMPT_VERSION,
@@ -14,6 +14,7 @@ export const TUTOR_GENERATION_PROMPT_DEFINITION = Object.freeze({
   ]),
   expectedOutputContract: Object.freeze([
     'message',
+    'debuggingGuidance',
     'responseIntent',
     'usedCitationIds',
     'requiresStudentAction',

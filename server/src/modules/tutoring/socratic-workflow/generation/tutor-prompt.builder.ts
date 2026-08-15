@@ -35,7 +35,7 @@ const TUTOR_GENERATION_SYSTEM_PROMPT = [
   'When acknowledgeStudentSupportedCorrectWork is true, briefly and factually acknowledge only the correct reasoning supported by the accepted analysis, then ask the required meaningful verification, transfer, or application question. Do not infer correctness from an unsupported self-report.',
   'A retrieved fact is evidence for accuracy, not permission to reveal that fact to the student.',
   'If Reveal Policy is NO_FINAL_ANSWER, do not disclose the final answer, complete solution, submission-ready code, or final result.',
-  'For DEBUGGING_GUIDANCE, identify one likely issue, its relevant location, the supporting concept, and exactly one inspection or trace action. Never execute student code or return a corrected program.',
+  'When debuggingGuidance is present, return the structured debuggingGuidance object and exactly one inspectionActions entry. Set message and studentAction to null because the backend renders both from that structure. Never execute student code or return a corrected program.',
   'Use only allowed citation IDs supplied by the backend. Do not invent citation IDs.',
   'The backend owns provider, model, promptVersion, tokenUsage, approval, and persistence metadata. Do not include those keys.',
   '',
@@ -163,7 +163,9 @@ function buildTutorUserPrompt(context: GenerationContextPackage): string {
     section('8. Allowed Citation IDs and citation instructions', {
       allowedCitationIds: context.allowedCitationIds,
       citationInstruction:
-        'usedCitationIds must be a subset of allowedCitationIds and may be empty only when evidence is insufficient for a citation.',
+        context.debuggingGuidance === null
+          ? 'usedCitationIds must be a subset of allowedCitationIds and may be empty only when evidence is insufficient for a citation.'
+          : 'usedCitationIds must contain one or more exact values from allowedCitationIds. Do not put citation markers in conceptExplanation; the backend renders markers from usedCitationIds.',
     }),
     ...(context.regeneration === null
       ? []
@@ -190,30 +192,35 @@ function buildTutorUserPrompt(context: GenerationContextPackage): string {
           TRUSTED_BACKEND_POLICY_END_MARKER,
         ]),
     section('9. CandidateResponse output contract', {
-      message: 'string',
+      message: context.debuggingGuidance === null ? 'string' : null,
+      debuggingGuidance:
+        context.debuggingGuidance === null
+          ? null
+          : {
+              diagnosis: 'non-empty string',
+              relevantLocation: 'non-empty string',
+              conceptExplanation:
+                'non-empty grounded explanation without rendered citation markers',
+              inspectionActions: [
+                'exactly one meaningful inspection or trace action',
+              ],
+            },
       responseIntent:
         'GUIDED_EXPLANATION | SOCRATIC_QUESTIONING | MISCONCEPTION_REPAIR | DEBUGGING_GUIDANCE',
       usedCitationIds: ['allowed-citation-id'],
       requiresStudentAction: context.teachingDecision.requireStudentAction,
-      studentAction: {
-        type: context.teachingDecision.primaryTechnique,
-        description: 'string',
-      },
+      studentAction:
+        context.debuggingGuidance === null
+          ? {
+              type: context.teachingDecision.primaryTechnique,
+              description: 'string',
+            }
+          : null,
       reflectionIncluded: context.teachingDecision.reflectionMode !== 'NONE',
       selfReportedCompliance: {
         finalAnswerRevealed: false,
         completeSolutionRevealed: false,
       },
-      ...(context.debuggingGuidance === null
-        ? {}
-        : {
-            debuggingGuidanceSections: [
-              'Likely defect',
-              'Relevant location',
-              'Concept with at least one allowed citation marker',
-              'Next inspection step with exactly one action',
-            ],
-          }),
     }),
     UNTRUSTED_CONVERSATION_BEGIN_MARKER,
     section(

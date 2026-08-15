@@ -1,22 +1,38 @@
-export const DEBUGGING_GUIDANCE_SECTION_HEADINGS = [
-  'Likely defect',
-  'Relevant location',
-  'Concept',
-  'Next inspection step',
-] as const
+import type {
+  CandidateResponse,
+  TutorDebuggingGuidanceResponse,
+} from '../generation/tutor-generation.types'
 
-export const DEBUGGING_GUIDANCE_OUTPUT_RESULTS = [
-  'ALLOWED_DEBUGGING_GUIDANCE',
-  'INVALID_RESPONSE_SHAPE',
-  'FULL_REWRITE_SUSPECTED',
-  'PROMPT_DISCLOSURE',
-  'EXECUTION_CLAIM',
-  'INVALID_CITATION',
-  'UNSUPPORTED_SCOPE',
-] as const
+export const DEBUGGING_GUIDANCE_VALIDATION_FAILURE = {
+  PROMPT_DISCLOSURE: 'PROMPT_DISCLOSURE',
+  EXECUTION_CLAIM: 'EXECUTION_CLAIM',
+  FULL_REWRITE_SUSPECTED: 'FULL_REWRITE_SUSPECTED',
+  MISSING_DEBUGGING_GUIDANCE: 'MISSING_DEBUGGING_GUIDANCE',
+  MISSING_DIAGNOSIS: 'MISSING_DIAGNOSIS',
+  EMPTY_DIAGNOSIS: 'EMPTY_DIAGNOSIS',
+  MISSING_RELEVANT_LOCATION: 'MISSING_RELEVANT_LOCATION',
+  EMPTY_RELEVANT_LOCATION: 'EMPTY_RELEVANT_LOCATION',
+  MISSING_CONCEPT: 'MISSING_CONCEPT',
+  EMPTY_CONCEPT: 'EMPTY_CONCEPT',
+  MISSING_AUTHORIZED_CITATION: 'MISSING_AUTHORIZED_CITATION',
+  INVALID_AUTHORIZED_CITATION: 'INVALID_AUTHORIZED_CITATION',
+  RENDERED_CITATION_MISMATCH: 'RENDERED_CITATION_MISMATCH',
+  MISSING_STUDENT_ACTION: 'MISSING_STUDENT_ACTION',
+  MULTIPLE_STUDENT_ACTIONS: 'MULTIPLE_STUDENT_ACTIONS',
+  INVALID_STUDENT_ACTION: 'INVALID_STUDENT_ACTION',
+  STRUCTURED_STUDENT_ACTION_MISMATCH: 'STRUCTURED_STUDENT_ACTION_MISMATCH',
+  RENDERED_RESPONSE_MISMATCH: 'RENDERED_RESPONSE_MISMATCH',
+} as const
 
-export type DebuggingGuidanceOutputResult =
-  (typeof DEBUGGING_GUIDANCE_OUTPUT_RESULTS)[number]
+export type DebuggingGuidanceValidationFailure =
+  (typeof DEBUGGING_GUIDANCE_VALIDATION_FAILURE)[keyof typeof DEBUGGING_GUIDANCE_VALIDATION_FAILURE]
+
+export type DebuggingGuidanceValidationResult =
+  | { readonly approved: true }
+  | {
+      readonly approved: false
+      readonly failure: DebuggingGuidanceValidationFailure
+    }
 
 export interface DebuggingGuidanceContext {
   readonly likelyIssue: string
@@ -31,123 +47,183 @@ export const DEBUGGING_GUIDANCE_FULL_REWRITE_REFUSAL =
   'I cannot provide a complete corrected program, but I can help you inspect the likely defect.'
 
 interface DebuggingGuidanceOutputInput {
-  readonly content: string
-  readonly authorizedCitationCount: number
+  readonly candidate: CandidateResponse
+  readonly allowedCitationIds: ReadonlySet<string>
+  readonly rewriteRequested: boolean
 }
 
 export function validateDebuggingGuidanceOutput(
   input: DebuggingGuidanceOutputInput,
-): DebuggingGuidanceOutputResult {
-  if (containsPromptDisclosure(input.content)) {
-    return 'PROMPT_DISCLOSURE'
+): DebuggingGuidanceValidationResult {
+  const { candidate } = input
+  if (containsPromptDisclosure(candidate.message)) {
+    return rejected(DEBUGGING_GUIDANCE_VALIDATION_FAILURE.PROMPT_DISCLOSURE)
   }
-  if (containsExecutionClaim(input.content)) {
-    return 'EXECUTION_CLAIM'
+  if (containsExecutionClaim(candidate.message)) {
+    return rejected(DEBUGGING_GUIDANCE_VALIDATION_FAILURE.EXECUTION_CLAIM)
   }
-  const codeBlocks = extractFencedCodeBlocks(input.content)
-  if (codeBlocks.length > 1) {
-    return 'UNSUPPORTED_SCOPE'
+  if (containsCompleteProgram(candidate.message)) {
+    return rejected(
+      DEBUGGING_GUIDANCE_VALIDATION_FAILURE.FULL_REWRITE_SUSPECTED,
+    )
+  }
+
+  const guidance = candidate.debuggingGuidance
+  if (guidance === null) {
+    return rejected(
+      DEBUGGING_GUIDANCE_VALIDATION_FAILURE.MISSING_DEBUGGING_GUIDANCE,
+    )
+  }
+
+  const componentFailure = validateComponents(guidance)
+  if (componentFailure !== null) {
+    return rejected(componentFailure)
+  }
+
+  if (candidate.usedCitationIds.length === 0) {
+    return rejected(
+      DEBUGGING_GUIDANCE_VALIDATION_FAILURE.MISSING_AUTHORIZED_CITATION,
+    )
   }
   if (
-    containsCodeFence(input.content) ||
-    containsCompleteProgram(input.content)
-  ) {
-    return 'FULL_REWRITE_SUSPECTED'
-  }
-
-  const sections = parseSections(input.content)
-  const nextStep = sections?.at(-1)
-  if (
-    sections === null ||
-    nextStep === undefined ||
-    !hasExactlyOneInspectionStep(nextStep)
-  ) {
-    return 'INVALID_RESPONSE_SHAPE'
-  }
-
-  const concept = sections.at(2)
-  if (
-    concept === undefined ||
-    extractCitationIndexes(concept, input.authorizedCitationCount).length === 0
-  ) {
-    return 'INVALID_CITATION'
-  }
-
-  return 'ALLOWED_DEBUGGING_GUIDANCE'
-}
-
-function parseSections(content: string): readonly string[] | null {
-  const lines = content
-    .replaceAll('\r\n', '\n')
-    .replaceAll('\r', '\n')
-    .split('\n')
-  const refusalLine = lines[0]?.trim()
-  const contentLines =
-    refusalLine === DEBUGGING_GUIDANCE_FULL_REWRITE_REFUSAL
-      ? lines.slice(1)
-      : lines
-  const headingIndexes = DEBUGGING_GUIDANCE_SECTION_HEADINGS.map((heading) =>
-    contentLines.reduce<number[]>((indexes, line, index) => {
-      if (normalizeHeadingLine(line) === heading) {
-        indexes.push(index)
-      }
-      return indexes
-    }, []),
-  )
-  if (headingIndexes.some((indexes) => indexes.length !== 1)) {
-    return null
-  }
-
-  const indexes = headingIndexes.map(([index]) => index)
-  if (
-    contentLines.slice(0, indexes[0]).some((line) => line.trim() !== '') ||
-    indexes.some(
-      (index, position) => position > 0 && index <= indexes[position - 1],
+    candidate.usedCitationIds.some(
+      (citationId) => !input.allowedCitationIds.has(citationId),
     )
   ) {
-    return null
+    return rejected(
+      DEBUGGING_GUIDANCE_VALIDATION_FAILURE.INVALID_AUTHORIZED_CITATION,
+    )
   }
 
-  const sections = indexes.map((index, position) =>
-    contentLines
-      .slice(index + 1, indexes[position + 1] ?? contentLines.length)
-      .join('\n')
-      .trim(),
-  )
-  return sections.every((section) => section !== '') ? sections : null
-}
-
-function normalizeHeadingLine(raw: string): string {
-  return raw
-    .trim()
-    .replace(/^#{1,6}\s+/u, '')
-    .replace(/^(?:\*{1,2}|_{1,2})(.*?)(?:\*{1,2}|_{1,2})$/u, '$1')
-    .replace(/:$/u, '')
-    .trim()
-}
-
-function hasExactlyOneInspectionStep(section: string): boolean {
-  const lines = section
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-  if (lines.length !== 1 || /^(?:[-*]|\d+[.)])\s+/u.test(lines[0])) {
-    return false
+  const actionFailure = validateInspectionAction(guidance.inspectionActions)
+  if (actionFailure !== null) {
+    return rejected(actionFailure)
   }
-  return (lines[0].match(/[.!?](?:\s|$)/gu) ?? []).length <= 1
+  const action = guidance.inspectionActions[0]
+  if (
+    action === undefined ||
+    normalizeContractText(candidate.studentAction.description) !==
+      normalizeContractText(action)
+  ) {
+    return rejected(
+      DEBUGGING_GUIDANCE_VALIDATION_FAILURE.STRUCTURED_STUDENT_ACTION_MISMATCH,
+    )
+  }
+
+  const expectedMessage = renderDebuggingGuidanceMessage({
+    guidance,
+    usedCitationIds: candidate.usedCitationIds,
+    action,
+    rewriteRequested: input.rewriteRequested,
+  })
+  if (candidate.message !== expectedMessage) {
+    const renderedCitationIds = extractRenderedCitationIds(candidate.message)
+    if (!sameOrderedValues(renderedCitationIds, candidate.usedCitationIds)) {
+      return rejected(
+        DEBUGGING_GUIDANCE_VALIDATION_FAILURE.RENDERED_CITATION_MISMATCH,
+      )
+    }
+    return rejected(
+      DEBUGGING_GUIDANCE_VALIDATION_FAILURE.RENDERED_RESPONSE_MISMATCH,
+    )
+  }
+
+  return { approved: true }
 }
 
-function extractFencedCodeBlocks(content: string): readonly string[] {
-  return [...content.matchAll(/```[^\r\n`]*\r?\n([\s\S]*?)```/gu)].map(
-    (match) => match[1],
+export function renderDebuggingGuidanceMessage(input: {
+  readonly guidance: TutorDebuggingGuidanceResponse
+  readonly usedCitationIds: readonly string[]
+  readonly action: string
+  readonly rewriteRequested: boolean
+}): string {
+  const citationMarkers = input.usedCitationIds
+    .map((citationId) => `[${citationId}]`)
+    .join(' ')
+  return [
+    ...(input.rewriteRequested
+      ? [DEBUGGING_GUIDANCE_FULL_REWRITE_REFUSAL, '']
+      : []),
+    'Likely defect',
+    input.guidance.diagnosis?.trim() ?? '',
+    '',
+    'Relevant location',
+    input.guidance.relevantLocation?.trim() ?? '',
+    '',
+    'Concept',
+    `${input.guidance.conceptExplanation?.trim() ?? ''} ${citationMarkers}`.trim(),
+    '',
+    'Next inspection step',
+    input.action.trim(),
+  ].join('\n')
+}
+
+function validateComponents(
+  guidance: TutorDebuggingGuidanceResponse,
+): DebuggingGuidanceValidationFailure | null {
+  if (guidance.diagnosis === undefined) {
+    return DEBUGGING_GUIDANCE_VALIDATION_FAILURE.MISSING_DIAGNOSIS
+  }
+  if (guidance.diagnosis.trim() === '') {
+    return DEBUGGING_GUIDANCE_VALIDATION_FAILURE.EMPTY_DIAGNOSIS
+  }
+  if (guidance.relevantLocation === undefined) {
+    return DEBUGGING_GUIDANCE_VALIDATION_FAILURE.MISSING_RELEVANT_LOCATION
+  }
+  if (guidance.relevantLocation.trim() === '') {
+    return DEBUGGING_GUIDANCE_VALIDATION_FAILURE.EMPTY_RELEVANT_LOCATION
+  }
+  if (guidance.conceptExplanation === undefined) {
+    return DEBUGGING_GUIDANCE_VALIDATION_FAILURE.MISSING_CONCEPT
+  }
+  if (guidance.conceptExplanation.trim() === '') {
+    return DEBUGGING_GUIDANCE_VALIDATION_FAILURE.EMPTY_CONCEPT
+  }
+  return null
+}
+
+function validateInspectionAction(
+  actions: readonly string[],
+): DebuggingGuidanceValidationFailure | null {
+  if (actions.length === 0) {
+    return DEBUGGING_GUIDANCE_VALIDATION_FAILURE.MISSING_STUDENT_ACTION
+  }
+  if (actions.length > 1) {
+    return DEBUGGING_GUIDANCE_VALIDATION_FAILURE.MULTIPLE_STUDENT_ACTIONS
+  }
+
+  const action = actions[0]?.trim() ?? ''
+  if (action === '') {
+    return DEBUGGING_GUIDANCE_VALIDATION_FAILURE.MISSING_STUDENT_ACTION
+  }
+  if (countActionVerbs(action) > 1) {
+    return DEBUGGING_GUIDANCE_VALIDATION_FAILURE.MULTIPLE_STUDENT_ACTIONS
+  }
+  if (!isMeaningfulInspectionAction(action)) {
+    return DEBUGGING_GUIDANCE_VALIDATION_FAILURE.INVALID_STUDENT_ACTION
+  }
+  return null
+}
+
+function isMeaningfulInspectionAction(action: string): boolean {
+  return (
+    Array.from(action).length >= 12 &&
+    (/[?]/u.test(action) || countActionVerbs(action) === 1)
   )
 }
 
-function containsCodeFence(content: string): boolean {
-  return /(?:^|\n)\s*(?:```|~~~)/u.test(content)
+function countActionVerbs(action: string): number {
+  return (
+    action.match(
+      /\b(?:inspect|trace|check|compare|record|write|identify|predict|explain|show|test|run|calculate|compute|evaluate|describe|tell|try)\b/giu,
+    ) ?? []
+  ).length
 }
 
 function containsCompleteProgram(content: string): boolean {
+  if (/(?:^|\n)\s*(?:```|~~~)/u.test(content)) {
+    return true
+  }
   return /(?:^|\n)\s*(?:async\s+)?(?:def|class|function)\s+[A-Za-z_][A-Za-z0-9_]*/mu.test(
     content,
   )
@@ -165,36 +241,26 @@ function containsExecutionClaim(content: string): boolean {
   )
 }
 
-function extractCitationIndexes(
-  content: string,
-  authorizedCitationCount: number,
-): readonly number[] {
-  if (
-    !Number.isSafeInteger(authorizedCitationCount) ||
-    authorizedCitationCount < 1
-  ) {
-    return []
-  }
-  const markers = [...content.matchAll(/\[((?:\d+\s*,\s*)*\d+)\]/gu)]
-  const malformed = [...content.matchAll(/\[[^\]\r\n]*\]/gu)].some(
-    ([marker]) =>
-      /\d/u.test(marker) && !/^\[(?:\d+\s*,\s*)*\d+\]$/u.test(marker),
+function extractRenderedCitationIds(content: string): readonly string[] {
+  return [...content.matchAll(/\[([^\]\r\n]+)\]/gu)].map((match) => match[1])
+}
+
+function sameOrderedValues(
+  left: readonly string[],
+  right: readonly string[],
+): boolean {
+  return (
+    left.length === right.length &&
+    left.every((value, index) => value === right[index])
   )
-  if (malformed) {
-    return []
-  }
-  const indexes = markers.flatMap((match) =>
-    match[1].split(',').map((value) => Number(value.trim())),
-  )
-  if (
-    indexes.some(
-      (index) =>
-        !Number.isSafeInteger(index) ||
-        index < 1 ||
-        index > authorizedCitationCount,
-    )
-  ) {
-    return []
-  }
-  return [...new Set(indexes)]
+}
+
+function normalizeContractText(value: string): string {
+  return value.trim().replace(/\s+/gu, ' ')
+}
+
+function rejected(
+  failure: DebuggingGuidanceValidationFailure,
+): DebuggingGuidanceValidationResult {
+  return { approved: false, failure }
 }

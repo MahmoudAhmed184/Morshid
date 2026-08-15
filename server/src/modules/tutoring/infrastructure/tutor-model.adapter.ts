@@ -27,10 +27,7 @@ import {
 } from '../socratic-workflow/generation/tutor-generation.types'
 import { TUTOR_GENERATION_PROMPT_VERSION } from '../socratic-workflow/generation/tutor-prompt.definition'
 import { TeachingStrategy, TeachingTechnique } from '../tutoring-values'
-import {
-  DEBUGGING_GUIDANCE_FULL_REWRITE_REFUSAL,
-  type DebuggingGuidanceContext,
-} from '../socratic-workflow/debugging-guidance/debugging-guidance.output-validator'
+import type { DebuggingGuidanceContext } from '../socratic-workflow/debugging-guidance/debugging-guidance.output-validator'
 
 const MAX_TUTOR_PROVIDER_LENGTH = 80
 const MAX_TUTOR_MODEL_LENGTH = 200
@@ -157,21 +154,21 @@ export class DeterministicTutorModelAdapter implements TutorModelPort {
 
     const allowedCitationIds = extractAllowedCitationIds(request)
     const debuggingGuidance = extractDebuggingGuidance(request)
-    const debugging = request.messages[1].content.includes(
-      '"strategy":"DEBUGGING_GUIDANCE"',
-    )
+    const responseIntent = extractTeachingStrategy(request)
 
     return Promise.resolve(
       Object.freeze({
         rawOutput: Object.freeze(
-          debugging
+          debuggingGuidance !== null
             ? debuggingCandidate(
-                debuggingGuidance ?? defaultDebuggingGuidance(),
+                debuggingGuidance,
                 allowedCitationIds,
+                responseIntent,
               )
             : {
                 message:
                   'What is one small step you can try next using the cited course evidence?',
+                debuggingGuidance: null,
                 responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
                 usedCitationIds: Object.freeze(allowedCitationIds),
                 requiresStudentAction: true,
@@ -195,59 +192,52 @@ export class DeterministicTutorModelAdapter implements TutorModelPort {
   }
 }
 
-function defaultDebuggingGuidance(): DebuggingGuidanceContext {
-  return {
-    likelyIssue: 'The submitted code needs one focused trace of its state.',
-    relevantLocation:
-      'The first expression whose value differs from expectation.',
-    concept:
-      'Trace each value through the relevant operation before changing the code.',
-    nextInspectionStep:
-      'Trace the first relevant value and write down what it becomes.',
-    evidenceQuery: '',
-    rewriteRequested: false,
-  }
-}
-
 function debuggingCandidate(
   guidance: DebuggingGuidanceContext,
   allowedCitationIds: readonly string[],
+  responseIntent: TeachingStrategy,
 ): Record<string, unknown> {
   const citation = allowedCitationIds.at(0)
-  const concept =
-    citation === undefined ? guidance.concept : `${guidance.concept} [1]`
-  const message = [
-    ...(guidance.rewriteRequested
-      ? [DEBUGGING_GUIDANCE_FULL_REWRITE_REFUSAL, '']
-      : []),
-    'Likely defect',
-    guidance.likelyIssue,
-    '',
-    'Relevant location',
-    guidance.relevantLocation,
-    '',
-    'Concept',
-    concept,
-    '',
-    'Next inspection step',
-    guidance.nextInspectionStep,
-  ].join('\n')
 
   return {
-    message,
-    responseIntent: TeachingStrategy.DEBUGGING_GUIDANCE,
+    message: null,
+    debuggingGuidance: {
+      diagnosis: guidance.likelyIssue,
+      relevantLocation: guidance.relevantLocation,
+      conceptExplanation: guidance.concept,
+      inspectionActions: [guidance.nextInspectionStep],
+    },
+    responseIntent,
     usedCitationIds:
       citation === undefined ? Object.freeze([]) : Object.freeze([citation]),
     requiresStudentAction: true,
-    studentAction: Object.freeze({
-      type: TeachingTechnique.TRACE_EXECUTION,
-      description: guidance.nextInspectionStep,
-    }),
+    studentAction: null,
     reflectionIncluded: false,
     selfReportedCompliance: Object.freeze({
       finalAnswerRevealed: false,
       completeSolutionRevealed: false,
     }),
+  }
+}
+
+function extractTeachingStrategy(request: TutorModelRequest): TeachingStrategy {
+  const match =
+    /^3\. Authoritative TeachingDecision\n(?<json>\{[^\n]+\})/mu.exec(
+      request.messages[1].content,
+    )
+  if (match?.groups?.json === undefined) {
+    return TeachingStrategy.SOCRATIC_QUESTIONING
+  }
+  try {
+    const parsed: unknown = JSON.parse(match.groups.json)
+    const strategy = isRecord(parsed) ? parsed.strategy : null
+    return Object.values(TeachingStrategy).includes(
+      strategy as TeachingStrategy,
+    )
+      ? (strategy as TeachingStrategy)
+      : TeachingStrategy.SOCRATIC_QUESTIONING
+  } catch {
+    return TeachingStrategy.SOCRATIC_QUESTIONING
   }
 }
 

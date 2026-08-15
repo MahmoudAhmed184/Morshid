@@ -126,6 +126,7 @@ export function guardResultAudit(
 function hashCandidate(candidate: CandidateResponse): string {
   const canonical = JSON.stringify({
     message: candidate.message,
+    debuggingGuidance: candidate.debuggingGuidance,
     responseIntent: candidate.responseIntent,
     usedCitationIds: candidate.usedCitationIds,
     requiresStudentAction: candidate.requiresStudentAction,

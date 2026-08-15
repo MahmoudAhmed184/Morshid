@@ -3,7 +3,11 @@ import { Injectable } from '@nestjs/common'
 import { RevealPolicy } from '../../tutoring-values'
 import { normalizeDeterministicText } from '../../../../common/text/normalize-deterministic-text'
 import type { CandidateResponse } from '../generation/tutor-generation.types'
-import { validateDebuggingGuidanceOutput } from '../debugging-guidance/debugging-guidance.output-validator'
+import {
+  DEBUGGING_GUIDANCE_VALIDATION_FAILURE,
+  validateDebuggingGuidanceOutput,
+  type DebuggingGuidanceValidationFailure,
+} from '../debugging-guidance/debugging-guidance.output-validator'
 import {
   RESPONSE_VALIDATION_ACTION,
   RESPONSE_VALIDATION_SEVERITY,
@@ -56,19 +60,12 @@ export class DeterministicGuardService {
       context.debuggingGuidanceRequired === true
     ) {
       const debuggingResult = validateDebuggingGuidanceOutput({
-        content: candidate.message,
-        authorizedCitationCount: context.allowedCitationIds.size,
+        candidate,
+        allowedCitationIds: context.allowedCitationIds,
+        rewriteRequested: context.debuggingGuidance?.rewriteRequested ?? false,
       })
-      if (debuggingResult !== 'ALLOWED_DEBUGGING_GUIDANCE') {
-        violations.push(
-          violation(
-            RESPONSE_VIOLATION_TYPE.DEBUGGING_GUIDANCE_CONTRACT,
-            RESPONSE_VALIDATION_SEVERITY.HIGH,
-            'message',
-            `Debugging guidance failed the ${debuggingResult} contract.`,
-            'Return the four debugging guidance sections, cite authorized course evidence in Concept, and give exactly one inspection step without executing or rewriting the code.',
-          ),
-        )
+      if (!debuggingResult.approved) {
+        violations.push(debuggingGuidanceViolation(debuggingResult.failure))
       }
     }
 
@@ -290,6 +287,143 @@ function hasGroundingViolation(
       context.enforceCitationSupport &&
       context.allowedCitationIds.size > 0 &&
       candidate.usedCitationIds.length === 0)
+  )
+}
+
+function debuggingGuidanceViolation(
+  failure: DebuggingGuidanceValidationFailure,
+): ResponseValidationViolation {
+  switch (failure) {
+    case DEBUGGING_GUIDANCE_VALIDATION_FAILURE.MISSING_DEBUGGING_GUIDANCE:
+      return violation(
+        RESPONSE_VIOLATION_TYPE.DEBUGGING_MISSING_GUIDANCE,
+        RESPONSE_VALIDATION_SEVERITY.HIGH,
+        'debuggingGuidance',
+        'The structured debugging guidance object is missing.',
+        'Return the structured debugging guidance object required by the output contract.',
+      )
+    case DEBUGGING_GUIDANCE_VALIDATION_FAILURE.MISSING_DIAGNOSIS:
+      return debuggingComponentViolation(
+        RESPONSE_VIOLATION_TYPE.DEBUGGING_MISSING_DIAGNOSIS,
+        'debuggingGuidance.diagnosis',
+        'The structured debugging diagnosis field is missing.',
+        'Include one bounded likely-defect diagnosis.',
+      )
+    case DEBUGGING_GUIDANCE_VALIDATION_FAILURE.EMPTY_DIAGNOSIS:
+      return debuggingComponentViolation(
+        RESPONSE_VIOLATION_TYPE.DEBUGGING_EMPTY_DIAGNOSIS,
+        'debuggingGuidance.diagnosis',
+        'The structured debugging diagnosis is empty.',
+        'Provide a non-empty bounded likely-defect diagnosis.',
+      )
+    case DEBUGGING_GUIDANCE_VALIDATION_FAILURE.MISSING_RELEVANT_LOCATION:
+      return debuggingComponentViolation(
+        RESPONSE_VIOLATION_TYPE.DEBUGGING_MISSING_RELEVANT_LOCATION,
+        'debuggingGuidance.relevantLocation',
+        'The structured relevant location field is missing.',
+        'Include the bounded code location the student should inspect.',
+      )
+    case DEBUGGING_GUIDANCE_VALIDATION_FAILURE.EMPTY_RELEVANT_LOCATION:
+      return debuggingComponentViolation(
+        RESPONSE_VIOLATION_TYPE.DEBUGGING_EMPTY_RELEVANT_LOCATION,
+        'debuggingGuidance.relevantLocation',
+        'The structured relevant location is empty.',
+        'Provide a non-empty bounded code location.',
+      )
+    case DEBUGGING_GUIDANCE_VALIDATION_FAILURE.MISSING_CONCEPT:
+      return debuggingComponentViolation(
+        RESPONSE_VIOLATION_TYPE.DEBUGGING_MISSING_CONCEPT,
+        'debuggingGuidance.conceptExplanation',
+        'The structured concept explanation field is missing.',
+        'Include a bounded concept explanation grounded by usedCitationIds.',
+      )
+    case DEBUGGING_GUIDANCE_VALIDATION_FAILURE.EMPTY_CONCEPT:
+      return debuggingComponentViolation(
+        RESPONSE_VIOLATION_TYPE.DEBUGGING_EMPTY_CONCEPT,
+        'debuggingGuidance.conceptExplanation',
+        'The structured concept explanation is empty.',
+        'Provide a non-empty concept explanation grounded by usedCitationIds.',
+      )
+    case DEBUGGING_GUIDANCE_VALIDATION_FAILURE.MISSING_AUTHORIZED_CITATION:
+      return debuggingComponentViolation(
+        RESPONSE_VIOLATION_TYPE.DEBUGGING_MISSING_AUTHORIZED_CITATION,
+        'usedCitationIds',
+        'The debugging concept has no authorized course citation.',
+        'Select at least one allowed citation ID for the concept explanation.',
+      )
+    case DEBUGGING_GUIDANCE_VALIDATION_FAILURE.INVALID_AUTHORIZED_CITATION:
+      return debuggingComponentViolation(
+        RESPONSE_VIOLATION_TYPE.DEBUGGING_INVALID_AUTHORIZED_CITATION,
+        'usedCitationIds',
+        'The debugging concept uses a citation outside the backend allow-list.',
+        'Use only citation IDs from allowedCitationIds.',
+      )
+    case DEBUGGING_GUIDANCE_VALIDATION_FAILURE.RENDERED_CITATION_MISMATCH:
+      return debuggingComponentViolation(
+        RESPONSE_VIOLATION_TYPE.DEBUGGING_RENDERED_CITATION_MISMATCH,
+        'message',
+        'Rendered citation markers do not match usedCitationIds.',
+        'Return the structured fields only and allow the backend to render citation markers.',
+      )
+    case DEBUGGING_GUIDANCE_VALIDATION_FAILURE.MISSING_STUDENT_ACTION:
+      return debuggingComponentViolation(
+        RESPONSE_VIOLATION_TYPE.DEBUGGING_MISSING_STUDENT_ACTION,
+        'debuggingGuidance.inspectionActions',
+        'The debugging response has no student inspection action.',
+        'Provide exactly one meaningful inspection or trace action.',
+      )
+    case DEBUGGING_GUIDANCE_VALIDATION_FAILURE.MULTIPLE_STUDENT_ACTIONS:
+      return debuggingComponentViolation(
+        RESPONSE_VIOLATION_TYPE.DEBUGGING_MULTIPLE_STUDENT_ACTIONS,
+        'debuggingGuidance.inspectionActions',
+        'The debugging response asks the student to perform multiple actions.',
+        'Provide exactly one meaningful inspection or trace action.',
+      )
+    case DEBUGGING_GUIDANCE_VALIDATION_FAILURE.INVALID_STUDENT_ACTION:
+      return debuggingComponentViolation(
+        RESPONSE_VIOLATION_TYPE.DEBUGGING_INVALID_STUDENT_ACTION,
+        'debuggingGuidance.inspectionActions',
+        'The debugging response does not contain a meaningful inspection action.',
+        'Provide one concrete inspection, trace, check, comparison, or prediction.',
+      )
+    case DEBUGGING_GUIDANCE_VALIDATION_FAILURE.STRUCTURED_STUDENT_ACTION_MISMATCH:
+      return debuggingComponentViolation(
+        RESPONSE_VIOLATION_TYPE.DEBUGGING_STUDENT_ACTION_MISMATCH,
+        'studentAction',
+        'The derived studentAction disagrees with the structured inspection action.',
+        'Return one structured inspection action and allow the backend to derive studentAction.',
+      )
+    case DEBUGGING_GUIDANCE_VALIDATION_FAILURE.RENDERED_RESPONSE_MISMATCH:
+      return debuggingComponentViolation(
+        RESPONSE_VIOLATION_TYPE.DEBUGGING_RENDERED_RESPONSE_MISMATCH,
+        'message',
+        'The rendered message disagrees with the structured debugging response.',
+        'Return the structured debugging fields and allow the backend to render the message.',
+      )
+    case DEBUGGING_GUIDANCE_VALIDATION_FAILURE.PROMPT_DISCLOSURE:
+    case DEBUGGING_GUIDANCE_VALIDATION_FAILURE.EXECUTION_CLAIM:
+    case DEBUGGING_GUIDANCE_VALIDATION_FAILURE.FULL_REWRITE_SUSPECTED:
+      return debuggingComponentViolation(
+        RESPONSE_VIOLATION_TYPE.DEBUGGING_GUIDANCE_CONTRACT,
+        'message',
+        `Debugging guidance failed the ${failure} safety contract.`,
+        'Remove policy disclosure, execution claims, and complete corrected code while preserving one inspection action.',
+      )
+  }
+}
+
+function debuggingComponentViolation(
+  type: ResponseValidationViolation['type'],
+  field: string,
+  evidence: string,
+  regenerationInstruction: string,
+): ResponseValidationViolation {
+  return violation(
+    type,
+    RESPONSE_VALIDATION_SEVERITY.HIGH,
+    field,
+    evidence,
+    regenerationInstruction,
   )
 }
 

@@ -254,6 +254,26 @@ describe('tutor prompt builder', () => {
       '"acknowledgeStudentSupportedCorrectWork":false',
     )
   })
+
+  it('requests the one canonical structured debugging response shape', () => {
+    const request = buildTutorGenerationModelRequest(
+      debuggingGenerationContext(),
+    )
+    const prompt = request.messages.map((message) => message.content).join('\n')
+
+    expect(prompt).toContain('"message":null')
+    expect(prompt).toContain('"debuggingGuidance":{')
+    expect(prompt).toContain('"diagnosis":"non-empty string"')
+    expect(prompt).toContain('"relevantLocation":"non-empty string"')
+    expect(prompt).toContain('"conceptExplanation":')
+    expect(prompt).toContain('"inspectionActions":[')
+    expect(prompt).toContain('"studentAction":null')
+    expect(prompt).toContain(
+      'usedCitationIds must contain one or more exact values from allowedCitationIds',
+    )
+    expect(prompt).toContain('the backend renders markers from usedCitationIds')
+    expect(prompt).not.toContain('debuggingGuidanceSections')
+  })
 })
 
 function misconceptionContext(
@@ -340,6 +360,38 @@ function directConceptualContext(
       },
     },
     previousTeachingDecision: null,
+  }
+}
+
+function debuggingGenerationContext(): GenerationContextPackage {
+  const context = buildGenerationContext()
+  return {
+    ...context,
+    acceptedAnalysis: {
+      ...context.acceptedAnalysis,
+      result: {
+        ...context.acceptedAnalysis.result,
+        requestKind: MessageRequestKind.PROBLEM_LIKE,
+        studentState: StudentState.PARTIAL_UNDERSTANDING,
+        recommendedStrategy: TeachingStrategy.SOCRATIC_QUESTIONING,
+        recommendedTechnique: TeachingTechnique.FOCUSED_QUESTION,
+      },
+    },
+    teachingDecision: {
+      ...context.teachingDecision,
+      strategy: TeachingStrategy.SOCRATIC_QUESTIONING,
+      primaryTechnique: TeachingTechnique.FOCUSED_QUESTION,
+      guidanceLevel: 1,
+      revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
+    },
+    debuggingGuidance: {
+      likelyIssue: 'The update likely uses the wrong variable.',
+      relevantLocation: 'The assignment inside the loop body.',
+      concept: 'Accumulator updates',
+      nextInspectionStep: 'Trace one loop iteration.',
+      evidenceQuery: 'accumulator updates in loops',
+      rewriteRequested: false,
+    },
   }
 }
 

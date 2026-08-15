@@ -33,11 +33,13 @@ export class StructuralResponseValidator {
     context: CandidateValidationContext,
   ): ValidationResult {
     const content = {
-      message: candidate.message,
+      message: candidate.debuggingGuidance === null ? candidate.message : null,
+      debuggingGuidance: candidate.debuggingGuidance,
       responseIntent: candidate.responseIntent,
       usedCitationIds: candidate.usedCitationIds,
       requiresStudentAction: candidate.requiresStudentAction,
-      studentAction: candidate.studentAction,
+      studentAction:
+        candidate.debuggingGuidance === null ? candidate.studentAction : null,
       reflectionIncluded: candidate.reflectionIncluded,
       selfReportedCompliance: candidate.selfReportedCompliance,
     }
@@ -61,6 +63,9 @@ export class StructuralResponseValidator {
       enforceCitationSupport: context.enforceCitationSupport,
       requireStudentAction: context.requireStudentAction,
       reflectionMode: context.reflectionMode,
+      debuggingGuidanceRequired: context.debuggingGuidanceRequired,
+      debuggingRewriteRequested: context.debuggingGuidance?.rewriteRequested,
+      studentActionType: context.primaryTechnique,
     }
     const validation = validateCandidateResponse(content, policy, {
       provider: candidate.provider,

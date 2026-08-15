@@ -89,6 +89,7 @@ function validator() {
 function validRawCandidate() {
   return {
     message: 'What changes first in the loop? [retrieval.rank.1]',
+    debuggingGuidance: null,
     responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
     usedCitationIds: ['retrieval.rank.1'],
     requiresStudentAction: true,
