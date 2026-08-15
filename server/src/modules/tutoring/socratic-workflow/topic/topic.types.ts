@@ -1,4 +1,9 @@
-import type { TopicStatus, TopicType } from '../../tutoring-values'
+import type {
+  SolutionProtectionSource,
+  SolutionProtectionStatus,
+  TopicStatus,
+  TopicType,
+} from '../../tutoring-values'
 
 export const TOPIC_RESOLUTION_OUTCOME = {
   CONTINUE_CURRENT_TOPIC: 'CONTINUE_CURRENT_TOPIC',
@@ -107,6 +112,10 @@ export interface TopicRecord extends TopicScope {
   title: string
   topicType: TopicType
   status: TopicStatus
+  solutionProtectionStatus: SolutionProtectionStatus
+  solutionProtectionSource: SolutionProtectionSource | null
+  solutionProtectionPolicyVersion: string | null
+  solutionProtectionEstablishedAt: Date | null
   resolvedAt: Date | null
   createdAt: Date
   updatedAt: Date

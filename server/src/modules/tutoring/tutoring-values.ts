@@ -120,6 +120,36 @@ export const TopicStatus = {
 
 export type TopicStatus = (typeof TopicStatus)[keyof typeof TopicStatus]
 
+export const SolutionProtectionStatus = {
+  UNKNOWN: 'UNKNOWN',
+  UNPROTECTED: 'UNPROTECTED',
+  PROTECTED: 'PROTECTED',
+} as const
+
+export type SolutionProtectionStatus =
+  (typeof SolutionProtectionStatus)[keyof typeof SolutionProtectionStatus]
+
+export const SolutionProtectionSource = {
+  AUTHORITATIVE_TASK_METADATA: 'AUTHORITATIVE_TASK_METADATA',
+  EXPLICIT_PROTECTED_REQUEST: 'EXPLICIT_PROTECTED_REQUEST',
+  ACCEPTED_TASK_ANALYSIS: 'ACCEPTED_TASK_ANALYSIS',
+  ACCEPTED_CONCEPT_ANALYSIS: 'ACCEPTED_CONCEPT_ANALYSIS',
+  MIGRATED_TOPIC_HISTORY: 'MIGRATED_TOPIC_HISTORY',
+  CONSERVATIVE_UNKNOWN: 'CONSERVATIVE_UNKNOWN',
+} as const
+
+export type SolutionProtectionSource =
+  (typeof SolutionProtectionSource)[keyof typeof SolutionProtectionSource]
+
+export const OutputRiskAuditSource = {
+  APPROVAL_CANDIDATE: 'APPROVAL_CANDIDATE',
+  SAFE_FALLBACK: 'SAFE_FALLBACK',
+  POST_APPROVAL: 'POST_APPROVAL',
+} as const
+
+export type OutputRiskAuditSource =
+  (typeof OutputRiskAuditSource)[keyof typeof OutputRiskAuditSource]
+
 export const TopicType = {
   PROBLEM: 'PROBLEM',
   CONCEPT: 'CONCEPT',

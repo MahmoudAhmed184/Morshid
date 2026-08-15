@@ -58,6 +58,11 @@ import {
   PrismaTopicRepository,
   TopicRepository,
 } from './topic/topic.repository'
+import {
+  PrismaSolutionProtectionRepository,
+  SolutionProtectionRepository,
+} from './solution-protection/solution-protection.repository'
+import { SolutionProtectionService } from './solution-protection/solution-protection.service'
 import { TopicService } from './topic/topic.service'
 import { StructuralResponseValidator } from './response-approval/structural-response.validator'
 import { DeterministicGuardService } from './response-approval/deterministic-guard.service'
@@ -93,6 +98,7 @@ type GeminiChatFetch = FetchImplementation | null
   providers: [
     TopicStateService,
     TopicService,
+    SolutionProtectionService,
     {
       provide: TutoringTurnRepository,
       useClass: PrismaTutoringTurnRepository,
@@ -116,6 +122,10 @@ type GeminiChatFetch = FetchImplementation | null
     {
       provide: TopicRepository,
       useClass: PrismaTopicRepository,
+    },
+    {
+      provide: SolutionProtectionRepository,
+      useClass: PrismaSolutionProtectionRepository,
     },
     {
       provide: EducationalAnalysisRepository,

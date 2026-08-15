@@ -33,7 +33,10 @@ import {
   type EducationalAnalysisResult,
 } from './educational-analysis.types'
 import { validateEducationalAnalysisResult } from './educational-analysis.validator'
-import { TOPIC_RESOLUTION_OUTCOME } from '../topic/topic.types'
+import {
+  TOPIC_RESOLUTION_OUTCOME,
+  type TopicRecord,
+} from '../topic/topic.types'
 
 const now = new Date('2026-08-03T12:00:00.000Z')
 
@@ -649,7 +652,7 @@ function validEducationalAnalysisResult(): EducationalAnalysisResult {
 function analysisContext(
   overrides: Partial<AnalysisContextPackage> = {},
 ): AnalysisContextPackage {
-  const activeTopic = {
+  const activeTopic: TopicRecord = {
     id: 'topic-1',
     sessionId: 'session-1',
     courseId: 'course-1',
@@ -658,6 +661,10 @@ function analysisContext(
     title: 'Binary search loop',
     topicType: TopicType.DEBUGGING_TASK,
     status: TopicStatus.ACTIVE,
+    solutionProtectionStatus: 'UNKNOWN',
+    solutionProtectionSource: null,
+    solutionProtectionPolicyVersion: null,
+    solutionProtectionEstablishedAt: null,
     resolvedAt: null,
     createdAt: now,
     updatedAt: now,
