@@ -1,37 +1,39 @@
 # LoadingState
 
-Use `LoadingState` for consistent skeleton screens while data is loading.
+Use `LoadingState` to show skeleton screens while data is loading.
 
-Good places to use it:
+## When to use
 
 - Query-backed cards, tables, and lists.
-- Pages where showing a spinner would cause layout shift.
+- Pages where a spinner causes layout shift.
 
-Import:
+## Import
 
 ```tsx
 import { LoadingState } from '@/components/ui/custom/loading-state'
 ```
 
-Card skeletons:
+## Examples
+
+### Card skeleton
 
 ```tsx
 <LoadingState variant="cards" rows={3} />
 ```
 
-Table skeleton:
+### Table skeleton
 
 ```tsx
 <LoadingState variant="table" rows={8} />
 ```
 
-List skeleton:
+### List skeleton
 
 ```tsx
 <LoadingState variant="list" rows={5} />
 ```
 
-Notes:
+## Notes
 
-- Prefer this inside `DataTableState` for table/list pages.
+- Prefer using `LoadingState` inside `DataTableState` for table and list pages.
 - Use `rows` to approximate expected content height.
