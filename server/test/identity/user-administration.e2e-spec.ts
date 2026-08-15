@@ -279,19 +279,7 @@ describe('Admin users (e2e)', () => {
         errors: [
           {
             field: 'password',
-            message: 'Password must be at least 8 characters',
-          },
-          {
-            field: 'password',
-            message: 'Password must contain at least one letter',
-          },
-          {
-            field: 'password',
-            message: 'Password must contain at least one number',
-          },
-          {
-            field: 'password',
-            message: 'Password must contain at least one symbol',
+            message: 'Password must be at least 15 characters',
           },
         ],
       })
@@ -800,19 +788,7 @@ describe('Admin users (e2e)', () => {
         errors: [
           {
             field: 'newPassword',
-            message: 'Password must be at least 8 characters',
-          },
-          {
-            field: 'newPassword',
-            message: 'Password must contain at least one letter',
-          },
-          {
-            field: 'newPassword',
-            message: 'Password must contain at least one number',
-          },
-          {
-            field: 'newPassword',
-            message: 'Password must contain at least one symbol',
+            message: 'Password must be at least 15 characters',
           },
         ],
       })
@@ -837,11 +813,7 @@ describe('Admin users (e2e)', () => {
         errors: [
           {
             field: 'newPassword',
-            message: 'Password must contain at least one number',
-          },
-          {
-            field: 'newPassword',
-            message: 'Password must contain at least one symbol',
+            message: 'Password must be at least 15 characters',
           },
         ],
       })

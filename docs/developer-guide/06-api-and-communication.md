@@ -13,7 +13,9 @@ Morshid exposes a REST API under the `/api/v1/` prefix. OpenAPI 3.0 annotations 
 │   ├── POST   /refresh          # Rotate refresh token -> new JWT + new Refresh Cookie (@Public)
 │   └── POST   /logout           # Revoke active refresh session & clear cookie (@Public)
 ├── /me                          # Get current authenticated user profile
-│   └── /profile                 # PATCH: Update own display name (Authenticated)
+│   ├── /profile                 # PATCH: Update own display name (Authenticated)
+│   └── /password                # PATCH: Change own password -> rotated session + revoke others (Authenticated)
+
 ├── /health                      # (Mounted at root /health)
 │   ├── GET    /live             # Liveness probe: process uptime & memory status (@Public)
 │   └── GET    /ready            # Readiness probe: PostgreSQL, Redis, pgvector check (@Public)

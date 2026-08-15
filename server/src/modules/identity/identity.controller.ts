@@ -29,15 +29,19 @@ import { getRequestContext } from '../../common/http/request-context'
 import { ZodValidationPipe } from '../../common/http/zod-validation.pipe'
 import {
   ActiveSessionListResponseDto,
+  ChangePasswordRequestDto,
   IdentitySessionResponseDto,
   MeResponseDto,
   SignInRequestDto,
   UpdateOwnProfileRequestDto,
+  changePasswordRequestSchema,
   signInRequestSchema,
   updateOwnProfileRequestSchema,
+  type ChangePasswordRequest,
   type SignInRequest,
   type UpdateOwnProfileRequest,
 } from './identity.types'
+
 import type { AuthenticatedHttpRequest } from './identity.guard'
 import { IdentityService } from './identity.service'
 import { invalidAuthRequestException } from './identity.errors'
@@ -335,5 +339,66 @@ export class IdentityController {
       body,
       getRequestContext(request),
     )
+  }
+
+  @Patch('me/password')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Change current user password',
+    description:
+      'Updates password, revokes all other sessions, rotates current session, and returns new tokens.',
+  })
+  @ApiAccessTokenAuth()
+  @ApiSecurity('refresh-session')
+  @ApiBody({ type: ChangePasswordRequestDto })
+  @ApiOkResponse({
+    type: IdentitySessionResponseDto,
+    headers: refreshCookieSetResponseHeader,
+    description: 'The rotated access and refresh session.',
+  })
+  @ApiBadRequestResponse({
+    type: OpenApiErrorDto,
+    description: 'The password change payload fails policy or validation.',
+  })
+  @ApiUnauthorizedResponse({
+    type: OpenApiErrorDto,
+    description: 'The current password is invalid or access token is expired.',
+  })
+  @ApiForbiddenResponse({
+    type: OpenApiErrorDto,
+    description: 'The account is disabled.',
+  })
+  async changePassword(
+    @Body(
+      new ZodValidationPipe(
+        changePasswordRequestSchema,
+        invalidAuthRequestException,
+      ),
+    )
+    body: ChangePasswordRequest,
+    @Req() request: AuthenticatedHttpRequest,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    let currentRefreshToken: string | null = null
+    try {
+      currentRefreshToken = getRefreshToken(request)
+    } catch {
+      // Proceed if refresh cookie is not present.
+    }
+
+    const session = await this.identityService.changePassword(
+      request.user.id,
+      body,
+      getRequestContext(request),
+      currentRefreshToken,
+    )
+
+    setRefreshTokenCookie(
+      response,
+      session.refreshToken,
+      session.refreshTokenExpiresAt,
+    )
+
+    return session.response
   }
 }

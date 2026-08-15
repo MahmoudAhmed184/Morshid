@@ -118,6 +118,22 @@ export class IdentityAudit {
     })
   }
 
+  async recordPasswordChanged(
+    user: Pick<IdentityAuditUser, 'id'>,
+    requestContext: IdentityRequestContext,
+  ): Promise<void> {
+    await this.auditService.recordEvent({
+      actorUserId: user.id,
+      action: AUDIT_EVENT_ACTIONS.AUTH_PASSWORD_CHANGED,
+      target: {
+        type: AUDIT_TARGET_TYPES.USER,
+        id: user.id,
+      },
+      metadata: {},
+      requestContext,
+    })
+  }
+
   async recordSessionRevoked(
     user: Pick<IdentityAuditUser, 'id'>,
     familyId: string,

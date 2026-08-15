@@ -4,6 +4,7 @@ import { AppearanceTabContent } from './appearance-tab-content'
 
 export { AccountTabContent } from './account-tab-content'
 export { AppearanceTabContent } from './appearance-tab-content'
+export { SecurityTabContent } from './security-tab-content'
 
 export function AccountSettingsPage() {
   return (

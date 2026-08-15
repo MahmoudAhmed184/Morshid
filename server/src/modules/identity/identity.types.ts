@@ -156,6 +156,39 @@ export const updateOwnProfileRequestSchema = z
   })
   .strict()
 
+export class ChangePasswordRequestDto {
+  @ApiProperty({ minLength: 1, format: 'password' })
+  currentPassword!: string
+
+  @ApiProperty({ minLength: 15, maxLength: 128, format: 'password' })
+  newPassword!: string
+
+  @ApiProperty({ minLength: 1, format: 'password' })
+  confirmation!: string
+}
+
+export type ChangePasswordRequest = ChangePasswordRequestDto
+
+export const changePasswordRequestSchema = z
+  .object({
+    currentPassword: z.string().min(1, 'Current password is required'),
+    newPassword: z
+      .string()
+      .min(15, 'Password must be at least 15 characters')
+      .max(128, 'Password must be at most 128 characters'),
+    confirmation: z.string().min(1, 'Confirmation is required'),
+  })
+  .strict()
+  .superRefine(({ newPassword, confirmation }, ctx) => {
+    if (newPassword !== confirmation) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['confirmation'],
+        message: 'New password and confirmation do not match',
+      })
+    }
+  })
+
 export class ActiveSessionDto {
   @ApiProperty({
     format: 'uuid',

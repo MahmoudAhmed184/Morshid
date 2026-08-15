@@ -53,21 +53,22 @@ export interface RefreshTokenRecordStore {
     replacementRefreshTokenId: string,
   ): Promise<RefreshTokenRecord>
   revokeActiveByHash(tokenHash: string, now: Date): Promise<{ count: number }>
-  revokeActiveByIdAndHash(
-    refreshTokenId: string,
-    tokenHash: string,
-    now: Date,
-  ): Promise<{ count: number }>
   revokeActiveFamily(
     userId: string,
     familyId: string,
     now: Date,
   ): Promise<{ count: number }>
+  revokeAllActiveForUser(userId: string, now: Date): Promise<{ count: number }>
   revokeAllOtherActiveFamilies(
     userId: string,
     currentFamilyId: string,
     now: Date,
   ): Promise<{ count: number }>
+  updateUserPassword(
+    userId: string,
+    passwordHash: string,
+    passwordChangedAt: Date,
+  ): Promise<IdentityUserRecord>
 }
 
 class PrismaRefreshTokenRecordStore implements RefreshTokenRecordStore {
@@ -146,6 +147,24 @@ class PrismaRefreshTokenRecordStore implements RefreshTokenRecordStore {
     return revokeActiveFamily(this.client, userId, familyId, now)
   }
 
+  revokeAllActiveForUser(
+    userId: string,
+    now: Date,
+  ): Promise<{ count: number }> {
+    return this.client.refreshToken.updateMany({
+      where: {
+        userId,
+        revokedAt: null,
+        expiresAt: {
+          gt: now,
+        },
+      },
+      data: {
+        revokedAt: now,
+      },
+    })
+  }
+
   revokeAllOtherActiveFamilies(
     userId: string,
     currentFamilyId: string,
@@ -157,6 +176,24 @@ class PrismaRefreshTokenRecordStore implements RefreshTokenRecordStore {
       currentFamilyId,
       now,
     )
+  }
+
+  async updateUserPassword(
+    userId: string,
+    passwordHash: string,
+    passwordChangedAt: Date,
+  ): Promise<IdentityUserRecord> {
+    const updated = await this.client.user.update({
+      where: {
+        id: userId,
+      },
+      data: {
+        passwordHash,
+        passwordChangedAt,
+      },
+    })
+
+    return toIdentityUserRecord(updated)
   }
 }
 
