@@ -1,4 +1,5 @@
 import type { AnalysisContextMessage } from '../analysis/analysis-context.types'
+import { StudentActionPurpose, TeachingTechnique } from '../../tutoring-values'
 import type {
   GenerationContextPackage,
   TutorModelRequest,
@@ -70,6 +71,8 @@ function buildTutorUserPrompt(context: GenerationContextPackage): string {
   const studentActionObligation = studentActionObligationFromDecision(
     context.teachingDecision,
   )
+  const debuggingInspectionActionInstruction =
+    buildDebuggingInspectionActionInstruction(context, studentActionObligation)
   const disclosureContract = buildSocraticDisclosureContract({
     requestKind: context.acceptedAnalysis.result.requestKind,
     guidanceLevel: context.teachingDecision.guidanceLevel,
@@ -131,6 +134,7 @@ function buildTutorUserPrompt(context: GenerationContextPackage): string {
       disclosureContract,
       functionalResponseRequirements,
       debuggingGuidance: context.debuggingGuidance,
+      debuggingInspectionActionInstruction,
     }),
     TRUSTED_BACKEND_POLICY_END_MARKER,
     section('5. StudentState and relevant TopicState', {
@@ -207,9 +211,7 @@ function buildTutorUserPrompt(context: GenerationContextPackage): string {
               relevantLocation: 'non-empty string',
               conceptExplanation:
                 'non-empty grounded explanation without rendered citation markers',
-              inspectionActions: [
-                'exactly one meaningful inspection or trace action',
-              ],
+              inspectionActions: [debuggingInspectionActionInstruction],
             },
       responseIntent:
         'GUIDED_EXPLANATION | SOCRATIC_QUESTIONING | MISCONCEPTION_REPAIR | DEBUGGING_GUIDANCE',
@@ -235,6 +237,27 @@ function buildTutorUserPrompt(context: GenerationContextPackage): string {
     ),
     UNTRUSTED_CONVERSATION_END_MARKER,
   ].join('\n\n')
+}
+
+function buildDebuggingInspectionActionInstruction(
+  context: GenerationContextPackage,
+  studentActionObligation: ReturnType<
+    typeof studentActionObligationFromDecision
+  >,
+): string | null {
+  if (context.debuggingGuidance === null) {
+    return null
+  }
+
+  if (
+    studentActionObligation.purpose ===
+      StudentActionPurpose.PRIMARY_TECHNIQUE &&
+    studentActionObligation.technique === TeachingTechnique.FOCUSED_QUESTION
+  ) {
+    return 'Return exactly one non-empty inspectionActions entry. Write it as one focused question ending in ?. Ask for exactly one observation, comparison, prediction, or reasoning step at the relevantLocation. Rewrite the supplied imperative nextInspectionStep as a question instead of copying it verbatim. Do not combine multiple requested operations.'
+  }
+
+  return 'Return exactly one non-empty meaningful inspection or trace action.'
 }
 
 function section(title: string, value: unknown): string {

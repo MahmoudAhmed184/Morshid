@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { StudentActionPurpose, TeachingTechnique } from '../../tutoring-values'
 import {
   TUTOR_CANDIDATE_LIMITS,
   TUTOR_RESPONSE_INTENTS,
@@ -70,11 +71,11 @@ const debuggingGuidanceResponseSchema = z
     conceptExplanation: boundedString(2_000).optional(),
     inspectionActions: z
       .array(
-        boundedString(
+        boundedNonBlankString(
           TUTOR_CANDIDATE_LIMITS.maxStudentActionDescriptionCodePoints,
         ),
       )
-      .max(8),
+      .length(1),
   })
   .strict()
 
@@ -195,6 +196,20 @@ export function validateCandidateResponse(
 
   const debuggingRequired = policy.debuggingGuidanceRequired === true
   if (!debuggingRequired && content.debuggingGuidance !== null) {
+    return {
+      success: false,
+      errorCode: 'TUTOR_INVALID_OUTPUT',
+    }
+  }
+
+  if (
+    content.debuggingGuidance !== null &&
+    policy.studentActionObligation.purpose ===
+      StudentActionPurpose.PRIMARY_TECHNIQUE &&
+    policy.studentActionObligation.technique ===
+      TeachingTechnique.FOCUSED_QUESTION &&
+    !content.debuggingGuidance.inspectionActions[0]?.endsWith('?')
+  ) {
     return {
       success: false,
       errorCode: 'TUTOR_INVALID_OUTPUT',
