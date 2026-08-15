@@ -28,6 +28,7 @@ export class AccessToken {
 
   async create(
     user: Pick<IdentityUserRecord, 'id' | 'passwordChangedAt'>,
+    familyId: string,
     now: Date,
   ) {
     const expiresAt = addSeconds(now, this.accessTokenTtlSeconds)
@@ -36,6 +37,7 @@ export class AccessToken {
         sub: user.id,
         typ: 'access',
         pwd: user.passwordChangedAt.toISOString(),
+        sid: familyId,
       } satisfies SignedAccessTokenPayload,
       {
         expiresIn: this.accessTokenTtlSeconds,
@@ -59,7 +61,8 @@ export class AccessToken {
       if (
         payload.typ !== 'access' ||
         typeof payload.sub !== 'string' ||
-        typeof payload.pwd !== 'string'
+        typeof payload.pwd !== 'string' ||
+        typeof payload.sid !== 'string'
       ) {
         throw invalidAccessTokenException()
       }
@@ -68,6 +71,7 @@ export class AccessToken {
         sub: payload.sub,
         typ: 'access',
         passwordChangedAt: payload.pwd,
+        sessionId: payload.sid,
       }
     } catch {
       throw invalidAccessTokenException()
@@ -75,22 +79,25 @@ export class AccessToken {
   }
 }
 
-interface VerifiedAccessTokenPayload {
+export interface VerifiedAccessTokenPayload {
   sub: string
   typ: 'access'
   passwordChangedAt: string
+  sessionId: string
 }
 
 interface SignedAccessTokenPayload {
   sub: string
   typ: 'access'
   pwd: string
+  sid: string
 }
 
 interface UntrustedAccessTokenPayload {
   sub?: unknown
   typ?: unknown
   pwd?: unknown
+  sid?: unknown
 }
 
 function addSeconds(date: Date, seconds: number) {

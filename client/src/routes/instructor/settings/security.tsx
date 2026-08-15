@@ -1,14 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-import { SettingsPlaceholderTab } from '@/workspaces/_shared/settings-shell'
+import { SecurityTabContent } from '@/features/account-settings/security-tab-content'
 
 export const Route = createFileRoute('/instructor/settings/security')({
-  component: () => (
-    <SettingsPlaceholderTab
-      title="Security"
-      description="Manage your credentials and active sessions."
-    />
-  ),
+  component: SecurityTabContent,
   head: () => ({
     meta: [{ title: 'Security Settings — Morshid' }],
   }),
