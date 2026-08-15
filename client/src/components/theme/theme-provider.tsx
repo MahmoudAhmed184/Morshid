@@ -311,44 +311,43 @@ function runThemeTransition(
     startViewTransition?: (callback: () => void) => ViewTransition
   }
 
-  if (
-    reducedMotion ||
-    !origin ||
-    typeof doc.startViewTransition !== 'function'
-  ) {
+  if (reducedMotion || typeof doc.startViewTransition !== 'function') {
     applyUpdate()
     return
   }
 
-  const { x, y } = origin
+  const { x, y } = origin ?? {
+    x: window.innerWidth / 2,
+    y: window.innerHeight / 2,
+  }
   const maxRadius = Math.hypot(
     Math.max(x, window.innerWidth - x),
     Math.max(y, window.innerHeight - y),
   )
 
-  const transition = doc.startViewTransition(() => {
-    flushSync(applyUpdate)
-  })
+  const root = document.documentElement
+  root.style.setProperty('--theme-transition-x', `${x.toString()}px`)
+  root.style.setProperty('--theme-transition-y', `${y.toString()}px`)
+  root.style.setProperty('--theme-transition-r', `${maxRadius.toString()}px`)
+  root.dataset.themeTransition = 'running'
 
-  transition.ready
-    .then(() => {
-      document.documentElement.animate(
-        {
-          clipPath: [
-            `circle(0px at ${x.toString()}px ${y.toString()}px)`,
-            `circle(${maxRadius.toString()}px at ${x.toString()}px ${y.toString()}px)`,
-          ],
-        },
-        {
-          duration: 350,
-          easing: 'ease-in-out',
-          pseudoElement: '::view-transition-new(root)',
-        },
-      )
+  const cleanup = () => {
+    delete root.dataset.themeTransition
+    root.style.removeProperty('--theme-transition-x')
+    root.style.removeProperty('--theme-transition-y')
+    root.style.removeProperty('--theme-transition-r')
+  }
+
+  try {
+    const transition = doc.startViewTransition(() => {
+      flushSync(applyUpdate)
     })
-    .catch(() => {
-      // Transition interrupted
-    })
+
+    transition.finished.then(cleanup, cleanup)
+  } catch {
+    cleanup()
+    applyUpdate()
+  }
 }
 
 const ThemeProviderContext = createContext<ThemeProviderState | undefined>(

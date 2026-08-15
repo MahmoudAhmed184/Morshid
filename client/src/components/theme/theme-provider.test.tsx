@@ -48,6 +48,12 @@ function TestConsumer() {
       <button type="button" onClick={() => setTheme('dark')}>
         Set Dark
       </button>
+      <button
+        type="button"
+        onClick={() => setTheme('dark', { x: 100, y: 200 })}
+      >
+        Set Dark With Origin
+      </button>
       <button type="button" onClick={() => setTheme('system')}>
         Set System Theme
       </button>
@@ -403,5 +409,149 @@ describe('ThemeProvider', () => {
     expect(isMotionPreference('system')).toBe(true)
     expect(isMotionPreference('reduce')).toBe(true)
     expect(isMotionPreference('auto')).toBe(false)
+  })
+
+  it('coordinates view transition custom properties and cleans up on finish', async () => {
+    const user = userEvent.setup()
+    let finishPromiseResolve: () => void = () => {}
+    const finishPromise = new Promise<void>((resolve) => {
+      finishPromiseResolve = resolve
+    })
+
+    const startViewTransitionMock = vi.fn((callback: () => void) => {
+      callback()
+      return {
+        ready: Promise.resolve(),
+        finished: finishPromise,
+      }
+    })
+
+    // Stub startViewTransition on document
+    Object.defineProperty(document, 'startViewTransition', {
+      value: startViewTransitionMock,
+      writable: true,
+      configurable: true,
+    })
+
+    render(
+      <ThemeProvider storageKey="test-appearance">
+        <TestConsumer />
+      </ThemeProvider>,
+    )
+
+    await user.click(
+      screen.getByRole('button', { name: 'Set Dark With Origin' }),
+    )
+
+    expect(startViewTransitionMock).toHaveBeenCalledTimes(1)
+    expect(document.documentElement.dataset.themeTransition).toBe('running')
+    expect(
+      document.documentElement.style.getPropertyValue('--theme-transition-x'),
+    ).toBe('100px')
+    expect(
+      document.documentElement.style.getPropertyValue('--theme-transition-y'),
+    ).toBe('200px')
+    expect(
+      document.documentElement.style.getPropertyValue('--theme-transition-r'),
+    ).not.toBe('')
+
+    // Finish transition
+    finishPromiseResolve()
+    await finishPromise
+
+    expect(document.documentElement.dataset.themeTransition).toBeUndefined()
+    expect(
+      document.documentElement.style.getPropertyValue('--theme-transition-x'),
+    ).toBe('')
+    expect(
+      document.documentElement.style.getPropertyValue('--theme-transition-y'),
+    ).toBe('')
+    expect(
+      document.documentElement.style.getPropertyValue('--theme-transition-r'),
+    ).toBe('')
+
+    delete (document as unknown as Record<string, unknown>).startViewTransition
+  })
+
+  it('falls back to viewport center coordinates when transition origin is omitted', async () => {
+    const user = userEvent.setup()
+    let finishPromiseResolve: () => void = () => {}
+    const finishPromise = new Promise<void>((resolve) => {
+      finishPromiseResolve = resolve
+    })
+
+    const startViewTransitionMock = vi.fn((callback: () => void) => {
+      callback()
+      return {
+        ready: Promise.resolve(),
+        finished: finishPromise,
+      }
+    })
+
+    Object.defineProperty(document, 'startViewTransition', {
+      value: startViewTransitionMock,
+      writable: true,
+      configurable: true,
+    })
+
+    const originalInnerWidth = window.innerWidth
+    const originalInnerHeight = window.innerHeight
+    Object.defineProperty(window, 'innerWidth', {
+      value: 1024,
+      writable: true,
+      configurable: true,
+    })
+    Object.defineProperty(window, 'innerHeight', {
+      value: 768,
+      writable: true,
+      configurable: true,
+    })
+
+    render(
+      <ThemeProvider storageKey="test-appearance">
+        <TestConsumer />
+      </ThemeProvider>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Set Dark' }))
+
+    expect(startViewTransitionMock).toHaveBeenCalledTimes(1)
+    expect(document.documentElement.dataset.themeTransition).toBe('running')
+    expect(
+      document.documentElement.style.getPropertyValue('--theme-transition-x'),
+    ).toBe('512px')
+    expect(
+      document.documentElement.style.getPropertyValue('--theme-transition-y'),
+    ).toBe('384px')
+    expect(
+      document.documentElement.style.getPropertyValue('--theme-transition-r'),
+    ).not.toBe('')
+
+    // Finish transition
+    finishPromiseResolve()
+    await finishPromise
+
+    expect(document.documentElement.dataset.themeTransition).toBeUndefined()
+    expect(
+      document.documentElement.style.getPropertyValue('--theme-transition-x'),
+    ).toBe('')
+    expect(
+      document.documentElement.style.getPropertyValue('--theme-transition-y'),
+    ).toBe('')
+    expect(
+      document.documentElement.style.getPropertyValue('--theme-transition-r'),
+    ).toBe('')
+
+    Object.defineProperty(window, 'innerWidth', {
+      value: originalInnerWidth,
+      writable: true,
+      configurable: true,
+    })
+    Object.defineProperty(window, 'innerHeight', {
+      value: originalInnerHeight,
+      writable: true,
+      configurable: true,
+    })
+    delete (document as unknown as Record<string, unknown>).startViewTransition
   })
 })
