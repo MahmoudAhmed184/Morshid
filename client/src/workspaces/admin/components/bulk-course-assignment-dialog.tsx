@@ -36,6 +36,7 @@ type AssignmentStep = 'courses' | 'users'
 type BulkCourseAssignmentDialogProps = {
   courses: CourseAdministration[]
   role: CourseMembershipRole
+  defaultCourseId?: string
   isPending: boolean
   hasNextCoursePage?: boolean
   isLoadingMoreCourses?: boolean
@@ -50,6 +51,7 @@ type BulkCourseAssignmentDialogProps = {
 export function BulkCourseAssignmentDialog({
   courses,
   role,
+  defaultCourseId,
   isPending,
   hasNextCoursePage = false,
   isLoadingMoreCourses = false,
@@ -60,8 +62,8 @@ export function BulkCourseAssignmentDialog({
   const [step, setStep] = useState<AssignmentStep>('courses')
   const [courseSearch, setCourseSearch] = useState('')
   const [userSearch, setUserSearch] = useState('')
-  const [selectedCourseIds, setSelectedCourseIds] = useState<Set<string>>(
-    new Set(),
+  const [selectedCourseIds, setSelectedCourseIds] = useState<Set<string>>(() =>
+    defaultCourseId ? new Set([defaultCourseId]) : new Set(),
   )
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set())
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -101,14 +103,16 @@ export function BulkCourseAssignmentDialog({
     setStep('courses')
     setCourseSearch('')
     setUserSearch('')
-    setSelectedCourseIds(new Set())
+    setSelectedCourseIds(
+      defaultCourseId ? new Set([defaultCourseId]) : new Set(),
+    )
     setSelectedUserIds(new Set())
     setErrorMessage(null)
   }
 
   const setDialogOpen = (nextOpen: boolean) => {
     setOpen(nextOpen)
-    if (!nextOpen) reset()
+    reset()
   }
 
   const toggleCourse = (courseId: string) => {

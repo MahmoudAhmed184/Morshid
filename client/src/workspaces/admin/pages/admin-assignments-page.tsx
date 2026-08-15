@@ -204,6 +204,7 @@ export function AdminAssignmentsPage() {
             <BulkCourseAssignmentDialog
               courses={coursesQuery.data ?? []}
               role={selectedRoleTab}
+              defaultCourseId={courseId}
               isPending={mutations.addMembers.isPending}
               hasNextCoursePage={coursesQuery.hasNextPage}
               isLoadingMoreCourses={coursesQuery.isFetchingNextPage}

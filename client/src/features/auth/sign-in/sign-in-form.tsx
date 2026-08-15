@@ -4,6 +4,7 @@ import { ArrowRight, Mail, TriangleAlert } from 'lucide-react'
 import { useId, useState } from 'react'
 import { useForm } from 'react-hook-form'
 
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Form, FormField } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
@@ -74,46 +75,51 @@ export function SignInForm() {
   return (
     <Form {...form}>
       <form
-        className="space-y-3.5 sm:space-y-4.5"
+        className="flex flex-col gap-3.5 sm:gap-4.5"
         noValidate
         onSubmit={form.handleSubmit(onSubmit)}
       >
-        {/* Quick Demo Credentials Pills */}
         <div className="flex flex-wrap items-center gap-1.5 pb-0.5">
-          <span className="font-mono text-[0.62rem] sm:text-[0.65rem] uppercase tracking-wider !text-slate-400 dark:!text-slate-400 mr-0.5">
+          <span className="mr-0.5 font-mono text-[0.62rem] tracking-wider text-muted-foreground uppercase sm:text-[0.65rem]">
             Autofill:
           </span>
-          <button
+          <Button
             type="button"
+            variant="secondary"
+            size="xs"
             onClick={() => fillDemo('instructor')}
-            className="rounded-full !border !border-slate-200 dark:!border-slate-200 !bg-slate-100/90 dark:!bg-slate-100/90 px-2.5 py-0.5 font-mono text-[0.62rem] sm:text-[0.65rem] font-medium !text-slate-700 dark:!text-slate-700 transition-colors hover:!bg-slate-200"
+            className="h-auto rounded-full px-2.5 py-0.5 font-mono text-[0.62rem] sm:text-[0.65rem]"
           >
             Instructor
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="secondary"
+            size="xs"
             onClick={() => fillDemo('student')}
-            className="rounded-full !border !border-slate-200 dark:!border-slate-200 !bg-slate-100/90 dark:!bg-slate-100/90 px-2.5 py-0.5 font-mono text-[0.62rem] sm:text-[0.65rem] font-medium !text-slate-700 dark:!text-slate-700 transition-colors hover:!bg-slate-200"
+            className="h-auto rounded-full px-2.5 py-0.5 font-mono text-[0.62rem] sm:text-[0.65rem]"
           >
             Student
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="secondary"
+            size="xs"
             onClick={() => fillDemo('admin')}
-            className="rounded-full !border !border-slate-200 dark:!border-slate-200 !bg-slate-100/90 dark:!bg-slate-100/90 px-2.5 py-0.5 font-mono text-[0.62rem] sm:text-[0.65rem] font-medium !text-slate-700 dark:!text-slate-700 transition-colors hover:!bg-slate-200"
+            className="h-auto rounded-full px-2.5 py-0.5 font-mono text-[0.62rem] sm:text-[0.65rem]"
           >
             Admin
-          </button>
+          </Button>
         </div>
         <FormField
           control={form.control}
           name="email"
           render={({ field, fieldState }) => (
-            <div className="space-y-0">
-              <div className="space-y-1.5 sm:space-y-2">
+            <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-1.5 sm:gap-2">
                 <Label
                   htmlFor={emailInputId}
-                  className="text-[0.65rem] sm:text-[0.68rem] font-bold uppercase tracking-wider text-slate-700"
+                  className="text-[0.65rem] font-bold tracking-wider text-muted-foreground uppercase sm:text-[0.68rem]"
                 >
                   Institutional Email
                 </Label>
@@ -128,10 +134,10 @@ export function SignInForm() {
                     aria-describedby={
                       fieldState.error ? emailErrorId : undefined
                     }
-                    className="h-10 sm:h-11 md:h-12 rounded-xl !border-slate-200 dark:!border-slate-200 !bg-slate-50/80 dark:!bg-slate-50/80 pr-11 text-sm !text-slate-900 dark:!text-slate-900 placeholder:!text-slate-400 focus-visible:!bg-white focus-visible:ring-1 focus-visible:!ring-[#0d848e]"
+                    className="h-10 rounded-xl pr-11 sm:h-11 md:h-12"
                   />
                   <Mail
-                    className="pointer-events-none absolute right-3.5 top-1/2 size-4 -translate-y-1/2 !text-slate-400"
+                    className="pointer-events-none absolute top-1/2 right-3.5 size-4 -translate-y-1/2 text-muted-foreground"
                     aria-hidden
                   />
                 </div>
@@ -141,7 +147,7 @@ export function SignInForm() {
                 <p
                   id={emailErrorId}
                   role="alert"
-                  className="mt-1.5 text-xs font-semibold text-rose-600 dark:text-rose-600"
+                  className="text-xs font-semibold text-destructive"
                 >
                   {fieldState.error.message}
                 </p>
@@ -154,7 +160,7 @@ export function SignInForm() {
           control={form.control}
           name="password"
           render={({ field, fieldState }) => (
-            <div className="space-y-0">
+            <div className="flex flex-col gap-1.5">
               <PasswordField
                 {...field}
                 id={passwordInputId}
@@ -168,7 +174,7 @@ export function SignInForm() {
                 <p
                   id={passwordErrorId}
                   role="alert"
-                  className="mt-1.5 text-xs font-semibold text-rose-600 dark:text-rose-600"
+                  className="text-xs font-semibold text-destructive"
                 >
                   {fieldState.error.message}
                 </p>
@@ -178,26 +184,23 @@ export function SignInForm() {
         />
 
         {authErrorMessage ? (
-          <div
-            role="alert"
-            className="flex items-start gap-2.5 rounded-xl border border-rose-200 dark:border-rose-200 bg-rose-50/90 dark:bg-rose-50/90 px-3.5 py-2.5 text-sm font-medium text-rose-800 dark:text-rose-800 shadow-xs"
+          <Alert
+            variant="destructive"
+            className="rounded-xl px-3.5 py-2.5 shadow-xs"
           >
-            <TriangleAlert
-              className="mt-0.5 size-4 shrink-0 text-rose-600 dark:text-rose-600"
-              aria-hidden
-            />
-            <span className="leading-snug">{authErrorMessage}</span>
-          </div>
+            <TriangleAlert aria-hidden />
+            <AlertDescription>{authErrorMessage}</AlertDescription>
+          </Alert>
         ) : null}
 
         <Button
           type="submit"
           size="lg"
           disabled={form.formState.isSubmitting}
-          className="h-10 sm:h-11 md:h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-full bg-[#111e38] text-sm font-semibold text-white shadow-md transition-all hover:bg-[#081120] hover:shadow-lg mt-2 sm:mt-3"
+          className="mt-2 h-10 w-full cursor-pointer rounded-full shadow-md hover:shadow-lg sm:mt-3 sm:h-11 md:h-12"
         >
-          <span>Sign in</span>
-          <ArrowRight className="size-4 stroke-[2.2]" aria-hidden />
+          Sign in
+          <ArrowRight data-icon="inline-end" aria-hidden />
         </Button>
       </form>
     </Form>

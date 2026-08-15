@@ -119,7 +119,6 @@ export function UserForm({
                     label="Password"
                     placeholder="e.g., Password1!"
                     autoComplete="new-password"
-                    showForgotPassword={false}
                   />
                   <p className="text-xs text-muted-foreground">
                     8–50 characters with at least one letter, number, and

@@ -91,4 +91,38 @@ describe('BulkCourseAssignmentDialog', () => {
       }),
     )
   })
+
+  it('pre-selects the defaultCourseId when opened and allows unselecting it', async () => {
+    const user = userEvent.setup()
+    const onAssign = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <BulkCourseAssignmentDialog
+        courses={[course]}
+        defaultCourseId={course.id}
+        role="STUDENT"
+        isPending={false}
+        onAssign={onAssign}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Assign students' }))
+    expect(screen.getByText('Choose courses')).toBeInTheDocument()
+
+    const courseCheckbox = screen.getByRole('checkbox', {
+      name: 'Data Structures — CS-201',
+    })
+    expect(courseCheckbox).toBeChecked()
+
+    // Unselect the course
+    await user.click(courseCheckbox)
+    expect(courseCheckbox).not.toBeChecked()
+
+    // Re-select the course
+    await user.click(courseCheckbox)
+    expect(courseCheckbox).toBeChecked()
+
+    await user.click(screen.getByRole('button', { name: 'Choose students' }))
+    expect(await screen.findByText('Demo Student')).toBeInTheDocument()
+  })
 })
