@@ -178,7 +178,9 @@ export function validateCandidateResponse(
       errorCode: 'TUTOR_INVALID_CITATION',
     }
   }
-  if (content.requiresStudentAction !== policy.requireStudentAction) {
+  if (
+    content.requiresStudentAction !== policy.studentActionObligation.required
+  ) {
     return {
       success: false,
       errorCode: 'TUTOR_INVALID_OUTPUT',
@@ -205,12 +207,6 @@ export function validateCandidateResponse(
     message = content.message
     studentAction = content.studentAction
   } else {
-    if (policy.studentActionType === undefined) {
-      return {
-        success: false,
-        errorCode: 'TUTOR_INVALID_OUTPUT',
-      }
-    }
     const action = content.debuggingGuidance.inspectionActions[0] ?? ''
     message = renderDebuggingGuidanceMessage({
       guidance: content.debuggingGuidance,
@@ -219,7 +215,7 @@ export function validateCandidateResponse(
       rewriteRequested: policy.debuggingRewriteRequested === true,
     })
     studentAction = Object.freeze({
-      type: policy.studentActionType,
+      type: policy.studentActionObligation.technique,
       description: action,
     })
   }

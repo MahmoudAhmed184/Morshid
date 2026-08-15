@@ -14,6 +14,7 @@ import type { TUTOR_GENERATION_PROMPT_VERSION } from './tutor-prompt.definition'
 import type { ValidationResult } from '../response-approval/response-validation.types'
 import type { DebuggingGuidanceContext } from '../debugging-guidance/debugging-guidance.output-validator'
 import type { OutputProtectionContext } from '../solution-protection/solution-protection.types'
+import type { StudentActionObligation } from '../teaching-decision/student-action-obligation'
 
 export const TUTOR_RESPONSE_INTENTS = [
   'GUIDED_EXPLANATION',
@@ -87,11 +88,10 @@ export interface CandidateResponsePolicyContext {
   readonly allowedCitationIds: ReadonlySet<string>
   readonly requireGrounding: boolean
   readonly enforceCitationSupport: boolean
-  readonly requireStudentAction: boolean
+  readonly studentActionObligation: StudentActionObligation
   readonly reflectionMode: ReflectionMode
   readonly debuggingGuidanceRequired?: boolean
   readonly debuggingRewriteRequested?: boolean
-  readonly studentActionType?: TutorStudentActionType
 }
 
 export interface TutorEvidenceContext {
@@ -137,6 +137,7 @@ export interface TutorRegenerationContext {
     readonly guidanceLevel: number
     readonly revealPolicy: RevealPolicy
     readonly guardPolicy: PersistedTeachingDecisionRecord['guardPolicy']
+    readonly studentActionObligation: StudentActionObligation
     readonly outputProtection: OutputProtectionContext
   }
 }
@@ -222,6 +223,7 @@ export interface TutorGuardEducationalContext {
     readonly policyVersion: string
     readonly guidanceLevel: number
     readonly revealPolicy: RevealPolicy
+    readonly studentActionObligation: StudentActionObligation
   }
   readonly recentConversation: readonly {
     readonly id: string

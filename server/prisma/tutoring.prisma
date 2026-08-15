@@ -139,6 +139,14 @@ enum TeachingTechnique {
   @@map("teaching_technique")
 }
 
+enum StudentActionPurpose {
+  PRIOR_ATTEMPT_ORIENTATION
+  CONCEPTUAL_UNDERSTANDING
+  PRIMARY_TECHNIQUE
+
+  @@map("student_action_purpose")
+}
+
 enum RevealPolicy {
   NO_FINAL_ANSWER
   PARTIAL_RESULT_ALLOWED
@@ -430,6 +438,7 @@ model TeachingDecision {
   revealPolicy         RevealPolicy       @map("reveal_policy")
   reflectionMode       ReflectionMode     @map("reflection_mode")
   requireStudentAction Boolean            @map("require_student_action")
+  studentActionPurpose StudentActionPurpose @map("student_action_purpose")
   guardPolicy          Json               @map("guard_policy")
   decisionReason       String             @map("decision_reason") @db.VarChar(240)
   policyVersion        String             @map("policy_version") @db.VarChar(80)

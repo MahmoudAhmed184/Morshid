@@ -40,6 +40,7 @@ import {
   outputRiskEventAudit,
 } from './response-audit.types'
 import type { OutputProtectionContext } from '../solution-protection/solution-protection.types'
+import { studentActionObligationFromDecision } from '../teaching-decision/student-action-obligation'
 
 import {
   AutomaticSafetyRiskDetector,
@@ -106,16 +107,17 @@ export class ResponseApprovalService {
     const validationResults: ValidationResult[] = []
     const candidateAttemptAudits: TutoringCandidateAttemptAudit[] = []
     const guardResultAudits: GuardResultAudit[] = []
+    const studentActionObligation =
+      studentActionObligationFromDecision(decision)
     const context = buildCandidateValidationContext({
       allowedCitationIds: new Set(
         input.retrievalResult.map(citationIdForChunk),
       ),
       requireGrounding: decision.guardPolicy.requireGrounding,
       enforceCitationSupport: decision.guardPolicy.enforceCitationSupport,
-      requireStudentAction: decision.requireStudentAction,
       reflectionMode: decision.reflectionMode,
       responseIntent: decision.strategy,
-      primaryTechnique: decision.primaryTechnique,
+      studentActionObligation,
       guidanceLevel: decision.guidanceLevel,
       revealPolicy: decision.revealPolicy,
       maximumDisclosedSteps: decision.guardPolicy.maximumDisclosedSteps,
@@ -146,6 +148,7 @@ export class ResponseApprovalService {
                   guidanceLevel: decision.guidanceLevel,
                   revealPolicy: decision.revealPolicy,
                   guardPolicy: decision.guardPolicy,
+                  studentActionObligation,
                   outputProtection: input.outputProtection,
                 },
               },

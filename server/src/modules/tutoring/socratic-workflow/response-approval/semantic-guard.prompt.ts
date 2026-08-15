@@ -73,10 +73,9 @@ function guardPayload(input: SemanticGuardEvaluationInput) {
     },
     trustedPolicy: {
       responseIntent: input.validationContext.responseIntent,
-      primaryTechnique: input.validationContext.primaryTechnique,
       guidanceLevel: input.validationContext.guidanceLevel,
       revealPolicy: input.validationContext.revealPolicy,
-      requireStudentAction: input.validationContext.requireStudentAction,
+      studentActionObligation: input.validationContext.studentActionObligation,
       reflectionMode: input.validationContext.reflectionMode,
       maximumDisclosedSteps: input.validationContext.maximumDisclosedSteps,
       guardPolicy: input.guardPolicy,
@@ -120,9 +119,8 @@ function guardPayload(input: SemanticGuardEvaluationInput) {
       'Guidance Level compliance',
       'Reveal Policy compliance',
       'strategy and technique compliance',
-      'required student reasoning',
+      'the authoritative studentActionObligation, including its single purpose and maximumMeaningfulActions',
       'minimum useful conceptual explanation when boundedConceptualExplanationAllowed is true',
-      'one meaningful conceptual understanding check when conceptualUnderstandingCheckRequired is true',
       'every true functionalResponseRequirements behavior, evaluated by meaning rather than exact wording',
       'cumulative disclosure across prior approved tutor messages and this candidate',
       'citation support',
@@ -148,7 +146,9 @@ function guardPayload(input: SemanticGuardEvaluationInput) {
       'Use MISSING_STUDENT_REASONING when an action is present but only asks the student to copy, confirm, locate, or mechanically apply reasoning already disclosed.',
       'Do not reject direct explanation when the complete trusted disclosure contract permits it.',
       'When boundedConceptualExplanationAllowed and minimumUsefulConceptualExplanationRequired are true, reject a response that only says the concepts differ or asks the student to discover the entire definition without stating the minimum useful grounded concept.',
-      'When conceptualUnderstandingCheckRequired is true, require one meaningful comparison, prediction, application, or reflection question after the core explanation.',
+      'When studentActionObligation purpose is CONCEPTUAL_UNDERSTANDING, require one meaningful comparison, prediction, application, or reflection question after the core explanation.',
+      'Treat studentActionObligation as the only authoritative student-facing action requirement. Do not independently require a prior-attempt question when its purpose is PRIMARY_TECHNIQUE.',
+      'Reject a candidate that requests more meaningful student actions than studentActionObligation.maximumMeaningfulActions.',
       'Strategy and primaryTechnique select the pedagogical method, but they never replace, narrow, or reduce guidanceShape requirements.',
       'For GUIDED_DECOMPOSITION, reject confirmation plus one guiding question or one focused hint plus one question as GUIDANCE_LEVEL_VIOLATION; require multiple connected scaffold moves in reasoning order while meaningful student work remains.',
       'For STRONG_GUIDANCE, reject a response that only satisfies GUIDED_DECOMPOSITION; require a bounded analogous worked example or equivalently near-complete connected scaffold while preserving Reveal Policy and guard policy.',
@@ -169,7 +169,7 @@ function guardPayload(input: SemanticGuardEvaluationInput) {
       },
       {
         policyCondition:
-          'boundedConceptualExplanationAllowed and conceptualUnderstandingCheckRequired are true',
+          'boundedConceptualExplanationAllowed is true and studentActionObligation purpose is CONCEPTUAL_UNDERSTANDING',
         candidateMeaning:
           'The tutor states the concise grounded distinction, then asks one meaningful question about how the resulting behavior differs.',
         residualStudentWork:

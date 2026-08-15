@@ -43,7 +43,9 @@ export class DeterministicGuardService {
       )
     }
 
-    if (candidate.studentAction.type !== context.primaryTechnique) {
+    if (
+      candidate.studentAction.type !== context.studentActionObligation.technique
+    ) {
       violations.push(
         violation(
           RESPONSE_VIOLATION_TYPE.TECHNIQUE_MISMATCH,
@@ -166,7 +168,7 @@ export class DeterministicGuardService {
     }
 
     if (
-      context.requireStudentAction &&
+      context.studentActionObligation.required &&
       !requestsMeaningfulStudentAction(candidate)
     ) {
       violations.push(

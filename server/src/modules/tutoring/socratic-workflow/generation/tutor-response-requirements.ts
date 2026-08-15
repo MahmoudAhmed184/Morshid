@@ -9,7 +9,7 @@ import { hasSupportedMisconceptionRecoveryEvidence } from '../analysis/supported
 import { isDirectConceptualAnalysis } from '../teaching-decision/direct-conceptual-policy'
 
 export const TUTOR_RESPONSE_REQUIREMENTS_VERSION =
-  'tutor-response-requirements.v4'
+  'tutor-response-requirements.v5'
 
 export type TutorGuidanceMode =
   'ORIENTATION' | 'FOCUSED_HINT' | 'GUIDED_DECOMPOSITION' | 'STRONG_GUIDANCE'
@@ -33,11 +33,8 @@ export interface TutorResponseRequirements {
   readonly guidanceShape: TutorGuidanceShapeRequirements
   readonly strategyAndTechniqueMustNotReduceGuidanceShape: true
   readonly minimumUsefulConceptualExplanationRequired: boolean
-  readonly conceptualUnderstandingCheckRequired: boolean
-  readonly askWhatStudentTried: boolean
   readonly smallStartingHintCount: 0 | 1
   readonly identifyLikelyMisconception: boolean
-  readonly meaningfulGuidingQuestionCount: 0 | 1
   readonly acknowledgeStudentSupportedCorrectWork: boolean
   readonly identifyNextReasoningStepWithoutSolving: boolean
   readonly analogousWorkedExampleOrBoundedStrongGuidance: boolean
@@ -82,14 +79,11 @@ export function buildTutorResponseRequirements(input: {
     guidanceShape: guidanceShapeRequirements(guidanceLevel, isDirectConceptual),
     strategyAndTechniqueMustNotReduceGuidanceShape: true,
     minimumUsefulConceptualExplanationRequired: isDirectConceptual,
-    conceptualUnderstandingCheckRequired: isDirectConceptual,
-    askWhatStudentTried: isNoAttemptProblem,
     smallStartingHintCount: isNoAttemptProblem ? 1 : 0,
     identifyLikelyMisconception:
       isAttempt &&
       input.analysis.studentState === StudentState.MISCONCEPTION &&
       guidanceLevel >= 2,
-    meaningfulGuidingQuestionCount: isAttempt && guidanceLevel === 2 ? 1 : 0,
     acknowledgeStudentSupportedCorrectWork:
       recoveredMisconception ||
       (isAttempt &&
@@ -137,7 +131,7 @@ function guidanceShapeRequirements(
           ? 'The student applies, compares, predicts from, or reflects on the stated core concept.'
           : 'The student chooses a starting point or identifies the relevant structure.',
         generationInstruction: directConceptual
-          ? 'State the minimum useful grounded core concept without over-explaining, then ask one meaningful understanding or application question.'
+          ? 'State the minimum useful grounded core concept without over-explaining. Use the authoritative studentActionObligation for the follow-up action.'
           : 'Orient the student to the task or a starting point without supplying the target inference.',
       })
     case 2:
@@ -152,7 +146,7 @@ function guidanceShapeRequirements(
         residualStudentWork:
           'The student infers the target correction or next reasoning step from one focused clue.',
         generationInstruction:
-          'Give one focused clue about the relevant concept, condition, location, or example, then request one meaningful student reasoning action.',
+          'Give one focused clue about the relevant concept, condition, location, or example. Use the authoritative studentActionObligation for the student-facing action.',
       })
     case 3:
       return Object.freeze({
@@ -166,7 +160,7 @@ function guidanceShapeRequirements(
         residualStudentWork:
           'The student completes at least one meaningful reasoning step after the ordered scaffold.',
         generationInstruction:
-          'Carry forward conclusions the student has already established, then provide at least two connected scaffold moves in reasoning order and explain how they connect. End with one meaningful step for the student. A confirmation plus one guiding question, or one focused hint plus one question, is insufficient. The ordered scaffold need not be numbered and must remain within Reveal Policy and guard limits.',
+          'Carry forward conclusions the student has already established, then provide at least two connected scaffold moves in reasoning order and explain how they connect. Use the authoritative studentActionObligation for the final student-facing action. A confirmation plus one guiding question, or one focused hint plus one question, is insufficient. The ordered scaffold need not be numbered and must remain within Reveal Policy and guard limits.',
       })
     case 4:
       return Object.freeze({

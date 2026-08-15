@@ -11,6 +11,10 @@ import type { PersistedTeachingDecisionRecord } from '../teaching-decision/teach
 import type { TeachingGuardPolicy } from '../teaching-decision/teaching-policy.types'
 import type { DebuggingGuidanceContext } from '../debugging-guidance/debugging-guidance.output-validator'
 import type { OutputProtectionContext } from '../solution-protection/solution-protection.types'
+import {
+  studentActionObligationFromDecision,
+  type StudentActionObligation,
+} from '../teaching-decision/student-action-obligation'
 
 export type BuildGenerationContextResult =
   | {
@@ -111,10 +115,25 @@ export function regenerationMatchesTeachingDecision(
       policy.guardPolicy,
       context.teachingDecision.guardPolicy,
     ) &&
+    studentActionObligationsMatch(
+      policy.studentActionObligation,
+      studentActionObligationFromDecision(context.teachingDecision),
+    ) &&
     outputProtectionContextsMatch(
       policy.outputProtection,
       context.outputProtection,
     )
+  )
+}
+
+function studentActionObligationsMatch(
+  left: StudentActionObligation,
+  right: StudentActionObligation,
+): boolean {
+  return (
+    left.required === right.required &&
+    left.purpose === right.purpose &&
+    left.technique === right.technique
   )
 }
 
@@ -174,6 +193,9 @@ export function guardEducationalContextFromGenerationContext(
       policyVersion: context.teachingDecision.policyVersion,
       guidanceLevel: context.teachingDecision.guidanceLevel,
       revealPolicy: context.teachingDecision.revealPolicy,
+      studentActionObligation: studentActionObligationFromDecision(
+        context.teachingDecision,
+      ),
     }),
     recentConversation: Object.freeze(
       context.selectedHistory.map((message) =>

@@ -35,6 +35,7 @@ import {
   TUTOR_INFRASTRUCTURE_RETRY_POLICY,
   type TutorInfrastructureRetryPolicy,
 } from './tutor-infrastructure-retry.policy'
+import { studentActionObligationFromDecision } from '../teaching-decision/student-action-obligation'
 
 @Injectable()
 export class TutorGenerationService {
@@ -165,14 +166,14 @@ export class TutorGenerationService {
         requireGrounding: teachingDecision.guardPolicy.requireGrounding,
         enforceCitationSupport:
           teachingDecision.guardPolicy.enforceCitationSupport,
-        requireStudentAction: teachingDecision.requireStudentAction,
+        studentActionObligation:
+          studentActionObligationFromDecision(teachingDecision),
         reflectionMode: teachingDecision.reflectionMode,
         debuggingGuidanceRequired:
           generationContext.context.debuggingGuidance !== null,
         debuggingRewriteRequested:
           generationContext.context.debuggingGuidance?.rewriteRequested ??
           false,
-        studentActionType: teachingDecision.primaryTechnique,
       },
       {
         provider: modelResponse.provider,

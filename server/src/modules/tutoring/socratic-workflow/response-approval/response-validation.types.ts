@@ -2,10 +2,10 @@ import type {
   ReflectionMode,
   RevealPolicy,
   TeachingStrategy,
-  TeachingTechnique,
 } from '../../tutoring-values'
 import type { CandidateResponse } from '../generation/tutor-generation.types'
 import type { DebuggingGuidanceContext } from '../debugging-guidance/debugging-guidance.output-validator'
+import type { StudentActionObligation } from '../teaching-decision/student-action-obligation'
 
 export const MVP_RESPONSE_VALIDATION_POLICY_VERSION =
   'response-validation.mvp.v1'
@@ -110,10 +110,9 @@ export interface CandidateValidationContext {
   readonly allowedCitationIds: ReadonlySet<string>
   readonly requireGrounding: boolean
   readonly enforceCitationSupport: boolean
-  readonly requireStudentAction: boolean
   readonly reflectionMode: ReflectionMode
   readonly responseIntent: TeachingStrategy
-  readonly primaryTechnique: TeachingTechnique
+  readonly studentActionObligation: StudentActionObligation
   readonly guidanceLevel: number
   readonly revealPolicy: RevealPolicy
   readonly maximumDisclosedSteps: number

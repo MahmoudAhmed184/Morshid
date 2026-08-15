@@ -6,6 +6,7 @@ import type {
 import { TUTOR_GENERATION_PROMPT_VERSION } from './tutor-prompt.definition'
 import { buildSocraticDisclosureContract } from '../teaching-decision/socratic-disclosure-policy'
 import { buildTutorResponseRequirements } from './tutor-response-requirements'
+import { studentActionObligationFromDecision } from '../teaching-decision/student-action-obligation'
 
 export const TRUSTED_BACKEND_POLICY_BEGIN_MARKER =
   '<<<TRUSTED_BACKEND_POLICY>>>'
@@ -66,6 +67,9 @@ export function buildTutorGenerationModelRequest(
 }
 
 function buildTutorUserPrompt(context: GenerationContextPackage): string {
+  const studentActionObligation = studentActionObligationFromDecision(
+    context.teachingDecision,
+  )
   const disclosureContract = buildSocraticDisclosureContract({
     requestKind: context.acceptedAnalysis.result.requestKind,
     guidanceLevel: context.teachingDecision.guidanceLevel,
@@ -98,7 +102,7 @@ function buildTutorUserPrompt(context: GenerationContextPackage): string {
       overRevealInvariant:
         'When directTargetInferenceAllowed is false, do not state the correction or key inference and then ask a trivial confirmation or application question. Ask a focused question, direct attention to structure, or give a bounded clue that preserves the inference for the student.',
       conceptualExplanationInvariant:
-        'When boundedConceptualExplanationAllowed is true, a vague statement that concepts differ is insufficient. State the minimum useful grounded distinction or definition, then request one meaningful student understanding action.',
+        'When boundedConceptualExplanationAllowed is true, a vague statement that concepts differ is insufficient. State the minimum useful grounded distinction or definition, then follow the authoritative studentActionObligation.',
       useOnlyAllowedCitationIds: true,
     }),
     section('3. Authoritative TeachingDecision', {
@@ -113,6 +117,8 @@ function buildTutorUserPrompt(context: GenerationContextPackage): string {
       revealPolicy: context.teachingDecision.revealPolicy,
       reflectionMode: context.teachingDecision.reflectionMode,
       requireStudentAction: context.teachingDecision.requireStudentAction,
+      studentActionPurpose: context.teachingDecision.studentActionPurpose,
+      studentActionObligation,
       guardPolicy: context.teachingDecision.guardPolicy,
       policyVersion: context.teachingDecision.policyVersion,
       outputProtection: context.outputProtection,
@@ -208,11 +214,11 @@ function buildTutorUserPrompt(context: GenerationContextPackage): string {
       responseIntent:
         'GUIDED_EXPLANATION | SOCRATIC_QUESTIONING | MISCONCEPTION_REPAIR | DEBUGGING_GUIDANCE',
       usedCitationIds: ['allowed-citation-id'],
-      requiresStudentAction: context.teachingDecision.requireStudentAction,
+      requiresStudentAction: studentActionObligation.required,
       studentAction:
         context.debuggingGuidance === null
           ? {
-              type: context.teachingDecision.primaryTechnique,
+              type: studentActionObligation.technique,
               description: 'string',
             }
           : null,

@@ -21,6 +21,7 @@ import {
 } from '../src/modules/tutoring/socratic-workflow/generation/tutor-generation-context.js'
 import { buildTutorGenerationModelRequest } from '../src/modules/tutoring/socratic-workflow/generation/tutor-prompt.builder.js'
 import { validateCandidateResponse } from '../src/modules/tutoring/socratic-workflow/generation/tutor-candidate.schema.js'
+import { studentActionObligationFromDecision } from '../src/modules/tutoring/socratic-workflow/teaching-decision/student-action-obligation.js'
 import { OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER } from '../src/modules/tutoring/infrastructure/semantic-guard.configuration.js'
 import { createSemanticGuardPort } from '../src/modules/tutoring/infrastructure/semantic-guard.adapter.js'
 import { SemanticGuardService } from '../src/modules/tutoring/socratic-workflow/response-approval/semantic-guard.service.js'
@@ -154,6 +155,8 @@ async function main(): Promise<void> {
       analysisResponse,
     )
     const teachingDecision = buildLiveTeachingDecision(acceptedAnalysis.id)
+    const studentActionObligation =
+      studentActionObligationFromDecision(teachingDecision)
     const generationContext = buildGenerationContextPackage({
       analysisContext: TUTORING_ROLE_CHAIN_ANALYSIS_CONTEXT,
       acceptedAnalysis,
@@ -183,7 +186,7 @@ async function main(): Promise<void> {
         requireGrounding: teachingDecision.guardPolicy.requireGrounding,
         enforceCitationSupport:
           teachingDecision.guardPolicy.enforceCitationSupport,
-        requireStudentAction: teachingDecision.requireStudentAction,
+        studentActionObligation,
         reflectionMode: teachingDecision.reflectionMode,
       },
       {
@@ -216,10 +219,9 @@ async function main(): Promise<void> {
         requireGrounding: teachingDecision.guardPolicy.requireGrounding,
         enforceCitationSupport:
           teachingDecision.guardPolicy.enforceCitationSupport,
-        requireStudentAction: teachingDecision.requireStudentAction,
+        studentActionObligation,
         reflectionMode: teachingDecision.reflectionMode,
         responseIntent: teachingDecision.strategy,
-        primaryTechnique: teachingDecision.primaryTechnique,
         guidanceLevel: teachingDecision.guidanceLevel,
         revealPolicy: teachingDecision.revealPolicy,
         maximumDisclosedSteps:
@@ -253,10 +255,9 @@ async function main(): Promise<void> {
         requireGrounding: teachingDecision.guardPolicy.requireGrounding,
         enforceCitationSupport:
           teachingDecision.guardPolicy.enforceCitationSupport,
-        requireStudentAction: teachingDecision.requireStudentAction,
+        studentActionObligation,
         reflectionMode: teachingDecision.reflectionMode,
         responseIntent: teachingDecision.strategy,
-        primaryTechnique: teachingDecision.primaryTechnique,
         guidanceLevel: teachingDecision.guidanceLevel,
         revealPolicy: teachingDecision.revealPolicy,
         maximumDisclosedSteps:

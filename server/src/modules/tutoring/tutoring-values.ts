@@ -77,6 +77,15 @@ export const TeachingTechnique = {
 export type TeachingTechnique =
   (typeof TeachingTechnique)[keyof typeof TeachingTechnique]
 
+export const StudentActionPurpose = {
+  PRIOR_ATTEMPT_ORIENTATION: 'PRIOR_ATTEMPT_ORIENTATION',
+  CONCEPTUAL_UNDERSTANDING: 'CONCEPTUAL_UNDERSTANDING',
+  PRIMARY_TECHNIQUE: 'PRIMARY_TECHNIQUE',
+} as const
+
+export type StudentActionPurpose =
+  (typeof StudentActionPurpose)[keyof typeof StudentActionPurpose]
+
 export const ReflectionMode = {
   NONE: 'NONE',
   SELF_EXPLANATION: 'SELF_EXPLANATION',

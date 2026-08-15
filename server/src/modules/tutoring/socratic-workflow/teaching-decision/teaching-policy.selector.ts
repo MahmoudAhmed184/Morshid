@@ -1,6 +1,8 @@
 import {
+  MessageRequestKind,
   ReflectionMode,
   RevealPolicy,
+  StudentActionPurpose,
   StudentState,
   TeachingStrategy,
   TeachingTechnique,
@@ -37,6 +39,7 @@ export interface TeachingDecisionPolicyDraft {
   revealPolicy: RevealPolicy
   reflectionMode: ReflectionMode
   requireStudentAction: true
+  studentActionPurpose: StudentActionPurpose
   guardPolicy: TeachingGuardPolicy
   decisionReason: string
   policyVersion: string
@@ -103,15 +106,16 @@ export function selectTeachingDecisionDraft(
   const strategy = selectTeachingStrategy(input)
   const guidanceLevel = calculateGuidanceLevel(input, defaults)
   const directConceptual = isDirectConceptualAnalysis(input.analysis.result)
+  const primaryTechnique = misconceptionRecovered
+    ? TeachingTechnique.VERIFICATION
+    : primaryTechniqueForStrategy(strategy)
 
   return {
     attemptId: input.analysis.attemptId,
     topicId: input.analysis.topicId,
     analysisId: input.analysis.id,
     strategy,
-    primaryTechnique: misconceptionRecovered
-      ? TeachingTechnique.VERIFICATION
-      : primaryTechniqueForStrategy(strategy),
+    primaryTechnique,
     supportingTechnique: null,
     guidanceLevel,
     revealPolicy: directConceptual
@@ -119,12 +123,40 @@ export function selectTeachingDecisionDraft(
       : defaults.defaultRevealPolicy,
     reflectionMode: ReflectionMode.NONE,
     requireStudentAction: true,
+    studentActionPurpose: selectStudentActionPurpose({
+      analysis: input.analysis,
+      directConceptual,
+      guidanceLevel,
+      primaryTechnique,
+    }),
     guardPolicy: directConceptual
       ? { ...fixedGuardPolicy, preventDirectAnswer: false }
       : fixedGuardPolicy,
     decisionReason: decisionReasonFor(input, strategy, guidanceLevel),
     policyVersion: TEACHING_POLICY_VERSION,
   }
+}
+
+function selectStudentActionPurpose(input: {
+  readonly analysis: PersistedEducationalAnalysisRecord
+  readonly directConceptual: boolean
+  readonly guidanceLevel: number
+  readonly primaryTechnique: TeachingTechnique
+}): StudentActionPurpose {
+  if (input.directConceptual) {
+    return StudentActionPurpose.CONCEPTUAL_UNDERSTANDING
+  }
+
+  if (
+    input.analysis.result.requestKind === MessageRequestKind.PROBLEM_LIKE &&
+    !input.analysis.result.effortEvidence.present &&
+    input.guidanceLevel === 1 &&
+    input.primaryTechnique === TeachingTechnique.ORIENTATION_QUESTION
+  ) {
+    return StudentActionPurpose.PRIOR_ATTEMPT_ORIENTATION
+  }
+
+  return StudentActionPurpose.PRIMARY_TECHNIQUE
 }
 
 export function selectTeachingStrategy(

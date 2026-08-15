@@ -1,10 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
-import {
-  ReflectionMode,
-  TeachingStrategy,
-  TeachingTechnique,
-} from '../../tutoring-values'
+import { ReflectionMode, TeachingStrategy } from '../../tutoring-values'
 import {
   CandidateResponseContentSchema,
   validateCandidateResponse,
@@ -61,11 +57,10 @@ export class StructuralResponseValidator {
       allowedCitationIds: context.allowedCitationIds,
       requireGrounding: context.requireGrounding,
       enforceCitationSupport: context.enforceCitationSupport,
-      requireStudentAction: context.requireStudentAction,
+      studentActionObligation: context.studentActionObligation,
       reflectionMode: context.reflectionMode,
       debuggingGuidanceRequired: context.debuggingGuidanceRequired,
       debuggingRewriteRequested: context.debuggingGuidance?.rewriteRequested,
-      studentActionType: context.primaryTechnique,
     }
     const validation = validateCandidateResponse(content, policy, {
       provider: candidate.provider,
@@ -141,10 +136,9 @@ export function buildCandidateValidationContext(input: {
   readonly allowedCitationIds: ReadonlySet<string>
   readonly requireGrounding: boolean
   readonly enforceCitationSupport: boolean
-  readonly requireStudentAction: boolean
   readonly reflectionMode: ReflectionMode
   readonly responseIntent: TeachingStrategy
-  readonly primaryTechnique: TeachingTechnique
+  readonly studentActionObligation: CandidateValidationContext['studentActionObligation']
   readonly guidanceLevel: number
   readonly revealPolicy: CandidateValidationContext['revealPolicy']
   readonly maximumDisclosedSteps: number

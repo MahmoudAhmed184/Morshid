@@ -1,11 +1,12 @@
 import type {
   ReflectionMode,
   RevealPolicy,
+  StudentActionPurpose,
   TeachingStrategy,
   TeachingTechnique,
 } from '../../tutoring-values'
 
-export const TEACHING_POLICY_VERSION = 'socratic-policy.mvp.v4'
+export const TEACHING_POLICY_VERSION = 'socratic-policy.mvp.v5'
 
 export interface TeachingGuardPolicy {
   preventDirectAnswer: boolean
@@ -65,6 +66,7 @@ export interface PreviousTeachingDecisionSnapshot {
   revealPolicy: RevealPolicy
   reflectionMode: ReflectionMode
   requireStudentAction: boolean
+  studentActionPurpose: StudentActionPurpose
   guardPolicy: TeachingGuardPolicy
   decisionReason: string
   policyVersion: string
