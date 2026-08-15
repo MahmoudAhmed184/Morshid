@@ -69,7 +69,9 @@ export class PrismaSolutionProtectionRepository extends SolutionProtectionReposi
         await tx.topic.updateMany({
           where: {
             id: input.topicId,
-            solutionProtectionStatus: { not: SolutionProtectionStatus.PROTECTED },
+            solutionProtectionStatus: {
+              not: SolutionProtectionStatus.PROTECTED,
+            },
           },
           data: {
             solutionProtectionStatus: SolutionProtectionStatus.PROTECTED,
@@ -112,8 +114,7 @@ export class PrismaSolutionProtectionRepository extends SolutionProtectionReposi
             ? SolutionProtectionSource.CONSERVATIVE_UNKNOWN
             : requireSource(topic.solutionProtectionSource),
         policyVersion: SOLUTION_PROTECTION_POLICY_VERSION,
-        explicitProtectedSolutionSignal:
-          input.explicitProtectedSolutionSignal,
+        explicitProtectedSolutionSignal: input.explicitProtectedSolutionSignal,
         resolvedAt: now,
       }
       return persistAttemptDecision(tx, input.attemptId, decision)
@@ -148,8 +149,7 @@ function decisionFromAttempt(
     topicId,
     source: attempt.solutionProtectionSource,
     policyVersion: SOLUTION_PROTECTION_POLICY_VERSION,
-    explicitProtectedSolutionSignal:
-      attempt.explicitProtectedSolutionSignal,
+    explicitProtectedSolutionSignal: attempt.explicitProtectedSolutionSignal,
     resolvedAt: attempt.solutionProtectionResolvedAt,
   }
 }
@@ -162,8 +162,7 @@ async function persistAttemptDecision(
   const updated = await tx.tutoringAttempt.updateMany({
     where: { id: attemptId, effectiveSolutionProtection: null },
     data: {
-      explicitProtectedSolutionSignal:
-        decision.explicitProtectedSolutionSignal,
+      explicitProtectedSolutionSignal: decision.explicitProtectedSolutionSignal,
       effectiveSolutionProtection: decision.protectTargetSolution,
       solutionProtectionSource: decision.source,
       solutionProtectionPolicyVersion: decision.policyVersion,

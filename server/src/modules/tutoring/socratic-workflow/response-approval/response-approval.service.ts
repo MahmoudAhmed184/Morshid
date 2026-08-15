@@ -1,10 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
 import { assertRequestBudget } from '../../../../common/http/request-deadline'
-import {
-  OutputRiskAuditSource,
-  TeachingStrategy,
-} from '../../tutoring-values'
+import { OutputRiskAuditSource, TeachingStrategy } from '../../tutoring-values'
 
 import { citationIdForChunk } from '../generation/tutor-generation-context'
 import { TutorGenerationService } from '../generation/tutor-generation.service'

@@ -107,7 +107,10 @@ export function regenerationMatchesTeachingDecision(
     policy.policyVersion === context.teachingDecision.policyVersion &&
     policy.guidanceLevel === context.teachingDecision.guidanceLevel &&
     policy.revealPolicy === context.teachingDecision.revealPolicy &&
-    guardPoliciesMatch(policy.guardPolicy, context.teachingDecision.guardPolicy) &&
+    guardPoliciesMatch(
+      policy.guardPolicy,
+      context.teachingDecision.guardPolicy,
+    ) &&
     outputProtectionContextsMatch(
       policy.outputProtection,
       context.outputProtection,

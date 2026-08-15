@@ -94,20 +94,20 @@ describe('solution protection policy', () => {
     })
   })
 
-  it.each([
-    MessageRequestKind.PROBLEM_LIKE,
-    MessageRequestKind.CODE_DIAGNOSIS,
-  ])('lets accepted non-fallback task analysis establish %s on a new Topic', (kind) => {
-    expect(
-      proposal({
-        requestKind: kind,
-        outcome: TOPIC_RESOLUTION_OUTCOME.CREATE_NEW_TOPIC,
-      }),
-    ).toEqual({
-      status: SolutionProtectionStatus.PROTECTED,
-      source: SolutionProtectionSource.ACCEPTED_TASK_ANALYSIS,
-    })
-  })
+  it.each([MessageRequestKind.PROBLEM_LIKE, MessageRequestKind.CODE_DIAGNOSIS])(
+    'lets accepted non-fallback task analysis establish %s on a new Topic',
+    (kind) => {
+      expect(
+        proposal({
+          requestKind: kind,
+          outcome: TOPIC_RESOLUTION_OUTCOME.CREATE_NEW_TOPIC,
+        }),
+      ).toEqual({
+        status: SolutionProtectionStatus.PROTECTED,
+        source: SolutionProtectionSource.ACCEPTED_TASK_ANALYSIS,
+      })
+    },
+  )
 
   it('lets accepted non-fallback conceptual analysis establish a new Topic as unprotected', () => {
     expect(

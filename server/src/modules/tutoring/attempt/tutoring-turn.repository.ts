@@ -1201,11 +1201,9 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
           source: event.source,
           detectorVersion: event.detectorVersion,
           risks: event.risks as unknown as Prisma.InputJsonValue,
-          protectTargetSolution:
-            event.outputProtection.protectTargetSolution,
+          protectTargetSolution: event.outputProtection.protectTargetSolution,
           solutionProtectionSource: event.outputProtection.source,
-          solutionProtectionPolicyVersion:
-            event.outputProtection.policyVersion,
+          solutionProtectionPolicyVersion: event.outputProtection.policyVersion,
         })),
       })
     }

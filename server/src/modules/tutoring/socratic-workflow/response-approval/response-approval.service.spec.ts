@@ -285,8 +285,7 @@ describe('ResponseApprovalService', () => {
       expect(
         result.auditGraph?.guardResults.some((guard) =>
           guard.result.violations.some(
-            (violation) =>
-              violation.type === 'FINAL_ANSWER_DISCLOSURE',
+            (violation) => violation.type === 'FINAL_ANSWER_DISCLOSURE',
           ),
         ),
       ).toBe(true)
@@ -374,8 +373,7 @@ class FakeTeachingDecisionRepository extends TeachingDecisionRepository {
 function input(
   protectionPatch: Partial<TutorGenerationInput['outputProtection']> = {},
 ): TutorGenerationInput {
-  const protectTargetSolution =
-    protectionPatch.protectTargetSolution ?? true
+  const protectTargetSolution = protectionPatch.protectTargetSolution ?? true
 
   return {
     courseId: 'course-1',

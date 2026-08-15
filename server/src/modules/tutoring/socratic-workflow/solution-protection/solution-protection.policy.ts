@@ -30,8 +30,7 @@ export function proposeTopicSolutionProtection(input: {
   >
 }): TopicSolutionProtectionProposal {
   if (
-    input.topic.solutionProtectionStatus ===
-    SolutionProtectionStatus.PROTECTED
+    input.topic.solutionProtectionStatus === SolutionProtectionStatus.PROTECTED
   ) {
     return {
       status: SolutionProtectionStatus.PROTECTED,
@@ -94,7 +93,10 @@ function hasAuthoritativeProtectedTaskMetadata(topic: TopicRecord): boolean {
 
 function acceptedAnalysisEstablishesTask(input: {
   topicResolutionOutcome: TopicResolutionOutcome
-  analysis?: Pick<PersistedEducationalAnalysisRecord, 'analysisSource' | 'result'>
+  analysis?: Pick<
+    PersistedEducationalAnalysisRecord,
+    'analysisSource' | 'result'
+  >
 }): boolean {
   return (
     isAcceptedModelAnalysis(input.analysis?.analysisSource) &&
@@ -107,7 +109,10 @@ function acceptedAnalysisEstablishesTask(input: {
 
 function acceptedAnalysisEstablishesConcept(input: {
   topicResolutionOutcome: TopicResolutionOutcome
-  analysis?: Pick<PersistedEducationalAnalysisRecord, 'analysisSource' | 'result'>
+  analysis?: Pick<
+    PersistedEducationalAnalysisRecord,
+    'analysisSource' | 'result'
+  >
 }): boolean {
   return (
     isAcceptedModelAnalysis(input.analysis?.analysisSource) &&

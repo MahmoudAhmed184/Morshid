@@ -145,9 +145,7 @@ export class SocraticWorkflow {
     const protectedInputRisk = this.safetyRiskDetector.detectStudentInput(
       input.studentMessageContent,
     )
-    if (
-      protectedInputRisk?.risks.includes('FINAL_ANSWER_DELIVERY') === true
-    ) {
+    if (protectedInputRisk?.risks.includes('FINAL_ANSWER_DELIVERY') === true) {
       await this.solutionProtectionService.resolve({
         attemptId,
         topic: analysisContext.activeTopic,
@@ -179,8 +177,7 @@ export class SocraticWorkflow {
       attemptId,
       topic: analysisContext.activeTopic,
       topicResolutionOutcome: resolution.outcome,
-      explicitProtectedSolutionSignal:
-        input.explicitProtectedSolutionSignal,
+      explicitProtectedSolutionSignal: input.explicitProtectedSolutionSignal,
       analysis: analysisResult.analysis,
     })
 

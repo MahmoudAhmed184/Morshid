@@ -19,8 +19,7 @@ export interface OutputProtectionContext {
   readonly policyVersion: typeof SOLUTION_PROTECTION_POLICY_VERSION
 }
 
-export interface PersistedOutputProtectionDecision
-  extends OutputProtectionContext {
+export interface PersistedOutputProtectionDecision extends OutputProtectionContext {
   readonly explicitProtectedSolutionSignal: boolean
   readonly resolvedAt: Date
 }

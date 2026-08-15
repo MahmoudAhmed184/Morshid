@@ -360,8 +360,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
         studentMessageId: turn.studentMessage.id,
         assistantMessageId: turn.assistantMessage.id,
         studentMessageContent: turn.studentMessage.content,
-        explicitProtectedSolutionSignal:
-          classification.correctnessSensitive,
+        explicitProtectedSolutionSignal: classification.correctnessSensitive,
         ...(selection.diagnosis === null
           ? {}
           : {
