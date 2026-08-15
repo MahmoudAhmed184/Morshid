@@ -53,6 +53,11 @@ export interface RefreshTokenRecordStore {
     replacementRefreshTokenId: string,
   ): Promise<RefreshTokenRecord>
   revokeActiveByHash(tokenHash: string, now: Date): Promise<{ count: number }>
+  revokeActiveByIdAndHash(
+    refreshTokenId: string,
+    tokenHash: string,
+    now: Date,
+  ): Promise<{ count: number }>
   revokeActiveFamily(
     userId: string,
     familyId: string,
