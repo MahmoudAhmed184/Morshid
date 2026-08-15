@@ -1524,15 +1524,23 @@ function citationRows(
     )
   }
 
-  return [...new Set(input.citationContextIndexes)]
-    .sort((left, right) => left - right)
-    .map((citationOrder) => {
-      const citedEvidence = input.evidence.at(citationOrder - 1)
-      if (citedEvidence === undefined) {
-        throw new TutoringEvidenceUnavailableError()
-      }
-      return { materialId: citedEvidence.materialId, citationOrder }
-    })
+  const seen = new Set<string>()
+  const ordered: { materialId: string; citationOrder: number }[] = []
+
+  for (const citationOrder of [...new Set(input.citationContextIndexes)].sort(
+    (left, right) => left - right,
+  )) {
+    const citedEvidence = input.evidence.at(citationOrder - 1)
+    if (citedEvidence === undefined) {
+      throw new TutoringEvidenceUnavailableError()
+    }
+    if (!seen.has(citedEvidence.materialId)) {
+      seen.add(citedEvidence.materialId)
+      ordered.push({ materialId: citedEvidence.materialId, citationOrder })
+    }
+  }
+
+  return ordered
 }
 
 function leaseExpiry(now: Date): Date {

@@ -3,24 +3,9 @@
   "name": "Morshid — Socratic AI Teaching Assistant",
   "icons": [
     {
-      "src": "favicon.ico",
-      "sizes": "48x48 32x32 16x16",
-      "type": "image/x-icon"
-    },
-    {
-      "src": "favicon.svg",
-      "type": "image/svg+xml",
-      "sizes": "any"
-    },
-    {
-      "src": "logo192.png",
-      "type": "image/png",
-      "sizes": "192x192"
-    },
-    {
-      "src": "logo512.png",
-      "type": "image/png",
-      "sizes": "512x512"
+      "src": "logo-white.png",
+      "sizes": "any",
+      "type": "image/png"
     }
   ],
   "start_url": ".",

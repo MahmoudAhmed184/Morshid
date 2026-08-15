@@ -347,6 +347,46 @@ describe('Tutoring turn repository (e2e)', () => {
     ])
   })
 
+  it('deduplicates citations when multiple cited evidence chunks belong to the same material', async () => {
+    const fixture = await createFixture(prisma)
+    const material = await createEvidence(prisma, fixture, 'Collections', 0)
+    const turn = await repository.beginTurn({
+      ...fixture,
+      clientMessageId: randomUUID(),
+      content: 'What is the difference between a list and a tuple?',
+    })
+    if (turn.kind !== 'ok') {
+      throw new Error('Expected the turn to begin')
+    }
+
+    const completed = await repository.completeTurn({
+      ...fixture,
+      attemptId: turn.attemptId,
+      studentMessageId: turn.studentMessage.id,
+      assistantMessageId: turn.assistantMessage.id,
+      content: 'Lists and tuples are sequences. [1] [2]',
+      provider: 'deterministic',
+      model: 'deterministic-tutor-model-v1',
+      promptVersion: 'socratic-prompt-v1',
+      evidence: [
+        evidence(material, 1, 0.95, 'Lists', 0, 'first chunk'),
+        evidence(material, 2, 0.9, 'Tuples', 1, 'second chunk'),
+      ],
+      citationContextIndexes: [1, 2],
+    })
+
+    expect(completed.kind).toBe('ok')
+    const citations = await prisma.messageCitation.findMany({
+      where: { messageId: turn.assistantMessage.id },
+      orderBy: { citationOrder: 'asc' },
+    })
+    expect(citations).toHaveLength(1)
+    expect(citations[0]).toMatchObject({
+      materialId: material.materialId,
+      citationOrder: 1,
+    })
+  })
+
   it('rolls back completed status and partial evidence when final evidence is no longer eligible', async () => {
     const fixture = await createFixture(prisma)
     const source = await createEvidence(prisma, fixture, 'Transient source', 0)

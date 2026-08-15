@@ -70,9 +70,18 @@ export class PrismaStudentCitationSources extends StudentCitationSources {
       orderBy: [{ messageId: 'asc' }, { rank: 'asc' }],
     })
     const availability = new Map<string, Promise<boolean>>()
+    const seenByMessage = new Set<string>()
+    const uniqueCitations = citations.filter((citation) => {
+      const key = `${citation.messageId}:${citation.material.id}`
+      if (seenByMessage.has(key)) {
+        return false
+      }
+      seenByMessage.add(key)
+      return true
+    })
 
     return Promise.all(
-      citations.map(async (citation) => {
+      uniqueCitations.map(async (citation) => {
         const evidence = retrievals
           .filter(
             (retrieval) =>
