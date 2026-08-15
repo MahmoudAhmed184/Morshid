@@ -516,7 +516,9 @@ function validDebuggingCandidate(
     diagnosis: 'The loop update likely uses the wrong variable.',
     relevantLocation: 'Inspect the assignment inside the loop body.',
     conceptExplanation: 'An accumulator must be updated from its prior value.',
-    inspectionActions: ['Trace the accumulator through one iteration.'],
+    inspectionActions: [
+      'What value does the accumulator hold after one iteration?',
+    ],
     ...guidancePatch,
   }
   const action = debuggingGuidance.inspectionActions[0] ?? ''

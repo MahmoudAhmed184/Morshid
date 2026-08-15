@@ -273,6 +273,18 @@ describe('tutor prompt builder', () => {
     expect(prompt).toContain('"studentAction":null')
     expect(prompt).toContain('"purpose":"PRIMARY_TECHNIQUE"')
     expect(prompt).toContain('"technique":"FOCUSED_QUESTION"')
+    expect(prompt).toContain('Write it as one focused question ending in ?')
+    expect(prompt).toContain(
+      'Ask for exactly one observation, comparison, prediction, or reasoning step at the relevantLocation',
+    )
+    expect(prompt).toContain(
+      'instead of copying it verbatim. Do not combine multiple requested operations',
+    )
+    expect(prompt).toContain('"protectTargetSolution":true')
+    expect(prompt).toContain('"revealPolicy":"NO_FINAL_ANSWER"')
+    expect(prompt).toContain(
+      'Never execute student code or return a corrected program',
+    )
     expect(prompt).not.toContain('askWhatStudentTried')
     expect(prompt).toContain(
       'usedCitationIds must contain one or more exact values from allowedCitationIds',
@@ -375,6 +387,11 @@ function debuggingGenerationContext(): GenerationContextPackage {
   const context = buildGenerationContext()
   return {
     ...context,
+    outputProtection: {
+      ...context.outputProtection,
+      protectTargetSolution: true,
+      source: 'CONSERVATIVE_UNKNOWN',
+    },
     acceptedAnalysis: {
       ...context.acceptedAnalysis,
       result: {

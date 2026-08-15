@@ -169,7 +169,7 @@ describe('candidate response validation', () => {
     ).toBe(true)
   })
 
-  it('accepts canonical debugging guidance and derives message and studentAction', () => {
+  it('accepts a focused debugging question and derives message and studentAction', () => {
     const result = validateCandidateResponse(
       validDebuggingCandidate(),
       debuggingPolicy(),
@@ -181,12 +181,15 @@ describe('candidate response validation', () => {
       expect(result.data.debuggingGuidance).toMatchObject({
         diagnosis: 'The loop update likely uses the wrong variable.',
         relevantLocation: 'Inspect the assignment inside the loop body.',
-        inspectionActions: ['Trace the accumulator through one iteration.'],
+        inspectionActions: [
+          'What value does the accumulator hold after one iteration?',
+        ],
       })
       expect(result.data.message).toContain('[retrieval.rank.1]')
       expect(result.data.studentAction).toEqual({
         type: TeachingTechnique.FOCUSED_QUESTION,
-        description: 'Trace the accumulator through one iteration.',
+        description:
+          'What value does the accumulator hold after one iteration?',
       })
     }
   })
@@ -200,7 +203,9 @@ describe('candidate response validation', () => {
           relevantLocation: 'Inspect the assignment inside the loop body.',
           conceptExplanation:
             'An accumulator must be updated from its prior value.',
-          inspectionActions: ['Trace the accumulator through one iteration.'],
+          inspectionActions: [
+            'What value does the accumulator hold after one iteration?',
+          ],
         },
       },
       debuggingPolicy(),
@@ -219,6 +224,60 @@ describe('candidate response validation', () => {
         {
           ...validDebuggingCandidate(),
           debuggingGuidanceSections: {},
+        },
+        debuggingPolicy(),
+        metadata(),
+      ),
+    ).toEqual({
+      success: false,
+      errorCode: 'TUTOR_INVALID_OUTPUT',
+    })
+  })
+
+  it.each([
+    ['an empty action', ['']],
+    [
+      'multiple actions',
+      [
+        'What value enters the accumulator?',
+        'What value leaves the accumulator?',
+      ],
+    ],
+  ])(
+    'rejects structurally invalid debugging guidance with %s',
+    (_name, actions) => {
+      const candidate = validDebuggingCandidate()
+
+      expect(
+        validateCandidateResponse(
+          {
+            ...candidate,
+            debuggingGuidance: {
+              ...candidate.debuggingGuidance,
+              inspectionActions: actions,
+            },
+          },
+          debuggingPolicy(),
+          metadata(),
+        ),
+      ).toEqual({
+        success: false,
+        errorCode: 'TUTOR_INVALID_OUTPUT',
+      })
+    },
+  )
+
+  it('rejects an imperative debugging action for a focused-question obligation', () => {
+    const candidate = validDebuggingCandidate()
+
+    expect(
+      validateCandidateResponse(
+        {
+          ...candidate,
+          debuggingGuidance: {
+            ...candidate.debuggingGuidance,
+            inspectionActions: ['Trace the accumulator through one iteration.'],
+          },
         },
         debuggingPolicy(),
         metadata(),
@@ -289,7 +348,9 @@ function validDebuggingCandidate() {
       relevantLocation: 'Inspect the assignment inside the loop body.',
       conceptExplanation:
         'An accumulator must be updated from its prior value.',
-      inspectionActions: ['Trace the accumulator through one iteration.'],
+      inspectionActions: [
+        'What value does the accumulator hold after one iteration?',
+      ],
     },
     responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
     usedCitationIds: ['retrieval.rank.1'],

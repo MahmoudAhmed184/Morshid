@@ -144,7 +144,7 @@ describe('DeterministicGuardService', () => {
     expect(result.approved).toBe(true)
   })
 
-  it('approves canonical debugging guidance with a backend-derived response', () => {
+  it('approves a compliant focused-question debugging response', () => {
     const result = service().evaluate(
       validDebuggingCandidate(),
       debuggingContext(),
@@ -230,7 +230,7 @@ describe('DeterministicGuardService', () => {
   it('rejects multiple student actions even when they form one sentence', () => {
     const candidate = validDebuggingCandidate()
     const inspectionActions = [
-      'Trace the accumulator and compare the returned value.',
+      'Can you trace the accumulator and compare the returned value?',
     ]
     const debuggingGuidance = {
       ...candidate.debuggingGuidance,
@@ -256,6 +256,33 @@ describe('DeterministicGuardService', () => {
 
     expect(result.violations.map((violation) => violation.type)).toContain(
       RESPONSE_VIOLATION_TYPE.DEBUGGING_MULTIPLE_STUDENT_ACTIONS,
+    )
+  })
+
+  it('keeps complete corrected programs prohibited in debugging guidance', () => {
+    const candidate = validDebuggingCandidate()
+    const debuggingGuidance = {
+      ...candidate.debuggingGuidance,
+      conceptExplanation:
+        'Complete corrected program:\n```python\ndef total(values):\n    result = 0\n    for value in values:\n        result += value\n    return result\n```',
+    }
+    const result = service().evaluate(
+      {
+        ...candidate,
+        debuggingGuidance,
+        message: renderDebuggingGuidanceMessage({
+          guidance: debuggingGuidance,
+          usedCitationIds: candidate.usedCitationIds,
+          action: debuggingGuidance.inspectionActions[0],
+          rewriteRequested: false,
+        }),
+      },
+      debuggingContext(),
+    )
+
+    expect(result.approved).toBe(false)
+    expect(result.violations.map((violation) => violation.type)).toContain(
+      RESPONSE_VIOLATION_TYPE.DEBUGGING_GUIDANCE_CONTRACT,
     )
   })
 })
@@ -321,7 +348,9 @@ function validDebuggingCandidate(): CandidateResponse {
     diagnosis: 'The loop update likely uses the wrong variable.',
     relevantLocation: 'Inspect the assignment inside the loop body.',
     conceptExplanation: 'An accumulator must be updated from its prior value.',
-    inspectionActions: ['Trace the accumulator through one iteration.'],
+    inspectionActions: [
+      'What value does the accumulator hold after one iteration?',
+    ],
   }
   const action = debuggingGuidance.inspectionActions[0]
 
