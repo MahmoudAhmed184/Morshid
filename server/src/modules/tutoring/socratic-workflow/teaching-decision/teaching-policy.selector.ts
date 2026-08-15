@@ -362,20 +362,20 @@ function decisionReasonFor(
   const reason = isMisconceptionRecovery(input)
     ? 'Selected verification-oriented Socratic questioning because strong current-message-supported learning evidence corrected the active misconception.'
     : isDirectConceptualAnalysis(analysis.result)
-    ? 'Selected guided explanation because the accepted analysis identifies a direct conceptual request without an attempt, misconception, or debugging context.'
-    : analysis.analysisSource === EDUCATIONAL_ANALYSIS_SOURCE.FALLBACK
-      ? 'Selected conservative Socratic questioning because the accepted analysis is a fallback.'
-      : state === StudentState.UNKNOWN
-        ? 'Selected conservative Socratic questioning because the accepted analysis uses an unknown student state.'
-        : strategy === TeachingStrategy.GUIDED_EXPLANATION
-          ? 'Selected guided explanation because the accepted analysis indicates no prior knowledge.'
-          : strategy === TeachingStrategy.MISCONCEPTION_REPAIR
-            ? 'Selected misconception repair because the accepted analysis contains a supported misconception.'
-            : strategy === TeachingStrategy.DEBUGGING_GUIDANCE
-              ? 'Selected debugging guidance because the accepted analysis indicates a debugging issue.'
-              : state === StudentState.NEAR_SOLUTION
-                ? 'Selected Socratic questioning because the accepted analysis indicates the student is near a solution.'
-                : 'Selected Socratic questioning because the accepted analysis indicates partial understanding.'
+      ? 'Selected guided explanation because the accepted analysis identifies a direct conceptual request without an attempt, misconception, or debugging context.'
+      : analysis.analysisSource === EDUCATIONAL_ANALYSIS_SOURCE.FALLBACK
+        ? 'Selected conservative Socratic questioning because the accepted analysis is a fallback.'
+        : state === StudentState.UNKNOWN
+          ? 'Selected conservative Socratic questioning because the accepted analysis uses an unknown student state.'
+          : strategy === TeachingStrategy.GUIDED_EXPLANATION
+            ? 'Selected guided explanation because the accepted analysis indicates no prior knowledge.'
+            : strategy === TeachingStrategy.MISCONCEPTION_REPAIR
+              ? 'Selected misconception repair because the accepted analysis contains a supported misconception.'
+              : strategy === TeachingStrategy.DEBUGGING_GUIDANCE
+                ? 'Selected debugging guidance because the accepted analysis indicates a debugging issue.'
+                : state === StudentState.NEAR_SOLUTION
+                  ? 'Selected Socratic questioning because the accepted analysis indicates the student is near a solution.'
+                  : 'Selected Socratic questioning because the accepted analysis indicates partial understanding.'
 
   return `${reason} ${guidanceTransitionReasonFor(input, guidanceLevel)}`.slice(
     0,

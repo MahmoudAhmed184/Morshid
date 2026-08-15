@@ -154,7 +154,9 @@ describe('TopicState transition builder', () => {
   })
 })
 
-function topicState(input: Partial<TopicStateSnapshot> = {}): TopicStateSnapshot {
+function topicState(
+  input: Partial<TopicStateSnapshot> = {},
+): TopicStateSnapshot {
   return {
     id: 'topic-state-1',
     topicId: 'topic-1',

@@ -5,6 +5,7 @@ import {
   EFFORT_QUALITY,
   LEARNING_EVIDENCE_STRENGTH,
   type EffortEvidence,
+  type LearningEvidence,
 } from '../analysis/educational-analysis.types'
 import { buildTutorResponseRequirements } from './tutor-response-requirements'
 
@@ -179,12 +180,12 @@ function requirementsAt(guidanceLevel: number) {
   })
 }
 
-function noLearning() {
+function noLearning(): LearningEvidence {
   return {
     present: false,
     strength: LEARNING_EVIDENCE_STRENGTH.NONE,
     evidenceMessageIds: [],
-  } as const
+  }
 }
 
 function noEffort(): EffortEvidence {

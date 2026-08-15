@@ -8,10 +8,13 @@ import type { App } from 'supertest/types'
 import { configureApp } from '../../src/app.setup'
 import { AppModule } from '../../src/app.module'
 import {
+  LearningStatus,
   MaterialStatus,
   MessageGuidanceLabel,
   MessageRequestKind,
+  MisconceptionStatus,
   Prisma,
+  ResolutionEvidenceStrength,
   StudentState,
   TeachingStrategy,
   TeachingTechnique,
@@ -511,7 +514,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     expect(turn.assistantMessage.citations).toHaveLength(1)
 
     const promptVersion = Reflect.get(turn.assistantMessage, 'promptVersion')
-    expect(promptVersion).toBe('tutor-generation.mvp.v5')
+    expect(promptVersion).toBe('tutor-generation.mvp.v6')
 
     const reloadResponse = await request(requireApp().getHttpServer())
       .get(messagesPath(session.id))
@@ -617,7 +620,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       guidanceLevel: 1,
       revealPolicy: 'PARTIAL_RESULT_ALLOWED',
       requireStudentAction: true,
-      policyVersion: 'socratic-policy.mvp.v3',
+      policyVersion: 'socratic-policy.mvp.v4',
     })
     expect(teachingDecision.guardPolicy).toMatchObject({
       preventDirectAnswer: false,
@@ -626,7 +629,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     expect(persisted.candidateAttempts[0]).toMatchObject({
       candidateAttempt: 1,
       generationOutcome: 'GENERATED',
-      promptVersion: 'tutor-generation.mvp.v5',
+      promptVersion: 'tutor-generation.mvp.v6',
     })
     expect(
       persisted.candidateAttempts[0].guardResults.map((result) => ({
@@ -775,6 +778,344 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     await expect(guidanceLevelsForSession(prisma, session.id)).resolves.toEqual(
       [1, 2, 3, 4],
     )
+  })
+
+  it('recovers a corrected break/continue misconception without hint farming and replays idempotently', async () => {
+    await createEvidenceMaterial({
+      title: 'Python loop control concepts',
+      content:
+        'The break statement exits a loop. The continue statement skips the rest of the current iteration and proceeds with the next iteration.',
+    })
+    const session = await createSession()
+    const analysisPlan = [
+      {
+        requestKind: MessageRequestKind.CONCEPTUAL,
+        studentState: StudentState.UNKNOWN,
+        recommendedStrategy: TeachingStrategy.GUIDED_EXPLANATION,
+        recommendedTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+      },
+      {
+        requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+        studentState: StudentState.MISCONCEPTION,
+        recommendedStrategy: TeachingStrategy.MISCONCEPTION_REPAIR,
+        recommendedTechnique: TeachingTechnique.COUNTEREXAMPLE,
+        meaningfulEffort: true,
+        recommendedGuidanceLevel: 2,
+        misconception: {
+          code: 'BREAK_CONTINUE_REVERSAL',
+          description:
+            'The student reverses the effects of break and continue.',
+        },
+      },
+      {
+        requestKind: MessageRequestKind.CONCEPTUAL,
+        studentState: StudentState.MISCONCEPTION,
+        recommendedStrategy: TeachingStrategy.MISCONCEPTION_REPAIR,
+        recommendedTechnique: TeachingTechnique.COUNTEREXAMPLE,
+        recommendedGuidanceLevel: 3,
+      },
+      {
+        requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+        studentState: StudentState.NEAR_SOLUTION,
+        recommendedStrategy: TeachingStrategy.GUIDED_EXPLANATION,
+        recommendedTechnique: TeachingTechnique.VERIFICATION,
+        meaningfulEffort: true,
+        learningEvidenceStrength: 'STRONG' as const,
+        recommendedGuidanceLevel: 1,
+      },
+    ] as const
+    let analysisIndex = 0
+    analysisModel.behavior = (modelRequest) => {
+      const planned = analysisPlan[analysisIndex]
+      analysisIndex += 1
+      return Promise.resolve(
+        functionalStoryAnalysisResponse(modelRequest, planned),
+      )
+    }
+
+    const candidatePlan = [
+      {
+        message:
+          '`break` exits the loop, while `continue` skips the rest of the current iteration [retrieval.rank.1]. In a loop over [1, 2, 3], how would reaching each statement at 2 change what runs next?',
+        responseIntent: TeachingStrategy.GUIDED_EXPLANATION,
+        studentActionType: TeachingTechnique.ORIENTATION_QUESTION,
+      },
+      {
+        message:
+          'Test that distinction against a loop that reaches the statement on its second pass [retrieval.rank.1]. Which statement would prevent a third pass, and which would permit one?',
+        responseIntent: TeachingStrategy.MISCONCEPTION_REPAIR,
+        studentActionType: TeachingTechnique.COUNTEREXAMPLE,
+      },
+      {
+        message:
+          'Focus on whether the loop can begin another iteration after the statement runs [retrieval.rank.1]. Which statement changes that possibility?',
+        responseIntent: TeachingStrategy.MISCONCEPTION_REPAIR,
+        studentActionType: TeachingTechnique.COUNTEREXAMPLE,
+      },
+      {
+        message:
+          'Yes—that distinction is correct [retrieval.rank.1]. To verify it in a new case, what would a loop print after reaching `continue` at 2 and `break` at 4, and why?',
+        responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
+        studentActionType: TeachingTechnique.VERIFICATION,
+      },
+    ] as const
+    let candidateIndex = 0
+    tutorModel.behavior = (modelRequest) => {
+      const planned = candidatePlan[candidateIndex]
+      candidateIndex += 1
+      return Promise.resolve(storyCandidateResponse(modelRequest, planned))
+    }
+
+    const turnInputs = [
+      {
+        content:
+          'What is the difference between break and continue in a Python loop?',
+        clientMessageId: randomUUID(),
+      },
+      {
+        content:
+          'I think break skips only the current iteration, while continue stops the whole loop.',
+        clientMessageId: randomUUID(),
+      },
+      {
+        content: "I still don't understand. Can you give me a hint?",
+        clientMessageId: randomUUID(),
+      },
+      {
+        content:
+          'So break stops the whole loop, while continue skips the rest of the current iteration and moves to the next one. Is that right?',
+        clientMessageId: randomUUID(),
+      },
+    ] as const
+    const turns: TutoringTurnResponseDto[] = []
+
+    for (const [index, turnInput] of turnInputs.entries()) {
+      const response = await request(requireApp().getHttpServer())
+        .post(messagesPath(session.id))
+        .set('Authorization', `Bearer ${studentToken}`)
+        .send(turnInput)
+        .expect(201)
+      turns.push(response.body as TutoringTurnResponseDto)
+
+      if (index === 1 || index === 2) {
+        const activeState = await prisma.topicState.findFirstOrThrow({
+          where: { topic: { sessionId: session.id } },
+        })
+        expect(activeState.misconceptionStatus).toBe(MisconceptionStatus.ACTIVE)
+        expect(activeState.guidanceLevel).toBe(2)
+      }
+    }
+
+    expect(
+      turns.map(({ assistantMessage }) => assistantMessage.hintLevel),
+    ).toEqual([1, 2, 2, 1])
+    for (const turn of turns) {
+      expect(turn.assistantMessage).toMatchObject({
+        status: 'COMPLETED',
+        guidanceLabel: MessageGuidanceLabel.COURSE_GROUNDED,
+      })
+      expect(turn.assistantMessage.citations).toHaveLength(1)
+    }
+    expect(turns[3].assistantMessage.content).toMatch(/^Yes—/u)
+    expect(turns[3].assistantMessage.content).toMatch(/verify/iu)
+    expect(turns[3].assistantMessage.content).toMatch(/\?$/u)
+
+    const attempts = await prisma.tutoringAttempt.findMany({
+      where: { sessionId: session.id },
+      include: {
+        studentMessage: { select: { sequence: true } },
+        educationalAnalyses: {
+          include: { evidenceLinks: true, misconceptions: true },
+        },
+        teachingDecision: true,
+        candidateAttempts: { include: { guardResults: true } },
+      },
+    })
+    attempts.sort(
+      (left, right) =>
+        (left.studentMessage?.sequence ?? 0) -
+        (right.studentMessage?.sequence ?? 0),
+    )
+    const analyses = attempts.map(({ educationalAnalyses }) => {
+      const accepted = educationalAnalyses.at(0)
+      if (accepted === undefined) {
+        throw new Error('Expected one accepted Educational Analysis per turn')
+      }
+      return accepted
+    })
+    const decisions = attempts.map(({ teachingDecision }) => {
+      if (teachingDecision === null) {
+        throw new Error('Expected one authoritative Teaching Decision per turn')
+      }
+      return teachingDecision
+    })
+
+    expect(analyses.map(({ studentState }) => studentState)).toEqual([
+      StudentState.UNKNOWN,
+      StudentState.MISCONCEPTION,
+      StudentState.MISCONCEPTION,
+      StudentState.NEAR_SOLUTION,
+    ])
+    expect(analyses.map(({ effortPresent }) => effortPresent)).toEqual([
+      false,
+      true,
+      false,
+      true,
+    ])
+    expect(analyses[2]).toMatchObject({
+      recommendedGuidanceLevel: 3,
+      effortPresent: false,
+      effortQuality: 'NONE',
+      learningEvidencePresent: false,
+    })
+    expect(analyses[3]).toMatchObject({
+      requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+      studentState: StudentState.NEAR_SOLUTION,
+      learningEvidencePresent: true,
+      learningEvidenceStrength: 'STRONG',
+      recommendedTechnique: TeachingTechnique.VERIFICATION,
+    })
+    expect(analyses[3].evidenceLinks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'LEARNING',
+          messageId: turns[3].studentMessage.id,
+        }),
+      ]),
+    )
+    expect(
+      analyses.flatMap(({ misconceptions }) => misconceptions),
+    ).toHaveLength(1)
+
+    expect(decisions.map(({ guidanceLevel }) => guidanceLevel)).toEqual([
+      1, 2, 2, 1,
+    ])
+    expect(decisions.map(({ strategy }) => strategy)).toEqual([
+      TeachingStrategy.GUIDED_EXPLANATION,
+      TeachingStrategy.MISCONCEPTION_REPAIR,
+      TeachingStrategy.MISCONCEPTION_REPAIR,
+      TeachingStrategy.SOCRATIC_QUESTIONING,
+    ])
+    expect(decisions.map(({ primaryTechnique }) => primaryTechnique)).toEqual([
+      TeachingTechnique.ORIENTATION_QUESTION,
+      TeachingTechnique.COUNTEREXAMPLE,
+      TeachingTechnique.COUNTEREXAMPLE,
+      TeachingTechnique.VERIFICATION,
+    ])
+    expect(
+      decisions.every(({ requireStudentAction }) => requireStudentAction),
+    ).toBe(true)
+
+    for (const attempt of attempts) {
+      expect(attempt).toMatchObject({
+        status: TutoringAttemptStatus.COMPLETED,
+        safeFallbackUsed: false,
+        approvalSource: 'VALIDATED_CANDIDATE',
+        approvedCandidateAttempt: 1,
+      })
+      expect(attempt.candidateAttempts).toHaveLength(1)
+      expect(
+        attempt.candidateAttempts[0]?.guardResults.map(
+          ({ validationStage, approved }) => ({ validationStage, approved }),
+        ),
+      ).toEqual([
+        { validationStage: 'STRUCTURAL', approved: true },
+        { validationStage: 'DETERMINISTIC', approved: true },
+        { validationStage: 'SEMANTIC', approved: true },
+      ])
+    }
+
+    const finalTopicState = await prisma.topicState.findFirstOrThrow({
+      where: { topic: { sessionId: session.id } },
+    })
+    expect(finalTopicState).toMatchObject({
+      studentState: StudentState.NEAR_SOLUTION,
+      learningStatus: LearningStatus.VERIFIED,
+      resolutionEvidenceStrength: ResolutionEvidenceStrength.STRONG,
+      misconceptionStatus: MisconceptionStatus.CORRECTED,
+      activeStrategy: TeachingStrategy.SOCRATIC_QUESTIONING,
+      primaryTechnique: TeachingTechnique.VERIFICATION,
+      guidanceLevel: 1,
+    })
+
+    const ids = attempts.map(({ id }) => id)
+    const analysisIds = analyses.map(({ id }) => id)
+    const beforeReplay = {
+      topicStateVersion: finalTopicState.version,
+      messageCount: await prisma.message.count({
+        where: { sessionId: session.id },
+      }),
+      attemptCount: await prisma.tutoringAttempt.count({
+        where: { sessionId: session.id },
+      }),
+      analysisCount: analyses.length,
+      decisionCount: decisions.length,
+      candidateCount: await prisma.tutoringCandidateAttempt.count({
+        where: { attemptId: { in: ids } },
+      }),
+      guardCount: await prisma.guardResult.count({
+        where: { attemptId: { in: ids } },
+      }),
+      evidenceCount: await prisma.educationalAnalysisEvidenceLink.count({
+        where: { analysisId: { in: analysisIds } },
+      }),
+      misconceptionCount: await prisma.educationalAnalysisMisconception.count({
+        where: { analysisId: { in: analysisIds } },
+      }),
+      analysisModelCalls: analysisIndex,
+      tutorModelCalls: tutorModel.callCount,
+      semanticGuardCalls: semanticGuard.callCount,
+    }
+    const replayResponse = await request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${studentToken}`)
+      .send(turnInputs[3])
+      .expect(201)
+    const replayedTurn = replayResponse.body as TutoringTurnResponseDto
+
+    expect(replayedTurn.studentMessage.id).toBe(turns[3].studentMessage.id)
+    expect(replayedTurn.assistantMessage.id).toBe(turns[3].assistantMessage.id)
+    await expect(
+      prisma.topicState.findUniqueOrThrow({
+        where: { id: finalTopicState.id },
+        select: { version: true },
+      }),
+    ).resolves.toEqual({ version: beforeReplay.topicStateVersion })
+    await expect(
+      prisma.message.count({ where: { sessionId: session.id } }),
+    ).resolves.toBe(beforeReplay.messageCount)
+    await expect(
+      prisma.tutoringAttempt.count({ where: { sessionId: session.id } }),
+    ).resolves.toBe(beforeReplay.attemptCount)
+    await expect(
+      prisma.educationalAnalysis.count({
+        where: { attemptId: { in: ids } },
+      }),
+    ).resolves.toBe(beforeReplay.analysisCount)
+    await expect(
+      prisma.teachingDecision.count({ where: { attemptId: { in: ids } } }),
+    ).resolves.toBe(beforeReplay.decisionCount)
+    await expect(
+      prisma.tutoringCandidateAttempt.count({
+        where: { attemptId: { in: ids } },
+      }),
+    ).resolves.toBe(beforeReplay.candidateCount)
+    await expect(
+      prisma.guardResult.count({ where: { attemptId: { in: ids } } }),
+    ).resolves.toBe(beforeReplay.guardCount)
+    await expect(
+      prisma.educationalAnalysisEvidenceLink.count({
+        where: { analysisId: { in: analysisIds } },
+      }),
+    ).resolves.toBe(beforeReplay.evidenceCount)
+    await expect(
+      prisma.educationalAnalysisMisconception.count({
+        where: { analysisId: { in: analysisIds } },
+      }),
+    ).resolves.toBe(beforeReplay.misconceptionCount)
+    expect(analysisIndex).toBe(beforeReplay.analysisModelCalls)
+    expect(tutorModel.callCount).toBe(beforeReplay.tutorModelCalls)
+    expect(semanticGuard.callCount).toBe(beforeReplay.semanticGuardCalls)
   })
 
   it('reproduces the find_max journey and persists the meaningful misconception turn at Level 2', async () => {

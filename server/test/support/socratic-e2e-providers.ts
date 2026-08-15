@@ -160,6 +160,7 @@ export function functionalStoryAnalysisResponse(
     readonly repeatedEffort?: boolean
     readonly addressesPreviousTutorAction?: boolean
     readonly learningEvidenceStrength?: 'MODERATE' | 'STRONG'
+    readonly recommendedGuidanceLevel?: number
     readonly misconception?: {
       readonly code: string
       readonly description: string
@@ -216,7 +217,7 @@ export function functionalStoryAnalysisResponse(
     topicRelation: 'CONTINUE_CURRENT_TOPIC',
     recommendedStrategy: input.recommendedStrategy,
     recommendedTechnique: input.recommendedTechnique,
-    recommendedGuidanceLevel: 1,
+    recommendedGuidanceLevel: input.recommendedGuidanceLevel ?? 1,
     confidence: 0.96,
     evidenceReferences: [evidenceMessageId],
   })

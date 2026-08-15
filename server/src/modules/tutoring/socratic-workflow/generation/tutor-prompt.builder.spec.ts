@@ -221,9 +221,7 @@ describe('tutor prompt builder', () => {
     })
     const prompt = request.messages.map((message) => message.content).join('\n')
 
-    expect(prompt).toContain(
-      '"acknowledgeStudentSupportedCorrectWork":true',
-    )
+    expect(prompt).toContain('"acknowledgeStudentSupportedCorrectWork":true')
     expect(prompt).toContain(
       'briefly and factually acknowledge only the correct reasoning',
     )
