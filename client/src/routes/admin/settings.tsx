@@ -1,7 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-import { AccountSettingsPage } from '@/features/account-settings/account-settings-page'
+import { AdminSettingsLayout } from '@/workspaces/admin/settings/admin-settings-layout'
 
 export const Route = createFileRoute('/admin/settings')({
-  component: AccountSettingsPage,
+  component: AdminSettingsLayout,
+  head: () => ({
+    meta: [{ title: 'Settings — Morshid' }],
+  }),
 })
