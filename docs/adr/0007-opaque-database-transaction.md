@@ -35,6 +35,6 @@ helpers through the interface, which keeps the dependency direction stable.
 
 ## References
 
-- `docs/architecture-refactor-plan-2026-08-11.md`, sections 8.2, 10, and 17
-- `docs/research/nestjs-prisma-backend-organization-2026-08-11.md`
-- `docs/research/predeployment-contract-and-prisma-clean-slate-2026-08-11.md`
+- [docs/developer-guide/07-database-and-persistence.md](file:///home/mahmoud-ahmed/Projects/Morshid/docs/developer-guide/07-database-and-persistence.md)
+- [AGENTS.md](file:///home/mahmoud-ahmed/Projects/Morshid/AGENTS.md)
+- [CONTEXT.md](file:///home/mahmoud-ahmed/Projects/Morshid/CONTEXT.md)

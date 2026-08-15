@@ -1,4 +1,4 @@
-# ADR 0002: one Tutoring Runtime and one Tutoring Attempt
+# ADR 0002: One tutoring runtime and one tutoring attempt
 
 - **Status:** Accepted
 - **Date:** 2026-08-11
@@ -16,8 +16,8 @@ Tutoring owns one authoritative `TutoringAttempt` aggregate and exposes one
 external `TutoringRuntime.run(command): Promise<TutoringTurnReceipt>` seam.
 Conversations owns session and ordered message records through its
 transaction-aware `ConversationTurns` interface. Every supported request,
-including code diagnosis, goes through one Socratic Workflow. Code diagnosis
-is generic Debugging Guidance inside that workflow; student code is never
+including code diagnosis, goes through one Socratic workflow. Code diagnosis
+is generic debugging guidance inside that workflow; student code is never
 executed and a complete solution is never returned.
 
 ## Rejected alternatives
@@ -36,6 +36,6 @@ the new path is green.
 
 ## References
 
-- `docs/architecture-refactor-plan-2026-08-11.md`, sections 4, 8, 9, 10, and 17
-- `docs/research/whole-workspace-broad-refactor-safety-2026-08-11.md`
-- `docs/morshid-decisions.md`, P0 tutoring scope
+- [docs/developer-guide/11-tutoring-engine-and-socratic-runtime.md](file:///home/mahmoud-ahmed/Projects/Morshid/docs/developer-guide/11-tutoring-engine-and-socratic-runtime.md)
+- [docs/developer-guide/06-api-and-communication.md](file:///home/mahmoud-ahmed/Projects/Morshid/docs/developer-guide/06-api-and-communication.md)
+- [AGENTS.md](file:///home/mahmoud-ahmed/Projects/Morshid/AGENTS.md)
