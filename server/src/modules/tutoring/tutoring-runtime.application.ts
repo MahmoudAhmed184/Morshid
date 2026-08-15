@@ -77,6 +77,7 @@ import {
   type RequestBudget,
 } from '../../common/http/request-deadline'
 import { StudentCitationSources } from '../materials/interface/student-citation-sources'
+import type { ResponseAuditGraph } from './socratic-workflow/response-approval/response-audit.types'
 
 export {
   GROUNDING_BLOCKED_CONTENT,
@@ -323,7 +324,10 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
     const inputRisk = this.safetyRiskDetector.detectStudentInput(
       turn.studentMessage.content,
     )
-    if (inputRisk !== null) {
+    if (
+      inputRisk !== null &&
+      inputRisk.risks.some((risk) => risk !== 'FINAL_ANSWER_DELIVERY')
+    ) {
       return this.persistSafetyRefusal(
         turn,
         inputRisk,
@@ -356,6 +360,8 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
         studentMessageId: turn.studentMessage.id,
         assistantMessageId: turn.assistantMessage.id,
         studentMessageContent: turn.studentMessage.content,
+        explicitProtectedSolutionSignal:
+          classification.correctnessSensitive,
         ...(selection.diagnosis === null
           ? {}
           : {
@@ -390,6 +396,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
           operation,
           requestContext,
           orchestratorResult.topicId,
+          orchestratorResult.auditGraph,
         )
       case 'source_conflict':
         return this.persistControlledConflict(
@@ -578,6 +585,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
     operation: OrchestrationContext,
     requestContext?: AuditRequestContext,
     topicId?: string | null,
+    auditGraph?: ResponseAuditGraph,
   ): Promise<TutoringTurnReceipt> {
     const decision = this.responseGovernance.evaluate({
       proposedContent: GROUNDING_BLOCKED_CONTENT,
@@ -619,6 +627,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
           assistantMessageId: turn.assistantMessage.id,
           content: decision.content,
           ...(topicId === undefined ? {} : { topicId }),
+          ...(auditGraph === undefined ? {} : { auditGraph }),
           guidanceLabel: decision.studentStatus.guidanceLabel,
           errorCode: encodeAutomaticPolicyReasons(decision.reasons),
           evidence: conflict.sources,
@@ -680,6 +689,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
     operation: OrchestrationContext,
     requestContext?: AuditRequestContext,
     topicId?: string | null,
+    auditGraph?: ResponseAuditGraph,
   ): Promise<TutoringTurnReceipt> {
     const decision = this.responseGovernance.evaluate({
       proposedContent: GROUNDING_BLOCKED_CONTENT,
@@ -713,6 +723,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
           assistantMessageId: turn.assistantMessage.id,
           content: decision.content,
           ...(topicId === undefined ? {} : { topicId }),
+          ...(auditGraph === undefined ? {} : { auditGraph }),
           guidanceLabel: decision.studentStatus.guidanceLabel,
           errorCode: encodeAutomaticPolicyReasons(decision.reasons),
           automaticReview: policyReviewInput(

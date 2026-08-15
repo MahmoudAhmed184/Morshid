@@ -10,6 +10,7 @@ import type { PersistedEducationalAnalysisRecord } from '../analysis/educational
 import type { PersistedTeachingDecisionRecord } from '../teaching-decision/teaching-decision.repository'
 import type { TeachingGuardPolicy } from '../teaching-decision/teaching-policy.types'
 import type { DebuggingGuidanceContext } from '../debugging-guidance/debugging-guidance.output-validator'
+import type { OutputProtectionContext } from '../solution-protection/solution-protection.types'
 
 export type BuildGenerationContextResult =
   | {
@@ -27,6 +28,7 @@ export function buildGenerationContextPackage(input: {
   readonly teachingDecision: PersistedTeachingDecisionRecord
   readonly previousTeachingDecision: PersistedTeachingDecisionRecord | null
   readonly retrievedChunks: readonly CourseEvidenceChunk[]
+  readonly outputProtection: OutputProtectionContext
   readonly debuggingGuidance?: DebuggingGuidanceContext
 }): BuildGenerationContextResult {
   const attemptId = input.analysisContext.studentMessage.attemptId
@@ -75,6 +77,7 @@ export function buildGenerationContextPackage(input: {
       retrievedEvidence: Object.freeze(retrievedEvidence),
       allowedCitationIds: Object.freeze(allowedCitationIds),
       conversationLanguage: input.analysisContext.conversationLanguage,
+      outputProtection: input.outputProtection,
       regeneration: null,
       debuggingGuidance: input.debuggingGuidance ?? null,
     }),
@@ -104,7 +107,23 @@ export function regenerationMatchesTeachingDecision(
     policy.policyVersion === context.teachingDecision.policyVersion &&
     policy.guidanceLevel === context.teachingDecision.guidanceLevel &&
     policy.revealPolicy === context.teachingDecision.revealPolicy &&
-    guardPoliciesMatch(policy.guardPolicy, context.teachingDecision.guardPolicy)
+    guardPoliciesMatch(policy.guardPolicy, context.teachingDecision.guardPolicy) &&
+    outputProtectionContextsMatch(
+      policy.outputProtection,
+      context.outputProtection,
+    )
+  )
+}
+
+function outputProtectionContextsMatch(
+  left: OutputProtectionContext,
+  right: OutputProtectionContext,
+): boolean {
+  return (
+    left.protectTargetSolution === right.protectTargetSolution &&
+    left.topicId === right.topicId &&
+    left.source === right.source &&
+    left.policyVersion === right.policyVersion
   )
 }
 
@@ -147,6 +166,7 @@ export function guardEducationalContextFromGenerationContext(
     }),
     topicState: context.topicState,
     previousTeachingDecision: context.previousTeachingDecision,
+    outputProtection: context.outputProtection,
     currentTeachingDecision: Object.freeze({
       id: context.teachingDecision.id,
       policyVersion: context.teachingDecision.policyVersion,

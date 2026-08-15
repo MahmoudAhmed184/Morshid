@@ -61,8 +61,7 @@ export class PrismaSolutionProtectionRepository extends SolutionProtectionReposi
 
       const retryDecision = decisionFromAttempt(input.topicId, attempt.retryOf)
       if (retryDecision !== null) {
-        await persistAttemptDecision(tx, input.attemptId, retryDecision)
-        return retryDecision
+        return persistAttemptDecision(tx, input.attemptId, retryDecision)
       }
 
       const now = new Date()
@@ -117,8 +116,7 @@ export class PrismaSolutionProtectionRepository extends SolutionProtectionReposi
           input.explicitProtectedSolutionSignal,
         resolvedAt: now,
       }
-      await persistAttemptDecision(tx, input.attemptId, decision)
-      return decision
+      return persistAttemptDecision(tx, input.attemptId, decision)
     })
   }
 }
@@ -160,7 +158,7 @@ async function persistAttemptDecision(
   tx: Prisma.TransactionClient,
   attemptId: string,
   decision: PersistedOutputProtectionDecision,
-): Promise<void> {
+): Promise<PersistedOutputProtectionDecision> {
   const updated = await tx.tutoringAttempt.updateMany({
     where: { id: attemptId, effectiveSolutionProtection: null },
     data: {
@@ -172,9 +170,25 @@ async function persistAttemptDecision(
       solutionProtectionResolvedAt: decision.resolvedAt,
     },
   })
-  if (updated.count !== 1) {
+  if (updated.count === 1) {
+    return decision
+  }
+
+  const persisted = await tx.tutoringAttempt.findUnique({
+    where: { id: attemptId },
+    select: {
+      explicitProtectedSolutionSignal: true,
+      effectiveSolutionProtection: true,
+      solutionProtectionSource: true,
+      solutionProtectionPolicyVersion: true,
+      solutionProtectionResolvedAt: true,
+    },
+  })
+  const existing = decisionFromAttempt(decision.topicId, persisted)
+  if (existing === null) {
     throw new Error('Output protection decision changed during resolution')
   }
+  return existing
 }
 
 function requireProposalSource(

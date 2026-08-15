@@ -57,13 +57,11 @@ export function buildTutorResponseRequirements(input: {
   readonly analysisSource: EducationalAnalysisSource
   readonly studentMessageId: string
   readonly guidanceLevel: number
+  readonly protectTargetSolution: boolean
 }): TutorResponseRequirements {
   const guidanceLevel = normalizeGuidanceLevel(input.guidanceLevel)
   const requestKind = input.analysis.requestKind
-  const isProtectedProblem =
-    requestKind === MessageRequestKind.PROBLEM_LIKE ||
-    requestKind === MessageRequestKind.ATTEMPT_DIAGNOSIS ||
-    requestKind === MessageRequestKind.CODE_DIAGNOSIS
+  const isProtectedProblem = input.protectTargetSolution
   const isNoAttemptProblem =
     requestKind === MessageRequestKind.PROBLEM_LIKE &&
     !input.analysis.effortEvidence.present &&

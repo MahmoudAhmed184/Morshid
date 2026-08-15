@@ -474,6 +474,12 @@ function input(
       },
       topicState: null,
       previousTeachingDecision: null,
+      outputProtection: {
+        protectTargetSolution: false,
+        topicId: 'topic-1',
+        source: 'ACCEPTED_CONCEPT_ANALYSIS',
+        policyVersion: 'solution-protection.v1',
+      },
       currentTeachingDecision: {
         id: 'decision-1',
         policyVersion: 'policy-test.v1',

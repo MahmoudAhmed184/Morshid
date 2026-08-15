@@ -58,6 +58,8 @@ function guardPayload(input: SemanticGuardEvaluationInput) {
     analysisSource: input.educationalContext.acceptedAnalysis.analysisSource,
     studentMessageId: input.educationalContext.currentStudentMessage.id,
     guidanceLevel: input.validationContext.guidanceLevel,
+    protectTargetSolution:
+      input.educationalContext.outputProtection.protectTargetSolution,
   })
 
   return {
@@ -81,6 +83,7 @@ function guardPayload(input: SemanticGuardEvaluationInput) {
       disclosureContract,
       functionalResponseRequirements,
       disclosurePolicyVersion: SOCRATIC_DISCLOSURE_POLICY_VERSION,
+      outputProtection: input.educationalContext.outputProtection,
     },
     educationalContext: input.educationalContext,
     candidate: {

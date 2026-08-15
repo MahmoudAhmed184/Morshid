@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common'
 
 import { assertRequestBudget } from '../../../common/http/request-deadline'
 import {
+  OutputRiskAuditSource,
   TutoringAttemptStatus,
   type MessageRequestKind,
 } from '../tutoring-values'
@@ -33,6 +34,8 @@ import type {
   SocraticWorkflowInput,
   SocraticWorkflowResult,
 } from './socratic-workflow.types'
+import { SolutionProtectionService } from './solution-protection/solution-protection.service'
+import { outputRiskEventAudit } from './response-approval/response-audit.types'
 
 /**
  * Private workflow implementation behind the TutoringRuntime boundary.
@@ -52,6 +55,7 @@ export class SocraticWorkflow {
     private readonly turnRepository: TutoringTurnRepository,
     private readonly topicService: TopicService,
     private readonly topicStateService: TopicStateService,
+    private readonly solutionProtectionService: SolutionProtectionService,
     private readonly contextManager: ContextManager,
     private readonly educationalAnalysisService: EducationalAnalysisService,
     private readonly teachingPolicyEngine: TeachingPolicyEngine,
@@ -71,11 +75,7 @@ export class SocraticWorkflow {
       input.studentMessageContent,
     )
     const hasInputRisk =
-      inputRisk?.risks.some(
-        (risk) =>
-          risk === 'HIDDEN_PROMPT_DISCLOSURE' ||
-          risk === 'FINAL_ANSWER_DELIVERY',
-      ) ?? false
+      inputRisk?.risks.some((risk) => risk !== 'FINAL_ANSWER_DELIVERY') ?? false
 
     if (hasInputRisk && inputRisk !== null) {
       return { kind: 'safety_refusal', detection: inputRisk, topicId: null }
@@ -142,6 +142,25 @@ export class SocraticWorkflow {
       return this.failTurn('SOCRATIC_ANALYSIS_CONTEXT_UNAVAILABLE', topicId)
     }
 
+    const protectedInputRisk = this.safetyRiskDetector.detectStudentInput(
+      input.studentMessageContent,
+    )
+    if (
+      protectedInputRisk?.risks.includes('FINAL_ANSWER_DELIVERY') === true
+    ) {
+      await this.solutionProtectionService.resolve({
+        attemptId,
+        topic: analysisContext.activeTopic,
+        topicResolutionOutcome: resolution.outcome,
+        explicitProtectedSolutionSignal: true,
+      })
+      return {
+        kind: 'safety_refusal',
+        detection: protectedInputRisk,
+        topicId,
+      }
+    }
+
     const analysisResult =
       input.requestBudget === undefined
         ? await this.educationalAnalysisService.analyze(analysisContext)
@@ -155,6 +174,15 @@ export class SocraticWorkflow {
         topicId,
       )
     }
+
+    const outputProtection = await this.solutionProtectionService.resolve({
+      attemptId,
+      topic: analysisContext.activeTopic,
+      topicResolutionOutcome: resolution.outcome,
+      explicitProtectedSolutionSignal:
+        input.explicitProtectedSolutionSignal,
+      analysis: analysisResult.analysis,
+    })
 
     assertRequestBudget(input.requestBudget)
 
@@ -300,6 +328,7 @@ export class SocraticWorkflow {
       teachingDecision: decisionResult.decision,
       retrievalResult: retrieval.chunks,
       debuggingGuidance: input.debuggingGuidance,
+      outputProtection,
       lifecycle: responseLifecycle,
       ...(input.requestBudget === undefined
         ? {}
@@ -314,6 +343,9 @@ export class SocraticWorkflow {
           kind: 'safety_refusal',
           detection: approval.outputRisk,
           topicId,
+          ...(approval.auditGraph === undefined
+            ? {}
+            : { auditGraph: approval.auditGraph }),
         }
       }
       return this.failTurn(
@@ -324,10 +356,27 @@ export class SocraticWorkflow {
 
     const outputRisk = this.safetyRiskDetector.detectOutput(
       approval.approvedResponse.message,
-      true,
+      outputProtection.protectTargetSolution,
     )
     if (outputRisk !== null) {
-      return { kind: 'safety_refusal', detection: outputRisk, topicId }
+      return {
+        kind: 'safety_refusal',
+        detection: outputRisk,
+        topicId,
+        auditGraph: Object.freeze({
+          ...approval.auditGraph,
+          outputRiskEvents: Object.freeze([
+            ...approval.auditGraph.outputRiskEvents,
+            outputRiskEventAudit({
+              candidateAttempt:
+                approval.approvedResponse.approvedCandidateAttempt,
+              source: OutputRiskAuditSource.POST_APPROVAL,
+              detection: outputRisk,
+              outputProtection,
+            }),
+          ]),
+        }),
+      }
     }
 
     const decision = decisionResult.decision

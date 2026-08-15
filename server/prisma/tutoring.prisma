@@ -23,6 +23,7 @@ enum SolutionProtectionSource {
   ACCEPTED_TASK_ANALYSIS
   ACCEPTED_CONCEPT_ANALYSIS
   MIGRATED_TOPIC_HISTORY
+  MIGRATED_CONCEPT_TOPIC
   CONSERVATIVE_UNKNOWN
 
   @@map("solution_protection_source")

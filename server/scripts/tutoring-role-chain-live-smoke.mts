@@ -160,6 +160,12 @@ async function main(): Promise<void> {
       teachingDecision,
       previousTeachingDecision: null,
       retrievedChunks: TUTORING_ROLE_CHAIN_RETRIEVED_CHUNKS,
+      outputProtection: {
+        protectTargetSolution: true,
+        topicId: TUTORING_ROLE_CHAIN_ANALYSIS_CONTEXT.activeTopic.id,
+        source: 'AUTHORITATIVE_TASK_METADATA',
+        policyVersion: 'solution-protection.v1',
+      },
     })
     if (!generationContext.success) {
       throw new SmokeFailure('GENERATION_CONTEXT_INVALID')

@@ -145,6 +145,7 @@ export interface FinalizeTutoringTurnInput extends AuthorizedTurnInput {
   requestKind?: MessageRequestKind | null
   guidanceLabel?: MessageGuidanceLabel
   automaticReview?: Omit<AutomaticReviewIntakeInput, 'messageId'>
+  auditGraph?: ResponseAuditGraph
 }
 
 export interface CompleteSafetyTutoringTurnInput extends FinalizeTutoringTurnInput {
@@ -945,6 +946,10 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
           return updated
         }
 
+        if (input.auditGraph !== undefined) {
+          await this.persistAuditGraph(tx, input.attemptId, input.auditGraph)
+        }
+
         return updated
       })
     } catch (error) {
@@ -1185,6 +1190,22 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
           validationPolicyVersion: guard.result.policyVersion,
           teachingPolicyVersion: guard.teachingPolicyVersion,
           disclosurePolicyVersion: guard.disclosurePolicyVersion,
+        })),
+      })
+    }
+    if (auditGraph.outputRiskEvents.length > 0) {
+      await tx.outputRiskEvent.createMany({
+        data: auditGraph.outputRiskEvents.map((event) => ({
+          attemptId,
+          candidateAttempt: event.candidateAttempt,
+          source: event.source,
+          detectorVersion: event.detectorVersion,
+          risks: event.risks as unknown as Prisma.InputJsonValue,
+          protectTargetSolution:
+            event.outputProtection.protectTargetSolution,
+          solutionProtectionSource: event.outputProtection.source,
+          solutionProtectionPolicyVersion:
+            event.outputProtection.policyVersion,
         })),
       })
     }

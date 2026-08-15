@@ -450,6 +450,10 @@ function buildGenerationContext(): GenerationContextPackage {
       title: 'Loops',
       topicType: TopicType.CONCEPT,
       status: TopicStatus.ACTIVE,
+      solutionProtectionStatus: 'UNKNOWN',
+      solutionProtectionSource: null,
+      solutionProtectionPolicyVersion: null,
+      solutionProtectionEstablishedAt: null,
       resolvedAt: null,
       createdAt,
       updatedAt: createdAt,
@@ -490,6 +494,12 @@ function buildGenerationContext(): GenerationContextPackage {
     ],
     allowedCitationIds: ['retrieval.rank.1'],
     conversationLanguage: 'en',
+    outputProtection: {
+      protectTargetSolution: false,
+      topicId: 'topic-1',
+      source: 'ACCEPTED_CONCEPT_ANALYSIS',
+      policyVersion: 'solution-protection.v1',
+    },
     regeneration: null,
     debuggingGuidance: null,
   }

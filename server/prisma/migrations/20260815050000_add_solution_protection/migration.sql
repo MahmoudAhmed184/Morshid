@@ -11,6 +11,7 @@ CREATE TYPE "solution_protection_source" AS ENUM (
     'ACCEPTED_TASK_ANALYSIS',
     'ACCEPTED_CONCEPT_ANALYSIS',
     'MIGRATED_TOPIC_HISTORY',
+    'MIGRATED_CONCEPT_TOPIC',
     'CONSERVATIVE_UNKNOWN'
 );
 
@@ -68,7 +69,7 @@ WHERE
 UPDATE "topics"
 SET
     "solution_protection_status" = 'UNPROTECTED',
-    "solution_protection_source" = 'ACCEPTED_CONCEPT_ANALYSIS',
+    "solution_protection_source" = 'MIGRATED_CONCEPT_TOPIC',
     "solution_protection_policy_version" = 'solution-protection.v1',
     "solution_protection_established_at" = "created_at"
 WHERE

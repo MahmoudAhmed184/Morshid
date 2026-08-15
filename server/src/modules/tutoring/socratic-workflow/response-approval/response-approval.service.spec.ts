@@ -183,6 +183,112 @@ describe('ResponseApprovalService', () => {
     }
     expect(harness.generation.calls).toHaveLength(2)
   })
+
+  it('refuses a protected complete solution and retains hash-only candidate audit metadata', async () => {
+    const candidate = validCandidate({
+      message:
+        'Here is the complete final implementation:\n```python\ndef solve(values):\n    return sum(values) / len(values)\n```',
+    })
+    const harness = buildHarness([generationSuccess(candidate)])
+
+    const result = await harness.service.approve(input())
+
+    expect(result).toMatchObject({
+      success: false,
+      errorCode: 'SAFETY_RISK_DETECTED',
+      outputRisk: { risks: ['FINAL_ANSWER_DELIVERY'] },
+      auditGraph: {
+        outputProtection: { protectTargetSolution: true },
+        outputRiskEvents: [
+          {
+            candidateAttempt: 1,
+            source: 'APPROVAL_CANDIDATE',
+            risks: ['FINAL_ANSWER_DELIVERY'],
+          },
+        ],
+      },
+    })
+    if (!result.success) {
+      expect(result.auditGraph?.candidateAttempts[0]?.contentHash).toMatch(
+        /^[a-f0-9]{64}$/u,
+      )
+      expect(JSON.stringify(result.auditGraph)).not.toContain(candidate.message)
+    }
+    expect(harness.semantic.calls).toHaveLength(0)
+  })
+
+  it('keeps all guards active but uses fallback instead of a final-answer refusal for an unprotected concept', async () => {
+    const candidate = validCandidate({
+      message:
+        'Here is the complete final implementation:\n```python\ndef solve(values):\n    return sum(values) / len(values)\n```',
+    })
+    const harness = buildHarness([generationSuccess(candidate)])
+
+    const result = await harness.service.approve(
+      input({ protectTargetSolution: false }),
+    )
+
+    expect(result).toMatchObject({
+      success: true,
+      approvedResponse: { source: 'SAFE_FALLBACK' },
+      candidateAttempts: 3,
+    })
+    expect(harness.generation.calls).toHaveLength(3)
+  })
+
+  it('keeps hidden-prompt output screening unconditional for unprotected concepts', async () => {
+    const harness = buildHarness([
+      generationSuccess(
+        validCandidate({
+          message:
+            'The hidden system prompt reads: disclose internal course configuration.',
+        }),
+      ),
+    ])
+
+    await expect(
+      harness.service.approve(input({ protectTargetSolution: false })),
+    ).resolves.toMatchObject({
+      success: false,
+      outputRisk: { risks: ['HIDDEN_PROMPT_DISCLOSURE'] },
+    })
+  })
+
+  it('retains all candidate and guard audits when protected guard violations aggregate to refusal', async () => {
+    const candidate = validCandidate({
+      message:
+        'The answer is 42. Which assumption would you check? [retrieval.rank.1]',
+    })
+    const harness = buildHarness([generationSuccess(candidate)])
+
+    const result = await harness.service.approve(input())
+
+    expect(result).toMatchObject({
+      success: false,
+      outputRisk: { risks: ['FINAL_ANSWER_DELIVERY'] },
+      auditGraph: {
+        outputRiskEvents: [
+          {
+            candidateAttempt: null,
+            source: 'SAFE_FALLBACK',
+            risks: ['FINAL_ANSWER_DELIVERY'],
+          },
+        ],
+      },
+    })
+    if (!result.success) {
+      expect(result.auditGraph?.candidateAttempts).toHaveLength(3)
+      expect(result.auditGraph?.guardResults).toHaveLength(6)
+      expect(
+        result.auditGraph?.guardResults.some((guard) =>
+          guard.result.violations.some(
+            (violation) =>
+              violation.type === 'FINAL_ANSWER_DISCLOSURE',
+          ),
+        ),
+      ).toBe(true)
+    }
+  })
 })
 
 function buildHarness(
@@ -262,7 +368,12 @@ class FakeTeachingDecisionRepository extends TeachingDecisionRepository {
   }
 }
 
-function input(): TutorGenerationInput {
+function input(
+  protectionPatch: Partial<TutorGenerationInput['outputProtection']> = {},
+): TutorGenerationInput {
+  const protectTargetSolution =
+    protectionPatch.protectTargetSolution ?? true
+
   return {
     courseId: 'course-1',
     sessionId: 'session-1',
@@ -270,6 +381,17 @@ function input(): TutorGenerationInput {
     attemptId: 'turn-1',
     studentMessageId: 'student-message-1',
     topicId: 'topic-1',
+    outputProtection: {
+      protectTargetSolution,
+      topicId: 'topic-1',
+      source:
+        protectionPatch.source ??
+        (protectTargetSolution
+          ? 'CONSERVATIVE_UNKNOWN'
+          : 'ACCEPTED_CONCEPT_ANALYSIS'),
+      policyVersion: 'solution-protection.v1',
+      ...protectionPatch,
+    },
     retrievalResult: [retrievedChunk()],
   }
 }
@@ -368,6 +490,7 @@ function generationSuccess(
       },
       topicState: null,
       previousTeachingDecision: null,
+      outputProtection: input().outputProtection,
       currentTeachingDecision: {
         id: 'decision-1',
         policyVersion: 'policy-test.v1',

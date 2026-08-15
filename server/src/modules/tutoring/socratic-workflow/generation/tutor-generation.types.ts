@@ -13,6 +13,7 @@ import type { TopicStateSnapshot } from '../topic/topic-state.types'
 import type { TUTOR_GENERATION_PROMPT_VERSION } from './tutor-prompt.definition'
 import type { ValidationResult } from '../response-approval/response-validation.types'
 import type { DebuggingGuidanceContext } from '../debugging-guidance/debugging-guidance.output-validator'
+import type { OutputProtectionContext } from '../solution-protection/solution-protection.types'
 
 export const TUTOR_RESPONSE_INTENTS = [
   'GUIDED_EXPLANATION',
@@ -107,6 +108,7 @@ export interface GenerationContextPackage {
   readonly retrievedEvidence: readonly TutorEvidenceContext[]
   readonly allowedCitationIds: readonly string[]
   readonly conversationLanguage: string | null
+  readonly outputProtection: OutputProtectionContext
   readonly regeneration: TutorRegenerationContext | null
   readonly debuggingGuidance: DebuggingGuidanceContext | null
 }
@@ -124,6 +126,7 @@ export interface TutorRegenerationContext {
     readonly guidanceLevel: number
     readonly revealPolicy: RevealPolicy
     readonly guardPolicy: PersistedTeachingDecisionRecord['guardPolicy']
+    readonly outputProtection: OutputProtectionContext
   }
 }
 
@@ -134,6 +137,7 @@ export interface TutorGenerationInput {
   readonly attemptId: string
   readonly studentMessageId: string
   readonly topicId: string
+  readonly outputProtection: OutputProtectionContext
   readonly retrievalResult: readonly CourseEvidenceChunk[]
   readonly debuggingGuidance?: DebuggingGuidanceContext
   readonly regeneration?: TutorRegenerationContext
@@ -201,6 +205,7 @@ export interface TutorGuardEducationalContext {
   }
   readonly topicState: TopicStateSnapshot | null
   readonly previousTeachingDecision: PersistedTeachingDecisionRecord | null
+  readonly outputProtection: OutputProtectionContext
   readonly currentTeachingDecision: {
     readonly id: string
     readonly policyVersion: string

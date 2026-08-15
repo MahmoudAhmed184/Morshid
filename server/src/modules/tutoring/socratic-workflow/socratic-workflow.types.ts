@@ -33,6 +33,7 @@ export interface SocraticWorkflowInput {
   readonly studentMessageId: string
   readonly assistantMessageId: string
   readonly studentMessageContent: string
+  readonly explicitProtectedSolutionSignal: boolean
   readonly debuggingGuidance?: DebuggingGuidanceContext
   readonly topicSelection?: SocraticTopicSelection
   readonly requestBudget?: RequestBudget
@@ -68,6 +69,7 @@ export type SocraticWorkflowResult =
       readonly kind: 'safety_refusal'
       readonly detection: AutomaticSafetyRiskDetection
       readonly topicId: string | null
+      readonly auditGraph?: ResponseAuditGraph
     }
   | {
       readonly kind: 'source_conflict'

@@ -176,6 +176,7 @@ describe('TutorGenerationService', () => {
           guidanceLevel: 2,
           revealPolicy: decision.revealPolicy,
           guardPolicy: decision.guardPolicy,
+          outputProtection: defaultInput().outputProtection,
         },
       },
     } satisfies TutorGenerationInput
@@ -363,7 +364,7 @@ class FakeTutorModel implements TutorModelPort {
   }
 }
 
-function defaultInput() {
+function defaultInput(): TutorGenerationInput {
   return {
     courseId: 'course-1',
     sessionId: 'session-1',
@@ -371,6 +372,12 @@ function defaultInput() {
     attemptId: 'turn-1',
     studentMessageId: 'message-2',
     topicId: 'topic-1',
+    outputProtection: {
+      protectTargetSolution: true,
+      topicId: 'topic-1',
+      source: 'CONSERVATIVE_UNKNOWN' as const,
+      policyVersion: 'solution-protection.v1',
+    },
     retrievalResult: [retrievedChunk({ rank: 1 })],
   }
 }
@@ -403,6 +410,10 @@ function buildAnalysisContext(): AnalysisContextPackage {
       title: 'Loops',
       topicType: TopicType.DEBUGGING_TASK,
       status: TopicStatus.ACTIVE,
+      solutionProtectionStatus: 'UNKNOWN',
+      solutionProtectionSource: null,
+      solutionProtectionPolicyVersion: null,
+      solutionProtectionEstablishedAt: null,
       createdAt,
       updatedAt: createdAt,
       resolvedAt: null,

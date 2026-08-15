@@ -77,6 +77,7 @@ function buildTutorUserPrompt(context: GenerationContextPackage): string {
     analysisSource: context.acceptedAnalysis.analysisSource,
     studentMessageId: context.studentMessage.id,
     guidanceLevel: context.teachingDecision.guidanceLevel,
+    protectTargetSolution: context.outputProtection.protectTargetSolution,
   })
 
   return [
@@ -114,6 +115,7 @@ function buildTutorUserPrompt(context: GenerationContextPackage): string {
       requireStudentAction: context.teachingDecision.requireStudentAction,
       guardPolicy: context.teachingDecision.guardPolicy,
       policyVersion: context.teachingDecision.policyVersion,
+      outputProtection: context.outputProtection,
     }),
     section('4. Guidance Level and Reveal Policy Constraints', {
       guidanceLevel: context.teachingDecision.guidanceLevel,

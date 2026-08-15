@@ -350,7 +350,17 @@ describe('TutoringRuntimeApplication', () => {
         topicId: 'topic-1',
         guidanceLevel: 1,
         safeFallbackReason: 'VALIDATION_EXHAUSTED',
-        auditGraph: { candidateAttempts: [], guardResults: [] },
+        auditGraph: {
+          candidateAttempts: [],
+          guardResults: [],
+          outputProtection: {
+            protectTargetSolution: false,
+            topicId: 'topic-1',
+            source: 'ACCEPTED_CONCEPT_ANALYSIS',
+            policyVersion: 'solution-protection.v1',
+          },
+          outputRiskEvents: [],
+        },
         topicStateTransition: {
           expectedVersion: 1,
           patch: { summary: 'Safe fallback completed.' },

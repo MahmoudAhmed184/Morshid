@@ -48,6 +48,14 @@ describe('SocraticWorkflow classified responses', () => {
         } as never,
         { getOrCreate: jest.fn().mockResolvedValue({ version: 1 }) } as never,
         {
+          resolve: jest.fn().mockResolvedValue({
+            protectTargetSolution: true,
+            topicId,
+            source: 'AUTHORITATIVE_TASK_METADATA',
+            policyVersion: 'solution-protection.v1',
+          }),
+        } as never,
+        {
           buildAnalysisContext: jest.fn().mockResolvedValue({}),
         } as never,
         {
@@ -78,6 +86,7 @@ describe('SocraticWorkflow classified responses', () => {
         studentMessageId,
         assistantMessageId,
         studentMessageContent: 'classified request',
+        explicitProtectedSolutionSignal: false,
         topicSelection: {
           problemId: 'problem-1',
           title: 'Problem topic',

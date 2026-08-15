@@ -22,6 +22,7 @@ describe('Tutor response requirements', () => {
       analysisSource: EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
       studentMessageId: 'message-1',
       guidanceLevel: 1,
+      protectTargetSolution: false,
     })
 
     expect(requirements).toMatchObject({
@@ -57,6 +58,7 @@ describe('Tutor response requirements', () => {
       analysisSource: EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
       studentMessageId: 'message-1',
       guidanceLevel: 1,
+      protectTargetSolution: false,
     })
 
     expect(requirements).toMatchObject({
@@ -132,6 +134,7 @@ describe('Tutor response requirements', () => {
       analysisSource: EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
       studentMessageId: 'message-1',
       guidanceLevel: 1,
+      protectTargetSolution: true,
     })
 
     expect(requirements).toMatchObject({
@@ -152,9 +155,31 @@ describe('Tutor response requirements', () => {
       analysisSource: EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
       studentMessageId: 'message-1',
       guidanceLevel: 1,
+      protectTargetSolution: true,
     })
 
     expect(requirements.acknowledgeStudentSupportedCorrectWork).toBe(false)
+  })
+
+  it.each([
+    MessageRequestKind.CONCEPTUAL,
+    MessageRequestKind.ATTEMPT_DIAGNOSIS,
+  ])('does not infer protected output from request kind %s', (requestKind) => {
+    const requirements = buildTutorResponseRequirements({
+      analysis: {
+        requestKind,
+        studentState: StudentState.MISCONCEPTION,
+        effortEvidence: noEffort(),
+        learningEvidence: noLearning(),
+        misconceptions: [],
+      },
+      analysisSource: EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
+      studentMessageId: 'message-1',
+      guidanceLevel: 2,
+      protectTargetSolution: false,
+    })
+
+    expect(requirements.protectExactOriginalSolution).toBe(false)
   })
 })
 
@@ -177,6 +202,7 @@ function requirementsAt(guidanceLevel: number) {
     analysisSource: EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
     studentMessageId: 'message-1',
     guidanceLevel,
+    protectTargetSolution: true,
   })
 }
 
