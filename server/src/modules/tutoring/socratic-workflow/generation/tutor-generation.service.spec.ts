@@ -189,6 +189,43 @@ describe('TutorGenerationService', () => {
     expect(harness.model.requests).toHaveLength(0)
   })
 
+  it('rejects regeneration that changes the immutable output protection snapshot', async () => {
+    const harness = buildHarness()
+    const decision = buildDecision()
+    const original = defaultInput()
+    const input = {
+      ...original,
+      regeneration: {
+        promptVersion: 'tutor-regeneration.mvp.v1',
+        candidateAttempt: 2,
+        previousValidation: {
+          stage: 'SEMANTIC',
+          violations: [],
+          maximumSeverity: null,
+        },
+        authoritativePolicy: {
+          teachingDecisionId: decision.id,
+          policyVersion: decision.policyVersion,
+          guidanceLevel: decision.guidanceLevel,
+          revealPolicy: decision.revealPolicy,
+          guardPolicy: decision.guardPolicy,
+          outputProtection: {
+            ...original.outputProtection,
+            protectTargetSolution: false,
+            source: 'ACCEPTED_CONCEPT_ANALYSIS',
+          },
+        },
+      },
+    } satisfies TutorGenerationInput
+
+    await expect(harness.service.generate(input)).resolves.toEqual({
+      success: false,
+      errorCode: 'INVALID_GENERATION_CONTEXT',
+      infrastructureRetryCount: 0,
+    })
+    expect(harness.model.requests).toHaveLength(0)
+  })
+
   it.each([
     ['malformed JSON', 'not-json', 'TUTOR_MALFORMED_OUTPUT'],
     [

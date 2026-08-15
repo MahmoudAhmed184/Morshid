@@ -106,6 +106,9 @@ describe('ResponseApprovalService', () => {
       expect(result.approvedResponse.approvedCandidateAttempt).toBeNull()
       expect(result.candidateAttempts).toBe(3)
       expect(result.safeFallbackReason).toBe('VALIDATION_EXHAUSTED')
+      expect(result.auditGraph.outputProtection).toEqual(
+        input().outputProtection,
+      )
     }
     expect(harness.generation.calls).toHaveLength(3)
     expect(harness.semantic.calls).toHaveLength(0)
