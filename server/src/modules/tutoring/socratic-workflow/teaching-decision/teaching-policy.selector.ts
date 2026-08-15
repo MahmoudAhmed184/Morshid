@@ -23,6 +23,7 @@ import {
   type TeachingGuardPolicy,
   type TeachingPolicyDefaults,
 } from './teaching-policy.types'
+import { isDirectConceptualAnalysis } from './direct-conceptual-policy'
 
 export interface TeachingDecisionPolicyDraft {
   attemptId: string
@@ -99,6 +100,7 @@ export function selectTeachingDecisionDraft(
   const defaults = teachingPolicyDefaults(input.courseTutorConfiguration)
   const strategy = selectTeachingStrategy(input)
   const guidanceLevel = calculateGuidanceLevel(input, defaults)
+  const directConceptual = isDirectConceptualAnalysis(input.analysis.result)
 
   return {
     attemptId: input.analysis.attemptId,
@@ -108,10 +110,14 @@ export function selectTeachingDecisionDraft(
     primaryTechnique: primaryTechniqueForStrategy(strategy),
     supportingTechnique: null,
     guidanceLevel,
-    revealPolicy: defaults.defaultRevealPolicy,
+    revealPolicy: directConceptual
+      ? RevealPolicy.PARTIAL_RESULT_ALLOWED
+      : defaults.defaultRevealPolicy,
     reflectionMode: ReflectionMode.NONE,
     requireStudentAction: true,
-    guardPolicy: fixedGuardPolicy,
+    guardPolicy: directConceptual
+      ? { ...fixedGuardPolicy, preventDirectAnswer: false }
+      : fixedGuardPolicy,
     decisionReason: decisionReasonFor(input, strategy, guidanceLevel),
     policyVersion: TEACHING_POLICY_VERSION,
   }
@@ -127,6 +133,9 @@ export function selectTeachingStrategy(
 
   if (hasAuthoritativeTopicConflict(input)) {
     return TeachingStrategy.SOCRATIC_QUESTIONING
+  }
+  if (isDirectConceptualAnalysis(input.analysis.result)) {
+    return TeachingStrategy.GUIDED_EXPLANATION
   }
   if (
     input.analysis.analysisSource === EDUCATIONAL_ANALYSIS_SOURCE.FALLBACK ||
@@ -328,8 +337,9 @@ function decisionReasonFor(
     return 'Selected conservative Level 1 Socratic guidance because authoritative TopicResolution conflicts with the accepted analysis topic relation.'
   }
 
-  const reason =
-    analysis.analysisSource === EDUCATIONAL_ANALYSIS_SOURCE.FALLBACK
+  const reason = isDirectConceptualAnalysis(analysis.result)
+    ? 'Selected guided explanation because the accepted analysis identifies a direct conceptual request without an attempt, misconception, or debugging context.'
+    : analysis.analysisSource === EDUCATIONAL_ANALYSIS_SOURCE.FALLBACK
       ? 'Selected conservative Socratic questioning because the accepted analysis is a fallback.'
       : state === StudentState.UNKNOWN
         ? 'Selected conservative Socratic questioning because the accepted analysis uses an unknown student state.'

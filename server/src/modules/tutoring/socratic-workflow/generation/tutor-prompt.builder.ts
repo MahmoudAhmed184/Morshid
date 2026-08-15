@@ -31,6 +31,7 @@ const TUTOR_GENERATION_SYSTEM_PROMPT = [
   'Strategy and technique determine the pedagogical method, but they never replace, narrow, or reduce the authoritative Guidance Level response shape.',
   'Treat the target inference as the correction, conclusion, value, relationship, or next reasoning result the student is currently meant to produce.',
   'When the disclosure contract prohibits the target inference, do not state it before a question and then ask the student to repeat, confirm, locate, or trivially apply it.',
+  'When the disclosure contract allows a bounded conceptual explanation, state the minimum useful grounded core concept before asking one meaningful comparison, prediction, application, or reflection question.',
   'A retrieved fact is evidence for accuracy, not permission to reveal that fact to the student.',
   'If Reveal Policy is NO_FINAL_ANSWER, do not disclose the final answer, complete solution, submission-ready code, or final result.',
   'For DEBUGGING_GUIDANCE, identify one likely issue, its relevant location, the supporting concept, and exactly one inspection or trace action. Never execute student code or return a corrected program.',
@@ -65,6 +66,7 @@ export function buildTutorGenerationModelRequest(
 
 function buildTutorUserPrompt(context: GenerationContextPackage): string {
   const disclosureContract = buildSocraticDisclosureContract({
+    requestKind: context.acceptedAnalysis.result.requestKind,
     guidanceLevel: context.teachingDecision.guidanceLevel,
     revealPolicy: context.teachingDecision.revealPolicy,
     guardPolicy: context.teachingDecision.guardPolicy,
@@ -91,6 +93,8 @@ function buildTutorUserPrompt(context: GenerationContextPackage): string {
       strategyAndTechniqueCannotReduceGuidanceShape: true,
       overRevealInvariant:
         'When directTargetInferenceAllowed is false, do not state the correction or key inference and then ask a trivial confirmation or application question. Ask a focused question, direct attention to structure, or give a bounded clue that preserves the inference for the student.',
+      conceptualExplanationInvariant:
+        'When boundedConceptualExplanationAllowed is true, a vague statement that concepts differ is insufficient. State the minimum useful grounded distinction or definition, then request one meaningful student understanding action.',
       useOnlyAllowedCitationIds: true,
     }),
     section('3. Authoritative TeachingDecision', {

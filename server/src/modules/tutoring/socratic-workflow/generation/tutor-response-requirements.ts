@@ -1,9 +1,10 @@
 import { MessageRequestKind, StudentState } from '../../tutoring-values'
 
 import type { EducationalAnalysisResult } from '../analysis/educational-analysis.types'
+import { isDirectConceptualAnalysis } from '../teaching-decision/direct-conceptual-policy'
 
 export const TUTOR_RESPONSE_REQUIREMENTS_VERSION =
-  'tutor-response-requirements.v2'
+  'tutor-response-requirements.v3'
 
 export type TutorGuidanceMode =
   'ORIENTATION' | 'FOCUSED_HINT' | 'GUIDED_DECOMPOSITION' | 'STRONG_GUIDANCE'
@@ -26,7 +27,8 @@ export interface TutorResponseRequirements {
   readonly guidanceLevel: number
   readonly guidanceShape: TutorGuidanceShapeRequirements
   readonly strategyAndTechniqueMustNotReduceGuidanceShape: true
-  readonly supportedConceptualExplanation: boolean
+  readonly minimumUsefulConceptualExplanationRequired: boolean
+  readonly conceptualUnderstandingCheckRequired: boolean
   readonly askWhatStudentTried: boolean
   readonly smallStartingHintCount: 0 | 1
   readonly identifyLikelyMisconception: boolean
@@ -41,7 +43,7 @@ export interface TutorResponseRequirements {
 export function buildTutorResponseRequirements(input: {
   readonly analysis: Pick<
     EducationalAnalysisResult,
-    'requestKind' | 'studentState' | 'effortEvidence'
+    'requestKind' | 'studentState' | 'effortEvidence' | 'misconceptions'
   >
   readonly guidanceLevel: number
 }): TutorResponseRequirements {
@@ -56,15 +58,16 @@ export function buildTutorResponseRequirements(input: {
     !input.analysis.effortEvidence.present &&
     guidanceLevel === 1
   const isAttempt = requestKind === MessageRequestKind.ATTEMPT_DIAGNOSIS
+  const isDirectConceptual = isDirectConceptualAnalysis(input.analysis)
 
   return Object.freeze({
     version: TUTOR_RESPONSE_REQUIREMENTS_VERSION,
     requestKind,
     guidanceLevel,
-    guidanceShape: guidanceShapeRequirements(guidanceLevel),
+    guidanceShape: guidanceShapeRequirements(guidanceLevel, isDirectConceptual),
     strategyAndTechniqueMustNotReduceGuidanceShape: true,
-    supportedConceptualExplanation:
-      requestKind === MessageRequestKind.CONCEPTUAL,
+    minimumUsefulConceptualExplanationRequired: isDirectConceptual,
+    conceptualUnderstandingCheckRequired: isDirectConceptual,
     askWhatStudentTried: isNoAttemptProblem,
     smallStartingHintCount: isNoAttemptProblem ? 1 : 0,
     identifyLikelyMisconception:
@@ -86,6 +89,7 @@ export function buildTutorResponseRequirements(input: {
 
 function guidanceShapeRequirements(
   guidanceLevel: number,
+  directConceptual = false,
 ): TutorGuidanceShapeRequirements {
   switch (guidanceLevel) {
     case 1:
@@ -97,10 +101,12 @@ function guidanceShapeRequirements(
         explainConnectionsBetweenScaffoldMoves: false,
         singleGuidingQuestionIsSufficient: true,
         analogousExampleOrNearCompleteScaffoldRequired: false,
-        residualStudentWork:
-          'The student chooses a starting point or identifies the relevant structure.',
-        generationInstruction:
-          'Orient the student to the task or a starting point without supplying the target inference.',
+        residualStudentWork: directConceptual
+          ? 'The student applies, compares, predicts from, or reflects on the stated core concept.'
+          : 'The student chooses a starting point or identifies the relevant structure.',
+        generationInstruction: directConceptual
+          ? 'State the minimum useful grounded core concept without over-explaining, then ask one meaningful understanding or application question.'
+          : 'Orient the student to the task or a starting point without supplying the target inference.',
       })
     case 2:
       return Object.freeze({
