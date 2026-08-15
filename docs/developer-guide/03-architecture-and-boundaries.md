@@ -11,20 +11,20 @@ Eight accepted ADRs in [`docs/adr/`](file:///home/mahmoud-ahmed/Projects/Morshid
 ```mermaid
 graph TD
     subgraph CoreStructure["Core structure and modularization"]
-        ADR1["ADR 0001: Capability-First Ownership"]
-        ADR5["ADR 0005: Frontend Features & Role Workspaces"]
-        ADR6["ADR 0006: Enforced Acyclic Dependency Graph"]
+        ADR1["ADR 0001: Capability-first ownership"]
+        ADR5["ADR 0005: Frontend features and role workspaces"]
+        ADR6["ADR 0006: Enforced acyclic dependency graph"]
     end
 
     subgraph TutoringAndReviews["Tutoring, AI, and reviews"]
-        ADR2["ADR 0002: Single Tutoring Runtime & Attempt"]
-        ADR3["ADR 0003: Reviews Owns Student Inbox"]
-        ADR8["ADR 0008: Project-Aware Gemini Chat Pool"]
+        ADR2["ADR 0002: One tutoring runtime and attempt"]
+        ADR3["ADR 0003: Reviews owns the student inbox"]
+        ADR8["ADR 0008: Project-aware Gemini chat pool"]
     end
 
     subgraph DataAndTransactions["Persistence and clean slate"]
-        ADR4["ADR 0004: Multi-File Prisma & Clean-Slate Migration"]
-        ADR7["ADR 0007: Opaque Database Transaction"]
+        ADR4["ADR 0004: Multi-file Prisma and clean-slate migration"]
+        ADR7["ADR 0007: Opaque database transaction"]
     end
 ```
 
@@ -32,14 +32,14 @@ graph TD
 
 | ADR | Title | Core decision and rationale |
 |---|---|---|
-| **0001** | [Capability-First Ownership](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0001-capability-first-ownership.md) | Organizes product code by named business capabilities (`Identity`, `Courses`, `Materials`, `Conversations`, `Tutoring`, `Reviews`, `Audit`, `Health`). Shared utilities (`common/`) and platform adapters (`platform/`) must never import product modules. |
-| **0002** | [One Tutoring Runtime & Attempt](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0002-one-tutoring-runtime-and-attempt.md) | Tutoring owns a single authoritative `TutoringAttempt` aggregate and exposes one execution method: `TutoringRuntime.run(command): Promise<TutoringTurnReceipt>`. Code diagnosis provides Socratic debugging guidance; the server never executes student code. |
-| **0003** | [Reviews Owns the Student Inbox](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0003-reviews-owned-student-inbox.md) | Removes generic notification abstractions. `Reviews` directly owns case intake, instructor moderation queues, resolution workflows, and the student review inbox. |
-| **0004** | [Multi-File Prisma & Clean-Slate Migration](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0004-clean-slate-prisma-migration.md) | Splits the Prisma schema across domain files (`*.prisma`). Uses a single clean-slate initial migration (`20260811150000_initial`) verified by database catalog hashing. |
-| **0005** | [Frontend Features & Role Workspaces](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0005-frontend-features-and-workspaces.md) | Keeps client routes thin. Domain behavior lives in `client/src/features/`; role-specific views live in `client/src/workspaces/` (`admin`, `instructor`, `student`). Features import from other features only through explicit `interface/` files. |
-| **0006** | [Enforce An Acyclic Dependency Graph](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0006-enforced-dependency-graph.md) | Uses `depcruise` to enforce strict dependency graphs across client and server workspaces. Broad barrel exports and circular imports fail the build. |
-| **0007** | [Opaque Database Transaction Participation](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0007-opaque-database-transaction.md) | Defines an opaque `DatabaseTransaction` token. Module interfaces accept this token to coordinate multi-module transactions without exposing Prisma types across boundaries. |
-| **0008** | [Project-Aware Gemini Chat Credential Pool](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0008-project-aware-gemini-chat-pool.md) | Distributes chat traffic across Google Cloud projects using Redis, applying exponential backoff on HTTP 429 to prevent rate exhaustion across replicas. |
+| **0001** | [Capability-first ownership](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0001-capability-first-ownership.md) | Organizes product code by named business capabilities (`Identity`, `Courses`, `Materials`, `Conversations`, `Tutoring`, `Reviews`, `Audit`, `Health`). Shared utilities (`common/`) and platform adapters (`platform/`) must never import product modules. |
+| **0002** | [One tutoring runtime and attempt](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0002-one-tutoring-runtime-and-attempt.md) | Tutoring owns a single `TutoringAttempt` aggregate and exposes one execution method: `TutoringRuntime.run(command): Promise<TutoringTurnReceipt>`. Code diagnosis provides Socratic debugging guidance; the server never executes student code. |
+| **0003** | [Reviews owns the student inbox](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0003-reviews-owned-student-inbox.md) | Removes generic notification abstractions. `Reviews` directly owns case intake, instructor moderation queues, resolution workflows, and the student review inbox. |
+| **0004** | [Multi-file Prisma schema and clean-slate migration](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0004-clean-slate-prisma-migration.md) | Splits the Prisma schema across domain files (`*.prisma`). Uses a single clean-slate initial migration (`20260811150000_initial`) verified by database catalog hashing. |
+| **0005** | [Frontend domain features and role workspaces](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0005-frontend-features-and-workspaces.md) | Keeps client routes thin. Domain behavior lives in `client/src/features/`; role-specific views live in `client/src/workspaces/` (`admin`, `instructor`, `student`). Features import from other features only through explicit `interface/` files. |
+| **0006** | [Enforce an acyclic dependency graph](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0006-enforced-dependency-graph.md) | Uses `depcruise` to enforce strict dependency graphs across client and server workspaces. Broad barrel exports and circular imports fail the build. |
+| **0007** | [Opaque database transaction participation](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0007-opaque-database-transaction.md) | Defines an opaque `DatabaseTransaction` token. Module interfaces accept this token to coordinate multi-module transactions without exposing Prisma types across boundaries. |
+| **0008** | [Project-aware Gemini chat credential pool](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0008-project-aware-gemini-chat-pool.md) | Distributes chat traffic across Google Cloud projects using Redis, applying exponential backoff on HTTP 429 to prevent rate exhaustion across replicas. |
 
 ---
 
@@ -71,12 +71,12 @@ graph TD
 
     ProductModules -->|Allowed| P
     ProductModules -->|Allowed| C
-    ProductModules -.->|FORBIDDEN| ForbiddenLayers
-    P -.->|FORBIDDEN to import| ProductModules
-    C -.->|FORBIDDEN to import| ProductModules
+    ProductModules -.->|Forbidden| ForbiddenLayers
+    P -.->|Forbidden to import| ProductModules
+    C -.->|Forbidden to import| ProductModules
     
     R -->|Allowed| Prisma
-    ProductModules -.->|FORBIDDEN to import Prisma directly| Prisma
+    ProductModules -.->|Forbidden to import Prisma directly| Prisma
 ```
 
 ### Server rules enforced by `depcruise`
@@ -103,7 +103,7 @@ The client separates shared UI and utilities, domain features, role workspaces, 
 ```mermaid
 graph TD
     subgraph Routes["client/src/routes/* (thin entry points)"]
-        R1[Route Loaders & Layouts]
+        R1[Route loaders and layouts]
     end
 
     subgraph Workspaces["client/src/workspaces/* (role composition)"]
@@ -132,11 +132,11 @@ graph TD
     Workspaces --> Shared
     Features --> Shared
     
-    Workspaces -.->|FORBIDDEN to cross-import| Workspaces
-    Features -.->|FORBIDDEN to import| Workspaces
-    Features -.->|FORBIDDEN to import| Routes
-    Shared -.->|FORBIDDEN to import| Features
-    Shared -.->|FORBIDDEN to import| Workspaces
+    Workspaces -.->|Forbidden to cross-import| Workspaces
+    Features -.->|Forbidden to import| Workspaces
+    Features -.->|Forbidden to import| Routes
+    Shared -.->|Forbidden to import| Features
+    Shared -.->|Forbidden to import| Workspaces
 ```
 
 ### Client rules enforced by `depcruise`

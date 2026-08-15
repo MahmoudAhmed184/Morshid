@@ -9,7 +9,7 @@ Use these terms consistently in code, documentation, tasks, and review.
 - **Implementation:** behavior hidden behind a module's interface.
 - **Seam:** the location of a module's interface.
 - **Adapter:** a concrete implementation at a seam.
-- **Deep module:** substantial caller leverage behind a small interface.
+- **Deep module:** substantial functionality behind a small interface.
 - **Capability:** cohesive domain behavior that changes for one reason.
 - **Workspace:** role-specific frontend composition and presentation.
 - **Platform:** technical infrastructure with no dependency on product modules.

@@ -46,7 +46,7 @@ async updateTitle(
 ```
 
 ### Step 4: Verify architecture boundaries
-Run `npm run test:architecture:server` to verify no cross-module imports were introduced.
+Run `npm run test:architecture:server` to verify that no cross-module imports were introduced.
 
 ---
 
@@ -157,4 +157,4 @@ In [`server/src/modules/tutoring/socratic-workflow/response-approval/semantic-gu
 - Add evaluation criteria to the guard model prompt instructing it to flag the new violation category.
 
 ### Step 4: Add unit and E2E regression tests
-Add a targeted test in `server/src/modules/tutoring/socratic-workflow/response-approval/response-approval.service.spec.ts` verifying that candidate responses triggering this violation are rejected and regenerated.
+Add a targeted test in `server/src/modules/tutoring/socratic-workflow/response-approval/response-approval.service.spec.ts` to verify that candidate responses triggering this violation are rejected and regenerated.

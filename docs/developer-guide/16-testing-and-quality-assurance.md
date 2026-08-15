@@ -63,18 +63,18 @@ Server E2E tests in [`server/test/`](file:///home/mahmoud-ahmed/Projects/Morshid
 ### 3.1 Disposable database strategy ([`disposable-database.ts`](file:///home/mahmoud-ahmed/Projects/Morshid/server/test/support/disposable-database.ts))
 
 To isolate test suites and avoid global database cleanup:
-1. Each test suite generates a unique UUID-based database name (`CREATE DATABASE "e2e_${uuid}"`).
+1. Creates a unique UUID-based database name (`CREATE DATABASE "e2e_${uuid}"`).
 2. Runs raw SQL migrations directly from `server/prisma/migrations/`.
 3. Seeds baseline data.
 4. Executes the test suite.
-5. In `afterAll`, terminates active connections and drops the temporary database with `DROP DATABASE "e2e_${uuid}" WITH (FORCE)`.
+5. Terminates active connections in `afterAll` and drops the temporary database with `DROP DATABASE "e2e_${uuid}" WITH (FORCE)`.
 
 ### 3.2 Controllable AI test doubles ([`socratic-e2e-providers.ts`](file:///home/mahmoud-ahmed/Projects/Morshid/server/test/support/socratic-e2e-providers.ts))
 
 E2E tests swap network AI adapters for deterministic test ports:
-- `ControllableAnalysisModelPort` dictates the returned `studentState` (such as `MISCONCEPTION` or `DEBUGGING_ISSUE`) and effort evidence.
+- `ControllableAnalysisModelPort` sets the returned `studentState` (such as `MISCONCEPTION` or `DEBUGGING_ISSUE`) and effort evidence.
 - `ControllableTutorModelPort` returns structured JSON responses with custom citation IDs.
-- `ControllableSemanticGuardPort` simulates guard outcomes: approvals, over-reveal policy rejections, or transport failures.
+- `ControllableSemanticGuardPort` simulates guard outcomes, including approvals, over-reveal policy rejections, and transport failures.
 
 ---
 
@@ -83,7 +83,7 @@ E2E tests swap network AI adapters for deterministic test ports:
 Acceptance tests run via Playwright against the full stack.
 
 - Configuration lives in [`playwright.config.ts`](file:///home/mahmoud-ahmed/Projects/Morshid/playwright.config.ts).
-- Playwright starts NestJS on port 4000 (with deterministic test AI providers) and Vite on port 3000, waiting for `/health/live` before executing test journeys.
+- Playwright starts NestJS on port 4000 (with deterministic test AI providers) and Vite on port 3000, then waits for `/health/live` before running test journeys.
 
 ### Acceptance journeys ([`tests/acceptance/`](file:///home/mahmoud-ahmed/Projects/Morshid/tests/acceptance/))
 
@@ -91,13 +91,13 @@ Acceptance tests run via Playwright against the full stack.
 2. **`student/student-debugging-guidance.spec.ts`**: Student submits broken code and verifies that the tutor provides conceptual debugging guidance without leaking full code solutions.
 3. **`instructor/instructor-review-workspace.spec.ts`**: Instructor inspects pending student reviews, claims tickets, overrides AI guidance, and publishes resolutions.
 4. **`admin/admin-shell-and-account-management.spec.ts`**: Admin creates users, modifies roles, disables accounts, and verifies immutable audit logs.
-5. **`cross-role/role-boundaries.spec.ts`**: Verifies that students cannot access instructor routes, unassigned students cannot query unenrolled courses, and instructors cannot access admin settings.
+5. **`cross-role/role-boundaries.spec.ts`**: Checks that students cannot access instructor routes, unassigned students cannot query unenrolled courses, and instructors cannot access admin settings.
 
 ---
 
 ## 5. CI/CD pipeline
 
-Defined in [`.github/workflows/ci.yml`](file:///home/mahmoud-ahmed/Projects/Morshid/.github/workflows/ci.yml):
+The workflow is defined in [`.github/workflows/ci.yml`](file:///home/mahmoud-ahmed/Projects/Morshid/.github/workflows/ci.yml):
 
 ```mermaid
 graph TD
@@ -126,4 +126,5 @@ graph TD
 ```
 
 - Each job generates random 32-byte hex secrets (`openssl rand -hex 32`) instead of hardcoding credentials in CI.
-- Active runs on the same branch are automatically cancelled when a new commit is pushed (`cancel-in-progress: true`).
+- When a new commit is pushed, CI cancels active runs on the same branch (`cancel-in-progress: true`).
+

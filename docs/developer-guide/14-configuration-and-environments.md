@@ -55,7 +55,7 @@ graph TD
 | `PDF_STORAGE_PATH` | Non-empty String | `'../storage/pdfs'` | Directory for uploaded PDFs. Production requires an absolute path. |
 | `PDF_MAX_UPLOAD_BYTES` | Integer (<= 100 MB) | `10485760` (10 MB) | Maximum upload size for a single PDF. |
 | `RETRIEVAL_TOP_K` | Positive Integer | `5` | Maximum candidate chunks returned by vector search. |
-| `RETRIEVAL_MIN_SIMILARITY` | Float `0.0 to 1.0` | `0.62` | Cosine similarity threshold for RAG grounding: `1 - distance >= 0.62`. |
+| `RETRIEVAL_MIN_SIMILARITY` | Float `0.0 to 1.0` | `0.62` | Cosine similarity threshold for RAG grounding (`1 - distance >= 0.62`). |
 
 ### 2.4 AI model roles and providers
 | Variable name | Type and validation | Default value | Description |
@@ -81,9 +81,9 @@ graph TD
 
 ---
 
-## 3. Docker Compose vs. local host configuration
+## 3. Docker Compose and local host configuration
 
-Morshid separates infrastructure containers from host development processes:
+Morshid separates infrastructure containers from host development processes.
 
 ```mermaid
 graph LR

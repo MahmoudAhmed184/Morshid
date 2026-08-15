@@ -39,7 +39,7 @@ graph LR
 
 ## 2. Data model and enums
 
-Defined in [`server/prisma/reviews.prisma`](file:///home/mahmoud-ahmed/Projects/Morshid/server/prisma/reviews.prisma):
+Defined in [`server/prisma/reviews.prisma`](file:///home/mahmoud-ahmed/Projects/Morshid/server/prisma/reviews.prisma).
 
 ### 2.1 Enums
 

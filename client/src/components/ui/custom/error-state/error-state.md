@@ -1,8 +1,8 @@
 # ErrorState
 
-Use `ErrorState` when data failed to load and the user can retry or recover.
+Use `ErrorState` when data fails to load and the user can retry or recover.
 
-Good places to use it:
+When to use:
 
 - Query failures in tables, detail pages, dashboards, and cards.
 - API readiness or dependency failures.
@@ -35,5 +35,5 @@ Custom action:
 
 Notes:
 
-- Pass `onRetry` when the user can retry the failed request.
-- `isRetrying` shows spinner styling on the retry icon.
+- Pass `onRetry` when the user can retry the request.
+- `isRetrying` shows a spinner on the retry icon.

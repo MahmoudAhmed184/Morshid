@@ -110,7 +110,7 @@ flowchart TD
   1. Structural validation ([`structural-response.validator.ts`](file:///home/mahmoud-ahmed/Projects/Morshid/server/src/modules/tutoring/socratic-workflow/response-approval/structural-response.validator.ts)). Enforces the JSON schema, ensures a non-empty response, and checks that citations match the allowlist.
   2. Deterministic guard ([`deterministic-guard.service.ts`](file:///home/mahmoud-ahmed/Projects/Morshid/server/src/modules/tutoring/socratic-workflow/response-approval/deterministic-guard.service.ts)). Uses regular expressions to catch direct solutions, full function definitions, executable code blocks, or excessive step disclosures.
   3. Semantic guard ([`semantic-guard.service.ts`](file:///home/mahmoud-ahmed/Projects/Morshid/server/src/modules/tutoring/socratic-workflow/response-approval/semantic-guard.service.ts)). Runs `SEMANTIC_GUARD_MODEL_*` to check for subtle answer leakage or policy violations.
-- Safe fallback ([`safe-fallback.service.ts`](file:///home/mahmoud-ahmed/Projects/Morshid/server/src/modules/tutoring/socratic-workflow/response-approval/safe-fallback.service.ts)). If all 3 generation attempts fail validation, builds a deterministic probing question matching the selected strategy.
+- Safe fallback ([`safe-fallback.service.ts`](file:///home/mahmoud-ahmed/Projects/Morshid/server/src/modules/tutoring/socratic-workflow/response-approval/safe-fallback.service.ts)). If all three generation attempts fail validation, it generates a deterministic probing question matching the selected strategy.
 
 ### Phase 7: Atomic finalization
 - Files: [`tutoring-turn.repository.ts`](file:///home/mahmoud-ahmed/Projects/Morshid/server/src/modules/tutoring/attempt/tutoring-turn.repository.ts) and [`prisma-conversation-turns.ts`](file:///home/mahmoud-ahmed/Projects/Morshid/server/src/modules/conversations/prisma-conversation-turns.ts).
@@ -122,4 +122,4 @@ flowchart TD
   5. Inserts `TutoringCandidateAttempt` and `GuardResult` records for auditing.
   6. Sets `TutoringAttempt.status = COMPLETED` and clears the lease.
   7. Writes an `audit_logs` record.
-- Receipt returned. Returns `TutoringTurnReceipt` containing the saved messages and citations to the caller.
+- Receipt returned. Returns the `TutoringTurnReceipt` containing saved messages and citations to the caller.

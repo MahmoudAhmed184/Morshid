@@ -1,4 +1,4 @@
-# ADR 0006: enforce an acyclic dependency graph with named interfaces
+# ADR 0006: Enforce an acyclic dependency graph with named interfaces
 
 - **Status:** Accepted
 - **Date:** 2026-08-11
@@ -35,6 +35,6 @@ scripts become part of the repository's review contract.
 
 ## References
 
-- `docs/architecture-refactor-plan-2026-08-11.md`, sections 2, 5, 8, and 17
-- `docs/research/whole-workspace-broad-refactor-safety-2026-08-11.md`
-- dependency-cruiser 18.2.0 documentation and types
+- [docs/developer-guide/03-architecture-and-boundaries.md](file:///home/mahmoud-ahmed/Projects/Morshid/docs/developer-guide/03-architecture-and-boundaries.md)
+- [AGENTS.md](file:///home/mahmoud-ahmed/Projects/Morshid/AGENTS.md)
+- [dependency-cruiser.config.mjs](file:///home/mahmoud-ahmed/Projects/Morshid/dependency-cruiser.config.mjs)

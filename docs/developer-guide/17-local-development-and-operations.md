@@ -7,7 +7,7 @@ This guide covers how to set up, run, debug, and maintain Morshid locally.
 ## 1. Prerequisites and environment setup
 
 ### Required tools
-- **Node.js**: `>=24.7 <25` (enforced via `.node-version` and `.nvmrc`)
+- **Node.js**: `>=24.7 <25` (enforced via [`.node-version`](file:///home/mahmoud-ahmed/Projects/Morshid/.node-version) and [`.nvmrc`](file:///home/mahmoud-ahmed/Projects/Morshid/.nvmrc))
 - **npm**: `>=11` (`npm@11.18.0`)
 - **Docker and Docker Compose**: for local PostgreSQL (`pgvector`) and Redis instances
 
@@ -49,14 +49,14 @@ npm run dev
 | `npm run infra:down` | Stops and tears down Docker containers | `docker compose down` |
 | `npm run check` | Runs full quality gate (format, lint, types, arch, build) | Canonical CI verification gate |
 | `npm run test` | Runs unit tests across scripts, client, and server | Node test runner + Vitest + Jest |
-| `npm run test:e2e` | Runs server integration tests with disposable databases | Jest E2E runner (`server/test/`) |
-| `npm run test:acceptance` | Runs Playwright browser journey tests | Playwright (`tests/acceptance/`) |
+| `npm run test:e2e` | Runs server integration tests with disposable databases | Jest E2E runner ([`server/test/`](file:///home/mahmoud-ahmed/Projects/Morshid/server/test/)) |
+| `npm run test:acceptance` | Runs Playwright browser journey tests | Playwright ([`tests/acceptance/`](file:///home/mahmoud-ahmed/Projects/Morshid/tests/acceptance/)) |
 
 ---
 
 ## 3. Seed accounts and test data
 
-Running `npm run db:seed` creates test accounts. The password for every seed account is:
+Running `npm run db:seed` creates test accounts. The password for all seed accounts is:
 
 ```
 MorshidDemoP0!
@@ -79,7 +79,7 @@ MorshidDemoP0!
 ## 4. Operational scripts and maintenance tasks
 
 ### 4.1 Automated 5-stage demo gate (`npm run demo:fresh-seed`)
-Runs an end-to-end verification pipeline from scratch:
+Runs an end-to-end verification pipeline from scratch via [`scripts/fresh-seed-demo.mts`](file:///home/mahmoud-ahmed/Projects/Morshid/scripts/fresh-seed-demo.mts):
 ```bash
 MORSHID_RESET_CONFIRM=reset-local npm run demo:fresh-seed
 ```
@@ -90,13 +90,13 @@ MORSHID_RESET_CONFIRM=reset-local npm run demo:fresh-seed
 5. Run full server E2E test suite (`npm run test:e2e`).
 
 ### 4.2 Database reset (`npm run db:reset`)
-Drops and recreates all tables in the local development database:
+Drops and recreates all tables in the local development database via [`scripts/reset-local-db.mts`](file:///home/mahmoud-ahmed/Projects/Morshid/scripts/reset-local-db.mts):
 ```bash
 MORSHID_RESET_CONFIRM=reset-local npm run db:reset
 ```
 
 ### 4.3 Clearing review queue data (`npm run reviews:clear-local`)
-Clears review cases, evidence snapshots, and student inbox items while keeping courses and users:
+Clears review cases, evidence snapshots, and student inbox items while keeping courses and users via [`scripts/clear-local-review-data.mts`](file:///home/mahmoud-ahmed/Projects/Morshid/scripts/clear-local-review-data.mts):
 ```bash
 MORSHID_REVIEW_CLEANUP_CONFIRM=clear-local-reviews npm run reviews:clear-local
 ```
@@ -130,7 +130,7 @@ kill -9 <PID>
 ```
 
 ### Generated files drift
-If `npm run test:generated-ownership` fails:
+If `npm run test:generated-ownership` fails (checked via [`scripts/verify-generated-ownership.mts`](file:///home/mahmoud-ahmed/Projects/Morshid/scripts/verify-generated-ownership.mts)):
 ```bash
 # Regenerate router tree and Prisma client
 npm run generate-routes --workspace client

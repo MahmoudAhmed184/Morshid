@@ -1,4 +1,4 @@
-# ADR 0004: multi-file Prisma schema and one clean-slate migration
+# ADR 0004: Multi-file Prisma schema and one clean-slate migration
 
 - **Status:** Accepted
 - **Date:** 2026-08-11
@@ -12,28 +12,29 @@ make the final ownership model harder to audit.
 
 ## Decision
 
-Split the authored Prisma schema into cohesive domain files with a generator
-and datasource entry. Replace the migration chain with one rolling clean-slate
+Split the authored Prisma schema into domain files with a generator and
+datasource entry. Replace the migration chain with one rolling clean-slate
 initial migration. Every schema-changing slice regenerates that same initial
 SQL from an empty database, reconciles the handwritten SQL inventory, resets a
-disposable database, runs explicit seed, and checks the catalog and drift.
-Retain `migration_lock.toml`; keep the removed HNSW index absent. Generated
+disposable database, runs explicit seed scripts, and checks the catalog and drift.
+Retain `migration_lock.toml`. Keep the removed HNSW index absent. Generated
 Prisma output remains generated and ignored.
 
 ## Rejected alternatives
 
 - Appending compatibility migrations to the existing eighteen-directory chain.
 - Keeping one large schema file as the domain model grows.
-- Preserving HNSW or other obsolete indexes merely because they exist today.
+- Preserving HNSW or other obsolete indexes just because they currently exist.
 
 ## Consequences
 
 Database data may be discarded and reseeded during this refactor. Migration
 review focuses on the final catalog, constraints, triggers, indexes,
-extensions, and deterministic seed rather than upgrade compatibility. The
+extensions, and deterministic seed scripts rather than upgrade compatibility. The
 single initial migration is frozen and audited in Milestone 9.
 
 ## References
 
-- `docs/architecture-refactor-plan-2026-08-11.md`, sections 3.3, 6, 13, and 17
-- `docs/research/predeployment-contract-and-prisma-clean-slate-2026-08-11.md`
+- [docs/developer-guide/07-database-and-persistence.md](file:///home/mahmoud-ahmed/Projects/Morshid/docs/developer-guide/07-database-and-persistence.md)
+- [server/prisma/README.md](file:///home/mahmoud-ahmed/Projects/Morshid/server/prisma/README.md)
+- [AGENTS.md](file:///home/mahmoud-ahmed/Projects/Morshid/AGENTS.md)

@@ -37,8 +37,8 @@ The API receives uploads at `POST /api/v1/courses/:courseId/materials` and valid
 
 ```mermaid
 flowchart TD
-    Req[Multipart File Upload] --> Interceptor[PdfUploadInterceptor: Validate courseId UUID]
-    Interceptor --> Multer[Multer Memory Storage: Max 10MB]
+    Req["Multipart File Upload"] --> Interceptor["PdfUploadInterceptor: Validate courseId UUID"]
+    Interceptor --> Multer["Multer Memory Storage: Max 10 MB"]
     Multer --> Validator{PdfUploadValidator}
     
     Validator -->|Title Empty or > 180 chars| Err400A[400 Bad Request]
@@ -124,7 +124,7 @@ sequenceDiagram
   - **Target chunk size.** `1,200` characters (`MATERIAL_CHUNK_TARGET_CHARACTERS`).
   - **Overlap size.** `200` characters (`MATERIAL_CHUNK_OVERLAP_CHARACTERS`).
   - **Boundary search.** Looks for natural break points (`\n\n`, `\n`, or `' '`) within `[start + 600, start + 1200]`.
-  - Advances window: `nextStart = boundaryIndex - 200`.
+  - **Window advancement.** Sets `nextStart = boundaryIndex - 200`.
 
 ---
 
@@ -137,8 +137,8 @@ stateDiagram-v2
     [*] --> PROCESSING: Upload Received & Command Queued
     
     PROCESSING --> READY: Text extracted, chunked & 100% embedded
-    PROCESSING --> WARNING: Text extracted with non-fatal warnings (e.g. Partial Page Text)
-    PROCESSING --> FAILED: Fatal error (Corrupt PDF, Scanned/No Text, Embedding Failure)
+    PROCESSING --> WARNING: Text extracted with non-fatal warnings (e.g., partial page text)
+    PROCESSING --> FAILED: Fatal error (corrupt PDF, scanned or no text, embedding failure)
     
     READY --> [*]: Active for RAG
     WARNING --> [*]: Active for RAG (with warning badge)

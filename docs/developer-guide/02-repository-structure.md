@@ -54,9 +54,9 @@ The root [`package.json`](file:///home/mahmoud-ahmed/Projects/Morshid/package.js
 
 ### Dependency overrides
 
-The root manifest pins two dependency overrides:
-- `@nestjs/platform-express`: pins `multer` to `2.2.0` for memory storage and PDF stream handling.
-- `@prisma/dev`: pins `@hono/node-server` to `1.19.14`.
+The root manifest specifies two dependency overrides:
+- `@nestjs/platform-express` pins `multer` to `2.2.0` for memory storage and PDF stream handling.
+- `@prisma/dev` pins `@hono/node-server` to `1.19.14`.
 
 ---
 
@@ -155,7 +155,7 @@ The `scripts/` directory contains database maintenance, verification, and reset 
 |---|---|---|
 | [`catalog-semantics.mts`](file:///home/mahmoud-ahmed/Projects/Morshid/scripts/catalog-semantics.mts) | Hashes PostgreSQL catalog constraints with SHA-256 to detect schema regressions. | `npm run db:assert-catalog` |
 | [`verify-generated-ownership.mts`](file:///home/mahmoud-ahmed/Projects/Morshid/scripts/verify-generated-ownership.mts) | Regenerates the Prisma client and TanStack route tree, then checks that output matches committed files. | `npm run test:generated-ownership` |
-| [`fresh-seed-demo.mts`](file:///home/mahmoud-ahmed/Projects/Morshid/scripts/fresh-seed-demo.mts) | Runs a five-stage test pipeline: reset database, seed demo data, lint, typecheck, check architecture rules, and run E2E tests. | `npm run demo:fresh-seed` |
+| [`fresh-seed-demo.mts`](file:///home/mahmoud-ahmed/Projects/Morshid/scripts/fresh-seed-demo.mts) | Runs a five-stage pipeline that resets the database, seeds demo data, lints, typechecks, checks architecture rules, and runs E2E tests. | `npm run demo:fresh-seed` |
 | [`reset-local-db.mts`](file:///home/mahmoud-ahmed/Projects/Morshid/scripts/reset-local-db.mts) | Drops and recreates local PostgreSQL tables. Requires `MORSHID_RESET_CONFIRM=reset-local`. | `npm run db:reset` |
 | [`clear-local-review-data.mts`](file:///home/mahmoud-ahmed/Projects/Morshid/scripts/clear-local-review-data.mts) | Truncates review cases and inbox items without dropping the full schema. Requires `MORSHID_REVIEW_CLEANUP_CONFIRM=clear-local-reviews`. | `npm run reviews:clear-local` |
 

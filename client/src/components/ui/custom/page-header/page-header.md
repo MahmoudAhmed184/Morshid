@@ -1,19 +1,19 @@
-# PageHeader
+# Page header
 
 Use `PageHeader` for the main heading area of a page.
 
-Good places to use it:
+## When to use
 
-- Dashboard pages, index pages, detail pages, settings pages.
-- Any page with title, description, badge/eyebrow, and right-side actions.
+- Dashboard pages, index pages, detail pages, and settings pages.
+- Any page with a title, description, badge or eyebrow, and right-side actions.
 
-Import:
+## Import
 
 ```tsx
 import { PageHeader } from '@/components/ui/custom/page-header'
 ```
 
-Basic usage:
+## Basic usage
 
 ```tsx
 <PageHeader
@@ -23,7 +23,7 @@ Basic usage:
 />
 ```
 
-With eyebrow:
+## With eyebrow
 
 ```tsx
 <PageHeader
@@ -33,7 +33,7 @@ With eyebrow:
 />
 ```
 
-Notes:
+## Notes
 
 - Use once near the top of a page.
 - Put page-level actions in `actions`, not inside the title block.

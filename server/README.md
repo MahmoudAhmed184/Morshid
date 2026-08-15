@@ -1,398 +1,168 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Morshid server
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+The backend service for Morshid is a strict TypeScript **NestJS 11** application providing REST APIs for authentication, course administration, material ingestion, vector retrieval via **PostgreSQL pgvector**, Socratic tutoring orchestration, human-in-the-loop review triage, and security auditing.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+---
 
-## Description
+## Architecture overview
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+The backend is structured according to capability-first ownership and platform separation ([ADR 0001](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0001-capability-first-ownership.md)):
 
-## Project setup
-
-```bash
-$ npm install
+```
+server/src/
+├── common/               # Shared cross-cutting primitives (guards, decorators, filters, interceptors)
+├── generated/            # Generated Prisma client (do not hand-edit)
+├── modules/              # Capability-first domain modules
+│   ├── audit/            # Security and compliance audit logging
+│   ├── conversations/    # Chat session and message persistence
+│   ├── courses/          # Course entity lifecycle and member rosters
+│   ├── health/           # Liveness and readiness endpoints (/health/live, /health/ready)
+│   ├── identity/         # Authentication, Argon2id password hashing, refresh rotation, user admin
+│   ├── materials/        # PDF extraction, chunking, pgvector search, readiness gating, embedding migration
+│   ├── reviews/          # Review intake (quotas, locks), evidence snapshots, instructor triage, student inbox
+│   └── tutoring/         # 7-phase Socratic tutoring engine, topic DAG, prompt builders, 3-stage guardrails
+└── platform/             # Technical infrastructure adapters
+    ├── ai/               # Gemini chat pool, embedding providers, structured transport, ITI gateway
+    ├── cache/            # Redis connection, token bucket rate limiters, Lua pooling scripts
+    ├── database/         # Prisma client service, opaque transaction runner
+    └── document-storage/ # Local filesystem UUID PDF storage adapter
 ```
 
-## Database seed
+---
 
-From the repo root, prefer:
+## Database and seeding
 
-```bash
-$ npm run db:seed
-```
-
-From this workspace, use the server-local entrypoint:
+To run migrations and seed the database from the repository root:
 
 ```bash
-$ npm run db:seed
+# Apply database migrations
+npm run db:migrate
+
+# Seed demo courses and accounts
+npm run db:seed
 ```
 
-The seed expects the local PostgreSQL service to be running and migrations to
-be applied. It loads the P0 demo accounts, the `PYTHON-PROG-P0` Python
-Programming course, and an unassigned `HIDDEN-ISOLATION` course. All seeded
-accounts use the local-only password `MorshidDemoP0!`.
+The seed loads the protected demo accounts, the `PYTHON-PROG-P0` course with 12 Python modules, and an unassigned `HIDDEN-ISOLATION` course for cross-tenant isolation tests. All seeded accounts use the password `MorshidDemoP0!`.
 
-## P0 auth sessions
+---
 
-The P0 auth API returns the access token in JSON and sets the rotating refresh
-token only in the HttpOnly `morshid_refresh` cookie. Clients send the access
-token as a `Bearer` token and preserve the cookie for refresh/logout. The JSON
-responses and request bodies do not carry refresh tokens; non-browser clients
-must use a cookie jar.
+## Identity, authentication, and sessions
 
-Passwords are stored as Argon2id hashes with per-password salt material encoded
-in the stored hash string. The current hash format records the algorithm,
-version, memory cost, pass count, parallelism, output length, salt, and hash
-value. Password verification recomputes Argon2id from the stored parameters and
-uses a timing-safe comparison.
+The identity system implements native NestJS authentication ([ADR 0001](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0001-capability-first-ownership.md)):
 
-### Auth environment configuration
+- **Access tokens**: Short-lived signed HS256 JWTs (15-minute default TTL) returned in JSON and sent in the `Authorization: Bearer <token>` header.
+- **Refresh tokens**: Rotating opaque tokens stored in the HttpOnly, SameSite, Secure cookie `morshid_refresh` (7-day default TTL), stored in the database as `HMAC-SHA256(token, AUTH_REFRESH_TOKEN_HASH_SECRET)`.
+- **Password security**: Passwords are hashed using Node 22 native Argon2id (`node:crypto.argon2Sync`) with per-password salt and timing-safe constant-time verification.
+- **Account status**: Disabling an account immediately revokes all active refresh tokens and blocks subsequent token refreshes and authenticated requests.
 
-Configure these values in `server/.env`. NestJS validates them at startup and
-also reads `.env` / `../.env` as fallbacks for local development.
+### Authentication environment variables
 
-| Variable                         | Required | Default | Purpose                                                                                                                       |
-| -------------------------------- | -------: | ------: | ----------------------------------------------------------------------------------------------------------------------------- |
-| `AUTH_ACCESS_TOKEN_SECRET`       |      Yes |    None | Secret used to sign and verify access JWTs. Use a unique random value with at least 32 characters per environment.            |
-| `AUTH_REFRESH_TOKEN_HASH_SECRET` |      Yes |    None | Secret used to HMAC refresh tokens before database storage. Use a different unique random value from the access-token secret. |
-| `AUTH_ACCESS_TOKEN_TTL_SECONDS`  |       No |   `900` | Access-token lifetime in seconds. The default is 15 minutes.                                                                  |
-| `AUTH_REFRESH_TOKEN_TTL_DAYS`    |       No |     `7` | Refresh-token lifetime in days.                                                                                               |
+Configure these in `.env` / `server/.env`:
 
-Access tokens are JWTs signed by `@nestjs/jwt` / `jsonwebtoken` with the current
-HMAC SHA-256 default (`HS256`) and `AUTH_ACCESS_TOKEN_SECRET`. The token payload
-contains `sub` for the user id and `typ: "access"`. Changing
-`AUTH_ACCESS_TOKEN_SECRET` invalidates existing access tokens.
+| Variable | Required | Default | Purpose |
+|---|---:|---:|---|
+| `AUTH_ACCESS_TOKEN_SECRET` | Yes | None | Secret key used to sign and verify access JWTs (minimum 32 characters). |
+| `AUTH_REFRESH_TOKEN_HASH_SECRET` | Yes | None | Secret key used to HMAC refresh tokens before database storage. |
+| `AUTH_ACCESS_TOKEN_TTL_SECONDS` | No | `900` | Access token lifetime in seconds (15 minutes). |
+| `AUTH_REFRESH_TOKEN_TTL_DAYS` | No | `7` | Refresh token lifetime in days (7 days). |
 
-Refresh tokens are opaque random values returned once to the client. The server
-stores only `HMAC-SHA256(refreshToken, AUTH_REFRESH_TOKEN_HASH_SECRET)` in the
-`refresh_tokens.token_hash` column, with `expires_at`, `revoked_at`, and
-`replaced_by_token_id` tracking expiry, logout/revocation, and rotation history.
-Changing `AUTH_REFRESH_TOKEN_HASH_SECRET` prevents existing refresh tokens from
-matching stored hashes, effectively forcing users to sign in again.
+---
 
-On refresh, the submitted refresh token is hashed, the matching active database
-record is revoked, a new refresh token record is created, and the old record is
-linked to the new one. Reusing the prior token after rotation is rejected as an
-invalid refresh token.
+## Socratic tutoring runtime and multi-model orchestration
 
-## Tutoring model roles
+The tutoring engine ([ADR 0002](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0002-one-tutoring-runtime-and-attempt.md)) configures three independent model roles:
 
-Tutoring has three explicit model roles: educational analysis, tutor response
-generation, and semantic guarding. Each role is configured independently so
-model identity and failure policy cannot be confused across stages:
+- `ANALYSIS_MODEL_*`: Educational intent analysis, student state classification, and misconception detection.
+- `TUTOR_MODEL_*`: Socratic pedagogical response generation.
+- `SEMANTIC_GUARD_*`: Multi-stage response validation and solution withholding evaluation.
 
-- ANALYSIS_MODEL_* selects educational analysis.
-- TUTOR_MODEL_* selects the Socratic tutor response model.
-- SEMANTIC_GUARD_* selects semantic response validation.
+### Project-aware Gemini chat pool
+When any role uses Google's OpenAI-compatible Gemini endpoint, the pool ([ADR 0008](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0008-project-aware-gemini-chat-pool.md)) distributes load across up to 256 Google Cloud projects defined in `GEMINI_CHAT_PROJECTS_JSON`:
 
-The committed deterministic provider is keyless and offline, so it is the
-default for local development, CI, and deterministic tests. An
-openai-compatible provider may be selected for a configured deployment
-gateway. Remote model and embedding calls always occur outside database
-transactions; terminal conversation, attempt, audit, and review writes join
-one caller-owned transaction.
+- Keys are rotated round-robin across API replicas using Redis Lua scripts.
+- Upstream HTTP 429 rate limits automatically cool the affected project with exponential backoff and jitter while retrying other healthy projects in the pool.
+- Pool state stores only salted project-label digests in Redis, never raw credentials.
 
-When any role uses Google's exact Gemini OpenAI-compatible base URL, Tutoring
-requires `GEMINI_CHAT_PROJECTS_JSON` and requires that role's `*_API_KEY` to be
-blank. The JSON array contains `{id,apiKey}` entries, where `id` is an opaque
-deployment label and every entry represents a distinct Google Cloud quota
-project. Gemini quotas are project-scoped, so multiple keys from one project do
-not add capacity. The pool accepts up to 256 entries; this is a Morshid
-operational bound, not a Google Gemini API limit. Google AI Studio currently
-displays at most 50 projects, but Google directs advanced project management to
-the Cloud Console and applies account/organization-specific project-creation
-quotas rather than a Gemini pool-size limit. Redis selects healthy projects
-round-robin across API replicas.
-An upstream 429 cools that project with bounded exponential backoff and jitter
-and attempts every remaining eligible project at most once; timeouts, 5xx
-responses, and other failures stay under the existing bounded retry and fallback
-policies. If every project is cooling down, the transport returns one
-rate-limited failure with the earliest shared retry delay. Pool state stores only
-salted project-label digests and never credentials. A Redis failure fails the
-pool closed.
+### Live role-chain smoke check
+To test the full Socratic role chain against live configured model endpoints:
 
-Selection sends only the member digests to one Redis Lua call and scans them
-linearly. In the worst all-429 case, one chat request can attempt every pool
-entry once, bounded by the request deadline. Operators should therefore treat
-256 as supported capacity rather than a target size and prefer Gemini tier or
-quota increases when they address sustained demand.
+```bash
+npm run test:tutoring:live
+```
 
-Gemini 3.6 Flash and 3.7 Flash requests omit `temperature` and `top_p` at this
-Gemini-specific boundary because those sampling parameters are unsupported by
-these models. Other OpenAI-compatible providers retain their existing request
-behavior, and the deterministic/local development paths remain unchanged.
-
-This pool is chat-only. `GEMINI_EMBEDDING_API_KEY` and its existing quota guard
-remain separate and unchanged.
-
-The role-chain smoke is opt-in and requires the documented external model
-configuration:
-
-bash command: npm run test:tutoring:live
-
-It reports only bounded provider/model metadata and outcome information. It is
-excluded from npm run check; deterministic workflow and governance tests
-remain the required local verification.
+---
 
 ## Embedding profiles and strict course readiness
 
-Every stored chunk records the **document profile** that produced its vector in
-`material_chunks.embedding_model`. Retrieval filters on the active provider's
-profile, because vectors from different providers all have 1,536 dimensions:
-Postgres will happily compute a cosine distance between a Gemini query vector
-and a deterministic stored vector. That comparison is mathematically valid and
-semantically meaningless, and it surfaces as plausible false matches rather
-than as an error, so it must be excluded structurally rather than detected.
+Every stored chunk records the active vector model profile in `material_chunks.embedding_model`.
 
-Before a query is embedded, the retrieval service checks profile coverage for
-the course:
+### Strict course readiness
+Before embedding a student query, `findCourseEvidenceReadiness` verifies that all non-deleted materials in the course are fully processed and embedded with the active profile:
 
-> **Strict course readiness** — one incompletely embedded candidate material
-> blocks grounded retrieval for that entire course.
+> **Strict course readiness invariant**: If any material in a course lacks active vector profile embeddings, grounded retrieval is blocked for that entire course to prevent incomplete or hallucinated guidance.
 
-A candidate material is `READY` or `WARNING`, not soft-deleted, and has an
-extracted text length above zero. It is complete when its `chunk_count` is
-positive and at least that many of its chunks carry the active profile. Partial
-coverage would answer from whichever materials happened to be migrated first,
-and a student cannot tell a thin answer from a complete one.
+### Restricted Gemini embedding governance
+Setting `EMBEDDING_PROVIDER=gemini` requires `GEMINI_EMBEDDING_DEMO_ACKNOWLEDGED=true` and is rejected in production environments. Free-tier Google embeddings must only be used on synthetic, permission-safe training materials.
 
-Readiness runs before the query is embedded, so a course with no compatible
-vectors never spends provider quota building a query vector it could not use.
-Readiness and retrieval are separate queries rather than one atomic snapshot,
-so a concurrent material replacement can produce a transient not-ready or
-no-evidence result; the profile filter still prevents cross-space comparisons,
-which is the property that matters.
-
-### Restricted Gemini embedding demo
-
-Selecting `EMBEDDING_PROVIDER=gemini` is refused when `NODE_ENV=production` and
-additionally requires `GEMINI_EMBEDDING_DEMO_ACKNOWLEDGED=true`. That is
-**Morshid's own free-tier data-governance policy, not an API constraint**: the
-free tier lets Google use submitted inputs to improve its products, and course
-material is not ours to donate. Only synthetic, permission-safe material may be
-embedded through it.
-
-`GEMINI_EMBEDDING_API_KEY` must be distinct from every key in
-`GEMINI_CHAT_PROJECTS_JSON` **and live under a separate Google Cloud project**.
-Gemini rate limits are per project, so sharing a project would let one PDF
-ingest starve student chat. Project separation is an operator responsibility
-because chat-pool ids are deliberately opaque deployment labels.
-
-There is no `GEMINI_EMBEDDING_MODEL`. The model, its dimensions, and the
-document formatting together _are_ the persisted document profile
-(`gemini/gemini-embedding-2/1536/document-v1`), so the model is pinned in code —
-an environment variable would let an operator split the corpus across two vector
-spaces under one `embedding_model` value.
-
-#### Quota vocabulary
-
-The five caps are **local admission-control caps informed by the project's
-published Gemini limits**. They do not reproduce Google's enforcement:
-
-- Google's requests-per-day resets at midnight Pacific; this guard's day window
-  is epoch-aligned UTC, 7–8 hours earlier.
-- The minute dimensions are token buckets, not Google's undisclosed algorithm.
-- `LOCAL_REQUESTS_PER_HOUR` and `LOCAL_REQUESTS_PER_30_DAYS` are entirely
-  Morshid-owned policy with no provider counterpart at all.
-
-Provider-side `429 RESOURCE_EXHAUSTED` responses remain authoritative.
-
-`GEMINI_EMBEDDING_INPUT_TOKENS_PER_MINUTE` keeps its name because it maps
-conceptually to the upstream constraint, but the value metered against it is
-`estimatedInputUnits` — UTF-8 bytes of the final formatted input — and never an
-actual token count. The estimate is reserved atomically before each request and
-then kept: it is never reconciled or refunded, because the pinned SDK's
-Developer-API response conversion discards `usageMetadata` entirely, so there is
-no actual count to reconcile against. A pinned-SDK contract test asserts that,
-so an SDK upgrade that changes it fails loudly.
-
-`GEMINI_EMBEDDING_QUOTA_PROJECT_ID` is an opaque deployment label (for example
-`embedding-project-01`), not the real Google project name. The budget is keyed
-on it rather than on the credential, so every replica on one Google project
-shares a bucket and a credential rotation never mints a fresh day or 30-day
-window.
-
-#### Live smoke check
-
+### Live embedding smoke check
 ```bash
 npm run test:gemini-embedding:smoke
 ```
 
-It confirms only what documentation cannot: the selected API version (`v1beta`),
-one embedding per `Content`, 1,536 dimensions, that the configured 32-input
-operational batch succeeds, and semantic ordering over held-out fixtures. Note
-the wording — a successful 32-input request establishes that **the configured
-operational batch succeeds**, not the model's maximum; claiming a maximum
-requires deliberately probing increasing sizes.
+### Switching embedding providers
+To migrate stored vectors when changing embedding models:
 
-### AWS Bedrock embedding is not available
+```bash
+# Migrate existing chunk vectors to the target model
+npm run embedding:migrate -- gemini # or: deterministic
+```
 
-`EMBEDDING_PROVIDER` accepts `deterministic` and `gemini` only. An ITI Cohere
-embedding adapter is deliberately not implemented. The gateway's current public
-integration bundle documents `/student/embed` and the
-`{model_id,texts,input_type}` request, but the redacted Cohere request returned
-HTTP 403. The model approval, successful response envelope, preserved
-1,536-dimensional output, input echo behavior, and practical batch capacity
-therefore remain unverified. Implementing against an invented success envelope
-would hide contract drift rather than expose it. No Bedrock/Cohere adapter is
-part of the current supported provider set; the probe is an opt-in contract
-check only and its external result is not a production integration.
+The migration runner scans candidate materials, checks target-profile coverage, and re-embeds persisted chunk text without re-extracting PDFs, guaranteeing chunk boundary stability.
 
-After the ITI dashboard shows `us.cohere.embed-v4:0` as approved, rerun the
-single-request structural probe with:
+---
+
+## ITI Bedrock embedding contract probe
+
+`EMBEDDING_PROVIDER` accepts `deterministic` and `gemini` only. AWS Bedrock / ITI Cohere embedding is paused pending upstream ITI approval. To verify the upstream contract shape:
 
 ```bash
 npm run test:iti-bedrock-embedding:probe
 ```
 
-It emits only response property names, a shape label, vector count,
-dimensionalities, and whether the synthetic input was echoed. It never emits a
-credential, header, URL, source string, body, or vector component.
+---
 
-### Switching embedding providers
+## OpenAPI and Swagger documentation
 
-The schema stores one vector and one model id per chunk, and replacement is
-transactional only per material — there is no corpus-wide transaction, so a
-transition is necessarily mixed while it runs. Normal material processing also
-uses the _configured_ provider, so a migration cannot run alongside it.
+In `development` and `test` environments, the server serves interactive API documentation at:
 
-The exclusion mechanism is **operational maintenance mode, not a lock**. A
-migration lock would only provide mutual exclusion if the normal workers
-participated in the same protocol; material processing uses lease records and
-would not check a new embedding-migration lock, so such a lock would protect
-nothing.
+- **Swagger UI**: `http://localhost:4000/docs`
+- **OpenAPI JSON**: `http://localhost:4000/docs-json`
+- **OpenAPI YAML**: `http://localhost:4000/docs-yaml`
 
-```text
-disable grounded retrieval → stop/scale material-processing workers to zero
-→ verify no active, unexpired processing leases → run the resumable migration
-→ verify complete target-profile coverage → switch EMBEDDING_PROVIDER
-→ restart workers and retrieval
-```
+Two authentication schemes are supported in Swagger UI:
+1. `access-token`: Bearer JWT header.
+2. `refresh-session`: Browser `morshid_refresh` cookie.
 
-The migration step is:
+---
+
+## Server scripts
 
 ```bash
-npm run embedding:migrate -- gemini      # or: deterministic
+# Start NestJS development server with watch mode
+npm run start:dev
+
+# Build NestJS server for production
+npm run build
+
+# Start production build
+npm run start:prod
+
+# Run unit tests
+npm test
+
+# Run E2E integration tests
+npm run test:e2e
+
+# Run architecture boundary checks
+npm run test:architecture:server
 ```
-
-The target is an **explicit argument**, and its configuration is validated
-independently of `EMBEDDING_PROVIDER` — the whole point is to migrate _before_
-switching, so the target is deliberately not the configured provider. For a
-Gemini target this means `GEMINI_EMBEDDING_*` must be set while
-`EMBEDDING_PROVIDER` is still `deterministic`; the command forces the target
-through that same full schema gate itself.
-
-Every run scans **all** candidate materials, checks each one's current
-target-profile coverage, skips the complete ones, and retries every incomplete
-one — so re-running it is the resume mechanism. It exits non-zero unless the
-whole target corpus is covered, which is what stops an operator switching
-providers off a partially successful run. It re-embeds the **persisted chunk
-text and material title** and never re-extracts a PDF: re-extraction could
-change chunk boundaries if the extractor or chunker has evolved, silently
-turning a provider migration into an undocumented content migration.
-
-Rollback is reprocessing with the previous provider. A zero-degradation rolling
-migration would require storing multiple profiles per chunk — a schema redesign
-that is explicitly out of scope.
-
-## Local OpenAPI documentation
-
-When `NODE_ENV` is `development` or `test`, the server publishes:
-
-- Swagger UI: http://localhost:4000/docs
-- OpenAPI JSON: http://localhost:4000/docs-json
-- OpenAPI YAML: http://localhost:4000/docs-yaml
-
-The documentation routes are not registered in production and return `404`;
-normal API and health routes are unaffected. Swagger UI exposes two named
-authorization schemes:
-
-- `access-token`: enter the JWT returned by sign-in or refresh. Swagger sends it
-  as an HTTP bearer token to protected operations.
-- `refresh-session`: the browser sends the HttpOnly `morshid_refresh` cookie to
-  refresh and logout. Those operations do not accept a JSON refresh-token
-  fallback.
-
-## Compile and run the project
-
-```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
-```
-
-## Run tests
-
-```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
-```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
