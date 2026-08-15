@@ -1,7 +1,9 @@
 import { MessageRequestKind, StudentState } from '../../tutoring-values'
 
 import {
+  EDUCATIONAL_ANALYSIS_SOURCE,
   EFFORT_QUALITY,
+  LEARNING_EVIDENCE_STRENGTH,
   type EffortEvidence,
 } from '../analysis/educational-analysis.types'
 import { buildTutorResponseRequirements } from './tutor-response-requirements'
@@ -13,8 +15,11 @@ describe('Tutor response requirements', () => {
         requestKind: MessageRequestKind.CONCEPTUAL,
         studentState: StudentState.NO_PRIOR_KNOWLEDGE,
         effortEvidence: noEffort(),
+        learningEvidence: noLearning(),
         misconceptions: [],
       },
+      analysisSource: EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
+      studentMessageId: 'message-1',
       guidanceLevel: 1,
     })
 
@@ -38,6 +43,7 @@ describe('Tutor response requirements', () => {
         requestKind: MessageRequestKind.CONCEPTUAL,
         studentState: StudentState.MISCONCEPTION,
         effortEvidence: noEffort(),
+        learningEvidence: noLearning(),
         misconceptions: [
           {
             code: 'BREAK_CONTINUE_REVERSAL',
@@ -47,6 +53,8 @@ describe('Tutor response requirements', () => {
           },
         ],
       },
+      analysisSource: EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
+      studentMessageId: 'message-1',
       guidanceLevel: 1,
     })
 
@@ -71,6 +79,7 @@ describe('Tutor response requirements', () => {
   it('requires Level 3 to preserve established work and visibly decompose the reasoning', () => {
     const requirements = requirementsAt(3)
 
+    expect(requirements.acknowledgeStudentSupportedCorrectWork).toBe(true)
     expect(requirements.guidanceShape).toMatchObject({
       mode: 'GUIDED_DECOMPOSITION',
       minimumConnectedScaffoldMoves: 2,
@@ -105,6 +114,47 @@ describe('Tutor response requirements', () => {
       'visibly more support than Guided Decomposition',
     )
   })
+
+  it('requires brief acknowledgment for strong current-message-supported correct work', () => {
+    const requirements = buildTutorResponseRequirements({
+      analysis: {
+        requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+        studentState: StudentState.NEAR_SOLUTION,
+        effortEvidence: noEffort(),
+        learningEvidence: {
+          present: true,
+          strength: LEARNING_EVIDENCE_STRENGTH.STRONG,
+          evidenceMessageIds: ['message-1'],
+        },
+        misconceptions: [],
+      },
+      analysisSource: EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
+      studentMessageId: 'message-1',
+      guidanceLevel: 1,
+    })
+
+    expect(requirements).toMatchObject({
+      acknowledgeStudentSupportedCorrectWork: true,
+      guidanceShape: { mode: 'ORIENTATION' },
+    })
+  })
+
+  it('does not require acknowledgment for an unsupported self-report', () => {
+    const requirements = buildTutorResponseRequirements({
+      analysis: {
+        requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+        studentState: StudentState.NEAR_SOLUTION,
+        effortEvidence: noEffort(),
+        learningEvidence: noLearning(),
+        misconceptions: [],
+      },
+      analysisSource: EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
+      studentMessageId: 'message-1',
+      guidanceLevel: 1,
+    })
+
+    expect(requirements.acknowledgeStudentSupportedCorrectWork).toBe(false)
+  })
 })
 
 function requirementsAt(guidanceLevel: number) {
@@ -120,10 +170,21 @@ function requirementsAt(guidanceLevel: number) {
         isRepeated: false,
         evidenceMessageIds: ['message-1'],
       },
+      learningEvidence: noLearning(),
       misconceptions: [],
     },
+    analysisSource: EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
+    studentMessageId: 'message-1',
     guidanceLevel,
   })
+}
+
+function noLearning() {
+  return {
+    present: false,
+    strength: LEARNING_EVIDENCE_STRENGTH.NONE,
+    evidenceMessageIds: [],
+  } as const
 }
 
 function noEffort(): EffortEvidence {

@@ -146,7 +146,6 @@ describe('tutor prompt builder', () => {
       studentState: StudentState.PARTIAL_UNDERSTANDING,
       guidanceLevel: 3,
       expected: [
-        '"acknowledgeStudentSupportedCorrectWork":true',
         '"identifyNextReasoningStepWithoutSolving":true',
         '"mode":"GUIDED_DECOMPOSITION"',
         '"minimumConnectedScaffoldMoves":2',
@@ -194,6 +193,69 @@ describe('tutor prompt builder', () => {
       }
     },
   )
+
+  it('requires factual affirmation before verification for supported recovery', () => {
+    const base = buildGenerationContext()
+    const currentMessageId = base.studentMessage.id
+    const request = buildTutorGenerationModelRequest({
+      ...base,
+      acceptedAnalysis: {
+        ...base.acceptedAnalysis,
+        result: {
+          ...base.acceptedAnalysis.result,
+          requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+          studentState: StudentState.NEAR_SOLUTION,
+          learningEvidence: {
+            present: true,
+            strength: 'STRONG',
+            evidenceMessageIds: [currentMessageId],
+          },
+          misconceptions: [],
+        },
+      },
+      teachingDecision: {
+        ...base.teachingDecision,
+        primaryTechnique: TeachingTechnique.VERIFICATION,
+        guidanceLevel: 1,
+      },
+    })
+    const prompt = request.messages.map((message) => message.content).join('\n')
+
+    expect(prompt).toContain(
+      '"acknowledgeStudentSupportedCorrectWork":true',
+    )
+    expect(prompt).toContain(
+      'briefly and factually acknowledge only the correct reasoning',
+    )
+    expect(prompt).toContain(
+      'meaningful verification, transfer, or application question',
+    )
+  })
+
+  it('does not require affirmation for unsupported near-solution self-report', () => {
+    const base = buildGenerationContext()
+    const request = buildTutorGenerationModelRequest({
+      ...base,
+      acceptedAnalysis: {
+        ...base.acceptedAnalysis,
+        result: {
+          ...base.acceptedAnalysis.result,
+          requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+          studentState: StudentState.NEAR_SOLUTION,
+          learningEvidence: {
+            present: false,
+            strength: 'NONE',
+            evidenceMessageIds: [],
+          },
+          misconceptions: [],
+        },
+      },
+    })
+
+    expect(request.messages[1].content).toContain(
+      '"acknowledgeStudentSupportedCorrectWork":false',
+    )
+  })
 })
 
 function misconceptionContext(

@@ -1,10 +1,15 @@
 import { MessageRequestKind, StudentState } from '../../tutoring-values'
 
 import type { EducationalAnalysisResult } from '../analysis/educational-analysis.types'
+import {
+  EFFORT_QUALITY,
+  type EducationalAnalysisSource,
+} from '../analysis/educational-analysis.types'
+import { hasSupportedMisconceptionRecoveryEvidence } from '../analysis/supported-misconception-recovery'
 import { isDirectConceptualAnalysis } from '../teaching-decision/direct-conceptual-policy'
 
 export const TUTOR_RESPONSE_REQUIREMENTS_VERSION =
-  'tutor-response-requirements.v3'
+  'tutor-response-requirements.v4'
 
 export type TutorGuidanceMode =
   'ORIENTATION' | 'FOCUSED_HINT' | 'GUIDED_DECOMPOSITION' | 'STRONG_GUIDANCE'
@@ -43,8 +48,14 @@ export interface TutorResponseRequirements {
 export function buildTutorResponseRequirements(input: {
   readonly analysis: Pick<
     EducationalAnalysisResult,
-    'requestKind' | 'studentState' | 'effortEvidence' | 'misconceptions'
+    | 'requestKind'
+    | 'studentState'
+    | 'effortEvidence'
+    | 'learningEvidence'
+    | 'misconceptions'
   >
+  readonly analysisSource: EducationalAnalysisSource
+  readonly studentMessageId: string
   readonly guidanceLevel: number
 }): TutorResponseRequirements {
   const guidanceLevel = normalizeGuidanceLevel(input.guidanceLevel)
@@ -59,6 +70,12 @@ export function buildTutorResponseRequirements(input: {
     guidanceLevel === 1
   const isAttempt = requestKind === MessageRequestKind.ATTEMPT_DIAGNOSIS
   const isDirectConceptual = isDirectConceptualAnalysis(input.analysis)
+  const hasCurrentSupportedWork = hasCurrentSupportedWorkEvidence(input)
+  const recoveredMisconception = hasSupportedMisconceptionRecoveryEvidence({
+    analysisSource: input.analysisSource,
+    studentMessageId: input.studentMessageId,
+    result: input.analysis,
+  })
 
   return Object.freeze({
     version: TUTOR_RESPONSE_REQUIREMENTS_VERSION,
@@ -76,15 +93,32 @@ export function buildTutorResponseRequirements(input: {
       guidanceLevel >= 2,
     meaningfulGuidingQuestionCount: isAttempt && guidanceLevel === 2 ? 1 : 0,
     acknowledgeStudentSupportedCorrectWork:
-      isAttempt &&
-      input.analysis.studentState === StudentState.PARTIAL_UNDERSTANDING &&
-      guidanceLevel === 3,
+      recoveredMisconception ||
+      (isAttempt &&
+        input.analysis.studentState === StudentState.PARTIAL_UNDERSTANDING &&
+        guidanceLevel === 3 &&
+        hasCurrentSupportedWork),
     identifyNextReasoningStepWithoutSolving: isAttempt && guidanceLevel === 3,
     analogousWorkedExampleOrBoundedStrongGuidance:
       isProtectedProblem && guidanceLevel === 4,
     protectExactOriginalSolution: isProtectedProblem,
     evaluateSemanticallyWithoutPhraseMatching: true,
   })
+}
+
+function hasCurrentSupportedWorkEvidence(input: {
+  readonly analysis: Pick<EducationalAnalysisResult, 'effortEvidence'>
+  readonly studentMessageId: string
+}): boolean {
+  const effort = input.analysis.effortEvidence
+
+  return (
+    effort.present &&
+    !effort.isRepeated &&
+    effort.evidenceMessageIds.includes(input.studentMessageId) &&
+    (effort.quality === EFFORT_QUALITY.MEANINGFUL ||
+      effort.quality === EFFORT_QUALITY.STRONG)
+  )
 }
 
 function guidanceShapeRequirements(

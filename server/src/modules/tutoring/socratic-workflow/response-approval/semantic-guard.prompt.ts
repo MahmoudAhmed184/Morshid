@@ -55,6 +55,8 @@ function guardPayload(input: SemanticGuardEvaluationInput) {
   })
   const functionalResponseRequirements = buildTutorResponseRequirements({
     analysis: input.educationalContext.acceptedAnalysis,
+    analysisSource: input.educationalContext.acceptedAnalysis.analysisSource,
+    studentMessageId: input.educationalContext.currentStudentMessage.id,
     guidanceLevel: input.validationContext.guidanceLevel,
   })
 
@@ -134,6 +136,9 @@ function guardPayload(input: SemanticGuardEvaluationInput) {
       'A focused clue or question that directs attention to relevant structure while preserving the target inference is compliant.',
       'Aggregate educationally relevant assertions from prior approved tutor messages and the candidate. Reject when the combined disclosures remove the protected reasoning even if each individual hint is small.',
       'Do not count reasoning already supplied by the student as tutor disclosure. Use message roles and evidence IDs to separate student-derived work from tutor assertions.',
+      'When acknowledgeStudentSupportedCorrectWork is true, require a brief factual acknowledgment of the supported correct reasoning before a meaningful verification, transfer, or application action.',
+      'Do not treat that acknowledgment as forbidden disclosure when it restates only reasoning already supported by the current student message.',
+      'Do not require or reward affirmation based only on unsupported student self-report when acknowledgeStudentSupportedCorrectWork is false.',
       'Use CODE_LEAKAGE when code supplies a protected missing implementation, key line, algorithmic step, or corrected submitted fragment without constituting a complete ready-to-submit artifact.',
       'Use SUBMISSION_READY_CODE only for a complete or directly usable submission artifact.',
       'A short diagnostic, tracing, assertion, or instrumentation snippet is allowed when it does not implement the protected solution and meaningful reasoning remains for the student.',

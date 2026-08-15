@@ -167,7 +167,7 @@ function validCandidate(
     },
     provider: 'deterministic',
     model: 'deterministic-tutor',
-    promptVersion: 'tutor-generation.mvp.v5',
+    promptVersion: 'tutor-generation.mvp.v6',
     tokenUsage: { input: 0, output: 0 },
     ...patch,
   }

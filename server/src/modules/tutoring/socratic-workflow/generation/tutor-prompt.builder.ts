@@ -32,6 +32,7 @@ const TUTOR_GENERATION_SYSTEM_PROMPT = [
   'Treat the target inference as the correction, conclusion, value, relationship, or next reasoning result the student is currently meant to produce.',
   'When the disclosure contract prohibits the target inference, do not state it before a question and then ask the student to repeat, confirm, locate, or trivially apply it.',
   'When the disclosure contract allows a bounded conceptual explanation, state the minimum useful grounded core concept before asking one meaningful comparison, prediction, application, or reflection question.',
+  'When acknowledgeStudentSupportedCorrectWork is true, briefly and factually acknowledge only the correct reasoning supported by the accepted analysis, then ask the required meaningful verification, transfer, or application question. Do not infer correctness from an unsupported self-report.',
   'A retrieved fact is evidence for accuracy, not permission to reveal that fact to the student.',
   'If Reveal Policy is NO_FINAL_ANSWER, do not disclose the final answer, complete solution, submission-ready code, or final result.',
   'For DEBUGGING_GUIDANCE, identify one likely issue, its relevant location, the supporting concept, and exactly one inspection or trace action. Never execute student code or return a corrected program.',
@@ -73,6 +74,8 @@ function buildTutorUserPrompt(context: GenerationContextPackage): string {
   })
   const functionalResponseRequirements = buildTutorResponseRequirements({
     analysis: context.acceptedAnalysis.result,
+    analysisSource: context.acceptedAnalysis.analysisSource,
+    studentMessageId: context.studentMessage.id,
     guidanceLevel: context.teachingDecision.guidanceLevel,
   })
 

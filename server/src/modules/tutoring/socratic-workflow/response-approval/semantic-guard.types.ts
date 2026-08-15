@@ -11,7 +11,7 @@ import type {
 } from './response-validation.types'
 
 export const SEMANTIC_GUARD_PORT = Symbol('SemanticGuardPort')
-export const SEMANTIC_GUARD_PROMPT_VERSION = 'semantic-guard.mvp.v7'
+export const SEMANTIC_GUARD_PROMPT_VERSION = 'semantic-guard.mvp.v8'
 
 export const SEMANTIC_GUARD_ERROR_CODE = {
   TIMEOUT: 'SEMANTIC_GUARD_TIMEOUT',

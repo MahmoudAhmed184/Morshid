@@ -1,14 +1,19 @@
 import { MessageRequestKind, StudentState } from '../../tutoring-values'
-import type { PersistedEducationalAnalysisRecord } from './educational-analysis.repository'
 import {
   EDUCATIONAL_ANALYSIS_SOURCE,
   LEARNING_EVIDENCE_STRENGTH,
+  type EducationalAnalysisResult,
+  type EducationalAnalysisSource,
 } from './educational-analysis.types'
 
-export type SupportedMisconceptionRecoveryAnalysis = Pick<
-  PersistedEducationalAnalysisRecord,
-  'analysisSource' | 'studentMessageId' | 'result'
->
+export interface SupportedMisconceptionRecoveryAnalysis {
+  readonly analysisSource: EducationalAnalysisSource
+  readonly studentMessageId: string
+  readonly result: Pick<
+    EducationalAnalysisResult,
+    'requestKind' | 'studentState' | 'learningEvidence' | 'misconceptions'
+  >
+}
 
 export function hasSupportedMisconceptionRecoveryEvidence(
   analysis: SupportedMisconceptionRecoveryAnalysis,

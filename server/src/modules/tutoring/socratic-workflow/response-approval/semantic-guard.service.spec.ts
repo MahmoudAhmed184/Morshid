@@ -60,6 +60,68 @@ describe('SemanticGuardService', () => {
     })
   })
 
+  it('accepts compliant supported-work affirmation followed by verification', async () => {
+    const guard = new FakeSemanticGuardPort({ approved: true, violations: [] })
+    const base = input()
+    const result = await new SemanticGuardService(guard).evaluate({
+      ...base,
+      candidate: candidate({
+        message:
+          'Yes—that distinction is correct. In a loop with an early match, which statement would skip only the remaining work in that iteration, and why?',
+        studentAction: {
+          type: TeachingTechnique.VERIFICATION,
+          description:
+            'Transfer the distinction to a new loop case and explain why.',
+        },
+      }),
+      educationalContext: {
+        ...base.educationalContext,
+        currentStudentMessage: {
+          id: 'message-1',
+          content:
+            'Break stops the whole loop, while continue moves to the next iteration.',
+        },
+        acceptedAnalysis: {
+          ...base.educationalContext.acceptedAnalysis,
+          requestKind: 'ATTEMPT_DIAGNOSIS',
+          studentState: 'NEAR_SOLUTION',
+          learningEvidence: {
+            present: true,
+            strength: 'STRONG',
+            evidenceMessageIds: ['message-1'],
+          },
+          misconceptions: [],
+        },
+      },
+      validationContext: {
+        ...base.validationContext,
+        primaryTechnique: TeachingTechnique.VERIFICATION,
+      },
+    })
+
+    expect(result).toMatchObject({
+      kind: 'validated',
+      result: { approved: true },
+    })
+    const payload = JSON.parse(
+      guard.requests[0]?.messages[1].content ?? '{}',
+    ) as {
+      trustedPolicy: {
+        functionalResponseRequirements: {
+          acknowledgeStudentSupportedCorrectWork: boolean
+        }
+      }
+      adjudicationRules: string[]
+    }
+    expect(
+      payload.trustedPolicy.functionalResponseRequirements
+        .acknowledgeStudentSupportedCorrectWork,
+    ).toBe(true)
+    expect(payload.adjudicationRules.join(' ')).toContain(
+      'brief factual acknowledgment',
+    )
+  })
+
   it.each(['CODE_LEAKAGE', 'MISSING_STUDENT_REASONING'] as const)(
     'preserves canonical %s semantic violation typing',
     async (type) => {
@@ -474,7 +536,7 @@ function candidate(patch: Partial<CandidateResponse> = {}): CandidateResponse {
     },
     provider: 'deterministic',
     model: 'deterministic-tutor',
-    promptVersion: 'tutor-generation.mvp.v5',
+    promptVersion: 'tutor-generation.mvp.v6',
     tokenUsage: { input: 0, output: 0 },
     ...patch,
   }
