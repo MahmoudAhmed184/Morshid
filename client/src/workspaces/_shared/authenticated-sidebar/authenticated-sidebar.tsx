@@ -116,6 +116,14 @@ function StaffSidebarContent({
   )
 }
 
+function getTransitionOrigin(element: HTMLElement) {
+  const bounds = element.getBoundingClientRect()
+  return {
+    x: bounds.left + bounds.width / 2,
+    y: bounds.top + bounds.height / 2,
+  }
+}
+
 function SidebarFooterUser({ role }: { role: AuthenticatedSidebarRole }) {
   const user = useAuthStore((state) => state.user)
   const logout = useLogout()
@@ -171,7 +179,11 @@ function SidebarFooterUser({ role }: { role: AuthenticatedSidebarRole }) {
               Theme
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
-              <DropdownMenuItem onClick={() => setTheme('light')}>
+              <DropdownMenuItem
+                onClick={(e) =>
+                  setTheme('light', getTransitionOrigin(e.currentTarget))
+                }
+              >
                 {theme === 'light' ? (
                   <Check aria-hidden />
                 ) : (
@@ -179,7 +191,11 @@ function SidebarFooterUser({ role }: { role: AuthenticatedSidebarRole }) {
                 )}
                 Light
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTheme('dark')}>
+              <DropdownMenuItem
+                onClick={(e) =>
+                  setTheme('dark', getTransitionOrigin(e.currentTarget))
+                }
+              >
                 {theme === 'dark' ? (
                   <Check aria-hidden />
                 ) : (
@@ -187,7 +203,11 @@ function SidebarFooterUser({ role }: { role: AuthenticatedSidebarRole }) {
                 )}
                 Dark
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTheme('system')}>
+              <DropdownMenuItem
+                onClick={(e) =>
+                  setTheme('system', getTransitionOrigin(e.currentTarget))
+                }
+              >
                 {theme === 'system' ? (
                   <Check aria-hidden />
                 ) : (
