@@ -40,3 +40,21 @@ Use these terms consistently in code, documentation, tasks, and review.
   it is not a generic notification system.
 - **Audit Event:** an immutable record created with its owning state transition
   when atomicity is required.
+- **Policy Day:** the calendar-day window used for daily product allowances,
+  calculated in the deployment's configured IANA time zone.
+- **Tutoring Allowance:** the number of unique AI-backed Tutoring Attempts a
+  Student may start for one Course during one Policy Day.
+- **Review Allowance:** the number of manual Review Cases a Student may request
+  for one Course during one Policy Day. Automatic review triggers do not
+  consume it.
+- **Course Policy Override:** a Course-specific policy value that replaces the
+  deployment default for that Course while the override exists.
+- **Allowance Reset:** an audited support intervention that clears a Student's
+  current Policy Day consumption without deleting Tutoring Attempts, Review
+  Cases, or Audit Events.
+- **Conversation Archive:** a Student-controlled state that hides a Conversation
+  from its active list without deleting its messages.
+- **Reviewed Guidance Entry:** Instructor-approved or Instructor-authored
+  guidance stored for one Course with version and lifecycle state. It is not an
+  answer key and does not enter retrieval unless that separate capability is
+  enabled.
