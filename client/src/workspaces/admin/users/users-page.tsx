@@ -118,7 +118,7 @@ export function UsersPage({ role }: UsersPageProps) {
                 }}
               >
                 <SelectTrigger
-                  className="h-9 w-auto min-w-[150px] rounded-lg border-border/80 px-2.5 text-xs"
+                  className="h-9 w-auto min-w-[150px] max-w-[260px] rounded-lg border-border/80 px-2.5 text-xs"
                   aria-label={`Filter ${copy.plural} by course`}
                 >
                   <span className="truncate">
