@@ -5,10 +5,12 @@ import { Injectable } from '@nestjs/common'
 import { Prisma } from '../../../generated/prisma/client'
 import { MaterialStatus } from '../../materials/interface/material-status'
 import {
+  ExplanationDetailLevel,
   MessageGuidanceLabel,
   MessageRequestKind,
   MessageRole,
   MessageStatus,
+  normalizeExplanationDetailLevel,
   TutoringApprovalSource,
   TutoringAttemptFailureCode,
   TutoringAttemptStatus,
@@ -163,6 +165,7 @@ export type BeginTutoringTurnResult =
       attemptId: string
       studentMessage: ChatMessageRecord
       assistantMessage: ChatMessageRecord
+      explanationDetailLevel: ExplanationDetailLevel
     }
   | {
       kind: 'replayed'
@@ -181,6 +184,7 @@ export type RetryTutoringTurnResult =
       attemptId: string
       studentMessage: ChatMessageRecord
       assistantMessage: ChatMessageRecord
+      explanationDetailLevel: ExplanationDetailLevel
     }
   | { kind: 'membership_missing' }
   | { kind: 'session_not_found' }
@@ -357,6 +361,16 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
             : { kind: 'turn_in_progress' as const }
         }
 
+        const studentPreference = await tx.studentTutoringPreference.findUnique(
+          {
+            where: { studentId: input.studentId },
+            select: { explanationDetailLevel: true },
+          },
+        )
+        const explanationDetailLevel = normalizeExplanationDetailLevel(
+          studentPreference?.explanationDetailLevel,
+        )
+
         await tx.tutoringAttempt.create({
           data: {
             id: identity.attemptId,
@@ -365,6 +379,7 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
             requestKind: input.requestKind ?? null,
             status: TutoringAttemptStatus.RECEIVED,
             leaseExpiresAt: leaseExpiry(now),
+            explanationDetailLevel,
           },
         })
         const admitted = await this.conversationTurns.admit(
@@ -406,6 +421,7 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
           attemptId: identity.attemptId,
           studentMessage,
           assistantMessage,
+          explanationDetailLevel,
         }
       })
     } catch (error) {
@@ -447,6 +463,7 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
             assistantMessageId: true,
             leaseExpiresAt: true,
             status: true,
+            explanationDetailLevel: true,
           },
         })
         if (
@@ -507,6 +524,10 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
           return { kind: 'turn_in_progress' }
         }
 
+        const retryExplanationDetailLevel = normalizeExplanationDetailLevel(
+          previousAttempt.explanationDetailLevel,
+        )
+
         await tx.tutoringAttempt.create({
           data: {
             id: attemptId,
@@ -519,6 +540,7 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
               studentMessage.requestKind ?? MessageRequestKind.CONCEPTUAL,
             status: TutoringAttemptStatus.RECEIVED,
             leaseExpiresAt: leaseExpiry(now),
+            explanationDetailLevel: retryExplanationDetailLevel,
           },
         })
 
@@ -556,6 +578,7 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
           attemptId,
           studentMessage: resetStudent,
           assistantMessage: resetAssistant,
+          explanationDetailLevel: retryExplanationDetailLevel,
         }
       })
     } catch (error) {
@@ -1306,7 +1329,11 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
 
         const attempt = await tx.tutoringAttempt.findUnique({
           where: { id: identity.attemptId },
-          select: { studentMessageId: true, assistantMessageId: true },
+          select: {
+            studentMessageId: true,
+            assistantMessageId: true,
+            explanationDetailLevel: true,
+          },
         })
         const studentMessageId =
           identity.studentMessageId ?? attempt?.studentMessageId
@@ -1352,6 +1379,9 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
           attemptId: identity.attemptId,
           studentMessage,
           assistantMessage,
+          explanationDetailLevel: normalizeExplanationDetailLevel(
+            attempt?.explanationDetailLevel,
+          ),
         }
       })
       if (reconciled !== null) {

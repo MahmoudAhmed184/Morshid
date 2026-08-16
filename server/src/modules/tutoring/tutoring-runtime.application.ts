@@ -3,6 +3,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { Injectable, Logger } from '@nestjs/common'
 
 import {
+  ExplanationDetailLevel,
   MessageGuidanceLabel,
   MessageRequestKind,
   TutoringApprovalSource,
@@ -88,6 +89,7 @@ interface ActiveTutoringTurn {
   attemptId: string
   studentMessage: ChatMessageRecord
   assistantMessage: ChatMessageRecord
+  explanationDetailLevel: ExplanationDetailLevel
 }
 
 interface TutoringTurnDenialInput {
@@ -356,6 +358,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
         studentMessageId: turn.studentMessage.id,
         assistantMessageId: turn.assistantMessage.id,
         studentMessageContent: turn.studentMessage.content,
+        explanationDetailLevel: turn.explanationDetailLevel,
         ...(selection.diagnosis === null
           ? {}
           : {

@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common'
 
-import { TeachingTechnique } from '../../tutoring-values'
+import {
+  ExplanationDetailLevel,
+  normalizeExplanationDetailLevel,
+  TeachingTechnique,
+} from '../../tutoring-values'
 import {
   APPROVED_RESPONSE_SOURCE,
   MVP_RESPONSE_VALIDATION_POLICY_VERSION,
@@ -22,9 +26,13 @@ export type SafeFallbackReason =
 
 @Injectable()
 export class SafeFallbackService {
-  create(decision: PersistedTeachingDecisionRecord): ApprovedResponse {
+  create(
+    decision: PersistedTeachingDecisionRecord,
+    detailLevel: ExplanationDetailLevel = ExplanationDetailLevel.STANDARD,
+  ): ApprovedResponse {
+    const level = normalizeExplanationDetailLevel(detailLevel)
     return Object.freeze({
-      message: fallbackMessage(decision.primaryTechnique),
+      message: fallbackMessage(decision.primaryTechnique, level),
       responseIntent: decision.strategy,
       usedCitationIds: Object.freeze([]),
       requiresStudentAction: true,
@@ -51,15 +59,36 @@ export class SafeFallbackService {
   }
 }
 
-function fallbackMessage(technique: TeachingTechnique): string {
+function fallbackMessage(
+  technique: TeachingTechnique,
+  level: ExplanationDetailLevel = ExplanationDetailLevel.STANDARD,
+): string {
   if (technique === TeachingTechnique.TRACE_EXECUTION) {
+    if (level === ExplanationDetailLevel.CONCISE) {
+      return 'Let us narrow it to one trace step. What value changes first?'
+    }
+    if (level === ExplanationDetailLevel.DETAILED) {
+      return 'Let us trace the execution carefully step by step. What value changes first, and what did you expect it to become at that point?'
+    }
     return 'Let us narrow it to one trace step. What value changes first, and what did you expect it to become?'
   }
 
   if (technique === TeachingTechnique.SELF_EXPLANATION) {
+    if (level === ExplanationDetailLevel.CONCISE) {
+      return 'In your own words, what part are you most confident about so far?'
+    }
+    if (level === ExplanationDetailLevel.DETAILED) {
+      return 'Let us pause to review your reasoning step by step. In your own words, what part of your approach are you most confident about so far?'
+    }
     return 'Let us pause at one step. In your own words, what part are you most confident about so far?'
   }
 
+  if (level === ExplanationDetailLevel.CONCISE) {
+    return 'Let us narrow it down to one step. What was your last confident step?'
+  }
+  if (level === ExplanationDetailLevel.DETAILED) {
+    return 'Let us narrow this down step by step. Show the last step you were confident about, and what you expected to happen next.'
+  }
   return 'Let us narrow it down to one step. Show the last step you were confident about and what you expected next.'
 }
 

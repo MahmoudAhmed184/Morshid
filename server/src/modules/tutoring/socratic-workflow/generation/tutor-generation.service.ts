@@ -105,6 +105,7 @@ export class TutorGenerationService {
       teachingDecision,
       previousTeachingDecision,
       retrievedChunks: input.retrievalResult,
+      explanationDetailLevel: input.explanationDetailLevel,
       debuggingGuidance: input.debuggingGuidance,
     })
     if (!generationContext.success) {

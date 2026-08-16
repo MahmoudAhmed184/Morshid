@@ -1,3 +1,7 @@
+import {
+  type ExplanationDetailLevel,
+  normalizeExplanationDetailLevel,
+} from '../../tutoring-values'
 import type { AnalysisContextPackage } from '../analysis/analysis-context.types'
 import {
   type GenerationContextPackage,
@@ -27,6 +31,7 @@ export function buildGenerationContextPackage(input: {
   readonly teachingDecision: PersistedTeachingDecisionRecord
   readonly previousTeachingDecision: PersistedTeachingDecisionRecord | null
   readonly retrievedChunks: readonly CourseEvidenceChunk[]
+  readonly explanationDetailLevel?: ExplanationDetailLevel
   readonly debuggingGuidance?: DebuggingGuidanceContext
 }): BuildGenerationContextResult {
   const attemptId = input.analysisContext.studentMessage.attemptId
@@ -75,6 +80,9 @@ export function buildGenerationContextPackage(input: {
       retrievedEvidence: Object.freeze(retrievedEvidence),
       allowedCitationIds: Object.freeze(allowedCitationIds),
       conversationLanguage: input.analysisContext.conversationLanguage,
+      explanationDetailLevel: normalizeExplanationDetailLevel(
+        input.explanationDetailLevel,
+      ),
       regeneration: null,
       debuggingGuidance: input.debuggingGuidance ?? null,
     }),

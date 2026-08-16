@@ -654,6 +654,72 @@ describe('Tutoring turn repository (e2e)', () => {
     ).resolves.toBe(2)
   })
 
+  it('resolves student explanation detail preference and preserves it across retries even if preference changes', async () => {
+    const fixture = await createFixture(prisma)
+
+    // 1. Set initial student preference to DETAILED
+    await prisma.studentTutoringPreference.upsert({
+      where: { studentId: fixture.studentId },
+      create: {
+        studentId: fixture.studentId,
+        explanationDetailLevel: 'DETAILED',
+      },
+      update: {
+        explanationDetailLevel: 'DETAILED',
+      },
+    })
+
+    // 2. Begin turn - should resolve to DETAILED
+    const turn = await repository.beginTurn({
+      ...fixture,
+      clientMessageId: randomUUID(),
+      content: 'Can you explain closures in detail?',
+    })
+
+    expect(turn.kind).toBe('ok')
+    if (turn.kind !== 'ok') {
+      return
+    }
+    expect(turn.explanationDetailLevel).toBe('DETAILED')
+
+    const initialAttempt = await prisma.tutoringAttempt.findUniqueOrThrow({
+      where: { id: turn.attemptId },
+      select: { explanationDetailLevel: true },
+    })
+    expect(initialAttempt.explanationDetailLevel).toBe('DETAILED')
+
+    // 3. Student changes settings preference to CONCISE in the background
+    await prisma.studentTutoringPreference.update({
+      where: { studentId: fixture.studentId },
+      data: { explanationDetailLevel: 'CONCISE' },
+    })
+
+    // Expire the lease so the attempt is retryable
+    await prisma.tutoringAttempt.update({
+      where: { id: turn.attemptId },
+      data: { leaseExpiresAt: new Date(0) },
+    })
+
+    // 4. Retry the first turn - must preserve the original DETAILED preference for pedagogical reproducibility
+    const retried = await repository.retryTurn({
+      ...fixture,
+      attemptId: turn.attemptId,
+    })
+
+    expect(retried.kind).toBe('ok')
+    if (retried.kind !== 'ok') {
+      return
+    }
+    expect(retried.explanationDetailLevel).toBe('DETAILED')
+
+    const retryAttempt = await prisma.tutoringAttempt.findUniqueOrThrow({
+      where: { id: retried.attemptId },
+      select: { explanationDetailLevel: true, retryOfAttemptId: true },
+    })
+    expect(retryAttempt.explanationDetailLevel).toBe('DETAILED')
+    expect(retryAttempt.retryOfAttemptId).toBe(turn.attemptId)
+  })
+
   it('expires abandoned work before accepting a later send', async () => {
     const fixture = await createFixture(prisma)
     const abandoned = await repository.beginTurn({

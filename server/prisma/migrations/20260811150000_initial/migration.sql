@@ -56,6 +56,9 @@ CREATE TYPE "review_inbox_item_status" AS ENUM ('UNREAD', 'READ');
 CREATE TYPE "topic_status" AS ENUM ('ACTIVE', 'PAUSED', 'RESOLVED', 'ABANDONED');
 
 -- CreateEnum
+CREATE TYPE "explanation_detail_level" AS ENUM ('CONCISE', 'STANDARD', 'DETAILED');
+
+-- CreateEnum
 CREATE TYPE "tutoring_attempt_status" AS ENUM ('RECEIVED', 'ANALYZING', 'RETRIEVING', 'DECIDING', 'GENERATING', 'VALIDATING', 'REGENERATING', 'COMPLETED', 'FAILED');
 
 -- CreateEnum
@@ -444,6 +447,7 @@ CREATE TABLE "tutoring_attempts" (
     "client_message_id" VARCHAR(160) NOT NULL,
     "request_kind" "message_request_kind",
     "status" "tutoring_attempt_status" NOT NULL DEFAULT 'RECEIVED',
+    "explanation_detail_level" "explanation_detail_level" NOT NULL DEFAULT 'STANDARD',
     "failure_code" "tutoring_attempt_failure_code",
     "lease_expires_at" TIMESTAMPTZ(6),
     "safe_fallback_used" BOOLEAN NOT NULL DEFAULT false,
@@ -582,6 +586,16 @@ CREATE TABLE "educational_analysis_misconceptions" (
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "educational_analysis_misconceptions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "student_tutoring_preferences" (
+    "student_id" UUID NOT NULL,
+    "explanation_detail_level" "explanation_detail_level" NOT NULL DEFAULT 'STANDARD',
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "student_tutoring_preferences_pkey" PRIMARY KEY ("student_id")
 );
 
 -- CreateIndex
@@ -965,6 +979,9 @@ ALTER TABLE "educational_analysis_misconceptions" ADD CONSTRAINT "educational_an
 
 -- AddForeignKey
 ALTER TABLE "educational_analysis_misconceptions" ADD CONSTRAINT "educational_analysis_misconceptions_evidence_message_id_fkey" FOREIGN KEY ("evidence_message_id") REFERENCES "messages"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "student_tutoring_preferences" ADD CONSTRAINT "student_tutoring_preferences_student_id_fkey" FOREIGN KEY ("student_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- Handwritten net-live checks retained from the historical schema inventory.
 ALTER TABLE "users"

@@ -1,15 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-import { SettingsPlaceholderTab } from '@/workspaces/_shared/settings-shell'
+import { LearningTabContent } from '@/features/account-settings/learning-tab-content'
 
 export const Route = createFileRoute('/_student/settings/learning')({
-  component: () => (
-    <SettingsPlaceholderTab
-      title="Learning & language"
-      description="Configure your learning preferences and explanation style."
-    />
-  ),
+  component: LearningTabContent,
   head: () => ({
-    meta: [{ title: 'Learning & Language Settings — Morshid' }],
+    meta: [{ title: 'Learning Preferences — Morshid' }],
   }),
 })
