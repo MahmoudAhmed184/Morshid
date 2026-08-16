@@ -2,6 +2,8 @@ import { ApiProperty } from '@nestjs/swagger'
 import { Expose, Type } from 'class-transformer'
 import { z } from 'zod'
 
+import { userPasswordSchema } from './user-administration.types'
+
 export const createUserImportSchema = z
   .object({
     rows: z
@@ -22,8 +24,38 @@ export const createUserImportSchema = z
   .strict()
 
 export const userImportIdSchema = z.uuid()
+export const updateUserImportRowSchema = z
+  .object({
+    displayName: z.string().optional(),
+    email: z.string().optional(),
+    password: z.preprocess(
+      (value) => (value === '' ? undefined : value),
+      userPasswordSchema.optional(),
+    ),
+  })
+  .strict()
+  .refine((input) => Object.keys(input).length > 0, {
+    message: 'At least one row field must be provided',
+  })
 
 export type CreateUserImport = z.infer<typeof createUserImportSchema>
+export type UpdateUserImportRow = z.infer<typeof updateUserImportRowSchema>
+
+export class UpdateUserImportRowDto {
+  @ApiProperty({ required: false, maxLength: 120 })
+  displayName?: string
+
+  @ApiProperty({ required: false, format: 'email' })
+  email?: string
+
+  @ApiProperty({
+    required: false,
+    format: 'password',
+    minLength: 15,
+    maxLength: 128,
+  })
+  password?: string
+}
 
 export class CreateUserImportRowDto {
   @ApiProperty({ minimum: 2 })
@@ -69,12 +101,16 @@ export class UserImportRowDto {
   role!: string | null
 
   @Expose()
-  @ApiProperty({ enum: ['VALID', 'INVALID', 'APPROVED'] })
+  @ApiProperty({ enum: ['VALID', 'INVALID', 'APPROVED', 'CANCELLED'] })
   status!: string
 
   @Expose()
   @ApiProperty({ type: [String] })
   errors!: string[]
+
+  @Expose()
+  @ApiProperty()
+  hasPassword!: boolean
 }
 
 export class UserImportDto {

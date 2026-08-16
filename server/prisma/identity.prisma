@@ -26,6 +26,7 @@ enum UserImportRowStatus {
   VALID
   INVALID
   APPROVED
+  CANCELLED
 
   @@map("user_import_row_status")
 }

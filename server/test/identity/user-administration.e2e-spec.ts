@@ -318,6 +318,29 @@ describe('Admin users (e2e)', () => {
       .expect(403)
   })
 
+  it('rejects non-admin user import row edits', async () => {
+    const token = await signInAs('student1@morshid.demo')
+
+    await request(app.getHttpServer())
+      .patch(
+        '/api/v1/admin/users/imports/00000000-0000-4000-8000-000000000099/rows/00000000-0000-4000-8000-000000000098',
+      )
+      .set('Authorization', `Bearer ${token}`)
+      .send({ displayName: 'Unauthorized edit' })
+      .expect(403)
+  })
+
+  it('rejects non-admin user import row cancellations', async () => {
+    const token = await signInAs('student1@morshid.demo')
+
+    await request(app.getHttpServer())
+      .post(
+        '/api/v1/admin/users/imports/00000000-0000-4000-8000-000000000099/rows/00000000-0000-4000-8000-000000000098/cancel',
+      )
+      .set('Authorization', `Bearer ${token}`)
+      .expect(403)
+  })
+
   describe('PATCH /api/v1/admin/users/:userId', () => {
     it('updates profile fields and records before/after audit evidence', async () => {
       const token = await signInAs('admin@morshid.demo')

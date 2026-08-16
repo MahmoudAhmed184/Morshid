@@ -20,6 +20,13 @@ export interface StagedUserImportRow {
   errors: string[]
 }
 
+export interface UpdatedUserImportRow extends StagedUserImportRow {
+  id: string
+}
+
+export class InvalidUserImportApprovalError extends Error {}
+export class UserImportRowNotCancellableError extends Error {}
+
 const importSelect = {
   id: true,
   status: true,
@@ -35,6 +42,7 @@ const importSelect = {
       role: true,
       status: true,
       errors: true,
+      passwordHash: true,
     },
   },
 } satisfies Prisma.UserImportSelect
@@ -83,6 +91,48 @@ export class UserImportRepository {
     })
   }
 
+  async updateRows(importId: string, rows: UpdatedUserImportRow[]) {
+    await this.prisma.$transaction(
+      rows.map(({ id, rowNumber: _rowNumber, ...data }) =>
+        this.prisma.userImportRow.update({
+          where: { id, importId },
+          data: {
+            ...data,
+            status:
+              data.errors.length === 0
+                ? UserImportRowStatus.VALID
+                : UserImportRowStatus.INVALID,
+          },
+        }),
+      ),
+    )
+    return this.prisma.userImport.findUniqueOrThrow({
+      where: { id: importId },
+      select: importSelect,
+    })
+  }
+
+  async cancelRow(importId: string, rowId: string) {
+    const result = await this.prisma.userImportRow.updateMany({
+      where: {
+        id: rowId,
+        importId,
+        status: {
+          in: [UserImportRowStatus.VALID, UserImportRowStatus.INVALID],
+        },
+        import: { status: UserImportStatus.PENDING },
+      },
+      data: { status: UserImportRowStatus.CANCELLED },
+    })
+    if (result.count !== 1) {
+      throw new UserImportRowNotCancellableError()
+    }
+    return this.prisma.userImport.findUniqueOrThrow({
+      where: { id: importId },
+      select: importSelect,
+    })
+  }
+
   approveImport(
     importId: string,
     actorUserId: string,
@@ -95,13 +145,13 @@ export class UserImportRepository {
           select: {
             status: true,
             rows: {
-              where: { status: UserImportRowStatus.VALID },
               select: {
                 id: true,
                 email: true,
                 displayName: true,
                 role: true,
                 passwordHash: true,
+                status: true,
               },
             },
           },
@@ -115,7 +165,38 @@ export class UserImportRepository {
           })
         }
 
-        for (const row of userImport.rows) {
+        const activeRows = userImport.rows.filter(
+          (row) => row.status !== UserImportRowStatus.CANCELLED,
+        )
+        if (
+          activeRows.length === 0 ||
+          activeRows.some((row) => row.status !== UserImportRowStatus.VALID)
+        ) {
+          throw new InvalidUserImportApprovalError(
+            'Every import row must be valid before approval',
+          )
+        }
+
+        const emails = activeRows.map((row) => row.email).filter(isString)
+        if (
+          new Set(emails.map((email) => email.toLowerCase())).size !==
+          emails.length
+        ) {
+          throw new InvalidUserImportApprovalError(
+            'Import contains duplicate emails',
+          )
+        }
+        const existingUsers = await tx.user.findMany({
+          where: { email: { in: emails } },
+          select: { email: true },
+        })
+        if (existingUsers.length > 0) {
+          throw new InvalidUserImportApprovalError(
+            'An imported email belongs to an existing user',
+          )
+        }
+
+        for (const row of activeRows) {
           if (
             row.email === null ||
             row.email === '' ||
@@ -163,4 +244,8 @@ export class UserImportRepository {
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     )
   }
+}
+
+function isString(value: string | null): value is string {
+  return value !== null && value !== ''
 }

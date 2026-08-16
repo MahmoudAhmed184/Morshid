@@ -54,8 +54,9 @@ export const userImportSchema = z.object({
       displayName: z.string().nullable(),
       email: z.string().nullable(),
       role: z.enum(['STUDENT', 'INSTRUCTOR']).nullable(),
-      status: z.enum(['VALID', 'INVALID', 'APPROVED']),
+      status: z.enum(['VALID', 'INVALID', 'APPROVED', 'CANCELLED']),
       errors: z.array(z.string()),
+      hasPassword: z.boolean(),
     }),
   ),
 })

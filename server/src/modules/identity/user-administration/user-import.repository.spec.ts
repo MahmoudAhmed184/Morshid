@@ -13,6 +13,15 @@ describe(UserImportRepository.name, () => {
           displayName: 'Student',
           role: 'STUDENT',
           passwordHash: 'secured-hash',
+          status: 'VALID',
+        },
+        {
+          id: 'row-2',
+          email: 'cancelled@example.com',
+          displayName: 'Cancelled',
+          role: 'STUDENT',
+          passwordHash: 'cancelled-hash',
+          status: 'CANCELLED',
         },
       ],
     }
@@ -48,6 +57,7 @@ describe(UserImportRepository.name, () => {
       },
       user: {
         create: createUser,
+        findMany: jest.fn().mockResolvedValue([]),
       },
       userImportRow: { update: jest.fn().mockResolvedValue(undefined) },
     }
@@ -79,5 +89,36 @@ describe(UserImportRepository.name, () => {
     expect(updateImportInput.where).toEqual({ id: 'import-1' })
     expect(updateImportInput.data.status).toBe('APPROVED')
     expect(updateImportInput.data.approvedAt).toBeInstanceOf(Date)
+  })
+
+  it('cancels one pending row without deleting it or changing other rows', async () => {
+    const updateMany = jest.fn().mockResolvedValue({ count: 1 })
+    const storedImport = {
+      id: 'import-1',
+      rows: [{ id: 'row-1' }, { id: 'row-2' }],
+    }
+    const prisma = {
+      userImportRow: { updateMany },
+      userImport: {
+        findUniqueOrThrow: jest.fn().mockResolvedValue(storedImport),
+      },
+    } as unknown as PrismaService
+    const repository = new UserImportRepository(
+      prisma,
+      {} as UserAdministrationAuditService,
+    )
+
+    await expect(repository.cancelRow('import-1', 'row-1')).resolves.toBe(
+      storedImport,
+    )
+    expect(updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'row-1',
+        importId: 'import-1',
+        status: { in: ['VALID', 'INVALID'] },
+        import: { status: 'PENDING' },
+      },
+      data: { status: 'CANCELLED' },
+    })
   })
 })

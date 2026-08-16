@@ -116,6 +116,36 @@ export async function approveUserImport(importId: string) {
   return userImportResponseSchema.parse(response).userImport
 }
 
+export type UpdateUserImportRowInput = {
+  displayName?: string
+  email?: string
+  password?: string
+}
+
+export async function updateUserImportRow(
+  importId: string,
+  rowId: string,
+  input: UpdateUserImportRowInput,
+) {
+  const response = await apiJson<unknown>(
+    `/api/v1/admin/users/imports/${importId}/rows/${rowId}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+  )
+  return userImportResponseSchema.parse(response).userImport
+}
+
+export async function cancelUserImportRow(importId: string, rowId: string) {
+  const response = await apiJson<unknown>(
+    `/api/v1/admin/users/imports/${importId}/rows/${rowId}/cancel`,
+    { method: 'POST' },
+  )
+  return userImportResponseSchema.parse(response).userImport
+}
+
 export async function resetManagedUserPassword(
   userId: string,
   newPassword: string,
