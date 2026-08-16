@@ -1,15 +1,31 @@
 import { expect, test } from '@playwright/test'
 
+import { apiBaseUrl, bearerHeaders, signInThroughApi } from '../support/api'
 import { demoAccounts, signInThroughUi } from '../support/demo-auth'
 
 test.describe('Student Learning Preferences', () => {
+  test.beforeEach(async ({ request }) => {
+    const studentAccessToken = await signInThroughApi(
+      request,
+      demoAccounts.student,
+    )
+    const resetResponse = await request.patch(
+      `${apiBaseUrl}/api/v1/student/tutoring-preferences`,
+      {
+        data: { explanationDetailLevel: 'STANDARD' },
+        headers: bearerHeaders(studentAccessToken),
+      },
+    )
+    await expect(resetResponse).toBeOK()
+  })
+
   test('seeded Student navigates to learning settings and changes explanation detail level', async ({
     page,
   }) => {
     await signInThroughUi(page, demoAccounts.student)
+    await expect(page).toHaveURL(/\/chat(?:\?.*)?$/)
 
     await page.goto('/settings/learning')
-
     await expect(page).toHaveURL(/\/settings\/learning/)
     await expect(
       page.getByRole('heading', { name: 'Explanation Detail' }),
@@ -37,6 +53,9 @@ test.describe('Student Learning Preferences', () => {
 
     // Reload page to verify persistence
     await page.reload()
+    await expect(
+      page.getByRole('heading', { name: 'Explanation Detail' }),
+    ).toBeVisible()
     await expect(
       page.getByRole('radio', { name: /Detailed/i }),
     ).toHaveAttribute('aria-checked', 'true')

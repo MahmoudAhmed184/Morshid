@@ -61,10 +61,12 @@ const detailLevelOptions: readonly DetailLevelOption[] = [
 ]
 
 export function LearningTabContent() {
-  const [initialLevel, setInitialLevel] =
-    useState<ExplanationDetailLevel | null>(null)
-  const [selectedLevel, setSelectedLevel] =
-    useState<ExplanationDetailLevel | null>(null)
+  const [initialLevel, setInitialLevel] = useState<ExplanationDetailLevel>(
+    ExplanationDetailLevel.STANDARD,
+  )
+  const [selectedLevel, setSelectedLevel] = useState<ExplanationDetailLevel>(
+    ExplanationDetailLevel.STANDARD,
+  )
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
@@ -111,7 +113,7 @@ export function LearningTabContent() {
   const isUnchanged = selectedLevel === initialLevel
 
   async function handleSave() {
-    if (!selectedLevel || isUnchanged) {
+    if (isUnchanged) {
       return
     }
 
