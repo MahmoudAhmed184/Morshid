@@ -19,8 +19,16 @@ export function DashboardReviewQueuePanel({
   state,
 }: DashboardReviewQueuePanelProps) {
   const hasCourse = state.status === 'ready'
+  const summary = state.status === 'ready' ? state.workloadSummary : undefined
   const reviewCount =
-    state.status === 'ready' ? state.reviewQueueCount : undefined
+    summary?.pendingCount ??
+    (state.status === 'ready' ? state.reviewQueueCount : undefined)
+  const inReviewCount = summary?.inReviewCount ?? 0
+  const oldestAge =
+    summary?.oldestPendingAge !== null &&
+    summary?.oldestPendingAge !== undefined
+      ? formatAge(summary.oldestPendingAge)
+      : null
 
   return (
     <Card className="flex flex-col">
@@ -40,9 +48,18 @@ export function DashboardReviewQueuePanel({
                   : 'Review activity is course-specific'}
             </p>
             <p className="footnote mt-1">
-              {hasCourse
-                ? 'Open the queue to see current flagged exchanges.'
-                : 'Assign a course to collect flagged exchanges.'}
+              {reviewCount !== undefined && reviewCount > 0 ? (
+                <span>
+                  {inReviewCount > 0 ? `${inReviewCount} in review · ` : ''}
+                  {oldestAge
+                    ? `Oldest waiting ${oldestAge}`
+                    : 'Review pending exchanges.'}
+                </span>
+              ) : hasCourse ? (
+                'Open the queue to see current flagged exchanges.'
+              ) : (
+                'Assign a course to collect flagged exchanges.'
+              )}
             </p>
           </div>
         )}
@@ -55,4 +72,11 @@ export function DashboardReviewQueuePanel({
       </CardContent>
     </Card>
   )
+}
+
+function formatAge(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`
+  if (seconds < 3_600) return `${Math.floor(seconds / 60)}m`
+  if (seconds < 86_400) return `${Math.floor(seconds / 3_600)}h`
+  return `${Math.floor(seconds / 86_400)}d`
 }

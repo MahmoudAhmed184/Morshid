@@ -162,3 +162,31 @@ export type InstructorReviewActionResponse = z.infer<
 export type InstructorReviewOutcome = z.infer<
   typeof instructorReviewOutcomeSchema
 >
+
+export const reasonCountSchema = z.object({
+  reason: studentFlagReasonSchema,
+  count: z.number().int().nonnegative(),
+})
+
+export const triggerCountSchema = z.object({
+  trigger: reviewTriggerSchema,
+  count: z.number().int().nonnegative(),
+})
+
+export const instructorReviewWorkloadSummarySchema = z.object({
+  pendingCount: z.number().int().nonnegative(),
+  inReviewCount: z.number().int().nonnegative(),
+  claimedByMeCount: z.number().int().nonnegative(),
+  totalActiveCount: z.number().int().nonnegative(),
+  oldestPendingCreatedAt: z.iso.datetime().nullable(),
+  oldestPendingAge: z.number().int().nonnegative().nullable(),
+  byStudentFlagReason: z.array(reasonCountSchema),
+  byTriggerType: z.array(triggerCountSchema),
+})
+
+export type ReasonCount = z.infer<typeof reasonCountSchema>
+export type TriggerCount = z.infer<typeof triggerCountSchema>
+export type ReviewTriggerType = z.infer<typeof reviewTriggerSchema>
+export type InstructorReviewWorkloadSummary = z.infer<
+  typeof instructorReviewWorkloadSummarySchema
+>

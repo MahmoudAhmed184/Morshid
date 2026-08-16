@@ -23,12 +23,12 @@ Courses without broadening access to Student Conversations.
 
 ## Acceptance criteria
 
-- [ ] Counts reconcile with the same filtered Review Queue at one database
+- [x] Counts reconcile with the same filtered Review Queue at one database
       snapshot.
-- [ ] An Instructor cannot infer counts for an unassigned or archived Course.
-- [ ] Empty, loading, stale, error, and partial-Course states are explicit.
-- [ ] Metric links produce the intended queue filter and preserve navigation.
-- [ ] Repository E2E and Instructor acceptance tests cover multiple Courses,
+- [x] An Instructor cannot infer counts for an unassigned or archived Course.
+- [x] Empty, loading, stale, error, and partial-Course states are explicit.
+- [x] Metric links produce the intended queue filter and preserve navigation.
+- [x] Repository E2E and Instructor acceptance tests cover multiple Courses,
       mixed statuses, membership removal, and no-case state.
 
 ## Out of scope

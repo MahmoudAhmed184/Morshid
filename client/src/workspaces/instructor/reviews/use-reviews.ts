@@ -10,6 +10,7 @@ import {
   instructorReviewDetailQueryOptions,
   instructorReviewKeys,
   instructorReviewQueueQueryOptions,
+  instructorReviewWorkloadSummaryQueryOptions,
 } from '@/features/reviews/instructor-queue/instructor-reviews.queries'
 import {
   rejectReviewCase,
@@ -32,6 +33,19 @@ export type ResolveInstructorReviewVariables =
 
 export type RejectInstructorReviewVariables =
   InstructorReviewActionVariables<RejectReviewCaseRequest>
+
+export function useInstructorReviewWorkloadSummary(
+  courseId: string | null = null,
+) {
+  const instructorId = useAuthStore((state) => state.user?.id)
+  return useQuery({
+    ...instructorReviewWorkloadSummaryQueryOptions(
+      instructorId ?? 'anonymous',
+      courseId,
+    ),
+    enabled: instructorId !== undefined,
+  })
+}
 
 export function useInstructorReviewQueue(
   studentFlagReason: StudentFlagReason | null = null,
@@ -96,6 +110,9 @@ function useInstructorReviewAction<TRequest>(
         queryClient.invalidateQueries({
           queryKey: instructorReviewKeys.queue(instructorId),
         }),
+        queryClient.invalidateQueries({
+          queryKey: instructorReviewKeys.workloadSummaryPrefix(instructorId),
+        }),
       ])
     },
     onError: async (_error, { reviewCaseId }) => {
@@ -107,6 +124,9 @@ function useInstructorReviewAction<TRequest>(
         }),
         queryClient.invalidateQueries({
           queryKey: instructorReviewKeys.queue(instructorId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: instructorReviewKeys.workloadSummaryPrefix(instructorId),
         }),
       ])
     },

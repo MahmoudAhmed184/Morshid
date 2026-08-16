@@ -9,12 +9,13 @@ import { PrismaInstructorReviewQueueRepository } from './instructor-review-queue
 
 describe('PrismaInstructorReviewQueueRepository', () => {
   const findMany = jest.fn()
+  const findFirst = jest.fn()
   const count = jest.fn()
   const transaction = jest.fn((operations: unknown[]) =>
     Promise.all(operations),
   )
   const repository = new PrismaInstructorReviewQueueRepository({
-    reviewCase: { findMany, count },
+    reviewCase: { findMany, findFirst, count },
     $transaction: transaction,
   } as unknown as PrismaService)
 
@@ -162,4 +163,91 @@ describe('PrismaInstructorReviewQueueRepository', () => {
       })
     },
   )
+
+  it('aggregates workload summary metrics in a single atomic transaction', async () => {
+    const oldestDate = new Date('2026-07-28T09:00:00.000Z')
+    count
+      .mockResolvedValueOnce(3) // pendingCount
+      .mockResolvedValueOnce(2) // inReviewCount
+      .mockResolvedValueOnce(1) // claimedByMeCount
+    findFirst.mockResolvedValueOnce({ createdAt: oldestDate })
+    findMany.mockResolvedValueOnce([
+      {
+        id: 'case-1',
+        triggers: [
+          {
+            type: ReviewTriggerType.STUDENT_REQUEST,
+            studentFlagReason: StudentFlagReason.INCORRECT,
+          },
+        ],
+      },
+      {
+        id: 'case-2',
+        triggers: [
+          {
+            type: ReviewTriggerType.STUDENT_REQUEST,
+            studentFlagReason: StudentFlagReason.CONFUSING,
+          },
+          {
+            type: ReviewTriggerType.CITATION_MISSING,
+            studentFlagReason: null,
+          },
+        ],
+      },
+      {
+        id: 'case-3',
+        triggers: [
+          {
+            type: ReviewTriggerType.STUDENT_REQUEST,
+            studentFlagReason: StudentFlagReason.INCORRECT,
+          },
+          {
+            type: ReviewTriggerType.SOURCE_CONFLICT,
+            studentFlagReason: null,
+          },
+        ],
+      },
+    ])
+
+    const summary = await repository.getWorkloadSummary({
+      instructorId: 'instructor-1',
+      courseId: 'course-1',
+    })
+
+    expect(summary.pendingCount).toBe(3)
+    expect(summary.inReviewCount).toBe(2)
+    expect(summary.claimedByMeCount).toBe(1)
+    expect(summary.totalActiveCount).toBe(5)
+    expect(summary.oldestPendingCreatedAt).toEqual(oldestDate)
+
+    const incorrectReason = summary.byStudentFlagReason.find(
+      (r) => r.reason === StudentFlagReason.INCORRECT,
+    )
+    const confusingReason = summary.byStudentFlagReason.find(
+      (r) => r.reason === StudentFlagReason.CONFUSING,
+    )
+    const unhelpfulReason = summary.byStudentFlagReason.find(
+      (r) => r.reason === StudentFlagReason.UNHELPFUL,
+    )
+    expect(incorrectReason?.count).toBe(2)
+    expect(confusingReason?.count).toBe(1)
+    expect(unhelpfulReason?.count).toBe(0)
+
+    const studentRequestTrigger = summary.byTriggerType.find(
+      (t) => t.trigger === ReviewTriggerType.STUDENT_REQUEST,
+    )
+    const citationTrigger = summary.byTriggerType.find(
+      (t) => t.trigger === ReviewTriggerType.CITATION_MISSING,
+    )
+    const conflictTrigger = summary.byTriggerType.find(
+      (t) => t.trigger === ReviewTriggerType.SOURCE_CONFLICT,
+    )
+    const policyTrigger = summary.byTriggerType.find(
+      (t) => t.trigger === ReviewTriggerType.POLICY_CHECK_FAILED,
+    )
+    expect(studentRequestTrigger?.count).toBe(3)
+    expect(citationTrigger?.count).toBe(1)
+    expect(conflictTrigger?.count).toBe(1)
+    expect(policyTrigger?.count).toBe(0)
+  })
 })

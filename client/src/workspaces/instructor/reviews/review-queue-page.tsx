@@ -19,7 +19,11 @@ import { PageHeader } from '@/components/ui/custom/page-header'
 import { StatusBadge } from '@/components/ui/custom/status-badge/status-badge'
 import { Input } from '@/components/ui/input'
 import { InstructorListSkeleton } from '@/workspaces/instructor/instructor-list-skeleton'
-import { useInstructorReviewQueue } from '@/workspaces/instructor/reviews/use-reviews'
+import { ReviewWorkloadSummary } from '@/workspaces/instructor/reviews/review-workload-summary'
+import {
+  useInstructorReviewQueue,
+  useInstructorReviewWorkloadSummary,
+} from '@/workspaces/instructor/reviews/use-reviews'
 import type {
   InstructorReviewQueueItem,
   StudentFlagReason,
@@ -72,6 +76,7 @@ export function ReviewQueuePage() {
   const [courseId, setCourseId] = useState<string | null>(
     storedFilters.courseId,
   )
+  const workloadSummaryQuery = useInstructorReviewWorkloadSummary(courseId)
   const [trigger, setTrigger] = useState<QueueTrigger | null>(
     storedFilters.trigger,
   )
@@ -138,6 +143,24 @@ export function ReviewQueuePage() {
         eyebrow="Instructor workspace"
         title="Review Queue"
         description="Review flagged responses from your assigned courses."
+      />
+
+      <ReviewWorkloadSummary
+        summary={workloadSummaryQuery.data}
+        isLoading={workloadSummaryQuery.isPending}
+        error={workloadSummaryQuery.error}
+        onRetry={() => {
+          void workloadSummaryQuery.refetch()
+        }}
+        onSelectStatus={(selectedStatus) => {
+          setStatus(selectedStatus)
+        }}
+        onSelectStudentFlagReason={(selectedReason) => {
+          selectStudentFlagReason(selectedReason)
+        }}
+        onSelectTrigger={(selectedTrigger) => {
+          setTrigger(selectedTrigger)
+        }}
       />
 
       <Card className="overflow-hidden">
@@ -366,34 +389,76 @@ function readStoredQueueFilters(): StoredQueueFilters {
     studentFlagReason: null,
     preservedCourses: [],
   }
+  let baseFilters: StoredQueueFilters = fallback
   try {
     const parsed: unknown = JSON.parse(
       window.sessionStorage.getItem(queueFilterStorageKey) ?? 'null',
     )
-    if (typeof parsed !== 'object' || parsed === null) return fallback
-    const candidate = parsed as Partial<StoredQueueFilters>
-    return {
-      search: typeof candidate.search === 'string' ? candidate.search : '',
-      status: statusTabs.some(({ value }) => value === candidate.status)
-        ? (candidate.status ?? 'PENDING')
-        : 'PENDING',
-      courseId:
-        typeof candidate.courseId === 'string' ? candidate.courseId : null,
-      trigger: triggerOptions.includes(candidate.trigger as QueueTrigger)
-        ? (candidate.trigger ?? null)
-        : null,
-      studentFlagReason: studentFlagReasons.includes(
-        candidate.studentFlagReason as StudentFlagReason,
-      )
-        ? (candidate.studentFlagReason ?? null)
-        : null,
-      preservedCourses: Array.isArray(candidate.preservedCourses)
-        ? candidate.preservedCourses.filter(isStoredCourse)
-        : [],
+    if (typeof parsed === 'object' && parsed !== null) {
+      const candidate = parsed as Partial<StoredQueueFilters>
+      baseFilters = {
+        search: typeof candidate.search === 'string' ? candidate.search : '',
+        status: statusTabs.some(({ value }) => value === candidate.status)
+          ? (candidate.status ?? 'PENDING')
+          : 'PENDING',
+        courseId:
+          typeof candidate.courseId === 'string' ? candidate.courseId : null,
+        trigger: triggerOptions.includes(candidate.trigger as QueueTrigger)
+          ? (candidate.trigger ?? null)
+          : null,
+        studentFlagReason: studentFlagReasons.includes(
+          candidate.studentFlagReason as StudentFlagReason,
+        )
+          ? (candidate.studentFlagReason ?? null)
+          : null,
+        preservedCourses: Array.isArray(candidate.preservedCourses)
+          ? candidate.preservedCourses.filter(isStoredCourse)
+          : [],
+      }
     }
   } catch {
-    return fallback
+    baseFilters = fallback
   }
+
+  try {
+    if (typeof window !== 'undefined' && window.location.search) {
+      const searchParams = new URLSearchParams(window.location.search)
+      const statusParam = searchParams.get('status')
+      const courseIdParam = searchParams.get('courseId')
+      const triggerParam = searchParams.get('trigger')
+      const reasonParam = searchParams.get('studentFlagReason')
+      const querySearchParam = searchParams.get('search')
+
+      if (
+        statusParam &&
+        statusTabs.some(({ value }) => value === statusParam)
+      ) {
+        baseFilters.status = statusParam as QueueStatus
+      }
+      if (courseIdParam !== null) {
+        baseFilters.courseId = courseIdParam || null
+      }
+      if (
+        triggerParam &&
+        triggerOptions.includes(triggerParam as QueueTrigger)
+      ) {
+        baseFilters.trigger = triggerParam as QueueTrigger
+      }
+      if (
+        reasonParam &&
+        studentFlagReasons.includes(reasonParam as StudentFlagReason)
+      ) {
+        baseFilters.studentFlagReason = reasonParam as StudentFlagReason
+      }
+      if (querySearchParam !== null) {
+        baseFilters.search = querySearchParam
+      }
+    }
+  } catch {
+    // Ignore URL parameter parsing errors
+  }
+
+  return baseFilters
 }
 
 function isStoredCourse(
