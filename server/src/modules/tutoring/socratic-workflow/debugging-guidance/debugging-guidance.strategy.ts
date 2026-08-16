@@ -25,7 +25,7 @@ interface DiagnosisMatch {
 }
 
 const DIAGNOSIS_INTENT_PATTERN =
-  /\b(?:bug|crash|debug|diagnos|error|fails?|fix|incorrect|issue|problem|rewrite|solution|solve|suspicious|wrong)\w*\b/iu
+  /\b(?:bug|crash|debug|diagnos|error|fails?|fix|incorrect|issue|suspicious|wrong)\w*\b/iu
 
 const KNOWN_LANGUAGE_IDENTIFIERS = new Set([
   '__import__',

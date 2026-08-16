@@ -68,6 +68,78 @@ describe('shared Tutor strategy selection', () => {
     })
   })
 
+  it.each([
+    [
+      'solution plus function',
+      'Write a Python function that returns the largest number in a list without using max(). Give me the complete solution.',
+    ],
+    [
+      'solve plus list',
+      'Solve this Python list exercise by writing a function that returns the largest number.',
+    ],
+  ])('keeps %s out of debugging guidance', (_label, input) => {
+    const selection = selectTutorStrategy(input)
+
+    expect(selection).toMatchObject({
+      decision: {
+        requestKind: MessageRequestKind.CONCEPTUAL,
+        strategy: 'GROUNDED_EXPLANATION',
+      },
+      retrievalQuery: input,
+      diagnosis: null,
+      boundaryResponse: null,
+      fullRewriteRequested: false,
+    })
+  })
+
+  it.each([
+    ['debug', 'Please debug this Python function.'],
+    ['error', 'This Python function has an error.'],
+    ['fail', 'Why does this Python function fail?'],
+    ['wrong', 'Why is this Python function wrong?'],
+  ])(
+    'keeps explicit %s language with code context eligible for diagnosis',
+    (_label, input) => {
+      const selection = selectTutorStrategy(input)
+
+      expect(selection).toMatchObject({
+        decision: {
+          requestKind: MessageRequestKind.CODE_DIAGNOSIS,
+          strategy: 'DEBUGGING_GUIDANCE',
+        },
+        boundaryResponse: null,
+      })
+      expect(selection.diagnosis).not.toBeNull()
+    },
+  )
+
+  it.each([
+    [
+      'fenced code',
+      [
+        '```python',
+        'def average(nums):',
+        '    return sum(nums) / len(num)',
+        '```',
+      ].join('\n'),
+    ],
+    [
+      'multiline code',
+      ['def average(nums):', '    return sum(nums) / len(num)'].join('\n'),
+    ],
+  ])('keeps %s eligible for diagnosis', (_label, input) => {
+    const selection = selectTutorStrategy(input)
+
+    expect(selection).toMatchObject({
+      decision: {
+        requestKind: MessageRequestKind.CODE_DIAGNOSIS,
+        strategy: 'DEBUGGING_GUIDANCE',
+      },
+      boundaryResponse: null,
+    })
+    expect(selection.diagnosis?.likelyDefect).toMatch(/num.*nums/iu)
+  })
+
   it('does not diagnose an object attribute as an unresolved local name', () => {
     const selection = selectTutorStrategy(
       [

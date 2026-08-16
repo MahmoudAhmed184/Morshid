@@ -1363,15 +1363,25 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     ] as const
     let candidateIndex = 0
     tutorModel.behavior = (modelRequest) => {
+      if (candidateIndex === 0) {
+        expect(modelRequest.messages[1].content).toContain(
+          '"debuggingGuidance":null',
+        )
+        expect(modelRequest.messages[1].content).not.toContain(
+          '"debuggingGuidance":{',
+        )
+      }
       const planned = candidatePlan[candidateIndex]
       candidateIndex += 1
       return Promise.resolve(storyCandidateResponse(modelRequest, planned))
     }
 
+    const liveNoAttemptProblem =
+      'Write a Python function that returns the largest number in a list without using max(). Give me the complete solution.'
     const turns: TutoringTurnResponseDto[] = []
     try {
       for (const content of [
-        'Write a Python function find_max(numbers) that returns the largest value in a non-empty list of integers without using max().',
+        liveNoAttemptProblem,
         "I don't know.",
         "I still don't know.",
         'I think the first element would be numbers[1], so I would start with largest = numbers[1]. Then I would compare the other values against it.',
@@ -1401,6 +1411,10 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       MessageRequestKind.CONCEPTUAL,
       MessageRequestKind.ATTEMPT_DIAGNOSIS,
     ])
+    expect(turns[0]?.studentMessage.content).toBe(liveNoAttemptProblem)
+    expect(turns[0]?.assistantMessage.content).not.toMatch(
+      /Likely defect|Relevant location|Next inspection step|STATIC PYTHON DIAGNOSIS/iu,
+    )
     expect(
       turns.map(({ assistantMessage }) => assistantMessage.hintLevel),
     ).toEqual([1, 1, 1, 2])
