@@ -11,6 +11,14 @@ interface RecordSessionDeletedInput {
   requestContext?: AuditRequestContext
 }
 
+interface RecordSessionExportedInput {
+  actorUserId: string
+  courseId: string
+  sessionId: string
+  messageCount?: number
+  requestContext?: AuditRequestContext
+}
+
 export interface RecordAccessDeniedInput {
   actorUserId: string
   /**
@@ -55,6 +63,31 @@ export class ConversationAuditService {
         },
         courseId: input.courseId,
         metadata: {},
+        requestContext: input.requestContext,
+      },
+      transaction,
+    )
+  }
+
+  async recordSessionExported(
+    input: RecordSessionExportedInput,
+    transaction?: DatabaseTransaction,
+  ): Promise<void> {
+    await this.auditService.recordEvent(
+      {
+        actorUserId: input.actorUserId,
+        action: AUDIT_EVENT_ACTIONS.CHAT_SESSION_EXPORTED,
+        target: {
+          type: AUDIT_TARGET_TYPES.CHAT_SESSION,
+          id: input.sessionId,
+        },
+        courseId: input.courseId,
+        metadata: {
+          format: 'markdown',
+          ...(input.messageCount !== undefined
+            ? { messageCount: input.messageCount }
+            : {}),
+        },
         requestContext: input.requestContext,
       },
       transaction,

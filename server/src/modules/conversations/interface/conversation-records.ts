@@ -56,3 +56,24 @@ export interface MessageListPagination {
 
 export type SoftDeleteSessionOutcome =
   'deleted' | 'already_deleted' | 'not_found'
+
+export interface ExportableSessionRecord {
+  id: string
+  title: string
+  createdAt: Date
+  course: {
+    id: string
+    code: string
+    title: string
+  }
+}
+
+export interface ExportableMessageRecord {
+  id: string
+  sequence: number
+  role: MessageRole
+  content: string
+  guidanceLabel: MessageGuidanceLabel | null
+  createdAt: Date
+  completedAt: Date | null
+}

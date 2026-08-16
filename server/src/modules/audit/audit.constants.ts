@@ -24,6 +24,7 @@ export const AUDIT_EVENT_ACTIONS = {
   ADMIN_COURSE_MEMBER_ROLE_CHANGED: 'admin.course_member_role_changed',
   CHAT_SESSION_DELETED: 'chat.session_deleted',
   CHAT_SESSION_ACCESS_DENIED: 'chat.session_access_denied',
+  CHAT_SESSION_EXPORTED: 'chat.session_exported',
   CHAT_TURN_COMPLETED: 'chat.turn_completed',
   CHAT_TURN_FAILED: 'chat.turn_failed',
   MATERIAL_UPLOAD_SUCCEEDED: 'material.upload_succeeded',

@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 
 import { StudentSessionActionsMenu } from './session-actions-menu'
 import { StudentSessionInlineRename } from './session-inline-rename'
+import { useExportChatSession } from './use-chat-sessions'
 
 interface StudentSessionListItemProps {
   courseId: string
@@ -31,6 +32,7 @@ export function StudentSessionListItem({
   onNavigate,
 }: StudentSessionListItemProps) {
   const [isEditing, setIsEditing] = useState(false)
+  const exportSession = useExportChatSession({ courseId })
 
   return (
     <li className="group relative rounded-lg [contain-intrinsic-size:auto_2.25rem] [content-visibility:auto]">
@@ -77,8 +79,12 @@ export function StudentSessionListItem({
             session={session}
             isPending={areLifecycleMutationsPending}
             isDeleting={isDeleting}
+            isExporting={exportSession.isPending}
             onStartRename={() => setIsEditing(true)}
             onDelete={onDelete}
+            onExport={() =>
+              exportSession.mutateAsync(session.id).then(() => {})
+            }
           />
         </div>
       ) : null}

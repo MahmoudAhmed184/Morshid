@@ -81,7 +81,10 @@ describe('TutoringRuntimeApplication diagnosis failure paths', () => {
           loadForMessages: jest.fn().mockResolvedValue([]),
           loadPolicyEvidence: jest.fn().mockResolvedValue([]),
         },
-        { loadForMessages: jest.fn().mockResolvedValue([]) },
+        {
+          loadForMessages: jest.fn().mockResolvedValue([]),
+          loadPublishedGuidanceForMessages: jest.fn().mockResolvedValue([]),
+        },
       ),
       { run: orchestrate } as unknown as SocraticWorkflow,
       {

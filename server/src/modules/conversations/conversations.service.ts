@@ -1,3 +1,4 @@
+import type { Readable } from 'node:stream'
 import { Injectable, Logger } from '@nestjs/common'
 
 import type { AuthenticatedUser } from '../identity/identity.types'
@@ -7,6 +8,8 @@ import {
   type AccessAuditRouteContext,
 } from '../audit/audit.public'
 import type { AuditRequestContext } from '../audit/audit.public'
+import { StudentCitationSources } from '../materials/interface/student-citation-sources'
+import { StudentReviewSummaries } from '../reviews/interface/student-review-summaries'
 import {
   ConversationAuditService,
   type RecordAccessDeniedInput,
@@ -36,6 +39,10 @@ import { ConversationMessagePresenter } from './interface/conversation-message-p
 import { ConversationSessionRepository } from './conversation-session.repository'
 import type { ChatSessionRecord } from './interface/conversation-records'
 import { ConversationCourseBoundaryAudit } from './interface/conversation-course-boundary-audit'
+import {
+  createConversationExportStream,
+  generateExportFilename,
+} from './conversation-markdown-export'
 
 const DEFAULT_CHAT_TITLE = 'New chat'
 
@@ -49,6 +56,8 @@ export class ConversationsService extends ConversationCourseBoundaryAudit {
     private readonly conversationAuditService: ConversationAuditService,
     private readonly accessAuditService: AccessAuditService,
     private readonly messagePresenter: ConversationMessagePresenter,
+    private readonly citationSources: StudentCitationSources,
+    private readonly reviewSummaries: StudentReviewSummaries,
   ) {
     super()
   }
@@ -228,6 +237,63 @@ export class ConversationsService extends ConversationCourseBoundaryAudit {
           : (messages[messages.length - 1]?.sequence ?? null)
         : null,
     }
+  }
+
+  async exportSessionMarkdown(
+    courseId: string,
+    sessionId: string,
+    user: AuthenticatedUser,
+    requestContext?: AuditRequestContext,
+  ): Promise<{ stream: Readable; filename: string }> {
+    const hasAccess =
+      await this.sessionRepository.hasActiveOrArchivedStudentAccess(
+        courseId,
+        user.id,
+      )
+
+    if (!hasAccess) {
+      await this.recordMembershipDenied(courseId, user.id, requestContext)
+      throw activeStudentMembershipRequiredException()
+    }
+
+    const session = await this.sessionRepository.findExportableSession(
+      courseId,
+      sessionId,
+      user.id,
+    )
+
+    if (session === null) {
+      await this.recordSessionAccessDenied(
+        courseId,
+        user.id,
+        sessionId,
+        requestContext,
+      )
+      throw conversationSessionNotFoundException()
+    }
+
+    // Must log audit event before returning content; fail the export if auditing fails.
+    await this.conversationAuditService.recordSessionExported({
+      actorUserId: user.id,
+      courseId,
+      sessionId,
+      requestContext,
+    })
+
+    const filename = generateExportFilename(session.course.code, session.title)
+    const stream = createConversationExportStream(session, {
+      fetchMessagesBatch: (cursor) =>
+        this.sessionRepository.listMessagesForExport(sessionId, cursor),
+      fetchCitations: (messageIds) =>
+        this.citationSources.loadForMessages(messageIds),
+      fetchPublishedGuidance: (messageIds) =>
+        this.reviewSummaries.loadPublishedGuidanceForMessages(
+          messageIds,
+          user.id,
+        ),
+    })
+
+    return { stream, filename }
   }
 
   /**

@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common'
 
 import { AuditModule } from '../audit/audit.module'
 import { IdentityModule } from '../identity/identity.module'
+import { MaterialsModule } from '../materials/materials.module'
+import { ReviewsModule } from '../reviews/reviews.module'
 import { PrismaModule } from '../../platform/database/prisma.module'
 import { ConversationTurns } from './interface/conversation-turns'
 import { ConversationAuthorization } from './interface/conversation-authorization'
@@ -21,7 +23,13 @@ import { ConversationCourseBoundaryAudit } from './interface/conversation-course
 import { ConversationsController } from './conversations.controller'
 
 @Module({
-  imports: [AuditModule, IdentityModule, PrismaModule],
+  imports: [
+    AuditModule,
+    IdentityModule,
+    PrismaModule,
+    MaterialsModule,
+    ReviewsModule,
+  ],
   controllers: [ConversationsController],
   providers: [
     PrismaConversationTurns,
