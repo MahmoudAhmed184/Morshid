@@ -28,6 +28,7 @@ import { MaterialCard } from '@/workspaces/instructor/materials/material-card'
 import { MaterialUploadDialog } from '@/workspaces/instructor/materials/material-upload-dialog'
 import { summarizeMaterials } from '@/features/materials/material-catalog/summarize-materials'
 import { useCourseMembership } from '@/workspaces/instructor/use-course-membership'
+import { useInstructorWorkspacePreferences } from '@/workspaces/instructor/preferences/use-instructor-workspace-preferences'
 import {
   useCourseMaterials,
   useDeleteCourseMaterial,
@@ -36,6 +37,8 @@ import {
 import type { Material } from '@/features/materials/material-ingestion/material.schema'
 
 export function MaterialsPage() {
+  const { setActiveCourseId, resolveActiveCourse } =
+    useInstructorWorkspacePreferences()
   const [selectedCourseId, setSelectedCourseId] = useState<string>()
   const [search, setSearch] = useState('')
   const coursesQuery = useCourseMembership()
@@ -46,8 +49,13 @@ export function MaterialsPage() {
     value: course.id,
   }))
   const selectedCourse =
-    courses.find((course) => course.id === selectedCourseId) ?? courses.at(0)
+    selectedCourseId !== undefined
+      ? (courses.find((course) => course.id === selectedCourseId) ??
+        resolveActiveCourse(courses) ??
+        courses.at(0))
+      : (resolveActiveCourse(courses) ?? courses.at(0))
   const activeCourseId = selectedCourse?.id
+
   const materialsQuery = useCourseMaterials(activeCourseId)
   const deleteMutation = useDeleteCourseMaterial()
   const materials = materialsQuery.data
@@ -125,6 +133,7 @@ export function MaterialsPage() {
                   items={courseSelectItems}
                   onValueChange={(value) => {
                     setSelectedCourseId(value ?? undefined)
+                    setActiveCourseId(value ?? null)
                     setSearch('')
                   }}
                 >

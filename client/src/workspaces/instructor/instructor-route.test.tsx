@@ -99,7 +99,7 @@ function renderAtInstructorRoute(
       }
 
       if (
-        url.endsWith(
+        url.includes(
           '/api/v1/courses/f5bb713c-09b7-42d3-acf3-02f39a902e5a/materials',
         )
       ) {
@@ -118,6 +118,14 @@ function renderAtInstructorRoute(
               updatedAt: '2026-07-21T12:01:00.000Z',
             },
           ],
+        })
+      }
+
+      if (url.includes('/api/v1/materials/upload-configuration')) {
+        return Response.json({
+          maxSizeBytes: 10_485_760,
+          maxFileSizeMb: 10,
+          allowedMimeTypes: ['application/pdf'],
         })
       }
 

@@ -50,6 +50,10 @@ function Badge({
       {
         className: cn(badgeVariants({ variant }), className),
       },
+      {
+        'data-slot': 'badge',
+        'data-variant': variant,
+      } as React.HTMLAttributes<HTMLSpanElement>,
       props,
     ),
     render,

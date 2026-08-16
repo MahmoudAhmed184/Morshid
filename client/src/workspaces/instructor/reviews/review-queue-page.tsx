@@ -20,6 +20,9 @@ import { StatusBadge } from '@/components/ui/custom/status-badge/status-badge'
 import { Input } from '@/components/ui/input'
 import { InstructorListSkeleton } from '@/workspaces/instructor/instructor-list-skeleton'
 import { useInstructorReviewQueue } from '@/workspaces/instructor/reviews/use-reviews'
+import { useAuthStore } from '@/features/auth/session/interface/session-store'
+import { useInstructorWorkspacePreferences } from '@/workspaces/instructor/preferences/use-instructor-workspace-preferences'
+import { SavedFiltersMenu } from './saved-filters-menu'
 import type {
   InstructorReviewQueueItem,
   StudentFlagReason,
@@ -28,10 +31,13 @@ import {
   studentFlagReasonLabel,
   studentFlagReasons,
 } from '@/features/reviews/interface/student-flag-reason'
+import type {
+  QueueFilterCriteria,
+  QueueStatus,
+  QueueTrigger,
+  SavedQueueFilter,
+} from '../preferences/instructor-workspace-preferences.types'
 import { cn } from '@/lib/utils'
-
-type QueueStatus = 'ALL' | InstructorReviewQueueItem['status']
-type QueueTrigger = InstructorReviewQueueItem['trigger']
 
 const statusTabs: { value: QueueStatus; label: string }[] = [
   { value: 'ALL', label: 'All' },
@@ -50,10 +56,18 @@ const triggerOptions: QueueTrigger[] = [
   'FINAL_ANSWER_RISK',
 ]
 
-const queueFilterStorageKey = 'morshid:instructor-review-queue-filters'
+function getQueueFilterStorageKey(userId?: string | null): string {
+  return userId
+    ? `morshid:instructor-review-queue-filters:${userId}`
+    : 'morshid:instructor-review-queue-filters'
+}
 
 export function ReviewQueuePage() {
-  const [storedFilters] = useState(readStoredQueueFilters)
+  const userId = useAuthStore((state) => state.user?.id)
+  const { savedFilters, saveFilter, renameFilter, deleteFilter } =
+    useInstructorWorkspacePreferences()
+
+  const [storedFilters] = useState(() => readInitialQueueFilters(userId))
   const [studentFlagReason, setStudentFlagReason] =
     useState<StudentFlagReason | null>(storedFilters.studentFlagReason)
   const query = useInstructorReviewQueue(studentFlagReason)
@@ -93,10 +107,11 @@ export function ReviewQueuePage() {
   const isLoadingCompleteQueue =
     query.isPending || query.hasNextPage || query.isFetchingNextPage
 
+  // Sync to session storage (namespaced by user)
   useEffect(() => {
     try {
       window.sessionStorage.setItem(
-        queueFilterStorageKey,
+        getQueueFilterStorageKey(userId),
         JSON.stringify({
           search,
           status,
@@ -109,11 +124,62 @@ export function ReviewQueuePage() {
     } catch {
       // Filter persistence is a convenience; the queue remains usable without it.
     }
-  }, [courseId, preservedCourses, search, status, studentFlagReason, trigger])
+  }, [
+    courseId,
+    preservedCourses,
+    search,
+    status,
+    studentFlagReason,
+    trigger,
+    userId,
+  ])
+
+  // Sync active filters to URL query string
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams()
+    if (status !== 'PENDING') params.set('status', status)
+    if (courseId) params.set('courseId', courseId)
+    if (trigger) params.set('trigger', trigger)
+    if (studentFlagReason) params.set('reason', studentFlagReason)
+    if (search.trim()) params.set('search', search.trim())
+
+    const queryStr = params.toString()
+    const newUrl = queryStr
+      ? `${window.location.pathname}?${queryStr}`
+      : window.location.pathname
+
+    const currentUrl = `${window.location.pathname}${window.location.search}`
+    if (currentUrl !== newUrl) {
+      window.history.replaceState(null, '', newUrl)
+    }
+  }, [courseId, search, status, studentFlagReason, trigger])
 
   function selectStudentFlagReason(reason: StudentFlagReason) {
     if (studentFlagReason === null) setPreservedCourses(currentCourses)
     setStudentFlagReason(reason)
+  }
+
+  function handleApplySavedFilter(filter: SavedQueueFilter) {
+    const c = filter.criteria
+    setStatus(c.status ?? 'ALL')
+    setCourseId(c.courseId ?? null)
+    setTrigger(c.trigger ?? null)
+    if (c.studentFlagReason) {
+      if (studentFlagReason === null) setPreservedCourses(currentCourses)
+      setStudentFlagReason(c.studentFlagReason)
+    } else {
+      setStudentFlagReason(null)
+    }
+    setSearch(c.search ?? '')
+  }
+
+  const currentCriteria: QueueFilterCriteria = {
+    search: search.trim() || undefined,
+    status,
+    courseId,
+    trigger,
+    studentFlagReason,
   }
 
   const filteredItems = items.filter((item) => {
@@ -158,19 +224,30 @@ export function ReviewQueuePage() {
               </p>
             </div>
 
-            <label className="relative block w-full lg:max-w-80">
-              <span className="sr-only">Search reviews</span>
-              <Search
-                className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-                aria-hidden
+            <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center lg:w-auto">
+              <SavedFiltersMenu
+                currentCriteria={currentCriteria}
+                savedFilters={savedFilters}
+                courses={courses}
+                onApplyFilter={handleApplySavedFilter}
+                onSaveFilter={(name) => saveFilter(name, currentCriteria)}
+                onRenameFilter={renameFilter}
+                onDeleteFilter={deleteFilter}
               />
-              <Input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search students or courses…"
-                className="pl-9"
-              />
-            </label>
+              <label className="relative block w-full sm:w-72 lg:w-80">
+                <span className="sr-only">Search reviews</span>
+                <Search
+                  className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden
+                />
+                <Input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search students or courses…"
+                  className="pl-9"
+                />
+              </label>
+            </div>
           </div>
 
           <div className="flex gap-1 overflow-x-auto border-b" role="tablist">
@@ -357,7 +434,50 @@ interface StoredQueueFilters {
   preservedCourses: InstructorReviewQueueItem['course'][]
 }
 
-function readStoredQueueFilters(): StoredQueueFilters {
+function readInitialQueueFilters(userId?: string | null): StoredQueueFilters {
+  if (typeof window !== 'undefined' && window.location.search) {
+    const params = new URLSearchParams(window.location.search)
+    const urlStatus = params.get('status')
+    const urlCourseId = params.get('courseId')
+    const urlTrigger = params.get('trigger')
+    const urlReason = params.get('reason') || params.get('studentFlagReason')
+    const urlSearch = params.get('search') || params.get('q')
+
+    const hasAnyParam =
+      urlStatus !== null ||
+      urlCourseId !== null ||
+      urlTrigger !== null ||
+      urlReason !== null ||
+      urlSearch !== null
+
+    if (hasAnyParam) {
+      const status = statusTabs.some(({ value }) => value === urlStatus)
+        ? (urlStatus as QueueStatus)
+        : 'PENDING'
+      const trigger = triggerOptions.includes(urlTrigger as QueueTrigger)
+        ? (urlTrigger as QueueTrigger)
+        : null
+      const studentFlagReason = studentFlagReasons.includes(
+        urlReason as StudentFlagReason,
+      )
+        ? (urlReason as StudentFlagReason)
+        : null
+
+      return {
+        search: urlSearch ?? '',
+        status,
+        courseId: urlCourseId,
+        trigger,
+        studentFlagReason,
+        preservedCourses: [],
+      }
+    }
+  }
+
+  return readStoredQueueFilters(userId)
+}
+
+function readStoredQueueFilters(userId?: string | null): StoredQueueFilters {
   const fallback: StoredQueueFilters = {
     search: '',
     status: 'PENDING',
@@ -367,8 +487,9 @@ function readStoredQueueFilters(): StoredQueueFilters {
     preservedCourses: [],
   }
   try {
+    const key = getQueueFilterStorageKey(userId)
     const parsed: unknown = JSON.parse(
-      window.sessionStorage.getItem(queueFilterStorageKey) ?? 'null',
+      window.sessionStorage.getItem(key) ?? 'null',
     )
     if (typeof parsed !== 'object' || parsed === null) return fallback
     const candidate = parsed as Partial<StoredQueueFilters>
