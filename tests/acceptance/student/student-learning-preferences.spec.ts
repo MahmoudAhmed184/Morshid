@@ -12,7 +12,7 @@ test.describe('Student Learning Preferences', () => {
 
     await expect(page).toHaveURL(/\/settings\/learning/)
     await expect(
-      page.getByRole('heading', { name: 'Explanation Detail Level' }),
+      page.getByRole('heading', { name: 'Explanation Detail' }),
     ).toBeVisible()
 
     // Verify Standard is initially selected
@@ -32,7 +32,7 @@ test.describe('Student Learning Preferences', () => {
 
     // Verify save success alert
     await expect(
-      page.getByText('Learning preferences saved successfully.'),
+      page.getByText('Learning preferences updated successfully.'),
     ).toBeVisible()
 
     // Reload page to verify persistence

@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   Info,
   Loader2,
-  Sparkles,
 } from 'lucide-react'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -173,10 +172,6 @@ export function LearningTabContent() {
               <BookOpen className="size-4 text-muted-foreground" aria-hidden />
               Explanation Detail
             </h2>
-            <Badge variant="outline" className="gap-1 text-xs">
-              <Sparkles className="size-3 text-primary" aria-hidden />
-              Socratic Tutor
-            </Badge>
           </div>
 
           <p className="text-sm text-muted-foreground">
