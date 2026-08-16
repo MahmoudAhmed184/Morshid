@@ -202,6 +202,7 @@ export function TutorPage({ sessionId }: TutorPageProps) {
           key={`${studentId ?? 'anonymous'}:${selectedCourse.id}:${selectedSession.id}`}
           course={selectedCourse}
           session={selectedSession}
+          studentId={studentId}
           firstName={firstName}
           onRecover={() => void handleStaleSession()}
           pendingFirstMessage={
@@ -226,6 +227,7 @@ export function TutorPage({ sessionId }: TutorPageProps) {
         <StudentDraftState
           key={`${studentId ?? 'anonymous'}:${selectedCourse.id}:draft`}
           course={selectedCourse}
+          studentId={studentId}
           firstName={firstName}
           pendingFirstMessage={pendingFirstMessage}
           onFirstMessageCreated={handleFirstMessageCreated}
@@ -359,6 +361,7 @@ function StudentSessionPlaceholder({
 
 interface StudentDraftStateProps {
   course: StudentCourseAccess
+  studentId?: string
   firstName?: string
   pendingFirstMessage: PendingFirstMessage | null
   onFirstMessageCreated: (
@@ -373,6 +376,7 @@ interface StudentDraftStateProps {
 // is sent, and there is no sources chrome (nothing to cite yet — T15.6).
 function StudentDraftState({
   course,
+  studentId,
   firstName,
   pendingFirstMessage,
   onFirstMessageCreated,
@@ -452,6 +456,9 @@ function StudentDraftState({
         </div>
       </div>
       <StudentChatComposer
+        userId={studentId}
+        courseId={course.id}
+        sessionId="new"
         isGenerating={createSession.isPending}
         sendError={handoffError ?? createSession.error}
         onDismissError={() => {
@@ -468,6 +475,7 @@ function StudentDraftState({
 interface StudentConversationProps {
   course: StudentCourseAccess
   session: ChatSession
+  studentId?: string
   firstName?: string
   onRecover: () => void
   pendingFirstMessage: PendingFirstMessage | null
@@ -477,6 +485,7 @@ interface StudentConversationProps {
 function StudentConversation({
   course,
   session,
+  studentId,
   firstName,
   onRecover,
   pendingFirstMessage,
@@ -667,6 +676,9 @@ function StudentConversation({
         </div>
       </div>
       <StudentChatComposer
+        userId={studentId}
+        courseId={course.id}
+        sessionId={session.id}
         isGenerating={isGenerationActive}
         sendError={sendMessage.error}
         onDismissError={sendMessage.reset}
