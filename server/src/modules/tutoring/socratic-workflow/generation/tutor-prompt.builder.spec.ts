@@ -1,4 +1,5 @@
 import {
+  ExplanationDetailLevel,
   MessageRequestKind,
   MessageRole,
   MessageStatus,
@@ -166,6 +167,59 @@ describe('tutor prompt builder', () => {
       }
     },
   )
+
+  describe('explanation detail preference prompt contract', () => {
+    it.each([
+      {
+        level: ExplanationDetailLevel.CONCISE,
+        expectedInstructionSnippet:
+          'Provide concise response length with minimal elaboration',
+      },
+      {
+        level: ExplanationDetailLevel.STANDARD,
+        expectedInstructionSnippet:
+          'Provide standard balanced response length and normal contextual elaboration',
+      },
+      {
+        level: ExplanationDetailLevel.DETAILED,
+        expectedInstructionSnippet:
+          'Provide detailed response length with richer contextual elaboration',
+      },
+    ])(
+      'includes $level preference instructions and enforces invariants in prompt',
+      ({ level, expectedInstructionSnippet }) => {
+        const base = buildGenerationContext()
+        const request = buildTutorGenerationModelRequest({
+          ...base,
+          explanationDetailLevel: level,
+        })
+        const userPrompt = request.messages[1].content
+
+        expect(userPrompt).toContain(
+          '4b. Student Explanation Detail Preference',
+        )
+        expect(userPrompt).toContain(`"explanationDetailLevel":"${level}"`)
+        expect(userPrompt).toContain(expectedInstructionSnippet)
+
+        // Subordinate to pedagogical and governance invariants
+        expect(userPrompt).toContain(
+          '"explanationDetailPreferenceSubordinateToPedagogy":true',
+        )
+        expect(userPrompt).toContain(
+          '"doNotDiscloseFinalAnswerWhenNoFinalAnswer":true',
+        )
+        expect(userPrompt).toContain(
+          'Explanation detail level governs response length, elaboration depth, and number of explanatory steps only.',
+        )
+        expect(userPrompt).toContain(
+          'Never provide final solutions, complete answers, or unearned steps regardless of detail preference.',
+        )
+        expect(userPrompt).toContain(
+          'Require the student to perform the target reasoning step.',
+        )
+      },
+    )
+  })
 })
 
 function misconceptionContext(
@@ -355,6 +409,7 @@ function buildGenerationContext(): GenerationContextPackage {
     ],
     allowedCitationIds: ['retrieval.rank.1'],
     conversationLanguage: 'en',
+    explanationDetailLevel: ExplanationDetailLevel.STANDARD,
     regeneration: null,
     debuggingGuidance: null,
   }

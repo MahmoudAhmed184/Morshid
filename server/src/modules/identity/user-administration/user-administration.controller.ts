@@ -71,6 +71,17 @@ import {
   type UserAdministrationValidationIssue,
 } from './user-administration.errors'
 import { UserAdministrationService } from './user-administration.service'
+import {
+  CreateUserImportDto,
+  UpdateUserImportRowDto,
+  UserImportResponseDto,
+  createUserImportSchema,
+  updateUserImportRowSchema,
+  userImportIdSchema,
+  type CreateUserImport,
+  type UpdateUserImportRow,
+} from './user-import.types'
+import { UserImportService } from './user-import.service'
 
 function mapZodIssue(
   issue: z.core.$ZodIssue,
@@ -90,6 +101,7 @@ function mapZodIssue(
 export class UserAdministrationController {
   constructor(
     private readonly userAdministrationService: UserAdministrationService,
+    private readonly userImportService: UserImportService,
   ) {}
 
   @Get()
@@ -182,6 +194,89 @@ export class UserAdministrationController {
   ): Promise<BulkCreateUsersResponseDto> {
     return this.userAdministrationService.bulkCreateUsers(
       body,
+      request.user,
+      getRequestContext(request),
+    )
+  }
+
+  @Post('imports')
+  @SerializeOptions({ type: UserImportResponseDto, strategy: 'excludeAll' })
+  @ApiOperation({ summary: 'Stage CSV user rows for admin review' })
+  @ApiBody({ type: CreateUserImportDto })
+  @ApiCreatedResponse({ type: UserImportResponseDto })
+  createUserImport(
+    @Body(
+      new ZodValidationPipe(createUserImportSchema, (issues) =>
+        invalidCreateUserRequestException(issues.map(mapZodIssue)),
+      ),
+    )
+    body: CreateUserImport,
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<UserImportResponseDto> {
+    return this.userImportService.create(body, request.user)
+  }
+
+  @Get('imports/:importId')
+  @SerializeOptions({ type: UserImportResponseDto, strategy: 'excludeAll' })
+  @ApiOperation({ summary: 'Get a staged user import' })
+  @ApiOkResponse({ type: UserImportResponseDto })
+  getUserImport(
+    @Param(
+      'importId',
+      new ZodValidationPipe(userImportIdSchema, (issues) =>
+        invalidCreateUserRequestException(issues.map(mapZodIssue)),
+      ),
+    )
+    importId: string,
+  ): Promise<UserImportResponseDto> {
+    return this.userImportService.get(importId)
+  }
+
+  @Patch('imports/:importId/rows/:rowId')
+  @SerializeOptions({ type: UserImportResponseDto, strategy: 'excludeAll' })
+  @ApiOperation({ summary: 'Edit and revalidate a staged user import row' })
+  @ApiBody({ type: UpdateUserImportRowDto })
+  @ApiOkResponse({ type: UserImportResponseDto })
+  updateUserImportRow(
+    @Param('importId', ParseUUIDPipe) importId: string,
+    @Param('rowId', ParseUUIDPipe) rowId: string,
+    @Body(
+      new ZodValidationPipe(updateUserImportRowSchema, (issues) =>
+        invalidCreateUserRequestException(issues.map(mapZodIssue)),
+      ),
+    )
+    body: UpdateUserImportRow,
+  ): Promise<UserImportResponseDto> {
+    return this.userImportService.updateRow(importId, rowId, body)
+  }
+
+  @Post('imports/:importId/rows/:rowId/cancel')
+  @SerializeOptions({ type: UserImportResponseDto, strategy: 'excludeAll' })
+  @ApiOperation({ summary: 'Cancel a staged user import row' })
+  @ApiOkResponse({ type: UserImportResponseDto })
+  cancelUserImportRow(
+    @Param('importId', ParseUUIDPipe) importId: string,
+    @Param('rowId', ParseUUIDPipe) rowId: string,
+  ): Promise<UserImportResponseDto> {
+    return this.userImportService.cancelRow(importId, rowId)
+  }
+
+  @Post('imports/:importId/approve')
+  @SerializeOptions({ type: UserImportResponseDto, strategy: 'excludeAll' })
+  @ApiOperation({ summary: 'Approve all valid rows in a staged user import' })
+  @ApiOkResponse({ type: UserImportResponseDto })
+  approveUserImport(
+    @Param(
+      'importId',
+      new ZodValidationPipe(userImportIdSchema, (issues) =>
+        invalidCreateUserRequestException(issues.map(mapZodIssue)),
+      ),
+    )
+    importId: string,
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<UserImportResponseDto> {
+    return this.userImportService.approve(
+      importId,
       request.user,
       getRequestContext(request),
     )

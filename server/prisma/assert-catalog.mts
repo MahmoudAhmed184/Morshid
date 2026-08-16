@@ -15,7 +15,7 @@ const databaseUrl = process.env.DATABASE_URL
 // enum label order plus every public index, CHECK/FK definition and action,
 // application trigger definition, and application function body queried below.
 const expectedCatalogSemanticFingerprint =
-  '179435c5383a17bea123ea4bd99d510ba3dd6c8b329ef169061cef1e000a8a27'
+  'b9ac0141bea1cf7529ffe766ecb6f1647069810cbf7a5c466241506c259ee57d'
 
 if (databaseUrl === undefined) {
   throw new Error('DATABASE_URL is required for Prisma catalog assertions')
@@ -43,11 +43,14 @@ const expectedTables = [
   'review_evidence_snapshots',
   'review_inbox_items',
   'review_triggers',
+  'student_tutoring_preferences',
   'teaching_decisions',
   'topic_states',
   'topics',
   'tutoring_attempts',
   'tutoring_candidate_attempts',
+  'user_import_rows',
+  'user_imports',
   'users',
 ]
 
@@ -110,6 +113,8 @@ const expectedIndexes = [
   'idx_tutoring_attempts_student_message',
   'idx_tutoring_attempts_session_status_lease',
   'idx_tutoring_attempts_topic',
+  'idx_user_import_rows_import_status',
+  'idx_user_imports_creator_created',
   'idx_users_disabled_by',
   'material_chunks_material_id_chunk_index_key',
   'material_chunks_pkey',
@@ -136,6 +141,7 @@ const expectedIndexes = [
   'review_triggers_manual_actor_case_key',
   'review_triggers_source_event_key_key',
   'review_triggers_pkey',
+  'student_tutoring_preferences_pkey',
   'teaching_decisions_analysis_id_key',
   'teaching_decisions_pkey',
   'teaching_decisions_attempt_id_key',
@@ -146,6 +152,9 @@ const expectedIndexes = [
   'tutoring_candidate_attempts_attempt_key',
   'tutoring_attempts_pkey',
   'tutoring_attempts_session_id_client_message_id_key',
+  'user_import_rows_import_row_key',
+  'user_import_rows_pkey',
+  'user_imports_pkey',
   'users_email_key',
   'users_pkey',
 ]
@@ -244,6 +253,7 @@ const expectedForeignKeys = [
   'review_evidence_snapshots_review_case_id_fkey',
   'review_triggers_actor_user_id_fkey',
   'review_triggers_review_case_id_fkey',
+  'student_tutoring_preferences_student_id_fkey',
   'teaching_decisions_analysis_id_fkey',
   'teaching_decisions_topic_id_fkey',
   'teaching_decisions_attempt_id_fkey',
@@ -256,6 +266,8 @@ const expectedForeignKeys = [
   'tutoring_attempts_session_id_fkey',
   'tutoring_attempts_student_message_id_fkey',
   'tutoring_attempts_topic_id_fkey',
+  'user_import_rows_import_id_fkey',
+  'user_imports_created_by_id_fkey',
   'users_disabled_by_fkey',
 ]
 

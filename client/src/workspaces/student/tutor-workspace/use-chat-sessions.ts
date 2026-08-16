@@ -7,6 +7,7 @@ import {
 import type { InfiniteData } from '@tanstack/react-query'
 
 import { useAuthStore } from '@/features/auth/session/interface/session-store'
+import { clearDraft } from '@/features/chat/drafts/draft-storage'
 import {
   createChatSession,
   deleteChatSession,
@@ -217,6 +218,11 @@ export function useDeleteChatSession({ courseId }: ChatCourseSelection) {
       })
     },
     onSuccess: (_response, sessionId, scope) => {
+      clearDraft({
+        userId: scope.studentId,
+        courseId: scope.courseId,
+        sessionId,
+      })
       queryClient.setQueriesData<
         InfiniteData<ChatSessionListResponse, string | undefined>
       >(

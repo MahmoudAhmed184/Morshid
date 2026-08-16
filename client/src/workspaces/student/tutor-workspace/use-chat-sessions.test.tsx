@@ -17,6 +17,7 @@ import {
   retryChatMessage,
   sendChatMessage,
 } from '@/features/chat/sessions/chat-sessions.api'
+import { loadDraft, saveDraft } from '@/features/chat/drafts/draft-storage'
 import { chatSessionKeys } from '@/features/chat/sessions/chat-sessions.queries'
 import type {
   ChatMessageHistoryResponse,
@@ -519,6 +520,14 @@ describe('Student session hooks', () => {
     )
     deleteStudentSessionMock.mockResolvedValue(undefined)
     authenticate()
+    saveDraft(
+      {
+        userId: primaryScope.studentId,
+        courseId: primaryScope.courseId,
+        sessionId: chatIds.primarySession,
+      },
+      'Draft that should be cleared on delete',
+    )
     const { result } = renderHook(
       () => useDeleteChatSession({ courseId: primaryScope.courseId }),
       { wrapper: createWrapper(queryClient) },
@@ -526,6 +535,13 @@ describe('Student session hooks', () => {
 
     await act(() => result.current.mutateAsync(chatIds.primarySession))
 
+    expect(
+      loadDraft({
+        userId: primaryScope.studentId,
+        courseId: primaryScope.courseId,
+        sessionId: chatIds.primarySession,
+      }),
+    ).toBeNull()
     expect(
       queryClient.getQueryData<
         InfiniteData<ChatSessionListResponse, string | undefined>

@@ -15,6 +15,22 @@ enum UserStatus {
   @@map("user_status")
 }
 
+enum UserImportStatus {
+  PENDING
+  APPROVED
+
+  @@map("user_import_status")
+}
+
+enum UserImportRowStatus {
+  VALID
+  INVALID
+  APPROVED
+  CANCELLED
+
+  @@map("user_import_row_status")
+}
+
 model User {
   id                String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email             String     @unique(map: "users_email_key") @db.Citext
@@ -46,9 +62,44 @@ model User {
   reviewActions      ReviewAction[]      @relation("ReviewActionActor")
   idempotencyRecords IdempotencyRecord[]
   inboxItems         ReviewInboxItem[]   @relation("ReviewInboxRecipient")
+  tutoringPreference StudentTutoringPreference?
+  userImports        UserImport[]        @relation("UserImportCreatedBy")
 
   @@index([disabledById], map: "idx_users_disabled_by")
   @@map("users")
+}
+
+model UserImport {
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  status      UserImportStatus @default(PENDING)
+  createdById String           @map("created_by_id") @db.Uuid
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  approvedAt  DateTime?        @map("approved_at") @db.Timestamptz(6)
+
+  createdBy User            @relation("UserImportCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  rows      UserImportRow[]
+
+  @@index([createdById, createdAt], map: "idx_user_imports_creator_created")
+  @@map("user_imports")
+}
+
+model UserImportRow {
+  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  importId      String              @map("import_id") @db.Uuid
+  rowNumber     Int                 @map("row_number")
+  displayName   String?             @map("display_name") @db.VarChar(120)
+  email         String?             @db.Citext
+  role          UserRole?
+  passwordHash  String?             @map("password_hash") @db.Text
+  status        UserImportRowStatus
+  errors        Json                @default("[]") @db.JsonB
+  createdUserId String?             @map("created_user_id") @db.Uuid
+
+  import UserImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+
+  @@unique([importId, rowNumber], map: "user_import_rows_import_row_key")
+  @@index([importId, status], map: "idx_user_import_rows_import_status")
+  @@map("user_import_rows")
 }
 
 model RefreshToken {

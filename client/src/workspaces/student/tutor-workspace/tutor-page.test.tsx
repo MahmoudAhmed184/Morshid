@@ -206,20 +206,22 @@ function renderWorkspace({
       queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
     },
   })
+  const activeStudentId = useAuthStore.getState().user?.id ?? studentId
+
   queryClient.setQueryData(
-    studentCourseAccessQueryOptions(studentId).queryKey,
+    studentCourseAccessQueryOptions(activeStudentId).queryKey,
     courses,
   )
 
   if (courseId && sessions) {
     queryClient.setQueryData(
-      chatSessionKeys.sessionList({ studentId, courseId }),
+      chatSessionKeys.sessionList({ studentId: activeStudentId, courseId }),
       { pages: [sessions], pageParams: [undefined] },
     )
   } else if (courses.length === 1 && sessions) {
     queryClient.setQueryData(
       chatSessionKeys.sessionList({
-        studentId,
+        studentId: activeStudentId,
         courseId: courses[0]?.id ?? 'missing-course',
       }),
       { pages: [sessions], pageParams: [undefined] },
@@ -228,7 +230,11 @@ function renderWorkspace({
 
   if (courseId && sessionId && messages) {
     queryClient.setQueryData(
-      chatSessionKeys.messageList({ studentId, courseId, sessionId }),
+      chatSessionKeys.messageList({
+        studentId: activeStudentId,
+        courseId,
+        sessionId,
+      }),
       { pages: [messages], pageParams: [undefined] },
     )
   }
@@ -1907,5 +1913,112 @@ describe('TutorPage workspace', () => {
         .querySelectorAll(':scope > li'),
     ).toHaveLength(2)
     expect(screen.queryByText(/grounded response failed/i)).toBeNull()
+  })
+
+  it('restores draft across navigation between course draft and session', async () => {
+    const { queryClient, rerender } = renderWorkspace({
+      courseId: primaryCourse.id,
+    })
+
+    const composer = await screen.findByRole('textbox', { name: 'Message' })
+    fireEvent.change(composer, {
+      target: { value: 'My unsubmitted draft question' },
+    })
+
+    // Navigate to session
+    rerender(
+      workspaceTree(queryClient, {
+        courseId: primaryCourse.id,
+        sessionId: primaryChatSessionFixture.id,
+      }),
+    )
+
+    const sessionComposer = await screen.findByRole('textbox', {
+      name: 'Message',
+    })
+    expect(sessionComposer).toHaveValue('')
+
+    // Navigate back to course draft state
+    rerender(
+      workspaceTree(queryClient, {
+        courseId: primaryCourse.id,
+        sessionId: undefined,
+      }),
+    )
+
+    const restoredComposer = await screen.findByRole('textbox', {
+      name: 'Message',
+    })
+    expect(restoredComposer).toHaveValue('My unsubmitted draft question')
+    expect(screen.getByRole('status')).toHaveTextContent(
+      /draft restored from this device/i,
+    )
+  })
+
+  it('preserves separate drafts per course without collision on course switch', async () => {
+    const { queryClient, rerender } = renderWorkspace({
+      courses: [primaryCourse, otherCourse],
+      courseId: primaryCourse.id,
+    })
+
+    const composer = await screen.findByRole('textbox', { name: 'Message' })
+    fireEvent.change(composer, { target: { value: 'Python draft notes' } })
+
+    // Switch to JavaScript course
+    rerender(
+      workspaceTree(queryClient, {
+        courseId: otherCourse.id,
+      }),
+    )
+
+    const otherComposer = await screen.findByRole('textbox', {
+      name: 'Message',
+    })
+    expect(otherComposer).toHaveValue('')
+    fireEvent.change(otherComposer, { target: { value: 'JS draft notes' } })
+
+    // Switch back to Python course
+    rerender(
+      workspaceTree(queryClient, {
+        courseId: primaryCourse.id,
+      }),
+    )
+
+    const pythonComposer = await screen.findByRole('textbox', {
+      name: 'Message',
+    })
+    expect(pythonComposer).toHaveValue('Python draft notes')
+
+    // Switch back to JS course
+    rerender(
+      workspaceTree(queryClient, {
+        courseId: otherCourse.id,
+      }),
+    )
+
+    const jsComposer = await screen.findByRole('textbox', { name: 'Message' })
+    expect(jsComposer).toHaveValue('JS draft notes')
+  })
+
+  it('ensures zero draft leaks between different student accounts on a shared browser', async () => {
+    // Student 1 types a draft
+    const { unmount } = renderWorkspace({
+      courseId: primaryCourse.id,
+    })
+
+    const composer = await screen.findByRole('textbox', { name: 'Message' })
+    fireEvent.change(composer, { target: { value: 'Alice private draft' } })
+    unmount()
+
+    // Student 2 logs in on the same browser
+    useAuthStore.getState().setSession(createStudentAuthSession('student-bob'))
+
+    renderWorkspace({
+      courseId: primaryCourse.id,
+    })
+
+    const bobComposer = await screen.findByRole('textbox', { name: 'Message' })
+    expect(bobComposer).toHaveValue('')
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 })

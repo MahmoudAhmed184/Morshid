@@ -24,6 +24,7 @@ test.describe('Instructor review queue and bounded detail', () => {
     page,
   }) => {
     await signInThroughUi(page, { email: fixture.instructorEmail })
+    await expect(page).toHaveURL(/\/instructor\/?$/)
     await page.goto('/instructor/review-queue')
 
     await expect(

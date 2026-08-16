@@ -3,9 +3,12 @@ import { useState } from 'react'
 import { useCourseMembership } from '@/workspaces/instructor/use-course-membership'
 import { useInstructorReviewWorkloadSummary } from '@/workspaces/instructor/reviews/use-reviews'
 import { InstructorDashboardPage } from '@/workspaces/instructor/dashboard/instructor-dashboard-page'
+import { useInstructorWorkspacePreferences } from '@/workspaces/instructor/preferences/use-instructor-workspace-preferences'
 
 export function InstructorDashboardShell() {
   const coursesQuery = useCourseMembership()
+  const { setActiveCourseId, resolveActiveCourse } =
+    useInstructorWorkspacePreferences()
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null)
 
   const selectedCourse = coursesQuery.data?.find(
@@ -42,7 +45,16 @@ export function InstructorDashboardShell() {
   }
 
   const course =
-    courses.find((candidate) => candidate.id === selectedCourseId) ?? courses[0]
+    selectedCourseId !== null
+      ? (courses.find((candidate) => candidate.id === selectedCourseId) ??
+        resolveActiveCourse(courses) ??
+        courses[0])
+      : (resolveActiveCourse(courses) ?? courses[0])
+
+  const handleSelectCourse = (nextCourseId: string | null) => {
+    setSelectedCourseId(nextCourseId)
+    setActiveCourseId(nextCourseId)
+  }
 
   return (
     <InstructorDashboardPage
@@ -50,7 +62,7 @@ export function InstructorDashboardShell() {
         status: 'ready',
         course,
         courses,
-        onSelectCourse: setSelectedCourseId,
+        onSelectCourse: handleSelectCourse,
         reviewQueueCount: workloadQuery.data?.pendingCount,
         workloadSummary: workloadQuery.data,
       }}

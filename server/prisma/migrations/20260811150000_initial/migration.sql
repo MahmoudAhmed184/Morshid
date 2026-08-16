@@ -32,6 +32,12 @@ CREATE TYPE "user_role" AS ENUM ('ADMIN', 'INSTRUCTOR', 'STUDENT');
 CREATE TYPE "user_status" AS ENUM ('ACTIVE', 'DISABLED');
 
 -- CreateEnum
+CREATE TYPE "user_import_status" AS ENUM ('PENDING', 'APPROVED');
+
+-- CreateEnum
+CREATE TYPE "user_import_row_status" AS ENUM ('VALID', 'INVALID', 'APPROVED', 'CANCELLED');
+
+-- CreateEnum
 CREATE TYPE "review_status" AS ENUM ('PENDING', 'IN_REVIEW', 'RESOLVED', 'REJECTED');
 
 -- CreateEnum
@@ -54,6 +60,9 @@ CREATE TYPE "review_inbox_item_status" AS ENUM ('UNREAD', 'READ');
 
 -- CreateEnum
 CREATE TYPE "topic_status" AS ENUM ('ACTIVE', 'PAUSED', 'RESOLVED', 'ABANDONED');
+
+-- CreateEnum
+CREATE TYPE "explanation_detail_level" AS ENUM ('CONCISE', 'STANDARD', 'DETAILED');
 
 -- CreateEnum
 CREATE TYPE "tutoring_attempt_status" AS ENUM ('RECEIVED', 'ANALYZING', 'RETRIEVING', 'DECIDING', 'GENERATING', 'VALIDATING', 'REGENERATING', 'COMPLETED', 'FAILED');
@@ -444,6 +453,7 @@ CREATE TABLE "tutoring_attempts" (
     "client_message_id" VARCHAR(160) NOT NULL,
     "request_kind" "message_request_kind",
     "status" "tutoring_attempt_status" NOT NULL DEFAULT 'RECEIVED',
+    "explanation_detail_level" "explanation_detail_level" NOT NULL DEFAULT 'STANDARD',
     "failure_code" "tutoring_attempt_failure_code",
     "lease_expires_at" TIMESTAMPTZ(6),
     "safe_fallback_used" BOOLEAN NOT NULL DEFAULT false,
@@ -582,6 +592,43 @@ CREATE TABLE "educational_analysis_misconceptions" (
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "educational_analysis_misconceptions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "student_tutoring_preferences" (
+    "student_id" UUID NOT NULL,
+    "explanation_detail_level" "explanation_detail_level" NOT NULL DEFAULT 'STANDARD',
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "student_tutoring_preferences_pkey" PRIMARY KEY ("student_id")
+);
+
+-- CreateTable
+CREATE TABLE "user_imports" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "status" "user_import_status" NOT NULL DEFAULT 'PENDING',
+    "created_by_id" UUID NOT NULL,
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "approved_at" TIMESTAMPTZ(6),
+
+    CONSTRAINT "user_imports_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "user_import_rows" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "import_id" UUID NOT NULL,
+    "row_number" INTEGER NOT NULL,
+    "display_name" VARCHAR(120),
+    "email" CITEXT,
+    "role" "user_role",
+    "password_hash" TEXT,
+    "status" "user_import_row_status" NOT NULL,
+    "errors" JSONB NOT NULL DEFAULT '[]',
+    "created_user_id" UUID,
+
+    CONSTRAINT "user_import_rows_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -783,6 +830,15 @@ CREATE INDEX "idx_educational_analysis_misconceptions_analysis" ON "educational_
 -- CreateIndex
 CREATE INDEX "idx_educational_analysis_misconceptions_evidence" ON "educational_analysis_misconceptions"("evidence_message_id");
 
+-- CreateIndex
+CREATE INDEX "idx_user_imports_creator_created" ON "user_imports"("created_by_id", "created_at");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "user_import_rows_import_row_key" ON "user_import_rows"("import_id", "row_number");
+
+-- CreateIndex
+CREATE INDEX "idx_user_import_rows_import_status" ON "user_import_rows"("import_id", "status");
+
 -- AddForeignKey
 ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_actor_user_id_fkey" FOREIGN KEY ("actor_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
@@ -965,6 +1021,15 @@ ALTER TABLE "educational_analysis_misconceptions" ADD CONSTRAINT "educational_an
 
 -- AddForeignKey
 ALTER TABLE "educational_analysis_misconceptions" ADD CONSTRAINT "educational_analysis_misconceptions_evidence_message_id_fkey" FOREIGN KEY ("evidence_message_id") REFERENCES "messages"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "student_tutoring_preferences" ADD CONSTRAINT "student_tutoring_preferences_student_id_fkey" FOREIGN KEY ("student_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "user_imports" ADD CONSTRAINT "user_imports_created_by_id_fkey" FOREIGN KEY ("created_by_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "user_import_rows" ADD CONSTRAINT "user_import_rows_import_id_fkey" FOREIGN KEY ("import_id") REFERENCES "user_imports"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- Handwritten net-live checks retained from the historical schema inventory.
 ALTER TABLE "users"

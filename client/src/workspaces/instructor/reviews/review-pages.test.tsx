@@ -75,6 +75,8 @@ describe('Instructor review pages', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     window.sessionStorage.clear()
+    window.localStorage.clear()
+    window.history.replaceState(null, '', '/instructor/review-queue')
     resolveMutate.mockResolvedValue({})
     rejectMutate.mockResolvedValue({})
     useWorkloadSummaryMock.mockReturnValue(

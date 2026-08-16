@@ -1,7 +1,9 @@
 import Papa from 'papaparse'
 
-import { createUserFormSchema } from '@/features/user-management/managed-user.schema'
-import type { CreateManagedUserInput } from '@/features/user-management/user-management.api'
+import type {
+  CreateManagedUserInput,
+  CreateUserImportRow,
+} from '@/features/user-management/user-management.api'
 
 const csvHeaders = ['displayName', 'email', 'password'] as const
 
@@ -9,20 +11,18 @@ export const userImportTemplate = Papa.unparse([
   {
     displayName: 'Example User',
     email: 'user@example.com',
-    password: 'ChangeMe1!',
+    password: 'ChangeMeSecurePassphrase',
   },
 ])
 
-export type ParsedUserImport =
-  | { users: CreateManagedUserInput[]; errors: [] }
-  | { users: []; errors: string[] }
+export type ParsedUserImport = { rows: CreateUserImportRow[]; errors: string[] }
 
 export function parseUserImport(
   file: File,
   role: CreateManagedUserInput['role'],
 ): Promise<ParsedUserImport> {
   return new Promise((resolve) => {
-    Papa.parse<Record<string, string>>(file, {
+    Papa.parse<Partial<Record<string, string>>>(file, {
       header: true,
       skipEmptyLines: 'greedy',
       transformHeader: (header) => header.replace(/^\uFEFF/, '').trim(),
@@ -46,51 +46,21 @@ export function parseUserImport(
           )
         }
 
-        const seenEmails = new Set<string>()
-        const users = data.flatMap((row, index) => {
-          const result = createUserFormSchema.safeParse({
-            name: row.displayName,
-            email: row.email,
-            password: row.password,
-            role,
-          })
-
-          if (!result.success) {
-            validationErrors.push(
-              `Row ${index + 2}: ${result.error.issues.map((issue) => issue.message).join(' ')}`,
-            )
-            return []
-          }
-
-          if (seenEmails.has(result.data.email)) {
-            validationErrors.push(
-              `Row ${index + 2}: Email appears more than once in this file.`,
-            )
-            return []
-          }
-
-          seenEmails.add(result.data.email)
-          return [
-            {
-              displayName: result.data.name,
-              email: result.data.email,
-              password: result.data.password,
-              role: result.data.role,
-            },
-          ]
-        })
+        const rows = data.map((row, index) => ({
+          rowNumber: index + 2,
+          displayName: row.displayName ?? '',
+          email: row.email ?? '',
+          password: row.password ?? '',
+          role,
+        }))
 
         if (data.length === 0) {
           validationErrors.push('The CSV file does not contain any users.')
         }
 
-        resolve(
-          validationErrors.length > 0
-            ? { users: [], errors: validationErrors }
-            : { users, errors: [] },
-        )
+        resolve({ rows, errors: validationErrors })
       },
-      error: (error) => resolve({ users: [], errors: [error.message] }),
+      error: (error) => resolve({ rows: [], errors: [error.message] }),
     })
   })
 }

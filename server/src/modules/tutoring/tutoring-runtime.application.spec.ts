@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common'
 
 import {
+  ExplanationDetailLevel,
   MessageGuidanceLabel,
   MessageRequestKind,
   MessageRole,
@@ -557,6 +558,7 @@ function beginOk(): Extract<BeginTutoringTurnResult, { kind: 'ok' }> {
     attemptId,
     studentMessage: studentMessage(),
     assistantMessage: assistantMessage(),
+    explanationDetailLevel: ExplanationDetailLevel.STANDARD,
   }
 }
 
