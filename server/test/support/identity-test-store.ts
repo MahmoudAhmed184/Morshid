@@ -368,6 +368,16 @@ interface DeleteMaterialArgs {
 
 export class IdentityTestStore {
   readonly users = new Map<string, User>()
+  readonly studentTutoringPreferences = new Map<
+    string,
+    {
+      id: string
+      studentId: string
+      explanationDetailLevel: string
+      createdAt: Date
+      updatedAt: Date
+    }
+  >()
   readonly courses = new Map<string, Course>()
   readonly materials = new Map<string, Material>()
   readonly memberships: CourseMembership[] = []
@@ -489,6 +499,46 @@ export class IdentityTestStore {
       ),
       findUnique: jest.fn((args: FindUniqueAuditLogArgs) =>
         Promise.resolve(this.findAuditLog(args)),
+      ),
+    },
+    studentTutoringPreference: {
+      findUnique: jest.fn(
+        (args: {
+          where: { studentId: string }
+          select?: { explanationDetailLevel?: boolean }
+        }) => {
+          const pref = this.studentTutoringPreferences.get(args.where.studentId)
+          return Promise.resolve(
+            pref ? { explanationDetailLevel: pref.explanationDetailLevel } : null,
+          )
+        },
+      ),
+      upsert: jest.fn(
+        (args: {
+          where: { studentId: string }
+          create: { studentId: string; explanationDetailLevel: string }
+          update: { explanationDetailLevel: string }
+          select?: { explanationDetailLevel?: boolean }
+        }) => {
+          const existing = this.studentTutoringPreferences.get(
+            args.where.studentId,
+          )
+          const record = {
+            id:
+              existing?.id ??
+              `00000000-0000-4000-8000-00000000070${(this.studentTutoringPreferences.size + 1).toString()}`,
+            studentId: args.where.studentId,
+            explanationDetailLevel:
+              args.update.explanationDetailLevel ??
+              args.create.explanationDetailLevel,
+            createdAt: existing?.createdAt ?? new Date(),
+            updatedAt: new Date(),
+          }
+          this.studentTutoringPreferences.set(args.where.studentId, record)
+          return Promise.resolve({
+            explanationDetailLevel: record.explanationDetailLevel,
+          })
+        },
       ),
     },
     $queryRaw: jest.fn((query: TemplateStringsArray, ...values: string[]) => {
