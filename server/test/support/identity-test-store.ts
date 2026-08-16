@@ -509,7 +509,9 @@ export class IdentityTestStore {
         }) => {
           const pref = this.studentTutoringPreferences.get(args.where.studentId)
           return Promise.resolve(
-            pref ? { explanationDetailLevel: pref.explanationDetailLevel } : null,
+            pref
+              ? { explanationDetailLevel: pref.explanationDetailLevel }
+              : null,
           )
         },
       ),
@@ -528,9 +530,9 @@ export class IdentityTestStore {
               existing?.id ??
               `00000000-0000-4000-8000-00000000070${(this.studentTutoringPreferences.size + 1).toString()}`,
             studentId: args.where.studentId,
-            explanationDetailLevel:
-              args.update.explanationDetailLevel ??
-              args.create.explanationDetailLevel,
+            explanationDetailLevel: existing
+              ? args.update.explanationDetailLevel
+              : args.create.explanationDetailLevel,
             createdAt: existing?.createdAt ?? new Date(),
             updatedAt: new Date(),
           }

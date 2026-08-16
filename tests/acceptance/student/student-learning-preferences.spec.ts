@@ -37,9 +37,8 @@ test.describe('Student Learning Preferences', () => {
 
     // Reload page to verify persistence
     await page.reload()
-    await expect(page.getByRole('radio', { name: /Detailed/i })).toHaveAttribute(
-      'aria-checked',
-      'true',
-    )
+    await expect(
+      page.getByRole('radio', { name: /Detailed/i }),
+    ).toHaveAttribute('aria-checked', 'true')
   })
 })
