@@ -300,6 +300,7 @@ export class SocraticWorkflow {
       teachingDecision: decisionResult.decision,
       retrievalResult: retrieval.chunks,
       debuggingGuidance: input.debuggingGuidance,
+      explanationDetailLevel: input.explanationDetailLevel,
       lifecycle: responseLifecycle,
       ...(input.requestBudget === undefined
         ? {}

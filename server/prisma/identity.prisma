@@ -46,6 +46,7 @@ model User {
   reviewActions      ReviewAction[]      @relation("ReviewActionActor")
   idempotencyRecords IdempotencyRecord[]
   inboxItems         ReviewInboxItem[]   @relation("ReviewInboxRecipient")
+  tutoringPreference StudentTutoringPreference?
 
   @@index([disabledById], map: "idx_users_disabled_by")
   @@map("users")

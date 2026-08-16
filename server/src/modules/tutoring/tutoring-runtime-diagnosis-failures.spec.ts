@@ -1,6 +1,7 @@
 import { Logger, ServiceUnavailableException } from '@nestjs/common'
 
 import {
+  ExplanationDetailLevel,
   MessageGuidanceLabel,
   MessageRequestKind,
   MessageRole,
@@ -193,6 +194,7 @@ function activeTurn(content: string): BeginTutoringTurnResult {
       responseToMessageId: studentMessageId,
       status: MessageStatus.PENDING,
     }),
+    explanationDetailLevel: ExplanationDetailLevel.STANDARD,
   }
 }
 

@@ -15,7 +15,7 @@ const databaseUrl = process.env.DATABASE_URL
 // enum label order plus every public index, CHECK/FK definition and action,
 // application trigger definition, and application function body queried below.
 const expectedCatalogSemanticFingerprint =
-  '179435c5383a17bea123ea4bd99d510ba3dd6c8b329ef169061cef1e000a8a27'
+  '81aea5dcc181263a38a78ed33b559636825f25852ad8d81598041a934ffdb81a'
 
 if (databaseUrl === undefined) {
   throw new Error('DATABASE_URL is required for Prisma catalog assertions')
@@ -43,6 +43,7 @@ const expectedTables = [
   'review_evidence_snapshots',
   'review_inbox_items',
   'review_triggers',
+  'student_tutoring_preferences',
   'teaching_decisions',
   'topic_states',
   'topics',
@@ -136,6 +137,7 @@ const expectedIndexes = [
   'review_triggers_manual_actor_case_key',
   'review_triggers_source_event_key_key',
   'review_triggers_pkey',
+  'student_tutoring_preferences_pkey',
   'teaching_decisions_analysis_id_key',
   'teaching_decisions_pkey',
   'teaching_decisions_attempt_id_key',
@@ -244,6 +246,7 @@ const expectedForeignKeys = [
   'review_evidence_snapshots_review_case_id_fkey',
   'review_triggers_actor_user_id_fkey',
   'review_triggers_review_case_id_fkey',
+  'student_tutoring_preferences_student_id_fkey',
   'teaching_decisions_analysis_id_fkey',
   'teaching_decisions_topic_id_fkey',
   'teaching_decisions_attempt_id_fkey',
