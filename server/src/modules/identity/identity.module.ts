@@ -23,6 +23,8 @@ import {
 } from './user-administration/user-administration.repository'
 import { UserAdministrationService } from './user-administration/user-administration.service'
 import { UserAdministrationAuditService } from './user-administration/user-administration-audit'
+import { UserImportRepository } from './user-administration/user-import.repository'
+import { UserImportService } from './user-administration/user-import.service'
 
 @Module({
   imports: [
@@ -57,6 +59,8 @@ import { UserAdministrationAuditService } from './user-administration/user-admin
     IdentityAudit,
     UserAdministrationService,
     UserAdministrationAuditService,
+    UserImportRepository,
+    UserImportService,
     {
       provide: UserAdministrationRepository,
       useClass: PrismaUserAdministrationRepository,

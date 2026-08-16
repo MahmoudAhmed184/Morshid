@@ -3,13 +3,17 @@ import { clientEnv } from '@/lib/env'
 type ApiErrorEnvelope = {
   code?: unknown
   message?: unknown
+  errors?: unknown
 }
+
+export type ApiValidationIssue = { field: string; message: string }
 
 export class ApiError extends Error {
   constructor(
     message: string,
     public readonly status: number,
     public readonly code?: string,
+    public readonly validationErrors: ApiValidationIssue[] = [],
   ) {
     super(message)
     this.name = 'ApiError'
@@ -66,8 +70,17 @@ export function buildApiError(response: Response, body: unknown) {
     typeof envelope?.message === 'string'
       ? envelope.message
       : `Request failed with status ${response.status}`
+  const validationErrors = Array.isArray(envelope?.errors)
+    ? envelope.errors.flatMap((issue) => {
+        if (!isRecord(issue)) return []
+        return typeof issue.field === 'string' &&
+          typeof issue.message === 'string'
+          ? [{ field: issue.field, message: issue.message }]
+          : []
+      })
+    : []
 
-  return new ApiError(message, response.status, code)
+  return new ApiError(message, response.status, code, validationErrors)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
