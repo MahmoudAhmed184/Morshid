@@ -22,7 +22,7 @@ import { InstructorListSkeleton } from '@/workspaces/instructor/instructor-list-
 import { useInstructorReviewQueue } from '@/workspaces/instructor/reviews/use-reviews'
 import { useAuthStore } from '@/features/auth/session/interface/session-store'
 import { useInstructorWorkspacePreferences } from '@/workspaces/instructor/preferences/use-instructor-workspace-preferences'
-import { SavedFiltersMenu } from './saved-filters-menu'
+import { SavedFiltersMenu } from '@/workspaces/instructor/reviews/saved-filters-menu'
 import type {
   InstructorReviewQueueItem,
   StudentFlagReason,
@@ -36,7 +36,7 @@ import type {
   QueueStatus,
   QueueTrigger,
   SavedQueueFilter,
-} from '../preferences/instructor-workspace-preferences.types'
+} from '@/workspaces/instructor/preferences/instructor-workspace-preferences.types'
 import { cn } from '@/lib/utils'
 
 const statusTabs: { value: QueueStatus; label: string }[] = [
@@ -151,7 +151,7 @@ export function ReviewQueuePage() {
 
     const currentUrl = `${window.location.pathname}${window.location.search}`
     if (currentUrl !== newUrl) {
-      window.history.replaceState(null, '', newUrl)
+      window.history.replaceState(window.history.state, '', newUrl)
     }
   }, [courseId, search, status, studentFlagReason, trigger])
 

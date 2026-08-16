@@ -14,8 +14,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { studentFlagReasonLabel } from '@/features/reviews/interface/student-flag-reason'
-import type { QueueFilterCriteria } from '../preferences/instructor-workspace-preferences.types'
-import { MAX_FILTER_NAME_LENGTH } from '../preferences/instructor-workspace-preferences.storage'
+import type { QueueFilterCriteria } from '@/workspaces/instructor/preferences/instructor-workspace-preferences.types'
+import { MAX_FILTER_NAME_LENGTH } from '@/workspaces/instructor/preferences/instructor-workspace-preferences.storage'
 
 export interface SaveFilterDialogProps {
   open: boolean

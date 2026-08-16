@@ -12,8 +12,8 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import type { SavedQueueFilter } from '../preferences/instructor-workspace-preferences.types'
-import { MAX_FILTER_NAME_LENGTH } from '../preferences/instructor-workspace-preferences.storage'
+import type { SavedQueueFilter } from '@/workspaces/instructor/preferences/instructor-workspace-preferences.types'
+import { MAX_FILTER_NAME_LENGTH } from '@/workspaces/instructor/preferences/instructor-workspace-preferences.storage'
 
 export interface RenameFilterDialogProps {
   open: boolean

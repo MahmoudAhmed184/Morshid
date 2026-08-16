@@ -5,13 +5,13 @@ import type {
   InstructorWorkspacePreferences,
   QueueFilterCriteria,
   SavedQueueFilter,
-} from './instructor-workspace-preferences.types'
+} from '@/workspaces/instructor/preferences/instructor-workspace-preferences.types'
 import {
   MAX_SAVED_FILTERS,
   readInstructorPreferences,
   validateFilterName,
   writeInstructorPreferences,
-} from './instructor-workspace-preferences.storage'
+} from '@/workspaces/instructor/preferences/instructor-workspace-preferences.storage'
 
 export interface SaveFilterResult {
   success: boolean
@@ -69,15 +69,18 @@ export function useInstructorWorkspacePreferences() {
       // Fallback to deterministic first course
       const fallback = availableCourses[0]
 
-      // Clean up stale or unset stored course ID
+      // Clean up stale or unset stored course ID asynchronously to avoid render-phase side effects
       if (preferences.activeCourseId !== null) {
-        setPreferences((current) => {
-          const next: InstructorWorkspacePreferences = {
-            ...current,
-            activeCourseId: null,
-          }
-          writeInstructorPreferences(userId, next)
-          return next
+        queueMicrotask(() => {
+          setPreferences((current) => {
+            if (current.activeCourseId === null) return current
+            const next: InstructorWorkspacePreferences = {
+              ...current,
+              activeCourseId: null,
+            }
+            writeInstructorPreferences(userId, next)
+            return next
+          })
         })
       }
 

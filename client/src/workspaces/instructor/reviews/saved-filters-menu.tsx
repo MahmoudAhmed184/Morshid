@@ -18,13 +18,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { ConfirmDialog } from '@/components/ui/custom/confirm-dialog'
-import { SaveFilterDialog } from './save-filter-dialog'
-import { RenameFilterDialog } from './rename-filter-dialog'
+import { SaveFilterDialog } from '@/workspaces/instructor/reviews/save-filter-dialog'
+import { RenameFilterDialog } from '@/workspaces/instructor/reviews/rename-filter-dialog'
 import type {
   QueueFilterCriteria,
   SavedQueueFilter,
-} from '../preferences/instructor-workspace-preferences.types'
-import { MAX_SAVED_FILTERS } from '../preferences/instructor-workspace-preferences.storage'
+} from '@/workspaces/instructor/preferences/instructor-workspace-preferences.types'
+import { MAX_SAVED_FILTERS } from '@/workspaces/instructor/preferences/instructor-workspace-preferences.storage'
 import { studentFlagReasonLabel } from '@/features/reviews/interface/student-flag-reason'
 
 export interface SavedFiltersMenuProps {
