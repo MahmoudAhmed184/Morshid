@@ -4,6 +4,7 @@ import {
   managedUserResponseSchema,
   bulkManagedUsersResponseSchema,
   managedUsersPageSchema,
+  userImportResponseSchema,
 } from '@/features/user-management/managed-user.schema'
 
 export type ListManagedUsersInput = {
@@ -88,6 +89,31 @@ export async function bulkCreateManagedUsers(
   })
 
   return bulkManagedUsersResponseSchema.parse(response).users
+}
+
+export type CreateUserImportRow = {
+  rowNumber: number
+  displayName: string
+  email: string
+  password: string
+  role: string
+}
+
+export async function createUserImport(rows: CreateUserImportRow[]) {
+  const response = await apiJson<unknown>('/api/v1/admin/users/imports', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rows }),
+  })
+  return userImportResponseSchema.parse(response).userImport
+}
+
+export async function approveUserImport(importId: string) {
+  const response = await apiJson<unknown>(
+    `/api/v1/admin/users/imports/${importId}/approve`,
+    { method: 'POST' },
+  )
+  return userImportResponseSchema.parse(response).userImport
 }
 
 export async function resetManagedUserPassword(

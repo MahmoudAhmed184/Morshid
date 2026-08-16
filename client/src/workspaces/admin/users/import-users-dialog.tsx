@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input'
 import { useManagedUserMutations } from './use-user-management'
 import { downloadUserImportTemplate, parseUserImport } from './user-import.csv'
 import type { CreateManagedUserInput } from '@/features/user-management/user-management.api'
+import type { UserImport } from '@/features/user-management/managed-user.schema'
 
 type ImportUsersDialogProps = {
   role: CreateManagedUserInput['role']
@@ -26,11 +27,13 @@ export function ImportUsersDialog({ role, userLabel }: ImportUsersDialogProps) {
   const [open, setOpen] = useState(false)
   const [file, setFile] = useState<File | null>(null)
   const [errors, setErrors] = useState<string[]>([])
-  const { bulkCreateUsers } = useManagedUserMutations()
+  const [userImport, setUserImport] = useState<UserImport | null>(null)
+  const { stageUserImport, approveImport } = useManagedUserMutations()
 
   const reset = () => {
     setFile(null)
     setErrors([])
+    setUserImport(null)
   }
 
   const handleImport = async () => {
@@ -40,18 +43,29 @@ export function ImportUsersDialog({ role, userLabel }: ImportUsersDialogProps) {
     }
 
     const parsed = await parseUserImport(file, role)
-    if (parsed.errors.length > 0) {
+    if (parsed.rows.length === 0) {
       setErrors(parsed.errors)
       return
     }
 
     try {
-      await bulkCreateUsers.mutateAsync(parsed.users)
-      setOpen(false)
-      reset()
+      setUserImport(await stageUserImport.mutateAsync(parsed.rows))
+      setErrors(parsed.errors)
     } catch (error) {
       setErrors([
         error instanceof Error ? error.message : 'Unable to import users.',
+      ])
+    }
+  }
+
+  const handleApprove = async () => {
+    if (!userImport) return
+    try {
+      setUserImport(await approveImport.mutateAsync(userImport.id))
+      setErrors([])
+    } catch (error) {
+      setErrors([
+        error instanceof Error ? error.message : 'Unable to approve import.',
       ])
     }
   }
@@ -75,35 +89,75 @@ export function ImportUsersDialog({ role, userLabel }: ImportUsersDialogProps) {
           </span>
           <DialogTitle>Import {userLabel}</DialogTitle>
           <DialogDescription>
-            Upload up to 200 accounts. Required columns are displayName, email,
-            and password. The import is all-or-nothing.
+            Upload up to 200 accounts, review every row, then approve valid
+            accounts. Invalid rows remain visible with their reasons.
           </DialogDescription>
         </DialogHeader>
 
-        <Button
-          type="button"
-          variant="outline"
-          className="w-fit"
-          onClick={downloadUserImportTemplate}
-        >
-          <DownloadIcon />
-          Download CSV template
-        </Button>
+        {userImport ? null : (
+          <Button
+            type="button"
+            variant="outline"
+            className="w-fit"
+            onClick={downloadUserImportTemplate}
+          >
+            <DownloadIcon />
+            Download CSV template
+          </Button>
+        )}
 
-        <div className="space-y-2">
-          <label htmlFor="user-csv-file" className="text-sm font-medium">
-            Completed CSV file
-          </label>
-          <Input
-            id="user-csv-file"
-            type="file"
-            accept=".csv,text/csv"
-            onChange={(event) => {
-              setFile(event.target.files?.[0] ?? null)
-              setErrors([])
-            }}
-          />
-        </div>
+        {userImport ? null : (
+          <div className="space-y-2">
+            <label htmlFor="user-csv-file" className="text-sm font-medium">
+              Completed CSV file
+            </label>
+            <Input
+              id="user-csv-file"
+              type="file"
+              accept=".csv,text/csv"
+              onChange={(event) => {
+                setFile(event.target.files?.[0] ?? null)
+                setErrors([])
+              }}
+            />
+          </div>
+        )}
+
+        {userImport ? (
+          <div className="max-h-80 space-y-2 overflow-y-auto">
+            {userImport.rows.map((row) => (
+              <div key={row.id} className="rounded-md border p-3 text-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium">
+                      Row {row.rowNumber}: {row.displayName || 'Missing name'}
+                    </p>
+                    <p className="text-muted-foreground">
+                      {row.email || 'Missing email'} ·{' '}
+                      {row.role || 'Invalid role'}
+                    </p>
+                  </div>
+                  <span
+                    className={
+                      row.status === 'INVALID'
+                        ? 'text-destructive'
+                        : 'text-emerald-600'
+                    }
+                  >
+                    {row.status}
+                  </span>
+                </div>
+                {row.errors.length > 0 ? (
+                  <ul className="mt-2 list-disc pl-4 text-destructive">
+                    {row.errors.map((error) => (
+                      <li key={error}>{error}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        ) : null}
 
         {errors.length > 0 ? (
           <Alert variant="destructive">
@@ -122,14 +176,32 @@ export function ImportUsersDialog({ role, userLabel }: ImportUsersDialogProps) {
         ) : null}
 
         <DialogFooter showCloseButton>
-          <Button
-            type="button"
-            disabled={!file || bulkCreateUsers.isPending}
-            onClick={() => void handleImport()}
-          >
-            <UploadIcon />
-            {bulkCreateUsers.isPending ? 'Importing...' : 'Import users'}
-          </Button>
+          {userImport?.status === 'PENDING' ? (
+            <Button
+              type="button"
+              disabled={
+                approveImport.isPending ||
+                !userImport.rows.some((row) => row.status === 'VALID')
+              }
+              onClick={() => void handleApprove()}
+            >
+              <UploadIcon />
+              {approveImport.isPending ? 'Approving...' : 'Approve valid users'}
+            </Button>
+          ) : userImport?.status === 'APPROVED' ? (
+            <p className="text-sm text-emerald-600">
+              Valid users were created successfully.
+            </p>
+          ) : (
+            <Button
+              type="button"
+              disabled={!file || stageUserImport.isPending}
+              onClick={() => void handleImport()}
+            >
+              <UploadIcon />
+              {stageUserImport.isPending ? 'Validating...' : 'Review import'}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -13,6 +13,7 @@ import {
 import { useManagedUserMutations } from '@/workspaces/admin/users/use-user-management'
 import { UserForm } from './user-form'
 import type { CreateUserFormValues } from '@/features/user-management/managed-user.schema'
+import { isApiError } from '@/features/auth/session/interface/authenticated-api-client'
 
 type CreateUserDialogProps = {
   role?: CreateUserFormValues['role']
@@ -25,14 +26,20 @@ export function CreateUserDialog({
 }: CreateUserDialogProps) {
   const [open, setOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<
+    Partial<Record<keyof CreateUserFormValues, string[]>>
+  >({})
   const { createUser } = useManagedUserMutations()
 
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen)
     setErrorMessage(null)
+    setFieldErrors({})
   }
 
   const handleSubmit = async (values: CreateUserFormValues) => {
+    setErrorMessage(null)
+    setFieldErrors({})
     try {
       await createUser.mutateAsync({
         email: values.email,
@@ -42,6 +49,27 @@ export function CreateUserDialog({
       })
       handleOpenChange(false)
     } catch (error) {
+      if (isApiError(error) && error.validationErrors.length > 0) {
+        const nextErrors: Partial<
+          Record<keyof CreateUserFormValues, string[]>
+        > = {}
+        for (const issue of error.validationErrors) {
+          const field = issue.field === 'displayName' ? 'name' : issue.field
+          if (
+            field === 'name' ||
+            field === 'email' ||
+            field === 'password' ||
+            field === 'role'
+          ) {
+            nextErrors[field] = [...(nextErrors[field] ?? []), issue.message]
+          }
+        }
+        if (Object.keys(nextErrors).length > 0) {
+          setFieldErrors(nextErrors)
+          setErrorMessage(null)
+          return
+        }
+      }
       setErrorMessage(
         error instanceof Error
           ? error.message
@@ -72,6 +100,7 @@ export function CreateUserDialog({
           </p>
         ) : null}
         <UserForm
+          serverErrors={fieldErrors}
           lockedRole={role}
           onSubmit={handleSubmit}
           onCancel={() => handleOpenChange(false)}

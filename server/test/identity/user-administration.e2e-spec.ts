@@ -307,6 +307,17 @@ describe('Admin users (e2e)', () => {
       })
   })
 
+  it('rejects non-admin user import approvals', async () => {
+    const token = await signInAs('student1@morshid.demo')
+
+    await request(app.getHttpServer())
+      .post(
+        '/api/v1/admin/users/imports/00000000-0000-4000-8000-000000000099/approve',
+      )
+      .set('Authorization', `Bearer ${token}`)
+      .expect(403)
+  })
+
   describe('PATCH /api/v1/admin/users/:userId', () => {
     it('updates profile fields and records before/after audit evidence', async () => {
       const token = await signInAs('admin@morshid.demo')

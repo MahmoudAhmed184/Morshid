@@ -11,6 +11,8 @@ import {
   reactivateManagedUser,
   resetManagedUserPassword,
   updateManagedUser,
+  createUserImport,
+  approveUserImport,
 } from '@/features/user-management/user-management.api'
 import type {
   CreateManagedUserInput,
@@ -69,6 +71,11 @@ export function useManagedUserMutations() {
       bulkCreateManagedUsers(input),
     onSuccess: invalidateUserManagementData,
   })
+  const stageUserImport = useMutation({ mutationFn: createUserImport })
+  const approveImport = useMutation({
+    mutationFn: approveUserImport,
+    onSuccess: invalidateUserManagementData,
+  })
   const disableUser = useMutation({
     mutationFn: (userId: string) => disableManagedUser(userId),
     onSuccess: invalidateUserManagementData,
@@ -95,6 +102,8 @@ export function useManagedUserMutations() {
   return {
     createUser,
     bulkCreateUsers,
+    stageUserImport,
+    approveImport,
     updateUser,
     resetPassword,
     disableUser,

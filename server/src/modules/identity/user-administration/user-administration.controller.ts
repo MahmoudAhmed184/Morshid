@@ -71,6 +71,14 @@ import {
   type UserAdministrationValidationIssue,
 } from './user-administration.errors'
 import { UserAdministrationService } from './user-administration.service'
+import {
+  CreateUserImportDto,
+  UserImportResponseDto,
+  createUserImportSchema,
+  userImportIdSchema,
+  type CreateUserImport,
+} from './user-import.types'
+import { UserImportService } from './user-import.service'
 
 function mapZodIssue(
   issue: z.core.$ZodIssue,
@@ -90,6 +98,7 @@ function mapZodIssue(
 export class UserAdministrationController {
   constructor(
     private readonly userAdministrationService: UserAdministrationService,
+    private readonly userImportService: UserImportService,
   ) {}
 
   @Get()
@@ -182,6 +191,60 @@ export class UserAdministrationController {
   ): Promise<BulkCreateUsersResponseDto> {
     return this.userAdministrationService.bulkCreateUsers(
       body,
+      request.user,
+      getRequestContext(request),
+    )
+  }
+
+  @Post('imports')
+  @SerializeOptions({ type: UserImportResponseDto, strategy: 'excludeAll' })
+  @ApiOperation({ summary: 'Stage CSV user rows for admin review' })
+  @ApiBody({ type: CreateUserImportDto })
+  @ApiCreatedResponse({ type: UserImportResponseDto })
+  createUserImport(
+    @Body(
+      new ZodValidationPipe(createUserImportSchema, (issues) =>
+        invalidCreateUserRequestException(issues.map(mapZodIssue)),
+      ),
+    )
+    body: CreateUserImport,
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<UserImportResponseDto> {
+    return this.userImportService.create(body, request.user)
+  }
+
+  @Get('imports/:importId')
+  @SerializeOptions({ type: UserImportResponseDto, strategy: 'excludeAll' })
+  @ApiOperation({ summary: 'Get a staged user import' })
+  @ApiOkResponse({ type: UserImportResponseDto })
+  getUserImport(
+    @Param(
+      'importId',
+      new ZodValidationPipe(userImportIdSchema, (issues) =>
+        invalidCreateUserRequestException(issues.map(mapZodIssue)),
+      ),
+    )
+    importId: string,
+  ): Promise<UserImportResponseDto> {
+    return this.userImportService.get(importId)
+  }
+
+  @Post('imports/:importId/approve')
+  @SerializeOptions({ type: UserImportResponseDto, strategy: 'excludeAll' })
+  @ApiOperation({ summary: 'Approve all valid rows in a staged user import' })
+  @ApiOkResponse({ type: UserImportResponseDto })
+  approveUserImport(
+    @Param(
+      'importId',
+      new ZodValidationPipe(userImportIdSchema, (issues) =>
+        invalidCreateUserRequestException(issues.map(mapZodIssue)),
+      ),
+    )
+    importId: string,
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<UserImportResponseDto> {
+    return this.userImportService.approve(
+      importId,
       request.user,
       getRequestContext(request),
     )

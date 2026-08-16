@@ -42,13 +42,32 @@ export const bulkManagedUsersResponseSchema = z.object({
   users: z.array(userRecordSchema),
 })
 
+export const userImportSchema = z.object({
+  id: z.string().uuid(),
+  status: z.enum(['PENDING', 'APPROVED']),
+  createdAt: z.string().datetime(),
+  approvedAt: z.string().datetime().nullable(),
+  rows: z.array(
+    z.object({
+      id: z.string().uuid(),
+      rowNumber: z.number().int(),
+      displayName: z.string().nullable(),
+      email: z.string().nullable(),
+      role: z.enum(['STUDENT', 'INSTRUCTOR']).nullable(),
+      status: z.enum(['VALID', 'INVALID', 'APPROVED']),
+      errors: z.array(z.string()),
+    }),
+  ),
+})
+
+export const userImportResponseSchema = z.object({
+  userImport: userImportSchema,
+})
+
 export const passwordSchema = z
   .string()
-  .min(8, 'Password must be at least 8 characters.')
-  .max(50, 'Password must be at most 50 characters.')
-  .regex(/[A-Za-z]/, 'Password must contain at least one letter.')
-  .regex(/[0-9]/, 'Password must contain at least one number.')
-  .regex(/[^A-Za-z0-9]/, 'Password must contain at least one symbol.')
+  .min(15, 'Password must be at least 15 characters.')
+  .max(128, 'Password must be at most 128 characters.')
 
 export const createUserFormSchema = z.object({
   name: z.string().trim().min(1, 'Name is required.').max(120),
@@ -82,3 +101,4 @@ export type ManagedUserRole = z.infer<typeof userRoleSchema>
 export type ManagedUserStatus = z.infer<typeof userStatusSchema>
 export type ResetPasswordFormValues = z.infer<typeof resetPasswordFormSchema>
 export type CreateUserFormValues = z.infer<typeof createUserFormSchema>
+export type UserImport = z.infer<typeof userImportSchema>
