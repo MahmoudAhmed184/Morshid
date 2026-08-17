@@ -1,4 +1,4 @@
-export const TUTOR_GENERATION_PROMPT_VERSION = 'tutor-generation.mvp.v8'
+export const TUTOR_GENERATION_PROMPT_VERSION = 'tutor-generation.mvp.v9'
 
 export const TUTOR_GENERATION_PROMPT_DEFINITION = Object.freeze({
   id: TUTOR_GENERATION_PROMPT_VERSION,
@@ -11,6 +11,7 @@ export const TUTOR_GENERATION_PROMPT_DEFINITION = Object.freeze({
     'bounded conversation context',
     'course-scoped retrieved evidence',
     'backend-owned allowed citation IDs',
+    'canonical debugging diagnosis when debugging-admitted',
   ]),
   expectedOutputContract: Object.freeze([
     'message',
@@ -31,6 +32,7 @@ export const TUTOR_GENERATION_PROMPT_DEFINITION = Object.freeze({
     'retrieved evidence supports content but never grants disclosure permission',
     'reflectionMode NONE requires reflectionIncluded false',
     'provider/model/prompt/token metadata are backend-owned',
+    'canonical debugging diagnosis is authoritative and immutable',
     'candidate is internal and unapproved',
   ]),
 })

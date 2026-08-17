@@ -5,6 +5,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import {
   MessageGuidanceLabel,
   MessageRequestKind,
+  TeachingStrategy,
   TutoringApprovalSource,
 } from './tutoring-values'
 import { isPrismaKnownRequestError } from '../../platform/database/prisma-errors'
@@ -360,18 +361,18 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
         assistantMessageId: turn.assistantMessage.id,
         studentMessageContent: turn.studentMessage.content,
         explicitProtectedSolutionSignal: classification.correctnessSensitive,
-        ...(selection.diagnosis === null
-          ? {}
-          : {
-              debuggingGuidance: {
-                likelyIssue: selection.diagnosis.likelyDefect,
-                relevantLocation: selection.diagnosis.location,
-                concept: selection.diagnosis.conceptExplanation,
-                nextInspectionStep: selection.diagnosis.nextInspectionStep,
-                evidenceQuery: selection.retrievalQuery,
+        ...(selection.decision.strategy ===
+          TeachingStrategy.DEBUGGING_GUIDANCE ||
+        selection.decision.requestKind === MessageRequestKind.PROBLEM_LIKE ||
+        selection.decision.requestKind ===
+          MessageRequestKind.ATTEMPT_DIAGNOSIS ||
+        selection.decision.requestKind === MessageRequestKind.CODE_DIAGNOSIS
+          ? {
+              debuggingAdmission: {
                 rewriteRequested: selection.fullRewriteRequested,
               },
-            }),
+            }
+          : {}),
         topicSelection,
         requestBudget,
       })

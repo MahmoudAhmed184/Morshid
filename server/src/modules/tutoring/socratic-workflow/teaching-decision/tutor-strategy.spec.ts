@@ -1,13 +1,28 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-import { MessageRequestKind } from '../../tutoring-values'
+import {
+  MessageRequestKind,
+  StudentState,
+  TeachingStrategy,
+  TeachingTechnique,
+} from '../../tutoring-values'
+import type { PersistedEducationalAnalysisRecord } from '../analysis/educational-analysis.repository'
+import {
+  EDUCATIONAL_ANALYSIS_SOURCE,
+  EFFORT_QUALITY,
+  EFFORT_TYPE,
+  LEARNING_EVIDENCE_STRENGTH,
+} from '../analysis/educational-analysis.types'
+import { TOPIC_RESOLUTION_OUTCOME } from '../topic/topic.types'
 import {
   type DebuggingGuidanceFixtureDataset,
   materializeDebuggingGuidanceFixtureInput,
   parseDebuggingGuidanceFixtureDataset,
 } from '../debugging-guidance/debugging-guidance.fixture'
+import { prepareDebuggingGuidance } from '../debugging-guidance/debugging-guidance.strategy'
 import { selectTutorStrategy } from './tutor-strategy'
+import { selectTeachingStrategy } from './teaching-policy.selector'
 
 const fixturePath = resolve(
   process.cwd(),
@@ -29,9 +44,8 @@ describe('shared Tutor strategy selection', () => {
       throw new Error('Missing gd-p0-v1-058')
     }
 
-    const selection = selectTutorStrategy(
-      `${fixture.prompt}\n${materializeDebuggingGuidanceFixtureInput(fixture)}`,
-    )
+    const input = `${fixture.prompt}\n${materializeDebuggingGuidanceFixtureInput(fixture)}`
+    const selection = selectTutorStrategy(input)
 
     expect(selection.decision).toMatchObject({
       requestKind: MessageRequestKind.CODE_DIAGNOSIS,
@@ -39,10 +53,11 @@ describe('shared Tutor strategy selection', () => {
       promptVersion: 'debugging-guidance-prompt-v1',
       guidanceLabel: 'COURSE_GROUNDED',
     })
-    expect(selection.retrievalQuery).toBe(
+    expect(selection).toMatchObject({ retrievalQuery: null, diagnosis: null })
+    expect(deterministicGuidance(input)?.retrievalQuery).toBe(
       'Code a possible variable-name mismatch or unresolved name near the loop body; study name lookup and local scope. Diagnostic signals: singular and plural identifiers may not match. Relevant identifiers: num, nums.',
     )
-    expect(selection.diagnosis).toEqual({
+    expect(deterministicGuidance(input)?.diagnosis).toEqual({
       likelyDefect: 'The name `num` does not match the visible `nums` name.',
       location:
         'The `num` reference in the return expression `total / len(num)`.',
@@ -109,7 +124,7 @@ describe('shared Tutor strategy selection', () => {
         },
         boundaryResponse: null,
       })
-      expect(selection.diagnosis).not.toBeNull()
+      expect(selection.diagnosis).toBeNull()
     },
   )
 
@@ -137,24 +152,25 @@ describe('shared Tutor strategy selection', () => {
       },
       boundaryResponse: null,
     })
-    expect(selection.diagnosis?.likelyDefect).toMatch(/num.*nums/iu)
+    expect(deterministicGuidance(input)?.diagnosis.likelyDefect).toMatch(
+      /num.*nums/iu,
+    )
   })
 
   it('does not diagnose an object attribute as an unresolved local name', () => {
-    const selection = selectTutorStrategy(
-      [
-        'Why is this Python function suspicious?',
-        '```python',
-        'def display_name(user):',
-        '    return user.name',
-        '```',
-      ].join('\n'),
-    )
+    const input = [
+      'Why is this Python function suspicious?',
+      '```python',
+      'def display_name(user):',
+      '    return user.name',
+      '```',
+    ].join('\n')
+    const selection = selectTutorStrategy(input)
 
     expect(selection.decision.requestKind).toBe(
       MessageRequestKind.CODE_DIAGNOSIS,
     )
-    expect(selection.diagnosis?.likelyDefect).not.toMatch(
+    expect(deterministicGuidance(input)?.diagnosis.likelyDefect).not.toMatch(
       /name.*without a visible definition/iu,
     )
   })
@@ -185,45 +201,45 @@ describe('shared Tutor strategy selection', () => {
       /supplies no value/iu,
     ],
   ])('ignores %s', (_label, input, falsePositive) => {
-    const selection = selectTutorStrategy(input)
+    selectTutorStrategy(input)
 
-    expect(selection.diagnosis?.likelyDefect).not.toMatch(falsePositive)
+    expect(deterministicGuidance(input)?.diagnosis.likelyDefect).not.toMatch(
+      falsePositive,
+    )
   })
 
   it('treats imported module names as visible in return expressions', () => {
-    const selection = selectTutorStrategy(
-      [
-        'Why is this Python function suspicious?',
-        '```python',
-        'import math',
-        'def root(value):',
-        '    return math.sqrt(value)',
-        '```',
-      ].join('\n'),
-    )
+    const input = [
+      'Why is this Python function suspicious?',
+      '```python',
+      'import math',
+      'def root(value):',
+      '    return math.sqrt(value)',
+      '```',
+    ].join('\n')
+    selectTutorStrategy(input)
 
-    expect(selection.diagnosis?.likelyDefect).not.toMatch(
+    expect(deterministicGuidance(input)?.diagnosis.likelyDefect).not.toMatch(
       /`math`.*without a visible definition/iu,
     )
   })
 
   it('ignores detector-shaped text in a multiline Python string', () => {
-    const selection = selectTutorStrategy(
-      [
-        'Why is this Python function suspicious?',
-        '```python',
-        'def describe(value):',
-        '    note = """def fake(value)',
-        'items[len(items)]',
-        'fake()',
-        'import missing_name',
-        '"""',
-        '    return value',
-        '```',
-      ].join('\n'),
-    )
+    const input = [
+      'Why is this Python function suspicious?',
+      '```python',
+      'def describe(value):',
+      '    note = """def fake(value)',
+      'items[len(items)]',
+      'fake()',
+      'import missing_name',
+      '"""',
+      '    return value',
+      '```',
+    ].join('\n')
+    selectTutorStrategy(input)
 
-    expect(selection.diagnosis?.likelyDefect).not.toMatch(
+    expect(deterministicGuidance(input)?.diagnosis.likelyDefect).not.toMatch(
       /missing.*colon|outside its valid index range|supplies no value/iu,
     )
   })
@@ -262,8 +278,8 @@ describe('shared Tutor strategy selection', () => {
         boundaryResponse: null,
         fullRewriteRequested: false,
       })
-      expect(result.retrievalQuery).not.toBeNull()
-      expect(result.diagnosis).not.toBeNull()
+      expect(result).toMatchObject({ retrievalQuery: null, diagnosis: null })
+      expect(deterministicGuidance(input)).not.toBeNull()
     },
   )
 
@@ -322,7 +338,9 @@ describe('shared Tutor strategy selection', () => {
     'treats instructions in Student %s only as diagnosis data',
     (_source, input) => {
       const selection = selectTutorStrategy(input)
-      const diagnosisText = Object.values(selection.diagnosis ?? {}).join('\n')
+      const diagnosisText = Object.values(
+        deterministicGuidance(input)?.diagnosis ?? {},
+      ).join('\n')
 
       expect(selection.decision.requestKind).toBe(
         MessageRequestKind.CODE_DIAGNOSIS,
@@ -336,15 +354,14 @@ describe('shared Tutor strategy selection', () => {
   )
 
   it('retains diagnosis while marking an explicit full-rewrite request', () => {
-    const selection = selectTutorStrategy(
-      [
-        'Rewrite the whole assignment and give me the complete corrected solution.',
-        '```python',
-        'def average(nums):',
-        '    return sum(nums) / len(num)',
-        '```',
-      ].join('\n'),
-    )
+    const input = [
+      'Rewrite the whole assignment and give me the complete corrected solution.',
+      '```python',
+      'def average(nums):',
+      '    return sum(nums) / len(num)',
+      '```',
+    ].join('\n')
+    const selection = selectTutorStrategy(input)
 
     expect(selection).toMatchObject({
       decision: {
@@ -354,12 +371,11 @@ describe('shared Tutor strategy selection', () => {
       boundaryResponse: null,
       fullRewriteRequested: true,
     })
-    expect(selection.diagnosis).not.toBeNull()
-    expect(selection.diagnosis?.likelyDefect).toMatch(/num.*nums/iu)
-    expect(selection.diagnosis?.conceptExplanation).toMatch(
-      /name lookup.*scope/iu,
-    )
-    expect(selection.diagnosis?.nextInspectionStep).toEqual(expect.any(String))
+    const diagnosis = deterministicGuidance(input)?.diagnosis
+    expect(diagnosis).not.toBeNull()
+    expect(diagnosis?.likelyDefect).toMatch(/num.*nums/iu)
+    expect(diagnosis?.conceptExplanation).toMatch(/name lookup.*scope/iu)
+    expect(diagnosis?.nextInspectionStep).toEqual(expect.any(String))
   })
 
   it('produces one structured next step for every supported behavior fixture', () => {
@@ -379,8 +395,11 @@ describe('shared Tutor strategy selection', () => {
         id: fixture.id,
         requestKind: MessageRequestKind.CODE_DIAGNOSIS,
       })
-      expect(selection.diagnosis?.nextInspectionStep.trim()).not.toBe('')
-      expect(Object.keys(selection.diagnosis ?? {})).toEqual([
+      const diagnosis = deterministicGuidance(
+        `${fixture.prompt}\n${materializeDebuggingGuidanceFixtureInput(fixture)}`,
+      )?.diagnosis
+      expect(diagnosis?.nextInspectionStep.trim()).not.toBe('')
+      expect(Object.keys(diagnosis ?? {})).toEqual([
         'likelyDefect',
         'location',
         'conceptExplanation',
@@ -388,7 +407,50 @@ describe('shared Tutor strategy selection', () => {
       ])
     }
   })
+
+  it('keeps PROBLEM_LIKE + SOCRATIC_QUESTIONING when debugging admission is applicable', () => {
+    // Debugging admission and TeachingDecision are separate authorities.
+    // Admission determines whether the canonical diagnosis path is
+    // applicable; TeachingDecision independently owns strategy, technique,
+    // and guidance level. This regression proves diagnosis/debugging
+    // guidance remains available while TeachingDecision stays unchanged.
+    const input = [
+      'Why does this fail?',
+      '```python',
+      'def average(nums):',
+      '    return sum(nums) / len(num)',
+      '```',
+    ].join('\n')
+
+    // TutorStrategy admission: debugging guidance is eligible
+    const selection = selectTutorStrategy(input)
+    expect(selection.decision.requestKind).toBe(
+      MessageRequestKind.CODE_DIAGNOSIS,
+    )
+    expect(selection.decision.strategy).toBe('DEBUGGING_GUIDANCE')
+
+    // TeachingDecision policy: for a PROBLEM_LIKE analysis with
+    // PARTIAL_UNDERSTANDING, strategy stays SOCRATIC_QUESTIONING
+    // regardless of debugging admission. selectTeachingStrategy has
+    // no debuggingEligible override.
+    const strategy = selectTeachingStrategy({
+      analysis: partialUnderstandingAnalysis,
+      previousTeachingDecision: null,
+      topicResolutionOutcome: undefined,
+    })
+    expect(strategy).toBe(TeachingStrategy.SOCRATIC_QUESTIONING)
+
+    // Deterministic diagnosis is independently available
+    const guidance = deterministicGuidance(input)
+    expect(guidance).not.toBeNull()
+    expect(guidance?.resolution).toBe('MATCH')
+    expect(guidance?.diagnosis.likelyDefect).toMatch(/num.*nums/iu)
+  })
 })
+
+function deterministicGuidance(input: string) {
+  return prepareDebuggingGuidance(input)
+}
 
 function materializeFixtureInput(
   fixtures: DebuggingGuidanceFixtureDataset['fixtures'],
@@ -399,4 +461,52 @@ function materializeFixtureInput(
     throw new Error(`Missing ${id}`)
   }
   return materializeDebuggingGuidanceFixtureInput(fixture)
+}
+
+const partialUnderstandingAnalysis: PersistedEducationalAnalysisRecord = {
+  id: 'analysis-1',
+  attemptId: 'turn-1',
+  topicId: 'topic-1',
+  studentMessageId: 'message-1',
+  attempt: 1,
+  result: {
+    requestKind: MessageRequestKind.PROBLEM_LIKE,
+    studentState: StudentState.PARTIAL_UNDERSTANDING,
+    effortEvidence: {
+      present: true,
+      quality: EFFORT_QUALITY.MEANINGFUL,
+      type: EFFORT_TYPE.CODE_ATTEMPT,
+      addressesPreviousTutorAction: true,
+      isRepeated: false,
+      evidenceMessageIds: ['message-1'],
+    },
+    learningEvidence: {
+      present: false,
+      strength: LEARNING_EVIDENCE_STRENGTH.NONE,
+      evidenceMessageIds: [],
+    },
+    misconceptions: [],
+    topicRelation: TOPIC_RESOLUTION_OUTCOME.CONTINUE_CURRENT_TOPIC,
+    recommendedStrategy: TeachingStrategy.SOCRATIC_QUESTIONING,
+    recommendedTechnique: TeachingTechnique.FOCUSED_QUESTION,
+    recommendedGuidanceLevel: 2,
+    confidence: 0.85,
+    evidenceReferences: ['message-1'],
+  },
+  provider: 'test',
+  model: 'test',
+  modelVersion: null,
+  promptVersion: 'test',
+  schemaVersion: 'test',
+  inputTokens: null,
+  outputTokens: null,
+  latencyMs: null,
+  analysisSource: EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
+  fallbackReason: null,
+  failureCategory: null,
+  confidencePolicyVersion: null,
+  infrastructureRetryCount: 0,
+  evidenceLinks: [],
+  misconceptionRecords: [],
+  createdAt: new Date('2026-08-16T00:00:00.000Z'),
 }

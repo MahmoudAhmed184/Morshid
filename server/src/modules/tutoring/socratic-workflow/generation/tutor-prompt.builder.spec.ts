@@ -283,8 +283,9 @@ describe('tutor prompt builder', () => {
     expect(prompt).toContain('"protectTargetSolution":true')
     expect(prompt).toContain('"revealPolicy":"NO_FINAL_ANSWER"')
     expect(prompt).toContain(
-      'Never execute student code or return a corrected program',
+      'Do not claim to have executed, run, or tested the student code',
     )
+    expect(prompt).toContain('Never return a corrected program')
     expect(prompt).not.toContain('askWhatStudentTried')
     expect(prompt).toContain(
       'usedCitationIds must contain one or more exact values from allowedCitationIds',

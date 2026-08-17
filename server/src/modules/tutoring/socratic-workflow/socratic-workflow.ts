@@ -36,6 +36,8 @@ import type {
 } from './socratic-workflow.types'
 import { SolutionProtectionService } from './solution-protection/solution-protection.service'
 import { outputRiskEventAudit } from './response-approval/response-audit.types'
+import { DebuggingDiagnosisService } from './debugging-guidance/debugging-diagnosis.service'
+import { debuggingGuidanceContextFromDiagnosis } from './debugging-guidance/debugging-diagnosis.projection'
 
 /**
  * Private workflow implementation behind the TutoringRuntime boundary.
@@ -61,6 +63,7 @@ export class SocraticWorkflow {
     private readonly teachingPolicyEngine: TeachingPolicyEngine,
     private readonly responseApprovalService: ResponseApprovalService,
     private readonly retrievalQueryBuilder: RetrievalQueryBuilder,
+    private readonly debuggingDiagnosisService: DebuggingDiagnosisService,
     private readonly courseEvidence: CourseEvidence,
     private readonly safetyRiskDetector: AutomaticSafetyRiskDetector,
     private readonly conflictDetector: ControlledSourceConflictDetector,
@@ -236,6 +239,14 @@ export class SocraticWorkflow {
 
     assertRequestBudget(input.requestBudget)
 
+    const debuggingGuidance =
+      input.debuggingAdmission !== undefined
+        ? await this.resolveDebuggingGuidance(input)
+        : undefined
+    if (debuggingGuidance === null) {
+      return this.failTurn('SOCRATIC_DEBUGGING_DIAGNOSIS_FAILED', topicId)
+    }
+
     // ── Course-scoped RAG Retrieval ───────────────────────────────
     await this.advance(
       input,
@@ -244,7 +255,7 @@ export class SocraticWorkflow {
     )
 
     const retrievalRequest =
-      input.debuggingGuidance === undefined
+      debuggingGuidance === undefined
         ? this.retrievalQueryBuilder.build(
             retrievalQueryContextFromAnalysis(
               analysisContext,
@@ -252,7 +263,7 @@ export class SocraticWorkflow {
             ),
           )
         : {
-            query: input.debuggingGuidance.evidenceQuery,
+            query: debuggingGuidance.evidenceQuery,
             queryVersion: 'debugging-guidance.v1',
             contextMessageIds: [input.studentMessageId],
           }
@@ -324,7 +335,7 @@ export class SocraticWorkflow {
       assistantMessageId: input.assistantMessageId,
       teachingDecision: decisionResult.decision,
       retrievalResult: retrieval.chunks,
-      debuggingGuidance: input.debuggingGuidance,
+      debuggingGuidance,
       outputProtection,
       lifecycle: responseLifecycle,
       ...(input.requestBudget === undefined
@@ -403,6 +414,20 @@ export class SocraticWorkflow {
     topicId: string | null = null,
   ): SocraticWorkflowResult {
     return { kind: 'failed', errorCode, topicId }
+  }
+
+  private async resolveDebuggingGuidance(input: SocraticWorkflowInput) {
+    const resolved = await this.debuggingDiagnosisService.resolve({
+      attemptId: input.attemptId,
+      studentMessageId: input.studentMessageId,
+      studentMessage: input.studentMessageContent,
+    })
+    if (!resolved.success) return null
+
+    return debuggingGuidanceContextFromDiagnosis({
+      diagnosis: resolved.diagnosis,
+      rewriteRequested: input.debuggingAdmission?.rewriteRequested ?? false,
+    })
   }
 
   private async advance(

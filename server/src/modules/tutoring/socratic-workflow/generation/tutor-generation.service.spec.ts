@@ -45,7 +45,7 @@ describe('TutorGenerationService', () => {
         message: 'What should change before the next loop iteration?',
         provider: 'deterministic',
         model: 'deterministic-tutor',
-        promptVersion: 'tutor-generation.mvp.v8',
+        promptVersion: 'tutor-generation.mvp.v9',
         tokenUsage: { input: 15, output: 9 },
         usedCitationIds: ['retrieval.rank.1'],
       })
@@ -400,7 +400,7 @@ class FakeTutorModel implements TutorModelPort {
       rawOutput: this.rawOutput,
       provider: 'deterministic',
       model: 'deterministic-tutor',
-      promptVersion: 'tutor-generation.mvp.v8' as const,
+      promptVersion: 'tutor-generation.mvp.v9' as const,
       inputTokens: 15,
       outputTokens: 9,
     })

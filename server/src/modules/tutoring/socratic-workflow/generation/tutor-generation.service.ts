@@ -8,6 +8,7 @@ import {
   readUpstreamFailure,
   waitForRetry,
 } from '../../../../platform/ai/upstream/upstream-retry-policy'
+import { TeachingStrategy } from '../../tutoring-values'
 import { ContextManager } from '../analysis/context-manager.service'
 import { EducationalAnalysisRepository } from '../analysis/educational-analysis.repository'
 import { TeachingDecisionRepository } from '../teaching-decision/teaching-decision.repository'
@@ -170,7 +171,7 @@ export class TutorGenerationService {
           studentActionObligationFromDecision(teachingDecision),
         reflectionMode: teachingDecision.reflectionMode,
         debuggingGuidanceRequired:
-          generationContext.context.debuggingGuidance !== null,
+          teachingDecision.strategy === TeachingStrategy.DEBUGGING_GUIDANCE,
         debuggingRewriteRequested:
           generationContext.context.debuggingGuidance?.rewriteRequested ??
           false,

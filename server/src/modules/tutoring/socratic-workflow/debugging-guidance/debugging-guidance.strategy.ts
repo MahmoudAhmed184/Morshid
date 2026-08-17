@@ -17,6 +17,7 @@ export interface DebuggingGuidanceStrategyInput {
   readonly diagnosis: Readonly<DebuggingGuidanceDraft>
   readonly retrievalQuery: string
   readonly suspectedCategory: DebuggingGuidanceRetrievalQueryInput['suspectedCategory']
+  readonly resolution: 'MATCH' | 'NO_MATCH'
 }
 
 interface DiagnosisMatch {
@@ -164,15 +165,37 @@ export function prepareDebuggingGuidance(
     diagnoseMissingDictionaryKey(code) ??
     diagnoseFilePathEscapes(code) ??
     diagnoseStringConcatenation(code) ??
-    diagnoseNameLookup(structuralCode) ??
-    uncertainDiagnosis()
+    diagnoseNameLookup(structuralCode)
+
+  if (match === null) {
+    const uncertain = uncertainDiagnosis()
+    return Object.freeze({
+      diagnosis: Object.freeze(parseDiagnosisDraft(uncertain.diagnosis)),
+      retrievalQuery: buildDebuggingGuidanceRetrievalQuery(uncertain.retrieval),
+      suspectedCategory: uncertain.retrieval.suspectedCategory,
+      resolution: 'NO_MATCH',
+    })
+  }
 
   const diagnosis = parseDiagnosisDraft(match.diagnosis)
   return Object.freeze({
     diagnosis: Object.freeze(diagnosis),
     retrievalQuery: buildDebuggingGuidanceRetrievalQuery(match.retrieval),
     suspectedCategory: match.retrieval.suspectedCategory,
+    resolution: 'MATCH',
   })
+}
+
+export function isDebuggingGuidanceEligible(
+  studentMessage: string,
+  assessment: DebuggingGuidanceBoundaryAssessment = assessDebuggingGuidanceBoundary(
+    studentMessage,
+  ),
+): boolean {
+  return (
+    assessment.state === 'SUPPORTED' &&
+    hasDebuggingGuidanceIntent(studentMessage, assessment)
+  )
 }
 
 const CODE_CONTEXT_PATTERN =
@@ -580,15 +603,18 @@ function uncertainDiagnosis(): DiagnosisMatch {
   return {
     diagnosis: {
       likelyDefect:
-        'Static inspection does not reveal one certain defect, but the submitted expression or block may contain the mismatch.',
-      location:
-        'The smallest expression or indented block involved in the reported behavior.',
+        'Static inspection does not establish one specific defect yet.',
+      location: 'The reported behavior and the smallest related code block.',
       conceptExplanation:
-        'Syntax and names can be inspected statically, but runtime values and the exact exception are not available here.',
+        'A trace can compare one concrete input, changing values, and the expected result without assuming a cause.',
       nextInspectionStep:
-        'Compare the reported exception line with the names, delimiters, and indentation in that smallest block.',
+        'Trace one input that shows the reported behavior and record the first value that differs from what you expect.',
     },
-    retrieval: retrievalInput('SYNTAX', 'FUNCTION_BODY', 'MISSING_BLOCK_COLON'),
+    retrieval: retrievalInput(
+      'UNKNOWN',
+      'UNKNOWN',
+      'RUNTIME_EVIDENCE_REQUIRED',
+    ),
   }
 }
 
