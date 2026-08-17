@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  changePasswordApi,
   DISABLED_ACCOUNT_MESSAGE,
-  INVALID_CREDENTIALS_MESSAGE,
-  SIGN_IN_UNAVAILABLE_MESSAGE,
   getCurrentUser,
+  INVALID_CREDENTIALS_MESSAGE,
   loginApi,
   logoutApi,
+  SIGN_IN_UNAVAILABLE_MESSAGE,
+  updateOwnProfile,
 } from './session.api'
 
 const mockSession = {
@@ -220,6 +222,85 @@ describe('logoutApi', () => {
 
     await expect(logoutApi(fetchMock)).rejects.toMatchObject({
       status: 500,
+    })
+  })
+})
+
+describe('updateOwnProfile', () => {
+  it('sends PATCH /me/profile with the updated display name and returns user', async () => {
+    const updatedUser = {
+      ...mockSession.user,
+      displayName: 'Updated Name',
+    }
+
+    const fetchMock = async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe('http://localhost:4000/api/v1/me/profile')
+      expect(init?.method).toBe('PATCH')
+      expect(JSON.parse(String(init?.body))).toEqual({
+        displayName: 'Updated Name',
+      })
+
+      return Response.json({
+        user: updatedUser,
+      })
+    }
+
+    await expect(
+      updateOwnProfile(
+        { displayName: 'Updated Name' },
+        { fetchImpl: fetchMock },
+      ),
+    ).resolves.toEqual(updatedUser)
+  })
+})
+
+describe('changePasswordApi', () => {
+  it('sends PATCH /me/password with payload and returns new session', async () => {
+    const newSession = {
+      ...mockSession,
+      accessToken: 'new-access-token',
+    }
+
+    const payload = {
+      currentPassword: 'old-password-12345',
+      newPassword: 'a-brand-new-secure-passphrase-2026',
+      confirmation: 'a-brand-new-secure-passphrase-2026',
+    }
+
+    const fetchMock = async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe('http://localhost:4000/api/v1/me/password')
+      expect(init?.method).toBe('PATCH')
+      expect(JSON.parse(String(init?.body))).toEqual(payload)
+
+      return Response.json(newSession)
+    }
+
+    await expect(
+      changePasswordApi(payload, { fetchImpl: fetchMock }),
+    ).resolves.toEqual(newSession)
+  })
+
+  it('rejects when server returns an error', async () => {
+    const fetchMock = async () =>
+      Response.json(
+        {
+          code: 'INVALID_CREDENTIALS',
+          message: 'Invalid email or password',
+        },
+        { status: 401 },
+      )
+
+    await expect(
+      changePasswordApi(
+        {
+          currentPassword: 'wrong-password',
+          newPassword: 'a-brand-new-secure-passphrase-2026',
+          confirmation: 'a-brand-new-secure-passphrase-2026',
+        },
+        { fetchImpl: fetchMock },
+      ),
+    ).rejects.toMatchObject({
+      status: 401,
     })
   })
 })

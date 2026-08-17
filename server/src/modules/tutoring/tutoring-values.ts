@@ -250,3 +250,8 @@ export const TutoringSafeFallbackReason = {
 
 export type TutoringSafeFallbackReason =
   (typeof TutoringSafeFallbackReason)[keyof typeof TutoringSafeFallbackReason]
+
+export {
+  ExplanationDetailLevel,
+  normalizeExplanationDetailLevel,
+} from './preferences/explanation-detail-level'

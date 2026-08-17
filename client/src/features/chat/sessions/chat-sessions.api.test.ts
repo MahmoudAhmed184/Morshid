@@ -12,6 +12,8 @@ import {
 import {
   createChatSession,
   deleteChatSession,
+  exportChatSessionMarkdown,
+  extractFilenameFromContentDisposition,
   getChatSession,
   getChatMessages,
   listChatSessions,
@@ -326,5 +328,55 @@ describe('Student session API', () => {
         code: 'CONVERSATION_ACTIVE_STUDENT_MEMBERSHIP_REQUIRED',
       }),
     )
+  })
+
+  it('extracts UTF-8 and ASCII filenames from Content-Disposition header', () => {
+    expect(
+      extractFilenameFromContentDisposition(
+        'attachment; filename="test.md"; filename*=UTF-8\'\'morshid-CS101-%D9%85%D8%B1%D8%B4%D8%AF.md',
+      ),
+    ).toBe('morshid-CS101-مرشد.md')
+
+    expect(
+      extractFilenameFromContentDisposition(
+        'attachment; filename="morshid-CS101-test.md"',
+      ),
+    ).toBe('morshid-CS101-test.md')
+
+    expect(extractFilenameFromContentDisposition(null)).toBeNull()
+  })
+
+  it('exports session markdown content and extracts filename from header', async () => {
+    const markdownContent =
+      '# Morshid Conversation Export\n\n- **Course:** CS101'
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        expect(String(input)).toBe(
+          `http://localhost:4000/api/v1/courses/${chatIds.primaryCourse}/chat-sessions/${chatIds.primarySession}/export`,
+        )
+        expect(init?.method).toBe('GET')
+        expect(new Headers(init?.headers).get('Accept')).toBe('text/markdown')
+
+        return new Response(markdownContent, {
+          status: 200,
+          headers: {
+            'Content-Type': 'text/markdown; charset=utf-8',
+            'Content-Disposition':
+              'attachment; filename="morshid-CS101-test.md"',
+          },
+        })
+      },
+    )
+
+    const result = await exportChatSessionMarkdown({
+      courseId: chatIds.primaryCourse,
+      sessionId: chatIds.primarySession,
+      options: { fetchImpl: fetchMock },
+    })
+
+    expect(result).toEqual({
+      content: markdownContent,
+      filename: 'morshid-CS101-test.md',
+    })
   })
 })

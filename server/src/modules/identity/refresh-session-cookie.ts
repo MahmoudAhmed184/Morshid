@@ -46,3 +46,11 @@ export function getRefreshToken(request: Request) {
     throw invalidRefreshTokenException()
   }
 }
+
+export function tryGetRefreshToken(request: Request): string | null {
+  try {
+    return getRefreshToken(request)
+  } catch {
+    return null
+  }
+}

@@ -6,7 +6,7 @@ function parseCreateUser(input: Record<string, unknown> = {}) {
   return createUserFormSchema.safeParse({
     name: 'Sarah Al-Farsi',
     email: 'sarah@morshid.demo',
-    password: 'Password1!',
+    password: 'a secure passphrase',
     role: 'STUDENT',
     ...input,
   })
@@ -24,19 +24,15 @@ describe('admin create-user form schema', () => {
     expect(parseCreateUser({ role: 'ADMIN' }).success).toBe(false)
   })
 
-  it('matches the API password boundary of 8 to 50 characters', () => {
-    expect(parseCreateUser({ password: 'Pass123!' }).success).toBe(true)
-    expect(
-      parseCreateUser({ password: `Pass123!${'a'.repeat(43)}` }).success,
-    ).toBe(false)
+  it('matches the API password boundary of 15 to 128 characters', () => {
+    expect(parseCreateUser({ password: 'fifteen-chars-ok' }).success).toBe(true)
+    expect(parseCreateUser({ password: 'a'.repeat(129) }).success).toBe(false)
   })
 
-  it.each([
-    ['missing a letter', '1234567!'],
-    ['missing a number', 'Password!'],
-    ['missing a symbol', 'Password1'],
-  ])('rejects a password %s', (_case, password) => {
-    expect(parseCreateUser({ password }).success).toBe(false)
+  it('does not add composition requirements that the API does not enforce', () => {
+    expect(
+      parseCreateUser({ password: 'letters only passphrase' }).success,
+    ).toBe(true)
   })
 
   it('normalizes the email and display name for the API', () => {

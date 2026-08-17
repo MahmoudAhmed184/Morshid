@@ -96,6 +96,83 @@ export class IdentityAudit {
       requestContext,
     })
   }
+
+  async recordProfileUpdated(
+    user: Pick<IdentityAuditUser, 'id'>,
+    oldDisplayName: string,
+    newDisplayName: string,
+    requestContext: IdentityRequestContext,
+  ): Promise<void> {
+    await this.auditService.recordEvent({
+      actorUserId: user.id,
+      action: AUDIT_EVENT_ACTIONS.AUTH_PROFILE_UPDATED,
+      target: {
+        type: AUDIT_TARGET_TYPES.USER,
+        id: user.id,
+      },
+      metadata: {
+        oldDisplayName,
+        newDisplayName,
+      },
+      requestContext,
+    })
+  }
+
+  async recordPasswordChanged(
+    user: Pick<IdentityAuditUser, 'id'>,
+    requestContext: IdentityRequestContext,
+  ): Promise<void> {
+    await this.auditService.recordEvent({
+      actorUserId: user.id,
+      action: AUDIT_EVENT_ACTIONS.AUTH_PASSWORD_CHANGED,
+      target: {
+        type: AUDIT_TARGET_TYPES.USER,
+        id: user.id,
+      },
+      metadata: {},
+      requestContext,
+    })
+  }
+
+  async recordSessionRevoked(
+    user: Pick<IdentityAuditUser, 'id'>,
+    familyId: string,
+    requestContext: IdentityRequestContext,
+  ): Promise<void> {
+    await this.auditService.recordEvent({
+      actorUserId: user.id,
+      action: AUDIT_EVENT_ACTIONS.AUTH_SESSION_REVOKED,
+      target: {
+        type: AUDIT_TARGET_TYPES.AUTH_SESSION,
+        id: familyId,
+      },
+      metadata: {
+        familyId,
+      },
+      requestContext,
+    })
+  }
+
+  async recordOtherSessionsRevoked(
+    user: Pick<IdentityAuditUser, 'id'>,
+    currentFamilyId: string | null,
+    revokedCount: number,
+    requestContext: IdentityRequestContext,
+  ): Promise<void> {
+    await this.auditService.recordEvent({
+      actorUserId: user.id,
+      action: AUDIT_EVENT_ACTIONS.AUTH_SESSION_REVOKED_ALL_OTHERS,
+      target: {
+        type: AUDIT_TARGET_TYPES.AUTH_SESSION,
+        id: currentFamilyId ?? undefined,
+      },
+      metadata: {
+        currentFamilyId: currentFamilyId ?? 'none',
+        revokedCount,
+      },
+      requestContext,
+    })
+  }
 }
 
 interface IdentityAuditUser {

@@ -1,6 +1,7 @@
 import { UserRole, UserStatus } from '../identity.roles'
 import {
   bulkCreateUsersRequestSchema,
+  createUserRequestSchema,
   listUsersQuerySchema,
 } from './user-administration.types'
 
@@ -45,5 +46,23 @@ describe('user administration request schemas', () => {
         ]),
       )
     }
+  })
+
+  it('enforces unified password policy of at least 15 characters', () => {
+    const valid = createUserRequestSchema.safeParse({
+      displayName: 'Demo Student',
+      email: 'student@morshid.demo',
+      password: 'a valid fifteen character password',
+      role: UserRole.STUDENT,
+    })
+    expect(valid.success).toBe(true)
+
+    const short = createUserRequestSchema.safeParse({
+      displayName: 'Demo Student',
+      email: 'student@morshid.demo',
+      password: 'ShortPassword1',
+      role: UserRole.STUDENT,
+    })
+    expect(short.success).toBe(false)
   })
 })

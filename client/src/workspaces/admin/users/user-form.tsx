@@ -34,6 +34,7 @@ type UserFormProps = {
   lockedRole?: CreateUserFormValues['role']
   onSubmit: (values: CreateUserFormValues) => void | Promise<void>
   onCancel?: () => void
+  serverErrors?: Partial<Record<keyof CreateUserFormValues, string[]>>
 }
 
 export function UserForm({
@@ -42,6 +43,7 @@ export function UserForm({
   lockedRole,
   onSubmit,
   onCancel,
+  serverErrors = {},
 }: UserFormProps) {
   const form = useForm<CreateUserFormValues>({
     resolver: zodResolver(
@@ -80,6 +82,11 @@ export function UserForm({
                   />
                 </FormControl>
                 <FormMessage />
+                {serverErrors.name?.map((message) => (
+                  <p key={message} className="text-sm text-destructive">
+                    {message}
+                  </p>
+                ))}
               </FormItem>
             )}
           />
@@ -99,6 +106,11 @@ export function UserForm({
                   />
                 </FormControl>
                 <FormMessage />
+                {serverErrors.email?.map((message) => (
+                  <p key={message} className="text-sm text-destructive">
+                    {message}
+                  </p>
+                ))}
               </FormItem>
             )}
           />
@@ -119,13 +131,16 @@ export function UserForm({
                     label="Password"
                     placeholder="e.g., Password1!"
                     autoComplete="new-password"
-                    showForgotPassword={false}
                   />
                   <p className="text-xs text-muted-foreground">
-                    8–50 characters with at least one letter, number, and
-                    symbol.
+                    Use 15–128 characters.
                   </p>
                   <FormMessage />
+                  {serverErrors.password?.map((message) => (
+                    <p key={message} className="text-sm text-destructive">
+                      {message}
+                    </p>
+                  ))}
                 </FormItem>
               )}
             />
@@ -150,6 +165,11 @@ export function UserForm({
                     </SelectContent>
                   </Select>
                   <FormMessage />
+                  {serverErrors.role?.map((message) => (
+                    <p key={message} className="text-sm text-destructive">
+                      {message}
+                    </p>
+                  ))}
                 </FormItem>
               )}
             />

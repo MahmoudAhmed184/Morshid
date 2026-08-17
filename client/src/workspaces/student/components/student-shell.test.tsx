@@ -123,6 +123,17 @@ describe('StudentShell top inset', () => {
     expect(outlet).toHaveClass('md:border-sidebar-border')
   })
 
+  it('keeps tall student routes vertically reachable inside the fixed-height shell', () => {
+    const { outlet } = renderShell()
+
+    expect(outlet).toHaveClass(
+      'scrollbar-themed',
+      'overflow-y-auto',
+      'overscroll-contain',
+    )
+    expect(outlet).not.toHaveClass('overflow-hidden')
+  })
+
   it('includes the Student Review Inbox control in the Student chrome', () => {
     renderShell()
 

@@ -47,3 +47,10 @@ export function insufficientRoleException() {
     message: 'Insufficient role',
   })
 }
+
+export function cannotRevokeCurrentSessionException() {
+  return new BadRequestException({
+    code: IDENTITY_ERROR_CODES.CANNOT_REVOKE_CURRENT_SESSION,
+    message: 'Cannot revoke the current active session. Use sign-out instead.',
+  })
+}

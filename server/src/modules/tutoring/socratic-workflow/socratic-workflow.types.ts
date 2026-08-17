@@ -7,6 +7,7 @@ import type { ResponseAuditGraph } from './response-approval/response-audit.type
 import type { SafeFallbackReason } from './response-approval/safe-fallback.service'
 import type { TopicStateTransition } from './topic/topic-state-transition'
 import type {
+  ExplanationDetailLevel,
   MessageGuidanceLabel,
   MessageRequestKind,
 } from '../tutoring-values'
@@ -32,6 +33,7 @@ export interface SocraticWorkflowInput {
   readonly studentMessageId: string
   readonly assistantMessageId: string
   readonly studentMessageContent: string
+  readonly explanationDetailLevel?: ExplanationDetailLevel
   readonly explicitProtectedSolutionSignal: boolean
   readonly debuggingAdmission?: {
     readonly rewriteRequested: boolean

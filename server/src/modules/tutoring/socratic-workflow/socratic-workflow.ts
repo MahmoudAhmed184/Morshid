@@ -337,6 +337,7 @@ export class SocraticWorkflow {
       retrievalResult: retrieval.chunks,
       debuggingGuidance,
       outputProtection,
+      explanationDetailLevel: input.explanationDetailLevel,
       lifecycle: responseLifecycle,
       ...(input.requestBudget === undefined
         ? {}

@@ -4,7 +4,10 @@ import {
 } from '@/features/auth/session/session.schema'
 import type {
   AuthSession,
+  AuthUser,
+  ChangePasswordInput,
   MeResponse,
+  UpdateOwnProfileInput,
 } from '@/features/auth/session/session.schema'
 import {
   ApiError,
@@ -94,4 +97,40 @@ export async function logoutApi(
     },
     method: 'POST',
   })
+}
+
+export async function updateOwnProfile(
+  input: UpdateOwnProfileInput,
+  options: ApiFetchOptions = {},
+): Promise<AuthUser> {
+  const body = await apiJson<unknown>('/api/v1/me/profile', {
+    ...options,
+    body: JSON.stringify(input),
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+    method: 'PATCH',
+  })
+
+  return meResponseSchema.parse(body).user
+}
+
+export const updateOwnProfileApi = updateOwnProfile
+
+export async function changePasswordApi(
+  input: ChangePasswordInput,
+  options: ApiFetchOptions = {},
+): Promise<AuthSession> {
+  const body = await apiJson<unknown>('/api/v1/me/password', {
+    ...options,
+    body: JSON.stringify(input),
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+    method: 'PATCH',
+  })
+
+  return authSessionSchema.parse(body)
 }

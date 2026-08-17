@@ -10,6 +10,8 @@ import { SocraticWorkflowModule } from './socratic-workflow/socratic-workflow.mo
 import { TutoringRuntime } from './interface/tutoring-runtime'
 import { TutoringRuntimeApplication } from './tutoring-runtime.application'
 import { TutoringController } from './tutoring.controller'
+import { StudentTutoringPreferencesController } from './preferences/student-tutoring-preferences.controller'
+import { StudentTutoringPreferencesService } from './preferences/student-tutoring-preferences.service'
 
 @Module({
   imports: [
@@ -22,13 +24,14 @@ import { TutoringController } from './tutoring.controller'
     SocraticWorkflowModule,
   ],
   providers: [
+    StudentTutoringPreferencesService,
     TutoringRuntimeApplication,
     {
       provide: TutoringRuntime,
       useExisting: TutoringRuntimeApplication,
     },
   ],
-  controllers: [TutoringController],
-  exports: [TutoringRuntime],
+  controllers: [TutoringController, StudentTutoringPreferencesController],
+  exports: [TutoringRuntime, StudentTutoringPreferencesService],
 })
 export class TutoringModule {}

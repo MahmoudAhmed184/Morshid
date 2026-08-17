@@ -10,6 +10,7 @@ export const IDENTITY_ERROR_CODES = {
   INVALID_REFRESH_TOKEN: 'INVALID_REFRESH_TOKEN',
   INVALID_REQUEST: 'INVALID_REQUEST',
   INSUFFICIENT_ROLE: 'INSUFFICIENT_ROLE',
+  CANNOT_REVOKE_CURRENT_SESSION: 'CANNOT_REVOKE_CURRENT_SESSION',
 } as const
 
 export type IdentityErrorCode =
@@ -46,6 +47,8 @@ export interface IdentityUserRecord {
 export interface RefreshTokenRecord {
   id: string
   userId: string
+  familyId: string
+  familyCreatedAt: Date
   tokenHash: string
   expiresAt: Date
   revokedAt: Date | null
@@ -129,3 +132,112 @@ export const signInRequestSchema = z
     password: z.string().min(1),
   })
   .strict()
+
+export class UpdateOwnProfileRequestDto {
+  @ApiProperty({
+    description: 'Updated display name for the authenticated user.',
+    minLength: 2,
+    maxLength: 120,
+    example: 'Amina Al-Mansoor',
+  })
+  displayName!: string
+}
+
+export type UpdateOwnProfileRequest = UpdateOwnProfileRequestDto
+export type AccountProfile = IdentityUserSummaryDto
+export type AccountProfileResponse = MeResponseDto
+
+export const updateOwnProfileRequestSchema = z
+  .object({
+    displayName: z.preprocess(
+      (value) => (typeof value === 'string' ? value.trim() : value),
+      z.string().min(2).max(120),
+    ),
+  })
+  .strict()
+
+export class ChangePasswordRequestDto {
+  @ApiProperty({ minLength: 1, format: 'password' })
+  currentPassword!: string
+
+  @ApiProperty({ minLength: 15, maxLength: 128, format: 'password' })
+  newPassword!: string
+
+  @ApiProperty({ minLength: 1, format: 'password' })
+  confirmation!: string
+}
+
+export type ChangePasswordRequest = ChangePasswordRequestDto
+
+export const changePasswordRequestSchema = z
+  .object({
+    currentPassword: z.string().min(1, 'Current password is required'),
+    newPassword: z
+      .string()
+      .min(15, 'Password must be at least 15 characters')
+      .max(128, 'Password must be at most 128 characters'),
+    confirmation: z.string().min(1, 'Confirmation is required'),
+  })
+  .strict()
+  .superRefine(({ newPassword, confirmation }, ctx) => {
+    if (newPassword !== confirmation) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['confirmation'],
+        message: 'New password and confirmation do not match',
+      })
+    }
+  })
+
+export class ActiveSessionDto {
+  @ApiProperty({
+    format: 'uuid',
+    description: 'Stable session family ID.',
+    example: '00000000-0000-4000-8000-000000000001',
+  })
+  id!: string
+
+  @ApiProperty({
+    description: 'Parsed browser and operating system label.',
+    example: 'Chrome on macOS',
+  })
+  device!: string
+
+  @ApiProperty({
+    description: 'Masked IP address.',
+    nullable: true,
+    example: '192.168.1.***',
+  })
+  ip!: string | null
+
+  @ApiProperty({
+    format: 'date-time',
+    description: 'When the session family was initially created.',
+  })
+  createdAt!: string
+
+  @ApiProperty({
+    format: 'date-time',
+    description: 'When the session was last active (last rotated or used).',
+  })
+  lastActiveAt!: string
+
+  @ApiProperty({
+    format: 'date-time',
+    description: 'When the active session will expire.',
+  })
+  expiresAt!: string
+
+  @ApiProperty({
+    description: 'Whether this is the session making the current request.',
+  })
+  isCurrent!: boolean
+}
+
+export class ActiveSessionListResponseDto {
+  @ApiProperty({ type: [ActiveSessionDto] })
+  sessions!: ActiveSessionDto[]
+}
+
+export type ActiveSession = ActiveSessionDto
+export type ActiveSessionListResponse = ActiveSessionListResponseDto

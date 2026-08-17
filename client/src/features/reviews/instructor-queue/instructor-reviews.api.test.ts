@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { ApiError } from '@/features/auth/session/interface/authenticated-api-client'
 
 import {
+  getInstructorReviewWorkloadSummary,
   listInstructorReviews,
   rejectReviewCase,
   resolveReviewCase,
@@ -125,6 +126,40 @@ describe('Instructor review action API', () => {
         { fetchImpl: fetchMock },
       ),
     ).resolves.toEqual(response)
+  })
+
+  it('fetches workload summary without courseId or with courseId', async () => {
+    const summaryData = {
+      pendingCount: 2,
+      inReviewCount: 1,
+      claimedByMeCount: 1,
+      totalActiveCount: 3,
+      oldestPendingCreatedAt: '2026-07-29T10:00:00.000Z',
+      oldestPendingAge: 120,
+      byStudentFlagReason: [{ reason: 'INCORRECT', count: 2 }],
+      byTriggerType: [{ trigger: 'STUDENT_REQUEST', count: 3 }],
+    }
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input))
+      expect(url.pathname).toBe('/api/v1/instructor/reviews/workload-summary')
+      if (url.searchParams.has('courseId')) {
+        expect(url.searchParams.get('courseId')).toBe('course-1')
+      }
+      return Response.json(summaryData)
+    })
+
+    const allCoursesSummary = await getInstructorReviewWorkloadSummary(null, {
+      fetchImpl: fetchMock,
+    })
+    expect(allCoursesSummary).toEqual(summaryData)
+
+    const singleCourseSummary = await getInstructorReviewWorkloadSummary(
+      'course-1',
+      { fetchImpl: fetchMock },
+    )
+    expect(singleCourseSummary).toEqual(summaryData)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   it('propagates validation and optimistic concurrency API errors', async () => {

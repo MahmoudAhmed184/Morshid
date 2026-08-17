@@ -98,7 +98,6 @@ export function ResetUserPasswordDialog({
                     id={`new-password-${user.id}`}
                     label="New password"
                     autoComplete="new-password"
-                    showForgotPassword={false}
                   />
                   <FormMessage />
                 </FormItem>
@@ -114,7 +113,6 @@ export function ResetUserPasswordDialog({
                     id={`confirm-password-${user.id}`}
                     label="Confirm new password"
                     autoComplete="new-password"
-                    showForgotPassword={false}
                   />
                   <FormMessage />
                 </FormItem>

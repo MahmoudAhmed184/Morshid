@@ -1,3 +1,4 @@
+import { ExplanationDetailLevel } from '../../tutoring-values'
 import type { AnalysisContextMessage } from '../analysis/analysis-context.types'
 import { StudentActionPurpose, TeachingTechnique } from '../../tutoring-values'
 import type {
@@ -104,6 +105,9 @@ function buildTutorUserPrompt(context: GenerationContextPackage): string {
       strategyAndTechniqueCannotReduceGuidanceShape: true,
       overRevealInvariant:
         'When directTargetInferenceAllowed is false, do not state the correction or key inference and then ask a trivial confirmation or application question. Ask a focused question, direct attention to structure, or give a bounded clue that preserves the inference for the student.',
+      explanationDetailPreferenceSubordinateToPedagogy: true,
+      explanationDetailInvariants:
+        'Explanation detail level governs response length, elaboration depth, and number of explanatory steps only. It never alters Guidance Level, Reveal Policy, NO_FINAL_ANSWER, Socratic questioning, guard policy, or allowed citations. Never reveal final answers or skip student reasoning.',
       conceptualExplanationInvariant:
         'When boundedConceptualExplanationAllowed is true, a vague statement that concepts differ is insufficient. State the minimum useful grounded distinction or definition, then follow the authoritative studentActionObligation.',
       useOnlyAllowedCitationIds: true,
@@ -135,6 +139,15 @@ function buildTutorUserPrompt(context: GenerationContextPackage): string {
       functionalResponseRequirements,
       debuggingGuidance: context.debuggingGuidance,
       debuggingInspectionActionInstruction,
+    }),
+    section('4b. Student Explanation Detail Preference', {
+      explanationDetailLevel: context.explanationDetailLevel,
+      instruction: detailLevelInstruction(context.explanationDetailLevel),
+      invariants: [
+        'Subordinate to TeachingDecision, Guidance Level, Reveal Policy, NO_FINAL_ANSWER, and guard policy.',
+        'Never provide final solutions, complete answers, or unearned steps regardless of detail preference.',
+        'Require the student to perform the target reasoning step.',
+      ],
     }),
     TRUSTED_BACKEND_POLICY_END_MARKER,
     section('5. StudentState and relevant TopicState', {
@@ -262,6 +275,18 @@ function buildDebuggingInspectionActionInstruction(
 
 function section(title: string, value: unknown): string {
   return `${title}\n${JSON.stringify(value)}`
+}
+
+function detailLevelInstruction(level: ExplanationDetailLevel): string {
+  switch (level) {
+    case ExplanationDetailLevel.CONCISE:
+      return 'Provide concise response length with minimal elaboration and direct, focused scaffolding. Focus on the immediate next reasoning step without extensive narrative, while strictly maintaining Socratic questioning and all non-disclosure rules.'
+    case ExplanationDetailLevel.DETAILED:
+      return 'Provide detailed response length with richer contextual elaboration, thorough step-by-step breakdown, and comprehensive conceptual grounding, while strictly maintaining Socratic questioning and all non-disclosure rules. Do not reveal final answers.'
+    case ExplanationDetailLevel.STANDARD:
+    default:
+      return 'Provide standard balanced response length and normal contextual elaboration appropriate for the guidance level and strategy, maintaining clear Socratic scaffolding and all non-disclosure rules.'
+  }
 }
 
 function snapshotMessage(message: AnalysisContextMessage) {

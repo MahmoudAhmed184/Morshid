@@ -17,10 +17,11 @@ describe('user CSV import', () => {
     )
 
     await expect(parseUserImport(file, 'STUDENT')).resolves.toEqual({
-      users: [
+      rows: [
         {
+          rowNumber: 2,
           displayName: 'Doe, Jane',
-          email: 'jane@example.com',
+          email: 'JANE@EXAMPLE.COM',
           password: 'StrongPass1!',
           role: 'STUDENT',
         },
@@ -29,26 +30,17 @@ describe('user CSV import', () => {
     })
   })
 
-  it('rejects missing columns and duplicate emails before upload', async () => {
+  it('retains rows when columns are missing so the backend can stage them', async () => {
     const missingColumnFile = new File(
       ['displayName,email\nJane,jane@example.com'],
       'invalid.csv',
     )
-    const duplicateFile = new File(
-      [
-        'displayName,email,password\nJane,jane@example.com,StrongPass1!\nJanet,JANE@example.com,StrongPass2!',
-      ],
-      'duplicates.csv',
-    )
-
     const missingColumns = await parseUserImport(missingColumnFile, 'STUDENT')
-    const duplicates = await parseUserImport(duplicateFile, 'STUDENT')
 
     expect(missingColumns.errors).toContain(
       'Missing required column(s): password',
     )
-    expect(duplicates.errors).toContain(
-      'Row 3: Email appears more than once in this file.',
-    )
+    expect(missingColumns.rows).toHaveLength(1)
+    expect(missingColumns.rows[0]?.password).toBe('')
   })
 })

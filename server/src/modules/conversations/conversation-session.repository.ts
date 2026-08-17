@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common'
 
-import { CourseMembershipRole, Prisma } from '../../generated/prisma/client'
+import {
+  CourseMembershipRole,
+  MessageRole,
+  MessageStatus,
+  Prisma,
+} from '../../generated/prisma/client'
 import { PrismaService } from '../../platform/database/prisma.service'
 import { asDatabaseTransaction } from '../../platform/database/database-transaction'
 import { ConversationAuditService } from './conversation-audit.service'
@@ -10,6 +15,8 @@ import {
 } from './conversation-repository.support'
 import type {
   ChatSessionRecord,
+  ExportableMessageRecord,
+  ExportableSessionRecord,
   SessionListPagination,
   SoftDeleteChatSessionInput,
   SoftDeleteSessionOutcome,
@@ -17,6 +24,11 @@ import type {
 
 export abstract class ConversationSessionRepository {
   abstract hasActiveStudentMembership(
+    courseId: string,
+    studentId: string,
+  ): Promise<boolean>
+
+  abstract hasActiveOrArchivedStudentAccess(
     courseId: string,
     studentId: string,
   ): Promise<boolean>
@@ -40,6 +52,18 @@ export abstract class ConversationSessionRepository {
     sessionId: string,
     studentId: string,
   ): Promise<ChatSessionRecord | null>
+
+  abstract findExportableSession(
+    courseId: string,
+    sessionId: string,
+    studentId: string,
+  ): Promise<ExportableSessionRecord | null>
+
+  abstract listMessagesForExport(
+    sessionId: string,
+    cursor?: number,
+    limit?: number,
+  ): Promise<ExportableMessageRecord[]>
 
   abstract renameSession(
     courseId: string,
@@ -79,6 +103,44 @@ export class PrismaConversationSessionRepository extends ConversationSessionRepo
     })
 
     return membership !== null
+  }
+
+  async hasActiveOrArchivedStudentAccess(
+    courseId: string,
+    studentId: string,
+  ): Promise<boolean> {
+    const membership = await this.prismaService.courseMembership.findFirst({
+      where: {
+        courseId,
+        userId: studentId,
+        role: CourseMembershipRole.STUDENT,
+      },
+      select: {
+        removedAt: true,
+        course: {
+          select: {
+            archivedAt: true,
+          },
+        },
+      },
+    })
+
+    if (membership === null) {
+      return false
+    }
+
+    if (membership.removedAt === null) {
+      return true
+    }
+
+    if (
+      membership.course.archivedAt !== null &&
+      membership.removedAt.getTime() >= membership.course.archivedAt.getTime()
+    ) {
+      return true
+    }
+
+    return false
   }
 
   async courseExists(courseId: string): Promise<boolean> {
@@ -160,6 +222,61 @@ export class PrismaConversationSessionRepository extends ConversationSessionRepo
     return this.prismaService.chatSession.findFirst({
       where: ownedActiveSessionWhere(courseId, sessionId, studentId),
       select: chatSessionSelect,
+    })
+  }
+
+  findExportableSession(
+    courseId: string,
+    sessionId: string,
+    studentId: string,
+  ): Promise<ExportableSessionRecord | null> {
+    return this.prismaService.chatSession.findFirst({
+      where: {
+        id: sessionId,
+        courseId,
+        studentId,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        title: true,
+        createdAt: true,
+        course: {
+          select: {
+            id: true,
+            code: true,
+            title: true,
+          },
+        },
+      },
+    })
+  }
+
+  listMessagesForExport(
+    sessionId: string,
+    cursor?: number,
+    limit = 100,
+  ): Promise<ExportableMessageRecord[]> {
+    return this.prismaService.message.findMany({
+      where: {
+        sessionId,
+        role: { in: [MessageRole.STUDENT, MessageRole.ASSISTANT] },
+        status: MessageStatus.COMPLETED,
+        ...(cursor !== undefined ? { sequence: { gt: cursor } } : {}),
+      },
+      orderBy: {
+        sequence: 'asc',
+      },
+      take: limit,
+      select: {
+        id: true,
+        sequence: true,
+        role: true,
+        content: true,
+        guidanceLabel: true,
+        createdAt: true,
+        completedAt: true,
+      },
     })
   }
 

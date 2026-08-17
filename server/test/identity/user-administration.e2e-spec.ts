@@ -279,19 +279,7 @@ describe('Admin users (e2e)', () => {
         errors: [
           {
             field: 'password',
-            message: 'Password must be at least 8 characters',
-          },
-          {
-            field: 'password',
-            message: 'Password must contain at least one letter',
-          },
-          {
-            field: 'password',
-            message: 'Password must contain at least one number',
-          },
-          {
-            field: 'password',
-            message: 'Password must contain at least one symbol',
+            message: 'Password must be at least 15 characters',
           },
         ],
       })
@@ -317,6 +305,40 @@ describe('Admin users (e2e)', () => {
         message: 'A user with this email already exists',
         email: 'student1@morshid.demo',
       })
+  })
+
+  it('rejects non-admin user import approvals', async () => {
+    const token = await signInAs('student1@morshid.demo')
+
+    await request(app.getHttpServer())
+      .post(
+        '/api/v1/admin/users/imports/00000000-0000-4000-8000-000000000099/approve',
+      )
+      .set('Authorization', `Bearer ${token}`)
+      .expect(403)
+  })
+
+  it('rejects non-admin user import row edits', async () => {
+    const token = await signInAs('student1@morshid.demo')
+
+    await request(app.getHttpServer())
+      .patch(
+        '/api/v1/admin/users/imports/00000000-0000-4000-8000-000000000099/rows/00000000-0000-4000-8000-000000000098',
+      )
+      .set('Authorization', `Bearer ${token}`)
+      .send({ displayName: 'Unauthorized edit' })
+      .expect(403)
+  })
+
+  it('rejects non-admin user import row cancellations', async () => {
+    const token = await signInAs('student1@morshid.demo')
+
+    await request(app.getHttpServer())
+      .post(
+        '/api/v1/admin/users/imports/00000000-0000-4000-8000-000000000099/rows/00000000-0000-4000-8000-000000000098/cancel',
+      )
+      .set('Authorization', `Bearer ${token}`)
+      .expect(403)
   })
 
   describe('PATCH /api/v1/admin/users/:userId', () => {
@@ -800,19 +822,7 @@ describe('Admin users (e2e)', () => {
         errors: [
           {
             field: 'newPassword',
-            message: 'Password must be at least 8 characters',
-          },
-          {
-            field: 'newPassword',
-            message: 'Password must contain at least one letter',
-          },
-          {
-            field: 'newPassword',
-            message: 'Password must contain at least one number',
-          },
-          {
-            field: 'newPassword',
-            message: 'Password must contain at least one symbol',
+            message: 'Password must be at least 15 characters',
           },
         ],
       })
@@ -837,11 +847,7 @@ describe('Admin users (e2e)', () => {
         errors: [
           {
             field: 'newPassword',
-            message: 'Password must contain at least one number',
-          },
-          {
-            field: 'newPassword',
-            message: 'Password must contain at least one symbol',
+            message: 'Password must be at least 15 characters',
           },
         ],
       })

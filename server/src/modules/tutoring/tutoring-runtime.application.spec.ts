@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common'
 
 import {
+  ExplanationDetailLevel,
   MessageGuidanceLabel,
   MessageRequestKind,
   MessageRole,
@@ -129,7 +130,10 @@ describe('TutoringRuntimeApplication', () => {
         loadForMessages: jest.fn().mockResolvedValue([]),
         loadPolicyEvidence: jest.fn().mockResolvedValue([]),
       },
-      { loadForMessages: jest.fn().mockResolvedValue([]) },
+      {
+        loadForMessages: jest.fn().mockResolvedValue([]),
+        loadPublishedGuidanceForMessages: jest.fn().mockResolvedValue([]),
+      },
     )
     socraticOrchestrate = jest.fn().mockResolvedValue({
       kind: 'completed',
@@ -664,6 +668,7 @@ function beginOk(): Extract<BeginTutoringTurnResult, { kind: 'ok' }> {
     attemptId,
     studentMessage: studentMessage(),
     assistantMessage: assistantMessage(),
+    explanationDetailLevel: ExplanationDetailLevel.STANDARD,
   }
 }
 

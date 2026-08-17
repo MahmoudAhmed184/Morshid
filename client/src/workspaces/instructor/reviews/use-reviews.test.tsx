@@ -1,23 +1,26 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { act, cleanup, renderHook } from '@testing-library/react'
+import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AuthSession } from '@/features/auth/session/session.schema'
 import { useAuthStore } from '@/features/auth/session/interface/session-store'
 import {
+  getInstructorReviewWorkloadSummary,
   rejectReviewCase,
   resolveReviewCase,
 } from '@/features/reviews/instructor-queue/instructor-reviews.api'
 import { instructorReviewKeys } from '@/features/reviews/instructor-queue/instructor-reviews.queries'
 
 import {
+  useInstructorReviewWorkloadSummary,
   useRejectInstructorReview,
   useResolveInstructorReview,
 } from './use-reviews'
 
 vi.mock('@/features/reviews/instructor-queue/instructor-reviews.api')
 
+const getWorkloadSummaryMock = vi.mocked(getInstructorReviewWorkloadSummary)
 const resolveReviewCaseMock = vi.mocked(resolveReviewCase)
 const rejectReviewCaseMock = vi.mocked(rejectReviewCase)
 const instructorId = '20000000-0000-4000-8000-000000000001'
@@ -46,6 +49,36 @@ describe('Instructor review action hooks', () => {
   afterEach(() => {
     cleanup()
     useAuthStore.getState().clearSession()
+  })
+
+  it('fetches workload summary for the authenticated instructor', async () => {
+    const summaryData = {
+      pendingCount: 3,
+      inReviewCount: 1,
+      claimedByMeCount: 1,
+      totalActiveCount: 4,
+      oldestPendingCreatedAt: '2026-07-29T10:00:00.000Z',
+      oldestPendingAge: 120,
+      byStudentFlagReason: [{ reason: 'INCORRECT' as const, count: 3 }],
+      byTriggerType: [{ trigger: 'STUDENT_REQUEST' as const, count: 4 }],
+    }
+    getWorkloadSummaryMock.mockResolvedValue(summaryData)
+    const queryClient = createQueryClient()
+
+    const { result } = renderHook(
+      () => useInstructorReviewWorkloadSummary('course-1'),
+      { wrapper: createWrapper(queryClient) },
+    )
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true)
+    })
+
+    expect(getWorkloadSummaryMock).toHaveBeenCalledWith(
+      'course-1',
+      expect.anything(),
+    )
+    expect(result.current.data).toEqual(summaryData)
   })
 
   it('resolves a review and invalidates its detail and the queue', async () => {

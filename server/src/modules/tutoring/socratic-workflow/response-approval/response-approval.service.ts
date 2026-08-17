@@ -1,7 +1,11 @@
 import { Injectable } from '@nestjs/common'
 
 import { assertRequestBudget } from '../../../../common/http/request-deadline'
-import { OutputRiskAuditSource, TeachingStrategy } from '../../tutoring-values'
+import {
+  ExplanationDetailLevel,
+  OutputRiskAuditSource,
+  TeachingStrategy,
+} from '../../tutoring-values'
 
 import { citationIdForChunk } from '../generation/tutor-generation-context'
 import { TutorGenerationService } from '../generation/tutor-generation.service'
@@ -189,6 +193,7 @@ export class ResponseApprovalService {
               SAFE_FALLBACK_REASON.VALIDATION_EXHAUSTED,
               candidateAttemptAudits,
               guardResultAudits,
+              input.explanationDetailLevel,
             )
           }
           previousValidation = structural
@@ -205,6 +210,7 @@ export class ResponseApprovalService {
           SAFE_FALLBACK_REASON.GENERATION_RETRY_FAILED,
           candidateAttemptAudits,
           guardResultAudits,
+          input.explanationDetailLevel,
         )
       }
 
@@ -261,6 +267,7 @@ export class ResponseApprovalService {
             SAFE_FALLBACK_REASON.VALIDATION_EXHAUSTED,
             candidateAttemptAudits,
             guardResultAudits,
+            input.explanationDetailLevel,
           )
         }
         previousValidation = structural
@@ -285,6 +292,7 @@ export class ResponseApprovalService {
             SAFE_FALLBACK_REASON.VALIDATION_EXHAUSTED,
             candidateAttemptAudits,
             guardResultAudits,
+            input.explanationDetailLevel,
           )
         }
         previousValidation = deterministic
@@ -330,6 +338,7 @@ export class ResponseApprovalService {
           SAFE_FALLBACK_REASON.GUARD_UNAVAILABLE,
           candidateAttemptAudits,
           guardResultAudits,
+          input.explanationDetailLevel,
         )
       }
       if (!semantic.result.approved) {
@@ -343,6 +352,7 @@ export class ResponseApprovalService {
             SAFE_FALLBACK_REASON.VALIDATION_EXHAUSTED,
             candidateAttemptAudits,
             guardResultAudits,
+            input.explanationDetailLevel,
           )
         }
         previousValidation = semantic.result
@@ -377,6 +387,7 @@ export class ResponseApprovalService {
       SAFE_FALLBACK_REASON.VALIDATION_EXHAUSTED,
       candidateAttemptAudits,
       guardResultAudits,
+      input.explanationDetailLevel,
     )
   }
 }
@@ -390,6 +401,7 @@ function approvalWithFallback(
   reason: SafeFallbackReason,
   candidateAttemptAudits: readonly TutoringCandidateAttemptAudit[],
   guardResultAudits: readonly GuardResultAudit[],
+  detailLevel?: ExplanationDetailLevel,
 ): ResponseApprovalResult {
   const hasFinalAnswerRisk =
     outputProtection.protectTargetSolution &&
@@ -428,7 +440,7 @@ function approvalWithFallback(
 
   return {
     success: true,
-    approvedResponse: fallbackService.create(decision),
+    approvedResponse: fallbackService.create(decision, detailLevel),
     validationResults: Object.freeze([...validationResults]),
     candidateAttempts,
     safeFallbackReason: reason,

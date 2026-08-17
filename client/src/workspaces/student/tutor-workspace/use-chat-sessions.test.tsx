@@ -10,6 +10,7 @@ import { useAuthStore } from '@/features/auth/session/interface/session-store'
 import {
   createChatSession,
   deleteChatSession,
+  exportChatSessionMarkdown,
   getChatSession,
   getChatMessages,
   listChatSessions,
@@ -17,6 +18,7 @@ import {
   retryChatMessage,
   sendChatMessage,
 } from '@/features/chat/sessions/chat-sessions.api'
+import { loadDraft, saveDraft } from '@/features/chat/drafts/draft-storage'
 import { chatSessionKeys } from '@/features/chat/sessions/chat-sessions.queries'
 import type {
   ChatMessageHistoryResponse,
@@ -37,6 +39,7 @@ import {
 import {
   useCreateChatSession,
   useDeleteChatSession,
+  useExportChatSession,
   useRenameChatSession,
   useChatSession,
   useChatMessages,
@@ -51,6 +54,7 @@ vi.mock('@/features/chat/sessions/chat-sessions.api')
 
 const createStudentSessionMock = vi.mocked(createChatSession)
 const deleteStudentSessionMock = vi.mocked(deleteChatSession)
+const exportChatSessionMock = vi.mocked(exportChatSessionMarkdown)
 const getStudentSessionMock = vi.mocked(getChatSession)
 const getStudentSessionMessagesMock = vi.mocked(getChatMessages)
 const listStudentSessionsMock = vi.mocked(listChatSessions)
@@ -519,6 +523,14 @@ describe('Student session hooks', () => {
     )
     deleteStudentSessionMock.mockResolvedValue(undefined)
     authenticate()
+    saveDraft(
+      {
+        userId: primaryScope.studentId,
+        courseId: primaryScope.courseId,
+        sessionId: chatIds.primarySession,
+      },
+      'Draft that should be cleared on delete',
+    )
     const { result } = renderHook(
       () => useDeleteChatSession({ courseId: primaryScope.courseId }),
       { wrapper: createWrapper(queryClient) },
@@ -526,6 +538,13 @@ describe('Student session hooks', () => {
 
     await act(() => result.current.mutateAsync(chatIds.primarySession))
 
+    expect(
+      loadDraft({
+        userId: primaryScope.studentId,
+        courseId: primaryScope.courseId,
+        sessionId: chatIds.primarySession,
+      }),
+    ).toBeNull()
     expect(
       queryClient.getQueryData<
         InfiniteData<ChatSessionListResponse, string | undefined>
@@ -761,5 +780,57 @@ describe('Student session hooks', () => {
       sessionId: chatIds.primarySession,
       attemptId: chatIds.primaryTurn,
     })
+  })
+
+  it('exports session markdown content and triggers download', async () => {
+    authenticate()
+    const queryClient = new QueryClient()
+    const wrapper = createWrapper(queryClient)
+
+    exportChatSessionMock.mockResolvedValueOnce({
+      content: '# Morshid Conversation Export',
+      filename: 'morshid-CS101-session.md',
+    })
+
+    const createObjectURLMock = vi
+      .fn()
+      .mockReturnValue('blob:http://localhost/test-blob')
+    const revokeObjectURLMock = vi.fn()
+    vi.stubGlobal('URL', {
+      createObjectURL: createObjectURLMock,
+      revokeObjectURL: revokeObjectURLMock,
+    })
+
+    const clickMock = vi.fn()
+    const originalCreateElement = document.createElement.bind(document)
+    vi.spyOn(document, 'createElement').mockImplementation(
+      (tagName: string) => {
+        const element = originalCreateElement(tagName)
+        if (tagName === 'a') {
+          element.click = clickMock
+        }
+        return element
+      },
+    )
+
+    const { result } = renderHook(
+      () => useExportChatSession({ courseId: primaryScope.courseId }),
+      { wrapper },
+    )
+
+    await act(async () => {
+      await result.current.mutateAsync(chatIds.primarySession)
+    })
+
+    expect(exportChatSessionMock).toHaveBeenCalledWith({
+      courseId: primaryScope.courseId,
+      sessionId: chatIds.primarySession,
+    })
+    expect(createObjectURLMock).toHaveBeenCalledOnce()
+    expect(clickMock).toHaveBeenCalledOnce()
+    expect(revokeObjectURLMock).toHaveBeenCalledOnce()
+
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
   })
 })

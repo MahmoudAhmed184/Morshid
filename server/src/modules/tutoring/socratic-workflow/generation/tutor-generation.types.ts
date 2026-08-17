@@ -1,4 +1,5 @@
 import type {
+  ExplanationDetailLevel,
   ReflectionMode,
   RevealPolicy,
   TeachingStrategy,
@@ -119,6 +120,7 @@ export interface GenerationContextPackage {
   readonly retrievedEvidence: readonly TutorEvidenceContext[]
   readonly allowedCitationIds: readonly string[]
   readonly conversationLanguage: string | null
+  readonly explanationDetailLevel: ExplanationDetailLevel
   readonly outputProtection: OutputProtectionContext
   readonly regeneration: TutorRegenerationContext | null
   readonly debuggingGuidance: DebuggingGuidanceContext | null
@@ -151,6 +153,7 @@ export interface TutorGenerationInput {
   readonly topicId: string
   readonly outputProtection: OutputProtectionContext
   readonly retrievalResult: readonly CourseEvidenceChunk[]
+  readonly explanationDetailLevel?: ExplanationDetailLevel
   readonly debuggingGuidance?: DebuggingGuidanceContext
   readonly regeneration?: TutorRegenerationContext
   readonly signal?: AbortSignal

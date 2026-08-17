@@ -7,9 +7,11 @@ import {
 import type { InfiniteData } from '@tanstack/react-query'
 
 import { useAuthStore } from '@/features/auth/session/interface/session-store'
+import { clearDraft } from '@/features/chat/drafts/draft-storage'
 import {
   createChatSession,
   deleteChatSession,
+  exportChatSessionMarkdown,
   renameChatSession,
 } from '@/features/chat/sessions/chat-sessions.api'
 import {
@@ -217,6 +219,11 @@ export function useDeleteChatSession({ courseId }: ChatCourseSelection) {
       })
     },
     onSuccess: (_response, sessionId, scope) => {
+      clearDraft({
+        userId: scope.studentId,
+        courseId: scope.courseId,
+        sessionId,
+      })
       queryClient.setQueriesData<
         InfiniteData<ChatSessionListResponse, string | undefined>
       >(
@@ -244,6 +251,35 @@ export function useDeleteChatSession({ courseId }: ChatCourseSelection) {
         queryKey: chatSessionKeys.detail({ ...scope, sessionId }),
         exact: true,
       })
+    },
+  })
+}
+
+export function useExportChatSession({ courseId }: ChatCourseSelection) {
+  const studentId = useStudentId()
+
+  return useMutation({
+    onMutate: () => requireScope(studentId, courseId),
+    mutationFn: async (sessionId: string) => {
+      const scope = requireScope(studentId, courseId)
+      const { content, filename } = await exportChatSessionMarkdown({
+        courseId: scope.courseId,
+        sessionId,
+      })
+
+      const blob = new Blob([content], {
+        type: 'text/markdown;charset=utf-8',
+      })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+
+      return { filename }
     },
   })
 }

@@ -8,12 +8,19 @@ import tailwindcss from '@tailwindcss/vite'
 
 const config = defineConfig({
   resolve: { tsconfigPaths: true },
+  server: {
+    fs: {
+      strict: false,
+    },
+  },
+
   plugins: [
     devtools(),
     tailwindcss(),
     tanstackStart({ router: { entry: './app/router' } }),
     viteReact(),
   ],
+
   test: {
     environment: 'jsdom',
     environmentOptions: {

@@ -1,5 +1,13 @@
 // Domain-grouped Prisma schema. Cross-file relations are intentional.
 
+enum ExplanationDetailLevel {
+  CONCISE
+  STANDARD
+  DETAILED
+
+  @@map("explanation_detail_level")
+}
+
 enum TopicStatus {
   ACTIVE
   PAUSED
@@ -279,6 +287,7 @@ model TutoringAttempt {
   clientMessageId                 String                      @map("client_message_id") @db.VarChar(160)
   requestKind                     MessageRequestKind?         @map("request_kind")
   status                          TutoringAttemptStatus       @default(RECEIVED)
+  explanationDetailLevel          ExplanationDetailLevel      @default(STANDARD) @map("explanation_detail_level")
   failureCode                     TutoringAttemptFailureCode? @map("failure_code")
   leaseExpiresAt                  DateTime?                   @map("lease_expires_at") @db.Timestamptz(6)
   safeFallbackUsed                Boolean                     @default(false) @map("safe_fallback_used")
@@ -520,3 +529,15 @@ model EducationalAnalysisMisconception {
   @@index([evidenceMessageId], map: "idx_educational_analysis_misconceptions_evidence")
   @@map("educational_analysis_misconceptions")
 }
+
+model StudentTutoringPreference {
+  studentId              String                 @id @map("student_id") @db.Uuid
+  explanationDetailLevel ExplanationDetailLevel @default(STANDARD) @map("explanation_detail_level")
+  createdAt              DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  student User @relation(fields: [studentId], references: [id], onDelete: Restrict)
+
+  @@map("student_tutoring_preferences")
+}
+

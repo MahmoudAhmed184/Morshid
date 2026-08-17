@@ -849,9 +849,8 @@ describe('OpenAPI contract (e2e)', () => {
         { properties: Record<string, unknown> }
       >
       const passwordPolicy = {
-        minLength: 8,
-        maxLength: 50,
-        pattern: '^(?=.*[A-Za-z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,50}$',
+        minLength: 15,
+        maxLength: 128,
       }
       expect(schemas.CreateUserRequestDto.properties.password).toMatchObject(
         passwordPolicy,

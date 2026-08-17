@@ -11,11 +11,15 @@ async function bootstrap() {
   const configService = app.get(ConfigService<AppEnvironment, true>)
   const port = configService.get('PORT', { infer: true })
   const clientOrigin = configService.get('CLIENT_ORIGIN', { infer: true })
+  const allowedOrigins = Array.from(
+    new Set([clientOrigin, 'http://localhost:3000', 'http://127.0.0.1:3000']),
+  )
 
   app.enableCors({
     credentials: true,
-    origin: clientOrigin,
+    origin: allowedOrigins,
   })
+
   configureApp(app)
 
   await app.listen(port)

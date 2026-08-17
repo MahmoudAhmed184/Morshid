@@ -67,15 +67,15 @@ function renderAtInstructorRoute(
         return Response.json({ user: session.user }, { status: 200 })
       }
 
-      if (url.includes('/api/v1/admin/users?')) {
+      if (url.includes('/api/v1/admin/users')) {
         return Response.json({ users: [] })
       }
 
-      if (url.includes('/api/v1/admin/courses?')) {
+      if (url.includes('/api/v1/admin/courses')) {
         return Response.json({ courses: [] })
       }
 
-      if (url.includes('/api/v1/admin/audit?')) {
+      if (url.includes('/api/v1/admin/audit')) {
         return Response.json({ events: [] })
       }
 
@@ -99,7 +99,7 @@ function renderAtInstructorRoute(
       }
 
       if (
-        url.endsWith(
+        url.includes(
           '/api/v1/courses/f5bb713c-09b7-42d3-acf3-02f39a902e5a/materials',
         )
       ) {
@@ -118,6 +118,35 @@ function renderAtInstructorRoute(
               updatedAt: '2026-07-21T12:01:00.000Z',
             },
           ],
+        })
+      }
+
+      if (url.includes('/api/v1/instructor/reviews/workload-summary')) {
+        return Response.json({
+          pendingCount: 0,
+          inReviewCount: 0,
+          claimedByMeCount: 0,
+          totalActiveCount: 0,
+          oldestPendingCreatedAt: null,
+          oldestPendingAge: null,
+          byStudentFlagReason: [],
+          byTriggerType: [],
+        })
+      }
+
+      if (url.includes('/api/v1/instructor/reviews')) {
+        return Response.json({
+          items: [],
+          pendingCount: 0,
+          nextCursor: null,
+        })
+      }
+
+      if (url.includes('/api/v1/materials/upload-configuration')) {
+        return Response.json({
+          maxSizeBytes: 10_485_760,
+          maxFileSizeMb: 10,
+          allowedMimeTypes: ['application/pdf'],
         })
       }
 
@@ -343,6 +372,39 @@ describe('/instructor', () => {
 
         if (url.endsWith('/api/v1/courses')) {
           return Response.json({ courses: instructorCourses })
+        }
+
+        if (url.endsWith('/api/v1/courses/material-management')) {
+          return Response.json({
+            courses: instructorCourses.map(({ id, code, title }) => ({
+              id,
+              code,
+              title,
+              membershipRole: 'INSTRUCTOR',
+              canManageMaterials: true,
+            })),
+          })
+        }
+
+        if (url.includes('/api/v1/instructor/reviews/workload-summary')) {
+          return Response.json({
+            pendingCount: 0,
+            inReviewCount: 0,
+            claimedByMeCount: 0,
+            totalActiveCount: 0,
+            oldestPendingCreatedAt: null,
+            oldestPendingAge: null,
+            byStudentFlagReason: [],
+            byTriggerType: [],
+          })
+        }
+
+        if (
+          url.endsWith(
+            '/api/v1/courses/f5bb713c-09b7-42d3-acf3-02f39a902e5a/materials',
+          )
+        ) {
+          return Response.json({ materials: [] })
         }
 
         throw new Error(`Unexpected request: ${url}`)

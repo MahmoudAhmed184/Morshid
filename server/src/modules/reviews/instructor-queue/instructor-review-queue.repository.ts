@@ -5,7 +5,7 @@ import {
   Prisma,
   ReviewStatus,
   ReviewTriggerType,
-  type StudentFlagReason,
+  StudentFlagReason,
 } from '../../../generated/prisma/client'
 import { PrismaService } from '../../../platform/database/prisma.service'
 
@@ -63,10 +63,29 @@ const queueWhere = (
       }),
 })
 
+export interface InstructorWorkloadSummaryRecord {
+  pendingCount: number
+  inReviewCount: number
+  claimedByMeCount: number
+  totalActiveCount: number
+  oldestPendingCreatedAt: Date | null
+  byStudentFlagReason: { reason: StudentFlagReason; count: number }[]
+  byTriggerType: { trigger: ReviewTriggerType; count: number }[]
+}
+
+export interface GetInstructorWorkloadSummaryInput {
+  instructorId: string
+  courseId?: string
+}
+
 export abstract class InstructorReviewQueueRepository {
   abstract list(
     input: ListInstructorReviewQueueInput,
   ): Promise<InstructorReviewQueuePage>
+
+  abstract getWorkloadSummary(
+    input: GetInstructorWorkloadSummaryInput,
+  ): Promise<InstructorWorkloadSummaryRecord>
 }
 
 @Injectable()
@@ -131,6 +150,106 @@ export class PrismaInstructorReviewQueueRepository extends InstructorReviewQueue
         }
       }),
       pendingCount,
+    }
+  }
+
+  async getWorkloadSummary(
+    input: GetInstructorWorkloadSummaryInput,
+  ): Promise<InstructorWorkloadSummaryRecord> {
+    const where = queueWhere({
+      instructorId: input.instructorId,
+      courseId: input.courseId,
+    })
+
+    const [
+      pendingCount,
+      inReviewCount,
+      claimedByMeCount,
+      oldestPendingCase,
+      activeCases,
+    ] = await this.prisma.$transaction([
+      this.prisma.reviewCase.count({
+        where: { ...where, status: ReviewStatus.PENDING },
+      }),
+      this.prisma.reviewCase.count({
+        where: { ...where, status: ReviewStatus.IN_REVIEW },
+      }),
+      this.prisma.reviewCase.count({
+        where: {
+          ...where,
+          assignedInstructorId: input.instructorId,
+          status: { in: [ReviewStatus.PENDING, ReviewStatus.IN_REVIEW] },
+        },
+      }),
+      this.prisma.reviewCase.findFirst({
+        where: { ...where, status: ReviewStatus.PENDING },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        select: { createdAt: true },
+      }),
+      this.prisma.reviewCase.findMany({
+        where: {
+          ...where,
+          status: { in: [ReviewStatus.PENDING, ReviewStatus.IN_REVIEW] },
+        },
+        select: {
+          id: true,
+          triggers: {
+            select: {
+              type: true,
+              studentFlagReason: true,
+            },
+          },
+        },
+      }),
+    ])
+
+    const flagReasonMap = new Map<StudentFlagReason, number>()
+    for (const reason of Object.values(StudentFlagReason)) {
+      flagReasonMap.set(reason, 0)
+    }
+
+    const triggerTypeMap = new Map<ReviewTriggerType, number>()
+    for (const triggerType of Object.values(ReviewTriggerType)) {
+      triggerTypeMap.set(triggerType, 0)
+    }
+
+    for (const reviewCase of activeCases) {
+      const seenReasonsInCase = new Set<StudentFlagReason>()
+      const seenTriggersInCase = new Set<ReviewTriggerType>()
+
+      for (const trigger of reviewCase.triggers) {
+        seenTriggersInCase.add(trigger.type)
+        if (
+          trigger.type === ReviewTriggerType.STUDENT_REQUEST &&
+          trigger.studentFlagReason
+        ) {
+          seenReasonsInCase.add(trigger.studentFlagReason)
+        }
+      }
+
+      for (const reason of seenReasonsInCase) {
+        flagReasonMap.set(reason, (flagReasonMap.get(reason) ?? 0) + 1)
+      }
+      for (const triggerType of seenTriggersInCase) {
+        triggerTypeMap.set(
+          triggerType,
+          (triggerTypeMap.get(triggerType) ?? 0) + 1,
+        )
+      }
+    }
+
+    return {
+      pendingCount,
+      inReviewCount,
+      claimedByMeCount,
+      totalActiveCount: pendingCount + inReviewCount,
+      oldestPendingCreatedAt: oldestPendingCase?.createdAt ?? null,
+      byStudentFlagReason: Array.from(flagReasonMap.entries()).map(
+        ([reason, count]) => ({ reason, count }),
+      ),
+      byTriggerType: Array.from(triggerTypeMap.entries()).map(
+        ([trigger, count]) => ({ trigger, count }),
+      ),
     }
   }
 }

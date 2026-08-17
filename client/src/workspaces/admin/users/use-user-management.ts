@@ -11,10 +11,15 @@ import {
   reactivateManagedUser,
   resetManagedUserPassword,
   updateManagedUser,
+  createUserImport,
+  approveUserImport,
+  updateUserImportRow,
+  cancelUserImportRow,
 } from '@/features/user-management/user-management.api'
 import type {
   CreateManagedUserInput,
   ListManagedUsersInput,
+  UpdateUserImportRowInput,
 } from '@/features/user-management/user-management.api'
 import { auditKeys } from '@/features/audit/audit.queries'
 import {
@@ -69,6 +74,26 @@ export function useManagedUserMutations() {
       bulkCreateManagedUsers(input),
     onSuccess: invalidateUserManagementData,
   })
+  const stageUserImport = useMutation({ mutationFn: createUserImport })
+  const approveImport = useMutation({
+    mutationFn: approveUserImport,
+    onSuccess: invalidateUserManagementData,
+  })
+  const editImportRow = useMutation({
+    mutationFn: ({
+      importId,
+      rowId,
+      input,
+    }: {
+      importId: string
+      rowId: string
+      input: UpdateUserImportRowInput
+    }) => updateUserImportRow(importId, rowId, input),
+  })
+  const cancelImportRow = useMutation({
+    mutationFn: ({ importId, rowId }: { importId: string; rowId: string }) =>
+      cancelUserImportRow(importId, rowId),
+  })
   const disableUser = useMutation({
     mutationFn: (userId: string) => disableManagedUser(userId),
     onSuccess: invalidateUserManagementData,
@@ -95,6 +120,10 @@ export function useManagedUserMutations() {
   return {
     createUser,
     bulkCreateUsers,
+    stageUserImport,
+    approveImport,
+    editImportRow,
+    cancelImportRow,
     updateUser,
     resetPassword,
     disableUser,

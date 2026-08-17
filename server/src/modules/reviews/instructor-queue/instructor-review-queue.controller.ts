@@ -33,6 +33,11 @@ import {
   instructorReviewQueueQuerySchema,
   type InstructorReviewQueueQuery,
 } from './instructor-review-queue.dto'
+import {
+  InstructorWorkloadSummaryDto,
+  instructorWorkloadSummaryQuerySchema,
+  type InstructorWorkloadSummaryQuery,
+} from './instructor-workload-summary.dto'
 import { InstructorReviewQueueService } from './instructor-review-queue.service'
 
 @Controller('instructor/reviews')
@@ -45,6 +50,41 @@ export class InstructorReviewQueueController {
     private readonly service: InstructorReviewQueueService,
     private readonly detailService: InstructorReviewDetailService,
   ) {}
+
+  @Get('workload-summary')
+  @SerializeOptions({
+    type: InstructorWorkloadSummaryDto,
+    strategy: 'excludeAll',
+  })
+  @ApiOperation({ summary: 'Get Instructor review workload summary' })
+  @ApiOkResponse({
+    type: InstructorWorkloadSummaryDto,
+    description:
+      'Workload snapshot across assigned courses for the authenticated Instructor.',
+  })
+  @ApiBadRequestResponse({ type: OpenApiErrorDto })
+  @ApiNotFoundResponse({
+    type: OpenApiErrorDto,
+    description:
+      'The requested course is absent or not owned by the Instructor.',
+  })
+  @ApiQuery({ name: 'courseId', required: false, format: 'uuid' })
+  getWorkloadSummary(
+    @Query(
+      new ZodValidationPipe(instructorWorkloadSummaryQuerySchema, (issues) =>
+        invalidReviewRequestException(
+          issues.map((issue) => ({
+            field: issue.path.join('.') || 'query',
+            message: issue.message,
+          })),
+        ),
+      ),
+    )
+    query: InstructorWorkloadSummaryQuery,
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<InstructorWorkloadSummaryDto> {
+    return this.service.getWorkloadSummary(request.user, query)
+  }
 
   @Get()
   @SerializeOptions({

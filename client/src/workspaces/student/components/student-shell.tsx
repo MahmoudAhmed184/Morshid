@@ -88,7 +88,7 @@ export function StudentShell() {
       <div
         data-slot="student-outlet"
         className={cn(
-          'flex min-h-0 flex-1 flex-col overflow-hidden bg-background',
+          'scrollbar-themed flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain bg-background',
           // The shell owns the inset every student outlet needs. When the
           // control clusters float (unframed) they are fixed at `top-3` with
           // `z-50`, so without a reserved band they cover the top of whatever
