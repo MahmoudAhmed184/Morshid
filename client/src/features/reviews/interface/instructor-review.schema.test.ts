@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   instructorReviewDetailSchema,
   instructorReviewQueueItemSchema,
+  instructorReviewWorkloadSummarySchema,
 } from './instructor-review.schema'
 
 const studentFlagReasons = [
@@ -65,6 +66,48 @@ describe('Instructor review Student flag reason contract', () => {
         studentFlagReason: 'UNKNOWN_REASON',
       }),
     ).toThrow()
+  })
+})
+
+describe('Instructor review workload summary schema', () => {
+  it('parses a valid workload summary', () => {
+    const validSummary = {
+      pendingCount: 5,
+      inReviewCount: 2,
+      claimedByMeCount: 1,
+      totalActiveCount: 7,
+      oldestPendingCreatedAt: '2026-07-29T10:00:00.000Z',
+      oldestPendingAge: 360,
+      byStudentFlagReason: [
+        { reason: 'INCORRECT', count: 3 },
+        { reason: 'CONFUSING', count: 2 },
+      ],
+      byTriggerType: [
+        { trigger: 'STUDENT_REQUEST', count: 5 },
+        { trigger: 'CITATION_MISSING', count: 2 },
+      ],
+    }
+
+    const parsed = instructorReviewWorkloadSummarySchema.parse(validSummary)
+    expect(parsed).toEqual(validSummary)
+  })
+
+  it('allows nullable oldest pending fields for zero-state summaries', () => {
+    const zeroSummary = {
+      pendingCount: 0,
+      inReviewCount: 0,
+      claimedByMeCount: 0,
+      totalActiveCount: 0,
+      oldestPendingCreatedAt: null,
+      oldestPendingAge: null,
+      byStudentFlagReason: [],
+      byTriggerType: [],
+    }
+
+    const parsed = instructorReviewWorkloadSummarySchema.parse(zeroSummary)
+    expect(parsed.oldestPendingCreatedAt).toBeNull()
+    expect(parsed.oldestPendingAge).toBeNull()
+    expect(parsed.totalActiveCount).toBe(0)
   })
 })
 

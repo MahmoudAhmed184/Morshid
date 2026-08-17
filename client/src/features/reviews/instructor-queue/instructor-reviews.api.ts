@@ -4,12 +4,14 @@ import {
   instructorReviewDetailSchema,
   instructorReviewActionResponseSchema,
   instructorReviewQueueResponseSchema,
+  instructorReviewWorkloadSummarySchema,
 } from '@/features/reviews/interface/instructor-review.schema'
 import type {
   InstructorReviewDetail,
   InstructorReviewActionResponse,
   InstructorReviewOutcome,
   InstructorReviewQueueResponse,
+  InstructorReviewWorkloadSummary,
   StudentFlagReason,
 } from '@/features/reviews/interface/instructor-review.schema'
 
@@ -23,6 +25,22 @@ export interface ResolveReviewCaseRequest {
 export interface RejectReviewCaseRequest {
   expectedVersion: number
   reason: string
+}
+
+export async function getInstructorReviewWorkloadSummary(
+  courseId: string | null = null,
+  options: ApiFetchOptions = {},
+): Promise<InstructorReviewWorkloadSummary> {
+  const search = new URLSearchParams()
+  if (courseId !== null) {
+    search.set('courseId', courseId)
+  }
+  const queryString = search.toString() ? `?${search.toString()}` : ''
+  const response = await apiJson<unknown>(
+    `/api/v1/instructor/reviews/workload-summary${queryString}`,
+    { ...options, method: 'GET' },
+  )
+  return instructorReviewWorkloadSummarySchema.parse(response)
 }
 
 export async function listInstructorReviews(

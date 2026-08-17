@@ -8,6 +8,10 @@ import type {
   InstructorReviewQueueQuery,
   InstructorReviewQueueResponseDto,
 } from './instructor-review-queue.dto'
+import type {
+  InstructorWorkloadSummaryDto,
+  InstructorWorkloadSummaryQuery,
+} from './instructor-workload-summary.dto'
 import { InstructorReviewQueueRepository } from './instructor-review-queue.repository'
 
 @Injectable()
@@ -60,6 +64,44 @@ export class InstructorReviewQueueService {
       })),
       pendingCount: page.pendingCount,
       nextCursor: hasNextPage ? (records.at(-1)?.id ?? null) : null,
+    }
+  }
+
+  async getWorkloadSummary(
+    user: AuthenticatedUser,
+    query: InstructorWorkloadSummaryQuery,
+    now = new Date(),
+  ): Promise<InstructorWorkloadSummaryDto> {
+    if (
+      query.courseId !== undefined &&
+      !(await this.courseAccess.canManageCourse(user, query.courseId))
+    ) {
+      throw reviewNotFoundException()
+    }
+
+    const summary = await this.repository.getWorkloadSummary({
+      instructorId: user.id,
+      courseId: query.courseId,
+    })
+
+    return {
+      pendingCount: summary.pendingCount,
+      inReviewCount: summary.inReviewCount,
+      claimedByMeCount: summary.claimedByMeCount,
+      totalActiveCount: summary.totalActiveCount,
+      oldestPendingCreatedAt:
+        summary.oldestPendingCreatedAt?.toISOString() ?? null,
+      oldestPendingAge: summary.oldestPendingCreatedAt
+        ? Math.max(
+            0,
+            Math.floor(
+              (now.getTime() - summary.oldestPendingCreatedAt.getTime()) /
+                1_000,
+            ),
+          )
+        : null,
+      byStudentFlagReason: summary.byStudentFlagReason,
+      byTriggerType: summary.byTriggerType,
     }
   }
 }

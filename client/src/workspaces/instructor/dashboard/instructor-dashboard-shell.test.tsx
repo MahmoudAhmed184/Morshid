@@ -3,13 +3,15 @@ import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useCourseMembership } from '@/workspaces/instructor/use-course-membership'
 import { useAuthStore } from '@/features/auth/session/interface/session-store'
 import { writeInstructorPreferences } from '@/workspaces/instructor/preferences/instructor-workspace-preferences.storage'
+import { useInstructorReviewWorkloadSummary } from '@/workspaces/instructor/reviews/use-reviews'
+import { useCourseMembership } from '@/workspaces/instructor/use-course-membership'
 
 import { InstructorDashboardShell } from './instructor-dashboard-shell'
 
 vi.mock('@/workspaces/instructor/use-course-membership')
+vi.mock('@/workspaces/instructor/reviews/use-reviews')
 vi.mock('@tanstack/react-router', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   Link: ({
@@ -27,6 +29,7 @@ vi.mock('@tanstack/react-router', async (importOriginal) => ({
 }))
 
 const useCourseMembershipMock = vi.mocked(useCourseMembership)
+const useWorkloadSummaryMock = vi.mocked(useInstructorReviewWorkloadSummary)
 const refetchCourses = vi.fn()
 
 function coursesResult(overrides: Record<string, unknown> = {}) {
@@ -59,6 +62,14 @@ describe('InstructorDashboardShell', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     useCourseMembershipMock.mockReturnValue(coursesResult())
+    useWorkloadSummaryMock.mockReturnValue({
+      data: undefined,
+      error: null,
+      isError: false,
+      isFetching: false,
+      isPending: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useInstructorReviewWorkloadSummary>)
   })
 
   afterEach(cleanup)

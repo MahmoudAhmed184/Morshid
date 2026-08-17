@@ -256,4 +256,24 @@ test.describe('Instructor review queue and bounded detail', () => {
     ).toBeVisible()
     await expect(page.getByText('Flagged acceptance question')).toHaveCount(0)
   })
+
+  test('displays workload summary metrics snapshot and categorical breakdown', async ({
+    page,
+  }) => {
+    await signInThroughUi(page, { email: fixture.instructorEmail })
+    await page.goto('/instructor/review-queue')
+
+    const snapshot = page.getByRole('region', {
+      name: 'Review Workload Snapshot',
+    })
+    await expect(snapshot).toBeVisible()
+    await expect(snapshot.getByText('Pending', { exact: true })).toBeVisible()
+    await expect(snapshot.getByText('In Review', { exact: true })).toBeVisible()
+    await expect(
+      snapshot.getByText('Claimed by Me', { exact: true }),
+    ).toBeVisible()
+    await expect(
+      snapshot.getByText('Oldest Pending Case', { exact: true }),
+    ).toBeVisible()
+  })
 })

@@ -2,6 +2,7 @@ import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query'
 
 import {
   getInstructorReview,
+  getInstructorReviewWorkloadSummary,
   listInstructorReviews,
 } from './instructor-reviews.api'
 import type { StudentFlagReason } from '@/features/reviews/interface/instructor-review.schema'
@@ -10,6 +11,14 @@ import { visibilityAwarePollingInterval } from '@/lib/query/polling'
 export const instructorReviewKeys = {
   all: (instructorId: string) =>
     ['instructor', instructorId, 'reviews'] as const,
+  workloadSummaryPrefix: (instructorId: string) =>
+    [...instructorReviewKeys.all(instructorId), 'workload-summary'] as const,
+  workloadSummary: (instructorId: string, courseId?: string | null) =>
+    [
+      ...instructorReviewKeys.all(instructorId),
+      'workload-summary',
+      { courseId: courseId ?? null },
+    ] as const,
   queue: (instructorId: string) =>
     [...instructorReviewKeys.all(instructorId), 'queue'] as const,
   queueFiltered: (
@@ -26,6 +35,20 @@ export const instructorReviewKeys = {
       'detail',
       reviewCaseId,
     ] as const,
+}
+
+export function instructorReviewWorkloadSummaryQueryOptions(
+  instructorId: string,
+  courseId: string | null = null,
+) {
+  return queryOptions({
+    queryKey: instructorReviewKeys.workloadSummary(instructorId, courseId),
+    queryFn: ({ signal }) =>
+      getInstructorReviewWorkloadSummary(courseId, { signal }),
+    staleTime: 30_000,
+    refetchInterval: () => visibilityAwarePollingInterval(),
+    refetchIntervalInBackground: true,
+  })
 }
 
 export function instructorReviewQueueQueryOptions(

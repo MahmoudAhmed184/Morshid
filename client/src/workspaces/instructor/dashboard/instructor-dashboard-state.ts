@@ -1,4 +1,5 @@
 import type { CourseMembership } from '@/features/courses/course-membership/course-membership.schema'
+import type { InstructorReviewWorkloadSummary } from '@/features/reviews/interface/instructor-review.schema'
 
 export type InstructorDashboardState =
   | { status: 'loading' }
@@ -15,4 +16,5 @@ export type InstructorDashboardState =
       onSelectCourse?: (courseId: string) => void
       materialCount?: number
       reviewQueueCount?: number
+      workloadSummary?: InstructorReviewWorkloadSummary
     }

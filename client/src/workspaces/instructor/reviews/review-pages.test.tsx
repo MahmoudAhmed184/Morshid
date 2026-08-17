@@ -8,6 +8,7 @@ import { ApiError } from '@/lib/http/http'
 import {
   useInstructorReviewDetail,
   useInstructorReviewQueue,
+  useInstructorReviewWorkloadSummary,
   useRejectInstructorReview,
   useResolveInstructorReview,
 } from '@/workspaces/instructor/reviews/use-reviews'
@@ -39,6 +40,7 @@ vi.mock('@tanstack/react-router', async (importOriginal) => {
 vi.mock('@/workspaces/instructor/reviews/use-reviews')
 
 const useQueueMock = vi.mocked(useInstructorReviewQueue)
+const useWorkloadSummaryMock = vi.mocked(useInstructorReviewWorkloadSummary)
 const useDetailMock = vi.mocked(useInstructorReviewDetail)
 const useResolveMock = vi.mocked(useResolveInstructorReview)
 const useRejectMock = vi.mocked(useRejectInstructorReview)
@@ -77,6 +79,18 @@ describe('Instructor review pages', () => {
     window.history.replaceState(null, '', '/instructor/review-queue')
     resolveMutate.mockResolvedValue({})
     rejectMutate.mockResolvedValue({})
+    useWorkloadSummaryMock.mockReturnValue(
+      queryResult({
+        pendingCount: 1,
+        inReviewCount: 0,
+        claimedByMeCount: 0,
+        totalActiveCount: 1,
+        oldestPendingCreatedAt: '2026-07-29T10:00:00.000Z',
+        oldestPendingAge: 60,
+        byStudentFlagReason: [{ reason: 'INCORRECT', count: 1 }],
+        byTriggerType: [{ trigger: 'STUDENT_REQUEST', count: 1 }],
+      }) as unknown as ReturnType<typeof useInstructorReviewWorkloadSummary>,
+    )
     useResolveMock.mockReturnValue(
       mutationResult(resolveMutate) as unknown as ReturnType<
         typeof useResolveInstructorReview
@@ -623,6 +637,50 @@ describe('Instructor review pages', () => {
     expect(screen.queryByText('INTERNAL-SECRET')).toBeNull()
     expect(screen.queryByText('UNRELATED-MESSAGE')).toBeNull()
     expect(screen.queryByText('PRIVATE-DOCUMENT-CONTENT')).toBeNull()
+  })
+
+  it('filters queue items when clicking workload summary metrics', async () => {
+    const user = userEvent.setup()
+    useWorkloadSummaryMock.mockReturnValue(
+      queryResult({
+        pendingCount: 1,
+        inReviewCount: 1,
+        claimedByMeCount: 0,
+        totalActiveCount: 2,
+        oldestPendingCreatedAt: '2026-07-29T10:00:00.000Z',
+        oldestPendingAge: 60,
+        byStudentFlagReason: [
+          { reason: 'INCORRECT', count: 1 },
+          { reason: 'CONFUSING', count: 1 },
+        ],
+        byTriggerType: [{ trigger: 'STUDENT_REQUEST', count: 2 }],
+      }) as unknown as ReturnType<typeof useInstructorReviewWorkloadSummary>,
+    )
+
+    useQueueMock.mockReturnValue(
+      queueQuery([
+        { ...queueItem(), status: 'PENDING' as const },
+        {
+          ...queueItem(),
+          reviewCaseId: '10000000-0000-4000-8000-000000000002',
+          status: 'IN_REVIEW' as const,
+          studentNote: 'Confusing explanation',
+        },
+      ]),
+    )
+
+    render(<ReviewQueuePage />)
+
+    expect(screen.getByText('Workload by Student Flag Reason')).toBeVisible()
+
+    // Click In Review metric card
+    const inReviewBtn = screen.getByRole('button', {
+      name: /In review cases: 1/i,
+    })
+    await user.click(inReviewBtn)
+
+    // Should now show the in review item
+    expect(screen.getByText(/Confusing explanation/)).toBeVisible()
   })
 })
 

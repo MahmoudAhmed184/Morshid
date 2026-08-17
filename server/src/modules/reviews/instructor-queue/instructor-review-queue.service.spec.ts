@@ -17,9 +17,11 @@ describe('InstructorReviewQueueService', () => {
   }
   const canManageCourse = jest.fn()
   const list = jest.fn()
+  const getWorkloadSummary = jest.fn()
   const service = new InstructorReviewQueueService(
     {
       list,
+      getWorkloadSummary,
     },
     { canManageCourse } as never,
   )
@@ -97,6 +99,82 @@ describe('InstructorReviewQueueService', () => {
       'student',
       'pending',
     ])
+  })
+
+  it('rejects workload summary for unauthorized courses with not-found error', async () => {
+    canManageCourse.mockResolvedValue(false)
+
+    await expect(
+      service.getWorkloadSummary(user, { courseId: 'unassigned-course' }),
+    ).rejects.toMatchObject({
+      status: 404,
+      response: { code: 'REVIEW_NOT_FOUND' },
+    })
+  })
+
+  it('computes workload summary, age calculation, and reason breakdowns', async () => {
+    canManageCourse.mockResolvedValue(true)
+    const oldestPendingDate = new Date('2026-07-29T11:50:00.000Z')
+    getWorkloadSummary.mockResolvedValue({
+      pendingCount: 4,
+      inReviewCount: 2,
+      claimedByMeCount: 1,
+      totalActiveCount: 6,
+      oldestPendingCreatedAt: oldestPendingDate,
+      byStudentFlagReason: [
+        { reason: StudentFlagReason.INCORRECT, count: 3 },
+        { reason: StudentFlagReason.CONFUSING, count: 1 },
+      ],
+      byTriggerType: [
+        { trigger: ReviewTriggerType.STUDENT_REQUEST, count: 4 },
+        { trigger: ReviewTriggerType.CITATION_MISSING, count: 2 },
+      ],
+    })
+
+    const summary = await service.getWorkloadSummary(
+      user,
+      { courseId: 'course-1' },
+      new Date('2026-07-29T12:00:00.000Z'),
+    )
+
+    expect(getWorkloadSummary).toHaveBeenCalledWith({
+      instructorId: user.id,
+      courseId: 'course-1',
+    })
+    expect(summary).toEqual({
+      pendingCount: 4,
+      inReviewCount: 2,
+      claimedByMeCount: 1,
+      totalActiveCount: 6,
+      oldestPendingCreatedAt: oldestPendingDate.toISOString(),
+      oldestPendingAge: 600,
+      byStudentFlagReason: [
+        { reason: StudentFlagReason.INCORRECT, count: 3 },
+        { reason: StudentFlagReason.CONFUSING, count: 1 },
+      ],
+      byTriggerType: [
+        { trigger: ReviewTriggerType.STUDENT_REQUEST, count: 4 },
+        { trigger: ReviewTriggerType.CITATION_MISSING, count: 2 },
+      ],
+    })
+  })
+
+  it('returns null oldestPendingCreatedAt and oldestPendingAge when no pending cases exist', async () => {
+    canManageCourse.mockResolvedValue(true)
+    getWorkloadSummary.mockResolvedValue({
+      pendingCount: 0,
+      inReviewCount: 0,
+      claimedByMeCount: 0,
+      totalActiveCount: 0,
+      oldestPendingCreatedAt: null,
+      byStudentFlagReason: [],
+      byTriggerType: [],
+    })
+
+    const summary = await service.getWorkloadSummary(user, {})
+    expect(summary.oldestPendingCreatedAt).toBeNull()
+    expect(summary.oldestPendingAge).toBeNull()
+    expect(summary.totalActiveCount).toBe(0)
   })
 
   function record(id: string, status: ReviewStatus, createdAt: string) {

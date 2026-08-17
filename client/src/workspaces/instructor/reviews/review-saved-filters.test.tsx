@@ -4,7 +4,10 @@ import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useInstructorReviewQueue } from '@/workspaces/instructor/reviews/use-reviews'
+import {
+  useInstructorReviewQueue,
+  useInstructorReviewWorkloadSummary,
+} from '@/workspaces/instructor/reviews/use-reviews'
 import { useAuthStore } from '@/features/auth/session/interface/session-store'
 import { writeInstructorPreferences } from '@/workspaces/instructor/preferences/instructor-workspace-preferences.storage'
 import { ReviewQueuePage } from './review-queue-page'
@@ -39,6 +42,7 @@ vi.mock('@tanstack/react-router', async (importOriginal) => {
 vi.mock('@/workspaces/instructor/reviews/use-reviews')
 
 const useQueueMock = vi.mocked(useInstructorReviewQueue)
+const useWorkloadSummaryMock = vi.mocked(useInstructorReviewWorkloadSummary)
 const testUserId = 'instructor-1111-2222'
 
 const sampleQueueItems: InstructorReviewQueueItem[] = [
@@ -130,6 +134,14 @@ describe('Review Queue Saved Filters & URL Sync', () => {
     })
 
     useQueueMock.mockReturnValue(mockQueueQuery())
+    useWorkloadSummaryMock.mockReturnValue({
+      data: undefined,
+      error: null,
+      isError: false,
+      isFetching: false,
+      isPending: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useInstructorReviewWorkloadSummary>)
   })
 
   afterEach(() => {
