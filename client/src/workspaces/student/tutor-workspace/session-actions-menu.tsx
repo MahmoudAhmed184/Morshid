@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { Download, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -16,18 +16,23 @@ interface StudentSessionActionsMenuProps {
   session: ChatSession
   isPending: boolean
   isDeleting: boolean
+  isExporting?: boolean
   onStartRename: () => void
   onDelete: () => Promise<void>
+  onExport?: () => Promise<void>
 }
 
 export function StudentSessionActionsMenu({
   session,
   isPending,
   isDeleting,
+  isExporting = false,
   onStartRename,
   onDelete,
+  onExport,
 }: StudentSessionActionsMenuProps) {
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const isBusy = isPending || isDeleting || isExporting
 
   return (
     <>
@@ -38,20 +43,26 @@ export function StudentSessionActionsMenu({
               type="button"
               variant="ghost"
               size="icon-sm"
-              disabled={isPending}
+              disabled={isBusy}
               aria-label={`Open actions for ${session.title}`}
             />
           }
         >
           <MoreHorizontal aria-hidden />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-36">
-          <DropdownMenuItem disabled={isPending} onClick={onStartRename}>
+        <DropdownMenuContent align="end" className="w-52">
+          <DropdownMenuItem disabled={isBusy} onClick={onStartRename}>
             <Pencil aria-hidden />
             Rename
           </DropdownMenuItem>
+          {onExport ? (
+            <DropdownMenuItem disabled={isBusy} onClick={() => void onExport()}>
+              <Download aria-hidden />
+              Export as Markdown
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuItem
-            disabled={isPending}
+            disabled={isBusy}
             onClick={() => setDeleteOpen(true)}
           >
             <Trash2 aria-hidden />

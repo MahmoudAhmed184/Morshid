@@ -130,7 +130,10 @@ describe('TutoringRuntimeApplication', () => {
         loadForMessages: jest.fn().mockResolvedValue([]),
         loadPolicyEvidence: jest.fn().mockResolvedValue([]),
       },
-      { loadForMessages: jest.fn().mockResolvedValue([]) },
+      {
+        loadForMessages: jest.fn().mockResolvedValue([]),
+        loadPublishedGuidanceForMessages: jest.fn().mockResolvedValue([]),
+      },
     )
     socraticOrchestrate = jest.fn().mockResolvedValue({
       kind: 'completed',

@@ -69,6 +69,12 @@ interface DeleteChatSessionParams {
   options?: ApiFetchOptions
 }
 
+export interface ExportChatSessionParams {
+  courseId: string
+  sessionId: string
+  options?: ApiFetchOptions
+}
+
 interface GetChatMessagesParams {
   courseId: string
   sessionId: string
@@ -247,4 +253,53 @@ export async function retryChatMessage({
   )
 
   return chatTurnResponseSchema.parse(response)
+}
+
+export function extractFilenameFromContentDisposition(
+  contentDisposition: string | null,
+): string | null {
+  if (!contentDisposition) return null
+
+  const utf8Match = /filename\*=UTF-8''([^;]+)/i.exec(contentDisposition)
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1])
+    } catch {
+      return utf8Match[1]
+    }
+  }
+
+  const quotedMatch = /filename="([^"]+)"/i.exec(contentDisposition)
+  if (quotedMatch?.[1]) {
+    return quotedMatch[1]
+  }
+
+  const plainMatch = /filename=([^; ]+)/i.exec(contentDisposition)
+  return plainMatch?.[1] ?? null
+}
+
+export async function exportChatSessionMarkdown({
+  courseId,
+  sessionId,
+  options = {},
+}: ExportChatSessionParams): Promise<{ content: string; filename: string }> {
+  const response = await apiFetch(
+    `${sessionPath(courseId, sessionId)}/export`,
+    {
+      ...options,
+      headers: {
+        Accept: 'text/markdown',
+        ...options.headers,
+      },
+      method: 'GET',
+    },
+  )
+
+  const content = await response.text()
+  const contentDisposition = response.headers.get('content-disposition')
+  const filename =
+    extractFilenameFromContentDisposition(contentDisposition) ??
+    'conversation.md'
+
+  return { content, filename }
 }

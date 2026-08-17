@@ -11,9 +11,12 @@ import {
   Post,
   Query,
   Req,
+  Res,
   SerializeOptions,
+  StreamableFile,
   UseInterceptors,
 } from '@nestjs/common'
+import type { Response } from 'express'
 import {
   ApiBadRequestResponse,
   ApiBody,
@@ -59,6 +62,7 @@ import {
   type ConversationValidationIssue,
 } from '../conversations/interface/conversation-errors'
 import { ConversationsService } from '../conversations/conversations.service'
+import { formatContentDisposition } from './conversation-markdown-export'
 
 const uuidParam = () => new ParseUUIDPipe({ version: '4' })
 
@@ -270,6 +274,42 @@ export class ConversationsController {
       query,
       getRequestContext(request),
     )
+  }
+
+  @Get(':sessionId/export')
+  @ApiOperation({ summary: 'Export chat session as Markdown' })
+  @courseIdParam()
+  @sessionIdParam()
+  @ApiOkResponse({
+    description: 'The conversation markdown export stream.',
+    schema: {
+      type: 'string',
+      format: 'binary',
+    },
+  })
+  @invalidUuidBadRequest()
+  @notFound()
+  async exportSession(
+    @Param('courseId', uuidParam()) courseId: string,
+    @Param('sessionId', uuidParam()) sessionId: string,
+    @Req() request: AuthenticatedHttpRequest,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<StreamableFile> {
+    const { stream, filename } =
+      await this.conversationsService.exportSessionMarkdown(
+        courseId,
+        sessionId,
+        request.user,
+        getRequestContext(request),
+      )
+
+    response.setHeader('Content-Type', 'text/markdown; charset=utf-8')
+    response.setHeader(
+      'Content-Disposition',
+      formatContentDisposition(filename),
+    )
+
+    return new StreamableFile(stream)
   }
 }
 

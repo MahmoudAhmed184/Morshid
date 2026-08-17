@@ -3,6 +3,7 @@ import { ForbiddenException, NotFoundException } from '@nestjs/common'
 import type { AuthenticatedUser } from '../identity/identity.types'
 import { UserRole, UserStatus } from '../identity/identity.roles'
 import type { AccessAuditService } from '../audit/audit.public'
+import type { StudentCitationSources } from '../materials/interface/student-citation-sources'
 import type { ConversationAuditService } from './conversation-audit.service'
 import {
   createChatSessionRequestSchema,
@@ -17,11 +18,14 @@ import { ConversationSessionRepository } from './conversation-session.repository
 import type {
   ChatMessageRecord,
   ChatSessionRecord,
+  ExportableMessageRecord,
+  ExportableSessionRecord,
   MessageListPagination,
   SessionListPagination,
   SoftDeleteChatSessionInput,
   SoftDeleteSessionOutcome,
 } from '../conversations/interface/conversation-records'
+import { collectStreamToString } from './conversation-markdown-export'
 import { ConversationsService } from './conversations.service'
 
 const createdAt = new Date('2026-07-14T10:00:00.000Z')
@@ -44,6 +48,10 @@ class ConversationTestRepository
   createSessionFailsMembership = false
 
   hasActiveStudentMembership(courseId: string, studentId: string) {
+    return Promise.resolve(this.memberships.has(key(courseId, studentId)))
+  }
+
+  hasActiveOrArchivedStudentAccess(courseId: string, studentId: string) {
     return Promise.resolve(this.memberships.has(key(courseId, studentId)))
   }
 
@@ -109,6 +117,48 @@ class ConversationTestRepository
     const session = this.findOwnedSession(courseId, sessionId, studentId)
 
     return Promise.resolve(session ? toSessionRecord(session) : null)
+  }
+
+  findExportableSession(
+    courseId: string,
+    sessionId: string,
+    studentId: string,
+  ): Promise<ExportableSessionRecord | null> {
+    const session = this.findOwnedSession(courseId, sessionId, studentId)
+    if (!session) return Promise.resolve(null)
+    return Promise.resolve({
+      id: session.id,
+      title: session.title,
+      createdAt: session.createdAt,
+      course: {
+        id: session.courseId,
+        code: 'CS101',
+        title: 'Algorithms & Data Structures',
+      },
+    })
+  }
+
+  listMessagesForExport(
+    sessionId: string,
+    cursor?: number,
+    limit = 100,
+  ): Promise<ExportableMessageRecord[]> {
+    const messages = [...(this.messages.get(sessionId) ?? [])]
+      .filter((msg) => msg.status === 'COMPLETED')
+      .sort((a, b) => a.sequence - b.sequence)
+      .filter((msg) => (cursor !== undefined ? msg.sequence > cursor : true))
+      .slice(0, limit)
+      .map((msg) => ({
+        id: msg.id,
+        sequence: msg.sequence,
+        role: msg.role,
+        content: msg.content,
+        guidanceLabel: msg.guidanceLabel,
+        createdAt: msg.createdAt,
+        completedAt: msg.completedAt,
+      }))
+
+    return Promise.resolve(messages)
   }
 
   renameSession(
@@ -268,15 +318,25 @@ describe('ConversationsService', () => {
     const auditService = {
       recordAccessDenied: jest.fn().mockResolvedValue(undefined),
       recordSessionDeleted: jest.fn().mockResolvedValue(undefined),
+      recordSessionExported: jest.fn().mockResolvedValue(undefined),
     } satisfies Partial<ConversationAuditService>
     const accessAuditService = {
       recordCourseBoundaryDenied: jest.fn().mockResolvedValue(undefined),
     } satisfies Partial<AccessAuditService>
+    const citationSources = {
+      loadForMessages: jest.fn().mockResolvedValue([]),
+    }
+    const reviewSummaries = {
+      loadForMessages: jest.fn().mockResolvedValue([]),
+      loadPublishedGuidanceForMessages: jest.fn().mockResolvedValue([]),
+    }
 
     return {
       repository,
       auditService,
       accessAuditService,
+      citationSources,
+      reviewSummaries,
       service: new ConversationsService(
         repository,
         repository,
@@ -289,8 +349,11 @@ describe('ConversationsService', () => {
           },
           {
             loadForMessages: jest.fn().mockResolvedValue([]),
+            loadPublishedGuidanceForMessages: jest.fn().mockResolvedValue([]),
           },
         ),
+        citationSources as unknown as StudentCitationSources,
+        reviewSummaries,
       ),
     }
   }
@@ -792,6 +855,161 @@ describe('ConversationsService', () => {
     expect(newest.nextCursor).toBe(3)
     expect(earliest.messages.map((message) => message.sequence)).toEqual([1, 2])
     expect(earliest.nextCursor).toBeNull()
+  })
+
+  describe('exportSessionMarkdown', () => {
+    it('exports complete markdown stream and records audit event for active student', async () => {
+      const {
+        repository,
+        auditService,
+        citationSources,
+        reviewSummaries,
+        service,
+      } = buildService()
+      repository.addMembership('course-1', student.id)
+      const session = repository.addSession(
+        'course-1',
+        student.id,
+        'Recursion Discussion',
+      )
+
+      repository.messages.set(session.id, [
+        makeMessage('msg-1', 1, {
+          role: MessageRole.STUDENT,
+          content: 'What is a base case?',
+          completedAt: new Date('2026-08-16T12:00:00.000Z'),
+        }),
+        makeMessage('msg-2', 2, {
+          role: MessageRole.ASSISTANT,
+          content: 'A base case terminates recursion.',
+          guidanceLabel: 'COURSE_GROUNDED',
+          completedAt: new Date('2026-08-16T12:00:05.000Z'),
+        }),
+      ])
+
+      citationSources.loadForMessages.mockResolvedValueOnce([
+        {
+          messageId: 'msg-2',
+          order: 1,
+          materialId: 'mat-1',
+          materialTitle: 'Lecture 4',
+          sourceAvailable: true,
+          sourceStatus: 'AVAILABLE',
+          evidence: [
+            {
+              rank: 1,
+              similarityScore: 0.9,
+              chunkId: 'c1',
+              chunkNumber: 1,
+              excerpt: 'Every recursive function needs a base case.',
+            },
+          ],
+        },
+      ])
+
+      reviewSummaries.loadPublishedGuidanceForMessages.mockResolvedValueOnce([
+        {
+          messageId: 'msg-2',
+          reviewCaseId: 'rev-1',
+          outcome: 'APPROVED',
+          publishedContent: 'Approved instructor guidance text.',
+          resolvedAt: new Date('2026-08-16T12:30:00.000Z'),
+        },
+      ])
+
+      const { stream, filename } = await service.exportSessionMarkdown(
+        'course-1',
+        session.id,
+        student,
+      )
+
+      expect(filename).toBe('morshid-CS101-Recursion-Discussion.md')
+      const output = await collectStreamToString(stream)
+
+      expect(output).toContain('# Morshid Conversation Export')
+      expect(output).toContain(
+        '- **Course:** CS101 — Algorithms &amp; Data Structures',
+      )
+      expect(output).toContain('- **Conversation:** Recursion Discussion')
+      expect(output).toContain('## Message 1 — Student')
+      expect(output).toContain('What is a base case?')
+      expect(output).toContain('## Message 2 — Assistant')
+      expect(output).toContain('*Guidance: Course Grounded*')
+      expect(output).toContain('### Citations')
+      expect(output).toContain('1. [1] **Lecture 4**')
+      expect(output).toContain('### Published Instructor Guidance')
+      expect(output).toContain('*Outcome: Approved (2026-08-16T12:30:00.000Z)*')
+
+      expect(auditService.recordSessionExported).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorUserId: student.id,
+          courseId: 'course-1',
+          sessionId: session.id,
+        }),
+      )
+    })
+
+    it('rejects export with 403 when student is not enrolled in course', async () => {
+      const { repository, auditService, service } = buildService()
+      const session = repository.addSession(
+        'course-1',
+        student.id,
+        'Unauthorized Session',
+      )
+
+      await expect(
+        service.exportSessionMarkdown('course-1', session.id, student),
+      ).rejects.toThrow(ForbiddenException)
+
+      expect(auditService.recordAccessDenied).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorUserId: student.id,
+          courseId: 'course-1',
+          reason: 'ACTIVE_STUDENT_MEMBERSHIP_REQUIRED',
+        }),
+      )
+    })
+
+    it('rejects export with 404 when session is deleted or not owned', async () => {
+      const { repository, auditService, service } = buildService()
+      repository.addMembership('course-1', student.id)
+      const session = repository.addSession(
+        'course-1',
+        otherStudent.id,
+        'Other Student Session',
+      )
+
+      await expect(
+        service.exportSessionMarkdown('course-1', session.id, student),
+      ).rejects.toThrow(NotFoundException)
+
+      expect(auditService.recordAccessDenied).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorUserId: student.id,
+          courseId: 'course-1',
+          sessionId: session.id,
+          reason: 'DELETED_OR_UNOWNED',
+        }),
+      )
+    })
+
+    it('fails export without returning content when audit logging fails', async () => {
+      const { repository, auditService, service } = buildService()
+      repository.addMembership('course-1', student.id)
+      const session = repository.addSession(
+        'course-1',
+        student.id,
+        'Audit Failure Test',
+      )
+
+      auditService.recordSessionExported.mockRejectedValueOnce(
+        new Error('Database error during audit logging'),
+      )
+
+      await expect(
+        service.exportSessionMarkdown('course-1', session.id, student),
+      ).rejects.toThrow('Database error during audit logging')
+    })
   })
 })
 
