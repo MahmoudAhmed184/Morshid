@@ -264,6 +264,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     await prisma.teachingDecision.deleteMany()
     await prisma.educationalAnalysis.deleteMany()
     await prisma.guardResult.deleteMany()
+    await prisma.debuggingDiagnosis.deleteMany()
     await prisma.outputRiskEvent.deleteMany()
     await prisma.tutoringCandidateAttempt.deleteMany()
     await prisma.tutoringAttempt.deleteMany()
@@ -517,7 +518,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     expect(turn.assistantMessage.citations).toHaveLength(1)
 
     const promptVersion = Reflect.get(turn.assistantMessage, 'promptVersion')
-    expect(promptVersion).toBe('tutor-generation.mvp.v8')
+    expect(promptVersion).toBe('tutor-generation.mvp.v9')
 
     const reloadResponse = await request(requireApp().getHttpServer())
       .get(messagesPath(session.id))
@@ -633,7 +634,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     expect(persisted.candidateAttempts[0]).toMatchObject({
       candidateAttempt: 1,
       generationOutcome: 'GENERATED',
-      promptVersion: 'tutor-generation.mvp.v8',
+      promptVersion: 'tutor-generation.mvp.v9',
     })
     expect(
       persisted.candidateAttempts[0].guardResults.map((result) => ({

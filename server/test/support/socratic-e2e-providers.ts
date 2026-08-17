@@ -289,9 +289,10 @@ function extractCurrentMessageId(request: AnalysisModelRequest): string {
 export function validCandidateRawOutput(
   allowedCitationIds: readonly string[] = [],
 ): Record<string, unknown> {
+  const citationSuffix =
+    allowedCitationIds.length > 0 ? ` [${allowedCitationIds[0]}]` : ''
   return {
-    message:
-      'What part of the list comprehension syntax are you most unsure about? Try writing just the expression part first.',
+    message: `What part of the list comprehension syntax are you most unsure about? Try writing just the expression part first.${citationSuffix}`,
     debuggingGuidance: null,
     responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
     usedCitationIds: [...allowedCitationIds],
@@ -336,7 +337,11 @@ export function validCandidateRawOutputForRequest(
   request: TutorModelRequest,
   allowedCitationIds: readonly string[] = [],
 ): Record<string, unknown> {
-  if (request.messages[1].content.includes('"debuggingGuidance":{')) {
+  if (
+    request.messages[1].content.includes(
+      `"strategy":"${TeachingStrategy.DEBUGGING_GUIDANCE}"`,
+    )
+  ) {
     return debuggingCandidateRawOutput(request, allowedCitationIds)
   }
 

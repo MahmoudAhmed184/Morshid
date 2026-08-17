@@ -344,6 +344,7 @@ describe('Authorized tutoring runtime (e2e)', () => {
     await prisma.teachingDecision.deleteMany()
     await prisma.educationalAnalysis.deleteMany()
     await prisma.guardResult.deleteMany()
+    await prisma.debuggingDiagnosis.deleteMany()
     await prisma.outputRiskEvent.deleteMany()
     await prisma.tutoringCandidateAttempt.deleteMany()
     await prisma.tutoringAttempt.deleteMany()
@@ -749,7 +750,7 @@ describe('Authorized tutoring runtime (e2e)', () => {
     const diagnosisEmbeddingCall = embedQuery.mock.calls.find(
       ([query]) =>
         query ===
-        'Code a possible variable-name mismatch or unresolved name near the loop body; study name lookup and local scope. Diagnostic signals: singular and plural identifiers may not match. Relevant identifiers: num, nums.',
+        'Name lookup searches the active scope, where `nums` exists but `num` does not.; name lookup or reference issue; The name `num` does not match the visible `nums` name.; Compare every name in the return expression with the function parameters and local variables.; python programming; line 7',
     )
     expect(diagnosisEmbeddingCall).toBeDefined()
     expect(diagnosisEmbeddingCall?.[1]?.signal).toBeInstanceOf(AbortSignal)
@@ -1192,6 +1193,28 @@ describe('Authorized tutoring runtime (e2e)', () => {
       title: 'Supported assignment source',
       content: 'The course source supports this bounded exercise response.',
     })
+    tutorModel.behavior = (modelRequest) =>
+      Promise.resolve({
+        rawOutput: {
+          message: 'Invalid answer without citations',
+          debuggingGuidance: null,
+          responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
+          usedCitationIds: [],
+          requiresStudentAction: true,
+          studentAction: {
+            type: TeachingTechnique.ORIENTATION_QUESTION,
+            description: 'Reflect',
+          },
+          reflectionIncluded: false,
+          selfReportedCompliance: {
+            finalAnswerRevealed: false,
+            completeSolutionRevealed: false,
+          },
+        },
+        provider: 'e2e-controllable-tutor',
+        model: 'e2e-controllable-tutor-v1',
+        promptVersion: modelRequest.promptVersion,
+      })
     const session = await createSession()
     const response = await request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
@@ -1204,7 +1227,7 @@ describe('Authorized tutoring runtime (e2e)', () => {
 
     const turn = response.body as TutoringTurnResponseDto
     expect(turn).toMatchObject({
-      studentMessage: { requestKind: 'CODE_DIAGNOSIS' },
+      studentMessage: { requestKind: 'PROBLEM_LIKE' },
       assistantMessage: {
         content: SAFE_FALLBACK,
         status: 'COMPLETED',
