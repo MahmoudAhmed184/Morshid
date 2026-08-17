@@ -34,7 +34,6 @@ import {
   type PdfStorage,
 } from '../../src/platform/document-storage/pdf-storage'
 import { PrismaService } from '../../src/platform/database/prisma.service'
-import { RedisService } from '../../src/platform/cache/redis.service'
 import type {
   ChatSessionResponseDto,
   TutoringTurnResponseDto,
@@ -48,6 +47,7 @@ import {
 } from '../../src/modules/tutoring/infrastructure/analysis-model.configuration'
 import { OPENAI_COMPATIBLE_TUTOR_MODEL_PROVIDER } from '../../src/modules/tutoring/infrastructure/tutor-model.configuration'
 import { OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER } from '../../src/modules/tutoring/infrastructure/semantic-guard.configuration'
+import { OPENAI_COMPATIBLE_DEBUGGING_DIAGNOSIS_MODEL_PROVIDER } from '../../src/modules/tutoring/infrastructure/debugging-diagnosis-model.configuration'
 import { EDUCATIONAL_ANALYSIS_SOURCE } from '../../src/modules/tutoring/socratic-workflow/analysis/educational-analysis.types'
 import { TUTOR_GENERATION_PROMPT_VERSION } from '../../src/modules/tutoring/socratic-workflow/generation/tutor-prompt.definition'
 import { SAFE_FALLBACK_PROMPT_VERSION } from '../../src/modules/tutoring/socratic-workflow/response-approval/safe-fallback.service'
@@ -146,8 +146,6 @@ describe('Gemini Socratic runtime HTTP live verification', () => {
     })
       .overrideProvider(PrismaService)
       .useValue(prisma)
-      .overrideProvider(RedisService)
-      .useValue({ ping: jest.fn().mockResolvedValue('PONG') })
       .overrideProvider(MaterialProcessingScheduler)
       .useClass(NoopMaterialProcessingScheduler)
       .overrideProvider(EMBEDDING_PROVIDER_TOKEN)
@@ -187,6 +185,7 @@ describe('Gemini Socratic runtime HTTP live verification', () => {
     await prisma.guardResult.deleteMany()
     await prisma.outputRiskEvent.deleteMany()
     await prisma.tutoringCandidateAttempt.deleteMany()
+    await prisma.debuggingDiagnosis.deleteMany()
     await prisma.tutoringAttempt.deleteMany()
     await prisma.topicState.deleteMany()
     await prisma.topic.deleteMany()
@@ -588,6 +587,134 @@ describe('Gemini Socratic runtime HTTP live verification', () => {
     `)
     availableStoragePaths.add(storagePath)
   }
+
+  it('persists a live Gemini debugging diagnosis through the real HTTP path', async () => {
+    const debuggingMaterial =
+      'When initializing a running maximum or minimum, consider using the first element of the collection or a sentinel value appropriate for the data domain.'
+    await createEvidenceMaterial({
+      title: 'Synthetic initialization guide',
+      content: debuggingMaterial,
+    })
+    const session = await createSession()
+
+    const debuggingCode = [
+      '```python',
+      'def largest(nums):',
+      '    largest = 0',
+      '    for n in nums:',
+      '        if n > largest:',
+      '            largest = n',
+      '    return largest',
+      '```',
+    ].join('\n')
+    const debuggingSymptom =
+      'This code gives the wrong result for some lists with negative numbers.'
+    const debuggingMessage = `${debuggingCode}\n${debuggingSymptom}`
+
+    const response = await request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${studentToken}`)
+      .send({
+        content: debuggingMessage,
+        clientMessageId: randomUUID(),
+      })
+      .expect(201)
+    const turn = response.body as TutoringTurnResponseDto
+
+    expect(turn.studentMessage).toMatchObject({
+      sequence: 1,
+      content: debuggingMessage,
+      status: 'COMPLETED',
+    })
+    expect(turn.assistantMessage).toMatchObject({
+      sequence: 2,
+      responseToMessageId: turn.studentMessage.id,
+      status: 'COMPLETED',
+    })
+    expect(turn.assistantMessage.content.trim()).not.toBe('')
+
+    const tutoringAttempts = await prisma.tutoringAttempt.findMany({
+      where: { sessionId: session.id },
+    })
+    expect(tutoringAttempts).toHaveLength(1)
+    const tutoringAttempt = tutoringAttempts[0]
+    expect(tutoringAttempt.status).toBe(TutoringAttemptStatus.COMPLETED)
+    expect(tutoringAttempt.studentMessageId).toBe(turn.studentMessage.id)
+
+    const diagnoses = await prisma.debuggingDiagnosis.findMany({
+      where: { tutoringAttemptId: tutoringAttempt.id },
+    })
+    expect(diagnoses).toHaveLength(1)
+    const [diagnosis] = diagnoses
+    expect(diagnosis.source).toBe('MODEL')
+    expect(diagnosis.confidence).toBe('MEDIUM')
+    expect(diagnosis.status).toBe('RESOLVED')
+    expect(diagnosis.locationMessageId).toBe(turn.studentMessage.id)
+    expect(diagnosis.provider).toBe(
+      OPENAI_COMPATIBLE_DEBUGGING_DIAGNOSIS_MODEL_PROVIDER,
+    )
+    expect(diagnosis.model).toBe(
+      tutoringConfiguration.DEBUGGING_DIAGNOSIS_MODEL_NAME,
+    )
+    expect(diagnosis.promptVersion).not.toBeNull()
+
+    const observedCalls = fetchRecorder?.calls() ?? []
+    expect(observedCalls).toEqual(
+      expect.arrayContaining([
+        expectedProviderCall(
+          tutoringConfiguration.ANALYSIS_MODEL_BASE_URL,
+          tutoringConfiguration.ANALYSIS_MODEL_NAME,
+        ),
+        expectedProviderCall(
+          tutoringConfiguration.DEBUGGING_DIAGNOSIS_MODEL_BASE_URL,
+          tutoringConfiguration.DEBUGGING_DIAGNOSIS_MODEL_NAME,
+        ),
+        expectedProviderCall(
+          tutoringConfiguration.TUTOR_MODEL_BASE_URL,
+          tutoringConfiguration.TUTOR_MODEL_NAME,
+        ),
+        expectedProviderCall(
+          tutoringConfiguration.SEMANTIC_GUARD_BASE_URL,
+          tutoringConfiguration.SEMANTIC_GUARD_MODEL_NAME,
+        ),
+      ]),
+    )
+
+    process.stdout.write(
+      `${JSON.stringify({
+        outcome: 'success',
+        scope: 'live-debugging-diagnosis-http-e2e',
+        httpStatus: 201,
+        diagnosis: {
+          source: diagnosis.source,
+          confidence: diagnosis.confidence,
+          status: diagnosis.status,
+          category: diagnosis.category,
+          provider: diagnosis.provider,
+          model: diagnosis.model,
+          promptVersion: diagnosis.promptVersion,
+        },
+        liveModelCalls: {
+          analysis: countObservedModelCalls(
+            observedCalls,
+            tutoringConfiguration.ANALYSIS_MODEL_NAME,
+          ),
+          tutor: countObservedModelCalls(
+            observedCalls,
+            tutoringConfiguration.TUTOR_MODEL_NAME,
+          ),
+          semanticGuard: countObservedModelCalls(
+            observedCalls,
+            tutoringConfiguration.SEMANTIC_GUARD_MODEL_NAME,
+          ),
+          debuggingDiagnosis: countObservedModelCalls(
+            observedCalls,
+            tutoringConfiguration.DEBUGGING_DIAGNOSIS_MODEL_NAME,
+          ),
+        },
+      })}\n`,
+    )
+  }, 180_000)
 })
 
 const restrictiveOverRevealGuardPolicy: TeachingGuardPolicy = Object.freeze({
@@ -876,10 +1003,12 @@ function assertLiveGeminiRoleConfiguration(
     configuration.TUTOR_MODEL_PROVIDER !==
       OPENAI_COMPATIBLE_TUTOR_MODEL_PROVIDER ||
     configuration.SEMANTIC_GUARD_PROVIDER !==
-      OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER
+      OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER ||
+    configuration.DEBUGGING_DIAGNOSIS_MODEL_PROVIDER !==
+      OPENAI_COMPATIBLE_DEBUGGING_DIAGNOSIS_MODEL_PROVIDER
   ) {
     throw new Error(
-      'Live Socratic runtime E2E requires openai-compatible analysis, tutor, and semantic guard providers',
+      'Live Socratic runtime E2E requires openai-compatible analysis, tutor, semantic guard, and debugging diagnosis providers',
     )
   }
 
@@ -887,6 +1016,10 @@ function assertLiveGeminiRoleConfiguration(
     ['ANALYSIS_MODEL_NAME', configuration.ANALYSIS_MODEL_NAME],
     ['TUTOR_MODEL_NAME', configuration.TUTOR_MODEL_NAME],
     ['SEMANTIC_GUARD_MODEL_NAME', configuration.SEMANTIC_GUARD_MODEL_NAME],
+    [
+      'DEBUGGING_DIAGNOSIS_MODEL_NAME',
+      configuration.DEBUGGING_DIAGNOSIS_MODEL_NAME,
+    ],
   ] as const) {
     if (!model.toLowerCase().includes('gemini')) {
       throw new Error(`${name} must reference a Gemini model`)

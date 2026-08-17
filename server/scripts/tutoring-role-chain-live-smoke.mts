@@ -8,6 +8,7 @@ import {
   resolveChatTransport,
 } from '../src/platform/ai/upstream/gemini-pooled-fetch.js'
 import type { FetchImplementation } from '../src/platform/ai/upstream/structured-chat.transport.js'
+import { isGeminiOpenAICompatibleBaseUrl } from '../src/platform/ai/upstream/gemini-chat-project-pool.js'
 import { parseTutoringConfiguration } from '../src/modules/tutoring/tutoring.configuration.js'
 import { OPENAI_COMPATIBLE_ANALYSIS_MODEL_PROVIDER } from '../src/modules/tutoring/infrastructure/analysis-model.configuration.js'
 import { createAnalysisModelPort } from '../src/modules/tutoring/infrastructure/analysis-model.provider.js'
@@ -25,6 +26,12 @@ import { studentActionObligationFromDecision } from '../src/modules/tutoring/soc
 import { OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER } from '../src/modules/tutoring/infrastructure/semantic-guard.configuration.js'
 import { createSemanticGuardPort } from '../src/modules/tutoring/infrastructure/semantic-guard.adapter.js'
 import { SemanticGuardService } from '../src/modules/tutoring/socratic-workflow/response-approval/semantic-guard.service.js'
+import { OPENAI_COMPATIBLE_DEBUGGING_DIAGNOSIS_MODEL_PROVIDER } from '../src/modules/tutoring/infrastructure/debugging-diagnosis-model.configuration.js'
+import { createDebuggingDiagnosisModelPort } from '../src/modules/tutoring/infrastructure/debugging-diagnosis-model.adapter.js'
+import { buildDebuggingDiagnosisModelRequest } from '../src/modules/tutoring/socratic-workflow/debugging-guidance/debugging-diagnosis.prompt.js'
+import { debuggingDiagnosisModelOutputSchema } from '../src/modules/tutoring/socratic-workflow/debugging-guidance/debugging-diagnosis-model.schema.js'
+import { validateDebuggingDiagnosisModelOutput } from '../src/modules/tutoring/socratic-workflow/debugging-guidance/debugging-diagnosis-model.validator.js'
+
 import {
   SEMANTIC_GUARD_ERROR_CODE,
   SemanticGuardModelError,
@@ -40,9 +47,10 @@ import {
 } from '../test/fixtures/tutoring-role-chain-live.fixture.js'
 
 // Live Socratic role-chain integration smoke, not a full application E2E test.
-// It exercises the real Analysis, Tutor, and Semantic Guard provider adapters
-// plus downstream validation using synthetic context, teaching decision, and
-// retrieval fixtures. It intentionally skips HTTP orchestration and persistence.
+// It exercises the real Analysis, Tutor, Semantic Guard, and Debugging Diagnosis
+// provider adapters plus downstream validation using synthetic context, teaching
+// decision, and retrieval fixtures. It intentionally skips HTTP orchestration
+// and persistence.
 
 loadEnv({
   path: ['server/.env', '.env', '../.env'],
@@ -73,6 +81,7 @@ async function main(): Promise<void> {
   const appEnvironment = validateEnv(process.env)
   const env = parseTutoringConfiguration(appEnvironment)
   assertLiveRoleConfiguration(env)
+  assertLiveDiagnosisConfiguration(env)
   const geminiRuntime = await createLiveGeminiRuntime(
     appEnvironment.REDIS_URL,
     env,
@@ -92,6 +101,11 @@ async function main(): Promise<void> {
     const semanticGuardTransport = resolveChatTransport(
       env.SEMANTIC_GUARD_BASE_URL,
       env.SEMANTIC_GUARD_API_KEY,
+      geminiRuntime.fetch,
+    )
+    const diagnosisTransport = resolveChatTransport(
+      env.DEBUGGING_DIAGNOSIS_MODEL_BASE_URL,
+      env.DEBUGGING_DIAGNOSIS_MODEL_API_KEY,
       geminiRuntime.fetch,
     )
     const analysisPort = createAnalysisModelPort(
@@ -135,6 +149,21 @@ async function main(): Promise<void> {
       },
       undefined,
       semanticGuardTransport.fetchImplementation,
+    )
+    const diagnosisPort = createDebuggingDiagnosisModelPort(
+      {
+        provider: OPENAI_COMPATIBLE_DEBUGGING_DIAGNOSIS_MODEL_PROVIDER,
+        timeoutMs: env.DEBUGGING_DIAGNOSIS_MODEL_TIMEOUT_MS,
+        openAICompatible: {
+          baseUrl: env.DEBUGGING_DIAGNOSIS_MODEL_BASE_URL,
+          modelName: env.DEBUGGING_DIAGNOSIS_MODEL_NAME,
+          apiKey: diagnosisTransport.apiKey,
+          maxCompletionTokens:
+            env.DEBUGGING_DIAGNOSIS_MODEL_MAX_COMPLETION_TOKENS,
+        },
+      },
+      undefined,
+      diagnosisTransport.fetchImplementation,
     )
 
     const analysisResponse = await analysisPort.analyze(
@@ -274,11 +303,60 @@ async function main(): Promise<void> {
       throw new SmokeFailure('SEMANTIC_GUARD_FALLBACK_FAILED')
     }
 
+    // ── Debugging Diagnosis live call ──
+    const diagnosisInput = {
+      language: 'python' as const,
+      code: 'def largest(nums):\n    largest = 0\n    for n in nums:\n        if n > largest:\n            largest = n\n    return largest',
+      symptom:
+        'This code gives the wrong result for some lists with negative numbers. Fix it for me.',
+      codeLineCount: 6,
+    }
+    const diagnosisRequest = buildDebuggingDiagnosisModelRequest(diagnosisInput)
+    const diagnosisResponse = await diagnosisPort.diagnose(diagnosisRequest)
+
+    if (
+      diagnosisResponse.provider !==
+      OPENAI_COMPATIBLE_DEBUGGING_DIAGNOSIS_MODEL_PROVIDER
+    ) {
+      throw new SmokeFailure('DIAGNOSIS_PROVIDER_MISMATCH')
+    }
+
+    const diagnosisParsed = debuggingDiagnosisModelOutputSchema.safeParse(
+      diagnosisResponse.rawOutput,
+    )
+    if (!diagnosisParsed.success) {
+      console.error(
+        'Diagnosis Raw Output:',
+        JSON.stringify(diagnosisResponse.rawOutput, null, 2),
+      )
+      console.error(
+        'Diagnosis Parse Errors:',
+        JSON.stringify(diagnosisParsed.error.issues, null, 2),
+      )
+      throw new SmokeFailure('DIAGNOSIS_SCHEMA_VALIDATION_FAILED')
+    }
+    const diagnosisOutput = diagnosisParsed.data
+    const diagnosisViolations = validateDebuggingDiagnosisModelOutput(
+      diagnosisOutput,
+      {
+        codeLineCount: diagnosisInput.codeLineCount,
+        symptom: diagnosisInput.symptom,
+      },
+    )
+    if (diagnosisViolations.length > 0) {
+      throw new SmokeFailure(
+        `DIAGNOSIS_SEMANTIC_VALIDATION_FAILED: ${diagnosisViolations.join(', ')}`,
+      )
+    }
+    if (diagnosisOutput.status !== 'RESOLVED') {
+      throw new SmokeFailure('DIAGNOSIS_LIVE_QUALITY_FAILURE_UNCERTAIN')
+    }
+
     process.stdout.write(
       `${JSON.stringify({
         outcome: 'success',
         scope: 'live-socratic-role-chain-integration-smoke',
-        pipeline: 'analysis-tutor-semantic-guard',
+        pipeline: 'analysis-tutor-semantic-guard-diagnosis',
         roles: {
           analysis: roleReport({
             provider: analysisResponse.provider,
@@ -304,6 +382,23 @@ async function main(): Promise<void> {
             inputTokens: null,
             outputTokens: null,
           }),
+          debuggingDiagnosis: roleReport({
+            provider: diagnosisResponse.provider,
+            configuredModel: env.DEBUGGING_DIAGNOSIS_MODEL_NAME,
+            observedModel: diagnosisResponse.model,
+            promptVersion: diagnosisResponse.promptVersion,
+            inputTokens: diagnosisResponse.inputTokens,
+            outputTokens: diagnosisResponse.outputTokens,
+          }),
+        },
+        debuggingDiagnosis: {
+          status: diagnosisOutput.status,
+          category: diagnosisOutput.category,
+          source: 'MODEL',
+          confidence: 'MEDIUM',
+          pooledTransportSelected: isGeminiOpenAICompatibleBaseUrl(
+            env.DEBUGGING_DIAGNOSIS_MODEL_BASE_URL,
+          ),
         },
         semanticGuardApproved: semanticResult.result.approved,
         semanticGuardFallback: {
@@ -367,6 +462,25 @@ function assertLiveRoleConfiguration(
     env.SEMANTIC_GUARD_PROVIDER !== OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER
   ) {
     throw new SmokeFailure('SEMANTIC_GUARD_PROVIDER_NOT_LIVE')
+  }
+}
+
+function assertLiveDiagnosisConfiguration(
+  env: ReturnType<typeof parseTutoringConfiguration>,
+): void {
+  if (
+    env.DEBUGGING_DIAGNOSIS_MODEL_PROVIDER !==
+    OPENAI_COMPATIBLE_DEBUGGING_DIAGNOSIS_MODEL_PROVIDER
+  ) {
+    throw new SmokeFailure('DEBUGGING_DIAGNOSIS_MODEL_PROVIDER_NOT_LIVE')
+  }
+  if (
+    !isGeminiOpenAICompatibleBaseUrl(env.DEBUGGING_DIAGNOSIS_MODEL_BASE_URL)
+  ) {
+    throw new SmokeFailure('DEBUGGING_DIAGNOSIS_MODEL_BASE_URL_NOT_GEMINI')
+  }
+  if (env.DEBUGGING_DIAGNOSIS_MODEL_API_KEY !== '') {
+    throw new SmokeFailure('DEBUGGING_DIAGNOSIS_MODEL_API_KEY_NOT_BLANK')
   }
 }
 
