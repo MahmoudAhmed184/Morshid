@@ -26,6 +26,8 @@ import { AnalysisFallbackBuilder } from './analysis/analysis-fallback-builder'
 import { ANALYSIS_MODEL_PORT } from './analysis/analysis-model.port'
 import { OPENAI_COMPATIBLE_ANALYSIS_MODEL_PROVIDER } from '../infrastructure/analysis-model.configuration'
 import { createAnalysisModelPort } from '../infrastructure/analysis-model.provider'
+import { OPENAI_COMPATIBLE_DEBUGGING_DIAGNOSIS_MODEL_PROVIDER } from '../infrastructure/debugging-diagnosis-model.configuration'
+import { createDebuggingDiagnosisModelPort } from '../infrastructure/debugging-diagnosis-model.adapter'
 import {
   ANALYSIS_RETRY_POLICY,
   AnalysisRetryPolicy,
@@ -73,6 +75,16 @@ import { SEMANTIC_GUARD_PORT } from './response-approval/semantic-guard.types'
 import { OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER } from '../infrastructure/semantic-guard.configuration'
 import { createSemanticGuardPort } from '../infrastructure/semantic-guard.adapter'
 import { RetrievalQueryBuilder } from './evidence-query/retrieval-query.builder'
+import {
+  DebuggingDiagnosisRepository,
+  PrismaDebuggingDiagnosisRepository,
+} from './debugging-guidance/debugging-diagnosis.repository'
+import { DebuggingDiagnosisService } from './debugging-guidance/debugging-diagnosis.service'
+import { DEBUGGING_DIAGNOSIS_MODEL_PORT } from './debugging-guidance/debugging-diagnosis-model.port'
+import {
+  DEBUGGING_DIAGNOSIS_RETRY_POLICY,
+  DebuggingDiagnosisRetryPolicy,
+} from './debugging-guidance/debugging-diagnosis-retry.policy'
 import { ResponseGovernanceModule } from '../response-governance/response-governance.module'
 import { SocraticWorkflow } from './socratic-workflow'
 import {
@@ -114,6 +126,7 @@ type GeminiChatFetch = FetchImplementation | null
     SafeFallbackService,
     ResponseApprovalService,
     RetrievalQueryBuilder,
+    DebuggingDiagnosisService,
     SocraticWorkflow,
     {
       provide: TopicStateRepository,
@@ -134,6 +147,10 @@ type GeminiChatFetch = FetchImplementation | null
     {
       provide: TeachingDecisionRepository,
       useClass: PrismaTeachingDecisionRepository,
+    },
+    {
+      provide: DebuggingDiagnosisRepository,
+      useClass: PrismaDebuggingDiagnosisRepository,
     },
     {
       provide: TUTORING_CONFIGURATION,
@@ -179,6 +196,14 @@ type GeminiChatFetch = FetchImplementation | null
         new AnalysisRetryPolicy(configuration.ANALYSIS_MODEL_MAX_RETRIES),
     },
     {
+      provide: DEBUGGING_DIAGNOSIS_RETRY_POLICY,
+      inject: [TUTORING_CONFIGURATION],
+      useFactory: (configuration: TutoringConfiguration) =>
+        new DebuggingDiagnosisRetryPolicy(
+          configuration.DEBUGGING_DIAGNOSIS_MODEL_MAX_RETRIES,
+        ),
+    },
+    {
       provide: ANALYSIS_MODEL_PORT,
       inject: [TUTORING_CONFIGURATION, GEMINI_CHAT_FETCH],
       useFactory: (
@@ -213,6 +238,46 @@ type GeminiChatFetch = FetchImplementation | null
         }
 
         return createAnalysisModelPort({
+          provider: 'deterministic',
+          timeoutMs,
+        })
+      },
+    },
+    {
+      provide: DEBUGGING_DIAGNOSIS_MODEL_PORT,
+      inject: [TUTORING_CONFIGURATION, GEMINI_CHAT_FETCH],
+      useFactory: (
+        configuration: TutoringConfiguration,
+        geminiChatFetch: GeminiChatFetch,
+      ) => {
+        const provider = configuration.DEBUGGING_DIAGNOSIS_MODEL_PROVIDER
+        const timeoutMs = configuration.DEBUGGING_DIAGNOSIS_MODEL_TIMEOUT_MS
+        const maxCompletionTokens =
+          configuration.DEBUGGING_DIAGNOSIS_MODEL_MAX_COMPLETION_TOKENS
+
+        if (provider === OPENAI_COMPATIBLE_DEBUGGING_DIAGNOSIS_MODEL_PROVIDER) {
+          const transport = resolveChatTransport(
+            configuration.DEBUGGING_DIAGNOSIS_MODEL_BASE_URL,
+            configuration.DEBUGGING_DIAGNOSIS_MODEL_API_KEY,
+            geminiChatFetch,
+          )
+          return createDebuggingDiagnosisModelPort(
+            {
+              provider,
+              timeoutMs,
+              openAICompatible: {
+                baseUrl: configuration.DEBUGGING_DIAGNOSIS_MODEL_BASE_URL,
+                modelName: configuration.DEBUGGING_DIAGNOSIS_MODEL_NAME,
+                apiKey: transport.apiKey,
+                maxCompletionTokens,
+              },
+            },
+            undefined,
+            transport.fetchImplementation,
+          )
+        }
+
+        return createDebuggingDiagnosisModelPort({
           provider: 'deterministic',
           timeoutMs,
         })
