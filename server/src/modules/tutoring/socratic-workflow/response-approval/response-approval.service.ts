@@ -123,7 +123,6 @@ export class ResponseApprovalService {
       maximumDisclosedSteps: decision.guardPolicy.maximumDisclosedSteps,
       debuggingGuidance: input.debuggingGuidance,
       debuggingGuidanceRequired:
-        input.debuggingGuidance !== undefined ||
         decision.strategy === TeachingStrategy.DEBUGGING_GUIDANCE,
     })
 

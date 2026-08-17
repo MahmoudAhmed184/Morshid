@@ -102,6 +102,7 @@ describe('ResponseApprovalService', () => {
       ],
       {
         decision: decision({
+          strategy: TeachingStrategy.DEBUGGING_GUIDANCE,
           primaryTechnique: TeachingTechnique.FOCUSED_QUESTION,
           studentActionPurpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
         }),
@@ -498,7 +499,7 @@ function validCandidate(
     },
     provider: 'deterministic',
     model: 'deterministic-tutor',
-    promptVersion: 'tutor-generation.mvp.v8',
+    promptVersion: 'tutor-generation.mvp.v9',
     tokenUsage: { input: 10, output: 5 },
     ...patch,
   }
@@ -531,6 +532,7 @@ function validDebuggingCandidate(
       rewriteRequested: false,
     }),
     debuggingGuidance,
+    responseIntent: TeachingStrategy.DEBUGGING_GUIDANCE,
     studentAction: {
       type: TeachingTechnique.FOCUSED_QUESTION,
       description: action,

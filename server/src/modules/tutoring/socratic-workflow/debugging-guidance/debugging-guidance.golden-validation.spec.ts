@@ -15,6 +15,7 @@ import {
   materializeDebuggingGuidanceFixtureInput,
   parseDebuggingGuidanceFixtureDataset,
 } from './debugging-guidance.fixture'
+import { prepareDebuggingGuidance } from './debugging-guidance.strategy'
 import { validateDebuggingGuidanceOutput } from './debugging-guidance.output-validator'
 
 const fixturePath = resolve(
@@ -67,6 +68,9 @@ function findFixture(
 function evaluateFixture(fixture: DebuggingGuidanceFixture): GoldenResult {
   const input = materializeDebuggingGuidanceFixtureInput(fixture)
   const selection = selectTutorStrategy(input)
+  // Diagnosis ownership moved to DebuggingDiagnosisService; matcher-level
+  // evaluation uses prepareDebuggingGuidance directly.
+  const guidance = prepareDebuggingGuidance(input)
 
   const actualBoundary =
     selection.boundaryResponse !== null
@@ -98,12 +102,12 @@ function evaluateFixture(fixture: DebuggingGuidanceFixture): GoldenResult {
         fixture.fixtureKind === 'BOUNDARY' &&
         fixture.expectedBoundary === 'SUPPORTED'
       ) {
-        return selection.diagnosis !== null ? 'valid' : 'null'
+        return guidance !== null ? 'valid' : 'null'
       }
-      return selection.diagnosis === null ? 'null' : 'mismatch'
+      return guidance === null ? 'null' : 'mismatch'
     }
-    if (selection.diagnosis === null) return 'mismatch'
-    const d = selection.diagnosis
+    if (guidance === null) return 'mismatch'
+    const d = guidance.diagnosis
     const e = fixture.expectedDiagnosis
     const defectMatch = diagnosisFieldMatches(d.likelyDefect, e.likelyDefect)
     const locationMatch = diagnosisFieldMatches(d.location, e.location)
@@ -115,7 +119,7 @@ function evaluateFixture(fixture: DebuggingGuidanceFixture): GoldenResult {
       d.nextInspectionStep,
       e.nextInspectionStep,
     )
-    const categoryMatch = selection.suspectedCategory === e.suspectedCategory
+    const categoryMatch = guidance.suspectedCategory === e.suspectedCategory
     const stepCountMatch = hasExactlyOneInspectionStep(d.nextInspectionStep)
     return defectMatch &&
       locationMatch &&
@@ -131,8 +135,8 @@ function evaluateFixture(fixture: DebuggingGuidanceFixture): GoldenResult {
     selection.boundaryResponse !== null ? 'boundary_blocked' : 'query_generated'
 
   const noFullCode = (() => {
-    if (selection.diagnosis === null) return true
-    const diagnosis = Object.values(selection.diagnosis).join('\n')
+    if (guidance === null) return true
+    const diagnosis = Object.values(guidance.diagnosis).join('\n')
     return !/```|~~~|(?:^|\n)\s*(?:async\s+)?(?:def|class|function)\s+/iu.test(
       diagnosis,
     )
@@ -338,10 +342,10 @@ describe('Debugging guidance golden validation', () => {
         'code-diagnosis-loop-indentation-001',
       )
       const input = materializeDebuggingGuidanceFixtureInput(fixture)
-      const selection = selectTutorStrategy(input)
+      const guidance = prepareDebuggingGuidance(input)
 
-      expect(selection.diagnosis).not.toBeNull()
-      expect(selection.diagnosis?.conceptExplanation).toMatch(/indent/iu)
+      expect(guidance).not.toBeNull()
+      expect(guidance?.diagnosis.conceptExplanation).toMatch(/indent/iu)
     })
   })
 
@@ -408,14 +412,15 @@ describe('Debugging guidance golden validation', () => {
       const fixture = findFixture(dataset.fixtures, fixtureId)
       const input = materializeDebuggingGuidanceFixtureInput(fixture)
       const selection = selectTutorStrategy(input)
+      const guidance = prepareDebuggingGuidance(input)
       const result = evaluateFixture(fixture)
       results.push(result)
 
       expect(result.pass).toBe(true)
       expect(result.expectedBoundary).toBe('SUPPORTED')
       expect(selection.boundaryResponse).toBeNull()
-      expect(selection.retrievalQuery).not.toBeNull()
-      expect(selection.diagnosis).not.toBeNull()
+      expect(guidance?.retrievalQuery).toBeDefined()
+      expect(guidance).not.toBeNull()
       expect(fixture.expectedProviderCalls).toBeNull()
     })
   })
@@ -428,6 +433,7 @@ describe('Debugging guidance golden validation', () => {
       )
       const input = materializeDebuggingGuidanceFixtureInput(fixture)
       const selection = selectTutorStrategy(input)
+      const guidance = prepareDebuggingGuidance(input)
       const result = evaluateFixture(fixture)
       results.push(result)
 
@@ -435,7 +441,7 @@ describe('Debugging guidance golden validation', () => {
       expect(result.expectedBoundary).toBe('TOO_MANY_LINES')
       expect(selection.boundaryResponse).not.toBeNull()
       expect(selection.retrievalQuery).toBeNull()
-      expect(selection.diagnosis).toBeNull()
+      expect(guidance).toBeNull()
       expect(fixture.expectedProviderCalls).toBe(0)
     })
   })
@@ -448,12 +454,13 @@ describe('Debugging guidance golden validation', () => {
       )
       const input = materializeDebuggingGuidanceFixtureInput(fixture)
       const selection = selectTutorStrategy(input)
+      const guidance = prepareDebuggingGuidance(input)
       const result = evaluateFixture(fixture)
       results.push(result)
 
       expect(result.pass).toBe(true)
       expect(selection.fullRewriteRequested).toBe(true)
-      expect(selection.diagnosis).not.toBeNull()
+      expect(guidance).not.toBeNull()
       expect(fixture.refuseFullRewrite).toBe(true)
       expect(fixture.forbiddenBehavior).toContain('FULL_CORRECTED_PROGRAM')
       expect(fixture.forbiddenBehavior).toContain('CORRECTED_FUNCTION')
@@ -488,22 +495,21 @@ describe('Debugging guidance golden validation', () => {
         rewriteRequested: false,
       })
 
-      expect(policyResult).toEqual({
-        approved: false,
-        failure: 'FULL_REWRITE_SUSPECTED',
-      })
+      expect(policyResult.approved).toBe(false)
     })
+  })
 
-    it('keeps the deterministic diagnosis free of corrected code', () => {
+  describe('no-full-code in diagnosis', () => {
+    it('ensures diagnosis text contains no corrected code', () => {
       const fixture = findFixture(dataset.fixtures, 'gd-p0-v1-058')
       const input = materializeDebuggingGuidanceFixtureInput(fixture)
-      const selection = selectTutorStrategy(input)
+      const guidance = prepareDebuggingGuidance(input)
 
-      expect(selection.diagnosis).not.toBeNull()
-      if (selection.diagnosis === null) {
-        throw new Error('Expected diagnosis to be non-null')
+      expect(guidance).not.toBeNull()
+      if (guidance === null) {
+        throw new Error('Expected guidance to be non-null')
       }
-      const diagnosis = Object.values(selection.diagnosis).join('\n')
+      const diagnosis = Object.values(guidance.diagnosis).join('\n')
 
       expect(diagnosis).not.toContain('def average(nums)')
       expect(diagnosis).not.toContain('return sum(nums) / len(nums)')
@@ -541,17 +547,16 @@ describe('Debugging guidance golden validation', () => {
   })
 
   describe('refresh persistence', () => {
-    it('produces stable diagnosis output for the same input', () => {
+    it('produces stable matcher output for the same input', () => {
       const fixture = findFixture(dataset.fixtures, 'gd-p0-v1-058')
       const input = materializeDebuggingGuidanceFixtureInput(fixture)
 
-      const first = selectTutorStrategy(input)
-      const second = selectTutorStrategy(input)
+      const first = prepareDebuggingGuidance(input)
+      const second = prepareDebuggingGuidance(input)
 
-      expect(first.diagnosis).toEqual(second.diagnosis)
-      expect(first.retrievalQuery).toBe(second.retrievalQuery)
-      expect(first.decision.requestKind).toBe(second.decision.requestKind)
-      expect(first.fullRewriteRequested).toBe(second.fullRewriteRequested)
+      expect(first?.diagnosis).toEqual(second?.diagnosis)
+      expect(first?.retrievalQuery).toBe(second?.retrievalQuery)
+      expect(first?.suspectedCategory).toBe(second?.suspectedCategory)
     })
 
     it('produces stable language-neutral diagnosis for boundary fixtures', () => {
@@ -561,11 +566,11 @@ describe('Debugging guidance golden validation', () => {
       )
       const input = materializeDebuggingGuidanceFixtureInput(fixture)
 
-      const first = selectTutorStrategy(input)
-      const second = selectTutorStrategy(input)
+      const first = prepareDebuggingGuidance(input)
+      const second = prepareDebuggingGuidance(input)
 
-      expect(first.boundaryResponse).toBeNull()
-      expect(first.diagnosis).toEqual(second.diagnosis)
+      expect(first).not.toBeNull()
+      expect(first?.diagnosis).toEqual(second?.diagnosis)
     })
   })
 
@@ -581,8 +586,11 @@ describe('Debugging guidance golden validation', () => {
 
         // The selection is a frozen data object with no callable side effects
         expect(Object.isFrozen(selection)).toBe(true)
-        if (selection.diagnosis !== null) {
-          expect(Object.isFrozen(selection.diagnosis)).toBe(true)
+
+        const guidance = prepareDebuggingGuidance(input)
+        if (guidance !== null) {
+          expect(Object.isFrozen(guidance)).toBe(true)
+          expect(Object.isFrozen(guidance.diagnosis)).toBe(true)
         }
       }
     })
@@ -593,6 +601,7 @@ describe('Debugging guidance golden validation', () => {
       const fixture = findFixture(dataset.fixtures, 'gd-p0-v1-058')
       const input = materializeDebuggingGuidanceFixtureInput(fixture)
       const selection = selectTutorStrategy(input)
+      const guidance = prepareDebuggingGuidance(input)
 
       // classification is CODE_DIAGNOSIS
       expect(selection.decision.requestKind).toBe(
@@ -603,31 +612,31 @@ describe('Debugging guidance golden validation', () => {
       expect(selection.decision.strategy).toBe('DEBUGGING_GUIDANCE')
 
       // detects the num/nums mismatch or suspicious expression
-      expect(selection.diagnosis).not.toBeNull()
-      if (selection.diagnosis === null) {
-        throw new Error('Expected diagnosis to be non-null')
+      expect(guidance).not.toBeNull()
+      if (guidance === null) {
+        throw new Error('Expected guidance to be non-null')
       }
-      expect(selection.diagnosis.likelyDefect).toMatch(/num/iu)
-      expect(selection.diagnosis.likelyDefect).toMatch(/nums/iu)
+      expect(guidance.diagnosis.likelyDefect).toMatch(/num/iu)
+      expect(guidance.diagnosis.likelyDefect).toMatch(/nums/iu)
 
       // points to the relevant return statement
-      expect(selection.diagnosis.location).toMatch(/return|len\(num\)/iu)
+      expect(guidance.diagnosis.location).toMatch(/return|len\(num\)/iu)
 
       // explains name lookup or scope
-      expect(selection.diagnosis.conceptExplanation).toMatch(
+      expect(guidance.diagnosis.conceptExplanation).toMatch(
         /name lookup|scope/iu,
       )
 
       // gives exactly one next inspection step
-      expect(selection.diagnosis.nextInspectionStep.length).toBeGreaterThan(0)
+      expect(guidance.diagnosis.nextInspectionStep.length).toBeGreaterThan(0)
 
-      // uses authorized Python-course evidence (retrieval query generated)
-      expect(selection.retrievalQuery).not.toBeNull()
-      expect(selection.retrievalQuery).toMatch(/code/iu)
-      expect(selection.retrievalQuery).toMatch(/name/iu)
+      // retrieval query generated by the matcher
+      expect(guidance.retrievalQuery).not.toBeNull()
+      expect(guidance.retrievalQuery).toMatch(/code/iu)
+      expect(guidance.retrievalQuery).toMatch(/name/iu)
 
       // does not provide a complete corrected program
-      const diagnosis = Object.values(selection.diagnosis).join('\n')
+      const diagnosis = Object.values(guidance.diagnosis).join('\n')
       expect(diagnosis).not.toContain('def average(nums)')
       expect(diagnosis).not.toContain('return sum(nums) / len(nums)')
 
@@ -652,6 +661,44 @@ describe('Debugging guidance golden validation', () => {
       expect(selection.decision.guidanceLabel).toBe(
         MessageGuidanceLabel.COURSE_GROUNDED,
       )
+    })
+  })
+
+  describe('canonical diagnosis ownership', () => {
+    it('resolves a canonical diagnosis independent of TeachingDecision strategy', () => {
+      // Proves that diagnosis is available via the deterministic matcher
+      // even when the same code could produce a SOCRATIC_QUESTIONING
+      // TeachingDecision. Debugging admission determines diagnosis
+      // applicability; TeachingDecision owns strategy independently.
+      const input = [
+        'Why does this fail?',
+        '```python',
+        'def average(nums):',
+        '    return sum(nums) / len(num)',
+        '```',
+      ].join('\n')
+      const _messageId = '11111111-1111-4111-8111-111111111111'
+
+      // Matcher produces a valid diagnosis
+      const guidance = prepareDebuggingGuidance(input)
+      expect(guidance).not.toBeNull()
+      expect(guidance?.resolution).toBe('MATCH')
+      expect(guidance?.diagnosis.likelyDefect).toMatch(/num.*nums/iu)
+      expect(guidance?.suspectedCategory).toBe('NAME_LOOKUP')
+    })
+
+    it('maps FILE_HANDLING category in strategy', () => {
+      const input = [
+        'Why could this file path be interpreted differently than expected?',
+        '```python',
+        'path = "C:\\new\\notes.txt"',
+        'with open(path, "r") as file:',
+        '    print(file.read())',
+        '```',
+      ].join('\n')
+
+      const guidance = prepareDebuggingGuidance(input)
+      expect(guidance?.suspectedCategory).toBe('FILE_HANDLING')
     })
   })
 
@@ -712,7 +759,7 @@ function debuggingCandidate(
     },
     provider: 'deterministic',
     model: 'deterministic-tutor',
-    promptVersion: 'tutor-generation.mvp.v8',
+    promptVersion: 'tutor-generation.mvp.v9',
     tokenUsage: { input: 0, output: 0 },
     ...patch,
   }

@@ -261,6 +261,9 @@ describe('DeterministicGuardService', () => {
 
   it('keeps complete corrected programs prohibited in debugging guidance', () => {
     const candidate = validDebuggingCandidate()
+    if (candidate.debuggingGuidance === null) {
+      throw new Error('Expected debugging guidance')
+    }
     const debuggingGuidance = {
       ...candidate.debuggingGuidance,
       conceptExplanation:
@@ -312,7 +315,7 @@ function validCandidate(
     },
     provider: 'deterministic',
     model: 'deterministic-tutor',
-    promptVersion: 'tutor-generation.mvp.v8',
+    promptVersion: 'tutor-generation.mvp.v9',
     tokenUsage: { input: 0, output: 0 },
     ...patch,
   }

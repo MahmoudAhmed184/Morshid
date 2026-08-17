@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
-import { RevealPolicy } from '../../tutoring-values'
+import { RevealPolicy, TeachingStrategy } from '../../tutoring-values'
 import { normalizeDeterministicText } from '../../../../common/text/normalize-deterministic-text'
 import type { CandidateResponse } from '../generation/tutor-generation.types'
 import {
@@ -58,7 +58,7 @@ export class DeterministicGuardService {
     }
 
     if (
-      context.debuggingGuidance !== undefined ||
+      context.responseIntent === TeachingStrategy.DEBUGGING_GUIDANCE ||
       context.debuggingGuidanceRequired === true
     ) {
       const debuggingResult = validateDebuggingGuidanceOutput({
