@@ -1,14 +1,14 @@
 import { GoogleGenAI } from '@google/genai'
 import { config as loadEnv } from 'dotenv'
 
-import { validateEnv } from '../src/modules/config/env.schema.js'
+import { validateEnv } from '../src/platform/config/env.schema.js'
 import {
   buildGeminiDocumentInput,
   GEMINI_EMBEDDING_API_VERSION,
   GEMINI_EMBEDDING_MODEL,
   GEMINI_EMBEDDING_OUTPUT_DIMENSIONALITY,
-} from '../src/modules/embedding/embedding-configuration.js'
-import { EMBEDDING_DIMENSIONS } from '../src/modules/embedding/embedding-provider.js'
+} from '../src/platform/ai/embedding/embedding-configuration.js'
+import { EMBEDDING_DIMENSIONS } from '../src/platform/ai/embedding/embedding-provider.js'
 import {
   GEMINI_EMBEDDING_TASK_CALIBRATION_DISTRACTORS,
   GEMINI_EMBEDDING_TASK_CALIBRATION_FIXTURES,

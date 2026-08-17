@@ -1,0 +1,82 @@
+import { Link } from '@tanstack/react-router'
+
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { InstructorListSkeleton } from '@/workspaces/instructor/instructor-list-skeleton'
+import type { InstructorDashboardState } from '@/workspaces/instructor/dashboard/instructor-dashboard-state'
+
+type DashboardReviewQueuePanelProps = {
+  state: InstructorDashboardState
+}
+
+/**
+ * The Register review-queue panel (col-1).
+ *
+ * The dashboard queries only expose a review-queue *count*, not the individual
+ * flagged rows, so this panel degrades to an at-a-glance summary plus the
+ * "Open the queue →" link rather than rendering per-row entries.
+ */
+export function DashboardReviewQueuePanel({
+  state,
+}: DashboardReviewQueuePanelProps) {
+  const hasCourse = state.status === 'ready'
+  const summary = state.status === 'ready' ? state.workloadSummary : undefined
+  const reviewCount =
+    summary?.pendingCount ??
+    (state.status === 'ready' ? state.reviewQueueCount : undefined)
+  const inReviewCount = summary?.inReviewCount ?? 0
+  const oldestAge =
+    summary?.oldestPendingAge !== null &&
+    summary?.oldestPendingAge !== undefined
+      ? formatAge(summary.oldestPendingAge)
+      : null
+
+  return (
+    <Card className="flex flex-col">
+      <CardHeader>
+        <div className="smallcaps-label">Needs review</div>
+      </CardHeader>
+      <CardContent className="flex flex-1 flex-col gap-4">
+        {state.status === 'loading' ? (
+          <InstructorListSkeleton rows={3} aria-label="Loading review queue" />
+        ) : (
+          <div className="flex-1 rounded-xl border border-dashed bg-secondary/20 px-4 py-8 text-center">
+            <p className="text-sm font-medium text-foreground">
+              {reviewCount !== undefined && reviewCount > 0
+                ? `${reviewCount} awaiting review`
+                : reviewCount === 0
+                  ? 'No reviews waiting'
+                  : 'Review activity is course-specific'}
+            </p>
+            <p className="footnote mt-1">
+              {reviewCount !== undefined && reviewCount > 0 ? (
+                <span>
+                  {inReviewCount > 0 ? `${inReviewCount} in review · ` : ''}
+                  {oldestAge
+                    ? `Oldest waiting ${oldestAge}`
+                    : 'Review pending exchanges.'}
+                </span>
+              ) : hasCourse ? (
+                'Open the queue to see current flagged exchanges.'
+              ) : (
+                'Assign a course to collect flagged exchanges.'
+              )}
+            </p>
+          </div>
+        )}
+        <Link
+          to="/instructor/review-queue"
+          className="link-editorial footnote w-fit"
+        >
+          Open the queue →
+        </Link>
+      </CardContent>
+    </Card>
+  )
+}
+
+function formatAge(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`
+  if (seconds < 3_600) return `${Math.floor(seconds / 60)}m`
+  if (seconds < 86_400) return `${Math.floor(seconds / 3_600)}h`
+  return `${Math.floor(seconds / 86_400)}d`
+}

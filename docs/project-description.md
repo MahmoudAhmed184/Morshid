@@ -1,17 +1,22 @@
-# Morshid — Project Description
+# Morshid project description
 
-**Date:** July 1, 2026  
+> [!NOTE]
+> **Historical requirements and product specification**  
+> This July 2026 requirements document defines the initial vision, domain concepts, and product rules for Morshid.
+> Architectural proposals, deferred technical decisions (Section 10.2), and conditional fallback options (e.g. Django, generic notifications, SSE streaming) have been finalized in the current working implementation as documented in [docs/developer-guide/](file:///home/mahmoud-ahmed/Projects/Morshid/docs/developer-guide/README.md) and accepted Architecture Decision Records ([ADR 0001](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0001-capability-first-ownership.md) through [ADR 0008](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0008-project-aware-gemini-chat-pool.md)).
+
+**Date:** July 1, 2026 (Reconciled Baseline)  
 **Product name:** Morshid (مرشد)  
 **Initial context:** ITI Graduation project  
-**Primary audience:** Graduation reviewers and the teams producing the requirements, SRS, architecture, and evaluation documents
+**Primary audience:** Graduation reviewers and development teams
 
-## 1. Document Purpose and Authority
+## 1. Document purpose and authority
 
-This document defines the agreed high-level description of Morshid: its vision, users, scope, core behavior, workflows, business rules, user-story inventory, pilot success criteria, assumptions, risks, and open questions.
+This document defines the high-level description of Morshid: its vision, users, scope, core behavior, workflows, business rules, user-story inventory, pilot success criteria, assumptions, risks, and open questions.
 
-It is the authoritative starting point for subsequent requirements discovery. Detailed functional requirements, acceptance criteria, data models, interfaces, technology choices, and test procedures belong in the SRS, architecture, and evaluation documents.
+For concrete runtime architecture, REST APIs, database schemas, and implementation details, the primary sources of truth are the current codebase, `docs/developer-guide/`, and the [System Delivery & Execution Plan](file:///home/mahmoud-ahmed/Projects/Morshid/docs/project-delivery-plan.md).
 
-## 2. Product Summary
+## 2. Product summary
 
 Morshid is an AI-powered Socratic teaching assistant for higher-education students. It helps students understand course material through guided questions, hints, reasoning steps, source-grounded explanations, and citations instead of simply giving final answers.
 
@@ -27,9 +32,9 @@ Morshid is not a general chatbot, a full learning-management system, or an acade
 - Instructor review of flagged or uncertain guidance
 - Code diagnosis and debugging guidance for student-submitted code
 
-General-purpose AI assistants provide broad help, while source-centered notebook tools emphasize working with supplied material. Morshid is intentionally narrower: it combines course grounding with learning rules and Instructor oversight.
+General-purpose AI assistants provide broad help, while source-centered notebook tools emphasize working with supplied material. Morshid is intentionally narrower, combining course grounding with learning rules and instructor oversight.
 
-## 3. Problem and Vision
+## 3. Problem and vision
 
 ### 3.1 Problem
 
@@ -43,7 +48,7 @@ Morshid should make the student try, think, and explain an attempt. It should pr
 
 The MVP primarily benefits students. Instructors and institutions are secondary beneficiaries through more consistent guidance, reviewable uncertainty, and controlled course boundaries.
 
-## 4. Pilot Context and Supported Domain
+## 4. Pilot context and supported domain
 
 Morshid will begin as a controlled ITI Graduation project pilot. The future target may include broader higher education.
 
@@ -67,7 +72,7 @@ The implementation is constrained to:
 - Paid AI API access with controlled usage (model provided or approved by ITI)
 - A reliable graduation demonstration rather than production-scale operation
 
-### 4.1 Team Structure
+### 4.1 Team structure
 
 The team of 5 operates as full-stack developers, meaning every member can contribute to frontend, backend, and AI features as needed.
 
@@ -79,9 +84,9 @@ The practical execution model should still assign clear owners:
 - **Ingestion and evaluation owner:** document parsing, chunking, indexing, retrieval tests, golden datasets, and scoring
 - **QA and DevOps owner:** Docker, CI, deployment, security tests, cross-course isolation tests, and demo reliability
 
-## 5. Product Model
+## 5. Product model
 
-### 5.1 Course Workspace
+### 5.1 Course workspace
 
 Each course acts as a separate notebook with:
 
@@ -93,7 +98,7 @@ Every chat belongs to exactly one course. Retrieval and reviewed guidance must n
 
 At a high level, Morshid combines a large language model (LLM), retrieval-augmented generation (RAG), specialized tutoring behavior, and human Instructor review. Provider, model, storage, and orchestration choices belong in the architecture document.
 
-### 5.2 Student Journey
+### 5.2 Student journey
 
 The primary Student journey is:
 
@@ -111,7 +116,7 @@ The primary Student journey is:
 
 The main Student interface is a mobile-responsive, sidebar-driven conversational interface similar in layout to mainstream AI chat products. A separate Student dashboard is not required for the MVP.
 
-### 5.3 User Interface Layout
+### 5.3 User interface layout
 
 The primary layout follows a sidebar-driven pattern:
 
@@ -124,7 +129,7 @@ Admin and Instructor roles have separate dashboard views with tables and cards f
 
 A polished landing/marketing page at the root URL introduces Morshid, highlights key features, and provides a "Sign In" button. This is the first impression for graduation reviewers.
 
-## 6. Actors and Responsibilities
+## 6. Actors and responsibilities
 
 ### 6.1 Student
 
@@ -176,9 +181,9 @@ An Admin controls the pilot's accounts, courses, assignments, permissions, and s
 
 Public registration is not available in the MVP.
 
-## 7. Core Product Capabilities
+## 7. Core product capabilities
 
-### 7.1 Socratic Tutor
+### 7.1 Socratic tutor
 
 The Tutor capability handles Student chat, retrieves course context, applies the academic-integrity policy, cites sources, labels uncertainty, and creates review flags where needed.
 
@@ -194,7 +199,7 @@ Its behavior depends on the request:
 
 This policy applies to all problem-like requests even when Morshid cannot prove that the work is formally assessed. Morshid does not accuse Students of misconduct and does not determine whether academic misconduct occurred.
 
-### 7.2 Code Diagnosis and Debugging Guidance
+### 7.2 Code diagnosis and debugging guidance
 
 Morshid supports code-level tutoring for CS courses. When a Student submits code:
 
@@ -205,7 +210,7 @@ Morshid supports code-level tutoring for CS courses. When a Student submits code
 
 This capability is integral to the Tutor Agent and follows the same retrieval, citation, and flagging rules as text-based tutoring.
 
-### 7.3 Course-Grounded Retrieval
+### 7.3 Course-grounded retrieval
 
 Morshid primarily answers from uploaded materials associated with the active course. The MVP supports text-based PDF and DOCX sources.
 
@@ -224,7 +229,7 @@ Guidance labels must distinguish:
 - Instructor-reviewed guidance
 - Uncertain guidance awaiting Instructor review
 
-### 7.4 Course Material Ingestion
+### 7.4 Course material ingestion
 
 The ingestion capability processes uploaded PDF and DOCX materials, extracts text, divides it into retrievable units, creates searchable representations, indexes the content within its course, and validates ingestion quality.
 
@@ -247,7 +252,7 @@ A source remains unavailable to Students and excluded from retrieval while it is
 
 Duplicate uploads produce a warning and allow the Instructor to replace the existing source, keep both, or cancel. A citation to a deleted source must state that the source is no longer available.
 
-### 7.5 Reviewed-Answer Library
+### 7.5 Reviewed-answer library
 
 The reviewed-answer library is a full-MVP capability. For P0, the system may simply store Instructor-reviewed outcomes and show them to the affected Student. Second-tier retrieval from the library is useful but not required until P1/P2.
 
@@ -266,7 +271,7 @@ Approved guidance enters the reviewed-answer library only when the Instructor ex
 - Can be edited, withdrawn, or superseded
 - Is flagged as possibly outdated when related official material changes
 
-### 7.6 Instructor Review and Flagging
+### 7.6 Instructor review and flagging
 
 Automatic flags are created after an AI response when:
 
@@ -280,7 +285,7 @@ The response remains visible with an "Awaiting Instructor review" warning. The t
 
 The Instructor sees the relevant exchange with limited surrounding context and the Student's identity. Students must be told that flagged exchanges may be reviewed for academic support. The Instructor may approve, edit, reject, or replace the guidance and may add a better source. The original Student receives an in-app notification when review is completed.
 
-### 7.7 Accounts, Access, and Session Management
+### 7.7 Accounts, access, and session management
 
 The MVP uses email and password authentication with Student, Instructor, and Admin roles. It supports login, logout, password change, Admin password reset, account disablement, and account reactivation.
 
@@ -288,15 +293,12 @@ Role-based access control is enforced using NestJS Guards with custom role decor
 
 Students may create, rename, archive, and delete their own sessions. Admins may delete any chat under the retention and audit policy. Instructors manage only flagged exchanges and their resulting review records.
 
-### 7.8 Notifications
+### 7.8 Review inbox and status updates
 
-In-app notifications are sufficient for the MVP.
-
-Students are notified when:
-
-- A review is completed
-- A manual review request is accepted or rejected
-- An AI usage limit is reached
+Reviews owns the MVP's student-facing inbox. Students see review completion
+or rejection in the Reviews inbox and beside the original assistant response;
+the original response remains unchanged. Usage-limit and provider-outage
+states are shown inline and are not modeled as generic notifications.
 
 ### 7.9 Language
 
@@ -306,7 +308,7 @@ The MVP supports English only. Arabic and mixed Arabic-English support are defer
 
 The responsive web application must provide basic accessibility, including keyboard navigation, readable contrast, clear labels, and screen-reader-friendly controls.
 
-### 7.11 Usage Limits and Service Failure
+### 7.11 Usage limits and service failure
 
 Admins configure AI request or token limits. When a Student reaches a limit, Morshid shows a clear message rather than failing silently.
 
@@ -317,7 +319,7 @@ If the AI provider or required service is unavailable, Morshid must:
 - Allow the Student to retry
 - Avoid generating an ungrounded fallback answer
 
-### 7.12 Chat Response Experience
+### 7.12 Chat response experience
 
 The chat experience follows an optimistic UX pattern:
 
@@ -328,7 +330,7 @@ The chat experience follows an optimistic UX pattern:
 - The chat input is disabled while a response is streaming.
 - Message ordering is guaranteed by database timestamps.
 
-### 7.13 Hint Ladder and Direct-Answer Boundary
+### 7.13 Hint ladder and direct-answer boundary
 
 "Socratic" must be implemented as a predictable tutoring pattern, not as vague prompt wording. For problem-like, homework-like, exam-like, or assessed-looking requests, Morshid should follow a hint ladder:
 
@@ -344,11 +346,11 @@ The MVP should define direct-answer violations as any response that gives the fi
 
 The system should prefer a helpful refusal plus a next step over a bare refusal. For example, it can say that it cannot solve the assignment directly, then ask the Student to explain their first step or choose which concept is confusing.
 
-## 8. Privacy, Security, and Ethical Principles
+## 8. Privacy, security, and ethical principles
 
 Morshid follows these high-level principles:
 
-- Collect only the minimum personal data required: name, email, role, and course assignments.
+- Collect only the minimum personal data required (name, email, role, and course assignments).
 - Limit access by role and course ownership.
 - Keep Student chats private unless a response is automatically or manually flagged.
 - Do not expose unflagged chat content through analytics.
@@ -361,7 +363,7 @@ Morshid follows these high-level principles:
 
 Morshid supports learning and Instructor oversight, but it does not make grading, disciplinary, or academic-misconduct decisions.
 
-### 8.1 Prompt Injection Defense
+### 8.1 Prompt injection defense
 
 Morshid employs layered prompt-injection defenses. These controls are not treated as perfect protection; they reduce risk and must be tested.
 
@@ -374,21 +376,21 @@ Morshid employs layered prompt-injection defenses. These controls are not treate
 
 The MVP should avoid destructive "sanitization" that removes arbitrary student text. Sanitization is still required for normal web security concerns such as HTML/script escaping, file validation, and log safety.
 
-### 8.2 Security Test Scenarios
+### 8.2 Security test scenarios
 
 The following scenarios must be explicitly tested during acceptance testing:
 
-- Course isolation boundaries — a Student in Course A tries to access material from Course B
-- Role escalation — a Student tries to access Instructor or Admin endpoints
-- Private chat access — an Instructor tries to view unflagged Student chats
-- Disabled account access — a disabled user tries to use an existing session or token
-- Cross-course retrieval — RAG returns chunks from a different course's knowledge base
-- Prompt injection — Student tries to trick the AI into revealing system prompts or giving final answers
-- File upload validation — malicious file types or oversized uploads
+- Course isolation boundaries, where a Student in Course A tries to access material from Course B
+- Role escalation, where a Student tries to access Instructor or Admin endpoints
+- Private chat access, where an Instructor tries to view unflagged Student chats
+- Disabled account access, where a disabled user tries to use an existing session or token
+- Cross-course retrieval, where RAG returns chunks from a different course's knowledge base
+- Prompt injection, where a Student tries to trick the AI into revealing system prompts or giving final answers
+- File upload validation, checking malicious file types or oversized uploads
 
-## 9. Core Workflows
+## 9. Core workflows
 
-### 9.1 Ask for Course Help
+### 9.1 Ask for course help
 
 1. The Student selects an assigned course and session.
 2. The Student asks a question.
@@ -398,7 +400,7 @@ The following scenarios must be explicitly tested during acceptance testing:
 6. Morshid labels the guidance and includes citations when course material was used.
 7. Morshid saves the exchange in the private session.
 
-### 9.2 Diagnose a Student Attempt
+### 9.2 Diagnose a student attempt
 
 1. The Student submits a problem and attempted solution (text or code).
 2. Morshid identifies the Student's current reasoning or likely mistake.
@@ -406,7 +408,7 @@ The following scenarios must be explicitly tested during acceptance testing:
 4. Morshid asks the Student to try the next step.
 5. Morshid does not provide the assessed task's final solution or the corrected code.
 
-### 9.3 Upload Course Material
+### 9.3 Upload course material
 
 1. The Instructor uploads a PDF or DOCX with required metadata.
 2. Morshid warns about a likely duplicate when applicable.
@@ -415,7 +417,7 @@ The following scenarios must be explicitly tested during acceptance testing:
 5. The Instructor receives the status, quality result, test outcomes, and any warnings.
 6. Only an accepted, available source becomes retrievable by Students.
 
-### 9.4 Review Flagged Guidance
+### 9.4 Review flagged guidance
 
 1. Morshid or the Student creates a review flag.
 2. The Student sees that the response is awaiting review.
@@ -424,26 +426,26 @@ The following scenarios must be explicitly tested during acceptance testing:
 5. The Student receives the outcome.
 6. The Instructor may explicitly add the final guidance to the course's reviewed-answer library.
 
-### 9.5 End a Course and Apply Retention
+### 9.5 End a course and apply retention
 
 1. An Instructor or Admin marks the course as ended.
 2. Chats and review records remain available under role restrictions for 90 days.
 3. An Admin manually triggers retention cleanup through the dashboard when appropriate.
 4. Required audit integrity is preserved without retaining unnecessary Student content.
 
-### 9.6 Bulk Account Import (P2 / Full MVP)
+### 9.6 Bulk account import (P2 / full MVP)
 
-1. An Admin uploads a CSV file with columns: name, email, role, course assignments.
+1. An Admin uploads a CSV file with columns for name, email, role, and course assignments.
 2. The system validates the CSV format and content.
 3. Accounts are created with temporary passwords.
 4. Duplicate emails are skipped.
 5. A results report is returned showing created accounts, skipped duplicates, and errors.
 
-## 10. Technical Architecture Overview
+## 10. Technical architecture overview
 
 This section documents agreed technical direction and deferred decisions. Detailed specifications belong in the architecture document.
 
-### 10.1 Decided Technical Choices
+### 10.1 Decided technical choices
 
 | Area | Decision | Rationale |
 |---|---|---|
@@ -456,7 +458,7 @@ This section documents agreed technical direction and deferred decisions. Detail
 | Vector store | pgvector (PostgreSQL extension) | Course material embeddings for RAG, single-database simplicity |
 | Caching / rate limiting | Redis | Usage tracking, rate limiting, pub/sub for notifications |
 | AI framework | Provider SDKs and/or LangChain | Use TypeScript-first orchestration in NestJS where possible; use Python/LangChain only in the conditional Django fallback |
-| LLM provider | Flexible — model provided or approved by ITI | Select by reasoning quality, latency, cost, availability, and policy approval |
+| LLM provider | Flexible, using a model provided or approved by ITI | Select by reasoning quality, latency, cost, availability, and policy approval |
 | Embedding model | Gemini Embedding 2 or OpenAI text-embedding-3-small | Decision pending; both support multilingual and integrate with pgvector |
 | Service communication | Internal NestJS modules by default; REST over HTTP only for conditional NestJS ↔ Django fallback | Keeps P0 simpler unless ITI forces a Python service |
 | Response streaming | Server-Sent Events (SSE) | Streaming LLM token-by-token responses to the frontend |
@@ -470,11 +472,24 @@ This section documents agreed technical direction and deferred decisions. Detail
 | Theme | Dark default + light toggle | Modern AI product aesthetic |
 | Language | English only | Arabic/RTL support deferred to post-MVP |
 
-### 10.2 Deferred Technical Decisions
+### 10.2 Deferred technical decisions
 
-The following decisions have identified options but require further team discussion before finalizing.
+> [!NOTE]
+> **Resolution status (implemented architecture)**:
+> All deferred technical decisions listed below were finalized and enforced across ADRs 0001 through 0008:
+> - **Auth:** Native NestJS JWT access tokens (15-min TTL) + rotating HMAC-SHA256 refresh cookies (7-day TTL) with Argon2id hashing ([ADR 0001](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0001-capability-first-ownership.md)).
+> - **File storage:** Local filesystem adapter with UUID filenames (`LocalPdfStorageAdapter`).
+> - **ORM:** Prisma ORM with multi-file capability schemas and catalog hash assertion ([ADR 0004](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0004-clean-slate-prisma-migration.md)).
+> - **Repo structure:** npm workspaces (`server/`, `client/`) with dependency-cruiser boundary gates ([ADR 0006](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0006-enforced-dependency-graph.md)).
+> - **Branching:** Practical GitFlow (`dev` integration, `main` release-only).
+> - **Notifications:** Replaced generic notification module with a dedicated `reviews` capability owning the student review inbox ([ADR 0003](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0003-reviews-owned-student-inbox.md)).
+> - **Tutoring & attempts:** Unified single `TutoringRuntime` and `TutoringAttempt` lifecycle ([ADR 0002](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0002-one-tutoring-runtime-and-attempt.md)).
+> - **Transactions:** Opaque database transaction participation ([ADR 0007](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0007-opaque-database-transaction.md)).
+> - **AI chat pool:** Project-aware Redis-backed Gemini API pool ([ADR 0008](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0008-project-aware-gemini-chat-pool.md)).
 
-#### 10.2.1 Authentication Mechanism
+The historical analysis options considered during initial planning are preserved below for reference:
+
+#### 10.2.1 Authentication mechanism
 
 | Option | Description | Pros | Cons |
 |---|---|---|---|
@@ -483,7 +498,7 @@ The following decisions have identified options but require further team discuss
 | **OAuth2/OIDC with Keycloak** | Self-hosted identity provider. | Most robust, enterprise-grade | Heavy infrastructure for MVP |
 | **NestJS Passport local strategy** | Built-in session + Passport. | Minimal setup | Less flexible if a separate Python service is required |
 
-#### 10.2.2 File Storage
+#### 10.2.2 File storage
 
 | Option | Description | Pros | Cons |
 |---|---|---|---|
@@ -499,14 +514,14 @@ The following decisions have identified options but require further team discuss
 | **Prisma** | Type-safe, auto-generated TypeScript types, excellent migrations, single source of truth for DB schema |
 | **Drizzle** | Lightweight, SQL-like syntax, great TypeScript types, newer but growing |
 
-#### 10.2.4 Repository Structure
+#### 10.2.4 Repository structure
 
 | Option | Description |
 |---|---|
 | **Monorepo with Turborepo** | Single Git repo, shared TypeScript types between frontend and backend, unified CI/CD, team sees all code |
 | **Simple monorepo (no tool)** | Single repo with folders for each service, npm workspaces for TypeScript, no build orchestrator |
 
-#### 10.2.5 Git Branching Strategy
+#### 10.2.5 Git branching strategy
 
 | Option | Description |
 |---|---|
@@ -514,7 +529,7 @@ The following decisions have identified options but require further team discuss
 | **GitFlow** | main + develop + feature + release + hotfix branches. More structured but heavier for a small graduation team. |
 | **GitHub Flow** | Single main branch + feature branches + Pull Requests. Simpler for small teams. |
 
-#### 10.2.6 CI/CD Pipeline
+#### 10.2.6 CI/CD pipeline
 
 | Option | Description |
 |---|---|
@@ -525,16 +540,16 @@ The following decisions have identified options but require further team discuss
 
 Note: GitHub Student Pack is available and may provide additional CI/CD minutes or hosting credits.
 
-#### 10.2.7 Notification Delivery
+#### 10.2.7 Review inbox delivery
 
 | Option | Description |
 |---|---|
-| **Polling + notification center** | Frontend periodically checks for new notifications via TanStack Query. Bell icon with unread count + dropdown. |
+| **Polling + Review inbox** | Frontend periodically checks the Reviews-owned Student inbox via TanStack Query. Bell control with unread count + direct navigation to the reviewed response. |
 | **SSE for real-time** | Push notifications instantly via SSE (infrastructure already exists for chat streaming). |
 | **WebSocket-based** | Full-duplex push. Instant but adds complexity alongside SSE. |
 | **Email (stretch)** | Listed as stretch scope; not primary for MVP. |
 
-#### 10.2.8 Logging and Audit
+#### 10.2.8 Logging and audit
 
 | Option | Description |
 |---|---|
@@ -542,7 +557,7 @@ Note: GitHub Student Pack is available and may provide additional CI/CD minutes 
 | **Console logging only** | Rely on Docker logs, no structured logging or DB audit table. |
 | **Full observability (ELK, Grafana)** | Comprehensive but heavy for MVP. |
 
-#### 10.2.9 Prompt Management
+#### 10.2.9 Prompt management
 
 | Option | Description |
 |---|---|
@@ -550,7 +565,7 @@ Note: GitHub Student Pack is available and may provide additional CI/CD minutes 
 | **Database-stored prompts** | Editable at runtime by Admins without redeployment. |
 | **Hardcoded in Python** | Simplest, but harder to iterate and version. |
 
-#### 10.2.10 Admin and Instructor Dashboard UX
+#### 10.2.10 Admin and instructor dashboard UX
 
 | Option | Description |
 |---|---|
@@ -558,7 +573,7 @@ Note: GitHub Student Pack is available and may provide additional CI/CD minutes 
 | **Simple CRUD pages** | Basic tables, functional but minimal polish. |
 | **Chat-integrated management** | Admin/Instructor actions embedded in the sidebar. |
 
-#### 10.2.11 Document Chunking Strategy
+#### 10.2.11 Document chunking strategy
 
 | Option | Description |
 |---|---|
@@ -567,7 +582,7 @@ Note: GitHub Student Pack is available and may provide additional CI/CD minutes 
 | **Page-level chunks** | One chunk per PDF page. Simple but may split content awkwardly. |
 | **Paragraph-level chunks** | Each paragraph as a chunk. Good for short passages but may lose context. |
 
-#### 10.2.12 Request Classification Mechanism
+#### 10.2.12 Request classification mechanism
 
 | Option | Description |
 |---|---|
@@ -576,7 +591,7 @@ Note: GitHub Student Pack is available and may provide additional CI/CD minutes 
 | **Rule-based heuristics** | Keyword matching. Fastest, cheapest, but fragile. |
 | **Two-stage hybrid** | Fast keyword pre-filter + LLM classification for ambiguous cases. |
 
-#### 10.2.13 RAG Retrieval Strategy
+#### 10.2.13 RAG retrieval strategy
 
 | Option | Description |
 |---|---|
@@ -584,14 +599,14 @@ Note: GitHub Student Pack is available and may provide additional CI/CD minutes 
 | **Simple top-k retrieval** | Nearest chunks by cosine similarity, feed all to LLM. Simpler but noisier. |
 | **Hybrid search** | Vector similarity + BM25 keyword search. Better for technical terms and code identifiers. |
 
-#### 10.2.14 Chat Message Rendering
+#### 10.2.14 Chat message rendering
 
 | Option | Description |
 |---|---|
 | **Markdown + syntax highlighting** | react-markdown + rehype-highlight/shiki. Supports code blocks, lists, headings, LaTeX (rehype-katex). |
 | **Plain text only** | Simpler but poor for code examples. |
 
-#### 10.2.15 Internationalization (Future)
+#### 10.2.15 Internationalization (future)
 
 | Option | Description |
 |---|---|
@@ -600,7 +615,7 @@ Note: GitHub Student Pack is available and may provide additional CI/CD minutes 
 
 Note: English-only for MVP. These options are documented for post-MVP Arabic support.
 
-#### 10.2.16 UX Polish Features (Stretch)
+#### 10.2.16 UX polish features (stretch)
 
 | Feature | Description |
 |---|---|
@@ -610,7 +625,7 @@ Note: English-only for MVP. These options are documented for post-MVP Arabic sup
 | Session search | Search within chat history |
 | Keyboard shortcuts | Power-user efficiency |
 
-#### 10.2.17 Recommended MVP Defaults
+#### 10.2.17 Recommended MVP defaults
 
 To prevent architecture work from stalling, the recommended defaults for the 8-week build are:
 
@@ -622,7 +637,7 @@ To prevent architecture work from stalling, the recommended defaults for the 8-w
 | Repository | Simple monorepo with `frontend/`, `backend/`, `ai-service/`, and `infra/` | Easier for a 5-person team to navigate |
 | Branching | Practical GitFlow | Keeps `main` release-only while preserving a simple integration branch for a small team |
 | CI/CD | Lightweight CI + manual deploy | Gives reviewer confidence without over-investing in deployment automation |
-| Notifications | Polling + notification center | Enough for review completion and limits; avoids WebSocket complexity |
+| Review inbox | Polling + Reviews-owned Student inbox | Enough for review completion; avoids WebSocket complexity |
 | Logging and audit | Structured logs + focused DB audit table for security and policy events | Keeps traceability without a full observability stack |
 | Prompt management | Versioned prompt templates in the backend codebase | Easy to review, test, and change through Git |
 | Dashboards | Simple CRUD pages with polished critical states | Prefer reliable workflows over analytics-heavy dashboards |
@@ -634,7 +649,7 @@ To prevent architecture work from stalling, the recommended defaults for the 8-w
 
 The architecture document may override these defaults, but any heavier choice should explain what risk it reduces and what feature will be cut to pay for it.
 
-### 10.3 Architecture Diagram (Conceptual)
+### 10.3 Architecture diagram (conceptual)
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
@@ -672,13 +687,13 @@ The architecture document may override these defaults, but any heavier choice sh
 
 If ITI requires Python, add an internal Django service behind NestJS for AI/RAG operations only. NestJS still remains the only public API boundary.
 
-### 10.3.1 Service Boundary
+### 10.3.1 Service boundary
 
 NestJS should be the only public backend API for the web application. It owns authentication, RBAC, account status checks, course ownership checks, audit logging, request-level authorization, and the public SSE endpoint.
 
 For streaming, the frontend opens an authorized SSE endpoint on NestJS. NestJS validates the user and course, runs the AI/RAG orchestration directly by default, and streams the response back to the frontend. If ITI requires Django, NestJS forwards only authorized internal AI/RAG requests to Django and proxies the stream back to the frontend.
 
-### 10.4 Conversation Context Management
+### 10.4 Conversation context management
 
 To prevent token costs from growing linearly with conversation length while maintaining Socratic tutoring coherence:
 
@@ -688,11 +703,11 @@ To prevent token costs from growing linearly with conversation length while main
 
 This is critical because Socratic tutoring requires remembering what hints were already given and what attempts the Student has made.
 
-## 11. MVP Scope
+## 11. MVP scope
 
 The MVP is divided into priority bands. P0 is the graduation demo slice and must be protected. P1 completes the credible MVP. P2 is stretch and should not block the demo.
 
-### 11.1 P0 Graduation Demo Slice
+### 11.1 P0 graduation demo slice
 
 P0 must prove the product's core claim with one controlled pilot course and one seeded demonstration dataset:
 
@@ -709,12 +724,12 @@ P0 must prove the product's core claim with one controlled pilot course and one 
 - Real-time or near-real-time AI response experience, preferably SSE streaming
 - Automatic and Student-created review flags
 - Instructor review of a flagged exchange with approve/edit/reject/replace outcome
-- Student notification or visible status update after review completion
+- Student Review inbox item or visible status update after review completion
 - Usage-limit and provider-outage messages that preserve the Student's submitted message
 - Explicit tests for cross-course retrieval, unauthorized access, and final-answer leakage
 - Curated evaluation set for the demo scenarios
 
-### 11.2 P1 Full MVP
+### 11.2 P1 full MVP
 
 P1 should be completed after P0 is stable:
 
@@ -735,7 +750,7 @@ P1 should be completed after P0 is stable:
 - API documentation through Swagger/OpenAPI
 - Course-scoped reviewed-answer library as a manual Instructor feature
 
-### 11.3 P2 Stretch Inside Original MVP
+### 11.3 P2 stretch inside original MVP
 
 These items are valuable but should be cut first if schedule pressure appears:
 
@@ -752,7 +767,7 @@ These items are valuable but should be cut first if schedule pressure appears:
 
 The required intelligent components are a Tutor Agent (including code diagnosis) and a Course Material Ingestion Agent, supported by a human-in-the-loop Instructor review flow.
 
-## 12. Stretch and Future Scope
+## 12. Stretch and future scope
 
 The following items may be considered after the core MVP:
 
@@ -780,7 +795,7 @@ The following items may be considered after the core MVP:
 - Search within chat history
 - Keyboard shortcuts for power users
 
-## 13. Explicit Exclusions
+## 13. Explicit exclusions
 
 The MVP does not include:
 
@@ -808,11 +823,11 @@ The MVP does not include:
 - Production-scale availability or capacity
 - Arabic or RTL support (deferred to post-MVP)
 
-## 14. High-Level User-Story Inventory
+## 14. High-level user-story inventory
 
 These stories define coverage for later requirements work. Detailed acceptance criteria belong in the SRS.
 
-### 14.1 Student Stories
+### 14.1 Student stories
 
 - As a Student, I want to see a polished landing page so that I understand what Morshid is before signing in.
 - As a Student, I want to sign in with my assigned account so that I can access Morshid securely.
@@ -838,7 +853,7 @@ These stories define coverage for later requirements work. Detailed acceptance c
 - As a Student, I want my unflagged chats kept private so that learning support does not become general surveillance.
 - As a Student, I want to toggle between dark and light themes so that I can study comfortably.
 
-### 14.2 Instructor Stories
+### 14.2 Instructor stories
 
 - As an Instructor, I want to request a course that an Admin can create and assign so that course setup remains controlled.
 - As an Instructor, I want to manage materials for my course so that Students receive current course-grounded guidance.
@@ -855,7 +870,7 @@ These stories define coverage for later requirements work. Detailed acceptance c
 - As an Instructor, I want reviewed guidance flagged when official material changes so that I can revalidate it.
 - As an Instructor, I want to mark my course as ended so that retention rules can begin.
 
-### 14.3 Admin Stories
+### 14.3 Admin stories
 
 - As an Admin, I want to create accounts individually so that onboarding can happen for the P0 pilot.
 - As an Admin, I want to import accounts via CSV upload in P2/full MVP scope so that onboarding a full class is efficient.
@@ -870,7 +885,7 @@ These stories define coverage for later requirements work. Detailed acceptance c
 - As an Admin, I want to mark courses as ended so that retention processing can start.
 - As an Admin, I want to manually trigger retention cleanup for ended courses so that data is managed per policy.
 
-### 14.4 System Stories
+### 14.4 System stories
 
 - As the System, I must enforce email/password authentication, role permissions, account status, and course assignments.
 - As the System, I must scope every chat, source retrieval, and reviewed answer to one course.
@@ -896,7 +911,7 @@ These stories define coverage for later requirements work. Detailed acceptance c
 - As the System, I must validate ingestion quality with a retrieval sanity check, expanding to 3 generated test questions per document in full MVP scope.
 - As the System, I must return consistent JSON error responses with error codes across all services.
 
-## 15. Business Rules
+## 15. Business rules
 
 | ID | Rule |
 |---|---|
@@ -925,7 +940,7 @@ These stories define coverage for later requirements work. Detailed acceptance c
 | BR-23 | Each ingested document must pass a retrieval sanity check before becoming available; full MVP uses 3 generated retrieval-test questions per document. |
 | BR-24 | Prompt injection defenses must prevent user or document content from overriding system policy. |
 
-## 16. Pilot Success Criteria
+## 16. Pilot success criteria
 
 The following are graduation-pilot targets, not production guarantees:
 
@@ -940,7 +955,7 @@ The following are graduation-pilot targets, not production guarantees:
 | Code diagnosis | Code debugging hints are educational and do not provide corrected code |
 | Security scenarios | All defined security test scenarios pass (course isolation, role escalation, prompt injection, etc.) |
 
-### 16.1 Evaluation Strategy
+### 16.1 Evaluation strategy
 
 The evaluation must use:
 
@@ -957,7 +972,7 @@ Run the evaluation suite as a batch before each milestone and the graduation dem
 
 A before/after learning exercise is useful but optional. Exact formulas, sample sizes, rubrics, and test procedures belong in the evaluation plan and SRS.
 
-### 16.2 Golden Demo Dataset
+### 16.2 Golden demo dataset
 
 The team should create a small locked dataset by the end of Week 2. This dataset is not for broad measurement; it protects demo reliability.
 
@@ -981,26 +996,26 @@ The graduation demonstration must show:
 - Code diagnosis that identifies a bug and guides the student without fixing the code
 - Clear handling and flagging of unsupported or conflicting guidance
 - Instructor resolution of a flag
-- Student notification of the review completion
+- Student Review inbox item for review completion
 - Successful source upload with visible processing status and retrieval sanity result
 - Prevention of cross-course retrieval
 - Prevention of unauthorized course and private-chat access
 - Real-time response streaming
 - Landing page and polished UI with dark/light theme
 
-## 17. Development Plan
+## 17. Development plan
 
-### 17.1 Sprint Schedule
+### 17.1 Sprint schedule
 
 | Week | Focus | Key Deliverables |
 |---|---|---|
 | 1-2 | Project setup and infrastructure | Docker-compose, database schema, CI pipeline, auth system, RBAC, user/course CRUD, landing page |
 | 3-4 | Document and AI pipeline | Document upload/ingestion pipeline, RAG pipeline, basic chat with retrieval, SSE streaming |
 | 5-6 | Core tutoring and review | Socratic tutor behavior, citations, code diagnosis, review/flagging workflow, golden demo dataset |
-| 7 | Polish and features | Notifications/status updates, usage limits, simple dashboards, UI polish, theme toggle, security tests |
+| 7 | Polish and features | Review inbox/status updates, usage limits, simple dashboards, UI polish, theme toggle, security tests |
 | 8 | Evaluation and demo prep | Evaluation dataset execution, security testing, bug fixes, demo preparation |
 
-### 17.2 Testing Strategy
+### 17.2 Testing strategy
 
 - **Frontend:** Vitest + React Testing Library
 - **NestJS backend:** Jest or Vitest
@@ -1009,7 +1024,7 @@ The graduation demonstration must show:
 - **AI evaluation:** Curated test dataset + LLM-as-judge benchmarking
 - **Security:** Explicit test scenarios for all defined security cases
 
-### 17.3 Scope Gates
+### 17.3 Scope gates
 
 The team should use weekly gates to prevent polished but incomplete infrastructure from crowding out the core learning loop:
 
@@ -1034,7 +1049,7 @@ If a gate fails, the team should cut from P2 first, then P1. P0 scope should onl
 - System-wide guidance policy is sufficient for the MVP.
 - GitHub Student Pack provides additional CI/CD or hosting benefits.
 
-## 19. Risks and High-Level Responses
+## 19. Risks and high-level responses
 
 | Risk | Consequence | High-level response |
 |---|---|---|
@@ -1053,7 +1068,7 @@ If a gate fails, the team should cut from P2 first, then P1. P0 scope should onl
 | Conditional NestJS-Django communication failure | If ITI requires Django, AI features may become unavailable when service communication fails | Global error handling, consistent error codes, graceful degradation with clear user messaging |
 | Deferred decisions block progress | Team stalls waiting for technical choices | Document options now, decide by sprint start, use recommended defaults when deadlines approach |
 
-## 20. Open Questions
+## 20. Open questions
 
 The following decisions remain intentionally open for the SRS or related policy documents:
 
@@ -1066,9 +1081,9 @@ The following decisions remain intentionally open for the SRS or related policy 
 7. Which deployment hosting provider will be used? (Budget-constrained decision)
 8. Which authentication mechanism will be implemented? (See Section 10.2.1)
 9. Which file storage approach will be used? (See Section 10.2.2)
-10. Which ORM will be used — Prisma or Drizzle? (See Section 10.2.3)
-11. Which repository structure — Turborepo or simple monorepo? (See Section 10.2.4)
-12. Which Git branching strategy — Practical GitFlow, GitFlow, or GitHub Flow? (See Section 10.2.5)
+10. Which ORM will be used, Prisma or Drizzle? (See Section 10.2.3)
+11. Which repository structure, Turborepo or simple monorepo? (See Section 10.2.4)
+12. Which Git branching strategy, Practical GitFlow, GitFlow, or GitHub Flow? (See Section 10.2.5)
 13. What CI/CD pipeline scope? (See Section 10.2.6)
 14. How will notifications be delivered? (See Section 10.2.7)
 15. What logging and audit implementation? (See Section 10.2.8)
@@ -1078,28 +1093,28 @@ The following decisions remain intentionally open for the SRS or related policy 
 19. How will requests be classified? (See Section 10.2.12)
 20. What RAG retrieval strategy? (See Section 10.2.13)
 21. What chat message rendering approach? (See Section 10.2.14)
-22. What citation UX format? (Under discussion — inline citation tags is the current direction)
+22. What citation UX format? (Under discussion; inline citation tags is the current direction)
 23. Which P0/P1/P2 scope commitment will the team formally accept before implementation starts?
 24. Which AI models and embedding providers are approved by ITI for development, pilot data, and public demonstration?
 25. What course-material permissions are required before uploading ITI or Instructor-owned PDFs/DOCX files?
 26. What is the backup demo path if the AI provider is unavailable during the graduation presentation?
 27. What minimum review workload is realistic for the Instructor during the pilot?
 
-## 21. Required Follow-on Documents
+## 21. Required follow-on documents
 
 This description should be used to produce:
 
 - A requirements checklist that traces every scope item, workflow, story, rule, target, risk, and open question
 - An SRS containing detailed functional and non-functional requirements with acceptance criteria
-- An architecture document selecting technologies, data boundaries, AI orchestration, security controls, and deployment design — resolving all deferred technical decisions in Section 10.2
-- An evaluation plan defining datasets, rubrics, formulas, sample sizes, and pilot procedures — building on the evaluation strategy in Section 16.1
+- An architecture document selecting technologies, data boundaries, AI orchestration, security controls, and deployment design, resolving all deferred technical decisions in Section 10.2
+- An evaluation plan defining datasets, rubrics, formulas, sample sizes, and pilot procedures, building on the evaluation strategy in Section 16.1
 - An academic-integrity and privacy policy defining Student notices, review boundaries, retention handling, and acceptable use
 
 ## 22. Findings
 
 This section captures the hard critique of the idea after pressure-testing it against an 8-week schedule and a 5-member team.
 
-### 22.1 Core Thesis That Should Stay
+### 22.1 Core thesis that should stay
 
 The strongest version of Morshid is not "AI tutor for everything." It is:
 
@@ -1107,7 +1122,7 @@ The strongest version of Morshid is not "AI tutor for everything." It is:
 
 That thesis is specific, demoable, and defensible. Everything that does not help prove it should be treated as secondary.
 
-### 22.2 Missing or Underdefined Pieces
+### 22.2 Missing or underdefined pieces
 
 - **Pilot definition:** The project needs a named pilot course, sample source documents, expected number of Students, expected Instructor, and demo user accounts.
 - **Golden demo dataset:** The team needs fixed examples by Week 2 for conceptual questions, problem-like requests, attempts, code bugs, unsupported questions, injection attempts, and authorization tests.
@@ -1119,19 +1134,19 @@ That thesis is specific, demoable, and defensible. Everything that does not help
 - **Backup demo path:** The team needs seeded data, preloaded documents, and a fallback model or recorded-but-honest demo route for provider outages.
 - **Evaluation rubric:** "Good Socratic answer" needs scoring dimensions: no final-answer leak, correct classification, useful next hint, citation accuracy, tone, and source-grounding label.
 
-### 22.3 Refinements Needed
+### 22.3 Refinements needed
 
 - Narrow the first pilot to one or two computing courses rather than "higher education" broadly.
-- Treat project agents as implementation detail, not product promise. Reviewers care about behavior: ingestion, retrieval, tutoring, review, and evaluation.
-- Make P0 small enough to finish: one course, one Instructor, one source set, one Student journey, one review workflow.
-- Prefer simple defaults: Practical GitFlow, simple monorepo, local file storage, polling notifications, top-k retrieval, prompt templates in Git, focused audit table.
+- Treat project agents as implementation details, not product promises. Reviewers care about behavior, including ingestion, retrieval, tutoring, review, and evaluation.
+- Make P0 small enough to finish with one course, one Instructor, one source set, one Student journey, and one review workflow.
+- Prefer simple defaults, such as Practical GitFlow, a simple monorepo, local file storage, polling notifications, top-k retrieval, prompt templates in Git, and a focused audit table.
 - Make "Socratic" testable through the hint ladder and direct-answer violation definition.
-- Keep Instructor privacy boundaries precise: only flagged exchanges plus limited surrounding context.
+- Keep Instructor privacy boundaries precise by granting access only to flagged exchanges plus limited surrounding context.
 - Shift from "AI correctness" claims to "transparent, evaluated, reviewable guidance" claims.
 - Demonstrate security with a few strong acceptance tests instead of broad claims about production-grade protection.
-- Preserve product polish where it affects trust: landing page, chat responsiveness, citations, labels, and review status.
+- Preserve product polish where it affects trust, such as the landing page, chat responsiveness, citations, labels, and review status.
 
-### 22.4 Overkill or Cut-First Items
+### 22.4 Overkill or cut-first items
 
 The following are useful, but too expensive for P0 unless the core loop is already stable:
 
@@ -1149,7 +1164,7 @@ The following are useful, but too expensive for P0 unless the core loop is alrea
 - Arabic/RTL support
 - Quiz generation or learning analytics
 
-### 22.5 Hard Recommendation
+### 22.5 Hard recommendation
 
 Build the P0 loop first:
 

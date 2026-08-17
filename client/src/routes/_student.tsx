@@ -1,12 +1,11 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
 
-import { RouteLoadError } from '@/components/route-load-error'
-import { AuthLoader } from '@/features/auth/components/auth-loader'
-import { useAuthStore } from '@/features/auth/stores/auth.store'
-import { requireRole } from '@/features/auth/utils/auth-redirect'
-import { studentCoursesQueryOptions } from '@/features/student/data/student-courses.queries'
-import { StudentLayout } from '@/features/student/pages/student-layout'
-import { getAppQueryClient } from '@/lib/query/query-client'
+import { RouteLoadError } from '@/app/route-load-error'
+import { AuthLoader } from '@/features/auth/routing/auth-loader'
+import { useAuthStore } from '@/features/auth/session/interface/session-store'
+import { requireRole } from '@/features/auth/routing/interface/auth-redirect'
+import { studentCourseAccessQueryOptions } from '@/features/courses/course-access/course-access.queries'
+import { StudentLayout } from '@/workspaces/student/student-layout'
 
 export const Route = createFileRoute('/_student')({
   ssr: false,
@@ -17,15 +16,15 @@ export const Route = createFileRoute('/_student')({
       throw redirect({ to: redirectPath })
     }
   },
-  loader: () => {
+  loader: ({ context }) => {
     const studentId = useAuthStore.getState().user?.id
 
     if (!studentId) {
       throw new Error('Student course loading requires an authenticated user')
     }
 
-    return getAppQueryClient().ensureQueryData(
-      studentCoursesQueryOptions(studentId),
+    return context.queryClient.ensureQueryData(
+      studentCourseAccessQueryOptions(studentId),
     )
   },
   component: StudentLayout,

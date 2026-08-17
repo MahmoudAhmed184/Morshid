@@ -10,7 +10,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useTheme } from '@/providers/theme-provider'
+import { useTheme } from '@/components/theme/theme-provider'
 
 export function ModeToggle() {
   const { theme, setTheme } = useTheme()
@@ -28,7 +28,9 @@ export function ModeToggle() {
   }
 
   return (
-    <DropdownMenu>
+    // Non-modal avoids body scroll-lock, which removes the classic scrollbar
+    // in Firefox and shifts the whole page when the menu opens.
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger
         render={
           <Button

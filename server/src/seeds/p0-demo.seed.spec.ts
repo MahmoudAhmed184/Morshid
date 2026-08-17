@@ -11,7 +11,7 @@ import {
   type P0DemoSeedTransaction,
   seedP0DemoData,
 } from './p0-demo.seed'
-import { PasswordHasherService } from '../modules/auth/services/password-hasher.service'
+import { PasswordHasher } from '../modules/identity/password-hasher'
 
 type UserRole = (typeof P0_DEMO_USERS)[number]['role']
 type UserStatus = 'ACTIVE' | 'DISABLED'
@@ -469,7 +469,7 @@ describe('seedP0DemoData', () => {
   })
 
   it('uses verifiable non-plaintext per-account Argon2id hashes', () => {
-    const passwordHasherService = new PasswordHasherService()
+    const passwordHasherService = new PasswordHasher()
     const hashes = P0_DEMO_USERS.map((user) =>
       createP0DemoPasswordHash(user.passwordSalt),
     )

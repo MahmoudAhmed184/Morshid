@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto'
 import { readFile, readdir } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 
 import type { ConfigService } from '@nestjs/config'
 import { Client } from 'pg'
 
-import type { AppEnvironment } from '../../src/modules/config/env.schema'
-import { PrismaService } from '../../src/modules/prisma/prisma.service'
+import type { AppEnvironment } from '../../src/platform/config/env.schema'
+import { PrismaService } from '../../src/platform/database/prisma.service'
 
 export interface DisposableDatabase {
   prisma: PrismaService
@@ -18,12 +18,13 @@ export interface DisposableDatabase {
 }
 
 // Creates a uniquely named database on the server DATABASE_URL points at,
-// applies every committed migration to it from empty, and returns a connected
-// PrismaService. If any step after CREATE DATABASE fails, the database is
-// dropped before the error propagates so failed runs cannot orphan databases.
+// applies the committed initial migration to it from empty, and returns a
+// connected PrismaService. If any step after CREATE DATABASE fails, the
+// database is dropped before the error propagates so failed runs cannot orphan
+// databases.
 export async function setUpDisposableDatabase(
   namePrefix: string,
-  options: { throughMigration?: string } = {},
+  options: { applyMigrations?: boolean } = {},
 ): Promise<DisposableDatabase> {
   const originalDatabaseUrl = requireDatabaseUrl()
   const databaseName = `${namePrefix}_${randomUUID().replaceAll('-', '')}`
@@ -46,7 +47,9 @@ export async function setUpDisposableDatabase(
 
   try {
     const databaseUrl = databaseUrlFor(originalDatabaseUrl, databaseName)
-    await applyMigrations(databaseUrl, options.throughMigration)
+    if (options.applyMigrations !== false) {
+      await applyMigrations(databaseUrl)
+    }
 
     const configService = {
       get: () => databaseUrl,
@@ -94,11 +97,8 @@ async function runDatabaseAdminStatement(
   }
 }
 
-async function applyMigrations(
-  databaseUrl: string,
-  throughMigration?: string,
-): Promise<void> {
-  const migrationsDirectory = join(process.cwd(), 'prisma', 'migrations')
+async function applyMigrations(databaseUrl: string): Promise<void> {
+  const migrationsDirectory = resolve(__dirname, '../../prisma/migrations')
   const migrationDirectories = (
     await readdir(migrationsDirectory, { withFileTypes: true })
   )
@@ -109,20 +109,12 @@ async function applyMigrations(
   await client.connect()
 
   try {
-    let reachedRequestedMigration = throughMigration === undefined
     for (const migrationDirectory of migrationDirectories) {
       const sql = await readFile(
         join(migrationsDirectory, migrationDirectory, 'migration.sql'),
         'utf8',
       )
       await client.query(sql)
-      if (migrationDirectory === throughMigration) {
-        reachedRequestedMigration = true
-        break
-      }
-    }
-    if (!reachedRequestedMigration && throughMigration !== undefined) {
-      throw new Error(`Migration not found: ${throughMigration}`)
     }
   } finally {
     await client.end()

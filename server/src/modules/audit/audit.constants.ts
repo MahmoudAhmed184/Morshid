@@ -5,6 +5,9 @@ export const AUDIT_EVENT_ACTIONS = {
   AUTH_LOGOUT: 'auth.logout',
   AUTH_REFRESH_TOKEN_ROTATED: 'auth.refresh_token_rotated',
   AUTH_PASSWORD_CHANGED: 'auth.password_changed',
+  AUTH_PROFILE_UPDATED: 'auth.profile_updated',
+  AUTH_SESSION_REVOKED: 'auth.session_revoked',
+  AUTH_SESSION_REVOKED_ALL_OTHERS: 'auth.session_revoked_all_others',
   ACCESS_RBAC_DENIED: 'access.rbac_denied',
   ACCESS_COURSE_BOUNDARY_DENIED: 'access.course_boundary_denied',
   ADMIN_ACCOUNT_CREATED: 'admin.account_created',
@@ -21,12 +24,21 @@ export const AUDIT_EVENT_ACTIONS = {
   ADMIN_COURSE_MEMBER_ROLE_CHANGED: 'admin.course_member_role_changed',
   CHAT_SESSION_DELETED: 'chat.session_deleted',
   CHAT_SESSION_ACCESS_DENIED: 'chat.session_access_denied',
+  CHAT_SESSION_EXPORTED: 'chat.session_exported',
+  CHAT_TURN_COMPLETED: 'chat.turn_completed',
+  CHAT_TURN_FAILED: 'chat.turn_failed',
   MATERIAL_UPLOAD_SUCCEEDED: 'material.upload_succeeded',
   MATERIAL_UPLOAD_DENIED: 'material.upload_denied',
   MATERIAL_UPLOAD_FAILED: 'material.upload_failed',
+  MATERIAL_UPDATED: 'material.updated',
+  MATERIAL_DELETED: 'material.deleted',
   MATERIAL_PROCESSING_READY: 'material.processing_ready',
   MATERIAL_PROCESSING_WARNING: 'material.processing_warning',
   MATERIAL_PROCESSING_FAILED: 'material.processing_failed',
+  REVIEW_CASE_CREATED: 'review.case_created',
+  REVIEW_TRIGGER_ADDED: 'review.trigger_added',
+  REVIEW_CASE_RESOLVED: 'review.case_resolved',
+  REVIEW_CASE_REJECTED: 'review.case_rejected',
 } as const
 
 export type AuditEventAction =
@@ -40,6 +52,7 @@ export const AUDIT_TARGET_TYPES = {
   MATERIAL: 'material',
   CHAT_SESSION: 'chat_session',
   MESSAGE: 'message',
+  REVIEW_CASE: 'review_case',
   SYSTEM: 'system',
 } as const
 

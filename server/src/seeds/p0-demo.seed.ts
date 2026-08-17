@@ -4,7 +4,7 @@ import type {
   UserRole,
   UserStatus,
 } from '../generated/prisma/client'
-import { createDeterministicArgon2idPasswordHash } from '../modules/auth/services/password-hasher.service'
+import { createDeterministicArgon2idPasswordHash } from '../modules/identity/password-hasher'
 
 export const P0_DEMO_PASSWORD = 'MorshidDemoP0!'
 

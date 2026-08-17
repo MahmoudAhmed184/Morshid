@@ -1,0 +1,74 @@
+import type { Prisma } from '../../generated/prisma/client'
+import { CourseMembershipRole } from '../../generated/prisma/client'
+
+export const chatSessionSelect = {
+  id: true,
+  courseId: true,
+  title: true,
+  lastSequence: true,
+  lastMessageAt: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.ChatSessionSelect
+
+export const chatMessageScalarSelect = {
+  id: true,
+  sequence: true,
+  role: true,
+  attemptId: true,
+  topicId: true,
+  authorUserId: true,
+  responseToMessageId: true,
+  content: true,
+  status: true,
+  requestKind: true,
+  guidanceLabel: true,
+  hintLevel: true,
+  promptVersion: true,
+  errorCode: true,
+  createdAt: true,
+  completedAt: true,
+} satisfies Prisma.MessageSelect
+
+export const chatMessageSelect = {
+  ...chatMessageScalarSelect,
+} satisfies Prisma.MessageSelect
+
+export function ownedActiveSessionWhere(
+  courseId: string,
+  sessionId: string,
+  studentId: string,
+): Prisma.ChatSessionWhereInput {
+  return {
+    id: sessionId,
+    courseId,
+    studentId,
+    deletedAt: null,
+    membership: {
+      is: {
+        role: CourseMembershipRole.STUDENT,
+        removedAt: null,
+      },
+    },
+  }
+}
+
+export function hasActiveStudentMembershipInTransaction(
+  database: Pick<Prisma.TransactionClient, 'courseMembership'>,
+  courseId: string,
+  studentId: string,
+): Promise<boolean> {
+  return database.courseMembership
+    .findFirst({
+      where: {
+        courseId,
+        userId: studentId,
+        role: CourseMembershipRole.STUDENT,
+        removedAt: null,
+      },
+      select: {
+        id: true,
+      },
+    })
+    .then((membership) => membership !== null)
+}

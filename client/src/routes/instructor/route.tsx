@@ -1,13 +1,15 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-import { createProtectedRoleRouteOptions } from '@/features/auth/utils/protected-role-route'
-import { InstructorLayout } from '@/features/instructor/components/instructor-layout'
-import { InstructorRoutePending } from '@/features/instructor/components/instructor-route-pending'
+import { RouteLoadError } from '@/app/route-load-error'
+import { createProtectedRoleRouteOptions } from '@/features/auth/routing/protected-role-route'
+import { InstructorLayout } from '@/workspaces/instructor/instructor-layout'
+import { InstructorRoutePending } from '@/workspaces/instructor/instructor-route-pending'
 
 const instructorRouteOptions = createProtectedRoleRouteOptions(
   'INSTRUCTOR',
   'Instructor',
   InstructorLayout,
+  RouteLoadError,
 )
 
 export const Route = createFileRoute('/instructor')({

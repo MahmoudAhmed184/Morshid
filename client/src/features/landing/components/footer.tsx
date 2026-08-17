@@ -1,4 +1,4 @@
-import { Logo } from '@/components/logo'
+import { Logo } from '@/components/branding/logo'
 
 const productLinks = ['Features', 'Pricing', 'Use Cases', 'Changelog'] as const
 const companyLinks = ['About Us', 'Careers', 'Blog', 'Contact'] as const
@@ -66,7 +66,7 @@ export function Footer() {
 
         <div className="rule mt-8 pt-4 sm:mt-12 sm:pt-6">
           <p className="footnote flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-[0.7rem] sm:text-xs">
-            <span>© 2026 Morshid · Set in Fraunces &amp; Geist</span>
+            <span>© 2026 Morshid · Set in IBM Plex</span>
             <span className="inline-flex items-center gap-1.5">
               <span
                 className="size-1.5 rounded-full bg-success ring-2 ring-success/20 sm:size-2"

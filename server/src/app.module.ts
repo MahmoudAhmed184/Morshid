@@ -2,19 +2,18 @@ import { Module } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
 
 import { AuditModule } from './modules/audit/audit.module'
-import { AuthModule } from './modules/auth/auth.module'
-import { CompletionModule } from './modules/completion/completion.module'
-import { CONFIG_ENV_FILE_PATHS } from './modules/config/configuration'
-import { validateEnv } from './modules/config/env.schema'
+import { IdentityModule } from './modules/identity/identity.module'
+import { CONFIG_ENV_FILE_PATHS } from './platform/config/configuration'
+import { validateEnv } from './platform/config/env.schema'
 import { CoursesModule } from './modules/courses/courses.module'
 import { HealthModule } from './modules/health/health.module'
-import { AdminModule } from './modules/admin/admin.module'
-import { StudentChatModule } from './modules/student-chat/student-chat.module'
-import { RagPersistenceModule } from './modules/rag-persistence/rag-persistence.module'
-import { PdfStorageModule } from './modules/pdf-storage/pdf-storage.module'
-import { EmbeddingModule } from './modules/embedding/embedding.module'
+import { ConversationsModule } from './modules/conversations/conversations.module'
+import { PdfStorageModule } from './platform/document-storage/pdf-storage.module'
+import { EmbeddingModule } from './platform/ai/embedding/embedding.module'
 import { MaterialsModule } from './modules/materials/materials.module'
-import { RetrievalModule } from './modules/retrieval/retrieval.module'
+import { ReviewsModule } from './modules/reviews/reviews.module'
+import { TutoringModule } from './modules/tutoring/tutoring.module'
+import { ConversationPresentationModule } from './application/conversation-presentation.module'
 
 @Module({
   imports: [
@@ -26,16 +25,15 @@ import { RetrievalModule } from './modules/retrieval/retrieval.module'
     }),
     AuditModule,
     HealthModule,
-    AuthModule,
+    IdentityModule,
     CoursesModule,
-    AdminModule,
-    StudentChatModule,
-    RagPersistenceModule,
+    ConversationsModule,
     PdfStorageModule,
     EmbeddingModule,
-    RetrievalModule,
     MaterialsModule,
-    CompletionModule,
+    TutoringModule,
+    ReviewsModule,
+    ConversationPresentationModule,
   ],
 })
 export class AppModule {}

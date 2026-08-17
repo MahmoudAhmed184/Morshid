@@ -1,19 +1,19 @@
 # SearchInput
 
-Use `SearchInput` for controlled search fields with icon and clear button.
+Use `SearchInput` for controlled search fields with an icon and clear button.
 
-Good places to use it:
+## When to use
 
-- Table/list search.
+- Table and list search.
 - Search inside pickers, settings, users, courses, invoices, and messages.
 
-Import:
+## Import
 
 ```tsx
 import { SearchInput } from '@/components/ui/custom/search-input'
 ```
 
-Basic usage:
+## Basic usage
 
 ```tsx
 <SearchInput
@@ -23,7 +23,7 @@ Basic usage:
 />
 ```
 
-With clear callback:
+## With clear callback
 
 ```tsx
 <SearchInput
@@ -33,7 +33,7 @@ With clear callback:
 />
 ```
 
-Notes:
+## Notes
 
 - This component is controlled.
 - Debounce search in the parent when API calls are expensive.

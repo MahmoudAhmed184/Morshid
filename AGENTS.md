@@ -1,27 +1,62 @@
-# Repository Guidelines
+# Morshid Guidelines
 
-## Project Structure & Module Organization
+## Working rules
 
-Morshid is an npm workspace. `client/` contains the TanStack Start/React frontend; organize product code by domain under `client/src/features/`, shared UI under `client/src/components/`, routes under `client/src/routes/`, and static assets under `client/public/`. `server/` contains the NestJS API; feature modules live in `server/src/modules/`, shared infrastructure in `server/src/common/`, and Prisma schema, migrations, and seeds in `server/prisma/`. Root `tests/acceptance/` holds Playwright scenarios, while `server/test/` holds API E2E tests. Project notes belong in `docs/`. Do not hand-edit generated Prisma code or `client/src/routeTree.gen.ts`.
+* Keep changes small, local, and easy to understand.
+* Prefer the simplest solution that fully solves the current problem. Do not build for hypothetical future requirements.
+* Follow an existing pattern before creating a new abstraction.
+* Add abstractions only for real boundaries or real variation.
+* Keep one implementation. When replacing something, remove the old path—no wrappers, aliases, duplicate flows, or dead compatibility code.
+* Prefer existing dependencies and framework conventions over custom machinery. Check official docs and types when needed.
+* Stay within the task. Preserve unrelated work and avoid drive-by cleanup.
+* Never hand-edit `client/src/routeTree.gen.ts` or `server/src/generated/prisma`.
 
-## Build, Test, and Development Commands
+## Architecture
 
-- `npm install`: install locked dependencies for all workspaces (Node 24, npm 11).
-- `npm run infra:up`: start PostgreSQL/pgvector and Redis with Docker Compose.
-- `npm run db:migrate && npm run db:seed`: prepare deterministic local data.
-- `npm run dev`: run client on port 3000 and API on port 4000.
-- `npm run check`: run formatting checks, strict linting, type checks, tests, and production builds; this is the canonical pre-PR gate.
-- `npm run test:acceptance`: run browser acceptance tests against the local stack.
-- `npm run test:e2e`: run server E2E tests; start infrastructure and deploy migrations first.
+Morshid is an npm workspace with a TanStack Start/React client and a NestJS API.
 
-## Coding Style & Naming Conventions
+Server product code belongs in `server/src/modules/`, organized by capability. Shared framework primitives belong in `server/src/common/`; technical infrastructure belongs in `server/src/platform/`. `common` and `platform` must not depend on product modules.
 
-Use two-space indentation, single quotes, no semicolons, and trailing commas; Prettier enforces these rules. ESLint applies strict, type-aware TypeScript checks. Prefer type-only imports, avoid `any`, and explicitly handle promises. Use kebab-case filenames (`course-access.service.ts`), PascalCase for React components and NestJS classes, and camelCase for functions and variables. Keep frontend logic within its feature and preserve NestJS controller/service/repository boundaries.
+Client domain behavior belongs in `client/src/features/`. Role-specific composition belongs in `client/src/workspaces/`. Keep routes thin. `client/src/app/` owns application composition. Shared `components/` and `lib/` code must remain feature-independent.
 
-## Testing Guidelines
+Use `@/*` for client source imports.
 
-Use Vitest and Testing Library for client tests, Jest for server unit/E2E tests, and Playwright for acceptance coverage. Name unit tests `*.test.ts(x)` or `*.spec.ts`; name server E2E files `*.e2e-spec.ts`. Co-locate unit tests with implementation code. There is no numeric coverage threshold, but every behavior change should add focused regression coverage. Run `npm test` during development and `npm run check` before submission.
+Cross-owner dependencies go through small, explicit named interfaces. Avoid broad barrels, generic dumping grounds, and unnecessary directory nesting.
 
-## Commit & Pull Request Guidelines
+The current code, tests, architecture checks, and accepted ADRs define the repository architecture. Do not silently violate an ADR; supersede it explicitly when the architectural decision genuinely changes.
 
-Follow scoped Conventional Commits: `feat(server): add readiness endpoint`. Subjects should be imperative, concise, and lowercase after the scope. The `p=#N` suffix (for example, `p=#92`, where `p` refers to the PR number) belongs only in the merge commit subject when merging a PR — never add it to regular commits on a branch. Branch from `dev` and target routine PRs back to `dev`; reserve `main` for releases and hotfixes. Complete the PR template with a clear summary, validation results, and updated `.env.example` files for new configuration. Link the issue and include screenshots for visible UI changes. Never commit credentials, private course material, or student data.
+## Code
+
+Use strict TypeScript.
+
+Prefer inference when the type is obvious and explicit types at real boundaries. Avoid `any`, use type-only imports where appropriate, and handle promises explicitly.
+
+Follow the repository style: two spaces, single quotes, no semicolons, trailing commas, kebab-case filenames, PascalCase components/classes, and camelCase functions/variables.
+
+Do not introduce a service, helper, interface, event, injection token, or other abstraction just to make the code look architected.
+
+## Tests
+
+Add focused regression coverage for behavior changes. Test behavior and contracts, not implementation details. Never weaken a test just to make a change pass.
+
+Keep unit tests close to the behavior they test. Server E2E tests live in `server/test/`; browser journeys live in `tests/acceptance/`.
+
+Use focused tests while working. Before finishing, run:
+
+`npm run check`
+
+Run `npm run test:e2e` and/or `npm run test:acceptance` when the affected surface requires them.
+
+The architecture gate is part of the repository contract. Do not bypass it or add exceptions just to make a change pass.
+
+## Git
+
+Branch from `dev` and target normal PRs to `dev`. `main` is for releases and hotfixes.
+
+Use scoped Conventional Commits with concise, imperative subjects:
+
+`feat(server): add course readiness check`
+
+Use `p=#N` only on PR merge commits, never regular branch commits.
+
+Never commit credentials, private course material, or student data.

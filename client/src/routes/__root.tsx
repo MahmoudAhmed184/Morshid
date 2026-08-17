@@ -1,12 +1,18 @@
-import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
+import {
+  HeadContent,
+  Scripts,
+  createRootRouteWithContext,
+} from '@tanstack/react-router'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 
-import appCss from '../styles.css?url'
+import appCss from '../app/styles.css?url'
 
-import { AppProviders } from '#/providers/app-provider'
+import { AppProviders } from '@/app/app-providers'
+import type { AppRouterContext } from '@/app/router'
+import { NotFoundPage } from '@/features/not-found/not-found-page'
 
-export const Route = createRootRoute({
+export const Route = createRootRouteWithContext<AppRouterContext>()({
   head: () => ({
     meta: [
       {
@@ -22,14 +28,34 @@ export const Route = createRootRoute({
     ],
     links: [
       {
+        rel: 'icon',
+        type: 'image/png',
+        href: '/logo-white.png',
+      },
+      {
+        rel: 'apple-touch-icon',
+        href: '/logo-white.png',
+      },
+      {
+        rel: 'manifest',
+        href: '/manifest.json',
+      },
+      {
         rel: 'stylesheet',
         href: appCss,
       },
     ],
   }),
-  component: AppProviders,
+  notFoundComponent: NotFoundPage,
+  component: RootApp,
   shellComponent: RootDocument,
 })
+
+function RootApp() {
+  const { queryClient } = Route.useRouteContext()
+
+  return <AppProviders queryClient={queryClient} />
+}
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (

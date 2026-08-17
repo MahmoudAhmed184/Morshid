@@ -1,7 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-import { InstructorSettingsPage } from '@/features/instructor/pages/instructor-settings-page'
+import { InstructorSettingsLayout } from '@/workspaces/instructor/settings/instructor-settings-layout'
 
 export const Route = createFileRoute('/instructor/settings')({
-  component: InstructorSettingsPage,
+  component: InstructorSettingsLayout,
+  head: () => ({
+    meta: [{ title: 'Settings — Morshid' }],
+  }),
 })

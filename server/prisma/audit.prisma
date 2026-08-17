@@ -1,0 +1,21 @@
+// Domain-grouped Prisma schema. Cross-file relations are intentional.
+
+model AuditLog {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorUserId String?  @map("actor_user_id") @db.Uuid
+  action      String   @db.VarChar(100)
+  targetType  String   @map("target_type") @db.VarChar(80)
+  targetId    String?  @map("target_id") @db.Uuid
+  courseId    String?  @map("course_id") @db.Uuid
+  ip          String?  @db.Inet
+  userAgent   String?  @map("user_agent") @db.Text
+  metadata    Json     @default("{}") @db.JsonB
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  actor  User?   @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  course Course? @relation(fields: [courseId], references: [id], onDelete: Restrict)
+
+  @@index([courseId, createdAt], map: "idx_audit_course_created")
+  @@index([actorUserId, createdAt], map: "idx_audit_actor_created")
+  @@map("audit_logs")
+}

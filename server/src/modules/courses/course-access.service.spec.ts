@@ -1,24 +1,34 @@
-import {
-  CourseMembershipRole,
-  UserRole,
-  UserStatus,
-} from '../../generated/prisma/client'
-import type { AuthenticatedRequestUser } from '../auth/auth.dto'
+import type { AuthenticatedUser } from '../identity/identity.types'
+import { UserRole, UserStatus } from '../identity/identity.roles'
 import { CourseAccessService } from './course-access.service'
-import { CoursesRepository } from './courses.repository'
+import { CourseMembershipRole } from './interface/course-membership-role'
+import {
+  CoursesRepository,
+  type AddCourseMemberInput,
+  type ArchiveCourseInput,
+  type BulkAddCourseMembersInput,
+  type CourseAdministrationRecord,
+  type CourseAccessRecord,
+  type CourseMembershipRecord,
+  type CreateCourseInput,
+  type RemoveCourseMemberInput,
+  type UpdateCourseInput,
+  type UpdateMemberRoleInput,
+} from './courses.repository'
 
 class CourseAccessTestRepository extends CoursesRepository {
+  private readonly courses = new Set([
+    'any-course',
+    'owned-course',
+    'other-course',
+    'assigned-course',
+    'unassigned-course',
+  ])
   private readonly memberships = new Map<string, CourseMembershipRole>()
-  private readonly owners = new Map<string, string>()
-
   readonly findMembershipRole = jest.fn((userId: string, courseId: string) =>
     Promise.resolve(
       this.memberships.get(this.membershipKey(userId, courseId)) ?? null,
     ),
-  )
-
-  readonly isCourseOwner = jest.fn((userId: string, courseId: string) =>
-    Promise.resolve(this.owners.get(courseId) === userId),
   )
 
   readonly hasActiveCourseMembership = jest.fn(
@@ -28,7 +38,75 @@ class CourseAccessTestRepository extends CoursesRepository {
       ),
   )
 
-  listAdminCourses() {
+  findCourseAccess(
+    userId: string,
+    courseId: string,
+  ): Promise<CourseAccessRecord | null> {
+    if (!this.courses.has(courseId)) {
+      return Promise.resolve(null)
+    }
+
+    return Promise.resolve({
+      id: courseId,
+      membershipRole:
+        this.memberships.get(this.membershipKey(userId, courseId)) ?? null,
+    })
+  }
+
+  listCourseAdministration(): Promise<CourseAdministrationRecord[]> {
+    return Promise.resolve([])
+  }
+
+  findCourseAdministrationById(
+    _courseId: string,
+  ): Promise<CourseAdministrationRecord | null> {
+    return Promise.resolve(null)
+  }
+
+  findCourseAdministrationByCode(
+    _code: string,
+  ): Promise<CourseAdministrationRecord | null> {
+    return Promise.resolve(null)
+  }
+
+  createCourse(_input: CreateCourseInput): Promise<CourseAdministrationRecord> {
+    return Promise.reject(new Error('not used by CourseAccessService tests'))
+  }
+
+  updateCourse(_input: UpdateCourseInput): Promise<CourseAdministrationRecord> {
+    return Promise.reject(new Error('not used by CourseAccessService tests'))
+  }
+
+  archiveCourse(_input: ArchiveCourseInput): Promise<void> {
+    return Promise.reject(new Error('not used by CourseAccessService tests'))
+  }
+
+  findUserById(_userId: string): Promise<{ id: string } | null> {
+    return Promise.resolve(null)
+  }
+
+  findMembership(
+    _courseId: string,
+    _userId: string,
+  ): Promise<CourseMembershipRecord | null> {
+    return Promise.resolve(null)
+  }
+
+  addMember(_input: AddCourseMemberInput): Promise<CourseMembershipRecord> {
+    return Promise.reject(new Error('not used by CourseAccessService tests'))
+  }
+
+  addMembers(
+    _input: BulkAddCourseMembersInput,
+  ): Promise<{ assignedCount: number; skippedCount: number }> {
+    return Promise.reject(new Error('not used by CourseAccessService tests'))
+  }
+
+  removeMember(_input: RemoveCourseMemberInput): Promise<void> {
+    return Promise.reject(new Error('not used by CourseAccessService tests'))
+  }
+
+  listMembers(_courseId: string): Promise<CourseMembershipRecord[]> {
     return Promise.resolve([])
   }
 
@@ -36,16 +114,14 @@ class CourseAccessTestRepository extends CoursesRepository {
     return Promise.resolve([])
   }
 
-  listOwnedCourses() {
-    return Promise.resolve([])
+  updateMemberRole(
+    _input: UpdateMemberRoleInput,
+  ): Promise<CourseMembershipRecord> {
+    return Promise.reject(new Error('not used by CourseAccessService tests'))
   }
 
   addMembership(userId: string, courseId: string, role: CourseMembershipRole) {
     this.memberships.set(this.membershipKey(userId, courseId), role)
-  }
-
-  addOwner(userId: string, courseId: string) {
-    this.owners.set(courseId, userId)
   }
 
   private membershipKey(userId: string, courseId: string) {
@@ -53,7 +129,7 @@ class CourseAccessTestRepository extends CoursesRepository {
   }
 }
 
-function buildUser(id: string, role: UserRole): AuthenticatedRequestUser {
+function buildUser(id: string, role: UserRole): AuthenticatedUser {
   return {
     id,
     email: `${id}@morshid.demo`,
@@ -84,30 +160,22 @@ describe('CourseAccessService', () => {
     expect(repository.findMembershipRole).not.toHaveBeenCalled()
   })
 
-  it('allows an instructor to view and manage an owned course without a membership', async () => {
+  it('requires an active instructor membership to view and manage a course', async () => {
     const { service, repository } = buildService()
     const instructor = buildUser('instructor-user', UserRole.INSTRUCTOR)
-
-    repository.addOwner(instructor.id, 'owned-course')
 
     await expect(
       service.canViewCourse(instructor, 'owned-course'),
-    ).resolves.toBe(true)
+    ).resolves.toBe(false)
     await expect(
       service.canManageCourse(instructor, 'owned-course'),
-    ).resolves.toBe(true)
+    ).resolves.toBe(false)
+    expect(repository.findMembershipRole).toHaveBeenCalled()
   })
 
   it('rejects an instructor for courses owned by another instructor', async () => {
-    const { service, repository } = buildService()
+    const { service } = buildService()
     const instructor = buildUser('instructor-user', UserRole.INSTRUCTOR)
-
-    repository.addOwner('other-instructor', 'other-course')
-    repository.addMembership(
-      instructor.id,
-      'other-course',
-      CourseMembershipRole.INSTRUCTOR,
-    )
 
     await expect(
       service.canViewCourse(instructor, 'other-course'),
@@ -150,15 +218,16 @@ describe('CourseAccessService', () => {
     ).resolves.toBe(false)
   })
 
-  it('requires an active instructor membership to manage course materials', async () => {
+  it('returns a single active-membership decision for material management', async () => {
     const { service, repository } = buildService()
     const instructor = buildUser('instructor-user', UserRole.INSTRUCTOR)
 
-    repository.addOwner(instructor.id, 'owned-course')
-
     await expect(
-      service.canManageCourseMaterials(instructor, 'owned-course'),
-    ).resolves.toBe(false)
+      service.authorizeCourseMaterialManagement(instructor, 'owned-course'),
+    ).resolves.toEqual({
+      allowed: false,
+      reason: 'COURSE_MANAGEMENT_REQUIRED',
+    })
 
     repository.addMembership(
       instructor.id,
@@ -167,7 +236,14 @@ describe('CourseAccessService', () => {
     )
 
     await expect(
-      service.canManageCourseMaterials(instructor, 'owned-course'),
-    ).resolves.toBe(true)
+      service.authorizeCourseMaterialManagement(instructor, 'owned-course'),
+    ).resolves.toEqual({ allowed: true })
+
+    await expect(
+      service.authorizeCourseMaterialManagement(instructor, 'missing-course'),
+    ).resolves.toEqual({
+      allowed: false,
+      reason: 'COURSE_NOT_FOUND',
+    })
   })
 })

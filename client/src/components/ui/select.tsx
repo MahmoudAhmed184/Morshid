@@ -89,7 +89,7 @@ function SelectContent({
           data-align-trigger={alignItemWithTrigger}
           className={cn(
             /* morshid: sharp popover menu */
-            'menu-pop relative isolate z-50 max-h-(--available-height) w-(--anchor-width) min-w-[10rem] overflow-x-hidden overflow-y-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg backdrop-blur-md',
+            'menu-pop relative max-h-(--available-height) min-w-[max(10rem,var(--anchor-width))] max-w-(--available-width) overflow-x-hidden overflow-y-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg backdrop-blur-md',
             className,
           )}
           {...props}

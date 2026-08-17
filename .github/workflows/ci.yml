@@ -73,7 +73,6 @@ jobs:
       CLIENT_ORIGIN: http://localhost:3000
       PDF_STORAGE_PATH: ../storage/pdfs
       EMBEDDING_PROVIDER: deterministic
-      COMPLETION_PROVIDER: deterministic
       AUTH_ACCESS_TOKEN_TTL_SECONDS: 900
       AUTH_REFRESH_TOKEN_TTL_DAYS: 7
     steps:
