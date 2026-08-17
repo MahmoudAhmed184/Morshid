@@ -1,4 +1,4 @@
-import { RevealPolicy } from '../../tutoring-values'
+import { MessageRequestKind, RevealPolicy } from '../../tutoring-values'
 
 import { buildSocraticDisclosureContract } from './socratic-disclosure-policy'
 import type { TeachingGuardPolicy } from './teaching-policy.types'
@@ -96,14 +96,60 @@ describe('Socratic disclosure policy', () => {
     expect(result.finalAnswerAllowed).toBe(true)
     expect(result.completeSolutionAllowed).toBe(true)
   })
+
+  it('allows only a bounded core explanation for a direct conceptual decision', () => {
+    const result = contract({
+      requestKind: MessageRequestKind.CONCEPTUAL,
+      guidanceLevel: 1,
+      revealPolicy: RevealPolicy.PARTIAL_RESULT_ALLOWED,
+      guardPolicy: {
+        ...restrictiveGuardPolicy(),
+        preventDirectAnswer: false,
+      },
+    })
+
+    expect(result).toMatchObject({
+      boundedConceptualExplanationAllowed: true,
+      directTargetInferenceAllowed: true,
+      intermediateResultAllowed: true,
+      finalReasoningAllowed: false,
+      finalAnswerAllowed: false,
+      completeSolutionAllowed: false,
+    })
+    expect(result.requiredStudentWork).toContain(
+      'State one concise grounded core explanation',
+    )
+  })
+
+  it('does not grant the conceptual exception to a problem-like request', () => {
+    const result = contract({
+      requestKind: MessageRequestKind.PROBLEM_LIKE,
+      guidanceLevel: 1,
+      revealPolicy: RevealPolicy.PARTIAL_RESULT_ALLOWED,
+      guardPolicy: {
+        ...restrictiveGuardPolicy(),
+        preventDirectAnswer: false,
+      },
+    })
+
+    expect(result).toMatchObject({
+      boundedConceptualExplanationAllowed: false,
+      directTargetInferenceAllowed: false,
+      intermediateResultAllowed: false,
+      finalAnswerAllowed: false,
+      completeSolutionAllowed: false,
+    })
+  })
 })
 
 function contract(input: {
+  requestKind?: MessageRequestKind
   guidanceLevel: number
   revealPolicy: RevealPolicy
   guardPolicy?: TeachingGuardPolicy
 }) {
   return buildSocraticDisclosureContract({
+    requestKind: input.requestKind ?? MessageRequestKind.PROBLEM_LIKE,
     guidanceLevel: input.guidanceLevel,
     revealPolicy: input.revealPolicy,
     guardPolicy: input.guardPolicy ?? restrictiveGuardPolicy(),

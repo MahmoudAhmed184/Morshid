@@ -13,6 +13,7 @@ export const DEBUGGING_GUIDANCE_LOCATION_HINTS = [
   'DICTIONARY_LOOKUP',
   'STRING_EXPRESSION',
   'FILE_PATH_LITERAL',
+  'UNKNOWN',
 ] as const
 
 export const DEBUGGING_GUIDANCE_DIAGNOSTIC_SIGNALS = [
@@ -25,6 +26,7 @@ export const DEBUGGING_GUIDANCE_DIAGNOSTIC_SIGNALS = [
   'MISSING_DICTIONARY_KEY',
   'INCOMPATIBLE_STRING_OPERANDS',
   'BACKSLASH_ESCAPE_IN_PATH',
+  'RUNTIME_EVIDENCE_REQUIRED',
 ] as const
 
 const identifierSchema = z.string().regex(/^[A-Za-z_][A-Za-z0-9_]{0,30}$/u)
@@ -91,6 +93,7 @@ const CATEGORY_QUERY_TEXT = {
   DICTIONARY_ACCESS: 'a possible missing-key dictionary access',
   STRING_HANDLING: 'a possible incompatible string operation',
   FILE_HANDLING: 'a possible file-path or file-handling issue',
+  UNKNOWN: 'behavior that needs a bounded runtime trace',
 } as const satisfies Record<
   DebuggingGuidanceRetrievalQueryInput['suspectedCategory'],
   string
@@ -105,6 +108,7 @@ const CATEGORY_CONCEPT_TEXT = {
   DICTIONARY_ACCESS: 'dictionary keys and bracket lookup',
   STRING_HANDLING: 'string operands and type compatibility',
   FILE_HANDLING: 'path string literals and file handling',
+  UNKNOWN: 'tracing values and comparing actual and expected behavior',
 } as const satisfies Record<
   DebuggingGuidanceRetrievalQueryInput['suspectedCategory'],
   string
@@ -121,6 +125,7 @@ const LOCATION_QUERY_TEXT = {
   DICTIONARY_LOOKUP: 'the dictionary lookup',
   STRING_EXPRESSION: 'the string expression',
   FILE_PATH_LITERAL: 'the file-path literal',
+  UNKNOWN: 'the submitted behavior and the smallest related code block',
 } as const satisfies Record<
   DebuggingGuidanceRetrievalQueryInput['locationHint'],
   string
@@ -140,6 +145,8 @@ const SIGNAL_QUERY_TEXT = {
     'the string operation may combine incompatible operand types',
   BACKSLASH_ESCAPE_IN_PATH:
     'the path literal may contain interpreted backslash escapes',
+  RUNTIME_EVIDENCE_REQUIRED:
+    'a concrete trace of the reported behavior is needed',
 } as const satisfies Record<
   DebuggingGuidanceRetrievalQueryInput['diagnosticSignals'][number],
   string

@@ -1,6 +1,7 @@
 import {
   GeminiChatProjectPool,
   GeminiChatProjectPoolUnavailableError,
+  MAX_GEMINI_CHAT_PROJECTS,
   inspectGeminiChatProjectsJson,
   isGeminiOpenAICompatibleBaseUrl,
   type GeminiChatProjectPoolRedisClient,
@@ -19,6 +20,17 @@ const projects = Object.freeze([
   }),
 ])
 
+function createProjects(count: number) {
+  return Object.freeze(
+    Array.from({ length: count }, (_, index) =>
+      Object.freeze({
+        id: `chat-project-${String(index + 1).padStart(3, '0')}`,
+        apiKey: `secret-api-key-value-${String(index + 1).padStart(3, '0')}`,
+      }),
+    ),
+  )
+}
+
 describe('GeminiChatProjectPool', () => {
   it('maps an atomic Redis selection back to the in-memory credential', async () => {
     const redis = new RecordingRedis([[1, '1']])
@@ -32,6 +44,23 @@ describe('GeminiChatProjectPool', () => {
     expect(redis.calls[0]?.keys).toHaveLength(1)
     expect(JSON.stringify(redis.calls[0])).not.toContain(projects[0].id)
     expect(JSON.stringify(redis.calls[0])).not.toContain(projects[0].apiKey)
+  })
+
+  it('selects normally from a pool larger than the former 32-project cap', async () => {
+    const largerPoolProjects = createProjects(64)
+    const redis = new RecordingRedis([[1, '47']])
+    const pool = new GeminiChatProjectPool(redis, largerPoolProjects)
+
+    await expect(pool.select(new Set())).resolves.toEqual({
+      kind: 'selected',
+      project: largerPoolProjects[47],
+    })
+
+    expect(pool.size).toBe(64)
+    const request = JSON.parse(redis.calls[0]?.arguments[0] ?? '{}') as {
+      members?: unknown
+    }
+    expect(request.members).toHaveLength(64)
   })
 
   it('returns the shared retry delay when every project is cooling down', async () => {
@@ -106,6 +135,30 @@ describe('Gemini chat project configuration', () => {
     expect(() => new GeminiChatProjectPool(new RecordingRedis([]), [])).toThrow(
       TypeError,
     )
+  })
+
+  it('accepts the maximum project count and rejects one item above it', () => {
+    expect(
+      inspectGeminiChatProjectsJson(
+        JSON.stringify(createProjects(MAX_GEMINI_CHAT_PROJECTS)),
+        { allowEmpty: true },
+      ),
+    ).toMatchObject({ success: true })
+
+    expect(
+      inspectGeminiChatProjectsJson(
+        JSON.stringify(createProjects(MAX_GEMINI_CHAT_PROJECTS + 1)),
+        { allowEmpty: true },
+      ),
+    ).toEqual({
+      success: false,
+      issues: [
+        {
+          path: [],
+          message: `must contain at most ${String(MAX_GEMINI_CHAT_PROJECTS)} projects`,
+        },
+      ],
+    })
   })
 
   it('parses JSON through the same strict project validation', () => {

@@ -8,10 +8,14 @@ import type { App } from 'supertest/types'
 import { configureApp } from '../../src/app.setup'
 import { AppModule } from '../../src/app.module'
 import {
+  LearningStatus,
   MaterialStatus,
   MessageGuidanceLabel,
   MessageRequestKind,
+  MisconceptionStatus,
   Prisma,
+  ResolutionEvidenceStrength,
+  StudentActionPurpose,
   StudentState,
   TeachingStrategy,
   TeachingTechnique,
@@ -71,6 +75,7 @@ import {
   ControllableSemanticGuardPort,
   ControllableAnalysisModelPort,
   validCandidateRawOutput,
+  validCandidateRawOutputForRequest,
   rejectedCandidateRawOutput,
   misconceptionAnalysisResponse,
   approvedSemanticGuardResponse,
@@ -99,7 +104,7 @@ const NON_MATCHING_QUERY_VECTOR = Object.freeze([
 ])
 
 const EXPECTED_HAPPY_PATH_MESSAGE =
-  'What part of the list comprehension syntax are you most unsure about? Try writing just the expression part first.'
+  'A list comprehension builds a new list by evaluating an expression for each item from an iterable. In [x * 2 for x in [1, 2]], which values would the expression produce?'
 const OVER_REVEAL_STUDENT_MESSAGE =
   'x will be 30 first, because I think the loop starts from the last item and moves backward.'
 const OVER_REVEAL_CANDIDATE =
@@ -128,6 +133,7 @@ function storyCandidateResponse(
   return Object.freeze({
     rawOutput: Object.freeze({
       message: input.message,
+      debuggingGuidance: null,
       responseIntent: input.responseIntent,
       usedCitationIds: citationIds,
       requiresStudentAction: true,
@@ -258,6 +264,8 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     await prisma.teachingDecision.deleteMany()
     await prisma.educationalAnalysis.deleteMany()
     await prisma.guardResult.deleteMany()
+    await prisma.debuggingDiagnosis.deleteMany()
+    await prisma.outputRiskEvent.deleteMany()
     await prisma.tutoringCandidateAttempt.deleteMany()
     await prisma.tutoringAttempt.deleteMany()
     await prisma.topicState.deleteMany()
@@ -510,7 +518,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     expect(turn.assistantMessage.citations).toHaveLength(1)
 
     const promptVersion = Reflect.get(turn.assistantMessage, 'promptVersion')
-    expect(promptVersion).toBe('tutor-generation.mvp.v4')
+    expect(promptVersion).toBe('tutor-generation.mvp.v9')
 
     const reloadResponse = await request(requireApp().getHttpServer())
       .get(messagesPath(session.id))
@@ -530,6 +538,248 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       content: turn.studentMessage.content,
     })
     expect(reloadedAssistant).toEqual(turn.assistantMessage)
+  })
+
+  it('explains a direct conceptual comparison before eliciting when analysis falls back', async () => {
+    await createEvidenceMaterial({
+      title: 'Python loop control concepts',
+      content:
+        'The break statement exits a loop. The continue statement skips the rest of the current iteration and proceeds with the next iteration.',
+    })
+    const session = await createSession()
+    analysisModel.behavior = () =>
+      Promise.reject(
+        new AnalysisModelError(ANALYSIS_MODEL_ERROR_CODE.PROVIDER_UNAVAILABLE),
+      )
+    tutorModel.behavior = (modelRequest) =>
+      Promise.resolve(
+        storyCandidateResponse(modelRequest, {
+          message:
+            '`break` exits the loop, while `continue` skips the rest of the current iteration [retrieval.rank.1]. What difference would that make when each statement is reached at i == 3?',
+          responseIntent: TeachingStrategy.GUIDED_EXPLANATION,
+          studentActionType: TeachingTechnique.ORIENTATION_QUESTION,
+        }),
+      )
+
+    const response = await request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${studentToken}`)
+      .send({
+        content:
+          'What is the difference between break and continue in a Python loop?',
+        clientMessageId: randomUUID(),
+      })
+      .expect(201)
+    const turn = response.body as TutoringTurnResponseDto
+
+    expect(turn.studentMessage.requestKind).toBe(MessageRequestKind.CONCEPTUAL)
+    expect(turn.assistantMessage).toMatchObject({
+      status: 'COMPLETED',
+      guidanceLabel: MessageGuidanceLabel.COURSE_GROUNDED,
+      hintLevel: 1,
+    })
+    expect(turn.assistantMessage.content).toMatch(/break[^.]*exit[^.]*loop/iu)
+    expect(turn.assistantMessage.content).toMatch(
+      /continue[^.]*skip[^.]*current iteration/iu,
+    )
+    expect(turn.assistantMessage.content).toMatch(/\?$/u)
+    expect(turn.assistantMessage.citations).toHaveLength(1)
+
+    const attemptId = turn.assistantMessage.attemptId
+    if (attemptId === null) {
+      throw new Error('Expected a persisted tutoring attempt')
+    }
+    const persisted = await prisma.tutoringAttempt.findUniqueOrThrow({
+      where: { id: attemptId },
+      include: {
+        educationalAnalyses: true,
+        teachingDecision: true,
+        candidateAttempts: { include: { guardResults: true } },
+      },
+    })
+
+    expect(persisted).toMatchObject({
+      status: TutoringAttemptStatus.COMPLETED,
+      requestKind: MessageRequestKind.CONCEPTUAL,
+      safeFallbackUsed: false,
+      approvalSource: 'VALIDATED_CANDIDATE',
+      approvedCandidateAttempt: 1,
+      safeFallbackReason: null,
+    })
+    expect(persisted.educationalAnalyses).toEqual([
+      expect.objectContaining({
+        requestKind: MessageRequestKind.CONCEPTUAL,
+        studentState: StudentState.UNKNOWN,
+        analysisSource: 'fallback',
+        fallbackReason: 'provider_unavailable',
+      }),
+    ])
+    const teachingDecision = persisted.teachingDecision
+    if (teachingDecision === null) {
+      throw new Error('Expected a persisted teaching decision')
+    }
+    expect(teachingDecision).toMatchObject({
+      strategy: TeachingStrategy.GUIDED_EXPLANATION,
+      primaryTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+      guidanceLevel: 1,
+      revealPolicy: 'PARTIAL_RESULT_ALLOWED',
+      requireStudentAction: true,
+      studentActionPurpose: StudentActionPurpose.CONCEPTUAL_UNDERSTANDING,
+      policyVersion: 'socratic-policy.mvp.v5',
+    })
+    expect(teachingDecision.guardPolicy).toMatchObject({
+      preventDirectAnswer: false,
+    })
+    expect(persisted.candidateAttempts).toHaveLength(1)
+    expect(persisted.candidateAttempts[0]).toMatchObject({
+      candidateAttempt: 1,
+      generationOutcome: 'GENERATED',
+      promptVersion: 'tutor-generation.mvp.v9',
+    })
+    expect(
+      persisted.candidateAttempts[0].guardResults.map((result) => ({
+        validationStage: result.validationStage,
+        approved: result.approved,
+      })),
+    ).toEqual([
+      { validationStage: 'STRUCTURAL', approved: true },
+      { validationStage: 'DETERMINISTIC', approved: true },
+      { validationStage: 'SEMANTIC', approved: true },
+    ])
+  })
+
+  it('approves a protected PROBLEM_LIKE debugging candidate without exhausting regeneration', async () => {
+    await createEvidenceMaterial({
+      title: 'Accumulator debugging',
+      content:
+        'An accumulator keeps its prior value and is updated once with the current item during each loop iteration.',
+    })
+    const session = await createSession()
+    analysisModel.behavior = (modelRequest) =>
+      Promise.resolve(
+        functionalStoryAnalysisResponse(modelRequest, {
+          requestKind: MessageRequestKind.PROBLEM_LIKE,
+          studentState: StudentState.UNKNOWN,
+          recommendedStrategy: TeachingStrategy.SOCRATIC_QUESTIONING,
+          recommendedTechnique: TeachingTechnique.FOCUSED_QUESTION,
+        }),
+      )
+
+    semanticGuard.behavior = (guardRequest) => {
+      const payloadText = guardRequest.messages[1].content
+      const payload = JSON.parse(payloadText) as {
+        trustedPolicy: {
+          studentActionObligation: {
+            purpose: string
+            technique: string
+            maximumMeaningfulActions: number
+          }
+        }
+      }
+
+      expect(payload.trustedPolicy.studentActionObligation).toMatchObject({
+        purpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
+        technique: TeachingTechnique.FOCUSED_QUESTION,
+        maximumMeaningfulActions: 1,
+      })
+      expect(payloadText).not.toContain('askWhatStudentTried')
+
+      return Promise.resolve(approvedSemanticGuardResponse())
+    }
+
+    const response = await request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${studentToken}`)
+      .send({
+        content: [
+          'My assigned program gives the wrong total. Help me debug it without giving me the corrected solution.',
+          '```python',
+          'def total(values):',
+          '    result = 0',
+          '    for value in values:',
+          '        result = value',
+          '    return result',
+          '```',
+        ].join('\n'),
+        clientMessageId: randomUUID(),
+      })
+      .expect(201)
+    const turn = response.body as TutoringTurnResponseDto
+
+    expect(tutorModel.callCount).toBe(1)
+    expect(semanticGuard.callCount).toBe(1)
+    expect(turn.studentMessage.requestKind).toBe(
+      MessageRequestKind.PROBLEM_LIKE,
+    )
+    expect(turn.assistantMessage).toMatchObject({
+      status: 'COMPLETED',
+      guidanceLabel: MessageGuidanceLabel.COURSE_GROUNDED,
+      hintLevel: 1,
+    })
+    expect(turn.assistantMessage.content).toContain('[retrieval.rank.1]')
+    expect(turn.assistantMessage.citations).toHaveLength(1)
+    expect(tutorModel.getCalls()[0]?.messages[1].content).not.toContain(
+      'askWhatStudentTried',
+    )
+
+    const attemptId = turn.assistantMessage.attemptId
+    if (attemptId === null) {
+      throw new Error('Expected a persisted tutoring attempt')
+    }
+    const persisted = await prisma.tutoringAttempt.findUniqueOrThrow({
+      where: { id: attemptId },
+      include: {
+        educationalAnalyses: true,
+        teachingDecision: true,
+        candidateAttempts: {
+          include: {
+            guardResults: { orderBy: { validationStage: 'asc' } },
+          },
+        },
+      },
+    })
+
+    expect(persisted).toMatchObject({
+      requestKind: MessageRequestKind.PROBLEM_LIKE,
+      effectiveSolutionProtection: true,
+      approvalSource: 'VALIDATED_CANDIDATE',
+      approvedCandidateAttempt: 1,
+      safeFallbackUsed: false,
+      safeFallbackReason: null,
+    })
+    expect(persisted.educationalAnalyses).toEqual([
+      expect.objectContaining({
+        requestKind: MessageRequestKind.PROBLEM_LIKE,
+        studentState: StudentState.UNKNOWN,
+        analysisSource: 'model',
+        fallbackReason: null,
+      }),
+    ])
+    expect(persisted.teachingDecision).toMatchObject({
+      strategy: TeachingStrategy.SOCRATIC_QUESTIONING,
+      primaryTechnique: TeachingTechnique.FOCUSED_QUESTION,
+      guidanceLevel: 1,
+      revealPolicy: 'NO_FINAL_ANSWER',
+      requireStudentAction: true,
+      studentActionPurpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
+    })
+    expect(persisted.teachingDecision?.guardPolicy).toMatchObject({
+      preventDirectAnswer: true,
+      preventFinalResult: true,
+      preventCompleteSolution: true,
+      preventSubmissionReadyCode: true,
+    })
+    expect(persisted.candidateAttempts).toHaveLength(1)
+    expect(
+      persisted.candidateAttempts[0].guardResults.map((result) => ({
+        validationStage: result.validationStage,
+        approved: result.approved,
+      })),
+    ).toEqual([
+      { validationStage: 'STRUCTURAL', approved: true },
+      { validationStage: 'DETERMINISTIC', approved: true },
+      { validationStage: 'SEMANTIC', approved: true },
+    ])
   })
 
   it('fulfills the Story 124 no-attempt → weak attempt → partial attempt → repeatedly stuck journey', async () => {
@@ -669,6 +919,360 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     )
   })
 
+  it('recovers a corrected break/continue misconception without hint farming and replays idempotently', async () => {
+    await createEvidenceMaterial({
+      title: 'Python loop control concepts',
+      content:
+        'The break statement exits a loop. The continue statement skips the rest of the current iteration and proceeds with the next iteration.',
+    })
+    const session = await createSession()
+    const analysisPlan = [
+      {
+        requestKind: MessageRequestKind.CONCEPTUAL,
+        studentState: StudentState.UNKNOWN,
+        recommendedStrategy: TeachingStrategy.GUIDED_EXPLANATION,
+        recommendedTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+      },
+      {
+        requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+        studentState: StudentState.MISCONCEPTION,
+        recommendedStrategy: TeachingStrategy.MISCONCEPTION_REPAIR,
+        recommendedTechnique: TeachingTechnique.COUNTEREXAMPLE,
+        meaningfulEffort: true,
+        recommendedGuidanceLevel: 2,
+        misconception: {
+          code: 'BREAK_CONTINUE_REVERSAL',
+          description:
+            'The student reverses the effects of break and continue.',
+        },
+      },
+      {
+        requestKind: MessageRequestKind.CONCEPTUAL,
+        studentState: StudentState.MISCONCEPTION,
+        recommendedStrategy: TeachingStrategy.MISCONCEPTION_REPAIR,
+        recommendedTechnique: TeachingTechnique.COUNTEREXAMPLE,
+        recommendedGuidanceLevel: 3,
+      },
+      {
+        requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+        studentState: StudentState.NEAR_SOLUTION,
+        recommendedStrategy: TeachingStrategy.GUIDED_EXPLANATION,
+        recommendedTechnique: TeachingTechnique.VERIFICATION,
+        meaningfulEffort: true,
+        learningEvidenceStrength: 'STRONG' as const,
+        recommendedGuidanceLevel: 1,
+      },
+    ] as const
+    let analysisIndex = 0
+    analysisModel.behavior = (modelRequest) => {
+      const planned = analysisPlan[analysisIndex]
+      analysisIndex += 1
+      return Promise.resolve(
+        functionalStoryAnalysisResponse(modelRequest, planned),
+      )
+    }
+
+    const candidatePlan = [
+      {
+        message:
+          '`break` exits the loop, while `continue` skips the rest of the current iteration [retrieval.rank.1]. In a loop over [1, 2, 3], how would reaching each statement at 2 change what runs next?',
+        responseIntent: TeachingStrategy.GUIDED_EXPLANATION,
+        studentActionType: TeachingTechnique.ORIENTATION_QUESTION,
+      },
+      {
+        message:
+          'Test that distinction against a loop that reaches the statement on its second pass [retrieval.rank.1]. Which statement would prevent a third pass, and which would permit one?',
+        responseIntent: TeachingStrategy.MISCONCEPTION_REPAIR,
+        studentActionType: TeachingTechnique.COUNTEREXAMPLE,
+      },
+      {
+        message:
+          'Focus on whether the loop can begin another iteration after the statement runs [retrieval.rank.1]. Which statement changes that possibility?',
+        responseIntent: TeachingStrategy.MISCONCEPTION_REPAIR,
+        studentActionType: TeachingTechnique.COUNTEREXAMPLE,
+      },
+      {
+        message:
+          'Yes—that distinction is correct [retrieval.rank.1]. To verify it in a new case, what would a loop print after reaching `continue` at 2 and `break` at 4, and why?',
+        responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
+        studentActionType: TeachingTechnique.VERIFICATION,
+      },
+    ] as const
+    let candidateIndex = 0
+    tutorModel.behavior = (modelRequest) => {
+      const planned = candidatePlan[candidateIndex]
+      candidateIndex += 1
+      return Promise.resolve(storyCandidateResponse(modelRequest, planned))
+    }
+
+    const turnInputs = [
+      {
+        content:
+          'What is the difference between break and continue in a Python loop?',
+        clientMessageId: randomUUID(),
+      },
+      {
+        content:
+          'I think break skips only the current iteration, while continue stops the whole loop.',
+        clientMessageId: randomUUID(),
+      },
+      {
+        content: "I still don't understand. Can you give me a hint?",
+        clientMessageId: randomUUID(),
+      },
+      {
+        content:
+          'So break stops the whole loop, while continue skips the rest of the current iteration and moves to the next one. Is that right?',
+        clientMessageId: randomUUID(),
+      },
+    ] as const
+    const turns: TutoringTurnResponseDto[] = []
+
+    for (const [index, turnInput] of turnInputs.entries()) {
+      const response = await request(requireApp().getHttpServer())
+        .post(messagesPath(session.id))
+        .set('Authorization', `Bearer ${studentToken}`)
+        .send(turnInput)
+        .expect(201)
+      turns.push(response.body as TutoringTurnResponseDto)
+
+      if (index === 1 || index === 2) {
+        const activeState = await prisma.topicState.findFirstOrThrow({
+          where: { topic: { sessionId: session.id } },
+        })
+        expect(activeState.misconceptionStatus).toBe(MisconceptionStatus.ACTIVE)
+        expect(activeState.guidanceLevel).toBe(2)
+      }
+    }
+
+    expect(
+      turns.map(({ assistantMessage }) => assistantMessage.hintLevel),
+    ).toEqual([1, 2, 2, 1])
+    for (const turn of turns) {
+      expect(turn.assistantMessage).toMatchObject({
+        status: 'COMPLETED',
+        guidanceLabel: MessageGuidanceLabel.COURSE_GROUNDED,
+      })
+      expect(turn.assistantMessage.citations).toHaveLength(1)
+    }
+    expect(turns[3].assistantMessage.content).toMatch(/^Yes—/u)
+    expect(turns[3].assistantMessage.content).toMatch(/verify/iu)
+    expect(turns[3].assistantMessage.content).toMatch(/\?$/u)
+
+    const attempts = await prisma.tutoringAttempt.findMany({
+      where: { sessionId: session.id },
+      include: {
+        studentMessage: { select: { sequence: true } },
+        educationalAnalyses: {
+          include: { evidenceLinks: true, misconceptions: true },
+        },
+        teachingDecision: true,
+        candidateAttempts: { include: { guardResults: true } },
+      },
+    })
+    attempts.sort(
+      (left, right) =>
+        (left.studentMessage?.sequence ?? 0) -
+        (right.studentMessage?.sequence ?? 0),
+    )
+    const analyses = attempts.map(({ educationalAnalyses }) => {
+      const accepted = educationalAnalyses.at(0)
+      if (accepted === undefined) {
+        throw new Error('Expected one accepted Educational Analysis per turn')
+      }
+      return accepted
+    })
+    const decisions = attempts.map(({ teachingDecision }) => {
+      if (teachingDecision === null) {
+        throw new Error('Expected one authoritative Teaching Decision per turn')
+      }
+      return teachingDecision
+    })
+
+    expect(analyses.map(({ studentState }) => studentState)).toEqual([
+      StudentState.UNKNOWN,
+      StudentState.MISCONCEPTION,
+      StudentState.MISCONCEPTION,
+      StudentState.NEAR_SOLUTION,
+    ])
+    expect(analyses.map(({ effortPresent }) => effortPresent)).toEqual([
+      false,
+      true,
+      false,
+      true,
+    ])
+    expect(analyses[2]).toMatchObject({
+      recommendedGuidanceLevel: 3,
+      effortPresent: false,
+      effortQuality: 'NONE',
+      learningEvidencePresent: false,
+    })
+    expect(analyses[3]).toMatchObject({
+      requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+      studentState: StudentState.NEAR_SOLUTION,
+      learningEvidencePresent: true,
+      learningEvidenceStrength: 'STRONG',
+      recommendedTechnique: TeachingTechnique.VERIFICATION,
+    })
+    expect(analyses[3].evidenceLinks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'LEARNING',
+          messageId: turns[3].studentMessage.id,
+        }),
+      ]),
+    )
+    expect(
+      analyses.flatMap(({ misconceptions }) => misconceptions),
+    ).toHaveLength(1)
+
+    expect(decisions.map(({ guidanceLevel }) => guidanceLevel)).toEqual([
+      1, 2, 2, 1,
+    ])
+    expect(decisions.map(({ strategy }) => strategy)).toEqual([
+      TeachingStrategy.GUIDED_EXPLANATION,
+      TeachingStrategy.MISCONCEPTION_REPAIR,
+      TeachingStrategy.MISCONCEPTION_REPAIR,
+      TeachingStrategy.SOCRATIC_QUESTIONING,
+    ])
+    expect(decisions.map(({ primaryTechnique }) => primaryTechnique)).toEqual([
+      TeachingTechnique.ORIENTATION_QUESTION,
+      TeachingTechnique.COUNTEREXAMPLE,
+      TeachingTechnique.COUNTEREXAMPLE,
+      TeachingTechnique.VERIFICATION,
+    ])
+    expect(
+      decisions.every(({ requireStudentAction }) => requireStudentAction),
+    ).toBe(true)
+
+    for (const attempt of attempts) {
+      expect(attempt).toMatchObject({
+        status: TutoringAttemptStatus.COMPLETED,
+        explicitProtectedSolutionSignal: false,
+        effectiveSolutionProtection: false,
+        solutionProtectionSource: 'ACCEPTED_CONCEPT_ANALYSIS',
+        solutionProtectionPolicyVersion: 'solution-protection.v1',
+        safeFallbackUsed: false,
+        approvalSource: 'VALIDATED_CANDIDATE',
+        approvedCandidateAttempt: 1,
+      })
+      expect(attempt.candidateAttempts).toHaveLength(1)
+      expect(
+        attempt.candidateAttempts[0]?.guardResults.map(
+          ({ validationStage, approved }) => ({ validationStage, approved }),
+        ),
+      ).toEqual([
+        { validationStage: 'STRUCTURAL', approved: true },
+        { validationStage: 'DETERMINISTIC', approved: true },
+        { validationStage: 'SEMANTIC', approved: true },
+      ])
+    }
+
+    const finalTopicState = await prisma.topicState.findFirstOrThrow({
+      where: { topic: { sessionId: session.id } },
+    })
+    expect(finalTopicState).toMatchObject({
+      studentState: StudentState.NEAR_SOLUTION,
+      learningStatus: LearningStatus.VERIFIED,
+      resolutionEvidenceStrength: ResolutionEvidenceStrength.STRONG,
+      misconceptionStatus: MisconceptionStatus.CORRECTED,
+      activeStrategy: TeachingStrategy.SOCRATIC_QUESTIONING,
+      primaryTechnique: TeachingTechnique.VERIFICATION,
+      guidanceLevel: 1,
+    })
+    await expect(
+      prisma.topic.findFirstOrThrow({
+        where: { sessionId: session.id },
+        select: {
+          solutionProtectionStatus: true,
+          solutionProtectionSource: true,
+        },
+      }),
+    ).resolves.toEqual({
+      solutionProtectionStatus: 'UNPROTECTED',
+      solutionProtectionSource: 'ACCEPTED_CONCEPT_ANALYSIS',
+    })
+
+    const ids = attempts.map(({ id }) => id)
+    const analysisIds = analyses.map(({ id }) => id)
+    const beforeReplay = {
+      topicStateVersion: finalTopicState.version,
+      messageCount: await prisma.message.count({
+        where: { sessionId: session.id },
+      }),
+      attemptCount: await prisma.tutoringAttempt.count({
+        where: { sessionId: session.id },
+      }),
+      analysisCount: analyses.length,
+      decisionCount: decisions.length,
+      candidateCount: await prisma.tutoringCandidateAttempt.count({
+        where: { attemptId: { in: ids } },
+      }),
+      guardCount: await prisma.guardResult.count({
+        where: { attemptId: { in: ids } },
+      }),
+      evidenceCount: await prisma.educationalAnalysisEvidenceLink.count({
+        where: { analysisId: { in: analysisIds } },
+      }),
+      misconceptionCount: await prisma.educationalAnalysisMisconception.count({
+        where: { analysisId: { in: analysisIds } },
+      }),
+      analysisModelCalls: analysisIndex,
+      tutorModelCalls: tutorModel.callCount,
+      semanticGuardCalls: semanticGuard.callCount,
+    }
+    const replayResponse = await request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${studentToken}`)
+      .send(turnInputs[3])
+      .expect(201)
+    const replayedTurn = replayResponse.body as TutoringTurnResponseDto
+
+    expect(replayedTurn.studentMessage.id).toBe(turns[3].studentMessage.id)
+    expect(replayedTurn.assistantMessage.id).toBe(turns[3].assistantMessage.id)
+    await expect(
+      prisma.topicState.findUniqueOrThrow({
+        where: { id: finalTopicState.id },
+        select: { version: true },
+      }),
+    ).resolves.toEqual({ version: beforeReplay.topicStateVersion })
+    await expect(
+      prisma.message.count({ where: { sessionId: session.id } }),
+    ).resolves.toBe(beforeReplay.messageCount)
+    await expect(
+      prisma.tutoringAttempt.count({ where: { sessionId: session.id } }),
+    ).resolves.toBe(beforeReplay.attemptCount)
+    await expect(
+      prisma.educationalAnalysis.count({
+        where: { attemptId: { in: ids } },
+      }),
+    ).resolves.toBe(beforeReplay.analysisCount)
+    await expect(
+      prisma.teachingDecision.count({ where: { attemptId: { in: ids } } }),
+    ).resolves.toBe(beforeReplay.decisionCount)
+    await expect(
+      prisma.tutoringCandidateAttempt.count({
+        where: { attemptId: { in: ids } },
+      }),
+    ).resolves.toBe(beforeReplay.candidateCount)
+    await expect(
+      prisma.guardResult.count({ where: { attemptId: { in: ids } } }),
+    ).resolves.toBe(beforeReplay.guardCount)
+    await expect(
+      prisma.educationalAnalysisEvidenceLink.count({
+        where: { analysisId: { in: analysisIds } },
+      }),
+    ).resolves.toBe(beforeReplay.evidenceCount)
+    await expect(
+      prisma.educationalAnalysisMisconception.count({
+        where: { analysisId: { in: analysisIds } },
+      }),
+    ).resolves.toBe(beforeReplay.misconceptionCount)
+    expect(analysisIndex).toBe(beforeReplay.analysisModelCalls)
+    expect(tutorModel.callCount).toBe(beforeReplay.tutorModelCalls)
+    expect(semanticGuard.callCount).toBe(beforeReplay.semanticGuardCalls)
+  })
+
   it('reproduces the find_max journey and persists the meaningful misconception turn at Level 2', async () => {
     await createEvidenceMaterial({
       title: 'Python list indexing and comparison',
@@ -760,15 +1364,25 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     ] as const
     let candidateIndex = 0
     tutorModel.behavior = (modelRequest) => {
+      if (candidateIndex === 0) {
+        expect(modelRequest.messages[1].content).toContain(
+          '"debuggingGuidance":null',
+        )
+        expect(modelRequest.messages[1].content).not.toContain(
+          '"debuggingGuidance":{',
+        )
+      }
       const planned = candidatePlan[candidateIndex]
       candidateIndex += 1
       return Promise.resolve(storyCandidateResponse(modelRequest, planned))
     }
 
+    const liveNoAttemptProblem =
+      'Write a Python function that returns the largest number in a list without using max(). Give me the complete solution.'
     const turns: TutoringTurnResponseDto[] = []
     try {
       for (const content of [
-        'Write a Python function find_max(numbers) that returns the largest value in a non-empty list of integers without using max().',
+        liveNoAttemptProblem,
         "I don't know.",
         "I still don't know.",
         'I think the first element would be numbers[1], so I would start with largest = numbers[1]. Then I would compare the other values against it.',
@@ -798,6 +1412,10 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       MessageRequestKind.CONCEPTUAL,
       MessageRequestKind.ATTEMPT_DIAGNOSIS,
     ])
+    expect(turns[0]?.studentMessage.content).toBe(liveNoAttemptProblem)
+    expect(turns[0]?.assistantMessage.content).not.toMatch(
+      /Likely defect|Relevant location|Next inspection step|STATIC PYTHON DIAGNOSIS/iu,
+    )
     expect(
       turns.map(({ assistantMessage }) => assistantMessage.hintLevel),
     ).toEqual([1, 1, 1, 2])
@@ -829,6 +1447,122 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     )
     await expect(guidanceLevelsForSession(prisma, session.id)).resolves.toEqual(
       [1, 1, 1, 2],
+    )
+    const protectedAttempts = await prisma.tutoringAttempt.findMany({
+      where: { sessionId: session.id },
+      orderBy: { createdAt: 'asc' },
+    })
+    expect(protectedAttempts).toHaveLength(4)
+    expect(
+      protectedAttempts.every(
+        (attempt) =>
+          attempt.effectiveSolutionProtection === true &&
+          attempt.solutionProtectionPolicyVersion === 'solution-protection.v1',
+      ),
+    ).toBe(true)
+  })
+
+  it('resets on an authoritative topic switch and restores persisted protection when the protected Topic resumes', async () => {
+    await createEvidenceMaterial({
+      title: 'Topic lifecycle source',
+      content:
+        'Accumulators retain a running value, while list iteration visits items in order.',
+    })
+    const session = await createSession()
+    const problemId = randomUUID()
+    const conceptId = randomUUID()
+    const analysisPlan = [
+      MessageRequestKind.PROBLEM_LIKE,
+      MessageRequestKind.CONCEPTUAL,
+      MessageRequestKind.ATTEMPT_DIAGNOSIS,
+    ] as const
+    let analysisIndex = 0
+    analysisModel.behavior = (modelRequest) => {
+      const requestKind = analysisPlan[analysisIndex]
+      analysisIndex += 1
+      return Promise.resolve(
+        functionalStoryAnalysisResponse(modelRequest, {
+          requestKind,
+          studentState:
+            requestKind === MessageRequestKind.ATTEMPT_DIAGNOSIS
+              ? StudentState.PARTIAL_UNDERSTANDING
+              : StudentState.UNKNOWN,
+          recommendedStrategy: TeachingStrategy.GUIDED_EXPLANATION,
+          recommendedTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+          meaningfulEffort:
+            requestKind === MessageRequestKind.ATTEMPT_DIAGNOSIS,
+        }),
+      )
+    }
+
+    for (const body of [
+      {
+        content: 'What should I inspect first in this assigned exercise?',
+        clientMessageId: randomUUID(),
+        problemId,
+        title: 'Assigned accumulator exercise',
+      },
+      {
+        content: 'What does an accumulator mean in general?',
+        clientMessageId: randomUUID(),
+        conceptId,
+        title: 'Accumulator concept',
+      },
+      {
+        content: 'How can I verify my earlier reasoning?',
+        clientMessageId: randomUUID(),
+        problemId,
+        title: 'Assigned accumulator exercise',
+      },
+    ]) {
+      await request(requireApp().getHttpServer())
+        .post(messagesPath(session.id))
+        .set('Authorization', `Bearer ${studentToken}`)
+        .send(body)
+        .expect(201)
+    }
+
+    const attempts = await prisma.tutoringAttempt.findMany({
+      where: { sessionId: session.id },
+      orderBy: { createdAt: 'asc' },
+    })
+    expect(
+      attempts.map((attempt) => ({
+        protected: attempt.effectiveSolutionProtection,
+        source: attempt.solutionProtectionSource,
+      })),
+    ).toEqual([
+      {
+        protected: true,
+        source: 'AUTHORITATIVE_TASK_METADATA',
+      },
+      {
+        protected: false,
+        source: 'ACCEPTED_CONCEPT_ANALYSIS',
+      },
+      {
+        protected: true,
+        source: 'AUTHORITATIVE_TASK_METADATA',
+      },
+    ])
+    const topics = await prisma.topic.findMany({
+      where: { sessionId: session.id },
+      orderBy: { createdAt: 'asc' },
+    })
+    expect(topics).toHaveLength(2)
+    expect(topics.find((topic) => topic.problemId === problemId)).toMatchObject(
+      {
+        status: 'ACTIVE',
+        solutionProtectionStatus: 'PROTECTED',
+        solutionProtectionSource: 'AUTHORITATIVE_TASK_METADATA',
+      },
+    )
+    expect(topics.find((topic) => topic.conceptId === conceptId)).toMatchObject(
+      {
+        status: 'PAUSED',
+        solutionProtectionStatus: 'UNPROTECTED',
+        solutionProtectionSource: 'ACCEPTED_CONCEPT_ANALYSIS',
+      },
     )
   })
 
@@ -865,7 +1599,9 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       const citationIds = tutorModel.extractAllowedCitationIds(modelRequest)
       return Promise.resolve(
         Object.freeze({
-          rawOutput: Object.freeze(validCandidateRawOutput(citationIds)),
+          rawOutput: Object.freeze(
+            validCandidateRawOutputForRequest(modelRequest, citationIds),
+          ),
           provider: 'e2e-controllable-tutor',
           model: 'e2e-controllable-tutor-v1',
           promptVersion: modelRequest.promptVersion,
@@ -1005,7 +1741,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       }
       const citationIds = tutorModel.extractAllowedCitationIds(modelRequest)
       return Promise.resolve({
-        rawOutput: validCandidateRawOutput(citationIds),
+        rawOutput: validCandidateRawOutputForRequest(modelRequest, citationIds),
         provider: 'e2e-controllable-tutor',
         model: 'e2e-controllable-tutor-v1',
         promptVersion: modelRequest.promptVersion,
@@ -1100,6 +1836,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
             message: firstAttempt
               ? `${OVER_REVEAL_CANDIDATE} [retrieval.rank.1]`
               : `${BOUNDED_REGENERATED_CANDIDATE} [retrieval.rank.1]`,
+            debuggingGuidance: null,
             responseIntent: 'MISCONCEPTION_REPAIR',
             usedCitationIds: [...citationIds],
             requiresStudentAction: true,
@@ -1247,7 +1984,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
 
     // The response is COMPLETED (safe fallback), not FAILED
     expect(turn.assistantMessage.status).toBe('COMPLETED')
-    expect(turn.assistantMessage.guidanceLabel).toBe('COURSE_GROUNDED')
+    expect(turn.assistantMessage.guidanceLabel).toBeNull()
 
     // The content is a SafeFallback, NOT the approved candidate
     expect(turn.assistantMessage.content).not.toBe(EXPECTED_HAPPY_PATH_MESSAGE)
@@ -1278,6 +2015,134 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
         where: { attemptId: tutoringAttempts[0].id },
       }),
     ).resolves.toBe(3)
+  })
+
+  it('refuses protected submission-ready output and persists reconstructable hash-only audit metadata', async () => {
+    await createEvidenceMaterial({
+      title: 'Protected task source',
+      content: 'A running total can be updated once for each list item.',
+    })
+    const session = await createSession()
+    const problemId = randomUUID()
+    analysisModel.behavior = (modelRequest) =>
+      Promise.resolve(
+        functionalStoryAnalysisResponse(modelRequest, {
+          requestKind: MessageRequestKind.PROBLEM_LIKE,
+          studentState: StudentState.NO_PRIOR_KNOWLEDGE,
+          recommendedStrategy: TeachingStrategy.GUIDED_EXPLANATION,
+          recommendedTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+        }),
+      )
+    const protectedCandidate =
+      'Here is the complete final implementation:\n```python\ndef solve(values):\n    total = 0\n    for value in values:\n        total += value\n    return total\n```'
+    tutorModel.behavior = (modelRequest) =>
+      Promise.resolve(
+        storyCandidateResponse(modelRequest, {
+          message: protectedCandidate,
+          responseIntent: TeachingStrategy.GUIDED_EXPLANATION,
+          studentActionType: TeachingTechnique.ORIENTATION_QUESTION,
+        }),
+      )
+
+    const response = await request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${studentToken}`)
+      .send({
+        content: 'Help me take the first step on this assigned exercise.',
+        clientMessageId: randomUUID(),
+        problemId,
+        title: 'Assigned accumulation exercise',
+      })
+      .expect(201)
+    const turn = response.body as TutoringTurnResponseDto
+
+    expect(turn.assistantMessage).toMatchObject({
+      status: 'COMPLETED',
+      content: RESPONSE_GOVERNANCE_REFUSAL_CONTENT,
+      guidanceLabel: MessageGuidanceLabel.REFUSAL,
+    })
+    const attempt = await prisma.tutoringAttempt.findFirstOrThrow({
+      where: { sessionId: session.id },
+      include: { candidateAttempts: true, outputRiskEvents: true },
+    })
+    expect(attempt).toMatchObject({
+      effectiveSolutionProtection: true,
+      solutionProtectionSource: 'AUTHORITATIVE_TASK_METADATA',
+      solutionProtectionPolicyVersion: 'solution-protection.v1',
+    })
+    expect(attempt.candidateAttempts).toHaveLength(1)
+    expect(attempt.candidateAttempts[0]?.contentHash).toMatch(/^[a-f0-9]{64}$/u)
+    expect(attempt.outputRiskEvents).toEqual([
+      expect.objectContaining({
+        candidateAttempt: 1,
+        source: 'APPROVAL_CANDIDATE',
+        detectorVersion: 'automatic-safety-risk-v3',
+        risks: ['FINAL_ANSWER_DELIVERY'],
+        protectTargetSolution: true,
+        solutionProtectionSource: 'AUTHORITATIVE_TASK_METADATA',
+        solutionProtectionPolicyVersion: 'solution-protection.v1',
+      }),
+    ])
+    expect(JSON.stringify(attempt)).not.toContain(protectedCandidate)
+  })
+
+  it('does not turn an unprotected conceptual explanation into a final-answer refusal', async () => {
+    await createEvidenceMaterial({
+      title: 'Concept source',
+      content: 'A loop visits each item and can update an accumulator.',
+    })
+    const session = await createSession()
+    analysisModel.behavior = (modelRequest) =>
+      Promise.resolve(
+        functionalStoryAnalysisResponse(modelRequest, {
+          requestKind: MessageRequestKind.CONCEPTUAL,
+          studentState: StudentState.MISCONCEPTION,
+          recommendedStrategy: TeachingStrategy.MISCONCEPTION_REPAIR,
+          recommendedTechnique: TeachingTechnique.COUNTEREXAMPLE,
+        }),
+      )
+    tutorModel.behavior = (modelRequest) =>
+      Promise.resolve(
+        storyCandidateResponse(modelRequest, {
+          message:
+            'Here is the complete final implementation:\n```python\ndef solve(values):\n    return sum(values)\n```',
+          responseIntent: TeachingStrategy.MISCONCEPTION_REPAIR,
+          studentActionType: TeachingTechnique.COUNTEREXAMPLE,
+        }),
+      )
+
+    const response = await request(requireApp().getHttpServer())
+      .post(messagesPath(session.id))
+      .set('Authorization', `Bearer ${studentToken}`)
+      .send({
+        content: 'I think an accumulator resets on every loop iteration.',
+        clientMessageId: randomUUID(),
+        conceptId: randomUUID(),
+        title: 'Loop accumulators',
+      })
+      .expect(201)
+    const turn = response.body as TutoringTurnResponseDto
+
+    expect(turn.assistantMessage).toMatchObject({
+      status: 'COMPLETED',
+    })
+    expect(turn.assistantMessage.guidanceLabel).not.toBe(
+      MessageGuidanceLabel.REFUSAL,
+    )
+    expect(turn.assistantMessage.content).not.toBe(
+      RESPONSE_GOVERNANCE_REFUSAL_CONTENT,
+    )
+    const attempt = await prisma.tutoringAttempt.findFirstOrThrow({
+      where: { sessionId: session.id },
+    })
+    expect(attempt).toMatchObject({
+      effectiveSolutionProtection: false,
+      solutionProtectionSource: 'ACCEPTED_CONCEPT_ANALYSIS',
+      safeFallbackUsed: true,
+    })
+    await expect(
+      prisma.outputRiskEvent.count({ where: { attemptId: attempt.id } }),
+    ).resolves.toBe(0)
   })
 
   it('progresses guidance 1→2→3 and de-escalates to 2 from observed learning', async () => {
@@ -1509,14 +2374,17 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     rejectUncontextualizedHint = true
 
     const tutorQuestions = [
-      'In a Python for loop, which list element would you inspect first?',
+      'A Python for loop visits list elements in their written order and assigns each one to the loop variable. Which list element would it inspect first?',
       'How does that ordering idea apply to the loop variable?',
       'For Python for-loop iteration, which element is at the very beginning of numbers = [10, 20, 30]?',
       'Which position in the written list could you inspect first?',
     ]
     tutorModel.behavior = (modelRequest) => {
       const citationIds = tutorModel.extractAllowedCitationIds(modelRequest)
-      const rawOutput = validCandidateRawOutput(citationIds)
+      const rawOutput = validCandidateRawOutputForRequest(
+        modelRequest,
+        citationIds,
+      )
       const message = tutorQuestions[tutorModel.callCount - 1]
       return Promise.resolve(
         Object.freeze({
@@ -1610,6 +2478,16 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       .expect(201)
     const firstTurn = first.body as TutoringTurnResponseDto
     expect(firstTurn.assistantMessage.status).toBe('COMPLETED')
+    const originalDecision = await prisma.tutoringAttempt.findFirstOrThrow({
+      where: { sessionId: session.id },
+      select: {
+        explicitProtectedSolutionSignal: true,
+        effectiveSolutionProtection: true,
+        solutionProtectionSource: true,
+        solutionProtectionPolicyVersion: true,
+        solutionProtectionResolvedAt: true,
+      },
+    })
 
     const second = await request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
@@ -1628,6 +2506,18 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     await expect(
       prisma.tutoringAttempt.count({ where: { sessionId: session.id } }),
     ).resolves.toBe(1)
+    await expect(
+      prisma.tutoringAttempt.findFirstOrThrow({
+        where: { sessionId: session.id },
+        select: {
+          explicitProtectedSolutionSignal: true,
+          effectiveSolutionProtection: true,
+          solutionProtectionSource: true,
+          solutionProtectionPolicyVersion: true,
+          solutionProtectionResolvedAt: true,
+        },
+      }),
+    ).resolves.toEqual(originalDecision)
 
     const mismatched = await request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
@@ -1700,6 +2590,23 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     expect(retriedTurn.assistantMessage.status).toBe('COMPLETED')
     expect(retriedTurn.assistantMessage.guidanceLabel).toBe('COURSE_GROUNDED')
     expect(embedQuery.mock.calls.at(-1)?.[0]).toBe(failedAttemptQuery)
+
+    const retryAttempts = await prisma.tutoringAttempt.findMany({
+      where: { sessionId: session.id },
+      orderBy: { createdAt: 'asc' },
+    })
+    expect(retryAttempts).toHaveLength(2)
+    expect(retryAttempts[1]).toMatchObject({
+      retryOfAttemptId: retryAttempts[0].id,
+      explicitProtectedSolutionSignal:
+        retryAttempts[0].explicitProtectedSolutionSignal,
+      effectiveSolutionProtection: retryAttempts[0].effectiveSolutionProtection,
+      solutionProtectionSource: retryAttempts[0].solutionProtectionSource,
+      solutionProtectionPolicyVersion:
+        retryAttempts[0].solutionProtectionPolicyVersion,
+      solutionProtectionResolvedAt:
+        retryAttempts[0].solutionProtectionResolvedAt,
+    })
 
     await expect(
       prisma.message.count({ where: { sessionId: session.id } }),

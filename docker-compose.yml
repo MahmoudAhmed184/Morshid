@@ -95,7 +95,7 @@ services:
       SEMANTIC_GUARD_MODEL_NAME: ${SEMANTIC_GUARD_MODEL_NAME:-Qwen/Qwen2.5-7B-Instruct-Guard}
       SEMANTIC_GUARD_API_KEY: ${SEMANTIC_GUARD_API_KEY:-}
       SEMANTIC_GUARD_TIMEOUT_MS: ${SEMANTIC_GUARD_TIMEOUT_MS:-30000}
-      SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: ${SEMANTIC_GUARD_MAX_COMPLETION_TOKENS:-256}
+      SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: ${SEMANTIC_GUARD_MAX_COMPLETION_TOKENS:-2048}
       # No insecure fallback: an unset variable is passed through empty (not a
       # committed placeholder), and the server's env schema rejects empty,
       # placeholder, or identical secrets at boot. A `:?` guard is intentionally

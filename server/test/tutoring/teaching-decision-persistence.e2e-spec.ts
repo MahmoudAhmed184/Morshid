@@ -6,6 +6,7 @@ import {
   MessageStatus,
   ReflectionMode,
   RevealPolicy,
+  StudentActionPurpose,
   StudentState,
   TeachingStrategy,
   TeachingTechnique,
@@ -28,6 +29,8 @@ import {
   type PersistedTeachingDecisionRecord,
 } from '../../src/modules/tutoring/socratic-workflow/teaching-decision/teaching-decision.repository'
 import { TeachingPolicyEngine } from '../../src/modules/tutoring/socratic-workflow/teaching-decision/teaching-policy.engine'
+import { PrismaDebuggingDiagnosisRepository } from '../../src/modules/tutoring/socratic-workflow/debugging-guidance/debugging-diagnosis.repository'
+import { DebuggingDiagnosisService } from '../../src/modules/tutoring/socratic-workflow/debugging-guidance/debugging-diagnosis.service'
 import {
   fixedTeachingGuardPolicy,
   teachingPolicyDefaults,
@@ -55,6 +58,7 @@ describe('TeachingDecisionRepository (e2e)', () => {
   let prisma: PrismaService
   let analysisRepository: PrismaEducationalAnalysisRepository
   let decisionRepository: PrismaTeachingDecisionRepository
+  let debuggingDiagnosisService: DebuggingDiagnosisService
   let engine: TeachingPolicyEngine
 
   beforeAll(async () => {
@@ -62,6 +66,9 @@ describe('TeachingDecisionRepository (e2e)', () => {
     prisma = database.prisma
     analysisRepository = new PrismaEducationalAnalysisRepository(prisma)
     decisionRepository = new PrismaTeachingDecisionRepository(prisma)
+    debuggingDiagnosisService = new DebuggingDiagnosisService(
+      new PrismaDebuggingDiagnosisRepository(prisma),
+    )
     engine = new TeachingPolicyEngine(decisionRepository)
   })
 
@@ -96,6 +103,7 @@ describe('TeachingDecisionRepository (e2e)', () => {
         revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
         reflectionMode: ReflectionMode.NONE,
         requireStudentAction: true,
+        studentActionPurpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
         guardPolicy: fixedTeachingGuardPolicy(),
         policyVersion: TEACHING_POLICY_VERSION,
       },
@@ -132,6 +140,7 @@ describe('TeachingDecisionRepository (e2e)', () => {
         guidanceLevel: 1,
         revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
         reflectionMode: ReflectionMode.NONE,
+        studentActionPurpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
       },
     })
   })
@@ -162,6 +171,46 @@ describe('TeachingDecisionRepository (e2e)', () => {
 
     const third = await engine.selectDecision(input)
     expect(third).toMatchObject({ success: true, reused: true })
+  })
+
+  it('persists one immutable uncertain diagnosis per attempt and reuses it on replay', async () => {
+    const fixture = await createFixture(prisma)
+    const input = {
+      attemptId: fixture.attemptId,
+      studentMessageId: fixture.studentMessageId,
+      studentMessage: [
+        'This code gives the wrong result for some lists with negative numbers. Fix it for me.',
+        '```python',
+        'def largest(nums):',
+        '    largest = 0',
+        '    for n in nums:',
+        '        if n > largest:',
+        '            largest = n',
+        '    return largest',
+        '```',
+      ].join('\n'),
+    }
+
+    const first = await debuggingDiagnosisService.resolve(input)
+    const replay = await debuggingDiagnosisService.resolve(input)
+
+    expect(first).toMatchObject({
+      success: true,
+      reused: false,
+      diagnosis: {
+        status: 'UNCERTAIN',
+        source: 'FALLBACK',
+        category: 'UNKNOWN',
+        confidence: 'LOW',
+        likelyDefect: null,
+      },
+    })
+    expect(replay).toMatchObject({ success: true, reused: true })
+    await expect(
+      prisma.debuggingDiagnosis.count({
+        where: { tutoringAttemptId: fixture.attemptId },
+      }),
+    ).resolves.toBe(1)
   })
 
   it('creates another decision for another turn', async () => {
@@ -652,5 +701,7 @@ function previousDecision(
     policyVersion: TEACHING_POLICY_VERSION,
     createdAt: new Date('2026-08-05T00:00:00.000Z'),
     ...input,
+    studentActionPurpose:
+      input.studentActionPurpose ?? StudentActionPurpose.PRIMARY_TECHNIQUE,
   }
 }

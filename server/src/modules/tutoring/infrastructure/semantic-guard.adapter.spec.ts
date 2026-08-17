@@ -42,6 +42,7 @@ describe('OpenAICompatibleSemanticGuardAdapter', () => {
             model: 'Qwen/Qwen2.5-7B-Instruct-Guard',
             choices: [
               {
+                finish_reason: 'stop',
                 message: {
                   role: 'assistant',
                   content: JSON.stringify(validGuardOutput),
@@ -88,11 +89,54 @@ describe('OpenAICompatibleSemanticGuardAdapter', () => {
         ],
         temperature: 0,
         top_p: 1,
-        max_completion_tokens: 256,
+        max_completion_tokens: 2048,
         response_format: { type: 'json_object' },
       }),
     )
   })
+
+  it.each([
+    {
+      name: 'truncated',
+      finishReason: 'length',
+      content: '{"approved":false,"violations":[',
+      expectedFinishReason: 'length',
+    },
+    {
+      name: 'otherwise malformed',
+      finishReason: 'stop',
+      content: 'not-json',
+      expectedFinishReason: 'stop',
+    },
+  ])(
+    'rejects $name JSON with safe finish-reason diagnostics',
+    async ({ finishReason, content, expectedFinishReason }) => {
+      const adapter = new OpenAICompatibleSemanticGuardAdapter(
+        buildOpenAICompatibleConfiguration(),
+        30_000,
+        undefined,
+        () =>
+          Promise.resolve(
+            new Response(
+              JSON.stringify({
+                choices: [
+                  {
+                    finish_reason: finishReason,
+                    message: { content },
+                  },
+                ],
+              }),
+              { status: 200 },
+            ),
+          ),
+      )
+
+      await expect(adapter.evaluate(request)).rejects.toMatchObject({
+        code: SEMANTIC_GUARD_ERROR_CODE.MALFORMED_OUTPUT,
+        finishReason: expectedFinishReason,
+      })
+    },
+  )
 
   it('sends an authorization header only when an API key is configured', async () => {
     const fetchImplementation = jest.fn<
@@ -211,7 +255,7 @@ function buildOpenAICompatibleConfiguration(): OpenAICompatibleSemanticGuardConf
     endpoint: 'http://localhost:8000/v1/chat/completions',
     modelName: 'Qwen/Qwen2.5-7B-Instruct-Guard',
     apiKey: null,
-    maxCompletionTokens: 256,
+    maxCompletionTokens: 2048,
   }
 }
 

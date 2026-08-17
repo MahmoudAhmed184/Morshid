@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { StudentActionPurpose, TeachingTechnique } from '../../tutoring-values'
 import {
   TUTOR_CANDIDATE_LIMITS,
   TUTOR_RESPONSE_INTENTS,
@@ -8,6 +9,7 @@ import {
   type CandidateResponsePolicyContext,
 } from './tutor-generation.types'
 import { TUTOR_GENERATION_PROMPT_VERSION } from './tutor-prompt.definition'
+import { renderDebuggingGuidanceMessage } from '../debugging-guidance/debugging-guidance.output-validator'
 
 const BACKEND_OWNED_METADATA_KEYS = [
   'provider',
@@ -18,6 +20,7 @@ const BACKEND_OWNED_METADATA_KEYS = [
 
 const candidateContentKeys = [
   'message',
+  'debuggingGuidance',
   'responseIntent',
   'usedCitationIds',
   'requiresStudentAction',
@@ -26,33 +29,69 @@ const candidateContentKeys = [
   'selfReportedCompliance',
 ] as const
 
-export const CandidateResponseContentSchema = z
+const studentActionSchema = z
   .object({
-    message: boundedNonBlankString(TUTOR_CANDIDATE_LIMITS.maxMessageCodePoints),
-    responseIntent: z.enum(TUTOR_RESPONSE_INTENTS),
-    usedCitationIds: z
-      .array(
-        boundedNonBlankString(TUTOR_CANDIDATE_LIMITS.maxCitationIdCodePoints),
-      )
-      .max(TUTOR_CANDIDATE_LIMITS.maxCitationIds),
-    requiresStudentAction: z.boolean(),
-    studentAction: z
-      .object({
-        type: z.enum(TUTOR_STUDENT_ACTION_TYPES),
-        description: boundedNonBlankString(
-          TUTOR_CANDIDATE_LIMITS.maxStudentActionDescriptionCodePoints,
-        ),
-      })
-      .strict(),
-    reflectionIncluded: z.boolean(),
-    selfReportedCompliance: z
-      .object({
-        finalAnswerRevealed: z.literal(false),
-        completeSolutionRevealed: z.literal(false),
-      })
-      .strict(),
+    type: z.enum(TUTOR_STUDENT_ACTION_TYPES),
+    description: boundedNonBlankString(
+      TUTOR_CANDIDATE_LIMITS.maxStudentActionDescriptionCodePoints,
+    ),
   })
   .strict()
+
+const commonContentFields = {
+  responseIntent: z.enum(TUTOR_RESPONSE_INTENTS),
+  usedCitationIds: z
+    .array(
+      boundedNonBlankString(TUTOR_CANDIDATE_LIMITS.maxCitationIdCodePoints),
+    )
+    .max(TUTOR_CANDIDATE_LIMITS.maxCitationIds),
+  requiresStudentAction: z.boolean(),
+  reflectionIncluded: z.boolean(),
+  selfReportedCompliance: z
+    .object({
+      finalAnswerRevealed: z.literal(false),
+      completeSolutionRevealed: z.literal(false),
+    })
+    .strict(),
+} as const
+
+const generalCandidateResponseContentSchema = z
+  .object({
+    ...commonContentFields,
+    message: boundedNonBlankString(TUTOR_CANDIDATE_LIMITS.maxMessageCodePoints),
+    debuggingGuidance: z.null(),
+    studentAction: studentActionSchema,
+  })
+  .strict()
+
+const debuggingGuidanceResponseSchema = z
+  .object({
+    diagnosis: boundedString(1_000).optional(),
+    relevantLocation: boundedString(500).optional(),
+    conceptExplanation: boundedString(2_000).optional(),
+    inspectionActions: z
+      .array(
+        boundedNonBlankString(
+          TUTOR_CANDIDATE_LIMITS.maxStudentActionDescriptionCodePoints,
+        ),
+      )
+      .length(1),
+  })
+  .strict()
+
+const debuggingCandidateResponseContentSchema = z
+  .object({
+    ...commonContentFields,
+    message: z.null(),
+    debuggingGuidance: debuggingGuidanceResponseSchema,
+    studentAction: z.null(),
+  })
+  .strict()
+
+export const CandidateResponseContentSchema = z.union([
+  generalCandidateResponseContentSchema,
+  debuggingCandidateResponseContentSchema,
+])
 
 export type CandidateResponseContent = z.infer<
   typeof CandidateResponseContentSchema
@@ -141,17 +180,35 @@ export function validateCandidateResponse(
     }
   }
   if (
-    typeof rawOutput !== 'string' &&
-    content.requiresStudentAction !== policy.requireStudentAction
+    content.requiresStudentAction !== policy.studentActionObligation.required
   ) {
     return {
       success: false,
       errorCode: 'TUTOR_INVALID_OUTPUT',
     }
   }
+  if (content.reflectionIncluded !== (policy.reflectionMode !== 'NONE')) {
+    return {
+      success: false,
+      errorCode: 'TUTOR_INVALID_OUTPUT',
+    }
+  }
+
+  const debuggingRequired = policy.debuggingGuidanceRequired === true
+  if (!debuggingRequired && content.debuggingGuidance !== null) {
+    return {
+      success: false,
+      errorCode: 'TUTOR_INVALID_OUTPUT',
+    }
+  }
+
   if (
-    typeof rawOutput !== 'string' &&
-    content.reflectionIncluded !== (policy.reflectionMode !== 'NONE')
+    content.debuggingGuidance !== null &&
+    policy.studentActionObligation.purpose ===
+      StudentActionPurpose.PRIMARY_TECHNIQUE &&
+    policy.studentActionObligation.technique ===
+      TeachingTechnique.FOCUSED_QUESTION &&
+    !content.debuggingGuidance.inspectionActions[0]?.endsWith('?')
   ) {
     return {
       success: false,
@@ -159,11 +216,41 @@ export function validateCandidateResponse(
     }
   }
 
+  let message: string
+  let studentAction: CandidateResponse['studentAction']
+  if (content.debuggingGuidance === null) {
+    message = content.message
+    studentAction = content.studentAction
+  } else {
+    const action = content.debuggingGuidance.inspectionActions[0] ?? ''
+    message = renderDebuggingGuidanceMessage({
+      guidance: content.debuggingGuidance,
+      usedCitationIds,
+      action,
+      rewriteRequested: policy.debuggingRewriteRequested === true,
+    })
+    studentAction = Object.freeze({
+      type: policy.studentActionObligation.technique,
+      description: action,
+    })
+  }
+
   return {
     success: true,
     data: Object.freeze({
       ...content,
+      message,
+      debuggingGuidance:
+        content.debuggingGuidance === null
+          ? null
+          : Object.freeze({
+              ...content.debuggingGuidance,
+              inspectionActions: Object.freeze([
+                ...content.debuggingGuidance.inspectionActions,
+              ]),
+            }),
       usedCitationIds: Object.freeze(usedCitationIds),
+      studentAction,
       provider: metadata.provider,
       model: metadata.model,
       promptVersion: TUTOR_GENERATION_PROMPT_VERSION,
@@ -177,6 +264,15 @@ function boundedNonBlankString(maximumCodePoints: number) {
     .string()
     .trim()
     .min(1)
+    .refine((value) => hasAtMostCodePoints(value, maximumCodePoints), {
+      message: `String must contain at most ${String(maximumCodePoints)} Unicode code points`,
+    })
+}
+
+function boundedString(maximumCodePoints: number) {
+  return z
+    .string()
+    .trim()
     .refine((value) => hasAtMostCodePoints(value, maximumCodePoints), {
       message: `String must contain at most ${String(maximumCodePoints)} Unicode code points`,
     })

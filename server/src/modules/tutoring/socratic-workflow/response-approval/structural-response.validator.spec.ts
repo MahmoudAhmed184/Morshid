@@ -1,5 +1,6 @@
 import {
   ReflectionMode,
+  StudentActionPurpose,
   TeachingStrategy,
   TeachingTechnique,
 } from '../../tutoring-values'
@@ -89,6 +90,7 @@ function validator() {
 function validRawCandidate() {
   return {
     message: 'What changes first in the loop? [retrieval.rank.1]',
+    debuggingGuidance: null,
     responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
     usedCitationIds: ['retrieval.rank.1'],
     requiresStudentAction: true,
@@ -109,7 +111,15 @@ function policy(): CandidateResponsePolicyContext {
     allowedCitationIds: new Set(['retrieval.rank.1']),
     requireGrounding: true,
     enforceCitationSupport: true,
-    requireStudentAction: true,
+    studentActionObligation: {
+      version: 'student-action-obligation.v1',
+      required: true,
+      purpose: StudentActionPurpose.PRIOR_ATTEMPT_ORIENTATION,
+      technique: TeachingTechnique.ORIENTATION_QUESTION,
+      maximumMeaningfulActions: 1,
+      generationInstruction:
+        'Ask the student to share what they tried as the single meaningful action.',
+    },
     reflectionMode: ReflectionMode.NONE,
   }
 }

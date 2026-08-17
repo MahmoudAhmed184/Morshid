@@ -1,5 +1,6 @@
 import {
   ReflectionMode,
+  StudentActionPurpose,
   TeachingStrategy,
   TeachingTechnique,
 } from '../../tutoring-values'
@@ -167,11 +168,144 @@ describe('candidate response validation', () => {
       ).success,
     ).toBe(true)
   })
+
+  it('accepts a focused debugging question and derives message and studentAction', () => {
+    const result = validateCandidateResponse(
+      validDebuggingCandidate(),
+      debuggingPolicy(),
+      metadata(),
+    )
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.debuggingGuidance).toMatchObject({
+        diagnosis: 'The loop update likely uses the wrong variable.',
+        relevantLocation: 'Inspect the assignment inside the loop body.',
+        inspectionActions: [
+          'What value does the accumulator hold after one iteration?',
+        ],
+      })
+      expect(result.data.message).toContain('[retrieval.rank.1]')
+      expect(result.data.studentAction).toEqual({
+        type: TeachingTechnique.FOCUSED_QUESTION,
+        description:
+          'What value does the accumulator hold after one iteration?',
+      })
+    }
+  })
+
+  it('preserves incomplete structured debugging guidance for precise guard diagnostics', () => {
+    const candidate = validDebuggingCandidate()
+    const result = validateCandidateResponse(
+      {
+        ...candidate,
+        debuggingGuidance: {
+          relevantLocation: 'Inspect the assignment inside the loop body.',
+          conceptExplanation:
+            'An accumulator must be updated from its prior value.',
+          inspectionActions: [
+            'What value does the accumulator hold after one iteration?',
+          ],
+        },
+      },
+      debuggingPolicy(),
+      metadata(),
+    )
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.debuggingGuidance?.diagnosis).toBeUndefined()
+    }
+  })
+
+  it('rejects the obsolete debuggingGuidanceSections pseudo-field', () => {
+    expect(
+      validateCandidateResponse(
+        {
+          ...validDebuggingCandidate(),
+          debuggingGuidanceSections: {},
+        },
+        debuggingPolicy(),
+        metadata(),
+      ),
+    ).toEqual({
+      success: false,
+      errorCode: 'TUTOR_INVALID_OUTPUT',
+    })
+  })
+
+  it.each([
+    ['an empty action', ['']],
+    [
+      'multiple actions',
+      [
+        'What value enters the accumulator?',
+        'What value leaves the accumulator?',
+      ],
+    ],
+  ])(
+    'rejects structurally invalid debugging guidance with %s',
+    (_name, actions) => {
+      const candidate = validDebuggingCandidate()
+
+      expect(
+        validateCandidateResponse(
+          {
+            ...candidate,
+            debuggingGuidance: {
+              ...candidate.debuggingGuidance,
+              inspectionActions: actions,
+            },
+          },
+          debuggingPolicy(),
+          metadata(),
+        ),
+      ).toEqual({
+        success: false,
+        errorCode: 'TUTOR_INVALID_OUTPUT',
+      })
+    },
+  )
+
+  it('rejects an imperative debugging action for a focused-question obligation', () => {
+    const candidate = validDebuggingCandidate()
+
+    expect(
+      validateCandidateResponse(
+        {
+          ...candidate,
+          debuggingGuidance: {
+            ...candidate.debuggingGuidance,
+            inspectionActions: ['Trace the accumulator through one iteration.'],
+          },
+        },
+        debuggingPolicy(),
+        metadata(),
+      ),
+    ).toEqual({
+      success: false,
+      errorCode: 'TUTOR_INVALID_OUTPUT',
+    })
+  })
+
+  it('rejects canonical debugging guidance outside a debugging turn', () => {
+    expect(
+      validateCandidateResponse(
+        validDebuggingCandidate(),
+        policy(),
+        metadata(),
+      ),
+    ).toEqual({
+      success: false,
+      errorCode: 'TUTOR_INVALID_OUTPUT',
+    })
+  })
 })
 
 function validCandidate(patch: Record<string, unknown> = {}) {
   return {
     message: 'What value changes on each loop iteration? [retrieval.rank.1]',
+    debuggingGuidance: null,
     responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
     usedCitationIds: ['retrieval.rank.1'],
     requiresStudentAction: true,
@@ -193,8 +327,55 @@ function policy(): CandidateResponsePolicyContext {
     allowedCitationIds: new Set(['retrieval.rank.1']),
     requireGrounding: true,
     enforceCitationSupport: true,
-    requireStudentAction: true,
+    studentActionObligation: {
+      version: 'student-action-obligation.v1',
+      required: true,
+      purpose: StudentActionPurpose.PRIOR_ATTEMPT_ORIENTATION,
+      technique: TeachingTechnique.ORIENTATION_QUESTION,
+      maximumMeaningfulActions: 1,
+      generationInstruction:
+        'Ask the student to share what they tried as the single meaningful action.',
+    },
     reflectionMode: ReflectionMode.NONE,
+  }
+}
+
+function validDebuggingCandidate() {
+  return {
+    message: null,
+    debuggingGuidance: {
+      diagnosis: 'The loop update likely uses the wrong variable.',
+      relevantLocation: 'Inspect the assignment inside the loop body.',
+      conceptExplanation:
+        'An accumulator must be updated from its prior value.',
+      inspectionActions: [
+        'What value does the accumulator hold after one iteration?',
+      ],
+    },
+    responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
+    usedCitationIds: ['retrieval.rank.1'],
+    requiresStudentAction: true,
+    studentAction: null,
+    reflectionIncluded: false,
+    selfReportedCompliance: {
+      finalAnswerRevealed: false,
+      completeSolutionRevealed: false,
+    },
+  }
+}
+
+function debuggingPolicy(): CandidateResponsePolicyContext {
+  return {
+    ...policy(),
+    debuggingGuidanceRequired: true,
+    debuggingRewriteRequested: false,
+    studentActionObligation: {
+      ...policy().studentActionObligation,
+      purpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
+      technique: TeachingTechnique.FOCUSED_QUESTION,
+      generationInstruction:
+        'Request exactly one meaningful FOCUSED_QUESTION action.',
+    },
   }
 }
 

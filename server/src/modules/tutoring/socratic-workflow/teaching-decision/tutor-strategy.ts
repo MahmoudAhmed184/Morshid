@@ -12,7 +12,7 @@ import { DEBUGGING_GUIDANCE_TUTOR_DECISION } from '../debugging-guidance/debuggi
 import { requestsFullCorrectedProgram } from '../debugging-guidance/debugging-guidance.rewrite-policy'
 import {
   hasDebuggingGuidanceIntent,
-  prepareDebuggingGuidance,
+  isDebuggingGuidanceEligible,
   type DebuggingGuidanceDraft,
 } from '../debugging-guidance/debugging-guidance.strategy'
 import type { DebuggingGuidanceRetrievalQueryInput } from '../debugging-guidance/debugging-guidance-retrieval-query'
@@ -75,31 +75,15 @@ const DEBUGGING_GUIDANCE_BOUNDARY_DECISIONS = Object.freeze({
   OFF_TOPIC: safeRefusalDecision(MessageRequestKind.OFF_TOPIC),
 })
 
-export type TutorStrategySelection =
-  | {
-      readonly decision: TutorDecision
-      readonly retrievalQuery: string
-      readonly diagnosis: null
-      readonly suspectedCategory: null
-      readonly boundaryResponse: null
-      readonly fullRewriteRequested: false
-    }
-  | {
-      readonly decision: TutorDecision
-      readonly retrievalQuery: string
-      readonly diagnosis: Readonly<DebuggingGuidanceDraft>
-      readonly suspectedCategory: DebuggingGuidanceRetrievalQueryInput['suspectedCategory']
-      readonly boundaryResponse: null
-      readonly fullRewriteRequested: boolean
-    }
-  | {
-      readonly decision: TutorDecision
-      readonly retrievalQuery: null
-      readonly diagnosis: null
-      readonly suspectedCategory: null
-      readonly boundaryResponse: DebuggingGuidanceBoundaryResponse
-      readonly fullRewriteRequested: false
-    }
+export interface TutorStrategySelection {
+  readonly decision: TutorDecision
+  readonly retrievalQuery: string | null
+  readonly diagnosis: Readonly<DebuggingGuidanceDraft> | null
+  readonly suspectedCategory:
+    DebuggingGuidanceRetrievalQueryInput['suspectedCategory'] | null
+  readonly boundaryResponse: DebuggingGuidanceBoundaryResponse | null
+  readonly fullRewriteRequested: boolean
+}
 
 export function selectTutorStrategy(
   studentMessage: string,
@@ -129,13 +113,12 @@ export function selectTutorStrategy(
     })
   }
 
-  const diagnosis = prepareDebuggingGuidance(studentMessage, assessment)
-  if (diagnosis !== null) {
+  if (isDebuggingGuidanceEligible(studentMessage, assessment)) {
     return Object.freeze({
       decision: DEBUGGING_GUIDANCE_TUTOR_DECISION,
-      retrievalQuery: diagnosis.retrievalQuery,
-      diagnosis: diagnosis.diagnosis,
-      suspectedCategory: diagnosis.suspectedCategory,
+      retrievalQuery: null,
+      diagnosis: null,
+      suspectedCategory: null,
       boundaryResponse: null,
       fullRewriteRequested: requestsFullCorrectedProgram(studentMessage),
     })

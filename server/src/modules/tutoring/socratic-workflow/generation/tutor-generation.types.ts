@@ -13,6 +13,8 @@ import type { TopicStateSnapshot } from '../topic/topic-state.types'
 import type { TUTOR_GENERATION_PROMPT_VERSION } from './tutor-prompt.definition'
 import type { ValidationResult } from '../response-approval/response-validation.types'
 import type { DebuggingGuidanceContext } from '../debugging-guidance/debugging-guidance.output-validator'
+import type { OutputProtectionContext } from '../solution-protection/solution-protection.types'
+import type { StudentActionObligation } from '../teaching-decision/student-action-obligation'
 
 export const TUTOR_RESPONSE_INTENTS = [
   'GUIDED_EXPLANATION',
@@ -57,8 +59,16 @@ export interface TutorSelfReportedCompliance {
   readonly completeSolutionRevealed: boolean
 }
 
+export interface TutorDebuggingGuidanceResponse {
+  readonly diagnosis?: string
+  readonly relevantLocation?: string
+  readonly conceptExplanation?: string
+  readonly inspectionActions: readonly string[]
+}
+
 export interface CandidateResponse {
   readonly message: string
+  readonly debuggingGuidance: TutorDebuggingGuidanceResponse | null
   readonly responseIntent: TutorResponseIntent
   readonly usedCitationIds: readonly string[]
   readonly requiresStudentAction: boolean
@@ -78,8 +88,10 @@ export interface CandidateResponsePolicyContext {
   readonly allowedCitationIds: ReadonlySet<string>
   readonly requireGrounding: boolean
   readonly enforceCitationSupport: boolean
-  readonly requireStudentAction: boolean
+  readonly studentActionObligation: StudentActionObligation
   readonly reflectionMode: ReflectionMode
+  readonly debuggingGuidanceRequired?: boolean
+  readonly debuggingRewriteRequested?: boolean
 }
 
 export interface TutorEvidenceContext {
@@ -107,6 +119,7 @@ export interface GenerationContextPackage {
   readonly retrievedEvidence: readonly TutorEvidenceContext[]
   readonly allowedCitationIds: readonly string[]
   readonly conversationLanguage: string | null
+  readonly outputProtection: OutputProtectionContext
   readonly regeneration: TutorRegenerationContext | null
   readonly debuggingGuidance: DebuggingGuidanceContext | null
 }
@@ -124,6 +137,8 @@ export interface TutorRegenerationContext {
     readonly guidanceLevel: number
     readonly revealPolicy: RevealPolicy
     readonly guardPolicy: PersistedTeachingDecisionRecord['guardPolicy']
+    readonly studentActionObligation: StudentActionObligation
+    readonly outputProtection: OutputProtectionContext
   }
 }
 
@@ -134,6 +149,7 @@ export interface TutorGenerationInput {
   readonly attemptId: string
   readonly studentMessageId: string
   readonly topicId: string
+  readonly outputProtection: OutputProtectionContext
   readonly retrievalResult: readonly CourseEvidenceChunk[]
   readonly debuggingGuidance?: DebuggingGuidanceContext
   readonly regeneration?: TutorRegenerationContext
@@ -201,11 +217,13 @@ export interface TutorGuardEducationalContext {
   }
   readonly topicState: TopicStateSnapshot | null
   readonly previousTeachingDecision: PersistedTeachingDecisionRecord | null
+  readonly outputProtection: OutputProtectionContext
   readonly currentTeachingDecision: {
     readonly id: string
     readonly policyVersion: string
     readonly guidanceLevel: number
     readonly revealPolicy: RevealPolicy
+    readonly studentActionObligation: StudentActionObligation
   }
   readonly recentConversation: readonly {
     readonly id: string

@@ -1,4 +1,5 @@
 import type { AnalysisContextMessage } from '../analysis/analysis-context.types'
+import { StudentActionPurpose, TeachingTechnique } from '../../tutoring-values'
 import type {
   GenerationContextPackage,
   TutorModelRequest,
@@ -6,6 +7,7 @@ import type {
 import { TUTOR_GENERATION_PROMPT_VERSION } from './tutor-prompt.definition'
 import { buildSocraticDisclosureContract } from '../teaching-decision/socratic-disclosure-policy'
 import { buildTutorResponseRequirements } from './tutor-response-requirements'
+import { studentActionObligationFromDecision } from '../teaching-decision/student-action-obligation'
 
 export const TRUSTED_BACKEND_POLICY_BEGIN_MARKER =
   '<<<TRUSTED_BACKEND_POLICY>>>'
@@ -31,9 +33,11 @@ const TUTOR_GENERATION_SYSTEM_PROMPT = [
   'Strategy and technique determine the pedagogical method, but they never replace, narrow, or reduce the authoritative Guidance Level response shape.',
   'Treat the target inference as the correction, conclusion, value, relationship, or next reasoning result the student is currently meant to produce.',
   'When the disclosure contract prohibits the target inference, do not state it before a question and then ask the student to repeat, confirm, locate, or trivially apply it.',
+  'When the disclosure contract allows a bounded conceptual explanation, state the minimum useful grounded core concept before asking one meaningful comparison, prediction, application, or reflection question.',
+  'When acknowledgeStudentSupportedCorrectWork is true, briefly and factually acknowledge only the correct reasoning supported by the accepted analysis, then ask the required meaningful verification, transfer, or application question. Do not infer correctness from an unsupported self-report.',
   'A retrieved fact is evidence for accuracy, not permission to reveal that fact to the student.',
   'If Reveal Policy is NO_FINAL_ANSWER, do not disclose the final answer, complete solution, submission-ready code, or final result.',
-  'For DEBUGGING_GUIDANCE, identify one likely issue, its relevant location, the supporting concept, and exactly one inspection or trace action. Never execute student code or return a corrected program.',
+  'When debuggingGuidance is present, treat the supplied canonical debugging diagnosis as authoritative and immutable. Do not independently rediagnose the submitted code. Return the structured debuggingGuidance object and exactly one inspectionActions entry. Set message and studentAction to null because the backend renders both from that structure. Keep relevantLocation consistent with the supplied validated location. Do not claim to have executed, run, or tested the student code. When requiresRuntimeEvidence is true, do not state runtime outcomes that have not been observed. Explain the underlying concept using retrieved evidence. Follow TeachingDecision for pedagogical action, RevealPolicy, and Solution Protection. Do not provide a full corrected solution when prohibited. Never return a corrected program.',
   'Use only allowed citation IDs supplied by the backend. Do not invent citation IDs.',
   'The backend owns provider, model, promptVersion, tokenUsage, approval, and persistence metadata. Do not include those keys.',
   '',
@@ -64,14 +68,23 @@ export function buildTutorGenerationModelRequest(
 }
 
 function buildTutorUserPrompt(context: GenerationContextPackage): string {
+  const studentActionObligation = studentActionObligationFromDecision(
+    context.teachingDecision,
+  )
+  const debuggingInspectionActionInstruction =
+    buildDebuggingInspectionActionInstruction(context, studentActionObligation)
   const disclosureContract = buildSocraticDisclosureContract({
+    requestKind: context.acceptedAnalysis.result.requestKind,
     guidanceLevel: context.teachingDecision.guidanceLevel,
     revealPolicy: context.teachingDecision.revealPolicy,
     guardPolicy: context.teachingDecision.guardPolicy,
   })
   const functionalResponseRequirements = buildTutorResponseRequirements({
     analysis: context.acceptedAnalysis.result,
+    analysisSource: context.acceptedAnalysis.analysisSource,
+    studentMessageId: context.studentMessage.id,
     guidanceLevel: context.teachingDecision.guidanceLevel,
+    protectTargetSolution: context.outputProtection.protectTargetSolution,
   })
 
   return [
@@ -91,6 +104,8 @@ function buildTutorUserPrompt(context: GenerationContextPackage): string {
       strategyAndTechniqueCannotReduceGuidanceShape: true,
       overRevealInvariant:
         'When directTargetInferenceAllowed is false, do not state the correction or key inference and then ask a trivial confirmation or application question. Ask a focused question, direct attention to structure, or give a bounded clue that preserves the inference for the student.',
+      conceptualExplanationInvariant:
+        'When boundedConceptualExplanationAllowed is true, a vague statement that concepts differ is insufficient. State the minimum useful grounded distinction or definition, then follow the authoritative studentActionObligation.',
       useOnlyAllowedCitationIds: true,
     }),
     section('3. Authoritative TeachingDecision', {
@@ -105,8 +120,11 @@ function buildTutorUserPrompt(context: GenerationContextPackage): string {
       revealPolicy: context.teachingDecision.revealPolicy,
       reflectionMode: context.teachingDecision.reflectionMode,
       requireStudentAction: context.teachingDecision.requireStudentAction,
+      studentActionPurpose: context.teachingDecision.studentActionPurpose,
+      studentActionObligation,
       guardPolicy: context.teachingDecision.guardPolicy,
       policyVersion: context.teachingDecision.policyVersion,
+      outputProtection: context.outputProtection,
     }),
     section('4. Guidance Level and Reveal Policy Constraints', {
       guidanceLevel: context.teachingDecision.guidanceLevel,
@@ -116,6 +134,7 @@ function buildTutorUserPrompt(context: GenerationContextPackage): string {
       disclosureContract,
       functionalResponseRequirements,
       debuggingGuidance: context.debuggingGuidance,
+      debuggingInspectionActionInstruction,
     }),
     TRUSTED_BACKEND_POLICY_END_MARKER,
     section('5. StudentState and relevant TopicState', {
@@ -154,7 +173,9 @@ function buildTutorUserPrompt(context: GenerationContextPackage): string {
     section('8. Allowed Citation IDs and citation instructions', {
       allowedCitationIds: context.allowedCitationIds,
       citationInstruction:
-        'usedCitationIds must be a subset of allowedCitationIds and may be empty only when evidence is insufficient for a citation.',
+        context.debuggingGuidance === null
+          ? 'usedCitationIds must be a subset of allowedCitationIds and may be empty only when evidence is insufficient for a citation.'
+          : 'usedCitationIds must contain one or more exact values from allowedCitationIds. Do not put citation markers in conceptExplanation; the backend renders markers from usedCitationIds.',
     }),
     ...(context.regeneration === null
       ? []
@@ -181,30 +202,33 @@ function buildTutorUserPrompt(context: GenerationContextPackage): string {
           TRUSTED_BACKEND_POLICY_END_MARKER,
         ]),
     section('9. CandidateResponse output contract', {
-      message: 'string',
+      message: context.debuggingGuidance === null ? 'string' : null,
+      debuggingGuidance:
+        context.debuggingGuidance === null
+          ? null
+          : {
+              diagnosis: 'non-empty string',
+              relevantLocation: 'non-empty string',
+              conceptExplanation:
+                'non-empty grounded explanation without rendered citation markers',
+              inspectionActions: [debuggingInspectionActionInstruction],
+            },
       responseIntent:
         'GUIDED_EXPLANATION | SOCRATIC_QUESTIONING | MISCONCEPTION_REPAIR | DEBUGGING_GUIDANCE',
       usedCitationIds: ['allowed-citation-id'],
-      requiresStudentAction: context.teachingDecision.requireStudentAction,
-      studentAction: {
-        type: context.teachingDecision.primaryTechnique,
-        description: 'string',
-      },
+      requiresStudentAction: studentActionObligation.required,
+      studentAction:
+        context.debuggingGuidance === null
+          ? {
+              type: studentActionObligation.technique,
+              description: 'string',
+            }
+          : null,
       reflectionIncluded: context.teachingDecision.reflectionMode !== 'NONE',
       selfReportedCompliance: {
         finalAnswerRevealed: false,
         completeSolutionRevealed: false,
       },
-      ...(context.debuggingGuidance === null
-        ? {}
-        : {
-            debuggingGuidanceSections: [
-              'Likely defect',
-              'Relevant location',
-              'Concept with at least one allowed citation marker',
-              'Next inspection step with exactly one action',
-            ],
-          }),
     }),
     UNTRUSTED_CONVERSATION_BEGIN_MARKER,
     section(
@@ -213,6 +237,27 @@ function buildTutorUserPrompt(context: GenerationContextPackage): string {
     ),
     UNTRUSTED_CONVERSATION_END_MARKER,
   ].join('\n\n')
+}
+
+function buildDebuggingInspectionActionInstruction(
+  context: GenerationContextPackage,
+  studentActionObligation: ReturnType<
+    typeof studentActionObligationFromDecision
+  >,
+): string | null {
+  if (context.debuggingGuidance === null) {
+    return null
+  }
+
+  if (
+    studentActionObligation.purpose ===
+      StudentActionPurpose.PRIMARY_TECHNIQUE &&
+    studentActionObligation.technique === TeachingTechnique.FOCUSED_QUESTION
+  ) {
+    return 'Return exactly one non-empty inspectionActions entry. Write it as one focused question ending in ?. Ask for exactly one observation, comparison, prediction, or reasoning step at the relevantLocation. Rewrite the supplied imperative nextInspectionStep as a question instead of copying it verbatim. Do not combine multiple requested operations.'
+  }
+
+  return 'Return exactly one non-empty meaningful inspection or trace action.'
 }
 
 function section(title: string, value: unknown): string {

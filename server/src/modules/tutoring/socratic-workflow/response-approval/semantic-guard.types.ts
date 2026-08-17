@@ -11,7 +11,7 @@ import type {
 } from './response-validation.types'
 
 export const SEMANTIC_GUARD_PORT = Symbol('SemanticGuardPort')
-export const SEMANTIC_GUARD_PROMPT_VERSION = 'semantic-guard.mvp.v6'
+export const SEMANTIC_GUARD_PROMPT_VERSION = 'semantic-guard.mvp.v9'
 
 export const SEMANTIC_GUARD_ERROR_CODE = {
   TIMEOUT: 'SEMANTIC_GUARD_TIMEOUT',
@@ -27,14 +27,21 @@ export const SEMANTIC_GUARD_ERROR_CODE = {
 export type SemanticGuardErrorCode =
   (typeof SEMANTIC_GUARD_ERROR_CODE)[keyof typeof SEMANTIC_GUARD_ERROR_CODE]
 
+export type SemanticGuardFinishReason = 'length' | 'other' | 'stop'
+
 export class SemanticGuardModelError extends Error {
   readonly code: SemanticGuardErrorCode
   readonly status: number | undefined
   readonly headers: Headers | undefined
+  readonly finishReason: SemanticGuardFinishReason | undefined
 
   constructor(
     code: SemanticGuardErrorCode,
-    metadata: { readonly status?: number; readonly headers?: Headers } = {},
+    metadata: {
+      readonly status?: number
+      readonly headers?: Headers
+      readonly finishReason?: SemanticGuardFinishReason
+    } = {},
   ) {
     super('Semantic guard model failure')
     Object.defineProperty(this, 'name', {
@@ -44,6 +51,7 @@ export class SemanticGuardModelError extends Error {
     this.code = code
     this.status = metadata.status
     this.headers = metadata.headers
+    this.finishReason = metadata.finishReason
   }
 }
 

@@ -10,6 +10,7 @@ import {
   type EducationalAnalysisResult,
 } from '../analysis/educational-analysis.types'
 import type { PersistedEducationalAnalysisRecord } from '../analysis/educational-analysis.repository'
+import { hasSupportedMisconceptionRecoveryEvidence } from '../analysis/supported-misconception-recovery'
 import type { PersistedTeachingDecisionRecord } from '../teaching-decision/teaching-decision.repository'
 import type { ApprovedResponse } from '../response-approval/response-validation.types'
 import type { TopicStatePatch, TopicStateSnapshot } from './topic-state.types'
@@ -18,7 +19,7 @@ const MAX_TOPIC_STATE_TEXT_CODE_POINTS = 1_000
 
 export type TopicStateTransitionAnalysis = Pick<
   PersistedEducationalAnalysisRecord,
-  'studentMessageId' | 'result'
+  'analysisSource' | 'studentMessageId' | 'result'
 >
 
 export interface TopicStateTransition {
@@ -49,10 +50,7 @@ export function buildCompletedTopicStateTransition(input: {
       attemptCount: topicState.attemptCount + 1,
       meaningfulAttemptCount:
         topicState.meaningfulAttemptCount + meaningfulAttemptIncrement(result),
-      misconceptionStatus: misconceptionStatusFor(
-        topicState,
-        result.misconceptions.length,
-      ),
+      misconceptionStatus: misconceptionStatusFor(topicState, analysis),
       learningStatus: learningStatusFor(topicState, result),
       resolutionEvidenceStrength: resolutionEvidenceStrengthFor(
         topicState,
@@ -142,11 +140,19 @@ function meaningfulAttemptIncrement(result: EducationalAnalysisResult): number {
 
 function misconceptionStatusFor(
   topicState: TopicStateSnapshot,
-  misconceptionCount: number,
+  analysis: TopicStateTransitionAnalysis,
 ) {
-  return misconceptionCount > 0
-    ? MisconceptionStatus.ACTIVE
-    : topicState.misconceptionStatus
+  if (analysis.result.misconceptions.length > 0) {
+    return MisconceptionStatus.ACTIVE
+  }
+  if (
+    topicState.misconceptionStatus === MisconceptionStatus.ACTIVE &&
+    hasSupportedMisconceptionRecoveryEvidence(analysis)
+  ) {
+    return MisconceptionStatus.CORRECTED
+  }
+
+  return topicState.misconceptionStatus
 }
 
 function learningStatusFor(

@@ -9,6 +9,34 @@ enum TopicStatus {
   @@map("topic_status")
 }
 
+enum SolutionProtectionStatus {
+  UNKNOWN
+  UNPROTECTED
+  PROTECTED
+
+  @@map("solution_protection_status")
+}
+
+enum SolutionProtectionSource {
+  AUTHORITATIVE_TASK_METADATA
+  EXPLICIT_PROTECTED_REQUEST
+  ACCEPTED_TASK_ANALYSIS
+  ACCEPTED_CONCEPT_ANALYSIS
+  MIGRATED_TOPIC_HISTORY
+  MIGRATED_CONCEPT_TOPIC
+  CONSERVATIVE_UNKNOWN
+
+  @@map("solution_protection_source")
+}
+
+enum OutputRiskAuditSource {
+  APPROVAL_CANDIDATE
+  SAFE_FALLBACK
+  POST_APPROVAL
+
+  @@map("output_risk_audit_source")
+}
+
 enum TutoringAttemptStatus {
   RECEIVED
   ANALYZING
@@ -111,6 +139,14 @@ enum TeachingTechnique {
   @@map("teaching_technique")
 }
 
+enum StudentActionPurpose {
+  PRIOR_ATTEMPT_ORIENTATION
+  CONCEPTUAL_UNDERSTANDING
+  PRIMARY_TECHNIQUE
+
+  @@map("student_action_purpose")
+}
+
 enum RevealPolicy {
   NO_FINAL_ANSWER
   PARTIAL_RESULT_ALLOWED
@@ -176,17 +212,21 @@ enum EducationalAnalysisEvidenceKind {
 }
 
 model Topic {
-  id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  sessionId  String      @map("session_id") @db.Uuid
-  courseId   String      @map("course_id") @db.Uuid
-  problemId  String?     @map("problem_id") @db.Uuid
-  conceptId  String?     @map("concept_id") @db.Uuid
-  title      String      @db.VarChar(160)
-  topicType  TopicType   @default(UNCLASSIFIED) @map("topic_type")
-  status     TopicStatus @default(ACTIVE)
-  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt  DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  resolvedAt DateTime?   @map("resolved_at") @db.Timestamptz(6)
+  id                              String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId                       String                    @map("session_id") @db.Uuid
+  courseId                        String                    @map("course_id") @db.Uuid
+  problemId                       String?                   @map("problem_id") @db.Uuid
+  conceptId                       String?                   @map("concept_id") @db.Uuid
+  title                           String                    @db.VarChar(160)
+  topicType                       TopicType                 @default(UNCLASSIFIED) @map("topic_type")
+  status                          TopicStatus               @default(ACTIVE)
+  solutionProtectionStatus        SolutionProtectionStatus  @default(UNKNOWN) @map("solution_protection_status")
+  solutionProtectionSource        SolutionProtectionSource? @map("solution_protection_source")
+  solutionProtectionPolicyVersion String?                   @map("solution_protection_policy_version") @db.VarChar(80)
+  solutionProtectionEstablishedAt DateTime?                 @map("solution_protection_established_at") @db.Timestamptz(6)
+  createdAt                       DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                       DateTime                  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  resolvedAt                      DateTime?                 @map("resolved_at") @db.Timestamptz(6)
 
   session             ChatSession           @relation(fields: [sessionId], references: [id], onDelete: Restrict)
   course              Course                @relation(fields: [courseId], references: [id], onDelete: Restrict)
@@ -230,41 +270,66 @@ model TopicState {
 }
 
 model TutoringAttempt {
-  id                       String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  sessionId                String                   @map("session_id") @db.Uuid
-  topicId                  String?                  @map("topic_id") @db.Uuid
-  studentMessageId         String?                  @map("student_message_id") @db.Uuid
-  assistantMessageId       String?                  @map("assistant_message_id") @db.Uuid
-  retryOfAttemptId         String?                  @map("retry_of_attempt_id") @db.Uuid
-  clientMessageId          String                   @map("client_message_id") @db.VarChar(160)
-  requestKind              MessageRequestKind?     @map("request_kind")
-  status                   TutoringAttemptStatus   @default(RECEIVED)
-  failureCode              TutoringAttemptFailureCode? @map("failure_code")
-  leaseExpiresAt           DateTime?                @map("lease_expires_at") @db.Timestamptz(6)
-  safeFallbackUsed         Boolean                  @default(false) @map("safe_fallback_used")
-  approvalSource           TutoringApprovalSource?  @map("approval_source")
-  approvedCandidateAttempt Int?                     @map("approved_candidate_attempt") @db.SmallInt
-  safeFallbackReason       TutoringSafeFallbackReason? @map("safe_fallback_reason")
-  validationPolicyVersion  String?                  @map("validation_policy_version") @db.VarChar(80)
-  createdAt                DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
-  completedAt              DateTime?                @map("completed_at") @db.Timestamptz(6)
+  id                              String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId                       String                      @map("session_id") @db.Uuid
+  topicId                         String?                     @map("topic_id") @db.Uuid
+  studentMessageId                String?                     @map("student_message_id") @db.Uuid
+  assistantMessageId              String?                     @map("assistant_message_id") @db.Uuid
+  retryOfAttemptId                String?                     @map("retry_of_attempt_id") @db.Uuid
+  clientMessageId                 String                      @map("client_message_id") @db.VarChar(160)
+  requestKind                     MessageRequestKind?         @map("request_kind")
+  status                          TutoringAttemptStatus       @default(RECEIVED)
+  failureCode                     TutoringAttemptFailureCode? @map("failure_code")
+  leaseExpiresAt                  DateTime?                   @map("lease_expires_at") @db.Timestamptz(6)
+  safeFallbackUsed                Boolean                     @default(false) @map("safe_fallback_used")
+  approvalSource                  TutoringApprovalSource?     @map("approval_source")
+  approvedCandidateAttempt        Int?                        @map("approved_candidate_attempt") @db.SmallInt
+  safeFallbackReason              TutoringSafeFallbackReason? @map("safe_fallback_reason")
+  validationPolicyVersion         String?                     @map("validation_policy_version") @db.VarChar(80)
+  explicitProtectedSolutionSignal Boolean                     @default(false) @map("explicit_protected_solution_signal")
+  effectiveSolutionProtection     Boolean?                    @map("effective_solution_protection")
+  solutionProtectionSource        SolutionProtectionSource?   @map("solution_protection_source")
+  solutionProtectionPolicyVersion String?                     @map("solution_protection_policy_version") @db.VarChar(80)
+  solutionProtectionResolvedAt    DateTime?                   @map("solution_protection_resolved_at") @db.Timestamptz(6)
+  createdAt                       DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt                     DateTime?                   @map("completed_at") @db.Timestamptz(6)
 
-  session              ChatSession             @relation(fields: [sessionId], references: [id], onDelete: Restrict)
-  topic                Topic?                  @relation(fields: [topicId], references: [id], onDelete: SetNull)
-  studentMessage       Message?                @relation("TutoringAttemptStudentMessage", fields: [studentMessageId], references: [id], onDelete: SetNull)
-  assistantMessage     Message?                @relation("TutoringAttemptAssistantMessage", fields: [assistantMessageId], references: [id], onDelete: SetNull)
-  retryOf              TutoringAttempt?        @relation("TutoringAttemptRetry", fields: [retryOfAttemptId], references: [id], onDelete: SetNull)
-  retries              TutoringAttempt[]       @relation("TutoringAttemptRetry")
-  messages             Message[]               @relation("MessageAttempt")
-  educationalAnalyses  EducationalAnalysis[]
-  teachingDecision     TeachingDecision?
-  candidateAttempts    TutoringCandidateAttempt[]
+  session             ChatSession                @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  topic               Topic?                     @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  studentMessage      Message?                   @relation("TutoringAttemptStudentMessage", fields: [studentMessageId], references: [id], onDelete: SetNull)
+  assistantMessage    Message?                   @relation("TutoringAttemptAssistantMessage", fields: [assistantMessageId], references: [id], onDelete: SetNull)
+  retryOf             TutoringAttempt?           @relation("TutoringAttemptRetry", fields: [retryOfAttemptId], references: [id], onDelete: SetNull)
+  retries             TutoringAttempt[]          @relation("TutoringAttemptRetry")
+  messages            Message[]                  @relation("MessageAttempt")
+  educationalAnalyses EducationalAnalysis[]
+  teachingDecision    TeachingDecision?
+  debuggingDiagnosis  DebuggingDiagnosis?
+  candidateAttempts   TutoringCandidateAttempt[]
+  outputRiskEvents    OutputRiskEvent[]
 
   @@unique([sessionId, clientMessageId], map: "tutoring_attempts_session_id_client_message_id_key")
   @@index([topicId], map: "idx_tutoring_attempts_topic")
   @@index([studentMessageId], map: "idx_tutoring_attempts_student_message")
   @@index([sessionId, status, leaseExpiresAt], map: "idx_tutoring_attempts_session_status_lease")
   @@map("tutoring_attempts")
+}
+
+model OutputRiskEvent {
+  id                              String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attemptId                       String                   @map("attempt_id") @db.Uuid
+  candidateAttempt                Int?                     @map("candidate_attempt") @db.SmallInt
+  source                          OutputRiskAuditSource
+  detectorVersion                 String                   @map("detector_version") @db.VarChar(80)
+  risks                           Json
+  protectTargetSolution           Boolean                  @map("protect_target_solution")
+  solutionProtectionSource        SolutionProtectionSource @map("solution_protection_source")
+  solutionProtectionPolicyVersion String                   @map("solution_protection_policy_version") @db.VarChar(80)
+  createdAt                       DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  turn TutoringAttempt @relation(fields: [attemptId], references: [id], onDelete: Restrict)
+
+  @@index([attemptId], map: "idx_output_risk_events_attempt")
+  @@map("output_risk_events")
 }
 
 model TutoringCandidateAttempt {
@@ -374,6 +439,7 @@ model TeachingDecision {
   revealPolicy         RevealPolicy       @map("reveal_policy")
   reflectionMode       ReflectionMode     @map("reflection_mode")
   requireStudentAction Boolean            @map("require_student_action")
+  studentActionPurpose StudentActionPurpose @map("student_action_purpose")
   guardPolicy          Json               @map("guard_policy")
   decisionReason       String             @map("decision_reason") @db.VarChar(240)
   policyVersion        String             @map("policy_version") @db.VarChar(80)
@@ -386,6 +452,40 @@ model TeachingDecision {
   @@index([topicId, createdAt], map: "idx_teaching_decisions_topic_created")
   @@index([policyVersion], map: "idx_teaching_decisions_policy_version")
   @@map("teaching_decisions")
+}
+
+model DebuggingDiagnosis {
+  id                     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tutoringAttemptId      String   @unique(map: "debugging_diagnoses_attempt_id_key") @map("tutoring_attempt_id") @db.Uuid
+  schemaVersion          String   @map("schema_version") @db.VarChar(80)
+  status                 String   @db.VarChar(20)
+  source                 String   @db.VarChar(20)
+  language               String?  @db.VarChar(80)
+  category               String   @db.VarChar(40)
+  confidence             String   @db.VarChar(20)
+  likelyDefect           String?  @map("likely_defect") @db.Text
+  locationMessageId      String   @map("location_message_id") @db.Uuid
+  lineStart              Int?     @map("line_start")
+  lineEnd                Int?     @map("line_end")
+  locationKind           String   @map("location_kind") @db.VarChar(20)
+  evidence               Json
+  underlyingConcept      String?  @map("underlying_concept") @db.Text
+  requiresRuntimeEvidence Boolean @map("requires_runtime_evidence")
+  runtimeEvidenceNeeded  String   @map("runtime_evidence_needed") @db.VarChar(40)
+  inspectionGoal         String   @map("inspection_goal") @db.Text
+  fallbackReason         String?  @map("fallback_reason") @db.VarChar(80)
+  provider               String?  @db.VarChar(80)
+  model                  String?  @db.VarChar(200)
+  promptVersion          String?  @map("prompt_version") @db.VarChar(80)
+  inputTokens            Int?     @map("input_tokens")
+  outputTokens           Int?     @map("output_tokens")
+  infrastructureRetryCount Int    @default(0) @map("infrastructure_retry_count")
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  turn TutoringAttempt @relation(fields: [tutoringAttemptId], references: [id], onDelete: Restrict)
+
+  @@index([locationMessageId], map: "idx_debugging_diagnoses_location_message")
+  @@map("debugging_diagnoses")
 }
 
 model EducationalAnalysisEvidenceLink {

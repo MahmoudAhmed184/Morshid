@@ -1,6 +1,7 @@
 import {
   ReflectionMode,
   RevealPolicy,
+  StudentActionPurpose,
   TeachingStrategy,
   TeachingTechnique,
 } from '../../tutoring-values'
@@ -11,6 +12,7 @@ import {
   type CandidateValidationContext,
 } from './response-validation.types'
 import type { CandidateResponse } from '../generation/tutor-generation.types'
+import { renderDebuggingGuidanceMessage } from '../debugging-guidance/debugging-guidance.output-validator'
 
 describe('DeterministicGuardService', () => {
   it('approves a compliant Socratic response', () => {
@@ -141,6 +143,151 @@ describe('DeterministicGuardService', () => {
 
     expect(result.approved).toBe(true)
   })
+
+  it('approves a compliant focused-question debugging response', () => {
+    const result = service().evaluate(
+      validDebuggingCandidate(),
+      debuggingContext(),
+    )
+
+    expect(result).toMatchObject({
+      stage: RESPONSE_VALIDATION_STAGE.DETERMINISTIC,
+      approved: true,
+      violations: [],
+    })
+  })
+
+  it.each([
+    [
+      'diagnosis',
+      { diagnosis: undefined },
+      RESPONSE_VIOLATION_TYPE.DEBUGGING_MISSING_DIAGNOSIS,
+    ],
+    [
+      'relevant location',
+      { relevantLocation: undefined },
+      RESPONSE_VIOLATION_TYPE.DEBUGGING_MISSING_RELEVANT_LOCATION,
+    ],
+    [
+      'concept explanation',
+      { conceptExplanation: undefined },
+      RESPONSE_VIOLATION_TYPE.DEBUGGING_MISSING_CONCEPT,
+    ],
+  ])(
+    'reports a specific missing %s subreason',
+    (_name, patch, violationType) => {
+      const candidate = validDebuggingCandidate()
+      const baseGuidance = candidate.debuggingGuidance
+      if (baseGuidance === null) {
+        throw new Error('Expected structured debugging guidance')
+      }
+      const debuggingGuidance = {
+        diagnosis: baseGuidance.diagnosis,
+        relevantLocation: baseGuidance.relevantLocation,
+        conceptExplanation: baseGuidance.conceptExplanation,
+        ...patch,
+        inspectionActions: baseGuidance.inspectionActions,
+      }
+      const result = service().evaluate(
+        {
+          ...candidate,
+          debuggingGuidance,
+          message: renderDebuggingGuidanceMessage({
+            guidance: debuggingGuidance,
+            usedCitationIds: candidate.usedCitationIds,
+            action: debuggingGuidance.inspectionActions[0] ?? '',
+            rewriteRequested: false,
+          }),
+        },
+        debuggingContext(),
+      )
+
+      expect(result.approved).toBe(false)
+      expect(result.violations.map((violation) => violation.type)).toContain(
+        violationType,
+      )
+    },
+  )
+
+  it('rejects a rendered citation that disagrees with usedCitationIds', () => {
+    const candidate = validDebuggingCandidate()
+    const result = service().evaluate(
+      {
+        ...candidate,
+        message: candidate.message.replace(
+          '[retrieval.rank.1]',
+          '[retrieval.rank.2]',
+        ),
+      },
+      debuggingContext(),
+    )
+
+    expect(result.violations.map((violation) => violation.type)).toContain(
+      RESPONSE_VIOLATION_TYPE.DEBUGGING_RENDERED_CITATION_MISMATCH,
+    )
+  })
+
+  it('rejects multiple student actions even when they form one sentence', () => {
+    const candidate = validDebuggingCandidate()
+    const inspectionActions = [
+      'Can you trace the accumulator and compare the returned value?',
+    ]
+    const debuggingGuidance = {
+      ...candidate.debuggingGuidance,
+      inspectionActions,
+    }
+    const result = service().evaluate(
+      {
+        ...candidate,
+        debuggingGuidance,
+        message: renderDebuggingGuidanceMessage({
+          guidance: debuggingGuidance,
+          usedCitationIds: candidate.usedCitationIds,
+          action: inspectionActions[0],
+          rewriteRequested: false,
+        }),
+        studentAction: {
+          ...candidate.studentAction,
+          description: inspectionActions[0],
+        },
+      },
+      debuggingContext(),
+    )
+
+    expect(result.violations.map((violation) => violation.type)).toContain(
+      RESPONSE_VIOLATION_TYPE.DEBUGGING_MULTIPLE_STUDENT_ACTIONS,
+    )
+  })
+
+  it('keeps complete corrected programs prohibited in debugging guidance', () => {
+    const candidate = validDebuggingCandidate()
+    if (candidate.debuggingGuidance === null) {
+      throw new Error('Expected debugging guidance')
+    }
+    const debuggingGuidance = {
+      ...candidate.debuggingGuidance,
+      conceptExplanation:
+        'Complete corrected program:\n```python\ndef total(values):\n    result = 0\n    for value in values:\n        result += value\n    return result\n```',
+    }
+    const result = service().evaluate(
+      {
+        ...candidate,
+        debuggingGuidance,
+        message: renderDebuggingGuidanceMessage({
+          guidance: debuggingGuidance,
+          usedCitationIds: candidate.usedCitationIds,
+          action: debuggingGuidance.inspectionActions[0],
+          rewriteRequested: false,
+        }),
+      },
+      debuggingContext(),
+    )
+
+    expect(result.approved).toBe(false)
+    expect(result.violations.map((violation) => violation.type)).toContain(
+      RESPONSE_VIOLATION_TYPE.DEBUGGING_GUIDANCE_CONTRACT,
+    )
+  })
 })
 
 function service() {
@@ -153,6 +300,7 @@ function validCandidate(
   return {
     message:
       'Use the cited loop update and tell me what changes first. [retrieval.rank.1]',
+    debuggingGuidance: null,
     responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
     usedCitationIds: ['retrieval.rank.1'],
     requiresStudentAction: true,
@@ -167,7 +315,7 @@ function validCandidate(
     },
     provider: 'deterministic',
     model: 'deterministic-tutor',
-    promptVersion: 'tutor-generation.mvp.v4',
+    promptVersion: 'tutor-generation.mvp.v9',
     tokenUsage: { input: 0, output: 0 },
     ...patch,
   }
@@ -180,13 +328,67 @@ function context(
     allowedCitationIds: new Set(['retrieval.rank.1']),
     requireGrounding: true,
     enforceCitationSupport: true,
-    requireStudentAction: true,
+    studentActionObligation: {
+      version: 'student-action-obligation.v1',
+      required: true,
+      purpose: StudentActionPurpose.PRIOR_ATTEMPT_ORIENTATION,
+      technique: TeachingTechnique.ORIENTATION_QUESTION,
+      maximumMeaningfulActions: 1,
+      generationInstruction:
+        'Ask the student to share what they tried as the single meaningful action.',
+    },
     reflectionMode: ReflectionMode.NONE,
     responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
-    primaryTechnique: TeachingTechnique.ORIENTATION_QUESTION,
     guidanceLevel: 1,
     revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
     maximumDisclosedSteps: 1,
     ...patch,
   }
+}
+
+function validDebuggingCandidate(): CandidateResponse {
+  const debuggingGuidance = {
+    diagnosis: 'The loop update likely uses the wrong variable.',
+    relevantLocation: 'Inspect the assignment inside the loop body.',
+    conceptExplanation: 'An accumulator must be updated from its prior value.',
+    inspectionActions: [
+      'What value does the accumulator hold after one iteration?',
+    ],
+  }
+  const action = debuggingGuidance.inspectionActions[0]
+
+  return validCandidate({
+    message: renderDebuggingGuidanceMessage({
+      guidance: debuggingGuidance,
+      usedCitationIds: ['retrieval.rank.1'],
+      action,
+      rewriteRequested: false,
+    }),
+    debuggingGuidance,
+    studentAction: {
+      type: TeachingTechnique.FOCUSED_QUESTION,
+      description: action,
+    },
+  })
+}
+
+function debuggingContext(): CandidateValidationContext {
+  return context({
+    studentActionObligation: {
+      ...context().studentActionObligation,
+      purpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
+      technique: TeachingTechnique.FOCUSED_QUESTION,
+      generationInstruction:
+        'Request exactly one meaningful FOCUSED_QUESTION action.',
+    },
+    debuggingGuidanceRequired: true,
+    debuggingGuidance: {
+      likelyIssue: 'The loop update likely uses the wrong variable.',
+      relevantLocation: 'Inspect the assignment inside the loop body.',
+      concept: 'Accumulator updates',
+      nextInspectionStep: 'Trace one iteration.',
+      evidenceQuery: 'accumulator update loop',
+      rewriteRequested: false,
+    },
+  })
 }

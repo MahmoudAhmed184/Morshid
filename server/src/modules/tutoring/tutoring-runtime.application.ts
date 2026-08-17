@@ -5,6 +5,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import {
   MessageGuidanceLabel,
   MessageRequestKind,
+  TeachingStrategy,
   TutoringApprovalSource,
 } from './tutoring-values'
 import { isPrismaKnownRequestError } from '../../platform/database/prisma-errors'
@@ -77,6 +78,7 @@ import {
   type RequestBudget,
 } from '../../common/http/request-deadline'
 import { StudentCitationSources } from '../materials/interface/student-citation-sources'
+import type { ResponseAuditGraph } from './socratic-workflow/response-approval/response-audit.types'
 
 export {
   GROUNDING_BLOCKED_CONTENT,
@@ -323,7 +325,9 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
     const inputRisk = this.safetyRiskDetector.detectStudentInput(
       turn.studentMessage.content,
     )
-    if (inputRisk !== null) {
+    if (
+      inputRisk?.risks.some((risk) => risk !== 'FINAL_ANSWER_DELIVERY') === true
+    ) {
       return this.persistSafetyRefusal(
         turn,
         inputRisk,
@@ -356,18 +360,19 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
         studentMessageId: turn.studentMessage.id,
         assistantMessageId: turn.assistantMessage.id,
         studentMessageContent: turn.studentMessage.content,
-        ...(selection.diagnosis === null
-          ? {}
-          : {
-              debuggingGuidance: {
-                likelyIssue: selection.diagnosis.likelyDefect,
-                relevantLocation: selection.diagnosis.location,
-                concept: selection.diagnosis.conceptExplanation,
-                nextInspectionStep: selection.diagnosis.nextInspectionStep,
-                evidenceQuery: selection.retrievalQuery,
+        explicitProtectedSolutionSignal: classification.correctnessSensitive,
+        ...(selection.decision.strategy ===
+          TeachingStrategy.DEBUGGING_GUIDANCE ||
+        selection.decision.requestKind === MessageRequestKind.PROBLEM_LIKE ||
+        selection.decision.requestKind ===
+          MessageRequestKind.ATTEMPT_DIAGNOSIS ||
+        selection.decision.requestKind === MessageRequestKind.CODE_DIAGNOSIS
+          ? {
+              debuggingAdmission: {
                 rewriteRequested: selection.fullRewriteRequested,
               },
-            }),
+            }
+          : {}),
         topicSelection,
         requestBudget,
       })
@@ -390,6 +395,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
           operation,
           requestContext,
           orchestratorResult.topicId,
+          orchestratorResult.auditGraph,
         )
       case 'source_conflict':
         return this.persistControlledConflict(
@@ -490,7 +496,10 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
           validationPolicyVersion:
             completion.approvedResponse.approvalMetadata
               .validationPolicyVersion,
-          guidanceLabel: MessageGuidanceLabel.COURSE_GROUNDED,
+          guidanceLabel:
+            completion.approvedResponse.source === 'SAFE_FALLBACK'
+              ? null
+              : MessageGuidanceLabel.COURSE_GROUNDED,
           automaticReview: undefined,
         })
       }
@@ -575,6 +584,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
     operation: OrchestrationContext,
     requestContext?: AuditRequestContext,
     topicId?: string | null,
+    auditGraph?: ResponseAuditGraph,
   ): Promise<TutoringTurnReceipt> {
     const decision = this.responseGovernance.evaluate({
       proposedContent: GROUNDING_BLOCKED_CONTENT,
@@ -616,6 +626,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
           assistantMessageId: turn.assistantMessage.id,
           content: decision.content,
           ...(topicId === undefined ? {} : { topicId }),
+          ...(auditGraph === undefined ? {} : { auditGraph }),
           guidanceLabel: decision.studentStatus.guidanceLabel,
           errorCode: encodeAutomaticPolicyReasons(decision.reasons),
           evidence: conflict.sources,
@@ -677,6 +688,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
     operation: OrchestrationContext,
     requestContext?: AuditRequestContext,
     topicId?: string | null,
+    auditGraph?: ResponseAuditGraph,
   ): Promise<TutoringTurnReceipt> {
     const decision = this.responseGovernance.evaluate({
       proposedContent: GROUNDING_BLOCKED_CONTENT,
@@ -710,6 +722,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
           assistantMessageId: turn.assistantMessage.id,
           content: decision.content,
           ...(topicId === undefined ? {} : { topicId }),
+          ...(auditGraph === undefined ? {} : { auditGraph }),
           guidanceLabel: decision.studentStatus.guidanceLabel,
           errorCode: encodeAutomaticPolicyReasons(decision.reasons),
           automaticReview: policyReviewInput(

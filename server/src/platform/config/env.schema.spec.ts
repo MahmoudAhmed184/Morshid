@@ -34,6 +34,21 @@ describe('validateEnv', () => {
     })
   })
 
+  it('accepts role-specific tutoring model budgets', () => {
+    expect(
+      validateEnv({
+        ...validEnv,
+        DEBUGGING_DIAGNOSIS_MODEL_MAX_COMPLETION_TOKENS: '1024',
+        DEBUGGING_DIAGNOSIS_MODEL_MAX_RETRIES: '1',
+        SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: '2048',
+      }),
+    ).toMatchObject({
+      DEBUGGING_DIAGNOSIS_MODEL_MAX_COMPLETION_TOKENS: 1024,
+      DEBUGGING_DIAGNOSIS_MODEL_MAX_RETRIES: 1,
+      SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: 2048,
+    })
+  })
+
   it('rejects placeholder or reused auth secrets', () => {
     expect(() =>
       validateEnv({

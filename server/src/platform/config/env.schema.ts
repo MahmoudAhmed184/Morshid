@@ -140,6 +140,25 @@ const environmentSchema = z
       .int()
       .nonnegative()
       .optional(),
+    DEBUGGING_DIAGNOSIS_MODEL_PROVIDER: z.string().optional(),
+    DEBUGGING_DIAGNOSIS_MODEL_BASE_URL: z.string().optional(),
+    DEBUGGING_DIAGNOSIS_MODEL_NAME: z.string().optional(),
+    DEBUGGING_DIAGNOSIS_MODEL_API_KEY: z.string().optional(),
+    DEBUGGING_DIAGNOSIS_MODEL_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .optional(),
+    DEBUGGING_DIAGNOSIS_MODEL_MAX_COMPLETION_TOKENS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .optional(),
+    DEBUGGING_DIAGNOSIS_MODEL_MAX_RETRIES: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .optional(),
     TUTOR_MODEL_PROVIDER: z.string().optional(),
     TUTOR_MODEL_BASE_URL: z.string().optional(),
     TUTOR_MODEL_NAME: z.string().optional(),

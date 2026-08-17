@@ -292,6 +292,14 @@ describe('ContextManager', () => {
               return 0
             case 'ANALYSIS_CONFIDENCE_THRESHOLD':
               return 0.2
+            case 'DEBUGGING_DIAGNOSIS_MODEL_PROVIDER':
+              return 'deterministic'
+            case 'DEBUGGING_DIAGNOSIS_MODEL_TIMEOUT_MS':
+              return 30_000
+            case 'DEBUGGING_DIAGNOSIS_MODEL_MAX_COMPLETION_TOKENS':
+              return 1024
+            case 'DEBUGGING_DIAGNOSIS_MODEL_MAX_RETRIES':
+              return 0
             case 'TUTOR_MODEL_PROVIDER':
               return 'deterministic'
             case 'TUTOR_MODEL_TIMEOUT_MS':
@@ -346,6 +354,10 @@ function topic(input: Partial<TopicRecord> = {}): TopicRecord {
     title: 'Linear equations',
     topicType: TopicType.PROBLEM,
     status: TopicStatus.ACTIVE,
+    solutionProtectionStatus: 'UNKNOWN',
+    solutionProtectionSource: null,
+    solutionProtectionPolicyVersion: null,
+    solutionProtectionEstablishedAt: null,
     resolvedAt: null,
     createdAt: now,
     updatedAt: now,

@@ -77,7 +77,7 @@ The tutoring engine ([ADR 0002](file:///home/mahmoud-ahmed/Projects/Morshid/docs
 - `SEMANTIC_GUARD_*`: Multi-stage response validation and solution withholding evaluation.
 
 ### Project-aware Gemini chat pool
-When any role uses Google's OpenAI-compatible Gemini endpoint, the pool ([ADR 0008](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0008-project-aware-gemini-chat-pool.md)) distributes load across up to 32 Google Cloud projects defined in `GEMINI_CHAT_PROJECTS_JSON`:
+When any role uses Google's OpenAI-compatible Gemini endpoint, the pool ([ADR 0008](file:///home/mahmoud-ahmed/Projects/Morshid/docs/adr/0008-project-aware-gemini-chat-pool.md)) distributes load across up to 256 Google Cloud projects defined in `GEMINI_CHAT_PROJECTS_JSON`:
 
 - Keys are rotated round-robin across API replicas using Redis Lua scripts.
 - Upstream HTTP 429 rate limits automatically cool the affected project with exponential backoff and jitter while retrying other healthy projects in the pool.

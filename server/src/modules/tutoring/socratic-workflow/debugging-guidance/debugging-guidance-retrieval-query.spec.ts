@@ -58,6 +58,7 @@ describe('Debugging guidance retrieval-query contract', () => {
           'DICTIONARY_ACCESS',
           'STRING_HANDLING',
           'FILE_HANDLING',
+          'UNKNOWN',
         ] as const
       ).filter((category) => schemaCategories.has(category)),
     )

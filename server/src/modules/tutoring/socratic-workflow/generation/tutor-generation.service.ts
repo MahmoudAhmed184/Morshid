@@ -8,6 +8,7 @@ import {
   readUpstreamFailure,
   waitForRetry,
 } from '../../../../platform/ai/upstream/upstream-retry-policy'
+import { TeachingStrategy } from '../../tutoring-values'
 import { ContextManager } from '../analysis/context-manager.service'
 import { EducationalAnalysisRepository } from '../analysis/educational-analysis.repository'
 import { TeachingDecisionRepository } from '../teaching-decision/teaching-decision.repository'
@@ -35,6 +36,7 @@ import {
   TUTOR_INFRASTRUCTURE_RETRY_POLICY,
   type TutorInfrastructureRetryPolicy,
 } from './tutor-infrastructure-retry.policy'
+import { studentActionObligationFromDecision } from '../teaching-decision/student-action-obligation'
 
 @Injectable()
 export class TutorGenerationService {
@@ -105,6 +107,7 @@ export class TutorGenerationService {
       teachingDecision,
       previousTeachingDecision,
       retrievedChunks: input.retrievalResult,
+      outputProtection: input.outputProtection,
       debuggingGuidance: input.debuggingGuidance,
     })
     if (!generationContext.success) {
@@ -164,8 +167,14 @@ export class TutorGenerationService {
         requireGrounding: teachingDecision.guardPolicy.requireGrounding,
         enforceCitationSupport:
           teachingDecision.guardPolicy.enforceCitationSupport,
-        requireStudentAction: teachingDecision.requireStudentAction,
+        studentActionObligation:
+          studentActionObligationFromDecision(teachingDecision),
         reflectionMode: teachingDecision.reflectionMode,
+        debuggingGuidanceRequired:
+          teachingDecision.strategy === TeachingStrategy.DEBUGGING_GUIDANCE,
+        debuggingRewriteRequested:
+          generationContext.context.debuggingGuidance?.rewriteRequested ??
+          false,
       },
       {
         provider: modelResponse.provider,

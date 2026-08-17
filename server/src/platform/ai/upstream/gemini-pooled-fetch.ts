@@ -16,6 +16,11 @@ interface ResolvedChatTransport {
   readonly fetchImplementation: FetchImplementation
 }
 
+const GEMINI_MODELS_WITHOUT_SAMPLING_PARAMETERS = new Set([
+  'gemini-3.6-flash',
+  'gemini-3.7-flash',
+])
+
 export function resolveChatTransport(
   baseUrl: string,
   roleApiKey: string,
@@ -43,11 +48,12 @@ export function createGeminiPooledFetch(
   clock: () => number = Date.now,
 ): FetchImplementation {
   return async (input, init) => {
+    const preparedInit = removeUnsupportedSamplingParameters(init)
     const attemptedProjectIds = new Set<string>()
     let retryAfterMs: number | undefined
 
     while (attemptedProjectIds.size < pool.size) {
-      assertNotAborted(init?.signal)
+      assertNotAborted(preparedInit?.signal)
 
       let selection
       try {
@@ -55,18 +61,18 @@ export function createGeminiPooledFetch(
       } catch (error) {
         throw mapPoolFailure(error)
       }
-      assertNotAborted(init?.signal)
+      assertNotAborted(preparedInit?.signal)
 
       if (selection.kind === 'exhausted') {
         return rateLimitedResponse(selection.retryAfterMs)
       }
 
       attemptedProjectIds.add(selection.project.id)
-      const headers = new Headers(init?.headers)
+      const headers = new Headers(preparedInit?.headers)
       headers.set('Authorization', `Bearer ${selection.project.apiKey}`)
 
       const response = await fetchImplementation(input, {
-        ...init,
+        ...preparedInit,
         headers,
       })
       if (response.status !== 429) {
@@ -95,6 +101,40 @@ export function createGeminiPooledFetch(
     }
 
     return rateLimitedResponse(retryAfterMs ?? 1)
+  }
+}
+
+function removeUnsupportedSamplingParameters(
+  init: RequestInit | undefined,
+): RequestInit | undefined {
+  if (typeof init?.body !== 'string') {
+    return init
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(init.body)
+  } catch {
+    return init
+  }
+  if (
+    typeof parsed !== 'object' ||
+    parsed === null ||
+    Array.isArray(parsed) ||
+    !GEMINI_MODELS_WITHOUT_SAMPLING_PARAMETERS.has(
+      String(Reflect.get(parsed, 'model')),
+    )
+  ) {
+    return init
+  }
+
+  const body = { ...parsed } as Record<string, unknown>
+  delete body.temperature
+  delete body.top_p
+
+  return {
+    ...init,
+    body: JSON.stringify(body),
   }
 }
 

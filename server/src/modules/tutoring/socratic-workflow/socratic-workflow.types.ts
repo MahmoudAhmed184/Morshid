@@ -2,7 +2,6 @@ import type { AutomaticSafetyRiskDetection } from '../response-governance/automa
 import type { ControlledSourceConflict } from '../response-governance/controlled-source-conflict.detector'
 import type { RequestBudget } from '../../../common/http/request-deadline'
 import type { CourseEvidenceChunk } from '../../materials/interface/course-evidence'
-import type { DebuggingGuidanceContext } from './debugging-guidance/debugging-guidance.output-validator'
 import type { ApprovedResponse } from './response-approval/response-validation.types'
 import type { ResponseAuditGraph } from './response-approval/response-audit.types'
 import type { SafeFallbackReason } from './response-approval/safe-fallback.service'
@@ -33,7 +32,10 @@ export interface SocraticWorkflowInput {
   readonly studentMessageId: string
   readonly assistantMessageId: string
   readonly studentMessageContent: string
-  readonly debuggingGuidance?: DebuggingGuidanceContext
+  readonly explicitProtectedSolutionSignal: boolean
+  readonly debuggingAdmission?: {
+    readonly rewriteRequested: boolean
+  }
   readonly topicSelection?: SocraticTopicSelection
   readonly requestBudget?: RequestBudget
 }
@@ -68,6 +70,7 @@ export type SocraticWorkflowResult =
       readonly kind: 'safety_refusal'
       readonly detection: AutomaticSafetyRiskDetection
       readonly topicId: string | null
+      readonly auditGraph?: ResponseAuditGraph
     }
   | {
       readonly kind: 'source_conflict'

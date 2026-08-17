@@ -19,6 +19,10 @@ import {
   MAX_ANALYSIS_MODEL_MAX_RETRIES,
 } from './socratic-workflow/analysis/analysis-retry-policy'
 import {
+  DEFAULT_DEBUGGING_DIAGNOSIS_MODEL_MAX_RETRIES,
+  MAX_DEBUGGING_DIAGNOSIS_MODEL_MAX_RETRIES,
+} from './socratic-workflow/debugging-guidance/debugging-diagnosis-retry.policy'
+import {
   DEFAULT_ANALYSIS_MODEL_BASE_URL,
   DEFAULT_ANALYSIS_MODEL_MAX_COMPLETION_TOKENS,
   DEFAULT_ANALYSIS_MODEL_NAME,
@@ -35,6 +39,22 @@ import {
   isValidOptionalAnalysisApiKey,
   normalizeOpenAICompatibleBaseUrl,
 } from './infrastructure/analysis-model.configuration'
+import {
+  DEFAULT_DEBUGGING_DIAGNOSIS_MODEL_BASE_URL,
+  DEFAULT_DEBUGGING_DIAGNOSIS_MODEL_MAX_COMPLETION_TOKENS,
+  DEFAULT_DEBUGGING_DIAGNOSIS_MODEL_NAME,
+  DEFAULT_DEBUGGING_DIAGNOSIS_MODEL_TIMEOUT_MS,
+  DETERMINISTIC_DEBUGGING_DIAGNOSIS_MODEL_PROVIDER,
+  MAX_DEBUGGING_DIAGNOSIS_MODEL_API_KEY_LENGTH,
+  MAX_DEBUGGING_DIAGNOSIS_MODEL_BASE_URL_LENGTH,
+  MAX_DEBUGGING_DIAGNOSIS_MODEL_MAX_COMPLETION_TOKENS,
+  MAX_DEBUGGING_DIAGNOSIS_MODEL_NAME_LENGTH,
+  MAX_DEBUGGING_DIAGNOSIS_MODEL_TIMEOUT_MS,
+  MIN_DEBUGGING_DIAGNOSIS_MODEL_MAX_COMPLETION_TOKENS,
+  OPENAI_COMPATIBLE_DEBUGGING_DIAGNOSIS_MODEL_PROVIDER,
+  isValidDebuggingDiagnosisModelName,
+  isValidOptionalDebuggingDiagnosisApiKey,
+} from './infrastructure/debugging-diagnosis-model.configuration'
 import {
   DEFAULT_TUTOR_MODEL_MAX_INFRASTRUCTURE_RETRIES,
   MAX_TUTOR_MODEL_MAX_INFRASTRUCTURE_RETRIES,
@@ -163,6 +183,52 @@ const tutoringConfigurationSchema = z
       .min(0)
       .max(MAX_ANALYSIS_MODEL_MAX_RETRIES)
       .default(DEFAULT_ANALYSIS_MODEL_MAX_RETRIES),
+    DEBUGGING_DIAGNOSIS_MODEL_PROVIDER: z
+      .enum([
+        DETERMINISTIC_DEBUGGING_DIAGNOSIS_MODEL_PROVIDER,
+        OPENAI_COMPATIBLE_DEBUGGING_DIAGNOSIS_MODEL_PROVIDER,
+      ])
+      .default(DETERMINISTIC_DEBUGGING_DIAGNOSIS_MODEL_PROVIDER),
+    DEBUGGING_DIAGNOSIS_MODEL_BASE_URL: z
+      .string()
+      .trim()
+      .max(MAX_DEBUGGING_DIAGNOSIS_MODEL_BASE_URL_LENGTH)
+      .default(DEFAULT_DEBUGGING_DIAGNOSIS_MODEL_BASE_URL),
+    DEBUGGING_DIAGNOSIS_MODEL_NAME: z
+      .string()
+      .trim()
+      .max(MAX_DEBUGGING_DIAGNOSIS_MODEL_NAME_LENGTH)
+      .refine(isValidDebuggingDiagnosisModelName, 'must be a valid model name')
+      .default(DEFAULT_DEBUGGING_DIAGNOSIS_MODEL_NAME),
+    DEBUGGING_DIAGNOSIS_MODEL_API_KEY: z.preprocess(
+      blankAsUndefined,
+      z
+        .string()
+        .max(MAX_DEBUGGING_DIAGNOSIS_MODEL_API_KEY_LENGTH)
+        .refine(
+          isValidOptionalDebuggingDiagnosisApiKey,
+          'must be blank or a printable API key without whitespace',
+        )
+        .default(''),
+    ),
+    DEBUGGING_DIAGNOSIS_MODEL_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .max(MAX_DEBUGGING_DIAGNOSIS_MODEL_TIMEOUT_MS)
+      .default(DEFAULT_DEBUGGING_DIAGNOSIS_MODEL_TIMEOUT_MS),
+    DEBUGGING_DIAGNOSIS_MODEL_MAX_COMPLETION_TOKENS: z.coerce
+      .number()
+      .int()
+      .min(MIN_DEBUGGING_DIAGNOSIS_MODEL_MAX_COMPLETION_TOKENS)
+      .max(MAX_DEBUGGING_DIAGNOSIS_MODEL_MAX_COMPLETION_TOKENS)
+      .default(DEFAULT_DEBUGGING_DIAGNOSIS_MODEL_MAX_COMPLETION_TOKENS),
+    DEBUGGING_DIAGNOSIS_MODEL_MAX_RETRIES: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .max(MAX_DEBUGGING_DIAGNOSIS_MODEL_MAX_RETRIES)
+      .default(DEFAULT_DEBUGGING_DIAGNOSIS_MODEL_MAX_RETRIES),
     TUTOR_MODEL_PROVIDER: z
       .enum([
         DETERMINISTIC_TUTOR_MODEL_PROVIDER,
@@ -276,6 +342,11 @@ const tutoringConfigurationSchema = z
         configuration.SEMANTIC_GUARD_API_KEY,
         'semantic guard',
       ],
+      [
+        'DEBUGGING_DIAGNOSIS_MODEL_API_KEY',
+        configuration.DEBUGGING_DIAGNOSIS_MODEL_API_KEY,
+        'debugging diagnosis model',
+      ],
     ] as const) {
       if (value !== '' && isPlaceholderSecret(value)) {
         ctx.addIssue({
@@ -297,24 +368,22 @@ const tutoringConfigurationSchema = z
         configuration.TUTOR_MODEL_PROVIDER,
         OPENAI_COMPATIBLE_TUTOR_MODEL_PROVIDER,
       ],
+      [
+        'DEBUGGING_DIAGNOSIS_MODEL_PROVIDER',
+        configuration.DEBUGGING_DIAGNOSIS_MODEL_PROVIDER,
+        OPENAI_COMPATIBLE_DEBUGGING_DIAGNOSIS_MODEL_PROVIDER,
+      ],
     ] as const
 
     for (const [path, provider, liveProvider] of liveModels) {
       if (provider === liveProvider) {
-        const baseUrl =
-          path === 'ANALYSIS_MODEL_PROVIDER'
-            ? configuration.ANALYSIS_MODEL_BASE_URL
-            : configuration.TUTOR_MODEL_BASE_URL
+        const baseUrl = modelBaseUrlForPath(path, configuration)
         try {
           normalizeOpenAICompatibleBaseUrl(baseUrl)
         } catch {
           ctx.addIssue({
             code: 'custom',
-            path: [
-              path === 'ANALYSIS_MODEL_PROVIDER'
-                ? 'ANALYSIS_MODEL_BASE_URL'
-                : 'TUTOR_MODEL_BASE_URL',
-            ],
+            path: [modelBaseUrlPathForProviderPath(path)],
             message:
               'must be HTTP localhost or HTTPS without credentials, query, or fragment',
           })
@@ -329,6 +398,13 @@ const tutoringConfigurationSchema = z
         baseUrl: configuration.ANALYSIS_MODEL_BASE_URL,
         apiKey: configuration.ANALYSIS_MODEL_API_KEY,
         apiKeyPath: 'ANALYSIS_MODEL_API_KEY',
+      },
+      {
+        provider: configuration.DEBUGGING_DIAGNOSIS_MODEL_PROVIDER,
+        liveProvider: OPENAI_COMPATIBLE_DEBUGGING_DIAGNOSIS_MODEL_PROVIDER,
+        baseUrl: configuration.DEBUGGING_DIAGNOSIS_MODEL_BASE_URL,
+        apiKey: configuration.DEBUGGING_DIAGNOSIS_MODEL_API_KEY,
+        apiKeyPath: 'DEBUGGING_DIAGNOSIS_MODEL_API_KEY',
       },
       {
         provider: configuration.TUTOR_MODEL_PROVIDER,
@@ -411,6 +487,12 @@ const tutoringConfigurationSchema = z
         DETERMINISTIC_TUTOR_MODEL_PROVIDER,
         'tutor model',
       ],
+      [
+        'DEBUGGING_DIAGNOSIS_MODEL_PROVIDER',
+        configuration.DEBUGGING_DIAGNOSIS_MODEL_PROVIDER,
+        DETERMINISTIC_DEBUGGING_DIAGNOSIS_MODEL_PROVIDER,
+        'debugging diagnosis model',
+      ],
     ] as const
     for (const [
       path,
@@ -475,6 +557,54 @@ const tutoringConfigurationSchema = z
           'must differ from TUTOR_MODEL_NAME so semantic guard and tutor roles cannot alias the same production model identifier',
       })
     }
+
+    if (
+      configuration.DEBUGGING_DIAGNOSIS_MODEL_PROVIDER ===
+        OPENAI_COMPATIBLE_DEBUGGING_DIAGNOSIS_MODEL_PROVIDER &&
+      configuration.ANALYSIS_MODEL_PROVIDER ===
+        OPENAI_COMPATIBLE_ANALYSIS_MODEL_PROVIDER &&
+      configuration.DEBUGGING_DIAGNOSIS_MODEL_NAME ===
+        configuration.ANALYSIS_MODEL_NAME
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['DEBUGGING_DIAGNOSIS_MODEL_NAME'],
+        message:
+          'must differ from ANALYSIS_MODEL_NAME so diagnosis and analysis roles cannot alias the same production model identifier',
+      })
+    }
+
+    if (
+      configuration.DEBUGGING_DIAGNOSIS_MODEL_PROVIDER ===
+        OPENAI_COMPATIBLE_DEBUGGING_DIAGNOSIS_MODEL_PROVIDER &&
+      configuration.TUTOR_MODEL_PROVIDER ===
+        OPENAI_COMPATIBLE_TUTOR_MODEL_PROVIDER &&
+      configuration.DEBUGGING_DIAGNOSIS_MODEL_NAME ===
+        configuration.TUTOR_MODEL_NAME
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['DEBUGGING_DIAGNOSIS_MODEL_NAME'],
+        message:
+          'must differ from TUTOR_MODEL_NAME so diagnosis and tutor roles cannot alias the same production model identifier',
+      })
+    }
+
+    if (
+      configuration.DEBUGGING_DIAGNOSIS_MODEL_PROVIDER ===
+        OPENAI_COMPATIBLE_DEBUGGING_DIAGNOSIS_MODEL_PROVIDER &&
+      configuration.SEMANTIC_GUARD_PROVIDER ===
+        OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER &&
+      configuration.DEBUGGING_DIAGNOSIS_MODEL_NAME ===
+        configuration.SEMANTIC_GUARD_MODEL_NAME
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['DEBUGGING_DIAGNOSIS_MODEL_NAME'],
+        message:
+          'must differ from SEMANTIC_GUARD_MODEL_NAME so diagnosis and semantic guard roles cannot alias the same production model identifier',
+      })
+    }
   })
 
 export type TutoringConfiguration = z.infer<typeof tutoringConfigurationSchema>
@@ -523,6 +653,34 @@ export function readTutoringConfiguration(
       {
         infer: true,
       },
+    ),
+    DEBUGGING_DIAGNOSIS_MODEL_PROVIDER: configService.get(
+      'DEBUGGING_DIAGNOSIS_MODEL_PROVIDER',
+      { infer: true },
+    ),
+    DEBUGGING_DIAGNOSIS_MODEL_BASE_URL: configService.get(
+      'DEBUGGING_DIAGNOSIS_MODEL_BASE_URL',
+      { infer: true },
+    ),
+    DEBUGGING_DIAGNOSIS_MODEL_NAME: configService.get(
+      'DEBUGGING_DIAGNOSIS_MODEL_NAME',
+      { infer: true },
+    ),
+    DEBUGGING_DIAGNOSIS_MODEL_API_KEY: configService.get(
+      'DEBUGGING_DIAGNOSIS_MODEL_API_KEY',
+      { infer: true },
+    ),
+    DEBUGGING_DIAGNOSIS_MODEL_TIMEOUT_MS: configService.get(
+      'DEBUGGING_DIAGNOSIS_MODEL_TIMEOUT_MS',
+      { infer: true },
+    ),
+    DEBUGGING_DIAGNOSIS_MODEL_MAX_COMPLETION_TOKENS: configService.get(
+      'DEBUGGING_DIAGNOSIS_MODEL_MAX_COMPLETION_TOKENS',
+      { infer: true },
+    ),
+    DEBUGGING_DIAGNOSIS_MODEL_MAX_RETRIES: configService.get(
+      'DEBUGGING_DIAGNOSIS_MODEL_MAX_RETRIES',
+      { infer: true },
     ),
     TUTOR_MODEL_PROVIDER: configService.get('TUTOR_MODEL_PROVIDER', {
       infer: true,
@@ -589,6 +747,42 @@ export function parseTutoringConfiguration(
     )
   }
   return result.data
+}
+
+function modelBaseUrlForPath(
+  path:
+    | 'ANALYSIS_MODEL_PROVIDER'
+    | 'TUTOR_MODEL_PROVIDER'
+    | 'DEBUGGING_DIAGNOSIS_MODEL_PROVIDER',
+  configuration: TutoringConfiguration,
+): string {
+  switch (path) {
+    case 'ANALYSIS_MODEL_PROVIDER':
+      return configuration.ANALYSIS_MODEL_BASE_URL
+    case 'TUTOR_MODEL_PROVIDER':
+      return configuration.TUTOR_MODEL_BASE_URL
+    case 'DEBUGGING_DIAGNOSIS_MODEL_PROVIDER':
+      return configuration.DEBUGGING_DIAGNOSIS_MODEL_BASE_URL
+  }
+}
+
+function modelBaseUrlPathForProviderPath(
+  path:
+    | 'ANALYSIS_MODEL_PROVIDER'
+    | 'TUTOR_MODEL_PROVIDER'
+    | 'DEBUGGING_DIAGNOSIS_MODEL_PROVIDER',
+):
+  | 'ANALYSIS_MODEL_BASE_URL'
+  | 'TUTOR_MODEL_BASE_URL'
+  | 'DEBUGGING_DIAGNOSIS_MODEL_BASE_URL' {
+  switch (path) {
+    case 'ANALYSIS_MODEL_PROVIDER':
+      return 'ANALYSIS_MODEL_BASE_URL'
+    case 'TUTOR_MODEL_PROVIDER':
+      return 'TUTOR_MODEL_BASE_URL'
+    case 'DEBUGGING_DIAGNOSIS_MODEL_PROVIDER':
+      return 'DEBUGGING_DIAGNOSIS_MODEL_BASE_URL'
+  }
 }
 
 function isPlaceholderSecret(value: string): boolean {

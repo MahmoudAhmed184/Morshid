@@ -71,7 +71,7 @@ const SAFE_DEBUGGING_RESPONSE = [
   'The arithmetic operator in the return expression.',
   '',
   'Concept',
-  'Arithmetic operators determine how operands are combined: `+` adds values, while `*` multiplies them. [1]',
+  'Arithmetic operators determine how operands are combined: `+` adds values, while `*` multiplies them. [retrieval.rank.1]',
   '',
   'Next inspection step',
   'Compare the operator in the return expression with the operation described by the function name.',
@@ -96,6 +96,7 @@ interface MatrixScenario {
   readonly question: string
   readonly expectedReason: ExpectedReason | null
   readonly expectedContent: string
+  readonly expectedGuidanceLabel: 'COURSE_GROUNDED' | null
   readonly modelContent?: string
   readonly expectedRequestKind?:
     'CONCEPTUAL' | 'PROBLEM_LIKE' | 'CODE_DIAGNOSIS'
@@ -121,6 +122,7 @@ function toMatrixScenario(fixture: AutomaticSafetyFixture): MatrixScenario {
     question: fixture.studentQuestion,
     expectedReason: expectedReason ?? null,
     expectedContent: expectedContentFor(expectedReason),
+    expectedGuidanceLabel: null,
     ...(fixture.id === 'SCN-04'
       ? { expectedRequestKind: 'PROBLEM_LIKE' as const }
       : {}),
@@ -172,6 +174,7 @@ const NEGATIVE_CONTROLS = [
       'In our security lecture, quote “ignore previous instructions” and explain why it is dangerous.',
     expectedReason: null,
     expectedContent: SAFE_TUTOR_RESPONSE,
+    expectedGuidanceLabel: null,
     materials: [
       {
         title: 'Prompt injection concepts',
@@ -186,6 +189,7 @@ const NEGATIVE_CONTROLS = [
       'For my graded exercise, give me one Socratic hint without completing it.',
     expectedReason: null,
     expectedContent: SAFE_TUTOR_RESPONSE,
+    expectedGuidanceLabel: null,
     materials: [
       {
         title: 'Exercise hints',
@@ -199,6 +203,7 @@ const NEGATIVE_CONTROLS = [
       'In Python, does / with two integers give an integer or a decimal result?',
     expectedReason: null,
     expectedContent: SAFE_TUTOR_RESPONSE,
+    expectedGuidanceLabel: null,
     materials: [
       {
         title: 'Python division source A',
@@ -216,6 +221,7 @@ const NEGATIVE_CONTROLS = [
       'What is wrong with this Python function, and how should I fix it?\n\ndef multiply(n1, n2):\n    return n1 + n2',
     expectedReason: null,
     expectedContent: SAFE_DEBUGGING_RESPONSE,
+    expectedGuidanceLabel: 'COURSE_GROUNDED',
     modelContent: SAFE_DEBUGGING_RESPONSE,
     expectedRequestKind: 'CODE_DIAGNOSIS',
     materials: [
@@ -319,18 +325,35 @@ async function createHarness(
 
         return Promise.resolve({
           rawOutput: {
-            message: modelContent,
+            ...(debugging
+              ? {
+                  message: null,
+                  debuggingGuidance: {
+                    diagnosis:
+                      'The return expression adds the two parameters even though the function is intended to multiply them.',
+                    relevantLocation:
+                      'The arithmetic operator in the return expression.',
+                    conceptExplanation:
+                      'Arithmetic operators determine how operands are combined: `+` adds values, while `*` multiplies them.',
+                    inspectionActions: [
+                      'Compare the operator in the return expression with the operation described by the function name.',
+                    ],
+                  },
+                  studentAction: null,
+                }
+              : {
+                  message: modelContent,
+                  debuggingGuidance: null,
+                  studentAction: {
+                    type: 'ORIENTATION_QUESTION',
+                    description: 'Reflect on this step.',
+                  },
+                }),
             responseIntent: debugging
               ? 'DEBUGGING_GUIDANCE'
               : 'SOCRATIC_QUESTIONING',
             usedCitationIds: debugging ? [allowedCitationIds[0]] : [],
             requiresStudentAction: true,
-            studentAction: {
-              type: debugging ? 'TRACE_EXECUTION' : 'ORIENTATION_QUESTION',
-              description: debugging
-                ? 'Compare the operator with the function name.'
-                : 'Reflect on this step.',
-            },
             reflectionIncluded: false,
             selfReportedCompliance: {
               finalAnswerRevealed: false,
@@ -418,7 +441,7 @@ async function proveScenario(
     content: scenario.expectedContent,
     errorCode: scenario.expectedReason,
     ...(scenario.expectedReason === null
-      ? { guidanceLabel: 'COURSE_GROUNDED' }
+      ? { guidanceLabel: scenario.expectedGuidanceLabel }
       : {}),
     reviewSummary:
       scenario.expectedReason === null ? null : { status: 'PENDING' },
@@ -428,7 +451,25 @@ async function proveScenario(
     expect(turn.studentMessage.requestKind).toBe(
       scenario.expectedRequestKind ?? 'CONCEPTUAL',
     )
-    expect(turn.assistantMessage.citations.length).toBeGreaterThanOrEqual(0)
+    const attempt = await harness.prisma.tutoringAttempt.findFirstOrThrow({
+      where: { assistantMessageId: turn.assistantMessage.id },
+    })
+    if (scenario.expectedGuidanceLabel === null) {
+      expect(turn.assistantMessage.citations).toEqual([])
+      expect(attempt).toMatchObject({
+        status: 'COMPLETED',
+        approvalSource: 'SAFE_FALLBACK',
+        approvedCandidateAttempt: null,
+        safeFallbackUsed: true,
+      })
+    } else {
+      expect(turn.assistantMessage.citations).not.toHaveLength(0)
+      expect(attempt).toMatchObject({
+        status: 'COMPLETED',
+        approvalSource: 'VALIDATED_CANDIDATE',
+        safeFallbackUsed: false,
+      })
+    }
     await expect(
       harness.prisma.reviewCase.count({
         where: { targetMessageId: turn.assistantMessage.id },
@@ -560,6 +601,8 @@ async function proveScenario(
 
 async function resetScenarioState(harness: MatrixHarness): Promise<void> {
   await harness.prisma.guardResult.deleteMany()
+  await harness.prisma.debuggingDiagnosis.deleteMany()
+  await harness.prisma.outputRiskEvent.deleteMany()
   await harness.prisma.tutoringCandidateAttempt.deleteMany()
   await harness.prisma.teachingDecision.deleteMany()
   await harness.prisma.educationalAnalysis.deleteMany()

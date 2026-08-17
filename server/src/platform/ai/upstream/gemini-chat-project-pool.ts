@@ -3,7 +3,7 @@ import { createHmac } from 'node:crypto'
 const GEMINI_OPENAI_COMPATIBLE_BASE_URL =
   'https://generativelanguage.googleapis.com/v1beta/openai'
 
-const MAX_GEMINI_CHAT_PROJECTS = 32
+export const MAX_GEMINI_CHAT_PROJECTS = 256
 const MAX_GEMINI_CHAT_API_KEY_LENGTH = 4_096
 const MAX_GEMINI_CHAT_PROJECT_ID_LENGTH = 120
 const MIN_GEMINI_CHAT_API_KEY_LENGTH = 20

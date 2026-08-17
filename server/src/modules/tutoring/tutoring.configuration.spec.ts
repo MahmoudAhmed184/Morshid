@@ -4,8 +4,12 @@ import {
   DEFAULT_ANALYSIS_MODEL_NAME,
 } from './infrastructure/analysis-model.configuration'
 import {
+  DEFAULT_DEBUGGING_DIAGNOSIS_MODEL_BASE_URL,
+  DEFAULT_DEBUGGING_DIAGNOSIS_MODEL_MAX_COMPLETION_TOKENS,
+  DEFAULT_DEBUGGING_DIAGNOSIS_MODEL_NAME,
+} from './infrastructure/debugging-diagnosis-model.configuration'
+import {
   DEFAULT_SEMANTIC_GUARD_BASE_URL,
-  DEFAULT_SEMANTIC_GUARD_MAX_COMPLETION_TOKENS,
   DEFAULT_SEMANTIC_GUARD_MODEL_NAME,
 } from './infrastructure/semantic-guard.configuration'
 import {
@@ -39,6 +43,15 @@ const geminiRoleConfigurations = [
     },
   },
   {
+    role: 'debugging diagnosis',
+    apiKeyPath: 'DEBUGGING_DIAGNOSIS_MODEL_API_KEY',
+    configuration: {
+      DEBUGGING_DIAGNOSIS_MODEL_PROVIDER: 'openai-compatible',
+      DEBUGGING_DIAGNOSIS_MODEL_BASE_URL: geminiBaseUrl,
+      DEBUGGING_DIAGNOSIS_MODEL_NAME: 'gemini-diagnosis-model',
+    },
+  },
+  {
     role: 'tutor',
     apiKeyPath: 'TUTOR_MODEL_API_KEY',
     configuration: {
@@ -69,6 +82,13 @@ describe('parseTutoringConfiguration', () => {
       ANALYSIS_MODEL_API_KEY: '',
       ANALYSIS_MODEL_MAX_COMPLETION_TOKENS:
         DEFAULT_ANALYSIS_MODEL_MAX_COMPLETION_TOKENS,
+      DEBUGGING_DIAGNOSIS_MODEL_PROVIDER: 'deterministic',
+      DEBUGGING_DIAGNOSIS_MODEL_BASE_URL:
+        DEFAULT_DEBUGGING_DIAGNOSIS_MODEL_BASE_URL,
+      DEBUGGING_DIAGNOSIS_MODEL_NAME: DEFAULT_DEBUGGING_DIAGNOSIS_MODEL_NAME,
+      DEBUGGING_DIAGNOSIS_MODEL_API_KEY: '',
+      DEBUGGING_DIAGNOSIS_MODEL_MAX_COMPLETION_TOKENS:
+        DEFAULT_DEBUGGING_DIAGNOSIS_MODEL_MAX_COMPLETION_TOKENS,
       TUTOR_MODEL_PROVIDER: 'deterministic',
       TUTOR_MODEL_BASE_URL: DEFAULT_TUTOR_MODEL_BASE_URL,
       TUTOR_MODEL_NAME: DEFAULT_TUTOR_MODEL_NAME,
@@ -79,8 +99,7 @@ describe('parseTutoringConfiguration', () => {
       SEMANTIC_GUARD_BASE_URL: DEFAULT_SEMANTIC_GUARD_BASE_URL,
       SEMANTIC_GUARD_MODEL_NAME: DEFAULT_SEMANTIC_GUARD_MODEL_NAME,
       SEMANTIC_GUARD_API_KEY: '',
-      SEMANTIC_GUARD_MAX_COMPLETION_TOKENS:
-        DEFAULT_SEMANTIC_GUARD_MAX_COMPLETION_TOKENS,
+      SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: 2048,
     })
   })
 
@@ -88,13 +107,15 @@ describe('parseTutoringConfiguration', () => {
     expect(
       parseTutoringConfiguration({
         ANALYSIS_MODEL_MAX_COMPLETION_TOKENS: '1024',
+        DEBUGGING_DIAGNOSIS_MODEL_MAX_COMPLETION_TOKENS: '1024',
         TUTOR_MODEL_MAX_COMPLETION_TOKENS: '1024',
-        SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: '512',
+        SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: '2048',
       }),
     ).toMatchObject({
       ANALYSIS_MODEL_MAX_COMPLETION_TOKENS: 1024,
+      DEBUGGING_DIAGNOSIS_MODEL_MAX_COMPLETION_TOKENS: 1024,
       TUTOR_MODEL_MAX_COMPLETION_TOKENS: 1024,
-      SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: 512,
+      SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: 2048,
     })
 
     expect(() =>
@@ -103,11 +124,16 @@ describe('parseTutoringConfiguration', () => {
       }),
     ).toThrow(/ANALYSIS_MODEL_MAX_COMPLETION_TOKENS/)
     expect(() =>
+      parseTutoringConfiguration({
+        DEBUGGING_DIAGNOSIS_MODEL_MAX_COMPLETION_TOKENS: '63',
+      }),
+    ).toThrow(/DEBUGGING_DIAGNOSIS_MODEL_MAX_COMPLETION_TOKENS/)
+    expect(() =>
       parseTutoringConfiguration({ TUTOR_MODEL_MAX_COMPLETION_TOKENS: '2049' }),
     ).toThrow(/TUTOR_MODEL_MAX_COMPLETION_TOKENS/)
     expect(() =>
       parseTutoringConfiguration({
-        SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: '1025',
+        SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: '2049',
       }),
     ).toThrow(/SEMANTIC_GUARD_MAX_COMPLETION_TOKENS/)
   })
@@ -119,6 +145,9 @@ describe('parseTutoringConfiguration', () => {
         ANALYSIS_MODEL_BASE_URL: 'https://models.example.test/v1',
         ANALYSIS_MODEL_NAME: 'analysis-model',
         ANALYSIS_MODEL_API_KEY: 'replace-with-analysis-key',
+        DEBUGGING_DIAGNOSIS_MODEL_PROVIDER: 'openai-compatible',
+        DEBUGGING_DIAGNOSIS_MODEL_BASE_URL: 'https://models.example.test/v1',
+        DEBUGGING_DIAGNOSIS_MODEL_NAME: 'diagnosis-model',
         TUTOR_MODEL_PROVIDER: 'openai-compatible',
         TUTOR_MODEL_BASE_URL: 'https://models.example.test/v1',
         TUTOR_MODEL_NAME: 'tutor-model',
@@ -138,12 +167,25 @@ describe('parseTutoringConfiguration', () => {
         TUTOR_MODEL_NAME: 'same-model',
       }),
     ).toThrow(/TUTOR_MODEL_NAME/)
+
+    expect(() =>
+      parseTutoringConfiguration({
+        DEBUGGING_DIAGNOSIS_MODEL_PROVIDER: 'openai-compatible',
+        DEBUGGING_DIAGNOSIS_MODEL_BASE_URL: 'https://models.example.test/v1',
+        DEBUGGING_DIAGNOSIS_MODEL_NAME: 'same-model',
+        TUTOR_MODEL_PROVIDER: 'openai-compatible',
+        TUTOR_MODEL_BASE_URL: 'https://models.example.test/v1',
+        TUTOR_MODEL_NAME: 'same-model',
+      }),
+    ).toThrow(/DEBUGGING_DIAGNOSIS_MODEL_NAME/)
   })
 
   it('requires live providers for production', () => {
     expect(() =>
       parseTutoringConfiguration({ NODE_ENV: 'production' }),
-    ).toThrow(/ANALYSIS_MODEL_PROVIDER|TUTOR_MODEL_PROVIDER/)
+    ).toThrow(
+      /ANALYSIS_MODEL_PROVIDER|TUTOR_MODEL_PROVIDER|DEBUGGING_DIAGNOSIS_MODEL_PROVIDER/,
+    )
   })
 
   it.each(geminiRoleConfigurations)(
