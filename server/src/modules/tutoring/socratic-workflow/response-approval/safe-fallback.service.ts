@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common'
 import {
   ExplanationDetailLevel,
   normalizeExplanationDetailLevel,
+  StudentActionPurpose,
   TeachingTechnique,
 } from '../../tutoring-values'
 import {
@@ -12,8 +13,12 @@ import {
 } from './response-validation.types'
 import type { PersistedTeachingDecisionRecord } from '../teaching-decision/teaching-decision.repository'
 import type { CandidateResponse } from '../generation/tutor-generation.types'
+import {
+  studentActionObligationFromDecision,
+  type StudentActionObligation,
+} from '../teaching-decision/student-action-obligation'
 
-export const SAFE_FALLBACK_PROMPT_VERSION = 'safe-fallback.mvp.v1'
+export const SAFE_FALLBACK_PROMPT_VERSION = 'safe-fallback.mvp.v2'
 
 export const SAFE_FALLBACK_REASON = {
   VALIDATION_EXHAUSTED: 'VALIDATION_EXHAUSTED',
@@ -30,15 +35,18 @@ export class SafeFallbackService {
     decision: PersistedTeachingDecisionRecord,
     detailLevel: ExplanationDetailLevel = ExplanationDetailLevel.STANDARD,
   ): ApprovedResponse {
+    const studentActionObligation =
+      studentActionObligationFromDecision(decision)
     const level = normalizeExplanationDetailLevel(detailLevel)
+
     return Object.freeze({
-      message: fallbackMessage(decision.primaryTechnique, level),
+      message: fallbackMessage(studentActionObligation, level),
       responseIntent: decision.strategy,
       usedCitationIds: Object.freeze([]),
-      requiresStudentAction: true,
+      requiresStudentAction: studentActionObligation.required,
       studentAction: Object.freeze({
-        type: decision.primaryTechnique,
-        description: 'Ask the student to share one small reasoning step.',
+        type: studentActionObligation.technique,
+        description: fallbackActionDescription(studentActionObligation),
       }),
       reflectionIncluded: false,
       source: APPROVED_RESPONSE_SOURCE.SAFE_FALLBACK,
@@ -60,9 +68,10 @@ export class SafeFallbackService {
 }
 
 function fallbackMessage(
-  technique: TeachingTechnique,
+  obligation: StudentActionObligation,
   level: ExplanationDetailLevel = ExplanationDetailLevel.STANDARD,
 ): string {
+  const technique = obligation.technique
   if (technique === TeachingTechnique.TRACE_EXECUTION) {
     if (level === ExplanationDetailLevel.CONCISE) {
       return 'Let us narrow it to one trace step. What value changes first?'
@@ -90,6 +99,19 @@ function fallbackMessage(
     return 'Let us narrow this down step by step. Show the last step you were confident about, and what you expected to happen next.'
   }
   return 'Let us narrow it down to one step. Show the last step you were confident about and what you expected next.'
+}
+
+function fallbackActionDescription(
+  obligation: StudentActionObligation,
+): string {
+  switch (obligation.purpose) {
+    case StudentActionPurpose.PRIOR_ATTEMPT_ORIENTATION:
+      return 'Ask the student to describe what they tried as one action.'
+    case StudentActionPurpose.CONCEPTUAL_UNDERSTANDING:
+      return 'Ask one meaningful conceptual understanding question.'
+    case StudentActionPurpose.PRIMARY_TECHNIQUE:
+      return `Ask one meaningful ${obligation.technique} reasoning question.`
+  }
 }
 
 export function approvedResponseFromCandidate(input: {

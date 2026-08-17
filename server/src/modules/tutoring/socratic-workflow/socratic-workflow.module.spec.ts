@@ -11,6 +11,12 @@ import {
 } from './analysis/analysis-model.port'
 import { EDUCATIONAL_ANALYSIS_PROMPT_VERSION } from './analysis/educational-analysis.prompt'
 import {
+  DEBUGGING_DIAGNOSIS_MODEL_PORT,
+  DEBUGGING_DIAGNOSIS_MODEL_PROMPT_VERSION,
+  type DebuggingDiagnosisModelPort,
+  type DebuggingDiagnosisModelRequest,
+} from './debugging-guidance/debugging-diagnosis-model.port'
+import {
   SEMANTIC_GUARD_PORT,
   SEMANTIC_GUARD_PROMPT_VERSION,
   type SemanticGuardPort,
@@ -28,7 +34,7 @@ const pooledApiKey = 'first-secret-api-key-value'
 const geminiBaseUrl = 'https://generativelanguage.googleapis.com/v1beta/openai'
 
 describe('SocraticWorkflowModule Gemini composition', () => {
-  it('routes analysis, tutor, and semantic guard through the shared project pool', async () => {
+  it('routes analysis, diagnosis, tutor, and semantic guard through the shared project pool', async () => {
     const redisEval = jest.fn(() => Promise.resolve([1, '0']))
     const fetchSpy = jest
       .spyOn(globalThis, 'fetch')
@@ -59,18 +65,39 @@ describe('SocraticWorkflowModule Gemini composition', () => {
         .get<AnalysisModelPort>(ANALYSIS_MODEL_PORT)
         .analyze(analysisRequest)
       await moduleRef
+        .get<DebuggingDiagnosisModelPort>(DEBUGGING_DIAGNOSIS_MODEL_PORT)
+        .diagnose(debuggingDiagnosisRequest)
+      await moduleRef
         .get<TutorModelPort>(TUTOR_MODEL_PORT)
         .generate(tutorRequest)
       await moduleRef
         .get<SemanticGuardPort>(SEMANTIC_GUARD_PORT)
         .evaluate(semanticGuardRequest)
 
-      expect(fetchSpy).toHaveBeenCalledTimes(3)
-      expect(redisEval).toHaveBeenCalledTimes(3)
+      expect(fetchSpy).toHaveBeenCalledTimes(4)
+      expect(redisEval).toHaveBeenCalledTimes(4)
       for (const call of fetchSpy.mock.calls) {
         expect(new Headers(call[1]?.headers).get('Authorization')).toBe(
           `Bearer ${pooledApiKey}`,
         )
+      }
+      expect(requestBody(fetchSpy.mock.calls[0]?.[1])).toMatchObject({
+        model: 'gemini-3.5-flash',
+        temperature: 0,
+        top_p: 1,
+      })
+      expect(requestBody(fetchSpy.mock.calls[3]?.[1])).toMatchObject({
+        model: 'gemini-3.6-flash',
+        max_completion_tokens: 2048,
+      })
+      expect(requestBody(fetchSpy.mock.calls[1]?.[1])).toMatchObject({
+        model: 'gemini-3.4-flash',
+        temperature: 0,
+        top_p: 1,
+      })
+      for (const call of fetchSpy.mock.calls.slice(2)) {
+        expect(requestBody(call[1])).not.toHaveProperty('temperature')
+        expect(requestBody(call[1])).not.toHaveProperty('top_p')
       }
     } finally {
       await moduleRef?.close()
@@ -103,6 +130,20 @@ const tutorRequest = Object.freeze<TutorModelRequest>({
   responseSchemaName: 'CandidateResponse',
 })
 
+const debuggingDiagnosisRequest = Object.freeze<DebuggingDiagnosisModelRequest>(
+  {
+    messages: Object.freeze([
+      Object.freeze({ role: 'system', content: 'trusted diagnosis prompt' }),
+      Object.freeze({
+        role: 'user',
+        content: '{"code":"x = 1","symptom":"wrong value","codeLineCount":1}',
+      }),
+    ]),
+    promptVersion: DEBUGGING_DIAGNOSIS_MODEL_PROMPT_VERSION,
+    responseSchemaName: 'DebuggingDiagnosisResult',
+  },
+)
+
 const semanticGuardRequest = Object.freeze<SemanticGuardRequest>({
   messages: Object.freeze([
     Object.freeze({ role: 'system', content: 'trusted guard prompt' }),
@@ -133,37 +174,38 @@ function readGeminiConfiguration(key: string): unknown {
     ]),
     ANALYSIS_MODEL_PROVIDER: 'openai-compatible',
     ANALYSIS_MODEL_BASE_URL: geminiBaseUrl,
-    ANALYSIS_MODEL_NAME: 'gemini-analysis-model',
+    ANALYSIS_MODEL_NAME: 'gemini-3.5-flash',
     ANALYSIS_MODEL_API_KEY: '',
     ANALYSIS_MODEL_TIMEOUT_MS: 30_000,
     ANALYSIS_MODEL_MAX_COMPLETION_TOKENS: 2048,
     ANALYSIS_MODEL_MAX_RETRIES: 0,
     ANALYSIS_CONFIDENCE_THRESHOLD: 0.2,
+    DEBUGGING_DIAGNOSIS_MODEL_PROVIDER: 'openai-compatible',
+    DEBUGGING_DIAGNOSIS_MODEL_BASE_URL: geminiBaseUrl,
+    DEBUGGING_DIAGNOSIS_MODEL_NAME: 'gemini-3.4-flash',
+    DEBUGGING_DIAGNOSIS_MODEL_API_KEY: '',
+    DEBUGGING_DIAGNOSIS_MODEL_TIMEOUT_MS: 30_000,
+    DEBUGGING_DIAGNOSIS_MODEL_MAX_COMPLETION_TOKENS: 1024,
+    DEBUGGING_DIAGNOSIS_MODEL_MAX_RETRIES: 0,
     TUTOR_MODEL_PROVIDER: 'openai-compatible',
     TUTOR_MODEL_BASE_URL: geminiBaseUrl,
-    TUTOR_MODEL_NAME: 'gemini-tutor-model',
+    TUTOR_MODEL_NAME: 'gemini-3.7-flash',
     TUTOR_MODEL_API_KEY: '',
     TUTOR_MODEL_TIMEOUT_MS: 30_000,
     TUTOR_MODEL_MAX_COMPLETION_TOKENS: 2048,
     TUTOR_MODEL_MAX_INFRASTRUCTURE_RETRIES: 1,
     SEMANTIC_GUARD_PROVIDER: 'openai-compatible',
     SEMANTIC_GUARD_BASE_URL: geminiBaseUrl,
-    SEMANTIC_GUARD_MODEL_NAME: 'gemini-guard-model',
+    SEMANTIC_GUARD_MODEL_NAME: 'gemini-3.6-flash',
     SEMANTIC_GUARD_API_KEY: '',
     SEMANTIC_GUARD_TIMEOUT_MS: 30_000,
-    SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: 256,
+    SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: 2048,
   }
   return values[key]
 }
 
 function modelFrom(init: RequestInit | undefined): string {
-  if (typeof init?.body !== 'string') {
-    throw new TypeError('Expected a JSON request body')
-  }
-  const parsed: unknown = JSON.parse(init.body)
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    throw new TypeError('Expected a JSON request object')
-  }
+  const parsed = requestBody(init)
   const model: unknown = Reflect.get(parsed, 'model')
   if (typeof model !== 'string') {
     throw new TypeError('Expected a model name')
@@ -171,13 +213,26 @@ function modelFrom(init: RequestInit | undefined): string {
   return model
 }
 
+function requestBody(init: RequestInit | undefined): Record<string, unknown> {
+  if (typeof init?.body !== 'string') {
+    throw new TypeError('Expected a JSON request body')
+  }
+  const parsed: unknown = JSON.parse(init.body)
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new TypeError('Expected a JSON request object')
+  }
+  return parsed as Record<string, unknown>
+}
+
 function chatCompletion(model: string): Response {
   const content =
-    model === 'gemini-analysis-model'
+    model === 'gemini-3.5-flash'
       ? validAnalysis
-      : model === 'gemini-tutor-model'
-        ? validCandidate
-        : validGuard
+      : model === 'gemini-3.4-flash'
+        ? validDiagnosis
+        : model === 'gemini-3.7-flash'
+          ? validCandidate
+          : validGuard
   return new Response(
     JSON.stringify({
       model,
@@ -228,6 +283,26 @@ const validCandidate = Object.freeze({
     finalAnswerRevealed: false,
     completeSolutionRevealed: false,
   }),
+})
+
+const validDiagnosis = Object.freeze({
+  status: 'RESOLVED',
+  category: 'BOUNDARY',
+  likelyDefect: 'The loop stops before checking the last relevant value.',
+  location: Object.freeze({
+    lineStart: 1,
+    lineEnd: 1,
+    kind: 'CODE',
+  }),
+  evidenceReferences: Object.freeze([
+    Object.freeze({ source: 'CODE', lineStart: 1, lineEnd: 1 }),
+    Object.freeze({ source: 'SYMPTOM', lineStart: null, lineEnd: null }),
+  ]),
+  underlyingConcept:
+    'Loop boundary conditions control which values are visited.',
+  requiresRuntimeEvidence: true,
+  runtimeEvidenceNeeded: 'TRACE_VALUES',
+  inspectionGoal: 'Trace which indices the loop visits.',
 })
 
 const validGuard = Object.freeze({

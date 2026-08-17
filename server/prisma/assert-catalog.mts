@@ -15,7 +15,7 @@ const databaseUrl = process.env.DATABASE_URL
 // enum label order plus every public index, CHECK/FK definition and action,
 // application trigger definition, and application function body queried below.
 const expectedCatalogSemanticFingerprint =
-  'b9ac0141bea1cf7529ffe766ecb6f1647069810cbf7a5c466241506c259ee57d'
+  'e3b06c2c389ba0f70c652e2333ea28268df0d7a9792011179541aa9de8a14b97'
 
 if (databaseUrl === undefined) {
   throw new Error('DATABASE_URL is required for Prisma catalog assertions')
@@ -26,6 +26,7 @@ const expectedTables = [
   'chat_sessions',
   'course_memberships',
   'courses',
+  'debugging_diagnoses',
   'educational_analyses',
   'educational_analysis_evidence_links',
   'educational_analysis_misconceptions',
@@ -37,6 +38,7 @@ const expectedTables = [
   'message_citations',
   'message_retrievals',
   'messages',
+  'output_risk_events',
   'refresh_tokens',
   'review_actions',
   'review_cases',
@@ -61,6 +63,8 @@ const expectedIndexes = [
   'course_memberships_pkey',
   'courses_code_key',
   'courses_pkey',
+  'debugging_diagnoses_attempt_id_key',
+  'debugging_diagnoses_pkey',
   'educational_analyses_pkey',
   'educational_analyses_attempt_id_attempt_key',
   'educational_analysis_evidence_links_analysis_kind_ordinal_key',
@@ -75,6 +79,7 @@ const expectedIndexes = [
   'idx_citations_material',
   'idx_courses_archived_at',
   'idx_courses_created_by',
+  'idx_debugging_diagnoses_location_message',
   'idx_educational_analyses_student_message',
   'idx_educational_analyses_topic_created',
   'idx_educational_analysis_evidence_links_message',
@@ -90,6 +95,7 @@ const expectedIndexes = [
   'idx_messages_author',
   'idx_messages_topic',
   'idx_messages_attempt',
+  'idx_output_risk_events_attempt',
   'idx_review_inbox_items_recipient_created',
   'idx_refresh_tokens_family',
   'idx_refresh_tokens_replaced_by',
@@ -128,6 +134,7 @@ const expectedIndexes = [
   'messages_response_to_message_id_key',
   'messages_session_id_sequence_key',
   'messages_pkey',
+  'output_risk_events_pkey',
   'review_inbox_items_recipient_review_case_key',
   'review_inbox_items_pkey',
   'refresh_tokens_pkey',
@@ -214,6 +221,7 @@ const expectedForeignKeys = [
   'course_memberships_created_by_fkey',
   'course_memberships_user_id_fkey',
   'courses_created_by_fkey',
+  'debugging_diagnoses_tutoring_attempt_id_fkey',
   'educational_analyses_student_message_id_fkey',
   'educational_analyses_topic_id_fkey',
   'educational_analyses_attempt_id_fkey',
@@ -236,6 +244,7 @@ const expectedForeignKeys = [
   'messages_session_id_fkey',
   'messages_topic_id_fkey',
   'messages_attempt_id_fkey',
+  'output_risk_events_attempt_id_fkey',
   'review_inbox_items_course_id_fkey',
   'review_inbox_items_message_id_fkey',
   'review_inbox_items_recipient_user_id_fkey',

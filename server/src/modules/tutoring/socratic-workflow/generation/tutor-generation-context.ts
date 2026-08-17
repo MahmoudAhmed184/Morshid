@@ -14,6 +14,11 @@ import type { PersistedEducationalAnalysisRecord } from '../analysis/educational
 import type { PersistedTeachingDecisionRecord } from '../teaching-decision/teaching-decision.repository'
 import type { TeachingGuardPolicy } from '../teaching-decision/teaching-policy.types'
 import type { DebuggingGuidanceContext } from '../debugging-guidance/debugging-guidance.output-validator'
+import type { OutputProtectionContext } from '../solution-protection/solution-protection.types'
+import {
+  studentActionObligationFromDecision,
+  type StudentActionObligation,
+} from '../teaching-decision/student-action-obligation'
 
 export type BuildGenerationContextResult =
   | {
@@ -32,6 +37,7 @@ export function buildGenerationContextPackage(input: {
   readonly previousTeachingDecision: PersistedTeachingDecisionRecord | null
   readonly retrievedChunks: readonly CourseEvidenceChunk[]
   readonly explanationDetailLevel?: ExplanationDetailLevel
+  readonly outputProtection: OutputProtectionContext
   readonly debuggingGuidance?: DebuggingGuidanceContext
 }): BuildGenerationContextResult {
   const attemptId = input.analysisContext.studentMessage.attemptId
@@ -83,6 +89,7 @@ export function buildGenerationContextPackage(input: {
       explanationDetailLevel: normalizeExplanationDetailLevel(
         input.explanationDetailLevel,
       ),
+      outputProtection: input.outputProtection,
       regeneration: null,
       debuggingGuidance: input.debuggingGuidance ?? null,
     }),
@@ -112,7 +119,40 @@ export function regenerationMatchesTeachingDecision(
     policy.policyVersion === context.teachingDecision.policyVersion &&
     policy.guidanceLevel === context.teachingDecision.guidanceLevel &&
     policy.revealPolicy === context.teachingDecision.revealPolicy &&
-    guardPoliciesMatch(policy.guardPolicy, context.teachingDecision.guardPolicy)
+    guardPoliciesMatch(
+      policy.guardPolicy,
+      context.teachingDecision.guardPolicy,
+    ) &&
+    studentActionObligationsMatch(
+      policy.studentActionObligation,
+      studentActionObligationFromDecision(context.teachingDecision),
+    ) &&
+    outputProtectionContextsMatch(
+      policy.outputProtection,
+      context.outputProtection,
+    )
+  )
+}
+
+function studentActionObligationsMatch(
+  left: StudentActionObligation,
+  right: StudentActionObligation,
+): boolean {
+  return (
+    left.required === right.required &&
+    left.purpose === right.purpose &&
+    left.technique === right.technique
+  )
+}
+
+function outputProtectionContextsMatch(
+  left: OutputProtectionContext,
+  right: OutputProtectionContext,
+): boolean {
+  return (
+    left.protectTargetSolution === right.protectTargetSolution &&
+    left.topicId === right.topicId &&
+    left.source === right.source
   )
 }
 
@@ -155,11 +195,15 @@ export function guardEducationalContextFromGenerationContext(
     }),
     topicState: context.topicState,
     previousTeachingDecision: context.previousTeachingDecision,
+    outputProtection: context.outputProtection,
     currentTeachingDecision: Object.freeze({
       id: context.teachingDecision.id,
       policyVersion: context.teachingDecision.policyVersion,
       guidanceLevel: context.teachingDecision.guidanceLevel,
       revealPolicy: context.teachingDecision.revealPolicy,
+      studentActionObligation: studentActionObligationFromDecision(
+        context.teachingDecision,
+      ),
     }),
     recentConversation: Object.freeze(
       context.selectedHistory.map((message) =>

@@ -5,6 +5,7 @@ import {
   MessageStatus,
   ReflectionMode,
   RevealPolicy,
+  StudentActionPurpose,
   StudentState,
   TeachingStrategy,
   TeachingTechnique,
@@ -97,11 +98,42 @@ describe('tutor prompt builder', () => {
   })
 
   it.each([
+    'I have never used dictionaries. What are keys and values?',
+    'What is the difference between break and continue in a Python loop?',
+  ])(
+    'requires a bounded core explanation and understanding check for: %s',
+    (studentMessage) => {
+      const request = buildTutorGenerationModelRequest(
+        directConceptualContext(studentMessage),
+      )
+      const prompt = request.messages
+        .map((message) => message.content)
+        .join('\n')
+
+      expect(prompt).toContain('"strategy":"GUIDED_EXPLANATION"')
+      expect(prompt).toContain('"primaryTechnique":"ORIENTATION_QUESTION"')
+      expect(prompt).toContain('"revealPolicy":"PARTIAL_RESULT_ALLOWED"')
+      expect(prompt).toContain('"preventDirectAnswer":false')
+      expect(prompt).toContain('"boundedConceptualExplanationAllowed":true')
+      expect(prompt).toContain('"directTargetInferenceAllowed":true')
+      expect(prompt).toContain(
+        '"minimumUsefulConceptualExplanationRequired":true',
+      )
+      expect(prompt).toContain('"purpose":"CONCEPTUAL_UNDERSTANDING"')
+      expect(prompt).toContain('State the minimum useful grounded core concept')
+      expect(prompt).toContain(studentMessage)
+    },
+  )
+
+  it.each([
     {
       requestKind: MessageRequestKind.PROBLEM_LIKE,
       studentState: StudentState.NO_PRIOR_KNOWLEDGE,
       guidanceLevel: 1,
-      expected: ['"askWhatStudentTried":true', '"smallStartingHintCount":1'],
+      expected: [
+        '"purpose":"PRIOR_ATTEMPT_ORIENTATION"',
+        '"smallStartingHintCount":1',
+      ],
     },
     {
       requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
@@ -109,7 +141,6 @@ describe('tutor prompt builder', () => {
       guidanceLevel: 2,
       expected: [
         '"identifyLikelyMisconception":true',
-        '"meaningfulGuidingQuestionCount":1',
         '"mode":"FOCUSED_HINT"',
         '"singleGuidingQuestionIsSufficient":true',
       ],
@@ -119,7 +150,6 @@ describe('tutor prompt builder', () => {
       studentState: StudentState.PARTIAL_UNDERSTANDING,
       guidanceLevel: 3,
       expected: [
-        '"acknowledgeStudentSupportedCorrectWork":true',
         '"identifyNextReasoningStepWithoutSolving":true',
         '"mode":"GUIDED_DECOMPOSITION"',
         '"minimumConnectedScaffoldMoves":2',
@@ -133,8 +163,8 @@ describe('tutor prompt builder', () => {
       studentState: StudentState.PARTIAL_UNDERSTANDING,
       guidanceLevel: 4,
       expected: [
-        '"analogousWorkedExampleOrBoundedStrongGuidance":true',
-        '"protectExactOriginalSolution":true',
+        '"analogousWorkedExampleOrBoundedStrongGuidance":false',
+        '"protectExactOriginalSolution":false',
         '"mode":"STRONG_GUIDANCE"',
         '"minimumConnectedScaffoldMoves":3',
         '"analogousExampleOrNearCompleteScaffoldRequired":true',
@@ -220,6 +250,103 @@ describe('tutor prompt builder', () => {
       },
     )
   })
+
+  it('requires factual affirmation before verification for supported recovery', () => {
+    const base = buildGenerationContext()
+    const currentMessageId = base.studentMessage.id
+    const request = buildTutorGenerationModelRequest({
+      ...base,
+      acceptedAnalysis: {
+        ...base.acceptedAnalysis,
+        result: {
+          ...base.acceptedAnalysis.result,
+          requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+          studentState: StudentState.NEAR_SOLUTION,
+          learningEvidence: {
+            present: true,
+            strength: 'STRONG',
+            evidenceMessageIds: [currentMessageId],
+          },
+          misconceptions: [],
+        },
+      },
+      teachingDecision: {
+        ...base.teachingDecision,
+        primaryTechnique: TeachingTechnique.VERIFICATION,
+        guidanceLevel: 1,
+      },
+    })
+    const prompt = request.messages.map((message) => message.content).join('\n')
+
+    expect(prompt).toContain('"acknowledgeStudentSupportedCorrectWork":true')
+    expect(prompt).toContain(
+      'briefly and factually acknowledge only the correct reasoning',
+    )
+    expect(prompt).toContain(
+      'meaningful verification, transfer, or application question',
+    )
+  })
+
+  it('does not require affirmation for unsupported near-solution self-report', () => {
+    const base = buildGenerationContext()
+    const request = buildTutorGenerationModelRequest({
+      ...base,
+      acceptedAnalysis: {
+        ...base.acceptedAnalysis,
+        result: {
+          ...base.acceptedAnalysis.result,
+          requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+          studentState: StudentState.NEAR_SOLUTION,
+          learningEvidence: {
+            present: false,
+            strength: 'NONE',
+            evidenceMessageIds: [],
+          },
+          misconceptions: [],
+        },
+      },
+    })
+
+    expect(request.messages[1].content).toContain(
+      '"acknowledgeStudentSupportedCorrectWork":false',
+    )
+  })
+
+  it('requests the one canonical structured debugging response shape', () => {
+    const request = buildTutorGenerationModelRequest(
+      debuggingGenerationContext(),
+    )
+    const prompt = request.messages.map((message) => message.content).join('\n')
+
+    expect(prompt).toContain('"message":null')
+    expect(prompt).toContain('"debuggingGuidance":{')
+    expect(prompt).toContain('"diagnosis":"non-empty string"')
+    expect(prompt).toContain('"relevantLocation":"non-empty string"')
+    expect(prompt).toContain('"conceptExplanation":')
+    expect(prompt).toContain('"inspectionActions":[')
+    expect(prompt).toContain('"studentAction":null')
+    expect(prompt).toContain('"purpose":"PRIMARY_TECHNIQUE"')
+    expect(prompt).toContain('"technique":"FOCUSED_QUESTION"')
+    expect(prompt).toContain('Write it as one focused question ending in ?')
+    expect(prompt).toContain(
+      'Ask for exactly one observation, comparison, prediction, or reasoning step at the relevantLocation',
+    )
+    expect(prompt).toContain(
+      'instead of copying it verbatim. Do not combine multiple requested operations',
+    )
+    expect(prompt).toContain('"protectTargetSolution":true')
+    expect(prompt).toContain('"revealPolicy":"NO_FINAL_ANSWER"')
+    expect(prompt).toContain(
+      'Do not claim to have executed, run, or tested the student code',
+    )
+    expect(prompt).toContain('Never return a corrected program')
+    expect(prompt).not.toContain('askWhatStudentTried')
+    expect(prompt).toContain(
+      'usedCitationIds must contain one or more exact values from allowedCitationIds',
+    )
+    expect(prompt).toContain('the backend renders markers from usedCitationIds')
+    expect(prompt).not.toContain('debuggingGuidanceSections')
+  })
 })
 
 function misconceptionContext(
@@ -256,9 +383,96 @@ function misconceptionContext(
       ...context.teachingDecision,
       strategy: TeachingStrategy.MISCONCEPTION_REPAIR,
       primaryTechnique: TeachingTechnique.COUNTEREXAMPLE,
+      studentActionPurpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
       guidanceLevel,
     },
     previousTeachingDecision: null,
+  }
+}
+
+function directConceptualContext(
+  currentStudentMessage: string,
+): GenerationContextPackage {
+  const context = buildGenerationContext()
+  return {
+    ...context,
+    studentMessage: {
+      ...context.studentMessage,
+      content: currentStudentMessage,
+      requestKind: MessageRequestKind.CONCEPTUAL,
+    },
+    acceptedAnalysis: {
+      ...context.acceptedAnalysis,
+      result: {
+        ...context.acceptedAnalysis.result,
+        requestKind: MessageRequestKind.CONCEPTUAL,
+        studentState: StudentState.UNKNOWN,
+        effortEvidence: {
+          present: false,
+          quality: 'NONE',
+          type: null,
+          addressesPreviousTutorAction: false,
+          isRepeated: false,
+          evidenceMessageIds: [],
+        },
+        misconceptions: [],
+        recommendedStrategy: TeachingStrategy.GUIDED_EXPLANATION,
+        recommendedTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+      },
+      analysisSource: 'fallback',
+      fallbackReason: 'provider_unavailable',
+    },
+    teachingDecision: {
+      ...context.teachingDecision,
+      strategy: TeachingStrategy.GUIDED_EXPLANATION,
+      primaryTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+      studentActionPurpose: StudentActionPurpose.CONCEPTUAL_UNDERSTANDING,
+      guidanceLevel: 1,
+      revealPolicy: RevealPolicy.PARTIAL_RESULT_ALLOWED,
+      guardPolicy: {
+        ...context.teachingDecision.guardPolicy,
+        preventDirectAnswer: false,
+      },
+    },
+    previousTeachingDecision: null,
+  }
+}
+
+function debuggingGenerationContext(): GenerationContextPackage {
+  const context = buildGenerationContext()
+  return {
+    ...context,
+    outputProtection: {
+      ...context.outputProtection,
+      protectTargetSolution: true,
+      source: 'CONSERVATIVE_UNKNOWN',
+    },
+    acceptedAnalysis: {
+      ...context.acceptedAnalysis,
+      result: {
+        ...context.acceptedAnalysis.result,
+        requestKind: MessageRequestKind.PROBLEM_LIKE,
+        studentState: StudentState.UNKNOWN,
+        recommendedStrategy: TeachingStrategy.SOCRATIC_QUESTIONING,
+        recommendedTechnique: TeachingTechnique.FOCUSED_QUESTION,
+      },
+    },
+    teachingDecision: {
+      ...context.teachingDecision,
+      strategy: TeachingStrategy.SOCRATIC_QUESTIONING,
+      primaryTechnique: TeachingTechnique.FOCUSED_QUESTION,
+      studentActionPurpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
+      guidanceLevel: 1,
+      revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
+    },
+    debuggingGuidance: {
+      likelyIssue: 'The update likely uses the wrong variable.',
+      relevantLocation: 'The assignment inside the loop body.',
+      concept: 'Accumulator updates',
+      nextInspectionStep: 'Trace one loop iteration.',
+      evidenceQuery: 'accumulator updates in loops',
+      rewriteRequested: false,
+    },
   }
 }
 
@@ -344,6 +558,7 @@ function buildGenerationContext(): GenerationContextPackage {
       revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
       reflectionMode: ReflectionMode.NONE,
       requireStudentAction: true,
+      studentActionPurpose: StudentActionPurpose.PRIOR_ATTEMPT_ORIENTATION,
       guardPolicy: {
         preventDirectAnswer: true,
         preventFinalResult: true,
@@ -369,6 +584,10 @@ function buildGenerationContext(): GenerationContextPackage {
       title: 'Loops',
       topicType: TopicType.CONCEPT,
       status: TopicStatus.ACTIVE,
+      solutionProtectionStatus: 'UNKNOWN',
+      solutionProtectionSource: null,
+      solutionProtectionPolicyVersion: null,
+      solutionProtectionEstablishedAt: null,
       resolvedAt: null,
       createdAt,
       updatedAt: createdAt,
@@ -410,6 +629,12 @@ function buildGenerationContext(): GenerationContextPackage {
     allowedCitationIds: ['retrieval.rank.1'],
     conversationLanguage: 'en',
     explanationDetailLevel: ExplanationDetailLevel.STANDARD,
+    outputProtection: {
+      protectTargetSolution: false,
+      topicId: 'topic-1',
+      source: 'ACCEPTED_CONCEPT_ANALYSIS',
+      policyVersion: 'solution-protection.v1',
+    },
     regeneration: null,
     debuggingGuidance: null,
   }

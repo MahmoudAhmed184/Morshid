@@ -10,11 +10,15 @@ import {
   MessageRequestKind,
   MessageRole,
   MessageStatus,
+  TeachingStrategy,
+  TeachingTechnique,
+  TutoringApprovalSource,
 } from './tutoring-values'
 import { UserRole, UserStatus } from '../identity/identity.roles'
 import type { AuthenticatedUser } from '../identity/identity.types'
 import type {
   BeginTutoringTurnResult,
+  CompleteTutoringTurnInput,
   FinalizeTutoringTurnInput,
   FinalizeTutoringTurnResult,
   TutoringTurnRepository,
@@ -52,6 +56,7 @@ describe('TutoringRuntimeApplication', () => {
   let recordEvent: jest.Mock
   let beginTurn: jest.Mock
   let retryTurn: jest.Mock
+  let completeTurn: jest.Mock
   let blockTurn: jest.Mock
   let failTurn: jest.Mock
   let socraticOrchestrate: jest.Mock
@@ -61,6 +66,19 @@ describe('TutoringRuntimeApplication', () => {
     recordEvent = jest.fn().mockResolvedValue(undefined)
     beginTurn = jest.fn().mockResolvedValue(beginOk())
     retryTurn = jest.fn().mockResolvedValue(retryOk())
+    completeTurn = jest
+      .fn()
+      .mockImplementation((input: CompleteTutoringTurnInput) =>
+        Promise.resolve({
+          kind: 'ok',
+          message: assistantMessage({
+            status: MessageStatus.COMPLETED,
+            content: input.content,
+            guidanceLabel: input.guidanceLabel ?? null,
+            completedAt: new Date('2026-07-21T12:01:00.000Z'),
+          }),
+        } satisfies FinalizeTutoringTurnResult),
+      )
     blockTurn = jest
       .fn()
       .mockImplementation((input: FinalizeTutoringTurnInput) =>
@@ -92,6 +110,7 @@ describe('TutoringRuntimeApplication', () => {
     const turnRepository = {
       beginTurn,
       retryTurn,
+      completeTurn,
       completePolicyTurn: jest.fn().mockImplementation(() =>
         Promise.resolve({
           kind: 'ok',
@@ -284,6 +303,94 @@ describe('TutoringRuntimeApplication', () => {
       requestKind: MessageRequestKind.CONCEPTUAL,
     })
     expect(socraticOrchestrate).not.toHaveBeenCalled()
+  })
+
+  it('does not label a generic safe fallback as course grounded', async () => {
+    socraticOrchestrate.mockResolvedValue({
+      kind: 'completed',
+      completion: {
+        kind: 'approved',
+        approvedResponse: {
+          message: 'Show the last step you were confident about.',
+          responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
+          usedCitationIds: [],
+          requiresStudentAction: true,
+          studentAction: {
+            type: TeachingTechnique.FOCUSED_QUESTION,
+            description: 'Share one small reasoning step.',
+          },
+          reflectionIncluded: false,
+          source: 'SAFE_FALLBACK',
+          approvedCandidateAttempt: null,
+          safeFallbackUsed: true,
+          approvalMetadata: {
+            provider: null,
+            model: null,
+            promptVersion: 'safe-fallback.mvp.v2',
+            inputTokens: 0,
+            outputTokens: 0,
+            validationPolicyVersion: 'response-validation.mvp.v1',
+            structuralApproved: false,
+            deterministicApproved: false,
+            semanticApproved: null,
+          },
+        },
+        evidence: [
+          {
+            chunkId: 'chunk-1',
+            materialId: 'material-1',
+            materialTitle: 'Course material',
+            chunkIndex: 0,
+            content: 'Retrieved course context remains auditable.',
+            rank: 1,
+            similarityScore: 0.95,
+            embeddingModel: 'test-embedding',
+          },
+        ],
+        requestKind: MessageRequestKind.CONCEPTUAL,
+        topicId: 'topic-1',
+        guidanceLevel: 1,
+        safeFallbackReason: 'VALIDATION_EXHAUSTED',
+        auditGraph: {
+          candidateAttempts: [],
+          guardResults: [],
+          outputProtection: {
+            protectTargetSolution: false,
+            topicId: 'topic-1',
+            source: 'ACCEPTED_CONCEPT_ANALYSIS',
+            policyVersion: 'solution-protection.v1',
+          },
+          outputRiskEvents: [],
+        },
+        topicStateTransition: {
+          expectedVersion: 1,
+          patch: { summary: 'Safe fallback completed.' },
+        },
+      },
+    } satisfies SocraticWorkflowResult)
+
+    const response = await runNew('Help me reason through this')
+
+    expect(completeTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        approvalSource: TutoringApprovalSource.SAFE_FALLBACK,
+        guidanceLabel: null,
+        provider: null,
+        model: null,
+        citationContextIndexes: [],
+        evidence: [
+          expect.objectContaining({
+            chunkId: 'chunk-1',
+            materialId: 'material-1',
+          }),
+        ],
+      }),
+    )
+    expect(response.assistantMessage).toMatchObject({
+      status: MessageStatus.COMPLETED,
+      guidanceLabel: null,
+      citations: [],
+    })
   })
 
   it('blocks when orchestrator returns blocked result', async () => {

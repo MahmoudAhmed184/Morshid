@@ -1,7 +1,11 @@
 import { Injectable } from '@nestjs/common'
 
 import { assertRequestBudget } from '../../../../common/http/request-deadline'
-import { ExplanationDetailLevel, TeachingStrategy } from '../../tutoring-values'
+import {
+  ExplanationDetailLevel,
+  OutputRiskAuditSource,
+  TeachingStrategy,
+} from '../../tutoring-values'
 
 import { citationIdForChunk } from '../generation/tutor-generation-context'
 import { TutorGenerationService } from '../generation/tutor-generation.service'
@@ -37,7 +41,10 @@ import {
   failedCandidateAttemptAudit,
   generatedCandidateAttemptAudit,
   guardResultAudit,
+  outputRiskEventAudit,
 } from './response-audit.types'
+import type { OutputProtectionContext } from '../solution-protection/solution-protection.types'
+import { studentActionObligationFromDecision } from '../teaching-decision/student-action-obligation'
 
 import {
   AutomaticSafetyRiskDetector,
@@ -67,6 +74,7 @@ export type ResponseApprovalResult =
   | {
       readonly success: false
       readonly outputRisk?: AutomaticSafetyRiskDetection
+      readonly auditGraph?: ResponseAuditGraph
       readonly errorCode:
         | 'MISSING_TEACHING_DECISION'
         | 'RESPONSE_APPROVAL_PERSISTENCE_FAILED'
@@ -103,22 +111,22 @@ export class ResponseApprovalService {
     const validationResults: ValidationResult[] = []
     const candidateAttemptAudits: TutoringCandidateAttemptAudit[] = []
     const guardResultAudits: GuardResultAudit[] = []
+    const studentActionObligation =
+      studentActionObligationFromDecision(decision)
     const context = buildCandidateValidationContext({
       allowedCitationIds: new Set(
         input.retrievalResult.map(citationIdForChunk),
       ),
       requireGrounding: decision.guardPolicy.requireGrounding,
       enforceCitationSupport: decision.guardPolicy.enforceCitationSupport,
-      requireStudentAction: decision.requireStudentAction,
       reflectionMode: decision.reflectionMode,
       responseIntent: decision.strategy,
-      primaryTechnique: decision.primaryTechnique,
+      studentActionObligation,
       guidanceLevel: decision.guidanceLevel,
       revealPolicy: decision.revealPolicy,
       maximumDisclosedSteps: decision.guardPolicy.maximumDisclosedSteps,
       debuggingGuidance: input.debuggingGuidance,
       debuggingGuidanceRequired:
-        input.debuggingGuidance !== undefined ||
         decision.strategy === TeachingStrategy.DEBUGGING_GUIDANCE,
     })
 
@@ -143,6 +151,8 @@ export class ResponseApprovalService {
                   guidanceLevel: decision.guidanceLevel,
                   revealPolicy: decision.revealPolicy,
                   guardPolicy: decision.guardPolicy,
+                  studentActionObligation,
+                  outputProtection: input.outputProtection,
                 },
               },
             }),
@@ -177,6 +187,7 @@ export class ResponseApprovalService {
             return approvalWithFallback(
               this.safeFallbackService,
               decision,
+              input.outputProtection,
               validationResults,
               candidateAttempts,
               SAFE_FALLBACK_REASON.VALIDATION_EXHAUSTED,
@@ -193,6 +204,7 @@ export class ResponseApprovalService {
         return approvalWithFallback(
           this.safeFallbackService,
           decision,
+          input.outputProtection,
           validationResults,
           candidateAttempts,
           SAFE_FALLBACK_REASON.GENERATION_RETRY_FAILED,
@@ -214,13 +226,26 @@ export class ResponseApprovalService {
 
       const outputRisk = this.safetyRiskDetector.detectOutput(
         generation.candidate.message,
-        true,
+        input.outputProtection.protectTargetSolution,
       )
       if (outputRisk !== null) {
         return {
           success: false,
           outputRisk,
           errorCode: 'SAFETY_RISK_DETECTED',
+          auditGraph: freezeAuditGraph(
+            candidateAttemptAudits,
+            guardResultAudits,
+            input.outputProtection,
+            [
+              outputRiskEventAudit({
+                candidateAttempt: attempt,
+                source: OutputRiskAuditSource.APPROVAL_CANDIDATE,
+                detection: outputRisk,
+                outputProtection: input.outputProtection,
+              }),
+            ],
+          ),
         }
       }
 
@@ -236,6 +261,7 @@ export class ResponseApprovalService {
           return approvalWithFallback(
             this.safeFallbackService,
             decision,
+            input.outputProtection,
             validationResults,
             candidateAttempts,
             SAFE_FALLBACK_REASON.VALIDATION_EXHAUSTED,
@@ -260,6 +286,7 @@ export class ResponseApprovalService {
           return approvalWithFallback(
             this.safeFallbackService,
             decision,
+            input.outputProtection,
             validationResults,
             candidateAttempts,
             SAFE_FALLBACK_REASON.VALIDATION_EXHAUSTED,
@@ -305,6 +332,7 @@ export class ResponseApprovalService {
         return approvalWithFallback(
           this.safeFallbackService,
           decision,
+          input.outputProtection,
           validationResults,
           candidateAttempts,
           SAFE_FALLBACK_REASON.GUARD_UNAVAILABLE,
@@ -318,6 +346,7 @@ export class ResponseApprovalService {
           return approvalWithFallback(
             this.safeFallbackService,
             decision,
+            input.outputProtection,
             validationResults,
             candidateAttempts,
             SAFE_FALLBACK_REASON.VALIDATION_EXHAUSTED,
@@ -341,13 +370,18 @@ export class ResponseApprovalService {
         validationResults: Object.freeze(validationResults),
         candidateAttempts,
         safeFallbackReason: null,
-        auditGraph: freezeAuditGraph(candidateAttemptAudits, guardResultAudits),
+        auditGraph: freezeAuditGraph(
+          candidateAttemptAudits,
+          guardResultAudits,
+          input.outputProtection,
+        ),
       }
     }
 
     return approvalWithFallback(
       this.safeFallbackService,
       decision,
+      input.outputProtection,
       validationResults,
       candidateAttempts,
       SAFE_FALLBACK_REASON.VALIDATION_EXHAUSTED,
@@ -361,6 +395,7 @@ export class ResponseApprovalService {
 function approvalWithFallback(
   fallbackService: SafeFallbackService,
   decision: PersistedTeachingDecisionRecord,
+  outputProtection: OutputProtectionContext,
   validationResults: readonly ValidationResult[],
   candidateAttempts: number,
   reason: SafeFallbackReason,
@@ -368,22 +403,38 @@ function approvalWithFallback(
   guardResultAudits: readonly GuardResultAudit[],
   detailLevel?: ExplanationDetailLevel,
 ): ResponseApprovalResult {
-  const hasFinalAnswerRisk = validationResults.some((result) =>
-    result.violations.some(
-      (v) =>
-        v.type === RESPONSE_VIOLATION_TYPE.FINAL_ANSWER_DISCLOSURE ||
-        v.type === RESPONSE_VIOLATION_TYPE.COMPLETE_SOLUTION_DISCLOSURE ||
-        v.type === RESPONSE_VIOLATION_TYPE.SUBMISSION_READY_CODE,
-    ),
-  )
+  const hasFinalAnswerRisk =
+    outputProtection.protectTargetSolution &&
+    validationResults.some((result) =>
+      result.violations.some(
+        (v) =>
+          v.type === RESPONSE_VIOLATION_TYPE.FINAL_ANSWER_DISCLOSURE ||
+          v.type === RESPONSE_VIOLATION_TYPE.COMPLETE_SOLUTION_DISCLOSURE ||
+          v.type === RESPONSE_VIOLATION_TYPE.SUBMISSION_READY_CODE,
+      ),
+    )
   if (hasFinalAnswerRisk) {
+    const outputRisk = {
+      detectorVersion: 'automatic-safety-risk-v3',
+      risks: ['FINAL_ANSWER_DELIVERY'],
+    } as const
     return {
       success: false,
-      outputRisk: {
-        detectorVersion: 'automatic-safety-risk-v3',
-        risks: ['FINAL_ANSWER_DELIVERY'],
-      },
+      outputRisk,
       errorCode: 'SAFETY_RISK_DETECTED',
+      auditGraph: freezeAuditGraph(
+        candidateAttemptAudits,
+        guardResultAudits,
+        outputProtection,
+        [
+          outputRiskEventAudit({
+            candidateAttempt: null,
+            source: OutputRiskAuditSource.SAFE_FALLBACK,
+            detection: outputRisk,
+            outputProtection,
+          }),
+        ],
+      ),
     }
   }
 
@@ -393,17 +444,25 @@ function approvalWithFallback(
     validationResults: Object.freeze([...validationResults]),
     candidateAttempts,
     safeFallbackReason: reason,
-    auditGraph: freezeAuditGraph(candidateAttemptAudits, guardResultAudits),
+    auditGraph: freezeAuditGraph(
+      candidateAttemptAudits,
+      guardResultAudits,
+      outputProtection,
+    ),
   }
 }
 
 function freezeAuditGraph(
   candidateAttempts: readonly TutoringCandidateAttemptAudit[],
   guardResults: readonly GuardResultAudit[],
+  outputProtection: OutputProtectionContext,
+  outputRiskEvents: ResponseAuditGraph['outputRiskEvents'] = [],
 ): ResponseAuditGraph {
   return Object.freeze({
     candidateAttempts: Object.freeze([...candidateAttempts]),
     guardResults: Object.freeze([...guardResults]),
+    outputProtection,
+    outputRiskEvents: Object.freeze([...outputRiskEvents]),
   })
 }
 

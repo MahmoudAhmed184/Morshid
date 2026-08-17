@@ -48,13 +48,18 @@ export function buildSemanticGuardRequest(
 
 function guardPayload(input: SemanticGuardEvaluationInput) {
   const disclosureContract = buildSocraticDisclosureContract({
+    requestKind: input.educationalContext.acceptedAnalysis.requestKind,
     guidanceLevel: input.validationContext.guidanceLevel,
     revealPolicy: input.validationContext.revealPolicy,
     guardPolicy: input.guardPolicy,
   })
   const functionalResponseRequirements = buildTutorResponseRequirements({
     analysis: input.educationalContext.acceptedAnalysis,
+    analysisSource: input.educationalContext.acceptedAnalysis.analysisSource,
+    studentMessageId: input.educationalContext.currentStudentMessage.id,
     guidanceLevel: input.validationContext.guidanceLevel,
+    protectTargetSolution:
+      input.educationalContext.outputProtection.protectTargetSolution,
   })
 
   return {
@@ -68,16 +73,16 @@ function guardPayload(input: SemanticGuardEvaluationInput) {
     },
     trustedPolicy: {
       responseIntent: input.validationContext.responseIntent,
-      primaryTechnique: input.validationContext.primaryTechnique,
       guidanceLevel: input.validationContext.guidanceLevel,
       revealPolicy: input.validationContext.revealPolicy,
-      requireStudentAction: input.validationContext.requireStudentAction,
+      studentActionObligation: input.validationContext.studentActionObligation,
       reflectionMode: input.validationContext.reflectionMode,
       maximumDisclosedSteps: input.validationContext.maximumDisclosedSteps,
       guardPolicy: input.guardPolicy,
       disclosureContract,
       functionalResponseRequirements,
       disclosurePolicyVersion: SOCRATIC_DISCLOSURE_POLICY_VERSION,
+      outputProtection: input.educationalContext.outputProtection,
     },
     educationalContext: input.educationalContext,
     candidate: {
@@ -114,7 +119,8 @@ function guardPayload(input: SemanticGuardEvaluationInput) {
       'Guidance Level compliance',
       'Reveal Policy compliance',
       'strategy and technique compliance',
-      'required student reasoning',
+      'the authoritative studentActionObligation, including its single purpose and maximumMeaningfulActions',
+      'minimum useful conceptual explanation when boundedConceptualExplanationAllowed is true',
       'every true functionalResponseRequirements behavior, evaluated by meaning rather than exact wording',
       'cumulative disclosure across prior approved tutor messages and this candidate',
       'citation support',
@@ -131,11 +137,18 @@ function guardPayload(input: SemanticGuardEvaluationInput) {
       'A focused clue or question that directs attention to relevant structure while preserving the target inference is compliant.',
       'Aggregate educationally relevant assertions from prior approved tutor messages and the candidate. Reject when the combined disclosures remove the protected reasoning even if each individual hint is small.',
       'Do not count reasoning already supplied by the student as tutor disclosure. Use message roles and evidence IDs to separate student-derived work from tutor assertions.',
+      'When acknowledgeStudentSupportedCorrectWork is true, require a brief factual acknowledgment of the supported correct reasoning before a meaningful verification, transfer, or application action.',
+      'Do not treat that acknowledgment as forbidden disclosure when it restates only reasoning already supported by the current student message.',
+      'Do not require or reward affirmation based only on unsupported student self-report when acknowledgeStudentSupportedCorrectWork is false.',
       'Use CODE_LEAKAGE when code supplies a protected missing implementation, key line, algorithmic step, or corrected submitted fragment without constituting a complete ready-to-submit artifact.',
       'Use SUBMISSION_READY_CODE only for a complete or directly usable submission artifact.',
       'A short diagnostic, tracing, assertion, or instrumentation snippet is allowed when it does not implement the protected solution and meaningful reasoning remains for the student.',
       'Use MISSING_STUDENT_REASONING when an action is present but only asks the student to copy, confirm, locate, or mechanically apply reasoning already disclosed.',
       'Do not reject direct explanation when the complete trusted disclosure contract permits it.',
+      'When boundedConceptualExplanationAllowed and minimumUsefulConceptualExplanationRequired are true, reject a response that only says the concepts differ or asks the student to discover the entire definition without stating the minimum useful grounded concept.',
+      'When studentActionObligation purpose is CONCEPTUAL_UNDERSTANDING, require one meaningful comparison, prediction, application, or reflection question after the core explanation.',
+      'Treat studentActionObligation as the only authoritative student-facing action requirement. Do not independently require a prior-attempt question when its purpose is PRIMARY_TECHNIQUE.',
+      'Reject a candidate that requests more meaningful student actions than studentActionObligation.maximumMeaningfulActions.',
       'Strategy and primaryTechnique select the pedagogical method, but they never replace, narrow, or reduce guidanceShape requirements.',
       'For GUIDED_DECOMPOSITION, reject confirmation plus one guiding question or one focused hint plus one question as GUIDANCE_LEVEL_VIOLATION; require multiple connected scaffold moves in reasoning order while meaningful student work remains.',
       'For STRONG_GUIDANCE, reject a response that only satisfies GUIDED_DECOMPOSITION; require a bounded analogous worked example or equivalently near-complete connected scaffold while preserving Reveal Policy and guard policy.',
@@ -145,6 +158,24 @@ function guardPayload(input: SemanticGuardEvaluationInput) {
       'Course grounding establishes factual support; it does not override Guidance Level, Reveal Policy, or guard policy.',
     ],
     semanticCalibrationExamples: [
+      {
+        policyCondition:
+          'boundedConceptualExplanationAllowed and minimumUsefulConceptualExplanationRequired are true',
+        candidateMeaning:
+          'The tutor only says the two concepts behave differently and asks the student what happens.',
+        residualStudentWork:
+          'Discover the entire requested conceptual distinction without a minimum useful explanation.',
+        verdict: 'REJECT as SEMANTIC_POLICY_VIOLATION',
+      },
+      {
+        policyCondition:
+          'boundedConceptualExplanationAllowed is true and studentActionObligation purpose is CONCEPTUAL_UNDERSTANDING',
+        candidateMeaning:
+          'The tutor states the concise grounded distinction, then asks one meaningful question about how the resulting behavior differs.',
+        residualStudentWork:
+          'Apply or explain the stated concept in the requested comparison.',
+        verdict: 'APPROVE when all other checks pass',
+      },
       {
         policyCondition:
           'guidanceShape.mode is FOCUSED_HINT and directTargetInferenceAllowed is false',

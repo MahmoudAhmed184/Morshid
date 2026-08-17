@@ -91,6 +91,8 @@ const UNASSIGNED_STUDENT_EMAIL = 'student3@morshid.demo'
 const INSTRUCTOR_EMAIL = 'instructor@morshid.demo'
 const QUESTION = 'Explain the eligible course evidence exactly'
 const GROUNDED_ANSWER = 'This answer uses only eligible course evidence.'
+const SAFE_FALLBACK =
+  'Let us narrow it down to one step. Show the last step you were confident about and what you expected next.'
 const PROVIDER_SECRET = 'raw provider failure: never expose or persist this'
 const QUERY_VECTOR = Object.freeze([
   1,
@@ -342,6 +344,8 @@ describe('Authorized tutoring runtime (e2e)', () => {
     await prisma.teachingDecision.deleteMany()
     await prisma.educationalAnalysis.deleteMany()
     await prisma.guardResult.deleteMany()
+    await prisma.debuggingDiagnosis.deleteMany()
+    await prisma.outputRiskEvent.deleteMany()
     await prisma.tutoringCandidateAttempt.deleteMany()
     await prisma.tutoringAttempt.deleteMany()
     await prisma.topicState.deleteMany()
@@ -391,6 +395,7 @@ describe('Authorized tutoring runtime (e2e)', () => {
       return Object.freeze({
         rawOutput: Object.freeze({
           message,
+          debuggingGuidance: null,
           responseIntent: intent,
           usedCitationIds,
           requiresStudentAction: true,
@@ -660,7 +665,7 @@ describe('Authorized tutoring runtime (e2e)', () => {
       'The `len(num)` expression on the return line.',
       '',
       'Concept',
-      'Name lookup searches the active scope, where `nums` exists but `num` does not. [1]',
+      'Name lookup searches the active scope, where `nums` exists but `num` does not. [retrieval.rank.1]',
       '',
       'Next inspection step',
       'Compare every name on the return line with the function parameter and loop variables.',
@@ -679,15 +684,20 @@ describe('Authorized tutoring runtime (e2e)', () => {
       const citationIds = tutorModel.extractAllowedCitationIds(modelRequest)
       return Promise.resolve({
         rawOutput: {
-          message: diagnosis,
+          message: null,
+          debuggingGuidance: {
+            diagnosis: 'The name `num` does not match the `nums` parameter.',
+            relevantLocation: 'The `len(num)` expression on the return line.',
+            conceptExplanation:
+              'Name lookup searches the active scope, where `nums` exists but `num` does not.',
+            inspectionActions: [
+              'Compare every name on the return line with the function parameter and loop variables.',
+            ],
+          },
           responseIntent: TeachingStrategy.DEBUGGING_GUIDANCE,
           usedCitationIds: citationIds.slice(0, 1),
           requiresStudentAction: true,
-          studentAction: {
-            type: TeachingTechnique.TRACE_EXECUTION,
-            description:
-              'Compare every name on the return line with the function parameter and loop variables.',
-          },
+          studentAction: null,
           reflectionIncluded: false,
           selfReportedCompliance: {
             finalAnswerRevealed: false,
@@ -740,7 +750,7 @@ describe('Authorized tutoring runtime (e2e)', () => {
     const diagnosisEmbeddingCall = embedQuery.mock.calls.find(
       ([query]) =>
         query ===
-        'Code a possible variable-name mismatch or unresolved name near the loop body; study name lookup and local scope. Diagnostic signals: singular and plural identifiers may not match. Relevant identifiers: num, nums.',
+        'Name lookup searches the active scope, where `nums` exists but `num` does not.; name lookup or reference issue; The name `num` does not match the visible `nums` name.; Compare every name in the return expression with the function parameters and local variables.; python programming; line 7',
     )
     expect(diagnosisEmbeddingCall).toBeDefined()
     expect(diagnosisEmbeddingCall?.[1]?.signal).toBeInstanceOf(AbortSignal)
@@ -841,27 +851,21 @@ describe('Authorized tutoring runtime (e2e)', () => {
         const citationIds = tutorModel.extractAllowedCitationIds(modelRequest)
         return Promise.resolve({
           rawOutput: {
-            message: [
-              'Likely defect',
-              'The boundary index may equal the collection length.',
-              '',
-              'Relevant location',
-              'The indexed access in the submitted return expression.',
-              '',
-              'Concept',
-              'Valid indexes stop before the collection length. [1]',
-              '',
-              'Next inspection step',
-              'Trace the index and collection length at that return expression.',
-            ].join('\n'),
+            message: null,
+            debuggingGuidance: {
+              diagnosis: 'The boundary index may equal the collection length.',
+              relevantLocation:
+                'The indexed access in the submitted return expression.',
+              conceptExplanation:
+                'Valid indexes stop before the collection length.',
+              inspectionActions: [
+                'Trace the index and collection length at that return expression.',
+              ],
+            },
             responseIntent: TeachingStrategy.DEBUGGING_GUIDANCE,
             usedCitationIds: citationIds.slice(0, 1),
             requiresStudentAction: true,
-            studentAction: {
-              type: TeachingTechnique.TRACE_EXECUTION,
-              description:
-                'Trace the index and collection length at that return expression.',
-            },
+            studentAction: null,
             reflectionIncluded: false,
             selfReportedCompliance: {
               finalAnswerRevealed: false,
@@ -1184,11 +1188,33 @@ describe('Authorized tutoring runtime (e2e)', () => {
     ).resolves.toBe(1)
   })
 
-  it('keeps a supported correctness-sensitive request on the ordinary path', async () => {
+  it('keeps a supported correctness-sensitive request out of review with ungrounded fallback provenance', async () => {
     await createEvidenceMaterial({
       title: 'Supported assignment source',
       content: 'The course source supports this bounded exercise response.',
     })
+    tutorModel.behavior = (modelRequest) =>
+      Promise.resolve({
+        rawOutput: {
+          message: 'Invalid answer without citations',
+          debuggingGuidance: null,
+          responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
+          usedCitationIds: [],
+          requiresStudentAction: true,
+          studentAction: {
+            type: TeachingTechnique.ORIENTATION_QUESTION,
+            description: 'Reflect',
+          },
+          reflectionIncluded: false,
+          selfReportedCompliance: {
+            finalAnswerRevealed: false,
+            completeSolutionRevealed: false,
+          },
+        },
+        provider: 'e2e-controllable-tutor',
+        model: 'e2e-controllable-tutor-v1',
+        promptVersion: modelRequest.promptVersion,
+      })
     const session = await createSession()
     const response = await request(requireApp().getHttpServer())
       .post(messagesPath(session.id))
@@ -1199,13 +1225,27 @@ describe('Authorized tutoring runtime (e2e)', () => {
       })
       .expect(201)
 
-    expect(response.body).toMatchObject({
-      studentMessage: { requestKind: 'CODE_DIAGNOSIS' },
+    const turn = response.body as TutoringTurnResponseDto
+    expect(turn).toMatchObject({
+      studentMessage: { requestKind: 'PROBLEM_LIKE' },
       assistantMessage: {
+        content: SAFE_FALLBACK,
         status: 'COMPLETED',
-        guidanceLabel: 'COURSE_GROUNDED',
+        guidanceLabel: null,
         reviewSummary: null,
+        citations: [],
       },
+    })
+    await expect(
+      prisma.tutoringAttempt.findFirstOrThrow({
+        where: { assistantMessageId: turn.assistantMessage.id },
+      }),
+    ).resolves.toMatchObject({
+      status: 'COMPLETED',
+      approvalSource: 'SAFE_FALLBACK',
+      approvedCandidateAttempt: null,
+      safeFallbackUsed: true,
+      safeFallbackReason: 'VALIDATION_EXHAUSTED',
     })
     await expect(
       prisma.reviewCase.count({
@@ -1949,9 +1989,10 @@ describe('Authorized tutoring runtime (e2e)', () => {
       safeFallbackReason: 'GENERATION_RETRY_FAILED',
     })
     expect(stored).toMatchObject({
+      guidanceLabel: null,
       provider: null,
       model: null,
-      promptVersion: 'safe-fallback.mvp.v1',
+      promptVersion: 'safe-fallback.mvp.v2',
       citations: [],
     })
     expect(stored.retrievals).toHaveLength(1)

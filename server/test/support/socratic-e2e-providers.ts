@@ -160,6 +160,7 @@ export function functionalStoryAnalysisResponse(
     readonly repeatedEffort?: boolean
     readonly addressesPreviousTutorAction?: boolean
     readonly learningEvidenceStrength?: 'MODERATE' | 'STRONG'
+    readonly recommendedGuidanceLevel?: number
     readonly misconception?: {
       readonly code: string
       readonly description: string
@@ -216,7 +217,7 @@ export function functionalStoryAnalysisResponse(
     topicRelation: 'CONTINUE_CURRENT_TOPIC',
     recommendedStrategy: input.recommendedStrategy,
     recommendedTechnique: input.recommendedTechnique,
-    recommendedGuidanceLevel: 1,
+    recommendedGuidanceLevel: input.recommendedGuidanceLevel ?? 1,
     confidence: 0.96,
     evidenceReferences: [evidenceMessageId],
   })
@@ -288,9 +289,11 @@ function extractCurrentMessageId(request: AnalysisModelRequest): string {
 export function validCandidateRawOutput(
   allowedCitationIds: readonly string[] = [],
 ): Record<string, unknown> {
+  const citationSuffix =
+    allowedCitationIds.length > 0 ? ` [${allowedCitationIds[0]}]` : ''
   return {
-    message:
-      'What part of the list comprehension syntax are you most unsure about? Try writing just the expression part first.',
+    message: `What part of the list comprehension syntax are you most unsure about? Try writing just the expression part first.${citationSuffix}`,
+    debuggingGuidance: null,
     responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
     usedCitationIds: [...allowedCitationIds],
     requiresStudentAction: true,
@@ -299,6 +302,75 @@ export function validCandidateRawOutput(
       description:
         'Ask the student to identify which part of the syntax they find confusing and try writing just the expression.',
     },
+    reflectionIncluded: false,
+    selfReportedCompliance: {
+      finalAnswerRevealed: false,
+      completeSolutionRevealed: false,
+    },
+  }
+}
+
+export function guidedConceptualCandidateRawOutput(
+  allowedCitationIds: readonly string[] = [],
+): Record<string, unknown> {
+  return {
+    message:
+      'A list comprehension builds a new list by evaluating an expression for each item from an iterable. In [x * 2 for x in [1, 2]], which values would the expression produce?',
+    debuggingGuidance: null,
+    responseIntent: TeachingStrategy.GUIDED_EXPLANATION,
+    usedCitationIds: [...allowedCitationIds],
+    requiresStudentAction: true,
+    studentAction: {
+      type: TeachingTechnique.ORIENTATION_QUESTION,
+      description:
+        'Give the minimum useful explanation, then ask the student to apply it to a small example.',
+    },
+    reflectionIncluded: false,
+    selfReportedCompliance: {
+      finalAnswerRevealed: false,
+      completeSolutionRevealed: false,
+    },
+  }
+}
+
+export function validCandidateRawOutputForRequest(
+  request: TutorModelRequest,
+  allowedCitationIds: readonly string[] = [],
+): Record<string, unknown> {
+  if (
+    request.messages[1].content.includes(
+      `"strategy":"${TeachingStrategy.DEBUGGING_GUIDANCE}"`,
+    )
+  ) {
+    return debuggingCandidateRawOutput(request, allowedCitationIds)
+  }
+
+  return request.messages[1].content.includes(
+    `"strategy":"${TeachingStrategy.GUIDED_EXPLANATION}"`,
+  )
+    ? guidedConceptualCandidateRawOutput(allowedCitationIds)
+    : validCandidateRawOutput(allowedCitationIds)
+}
+
+function debuggingCandidateRawOutput(
+  request: TutorModelRequest,
+  allowedCitationIds: readonly string[],
+): Record<string, unknown> {
+  const responseIntent = extractTeachingStrategyFromPrompt(request)
+
+  return {
+    message: null,
+    debuggingGuidance: {
+      diagnosis: 'The loop update likely uses the wrong variable.',
+      relevantLocation: 'Inspect the assignment inside the loop body.',
+      conceptExplanation:
+        'An accumulator must be updated from its prior value.',
+      inspectionActions: ['Trace the accumulator through one loop iteration.'],
+    },
+    responseIntent,
+    usedCitationIds: [...allowedCitationIds],
+    requiresStudentAction: true,
+    studentAction: null,
     reflectionIncluded: false,
     selfReportedCompliance: {
       finalAnswerRevealed: false,
@@ -316,6 +388,7 @@ export function rejectedCandidateRawOutput(
 ): Record<string, unknown> {
   return {
     message: 'Can you trace through the code and predict the output?',
+    debuggingGuidance: null,
     // Mismatched intent: the deterministic analysis model always
     // chooses SOCRATIC_QUESTIONING; using DEBUGGING_GUIDANCE will
     // trigger a RESPONSE_INTENT_MISMATCH violation.
@@ -334,6 +407,18 @@ export function rejectedCandidateRawOutput(
       completeSolutionRevealed: false,
     },
   }
+}
+
+function extractTeachingStrategyFromPrompt(
+  request: TutorModelRequest,
+): TeachingStrategy {
+  const match = /"strategy":"(?<strategy>[A-Z_]+)"/u.exec(
+    request.messages[1].content,
+  )
+  const strategy = match?.groups?.strategy
+  return Object.values(TeachingStrategy).includes(strategy as TeachingStrategy)
+    ? (strategy as TeachingStrategy)
+    : TeachingStrategy.SOCRATIC_QUESTIONING
 }
 
 export type TutorModelBehavior = (
@@ -389,7 +474,9 @@ export class ControllableTutorModelPort implements TutorModelPort {
 function defaultTutorResponse(request: TutorModelRequest): TutorModelResponse {
   const citationIds = extractAllowedCitationIdsFromPrompt(request)
   return Object.freeze({
-    rawOutput: Object.freeze(validCandidateRawOutput(citationIds)),
+    rawOutput: Object.freeze(
+      validCandidateRawOutputForRequest(request, citationIds),
+    ),
     provider: 'e2e-controllable-tutor',
     model: 'e2e-controllable-tutor-v1',
     promptVersion: request.promptVersion,

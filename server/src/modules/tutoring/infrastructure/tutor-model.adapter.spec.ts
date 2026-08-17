@@ -28,6 +28,7 @@ const request = Object.freeze<TutorModelRequest>({
 
 const validCandidate = Object.freeze({
   message: 'What changes after one loop iteration?',
+  debuggingGuidance: null,
   responseIntent: 'SOCRATIC_QUESTIONING',
   usedCitationIds: Object.freeze(['retrieval.rank.1']),
   requiresStudentAction: true,
@@ -190,13 +191,13 @@ describe('DeterministicTutorModelAdapter', () => {
 
     expect(output.responseIntent).toBe('DEBUGGING_GUIDANCE')
     expect(output.usedCitationIds).toEqual(['retrieval.rank.1'])
-    expect(output.message).toEqual(
-      expect.stringContaining('I cannot provide a complete corrected program'),
-    )
-    expect(output.message).toEqual(
-      expect.stringContaining('The name `num` does not match `nums`.'),
-    )
-    expect(output.message).toEqual(expect.stringContaining('active scope. [1]'))
+    expect(output.message).toBeNull()
+    expect(output.studentAction).toBeNull()
+    expect(output.debuggingGuidance).toMatchObject({
+      diagnosis: 'The name `num` does not match `nums`.',
+      conceptExplanation: 'Name lookup resolves names in the active scope.',
+      inspectionActions: ['Compare the returned name with the parameter.'],
+    })
   })
 })
 

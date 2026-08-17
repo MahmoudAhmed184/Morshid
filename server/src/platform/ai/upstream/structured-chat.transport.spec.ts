@@ -27,7 +27,12 @@ describe('StructuredChatTransport', () => {
           JSON.stringify({
             model: 'served-model',
             system_fingerprint: 'fingerprint-1',
-            choices: [{ message: { content: '{"ok":true}' } }],
+            choices: [
+              {
+                finish_reason: 'stop',
+                message: { content: '{"ok":true}' },
+              },
+            ],
             usage: { prompt_tokens: 4, completion_tokens: 5 },
           }),
           { status: 200 },
@@ -37,10 +42,34 @@ describe('StructuredChatTransport', () => {
 
     await expect(transport.complete(request)).resolves.toEqual({
       content: '{"ok":true}',
+      finishReason: 'stop',
       model: 'served-model',
       systemFingerprint: 'fingerprint-1',
       inputTokens: 4,
       outputTokens: 5,
+    })
+  })
+
+  it('preserves a length finish reason without interpreting response content', async () => {
+    const transport = new StructuredChatTransport(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                finish_reason: 'length',
+                message: { content: '{"approved":false' },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      ),
+    )
+
+    await expect(transport.complete(request)).resolves.toMatchObject({
+      content: '{"approved":false',
+      finishReason: 'length',
     })
   })
 

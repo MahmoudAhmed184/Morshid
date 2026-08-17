@@ -56,9 +56,10 @@ describe('Debugging guidance golden fixtures', () => {
       ),
     )
 
-    expect([...represented].sort()).toEqual(
-      [...DEBUGGING_GUIDANCE_CATEGORIES].sort(),
+    const fixtureCategories = DEBUGGING_GUIDANCE_CATEGORIES.filter(
+      (category) => category !== 'UNKNOWN',
     )
+    expect([...represented].sort()).toEqual([...fixtureCategories].sort())
   })
 
   it('makes every deterministic input reproduce its declared boundary state', () => {

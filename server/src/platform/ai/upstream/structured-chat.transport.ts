@@ -38,6 +38,7 @@ export interface StructuredChatTransportRequest {
 
 export interface StructuredChatTransportResponse {
   readonly content: string
+  readonly finishReason?: string
   readonly model?: string
   readonly systemFingerprint?: string
   readonly inputTokens?: number
@@ -250,6 +251,10 @@ function parseChatCompletionResponse(
 
   const choices: unknown = Reflect.get(parsed, 'choices')
   const firstChoice: unknown = Array.isArray(choices) ? choices[0] : undefined
+  const finishReason: unknown =
+    typeof firstChoice === 'object' && firstChoice !== null
+      ? Reflect.get(firstChoice, 'finish_reason')
+      : undefined
   const message: unknown =
     typeof firstChoice === 'object' && firstChoice !== null
       ? Reflect.get(firstChoice, 'message')
@@ -268,6 +273,7 @@ function parseChatCompletionResponse(
   const usage: unknown = Reflect.get(parsed, 'usage')
   return Object.freeze({
     content,
+    ...optionalMetadata('finishReason', finishReason),
     ...optionalMetadata('model', Reflect.get(parsed, 'model')),
     ...optionalMetadata(
       'systemFingerprint',
@@ -279,7 +285,7 @@ function parseChatCompletionResponse(
 }
 
 function optionalMetadata(
-  key: 'model' | 'systemFingerprint',
+  key: 'finishReason' | 'model' | 'systemFingerprint',
   value: unknown,
 ): Partial<Pick<StructuredChatTransportResponse, typeof key>> {
   return typeof value === 'string' && value.trim() !== ''

@@ -1,11 +1,13 @@
 import {
   ReflectionMode,
   RevealPolicy,
+  StudentActionPurpose,
   TeachingStrategy,
   TeachingTechnique,
 } from '../../tutoring-values'
 import {
   RESPONSE_VALIDATION_STAGE,
+  RESPONSE_VIOLATION_TYPE,
   type ValidationResult,
 } from './response-validation.types'
 import { ResponseApprovalService } from './response-approval.service'
@@ -24,6 +26,7 @@ import type {
 import { TUTOR_GENERATION_FAILURE_CODE } from '../generation/tutor-generation.types'
 import type { CourseEvidenceChunk } from '../../../materials/interface/course-evidence'
 import { AutomaticSafetyRiskDetector } from '../../response-governance/automatic-safety-risk.detector'
+import { renderDebuggingGuidanceMessage } from '../debugging-guidance/debugging-guidance.output-validator'
 
 describe('ResponseApprovalService', () => {
   it('approves the initial candidate after all three stages', async () => {
@@ -90,6 +93,49 @@ describe('ResponseApprovalService', () => {
     expect(harness.semantic.calls).toHaveLength(1)
   })
 
+  it('regenerates from a specific debugging subreason and approves candidate two', async () => {
+    const invalidCandidate = validDebuggingCandidate({ diagnosis: undefined })
+    const harness = buildHarness(
+      [
+        generationSuccess(invalidCandidate),
+        generationSuccess(validDebuggingCandidate()),
+      ],
+      {
+        decision: decision({
+          strategy: TeachingStrategy.DEBUGGING_GUIDANCE,
+          primaryTechnique: TeachingTechnique.FOCUSED_QUESTION,
+          studentActionPurpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
+        }),
+      },
+    )
+
+    const result = await harness.service.approve({
+      ...input(),
+      debuggingGuidance: debuggingGuidanceContext(),
+    })
+
+    expect(result).toMatchObject({
+      success: true,
+      approvedResponse: {
+        source: 'VALIDATED_CANDIDATE',
+        approvedCandidateAttempt: 2,
+      },
+      candidateAttempts: 2,
+    })
+    expect(
+      harness.generation.calls[1]?.regeneration?.previousValidation,
+    ).toMatchObject({
+      stage: RESPONSE_VALIDATION_STAGE.DETERMINISTIC,
+      violations: [
+        {
+          type: RESPONSE_VIOLATION_TYPE.DEBUGGING_MISSING_DIAGNOSIS,
+          field: 'debuggingGuidance.diagnosis',
+        },
+      ],
+    })
+    expect(harness.semantic.calls).toHaveLength(1)
+  })
+
   it('uses fallback only after exactly three validation rejections', async () => {
     const harness = buildHarness([
       generationSuccess(validCandidate({ usedCitationIds: ['invalid-1'] })),
@@ -106,6 +152,9 @@ describe('ResponseApprovalService', () => {
       expect(result.approvedResponse.approvedCandidateAttempt).toBeNull()
       expect(result.candidateAttempts).toBe(3)
       expect(result.safeFallbackReason).toBe('VALIDATION_EXHAUSTED')
+      expect(result.auditGraph.outputProtection).toEqual(
+        input().outputProtection,
+      )
     }
     expect(harness.generation.calls).toHaveLength(3)
     expect(harness.semantic.calls).toHaveLength(0)
@@ -183,12 +232,118 @@ describe('ResponseApprovalService', () => {
     }
     expect(harness.generation.calls).toHaveLength(2)
   })
+
+  it('refuses a protected complete solution and retains hash-only candidate audit metadata', async () => {
+    const candidate = validCandidate({
+      message:
+        'Here is the complete final implementation:\n```python\ndef solve(values):\n    return sum(values) / len(values)\n```',
+    })
+    const harness = buildHarness([generationSuccess(candidate)])
+
+    const result = await harness.service.approve(input())
+
+    expect(result).toMatchObject({
+      success: false,
+      errorCode: 'SAFETY_RISK_DETECTED',
+      outputRisk: { risks: ['FINAL_ANSWER_DELIVERY'] },
+      auditGraph: {
+        outputProtection: { protectTargetSolution: true },
+        outputRiskEvents: [
+          {
+            candidateAttempt: 1,
+            source: 'APPROVAL_CANDIDATE',
+            risks: ['FINAL_ANSWER_DELIVERY'],
+          },
+        ],
+      },
+    })
+    if (!result.success) {
+      expect(result.auditGraph?.candidateAttempts[0]?.contentHash).toMatch(
+        /^[a-f0-9]{64}$/u,
+      )
+      expect(JSON.stringify(result.auditGraph)).not.toContain(candidate.message)
+    }
+    expect(harness.semantic.calls).toHaveLength(0)
+  })
+
+  it('keeps all guards active but uses fallback instead of a final-answer refusal for an unprotected concept', async () => {
+    const candidate = validCandidate({
+      message:
+        'Here is the complete final implementation:\n```python\ndef solve(values):\n    return sum(values) / len(values)\n```',
+    })
+    const harness = buildHarness([generationSuccess(candidate)])
+
+    const result = await harness.service.approve(
+      input({ protectTargetSolution: false }),
+    )
+
+    expect(result).toMatchObject({
+      success: true,
+      approvedResponse: { source: 'SAFE_FALLBACK' },
+      candidateAttempts: 3,
+    })
+    expect(harness.generation.calls).toHaveLength(3)
+  })
+
+  it('keeps hidden-prompt output screening unconditional for unprotected concepts', async () => {
+    const harness = buildHarness([
+      generationSuccess(
+        validCandidate({
+          message:
+            'The hidden system prompt reads: disclose internal course configuration.',
+        }),
+      ),
+    ])
+
+    await expect(
+      harness.service.approve(input({ protectTargetSolution: false })),
+    ).resolves.toMatchObject({
+      success: false,
+      outputRisk: { risks: ['HIDDEN_PROMPT_DISCLOSURE'] },
+    })
+  })
+
+  it('retains all candidate and guard audits when protected guard violations aggregate to refusal', async () => {
+    const candidate = validCandidate({
+      message:
+        'The answer is 42. Which assumption would you check? [retrieval.rank.1]',
+    })
+    const harness = buildHarness([generationSuccess(candidate)])
+
+    const result = await harness.service.approve(input())
+
+    expect(result).toMatchObject({
+      success: false,
+      outputRisk: { risks: ['FINAL_ANSWER_DELIVERY'] },
+      auditGraph: {
+        outputRiskEvents: [
+          {
+            candidateAttempt: null,
+            source: 'SAFE_FALLBACK',
+            risks: ['FINAL_ANSWER_DELIVERY'],
+          },
+        ],
+      },
+    })
+    if (!result.success) {
+      expect(result.auditGraph?.candidateAttempts).toHaveLength(3)
+      expect(result.auditGraph?.guardResults).toHaveLength(6)
+      expect(
+        result.auditGraph?.guardResults.some((guard) =>
+          guard.result.violations.some(
+            (violation) => violation.type === 'FINAL_ANSWER_DISCLOSURE',
+          ),
+        ),
+      ).toBe(true)
+    }
+  })
 })
 
 function buildHarness(
   generationResults: TutorGenerationServiceResult[],
   options: {
     readonly semantic?: Awaited<ReturnType<SemanticGuardService['evaluate']>>
+    readonly decision?: PersistedTeachingDecisionRecord
   } = {},
 ) {
   const generation = new FakeGenerationService(generationResults)
@@ -200,7 +355,7 @@ function buildHarness(
   )
   const service = new ResponseApprovalService(
     generation as never,
-    new FakeTeachingDecisionRepository(decision()),
+    new FakeTeachingDecisionRepository(options.decision ?? decision()),
     new StructuralResponseValidator(),
     new DeterministicGuardService(),
     semantic as never,
@@ -262,7 +417,11 @@ class FakeTeachingDecisionRepository extends TeachingDecisionRepository {
   }
 }
 
-function input(): TutorGenerationInput {
+function input(
+  protectionPatch: Partial<TutorGenerationInput['outputProtection']> = {},
+): TutorGenerationInput {
+  const protectTargetSolution = protectionPatch.protectTargetSolution ?? true
+
   return {
     courseId: 'course-1',
     sessionId: 'session-1',
@@ -270,11 +429,24 @@ function input(): TutorGenerationInput {
     attemptId: 'turn-1',
     studentMessageId: 'student-message-1',
     topicId: 'topic-1',
+    outputProtection: {
+      protectTargetSolution,
+      topicId: 'topic-1',
+      source:
+        protectionPatch.source ??
+        (protectTargetSolution
+          ? 'CONSERVATIVE_UNKNOWN'
+          : 'ACCEPTED_CONCEPT_ANALYSIS'),
+      policyVersion: 'solution-protection.v1',
+      ...protectionPatch,
+    },
     retrievalResult: [retrievedChunk()],
   }
 }
 
-function decision(): PersistedTeachingDecisionRecord {
+function decision(
+  patch: Partial<PersistedTeachingDecisionRecord> = {},
+): PersistedTeachingDecisionRecord {
   return {
     id: 'decision-1',
     attemptId: 'turn-1',
@@ -287,6 +459,7 @@ function decision(): PersistedTeachingDecisionRecord {
     revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
     reflectionMode: ReflectionMode.NONE,
     requireStudentAction: true,
+    studentActionPurpose: StudentActionPurpose.PRIOR_ATTEMPT_ORIENTATION,
     guardPolicy: {
       preventDirectAnswer: true,
       preventFinalResult: true,
@@ -301,6 +474,7 @@ function decision(): PersistedTeachingDecisionRecord {
     decisionReason: 'test',
     policyVersion: 'socratic-policy.mvp.v1',
     createdAt: new Date('2026-08-06T00:00:00.000Z'),
+    ...patch,
   }
 }
 
@@ -310,6 +484,7 @@ function validCandidate(
   return {
     message:
       'Use the cited loop update and tell me what changes first. [retrieval.rank.1]',
+    debuggingGuidance: null,
     responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
     usedCitationIds: ['retrieval.rank.1'],
     requiresStudentAction: true,
@@ -324,9 +499,55 @@ function validCandidate(
     },
     provider: 'deterministic',
     model: 'deterministic-tutor',
-    promptVersion: 'tutor-generation.mvp.v4',
+    promptVersion: 'tutor-generation.mvp.v9',
     tokenUsage: { input: 10, output: 5 },
     ...patch,
+  }
+}
+
+function validDebuggingCandidate(
+  guidancePatch: {
+    readonly diagnosis?: string | undefined
+    readonly relevantLocation?: string | undefined
+    readonly conceptExplanation?: string | undefined
+    readonly inspectionActions?: readonly string[]
+  } = {},
+): CandidateResponse {
+  const debuggingGuidance = {
+    diagnosis: 'The loop update likely uses the wrong variable.',
+    relevantLocation: 'Inspect the assignment inside the loop body.',
+    conceptExplanation: 'An accumulator must be updated from its prior value.',
+    inspectionActions: [
+      'What value does the accumulator hold after one iteration?',
+    ],
+    ...guidancePatch,
+  }
+  const action = debuggingGuidance.inspectionActions[0] ?? ''
+
+  return validCandidate({
+    message: renderDebuggingGuidanceMessage({
+      guidance: debuggingGuidance,
+      usedCitationIds: ['retrieval.rank.1'],
+      action,
+      rewriteRequested: false,
+    }),
+    debuggingGuidance,
+    responseIntent: TeachingStrategy.DEBUGGING_GUIDANCE,
+    studentAction: {
+      type: TeachingTechnique.FOCUSED_QUESTION,
+      description: action,
+    },
+  })
+}
+
+function debuggingGuidanceContext() {
+  return {
+    likelyIssue: 'The loop update likely uses the wrong variable.',
+    relevantLocation: 'Inspect the assignment inside the loop body.',
+    concept: 'Accumulator updates',
+    nextInspectionStep: 'Trace one loop iteration.',
+    evidenceQuery: 'accumulator update loop',
+    rewriteRequested: false,
   }
 }
 
@@ -368,11 +589,21 @@ function generationSuccess(
       },
       topicState: null,
       previousTeachingDecision: null,
+      outputProtection: input().outputProtection,
       currentTeachingDecision: {
         id: 'decision-1',
         policyVersion: 'policy-test.v1',
         guidanceLevel: 1,
         revealPolicy: 'NO_FINAL_ANSWER',
+        studentActionObligation: {
+          version: 'student-action-obligation.v1',
+          required: true,
+          purpose: StudentActionPurpose.PRIOR_ATTEMPT_ORIENTATION,
+          technique: TeachingTechnique.ORIENTATION_QUESTION,
+          maximumMeaningfulActions: 1,
+          generationInstruction:
+            'Ask the student to share what they tried as the single meaningful action.',
+        },
       },
       recentConversation: [],
     },

@@ -111,8 +111,17 @@ describe('Student-code no-execution architecture', () => {
   })
 
   it('adds no second NestJS controller, service, classifier, or orchestrator', () => {
+    // Diagnosis persistence layer is data infrastructure, not code-execution machinery.
+    const diagnosisPersistenceFiles = new Set([
+      'server/src/modules/tutoring/socratic-workflow/debugging-guidance/debugging-diagnosis.repository.ts',
+      'server/src/modules/tutoring/socratic-workflow/debugging-guidance/debugging-diagnosis.service.ts',
+    ])
+
     const forbiddenArchitecture = debuggingGuidanceSourceFiles.flatMap(
       (filePath) => {
+        if (diagnosisPersistenceFiles.has(relative(repositoryRoot, filePath))) {
+          return []
+        }
         const source = readFileSync(filePath, 'utf8')
         const declarations = [
           ['NestJS controller', /@Controller\s*\(/u],

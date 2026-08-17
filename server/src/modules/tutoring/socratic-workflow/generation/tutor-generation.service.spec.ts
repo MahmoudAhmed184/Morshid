@@ -3,6 +3,7 @@ import {
   MessageStatus,
   ReflectionMode,
   RevealPolicy,
+  StudentActionPurpose,
   StudentState,
   TeachingStrategy,
   TeachingTechnique,
@@ -21,6 +22,7 @@ import {
   TeachingDecisionRepository,
   type PersistedTeachingDecisionRecord,
 } from '../teaching-decision/teaching-decision.repository'
+import { studentActionObligationFromDecision } from '../teaching-decision/student-action-obligation'
 import { TutorGenerationService } from './tutor-generation.service'
 import { TutorInfrastructureRetryPolicy } from './tutor-infrastructure-retry.policy'
 import {
@@ -43,7 +45,7 @@ describe('TutorGenerationService', () => {
         message: 'What should change before the next loop iteration?',
         provider: 'deterministic',
         model: 'deterministic-tutor',
-        promptVersion: 'tutor-generation.mvp.v4',
+        promptVersion: 'tutor-generation.mvp.v9',
         tokenUsage: { input: 15, output: 9 },
         usedCitationIds: ['retrieval.rank.1'],
       })
@@ -176,6 +178,48 @@ describe('TutorGenerationService', () => {
           guidanceLevel: 2,
           revealPolicy: decision.revealPolicy,
           guardPolicy: decision.guardPolicy,
+          studentActionObligation:
+            studentActionObligationFromDecision(decision),
+          outputProtection: defaultInput().outputProtection,
+        },
+      },
+    } satisfies TutorGenerationInput
+
+    await expect(harness.service.generate(input)).resolves.toEqual({
+      success: false,
+      errorCode: 'INVALID_GENERATION_CONTEXT',
+      infrastructureRetryCount: 0,
+    })
+    expect(harness.model.requests).toHaveLength(0)
+  })
+
+  it('rejects regeneration that changes the immutable output protection snapshot', async () => {
+    const harness = buildHarness()
+    const decision = buildDecision()
+    const original = defaultInput()
+    const input = {
+      ...original,
+      regeneration: {
+        promptVersion: 'tutor-regeneration.mvp.v1',
+        candidateAttempt: 2,
+        previousValidation: {
+          stage: 'SEMANTIC',
+          violations: [],
+          maximumSeverity: null,
+        },
+        authoritativePolicy: {
+          teachingDecisionId: decision.id,
+          policyVersion: decision.policyVersion,
+          guidanceLevel: decision.guidanceLevel,
+          revealPolicy: decision.revealPolicy,
+          guardPolicy: decision.guardPolicy,
+          studentActionObligation:
+            studentActionObligationFromDecision(decision),
+          outputProtection: {
+            ...original.outputProtection,
+            protectTargetSolution: false,
+            source: 'ACCEPTED_CONCEPT_ANALYSIS',
+          },
         },
       },
     } satisfies TutorGenerationInput
@@ -356,14 +400,14 @@ class FakeTutorModel implements TutorModelPort {
       rawOutput: this.rawOutput,
       provider: 'deterministic',
       model: 'deterministic-tutor',
-      promptVersion: 'tutor-generation.mvp.v4' as const,
+      promptVersion: 'tutor-generation.mvp.v9' as const,
       inputTokens: 15,
       outputTokens: 9,
     })
   }
 }
 
-function defaultInput() {
+function defaultInput(): TutorGenerationInput {
   return {
     courseId: 'course-1',
     sessionId: 'session-1',
@@ -371,6 +415,12 @@ function defaultInput() {
     attemptId: 'turn-1',
     studentMessageId: 'message-2',
     topicId: 'topic-1',
+    outputProtection: {
+      protectTargetSolution: true,
+      topicId: 'topic-1',
+      source: 'CONSERVATIVE_UNKNOWN' as const,
+      policyVersion: 'solution-protection.v1',
+    },
     retrievalResult: [retrievedChunk({ rank: 1 })],
   }
 }
@@ -403,6 +453,10 @@ function buildAnalysisContext(): AnalysisContextPackage {
       title: 'Loops',
       topicType: TopicType.DEBUGGING_TASK,
       status: TopicStatus.ACTIVE,
+      solutionProtectionStatus: 'UNKNOWN',
+      solutionProtectionSource: null,
+      solutionProtectionPolicyVersion: null,
+      solutionProtectionEstablishedAt: null,
       createdAt,
       updatedAt: createdAt,
       resolvedAt: null,
@@ -519,6 +573,7 @@ function buildDecision(): PersistedTeachingDecisionRecord {
     revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
     reflectionMode: ReflectionMode.NONE,
     requireStudentAction: true,
+    studentActionPurpose: StudentActionPurpose.PRIOR_ATTEMPT_ORIENTATION,
     guardPolicy: {
       preventDirectAnswer: true,
       preventFinalResult: true,
@@ -555,6 +610,7 @@ function retrievedChunk(
 function validCandidate(patch: Record<string, unknown> = {}) {
   return {
     message: 'What should change before the next loop iteration?',
+    debuggingGuidance: null,
     responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
     usedCitationIds: ['retrieval.rank.1'],
     requiresStudentAction: true,

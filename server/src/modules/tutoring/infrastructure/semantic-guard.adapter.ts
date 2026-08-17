@@ -19,6 +19,7 @@ import {
   SEMANTIC_GUARD_ERROR_CODE,
   SEMANTIC_GUARD_PROMPT_VERSION,
   SemanticGuardModelError,
+  type SemanticGuardFinishReason,
   type SemanticGuardModelResponse,
   type SemanticGuardPort,
   type SemanticGuardRequest,
@@ -176,7 +177,7 @@ export class OpenAICompatibleSemanticGuardAdapter implements SemanticGuardPort {
       })
 
       return validateSemanticGuardResponse({
-        rawOutput: parseStructuredOutput(parsed.content),
+        rawOutput: parseStructuredOutput(parsed.content, parsed.finishReason),
         provider: OPENAI_COMPATIBLE_SEMANTIC_GUARD_PROVIDER,
         model: parsed.model ?? this.modelName,
         promptVersion: request.promptVersion,
@@ -188,11 +189,15 @@ export class OpenAICompatibleSemanticGuardAdapter implements SemanticGuardPort {
           : { outputTokens: parsed.outputTokens }),
       })
     } catch (error) {
+      const normalized = mapStructuredChatError(error)
       this.logger.warn({
         event: 'semantic_guard_provider_failed',
-        errorClass: error instanceof Error ? error.name : 'UnknownError',
+        errorClass: normalized.name,
+        errorCode: normalized.code,
+        status: normalized.status ?? null,
+        finishReason: normalized.finishReason ?? null,
       })
-      throw mapStructuredChatError(error)
+      throw normalized
     }
   }
 }
@@ -271,14 +276,38 @@ function validateSemanticGuardResponse(
   })
 }
 
-function parseStructuredOutput(outputText: string): unknown {
+function parseStructuredOutput(
+  outputText: string,
+  finishReason: string | undefined,
+): unknown {
+  const safeFinishReason = semanticGuardFinishReason(finishReason)
+  if (safeFinishReason === 'length') {
+    throw new SemanticGuardModelError(
+      SEMANTIC_GUARD_ERROR_CODE.MALFORMED_OUTPUT,
+      { finishReason: safeFinishReason },
+    )
+  }
+
   try {
     return JSON.parse(outputText)
   } catch {
     throw new SemanticGuardModelError(
       SEMANTIC_GUARD_ERROR_CODE.MALFORMED_OUTPUT,
+      safeFinishReason === undefined ? {} : { finishReason: safeFinishReason },
     )
   }
+}
+
+function semanticGuardFinishReason(
+  value: string | undefined,
+): SemanticGuardFinishReason | undefined {
+  if (value === undefined) {
+    return undefined
+  }
+  if (value === 'length' || value === 'stop') {
+    return value
+  }
+  return 'other'
 }
 
 function mapStructuredChatError(error: unknown): SemanticGuardModelError {

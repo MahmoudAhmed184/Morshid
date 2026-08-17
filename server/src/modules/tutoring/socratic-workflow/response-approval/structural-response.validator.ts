@@ -1,10 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
-import {
-  ReflectionMode,
-  TeachingStrategy,
-  TeachingTechnique,
-} from '../../tutoring-values'
+import { ReflectionMode, TeachingStrategy } from '../../tutoring-values'
 import {
   CandidateResponseContentSchema,
   validateCandidateResponse,
@@ -33,11 +29,13 @@ export class StructuralResponseValidator {
     context: CandidateValidationContext,
   ): ValidationResult {
     const content = {
-      message: candidate.message,
+      message: candidate.debuggingGuidance === null ? candidate.message : null,
+      debuggingGuidance: candidate.debuggingGuidance,
       responseIntent: candidate.responseIntent,
       usedCitationIds: candidate.usedCitationIds,
       requiresStudentAction: candidate.requiresStudentAction,
-      studentAction: candidate.studentAction,
+      studentAction:
+        candidate.debuggingGuidance === null ? candidate.studentAction : null,
       reflectionIncluded: candidate.reflectionIncluded,
       selfReportedCompliance: candidate.selfReportedCompliance,
     }
@@ -59,8 +57,10 @@ export class StructuralResponseValidator {
       allowedCitationIds: context.allowedCitationIds,
       requireGrounding: context.requireGrounding,
       enforceCitationSupport: context.enforceCitationSupport,
-      requireStudentAction: context.requireStudentAction,
+      studentActionObligation: context.studentActionObligation,
       reflectionMode: context.reflectionMode,
+      debuggingGuidanceRequired: context.debuggingGuidanceRequired,
+      debuggingRewriteRequested: context.debuggingGuidance?.rewriteRequested,
     }
     const validation = validateCandidateResponse(content, policy, {
       provider: candidate.provider,
@@ -136,10 +136,9 @@ export function buildCandidateValidationContext(input: {
   readonly allowedCitationIds: ReadonlySet<string>
   readonly requireGrounding: boolean
   readonly enforceCitationSupport: boolean
-  readonly requireStudentAction: boolean
   readonly reflectionMode: ReflectionMode
   readonly responseIntent: TeachingStrategy
-  readonly primaryTechnique: TeachingTechnique
+  readonly studentActionObligation: CandidateValidationContext['studentActionObligation']
   readonly guidanceLevel: number
   readonly revealPolicy: CandidateValidationContext['revealPolicy']
   readonly maximumDisclosedSteps: number

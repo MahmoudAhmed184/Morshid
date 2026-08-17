@@ -2,10 +2,10 @@ import type {
   ReflectionMode,
   RevealPolicy,
   TeachingStrategy,
-  TeachingTechnique,
 } from '../../tutoring-values'
 import type { CandidateResponse } from '../generation/tutor-generation.types'
 import type { DebuggingGuidanceContext } from '../debugging-guidance/debugging-guidance.output-validator'
+import type { StudentActionObligation } from '../teaching-decision/student-action-obligation'
 
 export const MVP_RESPONSE_VALIDATION_POLICY_VERSION =
   'response-validation.mvp.v1'
@@ -60,6 +60,23 @@ export const RESPONSE_VIOLATION_TYPE = {
   RESPONSE_INTENT_MISMATCH: 'RESPONSE_INTENT_MISMATCH',
   TECHNIQUE_MISMATCH: 'TECHNIQUE_MISMATCH',
   DEBUGGING_GUIDANCE_CONTRACT: 'DEBUGGING_GUIDANCE_CONTRACT',
+  DEBUGGING_MISSING_GUIDANCE: 'DEBUGGING_MISSING_GUIDANCE',
+  DEBUGGING_MISSING_DIAGNOSIS: 'DEBUGGING_MISSING_DIAGNOSIS',
+  DEBUGGING_EMPTY_DIAGNOSIS: 'DEBUGGING_EMPTY_DIAGNOSIS',
+  DEBUGGING_MISSING_RELEVANT_LOCATION: 'DEBUGGING_MISSING_RELEVANT_LOCATION',
+  DEBUGGING_EMPTY_RELEVANT_LOCATION: 'DEBUGGING_EMPTY_RELEVANT_LOCATION',
+  DEBUGGING_MISSING_CONCEPT: 'DEBUGGING_MISSING_CONCEPT',
+  DEBUGGING_EMPTY_CONCEPT: 'DEBUGGING_EMPTY_CONCEPT',
+  DEBUGGING_MISSING_AUTHORIZED_CITATION:
+    'DEBUGGING_MISSING_AUTHORIZED_CITATION',
+  DEBUGGING_INVALID_AUTHORIZED_CITATION:
+    'DEBUGGING_INVALID_AUTHORIZED_CITATION',
+  DEBUGGING_RENDERED_CITATION_MISMATCH: 'DEBUGGING_RENDERED_CITATION_MISMATCH',
+  DEBUGGING_MISSING_STUDENT_ACTION: 'DEBUGGING_MISSING_STUDENT_ACTION',
+  DEBUGGING_MULTIPLE_STUDENT_ACTIONS: 'DEBUGGING_MULTIPLE_STUDENT_ACTIONS',
+  DEBUGGING_INVALID_STUDENT_ACTION: 'DEBUGGING_INVALID_STUDENT_ACTION',
+  DEBUGGING_STUDENT_ACTION_MISMATCH: 'DEBUGGING_STUDENT_ACTION_MISMATCH',
+  DEBUGGING_RENDERED_RESPONSE_MISMATCH: 'DEBUGGING_RENDERED_RESPONSE_MISMATCH',
   GROUNDING_VIOLATION: 'GROUNDING_VIOLATION',
   SEMANTIC_POLICY_VIOLATION: 'SEMANTIC_POLICY_VIOLATION',
   GUARD_MALFORMED_OUTPUT: 'GUARD_MALFORMED_OUTPUT',
@@ -93,10 +110,9 @@ export interface CandidateValidationContext {
   readonly allowedCitationIds: ReadonlySet<string>
   readonly requireGrounding: boolean
   readonly enforceCitationSupport: boolean
-  readonly requireStudentAction: boolean
   readonly reflectionMode: ReflectionMode
   readonly responseIntent: TeachingStrategy
-  readonly primaryTechnique: TeachingTechnique
+  readonly studentActionObligation: StudentActionObligation
   readonly guidanceLevel: number
   readonly revealPolicy: RevealPolicy
   readonly maximumDisclosedSteps: number
