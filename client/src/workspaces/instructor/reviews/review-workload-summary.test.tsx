@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -35,15 +35,26 @@ describe('ReviewWorkloadSummary', () => {
   afterEach(cleanup)
 
   it('renders workload metrics and breakdown tables', () => {
-    render(<ReviewWorkloadSummary summary={mockSummary} />)
+    render(
+      <ReviewWorkloadSummary
+        summary={mockSummary}
+        resolvedCount={7}
+        rejectedCount={3}
+      />,
+    )
 
     expect(screen.getByText('Pending')).toBeVisible()
-    expect(
-      screen.getByRole('region', { name: 'Review Workload Snapshot' }),
-    ).toBeVisible()
+    const snapshot = screen.getByRole('region', {
+      name: 'Review Workload Snapshot',
+    })
+    expect(snapshot).toBeVisible()
     expect(screen.getAllByText('4').length).toBeGreaterThan(0)
-    expect(screen.getByText('In Review')).toBeVisible()
-    expect(screen.getByText('Claimed by Me')).toBeVisible()
+    expect(screen.getByText('Resolved')).toBeVisible()
+    expect(screen.getByText('Rejected')).toBeVisible()
+    expect(within(snapshot).getByText('7')).toBeVisible()
+    expect(within(snapshot).getByText('3')).toBeVisible()
+    expect(screen.queryByText('In Review')).toBeNull()
+    expect(screen.queryByText('Claimed by Me')).toBeNull()
     expect(screen.getByText('12m')).toBeVisible()
 
     expect(screen.getByText('Workload by Student Flag Reason')).toBeVisible()
@@ -73,7 +84,7 @@ describe('ReviewWorkloadSummary', () => {
       screen.getByText('All clear — No review cases need attention'),
     ).toBeVisible()
     expect(
-      screen.getByText(/There are currently no pending or in-review cases/i),
+      screen.getByText(/There are currently no pending cases/i),
     ).toBeVisible()
   })
 
@@ -111,6 +122,8 @@ describe('ReviewWorkloadSummary', () => {
     render(
       <ReviewWorkloadSummary
         summary={mockSummary}
+        resolvedCount={7}
+        rejectedCount={3}
         onSelectStatus={onSelectStatus}
         onSelectStudentFlagReason={onSelectStudentFlagReason}
         onSelectTrigger={onSelectTrigger}
@@ -124,12 +137,18 @@ describe('ReviewWorkloadSummary', () => {
     await user.click(pendingButton)
     expect(onSelectStatus).toHaveBeenCalledWith('PENDING')
 
-    // Click In Review metric
-    const inReviewButton = screen.getByRole('button', {
-      name: /In review cases: 2/i,
+    // Click Resolved and Rejected metrics
+    const resolvedButton = screen.getByRole('button', {
+      name: /Resolved cases: 7/i,
     })
-    await user.click(inReviewButton)
-    expect(onSelectStatus).toHaveBeenCalledWith('IN_REVIEW')
+    await user.click(resolvedButton)
+    expect(onSelectStatus).toHaveBeenCalledWith('RESOLVED')
+
+    const rejectedButton = screen.getByRole('button', {
+      name: /Rejected cases: 3/i,
+    })
+    await user.click(rejectedButton)
+    expect(onSelectStatus).toHaveBeenCalledWith('REJECTED')
 
     // Click Seems incorrect reason row
     await user.click(screen.getByText('Seems incorrect'))
