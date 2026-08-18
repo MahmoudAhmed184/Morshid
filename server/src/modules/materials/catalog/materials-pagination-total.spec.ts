@@ -9,7 +9,7 @@ function fakeMaterial(index: number, courseId: string): SafeMaterialRecord {
     id: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
     courseId,
     title: `Material ${String(index)}`,
-    originalFilename: `material-${index}.pdf`,
+    originalFilename: `material-${String(index)}.pdf`,
     status: MaterialStatus.READY,
     extractedTextLength: 100 * index,
     chunkCount: index,
