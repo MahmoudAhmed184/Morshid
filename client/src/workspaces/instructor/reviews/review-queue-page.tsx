@@ -41,12 +41,12 @@ import type {
   QueueTrigger,
   SavedQueueFilter,
 } from '@/workspaces/instructor/preferences/instructor-workspace-preferences.types'
+import { VALID_QUEUE_STATUSES } from '@/workspaces/instructor/preferences/instructor-workspace-preferences.storage'
 import { cn } from '@/lib/utils'
 
 const statusTabs: { value: QueueStatus; label: string }[] = [
   { value: 'ALL', label: 'All' },
   { value: 'PENDING', label: 'Pending' },
-  { value: 'IN_REVIEW', label: 'In review' },
   { value: 'RESOLVED', label: 'Resolved' },
   { value: 'REJECTED', label: 'Rejected' },
 ]
@@ -102,6 +102,16 @@ export function ReviewQueuePage() {
     new Map(items.map((item) => [item.course.id, item.course])).values(),
   )
   const courses = studentFlagReason === null ? currentCourses : preservedCourses
+  const courseItems =
+    courseId === null
+      ? items
+      : items.filter((item) => item.course.id === courseId)
+  const resolvedCount = courseItems.filter(
+    (item) => item.status === 'RESOLVED',
+  ).length
+  const rejectedCount = courseItems.filter(
+    (item) => item.status === 'REJECTED',
+  ).length
 
   useEffect(() => {
     if (hasNextPage && !isFetchingNextPage && !isError) {
@@ -215,6 +225,8 @@ export function ReviewQueuePage() {
         summary={workloadSummaryQuery.data}
         isLoading={workloadSummaryQuery.isPending}
         error={workloadSummaryQuery.error}
+        resolvedCount={resolvedCount}
+        rejectedCount={rejectedCount}
         onRetry={() => {
           void workloadSummaryQuery.refetch()
         }}
@@ -474,7 +486,7 @@ function readInitialQueueFilters(userId?: string | null): StoredQueueFilters {
       urlSearch !== null
 
     if (hasAnyParam) {
-      const status = statusTabs.some(({ value }) => value === urlStatus)
+      const status = VALID_QUEUE_STATUSES.includes(urlStatus as QueueStatus)
         ? (urlStatus as QueueStatus)
         : 'PENDING'
       const trigger = triggerOptions.includes(urlTrigger as QueueTrigger)
@@ -519,7 +531,7 @@ function readStoredQueueFilters(userId?: string | null): StoredQueueFilters {
       const candidate = parsed as Partial<StoredQueueFilters>
       baseFilters = {
         search: typeof candidate.search === 'string' ? candidate.search : '',
-        status: statusTabs.some(({ value }) => value === candidate.status)
+        status: VALID_QUEUE_STATUSES.includes(candidate.status as QueueStatus)
           ? (candidate.status ?? 'PENDING')
           : 'PENDING',
         courseId:
@@ -552,7 +564,7 @@ function readStoredQueueFilters(userId?: string | null): StoredQueueFilters {
 
       if (
         statusParam &&
-        statusTabs.some(({ value }) => value === statusParam)
+        VALID_QUEUE_STATUSES.includes(statusParam as QueueStatus)
       ) {
         baseFilters.status = statusParam as QueueStatus
       }

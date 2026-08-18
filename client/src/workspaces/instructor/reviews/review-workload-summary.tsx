@@ -1,11 +1,4 @@
-import {
-  AlertCircle,
-  CheckCircle2,
-  Clock3,
-  Eye,
-  Inbox,
-  UserCheck,
-} from 'lucide-react'
+import { AlertCircle, CheckCircle2, Clock3, Inbox, XCircle } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -27,7 +20,9 @@ export interface ReviewWorkloadSummaryProps {
   isLoading?: boolean
   error?: Error | null
   onRetry?: () => void
-  onSelectStatus?: (status: 'PENDING' | 'IN_REVIEW') => void
+  resolvedCount?: number
+  rejectedCount?: number
+  onSelectStatus?: (status: 'PENDING' | 'RESOLVED' | 'REJECTED') => void
   onSelectStudentFlagReason?: (reason: StudentFlagReason) => void
   onSelectTrigger?: (trigger: ReviewTriggerType) => void
   className?: string
@@ -47,6 +42,8 @@ export function ReviewWorkloadSummary({
   isLoading,
   error,
   onRetry,
+  resolvedCount = 0,
+  rejectedCount = 0,
   onSelectStatus,
   onSelectStudentFlagReason,
   onSelectTrigger,
@@ -140,43 +137,51 @@ export function ReviewWorkloadSummary({
             onSelectStatus &&
               'cursor-pointer transition-transform hover:scale-[1.01]',
           )}
-          onClick={() => onSelectStatus?.('IN_REVIEW')}
+          onClick={() => onSelectStatus?.('RESOLVED')}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault()
-              onSelectStatus?.('IN_REVIEW')
+              onSelectStatus?.('RESOLVED')
             }
           }}
           role={onSelectStatus ? 'button' : undefined}
           tabIndex={onSelectStatus ? 0 : undefined}
-          aria-label={`In review cases: ${summary.inReviewCount}. Click to filter.`}
+          aria-label={`Resolved cases: ${resolvedCount}. Click to filter.`}
         >
           <StatCard
             className="h-full"
-            label="In Review"
-            tone={summary.inReviewCount > 0 ? 'info' : 'default'}
-            icon={<Eye aria-hidden />}
-            value={
-              <span className="tabular-nums">{summary.inReviewCount}</span>
-            }
-            description={
-              summary.inReviewCount > 0
-                ? 'Currently being evaluated'
-                : 'No cases in progress'
-            }
+            label="Resolved"
+            tone={resolvedCount > 0 ? 'success' : 'default'}
+            icon={<CheckCircle2 aria-hidden />}
+            value={<span className="tabular-nums">{resolvedCount}</span>}
+            description="Successfully reviewed cases"
           />
         </div>
 
-        <div className="h-full">
+        <div
+          className={cn(
+            'h-full',
+            onSelectStatus &&
+              'cursor-pointer transition-transform hover:scale-[1.01]',
+          )}
+          onClick={() => onSelectStatus?.('REJECTED')}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              onSelectStatus?.('REJECTED')
+            }
+          }}
+          role={onSelectStatus ? 'button' : undefined}
+          tabIndex={onSelectStatus ? 0 : undefined}
+          aria-label={`Rejected cases: ${rejectedCount}. Click to filter.`}
+        >
           <StatCard
             className="h-full"
-            label="Claimed by Me"
+            label="Rejected"
             tone="default"
-            icon={<UserCheck aria-hidden />}
-            value={
-              <span className="tabular-nums">{summary.claimedByMeCount}</span>
-            }
-            description="Assigned directly to you"
+            icon={<XCircle aria-hidden />}
+            value={<span className="tabular-nums">{rejectedCount}</span>}
+            description="Rejected review requests"
           />
         </div>
 
@@ -202,9 +207,8 @@ export function ReviewWorkloadSummary({
               All clear — No review cases need attention
             </p>
             <p className="text-xs text-muted-foreground max-w-md">
-              There are currently no pending or in-review cases across your
-              assigned courses. New flagged exchanges will appear here
-              immediately.
+              There are currently no pending cases across your assigned courses.
+              New flagged exchanges will appear here immediately.
             </p>
           </CardContent>
         </Card>
@@ -361,7 +365,7 @@ function WorkloadSummarySkeleton({ className }: { className?: string }) {
       aria-label="Loading review workload summary"
     >
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {['Pending', 'In Review', 'Claimed', 'Oldest'].map((label) => (
+        {['Pending', 'Resolved', 'Rejected', 'Oldest'].map((label) => (
           <Card key={label} className="h-full">
             <CardHeader className="flex flex-row items-start justify-between gap-3 pb-2">
               <Skeleton className="h-4 w-20" />

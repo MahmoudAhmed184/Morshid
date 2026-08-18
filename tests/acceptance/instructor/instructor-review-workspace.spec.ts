@@ -268,10 +268,14 @@ test.describe('Instructor review queue and bounded detail', () => {
     })
     await expect(snapshot).toBeVisible()
     await expect(snapshot.getByText('Pending', { exact: true })).toBeVisible()
-    await expect(snapshot.getByText('In Review', { exact: true })).toBeVisible()
+    await expect(snapshot.getByText('Resolved', { exact: true })).toBeVisible()
+    await expect(snapshot.getByText('Rejected', { exact: true })).toBeVisible()
+    await expect(snapshot.getByText('In Review', { exact: true })).toHaveCount(
+      0,
+    )
     await expect(
       snapshot.getByText('Claimed by Me', { exact: true }),
-    ).toBeVisible()
+    ).toHaveCount(0)
     await expect(
       snapshot.getByText('Oldest Pending Case', { exact: true }),
     ).toBeVisible()
