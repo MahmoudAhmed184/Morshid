@@ -170,7 +170,7 @@ export class MaterialsService {
   async listMaterials(
     courseId: string,
     actor: AuthenticatedUser,
-    query: ListMaterialsQuery = { limit: 25 },
+    query: ListMaterialsQuery = { limit: 15 },
   ): Promise<MaterialListResponseDto> {
     await this.requireCourseMaterialManagement(courseId, actor)
 
@@ -186,6 +186,7 @@ export class MaterialsService {
           actor.role === UserRole.ADMIN || material.uploadedById === actor.id,
         ),
       ),
+      total: page.total,
       ...(page.nextCursor !== undefined ? { nextCursor: page.nextCursor } : {}),
     }
   }
@@ -236,7 +237,7 @@ export class MaterialsService {
   async listMaterialsForAdministration(
     courseId: string,
     actor: AuthenticatedUser,
-    query: ListMaterialsQuery = { limit: 25 },
+    query: ListMaterialsQuery = { limit: 15 },
   ): Promise<MaterialAdministrationListResponseDto> {
     await this.requireCourseMaterialManagement(courseId, actor)
 
@@ -248,6 +249,7 @@ export class MaterialsService {
 
     return {
       materials: page.materials.map(mapMaterialAdministrationRecord),
+      total: page.total,
       ...(page.nextCursor !== undefined ? { nextCursor: page.nextCursor } : {}),
     }
   }

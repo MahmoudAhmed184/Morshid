@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import { useCourseMembership } from '@/workspaces/instructor/use-course-membership'
+import { useCourseMaterials } from '@/workspaces/instructor/materials/use-materials'
 import { useInstructorReviewWorkloadSummary } from '@/workspaces/instructor/reviews/use-reviews'
 import { InstructorDashboardPage } from '@/workspaces/instructor/dashboard/instructor-dashboard-page'
 import { useInstructorWorkspacePreferences } from '@/workspaces/instructor/preferences/use-instructor-workspace-preferences'
@@ -19,6 +20,7 @@ export function InstructorDashboardShell() {
     : coursesQuery.data?.[0]?.id
 
   const workloadQuery = useInstructorReviewWorkloadSummary(courseId)
+  const materialsQuery = useCourseMaterials(courseId)
 
   if (coursesQuery.isPending) {
     return <InstructorDashboardPage state={{ status: 'loading' }} />
@@ -56,6 +58,8 @@ export function InstructorDashboardShell() {
     setActiveCourseId(nextCourseId)
   }
 
+  const materialCount = materialsQuery.data?.pages[0]?.total
+
   return (
     <InstructorDashboardPage
       state={{
@@ -63,6 +67,7 @@ export function InstructorDashboardShell() {
         course,
         courses,
         onSelectCourse: handleSelectCourse,
+        materialCount,
         reviewQueueCount: workloadQuery.data?.pendingCount,
         workloadSummary: workloadQuery.data,
       }}

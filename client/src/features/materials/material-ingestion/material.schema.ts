@@ -23,6 +23,7 @@ export const materialSchema = z.object({
 
 export const materialsResponseSchema = z.object({
   materials: z.array(materialSchema),
+  total: z.number().int().nonnegative(),
   nextCursor: z.uuid().optional(),
 })
 

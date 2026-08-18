@@ -110,7 +110,10 @@ describe('Instructor material hooks', () => {
   })
 
   it('loads the parsed material list for the selected course', async () => {
-    listCourseMaterialsMock.mockResolvedValue({ materials: [material] })
+    listCourseMaterialsMock.mockResolvedValue({
+      materials: [material],
+      total: 1,
+    })
 
     const { result } = renderHook(() => useCourseMaterials(courseId), {
       wrapper: createWrapper(createQueryClient()),
@@ -156,8 +159,8 @@ describe('Instructor material hooks', () => {
   it('polls a mounted processing list until terminal and then stops', async () => {
     vi.useFakeTimers()
     listCourseMaterialsMock
-      .mockResolvedValueOnce({ materials: [processingMaterial] })
-      .mockResolvedValueOnce({ materials: [material] })
+      .mockResolvedValueOnce({ materials: [processingMaterial], total: 1 })
+      .mockResolvedValueOnce({ materials: [material], total: 1 })
     const queryClient = createQueryClient()
 
     const { result } = renderHook(() => useCourseMaterials(courseId), {
@@ -184,6 +187,7 @@ describe('Instructor material hooks', () => {
     vi.useFakeTimers()
     listCourseMaterialsMock.mockResolvedValue({
       materials: [processingMaterial],
+      total: 1,
     })
 
     const { result, unmount } = renderHook(() => useCourseMaterials(courseId), {
@@ -204,10 +208,10 @@ describe('Instructor material hooks', () => {
   it('surfaces polling and repeated retry failures before a manual retry succeeds', async () => {
     vi.useFakeTimers()
     listCourseMaterialsMock
-      .mockResolvedValueOnce({ materials: [processingMaterial] })
+      .mockResolvedValueOnce({ materials: [processingMaterial], total: 1 })
       .mockRejectedValueOnce(new Error('polling unavailable'))
       .mockRejectedValueOnce(new Error('retry still unavailable'))
-      .mockResolvedValueOnce({ materials: [material] })
+      .mockResolvedValueOnce({ materials: [material], total: 1 })
     const queryClient = createQueryClient()
 
     const { result } = renderHook(() => useCourseMaterials(courseId), {
@@ -258,11 +262,11 @@ describe('Instructor material hooks', () => {
       courseId: '55b55350-4cc4-4cf4-9e00-689c13359c8f',
     })
     queryClient.setQueryData(selectedListKey, {
-      pages: [{ materials: [] }],
+      pages: [{ materials: [], total: 0 }],
       pageParams: [undefined],
     })
     queryClient.setQueryData(unrelatedListKey, {
-      pages: [{ materials: [] }],
+      pages: [{ materials: [], total: 0 }],
       pageParams: [undefined],
     })
     const file = new File(['%PDF-1.7'], 'python-functions.pdf', {
@@ -304,7 +308,7 @@ describe('Instructor material hooks', () => {
     const queryClient = createQueryClient()
     const selectedListKey = materialKeys.list({ instructorId, courseId })
     queryClient.setQueryData(selectedListKey, {
-      pages: [{ materials: [material] }],
+      pages: [{ materials: [material], total: 1 }],
       pageParams: [undefined],
     })
 
@@ -325,6 +329,7 @@ describe('Instructor material hooks', () => {
         InfiniteData<MaterialsResponse, string | undefined>
       >(selectedListKey)
     expect(cached?.pages[0]?.materials).toHaveLength(0)
+    expect(cached?.pages[0]?.total).toBe(0)
     expect(queryClient.getQueryState(selectedListKey)?.isInvalidated).toBe(true)
   })
 })

@@ -26,11 +26,11 @@ const material = {
 
 describe('Instructor materials API', () => {
   it('lists and validates course-scoped materials through GET', async () => {
-    const response = { materials: [material] }
+    const response = { materials: [material], total: 1 }
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         expect(String(input)).toBe(
-          `http://localhost:4000/api/v1/courses/${courseId}/materials?limit=25`,
+          `http://localhost:4000/api/v1/courses/${courseId}/materials?limit=15`,
         )
         expect(init?.method).toBe('GET')
 
@@ -139,7 +139,10 @@ describe('Instructor materials API', () => {
 
   it('rejects an invalid successful API response through schema parsing', async () => {
     const malformedFetch = vi.fn(async () =>
-      Response.json({ materials: [{ ...material, status: 'ARCHIVED' }] }),
+      Response.json({
+        materials: [{ ...material, status: 'ARCHIVED' }],
+        total: 1,
+      }),
     )
 
     await expect(

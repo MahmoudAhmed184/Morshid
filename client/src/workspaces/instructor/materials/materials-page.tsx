@@ -106,6 +106,11 @@ export function MaterialsPage() {
           isPending={materialsQuery.isPending}
           isError={hasColdMaterialsError}
           materials={materialsQuery.data ? materials : undefined}
+          backendTotal={
+            materialsQuery.data && !Array.isArray(materialsQuery.data)
+              ? materialsQuery.data.pages[0]?.total
+              : undefined
+          }
         />
       ) : null}
 
@@ -198,11 +203,13 @@ function MaterialSummarySection({
   isPending,
   isError,
   materials,
+  backendTotal,
 }: {
   courseCode: string
   isPending: boolean
   isError: boolean
   materials: Material[] | undefined
+  backendTotal?: number
 }) {
   if (isPending && materials === undefined) {
     return (
@@ -247,7 +254,7 @@ function MaterialSummarySection({
   const summaryItems = [
     {
       label: 'Total materials',
-      value: summary.total,
+      value: backendTotal ?? summary.total,
       description: courseCode,
       icon: <FileTextIcon aria-hidden />,
       tone: 'default' as const,

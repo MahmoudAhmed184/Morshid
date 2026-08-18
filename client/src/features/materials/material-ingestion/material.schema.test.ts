@@ -63,13 +63,15 @@ describe('Instructor material contract schemas', () => {
   })
 
   it('validates the material list response wrapper', () => {
-    const response = { materials: [validMaterial] }
+    const response = { materials: [validMaterial], total: 1 }
 
     expect(materialsResponseSchema.parse(response)).toEqual(response)
     expect(() =>
       materialsResponseSchema.parse({ material: validMaterial }),
     ).toThrow()
-    expect(() => materialsResponseSchema.parse({ materials: [null] })).toThrow()
+    expect(() =>
+      materialsResponseSchema.parse({ materials: [null], total: 0 }),
+    ).toThrow()
   })
 
   it('validates the single-material response wrapper', () => {
