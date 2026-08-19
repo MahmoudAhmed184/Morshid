@@ -213,7 +213,7 @@ export function BulkUserImportDialog({
                     setPastedText(e.target.value)
                     setResolveError(null)
                   }}
-                  placeholder={`student1@morshid.demo\nstudent2@morshid.demo\n10000000-0000-4000-8000-000000000001`}
+                  placeholder={`${singularUserLabel}1@morshid.demo\n${singularUserLabel}2@morshid.demo\n10000000-0000-4000-8000-000000000001`}
                   className="min-h-[220px] flex-1 resize-none font-mono text-xs"
                 />
                 <p className="text-xs text-muted-foreground">

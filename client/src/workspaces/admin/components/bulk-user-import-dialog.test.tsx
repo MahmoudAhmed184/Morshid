@@ -213,4 +213,23 @@ describe('BulkUserImportDialog', () => {
       await screen.findByText('Network connectivity issue'),
     ).toBeInTheDocument()
   })
+
+  it('renders role-specific example placeholder for instructors', () => {
+    render(
+      <BulkUserImportDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        role="INSTRUCTOR"
+        selectedCourseIds={new Set([course.id])}
+        courses={[course]}
+        maxUserSelections={500}
+        currentSelectedCount={0}
+        onApply={vi.fn()}
+      />,
+    )
+
+    expect(
+      screen.getByPlaceholderText(/instructor1@morshid.demo/i),
+    ).toBeInTheDocument()
+  })
 })
