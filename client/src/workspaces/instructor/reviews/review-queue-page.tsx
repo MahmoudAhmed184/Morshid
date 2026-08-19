@@ -5,6 +5,7 @@ import {
   ClipboardCheck,
   Clock3,
   Eye,
+  RotateCcw,
   Search,
   XCircle,
 } from 'lucide-react'
@@ -18,6 +19,12 @@ import { ErrorState } from '@/components/ui/custom/error-state'
 import { PageHeader } from '@/components/ui/custom/page-header'
 import { StatusBadge } from '@/components/ui/custom/status-badge/status-badge'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from '@/components/ui/select'
 import { InstructorListSkeleton } from '@/workspaces/instructor/instructor-list-skeleton'
 import { ReviewWorkloadSummary } from '@/workspaces/instructor/reviews/review-workload-summary'
 import {
@@ -196,6 +203,20 @@ export function ReviewQueuePage() {
     trigger,
     studentFlagReason,
   }
+  const hasActiveFilters =
+    search.trim().length > 0 ||
+    status !== 'PENDING' ||
+    courseId !== null ||
+    trigger !== null ||
+    studentFlagReason !== null
+
+  function clearFilters() {
+    setSearch('')
+    setStatus('PENDING')
+    setCourseId(null)
+    setTrigger(null)
+    setStudentFlagReason(null)
+  }
 
   const filteredItems = items.filter((item) => {
     const matchesStatus = status === 'ALL' || item.status === status
@@ -233,12 +254,6 @@ export function ReviewQueuePage() {
         onSelectStatus={(selectedStatus) => {
           setStatus(selectedStatus)
         }}
-        onSelectStudentFlagReason={(selectedReason) => {
-          selectStudentFlagReason(selectedReason)
-        }}
-        onSelectTrigger={(selectedTrigger) => {
-          setTrigger(selectedTrigger)
-        }}
       />
 
       <Card className="overflow-hidden">
@@ -269,6 +284,18 @@ export function ReviewQueuePage() {
                 onRenameFilter={renameFilter}
                 onDeleteFilter={deleteFilter}
               />
+              {hasActiveFilters ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={clearFilters}
+                  className="shrink-0"
+                >
+                  <RotateCcw aria-hidden />
+                  Clear filters
+                </Button>
+              ) : null}
               <label className="relative block w-full sm:w-72 lg:w-80">
                 <span className="sr-only">Search reviews</span>
                 <Search
@@ -285,7 +312,11 @@ export function ReviewQueuePage() {
             </div>
           </div>
 
-          <div className="flex gap-1 overflow-x-auto border-b" role="tablist">
+          <div
+            className="flex gap-1 overflow-x-auto border-b"
+            role="tablist"
+            aria-label="Review status"
+          >
             {statusTabs.map((tab) => {
               const count =
                 tab.value === 'ALL'
@@ -313,114 +344,90 @@ export function ReviewQueuePage() {
             })}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <div
-              className="flex flex-wrap items-center gap-2"
-              aria-label="Filter by course"
+          <div
+            className="grid gap-2 sm:grid-cols-3"
+            aria-label="Review queue filters"
+          >
+            <Select
+              value={courseId ?? 'ALL'}
+              onValueChange={(value) =>
+                setCourseId(value === 'ALL' ? null : value)
+              }
             >
-              <Button
-                type="button"
+              <SelectTrigger
                 size="sm"
-                aria-pressed={courseId === null}
-                variant={courseId === null ? 'default' : 'outline'}
-                className="h-8 rounded-full"
-                onClick={() => setCourseId(null)}
+                className="w-full"
+                aria-label="Course filter"
               >
-                All courses
-              </Button>
-              {courses.map((course) => (
-                <Button
-                  key={course.id}
-                  type="button"
-                  size="sm"
-                  aria-pressed={courseId === course.id}
-                  variant={courseId === course.id ? 'default' : 'outline'}
-                  className="h-8 rounded-full"
-                  onClick={() => setCourseId(course.id)}
-                >
-                  {course.code}
-                </Button>
-              ))}
-            </div>
+                <span className="truncate">
+                  {courseId === null
+                    ? 'All courses'
+                    : (courses.find((course) => course.id === courseId)?.code ??
+                      courseId)}
+                </span>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All courses</SelectItem>
+                {courses.map((course) => (
+                  <SelectItem key={course.id} value={course.id}>
+                    {course.code} · {course.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-            <span
-              className="mx-1 hidden h-6 w-px bg-border sm:block"
-              aria-hidden
-            />
-
-            <div
-              className="flex flex-wrap items-center gap-2"
-              aria-label="Filter by trigger"
+            <Select
+              value={trigger ?? 'ALL'}
+              onValueChange={(value) =>
+                setTrigger(value === 'ALL' ? null : (value as QueueTrigger))
+              }
             >
-              <Button
-                type="button"
+              <SelectTrigger
                 size="sm"
-                aria-pressed={trigger === null}
-                variant={trigger === null ? 'secondary' : 'outline'}
-                className="h-8 rounded-full"
-                onClick={() => setTrigger(null)}
+                className="w-full"
+                aria-label="Trigger filter"
               >
-                All triggers
-              </Button>
-              {triggerOptions.map((availableTrigger) => (
-                <Button
-                  key={availableTrigger}
-                  type="button"
-                  size="sm"
-                  aria-pressed={trigger === availableTrigger}
-                  variant={
-                    trigger === availableTrigger ? 'secondary' : 'outline'
-                  }
-                  className={cn(
-                    'h-8 rounded-full',
-                    availableTrigger === 'STUDENT_REQUEST' &&
-                      'border-info/25 bg-info/10 text-info hover:bg-info/15 hover:text-info',
-                    trigger === availableTrigger &&
-                      availableTrigger === 'STUDENT_REQUEST' &&
-                      'ring-2 ring-info/25',
-                  )}
-                  onClick={() => setTrigger(availableTrigger)}
-                >
-                  {humanize(availableTrigger)}
-                </Button>
-              ))}
-            </div>
+                <span className="truncate">
+                  {trigger === null ? 'All triggers' : humanize(trigger)}
+                </span>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All triggers</SelectItem>
+                {triggerOptions.map((availableTrigger) => (
+                  <SelectItem key={availableTrigger} value={availableTrigger}>
+                    {humanize(availableTrigger)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-            <span
-              className="mx-1 hidden h-6 w-px bg-border sm:block"
-              aria-hidden
-            />
-
-            <div
-              className="flex flex-wrap items-center gap-2"
-              aria-label="Filter by Student reason"
+            <Select
+              value={studentFlagReason ?? 'ALL'}
+              onValueChange={(value) => {
+                if (value === 'ALL') setStudentFlagReason(null)
+                else selectStudentFlagReason(value as StudentFlagReason)
+              }}
             >
-              <Button
-                type="button"
+              <SelectTrigger
                 size="sm"
-                aria-pressed={studentFlagReason === null}
-                variant={studentFlagReason === null ? 'secondary' : 'outline'}
-                className="h-8 rounded-full"
-                onClick={() => setStudentFlagReason(null)}
+                className="w-full"
+                aria-label="Student reason filter"
               >
-                All Student reasons
-              </Button>
-              {studentFlagReasons.map((reason) => (
-                <Button
-                  key={reason}
-                  type="button"
-                  size="sm"
-                  aria-pressed={studentFlagReason === reason}
-                  variant={
-                    studentFlagReason === reason ? 'secondary' : 'outline'
-                  }
-                  className="h-8 rounded-full"
-                  onClick={() => selectStudentFlagReason(reason)}
-                >
-                  {studentFlagReasonLabel(reason)}
-                </Button>
-              ))}
-            </div>
+                <span className="truncate">
+                  {studentFlagReason === null
+                    ? 'All Student reasons'
+                    : studentFlagReasonLabel(studentFlagReason)}
+                </span>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All Student reasons</SelectItem>
+                {studentFlagReasons.map((reason) => (
+                  <SelectItem key={reason} value={reason}>
+                    {studentFlagReasonLabel(reason)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </CardHeader>
 

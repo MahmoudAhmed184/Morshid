@@ -3,10 +3,8 @@ import {
   CheckCircle2,
   FilePenLine,
   LockKeyhole,
-  RefreshCcw,
   Save,
   ShieldCheck,
-  TriangleAlert,
   XCircle,
 } from 'lucide-react'
 
@@ -21,13 +19,14 @@ import {
   useResolveInstructorReview,
 } from '@/workspaces/instructor/reviews/use-reviews'
 import { isApiError } from '@/lib/http/http'
+import { cn } from '@/lib/utils'
 
-type EditorMode = 'EDITED' | 'REPLACED' | 'REJECT'
+type EditorMode = 'EDITED' | 'REJECT'
 type ReviewDrafts = Record<EditorMode, string>
 type PendingConfirmation =
   { mode: 'APPROVED'; content: string } | { mode: EditorMode; content: string }
 
-const draftStorageVersion = 1
+const draftStorageVersion = 2
 
 export function ReviewActionPanel({
   reviewCaseId,
@@ -53,7 +52,6 @@ export function ReviewActionPanel({
     () =>
       readStoredDraft(draftStorageKey, version) ?? {
         EDITED: originalContent,
-        REPLACED: '',
         REJECT: '',
       },
   )
@@ -172,7 +170,7 @@ export function ReviewActionPanel({
   return (
     <section aria-labelledby="review-actions-title">
       <Card className="overflow-hidden shadow-sm">
-        <CardHeader className="gap-3 border-b bg-muted/20 px-4 py-4">
+        <CardHeader className="gap-2 border-b bg-muted/20 px-4 py-3">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-2">
               <span className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -193,8 +191,8 @@ export function ReviewActionPanel({
             </span>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4 p-4">
-          <p className="text-sm leading-6 text-muted-foreground">
+        <CardContent className="space-y-3 p-3 sm:p-4">
+          <p className="text-sm text-muted-foreground">
             Choose exactly what should be published. The original response
             remains read-only.
           </p>
@@ -219,16 +217,6 @@ export function ReviewActionPanel({
               <FilePenLine aria-hidden />
               Publish edited guidance
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={isPending}
-              onClick={() => openEditor('REPLACED')}
-              className="justify-start border-gold/30 bg-gold/10 text-gold hover:bg-gold/15 hover:text-gold"
-            >
-              <RefreshCcw aria-hidden />
-              Publish replacement guidance
-            </Button>
             {canReject ? (
               <Button
                 type="button"
@@ -247,11 +235,7 @@ export function ReviewActionPanel({
             <div className="space-y-3 rounded-xl border bg-background p-3 shadow-xs">
               <div className="flex items-center justify-between gap-2">
                 <Label htmlFor="review-action-content">
-                  {mode === 'REJECT'
-                    ? 'Rejection reason'
-                    : mode === 'EDITED'
-                      ? 'Edited guidance'
-                      : 'Replacement guidance'}
+                  {mode === 'REJECT' ? 'Rejection reason' : 'Edited guidance'}
                 </Label>
                 <span className="text-[0.68rem] text-muted-foreground">
                   Local draft · Version {version}
@@ -289,9 +273,10 @@ export function ReviewActionPanel({
                   {validationError}
                 </p>
               ) : null}
-              <div className="flex flex-wrap justify-end gap-2 border-t pt-3">
+              <div className="flex flex-nowrap justify-end gap-1 border-t pt-3">
                 <Button
                   type="button"
+                  size="sm"
                   variant="ghost"
                   disabled={isPending}
                   onClick={() => setMode(null)}
@@ -300,6 +285,7 @@ export function ReviewActionPanel({
                 </Button>
                 <Button
                   type="button"
+                  size="sm"
                   variant="outline"
                   disabled={isPending}
                   onClick={saveDraft}
@@ -310,14 +296,16 @@ export function ReviewActionPanel({
                 </Button>
                 <Button
                   type="button"
+                  size="sm"
                   disabled={isPending}
                   onClick={() => void submitEditor()}
                   variant={mode === 'REJECT' ? 'destructive' : 'default'}
-                  className={
+                  className={cn(
+                    'min-w-0 flex-1 px-2',
                     mode === 'REJECT'
                       ? 'bg-destructive text-destructive-foreground hover:bg-destructive/85'
-                      : 'bg-success text-success-foreground hover:bg-success/85'
-                  }
+                      : 'bg-success text-success-foreground hover:bg-success/85',
+                  )}
                 >
                   {mode === 'REJECT' ? (
                     <XCircle aria-hidden />
@@ -338,19 +326,6 @@ export function ReviewActionPanel({
               </p>
             </div>
           ) : null}
-
-          <Alert className="border-warning/35 bg-warning/[0.07] py-3">
-            <TriangleAlert aria-hidden />
-            <AlertDescription className="text-xs leading-5">
-              Publishing creates a separate reviewed outcome. It cannot modify
-              the original AI response.
-            </AlertDescription>
-          </Alert>
-
-          <div className="flex items-start gap-2 rounded-lg bg-primary/8 px-3 py-2.5 text-xs leading-5 text-primary">
-            <ShieldCheck className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-            Students only receive guidance you explicitly publish.
-          </div>
 
           {actionError !== null ? (
             <Alert variant="destructive" role="alert">
@@ -430,7 +405,7 @@ function isStoredDraft(
   value: unknown,
   reviewVersion: number,
 ): value is {
-  schemaVersion: 1
+  schemaVersion: 2
   reviewVersion: number
   drafts: ReviewDrafts
 } {
@@ -448,8 +423,6 @@ function isStoredDraft(
   return (
     typeof drafts.EDITED === 'string' &&
     drafts.EDITED.length <= 4_000 &&
-    typeof drafts.REPLACED === 'string' &&
-    drafts.REPLACED.length <= 4_000 &&
     typeof drafts.REJECT === 'string' &&
     drafts.REJECT.length <= 500
   )

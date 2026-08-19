@@ -87,18 +87,22 @@ test.describe('Instructor review queue and bounded detail', () => {
     await signInThroughUi(page, { email: fixture.instructorEmail })
     await page.goto('/instructor/review-queue')
 
-    const incorrect = page.getByRole('button', { name: 'Seems incorrect' })
-    await incorrect.click()
-    await expect(incorrect).toHaveAttribute('aria-pressed', 'true')
+    const studentReasonFilter = page.getByRole('combobox', {
+      name: 'Student reason filter',
+    })
+    await studentReasonFilter.click()
+    await page.getByRole('option', { name: 'Seems incorrect' }).click()
+    await expect(studentReasonFilter).toContainText('Seems incorrect')
     await expect(page.getByText(fixture.studentLabel)).toBeVisible()
     await expect(
-      page.getByRole('button', { name: 'All courses' }),
+      page.getByRole('combobox', { name: 'Course filter' }),
     ).toBeVisible()
     await expect(
-      page.getByRole('button', { name: 'All triggers' }),
+      page.getByRole('combobox', { name: 'Trigger filter' }),
     ).toBeVisible()
 
-    await page.getByRole('button', { name: 'Confusing or unclear' }).click()
+    await studentReasonFilter.click()
+    await page.getByRole('option', { name: 'Confusing or unclear' }).click()
     await expect(
       page.getByRole('heading', { name: 'No matching reviews' }),
     ).toBeVisible()
@@ -119,10 +123,14 @@ test.describe('Instructor review queue and bounded detail', () => {
     await expect(
       page.getByText('Flagged acceptance assistant response'),
     ).toBeVisible()
+
+    await page.getByRole('button', { name: 'Previous & Following' }).click()
     await expect(page.getByText('Previous bounded question')).toBeVisible()
     await expect(page.getByText('Previous bounded answer')).toBeVisible()
     await expect(page.getByText('Following bounded question')).toBeVisible()
     await expect(page.getByText('Following bounded answer')).toBeVisible()
+
+    await page.getByRole('button', { name: /Sources \(\d+\)/ }).click()
     await expect(page.getByText(/Bounded citation snippet/)).toBeVisible()
     await expect(page.getByText('Bounded review source')).toBeVisible()
 
@@ -257,7 +265,7 @@ test.describe('Instructor review queue and bounded detail', () => {
     await expect(page.getByText('Flagged acceptance question')).toHaveCount(0)
   })
 
-  test('displays workload summary metrics snapshot and categorical breakdown', async ({
+  test('displays the workload summary metrics without removed breakdowns', async ({
     page,
   }) => {
     await signInThroughUi(page, { email: fixture.instructorEmail })
@@ -279,5 +287,11 @@ test.describe('Instructor review queue and bounded detail', () => {
     await expect(
       snapshot.getByText('Oldest Pending Case', { exact: true }),
     ).toBeVisible()
+    await expect(
+      page.getByRole('region', { name: 'Workload by Trigger Type' }),
+    ).toHaveCount(0)
+    await expect(
+      page.getByRole('region', { name: 'Workload by Student Flag Reason' }),
+    ).toHaveCount(0)
   })
 })

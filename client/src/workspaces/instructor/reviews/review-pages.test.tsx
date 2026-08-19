@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 import type * as TanStackReactRouter from '@tanstack/react-router'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -110,7 +110,7 @@ describe('Instructor review pages', () => {
 
     expect(screen.getByText('1 pending')).toBeVisible()
     expect(screen.getByText('Safe Student')).toBeVisible()
-    expect(screen.getByText('Course One')).toBeVisible()
+    expect(screen.getByText(/Course One/)).toBeVisible()
     expect(screen.getAllByText('Student request')).not.toHaveLength(0)
     const studentRequestBadge = screen
       .getAllByText('Student request')
@@ -146,7 +146,7 @@ describe('Instructor review pages', () => {
       screen.getByRole('status', { name: 'Loading review queue' }),
     ).toBeVisible()
     expect(
-      screen.getByRole('button', { name: 'Source conflict' }),
+      screen.getByRole('combobox', { name: 'Trigger filter' }),
     ).toBeVisible()
   })
 
@@ -203,11 +203,11 @@ describe('Instructor review pages', () => {
       useQueueMock.mockReturnValue(queueQuery([queueItem()]))
       render(<ReviewQueuePage />)
 
-      await user.click(screen.getByRole('button', { name: label }))
+      await selectQueueFilter(user, 'Student reason filter', label)
 
       expect(useQueueMock).toHaveBeenLastCalledWith(studentFlagReason)
       expect(
-        screen.getByRole('button', { name: 'Student request' }),
+        screen.getByRole('combobox', { name: 'Trigger filter' }),
       ).toBeVisible()
     },
   )
@@ -219,18 +219,20 @@ describe('Instructor review pages', () => {
     )
     render(<ReviewQueuePage />)
 
-    await user.click(screen.getByRole('button', { name: 'Not helpful' }))
+    await selectQueueFilter(user, 'Student reason filter', 'Not helpful')
 
     expect(screen.getByText('No matching reviews')).toBeVisible()
     expect(
-      screen.getByRole('button', { name: 'Source conflict' }),
+      screen.getByRole('combobox', { name: 'Trigger filter' }),
     ).toBeVisible()
     expect(
-      screen.getByRole('button', { name: 'All Student reasons' }),
+      screen.getByRole('combobox', { name: 'Student reason filter' }),
     ).toBeVisible()
 
-    await user.click(
-      screen.getByRole('button', { name: 'All Student reasons' }),
+    await selectQueueFilter(
+      user,
+      'Student reason filter',
+      'All Student reasons',
     )
 
     expect(useQueueMock).toHaveBeenLastCalledWith(null)
@@ -257,20 +259,18 @@ describe('Instructor review pages', () => {
     )
     render(<ReviewQueuePage />)
 
-    const sourceTrigger = screen.getByRole('button', {
-      name: 'Source conflict',
-    })
-    await user.click(sourceTrigger)
-    await user.click(screen.getByRole('button', { name: 'C2' }))
-    await user.click(screen.getByRole('button', { name: 'Seems incorrect' }))
+    await selectQueueFilter(user, 'Trigger filter', 'Source conflict')
+    await selectQueueFilter(user, 'Course filter', 'C2 · Course Two')
+    await selectQueueFilter(user, 'Student reason filter', 'Seems incorrect')
 
-    expect(sourceTrigger).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('button', { name: 'C2' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
     expect(
-      screen.getByRole('button', { name: 'Citation missing' }),
+      screen.getByRole('combobox', { name: 'Trigger filter' }),
+    ).toHaveTextContent('Source conflict')
+    expect(
+      screen.getByRole('combobox', { name: 'Course filter' }),
+    ).toHaveTextContent('C2')
+    expect(
+      screen.getByRole('combobox', { name: 'Trigger filter' }),
     ).toBeVisible()
     expect(useQueueMock).toHaveBeenLastCalledWith('INCORRECT')
   })
@@ -338,13 +338,44 @@ describe('Instructor review pages', () => {
     )
     render(<ReviewQueuePage />)
 
-    await user.click(screen.getByRole('button', { name: 'Citation missing' }))
+    await selectQueueFilter(user, 'Trigger filter', 'Citation missing')
 
     expect(screen.getByText('Citation Student')).toBeVisible()
     expect(screen.queryByText('Safe Student')).not.toBeInTheDocument()
   })
 
-  it('renders bounded detail evidence and adjacent exchanges', () => {
+  it('clears active filters back to the queue defaults', async () => {
+    const user = userEvent.setup()
+    useQueueMock.mockReturnValue(queueQuery([queueItem()]))
+    render(<ReviewQueuePage />)
+
+    await user.type(
+      screen.getByRole('textbox', { name: 'Search reviews' }),
+      'safe',
+    )
+    await user.click(screen.getByRole('tab', { name: /Resolved/ }))
+    await selectQueueFilter(user, 'Course filter', 'C1 · Course One')
+    await selectQueueFilter(user, 'Trigger filter', 'Student request')
+
+    await user.click(screen.getByRole('button', { name: 'Clear filters' }))
+
+    expect(screen.getByRole('textbox', { name: 'Search reviews' })).toHaveValue(
+      '',
+    )
+    expect(screen.getByRole('tab', { name: /Pending/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    expect(
+      screen.getByRole('combobox', { name: 'Course filter' }),
+    ).toHaveTextContent('All courses')
+    expect(
+      screen.getByRole('combobox', { name: 'Trigger filter' }),
+    ).toHaveTextContent('All triggers')
+  })
+
+  it('keeps contextual sections collapsed by default and expands and collapses them', async () => {
+    const user = userEvent.setup()
     useDetailMock.mockReturnValue(
       queryResult(detail()) as unknown as ReturnType<
         typeof useInstructorReviewDetail
@@ -355,13 +386,63 @@ describe('Instructor review pages', () => {
     expect(screen.getByText('Flagged question')).toBeVisible()
     expect(screen.getByText('Flagged assistant answer')).toBeVisible()
     expect(screen.getByText('Please check the explanation.')).toBeVisible()
+    expect(screen.getByText('Student flag category')).toBeVisible()
+    expect(screen.getByText('Confusing or unclear')).toBeVisible()
+
+    const context = screen.getByRole('button', {
+      name: 'Previous & Following',
+    })
+    expect(context).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Previous question')).toBeNull()
+    expect(screen.queryByText('Following question')).toBeNull()
+
+    await user.click(context)
+    expect(context).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByText('Previous question')).toBeVisible()
     expect(screen.getByText('Previous answer')).toBeVisible()
     expect(screen.getByText('Following question')).toBeVisible()
     expect(screen.getByText('Following answer')).toBeVisible()
+
+    await user.click(context)
+    expect(context).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Previous question')).toBeNull()
+    expect(screen.queryByText('Following question')).toBeNull()
+
+    const sources = screen.getByRole('button', { name: 'Sources (1)' })
+    expect(sources).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Bounded citation snippet')).toBeNull()
+
+    await user.click(sources)
+    expect(sources).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByText('Bounded citation snippet')).toBeVisible()
-    expect(screen.getByText('Student flag category')).toBeVisible()
-    expect(screen.getByText('Confusing or unclear')).toBeVisible()
+
+    await user.click(sources)
+    expect(sources).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Bounded citation snippet')).toBeNull()
+
+    expect(screen.queryByText(/Action history/i)).toBeNull()
+  })
+
+  it('places the flag category in metadata and review actions in the side region', () => {
+    useDetailMock.mockReturnValue(detailQuery())
+    render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
+
+    const flagLabel = screen.getByText('Student flag category')
+    expect(flagLabel.closest('dl')).not.toBeNull()
+
+    const actionAside = screen.getByRole('complementary', {
+      name: 'Review action',
+    })
+    expect(
+      within(actionAside).getByRole('button', {
+        name: 'Approve original guidance',
+      }),
+    ).toBeVisible()
+    expect(
+      within(actionAside).queryByRole('button', {
+        name: 'Publish replacement guidance',
+      }),
+    ).toBeNull()
   })
 
   it('does not show a Student category for an automatic review detail', () => {
@@ -407,7 +488,7 @@ describe('Instructor review pages', () => {
     expect(screen.getByText('Student request')).toBeVisible()
   })
 
-  it('renders all eligible actions for an open manual review', () => {
+  it('renders the retained actions without replacement or extra information cards', () => {
     useDetailMock.mockReturnValue(detailQuery())
     render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
 
@@ -417,10 +498,19 @@ describe('Instructor review pages', () => {
     expect(
       screen.getByRole('button', { name: 'Publish edited guidance' }),
     ).toBeVisible()
-    expect(
-      screen.getByRole('button', { name: 'Publish replacement guidance' }),
-    ).toBeVisible()
     expect(screen.getByRole('button', { name: 'Reject request' })).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: 'Publish replacement guidance' }),
+    ).toBeNull()
+    expect(screen.queryByText('Replacement guidance')).toBeNull()
+    expect(
+      screen.queryByText(/Publishing creates a separate reviewed outcome/),
+    ).toBeNull()
+    expect(
+      screen.queryByText(
+        /Students only receive guidance you explicitly publish/,
+      ),
+    ).toBeNull()
   })
 
   it('hides actions for terminal cases', () => {
@@ -473,10 +563,8 @@ describe('Instructor review pages', () => {
     await user.clear(editor)
     await user.type(editor, 'Working edit')
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
-    await user.click(
-      screen.getByRole('button', { name: 'Publish replacement guidance' }),
-    )
-    expect(screen.getByLabelText('Replacement guidance')).toHaveValue('')
+    await user.click(screen.getByRole('button', { name: 'Reject request' }))
+    expect(screen.getByLabelText('Rejection reason')).toHaveValue('')
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     await user.click(
       screen.getByRole('button', { name: 'Publish edited guidance' }),
@@ -589,10 +677,14 @@ describe('Instructor review pages', () => {
     useDetailMock.mockReturnValue(detailQuery())
     render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
 
-    for (const button of screen.getAllByRole('button')) {
-      if (button.textContent !== 'Back to queue') {
-        expect(button).toBeDisabled()
-      }
+    const actionPanel = screen
+      .getByText('Review actions')
+      .closest('[data-slot="card"]')
+    expect(actionPanel).not.toBeNull()
+    for (const button of within(actionPanel as HTMLElement).getAllByRole(
+      'button',
+    )) {
+      expect(button).toBeDisabled()
     }
   })
 
@@ -671,7 +763,8 @@ describe('Instructor review pages', () => {
 
     render(<ReviewQueuePage />)
 
-    expect(screen.getByText('Workload by Student Flag Reason')).toBeVisible()
+    expect(screen.queryByText('Workload by Student Flag Reason')).toBeNull()
+    expect(screen.queryByText('Workload by Trigger Type')).toBeNull()
 
     // Click Resolved metric card
     const resolvedBtn = screen.getByRole('button', {
@@ -683,6 +776,15 @@ describe('Instructor review pages', () => {
     expect(screen.getByText(/Confusing explanation/)).toBeVisible()
   })
 })
+
+async function selectQueueFilter(
+  user: ReturnType<typeof userEvent.setup>,
+  filterName: string,
+  optionName: string,
+) {
+  await user.click(screen.getByRole('combobox', { name: filterName }))
+  await user.click(await screen.findByRole('option', { name: optionName }))
+}
 
 function queueQuery(items: ReturnType<typeof queueItem>[]) {
   return queryResult(
