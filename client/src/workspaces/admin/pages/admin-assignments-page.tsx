@@ -163,7 +163,10 @@ export function AdminAssignmentsPage() {
             <>
               <Select
                 value={courseId ?? null}
-                onValueChange={(value) => setSelectedCourseId(value ?? '')}
+                onValueChange={(value) => {
+                  setSelectedCourseId(value ?? '')
+                  setSearch('')
+                }}
                 items={courseSelectItems}
               >
                 <SelectTrigger

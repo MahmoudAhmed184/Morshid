@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { DataTableState } from '@/components/ui/custom/data-table-state'
 import { DataToolbar } from '@/components/ui/custom/data-toolbar'
+import { LoadMoreButton } from '@/components/ui/custom/load-more-button'
 import { PageHeader } from '@/components/ui/custom/page-header'
 import {
   Select,
@@ -88,6 +89,10 @@ export function UsersPage({ role }: UsersPageProps) {
       selected ? new Set(users.map((user) => user.id)) : new Set(),
     )
   }
+
+  const hasActiveFilters =
+    statusFilter !== 'ALL' || courseId !== 'ALL' || Boolean(debouncedSearch)
+  const isInitialEmpty = users.length === 0 && !hasActiveFilters
 
   return (
     <div>
@@ -197,8 +202,16 @@ export function UsersPage({ role }: UsersPageProps) {
             void coursesQuery.refetch()
           }}
           isRetrying={usersQuery.isFetching || coursesQuery.isFetching}
-          emptyTitle={`No ${copy.plural} found`}
-          emptyDescription={`No ${copy.plural} match the selected filters.`}
+          emptyTitle={
+            isInitialEmpty
+              ? `No ${copy.plural} found`
+              : `No matching ${copy.plural}`
+          }
+          emptyDescription={
+            isInitialEmpty
+              ? `Create ${copy.plural} or import users to get started.`
+              : `No ${copy.plural} match the selected search or filters.`
+          }
         >
           <>
             <UsersTable
@@ -227,17 +240,12 @@ export function UsersPage({ role }: UsersPageProps) {
                 })
               }
             />
-            {usersQuery.hasNextPage ? (
-              <div className="border-t p-4 text-center">
-                <Button
-                  variant="outline"
-                  disabled={usersQuery.isFetchingNextPage}
-                  onClick={() => void usersQuery.fetchNextPage()}
-                >
-                  {usersQuery.isFetchingNextPage ? 'Loading...' : 'Load more'}
-                </Button>
-              </div>
-            ) : null}
+            <LoadMoreButton
+              hasNextPage={usersQuery.hasNextPage}
+              isFetchingNextPage={usersQuery.isFetchingNextPage}
+              onLoadMore={() => void usersQuery.fetchNextPage()}
+              label={`Load more ${copy.plural}`}
+            />
           </>
         </DataTableState>
       </AdminPanel>

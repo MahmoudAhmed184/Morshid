@@ -43,9 +43,19 @@ const materialDateFormatter = new Intl.DateTimeFormat(undefined, {
   dateStyle: 'medium',
 })
 
+const statusSelectItems = [
+  { value: 'ALL', label: 'All statuses' },
+  { value: 'READY', label: 'Ready' },
+  { value: 'PROCESSING', label: 'Processing' },
+  { value: 'FAILED', label: 'Failed' },
+]
+
 export function AdminMaterialsPage() {
   const [selectedCourseId, setSelectedCourseId] = useState('')
   const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<
+    'ALL' | 'READY' | 'PROCESSING' | 'FAILED'
+  >('ALL')
   const debouncedSearch = useDebouncedValue(search)
   const [selectedMaterial, setSelectedMaterial] =
     useState<MaterialAdministration | null>(null)
@@ -65,12 +75,33 @@ export function AdminMaterialsPage() {
       })) ?? [],
     [coursesQuery.data],
   )
-  const materials =
-    materialsQuery.data?.pages.flatMap((page) => page.materials) ?? []
+  const materials = useMemo(
+    () => materialsQuery.data?.pages.flatMap((page) => page.materials) ?? [],
+    [materialsQuery.data],
+  )
+  const filteredMaterials = useMemo(() => {
+    if (statusFilter === 'ALL') return materials
+    return materials.filter((material) => material.status === statusFilter)
+  }, [materials, statusFilter])
+
   const isLoading =
     coursesQuery.isPending ||
     (courseId !== undefined && materialsQuery.isPending)
   const isError = coursesQuery.isError || materialsQuery.isError
+  const isCoursesEmpty = coursesQuery.data?.length === 0
+  const isFilterEmpty = filteredMaterials.length === 0
+
+  const emptyTitle = isCoursesEmpty
+    ? 'No courses found'
+    : isFilterEmpty && (debouncedSearch || statusFilter !== 'ALL')
+      ? 'No matching materials'
+      : 'No materials found'
+
+  const emptyDescription = isCoursesEmpty
+    ? 'Create a course before viewing materials.'
+    : isFilterEmpty && (debouncedSearch || statusFilter !== 'ALL')
+      ? 'Try changing your search or status filter.'
+      : 'No material metadata is available for this course.'
 
   return (
     <div>
@@ -88,45 +119,74 @@ export function AdminMaterialsPage() {
           search={search}
           onSearchChange={setSearch}
           filters={
-            <Select
-              value={courseId ?? null}
-              onValueChange={(value) => setSelectedCourseId(value ?? '')}
-              items={courseSelectItems}
-            >
-              <SelectTrigger
-                className="h-9 px-3 text-xs rounded-lg border-border/80 w-full sm:w-80 max-w-full"
-                aria-label="Course"
+            <div className="flex flex-row items-center gap-2 overflow-x-auto no-scrollbar">
+              <Select
+                value={courseId ?? null}
+                onValueChange={(value) => {
+                  setSelectedCourseId(value ?? '')
+                  setSearch('')
+                  setStatusFilter('ALL')
+                }}
+                items={courseSelectItems}
               >
-                <SelectValue placeholder="Choose a course" />
-              </SelectTrigger>
-              <SelectContent>
-                {courseSelectItems.map((course) => (
-                  <SelectItem
-                    key={course.value}
-                    value={course.value}
-                    className="text-xs py-1.5"
-                  >
-                    {course.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <SelectTrigger
+                  className="h-9 px-3 text-xs rounded-lg border-border/80 w-auto min-w-[150px] max-w-[260px]"
+                  aria-label="Course"
+                >
+                  <SelectValue placeholder="Choose a course" />
+                </SelectTrigger>
+                <SelectContent>
+                  {courseSelectItems.map((course) => (
+                    <SelectItem
+                      key={course.value}
+                      value={course.value}
+                      className="text-xs py-1.5"
+                    >
+                      {course.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={statusFilter}
+                onValueChange={(value) => {
+                  if (value) {
+                    setStatusFilter(value)
+                  }
+                }}
+                items={statusSelectItems}
+              >
+                <SelectTrigger
+                  className="h-9 w-auto min-w-[110px] rounded-lg border-border/80 px-2.5 text-xs"
+                  aria-label="Filter materials by status"
+                >
+                  <SelectValue placeholder="All statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  {statusSelectItems.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           }
         />
         <DataTableState
           isLoading={isLoading}
           isError={isError}
-          isEmpty={coursesQuery.data?.length === 0 || materials.length === 0}
+          isEmpty={isCoursesEmpty || isFilterEmpty}
           onRetry={() =>
             void Promise.all([coursesQuery.refetch(), materialsQuery.refetch()])
           }
           isRetrying={coursesQuery.isFetching || materialsQuery.isFetching}
-          emptyTitle="No materials found"
-          emptyDescription="No material metadata is available for this course."
+          emptyTitle={emptyTitle}
+          emptyDescription={emptyDescription}
         >
           {/* Mobile Compact List (< md) — No Horizontal Scroll */}
           <div className="divide-y divide-border md:hidden">
-            {materials.map((material) => (
+            {filteredMaterials.map((material) => (
               <div
                 key={material.id}
                 className="flex items-center justify-between p-3.5 gap-3 hover:bg-secondary/20 transition-colors"
@@ -200,7 +260,7 @@ export function AdminMaterialsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {materials.map((material) => (
+                {filteredMaterials.map((material) => (
                   <TableRow
                     key={material.id}
                     className="h-[52px] hover:bg-secondary/40"

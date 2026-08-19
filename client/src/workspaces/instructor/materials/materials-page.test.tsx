@@ -339,6 +339,30 @@ describe('MaterialsPage', () => {
     expect(screen.queryByRole('heading', { name: material.title })).toBeNull()
   })
 
+  it('filters the repository by status', async () => {
+    useCourseMaterialsMock.mockReturnValue(
+      queryResult(statusMaterials) as unknown as ReturnType<
+        typeof useCourseMaterials
+      >,
+    )
+    const user = userEvent.setup()
+
+    renderMaterialsPage()
+
+    expect(
+      screen.getByRole('heading', { name: 'Available source' }),
+    ).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Queued source' })).toBeVisible()
+
+    await user.click(screen.getByLabelText('Filter materials by status'))
+    await user.click(await screen.findByRole('option', { name: 'Ready' }))
+
+    expect(
+      screen.getByRole('heading', { name: 'Available source' }),
+    ).toBeVisible()
+    expect(screen.queryByRole('heading', { name: 'Queued source' })).toBeNull()
+  })
+
   it('switches material data, summaries, and upload target with the selected course', async () => {
     useCourseMembershipMock.mockReturnValue(
       queryResult([course, secondCourse]) as unknown as ReturnType<

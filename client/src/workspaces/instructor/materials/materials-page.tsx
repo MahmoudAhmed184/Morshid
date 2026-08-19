@@ -41,6 +41,9 @@ export function MaterialsPage() {
     useInstructorWorkspacePreferences()
   const [selectedCourseId, setSelectedCourseId] = useState<string>()
   const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<
+    'ALL' | 'READY' | 'PROCESSING' | 'WARNING' | 'FAILED'
+  >('ALL')
   const coursesQuery = useCourseMembership()
   const uploadConfigurationQuery = useMaterialUploadConfiguration()
   const courses = coursesQuery.data ?? []
@@ -64,19 +67,25 @@ export function MaterialsPage() {
       : materialsQuery.data.pages.flatMap((page) => page.materials)
     : []
   const normalizedSearch = search.trim().toLowerCase()
-  const filteredMaterials = normalizedSearch
-    ? materials.filter(
-        (material) =>
-          material.title.toLowerCase().includes(normalizedSearch) ||
-          material.originalFilename.toLowerCase().includes(normalizedSearch),
-      )
-    : materials
+  const filteredMaterials = materials.filter((material) => {
+    const matchesStatus =
+      statusFilter === 'ALL' || material.status === statusFilter
+    if (!matchesStatus) return false
+
+    if (!normalizedSearch) return true
+
+    return (
+      material.title.toLowerCase().includes(normalizedSearch) ||
+      material.originalFilename.toLowerCase().includes(normalizedSearch)
+    )
+  })
   const hasColdMaterialsError =
     materialsQuery.isError && materialsQuery.data === undefined
   const isLoading =
     coursesQuery.isPending ||
     (activeCourseId !== undefined && materialsQuery.isPending)
   const isError = coursesQuery.isError || hasColdMaterialsError
+  const hasFilter = normalizedSearch.length > 0 || statusFilter !== 'ALL'
 
   return (
     <div className="flex flex-col gap-8">
@@ -132,6 +141,28 @@ export function MaterialsPage() {
                 aria-label="Search materials"
                 className="sm:max-w-64"
               />
+              <Select
+                value={statusFilter}
+                onValueChange={(value) => {
+                  if (value) {
+                    setStatusFilter(value)
+                  }
+                }}
+              >
+                <SelectTrigger
+                  className="w-full sm:w-36"
+                  aria-label="Filter materials by status"
+                >
+                  <SelectValue placeholder="All statuses" />
+                </SelectTrigger>
+                <SelectContent align="end">
+                  <SelectItem value="ALL">All statuses</SelectItem>
+                  <SelectItem value="READY">Ready</SelectItem>
+                  <SelectItem value="PROCESSING">Processing</SelectItem>
+                  <SelectItem value="WARNING">Warning</SelectItem>
+                  <SelectItem value="FAILED">Failed</SelectItem>
+                </SelectContent>
+              </Select>
               {courses.length > 0 ? (
                 <Select
                   value={activeCourseId}
@@ -140,6 +171,7 @@ export function MaterialsPage() {
                     setSelectedCourseId(value ?? undefined)
                     setActiveCourseId(value ?? null)
                     setSearch('')
+                    setStatusFilter('ALL')
                   }}
                 >
                   <SelectTrigger
@@ -166,7 +198,7 @@ export function MaterialsPage() {
             isError={isError}
             hasCourse={activeCourseId !== undefined}
             materials={filteredMaterials}
-            hasSearch={normalizedSearch.length > 0}
+            hasSearch={hasFilter}
             isRetrying={coursesQuery.isFetching || materialsQuery.isFetching}
             hasRefreshError={
               materialsQuery.data !== undefined && materialsQuery.isRefetchError
@@ -358,7 +390,7 @@ function MaterialsContent({
         title={hasSearch ? 'No matching materials' : 'No materials yet'}
         description={
           hasSearch
-            ? 'Try a different material title or filename.'
+            ? 'Try a different material title, filename, or status filter.'
             : 'Upload a clean, text-based PDF to prepare the first course source.'
         }
         className="min-h-44"
