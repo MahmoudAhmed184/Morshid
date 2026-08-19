@@ -105,20 +105,20 @@ export function MaterialsPage() {
       <Card aria-busy={isLoading || undefined}>
         <CardHeader className="border-b">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <CardTitle className="flex items-center gap-2 text-sm">
+            <CardTitle className="flex shrink-0 items-center gap-2 text-sm">
               <FileTextIcon
                 className="size-4 text-muted-foreground"
                 aria-hidden
               />
               Material repository
             </CardTitle>
-            <div className="flex w-full flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center lg:w-auto">
+            <div className="flex w-full flex-col gap-2.5 sm:flex-row sm:items-center lg:w-auto">
               <SearchInput
                 value={search}
                 onValueChange={setSearch}
                 placeholder="Search by title or file..."
                 aria-label="Search materials"
-                className="sm:max-w-64"
+                className="w-full sm:w-48 lg:w-56"
               />
               <Select
                 value={statusFilter}
@@ -129,7 +129,7 @@ export function MaterialsPage() {
                 }}
               >
                 <SelectTrigger
-                  className="w-full sm:w-36"
+                  className="w-full shrink-0 sm:w-32 lg:w-36"
                   aria-label="Filter materials by status"
                 >
                   <SelectValue placeholder="All statuses" />
@@ -154,7 +154,7 @@ export function MaterialsPage() {
                   }}
                 >
                   <SelectTrigger
-                    className="w-full sm:w-72"
+                    className="w-full shrink-0 sm:w-56 lg:w-64"
                     aria-label="Select assigned course"
                   >
                     <SelectValue placeholder="Select a course" />
@@ -181,7 +181,7 @@ export function MaterialsPage() {
                   }}
                 />
               ) : courses.length > 0 ? (
-                <Button disabled className="w-full sm:w-auto">
+                <Button disabled className="w-full shrink-0 sm:w-auto">
                   {uploadConfigurationQuery.isError
                     ? 'Upload unavailable'
                     : 'Loading upload limits...'}
