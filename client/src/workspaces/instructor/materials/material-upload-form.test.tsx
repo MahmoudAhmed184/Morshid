@@ -191,4 +191,30 @@ describe('MaterialUploadForm', () => {
       })
     })
   })
+
+  it('updates the preselected course when defaultCourseId changes', async () => {
+    const { rerender } = render(
+      <MaterialUploadForm
+        courses={courses}
+        defaultCourseId={courses[0].id}
+        configuration={configuration}
+      />,
+    )
+
+    expect(screen.getByRole('combobox', { name: 'Course' })).toHaveTextContent(
+      `${courses[0].code} — ${courses[0].title}`,
+    )
+
+    rerender(
+      <MaterialUploadForm
+        courses={courses}
+        defaultCourseId={courses[1].id}
+        configuration={configuration}
+      />,
+    )
+
+    expect(screen.getByRole('combobox', { name: 'Course' })).toHaveTextContent(
+      `${courses[1].code} — ${courses[1].title}`,
+    )
+  })
 })
