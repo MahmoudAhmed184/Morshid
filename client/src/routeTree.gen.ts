@@ -12,15 +12,20 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as HealthRouteImport } from './routes/health'
 import { Route as StudentRouteImport } from './routes/_student'
+import { Route as SuperAdminRouteRouteImport } from './routes/super-admin/route'
 import { Route as InstructorRouteRouteImport } from './routes/instructor/route'
 import { Route as AdminRouteRouteImport } from './routes/admin/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SuperAdminIndexRouteImport } from './routes/super-admin/index'
 import { Route as InstructorIndexRouteImport } from './routes/instructor/index'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
+import { Route as SuperAdminSettingsRouteImport } from './routes/super-admin/settings'
 import { Route as InstructorSettingsRouteImport } from './routes/instructor/settings'
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
 import { Route as StudentSettingsRouteImport } from './routes/_student.settings'
 import { Route as StudentChatRouteImport } from './routes/_student.chat'
+import { Route as SuperAdminUniversitiesIndexRouteImport } from './routes/super-admin/universities/index'
+import { Route as SuperAdminSettingsIndexRouteImport } from './routes/super-admin/settings/index'
 import { Route as InstructorSettingsIndexRouteImport } from './routes/instructor/settings/index'
 import { Route as InstructorReviewQueueIndexRouteImport } from './routes/instructor/review-queue/index'
 import { Route as InstructorMaterialsIndexRouteImport } from './routes/instructor/materials/index'
@@ -31,6 +36,9 @@ import { Route as AdminCoursesIndexRouteImport } from './routes/admin/courses/in
 import { Route as AdminAuditIndexRouteImport } from './routes/admin/audit/index'
 import { Route as AdminAssignmentsIndexRouteImport } from './routes/admin/assignments/index'
 import { Route as StudentSettingsIndexRouteImport } from './routes/_student.settings.index'
+import { Route as SuperAdminSettingsSecurityRouteImport } from './routes/super-admin/settings/security'
+import { Route as SuperAdminSettingsAppearanceRouteImport } from './routes/super-admin/settings/appearance'
+import { Route as SuperAdminSettingsAccountRouteImport } from './routes/super-admin/settings/account'
 import { Route as InstructorSettingsWorkspaceRouteImport } from './routes/instructor/settings/workspace'
 import { Route as InstructorSettingsSecurityRouteImport } from './routes/instructor/settings/security'
 import { Route as InstructorSettingsAppearanceRouteImport } from './routes/instructor/settings/appearance'
@@ -65,6 +73,11 @@ const StudentRoute = StudentRouteImport.update({
   id: '/_student',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SuperAdminRouteRoute = SuperAdminRouteRouteImport.update({
+  id: '/super-admin',
+  path: '/super-admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const InstructorRouteRoute = InstructorRouteRouteImport.update({
   id: '/instructor',
   path: '/instructor',
@@ -80,6 +93,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SuperAdminIndexRoute = SuperAdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SuperAdminRouteRoute,
+} as any)
 const InstructorIndexRoute = InstructorIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -89,6 +107,11 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AdminRouteRoute,
+} as any)
+const SuperAdminSettingsRoute = SuperAdminSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => SuperAdminRouteRoute,
 } as any)
 const InstructorSettingsRoute = InstructorSettingsRouteImport.update({
   id: '/settings',
@@ -109,6 +132,17 @@ const StudentChatRoute = StudentChatRouteImport.update({
   id: '/chat',
   path: '/chat',
   getParentRoute: () => StudentRoute,
+} as any)
+const SuperAdminUniversitiesIndexRoute =
+  SuperAdminUniversitiesIndexRouteImport.update({
+    id: '/universities/',
+    path: '/universities/',
+    getParentRoute: () => SuperAdminRouteRoute,
+  } as any)
+const SuperAdminSettingsIndexRoute = SuperAdminSettingsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SuperAdminSettingsRoute,
 } as any)
 const InstructorSettingsIndexRoute = InstructorSettingsIndexRouteImport.update({
   id: '/',
@@ -162,6 +196,24 @@ const StudentSettingsIndexRoute = StudentSettingsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => StudentSettingsRoute,
 } as any)
+const SuperAdminSettingsSecurityRoute =
+  SuperAdminSettingsSecurityRouteImport.update({
+    id: '/security',
+    path: '/security',
+    getParentRoute: () => SuperAdminSettingsRoute,
+  } as any)
+const SuperAdminSettingsAppearanceRoute =
+  SuperAdminSettingsAppearanceRouteImport.update({
+    id: '/appearance',
+    path: '/appearance',
+    getParentRoute: () => SuperAdminSettingsRoute,
+  } as any)
+const SuperAdminSettingsAccountRoute =
+  SuperAdminSettingsAccountRouteImport.update({
+    id: '/account',
+    path: '/account',
+    getParentRoute: () => SuperAdminSettingsRoute,
+  } as any)
 const InstructorSettingsWorkspaceRoute =
   InstructorSettingsWorkspaceRouteImport.update({
     id: '/workspace',
@@ -269,14 +321,17 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteRouteWithChildren
   '/instructor': typeof InstructorRouteRouteWithChildren
+  '/super-admin': typeof SuperAdminRouteRouteWithChildren
   '/health': typeof HealthRoute
   '/login': typeof LoginRoute
   '/chat': typeof StudentChatRoute
   '/settings': typeof StudentSettingsRouteWithChildren
   '/admin/settings': typeof AdminSettingsRouteWithChildren
   '/instructor/settings': typeof InstructorSettingsRouteWithChildren
+  '/super-admin/settings': typeof SuperAdminSettingsRouteWithChildren
   '/admin/': typeof AdminIndexRoute
   '/instructor/': typeof InstructorIndexRoute
+  '/super-admin/': typeof SuperAdminIndexRoute
   '/settings/account': typeof StudentSettingsAccountRoute
   '/settings/appearance': typeof StudentSettingsAppearanceRoute
   '/settings/learning': typeof StudentSettingsLearningRoute
@@ -296,6 +351,9 @@ export interface FileRoutesByFullPath {
   '/instructor/settings/appearance': typeof InstructorSettingsAppearanceRoute
   '/instructor/settings/security': typeof InstructorSettingsSecurityRoute
   '/instructor/settings/workspace': typeof InstructorSettingsWorkspaceRoute
+  '/super-admin/settings/account': typeof SuperAdminSettingsAccountRoute
+  '/super-admin/settings/appearance': typeof SuperAdminSettingsAppearanceRoute
+  '/super-admin/settings/security': typeof SuperAdminSettingsSecurityRoute
   '/settings/': typeof StudentSettingsIndexRoute
   '/admin/assignments/': typeof AdminAssignmentsIndexRoute
   '/admin/audit/': typeof AdminAuditIndexRoute
@@ -306,6 +364,8 @@ export interface FileRoutesByFullPath {
   '/instructor/materials/': typeof InstructorMaterialsIndexRoute
   '/instructor/review-queue/': typeof InstructorReviewQueueIndexRoute
   '/instructor/settings/': typeof InstructorSettingsIndexRoute
+  '/super-admin/settings/': typeof SuperAdminSettingsIndexRoute
+  '/super-admin/universities/': typeof SuperAdminUniversitiesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -314,6 +374,7 @@ export interface FileRoutesByTo {
   '/chat': typeof StudentChatRoute
   '/admin': typeof AdminIndexRoute
   '/instructor': typeof InstructorIndexRoute
+  '/super-admin': typeof SuperAdminIndexRoute
   '/settings/account': typeof StudentSettingsAccountRoute
   '/settings/appearance': typeof StudentSettingsAppearanceRoute
   '/settings/learning': typeof StudentSettingsLearningRoute
@@ -333,6 +394,9 @@ export interface FileRoutesByTo {
   '/instructor/settings/appearance': typeof InstructorSettingsAppearanceRoute
   '/instructor/settings/security': typeof InstructorSettingsSecurityRoute
   '/instructor/settings/workspace': typeof InstructorSettingsWorkspaceRoute
+  '/super-admin/settings/account': typeof SuperAdminSettingsAccountRoute
+  '/super-admin/settings/appearance': typeof SuperAdminSettingsAppearanceRoute
+  '/super-admin/settings/security': typeof SuperAdminSettingsSecurityRoute
   '/settings': typeof StudentSettingsIndexRoute
   '/admin/assignments': typeof AdminAssignmentsIndexRoute
   '/admin/audit': typeof AdminAuditIndexRoute
@@ -343,12 +407,15 @@ export interface FileRoutesByTo {
   '/instructor/materials': typeof InstructorMaterialsIndexRoute
   '/instructor/review-queue': typeof InstructorReviewQueueIndexRoute
   '/instructor/settings': typeof InstructorSettingsIndexRoute
+  '/super-admin/settings': typeof SuperAdminSettingsIndexRoute
+  '/super-admin/universities': typeof SuperAdminUniversitiesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteRouteWithChildren
   '/instructor': typeof InstructorRouteRouteWithChildren
+  '/super-admin': typeof SuperAdminRouteRouteWithChildren
   '/_student': typeof StudentRouteWithChildren
   '/health': typeof HealthRoute
   '/login': typeof LoginRoute
@@ -356,8 +423,10 @@ export interface FileRoutesById {
   '/_student/settings': typeof StudentSettingsRouteWithChildren
   '/admin/settings': typeof AdminSettingsRouteWithChildren
   '/instructor/settings': typeof InstructorSettingsRouteWithChildren
+  '/super-admin/settings': typeof SuperAdminSettingsRouteWithChildren
   '/admin/': typeof AdminIndexRoute
   '/instructor/': typeof InstructorIndexRoute
+  '/super-admin/': typeof SuperAdminIndexRoute
   '/_student/settings/account': typeof StudentSettingsAccountRoute
   '/_student/settings/appearance': typeof StudentSettingsAppearanceRoute
   '/_student/settings/learning': typeof StudentSettingsLearningRoute
@@ -377,6 +446,9 @@ export interface FileRoutesById {
   '/instructor/settings/appearance': typeof InstructorSettingsAppearanceRoute
   '/instructor/settings/security': typeof InstructorSettingsSecurityRoute
   '/instructor/settings/workspace': typeof InstructorSettingsWorkspaceRoute
+  '/super-admin/settings/account': typeof SuperAdminSettingsAccountRoute
+  '/super-admin/settings/appearance': typeof SuperAdminSettingsAppearanceRoute
+  '/super-admin/settings/security': typeof SuperAdminSettingsSecurityRoute
   '/_student/settings/': typeof StudentSettingsIndexRoute
   '/admin/assignments/': typeof AdminAssignmentsIndexRoute
   '/admin/audit/': typeof AdminAuditIndexRoute
@@ -387,6 +459,8 @@ export interface FileRoutesById {
   '/instructor/materials/': typeof InstructorMaterialsIndexRoute
   '/instructor/review-queue/': typeof InstructorReviewQueueIndexRoute
   '/instructor/settings/': typeof InstructorSettingsIndexRoute
+  '/super-admin/settings/': typeof SuperAdminSettingsIndexRoute
+  '/super-admin/universities/': typeof SuperAdminUniversitiesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -394,14 +468,17 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/instructor'
+    | '/super-admin'
     | '/health'
     | '/login'
     | '/chat'
     | '/settings'
     | '/admin/settings'
     | '/instructor/settings'
+    | '/super-admin/settings'
     | '/admin/'
     | '/instructor/'
+    | '/super-admin/'
     | '/settings/account'
     | '/settings/appearance'
     | '/settings/learning'
@@ -421,6 +498,9 @@ export interface FileRouteTypes {
     | '/instructor/settings/appearance'
     | '/instructor/settings/security'
     | '/instructor/settings/workspace'
+    | '/super-admin/settings/account'
+    | '/super-admin/settings/appearance'
+    | '/super-admin/settings/security'
     | '/settings/'
     | '/admin/assignments/'
     | '/admin/audit/'
@@ -431,6 +511,8 @@ export interface FileRouteTypes {
     | '/instructor/materials/'
     | '/instructor/review-queue/'
     | '/instructor/settings/'
+    | '/super-admin/settings/'
+    | '/super-admin/universities/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -439,6 +521,7 @@ export interface FileRouteTypes {
     | '/chat'
     | '/admin'
     | '/instructor'
+    | '/super-admin'
     | '/settings/account'
     | '/settings/appearance'
     | '/settings/learning'
@@ -458,6 +541,9 @@ export interface FileRouteTypes {
     | '/instructor/settings/appearance'
     | '/instructor/settings/security'
     | '/instructor/settings/workspace'
+    | '/super-admin/settings/account'
+    | '/super-admin/settings/appearance'
+    | '/super-admin/settings/security'
     | '/settings'
     | '/admin/assignments'
     | '/admin/audit'
@@ -468,11 +554,14 @@ export interface FileRouteTypes {
     | '/instructor/materials'
     | '/instructor/review-queue'
     | '/instructor/settings'
+    | '/super-admin/settings'
+    | '/super-admin/universities'
   id:
     | '__root__'
     | '/'
     | '/admin'
     | '/instructor'
+    | '/super-admin'
     | '/_student'
     | '/health'
     | '/login'
@@ -480,8 +569,10 @@ export interface FileRouteTypes {
     | '/_student/settings'
     | '/admin/settings'
     | '/instructor/settings'
+    | '/super-admin/settings'
     | '/admin/'
     | '/instructor/'
+    | '/super-admin/'
     | '/_student/settings/account'
     | '/_student/settings/appearance'
     | '/_student/settings/learning'
@@ -501,6 +592,9 @@ export interface FileRouteTypes {
     | '/instructor/settings/appearance'
     | '/instructor/settings/security'
     | '/instructor/settings/workspace'
+    | '/super-admin/settings/account'
+    | '/super-admin/settings/appearance'
+    | '/super-admin/settings/security'
     | '/_student/settings/'
     | '/admin/assignments/'
     | '/admin/audit/'
@@ -511,12 +605,15 @@ export interface FileRouteTypes {
     | '/instructor/materials/'
     | '/instructor/review-queue/'
     | '/instructor/settings/'
+    | '/super-admin/settings/'
+    | '/super-admin/universities/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRouteRoute: typeof AdminRouteRouteWithChildren
   InstructorRouteRoute: typeof InstructorRouteRouteWithChildren
+  SuperAdminRouteRoute: typeof SuperAdminRouteRouteWithChildren
   StudentRoute: typeof StudentRouteWithChildren
   HealthRoute: typeof HealthRoute
   LoginRoute: typeof LoginRoute
@@ -545,6 +642,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StudentRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/super-admin': {
+      id: '/super-admin'
+      path: '/super-admin'
+      fullPath: '/super-admin'
+      preLoaderRoute: typeof SuperAdminRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/instructor': {
       id: '/instructor'
       path: '/instructor'
@@ -566,6 +670,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/super-admin/': {
+      id: '/super-admin/'
+      path: '/'
+      fullPath: '/super-admin/'
+      preLoaderRoute: typeof SuperAdminIndexRouteImport
+      parentRoute: typeof SuperAdminRouteRoute
+    }
     '/instructor/': {
       id: '/instructor/'
       path: '/'
@@ -579,6 +690,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/'
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRouteRoute
+    }
+    '/super-admin/settings': {
+      id: '/super-admin/settings'
+      path: '/settings'
+      fullPath: '/super-admin/settings'
+      preLoaderRoute: typeof SuperAdminSettingsRouteImport
+      parentRoute: typeof SuperAdminRouteRoute
     }
     '/instructor/settings': {
       id: '/instructor/settings'
@@ -607,6 +725,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/chat'
       preLoaderRoute: typeof StudentChatRouteImport
       parentRoute: typeof StudentRoute
+    }
+    '/super-admin/universities/': {
+      id: '/super-admin/universities/'
+      path: '/universities'
+      fullPath: '/super-admin/universities/'
+      preLoaderRoute: typeof SuperAdminUniversitiesIndexRouteImport
+      parentRoute: typeof SuperAdminRouteRoute
+    }
+    '/super-admin/settings/': {
+      id: '/super-admin/settings/'
+      path: '/'
+      fullPath: '/super-admin/settings/'
+      preLoaderRoute: typeof SuperAdminSettingsIndexRouteImport
+      parentRoute: typeof SuperAdminSettingsRoute
     }
     '/instructor/settings/': {
       id: '/instructor/settings/'
@@ -677,6 +809,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/settings/'
       preLoaderRoute: typeof StudentSettingsIndexRouteImport
       parentRoute: typeof StudentSettingsRoute
+    }
+    '/super-admin/settings/security': {
+      id: '/super-admin/settings/security'
+      path: '/security'
+      fullPath: '/super-admin/settings/security'
+      preLoaderRoute: typeof SuperAdminSettingsSecurityRouteImport
+      parentRoute: typeof SuperAdminSettingsRoute
+    }
+    '/super-admin/settings/appearance': {
+      id: '/super-admin/settings/appearance'
+      path: '/appearance'
+      fullPath: '/super-admin/settings/appearance'
+      preLoaderRoute: typeof SuperAdminSettingsAppearanceRouteImport
+      parentRoute: typeof SuperAdminSettingsRoute
+    }
+    '/super-admin/settings/account': {
+      id: '/super-admin/settings/account'
+      path: '/account'
+      fullPath: '/super-admin/settings/account'
+      preLoaderRoute: typeof SuperAdminSettingsAccountRouteImport
+      parentRoute: typeof SuperAdminSettingsRoute
     }
     '/instructor/settings/workspace': {
       id: '/instructor/settings/workspace'
@@ -908,6 +1061,39 @@ const InstructorRouteRouteWithChildren = InstructorRouteRoute._addFileChildren(
   InstructorRouteRouteChildren,
 )
 
+interface SuperAdminSettingsRouteChildren {
+  SuperAdminSettingsAccountRoute: typeof SuperAdminSettingsAccountRoute
+  SuperAdminSettingsAppearanceRoute: typeof SuperAdminSettingsAppearanceRoute
+  SuperAdminSettingsSecurityRoute: typeof SuperAdminSettingsSecurityRoute
+  SuperAdminSettingsIndexRoute: typeof SuperAdminSettingsIndexRoute
+}
+
+const SuperAdminSettingsRouteChildren: SuperAdminSettingsRouteChildren = {
+  SuperAdminSettingsAccountRoute: SuperAdminSettingsAccountRoute,
+  SuperAdminSettingsAppearanceRoute: SuperAdminSettingsAppearanceRoute,
+  SuperAdminSettingsSecurityRoute: SuperAdminSettingsSecurityRoute,
+  SuperAdminSettingsIndexRoute: SuperAdminSettingsIndexRoute,
+}
+
+const SuperAdminSettingsRouteWithChildren =
+  SuperAdminSettingsRoute._addFileChildren(SuperAdminSettingsRouteChildren)
+
+interface SuperAdminRouteRouteChildren {
+  SuperAdminSettingsRoute: typeof SuperAdminSettingsRouteWithChildren
+  SuperAdminIndexRoute: typeof SuperAdminIndexRoute
+  SuperAdminUniversitiesIndexRoute: typeof SuperAdminUniversitiesIndexRoute
+}
+
+const SuperAdminRouteRouteChildren: SuperAdminRouteRouteChildren = {
+  SuperAdminSettingsRoute: SuperAdminSettingsRouteWithChildren,
+  SuperAdminIndexRoute: SuperAdminIndexRoute,
+  SuperAdminUniversitiesIndexRoute: SuperAdminUniversitiesIndexRoute,
+}
+
+const SuperAdminRouteRouteWithChildren = SuperAdminRouteRoute._addFileChildren(
+  SuperAdminRouteRouteChildren,
+)
+
 interface StudentSettingsRouteChildren {
   StudentSettingsAccountRoute: typeof StudentSettingsAccountRoute
   StudentSettingsAppearanceRoute: typeof StudentSettingsAppearanceRoute
@@ -947,6 +1133,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRouteRoute: AdminRouteRouteWithChildren,
   InstructorRouteRoute: InstructorRouteRouteWithChildren,
+  SuperAdminRouteRoute: SuperAdminRouteRouteWithChildren,
   StudentRoute: StudentRouteWithChildren,
   HealthRoute: HealthRoute,
   LoginRoute: LoginRoute,

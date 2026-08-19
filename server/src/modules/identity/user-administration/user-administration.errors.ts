@@ -10,6 +10,8 @@ export const USER_ADMINISTRATION_ERROR_CODES = {
   DUPLICATE_EMAIL: 'USER_ADMINISTRATION_DUPLICATE_EMAIL',
   CANNOT_DISABLE_LAST_ACTIVE_ADMIN:
     'USER_ADMINISTRATION_CANNOT_DISABLE_LAST_ACTIVE_ADMIN',
+  CANNOT_DISABLE_UNIVERSITY_OWNER:
+    'USER_ADMINISTRATION_CANNOT_DISABLE_UNIVERSITY_OWNER',
   CANNOT_DISABLE_SELF: 'USER_ADMINISTRATION_CANNOT_DISABLE_SELF',
   CANNOT_CHANGE_ADMIN_ROLE: 'USER_ADMINISTRATION_CANNOT_CHANGE_ADMIN_ROLE',
   ROLE_CHANGE_HAS_MEMBERSHIPS:
@@ -37,6 +39,8 @@ export class ManagedUserEmailAlreadyExistsError extends Error {
 }
 
 export class CannotDisableLastActiveAdminError extends Error {}
+
+export class CannotDisableUniversityOwnerError extends Error {}
 
 export class ManagedUserNotFoundError extends Error {
   constructor(readonly userId: string) {
@@ -97,6 +101,14 @@ export function cannotDisableLastActiveAdminException(): HttpException {
   return new ConflictException({
     code: USER_ADMINISTRATION_ERROR_CODES.CANNOT_DISABLE_LAST_ACTIVE_ADMIN,
     message: 'Cannot disable the last active admin account',
+  })
+}
+
+export function cannotDisableUniversityOwnerException(): HttpException {
+  return new ConflictException({
+    code: USER_ADMINISTRATION_ERROR_CODES.CANNOT_DISABLE_UNIVERSITY_OWNER,
+    message:
+      'Cannot disable the primary owner of a university. Transfer ownership first.',
   })
 }
 

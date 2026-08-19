@@ -1,6 +1,12 @@
 import { Injectable } from '@nestjs/common'
 
 import { PrismaService } from '../../platform/database/prisma.service'
+import {
+  universityInactiveException,
+  universityNotFoundException,
+  universitySuspendedException,
+} from './identity.errors'
+import type { UniversityStatus } from './identity.roles'
 import type {
   AuthenticatedUser,
   IdentityUserRecord,
@@ -13,6 +19,12 @@ const identityUserSelect = {
   displayName: true,
   role: true,
   status: true,
+  universityId: true,
+  university: {
+    select: {
+      status: true,
+    },
+  },
   passwordHash: true,
   passwordChangedAt: true,
   createdAt: true,
@@ -53,7 +65,7 @@ export class IdentityUser {
   async findActiveUserById(userId: string): Promise<AuthenticatedUser | null> {
     const user = await this.findById(userId)
 
-    if (!user || this.isDisabled(user)) {
+    if (!user || this.isDisabled(user) || !this.isTenantActive(user)) {
       return null
     }
 
@@ -62,6 +74,53 @@ export class IdentityUser {
 
   isDisabled(user: Pick<IdentityUserRecord, 'status'>) {
     return user.status === 'DISABLED'
+  }
+
+  isTenantSuspended(
+    user: Pick<IdentityUserRecord, 'role' | 'universityStatus'>,
+  ) {
+    return user.role !== 'SUPER_ADMIN' && user.universityStatus === 'SUSPENDED'
+  }
+
+  isTenantInactive(
+    user: Pick<IdentityUserRecord, 'role' | 'universityStatus'>,
+  ) {
+    return user.role !== 'SUPER_ADMIN' && user.universityStatus === 'INACTIVE'
+  }
+
+  isTenantActive(
+    user: Pick<
+      IdentityUserRecord,
+      'role' | 'universityId' | 'universityStatus'
+    >,
+  ) {
+    if (user.role === 'SUPER_ADMIN') {
+      return true
+    }
+    return user.universityId !== null && user.universityStatus === 'ACTIVE'
+  }
+
+  assertActiveTenant(
+    user: Pick<
+      IdentityUserRecord,
+      'role' | 'universityId' | 'universityStatus'
+    >,
+  ): void {
+    if (user.role === 'SUPER_ADMIN') {
+      return
+    }
+
+    if (user.universityId === null || user.universityStatus === null) {
+      throw universityNotFoundException()
+    }
+
+    if (user.universityStatus === 'SUSPENDED') {
+      throw universitySuspendedException()
+    }
+
+    if (user.universityStatus === 'INACTIVE') {
+      throw universityInactiveException()
+    }
   }
 
   async recordLastLogin(
@@ -101,6 +160,7 @@ export class IdentityUser {
       displayName: user.displayName,
       role: user.role,
       status: user.status,
+      universityId: user.universityId,
     }
   }
 
@@ -123,6 +183,9 @@ function toIdentityUserRecord(user: {
   displayName: string
   role: string
   status: string
+  universityId: string | null
+  university?: { status: string } | null
+  universityStatus?: string | null
   passwordHash: string
   passwordChangedAt: Date
   createdAt: Date
@@ -131,9 +194,15 @@ function toIdentityUserRecord(user: {
   disabledById: string | null
   lastLoginAt: Date | null
 }): IdentityUserRecord {
+  const universityStatus =
+    user.university?.status ??
+    (user.universityStatus as UniversityStatus | null) ??
+    null
+
   return {
     ...user,
     role: user.role as IdentityUserRecord['role'],
     status: user.status as IdentityUserRecord['status'],
+    universityStatus: universityStatus as UniversityStatus | null,
   }
 }

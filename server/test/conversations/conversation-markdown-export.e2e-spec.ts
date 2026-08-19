@@ -357,6 +357,7 @@ describe('Conversation Markdown Export (e2e)', () => {
       data: {
         code: 'CS999',
         title: 'Archived Python Course',
+        universityId: seed.university.id,
         archivedAt: archiveTime,
       },
     })

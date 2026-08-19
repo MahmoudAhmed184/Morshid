@@ -492,6 +492,7 @@ describe('Instructor terminal review actions (e2e)', () => {
     ],
   ) {
     const prisma = requireDatabase().prisma
+    const universityId = await getOrCreateTestUniversity()
     const instructorId = await createInstructor()
     const studentId = randomUUID()
     const courseId = randomUUID()
@@ -504,6 +505,7 @@ describe('Instructor terminal review actions (e2e)', () => {
         email: `${studentId}@review-action.test`,
         displayName: 'Student',
         role: 'STUDENT',
+        universityId,
         passwordHash: 'hash',
       },
     })
@@ -512,6 +514,7 @@ describe('Instructor terminal review actions (e2e)', () => {
         id: courseId,
         code: `ACT-${courseId.slice(0, 8)}`,
         title: 'Review action course',
+        universityId,
         createdById: instructorId,
       },
     })
@@ -592,14 +595,29 @@ describe('Instructor terminal review actions (e2e)', () => {
     }
   }
 
+  async function getOrCreateTestUniversity() {
+    const university = await requireDatabase().prisma.university.upsert({
+      where: { code: 'TEST-REVIEW-ACTION-UNIV' },
+      update: {},
+      create: {
+        name: 'Test Review Action University',
+        code: 'TEST-REVIEW-ACTION-UNIV',
+        status: 'ACTIVE',
+      },
+    })
+    return university.id
+  }
+
   async function createInstructor() {
     const id = randomUUID()
+    const universityId = await getOrCreateTestUniversity()
     await requireDatabase().prisma.user.create({
       data: {
         id,
         email: `${id}@review-action.test`,
         displayName: 'Instructor',
         role: 'INSTRUCTOR',
+        universityId,
         passwordHash: 'hash',
       },
     })

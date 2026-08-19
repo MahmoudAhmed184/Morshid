@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { ForbiddenException, Injectable } from '@nestjs/common'
 
 import { CourseMembershipRole } from './interface/course-membership-role'
 import type { AuthenticatedUser } from '../identity/identity.types'
@@ -76,10 +76,17 @@ export class CourseAdministrationService {
       throw courseCodeAlreadyExistsException(input.code)
     }
 
+    if (actor.universityId === null) {
+      throw new ForbiddenException(
+        'Actor must belong to a university to create a course',
+      )
+    }
+
     try {
       const course = await this.coursesRepository.createCourse({
         code: input.code,
         title: input.title,
+        universityId: actor.universityId,
         actorUserId: actor.id,
         requestContext,
       })

@@ -51,6 +51,7 @@ const expectedTables = [
   'topics',
   'tutoring_attempts',
   'tutoring_candidate_attempts',
+  'universities',
   'user_import_rows',
   'user_imports',
   'users',
@@ -79,6 +80,7 @@ const expectedIndexes = [
   'idx_citations_material',
   'idx_courses_archived_at',
   'idx_courses_created_by',
+  'idx_courses_university',
   'idx_debugging_diagnoses_location_message',
   'idx_educational_analyses_student_message',
   'idx_educational_analyses_topic_created',
@@ -119,9 +121,11 @@ const expectedIndexes = [
   'idx_tutoring_attempts_student_message',
   'idx_tutoring_attempts_session_status_lease',
   'idx_tutoring_attempts_topic',
+  'idx_universities_status',
   'idx_user_import_rows_import_status',
   'idx_user_imports_creator_created',
   'idx_users_disabled_by',
+  'idx_users_university_role',
   'material_chunks_material_id_chunk_index_key',
   'material_chunks_pkey',
   'materials_processing_attempt_id_key',
@@ -159,6 +163,9 @@ const expectedIndexes = [
   'tutoring_candidate_attempts_attempt_key',
   'tutoring_attempts_pkey',
   'tutoring_attempts_session_id_client_message_id_key',
+  'universities_code_key',
+  'universities_owner_id_key',
+  'universities_pkey',
   'user_import_rows_import_row_key',
   'user_import_rows_pkey',
   'user_imports_pkey',
@@ -209,6 +216,7 @@ const expectedChecks = [
   'tutoring_candidate_attempts_tokens_check',
   'tutoring_attempts_approval_metadata_check',
   'users_disabled_status_check',
+  'users_role_university_scope_check',
 ]
 
 const expectedForeignKeys = [
@@ -221,6 +229,7 @@ const expectedForeignKeys = [
   'course_memberships_created_by_fkey',
   'course_memberships_user_id_fkey',
   'courses_created_by_fkey',
+  'courses_university_id_fkey',
   'debugging_diagnoses_tutoring_attempt_id_fkey',
   'educational_analyses_student_message_id_fkey',
   'educational_analyses_topic_id_fkey',
@@ -275,9 +284,11 @@ const expectedForeignKeys = [
   'tutoring_attempts_session_id_fkey',
   'tutoring_attempts_student_message_id_fkey',
   'tutoring_attempts_topic_id_fkey',
+  'universities_owner_id_fkey',
   'user_import_rows_import_id_fkey',
   'user_imports_created_by_id_fkey',
   'users_disabled_by_fkey',
+  'users_university_id_fkey',
 ]
 
 const sorted = (values: string[]): string[] => [...values].sort()

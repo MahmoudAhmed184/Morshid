@@ -594,12 +594,29 @@ async function seedCourseWithMaterial(
   return { courseId, materialId }
 }
 
+async function getOrCreateTestUniversity(
+  prisma: PrismaService,
+): Promise<string> {
+  const university = await prisma.university.upsert({
+    where: { code: 'TEST-COURSE-EVIDENCE-UNIV' },
+    update: {},
+    create: {
+      name: 'Test Course Evidence University',
+      code: 'TEST-COURSE-EVIDENCE-UNIV',
+      status: 'ACTIVE',
+    },
+  })
+  return university.id
+}
+
 async function createOwner(prisma: PrismaService): Promise<string> {
+  const universityId = await getOrCreateTestUniversity(prisma)
   const user = await prisma.user.create({
     data: {
       email: `issue82-${randomUUID()}@morshid.test`,
       displayName: 'Issue 82 uploader',
       role: 'INSTRUCTOR',
+      universityId,
       passwordHash: 'test-password-hash',
     },
   })
@@ -612,10 +629,12 @@ async function createCourse(
   createdById: string,
   code: string,
 ): Promise<string> {
+  const universityId = await getOrCreateTestUniversity(prisma)
   const course = await prisma.course.create({
     data: {
       code,
       title: `Course ${code}`,
+      universityId,
       createdById,
     },
   })

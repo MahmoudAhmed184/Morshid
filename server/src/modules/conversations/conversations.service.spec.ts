@@ -1020,6 +1020,7 @@ function buildUser(id: string, role: UserRole): AuthenticatedUser {
     displayName: id,
     role,
     status: UserStatus.ACTIVE,
+    universityId: 'univ-1',
   }
 }
 

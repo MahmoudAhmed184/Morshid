@@ -4,10 +4,18 @@ import type {
   UserImportRepository,
   UpdatedUserImportRow,
 } from './user-import.repository'
+import type { AuthenticatedUser } from '../identity.types'
 import type { PasswordHasher } from '../password-hasher'
 
 const actorId = '00000000-0000-4000-8000-000000000001'
-const actor = { id: actorId } as never
+const actor: AuthenticatedUser = {
+  id: actorId,
+  email: 'admin@morshid.demo',
+  displayName: 'Admin',
+  role: 'ADMIN',
+  status: 'ACTIVE',
+  universityId: '00000000-0000-4000-8000-000000000000',
+}
 
 describe(UserImportService.name, () => {
   const importId = '00000000-0000-4000-8000-000000000002'
@@ -245,7 +253,7 @@ describe(UserImportService.name, () => {
     const { repository, service } = harness()
     await service.approve(importId, actor)
     expect(repository.approveImport.mock.calls).toEqual([
-      [importId, actorId, undefined],
+      [importId, actorId, actor.universityId, undefined],
     ])
   })
 

@@ -16,6 +16,7 @@ import {
   ManagedUserNotFoundError,
   ManagedUserRoleChangeHasMembershipsError,
   CannotDisableLastActiveAdminError,
+  CannotDisableUniversityOwnerError,
 } from './user-administration.errors'
 
 export interface ManagedUserRecord {
@@ -49,6 +50,7 @@ export interface ListUserAdministrationRepositoryInput {
   status?: UserStatus
   courseId?: string
   search?: string
+  universityId?: string
 }
 
 export interface ListedUsersPage {
@@ -61,6 +63,7 @@ export interface CreateManagedUserRepositoryInput {
   displayName: string
   role: CreatableUserRole
   passwordHash: string
+  universityId: string
   actorUserId: string
   requestContext?: AuditRequestContext
 }
@@ -200,6 +203,9 @@ export class PrismaUserAdministrationRepository extends UserAdministrationReposi
       where: {
         role: input.role,
         status: input.status,
+        ...(input.universityId === undefined
+          ? {}
+          : { universityId: input.universityId }),
         ...(input.courseId === undefined
           ? {}
           : {
@@ -256,6 +262,7 @@ export class PrismaUserAdministrationRepository extends UserAdministrationReposi
             role: input.role,
             status: UserStatus.ACTIVE,
             passwordHash: input.passwordHash,
+            universityId: input.universityId,
           },
           select: userRecordSelect,
         })
@@ -295,6 +302,7 @@ export class PrismaUserAdministrationRepository extends UserAdministrationReposi
               role: input.role,
               status: UserStatus.ACTIVE,
               passwordHash: input.passwordHash,
+              universityId: input.universityId,
             },
             select: userRecordSelect,
           })
@@ -416,6 +424,15 @@ export class PrismaUserAdministrationRepository extends UserAdministrationReposi
 
         if (currentUser.status === UserStatus.DISABLED) {
           return currentUser
+        }
+
+        const isUniversityOwner = await tx.university.findFirst({
+          where: { ownerId: input.userId },
+          select: { id: true },
+        })
+
+        if (isUniversityOwner !== null) {
+          throw new CannotDisableUniversityOwnerError()
         }
 
         if (currentUser.role === UserRole.ADMIN) {

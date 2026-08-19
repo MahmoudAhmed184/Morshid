@@ -13,6 +13,7 @@ import { EmbeddingModule } from './platform/ai/embedding/embedding.module'
 import { MaterialsModule } from './modules/materials/materials.module'
 import { ReviewsModule } from './modules/reviews/reviews.module'
 import { TutoringModule } from './modules/tutoring/tutoring.module'
+import { UniversitiesModule } from './modules/universities/universities.module'
 import { ConversationPresentationModule } from './application/conversation-presentation.module'
 
 @Module({
@@ -26,6 +27,7 @@ import { ConversationPresentationModule } from './application/conversation-prese
     AuditModule,
     HealthModule,
     IdentityModule,
+    UniversitiesModule,
     CoursesModule,
     ConversationsModule,
     PdfStorageModule,

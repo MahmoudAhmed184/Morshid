@@ -29,6 +29,7 @@ const actor: AuthenticatedUser = {
   displayName: 'Demo Admin',
   role: UserRole.ADMIN,
   status: UserStatus.ACTIVE,
+  universityId: 'univ-1',
 }
 
 const user = {
@@ -49,6 +50,7 @@ const membership: CourseMembershipRecord = {
 
 const course: CourseAdministrationRecord = {
   id: 'course-1',
+  universityId: 'univ-1',
   code: 'CS-1',
   title: 'Computer Science',
   createdById: actor.id,

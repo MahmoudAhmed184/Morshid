@@ -144,11 +144,21 @@ describe('Socratic persistence schema (e2e)', () => {
 })
 
 async function createChatFixture(prisma: PrismaService): Promise<ChatFixture> {
+  const university = await prisma.university.upsert({
+    where: { code: 'TEST-SOCRATIC-PERSISTENCE-UNIV' },
+    update: {},
+    create: {
+      name: 'Test Socratic Persistence University',
+      code: 'TEST-SOCRATIC-PERSISTENCE-UNIV',
+      status: 'ACTIVE',
+    },
+  })
   const student = await prisma.user.create({
     data: {
       email: `issue159-${randomUUID()}@morshid.test`,
       displayName: 'Issue 159 student',
       role: 'STUDENT',
+      universityId: university.id,
       passwordHash: 'test-password-hash',
     },
   })
@@ -156,6 +166,7 @@ async function createChatFixture(prisma: PrismaService): Promise<ChatFixture> {
     data: {
       code: `I159-${randomUUID().slice(0, 24)}`,
       title: 'Issue 159 test course',
+      universityId: university.id,
       createdById: student.id,
     },
   })

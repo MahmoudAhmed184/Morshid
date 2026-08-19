@@ -1,9 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
-import type {
-  RefreshToken as PrismaRefreshToken,
-  User as PrismaUser,
-} from '../../generated/prisma/client'
+import type { RefreshToken as PrismaRefreshToken } from '../../generated/prisma/client'
 import { PrismaService } from '../../platform/database/prisma.service'
 import type {
   IdentityUserRecord,
@@ -196,6 +193,13 @@ class PrismaRefreshTokenRecordStore implements RefreshTokenRecordStore {
         passwordHash,
         passwordChangedAt,
       },
+      include: {
+        university: {
+          select: {
+            status: true,
+          },
+        },
+      },
     })
 
     return toIdentityUserRecord(updated)
@@ -230,6 +234,8 @@ interface LockedIdentityUserRow {
   displayName: string
   role: string
   status: string
+  universityId: string | null
+  universityStatus: string | null
   passwordHash: string
   passwordChangedAt: Date
   createdAt: Date
@@ -267,7 +273,15 @@ async function findRefreshTokenByHashWithUser(
       tokenHash,
     },
     include: {
-      user: true,
+      user: {
+        include: {
+          university: {
+            select: {
+              status: true,
+            },
+          },
+        },
+      },
     },
   })
 
@@ -329,6 +343,11 @@ async function findUserWithActiveSessionFamily(
   const user = await client.user.findUnique({
     where: { id: userId },
     include: {
+      university: {
+        select: {
+          status: true,
+        },
+      },
       refreshTokens: {
         where: {
           familyId,
@@ -353,32 +372,31 @@ async function lockIdentityUserById(
 ): Promise<IdentityUserRecord | null> {
   const rows = await client.$queryRaw<LockedIdentityUserRow[]>`
     SELECT
-      id,
-      email,
-      display_name AS "displayName",
-      role,
-      status,
-      password_hash AS "passwordHash",
-      password_changed_at AS "passwordChangedAt",
-      created_at AS "createdAt",
-      updated_at AS "updatedAt",
-      disabled_at AS "disabledAt",
-      disabled_by AS "disabledById",
-      last_login_at AS "lastLoginAt"
-    FROM users
-    WHERE id = ${userId}::uuid
-    FOR UPDATE
+      u.id,
+      u.email,
+      u.display_name AS "displayName",
+      u.role,
+      u.status,
+      u.university_id AS "universityId",
+      un.status AS "universityStatus",
+      u.password_hash AS "passwordHash",
+      u.password_changed_at AS "passwordChangedAt",
+      u.created_at AS "createdAt",
+      u.updated_at AS "updatedAt",
+      u.disabled_at AS "disabledAt",
+      u.disabled_by AS "disabledById",
+      u.last_login_at AS "lastLoginAt"
+    FROM users u
+    LEFT JOIN universities un ON un.id = u.university_id
+    WHERE u.id = ${userId}::uuid
+    FOR UPDATE OF u
   `
   if (rows.length === 0) {
     return null
   }
 
   const user = rows[0]
-  return {
-    ...user,
-    role: user.role as IdentityUserRecord['role'],
-    status: user.status as IdentityUserRecord['status'],
-  }
+  return toIdentityUserRecord(user)
 }
 
 function markRefreshTokenReplaced(
@@ -498,19 +516,33 @@ function toRefreshTokenRecord(record: PrismaRefreshToken): RefreshTokenRecord {
   }
 }
 
-function toIdentityUserRecord(user: PrismaUser): IdentityUserRecord {
+function toIdentityUserRecord(user: {
+  id: string
+  email: string
+  displayName: string
+  role: string
+  status: string
+  universityId: string | null
+  university?: { status: string } | null
+  universityStatus?: string | null
+  passwordHash: string
+  passwordChangedAt: Date
+  createdAt: Date
+  updatedAt: Date
+  disabledAt: Date | null
+  disabledById: string | null
+  lastLoginAt: Date | null
+}): IdentityUserRecord {
+  const universityStatus =
+    user.university?.status ??
+    (user.universityStatus as IdentityUserRecord['universityStatus']) ??
+    null
+
   return {
-    id: user.id,
-    email: user.email,
-    displayName: user.displayName,
-    role: user.role,
-    status: user.status,
-    passwordHash: user.passwordHash,
-    passwordChangedAt: user.passwordChangedAt,
-    createdAt: user.createdAt,
-    updatedAt: user.updatedAt,
-    disabledAt: user.disabledAt,
-    disabledById: user.disabledById,
-    lastLoginAt: user.lastLoginAt,
+    ...user,
+    role: user.role as IdentityUserRecord['role'],
+    status: user.status as IdentityUserRecord['status'],
+    universityStatus:
+      universityStatus as IdentityUserRecord['universityStatus'],
   }
 }

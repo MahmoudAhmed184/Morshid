@@ -137,8 +137,9 @@ export class UserAdministrationController {
       ),
     )
     query: ListUsersQuery,
+    @Req() request: AuthenticatedHttpRequest,
   ): Promise<ManagedUserListResponseDto> {
-    return this.userAdministrationService.listUsers(query)
+    return this.userAdministrationService.listUsers(query, request.user)
   }
 
   @Post()
