@@ -10,6 +10,7 @@ import type {
 } from './materials.repository'
 
 export interface UploadMaterialRequest {
+  courseId?: string
   title?: string
 }
 
@@ -38,6 +39,13 @@ export class MaterialUploadConfigurationDto {
 }
 
 export class UploadMaterialRequestDto {
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description:
+      'Target course identifier. If provided, must match route parameter.',
+  })
+  courseId?: string
+
   @ApiProperty({ minLength: 1, maxLength: MATERIAL_TITLE_MAX_LENGTH })
   title!: string
 
