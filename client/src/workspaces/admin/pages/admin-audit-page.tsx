@@ -1,4 +1,9 @@
-import { EyeIcon, ScrollTextIcon, ShieldCheckIcon } from 'lucide-react'
+import {
+  EyeIcon,
+  RotateCcwIcon,
+  ScrollTextIcon,
+  ShieldCheckIcon,
+} from 'lucide-react'
 import { useMemo, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -10,6 +15,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { NumberedPagination } from '@/components/ui/custom/numbered-pagination'
+import { PageHeader } from '@/components/ui/custom/page-header'
 import {
   Select,
   SelectContent,
@@ -25,10 +33,60 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { useDebouncedValue } from '@/lib/hooks/use-debounced-value'
 import { AdminPanel } from '../components/admin-panel'
-import { PageHeader } from '@/components/ui/custom/page-header'
 import { useAudit } from '@/workspaces/admin/audit/use-audit'
+import { useCourseAdministration } from '@/workspaces/admin/use-course-administration'
+import { useManagedUsers } from '@/workspaces/admin/users/use-user-management'
 import type { AuditEvent } from '@/features/audit/audit.schema'
+
+const PAGE_SIZE = 20
+
+const TARGET_TYPE_OPTIONS = [
+  { value: 'ALL', label: 'All target types' },
+  { value: 'user', label: 'User' },
+  { value: 'course', label: 'Course' },
+  { value: 'material', label: 'Material' },
+  { value: 'auth_session', label: 'Auth Session' },
+  { value: 'chat_session', label: 'Chat Session' },
+  { value: 'course_membership', label: 'Course Membership' },
+  { value: 'review_case', label: 'Review Case' },
+  { value: 'system', label: 'System' },
+]
+
+const ACTION_OPTIONS = [
+  { value: 'ALL', label: 'All actions' },
+  { value: 'auth.login_succeeded', label: 'auth.login_succeeded' },
+  { value: 'auth.login_failed', label: 'auth.login_failed' },
+  { value: 'auth.logout', label: 'auth.logout' },
+  { value: 'auth.password_changed', label: 'auth.password_changed' },
+  { value: 'auth.profile_updated', label: 'auth.profile_updated' },
+  { value: 'auth.session_revoked', label: 'auth.session_revoked' },
+  { value: 'access.rbac_denied', label: 'access.rbac_denied' },
+  {
+    value: 'access.course_boundary_denied',
+    label: 'access.course_boundary_denied',
+  },
+  { value: 'admin.account_created', label: 'admin.account_created' },
+  { value: 'admin.account_updated', label: 'admin.account_updated' },
+  { value: 'admin.account_disabled', label: 'admin.account_disabled' },
+  { value: 'admin.account_enabled', label: 'admin.account_enabled' },
+  { value: 'admin.course_created', label: 'admin.course_created' },
+  { value: 'admin.course_updated', label: 'admin.course_updated' },
+  { value: 'admin.course_archived', label: 'admin.course_archived' },
+  { value: 'admin.course_member_added', label: 'admin.course_member_added' },
+  {
+    value: 'admin.course_member_removed',
+    label: 'admin.course_member_removed',
+  },
+  { value: 'material.upload_succeeded', label: 'material.upload_succeeded' },
+  { value: 'material.upload_failed', label: 'material.upload_failed' },
+  { value: 'material.updated', label: 'material.updated' },
+  { value: 'material.deleted', label: 'material.deleted' },
+  { value: 'review.case_created', label: 'review.case_created' },
+  { value: 'review.case_resolved', label: 'review.case_resolved' },
+  { value: 'review.case_rejected', label: 'review.case_rejected' },
+]
 
 const dateFormatter = new Intl.DateTimeFormat(undefined, {
   dateStyle: 'medium',
@@ -36,60 +94,126 @@ const dateFormatter = new Intl.DateTimeFormat(undefined, {
 })
 
 export function AdminAuditPage() {
-  const auditQuery = useAudit()
+  const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
+  const debouncedSearch = useDebouncedValue(search)
   const [targetTypeFilter, setTargetTypeFilter] = useState('ALL')
+  const [actionFilter, setActionFilter] = useState('ALL')
+  const [courseFilter, setCourseFilter] = useState('ALL')
+  const [actorFilter, setActorFilter] = useState('ALL')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const [selectedEvent, setSelectedEvent] = useState<AuditEvent | null>(null)
 
-  const targetTypes = useMemo(() => {
-    const types = new Set<string>()
-    for (const event of auditQuery.data ?? []) {
-      if (event.targetType) types.add(event.targetType)
-    }
-    return Array.from(types).sort()
-  }, [auditQuery.data])
+  const coursesQuery = useCourseAdministration()
+  const usersQuery = useManagedUsers()
 
-  const normalizedSearch = search.trim().toLowerCase()
-  const filteredEvents = useMemo(() => {
-    return (auditQuery.data ?? []).filter((event) => {
-      const matchesTargetType =
-        targetTypeFilter === 'ALL' || event.targetType === targetTypeFilter
-      if (!matchesTargetType) return false
+  const courseOptions = useMemo(
+    () => [
+      { value: 'ALL', label: 'All courses' },
+      ...(coursesQuery.data?.map((course) => ({
+        value: course.id,
+        label: `${course.code} — ${course.title}`,
+      })) ?? []),
+    ],
+    [coursesQuery.data],
+  )
 
-      if (!normalizedSearch) return true
+  const actorOptions = useMemo(() => {
+    const users = usersQuery.data?.pages.flatMap((p) => p.users) ?? []
+    return [
+      { value: 'ALL', label: 'All actors' },
+      ...users.map((user) => ({
+        value: user.id,
+        label: `${user.displayName} (${user.email})`,
+      })),
+    ]
+  }, [usersQuery.data])
 
-      const matchesAction = event.action
-        .toLowerCase()
-        .includes(normalizedSearch)
-      const matchesActorName = event.actor?.displayName
-        .toLowerCase()
-        .includes(normalizedSearch)
-      const matchesActorEmail = event.actor?.email
-        .toLowerCase()
-        .includes(normalizedSearch)
-      const matchesTargetTypeStr = event.targetType
-        .toLowerCase()
-        .includes(normalizedSearch)
-      const matchesTargetId = event.targetId
-        ?.toLowerCase()
-        .includes(normalizedSearch)
-      const matchesCourseId = event.courseId
-        ?.toLowerCase()
-        .includes(normalizedSearch)
+  const auditQueryParams = useMemo(
+    () => ({
+      page,
+      limit: PAGE_SIZE,
+      search:
+        debouncedSearch.trim().length > 0 ? debouncedSearch.trim() : undefined,
+      targetType: targetTypeFilter !== 'ALL' ? targetTypeFilter : undefined,
+      action: actionFilter !== 'ALL' ? actionFilter : undefined,
+      courseId: courseFilter !== 'ALL' ? courseFilter : undefined,
+      actorUserId: actorFilter !== 'ALL' ? actorFilter : undefined,
+      startDate: startDate.length > 0 ? startDate : undefined,
+      endDate: endDate.length > 0 ? endDate : undefined,
+    }),
+    [
+      page,
+      debouncedSearch,
+      targetTypeFilter,
+      actionFilter,
+      courseFilter,
+      actorFilter,
+      startDate,
+      endDate,
+    ],
+  )
 
-      return Boolean(
-        matchesAction ||
-        matchesActorName ||
-        matchesActorEmail ||
-        matchesTargetTypeStr ||
-        matchesTargetId ||
-        matchesCourseId,
-      )
-    })
-  }, [auditQuery.data, normalizedSearch, targetTypeFilter])
+  const auditQuery = useAudit(auditQueryParams)
+  const events = auditQuery.data?.events ?? []
+  const total = auditQuery.data?.total ?? 0
+  const totalPages = auditQuery.data?.totalPages ?? 1
 
-  const isInitialEmpty = (auditQuery.data?.length ?? 0) === 0
-  const isFilterEmpty = filteredEvents.length === 0
+  const hasActiveFilters =
+    search.trim().length > 0 ||
+    targetTypeFilter !== 'ALL' ||
+    actionFilter !== 'ALL' ||
+    courseFilter !== 'ALL' ||
+    actorFilter !== 'ALL' ||
+    startDate.length > 0 ||
+    endDate.length > 0
+
+  const handleSearchChange = (value: string) => {
+    setSearch(value)
+    setPage(1)
+  }
+
+  const handleTargetTypeChange = (value: string | null) => {
+    setTargetTypeFilter(value ?? 'ALL')
+    setPage(1)
+  }
+
+  const handleActionChange = (value: string | null) => {
+    setActionFilter(value ?? 'ALL')
+    setPage(1)
+  }
+
+  const handleCourseChange = (value: string | null) => {
+    setCourseFilter(value ?? 'ALL')
+    setPage(1)
+  }
+
+  const handleActorChange = (value: string | null) => {
+    setActorFilter(value ?? 'ALL')
+    setPage(1)
+  }
+
+  const handleStartDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setStartDate(e.target.value)
+    setPage(1)
+  }
+
+  const handleEndDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setEndDate(e.target.value)
+    setPage(1)
+  }
+
+  const handleResetFilters = () => {
+    setSearch('')
+    setTargetTypeFilter('ALL')
+    setActionFilter('ALL')
+    setCourseFilter('ALL')
+    setActorFilter('ALL')
+    setStartDate('')
+    setEndDate('')
+    setPage(1)
+  }
 
   return (
     <div>
@@ -109,51 +233,166 @@ export function AdminAuditPage() {
       <AdminPanel>
         <DataToolbar
           className="border-b px-4 py-3"
+          searchPlaceholder="Search actor, event, target..."
           search={search}
-          onSearchChange={setSearch}
-          searchPlaceholder="Search audit events by action, actor, target..."
+          onSearchChange={handleSearchChange}
           filters={
-            <Select
-              value={targetTypeFilter}
-              onValueChange={(value) => setTargetTypeFilter(value ?? 'ALL')}
-            >
-              <SelectTrigger
-                className="h-9 w-auto min-w-[140px] rounded-lg border-border/80 px-2.5 text-xs"
-                aria-label="Filter audit events by target type"
+            <div className="flex flex-wrap items-center gap-2">
+              <Select
+                value={targetTypeFilter}
+                onValueChange={handleTargetTypeChange}
+                items={TARGET_TYPE_OPTIONS}
               >
-                <SelectValue placeholder="All target types" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">All target types</SelectItem>
-                {targetTypes.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {type}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <SelectTrigger
+                  className="h-9 px-3 text-xs rounded-lg border-border/80 w-full sm:w-40 max-w-full"
+                  aria-label="Target Type"
+                >
+                  <SelectValue placeholder="Target type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TARGET_TYPE_OPTIONS.map((option) => (
+                    <SelectItem
+                      key={option.value}
+                      value={option.value}
+                      className="text-xs py-1.5"
+                    >
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={actionFilter}
+                onValueChange={handleActionChange}
+                items={ACTION_OPTIONS}
+              >
+                <SelectTrigger
+                  className="h-9 px-3 text-xs rounded-lg border-border/80 w-full sm:w-48 max-w-full"
+                  aria-label="Action"
+                >
+                  <SelectValue placeholder="Event action" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ACTION_OPTIONS.map((option) => (
+                    <SelectItem
+                      key={option.value}
+                      value={option.value}
+                      className="text-xs py-1.5 font-mono"
+                    >
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {courseOptions.length > 1 ? (
+                <Select
+                  value={courseFilter}
+                  onValueChange={handleCourseChange}
+                  items={courseOptions}
+                >
+                  <SelectTrigger
+                    className="h-9 px-3 text-xs rounded-lg border-border/80 w-full sm:w-48 max-w-full"
+                    aria-label="Course"
+                  >
+                    <SelectValue placeholder="All courses" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {courseOptions.map((option) => (
+                      <SelectItem
+                        key={option.value}
+                        value={option.value}
+                        className="text-xs py-1.5"
+                      >
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : null}
+
+              {actorOptions.length > 1 ? (
+                <Select
+                  value={actorFilter}
+                  onValueChange={handleActorChange}
+                  items={actorOptions}
+                >
+                  <SelectTrigger
+                    className="h-9 px-3 text-xs rounded-lg border-border/80 w-full sm:w-48 max-w-full"
+                    aria-label="Actor"
+                  >
+                    <SelectValue placeholder="All actors" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {actorOptions.map((option) => (
+                      <SelectItem
+                        key={option.value}
+                        value={option.value}
+                        className="text-xs py-1.5"
+                      >
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : null}
+
+              <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={handleStartDateChange}
+                  aria-label="Start date"
+                  className="h-9 px-2.5 text-xs rounded-lg w-full sm:w-36"
+                />
+                <span className="text-xs text-muted-foreground">to</span>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={handleEndDateChange}
+                  aria-label="End date"
+                  className="h-9 px-2.5 text-xs rounded-lg w-full sm:w-36"
+                />
+              </div>
+
+              {hasActiveFilters ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleResetFilters}
+                  aria-label="Clear filters"
+                  className="h-9 gap-1 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <RotateCcwIcon className="size-3.5" />
+                  <span>Clear</span>
+                </Button>
+              ) : null}
+            </div>
           }
         />
+
         <DataTableState
           isLoading={auditQuery.isPending}
           isError={auditQuery.isError}
-          isEmpty={isFilterEmpty}
+          isEmpty={events.length === 0}
           onRetry={() => void auditQuery.refetch()}
           isRetrying={auditQuery.isFetching}
           emptyTitle={
-            isInitialEmpty
-              ? 'No audit events found'
-              : 'No matching audit events'
+            hasActiveFilters
+              ? 'No matching audit events'
+              : 'No audit events found'
           }
           emptyDescription={
-            isInitialEmpty
-              ? 'Recent audit events returned by the API will appear here.'
-              : 'Try adjusting your search or target type filter.'
+            hasActiveFilters
+              ? 'Try changing or clearing your search and filter criteria.'
+              : 'Recent audit events returned by the API will appear here.'
           }
         >
           {/* Mobile Compact List (< md) — No Horizontal Scroll */}
           <div className="divide-y divide-border md:hidden">
-            {filteredEvents.map((event) => (
+            {events.map((event) => (
               <div
                 key={event.id}
                 className="flex items-center justify-between p-3.5 gap-3 hover:bg-secondary/20 transition-colors"
@@ -164,6 +403,9 @@ export function AdminAuditPage() {
                   </p>
                   <p className="text-xs text-muted-foreground truncate pt-0.5">
                     By: {event.actor?.displayName ?? 'System'}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate pt-0.5">
+                    Target: {event.targetType}
                   </p>
                 </div>
 
@@ -207,7 +449,7 @@ export function AdminAuditPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredEvents.map((event) => (
+                {events.map((event) => (
                   <TableRow
                     key={event.id}
                     className="h-[52px] hover:bg-secondary/40"
@@ -260,6 +502,15 @@ export function AdminAuditPage() {
               </TableBody>
             </Table>
           </div>
+
+          <NumberedPagination
+            page={page}
+            totalPages={totalPages}
+            total={total}
+            pageSize={PAGE_SIZE}
+            onPageChange={setPage}
+            disabled={auditQuery.isFetching}
+          />
         </DataTableState>
       </AdminPanel>
 

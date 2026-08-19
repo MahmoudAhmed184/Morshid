@@ -730,6 +730,12 @@ describe('Materials persistence and local storage (e2e)', () => {
       )
       .set('Authorization', `Bearer ${studentToken}`)
       .expect(403)
+    await request(app.getHttpServer())
+      .delete(
+        `/api/v1/courses/${seed.courses.pythonProgramming.id}/materials/${protectedMaterial.id}`,
+      )
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(403)
 
     await request(app.getHttpServer())
       .delete(

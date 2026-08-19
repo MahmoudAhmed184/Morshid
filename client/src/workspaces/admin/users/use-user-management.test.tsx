@@ -51,7 +51,13 @@ describe('useManagedUserMutations', () => {
       defaultOptions: { queries: { retry: false } },
     })
     const auditQueryKey = auditQueryOptions(adminId).queryKey
-    queryClient.setQueryData(auditQueryKey, [])
+    queryClient.setQueryData(auditQueryKey, {
+      events: [],
+      total: 0,
+      page: 1,
+      limit: 20,
+      totalPages: 1,
+    })
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => Response.json({ user: createdUser })),

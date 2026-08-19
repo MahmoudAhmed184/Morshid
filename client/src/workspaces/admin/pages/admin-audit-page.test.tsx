@@ -1,156 +1,220 @@
 import '@testing-library/jest-dom/vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useAudit } from '@/workspaces/admin/audit/use-audit'
-import type { AuditEvent } from '@/features/audit/audit.schema'
+import { useAuthStore } from '@/features/auth/session/interface/session-store'
 import { AdminAuditPage } from './admin-audit-page'
 
-vi.mock('@/workspaces/admin/audit/use-audit')
-
-const useAuditMock = vi.mocked(useAudit)
-
-const sampleEvents: AuditEvent[] = [
+const sampleEvents = [
   {
-    id: '11111111-1111-4111-8111-111111111111',
-    action: 'user.create',
-    actorUserId: 'admin-1',
-    actor: {
-      id: 'admin-1',
-      displayName: 'Admin User',
-      email: 'admin@morshid.demo',
-    },
-    targetType: 'USER',
-    targetId: 'user-1',
+    id: '00000000-0000-4000-8000-000000000001',
+    actorUserId: '00000000-0000-4000-8000-000000000002',
+    action: 'admin.account_created',
+    targetType: 'user',
+    targetId: '00000000-0000-4000-8000-000000000003',
     courseId: null,
-    createdAt: '2026-07-11T12:00:00.000Z',
-  },
-  {
-    id: '22222222-2222-4222-8222-222222222222',
-    action: 'course.create',
-    actorUserId: 'admin-1',
+    createdAt: '2026-08-19T10:00:00.000Z',
     actor: {
-      id: 'admin-1',
-      displayName: 'Admin User',
+      id: '00000000-0000-4000-8000-000000000002',
       email: 'admin@morshid.demo',
+      displayName: 'Admin User',
     },
-    targetType: 'COURSE',
-    targetId: 'course-1',
-    courseId: 'course-1',
-    createdAt: '2026-07-11T13:00:00.000Z',
   },
   {
-    id: '33333333-3333-4333-8333-333333333333',
-    action: 'material.upload',
-    actorUserId: 'instructor-1',
-    actor: {
-      id: 'instructor-1',
-      displayName: 'Instructor Jane',
-      email: 'jane@morshid.demo',
-    },
-    targetType: 'MATERIAL',
-    targetId: 'mat-1',
-    courseId: 'course-1',
-    createdAt: '2026-07-11T14:00:00.000Z',
+    id: '00000000-0000-4000-8000-000000000004',
+    actorUserId: null,
+    action: 'auth.login_failed',
+    targetType: 'auth_session',
+    targetId: null,
+    courseId: null,
+    createdAt: '2026-08-19T09:00:00.000Z',
+    actor: null,
   },
 ]
 
-function mockQueryResult(data: AuditEvent[] | undefined, overrides = {}) {
-  return {
-    data,
-    error: null,
-    isError: false,
-    isFetching: false,
-    isPending: false,
-    refetch: vi.fn(),
-    ...overrides,
-  } as unknown as ReturnType<typeof useAudit>
-}
+describe('AdminAuditPage', () => {
+  let queryClient: QueryClient
+  let capturedUrls: string[]
 
-describe('AdminAuditPage search and filtering', () => {
   beforeEach(() => {
-    vi.resetAllMocks()
-  })
-
-  afterEach(cleanup)
-
-  it('renders audit events and search controls', () => {
-    useAuditMock.mockReturnValue(mockQueryResult(sampleEvents))
-
-    render(<AdminAuditPage />)
-
-    expect(
-      screen.getByRole('heading', { name: 'Recent Audit Activity' }),
-    ).toBeVisible()
-    expect(screen.getByPlaceholderText(/Search audit events/i)).toBeVisible()
-    expect(
-      screen.getByRole('combobox', {
-        name: 'Filter audit events by target type',
-      }),
-    ).toBeVisible()
-    expect(screen.getAllByText('user.create').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('course.create').length).toBeGreaterThanOrEqual(
-      1,
-    )
-    expect(
-      screen.getAllByText('material.upload').length,
-    ).toBeGreaterThanOrEqual(1)
-  })
-
-  it('filters audit events by search keyword', async () => {
-    useAuditMock.mockReturnValue(mockQueryResult(sampleEvents))
-    const user = userEvent.setup()
-
-    render(<AdminAuditPage />)
-    const searchInput = screen.getByPlaceholderText(/Search audit events/i)
-    await user.type(searchInput, 'syllabus')
-
-    expect(screen.queryByText('user.create')).not.toBeInTheDocument()
-    expect(screen.queryByText('course.create')).not.toBeInTheDocument()
-
-    await user.clear(searchInput)
-    await user.type(searchInput, 'Jane')
-
-    expect(
-      screen.getAllByText('material.upload').length,
-    ).toBeGreaterThanOrEqual(1)
-    expect(screen.queryByText('user.create')).not.toBeInTheDocument()
-  })
-
-  it('filters audit events by target type', async () => {
-    useAuditMock.mockReturnValue(mockQueryResult(sampleEvents))
-    const user = userEvent.setup()
-
-    render(<AdminAuditPage />)
-
-    const targetTypeSelect = screen.getByRole('combobox', {
-      name: 'Filter audit events by target type',
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+        },
+      },
     })
-    await user.click(targetTypeSelect)
-    await user.click(await screen.findByRole('option', { name: 'USER' }))
+    capturedUrls = []
 
-    expect(screen.getAllByText('user.create').length).toBeGreaterThanOrEqual(1)
-    expect(screen.queryByText('course.create')).not.toBeInTheDocument()
-    expect(screen.queryByText('material.upload')).not.toBeInTheDocument()
+    useAuthStore.setState({
+      user: {
+        id: '00000000-0000-4000-8000-000000000002',
+        email: 'admin@morshid.demo',
+        displayName: 'Admin User',
+        role: 'ADMIN',
+        status: 'ACTIVE',
+      },
+      isAuthenticated: true,
+    })
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        capturedUrls.push(url)
+
+        if (url.includes('/api/v1/admin/courses')) {
+          return Response.json({
+            courses: [
+              {
+                id: '00000000-0000-4000-8000-000000000101',
+                code: 'CS101',
+                title: 'Intro to Computer Science',
+                adminMetadata: {
+                  materialCount: 5,
+                  memberCount: 20,
+                  studentCount: 18,
+                  instructorCount: 2,
+                },
+              },
+            ],
+          })
+        }
+
+        if (url.includes('/api/v1/admin/users')) {
+          return Response.json({
+            users: [
+              {
+                id: '00000000-0000-4000-8000-000000000002',
+                email: 'admin@morshid.demo',
+                displayName: 'Admin User',
+                role: 'ADMIN',
+                status: 'ACTIVE',
+                createdAt: '2026-07-01T00:00:00.000Z',
+                updatedAt: '2026-07-01T00:00:00.000Z',
+                courseAssignments: {
+                  courseCount: 0,
+                  instructorCourseCount: 0,
+                  studentCourseCount: 0,
+                  courses: [],
+                },
+              },
+            ],
+            nextCursor: null,
+          })
+        }
+
+        if (url.includes('/api/v1/admin/audit')) {
+          return Response.json({
+            events: sampleEvents,
+            total: 2,
+            page: 1,
+            limit: 20,
+            totalPages: 1,
+          })
+        }
+
+        return Response.json({})
+      }),
+    )
   })
 
-  it('shows appropriate empty states for no events vs no filter matches', async () => {
-    useAuditMock.mockReturnValue(mockQueryResult([]))
+  afterEach(() => {
+    cleanup()
+    vi.unstubAllGlobals()
+  })
 
-    const { rerender } = render(<AdminAuditPage />)
-    expect(screen.getByText('No audit events found')).toBeVisible()
+  function renderPage() {
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <AdminAuditPage />
+      </QueryClientProvider>,
+    )
+  }
 
-    useAuditMock.mockReturnValue(mockQueryResult(sampleEvents))
-    rerender(<AdminAuditPage />)
+  it('renders page header, audit events table, and pagination controls', async () => {
+    renderPage()
 
-    const user = userEvent.setup()
-    const searchInput = screen.getByPlaceholderText(/Search audit events/i)
-    await user.type(searchInput, 'nonexistent query')
-
-    expect(screen.getByText('No matching audit events')).toBeVisible()
     expect(
-      screen.getByText('Try adjusting your search or target type filter.'),
-    ).toBeVisible()
+      await screen.findByRole('heading', { name: 'Recent Audit Activity' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('RBAC monitored')).toBeInTheDocument()
+
+    const eventElements = await screen.findAllByText('admin.account_created')
+    expect(eventElements.length).toBeGreaterThan(0)
+    expect(screen.getAllByText('auth.login_failed').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Admin User').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('System').length).toBeGreaterThan(0)
+
+    expect(
+      screen.getByRole('navigation', { name: 'Pagination' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/Showing/)).toBeInTheDocument()
+  })
+
+  it('opens event details dialog when clicking view action button', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    const viewButtons = await screen.findAllByRole('button', {
+      name: 'View event details',
+    })
+    expect(viewButtons.length).toBeGreaterThan(0)
+    await user.click(viewButtons[0])
+
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Audit Event Details' }),
+    ).toBeInTheDocument()
+    expect(
+      within(dialog).getByText('00000000-0000-4000-8000-000000000003'),
+    ).toBeInTheDocument()
+  })
+
+  it('queries with search parameter when user enters search term', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    const searchInput = await screen.findByPlaceholderText(
+      'Search actor, event, target...',
+    )
+    await user.type(searchInput, 'account_created')
+
+    await waitFor(
+      () => {
+        const hasSearchQuery = capturedUrls.some((url) =>
+          url.includes('search=account_created'),
+        )
+        expect(hasSearchQuery).toBe(true)
+      },
+      { timeout: 2000 },
+    )
+  })
+
+  it('shows clear filters button when filter is active and resets criteria on click', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    const searchInput = await screen.findByPlaceholderText(
+      'Search actor, event, target...',
+    )
+    await user.type(searchInput, 'admin')
+
+    const clearButton = await screen.findByRole('button', {
+      name: 'Clear filters',
+    })
+    expect(clearButton).toBeInTheDocument()
+
+    await user.click(clearButton)
+    expect(searchInput).toHaveValue('')
   })
 })
