@@ -11,7 +11,6 @@ import {
 } from './processing/material-processing.scheduler'
 import { MaterialProcessingService } from './processing/material-processing.service'
 import { MaterialChunkEmbeddingService } from './processing/material-chunk-embedding.service'
-import { MaterialAdministrationController } from './catalog/material-administration.controller'
 import { MaterialTextChunker } from './processing/material-text-chunker'
 import { MaterialUploadConfigurationController } from './upload/material-upload-configuration.controller'
 import { MaterialUploadConfigurationService } from './upload/material-upload-configuration.service'
@@ -51,11 +50,7 @@ import { PrismaStudentCitationSources } from './evidence/student-citation-source
     AuditModule,
     EmbeddingModule,
   ],
-  controllers: [
-    MaterialsController,
-    MaterialAdministrationController,
-    MaterialUploadConfigurationController,
-  ],
+  controllers: [MaterialsController, MaterialUploadConfigurationController],
   providers: [
     MaterialsService,
     PdfUploadValidator,

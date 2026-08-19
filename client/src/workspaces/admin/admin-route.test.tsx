@@ -157,13 +157,15 @@ describe('Admin routes', () => {
       'Students',
       'Instructors',
       'Courses',
-      'Materials',
       'Audit Logs',
     ]) {
       expect(
         screen.getAllByRole('link', { name: section }).length,
       ).toBeGreaterThanOrEqual(1)
     }
+    expect(
+      screen.queryByRole('link', { name: 'Materials' }),
+    ).not.toBeInTheDocument()
   })
 
   it('navigates through every required admin section', async () => {
@@ -184,7 +186,6 @@ describe('Admin routes', () => {
       ['Assignments', '/admin/assignments', 'Course Assignments'],
       ['Instructors', '/admin/users/instructors', 'Instructors'],
       ['Courses', '/admin/courses', 'Course Management'],
-      ['Materials', '/admin/materials', 'Material Metadata'],
       ['Audit Logs', '/admin/audit', 'Recent Audit Activity'],
       ['Dashboard', '/admin', 'No admin data found'],
     ] as const) {

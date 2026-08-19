@@ -288,21 +288,16 @@ describe('Materials upload (e2e)', () => {
     expect(storedMaterial?.sha256Hash).toMatch(/^[a-f0-9]{64}$/)
   })
 
-  it('allows an admin to upload a clean PDF', async () => {
+  it('denies admin uploads through the global role guard before storage', async () => {
     const token = await signInAs('admin@morshid.demo')
+    const materialCountBefore = store.materials.size
 
-    const response = await uploadPdf({
-      token,
-      title: 'Admin upload',
-    }).expect(201)
-
-    expect(response.body).toMatchObject({
-      material: {
-        courseId: pythonCourseId(),
-        title: 'Admin upload',
-        status: 'PROCESSING',
-      },
+    await uploadPdf({ token, title: 'Admin upload' }).expect(403).expect({
+      code: IDENTITY_ERROR_CODES.INSUFFICIENT_ROLE,
+      message: 'Insufficient role',
     })
+
+    expect(store.materials.size).toBe(materialCountBefore)
   })
 
   it('denies student uploads through the global role guard before storage', async () => {
@@ -883,7 +878,7 @@ describe('Materials upload (e2e)', () => {
   })
 
   it('does not return a material from another course through the detail route', async () => {
-    const token = await signInAs('admin@morshid.demo')
+    const token = await signInAs('instructor@morshid.demo')
     addMaterial({
       id: '00000000-0000-4000-8000-000000000721',
       courseId: '00000000-0000-4000-8000-000000000102',
@@ -904,7 +899,7 @@ describe('Materials upload (e2e)', () => {
   })
 
   it('does not return a deleted material through the detail route', async () => {
-    const token = await signInAs('admin@morshid.demo')
+    const token = await signInAs('instructor@morshid.demo')
     addMaterial({
       id: '00000000-0000-4000-8000-000000000722',
       courseId: pythonCourseId(),
@@ -945,7 +940,7 @@ describe('Materials upload (e2e)', () => {
   })
 
   it('does not return a material from another course through the status route', async () => {
-    const token = await signInAs('admin@morshid.demo')
+    const token = await signInAs('instructor@morshid.demo')
     addMaterial({
       id: '00000000-0000-4000-8000-000000000731',
       courseId: '00000000-0000-4000-8000-000000000102',

@@ -5,7 +5,6 @@ import {
   courseMembersQueryOptions,
   courseAdministrationQueryOptions,
 } from '@/features/courses/course-administration.queries'
-import { materialAdministrationQueryOptions } from '@/features/materials/material-administration.queries'
 import { managedUsersInfiniteQueryOptions } from '@/features/user-management/user-management.queries'
 import { useAuthStore } from '@/features/auth/session/interface/session-store'
 
@@ -70,20 +69,6 @@ export async function loadAdminAssignmentsRoute({ context }: AdminLoaderArgs) {
   if (firstCourse) {
     await queryClient.ensureInfiniteQueryData(
       courseMembersQueryOptions(adminId, firstCourse.id),
-    )
-  }
-}
-
-export async function loadAdminMaterialsRoute({ context }: AdminLoaderArgs) {
-  const { adminId, queryClient } = getAdminLoaderContext(context.queryClient)
-  const courses = await queryClient.ensureInfiniteQueryData(
-    courseAdministrationQueryOptions(adminId),
-  )
-  const firstCourse = courses.pages.at(0)?.courses.at(0)
-
-  if (firstCourse) {
-    await queryClient.ensureInfiniteQueryData(
-      materialAdministrationQueryOptions(adminId, firstCourse.id),
     )
   }
 }

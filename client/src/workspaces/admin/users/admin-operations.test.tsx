@@ -8,7 +8,6 @@ import type { ManagedUser } from '@/features/user-management/managed-user.schema
 
 import { AddCourseMemberDialog } from '@/workspaces/admin/components/add-course-member-dialog'
 import { AdminAssignmentsTable } from '@/workspaces/admin/components/admin-assignments-table'
-import { EditAdminMaterialDialog } from '@/workspaces/admin/components/edit-admin-material-dialog'
 import { UserActions } from './user-actions'
 import {
   CreateAdminCourseDialog,
@@ -27,20 +26,6 @@ const member = {
     role: 'STUDENT',
     status: 'ACTIVE',
   },
-} as const
-
-const material = {
-  id: '4c530c42-67bf-4cbe-a6f3-2c662564ddd1',
-  courseId: 'acace6a5-7430-4dbf-b327-d76f3d51542a',
-  uploadedBy: {
-    email: 'instructor@morshid.demo',
-    displayName: 'Demo Instructor',
-  },
-  title: 'Python Basics',
-  originalFilename: 'python-basics.pdf',
-  status: 'READY',
-  createdAt: '2026-07-01T10:00:00.000Z',
-  updatedAt: '2026-07-11T10:00:00.000Z',
 } as const
 
 const course: CourseAdministration = {
@@ -100,32 +85,6 @@ describe('Admin operation controls', () => {
     await user.click(screen.getByRole('button', { name: 'Remove' }))
 
     await waitFor(() => expect(onRemove).toHaveBeenCalledWith(member.userId))
-  })
-
-  it('submits edited material metadata through the visible form', async () => {
-    const user = userEvent.setup()
-    const onSave = vi.fn().mockResolvedValue(undefined)
-
-    render(
-      <EditAdminMaterialDialog
-        material={material}
-        isPending={false}
-        onSave={onSave}
-      />,
-    )
-
-    await user.click(screen.getByRole('button', { name: 'Edit material' }))
-    const titleInput = await screen.findByRole('textbox', { name: 'Title' })
-    await user.clear(titleInput)
-    await user.type(titleInput, '  Python Functions  ')
-    await user.click(screen.getByRole('button', { name: 'Save title' }))
-
-    await waitFor(() => expect(onSave).toHaveBeenCalledWith('Python Functions'))
-    await waitFor(() =>
-      expect(
-        screen.queryByRole('heading', { name: 'Edit material metadata' }),
-      ).not.toBeInTheDocument(),
-    )
   })
 
   it('adds an eligible user to the selected course', async () => {
