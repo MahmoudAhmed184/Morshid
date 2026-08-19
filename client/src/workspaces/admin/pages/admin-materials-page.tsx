@@ -46,7 +46,7 @@ const materialDateFormatter = new Intl.DateTimeFormat(undefined, {
 export function AdminMaterialsPage() {
   const [selectedCourseId, setSelectedCourseId] = useState('')
   const [search, setSearch] = useState('')
-  const debouncedSearch = useDebouncedValue(search)
+  const debouncedSearch = useDebouncedValue(search.trim(), 250)
   const [selectedMaterial, setSelectedMaterial] =
     useState<MaterialAdministration | null>(null)
   const coursesQuery = useCourseAdministration()

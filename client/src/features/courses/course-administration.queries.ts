@@ -31,13 +31,13 @@ export const courseAdministrationQueryOptions = (
   search = '',
 ) =>
   infiniteQueryOptions({
-    queryKey: courseAdministrationKeys.list(adminId, search),
+    queryKey: courseAdministrationKeys.list(adminId, search.trim()),
     queryFn: ({ pageParam }) =>
       getCourseAdministration(
         {},
         {
           cursor: pageParam,
-          search: search || undefined,
+          search: search.trim() || undefined,
         },
       ),
     initialPageParam: undefined as string | undefined,
@@ -51,14 +51,19 @@ export const courseMembersQueryOptions = (
   role?: CourseMembershipRole,
 ) =>
   infiniteQueryOptions({
-    queryKey: courseAdministrationKeys.members(adminId, courseId, search, role),
+    queryKey: courseAdministrationKeys.members(
+      adminId,
+      courseId,
+      search.trim(),
+      role,
+    ),
     queryFn: ({ pageParam }) =>
       getCourseMembers(
         courseId,
         {},
         {
           cursor: pageParam,
-          search: search || undefined,
+          search: search.trim() || undefined,
           role,
         },
       ),

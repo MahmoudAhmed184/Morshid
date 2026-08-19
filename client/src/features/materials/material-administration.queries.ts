@@ -15,14 +15,14 @@ export const materialAdministrationQueryOptions = (
   search = '',
 ) =>
   infiniteQueryOptions({
-    queryKey: materialAdministrationKeys.list(adminId, courseId, search),
+    queryKey: materialAdministrationKeys.list(adminId, courseId, search.trim()),
     queryFn: ({ pageParam }) =>
       getMaterialAdministration(
         courseId,
         {},
         {
           cursor: pageParam,
-          search: search || undefined,
+          search: search.trim() || undefined,
         },
       ),
     initialPageParam: undefined as string | undefined,
