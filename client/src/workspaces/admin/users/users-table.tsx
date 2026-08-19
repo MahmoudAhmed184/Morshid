@@ -167,7 +167,7 @@ export function UsersTable({
                     aria-label={`Select ${user.displayName}`}
                   />
                 </TableCell>
-                <TableCell className="px-4 py-3.5 first:pl-6">
+                <TableCell className="px-4 py-3.5">
                   <p className="font-medium text-foreground">
                     {user.displayName}
                   </p>

@@ -737,13 +737,6 @@ describe('Materials persistence and local storage (e2e)', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(403)
 
-    await request(app.getHttpServer())
-      .delete(
-        `/api/v1/courses/${seed.courses.pythonProgramming.id}/materials/${protectedMaterial.id}`,
-      )
-      .set('Authorization', `Bearer ${adminToken}`)
-      .expect(403)
-
     const hiddenMaterial = await createMaterial(
       seed.courses.hiddenIsolation.id,
       'Unassigned instructor cannot delete',

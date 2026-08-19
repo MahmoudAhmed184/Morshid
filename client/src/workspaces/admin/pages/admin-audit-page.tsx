@@ -34,7 +34,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { useDebouncedValue } from '@/lib/hooks/use-debounced-value'
-import { AdminPanel } from '../components/admin-panel'
+import { AdminPanel } from '@/workspaces/admin/components/admin-panel'
 import { useAudit } from '@/workspaces/admin/audit/use-audit'
 import { useCourseAdministration } from '@/workspaces/admin/use-course-administration'
 import { useManagedUsers } from '@/workspaces/admin/users/use-user-management'

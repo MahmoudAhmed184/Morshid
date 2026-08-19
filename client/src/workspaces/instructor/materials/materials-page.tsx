@@ -61,11 +61,8 @@ export function MaterialsPage() {
 
   const materialsQuery = useCourseMaterials(activeCourseId)
   const deleteMutation = useDeleteCourseMaterial()
-  const materials = materialsQuery.data
-    ? Array.isArray(materialsQuery.data)
-      ? (materialsQuery.data as Material[])
-      : materialsQuery.data.pages.flatMap((page) => page.materials)
-    : []
+  const materials =
+    materialsQuery.data?.pages.flatMap((page) => page.materials) ?? []
   const normalizedSearch = search.trim().toLowerCase()
   const filteredMaterials = materials.filter((material) => {
     const matchesStatus =
@@ -122,11 +119,7 @@ export function MaterialsPage() {
           isPending={materialsQuery.isPending}
           isError={hasColdMaterialsError}
           materials={materialsQuery.data ? materials : undefined}
-          backendTotal={
-            materialsQuery.data && !Array.isArray(materialsQuery.data)
-              ? materialsQuery.data.pages[0]?.total
-              : undefined
-          }
+          backendTotal={materialsQuery.data?.pages[0]?.total}
         />
       ) : null}
 
