@@ -9,7 +9,7 @@ import {
   UploadIcon,
   XIcon,
 } from 'lucide-react'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 
 import { Button } from '@/components/ui/button'
@@ -111,6 +111,12 @@ export function MaterialUploadForm({
       file: undefined,
     },
   })
+
+  useEffect(() => {
+    if (status === 'idle' && !form.formState.isDirty) {
+      form.setValue('courseId', initialCourseId)
+    }
+  }, [form, initialCourseId, status])
 
   const handleSubmit = async ({
     courseId: targetCourseId,

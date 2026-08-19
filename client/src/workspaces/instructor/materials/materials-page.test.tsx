@@ -296,8 +296,15 @@ describe('MaterialsPage', () => {
     expect(screen.getByText('4,820 characters')).toBeVisible()
     expect(screen.getByText('Chunks:')).toBeVisible()
     expect(screen.getAllByText(material.errorMessage)).not.toHaveLength(0)
+
+    const repoCard = screen
+      .getByText('Material repository')
+      .closest('[data-slot="card"]')
+    expect(repoCard).not.toBeNull()
     expect(
-      screen.getByRole('button', { name: 'Upload Material' }),
+      within(repoCard as HTMLElement).getByRole('button', {
+        name: 'Upload Material',
+      }),
     ).toBeVisible()
   })
 
@@ -410,6 +417,13 @@ describe('MaterialsPage', () => {
     ).not.toHaveTextContent(course.id)
     expect(screen.getByRole('heading', { name: material.title })).toBeVisible()
 
+    // Open upload modal initially to verify first course is preselected
+    await user.click(screen.getByRole('button', { name: 'Upload Material' }))
+    expect(screen.getByRole('combobox', { name: 'Course' })).toHaveTextContent(
+      `${course.code} — ${course.title}`,
+    )
+    await user.keyboard('{Escape}')
+
     await user.click(screen.getByLabelText('Select assigned course'))
     await user.click(
       await screen.findByRole('option', {
@@ -440,6 +454,9 @@ describe('MaterialsPage', () => {
     expect(within(attentionCard as HTMLElement).getByText('0')).toBeVisible()
 
     await user.click(screen.getByRole('button', { name: 'Upload Material' }))
+    expect(screen.getByRole('combobox', { name: 'Course' })).toHaveTextContent(
+      `${secondCourse.code} — ${secondCourse.title}`,
+    )
     const file = new File(['%PDF-1.7'], 'graph-theory.pdf', {
       type: 'application/pdf',
     })

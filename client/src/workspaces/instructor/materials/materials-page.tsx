@@ -90,27 +90,6 @@ export function MaterialsPage() {
         eyebrow="COURSE SOURCES"
         title="Course Materials"
         description="Upload and manage the PDF sources that ground student guidance."
-        actions={
-          courses.length > 0 && uploadConfigurationQuery.data ? (
-            <MaterialUploadDialog
-              courses={courses}
-              defaultCourseId={activeCourseId}
-              configuration={uploadConfigurationQuery.data}
-              onUploadSuccess={(uploadedCourseId) => {
-                if (uploadedCourseId !== activeCourseId) {
-                  setSelectedCourseId(uploadedCourseId)
-                  setActiveCourseId(uploadedCourseId)
-                }
-              }}
-            />
-          ) : courses.length > 0 ? (
-            <Button size="lg" disabled>
-              {uploadConfigurationQuery.isError
-                ? 'Upload unavailable'
-                : 'Loading upload limits...'}
-            </Button>
-          ) : null
-        }
       />
 
       {activeCourseId && !coursesQuery.isPending ? (
@@ -133,7 +112,7 @@ export function MaterialsPage() {
               />
               Material repository
             </CardTitle>
-            <div className="flex w-full flex-col gap-2.5 sm:flex-row sm:items-center lg:w-auto">
+            <div className="flex w-full flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center lg:w-auto">
               <SearchInput
                 value={search}
                 onValueChange={setSearch}
@@ -188,6 +167,25 @@ export function MaterialsPage() {
                     ))}
                   </SelectContent>
                 </Select>
+              ) : null}
+              {courses.length > 0 && uploadConfigurationQuery.data ? (
+                <MaterialUploadDialog
+                  courses={courses}
+                  defaultCourseId={activeCourseId}
+                  configuration={uploadConfigurationQuery.data}
+                  onUploadSuccess={(uploadedCourseId) => {
+                    if (uploadedCourseId !== activeCourseId) {
+                      setSelectedCourseId(uploadedCourseId)
+                      setActiveCourseId(uploadedCourseId)
+                    }
+                  }}
+                />
+              ) : courses.length > 0 ? (
+                <Button disabled className="w-full sm:w-auto">
+                  {uploadConfigurationQuery.isError
+                    ? 'Upload unavailable'
+                    : 'Loading upload limits...'}
+                </Button>
               ) : null}
             </div>
           </div>
