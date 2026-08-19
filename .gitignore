@@ -1,5 +1,6 @@
 .agents/
 skills-lock.json
+.worktrees/
 
 # Dependencies
 node_modules/
