@@ -59,7 +59,7 @@ export function useUploadCourseMaterial() {
         throw new Error('An authenticated Instructor is required.')
       }
 
-      return uploadCourseMaterial(courseId, { title, file })
+      return uploadCourseMaterial(courseId, { courseId, title, file })
     },
     onSuccess: async (_response, { courseId }) => {
       if (!instructorId) {

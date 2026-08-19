@@ -26,7 +26,6 @@ import { Route as InstructorReviewQueueIndexRouteImport } from './routes/instruc
 import { Route as InstructorMaterialsIndexRouteImport } from './routes/instructor/materials/index'
 import { Route as AdminUsersIndexRouteImport } from './routes/admin/users/index'
 import { Route as AdminSettingsIndexRouteImport } from './routes/admin/settings/index'
-import { Route as AdminMaterialsIndexRouteImport } from './routes/admin/materials/index'
 import { Route as AdminCoursesIndexRouteImport } from './routes/admin/courses/index'
 import { Route as AdminAuditIndexRouteImport } from './routes/admin/audit/index'
 import { Route as AdminAssignmentsIndexRouteImport } from './routes/admin/assignments/index'
@@ -136,11 +135,6 @@ const AdminSettingsIndexRoute = AdminSettingsIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AdminSettingsRoute,
-} as any)
-const AdminMaterialsIndexRoute = AdminMaterialsIndexRouteImport.update({
-  id: '/materials/',
-  path: '/materials/',
-  getParentRoute: () => AdminRouteRoute,
 } as any)
 const AdminCoursesIndexRoute = AdminCoursesIndexRouteImport.update({
   id: '/courses/',
@@ -300,7 +294,6 @@ export interface FileRoutesByFullPath {
   '/admin/assignments/': typeof AdminAssignmentsIndexRoute
   '/admin/audit/': typeof AdminAuditIndexRoute
   '/admin/courses/': typeof AdminCoursesIndexRoute
-  '/admin/materials/': typeof AdminMaterialsIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
   '/instructor/materials/': typeof InstructorMaterialsIndexRoute
@@ -337,7 +330,6 @@ export interface FileRoutesByTo {
   '/admin/assignments': typeof AdminAssignmentsIndexRoute
   '/admin/audit': typeof AdminAuditIndexRoute
   '/admin/courses': typeof AdminCoursesIndexRoute
-  '/admin/materials': typeof AdminMaterialsIndexRoute
   '/admin/settings': typeof AdminSettingsIndexRoute
   '/admin/users': typeof AdminUsersIndexRoute
   '/instructor/materials': typeof InstructorMaterialsIndexRoute
@@ -381,7 +373,6 @@ export interface FileRoutesById {
   '/admin/assignments/': typeof AdminAssignmentsIndexRoute
   '/admin/audit/': typeof AdminAuditIndexRoute
   '/admin/courses/': typeof AdminCoursesIndexRoute
-  '/admin/materials/': typeof AdminMaterialsIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
   '/instructor/materials/': typeof InstructorMaterialsIndexRoute
@@ -425,7 +416,6 @@ export interface FileRouteTypes {
     | '/admin/assignments/'
     | '/admin/audit/'
     | '/admin/courses/'
-    | '/admin/materials/'
     | '/admin/settings/'
     | '/admin/users/'
     | '/instructor/materials/'
@@ -462,7 +452,6 @@ export interface FileRouteTypes {
     | '/admin/assignments'
     | '/admin/audit'
     | '/admin/courses'
-    | '/admin/materials'
     | '/admin/settings'
     | '/admin/users'
     | '/instructor/materials'
@@ -505,7 +494,6 @@ export interface FileRouteTypes {
     | '/admin/assignments/'
     | '/admin/audit/'
     | '/admin/courses/'
-    | '/admin/materials/'
     | '/admin/settings/'
     | '/admin/users/'
     | '/instructor/materials/'
@@ -642,13 +630,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/settings/'
       preLoaderRoute: typeof AdminSettingsIndexRouteImport
       parentRoute: typeof AdminSettingsRoute
-    }
-    '/admin/materials/': {
-      id: '/admin/materials/'
-      path: '/materials'
-      fullPath: '/admin/materials/'
-      preLoaderRoute: typeof AdminMaterialsIndexRouteImport
-      parentRoute: typeof AdminRouteRoute
     }
     '/admin/courses/': {
       id: '/admin/courses/'
@@ -848,7 +829,6 @@ interface AdminRouteRouteChildren {
   AdminAssignmentsIndexRoute: typeof AdminAssignmentsIndexRoute
   AdminAuditIndexRoute: typeof AdminAuditIndexRoute
   AdminCoursesIndexRoute: typeof AdminCoursesIndexRoute
-  AdminMaterialsIndexRoute: typeof AdminMaterialsIndexRoute
   AdminUsersIndexRoute: typeof AdminUsersIndexRoute
 }
 
@@ -860,7 +840,6 @@ const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminAssignmentsIndexRoute: AdminAssignmentsIndexRoute,
   AdminAuditIndexRoute: AdminAuditIndexRoute,
   AdminCoursesIndexRoute: AdminCoursesIndexRoute,
-  AdminMaterialsIndexRoute: AdminMaterialsIndexRoute,
   AdminUsersIndexRoute: AdminUsersIndexRoute,
 }
 

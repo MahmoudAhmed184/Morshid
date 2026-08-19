@@ -146,8 +146,6 @@ describe('AdminAssignmentsPage search and tabs', () => {
       createCourse: { mutateAsync: vi.fn(), isPending: false } as any,
       updateCourse: { mutateAsync: vi.fn(), isPending: false } as any,
       deleteCourse: { mutateAsync: vi.fn(), isPending: false } as any,
-      editMaterial: { mutateAsync: vi.fn(), isPending: false } as any,
-      deleteMaterial: { mutateAsync: vi.fn(), isPending: false } as any,
       addMember: { mutateAsync: vi.fn(), isPending: false } as any,
       addMembers: { mutateAsync: vi.fn(), isPending: false } as any,
       updateMemberRole: { mutateAsync: vi.fn(), isPending: false } as any,

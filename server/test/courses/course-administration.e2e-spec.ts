@@ -17,10 +17,6 @@ import type {
   CourseAdministrationMemberListResponseDto,
   CourseAdministrationMemberResponseDto,
 } from '../../src/modules/courses/course-administration.types'
-import type {
-  MaterialAdministrationListResponseDto,
-  MaterialAdministrationResponseDto,
-} from '../../src/modules/materials/catalog/material-administration.types'
 import { MaterialProcessingScheduler } from '../../src/modules/materials/processing/material-processing.scheduler'
 import { PrismaService } from '../../src/platform/database/prisma.service'
 import { RedisService } from '../../src/platform/cache/redis.service'
@@ -97,7 +93,6 @@ describe('Course administration (e2e)', () => {
   }
 
   const pythonCourseId = '00000000-0000-4000-8000-000000000101'
-  const pythonMaterialId = '00000000-0000-4000-8000-000000000401'
 
   describe('GET /api/v1/admin/courses', () => {
     it('returns all courses and their metadata for admins', async () => {
@@ -673,89 +668,6 @@ describe('Course administration (e2e)', () => {
         .set('Authorization', `Bearer ${token}`)
         .send({
           role: 'INVALID_ROLE',
-        })
-        .expect(400)
-    })
-  })
-
-  describe('GET /api/v1/admin/courses/:courseId/materials', () => {
-    it('lists materials for a course', async () => {
-      const token = await signInAs('admin@morshid.demo')
-
-      const response = await request(app.getHttpServer())
-        .get(`/api/v1/admin/courses/${pythonCourseId}/materials`)
-        .set('Authorization', `Bearer ${token}`)
-        .expect(200)
-
-      const body = response.body as MaterialAdministrationListResponseDto
-      expect(body.materials).toHaveLength(1)
-      expect(body.materials[0]?.title).toBe('Python Basics')
-    })
-  })
-
-  describe('GET /api/v1/admin/courses/:courseId/materials/:materialId', () => {
-    it('gets a specific material', async () => {
-      const token = await signInAs('admin@morshid.demo')
-
-      const response = await request(app.getHttpServer())
-        .get(
-          `/api/v1/admin/courses/${pythonCourseId}/materials/${pythonMaterialId}`,
-        )
-        .set('Authorization', `Bearer ${token}`)
-        .expect(200)
-
-      const body = response.body as MaterialAdministrationResponseDto
-      expect(body.material.id).toBe(pythonMaterialId)
-    })
-  })
-
-  describe('PATCH /api/v1/admin/courses/:courseId/materials/:materialId', () => {
-    it('updates material title and creates audit log', async () => {
-      const token = await signInAs('admin@morshid.demo')
-      const admin = requireUserByEmail('admin@morshid.demo')
-
-      const response = await request(app.getHttpServer())
-        .patch(
-          `/api/v1/admin/courses/${pythonCourseId}/materials/${pythonMaterialId}`,
-        )
-        .set('Authorization', `Bearer ${token}`)
-        .set('User-Agent', auditUserAgent)
-        .send({
-          title: 'Updated Python Basics',
-        })
-        .expect(200)
-
-      const body = response.body as MaterialAdministrationResponseDto
-      expect(body.material.title).toBe('Updated Python Basics')
-
-      const auditLogs = [...store.auditLogs.values()].filter(
-        (log) => log.action === AUDIT_EVENT_ACTIONS.MATERIAL_UPDATED,
-      )
-
-      expect(auditLogs).toEqual([
-        expect.objectContaining({
-          actorUserId: admin.id,
-          action: AUDIT_EVENT_ACTIONS.MATERIAL_UPDATED,
-          targetType: AUDIT_TARGET_TYPES.MATERIAL,
-          targetId: pythonMaterialId,
-          courseId: pythonCourseId,
-          metadata: {
-            title: 'Updated Python Basics',
-          },
-        }),
-      ])
-    })
-
-    it('rejects validation errors', async () => {
-      const token = await signInAs('admin@morshid.demo')
-
-      await request(app.getHttpServer())
-        .patch(
-          `/api/v1/admin/courses/${pythonCourseId}/materials/${pythonMaterialId}`,
-        )
-        .set('Authorization', `Bearer ${token}`)
-        .send({
-          title: '', // Too short
         })
         .expect(400)
     })

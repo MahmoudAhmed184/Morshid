@@ -18,14 +18,6 @@ import {
   courseMembersQueryOptions,
   courseAdministrationQueryOptions,
 } from '@/features/courses/course-administration.queries'
-import {
-  materialAdministrationKeys,
-  materialAdministrationQueryOptions,
-} from '@/features/materials/material-administration.queries'
-import {
-  deleteMaterialAdministration,
-  updateMaterialAdministration,
-} from '@/features/materials/material-administration.api'
 import { auditKeys } from '@/features/audit/audit.queries'
 import type { CourseMembershipRole } from '@/features/courses/course-administration.schema'
 import { useAuthStore } from '@/features/auth/session/interface/session-store'
@@ -58,21 +50,6 @@ export function useCourseMembers(
     ),
     enabled: adminId !== undefined && courseId !== undefined,
     select: (data) => data.pages.flatMap((page) => page.members),
-  })
-}
-
-export function useMaterialAdministration(
-  courseId: string | undefined,
-  search = '',
-) {
-  const adminId = useAdminId()
-  return useInfiniteQuery({
-    ...materialAdministrationQueryOptions(
-      adminId ?? 'anonymous',
-      courseId ?? 'unknown',
-      search,
-    ),
-    enabled: adminId !== undefined && courseId !== undefined,
   })
 }
 
@@ -149,50 +126,6 @@ export function useCourseAdministrationMutations(
     },
     onSuccess: invalidateCourseData,
   })
-  const editMaterial = useMutation({
-    mutationFn: (input: { materialId: string; title: string }) => {
-      if (!courseId) throw new Error('Choose a course first.')
-      return updateMaterialAdministration(
-        courseId,
-        input.materialId,
-        input.title,
-      )
-    },
-    onSuccess: async () => {
-      if (!adminId || !courseId) return
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: materialAdministrationKeys.all(adminId, courseId),
-        }),
-        queryClient.invalidateQueries({
-          queryKey: courseAdministrationKeys.all(adminId),
-        }),
-        queryClient.invalidateQueries({
-          queryKey: auditKeys.all(adminId),
-        }),
-      ])
-    },
-  })
-  const deleteMaterial = useMutation({
-    mutationFn: (materialId: string) => {
-      if (!courseId) throw new Error('Choose a course first.')
-      return deleteMaterialAdministration(courseId, materialId)
-    },
-    onSuccess: async () => {
-      if (!adminId || !courseId) return
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: materialAdministrationKeys.all(adminId, courseId),
-        }),
-        queryClient.invalidateQueries({
-          queryKey: courseAdministrationKeys.all(adminId),
-        }),
-        queryClient.invalidateQueries({
-          queryKey: auditKeys.all(adminId),
-        }),
-      ])
-    },
-  })
 
   return {
     createCourse,
@@ -202,7 +135,5 @@ export function useCourseAdministrationMutations(
     addMembers,
     updateMemberRole,
     removeMember,
-    editMaterial,
-    deleteMaterial,
   }
 }

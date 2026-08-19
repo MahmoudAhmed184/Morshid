@@ -104,6 +104,7 @@ describe('Instructor materials API', () => {
         expect(new Headers(init?.headers).has('Content-Type')).toBe(false)
 
         const formData = init?.body as FormData
+        expect(formData.get('courseId')).toBe(courseId)
         expect(formData.get('title')).toBe('Python Functions')
         expect(formData.get('file')).toBe(file)
 
@@ -114,7 +115,7 @@ describe('Instructor materials API', () => {
     await expect(
       uploadCourseMaterial(
         courseId,
-        { title: 'Python Functions', file },
+        { courseId, title: 'Python Functions', file },
         { fetchImpl: fetchMock },
       ),
     ).resolves.toEqual(response)
