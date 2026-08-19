@@ -87,12 +87,15 @@ function paginateMaterials<T extends { id: string; title: string }>(
       normalizedSearch === undefined ||
       material.title.toLocaleLowerCase().includes(normalizedSearch),
   )
+  const cursorIndex =
+    input.cursor !== undefined
+      ? filtered.findIndex((material) => material.id === input.cursor)
+      : -1
   const start =
     input.cursor !== undefined
-      ? Math.max(
-          filtered.findIndex((material) => material.id === input.cursor) + 1,
-          0,
-        )
+      ? cursorIndex === -1
+        ? filtered.length
+        : cursorIndex + 1
       : 0
   const pageMaterials = filtered.slice(start, start + input.limit)
   const hasNextPage = start + input.limit < filtered.length

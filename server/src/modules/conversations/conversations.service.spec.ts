@@ -744,6 +744,54 @@ describe('ConversationsService', () => {
     expect(page2.nextCursor).toBeNull()
   })
 
+  it('does not advertise a next page when session count exactly matches limit', async () => {
+    const { repository, service } = buildService()
+    repository.addMembership('course-1', student.id)
+    const first = repository.addSession('course-1', student.id, 'First')
+    const second = repository.addSession('course-1', student.id, 'Second')
+    first.lastMessageAt = new Date('2026-07-14T10:30:00.000Z')
+    second.lastMessageAt = new Date('2026-07-14T10:20:00.000Z')
+
+    const response = await service.listSessions('course-1', student, {
+      limit: 2,
+    })
+    expect(response.sessions.map((session) => session.title)).toEqual([
+      'First',
+      'Second',
+    ])
+    expect(response.nextCursor).toBeNull()
+  })
+
+  it('paginates multiple exact-size forward session pages without an empty page', async () => {
+    const { repository, service } = buildService()
+    repository.addMembership('course-1', student.id)
+    const first = repository.addSession('course-1', student.id, 'First')
+    const second = repository.addSession('course-1', student.id, 'Second')
+    const third = repository.addSession('course-1', student.id, 'Third')
+    const fourth = repository.addSession('course-1', student.id, 'Fourth')
+    first.lastMessageAt = new Date('2026-07-14T10:40:00.000Z')
+    second.lastMessageAt = new Date('2026-07-14T10:30:00.000Z')
+    third.lastMessageAt = new Date('2026-07-14T10:20:00.000Z')
+    fourth.lastMessageAt = new Date('2026-07-14T10:10:00.000Z')
+
+    const page1 = await service.listSessions('course-1', student, { limit: 2 })
+    expect(page1.sessions.map((session) => session.title)).toEqual([
+      'First',
+      'Second',
+    ])
+    expect(page1.nextCursor).toBe(second.id)
+
+    const page2 = await service.listSessions('course-1', student, {
+      limit: 2,
+      cursor: page1.nextCursor ?? undefined,
+    })
+    expect(page2.sessions.map((session) => session.title)).toEqual([
+      'Third',
+      'Fourth',
+    ])
+    expect(page2.nextCursor).toBeNull()
+  })
+
   it('paginates message history with a forward sequence cursor (M3)', async () => {
     const { repository, service } = buildService()
     repository.addMembership('course-1', student.id)
