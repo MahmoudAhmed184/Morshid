@@ -53,7 +53,24 @@ export const bulkCourseAssignmentResponseSchema = z.object({
   assignedCount: z.number().int().nonnegative(),
   skippedCount: z.number().int().nonnegative(),
 })
+export const resolvedCourseMemberSchema = z.object({
+  id: z.uuid(),
+  email: z.email(),
+  displayName: z.string(),
+  role: courseMembershipRoleSchema,
+  matchedBy: z.string(),
+  alreadyAssignedCourseIds: z.array(z.uuid()),
+})
+export const resolveCourseMembersResponseSchema = z.object({
+  resolved: z.array(resolvedCourseMemberSchema),
+  unmatched: z.array(z.string()),
+  duplicates: z.array(z.string()),
+})
 
 export type CourseAdministration = z.infer<typeof courseAdministrationSchema>
 export type CourseMember = z.infer<typeof courseMemberSchema>
 export type CourseMembershipRole = z.infer<typeof courseMembershipRoleSchema>
+export type ResolvedCourseMember = z.infer<typeof resolvedCourseMemberSchema>
+export type ResolveCourseMembersResponse = z.infer<
+  typeof resolveCourseMembersResponseSchema
+>

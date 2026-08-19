@@ -36,7 +36,7 @@ export const addCourseMemberRequestSchema = z
 export const bulkAddCourseMembersRequestSchema = z
   .object({
     courseIds: z.array(z.uuid()).min(1).max(50),
-    userIds: z.array(z.uuid()).min(1).max(200),
+    userIds: z.array(z.uuid()).min(1).max(1_000),
     role: z.enum(CourseMembershipRole),
   })
   .strict()
@@ -44,6 +44,14 @@ export const bulkAddCourseMembersRequestSchema = z
     ({ courseIds, userIds }) => courseIds.length * userIds.length <= 1_000,
     { message: 'A bulk assignment may contain at most 1,000 assignments' },
   )
+
+export const resolveCourseMembersRequestSchema = z
+  .object({
+    identifiers: z.array(z.string().trim().min(1).max(320)).min(1).max(1_000),
+    role: z.enum(CourseMembershipRole),
+    courseIds: z.array(z.uuid()).max(50).optional().default([]),
+  })
+  .strict()
 
 export const updateMemberRoleRequestSchema = z
   .object({
@@ -70,6 +78,9 @@ export type AddCourseMemberRequest = z.infer<
 >
 export type BulkAddCourseMembersRequest = z.infer<
   typeof bulkAddCourseMembersRequestSchema
+>
+export type ResolveCourseMembersRequest = z.infer<
+  typeof resolveCourseMembersRequestSchema
 >
 export type UpdateMemberRoleRequest = z.infer<
   typeof updateMemberRoleRequestSchema
@@ -115,7 +126,7 @@ export class BulkAddCourseMembersRequestDto {
   @ApiProperty({ type: [String], format: 'uuid', maxItems: 50 })
   courseIds!: string[]
 
-  @ApiProperty({ type: [String], format: 'uuid', maxItems: 200 })
+  @ApiProperty({ type: [String], format: 'uuid', maxItems: 1000 })
   userIds!: string[]
 
   @ApiProperty({ enum: CourseMembershipRole, enumName: 'CourseMembershipRole' })
@@ -130,6 +141,58 @@ export class BulkAddCourseMembersResponseDto {
   @Expose()
   @ApiProperty({ minimum: 0 })
   skippedCount!: number
+}
+
+export class ResolveCourseMembersRequestDto {
+  @ApiProperty({ type: [String], maxItems: 1000 })
+  identifiers!: string[]
+
+  @ApiProperty({ enum: CourseMembershipRole, enumName: 'CourseMembershipRole' })
+  role!: CourseMembershipRole
+
+  @ApiPropertyOptional({ type: [String], format: 'uuid', maxItems: 50 })
+  courseIds?: string[]
+}
+
+export class ResolvedCourseMemberDto {
+  @Expose()
+  @ApiProperty({ format: 'uuid' })
+  id!: string
+
+  @Expose()
+  @ApiProperty({ format: 'email' })
+  email!: string
+
+  @Expose()
+  @ApiProperty()
+  displayName!: string
+
+  @Expose()
+  @ApiProperty({ enum: CourseMembershipRole, enumName: 'CourseMembershipRole' })
+  role!: CourseMembershipRole
+
+  @Expose()
+  @ApiProperty()
+  matchedBy!: string
+
+  @Expose()
+  @ApiProperty({ type: [String], format: 'uuid' })
+  alreadyAssignedCourseIds!: string[]
+}
+
+export class ResolveCourseMembersResponseDto {
+  @Expose()
+  @Type(() => ResolvedCourseMemberDto)
+  @ApiProperty({ type: [ResolvedCourseMemberDto] })
+  resolved!: ResolvedCourseMemberDto[]
+
+  @Expose()
+  @ApiProperty({ type: [String] })
+  unmatched!: string[]
+
+  @Expose()
+  @ApiProperty({ type: [String] })
+  duplicates!: string[]
 }
 
 export class UpdateMemberRoleRequestDto {

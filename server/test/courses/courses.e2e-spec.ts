@@ -151,6 +151,14 @@ class CoursesTestRepository extends CoursesRepository {
     return Promise.reject(new Error('not used by Courses e2e'))
   }
 
+  resolveUsersForCourseAssignment(): Promise<{
+    resolved: []
+    unmatched: []
+    duplicates: []
+  }> {
+    return Promise.reject(new Error('not used by Courses e2e'))
+  }
+
   removeMember(_input: RemoveCourseMemberInput): Promise<void> {
     return Promise.reject(new Error('not used by Courses e2e'))
   }

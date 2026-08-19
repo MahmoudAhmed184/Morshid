@@ -4,9 +4,11 @@ import type { ApiError } from '@/features/auth/session/interface/authenticated-a
 
 import {
   addCourseMember,
+  bulkAddCourseMembers,
   createCourse,
   getCourseAdministration,
   removeCourseMember,
+  resolveCourseMembers,
   updateCourse,
   updateCourseMemberRole,
 } from './course-administration.api'
@@ -220,6 +222,69 @@ describe('admin course API', () => {
     await expect(
       removeCourseMember(courseId, userId, { fetchImpl: fetchMock }),
     ).resolves.toBeUndefined()
+  })
+
+  it('submits bulk course assignments through POST', async () => {
+    const fetchMock = async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe(
+        'http://localhost:4000/api/v1/admin/courses/members/bulk',
+      )
+      expect(init?.method).toBe('POST')
+      expect(JSON.parse(String(init?.body))).toEqual({
+        courseIds: [courseId],
+        userIds: [userId],
+        role: 'STUDENT',
+      })
+      return Response.json({ assignedCount: 1, skippedCount: 0 })
+    }
+
+    const result = await bulkAddCourseMembers(
+      { courseIds: [courseId], userIds: [userId], role: 'STUDENT' },
+      { fetchImpl: fetchMock },
+    )
+    expect(result).toEqual({ assignedCount: 1, skippedCount: 0 })
+  })
+
+  it('resolves identifiers for bulk course assignment through POST', async () => {
+    const fetchMock = async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe(
+        'http://localhost:4000/api/v1/admin/courses/members/resolve',
+      )
+      expect(init?.method).toBe('POST')
+      expect(JSON.parse(String(init?.body))).toEqual({
+        identifiers: ['student@morshid.demo'],
+        role: 'STUDENT',
+        courseIds: [courseId],
+      })
+      return Response.json({
+        resolved: [
+          {
+            id: userId,
+            email: 'student@morshid.demo',
+            displayName: 'Demo Student',
+            role: 'STUDENT',
+            matchedBy: 'student@morshid.demo',
+            alreadyAssignedCourseIds: [courseId],
+          },
+        ],
+        unmatched: ['unknown@morshid.demo'],
+        duplicates: [],
+      })
+    }
+
+    const result = await resolveCourseMembers(
+      {
+        identifiers: ['student@morshid.demo'],
+        role: 'STUDENT',
+        courseIds: [courseId],
+      },
+      { fetchImpl: fetchMock },
+    )
+    expect(result.resolved).toHaveLength(1)
+    expect(result.resolved[0]?.id).toBe(userId)
+    expect(result.resolved[0]?.alreadyAssignedCourseIds).toEqual([courseId])
+    expect(result.unmatched).toEqual(['unknown@morshid.demo'])
+    expect(result.duplicates).toEqual([])
   })
 })
 
