@@ -1423,7 +1423,8 @@ describe('OpenAPI contract (e2e)', () => {
           path: '/api/v1/admin/audit',
           method: 'get',
           tag: 'audit',
-          summary: 'List recent audit events',
+          summary:
+            'List recent audit events with search, filters, and pagination',
           statuses: ['200', '400', '401', '403'],
         },
       ] as const
