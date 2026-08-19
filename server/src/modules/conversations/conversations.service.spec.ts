@@ -97,9 +97,15 @@ class ConversationTestRepository
         )
       })
 
+    const cursorIndex =
+      pagination.cursor != null
+        ? sessions.findIndex((session) => session.id === pagination.cursor)
+        : -1
     const startIndex =
       pagination.cursor != null
-        ? sessions.findIndex((session) => session.id === pagination.cursor) + 1
+        ? cursorIndex === -1
+          ? sessions.length
+          : cursorIndex + 1
         : 0
 
     return Promise.resolve(
