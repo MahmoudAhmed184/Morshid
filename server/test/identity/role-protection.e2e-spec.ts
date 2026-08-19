@@ -258,5 +258,17 @@ describe('RBAC (e2e)', () => {
         .set('User-Agent', auditUserAgent)
         .expect(401)
     })
+
+    it('denies an admin the Instructor-only materials endpoints with 403', async () => {
+      const token = await loginAsAdmin(app)
+      const pythonCourseId = courseIdByCode(store, P0_DEMO_COURSE.code)
+
+      await request(app.getHttpServer())
+        .get(`/api/v1/courses/${pythonCourseId}/materials`)
+        .set('User-Agent', auditUserAgent)
+        .set(...authHeader(token))
+        .expect(403)
+        .expect(insufficientRoleBody)
+    })
   })
 })

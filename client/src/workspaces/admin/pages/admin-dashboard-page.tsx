@@ -2,7 +2,6 @@ import { Link } from '@tanstack/react-router'
 import {
   BookOpenIcon,
   ChevronRightIcon,
-  FileTextIcon,
   GraduationCapIcon,
   ScrollTextIcon,
   UsersIcon,
@@ -41,12 +40,6 @@ const quickNav: {
     tone: 'neutral',
   },
   {
-    title: 'Materials',
-    to: '/admin/materials',
-    icon: FileTextIcon,
-    tone: 'gold',
-  },
-  {
     title: 'Audit Logs',
     to: '/admin/audit',
     icon: ScrollTextIcon,
@@ -71,10 +64,6 @@ export function AdminDashboardPage() {
   const auditQuery = useAudit(5)
   const users = usersQuery.data?.pages.flatMap((page) => page.users) ?? []
   const courses = coursesQuery.data ?? []
-  const materialCount = courses.reduce(
-    (total, course) => total + course.adminMetadata.materialCount,
-    0,
-  )
   const studentCount = users.filter((user) => user.role === 'STUDENT').length
   const instructorCount = users.filter(
     (user) => user.role === 'INSTRUCTOR',
@@ -103,13 +92,6 @@ export function AdminDashboardPage() {
       icon: <BookOpenIcon aria-hidden />,
       tone: 'gold',
       description: 'Active course shells across the platform',
-    },
-    {
-      label: 'Materials',
-      value: materialCount,
-      icon: <FileTextIcon aria-hidden />,
-      tone: 'success',
-      description: 'Learning assets ingested into courses',
     },
   ] as const
 

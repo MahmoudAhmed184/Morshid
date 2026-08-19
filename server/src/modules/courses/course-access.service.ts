@@ -58,10 +58,6 @@ export class CourseAccessService extends CourseAccess {
       return { allowed: false, reason: 'COURSE_NOT_FOUND' }
     }
 
-    if (user.role === UserRole.ADMIN) {
-      return { allowed: true }
-    }
-
     if (
       user.role === UserRole.INSTRUCTOR &&
       course.membershipRole === CourseMembershipRole.INSTRUCTOR

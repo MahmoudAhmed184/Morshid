@@ -2,7 +2,6 @@ import { Outlet } from '@tanstack/react-router'
 import {
   BookOpenIcon,
   ClipboardCheckIcon,
-  FileTextIcon,
   LayoutDashboardIcon,
   ScrollTextIcon,
   SettingsIcon,
@@ -28,7 +27,6 @@ const navItems: readonly AuthenticatedSidebarNavItem[] = [
     icon: PresentationIcon,
   },
   { label: 'Courses', to: '/admin/courses', icon: BookOpenIcon },
-  { label: 'Materials', to: '/admin/materials', icon: FileTextIcon },
   { label: 'Audit Logs', to: '/admin/audit', icon: ScrollTextIcon },
   { label: 'Settings', to: '/admin/settings', icon: SettingsIcon },
 ]
