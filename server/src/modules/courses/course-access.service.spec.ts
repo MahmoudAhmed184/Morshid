@@ -246,4 +246,16 @@ describe('CourseAccessService', () => {
       reason: 'COURSE_NOT_FOUND',
     })
   })
+
+  it('denies material management to an admin', async () => {
+    const { service } = buildService()
+    const admin = buildUser('admin-user', UserRole.ADMIN)
+
+    await expect(
+      service.authorizeCourseMaterialManagement(admin, 'owned-course'),
+    ).resolves.toEqual({
+      allowed: false,
+      reason: 'COURSE_MANAGEMENT_REQUIRED',
+    })
+  })
 })

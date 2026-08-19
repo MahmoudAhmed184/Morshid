@@ -232,6 +232,7 @@ describe('Materials upload (e2e)', () => {
   function uploadPdf(input: {
     token: string
     courseId?: string
+    bodyCourseId?: string
     title?: string
     filename?: string
     contentType?: string
@@ -241,6 +242,10 @@ describe('Materials upload (e2e)', () => {
       .post(`/api/v1/courses/${input.courseId ?? pythonCourseId()}/materials`)
       .set('User-Agent', userAgent)
       .set('Authorization', `Bearer ${input.token}`)
+
+    if (input.bodyCourseId !== undefined) {
+      multipart.field('courseId', input.bodyCourseId)
+    }
 
     if (input.title !== undefined) {
       multipart.field('title', input.title)
@@ -288,21 +293,83 @@ describe('Materials upload (e2e)', () => {
     expect(storedMaterial?.sha256Hash).toMatch(/^[a-f0-9]{64}$/)
   })
 
-  it('allows an admin to upload a clean PDF', async () => {
+  it('denies admin uploads through the global role guard before storage', async () => {
     const token = await signInAs('admin@morshid.demo')
+    const materialCountBefore = store.materials.size
+
+    await uploadPdf({ token, title: 'Admin upload' }).expect(403).expect({
+      code: IDENTITY_ERROR_CODES.INSUFFICIENT_ROLE,
+      message: 'Insufficient role',
+    })
+
+    expect(store.materials.size).toBe(materialCountBefore)
+  })
+
+  it('allows an instructor to upload specifying explicit courseId in body matching the route', async () => {
+    const token = await signInAs('instructor@morshid.demo')
+    const targetCourseId = pythonCourseId()
 
     const response = await uploadPdf({
       token,
-      title: 'Admin upload',
+      courseId: targetCourseId,
+      bodyCourseId: targetCourseId,
+      title: 'Explicit course material',
     }).expect(201)
 
     expect(response.body).toMatchObject({
       material: {
-        courseId: pythonCourseId(),
-        title: 'Admin upload',
+        courseId: targetCourseId,
+        title: 'Explicit course material',
         status: 'PROCESSING',
       },
     })
+  })
+
+  it('rejects upload when body courseId does not match the URL courseId', async () => {
+    const token = await signInAs('instructor@morshid.demo')
+    const otherCourseId = '00000000-0000-4000-8000-000000000102'
+
+    await uploadPdf({
+      token,
+      courseId: pythonCourseId(),
+      bodyCourseId: otherCourseId,
+      title: 'Mismatched course upload',
+    })
+      .expect(400)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          code: MATERIALS_ERROR_CODES.INVALID_REQUEST,
+          errors: [
+            {
+              field: 'courseId',
+              message: 'Course ID in request body must match route parameter',
+            },
+          ],
+        })
+      })
+  })
+
+  it('rejects upload when body courseId is an invalid UUID', async () => {
+    const token = await signInAs('instructor@morshid.demo')
+
+    await uploadPdf({
+      token,
+      courseId: pythonCourseId(),
+      bodyCourseId: 'not-a-uuid',
+      title: 'Invalid body course UUID',
+    })
+      .expect(400)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          code: MATERIALS_ERROR_CODES.INVALID_REQUEST,
+          errors: [
+            {
+              field: 'courseId',
+              message: 'Course ID must be a valid UUID',
+            },
+          ],
+        })
+      })
   })
 
   it('denies student uploads through the global role guard before storage', async () => {
@@ -883,7 +950,7 @@ describe('Materials upload (e2e)', () => {
   })
 
   it('does not return a material from another course through the detail route', async () => {
-    const token = await signInAs('admin@morshid.demo')
+    const token = await signInAs('instructor@morshid.demo')
     addMaterial({
       id: '00000000-0000-4000-8000-000000000721',
       courseId: '00000000-0000-4000-8000-000000000102',
@@ -904,7 +971,7 @@ describe('Materials upload (e2e)', () => {
   })
 
   it('does not return a deleted material through the detail route', async () => {
-    const token = await signInAs('admin@morshid.demo')
+    const token = await signInAs('instructor@morshid.demo')
     addMaterial({
       id: '00000000-0000-4000-8000-000000000722',
       courseId: pythonCourseId(),
@@ -945,7 +1012,7 @@ describe('Materials upload (e2e)', () => {
   })
 
   it('does not return a material from another course through the status route', async () => {
-    const token = await signInAs('admin@morshid.demo')
+    const token = await signInAs('instructor@morshid.demo')
     addMaterial({
       id: '00000000-0000-4000-8000-000000000731',
       courseId: '00000000-0000-4000-8000-000000000102',

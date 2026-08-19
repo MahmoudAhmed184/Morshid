@@ -63,7 +63,7 @@ import type { UploadedPdfFile } from '../upload/pdf-upload.validator'
 
 @Controller('courses/:courseId/materials')
 @ApiTags('materials')
-@Roles(UserRole.ADMIN, UserRole.INSTRUCTOR)
+@Roles(UserRole.INSTRUCTOR)
 @ApiAccessTokenAuth()
 @ApiExtraModels(OpenApiValidationErrorDto, NestBadRequestErrorDto)
 @UseInterceptors(ClassSerializerInterceptor)
@@ -113,6 +113,7 @@ export class MaterialsController {
     return this.materialsService.uploadMaterial(
       courseId,
       {
+        courseId: body.courseId,
         title: body.title,
         file,
       },

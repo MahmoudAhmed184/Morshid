@@ -85,12 +85,19 @@ export function MaterialsPage() {
         title="Course Materials"
         description="Upload and manage the PDF sources that ground student guidance."
         actions={
-          activeCourseId && uploadConfigurationQuery.data ? (
+          courses.length > 0 && uploadConfigurationQuery.data ? (
             <MaterialUploadDialog
-              courseId={activeCourseId}
+              courses={courses}
+              defaultCourseId={activeCourseId}
               configuration={uploadConfigurationQuery.data}
+              onUploadSuccess={(uploadedCourseId) => {
+                if (uploadedCourseId !== activeCourseId) {
+                  setSelectedCourseId(uploadedCourseId)
+                  setActiveCourseId(uploadedCourseId)
+                }
+              }}
             />
-          ) : activeCourseId ? (
+          ) : courses.length > 0 ? (
             <Button size="lg" disabled>
               {uploadConfigurationQuery.isError
                 ? 'Upload unavailable'

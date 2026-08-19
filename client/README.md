@@ -66,7 +66,6 @@ Morshid provides three authenticated workspaces:
 - `/admin/users/students` & `/admin/users/instructors`: Paginated user tables, status toggles (Active/Disabled), password reset dialog, and CSV bulk user import via PapaParse.
 - `/admin/courses/`: Course creation, editing, and archiving.
 - `/admin/assignments/`: Individual and bulk multi-course student and instructor enrollment.
-- `/admin/materials/`: System-wide course material oversight, chunk inspection, and error reporting.
 - `/admin/audit/`: Structured security and operational audit trail viewer.
 
 ### 4. Auth and public routes

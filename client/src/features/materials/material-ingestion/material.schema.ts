@@ -39,6 +39,11 @@ export const materialUploadConfigurationSchema = z.object({
 
 export function createMaterialUploadSchema(maxUploadBytes: number) {
   return z.object({
+    courseId: z
+      .string()
+      .trim()
+      .min(1, 'Course is required')
+      .uuid('Invalid course selected'),
     title: z.string().trim().min(1, 'Title is required').max(180),
     file: z
       .file()
