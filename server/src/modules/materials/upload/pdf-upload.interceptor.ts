@@ -34,7 +34,7 @@ export class PdfUploadInterceptor implements NestInterceptor {
         fileSize:
           readMaterialsConfiguration(configService).PDF_MAX_UPLOAD_BYTES,
         files: 1,
-        fields: 1,
+        fields: 5,
       },
     })
 

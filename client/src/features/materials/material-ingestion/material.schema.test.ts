@@ -30,6 +30,7 @@ function createPdfFile(
 
 function parseUpload(input: Record<string, unknown> = {}) {
   return createMaterialUploadSchema(1_024).safeParse({
+    courseId: validMaterial.courseId,
     title: 'Python Functions',
     file: createPdfFile(),
     ...input,
@@ -100,11 +101,21 @@ describe('Instructor material upload schema', () => {
     })
   })
 
+  it('requires a courseId', () => {
+    expect(parseUpload({ courseId: undefined }).success).toBe(false)
+    expect(parseUpload({ courseId: '   ' }).success).toBe(false)
+  })
+
+  it('rejects an invalid courseId UUID', () => {
+    expect(parseUpload({ courseId: 'not-a-uuid' }).success).toBe(false)
+  })
+
   it('accepts and trims a valid PDF upload', () => {
     const result = parseUpload({ title: '  Python Functions  ' })
 
     expect(result.success).toBe(true)
     if (result.success) {
+      expect(result.data.courseId).toBe(validMaterial.courseId)
       expect(result.data.title).toBe('Python Functions')
       expect(result.data.file).toBeInstanceOf(File)
     }

@@ -47,12 +47,14 @@ export async function uploadCourseMaterial(
   input: MaterialUpload,
   options: ApiFetchOptions = {},
 ): Promise<MaterialResponse> {
+  const targetCourseId = input.courseId || courseId
   const formData = new FormData()
+  formData.append('courseId', targetCourseId)
   formData.append('title', input.title)
   formData.append('file', input.file)
 
   const response = await apiJson<unknown>(
-    `/api/v1/courses/${courseId}/materials`,
+    `/api/v1/courses/${targetCourseId}/materials`,
     {
       ...options,
       body: formData,

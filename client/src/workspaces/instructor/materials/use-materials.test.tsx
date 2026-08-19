@@ -294,6 +294,7 @@ describe('Instructor material hooks', () => {
     )
 
     expect(uploadCourseMaterialMock).toHaveBeenCalledWith(courseId, {
+      courseId,
       title: 'Python Functions',
       file,
     })
