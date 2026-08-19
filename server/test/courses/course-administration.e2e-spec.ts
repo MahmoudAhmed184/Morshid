@@ -93,6 +93,7 @@ describe('Course administration (e2e)', () => {
   }
 
   const pythonCourseId = '00000000-0000-4000-8000-000000000101'
+  const hiddenCourseId = '00000000-0000-4000-8000-000000000102'
 
   describe('GET /api/v1/admin/courses', () => {
     it('returns all courses and their metadata for admins', async () => {
@@ -670,6 +671,145 @@ describe('Course administration (e2e)', () => {
           role: 'INVALID_ROLE',
         })
         .expect(400)
+    })
+  })
+
+  describe('POST /api/v1/admin/courses/members/resolve', () => {
+    it('resolves active users by email and uuid for a role with duplicate and alreadyAssigned detection', async () => {
+      const token = await signInAs('admin@morshid.demo')
+      const student1 = requireUserByEmail('student1@morshid.demo')
+      const student2 = requireUserByEmail('student2@morshid.demo')
+      const instructor = requireUserByEmail('instructor@morshid.demo')
+
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/admin/courses/members/resolve')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          identifiers: [
+            student1.email.toUpperCase(), // case-insensitive email
+            student2.id, // UUID match
+            student1.email, // duplicate
+            instructor.email, // wrong role (INSTRUCTOR when resolving STUDENT)
+            '00000000-0000-4000-8000-000000009999', // unknown UUID
+            'nonexistent@morshid.demo', // unknown email
+          ],
+          role: CourseMembershipRole.STUDENT,
+          courseIds: [pythonCourseId],
+        })
+        .expect(200)
+
+      const body = response.body as {
+        resolved: {
+          id: string
+          email: string
+          displayName: string
+          role: string
+          matchedBy: string
+          alreadyAssignedCourseIds: string[]
+        }[]
+        unmatched: string[]
+        duplicates: string[]
+      }
+
+      expect(body.resolved).toHaveLength(2)
+      expect(body.resolved.map((u) => u.id).sort()).toEqual(
+        [student1.id, student2.id].sort(),
+      )
+
+      const resolvedStudent1 = body.resolved.find((u) => u.id === student1.id)
+      expect(resolvedStudent1?.alreadyAssignedCourseIds).toContain(
+        pythonCourseId,
+      )
+
+      expect(body.duplicates).toEqual([student1.email])
+      expect(body.unmatched).toEqual([
+        instructor.email,
+        '00000000-0000-4000-8000-000000009999',
+        'nonexistent@morshid.demo',
+      ])
+    })
+
+    it('resolves instructors when requested and isolates roles', async () => {
+      const token = await signInAs('admin@morshid.demo')
+      const student1 = requireUserByEmail('student1@morshid.demo')
+      const instructor = requireUserByEmail('instructor@morshid.demo')
+
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/admin/courses/members/resolve')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          identifiers: [instructor.email, student1.email],
+          role: CourseMembershipRole.INSTRUCTOR,
+        })
+        .expect(200)
+
+      const body = response.body as {
+        resolved: { id: string; email: string; role: string }[]
+        unmatched: string[]
+      }
+
+      expect(body.resolved).toHaveLength(1)
+      expect(body.resolved[0]?.id).toBe(instructor.id)
+      expect(body.resolved[0]?.role).toBe(CourseMembershipRole.INSTRUCTOR)
+      expect(body.unmatched).toEqual([student1.email])
+    })
+
+    it('reports disabled users as unmatched', async () => {
+      const token = await signInAs('admin@morshid.demo')
+      const student2 = requireUserByEmail('student2@morshid.demo')
+      store.disableUser(student2.email)
+
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/admin/courses/members/resolve')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          identifiers: [student2.email],
+          role: CourseMembershipRole.STUDENT,
+        })
+        .expect(200)
+
+      const body = response.body as {
+        resolved: unknown[]
+        unmatched: string[]
+      }
+
+      expect(body.resolved).toHaveLength(0)
+      expect(body.unmatched).toEqual([student2.email])
+    })
+
+    it('rejects non-admin users from resolving members', async () => {
+      const token = await signInAs('instructor@morshid.demo')
+
+      await request(app.getHttpServer())
+        .post('/api/v1/admin/courses/members/resolve')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          identifiers: ['student1@morshid.demo'],
+          role: CourseMembershipRole.STUDENT,
+        })
+        .expect(403)
+    })
+  })
+
+  describe('POST /api/v1/admin/courses/members/bulk', () => {
+    it('assigns multiple users to courses and skips existing memberships', async () => {
+      const token = await signInAs('admin@morshid.demo')
+      const student1 = requireUserByEmail('student1@morshid.demo') // already in python course, not in hidden course
+
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/admin/courses/members/bulk')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          courseIds: [pythonCourseId, hiddenCourseId],
+          userIds: [student1.id],
+          role: CourseMembershipRole.STUDENT,
+        })
+        .expect(201)
+
+      expect(response.body).toEqual({
+        assignedCount: 1,
+        skippedCount: 1,
+      })
     })
   })
 })

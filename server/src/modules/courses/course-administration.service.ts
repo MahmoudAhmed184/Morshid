@@ -7,6 +7,8 @@ import type {
   AddCourseMemberRequest,
   BulkAddCourseMembersRequest,
   BulkAddCourseMembersResponseDto,
+  ResolveCourseMembersRequest,
+  ResolveCourseMembersResponseDto,
   CourseAdministrationDetailResponseDto,
   CourseAdministrationListResponseDto,
   CourseAdministrationMemberListResponseDto,
@@ -234,6 +236,12 @@ export class CourseAdministrationService {
       actorUserId: actor.id,
       requestContext,
     })
+  }
+
+  async resolveMembers(
+    input: ResolveCourseMembersRequest,
+  ): Promise<ResolveCourseMembersResponseDto> {
+    return this.coursesRepository.resolveUsersForCourseAssignment(input)
   }
 
   async removeMember(

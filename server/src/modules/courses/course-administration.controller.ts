@@ -50,11 +50,14 @@ import {
   CourseAdministrationMemberListResponseDto,
   CourseAdministrationMemberResponseDto,
   CreateCourseRequestDto,
+  ResolveCourseMembersRequestDto,
+  ResolveCourseMembersResponseDto,
   UpdateCourseRequestDto,
   UpdateMemberRoleRequestDto,
   addCourseMemberRequestSchema,
   bulkAddCourseMembersRequestSchema,
   createCourseRequestSchema,
+  resolveCourseMembersRequestSchema,
   updateCourseRequestSchema,
   updateMemberRoleRequestSchema,
   listCourseAdministrationQuerySchema,
@@ -62,6 +65,7 @@ import {
   type AddCourseMemberRequest,
   type BulkAddCourseMembersRequest,
   type CreateCourseRequest,
+  type ResolveCourseMembersRequest,
   type UpdateCourseRequest,
   type UpdateMemberRoleRequest,
   type ListCourseAdministrationQuery,
@@ -190,6 +194,27 @@ export class CourseAdministrationController {
       request.user,
       getRequestContext(request),
     )
+  }
+
+  @Post('members/resolve')
+  @HttpCode(200)
+  @SerializeOptions({
+    type: ResolveCourseMembersResponseDto,
+    strategy: 'excludeAll',
+  })
+  @ApiOperation({
+    summary: 'Resolve user identifiers for bulk course assignment',
+  })
+  @ApiBody({ type: ResolveCourseMembersRequestDto })
+  @ApiOkResponse({ type: ResolveCourseMembersResponseDto })
+  @ApiBadRequestResponse({ type: OpenApiValidationErrorDto })
+  resolveMembers(
+    @Body(
+      new CourseAdministrationValidationPipe(resolveCourseMembersRequestSchema),
+    )
+    body: ResolveCourseMembersRequest,
+  ): Promise<ResolveCourseMembersResponseDto> {
+    return this.courseAdministrationService.resolveMembers(body)
   }
 
   @Get(':courseId')

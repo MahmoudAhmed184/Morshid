@@ -102,6 +102,14 @@ class CourseAccessTestRepository extends CoursesRepository {
     return Promise.reject(new Error('not used by CourseAccessService tests'))
   }
 
+  resolveUsersForCourseAssignment(): Promise<{
+    resolved: []
+    unmatched: []
+    duplicates: []
+  }> {
+    return Promise.reject(new Error('not used by CourseAccessService tests'))
+  }
+
   removeMember(_input: RemoveCourseMemberInput): Promise<void> {
     return Promise.reject(new Error('not used by CourseAccessService tests'))
   }

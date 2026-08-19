@@ -102,6 +102,22 @@ class FakeCoursesRepository extends CoursesRepository {
   readonly addMembers = jest.fn((_input: BulkAddCourseMembersInput) =>
     Promise.resolve({ assignedCount: 0, skippedCount: 0 }),
   )
+  readonly resolveUsersForCourseAssignment = jest.fn(() =>
+    Promise.resolve({
+      resolved: [
+        {
+          id: user.id,
+          email: user.email,
+          displayName: user.displayName,
+          role: CourseMembershipRole.STUDENT,
+          matchedBy: user.email,
+          alreadyAssignedCourseIds: ['course-1'],
+        },
+      ],
+      unmatched: ['unknown@morshid.demo'],
+      duplicates: [user.email],
+    }),
+  )
   readonly removeMember = jest.fn((_input: RemoveCourseMemberInput) =>
     Promise.resolve(),
   )
@@ -178,6 +194,31 @@ describe('CourseAdministrationService', () => {
         userIds: ['user-1', 'user-2'],
       }),
     )
+  })
+
+  it('delegates identifier resolution to the courses repository', async () => {
+    const { repository, service } = buildService()
+
+    const result = await service.resolveMembers({
+      identifiers: [user.email, user.email, 'unknown@morshid.demo'],
+      role: CourseMembershipRole.STUDENT,
+      courseIds: ['course-1'],
+    })
+
+    expect(result.resolved).toHaveLength(1)
+    expect(result.resolved[0]).toMatchObject({
+      id: user.id,
+      email: user.email,
+      role: CourseMembershipRole.STUDENT,
+      alreadyAssignedCourseIds: ['course-1'],
+    })
+    expect(result.unmatched).toEqual(['unknown@morshid.demo'])
+    expect(result.duplicates).toEqual([user.email])
+    expect(repository.resolveUsersForCourseAssignment).toHaveBeenCalledWith({
+      identifiers: [user.email, user.email, 'unknown@morshid.demo'],
+      role: CourseMembershipRole.STUDENT,
+      courseIds: ['course-1'],
+    })
   })
 
   it('archives a course through the repository command', async () => {
