@@ -61,15 +61,19 @@ export interface MaterialPage<T> {
   nextCursor?: string
 }
 
-function paginateMaterials<T extends { id: string; title: string }>(
-  materials: T[],
-  input: MaterialPageInput,
-): MaterialPage<T> {
+function paginateMaterials<
+  T extends { id: string; title: string; originalFilename?: string },
+>(materials: T[], input: MaterialPageInput): MaterialPage<T> {
   const normalizedSearch = input.search?.toLocaleLowerCase()
   const filtered = materials.filter(
     (material) =>
       normalizedSearch === undefined ||
-      material.title.toLocaleLowerCase().includes(normalizedSearch),
+      material.title.toLocaleLowerCase().includes(normalizedSearch) ||
+      Boolean(
+        material.originalFilename
+          ?.toLocaleLowerCase()
+          .includes(normalizedSearch),
+      ),
   )
   const cursorIndex =
     input.cursor !== undefined
@@ -274,7 +278,17 @@ export class PrismaMaterialsRepository extends MaterialsRepository {
       deletedAt: null,
       ...(input.search !== undefined
         ? {
-            title: { contains: input.search, mode: 'insensitive' as const },
+            OR: [
+              {
+                title: { contains: input.search, mode: 'insensitive' as const },
+              },
+              {
+                originalFilename: {
+                  contains: input.search,
+                  mode: 'insensitive' as const,
+                },
+              },
+            ],
           }
         : {}),
     }

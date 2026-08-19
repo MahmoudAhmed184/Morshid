@@ -1,14 +1,22 @@
 import { EyeIcon, ScrollTextIcon, ShieldCheckIcon } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { DataTableState } from '@/components/ui/custom/data-table-state'
+import { DataToolbar } from '@/components/ui/custom/data-toolbar'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   Table,
   TableBody,
@@ -29,7 +37,59 @@ const dateFormatter = new Intl.DateTimeFormat(undefined, {
 
 export function AdminAuditPage() {
   const auditQuery = useAudit()
+  const [search, setSearch] = useState('')
+  const [targetTypeFilter, setTargetTypeFilter] = useState('ALL')
   const [selectedEvent, setSelectedEvent] = useState<AuditEvent | null>(null)
+
+  const targetTypes = useMemo(() => {
+    const types = new Set<string>()
+    for (const event of auditQuery.data ?? []) {
+      if (event.targetType) types.add(event.targetType)
+    }
+    return Array.from(types).sort()
+  }, [auditQuery.data])
+
+  const normalizedSearch = search.trim().toLowerCase()
+  const filteredEvents = useMemo(() => {
+    return (auditQuery.data ?? []).filter((event) => {
+      const matchesTargetType =
+        targetTypeFilter === 'ALL' || event.targetType === targetTypeFilter
+      if (!matchesTargetType) return false
+
+      if (!normalizedSearch) return true
+
+      const matchesAction = event.action
+        .toLowerCase()
+        .includes(normalizedSearch)
+      const matchesActorName = event.actor?.displayName
+        .toLowerCase()
+        .includes(normalizedSearch)
+      const matchesActorEmail = event.actor?.email
+        .toLowerCase()
+        .includes(normalizedSearch)
+      const matchesTargetTypeStr = event.targetType
+        .toLowerCase()
+        .includes(normalizedSearch)
+      const matchesTargetId = event.targetId
+        ?.toLowerCase()
+        .includes(normalizedSearch)
+      const matchesCourseId = event.courseId
+        ?.toLowerCase()
+        .includes(normalizedSearch)
+
+      return Boolean(
+        matchesAction ||
+        matchesActorName ||
+        matchesActorEmail ||
+        matchesTargetTypeStr ||
+        matchesTargetId ||
+        matchesCourseId,
+      )
+    })
+  }, [auditQuery.data, normalizedSearch, targetTypeFilter])
+
+  const isInitialEmpty = (auditQuery.data?.length ?? 0) === 0
+  const isFilterEmpty = filteredEvents.length === 0
 
   return (
     <div>
@@ -47,18 +107,53 @@ export function AdminAuditPage() {
       />
 
       <AdminPanel>
+        <DataToolbar
+          className="border-b px-4 py-3"
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search audit events by action, actor, target..."
+          filters={
+            <Select
+              value={targetTypeFilter}
+              onValueChange={(value) => setTargetTypeFilter(value ?? 'ALL')}
+            >
+              <SelectTrigger
+                className="h-9 w-auto min-w-[140px] rounded-lg border-border/80 px-2.5 text-xs"
+                aria-label="Filter audit events by target type"
+              >
+                <SelectValue placeholder="All target types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All target types</SelectItem>
+                {targetTypes.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          }
+        />
         <DataTableState
           isLoading={auditQuery.isPending}
           isError={auditQuery.isError}
-          isEmpty={auditQuery.data?.length === 0}
+          isEmpty={isFilterEmpty}
           onRetry={() => void auditQuery.refetch()}
           isRetrying={auditQuery.isFetching}
-          emptyTitle="No audit events found"
-          emptyDescription="Recent audit events returned by the API will appear here."
+          emptyTitle={
+            isInitialEmpty
+              ? 'No audit events found'
+              : 'No matching audit events'
+          }
+          emptyDescription={
+            isInitialEmpty
+              ? 'Recent audit events returned by the API will appear here.'
+              : 'Try adjusting your search or target type filter.'
+          }
         >
           {/* Mobile Compact List (< md) — No Horizontal Scroll */}
           <div className="divide-y divide-border md:hidden">
-            {auditQuery.data?.map((event) => (
+            {filteredEvents.map((event) => (
               <div
                 key={event.id}
                 className="flex items-center justify-between p-3.5 gap-3 hover:bg-secondary/20 transition-colors"
@@ -112,7 +207,7 @@ export function AdminAuditPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {auditQuery.data?.map((event) => (
+                {filteredEvents.map((event) => (
                   <TableRow
                     key={event.id}
                     className="h-[52px] hover:bg-secondary/40"
