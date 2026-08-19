@@ -86,19 +86,26 @@ describe('SocraticWorkflowModule Gemini composition', () => {
         temperature: 0,
         top_p: 1,
       })
-      expect(requestBody(fetchSpy.mock.calls[3]?.[1])).toMatchObject({
-        model: 'gemini-3.6-flash',
-        max_completion_tokens: 2048,
-      })
       expect(requestBody(fetchSpy.mock.calls[1]?.[1])).toMatchObject({
         model: 'gemini-3.4-flash',
         temperature: 0,
         top_p: 1,
       })
-      for (const call of fetchSpy.mock.calls.slice(2)) {
-        expect(requestBody(call[1])).not.toHaveProperty('temperature')
-        expect(requestBody(call[1])).not.toHaveProperty('top_p')
-      }
+      expect(requestBody(fetchSpy.mock.calls[2]?.[1])).toMatchObject({
+        model: 'gemini-3.6-flash',
+      })
+      expect(requestBody(fetchSpy.mock.calls[2]?.[1])).not.toHaveProperty(
+        'temperature',
+      )
+      expect(requestBody(fetchSpy.mock.calls[2]?.[1])).not.toHaveProperty(
+        'top_p',
+      )
+      expect(requestBody(fetchSpy.mock.calls[3]?.[1])).toMatchObject({
+        model: 'gemini-3.5-flash-lite',
+        max_completion_tokens: 2048,
+        temperature: 0,
+        top_p: 1,
+      })
     } finally {
       await moduleRef?.close()
       fetchSpy.mockRestore()
@@ -189,14 +196,14 @@ function readGeminiConfiguration(key: string): unknown {
     DEBUGGING_DIAGNOSIS_MODEL_MAX_RETRIES: 0,
     TUTOR_MODEL_PROVIDER: 'openai-compatible',
     TUTOR_MODEL_BASE_URL: geminiBaseUrl,
-    TUTOR_MODEL_NAME: 'gemini-3.7-flash',
+    TUTOR_MODEL_NAME: 'gemini-3.6-flash',
     TUTOR_MODEL_API_KEY: '',
     TUTOR_MODEL_TIMEOUT_MS: 30_000,
     TUTOR_MODEL_MAX_COMPLETION_TOKENS: 2048,
     TUTOR_MODEL_MAX_INFRASTRUCTURE_RETRIES: 1,
     SEMANTIC_GUARD_PROVIDER: 'openai-compatible',
     SEMANTIC_GUARD_BASE_URL: geminiBaseUrl,
-    SEMANTIC_GUARD_MODEL_NAME: 'gemini-3.6-flash',
+    SEMANTIC_GUARD_MODEL_NAME: 'gemini-3.5-flash-lite',
     SEMANTIC_GUARD_API_KEY: '',
     SEMANTIC_GUARD_TIMEOUT_MS: 30_000,
     SEMANTIC_GUARD_MAX_COMPLETION_TOKENS: 2048,
@@ -230,7 +237,7 @@ function chatCompletion(model: string): Response {
       ? validAnalysis
       : model === 'gemini-3.4-flash'
         ? validDiagnosis
-        : model === 'gemini-3.7-flash'
+        : model === 'gemini-3.6-flash'
           ? validCandidate
           : validGuard
   return new Response(
