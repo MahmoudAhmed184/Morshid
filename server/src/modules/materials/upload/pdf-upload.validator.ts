@@ -42,12 +42,37 @@ export class PdfUploadValidator {
   ) {}
 
   validate(input: {
+    expectedCourseId?: string
+    courseId?: unknown
     title: unknown
     file?: UploadedPdfFile
   }): ValidatedPdfUpload {
     const issues: MaterialsValidationIssue[] = []
     const title =
       typeof input.title === 'string' ? input.title.trim() : undefined
+
+    if (input.courseId !== undefined) {
+      const courseId =
+        typeof input.courseId === 'string' ? input.courseId.trim() : ''
+      const isUuid =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          courseId,
+        )
+      if (!isUuid) {
+        issues.push({
+          field: 'courseId',
+          message: 'Course ID must be a valid UUID',
+        })
+      } else if (
+        input.expectedCourseId !== undefined &&
+        courseId !== input.expectedCourseId
+      ) {
+        issues.push({
+          field: 'courseId',
+          message: 'Course ID in request body must match route parameter',
+        })
+      }
+    }
 
     if (title === undefined || title.length === 0) {
       issues.push({

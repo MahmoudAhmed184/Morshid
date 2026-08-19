@@ -45,7 +45,7 @@ export class MaterialsService {
 
   async uploadMaterial(
     courseId: string,
-    input: { title: unknown; file?: UploadedPdfFile },
+    input: { courseId?: unknown; title: unknown; file?: UploadedPdfFile },
     actor: AuthenticatedUser,
     requestContext?: AuditRequestContext,
   ): Promise<MaterialResponseDto> {
@@ -76,7 +76,10 @@ export class MaterialsService {
     let upload: ReturnType<PdfUploadValidator['validate']>
 
     try {
-      upload = this.pdfUploadValidator.validate(input)
+      upload = this.pdfUploadValidator.validate({
+        expectedCourseId: courseId,
+        ...input,
+      })
     } catch (error) {
       await this.materialsAuditService.recordUploadFailed({
         actor,

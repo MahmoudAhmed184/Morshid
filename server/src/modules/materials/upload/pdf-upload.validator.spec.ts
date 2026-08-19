@@ -150,4 +150,30 @@ describe('PdfUploadValidator', () => {
       originalFilename: 'python.pdf',
     })
   })
+
+  it('accepts a valid courseId if provided', () => {
+    const validator = buildValidator()
+
+    expect(
+      validator.validate({
+        courseId: '4c530c42-67bf-4cbe-a6f3-2c662564ddd1',
+        title: 'Python basics',
+        file: buildFile(),
+      }),
+    ).toMatchObject({
+      title: 'Python basics',
+    })
+  })
+
+  it('rejects an invalid courseId if provided', () => {
+    const validator = buildValidator()
+
+    expect(() =>
+      validator.validate({
+        courseId: 'invalid-course-uuid',
+        title: 'Python basics',
+        file: buildFile(),
+      }),
+    ).toThrow(BadRequestException)
+  })
 })

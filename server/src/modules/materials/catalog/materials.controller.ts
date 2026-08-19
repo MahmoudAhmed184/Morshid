@@ -113,6 +113,7 @@ export class MaterialsController {
     return this.materialsService.uploadMaterial(
       courseId,
       {
+        courseId: body.courseId,
         title: body.title,
         file,
       },
