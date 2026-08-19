@@ -69,6 +69,7 @@ export function AdminDashboardPage() {
   const usersQuery = useManagedUsers()
   const coursesQuery = useCourseAdministration()
   const auditQuery = useAudit(5)
+  const auditEvents = auditQuery.data?.events ?? []
   const users = usersQuery.data?.pages.flatMap((page) => page.users) ?? []
   const courses = coursesQuery.data ?? []
   const materialCount = courses.reduce(
@@ -159,7 +160,7 @@ export function AdminDashboardPage() {
               <DataTableState
                 isLoading={auditQuery.isPending}
                 isError={auditQuery.isError}
-                isEmpty={auditQuery.data?.length === 0}
+                isEmpty={auditEvents.length === 0}
                 onRetry={() => void auditQuery.refetch()}
                 isRetrying={auditQuery.isFetching}
                 empty={
@@ -171,7 +172,7 @@ export function AdminDashboardPage() {
                 }
               >
                 <ol className="space-y-2.5">
-                  {auditQuery.data?.map((event) => (
+                  {auditEvents.map((event) => (
                     <li
                       key={event.id}
                       className="rounded-xl bg-secondary/30 p-3.5 transition-colors hover:bg-secondary/50"

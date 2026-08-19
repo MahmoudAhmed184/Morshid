@@ -39,7 +39,18 @@ export class AuditController {
     type: AuditEventListResponseDto,
     strategy: 'excludeAll',
   })
-  @ApiOperation({ summary: 'List recent audit events' })
+  @ApiOperation({
+    summary: 'List recent audit events with search, filters, and pagination',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    schema: {
+      type: 'integer',
+      minimum: 1,
+      default: 1,
+    },
+  })
   @ApiQuery({
     name: 'limit',
     required: false,
@@ -50,6 +61,13 @@ export class AuditController {
       default: 20,
     },
   })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'action', required: false, type: String })
+  @ApiQuery({ name: 'targetType', required: false, type: String })
+  @ApiQuery({ name: 'courseId', required: false, type: String })
+  @ApiQuery({ name: 'actorUserId', required: false, type: String })
+  @ApiQuery({ name: 'startDate', required: false, type: String })
+  @ApiQuery({ name: 'endDate', required: false, type: String })
   @ApiOkResponse({
     type: AuditEventListResponseDto,
     description: 'Recent audit events in reverse chronological order.',
@@ -72,12 +90,16 @@ export class AuditController {
     )
     query: AuditListQuery,
   ): Promise<AuditEventListResponseDto> {
-    const events = await this.auditService.listRecentEvents(query.limit)
+    const page = await this.auditService.listAuditEvents(query)
     return {
-      events: events.map((event) => ({
+      events: page.events.map((event) => ({
         ...event,
         createdAt: event.createdAt.toISOString(),
       })),
+      total: page.total,
+      page: page.page,
+      limit: page.limit,
+      totalPages: page.totalPages,
     }
   }
 }
