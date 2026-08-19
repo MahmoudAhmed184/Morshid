@@ -194,12 +194,15 @@ export abstract class CoursesRepository {
         course.code.toLocaleLowerCase().includes(normalizedSearch) ||
         course.title.toLocaleLowerCase().includes(normalizedSearch),
     )
+    const cursorIndex =
+      input.cursor !== undefined
+        ? courses.findIndex((course) => course.id === input.cursor)
+        : -1
     const start =
       input.cursor !== undefined
-        ? Math.max(
-            courses.findIndex((course) => course.id === input.cursor) + 1,
-            0,
-          )
+        ? cursorIndex === -1
+          ? courses.length
+          : cursorIndex + 1
         : 0
     const pageCourses = courses.slice(start, start + input.limit)
     const hasNextPage = start + input.limit < courses.length
@@ -263,12 +266,15 @@ export abstract class CoursesRepository {
             .includes(normalizedSearch) ||
           member.user.email.toLocaleLowerCase().includes(normalizedSearch)),
     )
+    const cursorIndex =
+      input.cursor !== undefined
+        ? members.findIndex((member) => member.id === input.cursor)
+        : -1
     const start =
       input.cursor !== undefined
-        ? Math.max(
-            members.findIndex((member) => member.id === input.cursor) + 1,
-            0,
-          )
+        ? cursorIndex === -1
+          ? members.length
+          : cursorIndex + 1
         : 0
     const pageMembers = members.slice(start, start + input.limit)
     const hasNextPage = start + input.limit < members.length
