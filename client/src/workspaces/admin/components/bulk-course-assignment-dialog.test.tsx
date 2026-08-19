@@ -298,7 +298,7 @@ describe('BulkCourseAssignmentDialog', () => {
       screen.getByText('Bulk select and import instructors'),
     ).toBeInTheDocument()
 
-    const textarea = screen.getByPlaceholderText(/student1@morshid.demo/i)
+    const textarea = screen.getByPlaceholderText(/instructor1@morshid.demo/i)
     fireEvent.change(textarea, {
       target: { value: instructor.email },
     })
