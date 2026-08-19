@@ -73,6 +73,7 @@ export interface MaterialPageInput {
 
 export interface MaterialPage<T> {
   materials: T[]
+  total: number
   nextCursor?: string
 }
 
@@ -98,6 +99,7 @@ function paginateMaterials<T extends { id: string; title: string }>(
 
   return {
     materials: pageMaterials,
+    total: filtered.length,
     ...(hasNextPage
       ? { nextCursor: pageMaterials[pageMaterials.length - 1]?.id }
       : {}),
@@ -107,12 +109,14 @@ function paginateMaterials<T extends { id: string; title: string }>(
 function materialPageFromRows<T extends { id: string }>(
   rows: T[],
   limit: number,
+  total: number,
 ): MaterialPage<T> {
   const hasNextPage = rows.length > limit
   const materials = hasNextPage ? rows.slice(0, limit) : rows
 
   return {
     materials,
+    total,
     ...(hasNextPage ? { nextCursor: materials[materials.length - 1]?.id } : {}),
   }
 }
@@ -325,24 +329,28 @@ export class PrismaMaterialsRepository extends MaterialsRepository {
     courseId: string,
     input: MaterialPageInput,
   ): Promise<MaterialPage<SafeMaterialRecord>> {
-    const materials = await this.prismaService.material.findMany({
-      where: {
-        courseId,
-        deletedAt: null,
-        ...(input.search !== undefined
-          ? {
-              title: { contains: input.search, mode: 'insensitive' },
-            }
-          : {}),
-      },
-      select: safeMaterialSelect,
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      take: input.limit + 1,
-      ...(input.cursor !== undefined
-        ? { cursor: { id: input.cursor }, skip: 1 }
+    const where = {
+      courseId,
+      deletedAt: null,
+      ...(input.search !== undefined
+        ? {
+            title: { contains: input.search, mode: 'insensitive' as const },
+          }
         : {}),
-    })
-    return materialPageFromRows(materials, input.limit)
+    }
+    const [materials, total] = await Promise.all([
+      this.prismaService.material.findMany({
+        where,
+        select: safeMaterialSelect,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: input.limit + 1,
+        ...(input.cursor !== undefined
+          ? { cursor: { id: input.cursor }, skip: 1 }
+          : {}),
+      }),
+      this.prismaService.material.count({ where }),
+    ])
+    return materialPageFromRows(materials, input.limit, total)
   }
 
   findCourseMaterial(
@@ -387,22 +395,26 @@ export class PrismaMaterialsRepository extends MaterialsRepository {
     courseId: string,
     input: MaterialPageInput,
   ): Promise<MaterialPage<MaterialAdministrationRecord>> {
-    const materials = await this.prismaService.material.findMany({
-      where: {
-        courseId,
-        deletedAt: null,
-        ...(input.search !== undefined
-          ? { title: { contains: input.search, mode: 'insensitive' } }
-          : {}),
-      },
-      select: materialAdministrationSelect,
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      take: input.limit + 1,
-      ...(input.cursor !== undefined
-        ? { cursor: { id: input.cursor }, skip: 1 }
+    const where = {
+      courseId,
+      deletedAt: null,
+      ...(input.search !== undefined
+        ? { title: { contains: input.search, mode: 'insensitive' as const } }
         : {}),
-    })
-    return materialPageFromRows(materials, input.limit)
+    }
+    const [materials, total] = await Promise.all([
+      this.prismaService.material.findMany({
+        where,
+        select: materialAdministrationSelect,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: input.limit + 1,
+        ...(input.cursor !== undefined
+          ? { cursor: { id: input.cursor }, skip: 1 }
+          : {}),
+      }),
+      this.prismaService.material.count({ where }),
+    ])
+    return materialPageFromRows(materials, input.limit, total)
   }
 
   findMaterialForAdministration(

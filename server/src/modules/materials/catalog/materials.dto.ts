@@ -15,7 +15,7 @@ export interface UploadMaterialRequest {
 
 export const listMaterialsQuerySchema = z
   .object({
-    limit: z.coerce.number().int().min(1).max(100).default(25),
+    limit: z.coerce.number().int().min(1).max(100).default(15),
     cursor: z.uuid().optional(),
     search: z.string().trim().min(1).max(180).optional(),
   })
@@ -107,6 +107,10 @@ export class MaterialListResponseDto {
   @Type(() => MaterialDto)
   @ApiProperty({ type: [MaterialDto] })
   materials!: MaterialDto[]
+
+  @Expose()
+  @ApiProperty({ minimum: 0 })
+  total!: number
 
   @Expose()
   @ApiPropertyOptional({ format: 'uuid' })

@@ -5,12 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAuthStore } from '@/features/auth/session/interface/session-store'
 import { writeInstructorPreferences } from '@/workspaces/instructor/preferences/instructor-workspace-preferences.storage'
+import { useCourseMaterials } from '@/workspaces/instructor/materials/use-materials'
 import { useInstructorReviewWorkloadSummary } from '@/workspaces/instructor/reviews/use-reviews'
 import { useCourseMembership } from '@/workspaces/instructor/use-course-membership'
 
 import { InstructorDashboardShell } from './instructor-dashboard-shell'
 
 vi.mock('@/workspaces/instructor/use-course-membership')
+vi.mock('@/workspaces/instructor/materials/use-materials')
 vi.mock('@/workspaces/instructor/reviews/use-reviews')
 vi.mock('@tanstack/react-router', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
@@ -29,6 +31,7 @@ vi.mock('@tanstack/react-router', async (importOriginal) => ({
 }))
 
 const useCourseMembershipMock = vi.mocked(useCourseMembership)
+const useCourseMaterialsMock = vi.mocked(useCourseMaterials)
 const useWorkloadSummaryMock = vi.mocked(useInstructorReviewWorkloadSummary)
 const refetchCourses = vi.fn()
 
@@ -62,6 +65,14 @@ describe('InstructorDashboardShell', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     useCourseMembershipMock.mockReturnValue(coursesResult())
+    useCourseMaterialsMock.mockReturnValue({
+      data: { pages: [{ materials: [], total: 0 }], pageParams: [] },
+      error: null,
+      isError: false,
+      isFetching: false,
+      isPending: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useCourseMaterials>)
     useWorkloadSummaryMock.mockReturnValue({
       data: undefined,
       error: null,

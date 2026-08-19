@@ -309,6 +309,14 @@ interface UpdateCourseArgs {
   data: Partial<Pick<Course, 'code' | 'title'>>
 }
 
+interface CountMaterialArgs {
+  where?: {
+    courseId?: string
+    deletedAt?: null | Date
+    title?: { contains: string; mode?: 'insensitive' }
+  }
+}
+
 interface FindManyMaterialArgs {
   where?: {
     courseId?: string
@@ -474,6 +482,9 @@ export class IdentityTestStore {
       ),
     },
     material: {
+      count: jest.fn((args?: CountMaterialArgs) =>
+        Promise.resolve(this.countMaterials(args)),
+      ),
       findMany: jest.fn((args?: FindManyMaterialArgs) =>
         Promise.resolve(this.findMaterials(args)),
       ),
@@ -1419,6 +1430,28 @@ export class IdentityTestStore {
     }
 
     return { count: matches.length }
+  }
+
+  private countMaterials(args: CountMaterialArgs | undefined): number {
+    let materials = [...this.materials.values()]
+
+    const courseId = args?.where?.courseId
+    if (courseId !== undefined) {
+      materials = materials.filter((m) => m.courseId === courseId)
+    }
+
+    if (args?.where?.deletedAt === null) {
+      materials = materials.filter((m) => m.deletedAt === null)
+    }
+
+    const titleSearch = args?.where?.title?.contains.toLocaleLowerCase()
+    if (titleSearch !== undefined) {
+      materials = materials.filter((m) =>
+        m.title.toLocaleLowerCase().includes(titleSearch),
+      )
+    }
+
+    return materials.length
   }
 
   private findMaterials(

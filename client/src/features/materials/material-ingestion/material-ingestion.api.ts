@@ -20,7 +20,7 @@ export async function listCourseMaterials(
   options: ApiFetchOptions = {},
   input: { cursor?: string; search?: string } = {},
 ): Promise<MaterialsResponse> {
-  const parameters = new URLSearchParams({ limit: '25' })
+  const parameters = new URLSearchParams({ limit: '15' })
   if (input.cursor) parameters.set('cursor', input.cursor)
   if (input.search) parameters.set('search', input.search)
   const response = await apiJson<unknown>(

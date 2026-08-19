@@ -72,6 +72,10 @@ export class MaterialAdministrationListResponseDto {
   materials!: MaterialAdministrationDto[]
 
   @Expose()
+  @ApiProperty({ minimum: 0 })
+  total!: number
+
+  @Expose()
   @ApiProperty({ format: 'uuid', required: false })
   nextCursor?: string
 }
