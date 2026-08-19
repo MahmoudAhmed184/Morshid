@@ -565,7 +565,7 @@ describe('Materials persistence and local storage (e2e)', () => {
         .set('Authorization', `Bearer ${token}`)
         .expect(204),
     )
-    await new Promise<void>((resolve) => setTimeout(resolve, 25))
+    await new Promise<void>((resolve) => setTimeout(resolve, 100))
     const claim = materialsRepository.claimMaterialProcessing(
       material.id,
       '00000000-0000-4000-8000-000000000801',
@@ -613,7 +613,7 @@ describe('Materials persistence and local storage (e2e)', () => {
         .set('Authorization', `Bearer ${token}`)
         .expect(204),
     )
-    await new Promise<void>((resolve) => setTimeout(resolve, 25))
+    await new Promise<void>((resolve) => setTimeout(resolve, 100))
     const finalization = materialsRepository.completeMaterialProcessing(
       material.id,
       processingAttemptId,
@@ -678,7 +678,7 @@ describe('Materials persistence and local storage (e2e)', () => {
         .set('Authorization', `Bearer ${token}`)
         .expect(204),
     )
-    await new Promise<void>((resolve) => setTimeout(resolve, 25))
+    await new Promise<void>((resolve) => setTimeout(resolve, 100))
     const replacement = materialChunkRepository.replaceMaterialChunks(
       material.id,
       [
