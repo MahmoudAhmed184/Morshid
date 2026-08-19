@@ -24,36 +24,38 @@ const secondProject = Object.freeze({
 })
 
 describe('createGeminiPooledFetch', () => {
-  it.each(['gemini-3.6-flash', 'gemini-3.7-flash'])(
-    'removes unsupported sampling parameters for %s',
-    async (model) => {
-      const pool = new FakePool([{ kind: 'selected', project: firstProject }])
-      const upstream = jest.fn<
-        Promise<Response>,
-        [string | URL | Request, RequestInit?]
-      >(() => Promise.resolve(new Response('ok', { status: 200 })))
-      const body = JSON.stringify({
-        model,
-        messages: [{ role: 'user', content: 'hello' }],
-        temperature: 0,
-        top_p: 1,
-        max_completion_tokens: 256,
-        response_format: { type: 'json_object' },
-      })
+  it.each([
+    'gemini-3.6-flash',
+    'gemini-3.6-flash-001',
+    'gemini-3.7-flash',
+    'gemini-3.7-flash-preview',
+  ])('removes unsupported sampling parameters for %s', async (model) => {
+    const pool = new FakePool([{ kind: 'selected', project: firstProject }])
+    const upstream = jest.fn<
+      Promise<Response>,
+      [string | URL | Request, RequestInit?]
+    >(() => Promise.resolve(new Response('ok', { status: 200 })))
+    const body = JSON.stringify({
+      model,
+      messages: [{ role: 'user', content: 'hello' }],
+      temperature: 0,
+      top_p: 1,
+      max_completion_tokens: 256,
+      response_format: { type: 'json_object' },
+    })
 
-      await createGeminiPooledFetch(pool, upstream)(
-        `${geminiBaseUrl}/chat/completions`,
-        { method: 'POST', body },
-      )
+    await createGeminiPooledFetch(pool, upstream)(
+      `${geminiBaseUrl}/chat/completions`,
+      { method: 'POST', body },
+    )
 
-      expect(readJsonBody(upstream.mock.calls[0]?.[1])).toEqual({
-        model,
-        messages: [{ role: 'user', content: 'hello' }],
-        max_completion_tokens: 256,
-        response_format: { type: 'json_object' },
-      })
-    },
-  )
+    expect(readJsonBody(upstream.mock.calls[0]?.[1])).toEqual({
+      model,
+      messages: [{ role: 'user', content: 'hello' }],
+      max_completion_tokens: 256,
+      response_format: { type: 'json_object' },
+    })
+  })
 
   it('preserves sampling parameters for the unchanged Gemini 3.5 analysis model', async () => {
     const pool = new FakePool([{ kind: 'selected', project: firstProject }])
@@ -114,17 +116,76 @@ describe('createGeminiPooledFetch', () => {
     expect([...pool.exclusions[1]]).toEqual([firstProject.id])
   })
 
-  it('does not rotate credentials for non-rate-limit failures', async () => {
-    const pool = new FakePool([{ kind: 'selected', project: firstProject }])
-    const upstream = jest.fn(() =>
-      Promise.resolve(new Response(null, { status: 503 })),
-    )
+  it('switches immediately to the next project after a 401 unauthenticated response', async () => {
+    const pool = new FakePool([
+      { kind: 'selected', project: firstProject },
+      { kind: 'selected', project: secondProject },
+    ])
+    const upstream = jest
+      .fn<Promise<Response>, [string | URL | Request, RequestInit?]>()
+      .mockResolvedValueOnce(new Response('unauthenticated', { status: 401 }))
+      .mockResolvedValueOnce(new Response('ok', { status: 200 }))
+    const pooledFetch = createGeminiPooledFetch(pool, upstream, () => 0)
 
     await expect(
-      createGeminiPooledFetch(pool, upstream)('https://example.test/chat'),
-    ).resolves.toMatchObject({ status: 503 })
-    expect(upstream).toHaveBeenCalledTimes(1)
-    expect(pool.marked).toEqual([])
+      pooledFetch('https://example.test/chat').then((response) =>
+        response.text(),
+      ),
+    ).resolves.toBe('ok')
+
+    expect(upstream).toHaveBeenCalledTimes(2)
+    expect(pool.marked).toEqual([
+      { projectId: firstProject.id, providerDelayMs: 30000 },
+    ])
+    expect([...pool.exclusions[1]]).toEqual([firstProject.id])
+  })
+
+  it('switches immediately to the next project after a 503 service unavailable response', async () => {
+    const pool = new FakePool([
+      { kind: 'selected', project: firstProject },
+      { kind: 'selected', project: secondProject },
+    ])
+    const upstream = jest
+      .fn<Promise<Response>, [string | URL | Request, RequestInit?]>()
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockResolvedValueOnce(new Response('ok', { status: 200 }))
+    const pooledFetch = createGeminiPooledFetch(pool, upstream, () => 0)
+
+    await expect(
+      pooledFetch('https://example.test/chat').then((response) =>
+        response.text(),
+      ),
+    ).resolves.toBe('ok')
+
+    expect(upstream).toHaveBeenCalledTimes(2)
+    expect(pool.marked).toEqual([
+      { projectId: firstProject.id, providerDelayMs: 250 },
+    ])
+    expect([...pool.exclusions[1]]).toEqual([firstProject.id])
+  })
+
+  it('switches immediately to the next project after a 500 internal server error response', async () => {
+    const pool = new FakePool([
+      { kind: 'selected', project: firstProject },
+      { kind: 'selected', project: secondProject },
+    ])
+    const upstream = jest
+      .fn<Promise<Response>, [string | URL | Request, RequestInit?]>()
+      .mockResolvedValueOnce(new Response(null, { status: 500 }))
+      .mockResolvedValueOnce(new Response('ok', { status: 200 }))
+    const pooledFetch = createGeminiPooledFetch(pool, upstream, () => 0)
+
+    await expect(
+      pooledFetch('https://example.test/chat').then((response) =>
+        response.text(),
+      ),
+    ).resolves.toBe('ok')
+
+    expect(upstream).toHaveBeenCalledTimes(2)
+    expect(pool.marked).toEqual([
+      { projectId: firstProject.id, providerDelayMs: 250 },
+    ])
+    expect([...pool.exclusions[1]]).toEqual([firstProject.id])
   })
 
   it('returns one bounded 429 after every configured project refuses', async () => {

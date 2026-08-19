@@ -244,6 +244,12 @@ export function citationIdForChunk(
   return `retrieval.rank.${String(chunk.rank)}`
 }
 
-function truncateCodePoints(value: string, maximum: number): string {
+function truncateCodePoints(
+  value: string | null | undefined,
+  maximum: number,
+): string {
+  if (value === null || value === undefined) {
+    return ''
+  }
   return Array.from(value).slice(0, maximum).join('')
 }

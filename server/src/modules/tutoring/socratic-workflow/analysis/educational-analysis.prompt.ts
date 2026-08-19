@@ -135,16 +135,10 @@ function snapshotMessage(message: AnalysisContextMessage) {
     id: message.id,
     sequence: message.sequence,
     role: message.role,
-    attemptId: message.attemptId,
-    topicId: message.topicId,
-    responseToMessageId: message.responseToMessageId,
     content: message.content,
-    status: message.status,
     requestKind: message.requestKind,
     guidanceLabel: message.guidanceLabel,
     hintLevel: message.hintLevel,
-    createdAt: message.createdAt.toISOString(),
-    completedAt: message.completedAt?.toISOString() ?? null,
   }
 }
 

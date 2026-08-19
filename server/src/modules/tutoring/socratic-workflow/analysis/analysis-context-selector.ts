@@ -240,7 +240,12 @@ function findLatestTutorMessage(
 }
 
 function isLikelyQuestion(content: string): boolean {
-  return /[؟?]\s*$/.test(content.trim())
+  const trimmed = content.trim()
+  if (/[؟?][^\w\s\u0600-\u06FF]*$/u.test(trimmed)) {
+    return true
+  }
+  const trailingChunk = trimmed.slice(-150)
+  return /[؟?]/.test(trailingChunk)
 }
 
 function textReferenceForMessage(

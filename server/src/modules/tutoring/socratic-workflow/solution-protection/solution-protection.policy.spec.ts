@@ -172,6 +172,23 @@ describe('solution protection policy', () => {
     })
   })
 
+  it('upgrades an unprotected Topic to protected when a problem request is introduced', () => {
+    expect(
+      proposal({
+        topic: topic({
+          solutionProtectionStatus: SolutionProtectionStatus.UNPROTECTED,
+          solutionProtectionSource:
+            SolutionProtectionSource.ACCEPTED_CONCEPT_ANALYSIS,
+        }),
+        requestKind: MessageRequestKind.PROBLEM_LIKE,
+        outcome: TOPIC_RESOLUTION_OUTCOME.CONTINUE_CURRENT_TOPIC,
+      }),
+    ).toEqual({
+      status: SolutionProtectionStatus.PROTECTED,
+      source: SolutionProtectionSource.ACCEPTED_TASK_ANALYSIS,
+    })
+  })
+
   it('leaves ambiguous new Topics UNKNOWN for conservative screening', () => {
     expect(
       proposal({

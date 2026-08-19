@@ -16,10 +16,11 @@ interface ResolvedChatTransport {
   readonly fetchImplementation: FetchImplementation
 }
 
-const GEMINI_MODELS_WITHOUT_SAMPLING_PARAMETERS = new Set([
-  'gemini-3.6-flash',
-  'gemini-3.7-flash',
-])
+const MAX_CREDENTIAL_COOLDOWN_MS = 30_000
+
+function isSamplingUnsupportedModel(model: string): boolean {
+  return model.startsWith('gemini-3.6') || model.startsWith('gemini-3.7')
+}
 
 export function resolveChatTransport(
   baseUrl: string,
@@ -51,6 +52,7 @@ export function createGeminiPooledFetch(
     const preparedInit = removeUnsupportedSamplingParameters(init)
     const attemptedProjectIds = new Set<string>()
     let retryAfterMs: number | undefined
+    let lastCredentialFailureResponse: Response | undefined
 
     while (attemptedProjectIds.size < pool.size) {
       assertNotAborted(preparedInit?.signal)
@@ -75,6 +77,41 @@ export function createGeminiPooledFetch(
         ...preparedInit,
         headers,
       })
+
+      if (response.status === 401 || response.status === 403) {
+        await discardResponseBody(response)
+        try {
+          await pool.markRateLimited(
+            selection.project.id,
+            MAX_CREDENTIAL_COOLDOWN_MS,
+          )
+        } catch (error) {
+          throw mapPoolFailure(error)
+        }
+        lastCredentialFailureResponse = response
+        continue
+      }
+
+      if (
+        response.status === 500 ||
+        response.status === 502 ||
+        response.status === 503 ||
+        response.status === 504
+      ) {
+        const failure = readUpstreamFailure(
+          { status: response.status, headers: response.headers },
+          clock(),
+        )
+        await discardResponseBody(response)
+        try {
+          await pool.markRateLimited(selection.project.id, failure.retryDelayMs)
+        } catch (error) {
+          throw mapPoolFailure(error)
+        }
+        lastCredentialFailureResponse = response
+        continue
+      }
+
       if (response.status !== 429) {
         return response
       }
@@ -100,6 +137,13 @@ export function createGeminiPooledFetch(
           : Math.min(retryAfterMs, appliedCooldownMs)
     }
 
+    if (
+      lastCredentialFailureResponse !== undefined &&
+      retryAfterMs === undefined
+    ) {
+      return lastCredentialFailureResponse
+    }
+
     return rateLimitedResponse(retryAfterMs ?? 1)
   }
 }
@@ -121,9 +165,7 @@ function removeUnsupportedSamplingParameters(
     typeof parsed !== 'object' ||
     parsed === null ||
     Array.isArray(parsed) ||
-    !GEMINI_MODELS_WITHOUT_SAMPLING_PARAMETERS.has(
-      String(Reflect.get(parsed, 'model')),
-    )
+    !isSamplingUnsupportedModel(String(Reflect.get(parsed, 'model')))
   ) {
     return init
   }

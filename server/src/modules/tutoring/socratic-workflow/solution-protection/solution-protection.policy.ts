@@ -100,8 +100,6 @@ function acceptedAnalysisEstablishesTask(input: {
 }): boolean {
   return (
     isAcceptedModelAnalysis(input.analysis?.analysisSource) &&
-    input.topicResolutionOutcome ===
-      TOPIC_RESOLUTION_OUTCOME.CREATE_NEW_TOPIC &&
     (input.analysis?.result.requestKind === MessageRequestKind.PROBLEM_LIKE ||
       input.analysis?.result.requestKind === MessageRequestKind.CODE_DIAGNOSIS)
   )
