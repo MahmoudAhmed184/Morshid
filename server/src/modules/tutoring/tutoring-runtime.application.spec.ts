@@ -659,6 +659,20 @@ describe('TutoringRuntimeApplication', () => {
       }),
     )
   })
+
+  it('rejects with 429 when conversation turns are exhausted', async () => {
+    beginTurn.mockResolvedValue({ kind: 'conversation_turns_exhausted' })
+    await expect(runNew('Question')).rejects.toThrow(
+      'You have reached the turn limit for this conversation.',
+    )
+    expect(recordEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: user.id,
+        courseId,
+        metadata: { reason: 'CONVERSATION_TURNS_EXHAUSTED' },
+      }),
+    )
+  })
 })
 
 function beginOk(): Extract<BeginTutoringTurnResult, { kind: 'ok' }> {

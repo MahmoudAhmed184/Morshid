@@ -1,6 +1,10 @@
 import type { DatabaseTransaction } from '../../../platform/database/database-transaction'
-import type { PolicyDayWindow } from '../policy-day/policy-day'
+import {
+  resolvePolicyDayWindow,
+  type PolicyDayWindow,
+} from '../policy-day/policy-day'
 
+export { resolvePolicyDayWindow }
 export type { PolicyDayWindow } from '../policy-day/policy-day'
 
 export interface AllowanceState {

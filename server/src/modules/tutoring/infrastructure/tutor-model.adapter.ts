@@ -155,6 +155,12 @@ export class DeterministicTutorModelAdapter implements TutorModelPort {
     const allowedCitationIds = extractAllowedCitationIds(request)
     const debuggingGuidance = extractDebuggingGuidance(request)
     const responseIntent = extractTeachingStrategy(request)
+    const totalPromptChars = request.messages.reduce(
+      (sum, message) => sum + message.content.length,
+      0,
+    )
+    const inputTokens = Math.max(120, Math.ceil(totalPromptChars / 4) + 600)
+    const outputTokens = 48
 
     return Promise.resolve(
       Object.freeze({
@@ -187,6 +193,8 @@ export class DeterministicTutorModelAdapter implements TutorModelPort {
         provider: DETERMINISTIC_TUTOR_MODEL_PROVIDER,
         model: 'deterministic-tutor-generation-v1',
         promptVersion: request.promptVersion,
+        inputTokens,
+        outputTokens,
       }),
     )
   }

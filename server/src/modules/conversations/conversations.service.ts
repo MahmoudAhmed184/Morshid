@@ -19,6 +19,7 @@ import type {
   ChatSessionDto,
   ChatSessionListResponseDto,
   ChatSessionResponseDto,
+  ChatSessionSummaryResponseDto,
   CreateChatSessionRequest,
   ListChatMessagesQuery,
   ListChatSessionsQuery,
@@ -129,6 +130,33 @@ export class ConversationsService extends ConversationCourseBoundaryAudit {
     )
 
     return { session: mapSession(session) }
+  }
+
+  async getSessionSummary(
+    courseId: string,
+    sessionId: string,
+    user: Pick<AuthenticatedUser, 'id'>,
+    requestContext?: AuditRequestContext,
+  ): Promise<ChatSessionSummaryResponseDto> {
+    await this.requireActiveStudentMembership(courseId, user.id, requestContext)
+
+    const summary = await this.sessionRepository.getSessionSummary(
+      courseId,
+      sessionId,
+      user.id,
+    )
+
+    if (summary === null) {
+      await this.recordSessionAccessDenied(
+        courseId,
+        user.id,
+        sessionId,
+        requestContext,
+      )
+      throw conversationSessionNotFoundException()
+    }
+
+    return { summary }
   }
 
   async renameSession(

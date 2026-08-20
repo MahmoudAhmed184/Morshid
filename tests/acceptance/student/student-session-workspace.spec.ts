@@ -1033,4 +1033,72 @@ test.describe('Student session workspace', () => {
       )
       .toBe(true)
   })
+
+  test('renders minimal composer with course selector, turn limits, review allowance, and session summary popover', async ({
+    page,
+  }) => {
+    await signInThroughUi(page, demoAccounts.student)
+    await expect(page).toHaveURL(/\/chat(?:\?.*)?$/)
+
+    // Verify course selector button exists
+    const courseButton = page.getByRole('button', { name: /Course context:/i })
+    await expect(courseButton).toBeVisible()
+
+    // Verify Turns left pill is visible
+    await expect(page.getByText(/Turns left 30 \/ 30/i)).toBeVisible()
+
+    // Verify Reviews left pill is visible
+    await expect(page.getByText(/Reviews left/i)).toBeVisible()
+
+    // Verify Info popover opens and shows Session summary
+    const infoButton = page.getByRole('button', { name: 'Session summary' })
+    await expect(infoButton).toBeVisible()
+    await infoButton.click()
+
+    await expect(page.getByText('Session summary')).toBeVisible()
+    await expect(page.getByText('Context usage')).toBeVisible()
+    await expect(page.getByText('Total processed')).toBeVisible()
+    await expect(page.getByText('Progress in this chat')).toBeVisible()
+    await expect(
+      page.getByText(/Each chat session is limited to 30 turns/i),
+    ).toBeVisible()
+  })
+
+  test('updates authoritative session metrics and displays real activity changes after sending a message', async ({
+    page,
+  }) => {
+    await signInThroughUi(page, demoAccounts.student)
+    await expect(page).toHaveURL(/\/chat(?:\?.*)?$/)
+
+    const composer = page.getByRole('textbox', { name: 'Message' })
+    await composer.fill('What is an array in computer science?')
+    await page.getByRole('button', { name: 'Send message' }).click()
+
+    await expect(page).toHaveURL(/\/chat\?(?=.*\bcourseId=)(?=.*\bsessionId=)/)
+
+    // Wait for the tutor response to arrive and be visible
+    await expect(page.getByText('AI Tutor').first()).toBeVisible({
+      timeout: 15_000,
+    })
+
+    // Verify Turns left decreased from 30 to 29
+    await expect(page.getByText('Turns left 29 / 30')).toBeVisible({
+      timeout: 10_000,
+    })
+
+    // Open session summary popover
+    const infoButton = page.getByRole('button', { name: 'Session summary' })
+    await infoButton.click()
+
+    await expect(page.getByText('Session summary')).toBeVisible()
+    await expect(page.getByText('1/30 exchanges')).toBeVisible()
+    await expect(page.getByText('Context usage')).toBeVisible()
+    await expect(page.getByText('Total processed')).toBeVisible()
+
+    // Take screenshot showing updated real metrics in composer and session summary
+    await page.screenshot({
+      path: 'scratch/authoritative-session-metrics.png',
+      fullPage: true,
+    })
+  })
 })

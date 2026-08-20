@@ -66,3 +66,13 @@ export function tutoringAllowanceExhaustedException(): HttpException {
     HttpStatus.TOO_MANY_REQUESTS,
   )
 }
+
+export function tutoringConversationTurnsExhaustedException(): HttpException {
+  return new HttpException(
+    {
+      code: CONVERSATION_ERROR_CODES.CONVERSATION_TURN_LIMIT_EXHAUSTED,
+      message: 'You have reached the turn limit for this conversation.',
+    },
+    HttpStatus.TOO_MANY_REQUESTS,
+  )
+}

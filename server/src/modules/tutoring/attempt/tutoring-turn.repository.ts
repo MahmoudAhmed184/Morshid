@@ -49,6 +49,7 @@ import {
   GROUNDING_ATTEMPT_EXPIRED,
   GROUNDING_ATTEMPT_LEASE_MS,
   GROUNDING_FAILED_CONTENT,
+  MAX_CONVERSATION_TURNS,
 } from './tutoring.constants'
 
 const MAX_TRANSACTION_ATTEMPTS = 3
@@ -179,6 +180,7 @@ export type BeginTutoringTurnResult =
   | { kind: 'idempotency_conflict' }
   | { kind: 'turn_in_progress' }
   | { kind: 'allowance_exhausted' }
+  | { kind: 'conversation_turns_exhausted' }
 
 export type RetryTutoringTurnResult =
   | {
@@ -406,6 +408,16 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
         `
         if (Number(usage.count) >= limit) {
           return { kind: 'allowance_exhausted' as const }
+        }
+
+        const [sessionTurns] = await tx.$queryRaw<{ count: bigint }[]>`
+          SELECT COUNT(*)::bigint AS count
+          FROM "messages"
+          WHERE "session_id" = ${session.id}::uuid
+            AND "role" = 'STUDENT'
+        `
+        if (Number(sessionTurns.count) >= MAX_CONVERSATION_TURNS) {
+          return { kind: 'conversation_turns_exhausted' as const }
         }
 
         const studentPreference = await tx.studentTutoringPreference.findUnique(
