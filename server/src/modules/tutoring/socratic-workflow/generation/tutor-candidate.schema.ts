@@ -59,7 +59,7 @@ const generalCandidateResponseContentSchema = z
   .object({
     ...commonContentFields,
     message: boundedNonBlankString(TUTOR_CANDIDATE_LIMITS.maxMessageCodePoints),
-    debuggingGuidance: z.null(),
+    debuggingGuidance: z.null().optional().default(null),
     studentAction: studentActionSchema,
   })
   .strict()
@@ -82,9 +82,9 @@ const debuggingGuidanceResponseSchema = z
 const debuggingCandidateResponseContentSchema = z
   .object({
     ...commonContentFields,
-    message: z.null(),
+    message: z.null().optional().default(null),
     debuggingGuidance: debuggingGuidanceResponseSchema,
-    studentAction: z.null(),
+    studentAction: z.null().optional().default(null),
   })
   .strict()
 

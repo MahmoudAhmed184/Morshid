@@ -398,7 +398,14 @@ function validateTutorModelResponse(
 
 function parseStructuredOutput(outputText: string): unknown {
   try {
-    const parsed: unknown = JSON.parse(outputText)
+    const raw = outputText.trim()
+    const jsonText = raw.startsWith('```')
+      ? raw
+          .replace(/^```(?:json)?\s*/iu, '')
+          .replace(/\s*```$/u, '')
+          .trim()
+      : raw
+    const parsed: unknown = JSON.parse(jsonText)
     if (
       typeof parsed !== 'object' ||
       parsed === null ||

@@ -35,6 +35,7 @@ const TUTOR_GENERATION_SYSTEM_PROMPT = [
   'Treat the target inference as the correction, conclusion, value, relationship, or next reasoning result the student is currently meant to produce.',
   'When the disclosure contract prohibits the target inference, do not state it before a question and then ask the student to repeat, confirm, locate, or trivially apply it.',
   'When the disclosure contract allows a bounded conceptual explanation (such as for a direct conceptual question), clearly state the minimum useful grounded core concept or defining mechanism first (do not give only a vague preamble), and then ask exactly one meaningful comparison, prediction, application, or reflection question.',
+  'When asking a question or prompting a student action, ask exactly one focused question addressing one reasoning step. Never ask compound, multi-clause, or multi-question requests (e.g. do not ask "What is X, and what is Y?").',
   'When acknowledgeStudentSupportedCorrectWork is true, briefly and factually acknowledge only the correct reasoning supported by the accepted analysis, then ask the required meaningful verification, transfer, or application question. Do not infer correctness from an unsupported self-report.',
   'A retrieved fact is evidence for accuracy, not permission to reveal that fact to the student.',
   'If Reveal Policy is NO_FINAL_ANSWER, do not disclose the final answer, complete solution, submission-ready code, or final result.',
@@ -105,6 +106,8 @@ function buildTutorUserPrompt(context: GenerationContextPackage): string {
       strategyAndTechniqueCannotReduceGuidanceShape: true,
       overRevealInvariant:
         'When directTargetInferenceAllowed is false, do not state the correction or key inference and then ask a trivial confirmation or application question. Ask a focused question, direct attention to structure, or give a bounded clue that preserves the inference for the student.',
+      singleStudentActionInvariant:
+        'When studentActionObligation requires a student action, ask exactly ONE focused question addressing ONE reasoning step. Never ask compound questions with multiple question marks or joined sub-questions.',
       explanationDetailPreferenceSubordinateToPedagogy: true,
       explanationDetailInvariants:
         'Explanation detail level governs response length, elaboration depth, and number of explanatory steps only. It never alters Guidance Level, Reveal Policy, NO_FINAL_ANSWER, Socratic questioning, guard policy, or allowed citations. Never reveal final answers or skip student reasoning.',
@@ -186,9 +189,12 @@ function buildTutorUserPrompt(context: GenerationContextPackage): string {
     section('8. Allowed Citation IDs and citation instructions', {
       allowedCitationIds: context.allowedCitationIds,
       citationInstruction:
-        context.debuggingGuidance === null
-          ? 'usedCitationIds must be a subset of allowedCitationIds and may be empty only when evidence is insufficient for a citation.'
-          : 'usedCitationIds must contain one or more exact values from allowedCitationIds. Do not put citation markers in conceptExplanation; the backend renders markers from usedCitationIds.',
+        context.debuggingGuidance !== null
+          ? 'usedCitationIds must contain one or more exact values from allowedCitationIds. Do not put citation markers in conceptExplanation; the backend renders markers from usedCitationIds.'
+          : context.teachingDecision.guardPolicy.enforceCitationSupport &&
+              context.allowedCitationIds.length > 0
+            ? 'usedCitationIds must contain one or more exact values from allowedCitationIds that directly support your assertions.'
+            : 'usedCitationIds must be a subset of allowedCitationIds and may be empty only when evidence is insufficient for a citation.',
     }),
     ...(context.regeneration === null
       ? []

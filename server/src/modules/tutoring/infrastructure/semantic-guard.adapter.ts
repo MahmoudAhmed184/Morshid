@@ -289,7 +289,14 @@ function parseStructuredOutput(
   }
 
   try {
-    return JSON.parse(outputText)
+    const raw = outputText.trim()
+    const jsonText = raw.startsWith('```')
+      ? raw
+          .replace(/^```(?:json)?\s*/iu, '')
+          .replace(/\s*```$/u, '')
+          .trim()
+      : raw
+    return JSON.parse(jsonText)
   } catch {
     throw new SemanticGuardModelError(
       SEMANTIC_GUARD_ERROR_CODE.MALFORMED_OUTPUT,
