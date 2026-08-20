@@ -1058,6 +1058,7 @@ export class PrismaSubscriptionsRepository extends SubscriptionsRepository {
       select: {
         id: true,
         createdAt: true,
+        status: true,
         subscription: {
           select: {
             activatedAt: true,
@@ -1073,38 +1074,74 @@ export class PrismaSubscriptionsRepository extends SubscriptionsRepository {
     const startDate =
       university.subscription?.activatedAt ?? university.createdAt
     const { nextBillingDate } = getSubscriptionBillingPeriod(startDate)
-    const cancelAtPeriodEnd = input.cancelAtPeriodEnd === true
+    const now = new Date()
+    const nextStatus =
+      input.status ??
+      (input.cancelAtPeriodEnd === undefined
+        ? undefined
+        : input.cancelAtPeriodEnd
+          ? SubscriptionStatus.PENDING_CANCELLATION
+          : SubscriptionStatus.ACTIVE)
+    const cancelAtPeriodEnd =
+      nextStatus === SubscriptionStatus.PENDING_CANCELLATION
+    const cancellationChanged = nextStatus !== undefined
+    const canceledAt =
+      nextStatus === SubscriptionStatus.CANCELLED || cancelAtPeriodEnd
+        ? now
+        : null
+    const cancellationEffectiveAt =
+      nextStatus === SubscriptionStatus.CANCELLED
+        ? now
+        : cancelAtPeriodEnd
+          ? nextBillingDate
+          : null
 
-    await this.prismaService.universitySubscription.upsert({
-      where: { universityId },
-      update: {
-        ...(input.customPricePerSeat !== undefined
-          ? {
-              nextCustomPricePerSeat: input.customPricePerSeat,
-              nextCustomPriceEffectiveAt: nextBillingDate,
-            }
-          : {}),
-        ...(input.cancelAtPeriodEnd !== undefined
-          ? {
-              cancelAtPeriodEnd,
-              canceledAt: cancelAtPeriodEnd ? new Date() : null,
-              cancellationEffectiveAt: cancelAtPeriodEnd
-                ? nextBillingDate
-                : null,
-            }
-          : {}),
-        ...(input.status !== undefined ? { status: input.status } : {}),
-      },
-      create: {
-        universityId,
-        customPricePerSeat: input.customPricePerSeat ?? null,
-        nextCustomPricePerSeat: null,
-        nextCustomPriceEffectiveAt: null,
-        cancelAtPeriodEnd,
-        canceledAt: cancelAtPeriodEnd ? new Date() : null,
-        cancellationEffectiveAt: cancelAtPeriodEnd ? nextBillingDate : null,
-        status: input.status ?? PrismaSubscriptionStatus.ACTIVE,
-      },
+    await this.prismaService.$transaction(async (transaction) => {
+      await transaction.universitySubscription.upsert({
+        where: { universityId },
+        update: {
+          ...(input.customPricePerSeat !== undefined
+            ? {
+                nextCustomPricePerSeat: input.customPricePerSeat,
+                nextCustomPriceEffectiveAt: nextBillingDate,
+              }
+            : {}),
+          ...(cancellationChanged
+            ? {
+                cancelAtPeriodEnd,
+                canceledAt,
+                cancellationEffectiveAt,
+                status: nextStatus,
+              }
+            : {}),
+        },
+        create: {
+          universityId,
+          customPricePerSeat: input.customPricePerSeat ?? null,
+          nextCustomPricePerSeat: null,
+          nextCustomPriceEffectiveAt: null,
+          cancelAtPeriodEnd,
+          canceledAt,
+          cancellationEffectiveAt,
+          status: nextStatus ?? PrismaSubscriptionStatus.ACTIVE,
+        },
+      })
+
+      if (nextStatus === SubscriptionStatus.CANCELLED) {
+        await transaction.university.update({
+          where: { id: universityId },
+          data: { status: UniversityStatus.INACTIVE },
+        })
+      } else if (
+        (nextStatus === SubscriptionStatus.ACTIVE ||
+          nextStatus === SubscriptionStatus.PENDING_CANCELLATION) &&
+        university.status === UniversityStatus.INACTIVE
+      ) {
+        await transaction.university.update({
+          where: { id: universityId },
+          data: { status: UniversityStatus.ACTIVE },
+        })
+      }
     })
 
     return this.getUniversitySubscription(universityId)

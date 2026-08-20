@@ -247,13 +247,16 @@ export function EditCustomPriceDialog({
                       <SelectContent>
                         <SelectItem value="ACTIVE">Active</SelectItem>
                         <SelectItem value="PENDING_CANCELLATION">
-                          Pending Cancellation
+                          Cancel at Cycle End
                         </SelectItem>
-                        <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                        <SelectItem value="CANCELLED">
+                          Cancel Immediately
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                     <FormDescription className="text-[11px] leading-tight">
-                      Access stays active until billing cycle ends if pending.
+                      Cycle-end cancellation keeps access active until renewal;
+                      immediate cancellation blocks university access now.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

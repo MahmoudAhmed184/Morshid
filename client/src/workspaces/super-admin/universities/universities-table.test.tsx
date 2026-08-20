@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { PropsWithChildren } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -53,7 +54,11 @@ const sampleUniversity: UniversityItem = {
 }
 
 describe('UniversitiesTable', () => {
-  afterEach(cleanup)
+  afterEach(() => {
+    cleanup()
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
 
   it('renders university rows with link to university detail page', () => {
     const queryClient = new QueryClient({
@@ -76,5 +81,45 @@ describe('UniversitiesTable', () => {
     expect(screen.getByText('fatima@ksu.edu.sa')).toBeInTheDocument()
     expect(screen.getByText('1200')).toBeInTheDocument()
     expect(screen.getByText('Students')).toBeInTheDocument()
+  })
+
+  it('confirms a status selected from the actions menu before updating', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 })
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    const fetchMock = vi.fn(
+      async (_input: RequestInfo | URL, init?: RequestInit) => {
+        expect(JSON.parse(String(init?.body))).toEqual({ status: 'SUSPENDED' })
+        return Response.json({
+          university: { ...sampleUniversity, status: 'SUSPENDED' },
+        })
+      },
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const wrapper = ({ children }: PropsWithChildren) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    )
+
+    render(<UniversitiesTable universities={[sampleUniversity]} />, { wrapper })
+
+    await user.click(
+      screen.getByRole('button', {
+        name: `Actions for ${sampleUniversity.name}`,
+      }),
+    )
+    await user.click(
+      await screen.findByRole('menuitem', { name: /suspended/i }),
+    )
+
+    expect(
+      screen.getByRole('heading', { name: /change status to suspended/i }),
+    ).toBeInTheDocument()
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: /set to suspended/i }))
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce())
   })
 })

@@ -194,5 +194,10 @@ describe('SuperAdminSubscriptionsPage', () => {
         screen.getByText('Configure University Subscription'),
       ).toBeInTheDocument()
     })
+    await user.click(
+      screen.getByRole('combobox', { name: /subscription status/i }),
+    )
+    expect(screen.getByText('Cancel at Cycle End')).toBeInTheDocument()
+    expect(screen.getByText('Cancel Immediately')).toBeInTheDocument()
   })
 })

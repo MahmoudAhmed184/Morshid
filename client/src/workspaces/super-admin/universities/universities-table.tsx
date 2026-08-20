@@ -1,19 +1,26 @@
 import { Link, useNavigate } from '@tanstack/react-router'
 import {
+  Check,
+  Clock,
   Edit2,
   Eye,
   GraduationCap,
   MoreHorizontal,
   ShieldAlert,
+  ShieldCheck,
 } from 'lucide-react'
 import { useState } from 'react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { ConfirmDialog } from '@/components/ui/custom/confirm-dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -25,12 +32,20 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { StatusBadge } from '@/components/ui/custom/status-badge/status-badge'
-import type { UniversityItem } from '@/features/universities/universities.schema'
+import type {
+  UniversityItem,
+  UniversityStatus,
+} from '@/features/universities/universities.schema'
 import { EditUniversityDialog } from './edit-university-dialog'
-import { UpdateUniversityStatusDialog } from './update-university-status-dialog'
+import { useUniversityMutations } from './use-universities'
 
 type UniversitiesTableProps = {
   universities: UniversityItem[]
+}
+
+type PendingStatusChange = {
+  university: UniversityItem
+  status: UniversityStatus
 }
 
 function formatDate(isoString: string) {
@@ -49,8 +64,27 @@ export function UniversitiesTable({ universities }: UniversitiesTableProps) {
   const navigate = useNavigate()
   const [editingUniversity, setEditingUniversity] =
     useState<UniversityItem | null>(null)
-  const [statusUniversity, setStatusUniversity] =
-    useState<UniversityItem | null>(null)
+  const [pendingStatusChange, setPendingStatusChange] =
+    useState<PendingStatusChange | null>(null)
+  const { updateUniversityStatus } = useUniversityMutations()
+
+  const selectStatus = (
+    university: UniversityItem,
+    status: UniversityStatus,
+  ) => {
+    if (university.status !== status) {
+      setPendingStatusChange({ university, status })
+    }
+  }
+
+  const confirmStatusChange = async () => {
+    if (!pendingStatusChange) return
+
+    await updateUniversityStatus.mutateAsync({
+      universityId: pendingStatusChange.university.id,
+      status: pendingStatusChange.status,
+    })
+  }
 
   return (
     <>
@@ -159,12 +193,47 @@ export function UniversitiesTable({ universities }: UniversitiesTableProps) {
                         <Edit2 className="size-4" aria-hidden />
                         Edit Details
                       </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => setStatusUniversity(uni)}
-                      >
-                        <ShieldAlert className="size-4" aria-hidden />
-                        Change Status
-                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuGroup>
+                        <DropdownMenuLabel>Change status</DropdownMenuLabel>
+                        <DropdownMenuItem
+                          disabled={uni.status === 'ACTIVE'}
+                          onClick={() => selectStatus(uni, 'ACTIVE')}
+                        >
+                          <ShieldCheck
+                            className="size-4 text-emerald-500"
+                            aria-hidden
+                          />
+                          Active
+                          {uni.status === 'ACTIVE' ? (
+                            <Check className="ml-auto size-3.5" aria-hidden />
+                          ) : null}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          disabled={uni.status === 'INACTIVE'}
+                          onClick={() => selectStatus(uni, 'INACTIVE')}
+                        >
+                          <Clock
+                            className="size-4 text-amber-500"
+                            aria-hidden
+                          />
+                          Inactive
+                          {uni.status === 'INACTIVE' ? (
+                            <Check className="ml-auto size-3.5" aria-hidden />
+                          ) : null}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          variant="destructive"
+                          disabled={uni.status === 'SUSPENDED'}
+                          onClick={() => selectStatus(uni, 'SUSPENDED')}
+                        >
+                          <ShieldAlert className="size-4" aria-hidden />
+                          Suspended
+                          {uni.status === 'SUSPENDED' ? (
+                            <Check className="ml-auto size-3.5" aria-hidden />
+                          ) : null}
+                        </DropdownMenuItem>
+                      </DropdownMenuGroup>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>
@@ -182,12 +251,23 @@ export function UniversitiesTable({ universities }: UniversitiesTableProps) {
         }}
       />
 
-      <UpdateUniversityStatusDialog
-        university={statusUniversity}
-        open={Boolean(statusUniversity)}
+      <ConfirmDialog
+        open={Boolean(pendingStatusChange)}
         onOpenChange={(open) => {
-          if (!open) setStatusUniversity(null)
+          if (!open) setPendingStatusChange(null)
         }}
+        title={`Change status to ${pendingStatusChange?.status.toLowerCase()}?`}
+        description={
+          pendingStatusChange?.status === 'SUSPENDED'
+            ? `Suspend "${pendingStatusChange.university.name}"? All tenant users will immediately lose access.`
+            : pendingStatusChange
+              ? `Change "${pendingStatusChange.university.name}" from ${pendingStatusChange.university.status.toLowerCase()} to ${pendingStatusChange.status.toLowerCase()}?`
+              : undefined
+        }
+        confirmLabel={`Set to ${pendingStatusChange?.status.toLowerCase()}`}
+        destructive={pendingStatusChange?.status === 'SUSPENDED'}
+        disabled={updateUniversityStatus.isPending}
+        onConfirm={confirmStatusChange}
       />
     </>
   )
