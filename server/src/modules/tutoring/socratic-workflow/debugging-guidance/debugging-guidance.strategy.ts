@@ -5,11 +5,15 @@ import {
 import {
   debuggingGuidanceSchema,
   type DebuggingGuidance,
+  type DebuggingAdmissionDecision,
 } from './debugging-guidance.contract'
 import {
   buildDebuggingGuidanceRetrievalQuery,
   type DebuggingGuidanceRetrievalQueryInput,
 } from './debugging-guidance-retrieval-query'
+import { MessageRequestKind, StudentState } from '../../tutoring-values'
+import type { EducationalAnalysisResult } from '../analysis/educational-analysis.types'
+import { requestsFullCorrectedProgram } from './debugging-guidance.rewrite-policy'
 
 export type DebuggingGuidanceDraft = Omit<DebuggingGuidance, 'citations'>
 
@@ -24,9 +28,6 @@ interface DiagnosisMatch {
   readonly diagnosis: DebuggingGuidanceDraft
   readonly retrieval: DebuggingGuidanceRetrievalQueryInput
 }
-
-const DIAGNOSIS_INTENT_PATTERN =
-  /\b(?:bug|crash|debug|diagnos|error|fails?|fix|incorrect|issue|suspicious|wrong)\w*\b/iu
 
 const KNOWN_LANGUAGE_IDENTIFIERS = new Set([
   '__import__',
@@ -186,31 +187,110 @@ export function prepareDebuggingGuidance(
   })
 }
 
+export interface AssessDebuggingAdmissionInput {
+  readonly studentMessage: string
+  readonly analysis?: Pick<
+    EducationalAnalysisResult,
+    'requestKind' | 'studentState'
+  > | null
+}
+
+const EXECUTION_FAILURE_PATTERN =
+  /\b(?:Traceback\s*(?:\(most\s+recent\s+call\s+last\):)?|SyntaxError|NameError|TypeError|ValueError|IndexError|KeyError|IndentationError|ZeroDivisionError|AttributeError|UnboundLocalError|RecursionError|FileNotFoundError|ImportError|ModuleNotFoundError|RuntimeError|OverflowError)\b/iu
+
+const EXPLICIT_DEBUGGING_INTENT_PATTERN =
+  /\b(?:debug(?:ging)?|diagnos\w*|inspect\b|suspicious|error|errors|exception|exceptions|bug|bugs|crash|crashes|crashed|crashing|failing|fails?|failed|broken|fix\w*|rewrite\w*|corrected|why\s+.*?\b(?:fail|crash|error|wrong|incorrect|throw|get|getting|stuck|not\s+working|suspicious|not\s+(?:form\s+a\s+)?valid|differently\s+than\s+expected)\b|what\s+.*?\b(?:wrong|bug|issue|problem|defect|error|suspicious|inspect)\b|something\s+goes\s+wrong|my\s+loop\s+never\s+stops|infinite\s+loop|never\s+terminates|unexpected\s+(?:output|result|behavior|value|return)|wrong\s+(?:output|result|value|return)|doesn't\s+work|does\s+not\s+work|fails?\s+to\s+run)\b/iu
+
+export function assessDebuggingAdmission(
+  input: AssessDebuggingAdmissionInput | string,
+): DebuggingAdmissionDecision {
+  const studentMessage =
+    typeof input === 'string' ? input : input.studentMessage
+  const analysis = typeof input === 'string' ? null : input.analysis
+  const rewriteRequested = requestsFullCorrectedProgram(studentMessage)
+
+  // 1. Current-turn Educational Analysis authority
+  if (
+    analysis?.requestKind === MessageRequestKind.CODE_DIAGNOSIS ||
+    analysis?.studentState === StudentState.DEBUGGING_ISSUE
+  ) {
+    return Object.freeze({
+      eligible: true,
+      reason: 'ELIGIBLE_ANALYSIS_CODE_DIAGNOSIS',
+      rewriteRequested,
+    })
+  }
+
+  // 2. High-confidence execution failure evidence
+  if (EXECUTION_FAILURE_PATTERN.test(studentMessage)) {
+    return Object.freeze({
+      eligible: true,
+      reason: 'ELIGIBLE_EXECUTION_FAILURE',
+      rewriteRequested,
+    })
+  }
+
+  // 3. Explicit debugging/failure intent
+  if (EXPLICIT_DEBUGGING_INTENT_PATTERN.test(studentMessage)) {
+    return Object.freeze({
+      eligible: true,
+      reason: 'ELIGIBLE_EXPLICIT_DEBUGGING_INTENT',
+      rewriteRequested,
+    })
+  }
+
+  // 4. Code exists but without debugging intent
+  if (hasCodePresence(studentMessage)) {
+    return Object.freeze({
+      eligible: false,
+      reason: 'NOT_ELIGIBLE_CODE_PRESENT_ONLY',
+      rewriteRequested,
+    })
+  }
+
+  // 5. No debugging evidence
+  return Object.freeze({
+    eligible: false,
+    reason: 'NOT_ELIGIBLE_NO_DEBUGGING_EVIDENCE',
+    rewriteRequested,
+  })
+}
+
+function hasCodePresence(studentMessage: string): boolean {
+  return (
+    /```[^\r\n`]*\r?\n([\s\S]*?)```/u.test(studentMessage) ||
+    /^\s*(?:def|class|import|from|return|for\s+\w+\s+in|while\s+|if\s+.*:)\b/mu.test(
+      studentMessage,
+    ) ||
+    /^\s*[\w.]+\s*=\s*.+$/mu.test(studentMessage)
+  )
+}
+
 export function isDebuggingGuidanceEligible(
   studentMessage: string,
   assessment: DebuggingGuidanceBoundaryAssessment = assessDebuggingGuidanceBoundary(
     studentMessage,
   ),
+  analysis?: Pick<
+    EducationalAnalysisResult,
+    'requestKind' | 'studentState'
+  > | null,
 ): boolean {
   return (
     assessment.state === 'SUPPORTED' &&
-    hasDebuggingGuidanceIntent(studentMessage, assessment)
+    assessDebuggingAdmission({ studentMessage, analysis }).eligible
   )
 }
 
-const CODE_CONTEXT_PATTERN =
-  /\b(?:code|program|script|function|method|loop|traceback|syntaxerror|nameerror|typeerror|valueerror|indexerror|keyerror|indentationerror|zero_division|zerodivisionerror|exception|snippet|line|counter|variable|var|value|output|result|parameter|argument|statement|expression|condition|list|dict|dictionary|language)\b/iu
-
 export function hasDebuggingGuidanceIntent(
   studentMessage: string,
-  assessment: DebuggingGuidanceBoundaryAssessment,
+  _assessment?: DebuggingGuidanceBoundaryAssessment,
+  analysis?: Pick<
+    EducationalAnalysisResult,
+    'requestKind' | 'studentState'
+  > | null,
 ): boolean {
-  return (
-    assessment.codeSource === 'FENCED' ||
-    (DIAGNOSIS_INTENT_PATTERN.test(studentMessage) &&
-      CODE_CONTEXT_PATTERN.test(studentMessage)) ||
-    extractCode(studentMessage).includes('\n')
-  )
+  return assessDebuggingAdmission({ studentMessage, analysis }).eligible
 }
 
 function extractCode(studentMessage: string): string {

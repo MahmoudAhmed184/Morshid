@@ -72,6 +72,28 @@ function fallbackMessage(
   level: ExplanationDetailLevel = ExplanationDetailLevel.STANDARD,
 ): string {
   const technique = obligation.technique
+  const purpose = obligation.purpose
+
+  if (purpose === StudentActionPurpose.CONCEPTUAL_UNDERSTANDING) {
+    if (level === ExplanationDetailLevel.CONCISE) {
+      return 'Let us focus on the core concept. How would you describe what this concept does?'
+    }
+    if (level === ExplanationDetailLevel.DETAILED) {
+      return 'Let us break down the underlying concept together. In your own words, what is the main purpose of this concept and how does it work?'
+    }
+    return 'Let us explore the core concept. How would you explain what this concept does in your own words?'
+  }
+
+  if (purpose === StudentActionPurpose.PRIOR_ATTEMPT_ORIENTATION) {
+    if (level === ExplanationDetailLevel.CONCISE) {
+      return 'Let us check your reasoning. What is the first value or operation you considered?'
+    }
+    if (level === ExplanationDetailLevel.DETAILED) {
+      return 'Let us look closely at your reasoning step by step. What was the first value or operation you considered, and why?'
+    }
+    return 'Let us check your reasoning. What was the first step you considered?'
+  }
+
   if (technique === TeachingTechnique.TRACE_EXECUTION) {
     if (level === ExplanationDetailLevel.CONCISE) {
       return 'Let us narrow it to one trace step. What value changes first?'
@@ -93,12 +115,12 @@ function fallbackMessage(
   }
 
   if (level === ExplanationDetailLevel.CONCISE) {
-    return 'Let us narrow it down to one step. What was your last confident step?'
+    return 'Let us break this down. What is the starting value or condition to check first?'
   }
   if (level === ExplanationDetailLevel.DETAILED) {
-    return 'Let us narrow this down step by step. Show the last step you were confident about, and what you expected to happen next.'
+    return 'Let us break this problem down into smaller steps. What is the starting value or condition you should look at first?'
   }
-  return 'Let us narrow it down to one step. Show the last step you were confident about and what you expected next.'
+  return 'Let us break this down into one step. What is the first value or condition to check?'
 }
 
 function fallbackActionDescription(

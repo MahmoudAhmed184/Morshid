@@ -6,7 +6,6 @@ import {
   ExplanationDetailLevel,
   MessageGuidanceLabel,
   MessageRequestKind,
-  TeachingStrategy,
   TutoringApprovalSource,
 } from './tutoring-values'
 import { isPrismaKnownRequestError } from '../../platform/database/prisma-errors'
@@ -29,6 +28,13 @@ import {
   selectTutorStrategy,
   type TutorStrategySelection,
 } from './socratic-workflow/teaching-decision/tutor-strategy'
+import { assessDebuggingAdmission } from './socratic-workflow/debugging-guidance/debugging-guidance.strategy'
+import {
+  assessDebuggingGuidanceBoundary,
+  isRejectedDebuggingGuidanceBoundaryAssessment,
+  type DebuggingGuidanceBoundaryAssessment,
+} from './socratic-workflow/debugging-guidance/debugging-guidance.boundary'
+import { buildDebuggingGuidanceBoundaryResponse } from './socratic-workflow/debugging-guidance/debugging-guidance.boundary-response'
 import {
   ControlledSourceConflictDetector,
   CONTROLLED_SOURCE_CONFLICT_DETECTOR_VERSION,
@@ -316,7 +322,7 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
     turn: ActiveTutoringTurn,
     operation: OrchestrationContext,
     requestContext?: AuditRequestContext,
-    preparedSelection?: TutorStrategySelection,
+    _preparedSelection?: TutorStrategySelection,
     topicSelection?: SocraticTopicSelection,
     requestBudget?: RequestBudget,
   ): Promise<TutoringTurnReceipt> {
@@ -339,17 +345,23 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
       )
     }
 
-    const selection =
-      preparedSelection ?? selectTutorStrategy(turn.studentMessage.content)
-    if (selection.boundaryResponse !== null) {
-      return this.persistTerminal(turn, operation, {
-        kind: 'blocked',
-        phase: 'blocked_persistence',
-        content: selection.boundaryResponse.content,
-        errorCode: selection.boundaryResponse.errorCode,
-        topicId: turn.studentMessage.topicId,
-        guidanceLabel: selection.boundaryResponse.guidanceLabel,
-      })
+    const admission = assessDebuggingAdmission(turn.studentMessage.content)
+    let boundary: DebuggingGuidanceBoundaryAssessment | undefined
+
+    if (admission.eligible) {
+      boundary = assessDebuggingGuidanceBoundary(turn.studentMessage.content)
+      if (isRejectedDebuggingGuidanceBoundaryAssessment(boundary)) {
+        const boundaryResponse =
+          buildDebuggingGuidanceBoundaryResponse(boundary)
+        return this.persistTerminal(turn, operation, {
+          kind: 'blocked',
+          phase: 'blocked_persistence',
+          content: boundaryResponse.content,
+          errorCode: boundaryResponse.errorCode,
+          topicId: turn.studentMessage.topicId,
+          guidanceLabel: boundaryResponse.guidanceLabel,
+        })
+      }
     }
 
     let orchestratorResult
@@ -364,18 +376,8 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
         studentMessageContent: turn.studentMessage.content,
         explanationDetailLevel: turn.explanationDetailLevel,
         explicitProtectedSolutionSignal: classification.correctnessSensitive,
-        ...(selection.decision.strategy ===
-          TeachingStrategy.DEBUGGING_GUIDANCE ||
-        selection.decision.requestKind === MessageRequestKind.PROBLEM_LIKE ||
-        selection.decision.requestKind ===
-          MessageRequestKind.ATTEMPT_DIAGNOSIS ||
-        selection.decision.requestKind === MessageRequestKind.CODE_DIAGNOSIS
-          ? {
-              debuggingAdmission: {
-                rewriteRequested: selection.fullRewriteRequested,
-              },
-            }
-          : {}),
+        debuggingAdmission: admission,
+        ...(boundary !== undefined ? { debuggingBoundary: boundary } : {}),
         topicSelection,
         requestBudget,
       })

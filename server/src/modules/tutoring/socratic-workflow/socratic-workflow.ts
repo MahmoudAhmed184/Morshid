@@ -239,11 +239,14 @@ export class SocraticWorkflow {
 
     assertRequestBudget(input.requestBudget)
 
-    const debuggingGuidance =
-      input.debuggingAdmission !== undefined
-        ? await this.resolveDebuggingGuidance(input)
-        : undefined
-    if (debuggingGuidance === null) {
+    const canExecuteSpecializedDebugging =
+      input.debuggingAdmission?.eligible === true &&
+      input.debuggingBoundary?.state === 'SUPPORTED'
+
+    const debuggingGuidance = canExecuteSpecializedDebugging
+      ? await this.resolveDebuggingGuidance(input)
+      : undefined
+    if (canExecuteSpecializedDebugging && debuggingGuidance === null) {
       return this.failTurn('SOCRATIC_DEBUGGING_DIAGNOSIS_FAILED', topicId)
     }
 
@@ -255,7 +258,7 @@ export class SocraticWorkflow {
     )
 
     const retrievalRequest =
-      debuggingGuidance === undefined
+      debuggingGuidance === undefined || debuggingGuidance === null
         ? this.retrievalQueryBuilder.build(
             retrievalQueryContextFromAnalysis(
               analysisContext,
@@ -335,7 +338,7 @@ export class SocraticWorkflow {
       assistantMessageId: input.assistantMessageId,
       teachingDecision: decisionResult.decision,
       retrievalResult: retrieval.chunks,
-      debuggingGuidance,
+      debuggingGuidance: debuggingGuidance ?? undefined,
       outputProtection,
       explanationDetailLevel: input.explanationDetailLevel,
       lifecycle: responseLifecycle,

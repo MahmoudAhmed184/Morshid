@@ -397,6 +397,36 @@ describe('teaching policy selector', () => {
     ).toBe(2)
   })
 
+  it('escalates guidance level for current-turn explicit struggle (NO_PRIOR_KNOWLEDGE)', () => {
+    expect(
+      guidance({
+        currentLevel: 1,
+        analysis: analysis({
+          studentState: StudentState.NO_PRIOR_KNOWLEDGE,
+          effortPresent: false,
+          effortQuality: EFFORT_QUALITY.NONE,
+          effortType: null,
+          effortIsRepeated: false,
+        }),
+      }),
+    ).toBe(2)
+  })
+
+  it('does not escalate for repeated retry of explicit struggle', () => {
+    expect(
+      guidance({
+        currentLevel: 2,
+        analysis: analysis({
+          studentState: StudentState.NO_PRIOR_KNOWLEDGE,
+          effortPresent: false,
+          effortQuality: EFFORT_QUALITY.NONE,
+          effortType: null,
+          effortIsRepeated: true,
+        }),
+      }),
+    ).toBe(2)
+  })
+
   it('de-escalates by one for current-message-supported learning evidence', () => {
     expect(
       guidance({

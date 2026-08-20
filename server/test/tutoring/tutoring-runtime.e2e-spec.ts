@@ -92,7 +92,7 @@ const INSTRUCTOR_EMAIL = 'instructor@morshid.demo'
 const QUESTION = 'Explain the eligible course evidence exactly'
 const GROUNDED_ANSWER = 'This answer uses only eligible course evidence.'
 const SAFE_FALLBACK =
-  'Let us narrow it down to one step. Show the last step you were confident about and what you expected next.'
+  'Let us break this down into one step. What is the first value or condition to check?'
 const PROVIDER_SECRET = 'raw provider failure: never expose or persist this'
 const QUERY_VECTOR = Object.freeze([
   1,

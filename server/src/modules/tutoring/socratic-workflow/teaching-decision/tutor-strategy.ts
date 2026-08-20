@@ -2,19 +2,17 @@ import { MessageGuidanceLabel, MessageRequestKind } from '../../tutoring-values'
 import {
   assessDebuggingGuidanceBoundary,
   isRejectedDebuggingGuidanceBoundaryAssessment,
-  type RejectedDebuggingGuidanceBoundaryAssessment,
 } from '../debugging-guidance/debugging-guidance.boundary'
 import {
   buildDebuggingGuidanceBoundaryResponse,
   type DebuggingGuidanceBoundaryResponse,
 } from '../debugging-guidance/debugging-guidance.boundary-response'
 import { DEBUGGING_GUIDANCE_TUTOR_DECISION } from '../debugging-guidance/debugging-guidance.contract'
-import { requestsFullCorrectedProgram } from '../debugging-guidance/debugging-guidance.rewrite-policy'
 import {
-  hasDebuggingGuidanceIntent,
-  isDebuggingGuidanceEligible,
+  assessDebuggingAdmission,
   type DebuggingGuidanceDraft,
 } from '../debugging-guidance/debugging-guidance.strategy'
+import type { EducationalAnalysisResult } from '../analysis/educational-analysis.types'
 import type { DebuggingGuidanceRetrievalQueryInput } from '../debugging-guidance/debugging-guidance-retrieval-query'
 import {
   parseTutorDecision,
@@ -85,42 +83,52 @@ export interface TutorStrategySelection {
   readonly fullRewriteRequested: boolean
 }
 
+export interface SelectTutorStrategyInput {
+  readonly studentMessage: string
+  readonly analysis?: Pick<
+    EducationalAnalysisResult,
+    'requestKind' | 'studentState'
+  > | null
+}
+
 export function selectTutorStrategy(
-  studentMessage: string,
+  input: SelectTutorStrategyInput | string,
 ): TutorStrategySelection {
-  const assessment = assessDebuggingGuidanceBoundary(studentMessage)
-  if (
-    isRejectedDebuggingGuidanceBoundaryAssessment(assessment) &&
-    shouldApplyCodeDiagnosisBoundary(studentMessage, assessment)
-  ) {
-    const decision = (() => {
-      switch (assessment.state) {
-        case 'TOO_MANY_LINES':
-        case 'UNSUPPORTED_SCOPE':
-          return DEBUGGING_GUIDANCE_BOUNDARY_DECISIONS.CODE_DIAGNOSIS
-        default:
-          throw new TypeError('Unsupported debugging guidance boundary')
-      }
-    })()
+  const studentMessage =
+    typeof input === 'string' ? input : input.studentMessage
+  const analysis = typeof input === 'string' ? null : input.analysis
+  const admission = assessDebuggingAdmission({ studentMessage, analysis })
 
-    return Object.freeze({
-      decision,
-      retrievalQuery: null,
-      diagnosis: null,
-      suspectedCategory: null,
-      boundaryResponse: buildDebuggingGuidanceBoundaryResponse(assessment),
-      fullRewriteRequested: false,
-    })
-  }
+  if (admission.eligible) {
+    const assessment = assessDebuggingGuidanceBoundary(studentMessage)
+    if (isRejectedDebuggingGuidanceBoundaryAssessment(assessment)) {
+      const decision = (() => {
+        switch (assessment.state) {
+          case 'TOO_MANY_LINES':
+          case 'UNSUPPORTED_SCOPE':
+            return DEBUGGING_GUIDANCE_BOUNDARY_DECISIONS.CODE_DIAGNOSIS
+          default:
+            throw new TypeError('Unsupported debugging guidance boundary')
+        }
+      })()
 
-  if (isDebuggingGuidanceEligible(studentMessage, assessment)) {
+      return Object.freeze({
+        decision,
+        retrievalQuery: null,
+        diagnosis: null,
+        suspectedCategory: null,
+        boundaryResponse: buildDebuggingGuidanceBoundaryResponse(assessment),
+        fullRewriteRequested: false,
+      })
+    }
+
     return Object.freeze({
       decision: DEBUGGING_GUIDANCE_TUTOR_DECISION,
       retrievalQuery: null,
       diagnosis: null,
       suspectedCategory: null,
       boundaryResponse: null,
-      fullRewriteRequested: requestsFullCorrectedProgram(studentMessage),
+      fullRewriteRequested: admission.rewriteRequested,
     })
   }
 
@@ -132,11 +140,4 @@ export function selectTutorStrategy(
     boundaryResponse: null,
     fullRewriteRequested: false,
   })
-}
-
-function shouldApplyCodeDiagnosisBoundary(
-  studentMessage: string,
-  assessment: RejectedDebuggingGuidanceBoundaryAssessment,
-): boolean {
-  return hasDebuggingGuidanceIntent(studentMessage, assessment)
 }

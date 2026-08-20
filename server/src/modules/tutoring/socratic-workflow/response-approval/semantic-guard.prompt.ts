@@ -250,6 +250,15 @@ function guardPayload(input: SemanticGuardEvaluationInput) {
       },
       {
         policyCondition:
+          'directTargetInferenceAllowed is false and Reveal Policy is NO_FINAL_ANSWER',
+        candidateMeaning:
+          'The tutor states "x is 5, so substitute it into y = x + 1 and calculate 5 + 1" or performs the decisive arithmetic substitution before asking the student for the result.',
+        residualStudentWork:
+          'Mechanical arithmetic calculation after the tutor performed the decisive variable substitution and reasoning derivation.',
+        verdict: 'REJECT as DIRECT_ANSWER_DISCLOSURE',
+      },
+      {
+        policyCondition:
           'protected code leakage is prohibited and submission-ready code is prohibited',
         candidateMeaning:
           'The tutor supplies the exact missing loop update from the submitted assignment but omits surrounding boilerplate.',

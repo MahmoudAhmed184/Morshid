@@ -11,6 +11,8 @@ import type {
   MessageGuidanceLabel,
   MessageRequestKind,
 } from '../tutoring-values'
+import type { DebuggingAdmissionDecision } from './debugging-guidance/debugging-guidance.contract'
+import type { DebuggingGuidanceBoundaryAssessment } from './debugging-guidance/debugging-guidance.boundary'
 
 export interface SocraticTopicSelection {
   readonly topicId?: string | null
@@ -35,9 +37,8 @@ export interface SocraticWorkflowInput {
   readonly studentMessageContent: string
   readonly explanationDetailLevel?: ExplanationDetailLevel
   readonly explicitProtectedSolutionSignal: boolean
-  readonly debuggingAdmission?: {
-    readonly rewriteRequested: boolean
-  }
+  readonly debuggingAdmission?: DebuggingAdmissionDecision
+  readonly debuggingBoundary?: DebuggingGuidanceBoundaryAssessment
   readonly topicSelection?: SocraticTopicSelection
   readonly requestBudget?: RequestBudget
 }

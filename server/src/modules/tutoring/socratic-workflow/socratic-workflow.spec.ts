@@ -303,7 +303,17 @@ describe('SocraticWorkflow debugging diagnosis admission', () => {
       assistantMessageId,
       studentMessageContent: 'debug my largest function',
       explicitProtectedSolutionSignal: false,
-      debuggingAdmission: { rewriteRequested: false },
+      debuggingAdmission: {
+        eligible: true,
+        reason: 'ELIGIBLE_EXPLICIT_DEBUGGING_INTENT',
+        rewriteRequested: false,
+      },
+      debuggingBoundary: {
+        state: 'SUPPORTED',
+        codeSource: 'PLAIN',
+        lineCount: 5,
+        reason: 'CODE_ACCEPTED',
+      },
       topicSelection: {
         problemId: 'problem-1',
         title: 'Problem topic',
@@ -669,7 +679,17 @@ function debuggingWorkflowInput() {
     assistantMessageId,
     studentMessageContent: 'debug my largest function',
     explicitProtectedSolutionSignal: false,
-    debuggingAdmission: { rewriteRequested: false },
+    debuggingAdmission: {
+      eligible: true,
+      reason: 'ELIGIBLE_EXPLICIT_DEBUGGING_INTENT' as const,
+      rewriteRequested: false,
+    },
+    debuggingBoundary: {
+      state: 'SUPPORTED' as const,
+      codeSource: 'PLAIN' as const,
+      lineCount: 5,
+      reason: 'CODE_ACCEPTED' as const,
+    },
     topicSelection: {
       problemId: 'problem-1',
       title: 'Problem topic',

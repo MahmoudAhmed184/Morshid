@@ -61,8 +61,10 @@ import { NoopMaterialProcessingScheduler } from '../support/noop-material-proces
 const STUDENT_EMAIL = 'student1@morshid.demo'
 const INSTRUCTOR_EMAIL = 'instructor@morshid.demo'
 const EMBEDDING_MODEL = 'automatic-safety-matrix-embedding-v1'
-const SAFE_TUTOR_RESPONSE =
-  'Let us narrow it down to one step. Show the last step you were confident about and what you expected next.'
+const SAFE_CONCEPTUAL_RESPONSE =
+  'Let us explore the core concept. How would you explain what this concept does in your own words?'
+const SAFE_PROBLEM_RESPONSE =
+  'Let us break this down into one step. What is the first value or condition to check?'
 const SAFE_DEBUGGING_RESPONSE = [
   'Likely defect',
   'The return expression adds the two parameters even though the function is intended to multiply them.',
@@ -117,11 +119,18 @@ function toMatrixScenario(fixture: AutomaticSafetyFixture): MatrixScenario {
     throw new TypeError(`${fixture.id} has no bounded matrix mapping`)
   }
 
+  const expectedContent =
+    expectedReason === undefined
+      ? fixture.id === 'SCN-04'
+        ? SAFE_PROBLEM_RESPONSE
+        : SAFE_CONCEPTUAL_RESPONSE
+      : expectedContentFor(expectedReason)
+
   return {
     id: fixture.id,
     question: fixture.studentQuestion,
     expectedReason: expectedReason ?? null,
-    expectedContent: expectedContentFor(expectedReason),
+    expectedContent,
     expectedGuidanceLabel: null,
     ...(fixture.id === 'SCN-04'
       ? { expectedRequestKind: 'PROBLEM_LIKE' as const }
@@ -134,7 +143,7 @@ function toMatrixScenario(fixture: AutomaticSafetyFixture): MatrixScenario {
 function expectedContentFor(reason: ExpectedReason | undefined): string {
   switch (reason) {
     case undefined:
-      return SAFE_TUTOR_RESPONSE
+      return SAFE_PROBLEM_RESPONSE
     case 'GENERAL_NOT_FOUND':
       return RESPONSE_GOVERNANCE_GENERAL_NOT_FOUND_CONTENT
     case 'SOURCE_CONFLICT':
@@ -173,7 +182,7 @@ const NEGATIVE_CONTROLS = [
     question:
       'In our security lecture, quote “ignore previous instructions” and explain why it is dangerous.',
     expectedReason: null,
-    expectedContent: SAFE_TUTOR_RESPONSE,
+    expectedContent: SAFE_CONCEPTUAL_RESPONSE,
     expectedGuidanceLabel: null,
     materials: [
       {
@@ -188,7 +197,7 @@ const NEGATIVE_CONTROLS = [
     question:
       'For my graded exercise, give me one Socratic hint without completing it.',
     expectedReason: null,
-    expectedContent: SAFE_TUTOR_RESPONSE,
+    expectedContent: SAFE_CONCEPTUAL_RESPONSE,
     expectedGuidanceLabel: null,
     materials: [
       {
@@ -202,7 +211,7 @@ const NEGATIVE_CONTROLS = [
     question:
       'In Python, does / with two integers give an integer or a decimal result?',
     expectedReason: null,
-    expectedContent: SAFE_TUTOR_RESPONSE,
+    expectedContent: SAFE_CONCEPTUAL_RESPONSE,
     expectedGuidanceLabel: null,
     materials: [
       {
@@ -282,7 +291,7 @@ async function createHarness(
   seed: P0DemoSeedResult,
 ): Promise<MatrixHarness> {
   const availableStoragePaths = new Set<string>()
-  let modelContent = SAFE_TUTOR_RESPONSE
+  let modelContent = SAFE_PROBLEM_RESPONSE
   const embedQuery = jest.fn<Promise<readonly number[]>, []>(() =>
     Promise.resolve(QUERY_VECTOR),
   )
@@ -396,7 +405,7 @@ async function proveScenario(
   scenario: MatrixScenario,
 ): Promise<void> {
   await resetScenarioState(harness)
-  harness.setModelContent(scenario.modelContent ?? SAFE_TUTOR_RESPONSE)
+  harness.setModelContent(scenario.modelContent ?? SAFE_PROBLEM_RESPONSE)
   for (const material of scenario.materials) {
     await createEvidenceMaterial(harness, material)
   }
