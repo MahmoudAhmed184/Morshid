@@ -1,14 +1,13 @@
 import { Link } from '@tanstack/react-router'
 import {
   ArrowRight,
-  BookOpen,
   ChevronRight,
   GraduationCap,
   Landmark,
-  Presentation,
   Settings,
   ShieldAlert,
   ShieldCheck,
+  ShieldOff,
 } from 'lucide-react'
 import { useMemo } from 'react'
 
@@ -44,20 +43,12 @@ export function SuperAdminOverviewPage() {
     () => universities.filter((u) => u.status === 'ACTIVE').length,
     [universities],
   )
+  const inactiveCount = useMemo(
+    () => universities.filter((u) => u.status === 'INACTIVE').length,
+    [universities],
+  )
   const suspendedCount = useMemo(
     () => universities.filter((u) => u.status === 'SUSPENDED').length,
-    [universities],
-  )
-  const totalStudents = useMemo(
-    () => universities.reduce((sum, u) => sum + u.studentsCount, 0),
-    [universities],
-  )
-  const totalInstructors = useMemo(
-    () => universities.reduce((sum, u) => sum + u.instructorsCount, 0),
-    [universities],
-  )
-  const totalCourses = useMemo(
-    () => universities.reduce((sum, u) => sum + u.coursesCount, 0),
     [universities],
   )
 
@@ -97,7 +88,7 @@ export function SuperAdminOverviewPage() {
       />
 
       {/* Global Stat Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 2xl:grid-cols-6">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Total Universities"
           value={totalCount}
@@ -113,32 +104,18 @@ export function SuperAdminOverviewPage() {
           description="Universities with active status"
         />
         <StatCard
+          label="Inactive Tenants"
+          value={inactiveCount}
+          icon={<ShieldOff />}
+          tone="default"
+          description="Universities with inactive status"
+        />
+        <StatCard
           label="Suspended Tenants"
           value={suspendedCount}
           icon={<ShieldAlert />}
           tone="warning"
           description="Universities with suspended access"
-        />
-        <StatCard
-          label="Students"
-          value={totalStudents}
-          icon={<GraduationCap />}
-          tone="info"
-          description="Enrolled student learners across active tenants"
-        />
-        <StatCard
-          label="Instructors"
-          value={totalInstructors}
-          icon={<Presentation />}
-          tone="default"
-          description="Active teaching staff across active tenants"
-        />
-        <StatCard
-          label="Courses"
-          value={totalCourses}
-          icon={<BookOpen />}
-          tone="success"
-          description="Total learning course shells configured"
         />
       </div>
 
@@ -196,9 +173,13 @@ export function SuperAdminOverviewPage() {
                   >
                     <div className="min-w-0 flex-1 space-y-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-semibold text-foreground text-sm">
+                        <Link
+                          to="/super-admin/universities/$universityId"
+                          params={{ universityId: uni.id }}
+                          className="font-semibold text-foreground text-sm hover:text-primary hover:underline transition-colors"
+                        >
                           {uni.name}
-                        </span>
+                        </Link>
                         <Badge
                           variant="outline"
                           className="font-mono text-[0.7rem]"
@@ -219,7 +200,7 @@ export function SuperAdminOverviewPage() {
                       </p>
                     </div>
 
-                    <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    <div className="flex shrink-0 items-center text-xs text-muted-foreground">
                       <span
                         className="inline-flex items-center gap-1 whitespace-nowrap"
                         title="Students"
@@ -229,32 +210,6 @@ export function SuperAdminOverviewPage() {
                           {uni.studentsCount}
                         </span>{' '}
                         Students
-                      </span>
-                      <span className="text-muted-foreground/40" aria-hidden>
-                        •
-                      </span>
-                      <span
-                        className="inline-flex items-center gap-1 whitespace-nowrap"
-                        title="Instructors"
-                      >
-                        <Presentation className="size-3.5 text-primary/70" />
-                        <span className="font-medium text-foreground">
-                          {uni.instructorsCount}
-                        </span>{' '}
-                        Instructors
-                      </span>
-                      <span className="text-muted-foreground/40" aria-hidden>
-                        •
-                      </span>
-                      <span
-                        className="inline-flex items-center gap-1 whitespace-nowrap"
-                        title="Courses"
-                      >
-                        <BookOpen className="size-3.5 text-primary/70" />
-                        <span className="font-medium text-foreground">
-                          {uni.coursesCount}
-                        </span>{' '}
-                        Courses
                       </span>
                     </div>
                   </div>

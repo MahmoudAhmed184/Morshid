@@ -33,7 +33,7 @@ describe('EditUniversityDialog', () => {
     vi.restoreAllMocks()
   })
 
-  it('renders with two tabs, allows navigating between university and administrator info, and submits update', async () => {
+  it('shows only university fields and submits an institution update', async () => {
     const user = userEvent.setup()
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
@@ -73,24 +73,38 @@ describe('EditUniversityDialog', () => {
     const nameInput = screen.getByLabelText(/university name/i)
     expect(nameInput).toHaveValue('King Saud University')
 
-    // Navigate to Manager tab via Next button
-    await user.click(screen.getByRole('button', { name: /next: manager/i }))
-
-    // Check Manager tab content
-    expect(screen.getByDisplayValue('Dr. Fatima Al-Otaibi')).toBeInTheDocument()
-    expect(screen.getByDisplayValue('admin@ksu.edu.sa')).toBeInTheDocument()
-
-    // Navigate back to University tab via Back button
-    await user.click(screen.getByRole('button', { name: /back/i }))
+    expect(
+      screen.queryByDisplayValue('Dr. Fatima Al-Otaibi'),
+    ).not.toBeInTheDocument()
 
     // Modify university name
     await user.clear(nameInput)
     await user.type(nameInput, 'King Saud University Updated')
 
-    // Navigate to tab 2 to save changes
-    await user.click(screen.getByRole('tab', { name: /manager/i }))
     await user.click(screen.getByRole('button', { name: /save changes/i }))
 
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled())
+  })
+
+  it('shows only manager fields when editing the manager', () => {
+    const queryClient = new QueryClient()
+    const wrapper = ({ children }: PropsWithChildren) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    )
+
+    render(
+      <EditUniversityDialog
+        university={mockUniversity}
+        open={true}
+        onOpenChange={vi.fn()}
+        section="manager"
+      />,
+      { wrapper },
+    )
+
+    expect(screen.getByText('Edit Manager')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('Dr. Fatima Al-Otaibi')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('admin@ksu.edu.sa')).toBeInTheDocument()
+    expect(screen.queryByLabelText(/university name/i)).not.toBeInTheDocument()
   })
 })

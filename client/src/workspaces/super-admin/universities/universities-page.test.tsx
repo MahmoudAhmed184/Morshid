@@ -7,6 +7,33 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { UniversityItem } from '@/features/universities/universities.schema'
 import { UniversitiesPage } from './universities-page'
 
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({
+    children,
+    to,
+    params,
+    ...props
+  }: {
+    children?: React.ReactNode
+    to: string
+    params?: Record<string, string>
+  }) => {
+    let href = to
+    if (params) {
+      for (const [key, value] of Object.entries(params)) {
+        href = href.replace(`$${key}`, value)
+      }
+    }
+    return (
+      <a href={href} {...props}>
+        {children}
+      </a>
+    )
+  },
+  useNavigate: () => vi.fn(),
+  useRouter: () => ({ history: { back: vi.fn() } }),
+}))
+
 const sampleUniversity: UniversityItem = {
   id: '00000000-0000-4000-8000-000000000001',
   name: 'King Saud University',
@@ -57,6 +84,7 @@ describe('UniversitiesPage', () => {
     expect(screen.getByText('Universities')).toBeInTheDocument()
     expect(screen.getByText('Total Universities')).toBeInTheDocument()
     expect(screen.getByText('Active Tenants')).toBeInTheDocument()
+    expect(screen.getByText('Inactive Tenants')).toBeInTheDocument()
     expect(screen.getByText('Suspended Tenants')).toBeInTheDocument()
     expect(screen.queryByText('Tenancy Reach')).not.toBeInTheDocument()
     expect(screen.getByText('All Statuses')).toBeInTheDocument()

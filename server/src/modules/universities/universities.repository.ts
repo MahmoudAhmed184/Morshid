@@ -474,6 +474,12 @@ export class PrismaUniversitiesRepository extends UniversitiesRepository {
             select: { id: true },
           })
 
+          await tx.universitySubscription.create({
+            data: {
+              universityId: university.id,
+            },
+          })
+
           const adminUser = await tx.user.create({
             data: {
               email: input.owner.email,

@@ -22,7 +22,7 @@ model Course {
   code         String    @unique(map: "courses_code_key") @db.VarChar(40)
   title        String    @db.VarChar(160)
   createdById  String?   @map("created_by") @db.Uuid
-  archivedAt  DateTime? @map("archived_at") @db.Timestamptz(6)
+  archivedAt   DateTime? @map("archived_at") @db.Timestamptz(6)
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 

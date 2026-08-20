@@ -1,10 +1,9 @@
+import { Link, useNavigate } from '@tanstack/react-router'
 import {
-  BookOpen,
   Edit2,
   Eye,
   GraduationCap,
   MoreHorizontal,
-  Presentation,
   ShieldAlert,
 } from 'lucide-react'
 import { useState } from 'react'
@@ -28,7 +27,6 @@ import {
 import { StatusBadge } from '@/components/ui/custom/status-badge/status-badge'
 import type { UniversityItem } from '@/features/universities/universities.schema'
 import { EditUniversityDialog } from './edit-university-dialog'
-import { UniversityDetailsDialog } from './university-details-dialog'
 import { UpdateUniversityStatusDialog } from './update-university-status-dialog'
 
 type UniversitiesTableProps = {
@@ -48,8 +46,7 @@ function formatDate(isoString: string) {
 }
 
 export function UniversitiesTable({ universities }: UniversitiesTableProps) {
-  const [detailsUniversity, setDetailsUniversity] =
-    useState<UniversityItem | null>(null)
+  const navigate = useNavigate()
   const [editingUniversity, setEditingUniversity] =
     useState<UniversityItem | null>(null)
   const [statusUniversity, setStatusUniversity] =
@@ -64,7 +61,7 @@ export function UniversitiesTable({ universities }: UniversitiesTableProps) {
               <TableHead className="w-[280px]">University</TableHead>
               <TableHead className="w-[120px]">Status</TableHead>
               <TableHead className="w-[260px]">Primary Owner</TableHead>
-              <TableHead className="w-[220px]">Tenancy Scope</TableHead>
+              <TableHead className="w-[140px]">Students</TableHead>
               <TableHead className="w-[140px]">Created</TableHead>
               <TableHead className="w-[60px] text-right">Actions</TableHead>
             </TableRow>
@@ -74,9 +71,13 @@ export function UniversitiesTable({ universities }: UniversitiesTableProps) {
               <TableRow key={uni.id}>
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-foreground">
+                    <Link
+                      to="/super-admin/universities/$universityId"
+                      params={{ universityId: uni.id }}
+                      className="font-semibold text-foreground hover:text-primary hover:underline text-left cursor-pointer transition-colors"
+                    >
                       {uni.name}
-                    </span>
+                    </Link>
                     <Badge variant="outline" className="font-mono text-xs">
                       {uni.code}
                     </Badge>
@@ -89,9 +90,9 @@ export function UniversitiesTable({ universities }: UniversitiesTableProps) {
 
                 <TableCell>
                   {uni.owner ? (
-                    <div className="flex flex-col gap-0.5">
+                    <div className="flex flex-col gap-1">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-sm font-medium text-foreground">
+                        <span className="text-sm font-medium text-foreground leading-tight">
                           {uni.owner.displayName}
                         </span>
                         {uni.owner.status === 'DISABLED' ? (
@@ -103,7 +104,7 @@ export function UniversitiesTable({ universities }: UniversitiesTableProps) {
                           </Badge>
                         ) : null}
                       </div>
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-xs text-muted-foreground leading-tight">
                         {uni.owner.email}
                       </span>
                     </div>
@@ -115,33 +116,10 @@ export function UniversitiesTable({ universities }: UniversitiesTableProps) {
                 </TableCell>
 
                 <TableCell>
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span
-                      className="inline-flex items-center gap-1"
-                      title={`${uni.studentsCount} students`}
-                    >
-                      <GraduationCap className="size-3.5 text-primary/70" />
-                      <span className="font-medium text-foreground">
-                        {uni.studentsCount}
-                      </span>
-                    </span>
-                    <span
-                      className="inline-flex items-center gap-1"
-                      title={`${uni.instructorsCount} instructors`}
-                    >
-                      <Presentation className="size-3.5 text-primary/70" />
-                      <span className="font-medium text-foreground">
-                        {uni.instructorsCount}
-                      </span>
-                    </span>
-                    <span
-                      className="inline-flex items-center gap-1"
-                      title={`${uni.coursesCount} courses`}
-                    >
-                      <BookOpen className="size-3.5 text-primary/70" />
-                      <span className="font-medium text-foreground">
-                        {uni.coursesCount}
-                      </span>
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <GraduationCap className="size-3.5 text-primary/70" />
+                    <span className="font-medium text-foreground">
+                      {uni.studentsCount}
                     </span>
                   </div>
                 </TableCell>
@@ -165,7 +143,12 @@ export function UniversitiesTable({ universities }: UniversitiesTableProps) {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-44">
                       <DropdownMenuItem
-                        onClick={() => setDetailsUniversity(uni)}
+                        onClick={() => {
+                          void navigate({
+                            to: '/super-admin/universities/$universityId',
+                            params: { universityId: uni.id },
+                          })
+                        }}
                       >
                         <Eye className="size-4" aria-hidden />
                         View Details
@@ -190,16 +173,6 @@ export function UniversitiesTable({ universities }: UniversitiesTableProps) {
           </TableBody>
         </Table>
       </div>
-
-      <UniversityDetailsDialog
-        university={detailsUniversity}
-        open={Boolean(detailsUniversity)}
-        onOpenChange={(open) => {
-          if (!open) setDetailsUniversity(null)
-        }}
-        onEdit={(uni) => setEditingUniversity(uni)}
-        onChangeStatus={(uni) => setStatusUniversity(uni)}
-      />
 
       <EditUniversityDialog
         university={editingUniversity}

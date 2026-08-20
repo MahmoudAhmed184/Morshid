@@ -1,5 +1,5 @@
 import { Outlet } from '@tanstack/react-router'
-import { LayoutDashboard, Landmark, Settings } from 'lucide-react'
+import { CreditCard, LayoutDashboard, Landmark, Settings } from 'lucide-react'
 
 import { AuthenticatedSidebar } from '@/workspaces/_shared/authenticated-sidebar/authenticated-sidebar'
 import type { AuthenticatedSidebarNavItem } from '@/workspaces/_shared/authenticated-sidebar/authenticated-sidebar'
@@ -20,6 +20,11 @@ const navItems: readonly AuthenticatedSidebarNavItem[] = [
     label: 'Universities',
     to: '/super-admin/universities',
     icon: Landmark,
+  },
+  {
+    label: 'Subscriptions',
+    to: '/super-admin/subscriptions',
+    icon: CreditCard,
   },
   {
     label: 'Settings',

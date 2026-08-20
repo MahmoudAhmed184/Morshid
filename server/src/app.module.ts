@@ -14,6 +14,7 @@ import { MaterialsModule } from './modules/materials/materials.module'
 import { ReviewsModule } from './modules/reviews/reviews.module'
 import { TutoringModule } from './modules/tutoring/tutoring.module'
 import { UniversitiesModule } from './modules/universities/universities.module'
+import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module'
 import { ConversationPresentationModule } from './application/conversation-presentation.module'
 
 @Module({
@@ -28,6 +29,7 @@ import { ConversationPresentationModule } from './application/conversation-prese
     HealthModule,
     IdentityModule,
     UniversitiesModule,
+    SubscriptionsModule,
     CoursesModule,
     ConversationsModule,
     PdfStorageModule,

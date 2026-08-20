@@ -4,6 +4,7 @@ import {
   Landmark,
   ShieldAlert,
   ShieldCheck,
+  ShieldOff,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
@@ -44,13 +45,10 @@ const STATUS_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
 const SORT_OPTIONS: Array<{ value: string; label: string }> = [
   { value: 'createdAt:desc', label: 'Newest first' },
   { value: 'createdAt:asc', label: 'Oldest first' },
-  { value: 'studentsCount:desc', label: 'Most students' },
-  { value: 'studentsCount:asc', label: 'Fewest students' },
   { value: 'name:asc', label: 'Name (A-Z)' },
   { value: 'name:desc', label: 'Name (Z-A)' },
-  { value: 'code:asc', label: 'Code (A-Z)' },
-  { value: 'code:desc', label: 'Code (Z-A)' },
-  { value: 'status:asc', label: 'Status (A-Z)' },
+  { value: 'studentsCount:desc', label: 'Most students' },
+  { value: 'studentsCount:asc', label: 'Fewest students' },
 ]
 
 export function UniversitiesPage() {
@@ -87,6 +85,10 @@ export function UniversitiesPage() {
 
   const activeCount = useMemo(
     () => data.filter((uni) => uni.status === 'ACTIVE').length,
+    [data],
+  )
+  const inactiveCount = useMemo(
+    () => data.filter((uni) => uni.status === 'INACTIVE').length,
     [data],
   )
   const suspendedCount = useMemo(
@@ -137,7 +139,7 @@ export function UniversitiesPage() {
       />
 
       {/* Metric Cards */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Total Universities"
           value={totalCount}
@@ -151,6 +153,13 @@ export function UniversitiesPage() {
           icon={<ShieldCheck />}
           tone="success"
           description="Universities with active status"
+        />
+        <StatCard
+          label="Inactive Tenants"
+          value={statusFilter === 'INACTIVE' ? totalCount : inactiveCount}
+          icon={<ShieldOff />}
+          tone="default"
+          description="Universities with inactive status"
         />
         <StatCard
           label="Suspended Tenants"

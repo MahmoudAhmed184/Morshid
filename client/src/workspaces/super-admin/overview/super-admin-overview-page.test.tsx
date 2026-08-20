@@ -12,15 +12,25 @@ vi.mock('@tanstack/react-router', () => ({
     children,
     to,
     className,
+    params,
   }: {
     children: React.ReactNode
     to: string
     className?: string
-  }) => (
-    <a href={to} className={className}>
-      {children}
-    </a>
-  ),
+    params?: Record<string, string>
+  }) => {
+    let href = to
+    if (params) {
+      for (const [key, value] of Object.entries(params)) {
+        href = href.replace(`$${key}`, value)
+      }
+    }
+    return (
+      <a href={href} className={className}>
+        {children}
+      </a>
+    )
+  },
 }))
 
 const sampleUniversities = [
@@ -70,6 +80,19 @@ describe('SuperAdminOverviewPage', () => {
     render(<SuperAdminOverviewPage />, { wrapper })
 
     expect(screen.getByText('Super Admin Overview')).toBeInTheDocument()
+    expect(screen.getByText('Total Universities')).toBeInTheDocument()
+    expect(screen.getByText('Active Tenants')).toBeInTheDocument()
+    expect(screen.getByText('Inactive Tenants')).toBeInTheDocument()
+    expect(screen.getByText('Suspended Tenants')).toBeInTheDocument()
+    expect(
+      screen.queryByText('Enrolled student learners across active tenants'),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Active teaching staff across active tenants'),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Total learning course shells configured'),
+    ).not.toBeInTheDocument()
     expect(await screen.findByText('King Saud University')).toBeInTheDocument()
     expect(screen.getByText('Manage Universities')).toBeInTheDocument()
     expect(screen.getByText('Super Admin Settings')).toBeInTheDocument()
