@@ -452,8 +452,10 @@ export function StudentChatComposer({
                   className={cn(
                     'h-full rounded-full transition-all duration-300',
                     reviewsRemaining === 0
-                      ? 'bg-muted-foreground'
-                      : 'bg-emerald-500',
+                      ? 'bg-destructive'
+                      : reviewsRemaining <= 1
+                        ? 'bg-amber-500'
+                        : 'bg-emerald-500',
                   )}
                   style={{
                     width: `${(reviewsRemaining / reviewsLimit) * 100}%`,
