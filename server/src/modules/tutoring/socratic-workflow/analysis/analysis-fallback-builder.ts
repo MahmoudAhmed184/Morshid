@@ -189,8 +189,7 @@ function isProblemContinuation(
 
   // References to active problem context or ongoing tutor questions
   if (
-    context !== undefined &&
-    context.previousTutorQuestion !== null &&
+    context?.previousTutorQuestion != null &&
     !isStandaloneConceptQuery(normalized)
   ) {
     return true

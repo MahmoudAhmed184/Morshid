@@ -189,6 +189,7 @@ export class DeterministicGuardService {
     }
 
     if (
+      candidate.debuggingGuidance === null &&
       context.studentActionObligation.required &&
       !requestsMeaningfulStudentAction(candidate)
     ) {

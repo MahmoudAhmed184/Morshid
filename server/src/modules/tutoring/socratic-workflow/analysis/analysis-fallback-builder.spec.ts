@@ -92,19 +92,22 @@ describe('AnalysisFallbackBuilder', () => {
       ['Explain polymorphism'],
       ['What is the concept of closures?'],
       ['difference between list and tuple'],
-    ])('identifies explicit standalone concept request "%s" during active problem as topic switch', (content) => {
-      const context = analysisContext({
-        topicType: TopicType.PROBLEM,
-        problemMetadataId: 'problem-1',
-        content,
-      })
+    ])(
+      'identifies explicit standalone concept request "%s" during active problem as topic switch',
+      (content) => {
+        const context = analysisContext({
+          topicType: TopicType.PROBLEM,
+          problemMetadataId: 'problem-1',
+          content,
+        })
 
-      const fallback = new AnalysisFallbackBuilder().build(context)
-      expect(fallback.requestKind).toBe(MessageRequestKind.CONCEPTUAL)
-      expect(fallback.topicRelation).toBe(
-        TOPIC_RESOLUTION_OUTCOME.CREATE_NEW_TOPIC,
-      )
-    })
+        const fallback = new AnalysisFallbackBuilder().build(context)
+        expect(fallback.requestKind).toBe(MessageRequestKind.CONCEPTUAL)
+        expect(fallback.topicRelation).toBe(
+          TOPIC_RESOLUTION_OUTCOME.CREATE_NEW_TOPIC,
+        )
+      },
+    )
 
     it('identifies concept inquiries under concept topic as continuation', () => {
       const context = analysisContext({

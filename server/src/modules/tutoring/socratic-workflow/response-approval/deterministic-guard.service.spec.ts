@@ -400,7 +400,7 @@ describe('DeterministicGuardService', () => {
   it('rejects multiple student actions even when they form one sentence', () => {
     const candidate = validDebuggingCandidate()
     const inspectionActions = [
-      'Can you trace the accumulator and compare the returned value?',
+      'Trace the accumulator and rewrite the loop update.',
     ]
     const debuggingGuidance = {
       ...candidate.debuggingGuidance,
@@ -457,6 +457,50 @@ describe('DeterministicGuardService', () => {
     expect(result.violations.map((violation) => violation.type)).toContain(
       RESPONSE_VIOLATION_TYPE.DEBUGGING_GUIDANCE_CONTRACT,
     )
+  })
+
+  it('approves a debugging candidate using observation wording without triggering MISSING_REQUIRED_STUDENT_ACTION or DEBUGGING_INVALID_STUDENT_ACTION', () => {
+    const debuggingGuidance = {
+      diagnosis: 'The loop update overwrites total instead of accumulating.',
+      relevantLocation: 'line 4: total = number',
+      conceptExplanation:
+        'Accumulator pattern maintains running state across iterations.',
+      inspectionActions: [
+        'Observe the value of total after each iteration of the loop.',
+      ],
+    }
+    const action = debuggingGuidance.inspectionActions[0]
+    const candidate: CandidateResponse = validCandidate({
+      responseIntent: TeachingStrategy.DEBUGGING_GUIDANCE,
+      debuggingGuidance,
+      message: renderDebuggingGuidanceMessage({
+        guidance: debuggingGuidance,
+        usedCitationIds: ['retrieval.rank.1'],
+        action,
+        rewriteRequested: false,
+      }),
+      studentAction: {
+        type: TeachingTechnique.TRACE_EXECUTION,
+        description: action,
+      },
+    })
+
+    const result = service().evaluate(
+      candidate,
+      debuggingContext({
+        responseIntent: TeachingStrategy.DEBUGGING_GUIDANCE,
+        studentActionObligation: {
+          ...context().studentActionObligation,
+          purpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
+          technique: TeachingTechnique.TRACE_EXECUTION,
+          generationInstruction:
+            'Request exactly one meaningful TRACE_EXECUTION action.',
+        },
+      }),
+    )
+
+    expect(result.approved).toBe(true)
+    expect(result.violations).toHaveLength(0)
   })
 })
 
@@ -542,7 +586,9 @@ function validDebuggingCandidate(): CandidateResponse {
   })
 }
 
-function debuggingContext(): CandidateValidationContext {
+function debuggingContext(
+  patch: Partial<CandidateValidationContext> = {},
+): CandidateValidationContext {
   return context({
     studentActionObligation: {
       ...context().studentActionObligation,
@@ -560,5 +606,6 @@ function debuggingContext(): CandidateValidationContext {
       evidenceQuery: 'accumulator update loop',
       rewriteRequested: false,
     },
+    ...patch,
   })
 }

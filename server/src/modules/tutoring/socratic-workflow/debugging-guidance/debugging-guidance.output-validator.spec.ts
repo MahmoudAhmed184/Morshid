@@ -92,11 +92,50 @@ describe('debugging guidance contract', () => {
     '- Trace the loop value before and after the update.',
     'Trace the loop value\nbefore and after the update.',
     'Trace the loop value before the update. Note the result.',
-  ])('accepts one action despite harmless presentation: %s', (action) => {
-    expect(validate(candidateWithActions([action]))).toEqual({ approved: true })
+    'Observe the value of total after each iteration of the loop.',
+    'Track total across the loop iterations.',
+    'Notice how total changes during each iteration.',
+    'Follow the value of total through the loop.',
+    'Trace total after the first iteration, then compare it with its value after the second iteration.',
+    'Inspect the loop update and compare the value of total before and after it.',
+  ])(
+    'accepts valid inspection actions without requiring a verb whitelist or question mark: %s',
+    (action) => {
+      expect(validate(candidateWithActions([action]))).toEqual({
+        approved: true,
+      })
+    },
+  )
+
+  it.each([
+    [
+      'empty string',
+      '',
+      DEBUGGING_GUIDANCE_VALIDATION_FAILURE.MISSING_STUDENT_ACTION,
+    ],
+    [
+      'whitespace only',
+      '   \n  ',
+      DEBUGGING_GUIDANCE_VALIDATION_FAILURE.MISSING_STUDENT_ACTION,
+    ],
+    [
+      'trivial stub',
+      'ok',
+      DEBUGGING_GUIDANCE_VALIDATION_FAILURE.INVALID_STUDENT_ACTION,
+    ],
+    [
+      'short non-substantive text',
+      'check it',
+      DEBUGGING_GUIDANCE_VALIDATION_FAILURE.INVALID_STUDENT_ACTION,
+    ],
+  ])('rejects %s with appropriate failure', (_name, action, failure) => {
+    expect(validate(candidateWithActions([action]))).toEqual({
+      approved: false,
+      failure,
+    })
   })
 
-  it('rejects multiple structured actions', () => {
+  it('rejects multiple structured actions in the array', () => {
     expect(
       validate(
         candidateWithActions([
@@ -110,14 +149,12 @@ describe('debugging guidance contract', () => {
     })
   })
 
-  it('rejects multiple actions hidden in one line and one sentence', () => {
-    expect(
-      validate(
-        candidateWithActions([
-          'Inspect the loop update and compare the condition',
-        ]),
-      ),
-    ).toEqual({
+  it.each([
+    '1. Trace total.\n2. Rewrite the loop.',
+    '- Trace total.\n- Rewrite the loop.',
+    'Trace total and rewrite the loop.',
+  ])('rejects multi-action or numbered/bullet list strings: %s', (action) => {
+    expect(validate(candidateWithActions([action]))).toEqual({
       approved: false,
       failure: DEBUGGING_GUIDANCE_VALIDATION_FAILURE.MULTIPLE_STUDENT_ACTIONS,
     })
