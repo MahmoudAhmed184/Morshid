@@ -18,6 +18,7 @@ import {
   ApiBadRequestResponse,
   ApiBody,
   ApiConsumes,
+  ApiConflictResponse,
   ApiCreatedResponse,
   ApiExtraModels,
   ApiForbiddenResponse,
@@ -99,6 +100,10 @@ export class MaterialsController {
     },
   })
   @ApiNotFoundResponse({ type: OpenApiErrorDto })
+  @ApiConflictResponse({
+    type: OpenApiErrorDto,
+    description: 'The same PDF already exists in this course.',
+  })
   @ApiPayloadTooLargeResponse({ type: OpenApiErrorDto })
   uploadMaterial(
     @Param('courseId', new ParseUUIDPipe({ version: '4' })) courseId: string,

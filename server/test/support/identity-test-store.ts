@@ -368,6 +368,7 @@ interface FindFirstMaterialArgs {
     id?: string
     courseId?: string
     deletedAt?: null | Date
+    sha256Hash?: string
   }
 }
 
@@ -1622,6 +1623,11 @@ export class IdentityTestStore {
 
     if (args?.where?.deletedAt === null) {
       materials = materials.filter((m) => m.deletedAt === null)
+    }
+
+    const sha256Hash = args?.where?.sha256Hash
+    if (sha256Hash !== undefined) {
+      materials = materials.filter((m) => m.sha256Hash === sha256Hash)
     }
 
     return materials[0] ?? null
