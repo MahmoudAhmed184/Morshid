@@ -15,9 +15,14 @@ import { ApiError } from '@/lib/http/http'
 import { StudentChatMessage } from './chat-message'
 
 const useStudentReviewDetailMock = vi.hoisted(() => vi.fn())
+const useStudentReviewAllowanceMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@/workspaces/student/tutor-workspace/use-review-detail', () => ({
   useStudentReviewDetail: useStudentReviewDetailMock,
+}))
+
+vi.mock('@/features/allowances/interface', () => ({
+  useStudentReviewAllowance: useStudentReviewAllowanceMock,
 }))
 
 const assistantMessage: ChatMessage = {
@@ -35,6 +40,11 @@ describe('StudentChatMessage', () => {
       data: undefined,
       isError: false,
       isPending: false,
+    })
+    useStudentReviewAllowanceMock.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
     })
   })
 

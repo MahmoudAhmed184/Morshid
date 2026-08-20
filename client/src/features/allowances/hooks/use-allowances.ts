@@ -1,5 +1,4 @@
-import { useContext } from 'react'
-import { useQuery, QueryClientContext } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import {
   studentTutoringAllowanceQueryOptions,
   studentReviewAllowanceQueryOptions,
@@ -11,12 +10,6 @@ export function useStudentTutoringAllowance(courseId?: string): {
   isLoading: boolean
   isError: boolean
 } {
-  const client = useContext(QueryClientContext)
-  if (!client) {
-    return { data: undefined, isLoading: false, isError: false }
-  }
-
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   return useQuery({
     ...studentTutoringAllowanceQueryOptions(courseId ?? ''),
     enabled: Boolean(courseId),
@@ -31,12 +24,6 @@ export function useStudentReviewAllowance(
   isLoading: boolean
   isError: boolean
 } {
-  const client = useContext(QueryClientContext)
-  if (!client) {
-    return { data: undefined, isLoading: false, isError: false }
-  }
-
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   return useQuery({
     ...studentReviewAllowanceQueryOptions(courseId ?? ''),
     enabled: Boolean(courseId && enabled),
