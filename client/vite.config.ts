@@ -15,7 +15,7 @@ const config = defineConfig({
   },
 
   plugins: [
-    devtools(),
+    ...(process.env.CI === undefined ? [devtools()] : []),
     tailwindcss(),
     tanstackStart({ router: { entry: './app/router' } }),
     viteReact(),
