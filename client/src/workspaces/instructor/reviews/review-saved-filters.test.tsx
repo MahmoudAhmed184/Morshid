@@ -253,9 +253,11 @@ describe('Review Queue Saved Filters & URL Sync', () => {
 
     expect(window.location.search).toContain('status=RESOLVED')
 
-    // Click CS-101 course filter
-    const cs101Btn = screen.getByRole('button', { name: 'CS-101' })
-    await user.click(cs101Btn)
+    // Select CS-101 course filter
+    await user.click(screen.getByRole('combobox', { name: 'Course filter' }))
+    await user.click(
+      await screen.findByRole('option', { name: 'CS-101 · Intro to CS' }),
+    )
 
     expect(window.location.search).toContain('courseId=course-101')
   })

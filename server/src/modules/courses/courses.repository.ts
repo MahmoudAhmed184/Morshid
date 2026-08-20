@@ -41,6 +41,7 @@ export interface CourseMembershipRecord {
 
 export interface CourseAdministrationRecord {
   id: string
+  universityId: string
   code: string
   title: string
   createdById: string | null
@@ -68,6 +69,7 @@ export interface CourseAccessRecord {
 // ---------------------------------------------------------------------------
 
 export interface CreateCourseInput {
+  universityId: string
   code: string
   title: string
   actorUserId: string
@@ -182,6 +184,7 @@ const courseUserSelect = {
 
 const courseAdministrationSelect = {
   id: true,
+  universityId: true,
   code: true,
   title: true,
   createdById: true,
@@ -428,6 +431,7 @@ export class PrismaCoursesRepository extends CoursesRepository {
           data: {
             code: input.code,
             title: input.title,
+            universityId: input.universityId,
             createdById: input.actorUserId,
           },
           select: courseAdministrationSelect,

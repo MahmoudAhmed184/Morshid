@@ -18,6 +18,7 @@ import {
   chatSessionKeys,
   chatMessagesQueryOptions,
   chatSessionQueryOptions,
+  chatSessionSummaryQueryOptions,
   chatSessionsQueryOptions,
 } from '@/features/chat/sessions/chat-sessions.queries'
 import {
@@ -104,6 +105,26 @@ export function useChatSession({ courseId, sessionId }: ChatSessionSelection) {
       studentId !== undefined &&
       courseId !== undefined &&
       sessionId !== undefined,
+  })
+}
+
+export function useChatSessionSummary({
+  courseId,
+  sessionId,
+}: ChatSessionSelection) {
+  const studentId = useStudentId()
+
+  return useQuery({
+    ...chatSessionSummaryQueryOptions({
+      studentId: studentId ?? 'anonymous',
+      courseId: courseId ?? 'unknown',
+      sessionId: sessionId ?? 'unknown',
+    }),
+    enabled:
+      studentId !== undefined &&
+      courseId !== undefined &&
+      sessionId !== undefined &&
+      sessionId !== 'new',
   })
 }
 

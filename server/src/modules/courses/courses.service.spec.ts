@@ -28,6 +28,7 @@ import { CoursesService } from './courses.service'
 
 interface CourseRecord {
   id: string
+  universityId: string
   code: string
   title: string
   createdById: string | null
@@ -244,6 +245,7 @@ class CoursesServiceTestRepository extends CoursesRepository {
 
     this.addCourse({
       id: 'python-course',
+      universityId: 'univ-1',
       code: 'PYTHON-PROG-P0',
       title: 'Python Programming',
       createdById: 'instructor-user',
@@ -252,6 +254,7 @@ class CoursesServiceTestRepository extends CoursesRepository {
     })
     this.addCourse({
       id: 'database-course',
+      universityId: 'univ-1',
       code: 'DB-P0',
       title: 'Database Systems',
       createdById: 'other-instructor',
@@ -260,6 +263,7 @@ class CoursesServiceTestRepository extends CoursesRepository {
     })
     this.addCourse({
       id: 'hidden-course',
+      universityId: 'univ-1',
       code: 'HIDDEN-ISOLATION',
       title: 'Hidden Isolation Test Course',
       createdById: null,
@@ -397,6 +401,7 @@ function buildUser(id: string, role: UserRole): AuthenticatedUser {
     displayName: id,
     role,
     status: UserStatus.ACTIVE,
+    universityId: 'univ-1',
   }
 }
 

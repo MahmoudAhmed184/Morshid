@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common'
@@ -233,10 +234,15 @@ export class UserImportService {
     actor: AuthenticatedUser,
     requestContext?: AuditRequestContext,
   ) {
+    if (actor.universityId === null) {
+      throw new ForbiddenException('Actor must belong to a university')
+    }
+
     try {
       const userImport = await this.repository.approveImport(
         importId,
         actor.id,
+        actor.universityId,
         requestContext,
       )
       if (userImport === null)

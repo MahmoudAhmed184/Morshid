@@ -373,7 +373,10 @@ describe('Material processing truthfulness (e2e)', () => {
       ),
     )
     const firstMaterialId = await upload(fixture, 'Repeatable source one')
-    const secondMaterialId = await upload(fixture, 'Repeatable source two')
+    const secondMaterialId = await upload(
+      Buffer.concat([fixture, Buffer.from('\n% distinct file bytes\n')]),
+      'Repeatable source two',
+    )
 
     await processingService.processMaterial(firstMaterialId)
     await processingService.processMaterial(secondMaterialId)

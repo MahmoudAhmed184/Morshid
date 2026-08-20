@@ -6,6 +6,7 @@ import {
   deleteCourseMaterial,
   getMaterialUploadConfiguration,
   listCourseMaterials,
+  retryCourseMaterialProcessing,
   uploadCourseMaterial,
 } from './material-ingestion.api'
 
@@ -136,6 +137,32 @@ describe('Instructor materials API', () => {
       deleteCourseMaterial(courseId, materialId, { fetchImpl: fetchMock }),
     ).resolves.toBeUndefined()
     expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('retries the exact course material through POST', async () => {
+    const response = {
+      material: {
+        ...material,
+        status: 'PROCESSING' as const,
+        extractedTextLength: null,
+        chunkCount: null,
+      },
+    }
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        expect(String(input)).toBe(
+          `http://localhost:4000/api/v1/courses/${courseId}/materials/${materialId}/retry`,
+        )
+        expect(init?.method).toBe('POST')
+        return Response.json(response)
+      },
+    )
+
+    await expect(
+      retryCourseMaterialProcessing(courseId, materialId, {
+        fetchImpl: fetchMock,
+      }),
+    ).resolves.toEqual(response)
   })
 
   it('rejects an invalid successful API response through schema parsing', async () => {

@@ -214,11 +214,21 @@ describe('EducationalAnalysisRepository (e2e)', () => {
 
 async function createFixture(prisma: PrismaService): Promise<Fixture> {
   const suffix = randomUUID()
+  const university = await prisma.university.upsert({
+    where: { code: 'TEST-EDUCATIONAL-ANALYSIS-UNIV' },
+    update: {},
+    create: {
+      name: 'Test Educational Analysis University',
+      code: 'TEST-EDUCATIONAL-ANALYSIS-UNIV',
+      status: 'ACTIVE',
+    },
+  })
   const student = await prisma.user.create({
     data: {
       email: `analysis-${suffix}@morshid.test`,
       displayName: 'Analysis Student',
       role: 'STUDENT',
+      universityId: university.id,
       passwordHash: 'test-password-hash',
     },
   })
@@ -226,6 +236,7 @@ async function createFixture(prisma: PrismaService): Promise<Fixture> {
     data: {
       code: `analysis-${suffix.slice(0, 8)}`,
       title: 'Analysis Course',
+      universityId: university.id,
     },
   })
   await prisma.courseMembership.create({

@@ -40,6 +40,7 @@ describe(UserImportRepository.name, () => {
           role: string
           status: string
           passwordHash: string
+          universityId?: string
         }
       }) => Promise.resolve({ id: 'user-1', ...input.data }),
     )
@@ -72,13 +73,14 @@ describe(UserImportRepository.name, () => {
     } as unknown as UserAdministrationAuditService
     const repository = new UserImportRepository(prisma, audit)
 
-    await repository.approveImport('import-1', 'admin-1')
+    await repository.approveImport('import-1', 'admin-1', 'univ-1')
 
     expect(createUser).toHaveBeenCalledTimes(1)
     const createUserInput = createUser.mock.calls[0][0]
     expect(createUserInput.data.email).toBe('student@example.com')
     expect(createUserInput.data.status).toBe('ACTIVE')
     expect(createUserInput.data.passwordHash).toBe('secured-hash')
+    expect(createUserInput.data.universityId).toBe('univ-1')
     expect(tx.userImportRow.update).toHaveBeenCalledWith({
       where: { id: 'row-1' },
       data: { status: 'APPROVED', createdUserId: 'user-1' },

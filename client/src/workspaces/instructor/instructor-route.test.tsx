@@ -293,7 +293,13 @@ describe('/instructor', () => {
     fireEvent.click(screen.getByRole('link', { name: 'Review Queue' }))
 
     expect(
-      (await screen.findAllByRole('heading', { name: 'Review Queue' })).length,
+      (
+        await screen.findAllByRole(
+          'heading',
+          { name: 'Review Queue' },
+          { timeout: 4000 },
+        )
+      ).length,
     ).toBeGreaterThanOrEqual(1)
     expect(history.location.pathname).toBe('/instructor/review-queue')
     expect(

@@ -49,6 +49,7 @@ const environmentSchema = z
       .positive()
       .default(900),
     AUTH_REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(7),
+    POLICY_DAY_TIME_ZONE: z.string().trim().default('Africa/Cairo'),
 
     // AI embedding is a platform adapter. Its provider identity, upstream
     // credentials, quota budget, and request deadlines are validated here;
@@ -206,6 +207,16 @@ const environmentSchema = z
         path: ['AUTH_REFRESH_TOKEN_HASH_SECRET'],
         message:
           'must differ from AUTH_ACCESS_TOKEN_SECRET so the access and refresh secrets are independent',
+      })
+    }
+
+    try {
+      new Intl.DateTimeFormat('en-US', { timeZone: env.POLICY_DAY_TIME_ZONE })
+    } catch {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['POLICY_DAY_TIME_ZONE'],
+        message: 'must be a valid IANA time zone',
       })
     }
 

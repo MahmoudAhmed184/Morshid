@@ -75,3 +75,16 @@ export async function deleteCourseMaterial(
     method: 'DELETE',
   })
 }
+
+export async function retryCourseMaterialProcessing(
+  courseId: string,
+  materialId: string,
+  options: ApiFetchOptions = {},
+): Promise<MaterialResponse> {
+  const response = await apiJson<unknown>(
+    `/api/v1/courses/${courseId}/materials/${materialId}/retry`,
+    { ...options, method: 'POST' },
+  )
+
+  return materialResponseSchema.parse(response)
+}

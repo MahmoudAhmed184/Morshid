@@ -2,8 +2,12 @@ import { randomUUID } from 'node:crypto'
 
 import { Client } from 'pg'
 
+import { ConfigService } from '@nestjs/config'
+
 import { StudentFlagReason } from '../../src/generated/prisma/client'
 import { AuditService } from '../../src/modules/audit/audit.service'
+import { AllowancesPolicyRepository } from '../../src/modules/allowances/allowances-policy.repository'
+import { AllowancesService } from '../../src/modules/allowances/allowances.service'
 import { PrismaActiveCourseMembership } from '../../src/modules/courses/active-course-membership'
 import { CourseAudit } from '../../src/modules/courses/course-audit'
 import { PrismaCoursesRepository } from '../../src/modules/courses/courses.repository'
@@ -26,10 +30,18 @@ describe('Review persistence seam (e2e)', () => {
   beforeAll(async () => {
     database = await setUpDisposableDatabase('morshid_issue136_review')
     await seedP0DemoData(database.prisma)
+    const auditService = new AuditService(database.prisma)
+    const allowancesRepository = new AllowancesPolicyRepository(database.prisma)
+    const allowancesService = new AllowancesService(
+      allowancesRepository,
+      auditService,
+      new ConfigService(),
+    )
     repository = new PrismaReviewCaseRepository(
       database.prisma,
-      new AuditService(database.prisma),
+      auditService,
       new PrismaActiveCourseMembership(),
+      allowancesService,
     )
     reviewCaseIntake = new PrismaReviewCaseIntake(repository)
     transactionRunner = new PrismaDatabaseTransactionRunner(database.prisma)
@@ -603,12 +615,22 @@ describe('Review persistence seam (e2e)', () => {
     const assistantMessageIds: string[] = []
 
     const prisma = requireDatabase().prisma
+    const university = await prisma.university.upsert({
+      where: { code: 'TEST-REVIEW-PERSISTENCE-UNIV' },
+      update: {},
+      create: {
+        name: 'Test Review Persistence University',
+        code: 'TEST-REVIEW-PERSISTENCE-UNIV',
+        status: 'ACTIVE',
+      },
+    })
     await prisma.user.create({
       data: {
         id: studentId,
         email: `${label}-${studentId}@review.test`,
         displayName: `${label} Student`,
         role: 'STUDENT',
+        universityId: university.id,
         passwordHash: 'test-password-hash',
       },
     })
@@ -617,6 +639,7 @@ describe('Review persistence seam (e2e)', () => {
         id: courseId,
         code: `REV-${studentId.slice(0, 12)}`,
         title: `${label} Course`,
+        universityId: university.id,
         createdById: studentId,
       },
     })

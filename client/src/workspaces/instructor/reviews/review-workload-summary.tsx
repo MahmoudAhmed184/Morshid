@@ -1,18 +1,9 @@
 import { AlertCircle, CheckCircle2, Clock3, Inbox, XCircle } from 'lucide-react'
 
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { StatCard } from '@/components/ui/custom/stat-card'
 import { Skeleton } from '@/components/ui/skeleton'
-import type {
-  InstructorReviewWorkloadSummary,
-  ReviewTriggerType,
-  StudentFlagReason,
-} from '@/features/reviews/interface/instructor-review.schema'
-import {
-  studentFlagReasonLabel,
-  studentFlagReasons,
-} from '@/features/reviews/interface/student-flag-reason'
+import type { InstructorReviewWorkloadSummary } from '@/features/reviews/interface/instructor-review.schema'
 import { cn } from '@/lib/utils'
 
 export interface ReviewWorkloadSummaryProps {
@@ -23,18 +14,7 @@ export interface ReviewWorkloadSummaryProps {
   resolvedCount?: number
   rejectedCount?: number
   onSelectStatus?: (status: 'PENDING' | 'RESOLVED' | 'REJECTED') => void
-  onSelectStudentFlagReason?: (reason: StudentFlagReason) => void
-  onSelectTrigger?: (trigger: ReviewTriggerType) => void
   className?: string
-}
-
-const triggerLabels: Record<ReviewTriggerType, string> = {
-  STUDENT_REQUEST: 'Student request',
-  GENERAL_NOT_FOUND: 'General not found',
-  CITATION_MISSING: 'Citation missing',
-  SOURCE_CONFLICT: 'Source conflict',
-  POLICY_CHECK_FAILED: 'Policy check failed',
-  FINAL_ANSWER_RISK: 'Final answer risk',
 }
 
 export function ReviewWorkloadSummary({
@@ -45,8 +25,6 @@ export function ReviewWorkloadSummary({
   resolvedCount = 0,
   rejectedCount = 0,
   onSelectStatus,
-  onSelectStudentFlagReason,
-  onSelectTrigger,
   className,
 }: ReviewWorkloadSummaryProps) {
   if (isLoading) {
@@ -212,147 +190,7 @@ export function ReviewWorkloadSummary({
             </p>
           </CardContent>
         </Card>
-      ) : (
-        <div className="grid gap-5 lg:grid-cols-2">
-          {/* Student Flag Reasons Breakdown */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold tracking-tight">
-                Workload by Student Flag Reason
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table
-                  className="w-full text-left text-xs"
-                  aria-label="Student flag reasons workload table"
-                >
-                  <thead>
-                    <tr className="border-b text-muted-foreground">
-                      <th scope="col" className="pb-2 font-medium">
-                        Reason
-                      </th>
-                      <th scope="col" className="pb-2 text-right font-medium">
-                        Active Cases
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/50">
-                    {studentFlagReasons.map((reason) => {
-                      const count =
-                        summary.byStudentFlagReason.find(
-                          (item) => item.reason === reason,
-                        )?.count ?? 0
-                      const hasCount = count > 0
-
-                      return (
-                        <tr
-                          key={reason}
-                          className={cn(
-                            hasCount && onSelectStudentFlagReason
-                              ? 'cursor-pointer hover:bg-muted/40 transition-colors'
-                              : 'opacity-70',
-                          )}
-                          onClick={() => {
-                            if (hasCount && onSelectStudentFlagReason) {
-                              onSelectStudentFlagReason(reason)
-                            }
-                          }}
-                        >
-                          <td className="py-2 font-medium text-foreground">
-                            {studentFlagReasonLabel(reason)}
-                          </td>
-                          <td className="py-2 text-right tabular-nums">
-                            <Badge
-                              variant={hasCount ? 'secondary' : 'outline'}
-                              className={cn(
-                                'text-[0.7rem] px-2 py-0.5',
-                                hasCount && 'font-semibold',
-                              )}
-                            >
-                              {count}
-                            </Badge>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Trigger Types Breakdown */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold tracking-tight">
-                Workload by Trigger Type
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table
-                  className="w-full text-left text-xs"
-                  aria-label="Trigger types workload table"
-                >
-                  <thead>
-                    <tr className="border-b text-muted-foreground">
-                      <th scope="col" className="pb-2 font-medium">
-                        Trigger
-                      </th>
-                      <th scope="col" className="pb-2 text-right font-medium">
-                        Active Cases
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/50">
-                    {(Object.keys(triggerLabels) as ReviewTriggerType[]).map(
-                      (trigger) => {
-                        const count =
-                          summary.byTriggerType.find(
-                            (item) => item.trigger === trigger,
-                          )?.count ?? 0
-                        const hasCount = count > 0
-
-                        return (
-                          <tr
-                            key={trigger}
-                            className={cn(
-                              hasCount && onSelectTrigger
-                                ? 'cursor-pointer hover:bg-muted/40 transition-colors'
-                                : 'opacity-70',
-                            )}
-                            onClick={() => {
-                              if (hasCount && onSelectTrigger) {
-                                onSelectTrigger(trigger)
-                              }
-                            }}
-                          >
-                            <td className="py-2 font-medium text-foreground">
-                              {triggerLabels[trigger]}
-                            </td>
-                            <td className="py-2 text-right tabular-nums">
-                              <Badge
-                                variant={hasCount ? 'secondary' : 'outline'}
-                                className={cn(
-                                  'text-[0.7rem] px-2 py-0.5',
-                                  hasCount && 'font-semibold',
-                                )}
-                              >
-                                {count}
-                              </Badge>
-                            </td>
-                          </tr>
-                        )
-                      },
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+      ) : null}
     </div>
   )
 }

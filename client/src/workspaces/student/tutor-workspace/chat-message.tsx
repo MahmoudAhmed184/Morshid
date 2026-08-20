@@ -41,6 +41,7 @@ import { StudentAssistantMarkdown } from './assistant-markdown'
 
 interface StudentChatMessageProps {
   message: ChatMessage
+  courseId?: string
   isGenerationActive: boolean
   retryError: unknown
   retryMessageId?: string
@@ -120,6 +121,7 @@ const guidancePresentation: Record<
 
 export function StudentChatMessage({
   message,
+  courseId,
   isGenerationActive,
   retryError,
   retryMessageId,
@@ -384,6 +386,7 @@ export function StudentChatMessage({
               {canRequestReview ? (
                 <StudentReviewRequestDialog
                   messageId={message.id}
+                  courseId={courseId}
                   onSubmit={onRequestReview}
                 />
               ) : null}

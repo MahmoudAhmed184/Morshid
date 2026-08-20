@@ -24,6 +24,7 @@ import { StudentCourseProvider } from '@/workspaces/student/navigation/student-c
 import {
   createChatSession,
   getChatSession,
+  getChatSessionSummary,
   getChatMessages,
   listChatSessions,
   retryChatMessage,
@@ -49,6 +50,36 @@ import { submitPendingFirstMessage, TutorPage } from './tutor-page'
 import { CHAT_COMPLETION_STATUS, CHAT_GENERATION_STATUS } from './chat-status'
 
 vi.mock('@/features/chat/sessions/chat-sessions.api')
+vi.mock('@/features/allowances/hooks/use-allowances', () => ({
+  useStudentTutoringAllowance: () => ({
+    data: {
+      studentId: 'student-user',
+      courseId: '17d1a78d-60be-4f5f-a03d-e3ee326ec796',
+      used: 0,
+      limit: 10,
+      remaining: 10,
+      policyDay: '2026-08-20',
+      policyTimeZone: 'Africa/Cairo',
+      resetAt: '2026-08-21T00:00:00.000Z',
+    },
+    isLoading: false,
+    isError: false,
+  }),
+  useStudentReviewAllowance: () => ({
+    data: {
+      studentId: 'student-user',
+      courseId: '17d1a78d-60be-4f5f-a03d-e3ee326ec796',
+      used: 0,
+      limit: 3,
+      remaining: 3,
+      policyDay: '2026-08-20',
+      policyTimeZone: 'Africa/Cairo',
+      resetAt: '2026-08-21T00:00:00.000Z',
+    },
+    isLoading: false,
+    isError: false,
+  }),
+}))
 
 const navigateMock = vi.hoisted(() => vi.fn())
 const routerMockState = vi.hoisted<{
@@ -99,6 +130,7 @@ vi.mock('@tanstack/react-router', () => ({
 
 const createStudentSessionMock = vi.mocked(createChatSession)
 const getStudentSessionMock = vi.mocked(getChatSession)
+const getChatSessionSummaryMock = vi.mocked(getChatSessionSummary)
 const getStudentSessionMessagesMock = vi.mocked(getChatMessages)
 const listStudentSessionsMock = vi.mocked(listChatSessions)
 const retryChatMessageMock = vi.mocked(retryChatMessage)
@@ -326,6 +358,19 @@ describe('TutorPage workspace', () => {
         ? secondSession
         : primaryChatSessionFixture,
     )
+    getChatSessionSummaryMock.mockResolvedValue({
+      turnsUsed: 0,
+      turnLimit: 30,
+      turnsRemaining: 30,
+      isTurnLimitExhausted: false,
+      contextTokens: 0,
+      maxContextTokens: 258_000,
+      contextPercent: 0,
+      totalProcessedTokens: 0,
+      policyDay: '2026-08-20',
+      policyTimeZone: 'Africa/Cairo',
+      resetAt: '2026-08-21T00:00:00.000Z',
+    })
     retryChatMessageMock.mockResolvedValue(chatTurnResponseFixture)
     sendChatMessageMock.mockResolvedValue(chatTurnResponseFixture)
     window.localStorage.clear()
@@ -373,7 +418,9 @@ describe('TutorPage workspace', () => {
       await screen.findByRole('heading', { name: 'How can I help you, Test?' }),
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: 'Walk me through problem set 3.' }),
+      screen.getByRole('button', {
+        name: 'How do lists and dictionaries store data differently in Python?',
+      }),
     ).toBeInTheDocument()
     const composer = screen.getByRole('textbox', { name: 'Message' })
     expect(composer).toBeEnabled()
@@ -659,12 +706,16 @@ describe('TutorPage workspace', () => {
       }),
     ).toBeInTheDocument()
     fireEvent.click(
-      screen.getByRole('button', { name: 'Walk me through problem set 3.' }),
+      screen.getByRole('button', {
+        name: 'How do lists and dictionaries store data differently in Python?',
+      }),
     )
 
     const composer = screen.getByRole('textbox', { name: 'Message' })
     await waitFor(() =>
-      expect(composer).toHaveValue('Walk me through problem set 3.'),
+      expect(composer).toHaveValue(
+        'How do lists and dictionaries store data differently in Python?',
+      ),
     )
     expect(composer).toHaveFocus()
   })

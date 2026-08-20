@@ -27,6 +27,10 @@ export function configureApp(app: INestApplication) {
     )
     .addTag('tutoring', 'Tutoring turn execution and response governance.')
     .addTag('user-administration', 'Administrative user account operations.')
+    .addTag(
+      'universities',
+      'University tenant management and administration operations.',
+    )
     .addTag('audit', 'Audit event access.')
     .addTag('health', 'Service health checks.')
     .addBearerAuth(

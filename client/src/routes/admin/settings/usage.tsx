@@ -1,14 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
-
-import { SettingsPlaceholderTab } from '@/workspaces/_shared/settings-shell'
+import { AdminAllowancePolicyPage } from '@/features/allowances/interface'
 
 export const Route = createFileRoute('/admin/settings/usage')({
-  component: () => (
-    <SettingsPlaceholderTab
-      title="Usage"
-      description="Manage deployment and course tutoring allowances."
-    />
-  ),
+  component: () => <AdminAllowancePolicyPage scope="TUTORING" />,
   head: () => ({
     meta: [{ title: 'Usage Settings — Morshid' }],
   }),

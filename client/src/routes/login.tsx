@@ -1,4 +1,4 @@
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute, redirect, useHydrated } from '@tanstack/react-router'
 
 import { AuthLoader } from '@/features/auth/routing/auth-loader'
 import { RouteLoadError } from '@/app/route-load-error'
@@ -14,7 +14,7 @@ export const Route = createFileRoute('/login')({
       throw redirect({ to: redirectPath })
     }
   },
-  component: SignInPage,
+  component: LoginRoute,
   errorComponent: RouteLoadError,
   pendingComponent: AuthLoader,
   pendingMs: 0,
@@ -23,3 +23,9 @@ export const Route = createFileRoute('/login')({
     meta: [{ title: 'Sign in — Morshid' }],
   }),
 })
+
+function LoginRoute() {
+  const isHydrated = useHydrated()
+
+  return isHydrated ? <SignInPage /> : <AuthLoader />
+}

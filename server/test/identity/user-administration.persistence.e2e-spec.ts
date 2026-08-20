@@ -32,12 +32,21 @@ describe('Admin users persistence (e2e)', () => {
   let database: DisposableDatabase | undefined
   let prisma: PrismaService
   let repository: UserAdministrationRepository
+  let testUniversityId: string
   const createdUserIds = new Set<string>()
   const createdCourseIds = new Set<string>()
 
   beforeAll(async () => {
     database = await setUpDisposableDatabase('morshid_pr61')
     prisma = database.prisma
+    const university = await prisma.university.create({
+      data: {
+        name: 'PR 61 Test University',
+        code: `PR61-${randomUUID().slice(0, 8)}`,
+        status: 'ACTIVE',
+      },
+    })
+    testUniversityId = university.id
     const auditService = new AuditService(prisma)
     const userAdministrationAuditService = new UserAdministrationAuditService(
       auditService,
@@ -241,6 +250,7 @@ describe('Admin users persistence (e2e)', () => {
         displayName: 'Duplicate user',
         role: UserRole.STUDENT,
         passwordHash: 'test-password-hash',
+        universityId: testUniversityId,
         actorUserId: actor.id,
       }),
     ).rejects.toBeInstanceOf(ManagedUserEmailAlreadyExistsError)
@@ -347,6 +357,7 @@ describe('Admin users persistence (e2e)', () => {
       data: {
         code: `PR61-${randomUUID().slice(0, 8)}`,
         title: 'PR 61 persistence course',
+        universityId: testUniversityId,
         createdById,
       },
     })
@@ -360,6 +371,7 @@ describe('Admin users persistence (e2e)', () => {
         email: `pr61-${randomUUID()}@morshid.test`,
         displayName: `PR 61 ${role}`,
         role,
+        universityId: role === 'SUPER_ADMIN' ? null : testUniversityId,
         passwordHash: 'test-password-hash',
       },
     })

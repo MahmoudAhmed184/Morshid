@@ -42,11 +42,20 @@ Use these terms consistently in code, documentation, tasks, and review.
   when atomicity is required.
 - **Policy Day:** the calendar-day window used for daily product allowances,
   calculated in the deployment's configured IANA time zone.
-- **Tutoring Allowance:** the number of unique AI-backed Tutoring Attempts a
-  Student may start for one Course during one Policy Day.
-- **Review Allowance:** the number of manual Review Cases a Student may request
+- **Tutoring Allowance:** the number of distinct Student turns a Student may
+  admit for AI tutoring in one Course during one Policy Day. Replays and
+  retries of the same Student turn do not consume another unit.
+- **Review Allowance:** the number of manual Review Requests a Student may make
   for one Course during one Policy Day. Automatic review triggers do not
   consume it.
+- **Review Request:** a Student-initiated request for Instructor review of one
+  Assistant message.
+- **AI Readiness:** Morshid's locally derived ability to admit the AI work
+  required for supported product flows. It does not assert external provider
+  reachability.
+- **AI Capacity Pressure:** a locally observed reduction in usable AI capacity
+  caused by Morshid budget guards or passively observed provider rate limits.
+  It is not provider-reported quota remaining.
 - **Course Policy Override:** a Course-specific policy value that replaces the
   deployment default for that Course while the override exists.
 - **Allowance Reset:** an audited support intervention that clears a Student's

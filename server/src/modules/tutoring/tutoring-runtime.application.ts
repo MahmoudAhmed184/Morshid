@@ -53,6 +53,8 @@ import {
 import { SocraticWorkflow } from './socratic-workflow/socratic-workflow'
 import {
   tutoringActiveStudentMembershipRequiredException,
+  tutoringAllowanceExhaustedException,
+  tutoringConversationTurnsExhaustedException,
   tutoringIdempotencyKeyReusedException,
   tutoringRetryNotAllowedException,
   tutoringRetryTargetNotFoundException,
@@ -105,6 +107,8 @@ interface TutoringTurnDenialInput {
     | 'RETRY_TARGET_NOT_FOUND'
     | 'TURN_IN_PROGRESS'
     | 'RETRY_NOT_ALLOWED'
+    | 'TUTORING_ALLOWANCE_EXHAUSTED'
+    | 'CONVERSATION_TURNS_EXHAUSTED'
   messageId?: string
   attemptId?: string
   requestContext?: AuditRequestContext
@@ -1045,6 +1049,24 @@ export class TutoringRuntimeApplication extends TutoringRuntime {
           requestContext,
         })
         throw tutoringIdempotencyKeyReusedException()
+      case 'allowance_exhausted':
+        await this.recordDenial({
+          courseId,
+          sessionId,
+          studentId,
+          reason: 'TUTORING_ALLOWANCE_EXHAUSTED',
+          requestContext,
+        })
+        throw tutoringAllowanceExhaustedException()
+      case 'conversation_turns_exhausted':
+        await this.recordDenial({
+          courseId,
+          sessionId,
+          studentId,
+          reason: 'CONVERSATION_TURNS_EXHAUSTED',
+          requestContext,
+        })
+        throw tutoringConversationTurnsExhaustedException()
       default:
         return assertNever(result)
     }

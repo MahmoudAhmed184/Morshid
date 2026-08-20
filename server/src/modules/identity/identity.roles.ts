@@ -1,6 +1,7 @@
 import { SetMetadata } from '@nestjs/common'
 
 export const UserRole = {
+  SUPER_ADMIN: 'SUPER_ADMIN',
   ADMIN: 'ADMIN',
   INSTRUCTOR: 'INSTRUCTOR',
   STUDENT: 'STUDENT',
@@ -14,6 +15,15 @@ export const UserStatus = {
 } as const
 
 export type UserStatus = (typeof UserStatus)[keyof typeof UserStatus]
+
+export const UniversityStatus = {
+  ACTIVE: 'ACTIVE',
+  INACTIVE: 'INACTIVE',
+  SUSPENDED: 'SUSPENDED',
+} as const
+
+export type UniversityStatus =
+  (typeof UniversityStatus)[keyof typeof UniversityStatus]
 
 export const ROLES_KEY = 'roles'
 

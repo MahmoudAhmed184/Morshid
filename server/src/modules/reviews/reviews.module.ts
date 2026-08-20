@@ -4,7 +4,9 @@ import { AuditModule } from '../audit/audit.module'
 import { CoursesModule } from '../courses/courses.module'
 import { IdentityModule } from '../identity/identity.module'
 import { PrismaModule } from '../../platform/database/prisma.module'
+import { AllowancesModule } from '../allowances/allowances.module'
 import { ReviewCaseController } from './intake/review-case.controller'
+import { StudentReviewAllowanceController } from './intake/student-review-allowance.controller'
 import { StudentReviewDetailController } from './student-detail/student-review-detail.controller'
 import { ReviewCaseCreator } from './intake/review-case.creator'
 import { PrismaReviewCaseIntake } from './intake/prisma-review-case-intake'
@@ -45,9 +47,16 @@ import { StudentReviewSummaries } from './interface/student-review-summaries'
 import { PrismaStudentReviewSummaries } from './student-detail/prisma-student-review-summaries'
 
 @Module({
-  imports: [AuditModule, CoursesModule, IdentityModule, PrismaModule],
+  imports: [
+    AuditModule,
+    CoursesModule,
+    IdentityModule,
+    PrismaModule,
+    AllowancesModule,
+  ],
   controllers: [
     ReviewCaseController,
+    StudentReviewAllowanceController,
     InstructorReviewQueueController,
     InstructorReviewResolutionController,
     StudentReviewDetailController,

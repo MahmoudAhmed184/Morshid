@@ -119,6 +119,11 @@ export abstract class MaterialsRepository {
     input: CreateProcessingMaterialInput,
   ): Promise<SafeMaterialRecord>
 
+  abstract hasActiveMaterialWithHash(
+    courseId: string,
+    sha256Hash: string,
+  ): Promise<boolean>
+
   abstract listCourseMaterials(courseId: string): Promise<SafeMaterialRecord[]>
 
   async listCourseMaterialsPage(
@@ -137,6 +142,16 @@ export abstract class MaterialsRepository {
     courseId: string,
     materialId: string,
   ): Promise<MaterialStatusRecord | null>
+
+  abstract restartFailedMaterialProcessing(
+    courseId: string,
+    materialId: string,
+  ): Promise<SafeMaterialRecord | null>
+
+  abstract failMaterialProcessingScheduling(
+    materialId: string,
+    errorMessage: string,
+  ): Promise<void>
 
   abstract claimMaterialProcessing(
     materialId: string,
@@ -175,6 +190,13 @@ export interface CreateProcessingMaterialInput {
   originalFilename: string
   storagePath: string
   sha256Hash: string
+}
+
+export class DuplicateMaterialHashError extends Error {
+  constructor() {
+    super('An active material with this hash already exists in the course')
+    this.name = 'DuplicateMaterialHashError'
+  }
 }
 
 export interface MaterialProcessingRecord {
@@ -239,21 +261,44 @@ export class PrismaMaterialsRepository extends MaterialsRepository {
     void this.prismaService
   }
 
-  createProcessingMaterial(
+  async createProcessingMaterial(
     input: CreateProcessingMaterialInput,
   ): Promise<SafeMaterialRecord> {
-    return this.prismaService.material.create({
-      data: {
-        courseId: input.courseId,
-        uploadedById: input.uploadedById,
-        title: input.title,
-        originalFilename: input.originalFilename,
-        storagePath: input.storagePath,
-        sha256Hash: input.sha256Hash,
-        status: MaterialStatus.PROCESSING,
-      },
-      select: safeMaterialSelect,
+    try {
+      return await this.prismaService.material.create({
+        data: {
+          courseId: input.courseId,
+          uploadedById: input.uploadedById,
+          title: input.title,
+          originalFilename: input.originalFilename,
+          storagePath: input.storagePath,
+          sha256Hash: input.sha256Hash,
+          status: MaterialStatus.PROCESSING,
+        },
+        select: safeMaterialSelect,
+      })
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new DuplicateMaterialHashError()
+      }
+
+      throw error
+    }
+  }
+
+  async hasActiveMaterialWithHash(
+    courseId: string,
+    sha256Hash: string,
+  ): Promise<boolean> {
+    const material = await this.prismaService.material.findFirst({
+      where: { courseId, sha256Hash, deletedAt: null },
+      select: { id: true },
     })
+
+    return material !== null
   }
 
   listCourseMaterials(courseId: string): Promise<SafeMaterialRecord[]> {
@@ -332,6 +377,49 @@ export class PrismaMaterialsRepository extends MaterialsRepository {
         deletedAt: null,
       },
       select: materialStatusSelect,
+    })
+  }
+
+  async restartFailedMaterialProcessing(
+    courseId: string,
+    materialId: string,
+  ): Promise<SafeMaterialRecord | null> {
+    const restarted = await this.prismaService.material.updateMany({
+      where: {
+        id: materialId,
+        courseId,
+        status: MaterialStatus.FAILED,
+        deletedAt: null,
+      },
+      data: {
+        status: MaterialStatus.PROCESSING,
+        processingAttemptId: null,
+        extractedTextLength: null,
+        chunkCount: null,
+        errorMessage: null,
+      },
+    })
+
+    if (restarted.count !== 1) return null
+    return this.findCourseMaterial(courseId, materialId)
+  }
+
+  async failMaterialProcessingScheduling(
+    materialId: string,
+    errorMessage: string,
+  ): Promise<void> {
+    await this.prismaService.material.updateMany({
+      where: {
+        id: materialId,
+        status: MaterialStatus.PROCESSING,
+        processingAttemptId: null,
+        deletedAt: null,
+      },
+      data: {
+        status: MaterialStatus.FAILED,
+        chunkCount: 0,
+        errorMessage,
+      },
     })
   }
 

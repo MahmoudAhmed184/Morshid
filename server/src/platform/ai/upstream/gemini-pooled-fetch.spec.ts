@@ -2,6 +2,7 @@ import {
   type GeminiChatProjectPoolPort,
   GeminiChatProjectPoolUnavailableError,
   type GeminiChatProjectSelection,
+  type GeminiChatPoolSnapshot,
 } from './gemini-chat-project-pool'
 import {
   createGeminiPooledFetch,
@@ -229,6 +230,14 @@ describe('createGeminiPooledFetch', () => {
       size: 1,
       select: () => Promise.reject(new GeminiChatProjectPoolUnavailableError()),
       markRateLimited: () => Promise.resolve(1),
+      snapshot: () =>
+        Promise.resolve({
+          totalProjects: 1,
+          availableProjects: 1,
+          cooledDownProjects: 0,
+          cooldownDetails: [],
+          status: 'Ready',
+        }),
     }
 
     await expect(
@@ -320,5 +329,15 @@ class FakePool implements GeminiChatProjectPoolPort {
   markRateLimited(projectId: string, providerDelayMs: number): Promise<number> {
     this.marked.push({ projectId, providerDelayMs })
     return Promise.resolve(this.cooldowns.shift() ?? 1)
+  }
+
+  snapshot(): Promise<GeminiChatPoolSnapshot> {
+    return Promise.resolve({
+      totalProjects: this.size,
+      availableProjects: this.size,
+      cooledDownProjects: 0,
+      cooldownDetails: [],
+      status: 'Ready',
+    })
   }
 }

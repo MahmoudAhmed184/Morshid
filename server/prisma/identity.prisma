@@ -1,6 +1,7 @@
 // Domain-grouped Prisma schema. Cross-file relations are intentional.
 
 enum UserRole {
+  SUPER_ADMIN
   ADMIN
   INSTRUCTOR
   STUDENT
@@ -13,6 +14,14 @@ enum UserStatus {
   DISABLED
 
   @@map("user_status")
+}
+
+enum UniversityStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+
+  @@map("university_status")
 }
 
 enum UserImportStatus {
@@ -31,12 +40,33 @@ enum UserImportRowStatus {
   @@map("user_import_row_status")
 }
 
+model University {
+  id        String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String           @db.VarChar(160)
+  code      String           @unique(map: "universities_code_key") @db.VarChar(50)
+  status    UniversityStatus @default(ACTIVE)
+  ownerId   String?          @unique(map: "universities_owner_id_key") @map("owner_id") @db.Uuid
+  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  owner         User?                    @relation("UniversityOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  users         User[]                   @relation("UniversityUsers")
+  courses       Course[]                 @relation("UniversityCourses")
+  subscription  UniversitySubscription?  @relation("UniversitySubscription")
+  monthlyUsages UniversityMonthlyUsage[] @relation("UniversityMonthlyUsage")
+  invoices      SubscriptionInvoice[]
+
+  @@index([status], map: "idx_universities_status")
+  @@map("universities")
+}
+
 model User {
   id                String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email             String     @unique(map: "users_email_key") @db.Citext
   displayName       String     @map("display_name") @db.VarChar(120)
   role              UserRole
   status            UserStatus @default(ACTIVE)
+  universityId      String?    @map("university_id") @db.Uuid
   passwordHash      String     @map("password_hash") @db.Text
   disabledAt        DateTime?  @map("disabled_at") @db.Timestamptz(6)
   disabledById      String?    @map("disabled_by") @db.Uuid
@@ -45,27 +75,32 @@ model User {
   createdAt         DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  disabledBy         User?               @relation("UserDisabledBy", fields: [disabledById], references: [id], onDelete: SetNull)
-  disabledUsers      User[]              @relation("UserDisabledBy")
-  refreshTokens      RefreshToken[]      @relation("UserRefreshTokens")
-  createdCourses     Course[]            @relation("CourseCreatedBy")
-  memberships        CourseMembership[]  @relation("CourseMembershipUser")
-  createdMemberships CourseMembership[]  @relation("CourseMembershipCreatedBy")
-  uploadedMaterials  Material[]          @relation("MaterialUploadedBy")
-  chatSessions       ChatSession[]       @relation("ChatSessionStudent")
-  messages           Message[]           @relation("MessageAuthor")
-  auditLogs          AuditLog[]          @relation("AuditActor")
-  requestedReviews   ReviewCase[]        @relation("ReviewCaseRequester")
-  assignedReviews    ReviewCase[]        @relation("ReviewCaseAssignee")
-  resolvedReviews    ReviewCase[]        @relation("ReviewCaseResolver")
-  reviewTriggers     ReviewTrigger[]     @relation("ReviewTriggerActor")
-  reviewActions      ReviewAction[]      @relation("ReviewActionActor")
+  university         University?                @relation("UniversityUsers", fields: [universityId], references: [id], onDelete: Restrict)
+  ownedUniversity    University?                @relation("UniversityOwner")
+  disabledBy         User?                      @relation("UserDisabledBy", fields: [disabledById], references: [id], onDelete: SetNull)
+  disabledUsers      User[]                     @relation("UserDisabledBy")
+  refreshTokens      RefreshToken[]             @relation("UserRefreshTokens")
+  createdCourses     Course[]                   @relation("CourseCreatedBy")
+  memberships        CourseMembership[]         @relation("CourseMembershipUser")
+  createdMemberships CourseMembership[]         @relation("CourseMembershipCreatedBy")
+  uploadedMaterials  Material[]                 @relation("MaterialUploadedBy")
+  chatSessions       ChatSession[]              @relation("ChatSessionStudent")
+  messages           Message[]                  @relation("MessageAuthor")
+  auditLogs          AuditLog[]                 @relation("AuditActor")
+  requestedReviews   ReviewCase[]               @relation("ReviewCaseRequester")
+  assignedReviews    ReviewCase[]               @relation("ReviewCaseAssignee")
+  resolvedReviews    ReviewCase[]               @relation("ReviewCaseResolver")
+  reviewTriggers     ReviewTrigger[]            @relation("ReviewTriggerActor")
+  reviewActions      ReviewAction[]             @relation("ReviewActionActor")
   idempotencyRecords IdempotencyRecord[]
-  inboxItems         ReviewInboxItem[]   @relation("ReviewInboxRecipient")
+  inboxItems         ReviewInboxItem[]          @relation("ReviewInboxRecipient")
   tutoringPreference StudentTutoringPreference?
-  userImports        UserImport[]        @relation("UserImportCreatedBy")
+  userImports        UserImport[]               @relation("UserImportCreatedBy")
+  allowanceResetsReceived AllowanceReset[]        @relation("AllowanceResetStudent")
+  allowanceResetsCreated  AllowanceReset[]        @relation("AllowanceResetCreatedBy")
 
   @@index([disabledById], map: "idx_users_disabled_by")
+  @@index([universityId, role], map: "idx_users_university_role")
   @@map("users")
 }
 

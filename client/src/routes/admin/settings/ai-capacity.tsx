@@ -1,14 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
-
-import { SettingsPlaceholderTab } from '@/workspaces/_shared/settings-shell'
+import { AdminAiCapacityPage } from '@/features/ai-capacity/interface'
 
 export const Route = createFileRoute('/admin/settings/ai-capacity')({
-  component: () => (
-    <SettingsPlaceholderTab
-      title="AI capacity"
-      description="Monitor AI model quota, pool distribution, and health."
-    />
-  ),
+  component: () => <AdminAiCapacityPage />,
   head: () => ({
     meta: [{ title: 'AI Capacity Settings — Morshid' }],
   }),
