@@ -18,6 +18,7 @@ import {
 } from './subscriptions.api'
 import type {
   ListSubscriptionsInput,
+  ListUniversityInvoicesInput,
   UpdateUniversitySubscriptionInput,
 } from './subscriptions.api'
 import type { UpdateGlobalPricingFormValues } from './subscriptions.schema'
@@ -30,8 +31,8 @@ export const subscriptionsQueryKeys = {
     [...subscriptionsQueryKeys.all, 'list', input] as const,
   detail: (universityId: string) =>
     [...subscriptionsQueryKeys.all, 'detail', universityId] as const,
-  invoices: (universityId: string) =>
-    [...subscriptionsQueryKeys.all, 'invoices', universityId] as const,
+  invoices: (universityId: string, input: ListUniversityInvoicesInput) =>
+    [...subscriptionsQueryKeys.all, 'invoices', universityId, input] as const,
   mySubscription: () =>
     [...subscriptionsQueryKeys.all, 'my-subscription'] as const,
 }
@@ -81,12 +82,24 @@ export function useUniversitySubscription(universityId?: string | null) {
   })
 }
 
-export function useUniversityInvoices(universityId?: string | null) {
-  return useQuery({
-    queryKey: subscriptionsQueryKeys.invoices(universityId ?? ''),
-    queryFn: () => listUniversityInvoices(universityId ?? ''),
-    enabled: Boolean(universityId),
+export function universityInvoicesQueryOptions(
+  universityId: string,
+  input: ListUniversityInvoicesInput = {},
+) {
+  return queryOptions({
+    queryKey: subscriptionsQueryKeys.invoices(universityId, input),
+    queryFn: () => listUniversityInvoices(universityId, input),
     staleTime: 30 * 1000,
+  })
+}
+
+export function useUniversityInvoices(
+  universityId: string | null | undefined,
+  input: ListUniversityInvoicesInput = {},
+) {
+  return useQuery({
+    ...universityInvoicesQueryOptions(universityId ?? '', input),
+    enabled: Boolean(universityId),
   })
 }
 

@@ -4,6 +4,7 @@ import {
   cancelMySubscription,
   getGlobalPricing,
   getMySubscription,
+  listUniversityInvoices,
   listSubscriptions,
   resumeMySubscription,
   updateGlobalPricing,
@@ -128,6 +129,30 @@ describe('subscriptions.api', () => {
     expect(result.customPricePerSeat).toBe(8.0)
     expect(result.effectivePricePerSeat).toBe(8.0)
     expect(result.estimatedMonthlyTotal).toBe(1600.0)
+  })
+
+  it('lists filtered university invoices with pagination', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      expect(url).toContain('/invoices?')
+      expect(url).toContain('from=2025-07-01')
+      expect(url).toContain('to=2026-08-31')
+      expect(url).toContain('sortBy=amount')
+      return Response.json({
+        data: [],
+        pagination: { page: 1, limit: 10, totalCount: 0, totalPages: 0 },
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await listUniversityInvoices(sampleItem.universityId, {
+      from: '2025-07-01',
+      to: '2026-08-31',
+      sortBy: 'amount',
+      sortOrder: 'desc',
+    })
+
+    expect(result.pagination.totalCount).toBe(0)
   })
 
   it('fetches manager my-subscription', async () => {

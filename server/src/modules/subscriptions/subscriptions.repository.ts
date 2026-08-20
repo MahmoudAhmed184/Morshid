@@ -10,6 +10,7 @@ import {
 import { PrismaService } from '../../platform/database/prisma.service'
 import {
   SubscriptionStatus,
+  type ListUniversityInvoicesQuery,
   type ListSubscriptionsQuery,
   type UpdateGlobalPricingRequest,
   type UpdateUniversitySubscriptionRequest,
@@ -91,6 +92,16 @@ export interface SubscriptionInvoiceRecord {
   createdAt: Date
 }
 
+export interface SubscriptionInvoicesPageRecord {
+  data: SubscriptionInvoiceRecord[]
+  pagination: {
+    page: number
+    limit: number
+    totalCount: number
+    totalPages: number
+  }
+}
+
 export abstract class SubscriptionsRepository {
   processBillingLifecycle(_now?: Date): Promise<void> {
     return Promise.resolve()
@@ -100,8 +111,17 @@ export abstract class SubscriptionsRepository {
   }
   listUniversityInvoices(
     _universityId: string,
-  ): Promise<SubscriptionInvoiceRecord[]> {
-    return Promise.resolve([])
+    query: ListUniversityInvoicesQuery,
+  ): Promise<SubscriptionInvoicesPageRecord> {
+    return Promise.resolve({
+      data: [],
+      pagination: {
+        page: query.page,
+        limit: query.limit,
+        totalCount: 0,
+        totalPages: 0,
+      },
+    })
   }
   abstract getGlobalPricing(): Promise<GlobalPricingRecord>
   abstract updateGlobalPricing(
@@ -389,7 +409,8 @@ export class PrismaSubscriptionsRepository extends SubscriptionsRepository {
 
   async listUniversityInvoices(
     universityId: string,
-  ): Promise<SubscriptionInvoiceRecord[]> {
+    query: ListUniversityInvoicesQuery,
+  ): Promise<SubscriptionInvoicesPageRecord> {
     const university = await this.prismaService.university.findUnique({
       where: { id: universityId },
       select: { id: true },
@@ -404,24 +425,64 @@ export class PrismaSubscriptionsRepository extends SubscriptionsRepository {
       await this.getGlobalPricing(),
     )
 
-    return this.prismaService.subscriptionInvoice.findMany({
-      where: { universityId },
-      select: {
-        id: true,
-        billingPeriodStart: true,
-        billingPeriodEnd: true,
-        peakSeats: true,
-        pricePerSeat: true,
-        amount: true,
-        currency: true,
-        status: true,
-        dueAt: true,
-        gracePeriodEnd: true,
-        paidAt: true,
-        createdAt: true,
+    const from =
+      query.from === undefined
+        ? undefined
+        : new Date(`${query.from}T00:00:00.000Z`)
+    const to =
+      query.to === undefined ? undefined : new Date(`${query.to}T23:59:59.999Z`)
+    const now = new Date()
+    const where: Prisma.SubscriptionInvoiceWhereInput = {
+      universityId,
+      billingPeriodStart: {
+        ...(from === undefined ? {} : { gte: from }),
+        ...(to === undefined ? {} : { lte: to }),
       },
-      orderBy: { billingPeriodStart: 'desc' },
-    })
+      ...(query.status === 'PAID'
+        ? { status: 'PAID' }
+        : query.status === 'OVERDUE'
+          ? { status: 'DUE', gracePeriodEnd: { lte: now } }
+          : query.status === 'DUE'
+            ? { status: 'DUE', gracePeriodEnd: { gt: now } }
+            : {}),
+    }
+    const orderBy: Prisma.SubscriptionInvoiceOrderByWithRelationInput = {
+      [query.sortBy]: query.sortOrder,
+    }
+    const skip = (query.page - 1) * query.limit
+    const [data, totalCount] = await Promise.all([
+      this.prismaService.subscriptionInvoice.findMany({
+        where,
+        select: {
+          id: true,
+          billingPeriodStart: true,
+          billingPeriodEnd: true,
+          peakSeats: true,
+          pricePerSeat: true,
+          amount: true,
+          currency: true,
+          status: true,
+          dueAt: true,
+          gracePeriodEnd: true,
+          paidAt: true,
+          createdAt: true,
+        },
+        orderBy,
+        skip,
+        take: query.limit,
+      }),
+      this.prismaService.subscriptionInvoice.count({ where }),
+    ])
+
+    return {
+      data,
+      pagination: {
+        page: query.page,
+        limit: query.limit,
+        totalCount,
+        totalPages: totalCount === 0 ? 0 : Math.ceil(totalCount / query.limit),
+      },
+    }
   }
 
   async updateGlobalPricing(

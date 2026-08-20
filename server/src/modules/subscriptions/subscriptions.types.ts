@@ -75,6 +75,33 @@ export type ListSubscriptionsQuery = z.infer<
   typeof listSubscriptionsQuerySchema
 >
 
+export const listUniversityInvoicesQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(100).default(10),
+    from: z.iso.date().optional(),
+    to: z.iso.date().optional(),
+    status: z.enum(['PAID', 'DUE', 'OVERDUE']).optional(),
+    sortBy: z
+      .enum(['billingPeriodStart', 'amount', 'peakSeats'])
+      .default('billingPeriodStart'),
+    sortOrder: z.enum(['asc', 'desc']).default('desc'),
+  })
+  .refine(
+    (value) =>
+      value.from === undefined ||
+      value.to === undefined ||
+      value.from <= value.to,
+    {
+      message: 'From date must be before or equal to the to date',
+      path: ['from'],
+    },
+  )
+
+export type ListUniversityInvoicesQuery = z.infer<
+  typeof listUniversityInvoicesQuerySchema
+>
+
 export class GlobalPricingDto {
   @Expose()
   @ApiProperty({
@@ -392,6 +419,36 @@ export class SubscriptionInvoiceDto {
   @Expose()
   @ApiProperty({ example: '2026-09-20T00:00:00.000Z' })
   createdAt!: string
+}
+
+export class SubscriptionInvoicePaginationDto {
+  @Expose()
+  @ApiProperty({ example: 1 })
+  page!: number
+
+  @Expose()
+  @ApiProperty({ example: 10 })
+  limit!: number
+
+  @Expose()
+  @ApiProperty({ example: 24 })
+  totalCount!: number
+
+  @Expose()
+  @ApiProperty({ example: 3 })
+  totalPages!: number
+}
+
+export class SubscriptionInvoiceListResponseDto {
+  @Expose()
+  @Type(() => SubscriptionInvoiceDto)
+  @ApiProperty({ type: [SubscriptionInvoiceDto] })
+  data!: SubscriptionInvoiceDto[]
+
+  @Expose()
+  @Type(() => SubscriptionInvoicePaginationDto)
+  @ApiProperty({ type: SubscriptionInvoicePaginationDto })
+  pagination!: SubscriptionInvoicePaginationDto
 }
 
 export class UpdateUniversitySubscriptionRequestDto {

@@ -15,8 +15,10 @@ import {
 import type {
   GlobalPricingDto,
   ListSubscriptionsQuery,
+  ListUniversityInvoicesQuery,
   MySubscriptionResponseDto,
   SubscriptionInvoiceDto,
+  SubscriptionInvoiceListResponseDto,
   SubscriptionListResponseDto,
   UniversitySubscriptionItemDto,
   UpdateGlobalPricingRequest,
@@ -47,11 +49,17 @@ export class SubscriptionsService {
 
   async listUniversityInvoices(
     universityId: string,
-  ): Promise<SubscriptionInvoiceDto[]> {
+    query: ListUniversityInvoicesQuery,
+  ): Promise<SubscriptionInvoiceListResponseDto> {
     try {
-      const invoices =
-        await this.subscriptionsRepository.listUniversityInvoices(universityId)
-      return invoices.map(mapSubscriptionInvoiceRecord)
+      const page = await this.subscriptionsRepository.listUniversityInvoices(
+        universityId,
+        query,
+      )
+      return {
+        data: page.data.map(mapSubscriptionInvoiceRecord),
+        pagination: page.pagination,
+      }
     } catch (error) {
       if (error instanceof UniversityNotFoundError) {
         throw universityNotFoundException(universityId)

@@ -70,7 +70,10 @@ describe('UniversityDetailPage', () => {
       vi.fn(async (input: unknown) => {
         const urlStr = String(input)
         if (urlStr.includes('/invoices')) {
-          return Response.json([])
+          return Response.json({
+            data: [],
+            pagination: { page: 1, limit: 10, totalCount: 0, totalPages: 0 },
+          })
         }
         if (urlStr.includes('/api/v1/universities/')) {
           return Response.json({ university: mockUniversity })
@@ -141,7 +144,10 @@ describe('UniversityDetailPage', () => {
       vi.fn(async (input: unknown) => {
         const urlStr = String(input)
         if (urlStr.includes('/invoices')) {
-          return Response.json([])
+          return Response.json({
+            data: [],
+            pagination: { page: 1, limit: 10, totalCount: 0, totalPages: 0 },
+          })
         }
         if (urlStr.includes('/api/v1/universities/')) {
           return Response.json({ university: mockUniversity })
@@ -218,7 +224,10 @@ describe('UniversityDetailPage', () => {
       vi.fn(async (input: unknown) => {
         const urlStr = String(input)
         if (urlStr.includes('/invoices')) {
-          return Response.json([])
+          return Response.json({
+            data: [],
+            pagination: { page: 1, limit: 10, totalCount: 0, totalPages: 0 },
+          })
         }
         if (urlStr.includes('/api/v1/universities/')) {
           return Response.json({ university: mockUniversity })

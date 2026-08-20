@@ -40,14 +40,16 @@ import {
   GlobalPricingDto,
   MySubscriptionResponseDto,
   SubscriptionListResponseDto,
-  SubscriptionInvoiceDto,
+  SubscriptionInvoiceListResponseDto,
   UniversitySubscriptionItemDto,
   UpdateGlobalPricingRequestDto,
   UpdateUniversitySubscriptionRequestDto,
   listSubscriptionsQuerySchema,
+  listUniversityInvoicesQuerySchema,
   updateGlobalPricingSchema,
   updateUniversitySubscriptionSchema,
   type ListSubscriptionsQuery,
+  type ListUniversityInvoicesQuery,
   type UpdateGlobalPricingRequest,
   type UpdateUniversitySubscriptionRequest,
 } from './subscriptions.types'
@@ -179,17 +181,27 @@ export class SubscriptionsController {
 
   @Get('universities/:universityId/invoices')
   @Roles(UserRole.SUPER_ADMIN)
-  @SerializeOptions({ type: SubscriptionInvoiceDto, strategy: 'excludeAll' })
+  @SerializeOptions({
+    type: SubscriptionInvoiceListResponseDto,
+    strategy: 'excludeAll',
+  })
   @ApiOperation({ summary: 'List all invoices for a university subscription' })
   @ApiParam({ name: 'universityId', format: 'uuid' })
-  @ApiOkResponse({ type: [SubscriptionInvoiceDto] })
+  @ApiOkResponse({ type: SubscriptionInvoiceListResponseDto })
+  @ApiBadRequestResponse({ type: OpenApiValidationErrorDto })
   @ApiNotFoundResponse({ type: OpenApiErrorDto })
   @ApiForbiddenResponse({ type: OpenApiErrorDto })
   listUniversityInvoices(
     @Param('universityId', new ParseUUIDPipe({ version: '4' }))
     universityId: string,
-  ): Promise<SubscriptionInvoiceDto[]> {
-    return this.subscriptionsService.listUniversityInvoices(universityId)
+    @Query(
+      new ZodValidationPipe(listUniversityInvoicesQuerySchema, (issues) =>
+        invalidSubscriptionsRequestException(issues.map(mapZodIssue)),
+      ),
+    )
+    query: ListUniversityInvoicesQuery,
+  ): Promise<SubscriptionInvoiceListResponseDto> {
+    return this.subscriptionsService.listUniversityInvoices(universityId, query)
   }
 
   @Patch('universities/:universityId')

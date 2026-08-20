@@ -25,6 +25,7 @@ import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ConfirmDialog } from '@/components/ui/custom/confirm-dialog'
 import { ErrorState } from '@/components/ui/custom/error-state/error-state'
+import { NumberedPagination } from '@/components/ui/custom/pagination/numbered-pagination'
 import { StatusBadge } from '@/components/ui/custom/status-badge/status-badge'
 import {
   DropdownMenu,
@@ -33,6 +34,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   Table,
   TableBody,
@@ -80,6 +89,12 @@ function formatPeriodDate(isoString: string) {
   )
 }
 
+function getMonthEndDate(month: string) {
+  const [year, monthNumber] = month.split('-').map(Number)
+  const lastDay = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate()
+  return `${month}-${lastDay.toString().padStart(2, '0')}`
+}
+
 export function UniversityDetailPage({
   universityId,
 }: UniversityDetailPageProps) {
@@ -91,6 +106,15 @@ export function UniversityDetailPage({
     'university',
   )
   const [isPriceDialogOpen, setIsPriceDialogOpen] = useState(false)
+  const [invoicePage, setInvoicePage] = useState(1)
+  const [invoiceFromMonth, setInvoiceFromMonth] = useState('')
+  const [invoiceToMonth, setInvoiceToMonth] = useState('')
+  const [invoiceStatus, setInvoiceStatus] = useState<
+    'ALL' | 'PAID' | 'DUE' | 'OVERDUE'
+  >('ALL')
+  const [invoiceSort, setInvoiceSort] = useState<
+    'newest' | 'oldest' | 'highest' | 'lowest' | 'peakSeats'
+  >('newest')
 
   // Status confirm dialog state
   const [pendingStatus, setPendingStatus] = useState<UniversityStatus | null>(
@@ -100,7 +124,21 @@ export function UniversityDetailPage({
 
   const universityQuery = useUniversityDetail(universityId)
   const subscriptionQuery = useUniversitySubscription(universityId)
-  const invoicesQuery = useUniversityInvoices(universityId)
+  const invoicesQuery = useUniversityInvoices(universityId, {
+    page: invoicePage,
+    limit: 10,
+    from: invoiceFromMonth ? `${invoiceFromMonth}-01` : undefined,
+    to: invoiceToMonth ? getMonthEndDate(invoiceToMonth) : undefined,
+    status: invoiceStatus === 'ALL' ? undefined : invoiceStatus,
+    sortBy:
+      invoiceSort === 'highest' || invoiceSort === 'lowest'
+        ? 'amount'
+        : invoiceSort === 'peakSeats'
+          ? 'peakSeats'
+          : 'billingPeriodStart',
+    sortOrder:
+      invoiceSort === 'oldest' || invoiceSort === 'lowest' ? 'asc' : 'desc',
+  })
   const { updateUniversityStatus } = useUniversityMutations()
 
   const copyEmail = (text: string) => {
@@ -702,7 +740,83 @@ export function UniversityDetailPage({
                 period.
               </p>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 rounded-xl border bg-muted/20 p-4 sm:grid-cols-2 lg:grid-cols-4">
+                <label className="space-y-1.5 text-xs font-medium">
+                  <span className="text-muted-foreground">From month</span>
+                  <Input
+                    type="month"
+                    value={invoiceFromMonth}
+                    onChange={(event) => {
+                      setInvoiceFromMonth(event.target.value)
+                      setInvoicePage(1)
+                    }}
+                    max={invoiceToMonth || undefined}
+                    className="bg-background"
+                  />
+                </label>
+                <label className="space-y-1.5 text-xs font-medium">
+                  <span className="text-muted-foreground">To month</span>
+                  <Input
+                    type="month"
+                    value={invoiceToMonth}
+                    onChange={(event) => {
+                      setInvoiceToMonth(event.target.value)
+                      setInvoicePage(1)
+                    }}
+                    min={invoiceFromMonth || undefined}
+                    className="bg-background"
+                  />
+                </label>
+                <label className="space-y-1.5 text-xs font-medium">
+                  <span className="text-muted-foreground">Payment status</span>
+                  <Select
+                    value={invoiceStatus}
+                    onValueChange={(value) => {
+                      if (value) {
+                        setInvoiceStatus(value)
+                        setInvoicePage(1)
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="w-full bg-background">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All statuses</SelectItem>
+                      <SelectItem value="PAID">Paid</SelectItem>
+                      <SelectItem value="DUE">Due</SelectItem>
+                      <SelectItem value="OVERDUE">Overdue</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </label>
+                <label className="space-y-1.5 text-xs font-medium">
+                  <span className="text-muted-foreground">Sort invoices</span>
+                  <Select
+                    value={invoiceSort}
+                    onValueChange={(value) => {
+                      if (value) {
+                        setInvoiceSort(value)
+                        setInvoicePage(1)
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="w-full bg-background">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="newest">Newest first</SelectItem>
+                      <SelectItem value="oldest">Oldest first</SelectItem>
+                      <SelectItem value="highest">Highest invoice</SelectItem>
+                      <SelectItem value="lowest">Lowest invoice</SelectItem>
+                      <SelectItem value="peakSeats">
+                        Highest peak seats
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </label>
+              </div>
+
               {invoicesQuery.isLoading ? (
                 <div className="space-y-2">
                   <Skeleton className="h-11 w-full" />
@@ -716,7 +830,7 @@ export function UniversityDetailPage({
                   onRetry={() => void invoicesQuery.refetch()}
                   isRetrying={invoicesQuery.isFetching}
                 />
-              ) : invoicesQuery.data && invoicesQuery.data.length > 0 ? (
+              ) : invoicesQuery.data && invoicesQuery.data.data.length > 0 ? (
                 <div className="overflow-hidden rounded-xl border">
                   <Table>
                     <TableHeader className="bg-muted/40">
@@ -730,7 +844,7 @@ export function UniversityDetailPage({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {invoicesQuery.data.map((invoice) => {
+                      {invoicesQuery.data.data.map((invoice) => {
                         const overdue =
                           invoice.status === 'DUE' &&
                           new Date(invoice.gracePeriodEnd) <= new Date()
@@ -790,6 +904,18 @@ export function UniversityDetailPage({
                   </p>
                 </div>
               )}
+
+              {invoicesQuery.data &&
+              invoicesQuery.data.pagination.totalPages > 1 ? (
+                <NumberedPagination
+                  page={invoicesQuery.data.pagination.page}
+                  totalPages={invoicesQuery.data.pagination.totalPages}
+                  totalCount={invoicesQuery.data.pagination.totalCount}
+                  limit={invoicesQuery.data.pagination.limit}
+                  onPageChange={setInvoicePage}
+                  itemName="invoices"
+                />
+              ) : null}
             </CardContent>
           </Card>
         </TabsContent>

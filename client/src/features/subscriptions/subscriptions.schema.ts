@@ -97,6 +97,20 @@ export const subscriptionInvoiceSchema = z.object({
 
 export type SubscriptionInvoice = z.infer<typeof subscriptionInvoiceSchema>
 
+export const subscriptionInvoiceListResponseSchema = z.object({
+  data: z.array(subscriptionInvoiceSchema),
+  pagination: z.object({
+    page: z.number(),
+    limit: z.number(),
+    totalCount: z.number(),
+    totalPages: z.number(),
+  }),
+})
+
+export type SubscriptionInvoiceListResponse = z.infer<
+  typeof subscriptionInvoiceListResponseSchema
+>
+
 export const subscriptionsSummarySchema = z.object({
   totalSubscribedUniversities: z.number(),
   totalActiveStudents: z.number(),

@@ -64,8 +64,6 @@ export function EditUniversityDialog({
         ownerEmail: university.owner?.email ?? '',
         ownerPassword: '',
       })
-      setErrorMessage(null)
-      setServerFieldErrors({})
     }
   }, [form, open, section, university])
 

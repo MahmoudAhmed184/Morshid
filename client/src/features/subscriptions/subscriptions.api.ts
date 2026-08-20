@@ -4,13 +4,13 @@ import {
   globalPricingSchema,
   mySubscriptionResponseSchema,
   subscriptionListResponseSchema,
-  subscriptionInvoiceSchema,
+  subscriptionInvoiceListResponseSchema,
   universitySubscriptionItemSchema,
 } from './subscriptions.schema'
 import type {
   GlobalPricing,
   SubscriptionListResponse,
-  SubscriptionInvoice,
+  SubscriptionInvoiceListResponse,
   SubscriptionStatus,
   UniversitySubscriptionItem,
   UpdateGlobalPricingFormValues,
@@ -36,6 +36,16 @@ export interface UpdateUniversitySubscriptionInput {
   customPricePerSeat?: number | null
   cancelAtPeriodEnd?: boolean
   status?: SubscriptionStatus
+}
+
+export interface ListUniversityInvoicesInput {
+  page?: number
+  limit?: number
+  from?: string
+  to?: string
+  status?: 'PAID' | 'DUE' | 'OVERDUE'
+  sortBy?: 'billingPeriodStart' | 'amount' | 'peakSeats'
+  sortOrder?: 'asc' | 'desc'
 }
 
 function createListSubscriptionsPath({
@@ -127,17 +137,28 @@ export async function getUniversitySubscription(
 
 export async function listUniversityInvoices(
   universityId: string,
+  input: ListUniversityInvoicesInput = {},
   options: ApiFetchOptions = {},
-): Promise<SubscriptionInvoice[]> {
+): Promise<SubscriptionInvoiceListResponse> {
+  const searchParams = new URLSearchParams({
+    page: String(input.page ?? 1),
+    limit: String(input.limit ?? 10),
+    sortBy: input.sortBy ?? 'billingPeriodStart',
+    sortOrder: input.sortOrder ?? 'desc',
+  })
+  if (input.from) searchParams.set('from', input.from)
+  if (input.to) searchParams.set('to', input.to)
+  if (input.status) searchParams.set('status', input.status)
+
   const response = await apiJson<unknown>(
-    `/api/v1/subscriptions/universities/${universityId}/invoices`,
+    `/api/v1/subscriptions/universities/${universityId}/invoices?${searchParams.toString()}`,
     {
       ...options,
       method: 'GET',
     },
   )
 
-  return subscriptionInvoiceSchema.array().parse(response)
+  return subscriptionInvoiceListResponseSchema.parse(response)
 }
 
 export async function updateUniversitySubscription(
