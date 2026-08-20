@@ -463,7 +463,86 @@ describe('SemanticGuardService', () => {
       RESPONSE_VALIDATION_ACTION.USE_SAFE_FALLBACK,
     )
   })
+
+  describe('bounded infrastructure retry behavior', () => {
+    it('recovers on bounded retry when the first attempt fails with malformed/truncated output', async () => {
+      const port = new SequenceFakeSemanticGuardPort([
+        new SemanticGuardModelError(
+          SEMANTIC_GUARD_ERROR_CODE.MALFORMED_OUTPUT,
+          { finishReason: 'length' },
+        ),
+        { approved: true, violations: [] },
+      ])
+
+      const result = await new SemanticGuardService(port).evaluate(input())
+
+      expect(result.kind).toBe('validated')
+      expect(result.result.approved).toBe(true)
+      expect(port.requests).toHaveLength(2)
+    })
+
+    it('fails closed to safe fallback when malformed output repeats beyond maxRetries', async () => {
+      const port = new SequenceFakeSemanticGuardPort([
+        new SemanticGuardModelError(
+          SEMANTIC_GUARD_ERROR_CODE.MALFORMED_OUTPUT,
+          { finishReason: 'length' },
+        ),
+        new SemanticGuardModelError(
+          SEMANTIC_GUARD_ERROR_CODE.MALFORMED_OUTPUT,
+          { finishReason: 'length' },
+        ),
+      ])
+
+      const result = await new SemanticGuardService(port).evaluate(input())
+
+      expect(result.kind).toBe('infrastructure_failure')
+      if (result.kind === 'infrastructure_failure') {
+        expect(result.errorCode).toBe(
+          SEMANTIC_GUARD_ERROR_CODE.MALFORMED_OUTPUT,
+        )
+      }
+      expect(port.requests).toHaveLength(2)
+      expect(result.result.approved).toBe(false)
+      expect(result.result.recommendedAction).toBe(
+        RESPONSE_VALIDATION_ACTION.USE_SAFE_FALLBACK,
+      )
+    })
+
+    it('does not retry non-retryable errors such as CANCELLED', async () => {
+      const port = new SequenceFakeSemanticGuardPort([
+        new SemanticGuardModelError(SEMANTIC_GUARD_ERROR_CODE.CANCELLED),
+      ])
+
+      const result = await new SemanticGuardService(port).evaluate(input())
+
+      expect(result.kind).toBe('infrastructure_failure')
+      expect(port.requests).toHaveLength(1)
+    })
+  })
 })
+
+class SequenceFakeSemanticGuardPort implements SemanticGuardPort {
+  readonly requests: SemanticGuardRequest[] = []
+  private index = 0
+
+  constructor(private readonly sequence: readonly unknown[]) {}
+
+  evaluate(request: SemanticGuardRequest): Promise<SemanticGuardModelResponse> {
+    this.requests.push(request)
+    const current =
+      this.sequence[this.index] ?? this.sequence[this.sequence.length - 1]
+    this.index += 1
+    if (current instanceof Error) {
+      return Promise.reject(current)
+    }
+    return Promise.resolve({
+      rawOutput: current,
+      provider: 'deterministic',
+      model: 'semantic-guard-test',
+      promptVersion: SEMANTIC_GUARD_PROMPT_VERSION,
+    })
+  }
+}
 
 class FakeSemanticGuardPort implements SemanticGuardPort {
   readonly requests: SemanticGuardRequest[] = []

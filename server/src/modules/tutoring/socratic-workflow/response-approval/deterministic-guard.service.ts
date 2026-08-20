@@ -107,7 +107,12 @@ export class DeterministicGuardService {
     }
 
     if (context.revealPolicy === RevealPolicy.NO_FINAL_ANSWER) {
-      if (revealsFinalAnswer(normalized)) {
+      if (
+        revealsFinalAnswer(normalized, {
+          givenPremises: context.givenPremises,
+          targetVariables: context.targetVariables,
+        })
+      ) {
         violations.push(
           violation(
             RESPONSE_VIOLATION_TYPE.FINAL_ANSWER_DISCLOSURE,
@@ -115,6 +120,22 @@ export class DeterministicGuardService {
             'message',
             'Candidate contains a high-confidence final-answer disclosure pattern.',
             'Remove final answers and ask for one next reasoning step.',
+          ),
+        )
+      }
+      if (
+        revealsDecisiveSubstitution(normalized, {
+          givenPremises: context.givenPremises,
+          targetVariables: context.targetVariables,
+        })
+      ) {
+        violations.push(
+          violation(
+            RESPONSE_VIOLATION_TYPE.DIRECT_ANSWER_DISCLOSURE,
+            RESPONSE_VALIDATION_SEVERITY.HIGH,
+            'message',
+            'Candidate performs decisive substitution derivation before the student reasoned through the step.',
+            'Ask the student to perform the variable substitution or evaluate the expression.',
           ),
         )
       }
@@ -203,13 +224,201 @@ export class DeterministicGuardService {
   }
 }
 
-export function revealsFinalAnswer(normalizedMessage: string): boolean {
-  return [
-    /\b(?:the\s+answer|final\s+answer|answer)\s*(?:is|:)\s*\S+/u,
-    /\b(?:the\s+result|final\s+result|result)\s*(?:is|:)\s*[-+]?\d/u,
-    /\b(?:therefore|thus|so)\b[^.!?\n]{0,60}\b(?:=|is)\s*[-+]?\d/u,
-    /\b[a-z]\s*=\s*[-+]?\d+(?:\.\d+)?\b/u,
-  ].some((pattern) => pattern.test(normalizedMessage))
+export interface ProblemProtectionContext {
+  readonly givenPremises?: ReadonlySet<string>
+  readonly targetVariables?: ReadonlySet<string>
+}
+
+export function extractProblemStatementGivensAndTargets(
+  activeProblemText: string,
+): {
+  givenPremises: Set<string>
+  targetVariables: Set<string>
+} {
+  const normalized = normalizeDeterministicText(activeProblemText).toLowerCase()
+  const givenPremises = new Set<string>()
+  const targetVariables = new Set<string>()
+
+  const lines = normalized.split(/\r?\n/)
+  for (const line of lines) {
+    if (
+      /\b(?:i\s+think|i\s+guess|maybe|could\s+it\s+be|is\s+it|i\s+believe|my\s+guess|answer\s+is)\b/u.test(
+        line,
+      )
+    ) {
+      continue
+    }
+    const assignmentMatches = line.matchAll(
+      /\b([a-z_][a-z0-9_]*)\s*=\s*([-+]?\d+(?:\.\d+)?)\b/gu,
+    )
+    for (const match of assignmentMatches) {
+      const varName = match[1]
+      const value = match[2]
+      givenPremises.add(`${varName} = ${value}`)
+      givenPremises.add(`${varName}=${value}`)
+    }
+  }
+
+  const targetQueries = [
+    /\bwhat\s+is\s+(?:the\s+value\s+of\s+)?([a-z_][a-z0-9_]*)\b/gu,
+    /\bfind\s+(?:the\s+value\s+of\s+)?([a-z_][a-z0-9_]*)\b/gu,
+    /\bsolve\s+for\s+([a-z_][a-z0-9_]*)\b/gu,
+    /\bcalculate\s+(?:the\s+value\s+of\s+)?([a-z_][a-z0-9_]*)\b/gu,
+  ]
+  for (const queryRegex of targetQueries) {
+    const matches = normalized.matchAll(queryRegex)
+    for (const match of matches) {
+      if (match[1]) {
+        targetVariables.add(match[1])
+      }
+    }
+  }
+
+  const equationMatches = normalized.matchAll(
+    /\b([a-z_][a-z0-9_]*)\s*=\s*[^;\n\r]*?[a-z_]/gu,
+  )
+  for (const match of equationMatches) {
+    if (match[1]) {
+      targetVariables.add(match[1])
+    }
+  }
+
+  return { givenPremises, targetVariables }
+}
+
+export function revealsFinalAnswer(
+  normalizedMessage: string,
+  context?: ProblemProtectionContext,
+): boolean {
+  if (
+    [
+      /\b(?:the\s+answer|final\s+answer|answer)\s*(?:is|:)\s*\S+/u,
+      /\b(?:the\s+result|final\s+result|result)\s*(?:is|:)\s*[-+]?\d/u,
+    ].some((pattern) => pattern.test(normalizedMessage))
+  ) {
+    return true
+  }
+
+  const conclusionMatches = normalizedMessage.matchAll(
+    /\b(?:therefore|thus|hence|so)\b[^.!?\n]{0,60}(?:=|\bis\b)\s*[-+]?\d/gu,
+  )
+  for (const conclusionMatch of conclusionMatches) {
+    const matchedText = conclusionMatch[0]
+    const assignedVar =
+      /\b([a-z_][a-z0-9_]*)\s*=\s*([-+]?\d+(?:\.\d+)?)\b/u.exec(matchedText)
+    if (assignedVar !== null) {
+      const varName = assignedVar[1]
+      const value = assignedVar[2]
+      if (!isGivenPremise(context, varName, value)) {
+        return true
+      }
+    } else {
+      return true
+    }
+  }
+
+  const assignmentMatches = normalizedMessage.matchAll(
+    /\b([a-z_][a-z0-9_]*)\s*=\s*([-+]?\d+(?:\.\d+)?)\b/gu,
+  )
+  for (const match of assignmentMatches) {
+    const varName = match[1]
+    const value = match[2]
+    if (isGivenPremise(context, varName, value)) {
+      continue
+    }
+
+    if (isTargetVariable(context, varName)) {
+      return true
+    }
+  }
+
+  return false
+}
+
+function isGivenPremise(
+  context: ProblemProtectionContext | undefined,
+  varName: string,
+  value: string,
+): boolean {
+  const premises = context?.givenPremises
+  if (premises === undefined) {
+    return false
+  }
+  return (
+    premises.has(`${varName} = ${value}`) || premises.has(`${varName}=${value}`)
+  )
+}
+
+function isTargetVariable(
+  context: ProblemProtectionContext | undefined,
+  varName: string,
+): boolean {
+  const targets = context?.targetVariables
+  if (targets === undefined) {
+    return false
+  }
+  return targets.has(varName)
+}
+
+export function revealsDecisiveSubstitution(
+  normalizedMessage: string,
+  context?: ProblemProtectionContext,
+): boolean {
+  if (
+    context?.givenPremises === undefined ||
+    context.givenPremises.size === 0
+  ) {
+    return false
+  }
+
+  for (const premise of context.givenPremises) {
+    const match = /\b([a-z_][a-z0-9_]*)\s*=\s*([-+]?\d+(?:\.\d+)?)\b/u.exec(
+      premise,
+    )
+    if (match === null) {
+      continue
+    }
+    const varName = match[1]
+    const value = match[2]
+
+    // Explicit substitution: "x + 1 becomes 5 + 1", "x + 1 is 5 + 1", "x + 1 = 5 + 1"
+    const substitutionPatternLeading = new RegExp(
+      `\\b${varName}\\s*([+\\-*/%])\\s*(\\d+)\\s*(?:becomes|is|=|gives|yields|results in|->|=>)\\s*${value}\\s*\\1\\s*\\2\\b`,
+      'iu',
+    )
+    if (substitutionPatternLeading.test(normalizedMessage)) {
+      return true
+    }
+
+    // Commutative substitution: "1 + x becomes 1 + 5"
+    const substitutionPatternTrailing = new RegExp(
+      `\\b(\\d+)\\s*([+\\-*/%])\\s*${varName}\\s*(?:becomes|is|=|gives|yields|results in|->|=>)\\s*\\1\\s*\\2\\s*${value}\\b`,
+      'iu',
+    )
+    if (substitutionPatternTrailing.test(normalizedMessage)) {
+      return true
+    }
+
+    // Target assignment with substituted expression: "y = 5 + 1" or "y = 1 + 5"
+    const targetSubstitutionPattern = new RegExp(
+      `\\b[a-z_][a-z0-9_]*\\s*=\\s*(?:${value}\\s*[+\\-*/%]\\s*\\d+|\\d+\\s*[+\\-*/%]\\s*${value})\\b`,
+      'iu',
+    )
+    if (targetSubstitutionPattern.test(normalizedMessage)) {
+      return true
+    }
+
+    // Expressive derivation: "substituting x = 5 gives 5 + 1"
+    const descriptiveSubstitutionPattern = new RegExp(
+      `\\b(?:substituting|substitute|replacing|replace)\\s+${varName}\\s*(?:with|=|as|is)\\s*${value}\\s*(?:gives|yields|we get|to get|is|=|results in)\\s*(?:${value}\\s*[+\\-*/%]\\s*\\d+|\\d+\\s*[+\\-*/%]\\s*${value})\\b`,
+      'iu',
+    )
+    if (descriptiveSubstitutionPattern.test(normalizedMessage)) {
+      return true
+    }
+  }
+
+  return false
 }
 
 export function revealsCompleteSolution(normalizedMessage: string): boolean {

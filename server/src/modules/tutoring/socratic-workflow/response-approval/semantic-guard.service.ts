@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common'
+import { Inject, Injectable, Optional } from '@nestjs/common'
 import { z } from 'zod'
 
 import { assertRequestBudget } from '../../../../common/http/request-deadline'
@@ -17,10 +17,15 @@ import {
   SEMANTIC_GUARD_PROMPT_VERSION,
   SemanticGuardModelError,
   type SemanticGuardEvaluationInput,
+  type SemanticGuardModelResponse,
   type SemanticGuardPort,
   type SemanticGuardServiceResult,
 } from './semantic-guard.types'
 import { buildSemanticGuardRequest } from './semantic-guard.prompt'
+import {
+  SEMANTIC_GUARD_RETRY_POLICY,
+  SemanticGuardRetryPolicy,
+} from './semantic-guard-retry.policy'
 
 const SemanticGuardOutputSchema = z
   .object({
@@ -51,19 +56,40 @@ export class SemanticGuardService {
   constructor(
     @Inject(SEMANTIC_GUARD_PORT)
     private readonly semanticGuardPort: SemanticGuardPort,
+    @Optional()
+    @Inject(SEMANTIC_GUARD_RETRY_POLICY)
+    private readonly retryPolicy: SemanticGuardRetryPolicy = new SemanticGuardRetryPolicy(),
   ) {}
 
   async evaluate(
     input: SemanticGuardEvaluationInput,
   ): Promise<SemanticGuardServiceResult> {
     assertRequestBudget(input)
-    const request = buildSemanticGuardRequest(input)
+    let retriesUsed = 0
 
-    try {
-      const response = await this.semanticGuardPort.evaluate(request)
+    for (;;) {
+      assertRequestBudget(input)
+      const request = buildSemanticGuardRequest(input)
+
+      let response: SemanticGuardModelResponse
+      try {
+        response = await this.semanticGuardPort.evaluate(request)
+      } catch (error) {
+        assertRequestBudget(input)
+        if (this.retryPolicy.canRetry(error, retriesUsed)) {
+          retriesUsed += 1
+          continue
+        }
+        return infrastructureFailure(semanticFailureCode(error))
+      }
+
       assertRequestBudget(input)
       const parsed = parseGuardOutput(response.rawOutput)
       if (parsed === null) {
+        if (this.retryPolicy.canRetryInvalidStructuredOutput(retriesUsed)) {
+          retriesUsed += 1
+          continue
+        }
         return infrastructureFailure(SEMANTIC_GUARD_ERROR_CODE.MALFORMED_OUTPUT)
       }
 
@@ -91,9 +117,6 @@ export class SemanticGuardService {
           },
         ),
       }
-    } catch (error) {
-      assertRequestBudget(input)
-      return infrastructureFailure(semanticFailureCode(error))
     }
   }
 }

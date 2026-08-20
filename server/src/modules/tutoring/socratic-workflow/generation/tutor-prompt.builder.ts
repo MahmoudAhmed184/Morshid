@@ -105,6 +105,8 @@ function buildTutorUserPrompt(context: GenerationContextPackage): string {
       strategyAndTechniqueCannotReduceGuidanceShape: true,
       overRevealInvariant:
         'When directTargetInferenceAllowed is false, do not state the correction or key inference and then ask a trivial confirmation or application question. Ask a focused question, direct attention to structure, or give a bounded clue that preserves the inference for the student.',
+      decisiveSubstitutionInvariant:
+        'When intermediateResultAllowed is false or directTargetInferenceAllowed is false, do not perform the student’s decisive variable substitution, intermediate arithmetic derivation, or formula evaluation (such as stating that substituting x = 5 into x + 1 gives 5 + 1). Direct attention to the relevant formula and known premise, and prompt the student to perform the substitution or evaluation step themselves.',
       explanationDetailPreferenceSubordinateToPedagogy: true,
       explanationDetailInvariants:
         'Explanation detail level governs response length, elaboration depth, and number of explanatory steps only. It never alters Guidance Level, Reveal Policy, NO_FINAL_ANSWER, Socratic questioning, guard policy, or allowed citations. Never reveal final answers or skip student reasoning.',

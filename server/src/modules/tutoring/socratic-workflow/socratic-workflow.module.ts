@@ -69,6 +69,10 @@ import { TopicService } from './topic/topic.service'
 import { StructuralResponseValidator } from './response-approval/structural-response.validator'
 import { DeterministicGuardService } from './response-approval/deterministic-guard.service'
 import { SemanticGuardService } from './response-approval/semantic-guard.service'
+import {
+  SEMANTIC_GUARD_RETRY_POLICY,
+  SemanticGuardRetryPolicy,
+} from './response-approval/semantic-guard-retry.policy'
 import { SafeFallbackService } from './response-approval/safe-fallback.service'
 import { ResponseApprovalService } from './response-approval/response-approval.service'
 import { SEMANTIC_GUARD_PORT } from './response-approval/semantic-guard.types'
@@ -202,6 +206,11 @@ type GeminiChatFetch = FetchImplementation | null
         new DebuggingDiagnosisRetryPolicy(
           configuration.DEBUGGING_DIAGNOSIS_MODEL_MAX_RETRIES,
         ),
+    },
+    {
+      provide: SEMANTIC_GUARD_RETRY_POLICY,
+      inject: [TUTORING_CONFIGURATION],
+      useFactory: () => new SemanticGuardRetryPolicy(),
     },
     {
       provide: ANALYSIS_MODEL_PORT,

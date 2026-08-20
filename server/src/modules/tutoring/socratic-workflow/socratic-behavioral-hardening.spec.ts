@@ -26,6 +26,7 @@ import {
   selectTeachingStrategy,
 } from './teaching-decision/teaching-policy.selector'
 import { selectTutorStrategy } from './teaching-decision/tutor-strategy'
+import { studentActionObligationFromDecision } from './teaching-decision/student-action-obligation'
 import { SafeFallbackService } from './response-approval/safe-fallback.service'
 import {
   APPROVED_RESPONSE_SOURCE,
@@ -882,6 +883,642 @@ describe('Socratic Tutor Behavioral Hardening', () => {
       expect(attempt2Input.outputProtection.protectTargetSolution).toBe(true)
       expect(attempt2Input.regeneration?.candidateAttempt).toBe(2)
       expect(attempt2Input.regeneration?.previousValidation).toBeDefined()
+    })
+  })
+
+  describe('4-turn progressive scaffolding, struggle, and resolution journey', () => {
+    it('executes a 4-turn struggle and resolution journey without false final-answer rejection, over-escalation, or stale technique retention', async () => {
+      const activeProblemText = 'x = 5\ny = x + 1\nwhat is the value of y?'
+
+      // === Turn 1: Problem statement ===
+      const turn1Analysis = baseAnalysis(
+        {
+          requestKind: MessageRequestKind.PROBLEM_LIKE,
+          studentState: StudentState.NO_PRIOR_KNOWLEDGE,
+          effortEvidence: {
+            present: false,
+            quality: EFFORT_QUALITY.NONE,
+            type: null,
+            addressesPreviousTutorAction: false,
+            isRepeated: false,
+            evidenceMessageIds: [],
+          },
+        },
+        EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
+        { id: 'analysis-turn-1' },
+      )
+
+      const turn1Draft = selectTeachingDecisionDraft({
+        analysis: turn1Analysis,
+        topicState: null,
+        previousTeachingDecision: null,
+        topicResolutionOutcome: TOPIC_RESOLUTION_OUTCOME.CREATE_NEW_TOPIC,
+      })
+
+      // Invariant: Turn 1 starts at Level 1 and does NOT ask what the student tried
+      expect(turn1Draft.guidanceLevel).toBe(1)
+      expect(turn1Draft.studentActionPurpose).toBe(
+        StudentActionPurpose.PRIMARY_TECHNIQUE,
+      )
+
+      const turn1Candidate: CandidateResponse = {
+        message:
+          'In Python, assignment gives a variable a value. Look at the code given: what value is stored in x?',
+        debuggingGuidance: null,
+        responseIntent: TeachingStrategy.GUIDED_EXPLANATION,
+        usedCitationIds: [],
+        requiresStudentAction: true,
+        studentAction: {
+          type: TeachingTechnique.ORIENTATION_QUESTION,
+          description: 'Identify what value is stored in x.',
+        },
+        reflectionIncluded: false,
+        selfReportedCompliance: {
+          finalAnswerRevealed: false,
+          completeSolutionRevealed: false,
+        },
+        provider: 'mock-tutor',
+        model: 'mock-model',
+        promptVersion: TUTOR_GENERATION_PROMPT_VERSION,
+        tokenUsage: { input: 10, output: 5 },
+      }
+
+      const turn1DecisionRecord = baseDecision({
+        id: 'decision-turn-1',
+        attemptId: 'attempt-turn-1',
+        strategy: turn1Draft.strategy,
+        primaryTechnique: turn1Draft.primaryTechnique,
+        guidanceLevel: turn1Draft.guidanceLevel,
+        studentActionPurpose: turn1Draft.studentActionPurpose,
+      })
+
+      const turn1Context: TutorGuardEducationalContext = {
+        ...mockEducationalContext(),
+        currentStudentMessage: {
+          id: 'msg-turn-1',
+          content: activeProblemText,
+        },
+        recentConversation: [
+          {
+            id: 'msg-turn-1',
+            sequence: 1,
+            role: 'STUDENT',
+            attemptId: 'attempt-turn-1',
+            topicId: 'topic-1',
+            content: activeProblemText,
+          },
+        ],
+      }
+
+      const semanticGuard = new FakeSemanticGuardService({
+        kind: 'validated',
+        result: {
+          stage: 'SEMANTIC',
+          approved: true,
+          violations: [],
+          maximumSeverity: null,
+          recommendedAction: 'APPROVE',
+          provider: 'semantic-guard',
+          model: 'mock-guard',
+          promptVersion: 'semantic-guard.v1',
+          policyVersion: MVP_RESPONSE_VALIDATION_POLICY_VERSION,
+        },
+      })
+
+      const turn1ApprovalService = new ResponseApprovalService(
+        new FakeGenerationService([
+          {
+            success: true,
+            candidate: turn1Candidate,
+            infrastructureRetryCount: 0,
+            educationalContext: turn1Context,
+          },
+        ]) as never,
+        new FakeTeachingDecisionRepository(turn1DecisionRecord),
+        new StructuralResponseValidator(),
+        new DeterministicGuardService(),
+        semanticGuard as never,
+        safeFallbackService,
+        new AutomaticSafetyRiskDetector(),
+      )
+
+      const turn1Result = await turn1ApprovalService.approve({
+        ...mockGenerationInput(),
+        attemptId: 'attempt-turn-1',
+        studentMessageId: 'msg-turn-1',
+      })
+
+      expect(turn1Result.success).toBe(true)
+      if (turn1Result.success) {
+        expect(turn1Result.approvedResponse.source).toBe(
+          APPROVED_RESPONSE_SOURCE.VALIDATED_CANDIDATE,
+        )
+      }
+
+      // === Turn 2: "I don't know" (First explicit struggle) ===
+      const turn2Analysis = baseAnalysis(
+        {
+          requestKind: MessageRequestKind.PROBLEM_LIKE,
+          studentState: StudentState.NO_PRIOR_KNOWLEDGE,
+          effortEvidence: {
+            present: false,
+            quality: EFFORT_QUALITY.NONE,
+            type: null,
+            addressesPreviousTutorAction: false,
+            isRepeated: false,
+            evidenceMessageIds: [],
+          },
+        },
+        EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
+        { id: 'analysis-turn-2' },
+      )
+
+      const turn2Draft = selectTeachingDecisionDraft({
+        analysis: turn2Analysis,
+        topicState: {
+          id: 'topic-state-1',
+          topicId: 'topic-1',
+          version: 1,
+          requestKind: MessageRequestKind.PROBLEM_LIKE,
+          studentState: StudentState.NO_PRIOR_KNOWLEDGE,
+          activeStrategy: TeachingStrategy.GUIDED_EXPLANATION,
+          primaryTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+          supportingTechnique: null,
+          guidanceLevel: 1,
+          revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
+          attemptCount: 1,
+          meaningfulAttemptCount: 0,
+          misconceptionStatus: null,
+          learningStatus: 'IN_PROGRESS',
+          resolutionEvidenceStrength: 'NONE',
+          summary: null,
+          lastTutorQuestion: turn1Candidate.message,
+          lastStudentAction: null,
+          resolved: false,
+          updatedAt: new Date(),
+        },
+        previousTeachingDecision: baseDecision({
+          id: 'decision-turn-1',
+          topicId: 'topic-1',
+          strategy: TeachingStrategy.GUIDED_EXPLANATION,
+          guidanceLevel: 1,
+          revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
+          policyVersion: 'socratic-policy.mvp.v1',
+          studentActionPurpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
+          primaryTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+        }),
+        topicResolutionOutcome: TOPIC_RESOLUTION_OUTCOME.CONTINUE_CURRENT_TOPIC,
+      })
+
+      // Invariant: Turn 2 escalates 1 -> 2 on explicit struggle without asking what student tried
+      expect(turn2Draft.guidanceLevel).toBe(2)
+      expect(turn2Draft.studentActionPurpose).toBe(
+        StudentActionPurpose.PRIMARY_TECHNIQUE,
+      )
+
+      // Turn 2 candidate references the student-provided given premise x = 5
+      const turn2Candidate: CandidateResponse = {
+        message:
+          'Start with the first line: x = 5. What value is currently stored in x?',
+        debuggingGuidance: null,
+        responseIntent: TeachingStrategy.GUIDED_EXPLANATION,
+        usedCitationIds: [],
+        requiresStudentAction: true,
+        studentAction: {
+          type: TeachingTechnique.ORIENTATION_QUESTION,
+          description: 'Identify the value stored in x from the first line.',
+        },
+        reflectionIncluded: false,
+        selfReportedCompliance: {
+          finalAnswerRevealed: false,
+          completeSolutionRevealed: false,
+        },
+        provider: 'mock-tutor',
+        model: 'mock-model',
+        promptVersion: TUTOR_GENERATION_PROMPT_VERSION,
+        tokenUsage: { input: 15, output: 8 },
+      }
+
+      const turn2DecisionRecord = baseDecision({
+        id: 'decision-turn-2',
+        attemptId: 'attempt-turn-2',
+        strategy: turn2Draft.strategy,
+        primaryTechnique: turn2Draft.primaryTechnique,
+        guidanceLevel: turn2Draft.guidanceLevel,
+        studentActionPurpose: turn2Draft.studentActionPurpose,
+      })
+
+      const turn2Context: TutorGuardEducationalContext = {
+        ...mockEducationalContext(),
+        currentStudentMessage: {
+          id: 'msg-turn-2',
+          content: 'i don’t know',
+        },
+        recentConversation: [
+          {
+            id: 'msg-turn-1',
+            sequence: 1,
+            role: 'STUDENT',
+            attemptId: 'attempt-turn-1',
+            topicId: 'topic-1',
+            content: activeProblemText,
+          },
+          {
+            id: 'msg-tutor-1',
+            sequence: 2,
+            role: 'ASSISTANT',
+            attemptId: 'attempt-turn-1',
+            topicId: 'topic-1',
+            content: turn1Candidate.message,
+          },
+          {
+            id: 'msg-turn-2',
+            sequence: 3,
+            role: 'STUDENT',
+            attemptId: 'attempt-turn-2',
+            topicId: 'topic-1',
+            content: 'i don’t know',
+          },
+        ],
+      }
+
+      const turn2ApprovalService = new ResponseApprovalService(
+        new FakeGenerationService([
+          {
+            success: true,
+            candidate: turn2Candidate,
+            infrastructureRetryCount: 0,
+            educationalContext: turn2Context,
+          },
+        ]) as never,
+        new FakeTeachingDecisionRepository(turn2DecisionRecord),
+        new StructuralResponseValidator(),
+        new DeterministicGuardService(),
+        semanticGuard as never,
+        safeFallbackService,
+        new AutomaticSafetyRiskDetector(),
+      )
+
+      const turn2Result = await turn2ApprovalService.approve({
+        ...mockGenerationInput(),
+        attemptId: 'attempt-turn-2',
+        studentMessageId: 'msg-turn-2',
+      })
+
+      // Invariant: Turn 2 candidate referencing x = 5 is approved by deterministic guard (no false refusal)
+      expect(turn2Result.success).toBe(true)
+      if (turn2Result.success) {
+        expect(turn2Result.approvedResponse.source).toBe(
+          APPROVED_RESPONSE_SOURCE.VALIDATED_CANDIDATE,
+        )
+        expect(turn2Result.approvedResponse.safeFallbackUsed).toBe(false)
+      }
+
+      // === Turn 3: "I still don't know" (Repeated struggle) ===
+      const turn3Analysis = baseAnalysis(
+        {
+          requestKind: MessageRequestKind.PROBLEM_LIKE,
+          studentState: StudentState.NO_PRIOR_KNOWLEDGE,
+          effortEvidence: {
+            present: false,
+            quality: EFFORT_QUALITY.NONE,
+            type: null,
+            addressesPreviousTutorAction: false,
+            isRepeated: false,
+            evidenceMessageIds: [],
+          },
+        },
+        EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
+        { id: 'analysis-turn-3' },
+      )
+
+      const turn3Draft = selectTeachingDecisionDraft({
+        analysis: turn3Analysis,
+        topicState: {
+          id: 'topic-state-1',
+          topicId: 'topic-1',
+          version: 2,
+          requestKind: MessageRequestKind.PROBLEM_LIKE,
+          studentState: StudentState.NO_PRIOR_KNOWLEDGE,
+          activeStrategy: TeachingStrategy.GUIDED_EXPLANATION,
+          primaryTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+          supportingTechnique: null,
+          guidanceLevel: 2,
+          revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
+          attemptCount: 2,
+          meaningfulAttemptCount: 0,
+          misconceptionStatus: null,
+          learningStatus: 'IN_PROGRESS',
+          resolutionEvidenceStrength: 'NONE',
+          summary: null,
+          lastTutorQuestion: turn2Candidate.message,
+          lastStudentAction: null,
+          resolved: false,
+          updatedAt: new Date(),
+        },
+        previousTeachingDecision: baseDecision({
+          id: 'decision-turn-2',
+          topicId: 'topic-1',
+          strategy: TeachingStrategy.GUIDED_EXPLANATION,
+          guidanceLevel: 2,
+          revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
+          policyVersion: 'socratic-policy.mvp.v1',
+          studentActionPurpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
+          primaryTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+        }),
+        topicResolutionOutcome: TOPIC_RESOLUTION_OUTCOME.CONTINUE_CURRENT_TOPIC,
+      })
+
+      // Invariant: Turn 3 does NOT blindly escalate to Level 3; it stays at Level 2
+      expect(turn3Draft.guidanceLevel).toBe(2)
+      expect(turn3Draft.studentActionPurpose).toBe(
+        StudentActionPurpose.PRIMARY_TECHNIQUE,
+      )
+
+      const turn3Candidate: CandidateResponse = {
+        message:
+          'When you see `x = 5`, the number 5 is placed inside x. What number is on the right side of the equals sign?',
+        debuggingGuidance: null,
+        responseIntent: TeachingStrategy.GUIDED_EXPLANATION,
+        usedCitationIds: [],
+        requiresStudentAction: true,
+        studentAction: {
+          type: TeachingTechnique.ORIENTATION_QUESTION,
+          description: 'Name the number on the right side of x = 5.',
+        },
+        reflectionIncluded: false,
+        selfReportedCompliance: {
+          finalAnswerRevealed: false,
+          completeSolutionRevealed: false,
+        },
+        provider: 'mock-tutor',
+        model: 'mock-model',
+        promptVersion: TUTOR_GENERATION_PROMPT_VERSION,
+        tokenUsage: { input: 20, output: 10 },
+      }
+
+      const turn3DecisionRecord = baseDecision({
+        id: 'decision-turn-3',
+        attemptId: 'attempt-turn-3',
+        strategy: turn3Draft.strategy,
+        primaryTechnique: turn3Draft.primaryTechnique,
+        guidanceLevel: turn3Draft.guidanceLevel,
+        studentActionPurpose: turn3Draft.studentActionPurpose,
+      })
+
+      const turn3Context: TutorGuardEducationalContext = {
+        ...mockEducationalContext(),
+        currentStudentMessage: {
+          id: 'msg-turn-3',
+          content: 'i still don’t know',
+        },
+        recentConversation: [
+          ...turn2Context.recentConversation,
+          {
+            id: 'msg-tutor-2',
+            sequence: 4,
+            role: 'ASSISTANT',
+            attemptId: 'attempt-turn-2',
+            topicId: 'topic-1',
+            content: turn2Candidate.message,
+          },
+          {
+            id: 'msg-turn-3',
+            sequence: 5,
+            role: 'STUDENT',
+            attemptId: 'attempt-turn-3',
+            topicId: 'topic-1',
+            content: 'i still don’t know',
+          },
+        ],
+      }
+
+      const turn3ApprovalService = new ResponseApprovalService(
+        new FakeGenerationService([
+          {
+            success: true,
+            candidate: turn3Candidate,
+            infrastructureRetryCount: 0,
+            educationalContext: turn3Context,
+          },
+        ]) as never,
+        new FakeTeachingDecisionRepository(turn3DecisionRecord),
+        new StructuralResponseValidator(),
+        new DeterministicGuardService(),
+        semanticGuard as never,
+        safeFallbackService,
+        new AutomaticSafetyRiskDetector(),
+      )
+
+      const turn3Result = await turn3ApprovalService.approve({
+        ...mockGenerationInput(),
+        attemptId: 'attempt-turn-3',
+        studentMessageId: 'msg-turn-3',
+      })
+
+      expect(turn3Result.success).toBe(true)
+      if (turn3Result.success) {
+        expect(turn3Result.approvedResponse.source).toBe(
+          APPROVED_RESPONSE_SOURCE.VALIDATED_CANDIDATE,
+        )
+        expect(turn3Result.approvedResponse.safeFallbackUsed).toBe(false)
+      }
+
+      // -------------------------------------------------------------
+      // Turn 4: Correct learner attempt with reasoning
+      // Student: "I think y is 6 because 5 + 1 = 6"
+      // Invariants:
+      // - Overrides stale GUIDED_EXPLANATION / ORIENTATION_QUESTION from struggle turns
+      // - Reconciles strategy to SOCRATIC_QUESTIONING + VERIFICATION
+      // - De-escalates guidance to Level 1
+      // - StudentActionPurpose is PRIMARY_TECHNIQUE (NOT PRIOR_ATTEMPT_ORIENTATION)
+      // - Response confirms reasoning and consolidates without asking learner to repeat steps
+      // -------------------------------------------------------------
+      const turn4Analysis = baseAnalysis(
+        {
+          requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+          studentState: StudentState.NEAR_SOLUTION,
+          effortEvidence: {
+            present: true,
+            quality: EFFORT_QUALITY.STRONG,
+            type: EFFORT_TYPE.REASONING_ATTEMPT,
+            addressesPreviousTutorAction: true,
+            isRepeated: false,
+            evidenceMessageIds: ['msg-turn-4'],
+          },
+          learningEvidence: {
+            present: true,
+            strength: LEARNING_EVIDENCE_STRENGTH.STRONG,
+            evidenceMessageIds: ['msg-turn-4'],
+          },
+          misconceptions: [],
+          recommendedStrategy: TeachingStrategy.SOCRATIC_QUESTIONING,
+          recommendedTechnique: TeachingTechnique.VERIFICATION,
+        },
+        EDUCATIONAL_ANALYSIS_SOURCE.MODEL,
+        {
+          id: 'analysis-turn-4',
+          attemptId: 'attempt-turn-4',
+          studentMessageId: 'msg-turn-4',
+        },
+      )
+
+      const turn4Draft = selectTeachingDecisionDraft({
+        analysis: turn4Analysis,
+        topicState: {
+          id: 'topic-state-1',
+          topicId: 'topic-1',
+          version: 3,
+          requestKind: MessageRequestKind.PROBLEM_LIKE,
+          studentState: StudentState.NO_PRIOR_KNOWLEDGE,
+          activeStrategy: TeachingStrategy.GUIDED_EXPLANATION,
+          primaryTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+          supportingTechnique: null,
+          guidanceLevel: 2,
+          revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
+          attemptCount: 3,
+          meaningfulAttemptCount: 0,
+          misconceptionStatus: null,
+          learningStatus: 'IN_PROGRESS',
+          resolutionEvidenceStrength: 'NONE',
+          summary: null,
+          lastTutorQuestion: turn3Candidate.message,
+          lastStudentAction: null,
+          resolved: false,
+          updatedAt: new Date(),
+        },
+        previousTeachingDecision: turn3DecisionRecord,
+        topicResolutionOutcome: TOPIC_RESOLUTION_OUTCOME.CONTINUE_CURRENT_TOPIC,
+      })
+
+      expect(turn4Draft.strategy).toBe(TeachingStrategy.SOCRATIC_QUESTIONING)
+      expect(turn4Draft.primaryTechnique).toBe(TeachingTechnique.VERIFICATION)
+      expect(turn4Draft.guidanceLevel).toBe(1)
+      expect(turn4Draft.requireStudentAction).toBe(false)
+      expect(turn4Draft.studentActionPurpose).toBe(
+        StudentActionPurpose.PRIMARY_TECHNIQUE,
+      )
+      expect(turn4Draft.decisionReason).toContain(
+        'current-message-supported learning evidence demonstrated correct progress toward solution',
+      )
+
+      const turn4DecisionRecord = baseDecision({
+        id: 'decision-turn-4',
+        attemptId: 'attempt-turn-4',
+        strategy: turn4Draft.strategy,
+        primaryTechnique: turn4Draft.primaryTechnique,
+        guidanceLevel: turn4Draft.guidanceLevel,
+        requireStudentAction: turn4Draft.requireStudentAction,
+        studentActionPurpose: turn4Draft.studentActionPurpose,
+      })
+
+      const turn4Obligation =
+        studentActionObligationFromDecision(turn4DecisionRecord)
+      expect(turn4Obligation.required).toBe(false)
+      expect(turn4Obligation.generationInstruction).toBe(
+        'Confirm correctness and provide concise conceptual consolidation. Do not require an additional student action or question when current evidence already verifies the objective.',
+      )
+
+      const turn4Candidate: CandidateResponse = {
+        message:
+          'You correctly substituted 5 into x + 1 to find 6. That completes the evaluation of y.',
+        debuggingGuidance: null,
+        responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
+        usedCitationIds: [],
+        requiresStudentAction: false,
+        studentAction: {
+          type: TeachingTechnique.VERIFICATION,
+          description: 'Confirm verified calculation and reasoning.',
+        },
+        reflectionIncluded: false,
+        selfReportedCompliance: {
+          finalAnswerRevealed: false,
+          completeSolutionRevealed: false,
+        },
+        provider: 'mock-tutor',
+        model: 'mock-model',
+        promptVersion: TUTOR_GENERATION_PROMPT_VERSION,
+        tokenUsage: { input: 20, output: 10 },
+      }
+
+      const turn4Context: TutorGuardEducationalContext = {
+        ...mockEducationalContext(),
+        acceptedAnalysis: {
+          id: 'analysis-turn-4',
+          requestKind: turn4Analysis.result.requestKind,
+          studentState: turn4Analysis.result.studentState,
+          effortEvidence: turn4Analysis.result.effortEvidence,
+          learningEvidence: turn4Analysis.result.learningEvidence,
+          misconceptions: turn4Analysis.result.misconceptions,
+          evidenceReferences: ['msg-turn-4'],
+          confidence: 0.95,
+          analysisSource: 'model',
+          promptVersion: 'analysis.v1',
+          schemaVersion: 'analysis.v1',
+        },
+        currentStudentMessage: {
+          id: 'msg-turn-4',
+          content: 'I think y is 6 because 5 + 1 = 6',
+        },
+        recentConversation: [
+          ...turn3Context.recentConversation,
+          {
+            id: 'msg-tutor-3',
+            sequence: 6,
+            role: 'ASSISTANT',
+            attemptId: 'attempt-turn-3',
+            topicId: 'topic-1',
+            content: turn3Candidate.message,
+          },
+          {
+            id: 'msg-turn-4',
+            sequence: 7,
+            role: 'STUDENT',
+            attemptId: 'attempt-turn-4',
+            topicId: 'topic-1',
+            content: 'I think y is 6 because 5 + 1 = 6',
+          },
+        ],
+      }
+
+      const turn4ApprovalService = new ResponseApprovalService(
+        new FakeGenerationService([
+          {
+            success: true,
+            candidate: turn4Candidate,
+            infrastructureRetryCount: 0,
+            educationalContext: turn4Context,
+          },
+        ]) as never,
+        new FakeTeachingDecisionRepository(turn4DecisionRecord),
+        new StructuralResponseValidator(),
+        new DeterministicGuardService(),
+        semanticGuard as never,
+        safeFallbackService,
+        new AutomaticSafetyRiskDetector(),
+      )
+
+      const turn4Result = await turn4ApprovalService.approve({
+        ...mockGenerationInput(),
+        attemptId: 'attempt-turn-4',
+        studentMessageId: 'msg-turn-4',
+      })
+
+      expect(turn4Result.success).toBe(true)
+      if (turn4Result.success) {
+        expect(turn4Result.approvedResponse.source).toBe(
+          APPROVED_RESPONSE_SOURCE.VALIDATED_CANDIDATE,
+        )
+        expect(turn4Result.approvedResponse.safeFallbackUsed).toBe(false)
+        expect(turn4Result.approvedResponse.requiresStudentAction).toBe(false)
+        expect(turn4Result.approvedResponse.message).toBe(
+          'You correctly substituted 5 into x + 1 to find 6. That completes the evaluation of y.',
+        )
+        expect(turn4Result.approvedResponse.message).not.toContain('?')
+        expect(turn4Result.approvedResponse.message).not.toMatch(
+          /what did you try|what steps or thought process|what was the first step|how would you check/i,
+        )
+      }
     })
   })
 })

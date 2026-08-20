@@ -37,7 +37,7 @@ export interface TeachingDecisionPolicyDraft {
   guidanceLevel: number
   revealPolicy: RevealPolicy
   reflectionMode: ReflectionMode
-  requireStudentAction: true
+  requireStudentAction: boolean
   studentActionPurpose: StudentActionPurpose
   guardPolicy: TeachingGuardPolicy
   decisionReason: string
@@ -102,12 +102,15 @@ export function selectTeachingDecisionDraft(
 ): TeachingDecisionPolicyDraft {
   const defaults = teachingPolicyDefaults(input.courseTutorConfiguration)
   const misconceptionRecovered = isMisconceptionRecovery(input)
+  const solutionVerified = isSolutionVerification(input)
   const strategy = selectTeachingStrategy(input)
   const guidanceLevel = calculateGuidanceLevel(input, defaults)
   const directConceptual = isDirectConceptualAnalysis(input.analysis.result)
-  const primaryTechnique = misconceptionRecovered
-    ? TeachingTechnique.VERIFICATION
-    : primaryTechniqueForStrategy(strategy)
+  const primaryTechnique =
+    misconceptionRecovered || solutionVerified
+      ? TeachingTechnique.VERIFICATION
+      : primaryTechniqueForStrategy(strategy)
+  const requireStudentAction = !solutionVerified
 
   return {
     attemptId: input.analysis.attemptId,
@@ -121,7 +124,7 @@ export function selectTeachingDecisionDraft(
       ? RevealPolicy.PARTIAL_RESULT_ALLOWED
       : defaults.defaultRevealPolicy,
     reflectionMode: ReflectionMode.NONE,
-    requireStudentAction: true,
+    requireStudentAction,
     studentActionPurpose: selectStudentActionPurpose({
       analysis: input.analysis,
       directConceptual,
@@ -130,10 +133,37 @@ export function selectTeachingDecisionDraft(
     }),
     guardPolicy: directConceptual
       ? { ...fixedGuardPolicy, preventDirectAnswer: false }
-      : fixedGuardPolicy,
+      : requireStudentAction
+        ? fixedGuardPolicy
+        : { ...fixedGuardPolicy, requireStudentReasoning: false },
     decisionReason: decisionReasonFor(input, strategy, guidanceLevel),
     policyVersion: TEACHING_POLICY_VERSION,
   }
+}
+
+function isVagueOrIncompleteAttempt(
+  analysis: PersistedEducationalAnalysisRecord['result'],
+): boolean {
+  const effort = analysis.effortEvidence
+  const learning = analysis.learningEvidence
+  const hasLearning =
+    learning.present && learning.strength !== LEARNING_EVIDENCE_STRENGTH.NONE
+  const hasMisconception =
+    analysis.misconceptions.length > 0 ||
+    analysis.studentState === StudentState.MISCONCEPTION
+  const isNearSolution = analysis.studentState === StudentState.NEAR_SOLUTION
+  const hasConcreteMeaningfulEffort =
+    (effort.quality === EFFORT_QUALITY.MEANINGFUL ||
+      effort.quality === EFFORT_QUALITY.STRONG) &&
+    effort.type !== null
+
+  return (
+    effort.present &&
+    !hasLearning &&
+    !hasMisconception &&
+    !isNearSolution &&
+    (!hasConcreteMeaningfulEffort || effort.quality === EFFORT_QUALITY.LOW)
+  )
 }
 
 function selectStudentActionPurpose(input: {
@@ -147,9 +177,7 @@ function selectStudentActionPurpose(input: {
   }
 
   if (
-    input.analysis.result.requestKind === MessageRequestKind.PROBLEM_LIKE &&
-    !input.analysis.result.effortEvidence.present &&
-    input.guidanceLevel === 1 &&
+    isVagueOrIncompleteAttempt(input.analysis.result) &&
     input.primaryTechnique === TeachingTechnique.ORIENTATION_QUESTION
   ) {
     return StudentActionPurpose.PRIOR_ATTEMPT_ORIENTATION
@@ -203,6 +231,14 @@ export function selectTeachingStrategy(
         TeachingStrategy.DEBUGGING_GUIDANCE &&
       requestKind !== MessageRequestKind.CODE_DIAGNOSIS &&
       state !== StudentState.DEBUGGING_ISSUE
+    ) {
+      return strategyByStudentState[state]
+    }
+    // Never preserve GUIDED_EXPLANATION when learner evidence demonstrates meaningful progress or state transition
+    if (
+      input.previousTeachingDecision.strategy ===
+        TeachingStrategy.GUIDED_EXPLANATION &&
+      hasMeaningfulLearnerProgress(input.analysis)
     ) {
       return strategyByStudentState[state]
     }
@@ -328,11 +364,12 @@ function isNewOrSwitchedTopic(
     'analysis' | 'previousTeachingDecision' | 'topicResolutionOutcome'
   >,
 ): boolean {
+  const previousTopicId = input.previousTeachingDecision?.topicId
   return (
     authoritativeTopicOutcome(input) ===
       TOPIC_RESOLUTION_OUTCOME.CREATE_NEW_TOPIC ||
-    (input.previousTeachingDecision !== null &&
-      input.previousTeachingDecision.topicId !== input.analysis.topicId)
+    (typeof previousTopicId === 'string' &&
+      previousTopicId !== input.analysis.topicId)
   )
 }
 
@@ -356,12 +393,10 @@ function hasEscalationEvidence(input: SelectTeachingDecisionInput): boolean {
     return false
   }
 
-  if (
-    state === StudentState.NO_PRIOR_KNOWLEDGE &&
-    input.previousTeachingDecision.strategy !==
-      TeachingStrategy.GUIDED_EXPLANATION
-  ) {
-    return true
+  if (state === StudentState.NO_PRIOR_KNOWLEDGE) {
+    if (!effort.present) {
+      return currentGuidanceLevel(input) === 1
+    }
   }
 
   return (
@@ -423,6 +458,61 @@ function normalizeMaximumGuidanceLevel(level: number | undefined): number {
   return capGuidanceLevel(level, 4)
 }
 
+export function isSolutionVerification(
+  input: Pick<
+    SelectTeachingDecisionInput,
+    'analysis' | 'previousTeachingDecision' | 'topicResolutionOutcome'
+  >,
+): boolean {
+  const analysis = input.analysis
+  const result = analysis.result
+
+  if (isDirectConceptualAnalysis(result)) {
+    return false
+  }
+
+  if (
+    input.previousTeachingDecision?.strategy ===
+    TeachingStrategy.MISCONCEPTION_REPAIR
+  ) {
+    return false
+  }
+
+  return (
+    result.misconceptions.length === 0 &&
+    result.studentState === StudentState.NEAR_SOLUTION &&
+    hasVerifiedLearningEvidence(analysis)
+  )
+}
+
+function hasMeaningfulLearnerProgress(
+  analysis: PersistedEducationalAnalysisRecord,
+): boolean {
+  const result = analysis.result
+  const state = result.studentState
+  const effort = result.effortEvidence
+
+  if (state === StudentState.NEAR_SOLUTION) {
+    return true
+  }
+
+  if (hasVerifiedLearningEvidence(analysis)) {
+    return true
+  }
+
+  if (
+    state === StudentState.PARTIAL_UNDERSTANDING &&
+    effort.present &&
+    !effort.isRepeated &&
+    (effort.quality === EFFORT_QUALITY.MEANINGFUL ||
+      effort.quality === EFFORT_QUALITY.STRONG)
+  ) {
+    return true
+  }
+
+  return false
+}
+
 function decisionReasonFor(
   input: SelectTeachingDecisionInput,
   strategy: TeachingStrategy,
@@ -436,21 +526,23 @@ function decisionReasonFor(
 
   const reason = isMisconceptionRecovery(input)
     ? 'Selected verification-oriented Socratic questioning because strong current-message-supported learning evidence corrected the active misconception.'
-    : isDirectConceptualAnalysis(analysis.result)
-      ? 'Selected guided explanation because the accepted analysis identifies a direct conceptual request without an attempt, misconception, or debugging context.'
-      : analysis.analysisSource === EDUCATIONAL_ANALYSIS_SOURCE.FALLBACK
-        ? 'Selected conservative Socratic questioning because the accepted analysis is a fallback.'
-        : state === StudentState.UNKNOWN
-          ? 'Selected conservative Socratic questioning because the accepted analysis uses an unknown student state.'
-          : strategy === TeachingStrategy.GUIDED_EXPLANATION
-            ? 'Selected guided explanation because the accepted analysis indicates no prior knowledge.'
-            : strategy === TeachingStrategy.MISCONCEPTION_REPAIR
-              ? 'Selected misconception repair because the accepted analysis contains a supported misconception.'
-              : strategy === TeachingStrategy.DEBUGGING_GUIDANCE
-                ? 'Selected debugging guidance because the accepted analysis indicates a debugging issue.'
-                : state === StudentState.NEAR_SOLUTION
-                  ? 'Selected Socratic questioning because the accepted analysis indicates the student is near a solution.'
-                  : 'Selected Socratic questioning because the accepted analysis indicates partial understanding.'
+    : isSolutionVerification(input)
+      ? 'Selected verification-oriented Socratic questioning because current-message-supported learning evidence demonstrated correct progress toward solution.'
+      : isDirectConceptualAnalysis(analysis.result)
+        ? 'Selected guided explanation because the accepted analysis identifies a direct conceptual request without an attempt, misconception, or debugging context.'
+        : analysis.analysisSource === EDUCATIONAL_ANALYSIS_SOURCE.FALLBACK
+          ? 'Selected conservative Socratic questioning because the accepted analysis is a fallback.'
+          : state === StudentState.UNKNOWN
+            ? 'Selected conservative Socratic questioning because the accepted analysis uses an unknown student state.'
+            : strategy === TeachingStrategy.GUIDED_EXPLANATION
+              ? 'Selected guided explanation because the accepted analysis indicates no prior knowledge.'
+              : strategy === TeachingStrategy.MISCONCEPTION_REPAIR
+                ? 'Selected misconception repair because the accepted analysis contains a supported misconception.'
+                : strategy === TeachingStrategy.DEBUGGING_GUIDANCE
+                  ? 'Selected debugging guidance because the accepted analysis indicates a debugging issue.'
+                  : state === StudentState.NEAR_SOLUTION
+                    ? 'Selected Socratic questioning because the accepted analysis indicates the student is near a solution.'
+                    : 'Selected Socratic questioning because the accepted analysis indicates partial understanding.'
 
   return `${reason} ${guidanceTransitionReasonFor(input, guidanceLevel)}`.slice(
     0,

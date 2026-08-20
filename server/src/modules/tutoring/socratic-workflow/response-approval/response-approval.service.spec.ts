@@ -6,9 +6,12 @@ import {
   TeachingTechnique,
 } from '../../tutoring-values'
 import {
+  RESPONSE_VALIDATION_ACTION,
+  RESPONSE_VALIDATION_SEVERITY,
   RESPONSE_VALIDATION_STAGE,
   RESPONSE_VIOLATION_TYPE,
   type ValidationResult,
+  rejectedValidationResult,
 } from './response-validation.types'
 import { ResponseApprovalService } from './response-approval.service'
 import { SafeFallbackService } from './safe-fallback.service'
@@ -48,6 +51,39 @@ describe('ResponseApprovalService', () => {
     expect(harness.semantic.calls).toHaveLength(1)
     expect(harness.semantic.calls[0]?.educationalContext).toMatchObject({
       currentStudentMessage: { content: 'Inspect the loop state.' },
+    })
+  })
+
+  it('fails closed to safe fallback with GUARD_UNAVAILABLE on semantic guard infrastructure failure', async () => {
+    const harness = buildHarness([generationSuccess(validCandidate())], {
+      semantic: {
+        kind: 'infrastructure_failure',
+        errorCode: SEMANTIC_GUARD_ERROR_CODE.MALFORMED_OUTPUT,
+        result: rejectedValidationResult(
+          RESPONSE_VALIDATION_STAGE.SEMANTIC,
+          [
+            {
+              type: RESPONSE_VIOLATION_TYPE.GUARD_MALFORMED_OUTPUT,
+              severity: RESPONSE_VALIDATION_SEVERITY.CRITICAL,
+              field: null,
+              evidence: 'Semantic Guard approval could not be established.',
+              regenerationInstruction:
+                'Use deterministic safe fallback; do not regenerate for guard infrastructure failure.',
+            },
+          ],
+          RESPONSE_VALIDATION_ACTION.USE_SAFE_FALLBACK,
+          { promptVersion: 'semantic-guard.mvp.v3' },
+        ),
+      },
+    })
+
+    const result = await harness.service.approve(input())
+
+    expect(result).toMatchObject({
+      success: true,
+      safeFallbackReason: 'GUARD_UNAVAILABLE',
+      approvedResponse: { source: 'SAFE_FALLBACK' },
+      candidateAttempts: 1,
     })
   })
 

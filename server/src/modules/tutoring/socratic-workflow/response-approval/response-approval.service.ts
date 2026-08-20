@@ -24,7 +24,10 @@ import {
   buildCandidateValidationContext,
   structuralRejectionFromGenerationFailure,
 } from './structural-response.validator'
-import { DeterministicGuardService } from './deterministic-guard.service'
+import {
+  DeterministicGuardService,
+  extractProblemStatementGivensAndTargets,
+} from './deterministic-guard.service'
 import { SemanticGuardService } from './semantic-guard.service'
 import {
   SAFE_FALLBACK_REASON,
@@ -113,22 +116,6 @@ export class ResponseApprovalService {
     const guardResultAudits: GuardResultAudit[] = []
     const studentActionObligation =
       studentActionObligationFromDecision(decision)
-    const context = buildCandidateValidationContext({
-      allowedCitationIds: new Set(
-        input.retrievalResult.map(citationIdForChunk),
-      ),
-      requireGrounding: decision.guardPolicy.requireGrounding,
-      enforceCitationSupport: decision.guardPolicy.enforceCitationSupport,
-      reflectionMode: decision.reflectionMode,
-      responseIntent: decision.strategy,
-      studentActionObligation,
-      guidanceLevel: decision.guidanceLevel,
-      revealPolicy: decision.revealPolicy,
-      maximumDisclosedSteps: decision.guardPolicy.maximumDisclosedSteps,
-      debuggingGuidance: input.debuggingGuidance,
-      debuggingGuidanceRequired:
-        decision.strategy === TeachingStrategy.DEBUGGING_GUIDANCE,
-    })
 
     let previousValidation: ValidationResult | null = null
     let candidateAttempts = 0
@@ -249,10 +236,40 @@ export class ResponseApprovalService {
         }
       }
 
+      const initialStudentMessage =
+        generation.educationalContext.recentConversation.find(
+          (m) =>
+            m.role === 'STUDENT' &&
+            (m.topicId === input.topicId || m.attemptId !== null),
+        )?.content ??
+        generation.educationalContext.currentStudentMessage.content
+
+      const { givenPremises, targetVariables } =
+        extractProblemStatementGivensAndTargets(initialStudentMessage)
+
+      const candidateValidationContext = buildCandidateValidationContext({
+        allowedCitationIds: new Set(
+          input.retrievalResult.map(citationIdForChunk),
+        ),
+        requireGrounding: decision.guardPolicy.requireGrounding,
+        enforceCitationSupport: decision.guardPolicy.enforceCitationSupport,
+        reflectionMode: decision.reflectionMode,
+        responseIntent: decision.strategy,
+        studentActionObligation,
+        guidanceLevel: decision.guidanceLevel,
+        revealPolicy: decision.revealPolicy,
+        maximumDisclosedSteps: decision.guardPolicy.maximumDisclosedSteps,
+        debuggingGuidance: input.debuggingGuidance,
+        debuggingGuidanceRequired:
+          decision.strategy === TeachingStrategy.DEBUGGING_GUIDANCE,
+        givenPremises,
+        targetVariables,
+      })
+
       await input.lifecycle?.beginValidation()
       const structural = this.structuralValidator.validate(
         generation.candidate,
-        context,
+        candidateValidationContext,
       )
       validationResults.push(structural)
       guardResultAudits.push(guardResultAudit(attempt, structural, decision))
@@ -277,7 +294,7 @@ export class ResponseApprovalService {
 
       const deterministic = this.deterministicGuard.evaluate(
         generation.candidate,
-        context,
+        candidateValidationContext,
       )
       validationResults.push(deterministic)
       guardResultAudits.push(guardResultAudit(attempt, deterministic, decision))
@@ -307,7 +324,7 @@ export class ResponseApprovalService {
         candidateAttempt: attempt,
         candidate: generation.candidate,
         educationalContext: generation.educationalContext,
-        validationContext: context,
+        validationContext: candidateValidationContext,
         guardPolicy: decision.guardPolicy,
         allowedCitationSummaries: input.retrievalResult.map((chunk) => ({
           citationId: citationIdForChunk(chunk),

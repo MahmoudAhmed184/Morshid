@@ -144,6 +144,8 @@ export function buildCandidateValidationContext(input: {
   readonly maximumDisclosedSteps: number
   readonly debuggingGuidance?: CandidateValidationContext['debuggingGuidance']
   readonly debuggingGuidanceRequired?: boolean
+  readonly givenPremises?: ReadonlySet<string>
+  readonly targetVariables?: ReadonlySet<string>
 }): CandidateValidationContext {
   return Object.freeze({ ...input })
 }

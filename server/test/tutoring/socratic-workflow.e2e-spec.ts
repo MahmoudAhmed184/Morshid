@@ -118,6 +118,7 @@ function storyCandidateResponse(
     readonly message: string
     readonly responseIntent: TeachingStrategy
     readonly studentActionType: TeachingTechnique
+    readonly requiresStudentAction?: boolean
   },
 ): TutorModelResponse {
   const match = /"allowedCitationIds":\[(?<ids>(?:"[^"]*"(?:,)?)*)\]/u.exec(
@@ -130,13 +131,23 @@ function storyCandidateResponse(
           (value): value is string => typeof value === 'string',
         )
 
+  const requiresStudentActionMatch =
+    /"requiresStudentAction":\s*(?<req>true|false)/u.exec(
+      request.messages[1].content,
+    )
+  const requiresStudentAction =
+    input.requiresStudentAction ??
+    (requiresStudentActionMatch?.groups?.req === undefined
+      ? true
+      : requiresStudentActionMatch.groups.req === 'true')
+
   return Object.freeze({
     rawOutput: Object.freeze({
       message: input.message,
       debuggingGuidance: null,
       responseIntent: input.responseIntent,
       usedCitationIds: citationIds,
-      requiresStudentAction: true,
+      requiresStudentAction,
       studentAction: {
         type: input.studentActionType,
         description: 'Ask for the one reasoning action stated in the message.',
@@ -1273,7 +1284,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     expect(semanticGuard.callCount).toBe(beforeReplay.semanticGuardCalls)
   })
 
-  it('reproduces the find_max journey and persists the meaningful misconception turn at Level 2', async () => {
+  it('reproduces the find_max journey with struggle escalation to Level 2 and meaningful misconception at Level 3', async () => {
     await createEvidenceMaterial({
       title: 'Python list indexing and comparison',
       content:
@@ -1418,7 +1429,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
     )
     expect(
       turns.map(({ assistantMessage }) => assistantMessage.hintLevel),
-    ).toEqual([1, 1, 1, 2])
+    ).toEqual([1, 2, 2, 3])
 
     const finalTurn = turns[3]
     const finalStudentMessage = finalTurn.studentMessage
@@ -1446,7 +1457,7 @@ describe('Tutoring workflow HTTP vertical-slice (e2e)', () => {
       ]),
     )
     await expect(guidanceLevelsForSession(prisma, session.id)).resolves.toEqual(
-      [1, 1, 1, 2],
+      [1, 2, 2, 3],
     )
     const protectedAttempts = await prisma.tutoringAttempt.findMany({
       where: { sessionId: session.id },

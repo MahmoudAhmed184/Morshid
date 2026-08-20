@@ -118,6 +118,8 @@ export interface CandidateValidationContext {
   readonly maximumDisclosedSteps: number
   readonly debuggingGuidance?: DebuggingGuidanceContext
   readonly debuggingGuidanceRequired?: boolean
+  readonly givenPremises?: ReadonlySet<string>
+  readonly targetVariables?: ReadonlySet<string>
 }
 
 export const APPROVED_RESPONSE_SOURCE = {

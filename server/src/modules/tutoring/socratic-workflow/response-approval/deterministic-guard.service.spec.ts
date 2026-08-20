@@ -5,7 +5,10 @@ import {
   TeachingStrategy,
   TeachingTechnique,
 } from '../../tutoring-values'
-import { DeterministicGuardService } from './deterministic-guard.service'
+import {
+  DeterministicGuardService,
+  extractProblemStatementGivensAndTargets,
+} from './deterministic-guard.service'
 import {
   RESPONSE_VALIDATION_STAGE,
   RESPONSE_VIOLATION_TYPE,
@@ -54,6 +57,173 @@ describe('DeterministicGuardService', () => {
     expect(result.violations.map((violation) => violation.type)).toContain(
       violationType,
     )
+  })
+
+  describe('target-aware solution protection', () => {
+    const activeProblem = 'x = 5\ny = x + 1\nwhat is the value of y?'
+    const { givenPremises, targetVariables } =
+      extractProblemStatementGivensAndTargets(activeProblem)
+
+    it('extracts trusted given premises and target variables from active problem statement', () => {
+      expect(givenPremises.has('x = 5')).toBe(true)
+      expect(givenPremises.has('x=5')).toBe(true)
+      expect(targetVariables.has('y')).toBe(true)
+      expect(givenPremises.has('y = 6')).toBe(false)
+    })
+
+    it('does not extract student attempts or guesses as given premises', () => {
+      const laterStudentAttempt = 'I think y = 6'
+      const extracted =
+        extractProblemStatementGivensAndTargets(laterStudentAttempt)
+      expect(extracted.givenPremises.has('y = 6')).toBe(false)
+    })
+
+    it('allows reference to student-provided given premise during scaffolding', () => {
+      const result = service().evaluate(
+        validCandidate({
+          message:
+            'Start with the first line: x = 5. What value is currently stored in x? [retrieval.rank.1]',
+        }),
+        context({ givenPremises, targetVariables }),
+      )
+
+      expect(result.approved).toBe(true)
+    })
+
+    it('allows reference to formula or expression', () => {
+      const result = service().evaluate(
+        validCandidate({
+          message:
+            'Look at y = x + 1. What does +1 tell you to do? [retrieval.rank.1]',
+        }),
+        context({ givenPremises, targetVariables }),
+      )
+
+      expect(result.approved).toBe(true)
+    })
+
+    it('allows unrelated intermediate numeric assignments not bound to target variable', () => {
+      const result = service().evaluate(
+        validCandidate({
+          message:
+            "Let's trace step = 1. What happens on the next line? [retrieval.rank.1]",
+        }),
+        context({ givenPremises, targetVariables }),
+      )
+
+      expect(result.approved).toBe(true)
+    })
+
+    it('rejects candidate performing decisive substitution derivation (x + 1 becomes 5 + 1)', () => {
+      const result = service().evaluate(
+        validCandidate({
+          message:
+            'Since x is 5, x + 1 becomes 5 + 1. What is the value? [retrieval.rank.1]',
+        }),
+        context({ givenPremises, targetVariables }),
+      )
+
+      expect(result.approved).toBe(false)
+      expect(result.violations.map((v) => v.type)).toContain(
+        RESPONSE_VIOLATION_TYPE.DIRECT_ANSWER_DISCLOSURE,
+      )
+    })
+
+    it('rejects candidate performing commutative decisive substitution derivation (1 + x becomes 1 + 5)', () => {
+      const result = service().evaluate(
+        validCandidate({
+          message:
+            'Since x is 5, 1 + x becomes 1 + 5. What is the value? [retrieval.rank.1]',
+        }),
+        context({ givenPremises, targetVariables }),
+      )
+
+      expect(result.approved).toBe(false)
+      expect(result.violations.map((v) => v.type)).toContain(
+        RESPONSE_VIOLATION_TYPE.DIRECT_ANSWER_DISCLOSURE,
+      )
+    })
+
+    it('rejects candidate performing decisive substitution target assignment (y = 5 + 1 and y = 1 + 5)', () => {
+      const result1 = service().evaluate(
+        validCandidate({
+          message: 'Since x = 5, y = 5 + 1. [retrieval.rank.1]',
+        }),
+        context({ givenPremises, targetVariables }),
+      )
+      expect(result1.approved).toBe(false)
+      expect(result1.violations.map((v) => v.type)).toContain(
+        RESPONSE_VIOLATION_TYPE.DIRECT_ANSWER_DISCLOSURE,
+      )
+
+      const result2 = service().evaluate(
+        validCandidate({
+          message: 'Since x = 5, y = 1 + 5. [retrieval.rank.1]',
+        }),
+        context({ givenPremises, targetVariables }),
+      )
+      expect(result2.approved).toBe(false)
+      expect(result2.violations.map((v) => v.type)).toContain(
+        RESPONSE_VIOLATION_TYPE.DIRECT_ANSWER_DISCLOSURE,
+      )
+    })
+
+    it('rejects candidate performing expressive substitution derivation (substituting x = 5 gives 5 + 1)', () => {
+      const result = service().evaluate(
+        validCandidate({
+          message:
+            'Substituting x = 5 gives 5 + 1. Calculate the result. [retrieval.rank.1]',
+        }),
+        context({ givenPremises, targetVariables }),
+      )
+
+      expect(result.approved).toBe(false)
+      expect(result.violations.map((v) => v.type)).toContain(
+        RESPONSE_VIOLATION_TYPE.DIRECT_ANSWER_DISCLOSURE,
+      )
+    })
+
+    it('rejects candidate disclosing target variable assignment', () => {
+      const result = service().evaluate(
+        validCandidate({
+          message: 'Since x = 5, y = 6. [retrieval.rank.1]',
+        }),
+        context({ givenPremises, targetVariables }),
+      )
+
+      expect(result.approved).toBe(false)
+      expect(result.violations.map((v) => v.type)).toContain(
+        RESPONSE_VIOLATION_TYPE.FINAL_ANSWER_DISCLOSURE,
+      )
+    })
+
+    it('rejects candidate asserting final answer', () => {
+      const result = service().evaluate(
+        validCandidate({
+          message: 'The answer is 6. [retrieval.rank.1]',
+        }),
+        context({ givenPremises, targetVariables }),
+      )
+
+      expect(result.approved).toBe(false)
+      expect(result.violations.map((v) => v.type)).toContain(
+        RESPONSE_VIOLATION_TYPE.FINAL_ANSWER_DISCLOSURE,
+      )
+    })
+
+    it('rejects candidate asserting conclusion', () => {
+      const result = service().evaluate(
+        validCandidate({
+          message: 'Therefore y = 6. [retrieval.rank.1]',
+        }),
+        context({ givenPremises, targetVariables }),
+      )
+
+      expect(result.approved).toBe(false)
+      expect(result.violations.map((v) => v.type)).toContain(
+        RESPONSE_VIOLATION_TYPE.FINAL_ANSWER_DISCLOSURE,
+      )
+    })
   })
 
   it('allows a short diagnostic code snippet', () => {

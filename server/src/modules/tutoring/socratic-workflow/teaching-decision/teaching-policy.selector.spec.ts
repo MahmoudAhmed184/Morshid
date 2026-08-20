@@ -73,7 +73,7 @@ describe('teaching policy selector', () => {
     })
   })
 
-  it('uses prior-attempt orientation only when the resolved technique is orientation', () => {
+  it('selects primary-technique for first problem turn without prior effort', () => {
     const draft = selectTeachingDecisionDraft({
       analysis: analysis({
         requestKind: MessageRequestKind.PROBLEM_LIKE,
@@ -89,7 +89,153 @@ describe('teaching policy selector', () => {
 
     expect(draft).toMatchObject({
       primaryTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+      studentActionPurpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
+    })
+  })
+
+  it('selects prior-attempt orientation for vague or incomplete learner attempts', () => {
+    const draft = selectTeachingDecisionDraft({
+      analysis: analysis({
+        requestKind: MessageRequestKind.PROBLEM_LIKE,
+        studentState: StudentState.NO_PRIOR_KNOWLEDGE,
+        effortPresent: true,
+        effortQuality: EFFORT_QUALITY.LOW,
+        effortType: null,
+        effortEvidenceMessageIds: ['message-1'],
+      }),
+      topicState: topicState(),
+      previousTeachingDecision: null,
+    })
+
+    expect(draft).toMatchObject({
+      primaryTechnique: TeachingTechnique.ORIENTATION_QUESTION,
       studentActionPurpose: StudentActionPurpose.PRIOR_ATTEMPT_ORIENTATION,
+    })
+  })
+
+  it('selects primary-technique for a concrete reasoning attempt', () => {
+    const draft = selectTeachingDecisionDraft({
+      analysis: analysis({
+        requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+        studentState: StudentState.PARTIAL_UNDERSTANDING,
+        effortPresent: true,
+        effortQuality: EFFORT_QUALITY.MEANINGFUL,
+        effortType: EFFORT_TYPE.REASONING_ATTEMPT,
+        effortEvidenceMessageIds: ['message-1'],
+      }),
+      topicState: topicState(),
+      previousTeachingDecision: null,
+    })
+
+    expect(draft).toMatchObject({
+      strategy: TeachingStrategy.SOCRATIC_QUESTIONING,
+      primaryTechnique: TeachingTechnique.FOCUSED_QUESTION,
+      studentActionPurpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
+    })
+  })
+
+  it('reconciles previous GUIDED_EXPLANATION to SOCRATIC_QUESTIONING + FOCUSED_QUESTION on meaningful partial progress', () => {
+    const draft = selectTeachingDecisionDraft({
+      analysis: analysis({
+        requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+        studentState: StudentState.PARTIAL_UNDERSTANDING,
+        effortPresent: true,
+        effortQuality: EFFORT_QUALITY.MEANINGFUL,
+        effortType: EFFORT_TYPE.REASONING_ATTEMPT,
+        effortEvidenceMessageIds: ['message-1'],
+      }),
+      topicState: topicState({ guidanceLevel: 2 }),
+      previousTeachingDecision: previousDecision({
+        strategy: TeachingStrategy.GUIDED_EXPLANATION,
+        primaryTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+        guidanceLevel: 2,
+      }),
+    })
+
+    expect(draft).toMatchObject({
+      strategy: TeachingStrategy.SOCRATIC_QUESTIONING,
+      primaryTechnique: TeachingTechnique.FOCUSED_QUESTION,
+      requireStudentAction: true,
+      studentActionPurpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
+    })
+  })
+
+  it('reconciles previous GUIDED_EXPLANATION to SOCRATIC_QUESTIONING + VERIFICATION on verified near-solution progress with requireStudentAction false', () => {
+    const draft = selectTeachingDecisionDraft({
+      analysis: analysis({
+        requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+        studentState: StudentState.NEAR_SOLUTION,
+        effortPresent: true,
+        effortQuality: EFFORT_QUALITY.STRONG,
+        effortType: EFFORT_TYPE.REASONING_ATTEMPT,
+        effortEvidenceMessageIds: ['message-1'],
+        learningPresent: true,
+        learningStrength: LEARNING_EVIDENCE_STRENGTH.STRONG,
+        learningEvidenceMessageIds: ['message-1'],
+      }),
+      topicState: topicState({ guidanceLevel: 2 }),
+      previousTeachingDecision: previousDecision({
+        strategy: TeachingStrategy.GUIDED_EXPLANATION,
+        primaryTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+        guidanceLevel: 2,
+      }),
+    })
+
+    expect(draft).toMatchObject({
+      strategy: TeachingStrategy.SOCRATIC_QUESTIONING,
+      primaryTechnique: TeachingTechnique.VERIFICATION,
+      guidanceLevel: 1,
+      requireStudentAction: false,
+      studentActionPurpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
+    })
+    expect(draft.decisionReason).toContain(
+      'current-message-supported learning evidence demonstrated correct progress toward solution',
+    )
+  })
+
+  it('requires student action when near-solution progress lacks current verified learning evidence', () => {
+    const draft = selectTeachingDecisionDraft({
+      analysis: analysis({
+        requestKind: MessageRequestKind.ATTEMPT_DIAGNOSIS,
+        studentState: StudentState.NEAR_SOLUTION,
+        effortPresent: true,
+        effortQuality: EFFORT_QUALITY.MEANINGFUL,
+        effortType: EFFORT_TYPE.REASONING_ATTEMPT,
+        effortEvidenceMessageIds: ['message-1'],
+        learningPresent: false,
+      }),
+      topicState: topicState({ guidanceLevel: 2 }),
+      previousTeachingDecision: previousDecision({
+        strategy: TeachingStrategy.GUIDED_EXPLANATION,
+        primaryTechnique: TeachingTechnique.ORIENTATION_QUESTION,
+        guidanceLevel: 2,
+      }),
+    })
+
+    expect(draft).toMatchObject({
+      strategy: TeachingStrategy.SOCRATIC_QUESTIONING,
+      primaryTechnique: TeachingTechnique.FOCUSED_QUESTION,
+      requireStudentAction: true,
+      studentActionPurpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
+    })
+  })
+
+  it('selects primary-technique for explicit struggle without effort', () => {
+    const draft = selectTeachingDecisionDraft({
+      analysis: analysis({
+        requestKind: MessageRequestKind.PROBLEM_LIKE,
+        studentState: StudentState.NO_PRIOR_KNOWLEDGE,
+        effortPresent: false,
+        effortQuality: EFFORT_QUALITY.NONE,
+        effortType: null,
+        effortEvidenceMessageIds: [],
+      }),
+      topicState: topicState({ guidanceLevel: 2 }),
+      previousTeachingDecision: previousDecision({ guidanceLevel: 1 }),
+    })
+
+    expect(draft).toMatchObject({
+      studentActionPurpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
     })
   })
 
@@ -412,6 +558,21 @@ describe('teaching policy selector', () => {
     ).toBe(2)
   })
 
+  it('does not escalate beyond Level 2 for repeated struggle without new learner evidence', () => {
+    expect(
+      guidance({
+        currentLevel: 2,
+        analysis: analysis({
+          studentState: StudentState.NO_PRIOR_KNOWLEDGE,
+          effortPresent: false,
+          effortQuality: EFFORT_QUALITY.NONE,
+          effortType: null,
+          effortIsRepeated: false,
+        }),
+      }),
+    ).toBe(2)
+  })
+
   it('does not escalate for repeated retry of explicit struggle', () => {
     expect(
       guidance({
@@ -539,7 +700,11 @@ describe('teaching policy selector', () => {
     expect(
       selectTeachingStrategy({
         analysis: analysis({
-          studentState: StudentState.PARTIAL_UNDERSTANDING,
+          studentState: StudentState.NO_PRIOR_KNOWLEDGE,
+          effortPresent: false,
+          effortQuality: EFFORT_QUALITY.NONE,
+          effortType: null,
+          effortEvidenceMessageIds: [],
         }),
         previousTeachingDecision: previousDecision({
           strategy: TeachingStrategy.GUIDED_EXPLANATION,

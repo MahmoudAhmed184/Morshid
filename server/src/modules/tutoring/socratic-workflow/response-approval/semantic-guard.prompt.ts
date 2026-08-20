@@ -19,7 +19,9 @@ const SEMANTIC_GUARD_SYSTEM_PROMPT = [
   'Evaluate cumulative disclosure from prior approved tutor messages together with the candidate.',
   'Distinguish protected implementation leakage from a complete submission-ready artifact.',
   'A correction of an active misconception can itself be the protected target inference.',
-  'Return exactly one JSON object with approved and violations. No markdown fences.',
+  'Return ONLY one JSON object matching the SemanticGuardResult schema.',
+  'Do not include markdown code fences, preambles, chain-of-thought explanations, or trailing commentary.',
+  'Keep violation evidence and regenerationInstruction concise and bounded (at most 240 characters each).',
   '',
   `Prompt version: ${SEMANTIC_GUARD_PROMPT_VERSION}`,
 ].join('\n')
@@ -292,8 +294,9 @@ function guardPayload(input: SemanticGuardEvaluationInput) {
           type: 'the most specific supported violation type required by violationTypingRules',
           severity: 'LOW | MEDIUM | HIGH | CRITICAL',
           field: 'nullable string',
-          evidence: 'short bounded evidence, no full candidate body',
-          regenerationInstruction: 'short correction instruction',
+          evidence: 'concise bounded evidence string (at most 240 characters)',
+          regenerationInstruction:
+            'concise bounded regeneration instruction (at most 240 characters)',
         },
       ],
     },

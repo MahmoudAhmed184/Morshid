@@ -71,6 +71,16 @@ function fallbackMessage(
   obligation: StudentActionObligation,
   level: ExplanationDetailLevel = ExplanationDetailLevel.STANDARD,
 ): string {
+  if (!obligation.required) {
+    if (level === ExplanationDetailLevel.CONCISE) {
+      return 'Your reasoning is correct and verified.'
+    }
+    if (level === ExplanationDetailLevel.DETAILED) {
+      return 'Your reasoning is correct and verified. You have successfully worked through this step to completion.'
+    }
+    return 'Your reasoning is correct. You have successfully worked through this step.'
+  }
+
   const technique = obligation.technique
   const purpose = obligation.purpose
 
@@ -126,6 +136,10 @@ function fallbackMessage(
 function fallbackActionDescription(
   obligation: StudentActionObligation,
 ): string {
+  if (!obligation.required) {
+    return 'Confirm verified understanding and consolidate the completed step.'
+  }
+
   switch (obligation.purpose) {
     case StudentActionPurpose.PRIOR_ATTEMPT_ORIENTATION:
       return 'Ask the student to describe what they tried as one action.'

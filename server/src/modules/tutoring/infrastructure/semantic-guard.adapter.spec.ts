@@ -138,6 +138,104 @@ describe('OpenAICompatibleSemanticGuardAdapter', () => {
     },
   )
 
+  it('recovers on bounded retry when the first response was truncated by length', async () => {
+    let callCount = 0
+    const fetchImplementation = jest.fn<
+      Promise<Response>,
+      [string | URL | Request, RequestInit?]
+    >((_url, _init) => {
+      callCount += 1
+      if (callCount === 1) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              choices: [
+                {
+                  finish_reason: 'length',
+                  message: { content: '{"approved":true' },
+                },
+              ],
+            }),
+            { status: 200 },
+          ),
+        )
+      }
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                finish_reason: 'stop',
+                message: { content: JSON.stringify(validGuardOutput) },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      )
+    })
+
+    const adapter = new OpenAICompatibleSemanticGuardAdapter(
+      buildOpenAICompatibleConfiguration(),
+      30_000,
+      undefined,
+      fetchImplementation,
+    )
+
+    const response = await adapter.evaluate(request)
+    expect(response.rawOutput).toEqual(validGuardOutput)
+    expect(fetchImplementation).toHaveBeenCalledTimes(2)
+
+    const [, secondCall] = fetchImplementation.mock.calls
+    expect(secondCall[1]?.body).toBe(
+      JSON.stringify({
+        model: 'Qwen/Qwen2.5-7B-Instruct-Guard',
+        messages: [
+          { role: 'system', content: 'trusted guard prompt' },
+          { role: 'user', content: request.messages[1].content },
+        ],
+        temperature: 0,
+        top_p: 1,
+        max_completion_tokens: 4096,
+        response_format: { type: 'json_object' },
+      }),
+    )
+  })
+
+  it('bounds retry count and fails closed to MALFORMED_OUTPUT after exhaustion', async () => {
+    const fetchImplementation = jest.fn<
+      Promise<Response>,
+      [string | URL | Request, RequestInit?]
+    >(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                finish_reason: 'length',
+                message: { content: '{"approved":false' },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      ),
+    )
+
+    const adapter = new OpenAICompatibleSemanticGuardAdapter(
+      buildOpenAICompatibleConfiguration(),
+      30_000,
+      undefined,
+      fetchImplementation,
+    )
+
+    await expect(adapter.evaluate(request)).rejects.toMatchObject({
+      code: SEMANTIC_GUARD_ERROR_CODE.MALFORMED_OUTPUT,
+      finishReason: 'length',
+    })
+    expect(fetchImplementation).toHaveBeenCalledTimes(2)
+  })
+
   it('sends an authorization header only when an API key is configured', async () => {
     const fetchImplementation = jest.fn<
       Promise<Response>,
