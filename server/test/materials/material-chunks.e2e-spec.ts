@@ -512,12 +512,29 @@ describe('Materials chunk persistence (e2e)', () => {
   })
 })
 
+async function getOrCreateTestUniversity(
+  prisma: PrismaService,
+): Promise<string> {
+  const university = await prisma.university.upsert({
+    where: { code: 'TEST-MATERIAL-CHUNKS-UNIV' },
+    update: {},
+    create: {
+      name: 'Test Material Chunks University',
+      code: 'TEST-MATERIAL-CHUNKS-UNIV',
+      status: 'ACTIVE',
+    },
+  })
+  return university.id
+}
+
 async function createMaterial(prisma: PrismaService): Promise<string> {
+  const universityId = await getOrCreateTestUniversity(prisma)
   const user = await prisma.user.create({
     data: {
       email: `issue76-${randomUUID()}@morshid.test`,
       displayName: 'Issue 76 uploader',
       role: 'STUDENT',
+      universityId,
       passwordHash: 'test-password-hash',
     },
   })
@@ -525,6 +542,7 @@ async function createMaterial(prisma: PrismaService): Promise<string> {
     data: {
       code: `I76-${randomUUID().slice(0, 24)}`,
       title: 'Issue 76 test course',
+      universityId,
       createdById: user.id,
     },
   })

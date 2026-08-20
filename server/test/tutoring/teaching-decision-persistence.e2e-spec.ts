@@ -455,11 +455,21 @@ describe('TeachingDecisionRepository (e2e)', () => {
 
 async function createFixture(prisma: PrismaService): Promise<Fixture> {
   const suffix = randomUUID()
+  const university = await prisma.university.upsert({
+    where: { code: 'TEST-TEACHING-DECISION-UNIV' },
+    update: {},
+    create: {
+      name: 'Test Teaching Decision University',
+      code: 'TEST-TEACHING-DECISION-UNIV',
+      status: 'ACTIVE',
+    },
+  })
   const student = await prisma.user.create({
     data: {
       email: `decision-${suffix}@morshid.test`,
       displayName: 'Decision Student',
       role: 'STUDENT',
+      universityId: university.id,
       passwordHash: 'test-password-hash',
     },
   })
@@ -467,6 +477,7 @@ async function createFixture(prisma: PrismaService): Promise<Fixture> {
     data: {
       code: `decision-${suffix.slice(0, 8)}`,
       title: 'Decision Course',
+      universityId: university.id,
     },
   })
   await prisma.courseMembership.create({

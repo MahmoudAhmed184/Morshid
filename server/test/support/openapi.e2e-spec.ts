@@ -480,6 +480,11 @@ describe('OpenAPI contract (e2e)', () => {
           name: 'user-administration',
           description: 'Administrative user account operations.',
         },
+        {
+          name: 'universities',
+          description:
+            'University tenant management and administration operations.',
+        },
         { name: 'audit', description: 'Audit event access.' },
         { name: 'health', description: 'Service health checks.' },
       ])

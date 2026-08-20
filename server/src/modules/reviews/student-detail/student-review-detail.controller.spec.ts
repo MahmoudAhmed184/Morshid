@@ -20,6 +20,7 @@ describe('StudentReviewDetailController', () => {
     displayName: 'Student',
     role: UserRole.STUDENT,
     status: UserStatus.ACTIVE,
+    universityId: 'univ-1',
   }
   const get = jest.fn()
   let app: INestApplication<App>

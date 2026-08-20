@@ -615,12 +615,22 @@ describe('Review persistence seam (e2e)', () => {
     const assistantMessageIds: string[] = []
 
     const prisma = requireDatabase().prisma
+    const university = await prisma.university.upsert({
+      where: { code: 'TEST-REVIEW-PERSISTENCE-UNIV' },
+      update: {},
+      create: {
+        name: 'Test Review Persistence University',
+        code: 'TEST-REVIEW-PERSISTENCE-UNIV',
+        status: 'ACTIVE',
+      },
+    })
     await prisma.user.create({
       data: {
         id: studentId,
         email: `${label}-${studentId}@review.test`,
         displayName: `${label} Student`,
         role: 'STUDENT',
+        universityId: university.id,
         passwordHash: 'test-password-hash',
       },
     })
@@ -629,6 +639,7 @@ describe('Review persistence seam (e2e)', () => {
         id: courseId,
         code: `REV-${studentId.slice(0, 12)}`,
         title: `${label} Course`,
+        universityId: university.id,
         createdById: studentId,
       },
     })

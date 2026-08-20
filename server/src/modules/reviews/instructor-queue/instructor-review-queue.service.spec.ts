@@ -14,6 +14,7 @@ describe('InstructorReviewQueueService', () => {
     displayName: 'Instructor',
     role: UserRole.INSTRUCTOR,
     status: UserStatus.ACTIVE,
+    universityId: 'univ-1',
   }
   const canManageCourse = jest.fn()
   const list = jest.fn()

@@ -5,6 +5,7 @@ import {
   courseMembersQueryOptions,
   courseAdministrationQueryOptions,
 } from '@/features/courses/course-administration.queries'
+import { mySubscriptionQueryOptions } from '@/features/subscriptions/interface'
 import { managedUsersInfiniteQueryOptions } from '@/features/user-management/user-management.queries'
 import { useAuthStore } from '@/features/auth/session/interface/session-store'
 
@@ -90,4 +91,11 @@ export async function loadAdminDashboardRoute({ context }: AdminLoaderArgs) {
     ),
     queryClient.ensureQueryData(auditQueryOptions(adminId, 5)),
   ])
+}
+
+export async function loadAdminSubscriptionsRoute({
+  context,
+}: AdminLoaderArgs) {
+  getAdminLoaderContext(context.queryClient)
+  await context.queryClient.ensureQueryData(mySubscriptionQueryOptions())
 }

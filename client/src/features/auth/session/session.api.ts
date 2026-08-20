@@ -21,6 +21,10 @@ import { clientEnv } from '@/lib/env'
 export const INVALID_CREDENTIALS_MESSAGE = 'Invalid email or password.'
 export const DISABLED_ACCOUNT_MESSAGE =
   'Your account is disabled. Please contact the administrator.'
+export const UNIVERSITY_SUSPENDED_MESSAGE =
+  'Your university has been suspended. Please contact your administration.'
+export const UNIVERSITY_INACTIVE_MESSAGE =
+  'Your university is currently inactive. Please contact your administration.'
 export const SIGN_IN_UNAVAILABLE_MESSAGE =
   'Unable to sign in. Please try again.'
 
@@ -31,6 +35,17 @@ function normalizeSignInError(error: unknown): ApiError {
 
   if (error.code === 'ACCOUNT_DISABLED') {
     return new ApiError(DISABLED_ACCOUNT_MESSAGE, error.status, error.code)
+  }
+
+  if (
+    error.code === 'UNIVERSITY_SUSPENDED' ||
+    error.code === 'UNIVERSITY_NOT_FOUND'
+  ) {
+    return new ApiError(UNIVERSITY_SUSPENDED_MESSAGE, error.status, error.code)
+  }
+
+  if (error.code === 'UNIVERSITY_INACTIVE') {
+    return new ApiError(UNIVERSITY_INACTIVE_MESSAGE, error.status, error.code)
   }
 
   if (

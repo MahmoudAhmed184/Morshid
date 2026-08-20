@@ -54,3 +54,24 @@ export function cannotRevokeCurrentSessionException() {
     message: 'Cannot revoke the current active session. Use sign-out instead.',
   })
 }
+
+export function universitySuspendedException() {
+  return new ForbiddenException({
+    code: IDENTITY_ERROR_CODES.UNIVERSITY_SUSPENDED,
+    message: 'University is suspended',
+  })
+}
+
+export function universityInactiveException() {
+  return new ForbiddenException({
+    code: IDENTITY_ERROR_CODES.UNIVERSITY_INACTIVE,
+    message: 'University is inactive',
+  })
+}
+
+export function universityNotFoundException() {
+  return new ForbiddenException({
+    code: IDENTITY_ERROR_CODES.UNIVERSITY_NOT_FOUND,
+    message: 'University not found',
+  })
+}

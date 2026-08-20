@@ -1,9 +1,9 @@
 import { cn } from '@/lib/utils'
 
 const suggestions = [
-  'Why does quicksort average O(n log n)?',
-  'Walk me through problem set 3.',
-  'What did lecture 8 actually claim?',
+  'How do while loops and for loops differ in Python?',
+  'How do lists and dictionaries store data differently in Python?',
+  'How does variable scope work inside functions?',
 ] as const
 
 interface StudentSuggestionRowsProps {

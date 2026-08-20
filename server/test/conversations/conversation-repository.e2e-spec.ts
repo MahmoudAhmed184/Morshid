@@ -21,10 +21,20 @@ describe('Student chat repositories (e2e)', () => {
   let database: DisposableDatabase | undefined
   let prisma: PrismaService
   let sessionRepository: ConversationSessionRepository
+  let testUniversityId: string
 
   beforeAll(async () => {
     database = await setUpDisposableDatabase('morshid_issue84')
     prisma = database.prisma
+
+    const university = await prisma.university.create({
+      data: {
+        name: 'Issue 84 Test University',
+        code: `I84-${randomUUID().slice(0, 8)}`,
+        status: 'ACTIVE',
+      },
+    })
+    testUniversityId = university.id
 
     const conversationAuditService = new ConversationAuditService(
       new AuditService(prisma),
@@ -45,6 +55,7 @@ describe('Student chat repositories (e2e)', () => {
         email: `issue84-${randomUUID()}@morshid.test`,
         displayName: 'Issue 84 student',
         role: 'STUDENT',
+        universityId: testUniversityId,
         passwordHash: 'test-password-hash',
       },
     })
@@ -52,6 +63,7 @@ describe('Student chat repositories (e2e)', () => {
       data: {
         code: `I84-${randomUUID().slice(0, 24)}`,
         title: 'Issue 84 test course',
+        universityId: testUniversityId,
         createdById: student.id,
       },
     })

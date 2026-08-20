@@ -173,16 +173,16 @@ model IdempotencyRecord {
 }
 
 model ReviewInboxItem {
-  id              String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  recipientUserId String                 @map("recipient_user_id") @db.Uuid
-  reviewCaseId    String                 @map("review_case_id") @db.Uuid
-  courseId        String                 @map("course_id") @db.Uuid
-  sessionId       String                 @map("session_id") @db.Uuid
-  messageId       String                 @map("message_id") @db.Uuid
+  id              String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recipientUserId String                @map("recipient_user_id") @db.Uuid
+  reviewCaseId    String                @map("review_case_id") @db.Uuid
+  courseId        String                @map("course_id") @db.Uuid
+  sessionId       String                @map("session_id") @db.Uuid
+  messageId       String                @map("message_id") @db.Uuid
   type            ReviewInboxItemType
   status          ReviewInboxItemStatus @default(UNREAD)
-  readAt          DateTime?              @map("read_at") @db.Timestamptz(6)
-  createdAt       DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  readAt          DateTime?             @map("read_at") @db.Timestamptz(6)
+  createdAt       DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
 
   recipient  User        @relation("ReviewInboxRecipient", fields: [recipientUserId], references: [id], onDelete: Restrict)
   reviewCase ReviewCase  @relation(fields: [reviewCaseId], references: [id], onDelete: Restrict)

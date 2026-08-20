@@ -418,7 +418,9 @@ describe('TutorPage workspace', () => {
       await screen.findByRole('heading', { name: 'How can I help you, Test?' }),
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: 'Walk me through problem set 3.' }),
+      screen.getByRole('button', {
+        name: 'How do lists and dictionaries store data differently in Python?',
+      }),
     ).toBeInTheDocument()
     const composer = screen.getByRole('textbox', { name: 'Message' })
     expect(composer).toBeEnabled()
@@ -704,12 +706,16 @@ describe('TutorPage workspace', () => {
       }),
     ).toBeInTheDocument()
     fireEvent.click(
-      screen.getByRole('button', { name: 'Walk me through problem set 3.' }),
+      screen.getByRole('button', {
+        name: 'How do lists and dictionaries store data differently in Python?',
+      }),
     )
 
     const composer = screen.getByRole('textbox', { name: 'Message' })
     await waitFor(() =>
-      expect(composer).toHaveValue('Walk me through problem set 3.'),
+      expect(composer).toHaveValue(
+        'How do lists and dictionaries store data differently in Python?',
+      ),
     )
     expect(composer).toHaveFocus()
   })

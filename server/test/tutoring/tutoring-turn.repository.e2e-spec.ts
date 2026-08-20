@@ -1170,11 +1170,21 @@ describe('Tutoring turn repository (e2e)', () => {
 })
 
 async function createFixture(prisma: PrismaService): Promise<TutoringFixture> {
+  const university = await prisma.university.upsert({
+    where: { code: 'TEST-TUTORING-TURN-UNIV' },
+    update: {},
+    create: {
+      name: 'Test Tutoring Turn University',
+      code: 'TEST-TUTORING-TURN-UNIV',
+      status: 'ACTIVE',
+    },
+  })
   const student = await prisma.user.create({
     data: {
       email: `issue88-${randomUUID()}@morshid.test`,
       displayName: 'Issue 88 student',
       role: 'STUDENT',
+      universityId: university.id,
       passwordHash: 'test-password-hash',
     },
   })
@@ -1182,6 +1192,7 @@ async function createFixture(prisma: PrismaService): Promise<TutoringFixture> {
     data: {
       code: `I88-${randomUUID().slice(0, 24)}`,
       title: 'Issue 88 course',
+      universityId: university.id,
       createdById: student.id,
     },
   })

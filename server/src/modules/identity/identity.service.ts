@@ -20,6 +20,9 @@ import {
   invalidAccessTokenException,
   invalidAuthRequestException,
   invalidCredentialsException,
+  universityInactiveException,
+  universityNotFoundException,
+  universitySuspendedException,
 } from './identity.errors'
 import { AccessToken } from './access-token'
 import { maskIp, parseDevice } from './device-parser'
@@ -60,6 +63,8 @@ export class IdentityService {
       throw accountDisabledException()
     }
 
+    this.identityUser.assertActiveTenant(user)
+
     const now = new Date()
 
     await this.identityUser.recordLastLogin(user, now)
@@ -94,6 +99,18 @@ export class IdentityService {
         requestContext,
       )
       throw accountDisabledException()
+    }
+
+    if (rotation.kind === 'tenant_suspended') {
+      throw universitySuspendedException()
+    }
+
+    if (rotation.kind === 'tenant_inactive') {
+      throw universityInactiveException()
+    }
+
+    if (rotation.kind === 'tenant_not_found') {
+      throw universityNotFoundException()
     }
 
     const accessToken = await this.accessToken.create(
@@ -162,6 +179,8 @@ export class IdentityService {
       throw accountDisabledException()
     }
 
+    this.identityUser.assertActiveTenant(user)
+
     const trimmedDisplayName = input.displayName.trim()
     const oldDisplayName = user.displayName
 
@@ -199,6 +218,8 @@ export class IdentityService {
       throw accountDisabledException()
     }
 
+    this.identityUser.assertActiveTenant(user)
+
     const isCurrentPasswordValid = this.passwordHasher.verifyPassword(
       input.currentPassword,
       user.passwordHash,
@@ -235,6 +256,18 @@ export class IdentityService {
         requestContext,
       )
       throw accountDisabledException()
+    }
+
+    if (result.kind === 'tenant_suspended') {
+      throw universitySuspendedException()
+    }
+
+    if (result.kind === 'tenant_inactive') {
+      throw universityInactiveException()
+    }
+
+    if (result.kind === 'tenant_not_found') {
+      throw universityNotFoundException()
     }
 
     const accessToken = await this.accessToken.create(
@@ -389,6 +422,8 @@ export class IdentityService {
       await this.identityAudit.recordDisabledAccountBlock(user, requestContext)
       throw accountDisabledException()
     }
+
+    this.identityUser.assertActiveTenant(user)
 
     if (payload.passwordChangedAt !== user.passwordChangedAt.toISOString()) {
       throw invalidAccessTokenException()

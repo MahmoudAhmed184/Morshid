@@ -19,6 +19,7 @@ describe('InstructorReviewResolutionController', () => {
     displayName: 'Instructor',
     role: UserRole.INSTRUCTOR,
     status: UserStatus.ACTIVE,
+    universityId: 'univ-1',
   }
   const resolve = jest.fn()
   const reject = jest.fn()

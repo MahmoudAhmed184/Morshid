@@ -26,6 +26,7 @@ describe('AllowancesService', () => {
     displayName: 'Admin User',
     role: 'ADMIN',
     status: 'ACTIVE',
+    universityId: null,
   }
 
   const defaultPolicy: DeploymentDefaultsRecord = {

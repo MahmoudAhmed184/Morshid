@@ -10,6 +10,7 @@ describe('StudentReviewDetailService', () => {
     displayName: 'Student',
     role: UserRole.STUDENT,
     status: UserStatus.ACTIVE,
+    universityId: 'univ-1',
   }
   const findOwned = jest.fn()
   const repository: StudentReviewDetailRepository = {
