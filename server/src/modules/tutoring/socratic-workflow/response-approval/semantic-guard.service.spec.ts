@@ -519,6 +519,159 @@ describe('SemanticGuardService', () => {
       expect(port.requests).toHaveLength(1)
     })
   })
+
+  describe('DEBUGGING_GUIDANCE calibration', () => {
+    it('builds request payload with intent-aware DEBUGGING_GUIDANCE adjudication rules and authorized diagnostic disclosure', async () => {
+      const guard = new FakeSemanticGuardPort({
+        approved: true,
+        violations: [],
+      })
+      const dbgInput = debuggingInput()
+
+      const result = await new SemanticGuardService(guard).evaluate(dbgInput)
+
+      expect(result.kind).toBe('validated')
+      expect(result.result.approved).toBe(true)
+      expect(guard.requests).toHaveLength(1)
+
+      const systemPrompt = guard.requests[0]?.messages[0].content ?? ''
+      const userPrompt = guard.requests[0]?.messages[1].content ?? ''
+      const payload = JSON.parse(userPrompt) as {
+        trustedPolicy: {
+          responseIntent: string
+          debuggingGuidanceRequired: boolean
+          debuggingGuidance: unknown
+        }
+        candidate: {
+          debuggingGuidance: unknown
+          responseIntent: string
+        }
+      }
+
+      expect(systemPrompt).toContain(
+        'When responseIntent is DEBUGGING_GUIDANCE, identifying the diagnosed defect category/likely defect and relevant location in the structured debugging guidance',
+      )
+      expect(payload.trustedPolicy.responseIntent).toBe(
+        TeachingStrategy.DEBUGGING_GUIDANCE,
+      )
+      expect(payload.trustedPolicy.debuggingGuidanceRequired).toBe(true)
+      expect(payload.trustedPolicy.debuggingGuidance).toBeDefined()
+      expect(payload.candidate.responseIntent).toBe(
+        TeachingStrategy.DEBUGGING_GUIDANCE,
+      )
+      expect(payload.candidate.debuggingGuidance).toBeDefined()
+      expect(userPrompt).toContain(
+        'AUTHORIZED DIAGNOSTIC DISCLOSURE: The candidate MAY state the diagnosed defect category / likely defect',
+      )
+      expect(userPrompt).toContain(
+        'PROHIBITED SOLUTION DISCLOSURE: When Reveal Policy is NO_FINAL_ANSWER',
+      )
+      expect(userPrompt).toContain(
+        'REGENERATION FEEDBACK FOR DEBUGGING_GUIDANCE',
+      )
+    })
+
+    it('evaluates and approves compliant debugging guidance candidate with diagnosis and trace action', async () => {
+      const guard = new FakeSemanticGuardPort({
+        approved: true,
+        violations: [],
+      })
+      const dbgInput = debuggingInput({
+        message: [
+          'Likely defect',
+          'The value of total is overwritten on each iteration.',
+          '',
+          'Relevant location',
+          'Focus on total inside the loop at line 4.',
+          '',
+          'Concept',
+          'An accumulator must preserve the previous running value while incorporating the current element. [retrieval.rank.1]',
+          '',
+          'Next inspection step',
+          'Trace the value of total across iterations.',
+        ].join('\n'),
+      })
+
+      const result = await new SemanticGuardService(guard).evaluate(dbgInput)
+
+      expect(result.kind).toBe('validated')
+      expect(result.result.approved).toBe(true)
+      expect(result.result.violations).toHaveLength(0)
+    })
+
+    it('processes rejection when candidate leaks exact corrected code (total += number) and preserves diagnosis in feedback', async () => {
+      const guard = new FakeSemanticGuardPort({
+        approved: false,
+        violations: [
+          {
+            type: 'CODE_LEAKAGE',
+            severity: 'HIGH',
+            field: 'candidate.message',
+            evidence:
+              'The candidate discloses exact replacement syntax: total += number.',
+            regenerationInstruction:
+              'Keep the diagnosis and relevant location, but remove the exact replacement code; explain the concept without writing the corrected code statement.',
+          },
+        ],
+      })
+      const dbgInput = debuggingInput({
+        message: [
+          'Likely defect',
+          'The value of total is overwritten on each iteration.',
+          '',
+          'Relevant location',
+          'Focus on total inside the loop at line 4.',
+          '',
+          'Concept',
+          'Use total += number to maintain running sum.',
+          '',
+          'Next inspection step',
+          'Trace the value of total across iterations.',
+        ].join('\n'),
+      })
+
+      const result = await new SemanticGuardService(guard).evaluate(dbgInput)
+
+      expect(result.kind).toBe('validated')
+      expect(result.result.approved).toBe(false)
+      expect(result.result.violations).toHaveLength(1)
+      expect(result.result.violations[0]?.type).toBe('CODE_LEAKAGE')
+      expect(result.result.violations[0]?.regenerationInstruction).toContain(
+        'Keep the diagnosis and relevant location, but remove the exact replacement code',
+      )
+    })
+
+    it('preserves strict direct-answer non-disclosure rules for non-debugging strategies', async () => {
+      const guard = new FakeSemanticGuardPort({
+        approved: false,
+        violations: [
+          {
+            type: 'DIRECT_ANSWER_DISCLOSURE',
+            severity: 'HIGH',
+            field: 'candidate.message',
+            evidence: 'Candidate states the misconception correction directly.',
+            regenerationInstruction:
+              'Ask a focused question preserving the inference for the student.',
+          },
+        ],
+      })
+      const socraticInput = input({
+        candidate: candidate({
+          message:
+            'In Python, assignment binds names rather than mutating containers.',
+          responseIntent: TeachingStrategy.SOCRATIC_QUESTIONING,
+        }),
+      })
+
+      const result = await new SemanticGuardService(guard).evaluate(
+        socraticInput,
+      )
+
+      expect(result.kind).toBe('validated')
+      expect(result.result.approved).toBe(false)
+      expect(result.result.violations[0]?.type).toBe('DIRECT_ANSWER_DISCLOSURE')
+    })
+  })
 })
 
 class SequenceFakeSemanticGuardPort implements SemanticGuardPort {
@@ -750,5 +903,100 @@ function studentActionObligation(
     technique,
     maximumMeaningfulActions: 1 as const,
     generationInstruction: 'Request exactly one meaningful student action.',
+  }
+}
+
+function debuggingInput(
+  candidatePatch: Partial<CandidateResponse> = {},
+): SemanticGuardEvaluationInput {
+  const base = input()
+  return {
+    ...base,
+    candidate: candidate({
+      message: [
+        'Likely defect',
+        'The variable total is overwritten on each iteration instead of accumulating.',
+        '',
+        'Relevant location',
+        'line 4',
+        '',
+        'Concept',
+        'An accumulator preserves the previous running value while incorporating each element. [retrieval.rank.1]',
+        '',
+        'Next inspection step',
+        'Trace the value of total across each loop iteration.',
+      ].join('\n'),
+      debuggingGuidance: {
+        diagnosis:
+          'The variable total is overwritten on each iteration instead of accumulating.',
+        relevantLocation: 'line 4',
+        conceptExplanation:
+          'An accumulator preserves the previous running value while incorporating each element.',
+        inspectionActions: [
+          'Trace the value of total across each loop iteration.',
+        ],
+      },
+      responseIntent: TeachingStrategy.DEBUGGING_GUIDANCE,
+      studentAction: {
+        type: TeachingTechnique.TRACE_EXECUTION,
+        description: 'Trace the value of total across each loop iteration.',
+      },
+      ...candidatePatch,
+    }),
+    educationalContext: {
+      ...base.educationalContext,
+      currentStudentMessage: {
+        id: 'message-1',
+        content:
+          'numbers = [10, 20, 30]\ntotal = 0\nfor number in numbers:\n    total = number\naverage = total / len(numbers)\nprint(average)\nWhy is the average 10 instead of 20?',
+      },
+      acceptedAnalysis: {
+        ...base.educationalContext.acceptedAnalysis,
+        requestKind: 'CODE_DIAGNOSIS',
+        studentState: 'DEBUGGING_ISSUE',
+        misconceptions: [
+          {
+            code: 'ASSIGNMENT_INSTEAD_OF_ACCUMULATION',
+            description:
+              'The student assigns total = number inside the loop instead of accumulating.',
+            confidence: 0.95,
+            evidenceMessageId: 'message-1',
+          },
+        ],
+        confidence: 0.95,
+        analysisSource: 'model',
+      },
+      currentTeachingDecision: {
+        ...base.educationalContext.currentTeachingDecision,
+        guidanceLevel: 1,
+        revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
+        studentActionObligation: studentActionObligation(
+          StudentActionPurpose.PRIMARY_TECHNIQUE,
+          TeachingTechnique.TRACE_EXECUTION,
+        ),
+      },
+      recentConversation: [],
+    },
+    validationContext: {
+      ...base.validationContext,
+      responseIntent: TeachingStrategy.DEBUGGING_GUIDANCE,
+      debuggingGuidanceRequired: true,
+      debuggingGuidance: {
+        likelyIssue:
+          'The variable total is overwritten on each iteration instead of accumulating.',
+        relevantLocation: 'line 4',
+        concept: 'accumulator pattern',
+        nextInspectionStep:
+          'Observe the value of total after each iteration of the loop.',
+        evidenceQuery: 'accumulator pattern loops python',
+        rewriteRequested: false,
+      },
+      studentActionObligation: studentActionObligation(
+        StudentActionPurpose.PRIMARY_TECHNIQUE,
+        TeachingTechnique.TRACE_EXECUTION,
+      ),
+      guidanceLevel: 1,
+      revealPolicy: RevealPolicy.NO_FINAL_ANSWER,
+    },
   }
 }

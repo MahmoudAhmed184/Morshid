@@ -38,7 +38,7 @@ const TUTOR_GENERATION_SYSTEM_PROMPT = [
   'When acknowledgeStudentSupportedCorrectWork is true, briefly and factually acknowledge only the correct reasoning supported by the accepted analysis, then ask the required meaningful verification, transfer, or application question. Do not infer correctness from an unsupported self-report.',
   'A retrieved fact is evidence for accuracy, not permission to reveal that fact to the student.',
   'If Reveal Policy is NO_FINAL_ANSWER, do not disclose the final answer, complete solution, submission-ready code, or final result.',
-  'When debuggingGuidance is present, treat the supplied canonical debugging diagnosis as authoritative and immutable. Do not independently rediagnose the submitted code. Return the structured debuggingGuidance object and exactly one inspectionActions entry. Set message and studentAction to null because the backend renders both from that structure. Keep relevantLocation consistent with the supplied validated location. Do not claim to have executed, run, or tested the student code. When requiresRuntimeEvidence is true, do not state runtime outcomes that have not been observed. Explain the underlying concept using retrieved evidence. Follow TeachingDecision for pedagogical action, RevealPolicy, and Solution Protection. Do not provide a full corrected solution when prohibited. Never return a corrected program.',
+  'When debuggingGuidance is present, treat the supplied canonical debugging diagnosis as authoritative and immutable. Do not independently rediagnose the submitted code. Return the structured debuggingGuidance object and exactly one inspectionActions entry. Set message and studentAction to null because the backend renders both from that structure. Keep relevantLocation consistent with the supplied validated location. Do not claim to have executed, run, or tested the student code. When requiresRuntimeEvidence is true, do not state runtime outcomes that have not been observed. Explain the underlying concept using retrieved evidence, but do not provide the exact replacement code, corrected statement, or syntax fix (e.g. explain that an accumulator preserves a running value across iterations without writing the replacement update statement). Follow TeachingDecision for pedagogical action, RevealPolicy, and Solution Protection. Do not provide a full corrected solution when prohibited. Never return a corrected program.',
   'Use only allowed citation IDs supplied by the backend. Do not invent citation IDs.',
   'The backend owns provider, model, promptVersion, tokenUsage, approval, and persistence metadata. Do not include those keys.',
   '',
@@ -225,7 +225,7 @@ function buildTutorUserPrompt(context: GenerationContextPackage): string {
               diagnosis: 'non-empty string',
               relevantLocation: 'non-empty string',
               conceptExplanation:
-                'non-empty grounded explanation without rendered citation markers',
+                'non-empty grounded explanation of the underlying concept without rendered citation markers, without exact replacement code, and without corrected statements',
               inspectionActions: [debuggingInspectionActionInstruction],
             },
       responseIntent:
@@ -269,10 +269,10 @@ function buildDebuggingInspectionActionInstruction(
       StudentActionPurpose.PRIMARY_TECHNIQUE &&
     studentActionObligation.technique === TeachingTechnique.FOCUSED_QUESTION
   ) {
-    return 'Return exactly one non-empty inspectionActions entry. Write it as one focused question ending in ?. Ask for exactly one observation, comparison, prediction, or reasoning step at the relevantLocation. Rewrite the supplied imperative nextInspectionStep as a question instead of copying it verbatim. Do not combine multiple requested operations.'
+    return 'Return exactly one non-empty inspectionActions entry. Write it as one focused question ending in ?. Ask for exactly one observation, comparison, prediction, or reasoning step at the relevantLocation and suspicious state update. Rewrite the supplied imperative nextInspectionStep as a question instead of copying it verbatim. Do not combine multiple requested operations. Do not reveal the corrected code or solution.'
   }
 
-  return 'Return exactly one non-empty meaningful inspection or trace action.'
+  return 'Return exactly one non-empty meaningful inspection or trace action in inspectionActions. Anchor the action to the diagnosis relevantLocation and suspicious state update (e.g. asking the student to trace the state across iterations at that location), using the inspectionGoal as guidance. Do not combine multiple requested operations. Do not reveal the corrected code or the final solution.'
 }
 
 function section(title: string, value: unknown): string {

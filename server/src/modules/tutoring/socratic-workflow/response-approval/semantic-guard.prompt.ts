@@ -19,6 +19,7 @@ const SEMANTIC_GUARD_SYSTEM_PROMPT = [
   'Evaluate cumulative disclosure from prior approved tutor messages together with the candidate.',
   'Distinguish protected implementation leakage from a complete submission-ready artifact.',
   'A correction of an active misconception can itself be the protected target inference.',
+  'When responseIntent is DEBUGGING_GUIDANCE, identifying the diagnosed defect category/likely defect and relevant location in the structured debugging guidance (without providing the replacement code, syntax fix, or full corrected program) is authorized diagnostic disclosure, not prohibited direct answer disclosure.',
   'Return ONLY one JSON object matching the SemanticGuardResult schema.',
   'Do not include markdown code fences, preambles, chain-of-thought explanations, or trailing commentary.',
   'Keep violation evidence and regenerationInstruction concise and bounded (at most 240 characters each).',
@@ -85,11 +86,15 @@ function guardPayload(input: SemanticGuardEvaluationInput) {
       functionalResponseRequirements,
       disclosurePolicyVersion: SOCRATIC_DISCLOSURE_POLICY_VERSION,
       outputProtection: input.educationalContext.outputProtection,
+      debuggingGuidanceRequired:
+        input.validationContext.debuggingGuidanceRequired ?? false,
+      debuggingGuidance: input.validationContext.debuggingGuidance ?? null,
     },
     educationalContext: input.educationalContext,
     candidate: {
       message: input.candidate.message,
       responseIntent: input.candidate.responseIntent,
+      debuggingGuidance: input.candidate.debuggingGuidance ?? null,
       usedCitationIds: input.candidate.usedCitationIds,
       requiresStudentAction: input.candidate.requiresStudentAction,
       studentAction: input.candidate.studentAction,
@@ -112,6 +117,7 @@ function guardPayload(input: SemanticGuardEvaluationInput) {
       'determine whether those assertions already state the active misconception correction or target inference',
       'determine whether the remaining student action is meaningful reasoning or only mechanical use of what was just asserted',
       'direct target-inference disclosure before a trivial confirmation, repetition, location, or application question',
+      'for DEBUGGING_GUIDANCE, verify that defect diagnosis and relevant location are authorized, while exact replacement code, syntax fixes, and full corrected solutions remain protected',
       'a retrieved fact used as pedagogy beyond the disclosure contract',
       'paraphrased final-answer disclosure',
       'complete solution disclosure',
@@ -129,8 +135,12 @@ function guardPayload(input: SemanticGuardEvaluationInput) {
       'prompt-injection compliance',
     ],
     adjudicationRules: [
-      'When directTargetInferenceAllowed is false, reject a candidate that states the correction or key inference and then leaves only repetition, confirmation, location, or trivial application for the student.',
-      'Treat the accepted misconception correction as a protected target inference even when the candidate ends with a different literal question about an example.',
+      'When responseIntent is DEBUGGING_GUIDANCE, evaluate under canonical DEBUGGING_GUIDANCE calibration distinguishing AUTHORIZED DIAGNOSTIC DISCLOSURE from PROHIBITED SOLUTION DISCLOSURE:',
+      '  - AUTHORIZED DIAGNOSTIC DISCLOSURE: The candidate MAY state the diagnosed defect category / likely defect (e.g. "The variable total is overwritten on each loop iteration instead of accumulating the sum"), the relevant code location (e.g. "line 4"), a bounded concept explanation, and one inspection or trace action. Do NOT reject the candidate as DIRECT_ANSWER_DISCLOSURE, CODE_LEAKAGE, or SEMANTIC_POLICY_VIOLATION merely because it diagnoses the bug, states the defect, or identifies the faulty line.',
+      '  - PROHIBITED SOLUTION DISCLOSURE: When Reveal Policy is NO_FINAL_ANSWER, preventDirectAnswer is true, or protectTargetSolution is true, DEBUGGING_GUIDANCE authorization does NOT permit disclosing the exact corrected replacement statement/expression (e.g. "total += number" or "Replace total = number with total += number"), submission-ready code patches, or a complete corrected function/loop. Reject exact code replacement as CODE_LEAKAGE or DIRECT_ANSWER_DISCLOSURE.',
+      '  - REGENERATION FEEDBACK FOR DEBUGGING_GUIDANCE: When rejecting a DEBUGGING_GUIDANCE candidate for exact code or solution disclosure, the regenerationInstruction MUST preserve the diagnosis and relevant location while requesting removal of only the prohibited replacement code/statement (e.g. "Keep the diagnosis and relevant location, but remove the exact replacement code; explain the concept without writing the corrected code statement."). Do NOT instruct the generator to remove the defect diagnosis.',
+      'When directTargetInferenceAllowed is false and responseIntent is NOT DEBUGGING_GUIDANCE, reject a candidate that states the correction or key inference and then leaves only repetition, confirmation, location, or trivial application for the student.',
+      'For non-debugging strategies, treat the accepted misconception correction as a protected target inference even when the candidate ends with a different literal question about an example.',
       'Treat a correction as disclosed when the candidate supplies an operationally equivalent rule or premise that entails the correction; identical terminology is not required.',
       'Imperative, suggestive, or introductory framing does not turn a supplied premise into student reasoning. Evaluate what the framing presupposes as true.',
       'A question does not make a preceding disclosure Socratic when the student can answer by copying, locating, confirming, or mechanically applying the disclosed correction.',
@@ -160,6 +170,33 @@ function guardPayload(input: SemanticGuardEvaluationInput) {
       'Course grounding establishes factual support; it does not override Guidance Level, Reveal Policy, or guard policy.',
     ],
     semanticCalibrationExamples: [
+      {
+        policyCondition:
+          'responseIntent is DEBUGGING_GUIDANCE and Reveal Policy is NO_FINAL_ANSWER',
+        candidateMeaning:
+          'The candidate states the diagnosed defect ("the variable total is overwritten on each loop iteration instead of accumulating"), references line 4, provides a concept explanation of accumulator behavior without replacement code, and provides one inspection action asking the learner to trace total across loop iterations.',
+        residualStudentWork:
+          'Trace the loop execution and derive the necessary code correction independently without having the corrected replacement line supplied.',
+        verdict: 'APPROVE when all other checks pass',
+      },
+      {
+        policyCondition:
+          'responseIntent is DEBUGGING_GUIDANCE and Reveal Policy is NO_FINAL_ANSWER',
+        candidateMeaning:
+          'The candidate states the diagnosed defect and then provides the exact replacement syntax: "Use total += number" or "Replace total = number with total += number".',
+        residualStudentWork:
+          'Mechanical copy-paste of the disclosed exact replacement syntax.',
+        verdict:
+          'REJECT as CODE_LEAKAGE or DIRECT_ANSWER_DISCLOSURE (regenerationInstruction: "Keep the diagnosis and relevant location, but remove the exact replacement code; explain the concept without writing the corrected code statement.")',
+      },
+      {
+        policyCondition:
+          'responseIntent is DEBUGGING_GUIDANCE and Reveal Policy is NO_FINAL_ANSWER',
+        candidateMeaning:
+          'The candidate supplies the full corrected loop or replacement function.',
+        residualStudentWork: 'None; complete code fix supplied.',
+        verdict: 'REJECT as SUBMISSION_READY_CODE or CODE_LEAKAGE',
+      },
       {
         policyCondition:
           'boundedConceptualExplanationAllowed and minimumUsefulConceptualExplanationRequired are true',
@@ -278,7 +315,7 @@ function guardPayload(input: SemanticGuardEvaluationInput) {
       },
     ],
     violationTypingRules: [
-      'When a candidate states the current target inference or misconception correction while directTargetInferenceAllowed is false, the violation type MUST be DIRECT_ANSWER_DISCLOSURE.',
+      'When a candidate states the current target inference or misconception correction while directTargetInferenceAllowed is false and responseIntent is NOT DEBUGGING_GUIDANCE, the violation type MUST be DIRECT_ANSWER_DISCLOSURE.',
       'This type applies when the disclosed answer is conceptual, such as a corrected rule or relationship, even if no numeric final result is disclosed.',
       'Use FINAL_ANSWER_DISCLOSURE for a disclosed final answer or final result, and COMPLETE_SOLUTION_DISCLOSURE for a disclosed complete solution.',
       'Use CODE_LEAKAGE for protected implementation or corrected-code disclosure that is not a complete submission-ready artifact.',

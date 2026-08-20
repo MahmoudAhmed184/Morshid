@@ -347,6 +347,38 @@ describe('tutor prompt builder', () => {
     expect(prompt).toContain('the backend renders markers from usedCitationIds')
     expect(prompt).not.toContain('debuggingGuidanceSections')
   })
+
+  it('requests location-anchored trace instruction for TRACE_EXECUTION debugging without solution reveal', () => {
+    const baseContext = debuggingGenerationContext()
+    const request = buildTutorGenerationModelRequest({
+      ...baseContext,
+      acceptedAnalysis: {
+        ...baseContext.acceptedAnalysis,
+        result: {
+          ...baseContext.acceptedAnalysis.result,
+          recommendedStrategy: TeachingStrategy.DEBUGGING_GUIDANCE,
+          recommendedTechnique: TeachingTechnique.TRACE_EXECUTION,
+        },
+      },
+      teachingDecision: {
+        ...baseContext.teachingDecision,
+        strategy: TeachingStrategy.DEBUGGING_GUIDANCE,
+        primaryTechnique: TeachingTechnique.TRACE_EXECUTION,
+        studentActionPurpose: StudentActionPurpose.PRIMARY_TECHNIQUE,
+      },
+    })
+    const prompt = request.messages.map((message) => message.content).join('\n')
+
+    expect(prompt).toContain('"technique":"TRACE_EXECUTION"')
+    expect(prompt).toContain(
+      'Anchor the action to the diagnosis relevantLocation and suspicious state update',
+    )
+    expect(prompt).toContain(
+      'Do not reveal the corrected code or the final solution',
+    )
+    expect(prompt).toContain('"revealPolicy":"NO_FINAL_ANSWER"')
+    expect(prompt).not.toContain('total += number')
+  })
 })
 
 function misconceptionContext(
