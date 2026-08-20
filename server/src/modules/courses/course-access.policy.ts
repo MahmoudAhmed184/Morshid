@@ -19,6 +19,10 @@ interface MembershipCoursesPolicy {
 export type CourseRolePolicy = AllCoursesPolicy | MembershipCoursesPolicy
 
 const COURSE_ROLE_POLICIES: Record<UserRoleType, CourseRolePolicy> = {
+  [UserRole.SUPER_ADMIN]: {
+    scope: 'all',
+    canManage: true,
+  },
   [UserRole.ADMIN]: {
     scope: 'all',
     canManage: true,

@@ -3,6 +3,7 @@ import {
   ArrowRightIcon,
   BookCheckIcon,
   CheckIcon,
+  FileSpreadsheetIcon,
   Loader2Icon,
   SearchIcon,
   UserPlusIcon,
@@ -26,10 +27,13 @@ import { Input } from '@/components/ui/input'
 import type {
   CourseAdministration,
   CourseMembershipRole,
+  ResolvedCourseMember,
 } from '@/features/courses/course-administration.schema'
 import { useDebouncedValue } from '@/lib/hooks/use-debounced-value'
 import { cn } from '@/lib/utils'
 import { useManagedUsers } from '@/workspaces/admin/users/use-user-management'
+
+import { BulkUserImportDialog } from './bulk-user-import-dialog'
 
 type AssignmentStep = 'courses' | 'users'
 
@@ -48,6 +52,12 @@ type BulkCourseAssignmentDialogProps = {
   }) => Promise<unknown>
 }
 
+type UserItem = {
+  id: string
+  displayName: string
+  email: string
+}
+
 export function BulkCourseAssignmentDialog({
   courses,
   role,
@@ -62,11 +72,15 @@ export function BulkCourseAssignmentDialog({
   const [step, setStep] = useState<AssignmentStep>('courses')
   const [courseSearch, setCourseSearch] = useState('')
   const [userSearch, setUserSearch] = useState('')
+  const [userViewMode, setUserViewMode] = useState<'all' | 'selected'>('all')
+  const [bulkImportOpen, setBulkImportOpen] = useState(false)
   const [selectedCourseIds, setSelectedCourseIds] = useState<Set<string>>(() =>
     defaultCourseId ? new Set([defaultCourseId]) : new Set(),
   )
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set())
+  const [knownUsers, setKnownUsers] = useState<Map<string, UserItem>>(new Map())
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
   const debouncedUserSearch = useDebouncedValue(userSearch.trim(), 250)
   const usersQuery = useManagedUsers(
     {
@@ -74,12 +88,13 @@ export function BulkCourseAssignmentDialog({
       status: 'ACTIVE',
       search: debouncedUserSearch || undefined,
     },
-    open && step === 'users',
+    open && step === 'users' && userViewMode === 'all',
   )
-  const users = useMemo(
+  const paginatedUsers = useMemo(
     () => usersQuery.data?.pages.flatMap((page) => page.users) ?? [],
     [usersQuery.data],
   )
+
   const filteredCourses = useMemo(() => {
     const query = courseSearch.trim().toLowerCase()
     if (!query) return courses
@@ -89,30 +104,60 @@ export function BulkCourseAssignmentDialog({
         course.title.toLowerCase().includes(query),
     )
   }, [courseSearch, courses])
+
   const userLabel = role === 'STUDENT' ? 'students' : 'instructors'
   const maxUserSelections = Math.floor(
     1_000 / Math.max(selectedCourseIds.size, 1),
   )
+
+  const selectedUsersList = useMemo(() => {
+    const list: UserItem[] = []
+    for (const id of selectedUserIds) {
+      const known =
+        knownUsers.get(id) ?? paginatedUsers.find((u) => u.id === id)
+      if (known) {
+        list.push(known)
+      } else {
+        list.push({ id, displayName: id, email: id })
+      }
+    }
+    const query = userSearch.trim().toLowerCase()
+    if (!query) return list
+    return list.filter(
+      (u) =>
+        u.displayName.toLowerCase().includes(query) ||
+        u.email.toLowerCase().includes(query),
+    )
+  }, [selectedUserIds, knownUsers, paginatedUsers, userSearch])
+
+  const displayedUsers =
+    userViewMode === 'selected' ? selectedUsersList : paginatedUsers
+
   const allVisibleCoursesSelected =
     filteredCourses.length > 0 &&
     filteredCourses.every((course) => selectedCourseIds.has(course.id))
+
   const allVisibleUsersSelected =
-    users.length > 0 && users.every((user) => selectedUserIds.has(user.id))
+    displayedUsers.length > 0 &&
+    displayedUsers.every((user) => selectedUserIds.has(user.id))
 
   const reset = () => {
     setStep('courses')
     setCourseSearch('')
     setUserSearch('')
+    setUserViewMode('all')
     setSelectedCourseIds(
       defaultCourseId ? new Set([defaultCourseId]) : new Set(),
     )
     setSelectedUserIds(new Set())
+    setKnownUsers(new Map())
     setErrorMessage(null)
+    setBulkImportOpen(false)
   }
 
   const setDialogOpen = (nextOpen: boolean) => {
     setOpen(nextOpen)
-    reset()
+    if (!nextOpen) reset()
   }
 
   const toggleCourse = (courseId: string) => {
@@ -152,15 +197,40 @@ export function BulkCourseAssignmentDialog({
     setSelectedUserIds((current) => {
       const next = new Set(current)
       if (allVisibleUsersSelected) {
-        for (const user of users) next.delete(user.id)
+        for (const user of displayedUsers) next.delete(user.id)
       } else {
-        for (const user of users) {
+        for (const user of displayedUsers) {
           if (next.size >= maxUserSelections) break
           next.add(user.id)
         }
       }
       return next
     })
+  }
+
+  const handleApplyBulkImport = (resolvedUsers: ResolvedCourseMember[]) => {
+    setKnownUsers((prev) => {
+      const next = new Map(prev)
+      for (const u of resolvedUsers) {
+        next.set(u.id, {
+          id: u.id,
+          displayName: u.displayName,
+          email: u.email,
+        })
+      }
+      return next
+    })
+
+    setSelectedUserIds((prev) => {
+      const next = new Set(prev)
+      for (const u of resolvedUsers) {
+        if (next.size >= maxUserSelections) break
+        next.add(u.id)
+      }
+      return next
+    })
+
+    setUserViewMode('selected')
   }
 
   const handleAssign = async () => {
@@ -188,118 +258,136 @@ export function BulkCourseAssignmentDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setDialogOpen}>
-      <DialogTrigger render={<Button disabled={courses.length === 0} />}>
-        <BookCheckIcon className="size-4" />
-        Assign {userLabel}
-      </DialogTrigger>
-      <DialogContent className="flex h-[min(88vh,820px)] w-[min(96vw,1120px)] max-w-none flex-col gap-4 overflow-hidden p-5 sm:max-w-none sm:p-6">
-        <DialogHeader className="shrink-0 pr-10">
-          <DialogTitle>Assign {userLabel} to courses</DialogTitle>
-          <DialogDescription>
-            Choose courses first, then choose the {userLabel} to add to all of
-            them. Existing assignments are skipped.
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={setDialogOpen}>
+        <DialogTrigger render={<Button disabled={courses.length === 0} />}>
+          <BookCheckIcon className="size-4" />
+          Assign {userLabel}
+        </DialogTrigger>
+        <DialogContent className="flex h-[min(88vh,820px)] w-[min(96vw,1120px)] max-w-none flex-col gap-4 overflow-hidden p-5 sm:max-w-none sm:p-6">
+          <DialogHeader className="shrink-0 pr-10">
+            <DialogTitle>Assign {userLabel} to courses</DialogTitle>
+            <DialogDescription>
+              Choose courses first, then choose the {userLabel} to add to all of
+              them. Existing assignments are skipped.
+            </DialogDescription>
+          </DialogHeader>
 
-        <AssignmentSteps step={step} role={role} />
+          <AssignmentSteps step={step} role={role} />
 
-        {errorMessage ? (
-          <p role="alert" className="shrink-0 text-sm text-destructive">
-            {errorMessage}
-          </p>
-        ) : null}
+          {errorMessage ? (
+            <p role="alert" className="shrink-0 text-sm text-destructive">
+              {errorMessage}
+            </p>
+          ) : null}
 
-        <div className="min-h-0 flex-1 overflow-hidden rounded-xl border bg-muted/15">
-          {step === 'courses' ? (
-            <CourseSelectionStep
-              courses={filteredCourses}
-              search={courseSearch}
-              selectedCourseIds={selectedCourseIds}
-              allVisibleSelected={allVisibleCoursesSelected}
-              onSearchChange={setCourseSearch}
-              onToggleCourse={toggleCourse}
-              onToggleAll={toggleVisibleCourses}
-              hasNextPage={hasNextCoursePage}
-              isLoadingMore={isLoadingMoreCourses}
-              onLoadMore={onLoadMoreCourses}
-            />
-          ) : (
-            <UserSelectionStep
-              users={users}
-              role={role}
-              search={userSearch}
-              selectedUserIds={selectedUserIds}
-              allVisibleSelected={allVisibleUsersSelected}
-              maxSelections={maxUserSelections}
-              isLoading={usersQuery.isPending}
-              isError={usersQuery.isError}
-              hasNextPage={usersQuery.hasNextPage}
-              isLoadingMore={usersQuery.isFetchingNextPage}
-              onSearchChange={setUserSearch}
-              onToggleUser={toggleUser}
-              onToggleAll={toggleVisibleUsers}
-              onLoadMore={() => void usersQuery.fetchNextPage()}
-              onRetry={() => void usersQuery.refetch()}
-            />
-          )}
-        </div>
+          <div className="min-h-0 flex-1 overflow-hidden rounded-xl border bg-muted/15">
+            {step === 'courses' ? (
+              <CourseSelectionStep
+                courses={filteredCourses}
+                search={courseSearch}
+                selectedCourseIds={selectedCourseIds}
+                allVisibleSelected={allVisibleCoursesSelected}
+                onSearchChange={setCourseSearch}
+                onToggleCourse={toggleCourse}
+                onToggleAll={toggleVisibleCourses}
+                hasNextPage={hasNextCoursePage}
+                isLoadingMore={isLoadingMoreCourses}
+                onLoadMore={onLoadMoreCourses}
+              />
+            ) : (
+              <UserSelectionStep
+                users={displayedUsers}
+                role={role}
+                search={userSearch}
+                viewMode={userViewMode}
+                selectedUserIds={selectedUserIds}
+                allVisibleSelected={allVisibleUsersSelected}
+                maxSelections={maxUserSelections}
+                isLoading={usersQuery.isPending && userViewMode === 'all'}
+                isError={usersQuery.isError && userViewMode === 'all'}
+                hasNextPage={usersQuery.hasNextPage && userViewMode === 'all'}
+                isLoadingMore={
+                  usersQuery.isFetchingNextPage && userViewMode === 'all'
+                }
+                onViewModeChange={setUserViewMode}
+                onSearchChange={setUserSearch}
+                onToggleUser={toggleUser}
+                onToggleAll={toggleVisibleUsers}
+                onOpenBulkImport={() => setBulkImportOpen(true)}
+                onLoadMore={() => void usersQuery.fetchNextPage()}
+                onRetry={() => void usersQuery.refetch()}
+              />
+            )}
+          </div>
 
-        <DialogFooter className="shrink-0 items-center border-t pt-4 sm:justify-between">
-          <p className="mr-auto text-xs text-muted-foreground">
-            {selectedCourseIds.size} course
-            {selectedCourseIds.size === 1 ? '' : 's'} · {selectedUserIds.size}{' '}
-            {userLabel} ·{' '}
-            {(selectedCourseIds.size * selectedUserIds.size).toLocaleString()}{' '}
-            assignments
-          </p>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={isPending}
-            onClick={() => setDialogOpen(false)}
-          >
-            Cancel
-          </Button>
-          {step === 'users' ? (
+          <DialogFooter className="shrink-0 items-center border-t pt-4 sm:justify-between">
+            <p className="mr-auto text-xs text-muted-foreground">
+              {selectedCourseIds.size} course
+              {selectedCourseIds.size === 1 ? '' : 's'} · {selectedUserIds.size}{' '}
+              {userLabel} ·{' '}
+              {(selectedCourseIds.size * selectedUserIds.size).toLocaleString()}{' '}
+              assignments
+            </p>
             <Button
               type="button"
               variant="outline"
               disabled={isPending}
-              onClick={() => setStep('courses')}
+              onClick={() => setDialogOpen(false)}
             >
-              <ArrowLeftIcon /> Back
+              Cancel
             </Button>
-          ) : null}
-          {step === 'courses' ? (
-            <Button
-              type="button"
-              disabled={selectedCourseIds.size === 0}
-              onClick={goToUsers}
-            >
-              Choose {userLabel} <ArrowRightIcon />
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              disabled={
-                selectedUserIds.size === 0 ||
-                selectedCourseIds.size * selectedUserIds.size > 1_000 ||
-                isPending
-              }
-              onClick={() => void handleAssign()}
-            >
-              {isPending ? (
-                <Loader2Icon className="animate-spin" />
-              ) : (
-                <UserPlusIcon />
-              )}
-              Assign {selectedUserIds.size || ''} {userLabel}
-            </Button>
-          )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            {step === 'users' ? (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isPending}
+                onClick={() => setStep('courses')}
+              >
+                <ArrowLeftIcon /> Back
+              </Button>
+            ) : null}
+            {step === 'courses' ? (
+              <Button
+                type="button"
+                disabled={selectedCourseIds.size === 0}
+                onClick={goToUsers}
+              >
+                Choose {userLabel} <ArrowRightIcon />
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                disabled={
+                  selectedUserIds.size === 0 ||
+                  selectedCourseIds.size * selectedUserIds.size > 1_000 ||
+                  isPending
+                }
+                onClick={() => void handleAssign()}
+              >
+                {isPending ? (
+                  <Loader2Icon className="animate-spin" />
+                ) : (
+                  <UserPlusIcon />
+                )}
+                Assign {selectedUserIds.size || ''} {userLabel}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <BulkUserImportDialog
+        open={bulkImportOpen}
+        onOpenChange={setBulkImportOpen}
+        role={role}
+        selectedCourseIds={selectedCourseIds}
+        courses={courses}
+        maxUserSelections={maxUserSelections}
+        currentSelectedCount={selectedUserIds.size}
+        onApply={handleApplyBulkImport}
+      />
+    </>
   )
 }
 
@@ -419,9 +507,10 @@ function CourseSelectionStep({
 }
 
 type UserSelectionStepProps = {
-  users: Array<{ id: string; displayName: string; email: string }>
+  users: UserItem[]
   role: CourseMembershipRole
   search: string
+  viewMode: 'all' | 'selected'
   selectedUserIds: Set<string>
   allVisibleSelected: boolean
   maxSelections: number
@@ -429,9 +518,11 @@ type UserSelectionStepProps = {
   isError: boolean
   hasNextPage: boolean
   isLoadingMore: boolean
+  onViewModeChange: (mode: 'all' | 'selected') => void
   onSearchChange: (value: string) => void
   onToggleUser: (userId: string) => void
   onToggleAll: () => void
+  onOpenBulkImport: () => void
   onLoadMore: () => void
   onRetry: () => void
 }
@@ -440,6 +531,7 @@ function UserSelectionStep({
   users,
   role,
   search,
+  viewMode,
   selectedUserIds,
   allVisibleSelected,
   maxSelections,
@@ -447,9 +539,11 @@ function UserSelectionStep({
   isError,
   hasNextPage,
   isLoadingMore,
+  onViewModeChange,
   onSearchChange,
   onToggleUser,
   onToggleAll,
+  onOpenBulkImport,
   onLoadMore,
   onRetry,
 }: UserSelectionStepProps) {
@@ -463,13 +557,21 @@ function UserSelectionStep({
         searchPlaceholder={`Search ${userLabel.toLowerCase()} by name or email...`}
         allVisibleSelected={allVisibleSelected}
         hasItems={users.length > 0}
+        viewMode={viewMode}
+        onViewModeChange={onViewModeChange}
         onSearchChange={onSearchChange}
         onToggleAll={onToggleAll}
+        onOpenBulkImport={onOpenBulkImport}
+        showBulkImport
       />
-      <p className="shrink-0 border-b px-4 py-2 text-xs text-muted-foreground">
-        Search runs across all {userLabel.toLowerCase()}. Up to{' '}
-        {maxSelections.toLocaleString()} may be selected for the chosen courses.
-      </p>
+      <div className="flex shrink-0 items-center justify-between border-b px-4 py-2 text-xs text-muted-foreground">
+        <span>
+          {viewMode === 'all'
+            ? `Showing all active ${userLabel.toLowerCase()}.`
+            : `Showing selected ${userLabel.toLowerCase()} (${selectedUserIds.size}).`}{' '}
+          Up to {maxSelections.toLocaleString()} may be selected.
+        </span>
+      </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-3">
         {isLoading ? (
           <div className="flex h-full items-center justify-center gap-2 text-muted-foreground">
@@ -487,7 +589,11 @@ function UserSelectionStep({
           </div>
         ) : users.length === 0 ? (
           <SelectionEmpty
-            message={`No ${userLabel.toLowerCase()} match this search.`}
+            message={
+              viewMode === 'selected'
+                ? `No ${userLabel.toLowerCase()} currently selected. Choose from the list or use Bulk select / import.`
+                : `No ${userLabel.toLowerCase()} match this search.`
+            }
           />
         ) : (
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -529,8 +635,12 @@ type SelectionHeaderProps = {
   searchPlaceholder: string
   allVisibleSelected: boolean
   hasItems: boolean
+  viewMode?: 'all' | 'selected'
+  showBulkImport?: boolean
+  onViewModeChange?: (mode: 'all' | 'selected') => void
   onSearchChange: (value: string) => void
   onToggleAll: () => void
+  onOpenBulkImport?: () => void
 }
 
 function SelectionHeader({
@@ -540,15 +650,49 @@ function SelectionHeader({
   searchPlaceholder,
   allVisibleSelected,
   hasItems,
+  viewMode,
+  showBulkImport = false,
+  onViewModeChange,
   onSearchChange,
   onToggleAll,
+  onOpenBulkImport,
 }: SelectionHeaderProps) {
   return (
     <div className="flex shrink-0 flex-col gap-3 border-b bg-card p-4 sm:flex-row sm:items-center">
-      <div className="flex min-w-36 items-center gap-2">
+      <div className="flex items-center gap-2">
         <h3 className="font-semibold">{title}</h3>
         <Badge variant="secondary">{selectedCount} selected</Badge>
       </div>
+
+      {onViewModeChange ? (
+        <div className="inline-flex rounded-lg border bg-muted p-0.5 text-xs">
+          <button
+            type="button"
+            onClick={() => onViewModeChange('all')}
+            className={cn(
+              'rounded-md px-2.5 py-1 font-medium transition-colors',
+              viewMode === 'all'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            All
+          </button>
+          <button
+            type="button"
+            onClick={() => onViewModeChange('selected')}
+            className={cn(
+              'rounded-md px-2.5 py-1 font-medium transition-colors',
+              viewMode === 'selected'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            Selected ({selectedCount})
+          </button>
+        </div>
+      ) : null}
+
       <div className="relative min-w-0 flex-1">
         <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -568,14 +712,29 @@ function SelectionHeader({
           </button>
         ) : null}
       </div>
-      <Button
-        type="button"
-        variant="outline"
-        disabled={!hasItems}
-        onClick={onToggleAll}
-      >
-        {allVisibleSelected ? 'Unselect visible' : 'Select visible'}
-      </Button>
+
+      <div className="flex items-center gap-2">
+        {showBulkImport && onOpenBulkImport ? (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onOpenBulkImport}
+            className="gap-1.5"
+          >
+            <FileSpreadsheetIcon className="size-4" />
+            Bulk select / import
+          </Button>
+        ) : null}
+
+        <Button
+          type="button"
+          variant="outline"
+          disabled={!hasItems}
+          onClick={onToggleAll}
+        >
+          {allVisibleSelected ? 'Unselect visible' : 'Select visible'}
+        </Button>
+      </div>
     </div>
   )
 }

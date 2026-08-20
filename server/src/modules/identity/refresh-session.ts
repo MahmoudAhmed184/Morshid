@@ -107,6 +107,31 @@ export class RefreshSession {
           }
         }
 
+        if (this.identityUser.isTenantSuspended(lockedUser)) {
+          return {
+            kind: 'tenant_suspended' as const,
+            userId: lockedUser.id,
+          }
+        }
+
+        if (this.identityUser.isTenantInactive(lockedUser)) {
+          return {
+            kind: 'tenant_inactive' as const,
+            userId: lockedUser.id,
+          }
+        }
+
+        if (
+          lockedUser.role !== 'SUPER_ADMIN' &&
+          (lockedUser.universityId === null ||
+            lockedUser.universityStatus === null)
+        ) {
+          return {
+            kind: 'tenant_not_found' as const,
+            userId: lockedUser.id,
+          }
+        }
+
         const nextRefreshToken = await this.createWithRepository(
           repository,
           lockedUser,
@@ -186,6 +211,31 @@ export class RefreshSession {
       if (this.identityUser.isDisabled(lockedUser)) {
         return {
           kind: 'disabled' as const,
+          user: lockedUser,
+        }
+      }
+
+      if (this.identityUser.isTenantSuspended(lockedUser)) {
+        return {
+          kind: 'tenant_suspended' as const,
+          user: lockedUser,
+        }
+      }
+
+      if (this.identityUser.isTenantInactive(lockedUser)) {
+        return {
+          kind: 'tenant_inactive' as const,
+          user: lockedUser,
+        }
+      }
+
+      if (
+        lockedUser.role !== 'SUPER_ADMIN' &&
+        (lockedUser.universityId === null ||
+          lockedUser.universityStatus === null)
+      ) {
+        return {
+          kind: 'tenant_not_found' as const,
           user: lockedUser,
         }
       }
@@ -341,6 +391,18 @@ export type RefreshTokenRotation =
       userId: string
     }
   | {
+      kind: 'tenant_suspended'
+      userId: string
+    }
+  | {
+      kind: 'tenant_inactive'
+      userId: string
+    }
+  | {
+      kind: 'tenant_not_found'
+      userId: string
+    }
+  | {
       kind: 'rotated'
       nextRefreshToken: CreatedRefreshToken
       previousToken: RefreshTokenRecord
@@ -350,6 +412,18 @@ export type RefreshTokenRotation =
 export type PasswordChangeSessionResult =
   | {
       kind: 'disabled'
+      user: IdentityUserRecord
+    }
+  | {
+      kind: 'tenant_suspended'
+      user: IdentityUserRecord
+    }
+  | {
+      kind: 'tenant_inactive'
+      user: IdentityUserRecord
+    }
+  | {
+      kind: 'tenant_not_found'
       user: IdentityUserRecord
     }
   | {

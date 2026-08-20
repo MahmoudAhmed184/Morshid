@@ -66,5 +66,6 @@ import { UserImportService } from './user-administration/user-import.service'
       useClass: PrismaUserAdministrationRepository,
     },
   ],
+  exports: [PasswordHasher],
 })
 export class IdentityModule {}

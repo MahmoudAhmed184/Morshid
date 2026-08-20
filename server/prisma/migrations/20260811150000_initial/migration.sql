@@ -26,7 +26,10 @@ CREATE TYPE "course_membership_role" AS ENUM ('INSTRUCTOR', 'STUDENT');
 CREATE TYPE "material_status" AS ENUM ('PROCESSING', 'READY', 'WARNING', 'FAILED');
 
 -- CreateEnum
-CREATE TYPE "user_role" AS ENUM ('ADMIN', 'INSTRUCTOR', 'STUDENT');
+CREATE TYPE "user_role" AS ENUM ('SUPER_ADMIN', 'ADMIN', 'INSTRUCTOR', 'STUDENT');
+
+-- CreateEnum
+CREATE TYPE "university_status" AS ENUM ('ACTIVE', 'INACTIVE', 'SUSPENDED');
 
 -- CreateEnum
 CREATE TYPE "user_status" AS ENUM ('ACTIVE', 'DISABLED');
@@ -198,8 +201,22 @@ CREATE TABLE "message_citations" (
 );
 
 -- CreateTable
+CREATE TABLE "universities" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "name" VARCHAR(160) NOT NULL,
+    "code" VARCHAR(50) NOT NULL,
+    "status" "university_status" NOT NULL DEFAULT 'ACTIVE',
+    "owner_id" UUID,
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "universities_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "courses" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "university_id" UUID NOT NULL,
     "code" VARCHAR(40) NOT NULL,
     "title" VARCHAR(160) NOT NULL,
     "created_by" UUID,
@@ -274,6 +291,7 @@ CREATE TABLE "users" (
     "display_name" VARCHAR(120) NOT NULL,
     "role" "user_role" NOT NULL,
     "status" "user_status" NOT NULL DEFAULT 'ACTIVE',
+    "university_id" UUID,
     "password_hash" TEXT NOT NULL,
     "disabled_at" TIMESTAMPTZ(6),
     "disabled_by" UUID,
@@ -674,7 +692,19 @@ CREATE INDEX "idx_citations_material" ON "message_citations"("material_id");
 CREATE UNIQUE INDEX "message_citations_message_id_citation_order_key" ON "message_citations"("message_id", "citation_order");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "universities_code_key" ON "universities"("code");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "universities_owner_id_key" ON "universities"("owner_id");
+
+-- CreateIndex
+CREATE INDEX "idx_universities_status" ON "universities"("status");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "courses_code_key" ON "courses"("code");
+
+-- CreateIndex
+CREATE INDEX "idx_courses_university" ON "courses"("university_id");
 
 -- CreateIndex
 CREATE INDEX "idx_courses_created_by" ON "courses"("created_by");
@@ -711,6 +741,9 @@ CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 
 -- CreateIndex
 CREATE INDEX "idx_users_disabled_by" ON "users"("disabled_by");
+
+-- CreateIndex
+CREATE INDEX "idx_users_university_role" ON "users"("university_id", "role");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "refresh_tokens_token_hash_key" ON "refresh_tokens"("token_hash");
@@ -882,6 +915,12 @@ ALTER TABLE "message_citations" ADD CONSTRAINT "message_citations_message_id_fke
 ALTER TABLE "message_citations" ADD CONSTRAINT "message_citations_material_id_fkey" FOREIGN KEY ("material_id") REFERENCES "materials"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "universities" ADD CONSTRAINT "universities_owner_id_fkey" FOREIGN KEY ("owner_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "courses" ADD CONSTRAINT "courses_university_id_fkey" FOREIGN KEY ("university_id") REFERENCES "universities"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "courses" ADD CONSTRAINT "courses_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -904,6 +943,9 @@ ALTER TABLE "material_processing_commands" ADD CONSTRAINT "material_processing_c
 
 -- AddForeignKey
 ALTER TABLE "material_chunks" ADD CONSTRAINT "material_chunks_material_id_fkey" FOREIGN KEY ("material_id") REFERENCES "materials"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "users" ADD CONSTRAINT "users_university_id_fkey" FOREIGN KEY ("university_id") REFERENCES "universities"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "users" ADD CONSTRAINT "users_disabled_by_fkey" FOREIGN KEY ("disabled_by") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -1034,7 +1076,12 @@ ALTER TABLE "user_import_rows" ADD CONSTRAINT "user_import_rows_import_id_fkey" 
 -- Handwritten net-live checks retained from the historical schema inventory.
 ALTER TABLE "users"
   ADD CONSTRAINT "users_disabled_status_check"
-  CHECK (("status" = 'DISABLED') = ("disabled_at" IS NOT NULL));
+  CHECK (("status" = 'DISABLED') = ("disabled_at" IS NOT NULL)),
+  ADD CONSTRAINT "users_role_university_scope_check"
+  CHECK (
+    ("role" = 'SUPER_ADMIN' AND "university_id" IS NULL) OR
+    ("role" IN ('ADMIN', 'INSTRUCTOR', 'STUDENT') AND "university_id" IS NOT NULL)
+  );
 
 ALTER TABLE "materials"
   ADD CONSTRAINT "materials_extracted_text_length_check"

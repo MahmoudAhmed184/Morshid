@@ -43,6 +43,7 @@ const user: AuthenticatedUser = {
   displayName: 'Student',
   role: UserRole.STUDENT,
   status: UserStatus.ACTIVE,
+  universityId: 'univ-1',
 }
 
 describe('TutoringRuntimeApplication diagnosis failure paths', () => {

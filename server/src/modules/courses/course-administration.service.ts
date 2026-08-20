@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { ForbiddenException, Injectable } from '@nestjs/common'
 
 import { CourseMembershipRole } from './interface/course-membership-role'
 import type { AuthenticatedUser } from '../identity/identity.types'
@@ -7,6 +7,8 @@ import type {
   AddCourseMemberRequest,
   BulkAddCourseMembersRequest,
   BulkAddCourseMembersResponseDto,
+  ResolveCourseMembersRequest,
+  ResolveCourseMembersResponseDto,
   CourseAdministrationDetailResponseDto,
   CourseAdministrationListResponseDto,
   CourseAdministrationMemberListResponseDto,
@@ -76,10 +78,17 @@ export class CourseAdministrationService {
       throw courseCodeAlreadyExistsException(input.code)
     }
 
+    if (actor.universityId === null) {
+      throw new ForbiddenException(
+        'Actor must belong to a university to create a course',
+      )
+    }
+
     try {
       const course = await this.coursesRepository.createCourse({
         code: input.code,
         title: input.title,
+        universityId: actor.universityId,
         actorUserId: actor.id,
         requestContext,
       })
@@ -234,6 +243,12 @@ export class CourseAdministrationService {
       actorUserId: actor.id,
       requestContext,
     })
+  }
+
+  async resolveMembers(
+    input: ResolveCourseMembersRequest,
+  ): Promise<ResolveCourseMembersResponseDto> {
+    return this.coursesRepository.resolveUsersForCourseAssignment(input)
   }
 
   async removeMember(

@@ -74,6 +74,7 @@ async function migrationSql(directory: string): Promise<string> {
 }
 
 async function seedPreProtectionRows(client: Client) {
+  const universityId = randomUUID()
   const userId = randomUUID()
   const courseId = randomUUID()
   const sessionId = randomUUID()
@@ -85,14 +86,19 @@ async function seedPreProtectionRows(client: Client) {
   const messageId = randomUUID()
 
   await client.query(
-    `INSERT INTO "users" ("id", "email", "display_name", "role", "password_hash")
-     VALUES ($1, $2, 'Backfill Student', 'STUDENT', 'not-a-real-hash')`,
-    [userId, `backfill-${userId}@example.test`],
+    `INSERT INTO "universities" ("id", "name", "code")
+     VALUES ($1, 'Backfill University', $2)`,
+    [universityId, `BFU-${universityId.slice(0, 8)}`],
   )
   await client.query(
-    `INSERT INTO "courses" ("id", "code", "title")
-     VALUES ($1, $2, 'Backfill Course')`,
-    [courseId, `BF-${courseId.slice(0, 8)}`],
+    `INSERT INTO "users" ("id", "email", "display_name", "role", "password_hash", "university_id")
+     VALUES ($1, $2, 'Backfill Student', 'STUDENT', 'not-a-real-hash', $3)`,
+    [userId, `backfill-${userId}@example.test`, universityId],
+  )
+  await client.query(
+    `INSERT INTO "courses" ("id", "code", "title", "university_id")
+     VALUES ($1, $2, 'Backfill Course', $3)`,
+    [courseId, `BF-${courseId.slice(0, 8)}`, universityId],
   )
   await client.query(
     `INSERT INTO "course_memberships" ("course_id", "user_id", "role")

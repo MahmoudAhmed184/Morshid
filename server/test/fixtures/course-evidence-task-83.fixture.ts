@@ -6,6 +6,7 @@ export const COURSE_EVIDENCE_TASK_83_EMBEDDING_MODEL =
   'task-83-deterministic-vector'
 
 export const COURSE_EVIDENCE_TASK_83 = {
+  universityId: '83000000-0000-4000-8000-000000000000',
   ownerId: '83000000-0000-4000-8000-000000000001',
   pythonCourseId: '83000000-0000-4000-8000-000000000002',
   hiddenCourseId: '83000000-0000-4000-8000-000000000003',
@@ -81,12 +82,23 @@ export async function seedCourseEvidenceTask83Fixture(
 ): Promise<void> {
   const fixture = COURSE_EVIDENCE_TASK_83
 
+  await prisma.university.upsert({
+    where: { id: fixture.universityId },
+    update: {},
+    create: {
+      id: fixture.universityId,
+      name: 'Task 83 Test University',
+      code: 'TASK-83-UNIV',
+      status: 'ACTIVE',
+    },
+  })
   await prisma.user.create({
     data: {
       id: fixture.ownerId,
       email: 'task-83-instructor@morshid.test',
       displayName: 'Task 83 synthetic instructor',
       role: 'INSTRUCTOR',
+      universityId: fixture.universityId,
       passwordHash: 'synthetic-test-password-hash',
     },
   })
@@ -94,12 +106,14 @@ export async function seedCourseEvidenceTask83Fixture(
     data: [
       {
         id: fixture.pythonCourseId,
+        universityId: fixture.universityId,
         code: fixture.courseCodes.python,
         title: 'Synthetic Python course for Task 83',
         createdById: fixture.ownerId,
       },
       {
         id: fixture.hiddenCourseId,
+        universityId: fixture.universityId,
         code: fixture.courseCodes.hidden,
         title: 'Synthetic hidden isolation course for Task 83',
         createdById: fixture.ownerId,

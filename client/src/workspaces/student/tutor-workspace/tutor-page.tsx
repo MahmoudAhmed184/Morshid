@@ -679,6 +679,7 @@ function StudentConversation({
         userId={studentId}
         courseId={course.id}
         sessionId={session.id}
+        messages={messages}
         isGenerating={isGenerationActive}
         sendError={sendMessage.error}
         onDismissError={sendMessage.reset}

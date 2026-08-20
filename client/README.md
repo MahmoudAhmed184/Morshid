@@ -35,6 +35,7 @@ client/src/
 ```
 
 ### Route generation and boundaries
+
 - TanStack Router manages file-based routing. **Never hand-edit `src/routeTree.gen.ts`**; the router CLI generates it automatically.
 - All internal imports use the `@/*` alias mapping to `client/src/*`.
 - Run `npm run test:architecture:client` to verify dependencies between features and workspaces.
@@ -46,6 +47,7 @@ client/src/
 Morshid provides three authenticated workspaces:
 
 ### 1. Student workspace (`/_student`, requires `STUDENT` role)
+
 - `/chat`: Main Socratic tutoring hub.
   - Welcome and prompt starters when no session is selected.
   - Active conversation stream rendering Markdown, LaTeX math formulas, code blocks, hint levels, and guidance badges.
@@ -56,12 +58,14 @@ Morshid provides three authenticated workspaces:
   - Global `⌘K` search palette across conversation titles and content.
 
 ### 2. Instructor workspace (`/instructor`, requires `INSTRUCTOR` role)
+
 - `/instructor/`: Dashboard displaying assigned course metrics, material readiness, and pending review counts.
 - `/instructor/materials/`: PDF upload modal (drag-and-drop, size validation), material deletion, and automatic polling for background ingestion status.
 - `/instructor/review-queue/`: Review queue filterable by status and trigger reasons.
 - `/instructor/review-queue/$reviewCaseId`: Detailed triage viewer with full conversation context and resolution actions (**Approve Original**, **Inline Edit**, **Replace with Fresh Guidance**, or **Reject Request**).
 
 ### 3. Admin workspace (`/admin`, requires `ADMIN` role)
+
 - `/admin/`: System-wide metrics, quick actions, and recent audit activity feed.
 - `/admin/users/students` & `/admin/users/instructors`: Paginated user tables, status toggles (Active/Disabled), password reset dialog, and CSV bulk user import via PapaParse.
 - `/admin/courses/`: Course creation, editing, and archiving.
@@ -69,6 +73,7 @@ Morshid provides three authenticated workspaces:
 - `/admin/audit/`: Structured security and operational audit trail viewer.
 
 ### 4. Auth and public routes
+
 - `/`: Public landing page with the Socratic learning method, curriculum overview, and sign-in CTA.
 - `/login`: Institutional sign-in form with demo account autofill pills.
 - `/settings`, `/instructor/settings`, `/admin/settings`: Profile details, light/dark mode switch, and 6 institutional color palettes.

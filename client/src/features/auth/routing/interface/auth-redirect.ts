@@ -2,6 +2,7 @@ import type { AuthRole } from '@/features/auth/session/session.schema'
 import { loadAuthenticatedUser } from '@/features/auth/routing/auth-session-loader'
 
 const authRedirectByRole = {
+  SUPER_ADMIN: '/super-admin',
   ADMIN: '/admin',
   INSTRUCTOR: '/instructor',
   STUDENT: '/chat',

@@ -8,6 +8,7 @@ import type { InfiniteData } from '@tanstack/react-query'
 
 import {
   deleteCourseMaterial,
+  retryCourseMaterialProcessing,
   uploadCourseMaterial,
 } from '@/features/materials/material-ingestion/material-ingestion.api'
 import type { MaterialsResponse } from '@/features/materials/material-ingestion/material.schema'
@@ -109,6 +110,85 @@ export function useDeleteCourseMaterial() {
         }
       })
       await queryClient.invalidateQueries({ queryKey, exact: true })
+    },
+  })
+}
+
+export function useRetryCourseMaterialProcessing() {
+  const instructorId = useInstructorId()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      courseId,
+      materialId,
+    }: {
+      courseId: string
+      materialId: string
+    }) => retryCourseMaterialProcessing(courseId, materialId),
+    onMutate: async ({ courseId, materialId }) => {
+      if (!instructorId) return
+      const queryKey = materialKeys.list({ instructorId, courseId })
+      await queryClient.cancelQueries({ queryKey, exact: true })
+      const previous =
+        queryClient.getQueryData<
+          InfiniteData<MaterialsResponse, string | undefined>
+        >(queryKey)
+
+      queryClient.setQueryData<
+        InfiniteData<MaterialsResponse, string | undefined>
+      >(queryKey, (data) => {
+        if (!data) return data
+        return {
+          ...data,
+          pages: data.pages.map((page) => ({
+            ...page,
+            materials: page.materials.map((material) =>
+              material.id === materialId && material.status === 'FAILED'
+                ? {
+                    ...material,
+                    status: 'PROCESSING',
+                    extractedTextLength: null,
+                    chunkCount: null,
+                    errorMessage: null,
+                  }
+                : material,
+            ),
+          })),
+        }
+      })
+
+      return { previous, queryKey }
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(context.queryKey, context.previous)
+      }
+    },
+    onSuccess: (response, { courseId, materialId }) => {
+      if (!instructorId) return
+      const queryKey = materialKeys.list({ instructorId, courseId })
+      queryClient.setQueryData<
+        InfiniteData<MaterialsResponse, string | undefined>
+      >(queryKey, (data) => {
+        if (!data) return data
+        return {
+          ...data,
+          pages: data.pages.map((page) => ({
+            ...page,
+            materials: page.materials.map((material) =>
+              material.id === materialId ? response.material : material,
+            ),
+          })),
+        }
+      })
+    },
+    onSettled: async (_data, _error, { courseId }) => {
+      if (!instructorId) return
+      await queryClient.invalidateQueries({
+        queryKey: materialKeys.list({ instructorId, courseId }),
+        exact: true,
+      })
     },
   })
 }

@@ -9,7 +9,7 @@ import {
   UploadIcon,
   XIcon,
 } from 'lucide-react'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 
 import { Button } from '@/components/ui/button'
@@ -43,6 +43,10 @@ import type {
 import { cn } from '@/lib/utils'
 
 type UploadStatus = 'idle' | 'uploading' | 'success' | 'error'
+
+const DUPLICATE_PDF_ERROR_CODE = 'MATERIALS_DUPLICATE_PDF'
+const DUPLICATE_PDF_MESSAGE =
+  'This PDF has already been uploaded to this course.'
 
 export interface MaterialUploadCourseOption {
   id: string
@@ -112,6 +116,12 @@ export function MaterialUploadForm({
     },
   })
 
+  useEffect(() => {
+    if (status === 'idle' && !form.formState.isDirty) {
+      form.setValue('courseId', initialCourseId)
+    }
+  }, [form, initialCourseId, status])
+
   const handleSubmit = async ({
     courseId: targetCourseId,
     title,
@@ -133,7 +143,9 @@ export function MaterialUploadForm({
       setStatus('error')
       setErrorMessage(
         isApiError(error)
-          ? error.message
+          ? error.code === DUPLICATE_PDF_ERROR_CODE
+            ? DUPLICATE_PDF_MESSAGE
+            : error.message
           : 'Unable to upload this PDF. Please verify the file and try again.',
       )
     }

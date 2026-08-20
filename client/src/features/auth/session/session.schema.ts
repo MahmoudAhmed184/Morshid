@@ -1,6 +1,11 @@
 import { z } from 'zod'
 
-export const authRoleSchema = z.enum(['ADMIN', 'INSTRUCTOR', 'STUDENT'])
+export const authRoleSchema = z.enum([
+  'SUPER_ADMIN',
+  'ADMIN',
+  'INSTRUCTOR',
+  'STUDENT',
+])
 export const authStatusSchema = z.enum(['ACTIVE', 'DISABLED'])
 
 export const authUserSchema = z.object({
@@ -9,6 +14,7 @@ export const authUserSchema = z.object({
   displayName: z.string(),
   role: authRoleSchema,
   status: authStatusSchema,
+  universityId: z.string().nullable().optional(),
 })
 
 export const authSessionSchema = z.object({

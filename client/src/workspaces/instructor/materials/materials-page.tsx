@@ -33,6 +33,7 @@ import {
   useCourseMaterials,
   useDeleteCourseMaterial,
   useMaterialUploadConfiguration,
+  useRetryCourseMaterialProcessing,
 } from '@/workspaces/instructor/materials/use-materials'
 import type { Material } from '@/features/materials/material-ingestion/material.schema'
 
@@ -61,6 +62,7 @@ export function MaterialsPage() {
 
   const materialsQuery = useCourseMaterials(activeCourseId)
   const deleteMutation = useDeleteCourseMaterial()
+  const retryMutation = useRetryCourseMaterialProcessing()
   const materials =
     materialsQuery.data?.pages.flatMap((page) => page.materials) ?? []
   const normalizedSearch = search.trim().toLowerCase()
@@ -90,27 +92,6 @@ export function MaterialsPage() {
         eyebrow="COURSE SOURCES"
         title="Course Materials"
         description="Upload and manage the PDF sources that ground student guidance."
-        actions={
-          courses.length > 0 && uploadConfigurationQuery.data ? (
-            <MaterialUploadDialog
-              courses={courses}
-              defaultCourseId={activeCourseId}
-              configuration={uploadConfigurationQuery.data}
-              onUploadSuccess={(uploadedCourseId) => {
-                if (uploadedCourseId !== activeCourseId) {
-                  setSelectedCourseId(uploadedCourseId)
-                  setActiveCourseId(uploadedCourseId)
-                }
-              }}
-            />
-          ) : courses.length > 0 ? (
-            <Button size="lg" disabled>
-              {uploadConfigurationQuery.isError
-                ? 'Upload unavailable'
-                : 'Loading upload limits...'}
-            </Button>
-          ) : null
-        }
       />
 
       {activeCourseId && !coursesQuery.isPending ? (
@@ -126,7 +107,7 @@ export function MaterialsPage() {
       <Card aria-busy={isLoading || undefined}>
         <CardHeader className="border-b">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <CardTitle className="flex items-center gap-2 text-sm">
+            <CardTitle className="flex shrink-0 items-center gap-2 text-sm">
               <FileTextIcon
                 className="size-4 text-muted-foreground"
                 aria-hidden
@@ -139,7 +120,7 @@ export function MaterialsPage() {
                 onValueChange={setSearch}
                 placeholder="Search by title or file..."
                 aria-label="Search materials"
-                className="sm:max-w-64"
+                className="w-full sm:w-48 lg:w-56"
               />
               <Select
                 value={statusFilter}
@@ -150,7 +131,7 @@ export function MaterialsPage() {
                 }}
               >
                 <SelectTrigger
-                  className="w-full sm:w-36"
+                  className="w-full shrink-0 sm:w-32 lg:w-36"
                   aria-label="Filter materials by status"
                 >
                   <SelectValue placeholder="All statuses" />
@@ -175,7 +156,7 @@ export function MaterialsPage() {
                   }}
                 >
                   <SelectTrigger
-                    className="w-full sm:w-72"
+                    className="w-full shrink-0 sm:w-56 lg:w-64"
                     aria-label="Select assigned course"
                   >
                     <SelectValue placeholder="Select a course" />
@@ -188,6 +169,25 @@ export function MaterialsPage() {
                     ))}
                   </SelectContent>
                 </Select>
+              ) : null}
+              {courses.length > 0 && uploadConfigurationQuery.data ? (
+                <MaterialUploadDialog
+                  courses={courses}
+                  defaultCourseId={activeCourseId}
+                  configuration={uploadConfigurationQuery.data}
+                  onUploadSuccess={(uploadedCourseId) => {
+                    if (uploadedCourseId !== activeCourseId) {
+                      setSelectedCourseId(uploadedCourseId)
+                      setActiveCourseId(uploadedCourseId)
+                    }
+                  }}
+                />
+              ) : courses.length > 0 ? (
+                <Button disabled className="w-full shrink-0 sm:w-auto">
+                  {uploadConfigurationQuery.isError
+                    ? 'Upload unavailable'
+                    : 'Loading upload limits...'}
+                </Button>
               ) : null}
             </div>
           </div>
@@ -213,6 +213,34 @@ export function MaterialsPage() {
                       courseId: activeCourseId,
                       materialId,
                     })
+                : undefined
+            }
+            retryingMaterialId={
+              retryMutation.isPending
+                ? retryMutation.variables.materialId
+                : undefined
+            }
+            retryError={
+              retryMutation.isError
+                ? retryMutation.error instanceof Error
+                  ? retryMutation.error.message
+                  : 'Material processing could not be retried.'
+                : null
+            }
+            failedRetryMaterialId={
+              retryMutation.isError
+                ? retryMutation.variables.materialId
+                : undefined
+            }
+            onRetryProcessing={
+              activeCourseId
+                ? (materialId) => {
+                    if (retryMutation.isPending) return
+                    retryMutation.mutate({
+                      courseId: activeCourseId,
+                      materialId,
+                    })
+                  }
                 : undefined
             }
             onRetry={() => {
@@ -341,6 +369,10 @@ function MaterialsContent({
   isFetchingNextPage,
   onFetchNextPage,
   onDelete,
+  onRetryProcessing,
+  retryingMaterialId,
+  failedRetryMaterialId,
+  retryError,
   onRetry,
 }: {
   isLoading: boolean
@@ -354,6 +386,10 @@ function MaterialsContent({
   isFetchingNextPage?: boolean
   onFetchNextPage?: () => void
   onDelete?: (materialId: string) => Promise<void>
+  onRetryProcessing?: (materialId: string) => void
+  retryingMaterialId?: string
+  failedRetryMaterialId?: string
+  retryError: string | null
   onRetry: () => void
 }) {
   if (isLoading) {
@@ -425,6 +461,15 @@ function MaterialsContent({
             key={material.id}
             material={material}
             onDelete={onDelete ? () => onDelete(material.id) : undefined}
+            onRetry={
+              onRetryProcessing
+                ? () => onRetryProcessing(material.id)
+                : undefined
+            }
+            isRetrying={retryingMaterialId === material.id}
+            retryError={
+              failedRetryMaterialId === material.id ? retryError : null
+            }
           />
         ))}
       </div>

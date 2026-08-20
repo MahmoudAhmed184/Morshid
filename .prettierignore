@@ -12,5 +12,6 @@ client/.vinxi/
 client/.output/
 client/src/routeTree.gen.ts
 server/src/generated/prisma/
+.worktrees/
 storage/pdfs/
 package-lock.json

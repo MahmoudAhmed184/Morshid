@@ -18,6 +18,7 @@ import {
   ApiBadRequestResponse,
   ApiBody,
   ApiConsumes,
+  ApiConflictResponse,
   ApiCreatedResponse,
   ApiExtraModels,
   ApiForbiddenResponse,
@@ -99,6 +100,10 @@ export class MaterialsController {
     },
   })
   @ApiNotFoundResponse({ type: OpenApiErrorDto })
+  @ApiConflictResponse({
+    type: OpenApiErrorDto,
+    description: 'The same PDF already exists in this course.',
+  })
   @ApiPayloadTooLargeResponse({ type: OpenApiErrorDto })
   uploadMaterial(
     @Param('courseId', new ParseUUIDPipe({ version: '4' })) courseId: string,
@@ -180,6 +185,32 @@ export class MaterialsController {
     @Req() request: AuthenticatedHttpRequest,
   ): Promise<MaterialStatusDto> {
     return this.materialsService.getMaterialStatus(
+      courseId,
+      materialId,
+      request.user,
+    )
+  }
+
+  @Post(':materialId/retry')
+  @HttpCode(HttpStatus.OK)
+  @SerializeOptions({ type: MaterialResponseDto, strategy: 'excludeAll' })
+  @ApiOperation({ summary: 'Retry failed course material processing' })
+  @ApiParam({ name: 'courseId', format: 'uuid' })
+  @ApiParam({ name: 'materialId', format: 'uuid' })
+  @ApiOkResponse({
+    type: MaterialResponseDto,
+    description: 'The failed material was queued for processing again.',
+  })
+  @ApiForbiddenResponse({ type: OpenApiErrorDto })
+  @ApiNotFoundResponse({ type: OpenApiErrorDto })
+  @ApiServiceUnavailableResponse({ type: OpenApiErrorDto })
+  retryMaterialProcessing(
+    @Param('courseId', new ParseUUIDPipe({ version: '4' })) courseId: string,
+    @Param('materialId', new ParseUUIDPipe({ version: '4' }))
+    materialId: string,
+    @Req() request: AuthenticatedHttpRequest,
+  ): Promise<MaterialResponseDto> {
+    return this.materialsService.retryMaterialProcessing(
       courseId,
       materialId,
       request.user,

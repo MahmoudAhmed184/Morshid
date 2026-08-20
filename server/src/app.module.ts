@@ -13,6 +13,10 @@ import { EmbeddingModule } from './platform/ai/embedding/embedding.module'
 import { MaterialsModule } from './modules/materials/materials.module'
 import { ReviewsModule } from './modules/reviews/reviews.module'
 import { TutoringModule } from './modules/tutoring/tutoring.module'
+import { AllowancesModule } from './modules/allowances/allowances.module'
+import { AiCapacityModule } from './modules/ai-capacity/ai-capacity.module'
+import { UniversitiesModule } from './modules/universities/universities.module'
+import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module'
 import { ConversationPresentationModule } from './application/conversation-presentation.module'
 
 @Module({
@@ -26,11 +30,15 @@ import { ConversationPresentationModule } from './application/conversation-prese
     AuditModule,
     HealthModule,
     IdentityModule,
+    UniversitiesModule,
+    SubscriptionsModule,
     CoursesModule,
     ConversationsModule,
     PdfStorageModule,
     EmbeddingModule,
     MaterialsModule,
+    AllowancesModule,
+    AiCapacityModule,
     TutoringModule,
     ReviewsModule,
     ConversationPresentationModule,

@@ -1,0 +1,48 @@
+// Domain-grouped Prisma schema. Cross-file relations are intentional.
+
+enum AllowanceResetScope {
+  TUTORING
+  REVIEW
+  BOTH
+
+  @@map("allowance_reset_scope")
+}
+
+model DeploymentPolicyDefault {
+  id            String   @id @default("default") @db.VarChar(40)
+  tutoringLimit Int      @default(30) @map("tutoring_limit")
+  reviewLimit   Int      @default(3) @map("review_limit")
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("deployment_policy_defaults")
+}
+
+model CoursePolicyOverride {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  courseId      String   @unique(map: "course_policy_overrides_course_id_key") @map("course_id") @db.Uuid
+  tutoringLimit Int?     @map("tutoring_limit")
+  reviewLimit   Int?     @map("review_limit")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@map("course_policy_overrides")
+}
+
+model AllowanceReset {
+  id          String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentId   String              @map("student_id") @db.Uuid
+  courseId    String              @map("course_id") @db.Uuid
+  scope       AllowanceResetScope
+  reason      String              @db.VarChar(500)
+  createdById String?             @map("created_by_id") @db.Uuid
+  createdAt   DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  student   User    @relation("AllowanceResetStudent", fields: [studentId], references: [id], onDelete: Restrict)
+  course    Course  @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  createdBy User?   @relation("AllowanceResetCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([studentId, courseId, createdAt(sort: Desc)], map: "idx_allowance_resets_student_course_created")
+  @@map("allowance_resets")
+}

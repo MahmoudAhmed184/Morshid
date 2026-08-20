@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 import type * as TanStackReactRouter from '@tanstack/react-router'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -110,7 +110,7 @@ describe('Instructor review pages', () => {
 
     expect(screen.getByText('1 pending')).toBeVisible()
     expect(screen.getByText('Safe Student')).toBeVisible()
-    expect(screen.getByText('Course One')).toBeVisible()
+    expect(screen.getByText(/Course One/)).toBeVisible()
     expect(screen.getAllByText('Student request')).not.toHaveLength(0)
     const studentRequestBadge = screen
       .getAllByText('Student request')
@@ -146,7 +146,7 @@ describe('Instructor review pages', () => {
       screen.getByRole('status', { name: 'Loading review queue' }),
     ).toBeVisible()
     expect(
-      screen.getByRole('button', { name: 'Source conflict' }),
+      screen.getByRole('combobox', { name: 'Trigger filter' }),
     ).toBeVisible()
   })
 
@@ -203,11 +203,11 @@ describe('Instructor review pages', () => {
       useQueueMock.mockReturnValue(queueQuery([queueItem()]))
       render(<ReviewQueuePage />)
 
-      await user.click(screen.getByRole('button', { name: label }))
+      await selectQueueFilter(user, 'Student reason filter', label)
 
       expect(useQueueMock).toHaveBeenLastCalledWith(studentFlagReason)
       expect(
-        screen.getByRole('button', { name: 'Student request' }),
+        screen.getByRole('combobox', { name: 'Trigger filter' }),
       ).toBeVisible()
     },
   )
@@ -219,18 +219,20 @@ describe('Instructor review pages', () => {
     )
     render(<ReviewQueuePage />)
 
-    await user.click(screen.getByRole('button', { name: 'Not helpful' }))
+    await selectQueueFilter(user, 'Student reason filter', 'Not helpful')
 
     expect(screen.getByText('No matching reviews')).toBeVisible()
     expect(
-      screen.getByRole('button', { name: 'Source conflict' }),
+      screen.getByRole('combobox', { name: 'Trigger filter' }),
     ).toBeVisible()
     expect(
-      screen.getByRole('button', { name: 'All Student reasons' }),
+      screen.getByRole('combobox', { name: 'Student reason filter' }),
     ).toBeVisible()
 
-    await user.click(
-      screen.getByRole('button', { name: 'All Student reasons' }),
+    await selectQueueFilter(
+      user,
+      'Student reason filter',
+      'All Student reasons',
     )
 
     expect(useQueueMock).toHaveBeenLastCalledWith(null)
@@ -257,20 +259,18 @@ describe('Instructor review pages', () => {
     )
     render(<ReviewQueuePage />)
 
-    const sourceTrigger = screen.getByRole('button', {
-      name: 'Source conflict',
-    })
-    await user.click(sourceTrigger)
-    await user.click(screen.getByRole('button', { name: 'C2' }))
-    await user.click(screen.getByRole('button', { name: 'Seems incorrect' }))
+    await selectQueueFilter(user, 'Trigger filter', 'Source conflict')
+    await selectQueueFilter(user, 'Course filter', 'C2 · Course Two')
+    await selectQueueFilter(user, 'Student reason filter', 'Seems incorrect')
 
-    expect(sourceTrigger).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('button', { name: 'C2' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
     expect(
-      screen.getByRole('button', { name: 'Citation missing' }),
+      screen.getByRole('combobox', { name: 'Trigger filter' }),
+    ).toHaveTextContent('Source conflict')
+    expect(
+      screen.getByRole('combobox', { name: 'Course filter' }),
+    ).toHaveTextContent('C2')
+    expect(
+      screen.getByRole('combobox', { name: 'Trigger filter' }),
     ).toBeVisible()
     expect(useQueueMock).toHaveBeenLastCalledWith('INCORRECT')
   })
@@ -338,13 +338,44 @@ describe('Instructor review pages', () => {
     )
     render(<ReviewQueuePage />)
 
-    await user.click(screen.getByRole('button', { name: 'Citation missing' }))
+    await selectQueueFilter(user, 'Trigger filter', 'Citation missing')
 
     expect(screen.getByText('Citation Student')).toBeVisible()
     expect(screen.queryByText('Safe Student')).not.toBeInTheDocument()
   })
 
-  it('renders bounded detail evidence and adjacent exchanges', () => {
+  it('clears active filters back to the queue defaults', async () => {
+    const user = userEvent.setup()
+    useQueueMock.mockReturnValue(queueQuery([queueItem()]))
+    render(<ReviewQueuePage />)
+
+    await user.type(
+      screen.getByRole('textbox', { name: 'Search reviews' }),
+      'safe',
+    )
+    await user.click(screen.getByRole('tab', { name: /Resolved/ }))
+    await selectQueueFilter(user, 'Course filter', 'C1 · Course One')
+    await selectQueueFilter(user, 'Trigger filter', 'Student request')
+
+    await user.click(screen.getByRole('button', { name: 'Clear filters' }))
+
+    expect(screen.getByRole('textbox', { name: 'Search reviews' })).toHaveValue(
+      '',
+    )
+    expect(screen.getByRole('tab', { name: /Pending/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    expect(
+      screen.getByRole('combobox', { name: 'Course filter' }),
+    ).toHaveTextContent('All courses')
+    expect(
+      screen.getByRole('combobox', { name: 'Trigger filter' }),
+    ).toHaveTextContent('All triggers')
+  })
+
+  it('keeps contextual sections collapsed by default and expands and collapses them', async () => {
+    const user = userEvent.setup()
     useDetailMock.mockReturnValue(
       queryResult(detail()) as unknown as ReturnType<
         typeof useInstructorReviewDetail
@@ -355,16 +386,67 @@ describe('Instructor review pages', () => {
     expect(screen.getByText('Flagged question')).toBeVisible()
     expect(screen.getByText('Flagged assistant answer')).toBeVisible()
     expect(screen.getByText('Please check the explanation.')).toBeVisible()
+    expect(screen.getByText('Status')).toBeVisible()
+    expect(screen.getAllByText('Pending')).not.toHaveLength(0)
+
+    const context = screen.getByRole('button', {
+      name: 'Previous & Following Context',
+    })
+    expect(context).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Previous question')).toBeNull()
+    expect(screen.queryByText('Following question')).toBeNull()
+
+    await user.click(context)
+    expect(context).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByText('Previous question')).toBeVisible()
     expect(screen.getByText('Previous answer')).toBeVisible()
     expect(screen.getByText('Following question')).toBeVisible()
     expect(screen.getByText('Following answer')).toBeVisible()
+
+    await user.click(context)
+    expect(context).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Previous question')).toBeNull()
+    expect(screen.queryByText('Following question')).toBeNull()
+
+    const sources = screen.getByRole('button', { name: 'Sources (1)' })
+    expect(sources).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Bounded citation snippet')).toBeNull()
+
+    await user.click(sources)
+    expect(sources).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByText('Bounded citation snippet')).toBeVisible()
-    expect(screen.getByText('Student flag category')).toBeVisible()
-    expect(screen.getByText('Confusing or unclear')).toBeVisible()
+
+    await user.click(sources)
+    expect(sources).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Bounded citation snippet')).toBeNull()
+
+    expect(screen.queryByText(/Action history/i)).toBeNull()
   })
 
-  it('does not show a Student category for an automatic review detail', () => {
+  it('keeps metadata compact and review actions in their own region', () => {
+    useDetailMock.mockReturnValue(detailQuery())
+    render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
+
+    expect(screen.getByText('Status').closest('dl')).not.toBeNull()
+    expect(screen.getByText('Date').closest('dl')).not.toBeNull()
+    expect(screen.queryByText('Student flag category')).not.toBeInTheDocument()
+
+    const actionAside = screen.getByRole('region', {
+      name: 'Review action',
+    })
+    expect(
+      within(actionAside).getByRole('button', {
+        name: 'Approve',
+      }),
+    ).toBeVisible()
+    expect(
+      within(actionAside).queryByRole('button', {
+        name: 'Publish replacement guidance',
+      }),
+    ).toBeNull()
+  })
+
+  it('does not add a separate Student category to automatic review detail', () => {
     useDetailMock.mockReturnValue(
       detailQuery({
         trigger: 'POLICY_CHECK_FAILED',
@@ -389,7 +471,7 @@ describe('Instructor review pages', () => {
     ).toThrow()
   })
 
-  it('uses compact metadata in the dialog presentation', () => {
+  it('shows course and date metadata in the dialog header', () => {
     useDetailMock.mockReturnValue(
       queryResult(detail()) as unknown as ReturnType<
         typeof useInstructorReviewDetail
@@ -400,27 +482,36 @@ describe('Instructor review pages', () => {
     )
 
     expect(
-      screen.getByRole('heading', { name: 'Review flagged response' }),
+      screen.getByRole('heading', { name: 'Review details' }),
     ).toBeVisible()
-    expect(screen.getByText('Course One')).toBeVisible()
-    expect(screen.getByText('Safe Student')).toBeVisible()
-    expect(screen.getByText('Student request')).toBeVisible()
+    const reviewMetadata = screen.getByLabelText('Review course and date')
+    expect(within(reviewMetadata).getByText('C1 · Course One')).toBeVisible()
+    expect(within(reviewMetadata).getByText(/Jul 29, 2026/)).toBeVisible()
+    expect(screen.getAllByText('Safe Student').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Student request')).not.toBeInTheDocument()
+    expect(screen.queryByText('Please check the explanation.')).toBeNull()
+    expect(screen.getByText('Pending')).toBeVisible()
   })
 
-  it('renders all eligible actions for an open manual review', () => {
+  it('renders the retained actions without replacement or extra information cards', () => {
     useDetailMock.mockReturnValue(detailQuery())
     render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
 
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Review & Edit' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Reject' })).toBeVisible()
     expect(
-      screen.getByRole('button', { name: 'Approve original guidance' }),
-    ).toBeVisible()
+      screen.queryByRole('button', { name: 'Publish replacement guidance' }),
+    ).toBeNull()
+    expect(screen.queryByText('Replacement guidance')).toBeNull()
     expect(
-      screen.getByRole('button', { name: 'Publish edited guidance' }),
-    ).toBeVisible()
+      screen.queryByText(/Publishing creates a separate reviewed outcome/),
+    ).toBeNull()
     expect(
-      screen.getByRole('button', { name: 'Publish replacement guidance' }),
-    ).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Reject request' })).toBeVisible()
+      screen.queryByText(
+        /Students only receive guidance you explicitly publish/,
+      ),
+    ).toBeNull()
   })
 
   it('hides actions for terminal cases', () => {
@@ -436,10 +527,8 @@ describe('Instructor review pages', () => {
     useDetailMock.mockReturnValue(detailQuery({ canReject: false }))
     render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
 
-    expect(screen.queryByRole('button', { name: 'Reject request' })).toBeNull()
-    expect(
-      screen.getByRole('button', { name: 'Approve original guidance' }),
-    ).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Reject' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeVisible()
   })
 
   it('blocks empty edited guidance inline', async () => {
@@ -447,9 +536,7 @@ describe('Instructor review pages', () => {
     useDetailMock.mockReturnValue(detailQuery())
     render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
 
-    await user.click(
-      screen.getByRole('button', { name: 'Publish edited guidance' }),
-    )
+    await user.click(screen.getByRole('button', { name: 'Review & Edit' }))
     const editor = screen.getByLabelText('Edited guidance')
     expect(editor).toHaveValue('Flagged assistant answer')
     await user.clear(editor)
@@ -461,69 +548,92 @@ describe('Instructor review pages', () => {
     expect(resolveMutate).not.toHaveBeenCalled()
   })
 
+  it('expands edited guidance inside the assistant chat message', async () => {
+    const user = userEvent.setup()
+    useDetailMock.mockReturnValue(detailQuery())
+    render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
+
+    await user.click(screen.getByRole('button', { name: 'Review & Edit' }))
+
+    const assistantMessage = screen.getByRole('article', {
+      name: 'Morshid assistant message',
+    })
+    expect(
+      within(assistantMessage).getByLabelText('Edited guidance'),
+    ).toHaveValue('Flagged assistant answer')
+  })
+
   it('keeps the edited working draft while switching action modes', async () => {
     const user = userEvent.setup()
     useDetailMock.mockReturnValue(detailQuery())
     render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
 
-    await user.click(
-      screen.getByRole('button', { name: 'Publish edited guidance' }),
-    )
+    await user.click(screen.getByRole('button', { name: 'Review & Edit' }))
     const editor = screen.getByLabelText('Edited guidance')
     await user.clear(editor)
     await user.type(editor, 'Working edit')
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
-    await user.click(
-      screen.getByRole('button', { name: 'Publish replacement guidance' }),
-    )
-    expect(screen.getByLabelText('Replacement guidance')).toHaveValue('')
+    await user.click(screen.getByRole('button', { name: 'Reject' }))
+    expect(screen.getByLabelText('Rejection reason')).toHaveValue('')
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
-    await user.click(
-      screen.getByRole('button', { name: 'Publish edited guidance' }),
-    )
+    await user.click(screen.getByRole('button', { name: 'Review & Edit' }))
 
     expect(screen.getByLabelText('Edited guidance')).toHaveValue('Working edit')
   })
 
-  it('saves and restores a browser draft after remounting the review', async () => {
+  it('automatically saves and restores a browser draft after remounting', async () => {
     const user = userEvent.setup()
     useDetailMock.mockReturnValue(detailQuery())
     render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
 
-    await user.click(
-      screen.getByRole('button', { name: 'Publish edited guidance' }),
-    )
+    await user.click(screen.getByRole('button', { name: 'Review & Edit' }))
     const editor = screen.getByLabelText('Edited guidance')
     await user.clear(editor)
     await user.type(editor, 'Saved browser draft')
-    await user.click(screen.getByRole('button', { name: 'Save draft' }))
-    expect(
-      screen.getByText('Draft saved in this browser for this tab.'),
-    ).toBeVisible()
 
     cleanup()
     render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
-    await user.click(
-      screen.getByRole('button', { name: 'Publish edited guidance' }),
-    )
+    await user.click(screen.getByRole('button', { name: 'Review & Edit' }))
 
     expect(screen.getByLabelText('Edited guidance')).toHaveValue(
       'Saved browser draft',
     )
   })
 
-  it('blocks an empty rejection reason inline', async () => {
+  it('blocks an empty rejection reason in the confirmation dialog', async () => {
     const user = userEvent.setup()
     useDetailMock.mockReturnValue(detailQuery())
     render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
 
+    await user.click(screen.getByRole('button', { name: 'Reject' }))
     await user.click(screen.getByRole('button', { name: 'Reject request' }))
-    await user.click(screen.getByRole('button', { name: 'Confirm rejection' }))
 
     expect(
-      screen.getByText('Enter a reason before rejecting this request.'),
+      await screen.findByText('Enter a reason before rejecting this request.'),
     ).toBeVisible()
     expect(rejectMutate).not.toHaveBeenCalled()
+  })
+
+  it('submits the rejection reason from the confirmation dialog', async () => {
+    const user = userEvent.setup()
+    useDetailMock.mockReturnValue(detailQuery({ version: 7 }))
+    render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
+
+    await user.click(screen.getByRole('button', { name: 'Reject' }))
+    await user.type(
+      screen.getByLabelText('Rejection reason'),
+      '  Not supported  ',
+    )
+    await user.click(screen.getByRole('button', { name: 'Reject request' }))
+
+    expect(rejectMutate).toHaveBeenCalledWith({
+      reviewCaseId,
+      idempotencyKey: expect.any(String),
+      request: {
+        expectedVersion: 7,
+        reason: 'Not supported',
+      },
+    })
   })
 
   it('submits trimmed edited guidance with the current version', async () => {
@@ -531,9 +641,7 @@ describe('Instructor review pages', () => {
     useDetailMock.mockReturnValue(detailQuery({ version: 7 }))
     render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
 
-    await user.click(
-      screen.getByRole('button', { name: 'Publish edited guidance' }),
-    )
+    await user.click(screen.getByRole('button', { name: 'Review & Edit' }))
     await user.clear(screen.getByLabelText('Edited guidance'))
     await user.type(
       screen.getByLabelText('Edited guidance'),
@@ -562,9 +670,7 @@ describe('Instructor review pages', () => {
     useDetailMock.mockReturnValue(detailQuery({ version: 7 }))
     render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
 
-    await user.click(
-      screen.getByRole('button', { name: 'Publish edited guidance' }),
-    )
+    await user.click(screen.getByRole('button', { name: 'Review & Edit' }))
     const editor = screen.getByLabelText('Edited guidance')
     await user.clear(editor)
     await user.type(editor, 'Retry-safe guidance')
@@ -589,10 +695,9 @@ describe('Instructor review pages', () => {
     useDetailMock.mockReturnValue(detailQuery())
     render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
 
-    for (const button of screen.getAllByRole('button')) {
-      if (button.textContent !== 'Back to queue') {
-        expect(button).toBeDisabled()
-      }
+    const actionPanel = screen.getByRole('region', { name: 'Review action' })
+    for (const button of within(actionPanel).getAllByRole('button')) {
+      expect(button).toBeDisabled()
     }
   })
 
@@ -604,9 +709,7 @@ describe('Instructor review pages', () => {
     useDetailMock.mockReturnValue(detailQuery())
     render(<ReviewDetailPage reviewCaseId={reviewCaseId} />)
 
-    await user.click(
-      screen.getByRole('button', { name: 'Approve original guidance' }),
-    )
+    await user.click(screen.getByRole('button', { name: 'Approve' }))
     await user.click(screen.getByRole('button', { name: 'Publish outcome' }))
 
     expect(
@@ -671,7 +774,8 @@ describe('Instructor review pages', () => {
 
     render(<ReviewQueuePage />)
 
-    expect(screen.getByText('Workload by Student Flag Reason')).toBeVisible()
+    expect(screen.queryByText('Workload by Student Flag Reason')).toBeNull()
+    expect(screen.queryByText('Workload by Trigger Type')).toBeNull()
 
     // Click Resolved metric card
     const resolvedBtn = screen.getByRole('button', {
@@ -683,6 +787,15 @@ describe('Instructor review pages', () => {
     expect(screen.getByText(/Confusing explanation/)).toBeVisible()
   })
 })
+
+async function selectQueueFilter(
+  user: ReturnType<typeof userEvent.setup>,
+  filterName: string,
+  optionName: string,
+) {
+  await user.click(screen.getByRole('combobox', { name: filterName }))
+  await user.click(await screen.findByRole('option', { name: optionName }))
+}
 
 function queueQuery(items: ReturnType<typeof queueItem>[]) {
   return queryResult(

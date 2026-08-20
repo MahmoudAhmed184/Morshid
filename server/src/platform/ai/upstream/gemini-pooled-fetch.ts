@@ -16,7 +16,10 @@ interface ResolvedChatTransport {
   readonly fetchImplementation: FetchImplementation
 }
 
-const GEMINI_MODELS_WITHOUT_SAMPLING_PARAMETERS = new Set(['gemini-3.6-flash'])
+const GEMINI_MODELS_WITHOUT_SAMPLING_PARAMETERS = new Set([
+  'gemini-3.6-flash',
+  'gemini-3.7-flash',
+])
 
 export function resolveChatTransport(
   baseUrl: string,

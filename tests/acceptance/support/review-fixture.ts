@@ -144,11 +144,17 @@ export async function createInstructorReviewAcceptanceFixture(): Promise<Instruc
     material: randomUUID(),
     chunk: randomUUID(),
   }
-  const template = await client.query<{ password_hash: string }>(
-    `SELECT password_hash FROM users WHERE email = 'instructor@morshid.demo'`,
+  const template = await client.query<{
+    password_hash: string
+    university_id: string
+  }>(
+    `SELECT password_hash, university_id FROM users WHERE email = 'instructor@morshid.demo'`,
   )
   const passwordHash = template.rows[0]?.password_hash
-  if (!passwordHash) throw new Error('Demo Instructor is not seeded')
+  const universityId = template.rows[0]?.university_id
+  if (!passwordHash || !universityId) {
+    throw new Error('Demo Instructor is not seeded')
+  }
 
   for (const [id, email, displayName, role] of [
     [ids.instructor, instructorEmail, `Review Owner ${suffix}`, 'INSTRUCTOR'],
@@ -167,9 +173,9 @@ export async function createInstructorReviewAcceptanceFixture(): Promise<Instruc
     [ids.student, studentEmail, studentLabel, 'STUDENT'],
   ] as const) {
     await client.query(
-      `INSERT INTO users (id, email, display_name, role, status, password_hash)
-       VALUES ($1, $2, $3, $4, 'ACTIVE', $5)`,
-      [id, email, displayName, role, passwordHash],
+      `INSERT INTO users (id, email, display_name, role, status, password_hash, university_id)
+       VALUES ($1, $2, $3, $4, 'ACTIVE', $5, $6)`,
+      [id, email, displayName, role, passwordHash, universityId],
     )
   }
 
@@ -180,8 +186,8 @@ export async function createInstructorReviewAcceptanceFixture(): Promise<Instruc
   if (!adminId) throw new Error('Demo Admin is not seeded')
 
   await client.query(
-    `INSERT INTO courses (id, code, title, created_by)
-     VALUES ($1, $2, $3, $4), ($5, $6, $7, $4)`,
+    `INSERT INTO courses (id, code, title, created_by, university_id)
+     VALUES ($1, $2, $3, $4, $8), ($5, $6, $7, $4, $8)`,
     [
       ids.ownedCourse,
       `OWN-${suffix}`,
@@ -190,6 +196,7 @@ export async function createInstructorReviewAcceptanceFixture(): Promise<Instruc
       ids.otherCourse,
       `OTHER-${suffix}`,
       otherCourseTitle,
+      universityId,
     ],
   )
   for (const [courseId, userId, role] of [

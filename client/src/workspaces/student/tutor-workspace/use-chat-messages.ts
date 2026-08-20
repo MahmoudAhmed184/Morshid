@@ -96,6 +96,12 @@ function invalidateChatMutation(
   void queryClient.invalidateQueries({
     queryKey: chatSessionKeys.sessionLists(context.scope),
   })
+  void queryClient.invalidateQueries({
+    queryKey: chatSessionKeys.detail(context.scope),
+  })
+  void queryClient.invalidateQueries({
+    queryKey: chatSessionKeys.summary(context.scope),
+  })
 }
 
 export function useSendChatMessage({

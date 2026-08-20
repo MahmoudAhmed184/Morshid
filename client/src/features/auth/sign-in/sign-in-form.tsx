@@ -61,8 +61,11 @@ export function SignInForm() {
     await navigate({ to: getDashboardPath(session.user.role) })
   }
 
-  const fillDemo = (role: 'instructor' | 'student' | 'admin') => {
+  const fillDemo = (
+    role: 'superadmin' | 'instructor' | 'student' | 'admin',
+  ) => {
     const emails: Record<typeof role, string> = {
+      superadmin: 'superadmin@morshid.demo',
       instructor: 'instructor@morshid.demo',
       student: 'student1@morshid.demo',
       admin: 'admin@morshid.demo',
@@ -87,6 +90,24 @@ export function SignInForm() {
             type="button"
             variant="secondary"
             size="xs"
+            onClick={() => fillDemo('superadmin')}
+            className="h-auto rounded-full px-2.5 py-0.5 font-mono text-[0.62rem] sm:text-[0.65rem]"
+          >
+            Super Admin
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="xs"
+            onClick={() => fillDemo('admin')}
+            className="h-auto rounded-full px-2.5 py-0.5 font-mono text-[0.62rem] sm:text-[0.65rem]"
+          >
+            Admin
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="xs"
             onClick={() => fillDemo('instructor')}
             className="h-auto rounded-full px-2.5 py-0.5 font-mono text-[0.62rem] sm:text-[0.65rem]"
           >
@@ -100,15 +121,6 @@ export function SignInForm() {
             className="h-auto rounded-full px-2.5 py-0.5 font-mono text-[0.62rem] sm:text-[0.65rem]"
           >
             Student
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            size="xs"
-            onClick={() => fillDemo('admin')}
-            className="h-auto rounded-full px-2.5 py-0.5 font-mono text-[0.62rem] sm:text-[0.65rem]"
-          >
-            Admin
           </Button>
         </div>
         <FormField

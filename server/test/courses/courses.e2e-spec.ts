@@ -46,6 +46,7 @@ const instructor = {
 const adminCourses = [
   {
     id: 'python-course',
+    universityId: 'demo-university',
     code: 'PYTHON-PROG-P0',
     title: 'Python Programming',
     createdById: instructor.id,
@@ -66,6 +67,7 @@ const adminCourses = [
   },
   {
     id: 'hidden-course',
+    universityId: 'demo-university',
     code: 'HIDDEN-ISOLATION',
     title: 'Hidden Isolation Test Course',
     createdById: null,
@@ -148,6 +150,14 @@ class CoursesTestRepository extends CoursesRepository {
   addMembers(
     _input: BulkAddCourseMembersInput,
   ): Promise<{ assignedCount: number; skippedCount: number }> {
+    return Promise.reject(new Error('not used by Courses e2e'))
+  }
+
+  resolveUsersForCourseAssignment(): Promise<{
+    resolved: []
+    unmatched: []
+    duplicates: []
+  }> {
     return Promise.reject(new Error('not used by Courses e2e'))
   }
 

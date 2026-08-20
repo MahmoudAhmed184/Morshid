@@ -27,6 +27,7 @@ const statusToneMap: Partial<Record<string, StatusTone>> = {
   failed: 'destructive',
   offline: 'destructive',
   rejected: 'destructive',
+  suspended: 'destructive',
   inactive: 'secondary',
   archived: 'outline',
 }

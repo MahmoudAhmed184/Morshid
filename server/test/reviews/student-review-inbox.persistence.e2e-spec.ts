@@ -97,6 +97,15 @@ describe('Student review inbox persistence (e2e)', () => {
 
   async function createInboxItem(type: 'REVIEW_RESOLVED' | 'REVIEW_REJECTED') {
     const prisma = requireDatabase().prisma
+    const university = await prisma.university.upsert({
+      where: { code: 'TEST-REVIEW-INBOX-UNIV' },
+      update: {},
+      create: {
+        name: 'Test Review Inbox University',
+        code: 'TEST-REVIEW-INBOX-UNIV',
+        status: 'ACTIVE',
+      },
+    })
     const studentId = randomUUID()
     const courseId = randomUUID()
     const sessionId = randomUUID()
@@ -108,6 +117,7 @@ describe('Student review inbox persistence (e2e)', () => {
         email: `${studentId}@review-inbox.test`,
         displayName: 'Student',
         role: 'STUDENT',
+        universityId: university.id,
         passwordHash: 'hash',
       },
     })
@@ -116,6 +126,7 @@ describe('Student review inbox persistence (e2e)', () => {
         id: courseId,
         code: `RIN-${courseId.slice(0, 8)}`,
         title: 'Review inbox course',
+        universityId: university.id,
         createdById: studentId,
       },
     })

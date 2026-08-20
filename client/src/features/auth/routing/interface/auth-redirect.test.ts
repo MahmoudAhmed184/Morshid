@@ -30,6 +30,7 @@ function createMockSession(role: AuthRole): AuthSession {
 
 describe('getDashboardPath', () => {
   it.each([
+    ['SUPER_ADMIN', '/super-admin'],
     ['ADMIN', '/admin'],
     ['INSTRUCTOR', '/instructor'],
     ['STUDENT', '/chat'],

@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger'
 import { z } from 'zod'
 
-import { UserRole, UserStatus } from './identity.roles'
+import { UserRole, UserStatus, UniversityStatus } from './identity.roles'
 
 export const IDENTITY_ERROR_CODES = {
   INVALID_CREDENTIALS: 'INVALID_CREDENTIALS',
@@ -11,6 +11,9 @@ export const IDENTITY_ERROR_CODES = {
   INVALID_REQUEST: 'INVALID_REQUEST',
   INSUFFICIENT_ROLE: 'INSUFFICIENT_ROLE',
   CANNOT_REVOKE_CURRENT_SESSION: 'CANNOT_REVOKE_CURRENT_SESSION',
+  UNIVERSITY_SUSPENDED: 'UNIVERSITY_SUSPENDED',
+  UNIVERSITY_INACTIVE: 'UNIVERSITY_INACTIVE',
+  UNIVERSITY_NOT_FOUND: 'UNIVERSITY_NOT_FOUND',
 } as const
 
 export type IdentityErrorCode =
@@ -27,6 +30,7 @@ export interface AuthenticatedUser {
   displayName: string
   role: UserRole
   status: UserStatus
+  universityId: string | null
 }
 
 export interface IdentityUserRecord {
@@ -35,6 +39,8 @@ export interface IdentityUserRecord {
   displayName: string
   role: UserRole
   status: UserStatus
+  universityId: string | null
+  universityStatus: UniversityStatus | null
   passwordHash: string
   passwordChangedAt: Date
   createdAt: Date

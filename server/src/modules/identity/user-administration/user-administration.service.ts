@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { ForbiddenException, Injectable } from '@nestjs/common'
 
 import { UserRole, UserStatus } from '../identity.roles'
 import { CourseMembershipRole } from '../../courses/interface/course-membership-role'
@@ -25,9 +25,11 @@ import {
   ManagedUserRoleChangeHasMembershipsError,
   ManagedUserNotFoundError,
   CannotDisableLastActiveAdminError,
+  CannotDisableUniversityOwnerError,
   managedUserNotFoundException,
   cannotChangeAdminRoleException,
   cannotDisableLastActiveAdminException,
+  cannotDisableUniversityOwnerException,
   cannotDisableSelfException,
   duplicateManagedUserEmailException,
   managedUserRoleChangeHasMembershipsException,
@@ -51,6 +53,10 @@ export class UserAdministrationService {
     actor: AuthenticatedUser,
     requestContext?: AuditRequestContext,
   ): Promise<CreateUserResponseDto> {
+    if (actor.universityId === null) {
+      throw new ForbiddenException('Actor must belong to a university')
+    }
+
     const email = this.authUserService.normalizeEmail(input.email)
     const existingUser =
       await this.userAdministrationRepository.findByEmail(email)
@@ -67,6 +73,7 @@ export class UserAdministrationService {
         displayName: input.displayName.trim(),
         role: input.role,
         passwordHash,
+        universityId: actor.universityId,
         actorUserId: actor.id,
         requestContext,
       })
@@ -88,6 +95,12 @@ export class UserAdministrationService {
     actor: AuthenticatedUser,
     requestContext?: AuditRequestContext,
   ): Promise<BulkCreateUsersResponseDto> {
+    if (actor.universityId === null) {
+      throw new ForbiddenException('Actor must belong to a university')
+    }
+
+    const universityId = actor.universityId
+
     const normalizedUsers = input.users.map((user) => ({
       ...user,
       email: this.authUserService.normalizeEmail(user.email),
@@ -105,6 +118,7 @@ export class UserAdministrationService {
       displayName: user.displayName.trim(),
       role: user.role,
       passwordHash: this.passwordHasherService.createHash(user.password),
+      universityId,
       actorUserId: actor.id,
       requestContext,
     }))
@@ -123,8 +137,16 @@ export class UserAdministrationService {
     }
   }
 
-  async listUsers(input: ListUsersQuery): Promise<ManagedUserListResponseDto> {
-    const page = await this.userAdministrationRepository.listUsers(input)
+  async listUsers(
+    input: ListUsersQuery,
+    actor?: AuthenticatedUser,
+  ): Promise<ManagedUserListResponseDto> {
+    const page = await this.userAdministrationRepository.listUsers({
+      ...input,
+      ...(actor?.universityId !== undefined && actor.universityId !== null
+        ? { universityId: actor.universityId }
+        : {}),
+    })
 
     return {
       users: page.users.map(mapListedUserRecord),
@@ -222,6 +244,10 @@ export class UserAdministrationService {
         requestContext,
       })
     } catch (error) {
+      if (error instanceof CannotDisableUniversityOwnerError) {
+        throw cannotDisableUniversityOwnerException()
+      }
+
       if (error instanceof CannotDisableLastActiveAdminError) {
         throw cannotDisableLastActiveAdminException()
       }

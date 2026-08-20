@@ -23,6 +23,7 @@ import type {
   ChatMessageHistoryResponseDto,
   ChatSessionListResponseDto,
   ChatSessionResponseDto,
+  ChatSessionSummaryResponseDto,
 } from '../../src/modules/conversations/interface/conversation-dto'
 import { CONVERSATION_ERROR_CODES } from '../../src/modules/conversations/interface/conversation-errors'
 import {
@@ -82,22 +83,30 @@ const HTTP_OPERATIONS = [
   'create',
   'list',
   'get',
+  'summary',
   'rename',
   'delete',
   'history',
 ] as const
 type HttpOperation = (typeof HTTP_OPERATIONS)[number]
 
-const SESSION_OPERATIONS = ['get', 'rename', 'delete', 'history'] as const
+const SESSION_OPERATIONS = [
+  'get',
+  'summary',
+  'rename',
+  'delete',
+  'history',
+] as const
 const UNASSIGNED_OPERATIONS = HTTP_OPERATIONS
 const INSTRUCTOR_OPERATIONS = HTTP_OPERATIONS
 const CROSS_COURSE_HTTP_OPERATIONS = SESSION_OPERATIONS
-const DELETED_HTTP_OPERATIONS = ['get', 'rename', 'history'] as const
+const DELETED_HTTP_OPERATIONS = ['get', 'summary', 'rename', 'history'] as const
 
 const HTTP_METHODS: Readonly<Record<HttpOperation, string>> = {
   create: 'POST',
   list: 'GET',
   get: 'GET',
+  summary: 'GET',
   rename: 'PATCH',
   delete: 'DELETE',
   history: 'GET',
@@ -371,6 +380,11 @@ describe('Student chat ownership and privacy boundaries (e2e)', () => {
           .get(resourcePath)
           .set('Authorization', authorization)
           .expect(input.expectedStatus)
+      case 'summary':
+        return request(requireApp().getHttpServer())
+          .get(`${resourcePath}/summary`)
+          .set('Authorization', authorization)
+          .expect(input.expectedStatus)
       case 'rename':
         return request(requireApp().getHttpServer())
           .patch(resourcePath)
@@ -486,6 +500,26 @@ describe('Student chat ownership and privacy boundaries (e2e)', () => {
     expect(historyResponse.body).not.toHaveProperty('messages.1.model')
     expect(historyResponse.body).not.toHaveProperty('messages.1.inputTokens')
     expect(historyResponse.body).not.toHaveProperty('messages.1.outputTokens')
+
+    const summaryResponse = await request(requireApp().getHttpServer())
+      .get(`${sessionPath()}/${created.id}/summary`)
+      .set('Authorization', `Bearer ${student1Token}`)
+      .expect(200)
+    const summary = (summaryResponse.body as ChatSessionSummaryResponseDto)
+      .summary
+
+    expect(summary).toMatchObject({
+      turnsUsed: 1,
+      turnLimit: 30,
+      turnsRemaining: 29,
+      isTurnLimitExhausted: false,
+      contextTokens: 29,
+      maxContextTokens: 258_000,
+      totalProcessedTokens: 46,
+      policyTimeZone: 'Africa/Cairo',
+    })
+    expect(summary.resetAt).toBeDefined()
+    expect(summary.policyDay).toBeDefined()
 
     await request(requireApp().getHttpServer())
       .delete(`${sessionPath()}/${created.id}`)

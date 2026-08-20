@@ -1,0 +1,94 @@
+// Subscriptions and billing schema
+
+enum SubscriptionStatus {
+  ACTIVE
+  PENDING_CANCELLATION
+  CANCELLED
+
+  @@map("subscription_status")
+}
+
+enum SubscriptionInvoiceStatus {
+  DUE
+  PAID
+
+  @@map("subscription_invoice_status")
+}
+
+model GlobalPricingConfig {
+  id                   String    @id @default("default") @db.VarChar(50)
+  defaultPricePerSeat  Float     @default(10.0) @map("default_price_per_seat")
+  nextPricePerSeat     Float?    @map("next_price_per_seat")
+  nextPriceEffectiveAt DateTime? @map("next_price_effective_at") @db.Timestamptz(6)
+  currency             String    @default("USD") @db.VarChar(10)
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("global_pricing_configs")
+}
+
+model UniversitySubscription {
+  id                         String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  universityId               String             @unique(map: "university_subscriptions_university_id_key") @map("university_id") @db.Uuid
+  customPricePerSeat         Float?             @map("custom_price_per_seat")
+  nextCustomPricePerSeat     Float?             @map("next_custom_price_per_seat")
+  nextCustomPriceEffectiveAt DateTime?          @map("next_custom_price_effective_at") @db.Timestamptz(6)
+  status                     SubscriptionStatus @default(ACTIVE)
+  cancelAtPeriodEnd          Boolean            @default(false) @map("cancel_at_period_end")
+  canceledAt                 DateTime?          @map("canceled_at") @db.Timestamptz(6)
+  cancellationEffectiveAt    DateTime?          @map("cancellation_effective_at") @db.Timestamptz(6)
+  activatedAt                DateTime           @default(now()) @map("activated_at") @db.Timestamptz(6)
+  billingSuspendedAt         DateTime?          @map("billing_suspended_at") @db.Timestamptz(6)
+  createdAt                  DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                  DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  university University @relation("UniversitySubscription", fields: [universityId], references: [id], onDelete: Cascade)
+  invoices   SubscriptionInvoice[]
+
+  @@index([status], map: "idx_university_subscriptions_status")
+  @@map("university_subscriptions")
+}
+
+model UniversityMonthlyUsage {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  universityId      String   @map("university_id") @db.Uuid
+  billingPeriod      String   @map("billing_period") @db.VarChar(21)
+  billingPeriodStart DateTime @map("billing_period_start") @db.Timestamptz(6)
+  billingPeriodEnd   DateTime @map("billing_period_end") @db.Timestamptz(6)
+  peakStudentsCount Int      @default(0) @map("peak_students_count")
+  pricePerSeat      Float    @map("price_per_seat")
+  currency          String   @db.VarChar(10)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  university University @relation("UniversityMonthlyUsage", fields: [universityId], references: [id], onDelete: Cascade)
+
+  @@unique([universityId, billingPeriod], map: "university_monthly_usage_uni_period_key")
+  @@index([universityId], map: "idx_university_monthly_usage_uni")
+  @@map("university_monthly_usages")
+}
+
+model SubscriptionInvoice {
+  id                 String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  subscriptionId     String                    @map("subscription_id") @db.Uuid
+  universityId       String                    @map("university_id") @db.Uuid
+  billingPeriodStart DateTime                  @map("billing_period_start") @db.Timestamptz(6)
+  billingPeriodEnd   DateTime                  @map("billing_period_end") @db.Timestamptz(6)
+  peakSeats          Int                       @map("peak_seats")
+  pricePerSeat       Float                     @map("price_per_seat")
+  amount             Float
+  currency           String                    @db.VarChar(10)
+  status             SubscriptionInvoiceStatus @default(DUE)
+  dueAt              DateTime                  @map("due_at") @db.Timestamptz(6)
+  gracePeriodEnd     DateTime                  @map("grace_period_end") @db.Timestamptz(6)
+  paidAt             DateTime?                 @map("paid_at") @db.Timestamptz(6)
+  createdAt          DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime                  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  subscription UniversitySubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  university   University             @relation(fields: [universityId], references: [id], onDelete: Cascade)
+
+  @@unique([universityId, billingPeriodStart], map: "subscription_invoices_uni_period_key")
+  @@index([status, gracePeriodEnd], map: "idx_subscription_invoices_status_grace")
+  @@map("subscription_invoices")
+}

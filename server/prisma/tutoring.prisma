@@ -342,23 +342,23 @@ model OutputRiskEvent {
 }
 
 model TutoringCandidateAttempt {
-  id                       String                          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  attemptId                   String                          @map("attempt_id") @db.Uuid
-  candidateAttempt         Int                             @map("candidate_attempt") @db.SmallInt
+  id                       String                             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attemptId                String                             @map("attempt_id") @db.Uuid
+  candidateAttempt         Int                                @map("candidate_attempt") @db.SmallInt
   generationOutcome        TutoringCandidateGenerationOutcome @map("generation_outcome")
-  generationFailureCode    String?                         @map("generation_failure_code") @db.VarChar(80)
-  contentHash              String?                         @map("content_hash") @db.VarChar(64)
-  provider                 String?                         @db.VarChar(80)
-  model                    String?                         @db.VarChar(200)
-  promptVersion            String?                         @map("prompt_version") @db.VarChar(80)
-  inputTokens              Int?                            @map("input_tokens")
-  outputTokens             Int?                            @map("output_tokens")
-  infrastructureRetryCount Int                             @default(0) @map("infrastructure_retry_count")
-  startedAt                DateTime                        @map("started_at") @db.Timestamptz(6)
-  completedAt              DateTime                        @map("completed_at") @db.Timestamptz(6)
-  createdAt                DateTime                        @default(now()) @map("created_at") @db.Timestamptz(6)
+  generationFailureCode    String?                            @map("generation_failure_code") @db.VarChar(80)
+  contentHash              String?                            @map("content_hash") @db.VarChar(64)
+  provider                 String?                            @db.VarChar(80)
+  model                    String?                            @db.VarChar(200)
+  promptVersion            String?                            @map("prompt_version") @db.VarChar(80)
+  inputTokens              Int?                               @map("input_tokens")
+  outputTokens             Int?                               @map("output_tokens")
+  infrastructureRetryCount Int                                @default(0) @map("infrastructure_retry_count")
+  startedAt                DateTime                           @map("started_at") @db.Timestamptz(6)
+  completedAt              DateTime                           @map("completed_at") @db.Timestamptz(6)
+  createdAt                DateTime                           @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  turn         TutoringAttempt     @relation(fields: [attemptId], references: [id], onDelete: Restrict)
+  turn         TutoringAttempt @relation(fields: [attemptId], references: [id], onDelete: Restrict)
   guardResults GuardResult[]
 
   @@unique([attemptId, candidateAttempt], map: "tutoring_candidate_attempts_attempt_key")
@@ -367,7 +367,7 @@ model TutoringCandidateAttempt {
 
 model GuardResult {
   id                      String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  attemptId                  String                 @map("attempt_id") @db.Uuid
+  attemptId               String                 @map("attempt_id") @db.Uuid
   candidateAttempt        Int                    @map("candidate_attempt") @db.SmallInt
   validationStage         GuardValidationStage   @map("validation_stage")
   approved                Boolean
@@ -390,7 +390,7 @@ model GuardResult {
 
 model EducationalAnalysis {
   id                                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  attemptId                             String             @map("attempt_id") @db.Uuid
+  attemptId                          String             @map("attempt_id") @db.Uuid
   topicId                            String             @map("topic_id") @db.Uuid
   studentMessageId                   String             @map("student_message_id") @db.Uuid
   attempt                            Int                @default(1)
@@ -423,7 +423,7 @@ model EducationalAnalysis {
   infrastructureRetryCount           Int                @default(0) @map("infrastructure_retry_count")
   createdAt                          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  turn              TutoringAttempt                          @relation(fields: [attemptId], references: [id], onDelete: Restrict)
+  turn             TutoringAttempt                    @relation(fields: [attemptId], references: [id], onDelete: Restrict)
   topic            Topic                              @relation(fields: [topicId], references: [id], onDelete: Restrict)
   studentMessage   Message                            @relation("EducationalAnalysisStudentMessage", fields: [studentMessageId], references: [id], onDelete: Restrict)
   evidenceLinks    EducationalAnalysisEvidenceLink[]
@@ -437,24 +437,24 @@ model EducationalAnalysis {
 }
 
 model TeachingDecision {
-  id                   String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  attemptId               String             @unique(map: "teaching_decisions_attempt_id_key") @map("attempt_id") @db.Uuid
-  topicId              String             @map("topic_id") @db.Uuid
-  analysisId           String             @unique(map: "teaching_decisions_analysis_id_key") @map("analysis_id") @db.Uuid
+  id                   String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attemptId            String               @unique(map: "teaching_decisions_attempt_id_key") @map("attempt_id") @db.Uuid
+  topicId              String               @map("topic_id") @db.Uuid
+  analysisId           String               @unique(map: "teaching_decisions_analysis_id_key") @map("analysis_id") @db.Uuid
   strategy             TeachingStrategy
-  primaryTechnique     TeachingTechnique  @map("primary_technique")
-  supportingTechnique  TeachingTechnique? @map("supporting_technique")
-  guidanceLevel        Int                @map("guidance_level") @db.SmallInt
-  revealPolicy         RevealPolicy       @map("reveal_policy")
-  reflectionMode       ReflectionMode     @map("reflection_mode")
-  requireStudentAction Boolean            @map("require_student_action")
+  primaryTechnique     TeachingTechnique    @map("primary_technique")
+  supportingTechnique  TeachingTechnique?   @map("supporting_technique")
+  guidanceLevel        Int                  @map("guidance_level") @db.SmallInt
+  revealPolicy         RevealPolicy         @map("reveal_policy")
+  reflectionMode       ReflectionMode       @map("reflection_mode")
+  requireStudentAction Boolean              @map("require_student_action")
   studentActionPurpose StudentActionPurpose @map("student_action_purpose")
-  guardPolicy          Json               @map("guard_policy")
-  decisionReason       String             @map("decision_reason") @db.VarChar(240)
-  policyVersion        String             @map("policy_version") @db.VarChar(80)
-  createdAt            DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  guardPolicy          Json                 @map("guard_policy")
+  decisionReason       String               @map("decision_reason") @db.VarChar(240)
+  policyVersion        String               @map("policy_version") @db.VarChar(80)
+  createdAt            DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  turn     TutoringAttempt           @relation(fields: [attemptId], references: [id], onDelete: Restrict)
+  turn     TutoringAttempt     @relation(fields: [attemptId], references: [id], onDelete: Restrict)
   topic    Topic               @relation(fields: [topicId], references: [id], onDelete: Restrict)
   analysis EducationalAnalysis @relation(fields: [analysisId], references: [id], onDelete: Restrict)
 
@@ -464,32 +464,32 @@ model TeachingDecision {
 }
 
 model DebuggingDiagnosis {
-  id                     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tutoringAttemptId      String   @unique(map: "debugging_diagnoses_attempt_id_key") @map("tutoring_attempt_id") @db.Uuid
-  schemaVersion          String   @map("schema_version") @db.VarChar(80)
-  status                 String   @db.VarChar(20)
-  source                 String   @db.VarChar(20)
-  language               String?  @db.VarChar(80)
-  category               String   @db.VarChar(40)
-  confidence             String   @db.VarChar(20)
-  likelyDefect           String?  @map("likely_defect") @db.Text
-  locationMessageId      String   @map("location_message_id") @db.Uuid
-  lineStart              Int?     @map("line_start")
-  lineEnd                Int?     @map("line_end")
-  locationKind           String   @map("location_kind") @db.VarChar(20)
-  evidence               Json
-  underlyingConcept      String?  @map("underlying_concept") @db.Text
-  requiresRuntimeEvidence Boolean @map("requires_runtime_evidence")
-  runtimeEvidenceNeeded  String   @map("runtime_evidence_needed") @db.VarChar(40)
-  inspectionGoal         String   @map("inspection_goal") @db.Text
-  fallbackReason         String?  @map("fallback_reason") @db.VarChar(80)
-  provider               String?  @db.VarChar(80)
-  model                  String?  @db.VarChar(200)
-  promptVersion          String?  @map("prompt_version") @db.VarChar(80)
-  inputTokens            Int?     @map("input_tokens")
-  outputTokens           Int?     @map("output_tokens")
-  infrastructureRetryCount Int    @default(0) @map("infrastructure_retry_count")
-  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  id                       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tutoringAttemptId        String   @unique(map: "debugging_diagnoses_attempt_id_key") @map("tutoring_attempt_id") @db.Uuid
+  schemaVersion            String   @map("schema_version") @db.VarChar(80)
+  status                   String   @db.VarChar(20)
+  source                   String   @db.VarChar(20)
+  language                 String?  @db.VarChar(80)
+  category                 String   @db.VarChar(40)
+  confidence               String   @db.VarChar(20)
+  likelyDefect             String?  @map("likely_defect") @db.Text
+  locationMessageId        String   @map("location_message_id") @db.Uuid
+  lineStart                Int?     @map("line_start")
+  lineEnd                  Int?     @map("line_end")
+  locationKind             String   @map("location_kind") @db.VarChar(20)
+  evidence                 Json
+  underlyingConcept        String?  @map("underlying_concept") @db.Text
+  requiresRuntimeEvidence  Boolean  @map("requires_runtime_evidence")
+  runtimeEvidenceNeeded    String   @map("runtime_evidence_needed") @db.VarChar(40)
+  inspectionGoal           String   @map("inspection_goal") @db.Text
+  fallbackReason           String?  @map("fallback_reason") @db.VarChar(80)
+  provider                 String?  @db.VarChar(80)
+  model                    String?  @db.VarChar(200)
+  promptVersion            String?  @map("prompt_version") @db.VarChar(80)
+  inputTokens              Int?     @map("input_tokens")
+  outputTokens             Int?     @map("output_tokens")
+  infrastructureRetryCount Int      @default(0) @map("infrastructure_retry_count")
+  createdAt                DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   turn TutoringAttempt @relation(fields: [tutoringAttemptId], references: [id], onDelete: Restrict)
 
@@ -540,4 +540,3 @@ model StudentTutoringPreference {
 
   @@map("student_tutoring_preferences")
 }
-

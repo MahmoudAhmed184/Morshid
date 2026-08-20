@@ -32,6 +32,7 @@ const baseUser: AuthenticatedUser = {
   displayName: 'Test User',
   role: 'STUDENT',
   status: 'ACTIVE',
+  universityId: 'univ-1',
 }
 
 function buildUser(role: UserRole): AuthenticatedUser {

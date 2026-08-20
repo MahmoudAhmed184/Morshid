@@ -8,6 +8,11 @@ import { createDeterministicArgon2idPasswordHash } from '../modules/identity/pas
 
 export const P0_DEMO_PASSWORD = 'MorshidDemoP0!'
 
+export const P0_DEMO_UNIVERSITY = {
+  name: 'Morshid Demo University',
+  code: 'MORSHID-DEMO',
+} as const
+
 export const P0_DEMO_COURSE = {
   code: 'PYTHON-PROG-P0',
   title: 'Python Programming',
@@ -27,6 +32,7 @@ export const P0_STUDENT_MEMBERSHIP_ROLE =
   'STUDENT' satisfies CourseMembershipRole
 
 const P0_DEMO_USER_KEYS = {
+  superAdmin: 'superAdmin',
   admin: 'admin',
   instructor: 'instructor',
   student1: 'student1',
@@ -46,6 +52,14 @@ interface P0DemoUserDefinition {
 }
 
 export const P0_DEMO_USERS = [
+  {
+    key: P0_DEMO_USER_KEYS.superAdmin,
+    email: 'superadmin@morshid.demo',
+    displayName: 'P0 Demo Super Admin',
+    role: 'SUPER_ADMIN' satisfies UserRole,
+    passwordSalt: 'morshid-p0-demo-super-admin',
+    pythonMembershipRole: null,
+  },
   {
     key: P0_DEMO_USER_KEYS.admin,
     email: 'admin@morshid.demo',
@@ -90,7 +104,7 @@ export const P0_DEMO_USERS = [
 
 export type P0DemoSeedTransaction = Pick<
   Prisma.TransactionClient,
-  'course' | 'courseMembership' | 'user'
+  'course' | 'courseMembership' | 'user' | 'university'
 >
 
 export interface P0DemoSeedClient {
@@ -98,6 +112,11 @@ export interface P0DemoSeedClient {
     fn: (tx: P0DemoSeedTransaction) => Promise<T>,
     options?: { timeout?: number },
   ): Promise<T>
+}
+
+interface SeededUniversity {
+  id: string
+  code: string
 }
 
 interface SeededUser {
@@ -111,6 +130,7 @@ interface SeededCourse {
 }
 
 export interface P0DemoSeedResult {
+  university: SeededUniversity
   users: SeededUser[]
   courses: {
     pythonProgramming: SeededCourse
@@ -133,6 +153,23 @@ export async function seedP0DemoData(
 async function seedP0DemoDataInTransaction(
   tx: P0DemoSeedTransaction,
 ): Promise<P0DemoSeedResult> {
+  // 1. Create or upsert university with ownerId temporarily null
+  const university = await tx.university.upsert({
+    where: {
+      code: P0_DEMO_UNIVERSITY.code,
+    },
+    update: {
+      name: P0_DEMO_UNIVERSITY.name,
+      status: 'ACTIVE',
+    },
+    create: {
+      name: P0_DEMO_UNIVERSITY.name,
+      code: P0_DEMO_UNIVERSITY.code,
+      status: 'ACTIVE',
+      ownerId: null,
+    },
+  })
+
   const users = []
   const usersByKey = new Map<P0DemoUserKey, SeededUser>()
   const pythonMemberships: {
@@ -142,6 +179,9 @@ async function seedP0DemoDataInTransaction(
 
   for (const seedUser of P0_DEMO_USERS) {
     const passwordHash = createP0DemoPasswordHash(seedUser.passwordSalt)
+    const isSuperAdmin = seedUser.role === 'SUPER_ADMIN'
+    const targetUniversityId = isSuperAdmin ? null : university.id
+
     const user = await tx.user.upsert({
       where: {
         email: seedUser.email,
@@ -150,6 +190,7 @@ async function seedP0DemoDataInTransaction(
         displayName: seedUser.displayName,
         role: seedUser.role,
         status: P0_ACTIVE_USER_STATUS,
+        universityId: targetUniversityId,
         passwordHash,
         disabledAt: null,
         disabledById: null,
@@ -160,6 +201,7 @@ async function seedP0DemoDataInTransaction(
         displayName: seedUser.displayName,
         role: seedUser.role,
         status: P0_ACTIVE_USER_STATUS,
+        universityId: targetUniversityId,
         passwordHash,
       },
     })
@@ -181,16 +223,28 @@ async function seedP0DemoDataInTransaction(
     P0_DEMO_USER_KEYS.instructor,
   )
 
+  // 2. Set university.ownerId = adminUser.id
+  await tx.university.update({
+    where: {
+      id: university.id,
+    },
+    data: {
+      ownerId: adminUser.id,
+    },
+  })
+
   const pythonProgramming = await upsertSeedCourse(
     tx,
     P0_DEMO_COURSE,
     instructorUser.id,
+    university.id,
   )
 
   const hiddenIsolation = await upsertSeedCourse(
     tx,
     P0_HIDDEN_ISOLATION_COURSE,
     null,
+    university.id,
   )
 
   await tx.course.updateMany({
@@ -246,6 +300,10 @@ async function seedP0DemoDataInTransaction(
   }
 
   return {
+    university: {
+      id: university.id,
+      code: university.code,
+    },
     users,
     courses: {
       pythonProgramming,
@@ -271,6 +329,7 @@ async function upsertSeedCourse(
   tx: P0DemoSeedTransaction,
   course: typeof P0_DEMO_COURSE | typeof P0_HIDDEN_ISOLATION_COURSE,
   createdById: string | null,
+  universityId: string,
 ) {
   return tx.course.upsert({
     where: {
@@ -279,11 +338,13 @@ async function upsertSeedCourse(
     update: {
       title: course.title,
       createdById,
+      universityId,
     },
     create: {
       code: course.code,
       title: course.title,
       createdById,
+      universityId,
     },
   })
 }

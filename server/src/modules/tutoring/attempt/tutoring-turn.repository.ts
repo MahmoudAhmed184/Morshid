@@ -38,6 +38,7 @@ import {
 } from '../../reviews/interface/review-case-intake'
 import { currentDatabaseTime } from '../../../platform/database/database-clock'
 import type { ChatMessageRecord } from '../../conversations/interface/conversation-records'
+import { AllowancesResolver } from '../../allowances/interface/allowances-resolver'
 import {
   validateTopicStateTransition,
   type TopicStateTransition,
@@ -48,6 +49,7 @@ import {
   GROUNDING_ATTEMPT_EXPIRED,
   GROUNDING_ATTEMPT_LEASE_MS,
   GROUNDING_FAILED_CONTENT,
+  MAX_CONVERSATION_TURNS,
 } from './tutoring.constants'
 
 const MAX_TRANSACTION_ATTEMPTS = 3
@@ -177,6 +179,8 @@ export type BeginTutoringTurnResult =
   | { kind: 'session_not_found' }
   | { kind: 'idempotency_conflict' }
   | { kind: 'turn_in_progress' }
+  | { kind: 'allowance_exhausted' }
+  | { kind: 'conversation_turns_exhausted' }
 
 export type RetryTutoringTurnResult =
   | {
@@ -280,6 +284,7 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
     private readonly conversationMessages: ConversationMessageReader,
     private readonly reviewCaseIntake: ReviewCaseIntake,
     private readonly auditService: AuditService,
+    private readonly allowancesResolver: AllowancesResolver,
   ) {
     super()
   }
@@ -360,6 +365,59 @@ export class PrismaTutoringTurnRepository extends TutoringTurnRepository {
             replayedStudent.content !== input.content
             ? { kind: 'idempotency_conflict' as const }
             : { kind: 'turn_in_progress' as const }
+        }
+
+        const policyDayWindow =
+          this.allowancesResolver.resolvePolicyDayWindow(now)
+        await tx.$queryRaw`
+          SELECT pg_advisory_xact_lock(
+            hashtextextended(${`${input.studentId}:${session.courseId}:tutoring-allowance:${policyDayWindow.start.toISOString()}`}, 0)
+          ) IS NULL AS locked
+        `
+        const limit =
+          await this.allowancesResolver.resolveEffectiveTutoringLimit(
+            session.courseId,
+            asDatabaseTransaction(tx),
+          )
+        if (limit <= 0) {
+          return { kind: 'allowance_exhausted' as const }
+        }
+        const resetCutoff =
+          await this.allowancesResolver.resolveLatestResetCutoff(
+            {
+              studentId: input.studentId,
+              courseId: session.courseId,
+              allowanceType: 'TUTORING',
+              policyDayStart: policyDayWindow.start,
+            },
+            asDatabaseTransaction(tx),
+          )
+        const fromDate =
+          resetCutoff && resetCutoff > policyDayWindow.start
+            ? resetCutoff
+            : policyDayWindow.start
+        const [usage] = await tx.$queryRaw<{ count: bigint }[]>`
+          SELECT COUNT(*)::bigint AS count
+          FROM "messages" m
+          JOIN "chat_sessions" s ON m."session_id" = s."id"
+          WHERE m."role" = 'STUDENT'
+            AND m."author_user_id" = ${input.studentId}::uuid
+            AND s."course_id" = ${session.courseId}::uuid
+            AND m."created_at" >= ${fromDate}
+            AND m."created_at" < ${policyDayWindow.end}
+        `
+        if (Number(usage.count) >= limit) {
+          return { kind: 'allowance_exhausted' as const }
+        }
+
+        const [sessionTurns] = await tx.$queryRaw<{ count: bigint }[]>`
+          SELECT COUNT(*)::bigint AS count
+          FROM "messages"
+          WHERE "session_id" = ${session.id}::uuid
+            AND "role" = 'STUDENT'
+        `
+        if (Number(sessionTurns.count) >= MAX_CONVERSATION_TURNS) {
+          return { kind: 'conversation_turns_exhausted' as const }
         }
 
         const studentPreference = await tx.studentTutoringPreference.findUnique(

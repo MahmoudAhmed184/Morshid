@@ -2,6 +2,7 @@ import {
   type GeminiChatProjectPoolPort,
   GeminiChatProjectPoolUnavailableError,
   type GeminiChatProjectSelection,
+  type GeminiChatPoolSnapshot,
 } from './gemini-chat-project-pool'
 import {
   createGeminiPooledFetch,
@@ -24,33 +25,36 @@ const secondProject = Object.freeze({
 })
 
 describe('createGeminiPooledFetch', () => {
-  it('removes unsupported sampling parameters for gemini-3.6-flash', async () => {
-    const pool = new FakePool([{ kind: 'selected', project: firstProject }])
-    const upstream = jest.fn<
-      Promise<Response>,
-      [string | URL | Request, RequestInit?]
-    >(() => Promise.resolve(new Response('ok', { status: 200 })))
-    const body = JSON.stringify({
-      model: 'gemini-3.6-flash',
-      messages: [{ role: 'user', content: 'hello' }],
-      temperature: 0,
-      top_p: 1,
-      max_completion_tokens: 256,
-      response_format: { type: 'json_object' },
-    })
+  it.each(['gemini-3.6-flash', 'gemini-3.7-flash'])(
+    'removes unsupported sampling parameters for %s',
+    async (model) => {
+      const pool = new FakePool([{ kind: 'selected', project: firstProject }])
+      const upstream = jest.fn<
+        Promise<Response>,
+        [string | URL | Request, RequestInit?]
+      >(() => Promise.resolve(new Response('ok', { status: 200 })))
+      const body = JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: 'hello' }],
+        temperature: 0,
+        top_p: 1,
+        max_completion_tokens: 256,
+        response_format: { type: 'json_object' },
+      })
 
-    await createGeminiPooledFetch(pool, upstream)(
-      `${geminiBaseUrl}/chat/completions`,
-      { method: 'POST', body },
-    )
+      await createGeminiPooledFetch(pool, upstream)(
+        `${geminiBaseUrl}/chat/completions`,
+        { method: 'POST', body },
+      )
 
-    expect(readJsonBody(upstream.mock.calls[0]?.[1])).toEqual({
-      model: 'gemini-3.6-flash',
-      messages: [{ role: 'user', content: 'hello' }],
-      max_completion_tokens: 256,
-      response_format: { type: 'json_object' },
-    })
-  })
+      expect(readJsonBody(upstream.mock.calls[0]?.[1])).toEqual({
+        model,
+        messages: [{ role: 'user', content: 'hello' }],
+        max_completion_tokens: 256,
+        response_format: { type: 'json_object' },
+      })
+    },
+  )
 
   it('preserves sampling parameters for the unchanged Gemini 3.5 analysis model', async () => {
     const pool = new FakePool([{ kind: 'selected', project: firstProject }])
@@ -165,6 +169,14 @@ describe('createGeminiPooledFetch', () => {
       size: 1,
       select: () => Promise.reject(new GeminiChatProjectPoolUnavailableError()),
       markRateLimited: () => Promise.resolve(1),
+      snapshot: () =>
+        Promise.resolve({
+          totalProjects: 1,
+          availableProjects: 1,
+          cooledDownProjects: 0,
+          cooldownDetails: [],
+          status: 'Ready',
+        }),
     }
 
     await expect(
@@ -256,5 +268,15 @@ class FakePool implements GeminiChatProjectPoolPort {
   markRateLimited(projectId: string, providerDelayMs: number): Promise<number> {
     this.marked.push({ projectId, providerDelayMs })
     return Promise.resolve(this.cooldowns.shift() ?? 1)
+  }
+
+  snapshot(): Promise<GeminiChatPoolSnapshot> {
+    return Promise.resolve({
+      totalProjects: this.size,
+      availableProjects: this.size,
+      cooledDownProjects: 0,
+      cooldownDetails: [],
+      status: 'Ready',
+    })
   }
 }

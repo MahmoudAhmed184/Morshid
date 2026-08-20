@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MaterialUploadForm } from './material-upload-form'
+import { ApiError } from '@/features/auth/session/interface/authenticated-api-client'
 
 const mutateAsync = vi.hoisted(() => vi.fn())
 
@@ -151,6 +152,32 @@ describe('MaterialUploadForm', () => {
     expect(screen.getByRole('heading', { name: 'Upload Failed' })).toBeVisible()
   })
 
+  it('shows a friendly message for duplicate PDFs', async () => {
+    const user = userEvent.setup()
+    mutateAsync.mockRejectedValue(
+      new ApiError('Duplicate material', 409, 'MATERIALS_DUPLICATE_PDF'),
+    )
+    const file = new File(['course'], 'duplicate.pdf', {
+      type: 'application/pdf',
+    })
+
+    render(
+      <MaterialUploadForm
+        courseId="4c530c42-67bf-4cbe-a6f3-2c662564ddd1"
+        configuration={configuration}
+      />,
+    )
+
+    await user.upload(screen.getByLabelText('PDF file'), file)
+    await user.click(screen.getByRole('button', { name: 'Upload PDF' }))
+
+    expect(
+      await screen.findByText(
+        'This PDF has already been uploaded to this course.',
+      ),
+    ).toBeVisible()
+  })
+
   it('allows the instructor to explicitly specify and change the target course', async () => {
     const user = userEvent.setup()
     mutateAsync.mockResolvedValueOnce({
@@ -190,5 +217,31 @@ describe('MaterialUploadForm', () => {
         file,
       })
     })
+  })
+
+  it('updates the preselected course when defaultCourseId changes', async () => {
+    const { rerender } = render(
+      <MaterialUploadForm
+        courses={courses}
+        defaultCourseId={courses[0].id}
+        configuration={configuration}
+      />,
+    )
+
+    expect(screen.getByRole('combobox', { name: 'Course' })).toHaveTextContent(
+      `${courses[0].code} — ${courses[0].title}`,
+    )
+
+    rerender(
+      <MaterialUploadForm
+        courses={courses}
+        defaultCourseId={courses[1].id}
+        configuration={configuration}
+      />,
+    )
+
+    expect(screen.getByRole('combobox', { name: 'Course' })).toHaveTextContent(
+      `${courses[1].code} — ${courses[1].title}`,
+    )
   })
 })

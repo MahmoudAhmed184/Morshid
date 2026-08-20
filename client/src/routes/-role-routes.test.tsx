@@ -94,4 +94,97 @@ describe('role route boundaries', () => {
 
     await expect(loadRoute('/admin')).resolves.toBe('/chat')
   })
+
+  it('redirects a student away from the super-admin route tree', async () => {
+    const session = createSession('STUDENT')
+    useAuthStore.getState().setSession(session)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ user: session.user })),
+    )
+
+    await expect(loadRoute('/super-admin')).resolves.toBe('/chat')
+    await expect(loadRoute('/super-admin/universities')).resolves.toBe('/chat')
+    await expect(loadRoute('/super-admin/subscriptions')).resolves.toBe('/chat')
+  })
+
+  it('redirects an instructor away from the super-admin route tree', async () => {
+    const session = createSession('INSTRUCTOR')
+    useAuthStore.getState().setSession(session)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ user: session.user })),
+    )
+
+    await expect(loadRoute('/super-admin')).resolves.toBe('/instructor')
+    await expect(loadRoute('/super-admin/universities')).resolves.toBe(
+      '/instructor',
+    )
+    await expect(loadRoute('/super-admin/subscriptions')).resolves.toBe(
+      '/instructor',
+    )
+  })
+
+  it('redirects an admin away from the super-admin route tree', async () => {
+    const session = createSession('ADMIN')
+    useAuthStore.getState().setSession(session)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ user: session.user })),
+    )
+
+    await expect(loadRoute('/super-admin')).resolves.toBe('/admin')
+    await expect(loadRoute('/super-admin/universities')).resolves.toBe('/admin')
+    await expect(loadRoute('/super-admin/subscriptions')).resolves.toBe(
+      '/admin',
+    )
+  })
+
+  it('allows a super-admin on the super-admin route tree and redirects away from student tree', async () => {
+    const session = createSession('SUPER_ADMIN')
+    useAuthStore.getState().setSession(session)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.includes('/api/v1/subscriptions/global-pricing')) {
+          return Response.json({
+            defaultPricePerSeat: 10.0,
+            currency: 'USD',
+            updatedAt: '2026-08-01T00:00:00.000Z',
+          })
+        }
+        if (url.includes('/api/v1/subscriptions')) {
+          return Response.json({
+            data: [],
+            pagination: { page: 1, limit: 20, totalCount: 0, totalPages: 0 },
+            summary: {
+              totalSubscribedUniversities: 0,
+              totalActiveStudents: 0,
+              totalPeakStudents: 0,
+              totalEstimatedRevenue: 0,
+              defaultPricePerSeat: 10.0,
+              currency: 'USD',
+            },
+          })
+        }
+        if (url.includes('/api/v1/universities')) {
+          return Response.json({
+            data: [],
+            pagination: { page: 1, limit: 20, totalCount: 0, totalPages: 0 },
+          })
+        }
+        return Response.json({ user: session.user })
+      }),
+    )
+
+    await expect(loadRoute('/super-admin')).resolves.toBe('/super-admin')
+    await expect(loadRoute('/super-admin/universities')).resolves.toBe(
+      '/super-admin/universities',
+    )
+    await expect(loadRoute('/super-admin/subscriptions')).resolves.toBe(
+      '/super-admin/subscriptions',
+    )
+    await expect(loadRoute('/chat')).resolves.toBe('/super-admin')
+  })
 })
