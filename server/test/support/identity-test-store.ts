@@ -384,8 +384,10 @@ interface UpdateManyMaterialArgs {
     id?: string
     courseId?: string
     deletedAt?: Date | null
+    status?: Material['status']
+    processingAttemptId?: string | null
   }
-  data: Partial<Pick<Material, 'title'>>
+  data: Partial<Material>
 }
 
 interface CreateMaterialArgs {
@@ -1660,8 +1662,19 @@ export class IdentityTestStore {
         (args.where.deletedAt === null
           ? material.deletedAt === null
           : material.deletedAt?.getTime() === args.where.deletedAt.getTime())
+      const matchesStatus =
+        args.where.status === undefined || material.status === args.where.status
+      const matchesProcessingAttempt =
+        args.where.processingAttemptId === undefined ||
+        material.processingAttemptId === args.where.processingAttemptId
 
-      return matchesId && matchesCourse && matchesDeletedAt
+      return (
+        matchesId &&
+        matchesCourse &&
+        matchesDeletedAt &&
+        matchesStatus &&
+        matchesProcessingAttempt
+      )
     })
 
     for (const material of matches) {

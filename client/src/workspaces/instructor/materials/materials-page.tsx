@@ -33,6 +33,7 @@ import {
   useCourseMaterials,
   useDeleteCourseMaterial,
   useMaterialUploadConfiguration,
+  useRetryCourseMaterialProcessing,
 } from '@/workspaces/instructor/materials/use-materials'
 import type { Material } from '@/features/materials/material-ingestion/material.schema'
 
@@ -61,6 +62,7 @@ export function MaterialsPage() {
 
   const materialsQuery = useCourseMaterials(activeCourseId)
   const deleteMutation = useDeleteCourseMaterial()
+  const retryMutation = useRetryCourseMaterialProcessing()
   const materials =
     materialsQuery.data?.pages.flatMap((page) => page.materials) ?? []
   const normalizedSearch = search.trim().toLowerCase()
@@ -213,6 +215,34 @@ export function MaterialsPage() {
                     })
                 : undefined
             }
+            retryingMaterialId={
+              retryMutation.isPending
+                ? retryMutation.variables.materialId
+                : undefined
+            }
+            retryError={
+              retryMutation.isError
+                ? retryMutation.error instanceof Error
+                  ? retryMutation.error.message
+                  : 'Material processing could not be retried.'
+                : null
+            }
+            failedRetryMaterialId={
+              retryMutation.isError
+                ? retryMutation.variables.materialId
+                : undefined
+            }
+            onRetryProcessing={
+              activeCourseId
+                ? (materialId) => {
+                    if (retryMutation.isPending) return
+                    retryMutation.mutate({
+                      courseId: activeCourseId,
+                      materialId,
+                    })
+                  }
+                : undefined
+            }
             onRetry={() => {
               if (coursesQuery.isError) {
                 void coursesQuery.refetch()
@@ -339,6 +369,10 @@ function MaterialsContent({
   isFetchingNextPage,
   onFetchNextPage,
   onDelete,
+  onRetryProcessing,
+  retryingMaterialId,
+  failedRetryMaterialId,
+  retryError,
   onRetry,
 }: {
   isLoading: boolean
@@ -352,6 +386,10 @@ function MaterialsContent({
   isFetchingNextPage?: boolean
   onFetchNextPage?: () => void
   onDelete?: (materialId: string) => Promise<void>
+  onRetryProcessing?: (materialId: string) => void
+  retryingMaterialId?: string
+  failedRetryMaterialId?: string
+  retryError: string | null
   onRetry: () => void
 }) {
   if (isLoading) {
@@ -423,6 +461,15 @@ function MaterialsContent({
             key={material.id}
             material={material}
             onDelete={onDelete ? () => onDelete(material.id) : undefined}
+            onRetry={
+              onRetryProcessing
+                ? () => onRetryProcessing(material.id)
+                : undefined
+            }
+            isRetrying={retryingMaterialId === material.id}
+            retryError={
+              failedRetryMaterialId === material.id ? retryError : null
+            }
           />
         ))}
       </div>

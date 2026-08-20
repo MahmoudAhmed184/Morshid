@@ -1,9 +1,15 @@
 import { useState } from 'react'
+import { Loader2, RotateCcw, Trash2 } from 'lucide-react'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/custom/confirm-dialog'
 import { StatusBadge } from '@/components/ui/custom/status-badge'
-import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import type { Material } from '@/features/materials/material-ingestion/material.schema'
 import { PdfCard } from '@/workspaces/instructor/materials/pdf-card'
 
@@ -47,13 +53,20 @@ export function MaterialStatusBadge({
 export function MaterialCard({
   material,
   onDelete,
+  onRetry,
+  isRetrying = false,
+  retryError,
 }: {
   material: Material
   onDelete?: () => Promise<void>
+  onRetry?: () => void
+  isRetrying?: boolean
+  retryError?: string | null
 }) {
   const statusMessage = getMaterialStatusMessage(material)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const canDelete = material.canDelete !== false && onDelete !== undefined
+  const canRetry = material.status === 'FAILED' && onRetry !== undefined
 
   return (
     <>
@@ -87,22 +100,66 @@ export function MaterialCard({
           </dl>
         }
         message={
-          statusMessage ? (
+          statusMessage || retryError ? (
             <Alert
               variant={material.status === 'FAILED' ? 'destructive' : 'default'}
             >
-              <AlertDescription>{statusMessage}</AlertDescription>
+              <AlertDescription>{retryError ?? statusMessage}</AlertDescription>
             </Alert>
           ) : null
         }
         actions={
-          canDelete ? (
-            <DropdownMenuItem
-              variant="destructive"
-              onClick={() => setDeleteOpen(true)}
-            >
-              Delete material
-            </DropdownMenuItem>
+          canRetry || canDelete ? (
+            <>
+              {canRetry ? (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        disabled={isRetrying}
+                        onClick={onRetry}
+                        aria-label={
+                          isRetrying
+                            ? 'Retrying material processing'
+                            : 'Retry material processing'
+                        }
+                      />
+                    }
+                  >
+                    {isRetrying ? (
+                      <Loader2 className="animate-spin" aria-hidden />
+                    ) : (
+                      <RotateCcw aria-hidden />
+                    )}
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {isRetrying ? 'Retrying processing...' : 'Retry processing'}
+                  </TooltipContent>
+                </Tooltip>
+              ) : null}
+              {canDelete ? (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => setDeleteOpen(true)}
+                        aria-label="Delete material"
+                      />
+                    }
+                  >
+                    <Trash2 aria-hidden />
+                  </TooltipTrigger>
+                  <TooltipContent>Delete material</TooltipContent>
+                </Tooltip>
+              ) : null}
+            </>
           ) : null
         }
       />
